@@ -97,3 +97,15 @@ screenshots in `docs/screenshots/`.
   workflow); relayed its snapshot-script requirements to backend.
 - 2026-10-02: user asked for audit trails; created docs/process/ (this
   folder) and asked every agent to log its process.
+- 2026-10-02: first research agent stopped on an API error before writing
+  any files; relaunched with a narrower brief (also covers CORS for the static
+  build). Its restart prompt is appended to prompts/research.md.
+- 2026-10-02: user asked for GitHub Pages deployment. Plan: the static build
+  in dist/ (scripts/build-static.js), with public/api.js switching between
+  server mode and static mode. Static mode tries a live browser fetch first,
+  then the bundled snapshot, then demo data. Deployed by
+  .github/workflows/pages.yml. Assigned to devops; UX asked to use relative
+  URLs and route fetches through api.js.
+- 2026-10-02: viz finished (chart, map, palette, process log, screenshot
+  script). Relayed integration notes to UX: resetColors on company switch,
+  map fit only on company change, fixed-height chart container.

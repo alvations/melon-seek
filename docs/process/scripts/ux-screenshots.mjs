@@ -1,0 +1,91 @@
+// UX screenshot + smoke script for melon-seek.
+// Usage: PW_DIR=<dir with node_modules/playwright-core> BASE=http://localhost:5180 OUT=<dir> node ux-screenshots.mjs
+// Uses the preinstalled Chromium under /opt/pw-browsers (never runs `playwright install`).
+import { createRequire } from 'node:module';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const PW_DIR = process.env.PW_DIR || process.cwd();
+const require = createRequire(path.join(PW_DIR, 'noop.js'));
+const { chromium } = require('playwright-core');
+const BASE = process.env.BASE || 'http://localhost:5180';
+const QS = process.env.QS ?? '?mock=1';
+const OUT = process.env.OUT || 'shots';
+fs.mkdirSync(OUT, { recursive: true });
+const exe = fs.readdirSync('/opt/pw-browsers').filter((d) => /^chromium-\d+$/.test(d)).map((d) => `/opt/pw-browsers/${d}/chrome-linux/chrome`)[0];
+
+const browser = await chromium.launch({ executablePath: exe });
+const errors = [];
+async function page(opts) {
+  const ctx = await browser.newContext(opts);
+  const p = await ctx.newPage();
+  p.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+  p.on('console', (m) => { if (m.type() === 'error' && !/tile|Failed to load resource/i.test(m.text())) errors.push(`console: ${m.text()}`); });
+  await p.route(/tile\.openstreetmap|basemaps|cartocdn|arcgis/, (r) => r.abort());
+  return p;
+}
+const ready = (p) => p.waitForSelector('.card[data-id]', { timeout: 15000 });
+const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`) });
+
+// Desktop chart
+let p = await page({ viewport: { width: 1440, height: 900 }, colorScheme: 'light' });
+await p.goto(`${BASE}/${QS}#c=anthropic`);
+await ready(p); await p.waitForTimeout(600);
+await shot(p, 'desktop-chart');
+// Quick filter popover
+await p.click('[data-pop="salary"]'); await p.waitForTimeout(250);
+await shot(p, 'desktop-popover-salary');
+await p.keyboard.press('Escape');
+// Keyword + dept filter via left column, then drawer
+await p.click('.fsec .kw >> nth=0');
+await p.waitForTimeout(250);
+await p.click('.card[data-id] >> nth=0');
+await p.waitForSelector('.drawer.is-open'); await p.waitForTimeout(400);
+await shot(p, 'desktop-drawer');
+const pwned = await p.evaluate(() => window.__pwned === true);
+if (pwned) errors.push('SECURITY: description script executed');
+const hash = await p.evaluate(() => location.hash);
+await p.keyboard.press('Escape'); await p.waitForTimeout(300);
+// Back/forward
+await p.goBack(); await p.waitForTimeout(300);
+const hashBack = await p.evaluate(() => location.hash);
+// Map mode
+await p.goto(`${BASE}/${QS}#c=anthropic&m=map`);
+await ready(p); await p.waitForTimeout(1200);
+await shot(p, 'desktop-map');
+// Demo-mode company
+await p.goto(`${BASE}/${QS}#c=openai`);
+await ready(p); await p.waitForTimeout(600);
+await shot(p, 'desktop-demo');
+// Empty state
+await p.goto(`${BASE}/${QS}#c=anthropic&q=zzzznotfound`);
+await p.waitForSelector('.list-empty'); await p.waitForTimeout(400);
+await shot(p, 'desktop-empty');
+await p.close();
+
+// Dark
+p = await page({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark' });
+await p.goto(`${BASE}/${QS}#c=anthropic&g=department`);
+await ready(p); await p.waitForTimeout(600);
+await shot(p, 'desktop-dark');
+await p.click('.card[data-id] >> nth=2'); await p.waitForTimeout(400);
+await shot(p, 'desktop-dark-drawer');
+await p.close();
+
+// Mobile
+p = await page({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+await p.goto(`${BASE}/${QS}#c=anthropic`);
+await ready(p); await p.waitForTimeout(600);
+await shot(p, 'mobile-chart');
+await p.click('#sheetHandle'); await p.waitForTimeout(400);
+await shot(p, 'mobile-sheet');
+await p.click('#sheetHandle'); await p.waitForTimeout(300);
+await p.click('#filtersToggle'); await p.waitForTimeout(400);
+await shot(p, 'mobile-filters');
+await p.click('#filtersDone'); await p.waitForTimeout(300);
+await p.click('.seg [data-mode="map"]'); await p.waitForTimeout(1000);
+await shot(p, 'mobile-map');
+await p.close();
+
+await browser.close();
+console.log(JSON.stringify({ hashAfterDrawer: hash, hashAfterBack: hashBack, errors }, null, 2));
