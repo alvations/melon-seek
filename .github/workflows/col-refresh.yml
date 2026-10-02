@@ -5,13 +5,20 @@ name: Refresh cost-of-living data
 # gives each country's Big Mac price and the FX rates used to convert quoted local rents
 # to USD. Quoted rents, cost indexes and tax rules are refreshed by hand (docs/LIVABILITY.md).
 # Unlike snapshot.yml, this commits: cities.json is small (~250 KB) and changes monthly.
+# It does NOT push to main (REVIEW.md V12): the upstream source is a mutable
+# third-party branch, so changes go to the bot/col-refresh branch and a pull
+# request for human review. Opening the PR needs Settings -> Actions -> General
+# -> "Allow GitHub Actions to create and approve pull requests"; without it the
+# branch is still pushed and the run says to open the PR by hand. PRs opened
+# with GITHUB_TOKEN don't trigger CI; re-run CI from the PR (or push to it).
 on:
   schedule:
     - cron: "23 5 3 * *" # monthly, 05:23 UTC on the 3rd
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: write       # push the bot/col-refresh branch (never main)
+  pull-requests: write  # open the review PR
 
 concurrency:
   group: col-refresh
@@ -21,9 +28,9 @@ jobs:
   refresh:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: npm
@@ -37,7 +44,9 @@ jobs:
       - name: Check the formula and data integrity
         run: node --test test/juice.test.js
 
-      - name: Commit changed data
+      - name: Push a review branch and open a PR (never main)
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           git add data/cities.json
@@ -45,7 +54,20 @@ jobs:
             echo "No cost-of-living changes."
             exit 0
           fi
+          branch="bot/col-refresh"
+          day=$(date -u +%Y-%m-%d)
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "chore(data): refresh Big Mac prices and FX in cities.json ($(date -u +%Y-%m-%d))"
-          git push
+          git switch -c "$branch"
+          git commit -m "chore(data): refresh Big Mac prices and FX in cities.json ($day)"
+          git push --force origin "$branch"
+          base="${{ github.event.repository.default_branch }}"
+          if gh pr view "$branch" --json state --jq .state 2>/dev/null | grep -q OPEN; then
+            echo "Updated the open PR for $branch."
+          elif gh pr create --base "$base" --head "$branch" \
+                 --title "chore(data): refresh cost-of-living data ($day)" \
+                 --body "Monthly refresh from The Economist's Big Mac index (CC BY 4.0) by .github/workflows/col-refresh.yml. test/juice.test.js passed in the run. Review the diff of data/cities.json before merging."; then
+            echo "Opened a PR for $branch."
+          else
+            echo "::warning::Pushed $branch but could not open a PR (enable 'Allow GitHub Actions to create and approve pull requests', or open it by hand)."
+          fi

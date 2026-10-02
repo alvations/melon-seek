@@ -176,7 +176,14 @@ test('cache stores to disk and reports freshness', async () => {
   assert.deepEqual(hit.data, [{ id: 'acme:1' }]);
   cache.clearMemory();
   const old = new Date(Date.now() - 31 * 60 * 1000).toISOString();
-  fs.writeFileSync(path.join(dir, 'old.json'), JSON.stringify({ fetchedAt: old, data: [1] }));
+  fs.writeFileSync(path.join(dir, 'old.json'), JSON.stringify({ format: cache.CACHE_FORMAT, fetchedAt: old, store: null, data: [1] }));
+  // Legacy (pre-PERF-1) files without the format header are ignored, unparsed.
+  fs.writeFileSync(path.join(dir, 'legacy.json'), JSON.stringify({ fetchedAt: old, data: [1] }));
+  assert.equal(await cache.getCached('legacy'), null);
+  // The store reference round-trips.
+  await cache.setCached('withstore', [2], { store: 'live-x-1' });
+  cache.clearMemory();
+  assert.equal((await cache.getCached('withstore')).store, 'live-x-1');
   hit = await cache.getCached('old');
   assert.equal(hit.fresh, false);
   assert.deepEqual(hit.data, [1]);

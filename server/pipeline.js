@@ -15,7 +15,7 @@ import { fetchGreenhouse } from './sources/greenhouse.js';
 import { fetchAshby } from './sources/ashby.js';
 import { fetchLever } from './sources/lever.js';
 import { MAX_BYTES, MAX_BYTES_BUILTIN } from './sources/util.js';
-import { normalizeJobs, NORMALIZER_VERSION } from './normalize.js';
+import { normalizeJobs, relocateJobs, NORMALIZER_VERSION } from './normalize.js';
 import { rekeyBoardJobs } from './keywords.js';
 import { demoJobs } from './demo.js';
 import { getCacheDir, setCacheDir, setCached } from './cache.js';
@@ -49,9 +49,10 @@ export async function runTask(task) {
     let jobs = Array.isArray(parsed) ? parsed : parsed && parsed.jobs;
     if (!Array.isArray(jobs) || !jobs.length) return { name: null, fetchedAt: null, count: 0 };
     // Snapshots written by the current normalizer are used as they are. Older ones
-    // (QA BUG-5, UX-3) get sections and keywords re-derived, once per file version.
+    // get sections/keywords re-derived (QA BUG-5) and locations re-geocoded
+    // (UX-3 canonical names), once per file version.
     const current = parsed.normalizerVersion === NORMALIZER_VERSION;
-    if (!current) jobs = rekeyBoardJobs(jobs).jobs;
+    if (!current) jobs = relocateJobs(rekeyBoardJobs(jobs).jobs);
     const fetchedAt = parsed.fetchedAt || null;
     await writeStore(task.name, { fetchedAt, normalizerVersion: NORMALIZER_VERSION, sourceKey: task.key, jobs, custom });
     if (task.prunePrefix) await pruneStores(task.prunePrefix, [task.name], { custom });

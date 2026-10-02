@@ -17,11 +17,17 @@ on:
   schedule:
     - cron: "41 7 * * *" # daily, 07:41 UTC (after snapshot.yml's 06:17 run)
 
+# Least privilege (REVIEW.md V12): the build job (npm ci, network fetches,
+# restored artifacts, LLM step) only reads. pages/id-token are granted to the
+# deploy job alone; persist-ledger has its own contents: write.
 permissions:
   contents: read
-  actions: read # download the latest snapshot.yml artifact
-  pages: write
-  id-token: write
+  actions: read # look up and download trusted snapshot/ledger artifacts
+
+# Artifacts are only restored from push/schedule/workflow_dispatch runs of this
+# repo on the default branch or these (REVIEW.md V2; .github/scripts/ledger.sh).
+env:
+  TRUSTED_BRANCHES: claude/stoic-ride-54ddxp
 
 # One deployment at a time; don't cancel an in-progress deploy.
 concurrency:
@@ -32,9 +38,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: npm
@@ -42,19 +48,14 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Restore last snapshots artifact (fallback for boards that fail below)
+      # Fallback data for boards that fail below: the newest job-board-snapshots
+      # artifact from a TRUSTED run only (never a PR or fork run; REVIEW.md V2).
+      - name: Restore last snapshots artifact (trusted runs only)
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          # Newest successful run that still has the artifact (14-day retention).
-          for run_id in $(gh run list --repo "$GITHUB_REPOSITORY" --workflow snapshot.yml --status success \
-                            --limit 5 --json databaseId --jq '.[].databaseId' || true); do
-            if gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --name job-board-snapshots --dir data/snapshots 2>/dev/null; then
-              echo "Restored snapshots from snapshot.yml run $run_id:"; ls -la data/snapshots
-              exit 0
-            fi
-          done
-          echo "::warning::No snapshot artifact found; boards that fail below fall back to demo data."
+          LEDGER_ARTIFACT: job-board-snapshots
+          LEDGER_DIR: data/snapshots
+        run: bash .github/scripts/ledger.sh restore-artifact
 
       # F4 history ledger (data/history/*.json): restore it before the snapshot
       # step updates it. Store: HISTORY_STORE repo variable, `artifact` (default:
@@ -74,7 +75,7 @@ jobs:
       # branch mode), even if a later step such as the vetting gate fails.
       - name: Upload history ledger
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: history-ledger
           path: data/history/
@@ -103,7 +104,7 @@ jobs:
 
       - name: Upload salary vetting report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: salary-vetting
           path: ${{ runner.temp }}/vetting
@@ -170,9 +171,9 @@ jobs:
             done
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/configure-pages@v6
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
-      - uses: actions/upload-pages-artifact@v5
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: dist
           include-hidden-files: true # keep dist/.nojekyll (v4+ drops dotfiles by default)
@@ -190,8 +191,8 @@ jobs:
       group: history-ledger-branch
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v8
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: history-ledger
           path: data/history
@@ -201,13 +202,16 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Deploy
         id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
 
       # Warn-only: confirms crawlers can fetch the live og:image as image/png.
       # LinkedIn etc. cache previews; re-scrape with

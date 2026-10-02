@@ -153,6 +153,23 @@ export function normalizeJob(raw, company, { boilerplate = null } = {}) {
   };
 }
 
+/**
+ * Upgrade stored, already-normalized jobs (snapshots written by an older
+ * normalizer) to the current location model: re-geocode each location from its
+ * source string (rawName, or the old name, which was the source string), and
+ * recompute `remote`. Used once per snapshot file by server/pipeline.js.
+ */
+export function relocateJobs(jobs) {
+  return (jobs || []).map((j) => {
+    if (!j || !Array.isArray(j.locations) || !j.locations.length) return j;
+    const inputs = j.locations.map((l) => l && (l.rawName || l.name)).filter(Boolean);
+    if (!inputs.length) return j;
+    const locations = normalizeLocations({ locationText: inputs[0], extraLocations: inputs.slice(1) });
+    const remote = j.remote === true || locations.some((l) => l && l.remote === true);
+    return { ...j, locations, remote };
+  });
+}
+
 export function normalizeJobs(raws, company) {
   const list = (raws || []).filter(Boolean);
   // BUG-5 layer 1: paragraphs shared by >= 50% of this board's postings.

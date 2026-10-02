@@ -15,8 +15,17 @@
 # job with contents: write, skipped unless HISTORY_STORE=branch).
 #
 # Usage:
-#   ledger.sh restore         restore into data/history/ (missing store = start fresh)
-#   ledger.sh commit-branch   commit data/history/*.json to the data-history branch
+#   ledger.sh restore           restore into data/history/ (missing store = start fresh)
+#   ledger.sh restore-artifact  restore LEDGER_ARTIFACT into LEDGER_DIR from a TRUSTED run
+#                               (pages.yml also uses it for job-board-snapshots)
+#   ledger.sh commit-branch     commit data/history/*.json to the data-history branch
+#
+# Artifact trust (REVIEW.md V2): only artifacts from runs that (a) ran on this
+# repository itself (head repository == this repo, so never a fork), (b) were
+# triggered by push, schedule or workflow_dispatch (never pull_request /
+# pull_request_target / workflow_run), and (c) ran on the default branch or a
+# branch in TRUSTED_BRANCHES (space-separated; the workflows pass the deploy
+# branch). Anything else is skipped, so a PR can't plant data that Pages publishes.
 #
 # Env: HISTORY_STORE (artifact|branch), GITHUB_REPOSITORY, GH_TOKEN (artifact
 # restore), LEDGER_DIR (default data/history), LEDGER_BRANCH (default
@@ -33,20 +42,34 @@ REMOTE="${LEDGER_REMOTE:-origin}"
 log() { echo "ledger: $*"; }
 count() { find "$DIR" -maxdepth 1 -name '*.json' 2>/dev/null | wc -l | tr -d ' '; }
 
+# "trusted" if run $1 may supply data, else a reason (stdout).
+run_trust() {
+  local repo="$1" id="$2" info event head branch
+  info=$(gh api "repos/$repo/actions/runs/$id" --jq '"\(.event)\t\(.head_repository.full_name)\t\(.head_branch)"' 2>/dev/null) || { echo "run lookup failed"; return; }
+  IFS=$'\t' read -r event head branch <<< "$info"
+  case "$event" in push|schedule|workflow_dispatch) ;; *) echo "event '$event'"; return ;; esac
+  [ "$head" = "$repo" ] || { echo "head repository '$head'"; return; }
+  case " $TRUSTED " in *" $branch "*) ;; *) echo "branch '$branch'"; return ;; esac
+  echo trusted
+}
+
 restore_artifact() {
-  local repo="${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}" ids id
-  # Newest first, non-expired, across every workflow that uploads the ledger.
+  local repo="${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}" ids id why err default
+  default=$(gh api "repos/$repo" --jq '.default_branch' 2>/dev/null || true)
+  TRUSTED="${default} ${TRUSTED_BRANCHES:-}"
+  # Newest first, non-expired; same-repo heads only (fork runs carry another head repo id).
   ids=$(gh api "repos/$repo/actions/artifacts?name=$ARTIFACT&per_page=100" \
-          --jq '[.artifacts[] | select(.expired | not)] | sort_by(.created_at) | reverse | .[].workflow_run.id' 2>/dev/null || true)
-  local err
+          --jq '[.artifacts[] | select(.expired | not) | select(.workflow_run.head_repository_id == .workflow_run.repository_id)] | sort_by(.created_at) | reverse | .[].workflow_run.id' 2>/dev/null || true)
   for id in $ids; do
+    why=$(run_trust "$repo" "$id")
+    if [ "$why" != trusted ]; then log "skipping '$ARTIFACT' from run $id (untrusted: $why)"; continue; fi
     if err=$(gh run download "$id" --repo "$repo" --name "$ARTIFACT" --dir "$DIR" 2>&1); then
-      log "restored $(count) file(s) from artifact '$ARTIFACT' of run $id"
+      log "restored $(count) file(s) from artifact '$ARTIFACT' of trusted run $id"
       return 0
     fi
     echo "::warning::ledger: could not download '$ARTIFACT' from run $id: $(printf '%s' "$err" | head -1 | cut -c1-200)"
   done
-  log "no '$ARTIFACT' artifact found; starting a fresh ledger"
+  log "no trusted '$ARTIFACT' artifact found; starting fresh"
 }
 
 restore_branch() {
@@ -111,6 +134,7 @@ case "${1:-}" in
       *) echo "ledger: unknown HISTORY_STORE '$STORE' (artifact|branch)" >&2; exit 2 ;;
     esac
     ;;
+  restore-artifact) mkdir -p "$DIR"; restore_artifact ;;
   commit-branch) commit_branch ;;
-  *) echo "usage: $0 restore|commit-branch" >&2; exit 2 ;;
+  *) echo "usage: $0 restore|restore-artifact|commit-branch" >&2; exit 2 ;;
 esac

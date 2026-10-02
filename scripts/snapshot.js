@@ -12,6 +12,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { listCompanies, resolveCompany } from '../server/companies.js';
 import { fetchLive as defaultFetchLive } from '../server/index.js';
+import { NORMALIZER_VERSION } from '../server/normalize.js';
 import { ROOT } from '../server/cache.js';
 import { recordRun, historyDir } from './history.js';
 
@@ -42,7 +43,8 @@ export async function runSnapshot(targets, opts = {}) {
       if (!jobs.length) throw new Error('live fetch returned 0 jobs; keeping any existing snapshot and ledger');
       const fetchedAt = now();
       const { slug, name, source, board, color } = company;
-      const payload = { company: { slug, name, source, board, color }, mode: 'snapshot', fetchedAt, error: null, jobs };
+      // normalizerVersion lets the server use these jobs as they are (PERF-1).
+      const payload = { company: { slug, name, source, board, color }, mode: 'snapshot', fetchedAt, normalizerVersion: NORMALIZER_VERSION, error: null, jobs };
       const file = path.join(outDir, `${company.slug}.json`);
       await fs.writeFile(file, JSON.stringify(payload, null, 1) + '\n');
       const withSalary = jobs.filter((j) => j.salary).length;

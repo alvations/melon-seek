@@ -77,6 +77,17 @@ function quantile(sorted, q) {
   return i + 1 < sorted.length ? sorted[i] + (sorted[i + 1] - sorted[i]) * f : sorted[i];
 }
 
+function parseColor(str) {
+  const t = String(str || '').trim();
+  let m = t.match(/^#([0-9a-f]{6})$/i);
+  if (m) { const n = parseInt(m[1], 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+  m = t.match(/^#([0-9a-f]{3})$/i);
+  if (m) return [...m[1]].map(h => parseInt(h + h, 16));
+  m = t.match(/^rgba?\(\s*([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)/i);
+  return m ? [+m[1], +m[2], +m[3]] : null;
+}
+const toHex = c => '#' + c.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
+
 const moneyRange = (a, b) => `${formatMoney(a)}–${formatMoney(b)}`;
 
 /**
@@ -478,6 +489,17 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       for (const r of cRows) { r.other = !top.has(r.key); r.color = r.other ? (isDark() ? '#8d8c86' : otherColor()) : colorFor(r.key); }
     }
     for (const r of cRows) r.ink = inkOn(r.color);
+    // A11Y-1: count labels sit on the row color mixed into the surface (viz.css --_bin-mix);
+    // pick their ink from that actual mix so they always clear 4.5:1 (dark "Other" rows were 3.43:1).
+    {
+      const surf = parseColor(getComputedStyle(container).backgroundColor) || (isDark() ? [22, 26, 33] : [252, 252, 251]);
+      const dark = isDark();
+      for (const r of cRows) {
+        const pct = r.other ? (dark ? 0.6 : 0.42) : (dark ? 0.52 : 0.30); // = viz.css --_bin-mix
+        const c = parseColor(r.color) || surf;
+        r.restInk = inkOn(toHex(c.map((v, k) => v * pct + surf[k] * (1 - pct))));
+      }
+    }
 
     const plotH = narrow ? (solo ? 72 : CROW_PLOT_H) : (solo ? 92 : CROW_H);
     const rowH = narrow ? CROW_LABEL_H + plotH : plotH;
@@ -500,6 +522,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       row.style.height = rowH + 'px';
       row.style.setProperty('--c', r.color);
       row.style.setProperty('--c-ink', r.ink);
+      row.style.setProperty('--c-rest-ink', r.restInk);
       r.el = row;
 
       const lab = el('div', 'ms-crow__label');

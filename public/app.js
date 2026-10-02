@@ -7,7 +7,7 @@ import { colorFor, formatMoney, resetColors, assignColors, otherColor, toUSD, SL
 import { createChart, keyOf, VIEWS, DEFAULT_VIEW } from './viz/chart.js';
 import { createMap } from './viz/map.js';
 import * as api from './api.js';
-import { createCompstimateWidget, compstimateForJob, accuracyLine, isLowAccuracy, displayConfidence } from './features/compstimate.js';
+import { createCompstimateWidget, compstimateForJob, accuracyLine, isLowAccuracy, displayConfidence, queryFromState } from './features/compstimate.js';
 import { compsForJob, createCompsCard } from './features/comps.js';
 import { createCompsChart } from './viz/comps.js';
 import { roleFamily, FAMILY_LABELS } from './features/roles.js';
@@ -295,6 +295,8 @@ function prepare(jobs) {
     j._ts = j.updatedAt ? Date.parse(j.updatedAt) || null : null;
     // Listing age (F4). v2 jobs carry ageDays (null = unknown: show no age). Pre-v2 data
     // falls back to updatedAt so the age slot and "Listed" filter still work.
+    const tagm = typeof j.title === 'string' ? j.title.match(/^\s*\[([^\]]{1,16})\]\s*/) : null;
+    if (tagm && !j._rawTitle) { j._rawTitle = j.title; j._titleTag = tagm[1]; j.title = j.title.slice(tagm[0].length) || j.title; }
     j._age = 'ageDays' in j ? (Number.isFinite(j.ageDays) ? j.ageDays : null)
       : j._ts ? Math.max(0, Math.floor((Date.now() - j._ts) / 864e5)) : null;
     j._family = j._family ?? roleFamily(j.title, j); // same ctx comps.js uses, so rf filters match its rows
@@ -413,13 +415,24 @@ function sortJobs(list) {
   const out = list.slice();
   const nullsLast = (a, b, f) => (a == null || b == null ? (a == null) - (b == null) : f());
   switch (S.sort) {
-    case 'salary-asc': out.sort((a, b) => nullsLast(a._usd, b._usd, () => a._usd.min - b._usd.min || a.title.localeCompare(b.title))); break;
+    case 'salary-asc': out.sort((a, b) => nullsLast(a._usd, b._usd, () => a._usd.mid - b._usd.mid || a.title.localeCompare(b.title))); break;
     case 'newest': out.sort((a, b) => nullsLast(a._age, b._age, () => a._age - b._age || a.title.localeCompare(b.title))); break;
     case 'title': out.sort((a, b) => a.title.localeCompare(b.title)); break;
     case 'juice': out.sort((a, b) => nullsLast(a.juice, b.juice, () => b.juice.best.score - a.juice.best.score || b.juice.best.net - a.juice.best.net || a.title.localeCompare(b.title))); break;
-    default: out.sort((a, b) => nullsLast(a._usd, b._usd, () => b._usd.max - a._usd.max || a.title.localeCompare(b.title)));
+    default: out.sort((a, b) => nullsLast(a._usd, b._usd, () => b._usd.mid - a._usd.mid || b._usd.max - a._usd.max || a.title.localeCompare(b.title)));
+  }
+  // UX-2: with a search, roles whose title or team match come before keyword-tag-only matches.
+  const tokens = S.q.toLowerCase().split(/\s+/).filter(Boolean);
+  if (tokens.length) {
+    const strong = [], weak = [];
+    for (const j of out) (titleMatch(j, tokens) ? strong : weak).push(j);
+    return strong.concat(weak);
   }
   return out;
+}
+function titleMatch(j, tokens) {
+  const t = `${j.title} ${j.team || ''}`.toLowerCase();
+  return tokens.every((x) => t.includes(x));
 }
 
 function stats(list) {
@@ -468,6 +481,7 @@ async function loadJobs({ refresh = false } = {}) {
     if (err?.name === 'AbortError' || seq !== loadSeq) return;
     data = { status: 'error', jobs: [], company: companyInfo(S.c), mode: null, fetchedAt: null, error: err?.message || String(err) };
   }
+  settleCarry();
   render();
   if (S.job) openDrawer(S.job, { fromHash: true });
 }
@@ -478,7 +492,9 @@ function companyInfo(key) {
   if (isCustomKey(key)) {
     const [source, board] = key.split(':');
     const saved = boards.find((b) => b.source === source && b.board === board);
-    return { slug: key, name: saved?.name || S.cn || board, source, board, color: null, custom: true };
+    let name = saved?.name || S.cn || board;
+    if (!saved && companies.some((c) => c.name.toLowerCase() === String(name).toLowerCase().trim())) name = `${name} (custom)`;
+    return { slug: key, name, source, board, color: null, custom: true };
   }
   return { slug: key, name: key, source: null, board: key, color: null };
 }
@@ -499,13 +515,28 @@ function render() {
   document.documentElement.dataset.mode = S.m;
   renderTopbar();
   renderQuickbar();
-  renderFilterPanel();
+  if (filtersVisible()) renderFilterPanel(); else filtersDirty = true; // PERF-2: hidden panel syncs when opened
   renderKpis();
-  renderViz();
   renderResults();
   syncPopover();
   if (drawerJobId && data.status === 'ready') renderDrawerNav();
+  scheduleViz(); // PERF-2: paint cards and stats first, the chart/map when idle
 }
+
+let filtersDirty = false;
+function filtersVisible() {
+  const el = $('#filters');
+  return !!el && getComputedStyle(el).visibility !== 'hidden' && (!isOverlayFilters() || document.body.classList.contains('filters-open'));
+}
+let vizIdle = 0;
+function scheduleViz() {
+  // Non-ready states (loading skeleton, errors) and mode switches paint immediately.
+  if (data.status !== 'ready' || vizMode !== S.m) { cancelViz(); vizMode = S.m; renderViz(); return; }
+  cancelViz();
+  vizIdle = (window.requestIdleCallback || ((f) => setTimeout(f, 16)))(() => { vizIdle = 0; renderViz(); }, { timeout: 150 });
+}
+function cancelViz() { if (vizIdle) (window.cancelIdleCallback || clearTimeout)(vizIdle); vizIdle = 0; }
+let vizMode = null;
 
 /* ---------------------------------------------------------------- topbar */
 
@@ -514,6 +545,8 @@ function renderTopbar() {
 
   // Company switcher: one dropdown button for the active company + up to 3 recent ones as pills.
   const active = all.find((c) => c.slug === S.c) || companyInfo(S.c);
+  const pageTitle = $('#pageTitle');
+  if (pageTitle) pageTitle.textContent = `${active?.name || 'Company'} jobs by salary — melon·seek`;
   const menuBtn = $('#companyMenuBtn');
   const sig = all.map((c) => c.slug + c.name).join('|') + '§' + S.c + '§' + data.status + data.jobs.length + '§' + recents.join(',');
   if (menuBtn.dataset.sig !== sig) {
@@ -631,7 +664,7 @@ function rememberCompany(slug) {
 /** Searchable company list grouped by ATS, plus the user's boards and "Add a board". */
 function makeCompanyMenu() {
   const input = h('input', { type: 'search', class: 'fsearch', placeholder: 'Search companies…', 'aria-label': 'Search companies', autocomplete: 'off' });
-  const list = h('div', { class: 'company-list', role: 'listbox', 'aria-label': 'Companies' });
+  const list = h('div', { class: 'company-list' });
   const add = h('button', { type: 'button', class: 'btn btn--ghost btn--sm btn--block', onclick: () => togglePopover('board', $('#addBoardBtn')) },
     h('span', { html: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>' }), 'Add a board…');
   const el = h('div', { class: 'company-menu' }, h('div', { class: 'fsearch-wrap' }, h('span', { html: ICON.search }), input), list, add);
@@ -651,25 +684,26 @@ function makeCompanyMenu() {
       ...SOURCES.map((src) => [SOURCE_LABEL[src], all.filter((c) => !c.custom && c.source === src)]),
       ['Other', all.filter((c) => !c.custom && !SOURCES.includes(c.source))],
     ].filter(([, items]) => items.length);
-    list.replaceChildren(...groups.flatMap(([label, items]) => [
-      h('div', { class: 'check-group' }, label),
-      ...items.map((c) => h('button', {
-        type: 'button', class: 'company-item', role: 'option', 'aria-selected': String(c.slug === S.c),
-        onclick: () => { closePopover(false); switchCompany(c); $('#companyMenuBtn').focus({ preventScroll: true }); },
-      }, h('span', { class: 'dot', style: `--dot:${companyColor(c)}` }), h('span', { class: 'company-item-name' }, c.name),
-      h('span', { class: 'company-item-board' }, c.board), c.slug === S.c ? h('span', { class: 'company-item-check', 'aria-hidden': 'true' }, '✓') : null)),
-    ]));
+    const group = (label, kids) => {
+      const id = `cm-${label.replace(/\W+/g, '-').toLowerCase()}`;
+      return h('div', { role: 'group', 'aria-labelledby': id }, h('div', { class: 'check-group', id }, label), ...kids);
+    };
+    list.replaceChildren(...groups.map(([label, items]) => group(label, items.map((c) => h('button', {
+      type: 'button', class: 'company-item', 'aria-current': c.slug === S.c ? 'true' : null,
+      onclick: () => { closePopover(false); switchCompany(c); $('#companyMenuBtn').focus({ preventScroll: true }); },
+    }, h('span', { class: 'dot', style: `--dot:${companyColor(c)}` }), h('span', { class: 'company-item-name' }, c.name),
+    h('span', { class: 'company-item-board' }, c.board), c.slug === S.c ? h('span', { class: 'company-item-check', 'aria-hidden': 'true' }, '✓') : null)))));
     if (!groups.length) list.append(h('p', { class: 'fnote' }, 'No matching company — add it as a board below.'));
     const saved = loadSaved().filter((x) => !q || x.name.toLowerCase().includes(q));
     if (saved.length) {
-      list.prepend(h('div', { class: 'check-group' }, 'Saved searches'), ...saved.map((x) => {
+      list.prepend(group('Saved searches', saved.map((x) => {
         const n = savedNewCount(x);
         return h('div', { class: 'saved-row' },
-          h('button', { type: 'button', class: 'company-item', role: 'option', 'aria-selected': 'false', title: x.name, onclick: () => openSaved(x) },
+          h('button', { type: 'button', class: 'company-item', title: x.name, onclick: () => openSaved(x) },
             h('span', { class: 'saved-ico', html: ICON.bookmark }), h('span', { class: 'company-item-name' }, x.name),
             n ? h('span', { class: 'saved-new' }, `${n} new`) : null),
           h('button', { type: 'button', class: 'icon-btn icon-btn--sm', 'aria-label': `Remove saved search ${x.name}`, html: ICON.close, onclick: () => { removeSaved(x.id); sync(); } }));
-      }));
+      })));
     }
   }
   return { el, sync };
@@ -830,7 +864,7 @@ function renderQuickbar() {
   save.hidden = !n || data.status !== 'ready';
   if (!save.hidden) {
     const on = !!currentSaved();
-    save.setAttribute('aria-pressed', String(on));
+    save.classList.toggle('is-saved', on); // V9: one pattern — the label changes (Save/Saved), no aria-pressed
     save.querySelector('span:last-child').textContent = on ? 'Saved' : 'Save';
     save.setAttribute('aria-label', on ? 'Saved search — remove it' : 'Save this search');
     save.title = on ? 'Saved — click to remove. Saved searches are in the company menu.' : 'Save this search; the company menu will show new matches next time';
@@ -932,7 +966,7 @@ function makeSalary({ compact = false } = {}) {
     const withSal = data.jobs.filter((j) => j._usd).length;
     const foreign = data.jobs.filter((j) => j._usd && j.salary.currency && j.salary.currency !== 'USD').length;
     const unclear = data.jobs.filter((j) => j.salaryFlag).length;
-    note.textContent = `${withSal} of ${data.jobs.length} roles list pay${unclear ? ` (${unclear} with unclear pay left out)` : ''}. A role matches if its range overlaps yours${foreign ? `; ${foreign} non-USD ranges compared in approx USD` : ''}.`;
+    note.textContent = `A role matches if its range overlaps yours${foreign ? `; non-USD ranges are compared in approx USD` : ''}${unclear ? `. ${unclear} with unclear pay are left out` : ''}.`;
     paint();
   }
   return { el, sync };
@@ -1190,6 +1224,7 @@ function titled(title, part, hint) {
 }
 
 function togglePopover(id, anchor) {
+  if (id in CHIP_SECTION && isMobile()) { openFiltersAt(id); return; }
   if (popover.id === id) return closePopover();
   closePopover(false);
   const el = $('#popover');
@@ -1209,7 +1244,8 @@ function togglePopover(id, anchor) {
   anchor?.setAttribute('aria-expanded', 'true');
   syncPopover();
   positionPopover();
-  requestAnimationFrame(() => el.querySelector('input:not([type=range]), button.kw, select, .range, button:not(.icon-btn)')?.focus({ preventScroll: true }));
+  requestAnimationFrame(() => [...el.querySelectorAll('.pop-body input:not([type=range]), .pop-body button.kw, .pop-body select, .pop-body .range, .pop-body button:not(.icon-btn), .pop-body label.check input')]
+    .find((x) => x.getClientRects().length && !x.closest('[hidden]'))?.focus({ preventScroll: true }));
 }
 
 function clearPopoverFacet(id) {
@@ -1332,7 +1368,7 @@ let map = null;
 let comp = null;      // Compstimate widget (insights mode)
 let insights = null;  // Market insights panel (insights mode)
 let dataSeq = 0;      // bumps on every successful fetch
-const featSig = { comp: -1, ins: '', comps: '' };
+const featSig = { comp: -1, ins: '', comps: '', cq: '' };
 let mapFitPending = true;
 let colorKeys = new Set(); // keys the chart gives a slot; others render as Other
 const vizSig = { chart: '', map: '' };
@@ -1395,6 +1431,11 @@ function renderInsights() {
     if (!comp) comp = createCompstimateWidget($('#compHost'), { onSelect: (job) => job && openDrawer(job.id) });
     if (!insights) { if (createInsights) insights = createInsights($('#insightsPanel'), { onFilter: onInsightFilter }); else loadInsights(); }
     if (featSig.comp !== dataSeq) { featSig.comp = dataSeq; comp.update(data.jobs, data.meta); }
+    const qsig = `${dataSeq}|${drawerJobId}|${S.q}|${S.rf}|${S.s.join()}|${S.l.join()}`;
+    if (featSig.cq !== qsig && comp.setQuery) {
+      featSig.cq = qsig;
+      comp.setQuery(queryFromState({ job: drawerJobId ? findJob(drawerJobId) : null, search: S.q, family: S.rf, seniority: S.s, location: S.l.length === 1 ? S.l[0] : '' }));
+    }
     const sig = `${dataSeq}|${derived.filtered.length}|${derived.filtered.map((j) => j.id).join(',')}`;
     if (insights && featSig.ins !== sig) { featSig.ins = sig; insights.update(derived.filtered, data.jobs); }
   } catch (err) { console.error('insights failed', err); }
@@ -1565,7 +1606,9 @@ function renderResults() {
     return;
   }
   const st = stats(visible);
-  title.replaceChildren(...nn(h('strong', null, plural(st.n, 'role')), st.median != null ? h('span', { class: 'muted' }, ` · median ${money(st.median)}`) : null));
+  const tokens = S.q.toLowerCase().split(/\s+/).filter(Boolean);
+  const inTitle = tokens.length ? visible.filter((j) => titleMatch(j, tokens)).length : null;
+  title.replaceChildren(...nn(h('strong', null, plural(st.n, 'role')), inTitle != null ? h('span', { class: 'muted', title: 'Roles whose title or team matches come first; the rest match on skills or keywords' }, ` · ${inTitle.toLocaleString()} in title`) : null));
   if (!visible.length) {
     list.replaceChildren(h('li', { class: 'list-empty' }, stateCard({
       title: data.jobs.length ? 'No roles match' : 'No open roles',
@@ -1575,12 +1618,29 @@ function renderResults() {
     return;
   }
   const items = visible.slice(0, resultsLimit).map(card);
+  listIO?.disconnect();
   if (visible.length > resultsLimit) {
-    items.push(h('li', { class: 'list-more' }, h('button', { type: 'button', class: 'btn btn--ghost btn--block', onclick: () => { resultsLimit += PAGE * 2; renderResults(); } },
-      `Show ${Math.min(PAGE * 2, visible.length - resultsLimit)} more of ${visible.length - resultsLimit}`)));
+    const label = () => `Show ${Math.min(PAGE * 2, visible.length - resultsLimit)} more of ${visible.length - resultsLimit}`;
+    const btn = h('button', { type: 'button', class: 'btn btn--ghost btn--block' }, label());
+    const more = h('li', { class: 'list-more' }, btn);
+    // Append the next page in place (no full list rebuild, the scroll position stays put).
+    const loadMore = () => {
+      const from = resultsLimit;
+      resultsLimit += PAGE * 2;
+      more.before(...visible.slice(from, resultsLimit).map(card));
+      if (visible.length <= resultsLimit) { listIO?.disconnect(); more.remove(); } else btn.textContent = label();
+    };
+    btn.addEventListener('click', loadMore);
+    items.push(more);
+    // Phones: cards render lazily, the next page loads as the list nears its end.
+    if (isMobile() && 'IntersectionObserver' in window) {
+      listIO = new IntersectionObserver((es) => { if (es.some((x) => x.isIntersecting)) loadMore(); }, { root: list, rootMargin: '0px 0px 600px 0px' });
+      listIO.observe(more);
+    }
   }
   list.replaceChildren(...items);
 }
+let listIO = null;
 
 const JUICE_TIP = 'Juice Score: livability $, what’s left after tax, rent and living costs';
 function juiceBadge(job) {
@@ -1688,6 +1748,7 @@ function setBackgroundInert(on) {
 
 function closeDrawer({ fromHash = false } = {}) {
   if (!drawerJobId) return;
+  destroyDrawerComps();
   const closedId = drawerJobId;
   drawerJobId = null;
   const drawer = $('#drawer');
@@ -1775,42 +1836,49 @@ const JUICE_DOC = 'https://github.com/alvations/melon-seek/blob/main/docs/LIVABI
 function juiceBlock(job) {
   const jb = job.juice;
   if (!jb?.best) return null;
-  const sec = h('section', { class: 'd-sec d-juice', 'aria-labelledby': 'juiceTitle' });
-  const render = () => {
-    const b = jb.best;
+  const b = jb.best;
+  const grade = String(b.grade).toLowerCase();
+  const others = jb.byLocation.filter((l) => l !== b && !(l.locationName === b.locationName && l.city === b.city));
+  const body = h('div', { class: 'juice-body' });
+  // UX-5: one headline line; the waterfall sits in a disclosure so "Same role elsewhere" stays near the top.
+  const sec = h('section', { class: 'd-juice', 'aria-labelledby': 'juiceTitle' },
+    h('details', { class: 'juice-details' },
+      h('summary', null,
+        h('span', { id: 'juiceTitle', class: 'juice-title' }, '🍉 Juice'),
+        h('span', { class: `juice-score juice--${grade}`, title: JUICE_TIP }, `${b.estimated ? '≈' : ''}${b.score} · ${b.grade}`),
+        h('span', { class: 'juice-head-net' }, `${b.net < 0 ? '−' : ''}${money(Math.abs(b.net))}/yr left in ${b.cityName || b.locationName}`),
+        h('span', { class: 'fsec-caret', html: ICON.chevron })),
+      h('p', { class: 'juice-where' }, 'Juice: what’s left after tax, rent and living costs (approx USD).'),
+      body));
+  const render = (focusPeriod) => {
     const div = juicePeriod === 'month' ? 12 : 1;
     const per = juicePeriod === 'month' ? '/mo' : '/yr';
     const amt = (n, sign = '') => `${sign}${money(Math.abs(n) / div)}${per}`;
     const g = Math.max(1, b.gross);
-    const seg = (lo, hi) => { const a = Math.max(0, Math.min(g, lo)), z = Math.max(0, Math.min(g, hi)); return `left:${(a / g) * 100}%;width:${Math.max(0, ((z - a) / g) * 100)}%`; };
+    const seg = (lo, hi) => { const x = Math.max(0, Math.min(g, lo)), z = Math.max(0, Math.min(g, hi)); return `left:${(x / g) * 100}%;width:${Math.max(0, ((z - x) / g) * 100)}%`; };
     const afterTax = b.gross - b.tax, afterRent = afterTax - b.rent;
     const tp = b.taxParts;
     const rows = [
       ['Gross pay', amt(b.gross), seg(0, b.gross), 'gross', null],
-      ['Tax', amt(b.tax, '−'), seg(afterTax, b.gross), 'tax', tp ? `Income ${money(tp.income)} · regional ${money(tp.regional)} · social ${money(tp.social)} per year` : null],
+      ['Tax', amt(b.tax, '−'), seg(afterTax, b.gross), 'tax', tp ? `income ${money(tp.income / div)} · regional ${money(tp.regional / div)} · social ${money(tp.social / div)}` : null],
       ['Rent', amt(b.rent, '−'), seg(afterRent, afterTax), 'rent', '1-bedroom, city centre'],
-      ['Living costs', amt(b.living, '−'), seg(b.net, afterRent), 'living', 'Everyday costs excluding rent, scaled from a New York basket'],
+      ['Living costs', amt(b.living, '−'), seg(b.net, afterRent), 'living', 'everyday costs excluding rent'],
       ['Juice left', `${b.net < 0 ? '−' : ''}${money(Math.abs(b.net) / div)}${per}`, seg(0, b.net), 'net', null],
     ];
     const toggle = h('div', { class: 'seg seg--sm', role: 'group', 'aria-label': 'Show amounts per' },
-      ...[['month', 'Monthly'], ['year', 'Yearly']].map(([v, label]) => h('button', { type: 'button', 'aria-pressed': String(juicePeriod === v), onclick: () => { juicePeriod = v; render(); } }, label)));
-    const others = jb.byLocation.filter((l) => l !== b && !(l.locationName === b.locationName && l.city === b.city));
-    sec.replaceChildren(...nn(
-      h('div', { class: 'juice-head' },
-        h('h3', { id: 'juiceTitle' }, '🍉 Juice Score'),
-        h('span', { class: `juice-score juice--${String(b.grade).toLowerCase()}`, title: JUICE_TIP }, `${b.estimated ? '≈' : ''}${b.score}`),
-        h('span', { class: `juice-grade juice--${String(b.grade).toLowerCase()}` }, b.grade),
-        toggle),
-      h('p', { class: 'juice-where muted' }, `What’s left in ${b.locationName || b.cityName}${others.length ? ' (best of this role’s locations)' : ''}, in approx USD.`),
-      h('div', { class: 'waterfall', role: 'table', 'aria-label': 'Juice waterfall' },
-        ...rows.map(([label, value, style, kind, tip]) => h('div', { class: `wf-row wf--${kind}`, role: 'row', title: tip || null },
+      ...[['month', 'Monthly'], ['year', 'Yearly']].map(([v, label]) => h('button', {
+        type: 'button', 'aria-pressed': String(juicePeriod === v), dataset: { period: v },
+        onclick: () => { juicePeriod = v; render(v); }, // V5: re-render this block only and keep focus here
+      }, label)));
+    body.replaceChildren(...nn(
+      toggle,
+      h('div', { class: 'waterfall', role: 'table', 'aria-label': 'Juice breakdown' },
+        ...rows.map(([label, value, style, kind, detail]) => h('div', { class: `wf-row wf--${kind}`, role: 'row' },
           h('span', { class: 'wf-label', role: 'rowheader' }, label),
           h('span', { class: 'wf-track', role: 'cell', 'aria-hidden': 'true' }, h('span', { class: 'wf-bar', style })),
-          h('span', { class: 'wf-value', role: 'cell' }, value)))),
-      h('p', { class: 'juice-facts' },
-        b.rentBurden != null ? h('span', null, 'Rent takes ', h('strong', null, `${Math.round(b.rentBurden * 100)}%`), ' of take-home') : null,
-        b.rentBurden != null && b.bigMacs != null ? h('span', { class: 'stat-sep', 'aria-hidden': 'true' }, ' · ') : null,
-        b.bigMacs != null ? h('span', null, `≈ ${Math.max(0, Math.round(b.bigMacs)).toLocaleString()} Big Macs/yr left`) : null),
+          h('span', { class: 'wf-value', role: 'cell' }, value),
+          detail ? h('span', { class: 'wf-detail' }, detail) : null))),
+      b.rentBurden != null ? h('p', { class: 'juice-facts' }, 'Rent takes ', h('strong', null, `${Math.round(b.rentBurden * 100)}%`), ' of take-home pay.') : null,
       b.currencyMismatch ? h('p', { class: 'fnote' }, 'The posted salary currency differs from the local one, so it is applied as posted.') : null,
       others.length ? h('details', { class: 'juice-compare' }, h('summary', null, `Compare locations (${others.length + 1})`),
         h('ul', null, ...[b, ...others].map((l) => h('li', null,
@@ -1819,6 +1887,7 @@ function juiceBlock(job) {
           h('span', { class: 'jc-net' }, `${l.net < 0 ? '−' : ''}${money(Math.abs(l.net) / div)}${per}`))))) : null,
       h('p', { class: 'juice-disclaimer' }, 'Estimate, not financial advice. ', h('a', { href: JUICE_DOC, target: '_blank', rel: 'noopener noreferrer' }, 'How it’s calculated')),
     ));
+    if (focusPeriod) body.querySelector(`[data-period="${focusPeriod}"]`)?.focus({ preventScroll: true });
   };
   render();
   return sec;
@@ -1860,10 +1929,10 @@ function compstimateBlock(job) {
   if (!est || est.mid == null || !isFinite(est.mid)) return null;
   return h('div', { class: 'd-comp', role: 'note' },
     h('div', { class: 'd-comp-top' },
-      h('span', { class: 'd-comp-label' }, 'Compstimate'),
+      h('span', { class: 'd-comp-label', title: 'Compstimate: estimated pay from similar roles' }, 'Compstimate'),
       h('span', { class: 'd-comp-amt' }, `≈ ${money(est.mid)}`),
       h('span', { class: 'muted' }, `(${money(est.low)}–${money(est.high).replace(/^\$/, '')}, ${String(displayConfidence(est, data.meta) || '').toLowerCase()} confidence)`)),
-    h('p', { class: 'd-comp-note' }, `An estimate from ${plural(est.n || 0, 'comparable role')} at ${data.company?.name || 'this company'} (approx USD / year) — not a figure from the posting.`),
+    h('p', { class: 'd-comp-note' }, `Estimated pay from ${plural(est.n || 0, 'similar role')} at ${data.company?.name || 'this company'} (approx USD / year) — not a figure from the posting.`),
     accuracyLine(data.meta) ? h('p', { class: 'd-comp-note' }, isLowAccuracy(data.meta) ? h('strong', null, 'Low confidence. ') : null, `${accuracyLine(data.meta)}.`) : null);
 }
 
@@ -1937,11 +2006,13 @@ function drawerContent(job) {
       data.mode === 'demo' ? h('span', { class: 'tag tag--demo' }, 'Demo') : null),
     h('h2', { class: 'd-title', id: 'drawerTitle' }, job.title),
     h('div', { class: 'd-meta' }, ...[deptKey(job), job.team, job.employmentType].filter(Boolean).map((t, i) => [i ? h('span', { class: 'sep' }, '·') : null, h('span', null, t)]),
-      h('span', { class: `sen sen--${(job.seniority || 'mid').toLowerCase().replace(/\W/g, '')}` }, job.seniority || '—')),
+      h('span', { class: `sen sen--${(job.seniority || 'mid').toLowerCase().replace(/\W/g, '')}` }, job.seniority || '—'),
+      job._titleTag ? h('span', { class: 'tag', title: `The posting's title starts with “[${job._titleTag}]”, a tag the company adds (often a team or office code)` }, `Tag: ${job._titleTag}`) : null),
     job._ts ? h('div', { class: 'd-updated muted' }, `Updated ${ago(job._ts)}`) : null,
-    // Fixed order (ROADMAP §8): pay block → Same role elsewhere → Listing → Locations → Keywords → Bullets → Description.
-    salaryBlock, juiceBlock(job),
-    sameRoleSection(job),
+    // Fixed order (ROADMAP §8): pay block → Same role elsewhere → (Juice headline) → Listing → Locations → Keywords → Bullets → Description.
+    salaryBlock,
+    sameRoleSection(job), // UX-5: directly under the pay block
+    juiceBlock(job), // compact headline; the waterfall is in a disclosure
     listingSection(job),
     locs,
     kwCat.some(Boolean) ? fold('d-kw', ['Keywords ', h('span', { class: 'muted small' }, 'click to filter')], ...kwCat) : null,
@@ -1994,10 +2065,32 @@ function pickCompany(slug, filters = {}) {
   if (!slug) return;
   const known = allCompanies().find((c) => c.slug === slug);
   if (drawerJobId) closeDrawer({ fromHash: true });
+  // UX-4: keep the user's context (location, remote, search) so the comparison stays like-for-like.
+  pendingCarry = { name: known?.name || slug, l: S.l.slice(), r: S.r, q: S.q };
   set({ ...resetFiltersPatch(), c: slug, cn: known?.custom ? known.name : '', job: null,
-    rf: filters.family || '', s: filters.seniority ? [filters.seniority] : [] });
+    rf: filters.family || '', s: filters.seniority ? [filters.seniority] : [], l: S.l.slice(), r: S.r, q: S.q });
 }
+let pendingCarry = null;
+/** After the target board loads: drop carried filters that leave no roles (search, then location, then remote). */
+function settleCarry() {
+  const c = pendingCarry;
+  pendingCarry = null;
+  if (!c || data.status !== 'ready' || derive().filtered.length) return;
+  const dropped = [];
+  for (const [key, empty, label] of [['q', '', () => `“${c.q}”`], ['l', [], () => c.l.join(', ')], ['r', 'any', () => (c.r === 'remote' ? 'remote' : 'on-site')]]) {
+    const v = S[key];
+    if (Array.isArray(v) ? !v.length : v === empty) continue;
+    S[key] = structuredClone(empty);
+    dropped.push(label());
+    if (derive().filtered.length) break;
+  }
+  commit({ replace: true });
+  if (dropped.length) toast(`No ${dropped.join(' / ')} roles at ${c.name} — showing all ${dropped.length === 1 && c.l.length && !S.l.length ? 'locations' : 'matches'}`);
+}
+let drawerComps = null; // V13: one live comps chart at a time (tooltip, ResizeObserver, theme listener)
+function destroyDrawerComps() { try { drawerComps?.destroy?.(); } catch { /* ignore */ } drawerComps = null; }
 function sameRoleSection(job) {
+  destroyDrawerComps();
   if (!job._usd || !job._family) return null;
   const body = h('div', { class: 'comps-body' }, h('div', { class: 'sk sk-line', style: 'width:80%' }), h('div', { class: 'sk sk-line', style: 'width:60%' }));
   const sec = fold('d-comps', 'Same role elsewhere', body);
@@ -2017,7 +2110,9 @@ function sameRoleSection(job) {
         : `No other company lists this level, so this compares all ${family.toLowerCase()} roles.`),
       chartHost);
     try {
-      createCompsChart(chartHost, { onSelect: (slug) => { if (slug && slug !== job.company) pickCompany(slug, filters); } }).update(rows, { current: job.company });
+      destroyDrawerComps();
+      drawerComps = createCompsChart(chartHost, { onSelect: (slug) => { if (slug && slug !== job.company) pickCompany(slug, filters); } });
+      drawerComps.update(rows, { current: job.company });
     } catch (err) { console.warn('createCompsChart failed', err); sec.hidden = true; applyDrawerBudget(); }
   });
   return sec;
@@ -2116,12 +2211,113 @@ function sanitizeHtml(html, baseUrl) {
 const isMobile = () => matchMedia('(max-width: 860px)').matches;
 const isOverlayFilters = () => matchMedia('(max-width: 1199px)').matches;
 
-function setSheet(open) {
-  document.body.classList.toggle('sheet-open', open);
-  $('#sheetHandle').setAttribute('aria-expanded', String(open));
+/* Results bottom sheet (phones). Three snap points on body[data-sheet]: peek (count + sort),
+   half and full; `sheet-open` stays set for half/full. CSS owns the snap transforms; a drag
+   writes one inline transform per animation frame and reads layout only on pointerdown, so
+   the chart/map under the sheet never re-lays out (the sheet overlays them). */
+const SHEET = ['peek', 'half', 'full'];
+const sheetState = () => document.body.dataset.sheet || 'peek';
+function setSheet(state) {
+  if (state === true) state = 'half';
+  if (!SHEET.includes(state)) state = 'peek';
+  document.body.dataset.sheet = state;
+  document.body.classList.toggle('sheet-open', state !== 'peek');
+  const handle = $('#sheetHandle');
+  handle.setAttribute('aria-expanded', String(state !== 'peek'));
+  handle.querySelector('.sr-only').textContent = state === 'full' ? 'Collapse results list' : 'Expand results list';
+}
+const cycleSheet = () => setSheet(SHEET[(SHEET.indexOf(sheetState()) + 1) % SHEET.length]);
+
+function bindSheetDrag() {
+  const sheet = $('#results');
+  let g = null;           // active gesture
+  let frame = 0;
+  let swallowClick = false;
+  const snaps = () => {   // translateY of each snap point, mirroring the CSS
+    const H = sheet.offsetHeight;
+    const cs = getComputedStyle(sheet);
+    const peek = parseFloat(cs.getPropertyValue('--sheet-peek')) + parseFloat(cs.paddingBottom || 0);
+    const half = parseFloat(cs.getPropertyValue('--sheet-half')) || 0.5;
+    return { peek: Math.max(0, H - peek), half: Math.max(0, H - innerHeight * half), full: 0 };
+  };
+  const paint = () => { frame = 0; if (g?.dragging) sheet.style.transform = `translateY(${g.y}px)`; };
+  sheet.addEventListener('pointerdown', (e) => {
+    if (!isMobile() || !e.isPrimary || e.button > 0) return;
+    if (e.target.closest('select, input, .area-chip')) return;
+    // A full sheet scrolls its list natively; drag it down by the handle or header.
+    if (sheetState() === 'full' && e.target.closest('.cards')) return;
+    const s = snaps();
+    g = { id: e.pointerId, y0: s[sheetState()], y: s[sheetState()], start: e.clientY, s, dragging: false, hist: [[e.timeStamp, e.clientY]] };
+  });
+  sheet.addEventListener('pointermove', (e) => {
+    if (!g || e.pointerId !== g.id) return;
+    const dy = e.clientY - g.start;
+    if (!g.dragging) {
+      if (Math.abs(dy) < 6) return;
+      g.dragging = true;
+      sheet.classList.add('is-dragging');
+      try { sheet.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    }
+    g.y = Math.min(g.s.peek + 24, Math.max(0, g.y0 + dy));
+    g.hist.push([e.timeStamp, e.clientY]);
+    if (g.hist.length > 6) g.hist.shift();
+    if (!frame) frame = requestAnimationFrame(paint);
+  });
+  const end = (e) => {
+    if (!g || e.pointerId !== g.id) return;
+    const { dragging, hist, s, y } = g;
+    g = null;
+    if (!dragging) return;
+    swallowClick = true; setTimeout(() => { swallowClick = false; }, 0);
+    const [t0, y0] = hist[0], [t1, y1] = hist[hist.length - 1];
+    const v = e.type === 'pointercancel' ? 0 : (y1 - y0) / Math.max(1, t1 - t0); // px/ms, + is down
+    const order = SHEET.map((k) => [k, s[k]]);
+    let target = order.reduce((a, b) => (Math.abs(b[1] - y) < Math.abs(a[1] - y) ? b : a))[0];
+    if (Math.abs(v) > 0.45) { // a flick goes one snap further in its direction
+      const ahead = v < 0 ? order.filter(([, p]) => p < y - 1).sort((a, b) => b[1] - a[1]) : order.filter(([, p]) => p > y + 1).sort((a, b) => a[1] - b[1]);
+      if (ahead.length) target = ahead[0][0];
+    }
+    cancelAnimationFrame(frame); frame = 0;
+    sheet.classList.remove('is-dragging');
+    sheet.style.transform = '';
+    setSheet(target);
+  };
+  sheet.addEventListener('pointerup', end);
+  sheet.addEventListener('pointercancel', end);
+  sheet.addEventListener('click', (e) => { if (swallowClick) { e.stopPropagation(); e.preventDefault(); } }, true);
+}
+
+/* On phones the quick-filter chips open the one full-screen filter sheet at their section.
+   "More" keeps its own sheet: it carries Juice, which the filter panel does not have. */
+const CHIP_SECTION = { salary: 0, dept: 1, loc: 2, sen: 3, remote: 4 };
+function openFiltersAt(id) {
+  setFiltersOpen(true);
+  const sec = panel?.[CHIP_SECTION[id]]?.el;
+  if (!sec) return;
+  sec.open = true;
+  requestAnimationFrame(() => { sec.scrollIntoView({ block: 'start' }); sec.querySelector('summary')?.focus({ preventScroll: true }); });
+}
+
+/* The on-screen keyboard: iOS keeps the layout viewport, so fixed footers and bottom sheets sit
+   under it. visualViewport tells us; body.kb-open lifts sheets to the top and hides the sticky footer. */
+function bindKeyboardInsets() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const sync = rafThrottle(() => {
+    const open = isMobile() && vv.height < innerHeight * 0.78 && !!document.activeElement?.matches?.('input, textarea, select');
+    document.body.classList.toggle('kb-open', open);
+    document.documentElement.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
+  });
+  vv.addEventListener('resize', sync);
+  document.addEventListener('focusin', (e) => {
+    sync();
+    if (isMobile() && e.target.matches?.('#filters input, #popover input')) setTimeout(() => e.target.scrollIntoView?.({ block: 'center' }), 300);
+  });
+  document.addEventListener('focusout', () => setTimeout(sync, 50));
 }
 
 function setFiltersOpen(open) {
+  if (open && filtersDirty) { filtersDirty = false; renderFilterPanel(); } // PERF-2: catch up the skipped sync
   if (isOverlayFilters()) {
     document.body.classList.toggle('filters-open', open);
     $('#filtersScrim').hidden = !open;
@@ -2183,7 +2379,10 @@ function bindEvents() {
     if (e.key === 'Enter') { lastHash = '__dirty'; commit(); search.blur(); }
   });
 
-  for (const b of document.querySelectorAll('.seg [data-mode]')) b.addEventListener('click', () => set({ m: b.dataset.mode }));
+  for (const b of document.querySelectorAll('.seg [data-mode]')) b.addEventListener('click', () => {
+    set({ m: b.dataset.mode });
+    if (isMobile()) setSheet('peek'); // the new view shows first (QA UX-10)
+  });
   $('#companyMenuBtn').addEventListener('click', (e) => togglePopover('company', e.currentTarget));
   $('#addBoardBtn').addEventListener('click', (e) => togglePopover('board', e.currentTarget));
   $('#dataBadge').addEventListener('click', (e) => togglePopover('badge', e.currentTarget));
@@ -2206,7 +2405,9 @@ function bindEvents() {
   $('#filtersDone').addEventListener('click', () => setFiltersOpen(false));
   $('#filtersScrim').addEventListener('click', () => setFiltersOpen(false));
   $('#drawerBackdrop').addEventListener('click', () => closeDrawer());
-  $('#sheetHandle').addEventListener('click', () => setSheet(!document.body.classList.contains('sheet-open')));
+  $('#sheetHandle').addEventListener('click', cycleSheet); // peek -> half -> full -> peek
+  bindSheetDrag();
+  bindKeyboardInsets();
   $('.results-head').addEventListener('click', (e) => { if (isMobile() && !e.target.closest('select, label')) setSheet(!document.body.classList.contains('sheet-open')); });
   $('.brand').addEventListener('click', (e) => { e.preventDefault(); set({ ...resetFiltersPatch(), job: null, m: 'chart' }); closeDrawer(); });
 
@@ -2230,15 +2431,21 @@ function bindEvents() {
 
   document.addEventListener('keydown', (e) => {
     const typing = e.target.closest?.('input, textarea, select, [contenteditable]');
-    if (e.key === '/' && !typing && !e.metaKey && !e.ctrlKey) { e.preventDefault(); search.focus(); search.select(); return; }
-    if ((e.key === 't' || e.key === 'T') && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) { cycleTheme(); return; }
+    // V7 (WCAG 2.1.4): single-character shortcuts fire only when focus is on the page, a card or the
+    // drawer's scroll area — never on a button or field — and never with a modifier held.
+    const mod = e.metaKey || e.ctrlKey || e.altKey;
+    const t = e.target;
+    const shortcutOk = !mod && !typing && (t === document.body || t === document.documentElement || t.closest?.('.card, .drawer-scroll') === t || t.id === 'drawer');
+    if (e.key === '/' && shortcutOk) { e.preventDefault(); search.focus(); search.select(); return; }
+    if ((e.key === 't' || e.key === 'T') && shortcutOk) { cycleTheme(); return; }
+    if (e.key === 'Escape' && e.target.closest?.('.ms-comps')) return; // V13: the comps list handles its own Escape
     if (e.key === 'Escape') {
       if (popover.id) { closePopover(); return; }
       if (drawerJobId) { closeDrawer(); return; }
       if (document.body.classList.contains('filters-open')) { setFiltersOpen(false); return; }
       if (document.body.classList.contains('sheet-open')) { setSheet(false); return; }
     }
-    if (drawerJobId && !typing && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'j' || e.key === 'k')) {
+    if (drawerJobId && shortcutOk && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'j' || e.key === 'k')) {
       stepDrawer(e.key === 'ArrowRight' || e.key === 'j' ? 1 : -1);
     }
     if (drawerJobId && e.key === 'Tab') trapFocus(e, $('#drawer'));
@@ -2288,6 +2495,7 @@ async function boot() {
   } catch { /* ignore */ }
   if (isOverlayFilters()) $('#filtersToggle').setAttribute('aria-expanded', 'false');
   bindEvents();
+  setSheet('peek');
   S = parseHash();
   render();
   try {

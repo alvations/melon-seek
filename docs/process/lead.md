@@ -462,3 +462,4 @@ screenshots in `docs/screenshots/`.
   - devops: V2 (artifact trust), V3 (CSP on Pages), V12.
   - vetting: V11 (llm-vet prompt-injection hardening).
   - UX: V5–V9, V13, V14 client side.
+- 2026-10-02: vetting fixed V11 (llm-vet). Residual risk accepted: a hostile posting can make its own quote and numbers 'verify', but LLM verdicts are advisory only and the hard salary bounds still gate publishing. Full suite temporarily red from backend's in-progress pipeline refactor.

@@ -8,15 +8,12 @@ import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
 
 import { listCompanies, resolveCompany, defaultName } from './companies.js';
-import { fetchGreenhouse } from './sources/greenhouse.js';
-import { fetchAshby } from './sources/ashby.js';
-import { fetchLever } from './sources/lever.js';
-import { MAX_BYTES, MAX_BYTES_BUILTIN } from './sources/util.js';
-import { normalizeJobs } from './normalize.js';
+import { NORMALIZER_VERSION } from './normalize.js';
 import { vetSalaries } from './vet.js';
-import { rekeyBoardJobs } from './keywords.js';
 import { getCached, setCached, ROOT } from './cache.js';
-import { demoJobs } from './demo.js';
+import { runPipeline, ADAPTERS, fetchLive, maxBytesFor, BUILTIN_TIMEOUT_MS, setPipelineInline } from './pipeline.js';
+import { readStoreList, readDescription } from './store.js';
+import crypto from 'node:crypto';
 import { isLibModule } from './lib-modules.js';
 import { annotate, ledgerMeta, HISTORY_FORMAT } from './history.js';
 import { jobsToCsv, csvFileName } from './export.js';
@@ -40,7 +37,9 @@ export const NEGATIVE_TTL_MS = 10 * 60_000;
 /** Global cap on concurrent upstream fetches (review L2). */
 export const MAX_UPSTREAM = 4;
 
-export const ADAPTERS = { greenhouse: fetchGreenhouse, ashby: fetchAshby, lever: fetchLever };
+// Data pipeline (PERF-1): normalization, snapshot rekeying and demo generation
+// run in worker threads (server/pipeline.js); re-exported for tests and scripts.
+export { ADAPTERS, fetchLive, maxBytesFor, BUILTIN_TIMEOUT_MS, setPipelineInline };
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
@@ -115,23 +114,6 @@ export function publicError(err) {
   return 'Live fetch failed: upstream error';
 }
 
-/** Built-in boards can be tens of MB, so they get a longer timeout than custom boards (15 s). */
-export const BUILTIN_TIMEOUT_MS = 45_000;
-
-/** Upstream body cap: per-company override, else 120 MB for built-ins and 25 MB for custom boards. */
-export function maxBytesFor(company) {
-  if (company && company.maxBytes > 0) return company.maxBytes;
-  return company && company.custom ? MAX_BYTES : MAX_BYTES_BUILTIN;
-}
-
-/** Fetch live jobs for a company and normalize them (detailed errors; used by the snapshot CLI). */
-export async function fetchLive(company) {
-  const adapter = ADAPTERS[company.source];
-  if (!adapter) throw new Error(`No adapter for source "${company.source}"`);
-  const raws = await adapter(company.board, { maxBytes: maxBytesFor(company), timeoutMs: company.custom ? undefined : BUILTIN_TIMEOUT_MS });
-  return normalizeJobs(raws, company);
-}
-
 const vetMemo = new WeakMap(); // jobs array -> vetted array (stable identity for downstream memos)
 function vetted(jobs) {
   if (!Array.isArray(jobs)) return jobs;
@@ -140,7 +122,34 @@ function vetted(jobs) {
   return v;
 }
 
-const snapshots = new Map(); // slug -> { key, value } (parsed once per file version; bounded)
+/** Yield to the event loop between CPU-heavy steps of one request (PERF-1: no long tasks). */
+const yieldNow = () => new Promise((r) => setImmediate(r));
+const shortHash = (s) => crypto.createHash('sha1').update(String(s)).digest('hex').slice(0, 12);
+/** Demo stores are regenerated once per server process (cheap, in a worker). */
+const PROCESS_TAG = Date.now().toString(36);
+/** Bound for every per-board memo (review V4): about the main cache's LRU size. */
+const BOARD_MEMO_MAX = (Number(process.env.MELON_CACHE_MAX) || 50) + 16;
+
+const storeDocs = new Map(); // "custom|name" -> doc (bounded)
+/** A store's list document (parsed once; main-thread cost is the small list file only). */
+async function loadStore(name, custom = false) {
+  if (!name) return null;
+  const key = `${custom ? 1 : 0}|${name}`;
+  const hit = storeDocs.get(key);
+  if (hit) { boundedSet(storeDocs, key, hit, BOARD_MEMO_MAX); return hit; }
+  const doc = await readStoreList(name, { custom });
+  await yieldNow();
+  if (doc) boundedSet(storeDocs, key, doc, BOARD_MEMO_MAX);
+  return doc;
+}
+
+const snapshots = new Map(); // slug -> { key, value } (one per file version; bounded)
+const snapshotLoads = new Map(); // slug -> in-flight promise
+/**
+ * Snapshot data for a built-in company. The pipeline worker parses the snapshot
+ * (and upgrades it when its normalizerVersion is old) once per file version and
+ * writes a store under data/cache/store/; restarts reuse that store.
+ */
 async function readSnapshot(slug) {
   const file = path.join(SNAPSHOT_DIR, `${slug}.json`);
   let st;
@@ -148,16 +157,27 @@ async function readSnapshot(slug) {
   const key = `${st.mtimeMs}:${st.size}`;
   const hit = snapshots.get(slug);
   if (hit && hit.key === key) return hit.value;
-  let value = null;
-  try {
-    const parsed = JSON.parse(await fs.readFile(file, 'utf8'));
-    const jobs = Array.isArray(parsed) ? parsed : parsed && parsed.jobs;
-    // Snapshots may predate the boilerplate fix (QA BUG-5): redo sections and
-    // keywords once per file so company boilerplate never becomes a keyword.
-    if (Array.isArray(jobs) && jobs.length) value = { jobs: rekeyBoardJobs(jobs).jobs, fetchedAt: parsed.fetchedAt || null };
-  } catch {
-    value = null;
+  let p = snapshotLoads.get(slug);
+  if (!p || p.key !== key) {
+    const name = `snap-${slug}-${shortHash(`${key}|${NORMALIZER_VERSION}`)}`;
+    const run = (async () => {
+      let doc = await loadStore(name);
+      if (!doc) {
+        try {
+          await runPipeline({ type: 'snapshot', file, key, name, prunePrefix: `snap-${slug}-` });
+        } catch (err) {
+          console.warn(`[snapshot] ${slug}: ${err.message}`);
+          return null;
+        }
+        doc = await loadStore(name);
+      }
+      return doc && doc.jobs.length ? { jobs: doc.jobs, fetchedAt: doc.fetchedAt || null, store: { name, custom: false } } : null;
+    })();
+    p = { key, run };
+    snapshotLoads.set(slug, p);
+    run.finally(() => { if (snapshotLoads.get(slug) === p) snapshotLoads.delete(slug); });
   }
+  const value = await p.run;
   boundedSet(snapshots, slug, { key, value }, 20);
   return value;
 }
@@ -165,22 +185,39 @@ async function readSnapshot(slug) {
 const inflight = new Map();     // slug -> Promise<Job[]>
 const lastAttempt = new Map();  // slug -> { at, error }  (bounded)
 const negative = new Map();     // custom slug -> { at, fetchedAt, error, jobs } (bounded)
-const demoMemo = new Map();     // slug -> Job[] (demo is deterministic; bounded)
+const demoMemo = new Map();     // slug -> { jobs, fetchedAt, store } (demo is deterministic; bounded)
 
 /** Reset throttles and memos (tests). */
 export function resetState() {
   lastAttempt.clear(); negative.clear(); demoMemo.clear(); inflight.clear(); ledgers.clear();
+  storeDocs.clear(); snapshotLoads.clear(); demoLoads.clear();
   snapshots.clear(); compstimateMemo.clear(); marketMemo = null; listCache.clear();
 }
 
-/** Demo jobs plus the time they were generated (stable, so payload caches can key on it). */
-function demoFor(canonical) {
-  let hit = demoMemo.get(canonical.slug);
-  if (!hit) {
-    hit = { jobs: normalizeJobs(demoJobs(canonical.slug, canonical.name), canonical), fetchedAt: new Date().toISOString() };
-    boundedSet(demoMemo, canonical.slug, hit, 200);
+const demoLoads = new Map(); // slug -> in-flight promise
+/** Demo jobs (generated and normalized in a pipeline worker), with a stable fetchedAt. */
+async function demoFor(canonical) {
+  const hit = demoMemo.get(canonical.slug);
+  if (hit) return hit;
+  let p = demoLoads.get(canonical.slug);
+  if (!p) {
+    const custom = !!canonical.custom;
+    const name = `demo-${canonical.slug}-${shortHash(`${canonical.name}|${NORMALIZER_VERSION}|${PROCESS_TAG}`)}`;
+    p = (async () => {
+      let doc = await loadStore(name, custom);
+      if (!doc) {
+        await runPipeline({ type: 'demo', company: canonical, name, custom, prunePrefix: `demo-${canonical.slug}-` });
+        doc = await loadStore(name, custom);
+      }
+      if (!doc) throw new Error('demo store missing');
+      const value = { jobs: doc.jobs, fetchedAt: doc.fetchedAt, store: { name, custom } };
+      boundedSet(demoMemo, canonical.slug, value, BOARD_MEMO_MAX);
+      return value;
+    })();
+    demoLoads.set(canonical.slug, p);
+    p.finally(() => demoLoads.delete(canonical.slug)).catch(() => {});
   }
-  return hit;
+  return p;
 }
 
 /* ------------------------------------------------------------ history (F4) */
@@ -230,6 +267,7 @@ function annotateCached(jobs, ledger) {
  */
 export async function getJobs(company, opts = {}) {
   const payload = await getJobsBase(company, opts);
+  if (!payload) return null;
   const ledger = await loadLedger(company.slug);
   return {
     ...payload,
@@ -272,17 +310,30 @@ let compstimateWarned = false;
 const SLIM_KEYS = ['id', 'company', 'title', 'department', 'team', 'seniority', 'employmentType', 'locations', 'remote', 'salary', 'updatedAt'];
 const slim = (j) => { const o = {}; for (const k of SLIM_KEYS) if (j[k] !== undefined) o[k] = j[k]; return o; };
 
+/** Review V4: at most one backtest worker at a time, with a time and memory limit. */
+export const BACKTEST_TIMEOUT_MS = Number(process.env.MELON_BACKTEST_TIMEOUT_MS) || 60_000;
+let backtestChain = Promise.resolve();
 function runBacktestInWorker(jobs) {
-  return new Promise((resolve, reject) => {
+  const slimJobs = jobs.map(slim);
+  const run = () => new Promise((resolve, reject) => {
     // Lazy import keeps node:worker_threads out of the hot path.
     import('node:worker_threads').then(({ Worker }) => {
       // execArgv: [] so flags like --watch / --input-type of the parent process are not inherited.
-      const w = new Worker(WORKER_URL, { execArgv: [], workerData: { jobs: jobs.map(slim), opts: { ...BACKTEST_OPTS } } });
-      w.once('message', (m) => { (m && m.ok ? resolve(m.result) : reject(new Error(m && m.error))); w.terminate(); });
-      w.once('error', reject);
-      w.once('exit', (code) => { if (code !== 0 && code !== 1) reject(new Error(`backtest worker exited with ${code}`)); });
+      const w = new Worker(WORKER_URL, {
+        execArgv: [], workerData: { jobs: slimJobs, opts: { ...BACKTEST_OPTS } },
+        resourceLimits: { maxOldGenerationSizeMb: 512 },
+      });
+      w.unref();
+      const timer = setTimeout(() => { w.terminate(); reject(new Error(`backtest timed out after ${BACKTEST_TIMEOUT_MS} ms`)); }, BACKTEST_TIMEOUT_MS);
+      timer.unref();
+      w.once('message', (m) => { clearTimeout(timer); (m && m.ok ? resolve(m.result) : reject(new Error(m && m.error))); w.terminate(); });
+      w.once('error', (e) => { clearTimeout(timer); reject(e); });
+      w.once('exit', (code) => { clearTimeout(timer); if (code !== 0 && code !== 1) reject(new Error(`backtest worker exited with ${code}`)); });
     }, reject);
   });
+  const p = backtestChain.then(run, run);
+  backtestChain = p.catch(() => {});
+  return p;
 }
 
 function toMeta(r) {
@@ -318,7 +369,7 @@ export async function compstimateMeta(payload, { wait = BACKTEST_WAIT_MS } = {})
       entry.value = null;
       return null;
     });
-    boundedSet(compstimateMemo, key, entry, 200);
+    boundedSet(compstimateMemo, key, entry, BOARD_MEMO_MAX);
   }
   if (entry.value !== undefined) return entry.value;
   // Only the request that started the backtest waits (small boards finish in time);
@@ -343,7 +394,7 @@ const EMPTY_SECTIONS = Object.freeze({ responsibilities: Object.freeze([]), fit:
 const listCache = new Map(); // slug -> { key, promise -> { json, gz, etag, sectionsMoved } } (bounded)
 let etagSeq = 0;
 
-function listBody(payload, jobs, sectionsMoved) {
+function listBody({ store, ...payload }, jobs, sectionsMoved) {
   return JSON.stringify({
     ...payload,
     jobs,
@@ -395,7 +446,7 @@ export async function getJobsList(company, opts = {}) {
   const hit = listCache.get(company.slug);
   if (hit && hit.key === key && hit.jobs === payload.jobs) return hit.promise;
   const promise = buildList(payload);
-  boundedSet(listCache, company.slug, { key, jobs: payload.jobs, promise }, 100);
+  boundedSet(listCache, company.slug, { key, jobs: payload.jobs, promise }, BOARD_MEMO_MAX);
   promise.catch(() => { if (listCache.get(company.slug)?.promise === promise) listCache.delete(company.slug); });
   return promise;
 }
@@ -407,18 +458,32 @@ export function companyFromSlug(slug) {
   return resolveCompany({ company: slug || '' });
 }
 
-const jobIndex = new WeakMap(); // jobs array -> Map(id -> job)
-/** { id, descriptionHtml, sections } for one job, from the same data /api/jobs serves; null if unknown. */
+const jobIndex = new WeakMap(); // jobs array -> Map(id -> index)
+/**
+ * { id, descriptionHtml, sections } for one job, from the same data /api/jobs
+ * serves; null if unknown. Never fetches upstream, and never builds data for a
+ * custom board that /api/jobs has not loaded (review V1).
+ */
 export async function getJobDetail(company, id) {
-  const base = await getJobsBase(company, { offline: true }); // never fetches upstream
+  const base = await getJobsBase(company, { offline: true, noBuild: true });
+  if (!base) return null;
   let idx = jobIndex.get(base.jobs);
   if (!idx) {
-    idx = new Map(base.jobs.filter(Boolean).map((j) => [j.id, j]));
+    idx = new Map();
+    base.jobs.forEach((j, i) => { if (j) idx.set(j.id, i); });
     jobIndex.set(base.jobs, idx);
   }
-  const job = idx.get(id);
-  if (!job) return null;
-  return { id, descriptionHtml: typeof job.descriptionHtml === 'string' ? job.descriptionHtml : '', sections: job.sections || { responsibilities: [], fit: [] } };
+  const i = idx.get(id);
+  if (i === undefined) return null;
+  const job = base.jobs[i];
+  let descriptionHtml = typeof job.descriptionHtml === 'string' ? job.descriptionHtml : '';
+  if (!descriptionHtml && base.store && base.store.name) {
+    const doc = await loadStore(base.store.name, base.store.custom);
+    // Store lists are aligned with the job lists built from them (vetting keeps order).
+    const at = doc && doc.jobs[i] && doc.jobs[i].id === id ? i : doc ? doc.jobs.findIndex((j) => j && j.id === id) : -1;
+    if (at >= 0) descriptionHtml = await readDescription(base.store.name, doc.desc[at], { custom: base.store.custom });
+  }
+  return { id, descriptionHtml, sections: job.sections || { responsibilities: [], fit: [] } };
 }
 
 async function sendBytes(req, res, { json, gz, etag }) {
@@ -457,13 +522,25 @@ export async function getMarket() {
   return doc;
 }
 
-async function getJobsBase(company, { refresh = false, offline = false } = {}) {
+/**
+ * Jobs for a company with fallbacks: fresh cache -> live -> stale cache ->
+ * snapshot -> demo. Heavy work happens in pipeline workers; this function only
+ * awaits it. Payloads carry `store` ({ name, custom }) for /api/job details.
+ * - offline: never fetch upstream (HEAD, /api/job, /api/market).
+ * - noBuild: for custom boards, return null instead of building demo data that
+ *   /api/jobs has not built yet (review V1: /api/job and /api/export must not
+ *   be a way to make the server generate boards).
+ */
+async function getJobsBase(company, { refresh = false, offline = false, noBuild = false } = {}) {
+  // ?name= is only a display name for custom boards (review V14): built-ins keep theirs.
+  const builtin = !company.custom && listCompanies().find((c) => c.slug === company.slug);
+  if (builtin) company = { ...company, name: builtin.name };
   const pub = { slug: company.slug, name: company.name, source: company.source, board: company.board, color: company.color };
   // Cached data is built with a name that does not depend on the caller's
   // ?name= (review L3); the requested display name is stamped on the way out.
   const canonical = { ...company, name: company.custom ? defaultName(company.board) : company.name };
   // Every response passes the salary gate, including cache and snapshot data
-  // that was normalized by older code (vetSalaries is idempotent).
+  // that was normalized by older code (vetSalaries is idempotent; memoized).
   const stamp = (rawJobs) => {
     const jobs = vetted(rawJobs);
     return pub.name === canonical.name ? jobs
@@ -473,17 +550,18 @@ async function getJobsBase(company, { refresh = false, offline = false } = {}) {
   const now = Date.now();
 
   const cached = await getCached(company.slug, { custom });
+  const cacheStore = cached ? { name: cached.store, custom } : null;
   const last = lastAttempt.get(company.slug);
   // A recent attempt blocks another one, unless it succeeded and its cache entry
   // has since been evicted (nothing to serve).
   const throttled = offline || (!!last && now - last.at < MIN_REFRESH_MS && !(!cached && !last.error));
 
   if (cached && cached.fresh && (!refresh || throttled)) {
-    return { company: pub, mode: 'cache', fetchedAt: cached.fetchedAt, error: null, jobs: stamp(cached.data) };
+    return { company: pub, mode: 'cache', fetchedAt: cached.fetchedAt, error: null, jobs: stamp(cached.data), store: cacheStore };
   }
   const neg = custom && negative.get(company.slug);
   if (neg && now - neg.at < NEGATIVE_TTL_MS && (!refresh || throttled)) {
-    return { company: pub, mode: 'demo', fetchedAt: neg.fetchedAt, error: neg.error, jobs: stamp(neg.jobs) };
+    return { company: pub, mode: 'demo', fetchedAt: neg.fetchedAt, error: neg.error, jobs: stamp(neg.jobs), store: neg.store };
   }
 
   let error = null;
@@ -494,13 +572,16 @@ async function getJobsBase(company, { refresh = false, offline = false } = {}) {
       let p = inflight.get(company.slug);
       if (!p) {
         boundedSet(lastAttempt, company.slug, { at: now, error: null }, 1000);
-        p = withUpstreamSlot(() => fetchLive(canonical)).finally(() => inflight.delete(company.slug));
+        p = withUpstreamSlot(() => runPipeline({ type: 'live', company: canonical, custom })).finally(() => inflight.delete(company.slug));
         inflight.set(company.slug, p);
       }
-      const jobs = await p;
-      const entry = await setCached(company.slug, jobs, { custom });
+      const r = await p;
+      const doc = await loadStore(r.name, custom);
+      if (!doc) throw new Error('live store missing');
+      const entry = await setCached(company.slug, doc.jobs, { fetchedAt: r.fetchedAt, custom, store: r.name, write: false });
       negative.delete(company.slug);
-      return { company: pub, mode: 'live', fetchedAt: entry.fetchedAt, error: null, jobs: stamp(jobs) };
+      await yieldNow();
+      return { company: pub, mode: 'live', fetchedAt: entry.fetchedAt, error: null, jobs: stamp(doc.jobs), store: { name: r.name, custom } };
     } catch (err) {
       console.warn(`[live] ${company.slug}: ${err && err.message ? err.message : err}`);
       error = publicError(err);
@@ -508,21 +589,26 @@ async function getJobsBase(company, { refresh = false, offline = false } = {}) {
     }
   }
 
-  if (cached) return { company: pub, mode: 'cache', fetchedAt: cached.fetchedAt, error, jobs: stamp(cached.data) };
+  if (cached) return { company: pub, mode: 'cache', fetchedAt: cached.fetchedAt, error, jobs: stamp(cached.data), store: cacheStore };
 
-  const snap = await readSnapshot(company.slug);
-  if (snap) return { company: pub, mode: 'snapshot', fetchedAt: snap.fetchedAt, error, jobs: stamp(snap.jobs) };
+  if (!custom) {
+    const snap = await readSnapshot(company.slug);
+    if (snap) { await yieldNow(); return { company: pub, mode: 'snapshot', fetchedAt: snap.fetchedAt, error, jobs: stamp(snap.jobs), store: snap.store }; }
+  }
 
+  if (custom && noBuild && !demoMemo.has(canonical.slug)) return null;
   let jobs = [];
   let fetchedAt = new Date().toISOString();
+  let store = null;
   try {
-    ({ jobs, fetchedAt } = demoFor(canonical));
+    ({ jobs, fetchedAt, store } = await demoFor(canonical));
   } catch (err) {
     console.error(`[demo] ${company.slug}:`, err);
     error = error ? `${error}; demo data unavailable` : 'Demo data unavailable';
   }
-  if (custom && !offline) boundedSet(negative, company.slug, { at: now, fetchedAt, error, jobs }, 200);
-  return { company: pub, mode: 'demo', fetchedAt, error, jobs: stamp(jobs) };
+  if (custom && !offline) boundedSet(negative, company.slug, { at: now, fetchedAt, error, jobs, store }, BOARD_MEMO_MAX);
+  await yieldNow();
+  return { company: pub, mode: 'demo', fetchedAt, error, jobs: stamp(jobs), store };
 }
 
 /* ------------------------------------------------------------- cities */
@@ -690,7 +776,9 @@ export async function handle(req, res) {
       } catch (err) {
         return sendJson(req, res, err.status || 400, { error: err.message });
       }
-      const data = await getJobs(company, { offline: req.method === 'HEAD' });
+      // Custom boards: only what /api/jobs already loaded (review V10/V1: no fetch, no build).
+      const data = await getJobs(company, company.custom ? { offline: true, noBuild: true } : { offline: req.method === 'HEAD' });
+      if (!data) return sendJson(req, res, 404, { error: 'Board not loaded yet; open it first' });
       const csv = jobsToCsv(data.jobs, { mode: data.mode });
       return send(req, res, 200, csv, 'text/csv; charset=utf-8', {
         'Content-Disposition': `attachment; filename="${csvFileName(company.slug, { mode: data.mode, date: data.fetchedAt || undefined })}"`,
@@ -739,8 +827,25 @@ export function createServer({ log = true } = {}) {
   });
 }
 
+/**
+ * Warm every built-in company in the background (PERF-1, review V15): snapshot
+ * or demo stores are built in pipeline workers, then the list payloads and the
+ * market doc are prepared, one company at a time. Never fetches upstream.
+ */
+export async function warmBuiltins({ log = true } = {}) {
+  const t0 = Date.now();
+  for (const c of listCompanies()) {
+    try { await getJobsList(c, { offline: true }); } catch (err) { console.warn(`[warm] ${c.slug}: ${err.message}`); }
+  }
+  try { await getMarket(); } catch (err) { console.warn(`[warm] market: ${err.message}`); }
+  if (log) console.log(`[warm] ${listCompanies().length} companies + market ready in ${Date.now() - t0} ms`);
+}
+
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
 if (isMain) {
   const port = Number(process.env.PORT) || 5173;
-  createServer().listen(port, () => console.log(`melon-seek listening on http://localhost:${port}`));
+  createServer().listen(port, () => {
+    console.log(`melon-seek listening on http://localhost:${port}`);
+    if (process.env.MELON_WARM !== '0') warmBuiltins();
+  });
 }

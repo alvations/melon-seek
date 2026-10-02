@@ -440,7 +440,7 @@ checks.oneUp = await (async () => {
   r.saveVisibleWithFilter = await p.evaluate(() => !document.getElementById('saveSearch').hidden);
   await shot(p, 'desktop-chart-filtered-save');
   await p.click('#saveSearch'); await p.waitForTimeout(200);
-  r.savePressed = await p.getAttribute('#saveSearch', 'aria-pressed');
+  r.savePressed = await p.evaluate(() => document.getElementById('saveSearch').classList.contains('is-saved') && document.getElementById('saveSearch').textContent.trim() === 'Saved');
   await p.click('#companyMenuBtn'); await p.waitForTimeout(250);
   r.savedInMenu = await p.evaluate(() => [...document.querySelectorAll('.saved-row .company-item-name')].map((e) => e.textContent));
   await shot(p, 'desktop-company-menu-saved');
@@ -475,6 +475,62 @@ checks.qaFinal = await (async () => {
   r.mobileTopbarRows = await mp2.evaluate(() => { const ys = ['#companyMenuBtn', '#dataBadge', '#search', '#themeBtn'].map((s) => Math.round(document.querySelector(s).getBoundingClientRect().top)); return ys; });
   await shot(mp2, 'mobile-topbar-badge');
   await mp2.close();
+  return r;
+})();
+checks.wave2 = await (async () => {
+  const r = {};
+  await p.goto('about:blank');
+  await p.goto(`${BASE}/${QS}#c=anthropic`); await ready(p); await p.waitForTimeout(400);
+  // UX-1: "Highest pay" by midpoint (USD-only cards, first 12)
+  r.sortByMid = await p.evaluate(() => {
+    const k = (t) => { const m = t.match(/^\$(\d+(?:\.\d)?)([KM])(?:–(\d+(?:\.\d)?)([KM]))?$/); if (!m) return null; const v = (n, u) => Number(n) * (u === 'M' ? 1e6 : 1e3); const lo = v(m[1], m[2]); const hi = m[3] ? v(m[3], m[4]) : lo; return (lo + hi) / 2; };
+    const mids = [...document.querySelectorAll('.card .sal-pill')].slice(0, 12).map((e) => k(e.textContent.trim())).filter((x) => x != null);
+    return mids.every((m, i) => i === 0 || m <= mids[i - 1] * 1.02);
+  });
+  // A11Y-3: one visually hidden h1 and two skip links
+  r.h1 = await p.evaluate(() => [...document.querySelectorAll('h1')].map((e) => e.textContent));
+  r.skipLinks = await p.evaluate(() => document.querySelectorAll('.skip-link').length);
+  // A11Y-2: Seniority popover focuses its first visible control
+  await p.click('[data-pop="sen"]'); await p.waitForTimeout(250);
+  r.seniorityFocusInPopover = await p.evaluate(() => document.getElementById('popover').contains(document.activeElement));
+  await p.keyboard.press('Escape');
+  // V7: single-key shortcut ignored while a button has focus
+  const theme0 = await p.evaluate(() => document.documentElement.getAttribute('data-theme'));
+  await p.focus('#filtersToggle'); await p.keyboard.press('t'); await p.waitForTimeout(100);
+  r.shortcutIgnoredOnButton = (await p.evaluate(() => document.documentElement.getAttribute('data-theme'))) === theme0;
+  // V6: company menu has no listbox / option roles
+  await p.click('#companyMenuBtn'); await p.waitForTimeout(200);
+  r.menuRoles = await p.evaluate(() => document.querySelectorAll('#popover [role="listbox"], #popover [role="option"]').length);
+  await p.keyboard.press('Escape');
+  // UX-2: title matches first, with "N in title"
+  await p.goto(`${BASE}/${QS}#c=anthropic&q=machine%20learning`); await ready(p); await p.waitForTimeout(300);
+  r.searchTitle = (await p.textContent('#resultsTitle'))?.trim();
+  r.firstCardTitleMatches = await p.evaluate(() => /machine/i.test(document.querySelector('.card .card-title')?.textContent || '') && /learning/i.test(document.querySelector('.card .card-title')?.textContent || ''));
+  // UX-9: Insights Compstimate follows the search
+  await p.goto(`${BASE}/${QS}#c=anthropic&m=insights&q=Research%20Engineer`); await ready(p); await p.waitForTimeout(700);
+  r.insightsQuery = await p.evaluate(() => document.querySelector('#compHost input')?.value || null);
+  // Drawer: comps directly under the pay block; Juice headline collapsed; V5 toggle keeps focus
+  await p.goto(`${BASE}/${QS}#c=anthropic`); await ready(p);
+  await p.click('.card[data-id] >> nth=0'); await p.waitForSelector('.drawer.is-open'); await p.waitForTimeout(800);
+  r.drawerOrder = await p.evaluate(() => [...document.querySelectorAll('#drawer .drawer-scroll > *')].map((e) => e.className.split(' ').find((c) => /^d-(salary|comps|juice|listing|locs|kw|about|desc)$/.test(c))).filter(Boolean));
+  if (await p.$('#drawer .juice-details')) {
+    await p.click('#drawer .juice-details > summary'); await p.waitForTimeout(150);
+    await p.click('#drawer .juice-body [data-period="month"]'); await p.waitForTimeout(100);
+    r.juiceToggleKeepsFocus = await p.evaluate(() => document.activeElement?.dataset?.period === 'month');
+    r.taxBreakdownVisible = await p.evaluate(() => !!document.querySelector('#drawer .wf--tax .wf-detail')?.offsetParent);
+    await shot(p, 'desktop-drawer-wave2');
+  }
+  await p.keyboard.press('Escape');
+  // UX-4: carry location/search to the target company (or toast why not)
+  await p.goto(`${BASE}/${QS}#c=anthropic&l=San%20Francisco`); await ready(p);
+  await p.click('.card[data-id] >> nth=0'); await p.waitForSelector('.drawer.is-open'); await p.waitForTimeout(900);
+  const row = await p.$('#drawer .d-comps:not([hidden]) .ms-comps__row:not(.is-current)');
+  if (row) { await row.click(); await ready(p); await p.waitForTimeout(500); r.carryHash = await p.evaluate(() => location.hash); r.carryToast = await p.evaluate(() => document.getElementById('toast').hidden ? null : document.getElementById('toast').textContent); }
+  // UX-11: role chip shows once on desktop
+  r.roleChipCount = await p.evaluate(() => [...document.querySelectorAll('.area-chip')].filter((e) => e.getClientRects().length).length);
+  // V14: a custom board can't borrow a built-in company's name
+  await p.goto(`${BASE}/${QS}#c=greenhouse:examplecorp&cn=Anthropic`); await p.waitForTimeout(1500);
+  r.customName = await p.evaluate(() => document.querySelector('#companyMenuBtn .company-name')?.textContent);
   return r;
 })();
 checks.slashFocusesSearch = await (async () => { await p.keyboard.press('/'); return p.evaluate(() => document.activeElement.id === 'search'); })();

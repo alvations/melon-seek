@@ -2,54 +2,40 @@
    the shared hover tooltip (.ms-viz-tip). Self-contained; consumes the app's
    --ms-* tokens when present and falls back to its own light/dark values. */
 
+/* DES-12: one source for every fallback token. Colors use light-dark(), driven by
+   color-scheme; the few non-color tweaks scale with a 0/1 dark flag (--_d). The only
+   per-theme rules left are the two-line switches below (OS setting and data-theme). */
 .ms-chart, .ms-map, .ms-viz-tip, .ms-comps {
-  --_bg: var(--ms-bg, #f9f9f7);
-  --_surface: var(--ms-surface, #fcfcfb);
-  --_text: var(--ms-text, #0b0b0b);
-  --_muted: var(--ms-muted, #5f5e5a);
-  --_border: var(--ms-border, #e1e0d9);
-  --_accent: var(--ms-accent, #2a78d6);
+  --_d: 0;
+  color-scheme: light;
+  --_bg: var(--ms-bg, light-dark(#f9f9f7, #0d0d0d));
+  --_surface: var(--ms-surface, light-dark(#fcfcfb, #1a1a19));
+  --_text: var(--ms-text, light-dark(#0b0b0b, #ffffff));
+  --_muted: var(--ms-muted, light-dark(#5f5e5a, #a9a89f));
+  --_border: var(--ms-border, light-dark(#e1e0d9, #2c2c2a));
+  --_accent: var(--ms-accent, light-dark(#0b7a5c, #3ccf9a));
   --_grid: color-mix(in srgb, var(--_border) 75%, var(--_surface));
   --_axis: color-mix(in srgb, var(--_muted) 45%, var(--_surface));
   --_wash: color-mix(in srgb, var(--_text) 5%, transparent);
   --_wash-strong: var(--ms-accent-soft, color-mix(in srgb, var(--_accent) 13%, transparent));
   --_radius: var(--ms-radius, 10px);
   --_radius-sm: var(--ms-radius-sm, 7px);
-  --_tip-bg: var(--ms-raised, var(--ms-surface, #ffffff));
-  --_shadow: var(--ms-shadow-lg, 0 1px 2px rgba(11, 11, 11, .06), 0 6px 20px rgba(11, 11, 11, .10));
-  --_map-bg: color-mix(in srgb, var(--_bg) 88%, #c9d6e3);
-  --_map-line: color-mix(in srgb, var(--_border) 80%, #9fb2c6);
+  --_tip-bg: var(--ms-raised, var(--ms-surface, light-dark(#ffffff, #242423)));
+  --_shadow: var(--ms-shadow-lg, 0 1px 2px light-dark(rgba(11, 11, 11, .06), rgba(0, 0, 0, .4)), 0 6px 22px light-dark(rgba(11, 11, 11, .10), rgba(0, 0, 0, .45)));
+  --_map-bg: color-mix(in srgb, var(--_bg) calc(88% - 3% * var(--_d)), light-dark(#c9d6e3, #22303d));
+  --_map-line: color-mix(in srgb, var(--_border) calc(80% - 10% * var(--_d)), light-dark(#9fb2c6, #3a4b5c));
+  /* non-color dark tweaks: translucent fills go muddy on dark, so lift them */
+  --_bar-o: calc(.5 + .22 * var(--_d));
+  --_hist-o: calc(.42 + .2 * var(--_d));
+  --_hist-o-c: calc(.26 + .16 * var(--_d));
+  --_bin-mix: calc(30% + 22% * var(--_d));
+  --_band-mix: calc(9% + 7% * var(--_d));
   --_font: var(--ms-font, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
-  color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root:where(:not([data-theme="light"])) :is(.ms-chart, .ms-map, .ms-viz-tip, .ms-comps) {
-    --_bg: var(--ms-bg, #0d0d0d);
-    --_surface: var(--ms-surface, #1a1a19);
-    --_text: var(--ms-text, #ffffff);
-    --_muted: var(--ms-muted, #a9a89f);
-    --_border: var(--ms-border, #2c2c2a);
-    --_accent: var(--ms-accent, #3987e5);
-    --_tip-bg: var(--ms-raised, var(--ms-surface, #242423));
-    --_shadow: var(--ms-shadow-lg, 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .45));
-    --_map-bg: color-mix(in srgb, var(--_bg) 85%, #22303d);
-    --_map-line: color-mix(in srgb, var(--_border) 70%, #3a4b5c);
-    color-scheme: dark;
-  }
+  :root:where(:not([data-theme="light"])) :is(.ms-chart, .ms-map, .ms-viz-tip, .ms-comps) { --_d: 1; color-scheme: dark; }
 }
-:root[data-theme="dark"] :is(.ms-chart, .ms-map, .ms-viz-tip, .ms-comps) {
-  --_bg: var(--ms-bg, #0d0d0d);
-  --_surface: var(--ms-surface, #1a1a19);
-  --_text: var(--ms-text, #ffffff);
-  --_muted: var(--ms-muted, #a9a89f);
-  --_border: var(--ms-border, #2c2c2a);
-  --_accent: var(--ms-accent, #3987e5);
-  --_tip-bg: var(--ms-raised, var(--ms-surface, #242423));
-  --_shadow: var(--ms-shadow-lg, 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .45));
-  --_map-bg: color-mix(in srgb, var(--_bg) 85%, #22303d);
-  --_map-line: color-mix(in srgb, var(--_border) 70%, #3a4b5c);
-  color-scheme: dark;
-}
+:root[data-theme="dark"] :is(.ms-chart, .ms-map, .ms-viz-tip, .ms-comps) { --_d: 1; color-scheme: dark; }
 
 /* ============================== chart ============================== */
 
@@ -296,7 +282,7 @@
 }
 .ms-crow--last { border-bottom: 0; }
 /* Rows beyond the 8 palette slots are neutral; lift their tint so circles never read as holes. */
-.ms-crow--other { --_bin-mix: 42%; --_band-mix: 7%; }
+.ms-crow--other { --_bin-mix: calc(42% + 18% * var(--_d)); --_band-mix: calc(7% + 4% * var(--_d)); }
 .ms-crow.is-selected { background: color-mix(in srgb, var(--c) 6%, transparent); }
 
 .ms-crow__label {
@@ -373,7 +359,7 @@
   --ring: var(--_surface);
   background: color-mix(in srgb, var(--c) var(--_bin-mix, 30%), var(--_surface));
   box-shadow: 0 0 0 2px var(--ring);
-  color: var(--_text);
+  color: var(--c-rest-ink, var(--_text)); /* A11Y-1: ink chosen in JS from the actual mixed fill */
   font-size: 11px; font-weight: 600; line-height: 1;
   font-variant-numeric: tabular-nums;
   transition: background-color .12s, color .12s, transform .12s;
@@ -403,14 +389,6 @@
 .ms-bin.is-highlighted .ms-bin__dot { box-shadow: 0 0 0 2px var(--ring), 0 0 0 4px var(--_text); }
 .ms-bin.is-active .ms-bin__dot { box-shadow: 0 0 0 2px var(--ring), 0 0 0 4px var(--_accent); }
 @media (prefers-reduced-motion: reduce) { .ms-bin__dot { transition: none; } .ms-bin.is-hover .ms-bin__dot { transform: none; } }
-
-/* Dark surface: translucent fills go muddy, so lift the range bars. */
-@media (prefers-color-scheme: dark) {
-  :root:where(:not([data-theme="light"])) .ms-chart { --_bar-o: .72; --_hist-o: .62; --_hist-o-c: .42; --_bin-mix: 52%; --_band-mix: 16%; }
-  :root:where(:not([data-theme="light"])) .ms-chart .ms-crow--other { --_bin-mix: 88%; --_band-mix: 11%; }
-}
-:root[data-theme="dark"] .ms-chart { --_bar-o: .72; --_hist-o: .62; --_hist-o-c: .42; --_bin-mix: 52%; --_band-mix: 16%; }
-:root[data-theme="dark"] .ms-chart .ms-crow--other { --_bin-mix: 88%; --_band-mix: 11%; }
 
 /* ============================== tooltip ============================== */
 
@@ -685,7 +663,4 @@
 .ms-comps__nodata { position: absolute; top: 0; line-height: 28px; color: var(--_muted); font-style: italic; }
 .ms-comps__empty { padding: 12px 6px; color: var(--_muted); }
 .ms-comps__note { padding: 6px 6px 0; color: var(--_muted); font-size: 11px; }
-@media (prefers-color-scheme: dark) {
-  :root:where(:not([data-theme="light"])) .ms-comps { --_bar-o: .72; }
-}
-:root[data-theme="dark"] .ms-comps { --_bar-o: .72; }
+

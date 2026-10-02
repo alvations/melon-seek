@@ -27,22 +27,21 @@ await p.goto('http://localhost:'+PORT+'/viz/demo.html?view=ranges&groupBy=senior
 out.listboxChildren=await p.evaluate(()=>{const lb=document.querySelector('[role=listbox]');
   // every element with text inside listbox must be within an option or group header aria-hidden
   const bad=[...lb.querySelectorAll('*')].filter(e=>!e.closest('[role=option]')&&!e.closest('[aria-hidden=true]')&&!['group','none','option'].includes(e.getAttribute('role'))&&e.children.length===0&&e.textContent.trim());
-  return {groups:lb.querySelectorAll('[role=group]').length, options:lb.querySelectorAll('[role=option]').length, strayText:bad.length, firstGroup:lb.querySelector('[role=group]').getAttribute('aria-label'), firstOption:lb.querySelector('[role=option]').getAttribute('aria-label')};});
+  return {groups:lb.querySelectorAll('[role=group]').length, options:lb.querySelectorAll('[role=option]').length, strayText:bad.length, firstGroup:lb.querySelector('[role=group]')?.getAttribute('aria-label')??null, firstOption:lb.querySelector('[role=option]').getAttribute('aria-label')};});
 await p.focus('.ms-chart__body');
 for(let i=0;i<3;i++) await p.keyboard.press('ArrowDown');
-const before=await p.evaluate(()=>{const a=document.querySelector('.ms-row.is-active');return {id:__viz.jobs.find(j=>j.title&&a.getAttribute('aria-label').startsWith(j.title))&&a.getAttribute('aria-label'), sel:a.getAttribute('aria-selected'), ad:document.querySelector('[role=listbox]').getAttribute('aria-activedescendant')===a.id}});
+const before=await p.evaluate(()=>{const a=document.querySelector('.ms-row.is-active');return {id:a.getAttribute('aria-label'), sel:a.getAttribute('aria-selected'), ad:document.querySelector('[role=listbox]').getAttribute('aria-activedescendant')===a.id}});
 await p.selectOption('#groupBy','none');await p.waitForTimeout(150);
 out.afterRerender=await p.evaluate(()=>{const a=document.querySelector('.ms-row.is-active');return a?{label:a.getAttribute('aria-label'),sel:a.getAttribute('aria-selected'),ad:document.querySelector('[role=listbox]').getAttribute('aria-activedescendant')===a.id}:null});
-out.activeKept = before.id===out.afterRerender?.label;
+out.activeKept = !!before.id && !!out.afterRerender && before.id.endsWith(out.afterRerender.label); // grouped option names carry a 'Group: ' prefix
 out.activeRing=await p.evaluate(()=>getComputedStyle(document.querySelector('.ms-row.is-active'),'::before').boxShadow);
 await p.focus('.ms-chart__body');await p.keyboard.press('End');
-out.endIsLast=await p.evaluate(()=>{const rows=document.querySelectorAll('.ms-row');return rows[rows.length-1].classList.contains('is-active')});
-await p.evaluate(()=>{document.querySelector('.ms-chart__scroll').scrollTop=0;});
-await p.evaluate(()=>{const j=__viz.jobs.filter(j=>j.salary); __viz.chart.highlight(document.querySelectorAll('.ms-row')[150]&&[...document.querySelectorAll('.ms-row')][150].getAttribute('aria-label')&&null)});
-out.reducedScroll=await p.evaluate(()=>{const ids=[...document.querySelectorAll('.ms-row')];const sc=document.querySelector('.ms-chart__scroll');sc.scrollTop=0;
-  // pick the job at row 150 via public API
-  const label=ids[150].getAttribute('aria-label');const job=__viz.jobs.find(j=>j.salary&&label.startsWith(j.title+','));
-  return new Promise(res=>{let found=null;for(const j of __viz.jobs){__viz.chart.highlight(j.id);const h=document.querySelector('.ms-row.is-highlighted');if(h===ids[150]){found=j;break}} sc.scrollTop=0;__viz.chart.highlight(null);__viz.chart.highlight(found.id);res(sc.scrollTop)})});
+out.endIsLast=await p.evaluate(()=>{const a=document.querySelector('.ms-row.is-active');return !!a && +a.dataset.idx===__viz.jobs.filter(j=>j.salary).length-1});
+out.domRows=await p.evaluate(()=>document.querySelectorAll('.ms-row').length); // windowed: only rows near the viewport exist
+out.reducedScroll=await p.evaluate(()=>{const sc=document.querySelector('.ms-chart__scroll');sc.scrollTop=0;
+  // the lowest-paid salaried job sits at the bottom (rows sort high -> low)
+  const job=__viz.jobs.filter(j=>j.salary).sort((a,b)=>a.salary.mid-b.salary.mid)[0];
+  __viz.chart.highlight(job.id);const h=document.querySelector('.ms-row.is-highlighted');return {scrollTopSync:sc.scrollTop, highlightedPainted:!!h};});
 await p.screenshot({path:OUT+'/a11y-chart-active.png'});
 await p.close();
 // ---- clusters view (default) ----
@@ -75,6 +74,18 @@ C.highlight=await p.evaluate(()=>{const sc=document.querySelector('.ms-chart__sc
 await p.screenshot({path:OUT+'/a11y-clusters.png'});
 out.clusters=C;
 await p.close();
+// ---- A11Y-1: count-label contrast on cluster circles, both themes ----
+for (const scheme of ['light','dark']) {
+  const q=await b.newPage({viewport:{width:1280,height:2000},colorScheme:scheme});q.on('pageerror',e=>errs.push(e.message));
+  await q.goto('http://localhost:'+PORT+'/viz/demo.html?groupBy=location&n=1000');await q.waitForTimeout(500);
+  out['dotContrast_'+scheme]=await q.evaluate(()=>{
+    const rgb=s=>{const m=s.match(/[\d.]+/g).map(Number);return s.startsWith('color(')?m.slice(0,3).map(v=>v*255):m.slice(0,3)};
+    const lum=c=>{const [r,g,b]=c.map(v=>{v/=255;return v<=.03928?v/12.92:((v+.055)/1.055)**2.4});return .2126*r+.7152*g+.0722*b};
+    const cr=(a,b)=>{const [x,y]=[lum(a),lum(b)].sort((p,q)=>q-p);return (x+.05)/(y+.05)};
+    const vals=[...document.querySelectorAll('.ms-bin__dot')].filter(d=>d.textContent.trim()&&!d.classList.contains('ms-bin__chip')).map(d=>{const cs=getComputedStyle(d);return cr(rgb(cs.color),rgb(cs.backgroundColor))});
+    return {labels:vals.length, min:+Math.min(...vals).toFixed(2)};});
+  await q.close();
+}
 // ---- comps chart ----
 p=await b.newPage({viewport:{width:1280,height:820},reducedMotion:'reduce'});p.on('pageerror',e=>errs.push(e.message));
 await p.goto('http://localhost:'+PORT+'/viz/demo.html?mode=comps');await p.waitForTimeout(500);
