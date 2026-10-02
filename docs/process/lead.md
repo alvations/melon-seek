@@ -320,3 +320,10 @@ screenshots in `docs/screenshots/`.
   dataStatus.numbeo = "UNDER REVIEW". The replacement plan is in
   LIVABILITY.md §7 (US: HUD/BEA/BLS, about 4–5 dev-days for the
   recommended scope). Decision escalated to the user; nothing deleted.
+- 2026-10-02: vetting finished. 681 jobs reviewed (505 flagged plus 176
+  seeded sample): 111 parser bugs and 19 ambiguous source postings; all 176
+  sampled jobs were correct. Root-cause parser fixes; 435 regression
+  fixtures; after the fixes 0 blocking and 7 quarantined. The lead wrote
+  data/vetting/2026-10-02/summary.md from the agent's report (the harness
+  blocks subagents from writing report-style .md). Job 5183044008 now shows
+  a 3,850 USD/week stipend (≈$200K/yr FTE, kind "stipend").

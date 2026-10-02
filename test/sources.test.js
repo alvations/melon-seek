@@ -322,3 +322,22 @@ test('F4: adapters emit postedAt and reqId; updatedAt keeps its meaning', async 
   const bad = normalizeJob({ ...gh[0], postedAt: 'not a date', reqId: '' }, { slug: 'anthropic', name: 'Anthropic' });
   assert.deepEqual([bad.postedAt, bad.reqId], [null, null]);
 });
+
+test('F2: normalize sets job.extras from keywords.extractCompExtras (feature-detected)', async () => {
+  const { normalizeJob, compExtras } = await import('../server/normalize.js');
+  const kw = await import('../server/keywords.js');
+  const co = { slug: 'openai', name: 'OpenAI' };
+  mockFetch(() => jsonResponse(fixture('ashby-board.json')));
+  const [mts] = await fetchAshby('openai');
+  const j = normalizeJob(mts, co);
+  assert.ok(j.extras && typeof j.extras.equity === 'boolean' && typeof j.extras.bonus === 'boolean');
+  if (typeof kw.extractCompExtras === 'function') {
+    // "$310K – $460K • Offers Equity" lives in the compensation summary, not the description.
+    assert.equal(j.extras.equity, true);
+    const dei = normalizeJob({ ...mts, html: '<p>We are committed to pay equity and diversity, equity and inclusion.</p>', text: '', compensationSummary: null, salary: null }, co);
+    assert.equal(dei.extras.equity, false);
+    const bonus = normalizeJob({ ...mts, html: '<p>Total compensation includes base salary, an annual performance bonus and RSUs.</p>', text: '', compensationSummary: null, salary: null }, co);
+    assert.deepEqual(bonus.extras, { equity: true, bonus: true });
+  }
+  assert.deepEqual(compExtras({}, '', ''), { equity: false, bonus: false });
+});

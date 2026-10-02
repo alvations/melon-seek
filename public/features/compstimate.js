@@ -112,14 +112,43 @@ function buildIdf(normed) {
   return (t) => Math.log(1 + N / (1 + (df.get(t) || 0)));
 }
 
+// Prepared, read-only index per jobs array (keyed by array identity + length),
+// so repeated estimates over the same board (widget typing, backtest) don't
+// re-normalize every title. Callers must not mutate items of a cached array.
+const INDEX_CACHE = new WeakMap();
+
+function buildIndex(jobs) {
+  const pool = [];
+  for (const job of jobs) {
+    if (!job) continue;
+    const pay = salaryUSD(job);
+    if (!pay) continue;
+    pool.push({ job, pay, norm: normalizeTitle(job.title, { department: job.department }) });
+  }
+  const idf = buildIdf(pool.map((p) => p.norm));
+  for (const p of pool) {
+    p.tset = new Set(p.norm.tokens);
+    p.jSum = p.norm.tokens.reduce((a, t) => a + idf(t), 0);
+  }
+  return { pool, idf, jobs };
+}
+
+function indexFor(allJobs) {
+  const jobs = Array.isArray(allJobs) ? allJobs : [];
+  if (!Array.isArray(allJobs)) return buildIndex(jobs);
+  const hit = INDEX_CACHE.get(allJobs);
+  if (hit && hit.length === allJobs.length) return hit.index;
+  const index = buildIndex(jobs);
+  INDEX_CACHE.set(allJobs, { length: allJobs.length, index });
+  return index;
+}
+
 /** IDF-weighted overlap: 0.7 * coverage of the query's tokens + 0.3 * precision. */
-function tokenSim(qTokens, jTokens, idf) {
-  if (!qTokens.length || !jTokens.length) return 0;
-  const js = new Set(jTokens);
-  let inter = 0, qSum = 0, jSum = 0;
-  for (const t of qTokens) { const w = idf(t); qSum += w; if (js.has(t)) inter += w; }
-  for (const t of jTokens) jSum += idf(t);
-  return 0.7 * (inter / qSum) + 0.3 * (inter / jSum);
+function tokenSim(qTokens, qSum, p, idf) {
+  if (!qTokens.length || !p.jSum) return 0;
+  let inter = 0;
+  for (const t of qTokens) if (p.tset.has(t)) inter += idf(t);
+  return 0.7 * (inter / qSum) + 0.3 * (inter / p.jSum);
 }
 
 // Selection thresholds.
@@ -141,39 +170,38 @@ export function estimateComp(allJobs, query = {}) {
     department: String(query.department || '').trim(),
     excludeId: query.excludeId ?? null,
   };
-  const qn = normalizeTitle(q.title);
+  const excl = query.excludeIds ? new Set(query.excludeIds) : null;
+  const qn = normalizeTitle(q.title, { department: q.department || null });
   const level = q.seniority || qn.seniority || '';
-  const ql = resolveLocation(q.location, allJobs || []);
+  const ix = indexFor(allJobs);
+  const ql = resolveLocation(q.location, ix.jobs);
   const used = { ...q, seniority: level, family: qn.family, tokens: qn.tokens, location: ql?.key || '' };
 
-  const pool = [];
-  for (const job of allJobs || []) {
-    if (!job || (q.excludeId != null && job.id === q.excludeId)) continue;
-    const pay = salaryUSD(job);
-    if (pay) pool.push({ job, pay, norm: normalizeTitle(job.title) });
-  }
   const empty = (explanation) => ({
     low: null, mid: null, high: null, currency: 'USD', confidence: 'Low', n: 0,
     comparables: [], scores: [], explanation, query: used,
   });
-  if (!pool.length) return empty('No roles on this board publish pay, so there is nothing to compare against yet.');
-
-  const idf = buildIdf(pool.map((p) => p.norm));
   const hasTitle = qn.tokens.length > 0;
-  for (const p of pool) {
-    const ts = hasTitle ? 0.7 * tokenSim(qn.tokens, p.norm.tokens, idf) + 0.3 * familySim(qn.family, p.norm.family) : 1;
-    p.titleSim = ts;
-    p.w = ts * ts * senioritySim(level, p.job.seniority) * deptSim(q.department, p.job.department) * locationSim(ql, p.job);
+  const qSum = qn.tokens.reduce((a, t) => a + ix.idf(t), 0);
+  const scored = [];
+  for (const p of ix.pool) {
+    if (q.excludeId != null && p.job.id === q.excludeId) continue;
+    if (excl && excl.has(p.job.id)) continue;
+    const ts = hasTitle ? 0.7 * tokenSim(qn.tokens, qSum, p, ix.idf) + 0.3 * familySim(qn.family, p.norm.family) : 1;
+    const w = ts * ts * senioritySim(level, p.job.seniority) * deptSim(q.department, p.job.department) * locationSim(ql, p.job);
+    scored.push({ job: p.job, pay: p.pay, titleSim: ts, w });
   }
-  pool.sort((a, b) => b.w - a.w || String(b.job.updatedAt || '').localeCompare(String(a.job.updatedAt || '')));
-  const best = pool[0].w;
+  if (!scored.length) return empty('No roles on this board publish pay, so there is nothing to compare against yet.');
+  scored.sort((a, b) => b.w - a.w || String(b.job.updatedAt || '').localeCompare(String(a.job.updatedAt || '')) || String(a.job.id).localeCompare(String(b.job.id)));
+  const best = scored[0].w;
   if (!(best >= MIN_WEIGHT)) {
     return empty(q.title
       ? `No roles with published pay look comparable to “${q.title}”. Try a broader title.`
       : 'No comparable roles with published pay.');
   }
   const cut = Math.max(MIN_WEIGHT, REL_WEIGHT * best);
-  const comps = pool.filter((p) => p.w >= cut).slice(0, MAX_COMPARABLES);
+  const comps = [];
+  for (const p of scored) { if (p.w < cut || comps.length >= MAX_COMPARABLES) break; comps.push(p); }
 
   const mids = comps.map((p) => [p.pay.mid, p.w]);
   const band = [];
@@ -220,14 +248,120 @@ export function estimateComp(allJobs, query = {}) {
   };
 }
 
-/** Compstimate for one posting (e.g. in a job drawer), excluding the posting itself. */
-export function compstimateForJob(allJobs, job) {
+/**
+ * Compstimate for one posting (e.g. in a job drawer), excluding the posting itself.
+ * `opts.excludeIds` drops more postings (the backtest passes the job's duplicates).
+ */
+export function compstimateForJob(allJobs, job, opts = {}) {
   if (!job) return estimateComp(allJobs, {});
   const onsite = (job.locations || []).find((l) => !l.remote);
   const loc = onsite ? locationKey(onsite) : job.remote ? 'Remote' : '';
   return estimateComp(allJobs, {
-    title: job.title, seniority: job.seniority || '', department: job.department || '', location: loc, excludeId: job.id,
+    title: job.title, seniority: job.seniority || '', department: job.department || '', location: loc,
+    excludeId: job.id, excludeIds: opts.excludeIds || null,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Backtest (published accuracy, ROADMAP F3)
+// ---------------------------------------------------------------------------
+
+/** Seed the build and server use (2026-10-02). */
+export const BACKTEST_SEED = 20261002;
+/** Above this median absolute % error, estimates are labelled "Low confidence". */
+export const ACCURACY_LOW_THRESHOLD = 25;
+
+/** mulberry32: tiny deterministic PRNG in [0,1). */
+function rng(seed) {
+  let a = (Number(seed) >>> 0) || 1;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Seeded leave-one-out backtest of Compstimate. Pure; no DOM.
+ *
+ * Vetted jobs are those with `salary !== null` and a usable USD salary. They are
+ * sorted by id (so the input order doesn't matter), and `maxN` of them are drawn
+ * with a seeded partial Fisher–Yates. Each drawn job is estimated with
+ * compstimateForJob() from all *other* vetted jobs (title, level, department,
+ * first on-site city), and its error is |estimate.mid − posted mid| / posted mid.
+ * "Other" excludes the job's duplicates too (same title and same posted range,
+ * e.g. one req listed per city), which would otherwise make the error look
+ * near zero on boards that repost a role many times.
+ *
+ * @param {Job[]} jobs
+ * @param {{ seed?: number, maxN?: number }} [opts]
+ * @returns {{ medianAbsPctError: number|null, within10Pct: number|null, n: number, seed: number, skipped: number }}
+ *   medianAbsPctError and within10Pct are PERCENT numbers with one decimal
+ *   (14.2 means 14.2%); n is the number of jobs that got an estimate; skipped
+ *   counts drawn jobs with no comparable to estimate from.
+ */
+export function backtest(jobs, { seed = BACKTEST_SEED, maxN = 500 } = {}) {
+  const vetted = (Array.isArray(jobs) ? jobs : []).filter((j) => j && j.salary != null && salaryUSD(j))
+    .slice().sort((a, b) => (String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0));
+  const k = Math.max(0, Math.min(vetted.length, Math.floor(Number(maxN) || 0)));
+  const order = vetted.map((_, i) => i);
+  const rand = rng(seed);
+  for (let i = 0; i < k; i++) {
+    const j = i + Math.floor(rand() * (order.length - i));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  const dupKey = (j) => `${String(j.title || '').trim().toLowerCase()}|${j.salary.min}|${j.salary.max}|${j.salary.currency}`;
+  const groups = new Map();
+  for (const j of vetted) {
+    const key = dupKey(j);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(j.id);
+  }
+  const errs = [];
+  let skipped = 0;
+  for (const i of order.slice(0, k)) {
+    const job = vetted[i];
+    const est = compstimateForJob(vetted, job, { excludeIds: groups.get(dupKey(job)) });
+    const actual = salaryUSD(job).mid;
+    if (est.mid == null || !(actual > 0)) { skipped += 1; continue; }
+    errs.push(Math.abs(est.mid - actual) / actual);
+  }
+  const r1 = (x) => Math.round(x * 1000) / 10;
+  return {
+    medianAbsPctError: errs.length ? r1(median(errs)) : null,
+    within10Pct: errs.length ? r1(errs.filter((e) => e <= 0.10 + 1e-9).length / errs.length) : null,
+    n: errs.length,
+    seed: Number(seed),
+    skipped,
+  };
+}
+
+/** Pull { medianAbsPctError, n, ... } out of a response meta, a meta.compstimate object, or null. */
+export function accuracyFrom(meta) {
+  if (!meta || typeof meta !== 'object') return null;
+  const acc = 'compstimate' in meta ? meta.compstimate : meta;
+  return acc && Number.isFinite(acc.medianAbsPctError) && acc.n > 0 ? acc : null;
+}
+
+/** "Typically within ±14% (tested on 500 listed salaries)", or null without a backtest. */
+export function accuracyLine(meta) {
+  const acc = accuracyFrom(meta);
+  if (!acc) return null;
+  return `Typically within ±${Math.round(acc.medianAbsPctError)}% (tested on ${plural(acc.n, 'listed salary', 'listed salaries')})`;
+}
+
+/** True when the board's backtest error is above ACCURACY_LOW_THRESHOLD (estimates are then "Low confidence"). */
+export function isLowAccuracy(meta) {
+  const acc = accuracyFrom(meta);
+  return !!acc && acc.medianAbsPctError > ACCURACY_LOW_THRESHOLD;
+}
+
+/** The confidence to display: the estimate's own, forced to "Low" when the board's backtest error is above 25%. */
+export function displayConfidence(result, meta) {
+  if (!result || result.mid == null) return 'Low';
+  return isLowAccuracy(meta) ? 'Low' : result.confidence;
 }
 
 // ---------------------------------------------------------------------------

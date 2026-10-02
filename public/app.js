@@ -7,7 +7,8 @@ import { colorFor, formatMoney, resetColors, assignColors, otherColor, toUSD, SL
 import { createChart, keyOf, VIEWS, DEFAULT_VIEW } from './viz/chart.js';
 import { createMap } from './viz/map.js';
 import * as api from './api.js';
-import { createCompstimateWidget, compstimateForJob, roleFamily } from './features/compstimate.js';
+import { createCompstimateWidget, compstimateForJob } from './features/compstimate.js';
+import { roleFamily, FAMILY_LABELS } from './features/roles.js';
 import { createInsights } from './features/insights.js'; // getCompanies, getJobs, getJobDetail (namespace import: tolerate a missing optional export)
 
 // ?mock=1 swaps the data layer for a local generator. Development only: it is
@@ -59,6 +60,7 @@ const FAMILY_LABEL = {
   swe: 'Software engineering', ml: 'ML & research', data: 'Data', 'eng-manager': 'Engineering management', design: 'Design',
   product: 'Product', program: 'Program & operations', security: 'Security', hardware: 'Hardware', sales: 'Sales & solutions',
   marketing: 'Marketing', support: 'Support', legal: 'Legal & policy', people: 'People & recruiting', finance: 'Finance',
+  ...FAMILY_LABELS, // product's taxonomy (features/roles.js) wins
 };
 const SENIORITY_ORDER = ['Intern', 'Entry', 'Mid', 'Senior', 'Staff+', 'Manager', 'Director+', 'Unspecified'];
 const SOURCE_LABEL = { greenhouse: 'Greenhouse', ashby: 'Ashby', lever: 'Lever' };
@@ -291,7 +293,7 @@ function prepare(jobs) {
     // falls back to updatedAt so the age slot and "Listed" filter still work.
     j._age = 'ageDays' in j ? (Number.isFinite(j.ageDays) ? j.ageDays : null)
       : j._ts ? Math.max(0, Math.floor((Date.now() - j._ts) / 864e5)) : null;
-    j._family = j._family ?? roleFamily(j.title);
+    j._family = j._family ?? roleFamily(j.title, { department: j.department });
     j.juice = j.juice && j.juice.best ? j.juice : null;
     j._grade = j.juice ? (j.juice.best.grade === 'Rind' ? 'Dry' : j.juice.best.grade) : null;
     j._locKeys = j.locations.map(locKey);
@@ -1976,8 +1978,9 @@ function sameRoleSection(job) {
     if (!sec.isConnected && drawerJobId !== job.id) return;
     let res = null;
     try { res = m ? m.compsForJob(m.market, job) : null; } catch (err) { console.warn('compsForJob failed', err); }
-    const rows = (res?.rows || []).filter((r) => (r.slug ?? r.company) !== job.company);
-    if (!rows.length) { sec.hidden = true; applyDrawerBudget(); return; }
+    const rows = res?.rows || [];
+    const others = rows.filter((r) => (r.slug ?? r.company) !== job.company);
+    if (!others.length) { sec.hidden = true; applyDrawerBudget(); return; }
     const family = FAMILY_LABEL[job._family] || job._family;
     const bySen = res.matchedOn !== 'family';
     const filters = { family: job._family, seniority: bySen ? job.seniority : null };
@@ -1988,10 +1991,13 @@ function sameRoleSection(job) {
         : `No other company lists this level, so this compares all ${family.toLowerCase()} roles.`),
       chartHost);
     if (m.createCompsChart) {
-      try { m.createCompsChart(chartHost, { onSelect: (slug) => pickCompany(slug, filters) }).update(rows); return; } catch (err) { console.warn('createCompsChart failed', err); }
+      try {
+        m.createCompsChart(chartHost, { onSelect: (slug) => { if (slug && slug !== job.company) pickCompany(slug, filters); } }).update(rows, { current: job.company });
+        return;
+      } catch (err) { console.warn('createCompsChart failed', err); }
     }
     // Fallback: a plain list (one row per company).
-    chartHost.replaceChildren(h('ul', { class: 'comps-list' }, ...rows.map((r) => h('li', null,
+    chartHost.replaceChildren(h('ul', { class: 'comps-list' }, ...others.map((r) => h('li', null,
       h('button', { type: 'button', class: 'comps-row', onclick: () => pickCompany(r.slug ?? r.company, filters), title: `Open ${r.name || r.slug} with these filters` },
         h('span', { class: 'comps-name' }, r.name || r.slug || r.company),
         h('span', { class: 'comps-med' }, money(r.median)),

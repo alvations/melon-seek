@@ -241,7 +241,7 @@ checks.oneUp = await (async () => {
   r.listing = await p.evaluate(() => [...document.querySelectorAll('#drawer .listing-lines li')].map((e) => e.textContent));
   await shot(p, 'desktop-drawer-1up');
   // Same role elsewhere -> switch company with filters through the hash; Back returns
-  const row = await p.$('#drawer .d-comps:not([hidden]) button');
+  const row = await p.$('#drawer .d-comps:not([hidden]) .ms-comps__row:not(.is-current), #drawer .d-comps:not([hidden]) button');
   if (row) {
     await row.click(); await ready(p); await p.waitForTimeout(400);
     r.compsHash = await p.evaluate(() => location.hash);

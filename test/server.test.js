@@ -529,3 +529,83 @@ test('F4: /lib/history.js is served (browser-safe allowlist)', { skip: skipReaso
   assert.equal(res.status, 200);
   assert.match(await res.text(), /export function annotate/);
 });
+
+test('F1: GET /api/market builds from data on hand (demo here) without live fetches', { skip: skipReason }, async () => {
+  fs.rmSync(path.join(process.env.MELON_SNAPSHOT_DIR, 'anduril.json'), { force: true }); // from the snapshot-fallback test
+  mod.resetState();
+  const before = upstreamCalls.length;
+  const res = await get('/api/market');
+  assert.equal(res.status, 200);
+  const doc = await res.json();
+  assert.equal(doc.format, 'melon-market-1');
+  assert.equal(doc.basis, 'posted base pay ranges');
+  assert.equal(doc.currency, 'USD');
+  assert.equal(doc.mode, 'demo', 'every built-in is demo in this test (no cache, no snapshots)');
+  assert.ok(doc.cells.length > 0);
+  assert.ok(doc.cells.every((c) => c[3] >= 3));
+  assert.equal(upstreamCalls.length, before, 'no upstream fetches');
+  const again = await (await get('/api/market.json')).json();
+  assert.equal(again.generatedAt, doc.generatedAt, 'memoized while inputs are unchanged');
+});
+
+test('F7: GET /api/export returns CSV with the documented columns and no descriptions', { skip: skipReason }, async () => {
+  mod.resetState();
+  let res = await get('/api/export?source=lever&board=example');
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /^text\/csv; charset=utf-8/);
+  assert.match(res.headers.get('content-disposition'), /^attachment; filename="melon-seek-lever-example-\d{4}-\d{2}-\d{2}\.csv"$/);
+  assert.ok(['live', 'cache'].includes(res.headers.get('x-melon-mode')));
+  const text = await res.text();
+  const lines = text.trim().split('\r\n');
+  assert.equal(lines[0], 'id,title,department,team,seniority,locations,remote,salary_min,salary_max,salary_currency,posted_at,first_seen_at,url,data_mode');
+  assert.equal(lines.length, 3);
+  assert.ok(!text.includes('We build developer tools'), 'no description text');
+  assert.ok(lines.some((l) => l.startsWith('lever-example:a1b2c3d4-1111-4222-8333-444455556666,Senior Backend Engineer,Engineering,Platform,')));
+  assert.ok(lines.some((l) => l.includes(',150000,185000,CAD,')));
+  // Demo data is labelled in the file name, header and every row.
+  res = await get('/api/export?company=anthropic');
+  assert.match(res.headers.get('content-disposition'), /-demo\.csv"$/);
+  assert.equal(res.headers.get('x-melon-mode'), 'demo');
+  const demo = (await res.text()).trim().split('\r\n');
+  assert.ok(demo.length > 10);
+  assert.ok(demo.slice(1).every((l) => l.endsWith(',demo')));
+  // Validation and HEAD.
+  assert.equal((await get('/api/export?source=lever&board=..')).status, 400);
+  assert.equal((await get('/api/export')).status, 400);
+  const before = upstreamCalls.length;
+  const head = await realFetch(`${base}/api/export?source=ashby&board=head-export`, { method: 'HEAD' });
+  assert.equal(head.status, 200);
+  assert.equal(upstreamCalls.length, before, 'HEAD does not fetch upstream');
+});
+
+test('F3: meta.compstimate via product backtest (feature-detected; null for demo or when missing)', { skip: skipReason }, async () => {
+  mod.resetState();
+  try {
+    mod.setCompstimateModule(null);
+    let body = await (await get('/api/jobs?source=lever&board=example&refresh=1')).json();
+    assert.equal(body.meta.compstimate, null, 'module unavailable');
+    mod.setCompstimateModule({}); // no backtest export yet
+    body = await (await get('/api/jobs?source=lever&board=example')).json();
+    assert.equal(body.meta.compstimate, null);
+    const calls = [];
+    mod.setCompstimateModule({ backtest: (jobs, opts) => { calls.push([jobs.length, opts]); return { medianAbsPctError: 0.123, within10Pct: 0.41, n: jobs.length, seed: opts.seed }; } });
+    body = await (await get('/api/jobs?source=lever&board=example')).json();
+    const m = body.meta.compstimate;
+    assert.deepEqual({ ...m, computedAt: undefined }, { medianAbsPctError: 0.123, within10Pct: 0.41, n: 2, seed: 20261002, computedAt: undefined });
+    assert.ok(Date.parse(m.computedAt));
+    assert.deepEqual(calls[0][1], { seed: 20261002, maxN: 500 });
+    await get('/api/jobs?source=lever&board=example');
+    assert.equal(calls.length, 1, 'memoized per job list');
+    const demo = await (await get('/api/jobs?company=anthropic')).json();
+    assert.equal(demo.meta.compstimate, null, 'no accuracy figure for demo data');
+    mod.setCompstimateModule({ backtest: () => { throw new Error('boom'); } });
+    const warn = console.warn; console.warn = () => {};
+    try {
+      mod.resetState();
+      body = await (await get('/api/jobs?source=lever&board=example&refresh=1')).json();
+      assert.equal(body.meta.compstimate, null, 'a failing backtest never breaks /api/jobs');
+    } finally { console.warn = warn; }
+  } finally {
+    mod.setCompstimateModule(undefined);
+  }
+});

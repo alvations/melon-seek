@@ -18,6 +18,7 @@ import { getCached, setCached, ROOT } from './cache.js';
 import { demoJobs } from './demo.js';
 import { isLibModule } from './lib-modules.js';
 import { annotate, ledgerMeta, HISTORY_FORMAT } from './history.js';
+import { jobsToCsv, csvFileName } from './export.js';
 
 const gzip = promisify(zlib.gzip);
 
@@ -130,15 +131,32 @@ export async function fetchLive(company) {
   return normalizeJobs(raws, company);
 }
 
+const vetMemo = new WeakMap(); // jobs array -> vetted array (stable identity for downstream memos)
+function vetted(jobs) {
+  if (!Array.isArray(jobs)) return jobs;
+  let v = vetMemo.get(jobs);
+  if (!v) { v = vetSalaries(jobs); vetMemo.set(jobs, v); }
+  return v;
+}
+
+const snapshots = new Map(); // slug -> { key, value } (parsed once per file version; bounded)
 async function readSnapshot(slug) {
+  const file = path.join(SNAPSHOT_DIR, `${slug}.json`);
+  let st;
+  try { st = await fs.stat(file); } catch { snapshots.delete(slug); return null; }
+  const key = `${st.mtimeMs}:${st.size}`;
+  const hit = snapshots.get(slug);
+  if (hit && hit.key === key) return hit.value;
+  let value = null;
   try {
-    const parsed = JSON.parse(await fs.readFile(path.join(SNAPSHOT_DIR, `${slug}.json`), 'utf8'));
+    const parsed = JSON.parse(await fs.readFile(file, 'utf8'));
     const jobs = Array.isArray(parsed) ? parsed : parsed && parsed.jobs;
-    if (!Array.isArray(jobs) || !jobs.length) return null;
-    return { jobs, fetchedAt: parsed.fetchedAt || null };
+    if (Array.isArray(jobs) && jobs.length) value = { jobs, fetchedAt: parsed.fetchedAt || null };
   } catch {
-    return null;
+    value = null;
   }
+  boundedSet(snapshots, slug, { key, value }, 20);
+  return value;
 }
 
 const inflight = new Map();     // slug -> Promise<Job[]>
@@ -149,6 +167,7 @@ const demoMemo = new Map();     // slug -> Job[] (demo is deterministic; bounded
 /** Reset throttles and memos (tests). */
 export function resetState() {
   lastAttempt.clear(); negative.clear(); demoMemo.clear(); inflight.clear(); ledgers.clear();
+  snapshots.clear(); compstimateMemo.clear(); marketMemo = null;
 }
 
 function demoFor(canonical) {
@@ -211,8 +230,78 @@ export async function getJobs(company, opts = {}) {
   return {
     ...payload,
     jobs: annotateCached(payload.jobs, ledger),
-    meta: { compstimate: null, history: ledgerMeta(ledger) },
+    meta: { compstimate: await compstimateMeta(payload), history: ledgerMeta(ledger) },
   };
+}
+
+/* ------------------------------------------------------ compstimate (F3) */
+
+export const BACKTEST_OPTS = Object.freeze({ seed: 20261002, maxN: 500 });
+let compstimateModule; // undefined = not loaded yet, null = unavailable
+async function loadCompstimate() {
+  if (compstimateModule === undefined) {
+    try {
+      compstimateModule = await import('../public/features/compstimate.js');
+    } catch (err) {
+      console.warn(`[compstimate] unavailable: ${err.message}`);
+      compstimateModule = null;
+    }
+  }
+  return compstimateModule;
+}
+/** Tests only: replace the compstimate module (null = unavailable, undefined = reload). */
+export function setCompstimateModule(mod) { compstimateModule = mod; compstimateMemo.clear(); }
+const compstimateMemo = new Map(); // slug -> { jobs, value } (bounded)
+let compstimateWarned = false;
+
+/**
+ * meta.compstimate: product's seeded leave-one-out backtest per company
+ * (feature-detected: null until public/features/compstimate.js exports
+ * `backtest`). Null for demo data: an accuracy figure for synthetic pay
+ * would be meaningless.
+ */
+export async function compstimateMeta(payload) {
+  if (!payload || payload.mode === 'demo' || !Array.isArray(payload.jobs)) return null;
+  const mod = await loadCompstimate();
+  if (!mod || typeof mod.backtest !== 'function') return null;
+  const key = payload.company && payload.company.slug;
+  const hit = compstimateMemo.get(key);
+  if (hit && hit.jobs === payload.jobs) return hit.value;
+  let value = null;
+  try {
+    const r = mod.backtest(payload.jobs, { ...BACKTEST_OPTS });
+    if (r && Number.isFinite(r.medianAbsPctError) && r.n > 0) {
+      value = { medianAbsPctError: r.medianAbsPctError, within10Pct: r.within10Pct ?? null, n: r.n, seed: r.seed ?? BACKTEST_OPTS.seed, computedAt: new Date().toISOString() };
+    }
+  } catch (err) {
+    if (!compstimateWarned) console.warn(`[compstimate] backtest failed: ${err.message}`);
+    compstimateWarned = true;
+  }
+  boundedSet(compstimateMemo, key, { jobs: payload.jobs, value }, 200);
+  return value;
+}
+
+/* ------------------------------------------------------------ market (F1) */
+
+let marketModule;
+let marketMemo = null; // { arrays: Job[][], doc }
+/**
+ * Market comps over the built-in companies from data already on hand
+ * (cache, snapshot or demo; never triggers live fetches). Recomputed only
+ * when one of the underlying job lists changes.
+ */
+export async function getMarket() {
+  if (!marketModule) marketModule = await import('../scripts/build-market.js');
+  const payloads = [];
+  for (const c of listCompanies()) {
+    const p = await getJobsBase(c, { offline: true });
+    payloads.push({ company: p.company, mode: p.mode, fetchedAt: p.fetchedAt, jobs: p.jobs });
+  }
+  const arrays = payloads.map((p) => p.jobs);
+  if (marketMemo && marketMemo.arrays.length === arrays.length && marketMemo.arrays.every((a, i) => a === arrays[i])) return marketMemo.doc;
+  const doc = marketModule.buildMarket(payloads);
+  marketMemo = { arrays, doc };
+  return doc;
 }
 
 async function getJobsBase(company, { refresh = false, offline = false } = {}) {
@@ -223,7 +312,7 @@ async function getJobsBase(company, { refresh = false, offline = false } = {}) {
   // Every response passes the salary gate, including cache and snapshot data
   // that was normalized by older code (vetSalaries is idempotent).
   const stamp = (rawJobs) => {
-    const jobs = vetSalaries(rawJobs);
+    const jobs = vetted(rawJobs);
     return pub.name === canonical.name ? jobs
       : jobs.map((j) => (j && j.companyName !== pub.name ? { ...j, companyName: pub.name } : j));
   };
@@ -340,9 +429,9 @@ async function serveCities(req, res) {
 
 /* --------------------------------------------------------------- HTTP */
 
-async function send(req, res, status, body, type) {
+async function send(req, res, status, body, type, extraHeaders = null) {
   let buf = Buffer.isBuffer(body) ? body : Buffer.from(body);
-  const headers = { ...SECURITY_HEADERS, 'Content-Type': type, 'Cache-Control': 'no-cache' };
+  const headers = { ...SECURITY_HEADERS, 'Content-Type': type, 'Cache-Control': 'no-cache', ...(extraHeaders || {}) };
   if (buf.length > 1024 && COMPRESSIBLE.test(type) && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) {
     buf = await gzip(buf); // async: large job payloads must not block the event loop (review L8)
     headers['Content-Encoding'] = 'gzip';
@@ -416,6 +505,28 @@ export async function handle(req, res) {
     }
     // /api/cities.json matches the static build's dist/api/cities.json, so api.js can use one URL.
     if (p === '/api/cities' || p === '/api/cities.json') return serveCities(req, res);
+    if (p === '/api/market' || p === '/api/market.json') {
+      try {
+        return sendJson(req, res, 200, await getMarket());
+      } catch (err) {
+        console.error('[market]', err);
+        return sendJson(req, res, 503, { error: 'Market data unavailable' });
+      }
+    }
+    if (p === '/api/export') {
+      let company;
+      try {
+        company = resolveCompany(url.searchParams);
+      } catch (err) {
+        return sendJson(req, res, err.status || 400, { error: err.message });
+      }
+      const data = await getJobs(company, { offline: req.method === 'HEAD' });
+      const csv = jobsToCsv(data.jobs, { mode: data.mode });
+      return send(req, res, 200, csv, 'text/csv; charset=utf-8', {
+        'Content-Disposition': `attachment; filename="${csvFileName(company.slug, { mode: data.mode, date: data.fetchedAt || undefined })}"`,
+        'X-Melon-Mode': data.mode,
+      });
+    }
     if (p === '/api/health') return sendJson(req, res, 200, { ok: true });
     return sendJson(req, res, 404, { error: 'Unknown API route' });
   }

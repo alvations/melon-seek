@@ -1,0 +1,1998 @@
+{
+ "description": "Hand-labelled compensation extras for extractCompExtras (server/keywords.js). Each excerpt keeps the sentences of the real posting (description text + salary summary) that mention equity/stock/bonus/commission/OTE/incentives, max 8 sentences of <=320 chars; postings without such sentences keep their first 160 chars.",
+ "labeller": "features agent (Claude), read each posting's candidate sentences in context; 2026-10-02",
+ "input": "htmlToText(job.descriptionHtml) + \"\\n\" + job.salary.text, opts.title = job.title",
+ "source": {
+  "anduril": "data/snapshots/anduril.json fetchedAt 2026-10-02T05:54:37.130Z",
+  "anthropic": "data/snapshots/anthropic.json fetchedAt 2026-10-02T05:54:27.959Z",
+  "cohere": "data/snapshots/cohere.json fetchedAt 2026-10-02T05:54:41.817Z",
+  "openai": "data/snapshots/openai.json fetchedAt 2026-10-02T05:54:39.844Z",
+  "palantir": "data/snapshots/palantir.json fetchedAt 2026-10-02T05:54:44.246Z",
+  "scaleai": "data/snapshots/scaleai.json fetchedAt 2026-10-02T05:54:40.588Z",
+  "shieldai": "data/snapshots/shieldai.json fetchedAt 2026-10-02T05:54:46.247Z",
+  "xai": "data/snapshots/xai.json fetchedAt 2026-10-02T05:54:41.436Z"
+ },
+ "guidelines": {
+  "equity": "true iff the text says this hire's compensation includes or may include employer equity: equity/equity grants/participation/options, RSUs, restricted stock, stock options/grants, \"Offers Equity\", \"+ Equity\", ESPP. false for DEI senses (pay/health equity, diversity equity inclusion), equity as job subject matter (payroll, equity accounting/admin, private/growth equity, equity research), \"optional equity donation matching\" (a donation benefit, not a statement about the offer), hedges (\"this estimate excludes ... long-term incentives\"), and boilerplate scoped to full-time offers on intern/co-op/contract postings.",
+  "bonus": "true iff the text says this hire's compensation includes or may include a bonus or variable pay: sign-on/annual/performance bonus, \"+ Bonus\", bonus-eligible, commission, OTE/on-target earnings, incentive/variable compensation, \"Offers Commission\". false for nice-to-have senses (\"It's a bonus if you have\", \"Bonus:\", \"Bonus points\"), \"commission\" as a verb (commission systems), compensation work as job duties, hedges (\"excludes the value of any potential sign-on bonus\"), and \"For sales roles ... OTE\" boilerplate on postings that are not quota-carrying sales roles."
+ },
+ "counts": {
+  "dev": 147,
+  "holdout": 72,
+  "equityTrue": 143,
+  "bonusTrue": 48
+ },
+ "items": [
+  {
+   "id": "anduril:5218845007",
+   "company": "anduril",
+   "title": "Staff Software Engineer, Vehicle Software, C++",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5234905007",
+   "company": "anduril",
+   "title": "Photo & Video Producer, Test & Evaluation",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5079884007",
+   "company": "anduril",
+   "title": "UAV Operator, Bolt",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5079152007",
+   "company": "anduril",
+   "title": "IT Operations Manager, M&A",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5162521007",
+   "company": "anduril",
+   "title": "Head of Hardware Test",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5251990007",
+   "company": "anduril",
+   "title": "Senior Buyer, Intelligence Systems",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5150729007",
+   "company": "anduril",
+   "title": "Software Program Manager - Radar",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5041620007",
+   "company": "anduril",
+   "title": "Product Security Engineer, Programs",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5240667007",
+   "company": "anduril",
+   "title": "Senior Mechanical Engineer",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5242181007",
+   "company": "anduril",
+   "title": "Lead Systems Engineer, Mission Autonomy, Active Clearance",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5129455007",
+   "company": "anduril",
+   "title": "Senior Technical Program Manager, Small Drones",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5241160007",
+   "company": "anduril",
+   "title": "People Program Manager",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5202671007",
+   "company": "anduril",
+   "title": "CW Production Recruiting Lead",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anthropic:5026097008",
+   "company": "anthropic",
+   "title": "Staff Software Engineer, Product",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "For sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "anthropic:5149802008",
+   "company": "anthropic",
+   "title": "Transformative AI Research Economist, Economic Research",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "For sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "anthropic:5427893008",
+   "company": "anthropic",
+   "title": "Supplier Security & Assurance, Security GRC",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "For sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "anthropic:5399162008",
+   "company": "anthropic",
+   "title": "Product Engineer - Manufacturing Operations",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "For sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "anthropic:4976328008",
+   "company": "anthropic",
+   "title": "Manager– Growth Sales (AI-Native)",
+   "split": "dev",
+   "equity": false,
+   "bonus": true,
+   "excerpt": "For sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "anthropic:5114768008",
+   "company": "anthropic",
+   "title": "Staff+ Software Engineer, Data Infrastructure",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "For sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "anthropic:5079916008",
+   "company": "anthropic",
+   "title": "Growth Account Executive, Startups",
+   "split": "dev",
+   "equity": false,
+   "bonus": true,
+   "excerpt": "For sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "anthropic:5433814008",
+   "company": "anthropic",
+   "title": "Staff+ Software Engineer, Access Programs",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "For sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "anthropic:4926227008",
+   "company": "anthropic",
+   "title": "Performance Engineer, GPU",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "For sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "anthropic:5358114008",
+   "company": "anthropic",
+   "title": "Treasury Director, Investments & Liquidity",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "For sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "anthropic:5188391008",
+   "company": "anthropic",
+   "title": "Partner Enablement Lead, System Integrators",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "For sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "anthropic:5074995008",
+   "company": "anthropic",
+   "title": "Strategic Account Executive, Life Sciences",
+   "split": "dev",
+   "equity": false,
+   "bonus": true,
+   "excerpt": "For sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "anthropic:5399379008",
+   "company": "anthropic",
+   "title": "Reporting and Controls Lead, Data Center Capacity Delivery",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "For sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "cohere:859e2e47-02fb-4afe-bb8a-e83bf4d8c265",
+   "company": "cohere",
+   "title": "Member of Technical Staff, Pre-Training Data",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Bonus : paper at top-tier venues (such as NeurIPS, ICML, ICLR, AIStats, MLSys, JMLR, AAAI, Nature, COLING, ACL, EMNLP).\nCA$250K – CA$535K • Offers Equity • Multiple Ranges"
+  },
+  {
+   "id": "cohere:9f8d2b51-7fe9-470d-8108-fe5fb48c8a89",
+   "company": "cohere",
+   "title": "Business Development Representative - French Speaking",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "Who are we? Cohere is the leading security-first enterprise AI company. We build cutting-edge foundation AI models and end-to-end products that are designed to "
+  },
+  {
+   "id": "cohere:d28fbc03-cb09-49da-84b9-e12c16182695",
+   "company": "cohere",
+   "title": "Partner Development Manager - AWS",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "$140K – $275K • Offers Equity"
+  },
+  {
+   "id": "cohere:2df2da3c-fb69-4d4d-b3c9-077b3df2ba3d",
+   "company": "cohere",
+   "title": "Senior Member of Technical Staff, Synthetic Data",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Bonus : paper at top-tier venues (such as NeurIPS, ICML, ICLR, AIStats, MLSys, JMLR, AAAI, Nature, COLING, ACL, EMNLP).\nCA$250K – CA$535K • Offers Equity • Multiple Ranges"
+  },
+  {
+   "id": "cohere:e9ef9420-88e5-403b-82e8-1c36fa010d4d",
+   "company": "cohere",
+   "title": "Member of Technical Staff, Integration/RL Team (Research Engineer)",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "[Bonus] Experience with distributed training infrastructures (Kubernetes) and associated frameworks (Ray).\n[Bonus] Hands-on experience with the post-training phase of model training, with a strong emphasis on scalability and performance.\n[Bonus] Experience in ML, LLM and RL academic research.\nCA$250K – CA$535K • Offers Equity • Multiple Ranges"
+  },
+  {
+   "id": "cohere:85e808ab-ee45-4944-bedc-832bf933d0b6",
+   "company": "cohere",
+   "title": "Account Executive Japan",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "Who are we? Cohere is the leading security-first enterprise AI company. We build cutting-edge foundation AI models and end-to-end products that are designed to "
+  },
+  {
+   "id": "cohere:e4603bb7-5bbe-4f73-9556-02c93f78b2af",
+   "company": "cohere",
+   "title": "Data Scientist, North Insights",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "$130K – $260K • Offers Equity • Multiple Ranges"
+  },
+  {
+   "id": "cohere:291e5dee-dcda-49e6-a1b6-dae0d48f80af",
+   "company": "cohere",
+   "title": "Forward Deployed Engineer, Infrastructure Specialist (Middle East)",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "It's a bonus if you have…"
+  },
+  {
+   "id": "cohere:01a34bc3-6421-4af2-bf5b-f42e98155dda",
+   "company": "cohere",
+   "title": "Technical Program Manager, AI Delivery for Public Sector & Defence, Canada",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "CA$200K – CA$245K • Offers Equity"
+  },
+  {
+   "id": "cohere:fd92000d-241c-4cf6-86b1-2d9ab796bcbf",
+   "company": "cohere",
+   "title": "Senior Account Executive",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "Who are we? Cohere is the leading security-first enterprise AI company. We build cutting-edge foundation AI models and end-to-end products that are designed to "
+  },
+  {
+   "id": "cohere:554a9380-ab50-4338-88a9-c6b8ab19d92e",
+   "company": "cohere",
+   "title": "Member of Technical Staff, Post-Training",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Bonus : paper at top-tier venues (such as NeurIPS, ICML, ICLR, AIStats, MLSys, JMLR, AAAI, Nature, COLING, ACL, EMNLP).\nCA$250K – CA$535K • Offers Equity • Multiple Ranges"
+  },
+  {
+   "id": "cohere:87e9fd4e-49ac-4242-97be-7da6f718020d",
+   "company": "cohere",
+   "title": "Product Manager, Integrations",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "$160K – $285K • Offers Equity • Multiple Ranges"
+  },
+  {
+   "id": "cohere:854ce13b-5a63-4d19-99e7-756a6e8bb84b",
+   "company": "cohere",
+   "title": "Senior Manager, Executive Communications",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "$155K – $240K • Offers Equity • Multiple Ranges"
+  },
+  {
+   "id": "openai:e1d8b590-8a91-42bb-ba2e-64b99c87e4ac",
+   "company": "openai",
+   "title": "Applied AI Engineer, Codex",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "About the team The Applied AI Engineering team helps enterprises put Codex to work on their most important engineering workflows. We work alongside customer eng"
+  },
+  {
+   "id": "openai:3b08148d-085e-4835-9934-1b7f60e0fdce",
+   "company": "openai",
+   "title": "Software Engineer, Manufacturing Infrastructure",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "$310K – $460K • Offers Equity"
+  },
+  {
+   "id": "openai:6c88bfaa-7f1b-4175-82f1-6d484a516ca8",
+   "company": "openai",
+   "title": "Account Associate - EMEA (German Speaking)",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "About the Team OpenAI’s Enterprise Go-To-Market organization helps the world’s largest companies adopt and scale our AI platform across their business, from Cha"
+  },
+  {
+   "id": "openai:ed871ac9-44ae-47fa-beaa-b9ab7ff31012",
+   "company": "openai",
+   "title": "Recruiter, AI/ML Research",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "$216K – $240K • Offers Equity"
+  },
+  {
+   "id": "openai:d4dcd344-40cf-44d6-a7dd-172118eb0842",
+   "company": "openai",
+   "title": "Software Engineer, Observability",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Bonus : built or contributed to observability systems (e.g.\n$266K – $445K • Offers Equity"
+  },
+  {
+   "id": "openai:d4983a0f-1004-4f27-94b3-e1a38c168c1a",
+   "company": "openai",
+   "title": "Researcher, Alignment Interpretability",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "$295K – $500K • Offers Equity"
+  },
+  {
+   "id": "openai:6ba0ce24-ad32-4c3b-b49c-b373be9a8480",
+   "company": "openai",
+   "title": "Data Center Compute, OpenHouse Savannah 2026",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "$125K – $400K • Offers Equity"
+  },
+  {
+   "id": "openai:32a314f3-17d6-4f94-ba1b-88076d9ac4f4",
+   "company": "openai",
+   "title": "Platform Product Partnerships Lead",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "$266K – $370K • Offers Equity"
+  },
+  {
+   "id": "openai:7536171d-0f98-4964-8f22-7968db062105",
+   "company": "openai",
+   "title": "Director, Compute & Infrastructure FP&A",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "$293K – $385K • Offers Equity"
+  },
+  {
+   "id": "openai:13cdb1b1-8c21-4bff-8201-f7ca904e181d",
+   "company": "openai",
+   "title": "Critical Facilities Lead, Compute Infrastructure",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "$199K – $302K • Offers Equity"
+  },
+  {
+   "id": "openai:60089c12-762c-4369-9a7c-94f8959343a3",
+   "company": "openai",
+   "title": "Cyber Operations Lead, Critical Harm Operations",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "$252K – $335K • Offers Equity"
+  },
+  {
+   "id": "openai:0681fa01-76c2-47da-9ebd-b4677521e049",
+   "company": "openai",
+   "title": "Head of Sourcing Enablement & Delivery",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "$266K – $385K • Offers Equity"
+  },
+  {
+   "id": "openai:89d61ae8-1ce1-4187-9edd-da8029979e41",
+   "company": "openai",
+   "title": "Forward Deployed Security Engineer",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "$266K – $445K • Offers Equity"
+  },
+  {
+   "id": "palantir:8aec0fba-0ac9-48a5-8f54-f2d8465d6698",
+   "company": "palantir",
+   "title": "Software Engineer - Mission Manager",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Total compensation for this position may also include Restricted Stock units, sign-on bonus and other potential future incentives.\nThis estimate excludes the value of any potential sign-on bonus; the value of any benefits offered; and the potential future value of any long-term incentives."
+  },
+  {
+   "id": "palantir:afea07a8-2721-45e6-a9ca-6580f3f9783c",
+   "company": "palantir",
+   "title": "Software Engineer - Apollo Platform",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Total compensation for this position may also include Restricted Stock units, sign-on bonus and other potential future incentives.\nThis estimate excludes the value of any potential sign-on bonus; the value of any benefits offered; and the potential future value of any long-term incentives."
+  },
+  {
+   "id": "palantir:2e6b0ac8-83e9-4be5-a3aa-cf319f751728",
+   "company": "palantir",
+   "title": "Forward Deployed Software Engineer, New Grad - Commercial",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Total compensation for this position may also include Restricted Stock units, sign-on bonus, and other potential future incentives.\nThis estimate excludes the value of any potential sign-on bonus; the value of any benefits offered; and the potential future value of any long-term incentives."
+  },
+  {
+   "id": "palantir:721fe5ca-73b8-4223-826e-93a528194821",
+   "company": "palantir",
+   "title": "Platform Engineer - Identity Infrastructure",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Total compensation for this position may also include Restricted Stock units, sign-on bonus and other potential future incentives.\nThis estimate excludes the value of any potential sign-on bonus; the value of any benefits offered; and the potential future value of any long-term incentives."
+  },
+  {
+   "id": "palantir:802add74-04cf-479c-9479-ff3043940e29",
+   "company": "palantir",
+   "title": "Deployment Strategist - US Government",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Total compensation for this position may also include Restricted Stock units, sign-on bonus and other potential future incentives.\nThis estimate excludes the value of any potential sign-on bonus; the value of any benefits offered; and the potential future value of any long-term incentives."
+  },
+  {
+   "id": "palantir:26032bad-d713-429d-8b04-2de7db93b5c3",
+   "company": "palantir",
+   "title": "Procurement Operations Analyst",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Total compensation for this position may also include Restricted Stock units, sign-on bonus and other potential future incentives.\nThis estimate excludes the value of any potential sign-on bonus; the value of any benefits offered; and the potential future value of any long-term incentives."
+  },
+  {
+   "id": "palantir:c288bb43-3c63-4557-bd96-600ef0d1b7a6",
+   "company": "palantir",
+   "title": "Software Engineer - Defense Applications",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Total compensation for this position may also include Restricted Stock units, sign-on bonus and other potential future incentives.\nThis estimate excludes the value of any potential sign-on bonus; the value of any benefits offered; and the potential future value of any long-term incentives."
+  },
+  {
+   "id": "palantir:f362d7aa-360d-4059-ab38-f482742693b3",
+   "company": "palantir",
+   "title": "Software Engineer, New Grad - Defense",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Total compensation for this position may also include Restricted Stock units, sign-on bonus and other potential future incentives.\nThis estimate excludes the value of any potential sign-on bonus; the value of any benefits offered; and the potential future value of any long-term incentives."
+  },
+  {
+   "id": "palantir:84131e3f-455e-47fc-9c11-898d95f09048",
+   "company": "palantir",
+   "title": "Forward Deployed Software Engineer - US Government",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Total compensation for this position may also include Restricted Stock units, sign-on bonus and other potential future incentives.\nThis estimate excludes the value of any potential sign-on bonus; the value of any benefits offered; and the potential future value of any long-term incentives."
+  },
+  {
+   "id": "palantir:dab396d4-2f14-4796-aac0-0d82883dccf0",
+   "company": "palantir",
+   "title": "Forward Deployed Software Engineer",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Total compensation for this position may also include Restricted Stock units, sign-on bonus and other potential future incentives.\nThis estimate excludes the value of any potential sign-on bonus; the value of any benefits offered; and the potential future value of any long-term incentives."
+  },
+  {
+   "id": "palantir:3e53ec44-d8f3-4b0b-b77f-c481e9cd06fd",
+   "company": "palantir",
+   "title": "USG Administrative Business Partner",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Total compensation for this position may also include Restricted Stock units, sign-on bonus and other potential future incentives.\nThis estimate excludes the value of any potential sign-on bonus; the value of any benefits offered; and the potential future value of any long-term incentives."
+  },
+  {
+   "id": "palantir:95a76f41-97a4-4696-ade3-9c5a47a569c7",
+   "company": "palantir",
+   "title": "Technical Writer",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Total compensation for this position may also include Restricted Stock units, sign-on bonus and other potential future incentives.\nThis estimate excludes the value of any potential sign-on bonus; the value of any benefits offered; and the potential future value of any long-term incentives."
+  },
+  {
+   "id": "palantir:cbe90327-3e6e-451c-a54c-1d3cbcef5aeb",
+   "company": "palantir",
+   "title": "Forward Deployed Software Engineer, New Grad - US Government",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Total compensation for this position may also include Restricted Stock units, sign-on bonus and other potential future incentives.\nThis estimate excludes the value of any potential sign-on bonus; the value of any benefits offered; and the potential future value of any long-term incentives."
+  },
+  {
+   "id": "scaleai:4723000005",
+   "company": "scaleai",
+   "title": "Product Marketing Manager, Global Public Sector",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "At Scale, we develop reliable AI systems for the world's most important decisions. One of our most critical partnerships is with key government institutions in "
+  },
+  {
+   "id": "scaleai:4723290005",
+   "company": "scaleai",
+   "title": "Operations Program Manager / Associate, Industrial Partnerships - Robotics",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "At Scale, we are developing the data infrastructure that powers reliable AI systems in the physical world. The Industrial Partnerships team is a critical functi"
+  },
+  {
+   "id": "scaleai:4713608005",
+   "company": "scaleai",
+   "title": "Staff Software Engineer, Full Stack - Gen AI",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Together, these teams power Scale’s AI data operations - from building high-impact datasets that push the boundaries of LLM capabilities, to optimizing contributor onboarding and incentives, to safeguarding data integrity through advanced trust, safety, and security measures.\nCompensation packages at Scale for eligible roles include base salary, equity, and benefits.\nScale employees in eligible roles are also granted equity based compensation, subject to Board of Director approval.\nYour recruiter can share more about the specific salary range for your preferred location during the hiring process, and confirm whether the hired role will be eligible for equity grant."
+  },
+  {
+   "id": "scaleai:4717642005",
+   "company": "scaleai",
+   "title": "Executive Assistant",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Compensation packages at Scale for eligible roles include base salary, equity, and benefits.\nScale employees in eligible roles are also granted equity based compensation, subject to Board of Director approval.\nYour recruiter can share more about the specific salary range for your preferred location during the hiring process, and confirm whether the hired role will be eligible for equity grant."
+  },
+  {
+   "id": "scaleai:4720213005",
+   "company": "scaleai",
+   "title": "Senior AI Product Manager, Cybersecurity",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Compensation packages at Scale for eligible roles include base salary, equity, and benefits.\nScale employees in eligible roles are also granted equity based compensation, subject to Board of Director approval.\nYour recruiter can share more about the specific salary range for your preferred location during the hiring process, and confirm whether the hired role will be eligible for equity grant."
+  },
+  {
+   "id": "scaleai:4720573005",
+   "company": "scaleai",
+   "title": "Frontier Agents Engineer (Applied AI)",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Compensation packages at Scale for eligible roles include base salary, equity, and benefits.\nScale employees in eligible roles are also granted equity based compensation, subject to Board of Director approval.\nYour recruiter can share more about the specific salary range for your preferred location during the hiring process, and confirm whether the hired role will be eligible for equity grant."
+  },
+  {
+   "id": "scaleai:4719479005",
+   "company": "scaleai",
+   "title": "Engineering Manager, Infrastructure",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "At Scale AI, our mission is to accelerate the development of AI applications. For 10 years, Scale has been the leading AI data foundry, helping fuel the most ex"
+  },
+  {
+   "id": "scaleai:4574113005",
+   "company": "scaleai",
+   "title": "STEM Fellow - Human Frontier Collective (US)",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "PLEASE NOTE: This is a fully remote, 1099 independent contractor opportunity with an estimated duration of six months and the potential for extension. To be eli"
+  },
+  {
+   "id": "scaleai:4683446005",
+   "company": "scaleai",
+   "title": "Staff Technical Product Manager",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "Scale has been the leading AI data foundry, helping fuel the most exciting advancements in AI, including frontier model training, enterprise adoption, defense a"
+  },
+  {
+   "id": "scaleai:4687384005",
+   "company": "scaleai",
+   "title": "Engagement Manager (Hawaii), Public Sector",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Compensation packages at Scale for eligible roles include base salary, equity, and benefits.\nScale employees in eligible roles are also granted equity based compensation, subject to Board of Director approval.\nYour recruiter can share more about the specific salary range for your preferred location during the hiring process, and confirm whether the hired role will be eligible for equity grant."
+  },
+  {
+   "id": "scaleai:4646888005",
+   "company": "scaleai",
+   "title": "Security Engineer, Infrastructure",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Compensation packages at Scale for eligible roles include base salary, equity, and benefits.\nScale employees in eligible roles are also granted equity based compensation, subject to Board of Director approval.\nYour recruiter can share more about the specific salary range for your preferred location during the hiring process, and confirm whether the hired role will be eligible for equity grant."
+  },
+  {
+   "id": "scaleai:4661647005",
+   "company": "scaleai",
+   "title": "Machine Learning Fellow - Human Frontier Collective (UK)",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "About the Collective The Human Frontier Collective (HFC) ’s mission is to bring the world's best minds to shape the future of AI – because the future of AI depe"
+  },
+  {
+   "id": "scaleai:4689950005",
+   "company": "scaleai",
+   "title": "SWE Fellow - Human Frontier Collective (UK)",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "PLEASE NOTE: This is a fully remote, 1099 independent contractor opportunity with an estimated duration of six months and the potential for extension. To be eli"
+  },
+  {
+   "id": "shieldai:7288397f-6318-4d86-a4de-1f321ce3cc85",
+   "company": "shieldai",
+   "title": "Manager of Engineering - Autonomous Pilot Integration (R5153)",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Pay within range listed + Bonus + Benefits + Equity"
+  },
+  {
+   "id": "shieldai:30df7ce0-c4c3-400e-ac9c-12537cea37ce",
+   "company": "shieldai",
+   "title": "Aerostructures Design Engineer II (R5157)",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Pay within range listed + Bonus + Benefits + Equity"
+  },
+  {
+   "id": "shieldai:1b993ea7-fe14-4c41-937e-b42876f42418",
+   "company": "shieldai",
+   "title": "RF Engineer II (R6053)",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Pay within range listed + Bonus + Benefits + Equity"
+  },
+  {
+   "id": "shieldai:30d135cd-3193-4add-97b0-b228df883ecf",
+   "company": "shieldai",
+   "title": "Senior Software Engineer, Autonomous Pilot Integration (R5423)",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Pay within range listed + Bonus + Benefits + Equity"
+  },
+  {
+   "id": "shieldai:d6ad26fa-bc40-4beb-b28a-c1133bd8242a",
+   "company": "shieldai",
+   "title": "Technical Writer (R5662)",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Pay within range listed + Bonus + Benefits + Equity"
+  },
+  {
+   "id": "shieldai:e136857b-1cd9-4fea-9ff5-ad7587ff1835",
+   "company": "shieldai",
+   "title": "Engineer II, Electrical (R5111)",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Pay within range listed + Bonus + Benefits + Equity"
+  },
+  {
+   "id": "shieldai:86c71bcb-ced7-420e-ad78-07127765ed96",
+   "company": "shieldai",
+   "title": "Staff Logistics, Support Equipment (R5913)",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Pay within range listed + Bonus + Benefits + Equity"
+  },
+  {
+   "id": "shieldai:041e8344-bf6c-4199-8568-4ccfbf5423ba",
+   "company": "shieldai",
+   "title": "Discrete Planning Engineer (R5440)",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Pay within range listed + Bonus + Benefits + Equity"
+  },
+  {
+   "id": "shieldai:4194504b-00d0-4ed3-9a47-d6205fdcd9fb",
+   "company": "shieldai",
+   "title": "Senior Staff Engineer, Computer Vision (C++) (R5197)",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "Shield AI is a venture-backed defense-tech company with the mission of protecting service members and civilians with intelligent systems. Its products include H"
+  },
+  {
+   "id": "shieldai:3360a96c-3595-4b8d-8c95-a48f26f1a051",
+   "company": "shieldai",
+   "title": "Director, Avionics Mechanical Engineering",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Pay within range listed + Bonus + Benefits + Equity"
+  },
+  {
+   "id": "shieldai:4d6c0395-4b2c-4e5f-a658-98ec604678cb",
+   "company": "shieldai",
+   "title": "Senior Engineer, Applications (R4792)",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "Shield AI is a venture-backed defense-tech company with the mission of protecting service members and civilians with intelligent systems. Its products include H"
+  },
+  {
+   "id": "shieldai:5d27ddfd-950f-46ea-b379-49f2060305cf",
+   "company": "shieldai",
+   "title": "Mechanical Engineer II, Systems Integration (R5344)",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Pay within range listed + Bonus + Benefits + Equity"
+  },
+  {
+   "id": "shieldai:4dba3daf-9cfb-45d9-8dc6-4cc2abf4e367",
+   "company": "shieldai",
+   "title": "Manager, Software Engineering (R5966)",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Pay within range listed + Bonus + Benefits + Equity"
+  },
+  {
+   "id": "xai:4965893007",
+   "company": "xai",
+   "title": "Member of Technical Staff - Mid-training",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Base salary is just one part of our total rewards package at SpaceXAI, which also includes equity, comprehensive medical, vision, and dental coverage, access to a 401(k) retirement plan, short & long-term disability insurance, life insurance, and various other discounts and perks."
+  },
+  {
+   "id": "xai:5252678007",
+   "company": "xai",
+   "title": "Carpenter (Construction) - Memphis",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "SpaceXAI’s mission is to create AI systems that can accurately understand the universe and aid humanity in its pursuit of knowledge. Our team is small, highly m"
+  },
+  {
+   "id": "xai:5242789007",
+   "company": "xai",
+   "title": "Construction Scheduler - Memphis",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "SpaceXAI’s mission is to create AI systems that can accurately understand the universe and aid humanity in its pursuit of knowledge. Our team is small, highly m"
+  },
+  {
+   "id": "xai:5243479007",
+   "company": "xai",
+   "title": "Client Account Manager, Digital Native & E-commerce",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "SpaceXAI’s mission is to create AI systems that can accurately understand the universe and aid humanity in its pursuit of knowledge. Our team is small, highly m"
+  },
+  {
+   "id": "xai:5149101007",
+   "company": "xai",
+   "title": "Product Counsel",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Base salary is just one part of our total rewards package at SpaceXAI, which also includes equity, comprehensive medical, vision, and dental coverage, access to a 401(k) retirement plan, short & long-term disability insurance, life insurance, and various other discounts and perks."
+  },
+  {
+   "id": "xai:5097904007",
+   "company": "xai",
+   "title": "Senior Analyst, Safety Operations (Child Safety)",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Base salary is just one part of our total rewards package at SpaceXAI, which also includes equity, comprehensive medical, vision, and dental coverage, access to a 401(k) retirement plan, short & long-term disability insurance, life insurance, and various other discounts and perks."
+  },
+  {
+   "id": "xai:4744227007",
+   "company": "xai",
+   "title": "Barista",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "SpaceXAI’s mission is to create AI systems that can accurately understand the universe and aid humanity in its pursuit of knowledge. Our team is small, highly m"
+  },
+  {
+   "id": "xai:5228822007",
+   "company": "xai",
+   "title": "Supervisor, Electrical Maintenance (Medium Voltage) - Memphis",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "SpaceXAI’s mission is to create AI systems that can accurately understand the universe and aid humanity in its pursuit of knowledge. Our team is small, highly m"
+  },
+  {
+   "id": "xai:5129306007",
+   "company": "xai",
+   "title": "Mechanical Commissioning Lead - Memphis",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "SpaceXAI’s mission is to create AI systems that can accurately understand the universe and aid humanity in its pursuit of knowledge. Our team is small, highly m"
+  },
+  {
+   "id": "xai:5212253007",
+   "company": "xai",
+   "title": "Facilities Specialist, Data Center - Memphis",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "SpaceXAI’s mission is to create AI systems that can accurately understand the universe and aid humanity in its pursuit of knowledge. Our team is small, highly m"
+  },
+  {
+   "id": "xai:5135090007",
+   "company": "xai",
+   "title": "Recruiting Coordinator - Memphis",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "SpaceXAI’s mission is to create AI systems that can accurately understand the universe and aid humanity in its pursuit of knowledge. Our team is small, highly m"
+  },
+  {
+   "id": "xai:5211587007",
+   "company": "xai",
+   "title": "Site Reliability Engineer, Data Center - Memphis",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "SpaceXAI’s mission is to create AI systems that can accurately understand the universe and aid humanity in its pursuit of knowledge. Our team is small, highly m"
+  },
+  {
+   "id": "xai:5175158007",
+   "company": "xai",
+   "title": "Lead Fiber Technician - Memphis",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "SpaceXAI’s mission is to create AI systems that can accurately understand the universe and aid humanity in its pursuit of knowledge. Our team is small, highly m"
+  },
+  {
+   "id": "shieldai:bd60cbc1-1ecc-4603-b609-9e6cbb4c7f28",
+   "company": "shieldai",
+   "title": "Compensation Director, International, Sales & Marketing (R6051)",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "This role requires deep expertise in compensation methodologies, sales incentive design, global compensation governance, and international market practices.\nDesign and oversee compensation programs, including base pay, incentive plans, equity programs, and recognition frameworks, that drive performance, support revenue growth, and address the unique needs of both GTM and internationally based functions.\nLead annual compensation planning, salary review cycles, incentive plan design, and market benchmarking across domestic and international markets to ensure competitive, scalable, and business-aligned programs.\nGovernance, Compliance & Pay Equity\nLead global pay equity analyses and remediation efforts to support fair, competitive, and equitable compensation practices across diverse employee populations.\nStrong knowledge of sales incentive compensation principles and administration.\nExperience with equity compensation programs."
+  },
+  {
+   "id": "cohere:0f93d8e8-8e4a-4176-a884-d5eca0e48287",
+   "company": "cohere",
+   "title": "Talent Sourcer, G&A",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "You're passionate about diversity, equity, and building inclusive business teams\n$80K – $125K • Offers Equity • Multiple Ranges"
+  },
+  {
+   "id": "palantir:e6be4159-c8d1-481d-ad15-13274861b795",
+   "company": "palantir",
+   "title": "Workplace Operations Analyst",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "Palantir is committed to promoting a culture of diversity, equity, and inclusion."
+  },
+  {
+   "id": "openai:7ade7a12-845c-4e3a-af23-c028420bd181",
+   "company": "openai",
+   "title": "Software Engineer, Codex Core Agents",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Bonus Points\n$230K – $385K • Offers Equity"
+  },
+  {
+   "id": "openai:340c0c22-8d8f-4232-b17e-f642b64c25c3",
+   "company": "openai",
+   "title": "Software Engineer, Collective Communication",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Experience with collective communication is a bonus.\n$380K – $500K • Offers Equity"
+  },
+  {
+   "id": "openai:40f2f959-20f8-40ca-8b8c-154b6774193a",
+   "company": "openai",
+   "title": "Software Engineer, Compute Foundations",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Bonus points if you:\n$255K – $490K • Offers Equity"
+  },
+  {
+   "id": "openai:de06790a-7243-4e33-a6f1-e7bd34009588",
+   "company": "openai",
+   "title": "AI Systems Engineer, Codex Agents",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Bonus Points\n$230K – $385K • Offers Equity"
+  },
+  {
+   "id": "anduril:5221253007",
+   "company": "anduril",
+   "title": "Mission Software Engineer - Undersea Reconnaissance & Strike",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Bonus if you've touched declarative/immutable OS setups (NixOS-style).\nHighly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5235779007",
+   "company": "anduril",
+   "title": "Senior Salesforce Developer",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Bonus points for NetSuite integrations experience and solution architect experience.\nHighly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "openai:9d11e1d8-af1d-413b-873f-d8fac2bdee99",
+   "company": "openai",
+   "title": "Full Stack Engineer, Fleet Scheduling",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Bonus points if you:\n$230K – $490K • Offers Equity"
+  },
+  {
+   "id": "cohere:24cdb030-3913-4c38-a7db-8f31c3c91ee6",
+   "company": "cohere",
+   "title": "Forward Deployed Engineer, Infrastructure Specialist (France)",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "It's a bonus if you have…"
+  },
+  {
+   "id": "openai:e602cd50-002d-4ace-bb30-19db0afcf635",
+   "company": "openai",
+   "title": "Data Center Infrastructure Electrical Engineer",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "$257K – $327K • Offers Equity"
+  },
+  {
+   "id": "anthropic:5375371008",
+   "company": "anthropic",
+   "title": "Data Center Electrical Engineer",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "For sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "openai:2b87bb06-ba33-4cab-b950-0df12ca85dcf",
+   "company": "openai",
+   "title": "Mechanical Engineer, Dynamometer and Actuator Testing Infrastructure",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "$225K – $318K • Offers Equity"
+  },
+  {
+   "id": "anduril:5167744007",
+   "company": "anduril",
+   "title": "Senior NC Programmer",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5234605007",
+   "company": "anduril",
+   "title": "Senior Machine Vision Engineer, Manufacturing Automation",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anthropic:5358098008",
+   "company": "anthropic",
+   "title": "Finance & Strategy, Compute",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "7+ years of experience in strategic finance, infrastructure investment, private equity, growth equity, consulting, or investment banking, preferably with infrastructure, datacenter, or technology infrastructure experience\nFor sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "anthropic:5191621008",
+   "company": "anthropic",
+   "title": "Senior Manager, Workforce Accounting",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "You will own every number tied to how we pay, equip and reward the people who work here: payroll and accrued compensation, stock-based compensation benefits and relocation, commissions, contingent workers, and travel and expense.\nAs headcount grows across new entities and geographies, equity programmes are becoming more complex, and the systems that feed payroll, equity and expense data into the ledger are still being wired together.\nOwn the workforce portfolio through month-end and quarter-end close — payroll and accrued compensation, bonus, vacation, severance and retention accruals, benefits, relocation, commissions, contingent workers, and T&E — including reconciliations, journal entries and variance commentary\nOwn stock-based compensation accounting end to end: expense recognition under ASC 718, cash-settlement matching, equity roll-forwards, and reconciliation of preferred stock, common stock and additional paid-in capital to the equity administration platform\nWrite, own and maintain accounting policies and SOPs across the workforce domain — payroll accruals, ASC 718, commissions (ASC 340-40), contingent worker classification, and T&E — and evolve them as compensation programmes change\nPartner with Technical Accounting on new or modified equity awards, plan changes and other non-routine compensation arrangements, and translate guidance into procedures the team can execute\nOwn the workforce-related footnotes and disclosures — employee benefit plans, stockholders' equity and net loss per share — and the external audit responses that support them\nDesign and operate SOX controls across payroll, equity and T&E; review control evidence and own timely remediation of any gaps"
+  },
+  {
+   "id": "anduril:5246409007",
+   "company": "anduril",
+   "title": "International Legal Counsel",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "shieldai:7b654533-3586-4e72-9e60-c8fe9a26b7e5",
+   "company": "shieldai",
+   "title": "Staff Business Systems Analyst – Record to Report (R5880)",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Pay within range listed + Bonus + Benefits + Equity"
+  },
+  {
+   "id": "anthropic:5357955008",
+   "company": "anthropic",
+   "title": "Director of Payroll, APAC",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "Partner closely with the equity team to process stock options\nAre proficient in payroll processing for various compensation types (regular, off-cycle, severance, taxable benefits, and equity)\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "scaleai:4688021005",
+   "company": "scaleai",
+   "title": "Finance Systems Integration Lead",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Compensation packages at Scale for eligible roles include base salary, equity, and benefits.\nScale employees in eligible roles are also granted equity based compensation, subject to Board of Director approval.\nYour recruiter can share more about the specific salary range for your preferred location during the hiring process, and confirm whether the hired role will be eligible for equity grant."
+  },
+  {
+   "id": "anthropic:5196852008",
+   "company": "anthropic",
+   "title": "Data Scientist, GTM",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "For sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "anthropic:5414793008",
+   "company": "anthropic",
+   "title": "Sales Strategy, Operational Excellence",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "For sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "anthropic:5391499008",
+   "company": "anthropic",
+   "title": "Canada Public Sector Account Executive",
+   "split": "dev",
+   "equity": false,
+   "bonus": true,
+   "excerpt": "For sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "anthropic:5171950008",
+   "company": "anthropic",
+   "title": "Partner Sales Manager, Systems Integrators",
+   "split": "dev",
+   "equity": false,
+   "bonus": true,
+   "excerpt": "Familiarity with consumption-based or API-first business models and how they shape partner economics and incentive design\nFor sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "anthropic:5379806008",
+   "company": "anthropic",
+   "title": "Strategic Account Executive, Industries",
+   "split": "dev",
+   "equity": false,
+   "bonus": true,
+   "excerpt": "For sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "shieldai:91433f2c-2356-4b9e-b95a-68013a968011",
+   "company": "shieldai",
+   "title": "International Tax Manager (R5884)",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Pay within range listed + Bonus + Benefits + Equity"
+  },
+  {
+   "id": "shieldai:8c850c75-081d-4d09-bebf-096379a93010",
+   "company": "shieldai",
+   "title": "Summer 2027 - Software Engineer Intern",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "Shield AI is a venture-backed defense-tech company with the mission of protecting service members and civilians with intelligent systems. Its products include H"
+  },
+  {
+   "id": "shieldai:da54c482-fe62-4f60-98b1-55ac0b82b3bc",
+   "company": "shieldai",
+   "title": "Summer 2027 - Mechanical Engineering Intern",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "Shield AI is a venture-backed defense-tech company with the mission of protecting service members and civilians with intelligent systems. Its products include H"
+  },
+  {
+   "id": "palantir:ef725594-42dd-4f0d-ba8e-df8179dbc6cb",
+   "company": "palantir",
+   "title": "Information Security Engineer, Internship",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "This estimate excludes the value of any benefits offered; and the potential future value of any long-term incentives."
+  },
+  {
+   "id": "palantir:f221738b-e97c-4ce3-a12a-17ada2b855e4",
+   "company": "palantir",
+   "title": "Software Engineer, Internship - Infrastructure",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "This estimate excludes the value of any benefits offered; and the potential future value of any long-term incentives."
+  },
+  {
+   "id": "palantir:e0010393-c300-446f-bf67-fa2ef067f16f",
+   "company": "palantir",
+   "title": "Forward Deployed Software Engineer, Internship - US Government",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "This estimate excludes the value of any benefits offered; and the potential future value of any long-term incentives."
+  },
+  {
+   "id": "palantir:b229baac-494b-4a0d-9a13-2e38806e06f3",
+   "company": "palantir",
+   "title": "Software Engineer, Internship - Infrastructure",
+   "split": "dev",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "This estimate excludes the value of any benefits offered; and the potential future value of any long-term incentives."
+  },
+  {
+   "id": "openai:aa17f5f2-0443-404d-9717-96cf06873150",
+   "company": "openai",
+   "title": "Customer Success Manager, Ads Solutions (Los Angeles)",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "$176K – $234K • Offers Equity • Offers Commission"
+  },
+  {
+   "id": "openai:72c497c3-0350-42d6-b538-abd9e9af9041",
+   "company": "openai",
+   "title": "Account Director, Startups Expansion",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "$378K – $441K • Offers Equity • Offers Commission"
+  },
+  {
+   "id": "openai:ab463045-cd9b-4100-a037-f1135ace1464",
+   "company": "openai",
+   "title": "Manager, Applied AI Architect",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "$280K – $300K • Offers Equity • Offers Commission"
+  },
+  {
+   "id": "scaleai:4727671005",
+   "company": "scaleai",
+   "title": "Deployment Strategist - DHS/DOJ",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Sales Commission: This role is eligible to earn commissions.\nCompensation packages at Scale include base salary, equity, and benefits.\nScale employees are also granted Stock Options that are awarded upon board of director approval.\nCompensation packages at Scale for eligible roles include base salary, equity, and benefits.\nScale employees in eligible roles are also granted equity based compensation, subject to Board of Director approval.\nYour recruiter can share more about the specific salary range for your preferred location during the hiring process, and confirm whether the hired role will be eligible for equity grant."
+  },
+  {
+   "id": "scaleai:4646946005",
+   "company": "scaleai",
+   "title": "Enterprise Account Executive",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Sales Commission: This role is eligible to earn commissions.\nCompensation packages at Scale for eligible roles include base salary, equity, and benefits.\nScale employees in eligible roles are also granted equity based compensation, subject to Board of Director approval.\nYour recruiter can share more about the specific salary range for your preferred location during the hiring process, and confirm whether the hired role will be eligible for equity grant."
+  },
+  {
+   "id": "xai:5221126007",
+   "company": "xai",
+   "title": "Client Account Manager- SMB",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "$72,000 - $95,000 USD base salary + commission\nBase salary is just one part of our total rewards package at SpaceXAI, which also includes equity, comprehensive medical, vision, and dental coverage, access to a 401(k) retirement plan, short & long-term disability insurance, life insurance, and various other discounts and perks."
+  },
+  {
+   "id": "cohere:6aa3cb2b-ee8b-4c92-b505-3a7509f80d7f",
+   "company": "cohere",
+   "title": "Software Engineer, Data Infrastructure",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "It’s a bonus if you have:\n$160K – $325K • Offers Equity • Multiple Ranges"
+  },
+  {
+   "id": "cohere:443368a3-6276-4b90-9671-27fed40fd6d2",
+   "company": "cohere",
+   "title": "Senior Member of Technical Staff, Multimodal AI",
+   "split": "dev",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Bonus: Publications in top-tier venues demonstrating your expertise in multimodal AI research.\nBonus: Experience in writing efficient GPU kernels using CUDA, optimising performance for multimodal tasks.\nCA$250K – CA$535K • Offers Equity • Multiple Ranges"
+  },
+  {
+   "id": "openai:673ca4f5-b5dc-448f-be3c-4f888a6d13ed",
+   "company": "openai",
+   "title": "Account Director, Digital Native Large Enterprise",
+   "split": "dev",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "$176K – $350K • Offers Equity • Offers Commission • Multiple Ranges"
+  },
+  {
+   "id": "anduril:5057315007",
+   "company": "anduril",
+   "title": "Senior Project Engineer - Unmanned Systems",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:4992114007",
+   "company": "anduril",
+   "title": "Senior Technical Recruiter, Space (Contract)",
+   "split": "holdout",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5168961007",
+   "company": "anduril",
+   "title": "Senior Software Engineer, ArsenalOS",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5177733007",
+   "company": "anduril",
+   "title": "Senior Manager, Product Sourcing Engineer",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anthropic:5419869008",
+   "company": "anthropic",
+   "title": "Staff+ Software Engineer, ML Inference Path",
+   "split": "holdout",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "For sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "anthropic:5287926008",
+   "company": "anthropic",
+   "title": "Manager, Web Engineering",
+   "split": "holdout",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "For sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "anthropic:5431285008",
+   "company": "anthropic",
+   "title": "Program Manager, Safeguards Workforce Operations",
+   "split": "holdout",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "For sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "anthropic:5434691008",
+   "company": "anthropic",
+   "title": "Staff / Senior Physical Security Systems Engineer",
+   "split": "holdout",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "For sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "cohere:fee0951d-8f8a-41ad-a7d5-4b0083bbe777",
+   "company": "cohere",
+   "title": "PR Director, APAC",
+   "split": "holdout",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "Who are we? Cohere is the leading security-first enterprise AI company. We build cutting-edge foundation AI models and end-to-end products that are designed to "
+  },
+  {
+   "id": "cohere:830c613b-d4bf-4673-ab33-46ccc12cc415",
+   "company": "cohere",
+   "title": "Senior Research Scientist, Model Evaluation",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "CA$250K – CA$535K • Offers Equity • Multiple Ranges"
+  },
+  {
+   "id": "cohere:c0bed981-0439-4bd6-9fa1-7f90efae3168",
+   "company": "cohere",
+   "title": "Account Executive Korea",
+   "split": "holdout",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "Who are we? Cohere is the leading security-first enterprise AI company. We build cutting-edge foundation AI models and end-to-end products that are designed to "
+  },
+  {
+   "id": "cohere:2a989030-6d14-4924-88c1-d878911e26fa",
+   "company": "cohere",
+   "title": "Member of Technical Staff, Model Efficiency",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "CA$250K – CA$535K • Offers Equity • Multiple Ranges"
+  },
+  {
+   "id": "openai:894ce80d-c587-4ef0-92d2-b16deb9a06b9",
+   "company": "openai",
+   "title": "Data Scientist, Cybersecurity",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "$263K – $515K • Offers Equity"
+  },
+  {
+   "id": "openai:58c28108-5bc6-449d-8461-9274f5abd7e6",
+   "company": "openai",
+   "title": "Technical Program Manager, Model Deployment & Capacity",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "$207K – $445K • Offers Equity"
+  },
+  {
+   "id": "openai:a58b83f6-2955-4d89-8c13-14372c89263a",
+   "company": "openai",
+   "title": "Senior Product Counsel",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "$330K – $366K • Offers Equity"
+  },
+  {
+   "id": "openai:099dd6af-b017-4a60-85d5-4c79da3a9ead",
+   "company": "openai",
+   "title": "Full Stack Software Engineer - Codex for Finance",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "$347K – $385K • Offers Equity"
+  },
+  {
+   "id": "palantir:a753a9e7-a361-426b-9c25-3cf2488c1730",
+   "company": "palantir",
+   "title": "Platform Intelligence Engineer",
+   "split": "holdout",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Total compensation for this position may also include Restricted Stock units, sign-on bonus and other potential future incentives.\nThis estimate excludes the value of any potential sign-on bonus; the value of any benefits offered; and the potential future value of any long-term incentives."
+  },
+  {
+   "id": "palantir:32295454-6629-4f47-b11e-bbd7f5d41acb",
+   "company": "palantir",
+   "title": "Product Designer, New Grad - US Government",
+   "split": "holdout",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Total compensation for this position may also include Restricted Stock units, sign-on bonus and other potential future incentives.\nThis estimate excludes the value of any potential sign-on bonus; the value of any benefits offered; and the potential future value of any long-term incentives."
+  },
+  {
+   "id": "palantir:f75cb0d2-6608-450b-848e-0f27937c930d",
+   "company": "palantir",
+   "title": "Software Engineer - Apollo Platform",
+   "split": "holdout",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "A World-Changing Company Palantir builds the world’s leading software for data-driven decisions and operations. By bringing the right data to the people who nee"
+  },
+  {
+   "id": "palantir:57699414-b373-4a5e-9be8-6fb7de41ea72",
+   "company": "palantir",
+   "title": "Product Reliability Engineer - Defense",
+   "split": "holdout",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Total compensation for this position may also include Restricted Stock units, sign-on bonus and other potential future incentives.\nThis estimate excludes the value of any potential sign-on bonus; the value of any benefits offered; and the potential future value of any long-term incentives."
+  },
+  {
+   "id": "scaleai:4717648005",
+   "company": "scaleai",
+   "title": "Field Engineer, Public Sector",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Compensation packages at Scale for eligible roles include base salary, equity, and benefits.\nScale employees in eligible roles are also granted equity based compensation, subject to Board of Director approval.\nYour recruiter can share more about the specific salary range for your preferred location during the hiring process, and confirm whether the hired role will be eligible for equity grant."
+  },
+  {
+   "id": "scaleai:4711544005",
+   "company": "scaleai",
+   "title": "Machine Learning Engineer, Platform",
+   "split": "holdout",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "Machine Learning Engineer London, UK About the role Applied Intelligence Systems (AIS) is part of the Scale Generative AI Platform (SGP), focused on pushing the"
+  },
+  {
+   "id": "scaleai:4716431005",
+   "company": "scaleai",
+   "title": "Support Team Lead",
+   "split": "holdout",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "Role Summary The Support Team Manager is responsible for the day-to-day leadership and performance of a team of Support Specialists, serving as the primary conn"
+  },
+  {
+   "id": "scaleai:4694863005",
+   "company": "scaleai",
+   "title": "Senior Frontier Agents Engineer (Forward Deployed Engineering)",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Compensation packages at Scale for eligible roles include base salary, equity, and benefits.\nScale employees in eligible roles are also granted equity based compensation, subject to Board of Director approval.\nYour recruiter can share more about the specific salary range for your preferred location during the hiring process, and confirm whether the hired role will be eligible for equity grant."
+  },
+  {
+   "id": "shieldai:063e8ca4-9077-4edf-b85e-04dcfdf9afc3",
+   "company": "shieldai",
+   "title": "Systems Test Engineer (R5243)",
+   "split": "holdout",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "Shield AI is a venture-backed defense-tech company with the mission of protecting service members and civilians with intelligent systems. Its products include H"
+  },
+  {
+   "id": "shieldai:75c6cb21-5e86-4676-aaab-821f9aab4e5d",
+   "company": "shieldai",
+   "title": "Staff Engineer, Software Autonomy Applications (R4830)",
+   "split": "holdout",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "Shield AI is a venture-backed defense-tech company with the mission of protecting service members and civilians with intelligent systems. Its products include H"
+  },
+  {
+   "id": "shieldai:9aeaf414-6a45-4294-a2f0-2d62eaafc9a4",
+   "company": "shieldai",
+   "title": "Senior Propulsion Technician (R4638)",
+   "split": "holdout",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Pay within range listed + Bonus + Benefits + Equity"
+  },
+  {
+   "id": "shieldai:c9321f8a-b367-4dcb-9308-bd64ae6bac1d",
+   "company": "shieldai",
+   "title": "Electrical Engineer I (BOS)",
+   "split": "holdout",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Pay within range listed + Bonus + Benefits + Equity"
+  },
+  {
+   "id": "xai:5205179007",
+   "company": "xai",
+   "title": "Software Engineer - Search Infrastructure",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Base salary is just one part of our total rewards package at xAI, which also includes equity, comprehensive medical, vision, and dental coverage, access to a 401(k) retirement plan, short & long-term disability insurance, life insurance, and various other discounts and perks."
+  },
+  {
+   "id": "xai:5205148007",
+   "company": "xai",
+   "title": "IT Services Technician",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Base salary is just one part of our total rewards package at SpaceXAI, which also includes equity, comprehensive medical, vision, and dental coverage, access to a 401(k) retirement plan, short & long-term disability insurance, life insurance, and various other discounts and perks."
+  },
+  {
+   "id": "xai:5243278007",
+   "company": "xai",
+   "title": "Operations Analyst (Power Generation) - Memphis",
+   "split": "holdout",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "SpaceXAI’s mission is to create AI systems that can accurately understand the universe and aid humanity in its pursuit of knowledge. Our team is small, highly m"
+  },
+  {
+   "id": "xai:5090209007",
+   "company": "xai",
+   "title": "AI Tutor - Italian",
+   "split": "holdout",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "SpaceXAI’s mission is to create AI systems that can accurately understand the universe and aid humanity in its pursuit of knowledge. Our team is small, highly m"
+  },
+  {
+   "id": "openai:07fb9365-8e80-48fe-86df-08d60dd46f43",
+   "company": "openai",
+   "title": "Account Director, Digital Native New Business",
+   "split": "holdout",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "$189K – $290K • Offers Equity • $189K – $220.5K Commission • Multiple Ranges"
+  },
+  {
+   "id": "anduril:5252846007",
+   "company": "anduril",
+   "title": "Production Software Engineer",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5213031007",
+   "company": "anduril",
+   "title": "2026 Financial Analyst I, AD&S",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5244612007",
+   "company": "anduril",
+   "title": "Systems Test Engineer, Space",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "scaleai:4599700005",
+   "company": "scaleai",
+   "title": "Senior Infrastructure Software Engineer, Enterprise AI",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Bonus points: Hands-on experience and a passion for working with Agents, LLMs, vector databases, and other emerging AI technologies.\nCompensation packages at Scale for eligible roles include base salary, equity, and benefits.\nScale employees in eligible roles are also granted equity based compensation, subject to Board of Director approval.\nYour recruiter can share more about the specific salary range for your preferred location during the hiring process, and confirm whether the hired role will be eligible for equity grant."
+  },
+  {
+   "id": "scaleai:4738221005",
+   "company": "scaleai",
+   "title": "Global Head of Workplace",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Compensation packages at Scale for eligible roles include base salary, equity, and benefits.\nScale employees in eligible roles are also granted equity based compensation, subject to Board of Director approval.\nYour recruiter can share more about the specific salary range for your preferred location during the hiring process, and confirm whether the hired role will be eligible for equity grant."
+  },
+  {
+   "id": "anduril:5236583007",
+   "company": "anduril",
+   "title": "Winter 2027 Test & Evaluation Engineer Co-op",
+   "split": "holdout",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5137239007",
+   "company": "anduril",
+   "title": "Field Electrical Technician, Counter Intrusion",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5165240007",
+   "company": "anduril",
+   "title": "Master Scheduler, S&OP Planning",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5236911007",
+   "company": "anduril",
+   "title": "Product Quality Engineer, Dive-LD",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5240459007",
+   "company": "anduril",
+   "title": "Manager, Proposals and Capture",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "openai:d727cc4b-f4b6-49a0-806c-390f8a053e2f",
+   "company": "openai",
+   "title": "Lab Operations Manager, Systems Integration | Consumer Devices",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "$230K – $290K • Offers Equity"
+  },
+  {
+   "id": "anduril:5043205007",
+   "company": "anduril",
+   "title": "Systems Engineer",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anthropic:5386182008",
+   "company": "anthropic",
+   "title": "Product Manager, New Markets and Monetization",
+   "split": "holdout",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "For sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "anduril:4925052007",
+   "company": "anduril",
+   "title": "Senior Operations Analyst, Mission Engineering, Air Dominance & Strike, Active Clearance",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5242928007",
+   "company": "anduril",
+   "title": "Principal Digital Hardware Engineer (FPGA/VHDL)",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5190386007",
+   "company": "anduril",
+   "title": "Senior Industrial Engineer",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5032351007",
+   "company": "anduril",
+   "title": "Aerodynamics Engineer, Hypersonic Air Vehicles",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "shieldai:81e6b6aa-b8b8-4360-b33e-88afadfea9af",
+   "company": "shieldai",
+   "title": "Lead Program Finance (R5875)",
+   "split": "holdout",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Pay within range listed + Bonus + Benefits + Equity"
+  },
+  {
+   "id": "anduril:5136791007",
+   "company": "anduril",
+   "title": "Senior Supervisor, Manufacturing Operations, Sentry",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "scaleai:4658316005",
+   "company": "scaleai",
+   "title": "Strategic Projects Lead, Robotics",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Compensation packages at Scale for eligible roles include base salary, equity, and benefits.\nScale employees in eligible roles are also granted equity based compensation, subject to Board of Director approval.\nYour recruiter can share more about the specific salary range for your preferred location during the hiring process, and confirm whether the hired role will be eligible for equity grant."
+  },
+  {
+   "id": "anduril:5113524007",
+   "company": "anduril",
+   "title": "Robotics Software Engineer",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5220475007",
+   "company": "anduril",
+   "title": "Principal Propulsion Engineer, Air Vehicles (Solid Rocket Motor Integration)",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5185957007",
+   "company": "anduril",
+   "title": "Thermal Engineer",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5174532007",
+   "company": "anduril",
+   "title": "Senior BOM Sourcing Engineer",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "shieldai:ddbc87a4-6104-4752-9d10-8f88f0aa0ac5",
+   "company": "shieldai",
+   "title": "Simulation Specialist, Spain (R5921)",
+   "split": "holdout",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "Shield AI is a venture-backed defense-tech company with the mission of protecting service members and civilians with intelligent systems. Its products include H"
+  },
+  {
+   "id": "shieldai:dd58ce9c-27ad-4e24-bc2c-c6bfd9a1210d",
+   "company": "shieldai",
+   "title": "Staff Electrical Specialist - Hardware Test (R6122)",
+   "split": "holdout",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Pay within range listed + Bonus + Benefits + Equity"
+  },
+  {
+   "id": "anduril:5239548007",
+   "company": "anduril",
+   "title": "Operations & Logistics Associate, AIS",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:5156676007",
+   "company": "anduril",
+   "title": "Associate Facilities Manager",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "openai:2c9d0566-69b1-435e-bd8f-4eefc04dd076",
+   "company": "openai",
+   "title": "Component and Product Quality Engineer, Interconnects",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "$207K – $365K • Offers Equity"
+  },
+  {
+   "id": "anthropic:5409008008",
+   "company": "anthropic",
+   "title": "Applied AI Architect, Strategic Enterprise Tech",
+   "split": "holdout",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "For sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "anduril:5209982007",
+   "company": "anduril",
+   "title": "Senior Product Sourcing Engineer",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "shieldai:e9f9e015-9f9c-4e38-9fd8-a4e573e0fab5",
+   "company": "shieldai",
+   "title": "Staff Supplier Development Engineer - Propulsion & Landing Gear (R5859)",
+   "split": "holdout",
+   "equity": true,
+   "bonus": true,
+   "excerpt": "Pay within range listed + Bonus + Benefits + Equity"
+  },
+  {
+   "id": "openai:6fd50ace-941b-4559-992f-e53f9b76c9a0",
+   "company": "openai",
+   "title": "Security Program Manager",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "$129.6K – $310K • Offers Equity • Multiple Ranges"
+  },
+  {
+   "id": "openai:002c6146-f1bf-4653-8929-8112b577837b",
+   "company": "openai",
+   "title": "Global Mobility Manager, Strategic Initiatives",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "$220K – $260K • Offers Equity"
+  },
+  {
+   "id": "openai:4cbbf0b1-7c0b-4c42-bf38-48377f847e91",
+   "company": "openai",
+   "title": "Technical Lead Manager - Training Runtime, Data(set) Movement",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "$380K – $500K • Offers Equity"
+  },
+  {
+   "id": "openai:cc434f5b-dc0b-42fd-97ec-e0171545c6e9",
+   "company": "openai",
+   "title": "Research Engineer, Privacy",
+   "split": "holdout",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "About the Team The Privacy Engineering Team at OpenAI is committed to integrating privacy as a foundational element in OpenAI's mission of advancing Artificial "
+  },
+  {
+   "id": "anthropic:5201264008",
+   "company": "anthropic",
+   "title": "Technical Program Manager, Cloud Inference",
+   "split": "holdout",
+   "equity": false,
+   "bonus": false,
+   "excerpt": "For sales roles, the range provided is the role’s On Target Earnings (\"OTE\") range, meaning that the range includes both the sales commissions/sales bonuses target and annual base salary for the role.\nWe offer competitive compensation and benefits, optional equity donation matching, generous vacation and parental leave, flexible working hours, and a lovely office space in which to collaborate with colleagues."
+  },
+  {
+   "id": "anduril:5240357007",
+   "company": "anduril",
+   "title": "Strategic Global Operations, US East",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  },
+  {
+   "id": "anduril:4972426007",
+   "company": "anduril",
+   "title": "Robotics Engineer",
+   "split": "holdout",
+   "equity": true,
+   "bonus": false,
+   "excerpt": "Highly competitive equity grants are included in the majority of full time offers; and are considered part of Anduril's total compensation package."
+  }
+ ]
+}
