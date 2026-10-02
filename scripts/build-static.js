@@ -14,6 +14,15 @@
 //                             only written when jobs/<slug>.json is a real snapshot
 //   dist/api/desc/<slug>/<id>.json  { id, descriptionHtml, sections? } per job
 //   dist/.nojekyll
+//   dist/og/melon-seek-og.png share card (og:image), from public/og/ (card.html, its
+//                             source, is left out; see scripts/build-og.mjs)
+//   dist/c/<slug>/index.html  per-company share page: company-specific og:title and
+//                             og:description, then a script sends people to ../../#c=<slug>
+//
+// Social previews: crawlers (LinkedIn, Facebook, Slack, X) don't run JS and want
+// absolute https URLs, so og:url, og:image and twitter:image in every page are
+// made absolute against SITE_URL (default https://alvations.github.io/melon-seek/).
+// public/index.html keeps them relative for server mode. See docs/process/social.md.
 //
 // Lazy descriptions: descriptionHtml is ~90% of a job's bytes, so each one goes
 // in its own file, fetched by public/api.js#getJobDetail when the job drawer
