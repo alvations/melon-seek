@@ -14,6 +14,7 @@
 //     --summary <file>    append a Markdown report (e.g. "$GITHUB_STEP_SUMMARY")
 //     --no-write-flags    scan only (print counts, write nothing)
 //     --no-fixtures       skip the regression fixtures check
+//     --force             overwrite a flags/sample file that already has verdicts
 //
 // One JSON line per flagged job: { id, company, title, url, source, parsed,
 // excerpt (<= 300 chars around the matched pay text), pay_snippets (other pay
@@ -397,6 +398,7 @@ function parseArgs(argv) {
     else if (a === '--summary') o.summary = argv[++i];
     else if (a === '--no-fixtures') o.fixtures = false;
     else if (a === '--no-write-flags') o.writeFlags = false;
+    else if (a === '--force') o.force = true;
     else if (a.startsWith('--')) throw new Error(`unknown option ${a}`);
     else o.files.push(a);
   }
@@ -452,6 +454,11 @@ async function main() {
   if (o.fixtures) fx = await checkFixtures();
 
   if (o.writeFlags && o.files.length) {
+    // A reviewed scan is an audit record: never overwrite it silently.
+    const reviewed = fs.existsSync(path.join(path.dirname(out), 'verdicts.jsonl'));
+    if (reviewed && !o.force && (fs.existsSync(out) || (o.sample > 0 && fs.existsSync(path.join(dir, 'sample.jsonl'))))) {
+      throw new Error(`${path.relative(ROOT, out)} (or sample.jsonl) already has verdicts next to it; pass --out <file> for a new scan, or --force to overwrite`);
+    }
     fs.mkdirSync(path.dirname(out), { recursive: true });
     fs.writeFileSync(out, lines.map((l) => JSON.stringify(l)).join('\n') + (lines.length ? '\n' : ''));
     fs.writeFileSync(out.replace(/\.jsonl$/, '') + '.counts.json', JSON.stringify(counts, null, 1) + '\n');
