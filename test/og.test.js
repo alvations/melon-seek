@@ -94,6 +94,7 @@ test('share card is a 1200x630 PNG under 5 MB (LinkedIn limits)', () => {
 test('server mode serves the card as image/png and the page with its tags', async () => {
   process.env.MELON_CACHE_DIR = path.join(tmp, 'server-cache');
   process.env.MELON_SNAPSHOT_DIR = path.join(tmp, 'server-snapshots');
+  process.env.MELON_HISTORY_DIR = path.join(tmp, 'server-history');
   const { createServer } = await import('../server/index.js');
   const server = createServer({ log: false });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
@@ -135,7 +136,7 @@ fs.writeFileSync(path.join(SNAP_DIR, 'anthropic.json'), JSON.stringify({
 const run = promisify(execFile);
 async function build(name, siteUrl) {
   const out = path.join(tmp, name);
-  const env = { ...process.env, MELON_SNAPSHOT_DIR: SNAP_DIR };
+  const env = { ...process.env, MELON_SNAPSHOT_DIR: SNAP_DIR, MELON_HISTORY_DIR: path.join(SNAP_DIR, '..', 'og-history') };
   delete env.SITE_URL;
   if (siteUrl !== undefined) env.SITE_URL = siteUrl;
   await run(process.execPath, [path.join(ROOT, 'scripts', 'build-static.js'), '--out', out], { cwd: ROOT, env, maxBuffer: 16 * 1024 * 1024 });

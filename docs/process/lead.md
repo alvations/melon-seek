@@ -349,3 +349,14 @@ screenshots in `docs/screenshots/`.
   stays off there. Open minor: salary.js doesn't count a second pay tier
   written on its own line ("All other US locations: $X—$Y") as a zone. UX
   finished wiring every 1-up feature; F1 waits on product's comps.js.
+- 2026-10-02: backend finished F1/F3/F7/extras plus the server perf fix
+  (Anduril /api/jobs from 2.8 s and 3.4 MB to 1.9 ms warm and 218 KB;
+  /api/job detail route; backtest in a worker thread). viz fixed cluster
+  labels (adaptive column, never truncate the median) and made the Juice
+  legend follow juice.js. Livability re-tuned the score to a saturating curve
+  100·(1−e^(−net/80K)): 0 real jobs at 100 (was 68), p90 = 88. The lead
+  synced palette.js's fallback juiceNetForScore (verified identical to
+  netForScore at 25/45/70/90/99/100). devops finished packed-2, history
+  persistence (artifact default; HISTORY_STORE=branch switch), meta files,
+  CSV, market.json and api.js v2 merges. The lead isolated og.test.js's
+  history dir. npm test 248/248.

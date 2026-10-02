@@ -228,7 +228,9 @@ export function median(values) {
 export const JUICE_BREAKS = Object.freeze([45, 70]);
 const JUICE_LIGHT = ['#ee9893', '#d9534f', '#a51f35']; // Dry, Ripe, Juicy
 const JUICE_DARK = ['#8a363c', '#c9505a', '#f59a95'];
-const JUICE_ANCHORS = Object.freeze({ A: 10000, B: 250000 }); // = server/juice.js SCORE_ANCHORS
+// Fallback copy of server/juice.js SCORE_ANCHORS (exponential curve, re-tuned
+// 2026-10-02): score = 100 * (1 - e^(-net / K)). map.js prefers the live module.
+const JUICE_ANCHORS = Object.freeze({ K: 80000, fullGlassUSD: 423866 });
 
 /** Grade label for a juice score (and net, so net <= 0 is "Rind"); mirrors server/juice.js gradeFor. */
 export function juiceGrade(score, net = 1, breaks = JUICE_BREAKS) {
@@ -248,7 +250,8 @@ export function juiceColor(score, breaks = JUICE_BREAKS) {
  * legend follows re-tuned anchors automatically.
  */
 export function juiceNetForScore(score) {
-  const { A, B } = JUICE_ANCHORS;
-  const s = Math.max(0, Math.min(100, score));
-  return A * Math.expm1((s / 100) * Math.log1p(B / A));
+  const s = Number(score);
+  if (!(s > 0)) return 0;
+  if (s >= 99.5) return JUICE_ANCHORS.fullGlassUSD;
+  return -JUICE_ANCHORS.K * Math.log1p(-s / 100);
 }
