@@ -38,6 +38,7 @@ interface every agent built against), [../ARCHITECTURE.md](../ARCHITECTURE.md),
 | Social share previews | [prompts/social.md](prompts/social.md) | [social.md](social.md) | OG tags in `public/index.html`, `public/og/*`, `scripts/build-og.mjs` |
 | Strategy (competitors, roadmap) | [prompts/strategy.md](prompts/strategy.md) | [strategy.md](strategy.md) | `docs/strategy/COMPETITIVE_ANALYSIS.md`, `docs/strategy/ROADMAP.md` |
 | Corporate-ladder brainstorm (plan only) | [prompts/ladder-brainstorm.md](prompts/ladder-brainstorm.md) | [ladder-brainstorm.md](ladder-brainstorm.md) | `docs/strategy/CORPORATE_LADDER_PLAN.md` |
+| Finish (lexicon fixes, external link CI) | [prompts/finish.md](prompts/finish.md) | [features.md](features.md) §6c, [devops.md](devops.md) decisions 66–67 | `server/keywords.js` lexicons, `scripts/external-links.js`, ci.yml `links` job |
 
 ## Replaying the build from scratch
 

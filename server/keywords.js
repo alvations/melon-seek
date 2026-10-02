@@ -436,18 +436,19 @@ export const SKILL_LEXICON = [
   ['Distributed training', 'distributed training', 'model parallel(?:ism)?', 'data parallel(?:ism)?', 'pipeline parallel(?:ism)?', 'fsdp'],
   ['Pretraining', 'pre-?training'],
   ['Fine-tuning', 'fine-?tun(?:e|es|ed|ing)', 'post-?training'],
-  ['Inference', 'inference', 'model serving'],
+  ['Inference', '(?<!causal |statistical |bayesian )inference', 'model serving'], // §6a A4
   ['Evals', 'evals?', 'model evaluations?', 'benchmarks?'],
   ['Interpretability', 'interpretability', 'mechanistic'],
-  ['Alignment', 'alignment research', 'ai alignment', 'alignment'],
+  ['Alignment', 'alignment research', 'ai alignment', 'alignment science', 'superalignment'], // §6a A1: bare 'alignment' was business language
   ['Multimodal', 'multi-?modal', 'vision-language'],
-  ['Speech / audio', 'speech recognition', 'text-to-speech', 'speech', 'audio models?'],
+  ['Speech / audio', 'speech recognition', 'text-to-speech', 'speech models?', 'audio models?'], // §6a A5: not 'free speech'
   ['Recommender systems', 'recommend(?:er|ation) systems?', 'ranking systems?'],
   ['Information retrieval', 'information retrieval', 'search ranking', 'retrieval', 'rag', 'retrieval-augmented'],
   ['Agents', 'ai agents?', 'agentic', 'agents', 'tool use'],
   ['Prompt engineering', 'prompt(?:ing| engineering)'],
   ['MLOps', 'mlops', 'ml ops', 'ml infrastructure'],
-  ['GPUs', 'gpus?', 'accelerators?'],
+  // §6a A3: 'accelerators' only with hardware context (not startup/delivery accelerators)
+  ['GPUs', 'gpus?', 'accelerator (?:chips?|families|hardware|clusters?)', /\baccelerators?\b(?=[\s\S]*\b(?:TPUs?|chips?)\b)/i, /\b(?:TPUs?|chips?)\b(?=[\s\S]*\baccelerators?\b)/i],
   ['TPUs', 'tpus?', 'trainium'],
   ['Kernels', 'gpu kernels?', 'cuda kernels?', 'kernel (?:development|optimization|engineering)'],
   ['Compilers', 'compilers?', 'mlir', 'llvm', 'xla'],
@@ -456,7 +457,7 @@ export const SKILL_LEXICON = [
   ['A/B testing', 'a/b test(?:s|ing)?', 'experimentation'],
   // Infrastructure / data
   ['Kubernetes', 'kubernetes', 'k8s'],
-  ['Docker', 'docker', 'containers?', 'containeriz\\w*'],
+  ['Docker', 'docker', 'containeriz\\w*', 'container (?:orchestration|images?|runtime|security|hardening)'], // §6a A2: not shipping containers
   ['Terraform', 'terraform', 'infrastructure as code', 'pulumi'],
   ['AWS', /\bAWS\b/, 'amazon web services'],
   ['GCP', /\bGCP\b/, 'google cloud'],
@@ -477,12 +478,12 @@ export const SKILL_LEXICON = [
   ['Distributed systems', 'distributed systems?'],
   ['Microservices', 'microservices?', 'service-oriented'],
   ['CI/CD', 'ci/cd', 'continuous (?:integration|delivery|deployment)', 'github actions', 'jenkins'],
-  ['Observability', 'observability', 'monitoring', 'prometheus', 'grafana', 'datadog', 'opentelemetry'],
+  ['Observability', 'observability', 'prometheus', 'grafana', 'datadog', 'opentelemetry', '(?:system|infrastructure|production) monitoring'], // §6a A7
   ['SRE', 'site reliability', /\bSRE\b/],
   ['Storage systems', 'storage systems?', 'distributed storage', 'object storage', 'file systems?'],
   ['Datacenters', 'data ?cent(?:er|re)s?'],
   ['HPC', /\bHPC\b/, 'high[- ]performance computing', 'supercomput\\w*', 'slurm'],
-  ['Data pipelines', 'data pipelines?', /\bETL\b/, 'data engineering'],
+  // §6a B: skill 'Data pipelines' dropped (resp 'Data pipelines' covers it)
   ['Cloud infrastructure', 'cloud infrastructure', 'cloud platforms?', 'cloud computing'],
   // Security
   ['Security', 'security(?! clearance)', 'cyber ?security', 'infosec'],
@@ -505,7 +506,7 @@ export const SKILL_LEXICON = [
   ['Electronic warfare', 'electronic warfare', /\bEW\b/],
   ['PCB design', /\bPCBA?s?\b/, 'schematic capture', 'altium', 'board design'],
   ['Analog design', 'analog (?:circuit|design)', 'mixed-signal'],
-  ['Power electronics', 'power electronics', 'power systems', 'batter(?:y|ies)'],
+  ['Power electronics', 'power electronics'], // §6a A9: batteries / power systems dropped (logistics, site generators)
   ['Robotics', 'robotics?', 'robots?'],
   ['Controls', 'control systems?', 'controls engineering', 'controls', 'feedback control'],
   ['ROS', /\bROS ?2?\b/],
@@ -522,7 +523,7 @@ export const SKILL_LEXICON = [
   ['Siemens NX', /\bSiemens NX\b/i, /\bNX\b/],
   ['GD&T', /\bGD&T\b/i, 'geometric dimensioning'],
   ['FEA', /\bFEA\b/, 'finite element'],
-  ['Composites', 'composites?'],
+  ['Composites', 'composites', 'composite (?:materials|structures|layup|manufacturing)'], // §6a A8: not 'composite tracking'
   ['Machining', 'machining', /\bCNC\b/, 'injection molding'],
   ['DFM', /\bDF[MA]\b/, 'design for manufactur\\w*'],
   ['Lean / Six Sigma', 'lean manufacturing', 'six sigma', 'kaizen'],
@@ -532,23 +533,23 @@ export const SKILL_LEXICON = [
   // Business
   ['Salesforce', 'salesforce', /\bSFDC\b/],
   ['HubSpot', 'hubspot'],
-  ['Excel', /\bExcel\b/, 'spreadsheets?'],
+  ['Excel', /\bExcel\b(?! (?:at|in)\b)/, 'spreadsheets?'], // §6a A6: not the verb ('Excel at …', 'Excel in …')
   ['Tableau', 'tableau'],
   ['Looker', /\bLooker\b/],
   ['Financial modeling', 'financial model(?:s|ing|ling)?', /\bDCF\b/],
   ['FP&A', /\bFP&A\b/i, 'financial planning'],
   ['Accounting', 'accounting', /\bGAAP\b/, 'revenue recognition'],
-  ['GTM', /\bGTM\b/, 'go[- ]to[- ]market'],
+  // §6a B: skill 'GTM' dropped (resp 'Go-to-market' covers it)
   ['Enterprise sales', 'enterprise sales', 'enterprise (?:accounts|customers|deals|software sales)', 'b2b sales', 'complex sales'],
-  ['Contract negotiation', 'negotiat\\w*', 'contract (?:review|drafting|management)'],
+  ['Contract negotiation', 'negotiat\\w* (?:contracts?|agreements?|deals?|terms)', 'contract negotiations?', 'contract (?:review|drafting|management)'], // §6a A10
   ['Gov contracting', 'government contract\\w*', /\bDFARS\b/, /\bFAR\b/, 'federal acquisition', 'proposal writing'],
   ['Recruiting', 'recruiting', 'talent acquisition', 'sourcing candidates'],
   ['Product management', 'product management', 'product requirements', /\bPRDs?\b/],
-  ['Program management', 'program management', /\bPMP\b/, 'project management'],
-  ['Marketing', 'marketing', 'demand generation', 'campaigns?'],
+  // §6a B: skill 'Program management' dropped (it is a responsibility)
+  // §6a B: skill 'Marketing' dropped (resp 'Marketing' covers it)
   ['SEO', /\bSEO\b/],
   ['Public policy', 'public policy', 'policy analysis', 'legislat\\w*'],
-  ['Analytics', 'analytics', 'data analysis', 'business intelligence'],
+  // §6a B: skill 'Analytics' dropped (resp 'Analytics' covers it)
   // Design
   ['Figma', 'figma'],
   ['UX research', 'ux research', 'user research', 'usability (?:testing|studies)'],
@@ -561,22 +562,24 @@ export const SKILL_LEXICON = [
 export const RESPONSIBILITY_LEXICON = [
   ['Model training', 'train(?:ing)? (?:large |frontier |new |our )?(?:language |ml |machine learning )?models?', 'pre-?training', 'post-?training', 'fine-?tun\\w*', 'training runs?'],
   ['Research', 'research(?:ing)?', 'novel (?:methods|approaches|techniques)', 'run experiments', 'experiments?', 'publish\\w*'],
-  ['Interpretability', 'interpretability', 'mechanistic', 'understand(?:ing)? (?:how )?models? (?:work|internals)'],
+  // §6a B: resp 'Interpretability' dropped (the skill covers it)
   ['Infrastructure', 'infrastructure', 'platforms?', 'clusters?', 'compute'],
   ['Inference / serving', 'inference', 'serving', 'deploy(?:ing)? models', 'model deployment'],
   ['Performance optimization', 'optimi[sz]\\w*', 'latency', 'throughput', 'efficien\\w*', 'profil\\w*'],
   ['Scaling systems', 'scal(?:e|es|ing|able|ability)', 'high[- ]throughput', 'large[- ]scale'],
   ['Architecture', 'architect\\w*', 'system design', 'design and (?:build|implement)'],
   ['Data pipelines', 'data pipelines?', /\bETL\b/, 'datasets?', 'data (?:collection|processing|infrastructure|quality|ingestion)'],
-  ['Evaluation', 'evals?', 'evaluat\\w*', 'benchmark\\w*', 'measur(?:e|ing) (?:model )?(?:performance|capabilities)'],
+  // §6a B: renamed from 'Evaluation'; needs model/eval context ('evaluate vendors' no longer fires)
+  ['Model evaluation', 'evals?', '(?:model|ai|llm) evaluations?', 'evaluat\\w* (?:the |our )?(?:ai |ml |language |frontier )?models?', '(?:model|llm) benchmarks?', 'benchmark(?:s|ing)? (?:the |our )?models?', 'measur(?:e|ing) model (?:performance|capabilities)'],
   ['Safety', 'safety', 'alignment', 'misuse', 'harmful', 'responsible (?:ai|scaling)', 'trust (?:and|&) safety', 'safeguards'],
-  ['Security', 'security(?! clearance)', 'secure', 'threats?', 'vulnerabilit\\w*', 'protect\\w*'],
+  ['Security', 'security(?! clearance)', 'threat (?:model|detection|intel)\\w*', 'vulnerabilit\\w*'], // §6a A11: no bare secure / protect / threats
   ['On-call / reliability', 'on-?call', 'reliab\\w*', 'uptime', 'incidents?', 'availability', /\bSRE\b/, 'outages?'],
   ['Tooling / dev experience', 'tooling', 'developer (?:experience|productivity|tools)', 'internal tools', 'ci/cd', 'build systems?'],
   ['Product development', 'build (?:new )?(?:products?|features?)', 'product development', 'ship(?:ping)? (?:new )?(?:features|products)', 'end-to-end', 'full[- ]stack', 'user-facing', 'product surfaces?'],
   ['Applied ML', 'appl(?:y|ied) (?:ml|machine learning|ai|models)', 'ml-powered', 'ai-powered'],
-  ['Design', 'user experiences?', 'interfaces?', /\bUX\b/, /\bUI\b/, 'mockups', 'wireframes', 'prototyp\\w*', 'design (?:the )?(?:user|product|visual)'],
-  ['Customer-facing', 'customers?', 'clients?', 'end users'],
+  ['Design', 'user experiences?', 'user interfaces?', /\bUX\b/, /\bUI\b/, 'mockups', 'wireframes', 'prototyp\\w*', 'design (?:the )?(?:user|product|visual)'],
+  // §6a A14: customers/clients only after a customer verb, never 'internal clients' or 'existing customers'
+  ['Customer-facing', '(?:work(?:s|ing)?(?: closely| directly)? with|support(?:s|ing)?|engag(?:e|es|ing)(?: with)?|partner(?:s|ing)?(?: closely| directly)? with|for|serv(?:e|es|ing)|help(?:s|ing)?|meet(?:s|ing)? with|liais(?:e|es|ing) with|interfac(?:e|es|ing) with) (?:our |the |key |strategic |prospective )?(?:external |enterprise )?(?:customers?|clients?)', '(?:customer|client) (?:relationships?|acquisition|engagements?)', 'customer-facing', 'client-facing', 'end users'],
   ['Customer support', 'customer success', 'onboard(?:ing)? (?:customers|users)', 'technical support', 'troubleshoot\\w*', 'support tickets'],
   ['Cross-functional', 'cross-?functional\\w*', 'partner (?:closely )?with', 'collaborat\\w* (?:closely )?with', 'work closely with', 'across teams'],
   ['Technical leadership', 'technical (?:leadership|direction|vision|lead)', 'tech lead', 'set (?:the )?technical', 'own (?:the )?(?:architecture|technical)'],
@@ -596,13 +599,13 @@ export const RESPONSIBILITY_LEXICON = [
   ['Business development', 'business development', 'capture', 'new business', 'proposals?', /\bRFPs?\b/],
   ['Marketing', 'marketing', 'campaigns?', 'brand', 'demand gen\\w*', 'messaging', 'launch(?:es)?'],
   ['Communications', 'communicat\\w*', 'stakeholders?', 'present(?:ing|ations?)', 'executive (?:updates|briefings)'],
-  ['Writing / docs', 'writ(?:e|ing)', 'documentation', 'document\\w*', 'technical (?:specs?|reports?)', 'whitepapers?', 'blog posts?'],
-  ['Analytics', 'analy[sz]\\w*', 'metrics', 'dashboards?', 'insights', 'sql'],
+  ['Writing / docs', 'documentation', 'technical writing', 'write (?:specs|docs|documentation|reports|policies|content)', 'whitepapers?', 'blogs?'], // §6a A12: not 'write code' / 'construction documents'
+  // §6a B: bare 'analy[sz]\\w*' tightened
+  ['Analytics', 'analytics', '(?:data|quantitative|statistical) analys[ie]s', 'analy[sz](?:e|es|ing) (?:the )?(?:data|metrics|results|trends|usage|performance)', 'metrics', 'dashboards?', 'insights', 'sql'],
   ['Enablement / training', 'enablement', 'workshops?', 'educat\\w*', 'train (?:users|customers|teams|operators)'],
   ['Hardware integration', 'hardware', 'bring-?up', 'subsystems?', 'sensors?', 'payloads?', 'integrat\\w* (?:with )?(?:hardware|sensors|systems|vehicles)'],
-  ['Systems engineering', 'systems engineering', 'requirements (?:definition|management|traceability|flow-?down)', 'interface control'],
-  ['Simulation', 'simulat\\w*', 'digital twins?', 'modeling and simulation'],
-  ['Autonomy', 'autonom\\w*'],
+  // §6a B: resp 'Systems engineering' dropped (the skill covers it)
+  // §6a B: resp 'Simulation' and 'Autonomy' dropped (the skills cover them)
   ['Field testing', 'field (?:test\\w*|operations|deploy\\w*|work)', 'flight test\\w*', 'test ranges?', 'in the field', 'test events?'],
   ['Manufacturing', 'manufactur\\w*', 'production lines?', 'assembly', 'factory', 'factories', 'production (?:ramp|scale|floor)'],
   ['Supply chain', 'supply chain', 'suppliers?', 'vendors?', 'procure\\w*', 'sourcing'],

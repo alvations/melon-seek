@@ -109,7 +109,9 @@ test('extractKeywords: Go / C++ / C# / R handling', () => {
   assert.ok(sk('Golang microservices').includes('Go'));
   assert.ok(!sk('Go above and beyond. Ready to go?').includes('Go'));
   assert.ok(!sk('Own our go-to-market motion').includes('Go'));
-  assert.ok(sk('Own our go-to-market motion').includes('GTM'));
+  // §6a (norm-4): the GTM skill was dropped as a duplicate of the Go-to-market responsibility
+  assert.ok(!sk('Own our go-to-market motion').includes('GTM'));
+  assert.ok(extractKeywords({ text: 'Own our go-to-market motion' }).responsibilities.includes('Go-to-market'));
   assert.ok(sk('Strong C++ skills').includes('C++'));
   assert.ok(sk('Unity and C# experience').includes('C#'));
   assert.ok(!sk('Experience with R and SAS').some((x) => x === 'R'));
@@ -117,6 +119,40 @@ test('extractKeywords: Go / C++ / C# / R handling', () => {
   assert.ok(!sk('PostgreSQL').includes('SQL'));
   assert.ok(sk('PostgreSQL').includes('Postgres'));
   assert.ok(!sk('We need an active security clearance').includes('Security'));
+});
+
+test('extractKeywords: §6a lexicon fixes (norm-4) drop the noisy senses, keep the real ones', () => {
+  const kw = (text) => extractKeywords({ text });
+  const sk = (text) => kw(text).skills;
+  const rs = (text) => kw(text).responsibilities;
+  assert.ok(!sk('Drive alignment between business objectives and engineering').includes('Alignment'));
+  assert.ok(sk('Contribute to alignment research on frontier models').includes('Alignment'));
+  assert.ok(!sk('Design ISO shipping containers for the data center').includes('Docker'));
+  assert.ok(sk('Experience with container orchestration').includes('Docker'));
+  assert.ok(!sk('Join our startup accelerator program').includes('GPUs'));
+  assert.ok(sk('Program custom ML accelerator chips').includes('GPUs'));
+  assert.ok(!sk('Apply causal inference to product data').includes('Inference'));
+  assert.ok(sk('Optimize LLM inference latency').includes('Inference'));
+  assert.ok(!sk('Defend free speech and protected speech online').includes('Speech / audio'));
+  assert.ok(!sk('Excel at debugging. Excel in ambiguity.').includes('Excel'));
+  assert.ok(sk('Advanced proficiency in Excel').includes('Excel'));
+  assert.ok(!sk('Monitoring of financial controls').includes('Observability'));
+  assert.ok(!sk('Build composite tracking for radar').includes('Composites'));
+  assert.ok(!sk('Hazmat rules for lithium batteries').includes('Power electronics'));
+  assert.ok(!sk('Negotiate with hiring managers').includes('Contract negotiation'));
+  assert.ok(sk('Negotiate contracts with suppliers').includes('Contract negotiation'));
+  assert.ok(!rs('Install fire protection and lightning protection; secure executive buy-in').includes('Security'));
+  assert.ok(rs('Build threat detection pipelines').includes('Security'));
+  assert.ok(!rs('Write code and review construction documents').includes('Writing / docs'));
+  assert.ok(rs('Maintain technical documentation').includes('Writing / docs'));
+  assert.ok(!rs('Define utility interfaces and the interface between teams').includes('Design'));
+  assert.ok(!rs('Support internal clients and existing customers of the platform').includes('Customer-facing'));
+  assert.ok(rs('Work directly with enterprise customers on deployments').includes('Customer-facing'));
+  assert.ok(!rs('Evaluate vendors and suppliers').includes('Model evaluation'));
+  assert.ok(rs('Build evals for frontier models').includes('Model evaluation'));
+  // near-duplicate drops: one chip per signal
+  for (const label of ['GTM', 'Marketing', 'Program management', 'Analytics', 'Data pipelines']) assert.ok(!SKILL_LEXICON.some(([l]) => l === label), `skill ${label} dropped`);
+  for (const label of ['Simulation', 'Interpretability', 'Autonomy', 'Systems engineering', 'Evaluation']) assert.ok(!RESPONSIBILITY_LEXICON.some(([l]) => l === label), `resp ${label} dropped`);
 });
 
 test('extractKeywords: fit falls back to text, global facets scan whole text', () => {

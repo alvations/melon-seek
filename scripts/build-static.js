@@ -527,7 +527,9 @@ async function main() {
     // Warning-level check ignores comments ("no Buffer" in a comment is fine);
     // the hard node:/require check above deliberately scans the raw source.
     const codeOnly = code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1');
-    if (/\b(process\.|Buffer\b|__dirname)/.test(codeOnly)) warn(`server/${name} references a Node global (process/Buffer/__dirname); api.js stubs process.env, check anything else`);
+    // `process\.` must be followed by an identifier: prose in string literals
+    // ("…acquisition process. Our…" in demo.js) is not a Node global.
+    if (/\b(process\.[A-Za-z_$]|Buffer\b|__dirname)/.test(codeOnly)) warn(`server/${name} references a Node global (process/Buffer/__dirname); api.js stubs process.env, check anything else`);
     const dest = path.join(OUT, 'lib', name);
     await fs.mkdir(path.dirname(dest), { recursive: true });
     await fs.writeFile(dest, code);

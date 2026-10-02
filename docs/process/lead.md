@@ -518,3 +518,9 @@ screenshots in `docs/screenshots/`.
   Final: npm test 290/290; e2e 56/56 (incl. the 24 Compstimate task-force
   scenarios and the link checks). Lesson: don't use `pgrep -f`/`pkill -f`
   with a pattern the calling shell contains (exit 144); use pid files.
+- 2026-10-02: user chose "keep current Pages setup + guards" (no gh-pages
+  branch, no settings change). Finish agent (completed before the 2nd
+  restart): applied the §6a lexicon fixes as norm-4 (results §6c) and
+  re-baselined the golden test; added scripts/external-links.js and a ci.yml
+  `links` job (site URLs blocking, job Apply URLs advisory). Lead verified:
+  npm test 294/294, e2e 56/56, all workflows parse.

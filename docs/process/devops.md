@@ -711,6 +711,59 @@ feature-detected, so the build and site work before each owner lands it.
       allowlist; the Juice link opens the methodology page) was sent to QA
       through the coordinator.
 
+66. **External link check in CI (`scripts/external-links.js`, ci.yml job `links`).**
+    Brief: [prompts/finish.md](prompts/finish.md).
+    - Why a new script, not `link-check.mjs --fetch-external`: link-check.mjs
+      (UX) drives Chromium against a running server. Its external pass
+      samples 20 job URLs in total, not per company, and it takes them from
+      server-mode data, which on a CI runner (no snapshots) is demo data
+      with synthetic URLs. The new script needs no browser, no server and no
+      npm deps. It only fetches outbound URLs. Internal links stay with
+      `test/e2e/links.e2e.js` and the build's link policy.
+    - Three groups:
+      - **Jobs:** a seeded sample of 20 Apply URLs per built-in company
+        (`server/companies.js`). The source can be a dist dir, a deployed
+        site URL or a snapshots dir. CI uses the deployed site's
+        `api/jobs/<slug>.json`, which is the real built dist. Demo-mode
+        boards are skipped. The seed defaults to the UTC date (printed), so
+        a day's reruns pick the same jobs.
+      - **Docs:** every http(s) URL in README.md and docs/**/*.md (261 today).
+        Skipped: localhost, RFC 2606 example domains, template URLs
+        (`{x}`, `${x}`, `<slug>`, `…`) and the docs' example board `acme`.
+      - **Site:** SITE_URL and SITE_URL/methodology/, plus any doc URL under
+        SITE_URL (today the OG image and `c/anthropic/`). Only URLs under
+        SITE_URL count. The bare `https://alvations.github.io` mentioned in
+        this log goes to Docs.
+    - Fetching: HEAD, then GET on 403/405/501 or a network error. Redirects
+      are followed, the timeout is 15 s, and 8 requests run at a time.
+      Broken means a status ≥ 400, no response, or a Greenhouse redirect to
+      `?error=true` (a closed posting, which answers 200).
+    - Report: a markdown table per group appended to `$GITHUB_STEP_SUMMARY`,
+      plus `::warning` annotations (jobs, docs) or `::error` annotations
+      (site).
+    - Gating: a separate `links` job (Node 22, outside the 20/22 matrix, so it
+      runs once). Jobs and Docs are `continue-on-error: true`: postings close
+      daily, and third-party sites rate-limit or bot-block (403/429). Site is
+      required: if the app or methodology page doesn't answer, CI fails.
+      Making Docs advisory was my call; the brief only said job URLs
+      advisory and site URLs failing.
+    - Actions pinned to the SHAs ci.yml already uses (checkout v7.0.1,
+      setup-node v7.0.0). There's no `npm ci`, since the script only imports
+      `server/companies.js`.
+    - `test/external-links.test.js` (3 tests) runs against a local mock
+      server: seeded sampling and packed-URL decoding, HEAD→GET fallback,
+      404, the closed-posting redirect, unreachable hosts, demo boards
+      skipped, a missing board noted, and a broken methodology page reported
+      under Site.
+
+67. **Build check: no false "Node global" warning.**
+    - The check in `scripts/build-static.js` (browser lib modules) matched
+      `process\.` in prose: demo.js's "…talent acquisition process. Our
+      recruiting team…".
+    - It now needs an identifier after the dot (`process\.[A-Za-z_$]`).
+    - Real uses (`process.env`, `process.argv`) still warn. The build has
+      0 warnings.
+
 ## 4. Replayable steps
 
 Run from `/home/user/melon-seek`. File contents are the committed files
@@ -970,10 +1023,20 @@ quoted `cat > FILE <<'EOF'` heredocs).
     #  drawer 8,930 chars, 1 request /api/job?id=anthropic%3A5264619008, cached on reopen, PASS
     ```
 
+36. External link check (finish task):
+    ```sh
+    node --test test/external-links.test.js test/workflows.test.js   # 3/3, 5/5
+    python3 -c "import yaml; [yaml.safe_load(open('.github/workflows/'+f)) for f in ['ci.yml','pages.yml','snapshot.yml','site-watchdog.yml','col-refresh.yml']]"
+    node scripts/external-links.js --jobs data/snapshots --per-company 2 --site --summary $S/summary.md
+    #  sandbox: every URL HTTP 403 from the egress proxy (expected; runners are not blocked)
+    node scripts/build-static.js --out $S/dist      # 0 warnings (was 1: demo.js "Node global")
+    ```
+
 ## 5. Verification
 
 | Check | Result |
 | --- | --- |
+| External link check (finish task) | `scripts/external-links.js`: `test/external-links.test.js` **3/3** against a local mock server (200, HEAD 405→GET, 404, `?error=true` redirect, unreachable host, demo skip, broken site page). PyYAML parses all 5 workflows; `ci.yml` jobs are `test` and `links`, and the links steps are Jobs (continue-on-error), Docs (continue-on-error) and Site (required). `test/workflows.test.js` **5/5** (SHA pins). Dry-run on the real snapshots (8 companies × 2) and the site: the step-summary markdown renders, and every fetch got HTTP 403 from the sandbox proxy, so real results come only from the first CI run. Doc URL extraction: 261 URLs. Full `npm test` **294/294**, `node scripts/e2e.js` **56/56**. |
 | PyYAML parse of `ci.yml` and `snapshot.yml` | Pass (2/2), run twice (after writing and before this log). |
 | README relative link targets exist (`ci.yml`, `snapshot.yml`, `ARCHITECTURE.md`, `ADDING_A_BOARD.md`, `CONTRACT.md`) | Pass (5/5). |
 | Endpoint URLs in README match the adapter source | Pass, checked by grep. |
@@ -1088,6 +1151,14 @@ quoted `cat > FILE <<'EOF'` heredocs).
 - **og.test.js doesn't pin `MELON_HISTORY_DIR`.** Harmless today, since there's
   no local `data/history`. Once a developer has a local ledger, its builds
   would read it; one env line would fix it (not my file; reported).
+- **External link check is unverified against the real internet.** The
+  sandbox blocks egress, so the first CI run of the `links` job is the real
+  test. Watch it for false positives: Greenhouse, Ashby or Lever answering
+  403 or 429 to HEAD and GET from runners, and how Ashby and Lever report a
+  closed posting (assumed 404). If a site blocks bots, add a per-host rule
+  to `checkUrl`.
+- The Jobs sample reads the **deployed** site's lists. A broken deploy shows
+  up there as "no list" notes, and the required Site step fails as well.
 
 ## 7. Change log
 
@@ -1203,3 +1274,8 @@ quoted `cat > FILE <<'EOF'` heredocs).
   page (`scripts/md.js`, `scripts/methodology.js`), JUICE_DOC → on-site, the
   link policy (build gate + `test/links-policy.test.js`). Sent the server
   route snippet (backend) and the e2e click test (QA).
+- 2026-10-02T21:10Z: Finish task. Added an external link check to CI: a
+  `links` job in ci.yml running `scripts/external-links.js` (job Apply URLs
+  and doc URLs advisory, the site's own pages required, results in the step
+  summary) and `test/external-links.test.js`. Fixed the build's false "Node
+  global" warning on demo.js (decisions 66–67).

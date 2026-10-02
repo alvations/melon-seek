@@ -81,3 +81,36 @@ jobs:
       - name: Server log
         if: always()
         run: cat server.log || true
+
+  # External links (scripts/external-links.js; docs/process/devops.md decision
+  # 66). GitHub's runners can reach the internet; the dev sandbox can't. One run
+  # per push/PR, outside the Node matrix. Broken links are listed in the step
+  # summary. Job postings close daily, so the job-URL and doc-URL steps are
+  # advisory; the site's own pages must answer, or CI fails.
+  links:
+    name: External links
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SITE_URL: ${{ vars.SITE_URL || 'https://alvations.github.io/melon-seek/' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      # 20 Apply URLs per built-in company, seeded by the UTC date (reruns on
+      # the same day pick the same jobs; the seed is in the summary). Source:
+      # the deployed site's built lists (a CI build has no snapshots, so its
+      # lists are demo data with synthetic URLs).
+      - name: Job Apply URLs (advisory)
+        continue-on-error: true
+        run: node scripts/external-links.js --jobs "$SITE_URL" --per-company 20 --summary "$GITHUB_STEP_SUMMARY"
+
+      - name: Doc URLs in README.md and docs/**/*.md (advisory)
+        continue-on-error: true
+        run: node scripts/external-links.js --docs --summary "$GITHUB_STEP_SUMMARY"
+
+      - name: Site pages (required)
+        run: node scripts/external-links.js --site --summary "$GITHUB_STEP_SUMMARY"

@@ -480,9 +480,16 @@ node docs/process/scripts/boilerplate-report.mjs anthropic anduril openai   # BU
 - Coordinates are approximate and come from general knowledge, not a
   surveyed dataset. Small towns that are not in the gazetteer fall back to the
   state centroid, or to null.
-- Lexicon matching is keyword-based, so false positives are possible
-  ("Research" fires on titles, "Customer-facing" on any mention of
-  customers). Tune it against real snapshots once `data/snapshots/` has data.
+- Lexicon matching is keyword-based, so false positives are possible.
+  It was tuned against the real snapshots in §6a/§6c (norm-4). Follow-ups
+  from the §6c spot check, none proposed in §6a so none applied:
+  - resp Security: bare `security` fires on "national security" and on
+    lists of partner teams (69% precision).
+  - resp Design: `prototyp\w*` fires on "prototype to production".
+  - resp Analytics: `insights` fires on "share insights with Product".
+  - Cohere's about-us sentence ("value they drive for our customers")
+    sets Customer-facing for jobs where it isn't removed as boilerplate.
+    Not investigated.
 - Extra feature: `demoJobs(slug, name, opts)` takes an optional third argument
   `{source, board, url}`. A demo for an unknown slug with no `<source>-<board>`
   pattern and no opts gets `url: null`, rather than an invented URL.
@@ -530,7 +537,7 @@ node docs/process/scripts/boilerplate-report.mjs anthropic anduril openai   # BU
 - The " and " separator splits multi-word country names such as "Trinidad and
   Tobago". This is rare in job boards.
 
-## 6a. Lexicon review: proposals, NOT applied (sequenced after the perf work)
+## 6a. Lexicon review: proposals (applied 2026-10-02 as norm-4; results in §6c)
 
 **Method.** All 5,413 snapshot postings, normalized with the BUG-5 fix.
 Label counts come from the whole corpus. Precision was eyeballed from
@@ -636,6 +643,10 @@ should land after the perf golden test, with that golden file
 re-baselined in the same change.
 
 ## 6b. Perf coordination (keywords.js)
+**Status (2026-10-02):** the perf wave is done (the golden test landed and
+the chart work shipped), so §6a went in as norm-4 (§6c). The notes below
+are kept as history.
+
 I own `server/keywords.js`. I am not editing it until the backend's perf
 proposals arrive. I will then either implement the agreed changes myself
 or grant backend written, function-scoped permission (likely
@@ -651,6 +662,156 @@ Candidate ideas to review with backend:
   fails.
 
 Lexicon changes (§6a) come after that.
+
+## 6c. Lexicon fixes applied (norm-4)
+Brief: [prompts/finish.md](prompts/finish.md). This applies the §6a
+proposals as written: 14 noisy patterns (A1–A14), plus near-duplicate drops
+and one rename (B). Rule: keep the UI simple, so fewer and cleaner chips.
+Files changed: `server/keywords.js` (lexicons only, no matching-code
+changes), `server/normalize.js` (`NORMALIZER_VERSION` norm-3 → norm-4),
+`test/keywords.test.js`, and `test/fixtures/golden-normalize.json`.
+
+**What changed** (each line has a `// §6a` comment in keywords.js):
+
+| § | Label | Change |
+|---|---|---|
+| A1 | skill Alignment | Bare `alignment` dropped. Kept `alignment research`, `ai alignment`, `alignment science`, `superalignment`. |
+| A2 | skill Docker | `containers?` dropped. Kept `docker` and `containeriz\w*`, added `container (orchestration\|images?\|runtime\|security\|hardening)`. |
+| A3 | skill GPUs | `accelerators?` now needs hardware context: `accelerator (chips?\|families\|hardware\|clusters?)`, or co-occurrence with TPU(s) or chip(s) in the same text. (Co-occurrence with GPU already gives the chip.) |
+| A4 | skill Inference | `(?<!causal \|statistical \|bayesian )inference` |
+| A5 | skill Speech / audio | Bare `speech` dropped. Kept `speech recognition`, `text-to-speech`, `speech models?`, `audio models?`. |
+| A6 | skill Excel | `\bExcel\b(?! (?:at\|in)\b)`. The proposal's form only excluded "Excel at". The 1-in-7 check found 3/41 false hits, all sentence-initial "Excel in …" (the same verb case), so `in` was added. |
+| A7 | skill Observability | Bare `monitoring` dropped. Added `(system\|infrastructure\|production) monitoring`. |
+| A8 | skill Composites | `composites` or `composite (materials\|structures\|layup\|manufacturing)`, not "composite tracking". |
+| A9 | skill Power electronics | `batter(y\|ies)` and `power systems` dropped. No "Batteries" label was added (fewer chips). |
+| A10 | skill Contract negotiation | `negotiat\w* (contracts?\|agreements?\|deals?\|terms)` and `contract negotiations?`. The existing `contract (review\|drafting\|management)` stays. |
+| A11 | resp Security | Bare `secure`, `protect\w*` and `threats?` dropped. Kept `security(?! clearance)` and `vulnerabilit\w*` (not named as noisy), added `threat (model\|detection\|intel)\w*`. |
+| A12 | resp Writing / docs | Now only `documentation`, `technical writing`, `write (specs\|docs\|documentation\|reports\|policies\|content)`, `whitepapers?`, `blogs?`. |
+| A13 | resp Design | Bare `interfaces?` → `user interfaces?`. The rest stays. |
+| A14 | resp Customer-facing | Customers or clients only after a customer verb: work (closely/directly) with, support, engage (with), partner with, for, serve, help, meet with, liaise with, interface with. An optional `our/the/key/strategic/prospective` and `external/enterprise` may come between. Also `(customer\|client) (relationships?\|acquisition\|engagements?)`, `customer-facing`, `client-facing`, `end users`. "Internal clients" and "existing customers" no longer fire. The verb list is my implementation of "customer-verb phrases". `liaise/interface with` and the relationship/acquisition phrases were added after a recall check (below). |
+| B | skills GTM, Marketing, Program management, Analytics, Data pipelines | Dropped (the same-name or matching responsibility covers each one). |
+| B | resps Simulation, Interpretability, Autonomy, Systems engineering | Dropped (the skill covers each one). |
+| B | resp Evaluation → **Model evaluation** | Renamed. Needs model/eval context: `evals?`, `(model\|ai\|llm) evaluations?`, `evaluat\w* (the\|our)? (ai\|ml\|language\|frontier)? models?`, `(model\|llm) benchmarks?`, `benchmark(s\|ing)? (the\|our)? models?`, `measur(e\|ing) model (performance\|capabilities)`. "Evaluate vendors" no longer fires. |
+| B | resp Analytics | Bare `analy[sz]\w*` → `analytics`, `(data\|quantitative\|statistical) analys[ie]s`, `analy[sz](e\|es\|ing) (the)? (data\|metrics\|results\|trends\|usage\|performance)`. The rest stays. |
+| B | kept as proposed | skill+resp Security, Recruiting/Hiring, Bachelor's/Degree or equivalent, Leadership/Management experience, and Alignment/AI safety interest are all unchanged. |
+
+**Method.** All 5,413 postings in `data/snapshots/*.json` (8 boards,
+snapshot of 2026-10-02) were normalized with `normalizeJobs` per board. That
+includes boilerplate removal and the >90% guard, the same path the server and
+build use. Keywords were dumped before the change (norm-3) and after (norm-4)
+and compared. Replay with `docs/process/scripts/lexicon-report.mjs`
+(`dump`, `compare`, `ctx`).
+
+**Results.**
+
+| company | jobs | chip assignments before → after | Δ | most common chip after (share) |
+|---|---:|---:|---:|---|
+| anduril | 2418 | 59,447 → 53,795 | -9.5% | f:Security clearance (81%) |
+| anthropic | 638 | 14,768 → 13,447 | -8.9% | r:Cross-functional (69%) |
+| cohere | 132 | 2,957 → 2,691 | -9.0% | r:Cross-functional (79%) |
+| openai | 833 | 18,343 → 16,660 | -9.2% | r:Cross-functional (76%) |
+| palantir | 320 | 7,136 → 6,752 | -5.4% | f:Collaboration (72%) |
+| scaleai | 194 | 4,817 → 4,392 | -8.8% | r:Cross-functional (82%) |
+| shieldai | 581 | 16,287 → 14,632 | -10.2% | r:Cross-functional (78%) |
+| xai | 297 | 5,550 → 5,093 | -8.2% | r:Operations (56%) |
+| **all** | 5,413 | 129,305 → 117,462 | -9.2% | per job 23.89 → 21.70 |
+
+Top-10 chips per company (s = skill, r = responsibility, f = fit):
+
+- **anduril** before: f:Security clearance 1947, r:Operations 1537, f:Bachelor's 1534, r:Cross-functional 1501, f:Strong communication 1371, r:Analytics 1335, f:Defense / aerospace 1237, f:Technical depth 1152, r:Hardware integration 1088, r:Manufacturing 1025
+  - after: f:Security clearance 1947, r:Operations 1537, f:Bachelor's 1534, r:Cross-functional 1501, f:Strong communication 1371, f:Defense / aerospace 1237, f:Technical depth 1152, r:Hardware integration 1088, r:Manufacturing 1025, r:Communications 986
+- **anthropic** before: r:Cross-functional 441, f:Strong communication 409, r:Strategy 371, r:Operations 367, r:Infrastructure 291, r:Analytics 287, f:Technical depth 279, r:Scaling systems 271, s:Machine learning 270, r:Communications 260
+  - after: r:Cross-functional 441, f:Strong communication 409, r:Strategy 371, r:Operations 367, r:Infrastructure 291, f:Technical depth 279, r:Scaling systems 271, s:Machine learning 270, r:Communications 260, s:LLMs 252
+- **cohere** before: r:Cross-functional 104, r:Strategy 85, r:Customer-facing 72, f:Technical depth 70, r:Infrastructure 68, f:Strong communication 66, r:Scaling systems 60, s:Machine learning 58, s:LLMs 57, r:Operations 56
+  - after: r:Cross-functional 104, r:Strategy 85, f:Technical depth 70, r:Infrastructure 68, f:Strong communication 66, r:Scaling systems 60, s:Machine learning 58, s:LLMs 57, r:Operations 56, r:Go-to-market 52
+- **openai** before: r:Cross-functional 637, r:Operations 519, f:Strong communication 503, f:Ambiguity 477, r:Strategy 477, r:Scaling systems 422, r:Analytics 387, r:Infrastructure 365, r:Research 360, r:Customer-facing 338
+  - after: r:Cross-functional 637, r:Operations 519, f:Strong communication 503, f:Ambiguity 477, r:Strategy 477, r:Scaling systems 422, r:Infrastructure 365, r:Research 360, r:On-call / reliability 326, r:Communications 305
+- **palantir** before: f:Collaboration 230, f:Self-directed 194, s:Python 194, f:Security clearance 191, r:Operations 188, f:Technical depth 183, r:Customer-facing 182, f:Mission-driven 178, f:Strong communication 175, s:Java 159
+  - after: f:Collaboration 230, f:Self-directed 194, s:Python 194, f:Security clearance 191, r:Operations 188, f:Technical depth 183, f:Mission-driven 178, f:Strong communication 175, s:Java 159, r:Cross-functional 156
+- **scaleai** before: r:Cross-functional 159, r:Scaling systems 144, r:Customer-facing 128, r:Strategy 115, s:Machine learning 114, r:Operations 106, r:Communications 90, r:Infrastructure 90, s:Agents 90, s:LLMs 89
+  - after: r:Cross-functional 159, r:Scaling systems 144, r:Strategy 115, s:Machine learning 114, r:Operations 106, r:Communications 90, r:Infrastructure 90, s:Agents 90, s:LLMs 89, f:Technical depth 79
+- **shieldai** before: r:Cross-functional 456, f:Defense / aerospace 406, r:Operations 401, f:Bachelor's 385, f:Strong communication 341, r:Analytics 340, f:Technical depth 316, s:Autonomy 301, r:Program management 274, r:Hardware integration 273
+  - after: r:Cross-functional 456, f:Defense / aerospace 406, r:Operations 401, f:Bachelor's 385, f:Strong communication 341, f:Technical depth 316, s:Autonomy 301, r:Program management 274, r:Hardware integration 273, r:Mission / defense 265
+- **xai** before: r:Operations 166, f:Technical depth 159, f:Strong communication 151, r:Cross-functional 151, r:Performance optimization 140, f:Bachelor's 123, r:Infrastructure 123, s:Datacenters 123, r:Program management 118, r:On-call / reliability 112
+  - after: r:Operations 166, f:Technical depth 159, f:Strong communication 151, r:Cross-functional 151, r:Performance optimization 140, f:Bachelor's 123, r:Infrastructure 123, s:Datacenters 123, r:Program management 118, r:On-call / reliability 112
+
+Labels on ≥95% of a board's jobs after: none. The >90% guard
+(`dropUbiquitousKeywords`) dropped nothing on any board: {"anduril":0,"anthropic":0,"cohere":0,"openai":0,"palantir":0,"scaleai":0,"shieldai":0,"xai":0}
+
+The drop is 9.2%, just below §6a's predicted 10–15%. Alignment fell further
+than expected (736 → 12, not "about a fifth"). A 1-in-25 sample of the 724
+lost jobs was 27/29 business "alignment" ("ensure alignment with …",
+"cross-functional alignment"). The 2 borderline cases were a safety
+post-training role ("alignment properties") and "team alignment" at a
+Safety data-science job. The 12 kept are all AI alignment.
+
+**Precision spot check (1 in 7 of the jobs that still carry the label,
+±50-char context, judged by hand).** For responsibilities, the context
+comes from the title plus responsibility bullets, as `extractKeywords` sees
+them.
+
+| Fixed label | Jobs after | Sample | Correct | Main remaining noise |
+|---|---:|---:|---:|---|
+| s Alignment | 12 | 12 (all) | 12 | none |
+| s Docker | 250 | 36 | 35 | "containerized command centers" (physical) |
+| s GPUs | 257 | 37 | 35 | "GPU racks can catch fire" (fire tech), co-designing chips (DevOps) |
+| s Inference | 207 | 30 | 30 | none |
+| s Speech / audio | 27 | 4 | 4 | none |
+| s Excel | 273 | 39 | 39 | none (3/41 "Excel in …" before the `in` fix) |
+| s Observability | 390 | 56 | 55 | control-theory "observability-aware maneuvering" |
+| s Composites | 185 | 27 | 27 | none |
+| s Power electronics | 67 | 10 | 10 | none |
+| s Contract negotiation | 79 | 12 | 12 | none |
+| r Security | 795 | 114 | 79 | bare `security` (kept per A11) in "national security" and in lists of partner teams ("partner with Legal, Security, …") |
+| r Writing / docs | 921 | 132 | 123 | paperwork ("carrier documentation", "provide the documentation requested") |
+| r Design | 911 | 131 | 113 | `prototyp\w*` (kept per A13) in "from prototype to production" (manufacturing) |
+| r Customer-facing | 745 | 107 | 94 | "support customer returns", Cohere's about-us "value they drive for our customers", "work with customer-facing teams" |
+| r Analytics | 1,459 | 209 | 172 | `insights` (unchanged) in "share customer insights with Product" |
+| r Model evaluation | 118 | 17 | 17 | none |
+
+Skills: 259/263 (98%). Responsibilities: 598/710 (84%). The remaining
+responsibility noise comes from patterns §6a did not propose changing.
+
+**Recall check (what the fixes removed).**
+- Security: in a 1-in-25 sample of the 443 lost jobs, 17/18 were noise
+  (the recruitment-scam notice "Protecting Yourself…", "the threats they
+  face", "protect the team's ability"). The exception was "a secure,
+  scalable system" (sandbox service).
+- Customer-facing: in a 1-in-60 sample of the 1,594 lost jobs, about 21/27
+  were plain mentions of customers ("customer requirements", "deployed to
+  customers"). The other 6 were real customer work ("liaise with …
+  customers", "manage customer relationships", "net-new customer
+  acquisition"), so the verb list was widened and 145 jobs came back
+  (600 → 745).
+
+**Golden test re-baseline (once).** Command:
+`UPDATE_GOLDEN=1 GOLDEN_REASON="norm-4 features §6a lexicon fixes: 14 noisy patterns, near-duplicate chips dropped/renamed (keywords only)" node --test test/golden-normalize.test.js`.
+- Why: §6a deliberately changes keyword output, and §6a always said the
+  golden file would be re-baselined in the same change.
+- Before the re-baseline, 250 of the 300 golden jobs differed.
+- A field-by-field diff against HEAD (`git archive HEAD` into the scratchpad,
+  same 300 raw jobs) found that only `keywords` differs: 250 jobs, 0 changes
+  in any other field.
+- `NORMALIZER_VERSION` is now norm-4, so the server re-derives stored
+  snapshots and caches once (`server/pipeline.js`).
+
+**Test expectations changed.**
+- `test/keywords.test.js` "Go / C++ / C# / R handling" asserted the skill
+  "GTM" for "Own our go-to-market motion". That skill is dropped (§6a B), so
+  the test now asserts no GTM skill and the responsibility "Go-to-market"
+  instead.
+- New test "§6a lexicon fixes (norm-4)": a negative and positive pair for
+  each fixed pattern, plus a check that the dropped labels are gone.
+- No other expectations moved. `test/demo.test.js` still finds the skill
+  Autonomy in Anduril's guard drops (that skill is kept).
+
+**demo.js and the build warning.** `npm run build` warned "server/demo.js
+references a Node global". demo.js uses none. The build's check
+(`/\b(process\.|…)/`) matched the prose "…talent acquisition process. Our
+recruiting team…" in a string literal (demo.js line 507). The check in
+`scripts/build-static.js` now needs an identifier after `process.`
+(`process\.[A-Za-z_$]`), so the warning is gone and demo text is
+unchanged. Build: 0 warnings. (Logged in devops.md too.)
 
 ## 7. Change log
 - 2026-10-02: geo.js written (gazetteer, split, geocode). Removed the
@@ -692,3 +853,13 @@ Lexicon changes (§6a) come after that.
   `rawName`, with prefecture/province noise words and ISO-3 country codes.
   Anthropic filter entries went from 31 to 27. Backend's golden test needs
   a re-baseline.
+- 2026-10-02: §6a applied as norm-4 (§6c). 14 pattern fixes, 5 skills and
+  4 responsibilities dropped as near-duplicates, and the resp Evaluation
+  renamed to Model evaluation. On the 5,413 real postings, chip assignments
+  went 129,305 → 117,462 (−9.2%) and no label is on ≥95% of any board.
+  Spot-check precision for the fixed patterns: skills 98%, responsibilities
+  84%. The golden test was re-baselined once (only keywords changed, 250/300
+  jobs). One test expectation changed (GTM skill → Go-to-market
+  responsibility), and a §6a regression test was added. The build's false
+  "Node global" warning on demo.js is fixed. Added
+  `docs/process/scripts/lexicon-report.mjs`.

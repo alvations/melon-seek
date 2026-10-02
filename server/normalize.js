@@ -13,9 +13,10 @@ import { vetSalaries, salaryChecks } from './vet.js';
  * (scripts/snapshot.js); the server re-derives sections/keywords for
  * snapshots with an older version (server/pipeline.js), once per file.
  * History: norm-2 = BUG-5 boilerplate-aware keywords; norm-3 = UX-3 canonical
- * location names (geo.js rawName).
+ * location names (geo.js rawName); norm-4 = features §6a lexicon fixes
+ * (14 noisy patterns, near-duplicate chips dropped or renamed).
  */
-export const NORMALIZER_VERSION = 'norm-3';
+export const NORMALIZER_VERSION = 'norm-4';
 
 const NO_EXTRAS = Object.freeze({ equity: false, bonus: false });
 
