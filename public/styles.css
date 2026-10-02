@@ -811,3 +811,8 @@ html[data-mode="insights"] .viz-controls { display: none; }
 .company-menu > .btn { margin-top: 6px; justify-content: flex-start; color: var(--ms-muted); border-style: dashed; }
 @media (max-width: 1360px) { .company-pill:nth-child(n+3) { display: none; } }
 @media (max-width: 1199px) { .topbar .seg button span { display: none; } .company-pill:nth-child(n+2) { display: none; } }
+@media (max-width: 860px) {
+  #addBoardBtn { display: none; }               /* "Add a board" lives in the company menu */
+  .company-menu-btn .company-count { display: none; }
+  .topbar .seg button { padding: 0 8px; }
+}
