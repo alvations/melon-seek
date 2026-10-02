@@ -199,6 +199,9 @@ export function payClauses(text) {
 
 /* ----------------------------------------------------------------- scan */
 
+/** Flags that mean an implausible amount: a job that would be published with one fails CI. */
+export const CRITICAL_FLAGS = new Set(['max_over_1_2m', 'min_under_15k_fulltime', 'hourly_over_cap']);
+
 /** "structured" | "text" for a snapshot salary (salary.source when present). */
 export function salarySource(job, text, sal) {
   if (sal.source) return sal.source;
@@ -233,6 +236,7 @@ export function scanJob(job, { stat = null } = {}) {
       else if (c.code === 'min_gt_max') flags.add('min_gt_max');
       else if (c.code === 'junior_high') flags.add('title_junior_high');
       else if (c.code === 'senior_low') flags.add('title_senior_low');
+      else if (c.code === 'hourly_high') flags.add('hourly_over_cap');
     }
     if (sal.min > 0 && sal.max / sal.min > VET.RATIO_FLAG) flags.add('ratio_over_3');
     if (MAG_RE.test(sal.text || '')) flags.add('magnitude_suffix');
@@ -276,7 +280,7 @@ export function scanJob(job, { stat = null } = {}) {
   const excerpt = text && span ? excerptAround(text, span.start, span.end) : (sal ? flat(sal.text).slice(0, 300) : '');
   const ex = flat(excerpt);
   const pay_snippets = clauses.map((c) => c.clause).filter((c) => !ex.includes(c.slice(0, 60))).slice(0, 3).map((c) => c.slice(0, 200));
-  const critical = [...flags].some((f) => f === 'max_over_1_2m' || f === 'min_under_15k_fulltime');
+  const critical = [...flags].some((f) => CRITICAL_FLAGS.has(f));
   return { flags: [...flags], excerpt, pay_snippets, source, critical };
 }
 

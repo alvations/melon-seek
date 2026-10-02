@@ -73,11 +73,12 @@
   "salaried": 128,
   "quarantined": 2,
   "flagged": 7,
-  "critical": 0,
+  "critical": 2,
   "blocking": 0,
   "codes": {
    "non_year_interval": 5,
    "structured_text_disagree": 2,
+   "hourly_over_cap": 2,
    "currency_country_mismatch": 1,
    "quarantined": 2
   }

@@ -85,6 +85,12 @@ for data that's stale within hours. Instead:
 - The [`pages` workflow](.github/workflows/pages.yml) restores the newest
   artifact, then fetches fresh data. A board that fails during that run keeps
   its last good snapshot instead of dropping to demo data.
+- Both workflows run the **salary vetting gate** after fetching:
+  `node scripts/vet-salaries.js --no-write-flags --summary "$GITHUB_STEP_SUMMARY"`.
+  It exits 1 when a job whose salary would be shown has a critical anomaly (an
+  implausible amount), or when a regression fixture fails. That fails the run,
+  and in `pages.yml` it stops the deploy, so implausible pay is never published.
+  The flagged jobs are listed in the run's summary.
 - A fresh clone has no snapshots and shows demo data (clearly labelled) until
   you run `npm run snapshot` on a machine with internet access. You can also
   download a recent artifact:
@@ -119,6 +125,7 @@ npm run build          # -> dist/
 | `dist/vendor/leaflet/` | Leaflet. |
 | `dist/api/companies.json` | The built-in companies. |
 | `dist/api/jobs/<slug>.json` | The company's job list: its snapshot (`mode: "snapshot"`), or demo data if the build had no snapshot. Descriptions are left out and the list is packed (see below). Each list is kept under 1.5 MB. |
+| `dist/api/cities.json` | `data/cities.json`, the Juice Score inputs (89 cities). |
 | `dist/api/desc/<slug>/<id>.json` | One job's `descriptionHtml` (plus its `sections`, if they were moved out of the list), loaded when the job is opened. |
 | `dist/api/demo/<slug>.json` | Demo data (`mode: "demo"`). Only written when the main list is a real snapshot. |
 | `dist/.nojekyll` | Turns off Jekyll processing. |
@@ -144,6 +151,13 @@ inline. The build makes three changes:
 The build prints each company's list size and description total. On real data
 (Oct 2026) every list is under 1.5 MB; the largest is Anduril, with 2,418 jobs
 in 1.3 MB.
+
+**Juice Score.** `public/api.js` computes each job's `juice` (what's left of the
+salary after tax, rent and living costs; see [docs/LIVABILITY.md](docs/LIVABILITY.md))
+in the browser, in both server and static mode. Every `getJobs` result goes
+through the salary gate (`vetSalaries`), then `attachJuiceAll` with the cities
+from `getCities()`. Juice is never stored in the bundled lists. If the cities
+can't be loaded, jobs get `juice: null` and no error is shown.
 
 In static mode, `public/api.js` runs the fallback chain in the browser:
 

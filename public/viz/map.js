@@ -404,6 +404,13 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       const m = L.marker([c.lat, c.lng], { icon, keyboard: true, title: '', riseOnHover: false, zIndexOffset: i });
       c.marker = m;
       m.bindTooltip(() => tooltipContent(c), { direction: 'top', offset: [0, -36], className: 'ms-map-tip', opacity: 1 });
+      // Keep the tooltip inside the map: near the left/right edge open sideways, near the top open below.
+      m.on('tooltipopen', e => {
+        const t = e.tooltip, pt = map.latLngToContainerPoint(m.getLatLng()), size = map.getSize();
+        const [dir, off] = pt.x < 160 ? ['right', [54, -18]] : pt.x > size.x - 160 ? ['left', [-54, -18]]
+          : pt.y < 200 ? ['bottom', [0, 6]] : ['top', [0, -36]];
+        if (t.options.direction !== dir) { t.options.direction = dir; t.options.offset = L.point(off); t.update(); }
+      });
       m.on('mouseover', () => { m.setZIndexOffset(100000); pinEl.classList.add('is-hover'); });
       m.on('mouseout', () => { m.setZIndexOffset(i); pinEl.classList.remove('is-hover'); });
       const activate = () => {

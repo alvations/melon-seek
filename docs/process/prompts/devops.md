@@ -57,3 +57,16 @@ Lead decision: the snapshot workflow committed 74 MB of raw JSON (anduril.json a
 - The vetting agent will add `node scripts/vet-salaries.js` to the pipeline. Leave room for a step after the snapshot that runs it and fails the build if it reports critical salary anomalies; add the step once that script exists.
 - Update the README "snapshot" section and docs/process/devops.md (decision + change log) to explain why snapshots are not committed.
 Noted on getJobDetail and fillDescription; I'm relaying the re-render to UX.
+
+---
+
+Fifth request (Juice Score integration), from the coordinator:
+
+Juice Score integration. Lead decision: juice is computed client-side in api.js in BOTH modes, and never stored in the packed lists.
+1. build-static.js: add 'juice.js' to LIB_MODULES (it only imports ./geo.js), copy data/cities.json to dist/api/cities.json, and also run the salary vetting gate's CI step: `node scripts/vet-salaries.js` after the snapshot. Ask the vetting agent's docs/VETTING.md for the exact command and failure semantics; if the script isn't final yet, add the step with `continue-on-error: false` behind a check that the script exists.
+2. api.js:
+   - Export `getCities()`: `api/cities.json` in static mode, `api/cities` in server mode, cached.
+   - After every getJobs result (live, snapshot, demo, server), call `attachJuiceAll(jobs, cities)` from juice.js, after vetSalaries. In server mode, load juice.js from the same place you load the other lib modules.
+   - If cities fail to load, jobs keep `juice: null`, with no error banner.
+3. Tests: the build output includes cities.json and juice.js; in a static build, an unpacked job gets `juice.best.score` when its city matches.
+4. Update docs/process/devops.md. Don't commit; report back.

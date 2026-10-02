@@ -50,14 +50,41 @@ export function normalizeInterval(interval) {
 
 /* ------------------------------------------------------------ currencies */
 
-// Rough USD per unit, for plausibility bounds and cross-currency comparison
-// only (never shown to users); it only has to be right to within ~20%.
-export const USD_PER = Object.freeze({
-  USD: 1, CAD: 0.73, GBP: 1.27, EUR: 1.08, AUD: 0.66, NZD: 0.6, CHF: 1.12, JPY: 0.0068,
-  KRW: 0.00073, INR: 0.012, SGD: 0.74, ILS: 0.27, AED: 0.27, SAR: 0.27, QAR: 0.27,
-  PLN: 0.25, SEK: 0.095, NOK: 0.094, DKK: 0.145, CZK: 0.043, HKD: 0.128, TWD: 0.031,
-  CNY: 0.14, BRL: 0.18, MXN: 0.055, ZAR: 0.055,
+// FX for plausibility bounds and cross-currency comparison only (never shown
+// to users). Keep in sync with public/viz/palette.js FX_PER_USD (as of
+// 2026-07-01, from data/cities.json's FX); copied verbatim here because this
+// module is bundled on its own. test/fx-consistency.test.js fails on drift.
+export const FX_PER_USD = Object.freeze({
+  AED: 3.67285,
+  AUD: 1.42867347667691,
+  BRL: 5.07935,
+  CAD: 1.40515,
+  CHF: 0.80735,
+  CZK: 21.1625,
+  DKK: 6.5366,
+  EUR: 0.87439,
+  GBP: 0.74187,
+  HKD: 7.83895,
+  ILS: 2.9993,
+  INR: 96.26375,
+  JPY: 162.135,
+  KRW: 1485.9,
+  MXN: 17.386,
+  NOK: 9.68565,
+  NZD: 1.71335560695622,
+  PLN: 3.77915,
+  SAR: 3.755,
+  SEK: 9.63495,
+  SGD: 1.29005,
+  TWD: 32.1875,
+  USD: 1,
 });
+// Currencies the palette table lacks (rough, per USD; bounds only).
+const EXTRA_FX_PER_USD = Object.freeze({ QAR: 3.64, CNY: 7.14, ZAR: 18.2 });
+
+/** USD per one unit of each currency (1 / FX_PER_USD), e.g. GBP ≈ 1.348. */
+export const USD_PER = Object.freeze(Object.fromEntries(
+  Object.entries({ ...EXTRA_FX_PER_USD, ...FX_PER_USD }).map(([c, per]) => [c, c === 'USD' ? 1 : 1 / per])));
 
 /** amount in `currency` -> rough USD (null for an unknown currency). */
 export function toUSD(amount, currency) {

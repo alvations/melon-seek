@@ -281,3 +281,25 @@ screenshots in `docs/screenshots/`.
   freshness (real posted dates, days open, repost detection). Several
   roadmap items need user decisions (history storage, republishing full
   descriptions, company list); see the user summary.
+- 2026-10-02: fanned out the 1-up features ("Now" horizon, ROADMAP §7)
+  after writing CONTRACT.md "v2 additions":
+  - backend: F4 adapters, history.js and ledger capture; F1
+    build-market.js and /api/market; F3 backtest into meta; F7
+    /api/export; extras in normalize.
+  - devops: ledger persistence via artifacts (interim), static
+    history/market/CSV, packed-2, hard vet gate, api.js merges.
+  - features: extractCompExtras (DEI-safe, ≥95% precision on 100 hand
+    labels) and demo fields.
+  - vetting: salary.spread and zones, vetted-only inputs.
+  - product: backtest(), comps.js, Node-importable role families, 100-title
+    hand check.
+  - viz: comps range chart.
+  - UX: F4 card age, "Listed" filter, Listing drawer block; F2/F3 labels and
+    caption; F1 drawer section and Insights card; F5 conditional Save
+    button (the only new main-view control); F7 CSV link.
+  - livability: guardrails, plus a check of Numbeo's terms (strategy says
+    reuse is forbidden), with a replacement plan prepared.
+  Interim default for D1: artifacts, because pushing a new data branch needs
+  the user's permission. D2 (full descriptions), D3 (companies) and the
+  Numbeo question went to the user. D7 (neutral wording) and D8 (drop commute
+  and draw-a-boundary) use the roadmap's recommendations.

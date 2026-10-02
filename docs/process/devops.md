@@ -354,6 +354,61 @@ Measured on that real data, `descriptionHtml` was ~90% of a job's bytes.
     - upload-pages-artifact v4+ drops dotfiles by default, so
       `include-hidden-files: true` keeps `.nojekyll`.
 
+### Juice Score and the salary vetting gate
+
+39. **Juice is computed client-side in `public/api.js`, in both modes, and is
+    never stored in the packed lists** (lead decision). Every `getJobs` result
+    (live, cache, snapshot, demo, server) goes through:
+    1. `vetSalaries` (static mode only, from `lib/vet.js`; the server vets its
+       own responses).
+    2. `juice.js#attachJuiceAll(jobs, cities)`.
+
+    Notes:
+    - Static-mode live browser fetches weren't vetted before; they are now.
+      `vetSalaries` is idempotent, so the build-time-vetted bundles pass
+      through unchanged.
+    - Why client-side: juice depends on cities.json and the tax model, which
+      change on their own schedule. Storing it in the lists would ship stale
+      scores and add ~250 B per job.
+    - The build also strips any `juice` field from jobs before packing, as a
+      guarantee, and CI checks for it with `jq`.
+    - Cost on the largest board (Anduril, 2,418 jobs, Chromium): vet 16 ms,
+      juice 22 ms, out of a 191 ms warm `getJobs`.
+40. **`getCities()`** reads `api/cities.json` in static mode and `api/cities`
+    in server mode. It's cached per session.
+    - A failure resolves to `null` and is remembered, so a missing server route
+      costs one 404 per session, not one per company switch. `refresh` retries
+      only after a failure.
+    - `juice.js` is loaded with `import('./lib/juice.js')`, from the same place
+      as the other lib modules.
+    - If either the cities or juice.js is unavailable, every job gets
+      `juice: null` and nothing is put in `error`, so there's no banner.
+    - Server mode needs two backend routes, which I requested: `/api/cities`,
+      and `/lib/*.js` for the browser-safe allowlist. Until they exist, server
+      mode serves `juice: null`.
+41. **The build bundles `lib/juice.js` (and `lib/vet.js`), plus `api/cities.json`**
+    (re-serialized compactly: 256 kB → 190 kB, content identical; the test
+    checks it).
+    - `juice.js` is in `OPTIONAL_LIB`: if it's missing, the build warns and
+      the site serves `juice: null` instead of failing.
+    - `juice.js` imports only `./geo.js`, which the existing `node:`-import
+      gate covers.
+42. **Salary vetting gate in both workflows.** The command is
+    `node scripts/vet-salaries.js --no-write-flags --summary "$GITHUB_STEP_SUMMARY"`,
+    with `continue-on-error: false`, behind `[ -f scripts/vet-salaries.js ]`.
+    - `docs/VETTING.md` doesn't exist yet, so the command and its failure
+      semantics come from the script's header: exit 1 when an unquarantined
+      job has a critical flag, or a regression fixture fails.
+    - `--no-write-flags`: CI runs are ephemeral, and writing would touch the
+      reviewed files in `data/vetting/<date>/`. The summary carries the table
+      and the critical list.
+    - `pages.yml`: the gate runs after the fetch and before the build, so a
+      critical anomaly stops the deploy.
+    - `snapshot.yml`: the gate fails the job, but the artifact upload still
+      runs (`if: !cancelled()`), so reviewers can download the data that
+      failed and pages.yml has a fallback. pages.yml re-runs the gate, so bad
+      pay still can't be published.
+
 ## 4. Replayable steps
 
 Run from `/home/user/melon-seek`. File contents are the committed files
@@ -537,6 +592,40 @@ quoted `cat > FILE <<'EOF'` heredocs).
 25. Validate all three workflows with the PyYAML loop. Confirm
     `grep -n "contents: write" .github/workflows/*.yml` matches nothing.
 
+**Juice Score integration:**
+
+26. Survey the code:
+    ```sh
+    grep -nE "^import|^export" server/juice.js server/vet.js
+    sed -n 1,40p scripts/vet-salaries.js          # CLI + exit semantics (no docs/VETTING.md yet)
+    grep -n "cities\|lib/" server/index.js         # no /api/cities or /lib route in server mode
+    ```
+27. Run the gate exactly as CI will, against the real snapshots:
+    ```sh
+    node scripts/vet-salaries.js --no-write-flags --summary $S/vet-summary.md; echo "exit=$?"
+    #   exit=1, 8 unquarantined critical salaries (anduril 4, anthropic 2, scaleai 1, shieldai 1); fixtures 435/435
+    ```
+28. Build and run the new test:
+    ```sh
+    npm run build      #   12 lib modules ...  juice: api/cities.json 89 cities (190 kB), lib/juice.js bundled
+    node --test test/static-build.test.js
+    ```
+    - `test/static-build.test.js` builds into a temp dir from demo data (an
+      empty `MELON_SNAPSHOT_DIR`), so it's deterministic and offline.
+    - It then imports the *built* `dist/api.js`, so `./lib/` resolves to the
+      bundled copies, with `fetch` served from that dist.
+    - Five tests:
+      1. cities.json and lib/juice.js are bundled, and juice's imports exist;
+      2. lists are packed with no `juice` key;
+      3. static `getJobs` gives every matched, salaried job a
+         `juice.best.score` in 0–100, and unmatched jobs get `null`;
+      4. with cities missing, every job gets `juice: null` and no error;
+      5. server mode attaches juice from `api/cities`, and a missing route is
+         requested once per session.
+29. Check in the browser on real data (scratchpad):
+    `node $S/juice-browser.mjs http://127.0.0.1:4173/melon-seek/`,
+    `node $S/juice-timing.mjs ...`, and `node $S/pages-smoke.mjs ...`.
+
 ## 5. Verification
 
 | Check | Result |
@@ -563,19 +652,17 @@ quoted `cat > FILE <<'EOF'` heredocs).
 | Full smoke on real data (06:01Z) | **PASS.** All 8 companies switch via the company menu (hash `c=<slug>`, title shows the real count, e.g. "2,418 roles"). Snapshot badge on all of them; Lever boards (palantir, shieldai) have no live-fetch error (quiet), the others show it in the badge details. Map: 9 pins. 0 app or page errors, 0 local 404s. |
 | Artifact restore dry-run | Pass (warns "No snapshot artifact found" and continues; the only successful snapshot run predates the artifact). |
 | YAML (3 workflows) | Pass. No `contents: write` remains. |
+| `test/static-build.test.js` (juice task) | **5/5 pass** (3.6 s). |
+| Juice in Chromium, real data (07:0xZ) | **PASS.** Every job on all 8 companies has a `juice` field. Scored: anthropic 539/638, anduril 1,899/2,418, openai 660/833, shieldai 415/581, palantir 225/320, scaleai 126/194, xai 93/297, cohere 77/132. 0 page errors. Full smoke still passes (8 company switches, 0 app or page errors, 0 local 404s). |
+| Salary vetting gate on real snapshots | **Exit 1.** 8 unquarantined critical salaries, e.g. Anthropic Fellows "$4.6M", Scale AI "Strategist, Qatar: $500K to $5M", Anduril "12,600–167,000 USD", Shield AI "88,000–130,000 USD per-month-salary". Fixtures 435/435. As wired, this blocks `pages.yml` deploys until the vetting agent fixes or quarantines them. |
+| `npm test` (full, 07:1xZ) | 165/166. The one failure is `test/fx-consistency.test.js` (CAD: `server/salary.js` 0.73 vs `public/viz/palette.js` 0.7117), from FX tables owned by backend/viz, not this change. Two transient `features.test.js` failures cleared on re-run while another agent was editing. |
 
 ## 6. Known gaps and follow-ups
 
-- **Smoke test, `npm test` and `docker build` need a re-run** once
-  `server/demo.js` and the rest of the server exist. Then do step 9 and
-  step 10.
-- **Snapshot pushes don't trigger CI.** GitHub doesn't start workflows from
-  pushes made with `GITHUB_TOKEN`. That's fine for data-only commits. If CI on
-  snapshot commits is wanted, push with a PAT or GitHub App token, or add
-  `workflow_run`.
-- **The snapshot workflow pushes straight to the default branch.** With branch
-  protection on, switch to opening a PR (e.g. `peter-evans/create-pull-request`)
-  or allow the Actions bot.
+- ~~Smoke test and `npm test` need a re-run~~: done (real-data smoke and full
+  `npm test`, section 5). `docker build` is still not run.
+- ~~Snapshot pushes don't trigger CI / push straight to the default branch~~:
+  obsolete. Snapshots are no longer committed (decision 18).
 - **`CMD ["npm","start"]`:** npm sits between Docker and node for signal
   handling. If `docker stop` hangs for 10s, switch to
   `CMD ["node","server/index.js"]` or add `--init` / `tini`.
@@ -593,18 +680,19 @@ quoted `cat > FILE <<'EOF'` heredocs).
   Check these once `public/app.js` and `server/index.js` settle.
 - **`package-lock.json` version mismatch** (`1.0.0` vs `0.1.0`). Harmless for
   `npm ci`. Regenerate with `npm install --package-lock-only`.
-- **Actions are pinned to major tags (`@v4`).** For supply-chain hardening, pin
-  to commit SHAs and add Dependabot for `github-actions`.
+- **Actions are pinned to major tags** (now v5–v7, Node 24). For
+  supply-chain hardening, pin to commit SHAs and add Dependabot for
+  `github-actions`.
 - **Browser CORS behaviour is unverified from here.** All three board APIs
   were blocked by the sandbox proxy. After the first Pages deploy, open the
   site and check the badge for each company. Greenhouse should read "Live".
   If Ashby reads "Snapshot" with an error, its CORS assumption was right. If
   Lever ever starts refusing, it reads "Snapshot" with no error, by design.
-- **No real snapshots in this sandbox,** so local builds bundle demo data. The
-  Pages run's step summary shows the real modes and job counts.
-- **Bundle size grows with each company** (~400 KB of JSON each, uncompressed;
-  Pages gzips it). With nine built-ins that's a few MB of `api/` data. It's
-  fetched per company, not up front.
+- ~~No real snapshots in this sandbox~~: real snapshots arrived at 05:55Z
+  (gitignored); local builds now use them.
+- **Bundle size grows with each company.** Lists are capped at 1.5 MB each
+  (decisions 35–37), but description files add ~1–34 MB per company (site
+  total 75 MB, against Pages' 1 GB limit).
 - **Deploying from `claude/stoic-ride-54ddxp`** needs that branch allowed on
   the `github-pages` environment (documented in the README). Otherwise the
   deploy job fails with a protection-rule error.
@@ -612,11 +700,17 @@ quoted `cat > FILE <<'EOF'` heredocs).
   ~06:00Z. That's GitHub's branch-based Pages builder, which suggests Pages
   may be set to "Deploy from a branch". It must be "GitHub Actions" for
   `pages.yml` to deploy the app; otherwise the repo root (README) gets served.
-- **Vetting step is a placeholder.** Add `node scripts/vet-salaries.js` at the
-  `TODO(vetting)` markers in `snapshot.yml` and `pages.yml` once the script
-  exists, and confirm it exits non-zero only on *critical* anomalies. Example
-  for it: real Anthropic data shows "Anthropic Fellows Program" roles at
-  $4.6M, likely a misparse or annualization error.
+- **The salary vetting gate currently FAILS on real data** (8 critical jobs;
+  section 5). As specified, it blocks every `pages.yml` deploy until the
+  vetting agent quarantines or fixes those salaries. If the site must go out
+  first, the lead could temporarily set `continue-on-error: true` on the
+  pages.yml gate step; I haven't done that.
+- **`docs/VETTING.md` is missing.** The gate's command and semantics come from
+  the `vet-salaries.js` header. Re-check them when the doc lands.
+- **Server-mode juice needs backend routes** `/api/cities` and `/lib/*.js`
+  (requested). Until then, server mode serves `juice: null`.
+- **`test/fx-consistency.test.js` fails** (CAD 0.73 vs 0.7117 between
+  salary.js and palette.js). This is for backend/viz, not this workstream.
 - **Artifact fallback starts empty.** The first new-style `snapshot.yml` run
   creates `job-board-snapshots`. Until then a board that fails during a Pages
   build falls back to demo data. Artifacts expire after 14 days, and the
@@ -685,3 +779,18 @@ quoted `cat > FILE <<'EOF'` heredocs).
   README, ARCHITECTURE, ADDING_A_BOARD and the Dockerfile comment.
 - 2026-10-02T06:01Z: Updated the smoke test for the new company menu. Full
   real-data smoke (8 companies), drawer test and YAML checks all pass.
+- 2026-10-02T07:05Z: Juice Score integration. Surveyed `juice.js`, `vet.js`,
+  the `vet-salaries.js` CLI and the server routes. There is no `/api/cities`
+  or `/lib/` route; I requested them from the backend via the coordinator.
+- 2026-10-02T07:08Z: `api.js` gained `getCities()`, a lazy `lib/juice.js`
+  loader, `vetSalaries` on static results, and `attachJuiceAll` on every
+  `getJobs` result in both modes, with `juice: null` and no error when
+  unavailable. The build bundles `lib/juice.js` (optional),
+  `api/cities.json`, and strips `juice` before packing.
+- 2026-10-02T07:10Z: Ran the vetting gate on real snapshots: exit 1, 8
+  critical. Replaced both `TODO(vetting)` placeholders with the guarded,
+  blocking gate step. snapshot.yml still uploads its artifact when the gate
+  fails. CI checks the juice files are bundled and that lists carry no juice.
+- 2026-10-02T07:14Z: Added `test/static-build.test.js` (5/5). Browser check on
+  real data passes. Full smoke still passes. Full `npm test` is 165/166 (the
+  fx-consistency failure is unrelated). Updated the README and this log.

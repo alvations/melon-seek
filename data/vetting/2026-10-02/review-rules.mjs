@@ -75,7 +75,7 @@ function decide(l) {
   if (l.review_set === 'sample') return V('correct', o, 'Random sample: parsed amount matches the source pay statement.');
 
   // Tiered lists where only one tier was taken.
-  if (spans[l.id] && !/Member of Technical Staff|Network Engineer|X Data Engineering/.test(l.title)) {
+  if (spans[l.id]) {
     const s = spans[l.id];
     return V('parser_bug', { min: s.lo, max: s.hi, currency: 'USD', interval: 'hour' }, `Only one tier/endpoint was parsed; the posting lists ${s.lo}-${s.hi}/hour across its levels (or as "$X/hour - $Y/hour").`);
   }
