@@ -149,3 +149,10 @@ export function str(v) {
   const s = String(v).trim();
   return s ? s : null;
 }
+
+/** ISO-8601 UTC string for a date string or epoch ms, or null if missing/invalid. */
+export function isoOrNull(v) {
+  if (v == null || v === '') return null;
+  const t = typeof v === 'number' || /^\d+$/.test(String(v)) ? Number(v) : Date.parse(String(v));
+  return Number.isFinite(t) ? new Date(t).toISOString() : null;
+}

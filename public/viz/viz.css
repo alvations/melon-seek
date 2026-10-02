@@ -2,7 +2,7 @@
    the shared hover tooltip (.ms-viz-tip). Self-contained; consumes the app's
    --ms-* tokens when present and falls back to its own light/dark values. */
 
-.ms-chart, .ms-map, .ms-viz-tip {
+.ms-chart, .ms-map, .ms-viz-tip, .ms-comps {
   --_bg: var(--ms-bg, #f9f9f7);
   --_surface: var(--ms-surface, #fcfcfb);
   --_text: var(--ms-text, #0b0b0b);
@@ -21,7 +21,7 @@
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root:where(:not([data-theme="light"])) :is(.ms-chart, .ms-map, .ms-viz-tip) {
+  :root:where(:not([data-theme="light"])) :is(.ms-chart, .ms-map, .ms-viz-tip, .ms-comps) {
     --_bg: var(--ms-bg, #0d0d0d);
     --_surface: var(--ms-surface, #1a1a19);
     --_text: var(--ms-text, #ffffff);
@@ -35,7 +35,7 @@
     color-scheme: dark;
   }
 }
-:root[data-theme="dark"] :is(.ms-chart, .ms-map, .ms-viz-tip) {
+:root[data-theme="dark"] :is(.ms-chart, .ms-map, .ms-viz-tip, .ms-comps) {
   --_bg: var(--ms-bg, #0d0d0d);
   --_surface: var(--ms-surface, #1a1a19);
   --_text: var(--ms-text, #ffffff);
@@ -616,3 +616,69 @@
   font: 12px/1.4 var(--_font);
 }
 .ms-map .leaflet-tooltip-top.ms-map-tip::before { border-top-color: var(--_tip-bg, var(--_surface)); }
+
+/* ============================== comps (same role elsewhere) ============================== */
+
+.ms-comps {
+  position: relative;
+  min-width: 0;
+  color: var(--_text);
+  font: 12px/1.35 var(--_font);
+}
+.ms-comps *, .ms-comps *::before, .ms-comps *::after { box-sizing: border-box; }
+.ms-comps__axis { position: relative; height: 20px; }
+.ms-comps__tick {
+  position: absolute; bottom: 3px;
+  transform: translateX(-50%);
+  color: var(--_muted); font-size: 10.5px;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.ms-comps__list { position: relative; outline: none; border-top: 1px solid var(--_border); }
+.ms-comps__list:focus-visible { box-shadow: 0 0 0 2px var(--_accent); border-radius: 4px; }
+.ms-comps__grid { position: absolute; inset: 0; pointer-events: none; }
+.ms-comps__gridline { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px solid var(--_grid); }
+.ms-comps__row { --c: var(--_accent); position: relative; cursor: pointer; }
+.ms-comps__row::before { content: ""; position: absolute; inset: 2px 0; border-radius: 5px; pointer-events: none; }
+.ms-comps__row.is-hover::before { background: var(--_wash); }
+.ms-comps__row.is-current::before { background: var(--_wash-strong); }
+.ms-comps__row.is-active::before { box-shadow: inset 0 0 0 2px var(--_accent); }
+.ms-comps__name {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  display: flex; align-items: center; gap: 7px;
+  padding: 0 6px 0 6px; min-width: 0;
+}
+.ms-comps__sw { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.ms-comps__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--_text); }
+.ms-comps__n { flex: none; color: var(--_muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.ms-comps__row.is-current .ms-comps__label { font-weight: 700; }
+.ms-comps__bar {
+  position: absolute; top: 50%;
+  height: 8px; margin-top: -4px;
+  border-radius: 4px;
+  background: var(--c);
+  opacity: var(--_bar-o, .5);
+}
+.ms-comps__row.is-current .ms-comps__bar, .ms-comps__row.is-hover .ms-comps__bar { opacity: .95; }
+.ms-comps__median {
+  position: absolute; top: 50%;
+  width: 3px; height: 16px; margin: -8px 0 0 -1.5px;
+  border-radius: 2px;
+  background: var(--c);
+  box-shadow: 0 0 0 2px var(--_surface);
+}
+.ms-comps__row.is-current .ms-comps__median { background: var(--_text); }
+.ms-comps__val {
+  position: absolute; right: 0; top: 0; bottom: 0;
+  display: flex; align-items: center; justify-content: flex-end;
+  padding-right: 6px;
+  color: var(--_muted); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.ms-comps__row.is-current .ms-comps__val, .ms-comps__row.is-hover .ms-comps__val { color: var(--_text); font-weight: 600; }
+.ms-comps__over { position: absolute; top: 0; line-height: 28px; color: var(--_muted); font-weight: 700; pointer-events: none; }
+.ms-comps__nodata { position: absolute; top: 0; line-height: 28px; color: var(--_muted); font-style: italic; }
+.ms-comps__empty { padding: 12px 6px; color: var(--_muted); }
+.ms-comps__note { padding: 6px 6px 0; color: var(--_muted); font-size: 11px; }
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .ms-comps { --_bar-o: .72; }
+}
+:root[data-theme="dark"] .ms-comps { --_bar-o: .72; }

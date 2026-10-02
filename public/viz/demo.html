@@ -21,12 +21,16 @@
   #log { width: 240px; font-size: 12px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 8px; background: var(--card); }
   @media (max-width: 720px) { #log { display: none; } }
   [hidden] { display: none !important; }
+  .comps-demo { padding: 12px 16px; overflow: auto; }
+  .comps-demo h3 { margin: 6px 0 8px; font-size: 13px; }
+  .comps-demo h3 + div { margin-bottom: 18px; }
+  .comps-demo small { font-weight: 400; opacity: .7; }
 </style>
 </head>
 <body>
 <header>
   <b>melon-seek viz harness</b>
-  <label>Mode <select id="mode"><option value="chart">Chart</option><option value="map">Map</option></select></label>
+  <label>Mode <select id="mode"><option value="chart">Chart</option><option value="map">Map</option><option value="comps">Comps</option></select></label>
   <label>View <select id="view"><option value="clusters">Clusters</option><option value="ranges">Ranges</option></select></label>
   <label>Group <select id="groupBy"><option value="">default</option><option>none</option><option>department</option><option>location</option><option>seniority</option></select></label>
   <label>Color <select id="colorBy"><option>none</option><option>department</option><option>location</option><option>seniority</option></select></label>
@@ -38,12 +42,19 @@
 <main>
   <div class="card" id="chartBox"></div>
   <div class="card" id="mapBox" hidden></div>
+  <div class="card comps-demo" id="compsBox" hidden>
+    <h3>Insights · Compare companies <small>(wide)</small></h3>
+    <div id="compsWide"></div>
+    <h3>Drawer · Same role elsewhere <small>(340px)</small></h3>
+    <div id="compsNarrow" style="width:340px;max-width:100%"></div>
+  </div>
   <div id="log">Events…</div>
 </main>
 <script src="/vendor/leaflet/leaflet.js"></script>
 <script type="module">
 import { createChart, VIEWS } from './chart.js';
 import { createMap } from './map.js';
+import { createCompsChart } from './comps.js';
 
 // ---- deterministic fake jobs (demo data, not real postings) ----
 function rng(seed) { return () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2 ** 32; }; }
@@ -148,6 +159,7 @@ const chart = createChart($('chartBox'), {
 });
 console.assert(VIEWS.includes($('view').value));
 let map = null;
+let comps = null;
 let all = [];
 let current = [];
 
@@ -161,6 +173,24 @@ function setMode() {
   const m = $('mode').value;
   $('chartBox').hidden = m !== 'chart';
   $('mapBox').hidden = m !== 'map';
+  $('compsBox').hidden = m !== 'comps';
+  if (m === 'comps' && !comps) {
+    // Fixture in the shape of features/comps.js marketComps() rows (demo values, not real data).
+    const rows = [
+      { slug: 'anthropic', name: 'Anthropic', color: '#d97757', n: 14, p25: 315000, median: 340000, p75: 405000 },
+      { slug: 'openai', name: 'OpenAI', color: '#10a37f', n: 22, p25: 310000, median: 360000, p75: 460000 },
+      { slug: 'xai', name: 'xAI', color: '#6b6a65', n: 6, p25: 220000, median: 260000, p75: 320000 },
+      { slug: 'cohere', name: 'Cohere', color: '#8b5cf6', n: 4, p25: 180000, median: 205000, p75: 240000 },
+      { slug: 'deepmind', name: 'Google DeepMind', color: '#4285f4', n: 9, p25: 240000, median: 285000, p75: 330000 },
+      { slug: 'anduril', name: 'Anduril', color: '#3b5bdb', n: 3, p25: 160000, median: 190000, p75: 215000 },
+      { slug: 'mistral', name: 'Mistral AI', color: '#f97316', n: 0, p25: null, median: null, p75: null },
+      { slug: 'badco', name: 'Outlier Labs', color: '#e34948', n: 1, p25: 4400000, median: 4600000, p75: 4800000 },
+    ];
+    comps = [createCompsChart($('compsWide'), { onSelect: slug => log(`comps select: ${slug}`) }),
+             createCompsChart($('compsNarrow'), { onSelect: slug => log(`comps select (drawer): ${slug}`) })];
+    comps.forEach(c => c.update(rows, { current: 'anthropic' }));
+    window.__viz.comps = comps;
+  }
   if (m === 'map') {
     if (!map) {
       map = createMap($('mapBox'), {

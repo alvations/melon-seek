@@ -39,7 +39,9 @@
      "name": "Seattle, WA",
      "location": "Seattle, WA"
     }
-   ]
+   ],
+   "first_published": "2026-07-14T10:00:00-04:00",
+   "company_name": "Anthropic"
   },
   {
    "absolute_url": "https://boards.greenhouse.io/andurilindustries/jobs/4500001007",
@@ -81,7 +83,8 @@
      "title": "London base",
      "blurb": "Annual base salary"
     }
-   ]
+   ],
+   "first_published": "2026-09-28T09:30:00Z"
   }
  ],
  "meta": {

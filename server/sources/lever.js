@@ -1,6 +1,6 @@
 // Lever postings adapter.
 // API: https://api.lever.co/v0/postings/{board}?mode=json
-import { fetchJson, UpstreamError, htmlToText, str } from './util.js';
+import { fetchJson, UpstreamError, htmlToText, str, isoOrNull } from './util.js';
 
 export function leverUrl(board) {
   return `https://api.lever.co/v0/postings/${encodeURIComponent(board)}?mode=json`;
@@ -69,6 +69,8 @@ export function mapLeverJob(p) {
     text,
     url: str(p.hostedUrl) || str(p.applyUrl),
     updatedAt: p.createdAt ? new Date(Number(p.createdAt)).toISOString() : null,
+    postedAt: isoOrNull(p.createdAt), // F4
+    reqId: null,
     salary,
   };
 }

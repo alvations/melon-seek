@@ -3,7 +3,7 @@
 // `content` is entity-escaped HTML; decoded here. Salary is usually embedded in
 // the description text (parsed later by normalize), except when the board
 // exposes structured `pay_input_ranges` (pay transparency).
-import { fetchJson, UpstreamError, decodeHtmlContent, htmlToText, str } from './util.js';
+import { fetchJson, UpstreamError, decodeHtmlContent, htmlToText, str, isoOrNull } from './util.js';
 
 export function greenhouseUrl(board) {
   return `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(board)}/jobs?content=true&pay_transparency=true`;
@@ -116,6 +116,9 @@ export function mapGreenhouseJob(j) {
     text: htmlToText(html),
     url: str(j.absolute_url),
     updatedAt: str(j.updated_at) || str(j.first_published),
+    // F4: true listing date. updated_at is bulk-edited on many boards, so it is never used for age.
+    postedAt: isoOrNull(j.first_published),
+    reqId: j.internal_job_id != null && j.internal_job_id !== '' ? String(j.internal_job_id) : null,
     salary: payRangeSalary(j.pay_input_ranges),
     payRanges: payRanges(j.pay_input_ranges),
     metadata: Array.isArray(j.metadata) ? j.metadata : [],

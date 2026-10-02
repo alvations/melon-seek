@@ -7,7 +7,7 @@ import { colorFor, formatMoney, resetColors, assignColors, otherColor, toUSD, SL
 import { createChart, keyOf, VIEWS, DEFAULT_VIEW } from './viz/chart.js';
 import { createMap } from './viz/map.js';
 import * as api from './api.js';
-import { createCompstimateWidget, compstimateForJob } from './features/compstimate.js';
+import { createCompstimateWidget, compstimateForJob, roleFamily } from './features/compstimate.js';
 import { createInsights } from './features/insights.js'; // getCompanies, getJobs, getJobDetail (namespace import: tolerate a missing optional export)
 
 // ?mock=1 swaps the data layer for a local generator. Development only: it is
@@ -171,11 +171,11 @@ function jobsQuery(key) {
 const ARRAYS = ['d', 'l', 's', 'e', 'kr', 'kf', 'ks', 'jg'];
 const DEFAULTS = {
   c: '', cn: '', m: 'chart', q: '', smin: null, smax: null, so: false,
-  d: [], l: [], s: [], e: [], r: 'any', p: 0, kr: [], kf: [], ks: [], jg: [],
+  d: [], l: [], s: [], e: [], r: 'any', p: 0, ho: false, rf: '', kr: [], kf: [], ks: [], jg: [],
   v: DEFAULT_VIEW, g: 'department', sort: 'salary-desc', job: null,
 };
-const FILTER_KEYS = ['q', 'smin', 'smax', 'so', 'd', 'l', 's', 'e', 'r', 'p', 'kr', 'kf', 'ks', 'jg'];
-const ORDER = ['c', 'cn', 'm', 'q', 'smin', 'smax', 'so', 'd', 'l', 's', 'e', 'r', 'p', 'kr', 'kf', 'ks', 'jg', 'v', 'g', 'sort', 'job'];
+const FILTER_KEYS = ['q', 'smin', 'smax', 'so', 'd', 'l', 's', 'e', 'r', 'p', 'ho', 'rf', 'kr', 'kf', 'ks', 'jg'];
+const ORDER = ['c', 'cn', 'm', 'q', 'smin', 'smax', 'so', 'd', 'l', 's', 'e', 'r', 'p', 'ho', 'rf', 'kr', 'kf', 'ks', 'jg', 'v', 'g', 'sort', 'job'];
 
 let S = structuredClone(DEFAULTS);
 let companies = [];
@@ -186,14 +186,14 @@ let hoverId = null;
 let resultsLimit = PAGE;
 let lastHash = '';
 
-function parseHash() {
-  const p = new URLSearchParams(location.hash.replace(/^#/, ''));
+function parseHash(hash = location.hash) {
+  const p = new URLSearchParams(String(hash).replace(/^#/, ''));
   const st = structuredClone(DEFAULTS);
   for (const k of ORDER) {
     if (!p.has(k)) continue;
     if (ARRAYS.includes(k)) st[k] = p.getAll(k).filter(Boolean);
     else if (k === 'smin' || k === 'smax' || k === 'p') { const n = Number(p.get(k)); st[k] = Number.isFinite(n) && n > 0 ? n : DEFAULTS[k]; }
-    else if (k === 'so') st.so = p.get(k) === '1';
+    else if (k === 'so' || k === 'ho') st[k] = p.get(k) === '1';
     else st[k] = p.get(k);
   }
   if (!['chart', 'map', 'insights'].includes(st.m)) st.m = 'chart';
@@ -254,7 +254,7 @@ function clearFilters() {
 }
 
 function activeFilterCount(st = S) {
-  return (st.q ? 1 : 0) + (st.smin != null || st.smax != null ? 1 : 0) + (st.so ? 1 : 0) +
+  return (st.q ? 1 : 0) + (st.smin != null || st.smax != null ? 1 : 0) + (st.so ? 1 : 0) + (st.ho ? 1 : 0) + (st.rf ? 1 : 0) +
     st.d.length + st.l.length + st.s.length + st.e.length + (st.r !== 'any' ? 1 : 0) + (st.p ? 1 : 0) +
     st.kr.length + st.kf.length + st.ks.length + st.jg.length;
 }
@@ -281,6 +281,11 @@ function prepare(jobs) {
     if (j._usd && !(isFinite(j._usd.min) && isFinite(j._usd.max))) j._usd = null;
     j._mid = j._usd ? j._usd.mid : null;
     j._ts = j.updatedAt ? Date.parse(j.updatedAt) || null : null;
+    // Listing age (F4). v2 jobs carry ageDays (null = unknown: show no age). Pre-v2 data
+    // falls back to updatedAt so the age slot and "Listed" filter still work.
+    j._age = 'ageDays' in j ? (Number.isFinite(j.ageDays) ? j.ageDays : null)
+      : j._ts ? Math.max(0, Math.floor((Date.now() - j._ts) / 864e5)) : null;
+    j._family = j._family ?? roleFamily(j.title);
     j.juice = j.juice && j.juice.best ? j.juice : null;
     j._grade = j.juice ? (j.juice.best.grade === 'Rind' ? 'Dry' : j.juice.best.grade) : null;
     j._locKeys = j.locations.map(locKey);
@@ -291,14 +296,14 @@ function prepare(jobs) {
   return jobs;
 }
 
-function filterSpec() {
+function filterSpec(st = S) {
   return {
-    q: S.q.toLowerCase().split(/\s+/).filter(Boolean),
-    smin: S.smin, smax: S.smax, so: S.so,
-    d: new Set(S.d), l: new Set(S.l), s: new Set(S.s), e: new Set(S.e),
-    r: S.r, p: S.p,
-    kw: { responsibilities: S.kr, fit: S.kf, skills: S.ks },
-    jg: new Set(S.jg),
+    q: st.q.toLowerCase().split(/\s+/).filter(Boolean),
+    smin: st.smin, smax: st.smax, so: st.so,
+    d: new Set(st.d), l: new Set(st.l), s: new Set(st.s), e: new Set(st.e),
+    r: st.r, p: st.p, ho: st.ho, rf: st.rf,
+    kw: { responsibilities: st.kr, fit: st.kf, skills: st.ks },
+    jg: new Set(st.jg),
   };
 }
 
@@ -314,7 +319,8 @@ function failures(j, F, now) {
   if (F.e.size && !F.e.has(empKey(j))) out.push('e');
   if (F.r === 'remote' && !j.remote) out.push('r');
   if (F.r === 'onsite' && !j.locations.some((l) => !l.remote)) out.push('r');
-  if (F.p && !(j._ts && now - j._ts <= F.p * 864e5)) out.push('p');
+  if ((F.p && !(j._age != null && j._age <= F.p)) || (F.ho && j._age != null && j._age >= 180)) out.push('p');
+  if (F.rf && j._family !== F.rf) out.push('rf');
   if (F.jg.size && !(j._grade && F.jg.has(j._grade))) out.push('jg');
   for (const cat of ['responsibilities', 'fit', 'skills']) {
     const sel = F.kw[cat];
@@ -364,7 +370,8 @@ function derive() {
     }
     if (counts('p')) {
       fc.p[0]++;
-      for (const d of [7, 30, 90]) if (j._ts && now - j._ts <= d * 864e5) fc.p[d]++;
+      for (const d of [7, 30, 90]) if (j._age != null && j._age <= d) fc.p[d]++;
+      if (j._age != null && j._age >= 180) fc.p.old = (fc.p.old || 0) + 1;
     }
     if (counts('sal') && j._usd) fc.salMids.push(j._mid);
     if (counts('jg') && j._grade) bump(fc.jg, j._grade);
@@ -395,7 +402,7 @@ function sortJobs(list) {
   const nullsLast = (a, b, f) => (a == null || b == null ? (a == null) - (b == null) : f());
   switch (S.sort) {
     case 'salary-asc': out.sort((a, b) => nullsLast(a._usd, b._usd, () => a._usd.min - b._usd.min || a.title.localeCompare(b.title))); break;
-    case 'newest': out.sort((a, b) => (b._ts || 0) - (a._ts || 0) || a.title.localeCompare(b.title)); break;
+    case 'newest': out.sort((a, b) => nullsLast(a._age, b._age, () => a._age - b._age || a.title.localeCompare(b.title))); break;
     case 'title': out.sort((a, b) => a.title.localeCompare(b.title)); break;
     case 'juice': out.sort((a, b) => nullsLast(a.juice, b.juice, () => b.juice.best.score - a.juice.best.score || b.juice.best.net - a.juice.best.net || a.title.localeCompare(b.title))); break;
     default: out.sort((a, b) => nullsLast(a._usd, b._usd, () => b._usd.max - a._usd.max || a.title.localeCompare(b.title)));
@@ -666,7 +673,7 @@ function quickLabel(id) {
     case 'sen': return summarize(S.s, 'Seniority');
     case 'remote': return S.r === 'remote' ? 'Remote only' : S.r === 'onsite' ? 'On-site' : null;
     case 'more': {
-      const n = S.e.length + (S.p ? 1 : 0) + S.kr.length + S.kf.length + S.ks.length + S.jg.length;
+      const n = S.e.length + (S.p ? 1 : 0) + (S.ho ? 1 : 0) + S.kr.length + S.kf.length + S.ks.length + S.jg.length;
       return n ? `More · ${n}` : null;
     }
   }
@@ -882,17 +889,28 @@ function makeRemote() {
   };
 }
 
+/** "Listed" (F4): how long a role has been open, plus one checkbox to hide long-open roles. */
 function makePosted() {
   const opts = [[0, 'Any time'], [7, 'Past week'], [30, 'Past month'], [90, 'Past 3 months']];
-  const el = h('div', { class: 'radio-list', role: 'radiogroup', 'aria-label': 'Updated' });
+  const list = h('div', { class: 'radio-list', role: 'radiogroup', 'aria-label': 'Listed' });
   const name = 'posted-' + Math.random().toString(36).slice(2, 7);
   const rows = opts.map(([v, label]) => {
     const input = h('input', { type: 'radio', name, value: v, onchange: () => set({ p: v }) });
     const count = h('span', { class: 'check-count' });
-    el.append(h('label', { class: 'radio' }, input, h('span', { class: 'radio-dot', 'aria-hidden': 'true' }), h('span', { class: 'check-label' }, label), count));
+    list.append(h('label', { class: 'radio' }, input, h('span', { class: 'radio-dot', 'aria-hidden': 'true' }), h('span', { class: 'check-label' }, label), count));
     return [v, input, count];
   });
-  return { el, sync() { for (const [v, input, count] of rows) { input.checked = S.p === v; count.textContent = derived.fc ? derived.fc.p[v] : ''; } } };
+  const hide = h('input', { type: 'checkbox', onchange: () => set({ ho: hide.checked }) });
+  const hideCount = h('span', { class: 'check-count' });
+  const hideRow = h('label', { class: 'check' }, hide, h('span', { class: 'check-box', 'aria-hidden': 'true' }), h('span', { class: 'check-label' }, 'Hide roles open 180+ days'), hideCount);
+  return {
+    el: h('div', null, list, hideRow),
+    sync() {
+      for (const [v, input, count] of rows) { input.checked = S.p === v; count.textContent = derived.fc ? derived.fc.p[v] : ''; }
+      hide.checked = S.ho;
+      hideCount.textContent = derived.fc?.p.old || 0;
+    },
+  };
 }
 
 const KW_CATS = [
@@ -984,7 +1002,7 @@ function renderFilterPanel() {
       section('Remote', makeRemote(), { badge: sel('r') }),
       ...KW_CATS.map((k) => section(k.title, makeCloud(k), { badge: sel(k.key) })),
       section('Employment type', makeChecklist('e', { limit: 6 }), { open: false, badge: sel('e') }),
-      section('Updated', makePosted(), { open: false, badge: sel('p') }),
+      section('Listed', makePosted(), { open: false, badge: sel('p') }),
     ];
     body.replaceChildren(...panel.map((s) => s.el));
   }
@@ -1013,7 +1031,7 @@ function popoverParts(id) {
       titled('Pay', makeSwitch('Only show jobs with salary', 'so')),
       titled('Juice', makeJuiceChips(), 'What’s left after tax, rent and living'),
       titled('Employment type', makeChecklist('e', { limit: 6 })),
-      titled('Updated', makePosted()),
+      titled('Listed', makePosted()),
       ...KW_CATS.map((k) => titled(k.title, makeCloud(k, { limit: 10 }), k.hint)),
     ];
     case 'board': return [makeBoardForm()];
@@ -1052,7 +1070,7 @@ function togglePopover(id, anchor) {
 function clearPopoverFacet(id) {
   const patches = {
     salary: { smin: null, smax: null, so: false }, dept: { d: [] }, loc: { l: [] }, sen: { s: [] }, remote: { r: 'any' },
-    more: { so: false, e: [], p: 0, kr: [], kf: [], ks: [], jg: [] },
+    more: { so: false, e: [], p: 0, ho: false, kr: [], kf: [], ks: [], jg: [] },
   };
   set(patches[id] || {});
 }

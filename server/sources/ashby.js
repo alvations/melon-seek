@@ -1,6 +1,6 @@
 // Ashby job board adapter.
 // API: https://api.ashbyhq.com/posting-api/job-board/{board}?includeCompensation=true
-import { fetchJson, UpstreamError, htmlToText, str } from './util.js';
+import { fetchJson, UpstreamError, htmlToText, str, isoOrNull } from './util.js';
 
 export function ashbyUrl(board) {
   return `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(board)}?includeCompensation=true`;
@@ -92,6 +92,8 @@ export function mapAshbyJob(j) {
     text: str(j.descriptionPlain) || htmlToText(html),
     url: str(j.jobUrl) || str(j.applyUrl),
     updatedAt: str(j.publishedAt) || str(j.updatedAt),
+    postedAt: isoOrNull(j.publishedAt), // F4
+    reqId: null,
     salary,
     payRanges: ashbyPayRanges(j.compensation),
     compensationSummary: j.compensation ? str(j.compensation.compensationTierSummary) : null,

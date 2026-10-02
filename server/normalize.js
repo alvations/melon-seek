@@ -2,7 +2,7 @@
 import { geocode } from './geo.js';
 import { extractSections, extractKeywords, inferSeniority } from './keywords.js';
 import { parseSalary, toJobSalary, currenciesFor } from './salary.js';
-import { htmlToText } from './sources/util.js';
+import { htmlToText, isoOrNull } from './sources/util.js';
 import { vetSalaries, salaryChecks } from './vet.js';
 
 function safe(fn, fallback) {
@@ -108,6 +108,8 @@ export function normalizeJob(raw, company) {
     salary,
     url: raw.url || null,
     updatedAt: raw.updatedAt || null,
+    postedAt: isoOrNull(raw.postedAt),                                    // F4
+    reqId: raw.reqId != null && raw.reqId !== '' ? String(raw.reqId) : null, // F4 (Greenhouse internal_job_id)
     descriptionHtml: html,
     sections,
     keywords,
