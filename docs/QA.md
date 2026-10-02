@@ -129,3 +129,93 @@ Screenshots at 1440x900 (mobile at 390x844), all of real snapshot data:
 - Not covered: chart hover tooltips, cluster-bin selection chip, group-by, the
   seniority/employment/remote filters, the Juice grade chips in "More", drawer prev/next, the "New" and
   "Reposted" status tags (no history data), saved-search "N new" counts, and Refresh.
+
+---
+
+## Improvement audit (wave 1)
+
+This is a read-only audit of the product code at commit `2e6e4cf`. The viz and styles files were being edited
+in the working tree while it ran, so a finding may already be fixed by the time you read it.
+
+**Setup:**
+- Real server: `node server/index.js` on :5311 with local snapshots.
+- Static build: `npm run build`, then `dist/` served under `/melon-seek/` with gzip by
+  `docs/process/scripts/qa-audit-static-server.mjs` on :5310.
+- Browser: Playwright Chromium 141 with external hosts blocked.
+- Desktop is 1440x900. The "phone" is 390x844 at DPR 2 with touch and 4x CPU throttling (CDP
+  `Emulation.setCPUThrottlingRate`).
+- Scripts are in `docs/process/scripts/qa-audit-*.mjs`. Screenshots are in `docs/screenshots/audit/`.
+
+### Performance numbers
+
+Each row is a cold browser context opened at `#c=<company>`. The columns are:
+- **Chart paint:** the first `.ms-crow__band` appears, in ms from navigation start (via MutationObserver).
+  Cards and filter chips appear in the same frame.
+- **Filter:** click a Skills chip until the results title repaints.
+- **Drawer:** click a card until the drawer title paints.
+- **Switch:** change to the next company (by hash, the same code path as the menu) until its chart and cards paint.
+- **Long tasks:** count, maximum and total, from PerformanceObserver `longtask` over 50 ms.
+- **JS / JSON:** encoded bytes on the wire (gzip) for the initial load.
+
+| Mode | Device | Company (jobs) | FCP | Chart paint | Filter | Drawer | Switch → | Long tasks (n / max / Σ) | JS / JSON KB | Requests | DOM nodes |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| server | desktop | Anthropic (638) | 232 | 880 | 49 | 51 | Anduril **16 504** (cold) | 5 / 687 / 1025 | 196 / 77 | 26 | 10.6k |
+| server | desktop | Anduril (2418) | 4028 (server busy) | 4812 | 332 | 96 | OpenAI 967 | 8 / 429 / 1576 | 196 / 233 | 26 | 14.3k |
+| server | desktop | OpenAI (833) | 244 | 883 | 74 | 68 | Anthropic 235 | 5 / 156 / 475 | 196 / 120 | 26 | 7.0k |
+| server | phone | Anthropic | 588 | 1968 | 494 | 293 | Anduril 3229 | 14 / **2162** / 5076 | 196 / 77 | 26 | 14.5k |
+| server | phone | Anduril | 428 | 2948 | **753** | 352 | OpenAI 1241 | 14 / 1820 / **6016** | 196 / 233 | 26 | 29.7k |
+| server | phone | OpenAI | 432 | 1908 | 177 | 194 | Anthropic 692 | 15 / 771 / 2610 | 196 / 120 | 26 | 10.1k |
+| static | desktop | Anthropic | 136 | 462 | 57 | 45 | Anduril 455 | 4 / 336 / 585 | 250 / 55 | 38 | 11.7k |
+| static | desktop | Anduril | 144 | 794 | 185 | 102 | OpenAI 237 | 7 / 372 / 1223 | 250 / 149 | 38 | **36.6k** |
+| static | desktop | OpenAI | 188 | 876 | 60 | 45 | Anthropic 196 | 4 / 196 / 449 | 250 / 89 | 38 | 12.9k |
+| static | phone | Anthropic | 288 | 1440 | 214 | 234 | Anduril 2317 | 12 / 1844 / 3730 | 250 / 55 | 38 | 16.9k |
+| static | phone | Anduril | 324 | 2730 | 554 | 402 | OpenAI 930 | 15 / 1440 / 5311 | 250 / 149 | 38 | 13.2k |
+| static | phone | OpenAI | 376 | 1579 | 236 | 188 | Anthropic 619 | 12 / 577 / 2209 | 250 / 89 | 38 | 13.4k |
+
+Server cold start, measured with `curl` on a fresh `node server/index.js`:
+- `/api/jobs`: Anduril 5.4–11.5 s, Anthropic 3.2 s, OpenAI 4.0 s on the first request; 1–2 ms after that.
+- `/api/market` takes 8.2 s on its first request.
+- In Node, `rekeyBoardJobs()` takes Anthropic 3036 ms, Anduril 10 198 ms and OpenAI 3255 ms. JSON parse is
+  only 109–459 ms.
+
+Desktop CPU profile (`qa-audit-prof.mjs`), self time during load: `viz/chart.js render()` 49 ms
+(Anthropic) and 231 ms (Anduril), `features/roles.js expandTitle` 11–36 ms, `lib/juice.js` 29–45 ms.
+
+### Findings
+
+Severity scale: **High** means it blocks or misleads the core task. **Medium** means friction or a wrong
+impression. **Low** means polish. All fixes stay within ROADMAP §8: no new main-view controls, no new
+modes, and changes go in existing selects, popovers or the drawer.
+
+| ID | Sev | Finding | Evidence | Owner | Suggested fix |
+|---|---|---|---|---|---|
+| **PERF-1** | High | The server's first request per company runs `rekeyBoardJobs()` synchronously for 3–10 s and blocks the event loop. Every other request waits, including static HTML: an unrelated page's FCP rose to 4.0 s and a company switch took 16.5 s. "Same role elsewhere" and Compare companies wait 8.2 s for `/api/market`, which needs all 8 boards. | Table above, plus the curl and Node timings | `server/index.js` `readSnapshot()`, `server/keywords.js` `rekeyBoardJobs` | Rekey once when the snapshot is written (`scripts/snapshot.js`), or cache the rekeyed result on disk keyed by snapshot mtime. At minimum, warm every company at startup in a `worker_thread`, so requests never pay for it. |
+| **PERF-2** | Medium | On a mid-range phone the first chart takes 1.4–2.9 s, a single long task reaches 1.4–2.2 s (total main-thread blocking 2.2–6.0 s), and a filter tap on Anduril takes 554–753 ms, well past a 200 ms INP target. | Phone rows above | `public/viz/chart.js` `render()` (DOM rebuild), `public/app.js` `render()` | Render the cards and stats line first and the chart in the next idle callback. Make Clusters re-render only the rows that changed. Skip `renderFilterPanel()` sync while the filter sheet is closed on phones. |
+| **PERF-3** | Low | JS sent to the browser is 196 KB gz in 26 requests (server) and 250 KB gz in 38 requests (static), all loaded up front. Leaflet (43 KB gz) is render-blocking in `<head>` although Chart is the default. The static build also loads `lib/demo.js`, `keywords.js`, `salary.js`, `vet.js` and `sources/*` (about 55 KB gz), which are needed only for the live or demo fallback. | `qa-audit-reqs.mjs` output | `public/index.html`, `public/api.js` | Load `leaflet.js`/`.css` on the first switch to Map, and load demo and normalizer libs only when the snapshot is missing. Optionally add `<link rel=modulepreload>` for app.js's direct imports. |
+| **PERF-4** | Low | DOM is large: 36.6k nodes (static desktop Anduril) and 29.7k (server phone Anduril). | Table above | `public/viz/chart.js`, `public/app.js` filter checklists | Cap the rendered Location and Department options as the cloud already does, and virtualise Ranges rows. |
+| **UX-1** | High | "Highest pay" sorts by the top of the range. For the task "best-paid ML role in SF", the top 5 are Engineering Manager postings at $405K–850K ("Wide range 2.1×"), not ML engineers. Wide bands always win. | `audit/04-location-sf.png`, `05-drawer.png` | `public/app.js` `sortJobs()` | Sort by approx-USD **midpoint** and keep the label "Highest pay", or relabel it "Highest top of range". This changes an existing option, so it stays within the sort-select budget. |
+| **UX-2** | High | Search "machine learning" matches 270 of 638 roles (42%), including managers and sales, because it searches every keyword tag. There is no hint why a role matched. | `audit/02-search-ml.png` | `public/app.js` `prepare()` `_hay`, `failures()` | Rank title and team matches first (or match title and team only, and leave keywords to the chips). Add "· N in title" to the results title. |
+| **UX-3** | High | Location options are noisy. Four "Remote-Friendly…" variants (US, Travel Required, United States, Travel-Required) are listed above San Francisco, and "Tokyo" and "Tokyo Prefecture" appear separately. | `audit/03-location-popover.png` | `server/geo.js` (canonical names), `public/app.js` `locKey` | Canonicalise remote variants to "Remote (US)" or "Remote" with the country, and collapse prefecture or region duplicates into the city. Sort cities before Remote, or keep Remote as its own group at the end. |
+| **UX-4** | High | "Same role elsewhere", then OpenAI, drops the user's context. Location=San Francisco and the "machine learning" search are reset and replaced by `s=Manager&rf=eng-manager` (the family of the clicked job, not what the user searched). The comparison is no longer like-for-like. | `audit/06-drawer-scrolled.png` → `07-after-openai-pick.png` (hash `#c=openai&s=Manager&rf=eng-manager`) | `public/app.js` `pickCompany()` | Carry `l`, `r` and `q` over when the target board has matching roles; otherwise drop them and say so in the toast ("No SF roles at OpenAI, showing all locations"). |
+| **UX-5** | Medium | In the drawer, "Same role elsewhere" sits below the fold at 1440x900 (under the pay block and the full Juice waterfall) and shows a skeleton for seconds on a cold server. | `audit/05-drawer.png`, `06-drawer-scrolled.png` | `public/app.js` `juiceBlock()` | Collapse the Juice block to its headline ("🍉 97 · $291K/yr left in SF") with the waterfall in a `<details>`. That keeps the §8 order but moves comps up. PERF-1 removes the wait. |
+| **UX-6** | Medium | Jargon with no plain-language label where it first appears: "Compstimate" (Insights heading), "Juice Score / Juicy / Ripe / Dry", "P25 to P75", "P5–P95 board pay spread", "≈ 46,809 Big Macs/yr", and the unexplained "[DH]" title prefix (source data). | `audit/10-insights.png`, `05-drawer.png` | `features/compstimate.js`, `features/insights.js`, `public/app.js` | Use subtitles such as "Compstimate: estimated pay from similar roles" and "Juice: what's left after tax, rent and living". Replace P-notation with "middle 50%" or "typical range". Drop Big Macs or move it into the "How it's calculated" link. Naming stays as decided in ROADMAP D5. |
+| **UX-7** | Medium | Juice barely discriminates at the pay levels this site is about. Every top card reads 91–99 "Juicy". OpenAI EM roles: Juicy 21, Ripe 0, Dry 0. As a sort or filter it then adds little beyond pay. | `audit/11-more-popover.png`, `phone-05-insights.png` | `server/juice.js` `SCORE_ANCHORS` / `scoreFromNet` | Move the anchors up (score 100 at a higher net, not about $250K), or score relative to the board's distribution. Show net $ on the badge tooltip as the primary figure. |
+| **UX-8** | Medium | After Save, saved searches can only be found in the company menu (the toast says so once). Nothing on the main view lists them, and the "Saved" chip only un-saves on click. | `audit/08-save.png`, `09-company-menu.png` | `public/app.js` `toggleSave()` | Make the pressed "Saved" chip open a small popover (existing popover system) with this search's status ("Remove", "N new") and a link to all saved searches. No new control. |
+| **UX-9** | Medium | Insights Compstimate ignores the active filters (Manager, Engineering management) and silently estimates for a default "Software Engineer" with an empty Role title field. | `audit/10-insights.png` ("Weighted by similarity to 'Software Engineer'") | `features/compstimate.js` widget, `public/app.js` `renderInsights()` | Prefill the role title and level from the search or role filter and seniority. When defaulting, say so in the field ("e.g. Software Engineer"). |
+| **UX-10** | Medium | On phones, choosing Insights (or Map) leaves the results bottom sheet open, covering the view. The user sees cards, not the insights they tapped. | `audit/phone-05-insights.png` | `public/app.js` mode click → `setSheet(false)` | Collapse the sheet whenever the mode changes. |
+| **UX-11** | Low | The "Role: Engineering management" chip is rendered twice (quickbar and above the results list), and so is the area chip. | `audit/07-after-openai-pick.png` | `public/app.js` `renderQuickbar()` | On desktop, render it in the quickbar only. Keep the list slot for phones, where the quickbar scrolls. |
+| **UX-12** | Low | The Clusters chart (the default view) has no explanation of what the bubbles and numbers mean (count per pay band). First-time users read "8 · 8 · 11" without a key. | `audit/01-landing.png` | `public/viz/chart.js` header | One muted caption line in the existing chart header: "Bubbles = roles per pay band; bigger = more roles". |
+| **UX-13** | Low | On phones the Chart, Map and Insights switch is icon-only (the labels are hidden). The Insights bar-chart icon is hard to tell apart from Chart. | `audit/phone-01-landing.png` | `public/styles.css` (`.topbar .seg button span` at ≤1020px) | Keep the labels at ≥360px with smaller type, or a two-letter label under each icon. |
+| **UX-14** | Positive | Empty states are clear: Listed says "Listing dates appear after a few daily runs." Pay unclear explains itself with "Why?". | `audit/11-more-popover.png` | — | — |
+| **A11Y-1** | High | Contrast fails WCAG AA (4.5:1) on the faint text token in light mode. `#8a91a0` is 3.16:1 on white (facet counts, Juice disclaimer) and 2.82:1 on surface-2 (the honest-pay caption, `.kw-count`). Others: Remote tag 4.48:1, Apply host 4.3:1, an insights subtitle 3.07:1, and in dark mode the chart bin-dot labels `#e9ecf2` on `#7f7e7a` at 3.43:1. axe reported 10–28 nodes per view. | `qa-audit-a11y.mjs` (axe-core 4.x) | `public/styles.css` `--ms-faint`, `.tag--remote`, `.apply-host`; `public/viz/viz.css` `.ms-bin__dot`; `features/features.css` | Darken `--ms-faint` to about `#6b7280` (4.8:1 on white, 4.3:1 on `#f0f2f5`; use `--ms-muted` on surface-2). Darken the bin-dot fill in dark mode, or use dark text on it. |
+| **A11Y-2** | Medium | Keyboard: opening the Seniority quick-filter leaves focus on the chip. `togglePopover()` focuses the checklist's hidden search input (shown only above 8 options), so the focus call silently fails. Salary, Department, Location, Remote and More are fine. | `qa-audit-kbd2.mjs`: `sen -> BUTTON chip in-popover=false` | `public/app.js` `togglePopover()` | Use the first *visible* focusable (`:not([hidden] *)`, or check `offsetParent`). |
+| **A11Y-3** | Medium | It takes 115 Tab stops to reach the first result card without the skip link (the whole filter column comes first). The page has no `<h1>` (axe `page-has-heading-one`). | `qa-audit-kbd.mjs` | `public/index.html` | Add a visually hidden `<h1>` ("Anthropic jobs by salary"). Add a second skip link "Skip to filters" or "Skip to chart", or put results before filters in DOM order on desktop. |
+| **A11Y-4** | Low | axe `aria-allowed-role`: `article role=button` on every card (60 nodes) and `aside role=dialog` for the drawer. On Insights, `landmark-unique` for the three `<section aria-label>`, which collide with the inner card sections' labels. | `qa-audit-a11y.mjs` | `public/app.js` `card()`, `public/index.html` | Use `<div role=button>` (or a real `<button>` wrapping the title) and `<div role=dialog>`. Give the host sections distinct labels or drop the outer labels. |
+| **A11Y-5** | Low | Small touch targets at 390px: the salary range inputs are 22 px tall and the "Only show jobs with salary" switch is 36×21 px (WCAG 2.5.8 asks for 24 px). | `qa-audit-phone.mjs` | `public/styles.css` `.range`, `.switch` | Give them a 24 px minimum hit area (padding or `::before` hit slop). |
+
+Keyboard flow otherwise works:
+- The skip link, company menu (Enter, type, Enter), card Enter and Esc with focus return all pass.
+- The drawer traps focus.
+- The salary slider responds to arrow keys (`smin` updates) and shows a focus halo on the thumb (`audit/kbd-slider-focus.png`).
+- Map pins have `tabindex=0`.
+- Dark-mode axe on the drawer reports no contrast issues.

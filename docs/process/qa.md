@@ -142,3 +142,71 @@ curl -s 'localhost:5997/api/jobs?company=anthropic' | node -e "const d=JSON.pars
   - Found BUG-5 and added the API keyword-ubiquity test. The skills UI test now picks a narrowing chip.
   - The CSV filename check accepts the server's Content-Disposition name (L3 note).
   - Screenshots retaken on real data. QA.md rewritten (32/33). Prompt file appended.
+
+## 8. Improvement audit, wave 1 (read-only on product code)
+
+**Brief:** this is a user-facing audit (performance, UX heuristics, accessibility) of the app at `2e6e4cf`, in both
+modes: the real server with local snapshots, and the static build served under `/melon-seek/`. Findings are
+in `docs/QA.md` § "Improvement audit (wave 1)": PERF-1 to 4, UX-1 to 14 and A11Y-1 to 5. Screenshots are in
+`docs/screenshots/audit/`. The prompt is in `prompts/qa.md`.
+
+**Inputs:** `docs/strategy/ROADMAP.md` §8 (the simplicity budget every fix had to respect), `public/app.js`
+(sort, search haystack, `pickCompany`, `togglePopover`), `server/index.js` and `server/keywords.js` (snapshot rekey),
+`server/juice.js` (score anchors), and axe-core 4.x (npm, scratchpad only).
+
+**Decisions:**
+1. **Cold contexts per measurement.** Each company and device gets a new browser context. Marks come
+   from an init-script MutationObserver (first `.ms-crow__band`, card and filter chip) and a `longtask`
+   PerformanceObserver. Bytes come from CDP `Network.loadingFinished.encodedDataLength`, which is gzip on the wire.
+2. **Phone emulation:** 390x844 at DPR 2 with touch, and CDP `Emulation.setCPUThrottlingRate: 4`. Network is not
+   throttled, because both servers are on localhost and the byte counts are reported separately.
+3. **Company switch by hash.** `location.hash` with a new `c` is the same code path as the menu (`set({c})` →
+   `loadJobs`). This avoids timing popover animations.
+4. **Static server with gzip** and a 600 s cache header (my own small server, not a product file), so the
+   transfer sizes are comparable to GitHub Pages.
+5. **Cold server cost** was isolated with `curl` on a fresh process and `rekeyBoardJobs()` timed in plain Node.
+   This separated server CPU from browser CPU.
+6. **The walk-through is scripted** (`qa-audit-walk.mjs`), so its clicks, hashes and screenshots can be replayed.
+   I read every screenshot and judged the heuristics by hand. Severity: High blocks or misleads the core task,
+   Medium is friction, Low is polish.
+7. **axe** was injected with `bypassCSP: true`, because the app's CSP (`script-src 'self'`) blocks `addScriptTag`.
+
+**Replayable steps:**
+```sh
+cd /home/user/melon-seek && npm run build                       # dist/ (87 MB, 8 companies)
+SP=<scratch>; (cd $SP/pw && npm i axe-core playwright)          # PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+PORT=5311 node server/index.js &                                # real server
+PORT=5310 node docs/process/scripts/qa-audit-static-server.mjs &   # dist/ under /melon-seek/
+export NODE_PATH=$SP/pw/node_modules AXE=$SP/pw/node_modules/axe-core/axe.min.js
+node docs/process/scripts/qa-audit-perf.mjs     # perf table (PERF_OUT=perf.json)
+node docs/process/scripts/qa-audit-reqs.mjs     # per-request bytes, both modes
+node docs/process/scripts/qa-audit-prof.mjs     # CPU profile self time (desktop)
+node docs/process/scripts/qa-audit-walk.mjs     # job-seeker walk-through, audit/01-11 screenshots
+node docs/process/scripts/qa-audit-phone.mjs    # phone walk + tap targets, audit/phone-*.png
+node docs/process/scripts/qa-audit-a11y.mjs     # axe on 8 views/themes (AXE_OUT=axe.json)
+node docs/process/scripts/qa-audit-kbd.mjs && node docs/process/scripts/qa-audit-kbd2.mjs   # keyboard flow
+node -e "import('./server/keywords.js').then(...)"  # rekeyBoardJobs timing (see QA.md)
+```
+Start the servers with the harness's background mode, not `( … &)` subshells. In this sandbox the subshell
+servers were killed when the calling shell exited.
+
+**Verification:**
+- 12 perf rows: 2 modes × 2 devices × 3 companies.
+- Cold server: rekey takes 3.0 s, 10.2 s and 3.3 s, and the first `/api/market` takes 8.2 s.
+- axe: 8 views across light, dark and phone.
+- Keyboard: 120-stop Tab sequence plus 6 popovers.
+- 18 screenshots in `docs/screenshots/audit/`.
+- No product files were edited. The working-tree edits to `public/viz/*` and `public/styles.css` during the audit
+  belong to the viz and UX agents.
+
+**Known gaps:** no network throttling (the localhost RTT is about 0). Live mode is unreachable. Real devices
+were not used, so the CPU emulation only approximates a mid-range phone. INP was approximated by click → repaint
+with rAF, not the Event Timing API. The walk-through covers desktop and phone in light mode; dark mode is covered
+by axe only.
+
+**Change log:**
+- ~13:15 Built `dist/`, started both servers, installed axe-core in the scratchpad.
+- Perf run, request breakdown, CPU profile, and the cold-server isolation (PERF-1).
+- Scripted walk-through plus phone walk: UX-1 to UX-14.
+- axe in both themes, the keyboard flow and tap targets: A11Y-1 to 5.
+- Appended the audit to QA.md, copied the scripts to `docs/process/scripts/qa-audit-*.mjs`, and appended the prompt.

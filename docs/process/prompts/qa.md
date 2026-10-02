@@ -37,3 +37,13 @@ The e2e suite needs a refresh for the current UI. `node scripts/e2e.js` (Playwri
 4. Run the full suite against the real server data (data/snapshots exist locally), fix test-side issues, and list real product bugs in docs/QA.md with owner and file.
 Log it in docs/process/qa.md. Don't commit; report the pass/fail summary.
 ```
+
+Third follow-up from the coordinator (improvement audit, wave 1):
+
+```
+New wave (the user asked the team to keep improving the app together). You run the user-facing audit, read-only on product code. Start the real server (local snapshots) and the static build (`npm run build`, then serve dist/ under /melon-seek/) and audit with Playwright:
+1. Performance in both modes, per company (Anthropic, Anduril, OpenAI): time to first chart paint, time to an interactive filter, company-switch time, drawer-open time, JS/JSON bytes transferred, long tasks over 50 ms. Use the Performance API / CDP metrics at 1440x900 and on an emulated mid-range phone (4x CPU throttle, 390x844).
+2. A UX heuristics walk-through as a first-time job seeker trying to: find the best-paid ML role in SF, compare it with OpenAI's, check livability, and save the search. Note every point of confusion, extra click, unclear label, jargon (e.g. "Compstimate", "Juice"), dead end, empty state and inconsistency. Rate each finding by severity and give a concrete fix that respects docs/strategy/ROADMAP.md §8 (UI simplicity budget).
+3. Accessibility spot-checks: axe-core if you can load it from npm into the scratchpad, keyboard-only flow, contrast in both themes.
+Append an "Improvement audit (wave 1)" section to docs/QA.md: findings with an ID (UX-n / PERF-n / A11Y-n), severity, evidence (numbers, screenshot paths under docs/screenshots/audit/), the owning file and the suggested fix. Log it in docs/process/qa.md. Don't commit; report the top 10 findings briefly.
+```

@@ -812,7 +812,14 @@ html[data-mode="insights"] .viz-controls { display: none; }
 .company-item-board { font: 11.5px var(--ms-mono); color: var(--ms-faint); }
 .company-item-check { color: var(--ms-accent); font-weight: 700; }
 .company-menu > .btn { margin-top: 6px; justify-content: flex-start; color: var(--ms-muted); border-style: dashed; }
-@media (max-width: 1360px) { .company-pill:nth-child(n+3) { display: none; } }
+/* Recent pills by width: 3 at ≥1920, 2 at ≥1600, 1 below, none below 1200 (see next rule).
+   Guard: the company bar may shrink and clip pills, so the top bar never widens the page. */
+.company-bar { flex: 0 1 auto; min-width: 0; }
+.company-menu-btn { flex: none; }
+.company-pills { flex: 0 1 auto; min-width: 0; overflow: hidden; }
+.company-pill { flex: none; }
+@media (max-width: 1919px) { .company-pill:nth-child(n+3) { display: none; } }
+@media (max-width: 1599px) { .company-pill:nth-child(n+2) { display: none; } }
 @media (max-width: 1199px) { .topbar .seg button span { display: none; } .company-pills { display: none; } /* recents live in the company menu; pills overflowed the bar at 1024 */ }
 @media (max-width: 860px) {
   #addBoardBtn { display: none; }               /* "Add a board" lives in the company menu */

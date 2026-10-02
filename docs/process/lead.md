@@ -437,3 +437,17 @@ screenshots in `docs/screenshots/`.
   ≥16px), Android and 360px; 60fps gestures (transform/opacity only,
   passive listeners, rAF drags, lazy lists), worst frame ≤50 ms at 4x CPU
   throttle; deferred modules; one shared ResizeObserver with UX.
+- 2026-10-02: wave-1 results in from QA (4 PERF, 14 UX, 5 A11Y) and the
+  viz design audit (13 DES, 5 fixed in viz). Wave 2 routed:
+  - backend: PERF-1, the server freeze on first company load (synchronous
+    rekey), using a normalizerVersion on snapshots, a cached rekey and
+    off-thread work.
+  - UX: UX-1 (sort by midpoint), UX-4 (comparisons keep filters), UX-2
+    (search ranking), A11Y-1/2/3, UX-6 (plain-language labels), UX-5/11,
+    DES-5/7/8/10/11, PERF-2 (cards first).
+  - mobile: UX-10, UX-13, A11Y-5, PERF-3/4.
+  - viz: PERF-2 chart render, A11Y-1, DES-12.
+  - product: UX-9 (Insights prefill), UX-6, DES-9, A11Y-1.
+  - features: UX-3 (canonical locations).
+  Rejected for simplicity: re-tuning the Juice anchors again (UX-7); a
+  dedicated saved-searches control (UX-8).
