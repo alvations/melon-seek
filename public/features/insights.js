@@ -337,11 +337,12 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
     preserveFocus(root, () => {
       header.replaceChildren(
         h(`h${hl}`, { id: headId, class: 'ms-insights__title' }, 'Market insights'),
-        h('p', { class: 'ms-insights__sub' }, jobs.length === all.length
+        h('p', { class: 'ms-insights__sub' }, !all.length ? 'No roles loaded yet.'
+          : jobs.length === all.length
           ? `All ${plural(all.length, 'role')} on this board · pay in approx. USD`
           : `${jobs.length} of ${plural(all.length, 'role')} match your filters · pay in approx. USD`));
       if (!jobs.length) {
-        body.replaceChildren(emptyNote(all.length ? 'No roles match the current filters.' : 'Load a job board to see insights.'));
+        body.replaceChildren(emptyNote(all.length ? 'No roles match the current filters.' : 'Insights appear once a job board is loaded.'));
         return;
       }
       body.replaceChildren(stats(jobs, all),
