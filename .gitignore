@@ -5,3 +5,6 @@ dist/
 
 # Real board snapshots are large (tens of MB); regenerate with `npm run snapshot`.
 data/snapshots/*.json
+# F4 history ledger: persisted by the workflows (history-ledger artifact, or the
+# data-history branch), never on main. See README "History ledger".
+data/history/

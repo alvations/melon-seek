@@ -619,8 +619,9 @@ async function main() {
       await fs.writeFile(path.join(OUT, 'data', `${c.slug}.csv`), csv);
       csvRows.push({ file: `${c.slug}.csv`, jobs: payload.jobs.length, fetchedAt: payload.fetchedAt });
       csvNote = `  csv ${size(Buffer.byteLength(csv))}`;
-      marketPayloads.push({ company: payload.company, mode: payload.mode, jobs: payload.jobs });
     }
+    // buildMarket uses demo payloads only when no company has real data (doc mode "demo").
+    marketPayloads.push({ company: payload.company, mode: payload.mode, fetchedAt: payload.fetchedAt, jobs: payload.jobs });
     let line = `${c.slug.padEnd(10)} ${payload.mode.padEnd(8)} ${String(payload.jobs.length).padStart(4)} jobs  list ${size(r.listBytes).padStart(9)}  desc ${String(r.descFiles).padStart(4)} files ${size(r.descBytes).padStart(9)}`;
     if (r.sectionsMoved) line += '  (sections moved to desc: list was over budget)';
     line += `  history ${Object.keys(compact).length} open (${size(histBytes)}), runs ${payload.meta.history.runs}`;
@@ -641,11 +642,11 @@ async function main() {
   let marketNote = 'no buildMarket yet';
   if (buildMarket) {
     try {
-      const doc = await buildMarket(marketPayloads);
+      const doc = await buildMarket(marketPayloads, { generatedAt: builtAt });
       if (doc) {
         const bytes = await writeJson(path.join(OUT, 'api', 'market.json'), doc);
         if (bytes > MARKET_MAX_BYTES) warn(`api/market.json is ${size(bytes)} (cap ${size(MARKET_MAX_BYTES)}, docs/CONTRACT.md)`);
-        marketNote = `api/market.json ${size(bytes)} from ${marketPayloads.length} companies`;
+        marketNote = `api/market.json ${size(bytes)} (${doc.mode || '?'}, ${Array.isArray(doc.cells) ? doc.cells.length : '?'} cells, ${marketPayloads.filter((x) => x.mode === 'snapshot').length} real companies)`;
       } else marketNote = 'buildMarket returned nothing';
     } catch (err) {
       warn(`buildMarket failed (${err.message}); no api/market.json`);
