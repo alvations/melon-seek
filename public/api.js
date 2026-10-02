@@ -518,35 +518,39 @@ export function descPath(job) {
   return `api/desc/${company}/${sanitizeJobId(job)}.json`;
 }
 
-const detailCache = new Map(); // job id -> Promise<{ descriptionHtml, sections? }>
+const detailCache = new Map(); // job id -> Promise<{ descriptionHtml, sections }>
+
+const emptySections = (sec) => !sec || (!(sec.responsibilities || []).length && !(sec.fit || []).length);
 
 /**
- * Resolve a job with its `descriptionHtml` (and its `sections`, when the
- * static list left them out to stay small).
- *  - The job already has descriptionHtml (server mode, live-fetched or
- *    in-browser demo jobs): it is returned unchanged.
- *  - Static build list jobs: api/desc/<company>/<id>.json is fetched once and
- *    cached by job id. A failed fetch rejects and isn't cached, so a retry can
- *    succeed.
+ * Resolve a job with its `descriptionHtml`, plus its `sections` when the list
+ * left them out (empty arrays) to stay small. Lists in both modes are lazy now:
+ *  - server mode: `GET api/job?id=<job.id>` -> { id, descriptionHtml, sections }
+ *    (the server finds the company from the id's "<slug>:" prefix);
+ *  - static build: api/desc/<company>/<id>.json.
+ * A job that already has descriptionHtml (live-fetched or in-browser demo jobs
+ * in static mode) is returned unchanged. Results are cached by job id;
+ * concurrent calls share one request. A failed fetch rejects and isn't cached,
+ * so a retry can succeed. List sections are kept unless they are empty.
  * @param job  a Job from getJobs()
  * @param opts {signal?: AbortSignal}
  */
 export async function getJobDetail(job, { signal } = {}) {
   if (!job) throw new Error('getJobDetail: no job');
   if (typeof job.descriptionHtml === 'string') return job;
-  if (!isStatic()) return { ...job, descriptionHtml: '' }; // the server always includes it
   let p = detailCache.get(job.id);
   if (!p) {
-    p = getJson(descPath(job), { signal }).then((d) => ({
+    const url = isStatic() ? descPath(job) : `api/job?id=${encodeURIComponent(job.id)}`;
+    p = getJson(url, { signal }).then((d) => ({
       descriptionHtml: d && typeof d.descriptionHtml === 'string' ? d.descriptionHtml : '',
-      sections: d && d.sections ? d.sections : null,
+      sections: d && d.sections && typeof d.sections === 'object' ? d.sections : null,
     }));
     detailCache.set(job.id, p);
     p.catch(() => { if (detailCache.get(job.id) === p) detailCache.delete(job.id); });
   }
   const d = await p;
   const out = { ...job, descriptionHtml: d.descriptionHtml };
-  if (d.sections) out.sections = d.sections;
+  if (d.sections && emptySections(job.sections)) out.sections = d.sections;
   return out;
 }
 
