@@ -75,6 +75,16 @@ C.highlight=await p.evaluate(()=>{const sc=document.querySelector('.ms-chart__sc
 await p.screenshot({path:OUT+'/a11y-clusters.png'});
 out.clusters=C;
 await p.close();
+// ---- robust axis: one bad value must not squash the chart; it becomes a keyboard-reachable marker ----
+p=await b.newPage({viewport:{width:1280,height:820},reducedMotion:'reduce'});p.on('pageerror',e=>errs.push(e.message));
+await p.route(/basemaps|tile\.openstreetmap\.org/,r=>r.abort());
+await p.goto('http://localhost:'+PORT+'/viz/demo.html?outlier=1');await p.waitForTimeout(500);
+await p.focus('.ms-chart__body'); await p.keyboard.press('ArrowRight'); await p.keyboard.press('End');
+out.overflow=await p.evaluate(()=>{const a=document.querySelector('.is-active');const t=[...document.querySelectorAll('.ms-axis__tick')].map(e=>e.textContent);
+  return {axisMax:t[t.length-1], active:a?.getAttribute('aria-label'), isOverflow:a?.classList.contains('ms-bin--overflow'), tip:document.querySelector('.ms-viz-tip').innerText.replace(/\n/g,' | ')}});
+await p.keyboard.press('Enter'); await p.waitForTimeout(100);
+out.overflow.enterLog=await p.evaluate(()=>document.getElementById('log').innerText.split('\n').slice(0,2));
+await p.close();
 // ---- map ----
 p=await b.newPage({viewport:{width:1280,height:820},reducedMotion:'reduce'});p.on('pageerror',e=>errs.push(e.message));
 await p.route(/basemaps|tile\.openstreetmap\.org/,r=>r.abort());

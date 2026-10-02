@@ -79,6 +79,25 @@ function quantile(sorted, q) {
 
 const moneyRange = (a, b) => `${formatMoney(a)}–${formatMoney(b)}`;
 
+/**
+ * Robust axis bounds: P1..P99, tightened by a Tukey far-out fence (Q1 − 3·IQR,
+ * Q3 + 3·IQR) so that with few points one bad value (e.g. a mis-parsed $4.6M)
+ * cannot stretch the axis and squash every other row. Returns [lo, hi] of
+ * real data values (or interpolated percentiles), never beyond the data.
+ */
+export function robustBounds(values) {
+  const v = values.filter(x => x != null && isFinite(x)).sort((a, b) => a - b);
+  if (!v.length) return [0, 1];
+  let lo = quantile(v, 0.01), hi = quantile(v, 0.99);
+  const q1 = quantile(v, 0.25), q3 = quantile(v, 0.75);
+  const iqr = Math.max(q3 - q1, Math.abs(q3) * 0.1, 1);
+  const fLo = q1 - 3 * iqr, fHi = q3 + 3 * iqr;
+  if (hi > fHi) { const inl = v.filter(x => x <= fHi); hi = inl.length ? inl[inl.length - 1] : hi; }
+  if (lo < fLo) { const inl = v.filter(x => x >= fLo); lo = inl.length ? inl[0] : lo; }
+  return [lo, Math.max(lo, hi)];
+}
+const AXIS_PAD = 0.04; // pad the robust span by 4% on each side before snapping to ticks
+
 export function createChart(container, { onSelect, onHover, onClusterSelect } = {}) {
   container.classList.add('ms-chart');
   container.replaceChildren();
@@ -121,6 +140,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
   let highlighted = null;
   let width = 0;
   let raf = 0;
+  let outCount = 0;          // postings whose midpoint is beyond the axis domain (shown as ›/‹ markers)
   // ranges view state
   let rowByJob = new Map();  // jobId -> row element
   let itemByRow = [];        // row index -> plotted item
@@ -170,7 +190,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const activeCKey = cActive ? cKeyOf(cActive.r, cActive.i) : null;
     activeIdx = -1; cActive = null; hoverIdx = -1; cHover = null;
     body.removeAttribute('aria-activedescendant');
-    rowByJob = new Map(); itemByRow = []; binByJob = new Map(); cRows = [];
+    rowByJob = new Map(); itemByRow = []; binByJob = new Map(); cRows = []; outCount = 0;
     hideTip();
 
     const narrow = width < 520;
@@ -220,6 +240,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     if (noSalary) parts.push(`${plural(noSalary, 'posting')} without published salary`);
     if (fxCount) parts.push(`${fxCount.toLocaleString()} non-USD shown as approx USD`);
     if (unknownFx.length) parts.push(`${unknownFx.join(', ')} plotted unconverted`);
+    if (outCount) parts.push(`${plural(outCount, 'posting')} beyond the axis (›)`);
     if (narrow && plotted.length) parts.push('annual salary');
     foot.textContent = parts.join(' · ');
     foot.title = fxCount ? 'Non-USD salaries are converted with a static exchange-rate table (GBP, EUR, CAD, AUD, JPY, SGD, CHF). Approximate.' : '';
@@ -230,7 +251,10 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const nb = Math.max(16, Math.min(60, Math.round(plotW / 10)));
     const bw = (d1 - d0) / nb;
     const bins = new Array(nb).fill(0);
-    for (const p of plotted) bins[Math.min(nb - 1, Math.max(0, Math.floor((p.mid - d0) / bw)))]++;
+    for (const p of plotted) {
+      if (p.mid < d0 || p.mid > d1) continue; // overflow is shown by the row markers, not piled into an edge bin
+      bins[Math.min(nb - 1, Math.max(0, Math.floor((p.mid - d0) / bw)))]++;
+    }
     const maxB = Math.max(...bins);
     hist.replaceChildren();
     hist.style.height = HIST_H + 'px';
@@ -255,7 +279,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       hist.append(b);
     });
     const ml = el('div', 'ms-hist__median');
-    ml.style.left = x(med) + 'px';
+    ml.style.left = x(Math.min(d1, Math.max(d0, med))) + 'px';
     hist.append(ml);
   }
 
@@ -292,14 +316,16 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const plotL = narrow ? 16 : labelW + 16;
     const padR = narrow ? 16 : 32;
     const plotW = Math.max(80, width - plotL - padR);
-    const mids = plotted.map(p => p.mid);
-    const lo = Math.min(...mids), hi = Math.max(...mids);
+    // Robust domain: P1..P99 of midpoints, padded, snapped to $50K/$100K/$250K ticks.
+    const [lo, hi] = robustBounds(plotted.map(p => p.mid));
     const span = Math.max(1, hi - lo);
     const step = span > 1500000 ? 250000 : span > 300000 ? 100000 : 50000;
-    const d0 = Math.max(0, Math.floor(lo / step) * step);
-    let d1 = Math.ceil((hi + 1) / step) * step;
+    const pad = Math.max(span * AXIS_PAD, 1000);
+    const d0 = Math.max(0, Math.floor((lo - pad) / step) * step);
+    let d1 = Math.ceil((hi + pad) / step) * step;
     if (d1 <= d0) d1 = d0 + step;
     const x = v => plotL + ((v - d0) / (d1 - d0)) * plotW;
+    const xc = v => x(Math.min(d1, Math.max(d0, v)));
     const ticks = [];
     for (let t = d0; t <= d1 + 1; t += step) ticks.push(t);
     container.style.setProperty('--ms-plot-l', plotL + 'px');
@@ -325,12 +351,20 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       const s = r.items.map(p => p.mid).sort((a, b) => a - b);
       r.median = quantile(s, 0.5); r.p25 = quantile(s, 0.25); r.p75 = quantile(s, 0.75);
       const bm = new Map();
+      const below = [], above = [];
       for (const p of r.items) {
+        if (p.mid < d0) { below.push(p); continue; }
+        if (p.mid > d1) { above.push(p); continue; }
         const start = Math.floor(p.mid / binW) * binW;
         if (!bm.has(start)) bm.set(start, []);
         bm.get(start).push(p);
       }
-      r.bins = [...bm].sort((a, b) => a[0] - b[0]).map(([start, items]) => ({ start, end: start + binW, items, row: r }));
+      r.bins = [...bm].sort((a, b) => a[0] - b[0])
+        .map(([start, items]) => ({ start, end: start + binW, center: start + binW / 2, items, row: r }));
+      // Values beyond the axis are never dropped: they become edge overflow markers.
+      if (below.length) r.bins.unshift({ start: 'lo', end: d0, center: d0 - binW, overflow: 'lo', items: below.sort((a, b) => a.mid - b.mid), row: r });
+      if (above.length) r.bins.push({ start: 'hi', end: d1, center: d1 + binW, overflow: 'hi', items: above.sort((a, b) => b.mid - a.mid), row: r });
+      outCount += below.length + above.length;
     }
     cRows.sort((a, b) => (b.items.length ? 1 : 0) - (a.items.length ? 1 : 0)
       || (b.median ?? 0) - (a.median ?? 0) || b.all.length - a.all.length);
@@ -351,7 +385,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const rMax = Math.max(6, Math.min(binPx / 2 - 1.5, plotH / 2 - 9, solo ? 30 : 16));
     const rMin = Math.min(4.5, rMax);
 
-    const maxN = Math.max(1, ...cRows.flatMap(r => r.bins.map(b => b.items.length)));
+    const maxN = Math.max(1, ...cRows.flatMap(r => r.bins.filter(b => !b.overflow).map(b => b.items.length)));
     const frag = document.createDocumentFragment();
     const gridFrag = document.createDocumentFragment();
     cRows.forEach((r, ri) => {
@@ -388,7 +422,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       let bandL = null, bandR = null;
       if (r.items.length) {
         const bandH = Math.round(Math.min(2 * rMax + 8, plotH - 10));
-        const bx0 = x(r.p25), bx1 = x(r.p75);
+        const bx0 = xc(r.p25), bx1 = xc(r.p75);
         const band = el('div', 'ms-crow__band');
         band.setAttribute('aria-hidden', 'true');
         const bw = Math.max(bandH, bx1 - bx0 + bandH * 0.6);
@@ -400,7 +434,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         plot.append(band);
         const med = el('div', 'ms-crow__median');
         med.setAttribute('aria-hidden', 'true');
-        med.style.left = x(r.median) + 'px';
+        med.style.left = xc(r.median) + 'px';
         med.style.height = (bandH + 10) + 'px';
         med.style.marginTop = (-(bandH + 10) / 2) + 'px';
         plot.append(med);
@@ -411,8 +445,9 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       }
       r.bins.forEach((b, bi) => {
         const n = b.items.length;
+        if (b.overflow) { plot.append(overflowMarker(b, ri, bi, plotL, plotW, narrow)); for (const p of b.items) binByJob.set(p.job.id, b); return; }
         const rad = Math.max(rMin, rMax * Math.sqrt(n / maxN));
-        const cx = x((b.start + b.end) / 2);
+        const cx = Math.min(plotL + plotW, Math.max(plotL, x(b.center)));
         const hit = Math.max(24, Math.min(binPx, 2 * rad + 6));
         const bin = el('div', bandL != null && cx >= bandL && cx <= bandR ? 'ms-bin ms-bin--inband' : 'ms-bin');
         bin.setAttribute('role', 'option');
@@ -446,6 +481,29 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     body.style.height = (cRows.length * rowH + 8) + 'px';
   }
 
+  // A small "›" (or "‹") chip at the axis edge for postings beyond the domain.
+  function overflowMarker(b, ri, bi, plotL, plotW, narrow) {
+    const n = b.items.length;
+    const hi = b.overflow === 'hi';
+    const bin = el('div', `ms-bin ms-bin--overflow ms-bin--overflow-${b.overflow}`);
+    bin.setAttribute('role', 'option');
+    bin.setAttribute('aria-selected', 'false');
+    const vals = b.items.slice(0, 3).map(p => formatMoney(p.mid)).join(', ') + (n > 3 ? `, +${n - 3} more` : '');
+    bin.setAttribute('aria-label', `${plural(n, 'role')} ${hi ? 'above' : 'below'} ${formatMoney(b.end)}: ${vals}, ${b.row.name}`);
+    bin.id = `${uid}-${ri}-${bi}`;
+    bin.dataset.r = ri; bin.dataset.i = bi;
+    const w = 24;
+    const cx = hi ? plotL + plotW + (narrow ? 8 : 14) : plotL - (narrow ? 8 : 12);
+    bin.style.left = (cx - w / 2) + 'px';
+    bin.style.width = w + 'px';
+    bin.style.height = w + 'px';
+    const chip = el('span', 'ms-bin__dot ms-bin__chip', (hi ? '›' : '‹') + (n > 1 ? n : ''));
+    bin.append(chip);
+    b.el = bin;
+    if (selectedKey === cKeyOf(ri, bi)) bin.classList.add('is-selected');
+    return bin;
+  }
+
   function cKeyOf(r, i) {
     const row = cRows[r];
     if (!row) return null;
@@ -464,6 +522,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const row = cRows[r];
     if (i < 0) return row.name;
     const b = row.bins[i];
+    if (b.overflow) return `${row.name} · ${b.overflow === 'hi' ? 'above' : 'below'} ${formatMoney(b.end)}`;
     return `${row.name} · ${moneyRange(b.start, b.end)}`;
   }
 
@@ -483,6 +542,21 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     tip.replaceChildren();
     tip.append(el('div', 'ms-tip__value', plural(n, 'role')));
     const approx = b.items.some(p => isForeign(p.cur) && hasFx(p.cur));
+    if (b.overflow) {
+      // Beyond the axis: give the real values, one line per posting.
+      tip.append(el('div', 'ms-tip__sub', `${b.overflow === 'hi' ? 'above' : 'below'} the axis (${formatMoney(b.end)})${approx ? ' · approx USD' : ''}`));
+      tip.append(el('div', 'ms-tip__title', b.row.name));
+      const list = el('ul', 'ms-tip__roles');
+      for (const p of b.items.slice(0, 5)) {
+        const li = el('li');
+        li.append(el('span', 'ms-tip__role', p.job.title || 'Untitled'), el('span', 'ms-tip__n', rangeText(p)));
+        list.append(li);
+      }
+      tip.append(list);
+      if (n > 5) tip.append(el('div', 'ms-tip__meta', `+${n - 5} more`));
+      tip.hidden = false;
+      return;
+    }
     tip.append(el('div', 'ms-tip__sub', `${moneyRange(b.start, b.end)} midpoint${approx ? ' · approx USD' : ''}`));
     tip.append(el('div', 'ms-tip__title', b.row.name));
     const counts = new Map();
@@ -545,9 +619,9 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         if (cur.i < 0 || !cRows[r].bins.length) i = -1;
         else {
           // nearest circle by salary in the target row
-          const at = (row.bins[cur.i].start + row.bins[cur.i].end) / 2;
+          const at = row.bins[cur.i].center;
           let best = 0, bd = Infinity;
-          cRows[r].bins.forEach((b, bi) => { const dd = Math.abs((b.start + b.end) / 2 - at); if (dd < bd) { bd = dd; best = bi; } });
+          cRows[r].bins.forEach((b, bi) => { const dd = Math.abs(b.center - at); if (dd < bd) { bd = dd; best = bi; } });
           i = best;
         }
       }
@@ -605,11 +679,18 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const padR = narrow ? 16 : 28;
     const plotL = labelW + 12;
     const plotW = Math.max(80, width - plotL - padR);
-    const lo = Math.min(...plotted.map(p => p.lo));
-    const hi = Math.max(...plotted.map(p => p.hi));
-    const nt = niceTicks(lo, hi, Math.max(2, Math.floor(plotW / 90)));
-    const d0 = nt.start, d1 = nt.end > nt.start ? nt.end : nt.start + 1;
+    // Robust domain: P1..P99 of midpoints, widened to the robust ends of the bars
+    // (P1 of minimums, P99 of maximums) so ordinary ranges are not clipped, then
+    // padded and snapped to nice ticks. Anything beyond gets an edge marker.
+    const [mLo, mHi] = robustBounds(plotted.map(p => p.mid));
+    const lo = Math.min(mLo, robustBounds(plotted.map(p => p.lo))[0]);
+    const hi = Math.max(mHi, robustBounds(plotted.map(p => p.hi))[1]);
+    const pad = Math.max((hi - lo) * AXIS_PAD, 1000);
+    const nt = niceTicks(Math.max(0, lo - pad), hi + pad, Math.max(2, Math.floor(plotW / 90)));
+    const d0 = Math.max(0, nt.start), d1 = nt.end > d0 ? nt.end : d0 + 1;
+    if (nt.ticks[0] < 0) nt.ticks = nt.ticks.filter(t => t >= 0);
     const x = v => plotL + ((v - d0) / (d1 - d0)) * plotW;
+    const xc = v => x(Math.min(d1, Math.max(d0, v)));
     container.style.setProperty('--ms-plot-l', plotL + 'px');
     container.style.setProperty('--ms-label-w', labelW + 'px');
 
@@ -636,7 +717,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         name.append(el('span', 'ms-group__title', g.name), el('span', 'ms-group__count', g.items.length.toLocaleString()));
         name.title = `${g.name} · ${plural(g.items.length, 'posting')}`;
         h.append(name);
-        const mx = x(g.median);
+        const mx = xc(g.median);
         const ml = el('div', 'ms-group__median', `median ${formatMoney(g.median)}`);
         ml.style.left = mx + 'px';
         if (mx > width - 110) ml.classList.add('ms-group__median--left');
@@ -659,18 +740,26 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         r.id = `${uid}-${idx}`;
         const lab = el('div', 'ms-row__label', p.job.title || 'Untitled');
         lab.style.width = labelW + 'px';
-        const bx0 = x(p.lo), bx1 = x(p.hi);
+        const bx0 = xc(p.lo), bx1 = xc(p.hi);
         const bar = el('div', 'ms-row__bar');
         bar.style.left = bx0 + 'px';
         bar.style.width = Math.max(0, bx1 - bx0) + 'px';
         const dot = el('div', 'ms-row__dot');
         dot.style.left = x(p.mid) + 'px';
+        const midOut = p.mid < d0 || p.mid > d1;
+        p.clipped = p.hi > d1 || p.lo < d0;
+        if (midOut) { dot.hidden = true; outCount++; }
+        if (p.lo >= d1) bar.hidden = true;  // entirely beyond: the marker alone shows it
+        if (p.hi <= d0) bar.hidden = true;
         const c = colorOf(p);
         if (c) { bar.style.background = c; dot.style.background = c; }
         const val = el('div', 'ms-row__val', rangeText(p));
         if (bx1 + 120 < width) { val.style.left = (bx1 + 10) + 'px'; }
         else { val.style.right = (width - bx0 + 10) + 'px'; val.classList.add('ms-row__val--left'); }
         r.append(lab, bar, dot, val);
+        // Clipped by the axis: a small chevron at the edge (the tooltip has the real values).
+        if (p.hi > d1) { const o = el('div', 'ms-row__over ms-row__over--hi', '›'); o.style.left = (x(d1) + 3) + 'px'; o.setAttribute('aria-hidden', 'true'); r.append(o); }
+        if (p.lo < d0) { const o = el('div', 'ms-row__over ms-row__over--lo', '‹'); o.style.left = (x(d0) - 11) + 'px'; o.setAttribute('aria-hidden', 'true'); r.append(o); }
         parent.append(r);
         itemByRow[idx] = p;
         rowByJob.set(p.job.id, r);
@@ -740,6 +829,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     if (isForeign(cur) && hasFx(cur)) tip.append(el('div', 'ms-tip__sub', `≈ ${formatMoney(p.lo)} – ${formatMoney(p.hi)} USD (approx)`));
     const orig = s.originalInterval || (s.interval && s.interval !== 'year' ? s.interval : null);
     if (orig && orig !== 'year') tip.append(el('div', 'ms-tip__sub', `Annualized from ${INTERVAL_ADJ[orig] || orig} pay`));
+    if (p.clipped) tip.append(el('div', 'ms-tip__sub', 'Extends beyond the chart axis (›)'));
     tip.append(el('div', 'ms-tip__title', j.title || 'Untitled'));
     const meta = [j.department, locationText(j)].filter(Boolean).join(' · ');
     if (meta) tip.append(el('div', 'ms-tip__meta', meta));

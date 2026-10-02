@@ -39,7 +39,9 @@ const SHOTS = [
     eval: `(()=>{const t=performance.now();__viz.chart.update(__viz.jobs,{groupBy:"department"});const ms=performance.now()-t;__viz.chart.update(__viz.jobs,{groupBy:"location"});return "clusters render ms "+ms.toFixed(1)+", circles "+document.querySelectorAll(".ms-bin").length})()` },
   { name: 'clusters-all-roles', q: 'groupBy=none' },
   { name: 'clusters-mobile-light', q: '', w: 390, h: 800 },
+  { name: 'clusters-outlier', q: 'outlier=1', hover: 'overflow', eval: `(()=>{const t=[...document.querySelectorAll(".ms-axis__tick")].map(e=>e.textContent);return "axis "+t[0]+".."+t[t.length-1]+", markers "+document.querySelectorAll(".ms-bin--overflow,.ms-row__over").length+", foot: "+document.querySelector(".ms-chart__foot").textContent.split(" · ").pop()})()` },
   // ranges (detail) view
+  { name: 'ranges-outlier', q: 'view=ranges&outlier=1&colorBy=department', eval: `(()=>{const t=[...document.querySelectorAll(".ms-axis__tick")].map(e=>e.textContent);return "axis "+t[0]+".."+t[t.length-1]+", markers "+document.querySelectorAll(".ms-bin--overflow,.ms-row__over").length+", foot: "+document.querySelector(".ms-chart__foot").textContent.split(" · ").pop()})()` },
   { name: 'chart-light', q: 'view=ranges&colorBy=department&hl=5' },
   { name: 'chart-dark-grouped', q: 'view=ranges&groupBy=seniority&colorBy=location', dark: true, hover: [700, 300] },
   { name: 'chart-dark-1000-scrolled', q: 'view=ranges&groupBy=department&colorBy=seniority&n=1000', dark: true, scroll: 3000,
@@ -51,6 +53,8 @@ const SHOTS = [
   { name: 'map-tiles-error-image', q: 'mode=map', tiles: 'error403', wait: 2500, expect: { offline: true, bad: true } },
   { name: 'map-light-hover', q: 'mode=map&hl=3', wait: 5000, hover: [478, 300] },
   { name: 'map-dark', q: 'mode=map', dark: true, wait: 5000 },
+  { name: 'map-mobile-fit', q: 'mode=map', w: 390, h: 760, wait: 5000,
+    eval: `(()=>{const c=document.querySelector('.ms-map').getBoundingClientRect();const pins=[...document.querySelectorAll('.ms-pin')];const inside=pins.filter(p=>{const b=p.getBoundingClientRect();return b.left>=c.left&&b.right<=c.right&&b.top>=c.top&&b.bottom<=c.bottom}).length;return "fit: "+inside+"/"+pins.length+" pins fully inside, zoom "+__viz.map.leaflet.getZoom()+", minZoom "+__viz.map.leaflet.getMinZoom()})()`, expect: {} },
   { name: 'map-light-us', q: 'mode=map', wait: 5000, eval: `(()=>{__viz.map.leaflet.setView([38,-100],4,{animate:false});return document.querySelectorAll(".ms-pin").length+" pins"})()` },
 ];
 
@@ -85,7 +89,10 @@ for (const s of SHOTS) {
   });
   await page.goto(`http://localhost:${PORT}/viz/demo.html?${s.q}`);
   await page.waitForTimeout(s.wait || 900);
-  if (s.hover === 'auto') { // hover the largest circle
+  if (s.hover === 'overflow') { // hover the axis-overflow marker
+    const box = await page.evaluate(() => { const b = document.querySelector('.ms-bin--overflow-hi')?.getBoundingClientRect(); return b && [b.x + b.width / 2, b.y + b.height / 2]; });
+    if (box) { await page.mouse.move(...box); await page.waitForTimeout(300); }
+  } else if (s.hover === 'auto') { // hover the largest circle
     const box = await page.evaluate(() => { const b = [...document.querySelectorAll('.ms-bin')].sort((a, c) => c.offsetWidth - a.offsetWidth)[0]?.getBoundingClientRect(); return b && [b.x + b.width / 2, b.y + b.height / 2]; });
     if (box) { await page.mouse.move(...box); await page.waitForTimeout(300); }
   } else if (s.hover) { await page.mouse.move(...s.hover); await page.waitForTimeout(300); }

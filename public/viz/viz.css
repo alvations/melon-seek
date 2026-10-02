@@ -254,6 +254,15 @@
   visibility: hidden;
 }
 .ms-row.is-hover .ms-row__val, .ms-row.is-highlighted .ms-row__val { visibility: visible; }
+.ms-row__bar[hidden], .ms-row__dot[hidden] { display: none; }
+/* Axis-overflow chevrons (ranges): the bar continues beyond the domain. */
+.ms-row__over {
+  position: absolute; top: 0; width: 8px;
+  line-height: 22px; text-align: center;
+  color: var(--_muted); font-weight: 700; font-size: 13px;
+  pointer-events: none;
+}
+.ms-row.is-hover .ms-row__over, .ms-row.is-highlighted .ms-row__over { color: var(--_text); }
 
 .ms-chart--narrow .ms-row__label, .ms-chart--narrow .ms-group__name,
 .ms-chart--narrow .ms-axis__cap, .ms-chart--narrow .ms-hist__cap { padding-left: 12px; }
@@ -364,6 +373,20 @@
   transition: background-color .12s, color .12s, transform .12s;
 }
 .ms-bin__dot--sm { font-size: 10px; }
+/* Axis-overflow marker (clusters): a small neutral chip at the axis edge, "›3". */
+.ms-bin__chip {
+  width: auto !important; height: 18px !important;
+  min-width: 18px; padding: 0 5px;
+  border-radius: 9px;
+  background: var(--_surface);
+  box-shadow: 0 0 0 1px var(--_axis);
+  color: var(--_muted);
+  font-size: 11px; font-weight: 700;
+}
+.ms-bin--overflow.is-hover .ms-bin__chip,
+.ms-bin--overflow.is-selected .ms-bin__chip,
+.ms-bin--overflow.is-highlighted .ms-bin__chip { background: var(--c); color: var(--c-ink); box-shadow: 0 0 0 1px var(--c); }
+.ms-bin--overflow.is-active .ms-bin__chip { box-shadow: 0 0 0 2px var(--_accent); }
 /* Inside the P25–P75 band the 2px ring takes the band's tint, so circles never sit in a dark "socket". */
 .ms-bin--inband .ms-bin__dot { --ring: color-mix(in srgb, var(--c) var(--_band-mix, 9%), var(--_surface)); }
 .ms-bin.is-hover .ms-bin__dot,
@@ -406,7 +429,7 @@
 .ms-tip__roles { list-style: none; margin: 6px 0 0; padding: 6px 0 0; border-top: 1px solid var(--_border); }
 .ms-tip__roles li { display: flex; gap: 8px; justify-content: space-between; }
 .ms-tip__role { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ms-tip__n { color: var(--_muted); font-variant-numeric: tabular-nums; }
+.ms-tip__n { flex: none; color: var(--_muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* ============================== map ============================== */
 

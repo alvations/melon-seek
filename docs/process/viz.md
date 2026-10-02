@@ -124,6 +124,27 @@ Files owned: `public/viz/palette.js`, `public/viz/chart.js`, `public/viz/map.js`
     - The ranges legend stays on top. The clusters view has no head.
 23. **Performance.** The clusters view renders 1000 jobs grouped by location (129 circles) in about 13–25 ms. Ranges takes about 110 ms for 819 rows.
 
+24. **Robust salary axis (defense in depth for the $4.6M bug).** The data gate is the primary fix. The chart must still never let one bad value squash every other row.
+    - `robustBounds(values)` is exported from `chart.js`. It takes P1–P99 and then tightens them with a Tukey far-out fence (Q1 − 3·IQR, Q3 + 3·IQR, IQR floored at 10% of Q3).
+      - Reason: with few points, P99 interpolates toward the bad value. For example, with 10 values and one at $4.6M, P99 alone would give about $4.2M; the fence gives $400K.
+    - Clusters domain: robust midpoints, padded 4% each side, snapped to $50K/$100K/$250K ticks, clamped at 0.
+    - Ranges domain: robust midpoints widened to the robust bar ends (P1 of the minimums, P99 of the maximums) so that ordinary ranges are not clipped, padded 4% and snapped with `niceTicks`.
+      - Deviation from "P1–P99 of mids" for this view only: mids alone would clip about half of the bars.
+    - Nothing is dropped:
+      - In clusters, postings beyond the domain become a per-row overflow marker at the axis edge: a neutral chip "›" (or "‹"), with the count when there is more than one.
+        - The marker is a listbox option ("1 role above $700K: $4.6M, Group"), reachable with Home/End and the arrow keys.
+        - Its tooltip lists the real values per posting.
+        - Click or Enter calls `onClusterSelect(jobs, "Group · above $700K")`.
+      - In ranges, a bar cut off by the axis gets a "›"/"‹" chevron at the edge. Its midpoint dot is hidden when the midpoint itself is out of range, and the tooltip says "Extends beyond the chart axis" next to the real values.
+      - Out-of-domain midpoints are left out of the distribution strip rather than piled into its edge bin.
+      - The notes line adds "N postings beyond the axis (›)".
+    - Medians, the P25–P75 band and group median lines are clamped to the axis.
+25. **Initial map fit lives in `map.js` `fitToData()`.** It replaces the `app.js` workaround that went through `map.leaflet`.
+    - Padding: about half a pin horizontally (`min(90px, width/6)`). Vertically `min(48px, height/8)`, plus 32px on top for the pin height above its point, plus 18px at the bottom when offline labels show.
+    - minZoom: `getBoundsZoom` is measured with minZoom 0, then minZoom is set to `min(2, floor(z·2)/2)`, so SF–London–Tokyo fits even a 390px column (zoom 0 there). It is restored to 2 on the next fit when the pins allow it.
+    - `fitBounds` runs with `maxZoom: 11, animate: false`.
+    - A hidden (0×0) container defers the fit: `pendingFit` runs it when the ResizeObserver or `invalidateSize()` sees a real size.
+
 ## 4. Replayable steps
 ```sh
 # 0. palette validation (dataviz skill base dir)
@@ -193,6 +214,17 @@ PORT=5288 node docs/process/scripts/viz-a11y-check.mjs /path/to/out
   - `highlight()` marks the circle in the last row and scrolls synchronously (scrollTop 273).
   - The ranges and map results are unchanged from before. There were no page errors.
 - Bug found and fixed during this check: the full-width plot layer covered the row labels, so clicking a label did nothing.
+- Robust axis and map fit: `viz-screenshots.mjs` now runs 19 shots, all ok.
+  - `clusters-outlier` (demo `?outlier=1` adds a $4.6M bad parse and a $7.5K stipend): the axis is $0..$700K instead of $0..$4.7M. The AI row shows one "›" marker, and hovering it shows "$4.4M–$4.8M". The notes say "1 posting beyond the axis (›)".
+  - `ranges-outlier`: the axis is $0..$1M. The bad row shows only a "›" at the edge.
+  - `map-mobile-fit` at 390×760: 4 of 4 pins are fully inside the container (zoom 0, minZoom 0).
+  - The desktop map fit keeps all pins visible with about 90px margins.
+- `viz-a11y-check.mjs` overflow block: Right then End reaches the marker ("1 role above $700K: $4.6M, AI Research & Engineering"), and the tooltip shows the real range. Enter logs "cluster: AI Research & Engineering · above $700K (1)" and `onSelect`. All earlier checks are unchanged. There were no page errors.
+- `robustBounds` in Node:
+  - 10 values plus $4.6M gives [$201.8K, $400K].
+  - 100 values plus $4.6M gives [$154K, $546K].
+  - A wide legitimate spread of $60K–$750K is kept as [$62K, $740K].
+  - A single value and all-equal values give [v, v].
 
 ## 6. Known gaps and follow-ups
 - Not tested against real OSM tiles, because the sandbox blocks tile hosts. The screenshot script stubs tile responses with 200, 403 and abort, and checks the request URLs instead.
@@ -207,6 +239,8 @@ PORT=5288 node docs/process/scripts/viz-a11y-check.mjs /path/to/out
 - `public/app.js` (owned by UX) still passes `groupBy: S.g`, whose default is `'none'`. That gives a single "All roles" row in the clusters view. To get the department-rows default, the app should omit `groupBy` or default it to `'department'`, add a view toggle that passes `view`, and wire up `onClusterSelect`.
 - In clusters, a multi-location job sits only in its first on-site location's row when grouping by location, the same as in ranges.
 
+- UX can now delete `fitMapToPins()` in `public/app.js`, which refits through `map.leaflet`. Instead, call `map.update(jobs, { fit: true })` on company change; it defaults to that when the set of companies changes. Also call `map.invalidateSize()` when the map tab becomes visible, which runs a deferred fit.
+
 ## 7. Change log
 - 2026-10-02: palette.js, chart.js, map.js, viz.css and demo.html created. Palette validated.
 - 2026-10-02: Changed slot assignment from hash probing to sticky lowest-free-slot after a screenshot showed similar adjacent hues. Dark-mode bar and histogram opacity raised (.5 → .72, .42 → .62) because the bars looked muddy. Cluster footprint enlarged and recomputed when the offline state changes. Narrow-width captions shortened.
@@ -214,3 +248,4 @@ PORT=5288 node docs/process/scripts/viz-a11y-check.mjs /path/to/out
 - 2026-10-02: Fixed REVIEW.md M3 (keyboard-activatable pins with focus kept across re-renders, plus pin aria-labels and a focus ring), L4 (listbox groups and options, `aria-selected`, salary in option names, stale `activeIdx` fixed, 3:1 active ring, Home/End/PageUp/PageDown) and L6 (reduced motion for `flyTo` and smooth scroll). Also fixed C1 (annualization note) in chart.js. Added `scripts/viz-a11y-check.mjs` and a `PORT` override in the screenshot script.
 - 2026-10-02 (urgent): Switched the basemap from CARTO (now key-gated, showing "API key required" on the live site) to OSM standard tiles. Added a configurable `tiles` option and exported `OSM_TILES`. Dark mode is now a CSS filter on the tile pane only. Error-image tiles are detected with a one-off cached status probe. The screenshot script now stubs tiles (200, 403, abort) and asserts that only OSM tile URLs are requested.
 - 2026-10-02: Added the clusters view as the default chart, with ranges kept as the detail view. New `onClusterSelect` callback, `clearSelection()`, and exported `VIEWS`/`DEFAULT_VIEW`. Slimmer 28px distribution strip and a notes footer. Added `slotColor()` to palette.js. demo.html has a View toggle. Iterated on the visuals: bins went from 22 to 34px minimum, a lone row gets taller, Other rows are lifted in dark mode, and rings take the band tint. Fixed the plot layer swallowing label clicks, and let the narrow-screen label line shrink the subtitle before the name. Extended the screenshot and a11y scripts.
+- 2026-10-02: Robust x-axis in both chart views: `robustBounds` (P1–P99 plus a Tukey fence), padded and snapped. Out-of-range values get "›"/"‹" overflow markers with real-value tooltips and are counted in the notes. Moved the initial map fit into `map.js` `fitToData()`: about 90px padding plus pin height, minZoom lowered as needed, deferred while hidden. demo.html gained `?outlier=1`. Added outlier and mobile-fit screenshots and an overflow a11y check.

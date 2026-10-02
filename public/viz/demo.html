@@ -143,7 +143,16 @@ function setMode() {
   }
 }
 function setTheme() { const t = $('theme').value; if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; }
-function load() { all = makeJobs(+$('n').value); apply({ fit: true }); }
+function load() {
+  all = makeJobs(+$('n').value);
+  // ?outlier=1 injects one bad value (a mis-parsed $4.6M) and one tiny one, to test the robust axis.
+  if (q.has('outlier')) {
+    const base = all.find(j => j.salary && j.department === 'AI Research & Engineering') || all[0];
+    all.push({ ...base, id: 'demo:outlier-hi', title: 'Senior Research Engineer (bad parse)', salary: { min: 4400000, max: 4800000, mid: 4600000, currency: 'USD', interval: 'year', text: '$4.4M-$4.8M' } });
+    all.push({ ...base, id: 'demo:outlier-lo', title: 'Research Engineer (stipend)', salary: { min: 6000, max: 9000, mid: 7500, currency: 'USD', interval: 'year', text: '$6K-$9K' } });
+  }
+  apply({ fit: true });
+}
 
 $('mode').onchange = setMode;
 $('view').onchange = $('groupBy').onchange = $('colorBy').onchange = $('minSal').onchange = () => apply();

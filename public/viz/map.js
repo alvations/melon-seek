@@ -23,6 +23,7 @@ export const OSM_TILES = Object.freeze({
   maxZoom: 19,
   dark: 'filter',
 });
+const BASE_MIN_ZOOM = 2; // lowered per dataset by fitToData() when the pins need it
 const CLUSTER_W = 76;  // px: pill width + gap
 const CLUSTER_H = 34;  // px: pill height + gap (labels add more when offline)
 
@@ -86,7 +87,7 @@ export function createMap(container, { onSelect, onAreaSelect, tiles: tileOpts }
   container.append(host);
 
   const map = L.map(host, {
-    zoomControl: true, worldCopyJump: true, minZoom: 2, maxZoom: 16,
+    zoomControl: true, worldCopyJump: true, minZoom: BASE_MIN_ZOOM, maxZoom: 16,
     zoomSnap: 0.5, attributionControl: true,
   }).setView([30, -20], 2);
   map.attributionControl.setPrefix(false);
@@ -167,6 +168,7 @@ export function createMap(container, { onSelect, onAreaSelect, tiles: tileOpts }
   let clusters = [];
   let highlighted = null;
   let lastSig = null;
+  let pendingFit = false;
   let first = true;
 
   function cluster() {
@@ -309,16 +311,35 @@ export function createMap(container, { onSelect, onAreaSelect, tiles: tileOpts }
     remoteBtn.classList.toggle('is-pulse', highlighted != null && remoteJobs.some(j => j.id === highlighted));
   }
 
+  // Initial fit so every price pin is fully visible. Pins are ~70–90px wide pills
+  // centred on their point and ~31px tall above it, so pad by about half a pin
+  // horizontally, add the pin height on top, and lower minZoom when needed so a
+  // board spanning SF–London–Tokyo still fits a narrow column. A hidden (0×0)
+  // container defers the fit until it gets a size (ResizeObserver/invalidateSize).
   function fitToData() {
+    const size = map.getSize();
+    if (!size.x || !size.y) { pendingFit = true; return; }
+    pendingFit = false;
     const pts = places.map(p => [p.lat, p.lng]);
-    if (!pts.length) { map.setView([30, -20], 2); return; }
-    if (pts.length === 1) { map.setView(pts[0], 10); return; }
-    map.fitBounds(L.latLngBounds(pts), { padding: [48, 48], maxZoom: 11 });
+    if (!pts.length) { map.setView([30, -20], BASE_MIN_ZOOM, { animate: false }); return; }
+    if (pts.length === 1) { map.setView(pts[0], 10, { animate: false }); return; }
+    const bounds = L.latLngBounds(pts);
+    const padX = Math.round(Math.min(90, size.x / 6));
+    const padY = Math.round(Math.min(48, size.y / 8));
+    const top = padY + 32;
+    const bottom = padY + (container.classList.contains('ms-map--offline') ? 18 : 0);
+    map.setMinZoom(0); // getBoundsZoom clamps to minZoom, so measure unclamped first
+    const z = map.getBoundsZoom(bounds, false, L.point(padX * 2, top + bottom));
+    map.setMinZoom(Math.min(BASE_MIN_ZOOM, Math.max(0, Math.floor(z * 2) / 2)));
+    map.fitBounds(bounds, { paddingTopLeft: [padX, top], paddingBottomRight: [padX, bottom], maxZoom: 11, animate: false });
   }
 
   map.on('zoomend', draw);
 
-  const ro = new ResizeObserver(() => map.invalidateSize({ pan: false }));
+  const ro = new ResizeObserver(() => {
+    map.invalidateSize({ pan: false });
+    if (pendingFit && map.getSize().x && map.getSize().y) { fitToData(); draw(); }
+  });
   ro.observe(container);
   const offTheme = onThemeChange(dark => {
     applyDark(dark);
@@ -345,7 +366,11 @@ export function createMap(container, { onSelect, onAreaSelect, tiles: tileOpts }
       drawRemote();
     },
     highlight(jobId) { highlighted = jobId ?? null; applyHighlight(); },
-    invalidateSize() { map.invalidateSize({ pan: false }); draw(); },
+    invalidateSize() {
+      map.invalidateSize({ pan: false });
+      if (pendingFit) fitToData();
+      draw();
+    },
     destroy() {
       clearTimeout(offlineTimer);
       ro.disconnect();
