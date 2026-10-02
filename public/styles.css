@@ -1003,7 +1003,8 @@ html[data-mode="insights"] .viz-controls { display: none; }
   .topbar::after { margin-top: -6px; }
   .brand { display: none; }                         /* the company menu carries identity; saves a row slot */
   .company-menu-btn { height: var(--m-row); font-size: 16px; }
-  .data-badge, .data-badge.is-demo { height: var(--m-row); border-radius: 22px; padding: 0 12px; }
+  .data-badge, .data-badge.is-demo { height: var(--m-row); border-radius: 22px; padding: 0 12px; max-width: none; flex: none; }
+  .company-bar { min-width: 0; }
   .data-badge .badge-label::before { font-size: 13px; }
   .theme-btn { order: 3; width: var(--m-row); height: var(--m-row); }
   .search { order: 5; flex: 1 1 120px; }
@@ -1027,7 +1028,11 @@ html[data-mode="insights"] .viz-controls { display: none; }
   .demo-banner { padding: 6px var(--m-gutter-r) 0 var(--m-gutter-l); }
   .demo-banner details > summary { min-height: 32px; }
   .viz-toolbar { padding: 6px var(--m-gutter-r) 6px var(--m-gutter-l); min-height: 0; }
-  .stats-line { display: none; }                    /* the sheet's peek row already shows "N roles · median" */
+  /* One short stats line: "$352K median · middle 50% $287–411K" (the sheet's peek row has the count).
+     Drops the first two stats (count, list pay) with their separators, and "mostly …" with the
+     separator in front of it, so no "·" is left dangling. */
+  .stats-line { flex: 1 1 100%; flex-wrap: nowrap; white-space: nowrap; overflow: hidden; font-size: 13px; }
+  .stats-line > :nth-child(-n+4), .stats-line > .stat--top, .stats-line > .stat-sep:has(+ .stat--top) { display: none; }
   .viz-controls { width: 100%; justify-content: space-between; }
   .seg--sm { padding: 0; border-radius: 10px; }
   .seg--sm button { height: var(--m-row); padding: 0 14px; font-size: 14px; border-radius: 10px; }
@@ -1049,7 +1054,7 @@ html[data-mode="insights"] .viz-controls { display: none; }
   body[data-sheet="full"] .results, body.sheet-open[data-sheet="full"] .results { transform: none; }
   body.sheet-open:not([data-sheet]) .results { transform: none; }
   .results.is-dragging { transition: none; will-change: transform; }
-  .sheet-handle { height: 24px; cursor: grab; }
+  .sheet-handle { height: 28px; cursor: grab; }      /* full width; with the header row below it, one 84px tap/drag zone */
   .results-head { min-height: 56px; padding: 0 var(--m-gutter-r) 8px var(--m-gutter-l); }
   .results-title { font-size: 15px; }
   .select-field--compact select { height: var(--m-row); font-size: 16px; }
@@ -1061,7 +1066,8 @@ html[data-mode="insights"] .viz-controls { display: none; }
   .card { content-visibility: auto; contain-intrinsic-size: auto 96px; padding: 12px 14px; }
   .card-title { font-size: 15px; }
   .card-meta { font-size: 13px; }
-  .card-foot .tag, .card-foot .sen, .card-age, .juice-badge, .sal-pill { font-size: 12px; }
+  .tag, .card-foot .tag, .card-foot .sen, .card-age, .juice-badge, .sal-pill { font-size: 12px; }
+  #insightsHost input, #insightsHost select { font-size: 16px; }   /* no iOS focus zoom in the Insights forms */
   .sal-pill { font-size: 13px; }
   .list-more .btn { height: var(--m-row); }
   .toast { bottom: calc(var(--sheet-peek) + 16px + env(safe-area-inset-bottom)); }

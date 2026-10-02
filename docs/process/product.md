@@ -726,3 +726,37 @@ Coordinator message (verbatim in [prompts/product.md](prompts/product.md)). Sour
 **For UX (`public/app.js`)**: in `renderInsights()`, call `comp.setQuery(queryFromState({ job: openJob, search: S.q, family: S.rf, seniority: S.s, location: S.l }))` whenever filters change or a drawer opens. Use the state names `app.js` actually has.
 
 - 08:10Z: wave 2 done.
+
+---
+
+# Compstimate task force
+
+## State flow before the fix (read 2026-10-02, before any behaviour change)
+- **Widget state** (`createCompstimateWidget` in `compstimate.js`):
+  - `jobs`: all jobs on the board, never the filtered set.
+  - `meta`: the backtest accuracy, from `update(jobs, meta)`.
+  - `query` = `{ title, location, seniority, department }`.
+  - `autoTitle`: true while the title is the board's most common role, not something the user typed.
+  - `result`.
+  - The title input and the location/level selects write into `query`. Each change runs `estimateComp(jobs, query)` and re-renders.
+- **Who writes the query**:
+  1. The user, through the form.
+  2. `update(jobs, meta)`, which sets `jobs` and, while `autoTitle` is true, resets the title to the board's most common role. It runs when the board changes (`dataSeq`).
+  3. `setQuery(partial)`, which merges and re-estimates. `title: ""` restores the default title.
+  4. `fillOptions()`, which silently clears `query.location` if it isn't one of the widget's location keys.
+- **`app.js` `renderInsights()`** runs on every render while in Insights mode:
+  - It calls `comp.update(data.jobs, data.meta)` when `dataSeq` changes.
+  - It then calls `comp.setQuery(queryFromState(...))` whenever `dataSeq | drawerJobId | S.q | S.rf | S.s | S.l` changes.
+- **`queryFromState` priority**:
+  - An open job comes first, then the search text, then the role-family title.
+  - Level and location are used only when exactly one is selected; otherwise they are "".
+  - The department filter (`S.d`) is ignored.
+- **Drawer `compstimateBlock(job)`** is separate: `compstimateForJob(data.jobs, job)`, shown only for postings without pay.
+
+## Suspected incoherences, to compare against the spec
+- A1: any filter change sends a full `setQuery` that overwrites what the user typed or picked in the widget.
+- A2: the Remote location key differs. The app's `locKey` uses `l.name` ("Remote (US)"), the widget uses "Remote". A single Remote filter is therefore dropped silently by `fillOptions`.
+- A3: the estimate always uses all jobs while its query comes from the filters. Filters that aren't in the query (department, salary, skills) don't affect it, and the card never says which filters it is using.
+- A4: several filter values (2+ levels or locations) collapse to "Any" without saying so.
+- A5: an open drawer job overrides the filters, and closing the drawer flips the estimate back.
+- A6: search text that isn't a title (a skill, a team) becomes the role title.
