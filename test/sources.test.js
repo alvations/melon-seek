@@ -143,7 +143,14 @@ test('lever adapter combines lists and maps salaryRange', async () => {
 
 test('companies registry and resolveCompany', () => {
   const slugs = listCompanies().map((c) => c.slug);
-  assert.deepEqual(slugs, ['anthropic', 'anduril', 'openai']);
+  assert.deepEqual(slugs, ['anthropic', 'anduril', 'openai', 'scaleai', 'xai', 'cohere', 'palantir', 'shieldai', 'mistral']);
+  for (const c of listCompanies()) {
+    assert.match(c.color, /^#[0-9a-f]{6}$/i, `${c.slug} color`);
+    assert.ok(['greenhouse', 'ashby', 'lever'].includes(c.source));
+  }
+  assert.deepEqual(['scaleai', 'xai', 'cohere', 'palantir', 'shieldai', 'mistral'].map((s) => { const c = resolveCompany({ company: s }); return `${c.source}/${c.board}`; }),
+    ['greenhouse/scaleai', 'greenhouse/xai', 'ashby/cohere', 'lever/palantir', 'lever/shieldai', 'lever/mistral']);
+  assert.equal(resolveCompany({ source: 'lever', board: 'palantir' }).slug, 'palantir');
   assert.equal(resolveCompany({ company: 'anduril' }).board, 'andurilindustries');
   assert.equal(resolveCompany(new URLSearchParams('company=openai')).source, 'ashby');
   const c = resolveCompany({ source: 'lever', board: 'acme-co', name: 'Acme' });
@@ -269,6 +276,11 @@ test('greenhouse pay_input_ranges -> structured salary (cents, tiers, hourly, fa
   assert.equal(none.salary, null);
   const parsed = parseSalary(none.text);
   assert.deepEqual([parsed.min, parsed.max, parsed.currency], [90000, 115000, 'GBP']);
+  // End to end through normalize: structured salary used, text fallback when absent.
+  const { normalizeJob } = await import('../server/normalize.js');
+  const co = { slug: 'anduril', name: 'Anduril' };
+  assert.equal(normalizeJob(tiers, co).salary.mid, 191000);
+  assert.deepEqual([normalizeJob(none, co).salary.min, normalizeJob(none, co).salary.currency], [90000, 'GBP']);
   // Ranges in another currency than the first are not mixed in.
   assert.deepEqual([mixed.salary.min, mixed.salary.max, mixed.salary.currency], [180000, 220000, 'AUD']);
 });

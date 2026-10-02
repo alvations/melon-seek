@@ -285,7 +285,7 @@ export function estimateComp(allJobs, query = {}) {
     low: null, mid: null, high: null, currency: 'USD', confidence: 'Low', n: 0,
     comparables: [], scores: [], explanation, query: used,
   });
-  if (!pool.length) return empty('No roles with published pay to compare against.');
+  if (!pool.length) return empty('No roles on this board publish pay, so there is nothing to compare against yet.');
 
   const idf = buildIdf(pool.map((p) => p.norm));
   const hasTitle = qn.tokens.length > 0;

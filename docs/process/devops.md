@@ -106,9 +106,11 @@ another account or machine.
 15. **`concurrency: group: snapshot, cancel-in-progress: false`**, so a manual
     run and the scheduled run can't race their pushes.
 16. **Node 22 only.** This is a data job and doesn't need the matrix.
-17. **`npm run snapshot -- anthropic anduril openai`.** The `--` passes the
-    slugs to `scripts/snapshot.js`. That script exits non-zero only when every
-    slug fails, so a single flaky board doesn't block the others.
+17. **`npm run snapshot` with no arguments** (originally
+    `-- anthropic anduril openai`; changed so new built-ins are picked up
+    automatically). With no arguments, `scripts/snapshot.js` snapshots every
+    built-in. It exits non-zero only when every slug fails, so a single flaky
+    board doesn't block the others.
 18. **Commit only on change:**
     - `git add -A data/snapshots/*.json || true` means an unmatched glob
       doesn't kill the `set -e` script.
@@ -162,12 +164,22 @@ another account or machine.
     then runs the same `normalizeJobs`, so browser and server output are
     identical. It also repeats the adapters' two response checks (Greenhouse
     `jobs` array; Ashby `isListed !== false`).
-25. **Live sources in static mode: `["greenhouse", "ashby"]`, set in
-    `config.js` as `MELON_LIVE_SOURCES`.** Lever is excluded because its
-    official docs say cross-origin requests from third-party sites are refused,
-    so every attempt would only add a guaranteed console error. Ashby is
-    uncertain (one secondary source), so it's attempted, and a failure falls
-    back cleanly. To change the list, edit `LIVE_SOURCES` in the build script.
+25. **Live sources in static mode: all three (`MELON_LIVE_SOURCES` in
+    `config.js`); Lever is also in `MELON_QUIET_CORS_SOURCES`.**
+    - The first version excluded Lever, because its official docs say
+      cross-origin requests from third-party sites are refused.
+    - Research then found that Lever currently returns
+      `Access-Control-Allow-Origin: *`. At the coordinator's request Lever is
+      now attempted. A network/CORS failure for a quiet source that ends in the
+      bundled snapshot returns `error: null`, so the UI shows a normal
+      "Snapshot" badge and no error banner: the failure is expected and
+      documented, not something the user can act on.
+    - Demo fallbacks keep the error, so demo data is never shown without an
+      explanation.
+    - Ashby is uncertain (one secondary source), so it's attempted, and a
+      failure falls back with the usual message.
+    - To change either list, edit `LIVE_SOURCES` / `QUIET_CORS_SOURCES` in the
+      build script; api.js has the same defaults.
 26. **A network/CORS failure blocks that source for the rest of the session,
     and Refresh clears the block.** This avoids a failed request and console
     error on every company switch. HTTP errors (e.g. a 404 board slug) don't
@@ -197,10 +209,14 @@ another account or machine.
 30. **Browser-safety gate for `dist/lib/`.** The build fails if a copied module
     has a `node:` import or `require(`, naming the module so its owner can fix
     it; the build never patches it. Node globals (`process`, `Buffer`,
-    `__dirname`) only produce a warning. The one hit is `normalize.js:12`
-    (`process.env.DEBUG` in a catch path), which api.js covers with a
-    `globalThis.process = { env: {} }` stub. This was reported to the
-    coordinator.
+    `__dirname`) only produce a warning, and that scan skips comments.
+    - The first hit was `normalize.js:12` (`process.env.DEBUG` in a catch
+      path). api.js covers it with a `globalThis.process = { env: {} }` stub,
+      and the backend has since removed it.
+    - A later false positive was the word "Buffer" in a `util.js` comment.
+      That's why the warning scan strips comments while the hard
+      `node:`/`require` check still scans raw source, so an import can't be
+      missed.
 31. **`dist/api/jobs/<slug>.json` is always written.** It holds the snapshot if
     `data/snapshots/<slug>.json` has jobs, otherwise build-time demo data with
     an explicit "Synthetic demo data" note in `error`, so the UI's demo banner
@@ -212,8 +228,12 @@ another account or machine.
     - Permissions are `contents: read`, `pages: write`, `id-token: write`.
     - `concurrency: pages` with no cancel-in-progress, so a deploy is never cut
       off partway.
-    - `npm run snapshot ... || true` means a board outage doesn't block the
-      deploy; committed snapshots, then demo data, cover it.
+    - `npm run snapshot || true`, with no arguments, so every built-in in
+      `server/companies.js` is refreshed (the backend is adding six more). A
+      board outage doesn't block the deploy; committed snapshots, then demo
+      data, cover it. `snapshot.yml` also calls it with no arguments. The build
+      already loops over `listCompanies()`, so no slug list is hardcoded
+      anywhere.
     - A step summary table lists each company's bundled mode, job count and
       `fetchedAt`, so a demo-only deploy is visible in the run.
     - Separate build and deploy jobs follow GitHub's starter workflow, with
@@ -354,6 +374,17 @@ quoted `cat > FILE <<'EOF'` heredocs).
     this sandbox (EADDRINUSE / an unrelated server answering 404).
 18. Validate all three workflow files with the PyYAML loop from step 4, adding
     `pages.yml`.
+19. Test the quiet Lever fallback. No built-in uses Lever yet, so this is a
+    scratch-only build that points the quiet list at Greenhouse:
+    ```sh
+    # fixture: 40 normalized demo jobs saved as a "snapshot" for anthropic, in the scratchpad only
+    MELON_SNAPSHOT_DIR=$S/fixture-snapshots node scripts/build-static.js --out $S/dist-quiet
+    sed -i 's/MELON_QUIET_CORS_SOURCES = \["lever"\];/MELON_QUIET_CORS_SOURCES = ["greenhouse"];/' $S/dist-quiet/config.js
+    node $S/serve-subpath.mjs $S/dist-quiet 4174 /melon-seek/ &
+    node $S/quiet-test.mjs http://127.0.0.1:4174/melon-seek/
+    ```
+    Expect: anthropic → `snapshot` with `error: null` and the banner hidden;
+    anduril → `demo` with the error kept; `PASS`.
 
 ## 5. Verification
 
@@ -367,7 +398,14 @@ quoted `cat > FILE <<'EOF'` heredocs).
 | `npm test` | Not run by this workstream. The tests belong to the other engineers and were still being written. |
 | `docker build` | Not run (docker binary present, untested). |
 | Mermaid render | Not rendered. Syntax was reviewed by hand. |
-| Screenshots | None. Placeholders only, and the lead adds the images. |
+| Screenshots | None for the README. Placeholders only, and the lead adds the images. |
+| PyYAML parse of `ci.yml`, `snapshot.yml`, `pages.yml` (Pages task) | Pass (3/3), re-run after every workflow edit. |
+| `npm run build` | Pass. 10 lib modules, Leaflet, 3 companies (demo, because this sandbox has no snapshots). No warnings after the comment-aware scan. CI's `jq` checks of `dist/` pass locally. |
+| Pages smoke (`pages-smoke.mjs`, Chromium 1194, `/melon-seek/` prefix) | **PASS** at 05:41Z and 05:44Z. The page renders 111 roles with the chart and the demo banner. Switching Anthropic → Anduril → OpenAI updates the title, active pill and `#c=` hash. Map mode shows price-tag pins and the "Basemap unavailable" fallback. 0 page errors, 0 local 404s, 0 failed local requests. 15 console errors, all `net::ERR_INTERNET_DISCONNECTED` from the deliberately aborted external hosts (fonts, boards, map tiles). An earlier run at 05:38Z failed on an app.js `sortJobs` null crash. That was reported, the UX agent fixed it, and the run passed. Screenshots: `<scratchpad>/pages-chart.png`, `pages-map.png`. |
+| Custom boards in static mode (same run) | `lever:acme` → demo (100 jobs) with an error. A bogus Greenhouse board → demo with an error. |
+| Quiet Lever fallback (`quiet-test.mjs`, scratch build with a fixture snapshot and a test-only `MELON_QUIET_CORS_SOURCES=["greenhouse"]`) | **PASS.** Snapshot fallback → `mode: "snapshot"`, `error: null`, demo banner hidden, badge "Snapshot · Oct 1". No-snapshot company → `mode: "demo"` and the error is kept. |
+| api.js in server mode (`server-mode-api.mjs` against `node server/index.js`) | Pass. `isStatic()` is false, relative `api/companies` and `api/jobs` work, `apiFetch('/api/jobs?company=openai')` works, and an unknown company throws `Unknown company "nope"`. |
+| Pages workflow on GitHub | Not run (no push from this workstream). |
 
 ## 6. Known gaps and follow-ups
 
@@ -400,6 +438,22 @@ quoted `cat > FILE <<'EOF'` heredocs).
   `npm ci`. Regenerate with `npm install --package-lock-only`.
 - **Actions are pinned to major tags (`@v4`).** For supply-chain hardening, pin
   to commit SHAs and add Dependabot for `github-actions`.
+- **Browser CORS behaviour is unverified from here.** All three board APIs
+  were blocked by the sandbox proxy. After the first Pages deploy, open the
+  site and check the badge for each company. Greenhouse should read "Live".
+  If Ashby reads "Snapshot" with an error, its CORS assumption was right. If
+  Lever ever starts refusing, it reads "Snapshot" with no error, by design.
+- **No real snapshots in this sandbox,** so local builds bundle demo data. The
+  Pages run's step summary shows the real modes and job counts.
+- **Bundle size grows with each company** (~400 KB of JSON each, uncompressed;
+  Pages gzips it). With nine built-ins that's a few MB of `api/` data. It's
+  fetched per company, not up front.
+- **Deploying from `claude/stoic-ride-54ddxp`** needs that branch allowed on
+  the `github-pages` environment (documented in the README). Otherwise the
+  deploy job fails with a protection-rule error.
+- **`upload-pages-artifact@v3`** was chosen because it keeps dotfiles such as
+  `.nojekyll`. Before upgrading to v4, check its dotfile handling. Actions
+  deploys don't run Jekyll anyway.
 
 ## 7. Change log
 
@@ -415,3 +469,25 @@ quoted `cat > FILE <<'EOF'` heredocs).
   `<source>:<board>` and live-only notes to the README. Tried the local smoke
   test; it was blocked by the missing `server/demo.js`.
 - 2026-10-02T05:31Z: Wrote this process log.
+- 2026-10-02T05:33Z: Pages task. Surveyed `server/index.js`, the adapters and
+  `app.js`. Scanned candidate `dist/lib` modules for Node-only code (no `node:`
+  imports; `normalize.js` had `process.env`). Told the coordinator that
+  app.js/index.html use absolute URLs, and proposed the `apiFetch` drop-in.
+- 2026-10-02T05:35Z: CORS research (Lever docs via WebFetch; web search for
+  Greenhouse and Ashby). Wrote `public/api.js` and `scripts/build-static.js`.
+  Added `npm run build` and `dist/` ignores.
+- 2026-10-02T05:37Z: First Pages smoke test passed. Fixed a misleading
+  per-source "blocked" message that named the wrong board.
+- 2026-10-02T05:38Z: Smoke test failed on an app.js `sortJobs` null crash.
+  Reported it to the coordinator with a one-line fix.
+- 2026-10-02T05:39Z: Wrote `pages.yml`. Added the static-build check to
+  `ci.yml`. Validated the YAML. Checked api.js in server mode.
+- 2026-10-02T05:41Z: Smoke test passed again after the UX fix. Reviewed the
+  screenshots. Added the README "Deploying to GitHub Pages" section and the
+  layout entries.
+- 2026-10-02T05:43Z: Coordinator follow-up. `snapshot.yml` and `pages.yml` now
+  call `npm run snapshot` with no arguments. Confirmed the build already loops
+  over `listCompanies()`. Lever is now attempted live, with a quiet snapshot
+  fallback (`MELON_QUIET_CORS_SOURCES`). The quiet-fallback test passed. Made
+  the warning scan ignore comments. Updated the README, ADDING_A_BOARD and
+  this log.

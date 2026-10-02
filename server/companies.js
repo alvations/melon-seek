@@ -9,6 +9,13 @@ export const COMPANIES = [
   { slug: 'anthropic', name: 'Anthropic', source: 'greenhouse', board: 'anthropic', color: '#d97757' },
   { slug: 'anduril', name: 'Anduril', source: 'greenhouse', board: 'andurilindustries', color: '#1f2a37' },
   { slug: 'openai', name: 'OpenAI', source: 'ashby', board: 'openai', color: '#10a37f' },
+  // Confirmed boards from docs/DATA_SOURCES.md §4.
+  { slug: 'scaleai', name: 'Scale AI', source: 'greenhouse', board: 'scaleai', color: '#6e3cf2' },
+  { slug: 'xai', name: 'xAI', source: 'greenhouse', board: 'xai', color: '#3b3b3b' },
+  { slug: 'cohere', name: 'Cohere', source: 'ashby', board: 'cohere', color: '#39594d' },
+  { slug: 'palantir', name: 'Palantir', source: 'lever', board: 'palantir', color: '#101113' },
+  { slug: 'shieldai', name: 'Shield AI', source: 'lever', board: 'shieldai', color: '#1c6dd0' },
+  { slug: 'mistral', name: 'Mistral AI', source: 'lever', board: 'mistral', color: '#fa520f' },
 ];
 
 export function listCompanies() {

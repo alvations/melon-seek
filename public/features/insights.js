@@ -125,8 +125,9 @@ export function hotLocations(jobs = [], { limit = 8 } = {}) {
  * Share of roles asking for each fit keyword ("PhD", "5+ yrs" ...), plus the
  * median pay of those roles vs the overall median.
  *   -> { total, baseline, items: [{ label, count, pct, median, premium }] }
+ * median/premium are null when fewer than `minPremiumN` of those roles list pay.
  */
-export function fitRequirements(jobs = [], { limit = 8, facet = 'fit' } = {}) {
+export function fitRequirements(jobs = [], { limit = 8, facet = 'fit', minPremiumN = 3 } = {}) {
   const by = new Map();
   const mids = [];
   for (const j of jobs) {
@@ -145,7 +146,7 @@ export function fitRequirements(jobs = [], { limit = 8, facet = 'fit' } = {}) {
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
     .slice(0, limit)
     .map((e) => {
-      const med = e.mids.length >= 2 ? median(e.mids) : null;
+      const med = e.mids.length >= minPremiumN ? median(e.mids) : null;
       return { label: e.label, count: e.count, pct: total ? e.count / total : 0, median: med, premium: med == null || baseline == null ? null : med - baseline };
     });
   return { total, baseline, items };
@@ -198,10 +199,12 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
 
   // (a) skill premium -------------------------------------------------------
   function skillCard(jobs) {
-    const { baseline, items } = skillPremiums(jobs);
+    const { baseline, items, salaried } = skillPremiums(jobs);
     const sub = baseline == null ? 'Median pay of roles listing each skill vs. all roles in view.'
       : `Median pay of roles listing each skill vs. the ${formatMoney(baseline)} median of roles in view.`;
-    if (!items.length) return card('Skill premium', sub, emptyNote('Not enough salaried roles with skills listed.'), { headTag: `h${hl + 1}` });
+    if (!items.length) {
+      return card('Skill premium', sub, emptyNote(salaried ? 'Not enough salaried roles list skills to compare.' : 'None of these roles publish pay.'), { headTag: `h${hl + 1}` });
+    }
     const maxAbs = Math.max(...items.map((i) => Math.abs(i.premium)), 1);
     const rows = items.map((it) => {
       const frac = Math.abs(it.premium) / maxAbs * 50;
@@ -229,7 +232,7 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
   function deptCard(jobs, allJobs) {
     const boxes = deptBoxes(jobs).slice(0, 10);
     const sub = 'Middle 50% of pay (box), 10th–90th percentile (whiskers), median (tick).';
-    if (!boxes.length) return card('Pay by department', sub, emptyNote('No salaried roles in view.'), { headTag: `h${hl + 1}` });
+    if (!boxes.length) return card('Pay by department', sub, emptyNote('None of these roles publish pay.'), { headTag: `h${hl + 1}` });
     // Stable axis: domain from all jobs so filtering doesn't rescale the plot.
     const domainMids = (allJobs.length ? allJobs : jobs).map(midOf).filter((v) => v != null);
     let lo = Math.min(percentile(domainMids, 0.02), ...boxes.map((b) => b.p10));

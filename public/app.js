@@ -37,6 +37,8 @@ function h(tag, attrs, ...kids) {
 }
 
 const ICON = {
+  cluster: '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="6" cy="10" r="2.2"/><circle cx="12.5" cy="6.5" r="2.2"/><circle cx="13" cy="13.5" r="2.2"/></svg>',
+  info: '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M10 9v4.5M10 6.3v.2"/></svg>',
   pin: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 17s5-4.6 5-8.5a5 5 0 0 0-10 0C5 12.4 10 17 10 17Z"/><circle cx="10" cy="8.5" r="1.8"/></svg>',
   close: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>',
   chevron: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4"/></svg>',
@@ -165,10 +167,10 @@ const ARRAYS = ['d', 'l', 's', 'e', 'kr', 'kf', 'ks'];
 const DEFAULTS = {
   c: '', cn: '', m: 'chart', q: '', smin: null, smax: null, so: false,
   d: [], l: [], s: [], e: [], r: 'any', p: 0, kr: [], kf: [], ks: [],
-  g: 'none', cb: 'department', sort: 'salary-desc', job: null,
+  v: 'clusters', g: 'department', sort: 'salary-desc', job: null,
 };
 const FILTER_KEYS = ['q', 'smin', 'smax', 'so', 'd', 'l', 's', 'e', 'r', 'p', 'kr', 'kf', 'ks'];
-const ORDER = ['c', 'cn', 'm', 'q', 'smin', 'smax', 'so', 'd', 'l', 's', 'e', 'r', 'p', 'kr', 'kf', 'ks', 'g', 'cb', 'sort', 'job'];
+const ORDER = ['c', 'cn', 'm', 'q', 'smin', 'smax', 'so', 'd', 'l', 's', 'e', 'r', 'p', 'kr', 'kf', 'ks', 'v', 'g', 'sort', 'job'];
 
 let S = structuredClone(DEFAULTS);
 let companies = [];
@@ -191,6 +193,8 @@ function parseHash() {
   }
   if (!['chart', 'map'].includes(st.m)) st.m = 'chart';
   if (!['any', 'remote', 'onsite'].includes(st.r)) st.r = 'any';
+  if (!['clusters', 'ranges'].includes(st.v)) st.v = 'clusters';
+  if (!['department', 'location', 'seniority', 'none'].includes(st.g)) st.g = DEFAULTS.g;
   if (st.p === 0) st.p = 0;
   return st;
 }
@@ -496,15 +500,18 @@ function renderTopbar() {
   }
   banner.hidden = true;
   if (data.status === 'ready' && (MOCK || data.mode === 'demo')) {
+    // One thin muted line; the full explanation and the raw error sit in a disclosure.
     banner.hidden = false;
+    const wasOpen = banner.querySelector('details')?.open;
+    const short = MOCK ? 'Mock data — not real postings' : `Demo data — the ${data.company?.name || ''} board couldn’t be reached`;
     const long = MOCK
-      ? [h('strong', null, 'Mock data. '), 'These roles come from the local development generator (?mock=1), not from any job board.']
-      : [h('strong', null, 'You’re looking at demo data. '), `The ${data.company?.name || ''} board couldn’t be reached, so these roles are generated samples — not real postings.`];
-    const short = MOCK ? 'Mock data — not real postings' : 'Demo data — live board unreachable';
-    banner.replaceChildren(h('span', { class: 'demo-ico', html: ICON.alert }),
-      h('span', { class: 'banner-long' }, ...long), h('strong', { class: 'banner-short' }, short),
-      data.error ? h('code', { title: data.error }, data.error.length > 70 ? data.error.slice(0, 70) + '…' : data.error) : null,
-      MOCK ? null : h('button', { type: 'button', class: 'link-btn', onclick: () => loadJobs({ refresh: true }) }, 'Try live again'));
+      ? 'These roles come from the local development generator (?mock=1, localhost only), not from any job board.'
+      : 'So you can still explore the interface, these roles are generated samples — not real postings, salaries or locations.';
+    banner.replaceChildren(h('details', { open: !!wasOpen },
+      h('summary', null, h('span', { class: 'demo-ico', html: ICON.info }), h('span', { class: 'banner-short' }, short), h('span', { class: 'banner-more' }, 'Details')),
+      h('div', { class: 'banner-body' }, h('p', null, long),
+        data.error ? h('code', null, data.error) : null,
+        MOCK ? null : h('button', { type: 'button', class: 'btn btn--ghost btn--sm', onclick: () => loadJobs({ refresh: true }) }, 'Try the live board again'))));
   }
   $('#refreshBtn').disabled = data.status === 'loading';
   $('#refreshBtn').classList.toggle('is-spinning', data.status === 'loading');
@@ -615,7 +622,7 @@ function renderQuickbar() {
     if (area) {
       const count = derived.filtered.filter((j) => area.ids.has(j.id)).length;
       slot.append(h('span', { class: 'area-chip' },
-        h('span', { class: 'area-ico', html: ICON.pin }), h('span', null, `${area.label} (${count})`),
+        h('span', { class: 'area-ico', html: area.kind === 'cluster' ? ICON.cluster : ICON.pin }), h('span', { class: 'area-label' }, `${area.label} (${count})`),
         h('button', { type: 'button', class: 'area-x', 'aria-label': `Clear area ${area.label}`, html: ICON.close, onclick: () => { area = null; scheduleRender(); } })));
     }
   }
@@ -740,7 +747,7 @@ function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8,
       return h('label', { class: `check${it.count === 0 ? ' is-zero' : ''}`, for: id },
         h('input', { type: 'checkbox', id, value: it.key, checked: selected.has(it.key) }),
         h('span', { class: 'check-box', 'aria-hidden': 'true' }),
-        colorDim && S.cb === colorDim && it.key !== 'Remote' && !/^Remote/.test(it.key) ? h('span', { class: 'dot dot--sm', style: `--dot:${vizColor(it.key)}`, 'aria-hidden': 'true' }) : null,
+        colorDim && colorBy() === colorDim && it.key !== 'Remote' && !/^Remote/.test(it.key) ? h('span', { class: 'dot dot--sm', style: `--dot:${vizColor(it.key)}`, 'aria-hidden': 'true' }) : null,
         h('span', { class: 'check-label' }, it.key), h('span', { class: 'check-count' }, it.count));
     };
 
@@ -1023,24 +1030,26 @@ function makeBoardForm() {
 /* ------------------------------------------------------------------ KPIs */
 
 function renderKpis() {
-  const el = $('#kpis');
+  // One slim inline stats row: "111 roles · 86% list pay · median $341K · middle 50% $277–405K · mostly Engineering"
+  const el = $('#statsLine');
   if (data.status === 'loading' || data.status === 'idle') {
-    el.replaceChildren(...[0, 1, 2, 3, 4].map(() => h('div', { class: 'kpi' }, h('div', { class: 'sk sk-line', style: 'width:50%' }), h('div', { class: 'sk sk-num' }))));
+    el.replaceChildren(h('span', { class: 'sk sk-line', style: 'width:340px;display:inline-block' }));
     return;
   }
   if (data.status === 'error') { el.replaceChildren(); return; }
   const listed = area ? derived.filtered.filter((j) => area.ids.has(j.id)) : derived.filtered;
   const st = stats(listed);
   const total = data.jobs.length;
-  const tile = (label, value, sub, extra = '') => h('div', { class: `kpi ${extra}` }, h('div', { class: 'kpi-label' }, label), h('div', { class: 'kpi-value' }, value), h('div', { class: 'kpi-sub' }, sub));
   const pct = st.n ? Math.round((st.withSalary / st.n) * 100) : 0;
-  el.replaceChildren(
-    tile('Open roles', st.n.toLocaleString(), st.n === total ? `at ${data.company?.name || 'this company'}` : `of ${total.toLocaleString()} total`),
-    tile('With salary', st.n ? `${pct}%` : '—', `${st.withSalary.toLocaleString()} list pay`),
-    tile('Median pay', money(st.median), 'range midpoint', 'kpi--accent'),
-    tile('Middle 50%', st.p25 != null ? compactRange(st.p25, st.p75) : '—', 'P25 – P75', 'kpi--range'),
-    tile('Top department', st.top ? st.top[0] : '—', st.top ? `${plural(st.top[1], 'role')} · ${Math.round((st.top[1] / st.n) * 100)}%` : '', 'kpi--wide'),
-  );
+  const item = (strong, rest, title) => h('span', { class: 'stat', title }, h('strong', null, strong), rest ? ` ${rest}` : null);
+  const parts = [
+    item(st.n.toLocaleString(), st.n === total ? plural(st.n, 'role').replace(/^[\d,]+ /, '') : `of ${total.toLocaleString()} roles`),
+    st.n ? item(`${pct}%`, 'list pay', `${st.withSalary} of ${st.n} postings include a salary range`) : null,
+    st.median != null ? item(money(st.median), 'median', 'Median of range midpoints (approx USD)') : null,
+    st.p25 != null ? h('span', { class: 'stat', title: '25th – 75th percentile of range midpoints' }, 'middle 50% ', h('strong', null, compactRange(st.p25, st.p75))) : null,
+    st.top && st.n > 1 ? h('span', { class: 'stat stat--top', title: `${st.top[1]} roles (${Math.round((st.top[1] / st.n) * 100)}%)` }, 'mostly ', h('strong', null, st.top[0])) : null,
+  ].filter(Boolean);
+  el.replaceChildren(...parts.flatMap((p, i) => (i ? [h('span', { class: 'stat-sep', 'aria-hidden': 'true' }, '·'), p] : [p])));
 }
 
 /* ------------------------------------------------------------------- viz */
@@ -1055,18 +1064,16 @@ let vizError = null;
 function ensureViz() {
   try {
     if (S.m === 'chart' && !chart) {
-      chart = createChart($('#chartHost'), { onSelect: (job) => job && openDrawer(job.id), onHover: (job) => hoverFromViz(job) });
+      chart = createChart($('#chartHost'), {
+        onSelect: (job) => job && openDrawer(job.id),
+        onHover: (job) => hoverFromViz(job),
+        onClusterSelect: (jobs, label) => setArea('cluster', jobs, label),
+      });
     }
     if (S.m === 'map' && !map) {
       map = createMap($('#mapHost'), {
         onSelect: (job) => job && openDrawer(job.id),
-        onAreaSelect: (jobs, label) => {
-          if (!jobs?.length) return;
-          area = { label: label || 'Selected area', ids: new Set(jobs.map((j) => j.id)) };
-          resultsLimit = PAGE;
-          scheduleRender();
-          if (isMobile()) setSheet(true);
-        },
+        onAreaSelect: (jobs, label) => setArea('map', jobs, label),
       });
     }
     vizError = null;
@@ -1085,14 +1092,12 @@ function renderViz() {
   mapHost.hidden = S.m !== 'map';
   $('#vizControls').hidden = S.m !== 'chart';
   $('#groupBy').value = S.g;
-  $('#colorBy').value = S.cb;
+  for (const b of document.querySelectorAll('[data-view]')) b.setAttribute('aria-pressed', String(b.dataset.view === S.v));
 
-  const title = $('#vizTitle');
   overlay.hidden = true;
   overlay.className = 'viz-overlay';
 
   if (data.status === 'loading' || data.status === 'idle') {
-    title.replaceChildren(h('div', { class: 'sk sk-line', style: 'width:220px' }));
     overlay.hidden = false;
     overlay.classList.add('is-loading');
     overlay.replaceChildren(h('div', { class: 'chart-skeleton', 'aria-label': 'Loading roles', role: 'status' },
@@ -1100,16 +1105,11 @@ function renderViz() {
     return;
   }
   if (data.status === 'error') {
-    title.replaceChildren();
     overlay.hidden = false;
     overlay.replaceChildren(stateCard({ icon: ICON.alert, title: 'Couldn\u2019t load this board', body: data.error || 'Unknown error', action: ['Retry', () => loadJobs()], tone: 'error' }));
     return;
   }
   const jobs = derived.filtered;
-  const plotted = jobs.filter((j) => j._usd).length;
-  title.replaceChildren(S.m === 'chart'
-    ? h('span', null, h('strong', null, 'Salary ranges'), h('span', { class: 'muted' }, ` · ${plural(plotted, 'role')} plotted${jobs.length - plotted ? ` · ${jobs.length - plotted} without pay hidden` : ''}`))
-    : h('span', null, h('strong', null, 'Where the roles are'), h('span', { class: 'muted' }, ' · click a pin to list its roles')));
 
   if (!data.jobs.length) {
     overlay.hidden = false;
@@ -1129,11 +1129,11 @@ function renderViz() {
     return;
   }
   if (S.m === 'map' && wasHidden) { try { map.invalidateSize(); } catch { /* ignore */ } }
-  const sig = jobs.map((j) => j.id).join(',') + (S.m === 'chart' ? `|${S.g}|${S.cb}` : '');
+  const sig = jobs.map((j) => j.id).join(',') + (S.m === 'chart' ? `|${S.v}|${S.g}` : '');
   if (vizSig[S.m] !== sig) {
     vizSig[S.m] = sig;
     try {
-      if (S.m === 'chart') chart.update(jobs, { groupBy: S.g, colorBy: S.cb });
+      if (S.m === 'chart') chart.update(jobs, { view: S.v, groupBy: S.g, colorBy: colorBy() });
       else if (mapFitPending) {
         mapFitPending = false;
         map.update(jobs, { fit: true });
@@ -1148,11 +1148,14 @@ function renderViz() {
   highlightViz();
 }
 
+/** Colour follows the grouping (department when ungrouped), so the chart has a single colour story. */
+const colorBy = () => (S.g === 'none' ? 'department' : S.g);
+
 function computeColorKeys(jobs) {
   colorKeys = new Set();
-  if (S.cb === 'none') return;
+  const dim = colorBy();
   const counts = new Map();
-  for (const j of jobs) if (j._usd) { const k = keyOf(j, S.cb); counts.set(k, (counts.get(k) || 0) + 1); }
+  for (const j of jobs) if (j._usd) { const k = keyOf(j, dim); counts.set(k, (counts.get(k) || 0) + 1); }
   const ordered = [...counts.keys()].sort((a, b) => counts.get(b) - counts.get(a) || String(a).localeCompare(String(b)));
   const top = ordered.length > SLOT_COUNT ? ordered.slice(0, SLOT_COUNT - 1) : ordered;
   assignColors(top); // same (sticky) slots the chart assigns, so list/filter dots match its legend
@@ -1161,8 +1164,16 @@ function computeColorKeys(jobs) {
 
 /** Color a job / key the same way the chart does under the current "Color by". */
 function vizColor(key) {
-  if (S.cb === 'none') return 'var(--ms-border-strong)';
   return colorKeys.has(key) ? colorFor(key) : otherColor();
+}
+
+/** Narrow the results list to a map area or chart cluster (replaces any previous one). */
+function setArea(kind, jobs, label) {
+  if (!jobs?.length) return;
+  area = { kind, label: label || (kind === 'map' ? 'Selected area' : 'Selected cluster'), ids: new Set(jobs.map((j) => j.id)) };
+  resultsLimit = PAGE;
+  scheduleRender();
+  if (isMobile()) setSheet(true);
 }
 
 function highlightViz() {
@@ -1230,7 +1241,7 @@ function topTags(job, n = 3) {
 }
 
 function card(job) {
-  const color = vizColor(S.cb === 'none' ? null : keyOf(job, S.cb));
+  const color = vizColor(keyOf(job, colorBy()));
   const range = salaryRange(job.salary);
   const isOpen = job.id === drawerJobId;
   const el = h('li', null, h('article', {
@@ -1241,11 +1252,12 @@ function card(job) {
     h('h3', { class: 'card-title' }, job.title),
     range ? h('span', { class: 'sal-pill' }, range) : h('span', { class: 'sal-pill sal-pill--none' }, 'No salary')),
   h('div', { class: 'card-meta' },
+    h('span', { class: 'card-dot', style: `--dot:${color}`, 'aria-hidden': 'true' }),
     h('span', { class: 'card-dept' }, deptKey(job)), h('span', { class: 'sep', 'aria-hidden': 'true' }, '·'),
     h('span', { class: 'card-loc' }, locSummary(job, 1)), job.remote ? h('span', { class: 'tag tag--remote' }, 'Remote') : null),
   h('div', { class: 'card-foot' },
     h('span', { class: `sen sen--${(job.seniority || 'mid').toLowerCase().replace(/\W/g, '')}` }, job.seniority || '—'),
-    ...topTags(job).map((t) => h('span', { class: 'tag' }, t)),
+    ...topTags(job, 2).map((t) => h('span', { class: 'tag' }, t)),
     job._ts ? h('span', { class: 'card-age' }, ago(job._ts)) : null)));
   return el;
 }
@@ -1531,7 +1543,7 @@ function bindEvents() {
   $('#dataBadge').addEventListener('click', (e) => togglePopover('badge', e.currentTarget));
   $('#refreshBtn').addEventListener('click', () => loadJobs({ refresh: true }));
   $('#groupBy').addEventListener('change', (e) => set({ g: e.target.value }));
-  $('#colorBy').addEventListener('change', (e) => set({ cb: e.target.value }));
+  for (const b of document.querySelectorAll('[data-view]')) b.addEventListener('click', () => set({ v: b.dataset.view }));
   $('#sortBy').addEventListener('change', (e) => set({ sort: e.target.value }));
   $('#clearAll').addEventListener('click', clearFilters);
   $('#filtersClear').addEventListener('click', clearFilters);

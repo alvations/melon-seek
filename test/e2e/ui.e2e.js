@@ -47,8 +47,17 @@ async function openApp(ctx, { hash = '', viewport = DESKTOP, colorScheme = 'ligh
 }
 
 /** Wait until the results header shows a count ("N roles"). */
-async function waitReady(page) {
-  await page.locator('#resultsTitle strong').first().waitFor({ timeout: READY_TIMEOUT });
+async function waitReady(page, where = '') {
+  try {
+    await page.locator('#resultsTitle strong').first().waitFor({ timeout: READY_TIMEOUT });
+  } catch (err) {
+    const st = await page.evaluate(() => ({
+      title: document.querySelector('#resultsTitle')?.textContent,
+      hash: location.hash,
+      cards: document.querySelectorAll('#resultsList .card[data-id]').length,
+    })).catch(() => ({}));
+    throw new Error(`app not ready${where ? ` (${where})` : ''} after ${READY_TIMEOUT}ms: ${JSON.stringify(st)}`);
+  }
 }
 
 async function resultCount(page) {
@@ -160,7 +169,6 @@ export function registerUiTests(suite) {
         });
       });
       const clipped = geom.filter((g) => !g.inside);
-      ctx.notes.push(...clipped.map((g) => `map pin clipped by viewport after initial fit: ${g.label}`));
       const target = geom.find((g) => g.inside);
       assert(target, 'no pin fully inside the map viewport');
       await page.locator('#mapHost .ms-pin').nth(target.i).click();
@@ -172,9 +180,15 @@ export function registerUiTests(suite) {
       await areaChip.locator('button').click();
       await page.waitForTimeout(500);
       await page.screenshot({ path: path.join(SHOTS, 'map.png') });
-      assert(clipped.length === 0, `${clipped.length}/${geom.length} pins outside the visible map after initial fit: ${clipped.map((g) => g.label).join('; ')}`);
+      ctx.mapClipped = { clipped, total: geom.length };
       assert(errors.length === 0, `console/page errors:\n${errors.join('\n')}`);
     } finally { await app.close(); }
+  });
+
+  suite.test('UI: map initial fit keeps every pin inside the visible map', async (ctx) => {
+    assert(ctx.mapClipped, 'map test did not run');
+    const { clipped, total } = ctx.mapClipped;
+    assert(clipped.length === 0, `${clipped.length}/${total} pins outside the visible map after initial fit: ${clipped.map((g) => g.label).join('; ')}`);
   });
 
   suite.test('UI: switching company to Anduril and OpenAI updates results count', async (ctx) => {
@@ -183,13 +197,15 @@ export function registerUiTests(suite) {
       const { page, errors } = app;
       const counts = { anthropic: await resultCount(page) };
       for (const [slug, name] of [['anduril', 'Anduril'], ['openai', 'OpenAI']]) {
-        const prev = await resultCount(page);
+        const resp = page.waitForResponse((r) => r.url().includes(`/api/jobs?company=${slug}`), { timeout: 10000 });
         await page.locator('#companyPills').getByRole('button', { name: new RegExp(name) }).click();
+        await resp;
         const api = await apiJobs(ctx, slug);
-        let n = await countChange(page, prev, 8000);
-        if (n === prev && api.jobs.length !== prev) throw new Error(`${name}: count stayed ${prev}`);
-        await waitReady(page);
-        n = await resultCount(page);
+        await page.waitForFunction((s) => {
+          const t = document.querySelector('#resultsTitle strong');
+          return t && document.querySelector(`#resultsList .card[data-id^="${s}:"]`);
+        }, slug, { timeout: 8000 });
+        const n = await resultCount(page);
         assertEq(n, api.jobs.length, `${name} results count vs API`);
         assert(new RegExp(`(^|&)c=${slug}(&|$)`).test(await page.evaluate(() => location.hash.slice(1))), `hash c=${slug}`);
         assertEq(await page.locator('#companyPills').getByRole('button', { name: new RegExp(name) }).getAttribute('aria-pressed'), 'true', `${name} pill pressed`);
@@ -355,7 +371,7 @@ export function registerUiTests(suite) {
       const hash = await page.evaluate(() => location.hash);
       const ids = await cardIds(page);
       await page.reload();
-      await waitReady(page);
+      await waitReady(page, 'after reload');
       await page.waitForTimeout(500);
       assertEq(await page.evaluate(() => location.hash), hash, 'hash after reload');
       assertEq(await resultCount(page), n2, 'result count after reload');
@@ -391,8 +407,8 @@ export function registerUiTests(suite) {
       await page.screenshot({ path: path.join(SHOTS, 'mobile.png') });
       const unnamed = await page.locator('button:visible').evaluateAll((els) => els
         .filter((b) => !(b.getAttribute('aria-label') || b.getAttribute('title') || b.getAttribute('aria-labelledby') || b.innerText.trim()))
-        .map((b) => b.outerHTML.slice(0, 90)));
-      if (unnamed.length) ctx.notes.push(`mobile: ${unnamed.length} visible buttons without an accessible name, e.g. ${unnamed[0]}`);
+        .map((b) => b.outerHTML.replace(/\s+/g, ' ').slice(0, 110)));
+      ctx.mobileUnnamed = unnamed;
       // Map mode and the filter sheet on mobile shouldn't overflow either.
       await modeBtn(page, 'map').click();
       await page.waitForTimeout(500);
@@ -403,9 +419,14 @@ export function registerUiTests(suite) {
       assert(await page.locator('#filters').isVisible(), 'filters panel opens on mobile');
       const m3 = await noHScroll(page);
       assert(m3.scrollWidth <= m3.clientWidth, `filters open overflow: ${m3.scrollWidth} > ${m3.clientWidth}`);
-      assert(unnamed.length === 0, `${unnamed.length} visible buttons have no accessible name at 390px, e.g. ${unnamed.join(' | ')}`);
       assert(errors.length === 0, `console/page errors:\n${errors.join('\n')}`);
     } finally { await app.close(); }
+  });
+
+  suite.test('UI: mobile 390x844 buttons keep visible text / accessible names', async (ctx) => {
+    assert(ctx.mobileUnnamed, 'mobile test did not run');
+    const u = ctx.mobileUnnamed;
+    assert(u.length === 0, `${u.length} visible buttons have no text or accessible name at 390px:\n${u.join('\n')}`);
   });
 
   suite.test('UI: dark mode renders dark (screenshot)', async (ctx) => {

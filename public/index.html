@@ -89,24 +89,19 @@
 
     <main class="main" id="main">
       <div class="demo-banner" id="demoBanner" role="status" hidden></div>
-      <section class="kpis" id="kpis" aria-label="Summary"></section>
       <div class="viz-toolbar" id="vizToolbar">
-        <div class="viz-title" id="vizTitle"></div>
+        <p class="stats-line" id="statsLine" aria-label="Summary"></p>
         <div class="viz-controls" id="vizControls">
-          <label class="select-field"><span>Group by</span>
-            <select id="groupBy">
-              <option value="none">None</option>
+          <div class="seg seg--sm" role="group" aria-label="Chart view">
+            <button type="button" data-view="clusters" aria-pressed="true">Clusters</button>
+            <button type="button" data-view="ranges" aria-pressed="false">Ranges</button>
+          </div>
+          <label class="quiet-select"><span>Group:</span>
+            <select id="groupBy" aria-label="Group roles by">
               <option value="department">Department</option>
               <option value="location">Location</option>
               <option value="seniority">Seniority</option>
-            </select>
-          </label>
-          <label class="select-field"><span>Color by</span>
-            <select id="colorBy">
               <option value="none">None</option>
-              <option value="department">Department</option>
-              <option value="location">Location</option>
-              <option value="seniority">Seniority</option>
             </select>
           </label>
         </div>

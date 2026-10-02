@@ -8,7 +8,7 @@ and a snapshot script.
 
 Files owned: `server/index.js`, `server/companies.js`, `server/sources/{greenhouse,ashby,lever,util}.js`,
 `server/salary.js`, `server/normalize.js`, `server/cache.js`, `scripts/snapshot.js`,
-`test/{salary,sources,server}.test.js`, `test/fixtures/{greenhouse-jobs,ashby-board,lever-postings}.json`.
+`test/{salary,sources,server}.test.js`, `test/fixtures/{greenhouse-jobs,greenhouse-pay-ranges,ashby-board,lever-postings}.json`.
 
 ## 2. Inputs and sources
 - `docs/CONTRACT.md`: RawJob/Job shapes, module interfaces, HTTP API, fallback order. This is the source of truth.
@@ -82,7 +82,56 @@ Files owned: `server/index.js`, `server/companies.js`, `server/sources/{greenhou
    (`GET /url 200 12ms`). `PORT` defaults to 5173. The server only listens when the file is run directly.
    Custom company slug = `<source>-<board>`. A custom source/board that matches a built-in resolves to the built-in.
    Extra route: `/api/health`.
-9. **snapshot script.** `npm run snapshot -- anthropic anduril openai` runs the given slugs; with no args it runs
+9. **Review fixes (docs/REVIEW.md, server side).**
+   - *H1 cache bounds and throttling:* custom boards are kept in an in-memory LRU of at most `MELON_CACHE_MAX`
+     entries (default 50). Built-ins are never evicted. Their disk files go in `data/cache/custom/`, pruned to the
+     `MELON_DISK_CACHE_MAX` (default 100) most recently used files by mtime; a read hit touches the mtime.
+     There is at most one live upstream attempt per slug per `MIN_REFRESH_MS` (60 s, env `MELON_MIN_REFRESH_MS`),
+     whether or not `refresh=1` is set. A throttled request is served from cache, snapshot or demo, with the last
+     attempt's error. The one exception: if the last attempt succeeded but its cache entry has since been evicted,
+     a new attempt is allowed. A custom board that fell back to demo is negative-cached for 10 min (bounded to 200).
+     Normalized demo jobs are memoized per slug, so repeat requests do not regenerate them.
+   - *M2 security headers:* `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`,
+     `COOP: same-origin` and `Permissions-Policy` are set on every response, including streamed files.
+     The CSP is `default-src 'self'; script-src 'self'; style-src(-elem) 'self' fonts.googleapis.com;
+     style-src-attr 'unsafe-inline'` (needed because app.js uses `setAttribute('style')`); `font-src 'self'
+     fonts.gstatic.com; img-src 'self' data: *.basemaps.cartocdn.com tile.openstreetmap.org *.tile.openstreetmap.org;
+     connect-src 'self' boards-api.greenhouse.io api.ashbyhq.com api.lever.co; object-src 'none'; base-uri 'none';
+     form-action 'self'; frame-ancestors 'none'`. Hosts were taken from `public/viz/map.js`, `public/index.html`
+     and `public/api.js`.
+   - *L1:* the slug regex is now `/^[a-z0-9](?:[a-z0-9_.-]{0,98}[a-z0-9])?$/i` and slugs containing `..` are
+     rejected, so `.`, `..`, leading or trailing punctuation and more than 100 chars all fail.
+   - *L2:* `fetch(..., { redirect: 'error' })`. The body is read through a stream reader and capped at 25 MB, using
+     both `content-length` and a running count (Palantir's list is over 5 MB). Decoding uses `TextDecoder`, not
+     `Buffer`, so the module stays browser-safe. A global semaphore allows at most 4 concurrent upstream fetches
+     (`withUpstreamSlot`).
+   - *L3:* jobs are normalized and cached under a name-independent identity: `defaultName(board)` for custom boards.
+     The caller's `?name=` is stamped onto `companyName` only in the response.
+   - *L7:* adapters throw `UpstreamError {code: http|timeout|network|too_large|invalid_json|bad_shape, status}`.
+     The detailed message goes to the server log (`[live] slug: ...`) and is still used by the snapshot CLI.
+     Clients get `publicError()` text, for example `Live fetch failed: upstream returned HTTP 403` or
+     `... board not found upstream (HTTP 404)`. A 500 returns `{"error":"Internal error"}`.
+     The invalid-source 400 no longer echoes the input.
+   - *L8:* `send()` is async and uses `promisify(zlib.gzip)`.
+   - *C2:* a leading `//+` in the request target collapses to `/` before URL parsing. A target that does not start
+     with `/` (absolute-form) gets 400. `HEAD /api/jobs` calls `getJobs(..., {offline: true})`, which never fetches
+     upstream and does not touch the throttle or negative cache.
+   - *Browser safety:* `server/normalize.js` reads `globalThis.process?.env?.DEBUG`, because the Pages build bundles
+     normalize, salary, companies and sources into `dist/lib/`. A test checks that these files have no `node:`
+     imports and no `process.`, `Buffer` or `__dirname`.
+10. **Greenhouse `pay_input_ranges`** (docs/DATA_SOURCES.md §1). The `pay_transparency=true` flag stays on the
+    list URL. Each item is `{min_cents, max_cents, currency_type, title, blurb}`: the amount is cents ÷ 100 and the
+    currency comes from `currency_type`. The interval is `hour` if title or blurb mentions "hour", `month` if it
+    mentions "month", and otherwise `year`. **With several ranges (location tiers), the salary spans the overall min
+    and max** of the ranges that share the first range's currency and interval. The text is suffixed
+    "(N ranges)". Other currencies are never mixed in. With no usable range, `salary` is null and normalize falls
+    back to parsing the description text. The same fallback applies when the structured value fails the
+    10k–5M annual bounds.
+11. **More built-ins** (confirmed in docs/DATA_SOURCES.md §4): Scale AI `greenhouse/scaleai` #6e3cf2,
+    xAI `greenhouse/xai` #3b3b3b, Cohere `ashby/cohere` #39594d, Palantir `lever/palantir` #101113,
+    Shield AI `lever/shieldai` #1c6dd0, Mistral AI `lever/mistral` #fa520f. Colours are approximate brand colours.
+    demo.js serves its generic catalog for these.
+12. **snapshot script.** `npm run snapshot -- anthropic anduril openai` runs the given slugs; with no args it runs
    every built-in. A `source:board` argument selects a custom board. It writes only live results; a failed or
    empty fetch is logged and skipped, so it never writes demo data. It exits 1 only if every slug failed.
 
@@ -91,13 +140,15 @@ Files owned: `server/index.js`, `server/companies.js`, `server/sources/{greenhou
 cd /home/user/melon-seek
 # fixtures were generated with a one-off python3 script (html.escape on hand-written descriptions;
 # Anduril job is double-escaped). Files: test/fixtures/*.json
-node --test test/salary.test.js test/sources.test.js test/server.test.js   # 29 pass
+npm test   # node --test test/*.test.js -> 75 pass (all owners' unit tests)
+node scripts/e2e.js --api-only   # 8/8
+NODE_PATH=$(npm root -g) node scripts/e2e.js   # full UI e2e with Playwright, see §5
 PORT=5999 node server/index.js &   # then:
-curl -s 'localhost:5999/api/jobs?company=openai' | head -c 300   # mode "demo", error "Live fetch failed: ashby/openai: HTTP 403 ... Host not in allowlist"
+curl -s 'localhost:5999/api/jobs?company=openai' | head -c 300   # mode "demo", error "Live fetch failed: upstream returned HTTP 403" (details in the server log)
 node scripts/snapshot.js anthropic  # sandbox: ✗ 403, "1/1 snapshot(s) failed", exit 1, nothing written
 ```
-Note: on Node 22, `node --test test/` (the `npm test` script) fails with "Cannot find module .../test".
-A directory argument is treated as a file. Use `node --test` (no args), or a glob such as `node --test test/*.test.js`.
+Note: on Node 22, `node --test test/` fails with "Cannot find module .../test", because a directory argument is
+treated as a file. The `npm test` script is now `node --test test/*.test.js`.
 
 ## 5. Verification
 - `node --test test/salary.test.js test/sources.test.js test/server.test.js`: **29 pass, 0 fail, 0 skip**
@@ -106,17 +157,35 @@ A directory argument is treated as a file. Use `node --test` (no args), or a glo
   Covered: `/api/companies`, demo fallback with an error string, snapshot used before demo,
   live then fresh cache for a custom Lever board, 400/404 validation, static MIME types and `/vendor/leaflet/`,
   4 traversal attempts returning 403/404, and gzip.
+- After the review fixes: `npm test` gives **75 pass, 0 fail**. My new tests cover: security headers and CSP hosts on
+  API, static and streamed responses; `refresh=1` throttled to 1 upstream call in 4 requests; an unknown custom
+  board making 1 upstream call in 4 requests (negative cache); generic client errors; caller name kept out of the
+  memory and disk cache; HEAD making 0 upstream calls; `//api/companies` as a path and absolute-form getting 400;
+  a 500 body without details (the details reach the log); a concurrency peak of 4 for 12 tasks; slug edge cases;
+  `redirect: 'error'`; the body cap (content-length and streamed); typed errors; UTF-8 split across chunks;
+  LRU eviction in memory and on disk; no Node APIs in the browser-bundled modules; pay_input_ranges tiers,
+  hourly, empty with text fallback, and mixed currency; 9 built-ins.
+- `node scripts/e2e.js --api-only`: 8/8. Full e2e with CSP on (`NODE_PATH=$(npm root -g) node scripts/e2e.js`):
+  18/21. The 3 failures (map pin area chip, salary-min filter cards, mobile Map button) are identical with the
+  CSP header removed, tested in a scratch copy, so they are frontend issues, not caused by these changes. The
+  "no console errors" UI check passes with the CSP on, so there are no CSP violations.
+- Demo fallback works for all 9 built-ins (offline `getJobs`): 74–120 jobs each.
 - Manual run against the real demo data: anthropic 111 jobs (96 with salary), anduril 120 (105), openai 120 (110).
   All jobs have locations. The demo jobs without a salary contain no currency amounts, so they are meant to have none.
 
 ## 6. Known gaps and follow-ups
 - Adapters have not been checked against real live responses, because the hosts are blocked here.
   Run `npm run snapshot` where the network is open and spot-check the Greenhouse pay-range parsing on real Anthropic/Anduril postings.
-- Salary picks a single range. When a posting lists different ranges per location, the first-scored one wins.
-- `npm test` script (`node --test test/`) is broken on Node 22; the lead owns `package.json`.
+- Text salary parsing picks a single range. When a posting lists different ranges per location in text, the
+  first-scored one wins. Structured Greenhouse ranges use the overall min–max instead (decision 10).
+- Throttle, negative cache and LRU state is per process. It is not shared across replicas.
+- `style-src-attr 'unsafe-inline'` stays until `public/app.js` `h()` uses CSSOM (the patch is in REVIEW.md M2).
+- Pay ranges: only the overall span across tiers is kept. Per-tier ranges are not exposed.
 - Contract deviations: extra file `server/sources/util.js`, extra `originalInterval` salary field, extra
   `metadata`/`compensationSummary` fields on raw jobs, `/api/health` route, `custom:true` on internal custom
-  company objects (not exposed in the API), and `pay_transparency=true` on the Greenhouse URL.
+  company objects (not exposed in the API), and `pay_transparency=true` on the Greenhouse URL. After the review:
+  security headers, `UpstreamError`, `publicError`, `withUpstreamSlot` and `resetState` exports, the
+  `data/cache/custom/` layout, and the `MELON_CACHE_MAX`, `MELON_DISK_CACHE_MAX` and `MELON_MIN_REFRESH_MS` env vars.
 
 ## 7. Change log
 - 2026-10-02 05:05 UTC: companies, adapters, salary, normalize, cache, server, snapshot, tests written.
@@ -124,3 +193,7 @@ A directory argument is treated as a file. Use `node --test` (no args), or a glo
 - 2026-10-02 05:28: server test mock fixed (the mock now stays installed for the server; the test client uses the real fetch).
 - 2026-10-02 05:30: location dedupe also by resolved city.
 - 2026-10-02 05:34: full suite green with the real geo/keywords/demo modules; process docs written.
+- 2026-10-02 05:45: REVIEW.md server fixes H1, M2, L1, L2, L3, L7, L8 and C2 (decision 9), each with tests.
+  `normalize.js` reads DEBUG via `globalThis.process?.env`, and `sources/util.js` uses `TextDecoder` (browser-safe).
+- 2026-10-02 05:50: Greenhouse `pay_input_ranges` take the overall min/max across tiers, with interval from
+  title/blurb (decision 10, new fixture `test/fixtures/greenhouse-pay-ranges.json`). Added 6 built-ins (decision 11).

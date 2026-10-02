@@ -61,7 +61,7 @@ test('GET /api/companies', { skip: skipReason }, async () => {
   assert.equal(res.status, 200);
   assert.match(res.headers.get('content-type'), /application\/json/);
   const list = await res.json();
-  assert.deepEqual(list.map((c) => c.slug), ['anthropic', 'anduril', 'openai']);
+  assert.deepEqual(list.map((c) => c.slug), ['anthropic', 'anduril', 'openai', 'scaleai', 'xai', 'cohere', 'palantir', 'shieldai', 'mistral']);
   for (const c of list) for (const k of ['slug', 'name', 'source', 'board', 'color']) assert.ok(c[k], `${c.slug}.${k}`);
 });
 
@@ -263,7 +263,7 @@ test('request-target parsing: "//api/..." is a path, not an authority', { skip: 
   });
   let r = await raw('//api/companies');
   assert.equal(r.status, 200);
-  assert.equal(JSON.parse(r.body).length, 3);
+  assert.equal(JSON.parse(r.body).length, 9);
   r = await raw('///api/companies');
   assert.equal(r.status, 200);
   r = await raw('http://evil.example/api/companies');
