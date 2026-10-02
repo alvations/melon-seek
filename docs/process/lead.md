@@ -424,3 +424,10 @@ screenshots in `docs/screenshots/`.
   and safe-area fixes, deferred work on throttled phones. No new features.
   Restated the simplicity rule for wave 2: findings that add UI will be
   rejected or folded into existing controls.
+- 2026-10-02: USER-REPORTED BUG: in map mode, opening the right-hand drawer
+  leaves the map layer unscaled and not covering its area. Sent to UX
+  (frontend): a ResizeObserver calling invalidateSize on every layout
+  change, one consistent drawer behaviour (overlay or push), stacking and
+  height fixes, plus a thorough UI/UX matrix test (views × drawer × filter
+  column × 6 viewports × 2 themes, plus flows) with automated checks.
+  Coordinated with the mobile engineer on shared files.
