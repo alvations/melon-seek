@@ -1,0 +1,141 @@
+{
+ "apiVersion": "1",
+ "jobs": [
+  {
+   "id": "1b2c3d4e-0000-4000-8000-000000000001",
+   "title": "Member of Technical Staff, Inference",
+   "department": "Applied AI",
+   "team": "Inference",
+   "employmentType": "FullTime",
+   "location": "San Francisco",
+   "secondaryLocations": [
+    {
+     "location": "New York City",
+     "address": {
+      "postalAddress": {
+       "addressLocality": "New York"
+      }
+     }
+    },
+    {
+     "location": "San Francisco"
+    }
+   ],
+   "publishedAt": "2026-09-20T17:01:32.123+00:00",
+   "isListed": true,
+   "isRemote": false,
+   "workplaceType": "Hybrid",
+   "address": {
+    "postalAddress": {
+     "addressRegion": "California",
+     "addressCountry": "USA",
+     "addressLocality": "San Francisco"
+    }
+   },
+   "jobUrl": "https://jobs.ashbyhq.com/openai/1b2c3d4e-0000-4000-8000-000000000001",
+   "applyUrl": "https://jobs.ashbyhq.com/openai/1b2c3d4e-0000-4000-8000-000000000001/application",
+   "descriptionHtml": "<p>About the team</p><h3>In this role, you will:</h3><ul><li>Optimize GPU kernels in CUDA</li></ul><h3>You might thrive in this role if you:</h3><ul><li>Have experience with Rust or C++</li></ul>",
+   "descriptionPlain": "About the team\nIn this role, you will:\n- Optimize GPU kernels in CUDA",
+   "compensation": {
+    "compensationTierSummary": "$310K \u2013 $460K \u2022 Offers Equity",
+    "scrapeableCompensationSalarySummary": "$310K - $460K",
+    "compensationTiers": [
+     {
+      "id": "t1",
+      "tierSummary": "$310K \u2013 $460K \u2022 Offers Equity",
+      "components": [
+       {
+        "id": "c1",
+        "summary": "$310K \u2013 $460K",
+        "compensationType": "Salary",
+        "interval": "1 YEAR",
+        "currencyCode": "USD",
+        "minValue": 310000,
+        "maxValue": 460000
+       }
+      ]
+     }
+    ],
+    "summaryComponents": [
+     {
+      "compensationType": "EquityPercentage",
+      "interval": "NONE",
+      "currencyCode": null,
+      "minValue": null,
+      "maxValue": null
+     },
+     {
+      "compensationType": "Salary",
+      "interval": "1 YEAR",
+      "currencyCode": "USD",
+      "minValue": 310000,
+      "maxValue": 460000
+     }
+    ]
+   }
+  },
+  {
+   "id": "1b2c3d4e-0000-4000-8000-000000000002",
+   "title": "Unlisted Role",
+   "department": "Ops",
+   "team": "Ops",
+   "employmentType": "FullTime",
+   "location": "Remote",
+   "secondaryLocations": [],
+   "publishedAt": "2026-09-01T00:00:00Z",
+   "isListed": false,
+   "isRemote": true,
+   "jobUrl": "https://jobs.ashbyhq.com/openai/x",
+   "descriptionHtml": "<p>x</p>",
+   "descriptionPlain": "x",
+   "compensation": null
+  },
+  {
+   "id": "1b2c3d4e-0000-4000-8000-000000000003",
+   "title": "Research Intern",
+   "department": "Research",
+   "team": "Research",
+   "employmentType": "Intern",
+   "location": "Remote - US",
+   "secondaryLocations": [],
+   "publishedAt": "2026-09-10T00:00:00Z",
+   "isListed": true,
+   "isRemote": true,
+   "workplaceType": "Remote",
+   "jobUrl": "https://jobs.ashbyhq.com/openai/3",
+   "descriptionHtml": "<p>Summer internship.</p>",
+   "descriptionPlain": "Summer internship.",
+   "compensation": {
+    "compensationTierSummary": "$60 \u2013 $75 per hour",
+    "summaryComponents": [
+     {
+      "compensationType": "Salary",
+      "interval": "1 HOUR",
+      "currencyCode": "USD",
+      "minValue": 60,
+      "maxValue": 75
+     }
+    ]
+   }
+  },
+  {
+   "id": "1b2c3d4e-0000-4000-8000-000000000004",
+   "title": "Solutions Engineer",
+   "department": "Go To Market",
+   "team": null,
+   "employmentType": "FullTime",
+   "location": "London, UK",
+   "secondaryLocations": [],
+   "publishedAt": "2026-09-11T00:00:00Z",
+   "isListed": true,
+   "isRemote": false,
+   "jobUrl": "https://jobs.ashbyhq.com/openai/4",
+   "descriptionHtml": "<p>Compensation: \u00a3120,000 \u2013 \u00a3150,000 per year.</p>",
+   "descriptionPlain": "Compensation: \u00a3120,000 \u2013 \u00a3150,000 per year.",
+   "compensation": {
+    "compensationTierSummary": null,
+    "summaryComponents": []
+   }
+  }
+ ]
+}

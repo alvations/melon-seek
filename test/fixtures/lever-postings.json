@@ -1,0 +1,58 @@
+[
+ {
+  "id": "a1b2c3d4-1111-4222-8333-444455556666",
+  "text": "Senior Backend Engineer",
+  "categories": {
+   "commitment": "Full-time",
+   "department": "Engineering",
+   "location": "Toronto, ON",
+   "team": "Platform",
+   "allLocations": [
+    "Toronto, ON",
+    "Vancouver, BC"
+   ]
+  },
+  "country": "CA",
+  "createdAt": 1758000000000,
+  "description": "<div>We build developer tools.</div>",
+  "descriptionPlain": "We build developer tools.",
+  "lists": [
+   {
+    "text": "What you'll do",
+    "content": "<li>Design APIs in Go</li><li>Run Postgres at scale</li>"
+   },
+   {
+    "text": "What we're looking for",
+    "content": "<li>5+ years backend experience</li>"
+   }
+  ],
+  "additional": "<div>We offer a 401(k) and $2,000 learning stipend.</div>",
+  "additionalPlain": "We offer a 401(k) and $2,000 learning stipend.",
+  "hostedUrl": "https://jobs.lever.co/example/a1b2c3d4-1111-4222-8333-444455556666",
+  "applyUrl": "https://jobs.lever.co/example/a1b2c3d4-1111-4222-8333-444455556666/apply",
+  "workplaceType": "hybrid",
+  "salaryRange": {
+   "currency": "CAD",
+   "interval": "per-year-salary",
+   "min": 150000,
+   "max": 185000
+  }
+ },
+ {
+  "id": "b2",
+  "text": "Support Specialist",
+  "categories": {
+   "commitment": "Part-time",
+   "department": "Support",
+   "location": "Remote",
+   "team": "CX"
+  },
+  "createdAt": 1757000000000,
+  "description": "<p>Help customers.</p>",
+  "descriptionPlain": "Help customers.",
+  "lists": [],
+  "additional": "<p>Pay: $25 - $32 per hour</p>",
+  "hostedUrl": "https://jobs.lever.co/example/b2",
+  "workplaceType": "remote"
+ }
+]

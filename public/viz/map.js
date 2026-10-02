@@ -1,0 +1,283 @@
+// melon-seek job map (Leaflet, global `L`).
+//
+// createMap(container, { onSelect(job), onAreaSelect(jobs, label) })
+//   -> { update(jobs, { fit }), highlight(jobId|null), invalidateSize(), destroy() }
+//
+// Jobs are aggregated per location (lat/lng rounded to 0.1°; a job with several
+// locations counts in each), then greedily clustered in screen space so pills
+// never overlap at the current zoom. Each cluster is a Zillow-style price-tag
+// pill: median salary (approx USD) + count badge, filled on a one-hue
+// sequential scale by median. Remote-only postings live in a "Remote" control.
+// Basemap: CARTO light/dark (follows the theme); if tiles fail the container
+// keeps a styled background, a graticule and labelled pins.
+
+import { formatMoney, toUSD, median, salaryColor, inkOn, onThemeChange, isDark } from './palette.js';
+
+const TILE_LIGHT = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+const TILE_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+const CLUSTER_PX = 58;
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+function midUSD(job) {
+  const s = job.salary;
+  if (!s || (s.min == null && s.max == null)) return null;
+  const cur = s.currency || 'USD';
+  const mid = s.mid ?? ((s.min ?? s.max) + (s.max ?? s.min)) / 2;
+  return toUSD(mid, cur);
+}
+
+function locLabel(l) {
+  if (l.city) return l.region && l.region !== l.city ? `${l.city}, ${l.region}` : (l.country && l.country !== l.city ? `${l.city}, ${l.country}` : l.city);
+  return l.name || 'Unknown';
+}
+
+const plural = (n, one, many = one + 's') => `${n.toLocaleString()} ${n === 1 ? one : many}`;
+
+/** Aggregate jobs into { places: [{key,lat,lng,label,jobs}], remote: jobs[] }. */
+export function aggregate(jobs) {
+  const places = new Map();
+  const remote = [];
+  for (const job of jobs) {
+    let placed = false, isRemote = false;
+    const seen = new Set();
+    for (const l of job.locations || []) {
+      if (l.remote) { isRemote = true; continue; }
+      if (l.lat == null || l.lng == null || !isFinite(l.lat) || !isFinite(l.lng)) continue;
+      const key = `${l.lat.toFixed(1)},${l.lng.toFixed(1)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      let p = places.get(key);
+      if (!p) { p = { key, lat: +l.lat, lng: +l.lng, label: locLabel(l), jobs: [] }; places.set(key, p); }
+      p.jobs.push(job);
+      placed = true;
+    }
+    if (isRemote || (!placed && job.remote)) remote.push(job);
+  }
+  return { places: [...places.values()], remote };
+}
+
+function summarize(jobs) {
+  const mids = jobs.map(midUSD).filter(v => v != null);
+  return { n: jobs.length, salaried: mids.length, median: median(mids) };
+}
+
+export function createMap(container, { onSelect, onAreaSelect } = {}) {
+  if (typeof L === 'undefined') throw new Error('melon-seek map: Leaflet global `L` not loaded');
+  container.classList.add('ms-map');
+  container.replaceChildren();
+  const host = el('div', 'ms-map__canvas');
+  container.append(host);
+
+  const map = L.map(host, {
+    zoomControl: true, worldCopyJump: true, minZoom: 2, maxZoom: 16,
+    zoomSnap: 0.5, attributionControl: true,
+  }).setView([30, -20], 2);
+  map.attributionControl.setPrefix(false);
+
+  // Graticule below tiles: visible only when tiles are missing.
+  map.createPane('ms-graticule').style.zIndex = 150;
+  const gratLines = [];
+  for (let lat = -60; lat <= 75; lat += 15) gratLines.push([[lat, -540], [lat, 540]]);
+  for (let lng = -540; lng <= 540; lng += 15) gratLines.push([[-85, lng], [85, lng]]);
+  L.polyline(gratLines, { pane: 'ms-graticule', interactive: false, className: 'ms-graticule-line', weight: 1, smoothFactor: 1 }).addTo(map);
+
+  let tileErrors = 0, tileOk = 0;
+  const tiles = L.tileLayer(isDark() ? TILE_DARK : TILE_LIGHT, {
+    subdomains: 'abcd', maxZoom: 20, attribution: ATTRIBUTION, detectRetina: false, crossOrigin: true,
+  });
+  tiles.on('tileerror', () => { tileErrors++; if (!tileOk) container.classList.add('ms-map--offline'); });
+  tiles.on('tileload', () => { tileOk++; container.classList.remove('ms-map--offline'); });
+  tiles.addTo(map);
+  // If nothing loads at all (blocked silently), treat as offline after a moment.
+  const offlineTimer = setTimeout(() => { if (!tileOk) container.classList.add('ms-map--offline'); }, 4000);
+
+  // Remote control
+  const RemoteControl = L.Control.extend({
+    options: { position: 'bottomleft' },
+    onAdd() {
+      const b = L.DomUtil.create('button', 'ms-remote');
+      b.type = 'button';
+      L.DomEvent.disableClickPropagation(b);
+      L.DomEvent.on(b, 'click', () => { if (remoteJobs.length) onAreaSelect?.(remoteJobs, 'Remote'); });
+      return b;
+    },
+  });
+  const remoteCtl = new RemoteControl().addTo(map);
+  const remoteBtn = remoteCtl.getContainer();
+
+  // Offline note control
+  const NoteControl = L.Control.extend({
+    options: { position: 'topright' },
+    onAdd() { const d = L.DomUtil.create('div', 'ms-map__offline-note'); d.textContent = 'Basemap unavailable · pins still work'; return d; },
+  });
+  new NoteControl().addTo(map);
+
+  const markerLayer = L.layerGroup().addTo(map);
+  let places = [];
+  let remoteJobs = [];
+  let clusters = [];
+  let highlighted = null;
+  let lastSig = null;
+  let first = true;
+
+  function cluster() {
+    const zoom = map.getZoom();
+    const pts = places
+      .map(p => ({ p, pt: map.project([p.lat, p.lng], zoom) }))
+      .sort((a, b) => b.p.jobs.length - a.p.jobs.length);
+    const out = [];
+    for (const { p, pt } of pts) {
+      let target = null;
+      for (const c of out) {
+        if (Math.abs(c.pt.x - pt.x) < CLUSTER_PX && Math.abs(c.pt.y - pt.y) < CLUSTER_PX * 0.5) { target = c; break; }
+      }
+      if (target) target.members.push(p);
+      else out.push({ pt, members: [p], lead: p });
+    }
+    return out.map(c => {
+      const ids = new Set();
+      const jobs = [];
+      for (const m of c.members) for (const j of m.jobs) if (!ids.has(j.id)) { ids.add(j.id); jobs.push(j); }
+      const label = c.members.length > 1 ? `${c.lead.label} + ${c.members.length - 1} nearby` : c.lead.label;
+      return { lat: c.lead.lat, lng: c.lead.lng, members: c.members, jobs, ids, label, ...summarize(jobs) };
+    });
+  }
+
+  function tooltipContent(c) {
+    const root = el('div', 'ms-map-tip__inner');
+    root.append(el('div', 'ms-tip__value', c.median != null ? `${formatMoney(c.median)} median` : plural(c.n, 'job')));
+    root.append(el('div', 'ms-tip__title', c.label));
+    root.append(el('div', 'ms-tip__meta', c.median != null
+      ? `${plural(c.n, 'posting')} · ${c.salaried.toLocaleString()} with salary`
+      : `${plural(c.n, 'posting')} · no published salary`));
+    const counts = new Map();
+    for (const j of c.jobs) counts.set(j.title, (counts.get(j.title) || 0) + 1);
+    const top = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    const list = el('ul', 'ms-tip__roles');
+    for (const [t, n] of top.slice(0, 4)) {
+      const li = el('li');
+      li.append(el('span', 'ms-tip__role', t), el('span', 'ms-tip__n', n > 1 ? `×${n}` : ''));
+      list.append(li);
+    }
+    root.append(list);
+    if (top.length > 4) root.append(el('div', 'ms-tip__meta', `+${top.length - 4} more roles`));
+    return root;
+  }
+
+  function pinElement(c, t) {
+    const pin = el('div', 'ms-pin');
+    if (c.median != null) {
+      const bg = salaryColor(t);
+      pin.style.setProperty('--pin-bg', bg);
+      pin.style.setProperty('--pin-fg', inkOn(bg));
+      pin.append(el('span', 'ms-pin__price', formatMoney(c.median)));
+      if (c.n > 1) pin.append(el('span', 'ms-pin__count', c.n > 999 ? '999+' : String(c.n)));
+    } else {
+      pin.classList.add('ms-pin--nosalary');
+      pin.append(el('span', 'ms-pin__price', plural(c.n, 'job')));
+    }
+    pin.append(el('span', 'ms-pin__label', c.label));
+    return pin;
+  }
+
+  function draw() {
+    markerLayer.clearLayers();
+    clusters = cluster();
+    const meds = clusters.map(c => c.median).filter(v => v != null);
+    const lo = Math.min(...meds), hi = Math.max(...meds);
+    // Draw small clusters first so big ones sit on top.
+    const order = clusters.slice().sort((a, b) => a.n - b.n);
+    order.forEach((c, i) => {
+      const t = c.median == null ? 0 : (hi > lo ? (c.median - lo) / (hi - lo) : 0.6);
+      const pinEl = pinElement(c, t);
+      c.pinEl = pinEl;
+      const icon = L.divIcon({ className: 'ms-pin-icon', html: pinEl, iconSize: [0, 0], iconAnchor: [0, 0] });
+      const m = L.marker([c.lat, c.lng], { icon, keyboard: true, title: '', riseOnHover: false, zIndexOffset: i, alt: c.label });
+      c.marker = m;
+      m.bindTooltip(() => tooltipContent(c), { direction: 'top', offset: [0, -36], className: 'ms-map-tip', opacity: 1 });
+      m.on('mouseover', () => { m.setZIndexOffset(100000); pinEl.classList.add('is-hover'); });
+      m.on('mouseout', () => { m.setZIndexOffset(i); pinEl.classList.remove('is-hover'); });
+      m.on('click', () => {
+        onAreaSelect?.(c.jobs, c.label);
+        if (c.jobs.length === 1) onSelect?.(c.jobs[0]);
+        if (c.members.length > 1) {
+          map.flyToBounds(L.latLngBounds(c.members.map(p => [p.lat, p.lng])).pad(0.3), { maxZoom: 12, duration: 0.6 });
+        } else {
+          const z = Math.min(12, Math.max(map.getZoom() + 2, 9));
+          if (z > map.getZoom()) map.flyTo([c.lat, c.lng], z, { duration: 0.6 });
+        }
+      });
+      m.addTo(markerLayer);
+    });
+    applyHighlight();
+  }
+
+  function drawRemote() {
+    remoteBtn.replaceChildren();
+    remoteBtn.hidden = !remoteJobs.length;
+    if (!remoteJobs.length) return;
+    const s = summarize(remoteJobs);
+    remoteBtn.append(el('span', 'ms-remote__icon', '🌐'), el('span', 'ms-remote__label', 'Remote'),
+      el('span', 'ms-remote__n', s.n.toLocaleString()));
+    if (s.median != null) remoteBtn.append(el('span', 'ms-remote__price', formatMoney(s.median)));
+    remoteBtn.title = `${plural(s.n, 'remote posting')}${s.median != null ? ` · median ${formatMoney(s.median)}` : ''} — show list`;
+    remoteBtn.setAttribute('aria-label', remoteBtn.title);
+  }
+
+  function applyHighlight() {
+    for (const c of clusters) c.pinEl?.classList.toggle('is-pulse', highlighted != null && c.ids.has(highlighted));
+    remoteBtn.classList.toggle('is-pulse', highlighted != null && remoteJobs.some(j => j.id === highlighted));
+  }
+
+  function fitToData() {
+    const pts = places.map(p => [p.lat, p.lng]);
+    if (!pts.length) { map.setView([30, -20], 2); return; }
+    if (pts.length === 1) { map.setView(pts[0], 10); return; }
+    map.fitBounds(L.latLngBounds(pts), { padding: [48, 48], maxZoom: 11 });
+  }
+
+  map.on('zoomend', draw);
+
+  const ro = new ResizeObserver(() => map.invalidateSize({ pan: false }));
+  ro.observe(container);
+  const offTheme = onThemeChange(dark => { tiles.setUrl(dark ? TILE_DARK : TILE_LIGHT); draw(); });
+
+  return {
+    update(jobs, { fit } = {}) {
+      jobs = Array.isArray(jobs) ? jobs : [];
+      ({ places, remote: remoteJobs } = aggregate(jobs));
+      // Default: refit only when the dataset identity (set of companies) changes.
+      const sig = [...new Set(jobs.map(j => j.company))].sort().join('|');
+      const doFit = fit ?? (first || sig !== lastSig);
+      lastSig = sig;
+      if (jobs.length) first = false;
+      map.invalidateSize({ pan: false });
+      if (doFit) {
+        map.off('zoomend', draw);
+        fitToData();
+        map.on('zoomend', draw);
+      }
+      draw();
+      drawRemote();
+    },
+    highlight(jobId) { highlighted = jobId ?? null; applyHighlight(); },
+    invalidateSize() { map.invalidateSize({ pan: false }); draw(); },
+    destroy() {
+      clearTimeout(offlineTimer);
+      ro.disconnect();
+      offTheme();
+      map.remove();
+      container.replaceChildren();
+      container.classList.remove('ms-map', 'ms-map--offline');
+    },
+    /** The underlying Leaflet map (escape hatch). */
+    get leaflet() { return map; },
+  };
+}

@@ -1,0 +1,90 @@
+{
+ "jobs": [
+  {
+   "absolute_url": "https://job-boards.greenhouse.io/anthropic/jobs/4012345008",
+   "data_compliance": [],
+   "internal_job_id": 4001,
+   "location": {
+    "name": "San Francisco, CA | New York City, NY"
+   },
+   "metadata": [
+    {
+     "id": 1,
+     "name": "Location Type",
+     "value": "Hybrid",
+     "value_type": "single_select"
+    }
+   ],
+   "id": 4012345008,
+   "updated_at": "2026-09-30T12:00:00-04:00",
+   "requisition_id": "R-1",
+   "title": "Research Engineer, Interpretability",
+   "content": "&lt;div class=&quot;content-intro&quot;&gt;&lt;p&gt;&lt;strong&gt;About Anthropic&lt;/strong&gt;&lt;/p&gt;&lt;p&gt;Anthropic&#x27;s mission is to create reliable, interpretable, and steerable AI systems. We raised $1B+ &amp;amp; offer 401(k) matching.&lt;/p&gt;&lt;/div&gt;&lt;h2&gt;About the role&lt;/h2&gt;&lt;p&gt;We&#x27;re looking for research engineers to help scale interpretability.&lt;/p&gt;&lt;h3&gt;Responsibilities:&lt;/h3&gt;&lt;ul&gt;&lt;li&gt;Build and maintain large-scale training infrastructure&lt;/li&gt;&lt;li&gt;Collaborate with researchers on experiments&lt;/li&gt;&lt;/ul&gt;&lt;h3&gt;You may be a good fit if you:&lt;/h3&gt;&lt;ul&gt;&lt;li&gt;Have 5+ years of experience with Python and PyTorch&lt;/li&gt;&lt;li&gt;Are comfortable with Kubernetes&lt;/li&gt;&lt;/ul&gt;&lt;div class=&quot;content-pay-transparency&quot;&gt;&lt;div class=&quot;pay-input-blurb&quot;&gt;&lt;/div&gt;&lt;div class=&quot;pay-range&quot;&gt;&lt;span&gt;Annual Salary:&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;&lt;p&gt;The expected salary range for this position is:&lt;/p&gt;&lt;div class=&quot;pay-range&quot;&gt;&lt;span&gt;$320,000&lt;/span&gt;&lt;span class=&quot;divider&quot;&gt;&amp;mdash;&lt;/span&gt;&lt;span&gt;$405,000 USD&lt;/span&gt;&lt;/div&gt;&lt;p&gt;Logistics: We&amp;#39;re an equal opportunity employer.&amp;nbsp;Visa sponsorship available.&lt;/p&gt;",
+   "departments": [
+    {
+     "id": 1,
+     "name": "AI Research & Engineering",
+     "child_ids": [],
+     "parent_id": null
+    }
+   ],
+   "offices": [
+    {
+     "id": 1,
+     "name": "San Francisco, CA",
+     "location": "San Francisco, CA"
+    },
+    {
+     "id": 2,
+     "name": "Seattle, WA",
+     "location": "Seattle, WA"
+    }
+   ]
+  },
+  {
+   "absolute_url": "https://boards.greenhouse.io/andurilindustries/jobs/4500001007",
+   "internal_job_id": 4002,
+   "location": {
+    "name": "Costa Mesa, California, United States"
+   },
+   "metadata": null,
+   "id": 4500001007,
+   "updated_at": "2026-09-29T08:30:00-07:00",
+   "title": "Engineering Manager, Lattice",
+   "content": "&amp;lt;p&amp;gt;Lead a team building Lattice OS for autonomous systems.&amp;lt;/p&amp;gt;&amp;lt;h3&amp;gt;What you&amp;amp;#39;ll do&amp;lt;/h3&amp;gt;&amp;lt;ul&amp;gt;&amp;lt;li&amp;gt;Own the roadmap&amp;lt;/li&amp;gt;&amp;lt;/ul&amp;gt;&amp;lt;p&amp;gt;Annual Salary:&amp;lt;/p&amp;gt;&amp;lt;p&amp;gt;$191,000&amp;amp;mdash;$253,000 USD&amp;lt;/p&amp;gt;",
+   "departments": [
+    {
+     "id": 2,
+     "name": "Software"
+    }
+   ],
+   "offices": []
+  },
+  {
+   "absolute_url": "https://job-boards.greenhouse.io/anthropic/jobs/4999",
+   "internal_job_id": 4003,
+   "location": {
+    "name": "London, UK"
+   },
+   "metadata": [],
+   "id": 4999,
+   "updated_at": "2026-09-28T10:00:00Z",
+   "title": "Account Executive, EMEA",
+   "content": "&lt;p&gt;Help our London team. Salary: &amp;pound;95k-&amp;pound;120k plus equity.&lt;/p&gt;",
+   "departments": [],
+   "offices": [],
+   "pay_input_ranges": [
+    {
+     "min_cents": 9500000,
+     "max_cents": 12000000,
+     "currency_type": "GBP",
+     "title": "London base",
+     "blurb": "Annual base salary"
+    }
+   ]
+  }
+ ],
+ "meta": {
+  "total": 3
+ }
+}
