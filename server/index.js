@@ -17,6 +17,7 @@ import { vetSalaries } from './vet.js';
 import { getCached, setCached, ROOT } from './cache.js';
 import { demoJobs } from './demo.js';
 import { isLibModule } from './lib-modules.js';
+import { annotate, ledgerMeta, HISTORY_FORMAT } from './history.js';
 
 const gzip = promisify(zlib.gzip);
 
@@ -147,7 +148,7 @@ const demoMemo = new Map();     // slug -> Job[] (demo is deterministic; bounded
 
 /** Reset throttles and memos (tests). */
 export function resetState() {
-  lastAttempt.clear(); negative.clear(); demoMemo.clear(); inflight.clear();
+  lastAttempt.clear(); negative.clear(); demoMemo.clear(); inflight.clear(); ledgers.clear();
 }
 
 function demoFor(canonical) {
@@ -159,6 +160,44 @@ function demoFor(canonical) {
   return jobs;
 }
 
+/* ------------------------------------------------------------ history (F4) */
+
+export const HISTORY_DIR = process.env.MELON_HISTORY_DIR || path.join(ROOT, 'data', 'history');
+const ledgers = new Map();      // slug -> { key, ledger } (bounded)
+const annotated = new WeakMap(); // jobs array -> { key, jobs }
+
+/** Ledger written by scripts/history.js, reloaded when the file changes; null when missing or invalid. */
+export async function loadLedger(slug) {
+  const file = path.join(HISTORY_DIR, `${String(slug).replace(/[^a-z0-9-_.]/gi, '_')}.json`);
+  let st;
+  try { st = await fs.stat(file); } catch { ledgers.delete(slug); return null; }
+  const key = `${st.mtimeMs}:${st.size}`;
+  const hit = ledgers.get(slug);
+  if (hit && hit.key === key) return hit.ledger;
+  let ledger = null;
+  try {
+    const parsed = JSON.parse(await fs.readFile(file, 'utf8'));
+    if (parsed && parsed.format === HISTORY_FORMAT && parsed.jobs) ledger = parsed;
+    else console.warn(`[history] ${slug}: not a ${HISTORY_FORMAT} ledger`);
+  } catch (err) {
+    console.warn(`[history] ${slug}: ${err.message}`);
+  }
+  boundedSet(ledgers, slug, { key, ledger }, 200);
+  return ledger;
+}
+
+/** annotate() with ages as of now, memoized per jobs array, ledger version and hour. */
+function annotateCached(jobs, ledger) {
+  if (!Array.isArray(jobs)) return jobs;
+  const hour = Math.floor(Date.now() / 3600000);
+  const key = `${ledger ? `${ledger.lastRunAt}:${ledger.runs}` : '-'}|${hour}`;
+  const hit = annotated.get(jobs);
+  if (hit && hit.key === key) return hit.jobs;
+  const out = annotate(jobs, ledger, new Date().toISOString());
+  annotated.set(jobs, { key, jobs: out });
+  return out;
+}
+
 /**
  * Resolve jobs with fallbacks:
  * fresh cache -> live -> stale cache -> snapshot -> demo.
@@ -166,7 +205,17 @@ function demoFor(canonical) {
  *   slug per MIN_REFRESH_MS).
  * - offline: never fetch upstream (HEAD requests).
  */
-export async function getJobs(company, { refresh = false, offline = false } = {}) {
+export async function getJobs(company, opts = {}) {
+  const payload = await getJobsBase(company, opts);
+  const ledger = await loadLedger(company.slug);
+  return {
+    ...payload,
+    jobs: annotateCached(payload.jobs, ledger),
+    meta: { compstimate: null, history: ledgerMeta(ledger) },
+  };
+}
+
+async function getJobsBase(company, { refresh = false, offline = false } = {}) {
   const pub = { slug: company.slug, name: company.name, source: company.source, board: company.board, color: company.color };
   // Cached data is built with a name that does not depend on the caller's
   // ?name= (review L3); the requested display name is stamped on the way out.

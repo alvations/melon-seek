@@ -56,14 +56,37 @@ jobs:
           done
           echo "::warning::No snapshot artifact found; boards that fail below fall back to demo data."
 
-      - name: Fetch fresh snapshots (best effort; a failed board keeps the restored file)
-        run: npm run snapshot || true # no args = every built-in in server/companies.js
+      # F4 history ledger (data/history/*.json): restore it before the snapshot
+      # step updates it. Store: HISTORY_STORE repo variable, `artifact` (default:
+      # newest non-expired `history-ledger` artifact from either workflow) or
+      # `branch` (orphan data-history branch). Missing = start fresh.
+      # See .github/scripts/ledger.sh and README "History ledger".
+      - name: Restore history ledger
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HISTORY_STORE: ${{ vars.HISTORY_STORE || 'artifact' }}
+        run: .github/scripts/ledger.sh restore
 
-      # Salary vetting gate (docs/VETTING.md). Applies the same quarantine the
-      # build and server use, then exits 1 if any job would be published with a
-      # critical salary, or if a regression fixture fails. That stops the deploy,
-      # so implausible pay is never published.
+      - name: Fetch fresh snapshots (best effort; a failed board keeps the restored file)
+        run: npm run snapshot || true # no args = every built-in in server/companies.js; also updates data/history/
+
+      # Always upload the updated ledger (also the hand-off to persist-ledger in
+      # branch mode), even if a later step such as the vetting gate fails.
+      - name: Upload history ledger
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: history-ledger
+          path: data/history/
+          retention-days: 90
+          if-no-files-found: warn
+
+      # Salary vetting gate (docs/VETTING.md). HARD gate: no existence guard and
+      # no continue-on-error, so a non-zero exit (any job that would be published
+      # with a critical salary, or a failing regression fixture) skips the build
+      # and the deploy. Implausible pay is never published.
       - name: Salary vetting gate (fails on critical anomalies)
+        continue-on-error: false
         run: |
           mkdir -p "$RUNNER_TEMP/vetting"
           node scripts/vet-salaries.js --out "$RUNNER_TEMP/vetting/flags.jsonl" --summary "$GITHUB_STEP_SUMMARY"
@@ -136,6 +159,15 @@ jobs:
             done
             echo ""
             echo "Site total: $(( $(du -sb dist | cut -f1) / 1000000 )) MB (GitHub Pages limit: 1 GB)"
+            echo ""
+            echo "### Compstimate backtest (meta.compstimate)"
+            echo ""
+            echo "| company | n | median abs % error | within 10% | seed | history (since, runs) |"
+            echo "| --- | ---: | ---: | ---: | --- | --- |"
+            for f in dist/api/jobs/*.json; do
+              jq -r '(.meta.compstimate // {}) as $c | (.meta.history // {}) as $h |
+                "| \(.company.slug) | \($c.n // "-") | \(if $c.medianAbsPctError == null then "-" else ($c.medianAbsPctError * 100 | round | tostring) + "%" end) | \(if $c.within10Pct == null then "-" else ($c.within10Pct * 100 | round | tostring) + "%" end) | \($c.seed // "-") | \($h.since // "-"), \($h.runs // 0) |"' "$f"
+            done
           } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/configure-pages@v6
@@ -144,6 +176,27 @@ jobs:
         with:
           path: dist
           include-hidden-files: true # keep dist/.nojekyll (v4+ drops dotfiles by default)
+
+  # Branch store only (HISTORY_STORE=branch): commit the ledger to the orphan
+  # data-history branch. The only job with contents: write, and it is skipped
+  # entirely in the default artifact store.
+  persist-ledger:
+    needs: build
+    if: ${{ vars.HISTORY_STORE == 'branch' && !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: history-ledger-branch
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: history-ledger
+          path: data/history
+      - name: Commit ledger to the data-history branch
+        run: .github/scripts/ledger.sh commit-branch
 
   deploy:
     needs: build

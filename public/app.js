@@ -448,7 +448,9 @@ async function loadJobs({ refresh = false } = {}) {
       mode: res?.mode || 'live',
       fetchedAt: res?.fetchedAt ? Date.parse(res.fetchedAt) : null,
       error: res?.error || null,
+      meta: res?.meta || null,
     };
+    markVisit(S.c, data.jobs);
     if (refresh) toast(data.mode === 'live' ? 'Fetched fresh from the live board' : 'Live board unreachable — showing fallback data');
   } catch (err) {
     if (err?.name === 'AbortError' || seq !== loadSeq) return;
@@ -1007,7 +1009,7 @@ function renderFilterPanel() {
     body.replaceChildren(...panel.map((s) => s.el));
   }
   for (const s of panel) s.sync();
-  const counts = { sal: (S.smin != null || S.smax != null ? 1 : 0) + (S.so ? 1 : 0), d: S.d.length, l: S.l.length, s: S.s.length, r: S.r !== 'any' ? 1 : 0, kr: S.kr.length, kf: S.kf.length, ks: S.ks.length, e: S.e.length, p: S.p ? 1 : 0 };
+  const counts = { sal: (S.smin != null || S.smax != null ? 1 : 0) + (S.so ? 1 : 0), d: S.d.length, l: S.l.length, s: S.s.length, r: S.r !== 'any' ? 1 : 0, kr: S.kr.length, kf: S.kf.length, ks: S.ks.length, e: S.e.length, p: (S.p ? 1 : 0) + (S.ho ? 1 : 0) };
   for (const b of body.querySelectorAll('[data-badge]')) {
     const n = counts[b.dataset.badge];
     b.textContent = n || '';
@@ -1411,7 +1413,28 @@ function topTags(job, n = 3) {
   return [...new Set(tags)].slice(0, n);
 }
 
+/** Card age slot (F4): "12d", "8mo", "2y+", "30d+" when the age is a lower bound; nothing when unknown. */
+function ageText(job) {
+  const d = job._age;
+  if (d == null) return '';
+  const t = d < 60 ? `${d}d` : d < 730 ? `${Math.round(d / 30.44)}mo` : `${Math.floor(d / 365)}y`;
+  return job.ageIsMinimum || d >= 730 ? `${t}+` : t;
+}
+function ageTitle(job) {
+  if (job._age == null) return '';
+  return `${job.ageIsMinimum ? 'Open at least' : 'Listed'} ${plural(job._age, 'day')}${job.ageIsMinimum ? '' : ' ago'}`;
+}
+
+/** The card's single status tag, by priority: Pay changed > New > Reposted. */
+function statusTag(job) {
+  if (job.payChange?.dir) return h('span', { class: 'tag tag--status', title: `Pay range ${job.payChange.dir === 'up' ? 'raised' : 'lowered'} ${Math.abs(Math.round(job.payChange.pct))}%` }, `Pay ${job.payChange.dir === 'up' ? '↑' : '↓'}`);
+  if (isNewJob(job)) return h('span', { class: 'tag tag--status tag--new', title: 'New since your last visit' }, 'New');
+  if (job.repost?.count > 0) return h('span', { class: 'tag tag--status', title: `Reposted ${job.repost.count}×` }, 'Reposted');
+  return null;
+}
+
 function card(job) {
+  const status = statusTag(job);
   const color = vizColor(keyOf(job, colorBy()));
   const range = salaryRange(job.salary);
   const isOpen = job.id === drawerJobId;
@@ -1431,8 +1454,9 @@ function card(job) {
   h('div', { class: 'card-foot' },
     h('span', { class: `sen sen--${(job.seniority || 'mid').toLowerCase().replace(/\W/g, '')}` }, job.seniority || '—'),
     juiceBadge(job),
-    ...topTags(job, job.juice ? 1 : 2).map((t) => h('span', { class: 'tag' }, t)),
-    job._ts ? h('span', { class: 'card-age' }, ago(job._ts)) : null)));
+    ...topTags(job, Math.max(0, 2 - (job.juice ? 1 : 0) - (status ? 1 : 0))).map((t) => h('span', { class: 'tag' }, t)),
+    status, // at most one status tag, in the second keyword slot (ROADMAP §8)
+    ageText(job) ? h('span', { class: 'card-age', title: ageTitle(job) }, ageText(job)) : null)));
   return el;
 }
 
@@ -1624,6 +1648,29 @@ function payUnclearBlock(job) {
     compstimateBlock(job));
 }
 
+/** At most two muted honest-number labels (ROADMAP F2), in the roadmap's priority order. */
+function payLabels(job) {
+  const s = job.salary;
+  if (!s) return null;
+  const spread = s.spread ?? (s.min > 0 ? s.max / s.min : null);
+  const labels = [
+    s.zones > 1 ? ['Multiple pay zones', 'The posting lists different ranges for different locations or levels'] : null,
+    spread != null && spread >= 2 ? [`Wide range (${spread.toFixed(1)}×)`, 'The top of the range is at least twice the bottom'] : null,
+    s.min === s.max ? ['Single figure', 'The posting gives one number, not a range'] : null,
+    job.extras?.equity ? ['+ equity mentioned', 'The description mentions equity; it isn\u2019t in this figure'] : null,
+    job.extras?.bonus ? ['+ bonus mentioned', 'The description mentions a bonus; it isn\u2019t in this figure'] : null,
+  ].filter(Boolean).slice(0, 2);
+  return labels.length ? h('div', { class: 'pay-labels' }, ...labels.map(([t, tip]) => h('span', { class: 'pay-label', title: tip }, t))) : null;
+}
+
+/** "Typically within ±X% (tested on N listed salaries)" from meta.compstimate (F3). */
+function compAccuracy() {
+  const m = data.meta?.compstimate;
+  if (!m || m.medianAbsPctError == null || !m.n) return null;
+  const err = m.medianAbsPctError <= 1.5 ? m.medianAbsPctError * 100 : m.medianAbsPctError; // fraction or percent
+  return { pct: Math.round(err), n: m.n, low: err > 25 };
+}
+
 /** For postings without pay: an estimate from comparable roles, clearly labelled as such. */
 function compstimateBlock(job) {
   let est = null;
@@ -1634,7 +1681,8 @@ function compstimateBlock(job) {
       h('span', { class: 'd-comp-label' }, 'Compstimate'),
       h('span', { class: 'd-comp-amt' }, `≈ ${money(est.mid)}`),
       h('span', { class: 'muted' }, `(${money(est.low)}–${money(est.high).replace(/^\$/, '')}, ${String(est.confidence || '').toLowerCase()} confidence)`)),
-    h('p', { class: 'd-comp-note' }, `An estimate from ${plural(est.n || 0, 'comparable role')} at ${data.company?.name || 'this company'} (approx USD / year) — not a figure from the posting.`));
+    h('p', { class: 'd-comp-note' }, `An estimate from ${plural(est.n || 0, 'comparable role')} at ${data.company?.name || 'this company'} (approx USD / year) — not a figure from the posting.`),
+    (() => { const a = compAccuracy(); return a ? h('p', { class: 'd-comp-note' }, a.low ? h('strong', null, 'Low confidence. ') : null, `Typically within ±${a.pct}% (tested on ${a.n.toLocaleString()} listed salaries).`) : null; })());
 }
 
 function annualNote(sal) {
@@ -1680,6 +1728,8 @@ function drawerContent(job) {
       : job.salaryFlag ? payUnclearBlock(job)
         : h('div', { class: 'd-sal-none' }, h('strong', null, 'Salary not listed'), h('span', { class: 'muted' }, ' — this posting doesn\u2019t include a pay range.'), compstimateBlock(job)),
     sal ? salaryDistribution(job) : null,
+    sal ? payLabels(job) : null,
+    sal ? h('p', { class: 'd-pay-caption' }, 'Posted base pay. Equity and bonus aren\u2019t included.') : null,
     sal && pct != null ? h('p', { class: 'd-pct-text' }, pct >= 100 ? `Top-paid role at ${company.name || job.companyName}` : `Pays more than ${pct}% of roles at ${company.name || job.companyName}`) : null);
 
   const locs = h('section', { class: 'd-sec' }, h('h3', null, job.locations.length > 1 ? `Locations (${job.locations.length})` : 'Location'),

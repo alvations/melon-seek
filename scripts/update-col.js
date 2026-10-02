@@ -114,6 +114,7 @@ export function applyBigMac(doc, bm, { minCountries = 20 } = {}) {
   const changes = [];
   const src = {
     name: `The Economist Big Mac index, source data v2 (release ${bm.date})`,
+    class: 'open',
     url: BIG_MAC_CSV_URL,
     repo: BIG_MAC_REPO_URL,
     license: BIG_MAC_LICENSE,
@@ -156,6 +157,7 @@ export function applyBigMac(doc, bm, { minCountries = 20 } = {}) {
         name: `The Economist Big Mac index: ${row.name}, ${row.localPrice} ${row.currency} at ${row.dollarEx}/USD`,
         url: src.url,
         asOf: bm.date,
+        class: 'open',
         note: 'big-mac',
       };
     }
@@ -163,7 +165,7 @@ export function applyBigMac(doc, bm, { minCountries = 20 } = {}) {
     if (fx > 0) {
       if (city.fxPerUSD !== fx) changes.push(`${city.key}: fxPerUSD ${city.fxPerUSD} -> ${fx}`);
       city.fxPerUSD = fx;
-      city.sources.fxPerUSD = { name: `Big Mac data dollar_ex (${city.currency} per USD)`, url: src.url, asOf: bm.date, note: 'big-mac' };
+      city.sources.fxPerUSD = { name: `Big Mac data dollar_ex (${city.currency} per USD)`, url: src.url, asOf: bm.date, class: 'open', note: 'big-mac' };
       for (const [usdField, localField] of [['rent1brCenterUSD', 'rent1brCenterLocal'], ['rent1brOutsideUSD', 'rent1brOutsideLocal']]) {
         if (city[localField] == null) continue;
         const usd = toUsdAt(city[localField], fx);
@@ -175,6 +177,8 @@ export function applyBigMac(doc, bm, { minCountries = 20 } = {}) {
           url: local.url || src.url,
           asOf: local.asOf || bm.date,
           fxAsOf: bm.date,
+          ...(local.class ? { class: local.class } : {}),
+          ...(local.terms ? { terms: local.terms } : {}),
           ...(local.estimated ? { estimated: true, method: local.method } : {}),
         };
       }

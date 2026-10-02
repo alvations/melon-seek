@@ -12,7 +12,11 @@
 // docs/LIVABILITY.md. An estimate, not financial advice.
 //
 //   computeJuice(salaryUSD, cityRecord, opts?) -> { gross, tax, rent, living, net, score,
-//                                                   grade, rentBurden, bigMacs, taxParts }
+//                    grade, rentBurden, bigMacs, taxParts, confidence, inputs }
+//     opts.rentOverrideUSD: user-entered monthly rent (USD) replacing the dataset rent
+//     inputs: rent / tax / costIndex / fx / bigMac values, each with source and as-of date
+//     confidence: "high" | "medium" | "low" (lowest input; non-US is "low" unless rent and
+//                 cost index are from official or open sources)
 //   findCity(location, cities) -> city record | null
 //   attachJuice(job, cities, opts?) -> job (sets job.juice = { best, byLocation } | null)
 import { geocode, normKey } from './geo.js';
@@ -546,31 +550,103 @@ export function toUSD(amount, currency, cities) {
 }
 
 // ---------------------------------------------------------------------------
+// Guardrails: inputs and confidence (ROADMAP F8)
+// ---------------------------------------------------------------------------
+
+/** Source classes, best first. official/open/user rank "high"; aggregator "medium"; estimate "low". */
+export const SOURCE_CLASSES = Object.freeze(['official', 'open', 'user', 'aggregator', 'estimate']);
+export const CONFIDENCE_LEVELS = Object.freeze(['low', 'medium', 'high']);
+const CLASS_CONFIDENCE = { official: 'high', open: 'high', user: 'high', aggregator: 'medium', estimate: 'low' };
+
+/** Class of a cities.json source entry: explicit `class`, else inferred (estimates, Numbeo = aggregator). */
+export function sourceClass(source) {
+  if (!source) return 'estimate';
+  if (source.estimated) return 'estimate';
+  if (SOURCE_CLASSES.includes(source.class)) return source.class;
+  if (/numbeo\.com/i.test(source.url || '')) return 'aggregator';
+  return 'aggregator'; // unknown provenance never counts as official
+}
+
+function lowest(levels) {
+  return levels.reduce((a, b) => (CONFIDENCE_LEVELS.indexOf(b) < CONFIDENCE_LEVELS.indexOf(a) ? b : a), 'high');
+}
+
+/** Confidence of the tax inputs: estimated -> low; approximate or unverified -> medium; verified -> high. */
+function taxConfidence(keys) {
+  return lowest(keys.map((k) => {
+    const s = TAX_SOURCES[k];
+    if (!s || s.estimated) return 'low';
+    if (s.approximate || !s.verified) return 'medium';
+    return 'high';
+  }));
+}
+
+const brief = (s) => (s ? { name: s.name, url: s.url, asOf: s.asOf } : null);
+
+/**
+ * Overall confidence: the lowest of the rent, cost-index and tax confidences; and outside the
+ * US it is "low" unless both rent and cost index come from an official, open or user source.
+ */
+export function confidenceFor(inputs, country) {
+  const level = lowest([inputs.rent.confidence, inputs.costIndex.confidence, inputs.tax.confidence]);
+  const strong = (c) => ['official', 'open', 'user'].includes(c);
+  if (country !== 'US' && !(strong(inputs.rent.class) && strong(inputs.costIndex.class))) return 'low';
+  return level;
+}
+
+// ---------------------------------------------------------------------------
 // computeJuice
 // ---------------------------------------------------------------------------
 
-function anyEstimated(city, fields) {
-  return fields.some((f) => city.sources?.[f]?.estimated);
-}
-
 /**
  * Juice for one salary (annual, approx USD) in one city record.
- * opts: { rent: 'center'|'outside' (default 'center'), baselineUSD (NYC basket) }.
- * All money values are annual USD, rounded to whole dollars.
+ * opts:
+ *   rent: 'center' | 'outside'   which quoted 1BR rent to use (default 'center')
+ *   rentOverrideUSD: number      user-entered monthly rent in USD; replaces the dataset rent
+ *   baselineUSD: number          NYC basket (default NYC_BASKET_USD)
+ * All money values are annual USD, rounded to whole dollars. Every result carries `inputs`
+ * (each value with its source and as-of date) and a `confidence` ("high" | "medium" | "low").
+ * Throws (err.code = 'NO_RENT') when the city has no rent and no override was given.
  */
 export function computeJuice(salaryUSD, city, opts = {}) {
   if (!city) throw new Error('computeJuice: city record required');
   const gross = pos(Number(salaryUSD) || 0);
+  const palette = FX_TO_USD[String(city.currency || 'USD').toUpperCase()] != null;
   const usdPer = usdPerUnit(city.currency, city) || (city.fxPerUSD > 0 ? 1 / city.fxPerUSD : null);
   if (!usdPer) throw new Error(`computeJuice: no FX for ${city.currency}`);
-  const t = taxFor(gross / usdPer, city.tax || { country: city.country });
+  const jur = city.tax || { country: city.country };
+  const t = taxFor(gross / usdPer, jur);
   const tax = t.total * usdPer;
 
+  const override = Number(opts.rentOverrideUSD);
+  const hasOverride = opts.rentOverrideUSD != null && Number.isFinite(override) && override >= 0;
   const outside = opts.rent === 'outside';
-  const local = outside ? city.rent1brOutsideLocal : city.rent1brCenterLocal;
-  const usdField = outside ? city.rent1brOutsideUSD : city.rent1brCenterUSD;
-  const rentMonthly = local != null ? local * usdPer : usdField;
-  if (rentMonthly == null) throw new Error(`computeJuice: ${city.key} has no rent`);
+  const localField = outside ? 'rent1brOutsideLocal' : 'rent1brCenterLocal';
+  const usdField = outside ? 'rent1brOutsideUSD' : 'rent1brCenterUSD';
+  let rentMonthly;
+  let rentInput;
+  if (hasOverride) {
+    rentMonthly = override;
+    rentInput = { monthlyUSD: Math.round(override), basis: 'override', class: 'user', confidence: 'high', source: { name: 'Rent entered by the user', url: null, asOf: null } };
+  } else {
+    const local = city[localField];
+    rentMonthly = local != null ? local * usdPer : city[usdField];
+    if (rentMonthly == null) {
+      const err = new Error(`computeJuice: ${city.key} has no rent; pass opts.rentOverrideUSD`);
+      err.code = 'NO_RENT';
+      throw err;
+    }
+    const src = city.sources?.[localField] || city.sources?.[usdField];
+    const cls = sourceClass(src);
+    rentInput = {
+      monthlyUSD: Math.round(rentMonthly),
+      basis: outside ? 'outside' : 'center',
+      ...(local != null ? { monthlyLocal: local, currency: city.currency } : {}),
+      class: cls,
+      confidence: CLASS_CONFIDENCE[cls],
+      source: brief(src),
+    };
+  }
   const rent = rentMonthly * 12;
 
   const baseline = opts.baselineUSD > 0 ? opts.baselineUSD : NYC_BASKET_USD;
@@ -581,6 +657,29 @@ export function computeJuice(salaryUSD, city, opts = {}) {
   const score = Math.round(scoreFromNet(net)); // grade from the shown (rounded) score
   const afterTax = gross - tax;
 
+  const keys = taxKeys(jur);
+  const ciSrc = city.sources?.costIndex;
+  const ciClass = sourceClass(ciSrc);
+  const inputs = {
+    rent: rentInput,
+    tax: {
+      jurisdiction: keys,
+      effectiveRate: gross > 0 ? Math.round((1000 * tax) / gross) / 1000 : 0,
+      confidence: taxConfidence(keys),
+      sources: keys.map((k) => ({ key: k, name: TAX_SOURCES[k]?.name, url: TAX_SOURCES[k]?.url, asOf: TAX_SOURCES[k]?.asOf, verified: !!TAX_SOURCES[k]?.verified })),
+    },
+    costIndex: {
+      value: city.costIndex,
+      baselineUSD: baseline,
+      class: ciClass,
+      confidence: CLASS_CONFIDENCE[ciClass],
+      source: brief(ciSrc),
+      ...(ciSrc?.method ? { method: ciSrc.method } : {}),
+    },
+    fx: { currency: city.currency, usdPerUnit: usdPer, source: palette ? 'public/viz/palette.js FX_TO_USD (static)' : 'Big Mac data dollar_ex', asOf: palette ? null : city.sources?.fxPerUSD?.asOf || null },
+    bigMac: { usd: city.bigMacUSD, source: brief(city.sources?.bigMacUSD) },
+  };
+
   const out = {
     ...parts,
     net,
@@ -589,10 +688,12 @@ export function computeJuice(salaryUSD, city, opts = {}) {
     rentBurden: afterTax > 0 ? Math.round((1000 * rent) / afterTax) / 1000 : null,
     bigMacs: city.bigMacUSD > 0 ? Math.round(net / city.bigMacUSD) : null,
     taxParts: { income: Math.round(t.income * usdPer), regional: Math.round(t.regional * usdPer), social: Math.round(t.social * usdPer) },
+    confidence: confidenceFor(inputs, city.country),
+    inputs,
   };
-  if (outside) out.rentBasis = 'outside';
-  const estimated = anyEstimated(city, ['costIndex', outside ? 'rent1brOutsideLocal' : 'rent1brCenterLocal'])
-    || taxKeys(city.tax || { country: city.country }).some((k) => TAX_SOURCES[k]?.estimated);
+  if (hasOverride) out.rentBasis = 'override';
+  else if (outside) out.rentBasis = 'outside';
+  const estimated = rentInput.class === 'estimate' || ciClass === 'estimate' || keys.some((k) => TAX_SOURCES[k]?.estimated);
   if (estimated) out.estimated = true;
   return out;
 }
@@ -677,7 +778,8 @@ export function findCity(location, cities) {
  * salaryUSD } or null (no salary, quarantined salary, unknown currency, or no matching city).
  * Uses salary.mid (annualized). When some matched locations use the salary's currency, only
  * those are scored (a USD range posted for "SF | London" is not applied to London); otherwise
- * all matches are scored and flagged currencyMismatch. Returns the job.
+ * all matches are scored and flagged currencyMismatch. Locations whose city has no rent are
+ * skipped unless opts.rentOverrides[cityKey] (monthly USD) supplies one. Returns the job.
  */
 export function attachJuice(job, cities, opts = {}) {
   if (!job || typeof job !== 'object') return job;
@@ -704,10 +806,12 @@ export function attachJuice(job, cities, opts = {}) {
   const o = { ...opts };
   if (!(o.baselineUSD > 0) && doc?.baseline?.nycBasketUSD > 0) o.baselineUSD = doc.baseline.nycBasketUSD;
 
+  const overrides = opts.rentOverrides || null; // { [cityKey]: monthly USD } from the user
   const byLocation = [];
   for (const m of use) {
     let j;
-    try { j = computeJuice(salaryUSD, m.city, o); } catch { continue; }
+    const ov = overrides && overrides[m.city.key];
+    try { j = computeJuice(salaryUSD, m.city, ov != null ? { ...o, rentOverrideUSD: ov } : o); } catch { continue; }
     const entry = { locationName: m.location.name || m.city.name, city: m.city.key, cityName: m.city.name, ...j };
     if (m.via === 'nearby') entry.proxy = true;
     if (!same.length) entry.currencyMismatch = true;

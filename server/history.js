@@ -38,7 +38,6 @@
 // - Closed entries older than PRUNE_CLOSED_DAYS are dropped to keep the file small.
 
 export const HISTORY_FORMAT = 'melon-history-1';
-export const COMPACT_FORMAT = 'melon-history-compact-1';
 export const REPOST_WINDOW_DAYS = 30;
 export const PRUNE_CLOSED_DAYS = 400;
 export const FRESHNESS = Object.freeze({ NEW_MAX: 7, ACTIVE_MAX: 59, STALE_MAX: 179 }); // evergreen >= 180
@@ -182,32 +181,48 @@ export function diffLedger(prev, next) {
 }
 
 /**
- * Compact form for the static build (api/history/<slug>.json): open entries only,
- * `id -> [firstSeenAt, postedAt, repostCount, repostFirstSeenAt?]`, wrapped with
- * the run metadata annotate() needs.
+ * Compact form for the static build (api/history/<slug>.json), per
+ * docs/CONTRACT.md: open entries only, `{ id: [firstSeenAt, postedAt, repostCount] }`.
+ * Reposts carry an optional 4th element, the chain's first firstSeenAt; readers
+ * that only use the first three are unaffected.
  */
 export function compactLedger(ledger) {
-  const jobs = {};
+  const out = {};
   if (validLedger(ledger)) {
-    for (const [id, e] of Object.entries(ledger.jobs)) {
+    for (const id of Object.keys(ledger.jobs).sort()) {
+      const e = ledger.jobs[id];
       if (e.c) continue;
-      jobs[id] = e.n ? [e.f, e.p || null, e.n, e.o || null] : [e.f, e.p || null, 0];
+      out[id] = e.n ? [e.f, e.p || null, e.n, e.o || null] : [e.f, e.p || null, 0];
     }
   }
-  return {
-    format: COMPACT_FORMAT,
-    since: (ledger && ledger.since) || null,
-    lastRunAt: (ledger && ledger.lastRunAt) || null,
-    runs: (ledger && ledger.runs) || 0,
-    jobs,
-  };
+  return out;
+}
+
+/**
+ * Ledger from the compact form, for annotate() in the browser. The compact
+ * form has no run metadata, so `since` is the earliest firstSeenAt (the first
+ * run, as long as any posting from that run is still open) and `runs` is null.
+ */
+export function fromCompact(compact) {
+  const jobs = {};
+  let since = null;
+  for (const [id, t] of Object.entries(compact && typeof compact === 'object' ? compact : {})) {
+    if (!Array.isArray(t)) continue;
+    const f = isoOf(t[0]);
+    if (!f) continue;
+    const e = { f, l: null, p: isoOf(t[1]), k: null };
+    const n = Number(t[2]) || 0;
+    if (n > 0) { e.n = n; const o = isoOf(t[3]); if (o) e.o = o; }
+    jobs[id] = e;
+    if (!since || toMs(f) < toMs(since)) since = f;
+  }
+  return { format: HISTORY_FORMAT, since, lastRunAt: null, runs: null, jobs };
 }
 
 function entryFor(ledger, id) {
   if (!ledger || !ledger.jobs) return null;
   const e = ledger.jobs[id];
   if (!e) return null;
-  if (Array.isArray(e)) return { f: e[0] || null, p: e[1] || null, n: e[2] || 0, o: e[3] || null };
   return e;
 }
 
@@ -231,7 +246,7 @@ export function freshnessFor(ageDays) {
  *   minimum age only "evergreen" is certain, so lower buckets become null.
  * - repost: { count, firstSeenAt } when the ledger links it to earlier postings.
  * @param {Job[]} jobs
- * @param {object|null} ledger  full ledger or compactLedger() output
+ * @param {object|null} ledger  ledger (from a file, updateLedger or fromCompact)
  * @param {string} fetchedAt    ISO "now" for the ages (the data's fetch time)
  */
 export function annotate(jobs, ledger, fetchedAt) {
@@ -257,7 +272,7 @@ export function annotate(jobs, ledger, fetchedAt) {
   });
 }
 
-/** meta.history for the /api/jobs response. */
-export function historyMeta(ledger) {
-  return { since: (ledger && ledger.since) || null, runs: (ledger && ledger.runs) || 0 };
+/** meta.history for the /api/jobs response: { since, runs }. */
+export function ledgerMeta(ledger) {
+  return { since: (ledger && ledger.since) || null, runs: ledger && ledger.runs != null ? ledger.runs : 0 };
 }

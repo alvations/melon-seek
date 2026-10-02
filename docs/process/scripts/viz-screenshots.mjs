@@ -47,6 +47,10 @@ const SHOTS = [
   { name: 'chart-dark-1000-scrolled', q: 'view=ranges&groupBy=department&colorBy=seniority&n=1000', dark: true, scroll: 3000,
     eval: `(()=>{const t=performance.now();__viz.chart.update(__viz.jobs,{view:"ranges",groupBy:"location",colorBy:"department"});const ms=performance.now()-t;__viz.chart.update(__viz.jobs,{view:"ranges",groupBy:"department",colorBy:"seniority"});return "full render ms "+ms.toFixed(1)+", rows "+document.querySelectorAll(".ms-row").length})()` },
   { name: 'chart-mobile-dark', q: 'view=ranges&colorBy=location&groupBy=seniority', w: 390, h: 800, dark: true },
+  // comps chart (drawer + Insights)
+  { name: 'comps-light', q: 'mode=comps', hover: [600, 140], eval: `(()=>{const r=[...document.querySelectorAll("#compsWide .ms-comps__row")];const t=[...document.querySelectorAll("#compsWide .ms-comps__tick")].map(e=>e.textContent);return "rows "+r.length+", current "+(document.querySelector("#compsWide .is-current .ms-comps__label")?.textContent)+", axis "+t[0]+".."+t[t.length-1]+", row h "+r[0].offsetHeight})()` },
+  { name: 'comps-dark', q: 'mode=comps', dark: true, eval: `(()=>{const r=[...document.querySelectorAll("#compsWide .ms-comps__row")];const t=[...document.querySelectorAll("#compsWide .ms-comps__tick")].map(e=>e.textContent);return "rows "+r.length+", current "+(document.querySelector("#compsWide .is-current .ms-comps__label")?.textContent)+", axis "+t[0]+".."+t[t.length-1]+", row h "+r[0].offsetHeight})()` },
+  { name: 'comps-mobile', q: 'mode=comps', w: 390, h: 760 },
   // map (tiles: 'abort' = offline, default; 'ok' = stub 200 tile; 'error403' = provider error image)
   { name: 'map-tiles-ok-light', q: 'mode=map', tiles: 'ok', wait: 2500, expect: { offline: false, bad: false, dark: false } },
   { name: 'map-tiles-ok-dark-filter', q: 'mode=map', tiles: 'ok', dark: true, wait: 2500, expect: { offline: false, bad: false, dark: true } },

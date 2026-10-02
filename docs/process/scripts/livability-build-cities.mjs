@@ -19,6 +19,7 @@ import { parseCsv, latestBigMac, applyBigMac, formatDoc, BIG_MAC_CSV_URL, CITIES
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const RETRIEVED = '2026-10-02';
 const NUMBEO = (slug) => `https://www.numbeo.com/cost-of-living/in/${slug}`;
+const NUMBEO_TERMS = 'Numbeo terms of use (https://www.numbeo.com/common/terms_of_use.jsp, read via search summaries 2026-10-02): free for personal use (incl. personal blogs/websites with a link back) and for academic and journalistic works with credit; otherwise no copying, distribution, display or derivative works without prior written permission; automated collection (scraping/crawling) prohibited; even the paid commercial licence does not allow republication via public-facing APIs or data feeds without consent. Treat these figures as not cleared for redistribution.';
 const VIA = 'Read from the Numbeo page through web-search result snippets on 2026-10-02 (direct page fetches are blocked in the build sandbox). Numbeo is crowd-sourced and commercial: individual figures are quoted with attribution; the dataset is not redistributed.';
 
 // New York City baseline (Numbeo, Sep 2026): single-person monthly costs excluding rent.
@@ -125,7 +126,7 @@ const C = [
 ];
 
 function zumper(value, asOf, url, name) {
-  return { name, value, currency: 'USD', url, asOf, kind: 'aggregator public report', note: 'Cross-check only (city-wide median, not city centre); not used in the formula.' };
+  return { name, value, currency: 'USD', url, asOf, class: 'aggregator', note: 'Cross-check only (city-wide median, not city centre); not used in the formula.' };
 }
 
 export function cityKey(city, region, country) {
@@ -160,6 +161,8 @@ async function main(argv) {
       url: page,
       asOf: month,
       retrieved: RETRIEVED,
+      class: 'aggregator',
+      terms: 'numbeo-terms',
       via: 'numbeo-snippets',
       ...(extra.note ? { note: extra.note } : {}),
     });
@@ -193,6 +196,8 @@ async function main(argv) {
         url: page,
         asOf: month,
         retrieved: RETRIEVED,
+        class: 'aggregator',
+        terms: 'numbeo-terms',
         method: `100 × ${s.basis} ÷ New York ${s.nyc} (Numbeo, 2026-09)`,
         via: 'numbeo-snippets',
         ...(extra.publishedIndex != null ? { crossCheck: { name: 'Numbeo Cost of Living Index (NYC = 100, excl. rent)', value: extra.publishedIndex } } : {}),
@@ -211,6 +216,8 @@ async function main(argv) {
         name: `Estimated: ${p.name} cost index used for ${rec.name} (same metro area)`,
         url: p.sources.costIndex.url,
         asOf: p.sources.costIndex.asOf,
+        class: 'estimate',
+        terms: 'numbeo-terms',
         estimated: true,
         method: `proxy: Numbeo shows no single-person estimate for ${rec.name}; uses ${p.key} (${p.costIndex}). See docs/LIVABILITY.md#estimates`,
       };
@@ -222,6 +229,8 @@ async function main(argv) {
         url: `https://www.numbeo.com/cost-of-living/compare_cities.jsp`,
         cityPage: page,
         asOf: month,
+        class: 'estimate',
+        terms: 'numbeo-terms',
         estimated: true,
         method: `${p.key} costIndex ${p.costIndex} × ${extra.derive.factor} (Numbeo comparison statement). See docs/LIVABILITY.md#estimates`,
       };
@@ -241,11 +250,14 @@ async function main(argv) {
       monthlyUSD: NYC_SINGLE.usd,
       description: 'Annual single-person living costs excluding rent in New York City (Numbeo estimate × 12). Living cost for any city = costIndex / 100 × this.',
       sources: {
-        nycBasketUSD: { name: 'Numbeo, Cost of Living in New York: estimated monthly costs for a single person excluding rent ($1,665.2 / €1,466.0) × 12', url: NUMBEO('New-York'), asOf: '2026-09', retrieved: RETRIEVED, via: 'numbeo-snippets' },
+        nycBasketUSD: { name: 'Numbeo, Cost of Living in New York: estimated monthly costs for a single person excluding rent ($1,665.2 / €1,466.0) × 12', url: NUMBEO('New-York'), asOf: '2026-09', retrieved: RETRIEVED, class: 'aggregator', terms: 'numbeo-terms', via: 'numbeo-snippets' },
         crossCheck: { name: 'BLS Consumer Expenditure Survey 2024, one-person consumer units: total average annual expenditures $48,794 (includes shelter; personal insurance and pensions $4,329)', url: 'https://fred.stlouisfed.org/series/CXUTOTALEXPLB0502M', asOf: '2024', note: 'National average, all categories; shows the Numbeo basket is a lean, non-housing basket.' },
       },
     },
-    sourceNotes: { 'numbeo-snippets': VIA },
+    sourceNotes: { 'numbeo-snippets': VIA, 'numbeo-terms': NUMBEO_TERMS },
+    dataStatus: {
+      numbeo: 'UNDER REVIEW. Numbeo terms of use restrict reuse (see docs/LIVABILITY.md section 4.1). Every Numbeo-derived field is marked class "aggregator" or "estimate" with terms "numbeo-terms". A replacement plan with official/open sources is in docs/LIVABILITY.md section 7; the decision is with the user (ROADMAP D6).',
+    },
     fx: null,
     bigMac: null,
     cities: cities.map((c) => c.rec),

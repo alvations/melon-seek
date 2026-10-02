@@ -189,7 +189,6 @@ function setMode() {
     comps = [createCompsChart($('compsWide'), { onSelect: slug => log(`comps select: ${slug}`) }),
              createCompsChart($('compsNarrow'), { onSelect: slug => log(`comps select (drawer): ${slug}`) })];
     comps.forEach(c => c.update(rows, { current: 'anthropic' }));
-    window.__viz.comps = comps;
   }
   if (m === 'map') {
     if (!map) {
@@ -222,7 +221,7 @@ $('theme').onchange = setTheme;
 $('hl').onclick = () => { const j = current.filter(j => j.salary && !j.remote)[Math.floor(Math.random() * current.length / 2)]; if (j) { chart.highlight(j.id); map?.highlight(j.id); log(`highlight: ${j.title}`); } };
 setTheme(); load(); setMode();
 if (q.has('hl')) { const j = current.filter(j => j.salary)[+q.get('hl')]; chart.highlight(j.id); map?.highlight(j.id); }
-window.__viz = { chart, get map() { return map; }, get jobs() { return current; } };
+window.__viz = { chart, get map() { return map; }, get comps() { return comps; }, get jobs() { return current; } };
 </script>
 </body>
 </html>

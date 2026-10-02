@@ -8,7 +8,7 @@
 
 /** Top-level modules under server/. */
 export const LIB_MODULES = Object.freeze([
-  'companies.js', 'normalize.js', 'salary.js', 'vet.js', 'geo.js', 'keywords.js', 'demo.js', 'juice.js',
+  'companies.js', 'normalize.js', 'salary.js', 'vet.js', 'geo.js', 'keywords.js', 'demo.js', 'juice.js', 'history.js',
 ]);
 
 /** Every *.js file directly in server/<LIB_SOURCES_DIR>/ is also browser-safe. */

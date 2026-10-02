@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  actions: read # find the newest history-ledger artifact
 
 concurrency:
   group: snapshot
@@ -31,9 +32,31 @@ jobs:
       - name: Install
         run: npm ci
 
+      # F4 history ledger (data/history/*.json): restore it before the snapshot
+      # step updates it. Store: HISTORY_STORE repo variable, `artifact` (default:
+      # newest non-expired `history-ledger` artifact from either workflow) or
+      # `branch` (orphan data-history branch). Missing = start fresh.
+      # See .github/scripts/ledger.sh and README "History ledger".
+      - name: Restore history ledger
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HISTORY_STORE: ${{ vars.HISTORY_STORE || 'artifact' }}
+        run: .github/scripts/ledger.sh restore
+
       - name: Fetch snapshots
         id: fetch
-        run: npm run snapshot # no args = every built-in in server/companies.js
+        run: npm run snapshot # no args = every built-in in server/companies.js; also updates data/history/
+
+      # Always upload the updated ledger (also the hand-off to persist-ledger in
+      # branch mode), even if a later step such as the vetting gate fails.
+      - name: Upload history ledger
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: history-ledger
+          path: data/history/
+          retention-days: 90
+          if-no-files-found: warn
 
       # Salary vetting gate: same command as pages.yml. A critical anomaly fails
       # this job (red run + step summary). The raw artifact is still uploaded
@@ -42,12 +65,7 @@ jobs:
       - name: Salary vetting gate (fails on critical anomalies)
         id: vet
         continue-on-error: false
-        run: |
-          if [ -f scripts/vet-salaries.js ]; then
-            node scripts/vet-salaries.js --no-write-flags --summary "$GITHUB_STEP_SUMMARY"
-          else
-            echo "::notice::scripts/vet-salaries.js not found; salary vetting gate skipped"
-          fi
+        run: node scripts/vet-salaries.js --no-write-flags --summary "$GITHUB_STEP_SUMMARY"
 
       - name: Upload snapshots artifact
         if: ${{ !cancelled() }}
@@ -57,3 +75,24 @@ jobs:
           path: data/snapshots/*.json
           retention-days: 14
           if-no-files-found: error
+
+  # Branch store only (HISTORY_STORE=branch): commit the ledger to the orphan
+  # data-history branch. The only job with contents: write, and it is skipped
+  # entirely in the default artifact store.
+  persist-ledger:
+    needs: snapshot
+    if: ${{ vars.HISTORY_STORE == 'branch' && !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: history-ledger-branch
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: history-ledger
+          path: data/history
+      - name: Commit ledger to the data-history branch
+        run: .github/scripts/ledger.sh commit-branch
