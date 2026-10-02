@@ -727,3 +727,43 @@ test('perf: big board list is cached; warm request fast and small (real Anduril 
     mod.resetState();
   }
 });
+
+test('review V1: /api/job never builds an unloaded custom board', { skip: skipReason }, async () => {
+  mod.resetState();
+  const before = { ...mod.memoSizes() };
+  const storeDir = path.join(process.env.MELON_CACHE_DIR, 'store', 'custom');
+  const storesBefore = fs.existsSync(storeDir) ? fs.readdirSync(storeDir).length : 0;
+  const calls0 = upstreamCalls.length;
+  const t0 = Date.now();
+  const res = await Promise.all(Array.from({ length: 40 }, (_, i) => get(`/api/job?id=${encodeURIComponent(`greenhouse-flood-${i}:x`)}`)));
+  assert.ok(res.every((r) => r.status === 404));
+  const health = await get('/api/health');
+  assert.equal(health.status, 200);
+  assert.ok(Date.now() - t0 < 3000, `40 detail requests took ${Date.now() - t0} ms`);
+  assert.deepEqual(mod.memoSizes(), before, 'no demo boards built or remembered');
+  assert.equal(fs.existsSync(storeDir) ? fs.readdirSync(storeDir).length : 0, storesBefore, 'no stores written');
+  assert.equal(upstreamCalls.length, calls0, 'no upstream fetches');
+});
+
+test('review V4: per-board memos are bounded', { skip: skipReason }, async () => {
+  mod.resetState();
+  mod.setBoardMemoMax(3);
+  try {
+    for (let i = 0; i < 6; i++) await (await get(`/api/jobs?source=greenhouse&board=bounded-${i}`)).json();
+    const sizes = mod.memoSizes();
+    for (const [k, v] of Object.entries(sizes)) assert.ok(v <= 3, `${k} memo has ${v} entries (bound 3)`);
+  } finally {
+    mod.setBoardMemoMax(66);
+    mod.resetState();
+  }
+});
+
+test('review V14: ?name= never renames a built-in company', { skip: skipReason }, async () => {
+  for (const q of ['company=anthropic&name=Evil%20Corp', 'source=greenhouse&board=anthropic&name=Evil%20Corp']) {
+    const body = await (await get(`/api/jobs?${q}`)).json();
+    assert.equal(body.company.name, 'Anthropic', q);
+    assert.ok(body.jobs.every((j) => j.companyName === 'Anthropic'), q);
+  }
+  const custom = await (await get('/api/jobs?source=lever&board=example&name=Example%20Co')).json();
+  assert.equal(custom.company.name, 'Example Co');
+});

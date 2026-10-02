@@ -128,7 +128,12 @@ const shortHash = (s) => crypto.createHash('sha1').update(String(s)).digest('hex
 /** Demo stores are regenerated once per server process (cheap, in a worker). */
 const PROCESS_TAG = Date.now().toString(36);
 /** Bound for every per-board memo (review V4): about the main cache's LRU size. */
-const BOARD_MEMO_MAX = (Number(process.env.MELON_CACHE_MAX) || 50) + 16;
+let BOARD_MEMO_MAX = (Number(process.env.MELON_CACHE_MAX) || 50) + 16;
+/** Tests: change the per-board memo bound; memoSizes() reports the current sizes. */
+export function setBoardMemoMax(n) { BOARD_MEMO_MAX = n; }
+export function memoSizes() {
+  return { negative: negative.size, demo: demoMemo.size, compstimate: compstimateMemo.size, list: listCache.size, stores: storeDocs.size };
+}
 
 const storeDocs = new Map(); // "custom|name" -> doc (bounded)
 /** A store's list document (parsed once; main-thread cost is the small list file only). */

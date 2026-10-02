@@ -482,3 +482,22 @@ screenshots in `docs/screenshots/`.
   checker; queued with UX (internal 200s, hash states, ATS host checks per
   job, markdown links, plus an optional CI step for external HEAD checks).
   npm test 272/272.
+- 2026-10-02 URGENT (user): "the site is linking to the GitHub page and not
+  the deployed site". Root causes:
+  (A) Pages source is still "Deploy from a branch", so GitHub's own "pages
+      build and deployment" publishes the README on every push, racing
+      pages.yml (e.g. run 37015077791 vs 37015077526); visitors sometimes
+      get the README.
+  (B) app.js JUICE_DOC hard-linked to
+      github.com/…/blob/main/docs/LIVABILITY.md, taking users off-site (and
+      main doesn't have the file).
+  Fix routed to devops as top priority:
+  - deploy waits for the branch build so ours lands last;
+  - a post-deploy live check against a build marker, with one redeploy;
+  - a 30-min site watchdog workflow;
+  - LIVABILITY.md rendered into the site as methodology/ with a relative
+    link;
+  - a links-policy test plus a build check (no off-site links except the
+    ATS/OSM/fonts allowlist), and an e2e link test.
+  The definitive fix needs the user: Settings → Pages → Source → GitHub
+  Actions (GITHUB_TOKEN can't change it).

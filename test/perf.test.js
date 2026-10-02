@@ -101,3 +101,13 @@ test('stores persist: a restart reuses them (no re-parse, no rekey)', { skip, ti
   const d = await new Promise((resolve) => http.get({ host: '127.0.0.1', port, path: `/api/job?id=${encodeURIComponent(id)}` }, (r) => { let s = ''; r.on('data', (x) => { s += x; }); r.on('end', () => resolve(JSON.parse(s))); }));
   assert.ok(d.descriptionHtml.length > 100);
 });
+
+test('review V15: cold /api/market does not block the event loop', { skip, timeout: 180000 }, async () => {
+  mod.resetState();
+  const { result, maxLag } = await withLagProbe(() => get('/api/market'));
+  console.log(`# cold /api/market ${result.ms.toFixed(0)} ms, max lag ${maxLag.toFixed(0)} ms`);
+  assert.equal(result.status, 200);
+  assert.ok(maxLag < 150, `event loop blocked for ${maxLag.toFixed(0)} ms`);
+  const warm = await get('/api/market');
+  assert.ok(warm.ms < 200, `warm /api/market took ${warm.ms.toFixed(0)} ms`);
+});

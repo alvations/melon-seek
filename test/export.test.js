@@ -79,3 +79,11 @@ test('file name and README', () => {
   assert.match(readme, /anthropic\.csv {2}Anthropic, 638 rows \(snapshot\)/);
   assert.match(readme, /Descriptions are not included/);
 });
+
+test('review V10: semicolons, leading CR/LF and formula prefixes', () => {
+  assert.equal(csvCell('a;b'), '"a;b"');
+  assert.equal(csvCell('\r=cmd()'), '"\'\n=cmd()"');
+  assert.equal(csvCell('\n+1'), '"\'\n+1"');
+  assert.equal(csvCell('x\ry'), '"x\ny"');
+  assert.equal(csvCell('fine'), 'fine');
+});

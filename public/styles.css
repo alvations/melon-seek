@@ -1157,6 +1157,7 @@ html[data-mode="insights"] .viz-controls { display: none; }
   .data-badge { order: 5; }
   .theme-btn { order: 6; }
   .viz-toolbar { padding-top: 4px; padding-bottom: 4px; }
+  .stats-line { display: none; }
   .results-head { min-height: 40px; }
   .sheet-handle { height: 20px; }
 }

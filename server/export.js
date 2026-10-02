@@ -13,16 +13,21 @@ export const CSV_COLUMNS = Object.freeze([
   'salary_min', 'salary_max', 'salary_currency', 'posted_at', 'first_seen_at', 'url', 'data_mode',
 ]);
 
-const FORMULA_RE = /^[=+\-@\t\r]/;
+// Leading characters a spreadsheet may run as a formula (checked on the raw
+// value, before line endings are normalized, so a leading CR or LF counts too).
+const FORMULA_RE = /^[=+\-@\t\r\n]/;
+// Review V10: quote on separators of either locale (comma or semicolon), quotes, CR, LF.
+const QUOTE_RE = /[",;\r\n]/;
 
 /** One CSV cell. Numbers and booleans are written as-is; text is quoted when needed. */
 export function csvCell(v) {
   if (v == null) return '';
   if (typeof v === 'number') return Number.isFinite(v) ? String(v) : '';
   if (typeof v === 'boolean') return v ? 'true' : 'false';
-  let s = String(v).replace(/\r\n?/g, '\n');
+  let s = String(v);
   if (FORMULA_RE.test(s)) s = `'${s}`;
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  s = s.replace(/\r\n?/g, '\n');
+  return QUOTE_RE.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 /**
