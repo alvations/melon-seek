@@ -12,3 +12,14 @@ Report back concisely: exported APIs exactly (so the lead can wire them into app
 ## Mid-task messages from the coordinator (verbatim)
 
 > New requirement from the user: document how you produced your work so another agent can replicate it. Before you finish: (1) copy your original task prompt verbatim into docs/process/prompts/product.md; (2) write docs/process/product.md following docs/process/TEMPLATE.md (brief, inputs, decisions + rationale incl. the Compstimate similarity weights/formula, FX table, exact replayable commands incl. screenshot script (save under docs/process/scripts/product-screenshots.mjs), verification results, known gaps, change log). You own those files. Don't commit; the lead does.
+
+> New work: the 1-up features (docs/strategy/ROADMAP.md §6.2 Top 1 and 2, §7.1 F1 and F3, docs/CONTRACT.md "v2 additions"). Your part, in public/features/:
+> 1. compstimate.js: export a pure `backtest(jobs, { seed, maxN = 500 }) -> { medianAbsPctError, within10Pct, n, seed }`, a seeded leave-one-out over vetted salaries (salary !== null). The widget shows "Typically within ±X% (tested on N listed salaries)", and labels the estimate "Low confidence" when error is above 25%; it reads this from the job response's `meta.compstimate`.
+> 2. New comps.js: `marketComps(market, { family, seniority, country? })`, `compsForJob(market, job) -> { rows, matchedOn }` and `createCompsCard(container, { onPickCompany(slug, filters) })` for Insights.
+> 3. Make normalizeTitle and roleFamily importable from Node with no DOM dependency, so backend's scripts/build-market.js can use them.
+> 4. Hand-check 100 random real titles from data/snapshots/*.json across at least 3 companies, aiming for at least 90% correct role family. Log it in docs/process/product.md.
+> Tests (determinism, thresholds, family mapping of 20 fixed real titles). Simple UI: no new controls. Don't commit; report back with the exact exports.
+
+> Locked interface: `backtest(jobs, { seed, maxN = 500 }) -> { medianAbsPctError, within10Pct, n, seed }`, exported from public/features/compstimate.js. It must be pure and importable from Node, with no DOM at import time. The build and server call it with seed 20261002 and maxN 500. backend's scripts/build-market.js will import your normalizeTitle and roleFamily from Node too.
+
+> UX has wired "Same role elsewhere" and "Compare companies" and is waiting on public/features/comps.js. It calls `createCompsCard(el, { onPickCompany(slug, filters), market })` and then `.update(market, { company, jobs })`, and uses `compsForJob(market, job) -> { rows, matchedOn }` with rows shaped for viz's createCompsChart: `{ slug, name, color, n, p25, median, p75 }`. Please match that, or tell me exactly how yours differs. Also: `npm test` fails "title normalization" in test/features.test.js because of your in-progress roles.js. Please get it green, then report back with your exports and the 100-title hand-check result.

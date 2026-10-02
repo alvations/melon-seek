@@ -166,7 +166,7 @@ npm run build          # -> dist/
 | `dist/api/history/<slug>.json` | The compact ledger, `{ id: [firstSeenAt, postedAt, repostCount, repostFirstSeenAt?] }` (open postings; `server/history.js#compactLedger`). It's `{}` when there's no ledger. `api.js` merges it into jobs fetched live in the browser. |
 | `dist/api/meta/<slug>.json` | The list's `meta`: `{ compstimate, history }`. Live browser fetches reuse it. |
 | `dist/api/market.json` | Market comps ("same role elsewhere"), from `scripts/build-market.js`. Vetted base-pay ranges only, ≤ 150 kB. |
-| `dist/data/<slug>.csv`, `dist/data/README.txt` | **Open data**: one CSV per company with real data (no descriptions), plus a README covering the columns and attribution. Demo-only companies aren't exported. |
+| `dist/data/<slug>.csv`, `dist/data/README.txt` | **Open data**: one CSV per company (no descriptions), plus a README covering the columns and attribution. Both come from `server/export.js`, the same code as the server's `GET /api/export`. Every row has a `data_mode` column, so demo companies' rows are marked `demo` (synthetic). |
 | `dist/.nojekyll` | Turns off Jekyll processing. |
 
 Each list also carries `meta`:
@@ -183,7 +183,9 @@ inline. The build makes three changes:
 
 1. Each description goes in its own `api/desc/...` file. The app calls
    `getJobDetail(job)` from `public/api.js` when you open a job, so the HTML is
-   fetched once per job you open and then cached.
+   fetched once per job you open and then cached. Server mode works the same
+   way: `/api/jobs` lists are lazy too (`meta.lazy`), and `getJobDetail` fetches
+   `/api/job?id=<job.id>`.
 2. Lists use a lossless packed format (`melon-packed-2`):
    - company fields, the id prefix and the shared URL prefix are stored once;
    - repeated locations, keyword labels and departments become indexes into a
@@ -330,14 +332,30 @@ Response:
             interval: "year", text: "$300,000—$405,000 USD" } | null,
             // min/max are annualized (hourly × 2080, monthly × 12)
   url, updatedAt,
-  descriptionHtml,
-  sections: { responsibilities: [string], fit: [string] },
+  descriptionHtml,   // NOT in /api/jobs lists (lazy, see meta.lazy): GET /api/job?id=
+  sections: { responsibilities: [string], fit: [string] }, // [] in lists when meta.lazy.sections
   keywords: { responsibilities: [string], fit: [string], skills: [string] }
 }
 ```
 
 Errors: `400` for a missing/invalid `company`, `source` or `board`; `404` for an
 unknown built-in company.
+
+Lists also carry `meta: { compstimate, history, lazy }`. `lazy.descriptionHtml`
+is always true; `lazy.sections` is true when a big board's bullets were also
+left out. The v2 job fields (`postedAt`, `firstSeenAt`, `ageDays`, `freshness`,
+`repost`, `salary.spread`, `extras`, …) are listed in
+[docs/CONTRACT.md](docs/CONTRACT.md) under "v2 additions".
+
+### Other endpoints
+
+| Endpoint | Returns | Static build equivalent |
+| --- | --- | --- |
+| `GET /api/job?id=<job.id>` | `{ id, descriptionHtml, sections }`. The company comes from the id's `<slug>:` prefix. `400` without an id, `404` for an unknown one. | `api/desc/<slug>/<id>.json` |
+| `GET /api/cities` | Juice Score inputs (`data/cities.json`) | `api/cities.json` |
+| `GET /api/market` | Market comps (`melon-market-1`) | `api/market.json` |
+| `GET /api/export?company=` | One company's CSV | `data/<slug>.csv` |
+| `GET /lib/<module>.js` | Browser-safe server modules (allowlist: `server/lib-modules.js`) | `lib/*.js` |
 
 ### Static
 

@@ -493,10 +493,23 @@ describe('backtest', () => {
   test('duplicates (same title + same range) are left out with the tested job', () => {
     const dup = [];
     for (let i = 0; i < 5; i++) dup.push(job({ title: 'Widget Engineer', mid: 100000, id: `w${i}` }));
-    for (let i = 0; i < 5; i++) dup.push(job({ title: 'Widget Engineer II', mid: 200000, id: `x${i}` }));
+    for (let i = 0; i < 5; i++) dup.push(job({ title: 'Gizmo Engineer', mid: 200000, id: `x${i}` }));
     const r = backtest(dup, { seed: 3 });
     // with duplicates excluded, each job is estimated from the *other* title: ~100% / ~50% error
     assert.ok(r.medianAbsPctError > 40, `got ${r.medianAbsPctError}`);
+    // plain leave-one-out finds an exact twin: ~0% error (why the default dedupes)
+    assert.equal(backtest(dup, { seed: 3, dedupe: 'none' }).medianAbsPctError, 0);
+    // same title + range in another city is still a twin by default, but not for "title+location"
+    const multi = [
+      ...[0, 1, 2].map((i) => job({ title: 'Widget Engineer', mid: 100000, locations: [SF], id: `sf${i}` })),
+      ...[0, 1, 2].map((i) => job({ title: 'Widget Engineer', mid: 100000, locations: [NYC], id: `ny${i}` })),
+      ...[0, 1, 2].map((i) => job({ title: 'Gizmo Engineer', mid: 200000, locations: [SEA], id: `se${i}` })),
+    ];
+    assert.ok(backtest(multi, { seed: 3, dedupe: 'title' }).medianAbsPctError > 40);
+    assert.ok(backtest(multi, { seed: 3, dedupe: 'title+location' }).medianAbsPctError < backtest(multi, { seed: 3 }).medianAbsPctError);
+    // the held-out job itself is never a comparable
+    const solo = [job({ title: 'Widget Engineer', mid: 100000, id: 'a' }), job({ title: 'Gadget Engineer', mid: 300000, id: 'b' })];
+    assert.ok(backtest(solo, { seed: 1, dedupe: 'none' }).medianAbsPctError > 50);
   });
 
   test('empty / unsalaried input', () => {
@@ -510,6 +523,7 @@ describe('backtest', () => {
     assert.equal(accuracyLine(meta), 'Typically within ±8% (tested on 500 listed salaries)');
     assert.equal(accuracyLine(meta.compstimate), accuracyLine(meta), 'accepts meta or meta.compstimate');
     assert.equal(accuracyLine({ compstimate: { ...meta.compstimate, n: 1 } }), 'Typically within ±8% (tested on 1 listed salary)');
+    assert.equal(accuracyLine({ medianAbsPctError: 0.3, n: 133 }), 'Typically within ±1% (tested on 133 listed salaries)', 'floored at ±1%');
     assert.equal(accuracyLine(null), null);
     assert.equal(accuracyLine({ compstimate: null }), null);
     assert.equal(accuracyFrom({ compstimate: { medianAbsPctError: null, n: 0 } }), null);

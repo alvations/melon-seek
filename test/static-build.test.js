@@ -227,20 +227,23 @@ test('v2: api/history is compactLedger(ledger); api/meta mirrors the list meta',
   assert.deepEqual(readJson(DIST, 'api', 'history', 'anthropic.json'), {});
 });
 
-test('v2: data/<slug>.csv for real snapshots only, RFC 4180 + formula-safe, with README', () => {
+test('v2: data/<slug>.csv via server/export.js: RFC 4180, formula-safe, data_mode, README', async () => {
+  const { CSV_COLUMNS } = await import(pathToFileURL(path.join(ROOT, 'server', 'export.js')).href);
   const csv = fs.readFileSync(path.join(DIST2, 'data', 'anthropic.csv'), 'utf8');
   const lines = csv.trimEnd().split('\r\n');
-  assert.equal(lines[0], 'id,title,department,team,seniority,locations,remote,salary_min,salary_max,salary_currency,posted_at,first_seen_at,url');
+  assert.equal(lines[0], CSV_COLUMNS.join(','), 'header = server/export.js CSV_COLUMNS');
   assert.equal(lines.length, V2.snapshotJobs.length + 1, 'one row per job');
   assert.ok(csv.includes('"Engineer, ""Infra"", SF"'), 'commas and quotes are quoted');
   assert.ok(csv.includes(`"'=HYPERLINK(""http://x"")"`), 'formula cells are prefixed with an apostrophe');
   assert.ok(!/<[a-z]/i.test(csv), 'no description HTML');
+  assert.ok(lines.slice(1).every((l) => l.endsWith(',snapshot')), 'real rows: data_mode=snapshot');
+  // Demo companies are exported too, every row marked synthetic (like GET /api/export).
+  const demo = fs.readFileSync(path.join(DIST2, 'data', 'openai.csv'), 'utf8').trimEnd().split('\r\n');
+  assert.ok(demo.length > 1 && demo.slice(1).every((l) => l.endsWith(',demo')), 'demo rows: data_mode=demo');
   const readme = fs.readFileSync(path.join(DIST2, 'data', 'README.txt'), 'utf8');
   assert.match(readme, /anthropic\.csv/);
   assert.match(readme, /base pay/i);
-  // Demo-only companies are not exported as open data.
-  assert.ok(!fs.existsSync(path.join(DIST2, 'data', 'openai.csv')));
-  assert.ok(!fs.existsSync(path.join(DIST, 'data')), 'no CSVs from an all-demo build');
+  assert.match(readme, /demo/);
 });
 
 test('v2: api/market.json when scripts/build-market.js#buildMarket exists', async (t) => {
@@ -280,5 +283,36 @@ test('v2: static live fetch merges api/history through history.annotate, and reu
   } finally {
     DIST = saved;
     globalThis.MELON_LIVE_SOURCES = [];
+  }
+});
+
+test('server mode getJobDetail: api/job?id=, merge, sections only when empty, cached, failure not cached', async () => {
+  const calls = [];
+  let fail = true;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    calls.push(u);
+    if (!u.startsWith('api/job?id=')) return new Response('{"error":"Not found"}', { status: 404 });
+    const id = decodeURIComponent(u.slice('api/job?id='.length));
+    if (id === 'acme:flaky' && fail) { fail = false; return new Response('{"error":"boom"}', { status: 503 }); }
+    return new Response(JSON.stringify({ id, descriptionHtml: `<p>${id}</p>`, sections: { responsibilities: ['Do'], fit: ['Fit'] } }), { status: 200 });
+  };
+  globalThis.MELON_STATIC = false;
+  try {
+    const api = await freshApi();
+    const emptySec = { id: 'acme:1 x', company: 'acme', sections: { responsibilities: [], fit: [] } };
+    const [a, b] = await Promise.all([api.getJobDetail(emptySec), api.getJobDetail(emptySec)]);
+    assert.equal(a.descriptionHtml, '<p>acme:1 x</p>');
+    assert.deepEqual(a.sections, { responsibilities: ['Do'], fit: ['Fit'] }, 'empty list sections are filled');
+    assert.equal(b.descriptionHtml, a.descriptionHtml);
+    assert.deepEqual(calls, ['api/job?id=acme%3A1%20x'], 'one request, id encoded, shared by concurrent calls');
+    const kept = await api.getJobDetail({ id: 'acme:2', company: 'acme', sections: { responsibilities: ['Mine'], fit: [] } });
+    assert.deepEqual(kept.sections, { responsibilities: ['Mine'], fit: [] }, 'non-empty list sections are kept');
+    const has = { id: 'acme:3', descriptionHtml: '<p>inline</p>' };
+    assert.equal(await api.getJobDetail(has), has, 'a job with descriptionHtml is returned unchanged');
+    await assert.rejects(api.getJobDetail({ id: 'acme:flaky', company: 'acme' }));
+    assert.equal((await api.getJobDetail({ id: 'acme:flaky', company: 'acme' })).descriptionHtml, '<p>acme:flaky</p>', 'a failure is not cached');
+  } finally {
+    globalThis.MELON_STATIC = true;
   }
 });

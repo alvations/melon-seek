@@ -87,3 +87,17 @@ New work: the 1-up features (docs/strategy/ROADMAP.md §7, docs/CONTRACT.md "v2 
 3. api.js: merge `api/history/<slug>.json` into live-fetched jobs through history.annotate. Add `getMarket()`.
 4. Make vet-salaries a hard gate in pages.yml (exit non-zero blocks the deploy), and add the Compstimate backtest summary to the step summary.
 Wait for backend's exported functions where needed (I've asked it to report as soon as ledger capture works). Tests; log it in docs/process/devops.md. Don't commit.
+
+---
+
+Seventh request (server-mode lazy descriptions), from the coordinator:
+
+Backend's speed fix has landed: server-mode /api/jobs lists no longer include descriptionHtml (meta.lazy says so), and a new `GET /api/job?id=<job.id>` returns `{ id, descriptionHtml, sections }` (the company comes from the id prefix). Two urgent fixes, since server mode currently shows no description in the drawer:
+1. In public/api.js getJobDetail, server branch: fetch `api/job?id=${encodeURIComponent(job.id)}`, merge descriptionHtml, merge sections when the list's are empty, and cache it like the static path.
+2. test/e2e/api.e2e.js (QA's file; you may edit it for this): stop requiring descriptionHtml on list jobs, and add a check that /api/job returns it. `node scripts/e2e.js --api-only` must be 8/8 again.
+Build functions to wire if you haven't already:
+- `buildMarket(payloads)` (scripts/build-market.js; the input must already be vetted);
+- `jobsToCsv`, `csvFileName`, `csvReadme` and `CSV_COLUMNS` (server/export.js);
+- `backtest(jobs, BACKTEST_OPTS)`, with BACKTEST_OPTS exported from server/index.js (seed 20261002, maxN 500), adding computedAt;
+- `compactLedger` (server/history.js).
+Then confirm the full `npm test` is green 3 runs in a row, and report.

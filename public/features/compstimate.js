@@ -18,7 +18,7 @@
 import {
   salaryUSD, weightedPercentile, percentile, median, formatMoney, plural, h, uid, locationKey,
 } from './shared.js';
-import { normalizeTitle, familySim, SENIORITY_LADDER } from './roles.js';
+import { normalizeTitle, familySim, rolePart, SENIORITY_LADDER } from './roles.js';
 
 export { percentile, weightedPercentile, salaryUSD, toUSD, FX_FALLBACK } from './shared.js';
 // Role taxonomy lives in roles.js (no imports, Node-safe); re-exported for callers.
@@ -296,18 +296,24 @@ function rng(seed) {
  * with a seeded partial Fisher–Yates. Each drawn job is estimated with
  * compstimateForJob() from all *other* vetted jobs (title, level, department,
  * first on-site city), and its error is |estimate.mid − posted mid| / posted mid.
- * "Other" excludes the job's duplicates too (same title and same posted range,
- * e.g. one req listed per city), which would otherwise make the error look
- * near zero on boards that repost a role many times.
+ * "Other" also excludes the job's duplicates: by default (`dedupe: "title"`) every
+ * vetted job with the same normalized title (level words, punctuation and
+ * abbreviations normalized) AND an identical posted range (min, max, currency),
+ * in ANY location. One req listed per city would otherwise find an exact twin and
+ * make the error look near zero. `dedupe: "none"` is plain leave-one-out (for
+ * diagnostics); `"title+location"` only drops twins in the same location set;
+ * `dedupe: "role"` is a stress test that also drops postings of
+ * the same role segment ("Backend Software Engineer - Defense" vs "- Apps") with
+ * an identical range.
  *
  * @param {Job[]} jobs
- * @param {{ seed?: number, maxN?: number }} [opts]
+ * @param {{ seed?: number, maxN?: number, dedupe?: "title"|"title+location"|"none"|"role" }} [opts]
  * @returns {{ medianAbsPctError: number|null, within10Pct: number|null, n: number, seed: number, skipped: number }}
  *   medianAbsPctError and within10Pct are PERCENT numbers with one decimal
  *   (14.2 means 14.2%); n is the number of jobs that got an estimate; skipped
  *   counts drawn jobs with no comparable to estimate from.
  */
-export function backtest(jobs, { seed = BACKTEST_SEED, maxN = 500 } = {}) {
+export function backtest(jobs, { seed = BACKTEST_SEED, maxN = 500, dedupe = 'title' } = {}) {
   const vetted = (Array.isArray(jobs) ? jobs : []).filter((j) => j && j.salary != null && salaryUSD(j))
     .slice().sort((a, b) => (String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0));
   const k = Math.max(0, Math.min(vetted.length, Math.floor(Number(maxN) || 0)));
@@ -317,7 +323,13 @@ export function backtest(jobs, { seed = BACKTEST_SEED, maxN = 500 } = {}) {
     const j = i + Math.floor(rand() * (order.length - i));
     [order[i], order[j]] = [order[j], order[i]];
   }
-  const dupKey = (j) => `${String(j.title || '').trim().toLowerCase()}|${j.salary.min}|${j.salary.max}|${j.salary.currency}`;
+  const range = (j) => `${j.salary.min}|${j.salary.max}|${String(j.salary.currency || 'USD').toUpperCase()}`;
+  const titleKey = (t) => normalizeTitle(t).tokens.slice().sort().join(' ');
+  const place = (j) => (j.locations || []).map((l) => l.remote ? 'remote' : String(l.city || l.name || '').toLowerCase()).sort().join('+');
+  const dupKey = dedupe === 'none' ? (j) => `id:${j.id}`
+    : dedupe === 'role' ? (j) => `${titleKey(rolePart(j.title))}|${range(j)}`
+    : dedupe === 'title+location' ? (j) => `${titleKey(j.title)}|${place(j)}|${range(j)}`
+    : (j) => `${titleKey(j.title)}|${range(j)}`;
   const groups = new Map();
   for (const j of vetted) {
     const key = dupKey(j);
@@ -354,7 +366,8 @@ export function accuracyFrom(meta) {
 export function accuracyLine(meta) {
   const acc = accuracyFrom(meta);
   if (!acc) return null;
-  return `Typically within ±${Math.round(acc.medianAbsPctError)}% (tested on ${plural(acc.n, 'listed salary', 'listed salaries')})`;
+  // Floor at ±1%: boards with standard pay bands can back-test near 0%, and "±0%" reads as broken.
+  return `Typically within ±${Math.max(1, Math.round(acc.medianAbsPctError))}% (tested on ${plural(acc.n, 'listed salary', 'listed salaries')})`;
 }
 
 /** True when the board's backtest error is above ACCURACY_LOW_THRESHOLD (estimates are then "Low confidence"). */

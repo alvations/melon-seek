@@ -47,7 +47,9 @@ export function validateJob(j, slug) {
   }
   f(isStr(j.url) && /^https?:\/\//.test(j.url), 'url not http(s)');
   f(isStrOrNull(j.updatedAt), 'updatedAt not string|null');
-  f(isStr(j.descriptionHtml), 'descriptionHtml not string');
+  // Lists are lazy (meta.lazy): descriptionHtml comes from /api/job, so it is
+  // absent on list jobs; when present it must be a string.
+  f(j.descriptionHtml === undefined || isStr(j.descriptionHtml), 'descriptionHtml present but not a string');
   f(j.sections && isStrArr(j.sections.responsibilities) && isStrArr(j.sections.fit), 'sections shape wrong');
   f(j.keywords && isStrArr(j.keywords.responsibilities) && isStrArr(j.keywords.fit) && isStrArr(j.keywords.skills), 'keywords shape wrong');
   if (j.keywords && isStrArr(j.keywords.skills)) {
@@ -98,6 +100,20 @@ export function registerApiTests(suite) {
       }
       const uniq = [...new Set(problems.map((x) => x.replace(/^[^:]+:[^:]+: /, '')))];
       assert(problems.length === 0, `${problems.length} shape problems, e.g.:\n${uniq.slice(0, 8).join('\n')}\nfirst: ${problems[0]}`);
+      assert(body.meta && body.meta.lazy && body.meta.lazy.descriptionHtml === true, 'meta.lazy.descriptionHtml !== true');
+      assert(body.jobs.every((j) => j.descriptionHtml === undefined), 'list jobs still carry descriptionHtml');
+      // /api/job returns the lazily loaded detail for list jobs.
+      const sample = [body.jobs[0], body.jobs[Math.floor(body.jobs.length / 2)], body.jobs[body.jobs.length - 1]];
+      let nonEmpty = 0;
+      for (const j of sample) {
+        const d = await getJson(ctx.baseUrl, `/api/job?id=${encodeURIComponent(j.id)}`);
+        assertEq(d.status, 200, `/api/job?id=${j.id} status`);
+        assertEq(d.body.id, j.id, '/api/job id echo');
+        assert(isStr(d.body.descriptionHtml), `/api/job ${j.id}: descriptionHtml not string`);
+        if (d.body.descriptionHtml.length) nonEmpty++;
+        assert(d.body.sections && isStrArr(d.body.sections.responsibilities) && isStrArr(d.body.sections.fit), `/api/job ${j.id}: sections shape wrong`);
+      }
+      assert(nonEmpty > 0, '/api/job returned no description for any sampled job');
       const withSalary = body.jobs.filter((j) => j.salary).length;
       const withSkills = body.jobs.filter((j) => j.keywords.skills.length).length;
       const geo = body.jobs.filter((j) => j.locations.some((l) => isNum(l.lat))).length;
@@ -137,6 +153,10 @@ export function registerApiTests(suite) {
     assertEq(c.status, 400, 'path-ish board status');
     const d = await getJson(baseUrl, '/api/jobs');
     assertEq(d.status, 400, 'missing params status');
+    const e = await getJson(baseUrl, '/api/job');
+    assertEq(e.status, 400, '/api/job without id status');
+    const g = await getJson(baseUrl, '/api/job?id=anthropic%3Adefinitely-not-a-job');
+    assertEq(g.status, 404, '/api/job unknown id status');
   });
 
   suite.test('Static: /, /vendor/leaflet/leaflet.js served; no path traversal', async ({ baseUrl }) => {

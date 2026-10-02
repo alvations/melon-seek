@@ -533,6 +533,38 @@ feature-detected, so the build and site work before each owner lands it.
     gains a "Compstimate backtest" table (n, MdAPE, within-10%, seed, ledger
     since and runs per company).
 
+54. **Server-mode descriptions (urgent fix).** Backend's speed fix made
+    `/api/jobs` lists lazy (no `descriptionHtml`; `meta.lazy`) and added
+    `GET /api/job?id=`. `getJobDetail` returned `''` in server mode, so
+    the drawer showed no description. It now has one path for both modes:
+    `api/job?id=<encoded id>` (server) or `api/desc/…` (static), a single
+    cache keyed by job id with concurrent calls sharing a request, and
+    failures not cached. Sections from the detail are used only when the
+    list's are empty.
+55. **QA's `test/e2e/api.e2e.js`** (edited with the coordinator's OK):
+    - `validateJob` accepts list jobs without `descriptionHtml`.
+    - The per-company test asserts `meta.lazy.descriptionHtml` and that no list
+      job carries `descriptionHtml`.
+    - It checks `/api/job?id=` for 3 sampled jobs (id echo, string
+      description, sections shape, at least one non-empty).
+    - The invalid-input test covers `/api/job` with no id (400) and an
+      unknown id (404).
+    - Both changes are folded into existing tests, so the suite stays at 8.
+56. **The build uses backend's shared functions:**
+    - `server/export.js#jobsToCsv` and `#csvReadme`, replacing my CSV code.
+      The header is `CSV_COLUMNS`, with a new `data_mode` column. The path
+      stays `data/<slug>.csv` (contract); `csvFileName` is the server's
+      download name and isn't needed for the static path.
+    - `server/index.js#BACKTEST_OPTS` (a local copy is only the fallback).
+      Importing index.js doesn't keep the build alive: it exits in about 4 s.
+    - `compactLedger` and `buildMarket` were already in use.
+    - **Demo payloads are now vetted** (`vetSalaries`) before
+      `buildMarket`, CSV and bundling.
+    - **CSVs are written for demo companies too** (rows `data_mode=demo`,
+      explained in backend's README), matching `GET /api/export` and avoiding
+      broken "Download CSV" links. This reverses decision 49's real-only
+      choice.
+
 ## 4. Replayable steps
 
 Run from `/home/user/melon-seek`. File contents are the committed files
@@ -785,6 +817,13 @@ quoted `cat > FILE <<'EOF'` heredocs).
     node $S/v2-browser.mjs | pages-smoke.mjs | drawer-test.mjs  (real-data dist, /melon-seek/)
     ```
 
+35. Server-mode fix:
+    ```sh
+    node scripts/e2e.js --api-only          # 8/8
+    PORT=$P node server/index.js & node $S/server-drawer.mjs http://127.0.0.1:$P/
+    #  drawer 8,930 chars, 1 request /api/job?id=anthropic%3A5264619008, cached on reopen, PASS
+    ```
+
 ## 5. Verification
 
 | Check | Result |
@@ -815,6 +854,7 @@ quoted `cat > FILE <<'EOF'` heredocs).
 | Juice in Chromium, real data (07:0xZ) | **PASS.** Every job on all 8 companies has a `juice` field. Scored: anthropic 539/638, anduril 1,899/2,418, openai 660/833, shieldai 415/581, palantir 225/320, scaleai 126/194, xai 93/297, cohere 77/132. 0 page errors. Full smoke still passes (8 company switches, 0 app or page errors, 0 local 404s). |
 | Salary vetting gate on real snapshots | **Exit 1.** 8 unquarantined critical salaries, e.g. Anthropic Fellows "$4.6M", Scale AI "Strategist, Qatar: $500K to $5M", Anduril "12,600–167,000 USD", Shield AI "88,000–130,000 USD per-month-salary". Fixtures 435/435. As wired, this blocks `pages.yml` deploys until the vetting agent fixes or quarantines them. |
 | `test/static-build.test.js` v2 (07:30Z) | **10/10.** The five new tests: (a) the packed-2 list deep-equals an independent recomputation, `annotate(vetSalaries(snapshot), ledger, builtAt)`, using the real Greenhouse fixture through the real adapter and normalizer plus a 3-run ledger with a repost; (b) `api/history` = `compactLedger(ledger)`, closed postings left out, repost count kept, `api/meta` = list meta, `{}` without a ledger; (c) CSV header, rows, RFC 4180 quoting, formula prefix, README, none for demo; (d) market.json ≤ 150 kB and `getMarket()` (feature-detected); (e) a static **live** fetch, the board stubbed with the fixture, gets firstSeenAt from `api/history` and meta from `api/meta`. Every build in the test uses its own temp out, snapshot and history dirs. |
+| Server-mode drawer and e2e (07:41Z) | `node scripts/e2e.js --api-only` **8/8**. Chromium against `node server/index.js`: the drawer description loads with one `/api/job?id=` request, the bullets show, it's cached on reopen, and there are 0 page errors and 0 local 4xx. `test/static-build.test.js` **11/11** (adds a server-mode `getJobDetail` unit test). |
 | Full `npm test` ×3 (07:26Z) and ×3 (07:28Z) | **My tests green in all 6 runs.** Run set 1 was 201/206: 4 `demo.test.js` (features was editing `server/demo.js`, uncommitted) and 1 `features.test.js`. Run set 2 was 212/213 ×3: only `features.test.js` "title normalization › role families" (product's in-progress `compstimate.js` / `roles.js`). The coordinator's intermittent "packed list doesn't round-trip (job 0)" was the window between my packer emitting `columns` and api.js decoding them (two edits a few minutes apart); not seen since. |
 | Real-data build (8 companies, pre-v2 snapshots, no local ledger) | Pass, 0 warnings. Anduril list 1.29 MB, market.json 22 kB (real, 391 cells), 8 CSVs (Anduril 695 kB), backtest on every real company, e.g. Anduril n=500, MdAPE 7.1%, within 10% 53.6%. |
 | Browser, real-data packed-2 dist (07:32Z) | **PASS.** Smoke switches all 8 companies with 0 app or page errors and 0 local 404s. `getJobs` returns v2 fields and `meta`; `getMarket` returns `melon-market-1`. The drawer description loads lazily, the bullets now show in over-budget companies (the UX re-render landed), and it's cached on reopen. One local 404, `features/comps.js`: app.js's guarded `import('./features/comps.js').catch(() => null)` for product's not-yet-landed F1 module. |
@@ -996,3 +1036,9 @@ quoted `cat > FILE <<'EOF'` heredocs).
 - 2026-10-02T07:33Z: Branch store seeds from the newest artifact when the
   branch doesn't exist yet (lossless switch). Real-data browser regression
   passes. README ("History ledger", v2 files, packed-2) and this log updated.
+- 2026-10-02T07:41Z: Urgent: server-mode `getJobDetail` fetches `/api/job?id=`
+  (shared cache, sections merged only when empty). Updated QA's API e2e for
+  lazy lists plus `/api/job` (8/8). The build now uses `server/export.js`
+  (jobsToCsv/csvReadme/CSV_COLUMNS, demo CSVs marked `data_mode=demo`) and
+  `BACKTEST_OPTS`, and vets demo payloads. README API reference updated
+  (lazy lists, `/api/job`, other endpoints).
