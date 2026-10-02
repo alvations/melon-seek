@@ -209,7 +209,58 @@ Files owned: `server/index.js`, `server/companies.js`, `server/sources/{greenhou
       adds `meta: { compstimate: null, history: ledgerMeta(ledger) }`; F3 fills `compstimate` later.
       The server does not write ledgers itself; only snapshot runs do.
     - *Persistence:* the interim decision is workflow artifacts, owned by devops (`.github/scripts/ledger.sh`).
-15. **snapshot script.** `npm run snapshot -- anthropic anduril openai` runs the given slugs; with no args it runs
+15. **F1 market comps.** `scripts/build-market.js` exports a pure `buildMarket(payloads, {minN, generatedAt})`.
+    It also exports `percentileSorted`, `usdMid`, `MARKET_FORMAT`, `MIN_N`, `BASIS` and `COLUMNS`, plus a CLI:
+    `node scripts/build-market.js [--out file] [--snapshots dir]` reads `data/snapshots/*.json`, vets them, and
+    writes JSON.
+    - *Inputs:* only vetted salaries (`salary !== null`), converted to USD with the shared FX
+      (`public/viz/palette.js` `toUSD`/`hasFx`). Unknown currencies are skipped.
+    - *Grouping:* by product's `roleFamily(title, job)` (the job is passed as ctx for department hints) and the
+      job's `seniority` (`inferSeniority` buckets, as ROADMAP says).
+    - *Stat:* the midpoint of each posted range. A cell is company × family × seniority, plus a family-only
+      roll-up with seniority `"*"` for the drawer's fallback. Cells need n ≥ 3. p25, median and p75 use linear
+      interpolation, rounded to $100.
+    - *Doc `melon-market-1`:* `{format, basis: "posted base pay ranges", currency: "USD", stat, fx {asOf, source},
+      generatedAt, minN, mode: "real"|"demo", companies[{slug,name,color,mode,fetchedAt,jobs,salaried,used}],
+      families, columns, cells: [[company, family, seniority, n, p25, median, p75]]}`. Tuples keep it small: the
+      real 8-company snapshots give **16.4 KB**, 295 cells. Cells are sorted, so output is deterministic.
+    - *Demo data* is used only when no company has real data, and the doc then says `mode: "demo"`.
+    - *Server:* `GET /api/market` (alias `/api/market.json`) builds over the built-ins from data already on hand:
+      cache, snapshot or demo through `getJobsBase(..., {offline: true})`. It never triggers live fetches, and the
+      doc is memoized until one of the job lists changes.
+16. **F3 `meta.compstimate`.**
+    - The server calls product's `backtest(jobs, { seed: 20261002, maxN: 500 })`, feature-detected from
+      `public/features/compstimate.js`, and adds `computedAt`.
+    - It returns `null` for demo data (an accuracy figure for synthetic pay is meaningless), when `backtest` is
+      missing, or when it fails.
+    - The backtest takes about 5 s for Anduril's 2.4k jobs, so it runs in a **worker thread**
+      (`server/compstimate-worker.js`, Node-only). Only the fields compstimate reads are cloned. The worker is
+      started with `execArgv: []` so parent flags such as `--watch` are not inherited.
+    - A request waits at most `BACKTEST_WAIT_MS` (800 ms, env `MELON_BACKTEST_WAIT_MS`) and otherwise answers
+      `compstimate: null`; later requests get the memoized result, kept per company until its job list changes.
+    - Measured on the real snapshots: anthropic 8.6%, anduril 7.3–8.2% (product was still tuning), openai 9.2%,
+      shieldai 13.5%. With anduril's 5 s backtest running, the event loop ran 155 of 160 possible 50 ms ticks.
+    - The static build should call `backtest` directly with `BACKTEST_OPTS` (exported from `server/index.js`).
+17. **F7 CSV.** `server/export.js` is pure, browser-safe and in `lib-modules.js`. It exports `jobsToCsv(jobs, {mode})`,
+    `csvCell`, `csvFileName(slug, {mode, date})`, `csvReadme({generatedAt, companies})` and `CSV_COLUMNS`.
+    - *Columns:* `id, title, department, team, seniority, locations (" | "), remote, salary_min, salary_max,
+      salary_currency, posted_at, first_seen_at, url, data_mode`. These are the ROADMAP columns plus `data_mode`,
+      so demo rows are always labelled.
+    - Salary is the vetted, annualized base range; it is empty when missing or quarantined. No descriptions.
+    - *Format:* RFC 4180 with CRLF; cells are quoted when they contain `,`, `"` or a newline. Text cells starting
+      with `= + - @ tab CR` get an apostrophe prefix, against spreadsheet formula injection. No BOM.
+    - *Route:* `GET /api/export?company=` (or `source&board`) returns `text/csv; charset=utf-8` with
+      `Content-Disposition: attachment; filename="melon-seek-<slug>-<date>[-demo].csv"` and an `X-Melon-Mode`
+      header. It uses the same fallbacks as `/api/jobs`; HEAD never fetches upstream.
+18. **F2 `job.extras`.** `normalize.js` calls `keywords.extractCompExtras(text, {title})` through a namespace import,
+    so a missing export degrades to `{equity: false, bonus: false}`. The text is the description plus the source's
+    compensation summary (Ashby "… • Offers Equity") and the structured salary text.
+19. **Perf fixes found along the way** (all in `server/index.js`):
+    - Vetting in `stamp()` is memoized per job array, so array identity stays stable and repeat requests do not
+      re-run `vetSalaries`.
+    - Snapshot files are parsed once per mtime/size (bounded to 20) instead of on every request. The 38 MB Anduril
+      snapshot was being re-parsed on every snapshot-mode request.
+20. **snapshot script.** `npm run snapshot -- anthropic anduril openai` runs the given slugs; with no args it runs
    every built-in. A `source:board` argument selects a custom board. It writes only live results; a failed or
    empty fetch is logged and skipped, so it never writes demo data. It exits 1 only if every slug failed.
 
@@ -279,6 +330,22 @@ treated as a file. The `npm test` script is now `node --test test/*.test.js`.
     and `/lib/history.js` is served. `npm test`: 187 pass, 0 fail.
   - CLI smoke test: `history.js record anthropic` on the real committed snapshot recorded 638 open jobs (72 KB);
     a second `record` of the same snapshot reported "unchanged".
+- F1/F3/F7/extras tests:
+  - `test/market.test.js` (5): percentiles; USD midpoint; n threshold; quarantined pay excluded; FX conversion;
+    family roll-up; demo-only versus mixed; deterministic order; and real snapshots ≤ 150 KB with
+    p25 ≤ median ≤ p75 and plausible medians.
+  - `test/export.test.js` (3): escaping, formula injection, CRLF; columns and an RFC 4180 round-trip with no
+    descriptions and quarantined pay empty; file name and README.
+  - `test/sources.test.js`: extras, including Ashby "Offers Equity" true, DEI "pay equity" false, and bonus + RSUs.
+  - `test/server.test.js`:
+    - `/api/market` makes no upstream fetches and is memoized.
+    - `/api/export` headers and rows, demo labelling, 400s, and HEAD with no fetch.
+    - `meta.compstimate` is null when the module or `backtest` is missing and for demo data; otherwise it carries
+      the right options, is memoized, and a failing backtest is harmless.
+    - The real backtest runs in a worker on 40 synthetic jobs.
+  - My test files: 100+ pass, 0 fail. The full `npm test` had 1 failure at the time, "title normalization" in
+    `test/features.test.js`, while product was editing `roles.js`.
+  - `node scripts/e2e.js --api-only`: 8/8.
 - Demo fallback works for all 8 built-ins (offline `getJobs`): 74–120 jobs each.
 - Manual run against the real demo data: anthropic 111 jobs (96 with salary), anduril 120 (105), openai 120 (110).
   All jobs have locations. The demo jobs without a salary contain no currency amounts, so they are meant to have none.
@@ -317,3 +384,6 @@ treated as a file. The `npm test` script is now `node --test test/*.test.js`.
 - 2026-10-02 07:20 UTC: F4 ledger capture. Adapters emit `postedAt` and `reqId`. Added `server/history.js` (locked
   exports), `scripts/history.js`, and `runSnapshot` with ledger capture. The server annotates jobs and adds
   `meta.history` (decision 14). F1, F3, F7 and extras come next.
+- 2026-10-02 07:35 UTC: F1 `buildMarket` + `/api/market`; F3 `meta.compstimate` through product's backtest in a
+  worker thread; F7 `server/export.js` + `/api/export`; F2 `job.extras`. Vetting and snapshot parsing are now
+  memoized (decisions 15–19).
