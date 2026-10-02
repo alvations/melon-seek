@@ -662,7 +662,7 @@ function resolvePlace(name) {
   if (!cleaned) return extra.length ? fromRegion(name, extra[0]) : unknown(name);
 
   // Whole-string alias ("Washington, D.C.", "New York City", "Bay Area").
-  const whole = CITY_INDEX.get(normKey(cleaned));
+  const whole = CITY_INDEX.get(normKey(name.replace(/\([^)]*\)/g, ' '))) || CITY_INDEX.get(normKey(cleaned));
   if (whole) {
     const c = pickCity(whole, extra) || whole[0];
     return fromCity(name, c);
