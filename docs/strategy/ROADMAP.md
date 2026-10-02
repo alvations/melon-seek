@@ -577,10 +577,11 @@ fields, and the build's round-trip check covers them.
     - `createCompsCard(container, { onPickCompany(slug, filters) })` for
       Insights.
 
-    If the corporate-ladder plan (`docs/strategy/CORPORATE_LADDER_PLAN.md`,
-    another workstream) produces a level mapping, `compsForJob` can switch
-    from seniority buckets to mapped levels later. The interface stays the
-    same.
+    The corporate-ladder plan (`docs/strategy/CORPORATE_LADDER_PLAN.md`,
+    another workstream) adds a generic "Level check" drawer section built on
+    the same seniority buckets. It doesn't map levels across companies, so F1
+    keeps `inferSeniority` buckets. If a cross-company level mapping ever
+    exists, `compsForJob` can switch to it without changing its interface.
   - viz: new `public/viz/comps.js`,
     `createCompsChart(container, { onSelect(slug) }) -> { update(rows), destroy() }`.
     It draws one row per company: a P25–P75 bar with a median tick, styled
@@ -751,7 +752,7 @@ Day 30-60  backend/data: payHistory, trends, feeds · viz: pay-history, sparklin
 | **Top-level modes** | Stay at 3 (Chart, Map, Insights). No new modes |
 | **Sort select** | At most 3 new options in total: "Juice" (F8), "Recently changed pay" (F10), and "Newest", which keeps its name but switches to `ageDays` |
 | **Cards** | No new rows. The age reuses the existing age slot. **At most 1 status tag** per card, which takes the second keyword-tag slot. Priority: Pay changed > New > Reposted. "Evergreen" shows through the age ("2y+") only, never as a tag |
-| **Drawer** | New sections in this fixed order: pay block (with honest-number labels) → Same role elsewhere → Listing → Locations → Keywords → Bullets → Description. If there are more than 3 sections below the pay block, the rest start collapsed. At most 2 labels in the pay block |
+| **Drawer** | New sections in this fixed order: pay block (with honest-number labels) → Same role elsewhere → Level check (corporate-ladder plan) → Listing → Locations → Keywords → Bullets → Description. If there are more than 3 sections below the pay block, the rest start collapsed. At most 2 labels in the pay block. This budget is shared with the corporate-ladder plan |
 | **Insights** | At most 4 cards shown: Compstimate, Market insights, Compare companies, Hiring momentum (Next). Anything more goes under "More insights" |
 | **Filters** | New options go inside existing sections ("Listed", "Location → within N km"). No new top-level sections |
 | **Colour and motion** | Labels and tags are monochrome (muted text or outlined). No new palette colours. Respect reduced motion |

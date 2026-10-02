@@ -25,6 +25,35 @@ const CITIES = [
   { name: 'Sydney, Australia', city: 'Sydney', region: 'NSW', country: 'AU', lat: -33.87, lng: 151.21, w: 1 },
 ];
 
+// Crude livability inputs for the mock Juice Score (annual USD). Real values: data/cities.json + server/juice.js.
+const LIVING = {
+  'San Francisco': { rent: 44145, living: 18184, tax: [0.24, 0.42] }, 'New York': { rent: 52446, living: 19982, tax: [0.25, 0.43] },
+  Seattle: { rent: 30000, living: 16500, tax: [0.18, 0.36] }, 'Costa Mesa': { rent: 32388, living: 15626, tax: [0.22, 0.4] },
+  Washington: { rent: 30500, living: 17000, tax: [0.23, 0.41] }, Austin: { rent: 23088, living: 14127, tax: [0.18, 0.36] },
+  London: { rent: 32766, living: 17244, tax: [0.28, 0.45] }, Dublin: { rent: 28000, living: 16000, tax: [0.3, 0.48] },
+  Zurich: { rent: 34074, living: 22320, tax: [0.2, 0.33], estimated: true }, Tokyo: { rent: 16000, living: 13500, tax: [0.22, 0.42] },
+  Sydney: { rent: 26000, living: 15500, tax: [0.26, 0.44] },
+};
+const FX = { USD: 1, GBP: 1.27, EUR: 1.09 };
+function mockJuice(salary, locations) {
+  if (!salary) return null;
+  const gross = Math.round(salary.mid * (FX[salary.currency] ?? 1));
+  const byLocation = locations.filter((l) => !l.remote && LIVING[l.city]).map((l) => {
+    const c = LIVING[l.city];
+    const rate = Math.min(c.tax[1], c.tax[0] + gross / 2_000_000);
+    const tax = Math.round(gross * rate), rent = c.rent, living = c.living;
+    const net = gross - tax - rent - living;
+    const score = net <= 0 ? 0 : Math.max(0, Math.min(100, Math.round((100 * Math.log(1 + net / 10000)) / Math.log(26))));
+    const grade = score >= 70 ? 'Juicy' : score >= 45 ? 'Ripe' : score >= 1 ? 'Dry' : 'Rind';
+    return { locationName: l.name, city: l.city.toLowerCase().replace(/\W+/g, '-'), cityName: l.city, gross, tax, rent, living, net, score, grade,
+      rentBurden: Math.round((rent / Math.max(1, gross - tax)) * 100) / 100, bigMacs: Math.round(net / 5.69), estimated: !!c.estimated,
+      taxParts: { income: Math.round(tax * 0.7), regional: Math.round(tax * 0.12), social: tax - Math.round(tax * 0.7) - Math.round(tax * 0.12) } };
+  });
+  if (!byLocation.length) return null;
+  const best = byLocation.slice().sort((a, b) => b.score - a.score || b.net - a.net)[0];
+  return { best, byLocation, salaryUSD: { min: salary.min, max: salary.max, mid: gross } };
+}
+
 const DEPTS = [
   { name: 'AI Research & Engineering', base: 330000, titles: ['Research Engineer, {t}', 'Research Scientist, {t}', 'ML Engineer, {t}'], teams: ['Interpretability', 'Pretraining', 'Alignment', 'Inference', 'RL'] },
   { name: 'Engineering', base: 260000, titles: ['Software Engineer, {t}', 'Infrastructure Engineer, {t}', 'Engineering Manager, {t}'], teams: ['Platform', 'Developer Experience', 'Data Infrastructure', 'Security', 'Product'] },
@@ -168,6 +197,7 @@ function makeJobs(company) {
       descriptionHtml,
       sections,
       keywords,
+      juice: mockJuice(salary, locations),
     });
   }
   return jobs;

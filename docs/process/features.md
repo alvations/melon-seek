@@ -80,6 +80,19 @@ and the prompt copy).
    supply…) is excluded. Those titles fall through to Senior or Mid. "Fellowship" and "Fellows
    program" map to Intern, while a bare "Fellow" maps to Staff+. `Lead` maps to
    Senior, `III` to Senior, and a trailing roman `I` to Entry.
+9a. **"Member of Technical Staff" is not a level.** The labs (Cohere, xAI,
+    OpenAI and others) use "Member of Technical Staff" / "MTS" as a generic IC
+    title, so the bare word `staff` had been sending 33 real postings to
+    Staff+. Before any rule runs, `inferSeniority` now removes the generic
+    phrase in all its forms: `Member(s) of (the) Technical Staff`,
+    `Technical Staff (Member)`, `Member of (the) Staff` and a standalone
+    `MTS`. Any other level word in the title still decides the bucket. The
+    Salesforce-style ladder abbreviations are expanded first:
+    `SMTS`→Senior, and `LMTS`/`PMTS`→Staff+ (LMTS sits above SMTS and is
+    usually treated as Staff-level). So "Member of Technical Staff,
+    Pretraining" is Mid, "Senior MTS" is Senior and "Principal Member of
+    Technical Staff" is Staff+. A real "Staff Software Engineer" is
+    unchanged.
 10. **Gazetteer.** Data is embedded as pipe-separated text blocks:
     **246 cities** (tech, AI and defense hubs, plus Bay Area, DC-area and
     SoCal suburbs and international hubs), **52 US states/DC/PR** and **60
@@ -158,6 +171,14 @@ Node v22.22.0. There are no dependencies and no build step.
   Anduril 120 (66), OpenAI 120 (87) and a generic board 75 (78), with 0
   unresolved locations.
 
+- After the MTS fix (2026-10-02): `node --test test/keywords.test.js` →
+  14/14 pass, and all three of my test files → 33/33. The new test has 25 MTS / Technical Staff titles in the formats
+  Cohere and xAI use, plus controls. `npm test` (whole repo) → 155 tests, 151
+  pass, 4 fail. All 4 failures are FX-table assertions in
+  `test/features.test.js` (2 subtests) and `test/juice.test.js` (1). They
+  compare `public/viz/palette.js` and `public/features/shared.js` rates and
+  do not involve `server/keywords.js`, `geo.js` or `demo.js`.
+
 ## 6. Known gaps and follow-ups
 - Coordinates are approximate and come from general knowledge, not a
   surveyed dataset. Small towns that are not in the gazetteer fall back to the
@@ -169,6 +190,10 @@ Node v22.22.0. There are no dependencies and no build step.
   `{source, board, url}`. A demo for an unknown slug with no `<source>-<board>`
   pattern and no opts gets `url: null`, rather than an invented URL.
 - Country codes are ISO alpha-2 (`GB` for the UK). The contract only shows `US`.
+- `staff` is still a Staff+ marker everywhere outside the MTS phrase, so
+  non-engineering titles where "Staff" means junior ("Staff Accountant",
+  "Staff Auditor", "Staff Nurse") would be misclassified. None have been seen
+  yet. If they appear, add an exception list next to `MTS_PHRASE_RE`.
 - The " and " separator splits multi-word country names such as "Trinidad and
   Tobago". This is rare in job boards.
 
@@ -183,3 +208,7 @@ Node v22.22.0. There are no dependencies and no build step.
 - 2026-10-02: geo whole-string alias now checked before noise stripping
   ("Bay Area" had become "Bay"). Tests reached 32/32 passing.
 - 2026-10-02: Process docs added at the coordinator's request.
+- 2026-10-02: Fix from real data. "Member of Technical Staff" / "MTS" titles
+  (33 postings at Cohere and xAI) were classed Staff+ and are now Mid unless
+  another level word is present. SMTS→Senior, LMTS/PMTS→Staff+. Added 25
+  title tests.

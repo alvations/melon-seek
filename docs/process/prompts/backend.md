@@ -44,3 +44,5 @@ Network note: external job-board hosts are BLOCKED in this sandbox; do not try t
 > - Make sure the static file route serves server/juice.js to the browser if api.js imports it from the server (check how api.js resolves lib modules in server mode).
 > - Add a server test, and log it in docs/process/backend.md (prompt append, decision, change log).
 > Don't commit; report back briefly.
+
+> Addition to the /api/cities task, from devops, so api.js resolves lib modules the same way in both modes: add `GET /lib/<path>.js` → `server/<path>.js`, ONLY for the browser-safe allowlist the static build ships: companies, normalize, salary, vet, geo, keywords, demo, juice, sources/*. Serve it as text/javascript with path-traversal protection; anything else is a 404. Ideally import the allowlist from one shared place (e.g. export LIB_MODULES from a small module that build-static.js also uses) so they can't drift. Note: normalizeJobs already calls vetSalaries, so live fetches through lib/normalize.js are vetted; double vetting is idempotent. Add tests for allowed, disallowed and traversal requests.

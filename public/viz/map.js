@@ -1,20 +1,30 @@
 // melon-seek job map (Leaflet, global `L`).
 //
-// createMap(container, { onSelect(job), onAreaSelect(jobs, label),
+// createMap(container, { onSelect(job), onAreaSelect(jobs, label), onColorModeChange(mode),
+//                        colorMode?: 'pay' | 'juice',
 //                        tiles?: { url, attribution, maxZoom, subdomains, dark: 'filter' | url } })
-//   -> { update(jobs, { fit }), highlight(jobId|null), invalidateSize(), destroy() }
+//   -> { update(jobs, { fit, colorMode }), highlight(jobId|null), invalidateSize(),
+//        colorMode (getter), destroy(), leaflet }
 //
 // Jobs are aggregated per location (lat/lng rounded to 0.1°; a job with several
 // locations counts in each), then greedily clustered in screen space so pills
 // never overlap at the current zoom. Each cluster is a Zillow-style price-tag
 // pill: median salary (approx USD) + count badge, filled on a one-hue
 // sequential scale by median. Remote-only postings live in a "Remote" control.
+// A "Pay | Juice" segmented control switches pin color to the Juice Score
+// (docs/LIVABILITY.md): the median score at that location on a stepped ramp with
+// breaks at 45 and 70 (Dry / Ripe / Juicy); pins without juice data are neutral.
 // Basemap: OpenStreetMap standard tiles by default (no API key). Dark mode
 // inverts the tile pane only with a CSS filter (pins are never filtered), or
 // swaps to `tiles.dark` when that is a URL. If tiles fail, the container
 // keeps a styled background, a graticule and labelled pins.
 
-import { formatMoney, toUSD, median, salaryColor, inkOn, onThemeChange, isDark, prefersReducedMotion } from './palette.js';
+import {
+  formatMoney, toUSD, median, salaryColor, inkOn, onThemeChange, isDark, prefersReducedMotion,
+  juiceColor, juiceGrade, juiceNetForScore, JUICE_BREAKS,
+} from './palette.js';
+
+export const COLOR_MODES = Object.freeze(['pay', 'juice']);
 
 /** Default basemap: OSM standard tiles (no key). Usage policy: attribution visible, no prefetch. */
 export const OSM_TILES = Object.freeze({
@@ -60,11 +70,12 @@ export function aggregate(jobs) {
       if (l.remote) { isRemote = true; continue; }
       if (l.lat == null || l.lng == null || !isFinite(l.lat) || !isFinite(l.lng)) continue;
       const key = `${l.lat.toFixed(1)},${l.lng.toFixed(1)}`;
-      if (seen.has(key)) continue;
+      if (seen.has(key)) { places.get(key)?.locNames.get(job.id)?.add(norm(l.name || locLabel(l))); continue; }
       seen.add(key);
       let p = places.get(key);
-      if (!p) { p = { key, lat: +l.lat, lng: +l.lng, label: locLabel(l), jobs: [] }; places.set(key, p); }
-      p.jobs.push(job);
+      if (!p) { p = { key, lat: +l.lat, lng: +l.lng, label: locLabel(l), jobs: [], locNames: new Map() }; places.set(key, p); }
+      if (!p.locNames.has(job.id)) { p.jobs.push(job); p.locNames.set(job.id, new Set()); }
+      p.locNames.get(job.id).add(norm(l.name || locLabel(l)));
       placed = true;
     }
     if (isRemote || (!placed && job.remote)) remote.push(job);
@@ -77,7 +88,43 @@ function summarize(jobs) {
   return { n: jobs.length, salaried: mids.length, median: median(mids) };
 }
 
-export function createMap(container, { onSelect, onAreaSelect, tiles: tileOpts } = {}) {
+const norm = s => String(s || '').trim().toLowerCase();
+
+/**
+ * The Juice entry for `job` at a place: the job.juice.byLocation[] entry whose
+ * locationName matches one of the job's location names there (best score if
+ * several), else job.juice.best when its locationName matches. Never borrows
+ * another city's score (a London juice must not color the SF pin).
+ */
+export function juiceAt(job, names) {
+  const j = job?.juice;
+  if (!j || !names?.size) return null;
+  let hit = null;
+  for (const e of j.byLocation || []) {
+    if (e && names.has(norm(e.locationName)) && Number.isFinite(e.score) && (!hit || e.score > hit.score)) hit = e;
+  }
+  if (!hit && j.best && names.has(norm(j.best.locationName)) && Number.isFinite(j.best.score)) hit = j.best;
+  return hit;
+}
+
+/** Median juice over a cluster: { score, net, n (jobs with juice), grade } or null. */
+function summarizeJuice(jobs, members) {
+  const scores = [], nets = [];
+  for (const job of jobs) {
+    const names = new Set();
+    for (const m of members) for (const nm of m.locNames.get(job.id) || []) names.add(nm);
+    const e = juiceAt(job, names);
+    if (!e) continue;
+    scores.push(e.score);
+    if (Number.isFinite(e.net)) nets.push(e.net);
+  }
+  if (!scores.length) return null;
+  const score = Math.round(median(scores));
+  const net = nets.length ? median(nets) : juiceNetForScore(score);
+  return { score, net, n: scores.length, grade: juiceGrade(score, net) };
+}
+
+export function createMap(container, { onSelect, onAreaSelect, onColorModeChange, colorMode: initialMode, tiles: tileOpts } = {}) {
   const T = { ...OSM_TILES, ...(tileOpts || {}) };
   const darkUrl = typeof T.dark === 'string' && T.dark !== 'filter' ? T.dark : null;
   if (typeof L === 'undefined') throw new Error('melon-seek map: Leaflet global `L` not loaded');
@@ -155,6 +202,76 @@ export function createMap(container, { onSelect, onAreaSelect, tiles: tileOpts }
   const remoteCtl = new RemoteControl().addTo(map);
   const remoteBtn = remoteCtl.getContainer();
 
+  // "Pay | Juice" segmented control (+ the Juice legend when active)
+  let colorMode = COLOR_MODES.includes(initialMode) ? initialMode : 'pay';
+  const ModeControl = L.Control.extend({
+    options: { position: 'topright' },
+    onAdd() {
+      const box = L.DomUtil.create('div', 'ms-modes');
+      L.DomEvent.disableClickPropagation(box);
+      L.DomEvent.disableScrollPropagation(box);
+      const seg = L.DomUtil.create('div', 'ms-modes__seg', box);
+      seg.setAttribute('role', 'radiogroup');
+      seg.setAttribute('aria-label', 'Pin color');
+      for (const [mode, label, hint] of [['pay', 'Pay', 'Color pins by median salary'], ['juice', 'Juice', 'Color pins by median Juice Score: livability $ left after rent, tax and living costs']]) {
+        const b = L.DomUtil.create('button', 'ms-modes__btn', seg);
+        b.type = 'button';
+        b.dataset.mode = mode;
+        b.textContent = label;
+        b.title = hint;
+        b.setAttribute('role', 'radio');
+        L.DomEvent.on(b, 'click', () => setColorMode(mode, true));
+        L.DomEvent.on(b, 'keydown', e => {
+          if (e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            L.DomEvent.preventDefault(e);
+            const next = colorMode === 'pay' ? 'juice' : 'pay';
+            setColorMode(next, true);
+            seg.querySelector(`[data-mode="${next}"]`)?.focus();
+          }
+        });
+      }
+      const legend = L.DomUtil.create('div', 'ms-modes__legend', box);
+      legend.setAttribute('aria-label', 'Juice Score legend');
+      const [b1, b2] = JUICE_BREAKS;
+      for (const [grade, score, range] of [
+        ['Dry', 0, `< ${formatMoney(juiceNetForScore(b1))}`],
+        ['Ripe', b1, `${formatMoney(juiceNetForScore(b1))}–${formatMoney(juiceNetForScore(b2))}`],
+        ['Juicy', b2, `≥ ${formatMoney(juiceNetForScore(b2))}`],
+      ]) {
+        const row = L.DomUtil.create('div', 'ms-modes__key', legend);
+        const sw = L.DomUtil.create('span', 'ms-modes__sw', row);
+        sw.dataset.score = score;
+        const t = L.DomUtil.create('span', 'ms-modes__grade', row);
+        t.textContent = `${grade} ${score === 0 ? `< ${b1}` : score === b1 ? `${b1}–${b2 - 1}` : `${b2}+`}`;
+        const r = L.DomUtil.create('span', 'ms-modes__net', row);
+        r.textContent = `${range}/yr`;
+      }
+      L.DomUtil.create('div', 'ms-modes__none', legend).textContent = 'Gray: no Juice data';
+      return box;
+    },
+  });
+  const modeBox = new ModeControl().addTo(map).getContainer();
+  function paintModeControl() {
+    for (const b of modeBox.querySelectorAll('.ms-modes__btn')) {
+      const on = b.dataset.mode === colorMode;
+      b.setAttribute('aria-checked', on ? 'true' : 'false');
+      b.tabIndex = on ? 0 : -1;
+      b.classList.toggle('is-on', on);
+    }
+    modeBox.classList.toggle('ms-modes--juice', colorMode === 'juice');
+    for (const sw of modeBox.querySelectorAll('.ms-modes__sw')) sw.style.background = juiceColor(+sw.dataset.score);
+  }
+  function setColorMode(mode, fromUser) {
+    if (!COLOR_MODES.includes(mode) || mode === colorMode) return;
+    colorMode = mode;
+    container.classList.toggle('ms-map--juice', mode === 'juice');
+    paintModeControl();
+    if (places.length) draw();
+    if (fromUser) onColorModeChange?.(mode);
+  }
+  container.classList.toggle('ms-map--juice', colorMode === 'juice');
+  paintModeControl();
+
   // Offline note control
   const NoteControl = L.Control.extend({
     options: { position: 'topright' },
@@ -191,17 +308,27 @@ export function createMap(container, { onSelect, onAreaSelect, tiles: tileOpts }
       const jobs = [];
       for (const m of c.members) for (const j of m.jobs) if (!ids.has(j.id)) { ids.add(j.id); jobs.push(j); }
       const label = c.members.length > 1 ? `${c.lead.label} + ${c.members.length - 1} nearby` : c.lead.label;
-      return { lat: c.lead.lat, lng: c.lead.lng, members: c.members, jobs, ids, label, ...summarize(jobs) };
+      return { lat: c.lead.lat, lng: c.lead.lng, members: c.members, jobs, ids, label, ...summarize(jobs), juice: summarizeJuice(jobs, c.members) };
     });
   }
 
   function tooltipContent(c) {
     const root = el('div', 'ms-map-tip__inner');
-    root.append(el('div', 'ms-tip__value', c.median != null ? `${formatMoney(c.median)} median` : plural(c.n, 'job')));
-    root.append(el('div', 'ms-tip__title', c.label));
-    root.append(el('div', 'ms-tip__meta', c.median != null
-      ? `${plural(c.n, 'posting')} · ${c.salaried.toLocaleString()} with salary`
-      : `${plural(c.n, 'posting')} · no published salary`));
+    if (colorMode === 'juice') {
+      const J = c.juice;
+      root.append(el('div', 'ms-tip__value', J ? `🍉 ${J.score} · ${J.grade}` : 'No Juice data'));
+      root.append(el('div', 'ms-tip__sub', J
+        ? `median ${formatMoney(J.net)}/yr left after rent, tax and living costs`
+        : 'Juice needs a published salary and a known city'));
+      root.append(el('div', 'ms-tip__title', c.label));
+      root.append(el('div', 'ms-tip__meta', `${plural(c.n, 'posting')} · ${(J?.n || 0).toLocaleString()} with Juice${c.median != null ? ` · pay median ${formatMoney(c.median)}` : ''}`));
+    } else {
+      root.append(el('div', 'ms-tip__value', c.median != null ? `${formatMoney(c.median)} median` : plural(c.n, 'job')));
+      root.append(el('div', 'ms-tip__title', c.label));
+      root.append(el('div', 'ms-tip__meta', c.median != null
+        ? `${plural(c.n, 'posting')} · ${c.salaried.toLocaleString()} with salary`
+        : `${plural(c.n, 'posting')} · no published salary`));
+    }
     const counts = new Map();
     for (const j of c.jobs) counts.set(j.title, (counts.get(j.title) || 0) + 1);
     const top = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
@@ -218,6 +345,21 @@ export function createMap(container, { onSelect, onAreaSelect, tiles: tileOpts }
 
   function pinElement(c, t) {
     const pin = el('div', 'ms-pin');
+    if (colorMode === 'juice') {
+      const J = c.juice;
+      if (J) {
+        const bg = juiceColor(J.score);
+        pin.style.setProperty('--pin-bg', bg);
+        pin.style.setProperty('--pin-fg', inkOn(bg));
+        pin.classList.add('ms-pin--juice');
+      } else {
+        pin.classList.add('ms-pin--nosalary', 'ms-pin--juice');
+      }
+      pin.append(el('span', 'ms-pin__price', J ? `🍉 ${J.score}` : '🍉 –'));
+      if (c.n > 1) pin.append(el('span', 'ms-pin__count', c.n > 999 ? '999+' : String(c.n)));
+      pin.append(el('span', 'ms-pin__label', c.label));
+      return pin;
+    }
     if (c.median != null) {
       const bg = salaryColor(t);
       pin.style.setProperty('--pin-bg', bg);
@@ -233,6 +375,10 @@ export function createMap(container, { onSelect, onAreaSelect, tiles: tileOpts }
   }
 
   function pinName(c) {
+    if (colorMode === 'juice') {
+      const J = c.juice;
+      return `${c.label}: ${plural(c.n, 'posting')}, ${J ? `Juice ${J.score}, ${J.grade}, median ${formatMoney(J.net)} a year left` : 'no Juice data'}`;
+    }
     return `${c.label}: ${plural(c.n, 'posting')}${c.median != null ? `, median ${formatMoney(c.median)}` : ', no published salary'}`;
   }
 
@@ -343,13 +489,15 @@ export function createMap(container, { onSelect, onAreaSelect, tiles: tileOpts }
   ro.observe(container);
   const offTheme = onThemeChange(dark => {
     applyDark(dark);
+    paintModeControl();
     if (darkUrl) tiles.setUrl(urlFor(dark));
     draw();
   });
 
   return {
-    update(jobs, { fit } = {}) {
+    update(jobs, { fit, colorMode: mode } = {}) {
       jobs = Array.isArray(jobs) ? jobs : [];
+      if (mode != null) setColorMode(mode, false); // programmatic (e.g. from the URL hash): no callback
       ({ places, remote: remoteJobs } = aggregate(jobs));
       // Default: refit only when the dataset identity (set of companies) changes.
       const sig = [...new Set(jobs.map(j => j.company))].sort().join('|');
@@ -366,6 +514,8 @@ export function createMap(container, { onSelect, onAreaSelect, tiles: tileOpts }
       drawRemote();
     },
     highlight(jobId) { highlighted = jobId ?? null; applyHighlight(); },
+    /** Current pin color mode: 'pay' | 'juice'. */
+    get colorMode() { return colorMode; },
     invalidateSize() {
       map.invalidateSize({ pan: false });
       if (pendingFit) fitToData();
@@ -377,7 +527,7 @@ export function createMap(container, { onSelect, onAreaSelect, tiles: tileOpts }
       offTheme();
       map.remove();
       container.replaceChildren();
-      container.classList.remove('ms-map', 'ms-map--offline', 'ms-map--dark', 'ms-map--tiles-bad');
+      container.classList.remove('ms-map', 'ms-map--offline', 'ms-map--dark', 'ms-map--tiles-bad', 'ms-map--juice');
     },
     /** The underlying Leaflet map (escape hatch). */
     get leaflet() { return map; },

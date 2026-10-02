@@ -13,6 +13,9 @@
 //   dist/api/demo/<slug>.json build-time demo (mode "demo"), last bundled fallback;
 //                             only written when jobs/<slug>.json is a real snapshot
 //   dist/api/desc/<slug>/<id>.json  { id, descriptionHtml, sections? } per job
+//   dist/api/cities.json      data/cities.json (Juice Score inputs; juice itself is
+//                             computed in the browser by api.js + lib/juice.js and is
+//                             never stored in the job lists)
 //   dist/.nojekyll
 //   dist/og/melon-seek-og.png share card (og:image), from public/og/ (card.html, its
 //                             source, is left out; see scripts/build-og.mjs)
@@ -46,9 +49,12 @@ const STRICT = args.includes('--strict');
 const SNAPSHOT_DIR = process.env.MELON_SNAPSHOT_DIR || path.join(ROOT, 'data', 'snapshots');
 
 // Server modules the browser needs (paths relative to server/). companies.js is
-// included for custom-board validation; demo.js is optional.
-const LIB_MODULES = ['companies.js', 'normalize.js', 'salary.js', 'vet.js', 'geo.js', 'keywords.js', 'demo.js'];
-const OPTIONAL_LIB = new Set(['demo.js']);
+// included for custom-board validation; demo.js and juice.js (Juice Score; it
+// only imports ./geo.js) are optional: without them the browser falls back to
+// no in-browser demo / `juice: null`.
+const LIB_MODULES = ['companies.js', 'normalize.js', 'salary.js', 'vet.js', 'geo.js', 'keywords.js', 'demo.js', 'juice.js'];
+const OPTIONAL_LIB = new Set(['demo.js', 'juice.js']);
+const CITIES_FILE = path.join(ROOT, 'data', 'cities.json');
 // Sources that public/api.js may fetch live from the browser, and those whose
 // CORS failures fall back to the bundled snapshot without an error (see the
 // CORS notes in public/api.js).
@@ -148,7 +154,8 @@ function splitPayload(payload, api) {
   const build = (moveSections) => {
     const details = new Map();
     const jobs = payload.jobs.map((job) => {
-      const { descriptionHtml, ...rest } = job;
+      // juice is computed in the browser (api.js); never ship a stale copy.
+      const { descriptionHtml, juice, ...rest } = job;
       const html = typeof descriptionHtml === 'string' ? descriptionHtml : '';
       const rec = { id: job.id };
       if (html) rec.descriptionHtml = html;
@@ -372,7 +379,7 @@ async function main() {
   for (const src of libFiles) {
     const name = path.relative(path.join(ROOT, 'server'), src);
     if (!existsSync(src)) {
-      if (OPTIONAL_LIB.has(name)) { warn(`server/${name} missing; in-browser demo fallback disabled`); continue; }
+      if (OPTIONAL_LIB.has(name)) { warn(`server/${name} missing; ${name === 'juice.js' ? 'Juice Score disabled (jobs get juice: null)' : 'in-browser demo fallback disabled'}`); continue; }
       throw new Error(`server/${name} missing`);
     }
     const code = await fs.readFile(src, 'utf8');
@@ -400,6 +407,22 @@ async function main() {
   const api = await import(pathToFileURL(path.join(ROOT, 'public', 'api.js')).href);
   const companies = listCompanies().map(({ slug, name, source, board, color }) => ({ slug, name, source, board, color }));
   await writeJson(path.join(OUT, 'api', 'companies.json'), companies);
+
+  // Juice Score inputs (read by api.js#getCities). Re-serialized compactly.
+  let citiesNote = 'no cities.json (juice: null)';
+  if (existsSync(CITIES_FILE)) {
+    try {
+      const doc = JSON.parse(await fs.readFile(CITIES_FILE, 'utf8'));
+      const n = Array.isArray(doc) ? doc.length : Array.isArray(doc && doc.cities) ? doc.cities.length : 0;
+      if (!n) warn('data/cities.json has no cities; Juice Score will be null');
+      const bytes = await writeJson(path.join(OUT, 'api', 'cities.json'), doc);
+      citiesNote = `${n} cities (${size(bytes)})`;
+    } catch (err) {
+      warn(`data/cities.json unreadable (${err.message}); Juice Score will be null`);
+    }
+  } else {
+    warn('data/cities.json missing; Juice Score will be null');
+  }
 
   const builtAt = new Date().toISOString();
   const summary = [];
@@ -465,6 +488,7 @@ async function main() {
   console.log(`Built ${rel(OUT)}/ in ${Date.now() - t0}ms: ${libCount} lib modules, leaflet, ${companies.length} companies`);
   for (const line of summary) console.log(`  ${line}`);
   console.log(`  social: og:image ${social.image || '(none)'}; ${social.pages} share pages at ${social.site}c/<slug>/`);
+  console.log(`  juice: api/cities.json ${citiesNote}, lib/juice.js ${existsSync(path.join(OUT, 'lib', 'juice.js')) ? 'bundled' : 'missing'}`);
   if (warnings.length) {
     console.warn(`${warnings.length} warning(s)`);
     if (STRICT) process.exit(1);

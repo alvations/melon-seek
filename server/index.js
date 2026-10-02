@@ -365,7 +365,8 @@ export async function handle(req, res) {
       // HEAD never triggers an upstream fetch (review C2).
       return sendJson(req, res, 200, await getJobs(company, { refresh, offline: req.method === 'HEAD' }));
     }
-    if (p === '/api/cities') return serveCities(req, res);
+    // /api/cities.json matches the static build's dist/api/cities.json, so api.js can use one URL.
+    if (p === '/api/cities' || p === '/api/cities.json') return serveCities(req, res);
     if (p === '/api/health') return sendJson(req, res, 200, { ok: true });
     return sendJson(req, res, 404, { error: 'Unknown API route' });
   }

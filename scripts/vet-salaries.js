@@ -5,6 +5,10 @@
 //     --date YYYY-MM-DD   output folder data/vetting/<date>/ (default: today, UTC)
 //     --out <file>        flags file (default <dir>/flags.jsonl, or
 //                         <dir>/flags.renormalized.jsonl with --renormalize)
+//     (default)           the vetting gate (server/vet.js) is applied to the
+//                         loaded jobs first, exactly as build-static and the
+//                         server do, so "blocking" means "would be published"
+//     --no-gate           scan the snapshot salaries as stored (raw view)
 //     --renormalize       re-derive every salary from descriptionHtml (+ the
 //                         structured salary the snapshot kept) with the current
 //                         parser and run the vetting gate before scanning
@@ -22,8 +26,8 @@
 // One JSON line per flagged job: { id, company, title, url, source, parsed,
 // excerpt (<= 300 chars around the matched pay text), pay_snippets (other pay
 // clauses, for the reviewer), flags: [codes], critical, quarantined }.
-// Exit 1 when a job that reaches the output (salary not quarantined) has a
-// critical flag (implausible amount), or a regression fixture fails.
+// Exit 1 when a job that reaches the output (salary not quarantined by the
+// gate) has a critical flag (implausible amount), or a regression fixture fails.
 // Flag definitions: docs/VETTING.md.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -490,7 +494,7 @@ export function seededSample(items, n, seed) {
 }
 
 function parseArgs(argv) {
-  const o = { files: [], date: new Date().toISOString().slice(0, 10), seed: 20261002, fixtures: true, writeFlags: true };
+  const o = { files: [], date: new Date().toISOString().slice(0, 10), seed: 20261002, fixtures: true, writeFlags: true, gate: true };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--date') o.date = argv[++i];
@@ -503,6 +507,7 @@ function parseArgs(argv) {
     else if (a === '--no-fixtures') o.fixtures = false;
     else if (a === '--no-write-flags') o.writeFlags = false;
     else if (a === '--force') o.force = true;
+    else if (a === '--no-gate') o.gate = false;
     else if (a === '--build-fixtures') { o.buildFixtures = []; while (argv[i + 1] && !argv[i + 1].startsWith('--')) o.buildFixtures.push(path.resolve(argv[++i])); }
     else if (a.startsWith('--')) throw new Error(`unknown option ${a}`);
     else o.files.push(a);
@@ -535,6 +540,7 @@ async function main() {
     try { parsed = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (err) { console.error(`! ${file}: ${err.message}`); continue; }
     let jobs = Array.isArray(parsed) ? parsed : parsed && parsed.jobs;
     if (!Array.isArray(jobs)) { console.error(`! ${file}: no jobs array`); continue; }
+    if (!o.renormalize && o.gate) jobs = vetSalaries(jobs); // what build-static / the server serve
     if (o.renormalize) {
       jobs = await renormalizeJobs(jobs);
       if (o.write) {
@@ -587,7 +593,7 @@ async function main() {
   ];
   if (!o.files.length) console.log('vet-salaries: no snapshot files found; nothing to scan');
   else {
-    console.log(`vet-salaries: ${o.files.length} file(s)${o.renormalize ? ' (renormalized)' : ''}`);
+    console.log(`vet-salaries: ${o.files.length} file(s)${o.renormalize ? ' (renormalized + gate)' : o.gate ? ' (as served: gate applied)' : ' (raw, no gate)'}`);
     for (const [slug, c] of Object.entries(counts)) {
       const codes = Object.entries(c.codes).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}=${v}`).join(' ');
       console.log(`  ${slug.padEnd(10)} jobs ${String(c.jobs).padStart(4)}  salaried ${String(c.salaried).padStart(4)}  quarantined ${String(c.quarantined).padStart(3)}  flagged ${String(c.flagged).padStart(4)}  critical ${c.critical} (blocking ${c.blocking})  ${codes}`);

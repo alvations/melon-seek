@@ -179,6 +179,40 @@ test('inferSeniority', () => {
   for (const [t, want] of Object.entries(cases)) assert.equal(inferSeniority(t), want, t);
 });
 
+test('inferSeniority: "Member of Technical Staff" / MTS is a generic IC title', () => {
+  const cases = {
+    // Generic IC titles as posted by Cohere / xAI and other labs -> Mid
+    'Member of Technical Staff': 'Mid',
+    'Member of Technical Staff, Pretraining': 'Mid',
+    'Member of Technical Staff - Inference': 'Mid',
+    'Member of Technical Staff, Applied ML (Search)': 'Mid',
+    'Member of the Technical Staff, Model Efficiency': 'Mid',
+    'Member of Technical Staff (MTS), Infrastructure': 'Mid',
+    'Founding Member of Technical Staff': 'Mid',
+    'MTS, Post-Training': 'Mid',
+    'MTS - Agents': 'Mid',
+    'Technical Staff, Data': 'Mid',
+    'Technical Staff Member, Security': 'Mid',
+    'Members of Technical Staff - Grok': 'Mid',
+    // A level word alongside still wins
+    'Senior Member of Technical Staff': 'Senior',
+    'Senior MTS, Distributed Systems': 'Senior',
+    'SMTS, Platform': 'Senior',
+    'Member of Technical Staff, Senior Software Engineer': 'Senior',
+    'Principal Member of Technical Staff': 'Staff+',
+    'Principal MTS': 'Staff+',
+    'PMTS, Inference': 'Staff+',
+    'LMTS, Data Platform': 'Staff+',
+    'Staff Member of Technical Staff': 'Staff+',
+    'Member of Technical Staff, Engineering Manager': 'Manager',
+    'Member of Technical Staff Intern': 'Intern',
+    // Real "Staff" level elsewhere is unchanged
+    'Staff Software Engineer': 'Staff+',
+    'Staff Research Scientist, Interpretability': 'Staff+',
+  };
+  for (const [t, want] of Object.entries(cases)) assert.equal(inferSeniority(t), want, t);
+});
+
 test('entity decoding and lexicon sizes', () => {
   assert.equal(decodeEntities('A &amp; B &#8212; C&rsquo;s &#x2014;'), 'A & B — C’s —');
   assert.ok(SKILL_LEXICON.length >= 140, `skills ${SKILL_LEXICON.length}`);

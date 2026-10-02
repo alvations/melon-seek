@@ -106,10 +106,34 @@ function makeJobs(n, company = 'demo') {
       const min = Math.round(mid * (1 - spread) / round) * round, max = Math.round(mid * (1 + spread) / round) * round;
       salary = { min, max, mid: (min + max) / 2, currency: cur, interval: seniority === 'Intern' ? 'hour' : 'year', text: `${min}-${max} ${cur}` };
     }
-    jobs.push({ id: `${company}:${1000 + i}`, company, companyName: 'Demo Co', title, department: dept, team: null,
-      employmentType: seniority === 'Intern' ? 'Intern' : 'Full-time', seniority, locations: locs, remote: isRemote, salary, url: '#', updatedAt: null });
+    const job = { id: `${company}:${1000 + i}`, company, companyName: 'Demo Co', title, department: dept, team: null,
+      employmentType: seniority === 'Intern' ? 'Intern' : 'Full-time', seniority, locations: locs, remote: isRemote, salary, url: '#', updatedAt: null };
+    job.juice = fakeJuice(job);
+    jobs.push(job);
   }
   return jobs;
+}
+
+// Rough, demo-only stand-in for server/juice.js attachJuice (same shape, made-up costs).
+// Costa Mesa is left out on purpose so the map shows a neutral "no Juice data" pin.
+const DEMO_COST = { 'San Francisco': [44000, .37], 'New York City': [52000, .36], Seattle: [33000, .3], 'San Jose': [40000, .36],
+  Austin: [23000, .27], Boston: [38000, .33], Washington: [36000, .33], London: [33000, .37], Dublin: [30000, .4], Zurich: [34000, .25],
+  Tokyo: [20000, .3], Singapore: [36000, .18], Toronto: [28000, .33], Sydney: [31000, .33] };
+const FXD = { USD: 1, GBP: 1.348, EUR: 1.144, CHF: 1.239, JPY: 0.006168, SGD: 0.7752, CAD: 0.7117, AUD: 0.6999 };
+function fakeJuice(job) {
+  if (!job.salary) return null;
+  const usd = job.salary.mid * (FXD[job.salary.currency] || 1);
+  const byLocation = [];
+  for (const l of job.locations) {
+    const c = DEMO_COST[l.city];
+    if (l.remote || !c) continue;
+    const net = usd * (1 - c[1]) - c[0] - 19000;
+    const score = net > 0 ? Math.round(Math.min(100, 100 * Math.log1p(net / 1e4) / Math.log1p(25))) : 0;
+    byLocation.push({ locationName: l.name, city: l.city, cityName: l.city, net: Math.round(net), score, grade: net <= 0 ? 'Rind' : score >= 70 ? 'Juicy' : score >= 45 ? 'Ripe' : 'Dry' });
+  }
+  if (!byLocation.length) return null;
+  const best = byLocation.reduce((a, b) => (b.score > a.score ? b : a));
+  return { best, byLocation, salaryUSD: Math.round(usd) };
 }
 
 // ---- harness ----
@@ -138,7 +162,14 @@ function setMode() {
   $('chartBox').hidden = m !== 'chart';
   $('mapBox').hidden = m !== 'map';
   if (m === 'map') {
-    if (!map) { map = createMap($('mapBox'), { onSelect: j => log(`map select: ${j.title}`), onAreaSelect: (js, label) => log(`area: ${label} (${js.length})`) }); map.update(current, { fit: true }); }
+    if (!map) {
+      map = createMap($('mapBox'), {
+        onSelect: j => log(`map select: ${j.title}`),
+        onAreaSelect: (js, label) => log(`area: ${label} (${js.length})`),
+        onColorModeChange: m => log(`color mode: ${m}`),
+      });
+      map.update(current, { fit: true, colorMode: q.get('colorMode') || undefined });
+    }
     else map.invalidateSize();
   }
 }

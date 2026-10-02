@@ -35,8 +35,10 @@ No code was changed and nothing was committed.
   "$500K to $5M", Anduril merged tiers, Shield AI per-month mislabel), and the
   in-progress livability, vetting and social workstreams. `README.md` changed
   during the run: it now lists livability, vetting, social, strategy and a
-  corporate-ladder brainstorm (`docs/strategy/CORPORATE_LADDER_PLAN.md`,
-  which didn't exist yet when checked). ROADMAP F1 cross-references it.
+  corporate-ladder brainstorm (`docs/strategy/CORPORATE_LADDER_PLAN.md`).
+  That plan appeared late in the run and was skimmed: it adds a generic
+  "Level check" drawer section, with no new Job fields and no cross-company
+  level mapping. ROADMAP F1 and the §8 drawer order account for it.
 - `docs/DATA_SOURCES.md`: ATS fields (Greenhouse `first_published`, Ashby
   `publishedAt`, Lever `createdAt`), CORS behaviour, Lever's no-CORS
   statement.
@@ -339,8 +341,8 @@ The web research was 74 `WebSearch` calls (§2.2) and 7 `WebFetch` attempts.
 **Follow-ups:**
 - After 60 days of ledger data, recalibrate the freshness thresholds and the
   wide-range threshold, and re-score F10 and F11.
-- If the corporate-ladder plan lands, align F1's seniority buckets with its
-  level mapping.
+- If the corporate-ladder "Level check" ships, check the drawer against the
+  shared order in ROADMAP §8.
 - The lead needs to fold ROADMAP §7.0 into `docs/CONTRACT.md` before fan-out.
 
 ## 7. Change log
@@ -352,3 +354,5 @@ The web research was 74 `WebSearch` calls (§2.2) and 7 `WebFetch` attempts.
 - 2026-10-02 ~07:10: wrote ROADMAP.md (scoring, Now/Next/Later, Top 3
   acceptance criteria, implementation plan, UI budget, decisions), the
   verbatim prompt, and this log.
+- 2026-10-02 ~07:15: the corporate-ladder plan appeared. Aligned ROADMAP F1
+  and the §8 drawer order with its "Level check" section.

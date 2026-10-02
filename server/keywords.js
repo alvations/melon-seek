@@ -606,8 +606,24 @@ const NON_PEOPLE_MANAGER = /\b(?:product|program|project|account|accounts|partne
  * Seniority bucket from a job title:
  * "Intern"|"Entry"|"Mid"|"Senior"|"Staff+"|"Manager"|"Director+".
  */
+// "Member of Technical Staff" / "MTS" is the AI labs' generic IC title
+// (Cohere, xAI, OpenAI, Salesforce...), not a Staff-level marker. Ladder
+// abbreviations keep their level: SMTS = Senior, LMTS/PMTS = Staff+.
+const MTS_ABBREV = [
+  [/\bSMTS\b/gi, ' Senior '],
+  [/\bLMTS\b/gi, ' Staff '],
+  [/\bPMTS\b/gi, ' Principal '],
+];
+const MTS_PHRASE_RE = /\b(?:(?:a\s+)?members?\s+of\s+(?:the\s+)?technical\s+staff|technical\s+staff(?:\s+members?)?|members?\s+of\s+(?:the\s+)?staff|MTS)\b/gi;
+
+function stripGenericStaff(title) {
+  let t = title;
+  for (const [re, rep] of MTS_ABBREV) t = t.replace(re, rep);
+  return t.replace(MTS_PHRASE_RE, ' ').replace(/\s+/g, ' ').trim();
+}
+
 export function inferSeniority(title) {
-  const t = String(title || '');
+  const t = stripGenericStaff(String(title || ''));
   if (!t.trim()) return 'Mid';
   if (/\b(?:director|vp|svp|evp|vice[- ]president|head of|chief|cto|cfo|ceo|coo|ciso|cmo|cpo|president|general manager|partner,)\b/i.test(t)
     || /^head\b/i.test(t)) return 'Director+';

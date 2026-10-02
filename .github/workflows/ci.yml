@@ -38,6 +38,10 @@ jobs:
           # Lazy descriptions: lists carry no HTML, each job has a desc file.
           jq -e '[.jobs[] | select(has("descriptionHtml") and .descriptionHtml != "")] | length == 0' dist/api/jobs/anthropic.json
           test -n "$(find dist/api/desc -name '*.json' -print -quit)"
+          # Juice Score: inputs and module are bundled; juice itself is never stored in lists.
+          test -f dist/lib/juice.js
+          jq -e '(.cities | type == "array") and (.cities | length > 0)' dist/api/cities.json > /dev/null
+          for f in dist/api/jobs/*.json; do jq -e '[.jobs[] | select(has("juice"))] | length == 0' "$f" > /dev/null; done
 
       - name: Smoke test (start server, hit API)
         env:

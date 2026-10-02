@@ -55,6 +55,10 @@ const SHOTS = [
   { name: 'map-dark', q: 'mode=map', dark: true, wait: 5000 },
   { name: 'map-mobile-fit', q: 'mode=map', w: 390, h: 760, wait: 5000,
     eval: `(()=>{const c=document.querySelector('.ms-map').getBoundingClientRect();const pins=[...document.querySelectorAll('.ms-pin')];const inside=pins.filter(p=>{const b=p.getBoundingClientRect();return b.left>=c.left&&b.right<=c.right&&b.top>=c.top&&b.bottom<=c.bottom}).length;return "fit: "+inside+"/"+pins.length+" pins fully inside, zoom "+__viz.map.leaflet.getZoom()+", minZoom "+__viz.map.leaflet.getMinZoom()})()`, expect: {} },
+  { name: 'map-juice-light', q: 'mode=map&colorMode=juice', wait: 5000, hover: 'pin', eval: `(()=>{const pins=[...document.querySelectorAll(".ms-pin")];return "mode "+__viz.map.colorMode+", juice pins "+pins.filter(p=>p.classList.contains("ms-pin--juice")&&!p.classList.contains("ms-pin--nosalary")).length+", neutral "+pins.filter(p=>p.classList.contains("ms-pin--nosalary")).length+", labels "+pins.map(p=>p.querySelector(".ms-pin__price").textContent).join("/")})()` },
+  { name: 'map-juice-dark', q: 'mode=map&colorMode=juice', dark: true, wait: 5000, eval: `(()=>{const pins=[...document.querySelectorAll(".ms-pin")];return "mode "+__viz.map.colorMode+", juice pins "+pins.filter(p=>p.classList.contains("ms-pin--juice")&&!p.classList.contains("ms-pin--nosalary")).length+", neutral "+pins.filter(p=>p.classList.contains("ms-pin--nosalary")).length+", labels "+pins.map(p=>p.querySelector(".ms-pin__price").textContent).join("/")})()` },
+  { name: 'map-juice-toggle', q: 'mode=map', wait: 3000, click: '.ms-modes__btn[data-mode=juice]',
+    eval: `(()=>"after click: mode "+__viz.map.colorMode+", aria "+[...document.querySelectorAll(".ms-modes__btn")].map(b=>b.dataset.mode+"="+b.getAttribute("aria-checked")).join(",")+", log: "+document.getElementById("log").innerText.split("\\n")[0])()` },
   { name: 'map-light-us', q: 'mode=map', wait: 5000, eval: `(()=>{__viz.map.leaflet.setView([38,-100],4,{animate:false});return document.querySelectorAll(".ms-pin").length+" pins"})()` },
 ];
 
@@ -89,7 +93,11 @@ for (const s of SHOTS) {
   });
   await page.goto(`http://localhost:${PORT}/viz/demo.html?${s.q}`);
   await page.waitForTimeout(s.wait || 900);
-  if (s.hover === 'overflow') { // hover the axis-overflow marker
+  if (s.click) { await page.click(s.click); await page.waitForTimeout(300); }
+  if (s.hover === 'pin') { // hover the biggest pin
+    const box = await page.evaluate(() => { const b = [...document.querySelectorAll('.ms-pin')].sort((a, c) => c.offsetWidth - a.offsetWidth)[0]?.getBoundingClientRect(); return b && [b.x + b.width / 2, b.y + b.height / 2]; });
+    if (box) { await page.mouse.move(...box); await page.waitForTimeout(400); }
+  } else if (s.hover === 'overflow') { // hover the axis-overflow marker
     const box = await page.evaluate(() => { const b = document.querySelector('.ms-bin--overflow-hi')?.getBoundingClientRect(); return b && [b.x + b.width / 2, b.y + b.height / 2]; });
     if (box) { await page.mouse.move(...box); await page.waitForTimeout(300); }
   } else if (s.hover === 'auto') { // hover the largest circle

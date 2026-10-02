@@ -376,6 +376,12 @@ test('GET /api/cities serves data/cities.json with max-age=3600, ETag, gzip and 
   assert.equal(body.cities.length, real.cities.length);
   assert.deepEqual(body.cities[0], real.cities[0]);
 
+  // Alias matching the static build path (dist/api/cities.json).
+  const alias = await get('/api/cities.json');
+  assert.equal(alias.status, 200);
+  assert.equal(alias.headers.get('etag'), etag);
+  assert.equal((await alias.json()).cities.length, real.cities.length);
+
   // Conditional request.
   res = await get('/api/cities', { 'if-none-match': etag });
   assert.equal(res.status, 304);

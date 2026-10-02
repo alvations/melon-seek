@@ -204,6 +204,28 @@ checks.mapPinsInside = await (async () => {
     return { pins: pins.length, outside: out };
   });
 })();
+checks.juice = await (async () => {
+  await p.goto('about:blank');
+  await p.goto(`${BASE}/${QS}#c=anthropic&sort=juice`); await ready(p); await p.waitForTimeout(300);
+  const scored = await p.evaluate(() => document.querySelectorAll('.juice-badge').length);
+  if (!scored) return { badges: 0 };
+  const firstBadge = (await p.textContent('.card .juice-badge'))?.trim();
+  await p.click('[data-pop="more"]'); await p.waitForTimeout(250);
+  await shot(p, 'desktop-more-juice');
+  await p.click('.popover .kw--juicy'); await p.waitForTimeout(250);
+  const juicyOnly = await p.evaluate(() => [...document.querySelectorAll('.card')].every((c) => c.querySelector('.juice--juicy')));
+  const hash = await p.evaluate(() => location.hash);
+  await p.keyboard.press('Escape');
+  await p.click('.card[data-id] >> nth=0'); await p.waitForSelector('.drawer.is-open'); await p.waitForTimeout(300);
+  await p.evaluate(() => document.querySelector('#drawer .d-juice')?.scrollIntoView({ block: 'start' }));
+  await p.evaluate(() => { const d = document.querySelector('#drawer .juice-compare'); if (d) d.open = true; });
+  await shot(p, 'desktop-drawer-juice');
+  await p.click('#drawer .d-juice .seg button >> text=Monthly'); await p.waitForTimeout(150);
+  const monthly = (await p.textContent('#drawer .wf--net .wf-value'))?.trim();
+  await shot(p, 'desktop-drawer-juice-monthly');
+  await p.keyboard.press('Escape');
+  return { badges: scored, firstBadge, juicyOnly, hash, monthly };
+})();
 checks.slashFocusesSearch = await (async () => { await p.keyboard.press('/'); return p.evaluate(() => document.activeElement.id === 'search'); })();
 // Description loads lazily (getJobDetail) and is sanitized.
 await p.goto('about:blank');

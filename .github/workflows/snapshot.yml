@@ -32,13 +32,25 @@ jobs:
         run: npm ci
 
       - name: Fetch snapshots
+        id: fetch
         run: npm run snapshot # no args = every built-in in server/companies.js
 
-      # TODO(vetting): once scripts/vet-salaries.js exists, add a step here that
-      # runs `node scripts/vet-salaries.js` and fails the job on critical salary
-      # anomalies, so a bad snapshot is never uploaded.
+      # Salary vetting gate: same command as pages.yml. A critical anomaly fails
+      # this job (red run + step summary). The raw artifact is still uploaded
+      # (below, `if: !cancelled()`) for review and as pages.yml's fallback;
+      # pages.yml re-runs this gate, so bad pay still can't be published.
+      - name: Salary vetting gate (fails on critical anomalies)
+        id: vet
+        continue-on-error: false
+        run: |
+          if [ -f scripts/vet-salaries.js ]; then
+            node scripts/vet-salaries.js --no-write-flags --summary "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::notice::scripts/vet-salaries.js not found; salary vetting gate skipped"
+          fi
 
       - name: Upload snapshots artifact
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
           name: job-board-snapshots

@@ -21,3 +21,7 @@ Report back concisely: files, lexicon sizes, any contract deviations, test resul
 ## Mid-task message from the coordinator (verbatim)
 
 > New requirement from the user: document how you produced your work so another agent can replicate it. Before you finish: (1) copy your original task prompt verbatim into docs/process/prompts/features.md; (2) write docs/process/features.md following docs/process/TEMPLATE.md (brief, inputs/sources, decisions + rationale incl. where lexicons/gazetteer coords/demo catalogs came from, exact replayable commands, verification results, known gaps, change log). You own those two files. Keep it factual and concise. Don't commit; the lead does.
+
+## Follow-up message from the coordinator (verbatim)
+
+> Bug found on real data: inferSeniority in server/keywords.js classes "Member of Technical Staff" titles as Staff+ (33 postings at Cohere and xAI). "MTS" and "Member of Technical Staff" are the labs' generic IC title, so they should be Mid unless a level word is also present (e.g. "Senior Member of Technical Staff" → Senior, "Principal MTS" → Staff+). Check "Technical Staff" in other forms too. Add tests using these real titles, run `npm test`, and log it in docs/process/features.md (prompt append, decision, change log). Don't commit.

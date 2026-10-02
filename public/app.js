@@ -168,14 +168,14 @@ function jobsQuery(key) {
 
 /* ----------------------------------------------------------------- state */
 
-const ARRAYS = ['d', 'l', 's', 'e', 'kr', 'kf', 'ks'];
+const ARRAYS = ['d', 'l', 's', 'e', 'kr', 'kf', 'ks', 'jg'];
 const DEFAULTS = {
   c: '', cn: '', m: 'chart', q: '', smin: null, smax: null, so: false,
-  d: [], l: [], s: [], e: [], r: 'any', p: 0, kr: [], kf: [], ks: [],
+  d: [], l: [], s: [], e: [], r: 'any', p: 0, kr: [], kf: [], ks: [], jg: [],
   v: DEFAULT_VIEW, g: 'department', sort: 'salary-desc', job: null,
 };
-const FILTER_KEYS = ['q', 'smin', 'smax', 'so', 'd', 'l', 's', 'e', 'r', 'p', 'kr', 'kf', 'ks'];
-const ORDER = ['c', 'cn', 'm', 'q', 'smin', 'smax', 'so', 'd', 'l', 's', 'e', 'r', 'p', 'kr', 'kf', 'ks', 'v', 'g', 'sort', 'job'];
+const FILTER_KEYS = ['q', 'smin', 'smax', 'so', 'd', 'l', 's', 'e', 'r', 'p', 'kr', 'kf', 'ks', 'jg'];
+const ORDER = ['c', 'cn', 'm', 'q', 'smin', 'smax', 'so', 'd', 'l', 's', 'e', 'r', 'p', 'kr', 'kf', 'ks', 'jg', 'v', 'g', 'sort', 'job'];
 
 let S = structuredClone(DEFAULTS);
 let companies = [];
@@ -256,7 +256,7 @@ function clearFilters() {
 function activeFilterCount(st = S) {
   return (st.q ? 1 : 0) + (st.smin != null || st.smax != null ? 1 : 0) + (st.so ? 1 : 0) +
     st.d.length + st.l.length + st.s.length + st.e.length + (st.r !== 'any' ? 1 : 0) + (st.p ? 1 : 0) +
-    st.kr.length + st.kf.length + st.ks.length;
+    st.kr.length + st.kf.length + st.ks.length + st.jg.length;
 }
 
 /* ------------------------------------------------------------------ data */
@@ -281,6 +281,8 @@ function prepare(jobs) {
     if (j._usd && !(isFinite(j._usd.min) && isFinite(j._usd.max))) j._usd = null;
     j._mid = j._usd ? j._usd.mid : null;
     j._ts = j.updatedAt ? Date.parse(j.updatedAt) || null : null;
+    j.juice = j.juice && j.juice.best ? j.juice : null;
+    j._grade = j.juice ? (j.juice.best.grade === 'Rind' ? 'Dry' : j.juice.best.grade) : null;
     j._locKeys = j.locations.map(locKey);
     j._hay = [j.title, j.department, j.team, j.employmentType, j.seniority,
       ...j.locations.map((l) => l.name), ...j.keywords.responsibilities, ...j.keywords.fit, ...j.keywords.skills]
@@ -296,6 +298,7 @@ function filterSpec() {
     d: new Set(S.d), l: new Set(S.l), s: new Set(S.s), e: new Set(S.e),
     r: S.r, p: S.p,
     kw: { responsibilities: S.kr, fit: S.kf, skills: S.ks },
+    jg: new Set(S.jg),
   };
 }
 
@@ -312,6 +315,7 @@ function failures(j, F, now) {
   if (F.r === 'remote' && !j.remote) out.push('r');
   if (F.r === 'onsite' && !j.locations.some((l) => !l.remote)) out.push('r');
   if (F.p && !(j._ts && now - j._ts <= F.p * 864e5)) out.push('p');
+  if (F.jg.size && !(j._grade && F.jg.has(j._grade))) out.push('jg');
   for (const cat of ['responsibilities', 'fit', 'skills']) {
     const sel = F.kw[cat];
     if (sel.length && !sel.every((k) => j.keywords[cat].includes(k))) { out.push('kw'); break; }
@@ -331,7 +335,7 @@ function derive() {
   const filtered = [];
   const bump = (m, k) => m.set(k, (m.get(k) || 0) + 1);
   const fc = { d: new Map(), l: new Map(), lGroup: new Map(), s: new Map(), e: new Map(), r: { any: 0, remote: 0, onsite: 0 },
-    p: { 0: 0, 7: 0, 30: 0, 90: 0 }, kw: { responsibilities: new Map(), fit: new Map(), skills: new Map() }, salMids: [] };
+    p: { 0: 0, 7: 0, 30: 0, 90: 0 }, jg: new Map(), kw: { responsibilities: new Map(), fit: new Map(), skills: new Map() }, salMids: [] };
   for (const j of jobs) {
     const fails = failures(j, F, now);
     if (fails.length > 1) continue;
@@ -363,6 +367,7 @@ function derive() {
       for (const d of [7, 30, 90]) if (j._ts && now - j._ts <= d * 864e5) fc.p[d]++;
     }
     if (counts('sal') && j._usd) fc.salMids.push(j._mid);
+    if (counts('jg') && j._grade) bump(fc.jg, j._grade);
   }
   return { filtered, fc };
 }
@@ -392,6 +397,7 @@ function sortJobs(list) {
     case 'salary-asc': out.sort((a, b) => nullsLast(a._usd, b._usd, () => a._usd.min - b._usd.min || a.title.localeCompare(b.title))); break;
     case 'newest': out.sort((a, b) => (b._ts || 0) - (a._ts || 0) || a.title.localeCompare(b.title)); break;
     case 'title': out.sort((a, b) => a.title.localeCompare(b.title)); break;
+    case 'juice': out.sort((a, b) => nullsLast(a.juice, b.juice, () => b.juice.best.score - a.juice.best.score || b.juice.best.net - a.juice.best.net || a.title.localeCompare(b.title))); break;
     default: out.sort((a, b) => nullsLast(a._usd, b._usd, () => b._usd.max - a._usd.max || a.title.localeCompare(b.title)));
   }
   return out;
@@ -660,7 +666,7 @@ function quickLabel(id) {
     case 'sen': return summarize(S.s, 'Seniority');
     case 'remote': return S.r === 'remote' ? 'Remote only' : S.r === 'onsite' ? 'On-site' : null;
     case 'more': {
-      const n = S.e.length + (S.p ? 1 : 0) + S.kr.length + S.kf.length + S.ks.length;
+      const n = S.e.length + (S.p ? 1 : 0) + S.kr.length + S.kf.length + S.ks.length + S.jg.length;
       return n ? `More · ${n}` : null;
     }
   }
@@ -924,6 +930,34 @@ function makeCloud({ cat, key }, { limit = 14 } = {}) {
   return { el, sync };
 }
 
+const JUICE_GRADES = [
+  ['Juicy', 'Plenty left after tax, rent and living costs (score 70+)'],
+  ['Ripe', 'Comfortable margin (45–69)'],
+  ['Dry', 'Thin margin or less (under 45)'],
+];
+/** Juice grade chips (OR within the group), with faceted counts. */
+function makeJuiceChips() {
+  const el = h('div', { class: 'cloud', role: 'group', 'aria-label': 'Juice grade' });
+  const btns = JUICE_GRADES.map(([g, tip]) => {
+    const b = h('button', { type: 'button', class: `kw kw--juice kw--${g.toLowerCase()}`, title: tip, 'aria-pressed': 'false', onclick: () => toggleIn('jg', g) },
+      h('span', null, g), h('span', { class: 'kw-count' }));
+    el.append(b);
+    return [g, b];
+  });
+  const note = h('p', { class: 'fnote' });
+  return {
+    el: h('div', null, el, note),
+    sync() {
+      for (const [g, b] of btns) {
+        b.setAttribute('aria-pressed', String(S.jg.includes(g)));
+        b.querySelector('.kw-count').textContent = derived.fc?.jg.get(g) || 0;
+      }
+      const scored = data.jobs.filter((j) => j.juice).length;
+      note.textContent = scored ? `${scored} of ${data.jobs.length} roles have a Juice Score (needs a salary and a known city).` : 'No Juice Scores for this board yet.';
+    },
+  };
+}
+
 function makeSwitch(label, key) {
   const input = h('input', { type: 'checkbox', role: 'switch', class: 'switch', onchange: () => set({ [key]: input.checked }) });
   return { el: h('label', { class: 'switch-row' }, h('span', null, label), input), sync() { input.checked = !!S[key]; } };
@@ -977,6 +1011,7 @@ function popoverParts(id) {
     case 'remote': return [makeRemote()];
     case 'more': return [
       titled('Pay', makeSwitch('Only show jobs with salary', 'so')),
+      titled('Juice', makeJuiceChips(), 'What’s left after tax, rent and living'),
       titled('Employment type', makeChecklist('e', { limit: 6 })),
       titled('Updated', makePosted()),
       ...KW_CATS.map((k) => titled(k.title, makeCloud(k, { limit: 10 }), k.hint)),
@@ -1017,7 +1052,7 @@ function togglePopover(id, anchor) {
 function clearPopoverFacet(id) {
   const patches = {
     salary: { smin: null, smax: null, so: false }, dept: { d: [] }, loc: { l: [] }, sen: { s: [] }, remote: { r: 'any' },
-    more: { so: false, e: [], p: 0, kr: [], kf: [], ks: [] },
+    more: { so: false, e: [], p: 0, kr: [], kf: [], ks: [], jg: [] },
   };
   set(patches[id] || {});
 }
@@ -1338,6 +1373,15 @@ function renderResults() {
   list.replaceChildren(...items);
 }
 
+const JUICE_TIP = 'Juice Score: livability $, what’s left after tax, rent and living costs';
+function juiceBadge(job) {
+  const b = job.juice?.best;
+  if (!b) return null;
+  const est = b.estimated ? '≈' : '';
+  return h('span', { class: `juice-badge juice--${String(b.grade).toLowerCase()}`, title: `${JUICE_TIP}${b.estimated ? ' (estimated)' : ''}. Best in ${b.locationName || b.cityName}: ${money(b.net)}/yr left.`,
+    'aria-label': `Juice Score ${est ? 'about ' : ''}${b.score}, ${b.grade}` }, `🍉 ${est}${b.score} · ${b.grade}`);
+}
+
 function locSummary(job, max = 1) {
   const names = job.locations.map((l) => (l.remote ? l.name || 'Remote' : l.city && l.region ? `${l.city}, ${l.region}` : l.name));
   if (!names.length) return 'Location not listed';
@@ -1368,7 +1412,8 @@ function card(job) {
     h('span', { class: 'card-loc' }, locSummary(job, 1)), job.remote ? h('span', { class: 'tag tag--remote' }, 'Remote') : null),
   h('div', { class: 'card-foot' },
     h('span', { class: `sen sen--${(job.seniority || 'mid').toLowerCase().replace(/\W/g, '')}` }, job.seniority || '—'),
-    ...topTags(job, 2).map((t) => h('span', { class: 'tag' }, t)),
+    juiceBadge(job),
+    ...topTags(job, job.juice ? 1 : 2).map((t) => h('span', { class: 'tag' }, t)),
     job._ts ? h('span', { class: 'card-age' }, ago(job._ts)) : null)));
   return el;
 }
@@ -1491,6 +1536,62 @@ function salaryDistribution(job) {
 
 const INTERVAL_ADJ = { hour: 'hourly', day: 'daily', week: 'weekly', month: 'monthly', year: 'annual' };
 
+let juicePeriod = 'year'; // drawer waterfall: per year or per month (kept for the session)
+const JUICE_DOC = 'https://github.com/alvations/melon-seek/blob/main/docs/LIVABILITY.md#1-the-formula';
+
+/** Drawer: Juice Score waterfall for the best location, plus the other locations in a disclosure. */
+function juiceBlock(job) {
+  const jb = job.juice;
+  if (!jb?.best) return null;
+  const sec = h('section', { class: 'd-sec d-juice', 'aria-labelledby': 'juiceTitle' });
+  const render = () => {
+    const b = jb.best;
+    const div = juicePeriod === 'month' ? 12 : 1;
+    const per = juicePeriod === 'month' ? '/mo' : '/yr';
+    const amt = (n, sign = '') => `${sign}${money(Math.abs(n) / div)}${per}`;
+    const g = Math.max(1, b.gross);
+    const seg = (lo, hi) => { const a = Math.max(0, Math.min(g, lo)), z = Math.max(0, Math.min(g, hi)); return `left:${(a / g) * 100}%;width:${Math.max(0, ((z - a) / g) * 100)}%`; };
+    const afterTax = b.gross - b.tax, afterRent = afterTax - b.rent;
+    const tp = b.taxParts;
+    const rows = [
+      ['Gross pay', amt(b.gross), seg(0, b.gross), 'gross', null],
+      ['Tax', amt(b.tax, '−'), seg(afterTax, b.gross), 'tax', tp ? `Income ${money(tp.income)} · regional ${money(tp.regional)} · social ${money(tp.social)} per year` : null],
+      ['Rent', amt(b.rent, '−'), seg(afterRent, afterTax), 'rent', '1-bedroom, city centre'],
+      ['Living costs', amt(b.living, '−'), seg(b.net, afterRent), 'living', 'Everyday costs excluding rent, scaled from a New York basket'],
+      ['Juice left', `${b.net < 0 ? '−' : ''}${money(Math.abs(b.net) / div)}${per}`, seg(0, b.net), 'net', null],
+    ];
+    const toggle = h('div', { class: 'seg seg--sm', role: 'group', 'aria-label': 'Show amounts per' },
+      ...[['month', 'Monthly'], ['year', 'Yearly']].map(([v, label]) => h('button', { type: 'button', 'aria-pressed': String(juicePeriod === v), onclick: () => { juicePeriod = v; render(); } }, label)));
+    const others = jb.byLocation.filter((l) => l !== b && !(l.locationName === b.locationName && l.city === b.city));
+    sec.replaceChildren(...nn(
+      h('div', { class: 'juice-head' },
+        h('h3', { id: 'juiceTitle' }, '🍉 Juice Score'),
+        h('span', { class: `juice-score juice--${String(b.grade).toLowerCase()}`, title: JUICE_TIP }, `${b.estimated ? '≈' : ''}${b.score}`),
+        h('span', { class: `juice-grade juice--${String(b.grade).toLowerCase()}` }, b.grade),
+        toggle),
+      h('p', { class: 'juice-where muted' }, `What’s left in ${b.locationName || b.cityName}${others.length ? ' (best of this role’s locations)' : ''}, in approx USD.`),
+      h('div', { class: 'waterfall', role: 'table', 'aria-label': 'Juice waterfall' },
+        ...rows.map(([label, value, style, kind, tip]) => h('div', { class: `wf-row wf--${kind}`, role: 'row', title: tip || null },
+          h('span', { class: 'wf-label', role: 'rowheader' }, label),
+          h('span', { class: 'wf-track', role: 'cell', 'aria-hidden': 'true' }, h('span', { class: 'wf-bar', style })),
+          h('span', { class: 'wf-value', role: 'cell' }, value)))),
+      h('p', { class: 'juice-facts' },
+        b.rentBurden != null ? h('span', null, 'Rent takes ', h('strong', null, `${Math.round(b.rentBurden * 100)}%`), ' of take-home') : null,
+        b.rentBurden != null && b.bigMacs != null ? h('span', { class: 'stat-sep', 'aria-hidden': 'true' }, ' · ') : null,
+        b.bigMacs != null ? h('span', null, `≈ ${Math.max(0, Math.round(b.bigMacs)).toLocaleString()} Big Macs/yr left`) : null),
+      b.currencyMismatch ? h('p', { class: 'fnote' }, 'The posted salary currency differs from the local one, so it is applied as posted.') : null,
+      others.length ? h('details', { class: 'juice-compare' }, h('summary', null, `Compare locations (${others.length + 1})`),
+        h('ul', null, ...[b, ...others].map((l) => h('li', null,
+          h('span', { class: 'jc-name' }, l.locationName || l.cityName, l === b ? h('span', { class: 'muted' }, ' · best') : null),
+          h('span', { class: `juice-grade juice--${String(l.grade).toLowerCase()}` }, `${l.estimated ? '≈' : ''}${l.score} ${l.grade}`),
+          h('span', { class: 'jc-net' }, `${l.net < 0 ? '−' : ''}${money(Math.abs(l.net) / div)}${per}`))))) : null,
+      h('p', { class: 'juice-disclaimer' }, 'Estimate, not financial advice. ', h('a', { href: JUICE_DOC, target: '_blank', rel: 'noopener noreferrer' }, 'How it’s calculated')),
+    ));
+  };
+  render();
+  return sec;
+}
+
 /** Salary quarantined by the server's vetting gate (salary null + salaryFlag): say so, keep the reason one click away. */
 function payUnclearBlock(job) {
   const raw = job.salaryRaw;
@@ -1583,7 +1684,7 @@ function drawerContent(job) {
     h('div', { class: 'd-meta' }, ...[deptKey(job), job.team, job.employmentType].filter(Boolean).map((t, i) => [i ? h('span', { class: 'sep' }, '·') : null, h('span', null, t)]),
       h('span', { class: `sen sen--${(job.seniority || 'mid').toLowerCase().replace(/\W/g, '')}` }, job.seniority || '—')),
     job._ts ? h('div', { class: 'd-updated muted' }, `Updated ${ago(job._ts)}`) : null,
-    salaryBlock, locs,
+    salaryBlock, juiceBlock(job), locs,
     kwCat.some(Boolean) ? h('section', { class: 'd-sec' }, h('h3', null, 'Keywords ', h('span', { class: 'muted small' }, 'click to filter')), ...kwCat) : null,
     bulletsHost,
     descWrap), foot];

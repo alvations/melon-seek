@@ -59,9 +59,19 @@ jobs:
       - name: Fetch fresh snapshots (best effort; a failed board keeps the restored file)
         run: npm run snapshot || true # no args = every built-in in server/companies.js
 
-      # TODO(vetting): once scripts/vet-salaries.js exists, add a step here that
-      # runs `node scripts/vet-salaries.js` and fails the build on critical
-      # salary anomalies, before anything is bundled.
+      # Salary vetting gate (scripts/vet-salaries.js; flag definitions in its header
+      # and docs/VETTING.md once written). Exits 1 when a job whose salary would be
+      # shown (not quarantined) has a critical flag, or a regression fixture fails;
+      # that stops this deploy, so implausible pay is never published. Guarded so the
+      # workflow still runs on a checkout without the script.
+      - name: Salary vetting gate (fails on critical anomalies)
+        continue-on-error: false
+        run: |
+          if [ -f scripts/vet-salaries.js ]; then
+            node scripts/vet-salaries.js --no-write-flags --summary "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::notice::scripts/vet-salaries.js not found; salary vetting gate skipped"
+          fi
 
       - name: Build static site
         env:

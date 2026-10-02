@@ -31,9 +31,35 @@ export const JUICE = Object.freeze({
 // does not list fall back to the city's fxPerUSD (Big Mac data dollar_ex, refreshed
 // monthly by scripts/update-col.js).
 // ---------------------------------------------------------------------------
-export const FX_TO_USD = Object.freeze({
-  USD: 1, GBP: 1.27, EUR: 1.09, CAD: 0.73, AUD: 0.66, JPY: 0.0067, SGD: 0.74, CHF: 1.13,
+// Keep in sync with public/viz/palette.js FX_PER_USD (as of 2026-07-01);
+// test/fx-consistency.test.js fails if they drift.
+export const FX_PER_USD = Object.freeze({
+  AED: 3.67285,
+  AUD: 1.42867347667691,
+  BRL: 5.07935,
+  CAD: 1.40515,
+  CHF: 0.80735,
+  CZK: 21.1625,
+  DKK: 6.5366,
+  EUR: 0.87439,
+  GBP: 0.74187,
+  HKD: 7.83895,
+  ILS: 2.9993,
+  INR: 96.26375,
+  JPY: 162.135,
+  KRW: 1485.9,
+  MXN: 17.386,
+  NOK: 9.68565,
+  NZD: 1.71335560695622,
+  PLN: 3.77915,
+  SAR: 3.755,
+  SEK: 9.63495,
+  SGD: 1.29005,
+  TWD: 32.1875,
+  USD: 1,
 });
+export const FX_TO_USD = Object.freeze(Object.fromEntries(
+  Object.entries(FX_PER_USD).map(([c, per]) => [c, c === 'USD' ? 1 : 1 / per])));
 
 // Annual single-person living costs excluding rent in New York City: Numbeo's
 // "estimated monthly costs for a single person, excluding rent" ($1,665.2, Sep 2026) × 12.

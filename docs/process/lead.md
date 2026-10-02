@@ -264,3 +264,20 @@ screenshots in `docs/screenshots/`.
   about titles with no level) and optionally an "interview prep" card.
   Questions went to the user. Bug sent to features: "Member of Technical
   Staff" titles were classed as Staff+.
+- 2026-10-02: the FX refresh in palette.js (viz) broke four tests that
+  pinned the old rates, and juice.js and salary.js carried stale copies.
+  Lead fix: palette.js FX_PER_USD is the single source; juice.js now holds
+  a verbatim copy; the features tests read the live palette rate; new
+  test/fx-consistency.test.js guards drift (salary.js sync sent to
+  vetting).
+- 2026-10-02: backend added /api/cities (ETag, mtime reload) and a /lib/*.js
+  allowlist route (server/lib-modules.js), so api.js loads juice.js the same
+  way in both modes. Features fixed the "Member of Technical Staff" →
+  Staff+ misclassification (25-title test).
+- 2026-10-02: strategy finished (COMPETITIVE_ANALYSIS.md, ROADMAP.md with an
+  implementation plan and UI budget). Top 3 to build: Market comps ("same
+  role elsewhere"), Honest numbers (base-only caption, wide-range and
+  equity labels, published Compstimate error), Listing history and
+  freshness (real posted dates, days open, repost detection). Several
+  roadmap items need user decisions (history storage, republishing full
+  descriptions, company list); see the user summary.

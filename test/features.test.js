@@ -12,6 +12,8 @@ import {
 } from '../public/features/insights.js';
 import { weightedPercentile, toUSD, salaryUSD, formatDelta, formatPct, h, FX_FALLBACK } from '../public/features/shared.js';
 import { fakeJobs } from '../public/features/demo-data.js';
+import { FX_TO_USD } from '../public/viz/palette.js';
+const GBP = FX_TO_USD.GBP; // live palette rate, so FX refreshes don't break these tests
 
 // ---------------------------------------------------------------------------
 // fixtures
@@ -82,14 +84,14 @@ describe('weightedPercentile', () => {
 describe('FX + salary', () => {
   test('toUSD uses palette rates, fallback table, null for unknown', () => {
     assert.equal(toUSD(100, 'USD'), 100);
-    near(toUSD(100000, 'GBP'), 127000, 1);
-    near(toUSD(100000, 'inr'), 100000 * FX_FALLBACK.INR, 1e-6);
+    near(toUSD(100000, 'GBP'), 100000 * GBP, 1);
+    near(toUSD(100000, 'inr'), 100000 * (FX_TO_USD.INR ?? FX_FALLBACK.INR), 1e-6);
     assert.equal(toUSD(100, 'XYZ'), null);
     assert.equal(toUSD(null, 'USD'), null);
   });
   test('salaryUSD derives mid, converts, annualizes obvious hourly values', () => {
     const p = salaryUSD({ salary: { min: 100000, max: 140000, currency: 'GBP', interval: 'year' } });
-    near(p.mid, 120000 * 1.27, 1);
+    near(p.mid, 120000 * GBP, 1);
     assert.equal(p.converted, true);
     assert.equal(salaryUSD({ salary: null }), null);
     assert.equal(salaryUSD({ salary: { min: 1, max: 2, currency: 'XYZ' } }), null);
@@ -194,7 +196,7 @@ describe('estimateComp', () => {
     const sf = estimateComp(jobs, { title: 'Software Engineer', location: 'San Francisco' });
     const lon = estimateComp(jobs, { title: 'Software Engineer', location: 'London' });
     assert.ok(sf.mid > lon.mid, `${sf.mid} > ${lon.mid}`);
-    near(lon.mid, 90000 * 1.27, 15000);
+    near(lon.mid, 90000 * GBP, 15000);
     const ql = resolveLocation('Seattle', jobs);
     assert.equal(ql.country, 'US');
     const nyQ = resolveLocation('New York', [...jobs, job({ locations: [NYC] })]);
@@ -205,7 +207,7 @@ describe('estimateComp', () => {
 
   test('converts non-USD bands and says so', () => {
     const r = estimateComp([job({ title: 'Research Engineer', locations: [LON], mid: 100000, currency: 'GBP' })], { title: 'Research Engineer' });
-    near(r.mid, 127000, 1000);
+    near(r.mid, 100000 * GBP, 1000);
     assert.equal(r.n, 1);
     assert.equal(r.confidence, 'Low');
     assert.match(r.explanation, /converted at approximate rates/);

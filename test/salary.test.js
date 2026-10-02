@@ -337,3 +337,92 @@ test('real snapshots: the gate quarantines no salary the reviewer marked correct
   }
   assert.deepEqual(fps, []);
 });
+
+/* --------------------------------------------------- scripts/llm-vet.js (mocked fetch) */
+import os from 'node:os';
+import { spawnSync } from 'node:child_process';
+import { buildRequest, headers as llmHeaders, run as llmRun, parseVerdict, VERDICT_SCHEMA, DEFAULT_MODEL, FALLBACK_BETA } from '../scripts/llm-vet.js';
+
+const flagLine = (id, extra = {}) => ({ id, company: 'anthropic', title: 'Anthropic Fellows Program', url: `https://x/${id}`, employmentType: null, countries: ['GB', 'US'], source: 'text',
+  parsed: { min: 4600000, max: 4600000, mid: 4600000, currency: 'USD', interval: 'year', text: '$4.6M' }, excerpt: 'AI agents find $4.6M in blockchain smart contract exploits', pay_snippets: ['The expected base stipend for this role is 3,850 USD / 2,310 GBP / 4,300 CAD per week'], flags: ['max_over_1_2m'], critical: true, quarantined: false, ...extra });
+
+test('llm-vet request: Messages API shape with structured output and fallbacks', () => {
+  const body = buildRequest(flagLine('a:1'));
+  assert.equal(body.model, DEFAULT_MODEL);
+  assert.equal(body.output_config.format.type, 'json_schema');
+  assert.deepEqual(body.output_config.format.schema, VERDICT_SCHEMA);
+  assert.equal(body.output_config.effort, 'medium');
+  assert.equal(body.fallbacks, 'default');
+  assert.equal(body.messages[0].role, 'user');
+  assert.ok(body.messages[0].content.includes('$4.6M') && body.messages[0].content.includes('3,850 USD'));
+  assert.ok(!('thinking' in body) && !('temperature' in body), 'no thinking/sampling params (400 on current models)');
+  const h = llmHeaders('k');
+  assert.deepEqual([h['x-api-key'], h['anthropic-version'], h['anthropic-beta']], ['k', '2023-06-01', FALLBACK_BETA]);
+  assert.ok(!('anthropic-beta' in llmHeaders('k', { fallbacks: 'off' })));
+  assert.ok(!('fallbacks' in buildRequest(flagLine('a:1'), { fallbacks: 'off' })));
+  // every object in the schema is closed (structured-output requirement)
+  const walk = (s) => { if (s && typeof s === 'object') { if (s.type === 'object') assert.equal(s.additionalProperties, false); Object.values(s).forEach(walk); } };
+  walk(VERDICT_SCHEMA);
+});
+
+test('llm-vet run: retries 529, records refusals as errors, appends verdicts, resumes', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'llmvet-'));
+  const flagsFile = path.join(dir, 'flags.jsonl');
+  const outFile = path.join(dir, 'llm-verdicts.jsonl');
+  fs.writeFileSync(flagsFile, [flagLine('a:1'), flagLine('a:2'), flagLine('a:3', { critical: false })].map((l) => JSON.stringify(l)).join('\n') + '\n');
+  const calls = [];
+  let n = 0;
+  const ok = (verdict) => ({ ok: true, status: 200, json: async () => ({ model: 'claude-sonnet-5-5', stop_reason: 'end_turn', usage: { input_tokens: 900, output_tokens: 120 },
+    content: [{ type: 'thinking', thinking: '' }, { type: 'text', text: JSON.stringify(verdict) }] }) });
+  const fetchImpl = async (url, init) => {
+    calls.push({ url, init });
+    const id = JSON.parse(JSON.parse(init.body).messages[0].content.split('\n\n')[1]).id;
+    if (id === 'a:1' && n++ === 0) return { ok: false, status: 529, headers: { get: () => '0.001' }, json: async () => ({ error: { type: 'overloaded_error', message: 'busy' } }) };
+    if (id === 'a:2') return { ok: true, status: 200, json: async () => ({ model: 'claude-sonnet-5-5', stop_reason: 'refusal', stop_details: { category: null }, content: [] }) };
+    return ok({ verdict: 'parser_bug', corrected: { min: 3850, max: 3850, currency: 'USD', interval: 'week' }, kind: 'stipend', evidence: '"base stipend ... 3,850 USD ... per week" — $4.6M is a project result.' });
+  };
+  const logs = [];
+  const r = await llmRun({ flagsFile, outFile, apiKey: 'test-key', env: {}, fetchImpl, concurrency: 1, log: (m) => logs.push(m), sleepImpl: async () => {} });
+  assert.deepEqual([r.reviewed, r.errors, r.verdicts.parser_bug], [2, 1, 2]);
+  assert.equal(calls[0].url, 'https://api.anthropic.com/v1/messages');
+  assert.equal(calls[0].init.headers['x-api-key'], 'test-key');
+  assert.ok(logs.some((m) => /a:2: model declined/.test(m)));
+  const out = fs.readFileSync(outFile, 'utf8').trim().split('\n').map((s) => JSON.parse(s));
+  assert.deepEqual(out.map((o) => o.id), ['a:1', 'a:3']);
+  for (const o of out) {
+    for (const k of ['id', 'url', 'company', 'parsed', 'corrected', 'verdict', 'kind', 'evidence', 'reviewer', 'reviewed_at', 'parser_version']) assert.ok(k in o, k);
+    assert.equal(o.reviewer, 'claude-sonnet-5-5');
+  }
+  // resume: only the failed line is retried
+  calls.length = 0;
+  const r2 = await llmRun({ flagsFile, outFile, apiKey: 'test-key', env: { VET_LLM_MODEL: 'claude-opus-5-5' }, fetchImpl, log: () => {}, sleepImpl: async () => {} });
+  assert.deepEqual([r2.reviewed, r2.skipped, calls.length], [0, 2, 1]);
+  assert.equal(JSON.parse(calls[0].init.body).model, 'claude-opus-5-5');
+  // non-retryable 400 is not retried
+  calls.length = 0;
+  const bad = async (url, init) => { calls.push(init); return { ok: false, status: 400, headers: { get: () => null }, json: async () => ({ error: { type: 'invalid_request_error', message: 'nope' } }) }; };
+  const r3 = await llmRun({ flagsFile, outFile, apiKey: 'k', env: {}, fetchImpl: bad, log: () => {}, sleepImpl: async () => {} });
+  assert.deepEqual([r3.errors, calls.length], [1, 1]);
+  assert.throws(() => parseVerdict({ stop_reason: 'max_tokens', content: [] }), /truncated/);
+});
+
+test('llm-vet without ANTHROPIC_API_KEY exits 0 with a message', () => {
+  const env = { ...process.env };
+  delete env.ANTHROPIC_API_KEY;
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'llm-vet.js')], { env, encoding: 'utf8' });
+  assert.equal(r.status, 0);
+  assert.match(r.stdout, /ANTHROPIC_API_KEY is not set/);
+});
+
+test('llm-vet --skip-reviewed: a job with the same parsed salary is not re-asked', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'llmvet2-'));
+  const flagsFile = path.join(dir, 'flags.jsonl');
+  const prior = path.join(dir, 'verdicts.jsonl');
+  const changed = flagLine('a:2', { parsed: { min: 200200, max: 200200, mid: 200200, currency: 'USD', interval: 'year', text: '3,850 USD' } });
+  fs.writeFileSync(flagsFile, [flagLine('a:1'), changed].map((l) => JSON.stringify(l)).join('\n') + '\n');
+  fs.writeFileSync(prior, [flagLine('a:1'), flagLine('a:2')].map((l) => JSON.stringify({ ...l, verdict: 'parser_bug' })).join('\n') + '\n');
+  const asked = [];
+  const fetchImpl = async (url, init) => { asked.push(JSON.parse(JSON.parse(init.body).messages[0].content.split('\n\n')[1]).id); return { ok: true, status: 200, json: async () => ({ model: 'm', stop_reason: 'end_turn', content: [{ type: 'text', text: '{"verdict":"correct","corrected":null,"kind":null,"evidence":"x"}' }] }) }; };
+  await llmRun({ flagsFile, outFile: path.join(dir, 'out.jsonl'), apiKey: 'k', env: {}, fetchImpl, skipReviewed: [prior], log: () => {} });
+  assert.deepEqual(asked, ['a:2'], 'only the job whose parsed salary changed');
+});

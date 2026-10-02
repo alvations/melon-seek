@@ -140,15 +140,23 @@ Files owned: `server/index.js`, `server/companies.js`, `server/sources/{greenhou
 13. **Juice Score data for the browser.** The lead decided juice is computed in `public/api.js` in both server
     and static mode, so the server only serves the inputs.
     - `data/cities.json` is loaded once when `createServer()` runs (path override: `MELON_CITIES_FILE`).
-    - `GET /api/cities` serves the parsed and re-serialized document with `Cache-Control: public, max-age=3600`,
+    - `GET /api/cities`, and its alias `/api/cities.json` (the static build's `dist/api/cities.json` path, so
+      `api.js` can use one relative URL), serves the parsed and re-serialized document with `Cache-Control: public, max-age=3600`,
       an ETag (from mtime and size; `If-None-Match` gets a 304) and a gzip copy computed once per version.
     - Each request stats the file, and a change in mtime or size triggers a reload. If the new file fails to
       parse, the last good copy is kept and a warning is logged. If no copy was ever loaded, the route returns 503.
     - In server mode, `api.js` resolves `import('./lib/<module>.js')` to `/lib/...`. The server maps `/lib/<path>`
-      to `server/<path>` for an explicit allowlist (`BROWSER_LIB`): companies, normalize, salary, geo, keywords,
-      demo, juice, vet, and sources/{greenhouse,ashby,lever,util}. Anything else under `/lib/` is a 404, so
-      `index.js` and `cache.js` are never served. Server mode therefore uses the same relative paths as `dist/lib/`.
-      A test checks that the allowlist is closed under relative imports (juice → geo, normalize → vet → salary, ...).
+      to `server/<path>` only for the allowlist in **`server/lib-modules.js`**: `LIB_MODULES` (companies,
+      normalize, salary, vet, geo, keywords, demo, juice) plus any `sources/<name>.js` matching
+      `^sources/[a-z0-9][a-z0-9_-]*\.js$`. Anything else under `/lib/` is a 404: index.js, cache.js,
+      lib-modules.js itself, other extensions, nested paths and case variants. Every encoded or raw traversal form
+      is a 403/404, with `safeJoin` as a second check. Responses are `text/javascript` with the security headers.
+      Server mode therefore uses the same relative paths as `dist/lib/`.
+    - `scripts/build-static.js` can import `LIB_MODULES` from the same module so the two lists cannot drift. I did
+      not edit it because devops was changing it at the time. Its current list matches.
+    - A test checks that the allowlist is closed under relative imports (juice → geo, normalize → vet → salary, ...)
+      and has no Node imports. `normalizeJobs` already calls `vetSalaries`, so live data fetched through
+      `lib/normalize.js` is vetted; vetting twice is idempotent.
 14. **snapshot script.** `npm run snapshot -- anthropic anduril openai` runs the given slugs; with no args it runs
    every built-in. A `source:board` argument selects a custom board. It writes only live results; a failed or
    empty fetch is logged and skipped, so it never writes demo data. It exits 1 only if every slug failed.
@@ -199,10 +207,13 @@ treated as a file. The `npm test` script is now `node --test test/*.test.js`.
   - A request with the ETag gets 304, and gzip works.
   - Rewriting the file with a newer mtime serves the new data under a new ETag.
   - A broken rewrite keeps the previous copy.
+  - `/api/cities.json` alias matches.
   - `/lib/` serves every allowlisted module byte-for-byte as `text/javascript`.
-  - `/lib/index.js`, `/lib/cache.js` and traversal attempts return 403/404.
+  - 12 disallowed paths and 14 traversal forms (encoded, double-encoded, backslash, NUL, and raw targets
+    that skip fetch's normalization) return 400/403/404 and leak nothing.
   - The allowlist is closed under imports.
-  - `npm test`: 154 pass, 0 fail.
+  - My 3 files: 65 pass, 0 fail. The full `npm test` had 4 failures at the time, all FX expectations in
+    `test/features.test.js` and `test/juice.test.js` (other workstreams' FX tables were changing concurrently).
 - Demo fallback works for all 8 built-ins (offline `getJobs`): 74–120 jobs each.
 - Manual run against the real demo data: anthropic 111 jobs (96 with salary), anduril 120 (105), openai 120 (110).
   All jobs have locations. The demo jobs without a salary contain no currency amounts, so they are meant to have none.
@@ -212,8 +223,8 @@ treated as a file. The `npm test` script is now `node --test test/*.test.js`.
   Run `npm run snapshot` where the network is open and spot-check the Greenhouse pay-range parsing on real Anthropic/Anduril postings.
 - Text salary parsing picks a single range. When a posting lists different ranges per location in text, the
   first-scored one wins. Structured Greenhouse ranges use the overall min–max instead (decision 10).
-- `scripts/build-static.js` `LIB_MODULES` does not yet include `juice.js`, and the build does not yet emit
-  `api/cities` (devops/lead own that file). Static mode needs both for the browser-side juice path.
+- `scripts/build-static.js` keeps its own copy of `LIB_MODULES` (it currently matches) until devops switches it
+  to `import { LIB_MODULES } from '../server/lib-modules.js'`.
 - Throttle, negative cache and LRU state is per process. It is not shared across replicas.
 - `style-src-attr 'unsafe-inline'` stays until `public/app.js` `h()` uses CSSOM (the patch is in REVIEW.md M2).
 - Pay ranges: only the overall span across tiers is kept. Per-tier ranges are not exposed.
@@ -236,4 +247,5 @@ treated as a file. The `npm test` script is now `node --test test/*.test.js`.
 - 2026-10-02 (after the first real-data run): body cap is per company, 120 MB for built-ins and 25 MB for custom
   boards, plus a 45 s timeout for built-ins (decision 12). Mistral removed from the built-ins. Tests added.
 - 2026-10-02 (Juice integration): `data/cities.json` is loaded at startup and served at `/api/cities` (max-age=3600,
-  ETag, reload on mtime change). `/lib/` serves an allowlist of browser-safe server modules (decision 13). Tests added.
+  ETag, reload on mtime change, plus a `/api/cities.json` alias). `/lib/` serves the browser-safe allowlist from the new
+  shared `server/lib-modules.js` (decision 13). Tests cover allowed, disallowed and traversal requests.
