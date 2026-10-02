@@ -431,3 +431,9 @@ screenshots in `docs/screenshots/`.
   height fixes, plus a thorough UI/UX matrix test (views × drawer × filter
   column × 6 viewports × 2 themes, plus flows) with automated checks.
   Coordinated with the mobile engineer on shared files.
+- 2026-10-02: user: "make sure the site is totally mobile compatible and
+  feels smooth on mobile". Raised the mobile engineer's acceptance bar: iOS
+  Safari quirks (dvh, safe-area, tap highlight, no hover dependence, input
+  ≥16px), Android and 360px; 60fps gestures (transform/opacity only,
+  passive listeners, rAF drags, lazy lists), worst frame ≤50 ms at 4x CPU
+  throttle; deferred modules; one shared ResizeObserver with UX.
