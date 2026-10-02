@@ -770,9 +770,12 @@ function salaryFor(rng, cat, role, level, loc) {
   const out = { min, max, currency, interval: 'year', text };
   if (zoned) {
     out.zones = 2;
+    // Phrasing follows real per-location pay-transparency text (salary.js counts 2 zones).
     out.zoneText = [
-      `Zone 1 (SF Bay Area, NYC, Seattle): ${sym}${fmtFull(min)}—${sym}${fmtFull(max)} ${currency}`,
-      `Zone 2 (all other US locations): ${sym}${fmtFull(z2.min)}—${sym}${fmtFull(z2.max)} ${currency}`,
+      'The annual base salary range for this position in San Francisco, New York City and Seattle is:',
+      `${sym}${fmtFull(min)}—${sym}${fmtFull(max)} ${currency}`,
+      'The annual base salary range for this position in all other US locations is:',
+      `${sym}${fmtFull(z2.min)}—${sym}${fmtFull(z2.max)} ${currency}`,
     ];
     out.tiers = [
       { min, max, currency, interval: 'year', label: 'Zone 1' },
@@ -874,7 +877,7 @@ export function demoJobs(companySlug, companyName, opts = {}) {
     const salaryLines = salary
       ? `<p>The expected base pay for this position is below.${compNotes.length ? ' ' + escapeHtml(compNotes.join(' ')) : ''}</p>`
         + (salary.zoneText
-          ? `<p>${escapeHtml(cat.salaryLabel)}</p>${salary.zoneText.map((z) => `<p>${escapeHtml(z)}</p>`).join('')}`
+          ? salary.zoneText.map((z) => `<p>${escapeHtml(z)}</p>`).join('')
           : `<p>${escapeHtml(cat.salaryLabel)} ${escapeHtml(summary || salary.text)}</p>`)
       : '';
     const eeo = rng.chance(0.25) ? `<p>${DEI_LINE}</p>` : '';

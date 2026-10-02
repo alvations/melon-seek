@@ -79,7 +79,7 @@ export function buildMarket(payloads, { minN = MIN_N, generatedAt = new Date().t
       const usd = usdMid(job.salary);
       if (usd == null) continue;
       let family = null;
-      try { family = roleFamily(job.title || ''); } catch { family = null; }
+      try { family = roleFamily(job.title || '', job); } catch { family = null; } // job as ctx: department hints
       if (!family) continue;
       const seniority = job.seniority || 'Mid';
       add(`${slug}|${family}|${seniority}`, usd);

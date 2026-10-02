@@ -609,3 +609,33 @@ test('F3: meta.compstimate via product backtest (feature-detected; null for demo
     mod.setCompstimateModule(undefined);
   }
 });
+
+test('F3: the real backtest runs in a worker thread without blocking the event loop', { skip: skipReason }, async () => {
+  const product = await import('../public/features/compstimate.js');
+  if (typeof product.backtest !== 'function') return; // product has not shipped backtest yet
+  mod.setCompstimateModule(undefined);
+  const titles = ['Software Engineer', 'Senior Software Engineer', 'Staff Software Engineer', 'Product Manager', 'Senior Product Manager'];
+  const jobs = Array.from({ length: 40 }, (_, i) => {
+    const mid = 150000 + (i % 7) * 15000 + (i % 5) * 20000;
+    return {
+      id: `wt:${i}`, company: 'wt', title: titles[i % titles.length], department: i % 2 ? 'Engineering' : 'Product',
+      seniority: ['Mid', 'Senior', 'Staff+'][i % 3], locations: [{ name: 'San Francisco, CA', city: 'San Francisco', country: 'US' }], remote: false,
+      salary: { min: mid - 20000, max: mid + 20000, mid, currency: 'USD', interval: 'year' }, descriptionHtml: '<p>long</p>'.repeat(100),
+    };
+  });
+  let ticks = 0;
+  const iv = setInterval(() => ticks++, 5);
+  const t0 = Date.now();
+  const meta = await mod.compstimateMeta({ company: { slug: 'wt' }, mode: 'snapshot', jobs }, { wait: 20000 });
+  clearInterval(iv);
+  assert.ok(meta, 'backtest produced a result');
+  assert.equal(meta.seed, 20261002);
+  assert.ok(meta.n > 0 && meta.n <= 40);
+  assert.ok(Number.isFinite(meta.medianAbsPctError));
+  assert.ok(Date.parse(meta.computedAt));
+  assert.ok(ticks > 0 || Date.now() - t0 < 10, 'event loop kept running');
+  // Memoized: same job list answers immediately.
+  const t1 = Date.now();
+  assert.deepEqual(await mod.compstimateMeta({ company: { slug: 'wt' }, mode: 'snapshot', jobs }), meta);
+  assert.ok(Date.now() - t1 < 50);
+});

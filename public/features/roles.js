@@ -30,7 +30,7 @@ const ABBREV = {
   sr: 'senior', jr: 'junior', dir: 'director', assoc: 'associate', rs: 'research scientist',
   fde: 'forward deployed engineer', qa: 'quality assurance', vp: 'vp', mts: 'member of technical staff',
   mse: 'mission software engineer', gnc: 'guidance navigation and control', revops: 'revenue operations',
-  bizops: 'business operations', ehs: 'environmental health and safety', npi: 'new product introduction',
+  bizops: 'business operations', hrbp: 'hr business partner', ehs: 'environmental health and safety', npi: 'new product introduction',
 };
 
 /** Token synonyms applied after stemming. */
@@ -129,32 +129,32 @@ export const FAMILY_LABELS = Object.freeze({
  */
 const FAMILIES = [
   ['ai-training', /\b(ai tutor|tutor|subject matter expert|human frontier collective|annotat\w+|data labeler|rater)\b/],
-  ['eng-manager', /\b(engineer(ing)? manager|manager (of )?(software )?engineer(ing)?|(director|head|vp) (of )?(software )?engineer(ing)?|tech lead manager)\b/],
+  ['eng-manager', /\b(engineer(ing)? manager|manager (of )?(software )?engineer(ing)?|(director|head|vp) (of )?(software )?engineer(ing)?|tech(nical)? lead manager|manager (\w+ ){0,3}engineering)\b/],
   ['product', /\b(product (manager|management|lead|owner|director)|(head|director|vp) (of )?product\b|assistant product owner)/],
-  ['people', /\b(recruit\w*|talent|people|human resources|sourcer|compensation|benefits|payroll partner|learning and development|hr business partner)\b/],
-  ['admin', /\b(executive assistant|administrative|office manager|receptionist|executive business partner)\b/],
-  ['finance', /\b(financ\w*|accountant|accounting|accounts (payable|receivable)|tax|treasury|controller|payroll|fpanda|audit\w*|billing|order to cash|revenue manager|investor relations)\b/],
-  ['support', /\b(support|customer success|customer (experience|service|learning|education)|technical account manager|user operations)\b/],
-  ['solutions', /\b(solutions? (architect|engineer\w*|consultant|lead|specialist|principal)|sales engineer|forward deployed|deployment (strategist|lead)|applied ai (engineer|architect)|customer engineer|field (application|solutions) engineer|implementation (engineer|manager|consultant|lead)|technical success|ai advisory|engagement manager|delivery (lead|manager))\b/],
+  ['people', /\b(recruit\w*|talent|people|human resources|sourcer|compensation|benefits|payroll partner|learning and development|hr business partner|hr)\b/],
+  ['admin', /\b(executive assistant|administrative|office manager|receptionist|executive business partner|executive operations|front desk)\b/],
+  ['finance', /\b(financ\w*|accountant|accounting|accounts (payable|receivable)|tax|treasury|(?<!flight )controller|payroll|fpanda|audit\w*|billing|order to cash|revenue manager|investor relations|pricing)\b/],
+  ['support', /\b(support|customer success|customer (experience|service|learning|education)|technical account manager|user operations|technical (training|education))\b/],
+  ['solutions', /\b(solutions? (architect|engineer\w*|consultant|lead|specialist|principal)|sales engineer|forward deployed|deployment (strategist|lead)|applied ai (engineer\w*|architect)|customer engineer|field (application|solutions) engineer|implementation (engineer|manager|consultant|lead)|technical success|ai advisory|engagement manager|delivery (lead|manager)|(field|executive|enterprise|principal|customer) architect)\b/],
   ['supply-chain', /\b(supply (chain|planner|planning)|demand (and supply|planner|planning)|sourcing|procurement|buyer|purchasing|materials? (planner|associate|handler|manager|coordinator|specialist)|logistics|warehous\w*|inventory|shipping|receiving|sales and operations planning|master scheduler|subcontracts?|supplier (development|management)|vendor manager|commodity|expediter|cost value engineer)\b/],
-  ['legal', /\b(counsel|legal|attorney|lawyer|paralegal|compliance|regulatory|export control|trade control|patent|contracts? (manager|administrator|specialist|lead|director|negotiator|management))\b/],
-  ['trust-safety', /\b(trust and safety|safeguards?|enforcement|integrity|content moderation|moderator|user safety|abuse|harms?)\b/],
+  ['legal', /\b(counsel|legal|attorney|lawyer|paralegal|compliance|regulatory|export control|trade control|patent|contracts? (manager|administrator|specialist|lead|director|negotiator|management|operations))\b/],
+  ['trust-safety', /\b(trust and safety|safeguards?|enforcement|integrity|content moderation|moderator|user safety|abuse|harms?|safety operations|child safety|fraud|anti money laundering|aml|bsa|investigator)\b/],
   ['policy', /\b(public policy|policy|global affairs|external affairs|government (affairs|relations)|economic development|public affairs)\b/],
   ['security', /\b(security|offensive|red team|threat|detection and response|customer trust|insider risk|nnpi|information assurance|cyber)\b/],
-  ['facilities', /\b(facilit\w*|construction|electrician|hvac|plumb\w*|iron worker|carpenter|millwright|data ?center|real estate|workplace|environmental,? health|health and safety|environmental safety|janitor\w*|custodian|cook|chef|culinary|food|power generation|energy storage|land developer|site (acquisition|selection)|fiber)\b/],
-  ['design', /\b(designer|design lead|ux|ui|user experience|user research\w*|creative director)\b/],
-  ['marketing', /\b(marketing|communications|comms|content|brand|community|events|public relations|writer|editor|documentation|producer|social media|growth (marketing|lead|manager)|copywriter)\b/],
-  ['sales', /\b(account (executive|manager|director|associate|lead|strategist)|sales|business development|capture|partnerships?|partner (manager|director|lead|enablement|development|success)|partner\b|channel|alliances?|reseller|renewals|go to market|deal team|district manager|agency development|strategic pursuits|commercial lead|proposals?)\b/],
-  ['data', /\b(data (scientist|science|engineer\w*|analyst|analytics|governance|platform|strategy)|analytics|business intelligence|enterprise data)\b/],
-  ['it', /\b(it|information technology|help ?desk|service desk|systems? administrator|sysadmin|enterprise (applications|systems)|business systems|corporate network|endpoint|netsuite|workday)\b/],
-  ['manufacturing', /\b(technician|assembler|assembly|machinist|cnc|fabricat\w*|welder|welding|inspector|inspection|production (associate|coordinator|supervisor|manager|lead|operator|planner|control|technician|worker|operations)|((vp|head|director|deputy head|manager) (of )?production)|manufacturing (associate|technician|operator|supervisor|lead|manager)|quality\b(?! (assurance )?engineer)|metrology|machine operator|sheet metal|wire harness|solder\w*|line lead|shift lead)\b/],
-  ['field-ops', /\b(operator|mission operations|field (service|services|operations|support)|deployment(s)? (and training|specialist|engineer|manager)|mission readiness|training (lead|coordinator|specialist|instructor)|instructor|range (safety|operations))\b/],
+  ['facilities', /\b(facilit\w*|construction|electrician|hvac|plumb\w*|iron worker|carpenter|millwright|data ?center|real estate|workplace|environmental,? health|health and safety|environmental safety|janitor\w*|custodian|cook|chef|culinary|food|power generation|energy storage|land develop\w*|site (acquisition|selection|operations)|fiber|industrial compute|development planner|barista)\b/],
+  ['design', /\b((?<!(structural|mechanical|electrical|pcb|hardware|rf|cad|layout|circuit) )designer|design lead|ux|ui|user experience|user research\w*|creative director)\b/],
+  ['marketing', /\b(marketing|communications|comms|content|brand|community|events|public relations|writer|editor|documentation|producer|social media|growth (marketing|lead|manager)|lifecycle|campaigns?|copywriter)\b/],
+  ['sales', /\b(account (executive|manager|director|associate|lead|strategist)|sales|business development|capture|partnerships?|partner (manager|director|lead|enablement|development|success)|partner\b|channel|alliances?|reseller|renewals|go to market|deal team|district manager|agency development|strategic pursuits|commercial lead|proposals?|enablement)\b/],
+  ['data', /\b(data (scientist|science|engineer\w*|analyst|analytics|governance|platform|strategy)|analytics|business intelligence|enterprise data|data (acquisition|strategist|operations))\b/],
+  ['it', /\b(it|information technology|help ?desk|service desk|systems? administrator|sysadmin|enterprise (applications|systems)|business systems|corporate network|endpoint|netsuite|workday|asset management)\b/],
+  ['manufacturing', /\b(technician|assembler|assembly|machinist|cnc|fabricat\w*|welder|welding|inspector|inspection|production (associate|coordinator|supervisor|manager|lead|operator|planner|control|technician|worker|operations)|((vp|head|director|deputy head|manager) (of )?production)|manufacturing (associate|technician|operator|supervisor|lead|manager|specialist)|factory|maintenance (lead|technician|supervisor|manager)|quality\b(?! (assurance )?engineer)|metrology|machine operator|sheet metal|wire harness|solder\w*|line lead|shift lead)\b/],
+  ['field-ops', /\b(operator|mission operations|field (service|services|operations|support)|deployment(s)? (and training|specialist|engineer|manager)|mission readiness|training (lead|coordinator|specialist|instructor)|instructor|trainer|range (safety|operations)|sustainment\b(?! engineer))/],
   ['program', /\b(program (manager|management|director|lead|assistant|coordinator|analyst|specialist)|programs\b|project (manager|management|coordinator|lead)|technical program|pmo|configuration (manager|management|analyst)|change control|mission (manager|director)|product operations)\b/],
-  ['bizops', /\b(business (operations|affairs)|strategy|strategic (operations|initiatives|execution|planning|projects)|chief of staff|corporate development|mergers and acquisitions|operations (analyst|manager|lead|associate|specialist|director)|revenue operations|deal operations|transformation)\b/],
+  ['bizops', /\b(business (operations|affairs)|strategy|strategic (operations|initiatives|execution|planning|projects)|chief of staff|corporate development|mergers and acquisitions|operations (analyst|manager|lead|associate|specialist|director)|revenue operations|deal operations|transformation|operations\b(?! (engineer|analysis)))/],
   ['ml', /\b(machinelearning|research (engineer|scientist)|scientist|research\w*|ai|deep learning|nlp|computer vision|perception|interpretability|alignment|pretraining|post training|reinforcement learning|llm|multimodal)\b/],
   ['swe', /\bsoftware\b/], // an explicit "software" role beats hardware words ("GNC Software Engineer")
-  ['hardware', /\b(electrical|mechanical|electromechanical|hardware|firmware|embedded|fpga|asic|silicon|pcba?|rf|antenna|avionics|aero\w*|propulsion|structures?|structural|thermal|mechanisms?|fluid systems|landing gear|flight (controls|sciences|test)|guidance navigation and control|controls engineer|scada|power (electronics|systems)|battery|actuators?|optic\w*|sensors?|payloads?|weapons|munitions|energetics|rocket|space systems|satellite|systems (engineer|engineering|architect|integration)|mission (systems|engineer)|seit|integration and test|test (and evaluation|engineer|operations|conductor|infrastructure|instrumentation)|reliability (engineer|test)|hardware test|dev(elopment)? test|hil|human factors|emc|emi|new product introduction|quality engineer|manufacturing (engineer\w*|process|test)|materials engineer|chief engineer|sustainment engineer|cad|drafter|modeling and simulation|simulation (engineer|analyst)|operations analysis|robotics hardware)\b/],
-  ['swe', /\b(software|sitereliability|devops|infrastructure|platform|backend|frontend|fullstack|mobile|ios|android|web|cloud|distributed systems|compiler|kernel|product engineer|test automation|sdet|network engineer|performance engineer|inference engineer|security engineer)\b/],
+  ['hardware', /\b(electrical|mechanical|electromechanical|hardware|firmware|embedded|fpga|asic|silicon|pcba?|rf|antenna|avionics|aero\w*|propulsion|structures?|structural|thermal|mechanisms?|fluid systems|landing gear|flight (controls?|controllers?|sciences|test)|guidance navigation and control|controls engineer|scada|power (electronics|systems)|battery|actuators?|optic\w*|sensors?|payloads?|weapons|munitions|energetics|rocket|space systems|satellite|systems (engineer|engineering|architect|integration)|mission (systems|engineer)|seit|integration and test|test (and evaluation|engineer|operations|conductor|infrastructure|instrumentation)|reliability (engineer|test)|hardware test|dev(elopment)? test|hil|human factors|emc|emi|new product introduction|quality engineer|manufacturing (engineer\w*|process|test)|materials engineer|chief engineer|sustainment engineer|cad|drafter|modell?ing and simulation|simulation (engineer|analyst)|operations analysis|robotics hardware|air vehicles?)\b/],
+  ['swe', /\b(software|sitereliability|devops|infrastructure|platform|backend|frontend|fullstack|mobile|ios|android|web|cloud|distributed systems|compiler|kernel|product engineer|test automation|sdet|network engineer|performance (engineer|modeling)|inference engineer|security engineer|autonomy)\b/],
 ];
 
 /** Department text -> family, used only when the title alone is not specific. */
@@ -185,6 +185,12 @@ const GENERIC_ENGINEER = /\b(engineer\w*|developer|programmer)\b/;
 const TECH_STAFF = /\bmember technical staff\b|\bmember of technical staff\b|\btechnical staff\b/;
 const ML_HINT = /\b(training|model\w*|research|post|pretrain\w*|multimodal|rl|reasoning|eval\w*|alignment|interpretability|synthetic data|data|inference|agents?|safety)\b/;
 
+// Phrases that decide the family wherever they appear in the title.
+const PRIORITY = [
+  ['ai-training', /\b(human frontier collective|ai tutor)\b/],
+  ['trust-safety', /\bfinancial crimes?\b/],
+];
+
 function firstFamily(text) {
   for (const [id, re] of FAMILIES) if (re.test(text)) return id;
   return null;
@@ -205,7 +211,11 @@ export function roleFamily(title, ctx) {
   const role = expandTitle(rolePart(title));
   const deptText = dept ? expandTitle(dept) : '';
   if (TECH_STAFF.test(full)) return ML_HINT.test(`${full} ${deptText}`) ? 'ml' : 'swe';
-  const fam = firstFamily(role) || firstFamily(full);
+  for (const [id, re] of PRIORITY) if (re.test(full)) return id;
+  let fam = firstFamily(role) || firstFamily(full);
+  // Context overrides: building-systems engineers, and policy work inside Trust & Safety.
+  if (fam === 'hardware' && /\b(facilit\w*|data ?center|construction)\b/.test(full)) fam = 'facilities';
+  if (fam === 'policy' && /\b(safeguards|trust and safety|integrity)\b/.test(deptText)) fam = 'trust-safety';
   if (fam) return fam;
   if (deptText) {
     for (const [id, re] of DEPT_HINTS) {

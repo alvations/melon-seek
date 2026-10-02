@@ -237,8 +237,14 @@ export async function getJobs(company, opts = {}) {
 /* ------------------------------------------------------ compstimate (F3) */
 
 export const BACKTEST_OPTS = Object.freeze({ seed: 20261002, maxN: 500 });
-let compstimateModule; // undefined = not loaded yet, null = unavailable
+/** How long a request waits for a backtest before answering with compstimate: null. */
+export const BACKTEST_WAIT_MS = Number(process.env.MELON_BACKTEST_WAIT_MS) || 800;
+const WORKER_URL = new URL('./compstimate-worker.js', import.meta.url);
+
+let compstimateModule;   // undefined = not loaded yet, null = unavailable
+let compstimateOverride; // tests: a module object run in-thread
 async function loadCompstimate() {
+  if (compstimateOverride !== undefined) return compstimateOverride;
   if (compstimateModule === undefined) {
     try {
       compstimateModule = await import('../public/features/compstimate.js');
@@ -249,36 +255,70 @@ async function loadCompstimate() {
   }
   return compstimateModule;
 }
-/** Tests only: replace the compstimate module (null = unavailable, undefined = reload). */
-export function setCompstimateModule(mod) { compstimateModule = mod; compstimateMemo.clear(); }
-const compstimateMemo = new Map(); // slug -> { jobs, value } (bounded)
+
+/** Tests only: run this module's backtest in-thread (null = unavailable; undefined = back to the real module in a worker). */
+export function setCompstimateModule(mod) { compstimateOverride = mod; compstimateMemo.clear(); }
+
+const compstimateMemo = new Map(); // slug -> { jobs, promise, value } (bounded)
 let compstimateWarned = false;
 
+const SLIM_KEYS = ['id', 'company', 'title', 'department', 'team', 'seniority', 'employmentType', 'locations', 'remote', 'salary', 'updatedAt'];
+const slim = (j) => { const o = {}; for (const k of SLIM_KEYS) if (j[k] !== undefined) o[k] = j[k]; return o; };
+
+function runBacktestInWorker(jobs) {
+  return new Promise((resolve, reject) => {
+    // Lazy import keeps node:worker_threads out of the hot path.
+    import('node:worker_threads').then(({ Worker }) => {
+      // execArgv: [] so flags like --watch / --input-type of the parent process are not inherited.
+      const w = new Worker(WORKER_URL, { execArgv: [], workerData: { jobs: jobs.map(slim), opts: { ...BACKTEST_OPTS } } });
+      w.once('message', (m) => { (m && m.ok ? resolve(m.result) : reject(new Error(m && m.error))); w.terminate(); });
+      w.once('error', reject);
+      w.once('exit', (code) => { if (code !== 0 && code !== 1) reject(new Error(`backtest worker exited with ${code}`)); });
+    }, reject);
+  });
+}
+
+function toMeta(r) {
+  if (!r || !Number.isFinite(r.medianAbsPctError) || !(r.n > 0)) return null;
+  return { medianAbsPctError: r.medianAbsPctError, within10Pct: r.within10Pct ?? null, n: r.n, seed: r.seed ?? BACKTEST_OPTS.seed, computedAt: new Date().toISOString() };
+}
+
 /**
- * meta.compstimate: product's seeded leave-one-out backtest per company
- * (feature-detected: null until public/features/compstimate.js exports
- * `backtest`). Null for demo data: an accuracy figure for synthetic pay
- * would be meaningless.
+ * meta.compstimate: product's seeded leave-one-out backtest per company,
+ * feature-detected (null until public/features/compstimate.js exports
+ * `backtest`). It runs once per job list in a worker thread; a request waits
+ * at most BACKTEST_WAIT_MS and otherwise gets null, and later requests get
+ * the result. Null for demo data: an accuracy figure for synthetic pay would
+ * be meaningless.
  */
-export async function compstimateMeta(payload) {
-  if (!payload || payload.mode === 'demo' || !Array.isArray(payload.jobs)) return null;
+export async function compstimateMeta(payload, { wait = BACKTEST_WAIT_MS } = {}) {
+  if (!payload || payload.mode === 'demo' || !Array.isArray(payload.jobs) || !payload.jobs.length) return null;
   const mod = await loadCompstimate();
   if (!mod || typeof mod.backtest !== 'function') return null;
   const key = payload.company && payload.company.slug;
-  const hit = compstimateMemo.get(key);
-  if (hit && hit.jobs === payload.jobs) return hit.value;
-  let value = null;
-  try {
-    const r = mod.backtest(payload.jobs, { ...BACKTEST_OPTS });
-    if (r && Number.isFinite(r.medianAbsPctError) && r.n > 0) {
-      value = { medianAbsPctError: r.medianAbsPctError, within10Pct: r.within10Pct ?? null, n: r.n, seed: r.seed ?? BACKTEST_OPTS.seed, computedAt: new Date().toISOString() };
-    }
-  } catch (err) {
-    if (!compstimateWarned) console.warn(`[compstimate] backtest failed: ${err.message}`);
-    compstimateWarned = true;
+  let entry = compstimateMemo.get(key);
+  if (!entry || entry.jobs !== payload.jobs) {
+    const jobs = payload.jobs;
+    entry = { jobs, value: undefined, promise: null };
+    const run = compstimateOverride !== undefined
+      ? Promise.resolve().then(() => mod.backtest(jobs, { ...BACKTEST_OPTS }))
+      : runBacktestInWorker(jobs);
+    entry.promise = run.then((r) => { entry.value = toMeta(r); return entry.value; }, (err) => {
+      if (!compstimateWarned) console.warn(`[compstimate] backtest failed: ${err && err.message}`);
+      compstimateWarned = true;
+      entry.value = null;
+      return null;
+    });
+    boundedSet(compstimateMemo, key, entry, 200);
   }
-  boundedSet(compstimateMemo, key, { jobs: payload.jobs, value }, 200);
-  return value;
+  if (entry.value !== undefined) return entry.value;
+  let timer;
+  const timeout = new Promise((r) => { timer = setTimeout(() => r(null), wait); });
+  try {
+    return await Promise.race([entry.promise, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /* ------------------------------------------------------------ market (F1) */

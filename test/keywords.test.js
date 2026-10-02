@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {
   extractSections, extractKeywords, inferSeniority, classifyHeading,
+  extractCompExtras, compExtrasEvidence,
   yearsOfExperience, yearsBucket, htmlToText, decodeEntities,
   SKILL_LEXICON, RESPONSIBILITY_LEXICON, FIT_LEXICON,
 } from '../server/keywords.js';
@@ -218,4 +220,87 @@ test('entity decoding and lexicon sizes', () => {
   assert.ok(SKILL_LEXICON.length >= 140, `skills ${SKILL_LEXICON.length}`);
   assert.ok(RESPONSIBILITY_LEXICON.length >= 40);
   assert.ok(FIT_LEXICON.length >= 25);
+});
+
+// ---------------------------------------------------------------- F2 comp extras
+
+test('extractCompExtras: equity senses', () => {
+  const eq = (t, o) => extractCompExtras(t, o).equity;
+  assert.equal(eq('$310K – $460K • Offers Equity'), true);
+  assert.equal(eq('Total compensation may also include Restricted Stock units, sign-on bonus and other incentives.'), true);
+  assert.equal(eq('Pay within range listed + Bonus + Benefits + Equity'), true);
+  assert.equal(eq('Compensation packages for eligible roles include base salary, equity, and benefits.'), true);
+  assert.equal(eq('Employees are also granted Stock Options upon board approval.'), true);
+  assert.equal(eq('Growth: Competitive compensation, equity options, and opportunities for development.'), true);
+  // DEI and other non-compensation senses
+  assert.equal(eq('We are committed to pay equity and to diversity, equity and inclusion.'), false);
+  assert.equal(eq('Advance health equity for underserved communities.'), false);
+  assert.equal(eq('Palantir promotes a culture of diversity, equity, and inclusion.'), false);
+  assert.equal(eq('Our benefits include optional equity donation matching.'), false);
+  assert.equal(eq('7+ years in private equity, growth equity or investment banking.'), false);
+  assert.equal(eq('Partner closely with the equity team to process stock options.'), false);
+  assert.equal(eq('Are proficient in payroll processing for compensation types (regular, severance, and equity).'), false);
+  assert.equal(eq('Interns/Part-time not eligible for bonus, benefits or equity.'), false);
+  // full-time-scoped boilerplate does not apply to interns or contractors
+  const ft = 'Highly competitive equity grants are included in the majority of full time offers.';
+  assert.equal(eq(ft, { title: 'Software Engineer' }), true);
+  assert.equal(eq(ft, { title: 'Software Engineering Intern' }), false);
+  assert.equal(eq(ft, { title: 'Senior Technical Recruiter (Contract)' }), false);
+});
+
+test('extractCompExtras: bonus senses', () => {
+  const bn = (t, o) => extractCompExtras(t, o).bonus;
+  assert.equal(bn('This role is eligible for an annual performance bonus.'), true);
+  assert.equal(bn('$189K – $290K • Offers Equity • Offers Commission'), true);
+  assert.equal(bn('$189K – $290K • Offers Equity • $189K – $220.5K Commission • Multiple Ranges'), true);
+  assert.equal(bn('$72,000 - $95,000 USD base salary + commission'), true);
+  assert.equal(bn('Sales Commission: This role is eligible to earn commissions.'), true);
+  assert.equal(bn('Competitive base salary and commission structure'), true);
+  assert.equal(bn('The figure above represents On-Target Earnings (OTE).'), true);
+  // nice-to-have, verb and hedge senses
+  assert.equal(bn("It's a bonus if you have: experience with Kubernetes"), false);
+  assert.equal(bn('Bonus: paper at top-tier venues.'), false);
+  assert.equal(bn('Bonus points if you have shipped Rust.'), false);
+  assert.equal(bn('Experience with collective communication is a bonus.'), false);
+  assert.equal(bn('Design, build, and commission automated manufacturing systems.'), false);
+  assert.equal(bn('Commission, operate and maintain facilities.'), false);
+  assert.equal(bn('This estimate excludes the value of any potential sign-on bonus.'), false);
+  assert.equal(bn('Own close for payroll, bonus, severance and commissions accruals.'), false);
+  // "For sales roles ... OTE" counts only on a sales title
+  const ote = 'For sales roles, the range provided is the role’s On Target Earnings ("OTE") range, including sales commissions.';
+  assert.equal(bn(ote, { title: 'Enterprise Account Executive, Banking' }), true);
+  assert.equal(bn(ote, { title: 'Research Engineer, Pretraining' }), false);
+  assert.equal(bn(ote, { title: 'Sales Enablement Lead' }), false);
+});
+
+test('extractCompExtras: input handling', () => {
+  assert.deepEqual(extractCompExtras(''), { equity: false, bonus: false });
+  assert.deepEqual(extractCompExtras(null), { equity: false, bonus: false });
+  assert.deepEqual(extractCompExtras(undefined, { title: 'x' }), { equity: false, bonus: false });
+  assert.deepEqual(extractCompExtras('<ul><li>Salary + bonus + equity</li></ul>'), { equity: true, bonus: true });
+  const ev = compExtrasEvidence('Base pay is one part. Offer package: Pay + Bonus + Benefits + Equity');
+  assert.equal(ev.evidence.bonus.length, 1);
+});
+
+// Hand-labelled real postings (data/snapshots, 2026-10-02): excerpts + gold labels.
+// Gate: precision >= 0.95 per facet (task requirement); recall tracked too.
+test('extractCompExtras: precision/recall on hand-labelled postings (test/fixtures/extras-labels.json)', () => {
+  const fx = JSON.parse(fs.readFileSync(new URL('./fixtures/extras-labels.json', import.meta.url), 'utf8'));
+  assert.ok(fx.items.length >= 100, `labelled ${fx.items.length}`);
+  const res = {};
+  for (const split of ['dev', 'holdout', 'all']) {
+    const items = fx.items.filter((x) => split === 'all' || x.split === split);
+    for (const f of ['equity', 'bonus']) {
+      const c = { tp: 0, fp: 0, fn: 0 };
+      for (const x of items) {
+        const p = extractCompExtras(x.excerpt, { title: x.title })[f];
+        if (p && x[f]) c.tp++; else if (p) c.fp++; else if (x[f]) c.fn++;
+      }
+      res[`${split}.${f}`] = { precision: c.tp / Math.max(1, c.tp + c.fp), recall: c.tp / Math.max(1, c.tp + c.fn), ...c };
+    }
+  }
+  for (const [k, r] of Object.entries(res)) {
+    assert.ok(r.precision >= 0.95, `${k} precision ${r.precision.toFixed(3)} (${JSON.stringify(r)})`);
+    assert.ok(r.recall >= 0.9, `${k} recall ${r.recall.toFixed(3)} (${JSON.stringify(r)})`);
+  }
 });

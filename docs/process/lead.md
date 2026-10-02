@@ -327,3 +327,17 @@ screenshots in `docs/screenshots/`.
   data/vetting/2026-10-02/summary.md from the agent's report (the harness
   blocks subagents from writing report-style .md). Job 5183044008 now shows
   a 3,850 USD/week stipend (≈$200K/yr FTE, kind "stipend").
+- 2026-10-02 07:27 UTC check-in: 5 agents working (UX, devops, backend,
+  features, product). CI red at 68e2fb2 (5 tests); locally 212/213, the only
+  failure being product's in-progress roles.js. GitHub's branch-mode "pages
+  build and deployment" still runs alongside ours, so the Pages source is
+  not yet "GitHub Actions" (asked the user). Integration screenshots (real
+  snapshot data, server mode): chart OK (clusters, Juice badges, max $850K).
+  Findings routed:
+  - Juice saturates at 100 for top roles (livability re-tune).
+  - Cluster row labels truncate the median (viz).
+  - Server /api/jobs?company=anduril takes 2.8 s and 3.4 MB gzipped (backend:
+    a description-less list, a /api/job detail route, cached payloads).
+  Next check-in armed for +45 min (trig_01UytGUESHhy6ZM7EZRuWrf9). Note: a
+  lead cleanup `kill` of node server processes may also have stopped
+  agents' test servers; agents restart their own servers as needed.

@@ -1,14 +1,19 @@
 // melon-seek "Compstimate" — a Zestimate-style pay estimate for any role,
 // computed from similarity-weighted comparable postings on the loaded board.
 //
-//   estimateComp(allJobs, { title, location, seniority, department, excludeId })
+//   estimateComp(allJobs, { title, location, seniority, department, excludeId, excludeIds })
 //     -> { low, mid, high, currency: "USD", confidence, n, comparables, scores,
 //          explanation, query }
-//   compstimateForJob(allJobs, job)        // estimate for one posting (excludes itself)
-//   createCompstimateWidget(container, { getJobs, onSelect, query })
-//     -> { update(allJobs?), setQuery(partial), getQuery(), getResult(), destroy() }
+//   compstimateForJob(allJobs, job, { excludeIds }?)  // estimate for one posting (excludes itself)
+//   backtest(jobs, { seed = 20261002, maxN = 500 })
+//     -> { medianAbsPctError, within10Pct, n, seed, skipped }   // percents, 1 decimal
+//   accuracyLine(meta) -> "Typically within ±8% (tested on 500 listed salaries)" | null
+//   displayConfidence(result, meta) -> "High"|"Medium"|"Low" (Low when backtest error > 25%)
+//   createCompstimateWidget(container, { getJobs, getMeta, onSelect, query })
+//     -> { update(allJobs?, meta?), setQuery(partial), getQuery(), getResult(), destroy() }
 //
-// Pure logic (everything except createCompstimateWidget) runs in Node.
+// Pure logic (everything except createCompstimateWidget) runs in Node with no
+// DOM at import time. The role taxonomy is in roles.js (no imports at all).
 
 import {
   salaryUSD, weightedPercentile, percentile, median, formatMoney, plural, h, uid, locationKey,

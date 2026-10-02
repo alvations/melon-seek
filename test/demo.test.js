@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { demoJobs, DEMO_CATALOGS } from '../server/demo.js';
 import { extractSections, extractKeywords, inferSeniority } from '../server/keywords.js';
 import { geocode } from '../server/geo.js';
+import { extractCompExtras } from '../server/keywords.js';
+import { parseSalary } from '../server/salary.js';
 
 const COMPANIES = [
   ['anthropic', 'Anthropic', 'https://job-boards.greenhouse.io/anthropic'],
@@ -11,7 +13,8 @@ const COMPANIES = [
   ['greenhouse-acme', 'Acme', 'https://job-boards.greenhouse.io/acme'],
 ];
 
-const RAW_KEYS = ['department', 'employmentType', 'extraLocations', 'html', 'locationText', 'remote', 'salary', 'sourceId', 'team', 'text', 'title', 'updatedAt', 'url'];
+const RAW_KEYS = ['department', 'employmentType', 'extraLocations', 'html', 'locationText', 'postedAt', 'remote', 'reqId', 'salary', 'sourceId', 'team', 'text', 'title', 'updatedAt', 'url'];
+const OPTIONAL_KEYS = ['compensationSummary', 'payRanges'];
 
 test('built-in catalogs exist', () => {
   assert.deepEqual(DEMO_CATALOGS.sort(), ['anduril', 'anthropic', 'openai']);
@@ -24,7 +27,7 @@ for (const [slug, name, root] of COMPANIES) {
     assert.deepEqual(demoJobs(slug, name), jobs, 'deterministic');
     const ids = new Set();
     for (const j of jobs) {
-      assert.deepEqual(Object.keys(j).sort(), RAW_KEYS);
+      assert.deepEqual(Object.keys(j).filter((k) => !OPTIONAL_KEYS.includes(k)).sort(), RAW_KEYS);
       assert.match(j.sourceId, /^demo-/);
       assert.ok(!ids.has(j.sourceId));
       ids.add(j.sourceId);
@@ -97,4 +100,66 @@ test('different companies get different catalogs; custom name is escaped', () =>
   assert.equal(evil[0].url, 'https://jobs.lever.co/x');
   assert.equal(demoJobs('mystery', 'Mystery')[0].url, null);
   assert.equal(demoJobs('mystery', 'Mystery', { source: 'ashby', board: 'm' })[0].url, 'https://jobs.ashbyhq.com/m');
+});
+
+const BASE = Date.UTC(2026, 8, 30, 12);
+const DAY = 86400000;
+
+test('F4: postedAt spread 1-400 days across freshness bands; updatedAt >= postedAt; reqId', () => {
+  for (const [slug, name] of COMPANIES) {
+    const jobs = demoJobs(slug, name);
+    const bands = { new: 0, active: 0, stale: 0, evergreen: 0 };
+    for (const j of jobs) {
+      const age = (BASE - Date.parse(j.postedAt)) / DAY;
+      assert.ok(age >= 1 && age <= 401, `${slug} age ${age}`);
+      assert.ok(Date.parse(j.updatedAt) >= Date.parse(j.postedAt), 'updated after posted');
+      assert.ok(Date.parse(j.updatedAt) <= BASE);
+      bands[age <= 7 ? 'new' : age < 60 ? 'active' : age < 180 ? 'stale' : 'evergreen']++;
+    }
+    for (const [b, n] of Object.entries(bands)) assert.ok(n >= 3, `${slug} ${b} ${n}`);
+    assert.ok(bands.evergreen < jobs.length * 0.35, 'evergreen is a minority');
+    const reqIds = jobs.map((j) => j.reqId);
+    if (slug === 'openai') assert.ok(reqIds.every((r) => r === null), 'Ashby has no reqId');
+    else {
+      assert.ok(reqIds.every((r) => typeof r === 'string' && r.startsWith('DEMO-')));
+      assert.equal(new Set(reqIds).size, reqIds.length);
+    }
+  }
+});
+
+test('F2: demo text exercises equity / bonus extras, DEI and nice-to-have negatives', () => {
+  for (const [slug, name] of COMPANIES) {
+    const jobs = demoJobs(slug, name);
+    const ex = jobs.map((j) => extractCompExtras([j.text, j.compensationSummary, j.salary && j.salary.text].filter(Boolean).join('\n'), { title: j.title }));
+    const eq = ex.filter((x) => x.equity).length;
+    const bn = ex.filter((x) => x.bonus).length;
+    assert.ok(eq > 5 && eq < jobs.length, `${slug} equity ${eq}/${jobs.length}`);
+    assert.ok(bn > 3 && bn < jobs.length / 2, `${slug} bonus ${bn}/${jobs.length}`);
+    assert.ok(jobs.some((j) => /diversity, equity and inclusion/.test(j.text)), 'DEI sense present');
+    assert.ok(jobs.some((j) => /It's a bonus if you have/.test(j.text)), 'nice-to-have bonus present');
+  }
+  // interns never get the full-time-only equity line credited
+  const anduril = demoJobs('anduril', 'Anduril').filter((j) => /\bIntern(ship)?\b/.test(j.title));
+  assert.ok(anduril.length > 0);
+  for (const j of anduril) assert.equal(extractCompExtras(j.text, { title: j.title }).equity, false);
+  // sales roles carry commission
+  const sales = demoJobs('openai', 'OpenAI').filter((j) => /Account Executive/.test(j.title) && j.compensationSummary);
+  assert.ok(sales.length > 0 && sales.every((j) => /Offers Commission/.test(j.compensationSummary)));
+});
+
+test('F2: some demo postings have multi-zone pay (text and structured)', () => {
+  for (const [slug, name] of COMPANIES) {
+    const jobs = demoJobs(slug, name);
+    const zoned = jobs.filter((j) => /all other US locations/.test(j.text) || (j.salary && j.salary.zones > 1));
+    assert.ok(zoned.length >= 3 && zoned.length < jobs.length * 0.3, `${slug} zoned ${zoned.length}`);
+    if (slug === 'openai') {
+      for (const j of zoned) {
+        assert.equal(j.salary.zones, 2);
+        assert.equal(j.payRanges.length, 2);
+        assert.match(j.compensationSummary, /Multiple Ranges/);
+      }
+    } else {
+      for (const j of zoned) assert.equal(parseSalary(j.text).zones, 2, j.title);
+    }
+  }
 });

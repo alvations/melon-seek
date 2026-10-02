@@ -250,7 +250,7 @@ test('v2: api/market.json when scripts/build-market.js#buildMarket exists', asyn
   const f = path.join(DIST2, 'api', 'market.json');
   assert.ok(fs.existsSync(f), 'market.json written');
   assert.ok(fs.statSync(f).size <= 150_000, 'market.json <= 150 KB');
-  globalThis.fetch = staticFetch.call(null, {});
+  globalThis.fetch = staticFetch();
   const saved = DIST; DIST = DIST2;
   try {
     const api = await freshApi();
