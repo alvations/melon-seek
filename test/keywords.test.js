@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import {
   extractSections, extractKeywords, inferSeniority, classifyHeading,
   extractCompExtras, compExtrasEvidence,
+  boilerplateParagraphs, descriptionText, dropUbiquitousKeywords, rekeyBoardJobs,
   yearsOfExperience, yearsBucket, htmlToText, decodeEntities,
   SKILL_LEXICON, RESPONSIBILITY_LEXICON, FIT_LEXICON,
 } from '../server/keywords.js';
@@ -302,5 +303,87 @@ test('extractCompExtras: precision/recall on hand-labelled postings (test/fixtur
   for (const [k, r] of Object.entries(res)) {
     assert.ok(r.precision >= 0.95, `${k} precision ${r.precision.toFixed(3)} (${JSON.stringify(r)})`);
     assert.ok(r.recall >= 0.9, `${k} recall ${r.recall.toFixed(3)} (${JSON.stringify(r)})`);
+  }
+});
+
+// ---------------------------------------------------------------- BUG-5 boilerplate
+
+const ABOUT = "<h2>About Acme</h2><p>Acme's mission is to build reliable, interpretable and steerable AI systems, with research in multimodal models.</p>";
+const SCAM = '<ul><li>Our recruiters only contact you from @acme.com addresses and never ask for payment.</li></ul>';
+const role = (i, bullet) => `${ABOUT}<h2>Responsibilities:</h2><ul><li>${bullet}</li><li>Own project ${i} end to end</li></ul><h2>You may be a good fit if you:</h2><ul><li>Have 5+ years of experience</li></ul><h2>Benefits</h2>${SCAM}`;
+
+test('boilerplateParagraphs: shared paragraphs and list items, never headings', () => {
+  const docs = [
+    role(1, 'Build Kubernetes infrastructure'), role(2, 'Write Rust services'), role(3, 'Train models in PyTorch'),
+    role(4, 'Design Figma prototypes'), role(5, 'Negotiate enterprise deals'), role(6, 'Write Go services'),
+  ];
+  const bp = boilerplateParagraphs(docs);
+  assert.equal(bp.size, 3, 'about paragraph + scam bullet + the shared fit bullet');
+  const text = descriptionText(docs[0], { skip: bp });
+  assert.doesNotMatch(text, /interpretable|recruiters/);
+  assert.match(text, /About Acme/, 'headings are kept');
+  assert.match(text, /Kubernetes/);
+  // sections keep their headings and bullets; a bullet shared by every posting
+  // inside a fit list is role content (protected), not boilerplate
+  const s = extractSections(docs[0], { skip: bp });
+  assert.deepEqual(s.responsibilities, ['Build Kubernetes infrastructure', 'Own project 1 end to end']);
+  assert.deepEqual(s.fit, ['Have 5+ years of experience']);
+  assert.match(text, /5\+ years/);
+  const kw = extractKeywords({ title: 'Engineer', sections: s, text });
+  assert.ok(!kw.skills.includes('Interpretability') && !kw.skills.includes('Multimodal') && !kw.skills.includes('Recruiting'));
+  assert.ok(kw.skills.includes('Kubernetes'));
+  // thresholds
+  assert.equal(boilerplateParagraphs(docs.slice(0, 4)).size, 0, 'fewer than minJobs postings');
+  assert.equal(boilerplateParagraphs(docs.slice(0, 4), { minJobs: 2 }).size, 3);
+  const mixed = [...docs.slice(0, 2), ...['a', 'b', 'c', 'd'].map((x) => `<p>Unrelated posting ${x} with its own long description text.</p>`)];
+  assert.equal(boilerplateParagraphs(mixed).size, 0, 'on 2/6 postings is below minShare 0.5');
+  assert.equal(boilerplateParagraphs(mixed, { minShare: 0.3 }).size, 3);
+  assert.equal(boilerplateParagraphs([]).size, 0);
+  assert.equal(boilerplateParagraphs(null).size, 0);
+  // whitespace / case / trailing punctuation do not defeat matching
+  const v = docs.map((d, i) => (i % 2 ? d.replace("Acme's mission", "ACME's   mission") : d));
+  assert.equal(boilerplateParagraphs(v).size, 3);
+  // no skip set: identical to the plain path
+  assert.deepEqual(extractSections(docs[0], { skip: new Set() }), extractSections(docs[0]));
+});
+
+test('dropUbiquitousKeywords: >90% of n>=20 jobs is dropped and reported', () => {
+  const mk = (n, f) => Array.from({ length: n }, (_, i) => ({ id: String(i), keywords: { responsibilities: [], fit: [], skills: f(i) } }));
+  const jobs = mk(25, (i) => [...(i < 24 ? ['Python'] : []), ...(i < 22 ? ['Go'] : []), ...(i % 5 === 0 ? ['Rust'] : [])]);
+  const { jobs: out, dropped } = dropUbiquitousKeywords(jobs);
+  assert.deepEqual(dropped.skills, [{ label: 'Python', count: 24 }], '24/25 = 96% dropped, 22/25 = 88% kept');
+  assert.ok(out.every((j) => !j.keywords.skills.includes('Python')));
+  assert.equal(out.filter((j) => j.keywords.skills.includes('Go')).length, 22);
+  assert.ok(jobs[0].keywords.skills.includes('Python'), 'input not mutated');
+  const small = mk(19, () => ['Python']);
+  assert.equal(dropUbiquitousKeywords(small).dropped.skills.length, 0, 'boards under 20 jobs are left alone');
+  assert.deepEqual(dropUbiquitousKeywords([]).dropped, { responsibilities: [], fit: [], skills: [] });
+});
+
+test('rekeyBoardJobs: re-derives keywords of normalized jobs without boilerplate', () => {
+  const jobs = Array.from({ length: 6 }, (_, i) => ({
+    id: `x:${i}`, title: 'Engineer', descriptionHtml: role(i, ['Build Kubernetes clusters', 'Write Rust services', 'Ship React apps'][i % 3]),
+    keywords: { responsibilities: [], fit: [], skills: ['Interpretability'] },
+  }));
+  const { jobs: out } = rekeyBoardJobs(jobs);
+  assert.ok(out.every((j) => !j.keywords.skills.includes('Interpretability')));
+  assert.equal(out.filter((j) => j.keywords.skills.includes('Rust')).length, 2);
+  assert.equal(out[0].descriptionHtml, jobs[0].descriptionHtml, 'description untouched');
+});
+
+// Real snapshots are local and gitignored: run when present, on a sample per board.
+test('BUG-5 on real snapshots: no keyword chip on >= 90% of a board (sampled)', { skip: !fs.existsSync(new URL('../data/snapshots/anthropic.json', import.meta.url)) }, async () => {
+  const { normalizeJobs } = await import('../server/normalize.js');
+  for (const slug of ['anthropic', 'anduril', 'openai']) {
+    const url = new URL(`../data/snapshots/${slug}.json`, import.meta.url);
+    if (!fs.existsSync(url)) continue;
+    const snap = JSON.parse(fs.readFileSync(url, 'utf8'));
+    const raws = snap.jobs.slice(0, 150).map((j, i) => ({ sourceId: String(i), title: j.title, department: j.department, html: j.descriptionHtml || '', locationText: '', extraLocations: [] }));
+    const jobs = normalizeJobs(raws, { slug, name: slug });
+    const counts = new Map();
+    for (const j of jobs) for (const f of ['skills', 'responsibilities', 'fit']) for (const l of new Set(j.keywords[f])) counts.set(`${f}:${l}`, (counts.get(`${f}:${l}`) || 0) + 1);
+    const worst = [...counts].sort((a, b) => b[1] - a[1])[0];
+    assert.ok(worst[1] / jobs.length < 0.9, `${slug}: ${worst[0]} on ${worst[1]}/${jobs.length}`);
+    assert.ok([...counts.keys()].filter((k) => k.startsWith('skills:')).length >= 20, `${slug}: role-specific skills survive`);
   }
 });

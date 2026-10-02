@@ -14,6 +14,7 @@ import { fetchLever } from './sources/lever.js';
 import { MAX_BYTES, MAX_BYTES_BUILTIN } from './sources/util.js';
 import { normalizeJobs } from './normalize.js';
 import { vetSalaries } from './vet.js';
+import { rekeyBoardJobs } from './keywords.js';
 import { getCached, setCached, ROOT } from './cache.js';
 import { demoJobs } from './demo.js';
 import { isLibModule } from './lib-modules.js';
@@ -151,7 +152,9 @@ async function readSnapshot(slug) {
   try {
     const parsed = JSON.parse(await fs.readFile(file, 'utf8'));
     const jobs = Array.isArray(parsed) ? parsed : parsed && parsed.jobs;
-    if (Array.isArray(jobs) && jobs.length) value = { jobs, fetchedAt: parsed.fetchedAt || null };
+    // Snapshots may predate the boilerplate fix (QA BUG-5): redo sections and
+    // keywords once per file so company boilerplate never becomes a keyword.
+    if (Array.isArray(jobs) && jobs.length) value = { jobs: rekeyBoardJobs(jobs).jobs, fetchedAt: parsed.fetchedAt || null };
   } catch {
     value = null;
   }

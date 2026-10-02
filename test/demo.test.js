@@ -5,6 +5,7 @@ import { extractSections, extractKeywords, inferSeniority } from '../server/keyw
 import { geocode } from '../server/geo.js';
 import { extractCompExtras } from '../server/keywords.js';
 import { parseSalary } from '../server/salary.js';
+import { normalizeJobs } from '../server/normalize.js';
 
 const COMPANIES = [
   ['anthropic', 'Anthropic', 'https://job-boards.greenhouse.io/anthropic'],
@@ -162,4 +163,27 @@ test('F2: some demo postings have multi-zone pay (text and structured)', () => {
       for (const j of zoned) assert.equal(parseSalary(j.text).zones, 2, j.title);
     }
   }
+});
+
+test('BUG-5: demo boilerplate is on every posting but never becomes a board-wide chip', () => {
+  const triggers = { anthropic: ['Interpretability', 'Multimodal', 'RL'], anduril: ['Computer vision', 'Networking', 'Sensor fusion', 'Security'], openai: ['Security'], 'greenhouse-acme': ['Kubernetes', 'AWS', 'Security'] };
+  for (const [slug, name] of COMPANIES) {
+    const raw = demoJobs(slug, name);
+    assert.ok(raw.every((j) => j.html.includes(`About ${name}`)), 'shared About blurb on every posting');
+    const jobs = normalizeJobs(raw, { slug, name });
+    assert.ok(Array.isArray(jobs.droppedKeywords?.skills), 'droppedKeywords recorded');
+    const counts = new Map();
+    for (const j of jobs) for (const f of ['skills', 'responsibilities', 'fit']) for (const l of new Set(j.keywords[f])) counts.set(`${f}:${l}`, (counts.get(`${f}:${l}`) || 0) + 1);
+    for (const [k, n] of counts) assert.ok(n / jobs.length <= 0.9, `${slug} ${k} on ${n}/${jobs.length}`);
+    for (const t of triggers[slug]) {
+      const n = counts.get(`skills:${t}`) || 0;
+      assert.ok(n < jobs.length * 0.6, `${slug} boilerplate skill ${t} on ${n}/${jobs.length}`);
+    }
+    assert.ok(jobs.every((j, i) => j.descriptionHtml === raw[i].html), 'descriptionHtml untouched');
+    assert.ok(jobs.some((j) => j.extras.equity), 'extras still read the full text');
+  }
+  // Anduril's per-role intro says "autonomous systems" on every posting (not exact
+  // boilerplate), so the 90% guard catches it.
+  const anduril = normalizeJobs(demoJobs('anduril', 'Anduril'), { slug: 'anduril', name: 'Anduril' });
+  assert.ok(anduril.droppedKeywords.skills.some((d) => d.label === 'Autonomy'));
 });

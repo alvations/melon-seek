@@ -480,6 +480,7 @@ async function main() {
   const { listCompanies } = await import(pathToFileURL(path.join(ROOT, 'server', 'companies.js')).href);
   const { normalizeJobs } = await import(pathToFileURL(path.join(ROOT, 'server', 'normalize.js')).href);
   const { vetSalaries } = await import(pathToFileURL(path.join(ROOT, 'server', 'vet.js')).href);
+  const { rekeyBoardJobs } = await import(pathToFileURL(path.join(ROOT, 'server', 'keywords.js')).href);
   let demoJobs = null;
   if (existsSync(path.join(ROOT, 'server', 'demo.js'))) {
     ({ demoJobs } = await import(pathToFileURL(path.join(ROOT, 'server', 'demo.js')).href));
@@ -565,7 +566,7 @@ async function main() {
       try {
         const parsed = JSON.parse(await fs.readFile(snapFile, 'utf8'));
         const jobs = Array.isArray(parsed) ? parsed : parsed && parsed.jobs;
-        if (Array.isArray(jobs) && jobs.length) payload = { company: c, mode: 'snapshot', fetchedAt: parsed.fetchedAt || null, error: null, jobs: vetSalaries(jobs) };
+        if (Array.isArray(jobs) && jobs.length) payload = { company: c, mode: 'snapshot', fetchedAt: parsed.fetchedAt || null, error: null, jobs: vetSalaries(rekeyBoardJobs(jobs).jobs) }; // rekey: QA BUG-5
         else warn(`${rel(snapFile)} has no jobs; using demo`);
       } catch (err) {
         warn(`${rel(snapFile)} unreadable (${err.message}); using demo`);

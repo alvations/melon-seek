@@ -393,3 +393,12 @@ screenshots in `docs/screenshots/`.
   (boilerplate-paragraph removal per board, plus a >90%-share facet guard).
   L1–L4 (empty "Listed" filter, doubled tooltip prefix, CSV filename, phone
   badge) sent to UX.
+- 2026-10-02: features fixed BUG-5 (boilerplate paragraphs shared by at
+  least 50% of a board are excluded from keyword extraction, plus a >90%
+  facet guard; Anthropic "Interpretability" goes from 638/638 to only where
+  it's real). The lead wired rekeyBoardJobs into the snapshot read paths
+  (server/index.js readSnapshot, cached per file; scripts/build-static.js),
+  since stored snapshots predate the fix, and updated the
+  static-build round-trip test to match. The lead also updated the e2e
+  "Listed" test for UX's L1 empty state (options hidden when no job has
+  ageDays). FINAL: npm test 254/254; e2e 33/33 on real snapshot data.

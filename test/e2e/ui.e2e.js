@@ -417,6 +417,15 @@ export function registerUiTests(suite) {
     try {
       const sec = filterSection(page, 'Listed');
       await sec.locator('summary').click();
+      // With no listing ages in the data (no history runs yet), the section shows
+      // only an empty-state note (QA L1); verify that instead of the options.
+      const apiFirst = await apiJobs(ctx, 'anthropic');
+      if (!apiFirst.jobs.some((j) => Number.isFinite(j.ageDays))) {
+        await sec.getByText('Listing dates appear after a few daily runs.').waitFor({ timeout: 5000 });
+        assertEq(await sec.locator('label.radio:visible').count(), 0, 'no visible Listed options without listing ages');
+        noErrors(errors);
+        return;
+      }
       const labels = (await sec.locator('.radio .check-label').allInnerTexts()).map((t) => t.trim());
       assertEq(JSON.stringify(labels), JSON.stringify(['Any time', 'Past week', 'Past month', 'Past 3 months']), 'Listed options');
       const row = sec.locator('label.radio').filter({ hasText: 'Past 3 months' });

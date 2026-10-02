@@ -492,6 +492,29 @@ const COMMON_FIT = [
 // F2 demo: compensation extras phrasing per catalog. Positive and negative
 // senses both appear so extractCompExtras is exercised in demo mode.
 const DEI_LINE = 'We are committed to pay equity and to diversity, equity and inclusion across every team.';
+
+// BUG-5 demo: board-wide boilerplate on every posting, like real boards
+// ("About <company>", recruiting-scam notice, EEO). It deliberately contains
+// keyword triggers (interpretability, autonomy, security, recruiters...) that
+// normalizeJobs must not turn into chips on every job.
+const BOILERPLATE = {
+  anthropic: {
+    about: (n) => `${n}'s mission is to create reliable, interpretable and steerable AI systems. Our research spans interpretability, multimodal models and reinforcement learning, and we work as one team on a few large-scale research efforts.`,
+    notice: (n) => `Your safety matters to us. ${n} recruiters only contact you from official company email addresses and will never ask for payment or banking details. We do sponsor visas, but not for every role and every candidate.`,
+  },
+  anduril: {
+    about: (n) => `${n} is a defense technology company. We combine autonomy, computer vision, sensor fusion, networking and security in products that transform military capabilities.`,
+    notice: (n) => `${n} is committed to the integrity of our talent acquisition process. Our recruiting team will only email you from an official address, and will never request payment or personal financial details.`,
+  },
+  openai: {
+    about: (n) => `${n} is an AI research and deployment company dedicated to ensuring that general-purpose AI benefits all of humanity. We treat safety and security as core to our mission.`,
+    notice: (n) => `We are an equal opportunity employer and consider qualified applicants with arrest or conviction records in accordance with applicable law. Requests for reasonable accommodation can be made via our accessibility form.`,
+  },
+  generic: {
+    about: (n) => `${n} builds software used by millions of people. Our platform runs on Python, Kubernetes and AWS, and we care about security, privacy and accessibility.`,
+    notice: (n) => `${n} is an equal opportunity employer. Our recruiters will only contact you from an official company email address.`,
+  },
+};
 const EXTRAS = {
   anthropic: { equity: 0.35, equityLine: 'Total compensation for full-time roles includes equity.', salesOTE: true, bonus: 0.08, bonusLine: 'This role is eligible for an annual performance bonus.' },
   anduril: { equity: 0.9, equityLine: 'Highly competitive equity grants are part of most full-time offers.', bonus: 0.06, bonusLine: 'A signing bonus may be offered.' },
@@ -635,7 +658,7 @@ const CATALOGS = {
     count: [60, 100],
     style: 'h3',
     salaryLabel: 'Salary range:',
-    blurb: 'is hiring across engineering, product and go-to-market',
+    blurb: 'is hiring across engineering, product, sales and operations',
     locations: [
       { text: 'San Francisco, CA', w: 3 },
       { text: 'New York, NY', w: 2.5 },
@@ -882,8 +905,11 @@ export function demoJobs(companySlug, companyName, opts = {}) {
       : '';
     const eeo = rng.chance(0.25) ? `<p>${DEI_LINE}</p>` : '';
 
+    const bp = BOILERPLATE[slug] || BOILERPLATE.generic;
     const html = [
       `<p><em>Demo posting generated offline by melon-seek. This is not a real job listing.</em></p>`,
+      headingHtml(cat.style, `About ${name}`),
+      `<p>${escapeHtml(bp.about(name))}</p>`,
       headingHtml(cat.style, 'About the role'),
       `<p>${escapeHtml(name)} ${escapeHtml(cat.blurb)}. The ${escapeHtml(team)} team is looking for a ${escapeHtml(title.replace(/,.*$/, ''))} to help us move faster on our most important problems. This role sits within ${escapeHtml(role.dept)}.</p>`,
       headingHtml(cat.style, 'Responsibilities:'),
@@ -895,6 +921,7 @@ export function demoJobs(companySlug, companyName, opts = {}) {
       headingHtml(cat.style, 'Logistics'),
       `<p>Location: ${escapeHtml([locationText, ...extraLocations].join(' | '))}.${rng.chance(cat.visa ?? 0.3) ? ' We sponsor visas where possible and offer relocation support.' : ''}</p>`,
       eeo,
+      `<p>${escapeHtml(bp.notice(name))}</p>`,
     ].join('');
 
     const ageDays = listingAgeDays(rng, role);

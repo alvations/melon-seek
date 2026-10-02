@@ -58,8 +58,23 @@ const BLOCK_TAGS = new Set([
 ]);
 const BOLD_TAGS = new Set(['strong', 'b']);
 
+// Bounded memo: normalizeJobs tokenizes each description for boilerplate
+// detection, sections and keyword text; blocks are read-only to callers.
+const BLOCK_MEMO = new Map();
+const BLOCK_MEMO_MAX = 3000;
+
 /** Tokenize HTML into a flat list of text blocks: {type:'h'|'li'|'p', text, bold}. */
 function htmlToBlocks(html) {
+  const key = String(html || '');
+  const hit = BLOCK_MEMO.get(key);
+  if (hit) return hit;
+  const blocks = tokenizeBlocks(key);
+  if (BLOCK_MEMO.size >= BLOCK_MEMO_MAX) BLOCK_MEMO.delete(BLOCK_MEMO.keys().next().value);
+  BLOCK_MEMO.set(key, blocks);
+  return blocks;
+}
+
+function tokenizeBlocks(html) {
   const src = String(html || '')
     .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, ' ')
     .replace(/<!--[\s\S]*?-->/g, ' ');
@@ -185,7 +200,8 @@ export function extractSections(html, { skip = null } = {}) {
       current = classifyHeading(b.text);
       continue;
     }
-    if (skip && skip.size && skip.has(blockHash(b.text))) continue;
+    // Bullets under a responsibilities/fit heading are role content and are
+    // never treated as boilerplate (the facet guard handles ubiquitous ones).
     if (b.type === 'li' || bulletPara) {
       if (current) {
         const t = cleanBullet(b.text);
@@ -277,10 +293,19 @@ export function boilerplateParagraphs(htmlList, { minShare = 0.5, minJobs = 5 } 
 /** Plain text of a description without the blocks in `skip` (boilerplate hashes). */
 export function descriptionText(html, { skip = null } = {}) {
   if (!skip || !skip.size) return htmlToText(html);
-  return htmlToBlocks(html)
-    .filter((b) => isHeadingBlock(b) || !skip.has(blockHash(b.text)))
-    .map((b) => b.text)
-    .join('\n');
+  const out = [];
+  let current = null;
+  for (const b of htmlToBlocks(html)) {
+    const bulletPara = b.type === 'p' && BULLET_P_RE.test(b.text);
+    if (!bulletPara && isHeadingBlock(b)) {
+      current = classifyHeading(b.text);
+      out.push(b.text);
+      continue;
+    }
+    const inSection = current && (b.type === 'li' || bulletPara);
+    if (inSection || !skip.has(blockHash(b.text))) out.push(b.text);
+  }
+  return out.join('\n');
 }
 
 /**
@@ -323,8 +348,9 @@ export function rekeyBoardJobs(jobs, opts = {}) {
   const list = Array.isArray(jobs) ? jobs : [];
   const skip = boilerplateParagraphs(list.map((j) => (j && j.descriptionHtml) || ''), opts);
   const rekeyed = list.map((j) => {
+    // sections never depend on the boilerplate set (in-section bullets are protected)
     if (!j || typeof j.descriptionHtml !== 'string' || !j.descriptionHtml) return j;
-    const sections = extractSections(j.descriptionHtml, { skip });
+    const sections = extractSections(j.descriptionHtml);
     const keywords = extractKeywords({ title: j.title || '', department: j.department || '', sections, text: descriptionText(j.descriptionHtml, { skip }) });
     return { ...j, sections, keywords };
   });

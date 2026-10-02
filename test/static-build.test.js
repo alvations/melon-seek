@@ -202,7 +202,9 @@ test('v2: melon-packed-2 list round-trips every v2 field exactly', async () => {
   // Independent of the build's own check: recompute what it should have shipped.
   const { vetSalaries } = await import(pathToFileURL(path.join(ROOT, 'server', 'vet.js')).href);
   const history = await import(pathToFileURL(path.join(ROOT, 'server', 'history.js')).href);
-  const expected = history.annotate(vetSalaries(V2.snapshotJobs), V2.ledger, V2.builtAt).map(withoutHtml);
+  const { rekeyBoardJobs } = await import(pathToFileURL(path.join(ROOT, 'server', 'keywords.js')).href);
+  // The build re-keys snapshot jobs (boilerplate fix, QA BUG-5) before vetting.
+  const expected = history.annotate(vetSalaries(rekeyBoardJobs(V2.snapshotJobs).jobs), V2.ledger, V2.builtAt).map(withoutHtml);
   const got = api.unpackJobs(raw).map(withoutHtml);
   assert.deepEqual(got, expected);
   for (const k of ['postedAt', 'firstSeenAt', 'ageDays', 'ageIsMinimum', 'freshness', 'repost', 'extras', 'reqId']) {

@@ -239,6 +239,56 @@ and the prompt copy).
       recognises (2 zones). OpenAI's version is structured instead:
       `salary.zones: 2` plus a two-tier `payRanges`.
 
+20. **BUG-5: board boilerplate is not a keyword (2 layers).**
+    1. **`boilerplateParagraphs(htmlList, {minShare 0.5, minJobs 5})`.**
+       It uses the same block tokenizer as `extractSections`. A block is a
+       paragraph or list item; its key is the lower-cased text with
+       whitespace collapsed, curly quotes made straight, and trailing
+       punctuation removed. Keys are hashed with cyrb53 (53-bit, pure JS,
+       browser-safe). A hash goes in the set when the block appears on at
+       least `ceil(0.5 n)` postings (and at least 2). Headings and blocks
+       under 20 characters are never included, so "Responsibilities:" and
+       "Benefits" keep structuring sections.
+       - `normalizeJobs` computes the set once per board.
+         `normalizeJob(raw, company, {boilerplate})` gets keyword text from
+         `descriptionText(html, {skip})`.
+       - Two things keep reading the full text: `descriptionHtml` (for
+         display) and `extras`, because the equity line is boilerplate
+         *and* the signal.
+       - **Refinement beyond the brief:** bullets under a
+         responsibilities or fit heading are always kept as role content,
+         even when shared. So `sections` never depend on the set, and the
+         guard handles a truly ubiquitous bullet. On real data this
+         changes nothing: at 0.5, 0 of 95,394 section bullets (Anthropic, Anduril, OpenAI, Shield AI, Scale AI) were
+         boilerplate.
+       - **Real-data check:** the share distribution is bimodal. Block
+         shares are about 100% or below 30%, and no block falls in the
+         30–50% band on any board. The boilerplate set holds 13 blocks
+         for Anthropic, 13 for Anduril, 8 for OpenAI, 5 for Shield AI and
+         7 for Scale AI.
+    2. **`dropUbiquitousKeywords(jobs, {maxShare 0.9, minJobs 20})`.** It
+       runs after extraction in `normalizeJobs`. The dropped labels and
+       their counts are attached to the returned array as a
+       *non-enumerable* `jobs.droppedKeywords` (JSON and deepEqual ignore
+       it), so the server and build can copy it into
+       `meta.droppedKeywords`. On real snapshots the guard drops nothing,
+       because layer 1 already fixes every board. In demo data it fires
+       once: Anduril's per-role intro says "autonomous systems" on every
+       posting, so "Autonomy" is dropped.
+    3. **`rekeyBoardJobs(jobs)`.** It re-derives sections and keywords of
+       *already normalized* jobs (snapshot or cache files written by older
+       code) with both layers, for the server and build to apply.
+    4. **Performance.** A bounded memo (3,000 entries) shares one
+       tokenization per description across the boilerplate, sections and
+       text passes. On Anduril's 2,418 postings, `normalizeJobs` takes about
+       12–15 s versus about 14 s before. Keyword regexes (about 5 ms per
+       job) were already the cost.
+    5. **Demo.** Every posting now has an "About <company>" blurb and a
+       recruiting-scam or EEO notice, both written to contain keyword
+       triggers (interpretability, multimodal, autonomy, computer vision,
+       security, recruiters, visa). Without the fix these become chips on
+       100% of jobs. The generic intro no longer says "go-to-market".
+
 ## 4. Replayable steps
 ```sh
 cd /home/user/melon-seek
@@ -261,6 +311,7 @@ node docs/process/scripts/extras-eval.mjs eval             # precision/recall of
 node docs/process/scripts/extras-eval.mjs audit equity     # every distinct evidence template over all snapshot postings
 node docs/process/scripts/extras-eval.mjs audit bonus
 node --test test/keywords.test.js test/geo.test.js test/demo.test.js
+node docs/process/scripts/boilerplate-report.mjs anthropic anduril openai   # BUG-5 before/after chip counts on real snapshots
 ```
 
 ## 5. Verification
@@ -333,6 +384,46 @@ node --test test/keywords.test.js test/geo.test.js test/demo.test.js
   which belongs to the product workstream (`public/features`) and does not
   import my modules.
 
+- **BUG-5 (2026-10-02),** measured with
+  `docs/process/scripts/boilerplate-report.mjs` on the real snapshots.
+  "Before" is the old per-job path and "after" is `normalizeJobs`.
+  - **Labels on ≥95% of a board's jobs, before → after:** Anthropic 4 → 0,
+    Anduril 6 → 0, OpenAI 1 → 0, Cohere 3 → 0, Scale AI 2 → 0,
+    Shield AI 2 → 0, Palantir 0 → 0, xAI 0 → 0.
+  - **Highest remaining share:** Anduril fit "Security clearance" at 81%.
+    This is real: most of its roles need a clearance. On every board, all
+    section bullets are kept.
+  - **Anthropic (n = 638), top-10 skills:**
+    - Before: Interpretability 638, Multimodal 638, Recruiting 638,
+      Machine learning 270, LLMs 252, Python 186, Security 183, GTM 174,
+      Alignment 128, Enterprise sales 121.
+    - After: Machine learning 270, LLMs 252, Python 186, Security 183,
+      GTM 174, Alignment 128, Enterprise sales 121, Marketing 120,
+      Agents 115, Observability 98.
+    - Fit: "Visa sponsorship" goes from 638 to 0. The rest of the top 10
+      is unchanged.
+  - **Anduril (n = 2,418), top-10 skills:**
+    - Before: Autonomy, Computer vision, Networking, Recruiting, Security
+      and Sensor fusion at 2,418 each, then Python 691, Robotics 628,
+      Simulation 603, Prototyping 551.
+    - After: Autonomy 730, Python 691, Robotics 628, Simulation 603,
+      Prototyping 551, Security 505, Analytics 495, Mechanical design 476,
+      C++ 459, Controls 438.
+    - Fit is essentially unchanged: Security clearance 1,947,
+      Bachelor's 1,534 and so on.
+  - **OpenAI (n = 833), top-10 skills:**
+    - Before: Security 833, GTM 249, Python 230, Observability 206,
+      Agents 200, LLMs 184, Prototyping 176, Marketing 165,
+      Machine learning 160, Alignment 139.
+    - After: the same, except Security 833 → 263.
+    - Fit and responsibilities are unchanged except Research 367 → 360.
+  - **Tests:** `node --test test/keywords.test.js test/geo.test.js
+    test/demo.test.js` → **45/45 pass**. The new tests cover
+    boilerplate thresholds and normalization, protected in-section
+    bullets, guard bounds, `rekeyBoardJobs`, a sampled real-snapshot check
+    (skipped when the snapshots are absent), and demo boilerplate in
+    `normalizeJobs`. `npm test` → **254/254 pass**.
+
 ## 6. Known gaps and follow-ups
 - Coordinates are approximate and come from general knowledge, not a
   surveyed dataset. Small towns that are not in the gazetteer fall back to the
@@ -362,6 +453,19 @@ node --test test/keywords.test.js test/geo.test.js test/demo.test.js
   own line ("All other US locations: $335,000—$445,000 USD") is not counted
   as a zone. The phrase "The … salary range … in <locations> is:" followed
   by a range line is. The demo uses the second form.
+- **BUG-5 wiring outside my files (lead or backend).** The server serves
+  snapshot and cache jobs as stored (`server/index.js` `readSnapshot` and
+  the cache path), and `scripts/build-static.js` does the same. Their
+  keywords were computed by the old code, so QA's API check stays FAIL in
+  snapshot or cache mode until either:
+  - the snapshots are regenerated (`npm run snapshot`), or
+  - those paths call `rekeyBoardJobs(jobs).jobs` once per board, with
+    `meta.droppedKeywords` coming from its `dropped`.
+
+  Live and demo paths, including the browser's `public/api.js`
+  normalization, already get the fix through `normalizeJobs`.
+- `jobs.droppedKeywords` is attached by `normalizeJobs` but is not yet in
+  any response `meta`, because that is the server and build's code.
 - The " and " separator splits multi-word country names such as "Trinidad and
   Tobago". This is rare in job boards.
 
@@ -391,3 +495,9 @@ node --test test/keywords.test.js test/geo.test.js test/demo.test.js
   and bonus phrasing per catalog with DEI and nice-to-have negatives, and
   multi-zone pay (text, plus `salary.zones` and `payRanges` for OpenAI).
   Added `docs/process/scripts/extras-eval.mjs`.
+- 2026-10-02: BUG-5 fixed in two layers. keywords.js gained
+  `boilerplateParagraphs`, `descriptionText`, `dropUbiquitousKeywords`,
+  `rekeyBoardJobs`, a tokenizer memo and `extractSections(html, {skip})`.
+  `normalizeJobs` and `normalizeJob` take the per-board set and run the
+  guard (`jobs.droppedKeywords`). demo.js gained realistic shared
+  boilerplate. Added `docs/process/scripts/boilerplate-report.mjs`.
