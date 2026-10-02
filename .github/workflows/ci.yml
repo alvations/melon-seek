@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Smoke test (start server, hit API)
+        env:
+          PORT: 5173
+        run: |
+          set -euo pipefail
+          npm start > server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+
+          # Wait up to ~30s for the server to come up.
+          for i in $(seq 1 30); do
+            if curl -fsS "http://127.0.0.1:${PORT}/api/companies" > /dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+
+          echo "::group::GET /api/companies"
+          curl -fsS "http://127.0.0.1:${PORT}/api/companies" | tee companies.json | jq .
+          echo "::endgroup::"
+          jq -e 'type == "array" and length >= 3 and (map(.slug) | index("anthropic") != null)' companies.json
+
+          echo "::group::GET /api/jobs?company=anthropic"
+          curl -fsS --max-time 90 "http://127.0.0.1:${PORT}/api/jobs?company=anthropic" > jobs.json
+          jq '{mode, fetchedAt, error, company: .company.slug, count: (.jobs | length)}' jobs.json
+          echo "::endgroup::"
+          jq -e '(.jobs | type == "array") and (.mode | IN("live","cache","snapshot","demo"))' jobs.json
+
+      - name: Server log
+        if: always()
+        run: cat server.log || true
