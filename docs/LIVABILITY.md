@@ -272,9 +272,9 @@ table), `sourceNotes` (shared notes referenced by `via` / `note`).
 | Field | Source | As of | License / terms | Refresh |
 |---|---|---|---|---|
 | `bigMacUSD`, `fxPerUSD`, `*USD` conversions | [The Economist Big Mac index](https://github.com/TheEconomist/big-mac-data), `source-data/big-mac-source-data-v2.csv` (per-country prices incl. each euro member; `dollar_ex` exchange rates from Refinitiv/LSEG) | release 2026-07-01 | data CC BY 4.0, code MIT | automatic, monthly |
-| `rent1brCenterLocal`, `rent1brOutsideLocal` | [Numbeo](https://www.numbeo.com/cost-of-living/) city pages ("1 bedroom apartment in city centre / outside of centre") | page month, 2026-05 to 2026-10 (64 of 89 are 2026-09) | crowd-sourced, commercial; individual figures quoted with attribution | manual |
-| `costIndex` | derived: `100 × Numbeo "estimated monthly costs for a single person, excluding rent" ÷ New York's` | same pages | as above | manual |
-| `baseline.nycBasketUSD` | Numbeo New York single-person estimate excluding rent, $1,665.2/month × 12 = **$19,982** | 2026-09 | as above | manual |
+| `rent1brCenterLocal`, `rent1brOutsideLocal` | [Numbeo](https://www.numbeo.com/cost-of-living/) city pages ("1 bedroom apartment in city centre / outside of centre") | page month, 2026-05 to 2026-10 (64 of 89 are 2026-09) | crowd-sourced, commercial; **terms restrict reuse, not cleared (§4.1)** | manual; replacement plan §7 |
+| `costIndex` | derived: `100 × Numbeo "estimated monthly costs for a single person, excluding rent" ÷ New York's` | same pages | as above | manual; replacement plan §7 |
+| `baseline.nycBasketUSD` | Numbeo New York single-person estimate excluding rent, $1,665.2/month × 12 = **$19,982** | 2026-09 | as above | manual; replacement plan §7 |
 | cross-checks (not used in the formula) | [Zumper National Rent Report](https://www.zumper.com/rent-research/national-rent-report) Sep 2026 (SF $4,400, NYC $4,580, Seattle $1,960, Austin $1,520, DC $2,250 in Jul); Numbeo's published index (SF 90.32, London 85.9, Zurich 118.5-123.1); [BLS CE 2024](https://fred.stlouisfed.org/series/CXUTOTALEXPLB0502M) one-person households $48,794/yr all-in | 2024-2026 | public reports | n/a |
 | tax rules | `TAX_SOURCES` in `server/juice.js` (table above) | per jurisdiction | official schedules | manual, yearly |
 
@@ -288,7 +288,8 @@ figure's provenance. The official hosts were also unreachable from the build san
 each figure was read from search-result snippets of the Numbeo page and recorded with
 its page month. Only these figures are used (89 cities × 3 values out of Numbeo's
 ~10,000 cities); nothing is scraped and the refresh job does not touch them. Official
-cross-checks are stored where found. See §6 for upgrading to official feeds.
+cross-checks are stored where found. **Numbeo's terms do not allow this reuse without
+permission (§4.1)**, so §7 lays out the replacement with official and open sources.
 
 **Why costIndex is derived rather than Numbeo's published index.** The living-cost line
 is `costIndex × NYC basket`. Taking the index as the ratio of Numbeo's own single-person

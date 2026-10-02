@@ -20,7 +20,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.
 const RETRIEVED = '2026-10-02';
 const NUMBEO = (slug) => `https://www.numbeo.com/cost-of-living/in/${slug}`;
 const NUMBEO_TERMS = 'Numbeo terms of use (https://www.numbeo.com/common/terms_of_use.jsp, read via search summaries 2026-10-02): free for personal use (incl. personal blogs/websites with a link back) and for academic and journalistic works with credit; otherwise no copying, distribution, display or derivative works without prior written permission; automated collection (scraping/crawling) prohibited; even the paid commercial licence does not allow republication via public-facing APIs or data feeds without consent. Treat these figures as not cleared for redistribution.';
-const VIA = 'Read from the Numbeo page through web-search result snippets on 2026-10-02 (direct page fetches are blocked in the build sandbox). Numbeo is crowd-sourced and commercial: individual figures are quoted with attribution; the dataset is not redistributed.';
+const VIA = 'Read from the Numbeo page through web-search result snippets on 2026-10-02 (direct page fetches are blocked in the build sandbox). Numbeo is crowd-sourced and commercial; its terms restrict reuse (see numbeo-terms and docs/LIVABILITY.md section 4.1).';
 
 // New York City baseline (Numbeo, Sep 2026): single-person monthly costs excluding rent.
 const NYC_SINGLE = { usd: 1665.2, eur: 1466.0 };
@@ -244,7 +244,7 @@ async function main(argv) {
     description: 'Per-city rent, cost-of-living index, Big Mac price, FX and tax jurisdiction used by server/juice.js. Every numeric field has a sources entry (name, url, asOf). Estimates are marked estimated: true. See docs/LIVABILITY.md.',
     version: 1,
     updated: RETRIEVED,
-    license: 'Numbeo figures are quoted individually with attribution (numbeo.com terms apply to their data). Big Mac data: The Economist, CC BY 4.0. Compilation: same license as this repository.',
+    license: 'Numbeo figures (class aggregator/estimate, terms numbeo-terms) are NOT cleared for redistribution under the Numbeo terms of use; see dataStatus and docs/LIVABILITY.md section 4.1. Big Mac data and FX: The Economist, CC BY 4.0 (attribution required). Tax tables: official schedules cited in server/juice.js TAX_SOURCES.',
     baseline: {
       nycBasketUSD: Math.round(NYC_SINGLE.usd * 12),
       monthlyUSD: NYC_SINGLE.usd,
