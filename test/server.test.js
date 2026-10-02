@@ -594,7 +594,7 @@ test('F3: meta.compstimate via product backtest (feature-detected; null for demo
     const m = body.meta.compstimate;
     assert.deepEqual({ ...m, computedAt: undefined }, { medianAbsPctError: 0.123, within10Pct: 0.41, n: 2, seed: 20261002, computedAt: undefined });
     assert.ok(Date.parse(m.computedAt));
-    assert.deepEqual(calls[0][1], { seed: 20261002, maxN: 500 });
+    assert.deepEqual(calls[0][1], { seed: 20261002, maxN: 500, dedupe: 'role' });
     await get('/api/jobs?source=lever&board=example');
     assert.equal(calls.length, 1, 'memoized per job list');
     const demo = await (await get('/api/jobs?company=anthropic')).json();

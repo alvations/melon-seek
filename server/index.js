@@ -237,7 +237,10 @@ export async function getJobs(company, opts = {}) {
 
 /* ------------------------------------------------------ compstimate (F3) */
 
-export const BACKTEST_OPTS = Object.freeze({ seed: 20261002, maxN: 500 });
+// dedupe "role": also leave out postings that share the role name and pay band, so
+// boards that copy one band across many titles (xAI, Palantir) do not report a
+// near-zero error. This is the cautious, publishable accuracy (docs/process/product.md).
+export const BACKTEST_OPTS = Object.freeze({ seed: 20261002, maxN: 500, dedupe: "role" });
 /** How long a request waits for a backtest before answering with compstimate: null. */
 export const BACKTEST_WAIT_MS = Number(process.env.MELON_BACKTEST_WAIT_MS) || 400;
 const WORKER_URL = new URL('./compstimate-worker.js', import.meta.url);

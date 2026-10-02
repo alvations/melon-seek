@@ -360,3 +360,12 @@ screenshots in `docs/screenshots/`.
   persistence (artifact default; HISTORY_STORE=branch switch), meta files,
   CSV, market.json and api.js v2 merges. The lead isolated og.test.js's
   history dir. npm test 248/248.
+- 2026-10-02: product finished roles.js (92/100 role-family hand check on a
+  fresh seed), comps.js, backtest() with dedupe modes, and accuracy
+  helpers. LEAD DECISION: publish the cautious backtest (BACKTEST_OPTS
+  dedupe "role"), because the default "title" dedupe gives xAI and Palantir
+  a 0.3% error that only reflects one pay band copied across many titles.
+  Cautious numbers: xAI ≈14%, Palantir ≈5%. Updated the server test
+  expectation. UX asked to fix the accuracy-unit bug in app.js
+  (compAccuracy multiplied percents ≤1.5 by 100) and finish the comps
+  wiring. npm test 249/249.
