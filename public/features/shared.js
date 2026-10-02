@@ -231,16 +231,16 @@ export function uid(prefix = 'ms') { uidN += 1; return `${prefix}-${uidN.toStrin
  * it on pointer hover and keyboard focus. Content is set with textContent only.
  */
 export function createTooltip(root) {
-  const tip = h('div', { class: 'ms-tip', role: 'tooltip', id: uid('tip'), hidden: true });
+  const tip = h('div', { class: 'msf-tip', role: 'tooltip', id: uid('tip'), hidden: true });
   root.appendChild(tip);
   let owner = null;
 
   function render(c) {
     tip.replaceChildren();
-    if (c.value != null) tip.appendChild(h('div', { class: 'ms-tip__value' }, c.value));
-    if (c.label != null) tip.appendChild(h('div', { class: 'ms-tip__label' }, c.label));
+    if (c.value != null) tip.appendChild(h('div', { class: 'msf-tip__value' }, c.value));
+    if (c.label != null) tip.appendChild(h('div', { class: 'msf-tip__label' }, c.label));
     if (c.rows && c.rows.length) {
-      tip.appendChild(h('dl', { class: 'ms-tip__rows' },
+      tip.appendChild(h('dl', { class: 'msf-tip__rows' },
         c.rows.map(([k, v]) => [h('dt', null, k), h('dd', null, v)])));
     }
   }

@@ -14,3 +14,4 @@ docs
 coverage
 .env
 .env.*
+dist

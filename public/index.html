@@ -8,22 +8,22 @@
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#11141a" media="(prefers-color-scheme: dark)">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
-  <link rel="stylesheet" href="/viz/viz.css">
-  <link rel="stylesheet" href="/styles.css">
-  <script src="/vendor/leaflet/leaflet.js"></script>
-  <script type="module" src="/app.js"></script>
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="viz/viz.css">
+  <link rel="stylesheet" href="styles.css">
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script type="module" src="./app.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#resultsList">Skip to results</a>
 
   <header class="topbar">
     <a class="brand" href="#" aria-label="melon·seek home">
-      <img src="/favicon.svg" alt="" width="28" height="28">
+      <img src="favicon.svg" alt="" width="28" height="28">
       <span class="brand-word">melon<span class="brand-dot">·</span>seek</span>
     </a>
 
@@ -126,8 +126,8 @@
         <h2 class="results-title" id="resultsTitle" aria-live="polite">Loading roles…</h2>
         <label class="select-field select-field--compact"><span class="sr-only">Sort by</span>
           <select id="sortBy">
-            <option value="salary-desc">Salary: high to low</option>
-            <option value="salary-asc">Salary: low to high</option>
+            <option value="salary-desc">Highest pay</option>
+            <option value="salary-asc">Lowest pay</option>
             <option value="newest">Newest</option>
             <option value="title">Title A–Z</option>
           </select>

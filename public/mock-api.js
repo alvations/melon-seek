@@ -190,3 +190,11 @@ export async function mockApi(path) {
   }
   throw new Error('404 ' + url.pathname);
 }
+
+// Same interface as public/api.js.
+export const getCompanies = () => mockApi('/api/companies');
+export function getJobs(query, { refresh } = {}) {
+  const p = new URLSearchParams(query);
+  if (refresh) p.set('refresh', '1');
+  return mockApi(`/api/jobs?${p}`);
+}

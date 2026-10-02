@@ -3,11 +3,32 @@
 // list, the job drawer and the company switcher. Rendering of the salary
 // chart and the map is delegated to ./viz/* (see docs/CONTRACT.md).
 
-import { colorFor, formatMoney } from './viz/palette.js';
-import { createChart } from './viz/chart.js';
+import { colorFor, formatMoney, resetColors, assignColors, otherColor, SLOT_COUNT } from './viz/palette.js';
+import { createChart, keyOf } from './viz/chart.js';
 import { createMap } from './viz/map.js';
+import * as liveApi from './api.js';
 
+// ?mock=1 swaps the data layer for a local generator (development only).
 const MOCK = new URLSearchParams(location.search).has('mock');
+const dataApi = MOCK ? await import('./mock-api.js') : {
+  // Prefer api.js's high-level helpers; fall back to its apiFetch, then to fetch.
+  getCompanies: () => (liveApi.getCompanies ? liveApi.getCompanies() : httpGet('/api/companies')),
+  getJobs: (query, opts = {}) => {
+    if (liveApi.getJobs) return liveApi.getJobs(query, opts);
+    const p = new URLSearchParams(query);
+    if (opts.refresh) p.set('refresh', '1');
+    return httpGet(`/api/jobs?${p}`, opts.signal);
+  },
+};
+
+async function httpGet(path, signal) {
+  if (liveApi.apiFetch) return liveApi.apiFetch(path, { signal });
+  const res = await fetch(path.replace(/^\//, ''), { signal, headers: { accept: 'application/json' } });
+  let body = null;
+  try { body = await res.json(); } catch { /* non-JSON */ }
+  if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`);
+  return body;
+}
 
 /* ------------------------------------------------------------------ utils */
 
@@ -44,7 +65,7 @@ const ICON = {
   alert: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3 2.5 16.5h15L10 3Z"/><path d="M10 8v4M10 14.2v.3"/></svg>',
 };
 
-const SENIORITY_ORDER = ['Intern', 'Entry', 'Mid', 'Senior', 'Staff+', 'Manager', 'Director+'];
+const SENIORITY_ORDER = ['Intern', 'Entry', 'Mid', 'Senior', 'Staff+', 'Manager', 'Director+', 'Unspecified'];
 const SOURCE_LABEL = { greenhouse: 'Greenhouse', ashby: 'Ashby', lever: 'Lever' };
 const FALLBACK_COMPANIES = [
   { slug: 'anthropic', name: 'Anthropic', source: 'greenhouse', board: 'anthropic', color: '#d97757' },
@@ -76,6 +97,13 @@ function salaryRange(s) {
   if (!s) return null;
   if (s.min === s.max || s.max == null) return money(s.min, s.currency);
   return `${money(s.min, s.currency)}–${money(s.max, s.currency).replace(/^[^\d]+/, '')}`;
+}
+
+/** "$137K"–"$338K" -> "$137–338K" when units match. */
+function compactRange(a, b) {
+  const x = money(a), y = money(b);
+  const ux = x.slice(-1), uy = y.slice(-1);
+  return ux === uy && /[KM]/.test(ux) ? `${x.slice(0, -1)}–${y.replace(/^[^\d]+/, '')}` : `${x}–${y.replace(/^[^\d]+/, '')}`;
 }
 
 function quantile(sorted, q) {
@@ -131,32 +159,14 @@ function saveBoards(list) {
 
 /* ------------------------------------------------------------------- API */
 
-async function api(path, signal) {
-  if (MOCK) {
-    const { mockApi } = await import('./mock-api.js');
-    const res = await mockApi(path);
-    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-    return res;
-  }
-  const res = await fetch(path, { signal, headers: { accept: 'application/json' } });
-  let body = null;
-  try { body = await res.json(); } catch { /* non-JSON */ }
-  if (!res.ok) throw new Error(body?.error || `HTTP ${res.status} ${res.statusText}`.trim());
-  return body;
-}
-
 const isCustomKey = (key) => key.includes(':');
-function jobsPath(key, refresh) {
-  const p = new URLSearchParams();
-  if (isCustomKey(key)) {
-    const [source, board] = key.split(':');
-    const saved = boards.find((b) => b.source === source && b.board === board);
-    p.set('source', source);
-    p.set('board', board);
-    if (saved?.name || S.cn) p.set('name', saved?.name || S.cn);
-  } else p.set('company', key);
-  if (refresh) p.set('refresh', '1');
-  return `/api/jobs?${p}`;
+
+/** Company key -> the selector getJobs() expects. */
+function jobsQuery(key) {
+  if (!isCustomKey(key)) return { company: key };
+  const [source, board] = key.split(':');
+  const saved = boards.find((b) => b.source === source && b.board === board);
+  return { source, board, name: saved?.name || S.cn || board };
 }
 
 /* ----------------------------------------------------------------- state */
@@ -249,7 +259,7 @@ function activeFilterCount(st = S) {
 /* ------------------------------------------------------------------ data */
 
 const locKey = (l) => (l.remote ? l.name || 'Remote' : l.city || l.name || 'Unknown');
-const deptKey = (j) => j.department || 'Other';
+const deptKey = (j) => keyOf(j, 'department'); // same keys the chart colors by
 const empKey = (j) => j.employmentType || 'Unspecified';
 
 function prepare(jobs) {
@@ -291,7 +301,7 @@ function failures(j, F, now) {
   if (salActive && (!j.salary || (F.smin != null && j.salary.max < F.smin) || (F.smax != null && j.salary.min > F.smax))) out.push('sal');
   if (F.d.size && !F.d.has(deptKey(j))) out.push('d');
   if (F.l.size && !j._locKeys.some((k) => F.l.has(k))) out.push('l');
-  if (F.s.size && !F.s.has(j.seniority)) out.push('s');
+  if (F.s.size && !F.s.has(j.seniority || 'Unspecified')) out.push('s');
   if (F.e.size && !F.e.has(empKey(j))) out.push('e');
   if (F.r === 'remote' && !j.remote) out.push('r');
   if (F.r === 'onsite' && !j.locations.some((l) => !l.remote)) out.push('r');
@@ -335,7 +345,7 @@ function derive() {
         if (!fc.lGroup.has(k)) fc.lGroup.set(k, l.remote ? '~remote' : l.country || 'ZZ');
       }
     }
-    if (counts('s')) bump(fc.s, j.seniority || 'Mid');
+    if (counts('s')) bump(fc.s, j.seniority || 'Unspecified');
     if (counts('e')) bump(fc.e, empKey(j));
     if (counts('r')) {
       fc.r.any++;
@@ -395,10 +405,12 @@ async function loadJobs({ refresh = false } = {}) {
   abortCtl = new AbortController();
   area = null;
   hoverId = null;
+  resetColors();
+  mapFitPending = true;
   data = { status: 'loading', jobs: [], company: companyInfo(S.c), mode: null, fetchedAt: null, error: null };
   render();
   try {
-    const res = await api(jobsPath(S.c, refresh), abortCtl.signal);
+    const res = await dataApi.getJobs(jobsQuery(S.c), { refresh, signal: abortCtl.signal });
     if (seq !== loadSeq) return;
     data = {
       status: 'ready',
@@ -437,6 +449,7 @@ let visible = []; // sorted list after map-area filter
 
 function render() {
   derived = data.status === 'ready' ? derive() : { filtered: [], fc: null };
+  computeColorKeys(derived.filtered);
   const listed = area ? derived.filtered.filter((j) => area.ids.has(j.id)) : derived.filtered;
   visible = sortJobs(listed);
 
@@ -546,7 +559,7 @@ function summarize(list, noun) {
 function quickLabel(id) {
   switch (id) {
     case 'salary':
-      if (S.smin != null && S.smax != null) return `${money(S.smin)}–${money(S.smax).slice(1)}`;
+      if (S.smin != null && S.smax != null) return compactRange(S.smin, S.smax);
       if (S.smin != null) return `${money(S.smin)}+`;
       if (S.smax != null) return `Up to ${money(S.smax)}`;
       return S.so ? 'Has salary' : null;
@@ -680,7 +693,7 @@ function makeSalary({ compact = false } = {}) {
   return { el, sync };
 }
 
-function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8, order = null } = {}) {
+function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8, order = null, colorDim = null } = {}) {
   let query = '';
   let expanded = false;
   const input = h('input', { type: 'search', class: 'fsearch', placeholder: 'Search…', 'aria-label': 'Search options' });
@@ -714,6 +727,7 @@ function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8,
       return h('label', { class: `check${it.count === 0 ? ' is-zero' : ''}`, for: id },
         h('input', { type: 'checkbox', id, value: it.key, checked: selected.has(it.key) }),
         h('span', { class: 'check-box', 'aria-hidden': 'true' }),
+        colorDim && S.cb === colorDim && it.key !== 'Remote' && !/^Remote/.test(it.key) ? h('span', { class: 'dot dot--sm', style: `--dot:${vizColor(it.key)}`, 'aria-hidden': 'true' }) : null,
         h('span', { class: 'check-label' }, it.key), h('span', { class: 'check-count' }, it.count));
     };
 
@@ -836,9 +850,9 @@ function renderFilterPanel() {
     const sel = (key) => h('span', { class: 'fsec-badge', dataset: { badge: key } });
     panel = [
       section('Salary', makeSalary(), { badge: sel('sal') }),
-      section('Department', makeChecklist('d'), { badge: sel('d') }),
-      section('Location', makeChecklist('l', { grouped: true, limit: 10, searchable: 'auto' }), { badge: sel('l') }),
-      section('Seniority', makeChecklist('s', { order: SENIORITY_ORDER, limit: 10 }), { badge: sel('s') }),
+      section('Department', makeChecklist('d', { colorDim: 'department' }), { badge: sel('d') }),
+      section('Location', makeChecklist('l', { grouped: true, limit: 10, searchable: 'auto', colorDim: 'location' }), { badge: sel('l') }),
+      section('Seniority', makeChecklist('s', { order: SENIORITY_ORDER, limit: 10, colorDim: 'seniority' }), { badge: sel('s') }),
       section('Remote', makeRemote(), { badge: sel('r') }),
       ...KW_CATS.map((k) => section(k.title, makeCloud(k), { badge: sel(k.key) })),
       section('Employment type', makeChecklist('e', { limit: 6 }), { open: false, badge: sel('e') }),
@@ -863,7 +877,7 @@ const popover = { id: null, anchor: null, parts: [] };
 function popoverParts(id) {
   switch (id) {
     case 'salary': return [makeSalary({ compact: true })];
-    case 'dept': return [makeChecklist('d', { limit: 12 })];
+    case 'dept': return [makeChecklist('d', { limit: 12, colorDim: 'department' })];
     case 'loc': return [makeChecklist('l', { grouped: true, limit: 14 })];
     case 'sen': return [makeChecklist('s', { order: SENIORITY_ORDER, limit: 10 })];
     case 'remote': return [makeRemote()];
@@ -1009,8 +1023,8 @@ function renderKpis() {
   el.replaceChildren(
     tile('Open roles', st.n.toLocaleString(), st.n === total ? `at ${data.company?.name || 'this company'}` : `of ${total.toLocaleString()} total`),
     tile('With salary', st.n ? `${pct}%` : '—', `${st.withSalary.toLocaleString()} list pay`),
-    tile('Median pay', money(st.median), 'midpoint of range', 'kpi--accent'),
-    tile('Middle 50%', st.p25 != null ? `${money(st.p25)}–${money(st.p75).replace(/^\$/, '')}` : '—', 'P25 – P75'),
+    tile('Median pay', money(st.median), 'range midpoint', 'kpi--accent'),
+    tile('Middle 50%', st.p25 != null ? compactRange(st.p25, st.p75) : '—', 'P25 – P75'),
     tile('Top department', st.top ? st.top[0] : '—', st.top ? `${plural(st.top[1], 'role')} · ${Math.round((st.top[1] / st.n) * 100)}%` : '', 'kpi--wide'),
   );
 }
@@ -1019,6 +1033,8 @@ function renderKpis() {
 
 let chart = null;
 let map = null;
+let mapFitPending = true;
+let colorKeys = new Set(); // keys the chart gives a slot; others render as Other
 const vizSig = { chart: '', map: '' };
 let vizError = null;
 
@@ -1104,10 +1120,27 @@ function renderViz() {
     vizSig[S.m] = sig;
     try {
       if (S.m === 'chart') chart.update(jobs, { groupBy: S.g, colorBy: S.cb });
-      else map.update(jobs);
+      else { map.update(jobs, mapFitPending ? { fit: true } : undefined); mapFitPending = false; }
     } catch (err) { console.error('viz update failed', err); }
   }
   highlightViz();
+}
+
+function computeColorKeys(jobs) {
+  colorKeys = new Set();
+  if (S.cb === 'none') return;
+  const counts = new Map();
+  for (const j of jobs) if (j.salary) { const k = keyOf(j, S.cb); counts.set(k, (counts.get(k) || 0) + 1); }
+  const ordered = [...counts.keys()].sort((a, b) => counts.get(b) - counts.get(a) || String(a).localeCompare(String(b)));
+  const top = ordered.length > SLOT_COUNT ? ordered.slice(0, SLOT_COUNT - 1) : ordered;
+  assignColors(top); // same (sticky) slots the chart assigns, so list/filter dots match its legend
+  colorKeys = new Set(top);
+}
+
+/** Color a job / key the same way the chart does under the current "Color by". */
+function vizColor(key) {
+  if (S.cb === 'none') return 'var(--ms-border-strong)';
+  return colorKeys.has(key) ? colorFor(key) : otherColor();
 }
 
 function highlightViz() {
@@ -1123,7 +1156,7 @@ function hoverFromViz(job) {
 
 function stateCard({ icon = null, title, body, action = null, tone = '' }) {
   return h('div', { class: `state-card ${tone ? `state-card--${tone}` : ''}` },
-    icon ? h('div', { class: 'state-ico', html: icon }) : h('div', { class: 'state-ico state-ico--melon' }, h('img', { src: '/favicon.svg', alt: '' })),
+    icon ? h('div', { class: 'state-ico', html: icon }) : h('div', { class: 'state-ico state-ico--melon' }, h('img', { src: 'favicon.svg', alt: '' })),
     h('h3', null, title), body ? h('p', null, body) : null,
     action ? h('button', { type: 'button', class: 'btn btn--primary btn--sm', onclick: action[1] }, action[0]) : null);
 }
@@ -1175,7 +1208,7 @@ function topTags(job, n = 3) {
 }
 
 function card(job) {
-  const color = colorFor(deptKey(job));
+  const color = vizColor(S.cb === 'none' ? null : keyOf(job, S.cb));
   const range = salaryRange(job.salary);
   const isOpen = job.id === drawerJobId;
   const el = h('li', null, h('article', {
@@ -1515,7 +1548,7 @@ async function boot() {
   S = parseHash();
   render();
   try {
-    const list = await api('/api/companies');
+    const list = await dataApi.getCompanies();
     companies = Array.isArray(list) && list.length ? list : FALLBACK_COMPANIES;
   } catch (err) {
     console.warn('companies failed', err);
