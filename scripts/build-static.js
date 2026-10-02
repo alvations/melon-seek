@@ -8,9 +8,19 @@
 //   dist/lib/                 browser copies of server modules used by public/api.js
 //   dist/api/companies.json   built-in companies
 //   dist/api/jobs/<slug>.json data/snapshots/<slug>.json if present (mode "snapshot"),
-//                             else build-time demo (mode "demo")
-//   dist/api/demo/<slug>.json build-time demo (mode "demo"), last bundled fallback
+//                             else build-time demo (mode "demo"). Jobs are written
+//                             WITHOUT descriptionHtml (see "Lazy descriptions").
+//   dist/api/demo/<slug>.json build-time demo (mode "demo"), last bundled fallback;
+//                             only written when jobs/<slug>.json is a real snapshot
+//   dist/api/desc/<slug>/<id>.json  { id, descriptionHtml, sections? } per job
 //   dist/.nojekyll
+//
+// Lazy descriptions: descriptionHtml is ~90% of a job's bytes, so each one goes
+// in its own file, fetched by public/api.js#getJobDetail when the job drawer
+// opens (the file path comes from api.js#descPath, shared with this script).
+// sections + keywords stay in the list. If a list is still over LIST_BUDGET,
+// that company's sections move into the desc files too (list keeps empty
+// arrays; getJobDetail returns them) and the build says so.
 //
 // Options: --out <dir> (default dist), --strict (fail on warnings).
 import fs from 'node:fs/promises';
@@ -34,6 +44,8 @@ const OPTIONAL_LIB = new Set(['demo.js']);
 // CORS notes in public/api.js).
 const LIVE_SOURCES = ['greenhouse', 'ashby', 'lever'];
 const QUIET_CORS_SOURCES = ['lever'];
+// Per-company list file target (bytes).
+const LIST_BUDGET = 1_500_000;
 
 const warnings = [];
 const warn = (msg) => { warnings.push(msg); console.warn(`! ${msg}`); };
@@ -61,8 +73,47 @@ function relativizeHtml(html, depth) {
   return html.replace(/\b(href|src)=(["'])\/(?!\/)/g, (_, attr, q) => `${attr}=${q}${prefix}`);
 }
 
-function kb(n) {
-  return `${(n / 1024).toFixed(0)} KB`;
+function size(n) {
+  return n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(2)} MB` : `${(n / 1024).toFixed(0)} KB`;
+}
+
+const emptySections = () => ({ responsibilities: [], fit: [] });
+const hasSections = (s) => !!s && ((s.responsibilities || []).length > 0 || (s.fit || []).length > 0);
+
+/**
+ * Split a payload into a small list and per-job detail records.
+ * Returns { list, details: Map(descPath -> record), sectionsMoved }.
+ */
+function splitPayload(payload, descPath) {
+  const build = (moveSections) => {
+    const details = new Map();
+    const jobs = payload.jobs.map((job) => {
+      const { descriptionHtml, ...rest } = job;
+      const html = typeof descriptionHtml === 'string' ? descriptionHtml : '';
+      const rec = { id: job.id };
+      if (html) rec.descriptionHtml = html;
+      if (moveSections && hasSections(job.sections)) { rec.sections = job.sections; rest.sections = emptySections(); }
+      if (!rec.descriptionHtml && !rec.sections) return { ...rest, descriptionHtml: '' }; // nothing to fetch
+      if (!rec.descriptionHtml) rec.descriptionHtml = '';
+      const p = descPath(job);
+      if (details.has(p)) throw new Error(`desc path collision for ${job.id} (${p})`);
+      details.set(p, rec);
+      return rest; // no descriptionHtml key -> api.js#getJobDetail fetches it
+    });
+    return { list: { ...payload, jobs }, details, sectionsMoved: moveSections };
+  };
+  let out = build(false);
+  if (Buffer.byteLength(JSON.stringify(out.list)) > LIST_BUDGET) out = build(true);
+  return out;
+}
+
+async function writeSplit(payload, file, descPath, slug) {
+  const { list, details, sectionsMoved } = splitPayload(payload, descPath);
+  const listBytes = await writeJson(file, list);
+  let descBytes = 0;
+  for (const [p, rec] of details) descBytes += await writeJson(path.join(OUT, p), rec);
+  if (listBytes > LIST_BUDGET) warn(`${slug}: list is ${size(listBytes)} even without descriptions/sections (budget ${size(LIST_BUDGET)})`);
+  return { listBytes, descBytes, descFiles: details.size, sectionsMoved };
 }
 
 async function main() {
@@ -128,6 +179,7 @@ async function main() {
   if (existsSync(path.join(ROOT, 'server', 'demo.js'))) {
     ({ demoJobs } = await import(pathToFileURL(path.join(ROOT, 'server', 'demo.js')).href));
   }
+  const { descPath } = await import(pathToFileURL(path.join(ROOT, 'public', 'api.js')).href);
   const companies = listCompanies().map(({ slug, name, source, board, color }) => ({ slug, name, source, board, color }));
   await writeJson(path.join(OUT, 'api', 'companies.json'), companies);
 
@@ -138,7 +190,6 @@ async function main() {
     if (demoJobs) {
       const jobs = normalizeJobs(demoJobs(c.slug, c.name), c);
       demo = { company: c, mode: 'demo', fetchedAt: builtAt, error: 'Synthetic demo data (no real snapshot was bundled for this company).', jobs };
-      await writeJson(path.join(OUT, 'api', 'demo', `${c.slug}.json`), demo);
     }
 
     let payload = null;
@@ -158,8 +209,16 @@ async function main() {
       warn(`${c.slug}: no snapshot and no demo generator; bundling an empty demo`);
       payload = { company: c, mode: 'demo', fetchedAt: builtAt, error: 'No data bundled.', jobs: [] };
     }
-    const size = await writeJson(path.join(OUT, 'api', 'jobs', `${c.slug}.json`), payload);
-    summary.push(`${c.slug}: ${payload.mode}, ${payload.jobs.length} jobs${payload.fetchedAt ? ` (${payload.fetchedAt})` : ''}, ${kb(size)}`);
+    const r = await writeSplit(payload, path.join(OUT, 'api', 'jobs', `${c.slug}.json`), descPath, c.slug);
+    let line = `${c.slug.padEnd(10)} ${payload.mode.padEnd(8)} ${String(payload.jobs.length).padStart(4)} jobs  list ${size(r.listBytes).padStart(9)}  desc ${String(r.descFiles).padStart(4)} files ${size(r.descBytes).padStart(9)}`;
+    if (r.sectionsMoved) line += '  (sections moved to desc: list was over budget)';
+    if (payload.fetchedAt) line += `  fetchedAt ${payload.fetchedAt}`;
+    // The bundled demo is only a separate fallback when the main list is real.
+    if (payload.mode === 'snapshot' && demo) {
+      const d = await writeSplit(demo, path.join(OUT, 'api', 'demo', `${c.slug}.json`), descPath, `${c.slug} (demo)`);
+      line += `  + demo list ${size(d.listBytes)}`;
+    }
+    summary.push(line);
   }
 
   // 5. config.js + .nojekyll

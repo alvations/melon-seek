@@ -282,6 +282,8 @@
   border-bottom: 1px solid var(--_grid);
 }
 .ms-crow:last-child { border-bottom: 0; }
+/* Rows beyond the 8 palette slots are neutral; lift their tint so circles never read as holes. */
+.ms-crow--other { --_bin-mix: 42%; --_band-mix: 7%; }
 .ms-crow.is-selected { background: color-mix(in srgb, var(--c) 6%, transparent); }
 
 .ms-crow__label {
@@ -370,8 +372,10 @@
 /* Dark surface: translucent fills go muddy, so lift the range bars. */
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) .ms-chart { --_bar-o: .72; --_hist-o: .62; --_hist-o-c: .42; --_bin-mix: 52%; --_band-mix: 16%; }
+  :root:where(:not([data-theme="light"])) .ms-chart .ms-crow--other { --_bin-mix: 85%; --_band-mix: 12%; }
 }
 :root[data-theme="dark"] .ms-chart { --_bar-o: .72; --_hist-o: .62; --_hist-o-c: .42; --_bin-mix: 52%; --_band-mix: 16%; }
+:root[data-theme="dark"] .ms-chart .ms-crow--other { --_bin-mix: 85%; --_band-mix: 12%; }
 
 /* ============================== tooltip ============================== */
 

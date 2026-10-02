@@ -6,7 +6,9 @@
 import { colorFor, formatMoney, resetColors, assignColors, otherColor, toUSD, SLOT_COUNT } from './viz/palette.js';
 import { createChart, keyOf } from './viz/chart.js';
 import { createMap } from './viz/map.js';
-import * as api from './api.js'; // getCompanies, getJobs, getJobDetail (namespace import: tolerate a missing optional export)
+import * as api from './api.js';
+import { createCompstimateWidget, compstimateForJob } from './features/compstimate.js';
+import { createInsights } from './features/insights.js'; // getCompanies, getJobs, getJobDetail (namespace import: tolerate a missing optional export)
 
 // ?mock=1 swaps the data layer for a local generator. Development only: it is
 // honoured on localhost only, and the UI always labels it "Mock data".
@@ -191,7 +193,7 @@ function parseHash() {
     else if (k === 'so') st.so = p.get(k) === '1';
     else st[k] = p.get(k);
   }
-  if (!['chart', 'map'].includes(st.m)) st.m = 'chart';
+  if (!['chart', 'map', 'insights'].includes(st.m)) st.m = 'chart';
   if (!['any', 'remote', 'onsite'].includes(st.r)) st.r = 'any';
   if (!['clusters', 'ranges'].includes(st.v)) st.v = 'clusters';
   if (!['department', 'location', 'seniority', 'none'].includes(st.g)) st.g = DEFAULTS.g;
@@ -409,6 +411,7 @@ async function loadJobs({ refresh = false } = {}) {
   try {
     const res = await dataApi.getJobs(jobsQuery(S.c), { refresh, signal: abortCtl.signal });
     if (seq !== loadSeq) return;
+    dataSeq++;
     data = {
       status: 'ready',
       jobs: prepare(Array.isArray(res?.jobs) ? res.jobs : []),
@@ -1056,6 +1059,10 @@ function renderKpis() {
 
 let chart = null;
 let map = null;
+let comp = null;      // Compstimate widget (insights mode)
+let insights = null;  // Market insights panel (insights mode)
+let dataSeq = 0;      // bumps on every successful fetch
+const featSig = { comp: -1, ins: '' };
 let mapFitPending = true;
 let colorKeys = new Set(); // keys the chart gives a slot; others render as Other
 const vizSig = { chart: '', map: '' };
@@ -1083,7 +1090,34 @@ function ensureViz() {
   }
 }
 
+/** Insights mode: Compstimate (all jobs of the company) + market insights (filtered vs. all). */
+function renderInsights() {
+  const host = $('#insightsHost');
+  host.hidden = S.m !== 'insights' || data.status !== 'ready';
+  if (host.hidden) return;
+  try {
+    if (!comp) comp = createCompstimateWidget($('#compHost'), { onSelect: (job) => job && openDrawer(job.id) });
+    if (!insights) insights = createInsights($('#insightsPanel'), { onFilter: onInsightFilter });
+    if (featSig.comp !== dataSeq) { featSig.comp = dataSeq; comp.update(data.jobs); }
+    const sig = `${dataSeq}|${derived.filtered.length}|${derived.filtered.map((j) => j.id).join(',')}`;
+    if (featSig.ins !== sig) { featSig.ins = sig; insights.update(derived.filtered, data.jobs); }
+  } catch (err) { console.error('insights failed', err); }
+}
+
+/** Map an insights click ({type, value}) onto the matching filter toggle. */
+function onInsightFilter({ type, value } = {}) {
+  if (value == null) return;
+  const key = { skill: 'ks', responsibility: 'kr', fit: 'kf', department: 'd', location: 'l' }[type];
+  if (!key) return;
+  if (type === 'location' && /^remote$/i.test(value)) { set({ r: S.r === 'remote' ? 'any' : 'remote' }); toast(S.r === 'remote' ? 'Showing remote roles' : 'Removed remote filter'); return; }
+  toggleIn(key, value);
+  toast(S[key].includes(value) ? `Filtering by “${value}”` : `Removed “${value}”`);
+}
+
 function renderViz() {
+  renderInsights();
+  $('#vizArea').hidden = S.m === 'insights' && data.status === 'ready';
+  if (S.m === 'insights' && data.status === 'ready') { $('#vizControls').hidden = true; return; }
   const chartHost = $('#chartHost');
   const mapHost = $('#mapHost');
   const overlay = $('#vizOverlay');
@@ -1379,6 +1413,19 @@ function salaryDistribution(job) {
 
 const INTERVAL_ADJ = { hour: 'hourly', day: 'daily', week: 'weekly', month: 'monthly', year: 'annual' };
 
+/** For postings without pay: an estimate from comparable roles, clearly labelled as such. */
+function compstimateBlock(job) {
+  let est = null;
+  try { est = compstimateForJob(data.jobs, job); } catch (err) { console.warn('compstimate failed', err); }
+  if (!est || est.mid == null || !isFinite(est.mid)) return null;
+  return h('div', { class: 'd-comp', role: 'note' },
+    h('div', { class: 'd-comp-top' },
+      h('span', { class: 'd-comp-label' }, 'Compstimate'),
+      h('span', { class: 'd-comp-amt' }, `≈ ${money(est.mid)}`),
+      h('span', { class: 'muted' }, `(${money(est.low)}–${money(est.high).replace(/^\$/, '')}, ${String(est.confidence || '').toLowerCase()} confidence)`)),
+    h('p', { class: 'd-comp-note' }, `An estimate from ${plural(est.n || 0, 'comparable role')} at ${data.company?.name || 'this company'} (approx USD / year) — not a figure from the posting.`));
+}
+
 function annualNote(sal) {
   const orig = sal.originalInterval || (sal.interval && sal.interval !== 'year' ? sal.interval : null);
   return orig ? h('div', { class: 'd-annual' }, `Annualized from ${INTERVAL_ADJ[orig] || orig} pay${sal.text ? ` (${sal.text})` : ''}`) : null;
@@ -1416,7 +1463,7 @@ function drawerContent(job) {
     sal ? h('div', { class: 'd-sal-top' },
       h('div', null, h('div', { class: 'd-sal-amt' }, salaryRange(sal)), h('div', { class: 'muted' }, `${sal.currency || 'USD'} · per year`), annualNote(sal)),
       pct != null ? h('div', { class: 'd-pct' }, h('div', { class: 'd-pct-num' }, `${pct}%`), h('div', { class: 'muted' }, 'percentile')) : null)
-      : h('div', { class: 'd-sal-none' }, h('strong', null, 'Salary not listed'), h('span', { class: 'muted' }, ' — this posting doesn\u2019t include a pay range.')),
+      : h('div', { class: 'd-sal-none' }, h('strong', null, 'Salary not listed'), h('span', { class: 'muted' }, ' — this posting doesn\u2019t include a pay range.'), compstimateBlock(job)),
     sal ? salaryDistribution(job) : null,
     sal && pct != null ? h('p', { class: 'd-pct-text' }, `Pays more than ${pct}% of roles at ${company.name || job.companyName}`) : null);
 

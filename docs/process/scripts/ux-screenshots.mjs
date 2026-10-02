@@ -61,6 +61,16 @@ const hashBack = await p.evaluate(() => location.hash);
 await p.goto(`${BASE}/${QS}#c=anthropic&m=map`);
 await ready(p); await p.waitForTimeout(1200);
 await shot(p, 'desktop-map');
+// Insights mode
+await p.goto(`${BASE}/${QS}#c=anthropic&m=insights`);
+await ready(p); await p.waitForTimeout(700);
+await shot(p, 'desktop-insights');
+// Drawer for a posting without salary shows a Compstimate
+await p.goto(`${BASE}/${QS}#c=anthropic&sort=salary-asc`);
+await ready(p);
+await p.evaluate(async () => { while (document.querySelector('.list-more button')) { document.querySelector('.list-more button').click(); await new Promise((r) => setTimeout(r, 30)); } });
+const noPay = await p.$('.card:has(.sal-pill--none)');
+if (noPay) { await noPay.click(); await p.waitForSelector('.drawer.is-open'); await p.waitForTimeout(400); await shot(p, 'desktop-drawer-compstimate'); await p.keyboard.press('Escape'); }
 // Demo-mode company
 await p.goto(`${BASE}/${QS}#c=openai`);
 await ready(p); await p.waitForTimeout(600);
@@ -127,6 +137,7 @@ checks.focusTrapped = await p.evaluate(() => document.getElementById('drawer').c
 await p.keyboard.press('Escape'); await p.waitForTimeout(300);
 checks.escClosesAndReturnsFocus = await p.evaluate(() => !document.querySelector('.drawer.is-open') && document.activeElement !== document.body);
 checks.badge = (await p.textContent('#dataBadge'))?.trim().split('\n')[0];
+checks.insightsRenders = await (async () => { await p.goto(`${BASE}/${QS}#c=anthropic&m=insights`); await ready(p); await p.waitForTimeout(400); return p.evaluate(() => !document.getElementById('insightsHost').hidden && document.getElementById('insightsPanel').childElementCount > 0 && document.getElementById('compHost').childElementCount > 0); })();
 checks.slashFocusesSearch = await (async () => { await p.keyboard.press('/'); return p.evaluate(() => document.activeElement.id === 'search'); })();
 // Description loads lazily (getJobDetail) and is sanitized.
 await p.goto('about:blank');

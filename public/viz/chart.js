@@ -342,7 +342,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       const byCount = cRows.slice().sort((a, b) => b.all.length - a.all.length || a.key.localeCompare(b.key)).map(r => r.key);
       const top = new Set(byCount.length > SLOT_COUNT ? byCount.slice(0, SLOT_COUNT - 1) : byCount);
       assignColors([...top]);
-      for (const r of cRows) r.color = top.has(r.key) ? colorFor(r.key) : otherColor();
+      for (const r of cRows) { r.other = !top.has(r.key); r.color = r.other ? otherColor() : colorFor(r.key); }
     }
     for (const r of cRows) r.ink = inkOn(r.color);
 
@@ -355,7 +355,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const frag = document.createDocumentFragment();
     const gridFrag = document.createDocumentFragment();
     cRows.forEach((r, ri) => {
-      const row = el('div', 'ms-crow');
+      const row = el('div', r.other ? 'ms-crow ms-crow--other' : 'ms-crow');
       row.setAttribute('role', 'group');
       const sub = r.items.length
         ? `${plural(r.all.length, 'role')} · median ${formatMoney(r.median)}`
