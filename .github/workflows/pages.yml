@@ -1,0 +1,74 @@
+name: Deploy to GitHub Pages
+
+# Static build of melon-seek (no server) published to
+# https://alvations.github.io/melon-seek/ . The daily run refreshes the bundled
+# snapshots from the live boards (GitHub runners can reach them).
+#
+# One-time repo setup: Settings -> Pages -> Source: "GitHub Actions".
+# To deploy from a non-default branch, also allow it under
+# Settings -> Environments -> github-pages -> Deployment branches and tags.
+on:
+  push:
+    branches: [main, claude/stoic-ride-54ddxp]
+  workflow_dispatch:
+  schedule:
+    - cron: "41 7 * * *" # daily, 07:41 UTC (after snapshot.yml's 06:17 run)
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; don't cancel an in-progress deploy.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Refresh snapshots (best effort; committed snapshots are used if this fails)
+        run: npm run snapshot -- anthropic anduril openai || true
+
+      - name: Build static site
+        run: npm run build
+
+      - name: Summarize bundle
+        run: |
+          {
+            echo "### Bundled data"
+            echo ""
+            echo "| company | mode | jobs | fetchedAt |"
+            echo "| --- | --- | --- | --- |"
+            for f in dist/api/jobs/*.json; do
+              jq -r '"| \(.company.slug) | \(.mode) | \(.jobs | length) | \(.fetchedAt) |"' "$f"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

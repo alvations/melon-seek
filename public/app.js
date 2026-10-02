@@ -482,48 +482,67 @@ function renderTopbar() {
   const search = $('#search');
   if (document.activeElement !== search && search.value !== S.q) search.value = S.q;
 
-  // Data-mode badge
+  // Data-mode badge (a button: details open in a popover; tip also exposed via aria-describedby)
   const badge = $('#dataBadge');
   const banner = $('#demoBanner');
-  badge.className = 'data-badge';
+  const info = badgeInfo();
+  badge.className = `data-badge ${info ? info.cls : ''}`;
+  badge.hidden = !info;
+  if (info) {
+    badge.replaceChildren(h('span', { class: 'badge-dot', 'aria-hidden': 'true' }), h('span', { class: 'badge-label' }, info.label),
+      h('span', { class: 'sr-only', id: 'dataBadgeTip' }, info.tip));
+    badge.setAttribute('aria-describedby', 'dataBadgeTip');
+    badge.title = info.tip;
+  }
   banner.hidden = true;
-  if (data.status === 'ready') {
-    const src = data.company?.source ? `${SOURCE_LABEL[data.company.source] || data.company.source} / ${data.company.board}` : '';
-    const when = data.fetchedAt ? ago(data.fetchedAt) : null;
-    let label, tip, cls;
-    switch (data.mode) {
-      case 'live': label = 'Live'; cls = 'is-live'; tip = `Fetched live from ${src}${when ? ` · ${when}` : ''}`; break;
-      case 'cache': label = when ? `Cached · ${when}` : 'Cached'; cls = 'is-cache'; tip = `Served from cache of ${src}. Use refresh to fetch live.`; break;
-      case 'snapshot': label = data.fetchedAt ? `Snapshot · ${shortDate(data.fetchedAt)}` : 'Snapshot'; cls = 'is-snapshot'; tip = `Saved snapshot of ${src}${data.error ? ` — live fetch failed: ${data.error}` : ''}`; break;
-      case 'demo': label = 'Demo data — live board unreachable'; cls = 'is-demo'; tip = `Generated sample data, not real postings.${data.error ? ` Error: ${data.error}` : ''}`; break;
-      default: label = data.mode; cls = ''; tip = src;
-    }
-    badge.classList.add(cls);
-    badge.innerHTML = '';
-    badge.append(h('span', { class: 'badge-dot', 'aria-hidden': 'true' }), h('span', { class: 'badge-label' }, label));
-    badge.title = tip;
-    badge.setAttribute('aria-label', `Data source: ${label}. ${tip}`);
-    badge.hidden = false;
-    if (data.mode === 'demo') {
-      banner.hidden = false;
-      banner.replaceChildren(h('span', { class: 'demo-ico', html: ICON.alert }),
-        h('span', null, h('strong', null, 'You\u2019re looking at demo data. '), `The ${data.company?.name || ''} board couldn\u2019t be reached, so these roles are generated samples — not real postings.`),
-        data.error ? h('code', { title: data.error }, data.error.length > 70 ? data.error.slice(0, 70) + '…' : data.error) : null,
-        h('button', { type: 'button', class: 'link-btn', onclick: () => loadJobs({ refresh: true }) }, 'Try live again'));
-    }
-  } else if (data.status === 'loading') {
-    badge.classList.add('is-loading');
-    badge.replaceChildren(h('span', { class: 'badge-dot' }), h('span', { class: 'badge-label' }, 'Loading'));
-    badge.title = '';
-    badge.hidden = false;
-  } else if (data.status === 'error') {
-    badge.classList.add('is-error');
-    badge.replaceChildren(h('span', { class: 'badge-dot' }), h('span', { class: 'badge-label' }, 'Offline'));
-    badge.title = data.error;
-    badge.hidden = false;
-  } else badge.hidden = true;
+  if (data.status === 'ready' && (MOCK || data.mode === 'demo')) {
+    banner.hidden = false;
+    const long = MOCK
+      ? [h('strong', null, 'Mock data. '), 'These roles come from the local development generator (?mock=1), not from any job board.']
+      : [h('strong', null, 'You’re looking at demo data. '), `The ${data.company?.name || ''} board couldn’t be reached, so these roles are generated samples — not real postings.`];
+    const short = MOCK ? 'Mock data — not real postings' : 'Demo data — live board unreachable';
+    banner.replaceChildren(h('span', { class: 'demo-ico', html: ICON.alert }),
+      h('span', { class: 'banner-long' }, ...long), h('strong', { class: 'banner-short' }, short),
+      data.error ? h('code', { title: data.error }, data.error.length > 70 ? data.error.slice(0, 70) + '…' : data.error) : null,
+      MOCK ? null : h('button', { type: 'button', class: 'link-btn', onclick: () => loadJobs({ refresh: true }) }, 'Try live again'));
+  }
   $('#refreshBtn').disabled = data.status === 'loading';
   $('#refreshBtn').classList.toggle('is-spinning', data.status === 'loading');
+}
+
+function badgeInfo() {
+  if (data.status === 'loading') return { label: 'Loading', cls: 'is-loading', tip: 'Fetching roles…' };
+  if (data.status === 'error') return { label: 'Offline', cls: 'is-error', tip: `Couldn’t load this board: ${data.error}` };
+  if (data.status !== 'ready') return null;
+  const src = data.company?.source ? `${SOURCE_LABEL[data.company.source] || data.company.source} / ${data.company.board}` : '';
+  const when = data.fetchedAt ? ago(data.fetchedAt) : null;
+  if (MOCK) return { label: 'Mock data', cls: 'is-demo', tip: `Synthetic development data from mock-api.js (?mock=1, localhost only) — not real postings. Simulated mode: ${data.mode}.` };
+  switch (data.mode) {
+    case 'live': return { label: 'Live', cls: 'is-live', tip: `Fetched live from ${src}${when ? ` · ${when}` : ''}.` };
+    case 'cache': return { label: when ? `Cached · ${when}` : 'Cached', cls: 'is-cache', tip: `Served from a recent copy of ${src}${data.error ? ` (live fetch failed: ${data.error})` : ''}. Refresh to fetch live.` };
+    case 'snapshot': return { label: data.fetchedAt ? `Snapshot · ${shortDate(data.fetchedAt)}` : 'Snapshot', cls: 'is-snapshot', tip: `Saved snapshot of ${src}${data.fetchedAt ? ` from ${shortDate(data.fetchedAt)}` : ''}${data.error ? `. Live fetch failed: ${data.error}` : ''}.` };
+    case 'demo': return { label: 'Demo data — live board unreachable', cls: 'is-demo', tip: `Generated sample data, not real postings.${data.error ? ` Error: ${data.error}` : ''}` };
+    default: return { label: String(data.mode), cls: '', tip: src };
+  }
+}
+
+function makeBadgeDetails() {
+  const el = h('div', { class: 'badge-details' });
+  function sync() {
+    const info = badgeInfo();
+    const c = data.company || {};
+    const rows = [
+      ['Status', info?.label || '—'],
+      ['Source', c.source ? `${SOURCE_LABEL[c.source] || c.source} / ${c.board}` : '—'],
+      ['Fetched', data.fetchedAt ? `${new Date(data.fetchedAt).toLocaleString()} (${ago(data.fetchedAt)})` : '—'],
+      ['Roles', data.jobs.length.toLocaleString()],
+    ];
+    el.replaceChildren(h('p', null, info?.tip || ''),
+      h('dl', null, ...rows.map(([k, v]) => [h('dt', null, k), h('dd', null, v)])),
+      data.error ? h('pre', { class: 'badge-error' }, data.error) : null,
+      MOCK ? null : h('button', { type: 'button', class: 'btn btn--ghost btn--sm btn--block', onclick: () => { closePopover(false); loadJobs({ refresh: true }); } }, 'Refresh from the live board'));
+  }
+  return { el, sync };
 }
 
 function resetFiltersPatch() {
@@ -882,6 +901,7 @@ function popoverParts(id) {
       ...KW_CATS.map((k) => titled(k.title, makeCloud(k, { limit: 10 }), k.hint)),
     ];
     case 'board': return [makeBoardForm()];
+    case 'badge': return [makeBadgeDetails()];
   }
   return [];
 }
@@ -896,10 +916,10 @@ function togglePopover(id, anchor) {
   popover.id = id;
   popover.anchor = anchor;
   popover.parts = popoverParts(id);
-  const title = id === 'board' ? 'Add a job board' : QUICK.find((q) => q.id === id)?.label;
+  const title = id === 'board' ? 'Add a job board' : id === 'badge' ? 'Where this data comes from' : QUICK.find((q) => q.id === id)?.label;
   const head = h('div', { class: 'pop-head' }, h('h2', { id: 'popTitle' }, title),
     h('button', { type: 'button', class: 'icon-btn icon-btn--sm', 'aria-label': 'Close', html: ICON.close, onclick: () => closePopover() }));
-  const foot = id === 'board' ? null : h('div', { class: 'pop-foot' },
+  const foot = id === 'board' || id === 'badge' ? null : h('div', { class: 'pop-foot' },
     h('button', { type: 'button', class: 'link-btn', onclick: () => clearPopoverFacet(id) }, 'Reset'),
     h('button', { type: 'button', class: 'btn btn--primary btn--sm pop-done', onclick: () => closePopover() }, 'Done'));
   el.className = `popover popover--${id}`;
@@ -1500,6 +1520,7 @@ function bindEvents() {
     set({ c, cn: info.custom ? info.name : '', job: null, ...resetFiltersPatch() });
   });
   $('#addBoardBtn').addEventListener('click', (e) => togglePopover('board', e.currentTarget));
+  $('#dataBadge').addEventListener('click', (e) => togglePopover('badge', e.currentTarget));
   $('#refreshBtn').addEventListener('click', () => loadJobs({ refresh: true }));
   $('#groupBy').addEventListener('change', (e) => set({ g: e.target.value }));
   $('#colorBy').addEventListener('change', (e) => set({ cb: e.target.value }));

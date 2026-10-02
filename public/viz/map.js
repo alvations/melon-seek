@@ -203,7 +203,7 @@ export function createMap(container, { onSelect, onAreaSelect } = {}) {
     // remember a place key of the focused cluster and refocus whichever new cluster contains it.
     const focused = clusters.find(c => c.marker?.getElement() && c.marker.getElement() === document.activeElement);
     const focusedKeys = focused ? new Set(focused.members.map(p => p.key)) : null;
-    const focusedLead = focused?.lead.key;
+    const focusedLead = focused?.members[0]?.key; // members[0] is the cluster's lead place
     markerLayer.clearLayers();
     clusters = cluster();
     const meds = clusters.map(c => c.median).filter(v => v != null);

@@ -1,6 +1,6 @@
 // Lever postings adapter.
 // API: https://api.lever.co/v0/postings/{board}?mode=json
-import { fetchJson, htmlToText, str } from './util.js';
+import { fetchJson, UpstreamError, htmlToText, str } from './util.js';
 
 export function leverUrl(board) {
   return `https://api.lever.co/v0/postings/${encodeURIComponent(board)}?mode=json`;
@@ -8,7 +8,7 @@ export function leverUrl(board) {
 
 export async function fetchLever(board) {
   const data = await fetchJson(leverUrl(board), { label: `lever/${board}` });
-  if (!Array.isArray(data)) throw new Error(`lever/${board}: unexpected response (expected an array of postings)`);
+  if (!Array.isArray(data)) throw new UpstreamError(`lever/${board}: unexpected response (expected an array of postings)`, { code: 'bad_shape' });
   return data.map(mapLeverJob);
 }
 

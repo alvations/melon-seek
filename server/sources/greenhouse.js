@@ -3,7 +3,7 @@
 // `content` is entity-escaped HTML; decoded here. Salary is usually embedded in
 // the description text (parsed later by normalize), except when the board
 // exposes structured `pay_input_ranges` (pay transparency).
-import { fetchJson, decodeHtmlContent, htmlToText, str } from './util.js';
+import { fetchJson, UpstreamError, decodeHtmlContent, htmlToText, str } from './util.js';
 
 export function greenhouseUrl(board) {
   return `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(board)}/jobs?content=true&pay_transparency=true`;
@@ -11,7 +11,7 @@ export function greenhouseUrl(board) {
 
 export async function fetchGreenhouse(board) {
   const data = await fetchJson(greenhouseUrl(board), { label: `greenhouse/${board}` });
-  if (!data || !Array.isArray(data.jobs)) throw new Error(`greenhouse/${board}: unexpected response (no jobs array)`);
+  if (!data || !Array.isArray(data.jobs)) throw new UpstreamError(`greenhouse/${board}: unexpected response (no jobs array)`, { code: 'bad_shape' });
   return data.jobs.map(mapGreenhouseJob);
 }
 

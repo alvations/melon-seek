@@ -18,7 +18,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.
 const PUB = path.join(ROOT, 'public');
 const LEAFLET = path.join(ROOT, 'node_modules/leaflet/dist');
 const OUT = path.resolve(process.argv[2] || 'viz-shots');
-const PORT = 5199;
+const PORT = +process.env.PORT || 5199;
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml' };
 
 async function loadPlaywright() {

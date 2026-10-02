@@ -3,32 +3,86 @@
 export const USER_AGENT = 'melon-seek/0.1 (+https://github.com/; job board visualizer)';
 export const TIMEOUT_MS = 15000;
 
-export async function fetchJson(url, { timeoutMs = TIMEOUT_MS, label = 'source' } = {}) {
+export const MAX_BYTES = 25 * 1024 * 1024;
+
+/**
+ * Upstream error. `message` is detailed (URL, status, body excerpt) for the
+ * server log and the snapshot CLI; `code`/`status` let the API build a
+ * generic client-facing message (review L7).
+ */
+export class UpstreamError extends Error {
+  constructor(message, { code, status } = {}) {
+    super(message);
+    this.name = 'UpstreamError';
+    this.code = code || 'upstream';
+    if (status != null) this.status = status;
+  }
+}
+
+async function readCapped(res, maxBytes, ctrl, label) {
+  const len = Number(res.headers.get('content-length') || 0);
+  if (len > maxBytes) throw new UpstreamError(`${label}: response too large (${len} bytes > ${maxBytes})`, { code: 'too_large' });
+  if (!res.body) return '';
+  const reader = res.body.getReader();
+  const chunks = [];
+  let n = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    n += value.length;
+    if (n > maxBytes) {
+      ctrl.abort();
+      try { await reader.cancel(); } catch {}
+      throw new UpstreamError(`${label}: response exceeded ${maxBytes} bytes`, { code: 'too_large' });
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks.map((c) => Buffer.from(c.buffer, c.byteOffset, c.byteLength))).toString('utf8');
+}
+
+/**
+ * GET JSON with a timeout (covers headers and body), a User-Agent, no
+ * redirects (review L2: the host stays the fixed vendor host) and a body cap.
+ */
+export async function fetchJson(url, { timeoutMs = TIMEOUT_MS, label = 'source', maxBytes = MAX_BYTES } = {}) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  const timedOut = () => new UpstreamError(`${label}: request timed out after ${timeoutMs / 1000}s (${url})`, { code: 'timeout' });
   let res;
   try {
     res = await fetch(url, {
       headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
       signal: ctrl.signal,
+      redirect: 'error',
     });
   } catch (err) {
     clearTimeout(timer);
-    if (err && err.name === 'AbortError') throw new Error(`${label}: request timed out after ${timeoutMs / 1000}s (${url})`);
+    if (err && err.name === 'AbortError') throw timedOut();
     const cause = err && err.cause ? ` (${err.cause.code || err.cause.message || err.cause})` : '';
-    throw new Error(`${label}: network error fetching ${url}: ${err && err.message}${cause}`);
+    throw new UpstreamError(`${label}: network error fetching ${url}: ${err && err.message}${cause}`, { code: 'network' });
   }
   try {
     if (!res.ok) {
       let body = '';
-      try { body = (await res.text()).slice(0, 200).replace(/\s+/g, ' '); } catch {}
+      try { body = (await readCapped(res, 64 * 1024, ctrl, label)).slice(0, 200).replace(/\s+/g, ' '); } catch {}
       const hint = res.status === 404 ? ' — board not found (check the slug)' : '';
-      throw new Error(`${label}: HTTP ${res.status} ${res.statusText || ''} from ${url}${hint}${body ? `: ${body}` : ''}`.replace(/\s+:/, ':'));
+      throw new UpstreamError(
+        `${label}: HTTP ${res.status} ${res.statusText || ''} from ${url}${hint}${body ? `: ${body}` : ''}`.replace(/\s+:/, ':'),
+        { code: 'http', status: res.status },
+      );
+    }
+    let raw;
+    try {
+      raw = await readCapped(res, maxBytes, ctrl, label);
+    } catch (err) {
+      if (err instanceof UpstreamError) throw err;
+      if (err && err.name === 'AbortError') throw timedOut();
+      throw new UpstreamError(`${label}: error reading response from ${url}: ${err && err.message}`, { code: 'network' });
     }
     try {
-      return await res.json();
+      return JSON.parse(raw);
     } catch (err) {
-      throw new Error(`${label}: invalid JSON from ${url}: ${err.message}`);
+      throw new UpstreamError(`${label}: invalid JSON from ${url}: ${err.message}`, { code: 'invalid_json' });
     }
   } finally {
     clearTimeout(timer);

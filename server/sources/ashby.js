@@ -1,6 +1,6 @@
 // Ashby job board adapter.
 // API: https://api.ashbyhq.com/posting-api/job-board/{board}?includeCompensation=true
-import { fetchJson, htmlToText, str } from './util.js';
+import { fetchJson, UpstreamError, htmlToText, str } from './util.js';
 
 export function ashbyUrl(board) {
   return `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(board)}?includeCompensation=true`;
@@ -8,7 +8,7 @@ export function ashbyUrl(board) {
 
 export async function fetchAshby(board) {
   const data = await fetchJson(ashbyUrl(board), { label: `ashby/${board}` });
-  if (!data || !Array.isArray(data.jobs)) throw new Error(`ashby/${board}: unexpected response (no jobs array)`);
+  if (!data || !Array.isArray(data.jobs)) throw new UpstreamError(`ashby/${board}: unexpected response (no jobs array)`, { code: 'bad_shape' });
   return data.jobs.filter((j) => j && j.isListed !== false).map(mapAshbyJob);
 }
 

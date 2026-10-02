@@ -157,9 +157,13 @@ export function inferSeniority(title) {
 export const SENIORITY_LADDER = ['Intern', 'Entry', 'Mid', 'Senior', 'Staff+', 'Manager', 'Director+'];
 const LEVEL_INDEX = { Intern: 0, Entry: 1, Mid: 2, Senior: 3, Manager: 3.5, 'Staff+': 4, 'Director+': 5 };
 
-/** 1 for the same level, decaying with ladder distance (Manager sits between Senior and Staff+). */
+/**
+ * 1 for the same level, decaying with ladder distance (Manager sits between
+ * Senior and Staff+). With no level asked for, interns and executives are
+ * down-weighted (they are separate pay classes) and everyone else counts fully.
+ */
 export function senioritySim(a, b) {
-  if (!a) return 1;
+  if (!a) return b === 'Intern' ? 0.25 : b === 'Director+' ? 0.5 : 1;
   if (!b) return 0.5;
   const ia = LEVEL_INDEX[a], ib = LEVEL_INDEX[b];
   if (ia == null || ib == null) return a === b ? 1 : 0.5;
@@ -250,7 +254,7 @@ function tokenSim(qTokens, jTokens, idf) {
 // Selection thresholds.
 const MIN_WEIGHT = 0.02;        // absolute floor for a comparable
 const REL_WEIGHT = 0.12;        // ... and at least 12% of the best match's weight
-const MAX_COMPARABLES = 60;
+const MAX_COMPARABLES = 500;     // safety cap only; the relative cut does the real work
 const LOW_P = 0.15, HIGH_P = 0.85;
 
 /**
@@ -332,7 +336,8 @@ export function estimateComp(allJobs, query = {}) {
     (hasTitle ? ` (${close} with a closely matching title).` : '.') +
     ` Range is the ${LOW_P * 100}th–${HIGH_P * 100}th percentile of their posted pay bands` +
     (converted ? `; ${converted} non-USD ${converted === 1 ? 'band' : 'bands'} converted at approximate rates.` : '.') +
-    (confidence === 'Low' ? ' Few close matches, so treat this as a rough guide.' : '');
+    (!hasTitle ? ' Add a role title for a sharper estimate.'
+      : confidence === 'Low' ? ' Few close matches, so treat this as a rough guide.' : '');
 
   return {
     low, mid, high, currency: 'USD', confidence, n: comps.length,

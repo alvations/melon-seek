@@ -56,7 +56,7 @@ export function resolveCompany(query = {}) {
   if (source || board) {
     const src = String(source || '').toLowerCase();
     if (!SOURCES.includes(src)) {
-      throw httpError(400, `Invalid source "${source}". Expected one of: ${SOURCES.join(', ')}`);
+      throw httpError(400, `Invalid source. Expected one of: ${SOURCES.join(', ')}`);
     }
     if (!isValidSlug(board)) {
       throw httpError(400, 'Invalid board slug. Use letters, digits, - _ . (must start and end with a letter or digit)');
