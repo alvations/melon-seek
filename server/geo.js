@@ -93,7 +93,6 @@ Wales|Wales|GB|52.13|-3.78|
 Northern Ireland|Northern Ireland|GB|54.79|-6.49|
 Bavaria|Bavaria|DE|48.79|11.50|Bayern
 Ile-de-France|Île-de-France|FR|48.85|2.64|Ile de France
-Tokyo-to|Tokyo Prefecture|JP|35.68|139.69|
 `;
 
 // ---------------------------------------------------------------------------
@@ -363,7 +362,7 @@ Dubai||AE|25.2048|55.2708|
 Abu Dhabi||AE|24.4539|54.3773|
 Riyadh||SA|24.7136|46.6753|
 Doha||QA|25.2854|51.5310|
-Tokyo|Tokyo-to|JP|35.6762|139.6503|
+Tokyo||JP|35.6762|139.6503|
 Osaka||JP|34.6937|135.5023|
 Seoul||KR|37.5665|126.9780|
 Beijing||CN|39.9042|116.4074|
