@@ -1,0 +1,14 @@
+import { chromium } from 'playwright' // install with: npm i playwright --no-save (in a scratch dir), run with NODE_PATH set;
+const b = await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome'});
+const p = await b.newPage({ viewport: { width: 1440, height: 900 } });
+const errs = [];
+p.on('pageerror', e => errs.push('pageerror: ' + e.message));
+p.on('console', m => { if (m.type() === 'error' && !/tile|cartocdn|openstreetmap|fonts/.test(m.text())) errs.push(m.text()); });
+await p.goto('http://localhost:5199/', { waitUntil: 'networkidle' });
+await p.waitForTimeout(1500);
+await p.screenshot({ path: process.argv[2] + '/lead-chart.png' });
+await p.goto('http://localhost:5199/#c=anduril&m=map', { waitUntil: 'networkidle' });
+await p.waitForTimeout(1500);
+await p.screenshot({ path: process.argv[2] + '/lead-map.png' });
+console.log(errs.join('\n') || 'no errors');
+await b.close();

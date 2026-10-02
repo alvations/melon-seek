@@ -120,3 +120,9 @@ screenshots in `docs/screenshots/`.
   fit facets, 246-city gazetteer; 32 tests). Its contract deviations are
   accepted: ISO alpha-2 country codes (GB not UK), optional 3rd arg to
   demoJobs, structured salary in OpenAI demo, fit fallback sentences.
+- 2026-10-02: lead integration check: `PORT=5199 node server/index.js`, then
+  `node docs/process/scripts/lead-integration-shot.mjs <outdir>` (chart
+  default and `#c=anduril&m=map`). Chart mode renders correctly. The only
+  console errors were blocked basemap tile requests. Bugs sent to UX: map
+  not fitting bounds on deep link, map too short, company pills
+  overflowing, KPI text truncated.

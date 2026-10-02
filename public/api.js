@@ -143,7 +143,8 @@ function staticCompanies(signal) {
 }
 
 const memCache = new Map(); // slug -> { jobs, fetchedAt, at }
-const blockedSources = new Map(); // source -> reason (network/CORS failures this session)
+const blockedSources = new Set(); // sources that failed at the network/CORS level this session
+const NETWORK_REASON = 'the browser could not reach the board (blocked by CORS or the network)';
 
 async function fetchLiveInBrowser(lib, company, signal) {
   const src = lib.sources[company.source];
@@ -158,7 +159,7 @@ async function fetchLiveInBrowser(lib, company, signal) {
     t.done();
     if (signal && signal.aborted) throw abortError();
     if (t.signal.aborted) throw new Error(`${label}: request timed out after ${LIVE_TIMEOUT_MS / 1000}s`);
-    const e = new Error(`${label}: the browser could not reach the board (blocked by CORS or the network)`);
+    const e = new Error(`${label}: ${NETWORK_REASON}`);
     e.network = true;
     throw e;
   }
@@ -221,7 +222,7 @@ async function staticJobs(p, { refresh = false, signal } = {}) {
   if (!allowed) {
     error = `Live fetch skipped: ${company.source} does not allow cross-origin requests from this site (static deploy)`;
   } else if (blockedSources.has(company.source)) {
-    error = `Live fetch failed: ${blockedSources.get(company.source)}`;
+    error = `Live fetch skipped: ${company.source} was unreachable from this browser earlier in this session (${NETWORK_REASON}); use refresh to retry`;
   } else {
     try {
       const jobs = await fetchLiveInBrowser(lib, company, signal);
@@ -230,7 +231,7 @@ async function staticJobs(p, { refresh = false, signal } = {}) {
       return { company: pub, mode: 'live', fetchedAt, error: null, jobs };
     } catch (err) {
       if (err && err.name === 'AbortError') throw err;
-      if (err && err.network) blockedSources.set(company.source, err.message);
+      if (err && err.network) blockedSources.add(company.source);
       error = `Live fetch failed: ${err && err.message ? err.message : String(err)}`;
     }
   }

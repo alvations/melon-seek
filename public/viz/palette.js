@@ -22,6 +22,11 @@ export function isDark() {
   return typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
+/** True when the user asked for reduced motion (JS-driven scroll/fly animations must honor it). */
+export function prefersReducedMotion() {
+  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
 /** Call fn whenever light/dark changes (OS setting or <html data-theme>). Returns an unsubscribe fn. */
 export function onThemeChange(fn) {
   let last = isDark();

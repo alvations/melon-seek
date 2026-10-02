@@ -186,6 +186,10 @@ export function jobLocationKeys(job) {
 // ---------------------------------------------------------------------------
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
+const URL_ATTRS = new Set(['href', 'src', 'action', 'formaction', 'xlink:href', 'poster', 'srcset']);
+const BLOCKED_ATTRS = new Set(['srcdoc']);
+// Relative URLs, fragments and http(s)/mailto only.
+const SAFE_URL = /^(?:https?:|mailto:|[#/?.]|[^:]*$)/i;
 
 /**
  * h('div', { class: 'x', onclick: fn, style: { '--v': '20%' } }, 'text', child)
@@ -205,8 +209,9 @@ export function h(tag, attrs, ...children) {
       // Event handlers only as functions; on* strings are never set as attributes
       // (REVIEW.md L9: no inline-handler injection via data-derived attrs).
       if (typeof v === 'function') el.addEventListener(k.slice(2).toLowerCase(), v);
-    } else if (URL_ATTRS.has(k.toLowerCase()) && !SAFE_URL.test(String(v).trim())) {
-      // drop javascript:/data:/vbscript: style URLs
+    } else if (BLOCKED_ATTRS.has(k.toLowerCase()) ||
+      (URL_ATTRS.has(k.toLowerCase()) && !SAFE_URL.test(String(v).trim()))) {
+      // drop srcdoc and javascript:/data:/vbscript: style URLs
     } else if (k === 'dataset') {
       Object.assign(el.dataset, v);
     } else if (!isSvg && (k === 'value' || k === 'checked' || k === 'selected')) {

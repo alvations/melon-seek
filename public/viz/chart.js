@@ -11,7 +11,7 @@
 
 import {
   colorFor, assignColors, otherColor, OTHER_KEY, SLOT_COUNT, formatMoney, formatCurrency,
-  toUSD, isForeign, hasFx, niceTicks, median, onThemeChange,
+  toUSD, isForeign, hasFx, niceTicks, median, onThemeChange, prefersReducedMotion,
 } from './palette.js';
 
 const ROW_H = 22;
@@ -19,6 +19,7 @@ const HEAD_H = 30;
 const HIST_H = 44;
 const SENIORITY_ORDER = ['Director+', 'Manager', 'Staff+', 'Senior', 'Mid', 'Entry', 'Intern'];
 
+const INTERVAL_ADJ = { hour: 'hourly', day: 'daily', week: 'weekly', month: 'monthly' };
 const DIM_LABEL = { department: 'department', location: 'location', seniority: 'seniority' };
 
 /** Category key for a job along a dimension. */
@@ -59,6 +60,7 @@ export function createChart(container, { onSelect, onHover } = {}) {
 
   const head = el('div', 'ms-chart__head');
   const legend = el('div', 'ms-chart__legend');
+  legend.setAttribute('role', 'group');
   legend.setAttribute('aria-label', 'Legend');
   const notes = el('div', 'ms-chart__notes');
   head.append(legend, notes);
@@ -74,6 +76,8 @@ export function createChart(container, { onSelect, onHover } = {}) {
   body.setAttribute('aria-label', 'Salary ranges, use arrow keys to move and Enter to open');
   const grid = el('div', 'ms-chart__grid');
   const rowsEl = el('div', 'ms-chart__rows');
+  grid.setAttribute('aria-hidden', 'true');
+  rowsEl.setAttribute('role', 'none');
   body.append(grid, rowsEl);
   scroll.append(sticky, body);
 
@@ -159,6 +163,11 @@ export function createChart(container, { onSelect, onHover } = {}) {
     renderLegend(top, counts, ordered);
     renderNotes(noSalary, fxCount, unknownFx);
 
+    // Keep the keyboard-active row on the same job across re-renders (filters, resize);
+    // never let a stale index point at a different job.
+    const activeJobId = itemByRow[activeIdx]?.job.id ?? null;
+    activeIdx = -1;
+    body.removeAttribute('aria-activedescendant');
     rowByJob = new Map();
     itemByRow = [];
     hoverIdx = -1;
@@ -202,9 +211,18 @@ export function createChart(container, { onSelect, onHover } = {}) {
     const gs = groups();
     let y = 0;
     let idx = 0;
+    let gi = 0;
     for (const g of gs) {
+      let parent = frag;
       if (g.name != null) {
+        const wrap = el('div', 'ms-chart__grp');
+        wrap.setAttribute('role', 'group');
+        wrap.setAttribute('aria-label', `${g.name}, ${plural(g.items.length, 'posting')}, median ${formatMoney(g.median)}`);
+        frag.append(wrap);
+        parent = wrap;
+        gi++;
         const h = el('div', 'ms-group');
+        h.setAttribute('aria-hidden', 'true');
         h.style.height = HEAD_H + 'px';
         const name = el('div', 'ms-group__name');
         name.style.width = labelW + 'px';
@@ -216,7 +234,7 @@ export function createChart(container, { onSelect, onHover } = {}) {
         ml.style.left = mx + 'px';
         if (mx > width - 110) ml.classList.add('ms-group__median--left');
         h.append(ml);
-        frag.append(h);
+        wrap.append(h);
         y += HEAD_H;
         const line = el('div', 'ms-chart__median');
         line.style.left = mx + 'px';
@@ -229,6 +247,8 @@ export function createChart(container, { onSelect, onHover } = {}) {
         r.style.height = ROW_H + 'px';
         r.dataset.idx = idx;
         r.setAttribute('role', 'option');
+        r.setAttribute('aria-selected', 'false');
+        r.setAttribute('aria-label', optionName(p));
         r.id = `${uid}-${idx}`;
         const lab = el('div', 'ms-row__label', p.job.title || 'Untitled');
         lab.style.width = labelW + 'px';
@@ -244,7 +264,7 @@ export function createChart(container, { onSelect, onHover } = {}) {
         if (bx1 + 120 < width) { val.style.left = (bx1 + 10) + 'px'; }
         else { val.style.right = (width - bx0 + 10) + 'px'; val.classList.add('ms-row__val--left'); }
         r.append(lab, bar, dot, val);
-        frag.append(r);
+        parent.append(r);
         itemByRow[idx] = p;
         rowByJob.set(p.job.id, r);
         idx++;
@@ -267,6 +287,18 @@ export function createChart(container, { onSelect, onHover } = {}) {
     if (scroll.scrollHeight <= scroll.clientHeight + 1) container.classList.add('ms-chart--flow');
 
     if (highlighted) applyHighlight(highlighted, false);
+    if (activeJobId != null) {
+      const i = itemByRow.findIndex(p => p.job.id === activeJobId);
+      if (i >= 0) setActive(i, false);
+    }
+  }
+
+  function optionName(p) {
+    const approx = isForeign(p.cur) && hasFx(p.cur);
+    const range = Math.round(p.lo / 1000) === Math.round(p.hi / 1000)
+      ? formatMoney(p.lo) : `${formatMoney(p.lo)} to ${formatMoney(p.hi)}`;
+    const where = [p.job.department, primaryLocation(p.job)].filter(Boolean).join(', ');
+    return `${p.job.title || 'Untitled'}, ${range}${approx ? ' approx USD' : ''}${where ? ', ' + where : ''}`;
   }
 
   function rangeText(p) {
@@ -379,7 +411,8 @@ export function createChart(container, { onSelect, onHover } = {}) {
     const v = el('div', 'ms-tip__value', native + (cur !== 'USD' ? ` ${cur}` : ''));
     tip.append(v);
     if (isForeign(cur) && hasFx(cur)) tip.append(el('div', 'ms-tip__sub', `≈ ${formatMoney(p.lo)} – ${formatMoney(p.hi)} USD (approx)`));
-    if (s.interval && s.interval !== 'year') tip.append(el('div', 'ms-tip__sub', `Annualized from ${s.interval}ly pay`));
+    const orig = s.originalInterval || (s.interval && s.interval !== 'year' ? s.interval : null);
+    if (orig && orig !== 'year') tip.append(el('div', 'ms-tip__sub', `Annualized from ${INTERVAL_ADJ[orig] || orig} pay`));
     tip.append(el('div', 'ms-tip__title', j.title || 'Untitled'));
     const meta = [j.department, locationText(j)].filter(Boolean).join(' · ');
     if (meta) tip.append(el('div', 'ms-tip__meta', meta));
@@ -429,11 +462,14 @@ export function createChart(container, { onSelect, onHover } = {}) {
   const onHistLeave = () => { hist.querySelectorAll('.is-hover').forEach(n => n.classList.remove('is-hover')); hideTip(); };
 
   function setActive(i, announce = true) {
-    rowsEl.querySelector('.ms-row.is-active')?.classList.remove('is-active');
+    const prev = rowsEl.querySelector('.ms-row.is-active');
+    prev?.classList.remove('is-active');
+    prev?.setAttribute('aria-selected', 'false');
     activeIdx = i;
     const r = rowsEl.querySelector(`.ms-row[data-idx="${i}"]`);
-    if (!r) return;
+    if (!r) { activeIdx = -1; body.removeAttribute('aria-activedescendant'); return; }
     r.classList.add('is-active');
+    r.setAttribute('aria-selected', 'true');
     body.setAttribute('aria-activedescendant', r.id);
     if (announce) { scrollToRow(r); setHover(i); }
   }
@@ -441,10 +477,14 @@ export function createChart(container, { onSelect, onHover } = {}) {
   const onKey = e => {
     const n = itemByRow.length;
     if (!n) return;
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    const page = Math.max(1, Math.floor((scroll.clientHeight - sticky.offsetHeight) / ROW_H) - 1);
+    const step = { ArrowDown: 1, ArrowUp: -1, PageDown: page, PageUp: -page }[e.key];
+    if (step != null) {
       e.preventDefault();
-      const d = e.key === 'ArrowDown' ? 1 : -1;
-      setActive(activeIdx < 0 ? 0 : Math.max(0, Math.min(n - 1, activeIdx + d)));
+      setActive(activeIdx < 0 ? 0 : Math.max(0, Math.min(n - 1, activeIdx + step)));
+    } else if (e.key === 'Home' || e.key === 'End') {
+      e.preventDefault();
+      setActive(e.key === 'Home' ? 0 : n - 1);
     } else if ((e.key === 'Enter' || e.key === ' ') && activeIdx >= 0) {
       e.preventDefault();
       onSelect?.(itemByRow[activeIdx].job);
@@ -461,17 +501,18 @@ export function createChart(container, { onSelect, onHover } = {}) {
   scroll.addEventListener('scroll', () => { if (!tip.hidden) hideTip(); }, { passive: true });
 
   function scrollToRow(r, smooth = false) {
+    const behavior = smooth && !prefersReducedMotion() ? 'smooth' : 'auto';
     const stickyH = sticky.offsetHeight;
     if (container.classList.contains('ms-chart--flow')) {
       const b = r.getBoundingClientRect();
-      if (b.top < stickyH + 8 || b.bottom > innerHeight - 8) r.scrollIntoView({ block: 'center', behavior: smooth ? 'smooth' : 'auto' });
+      if (b.top < stickyH + 8 || b.bottom > innerHeight - 8) r.scrollIntoView({ block: 'center', behavior });
       return;
     }
     const top = r.offsetTop + body.offsetTop;
     const viewTop = scroll.scrollTop + stickyH;
     const viewBot = scroll.scrollTop + scroll.clientHeight;
     if (top < viewTop + 4 || top + ROW_H > viewBot - 4) {
-      scroll.scrollTo({ top: top - stickyH - (scroll.clientHeight - stickyH) / 2 + ROW_H / 2, behavior: smooth ? 'smooth' : 'auto' });
+      scroll.scrollTo({ top: top - stickyH - (scroll.clientHeight - stickyH) / 2 + ROW_H / 2, behavior });
     }
   }
 

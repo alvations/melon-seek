@@ -63,6 +63,11 @@ async function countChange(page, prev, timeout = 5000) {
   return n;
 }
 
+/** The Chart/Map toggle button in the "View" group. */
+function modeBtn(page, mode) {
+  return page.getByRole('group', { name: 'View' }).getByRole('button', { name: mode === 'map' ? 'Map' : 'Chart', exact: true });
+}
+
 async function cardIds(page) {
   return page.locator('#resultsList .card[data-id]').evaluateAll((els) => els.map((e) => e.dataset.id));
 }
@@ -100,7 +105,7 @@ export function registerUiTests(suite) {
     const app = await openApp(ctx);
     try {
       const { page, errors } = app;
-      assertEq(await page.locator('[data-mode="chart"]').getAttribute('aria-pressed'), 'true', 'chart mode pressed by default');
+      assertEq(await modeBtn(page, 'chart').getAttribute('aria-pressed'), 'true', 'chart mode pressed by default');
       await page.locator('#chartHost .ms-row__bar').first().waitFor({ timeout: 8000 });
       const bars = await page.locator('#chartHost .ms-row__bar').count();
       assert(bars > 5, `only ${bars} chart bars`);
@@ -125,8 +130,8 @@ export function registerUiTests(suite) {
     const app = await openApp(ctx);
     try {
       const { page, errors } = app;
-      await page.locator('[data-mode="map"]').click();
-      assertEq(await page.locator('[data-mode="map"]').getAttribute('aria-pressed'), 'true', 'map pressed');
+      await modeBtn(page, 'map').click();
+      assertEq(await modeBtn(page, 'map').getAttribute('aria-pressed'), 'true', 'map pressed');
       await page.locator('#mapHost .ms-pin').first().waitFor({ timeout: 8000 });
       const pins = await page.locator('#mapHost .ms-pin').count();
       assert(pins >= 3, `only ${pins} pins`);
@@ -308,7 +313,7 @@ export function registerUiTests(suite) {
     try {
       const { page, errors } = app;
       await page.locator('#companyPills').getByRole('button', { name: /OpenAI/ }).click();
-      await page.waitForFunction(() => /(^|&)c=openai/.test(location.hash));
+      await page.waitForFunction(() => /(^|[#&])c=openai(&|$)/.test(location.hash));
       await waitReady(page);
       await page.waitForTimeout(300);
       const before = await resultCount(page);
@@ -319,7 +324,7 @@ export function registerUiTests(suite) {
       const dept = filterSection(page, 'Department').locator('label.check').first();
       await dept.click();
       const n2 = await countChange(page, n1);
-      await page.locator('[data-mode="map"]').click();
+      await modeBtn(page, 'map').click();
       await page.waitForTimeout(300);
       const hash = await page.evaluate(() => location.hash);
       const ids = await cardIds(page);
@@ -329,7 +334,7 @@ export function registerUiTests(suite) {
       assertEq(await page.evaluate(() => location.hash), hash, 'hash after reload');
       assertEq(await resultCount(page), n2, 'result count after reload');
       assertEq(JSON.stringify(await cardIds(page)), JSON.stringify(ids), 'card order after reload');
-      assertEq(await page.locator('[data-mode="map"]').getAttribute('aria-pressed'), 'true', 'map mode after reload');
+      assertEq(await modeBtn(page, 'map').getAttribute('aria-pressed'), 'true', 'map mode after reload');
       assertEq(await filterSection(page, 'Skills').locator(`button.kw[data-kw="${skill}"]`).getAttribute('aria-pressed'), 'true', 'skill chip after reload');
       assert(await filterSection(page, 'Department').locator('input[type=checkbox]:checked').count() === 1, 'dept checkbox after reload');
       assertEq(await page.locator('#companyPills').getByRole('button', { name: /OpenAI/ }).getAttribute('aria-pressed'), 'true', 'company after reload');
@@ -344,7 +349,7 @@ export function registerUiTests(suite) {
       // Back button undoes the last change (map -> chart).
       await page.goBack();
       await page.waitForTimeout(500);
-      assertEq(await page.locator('[data-mode="chart"]').getAttribute('aria-pressed'), 'true', 'history back restores chart mode');
+      assertEq(await modeBtn(page, 'chart').getAttribute('aria-pressed'), 'true', 'history back restores chart mode');
       assert(errors.length === 0, `console/page errors:\n${errors.join('\n')}`);
     } finally { await app.close(); }
   });
@@ -359,7 +364,7 @@ export function registerUiTests(suite) {
         `horizontal overflow: scrollWidth=${m.scrollWidth} body=${m.bodyScroll} client=${m.clientWidth}; offenders: ${m.offenders.join(', ')}`);
       await page.screenshot({ path: path.join(SHOTS, 'mobile.png') });
       // Map mode and the filter sheet on mobile shouldn't overflow either.
-      await page.locator('[data-mode="map"]').click();
+      await modeBtn(page, 'map').click();
       await page.waitForTimeout(500);
       const m2 = await noHScroll(page);
       assert(m2.scrollWidth <= m2.clientWidth, `map mode overflow: ${m2.scrollWidth} > ${m2.clientWidth}; ${m2.offenders.join(', ')}`);

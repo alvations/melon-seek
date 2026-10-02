@@ -11,7 +11,7 @@
 // Basemap: CARTO light/dark (follows the theme); if tiles fail the container
 // keeps a styled background, a graticule and labelled pins.
 
-import { formatMoney, toUSD, median, salaryColor, inkOn, onThemeChange, isDark } from './palette.js';
+import { formatMoney, toUSD, median, salaryColor, inkOn, onThemeChange, isDark, prefersReducedMotion } from './palette.js';
 
 const TILE_LIGHT = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
 const TILE_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
@@ -194,35 +194,65 @@ export function createMap(container, { onSelect, onAreaSelect } = {}) {
     return pin;
   }
 
+  function pinName(c) {
+    return `${c.label}: ${plural(c.n, 'posting')}${c.median != null ? `, median ${formatMoney(c.median)}` : ', no published salary'}`;
+  }
+
   function draw() {
+    // Keep keyboard focus on "the same" pin across re-clustering (zoom, activation fly-to):
+    // remember a place key of the focused cluster and refocus whichever new cluster contains it.
+    const focused = clusters.find(c => c.marker?.getElement() && c.marker.getElement() === document.activeElement);
+    const focusedKeys = focused ? new Set(focused.members.map(p => p.key)) : null;
+    const focusedLead = focused?.lead.key;
     markerLayer.clearLayers();
     clusters = cluster();
     const meds = clusters.map(c => c.median).filter(v => v != null);
     const lo = Math.min(...meds), hi = Math.max(...meds);
+    let refocus = null;
     // Draw small clusters first so big ones sit on top.
     const order = clusters.slice().sort((a, b) => a.n - b.n);
     order.forEach((c, i) => {
       const t = c.median == null ? 0 : (hi > lo ? (c.median - lo) / (hi - lo) : 0.6);
       const pinEl = pinElement(c, t);
+      pinEl.setAttribute('aria-hidden', 'true'); // name comes from the button's aria-label
       c.pinEl = pinEl;
       const icon = L.divIcon({ className: 'ms-pin-icon', html: pinEl, iconSize: [0, 0], iconAnchor: [0, 0] });
-      const m = L.marker([c.lat, c.lng], { icon, keyboard: true, title: '', riseOnHover: false, zIndexOffset: i, alt: c.label });
+      const m = L.marker([c.lat, c.lng], { icon, keyboard: true, title: '', riseOnHover: false, zIndexOffset: i });
       c.marker = m;
       m.bindTooltip(() => tooltipContent(c), { direction: 'top', offset: [0, -36], className: 'ms-map-tip', opacity: 1 });
       m.on('mouseover', () => { m.setZIndexOffset(100000); pinEl.classList.add('is-hover'); });
       m.on('mouseout', () => { m.setZIndexOffset(i); pinEl.classList.remove('is-hover'); });
-      m.on('click', () => {
+      const activate = () => {
         onAreaSelect?.(c.jobs, c.label);
         if (c.jobs.length === 1) onSelect?.(c.jobs[0]);
+        const animate = !prefersReducedMotion();
         if (c.members.length > 1) {
-          map.flyToBounds(L.latLngBounds(c.members.map(p => [p.lat, p.lng])).pad(0.3), { maxZoom: 12, duration: 0.6 });
+          const b = L.latLngBounds(c.members.map(p => [p.lat, p.lng])).pad(0.3);
+          if (animate) map.flyToBounds(b, { maxZoom: 12, duration: 0.6 });
+          else map.fitBounds(b, { maxZoom: 12, animate: false });
         } else {
           const z = Math.min(12, Math.max(map.getZoom() + 2, 9));
-          if (z > map.getZoom()) map.flyTo([c.lat, c.lng], z, { duration: 0.6 });
+          if (z > map.getZoom()) {
+            if (animate) map.flyTo([c.lat, c.lng], z, { duration: 0.6 });
+            else map.setView([c.lat, c.lng], z, { animate: false });
+          }
         }
+      };
+      m.on('click', activate);
+      m.on('keydown', e => {
+        const k = e.originalEvent.key;
+        if (k === 'Enter' || k === ' ' || k === 'Spacebar') { e.originalEvent.preventDefault(); activate(); }
       });
       m.addTo(markerLayer);
+      const iconEl = m.getElement();
+      iconEl?.setAttribute('aria-label', pinName(c));
+      if (focusedKeys && iconEl) {
+        // Prefer the cluster holding the old lead place; else any cluster sharing a member.
+        if (c.members.some(p => p.key === focusedLead)) refocus = iconEl;
+        else if (!refocus && c.members.some(p => focusedKeys.has(p.key))) refocus = iconEl;
+      }
     });
+    refocus?.focus({ preventScroll: true });
     applyHighlight();
   }
 

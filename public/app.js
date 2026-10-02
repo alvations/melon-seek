@@ -3,32 +3,16 @@
 // list, the job drawer and the company switcher. Rendering of the salary
 // chart and the map is delegated to ./viz/* (see docs/CONTRACT.md).
 
-import { colorFor, formatMoney, resetColors, assignColors, otherColor, SLOT_COUNT } from './viz/palette.js';
+import { colorFor, formatMoney, resetColors, assignColors, otherColor, toUSD, SLOT_COUNT } from './viz/palette.js';
 import { createChart, keyOf } from './viz/chart.js';
 import { createMap } from './viz/map.js';
-import * as liveApi from './api.js';
+import { getCompanies, getJobs } from './api.js';
 
-// ?mock=1 swaps the data layer for a local generator (development only).
-const MOCK = new URLSearchParams(location.search).has('mock');
-const dataApi = MOCK ? await import('./mock-api.js') : {
-  // Prefer api.js's high-level helpers; fall back to its apiFetch, then to fetch.
-  getCompanies: () => (liveApi.getCompanies ? liveApi.getCompanies() : httpGet('/api/companies')),
-  getJobs: (query, opts = {}) => {
-    if (liveApi.getJobs) return liveApi.getJobs(query, opts);
-    const p = new URLSearchParams(query);
-    if (opts.refresh) p.set('refresh', '1');
-    return httpGet(`/api/jobs?${p}`, opts.signal);
-  },
-};
-
-async function httpGet(path, signal) {
-  if (liveApi.apiFetch) return liveApi.apiFetch(path, { signal });
-  const res = await fetch(path.replace(/^\//, ''), { signal, headers: { accept: 'application/json' } });
-  let body = null;
-  try { body = await res.json(); } catch { /* non-JSON */ }
-  if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`);
-  return body;
-}
+// ?mock=1 swaps the data layer for a local generator. Development only: it is
+// honoured on localhost only, and the UI always labels it "Mock data".
+const MOCK = new URLSearchParams(location.search).has('mock') &&
+  ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+const dataApi = MOCK ? await import('./mock-api.js') : { getCompanies, getJobs };
 
 /* ------------------------------------------------------------------ utils */
 
@@ -41,7 +25,8 @@ function h(tag, attrs, ...kids) {
     if (k === 'class') el.className = v;
     else if (k === 'html') el.innerHTML = v; // only ever used with static icon markup
     else if (k === 'dataset') Object.assign(el.dataset, v);
-    else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
+    else if (/^on/i.test(k)) { if (typeof v === 'function') el.addEventListener(k.slice(2), v); } // never inline handlers
+    else if (k === 'href' || k === 'src') el.setAttribute(k, safeUrl(v));
     else el.setAttribute(k, v === true ? '' : v);
   }
   for (const kid of kids.flat(Infinity)) {
@@ -73,6 +58,8 @@ const FALLBACK_COMPANIES = [
   { slug: 'openai', name: 'OpenAI', source: 'ashby', board: 'openai', color: '#10a37f' },
 ];
 const BOARDS_KEY = 'melon-seek.boards.v1';
+const SOURCES = ['greenhouse', 'ashby', 'lever'];
+const SLUG_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
 const PAGE = 60;
 
 let regionNames = null;
@@ -150,7 +137,10 @@ function toast(msg) {
 function loadBoards() {
   try {
     const v = JSON.parse(localStorage.getItem(BOARDS_KEY) || '[]');
-    return Array.isArray(v) ? v.filter((b) => b && b.source && b.board) : [];
+    return Array.isArray(v)
+      ? v.filter((b) => b && SOURCES.includes(b.source) && typeof b.board === 'string' && SLUG_RE.test(b.board))
+        .map((b) => ({ source: b.source, board: b.board, name: typeof b.name === 'string' && b.name.trim() ? b.name.trim().slice(0, 80) : b.board }))
+      : [];
   } catch { return []; }
 }
 function saveBoards(list) {
@@ -273,7 +263,10 @@ function prepare(jobs) {
       j.salary.max ??= j.salary.min;
       j.salary.mid ??= (j.salary.min + j.salary.max) / 2;
     }
-    j._mid = j.salary ? j.salary.mid : null;
+    // Approximate USD for filtering / stats / percentile (display keeps the native currency).
+    j._usd = j.salary ? { min: toUSD(j.salary.min, j.salary.currency), max: toUSD(j.salary.max, j.salary.currency), mid: toUSD(j.salary.mid, j.salary.currency) } : null;
+    if (j._usd && !(isFinite(j._usd.min) && isFinite(j._usd.max))) j._usd = null;
+    j._mid = j._usd ? j._usd.mid : null;
     j._ts = j.updatedAt ? Date.parse(j.updatedAt) || null : null;
     j._locKeys = j.locations.map(locKey);
     j._hay = [j.title, j.department, j.team, j.employmentType, j.seniority,
@@ -298,7 +291,7 @@ function failures(j, F, now) {
   const out = [];
   if (F.q.length && !F.q.every((t) => j._hay.includes(t))) out.push('q');
   const salActive = F.so || F.smin != null || F.smax != null;
-  if (salActive && (!j.salary || (F.smin != null && j.salary.max < F.smin) || (F.smax != null && j.salary.min > F.smax))) out.push('sal');
+  if (salActive && (!j._usd || (F.smin != null && j._usd.max < F.smin) || (F.smax != null && j._usd.min > F.smax))) out.push('sal');
   if (F.d.size && !F.d.has(deptKey(j))) out.push('d');
   if (F.l.size && !j._locKeys.some((k) => F.l.has(k))) out.push('l');
   if (F.s.size && !F.s.has(j.seniority || 'Unspecified')) out.push('s');
@@ -356,14 +349,14 @@ function derive() {
       fc.p[0]++;
       for (const d of [7, 30, 90]) if (j._ts && now - j._ts <= d * 864e5) fc.p[d]++;
     }
-    if (counts('sal') && j.salary) fc.salMids.push(j._mid);
+    if (counts('sal') && j._usd) fc.salMids.push(j._mid);
   }
   return { filtered, fc };
 }
 
 function salaryDomain() {
   let lo = Infinity, hi = -Infinity;
-  for (const j of data.jobs) if (j.salary) { lo = Math.min(lo, j.salary.min); hi = Math.max(hi, j.salary.max); }
+  for (const j of data.jobs) if (j._usd) { lo = Math.min(lo, j._usd.min); hi = Math.max(hi, j._usd.max); }
   if (!isFinite(lo)) return null;
   lo = Math.floor(lo / 10000) * 10000;
   hi = Math.ceil(hi / 10000) * 10000;
@@ -375,16 +368,16 @@ function sortJobs(list) {
   const out = list.slice();
   const nullsLast = (a, b, f) => (a == null) - (b == null) || f();
   switch (S.sort) {
-    case 'salary-asc': out.sort((a, b) => nullsLast(a.salary, b.salary, () => (a.salary?.min ?? 0) - (b.salary?.min ?? 0) || a.title.localeCompare(b.title))); break;
+    case 'salary-asc': out.sort((a, b) => nullsLast(a._usd, b._usd, () => a._usd.min - b._usd.min || a.title.localeCompare(b.title))); break;
     case 'newest': out.sort((a, b) => (b._ts || 0) - (a._ts || 0) || a.title.localeCompare(b.title)); break;
     case 'title': out.sort((a, b) => a.title.localeCompare(b.title)); break;
-    default: out.sort((a, b) => nullsLast(a.salary, b.salary, () => (b.salary?.max ?? 0) - (a.salary?.max ?? 0) || a.title.localeCompare(b.title)));
+    default: out.sort((a, b) => nullsLast(a._usd, b._usd, () => b._usd.max - a._usd.max || a.title.localeCompare(b.title)));
   }
   return out;
 }
 
 function stats(list) {
-  const mids = list.filter((j) => j.salary).map((j) => j._mid).sort((a, b) => a - b);
+  const mids = list.filter((j) => j._usd).map((j) => j._mid).sort((a, b) => a - b);
   const depts = new Map();
   for (const j of list) depts.set(deptKey(j), (depts.get(deptKey(j)) || 0) + 1);
   const top = [...depts].sort((a, b) => b[1] - a[1])[0] || null;
@@ -686,8 +679,9 @@ function makeSalary({ compact = false } = {}) {
     const max = Math.max(1, ...counts);
     if (bins.length !== N) { bins = counts.map(() => h('span', { class: 'hist-bar' })); hist.replaceChildren(...bins); }
     counts.forEach((c, i) => { bins[i].style.height = `${c ? Math.max(6, (c / max) * 100) : 0}%`; });
-    const withSal = data.jobs.filter((j) => j.salary).length;
-    note.textContent = `${withSal} of ${data.jobs.length} roles list pay. Ranges overlap-match; non-USD shown at face value.`;
+    const withSal = data.jobs.filter((j) => j._usd).length;
+    const foreign = data.jobs.filter((j) => j._usd && j.salary.currency && j.salary.currency !== 'USD').length;
+    note.textContent = `${withSal} of ${data.jobs.length} roles list pay. A role matches if its range overlaps yours${foreign ? `; ${foreign} non-USD ranges compared in approx USD` : ''}.`;
     paint();
   }
   return { el, sync };
@@ -979,8 +973,8 @@ function makeBoardForm() {
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const slug = board.value.trim().replace(/^https?:\/\/[^/]+\//, '').replace(/\/.*$/, '');
-    if (!slug || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(slug)) { board.setAttribute('aria-invalid', 'true'); board.focus(); hint.textContent = 'Enter the board\u2019s slug (letters, numbers, dashes).'; return; }
-    const entry = { source: source.value, board: slug, name: name.value.trim() || slug.charAt(0).toUpperCase() + slug.slice(1) };
+    if (!slug || !SLUG_RE.test(slug) || /^\.+$/.test(slug)) { board.setAttribute('aria-invalid', 'true'); board.focus(); hint.textContent = 'Enter the board\u2019s slug (letters, numbers, dashes).'; return; }
+    const entry = { source: SOURCES.includes(source.value) ? source.value : 'greenhouse', board: slug, name: (name.value.trim() || slug.charAt(0).toUpperCase() + slug.slice(1)).slice(0, 80) };
     boards = [...boards.filter((b) => !(b.source === entry.source && b.board === entry.board)), entry];
     saveBoards(boards);
     closePopover(false);
@@ -1092,7 +1086,7 @@ function renderViz() {
     return;
   }
   const jobs = derived.filtered;
-  const plotted = jobs.filter((j) => j.salary).length;
+  const plotted = jobs.filter((j) => j._usd).length;
   title.replaceChildren(S.m === 'chart'
     ? h('span', null, h('strong', null, 'Salary ranges'), h('span', { class: 'muted' }, ` · ${plural(plotted, 'role')} plotted${jobs.length - plotted ? ` · ${jobs.length - plotted} without pay hidden` : ''}`))
     : h('span', null, h('strong', null, 'Where the roles are'), h('span', { class: 'muted' }, ' · click a pin to list its roles')));
@@ -1130,7 +1124,7 @@ function computeColorKeys(jobs) {
   colorKeys = new Set();
   if (S.cb === 'none') return;
   const counts = new Map();
-  for (const j of jobs) if (j.salary) { const k = keyOf(j, S.cb); counts.set(k, (counts.get(k) || 0) + 1); }
+  for (const j of jobs) if (j._usd) { const k = keyOf(j, S.cb); counts.set(k, (counts.get(k) || 0) + 1); }
   const ordered = [...counts.keys()].sort((a, b) => counts.get(b) - counts.get(a) || String(a).localeCompare(String(b)));
   const top = ordered.length > SLOT_COUNT ? ordered.slice(0, SLOT_COUNT - 1) : ordered;
   assignColors(top); // same (sticky) slots the chart assigns, so list/filter dots match its legend
@@ -1284,7 +1278,8 @@ function stepDrawer(d) {
 
 function percentile(job) {
   if (!job.salary) return null;
-  const mids = data.jobs.filter((j) => j.salary && j.id !== job.id).map((j) => j._mid);
+  if (!job._usd) return null;
+  const mids = data.jobs.filter((j) => j._usd && j.id !== job.id).map((j) => j._mid);
   if (!mids.length) return null;
   return Math.round((mids.filter((m) => m < job._mid).length / mids.length) * 100);
 }
