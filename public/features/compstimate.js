@@ -414,6 +414,42 @@ export function locationOptions(jobs) {
     .map(([value, n]) => ({ value, label: value, count: n }));
 }
 
+/** A representative, searchable title per role family (used to prefill from a family filter). */
+export const FAMILY_TITLES = Object.freeze({
+  swe: 'Software Engineer', ml: 'Research Engineer', data: 'Data Scientist', security: 'Security Engineer',
+  'eng-manager': 'Engineering Manager', hardware: 'Hardware Engineer', manufacturing: 'Manufacturing Technician',
+  'supply-chain': 'Supply Chain Manager', facilities: 'Facilities Manager', 'field-ops': 'Field Operations',
+  product: 'Product Manager', design: 'Product Designer', program: 'Technical Program Manager',
+  bizops: 'Business Operations', solutions: 'Solutions Architect', sales: 'Account Executive',
+  support: 'Customer Success Manager', marketing: 'Marketing Manager', legal: 'Counsel', policy: 'Policy Manager',
+  'trust-safety': 'Trust and Safety Analyst', people: 'Recruiter', finance: 'Finance Manager',
+  it: 'IT Systems Engineer', admin: 'Executive Assistant', 'ai-training': 'AI Tutor',
+});
+
+/**
+ * Compstimate query from the app's current state (UX-9), for widget.setQuery().
+ * Priority: the open job > the search text > the role-family filter. Level and
+ * location are used only when exactly one is selected. Empty strings mean "not
+ * set" (the widget then falls back to the board's most common role and says so).
+ * @param {{ job?: Job, search?: string, family?: string, seniority?: string|string[], location?: string|string[] }} state
+ * @returns {{ title: string, seniority: string, location: string, department: string }}
+ */
+export function queryFromState({ job, search, family, seniority, location } = {}) {
+  const one = (v) => (Array.isArray(v) ? (v.length === 1 ? v[0] : '') : v || '');
+  if (job) {
+    const onsite = (job.locations || []).find((l) => !l.remote);
+    return {
+      title: job.title || '', seniority: job.seniority || '', department: job.department || '',
+      location: onsite ? locationKey(onsite) : job.remote ? 'Remote' : '',
+    };
+  }
+  const text = String(search || '').trim();
+  return {
+    title: text || (family && FAMILY_TITLES[family]) || '',
+    seniority: one(seniority), location: one(location), department: '',
+  };
+}
+
 function defaultTitle(jobs) {
   return titleSuggestions((jobs || []).filter((j) => salaryUSD(j)), 1)[0] || '';
 }
@@ -476,12 +512,12 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
   const root = h('section', { class: 'ms-comp', 'aria-labelledby': id.head },
     h('header', { class: 'ms-comp__head' },
       h(hTag, { id: id.head, class: 'ms-comp__title' }, 'Compstimate'),
-      h('p', { id: `${id.head}-sub`, class: 'ms-comp__sub' }, 'Estimated base pay for a role, from comparable postings on this board.')),
+      h('p', { id: `${id.head}-sub`, class: 'ms-comp__sub' }, 'Estimated pay from similar roles on this board.')),
     h('form', { class: 'ms-comp__form', role: 'search', 'aria-label': 'Compstimate role details', onsubmit: (e) => { e.preventDefault(); run(); } },
       h('div', { class: 'msf-field msf-field--wide' }, h('label', { for: id.title }, 'Role title'), titleInput, datalist),
       h('div', { class: 'msf-field' }, h('label', { for: id.loc }, 'Location'), locSelect),
       h('div', { class: 'msf-field' }, h('label', { for: id.sen }, 'Level'), senSelect)),
-    resultEl, live);
+    h('p', { class: 'ms-comp__auto', hidden: true }), resultEl, live);
   container.appendChild(root);
 
   titleInput.addEventListener('input', () => {
@@ -513,6 +549,9 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
 
   function run() {
     clearTimeout(timer);
+    const auto = root.querySelector('.ms-comp__auto');
+    auto.hidden = !(autoTitle && query.title);
+    auto.textContent = autoTitle && query.title ? `Showing the most common role on this board, “${query.title}”. Type any title, or filter the board.` : '';
     result = estimateComp(jobs, query);
     render();
   }
@@ -540,7 +579,7 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
     if (!(hi > lo)) { lo = low * 0.8; hi = high * 1.2 || 1; }
     const pad = (hi - lo) * 0.04; lo -= pad; hi += pad;
     const pos = (v) => `${((v - lo) / (hi - lo)) * 100}%`;
-    const rangeLabel = `Estimated range ${formatMoney(low)} to ${formatMoney(high)}, within this board's typical pay spread of ${formatMoney(percentile(market, 0.05))} to ${formatMoney(percentile(market, 0.95))}`;
+    const rangeLabel = `Estimated range ${formatMoney(low)} to ${formatMoney(high)}, within this board's typical range of ${formatMoney(percentile(market, 0.05))} to ${formatMoney(percentile(market, 0.95))}`;
 
     const card = h('div', { class: 'ms-comp__card' },
       h('div', { class: 'ms-comp__eyebrow' }, 'Estimated base salary'),
@@ -561,7 +600,7 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
           h('span', { class: 'ms-comp__band', style: { left: pos(low), width: `calc(${pos(high)} - ${pos(low)})` } }),
           h('span', { class: 'ms-comp__dot', style: { left: pos(mid) } })),
         h('div', { class: 'ms-comp__scale', 'aria-hidden': 'true' },
-          h('span', null, formatMoney(lo + pad)), h('span', null, 'board pay spread (P5–P95)'), h('span', null, formatMoney(hi - pad)))),
+          h('span', null, formatMoney(lo + pad)), h('span', null, 'typical range on this board'), h('span', null, formatMoney(hi - pad)))),
       h('p', { class: 'ms-comp__explain' }, result.explanation));
 
     const list = h('ol', { class: 'ms-comp__list' }, result.comparables.map((job, i) => {
@@ -605,9 +644,14 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
     run();
   }
 
+  /** Merge into the query and re-estimate. title "" falls back to the board's most common role. */
   function setQuery(partial = {}) {
     query = { ...query, ...partial };
-    if (partial.title != null) { titleInput.value = query.title; autoTitle = false; }
+    if (partial.title != null) {
+      autoTitle = !String(partial.title).trim();
+      if (autoTitle) query.title = defaultTitle(jobs);
+      titleInput.value = query.title;
+    }
     fillOptions();
     run();
   }

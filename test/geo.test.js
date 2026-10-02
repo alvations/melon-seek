@@ -30,8 +30,9 @@ function one(str) {
 
 test('geocode: shape and US cities', () => {
   const sf = one('San Francisco, CA');
-  assert.deepEqual(Object.keys(sf).sort(), ['city', 'country', 'lat', 'lng', 'name', 'region', 'remote']);
+  assert.deepEqual(Object.keys(sf).sort(), ['city', 'country', 'lat', 'lng', 'name', 'rawName', 'region', 'remote']);
   assert.equal(sf.name, 'San Francisco, CA');
+  assert.equal(sf.rawName, 'San Francisco, CA');
   assert.equal(sf.city, 'San Francisco');
   assert.equal(sf.region, 'CA');
   assert.equal(sf.country, 'US');
@@ -104,6 +105,7 @@ test('geocode: remote', () => {
 test('geocode: unknown keeps name, null coords', () => {
   const u = one('Xyzzyville');
   assert.equal(u.name, 'Xyzzyville');
+  assert.equal(u.rawName, 'Xyzzyville');
   assert.equal(u.lat, null);
   assert.equal(u.lng, null);
   assert.equal(u.remote, false);
@@ -115,4 +117,33 @@ test('gazetteer size', () => {
   assert.ok(GAZETTEER_SIZE.cities >= 200, `cities ${GAZETTEER_SIZE.cities}`);
   assert.equal(GAZETTEER_SIZE.states, 52);
   assert.ok(GAZETTEER_SIZE.countries >= 50);
+});
+
+test('UX-3: canonical display names collapse variants; rawName keeps the source string', () => {
+  const name = (x) => one(x).name;
+  // remote variants
+  for (const r of ['Remote-Friendly US (Travel Required)', 'Remote-Friendly, United States', 'US - Remote', 'Remote (US)', 'Remote, USA']) assert.equal(name(r), 'Remote (US)', r);
+  for (const r of ['Remote-Friendly (Travel-Required)', 'Remote-Friendly (Travel Required)', 'Remote', 'Anywhere']) assert.equal(name(r), 'Remote', r);
+  assert.equal(name('Ontario - Remote'), 'Remote (CA)');
+  assert.equal(name('Remote-Friendly, Australia'), 'Remote (AU)');
+  // region / prefecture / format duplicates collapse to one city name
+  assert.equal(name('Tokyo Prefecture'), 'Tokyo, Japan');
+  assert.equal(name('Tokyo'), 'Tokyo, Japan');
+  assert.equal(name('Tokyo, Japan'), 'Tokyo, Japan');
+  assert.equal(name('Costa Mesa, California, United States'), 'Costa Mesa, CA');
+  assert.equal(name('Seattle WA'), 'Seattle, WA');
+  assert.equal(name('New York City, NY'), 'New York, NY');
+  assert.equal(name('NYC'), 'New York, NY');
+  assert.equal(name('Washington, District of Columbia, United States'), 'Washington, DC');
+  assert.equal(name('London, England, United Kingdom'), 'London, UK');
+  assert.equal(name('Zürich, CH'), 'Zurich, Switzerland');
+  assert.equal(name('Singapore'), 'Singapore');
+  // region-only and country-only
+  assert.equal(name('Ontario, CAN'), 'Ontario, Canada');
+  assert.equal(name('Ontario, Canada'), 'Ontario, Canada');
+  assert.equal(name('Texas'), 'Texas, US');
+  assert.equal(name('Germany'), 'Germany');
+  const r = one('Remote-Friendly US (Travel Required)');
+  assert.equal(r.rawName, 'Remote-Friendly US (Travel Required)');
+  assert.equal(one('Tokyo Prefecture').rawName, 'Tokyo Prefecture');
 });

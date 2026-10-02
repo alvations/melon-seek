@@ -82,6 +82,11 @@ const SHOTS = [
   { name: 'focus-keyboard', viewport: [1360, 1000], query: 'theme=dark', focusRows: 3 },
   { name: 'no-pay', viewport: [1360, 800], query: 'theme=light&company=nopay', full: true },
   { name: 'empty', viewport: [1360, 600], query: 'theme=light&company=empty', full: false },
+  // wave 2: UX-9 prefill/auto note, DES-9 token colors, UX-6 labels
+  { name: 'w2-comp-auto', viewport: [1360, 1000], query: 'theme=light', element: '.ms-comp' },
+  { name: 'w2-comp-prefill-dark', viewport: [1360, 1000], query: `theme=dark&q=${encodeURIComponent(JSON.stringify({ title: 'Engineering Manager', seniority: 'Manager', location: 'San Francisco' }))}`, element: '.ms-comp' },
+  { name: 'w2-insights-light', viewport: [1360, 1000], query: 'theme=light', element: '.ms-insights:not(.ms-compare)' },
+  { name: 'w2-insights-dark', viewport: [1360, 1000], query: 'theme=dark', element: '.ms-insights:not(.ms-compare)' },
   // v2: published accuracy + compare companies
   { name: 'v2-comp-accuracy', viewport: [1360, 1000], query: 'theme=light', element: '.ms-comp' },
   { name: 'v2-comp-lowacc-dark', viewport: [1360, 1000], query: 'theme=dark&accuracy=31', element: '.ms-comp' },

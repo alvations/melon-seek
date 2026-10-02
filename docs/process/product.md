@@ -694,3 +694,35 @@ to stand in for `meta.compstimate`.
   (`none` / `title+location` / `title` / `role`), the four-version table above, and the
   ±1% display floor.
 - 07:40Z: this addendum.
+
+---
+
+# Wave 2: QA and design audit fixes (UX-9, UX-6, DES-9, A11Y-1)
+
+Coordinator message (verbatim in [prompts/product.md](prompts/product.md)). Sources: `docs/QA.md` (UX-6, UX-9, A11Y-1) and `docs/process/viz.md` (DES-9).
+
+**Decisions**
+1. **UX-9, prefill from app state.**
+   - New pure `queryFromState({ job, search, family, seniority, location })` in `compstimate.js` returns `{ title, seniority, location, department }` for `widget.setQuery()`.
+   - Priority: the open job (its title, level, department and first on-site city) beats the search text, which beats the role-family filter. A family maps to a representative title via the new `FAMILY_TITLES`; a test checks that every title maps back to its own family.
+   - Level and location are used only when exactly one is selected.
+   - `setQuery({ title: "" })` now falls back to the board's most common role. Whenever that default is in use, the card says so in a muted line: "Showing the most common role on this board, “…”. Type any title, or filter the board." The estimate is never silently for a role the user didn't ask about.
+2. **UX-6, plain language.**
+   - Card subtitle: "Estimated pay from similar roles on this board."
+   - The range scale says "typical range on this board" instead of "P5–P95".
+   - In Market insights:
+     - the stat-tile note "P25 to P75" became "of salaried roles", under the existing "Middle 50%" label;
+     - the department tooltip rows say "Most roles (10th–90th pct)" and "Middle 50%".
+3. **DES-9, colors from app tokens.**
+   - The accent fallback is the app's rind green (`#0b7a5c` light, `#3ccf9a` dark).
+   - The skill-premium diverging pair is `--ms-accent` (pays more) and `--ms-danger` (pays less). Green and red are a weak pair for colour-blind readers, but every bar carries a signed "+$42K / −$18K" label and the legend names both colours, so hue is never the only cue.
+   - No hard-coded blue or red is left (a test enforces this).
+4. **A11Y-1, contrast.** `--_faint` is now an alias for `--_muted`, so there is no sub-AA text token left in `features.css`. A test computes WCAG contrast for the muted fallbacks on the surface and background tokens, in light and dark, and requires at least 4.5:1. It also checks the app's own `#5c6474` on `#ffffff` and on `#f0f2f5`.
+
+**Verification**
+- `node --test test/features.test.js`: 63/63 passing (4 new wave-2 tests).
+- Screenshots: 26 PNGs, no page errors. New: `features-w2-comp-auto.png` (shows the default-role note and the new labels), `features-w2-comp-prefill-dark.png`, `features-w2-insights-light.png` and `features-w2-insights-dark.png` (token colours).
+
+**For UX (`public/app.js`)**: in `renderInsights()`, call `comp.setQuery(queryFromState({ job: openJob, search: S.q, family: S.rf, seniority: S.s, location: S.l }))` whenever filters change or a drawer opens. Use the state names `app.js` actually has.
+
+- 08:10Z: wave 2 done.

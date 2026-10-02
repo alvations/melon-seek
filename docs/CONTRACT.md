@@ -172,3 +172,5 @@ Copies in `server/juice.js` and `server/salary.js` are guarded by
 **UI simplicity budget:** ROADMAP §8 is binding. At most one new main-view
 control across all of these features: the conditional "Save" button. Modes
 stay Chart, Map and Insights. New drawer sections go in the fixed order.
+
+**Location (2026-10-02, UX-3):** `name` is now a canonical display name (`Remote (US)`, `City, ST`, `City, Country`); the source string is kept in `rawName`. Use `rawName` for identity (e.g. history fingerprints) and `name` for display.

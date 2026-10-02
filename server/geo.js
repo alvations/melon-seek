@@ -101,26 +101,26 @@ Ile-de-France|Île-de-France|FR|48.85|2.64|Ile de France
 
 const COUNTRIES_RAW = `
 US|United States|39.83|-98.58|USA;U.S.;U.S.A.;United States of America;America;US
-CA|Canada|56.13|-106.35|
-MX|Mexico|23.63|-102.55|México
-BR|Brazil|-14.24|-51.93|Brasil
+CA|Canada|56.13|-106.35|CAN
+MX|Mexico|23.63|-102.55|México;MEX
+BR|Brazil|-14.24|-51.93|Brasil;BRA
 AR|Argentina|-38.42|-63.62|
 CL|Chile|-35.68|-71.54|
 CO|Colombia|4.57|-74.30|
 PE|Peru|-9.19|-75.02|
-GB|United Kingdom|54.00|-2.00|UK;U.K.;Great Britain;Britain;GB
-IE|Ireland|53.41|-8.24|Republic of Ireland;IE
-FR|France|46.23|2.21|FR
-DE|Germany|51.17|10.45|Deutschland
-NL|Netherlands|52.13|5.29|The Netherlands;Holland;NL
+GB|United Kingdom|54.00|-2.00|UK;U.K.;Great Britain;Britain;GB;GBR
+IE|Ireland|53.41|-8.24|Republic of Ireland;IE;IRL
+FR|France|46.23|2.21|FR;FRA
+DE|Germany|51.17|10.45|Deutschland;DEU
+NL|Netherlands|52.13|5.29|The Netherlands;Holland;NL;NLD
 BE|Belgium|50.50|4.47|
 LU|Luxembourg|49.82|6.13|
-CH|Switzerland|46.82|8.23|CH;Schweiz;Suisse
+CH|Switzerland|46.82|8.23|CH;Schweiz;Suisse;CHE
 AT|Austria|47.52|14.55|
-IT|Italy|41.87|12.57|Italia
-ES|Spain|40.46|-3.75|España
+IT|Italy|41.87|12.57|Italia;ITA
+ES|Spain|40.46|-3.75|España;ESP
 PT|Portugal|39.40|-8.22|
-SE|Sweden|60.13|18.64|SE
+SE|Sweden|60.13|18.64|SE;SWE
 NO|Norway|60.47|8.47|
 DK|Denmark|56.26|9.50|DK
 FI|Finland|61.92|25.75|FI
@@ -128,7 +128,7 @@ IS|Iceland|64.96|-19.02|
 EE|Estonia|58.60|25.01|EE
 LV|Latvia|56.88|24.60|
 LT|Lithuania|55.17|23.88|
-PL|Poland|51.92|19.15|PL
+PL|Poland|51.92|19.15|PL;POL
 CZ|Czechia|49.82|15.47|Czech Republic;CZ
 HU|Hungary|47.16|19.50|HU
 RO|Romania|45.94|24.97|RO
@@ -137,28 +137,28 @@ RS|Serbia|44.02|21.01|RS
 GR|Greece|39.07|21.82|GR
 TR|Turkey|38.96|35.24|Türkiye;Turkiye;TR
 UA|Ukraine|48.38|31.17|UA
-IL|Israel|31.05|34.85|
-AE|United Arab Emirates|23.42|53.85|UAE;U.A.E.;AE
+IL|Israel|31.05|34.85|ISR
+AE|United Arab Emirates|23.42|53.85|UAE;U.A.E.;AE;ARE
 SA|Saudi Arabia|23.89|45.08|KSA
 QA|Qatar|25.35|51.18|QA
 EG|Egypt|26.82|30.80|EG
 NG|Nigeria|9.08|8.68|NG
 KE|Kenya|-0.02|37.91|KE
 ZA|South Africa|-30.56|22.94|ZA
-IN|India|20.59|78.96|
+IN|India|20.59|78.96|IND
 PK|Pakistan|30.38|69.35|PK
-JP|Japan|36.20|138.25|JP
-KR|South Korea|35.91|127.77|Korea;Republic of Korea;KR
+JP|Japan|36.20|138.25|JP;JPN
+KR|South Korea|35.91|127.77|Korea;Republic of Korea;KR;KOR
 CN|China|35.86|104.20|CN;PRC
 HK|Hong Kong|22.32|114.17|HK;Hong Kong SAR
 TW|Taiwan|23.70|120.96|TW
-SG|Singapore|1.35|103.82|SG
+SG|Singapore|1.35|103.82|SG;SGP
 MY|Malaysia|4.21|101.98|MY
 ID|Indonesia|-0.79|113.92|
 PH|Philippines|12.88|121.77|PH
 TH|Thailand|15.87|100.99|TH
 VN|Vietnam|14.06|108.28|Viet Nam;VN
-AU|Australia|-25.27|133.78|AU
+AU|Australia|-25.27|133.78|AU;AUS
 NZ|New Zealand|-40.90|174.89|NZ
 `;
 
@@ -614,7 +614,7 @@ function dedupe(arr) {
 // geocode
 // ---------------------------------------------------------------------------
 
-const NOISE_RE = /\b(hybrid|on-?site|in-?office|office|offices|hq|headquarters|campus|metro(politan)?( area)?|area|greater|region|based|only|preferred)\b/gi;
+const NOISE_RE = /\b(prefecture|metropolis|province|hybrid|on-?site|in-?office|office|offices|hq|headquarters|campus|metro(politan)?( area)?|area|greater|region|based|only|preferred)\b/gi;
 
 function cleanPlace(s) {
   return s
@@ -731,6 +731,37 @@ function resolveRemote(name) {
  * { name, city, region, country, lat, lng, remote }.
  * Unknown places keep their name with lat/lng null.
  */
+const COUNTRY_LABEL = { GB: 'UK', US: 'US' };
+const countryLabel = (code) => COUNTRY_LABEL[code] || (COUNTRY_BY_CODE.get(code) || {}).name || code;
+function regionLabel(region, country) {
+  if (country === 'US' && STATE_BY_ABBR.has(region)) return STATE_BY_ABBR.get(region).name;
+  const r = REGION_BY_CODE.get(region);
+  return r ? r.name : region;
+}
+
+/**
+ * Canonical display name (UX-3) so one place is one filter entry:
+ * remote -> "Remote" / "Remote (US)"; city -> "San Francisco, CA" (US) or
+ * "Tokyo, Japan" / "London, UK"; region only -> "Ontario, Canada";
+ * country only -> "Germany"; unknown -> the raw string, trimmed.
+ */
+export function canonicalName(loc) {
+  if (!loc) return '';
+  if (loc.remote) return loc.country ? `Remote (${loc.country})` : 'Remote';
+  if (loc.city && loc.country) {
+    if (loc.country === 'US') return loc.region ? `${loc.city}, ${loc.region}` : loc.city;
+    const cl = countryLabel(loc.country);
+    return normKey(cl) === normKey(loc.city) ? loc.city : `${loc.city}, ${cl}`; // city-states: "Singapore"
+  }
+  if (loc.region && loc.country) return `${regionLabel(loc.region, loc.country)}, ${countryLabel(loc.country)}`;
+  if (loc.country && loc.lat != null) return (COUNTRY_BY_CODE.get(loc.country) || {}).name || loc.country;
+  return String(loc.rawName || loc.name || '').replace(/\s+/g, ' ').trim();
+}
+
 export function geocode(str) {
-  return splitLocations(str).map((part) => (REMOTE_RE.test(part) ? resolveRemote(part) : resolvePlace(part)));
+  return splitLocations(str).map((part) => {
+    const loc = REMOTE_RE.test(part) ? resolveRemote(part) : resolvePlace(part);
+    const rawName = loc.name;
+    return { ...loc, name: canonicalName({ ...loc, rawName }), rawName };
+  });
 }

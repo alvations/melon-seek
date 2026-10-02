@@ -11,10 +11,11 @@
   --_muted: var(--ms-muted, #5f5e5a);
   --_border: var(--ms-border, #e1e0d9);
   --_border-strong: var(--ms-border-strong, color-mix(in srgb, var(--_border) 70%, var(--_text) 12%));
-  --_accent: var(--ms-accent, #2a78d6);
+  --_accent: var(--ms-accent, #0b7a5c);
   --_accent-soft: var(--ms-accent-soft, color-mix(in srgb, var(--_accent) 12%, var(--_surface)));
   --_accent-ink: var(--ms-accent-strong, color-mix(in srgb, var(--_accent) 75%, var(--_text)));
-  --_faint: color-mix(in srgb, var(--_muted) 72%, var(--_surface));
+  /* A11Y-1: no sub-AA "faint" ink; secondary text uses the muted token (>= 4.5:1). */
+  --_faint: var(--_muted);
   --_panel: color-mix(in srgb, var(--_accent) 4%, var(--_surface));
   --_wash: color-mix(in srgb, var(--_text) 5%, transparent);
   --_grid: color-mix(in srgb, var(--_border) 70%, var(--_surface));
@@ -25,9 +26,10 @@
   --_box: color-mix(in srgb, var(--_accent) 40%, var(--_surface));
   --_box-med: color-mix(in srgb, var(--_accent) 55%, var(--_text));
   --_whisker: color-mix(in srgb, var(--_accent) 50%, var(--_surface));
-  /* diverging pair (dataviz reference palette): blue = pays more, red = pays less */
-  --_pos: #2a78d6;
-  --_neg: #e34948;
+  /* diverging pair from the app tokens (DES-9): accent = pays more, danger = pays less.
+     Every bar also carries a signed "+$42K / −$18K" label and a legend, so hue is not alone. */
+  --_pos: var(--ms-accent, #0b7a5c);
+  --_neg: var(--ms-danger, #c4323f);
   --_tip-bg: var(--ms-surface, #ffffff);
   --_shadow: 0 1px 2px rgba(11, 11, 11, .06), 0 6px 20px rgba(11, 11, 11, .10);
   --_focus: var(--ms-focus, 0 0 0 3px color-mix(in srgb, var(--_accent) 35%, transparent));
@@ -42,13 +44,13 @@
     --_text: var(--ms-text, #ffffff);
     --_muted: var(--ms-muted, #a9a89f);
     --_border: var(--ms-border, #2c2c2a);
-    --_accent: var(--ms-accent, #3987e5);
+    --_accent: var(--ms-accent, #3ccf9a);
     --_box: color-mix(in srgb, var(--_accent) 42%, var(--_surface));
     --_box-med: color-mix(in srgb, var(--_accent) 45%, var(--_text));
     --_whisker: color-mix(in srgb, var(--_accent) 55%, var(--_surface));
     --_track: color-mix(in srgb, var(--_accent) 18%, var(--_surface));
-    --_pos: #3987e5;
-    --_neg: #e66767;
+    --_pos: var(--ms-accent, #3ccf9a);
+    --_neg: var(--ms-danger, #ff7a85);
     --_tip-bg: var(--ms-surface-2, #242423);
     --_shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .45);
     color-scheme: dark;
@@ -60,13 +62,13 @@
   --_text: var(--ms-text, #ffffff);
   --_muted: var(--ms-muted, #a9a89f);
   --_border: var(--ms-border, #2c2c2a);
-  --_accent: var(--ms-accent, #3987e5);
+  --_accent: var(--ms-accent, #3ccf9a);
   --_box: color-mix(in srgb, var(--_accent) 42%, var(--_surface));
   --_box-med: color-mix(in srgb, var(--_accent) 45%, var(--_text));
   --_whisker: color-mix(in srgb, var(--_accent) 55%, var(--_surface));
   --_track: color-mix(in srgb, var(--_accent) 18%, var(--_surface));
-  --_pos: #3987e5;
-  --_neg: #e66767;
+  --_pos: var(--ms-accent, #3ccf9a);
+  --_neg: var(--ms-danger, #ff7a85);
   --_tip-bg: var(--ms-surface-2, #242423);
   --_shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .45);
   color-scheme: dark;
@@ -329,6 +331,7 @@
   line-height: 1.4;
 }
 .ms-comp__head { margin-bottom: 12px; }
+.ms-comp__auto { margin: 10px 0 0; color: var(--_muted); font-size: 12px; }
 .ms-comp__title { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -.01em; }
 .ms-comp__sub { margin: 2px 0 0; color: var(--_muted); font-size: 12.5px; }
 

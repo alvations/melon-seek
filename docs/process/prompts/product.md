@@ -23,3 +23,10 @@ Report back concisely: exported APIs exactly (so the lead can wire them into app
 > Locked interface: `backtest(jobs, { seed, maxN = 500 }) -> { medianAbsPctError, within10Pct, n, seed }`, exported from public/features/compstimate.js. It must be pure and importable from Node, with no DOM at import time. The build and server call it with seed 20261002 and maxN 500. backend's scripts/build-market.js will import your normalizeTitle and roleFamily from Node too.
 
 > UX has wired "Same role elsewhere" and "Compare companies" and is waiting on public/features/comps.js. It calls `createCompsCard(el, { onPickCompany(slug, filters), market })` and then `.update(market, { company, jobs })`, and uses `compsForJob(market, job) -> { rows, matchedOn }` with rows shaped for viz's createCompsChart: `{ slug, name, color, n, p25, median, p75 }`. Please match that, or tell me exactly how yours differs. Also: `npm test` fails "title normalization" in test/features.test.js because of your in-progress roles.js. Please get it green, then report back with your exports and the 100-title hand-check result.
+
+> Wave 2 for product, from QA's audit (docs/QA.md) and the design audit (docs/process/viz.md). Keep it simple:
+> - UX-9: the Insights Compstimate ignores the active filters and estimates for "Software Engineer". Prefill title, level and location from the active filters or search (and from the selected job if one is open). Expose `setQuery`, which already exists, so UX can call it.
+> - UX-6: plain-language labels: "Estimated pay from similar roles" under Compstimate, "middle 50%" instead of P25–P75, "typical range" instead of P5–P95.
+> - DES-9: features.css hard-codes blue and red; use the app tokens.
+> - A11Y-1: faint text to at least 4.5:1.
+> Tests and screenshots; log it in product.md.

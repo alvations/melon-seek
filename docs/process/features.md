@@ -289,6 +289,27 @@ and the prompt copy).
        security, recruiters, visa). Without the fix these become chips on
        100% of jobs. The generic intro no longer says "go-to-market".
 
+21. **UX-3: canonical location names (`geo.js`).** `geocode()` now
+    returns `name` as a canonical display name. The source string is kept
+    as the new field `rawName`, so the Location shape gains one field.
+    The rules, in `canonicalName(loc)`:
+    - Remote → `Remote`, or `Remote (CC)` when a country is known. The
+      region is dropped, so "Ontario - Remote" becomes `Remote (CA)`.
+    - A US city → `City, ST`.
+    - A non-US city → `City, Country`, using `UK` for GB. City-states drop
+      the duplicate country (`Singapore`, `Hong Kong`).
+    - A region only → `Region, Country` (`Ontario, Canada`, `Texas, US`).
+    - A country only → the country name.
+    - Anything unknown → the raw string, trimmed.
+
+    Supporting changes:
+    - `prefecture`, `metropolis` and `province` were added to the noise
+      words, so "Tokyo Prefecture" resolves to Tokyo.
+    - ISO-3 country codes were added (CAN, AUS, IND, JPN, GBR and others),
+      because "Ontario, CAN" had not resolved to Canada.
+    - `normalizeLocations` already dedupes by `name`, so variants within
+      one job now merge.
+
 ## 4. Replayable steps
 ```sh
 cd /home/user/melon-seek
@@ -424,6 +445,37 @@ node docs/process/scripts/boilerplate-report.mjs anthropic anduril openai   # BU
     (skipped when the snapshots are absent), and demo boilerplate in
     `normalizeJobs`. `npm test` → **254/254 pass**.
 
+- **UX-3 (2026-10-02): distinct Location-filter entries per company.**
+  The key is the UI's `locKey`: `name` for remote entries, else `city`.
+  "Before" is the stored snapshots. "After" re-geocodes each stored
+  location string.
+
+  | Company | Before | After |
+  |---|---|---|
+  | anthropic | 31 | 27 |
+  | anduril | 52 | 51 |
+  | openai | 26 | 25 |
+  | cohere | 53 | 53 |
+  | palantir | 30 | 30 |
+  | scaleai | 31 | 31 |
+  | shieldai | 36 | 36 |
+  | xai | 21 | 21 |
+
+  - **Distinct `name` strings:** Anthropic 38 → 27 and Scale AI 35 → 31.
+  - **Anthropic's merges:**
+    - Four "Remote-Friendly…" variants become `Remote (US)` (53 jobs)
+      and `Remote` (28).
+    - "Tokyo" and "Tokyo Prefecture" become `Tokyo, Japan`.
+    - "Ontario, CAN" and "Ontario, Canada" become `Ontario, Canada`.
+  - **Tests:** `node --test test/keywords.test.js test/geo.test.js
+    test/demo.test.js` → 46/46 pass. A new UX-3 test covers the remote,
+    prefecture, format, region and country variants and `rawName`.
+  - **`npm test`:** 259/260. The one failure is backend's
+    `test/golden-normalize.test.js`, which is expected: location `name`
+    changed and `rawName` was added. I did not re-baseline it
+    (`UPDATE_GOLDEN=1 node --test test/golden-normalize.test.js`), because
+    it is backend's perf reference. The coordinator should sequence that.
+
 ## 6. Known gaps and follow-ups
 - Coordinates are approximate and come from general knowledge, not a
   surveyed dataset. Small towns that are not in the gazetteer fall back to the
@@ -466,6 +518,15 @@ node docs/process/scripts/boilerplate-report.mjs anthropic anduril openai   # BU
   normalization, already get the fix through `normalizeJobs`.
 - `jobs.droppedKeywords` is attached by `normalizeJobs` but is not yet in
   any response `meta`, because that is the server and build's code.
+- UX-3:
+  - Stored snapshots and caches keep the old names until they are
+    re-normalized (the same wiring as BUG-5).
+  - Anything that matched on the old raw `name` should use `rawName`
+    instead. That covers `history.js`'s first-location key and the CSV
+    export, which now gets canonical names.
+  - The contract's Location shape should list `rawName` (lead).
+  - Non-geographic regions ("Europe", "APAC", "Middle East") still show
+    as their raw strings.
 - The " and " separator splits multi-word country names such as "Trinidad and
   Tobago". This is rare in job boards.
 
@@ -627,3 +688,7 @@ Lexicon changes (§6a) come after that.
   pattern fixes and 15 near-duplicate or overlap decisions proposed in §6a.
   **None applied** (they change output and are sequenced after the perf
   wave). keywords.js is frozen pending backend perf proposals (§6b).
+- 2026-10-02: UX-3. geo.js now gives canonical location `name` plus
+  `rawName`, with prefecture/province noise words and ISO-3 country codes.
+  Anthropic filter entries went from 31 to 27. Backend's golden test needs
+  a re-baseline.

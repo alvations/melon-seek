@@ -119,7 +119,7 @@ function defaultFamily(market, jobs) {
 
 /**
  * "Compare companies" card for Insights mode: a role-family picker and one range row
- * per company (P25–P75 bar, median tick, shared axis). Clicking a row calls
+ * per company (middle-50% bar, median tick, shared axis). Clicking a row calls
  * onPickCompany(slug, { family, familyLabel, seniority: null }).
  */
 export function createCompsCard(container, { onPickCompany, market: initialMarket, headingLevel = 3 } = {}) {

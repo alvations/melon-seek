@@ -256,7 +256,7 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
           h('span', { class: 'msi-box__iqr', style: { left: x(b.p25), width: `max(4px, calc(${x(b.p75)} - ${x(b.p25)}))` } }),
           h('span', { class: 'msi-box__med', style: { left: x(b.median) } })),
       ],
-      () => ({ value: `${formatMoney(b.median)} median`, label: b.department, rows: [['P10–P90', `${formatMoney(b.p10)} – ${formatMoney(b.p90)}`], ['P25–P75', `${formatMoney(b.p25)} – ${formatMoney(b.p75)}`], ['Salaried roles', String(b.n)]] })));
+      () => ({ value: `${formatMoney(b.median)} median`, label: b.department, rows: [['Most roles (10th–90th pct)', `${formatMoney(b.p10)} – ${formatMoney(b.p90)}`], ['Middle 50%', `${formatMoney(b.p25)} – ${formatMoney(b.p75)}`], ['Salaried roles', String(b.n)]] })));
     const axis = h('div', { class: 'msi-axis', 'aria-hidden': 'true' },
       h('span', { class: 'msi-axis__pad' }),
       h('span', { class: 'msi-axis__track' }, ticks.map((t) => h('span', { class: 'msi-axis__tick', style: { left: x(t) } }, formatMoney(t)))),
@@ -324,7 +324,7 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
       note ? h('div', { class: 'msi-stat__note' }, note) : null);
     return h('div', { class: 'msi-stats', role: 'list' },
       [tile('Median base pay', formatMoney(s.median), s.median == null ? 'no pay published' : `of ${plural(s.salaried, 'salaried role')}`),
-        tile('Middle 50%', s.p25 == null ? '—' : `${formatMoney(s.p25)}–${formatMoney(s.p75)}`, 'P25 to P75'),
+        tile('Middle 50%', s.p25 == null ? '—' : `${formatMoney(s.p25)}–${formatMoney(s.p75)}`, 'of salaried roles'),
         tile('Pay published', formatPct(s.payShare), `${s.salaried} of ${s.total}`),
         tile('Remote-eligible', formatPct(s.remoteShare), plural(jobs.filter((j) => j.remote).length, 'role'))]
         .map((t) => { t.setAttribute('role', 'listitem'); return t; }));

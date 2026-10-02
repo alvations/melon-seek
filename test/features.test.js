@@ -6,8 +6,9 @@ import {
   estimateComp, compstimateForJob, normalizeTitle, roleFamily, inferSeniority, senioritySim,
   resolveLocation, locationSim, titleSuggestions, locationOptions, SENIORITY_LADDER,
   backtest, accuracyLine, accuracyFrom, isLowAccuracy, displayConfidence, ACCURACY_LOW_THRESHOLD, BACKTEST_SEED,
-  FAMILY_LABELS,
+  FAMILY_LABELS, queryFromState, FAMILY_TITLES,
 } from '../public/features/compstimate.js';
+import fsSync from 'node:fs';
 import * as roles from '../public/features/roles.js';
 import { marketCells, marketComps, compsForJob, familyOptions } from '../public/features/comps.js';
 import {
@@ -602,5 +603,57 @@ describe('market comps', () => {
     const opts = familyOptions(market);
     assert.deepEqual(opts.map((o) => [o.id, o.companies]), [['ml', 3], ['swe', 1]]);
     assert.equal(opts[0].label, 'AI research & ML engineering');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// wave 2: UX-9 prefill, DES-9 tokens, A11Y-1 contrast
+// ---------------------------------------------------------------------------
+
+describe('queryFromState (UX-9)', () => {
+  test('open job wins: title, level, department, first on-site city', () => {
+    const j = job({ title: 'Engineering Manager, Platform', seniority: 'Manager', locations: [REMOTE_US, NYC] });
+    assert.deepEqual(queryFromState({ job: j, search: 'ignored', family: 'swe' }),
+      { title: 'Engineering Manager, Platform', seniority: 'Manager', department: 'Engineering', location: 'New York' });
+    assert.equal(queryFromState({ job: job({ locations: [REMOTE_US] }) }).location, 'Remote');
+  });
+  test('search text, then role family; single level/location only', () => {
+    assert.deepEqual(queryFromState({ search: '  Recruiter ', family: 'swe', seniority: ['Senior'], location: ['London'] }),
+      { title: 'Recruiter', seniority: 'Senior', location: 'London', department: '' });
+    const q = queryFromState({ family: 'eng-manager', seniority: ['Manager', 'Senior'], location: 'San Francisco' });
+    assert.deepEqual(q, { title: 'Engineering Manager', seniority: '', location: 'San Francisco', department: '' });
+    assert.deepEqual(queryFromState({}), { title: '', seniority: '', location: '', department: '' });
+    for (const id of Object.keys(FAMILY_LABELS)) assert.ok(FAMILY_TITLES[id], `title for ${id}`);
+    for (const id of Object.keys(FAMILY_LABELS)) assert.equal(roleFamily(FAMILY_TITLES[id]), id, `${FAMILY_TITLES[id]} maps back to ${id}`);
+  });
+});
+
+describe('features.css tokens and contrast (DES-9, A11Y-1)', () => {
+  const css = fsSync.readFileSync(new URL('../public/features/features.css', import.meta.url), 'utf8');
+  const lum = (hex) => {
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+      .reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0);
+  };
+  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  const fallback = (block, name) => block.match(new RegExp(`--_${name}: var\\(--ms-${name}, (#[0-9a-f]{6})\\)`))[1];
+  test('no hard-coded blue/red; diverging pair uses app tokens', () => {
+    assert.doesNotMatch(css, /#2a78d6|#e34948|#3987e5|#e66767/i);
+    assert.match(css, /--_pos: var\(--ms-accent/);
+    assert.match(css, /--_neg: var\(--ms-danger/);
+    assert.match(css, /--_faint: var\(--_muted\)/);
+  });
+  test('muted text fallbacks clear 4.5:1 on surface and bg, light and dark', () => {
+    const light = css.slice(0, css.indexOf('@media (prefers-color-scheme: dark)'));
+    const dark = css.slice(css.indexOf(':root[data-theme="dark"]'));
+    for (const block of [light, dark]) {
+      const muted = fallback(block, 'muted');
+      for (const bg of ['surface', 'bg']) {
+        const r = ratio(muted, fallback(block, bg));
+        assert.ok(r >= 4.5, `${muted} on ${bg} ${r.toFixed(2)}:1`);
+      }
+    }
+    // the app's own tokens (public/styles.css): muted on white / surface-2
+    assert.ok(ratio('#5c6474', '#ffffff') >= 4.5 && ratio('#5c6474', '#f0f2f5') >= 4.5);
   });
 });
