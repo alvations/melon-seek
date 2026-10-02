@@ -1,0 +1,17 @@
+{
+  "name": "melon-seek",
+  "version": "0.1.0",
+  "description": "Zillow for job postings: plot company job boards by salary, skills and location.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node --test test/",
+    "snapshot": "node scripts/snapshot.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "leaflet": "^1.9.4"
+  }
+}
