@@ -1,7 +1,7 @@
 # melon-seek: security, accessibility and correctness review
 
 Reviewer: security & accessibility workstream (read-only on code).
-Snapshot reviewed: working tree at 2026-10-02 ~05:30 UTC (commit `1d23290` + uncommitted WIP). Re-checked, and the v2 code reviewed, on 2026-10-02 ~13:30 UTC (commit `6a42334`). See "Re-check" and "v2 review" at the bottom. Line numbers in those two sections refer to `6a42334`.
+Snapshot reviewed: working tree at 2026-10-02 ~05:30 UTC (commit `1d23290` + uncommitted WIP). Re-checked, and the v2 code reviewed, on 2026-10-02 ~13:30 UTC (working tree at commit `6a42334`; other workstreams were editing `public/app.js` and `server/history.js` at the same time, so a few line numbers may drift). See "Re-check" and "v2 review" at the bottom. Line numbers in those two sections refer to `6a42334`.
 Scope: `server/**`, `public/app.js`, `public/index.html`, `public/viz/{chart,map,palette}.js`, `public/viz/viz.css`, `public/features/shared.js`.
 Method and commands: `docs/process/review.md`.
 
