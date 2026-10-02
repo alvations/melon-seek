@@ -1,14 +1,17 @@
 name: Snapshot job boards
 
-# GitHub-hosted runners can reach the public job-board APIs, so this workflow
-# is how real data lands in data/snapshots/ (the offline fallback before demo).
+# GitHub-hosted runners can reach the public job-board APIs. This workflow
+# fetches every built-in board and uploads data/snapshots/*.json as a workflow
+# ARTIFACT. It does not commit them: real snapshots are tens of MB per day
+# (anduril alone is ~38 MB), which would bloat the git history. pages.yml
+# restores the latest artifact as its fallback before fetching fresh data.
 on:
   schedule:
     - cron: "17 6 * * *" # daily, 06:17 UTC
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: snapshot
@@ -31,15 +34,14 @@ jobs:
       - name: Fetch snapshots
         run: npm run snapshot # no args = every built-in in server/companies.js
 
-      - name: Commit changed snapshots
-        run: |
-          set -euo pipefail
-          git add -A data/snapshots/*.json || true
-          if git diff --cached --quiet; then
-            echo "No snapshot changes."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "chore(data): refresh job board snapshots ($(date -u +%Y-%m-%d))"
-          git push
+      # TODO(vetting): once scripts/vet-salaries.js exists, add a step here that
+      # runs `node scripts/vet-salaries.js` and fails the job on critical salary
+      # anomalies, so a bad snapshot is never uploaded.
+
+      - name: Upload snapshots artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: job-board-snapshots
+          path: data/snapshots/*.json
+          retention-days: 14
+          if-no-files-found: error

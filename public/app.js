@@ -1227,10 +1227,11 @@ function renderViz() {
       else if (mapFitPending) {
         mapFitPending = false;
         map.update(jobs, { fit: true });
+        fitMapToPins(jobs);
         // Layout (banner, toolbar, fonts) can still shift this frame; refit once the container has its final size.
         requestAnimationFrame(() => requestAnimationFrame(() => {
           if (S.m !== 'map' || vizSig.map !== sig) return;
-          try { map.invalidateSize(); map.update(derived.filtered, { fit: true }); } catch { /* ignore */ }
+          try { map.invalidateSize(); fitMapToPins(derived.filtered); } catch { /* ignore */ }
         }));
       } else map.update(jobs);
     } catch (err) { console.error('viz update failed', err); }
@@ -1264,6 +1265,26 @@ function setArea(kind, jobs, label) {
   resultsLimit = PAGE;
   scheduleRender();
   if (isMobile()) setSheet(true);
+}
+
+/**
+ * Fit the first view so every price pin is fully visible: padding of ~half a pin
+ * (pins are ~85px wide, centred on the point) and a min zoom low enough to show
+ * boards that span SF–London–Tokyo in a ~700px column. Uses map.leaflet (escape hatch).
+ */
+function fitMapToPins(jobs) {
+  const lm = map?.leaflet;
+  const host = $('#mapHost');
+  if (!lm || !window.L || host.hidden || !host.clientWidth || !host.clientHeight) return;
+  const pts = [];
+  for (const j of jobs) for (const l of j.locations) if (!l.remote && l.lat != null && l.lng != null) pts.push([l.lat, l.lng]);
+  if (pts.length < 2) return;
+  const bounds = L.latLngBounds(pts);
+  const pad = [Math.min(96, host.clientWidth / 6), Math.min(64, host.clientHeight / 6)];
+  lm.invalidateSize({ pan: false });
+  const z = lm.getBoundsZoom(bounds, false, L.point(pad[0] * 2, pad[1] * 2));
+  if (z < lm.getMinZoom()) lm.setMinZoom(Math.max(0.5, Math.floor(z * 2) / 2));
+  lm.fitBounds(bounds, { paddingTopLeft: [pad[0], pad[1] + 20], paddingBottomRight: [pad[0], pad[1]], maxZoom: 11, animate: false });
 }
 
 function highlightViz() {
@@ -1497,9 +1518,12 @@ function drawerContent(job) {
       onclick: (e) => { toggleIn(key, k); e.currentTarget.setAttribute('aria-pressed', String(S[key].includes(k))); toast(S[key].includes(k) ? `Filtering by “${k}”` : `Removed “${k}”`); },
     }, k)))) : null));
   const bullets = (title, arr) => (arr?.length ? h('section', { class: 'd-sec' }, h('h3', null, title), h('ul', { class: 'bullets' }, ...arr.map((b) => h('li', null, b)))) : null);
+  const bulletsHost = h('div', { class: 'd-bullets' });
+  const renderBullets = () => bulletsHost.replaceChildren(...[bullets('What you\u2019ll do', job.sections.responsibilities), bullets('What they look for', job.sections.fit)].filter(Boolean));
+  renderBullets();
   const desc = h('div', { class: 'desc' });
   const descWrap = h('section', { class: 'd-sec d-desc is-collapsed' }, h('h3', null, 'Full description'), desc);
-  fillDescription(job, desc, descWrap);
+  fillDescription(job, desc, descWrap, renderBullets);
   const descToggle = h('button', { type: 'button', class: 'link-btn d-desc-toggle', 'aria-expanded': 'false', onclick: (e) => {
     const c = descWrap.classList.toggle('is-collapsed');
     e.currentTarget.textContent = c ? 'Read full description' : 'Show less';
@@ -1518,10 +1542,10 @@ function drawerContent(job) {
   const salaryBlock = h('section', { class: 'd-salary' },
     sal ? h('div', { class: 'd-sal-top' },
       h('div', null, h('div', { class: 'd-sal-amt' }, salaryRange(sal)), h('div', { class: 'muted' }, `${sal.currency || 'USD'} · per year`), annualNote(sal)),
-      pct != null ? h('div', { class: 'd-pct' }, h('div', { class: 'd-pct-num' }, `${pct}%`), h('div', { class: 'muted' }, 'percentile')) : null)
+      pct != null ? h('div', { class: 'd-pct' }, h('div', { class: 'd-pct-num' }, pct >= 100 ? 'Top' : `${pct}%`), h('div', { class: 'muted' }, pct >= 100 ? 'paid here' : 'percentile')) : null)
       : h('div', { class: 'd-sal-none' }, h('strong', null, 'Salary not listed'), h('span', { class: 'muted' }, ' — this posting doesn\u2019t include a pay range.'), compstimateBlock(job)),
     sal ? salaryDistribution(job) : null,
-    sal && pct != null ? h('p', { class: 'd-pct-text' }, `Pays more than ${pct}% of roles at ${company.name || job.companyName}`) : null);
+    sal && pct != null ? h('p', { class: 'd-pct-text' }, pct >= 100 ? `Top-paid role at ${company.name || job.companyName}` : `Pays more than ${pct}% of roles at ${company.name || job.companyName}`) : null);
 
   const locs = h('section', { class: 'd-sec' }, h('h3', null, job.locations.length > 1 ? `Locations (${job.locations.length})` : 'Location'),
     h('ul', { class: 'loc-list' }, ...(job.locations.length ? job.locations.map((l) => h('li', null,
@@ -1532,7 +1556,8 @@ function drawerContent(job) {
   const source = SOURCE_LABEL[company.source] || 'job board';
   const foot = h('div', { class: 'drawer-foot' },
     h('a', { class: 'btn btn--primary btn--lg apply', href: job.url, target: '_blank', rel: 'noopener noreferrer', title: `Opens ${applyHost(job.url) || 'the posting'} in a new tab` },
-      h('span', { class: 'apply-label' }, `Apply on ${source}`, applyHost(job.url) ? h('span', { class: 'apply-host' }, applyHost(job.url)) : null), h('span', { html: ICON.ext })),
+      // Demo jobs link to the real board index, not to a real posting — say so.
+      h('span', { class: 'apply-label' }, data.mode === 'demo' && !MOCK ? `Open the real ${source} board` : `Apply on ${source}`, applyHost(job.url) ? h('span', { class: 'apply-host' }, applyHost(job.url)) : null), h('span', { html: ICON.ext })),
     h('button', { type: 'button', class: 'btn btn--ghost btn--lg', 'aria-label': 'Copy link to this role', html: ICON.link, onclick: copyLink }));
 
   return [head, h('div', { class: 'drawer-scroll', tabindex: '0', 'aria-label': 'Role details' },
@@ -1544,8 +1569,7 @@ function drawerContent(job) {
     job._ts ? h('div', { class: 'd-updated muted' }, `Updated ${ago(job._ts)}`) : null,
     salaryBlock, locs,
     kwCat.some(Boolean) ? h('section', { class: 'd-sec' }, h('h3', null, 'Keywords ', h('span', { class: 'muted small' }, 'click to filter')), ...kwCat) : null,
-    bullets('What you\u2019ll do', job.sections.responsibilities),
-    bullets('What they look for', job.sections.fit),
+    bulletsHost,
     descWrap), foot];
 }
 
@@ -1553,7 +1577,7 @@ function drawerContent(job) {
  * Static deploys omit descriptionHtml from the list payload; fetch it on demand
  * with api.getJobDetail(job) and swap the skeleton out when it arrives.
  */
-function fillDescription(job, desc, wrap) {
+function fillDescription(job, desc, wrap, onSections = () => {}) {
   const toggle = () => wrap.querySelector('.d-desc-toggle');
   const show = (html) => {
     desc.replaceChildren(sanitizeHtml(html, job.url));
@@ -1570,8 +1594,10 @@ function fillDescription(job, desc, wrap) {
   Promise.resolve(dataApi.getJobDetail(job)).then((detail) => {
     const html = detail?.descriptionHtml || '';
     job.descriptionHtml = html;
-    if (detail?.sections) for (const k of ['responsibilities', 'fit']) if (!job.sections[k]?.length && detail.sections[k]?.length) job.sections[k] = detail.sections[k];
+    let gotSections = false;
+    if (detail?.sections) for (const k of ['responsibilities', 'fit']) if (!job.sections[k]?.length && detail.sections[k]?.length) { job.sections[k] = detail.sections[k]; gotSections = true; }
     if (!desc.isConnected) return;
+    if (gotSections) onSections(); // lazily-arrived bullets re-render in place
     wrap.classList.add('is-collapsed');
     if (html) show(html);
     else desc.replaceChildren(h('p', { class: 'muted' }, 'No description on this posting. ', postingLink(job)));
