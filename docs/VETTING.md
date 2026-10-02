@@ -237,7 +237,11 @@ with the verdict schema), `effort`, and server-side refusal fallback
 (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`). It checks
 `stop_reason` (refusal, max_tokens) before reading the JSON. It retries
 408/409/429/5xx/529 and network errors with backoff (honoring `retry-after`), and
-stops on 401/403. Each verdict is appended as soon as it arrives, so a rerun
+stops on 401/403. The posting text is sent inside `<untrusted_posting_text>` tags, which
+the model is told are data, never instructions. Every verdict is verified: its `quote` must be an exact
+substring of the excerpt, and its corrected min/max must appear in the text (plain, comma or K forms). Otherwise it is
+stored as `verdict: "unverified"` (with `model_verdict` and `verification_errors`). `ANTHROPIC_BASE_URL`
+must be https (http only for localhost). Each verdict is appended as soon as it arrives, so a rerun
 resumes.
 
 ### CI (`.github/workflows/pages.yml`, after the snapshot steps, before the build)
