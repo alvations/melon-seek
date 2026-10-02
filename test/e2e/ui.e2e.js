@@ -1470,7 +1470,7 @@ function registerCompstimateTests(suite) {
       assertEq(hp.getAll('s').join(','), 'Senior', 'hash s');
       const c = await readComp(page);
       assertEq(c.level.value, 'Senior', 'Level shows Senior');
-      assert(c.basis && /at OpenAI/.test(c.basis) && /Senior/.test(c.basis), `basis "${c.basis}"`);
+      assert(c.basis && /at OpenAI/.test(c.basis) && /Senior/.test(c.basis), `basis "${c.basis}" (widget: ${JSON.stringify({ hero: c.hero, notEnough: c.notEnough, noEstimateYet: c.noEstimateYet, title: c.title, level: c.level, location: c.location, explain: c.explain })})`);
       await page.goBack();
       await page.waitForFunction(() => new URLSearchParams(location.hash.slice(1)).get('c') === 'anthropic', null, { timeout: 10000 });
       await page.locator('#drawer').waitFor({ state: 'visible', timeout: 10000 });

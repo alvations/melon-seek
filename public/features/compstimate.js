@@ -492,7 +492,9 @@ export function compstimateInputs(state = {}, edits = {}, jobs = [], { visible =
   // the level/location in effect), else the most common role in the pool.
   const inPool = new Set(pool.map((j) => j.id));
   const vis = Array.isArray(visible) ? visible.filter((j) => j && inPool.has(j.id)) : pool;
-  const auto = titleSuggestions(vis, 1)[0] || titleSuggestions(pool, 1)[0] || '';
+  // A role-family filter names the role: estimate the family's representative title
+  // (e.g. "Software Engineer"), not whichever single posting title is most common.
+  const auto = (F.rf && FAMILY_TITLES[F.rf]) || titleSuggestions(vis, 1)[0] || titleSuggestions(pool, 1)[0] || '';
   const title = titleF ? auto : String(ed.title || '');
   const location = locF ? (F.l.length === 1 ? F.l[0] : !F.l.length && F.r === 'remote' ? 'Remote' : '') : String(ed.location || '');
   const seniority = levF ? (F.s.length === 1 && F.s[0] !== 'Unspecified' ? F.s[0] : '') : String(ed.seniority || '');
@@ -643,11 +645,16 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
     const salaried = board.filter((j) => salaryUSD(j));
     if (document.activeElement !== titleInput) titleInput.value = inputs.query.title;
     datalist.replaceChildren(...titleSuggestions(salaried).map((t) => h('option', { value: t })));
-    const locs = locationOptions(salaried);
+    // Every location on the board is selectable (not only ones with posted pay), so
+    // a drawer estimate for, e.g., a Singapore role can be reproduced here exactly.
+    // The count shows how many roles there list pay.
+    const paid = new Map(locationOptions(salaried).map((o) => [o.value, o.count]));
+    const locs = locationOptions(board).map((o) => ({ ...o, count: paid.get(o.value) || 0 }))
+      .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
     const locVal = inputs.display.location;
     if (locVal && !locs.some((o) => o.value === locVal)) locs.push({ value: locVal, label: locVal, count: 0 });
     locSelect.replaceChildren(h('option', { value: '' }, inputs.labels.location),
-      ...locs.map((o) => h('option', { value: o.value }, `${o.label} (${o.count})`)));
+      ...locs.map((o) => h('option', { value: o.value }, o.count ? `${o.label} (${o.count})` : `${o.label} (no listed pay)`)));
     locSelect.value = locVal;
     const levels = new Map();
     for (const j of salaried) if (j.seniority) levels.set(j.seniority, (levels.get(j.seniority) || 0) + 1);

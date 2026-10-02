@@ -501,3 +501,20 @@ screenshots in `docs/screenshots/`.
     ATS/OSM/fonts allowlist), and an e2e link test.
   The definitive fix needs the user: Settings → Pages → Source → GitHub
   Actions (GITHUB_TOKEN can't change it).
+- 2026-10-02 (after container restart): devops's off-site link fix had
+  landed uncommitted. It renders LIVABILITY.md as dist/methodology/, makes
+  JUICE_DOC relative, adds links-policy.test.js and a build link check,
+  makes the deploy wait for the branch build, adds a post-deploy live check
+  with a build marker, and adds site-watchdog.yml. The lead verified and
+  committed it (d5f1815). The lead then:
+  - served /methodology/ in server mode (it 404'd);
+  - fixed the Compstimate location select to list every board location
+    ("(no listed pay)" when none), so drawer = Insights for Singapore,
+    Tokyo and Mumbai roles;
+  - made a role-family filter set the auto title (FAMILY_TITLES) instead of
+    the most common posting title (T20: "Not enough comparable roles"
+    after "Same role elsewhere" → OpenAI);
+  - made the T20 failure message print the widget state.
+  Final: npm test 290/290; e2e 56/56 (incl. the 24 Compstimate task-force
+  scenarios and the link checks). Lesson: don't use `pgrep -f`/`pkill -f`
+  with a pattern the calling shell contains (exit 144); use pid files.

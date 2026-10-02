@@ -816,6 +816,18 @@ export async function handle(req, res) {
     if (!file) return sendJson(req, res, 404, { error: 'Not found' });
     return serveFile(req, res, file);
   }
+  // The Juice methodology page (docs/LIVABILITY.md), rendered like the static
+  // build does, so the in-app "How it's calculated" link works in server mode too.
+  if (p === '/methodology' || p === '/methodology/') {
+    if (p === '/methodology') { res.writeHead(301, { Location: '/methodology/' }); return res.end(); }
+    const { renderMethodologyPage } = await import('../scripts/methodology.js');
+    const md = await fs.readFile(path.join(ROOT, 'docs', 'LIVABILITY.md'), 'utf8');
+    return send(req, res, 200, renderMethodologyPage({ md }), 'text/html; charset=utf-8');
+  }
+  if (p === '/methodology/methodology.css') {
+    const { METHODOLOGY_CSS } = await import('../scripts/methodology.js');
+    return send(req, res, 200, METHODOLOGY_CSS, 'text/css; charset=utf-8');
+  }
   if (p.startsWith('/vendor/leaflet/')) {
     const file = safeJoin(LEAFLET_DIR, p.slice('/vendor/leaflet/'.length));
     if (!file) return sendJson(req, res, 403, { error: 'Forbidden' });
