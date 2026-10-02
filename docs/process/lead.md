@@ -208,3 +208,10 @@ screenshots in `docs/screenshots/`.
   (prompts/social.md): OG/Twitter meta tags, a 1200x630 card generated from
   an HTML template with Playwright, absolute og URLs via SITE_URL in the
   static build, optional per-company share pages, and a test.
+- 2026-10-02: viz finished the clusters view (default) and the ranges detail
+  view; wiring notes sent to UX (default groupBy 'department' in clusters,
+  onClusterSelect chip, view stored as `v` in the hash).
+- 2026-10-02: user asked for competitor analysis, our differentiators, and
+  how to 1-up Zillow and the job boards. Launched the strategy agent
+  (prompts/strategy.md). Outputs: docs/strategy/COMPETITIVE_ANALYSIS.md
+  and ROADMAP.md.
