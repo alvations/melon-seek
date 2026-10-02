@@ -117,6 +117,9 @@ const shortDate = (ts) => new Date(ts).toLocaleDateString(undefined, { month: 's
 const plural = (n, one, many = one + 's') => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 const cssId = (id) => (window.CSS?.escape ? CSS.escape(id) : String(id).replace(/["\\]/g, '\\$&'));
 
+/** Drop null/false children (Element.replaceChildren would render them as text). */
+const nn = (...kids) => kids.filter((k) => k != null && k !== false);
+
 function rafThrottle(fn) {
   let queued = false;
   return () => {
@@ -484,8 +487,8 @@ function renderTopbar() {
   const sig = all.map((c) => c.slug + c.name).join('|') + '§' + S.c + '§' + data.status + data.jobs.length + '§' + recents.join(',');
   if (menuBtn.dataset.sig !== sig) {
     menuBtn.dataset.sig = sig;
-    menuBtn.replaceChildren(h('span', { class: 'dot', style: `--dot:${companyColor(active)}` }), h('span', { class: 'company-name' }, active?.name || 'Choose company'),
-      data.status === 'ready' ? h('span', { class: 'company-count' }, data.jobs.length) : null, h('span', { class: 'chip-caret', html: ICON.chevron }));
+    menuBtn.replaceChildren(...nn(h('span', { class: 'dot', style: `--dot:${companyColor(active)}` }), h('span', { class: 'company-name' }, active?.name || 'Choose company'),
+      data.status === 'ready' ? h('span', { class: 'company-count' }, data.jobs.length) : null, h('span', { class: 'chip-caret', html: ICON.chevron })));
     menuBtn.setAttribute('aria-label', `Company: ${active?.name || 'none'}. Choose another company or add a board`);
     const recent = recents.filter((slug) => slug !== S.c).map((slug) => all.find((c) => c.slug === slug)).filter(Boolean).slice(0, 3);
     $('#companyPills').replaceChildren(...recent.map((c) => h('button', {
@@ -556,10 +559,10 @@ function makeBadgeDetails() {
       ['Fetched', data.fetchedAt ? `${new Date(data.fetchedAt).toLocaleString()} (${ago(data.fetchedAt)})` : '—'],
       ['Roles', data.jobs.length.toLocaleString()],
     ];
-    el.replaceChildren(h('p', null, info?.tip || ''),
+    el.replaceChildren(...nn(h('p', null, info?.tip || ''),
       h('dl', null, ...rows.map(([k, v]) => [h('dt', null, k), h('dd', null, v)])),
       data.error ? h('pre', { class: 'badge-error' }, data.error) : null,
-      MOCK ? null : h('button', { type: 'button', class: 'btn btn--ghost btn--sm btn--block', onclick: () => { closePopover(false); loadJobs({ refresh: true }); } }, 'Refresh from the live board'));
+      MOCK ? null : h('button', { type: 'button', class: 'btn btn--ghost btn--sm btn--block', onclick: () => { closePopover(false); loadJobs({ refresh: true }); } }, 'Refresh from the live board')));
   }
   return { el, sync };
 }
@@ -587,7 +590,7 @@ function makeCompanyMenu() {
   const input = h('input', { type: 'search', class: 'fsearch', placeholder: 'Search companies…', 'aria-label': 'Search companies', autocomplete: 'off' });
   const list = h('div', { class: 'company-list', role: 'listbox', 'aria-label': 'Companies' });
   const add = h('button', { type: 'button', class: 'btn btn--ghost btn--sm btn--block', onclick: () => togglePopover('board', $('#addBoardBtn')) },
-    h('span', { html: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>' }), 'Add a board (Greenhouse, Ashby, Lever)');
+    h('span', { html: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>' }), 'Add a board…');
   const el = h('div', { class: 'company-menu' }, h('div', { class: 'fsearch-wrap' }, h('span', { html: ICON.search }), input), list, add);
   input.addEventListener('input', sync);
   input.addEventListener('keydown', (e) => { if (e.key === 'ArrowDown') { e.preventDefault(); list.querySelector('button')?.focus(); } if (e.key === 'Enter') { e.preventDefault(); list.querySelector('button')?.click(); } });
@@ -998,7 +1001,7 @@ function togglePopover(id, anchor) {
     h('button', { type: 'button', class: 'btn btn--primary btn--sm pop-done', onclick: () => closePopover() }, 'Done'));
   el.className = `popover popover--${id}`;
   el.setAttribute('aria-labelledby', 'popTitle');
-  el.replaceChildren(head, h('div', { class: 'pop-body' }, ...popover.parts.map((p) => p.el)), foot);
+  el.replaceChildren(...[head, h('div', { class: 'pop-body' }, ...popover.parts.map((p) => p.el)), foot].filter(Boolean));
   el.hidden = false;
   anchor?.setAttribute('aria-expanded', 'true');
   syncPopover();
@@ -1334,7 +1337,7 @@ function renderResults() {
     return;
   }
   const st = stats(visible);
-  title.replaceChildren(h('strong', null, plural(st.n, 'role')), st.median != null ? h('span', { class: 'muted' }, ` · median ${money(st.median)}`) : null);
+  title.replaceChildren(...nn(h('strong', null, plural(st.n, 'role')), st.median != null ? h('span', { class: 'muted' }, ` · median ${money(st.median)}`) : null));
   if (!visible.length) {
     list.replaceChildren(h('li', { class: 'list-empty' }, stateCard({
       title: data.jobs.length ? 'No roles match' : 'No open roles',

@@ -1,0 +1,133 @@
+{
+ "anduril": {
+  "jobs": 2418,
+  "salaried": 2277,
+  "quarantined": 0,
+  "flagged": 203,
+  "critical": 4,
+  "blocking": 4,
+  "codes": {
+   "non_year_interval": 194,
+   "min_under_15k_fulltime": 4,
+   "title_senior_low": 1,
+   "stat_outlier": 2,
+   "multiple_ranges": 2,
+   "missed_salary": 1,
+   "currency_country_mismatch": 2,
+   "ratio_over_3": 5
+  }
+ },
+ "anthropic": {
+  "jobs": 638,
+  "salaried": 558,
+  "quarantined": 0,
+  "flagged": 11,
+  "critical": 2,
+  "blocking": 2,
+  "codes": {
+   "max_over_1_2m": 2,
+   "title_junior_high": 2,
+   "magnitude_suffix": 2,
+   "no_pay_context": 2,
+   "multi_currency": 4,
+   "stat_outlier": 2,
+   "missed_salary": 1,
+   "multiple_ranges": 3,
+   "ratio_over_3": 4
+  }
+ },
+ "cohere": {
+  "jobs": 132,
+  "salaried": 132,
+  "quarantined": 0,
+  "flagged": 131,
+  "critical": 0,
+  "blocking": 0,
+  "codes": {
+   "structured_text_disagree": 88,
+   "multi_currency": 128,
+   "non_year_interval": 42,
+   "currency_country_mismatch": 42,
+   "title_junior_high": 3,
+   "no_pay_context": 3,
+   "stat_outlier": 2
+  }
+ },
+ "openai": {
+  "jobs": 833,
+  "salaried": 674,
+  "quarantined": 0,
+  "flagged": 13,
+  "critical": 0,
+  "blocking": 0,
+  "codes": {
+   "missed_salary": 3,
+   "non_year_interval": 4,
+   "stat_outlier": 1,
+   "structured_text_disagree": 2,
+   "ratio_over_3": 1,
+   "currency_country_mismatch": 2
+  }
+ },
+ "palantir": {
+  "jobs": 320,
+  "salaried": 240,
+  "quarantined": 0,
+  "flagged": 42,
+  "critical": 0,
+  "blocking": 0,
+  "codes": {
+   "non_year_interval": 41,
+   "stat_outlier": 1,
+   "currency_country_mismatch": 2
+  }
+ },
+ "scaleai": {
+  "jobs": 194,
+  "salaried": 131,
+  "quarantined": 0,
+  "flagged": 21,
+  "critical": 1,
+  "blocking": 1,
+  "codes": {
+   "non_year_interval": 5,
+   "stat_outlier": 2,
+   "structured_text_disagree": 14,
+   "currency_country_mismatch": 2,
+   "max_over_1_2m": 1,
+   "ratio_over_3": 1,
+   "magnitude_suffix": 1,
+   "no_pay_context": 1
+  }
+ },
+ "shieldai": {
+  "jobs": 581,
+  "salaried": 456,
+  "quarantined": 0,
+  "flagged": 33,
+  "critical": 1,
+  "blocking": 1,
+  "codes": {
+   "structured_text_disagree": 8,
+   "non_year_interval": 25,
+   "ratio_over_3": 1,
+   "max_over_1_2m": 1,
+   "interval_suspect": 1,
+   "stat_outlier": 1
+  }
+ },
+ "xai": {
+  "jobs": 297,
+  "salaried": 134,
+  "quarantined": 0,
+  "flagged": 51,
+  "critical": 0,
+  "blocking": 0,
+  "codes": {
+   "non_year_interval": 41,
+   "missed_salary": 5,
+   "ratio_over_3": 3,
+   "currency_country_mismatch": 2
+  }
+ }
+}
