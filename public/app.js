@@ -922,7 +922,7 @@ function syncPopover() {
 function positionPopover() {
   const el = $('#popover');
   if (!popover.anchor || el.hidden) return;
-  if (matchMedia('(max-width: 720px)').matches) { el.style.left = el.style.top = ''; return; }
+  if (matchMedia('(max-width: 860px)').matches) { el.style.left = el.style.top = ''; return; }
   const r = popover.anchor.getBoundingClientRect();
   const w = el.offsetWidth;
   el.style.top = `${r.bottom + 8}px`;
