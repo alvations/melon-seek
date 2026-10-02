@@ -230,28 +230,29 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
     const boxes = deptBoxes(jobs).slice(0, 10);
     const sub = 'Middle 50% of pay (box), 10th–90th percentile (whiskers), median (tick).';
     if (!boxes.length) return card('Pay by department', sub, emptyNote('No salaried roles in view.'), { headTag: `h${hl + 1}` });
-    // Stable axis: domain from all jobs so filtering doesn't rescale.
+    // Stable axis: domain from all jobs so filtering doesn't rescale the plot.
     const domainMids = (allJobs.length ? allJobs : jobs).map(midOf).filter((v) => v != null);
     let lo = Math.min(percentile(domainMids, 0.02), ...boxes.map((b) => b.p10));
     let hi = Math.max(percentile(domainMids, 0.98), ...boxes.map((b) => b.p90));
-    const { ticks, start, end } = niceTicks(lo, hi, 4);
-    lo = start; hi = end;
+    const pad = (hi - lo) * 0.04 || 1000;
+    lo = Math.max(0, lo - pad); hi += pad;
+    const ticks = niceTicks(lo, hi, 5).ticks.filter((t) => t >= lo && t <= hi);
     const x = (v) => `${((v - lo) / (hi - lo || 1)) * 100}%`;
-    const grid = ticks.map((t) => h('span', { class: 'msi-grid', style: { left: x(t) } }));
+    const grid = () => ticks.map((t) => h('span', { class: 'msi-grid', style: { left: x(t) } }));
     const rows = boxes.map((b) => row('department', b.department,
       `${b.department}: median ${formatMoney(b.median)}, middle 50% ${formatMoney(b.p25)} to ${formatMoney(b.p75)}, 10th to 90th percentile ${formatMoney(b.p10)} to ${formatMoney(b.p90)}, ${plural(b.n, 'role')}. Filter by this department.`,
       [
         h('span', { class: 'msi-row__label' }, h('span', { class: 'msi-row__name' }, b.department), h('span', { class: 'msi-row__n' }, String(b.n))),
-        h('span', { class: 'msi-box', 'aria-hidden': 'true' }, grid.map((g) => g.cloneNode()),
+        h('span', { class: 'msi-row__value' }, formatMoney(b.median)),
+        h('span', { class: 'msi-box', 'aria-hidden': 'true' }, grid(),
           h('span', { class: 'msi-box__whisker', style: { left: x(b.p10), width: `calc(${x(b.p90)} - ${x(b.p10)})` } }),
           h('span', { class: 'msi-box__iqr', style: { left: x(b.p25), width: `max(4px, calc(${x(b.p75)} - ${x(b.p25)}))` } }),
           h('span', { class: 'msi-box__med', style: { left: x(b.median) } })),
-        h('span', { class: 'msi-row__value' }, formatMoney(b.median)),
       ],
       () => ({ value: `${formatMoney(b.median)} median`, label: b.department, rows: [['P10–P90', `${formatMoney(b.p10)} – ${formatMoney(b.p90)}`], ['P25–P75', `${formatMoney(b.p25)} – ${formatMoney(b.p75)}`], ['Salaried roles', String(b.n)]] })));
     const axis = h('div', { class: 'msi-axis', 'aria-hidden': 'true' },
       h('span', { class: 'msi-axis__pad' }),
-      h('span', { class: 'msi-axis__track' }, ticks.map((t, i) => h('span', { class: `msi-axis__tick${i === 0 ? ' is-first' : i === ticks.length - 1 ? ' is-last' : ''}`, style: { left: x(t) } }, formatMoney(t)))),
+      h('span', { class: 'msi-axis__track' }, ticks.map((t) => h('span', { class: 'msi-axis__tick', style: { left: x(t) } }, formatMoney(t)))),
       h('span', { class: 'msi-axis__pad msi-axis__pad--end' }));
     return card('Pay by department', sub, h('div', { class: 'msi-rows msi-rows--box' }, rows, axis), { headTag: `h${hl + 1}` });
   }
@@ -337,8 +338,44 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
       body.replaceChildren(stats(jobs, all),
         h('div', { class: 'msi-cards' }, skillCard(jobs), deptCard(jobs, all), locCard(jobs), fitCard(jobs)));
     });
+    if (root.isConnected) fitAxes();
   }
 
+  // Hide axis labels that would collide (greedy, first/last kept) and keep
+  // edge labels inside their track. Re-run when the panel resizes.
+  function fitAxes() {
+    for (const track of root.querySelectorAll('.msi-axis__track')) {
+      const ticks = [...track.querySelectorAll('.msi-axis__tick')];
+      if (!ticks.length) continue;
+      const tr = track.getBoundingClientRect();
+      if (!tr.width) continue;
+      for (const t of ticks) { t.style.visibility = ''; t.style.transform = ''; }
+      const rects = ticks.map((t) => {
+        let r = t.getBoundingClientRect();
+        const dl = tr.left - r.left, dr = r.right - tr.right;
+        if (dl > 0 || dr > 0) {
+          const dx = dl > 0 ? dl : -dr;
+          t.style.transform = `translateX(calc(-50% + ${dx}px))`;
+          r = { left: r.left + dx, right: r.right + dx };
+        }
+        return r;
+      });
+      const gap = 8;
+      const last = rects.length - 1;
+      let prevRight = rects[0].right;
+      for (let i = 1; i < last; i++) {
+        const ok = rects[i].left >= prevRight + gap && rects[i].right <= rects[last].left - gap;
+        ticks[i].style.visibility = ok ? '' : 'hidden';
+        if (ok) prevRight = rects[i].right;
+      }
+      if (last > 0 && rects[last].left < rects[0].right + gap) ticks[last].style.visibility = 'hidden';
+    }
+  }
+  let raf = 0;
+  const ro = typeof ResizeObserver === 'function'
+    ? new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(fitAxes); }) : null;
+  ro?.observe(root);
+
   update([], []);
-  return { update, destroy() { tip.destroy(); root.remove(); }, el: root };
+  return { update, destroy() { ro?.disconnect(); cancelAnimationFrame(raf); tip.destroy(); root.remove(); }, el: root };
 }

@@ -286,6 +286,75 @@ quoted `cat > FILE <<'EOF'` heredocs).
     docker inspect --format '{{.State.Health.Status}}' <container>   # expect healthy
     ```
 
+**GitHub Pages task:**
+
+11. Survey the code, including the browser-safety scan of `dist/lib` candidates:
+    ```sh
+    sed -n 1,135p server/index.js
+    grep -nE "^import|^export|from '" server/*.js server/sources/*.js scripts/*.js
+    grep -nE "node:|process\.|Buffer|require\(|import\.meta|__dirname" \
+      server/normalize.js server/salary.js server/geo.js server/keywords.js \
+      server/sources/*.js server/companies.js server/demo.js
+    grep -nE "['\"\`]/(api|vendor|viz|favicon|styles|app)" -r public
+    ```
+    Result: no `node:` imports, and only `normalize.js:12` uses `process.env`.
+    app.js and index.html use absolute URLs, which was reported to the
+    coordinator.
+12. CORS research. Direct probes fail in this sandbox (proxy 403):
+    `curl -sS -m 10 -D - -o /dev/null -H "Origin: https://alvations.github.io" <api url>`.
+    Instead: WebFetch of `https://github.com/lever/postings-api`, plus web
+    searches for the Greenhouse and Ashby CORS behaviour.
+13. Write `public/api.js`, `scripts/build-static.js` and
+    `.github/workflows/pages.yml`. Add `"build": "node scripts/build-static.js"`
+    to `package.json`, and `dist/` to `.gitignore` and `.dockerignore`. Add the
+    static-build step to `ci.yml`.
+14. Build:
+    ```sh
+    npm run build
+    # Built dist/ in ~800ms: 10 lib modules, leaflet, 3 companies
+    #   anthropic: demo, 111 jobs ...  (no snapshots in this sandbox)
+    # ! server/normalize.js references a Node global ...   (expected; 1 warning)
+    ```
+15. Run the CI build checks locally:
+    ```sh
+    jq -e 'type == "array" and length >= 3' dist/api/companies.json
+    for f in dist/api/jobs/*.json; do jq -e '.jobs | type == "array"' "$f" >/dev/null; done
+    test -f dist/config.js && test -f dist/.nojekyll && test -f dist/vendor/leaflet/leaflet.js
+    ```
+16. Serve `dist/` under the Pages sub-path and drive it with Chromium.
+    Playwright is installed in the scratchpad only, and the browser comes from
+    `/opt/pw-browsers`.
+    ```sh
+    S=<scratchpad>
+    cd $S && npm install --no-audit --no-fund playwright-core@1.56
+    node $S/serve-subpath.mjs /home/user/melon-seek/dist 4173 /melon-seek/ &
+    node $S/pages-smoke.mjs http://127.0.0.1:4173/melon-seek/
+    ```
+    - `serve-subpath.mjs` is a ~25-line `node:http` static server. It serves
+      only under the prefix and logs anything requested outside it, which
+      catches absolute URLs.
+    - `pages-smoke.mjs`:
+      - Aborts every non-127.0.0.1 request (the external hosts are blocked
+        anyway) and records which hosts were attempted.
+      - Loads the page, waits for result cards, and clicks each company pill.
+      - Switches to map mode.
+      - Calls `api.js` directly for a custom Lever board and a bogus Greenhouse
+        board.
+      - Fails on any page error, any local 4xx, any failed local request, or
+        any console error other than `net::ERR_INTERNET_DISCONNECTED` from the
+        aborted external hosts.
+      - Screenshots go to `$S/pages-chart.png` and `$S/pages-map.png`.
+17. Check server mode (api.js against the real server):
+    ```sh
+    P=$(node -e "const s=require('net').createServer().listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})")
+    PORT=$P node server/index.js & PID=$!
+    node $S/server-mode-api.mjs http://127.0.0.1:$P/ ; kill $PID
+    ```
+    Use a free port picked by Node. Ports 5199 and 5288 were already taken in
+    this sandbox (EADDRINUSE / an unrelated server answering 404).
+18. Validate all three workflow files with the PyYAML loop from step 4, adding
+    `pages.yml`.
+
 ## 5. Verification
 
 | Check | Result |
