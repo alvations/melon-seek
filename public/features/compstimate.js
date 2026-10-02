@@ -433,9 +433,10 @@ function payRange(job) {
  * @param {HTMLElement} container
  * @param {{ getJobs?: () => Job[], onSelect?: (job) => void, query?: object, headingLevel?: number }} opts
  */
-export function createCompstimateWidget(container, { getJobs, onSelect, query: initial, headingLevel = 2 } = {}) {
+export function createCompstimateWidget(container, { getJobs, getMeta, onSelect, query: initial, headingLevel = 2 } = {}) {
   const id = { head: uid('comp'), title: uid('comp-t'), list: uid('comp-dl'), loc: uid('comp-l'), sen: uid('comp-s') };
   let jobs = [];
+  let meta = null; // the /api/jobs response `meta` (or meta.compstimate): published backtest accuracy
   let result = null;
   let query = { title: '', location: '', seniority: '', department: '', ...(initial || {}) };
   let autoTitle = !query.title;
@@ -512,7 +513,10 @@ export function createCompstimateWidget(container, { getJobs, onSelect, query: i
       live.textContent = result.explanation;
       return;
     }
-    const { low, mid, high, confidence, n } = result;
+    const { low, mid, high, n } = result;
+    const confidence = displayConfidence(result, meta);
+    const accuracy = accuracyLine(meta);
+    const lowAccuracy = isLowAccuracy(meta);
     const market = jobs.map(salaryUSD).filter(Boolean).map((p) => p.mid);
     let lo = Math.min(percentile(market, 0.05), low), hi = Math.max(percentile(market, 0.95), high);
     if (!(hi > lo)) { lo = low * 0.8; hi = high * 1.2 || 1; }
@@ -529,6 +533,8 @@ export function createCompstimateWidget(container, { getJobs, onSelect, query: i
         signalIcon(CONF_LEVEL[confidence]),
         h('span', { class: 'ms-comp__conf-label' }, `${confidence} confidence`)),
       h('div', { class: 'ms-comp__conf-n' }, `Based on ${plural(n, 'comparable role')}`),
+      accuracy ? h('div', { class: `ms-comp__accuracy${lowAccuracy ? ' is-low' : ''}` }, accuracy,
+        lowAccuracy ? h('span', { class: 'ms-comp__accuracy-note' }, ' · past estimates on this board missed by more than 25%') : null) : null,
       h('div', { class: 'ms-comp__range' },
         h('div', { class: 'ms-comp__range-ends' },
           h('span', null, h('span', { class: 'ms-comp__k' }, 'Low '), h('b', null, formatMoney(low))),
@@ -562,11 +568,16 @@ export function createCompstimateWidget(container, { getJobs, onSelect, query: i
       h('div', { class: 'ms-comp__comps' },
         h(subTag, { class: 'ms-comp__comps-title' }, 'Most comparable roles'),
         list, foot));
-    live.textContent = `Compstimate ${formatMoney(mid)}, range ${formatMoney(low)} to ${formatMoney(high)}, ${confidence.toLowerCase()} confidence, based on ${plural(n, 'comparable role')}.`;
+    live.textContent = `Compstimate ${formatMoney(mid)}, range ${formatMoney(low)} to ${formatMoney(high)}, ${confidence.toLowerCase()} confidence, based on ${plural(n, 'comparable role')}.${accuracy ? ` ${accuracy}.` : ''}`;
   }
 
-  function update(allJobs) {
+  /**
+   * @param {Job[]} [allJobs] defaults to getJobs()
+   * @param {object|null} [respMeta] the /api/jobs `meta` ({ compstimate }) or the compstimate object; defaults to getMeta()
+   */
+  function update(allJobs, respMeta) {
     jobs = Array.isArray(allJobs) ? allJobs : (typeof getJobs === 'function' ? getJobs() || [] : []);
+    meta = respMeta !== undefined ? respMeta : (typeof getMeta === 'function' ? getMeta() ?? null : meta);
     if (autoTitle) {
       query.title = defaultTitle(jobs);
       titleInput.value = query.title;

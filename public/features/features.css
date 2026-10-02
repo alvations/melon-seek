@@ -370,6 +370,9 @@
 .ms-comp__sig-off { fill: color-mix(in srgb, var(--_muted) 30%, var(--_surface)); }
 .ms-comp__conf-label { font-weight: 600; }
 .ms-comp__conf-n { margin-top: 2px; color: var(--_muted); font-size: 12.5px; }
+.ms-comp__accuracy { margin-top: 2px; color: var(--_muted); font-size: 12px; }
+.ms-comp__accuracy.is-low { color: var(--_text); }
+.ms-comp__accuracy-note { color: var(--_muted); }
 
 .ms-comp__range { margin-top: 14px; }
 .ms-comp__range-ends { display: flex; justify-content: space-between; font-size: 12.5px; }

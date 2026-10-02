@@ -486,7 +486,18 @@ const COMMON_FIT = [
   'Have excellent written and verbal communication skills',
   'Learn quickly and are eager to pick up new tools',
   'Bring a pragmatic, get-things-done attitude',
+  "It's a bonus if you have contributed to open source",
 ];
+
+// F2 demo: compensation extras phrasing per catalog. Positive and negative
+// senses both appear so extractCompExtras is exercised in demo mode.
+const DEI_LINE = 'We are committed to pay equity and to diversity, equity and inclusion across every team.';
+const EXTRAS = {
+  anthropic: { equity: 0.35, equityLine: 'Total compensation for full-time roles includes equity.', salesOTE: true, bonus: 0.08, bonusLine: 'This role is eligible for an annual performance bonus.' },
+  anduril: { equity: 0.9, equityLine: 'Highly competitive equity grants are part of most full-time offers.', bonus: 0.06, bonusLine: 'A signing bonus may be offered.' },
+  openai: { summary: true, bonus: 0, bonusLine: '' },
+  generic: { equity: 0.45, equityLine: 'Offer package: base salary + bonus + benefits + equity.', equityImpliesBonus: true, bonus: 0.1, bonusLine: 'Sales roles earn uncapped commission.' },
+};
 
 // ---------------------------------------------------------------------------
 // Company catalogs
@@ -505,6 +516,7 @@ const IC_LEVELS = [
 const CATALOGS = {
   anthropic: {
     board: 'https://job-boards.greenhouse.io/anthropic',
+    reqIds: true,
     salaryRange: [150, 690],
     count: [110, 140],
     style: 'h2',
@@ -522,7 +534,7 @@ const CATALOGS = {
     ],
     multiUS: ['San Francisco, CA', 'New York City, NY', 'Seattle, WA'],
     roles: [
-      { dept: 'AI Research & Engineering', title: 'Research Engineer, {team}', teams: ['Pretraining', 'Interpretability', 'Reinforcement Learning', 'Alignment Science', 'Frontier Red Team', 'Model Evaluations'], pool: 'research', base: [300, 405], ic: false, w: 6 },
+      { dept: 'AI Research & Engineering', title: 'Research Engineer, {team}', teams: ['Pretraining', 'Interpretability', 'Reinforcement Learning', 'Alignment Science', 'Frontier Red Team', 'Model Evaluations'], pool: 'research', base: [300, 405], ic: false, w: 6, evergreen: true },
       { dept: 'AI Research & Engineering', title: 'Research Scientist, {team}', teams: ['Interpretability', 'Alignment Science', 'Societal Impacts', 'Multimodal'], pool: 'research', base: [315, 560], ic: false, w: 3 },
       { dept: 'AI Research & Engineering', title: 'Research Manager, {team}', teams: ['Interpretability', 'Post-Training', 'Model Evaluations'], pool: 'research', base: [400, 690], level: 'manager', w: 1 },
       { dept: 'Engineering & Design - Product', title: 'Software Engineer, {team}', teams: ['Inference', 'Cloud Inference', 'Infrastructure', 'Sandboxing', 'Developer Productivity', 'Accelerator Performance'], pool: 'mlinfra', base: [300, 405], ic: true, w: 6 },
@@ -543,6 +555,7 @@ const CATALOGS = {
   },
   anduril: {
     board: 'https://job-boards.greenhouse.io/andurilindustries',
+    reqIds: true,
     salaryRange: [90, 350],
     count: [100, 135],
     style: 'strong',
@@ -570,7 +583,7 @@ const CATALOGS = {
       { dept: 'Engineering', title: 'Mechanical Engineer, {team}', teams: ['Structures', 'Mechanisms', 'Propulsion', 'Thermal'], pool: 'mechanical', base: [120, 180], ic: true, w: 3 },
       { dept: 'Engineering', title: 'Engineering Manager, {team}', teams: ['Autonomy', 'Embedded Systems', 'Hardware'], pool: 'defsw', base: [220, 320], level: 'manager', w: 1 },
       { dept: 'Manufacturing', title: 'Manufacturing Engineer, {team}', teams: ['Final Assembly', 'Electronics', 'Composites'], pool: 'manufacturing', base: [110, 160], ic: true, w: 3 },
-      { dept: 'Manufacturing', title: 'Production Technician, {team}', teams: ['Assembly', 'Test'], pool: 'manufacturing', base: [90, 115], w: 2 },
+      { dept: 'Manufacturing', title: 'Production Technician, {team}', teams: ['Assembly', 'Test'], pool: 'manufacturing', base: [90, 115], w: 2, evergreen: true },
       { dept: 'Supply Chain', title: 'Supply Chain Manager, {team}', teams: ['Electronics', 'Propulsion'], pool: 'manufacturing', base: [130, 190], w: 1 },
       { dept: 'Business Development', title: 'Business Development Executive, {team}', teams: ['Air Dominance', 'Maritime', 'Space', 'International'], pool: 'bd', base: [170, 260], w: 2 },
       { dept: 'Business Development', title: 'Director, Business Development, {team}', teams: ['Army', 'Navy', 'Air Force'], pool: 'bd', base: [240, 350], level: 'director', w: 0.7 },
@@ -602,7 +615,7 @@ const CATALOGS = {
     multiUS: ['San Francisco', 'New York City', 'Seattle'],
     roles: [
       { dept: 'Research', title: 'Research Scientist, {team}', teams: ['Reasoning', 'Post-Training', 'Multimodal', 'Safety Systems'], pool: 'research', base: [310, 560], w: 4 },
-      { dept: 'Research', title: 'Research Engineer, {team}', teams: ['Pretraining Data', 'Evaluations', 'Post-Training', 'Robotics'], pool: 'research', base: [295, 445], w: 5 },
+      { dept: 'Research', title: 'Research Engineer, {team}', teams: ['Pretraining Data', 'Evaluations', 'Post-Training', 'Robotics'], pool: 'research', base: [295, 445], w: 5, evergreen: true },
       { dept: 'Applied AI', title: 'Software Engineer, {team}', teams: ['Consumer Apps', 'API Platform', 'Agents', 'Enterprise'], pool: 'product', base: [255, 385], ic: true, w: 6 },
       { dept: 'Scaling', title: 'Software Engineer, {team}', teams: ['Supercomputing', 'Inference', 'Infrastructure', 'Data Platform'], pool: 'mlinfra', base: [295, 445], ic: true, w: 6 },
       { dept: 'Scaling', title: 'Engineering Manager, {team}', teams: ['Inference', 'Infrastructure'], pool: 'mlinfra', base: [400, 600], level: 'manager', w: 1.2 },
@@ -636,7 +649,7 @@ const CATALOGS = {
     ],
     multiUS: ['San Francisco, CA', 'New York, NY', 'Remote (US)'],
     roles: [
-      { dept: 'Engineering', title: 'Software Engineer, {team}', teams: ['Backend', 'Frontend', 'Mobile', 'Payments', 'Growth'], pool: 'product', base: [150, 210], ic: true, w: 6 },
+      { dept: 'Engineering', title: 'Software Engineer, {team}', teams: ['Backend', 'Frontend', 'Mobile', 'Payments', 'Growth'], pool: 'product', base: [150, 210], ic: true, w: 6, evergreen: true },
       { dept: 'Engineering', title: 'Site Reliability Engineer, {team}', teams: ['Platform', 'Infrastructure'], pool: 'mlinfra', base: [160, 220], ic: true, w: 2 },
       { dept: 'Engineering', title: 'Engineering Manager, {team}', teams: ['Platform', 'Product'], pool: 'product', base: [210, 290], level: 'manager', w: 1 },
       { dept: 'Data', title: 'Data Scientist, {team}', teams: ['Product', 'Growth', 'Risk'], pool: 'data', base: [140, 200], ic: true, w: 2 },
@@ -744,10 +757,45 @@ function salaryFor(rng, cat, role, level, loc) {
   max = round5k(max * FX[currency]);
   if (max <= min) max = min + 10000;
   const sym = SYMBOL[currency];
-  const text = cat.salaryFormat === 'k'
-    ? `${sym}${Math.round(min / 1000)}K – ${sym}${Math.round(max / 1000)}K + Offers Equity`
-    : `${sym}${fmtFull(min)}—${sym}${fmtFull(max)} ${currency}`;
-  return { min, max, currency, interval: 'year', text };
+  // F2: ~15% of US salaried roles list two pay zones (location tiers).
+  const zoned = currency === 'USD' && rng.chance(0.15);
+  const z2 = zoned ? { min: round5k(min * 0.85), max: round5k(max * 0.85) } : null;
+  const k = (n) => `${sym}${Math.round(n / 1000)}K`;
+  let text;
+  if (cat.salaryFormat === 'k') {
+    text = zoned ? `${k(z2.min)} – ${k(max)}` : `${k(min)} – ${k(max)}`;
+  } else {
+    text = `${sym}${fmtFull(min)}—${sym}${fmtFull(max)} ${currency}`;
+  }
+  const out = { min, max, currency, interval: 'year', text };
+  if (zoned) {
+    out.zones = 2;
+    out.zoneText = [
+      `Zone 1 (SF Bay Area, NYC, Seattle): ${sym}${fmtFull(min)}—${sym}${fmtFull(max)} ${currency}`,
+      `Zone 2 (all other US locations): ${sym}${fmtFull(z2.min)}—${sym}${fmtFull(z2.max)} ${currency}`,
+    ];
+    out.tiers = [
+      { min, max, currency, interval: 'year', label: 'Zone 1' },
+      { min: z2.min, max: z2.max, currency, interval: 'year', label: 'Zone 2' },
+    ];
+    if (cat.salaryFormat === 'k') { out.min = z2.min; }
+  }
+  return out;
+}
+
+const DAY_MS = 86400000;
+// F4: listing age in days. Buckets match the contract's freshness bands
+// (new <=7, active 8-59, stale 60-179, evergreen >=180), spread 1-400.
+const AGE_BUCKETS = [
+  { lo: 1, hi: 7, w: 15 },
+  { lo: 8, hi: 59, w: 45 },
+  { lo: 60, hi: 179, w: 27 },
+  { lo: 180, hi: 400, w: 13 },
+];
+function listingAgeDays(rng, role) {
+  if (role.evergreen && rng.chance(0.6)) return rng.int(180, 400);
+  const b = rng.weighted(AGE_BUCKETS);
+  return rng.int(b.lo, b.hi);
 }
 
 // ---------------------------------------------------------------------------
@@ -804,9 +852,32 @@ export function demoJobs(companySlug, companyName, opts = {}) {
     const bonus = rng.chance(0.75) ? rng.sample(pool.bonus, rng.int(2, Math.min(4, pool.bonus.length))) : [];
 
     const salary = salaryFor(rng, cat, role, level, primary);
+    const ex = EXTRAS[slug] || EXTRAS.generic;
+    const isIntern = level === FIXED_LEVELS.intern;
+    const isSales = role.pool === 'sales';
+    const compNotes = [];
+    let summary = null;
+    if (ex.summary) {
+      // Ashby-style compensation summary ("$310K – $460K • Offers Equity • Offers Commission").
+      if (salary) {
+        const parts = [salary.text];
+        if (!isIntern && rng.chance(0.95)) parts.push('Offers Equity');
+        if (isSales) parts.push('Offers Commission');
+        if (salary.zones > 1) parts.push('Multiple Ranges');
+        summary = parts.join(' • ');
+      }
+    } else {
+      if (rng.chance(ex.equity)) compNotes.push(ex.equityLine);
+      if (ex.salesOTE) compNotes.push('For sales roles, the range shown is on-target earnings (OTE) and includes commission.');
+      if (rng.chance(ex.bonus)) compNotes.push(ex.bonusLine);
+    }
     const salaryLines = salary
-      ? `<p>The expected base compensation for this position is below. Our total compensation package may also include equity and benefits.</p><p>${escapeHtml(cat.salaryLabel)} ${escapeHtml(salary.text)}</p>`
+      ? `<p>The expected base pay for this position is below.${compNotes.length ? ' ' + escapeHtml(compNotes.join(' ')) : ''}</p>`
+        + (salary.zoneText
+          ? `<p>${escapeHtml(cat.salaryLabel)}</p>${salary.zoneText.map((z) => `<p>${escapeHtml(z)}</p>`).join('')}`
+          : `<p>${escapeHtml(cat.salaryLabel)} ${escapeHtml(summary || salary.text)}</p>`)
       : '';
+    const eeo = rng.chance(0.25) ? `<p>${DEI_LINE}</p>` : '';
 
     const html = [
       `<p><em>Demo posting generated offline by melon-seek. This is not a real job listing.</em></p>`,
@@ -820,9 +891,19 @@ export function demoJobs(companySlug, companyName, opts = {}) {
       salary ? headingHtml(cat.style, 'Compensation') + salaryLines : '',
       headingHtml(cat.style, 'Logistics'),
       `<p>Location: ${escapeHtml([locationText, ...extraLocations].join(' | '))}.${rng.chance(cat.visa ?? 0.3) ? ' We sponsor visas where possible and offer relocation support.' : ''}</p>`,
+      eeo,
     ].join('');
 
-    const updated = new Date(baseTime - rng.int(0, 75) * 86400000 - rng.int(0, 23) * 3600000);
+    const ageDays = listingAgeDays(rng, role);
+    const posted = new Date(baseTime - ageDays * DAY_MS - rng.int(0, 23) * 3600000);
+    const updated = new Date(Math.min(baseTime, posted.getTime() + rng.int(0, Math.min(ageDays, 90)) * DAY_MS));
+    const iso = (d) => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const greenhouseLike = cat.reqIds || /^greenhouse-/.test(slug) || opts.source === 'greenhouse';
+    let rawSalary = null;
+    if (cat.structuredSalary && salary) {
+      rawSalary = { min: salary.min, max: salary.max, currency: salary.currency, interval: salary.interval, text: summary || salary.text };
+      if (salary.zones) rawSalary.zones = salary.zones;
+    }
 
     jobs.push({
       sourceId: `demo-${slug}-${String(i + 1).padStart(3, '0')}`,
@@ -836,8 +917,12 @@ export function demoJobs(companySlug, companyName, opts = {}) {
       html,
       text: stripTags(html),
       url,
-      updatedAt: updated.toISOString().replace(/\.\d{3}Z$/, 'Z'),
-      salary: cat.structuredSalary && salary ? { ...salary } : null,
+      updatedAt: iso(updated),
+      postedAt: iso(posted),
+      reqId: greenhouseLike ? `DEMO-${slug.toUpperCase().slice(0, 12)}-${String(1000 + i)}` : null,
+      salary: rawSalary,
+      ...(summary ? { compensationSummary: summary } : {}),
+      ...(rawSalary && salary.tiers ? { payRanges: salary.tiers } : {}),
     });
   }
   return jobs;
