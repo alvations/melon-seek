@@ -12,9 +12,11 @@
   --_grid: color-mix(in srgb, var(--_border) 75%, var(--_surface));
   --_axis: color-mix(in srgb, var(--_muted) 45%, var(--_surface));
   --_wash: color-mix(in srgb, var(--_text) 5%, transparent);
-  --_wash-strong: color-mix(in srgb, var(--_accent) 13%, transparent);
-  --_tip-bg: var(--ms-surface, #ffffff);
-  --_shadow: 0 1px 2px rgba(11, 11, 11, .06), 0 6px 20px rgba(11, 11, 11, .10);
+  --_wash-strong: var(--ms-accent-soft, color-mix(in srgb, var(--_accent) 13%, transparent));
+  --_radius: var(--ms-radius, 10px);
+  --_radius-sm: var(--ms-radius-sm, 7px);
+  --_tip-bg: var(--ms-raised, var(--ms-surface, #ffffff));
+  --_shadow: var(--ms-shadow-lg, 0 1px 2px rgba(11, 11, 11, .06), 0 6px 20px rgba(11, 11, 11, .10));
   --_map-bg: color-mix(in srgb, var(--_bg) 88%, #c9d6e3);
   --_map-line: color-mix(in srgb, var(--_border) 80%, #9fb2c6);
   --_font: var(--ms-font, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
@@ -28,8 +30,8 @@
     --_muted: var(--ms-muted, #a9a89f);
     --_border: var(--ms-border, #2c2c2a);
     --_accent: var(--ms-accent, #3987e5);
-    --_tip-bg: var(--ms-surface, #242423);
-    --_shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .45);
+    --_tip-bg: var(--ms-raised, var(--ms-surface, #242423));
+    --_shadow: var(--ms-shadow-lg, 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .45));
     --_map-bg: color-mix(in srgb, var(--_bg) 85%, #22303d);
     --_map-line: color-mix(in srgb, var(--_border) 70%, #3a4b5c);
     color-scheme: dark;
@@ -42,8 +44,8 @@
   --_muted: var(--ms-muted, #a9a89f);
   --_border: var(--ms-border, #2c2c2a);
   --_accent: var(--ms-accent, #3987e5);
-  --_tip-bg: var(--ms-surface, #242423);
-  --_shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .45);
+  --_tip-bg: var(--ms-raised, var(--ms-surface, #242423));
+  --_shadow: var(--ms-shadow-lg, 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .45));
   --_map-bg: color-mix(in srgb, var(--_bg) 85%, #22303d);
   --_map-line: color-mix(in srgb, var(--_border) 70%, #3a4b5c);
   color-scheme: dark;
@@ -165,6 +167,8 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+.ms-axis__tick--start { transform: translateX(-4px); }
+.ms-axis__tick--end { transform: translateX(calc(-100% + 4px)); }
 
 .ms-chart__body { position: relative; outline: none; padding-bottom: 8px; }
 .ms-chart__body:focus-visible { box-shadow: inset 0 0 0 2px var(--_accent); }
@@ -413,7 +417,7 @@
   z-index: 10000;
   max-width: 300px;
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: var(--_radius-sm);
   border: 1px solid var(--_border);
   background: var(--_tip-bg);
   color: var(--_text);
@@ -455,7 +459,7 @@
 .ms-map .ms-graticule-line { stroke: var(--_map-line); stroke-opacity: .55; fill: none; }
 
 /* Leaflet chrome */
-.ms-map .leaflet-bar { border: 1px solid var(--_border); border-radius: 8px; box-shadow: var(--_shadow); overflow: hidden; }
+.ms-map .leaflet-bar { border: 1px solid var(--_border); border-radius: var(--_radius-sm); box-shadow: var(--_shadow); overflow: hidden; }
 .ms-map .leaflet-bar a {
   background: var(--_surface); color: var(--_text); border-bottom-color: var(--_border);
   width: 30px; height: 30px; line-height: 30px;
@@ -555,7 +559,7 @@
   display: flex; flex-direction: column; gap: 6px;
   padding: 4px;
   border: 1px solid var(--_border);
-  border-radius: 10px;
+  border-radius: var(--_radius);
   background: var(--_surface);
   color: var(--_text);
   box-shadow: var(--_shadow);
@@ -608,7 +612,7 @@
   max-width: 280px;
   min-width: 180px;
   white-space: normal;
-  border-radius: 8px;
+  border-radius: var(--_radius-sm);
   border: 1px solid var(--_border);
   background: var(--_tip-bg, var(--_surface));
   color: var(--_text);

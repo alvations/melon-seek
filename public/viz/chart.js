@@ -301,7 +301,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       cap.style.width = labelW + 'px';
       axis.append(cap);
     }
-    const minGap = 52;
+    const minGap = 60; // label width (~40px) + air, so ticks never touch (DES-6)
     let lastX = -Infinity;
     ticks.forEach(t => {
       const px = x(t);
@@ -309,6 +309,9 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       lastX = px;
       const tk = el('div', 'ms-axis__tick', formatMoney(t));
       tk.style.left = px + 'px';
+      // DES-6: keep edge labels inside the chart (they were clipped at phone width).
+      if (px < 24) tk.classList.add('ms-axis__tick--start');
+      else if (px > width - 24) tk.classList.add('ms-axis__tick--end');
       axis.append(tk);
     });
   }
@@ -406,7 +409,9 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     if (dim === 'none') {
       for (const r of cRows) r.color = slotColor(0);
     } else {
-      const byCount = cRows.slice().sort((a, b) => b.all.length - a.all.length || a.key.localeCompare(b.key)).map(r => r.key);
+      // DES-2: rank by salaried (plotted) count, the same rule as the ranges legend and the
+      // app's filter/card dots (app.js computeColorKeys), so a department has one color everywhere.
+      const byCount = cRows.filter(r => r.items.length).sort((a, b) => b.items.length - a.items.length || String(a.key).localeCompare(String(b.key))).map(r => r.key);
       const top = new Set(byCount.length > SLOT_COUNT ? byCount.slice(0, SLOT_COUNT - 1) : byCount);
       assignColors([...top]);
       for (const r of cRows) { r.other = !top.has(r.key); r.color = r.other ? (isDark() ? '#8d8c86' : otherColor()) : colorFor(r.key); }

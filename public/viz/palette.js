@@ -169,11 +169,15 @@ export function isForeign(currency) { return !!currency && currency.toUpperCase(
 /** Whether toUSD knows this currency. */
 export function hasFx(currency) { return FX_TO_USD[(currency || 'USD').toUpperCase()] != null; }
 
-// ---------- sequential salary scale (one hue: blue, light -> dark) ----------
+// ---------- sequential salary scale (one hue: rind green, light -> dark) ----------
 
-const SEQ_LIGHT = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b'];
+// DES-1 (design audit wave 1): pay is the app's "rind green" (--ms-accent #0b7a5c, the green
+// salary pills on cards), so map pins, cards and the chart tell one money story; Juice keeps
+// the melon ramp. Validated with validate_palette.js --ordinal: light end 2.06:1 on #fcfcfb,
+// dark end 2.14:1 on the app's dark surface #161a21; one hue (spread 2–5°), monotone L.
+const SEQ_LIGHT = ['#77c1a2', '#4fae8a', '#2a956f', '#13805b', '#0b6b4c', '#064d37'];
 // Dark mode: same ramp, stepped so the low end still clears the dark surface.
-const SEQ_DARK  = ['#184f95', '#1c5cab', '#256abf', '#2a78d6', '#3987e5', '#6da7ec', '#9ec5f4'];
+const SEQ_DARK  = ['#145a43', '#1b7a5a', '#25996f', '#3ccf9a', '#7fe0bd', '#b5efd8'];
 
 function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 function rgbToHex([r, g, b]) { return '#' + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, '0')).join(''); }
