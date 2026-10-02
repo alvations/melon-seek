@@ -451,3 +451,14 @@ screenshots in `docs/screenshots/`.
   - features: UX-3 (canonical locations).
   Rejected for simplicity: re-tuning the Juice anchors again (UX-7); a
   dedicated saved-searches control (UX-8).
+- 2026-10-02: UX fixed the map/drawer bug. Root cause was stacking, not
+  resizing: Leaflet panes (z 400–1000) painted over the drawer (z 80).
+  Fix: `.viz { isolation: isolate }`; the drawer overlays a full-size map
+  behind a scrim. Also fixed horizontal scroll from recent pills. Layout
+  matrix: 158 states and 12 flows passing. Product finished UX-9/UX-6/DES-9/
+  A11Y-1. The security re-review finished: of the 20 originals, 18 fixed and
+  2 partial (H1 → V4, M2 → V3); 15 new findings (V1–V15). Routed:
+  - backend: V1, V4, V10, V14, V15.
+  - devops: V2 (artifact trust), V3 (CSP on Pages), V12.
+  - vetting: V11 (llm-vet prompt-injection hardening).
+  - UX: V5–V9, V13, V14 client side.

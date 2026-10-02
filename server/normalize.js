@@ -6,6 +6,17 @@ import { parseSalary, toJobSalary, currenciesFor } from './salary.js';
 import { htmlToText, isoOrNull } from './sources/util.js';
 import { vetSalaries, salaryChecks } from './vet.js';
 
+/**
+ * Version of the normalized output. Bump it whenever normalizeJob(s) output
+ * changes on purpose (the golden test, test/golden-normalize.test.js, fails
+ * until both the hashes and this version are updated). Snapshots carry it
+ * (scripts/snapshot.js); the server re-derives sections/keywords for
+ * snapshots with an older version (server/pipeline.js), once per file.
+ * History: norm-2 = BUG-5 boilerplate-aware keywords; norm-3 = UX-3 canonical
+ * location names (geo.js rawName).
+ */
+export const NORMALIZER_VERSION = 'norm-3';
+
 const NO_EXTRAS = Object.freeze({ equity: false, bonus: false });
 
 /**

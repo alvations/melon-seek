@@ -69,7 +69,7 @@ export async function runTask(task) {
     const fetchedAt = new Date().toISOString();
     const name = `live-${task.company.slug}-${Date.now().toString(36)}`;
     const doc = await writeStore(name, { fetchedAt, normalizerVersion: NORMALIZER_VERSION, sourceKey: 'live', jobs, custom });
-    await setCached(task.company.slug, doc.jobs, { fetchedAt, custom, store: name, write: true });
+    await setCached(task.company.slug, doc.jobs, { fetchedAt, custom, store: name, write: true, keep: false });
     await pruneStores(`live-${task.company.slug}-`, [name], { custom });
     return { name, fetchedAt, count: jobs.length };
   }
