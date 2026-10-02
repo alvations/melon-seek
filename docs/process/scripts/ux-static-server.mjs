@@ -21,6 +21,7 @@ http.createServer((req, res) => {
   else {
     f = path.join(ROOT, p === '/' ? 'index.html' : p);
     if (STUB && !fs.existsSync(f) && (p.startsWith('/viz/') || p === '/api.js')) f = path.join(STUB, path.basename(p));
+    else if (STUB && !fs.existsSync(f) && p.startsWith('/features/')) f = path.join(STUB, 'features', path.basename(p)); // dev stubs for unlanded modules
   }
   if (!f.startsWith(ROOT) && !f.startsWith(LEAF) && !(STUB && f.startsWith(STUB))) { res.writeHead(403); return res.end(); }
   fs.readFile(f, (err, body) => {

@@ -226,6 +226,51 @@ checks.juice = await (async () => {
   await p.keyboard.press('Escape');
   return { badges: scored, firstBadge, juicyOnly, hash, monthly };
 })();
+checks.oneUp = await (async () => {
+  const r = {};
+  await p.goto('about:blank');
+  await p.goto(`${BASE}/${QS}#c=anthropic`); await ready(p); await p.waitForTimeout(300);
+  r.saveHiddenWithoutFilters = await p.evaluate(() => document.getElementById('saveSearch').hidden);
+  r.cardAges = await p.evaluate(() => [...document.querySelectorAll('.card-age')].slice(0, 6).map((e) => e.textContent));
+  r.noGhostWords = await p.evaluate(() => !/\b(ghost|fake)\b/i.test(document.body.innerText));
+  // Drawer: fixed section order, budget, pay labels, caption, listing
+  await p.click('.card[data-id] >> nth=0'); await p.waitForSelector('.drawer.is-open'); await p.waitForTimeout(700);
+  r.drawerSections = await p.evaluate(() => [...document.querySelectorAll('#drawer .drawer-scroll > .d-fold')].filter((f) => !f.hidden).map((f) => `${f.querySelector('summary h3').textContent.trim()}${f.open ? '' : ' (collapsed)'}`));
+  r.payLabels = await p.evaluate(() => [...document.querySelectorAll('#drawer .pay-label')].map((e) => e.textContent));
+  r.caption = await p.evaluate(() => document.querySelector('#drawer .d-pay-caption')?.textContent || null);
+  r.listing = await p.evaluate(() => [...document.querySelectorAll('#drawer .listing-lines li')].map((e) => e.textContent));
+  await shot(p, 'desktop-drawer-1up');
+  // Same role elsewhere -> switch company with filters through the hash; Back returns
+  const row = await p.$('#drawer .d-comps:not([hidden]) button');
+  if (row) {
+    await row.click(); await ready(p); await p.waitForTimeout(400);
+    r.compsHash = await p.evaluate(() => location.hash);
+    await p.goBack(); await ready(p); await p.waitForTimeout(400);
+    r.compsBack = await p.evaluate(() => location.hash);
+  } else r.compsHash = 'no comps section';
+  await p.keyboard.press('Escape');
+  // Save (F5): appears with a filter, saves, shows in the company menu
+  await p.goto('about:blank');
+  await p.goto(`${BASE}/${QS}#c=anthropic&s=Senior`); await ready(p); await p.waitForTimeout(300);
+  r.saveVisibleWithFilter = await p.evaluate(() => !document.getElementById('saveSearch').hidden);
+  await shot(p, 'desktop-chart-filtered-save');
+  await p.click('#saveSearch'); await p.waitForTimeout(200);
+  r.savePressed = await p.getAttribute('#saveSearch', 'aria-pressed');
+  await p.click('#companyMenuBtn'); await p.waitForTimeout(250);
+  r.savedInMenu = await p.evaluate(() => [...document.querySelectorAll('.saved-row .company-item-name')].map((e) => e.textContent));
+  await shot(p, 'desktop-company-menu-saved');
+  await p.keyboard.press('Escape');
+  await p.click('#saveSearch'); // unsave, leave storage clean
+  // CSV (F7) link in the data-badge popover
+  await p.click('#dataBadge'); await p.waitForTimeout(200);
+  r.csvHref = await p.evaluate(() => document.querySelector('.badge-csv a')?.getAttribute('href') || null);
+  await p.keyboard.press('Escape');
+  // Insights: Compare companies card
+  await p.goto(`${BASE}/${QS}#c=anthropic&m=insights`); await ready(p); await p.waitForTimeout(800);
+  r.compareCard = await p.evaluate(() => !document.getElementById('compsCardHost').hidden);
+  await shot(p, 'desktop-insights-1up');
+  return r;
+})();
 checks.slashFocusesSearch = await (async () => { await p.keyboard.press('/'); return p.evaluate(() => document.activeElement.id === 'search'); })();
 // Description loads lazily (getJobDetail) and is sanitized.
 await p.goto('about:blank');

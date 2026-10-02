@@ -653,7 +653,8 @@ const EQUITY_NOISE_RE = new RegExp([
   String.raw`\bequity,?\s+(?:and|&)\s+(?:inclusion|belonging|diversity|access|justice)\b`,
   String.raw`\bequity,\s*(?:inclusion|belonging)\b`,
   String.raw`\bDE&?I&?B?\b`,
-  String.raw`\bequity[- ](?:research|markets?|investments?|investing|investors?|financing|capital|analysts?|analysis|deals?|transactions?|method|accounting|roll-?forwards?|administration|team|donations?|minded|lens)\b`,
+  String.raw`\bequity[- ](?:research|markets?|investments?|investing|investors?|financing|capital|analysts?|analysis|deals?|transactions?|method|accounting|roll-?forwards?|administration|teams?|donations?|minded|lens|events?|instruments?|considerations?|planning|programs? managers?)\b`,
+  String.raw`\b(?:their|employees['’]?)\s+equity\b`,
   String.raw`\b(?:optional\s+)?equity donation(?: matching)?\b`,
   String.raw`\bequitabl[ey]\b`,
 ].join('|'), 'gi');
@@ -662,7 +663,7 @@ const EQUITY_NOISE_RE = new RegExp([
 const BONUS_NOISE_RE = /\[bonus\]|\bbonus\s*points?\b|\b(?:it(?:['’]s| is)|is|as|would be|a (?:big|huge|real))\s+an?\s+(?:big\s+|huge\s+|nice\s+|major\s+|real\s+)?bonus\b|\bas a bonus\b|\bbonus\s+(?:if|for|to have)\b|\bbonus\s*[:–—-]\s*(?=\S)|^\s*bonus\b(?!\s*(?:\+|,|and|eligib|plan|program|potential|structure|target))/gim;
 
 // The sentence is about doing compensation work, not about this offer.
-const COMP_DUTY_RE = /\b(?:payroll|accounting|accruals?|ASC\s?\d{3}|GAAP|SOX|audits?|tax(?:es)?|administ\w*|roll-?forwards?|footnotes?|reconcil\w*|benchmark\w*|governance|oversee|design(?:ing)?,? (?:and|&) (?:oversee|manage|run)|compensation (?:programs?|programmes?|planning|methodolog\w*|strategy|philosophy|practices|professionals?|experience|expertise|principles|governance)|incentive (?:plan )?design|experience (?:with|in|designing|managing|building)|knowledge of|familiarity with|matters|counsel|securities|negotiat\w*|structures|cap tables?|tender offers?|process stock options|equity team|equity programmes)\b/i;
+const COMP_DUTY_RE = /\b(?:payroll|accounting|accruals?|ASC\s?\d{3}|GAAP|SOX|audits?|tax(?:es)?|administ\w*|roll-?forwards?|footnotes?|reconcil\w*|benchmark\w*|governance|oversee|design(?:ing)?,? (?:and|&) (?:oversee|manage|run)|compensation (?:programs?|programmes?|planning|methodolog\w*|strategy|philosophy|practices|professionals?|experience|expertise|principles|governance)|incentive (?:plan )?design|experience (?:with|in|designing|managing|building)|knowledge of|familiarity with|matters|counsel|securities|negotiat\w*|structures|cap tables?|tender offers?|process stock options|equity team|equity programmes|knowledge|prior experience|valuation|dilution|financial statements?|earnings[- ]per[- ]share|counteroffers?|closing strateg\w*)\b/i;
 
 // The sentence denies or merely hedges ("This estimate excludes ... bonus").
 const COMP_NEGATION_RE = /\bnot\s+(?:be\s+)?eligible\b|\bineligible\b|\b(?:are|is|will be)\s+not\s+(?:offered|included|provided)\b|\bdoes(?:n['’]t| not) (?:include|offer)\b|\bno (?:equity|bonus|commission)\b|\bexclud(?:es?|ing)\b/i;
@@ -670,7 +671,9 @@ const COMP_NEGATION_RE = /\bnot\s+(?:be\s+)?eligible\b|\bineligible\b|\b(?:are|i
 // Conditional boilerplate: "For sales roles, the range ... OTE ... commissions".
 const SALES_CONDITIONAL_RE = /\b(?:for|in|on)\s+(?:sales|commissioned|quota[- ]carrying|commission[- ]eligible)\s+roles\b/i;
 const SALES_TITLE_RE = /\b(?:account executive|account director|account manager|ae\b|business development (?:rep\w*|manager|executive|director)|bdr|sdr|partner sales|sales(?!\s+(?:strategy|operations|ops|enablement|engineer\w*|compensation|analytics|systems|planning|finance|recruit\w*))\b|seller)/i;
-const NON_FULLTIME_TITLE_RE = /\b(?:intern(?:ship)?s?|co-?op|part[- ]time|temporary|temp|seasonal|fellow(?:ship)?s?|contractor)\b/i;
+const NON_FULLTIME_TITLE_RE = /\b(?:intern(?:ship)?s?|co-?op|part[- ]time|temporary|seasonal|fellow(?:ship)?s?|contractor)\b|\((?:contract|temp|contract-to-hire)\)|,\s*contract\s*$/i;
+// "... included in the majority of full time offers" does not apply to interns/contractors.
+const FULLTIME_SCOPE_RE = /\bfull[- ]time\b/i;
 const NON_FULLTIME_MENTION_RE = /\b(?:intern(?:ship)?s?|co-?ops?|part[- ]time|temporary|fellows?|contractors?)\b/i;
 
 const COMP_CUE_RE = /\b(?:compensation|salary|salaries|base pay|pay\b|total rewards|offer package|package|benefits|401\s?\(?k\)?|remuneration|perks)\b/i;
@@ -702,8 +705,10 @@ const BONUS_STRONG = [
   /\bon[- ]target earnings\b/i,
   /\bcommission(?:s)?\s+(?:structure|plan|opportunit\w*|eligib\w*|scheme|rate|target)\b/i,
   /\bcommission-based\b/i,
-  /\b(?:earn|uncapped|plus|and|with|sales)\s+commissions?\b/i,
+  /\b(?:earn|uncapped|plus|sales)\s+commissions?\b/i,
+  /\b(?:salary|base|pay|compensation)\s+(?:and|plus|with|\+)\s+commissions?\b/i,
   /\+\s*commissions?\b/i,
+  /(?:•|\d[KkMm]?)\s*(?:Commission|Bonus)\b/, // Ashby summary: "$189K – $220.5K Commission
   /\beligible (?:for|to earn) (?:sales )?commissions?\b/i,
   /\b(?:incentive|variable) (?:compensation|pay|plan|comp)\b/i,
   /\bshort[- ]term incentives?\b/i,
@@ -746,6 +751,7 @@ export function compExtrasEvidence(text, { title = '' } = {}) {
     }
     if (COMP_DUTY_RE.test(seg)) continue;
     if (SALES_CONDITIONAL_RE.test(seg) && !salesTitle) continue;
+    if (nonFullTime && FULLTIME_SCOPE_RE.test(seg)) continue;
 
     if (hasEq && (EQUITY_STRONG.some((re) => re.test(eqText)) || (/\bequity\b/i.test(eqText) && COMP_CUE_RE.test(eqText)))) {
       evidence.equity.push(seg);

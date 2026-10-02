@@ -39,7 +39,7 @@ Files owned: `public/viz/palette.js`, `public/viz/chart.js`, `public/viz/map.js`
    - With 8 or fewer keys all are shown. With 9 or more, the top 7 are shown plus "Other (n)", so Other takes the 8th legend item.
 3. **Colors are hex values that follow the current mode.** `isDark()` checks `<html data-theme>` first, then `matchMedia`. The chart and map re-render through `onThemeChange` (a matchMedia listener plus a MutationObserver on `data-theme`). I used hex rather than `var()` so that values work in inline styles, Leaflet HTML and canvas.
 4. **Sequential salary scale.** Blue ramp. Light steps 100→700: `#cde2fb #9ec5f4 #6da7ec #3987e5 #256abf #184f95 #0d366b`. Dark steps: `#184f95 … #9ec5f4`, so a higher median is brighter. Values are interpolated in RGB. Pill text color comes from `inkOn(bg)`, which picks white or ink by WCAG contrast.
-5. **FX table (approximate, static).** USD 1, GBP 1.27, EUR 1.09, CAD 0.73, AUD 0.66, JPY 0.0067, SGD 0.74, CHF 1.13. These are rounded mid-market rates from 2024–2025 memory. No live source was used (the sandbox has no network), and the UI always labels them "approx USD". Unknown currencies are plotted unconverted and listed in a note. The tooltip shows the native currency first, then "≈ $X – $Y USD (approx)".
+5. **FX table (approximate, static).** Superseded by decision 27. The original values were USD 1, GBP 1.27, EUR 1.09, CAD 0.73, AUD 0.66, JPY 0.0067, SGD 0.74 and CHF 1.13, rounded mid-market rates from 2024–2025 memory. No live source was used (the sandbox has no network), and the UI always labels them "approx USD". Unknown currencies are plotted unconverted and listed in a note. The tooltip shows the native currency first, then "≈ $X – $Y USD (approx)".
 6. **`formatMoney`.** K values round half-down, so 352500 gives "$352K" to match the contract example. Values of 1M and up show one decimal below 10M ("$1.2M") and whole numbers from 10M.
 7. **Chart rendering uses plain HTML/DOM, not SVG.** CSS ellipsis truncates titles without measuring, and hover only toggles a class (event delegation, no re-creation). I did not virtualize: 1000 jobs produce about 3.3k nodes and a full re-render takes about 90–180 ms in headless Chromium. Hover cost is zero.
    - Rows are sorted by midpoint, high to low.
@@ -145,6 +145,36 @@ Files owned: `public/viz/palette.js`, `public/viz/chart.js`, `public/viz/map.js`
     - `fitBounds` runs with `maxZoom: 11, animate: false`.
     - A hidden (0×0) container defers the fit: `pendingFit` runs it when the ResizeObserver or `invalidateSize()` sees a real size.
 
+26. **Map "Pay | Juice" pin coloring.**
+    - **Control:** a segmented control at the top right of the map (`role=radiogroup`, two `role=radio` buttons, arrow keys toggle).
+    - **API:** `createMap(container, { onColorModeChange(mode), colorMode })` and `update(jobs, { fit, colorMode })`, plus `map.colorMode` and `COLOR_MODES = ['pay', 'juice']`.
+    - **Callback:** `onColorModeChange` fires only on user clicks. A programmatic `update({ colorMode })`, for example from the URL hash, never fires it, so it cannot loop.
+    - **Juice per pin:** for each job at a place, the map uses the `job.juice.byLocation[]` entry whose `locationName` matches one of that job's location names there (case-insensitive). If several match it takes the best score; if none match it falls back to `job.juice.best` when that matches. It never borrows another city's score, so a London juice cannot color the SF pin.
+      - The pin shows the median of those scores (rounded), plus the median `net`.
+      - The aggregator now records each job's location names per place (`place.locNames`) so this matching works after clustering.
+    - **Color:** stepped ordinal ramp in one hue (watermelon red), with breaks at 45 and 70 (Dry / Ripe / Juicy). Rind uses the Dry step.
+      - Light: `#ee9893 #d9534f #a51f35`. Dark: `#8a363c #c9505a #f59a95` (brighter means juicier, like the pay ramp).
+      - `validate_palette.js --ordinal` passes in both modes. The light end measures 2.14:1 on the light surface and 2.22:1 on the dark surface.
+      - The palette exports `JUICE_BREAKS`, `juiceColor`, `juiceGrade` and `juiceNetForScore`. The last mirrors `server/juice.js` `netForScore`, A = $10K and B = $250K.
+    - **Pin label:** "🍉 72" plus the count badge. Pins with no juice data are neutral ("🍉 –").
+    - **Tooltip:** "🍉 72 · Juicy", "median $94K/yr left after rent, tax and living costs", the place, "N postings · M with Juice · pay median $X", then the top roles.
+    - **Legend:** shown under the control in Juice mode: "Dry < 45 · < $33K/yr", "Ripe 45–69 · $33K–$88K/yr", "Juicy 70+ · ≥ $88K/yr", and "Gray: no Juice data". The dollar labels come from `juiceNetForScore`.
+    - **Remote:** the Remote control keeps pay. Remote-only jobs have no juice.
+    - **Tooltip placement:** map tooltips now open toward the inside of the map near an edge (right, left or below), so they are never clipped. This also fixes pay mode.
+27. **FX: one table, from the dataset.** `palette.js` now holds `FX_PER_USD`, copied verbatim from `data/cities.json` `fx.perUSD`: 23 currencies, The Economist Big Mac index source data v2 `dollar_ex` column, release 2026-07-01, CC BY 4.0, copied 2026-10-02.
+    - `FX_TO_USD` is derived as `1 / FX_PER_USD`, for example GBP 1.348, EUR 1.144 and JPY 0.006168. `FX_AS_OF` is exported.
+    - More symbols are added for currency formatting.
+    - Because `hasFx` now covers INR, SEK, ILS and the other added currencies, those salaries are converted and labelled "approx USD" instead of being plotted unconverted.
+    - Shifts in USD per unit versus the old table: GBP +6%, EUR +5%, CHF +10%, JPY −8%, SGD +5%, CAD −2.5%, AUD +6%.
+28. **`public/viz/comps.js`: "Same role elsewhere" / "Compare companies" (ROADMAP §7.1 F1).**
+    - **API:** `createCompsChart(container, { onSelect(slug) })` returns `{ update(rows, { current?, sort? }), destroy() }`. Each row is `{ slug, name, color, n, p25, median, p75, current? }`.
+    - **Layout:** one 28px row per company. On the left, a company-color swatch, the name and n; n is hidden below 420px but stays in the tooltip and option name. In the middle, the P25–P75 bar: 8px, rounded, company color at 50% opacity (72% in dark), solid for the current row or on hover. On it, a 3px median tick with a surface ring. On the right, the median as text.
+    - **Current company:** given by `current` or `row.current`. The row gets a tinted wash, a bold name and an ink-colored median tick.
+    - **Axis:** a shared approx-USD axis with `robustBounds` from `chart.js`, padded 6% and snapped with `niceTicks` (at least 4 ticks, colliding labels skipped). An out-of-range value gets a "›" marker and keeps its real median as text.
+    - **Order:** sorted by median, high first, unless `sort: false`. Rows with no range read "no posted range".
+    - **Keyboard and tooltip:** a listbox with arrows, Home/End and Enter/Space calling `onSelect(slug)`. The 2px accent active ring survives re-renders by slug. The tooltip shows "$340K median", "middle 50%: …", the company and n.
+    - **Styling:** both themes come from the shared `--ms-*` tokens; `.ms-comps` was added to the token scopes. A footnote reads "Posted base pay, approx USD/yr · bar = middle 50%, tick = median" (equity is not included, per the roadmap risk).
+
 ## 4. Replayable steps
 ```sh
 # 0. palette validation (dataviz skill base dir)
@@ -225,6 +255,15 @@ PORT=5288 node docs/process/scripts/viz-a11y-check.mjs /path/to/out
   - 100 values plus $4.6M gives [$154K, $546K].
   - A wide legitimate spread of $60K–$750K is kept as [$62K, $740K].
   - A single value and all-equal values give [v, v].
+- Juice, FX and comps work: `viz-screenshots.mjs` now runs 25 shots, all ok.
+  - `map-juice-light`, with a hover: 6 juice pins, scores 48–74, and the tooltip opens to the right of the SF pin, inside the map.
+  - `map-juice-dark`.
+  - `map-juice-toggle`: clicking Juice gives `aria-checked` juice=true and logs "color mode: juice".
+  - `comps-light`, `comps-dark` and `comps-mobile`: 8 rows, 28px each, current company Anthropic, axis $100K..$500K. The $4.6M fixture row is clamped with "›".
+  - The pay map, chart and clusters shots are unchanged, except that values moved slightly with the new FX (Singapore pay median $111K → $116K).
+- `viz-a11y-check.mjs` comps block: 8 options. The current option is named "Anthropic (this company): median $340K, middle 50% $315K to $405K, 14 postings". Arrow keys move the active option with a matching `aria-activedescendant`, and Enter logs "comps select: anthropic". All other checks are unchanged. There were no page errors.
+- Ordinal palette check for the Juice steps passes in light and dark mode (see decision 26).
+- The demo uses `fakeJuice()`, a stand-in with the same shape as `attachJuice`. Costa Mesa is deliberately missing from it, to exercise neutral pins.
 
 ## 6. Known gaps and follow-ups
 - Not tested against real OSM tiles, because the sandbox blocks tile hosts. The screenshot script stubs tile responses with 200, 403 and abort, and checks the request URLs instead.
@@ -241,6 +280,9 @@ PORT=5288 node docs/process/scripts/viz-a11y-check.mjs /path/to/out
 
 - UX can now delete `fitMapToPins()` in `public/app.js`, which refits through `map.leaflet`. Instead, call `map.update(jobs, { fit: true })` on company change; it defaults to that when the set of companies changes. Also call `map.invalidateSize()` when the map tab becomes visible, which runs a deferred fit.
 
+- **FX copies:** `server/juice.js` has its own `FX_TO_USD`, the old 8-currency table, "copied from palette.js". It now disagrees with the palette, so juice and chart USD differ by up to ~10% for CHF. It should import `FX_TO_USD` from `public/viz/palette.js`, which is Node-importable and browser-safe, or read `cities.json` directly. `server/salary.js` `USD_PER` also differs, by 5–19% for most currencies (for example GBP 1.27 vs 1.348, ILS 0.27 vs 0.333, INR 0.012 vs 0.0104), and it has QAR, CNY and ZAR, which the dataset lacks. Report sent to the coordinator.
+- Juice mode does not color the Remote control. A legend for pay mode is not shown; it reads from the price labels.
+
 ## 7. Change log
 - 2026-10-02: palette.js, chart.js, map.js, viz.css and demo.html created. Palette validated.
 - 2026-10-02: Changed slot assignment from hash probing to sticky lowest-free-slot after a screenshot showed similar adjacent hues. Dark-mode bar and histogram opacity raised (.5 → .72, .42 → .62) because the bars looked muddy. Cluster footprint enlarged and recomputed when the offline state changes. Narrow-width captions shortened.
@@ -249,3 +291,4 @@ PORT=5288 node docs/process/scripts/viz-a11y-check.mjs /path/to/out
 - 2026-10-02 (urgent): Switched the basemap from CARTO (now key-gated, showing "API key required" on the live site) to OSM standard tiles. Added a configurable `tiles` option and exported `OSM_TILES`. Dark mode is now a CSS filter on the tile pane only. Error-image tiles are detected with a one-off cached status probe. The screenshot script now stubs tiles (200, 403, abort) and asserts that only OSM tile URLs are requested.
 - 2026-10-02: Added the clusters view as the default chart, with ranges kept as the detail view. New `onClusterSelect` callback, `clearSelection()`, and exported `VIEWS`/`DEFAULT_VIEW`. Slimmer 28px distribution strip and a notes footer. Added `slotColor()` to palette.js. demo.html has a View toggle. Iterated on the visuals: bins went from 22 to 34px minimum, a lone row gets taller, Other rows are lifted in dark mode, and rings take the band tint. Fixed the plot layer swallowing label clicks, and let the narrow-screen label line shrink the subtitle before the name. Extended the screenshot and a11y scripts.
 - 2026-10-02: Robust x-axis in both chart views: `robustBounds` (P1–P99 plus a Tukey fence), padded and snapped. Out-of-range values get "›"/"‹" overflow markers with real-value tooltips and are counted in the notes. Moved the initial map fit into `map.js` `fitToData()`: about 90px padding plus pin height, minZoom lowered as needed, deferred while hidden. demo.html gained `?outlier=1`. Added outlier and mobile-fit screenshots and an overflow a11y check.
+- 2026-10-02: Added the map "Pay | Juice" segmented control: Juice-colored pins with "🍉 score" labels, a stepped ordinal ramp with breaks at 45 and 70, neutral no-data pins, a legend from `juiceNetForScore`, and the `onColorModeChange` callback plus `update({ colorMode })`. Map tooltips now flip inward at the edges. `palette.js` FX is now `data/cities.json` `fx.perUSD` (Big Mac `dollar_ex`, 2026-07-01), with `FX_TO_USD` derived from it. New `public/viz/comps.js` compact comps chart with a demo `mode=comps`. Extended the screenshot and a11y scripts.

@@ -13,6 +13,12 @@
 //   dist/api/demo/<slug>.json build-time demo (mode "demo"), last bundled fallback;
 //                             only written when jobs/<slug>.json is a real snapshot
 //   dist/api/desc/<slug>/<id>.json  { id, descriptionHtml, sections? } per job
+//   dist/api/history/<slug>.json  F4 compact ledger { id: [firstSeenAt, postedAt,
+//                             repostCount, repostFirstSeenAt?] } (server/history.js
+//                             #compactLedger; {} without a ledger), for live browser fetches
+//   dist/api/meta/<slug>.json { compstimate, history }: the list's `meta`, for live fetches
+//   dist/api/market.json      F1 market comps (scripts/build-market.js#buildMarket), when present
+//   dist/data/<slug>.csv      F7 open data (real snapshots only) + dist/data/README.txt
 //   dist/api/cities.json      data/cities.json (Juice Score inputs; juice itself is
 //                             computed in the browser by api.js + lib/juice.js and is
 //                             never stored in the job lists)
@@ -40,6 +46,8 @@ import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+// The browser-safe module allowlist is shared with the server's /lib/ route.
+import { LIB_MODULES, LIB_SOURCES_DIR } from '../server/lib-modules.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -47,13 +55,16 @@ const outArg = args.indexOf('--out');
 const OUT = path.resolve(ROOT, outArg >= 0 ? args[outArg + 1] : 'dist');
 const STRICT = args.includes('--strict');
 const SNAPSHOT_DIR = process.env.MELON_SNAPSHOT_DIR || path.join(ROOT, 'data', 'snapshots');
+const HISTORY_DIR = process.env.MELON_HISTORY_DIR || path.join(ROOT, 'data', 'history');
 
-// Server modules the browser needs (paths relative to server/). companies.js is
-// included for custom-board validation; demo.js and juice.js (Juice Score; it
-// only imports ./geo.js) are optional: without them the browser falls back to
-// no in-browser demo / `juice: null`.
-const LIB_MODULES = ['companies.js', 'normalize.js', 'salary.js', 'vet.js', 'geo.js', 'keywords.js', 'demo.js', 'juice.js'];
-const OPTIONAL_LIB = new Set(['demo.js', 'juice.js']);
+// Server modules the browser needs: LIB_MODULES (+ server/<LIB_SOURCES_DIR>/*.js)
+// from server/lib-modules.js. These are optional: without them the browser
+// falls back to no in-browser demo / `juice: null` / no F4 history fields.
+const OPTIONAL_LIB = new Set(['demo.js', 'juice.js', 'history.js']);
+// F3 Compstimate backtest parameters (ROADMAP §7 acceptance: maxN 500).
+const BACKTEST = Object.freeze({ seed: 20261002, maxN: 500 });
+// F1 market.json size cap (docs/CONTRACT.md).
+const MARKET_MAX_BYTES = 150_000;
 const CITIES_FILE = path.join(ROOT, 'data', 'cities.json');
 // Sources that public/api.js may fetch live from the browser, and those whose
 // CORS failures fall back to the bundled snapshot without an error (see the
@@ -101,6 +112,16 @@ function commonPrefix(strs) {
   return p;
 }
 
+// melon-packed-2: top-level fields that EVERY job carries are stored once per
+// list as columns (the key is written once, not per job); all-boolean columns
+// as 0/1; low-cardinality ones as dict indexes (firstSeenAt has one value per
+// ledger run). String enums inside salary are dict indexes too. A field missing
+// on any job stays inline, so key presence round-trips exactly.
+const COLUMN_KEYS = ['postedAt', 'firstSeenAt', 'ageDays', 'ageIsMinimum', 'freshness', 'repost', 'extras', 'reqId', 'remote', 'updatedAt'];
+const DICT_COLUMNS = new Set(['firstSeenAt', 'freshness', 'repost', 'extras']);
+const SALARY_REFS = ['currency', 'interval', 'kind', 'source'];
+const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+
 /** Pack a plain list payload as PACKED_FORMAT (decoded by public/api.js#unpackJobs). */
 function packList(list, PACKED_FORMAT) {
   const index = new Map();
@@ -118,8 +139,21 @@ function packList(list, PACKED_FORMAT) {
   const urlPrefix = urls.length === jobs.length ? commonPrefix(urls) : '';
   const sameCompany = jobs.every((j) => j.company === first.company && j.companyName === first.companyName);
   if (!sameCompany) throw new Error(`${list.company && list.company.slug}: jobs from more than one company, can't pack`);
+  const columns = [];
+  for (const key of COLUMN_KEYS) {
+    if (!jobs.length || !jobs.every((j) => has(j, key))) continue;
+    const vals = jobs.map((j) => j[key]);
+    const enc = vals.every((v) => typeof v === 'boolean') ? 'bool' : DICT_COLUMNS.has(key) ? 'dict' : 'raw';
+    columns.push({ key, enc, values: enc === 'bool' ? vals.map((v) => (v ? 1 : 0)) : enc === 'dict' ? vals.map(ref) : vals });
+  }
   const packed = jobs.map((j) => {
     const { company, companyName, sections, ...r } = j;
+    for (const c of columns) delete r[c.key];
+    if (r.salary && typeof r.salary === 'object') {
+      const sal = { ...r.salary };
+      for (const k of SALARY_REFS) if (typeof sal[k] === 'string') sal[k] = ref(sal[k]);
+      r.salary = sal;
+    }
     r.id = String(j.id).slice(idPrefix.length);
     r.url = j.url == null ? null : j.url.slice(urlPrefix.length);
     for (const k of ['department', 'team', 'employmentType', 'seniority']) r[k] = ref(j[k]);
@@ -129,7 +163,7 @@ function packList(list, PACKED_FORMAT) {
     if (hasSections(sections)) r.sections = sections;
     return r;
   });
-  return { ...list, format: PACKED_FORMAT, shared: { company: first.company, companyName: first.companyName, idPrefix, urlPrefix }, dict, jobs: packed };
+  return { ...list, format: PACKED_FORMAT, shared: { company: first.company, companyName: first.companyName, idPrefix, urlPrefix }, dict, columns, jobs: packed };
 }
 
 /** Key-order-insensitive deep equality (for the pack round-trip check). */
@@ -187,6 +221,94 @@ async function writeSplit(payload, file, api, slug) {
   for (const [p, rec] of details) descBytes += await writeJson(path.join(OUT, p), rec);
   if (listBytes > LIST_BUDGET) warn(`${slug}: list is ${size(listBytes)} even without descriptions/sections (budget ${size(LIST_BUDGET)})`);
   return { listBytes, descBytes, descFiles: details.size, sectionsMoved };
+}
+
+/* ---------------------------------------------------- F7 open data (CSV) */
+
+const CSV_COLUMNS = ['id', 'title', 'department', 'team', 'seniority', 'locations', 'remote',
+  'salary_min', 'salary_max', 'salary_currency', 'posted_at', 'first_seen_at', 'url'];
+
+/** RFC 4180 cell; text that a spreadsheet would run as a formula gets a leading '. */
+function csvCell(v, { text = true } = {}) {
+  if (v == null) return '';
+  let s = String(v);
+  if (text && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/** CSV for one company's jobs (no descriptions). Vetted salaries only (quarantined = empty). */
+function toCsv(jobs) {
+  const rows = [CSV_COLUMNS.join(',')];
+  for (const j of jobs) {
+    const s = j.salary || null;
+    const num = (n) => (Number.isFinite(n) ? csvCell(Math.round(n), { text: false }) : '');
+    rows.push([
+      csvCell(j.id), csvCell(j.title), csvCell(j.department), csvCell(j.team), csvCell(j.seniority),
+      csvCell((j.locations || []).map((l) => l && l.name).filter(Boolean).join('; ')),
+      j.remote == null ? '' : String(!!j.remote),
+      num(s && s.min), num(s && s.max), csvCell(s && s.currency),
+      csvCell(j.postedAt || null), csvCell(j.firstSeenAt || null), csvCell(j.url),
+    ].join(','));
+  }
+  return rows.join('\r\n') + '\r\n';
+}
+
+function csvReadme(rows, site) {
+  const lines = [
+    'melon-seek open data (F7)',
+    '=========================',
+    '',
+    'One CSV per company, built from that company\'s PUBLIC job board on the date shown.',
+    'The postings belong to the companies: read and apply on the original posting (the url column).',
+    `Site: ${site}`,
+    '',
+    'Columns:',
+    '  id               company:sourceId, stable across days',
+    '  title, department, team, seniority (inferred from the title), locations ("; "-separated), remote',
+    '  salary_min/max   posted BASE pay range, annualized (hourly x 2080, monthly x 12), in salary_currency.',
+    '                   Passed melon-seek\'s salary vetting; implausible/quarantined values are left empty.',
+    '                   Excludes equity, bonus and benefits.',
+    '  posted_at        when the board says it was first published (null if the board does not say)',
+    '  first_seen_at    when melon-seek\'s daily ledger first saw the posting (null before tracking began)',
+    '  url              the original posting',
+    '',
+    'Encoding: UTF-8, comma-separated, CRLF line ends, RFC 4180 quoting. Cells that a spreadsheet',
+    'would treat as a formula are prefixed with an apostrophe.',
+    '',
+    'Files:',
+    ...rows.map((r) => `  ${r.file.padEnd(18)} ${String(r.jobs).padStart(5)} jobs  fetched ${r.fetchedAt || 'unknown'}`),
+    '',
+    'Only real snapshots are exported; companies shown with demo data have no CSV.',
+    'Provided as is, without warranty. Generated by scripts/build-static.js.',
+    '',
+  ];
+  return lines.join('\n');
+}
+
+/** Ledger for a company: data/history/<slug>.json, or null (missing, corrupt or another format). */
+async function readLedgerFile(slug, history) {
+  const file = path.join(HISTORY_DIR, `${slug}.json`);
+  if (!existsSync(file)) return null;
+  try {
+    const doc = JSON.parse(await fs.readFile(file, 'utf8'));
+    if (history && doc && doc.format !== history.HISTORY_FORMAT) { warn(`${rel(file)}: format ${doc && doc.format}, expected ${history.HISTORY_FORMAT}; ignored`); return null; }
+    return doc;
+  } catch (err) {
+    warn(`${rel(file)} unreadable (${err.message}); bundling without history`);
+    return null;
+  }
+}
+
+/** Optional ES module export, or null (the module or the export may not exist yet). */
+async function optionalExport(file, name) {
+  if (!existsSync(file)) return null;
+  try {
+    const mod = await import(pathToFileURL(file).href);
+    return typeof mod[name] === 'function' ? mod[name] : null;
+  } catch (err) {
+    warn(`${rel(file)} failed to load (${err.message}); ${name} skipped`);
+    return null;
+  }
 }
 
 /* ------------------------------------------------------- social previews */
@@ -372,14 +494,14 @@ async function main() {
   // 3. Browser-safe server modules -> dist/lib/
   const libFiles = [
     ...LIB_MODULES.map((f) => path.join(ROOT, 'server', f)),
-    ...(await fs.readdir(path.join(ROOT, 'server', 'sources'))).filter((f) => f.endsWith('.js')).map((f) => path.join(ROOT, 'server', 'sources', f)),
+    ...(await fs.readdir(path.join(ROOT, 'server', LIB_SOURCES_DIR))).filter((f) => f.endsWith('.js')).map((f) => path.join(ROOT, 'server', LIB_SOURCES_DIR, f)),
   ];
   const nodeOnly = [];
   let libCount = 0;
   for (const src of libFiles) {
     const name = path.relative(path.join(ROOT, 'server'), src);
     if (!existsSync(src)) {
-      if (OPTIONAL_LIB.has(name)) { warn(`server/${name} missing; ${name === 'juice.js' ? 'Juice Score disabled (jobs get juice: null)' : 'in-browser demo fallback disabled'}`); continue; }
+      if (OPTIONAL_LIB.has(name)) { warn(`server/${name} missing; ${{ 'juice.js': 'Juice Score disabled (jobs get juice: null)', 'history.js': 'no F4 listing ages in the browser' }[name] || 'in-browser demo fallback disabled'}`); continue; }
       throw new Error(`server/${name} missing`);
     }
     const code = await fs.readFile(src, 'utf8');
@@ -426,6 +548,29 @@ async function main() {
 
   const builtAt = new Date().toISOString();
   const summary = [];
+  // v2 (ROADMAP §7), each feature-detected so the build works before its owner lands it.
+  const historyFile = path.join(ROOT, 'server', 'history.js');
+  const history = existsSync(historyFile) ? await import(pathToFileURL(historyFile).href) : null;
+  if (!history) warn('server/history.js missing; no F4 listing ages, api/history files are empty');
+  const backtest = await optionalExport(path.join(ROOT, 'public', 'features', 'compstimate.js'), 'backtest');
+  if (!backtest) console.log('  note: public/features/compstimate.js has no backtest() yet; meta.compstimate = null');
+  const buildMarket = await optionalExport(path.join(ROOT, 'scripts', 'build-market.js'), 'buildMarket');
+  if (!buildMarket) console.log('  note: scripts/build-market.js#buildMarket not found yet; no api/market.json');
+  const marketPayloads = [];
+  const csvRows = [];
+  /** F4 + F3 for one payload: annotated jobs and the response `meta`. */
+  const enrich = (payload, ledger) => {
+    const jobs = history ? history.annotate(payload.jobs, ledger, builtAt) : payload.jobs;
+    let compstimate = null;
+    if (backtest && payload.mode !== 'demo' && jobs.length) {
+      try {
+        const bt = backtest(jobs, { ...BACKTEST });
+        compstimate = bt ? { ...bt, seed: bt.seed ?? BACKTEST.seed, computedAt: builtAt } : null;
+      } catch (err) { warn(`${payload.company.slug}: backtest failed (${err.message}); meta.compstimate = null`); }
+    }
+    const meta = { compstimate, history: history && ledger ? history.ledgerMeta(ledger) : { since: null, runs: 0 } };
+    return { ...payload, jobs, meta };
+  };
   // Per-company share pages (section 6) need each payload's numbers.
   const shares = [];
   const salaryMod = await import(pathToFileURL(path.join(ROOT, 'server', 'salary.js')).href);
@@ -439,8 +584,9 @@ async function main() {
     let demo = null;
     if (demoJobs) {
       const jobs = normalizeJobs(demoJobs(c.slug, c.name), c);
-      demo = { company: c, mode: 'demo', fetchedAt: builtAt, error: 'Synthetic demo data (no real snapshot was bundled for this company).', jobs };
+      demo = enrich({ company: c, mode: 'demo', fetchedAt: builtAt, error: 'Synthetic demo data (no real snapshot was bundled for this company).', jobs }, null);
     }
+    const ledger = await readLedgerFile(c.slug, history);
 
     let payload = null;
     const snapFile = path.join(SNAPSHOT_DIR, `${c.slug}.json`);
@@ -454,14 +600,33 @@ async function main() {
         warn(`${rel(snapFile)} unreadable (${err.message}); using demo`);
       }
     }
+    if (payload) payload = enrich(payload, ledger);
     if (!payload && demo) payload = demo;
     if (!payload) {
       warn(`${c.slug}: no snapshot and no demo generator; bundling an empty demo`);
-      payload = { company: c, mode: 'demo', fetchedAt: builtAt, error: 'No data bundled.', jobs: [] };
+      payload = enrich({ company: c, mode: 'demo', fetchedAt: builtAt, error: 'No data bundled.', jobs: [] }, null);
     }
     const r = await writeSplit(payload, path.join(OUT, 'api', 'jobs', `${c.slug}.json`), api, c.slug);
+    // F4: compact ledger for live browser fetches ({} keeps the request a 200).
+    const compact = history && ledger && typeof history.compactLedger === 'function' ? history.compactLedger(ledger) : {};
+    const histBytes = await writeJson(path.join(OUT, 'api', 'history', `${c.slug}.json`), compact);
+    await writeJson(path.join(OUT, 'api', 'meta', `${c.slug}.json`), payload.meta);
+    // F7: real data only.
+    let csvNote = '';
+    if (payload.mode === 'snapshot' && payload.jobs.length) {
+      const csv = toCsv(payload.jobs);
+      await fs.mkdir(path.join(OUT, 'data'), { recursive: true });
+      await fs.writeFile(path.join(OUT, 'data', `${c.slug}.csv`), csv);
+      csvRows.push({ file: `${c.slug}.csv`, jobs: payload.jobs.length, fetchedAt: payload.fetchedAt });
+      csvNote = `  csv ${size(Buffer.byteLength(csv))}`;
+      marketPayloads.push({ company: payload.company, mode: payload.mode, jobs: payload.jobs });
+    }
     let line = `${c.slug.padEnd(10)} ${payload.mode.padEnd(8)} ${String(payload.jobs.length).padStart(4)} jobs  list ${size(r.listBytes).padStart(9)}  desc ${String(r.descFiles).padStart(4)} files ${size(r.descBytes).padStart(9)}`;
     if (r.sectionsMoved) line += '  (sections moved to desc: list was over budget)';
+    line += `  history ${Object.keys(compact).length} open (${size(histBytes)}), runs ${payload.meta.history.runs}`;
+    const bt = payload.meta.compstimate;
+    line += bt ? `  backtest n=${bt.n} MdAPE ${(bt.medianAbsPctError * 100).toFixed(1)}% within10 ${(bt.within10Pct * 100).toFixed(0)}%` : '  backtest -';
+    line += csvNote;
     if (payload.fetchedAt) line += `  fetchedAt ${payload.fetchedAt}`;
     // The bundled demo is only a separate fallback when the main list is real.
     if (payload.mode === 'snapshot' && demo) {
@@ -471,6 +636,23 @@ async function main() {
     summary.push(line);
     shares.push(shareStats(c, payload, shareFx));
   }
+
+  // F1 market comps (vetted, real snapshots only) and the F7 README.
+  let marketNote = 'no buildMarket yet';
+  if (buildMarket) {
+    try {
+      const doc = await buildMarket(marketPayloads);
+      if (doc) {
+        const bytes = await writeJson(path.join(OUT, 'api', 'market.json'), doc);
+        if (bytes > MARKET_MAX_BYTES) warn(`api/market.json is ${size(bytes)} (cap ${size(MARKET_MAX_BYTES)}, docs/CONTRACT.md)`);
+        marketNote = `api/market.json ${size(bytes)} from ${marketPayloads.length} companies`;
+      } else marketNote = 'buildMarket returned nothing';
+    } catch (err) {
+      warn(`buildMarket failed (${err.message}); no api/market.json`);
+      marketNote = 'buildMarket failed';
+    }
+  }
+  if (csvRows.length) await fs.writeFile(path.join(OUT, 'data', 'README.txt'), csvReadme(csvRows, siteUrl()));
 
   // 5. config.js + .nojekyll
   const build = { builtAt, commit: process.env.GITHUB_SHA || null, ref: process.env.GITHUB_REF_NAME || null };
@@ -489,6 +671,7 @@ async function main() {
   for (const line of summary) console.log(`  ${line}`);
   console.log(`  social: og:image ${social.image || '(none)'}; ${social.pages} share pages at ${social.site}c/<slug>/`);
   console.log(`  juice: api/cities.json ${citiesNote}, lib/juice.js ${existsSync(path.join(OUT, 'lib', 'juice.js')) ? 'bundled' : 'missing'}`);
+  console.log(`  market: ${marketNote}; csv: ${csvRows.length ? `data/*.csv for ${csvRows.length} companies + data/README.txt` : 'none (no real snapshots)'}`);
   if (warnings.length) {
     console.warn(`${warnings.length} warning(s)`);
     if (STRICT) process.exit(1);

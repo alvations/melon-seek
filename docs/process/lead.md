@@ -312,3 +312,11 @@ screenshots in `docs/screenshots/`.
   advisory LLM review (needs the ANTHROPIC_API_KEY secret; default model
   claude-sonnet-5-5, overridden by the VET_LLM_MODEL variable); and a
   vetting-report artifact (30 days). npm test: 166/166.
+- 2026-10-02: livability guardrails landed: inputs, sources and confidence on
+  every score; a rent override; NO_RENT for cities without rent. The Numbeo
+  terms check (read through search summaries, numbeo.com blocked) found
+  that reuse in a public repo, site or API needs written permission.
+  Figures are tagged `terms: "numbeo-terms"` with
+  dataStatus.numbeo = "UNDER REVIEW". The replacement plan is in
+  LIVABILITY.md §7 (US: HUD/BEA/BLS, about 4–5 dev-days for the
+  recommended scope). Decision escalated to the user; nothing deleted.

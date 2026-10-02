@@ -75,6 +75,16 @@ C.highlight=await p.evaluate(()=>{const sc=document.querySelector('.ms-chart__sc
 await p.screenshot({path:OUT+'/a11y-clusters.png'});
 out.clusters=C;
 await p.close();
+// ---- comps chart ----
+p=await b.newPage({viewport:{width:1280,height:820},reducedMotion:'reduce'});p.on('pageerror',e=>errs.push(e.message));
+await p.goto('http://localhost:'+PORT+'/viz/demo.html?mode=comps');await p.waitForTimeout(500);
+await p.focus('#compsWide .ms-comps__list');
+await p.keyboard.press('ArrowDown'); await p.keyboard.press('ArrowDown'); await p.keyboard.press('ArrowDown');
+out.comps=await p.evaluate(()=>{const lb=document.querySelector('#compsWide [role=listbox]');const a=lb.querySelector('.is-active');
+  return {options:lb.querySelectorAll('[role=option]').length, current:lb.querySelector('.is-current')?.getAttribute('aria-label'), active:a?.getAttribute('aria-label'), ad:lb.getAttribute('aria-activedescendant')===a?.id, ring:getComputedStyle(a,'::before').boxShadow}});
+await p.keyboard.press('Enter'); await p.waitForTimeout(50);
+out.comps.enterLog=await p.evaluate(()=>document.getElementById('log').innerText.split('\n')[0]);
+await p.close();
 // ---- robust axis: one bad value must not squash the chart; it becomes a keyboard-reachable marker ----
 p=await b.newPage({viewport:{width:1280,height:820},reducedMotion:'reduce'});p.on('pageerror',e=>errs.push(e.message));
 await p.route(/basemaps|tile\.openstreetmap\.org/,r=>r.abort());

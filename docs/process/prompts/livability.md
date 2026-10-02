@@ -36,3 +36,10 @@ Keep the report brief. Run `node --test test/juice.test.js`.
 Mid-task message from the coordinator (also verbatim), sent after a session-limit interruption:
 
 > You were interrupted by a session limit; it has reset. Resume where you left off (you were checking tax systems for Germany, the Netherlands, Japan and India after confirming Canada, UK, Ireland and Australia). Keep the sources and as-of dates for everything. Note: a vetting agent is adding `salary.kind` and `salary.source` and quarantining outlier salaries (`salary: null` plus a `salaryFlag`), so attachJuice must skip jobs whose salary is null and use salary.mid as before. Finish the dataset, juice.js, the tests, LIVABILITY.md and the process log, then report the integration points.
+
+Second mid-task message from the coordinator (verbatim):
+
+> Follow-up on the Juice Score, from the strategy review (docs/strategy/ROADMAP.md §7.1 F8 and §9 D6):
+> 1. Guardrails: every computeJuice result carries its inputs (rent, tax and cost-index values, each with source and as-of date) and a `confidence` of "high", "medium" or "low". Non-US cities are "low" unless the figure comes from an official or open source. Support an optional user-edited rent override: `computeJuice(salary, city, { rentOverrideUSD })`.
+> 2. IMPORTANT: the strategy research says Numbeo's terms of use forbid reuse of its data (ROADMAP source S67). Please check Numbeo's terms yourself (WebSearch) and record what you find. If reuse isn't allowed, prepare a plan that replaces every Numbeo figure with open or official sources: HUD Fair Market Rents and BEA Regional Price Parities for the US, ONS/Eurostat/national stats elsewhere, and The Economist Big Mac data as a fallback price index. Where no open source exists, mark the city "low confidence" or drop it. Don't delete data yet; I'll put the decision to the user. Report what the terms say and the size of the replacement work.
+> Log it in docs/process/livability.md.

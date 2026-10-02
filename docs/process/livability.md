@@ -45,6 +45,13 @@ External sources and what each contributed:
 
 Skills: none loaded (no artifact or chart produced).
 
+Follow-up inputs (strategy review): `docs/strategy/ROADMAP.md` §7.1 F8 ("every score carries its
+inputs ... and a confidence; no Numbeo data (S67); non-US cities are low confidence unless
+sourced"; drawer gets an editable rent), §9 D6 (US first, non-US low), and
+`docs/strategy/COMPETITIVE_ANALYSIS.md` §4.3 + sources S67 (Numbeo terms), S68 (Big Mac, cited as
+MIT), S69 (HUD FMR). Two WebSearch queries (`allowed_domains: numbeo.com`) on the terms of use,
+data licence and API pages.
+
 ## 3. Decisions and rationale
 
 1. **Name: kept "Juice Score".** Juice = what's left after the rind (rent, tax, living) is peeled;
@@ -92,6 +99,29 @@ Skills: none loaded (no artifact or chart produced).
 13. **Refresh workflow commits** (unlike snapshot.yml, which now uploads artifacts): cities.json is
     ~250 KB (16 KB gzipped) and changes monthly. Runs `test/juice.test.js` before committing.
 14. **Size:** per-field sources kept short; shared text moved to `sourceNotes` (376 KB to 256 KB).
+15. **Numbeo terms (follow-up):** the terms allow free reuse only for personal use (incl. personal
+    blogs/websites, with a link) and journalistic/academic works; everything else (copy, distribute,
+    display, derivative works) needs written permission; scraping is prohibited; even paid licences
+    exclude public-facing APIs/feeds. melon-seek's public dataset and `/api/cities` feed fall outside
+    that, so the figures are treated as **not cleared**. Read via search summaries only (site blocked),
+    so the wording should be confirmed on the page. Data was kept (coordinator: don't delete), but
+    every Numbeo field is now `class: aggregator|estimate`, `terms: numbeo-terms`, and
+    `dataStatus.numbeo` = "UNDER REVIEW". Decision 2 is superseded pending the user's call.
+16. **Guardrails (ROADMAP F8):** source classes official/open/user (high), aggregator (medium),
+    estimate (low); tax high/medium/low by verified/approximate/estimated; overall = lowest; non-US
+    is "low" unless rent and cost index are both official/open/user. A user rent override counts as
+    `user` for rent but cannot lift a non-US city above "low" while its cost index is an aggregator
+    figure. That's deliberate: the override fixes one input, not the whole score.
+17. **`rentOverrideUSD` is monthly USD** (matches the drawer's editable field); 0 is valid; null means
+    none. A `null` dataset rent throws `NO_RENT` so the §7 plan (cities without open rent data) can
+    still score with the user's rent.
+18. **Payload:** a result with inputs is ~1.9 KB. computeJuice always returns inputs; attachJuice
+    keeps them on `best` only by default (`inputs: 'all' | 'best' | 'none'`), so a 3-location job
+    grows by ~1.5 KB, not ~6 KB.
+19. **Replacement plan sizing:** each city sorted by what open/official source exists (tiers
+    A/B/B−/C = 44/13/17/15). D6-recommended scope ≈ 4-5 dev-days; full global ≈ 10-14 days.
+    Written in `docs/LIVABILITY.md` §7.
+20. **S68 correction:** the Big Mac *data* is CC BY 4.0 (attribution required); MIT covers the code.
 
 ## 4. Replayable steps
 
@@ -135,6 +165,11 @@ npm test                               # 135/135 pass
   jurisdiction has a sourced rule, juice.js browser-safety, update-col (CSV quotes, apply, untouched
   quoted fields, refuses incomplete data).
 - `npm test`: 135/135 (no regressions in other suites).
+- Follow-up: `node --test test/juice.test.js` **23/23** (4 new guardrail tests: inputs with source
+  and as-of on all 89 cities; confidence rules incl. an official-sourced clone of London reaching
+  "high"; `rentOverrideUSD` and `NO_RENT`; attachJuice `inputs` modes; plus integrity checks that every
+  source has a class and every Numbeo source is aggregator/estimate with `terms`). `npm test` 187/187.
+  Confidence today: US 30 medium / 10 low, non-US 49 low.
 - Live `node scripts/update-col.js --dry-run` against GitHub raw: up to date, exit 0.
 - Hand checks: SF $300K net $125,189 (hand $125,197 before rounding), Austin $150K $76,576,
   London £120K tax £43,843 (HMRC arithmetic), Germany €90K income tax €19,497 (§32a zone 4),
@@ -143,6 +178,11 @@ npm test                               # 135/135 pass
   anduril 108/108, openai 108/110, generic 85/87.
 
 ## 6. Known gaps and follow-ups
+
+- **Awaiting the user (ROADMAP D6):** keep or remove the Numbeo figures. If removed, remove them
+  from `data/cities.json` *and* the builder script (both are in public git history), then follow
+  `docs/LIVABILITY.md` §7. Needs free HUD and BEA API keys as repository secrets.
+- The terms were read through search summaries; confirm the wording on numbeo.com before acting.
 
 - **Integration not done (not my files):** normalize/server/static build/UX/viz wiring; see the
   integration notes handed to the lead. `docs/process/README.md` needs a livability row.
@@ -166,3 +206,7 @@ npm test                               # 135/135 pass
 - 06:50: `test/juice.test.js` (19 tests; fixed a test that geocoded "Berlin, DE" as Delaware).
 - 06:57: compacted sources (376 KB to 256 KB); workflow; LIVABILITY.md; `checkedVia` URLs for
   verified tax rows; Ontario source URL corrected to the one the search returned.
+- 07:10: follow-up from the strategy review: guardrails (`inputs`, `confidence`, `rentOverrideUSD`,
+  `NO_RENT`, attachJuice `inputs`/`rentOverrides` options), source classes + `terms` + `dataStatus`
+  in cities.json, Numbeo terms check (not cleared), replacement plan and sizing (LIVABILITY.md §4.1,
+  §7), licence wording corrected in the dataset, 4 new tests (23/23).
