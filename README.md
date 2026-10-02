@@ -85,16 +85,51 @@ for data that's stale within hours. Instead:
 - The [`pages` workflow](.github/workflows/pages.yml) restores the newest
   artifact, then fetches fresh data. A board that fails during that run keeps
   its last good snapshot instead of dropping to demo data.
-- Both workflows run the **salary vetting gate** after fetching:
-  `node scripts/vet-salaries.js --no-write-flags --summary "$GITHUB_STEP_SUMMARY"`.
-  It exits 1 when a job whose salary would be shown has a critical anomaly (an
-  implausible amount), or when a regression fixture fails. That fails the run,
-  and in `pages.yml` it stops the deploy, so implausible pay is never published.
-  The flagged jobs are listed in the run's summary.
+- Both workflows run the **salary vetting gate** (`node scripts/vet-salaries.js`)
+  after fetching. It exits 1 when a job whose salary would be shown has a
+  critical anomaly (an implausible amount), or when a regression fixture fails.
+  - In `pages.yml` it's a **hard gate**: no existence guard and no
+    `continue-on-error`. A non-zero exit skips the build and the deploy, so
+    implausible pay is never published. Its flags report is kept as the
+    `salary-vetting` artifact.
+  - In `snapshot.yml` it fails the run, but the snapshots artifact is still
+    uploaded for review.
+  - Flagged jobs are listed in the run's summary.
 - A fresh clone has no snapshots and shows demo data (clearly labelled) until
   you run `npm run snapshot` on a machine with internet access. You can also
   download a recent artifact:
   `gh run download --repo alvations/melon-seek --name job-board-snapshots --dir data/snapshots`.
+
+### History ledger (listing age, freshness, reposts)
+
+`npm run snapshot` also records each successful fetch in a per-company **ledger**,
+`data/history/<slug>.json` (`server/history.js` and `scripts/history.js`). It
+tracks when each posting was first seen, when it closed, and reposts (a new id
+for the same role). The UI's "Listed N days ago", the freshness filter and the
+repost details all come from it.
+
+The ledger is only useful if it survives between runs, so the workflows persist
+it. Like snapshots, it is never committed to `main` (`data/history/` is
+gitignored). There are two stores, chosen by the repository variable
+**`HISTORY_STORE`**:
+
+| Store | How it works | Caveat |
+| --- | --- | --- |
+| `artifact` **(default)** | Both workflows restore the newest non-expired **`history-ledger`** artifact (from either workflow), run the snapshot, which updates the ledger, and upload it again with **90-day retention**. No artifact means start fresh. | If no workflow runs for 90 days, the chain breaks and the ledger starts over. Two overlapping runs: the last upload wins. |
+| `branch` | The same restore and update, but the ledger is read from, and committed to, an **orphan `data-history` branch** as `history/<slug>.json`. A separate `persist-ledger` job does the commit. It's the only job with `contents: write`, and it's skipped in artifact mode. | Durable and auditable. Needs the user's OK (ROADMAP §9 D1). |
+
+**Switching to the branch is one step:** Settings → Secrets and variables →
+Actions → Variables → add `HISTORY_STORE` = `branch`. Nothing in the workflow
+files changes: both already contain the branch steps
+([`.github/scripts/ledger.sh`](.github/scripts/ledger.sh) and the
+`persist-ledger` job). The first branch run seeds `data-history` from the latest
+artifact, since the artifact is still uploaded on every run. Removing the
+variable switches back.
+
+To get a ledger locally, use either
+`gh run download --repo alvations/melon-seek --name history-ledger --dir data/history`
+or, in branch mode,
+`git fetch origin data-history && git show origin/data-history:history/anthropic.json`.
 
 ## Tests
 
@@ -121,14 +156,26 @@ npm run build          # -> dist/
 | --- | --- |
 | `dist/` | A copy of `public/`. Absolute `/x` URLs in the HTML become relative, so the site works under the `/melon-seek/` sub-path. |
 | `dist/config.js` | Sets `window.MELON_STATIC = true`. It's loaded before `app.js`. |
-| `dist/lib/` | Browser copies of `normalize`, `salary`, `geo`, `keywords`, `demo`, `companies` and `sources/*`. |
+| `dist/lib/` | Browser copies of the modules allowlisted in `server/lib-modules.js` (the same list the server serves at `/lib/`): `normalize`, `salary`, `vet`, `geo`, `keywords`, `demo`, `juice`, `history`, `companies` and `sources/*`. |
 | `dist/vendor/leaflet/` | Leaflet. |
 | `dist/api/companies.json` | The built-in companies. |
 | `dist/api/jobs/<slug>.json` | The company's job list: its snapshot (`mode: "snapshot"`), or demo data if the build had no snapshot. Descriptions are left out and the list is packed (see below). Each list is kept under 1.5 MB. |
 | `dist/api/cities.json` | `data/cities.json`, the Juice Score inputs (89 cities). |
 | `dist/api/desc/<slug>/<id>.json` | One job's `descriptionHtml` (plus its `sections`, if they were moved out of the list), loaded when the job is opened. |
 | `dist/api/demo/<slug>.json` | Demo data (`mode: "demo"`). Only written when the main list is a real snapshot. |
+| `dist/api/history/<slug>.json` | The compact ledger, `{ id: [firstSeenAt, postedAt, repostCount, repostFirstSeenAt?] }` (open postings; `server/history.js#compactLedger`). It's `{}` when there's no ledger. `api.js` merges it into jobs fetched live in the browser. |
+| `dist/api/meta/<slug>.json` | The list's `meta`: `{ compstimate, history }`. Live browser fetches reuse it. |
+| `dist/api/market.json` | Market comps ("same role elsewhere"), from `scripts/build-market.js`. Vetted base-pay ranges only, ≤ 150 kB. |
+| `dist/data/<slug>.csv`, `dist/data/README.txt` | **Open data**: one CSV per company with real data (no descriptions), plus a README covering the columns and attribution. Demo-only companies aren't exported. |
 | `dist/.nojekyll` | Turns off Jekyll processing. |
+
+Each list also carries `meta`:
+- `meta.compstimate` is the seeded leave-one-out backtest of Compstimate
+  (`backtest()` in `public/features/compstimate.js`, seed 20261002, up to 500
+  jobs, percent values). It's null for demo data.
+- `meta.history` is `{ since, runs }` from the ledger.
+
+The Pages run's summary shows both for every company.
 
 **Keeping bundles small.** Description HTML is about 90% of a job's bytes; on
 real data, the lists were 7–10 MB for the biggest boards with descriptions
@@ -137,13 +184,18 @@ inline. The build makes three changes:
 1. Each description goes in its own `api/desc/...` file. The app calls
    `getJobDetail(job)` from `public/api.js` when you open a job, so the HTML is
    fetched once per job you open and then cached.
-2. Lists use a lossless packed format (`melon-packed-1`):
+2. Lists use a lossless packed format (`melon-packed-2`):
    - company fields, the id prefix and the shared URL prefix are stored once;
    - repeated locations, keyword labels and departments become indexes into a
-     shared dictionary.
+     shared dictionary;
+   - fields that every job carries (`postedAt`, `firstSeenAt`, `ageDays`,
+     `freshness`, `repost`, `extras`, …) are stored once per list as columns;
+   - exact ISO timestamps become epoch milliseconds;
+   - salary and keywords become value tuples.
 
-   `public/api.js` unpacks them back into normal Job objects. The build checks
-   that every job round-trips exactly, and fails if one doesn't.
+   `public/api.js` unpacks them back into normal Job objects, and still reads
+   the older `melon-packed-1`. The build checks that every job round-trips
+   exactly, including every v2 field, and fails if one doesn't.
 3. If a list is still over 1.5 MB, that company's `sections` (the
    responsibilities/fit bullets) also move into the desc files. Keywords stay in
    the list, so filters work immediately.

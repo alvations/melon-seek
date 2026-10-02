@@ -11,7 +11,9 @@
 //   cd "$SCRATCH/pw" && OUT_DIR="$SCRATCH/shots" node /path/to/repo/docs/process/scripts/product-screenshots.mjs
 //
 // Env: OUT_DIR, CHROMIUM_PATH (else newest /opt/pw-browsers/chromium-*/chrome-linux/chrome),
-//      PLAYWRIGHT_MODULE (path to playwright's index.js), ONLY (comma list of shot names).
+//      PLAYWRIGHT_MODULE (path to playwright's index.js), ONLY (comma list of shot names),
+//      MARKET_JSON (a real market.json from `node scripts/build-market.js --out f`; served at
+//      /__fixtures/market.json for the "compare-real-*" shots, which are skipped without it).
 // Exits non-zero if the page logs a console error or throws.
 
 import http from 'node:http';
@@ -50,6 +52,11 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; cha
 function serve() {
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://x');
+    if (url.pathname === '/__fixtures/market.json' && process.env.MARKET_JSON) {
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+      fs.createReadStream(process.env.MARKET_JSON).pipe(res);
+      return;
+    }
     const file = path.normalize(path.join(PUBLIC, decodeURIComponent(url.pathname)));
     if (!file.startsWith(PUBLIC) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end('not found'); return; }
     res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'application/octet-stream', 'cache-control': 'no-store' });
@@ -75,6 +82,13 @@ const SHOTS = [
   { name: 'focus-keyboard', viewport: [1360, 1000], query: 'theme=dark', focusRows: 3 },
   { name: 'no-pay', viewport: [1360, 800], query: 'theme=light&company=nopay', full: true },
   { name: 'empty', viewport: [1360, 600], query: 'theme=light&company=empty', full: false },
+  // v2: published accuracy + compare companies
+  { name: 'v2-comp-accuracy', viewport: [1360, 1000], query: 'theme=light', element: '.ms-comp' },
+  { name: 'v2-comp-lowacc-dark', viewport: [1360, 1000], query: 'theme=dark&accuracy=31', element: '.ms-comp' },
+  { name: 'v2-compare-demo', viewport: [1360, 1000], query: 'theme=light', element: '.ms-compare' },
+  { name: 'v2-compare-real-light', viewport: [1360, 1000], query: 'theme=light&market=/__fixtures/market.json&marketCompany=anthropic', element: '.ms-compare', needs: 'MARKET_JSON' },
+  { name: 'v2-compare-real-dark', viewport: [1360, 1000], query: 'theme=dark&market=/__fixtures/market.json&marketCompany=openai', element: '.ms-compare', needs: 'MARKET_JSON' },
+  { name: 'v2-compare-real-narrow', viewport: [820, 1200], query: 'theme=light&layout=narrow&market=/__fixtures/market.json&marketCompany=anduril', element: '.ms-compare', needs: 'MARKET_JSON' },
 ];
 
 const pw = await loadPlaywright();
@@ -85,6 +99,7 @@ const errors = [];
 try {
   for (const s of SHOTS) {
     if (ONLY.length && !ONLY.includes(s.name)) continue;
+    if (s.needs && !process.env[s.needs]) { console.log('skip', s.name, `(needs ${s.needs})`); continue; }
     const page = await browser.newPage({ viewport: { width: s.viewport[0], height: s.viewport[1] }, deviceScaleFactor: 2 });
     page.on('console', (m) => { if (m.type() === 'error') errors.push(`${s.name}: ${m.text()}`); });
     page.on('pageerror', (e) => errors.push(`${s.name}: ${e.message}`));

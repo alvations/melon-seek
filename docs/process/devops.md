@@ -409,6 +409,130 @@ Measured on that real data, `descriptionHtml` was ~90% of a job's bytes.
       failed and pages.yml has a fallback. pages.yml re-runs the gate, so bad
       pay still can't be published.
 
+### v2 "1-up" features (ROADMAP §7, CONTRACT "v2 additions")
+
+Interfaces confirmed by the coordinator: `history.js` exports `fromCompact`
+and `ledgerMeta`, and annotate stays strict; `buildMarket(payloads)` is pure;
+the backtest uses seed 20261002 and maxN 500; the artifact store is the
+default and the branch store comes later. Every v2 dependency is
+feature-detected, so the build and site work before each owner lands it.
+
+43. **The F4 ledger is persisted by `.github/scripts/ledger.sh`, one script for
+    both stores.** The store comes from the repository variable
+    `HISTORY_STORE` (`artifact` by default, or `branch`), so **switching to the
+    orphan branch is one step**: set the variable. No workflow edit is needed.
+    - `restore` (artifact): `gh api …/actions/artifacts?name=history-ledger`,
+      non-expired only, sorted by `created_at` myself (the API's order isn't
+      strictly newest-first; I saw it out of order), then `gh run download` of
+      the newest that works. It warns per failed run, and starts fresh if none
+      works.
+    - `restore` (branch): `git fetch --depth 1` of `data-history` and
+      `git archive history/`. **If the branch doesn't exist yet, it seeds
+      from the newest artifact**, so the switch loses no history.
+    - `commit-branch`: plumbing on a throwaway index (`hash-object`,
+      `update-index --cacheinfo`, `write-tree`, `commit-tree`, push). It never
+      touches the working tree or the checked-out branch, and it's a no-op
+      when the tree is unchanged. Branch content is `history/<slug>.json` plus
+      a README.
+    - Rejected: a composite action (harder to test locally); committing from
+      the main job (that would need `contents: write` on the whole workflow,
+      which the lead removed).
+44. **Workflow wiring (both snapshot.yml and pages.yml):**
+    - Restore ledger, then `npm run snapshot` (which updates `data/history/`
+      through `scripts/history.js`).
+    - Upload the `history-ledger` artifact: 90-day retention, `if: !cancelled()`,
+      so the ledger is kept even when the vetting gate fails, and
+      `if-no-files-found: warn`.
+    - The `persist-ledger` job (`needs`, `if: vars.HISTORY_STORE == 'branch' &&
+      !cancelled()`) downloads this run's artifact with `download-artifact@v8`
+      (node24) and runs `commit-branch`. It's the only job with
+      `contents: write`, and it's skipped in artifact mode, so no write token
+      is minted.
+    - `snapshot.yml` gains `actions: read` for the artifact lookup.
+    - Considered: a shared job-level concurrency group across both workflows
+      to serialize ledger updates. Rejected, because GitHub keeps only one
+      pending job per group: a burst of pushes would cancel the daily snapshot
+      job. The race (last upload wins; at worst a posting's firstSeenAt is
+      recorded one run later) is documented instead.
+    - `data/history/` is gitignored: the ledger never lands on `main` in either
+      store.
+45. **The build imports `LIB_MODULES` / `LIB_SOURCES_DIR` from
+    `server/lib-modules.js`**, the server's `/lib/` allowlist, instead of its
+    own copy. Optional modules (missing means degrade, with a warning):
+    `demo.js`, `juice.js`, `history.js`.
+46. **F4 in the build:**
+    - Every bundled payload goes through `history.annotate(jobs, ledger,
+      builtAt)`. The ledger is `data/history/<slug>.json` (`MELON_HISTORY_DIR`
+      overrides it), validated by its `format`, and ignored with a warning if
+      it's corrupt or in another format. Ages are "as of build time", like the
+      server's "as of now", and a deploy runs at least daily.
+    - `meta.history = ledgerMeta(ledger)`, or `{ since: null, runs: 0 }`.
+    - `api/history/<slug>.json = compactLedger(ledger)`. This is **backend's
+      own writer**, chosen over deriving the map from annotated jobs: one
+      source of truth, open postings only, and the optional 4th element for
+      the repost chain's first-seen date. It's `{}` without a ledger, so the
+      browser never gets a 404.
+47. **`meta.compstimate`** is `backtest(jobs, { seed: 20261002, maxN: 500 })`
+    from `public/features/compstimate.js`, plus `computedAt`. It's null for
+    demo payloads, because an accuracy figure for fake data would mislead.
+    `backtest` returns **percent numbers** (7.3 means 7.3%). The first summary
+    draft multiplied by 100; that's fixed.
+48. **`api/meta/<slug>.json`** (an addition to the contract's file table,
+    internal to api.js) holds the list's `meta`, so **live** browser fetches
+    keep the Compstimate accuracy line and the ledger meta without
+    downloading a 1 MB list.
+49. **F7 CSV** (`dist/data/<slug>.csv` + `README.txt`):
+    - Columns are the ROADMAP's list. Salary is vetted and annualized; a
+      quarantined salary is empty.
+    - RFC 4180 quoting and CRLF line endings. Cells starting with `= + - @`,
+      tab or CR get a leading `'` (formula injection).
+    - Real snapshots only; demo companies get no CSV.
+    - The README covers attribution, a link to the originals, column meanings
+      and the base-pay caveat.
+50. **F1 market:** `buildMarket(payloads, { generatedAt: builtAt })` gets **all**
+    payloads, demo included, because backend's function uses demo payloads
+    only when no company has real data and then labels the doc
+    `mode: "demo"`. The build warns over 150 kB. On real data: 22 kB, 391
+    cells.
+51. **`melon-packed-2`:**
+    - Top-level fields present on **every** job become columns: `postedAt`,
+      `firstSeenAt`, `ageDays`, `ageIsMinimum`, `freshness`, `repost`,
+      `extras`, `reqId`, `remote`, `updatedAt`. Encodings: `bool` as 0/1,
+      `dict` (firstSeenAt has one value per run; freshness, repost and
+      extras), `ts`, or `raw`.
+    - `ts` stores an ISO string as epoch ms, only if
+      `new Date(v).toISOString() === v`.
+    - salary is a value tuple in `shared.salaryKeys` order when it has exactly
+      that key set; `currency`, `interval`, `kind` and `source` are dict refs.
+    - keywords are a `[r, f, s]` tuple when the key set is exactly those three.
+    - Anything that doesn't fit stays inline, so key presence round-trips. The
+      build's round-trip check, run with the browser's own `unpackJobs`,
+      covers all of it.
+    - `api.js` reads both `-1` and `-2`.
+    - Measured on the v2 fixture (real Anduril, 2,419 jobs, with synthesized
+      v2 fields and a 3-run ledger): plain columns gave 1.47 MB, too close to
+      the 1.5 MB budget. The tuple and `ts` encodings brought it to
+      **1.19 MB**.
+52. **api.js v2:**
+    - `loadLib` adds `lib/history.js`. Static live results, for built-ins, get
+      `annotate(jobs, fromCompact(api/history/<slug>.json), fetchedAt)` and
+      `meta` from `api/meta/<slug>.json`, both cached per session. Custom
+      boards get `annotate(jobs, null, …)` and empty meta.
+    - In-browser demo jobs are annotated too. Bundled lists pass `meta`
+      through.
+    - Bug fix: bundled results used to drop `meta`, and `bundled()` didn't
+      strip the new `columns` key.
+    - `getMarket()` reads `api/market.json` in static mode and `api/market`
+      from the server. It's cached, and a failure resolves to null and is
+      remembered.
+53. **Vetting gate in pages.yml is hard.** The vetting agent's current step has
+    no guard and no `continue-on-error`; I kept it, made
+    `continue-on-error: false` explicit, and documented that a non-zero exit
+    skips the build and deploy. `snapshot.yml` now runs the gate unguarded,
+    since the script exists, and still uploads its artifacts. The step summary
+    gains a "Compstimate backtest" table (n, MdAPE, within-10%, seed, ledger
+    since and runs per company).
+
 ## 4. Replayable steps
 
 Run from `/home/user/melon-seek`. File contents are the committed files
@@ -626,6 +750,41 @@ quoted `cat > FILE <<'EOF'` heredocs).
     `node $S/juice-browser.mjs http://127.0.0.1:4173/melon-seek/`,
     `node $S/juice-timing.mjs ...`, and `node $S/pages-smoke.mjs ...`.
 
+**v2 "1-up" features:**
+
+30. Ledger script, branch store, against a local bare remote. The whole
+    sequence below is in `<scratchpad>/ledger-test*`:
+    1. `git init --bare remote.git` and a work clone.
+    2. `HISTORY_STORE=branch bash .github/scripts/ledger.sh restore`: no branch
+       yet, so it seeds from the artifact. The artifact path is stubbed with a
+       fake `gh` on `PATH`.
+    3. `commit-branch`, then `commit-branch` again, which reports unchanged.
+    4. Change a file, `commit-branch`, then `restore` in a fresh clone.
+    5. Confirm the work tree and checked-out branch are untouched.
+31. Artifact store against the real repo (read-only):
+    `GITHUB_REPOSITORY=alvations/melon-seek bash .github/scripts/ledger.sh restore`.
+    `history-ledger` doesn't exist yet, so it starts fresh. A probe with the
+    existing `salary-vetting` name finds runs newest-first. The download
+    itself is blocked here, because the sandbox proxy refuses GitHub's Azure
+    blob host (403). On runners it isn't blocked.
+32. v2 fixture build (scratchpad only):
+    - Real snapshots plus synthesized `postedAt`, `reqId`, `extras` and
+      salary spread/zones/kind/source.
+    - A 3-run ledger recorded with `scripts/history.js#recordRun`: job A is
+      present, then closed, then re-posted as B.
+    - Then:
+      ```sh
+      MELON_SNAPSHOT_DIR=$S/v2snap MELON_HISTORY_DIR=$S/v2hist node scripts/build-static.js --out $S/dist-v2
+      ```
+33. Per-field byte breakdown of `dist-v2/api/jobs/anduril.json` (node one-liner)
+    → added the tuple and `ts` encodings → rebuilt: 1.47 → 1.19 MB.
+34. Tests and browser checks:
+    ```sh
+    node --test test/static-build.test.js            # 10/10
+    npm test  (x3)                                    # see section 5
+    node $S/v2-browser.mjs | pages-smoke.mjs | drawer-test.mjs  (real-data dist, /melon-seek/)
+    ```
+
 ## 5. Verification
 
 | Check | Result |
@@ -655,6 +814,11 @@ quoted `cat > FILE <<'EOF'` heredocs).
 | `test/static-build.test.js` (juice task) | **5/5 pass** (3.6 s). |
 | Juice in Chromium, real data (07:0xZ) | **PASS.** Every job on all 8 companies has a `juice` field. Scored: anthropic 539/638, anduril 1,899/2,418, openai 660/833, shieldai 415/581, palantir 225/320, scaleai 126/194, xai 93/297, cohere 77/132. 0 page errors. Full smoke still passes (8 company switches, 0 app or page errors, 0 local 404s). |
 | Salary vetting gate on real snapshots | **Exit 1.** 8 unquarantined critical salaries, e.g. Anthropic Fellows "$4.6M", Scale AI "Strategist, Qatar: $500K to $5M", Anduril "12,600–167,000 USD", Shield AI "88,000–130,000 USD per-month-salary". Fixtures 435/435. As wired, this blocks `pages.yml` deploys until the vetting agent fixes or quarantines them. |
+| `test/static-build.test.js` v2 (07:30Z) | **10/10.** The five new tests: (a) the packed-2 list deep-equals an independent recomputation, `annotate(vetSalaries(snapshot), ledger, builtAt)`, using the real Greenhouse fixture through the real adapter and normalizer plus a 3-run ledger with a repost; (b) `api/history` = `compactLedger(ledger)`, closed postings left out, repost count kept, `api/meta` = list meta, `{}` without a ledger; (c) CSV header, rows, RFC 4180 quoting, formula prefix, README, none for demo; (d) market.json ≤ 150 kB and `getMarket()` (feature-detected); (e) a static **live** fetch, the board stubbed with the fixture, gets firstSeenAt from `api/history` and meta from `api/meta`. Every build in the test uses its own temp out, snapshot and history dirs. |
+| Full `npm test` ×3 (07:26Z) and ×3 (07:28Z) | **My tests green in all 6 runs.** Run set 1 was 201/206: 4 `demo.test.js` (features was editing `server/demo.js`, uncommitted) and 1 `features.test.js`. Run set 2 was 212/213 ×3: only `features.test.js` "title normalization › role families" (product's in-progress `compstimate.js` / `roles.js`). The coordinator's intermittent "packed list doesn't round-trip (job 0)" was the window between my packer emitting `columns` and api.js decoding them (two edits a few minutes apart); not seen since. |
+| Real-data build (8 companies, pre-v2 snapshots, no local ledger) | Pass, 0 warnings. Anduril list 1.29 MB, market.json 22 kB (real, 391 cells), 8 CSVs (Anduril 695 kB), backtest on every real company, e.g. Anduril n=500, MdAPE 7.1%, within 10% 53.6%. |
+| Browser, real-data packed-2 dist (07:32Z) | **PASS.** Smoke switches all 8 companies with 0 app or page errors and 0 local 404s. `getJobs` returns v2 fields and `meta`; `getMarket` returns `melon-market-1`. The drawer description loads lazily, the bullets now show in over-budget companies (the UX re-render landed), and it's cached on reopen. One local 404, `features/comps.js`: app.js's guarded `import('./features/comps.js').catch(() => null)` for product's not-yet-landed F1 module. |
+| Pages step summary (run locally against dist-v2) | The Compstimate table renders, e.g. anduril n=500 7.3% / 53%. palantir and xai show 0.3% MdAPE, suspiciously low; flagged to product. |
 | `npm test` (full, 07:1xZ) | 165/166. The one failure is `test/fx-consistency.test.js` (CAD: `server/salary.js` 0.73 vs `public/viz/palette.js` 0.7117), from FX tables owned by backend/viz, not this change. Two transient `features.test.js` failures cleared on re-run while another agent was editing. |
 
 ## 6. Known gaps and follow-ups
@@ -721,6 +885,21 @@ quoted `cat > FILE <<'EOF'` heredocs).
   company when a real snapshot exists). Small, but they could be skipped by
   dropping `api/demo/<slug>.json`, which is only reached if the main list fails
   to load.
+- **v2 data isn't real yet in this sandbox.** The local snapshots predate the
+  v2 normalizer, so sizes were measured on a synthesized v2 fixture (Anduril
+  1.19 MB). Check the first real Pages run's build log: per-company list,
+  history, backtest and CSV sizes are printed, and the build warns over
+  1.5 MB.
+- **The artifact ledger chain breaks after 90 days with no runs**, and two
+  overlapping runs mean the last upload wins. The branch store
+  (`HISTORY_STORE=branch`) fixes both; it's waiting on the user's D1 decision.
+- **Ages in bundled lists are as of build time** (≤ 1 day old with the daily
+  deploy). Live browser fetches are annotated as of the fetch.
+- **`features/comps.js` 404** until product lands F1's `public/features/comps.js`
+  (app.js already imports it guardedly).
+- **og.test.js doesn't pin `MELON_HISTORY_DIR`.** Harmless today, since there's
+  no local `data/history`. Once a developer has a local ledger, its builds
+  would read it; one env line would fix it (not my file; reported).
 
 ## 7. Change log
 
@@ -794,3 +973,26 @@ quoted `cat > FILE <<'EOF'` heredocs).
 - 2026-10-02T07:14Z: Added `test/static-build.test.js` (5/5). Browser check on
   real data passes. Full smoke still passes. Full `npm test` is 165/166 (the
   fx-consistency failure is unrelated). Updated the README and this log.
+- 2026-10-02T07:15Z: v2 "1-up" work. Proposed the history, market and
+  backtest interfaces; the coordinator confirmed them (fromCompact,
+  ledgerMeta, buildMarket(payloads), seed 20261002 / maxN 500).
+- 2026-10-02T07:17Z: `.github/scripts/ledger.sh` (artifact and branch stores),
+  with the branch store tested against a local bare remote. Artifact lookup
+  dry-run against the real repo; the download is blocked by the sandbox
+  proxy.
+- 2026-10-02T07:19Z: Ledger restore, upload and the `persist-ledger` job in
+  snapshot.yml and pages.yml. Explicit hard vetting gate. Compstimate summary
+  table.
+- 2026-10-02T07:21Z: The build uses `server/lib-modules.js`, annotates with
+  `server/history.js`, and writes `api/history` (`compactLedger`), `api/meta`,
+  `meta`, CSV + README, and `market.json` (feature-detected). melon-packed-2
+  columns. `data/history/` gitignored.
+- 2026-10-02T07:22Z: api.js: packed-2 unpack, live and demo history merge,
+  `api/meta`, `getMarket()`, the bundled-meta bug fix.
+- 2026-10-02T07:24Z: The v2 fixture build showed Anduril at 1.47 MB. Added the
+  salary and keyword tuple and `ts` encodings, reaching 1.19 MB.
+- 2026-10-02T07:26Z: Extended `test/static-build.test.js` to 10 tests. Fixed
+  the backtest percent units in the build log and step summary.
+- 2026-10-02T07:33Z: Branch store seeds from the newest artifact when the
+  branch doesn't exist yet (lossless switch). Real-data browser regression
+  passes. README ("History ledger", v2 files, packed-2) and this log updated.

@@ -14,6 +14,7 @@ process.env.MELON_HISTORY_DIR = path.join(tmp, 'history');
 fs.mkdirSync(process.env.MELON_SNAPSHOT_DIR, { recursive: true });
 // Temp copy of data/cities.json so the reload-on-mtime test can rewrite it.
 const REAL_CITIES = path.join(FIX, '..', '..', 'data', 'cities.json');
+const REAL_ANDURIL = path.join(FIX, '..', '..', 'data', 'snapshots', 'anduril.json');
 process.env.MELON_CITIES_FILE = path.join(tmp, 'cities.json');
 if (fs.existsSync(REAL_CITIES)) fs.copyFileSync(REAL_CITIES, process.env.MELON_CITIES_FILE);
 
@@ -81,7 +82,7 @@ test('GET /api/jobs?company=anthropic falls back to demo when live fails', { ski
   assert.ok(body.fetchedAt);
   assert.ok(Array.isArray(body.jobs) && body.jobs.length > 0, 'demo jobs present');
   const j = body.jobs[0];
-  for (const k of ['id', 'company', 'companyName', 'title', 'seniority', 'locations', 'remote', 'salary', 'descriptionHtml', 'sections', 'keywords']) {
+  for (const k of ['id', 'company', 'companyName', 'title', 'seniority', 'locations', 'remote', 'salary', 'sections', 'keywords']) {
     assert.ok(k in j, `job has ${k}`);
   }
   assert.ok(j.id.startsWith('anthropic:'));
@@ -638,4 +639,84 @@ test('F3: the real backtest runs in a worker thread without blocking the event l
   const t1 = Date.now();
   assert.deepEqual(await mod.compstimateMeta({ company: { slug: 'wt' }, mode: 'snapshot', jobs }), meta);
   assert.ok(Date.now() - t1 < 50);
+});
+
+test('list without descriptionHtml + GET /api/job detail', { skip: skipReason }, async () => {
+  mod.resetState();
+  const res = await get('/api/jobs?source=lever&board=example');
+  const etag = res.headers.get('etag');
+  assert.ok(etag);
+  const body = await res.json();
+  assert.ok(body.jobs.length > 0);
+  for (const j of body.jobs) {
+    assert.ok(!('descriptionHtml' in j), 'no descriptionHtml in the list');
+    assert.ok(j.sections && Array.isArray(j.sections.responsibilities), 'sections shape kept');
+    assert.ok(j.keywords, 'keywords kept');
+  }
+  assert.equal(body.meta.lazy.descriptionHtml, true);
+  assert.equal(typeof body.meta.lazy.sections, 'boolean');
+  // Conditional request on the cached bytes.
+  assert.equal((await get('/api/jobs?source=lever&board=example', { 'if-none-match': etag })).status, 304);
+
+  const id = body.jobs.find((j) => j.title === 'Senior Backend Engineer').id;
+  const d = await get(`/api/job?source=lever&board=example&id=${encodeURIComponent(id)}`);
+  assert.equal(d.status, 200);
+  const detail = await d.json();
+  assert.equal(detail.id, id);
+  assert.match(detail.descriptionHtml, /We build developer tools/);
+  assert.ok(detail.sections && Array.isArray(detail.sections.fit));
+  assert.deepEqual(Object.keys(detail).sort(), ['descriptionHtml', 'id', 'sections']);
+
+  // The id alone is enough (company derived from its prefix), for custom and built-in boards.
+  const byId = await (await get(`/api/job?id=${encodeURIComponent(id)}`)).json();
+  assert.equal(byId.descriptionHtml, detail.descriptionHtml);
+  assert.equal((await get('/api/job?id=nocolon')).status, 400);
+  assert.equal((await get('/api/job?id=lever-..:x')).status, 400);
+  assert.equal((await get('/api/job?source=lever&board=example&id=lever-example:nope')).status, 404);
+  assert.equal((await get('/api/job?source=lever&board=example')).status, 400);
+  assert.equal((await get('/api/job?company=nope&id=nope:x')).status, 404);
+  assert.equal((await get('/api/job?id=nope:x')).status, 404);
+  // Demo data has details too (same ids as the list).
+  const demo = await (await get('/api/jobs?company=openai')).json();
+  const dd = await (await get(`/api/job?id=${encodeURIComponent(demo.jobs[0].id)}`)).json();
+  assert.ok(dd.descriptionHtml.length > 0);
+  // The detail route never fetches upstream.
+  const before = upstreamCalls.length;
+  await get('/api/job?source=greenhouse&board=detail-only&id=x');
+  assert.equal(upstreamCalls.length, before);
+});
+
+test('perf: big board list is cached; warm request fast and small (real Anduril snapshot)', { skip: skipReason || (!fs.existsSync(REAL_ANDURIL) && 'no committed anduril snapshot') }, async () => {
+  fs.copyFileSync(REAL_ANDURIL, path.join(process.env.MELON_SNAPSHOT_DIR, 'anduril.json'));
+  mod.resetState();
+  mod.setCompstimateModule(null); // keep the backtest out of the timing
+  try {
+    const http = await import('node:http');
+    const { port } = server.address();
+    const fetchGz = () => new Promise((resolve, reject) => {
+      const t0 = process.hrtime.bigint();
+      http.get({ host: '127.0.0.1', port, path: '/api/jobs?company=anduril', headers: { 'accept-encoding': 'gzip' } }, (r) => {
+        const chunks = [];
+        r.on('data', (c) => chunks.push(c));
+        r.on('end', () => resolve({ status: r.statusCode, headers: r.headers, bytes: Buffer.concat(chunks), ms: Number(process.hrtime.bigint() - t0) / 1e6 }));
+      }).on('error', reject);
+    });
+    const cold = await fetchGz();
+    assert.equal(cold.status, 200);
+    const warm = [await fetchGz(), await fetchGz(), await fetchGz()];
+    const best = Math.min(...warm.map((w) => w.ms));
+    const size = warm[0].bytes.length;
+    console.log(`# anduril list: cold ${cold.ms.toFixed(0)} ms, warm ${best.toFixed(1)} ms, ${(size / 1024).toFixed(0)} KB gzipped`);
+    assert.equal(warm[0].headers['content-encoding'], 'gzip');
+    assert.ok(best < 300, `warm request took ${best} ms (target < 300 ms)`);
+    assert.ok(size < 600 * 1024, `gzipped list is ${size} bytes (target < 600 KB)`);
+    const body = JSON.parse(zlib.gunzipSync(warm[0].bytes).toString('utf8'));
+    assert.equal(body.mode, 'snapshot');
+    assert.ok(body.jobs.length > 2000);
+    assert.ok(body.jobs.every((j) => !('descriptionHtml' in j)));
+  } finally {
+    mod.setCompstimateModule(undefined);
+    fs.rmSync(path.join(process.env.MELON_SNAPSHOT_DIR, 'anduril.json'), { force: true });
+    mod.resetState();
+  }
 });

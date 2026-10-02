@@ -2,6 +2,8 @@
 // test/features.test.js. Not used by the app. Every company name ends in
 // "(demo)" so nothing here can be mistaken for a real posting.
 
+import { roleFamily } from './roles.js';
+
 const CITIES = [
   { name: 'San Francisco, CA', city: 'San Francisco', region: 'CA', country: 'US', lat: 37.77, lng: -122.42, w: 10, pay: 1 },
   { name: 'New York City, NY', city: 'New York', region: 'NY', country: 'US', lat: 40.71, lng: -74.01, w: 5, pay: 0.98 },
@@ -116,4 +118,41 @@ export function fakeJobs(slug = 'acme', n = 140) {
     });
   }
   return jobs;
+}
+
+/**
+ * A "melon-market-1"-shaped market document from fake boards, for the demo only
+ * (the real one comes from scripts/build-market.js). Mid of each range, USD,
+ * n >= 3 per cell, plus a family roll-up with seniority "*".
+ */
+export function fakeMarket(boards) {
+  const FX = { USD: 1, GBP: 1.27, EUR: 1.09, CHF: 1.13 };
+  const groups = new Map();
+  const add = (k, v) => { if (!groups.has(k)) groups.set(k, []); groups.get(k).push(v); };
+  for (const { slug, jobs } of boards) {
+    for (const j of jobs) {
+      if (!j.salary) continue;
+      const f = roleFamily(j.title, j);
+      if (!f) continue;
+      const usd = j.salary.mid * (FX[j.salary.currency] || 1);
+      add(`${slug}|${f}|${j.seniority}`, usd);
+      add(`${slug}|${f}|*`, usd);
+    }
+  }
+  const pct = (v, p) => { const h = (v.length - 1) * p, lo = Math.floor(h); return v[lo] + (v[Math.ceil(h)] - v[lo]) * (h - lo); };
+  const r100 = (x) => Math.round(x / 100) * 100;
+  const cells = [];
+  for (const [k, v] of groups) {
+    if (v.length < 3) continue;
+    v.sort((a, b) => a - b);
+    const [c, f, s] = k.split('|');
+    cells.push([c, f, s, v.length, r100(pct(v, 0.25)), r100(pct(v, 0.5)), r100(pct(v, 0.75))]);
+  }
+  return {
+    format: 'melon-market-1', basis: 'posted base pay ranges', currency: 'USD', minN: 3, mode: 'demo',
+    fx: { asOf: 'demo' }, generatedAt: '2026-10-02T00:00:00Z',
+    companies: boards.map((b) => ({ slug: b.slug, name: b.name, color: b.color || null })),
+    columns: ['company', 'family', 'seniority', 'n', 'p25', 'median', 'p75'],
+    cells,
+  };
 }

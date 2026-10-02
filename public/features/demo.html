@@ -83,13 +83,15 @@
     <section>
       <div class="demo-filter" id="filterBar" aria-live="polite"></div>
       <div id="insights"></div>
+      <div id="compare" style="margin-top:12px"></div>
       <div class="demo-log" id="log" aria-live="polite"></div>
     </section>
   </main>
   <script type="module">
-    import { fakeJobs } from './demo-data.js';
-    import { createCompstimateWidget } from './compstimate.js';
+    import { fakeJobs, fakeMarket } from './demo-data.js';
+    import { createCompstimateWidget, backtest } from './compstimate.js';
     import { createInsights } from './insights.js';
+    import { createCompsCard } from './comps.js';
 
     const params = new URLSearchParams(location.search);
     const root = document.documentElement;
@@ -125,6 +127,15 @@
     const insights = createInsights($('insights'), {
       onFilter: (f) => { filter = f; log(`onFilter → ${JSON.stringify(f)}`); refresh(); },
     });
+    const compare = createCompsCard($('compare'), {
+      onPickCompany: (slug, filters) => log(`onPickCompany → ${slug} ${JSON.stringify(filters)}`),
+    });
+    // Demo market from three fake boards, or a real market.json (?market=<url>, used by the screenshot script).
+    const BOARDS = [['acme', 'Acme (demo)', '#d97757', 140], ['globex', 'Globex (demo)', '#10a37f', 96], ['initech', 'Initech (demo)', '#3b5bdb', 120]];
+    let market = fakeMarket(BOARDS.map(([slug, name, color, n]) => ({ slug, name, color, jobs: fakeJobs(slug, n) })));
+    if (params.get('market')) {
+      try { market = await (await fetch(params.get('market'))).json(); } catch (e) { log('market fetch failed: ' + e.message); }
+    }
 
     function refresh() {
       const view = all.filter((j) => matches(j, filter));
@@ -144,7 +155,11 @@
       const c = $('company').value;
       all = c === 'empty' ? [] : c === 'nopay' ? fakeJobs('initech', 40).map((j) => ({ ...j, salary: null })) : fakeJobs(c, c === 'globex' ? 96 : 140);
       filter = params.get('filter') ? JSON.parse(params.get('filter')) : null;
-      comp.update(all);
+      // Stand-in for the /api/jobs response meta (the server/build computes this with the same backtest()).
+      const acc = params.get('accuracy') ? { medianAbsPctError: Number(params.get('accuracy')), within10Pct: 20, n: 120, seed: 20261002 }
+        : all.length ? backtest(all, { seed: 20261002, maxN: 200 }) : null;
+      comp.update(all, { compstimate: acc && acc.n ? acc : null });
+      compare.update(market, { company: params.get('marketCompany') || c, jobs: all });
       const q = params.get('q');
       if (q) comp.setQuery(JSON.parse(q));
       refresh();

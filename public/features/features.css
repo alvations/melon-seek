@@ -309,6 +309,12 @@
 .ms-insights .msi-row.msi-chip:hover { border-color: color-mix(in srgb, var(--_accent) 55%, var(--_border)); background: var(--_accent-soft); }
 .msi-chip__n { color: var(--_muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 
+/* (e) compare companies card (comps.js) */
+.ms-compare .msi-compare__field { max-width: 380px; margin-bottom: 10px; }
+.msi-swatch { flex: none; align-self: center; width: 8px; height: 8px; border-radius: 50%; background: var(--_axis); }
+.ms-insights .msi-row.is-current .msi-row__name { font-weight: 650; }
+.ms-insights .msi-row.is-current .msi-box__iqr { background: color-mix(in srgb, var(--_box) 70%, var(--_accent)); }
+
 /* ============================== compstimate ============================== */
 
 .ms-comp {

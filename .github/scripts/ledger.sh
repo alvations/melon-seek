@@ -52,7 +52,10 @@ restore_artifact() {
 restore_branch() {
   local tmp
   if ! git fetch --quiet --depth 1 "$REMOTE" "refs/heads/$BRANCH" 2>/dev/null; then
-    log "no '$BRANCH' branch yet; starting a fresh ledger"
+    # First run after switching to the branch store: seed it from the newest
+    # artifact (still uploaded every run), so the switch loses no history.
+    log "no '$BRANCH' branch yet; seeding from the newest '$ARTIFACT' artifact"
+    restore_artifact
     return 0
   fi
   tmp=$(mktemp -d)

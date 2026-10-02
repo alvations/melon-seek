@@ -4,7 +4,7 @@
 // what's left after the rind is peeled off:
 //
 //   juice (net) = gross − tax − rent (1BR, 12 months) − living (costIndex/100 × NYC basket)
-//   score       = 0..100, log-scaled between fixed anchors (stable across companies)
+//   score       = 100 × (1 − e^(−net / $80K)): fixed, saturating, never clamps (stable across companies)
 //
 // Pure ES module, browser-safe (no node: imports, no process): the static GitHub Pages
 // build ships it in dist/lib/ next to geo.js. Inputs come from data/cities.json (pass the
@@ -35,6 +35,8 @@ export const JUICE = Object.freeze({
 // does not list fall back to the city's fxPerUSD (Big Mac data dollar_ex, refreshed
 // monthly by scripts/update-col.js).
 // ---------------------------------------------------------------------------
+// FX date reported in computeJuice inputs.fx (matches the Big Mac release in data/cities.json).
+export const FX_AS_OF = '2026-07-01';
 // Keep in sync with public/viz/palette.js FX_PER_USD (as of 2026-07-01);
 // test/fx-consistency.test.js fails if they drift.
 export const FX_PER_USD = Object.freeze({
@@ -80,7 +82,7 @@ const K_USD = 80000;
 export const SCORE_ANCHORS = Object.freeze({
   curve: 'exponential',
   K: K_USD,
-  fullGlassUSD: Math.round(K_USD * Math.log(200)), // net where the rounded score first shows 100
+  fullGlassUSD: Math.ceil(K_USD * Math.log(200)), // smallest whole-dollar net whose rounded score is 100
 });
 
 // Grades (by score; net <= 0 is always "Rind": the costs eat the whole melon).
@@ -115,7 +117,7 @@ export function gradeFor(score, net = 1) {
 export function netForScore(score) {
   const s = Number(score);
   if (!(s > 0)) return 0;
-  if (s >= 99.5) return SCORE_ANCHORS.K * Math.log(100 / (100 - Math.min(s, 99.5)));
+  if (s >= 99.5) return SCORE_ANCHORS.fullGlassUSD;
   return -SCORE_ANCHORS.K * Math.log1p(-s / 100);
 }
 
@@ -689,7 +691,7 @@ export function computeJuice(salaryUSD, city, opts = {}) {
       source: brief(ciSrc),
       ...(ciSrc?.method ? { method: ciSrc.method } : {}),
     },
-    fx: { currency: city.currency, usdPerUnit: usdPer, source: palette ? 'public/viz/palette.js FX_TO_USD (static)' : 'Big Mac data dollar_ex', asOf: palette ? null : city.sources?.fxPerUSD?.asOf || null },
+    fx: { currency: city.currency, usdPerUnit: usdPer, source: palette ? 'FX_PER_USD (Big Mac data dollar_ex, shared with public/viz/palette.js)' : 'city fxPerUSD (Big Mac data dollar_ex)', asOf: palette ? FX_AS_OF : city.sources?.fxPerUSD?.asOf || null },
     bigMac: { usd: city.bigMacUSD, source: brief(city.sources?.bigMacUSD) },
   };
 

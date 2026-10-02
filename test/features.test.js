@@ -5,7 +5,11 @@ import assert from 'node:assert/strict';
 import {
   estimateComp, compstimateForJob, normalizeTitle, roleFamily, inferSeniority, senioritySim,
   resolveLocation, locationSim, titleSuggestions, locationOptions, SENIORITY_LADDER,
+  backtest, accuracyLine, accuracyFrom, isLowAccuracy, displayConfidence, ACCURACY_LOW_THRESHOLD, BACKTEST_SEED,
+  FAMILY_LABELS,
 } from '../public/features/compstimate.js';
+import * as roles from '../public/features/roles.js';
+import { marketCells, marketComps, compsForJob, familyOptions } from '../public/features/comps.js';
 import {
   percentile, median, skillPremiums, deptBoxes, hotLocations, fitRequirements,
   topResponsibilities, summaryStats,
@@ -127,10 +131,11 @@ describe('title normalization', () => {
     assert.equal(roleFamily('Account Executive, Startups'), 'sales');
     assert.equal(roleFamily('Research Scientist, Alignment'), 'ml');
     assert.equal(roleFamily('Engineering Manager, Platform'), 'eng-manager');
-    assert.equal(roleFamily('Policy Analyst'), 'legal');
+    assert.equal(roleFamily('Policy Analyst'), 'policy');
     assert.equal(roleFamily('Data Scientist'), 'data');
     assert.equal(roleFamily('Electrical Engineer'), 'hardware');
-    assert.equal(roleFamily('Pastry Chef'), null);
+    assert.equal(roleFamily('Pastry Chef'), 'facilities'); // food services
+    assert.equal(roleFamily('Zzz Qqq'), null);
     // the role part before the comma wins over the team name
     assert.equal(normalizeTitle('Software Engineer, Inference').family, 'swe');
   });
@@ -395,5 +400,193 @@ describe('h() DOM builder', () => {
       assert.equal(h('a', { href: '#frag' }).attrs.href, '#frag');
       assert.equal(h('a', { href: ' data:text/html,hi' }).attrs.href, undefined);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v2: role families on real titles (from data/snapshots, hand-checked)
+// ---------------------------------------------------------------------------
+
+describe('role families: 20 fixed real titles', () => {
+  // [title, department, expected family] — real postings from data/snapshots/*.json
+  // (see docs/process/product.md §5 for the 300-title hand check).
+  const REAL = [
+    ['Research Engineer, Production Model Post-Training', 'AI Research & Engineering', 'ml'],
+    ['Staff Software Engineer, Android', 'Engineering & Design - Product', 'swe'],
+    ['Enterprise Account Executive, System Integrators', 'Sales', 'sales'],
+    ['Customer Success Manager', 'Sales', 'support'],
+    ['Product Designer, Safeguards', 'Engineering & Design - Product', 'design'],
+    ['Senior Member of Technical Staff, Multimodal AI', 'Modeling', 'ml'],
+    ['Member of Technical Staff - Voice Product', 'Product', 'swe'],
+    ['Forward Deployed Software Engineer - Korea Forward Deployed', null, 'solutions'],
+    ['Deployment Strategist - US Government', null, 'solutions'],
+    ['Technical Program Manager, AI Delivery, Korea', 'Product Management & Program Management', 'program'],
+    ['Senior Product Sourcing Engineer, General', 'Templates: ENG', 'supply-chain'],
+    ['Lead Manufacturing Engineer, Avionics', 'Manufacturing : Manufacturing Engineering', 'hardware'],
+    ['Quality Control Inspector', 'Manufacturing : Quality Control : Production Operations', 'manufacturing'],
+    ['Staff Engineer, Landing Gear Systems (RX) (R5372)', 'X-BAT Division', 'hardware'],
+    ['Senior V-BAT Air Vehicle Operator, Field Integration and Test (R5130)', 'Aircraft Operations Division', 'field-ops'],
+    ['AI Tutor - Portuguese', 'Human Data', 'ai-training'],
+    ['HVAC Supervisor (Chilled Water Systems) - Memphis', 'Data Center', 'facilities'],
+    ['Safeguards Enforcement Analyst, Bio Harms', 'Safeguards (Trust & Safety)', 'trust-safety'],
+    ['Sr Lead FP&A - Aircraft (R5609)', 'Finance Division', 'finance'],
+    ['Engineering Manager, Agent Oversight', 'Applications Platform Engineering', 'eng-manager'],
+  ];
+  for (const [title, department, want] of REAL) {
+    test(`${want} <- ${title}`, () => {
+      assert.equal(roleFamily(title, { department }), want);
+      assert.ok(FAMILY_LABELS[want], `label for ${want}`);
+    });
+  }
+  test('roles.js is the same implementation, importable with no DOM', () => {
+    assert.equal(typeof globalThis.document, 'undefined');
+    assert.equal(roles.roleFamily('Senior SWE'), roleFamily('Senior SWE'));
+    assert.deepEqual(roles.normalizeTitle('Sr. SWE, Platform', { department: 'Engineering' }).tokens, ['software', 'engineer', 'platform']);
+    assert.equal(roles.rolePart('Human Data - Business Operations Analyst'), 'Business Operations Analyst');
+    // department only decides when the title is generic
+    assert.equal(roleFamily('Staff Development Engineer', { department: 'Hardware Platform : Hardware Test Operations' }), 'hardware');
+    assert.equal(roleFamily('Staff Development Engineer'), 'swe');
+    assert.equal(roleFamily('Software Engineer', { department: 'Manufacturing' }), 'swe');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v2: backtest + published accuracy (F3)
+// ---------------------------------------------------------------------------
+
+describe('backtest', () => {
+  // deterministic board: 4 families x levels, a few duplicates and one no-pay job
+  const board = [];
+  const fams = [['Software Engineer', 200000], ['Account Executive', 130000], ['Research Scientist', 320000], ['Recruiter', 120000]];
+  for (const [t, base] of fams) {
+    ['Mid', 'Senior', 'Staff+'].forEach((lvl, li) => {
+      for (let k = 0; k < 6; k++) board.push(job({ title: (lvl === 'Senior' ? 'Senior ' : lvl === 'Staff+' ? 'Staff ' : '') + t, seniority: lvl, mid: base * (1 + li * 0.3) * (0.92 + 0.03 * k), id: `${t}-${lvl}-${k}` }));
+    });
+  }
+  board.push(job({ mid: null, id: 'nopay' }));
+
+  test('deterministic: same seed -> same result; input order does not matter', () => {
+    const a = backtest(board, { seed: 7, maxN: 30 });
+    const b = backtest(board.slice().reverse(), { seed: 7, maxN: 30 });
+    assert.deepEqual(a, b);
+    assert.equal(a.seed, 7);
+    assert.equal(a.n + a.skipped, 30);
+  });
+
+  test('different seeds sample different jobs; maxN caps the sample', () => {
+    const r1 = backtest(board, { seed: 1, maxN: 10 });
+    const r2 = backtest(board, { seed: 2, maxN: 10 });
+    assert.ok(r1.n + r1.skipped === 10 && r2.n + r2.skipped === 10);
+    const all = backtest(board, { seed: 1, maxN: 500 });
+    assert.equal(all.n + all.skipped, board.length - 1, 'only vetted (salary !== null) jobs are tested');
+    assert.notDeepEqual([r1.medianAbsPctError, r1.within10Pct], [r2.medianAbsPctError, r2.within10Pct]);
+  });
+
+  test('error metric: percent numbers, small on a consistent board', () => {
+    const r = backtest(board, { seed: BACKTEST_SEED });
+    assert.equal(r.seed, 20261002);
+    assert.ok(r.medianAbsPctError >= 0 && r.medianAbsPctError < 10, `median error ${r.medianAbsPctError}%`);
+    assert.ok(r.within10Pct >= 50 && r.within10Pct <= 100);
+    assert.equal(Math.round(r.medianAbsPctError * 10) / 10, r.medianAbsPctError, 'one decimal');
+  });
+
+  test('duplicates (same title + same range) are left out with the tested job', () => {
+    const dup = [];
+    for (let i = 0; i < 5; i++) dup.push(job({ title: 'Widget Engineer', mid: 100000, id: `w${i}` }));
+    for (let i = 0; i < 5; i++) dup.push(job({ title: 'Widget Engineer II', mid: 200000, id: `x${i}` }));
+    const r = backtest(dup, { seed: 3 });
+    // with duplicates excluded, each job is estimated from the *other* title: ~100% / ~50% error
+    assert.ok(r.medianAbsPctError > 40, `got ${r.medianAbsPctError}`);
+  });
+
+  test('empty / unsalaried input', () => {
+    assert.deepEqual(backtest([], { seed: 1 }), { medianAbsPctError: null, within10Pct: null, n: 0, seed: 1, skipped: 0 });
+    assert.equal(backtest([job({ mid: null })]).n, 0);
+    assert.equal(backtest(null).n, 0);
+  });
+
+  test('accuracy line + Low-confidence threshold (> 25%)', () => {
+    const meta = { compstimate: { medianAbsPctError: 8.3, within10Pct: 55.8, n: 500, seed: 20261002, computedAt: 'x' } };
+    assert.equal(accuracyLine(meta), 'Typically within ±8% (tested on 500 listed salaries)');
+    assert.equal(accuracyLine(meta.compstimate), accuracyLine(meta), 'accepts meta or meta.compstimate');
+    assert.equal(accuracyLine({ compstimate: { ...meta.compstimate, n: 1 } }), 'Typically within ±8% (tested on 1 listed salary)');
+    assert.equal(accuracyLine(null), null);
+    assert.equal(accuracyLine({ compstimate: null }), null);
+    assert.equal(accuracyFrom({ compstimate: { medianAbsPctError: null, n: 0 } }), null);
+    assert.equal(ACCURACY_LOW_THRESHOLD, 25);
+    const est = { mid: 300000, confidence: 'High' };
+    assert.equal(isLowAccuracy({ compstimate: { medianAbsPctError: 25, n: 9 } }), false, 'exactly 25% is not above');
+    assert.equal(isLowAccuracy({ compstimate: { medianAbsPctError: 25.1, n: 9 } }), true);
+    assert.equal(displayConfidence(est, meta), 'High');
+    assert.equal(displayConfidence(est, { compstimate: { medianAbsPctError: 31, n: 120 } }), 'Low');
+    assert.equal(displayConfidence(est, null), 'High');
+    assert.equal(displayConfidence({ mid: null, confidence: 'High' }, meta), 'Low');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v2: market comps (F1)
+// ---------------------------------------------------------------------------
+
+describe('market comps', () => {
+  const market = {
+    format: 'melon-market-1', basis: 'posted base pay ranges', currency: 'USD', minN: 3,
+    companies: [{ slug: 'anthropic', name: 'Anthropic', color: '#d97757' }, { slug: 'openai', name: 'OpenAI', color: '#10a37f' }, { slug: 'xai', name: 'xAI', color: null }],
+    columns: ['company', 'family', 'seniority', 'n', 'p25', 'median', 'p75'],
+    cells: [
+      ['anthropic', 'ml', 'Senior', 41, 320000, 365000, 405000],
+      ['anthropic', 'ml', '*', 90, 300000, 350000, 400000],
+      ['openai', 'ml', 'Senior', 12, 330000, 380000, 420000],
+      ['openai', 'ml', '*', 60, 310000, 360000, 410000],
+      ['xai', 'ml', '*', 5, 200000, 300000, 400000],
+      ['xai', 'swe', '*', 8, 180000, 250000, 300000],
+      ['openai', 'swe', 'Mid', 2, 1, 2, 3], // below minN: never shown even if present
+    ],
+  };
+  // a cell with n < minN should never be emitted by the builder; the reader is defensive anyway
+  market.cells = market.cells.filter((c) => c[3] >= market.minN);
+
+  test('marketCells parses rows with company name/color; cached per document', () => {
+    const cells = marketCells(market);
+    assert.equal(cells.length, 6);
+    assert.deepEqual(cells[0], { slug: 'anthropic', name: 'Anthropic', color: '#d97757', n: 41, p25: 320000, median: 365000, p75: 405000, family: 'ml', seniority: 'Senior' });
+    assert.equal(marketCells(market), cells);
+    assert.deepEqual(marketCells(null), []);
+    assert.deepEqual(marketCells({ cells: 'x' }), []);
+  });
+
+  test('marketComps: one row per company, sorted by median; "*" by default', () => {
+    const all = marketComps(market, { family: 'ml' });
+    assert.deepEqual(all.map((r) => r.slug), ['openai', 'anthropic', 'xai']);
+    assert.ok(all.every((r) => r.seniority === '*' && r.n >= 3));
+    const senior = marketComps(market, { family: 'ml', seniority: 'Senior', country: 'US' });
+    assert.deepEqual(senior.map((r) => [r.slug, r.median]), [['openai', 380000], ['anthropic', 365000]]);
+    assert.deepEqual(marketComps(market, { family: 'nope' }), []);
+    assert.deepEqual(marketComps(market, {}), []);
+    for (const k of ['slug', 'name', 'color', 'n', 'p25', 'median', 'p75']) assert.ok(k in all[0], k);
+  });
+
+  test('compsForJob: family+seniority, excluding own company; falls back to family', () => {
+    const rs = { company: 'anthropic', title: 'Research Scientist, Interpretability', department: 'AI Research & Engineering', seniority: 'Senior' };
+    const a = compsForJob(market, rs);
+    assert.equal(a.matchedOn, 'family+seniority');
+    assert.equal(a.family, 'ml');
+    assert.deepEqual(a.rows.map((r) => r.slug), ['openai']);
+    const withSelf = compsForJob(market, rs, { includeSelf: true });
+    assert.deepEqual(withSelf.rows.map((r) => [r.slug, !!r.current]), [['openai', false], ['anthropic', true]]);
+    const staff = compsForJob(market, { ...rs, seniority: 'Staff+' });
+    assert.equal(staff.matchedOn, 'family');
+    assert.deepEqual(staff.rows.map((r) => r.slug), ['openai', 'xai']);
+    const swe = compsForJob(market, { company: 'xai', title: 'Software Engineer', seniority: 'Mid' });
+    assert.deepEqual([swe.matchedOn, swe.rows.length], [null, 0], 'no other company has swe');
+    const odd = compsForJob(market, { company: 'xai', title: 'Zzz Qqq' });
+    assert.deepEqual([odd.matchedOn, odd.family, odd.rows.length], [null, null, 0]);
+    assert.equal(compsForJob(null, rs).rows.length, 0);
+  });
+
+  test('familyOptions: families with labels, most companies first', () => {
+    const opts = familyOptions(market);
+    assert.deepEqual(opts.map((o) => [o.id, o.companies]), [['ml', 3], ['swe', 1]]);
+    assert.equal(opts[0].label, 'AI research & ML engineering');
   });
 });

@@ -260,7 +260,29 @@ Files owned: `server/index.js`, `server/companies.js`, `server/sources/{greenhou
       re-run `vetSalaries`.
     - Snapshot files are parsed once per mtime/size (bounded to 20) instead of on every request. The 38 MB Anduril
       snapshot was being re-parsed on every snapshot-mode request.
-20. **snapshot script.** `npm run snapshot -- anthropic anduril openai` runs the given slugs; with no args it runs
+20. **Lazy list in server mode (integration finding: anduril took 2.8 s and sent 3.4 MB gzipped).**
+    - *Shape:* `/api/jobs` now sends jobs **without `descriptionHtml`**, like the static build, and adds
+      `meta.lazy = { descriptionHtml: true, sections: <bool> }`. Sections and keywords stay in the list unless the
+      gzipped list would exceed `LIST_GZIP_BUDGET` (400 KB). In that case `sections` become empty arrays and come
+      from the detail route, the same rule as the static build's `LIST_BUDGET` (`app.js` already merges detail
+      sections into empty ones).
+    - *Measured on the real snapshots:* anduril 218 KB, openai 101 KB and anthropic 59 KB, all with sections
+      moved; palantir 63 KB with sections kept.
+    - *`GET /api/job?id=<job id>`* returns `{ id, descriptionHtml, sections }`. The company comes from the id's
+      `<slug>:` prefix (a built-in, or `<source>-<board>` for custom boards), or from explicit `company` /
+      `source&board`. It serves the same data as the list and never fetches upstream. A missing or malformed id
+      (no `slug:` prefix) gets 400, an unknown one 404.
+    - *Payload cache:* the final vetted, annotated list is cached per company as `{json, gz, etag}`. The key covers
+      `PAYLOAD_VERSION`, display name, mode, fetchedAt, error, ledger since/runs and `compstimate.computedAt`, plus
+      the annotated array's identity, which already changes with the data, the ledger version and the hour.
+      Warm requests send the cached bytes, and `If-None-Match` gets a 304.
+    - *Other changes:* demo payloads keep a stable `fetchedAt` (from `demoFor`'s memo) so they are cacheable too.
+      Only the request that started a backtest waits for it, now for at most 400 ms; requests arriving while it
+      runs answer `compstimate: null` at once. A cheap character count skips serializing the with-sections variant
+      when bullet text alone is far over budget.
+    - *Result (real Anduril snapshot, perf test):* cold about 0.7 s, **warm 1.9 ms**, **218 KB gzipped**. The test
+      asserts warm < 300 ms and < 600 KB.
+21. **snapshot script.** `npm run snapshot -- anthropic anduril openai` runs the given slugs; with no args it runs
    every built-in. A `source:board` argument selects a custom board. It writes only live results; a failed or
    empty fetch is logged and skipped, so it never writes demo data. It exits 1 only if every slug failed.
 
@@ -346,6 +368,15 @@ treated as a file. The `npm test` script is now `node --test test/*.test.js`.
   - My test files: 100+ pass, 0 fail. The full `npm test` had 1 failure at the time, "title normalization" in
     `test/features.test.js`, while product was editing `roles.js`.
   - `node scripts/e2e.js --api-only`: 8/8.
+- Lazy list tests:
+  - No `descriptionHtml` in the list, while sections and keywords keep their shape, and `meta.lazy` is set.
+  - ETag returns a 304.
+  - `/api/job` works with the id alone and with explicit params, for custom and demo boards; it returns 400 or 404
+    when it should, and makes no upstream calls.
+  - The perf test on the real 38 MB Anduril snapshot: warm 1.9 ms, 218 KB gzipped (bounds 300 ms / 600 KB).
+  - My test files: 103 pass, 0 fail.
+  - `node scripts/e2e.js --api-only` now fails 5/8 on "descriptionHtml not string". That file
+    (`test/e2e/api.e2e.js`, devops) still expects descriptions in the list; it needs the same change as `api.js`.
 - Demo fallback works for all 8 built-ins (offline `getJobs`): 74–120 jobs each.
 - Manual run against the real demo data: anthropic 111 jobs (96 with salary), anduril 120 (105), openai 120 (110).
   All jobs have locations. The demo jobs without a salary contain no currency amounts, so they are meant to have none.
@@ -387,3 +418,5 @@ treated as a file. The `npm test` script is now `node --test test/*.test.js`.
 - 2026-10-02 07:35 UTC: F1 `buildMarket` + `/api/market`; F3 `meta.compstimate` through product's backtest in a
   worker thread; F7 `server/export.js` + `/api/export`; F2 `job.extras`. Vetting and snapshot parsing are now
   memoized (decisions 15–19).
+- 2026-10-02 07:45 UTC: `/api/jobs` without descriptions (sections move when over 400 KB gzipped), new `/api/job`
+  detail route, per-company cached list bytes with an ETag. Anduril warm 1.9 ms / 218 KB (decision 20).

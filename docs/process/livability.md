@@ -76,7 +76,7 @@ data licence and API pages.
 5. **Estimates flagged, never sourced-looking:** 9 metro proxies for cities without a Numbeo
    single-person figure (rents still city-specific), 2 comparison-derived (Boulder, Hyderabad),
    Swiss and Finnish tax schedules. `computeJuice` surfaces `estimated: true`.
-6. **Score:** `100 × ln(1 + net/$10K) / ln(1 + $250K/$10K)`, clamped. Fixed anchors (stable across
+6. **Score (superseded by 21):** `100 × ln(1 + net/$10K) / ln(1 + $250K/$10K)`, clamped. Fixed anchors (stable across
    companies), log so the first dollars of slack matter most. Thresholds: Juicy ≥ 70 (≥ $87.8K net),
    Ripe ≥ 45 (≥ $33.3K), Dry > $0, Rind ≤ $0. Grade is computed from the rounded score so the badge
    always matches the number.
@@ -122,6 +122,19 @@ data licence and API pages.
     A/B/B−/C = 44/13/17/15). D6-recommended scope ≈ 4-5 dev-days; full global ≈ 10-14 days.
     Written in `docs/LIVABILITY.md` §7.
 20. **S68 correction:** the Big Mac *data* is CC BY 4.0 (attribution required); MIT covers the code.
+21. **Score re-tune (integration finding: Anthropic's top cards all "100 · Juicy"):** replaced the clamped
+    log curve with a saturating exponential `100 × (1 − e^(−net/K))`, **K = $80,000**,
+    `fullGlassUSD = $423,866` (smallest whole-dollar net whose rounded score is 100). Alternatives:
+    (a) raise B in the log curve. Rejected: with B = $500K the 90th-percentile net ($172.6K) scores
+    74-83 for any A, below the 85-90 target, because a log curve concentrates its resolution at the
+    low end. (b) Log then saturate (`1 − e^(−ln(1+n/A)/τ)`): hits 87.5 at p90 but compresses the top
+    decile into 87-93, worse than before. (c) Hyperbolic `1 − (1+n/A)^(−k)`: fitting p90 = 87.5 and
+    $400K = 98 gives A ≈ $320K, k ≈ 4.8, i.e. practically the exponential with an extra parameter.
+    Chose (d), the one-parameter exponential: invertible (`netForScore`), explainable ("each $80K
+    closes 63% of the gap"), and K = $80K is a round number that puts p90 at 88 (target 85-90).
+    Grade score boundaries kept (45 / 70); dollar equivalents moved: Ripe ≥ $47,827 (was $33,325),
+    Juicy ≥ $96,318 (was $87,832). The low end is less generous (p10 48 → 38): accepted, since the
+    app's population is high earners, and $38K a year left over is a thinner margin than "Ripe" suggested.
 
 ## 4. Replayable steps
 
@@ -170,6 +183,29 @@ npm test                               # 135/135 pass
   "high"; `rentOverrideUSD` and `NO_RENT`; attachJuice `inputs` modes; plus integrity checks that every
   source has a class and every Numbeo source is aggregator/estimate with `terms`). `npm test` 187/187.
   Confidence today: US 30 medium / 10 low, non-US 49 low.
+- Re-tune: distribution over all 8 real snapshots (5,413 jobs; 4,551 salaried after vetting, 51
+  quarantined; 4,034 with juice), from `docs/process/scripts/livability-juice-distribution.mjs --old`:
+
+  | Percentile | Salary | Net | Before (log, A $10K / B $250K) | After (exp, K $80K) |
+  |---:|---:|---:|---:|---:|
+  | 10th | $128,500 | $38,426 | 48 | 38 |
+  | 25th | $165,000 | $62,990 | 61 | 54 |
+  | 50th | $199,267 | $88,665 | 70 | 67 |
+  | 75th | $279,330 | $127,375 | 80 | 80 |
+  | 90th | $362,500 | $172,580 | 89 | 88 |
+  | 95th | $415,000 | $199,654 | 93 | 92 |
+  | 99th | $545,918 | $277,388 | 100 | 97 |
+  | max | $684,082 | $397,601 | 100 | 99 |
+
+  Score 100: 68 jobs (1.7%; Anthropic 61, OpenAI 7) → 0. Score ≥ 90: 387 → 333. Grades before
+  Juicy 2,073 / Ripe 1,686 / Dry 238 / Rind 37; after 1,845 / 1,592 / 560 / 37. Per company (median /
+  90th): Anthropic 87/100 → 86/96 (top-decile distinct scores 1 → 4), OpenAI 82/93 → 81/92,
+  Anduril 62/78 → 56/76, Palantir 48/61 → 38/55, Shield AI 71/84 → 68/83, Scale AI 71/83 → 68/82,
+  xAI 72/81 → 70/81, Cohere 75/84 → 73/83. A 90th-percentile salary ($362.5K): SF 86, NYC 84, Seattle
+  92, Costa Mesa 88. Tests: `test/juice.test.js` 24/24 (the score test rewritten for the curve; a
+  calibration test pins the reference quantiles because snapshots are gitignored). Full `npm test`:
+  248/248 (an intermediate run had 2 failures outside juice, in features.test.js and server.test.js,
+  from other workstreams' in-progress edits; they pass now).
 - Live `node scripts/update-col.js --dry-run` against GitHub raw: up to date, exit 0.
 - Hand checks: SF $300K net $125,189 (hand $125,197 before rounding), Austin $150K $76,576,
   London £120K tax £43,843 (HMRC arithmetic), Germany €90K income tax €19,497 (§32a zone 4),
@@ -210,3 +246,8 @@ npm test                               # 135/135 pass
   `NO_RENT`, attachJuice `inputs`/`rentOverrides` options), source classes + `terms` + `dataStatus`
   in cities.json, Numbeo terms check (not cleared), replacement plan and sizing (LIVABILITY.md §4.1,
   §7), licence wording corrected in the dataset, 4 new tests (23/23).
+- 07:40: score re-tune after the integration finding (Anthropic saturating at 100): exponential curve
+  K = $80K (`SCORE_ANCHORS = { curve, K, fullGlassUSD }`), netForScore inverse, before/after
+  distribution recorded above, LIVABILITY.md curve/calibration/examples updated, distribution script
+  saved as `docs/process/scripts/livability-juice-distribution.mjs`. Also: `inputs.fx` relabelled now
+  that the shared FX table is the Big Mac July 2026 rates (updated in a WIP commit, not by me).

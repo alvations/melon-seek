@@ -95,19 +95,30 @@ test('every country rule is sane: monotonic, 0 <= tax < gross for typical salari
   }
 });
 
-test('score: log scale between fixed anchors, grades, Rind for negative net', () => {
+test('score: saturating exponential with K = $80K, never clamps, grades, Rind for negative net', () => {
+  const { K, fullGlassUSD } = SCORE_ANCHORS;
+  assert.equal(K, 80000);
+  assert.equal(SCORE_ANCHORS.curve, 'exponential');
   assert.equal(scoreFromNet(0), 0);
   assert.equal(scoreFromNet(-5000), 0);
-  near(scoreFromNet(SCORE_ANCHORS.B), 100, 1e-9);
-  assert.equal(scoreFromNet(SCORE_ANCHORS.B * 4), 100);
-  near(scoreFromNet(SCORE_ANCHORS.A), (100 * Math.log(2)) / Math.log1p(SCORE_ANCHORS.B / SCORE_ANCHORS.A), 1e-9);
+  near(scoreFromNet(K), 100 * (1 - Math.exp(-1)), 1e-9, 'one K closes 63% of the gap');
+  assert.ok(scoreFromNet(1e6) < 100, 'asymptotic: below 100 for any realistic net (float rounds to 100 only past ~$2.9M)');
+  assert.equal(fullGlassUSD, Math.ceil(K * Math.log(200)));
+  assert.equal(fullGlassUSD, 423866);
+  assert.equal(Math.round(scoreFromNet(fullGlassUSD)), 100, 'rounded 100 only from fullGlassUSD');
+  assert.equal(Math.round(scoreFromNet(fullGlassUSD - 2000)), 99);
   let prev = -1;
-  for (let n = 0; n <= 300000; n += 5000) {
+  for (let n = 0; n <= 600000; n += 5000) {
     const s = scoreFromNet(n);
-    assert.ok(s >= prev, 'monotonic');
+    assert.ok(s > prev, 'strictly increasing (keeps separating high earners)');
     prev = s;
   }
-  for (const s of [10, 45, 70, 99]) near(scoreFromNet(netForScore(s)), s, 1e-6, 'inverse');
+  for (const s of [10, 45, 70, 90, 99]) near(scoreFromNet(netForScore(s)), s, 1e-6, 'inverse');
+  assert.equal(netForScore(0), 0);
+  assert.equal(netForScore(100), fullGlassUSD);
+  // Grade boundaries in dollars (documented in LIVABILITY.md): Ripe ≥ $47.8K, Juicy ≥ $96.3K net.
+  near(netForScore(45), 47827, 1);
+  near(netForScore(70), 96318, 1);
   assert.equal(gradeFor(70, 1), 'Juicy');
   assert.equal(gradeFor(69, 1), 'Ripe');
   assert.equal(gradeFor(45, 1), 'Ripe');
@@ -117,6 +128,18 @@ test('score: log scale between fixed anchors, grades, Rind for negative net', ()
   assert.ok(poor.net < 0);
   assert.equal(poor.score, 0);
   assert.equal(poor.grade, 'Rind');
+});
+
+test('score calibration on the real snapshots (reference quantiles of best net, 2026-10-02)', () => {
+  // From docs/process/scripts/livability-juice-distribution.mjs over all 8 snapshots
+  // (4,034 scored jobs after vetting). Snapshots are gitignored, so the quantiles are pinned here.
+  const Q = { p10: 38426, p50: 88665, p90: 172580, p95: 199654, p99: 277388, max: 397601 };
+  const sc = (n) => Math.round(scoreFromNet(n));
+  assert.ok(sc(Q.p90) >= 85 && sc(Q.p90) <= 90, `p90 scores ${sc(Q.p90)}`);
+  assert.ok(sc(Q.p99) < 100 && sc(Q.max) < 100, 'no real job reaches 100');
+  assert.ok(sc(Q.p95) < sc(Q.p99) && sc(Q.p99) < sc(Q.max), 'the top end stays separated');
+  assert.ok(sc(Q.p50) >= 60 && sc(Q.p50) < 70, 'median role is Ripe, near the Juicy line');
+  assert.ok(sc(Q.p10) > 25, 'p10 is Dry but not near zero');
 });
 
 test('computeJuice: shape, rentBurden, bigMacs, outside-centre option, estimates flagged', () => {

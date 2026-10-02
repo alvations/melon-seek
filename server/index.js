@@ -239,7 +239,7 @@ export async function getJobs(company, opts = {}) {
 
 export const BACKTEST_OPTS = Object.freeze({ seed: 20261002, maxN: 500 });
 /** How long a request waits for a backtest before answering with compstimate: null. */
-export const BACKTEST_WAIT_MS = Number(process.env.MELON_BACKTEST_WAIT_MS) || 800;
+export const BACKTEST_WAIT_MS = Number(process.env.MELON_BACKTEST_WAIT_MS) || 400;
 const WORKER_URL = new URL('./compstimate-worker.js', import.meta.url);
 
 let compstimateModule;   // undefined = not loaded yet, null = unavailable
@@ -289,7 +289,7 @@ function toMeta(r) {
  * feature-detected (null until public/features/compstimate.js exports
  * `backtest`). It runs once per job list in a worker thread; a request waits
  * at most BACKTEST_WAIT_MS and otherwise gets null, and later requests get
- * the result. Null for demo data: an accuracy figure for synthetic pay would
+ * the result (only the request that started the run waits). Null for demo data: an accuracy figure for synthetic pay would
  * be meaningless.
  */
 export async function compstimateMeta(payload, { wait = BACKTEST_WAIT_MS } = {}) {
@@ -298,7 +298,9 @@ export async function compstimateMeta(payload, { wait = BACKTEST_WAIT_MS } = {})
   if (!mod || typeof mod.backtest !== 'function') return null;
   const key = payload.company && payload.company.slug;
   let entry = compstimateMemo.get(key);
+  let started = false;
   if (!entry || entry.jobs !== payload.jobs) {
+    started = true;
     const jobs = payload.jobs;
     entry = { jobs, value: undefined, promise: null };
     const run = compstimateOverride !== undefined
@@ -313,6 +315,9 @@ export async function compstimateMeta(payload, { wait = BACKTEST_WAIT_MS } = {})
     boundedSet(compstimateMemo, key, entry, 200);
   }
   if (entry.value !== undefined) return entry.value;
+  // Only the request that started the backtest waits (small boards finish in time);
+  // requests arriving while it runs answer at once with null.
+  if (!started) return null;
   let timer;
   const timeout = new Promise((r) => { timer = setTimeout(() => r(null), wait); });
   try {
@@ -346,11 +351,23 @@ async function buildList(payload) {
     const { descriptionHtml, ...rest } = j;
     return rest;
   });
-  let json = listBody(payload, noDesc, false);
-  let gz = json.length > 12 * LIST_GZIP_BUDGET ? null : await gzip(Buffer.from(json));
-  let sectionsMoved = false;
-  if (!gz || gz.length > LIST_GZIP_BUDGET) {
-    sectionsMoved = true;
+  // Cheap pre-check: when the bullet text alone is far over budget, skip
+  // serializing and compressing the with-sections variant.
+  let sectionChars = 0;
+  for (const j of noDesc) {
+    const sec = j && j.sections;
+    if (!sec) continue;
+    for (const k of ['responsibilities', 'fit']) for (const b of sec[k] || []) sectionChars += String(b).length;
+  }
+  let json = null;
+  let gz = null;
+  let sectionsMoved = true;
+  if (sectionChars <= 8 * LIST_GZIP_BUDGET) {
+    json = listBody(payload, noDesc, false);
+    gz = await gzip(Buffer.from(json));
+    sectionsMoved = gz.length > LIST_GZIP_BUDGET;
+  }
+  if (sectionsMoved) {
     json = listBody(payload, noDesc.map((j) => (j && typeof j === 'object' ? { ...j, sections: EMPTY_SECTIONS } : j)), true);
     gz = await gzip(Buffer.from(json));
   }
@@ -375,6 +392,13 @@ export async function getJobsList(company, opts = {}) {
   boundedSet(listCache, company.slug, { key, jobs: payload.jobs, promise }, 100);
   promise.catch(() => { if (listCache.get(company.slug)?.promise === promise) listCache.delete(company.slug); });
   return promise;
+}
+
+/** Company for a slug: a built-in, or "<source>-<board>" as resolveCompany names custom boards. */
+export function companyFromSlug(slug) {
+  const m = /^(greenhouse|ashby|lever)-(.+)$/.exec(String(slug || ''));
+  if (m && !listCompanies().some((c) => c.slug === slug)) return resolveCompany({ source: m[1], board: m[2] });
+  return resolveCompany({ company: slug || '' });
 }
 
 const jobIndex = new WeakMap(); // jobs array -> Map(id -> job)
@@ -627,14 +651,18 @@ export async function handle(req, res) {
       return sendBytes(req, res, await getJobsList(company, { refresh, offline: req.method === 'HEAD' }));
     }
     if (p === '/api/job') {
+      // ?id=<job id> is enough: the company comes from the id's "<slug>:" prefix
+      // (built-in slug, or "<source>-<board>" for a custom board). Explicit
+      // ?company= or ?source=&board= also work.
+      const id = url.searchParams.get('id');
+      if (!id || id.length > 300 || id.indexOf(':') < 1) return sendJson(req, res, 400, { error: 'Missing or invalid ?id=' });
       let company;
       try {
-        company = resolveCompany(url.searchParams);
+        const q = url.searchParams;
+        company = q.get('company') || q.get('source') || q.get('board') ? resolveCompany(q) : companyFromSlug(id.slice(0, id.indexOf(':')));
       } catch (err) {
         return sendJson(req, res, err.status || 400, { error: err.message });
       }
-      const id = url.searchParams.get('id');
-      if (!id || id.length > 300) return sendJson(req, res, 400, { error: 'Missing or invalid ?id=' });
       const detail = await getJobDetail(company, id);
       if (!detail) return sendJson(req, res, 404, { error: 'Job not found' });
       return sendJson(req, res, 200, detail);

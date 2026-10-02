@@ -66,3 +66,8 @@ Network note: external job-board hosts are BLOCKED in this sandbox; do not try t
 > - The server calls product's `backtest(jobs, { seed: 20261002, maxN: 500 })` per company for `meta.compstimate`, adding computedAt.
 
 > F4 is accepted and committed, including both departures (the optional 4th compact element and fromCompact's since/runs). Continue with F1 (buildMarket and /api/market), F3 (meta.compstimate through product's backtest: feature-detect it, since product is still building it), F7 (/api/export CSV, which can include postedAt and firstSeenAt now) and job.extras (feature-detect features' extractCompExtras). Same rules: tests and backend.md. Report back when done.
+
+> Integration finding, to do after your current F1/F3/F7 work. In server mode, `GET /api/jobs?company=anduril` takes 2.8 s and sends 3.4 MB gzipped (2,418 jobs with full descriptionHtml); openai takes 1.0 s. The map stays on "Loading" for several seconds. Please:
+> (1) Like static mode, return the list WITHOUT descriptionHtml (keep sections and keywords), and add `GET /api/job?company=<slug>&id=<id>` returning `{ descriptionHtml, sections }`. Tell devops so public/api.js getJobDetail uses it in server mode.
+> (2) Cache the final vetted, annotated payload per company, with its gzip bytes, keyed by data fetchedAt + ledger mtime + code version, so repeat requests are near-instant.
+> Target: anduril under 300 ms warm and under 600 KB gzipped. Add a perf assertion test with a generous bound, and log it in backend.md.

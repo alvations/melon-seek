@@ -24,7 +24,7 @@ tax     = national income tax + state/provincial/city income tax
 rent    = 1-bedroom city-centre rent × 12      (option: outside-centre rent)
 living  = costIndex / 100 × NYC basket         (NYC basket = $19,982 / year)
 juice   = net = gross − tax − rent − living
-score   = 100 × ln(1 + net / $10,000) / ln(1 + $250,000 / $10,000), clamped to 0..100
+score   = 100 × (1 − e^(−net / $80,000)), 0 when net ≤ 0  (saturating; never clamps)
 ```
 
 `computeJuice(salaryUSD, city)` returns
@@ -34,7 +34,7 @@ score   = 100 × ln(1 + net / $10,000) / ln(1 + $250,000 / $10,000), clamped to 
 |---|---|
 | `gross, tax, rent, living, net` | Whole dollars. The parts are rounded before `net` is taken, so `net = gross − tax − rent − living` exactly (the drawer waterfall adds up). |
 | `taxParts` | `{ income, regional, social }`: national income tax (incl. surtaxes), state/province/canton/city income tax, employee social contributions. |
-| `score` | 0..100 integer on the fixed log scale below. |
+| `score` | 0..100 integer on the fixed saturating curve below (K = $80K). |
 | `grade` | `Juicy` / `Ripe` / `Dry` / `Rind` (see below). |
 | `rentBurden` | rent ÷ after-tax pay (0.30 = 30% of take-home goes to rent). |
 | `bigMacs` | net ÷ the country's Big Mac price: how many Big Macs a year of juice buys. |
@@ -66,35 +66,65 @@ carries `inputs` and a `confidence`:
   rent source that way) throws `err.code === 'NO_RENT'` unless an override is given;
   attachJuice skips such locations.
 
-### Score anchors and grades
+### Score curve and grades
 
-The scale is fixed, not relative to a company's postings, so a score means the
-same thing on every board. Log scaling means the first dollars of juice count most
-(going from $10K to $30K left over matters more than $200K to $220K).
+The scale is fixed, not relative to a company's postings, so a score means the same thing
+on every board. The curve is a **saturating exponential** with one anchor,
+**K = $80,000** of annual juice: each extra $80K closes 63% of the remaining gap to a full
+glass. It rises steadily through the range where most postings sit and keeps separating
+high-paying roles instead of clamping at 100. A rounded **100 needs at least $423,866 net**
+(`SCORE_ANCHORS.fullGlassUSD`), above every real posting in the snapshots.
 
-| Score | Net juice needed | Grade | Reading |
+| Score | Net juice needed (`netForScore`) | Grade | Reading |
 |---:|---:|---|---|
-| 70-100 | ≥ $87,832 | **Juicy** | plenty left after rent, tax and living costs |
-| 45-69 | ≥ $33,325 | **Ripe** | comfortable margin |
+| 70-100 | ≥ $96,318 | **Juicy** | plenty left after rent, tax and living costs |
+| 45-69 | ≥ $47,827 | **Ripe** | comfortable margin |
 | 1-44 | > $0 | **Dry** | thin margin |
 | 0 | ≤ $0 | **Rind** | costs exceed take-home pay |
 
-Anchors: `A = $10,000` (curve shape), `B = $250,000` (score 100). Exported as
-`SCORE_ANCHORS`; `netForScore(s)` inverts the scale for legends. Grades are taken
-from the rounded score, so the badge always matches the number shown.
+Other legend points: 25 = $23,015, 80 = $128,755, 90 = $184,207, 95 = $239,659,
+99 = $368,414, 100 = $423,866. `SCORE_ANCHORS = { curve: 'exponential', K: 80000,
+fullGlassUSD: 423866 }`; `netForScore(s)` inverts the curve (it returns `fullGlassUSD` for
+s ≥ 99.5, since the curve itself never reaches 100). Grades come from the rounded score, so
+the badge always matches the number shown. The score boundaries (45 / 70) are unchanged from
+the first version; their dollar equivalents moved with the curve.
+
+**Calibration (real snapshots, 2026-10-02).** All 8 snapshots, 5,413 jobs, 4,551 salaried after
+the vetting gate, 4,034 with juice (the rest remote-only or outside the 89 cities). Score of the
+best location's net, by percentile:
+
+| Percentile | Salary (USD) | Net juice | Old log curve (A $10K, B $250K) | **New (K $80K)** |
+|---:|---:|---:|---:|---:|
+| 10th | $128,500 | $38,426 | 48 | **38** |
+| 25th | $165,000 | $62,990 | 61 | **54** |
+| 50th | $199,267 | $88,665 | 70 | **67** |
+| 75th | $279,330 | $127,375 | 80 | **80** |
+| 90th | $362,500 | $172,580 | 89 | **88** |
+| 95th | $415,000 | $199,654 | 93 | **92** |
+| 99th | $545,918 | $277,388 | 100 | **97** |
+| max | $684,082 | $397,601 | 100 | **99** |
+| jobs at 100 | | | 68 (1.7%; Anthropic 61) | **0** |
+
+Anthropic, the most compressed board: median 87 → 86, 90th percentile 100 → 96, and its top
+decile went from one score (all 100) to four distinct scores (96-99). Grades: Juicy 51% → 46%,
+Ripe 42% → 39%, Dry 6% → 14%, Rind 1% → 1%. A 90th-percentile salary ($362,500) scores 86 in San
+Francisco, 84 in New York, 92 in Seattle, 88 in Costa Mesa. Why not just raise B: with the log
+curve and B = $500K the 90th percentile drops to 74-83 for any reasonable A, so a log curve can't
+both hit 85-90 at the 90th percentile and leave headroom above it. Re-run with
+`node docs/process/scripts/livability-juice-distribution.mjs --old` (needs `data/snapshots/`).
 
 ### Worked examples (generated from the code, data as of 2026-10-02)
 
-| Job | Salary | Gross (USD) | Tax | Rent | Living | Juice (net) | Score | Grade |
-|---|---|---:|---:|---:|---:|---:|---:|---|
-| Software engineer, San Francisco | 300,000 USD | $300,000 | $112,482 | $44,145 | $18,184 | $125,189 | 80 | Juicy |
-| Software engineer, New York | 250,000 USD | $250,000 | $90,036 | $52,446 | $19,982 | $87,536 | 70 | Juicy |
-| Software engineer, Austin | 150,000 USD | $150,000 | $36,209 | $23,088 | $14,127 | $76,576 | 66 | Ripe |
-| Manufacturing engineer, Costa Mesa | 100,000 USD | $100,000 | $27,279 | $32,388 | $15,626 | $24,707 | 38 | Dry (est.) |
-| Research engineer, London | 120,000 GBP | $152,400 | $55,680 | $32,766 | $17,244 | $46,710 | 53 | Ripe |
-| Engineer, Zurich | 150,000 CHF | $169,500 | $41,453 | $34,074 | $22,320 | $71,653 | 64 | Ripe (est.) |
-| Engineer, Berlin | 90,000 EUR | $98,100 | $40,127 | $17,215 | $14,287 | $26,471 | 40 | Dry |
-| Engineer, Bengaluru | 4,000,000 INR | $41,553 | $8,210 | $3,753 | $4,216 | $25,374 | 39 | Dry |
+| Job | Salary | Gross (USD) | Tax | Rent | Living | Juice (net) | Score | Grade | Confidence |
+|---|---|---:|---:|---:|---:|---:|---:|---|---|
+| Software engineer, San Francisco | 300,000 USD | $300,000 | $112,482 | $44,145 | $18,184 | $125,189 | 79 | Juicy | medium |
+| Software engineer, New York | 250,000 USD | $250,000 | $90,036 | $52,446 | $19,982 | $87,536 | 67 | Ripe | medium |
+| Software engineer, Austin | 150,000 USD | $150,000 | $36,209 | $23,088 | $14,127 | $76,576 | 62 | Ripe | medium |
+| Manufacturing engineer, Costa Mesa | 100,000 USD | $100,000 | $27,279 | $32,388 | $15,626 | $24,707 | 27 | Dry (est.) | low |
+| Research engineer, London | 120,000 GBP | $161,753 | $59,097 | $34,777 | $17,244 | $50,635 | 47 | Ripe | low |
+| Engineer, Zurich | 150,000 CHF | $185,793 | $45,438 | $37,350 | $22,320 | $80,685 | 64 | Ripe (est.) | low |
+| Engineer, Berlin | 90,000 EUR | $102,929 | $42,102 | $18,063 | $14,287 | $28,477 | 30 | Dry | low |
+| Engineer, Bengaluru | 4,000,000 INR | $41,553 | $8,210 | $3,753 | $4,216 | $25,374 | 27 | Dry | low |
 
 ### The name
 
@@ -369,10 +399,9 @@ returns `estimated: true`.
 - Tax ignores equity, bonuses, expat regimes, deductions people actually claim and
   year-end credits; effective rates are within a few points for typical salaries,
   worse for edge cases (very high or very low pay, mid-year moves).
-- The palette FX table (`public/viz/palette.js`) is static and older than the Big Mac FX:
-  GBP 1.27 vs 1.35, EUR 1.09 vs 1.14 (July 2026). Juice is consistent with the chart, so
-  non-USD gross and rent are understated by ~5-6%. Adopting `cities.json` `fx.perUSD` in the
-  palette would fix both at once.
+- FX is one static table, `FX_PER_USD` in `server/juice.js` and `public/viz/palette.js`, set to the
+  Big Mac data's July 2026 `dollar_ex` (test/fx-consistency.test.js keeps the copies equal). The
+  monthly refresh updates `cities.json` `fx` but not those two tables, so they can drift by a month or more.
 - Cost-index proxies treat a suburb like its metro; quoted rents for small cities rest on
   few Numbeo submissions.
 - Job locations outside the 89 cities get no juice (a job still shows if any location matches).

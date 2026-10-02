@@ -94,9 +94,7 @@
   border-top: 1px solid var(--_border);
   color: var(--_muted);
   font-size: 11.5px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.4;  /* wraps rather than truncating: every note carries a number */
 }
 .ms-chart__foot[hidden] { display: none; }
 .ms-chart--narrow .ms-chart__foot { white-space: normal; padding-left: 12px; padding-right: 12px; }

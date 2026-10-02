@@ -175,6 +175,23 @@ Files owned: `public/viz/palette.js`, `public/viz/chart.js`, `public/viz/map.js`
     - **Keyboard and tooltip:** a listbox with arrows, Home/End and Enter/Space calling `onSelect(slug)`. The 2px accent active ring survives re-renders by slug. The tooltip shows "$340K median", "middle 50%: …", the company and n.
     - **Styling:** both themes come from the shared `--ms-*` tokens; `.ms-comps` was added to the token scopes. A footnote reads "Posted base pay, approx USD/yr · bar = middle 50%, tick = median" (equity is not included, per the roadmap risk).
 
+29. **Cluster row labels never truncate the key number** (integration finding at 1440×900 on real data: "AI Research & E…", "69 roles · median $5…").
+    - The label column is sized from the content. Text widths are measured on a canvas in the container's computed font: the subtitle "N roles · median $XK", and the group name, which may wrap to two lines.
+    - The width is `max(150, min(320, 36% of the chart, widest need + 50px))`.
+    - The name uses `line-clamp: 2` (`overflow-wrap: anywhere`); the full name is in `title` and in the option name.
+    - The subtitle is `white-space: nowrap` and is never ellipsized.
+    - If the full subtitle still doesn't fit at the cap, that row switches to the short form "69 · $512K". The full text stays in `title` and `aria-label`.
+    - On narrow (stacked) screens the short form is always used, and only the name can ellipsize.
+    - The rows (counts, medians, quartiles) are now built before the layout so they can be measured. Bins are still built after the domain is set.
+    - The notes footer now wraps instead of ellipsizing, since every note carries a number.
+30. **The Juice legend follows `server/juice.js`.**
+    - `createMap` dynamically imports `new URL('../lib/juice.js', import.meta.url)`. That is `/lib/juice.js` in server mode and `dist/lib/juice.js` in the static build, the same module `public/api.js` uses.
+    - It takes `netForScore` for the legend's dollar labels and `GRADES` for the two breaks. Grades and pin colors use those breaks too (`juiceColor(score, breaks)`, `juiceGrade(score, net, breaks)`).
+    - So when livability re-tunes `SCORE_ANCHORS` or `GRADES`, the map follows with no viz change. Seen live: the current juice.js gives Dry < $48K, Ripe $48K–$96K, Juicy ≥ $96K.
+    - Without the module (the viz demo on a plain static server, or offline), the palette mirror (A = $10K, B = $250K, 45/70) is kept.
+    - Overrides: `createMap(…, { juiceScale })` or `map.setJuiceScale({ netForScore, breaks } | juiceModule)`. Both re-render the legend and pins.
+    - The screenshot and a11y servers now map `/lib/` to `server/`, as `server/index.js` does.
+
 ## 4. Replayable steps
 ```sh
 # 0. palette validation (dataviz skill base dir)
@@ -264,6 +281,13 @@ PORT=5288 node docs/process/scripts/viz-a11y-check.mjs /path/to/out
 - `viz-a11y-check.mjs` comps block: 8 options. The current option is named "Anthropic (this company): median $340K, middle 50% $315K to $405K, 14 postings". Arrow keys move the active option with a matching `aria-activedescendant`, and Enter logs "comps select: anthropic". All other checks are unchanged. There were no page errors.
 - Ordinal palette check for the Juice steps passes in light and dark mode (see decision 26).
 - The demo uses `fakeJuice()`, a stand-in with the same shape as `attachJuice`. Costa Mesa is deliberately missing from it, to exercise neutral pins.
+- Label fix and live legend: `viz-screenshots.mjs` now runs 30 shots, all ok.
+  - `clusters-label-fit` (1000×800) and `clusters-label-fit-1440` (1440×900): label column 197px, 0 subtitles cut, 0 names clipped. Example: "AI Research & Engineering / 77 roles · median $382K".
+  - `clusters-mobile-light`: short forms such as "77 · $382K", all in full.
+  - A one-off check used 50- to 57-character department names and $1.5M medians at a 960px viewport. Names wrapped to two lines, the column grew to 236px, and every subtitle fit ("3 roles · median $1.5M"). At 760px the layout stacked and used "3 · $1.5M".
+  - `map-juice-legend-live`: the legend is built from the live `/lib/juice.js` (Dry < 45 < $48K/yr | Ripe 45–69 $48K–$96K/yr | Juicy 70+ ≥ $96K/yr).
+  - `map-juice-retuned`: `setJuiceScale` with B = $400K gives < $43K | $43K–$125K | ≥ $125K.
+  - The a11y check is unchanged and passes with no page errors.
 
 ## 6. Known gaps and follow-ups
 - Not tested against real OSM tiles, because the sandbox blocks tile hosts. The screenshot script stubs tile responses with 200, 403 and abort, and checks the request URLs instead.
@@ -292,3 +316,4 @@ PORT=5288 node docs/process/scripts/viz-a11y-check.mjs /path/to/out
 - 2026-10-02: Added the clusters view as the default chart, with ranges kept as the detail view. New `onClusterSelect` callback, `clearSelection()`, and exported `VIEWS`/`DEFAULT_VIEW`. Slimmer 28px distribution strip and a notes footer. Added `slotColor()` to palette.js. demo.html has a View toggle. Iterated on the visuals: bins went from 22 to 34px minimum, a lone row gets taller, Other rows are lifted in dark mode, and rings take the band tint. Fixed the plot layer swallowing label clicks, and let the narrow-screen label line shrink the subtitle before the name. Extended the screenshot and a11y scripts.
 - 2026-10-02: Robust x-axis in both chart views: `robustBounds` (P1–P99 plus a Tukey fence), padded and snapped. Out-of-range values get "›"/"‹" overflow markers with real-value tooltips and are counted in the notes. Moved the initial map fit into `map.js` `fitToData()`: about 90px padding plus pin height, minZoom lowered as needed, deferred while hidden. demo.html gained `?outlier=1`. Added outlier and mobile-fit screenshots and an overflow a11y check.
 - 2026-10-02: Added the map "Pay | Juice" segmented control: Juice-colored pins with "🍉 score" labels, a stepped ordinal ramp with breaks at 45 and 70, neutral no-data pins, a legend from `juiceNetForScore`, and the `onColorModeChange` callback plus `update({ colorMode })`. Map tooltips now flip inward at the edges. `palette.js` FX is now `data/cities.json` `fx.perUSD` (Big Mac `dollar_ex`, 2026-07-01), with `FX_TO_USD` derived from it. New `public/viz/comps.js` compact comps chart with a demo `mode=comps`. Extended the screenshot and a11y scripts.
+- 2026-10-02: Cluster labels are now sized from measured text. Names can take two lines, the subtitle is never truncated, and "69 · $512K" is used when space is short or on narrow screens. The notes footer wraps. The Juice legend, grades and pin steps now come from the live `server/juice.js` (`netForScore`, `GRADES`), with the palette mirror as a fallback, plus a `juiceScale` option and `setJuiceScale()`. The test servers map `/lib/` to `server/`. Added label-fit and legend screenshots.

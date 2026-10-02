@@ -70,3 +70,20 @@ Juice Score integration. Lead decision: juice is computed client-side in api.js 
    - If cities fail to load, jobs keep `juice: null`, with no error banner.
 3. Tests: the build output includes cities.json and juice.js; in a static build, an unpacked job gets `juice.best.score` when its city matches.
 4. Update docs/process/devops.md. Don't commit; report back.
+
+---
+
+Sixth request (v2 "1-up" features), from the coordinator:
+
+New work: the 1-up features (docs/strategy/ROADMAP.md §7, docs/CONTRACT.md "v2 additions"). Your part, static, build and workflows:
+1. F4 ledger persistence. Interim decision (the user hasn't chosen a data branch yet): in snapshot.yml and pages.yml, restore the latest `history-ledger` artifact, run the snapshot (which updates data/history/*.json through backend's scripts/history.js), and upload the ledger as a new `history-ledger` artifact with 90-day retention. A missing artifact means start fresh. Design it so switching to an orphan data branch later is a one-step change; document both in the README.
+2. build-static.js:
+   - Write `api/history/<slug>.json` (compact `id → [firstSeenAt, postedAt, repostCount]`).
+   - Write `api/market.json` (via backend's scripts/build-market.js).
+   - Write `meta.compstimate` per company (product's backtest).
+   - Write `data/<slug>.csv` plus `data/README.txt`.
+   - Bump to `melon-packed-2` with the new fields (postedAt, firstSeenAt, ageDays, ageIsMinimum, freshness, repost, salary.spread/zones/kind/source, extras), with the round-trip check extended.
+   - Import LIB_MODULES from server/lib-modules.js instead of keeping your own copy.
+3. api.js: merge `api/history/<slug>.json` into live-fetched jobs through history.annotate. Add `getMarket()`.
+4. Make vet-salaries a hard gate in pages.yml (exit non-zero blocks the deploy), and add the Compstimate backtest summary to the step summary.
+Wait for backend's exported functions where needed (I've asked it to report as soon as ledger capture works). Tests; log it in docs/process/devops.md. Don't commit.
