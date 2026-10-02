@@ -1,131 +1,131 @@
-# QA report: melon-seek end-to-end suite
+# QA report: melon-seek end-to-end suite (v2 UI)
 
-Run on 2026-10-02 in the sandbox. Map tiles, Google Fonts and the live job boards
-are unreachable here, so every company is served in `mode: "demo"`.
+Run on 2026-10-02 against the real server, `node server/index.js`, with the local
+`data/snapshots/*.json`. Every company is served as `mode: "snapshot"` (Anthropic 638 roles,
+Anduril 2418, OpenAI 833). Live boards, map tiles and Google Fonts are blocked in the sandbox.
 
 ## How to run
 
 ```sh
 # Playwright is not a repo dependency. Use any install that resolves (see docs/process/qa.md):
-npm i playwright --no-save            # or: NODE_PATH=/path/to/node_modules
-node scripts/e2e.js                    # full suite (API and Chromium UI)
+npm i playwright --no-save            # or NODE_PATH=/path/to/node_modules, or PLAYWRIGHT_MODULE=...
+node scripts/e2e.js                    # full suite: API, then Chromium UI
 node scripts/e2e.js --api-only         # no browser needed
-node scripts/e2e.js --grep=salary      # run a subset by test name
+node scripts/e2e.js --grep=juice       # subset by test name
+E2E_TEST_TIMEOUT=60000 node scripts/e2e.js   # per-test hard timeout (default 120s)
 ```
 
-The script spawns `node server/index.js` on a free port. It uses the Chromium
-already installed under `$PLAYWRIGHT_BROWSERS_PATH` or `/opt/pw-browsers` (or
-`$CHROMIUM_PATH`) and never downloads one. Requests to external hosts are
-aborted so runs are deterministic. Screenshots are written to `docs/screenshots/`.
-The exit code is 0 only when every test passes. `npm test` does not pick up
-these files.
+The script spawns `node server/index.js` on a free port. It uses the preinstalled Chromium
+(`$PLAYWRIGHT_BROWSERS_PATH`, `/opt/pw-browsers`, or `$CHROMIUM_PATH`) and never downloads one.
+Requests to external hosts are aborted. Screenshots go to `docs/screenshots/`. The exit code is 0 only
+when every test passes, and `npm test` (249/249) does not pick these files up.
 
-## Result: 22 of 25 passed, 3 failed
+**Harness robustness (v2).** Each test has a hard timeout. An unhandled rejection or uncaught
+exception during a test fails that test and the run moves on. This was the original crash: a
+pending `waitForResponse` for a company pill that no longer exists. Every wait is registered right
+before its action and wrapped in `guarded()`, so it rejects inside the awaiting test. A test whose
+data is absent (for example, no quarantined salaries in demo mode) reports *skipped*, not failed.
+Contexts left open by a failed test are closed through `ctx.cleanup`.
 
-Three full runs in a row gave the same result once the other workstreams' files
-stopped changing.
+## Result: 32 of 33 passed, 1 failed
+
+The results were identical across 3 full runs with Playwright 1.63 (scratchpad) and 1.56 (`/opt/node-tools`).
+Demo mode (`MELON_SNAPSHOT_DIR=<empty dir>`) gives 31 passed, 1 failed and 1 skipped: "Pay unclear" is
+skipped because demo data has no quarantined salaries.
 
 | # | Test | Result |
 |---|------|--------|
-| 1 | API: `/api/companies` lists anthropic, anduril, openai (fields, sources, boards) | pass |
-| 2-4 | API: `/api/jobs?company=anthropic\|anduril\|openai`: every Job matches the CONTRACT shape (types, enums, salary min<=max, mid, annualized, lat/lng ranges, deduped skills, unique ids) and `mode` is set | pass |
-| 5 | API: demo data is deterministic across requests | pass |
-| 6 | API: custom board `?source=greenhouse&board=foo&name=Foo Corp` falls back to demo with a valid shape | pass |
-| 7 | API: 404 for an unknown company, 400 for a bad source, a path-like board or missing params | pass |
-| 8 | Static: `/`, leaflet js/css, 404 for missing files, no path traversal | pass |
-| 9 | UI: loads with no console errors, chart is the default and shows bands (Clusters view), the Ranges view shows one bar per job, count equals the API count, demo is marked | pass |
-| 10 | UI: map mode shows price pins and the offline basemap note, clicking a pin shows the area chip | pass |
-| 11 | **UI: map initial fit keeps every pin inside the visible map** | **FAIL (BUG-1)** |
-| 12 | UI: switching to Anduril, then OpenAI, updates the count to the API count, the hash, the pressed pill and the cards | pass |
-| 13 | UI: salary min slider narrows the list, every card meets it (approx USD), count matches the API | pass |
-| 14 | UI: a Skills chip narrows the list, every card's job has that skill (checked against API data), count matches | pass |
-| 15 | UI: department filter (count equals facet count, all cards in that department) | pass |
-| 16 | UI: location filter (count equals facet count, all cards in that city) | pass |
-| 17 | UI: clicking a card opens the drawer with an Apply link (href = job.url, `_blank`, `noopener`), `job` in hash, Esc closes, no `<script>` | pass |
-| 18 | UI: hash round-trip: reload keeps company, skill, department, map mode and card order; a `#job=` deep link opens the drawer; Back undoes the last change | pass |
-| 19 | UI: 390x844 has no horizontal scroll (chart, map, filters open) | pass |
-| 20 | **UI: 390x844 buttons keep visible text or accessible names** | **FAIL (BUG-2, BUG-3)** |
-| 21 | UI: dark mode renders dark (background and text luminance) | pass |
-| 22 | UI: "Add board" (greenhouse/foo) opens a custom board with demo jobs | pass |
-| 23 | **UI: every company in `/api/companies` is reachable in the switcher at 1440px** | **FAIL (BUG-4)** |
-| 24 | UI: keyboard: Enter on a card opens the drawer, Esc closes it and focus returns to the card | pass |
-| 25 | UI: search box filters by text | pass |
+| 1 | API: `/api/companies` lists anthropic, anduril, openai | pass |
+| 2-4 | API: `/api/jobs?company=…`: Job shape, `mode`, `meta.lazy`, `/api/job` detail (written by the backend agent, kept) | pass |
+| 5 | **API: keyword facets are discriminative (no keyword on ≥95% of a company's jobs)** | **FAIL (BUG-5)** |
+| 6 | API: demo deterministic (skipped internally when not demo) | pass |
+| 7 | API: custom board `greenhouse/foo` falls back to demo | pass |
+| 8 | API: 4xx errors, including `/api/job` 400/404 | pass |
+| 9 | Static: `/`, leaflet, 404, no traversal | pass |
+| 10 | UI: no console errors. Clusters is the default and shows bands; Ranges shows per-job bars (`v=ranges`, default omitted). Count equals the API count. Badge reflects the mode ("Snapshot · Oct 2") | pass |
+| 11 | UI: map shows pins and the offline basemap note. **Pay\|Juice** toggle (Pay default; Juice checks the radio, enables the legend and recolours pins). Clicking a pin shows the area chip | pass |
+| 12 | UI: map initial fit keeps every pin inside the map (was BUG-1) | pass |
+| 13 | UI: **company menu** lists all 8 companies. Switching to Anduril, then OpenAI, gives counts equal to the API and the right hash. Earlier companies become recent pills. Search "open" + Enter switches | pass |
+| 14 | UI: salary min slider. Every card meets the bound in approx USD (`palette.toUSD`), count equals the API count | pass |
+| 15 | UI: a Skills chip narrows to exactly its facet count, and every card has the skill (checked against API data) | pass |
+| 16 | UI: department filter (facet count, `.card-dept` on every card) | pass |
+| 17 | UI: location filter (facet count, API locations) | pass |
+| 18 | UI: **"Listed"** filter: options, Past 3 months equals its facet count (`p=90`), "Hide roles open 180+ days" (`ho=1`) | pass (see L1) |
+| 19 | UI: **drawer**: Apply link. **Fixed section order** (Same role elsewhere > Listing > Location > Keywords > About the role > Full description) with at most 3 open, pay block first. **Honest-number caption** "Posted base pay. Equity and bonus aren't included." with at most 2 pay labels. **Lazy description through `/api/job`** (200, id echo, non-empty and sanitized text). Esc clears `job` | pass |
+| 20 | UI: **salary gate "Pay unclear"**: the card pill tooltip and the drawer "Why?" both show the `salaryFlag.reason`; posting link present; no posted-pay caption | pass |
+| 21 | UI: **Juice** badge format `🍉 ≈?NN · Grade`. **Most juice** sort (`sort=juice`) is descending with unscored roles last. **Waterfall**: Gross > Tax > Rent > Living > Juice left, adds up; Monthly is yearly/12; disclaimer link | pass |
+| 22 | UI: **Same role elsewhere** rows include the current company. Clicking another company sets `c` and `rf` (and `s`), shows the "Role: …" chip, and the count equals the API jobs with that `roleFamily()`. Back restores `job=` | pass |
+| 23 | UI: **Insights** mode: Compstimate and Market insights render; **Compare companies** row click sets `c` and `rf` | pass |
+| 24 | UI: **Save** is hidden with no filter and shown with one. Saved state is stored in `melon.saved` and listed under "Saved searches" in the company menu; opening it restores the filter; a second click removes it | pass |
+| 25 | UI: **Download CSV** (badge popover) gives `api/export?company=anthropic`: 200, `text/csv`, data rows = 638 (quote-aware count), and a download event | pass (see L3) |
+| 26 | UI: hash round-trip: reload keeps company, skill, department, map mode and card order; deep link `#job=` opens the drawer; Back works | pass |
+| 27 | UI: **theme toggle**: System > Light > Dark (`data-theme`, aria-label), dark persists across reload, `t` cycles back, and dark renders dark on a light OS | pass |
+| 28 | UI: **dark mode** (OS dark): chart, ranges, map (Juice), insights and drawer have no page or console errors and dark luminance | pass |
+| 29 | UI: 390x844 has no horizontal scroll (chart, map, filters sheet, company menu switch) | pass |
+| 30 | UI: 390x844 visible buttons all have text or an accessible name (was BUG-2/BUG-3) | pass |
+| 31 | UI: Add board (greenhouse/foo) opens a custom board | pass |
+| 32 | UI: keyboard: Enter opens the drawer, Esc closes it and focus returns to the card | pass |
+| 33 | UI: search box filters | pass |
 
-Screenshots at 1440x900 (mobile at 390x844):
-`docs/screenshots/chart.png`, `map.png`, `drawer.png`, `mobile.png`, `dark.png`.
+Screenshots at 1440x900 (mobile at 390x844), all of real snapshot data:
+`docs/screenshots/chart.png`, `map.png`, `drawer.png`, `mobile.png`, `dark.png`, plus
+`map-juice.png`, `drawer-juice.png`, `insights.png` and `dark-drawer.png`.
 
-## Bugs
+## Status of earlier bugs
+- **BUG-1, map initial fit clipped pins:** fixed and verified (test 12; `map.png` shows SF, London, Tokyo, Singapore and Sydney all in view).
+- **BUG-2, Remote filter blank on mobile:** fixed (the rule is scoped to `.topbar`). Verified by test 30.
+- **BUG-3, unnamed Chart/Map/Add board buttons on mobile:** fixed (`aria-label`s). Verified by test 30.
+- **BUG-4, company pills clipped at 1440px:** fixed by the searchable company menu. Verified by test 13.
+- Low items from last time (Apply label in demo mode, "100% percentile") are fixed: the drawer now reads "Top · paid here".
 
-### BUG-1 (major): the first map view clips the biggest pins
-- **Owner:** `public/viz/map.js` (`fitToData()` / `update(..., {fit:true})`), possibly together with the
-  `public/app.js` `renderViz()` call order (`map.update(jobs, {fit:true})` runs right after `#mapHost` is unhidden).
-- **Repro:** open `/#c=anthropic&m=map` at 1440x900, or open `/` and click **Map**.
-- **Expected:** after the first fit, every price pin is inside the map viewport.
-- **Actual:** "San Francisco, CA + 1 nearby (69 postings, $340K)", the largest cluster, sits past the
-  left edge of the map. It is drawn behind the filter column, and `elementFromPoint` at its centre
-  returns `main`, so the pin cannot be clicked. "Tokyo, JP" is cut off at the right edge. You can
-  see this in `docs/screenshots/map.png`.
-- **Likely cause:** the fit runs before the container has its final size (it is `hidden` when the
-  map is created), and `invalidateSize({pan:false})` afterwards does not refit. The 48px padding is
-  also smaller than half a pin's width (pins are about 83px wide and centred on the point), so pins
-  near an edge get clipped even when the fit itself is right.
-- **Fix idea:** refit after the first `invalidateSize` once the container has a non-zero size, for
-  example in the ResizeObserver callback while `first` is true. Use padding of at least
-  `[60, 90]`, or `paddingTopLeft`/`paddingBottomRight` sized to the pin.
+## Open bugs
 
-### BUG-2 (major on mobile): the Remote filter is blank at widths up to 1020px
-- **Owner:** `public/styles.css`, around line 538 (`@media (max-width: 1020px) { .seg button span { display: none; } }`).
-- **Repro:** use a 390x844 viewport, tap **Filters** and scroll to **Remote**.
-- **Expected:** three buttons: Any / Remote / On-site with counts.
-- **Actual:** an empty grey bar with one white knob and no labels or counts. The rule meant for
-  the icon-only Chart/Map toggle in the top bar also matches the filter panel's `.seg.seg--block`,
-  which `public/app.js` `makeRemote()` builds.
-- **Fix idea:** narrow the selector to `.topbar .seg button span`, or exclude
-  `.seg--block`.
-
-### BUG-3 (a11y): Chart/Map toggle and Add board lose their accessible name at widths up to 1020px
-- **Owner:** `public/index.html` (no `aria-label` on `button[data-mode]` or `#addBoardBtn`), `public/styles.css`
-  (around lines 514, 530 and 538, where the label `<span>` gets `display:none`).
-- **Repro:** use a 390x844 viewport and inspect the accessibility tree: the `button[data-mode="chart"]`,
-  `button[data-mode="map"]` and `#addBoardBtn` buttons have no name. Their only text is in a span set to
-  `display:none`, and their SVG is `aria-hidden`.
-- **Fix idea:** add `aria-label="Chart view"`, `aria-label="Map view"` and `aria-label="Add board"` (or
-  `title`), or hide the span with the `.sr-only` clip pattern instead of `display:none`.
-
-### BUG-4 (minor UX): company pills are clipped at 1440px with no visible way to reach them
-- **Owner:** `public/styles.css` (`.company-pills` overflow) and `public/app.js` `renderTopbar()`. The
-  trigger is `server/companies.js`, which now registers 8 companies (Scale AI, xAI, Cohere, Palantir
-  and Shield AI on top of the 3 in the contract). The list changed between runs: one run had 9,
-  including Mistral AI.
-- **Repro:** open `/` at 1440x900. The pill strip `#companyPills` is about 520px wide but its content is much
-  wider, and the `#companySelect` fallback is `display:none`. In the latest run, 4 of 8 pills (xAI, Cohere,
-  Palantir, Shield AI) are clipped and can only be reached by scrolling the strip sideways, which
-  nothing on screen hints at.
-- **Fix idea:** show a "More ▾" overflow menu or the `<select>` when the pills overflow, or add
-  edge fades and scroll buttons. Separately, the lead should decide whether docs/CONTRACT.md
-  should list the extra built-ins.
+### BUG-5 (major, data quality): company boilerplate becomes keywords on every posting
+- **Owner:** `server/keywords.js` (`extractKeywords` scans the whole description `text`). The
+  same effect shows in demo data from `server/demo.js` (Anduril "Autonomy" on 120/120 demo jobs).
+- **Repro (API):** `curl -s localhost:5173/api/jobs?company=anthropic` and count `keywords.*` per job.
+  Keywords on ≥95% of jobs:
+  - anthropic: skills "Interpretability" 638/638, "Multimodal" 638/638, "Recruiting" 638/638; fit
+    "Visa sponsorship" 638/638.
+  - anduril: skills "Computer vision", "Networking", "Security", "Autonomy", "Sensor fusion" and
+    "Recruiting", each 2418/2418.
+  - openai: skills "Security" 833/833.
+  - Outside the suite's three companies: cohere "LLMs" and "Security" 132/132, scaleai "Recruiting" 194/194,
+    scaleai fit "US citizenship" 194/194.
+- **Repro (UI):** open `/`. The first three Skills chips are "Interpretability 638", "Multimodal 638"
+  and "Recruiting 638", and clicking one changes nothing (638 → 638). Every drawer lists them under
+  Keywords, and they take card tag slots.
+- **Cause:** the text comes from the shared "About Anthropic" blurb ("…reliable, interpretable, and
+  steerable AI systems"), the "How we're different" paragraph ("…Multimodal Neurons…"), the
+  recruiting-scam notice ("Anthropic recruiters only contact you from…") and the visa policy paragraph.
+- **Fix idea:** before extracting, drop paragraphs that repeat across many postings on one board
+  (board-level boilerplate detection in `server/normalize.js`). Or extract only from title, sections and
+  bullets. Or drop any keyword present on ≥90% of a board's jobs.
 
 ### Low and informational
-- **Google Fonts (`public/index.html`):** the page loads `fonts.googleapis.com`, an external runtime
-  dependency that fails offline. The CSS falls back to system fonts, so nothing breaks, but it
-  goes against the "zero external deps" spirit of the contract. The suite filters out these load
-  errors as expected.
-- **Demo Apply links (`server/demo.js`):** demo jobs set `url` to the real board index
-  (`https://job-boards.greenhouse.io/anthropic`, `https://jobs.ashbyhq.com/openai`). That is not
-  fabricated, but "Apply on Greenhouse" for a generated role lands on an unrelated real page. Consider
-  relabelling it "Open real board" in demo mode (`public/app.js` drawer footer).
-- **Drawer copy (`public/app.js` `drawerContent`):** the top-paid role reads "100% percentile ·
-  Pays more than 100% of roles". That is technically true because the role excludes itself, but it reads
-  oddly. Consider capping it at 99% or saying "Highest-paying role".
-- **Flakiness seen during development, not a product bug:** while app.js and map.js were being
-  rewritten, some early runs timed out waiting for the results header. The cause was half-written
-  files. It did not reproduce in 3 consecutive full runs once the files were stable. `waitReady()`
-  now reports the title, hash and card count when it times out, to make this easier to tell apart.
+- **L1, "Listed" filter has no data (`public/app.js` `makePosted`; data: snapshots predate F4).**
+  All 638/2418/833 snapshot jobs have `ageDays: null`, `postedAt: null` and `firstSeenAt: null`, and
+  `meta.history` is `{since:null, runs:0}`. The Listed section still offers Past week, month and 3 months
+  with counts of 0, and choosing one empties the list ("No roles match"). Suggested fix: hide or disable
+  the section when no job has an age. Also re-run `npm run snapshot` once the F4 adapters are live
+  (`scripts/snapshot.js`, `server/history.js`).
+- **L2, doubled prefix in the data-badge tooltip (`public/app.js` `badgeInfo`, around line 574):** it reads
+  "Live fetch failed: Live fetch failed: upstream returned HTTP 403". The server
+  (`server/index.js` around lines 108-114) already prefixes the message, and the snapshot and cache
+  branches add it again.
+- **L3, CSV filename mismatch (`public/app.js` `csvLink` vs `server/export.js`):** the link sets
+  `download="anthropic-jobs.csv"`, but the server's `Content-Disposition` wins
+  ("melon-seek-anthropic-2026-10-02.csv"). Harmless, but one of them should be removed.
+- **L4, data provenance on phones (`public/styles.css` around lines 599-602):** at 860px and below, a Snapshot,
+  Live or Cached badge shrinks to a bare coloured dot (the label has opacity 0). Only demo keeps text. The
+  snapshot date is then visible only after tapping. Consider a tiny label ("Snap") the way demo has one.
+- **Google Fonts (`public/index.html`):** still an external stylesheet. It fails offline, falls back to
+  system fonts and the suite ignores it.
 
 ## Coverage notes and gaps
-- Live, cache and snapshot modes are not covered end to end, because the sandbox can only produce
-  demo mode. The API shape validator applies to every mode, though.
-- Tile rendering is not tested (tiles are blocked by design). The tests only check that pins render
-  and the map shows the offline fallback.
-- Chart hover tooltips, group-by and colour-by controls, sort order, the seniority, employment and
-  posted filters, the drawer's prev/next buttons and "Refresh" are not covered.
+- Live mode is not reachable here. Snapshot and demo modes are both exercised.
+- Juice is attached client-side (`public/api.js` with `/api/cities` and `/lib/juice.js`). The suite
+  checks its UI and arithmetic, not the cost-of-living inputs.
+- Not covered: chart hover tooltips, cluster-bin selection chip, group-by, the
+  seniority/employment/remote filters, the Juice grade chips in "More", drawer prev/next, the "New" and
+  "Reposted" status tags (no history data), saved-search "N new" counts, and Refresh.

@@ -124,6 +124,23 @@ export function registerApiTests(suite) {
     });
   }
 
+  suite.test('API: keyword facets are discriminative (no keyword on >=95% of a company\'s jobs)', async (ctx) => {
+    // A keyword every posting carries (company boilerplate: "About us", EEO, visa policy,
+    // recruiting-fraud notices) is useless as a filter chip and crowds out real skills.
+    const offenders = [];
+    for (const slug of ['anthropic', 'anduril', 'openai']) {
+      const body = ctx.data[slug] || (await getJson(ctx.baseUrl, `/api/jobs?company=${slug}`)).body;
+      const n = body.jobs.length;
+      if (n < 20) continue;
+      for (const cat of ['skills', 'responsibilities', 'fit']) {
+        const counts = new Map();
+        for (const j of body.jobs) for (const k of j.keywords[cat]) counts.set(k, (counts.get(k) || 0) + 1);
+        for (const [k, c] of counts) if (c >= 0.95 * n) offenders.push(`${slug} ${cat} "${k}" ${c}/${n}`);
+      }
+    }
+    assert(offenders.length === 0, `${offenders.length} near-universal keywords:\n${offenders.join('\n')}`);
+  });
+
   suite.test('API: demo data is deterministic across requests', async (ctx) => {
     const a = ctx.data.anthropic;
     assert(a, 'no anthropic data (earlier test failed)');

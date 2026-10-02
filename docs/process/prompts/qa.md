@@ -17,3 +17,23 @@ Follow-up from the coordinator (mid-task):
 ```
 New requirement from the user: document how you produced your work so another agent can replicate it. Before you finish: (1) copy your original task prompt verbatim into docs/process/prompts/qa.md; (2) write docs/process/qa.md following docs/process/TEMPLATE.md (brief, inputs, test strategy + rationale, exact replayable commands incl. how Playwright was installed/resolved, results, known gaps, change log). You own those two files. Don't commit; the lead does.
 ```
+
+Second follow-up from the coordinator (v2 refresh):
+
+```
+The e2e suite needs a refresh for the current UI. `node scripts/e2e.js` (Playwright resolved via NODE_PATH from the scratchpad pw dir) crashes in "UI: switching company to Anduril and OpenAI": it clicks `#companyPills` buttons, but the company switcher is now a searchable menu with only up to 3 recent companies as pills, so there's no Anduril pill in a fresh session. The pending `waitForResponse` promise then rejects unhandled and kills the whole harness. Please:
+1. Make the harness robust: register waits right before the action, attach a catch so a rejected wait fails just that test, and keep the other tests running.
+2. Update the selectors to the current UI: company menu, Clusters/Ranges toggle, theme toggle, Insights mode, "Listed" filter, Save chip, drawer sections. Read public/app.js and docs/process/ux.md.
+3. Add e2e coverage for the v2 features:
+   - salary-gate "Pay unclear" in the drawer;
+   - Juice badge, "Most juice" sort and the drawer waterfall;
+   - the honest-number caption;
+   - "Same role elsewhere" rows plus clicking one (hash rf), and Insights "Compare companies";
+   - Save, which appears only with an active filter;
+   - Download CSV (200, text/csv);
+   - the lazy description through /api/job;
+   - the map Pay|Juice toggle;
+   - no page errors in dark mode.
+4. Run the full suite against the real server data (data/snapshots exist locally), fix test-side issues, and list real product bugs in docs/QA.md with owner and file.
+Log it in docs/process/qa.md. Don't commit; report the pass/fail summary.
+```

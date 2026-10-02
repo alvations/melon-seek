@@ -378,3 +378,8 @@ screenshots in `docs/screenshots/`.
   crashed at the outdated company-pill test (the UI now uses a company menu)
   through an unhandled waitForResponse rejection; QA resumed to make the
   harness robust, update the selectors and add v2 feature coverage.
+- 2026-10-02 08:16 UTC check-in: only QA is running (e2e refresh). CI green
+  at 556f75f; "Deploy to GitHub Pages" succeeded (finished 07:58:47, after
+  the branch-mode build at 07:58:10, so the app is live). All integration
+  items from the check-in list are done. One more safety-net check-in
+  armed (+45 min) for the QA result.

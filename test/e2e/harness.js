@@ -10,6 +10,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 export class AssertionError extends Error {}
+/** Throw from a test when the data it needs is absent (e.g. demo mode); reported as skipped, not failed. */
+export class SkipTest extends Error {}
+export function skip(reason) { throw new SkipTest(reason); }
 export function assert(cond, msg) {
   if (!cond) throw new AssertionError(msg || 'assertion failed');
 }
@@ -106,24 +109,85 @@ export async function startServer({ timeoutMs = 20000 } = {}) {
   };
 }
 
-/** Tiny sequential test runner: failures are collected, not fatal. */
+/**
+ * Start a wait (e.g. page.waitForResponse) that can never become an unhandled rejection.
+ * Register it right before the action that triggers it, then `await w.done()`:
+ * it resolves with the value or throws the original error inside the awaiting test.
+ */
+export function guarded(promise) {
+  let outcome;
+  const settled = Promise.resolve(promise).then(
+    (value) => { outcome = { ok: true, value }; },
+    (error) => { outcome = { ok: false, error }; },
+  );
+  return {
+    async done() {
+      await settled;
+      if (!outcome.ok) throw outcome.error;
+      return outcome.value;
+    },
+  };
+}
+
+const TEST_TIMEOUT = Number(process.env.E2E_TEST_TIMEOUT || 120000);
+
+/**
+ * Tiny sequential test runner: failures are collected, not fatal.
+ * - each test has a hard timeout (E2E_TEST_TIMEOUT ms, default 120s);
+ * - a stray unhandled rejection / uncaught exception during a test fails that test
+ *   (instead of killing the process) and the run continues with the next test.
+ */
 export function createSuite() {
   const tests = [];
   const results = [];
   return {
     test(name, fn) { tests.push({ name, fn }); },
     async run(ctx, grep = null) {
-      for (const t of tests) {
-        if (grep && !grep.test(t.name)) continue;
-        const start = Date.now();
-        try {
-          await t.fn(ctx);
-          results.push({ name: t.name, ok: true, ms: Date.now() - start });
-          console.log(`  ✓ ${t.name} (${Date.now() - start}ms)`);
-        } catch (err) {
-          results.push({ name: t.name, ok: false, ms: Date.now() - start, error: err });
-          console.log(`  ✗ ${t.name}\n      ${String(err && err.message || err).split('\n').join('\n      ')}`);
+      let current = null;
+      const stray = (err) => {
+        if (current) current.stray.push(err);
+        else console.log(`  ! stray error outside a test: ${err && err.message || err}`);
+      };
+      process.on('unhandledRejection', stray);
+      process.on('uncaughtException', stray);
+      try {
+        for (const t of tests) {
+          if (grep && !grep.test(t.name)) continue;
+          const start = Date.now();
+          current = { stray: [] };
+          let timer;
+          try {
+            await Promise.race([
+              Promise.resolve().then(() => t.fn(ctx)),
+              new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`test timed out after ${TEST_TIMEOUT}ms`)), TEST_TIMEOUT); }),
+            ]);
+            // Give late rejections from this test a tick to surface.
+            await new Promise((r) => setTimeout(r, 0));
+            if (current.stray.length) {
+              throw new Error(`unhandled error(s) during test:\n${current.stray.map((e) => String(e && e.message || e)).join('\n')}`);
+            }
+            results.push({ name: t.name, ok: true, ms: Date.now() - start });
+            console.log(`  \u2713 ${t.name} (${Date.now() - start}ms)`);
+          } catch (err) {
+            if (err instanceof SkipTest) {
+              results.push({ name: t.name, ok: true, skipped: true, ms: Date.now() - start, reason: err.message });
+              console.log(`  - ${t.name} (skipped: ${err.message})`);
+              continue;
+            }
+            results.push({ name: t.name, ok: false, ms: Date.now() - start, error: err });
+            console.log(`  \u2717 ${t.name}\n      ${String(err && err.message || err).split('\n').join('\n      ')}`);
+          } finally {
+            clearTimeout(timer);
+            if (ctx.cleanup) {
+              // Close anything a timed-out / failed test left open.
+              for (const fn of ctx.cleanup.splice(0)) { try { await fn(); } catch { /* ignore */ } }
+            }
+          }
         }
+      } finally {
+        current = null;
+        process.off('unhandledRejection', stray);
+        process.off('uncaughtException', stray);
       }
       return results;
     },

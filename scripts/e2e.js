@@ -28,7 +28,7 @@ if (!apiOnly && !pw) {
 const server = await startServer();
 console.log(`e2e: server at ${server.baseUrl}`);
 const suite = createSuite();
-const ctx = { baseUrl: server.baseUrl, data: {}, notes: [], pw, browser: null };
+const ctx = { baseUrl: server.baseUrl, data: {}, notes: [], cleanup: [], pw, browser: null };
 registerApiTests(suite);
 
 let browser = null;
@@ -53,7 +53,8 @@ if (ctx.notes.length) {
   console.log('\ne2e notes (non-fatal observations):');
   for (const n of [...new Set(ctx.notes)]) console.log(`  * ${n}`);
 }
-console.log(`\ne2e: ${results.length - failed.length}/${results.length} passed, ${failed.length} failed`);
+const skipped = results.filter((r) => r.skipped).length;
+console.log(`\ne2e: ${results.length - failed.length - skipped}/${results.length} passed, ${failed.length} failed${skipped ? `, ${skipped} skipped` : ''}`);
 if (failed.length) {
   for (const f of failed) console.log(`  - ${f.name}`);
   if (process.env.E2E_SERVER_LOGS) console.log('\nserver logs:\n' + server.logs.join(''));
