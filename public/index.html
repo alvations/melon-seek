@@ -6,6 +6,7 @@
   <title>melon·seek — job boards, plotted by salary</title>
   <meta name="description" content="See a company's whole job board at once: every role on a salary-range chart or a map, with filters for pay, team, location and skills.">
   <meta name="color-scheme" content="light dark">
+  <script src="theme-init.js"></script>
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#11141a" media="(prefers-color-scheme: dark)">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -56,6 +57,7 @@
         </button>
       </div>
       <button type="button" class="data-badge" id="dataBadge" aria-haspopup="dialog" aria-expanded="false" hidden></button>
+      <button class="icon-btn theme-btn" id="themeBtn" type="button" aria-label="Theme: System" title="Theme: System (press T to change)"></button>
       <button class="icon-btn" id="refreshBtn" type="button" aria-label="Refresh from the live board" title="Refresh from the live board">
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 3.5v3.2h-3.2"/></svg>
       </button>

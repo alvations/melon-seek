@@ -1685,6 +1685,40 @@ function setFiltersOpen(open) {
 }
 const filtersAreOpen = () => (isOverlayFilters() ? document.body.classList.contains('filters-open') : !document.body.classList.contains('filters-collapsed'));
 
+/* ----------------------------------------------------------------- theme */
+
+const THEME_KEY = 'melon-seek.theme';
+const THEMES = ['system', 'light', 'dark'];
+const THEME_ICON = {
+  system: '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="10" rx="1.5"/><path d="M7.5 17h5M10 14v3"/></svg>',
+  light: '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="3.4"/><path d="M10 2.5v1.8M10 15.7v1.8M2.5 10h1.8M15.7 10h1.8M4.7 4.7l1.3 1.3M14 14l1.3 1.3M4.7 15.3 6 14M14 6l1.3-1.3"/></svg>',
+  dark: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 12.2A6.5 6.5 0 0 1 7.8 4a6.5 6.5 0 1 0 8.2 8.2Z"/></svg>',
+};
+function currentTheme() {
+  const t = document.documentElement.getAttribute('data-theme');
+  return t === 'light' || t === 'dark' ? t : 'system';
+}
+function renderThemeBtn() {
+  const t = currentTheme();
+  const name = t[0].toUpperCase() + t.slice(1);
+  const btn = $('#themeBtn');
+  btn.innerHTML = THEME_ICON[t]; // static icon markup
+  btn.setAttribute('aria-label', `Theme: ${name}`);
+  btn.title = `Theme: ${name}${t === 'system' ? ' (follows your OS)' : ''} — press T to change`;
+}
+function setTheme(t) {
+  if (t === 'system') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', t);
+  try { if (t === 'system') localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, t); } catch { /* ignore */ }
+  renderThemeBtn();
+  // palette.onThemeChange re-colours chart + map (MutationObserver on data-theme); force the
+  // app's own palette-derived colours (card / checklist dots) and the viz to redraw as well.
+  vizSig.chart = vizSig.map = '';
+  scheduleRender();
+  toast(`Theme: ${t[0].toUpperCase() + t.slice(1)}`);
+}
+const cycleTheme = () => setTheme(THEMES[(THEMES.indexOf(currentTheme()) + 1) % THEMES.length]);
+
 /* ---------------------------------------------------------------- events */
 
 function bindEvents() {
@@ -1704,6 +1738,8 @@ function bindEvents() {
   $('#addBoardBtn').addEventListener('click', (e) => togglePopover('board', e.currentTarget));
   $('#dataBadge').addEventListener('click', (e) => togglePopover('badge', e.currentTarget));
   $('#refreshBtn').addEventListener('click', () => loadJobs({ refresh: true }));
+  $('#themeBtn').addEventListener('click', cycleTheme);
+  renderThemeBtn();
   $('#groupBy').addEventListener('change', (e) => set({ g: e.target.value }));
   for (const b of document.querySelectorAll('[data-view]')) b.addEventListener('click', () => set({ v: b.dataset.view }));
   $('#sortBy').addEventListener('change', (e) => set({ sort: e.target.value }));
@@ -1739,6 +1775,7 @@ function bindEvents() {
   document.addEventListener('keydown', (e) => {
     const typing = e.target.closest?.('input, textarea, select, [contenteditable]');
     if (e.key === '/' && !typing && !e.metaKey && !e.ctrlKey) { e.preventDefault(); search.focus(); search.select(); return; }
+    if ((e.key === 't' || e.key === 'T') && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) { cycleTheme(); return; }
     if (e.key === 'Escape') {
       if (popover.id) { closePopover(); return; }
       if (drawerJobId) { closeDrawer(); return; }

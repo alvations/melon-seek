@@ -105,6 +105,27 @@ await p.click('.seg [data-mode="map"]'); await p.waitForTimeout(1000);
 await shot(p, 'mobile-map');
 await p.close();
 
+// Theme modes: System (OS dark, no attribute), Light forced over an OS-dark browser, Dark forced over OS-light.
+for (const [mode, os, stored] of [['system', 'dark', null], ['light', 'dark', 'light'], ['dark', 'light', 'dark']]) {
+  const tp = await page({ viewport: { width: 1440, height: 900 }, colorScheme: os });
+  await tp.addInitScript((v) => { try { if (v) localStorage.setItem('melon-seek.theme', v); else localStorage.removeItem('melon-seek.theme'); } catch {} }, stored);
+  await tp.goto(`${BASE}/${QS}#c=anthropic`);
+  await ready(tp); await tp.waitForTimeout(500);
+  await shot(tp, `theme-${mode}-chart`);
+  await tp.click('.card[data-id] >> nth=1'); await tp.waitForSelector('.drawer.is-open'); await tp.waitForTimeout(350);
+  await shot(tp, `theme-${mode}-drawer`);
+  await tp.keyboard.press('Escape');
+  await tp.click('.topbar .seg [data-mode="map"]'); await tp.waitForTimeout(1200);
+  await shot(tp, `theme-${mode}-map`);
+  await tp.close();
+}
+const mp = await page({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: 'light' });
+await mp.addInitScript(() => { try { localStorage.setItem('melon-seek.theme', 'dark'); } catch {} });
+await mp.goto(`${BASE}/${QS}#c=anthropic`);
+await ready(mp); await mp.waitForTimeout(500);
+await shot(mp, 'theme-dark-mobile');
+await mp.close();
+
 // Behaviour checks (desktop)
 const checks = {};
 p = await page({ viewport: { width: 1440, height: 900 } });
@@ -138,6 +159,13 @@ await p.keyboard.press('Escape'); await p.waitForTimeout(300);
 checks.escClosesAndReturnsFocus = await p.evaluate(() => !document.querySelector('.drawer.is-open') && document.activeElement !== document.body);
 checks.badge = (await p.textContent('#dataBadge'))?.trim().split('\n')[0];
 checks.insightsRenders = await (async () => { await p.goto(`${BASE}/${QS}#c=anthropic&m=insights`); await ready(p); await p.waitForTimeout(400); return p.evaluate(() => !document.getElementById('insightsHost').hidden && document.getElementById('insightsPanel').childElementCount > 0 && document.getElementById('compHost').childElementCount > 0); })();
+checks.themeCycle = await (async () => {
+  await p.goto(`${BASE}/${QS}#c=anthropic`); await ready(p);
+  await p.evaluate(() => document.activeElement?.blur());
+  const seq = [];
+  for (let i = 0; i < 3; i++) { await p.keyboard.press('t'); seq.push(await p.evaluate(() => `${document.documentElement.getAttribute('data-theme') || 'system'}:${document.getElementById('themeBtn').getAttribute('aria-label')}`)); }
+  return seq;
+})();
 checks.slashFocusesSearch = await (async () => { await p.keyboard.press('/'); return p.evaluate(() => document.activeElement.id === 'search'); })();
 // Description loads lazily (getJobDetail) and is sanitized.
 await p.goto('about:blank');

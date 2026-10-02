@@ -12,7 +12,9 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 # App source (see .dockerignore for what is excluded).
 # COPY . (filtered by .dockerignore) so a missing/empty data/ dir in a fresh
-# clone doesn't break the build; committed data/snapshots/*.json are included.
+# clone doesn't break the build. Snapshots aren't committed (see README), so an
+# image built from a clean checkout serves live/demo data. Any local
+# data/snapshots/*.json present at build time is baked in as the fallback.
 COPY . ./
 
 # Run as the unprivileged "node" user that ships with the image.

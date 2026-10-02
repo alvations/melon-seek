@@ -1,6 +1,7 @@
 // melon-seek job map (Leaflet, global `L`).
 //
-// createMap(container, { onSelect(job), onAreaSelect(jobs, label) })
+// createMap(container, { onSelect(job), onAreaSelect(jobs, label),
+//                        tiles?: { url, attribution, maxZoom, subdomains, dark: 'filter' | url } })
 //   -> { update(jobs, { fit }), highlight(jobId|null), invalidateSize(), destroy() }
 //
 // Jobs are aggregated per location (lat/lng rounded to 0.1°; a job with several
@@ -8,14 +9,20 @@
 // never overlap at the current zoom. Each cluster is a Zillow-style price-tag
 // pill: median salary (approx USD) + count badge, filled on a one-hue
 // sequential scale by median. Remote-only postings live in a "Remote" control.
-// Basemap: CARTO light/dark (follows the theme); if tiles fail the container
+// Basemap: OpenStreetMap standard tiles by default (no API key). Dark mode
+// inverts the tile pane only with a CSS filter (pins are never filtered), or
+// swaps to `tiles.dark` when that is a URL. If tiles fail, the container
 // keeps a styled background, a graticule and labelled pins.
 
 import { formatMoney, toUSD, median, salaryColor, inkOn, onThemeChange, isDark, prefersReducedMotion } from './palette.js';
 
-const TILE_LIGHT = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-const TILE_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+/** Default basemap: OSM standard tiles (no key). Usage policy: attribution visible, no prefetch. */
+export const OSM_TILES = Object.freeze({
+  url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  maxZoom: 19,
+  dark: 'filter',
+});
 const CLUSTER_W = 76;  // px: pill width + gap
 const CLUSTER_H = 34;  // px: pill height + gap (labels add more when offline)
 
@@ -69,7 +76,9 @@ function summarize(jobs) {
   return { n: jobs.length, salaried: mids.length, median: median(mids) };
 }
 
-export function createMap(container, { onSelect, onAreaSelect } = {}) {
+export function createMap(container, { onSelect, onAreaSelect, tiles: tileOpts } = {}) {
+  const T = { ...OSM_TILES, ...(tileOpts || {}) };
+  const darkUrl = typeof T.dark === 'string' && T.dark !== 'filter' ? T.dark : null;
   if (typeof L === 'undefined') throw new Error('melon-seek map: Leaflet global `L` not loaded');
   container.classList.add('ms-map');
   container.replaceChildren();
@@ -89,17 +98,44 @@ export function createMap(container, { onSelect, onAreaSelect } = {}) {
   for (let lng = -540; lng <= 540; lng += 15) gratLines.push([[-85, lng], [85, lng]]);
   L.polyline(gratLines, { pane: 'ms-graticule', interactive: false, className: 'ms-graticule-line', weight: 1, smoothFactor: 1 }).addTo(map);
 
-  let tileErrors = 0, tileOk = 0;
-  const tiles = L.tileLayer(isDark() ? TILE_DARK : TILE_LIGHT, {
-    subdomains: 'abcd', maxZoom: 20, attribution: ATTRIBUTION, detectRetina: false, crossOrigin: true,
+  let tileErrors = 0, tileOk = 0, probe = 'idle'; // probe: idle | pending | ok | bad
+  const urlFor = dark => (dark && darkUrl ? darkUrl : T.url);
+  const tiles = L.tileLayer(urlFor(isDark()), {
+    maxZoom: T.maxZoom ?? 19,
+    attribution: T.attribution,
+    ...(T.subdomains ? { subdomains: T.subdomains } : {}),
+    detectRetina: false,
+    crossOrigin: true,                          // lets the one-off status probe below read the response
+    referrerPolicy: 'strict-origin-when-cross-origin', // OSM requires a Referer
+    keepBuffer: 1,                              // no extra prefetching beyond Leaflet's minimum
   });
   const setOffline = on => {
     if (container.classList.contains('ms-map--offline') === on) return;
     container.classList.toggle('ms-map--offline', on);
     if (places.length) draw(); // labels change pin footprint -> recluster
   };
+  const applyDark = dark => container.classList.toggle('ms-map--dark', !!dark && !darkUrl && T.dark === 'filter');
+  applyDark(isDark());
   tiles.on('tileerror', () => { tileErrors++; if (!tileOk) setOffline(true); });
-  tiles.on('tileload', () => { tileOk++; setOffline(false); });
+  // A tile can "load" while being an error image (for example "API key required" or
+  // "Access blocked", served with a 4xx status). Check the first loaded tile's HTTP
+  // status once, re-reading it from the HTTP cache, before trusting tileload.
+  tiles.on('tileload', e => {
+    if (probe === 'bad') return;
+    if (probe === 'ok') { tileOk++; setOffline(false); return; }
+    if (probe === 'pending') return;
+    probe = 'pending';
+    const src = e.tile?.src;
+    const done = ok => {
+      probe = ok ? 'ok' : 'bad';
+      container.classList.toggle('ms-map--tiles-bad', !ok);
+      if (ok) { tileOk++; setOffline(false); } else setOffline(true);
+    };
+    if (!src || typeof fetch !== 'function') { done(true); return; }
+    fetch(src, { mode: 'cors', cache: 'force-cache', credentials: 'omit', referrerPolicy: 'strict-origin-when-cross-origin' })
+      .then(r => done(r.ok))
+      .catch(() => done(true)); // CORS or network quirk: the <img> loaded, so trust it
+  });
   tiles.addTo(map);
   // If nothing loads at all (blocked silently), treat as offline after a moment.
   const offlineTimer = setTimeout(() => { if (!tileOk) setOffline(true); }, 4000);
@@ -284,7 +320,11 @@ export function createMap(container, { onSelect, onAreaSelect } = {}) {
 
   const ro = new ResizeObserver(() => map.invalidateSize({ pan: false }));
   ro.observe(container);
-  const offTheme = onThemeChange(dark => { tiles.setUrl(dark ? TILE_DARK : TILE_LIGHT); draw(); });
+  const offTheme = onThemeChange(dark => {
+    applyDark(dark);
+    if (darkUrl) tiles.setUrl(urlFor(dark));
+    draw();
+  });
 
   return {
     update(jobs, { fit } = {}) {
@@ -312,7 +352,7 @@ export function createMap(container, { onSelect, onAreaSelect } = {}) {
       offTheme();
       map.remove();
       container.replaceChildren();
-      container.classList.remove('ms-map', 'ms-map--offline');
+      container.classList.remove('ms-map', 'ms-map--offline', 'ms-map--dark', 'ms-map--tiles-bad');
     },
     /** The underlying Leaflet map (escape hatch). */
     get leaflet() { return map; },

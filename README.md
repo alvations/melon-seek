@@ -71,11 +71,24 @@ npm run snapshot -- lever:acme                # custom board as <source>:<board>
 Only live data is ever written; if a fetch fails (or returns 0 jobs) the
 existing snapshot is kept, and demo data never ends up in `data/snapshots/`.
 
-This fetches live data and writes `data/snapshots/<slug>.json`, which is
-committed to the repo so a fresh checkout has real data even without network
-access. The [`snapshot` workflow](.github/workflows/snapshot.yml) runs this
-daily on GitHub Actions (whose runners can reach the boards) and commits any
-changes.
+This fetches live data and writes `data/snapshots/<slug>.json`. The server
+uses these as its offline fallback, and the static build bundles them.
+
+**Snapshots are not committed to git.** `data/snapshots/*.json` is gitignored.
+Real boards are big (one day's set is ~74 MB; `anduril.json` alone is ~38 MB),
+and committing them daily would add that much to the repo's history every day,
+for data that's stale within hours. Instead:
+
+- The [`snapshot` workflow](.github/workflows/snapshot.yml) runs daily on GitHub
+  Actions, whose runners can reach the boards. It uploads `data/snapshots/` as
+  the workflow artifact **`job-board-snapshots`**, kept for 14 days.
+- The [`pages` workflow](.github/workflows/pages.yml) restores the newest
+  artifact, then fetches fresh data. A board that fails during that run keeps
+  its last good snapshot instead of dropping to demo data.
+- A fresh clone has no snapshots and shows demo data (clearly labelled) until
+  you run `npm run snapshot` on a machine with internet access. You can also
+  download a recent artifact:
+  `gh run download --repo alvations/melon-seek --name job-board-snapshots --dir data/snapshots`.
 
 ## Tests
 
@@ -105,9 +118,32 @@ npm run build          # -> dist/
 | `dist/lib/` | Browser copies of `normalize`, `salary`, `geo`, `keywords`, `demo`, `companies` and `sources/*`. |
 | `dist/vendor/leaflet/` | Leaflet. |
 | `dist/api/companies.json` | The built-in companies. |
-| `dist/api/jobs/<slug>.json` | The company's snapshot (`mode: "snapshot"`), or demo data if the build had no snapshot. |
-| `dist/api/demo/<slug>.json` | Demo data (`mode: "demo"`). |
+| `dist/api/jobs/<slug>.json` | The company's job list: its snapshot (`mode: "snapshot"`), or demo data if the build had no snapshot. Descriptions are left out and the list is packed (see below). Each list is kept under 1.5 MB. |
+| `dist/api/desc/<slug>/<id>.json` | One job's `descriptionHtml` (plus its `sections`, if they were moved out of the list), loaded when the job is opened. |
+| `dist/api/demo/<slug>.json` | Demo data (`mode: "demo"`). Only written when the main list is a real snapshot. |
 | `dist/.nojekyll` | Turns off Jekyll processing. |
+
+**Keeping bundles small.** Description HTML is about 90% of a job's bytes; on
+real data, the lists were 7–10 MB for the biggest boards with descriptions
+inline. The build makes three changes:
+
+1. Each description goes in its own `api/desc/...` file. The app calls
+   `getJobDetail(job)` from `public/api.js` when you open a job, so the HTML is
+   fetched once per job you open and then cached.
+2. Lists use a lossless packed format (`melon-packed-1`):
+   - company fields, the id prefix and the shared URL prefix are stored once;
+   - repeated locations, keyword labels and departments become indexes into a
+     shared dictionary.
+
+   `public/api.js` unpacks them back into normal Job objects. The build checks
+   that every job round-trips exactly, and fails if one doesn't.
+3. If a list is still over 1.5 MB, that company's `sections` (the
+   responsibilities/fit bullets) also move into the desc files. Keywords stay in
+   the list, so filters work immediately.
+
+The build prints each company's list size and description total. On real data
+(Oct 2026) every list is under 1.5 MB; the largest is Anduril, with 2,418 jobs
+in 1.3 MB.
 
 In static mode, `public/api.js` runs the fallback chain in the browser:
 
@@ -132,10 +168,12 @@ When a live fetch fails, the bundled snapshot is shown. After a network or CORS
 failure, that source isn't retried for the rest of the session unless you click
 Refresh. Demo fallbacks always show why they're demo data.
 
-The [`pages` workflow](.github/workflows/pages.yml) refreshes the snapshots for
-every built-in company in `server/companies.js` before each build. It runs on
+The [`pages` workflow](.github/workflows/pages.yml) fetches fresh snapshots for
+every built-in company in `server/companies.js` before each build, after first
+restoring the latest `job-board-snapshots` artifact as a fallback. It runs on
 pushes to `main` and `claude/stoic-ride-54ddxp`, on manual dispatch, and
-daily.
+daily. The run's summary page lists each company's mode, job count, list size
+and description size.
 
 Preview locally by serving `dist/` under the same sub-path, so relative URLs
 resolve the way they do on Pages.

@@ -73,8 +73,21 @@ background if tiles can't load.
 
 - **Docker**: `node:22-alpine`, production deps only, runs as `node`, health
   check on `/api/companies`.
-- **CI** (`.github/workflows/ci.yml`): Node 20/22 matrix, `npm test`, and a
-  smoke test that boots the server and checks the API with `jq`.
+- **CI** (`.github/workflows/ci.yml`): Node 20/22 matrix, `npm test`, a check
+  of the static build (`npm run build`), and a smoke test that boots the server
+  and checks the API with `jq`.
 - **Snapshots** (`.github/workflows/snapshot.yml`): daily `npm run snapshot`
-  on GitHub runners; changed `data/snapshots/*.json` are committed by
-  `github-actions[bot]`.
+  on GitHub runners. `data/snapshots/*.json` is uploaded as the 14-day artifact
+  `job-board-snapshots` and **not committed**: one day's real snapshots are
+  ~74 MB, too much to add to git history daily. Locally, `data/snapshots/` is
+  gitignored.
+- **GitHub Pages** (`.github/workflows/pages.yml`):
+  1. Restore the latest snapshot artifact.
+  2. Fetch fresh snapshots.
+  3. Run `npm run build`, which writes packed job lists without descriptions,
+     plus one description file per job, loaded on demand by
+     `public/api.js#getJobDetail`.
+  4. Deploy to `https://alvations.github.io/melon-seek/`.
+
+  In the browser, `public/api.js` runs the live → snapshot → demo fallback
+  chain itself.

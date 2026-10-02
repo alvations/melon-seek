@@ -1,8 +1,11 @@
 name: Deploy to GitHub Pages
 
 # Static build of melon-seek (no server) published to
-# https://alvations.github.io/melon-seek/ . The daily run refreshes the bundled
-# snapshots from the live boards (GitHub runners can reach them).
+# https://alvations.github.io/melon-seek/ . Every run fetches fresh snapshots
+# from the live boards (GitHub runners can reach them). Snapshots are not
+# committed to git; the latest snapshot.yml artifact is restored first, so a
+# board that fails during this run keeps its last good data instead of
+# falling back to demo.
 #
 # One-time repo setup: Settings -> Pages -> Source: "GitHub Actions".
 # To deploy from a non-default branch, also allow it under
@@ -16,6 +19,7 @@ on:
 
 permissions:
   contents: read
+  actions: read # download the latest snapshot.yml artifact
   pages: write
   id-token: write
 
@@ -38,8 +42,26 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Refresh snapshots (best effort; committed snapshots are used if this fails)
+      - name: Restore last snapshots artifact (fallback for boards that fail below)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Newest successful run that still has the artifact (14-day retention).
+          for run_id in $(gh run list --repo "$GITHUB_REPOSITORY" --workflow snapshot.yml --status success \
+                            --limit 5 --json databaseId --jq '.[].databaseId' || true); do
+            if gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --name job-board-snapshots --dir data/snapshots 2>/dev/null; then
+              echo "Restored snapshots from snapshot.yml run $run_id:"; ls -la data/snapshots
+              exit 0
+            fi
+          done
+          echo "::warning::No snapshot artifact found; boards that fail below fall back to demo data."
+
+      - name: Fetch fresh snapshots (best effort; a failed board keeps the restored file)
         run: npm run snapshot || true # no args = every built-in in server/companies.js
+
+      # TODO(vetting): once scripts/vet-salaries.js exists, add a step here that
+      # runs `node scripts/vet-salaries.js` and fails the build on critical
+      # salary anomalies, before anything is bundled.
 
       - name: Build static site
         run: npm run build
@@ -53,12 +75,14 @@ jobs:
             echo "| --- | --- | --- | --- | --- | --- |"
             for f in dist/api/jobs/*.json; do
               slug=$(basename "$f" .json)
-              list_kb=$(( $(stat -c %s "$f") / 1024 ))
+              list_kb=$(( $(stat -c %s "$f") / 1000 ))
               desc_n=$(find "dist/api/desc/$slug" -type f 2>/dev/null | wc -l)
-              desc_kb=$(( $(du -sb "dist/api/desc/$slug" 2>/dev/null | cut -f1 || echo 0) / 1024 ))
+              desc_kb=$(( $(du -sb "dist/api/desc/$slug" 2>/dev/null | cut -f1 || echo 0) / 1000 ))
               jq -r --arg l "$list_kb" --arg n "$desc_n" --arg d "$desc_kb" \
-                '"| \(.company.slug) | \(.mode) | \(.jobs | length) | \($l) KB | \($n) files, \($d) KB | \(.fetchedAt) |"' "$f"
+                '"| \(.company.slug) | \(.mode) | \(.jobs | length) | \($l) kB | \($n) files, \($d) kB | \(.fetchedAt) |"' "$f"
             done
+            echo ""
+            echo "Site total: $(( $(du -sb dist | cut -f1) / 1000000 )) MB (GitHub Pages limit: 1 GB)"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/configure-pages@v6

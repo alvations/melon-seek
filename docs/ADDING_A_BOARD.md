@@ -51,7 +51,7 @@ Then:
 
 ```sh
 npm test
-npm run snapshot -- acme    # optional: commit data/snapshots/acme.json
+npm run snapshot -- acme    # optional: local data/snapshots/acme.json (gitignored)
 ```
 
 Nothing else needs to change. The `snapshot` and `pages` workflows run

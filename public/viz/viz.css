@@ -422,6 +422,10 @@
   font: inherit;
   outline: none;
 }
+/* OSM has no dark layer: invert the tile pane only (never the pins or controls). */
+.ms-map--dark .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9); }
+/* Tiles that "loaded" but are provider error images are hidden; the fallback shows instead. */
+.ms-map--tiles-bad .leaflet-tile-pane { visibility: hidden; }
 .ms-map .ms-graticule-line { stroke: var(--_map-line); stroke-opacity: .55; fill: none; }
 
 /* Leaflet chrome */

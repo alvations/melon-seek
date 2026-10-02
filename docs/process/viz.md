@@ -22,7 +22,7 @@ Files owned: `public/viz/palette.js`, `public/viz/chart.js`, `public/viz/map.js`
   - Dark mode uses its own selected steps. It is not an automatic inversion. Tokens are defined under `@media (prefers-color-scheme: dark)` with a `:root:where(:not([data-theme=light]))` guard, and again under `:root[data-theme=dark]`.
   - Validator: `scripts/validate_palette.js` from the skill.
 - Leaflet 1.9.4 docs (divIcon `html` accepts an HTMLElement; tooltips accept a function as content; `createPane`).
-- CARTO basemap URL pattern and attribution, as given in the prompt.
+- Basemap: originally CARTO, as given in the prompt. It was replaced by OpenStreetMap standard tiles (`https://tile.openstreetmap.org/{z}/{x}/{y}.png`) after CARTO began requiring an API key on the live site. I followed the OSM tile usage policy: attribution stays visible, there is no prefetching, and a valid Referer is sent.
 
 ## 3. Decisions and rationale
 1. **Categorical palette.** The skill's reference palette, used unchanged.
@@ -78,6 +78,17 @@ Files owned: `public/viz/palette.js`, `public/viz/chart.js`, `public/viz/map.js`
     - The CSS already stopped the pin pulse under `prefers-reduced-motion`.
 19. **Annualization note (REVIEW C1, in chart.js).** The tooltip reads `salary.originalInterval`, falling back to a non-year `interval`. It maps hour, day, week and month to hourly, daily, weekly and monthly, which fixes the "dayly" text and the note that never showed.
 
+20. **Basemap is now OSM, and the provider is configurable** (urgent fix: CARTO showed "API key required" on every tile of the live site).
+    - Default: `OSM_TILES` is exported from `map.js` as `{ url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', maxZoom: 19, attribution: '© OpenStreetMap contributors' (linked), dark: 'filter' }`.
+    - Override it with `createMap(container, { tiles: { url, attribution, maxZoom, subdomains, dark: 'filter' | url } })`.
+    - Tile layer options: `referrerPolicy: 'strict-origin-when-cross-origin'` (OSM requires a Referer), `crossOrigin: true` and `keepBuffer: 1`. No prefetching is configured.
+    - **Dark mode:** with `dark: 'filter'`, the class `.ms-map--dark` is toggled on theme change. It applies `filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9)` to `.leaflet-tile-pane` only, so pins, controls and tooltips are never filtered. With `dark: <url>`, the layer swaps URLs with `setUrl` instead.
+    - **Error images:** a provider error can arrive as an image that "loads" with a 4xx status (for example "API key required"). On the first `tileload`, the map re-reads that tile once with `fetch(src, {cache: 'force-cache', mode: 'cors'})` and checks `response.ok`.
+      - If the check fails, the map adds `.ms-map--tiles-bad`, which hides the tile pane, and `.ms-map--offline`, which shows the styled fallback: graticule, place labels and a note.
+      - A fetch or CORS exception counts as OK, because the image did load.
+      - `tileerror` and the 4 s no-tile timer still trigger offline as before.
+    - The CSP in `server/index.js` already allows `https://tile.openstreetmap.org` in `img-src`. I left it unchanged.
+
 ## 4. Replayable steps
 ```sh
 # 0. palette validation (dataviz skill base dir)
@@ -128,9 +139,15 @@ PORT=5288 node docs/process/scripts/viz-a11y-check.mjs /path/to/out
   - Map with Enter: on the focused pin "Singapore, SG: 4 postings, median $111K" (`role=button`), Enter fired `onAreaSelect` and moved straight from zoom 2 to 9. Focus stayed on the same pin after the re-cluster.
   - Map with Space and zoom-out: Space fired it again (zoom 11). After zooming out 2 levels, focus was still on that pin.
   - There were no page errors.
+- Basemap fix: `viz-screenshots.mjs` now records every tile request and answers with a stub. All map shots requested only `https://tile.openstreetmap.org/{z}/{x}/{y}.png` (for example `https://tile.openstreetmap.org/2/1/1.png`); any other host fails the run. Map states:
+  - `map-tiles-ok-light`: 200 stub tile. offline=false, bad=false.
+  - `map-tiles-ok-dark-filter`: 200 stub in dark mode. dark=true. The tile pane is inverted to a dark tone and the pins are unfiltered.
+  - `map-tiles-error-image`: 403 PNG, the error-image case. bad=true and offline=true. Tiles are hidden and the fallback note shows. Chromium fired `tileload` for the 403 image, which confirms that the status probe is needed.
+  - aborted tiles (`map-light-hover`, `map-dark`, `map-light-us`): offline=true, as before.
 
 ## 6. Known gaps and follow-ups
-- Not tested with real tiles: the sandbox blocks the CARTO hosts. Tile switching on theme change uses `setUrl`.
+- Not tested against real OSM tiles, because the sandbox blocks tile hosts. The screenshot script stubs tile responses with 200, 403 and abort, and checks the request URLs instead.
+- The dark basemap is an inverted OSM tile pane. It is legible, but not as polished as a purpose-built dark style. To use one, pass `tiles.dark` as a URL, for example a keyed provider.
 - The chart is not virtualized. Above roughly 3000 jobs, window the rows.
 - In the chart, groupBy location uses only the first on-site location of a multi-location job.
 - FX rates are static and approximate. Update `FX_TO_USD` in `palette.js` if they matter.
@@ -143,3 +160,4 @@ PORT=5288 node docs/process/scripts/viz-a11y-check.mjs /path/to/out
 - 2026-10-02: Changed slot assignment from hash probing to sticky lowest-free-slot after a screenshot showed similar adjacent hues. Dark-mode bar and histogram opacity raised (.5 → .72, .42 → .62) because the bars looked muddy. Cluster footprint enlarged and recomputed when the offline state changes. Narrow-width captions shortened.
 - 2026-10-02: Process docs and the replayable screenshot script added.
 - 2026-10-02: Fixed REVIEW.md M3 (keyboard-activatable pins with focus kept across re-renders, plus pin aria-labels and a focus ring), L4 (listbox groups and options, `aria-selected`, salary in option names, stale `activeIdx` fixed, 3:1 active ring, Home/End/PageUp/PageDown) and L6 (reduced motion for `flyTo` and smooth scroll). Also fixed C1 (annualization note) in chart.js. Added `scripts/viz-a11y-check.mjs` and a `PORT` override in the screenshot script.
+- 2026-10-02 (urgent): Switched the basemap from CARTO (now key-gated, showing "API key required" on the live site) to OSM standard tiles. Added a configurable `tiles` option and exported `OSM_TILES`. Dark mode is now a CSS filter on the tile pane only. Error-image tiles are detected with a one-off cached status probe. The screenshot script now stubs tiles (200, 403, abort) and asserts that only OSM tile URLs are requested.
