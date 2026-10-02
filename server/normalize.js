@@ -95,9 +95,15 @@ export function deriveSalary(raw, locations = []) {
   return salary;
 }
 
-export function normalizeJob(raw, company) {
+export function normalizeJob(raw, company, { boilerplate = null } = {}) {
   const html = raw.html || '';
   const text = raw.text || htmlToText(html);
+  // BUG-5: board boilerplate (About us, scam notice, EEO/visa policy) is left
+  // out of section/keyword extraction; descriptionHtml and extras keep it.
+  const skip = boilerplate && boilerplate.size && html ? boilerplate : null;
+  const kwText = skip && typeof keywordsModule.descriptionText === 'function'
+    ? safe(() => keywordsModule.descriptionText(html, { skip }), text)
+    : text;
   const title = raw.title || 'Untitled role';
   const locations = normalizeLocations(raw);
   const remote = raw.remote === true || locations.some((l) => l && l.remote === true);
@@ -105,9 +111,9 @@ export function normalizeJob(raw, company) {
   const salary = deriveSalary(raw, locations);
 
   const emptySections = { responsibilities: [], fit: [] };
-  const sections = safe(() => extractSections(html), emptySections);
+  const sections = safe(() => extractSections(html, skip ? { skip } : undefined), emptySections);
   const keywords = safe(
-    () => extractKeywords({ title, department: raw.department || null, sections, text }),
+    () => extractKeywords({ title, department: raw.department || null, sections, text: kwText }),
     { responsibilities: [], fit: [], skills: [] },
   );
   const seniority = safe(() => inferSeniority(title), 'Mid');
@@ -137,15 +143,31 @@ export function normalizeJob(raw, company) {
 }
 
 export function normalizeJobs(raws, company) {
-  const out = [];
+  const list = (raws || []).filter(Boolean);
+  // BUG-5 layer 1: paragraphs shared by >= 50% of this board's postings.
+  const bp = keywordsModule.boilerplateParagraphs;
+  const boilerplate = typeof bp === 'function' ? safe(() => bp(list.map((r) => r.html || '')), null) : null;
+  let out = [];
   const ids = new Set();
-  for (const raw of raws || []) {
-    if (!raw) continue;
-    const job = normalizeJob(raw, company);
+  for (const raw of list) {
+    const job = normalizeJob(raw, company, { boilerplate });
     if (ids.has(job.id)) continue;
     ids.add(job.id);
     out.push(job);
   }
+  // BUG-5 layer 2: a keyword on > 90% of the board's jobs (n >= 20) filters nothing.
+  let dropped = null;
+  const guard = keywordsModule.dropUbiquitousKeywords;
+  if (typeof guard === 'function') {
+    const g = safe(() => guard(out), null);
+    if (g) { out = g.jobs; dropped = g.dropped; }
+  }
   // Salary gate: quarantine implausible or outlier pay (docs/VETTING.md).
-  return vetSalaries(out);
+  const vetted = vetSalaries(out);
+  // Per-board diagnostics for meta.droppedKeywords (non-enumerable: JSON and
+  // deepEqual ignore it; callers read jobs.droppedKeywords).
+  if (Array.isArray(vetted) && dropped) {
+    Object.defineProperty(vetted, 'droppedKeywords', { value: dropped, enumerable: false, configurable: true });
+  }
+  return vetted;
 }

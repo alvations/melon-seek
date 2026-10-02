@@ -537,7 +537,7 @@ function renderTopbar() {
   badge.className = `data-badge ${info ? info.cls : ''}`;
   badge.hidden = !info;
   if (info) {
-    badge.replaceChildren(h('span', { class: 'badge-dot', 'aria-hidden': 'true' }), h('span', { class: 'badge-label', 'data-short': info.short || info.label, 'data-tiny': info.tiny || '' }, info.label),
+    badge.replaceChildren(h('span', { class: 'badge-dot', 'aria-hidden': 'true' }), h('span', { class: 'badge-label', 'data-short': info.short || info.label, 'data-tiny': info.tiny || info.short || info.label }, info.label),
       h('span', { class: 'sr-only', id: 'dataBadgeTip' }, info.tip));
     badge.setAttribute('aria-describedby', 'dataBadgeTip');
     badge.title = info.tip;
@@ -567,11 +567,13 @@ function badgeInfo() {
   if (data.status !== 'ready') return null;
   const src = data.company?.source ? `${SOURCE_LABEL[data.company.source] || data.company.source} / ${data.company.board}` : '';
   const when = data.fetchedAt ? ago(data.fetchedAt) : null;
+  // The server already says "Live fetch failed: …"; add that prefix only when it's missing.
+  const failed = data.error ? (/^live fetch (failed|skipped)/i.test(data.error) ? data.error : `Live fetch failed: ${data.error}`) : '';
   if (MOCK) return { label: 'Mock data', short: 'Mock data', tiny: 'Mock', cls: 'is-demo', tip: `Synthetic development data from mock-api.js (?mock=1, localhost only) — not real postings. Simulated mode: ${data.mode}.` };
   switch (data.mode) {
-    case 'live': return { label: 'Live', cls: 'is-live', tip: `Fetched live from ${src}${when ? ` · ${when}` : ''}.` };
-    case 'cache': return { label: when ? `Cached · ${when}` : 'Cached', cls: 'is-cache', tip: `Served from a recent copy of ${src}${data.error ? ` (live fetch failed: ${data.error})` : ''}. Refresh to fetch live.` };
-    case 'snapshot': return { label: data.fetchedAt ? `Snapshot · ${shortDate(data.fetchedAt)}` : 'Snapshot', cls: 'is-snapshot', tip: `Saved snapshot of ${src}${data.fetchedAt ? ` from ${shortDate(data.fetchedAt)}` : ''}${data.error ? `. Live fetch failed: ${data.error}` : ''}.` };
+    case 'live': return { label: 'Live', tiny: 'Live', cls: 'is-live', tip: `Fetched live from ${src}${when ? ` · ${when}` : ''}.` };
+    case 'cache': return { label: when ? `Cached · ${when}` : 'Cached', tiny: 'Cached', cls: 'is-cache', tip: `Served from a recent copy of ${src}${failed ? ` (${failed})` : ''}. Refresh to fetch live.` };
+    case 'snapshot': return { label: data.fetchedAt ? `Snapshot · ${shortDate(data.fetchedAt)}` : 'Snapshot', cls: 'is-snapshot', tip: `Saved snapshot of ${src}${data.fetchedAt ? ` from ${shortDate(data.fetchedAt)}` : ''}${failed ? `. ${failed}` : ''}.` };
     case 'demo': return { label: 'Demo data — live board unreachable', short: 'Demo data', tiny: 'Demo', cls: 'is-demo', tip: `Generated sample data, not real postings.${data.error ? ` Error: ${data.error}` : ''}` };
     default: return { label: String(data.mode), cls: '', tip: src };
   }
@@ -582,7 +584,7 @@ function csvLink() {
   const c = data.company;
   if (MOCK || !c?.slug || isCustomKey(S.c) || data.status !== 'ready') return null;
   const href = api.isStatic?.() ? `data/${encodeURIComponent(c.slug)}.csv` : `api/export?company=${encodeURIComponent(c.slug)}`;
-  return h('p', { class: 'badge-csv' }, h('a', { href, download: `${c.slug}-jobs.csv` }, 'Download CSV'),
+  return h('p', { class: 'badge-csv' }, h('a', { href, download: true }, 'Download CSV'), // the server's Content-Disposition names the file
     h('span', { class: 'muted' }, ' · titles, teams, locations and posted pay; links to the original postings'));
 }
 
@@ -1037,9 +1039,16 @@ function makePosted() {
   const hide = h('input', { type: 'checkbox', onchange: () => set({ ho: hide.checked }) });
   const hideCount = h('span', { class: 'check-count' });
   const hideRow = h('label', { class: 'check' }, hide, h('span', { class: 'check-box', 'aria-hidden': 'true' }), h('span', { class: 'check-label' }, 'Hide roles open 180+ days'), hideCount);
+  const empty = h('p', { class: 'fnote' }, 'Listing dates appear after a few daily runs.');
+  const clear = h('button', { type: 'button', class: 'link-btn', onclick: () => set({ p: 0, ho: false }) }, 'Clear listing filter');
   return {
-    el: h('div', null, list, hideRow),
+    el: h('div', null, list, hideRow, empty, clear),
     sync() {
+      // No job carries an age yet (snapshots predate the history ledger): no options, just a note.
+      const any = data.jobs.some((j) => j._age != null);
+      list.hidden = hideRow.hidden = !any;
+      empty.hidden = any;
+      clear.hidden = any || !(S.p || S.ho);
       for (const [v, input, count] of rows) { input.checked = S.p === v; count.textContent = derived.fc ? derived.fc.p[v] : ''; }
       hide.checked = S.ho;
       hideCount.textContent = derived.fc?.p.old || 0;

@@ -174,7 +174,7 @@ function sentences(text) {
  * Parse job description HTML into bullet lists grouped under headings.
  * Returns { responsibilities: string[], fit: string[] }.
  */
-export function extractSections(html) {
+export function extractSections(html, { skip = null } = {}) {
   const out = { responsibilities: [], fit: [] };
   if (!html) return out;
   const blocks = htmlToBlocks(html);
@@ -185,6 +185,7 @@ export function extractSections(html) {
       current = classifyHeading(b.text);
       continue;
     }
+    if (skip && skip.size && skip.has(blockHash(b.text))) continue;
     if (b.type === 'li' || bulletPara) {
       if (current) {
         const t = cleanBullet(b.text);
@@ -197,7 +198,7 @@ export function extractSections(html) {
 
   if (!out.responsibilities.length && !out.fit.length) {
     // Fallback: prose descriptions — sentences starting "You will"/"You'll".
-    const text = htmlToText(html);
+    const text = skip && skip.size ? descriptionText(html, { skip }) : htmlToText(html);
     for (const s of sentences(text)) {
       if (/^you(?:'|’)?ll\b|^you will\b/i.test(s) && !/^you will (?:need|have)\b/i.test(s)) {
         out.responsibilities.push(cleanBullet(s));
@@ -209,6 +210,125 @@ export function extractSections(html) {
     out.fit = dedupeList(out.fit);
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Board boilerplate (BUG-5): paragraphs and list items repeated on most of a
+// board's postings ("About <company>", scam notices, EEO and visa policy) are
+// excluded from section and keyword extraction. descriptionHtml is untouched.
+// ---------------------------------------------------------------------------
+
+/** Normalized block text used for boilerplate matching. */
+function boilerplateKey(text) {
+  // Block text is already entity-decoded and whitespace-collapsed by htmlToBlocks.
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[’‘]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/\s+/g, ' ')
+    .replace(/[\s.,;:!]+$/, '')
+    .trim();
+}
+
+// cyrb53: small, browser-safe 53-bit string hash (collisions ~1e-6 at 1e5 blocks).
+function cyrb53(str) {
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+
+const blockHash = (text) => cyrb53(boilerplateKey(text));
+const BOILERPLATE_MIN_CHARS = 20; // shorter blocks (headings, "Benefits") are never boilerplate
+
+/**
+ * Hashes of paragraphs / list items that appear on at least `minShare` of a
+ * board's postings. Headings are never included (they structure sections).
+ * Pure and browser-safe. Returns an empty set for boards with < minJobs postings.
+ * @param {string[]} htmlList  one description HTML per posting
+ * @returns {Set<string>}
+ */
+export function boilerplateParagraphs(htmlList, { minShare = 0.5, minJobs = 5 } = {}) {
+  const list = (Array.isArray(htmlList) ? htmlList : []).filter((h) => typeof h === 'string' && h);
+  const out = new Set();
+  if (list.length < minJobs) return out;
+  const counts = new Map();
+  for (const html of list) {
+    const seen = new Set();
+    for (const b of htmlToBlocks(html)) {
+      if (isHeadingBlock(b) && !(b.type === 'p' && BULLET_P_RE.test(b.text))) continue;
+      const key = boilerplateKey(b.text);
+      if (key.length < BOILERPLATE_MIN_CHARS) continue;
+      seen.add(cyrb53(key));
+    }
+    for (const h of seen) counts.set(h, (counts.get(h) || 0) + 1);
+  }
+  const need = Math.max(2, Math.ceil(minShare * list.length));
+  for (const [h, c] of counts) if (c >= need) out.add(h);
+  return out;
+}
+
+/** Plain text of a description without the blocks in `skip` (boilerplate hashes). */
+export function descriptionText(html, { skip = null } = {}) {
+  if (!skip || !skip.size) return htmlToText(html);
+  return htmlToBlocks(html)
+    .filter((b) => isHeadingBlock(b) || !skip.has(blockHash(b.text)))
+    .map((b) => b.text)
+    .join('\n');
+}
+
+/**
+ * Facet guard: drop keyword labels present on more than `maxShare` of a
+ * board's jobs (only when the board has >= minJobs jobs); such a chip cannot
+ * filter anything. Returns new job objects plus what was dropped.
+ * @returns {{ jobs: object[], dropped: { responsibilities: {label,count}[], fit: {label,count}[], skills: {label,count}[] } }}
+ */
+export function dropUbiquitousKeywords(jobs, { maxShare = 0.9, minJobs = 20 } = {}) {
+  const facets = ['responsibilities', 'fit', 'skills'];
+  const dropped = { responsibilities: [], fit: [], skills: [] };
+  const list = Array.isArray(jobs) ? jobs : [];
+  if (list.length < minJobs) return { jobs: list, dropped };
+  const kill = {};
+  for (const f of facets) {
+    const counts = new Map();
+    for (const j of list) for (const l of new Set((j && j.keywords && j.keywords[f]) || [])) counts.set(l, (counts.get(l) || 0) + 1);
+    kill[f] = new Set();
+    for (const [label, count] of counts) {
+      if (count / list.length > maxShare) { kill[f].add(label); dropped[f].push({ label, count }); }
+    }
+    dropped[f].sort((a, b) => b.count - a.count);
+  }
+  if (!facets.some((f) => kill[f].size)) return { jobs: list, dropped };
+  const out = list.map((j) => {
+    if (!j || !j.keywords) return j;
+    const kw = { ...j.keywords };
+    for (const f of facets) if (kill[f].size && Array.isArray(kw[f])) kw[f] = kw[f].filter((l) => !kill[f].has(l));
+    return { ...j, keywords: kw };
+  });
+  return { jobs: out, dropped };
+}
+
+/**
+ * Re-derive sections + keywords for already-normalized jobs of ONE board
+ * (e.g. snapshot or cache data written by older code) with boilerplate removed
+ * and the facet guard applied. descriptionHtml is not modified.
+ */
+export function rekeyBoardJobs(jobs, opts = {}) {
+  const list = Array.isArray(jobs) ? jobs : [];
+  const skip = boilerplateParagraphs(list.map((j) => (j && j.descriptionHtml) || ''), opts);
+  const rekeyed = list.map((j) => {
+    if (!j || typeof j.descriptionHtml !== 'string' || !j.descriptionHtml) return j;
+    const sections = extractSections(j.descriptionHtml, { skip });
+    const keywords = extractKeywords({ title: j.title || '', department: j.department || '', sections, text: descriptionText(j.descriptionHtml, { skip }) });
+    return { ...j, sections, keywords };
+  });
+  return dropUbiquitousKeywords(rekeyed, opts.guard || {});
 }
 
 // ---------------------------------------------------------------------------

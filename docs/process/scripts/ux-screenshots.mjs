@@ -271,6 +271,27 @@ checks.oneUp = await (async () => {
   await shot(p, 'desktop-insights-1up');
   return r;
 })();
+checks.qaFinal = await (async () => {
+  await p.goto('about:blank');
+  await p.goto(`${BASE}/${QS}#c=anthropic`); await ready(p); await p.waitForTimeout(300);
+  const r = await p.evaluate(() => {
+    const sec = [...document.querySelectorAll('#filterBody .fsec')].find((d) => d.querySelector('.fsec-title')?.textContent === 'Listed');
+    const any = !!sec?.querySelector('.radio-list:not([hidden])');
+    const note = [...(sec?.querySelectorAll('.fnote') || [])].find((n) => !n.hidden)?.textContent || null;
+    const tip = document.getElementById('dataBadge').title;
+    return { listedOptionsShown: any, listedNote: note, badgeTip: tip, doubledPrefix: /live fetch failed:.*live fetch failed/i.test(tip) };
+  });
+  await p.click('#dataBadge'); await p.waitForTimeout(200);
+  r.csvDownloadAttr = await p.evaluate(() => document.querySelector('.badge-csv a')?.getAttribute('download') ?? null);
+  await p.keyboard.press('Escape');
+  const mp2 = await page({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  await mp2.goto(`${BASE}/${QS}#c=anthropic`); await ready(mp2); await mp2.waitForTimeout(300);
+  r.mobileBadgeLabel = await mp2.evaluate(() => getComputedStyle(document.querySelector('#dataBadge .badge-label'), '::before').content);
+  r.mobileTopbarRows = await mp2.evaluate(() => { const ys = ['#companyMenuBtn', '#dataBadge', '#search', '#themeBtn'].map((s) => Math.round(document.querySelector(s).getBoundingClientRect().top)); return ys; });
+  await shot(mp2, 'mobile-topbar-badge');
+  await mp2.close();
+  return r;
+})();
 checks.slashFocusesSearch = await (async () => { await p.keyboard.press('/'); return p.evaluate(() => document.activeElement.id === 'search'); })();
 // Description loads lazily (getJobDetail) and is sanitized.
 await p.goto('about:blank');
