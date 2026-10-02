@@ -738,3 +738,4 @@ html[data-mode="map"] .demo-banner { padding: 0; }
   .main { padding: 10px 14px 132px; gap: 8px; }
   .stats-line { flex-wrap: wrap; }
 }
+.desc-skeleton { display: flex; flex-direction: column; gap: 4px; padding: 4px 0; }

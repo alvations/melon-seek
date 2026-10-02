@@ -3,7 +3,10 @@
 export const USER_AGENT = 'melon-seek/0.1 (+https://github.com/; job board visualizer)';
 export const TIMEOUT_MS = 15000;
 
+/** Default body cap: custom (user-supplied) boards. */
 export const MAX_BYTES = 25 * 1024 * 1024;
+/** Body cap for built-in boards (Anduril's list with content is > 25 MB). */
+export const MAX_BYTES_BUILTIN = 120 * 1024 * 1024;
 
 /**
  * Upstream error. `message` is detailed (URL, status, body excerpt) for the
@@ -46,7 +49,9 @@ async function readCapped(res, maxBytes, ctrl, label) {
  * GET JSON with a timeout (covers headers and body), a User-Agent, no
  * redirects (review L2: the host stays the fixed vendor host) and a body cap.
  */
-export async function fetchJson(url, { timeoutMs = TIMEOUT_MS, label = 'source', maxBytes = MAX_BYTES } = {}) {
+export async function fetchJson(url, { timeoutMs, label = 'source', maxBytes } = {}) {
+  if (!(maxBytes > 0)) maxBytes = MAX_BYTES;
+  if (!(timeoutMs > 0)) timeoutMs = TIMEOUT_MS;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   const timedOut = () => new UpstreamError(`${label}: request timed out after ${timeoutMs / 1000}s (${url})`, { code: 'timeout' });

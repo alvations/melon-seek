@@ -153,5 +153,9 @@ sites were blocked, so none of these is confirmed from the company side.
 | Palantir | Defence software | Lever | `palantir` | Posting API URLs under `api.lever.co/v0/postings/palantir/…`. Apply links under `jobs.lever.co/palantir/…` (2026-06-29) | [api.lever.co/v0/postings/palantir/d1ac83d0-…](https://api.lever.co/v0/postings/palantir/d1ac83d0-e923-42a5-8e6d-58dd0cab25ca), [tracker](https://github.com/SuryaHarikrishnan/2027-internship-tracker/blob/e7d3b93c64cefaeeb3d4ab5fa60486f2203d4f39/listings/software-engineering.md) |
 | Shield AI | Defence autonomy | Lever | `shieldai` | Job page on the board | [jobs.lever.co/shieldai/e3125c80-…](https://jobs.lever.co/shieldai/e3125c80-58a6-42ad-a1ae-341f5795f9e3) |
 
-Also confirmed but left out to stay within five: Mistral AI on Lever as `mistral`
-([jobs.lever.co/mistral/5ee49b30-…](https://jobs.lever.co/mistral/5ee49b30-7757-4e24-aa54-080265ce1d15)).
+### Could not confirm
+
+- **Mistral AI, Lever `mistral`**: a job page existed
+  ([jobs.lever.co/mistral/5ee49b30-…](https://jobs.lever.co/mistral/5ee49b30-7757-4e24-aa54-080265ce1d15)),
+  but the first real-data snapshot run on GitHub Actions (2026-10-02) got **0 jobs** from
+  `api.lever.co/v0/postings/mistral`. The slug is probably stale, so Mistral was removed from the built-ins.

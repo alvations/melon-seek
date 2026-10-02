@@ -6,8 +6,8 @@ export function ashbyUrl(board) {
   return `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(board)}?includeCompensation=true`;
 }
 
-export async function fetchAshby(board) {
-  const data = await fetchJson(ashbyUrl(board), { label: `ashby/${board}` });
+export async function fetchAshby(board, { maxBytes, timeoutMs } = {}) {
+  const data = await fetchJson(ashbyUrl(board), { label: `ashby/${board}`, maxBytes, timeoutMs });
   if (!data || !Array.isArray(data.jobs)) throw new UpstreamError(`ashby/${board}: unexpected response (no jobs array)`, { code: 'bad_shape' });
   return data.jobs.filter((j) => j && j.isListed !== false).map(mapAshbyJob);
 }

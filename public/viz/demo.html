@@ -27,7 +27,8 @@
 <header>
   <b>melon-seek viz harness</b>
   <label>Mode <select id="mode"><option value="chart">Chart</option><option value="map">Map</option></select></label>
-  <label>Group <select id="groupBy"><option>none</option><option>department</option><option>location</option><option>seniority</option></select></label>
+  <label>View <select id="view"><option value="clusters">Clusters</option><option value="ranges">Ranges</option></select></label>
+  <label>Group <select id="groupBy"><option value="">default</option><option>none</option><option>department</option><option>location</option><option>seniority</option></select></label>
   <label>Color <select id="colorBy"><option>none</option><option>department</option><option>location</option><option>seniority</option></select></label>
   <label>Jobs <select id="n"><option>40</option><option selected>240</option><option>1000</option></select></label>
   <label>Min $ <select id="minSal"><option value="0">any</option><option value="200000">200K+</option><option value="300000">300K+</option></select></label>
@@ -41,7 +42,7 @@
 </main>
 <script src="/vendor/leaflet/leaflet.js"></script>
 <script type="module">
-import { createChart } from './chart.js';
+import { createChart, VIEWS } from './chart.js';
 import { createMap } from './map.js';
 
 // ---- deterministic fake jobs (demo data, not real postings) ----
@@ -114,9 +115,14 @@ function makeJobs(n, company = 'demo') {
 // ---- harness ----
 const q = new URLSearchParams(location.search);
 const $ = id => document.getElementById(id);
-for (const k of ['mode', 'groupBy', 'colorBy', 'n', 'theme', 'minSal']) if (q.has(k)) $(k).value = q.get(k);
+for (const k of ['mode', 'view', 'groupBy', 'colorBy', 'n', 'theme', 'minSal']) if (q.has(k)) $(k).value = q.get(k);
 const log = msg => { const d = document.createElement('div'); d.textContent = msg; $('log').prepend(d); };
-const chart = createChart($('chartBox'), { onSelect: j => log(`select: ${j.title}`), onHover: j => j && ($('log').dataset.hover = j.id) });
+const chart = createChart($('chartBox'), {
+  onSelect: j => log(`select: ${j.title}`),
+  onHover: j => j && ($('log').dataset.hover = j.id),
+  onClusterSelect: (js, label) => log(`cluster: ${label} (${js.length})`),
+});
+console.assert(VIEWS.includes($('view').value));
 let map = null;
 let all = [];
 let current = [];
@@ -124,7 +130,7 @@ let current = [];
 function apply({ fit } = {}) {
   const min = +$('minSal').value;
   current = all.filter(j => !min || (j.salary && j.salary.max >= min));
-  chart.update(current, { groupBy: $('groupBy').value, colorBy: $('colorBy').value });
+  chart.update(current, { view: $('view').value, groupBy: $('groupBy').value || undefined, colorBy: $('colorBy').value });
   if (map) map.update(current, { fit });
 }
 function setMode() {
@@ -140,7 +146,7 @@ function setTheme() { const t = $('theme').value; if (t) document.documentElemen
 function load() { all = makeJobs(+$('n').value); apply({ fit: true }); }
 
 $('mode').onchange = setMode;
-$('groupBy').onchange = $('colorBy').onchange = $('minSal').onchange = () => apply();
+$('view').onchange = $('groupBy').onchange = $('colorBy').onchange = $('minSal').onchange = () => apply();
 $('n').onchange = load;
 $('theme').onchange = setTheme;
 $('hl').onclick = () => { const j = current.filter(j => j.salary && !j.remote)[Math.floor(Math.random() * current.length / 2)]; if (j) { chart.highlight(j.id); map?.highlight(j.id); log(`highlight: ${j.title}`); } };

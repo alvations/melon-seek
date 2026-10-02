@@ -61,7 +61,7 @@ test('GET /api/companies', { skip: skipReason }, async () => {
   assert.equal(res.status, 200);
   assert.match(res.headers.get('content-type'), /application\/json/);
   const list = await res.json();
-  assert.deepEqual(list.map((c) => c.slug), ['anthropic', 'anduril', 'openai', 'scaleai', 'xai', 'cohere', 'palantir', 'shieldai', 'mistral']);
+  assert.deepEqual(list.map((c) => c.slug), ['anthropic', 'anduril', 'openai', 'scaleai', 'xai', 'cohere', 'palantir', 'shieldai']);
   for (const c of list) for (const k of ['slug', 'name', 'source', 'board', 'color']) assert.ok(c[k], `${c.slug}.${k}`);
 });
 
@@ -263,7 +263,7 @@ test('request-target parsing: "//api/..." is a path, not an authority', { skip: 
   });
   let r = await raw('//api/companies');
   assert.equal(r.status, 200);
-  assert.equal(JSON.parse(r.body).length, 9);
+  assert.equal(JSON.parse(r.body).length, 8);
   r = await raw('///api/companies');
   assert.equal(r.status, 200);
   r = await raw('http://evil.example/api/companies');
@@ -306,4 +306,55 @@ test('upstream fetches are limited to MAX_UPSTREAM concurrent', { skip: skipReas
   const results = await Promise.all(Array.from({ length: 12 }, task));
   assert.equal(results.length, 12);
   assert.equal(peak, mod.MAX_UPSTREAM);
+});
+
+test('upstream body cap: 120 MB for built-ins, 25 MB for custom boards, per-company override', { skip: skipReason }, async () => {
+  const { MAX_BYTES, MAX_BYTES_BUILTIN } = await import('../server/sources/util.js');
+  const { resolveCompany } = await import('../server/companies.js');
+  assert.equal(MAX_BYTES, 25 * 1024 * 1024);
+  assert.equal(MAX_BYTES_BUILTIN, 120 * 1024 * 1024);
+  const builtin = resolveCompany({ company: 'anduril' });
+  const custom = resolveCompany({ source: 'greenhouse', board: 'acme' });
+  assert.equal(mod.maxBytesFor(builtin), MAX_BYTES_BUILTIN);
+  assert.equal(mod.maxBytesFor(custom), MAX_BYTES);
+  assert.equal(mod.maxBytesFor({ ...builtin, maxBytes: 5 }), 5);
+
+  // The cap reaches each adapter (stubbed), per source.
+  const orig = { ...mod.ADAPTERS };
+  const seen = {};
+  try {
+    for (const src of ['greenhouse', 'ashby', 'lever']) mod.ADAPTERS[src] = async (board, opts) => { seen[`${src}/${board}`] = opts; return []; };
+    await mod.fetchLive(builtin);
+    await mod.fetchLive(resolveCompany({ company: 'openai' }));
+    await mod.fetchLive(resolveCompany({ source: 'lever', board: 'acme' }));
+  } finally {
+    Object.assign(mod.ADAPTERS, orig);
+  }
+  assert.equal(seen['greenhouse/andurilindustries'].maxBytes, MAX_BYTES_BUILTIN);
+  assert.equal(seen['greenhouse/andurilindustries'].timeoutMs, mod.BUILTIN_TIMEOUT_MS);
+  assert.equal(seen['ashby/openai'].maxBytes, MAX_BYTES_BUILTIN);
+  assert.equal(seen['lever/acme'].maxBytes, MAX_BYTES);
+  assert.equal(seen['lever/acme'].timeoutMs, undefined, 'custom boards keep the 15 s default');
+
+  // Real adapter + fetchJson: a body over the company's cap is rejected, under it is accepted.
+  const lever = resolveCompany({ source: 'lever', board: 'example' });
+  await assert.rejects(mod.fetchLive({ ...lever, maxBytes: 1000 }), (e) => e.code === 'too_large');
+  assert.equal((await mod.fetchLive(lever)).length, 2);
+});
+
+test('a body between 25 MB and 120 MB fails for custom boards and passes for built-ins', { skip: skipReason }, async () => {
+  const { fetchJson } = await import('../server/sources/util.js');
+  const size = 26 * 1024 * 1024;
+  const chunk = new Uint8Array(1024 * 1024).fill(0x20); // spaces: valid JSON whitespace
+  const big = () => new Response(new ReadableStream({
+    start(c) { for (let i = 0; i < size / chunk.length; i++) c.enqueue(chunk); c.enqueue(new TextEncoder().encode('{"jobs":[]}')); c.close(); },
+  }), { status: 200 });
+  const saved = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => big();
+    await assert.rejects(fetchJson('https://boards-api.greenhouse.io/x', { label: 'custom', maxBytes: mod.maxBytesFor({ custom: true }) }), (e) => e.code === 'too_large');
+    assert.deepEqual(await fetchJson('https://boards-api.greenhouse.io/x', { label: 'builtin', maxBytes: mod.maxBytesFor({ custom: false }) }), { jobs: [] });
+  } finally {
+    globalThis.fetch = saved;
+  }
 });

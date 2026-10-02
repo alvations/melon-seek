@@ -19,6 +19,8 @@ export function assertEq(actual, expected, msg) {
   }
 }
 
+export const playwrightInfo = { path: null };
+
 /** Resolve the `playwright` package (repo node_modules, NODE_PATH, or $PLAYWRIGHT_MODULE). */
 export async function loadPlaywright() {
   const candidates = [];
@@ -30,7 +32,7 @@ export async function loadPlaywright() {
       const resolved = req.resolve(c, { paths: [ROOT, ...(process.env.NODE_PATH || '').split(path.delimiter).filter(Boolean)] });
       const mod = await import(pathToFileURL(resolved).href);
       const pw = mod.chromium ? mod : mod.default;
-      if (pw && pw.chromium) return pw;
+      if (pw && pw.chromium) { playwrightInfo.path = resolved; return pw; }
     } catch { /* try next */ }
   }
   return null;

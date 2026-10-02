@@ -143,13 +143,14 @@ test('lever adapter combines lists and maps salaryRange', async () => {
 
 test('companies registry and resolveCompany', () => {
   const slugs = listCompanies().map((c) => c.slug);
-  assert.deepEqual(slugs, ['anthropic', 'anduril', 'openai', 'scaleai', 'xai', 'cohere', 'palantir', 'shieldai', 'mistral']);
+  assert.deepEqual(slugs, ['anthropic', 'anduril', 'openai', 'scaleai', 'xai', 'cohere', 'palantir', 'shieldai']);
   for (const c of listCompanies()) {
     assert.match(c.color, /^#[0-9a-f]{6}$/i, `${c.slug} color`);
     assert.ok(['greenhouse', 'ashby', 'lever'].includes(c.source));
   }
-  assert.deepEqual(['scaleai', 'xai', 'cohere', 'palantir', 'shieldai', 'mistral'].map((s) => { const c = resolveCompany({ company: s }); return `${c.source}/${c.board}`; }),
-    ['greenhouse/scaleai', 'greenhouse/xai', 'ashby/cohere', 'lever/palantir', 'lever/shieldai', 'lever/mistral']);
+  assert.deepEqual(['scaleai', 'xai', 'cohere', 'palantir', 'shieldai'].map((s) => { const c = resolveCompany({ company: s }); return `${c.source}/${c.board}`; }),
+    ['greenhouse/scaleai', 'greenhouse/xai', 'ashby/cohere', 'lever/palantir', 'lever/shieldai']);
+  assert.throws(() => resolveCompany({ company: 'mistral' }), (e) => e.status === 404, 'mistral removed (0 jobs live)');
   assert.equal(resolveCompany({ source: 'lever', board: 'palantir' }).slug, 'palantir');
   assert.equal(resolveCompany({ company: 'anduril' }).board, 'andurilindustries');
   assert.equal(resolveCompany(new URLSearchParams('company=openai')).source, 'ashby');
@@ -258,6 +259,15 @@ test('browser-bundled modules use no Node-only APIs', () => {
     const code = fs.readFileSync(path.join(root, f), 'utf8').replace(/^\s*\/\/.*$/gm, '');
     assert.ok(!/\bfrom\s+['"]node:|\bimport\s*\(\s*['"]node:|\brequire\s*\(/.test(code), `${f}: node import`);
     assert.ok(!/(?<![.?\w])(process\.|Buffer\b|__dirname)/.test(code), `${f}: node global`);
+  }
+});
+
+test('adapters pass a per-call body cap to fetchJson', async () => {
+  for (const [fn, file] of [[fetchGreenhouse, 'greenhouse-jobs.json'], [fetchAshby, 'ashby-board.json'], [fetchLever, 'lever-postings.json']]) {
+    mockFetch(() => jsonResponse(fixture(file)));
+    await assert.rejects(fn('x', { maxBytes: 500 }), (e) => e.code === 'too_large', `${fn.name} honours maxBytes`);
+    mockFetch(() => jsonResponse(fixture(file)));
+    assert.ok((await fn('x', { maxBytes: 10 * 1024 * 1024 })).length > 0, `${fn.name} under the cap`);
   }
 });
 

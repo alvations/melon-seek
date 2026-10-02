@@ -6,13 +6,13 @@
 import { colorFor, formatMoney, resetColors, assignColors, otherColor, toUSD, SLOT_COUNT } from './viz/palette.js';
 import { createChart, keyOf } from './viz/chart.js';
 import { createMap } from './viz/map.js';
-import { getCompanies, getJobs } from './api.js';
+import * as api from './api.js'; // getCompanies, getJobs, getJobDetail (namespace import: tolerate a missing optional export)
 
 // ?mock=1 swaps the data layer for a local generator. Development only: it is
 // honoured on localhost only, and the UI always labels it "Mock data".
 const MOCK = new URLSearchParams(location.search).has('mock') &&
   ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
-const dataApi = MOCK ? await import('./mock-api.js') : { getCompanies, getJobs };
+const dataApi = MOCK ? await import('./mock-api.js') : api;
 
 /* ------------------------------------------------------------------ utils */
 
@@ -1395,9 +1395,9 @@ function drawerContent(job) {
     }, k)))) : null));
   const bullets = (title, arr) => (arr?.length ? h('section', { class: 'd-sec' }, h('h3', null, title), h('ul', { class: 'bullets' }, ...arr.map((b) => h('li', null, b)))) : null);
   const desc = h('div', { class: 'desc' });
-  desc.append(sanitizeHtml(job.descriptionHtml || '', job.url));
   const descWrap = h('section', { class: 'd-sec d-desc is-collapsed' }, h('h3', null, 'Full description'), desc);
-  const descToggle = h('button', { type: 'button', class: 'link-btn', 'aria-expanded': 'false', onclick: (e) => {
+  fillDescription(job, desc, descWrap);
+  const descToggle = h('button', { type: 'button', class: 'link-btn d-desc-toggle', 'aria-expanded': 'false', onclick: (e) => {
     const c = descWrap.classList.toggle('is-collapsed');
     e.currentTarget.textContent = c ? 'Read full description' : 'Show less';
     e.currentTarget.setAttribute('aria-expanded', String(!c));
@@ -1443,7 +1443,44 @@ function drawerContent(job) {
     kwCat.some(Boolean) ? h('section', { class: 'd-sec' }, h('h3', null, 'Keywords ', h('span', { class: 'muted small' }, 'click to filter')), ...kwCat) : null,
     bullets('What you\u2019ll do', job.sections.responsibilities),
     bullets('What they look for', job.sections.fit),
-    job.descriptionHtml ? descWrap : null), foot];
+    descWrap), foot];
+}
+
+/**
+ * Static deploys omit descriptionHtml from the list payload; fetch it on demand
+ * with api.getJobDetail(job) and swap the skeleton out when it arrives.
+ */
+function fillDescription(job, desc, wrap) {
+  const toggle = () => wrap.querySelector('.d-desc-toggle');
+  const show = (html) => {
+    desc.replaceChildren(sanitizeHtml(html, job.url));
+    if (!desc.textContent.trim()) { wrap.hidden = true; return; }
+    wrap.hidden = false;
+    if (toggle()) toggle().hidden = false;
+  };
+  if (job.descriptionHtml) { show(job.descriptionHtml); return; }
+  if (typeof dataApi.getJobDetail !== 'function') { wrap.hidden = true; return; }
+  wrap.classList.remove('is-collapsed');
+  desc.replaceChildren(h('div', { class: 'desc-skeleton', role: 'status', 'aria-label': 'Loading description' },
+    ...[92, 80, 86, 60, 74].map((w) => h('div', { class: 'sk sk-line', style: `width:${w}%` }))));
+  queueMicrotask(() => { if (toggle()) toggle().hidden = true; });
+  Promise.resolve(dataApi.getJobDetail(job)).then((detail) => {
+    const html = detail?.descriptionHtml || '';
+    job.descriptionHtml = html;
+    if (detail?.sections) for (const k of ['responsibilities', 'fit']) if (!job.sections[k]?.length && detail.sections[k]?.length) job.sections[k] = detail.sections[k];
+    if (!desc.isConnected) return;
+    wrap.classList.add('is-collapsed');
+    if (html) show(html);
+    else desc.replaceChildren(h('p', { class: 'muted' }, 'No description on this posting. ', postingLink(job)));
+  }).catch((err) => {
+    console.warn('getJobDetail failed', err);
+    if (!desc.isConnected) return;
+    desc.replaceChildren(h('p', { class: 'muted' }, 'Couldn\u2019t load the full description. ', postingLink(job)));
+  });
+}
+
+function postingLink(job) {
+  return h('a', { href: job.url, target: '_blank', rel: 'noopener noreferrer' }, 'View the full posting');
 }
 
 function copyLink() {

@@ -85,9 +85,21 @@
 .ms-legend__key { overflow: hidden; text-overflow: ellipsis; color: var(--_text); }
 .ms-legend__n { color: var(--_muted); font-variant-numeric: tabular-nums; }
 
-.ms-chart__notes { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; color: var(--_muted); }
-.ms-note--strong { color: var(--_text); font-weight: 600; }
-.ms-note__sep { color: var(--_axis); }
+.ms-chart__head[hidden] { display: none; }
+
+/* One muted notes line under the chart. */
+.ms-chart__foot {
+  flex: none;
+  padding: 8px 16px 10px;
+  border-top: 1px solid var(--_border);
+  color: var(--_muted);
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ms-chart__foot[hidden] { display: none; }
+.ms-chart--narrow .ms-chart__foot { white-space: normal; padding-left: 12px; padding-right: 12px; }
 
 .ms-chart__scroll {
   position: relative;
@@ -110,9 +122,10 @@
 
 .ms-chart__hist { position: relative; }
 .ms-hist__cap {
-  position: absolute; left: 0; bottom: 4px;
+  position: absolute; left: 0; bottom: 3px;
   padding-left: 16px;
   line-height: 1.25;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .ms-hist__title { color: var(--_muted); }
 .ms-hist__sub { color: var(--_text); font-weight: 600; }
@@ -244,7 +257,6 @@
 
 .ms-chart--narrow .ms-row__label, .ms-chart--narrow .ms-group__name,
 .ms-chart--narrow .ms-axis__cap, .ms-chart--narrow .ms-hist__cap { padding-left: 12px; }
-.ms-chart--narrow .ms-hist__title { display: none; }
 .ms-chart--narrow .ms-chart__head { padding-left: 12px; padding-right: 12px; }
 
 .ms-chart__empty {
@@ -257,11 +269,109 @@
 .ms-chart__empty-title { font-size: 14px; font-weight: 600; }
 .ms-chart__empty-sub { color: var(--_muted); }
 
+/* ---------- clusters view ---------- */
+.ms-chart--clusters .ms-chart__sticky { border-bottom-color: var(--_grid); }
+.ms-chart--clusters .ms-hist__bin { opacity: var(--_hist-o-c, .26); }
+.ms-chart--clusters .ms-hist__bin.is-hover { opacity: .7; }
+.ms-chart--clusters .ms-chart__body { padding-bottom: 4px; }
+
+.ms-crow {
+  --c: var(--_accent);
+  --c-ink: #fff;
+  position: relative;
+  border-bottom: 1px solid var(--_grid);
+}
+.ms-crow:last-child { border-bottom: 0; }
+.ms-crow.is-selected { background: color-mix(in srgb, var(--c) 6%, transparent); }
+
+.ms-crow__label {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 12px 0 16px;
+  min-width: 0;
+  cursor: pointer;
+  border-radius: 6px;
+  outline: none;
+}
+.ms-crow__swatch {
+  flex: none;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--c);
+}
+.ms-crow__text { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.ms-crow__name {
+  font-size: 13px; font-weight: 600; color: var(--_text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ms-crow__sub {
+  color: var(--_muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ms-crow__label:hover .ms-crow__name { text-decoration: underline; text-decoration-color: var(--_axis); text-underline-offset: 3px; }
+.ms-crow.is-selected .ms-crow__name { text-decoration: underline; text-decoration-color: var(--c); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.ms-crow__label.is-active { box-shadow: inset 0 0 0 2px var(--_accent); }
+
+.ms-chart--narrow .ms-crow__label {
+  right: 0; bottom: auto; height: 22px;
+  padding: 0 12px; gap: 8px;
+  align-items: flex-end;
+}
+.ms-chart--narrow .ms-crow__text { flex-direction: row; align-items: baseline; gap: 8px; }
+
+.ms-crow__plot { position: absolute; left: 0; right: 0; }
+.ms-crow__band {
+  position: absolute; top: 50%;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--c) var(--_band-mix, 9%), var(--_surface));
+}
+.ms-crow__median {
+  position: absolute; top: 50%;
+  width: 2px; margin-left: -1px;
+  border-radius: 1px;
+  background: var(--_text);
+  opacity: .38;
+  pointer-events: none;
+}
+.ms-crow__none {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  color: var(--_muted);
+  font-style: italic;
+}
+
+.ms-bin {
+  position: absolute; top: 50%;
+  display: flex; align-items: center; justify-content: center;
+  transform: translateY(-50%);
+  cursor: pointer;
+  outline: none;
+}
+.ms-bin__dot {
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--c) var(--_bin-mix, 30%), var(--_surface));
+  box-shadow: 0 0 0 2px var(--_surface);
+  color: var(--_text);
+  font-size: 11px; font-weight: 600; line-height: 1;
+  font-variant-numeric: tabular-nums;
+  transition: background-color .12s, color .12s, transform .12s;
+}
+.ms-bin__dot--sm { font-size: 10px; }
+.ms-bin.is-hover .ms-bin__dot,
+.ms-bin.is-selected .ms-bin__dot,
+.ms-bin.is-highlighted .ms-bin__dot { background: var(--c); color: var(--c-ink); }
+.ms-bin.is-hover .ms-bin__dot { transform: scale(1.06); }
+.ms-bin.is-selected .ms-bin__dot { box-shadow: 0 0 0 2px var(--_surface), 0 0 0 3.5px var(--c); }
+.ms-bin.is-highlighted .ms-bin__dot { box-shadow: 0 0 0 2px var(--_surface), 0 0 0 4px var(--_text); }
+.ms-bin.is-active .ms-bin__dot { box-shadow: 0 0 0 2px var(--_surface), 0 0 0 4px var(--_accent); }
+@media (prefers-reduced-motion: reduce) { .ms-bin__dot { transition: none; } .ms-bin.is-hover .ms-bin__dot { transform: none; } }
+
 /* Dark surface: translucent fills go muddy, so lift the range bars. */
 @media (prefers-color-scheme: dark) {
-  :root:where(:not([data-theme="light"])) .ms-chart { --_bar-o: .72; --_hist-o: .62; }
+  :root:where(:not([data-theme="light"])) .ms-chart { --_bar-o: .72; --_hist-o: .62; --_hist-o-c: .42; --_bin-mix: 40%; --_band-mix: 14%; }
 }
-:root[data-theme="dark"] .ms-chart { --_bar-o: .72; --_hist-o: .62; }
+:root[data-theme="dark"] .ms-chart { --_bar-o: .72; --_hist-o: .62; --_hist-o-c: .42; --_bin-mix: 40%; --_band-mix: 14%; }
 
 /* ============================== tooltip ============================== */
 

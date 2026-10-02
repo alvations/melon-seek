@@ -11,6 +11,7 @@ import { listCompanies, resolveCompany, defaultName } from './companies.js';
 import { fetchGreenhouse } from './sources/greenhouse.js';
 import { fetchAshby } from './sources/ashby.js';
 import { fetchLever } from './sources/lever.js';
+import { MAX_BYTES, MAX_BYTES_BUILTIN } from './sources/util.js';
 import { normalizeJobs } from './normalize.js';
 import { getCached, setCached, ROOT } from './cache.js';
 import { demoJobs } from './demo.js';
@@ -103,11 +104,20 @@ export function publicError(err) {
   return 'Live fetch failed: upstream error';
 }
 
+/** Built-in boards can be tens of MB, so they get a longer timeout than custom boards (15 s). */
+export const BUILTIN_TIMEOUT_MS = 45_000;
+
+/** Upstream body cap: per-company override, else 120 MB for built-ins and 25 MB for custom boards. */
+export function maxBytesFor(company) {
+  if (company && company.maxBytes > 0) return company.maxBytes;
+  return company && company.custom ? MAX_BYTES : MAX_BYTES_BUILTIN;
+}
+
 /** Fetch live jobs for a company and normalize them (detailed errors; used by the snapshot CLI). */
 export async function fetchLive(company) {
   const adapter = ADAPTERS[company.source];
   if (!adapter) throw new Error(`No adapter for source "${company.source}"`);
-  const raws = await adapter(company.board);
+  const raws = await adapter(company.board, { maxBytes: maxBytesFor(company), timeoutMs: company.custom ? undefined : BUILTIN_TIMEOUT_MS });
   return normalizeJobs(raws, company);
 }
 

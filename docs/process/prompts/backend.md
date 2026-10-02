@@ -31,3 +31,9 @@ Network note: external job-board hosts are BLOCKED in this sandbox; do not try t
 > 1. Greenhouse `pay_input_ranges` items are `{min_cents, max_cents, currency_type, title, blurb}` with no interval field. Make sure greenhouse.js turns them into a structured salary (cents ÷ 100, currency from currency_type, interval "year" unless the title or blurb says hourly), keeps the `pay_transparency=true` flag on the list URL, and still falls back to parsing the text. When there are several ranges (e.g. per location tier), use the overall min and max, or the first range, and note which in backend.md. Add a fixture test for it.
 > 2. Add these confirmed built-ins to server/companies.js: Scale AI (greenhouse/scaleai), xAI (greenhouse/xai), Cohere (ashby/cohere), Palantir (lever/palantir), Shield AI (lever/shieldai), Mistral AI (lever/mistral), each with a reasonable brand color. demoJobs will use its generic catalog for them, which is fine.
 > Note both in docs/process/backend.md, then report back.
+
+> Results from the first real-data run on GitHub Actions (the snapshot step in the Pages workflow), which you can't see from here:
+> - Worked: anthropic 638 jobs (558 with salary), openai 833 (674), scaleai 194 (131), xai 297 (134), cohere 132 (132), palantir 320 (240), shieldai 581 (456).
+> - `✗ anduril: greenhouse/andurilindustries: response exceeded 26214400 bytes`. Raise the body cap for built-in boards (e.g. 120 MB) and keep 25 MB for custom boards, or make it configurable per company.
+> - `✗ mistral: live fetch returned 0 jobs`. Remove Mistral from the built-ins (the Lever slug is likely stale), and note it in DATA_SOURCES.md's "could not confirm" section and in backend.md.
+> Also add a test for the per-source body cap. Then report back.

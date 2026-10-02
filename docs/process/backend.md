@@ -129,9 +129,15 @@ Files owned: `server/index.js`, `server/companies.js`, `server/sources/{greenhou
     10k–5M annual bounds.
 11. **More built-ins** (confirmed in docs/DATA_SOURCES.md §4): Scale AI `greenhouse/scaleai` #6e3cf2,
     xAI `greenhouse/xai` #3b3b3b, Cohere `ashby/cohere` #39594d, Palantir `lever/palantir` #101113,
-    Shield AI `lever/shieldai` #1c6dd0, Mistral AI `lever/mistral` #fa520f. Colours are approximate brand colours.
-    demo.js serves its generic catalog for these.
-12. **snapshot script.** `npm run snapshot -- anthropic anduril openai` runs the given slugs; with no args it runs
+    Shield AI `lever/shieldai` #1c6dd0. Colours are approximate brand colours.
+    demo.js serves its generic catalog for these. Mistral AI (`lever/mistral`) was added and then removed: the
+    first real-data run returned 0 jobs, so the slug is probably stale. See DATA_SOURCES.md "Could not confirm".
+12. **Body cap and timeout per company.** The first real-data run failed for Anduril with "response exceeded
+    26214400 bytes". `maxBytesFor(company)` now returns the company's own `maxBytes` if set, else **120 MB for
+    built-ins** (`MAX_BYTES_BUILTIN`) and **25 MB for custom boards** (`MAX_BYTES`). Adapters take
+    `(board, { maxBytes, timeoutMs })`. Built-ins also get a 45 s timeout (`BUILTIN_TIMEOUT_MS`), because a body
+    that large may not finish within 15 s; custom boards keep 15 s.
+13. **snapshot script.** `npm run snapshot -- anthropic anduril openai` runs the given slugs; with no args it runs
    every built-in. A `source:board` argument selects a custom board. It writes only live results; a failed or
    empty fetch is logged and skipped, so it never writes demo data. It exits 1 only if every slug failed.
 
@@ -164,12 +170,19 @@ treated as a file. The `npm test` script is now `node --test test/*.test.js`.
   a 500 body without details (the details reach the log); a concurrency peak of 4 for 12 tasks; slug edge cases;
   `redirect: 'error'`; the body cap (content-length and streamed); typed errors; UTF-8 split across chunks;
   LRU eviction in memory and on disk; no Node APIs in the browser-bundled modules; pay_input_ranges tiers,
-  hourly, empty with text fallback, and mixed currency; 9 built-ins.
+  hourly, empty with text fallback, and mixed currency; built-in list (9 at the time, now 8).
 - `node scripts/e2e.js --api-only`: 8/8. Full e2e with CSP on (`NODE_PATH=$(npm root -g) node scripts/e2e.js`):
   18/21. The 3 failures (map pin area chip, salary-min filter cards, mobile Map button) are identical with the
   CSP header removed, tested in a scratch copy, so they are frontend issues, not caused by these changes. The
   "no console errors" UI check passes with the CSP on, so there are no CSP violations.
-- Demo fallback works for all 9 built-ins (offline `getJobs`): 74–120 jobs each.
+- First real-data run (GitHub Actions snapshot step, reported by the coordinator): anthropic 638 jobs (558 with
+  salary), openai 833 (674), scaleai 194 (131), xai 297 (134), cohere 132 (132), palantir 320 (240),
+  shieldai 581 (456). anduril failed on the 25 MB cap, which is now fixed (decision 12). mistral returned 0 jobs and was removed.
+- Body-cap tests: `maxBytesFor` values; each adapter honours `maxBytes`; `fetchLive` passes 120 MB and 45 s to
+  built-in adapters and 25 MB and the default timeout to custom ones; a per-company override rejects the Lever
+  fixture; a streamed 26 MB body fails at the custom cap and parses at the built-in cap.
+  `npm test`: 106 pass, 0 fail. My 3 files: 46 pass.
+- Demo fallback works for all 8 built-ins (offline `getJobs`): 74–120 jobs each.
 - Manual run against the real demo data: anthropic 111 jobs (96 with salary), anduril 120 (105), openai 120 (110).
   All jobs have locations. The demo jobs without a salary contain no currency amounts, so they are meant to have none.
 
@@ -197,3 +210,5 @@ treated as a file. The `npm test` script is now `node --test test/*.test.js`.
   `normalize.js` reads DEBUG via `globalThis.process?.env`, and `sources/util.js` uses `TextDecoder` (browser-safe).
 - 2026-10-02 05:50: Greenhouse `pay_input_ranges` take the overall min/max across tiers, with interval from
   title/blurb (decision 10, new fixture `test/fixtures/greenhouse-pay-ranges.json`). Added 6 built-ins (decision 11).
+- 2026-10-02 (after the first real-data run): body cap is per company, 120 MB for built-ins and 25 MB for custom
+  boards, plus a 45 s timeout for built-ins (decision 12). Mistral removed from the built-ins. Tests added.

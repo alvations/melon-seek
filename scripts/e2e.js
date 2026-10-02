@@ -4,7 +4,7 @@
 // Not part of `npm test` (needs a browser). Playwright is NOT a repo dependency:
 //   npm i playwright --no-save            (or install anywhere and set NODE_PATH / PLAYWRIGHT_MODULE)
 // Uses a preinstalled Chromium (PLAYWRIGHT_BROWSERS_PATH, /opt/pw-browsers, or CHROMIUM_PATH).
-import { createSuite, loadPlaywright, findChromium, startServer } from '../test/e2e/harness.js';
+import { createSuite, loadPlaywright, findChromium, startServer, playwrightInfo } from '../test/e2e/harness.js';
 import { registerApiTests } from '../test/e2e/api.e2e.js';
 import { registerUiTests } from '../test/e2e/ui.e2e.js';
 
@@ -36,6 +36,7 @@ if (!apiOnly) {
   const executablePath = findChromium();
   browser = await pw.chromium.launch({ headless: !args.has('--headed'), executablePath });
   ctx.browser = browser;
+  console.log(`e2e: playwright ${playwrightInfo.path}`);
   console.log(`e2e: chromium ${browser.version()} (${executablePath || 'playwright default'})`);
   registerUiTests(suite);
 }

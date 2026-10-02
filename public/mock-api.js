@@ -92,7 +92,8 @@ function sample(r, arr, n) {
 
 function makeJobs(company) {
   const r = rng(company.slug);
-  const n = company.slug === 'anthropic' ? 142 : company.slug === 'openai' ? 118 : 96 + Math.floor(r() * 30);
+  // openai is large (~900) to exercise list/chart performance at real-board scale.
+  const n = company.slug === 'anthropic' ? 142 : company.slug === 'openai' ? 900 : 96 + Math.floor(r() * 30);
   const depts = company.slug === 'anduril' ? DEPTS : DEPTS.filter((d) => d.name !== 'Hardware');
   const jobs = [];
   for (let i = 0; i < n; i++) {
@@ -185,7 +186,8 @@ export async function mockApi(path) {
       mode,
       fetchedAt: mode === 'snapshot' ? '2026-09-30T08:00:00Z' : new Date().toISOString(),
       error: mode === 'demo' ? `fetch ${company.source}/${company.board} failed: getaddrinfo ENOTFOUND api.${company.source}.io` : null,
-      jobs: makeJobs(company),
+      // Like the static deploy: the list omits descriptionHtml; getJobDetail() supplies it.
+      jobs: makeJobs(company).map(({ descriptionHtml, ...rest }) => rest),
     };
   }
   throw new Error('404 ' + url.pathname);
@@ -197,4 +199,15 @@ export function getJobs(query, { refresh } = {}) {
   const p = new URLSearchParams(query);
   if (refresh) p.set('refresh', '1');
   return mockApi(`/api/jobs?${p}`);
+}
+
+const detailCache = new Map();
+export async function getJobDetail(job) {
+  await delay(300);
+  if (!detailCache.size || !detailCache.has(job.id)) {
+    const company = COMPANIES.find((c) => c.slug === job.company) || { slug: job.company, name: job.companyName, board: job.company };
+    for (const j of makeJobs(company)) detailCache.set(j.id, j.descriptionHtml);
+  }
+  if (job.title.includes('Intern')) throw new Error('mock: detail unavailable'); // exercises the failure path
+  return { ...job, descriptionHtml: detailCache.get(job.id) || '' };
 }

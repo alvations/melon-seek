@@ -20,7 +20,7 @@ async function page(opts) {
   const ctx = await browser.newContext(opts);
   const p = await ctx.newPage();
   p.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
-  p.on('console', (m) => { if (m.type() === 'error' && !/tile|Failed to load resource/i.test(m.text())) errors.push(`console: ${m.text()}`); });
+  p.on('console', (m) => { if (m.type() === 'error' && !/tile|Failed to load resource|from origin 'null'/i.test(m.text())) errors.push(`console: ${m.text()}`); });
   await p.route(/tile\.openstreetmap|basemaps|cartocdn|arcgis/, (r) => r.abort());
   return p;
 }
@@ -128,6 +128,30 @@ await p.keyboard.press('Escape'); await p.waitForTimeout(300);
 checks.escClosesAndReturnsFocus = await p.evaluate(() => !document.querySelector('.drawer.is-open') && document.activeElement !== document.body);
 checks.badge = (await p.textContent('#dataBadge'))?.trim().split('\n')[0];
 checks.slashFocusesSearch = await (async () => { await p.keyboard.press('/'); return p.evaluate(() => document.activeElement.id === 'search'); })();
+// Description loads lazily (getJobDetail) and is sanitized.
+await p.goto('about:blank');
+await p.goto(`${BASE}/${QS}#c=anthropic`);
+await ready(p);
+await p.click('.card[data-id] >> nth=0');
+await p.waitForFunction(() => document.querySelector('#drawer .desc') && !document.querySelector('#drawer .desc-skeleton'), null, { timeout: 8000 }).catch(() => {});
+checks.descriptionLoaded = await p.evaluate(() => (document.querySelector('#drawer .desc')?.textContent || '').trim().length > 0 || !!document.querySelector('#drawer .desc a'));
+checks.noScriptsInDescription = await p.evaluate(() => !document.querySelector('#drawer .desc script, #drawer .desc [onerror], #drawer .desc [onclick]') && window.__pwned !== true);
+await p.keyboard.press('Escape');
+// Scale: the biggest company (~900 jobs in mock). Time a filter toggle -> painted frame.
+const big = QS.includes('mock') ? 'openai' : (process.env.BIG || 'openai');
+await p.goto('about:blank');
+const t0 = Date.now();
+await p.goto(`${BASE}/${QS}#c=${big}`);
+await ready(p);
+checks.bigLoadMs = Date.now() - t0;
+checks.bigJobs = await p.evaluate(() => document.querySelector('#statsLine')?.textContent.trim());
+checks.bigFilterToggleMs = await p.evaluate(async () => {
+  const kw = document.querySelector('.fsec .kw');
+  const s = performance.now();
+  kw.click();
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  return Math.round(performance.now() - s);
+});
 await p.close();
 
 await browser.close();
