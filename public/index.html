@@ -29,10 +29,9 @@
     </a>
 
     <div class="company-bar">
-      <div class="company-pills" id="companyPills" role="group" aria-label="Company"></div>
-      <label class="sr-only" for="companySelect">Company</label>
-      <select class="company-select" id="companySelect"></select>
-      <button class="btn btn--ghost btn--sm add-board-btn" id="addBoardBtn" type="button" aria-haspopup="dialog" aria-expanded="false">
+      <button class="company-menu-btn" id="companyMenuBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Choose company"></button>
+      <div class="company-pills" id="companyPills" role="group" aria-label="Recent companies"></div>
+      <button class="btn btn--ghost btn--sm add-board-btn" id="addBoardBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Add board">
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg><span>Add board</span>
       </button>
     </div>
@@ -46,13 +45,13 @@
 
     <div class="topbar-right">
       <div class="seg" role="group" aria-label="View">
-        <button type="button" data-mode="chart" aria-pressed="true">
+        <button type="button" data-mode="chart" aria-pressed="true" aria-label="Chart view">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5h7M6 9h9M3 13h6M8 17h8"/></svg><span>Chart</span>
         </button>
-        <button type="button" data-mode="map" aria-pressed="false">
+        <button type="button" data-mode="map" aria-pressed="false" aria-label="Map view">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 17s5-4.6 5-8.5a5 5 0 0 0-10 0C5 12.4 10 17 10 17Z"/><circle cx="10" cy="8.5" r="1.8"/></svg><span>Map</span>
         </button>
-        <button type="button" data-mode="insights" aria-pressed="false">
+        <button type="button" data-mode="insights" aria-pressed="false" aria-label="Insights view">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16V9M8 16V5M12 16v-5M16 16V7"/></svg><span>Insights</span>
         </button>
       </div>

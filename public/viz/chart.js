@@ -19,7 +19,7 @@
 
 import {
   colorFor, assignColors, otherColor, slotColor, inkOn, OTHER_KEY, SLOT_COUNT, formatMoney,
-  formatCurrency, toUSD, isForeign, hasFx, niceTicks, median, onThemeChange, prefersReducedMotion,
+  formatCurrency, toUSD, isForeign, hasFx, niceTicks, median, onThemeChange, prefersReducedMotion, isDark,
 } from './palette.js';
 
 export const VIEWS = Object.freeze(['clusters', 'ranges']);
@@ -342,7 +342,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       const byCount = cRows.slice().sort((a, b) => b.all.length - a.all.length || a.key.localeCompare(b.key)).map(r => r.key);
       const top = new Set(byCount.length > SLOT_COUNT ? byCount.slice(0, SLOT_COUNT - 1) : byCount);
       assignColors([...top]);
-      for (const r of cRows) { r.other = !top.has(r.key); r.color = r.other ? otherColor() : colorFor(r.key); }
+      for (const r of cRows) { r.other = !top.has(r.key); r.color = r.other ? (isDark() ? '#8d8c86' : otherColor()) : colorFor(r.key); }
     }
     for (const r of cRows) r.ink = inkOn(r.color);
 
@@ -385,13 +385,15 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       plot.setAttribute('role', 'none');
       plot.style.top = (narrow ? CROW_LABEL_H : 0) + 'px';
       plot.style.height = plotH + 'px';
+      let bandL = null, bandR = null;
       if (r.items.length) {
         const bandH = Math.round(Math.min(2 * rMax + 8, plotH - 10));
         const bx0 = x(r.p25), bx1 = x(r.p75);
         const band = el('div', 'ms-crow__band');
         band.setAttribute('aria-hidden', 'true');
         const bw = Math.max(bandH, bx1 - bx0 + bandH * 0.6);
-        band.style.left = ((bx0 + bx1) / 2 - bw / 2) + 'px';
+        bandL = (bx0 + bx1) / 2 - bw / 2; bandR = bandL + bw;
+        band.style.left = bandL + 'px';
         band.style.width = bw + 'px';
         band.style.height = bandH + 'px';
         band.style.marginTop = (-bandH / 2) + 'px';
@@ -413,7 +415,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         const rad = Math.max(rMin, rMax * Math.sqrt(n / maxN));
         const cx = x((b.start + b.end) / 2);
         const hit = Math.max(24, Math.min(binPx, 2 * rad + 6));
-        const bin = el('div', 'ms-bin');
+        const bin = el('div', bandL != null && cx >= bandL && cx <= bandR ? 'ms-bin ms-bin--inband' : 'ms-bin');
         bin.setAttribute('role', 'option');
         bin.setAttribute('aria-selected', 'false');
         const approx = b.items.some(p => isForeign(p.cur) && hasFx(p.cur));

@@ -184,10 +184,47 @@ async function fetchLiveInBrowser(lib, company, signal) {
   }
 }
 
+/**
+ * Static build list format "melon-packed-1" (written by scripts/build-static.js),
+ * a lossless way to keep big boards' lists small:
+ *  - `shared.company` / `shared.companyName` are stored once, not per job;
+ *  - ids drop `shared.idPrefix` ("<slug>:"), urls drop `shared.urlPrefix`;
+ *  - locations, keyword labels, department, team, employmentType and
+ *    seniority are indexes into `dict`;
+ *  - empty `sections` are omitted.
+ * Returns plain Job objects. Bodies that aren't packed are returned unchanged.
+ */
+export const PACKED_FORMAT = 'melon-packed-1';
+export function unpackJobs(body) {
+  if (!body || body.format !== PACKED_FORMAT) return body && Array.isArray(body.jobs) ? body.jobs : [];
+  const { shared = {}, dict = [] } = body;
+  const at = (i) => (i == null ? null : dict[i]);
+  const kw = (k = {}) => ({
+    responsibilities: (k.responsibilities || []).map(at),
+    fit: (k.fit || []).map(at),
+    skills: (k.skills || []).map(at),
+  });
+  return body.jobs.map((j) => {
+    const job = { ...j };
+    job.id = (shared.idPrefix || '') + j.id;
+    job.company = shared.company;
+    job.companyName = shared.companyName;
+    job.url = j.url == null ? null : (shared.urlPrefix || '') + j.url;
+    for (const k of ['department', 'team', 'employmentType', 'seniority']) job[k] = at(j[k]);
+    job.locations = (j.locations || []).map(at);
+    job.keywords = kw(j.keywords);
+    job.sections = j.sections || { responsibilities: [], fit: [] };
+    return job;
+  });
+}
+
 async function bundled(path, signal) {
   try {
-    const body = await getJson(path, { signal });
-    return body && Array.isArray(body.jobs) && body.jobs.length ? body : null;
+    const raw = await getJson(path, { signal });
+    if (!raw || !Array.isArray(raw.jobs)) return null;
+    const { format, shared, dict, ...body } = raw;
+    body.jobs = unpackJobs(raw);
+    return body.jobs.length ? body : null;
   } catch (err) {
     if (signal && signal.aborted) throw abortError();
     return null;

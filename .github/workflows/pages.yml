@@ -49,10 +49,15 @@ jobs:
           {
             echo "### Bundled data"
             echo ""
-            echo "| company | mode | jobs | fetchedAt |"
-            echo "| --- | --- | --- | --- |"
+            echo "| company | mode | jobs | list | descriptions | fetchedAt |"
+            echo "| --- | --- | --- | --- | --- | --- |"
             for f in dist/api/jobs/*.json; do
-              jq -r '"| \(.company.slug) | \(.mode) | \(.jobs | length) | \(.fetchedAt) |"' "$f"
+              slug=$(basename "$f" .json)
+              list_kb=$(( $(stat -c %s "$f") / 1024 ))
+              desc_n=$(find "dist/api/desc/$slug" -type f 2>/dev/null | wc -l)
+              desc_kb=$(( $(du -sb "dist/api/desc/$slug" 2>/dev/null | cut -f1 || echo 0) / 1024 ))
+              jq -r --arg l "$list_kb" --arg n "$desc_n" --arg d "$desc_kb" \
+                '"| \(.company.slug) | \(.mode) | \(.jobs | length) | \($l) KB | \($n) files, \($d) KB | \(.fetchedAt) |"' "$f"
             done
           } >> "$GITHUB_STEP_SUMMARY"
 

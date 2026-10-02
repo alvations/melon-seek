@@ -412,6 +412,7 @@ async function loadJobs({ refresh = false } = {}) {
     const res = await dataApi.getJobs(jobsQuery(S.c), { refresh, signal: abortCtl.signal });
     if (seq !== loadSeq) return;
     dataSeq++;
+    rememberCompany(S.c);
     data = {
       status: 'ready',
       jobs: prepare(Array.isArray(res?.jobs) ? res.jobs : []),
@@ -467,22 +468,22 @@ function render() {
 /* ---------------------------------------------------------------- topbar */
 
 function renderTopbar() {
-  const all = [...companies, ...boards.map((b) => ({ slug: `${b.source}:${b.board}`, name: b.name || b.board, source: b.source, board: b.board, color: null, custom: true }))];
-  if (S.c && !all.some((c) => c.slug === S.c)) all.push(companyInfo(S.c));
+  const all = allCompanies();
 
-  const pills = $('#companyPills');
-  const sig = all.map((c) => c.slug + c.name).join('|') + '§' + S.c + '§' + data.status + data.jobs.length;
-  if (pills.dataset.sig !== sig) {
-    pills.dataset.sig = sig;
-    pills.replaceChildren(...all.map((c) => {
-      const active = c.slug === S.c;
-      const b = h('button', { type: 'button', class: 'company-pill', 'aria-pressed': String(active), title: `${c.name} · ${SOURCE_LABEL[c.source] || c.source || ''} / ${c.board}`, onclick: () => { if (!active) set({ c: c.slug, cn: c.custom ? c.name : '', job: null, ...resetFiltersPatch() }); } },
-        h('span', { class: 'dot', style: `--dot:${companyColor(c)}` }), h('span', { class: 'company-name' }, c.name),
-        active && data.status === 'ready' ? h('span', { class: 'company-count' }, data.jobs.length) : null);
-      return b;
-    }));
-    const sel = $('#companySelect');
-    sel.replaceChildren(...all.map((c) => h('option', { value: c.slug, selected: c.slug === S.c }, c.name)));
+  // Company switcher: one dropdown button for the active company + up to 3 recent ones as pills.
+  const active = all.find((c) => c.slug === S.c) || companyInfo(S.c);
+  const menuBtn = $('#companyMenuBtn');
+  const sig = all.map((c) => c.slug + c.name).join('|') + '§' + S.c + '§' + data.status + data.jobs.length + '§' + recents.join(',');
+  if (menuBtn.dataset.sig !== sig) {
+    menuBtn.dataset.sig = sig;
+    menuBtn.replaceChildren(h('span', { class: 'dot', style: `--dot:${companyColor(active)}` }), h('span', { class: 'company-name' }, active?.name || 'Choose company'),
+      data.status === 'ready' ? h('span', { class: 'company-count' }, data.jobs.length) : null, h('span', { class: 'chip-caret', html: ICON.chevron }));
+    menuBtn.setAttribute('aria-label', `Company: ${active?.name || 'none'}. Choose another company or add a board`);
+    const recent = recents.filter((slug) => slug !== S.c).map((slug) => all.find((c) => c.slug === slug)).filter(Boolean).slice(0, 3);
+    $('#companyPills').replaceChildren(...recent.map((c) => h('button', {
+      type: 'button', class: 'company-pill', title: `${c.name} · ${SOURCE_LABEL[c.source] || c.source || ''} / ${c.board}`,
+      onclick: () => switchCompany(c),
+    }, h('span', { class: 'dot', style: `--dot:${companyColor(c)}` }), h('span', { class: 'company-name' }, c.name))));
   }
 
   for (const b of document.querySelectorAll('.seg [data-mode]')) b.setAttribute('aria-pressed', String(b.dataset.mode === S.m));
@@ -551,6 +552,60 @@ function makeBadgeDetails() {
       h('dl', null, ...rows.map(([k, v]) => [h('dt', null, k), h('dd', null, v)])),
       data.error ? h('pre', { class: 'badge-error' }, data.error) : null,
       MOCK ? null : h('button', { type: 'button', class: 'btn btn--ghost btn--sm btn--block', onclick: () => { closePopover(false); loadJobs({ refresh: true }); } }, 'Refresh from the live board'));
+  }
+  return { el, sync };
+}
+
+function allCompanies() {
+  const all = [...companies, ...boards.map((b) => ({ slug: `${b.source}:${b.board}`, name: b.name || b.board, source: b.source, board: b.board, color: null, custom: true }))];
+  if (S.c && !all.some((c) => c.slug === S.c)) all.push(companyInfo(S.c));
+  return all;
+}
+
+function switchCompany(c) {
+  if (!c || c.slug === S.c) return;
+  set({ c: c.slug, cn: c.custom ? c.name : '', job: null, ...resetFiltersPatch() });
+}
+
+const RECENT_KEY = 'melon-seek.recent.v1';
+let recents = (() => { try { const v = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); return Array.isArray(v) ? v.filter((x) => typeof x === 'string').slice(0, 4) : []; } catch { return []; } })();
+function rememberCompany(slug) {
+  recents = [slug, ...recents.filter((x) => x !== slug)].slice(0, 4);
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify(recents)); } catch { /* ignore */ }
+}
+
+/** Searchable company list grouped by ATS, plus the user's boards and "Add a board". */
+function makeCompanyMenu() {
+  const input = h('input', { type: 'search', class: 'fsearch', placeholder: 'Search companies…', 'aria-label': 'Search companies', autocomplete: 'off' });
+  const list = h('div', { class: 'company-list', role: 'listbox', 'aria-label': 'Companies' });
+  const add = h('button', { type: 'button', class: 'btn btn--ghost btn--sm btn--block', onclick: () => togglePopover('board', $('#addBoardBtn')) },
+    h('span', { html: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>' }), 'Add a board (Greenhouse, Ashby, Lever)');
+  const el = h('div', { class: 'company-menu' }, h('div', { class: 'fsearch-wrap' }, h('span', { html: ICON.search }), input), list, add);
+  input.addEventListener('input', sync);
+  input.addEventListener('keydown', (e) => { if (e.key === 'ArrowDown') { e.preventDefault(); list.querySelector('button')?.focus(); } if (e.key === 'Enter') { e.preventDefault(); list.querySelector('button')?.click(); } });
+  list.addEventListener('keydown', (e) => {
+    const items = [...list.querySelectorAll('button')];
+    const i = items.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown') { e.preventDefault(); items[Math.min(items.length - 1, i + 1)]?.focus(); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); if (i <= 0) input.focus(); else items[i - 1].focus(); }
+  });
+  function sync() {
+    const q = input.value.trim().toLowerCase();
+    const all = allCompanies().filter((c) => !q || `${c.name} ${c.board} ${c.source}`.toLowerCase().includes(q));
+    const groups = [
+      ['Your boards', all.filter((c) => c.custom)],
+      ...SOURCES.map((src) => [SOURCE_LABEL[src], all.filter((c) => !c.custom && c.source === src)]),
+      ['Other', all.filter((c) => !c.custom && !SOURCES.includes(c.source))],
+    ].filter(([, items]) => items.length);
+    list.replaceChildren(...groups.flatMap(([label, items]) => [
+      h('div', { class: 'check-group' }, label),
+      ...items.map((c) => h('button', {
+        type: 'button', class: 'company-item', role: 'option', 'aria-selected': String(c.slug === S.c),
+        onclick: () => { closePopover(false); switchCompany(c); $('#companyMenuBtn').focus({ preventScroll: true }); },
+      }, h('span', { class: 'dot', style: `--dot:${companyColor(c)}` }), h('span', { class: 'company-item-name' }, c.name),
+      h('span', { class: 'company-item-board' }, c.board), c.slug === S.c ? h('span', { class: 'company-item-check', 'aria-hidden': 'true' }, '✓') : null)),
+    ]));
+    if (!groups.length) list.append(h('p', { class: 'fnote' }, 'No matching company — add it as a board below.'));
   }
   return { el, sync };
 }
@@ -912,6 +967,7 @@ function popoverParts(id) {
     ];
     case 'board': return [makeBoardForm()];
     case 'badge': return [makeBadgeDetails()];
+    case 'company': return [makeCompanyMenu()];
   }
   return [];
 }
@@ -926,10 +982,10 @@ function togglePopover(id, anchor) {
   popover.id = id;
   popover.anchor = anchor;
   popover.parts = popoverParts(id);
-  const title = id === 'board' ? 'Add a job board' : id === 'badge' ? 'Where this data comes from' : QUICK.find((q) => q.id === id)?.label;
+  const title = { board: 'Add a job board', badge: 'Where this data comes from', company: 'Job boards' }[id] || QUICK.find((q) => q.id === id)?.label;
   const head = h('div', { class: 'pop-head' }, h('h2', { id: 'popTitle' }, title),
     h('button', { type: 'button', class: 'icon-btn icon-btn--sm', 'aria-label': 'Close', html: ICON.close, onclick: () => closePopover() }));
-  const foot = id === 'board' || id === 'badge' ? null : h('div', { class: 'pop-foot' },
+  const foot = ['board', 'badge', 'company'].includes(id) ? null : h('div', { class: 'pop-foot' },
     h('button', { type: 'button', class: 'link-btn', onclick: () => clearPopoverFacet(id) }, 'Reset'),
     h('button', { type: 'button', class: 'btn btn--primary btn--sm pop-done', onclick: () => closePopover() }, 'Done'));
   el.className = `popover popover--${id}`;
@@ -1618,11 +1674,7 @@ function bindEvents() {
   });
 
   for (const b of document.querySelectorAll('.seg [data-mode]')) b.addEventListener('click', () => set({ m: b.dataset.mode }));
-  $('#companySelect').addEventListener('change', (e) => {
-    const c = e.target.value;
-    const info = companyInfo(c);
-    set({ c, cn: info.custom ? info.name : '', job: null, ...resetFiltersPatch() });
-  });
+  $('#companyMenuBtn').addEventListener('click', (e) => togglePopover('company', e.currentTarget));
   $('#addBoardBtn').addEventListener('click', (e) => togglePopover('board', e.currentTarget));
   $('#dataBadge').addEventListener('click', (e) => togglePopover('badge', e.currentTarget));
   $('#refreshBtn').addEventListener('click', () => loadJobs({ refresh: true }));

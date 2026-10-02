@@ -352,30 +352,33 @@
 .ms-bin__dot {
   display: flex; align-items: center; justify-content: center;
   border-radius: 50%;
+  --ring: var(--_surface);
   background: color-mix(in srgb, var(--c) var(--_bin-mix, 30%), var(--_surface));
-  box-shadow: 0 0 0 2px var(--_surface);
+  box-shadow: 0 0 0 2px var(--ring);
   color: var(--_text);
   font-size: 11px; font-weight: 600; line-height: 1;
   font-variant-numeric: tabular-nums;
   transition: background-color .12s, color .12s, transform .12s;
 }
 .ms-bin__dot--sm { font-size: 10px; }
+/* Inside the P25–P75 band the 2px ring takes the band's tint, so circles never sit in a dark "socket". */
+.ms-bin--inband .ms-bin__dot { --ring: color-mix(in srgb, var(--c) var(--_band-mix, 9%), var(--_surface)); }
 .ms-bin.is-hover .ms-bin__dot,
 .ms-bin.is-selected .ms-bin__dot,
 .ms-bin.is-highlighted .ms-bin__dot { background: var(--c); color: var(--c-ink); }
 .ms-bin.is-hover .ms-bin__dot { transform: scale(1.06); }
-.ms-bin.is-selected .ms-bin__dot { box-shadow: 0 0 0 2px var(--_surface), 0 0 0 3.5px var(--c); }
-.ms-bin.is-highlighted .ms-bin__dot { box-shadow: 0 0 0 2px var(--_surface), 0 0 0 4px var(--_text); }
-.ms-bin.is-active .ms-bin__dot { box-shadow: 0 0 0 2px var(--_surface), 0 0 0 4px var(--_accent); }
+.ms-bin.is-selected .ms-bin__dot { box-shadow: 0 0 0 2px var(--ring), 0 0 0 3.5px var(--c); }
+.ms-bin.is-highlighted .ms-bin__dot { box-shadow: 0 0 0 2px var(--ring), 0 0 0 4px var(--_text); }
+.ms-bin.is-active .ms-bin__dot { box-shadow: 0 0 0 2px var(--ring), 0 0 0 4px var(--_accent); }
 @media (prefers-reduced-motion: reduce) { .ms-bin__dot { transition: none; } .ms-bin.is-hover .ms-bin__dot { transform: none; } }
 
 /* Dark surface: translucent fills go muddy, so lift the range bars. */
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) .ms-chart { --_bar-o: .72; --_hist-o: .62; --_hist-o-c: .42; --_bin-mix: 52%; --_band-mix: 16%; }
-  :root:where(:not([data-theme="light"])) .ms-chart .ms-crow--other { --_bin-mix: 85%; --_band-mix: 12%; }
+  :root:where(:not([data-theme="light"])) .ms-chart .ms-crow--other { --_bin-mix: 88%; --_band-mix: 11%; }
 }
 :root[data-theme="dark"] .ms-chart { --_bar-o: .72; --_hist-o: .62; --_hist-o-c: .42; --_bin-mix: 52%; --_band-mix: 16%; }
-:root[data-theme="dark"] .ms-chart .ms-crow--other { --_bin-mix: 85%; --_band-mix: 12%; }
+:root[data-theme="dark"] .ms-chart .ms-crow--other { --_bin-mix: 88%; --_band-mix: 11%; }
 
 /* ============================== tooltip ============================== */
 

@@ -187,3 +187,8 @@ screenshots in `docs/screenshots/`.
   viz: switch to keyless OSM standard tiles, CSS-filter dark mode on the
   tile pane, configurable tile provider. The server CSP already allows
   tile.openstreetmap.org (server/index.js img-src).
+- 2026-10-02: user asked for a dark mode feature. Sent to UX: a
+  System/Light/Dark toggle stored in localStorage and applied as
+  html[data-theme] before first paint; tokens overridden under both the
+  media query and data-theme; chart, map and map tile filter re-render on
+  change.

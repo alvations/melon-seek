@@ -18,9 +18,10 @@
 // Lazy descriptions: descriptionHtml is ~90% of a job's bytes, so each one goes
 // in its own file, fetched by public/api.js#getJobDetail when the job drawer
 // opens (the file path comes from api.js#descPath, shared with this script).
-// sections + keywords stay in the list. If a list is still over LIST_BUDGET,
-// that company's sections move into the desc files too (list keeps empty
-// arrays; getJobDetail returns them) and the build says so.
+// sections + keywords stay in the list. Lists are written in a lossless packed
+// format (api.js#unpackJobs; checked by a round-trip at build time). If a list
+// is still over LIST_BUDGET, that company's sections move into the desc files
+// too (getJobDetail returns them) and the build says so.
 //
 // Options: --out <dir> (default dist), --strict (fail on warnings).
 import fs from 'node:fs/promises';
@@ -73,8 +74,57 @@ function relativizeHtml(html, depth) {
   return html.replace(/\b(href|src)=(["'])\/(?!\/)/g, (_, attr, q) => `${attr}=${q}${prefix}`);
 }
 
+// Decimal units, to match the "1.5 MB" budget literally.
 function size(n) {
-  return n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(2)} MB` : `${(n / 1024).toFixed(0)} KB`;
+  return n >= 1e6 ? `${(n / 1e6).toFixed(2)} MB` : `${(n / 1e3).toFixed(0)} kB`;
+}
+
+function commonPrefix(strs) {
+  if (!strs.length) return '';
+  let p = strs[0];
+  for (const s of strs) { while (!s.startsWith(p)) p = p.slice(0, -1); if (!p) break; }
+  return p;
+}
+
+/** Pack a plain list payload as PACKED_FORMAT (decoded by public/api.js#unpackJobs). */
+function packList(list, PACKED_FORMAT) {
+  const index = new Map();
+  const dict = [];
+  const ref = (v) => {
+    if (v == null) return null;
+    const k = JSON.stringify(v);
+    if (!index.has(k)) { index.set(k, dict.length); dict.push(v); }
+    return index.get(k);
+  };
+  const jobs = list.jobs;
+  const first = jobs[0] || {};
+  const idPrefix = jobs.length && jobs.every((j) => String(j.id).startsWith(`${j.company}:`) && j.company === first.company) ? `${first.company}:` : '';
+  const urls = jobs.map((j) => j.url).filter((u) => typeof u === 'string');
+  const urlPrefix = urls.length === jobs.length ? commonPrefix(urls) : '';
+  const sameCompany = jobs.every((j) => j.company === first.company && j.companyName === first.companyName);
+  if (!sameCompany) throw new Error(`${list.company && list.company.slug}: jobs from more than one company, can't pack`);
+  const packed = jobs.map((j) => {
+    const { company, companyName, sections, ...r } = j;
+    r.id = String(j.id).slice(idPrefix.length);
+    r.url = j.url == null ? null : j.url.slice(urlPrefix.length);
+    for (const k of ['department', 'team', 'employmentType', 'seniority']) r[k] = ref(j[k]);
+    r.locations = (j.locations || []).map(ref);
+    const kw = j.keywords || {};
+    r.keywords = { responsibilities: (kw.responsibilities || []).map(ref), fit: (kw.fit || []).map(ref), skills: (kw.skills || []).map(ref) };
+    if (hasSections(sections)) r.sections = sections;
+    return r;
+  });
+  return { ...list, format: PACKED_FORMAT, shared: { company: first.company, companyName: first.companyName, idPrefix, urlPrefix }, dict, jobs: packed };
+}
+
+/** Key-order-insensitive deep equality (for the pack round-trip check). */
+function sameValue(a, b) {
+  if (a === b) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || !a || !b) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const ka = Object.keys(a), kb = Object.keys(b);
+  if (ka.length !== kb.length) return false;
+  return ka.every((k) => Object.prototype.hasOwnProperty.call(b, k) && sameValue(a[k], b[k]));
 }
 
 const emptySections = () => ({ responsibilities: [], fit: [] });
@@ -84,7 +134,8 @@ const hasSections = (s) => !!s && ((s.responsibilities || []).length > 0 || (s.f
  * Split a payload into a small list and per-job detail records.
  * Returns { list, details: Map(descPath -> record), sectionsMoved }.
  */
-function splitPayload(payload, descPath) {
+function splitPayload(payload, api) {
+  const { descPath } = api;
   const build = (moveSections) => {
     const details = new Map();
     const jobs = payload.jobs.map((job) => {
@@ -100,15 +151,21 @@ function splitPayload(payload, descPath) {
       details.set(p, rec);
       return rest; // no descriptionHtml key -> api.js#getJobDetail fetches it
     });
-    return { list: { ...payload, jobs }, details, sectionsMoved: moveSections };
+    const plain = { ...payload, jobs };
+    const packed = packList(plain, api.PACKED_FORMAT);
+    // Round-trip guard: what the browser unpacks must equal what we meant to ship.
+    const back = api.unpackJobs(JSON.parse(JSON.stringify(packed)));
+    const bad = back.findIndex((j, i) => !sameValue(j, jobs[i]));
+    if (back.length !== jobs.length || bad >= 0) throw new Error(`${payload.company && payload.company.slug}: packed list doesn't round-trip (job ${bad})`);
+    return { list: packed, details, sectionsMoved: moveSections };
   };
   let out = build(false);
   if (Buffer.byteLength(JSON.stringify(out.list)) > LIST_BUDGET) out = build(true);
   return out;
 }
 
-async function writeSplit(payload, file, descPath, slug) {
-  const { list, details, sectionsMoved } = splitPayload(payload, descPath);
+async function writeSplit(payload, file, api, slug) {
+  const { list, details, sectionsMoved } = splitPayload(payload, api);
   const listBytes = await writeJson(file, list);
   let descBytes = 0;
   for (const [p, rec] of details) descBytes += await writeJson(path.join(OUT, p), rec);
@@ -179,7 +236,8 @@ async function main() {
   if (existsSync(path.join(ROOT, 'server', 'demo.js'))) {
     ({ demoJobs } = await import(pathToFileURL(path.join(ROOT, 'server', 'demo.js')).href));
   }
-  const { descPath } = await import(pathToFileURL(path.join(ROOT, 'public', 'api.js')).href);
+  // Shared with the browser: desc file paths and the packed list format.
+  const api = await import(pathToFileURL(path.join(ROOT, 'public', 'api.js')).href);
   const companies = listCompanies().map(({ slug, name, source, board, color }) => ({ slug, name, source, board, color }));
   await writeJson(path.join(OUT, 'api', 'companies.json'), companies);
 
@@ -209,13 +267,13 @@ async function main() {
       warn(`${c.slug}: no snapshot and no demo generator; bundling an empty demo`);
       payload = { company: c, mode: 'demo', fetchedAt: builtAt, error: 'No data bundled.', jobs: [] };
     }
-    const r = await writeSplit(payload, path.join(OUT, 'api', 'jobs', `${c.slug}.json`), descPath, c.slug);
+    const r = await writeSplit(payload, path.join(OUT, 'api', 'jobs', `${c.slug}.json`), api, c.slug);
     let line = `${c.slug.padEnd(10)} ${payload.mode.padEnd(8)} ${String(payload.jobs.length).padStart(4)} jobs  list ${size(r.listBytes).padStart(9)}  desc ${String(r.descFiles).padStart(4)} files ${size(r.descBytes).padStart(9)}`;
     if (r.sectionsMoved) line += '  (sections moved to desc: list was over budget)';
     if (payload.fetchedAt) line += `  fetchedAt ${payload.fetchedAt}`;
     // The bundled demo is only a separate fallback when the main list is real.
     if (payload.mode === 'snapshot' && demo) {
-      const d = await writeSplit(demo, path.join(OUT, 'api', 'demo', `${c.slug}.json`), descPath, `${c.slug} (demo)`);
+      const d = await writeSplit(demo, path.join(OUT, 'api', 'demo', `${c.slug}.json`), api, `${c.slug} (demo)`);
       line += `  + demo list ${size(d.listBytes)}`;
     }
     summary.push(line);

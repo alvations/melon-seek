@@ -35,6 +35,9 @@ jobs:
           jq -e 'type == "array" and length >= 3' dist/api/companies.json
           for f in dist/api/jobs/*.json; do jq -e '.jobs | type == "array"' "$f" > /dev/null; done
           test -f dist/config.js && test -f dist/.nojekyll && test -f dist/vendor/leaflet/leaflet.js
+          # Lazy descriptions: lists carry no HTML, each job has a desc file.
+          jq -e '[.jobs[] | select(has("descriptionHtml") and .descriptionHtml != "")] | length == 0' dist/api/jobs/anthropic.json
+          test -n "$(find dist/api/desc -name '*.json' -print -quit)"
 
       - name: Smoke test (start server, hit API)
         env:
