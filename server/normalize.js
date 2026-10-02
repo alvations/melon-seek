@@ -23,9 +23,12 @@ export function normalizeLocations(raw) {
     const locs = safe(() => geocode(input), []);
     for (const loc of Array.isArray(locs) ? locs : []) {
       if (!loc || !loc.name) continue;
+      // Dedupe by name, and by resolved city ("San Francisco" == "San Francisco, CA").
       const key = String(loc.name).toLowerCase();
-      if (seen.has(key)) continue;
+      const cityKey = loc.city && loc.lat != null ? `city:${loc.city}|${loc.country || ''}`.toLowerCase() : null;
+      if (seen.has(key) || (cityKey && seen.has(cityKey))) continue;
       seen.add(key);
+      if (cityKey) seen.add(cityKey);
       out.push(loc);
     }
   }

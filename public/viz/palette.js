@@ -44,21 +44,30 @@ function hash(str) {
 const registry = new Map();
 
 /**
- * Give up to 8 keys distinct slots. Each key prefers its own hash slot (so a key
- * keeps its color across datasets/filters whenever possible) and linear-probes
- * to the next free slot on collision. Keys are processed in the given order.
+ * Give up to 8 keys distinct slots, keys ordered by priority (e.g. count desc).
+ * Sticky: a key that already holds a slot keeps it (color follows the entity
+ * across filters); new keys take the lowest free slot in the validated fixed
+ * order, so the first dataset gets the CVD-checked adjacent ordering.
  * Returns Map(key -> slot). Keys beyond 8 are not registered (they are "Other").
  */
 export function assignColors(keys) {
+  const list = keys.slice(0, SLOT_COUNT).map(String);
   const used = new Set();
   const out = new Map();
-  for (const key of keys.slice(0, SLOT_COUNT)) {
-    let s = hash(String(key)) % SLOT_COUNT;
-    while (used.has(s)) s = (s + 1) % SLOT_COUNT;
-    used.add(s); out.set(key, s); registry.set(key, s);
+  for (const k of list) {
+    if (registry.has(k) && !used.has(registry.get(k))) { used.add(registry.get(k)); out.set(k, registry.get(k)); }
+  }
+  for (const k of list) {
+    if (out.has(k)) continue;
+    let s = 0;
+    while (used.has(s)) s++;
+    used.add(s); out.set(k, s); registry.set(k, s);
   }
   return out;
 }
+
+/** Forget sticky slot assignments (e.g. when switching company). */
+export function resetColors() { registry.clear(); }
 
 /** Categorical color for a key (hex string for the current light/dark mode). Deterministic. */
 export function colorFor(key) {

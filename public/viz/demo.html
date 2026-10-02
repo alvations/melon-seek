@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Viz Harness</title>
+<link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="./viz.css">
+<style>
+  :root { color-scheme: light; --page: #f4f4f1; --ink: #0b0b0b; --line: #e1e0d9; --card: #fcfcfb; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; --page: #0d0d0d; --ink: #fff; --line: #2c2c2a; --card: #1a1a19; } }
+  :root[data-theme="dark"] { color-scheme: dark; --page: #0d0d0d; --ink: #fff; --line: #2c2c2a; --card: #1a1a19; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--page); color: var(--ink); font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; display: flex; flex-direction: column; }
+  header { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+  header b { margin-right: 6px; }
+  header label { display: inline-flex; gap: 6px; align-items: center; }
+  select, button { font: inherit; }
+  main { flex: 1; min-height: 0; display: flex; padding: 12px 16px 16px; gap: 12px; }
+  .card { flex: 1; min-width: 0; min-height: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--card); }
+  #log { width: 240px; font-size: 12px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 8px; background: var(--card); }
+  @media (max-width: 720px) { #log { display: none; } }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <b>melon-seek viz harness</b>
+  <label>Mode <select id="mode"><option value="chart">Chart</option><option value="map">Map</option></select></label>
+  <label>Group <select id="groupBy"><option>none</option><option>department</option><option>location</option><option>seniority</option></select></label>
+  <label>Color <select id="colorBy"><option>none</option><option>department</option><option>location</option><option>seniority</option></select></label>
+  <label>Jobs <select id="n"><option>40</option><option selected>240</option><option>1000</option></select></label>
+  <label>Min $ <select id="minSal"><option value="0">any</option><option value="200000">200K+</option><option value="300000">300K+</option></select></label>
+  <label>Theme <select id="theme"><option value="">system</option><option>light</option><option>dark</option></select></label>
+  <button id="hl" type="button">Highlight random</button>
+</header>
+<main>
+  <div class="card" id="chartBox"></div>
+  <div class="card" id="mapBox" hidden></div>
+  <div id="log">Events…</div>
+</main>
+<script src="/vendor/leaflet/leaflet.js"></script>
+<script type="module">
+import { createChart } from './chart.js';
+import { createMap } from './map.js';
+
+// ---- deterministic fake jobs (demo data, not real postings) ----
+function rng(seed) { return () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2 ** 32; }; }
+const CITIES = [
+  ['San Francisco, CA', 'San Francisco', 'CA', 'US', 37.77, -122.42, 'USD', 1],
+  ['New York City, NY', 'New York City', 'NY', 'US', 40.71, -74.01, 'USD', 0.97],
+  ['Seattle, WA', 'Seattle', 'WA', 'US', 47.61, -122.33, 'USD', 0.92],
+  ['San Jose, CA', 'San Jose', 'CA', 'US', 37.34, -121.89, 'USD', 0.98],
+  ['Austin, TX', 'Austin', 'TX', 'US', 30.27, -97.74, 'USD', 0.8],
+  ['Boston, MA', 'Boston', 'MA', 'US', 42.36, -71.06, 'USD', 0.88],
+  ['Washington, DC', 'Washington', 'DC', 'US', 38.91, -77.04, 'USD', 0.85],
+  ['Costa Mesa, CA', 'Costa Mesa', 'CA', 'US', 33.64, -117.92, 'USD', 0.82],
+  ['London, UK', 'London', null, 'GB', 51.51, -0.13, 'GBP', 0.55],
+  ['Dublin, IE', 'Dublin', null, 'IE', 53.35, -6.26, 'EUR', 0.6],
+  ['Zurich, CH', 'Zurich', null, 'CH', 47.37, 8.54, 'CHF', 0.75],
+  ['Tokyo, JP', 'Tokyo', null, 'JP', 35.68, 139.69, 'JPY', 70],
+  ['Singapore', 'Singapore', null, 'SG', 1.35, 103.82, 'SGD', 0.9],
+  ['Toronto, ON', 'Toronto', 'ON', 'CA', 43.65, -79.38, 'CAD', 0.95],
+  ['Sydney, AU', 'Sydney', 'NSW', 'AU', -33.87, 151.21, 'AUD', 1.05],
+];
+const DEPTS = ['AI Research & Engineering', 'Product Engineering', 'Infrastructure', 'Security', 'Sales', 'Marketing', 'Finance', 'People', 'Legal', 'Design', 'Policy', 'Operations'];
+const ROLES = { 'AI Research & Engineering': ['Research Engineer, Interpretability', 'Research Scientist, Alignment', 'ML Engineer, Pretraining', 'Research Engineer, RL'],
+  'Product Engineering': ['Software Engineer, Web', 'Full-stack Engineer', 'iOS Engineer', 'Engineering Manager, Product'],
+  Infrastructure: ['Site Reliability Engineer', 'Software Engineer, Infrastructure', 'Network Engineer', 'Data Center Engineer'],
+  Security: ['Security Engineer', 'Detection & Response Engineer', 'Security Architect'],
+  Sales: ['Account Executive, Enterprise', 'Solutions Architect', 'Sales Development Rep'],
+  Marketing: ['Product Marketing Manager', 'Content Strategist', 'Brand Designer'],
+  Finance: ['Financial Analyst', 'Accounting Manager', 'Tax Lead'],
+  People: ['Recruiter, Technical', 'People Partner', 'Recruiting Coordinator'],
+  Legal: ['Product Counsel', 'Commercial Counsel', 'Paralegal'],
+  Design: ['Product Designer', 'Design Engineer', 'UX Researcher'],
+  Policy: ['Policy Analyst', 'Head of Policy, EMEA'], Operations: ['Program Manager', 'Workplace Coordinator', 'Business Operations Lead'] };
+const SEN = [['Intern', 0.35], ['Entry', 0.6], ['Mid', 0.8], ['Senior', 1], ['Staff+', 1.3], ['Manager', 1.15], ['Director+', 1.6]];
+const BASE = { 'AI Research & Engineering': 340000, 'Product Engineering': 260000, Infrastructure: 250000, Security: 240000, Sales: 200000, Marketing: 180000, Finance: 170000, People: 150000, Legal: 230000, Design: 190000, Policy: 175000, Operations: 150000 };
+
+function makeJobs(n, company = 'demo') {
+  const r = rng(42);
+  const pick = a => a[Math.floor(r() * a.length)];
+  const jobs = [];
+  for (let i = 0; i < n; i++) {
+    const dept = r() < 0.3 ? DEPTS[0] : r() < 0.4 ? DEPTS[1] : pick(DEPTS);
+    const [seniority, sm] = pick(SEN);
+    const title = (seniority === 'Senior' || seniority === 'Staff+' ? seniority.replace('+', '') + ' ' : '') + pick(ROLES[dept]);
+    const locs = [];
+    const isRemote = r() < 0.12;
+    if (isRemote) locs.push({ name: r() < 0.7 ? 'Remote (US)' : 'Remote (EU)', remote: true, country: 'US', lat: null, lng: null });
+    else {
+      const c = r() < 0.4 ? CITIES[0] : r() < 0.35 ? CITIES[1] : pick(CITIES);
+      locs.push({ name: c[0], city: c[1], region: c[2], country: c[3], lat: c[4], lng: c[5], remote: false });
+      if (r() < 0.25) { const d = pick(CITIES.slice(0, 8)); if (d !== c) locs.push({ name: d[0], city: d[1], region: d[2], country: d[3], lat: d[4], lng: d[5], remote: false }); }
+    }
+    const city = CITIES.find(c => c[0] === locs[0].name) || CITIES[0];
+    const hasSalary = r() > 0.18;
+    let salary = null;
+    if (hasSalary) {
+      const cur = city[6];
+      const mid = BASE[dept] * sm * city[7] * (0.8 + r() * 0.45);
+      const spread = 0.12 + r() * 0.2;
+      const round = cur === 'JPY' ? 100000 : 5000;
+      const min = Math.round(mid * (1 - spread) / round) * round, max = Math.round(mid * (1 + spread) / round) * round;
+      salary = { min, max, mid: (min + max) / 2, currency: cur, interval: seniority === 'Intern' ? 'hour' : 'year', text: `${min}-${max} ${cur}` };
+    }
+    jobs.push({ id: `${company}:${1000 + i}`, company, companyName: 'Demo Co', title, department: dept, team: null,
+      employmentType: seniority === 'Intern' ? 'Intern' : 'Full-time', seniority, locations: locs, remote: isRemote, salary, url: '#', updatedAt: null });
+  }
+  return jobs;
+}
+
+// ---- harness ----
+const q = new URLSearchParams(location.search);
+const $ = id => document.getElementById(id);
+for (const k of ['mode', 'groupBy', 'colorBy', 'n', 'theme', 'minSal']) if (q.has(k)) $(k).value = q.get(k);
+const log = msg => { const d = document.createElement('div'); d.textContent = msg; $('log').prepend(d); };
+const chart = createChart($('chartBox'), { onSelect: j => log(`select: ${j.title}`), onHover: j => j && ($('log').dataset.hover = j.id) });
+let map = null;
+let all = [];
+let current = [];
+
+function apply({ fit } = {}) {
+  const min = +$('minSal').value;
+  current = all.filter(j => !min || (j.salary && j.salary.max >= min));
+  chart.update(current, { groupBy: $('groupBy').value, colorBy: $('colorBy').value });
+  if (map) map.update(current, { fit });
+}
+function setMode() {
+  const m = $('mode').value;
+  $('chartBox').hidden = m !== 'chart';
+  $('mapBox').hidden = m !== 'map';
+  if (m === 'map') {
+    if (!map) { map = createMap($('mapBox'), { onSelect: j => log(`map select: ${j.title}`), onAreaSelect: (js, label) => log(`area: ${label} (${js.length})`) }); map.update(current, { fit: true }); }
+    else map.invalidateSize();
+  }
+}
+function setTheme() { const t = $('theme').value; if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; }
+function load() { all = makeJobs(+$('n').value); apply({ fit: true }); }
+
+$('mode').onchange = setMode;
+$('groupBy').onchange = $('colorBy').onchange = $('minSal').onchange = () => apply();
+$('n').onchange = load;
+$('theme').onchange = setTheme;
+$('hl').onclick = () => { const j = current.filter(j => j.salary && !j.remote)[Math.floor(Math.random() * current.length / 2)]; if (j) { chart.highlight(j.id); map?.highlight(j.id); log(`highlight: ${j.title}`); } };
+setTheme(); load(); setMode();
+if (q.has('hl')) { const j = current.filter(j => j.salary)[+q.get('hl')]; chart.highlight(j.id); map?.highlight(j.id); }
+window.__viz = { chart, get map() { return map; }, get jobs() { return current; } };
+</script>
+</body>
+</html>

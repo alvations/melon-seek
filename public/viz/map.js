@@ -16,7 +16,8 @@ import { formatMoney, toUSD, median, salaryColor, inkOn, onThemeChange, isDark }
 const TILE_LIGHT = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
 const TILE_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
-const CLUSTER_PX = 58;
+const CLUSTER_W = 76;  // px: pill width + gap
+const CLUSTER_H = 34;  // px: pill height + gap (labels add more when offline)
 
 function el(tag, cls, text) {
   const e = document.createElement(tag);
@@ -92,11 +93,16 @@ export function createMap(container, { onSelect, onAreaSelect } = {}) {
   const tiles = L.tileLayer(isDark() ? TILE_DARK : TILE_LIGHT, {
     subdomains: 'abcd', maxZoom: 20, attribution: ATTRIBUTION, detectRetina: false, crossOrigin: true,
   });
-  tiles.on('tileerror', () => { tileErrors++; if (!tileOk) container.classList.add('ms-map--offline'); });
-  tiles.on('tileload', () => { tileOk++; container.classList.remove('ms-map--offline'); });
+  const setOffline = on => {
+    if (container.classList.contains('ms-map--offline') === on) return;
+    container.classList.toggle('ms-map--offline', on);
+    if (places.length) draw(); // labels change pin footprint -> recluster
+  };
+  tiles.on('tileerror', () => { tileErrors++; if (!tileOk) setOffline(true); });
+  tiles.on('tileload', () => { tileOk++; setOffline(false); });
   tiles.addTo(map);
   // If nothing loads at all (blocked silently), treat as offline after a moment.
-  const offlineTimer = setTimeout(() => { if (!tileOk) container.classList.add('ms-map--offline'); }, 4000);
+  const offlineTimer = setTimeout(() => { if (!tileOk) setOffline(true); }, 4000);
 
   // Remote control
   const RemoteControl = L.Control.extend({
@@ -132,11 +138,12 @@ export function createMap(container, { onSelect, onAreaSelect } = {}) {
     const pts = places
       .map(p => ({ p, pt: map.project([p.lat, p.lng], zoom) }))
       .sort((a, b) => b.p.jobs.length - a.p.jobs.length);
+    const ch = container.classList.contains('ms-map--offline') ? CLUSTER_H + 16 : CLUSTER_H;
     const out = [];
     for (const { p, pt } of pts) {
       let target = null;
       for (const c of out) {
-        if (Math.abs(c.pt.x - pt.x) < CLUSTER_PX && Math.abs(c.pt.y - pt.y) < CLUSTER_PX * 0.5) { target = c; break; }
+        if (Math.abs(c.pt.x - pt.x) < CLUSTER_W && Math.abs(c.pt.y - pt.y) < ch) { target = c; break; }
       }
       if (target) target.members.push(p);
       else out.push({ pt, members: [p], lead: p });

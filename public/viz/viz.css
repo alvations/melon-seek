@@ -1,0 +1,435 @@
+/* melon-seek viz: salary landscape chart (.ms-chart), job map (.ms-map) and
+   the shared hover tooltip (.ms-viz-tip). Self-contained; consumes the app's
+   --ms-* tokens when present and falls back to its own light/dark values. */
+
+.ms-chart, .ms-map, .ms-viz-tip {
+  --_bg: var(--ms-bg, #f9f9f7);
+  --_surface: var(--ms-surface, #fcfcfb);
+  --_text: var(--ms-text, #0b0b0b);
+  --_muted: var(--ms-muted, #5f5e5a);
+  --_border: var(--ms-border, #e1e0d9);
+  --_accent: var(--ms-accent, #2a78d6);
+  --_grid: color-mix(in srgb, var(--_border) 75%, var(--_surface));
+  --_axis: color-mix(in srgb, var(--_muted) 45%, var(--_surface));
+  --_wash: color-mix(in srgb, var(--_text) 5%, transparent);
+  --_wash-strong: color-mix(in srgb, var(--_accent) 13%, transparent);
+  --_tip-bg: var(--ms-surface, #ffffff);
+  --_shadow: 0 1px 2px rgba(11, 11, 11, .06), 0 6px 20px rgba(11, 11, 11, .10);
+  --_map-bg: color-mix(in srgb, var(--_bg) 88%, #c9d6e3);
+  --_map-line: color-mix(in srgb, var(--_border) 80%, #9fb2c6);
+  --_font: var(--ms-font, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) :is(.ms-chart, .ms-map, .ms-viz-tip) {
+    --_bg: var(--ms-bg, #0d0d0d);
+    --_surface: var(--ms-surface, #1a1a19);
+    --_text: var(--ms-text, #ffffff);
+    --_muted: var(--ms-muted, #a9a89f);
+    --_border: var(--ms-border, #2c2c2a);
+    --_accent: var(--ms-accent, #3987e5);
+    --_tip-bg: var(--ms-surface, #242423);
+    --_shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .45);
+    --_map-bg: color-mix(in srgb, var(--_bg) 85%, #22303d);
+    --_map-line: color-mix(in srgb, var(--_border) 70%, #3a4b5c);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] :is(.ms-chart, .ms-map, .ms-viz-tip) {
+  --_bg: var(--ms-bg, #0d0d0d);
+  --_surface: var(--ms-surface, #1a1a19);
+  --_text: var(--ms-text, #ffffff);
+  --_muted: var(--ms-muted, #a9a89f);
+  --_border: var(--ms-border, #2c2c2a);
+  --_accent: var(--ms-accent, #3987e5);
+  --_tip-bg: var(--ms-surface, #242423);
+  --_shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .45);
+  --_map-bg: color-mix(in srgb, var(--_bg) 85%, #22303d);
+  --_map-line: color-mix(in srgb, var(--_border) 70%, #3a4b5c);
+  color-scheme: dark;
+}
+
+/* ============================== chart ============================== */
+
+.ms-chart {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  background: var(--_surface);
+  color: var(--_text);
+  font: 12px/1.35 var(--_font);
+  -webkit-font-smoothing: antialiased;
+}
+.ms-chart *, .ms-chart *::before, .ms-chart *::after { box-sizing: border-box; }
+
+.ms-chart__head {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 16px 8px;
+}
+.ms-chart__legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+}
+.ms-chart__legend[hidden] { display: none; }
+.ms-legend__title { color: var(--_muted); font-weight: 500; margin-right: 2px; }
+.ms-legend__item { display: inline-flex; align-items: center; gap: 6px; max-width: 220px; white-space: nowrap; }
+.ms-legend__swatch { flex: none; width: 10px; height: 10px; border-radius: 2px; }
+.ms-legend__key { overflow: hidden; text-overflow: ellipsis; color: var(--_text); }
+.ms-legend__n { color: var(--_muted); font-variant-numeric: tabular-nums; }
+
+.ms-chart__notes { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; color: var(--_muted); }
+.ms-note--strong { color: var(--_text); font-weight: 600; }
+.ms-note__sep { color: var(--_axis); }
+
+.ms-chart__scroll {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+.ms-chart--flow .ms-chart__scroll { overflow: visible; }
+.ms-chart__scroll[hidden] { display: none; }
+
+.ms-chart__sticky {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--_surface);
+  border-bottom: 1px solid var(--_border);
+}
+
+.ms-chart__hist { position: relative; }
+.ms-hist__cap {
+  position: absolute; left: 0; bottom: 4px;
+  padding-left: 16px;
+  line-height: 1.25;
+}
+.ms-hist__title { color: var(--_muted); }
+.ms-hist__sub { color: var(--_text); font-weight: 600; }
+.ms-hist__bin {
+  position: absolute;
+  bottom: 0;
+  background: var(--_accent);
+  opacity: var(--_hist-o, .42);
+  border-radius: 2px 2px 0 0;
+  cursor: default;
+  transition: opacity .12s;
+}
+.ms-hist__bin.is-hover { opacity: .9; }
+.ms-hist__bin::after { content: ""; position: absolute; inset: -12px -1px 0; } /* bigger hit target */
+.ms-hist__median {
+  position: absolute; top: 4px; bottom: 0; width: 0;
+  border-left: 1px solid var(--_text);
+  opacity: .55;
+  pointer-events: none;
+}
+
+.ms-chart__axis {
+  position: relative;
+  height: 24px;
+  border-top: 1px solid var(--_axis);
+}
+.ms-axis__cap {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  display: flex; align-items: center;
+  padding-left: 16px;
+  color: var(--_muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ms-axis__tick {
+  position: absolute;
+  top: 5px;
+  transform: translateX(-50%);
+  color: var(--_muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ms-chart__body { position: relative; outline: none; padding-bottom: 8px; }
+.ms-chart__body:focus-visible { box-shadow: inset 0 0 0 2px var(--_accent); }
+.ms-chart__grid { position: absolute; inset: 0; pointer-events: none; }
+.ms-chart__gridline { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px solid var(--_grid); }
+.ms-chart__median {
+  position: absolute; width: 0;
+  border-left: 1px solid var(--_muted);
+  opacity: .5;
+}
+.ms-chart__rows { position: relative; }
+
+.ms-group {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 5px;
+  border-top: 1px solid var(--_border);
+}
+.ms-group:first-child { border-top: 0; }
+.ms-group__name {
+  display: flex; align-items: baseline; gap: 6px;
+  padding-left: 16px; padding-right: 8px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.ms-group__title { font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.ms-group__count { color: var(--_muted); font-variant-numeric: tabular-nums; }
+.ms-group__median {
+  position: absolute; bottom: 5px;
+  padding-left: 6px;
+  color: var(--_muted);
+  white-space: nowrap;
+}
+.ms-group__median--left { transform: translateX(-100%); padding: 0 6px 0 0; }
+
+.ms-row {
+  position: relative;
+  cursor: pointer;
+}
+.ms-row::before { /* hover wash spans the full row */
+  content: ""; position: absolute; inset: 1px 0;
+  border-radius: 4px;
+  pointer-events: none;
+}
+.ms-row.is-hover::before { background: var(--_wash); }
+.ms-row.is-active::before { box-shadow: inset 0 0 0 1px var(--_axis); }
+.ms-row.is-highlighted::before { background: var(--_wash-strong); }
+.ms-row__label {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  display: flex; align-items: center;
+  padding-left: 16px; padding-right: 10px;
+  overflow: hidden;
+  color: var(--_muted);
+  white-space: nowrap;
+}
+.ms-row__label { text-overflow: ellipsis; display: block; line-height: 22px; }
+.ms-row.is-hover .ms-row__label, .ms-row.is-highlighted .ms-row__label { color: var(--_text); }
+.ms-row.is-highlighted .ms-row__label { font-weight: 600; }
+.ms-row__bar {
+  position: absolute; top: 50%;
+  height: 8px; margin-top: -4px;
+  min-width: 2px;
+  border-radius: 4px;
+  background: var(--_accent);
+  opacity: var(--_bar-o, .5);
+  transition: opacity .12s;
+}
+.ms-row__dot {
+  position: absolute; top: 50%;
+  width: 10px; height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: var(--_accent);
+  box-shadow: 0 0 0 2px var(--_surface);
+}
+.ms-row.is-hover .ms-row__bar, .ms-row.is-highlighted .ms-row__bar { opacity: .95; }
+.ms-row__val {
+  position: absolute; top: 0; line-height: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--_text);
+  white-space: nowrap;
+  pointer-events: none;
+  visibility: hidden;
+}
+.ms-row.is-hover .ms-row__val, .ms-row.is-highlighted .ms-row__val { visibility: visible; }
+
+.ms-chart--narrow .ms-row__label, .ms-chart--narrow .ms-group__name,
+.ms-chart--narrow .ms-axis__cap, .ms-chart--narrow .ms-hist__cap { padding-left: 12px; }
+.ms-chart--narrow .ms-chart__head { padding-left: 12px; padding-right: 12px; }
+
+.ms-chart__empty {
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; padding: 48px 16px;
+  text-align: center;
+}
+.ms-chart__empty[hidden] { display: none; }
+.ms-chart__empty-title { font-size: 14px; font-weight: 600; }
+.ms-chart__empty-sub { color: var(--_muted); }
+
+/* Dark surface: translucent fills go muddy, so lift the range bars. */
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .ms-chart { --_bar-o: .72; --_hist-o: .62; }
+}
+:root[data-theme="dark"] .ms-chart { --_bar-o: .72; --_hist-o: .62; }
+
+/* ============================== tooltip ============================== */
+
+.ms-viz-tip {
+  position: fixed; left: 0; top: 0;
+  z-index: 10000;
+  max-width: 300px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--_border);
+  background: var(--_tip-bg);
+  color: var(--_text);
+  box-shadow: var(--_shadow);
+  font: 12px/1.4 var(--_font);
+  pointer-events: none;
+}
+.ms-viz-tip[hidden] { display: none; }
+.ms-tip__value { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ms-tip__sub { color: var(--_muted); font-variant-numeric: tabular-nums; }
+.ms-tip__title { margin-top: 4px; font-weight: 600; }
+.ms-tip__meta { color: var(--_muted); }
+.ms-tip__roles { list-style: none; margin: 6px 0 0; padding: 6px 0 0; border-top: 1px solid var(--_border); }
+.ms-tip__roles li { display: flex; gap: 8px; justify-content: space-between; }
+.ms-tip__role { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-tip__n { color: var(--_muted); font-variant-numeric: tabular-nums; }
+
+/* ============================== map ============================== */
+
+.ms-map {
+  position: relative;
+  height: 100%;
+  min-height: 320px;
+  background: var(--_map-bg);
+  color: var(--_text);
+  font: 12px/1.35 var(--_font);
+  overflow: hidden;
+}
+.ms-map__canvas { position: absolute; inset: 0; }
+.ms-map .leaflet-container {
+  background: var(--_map-bg);
+  font: inherit;
+  outline: none;
+}
+.ms-map .ms-graticule-line { stroke: var(--_map-line); stroke-opacity: .55; fill: none; }
+
+/* Leaflet chrome */
+.ms-map .leaflet-bar { border: 1px solid var(--_border); border-radius: 8px; box-shadow: var(--_shadow); overflow: hidden; }
+.ms-map .leaflet-bar a {
+  background: var(--_surface); color: var(--_text); border-bottom-color: var(--_border);
+  width: 30px; height: 30px; line-height: 30px;
+}
+.ms-map .leaflet-bar a:hover { background: color-mix(in srgb, var(--_text) 6%, var(--_surface)); }
+.ms-map .leaflet-bar a.leaflet-disabled { color: var(--_muted); opacity: .5; }
+.ms-map .leaflet-control-attribution {
+  background: color-mix(in srgb, var(--_surface) 80%, transparent);
+  color: var(--_muted); font-size: 10px;
+}
+.ms-map .leaflet-control-attribution a { color: var(--_muted); }
+
+/* Price-tag pins */
+.ms-map .ms-pin-icon { background: none; border: 0; }
+.ms-pin {
+  --pin-bg: var(--_accent);
+  --pin-fg: #fff;
+  position: absolute;
+  left: 0; top: 0;
+  transform: translate(-50%, calc(-100% - 7px));
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 12px;
+  background: var(--pin-bg);
+  color: var(--pin-fg);
+  font: 700 12px/1 var(--_font);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  box-shadow: 0 0 0 2px var(--_surface), 0 2px 6px rgba(0, 0, 0, .22);
+  cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease;
+  transform-origin: 50% calc(100% + 7px);
+}
+.ms-pin::after { /* pointer */
+  content: "";
+  position: absolute; left: 50%; bottom: -6px;
+  width: 10px; height: 10px; margin-left: -5px;
+  background: var(--pin-bg);
+  transform: rotate(45deg);
+  border-radius: 0 0 2px 0;
+  box-shadow: 2px 2px 0 0 var(--_surface);
+  z-index: -1;
+}
+.ms-pin__count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 17px; height: 17px; padding: 0 4px;
+  margin-right: -5px;
+  border-radius: 9px;
+  background: var(--_surface);
+  color: var(--_text);
+  font-size: 10.5px; font-weight: 600;
+}
+.ms-pin--nosalary {
+  --pin-bg: var(--_surface);
+  --pin-fg: var(--_text);
+  font-weight: 600;
+  box-shadow: 0 0 0 1px var(--_axis), 0 2px 6px rgba(0, 0, 0, .18);
+}
+.ms-pin--nosalary::after { box-shadow: 1px 1px 0 0 var(--_axis); }
+.ms-pin.is-hover { transform: translate(-50%, calc(-100% - 7px)) scale(1.1); box-shadow: 0 0 0 2px var(--_surface), 0 4px 12px rgba(0, 0, 0, .3); }
+.ms-pin__label {
+  position: absolute; left: 50%; top: calc(100% + 9px);
+  transform: translateX(-50%);
+  display: none;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--_surface) 82%, transparent);
+  color: var(--_text);
+  font-size: 10.5px; font-weight: 500;
+  pointer-events: none;
+}
+/* Offline: no basemap, so name the places under the pins. */
+.ms-map--offline .ms-pin__label { display: block; }
+.ms-map__offline-note {
+  display: none;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--_surface) 90%, transparent);
+  border: 1px solid var(--_border);
+  color: var(--_muted);
+  font-size: 11px;
+}
+.ms-map--offline .ms-map__offline-note { display: block; }
+
+.ms-pin.is-pulse { box-shadow: 0 0 0 2px var(--_surface), 0 0 0 4px var(--_text); animation: ms-pulse 1.4s ease-out infinite; }
+@keyframes ms-pulse {
+  0%   { box-shadow: 0 0 0 2px var(--_surface), 0 0 0 4px var(--_text), 0 0 0 4px color-mix(in srgb, var(--_accent) 50%, transparent); }
+  100% { box-shadow: 0 0 0 2px var(--_surface), 0 0 0 4px var(--_text), 0 0 0 16px transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .ms-pin.is-pulse { animation: none; } }
+
+/* Remote control */
+.ms-map .ms-remote {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 12px;
+  border: 1px solid var(--_border);
+  border-radius: 16px;
+  background: var(--_surface);
+  color: var(--_text);
+  font: 600 12px/1 var(--_font);
+  box-shadow: var(--_shadow);
+  cursor: pointer;
+}
+.ms-map .ms-remote[hidden] { display: none; }
+.ms-map .ms-remote:hover { background: color-mix(in srgb, var(--_text) 5%, var(--_surface)); }
+.ms-map .ms-remote:focus-visible { outline: 2px solid var(--_accent); outline-offset: 2px; }
+.ms-remote__n { color: var(--_muted); font-weight: 500; }
+.ms-remote__n::before, .ms-remote__price::before { content: "·"; margin-right: 6px; color: var(--_muted); }
+.ms-remote.is-pulse { box-shadow: 0 0 0 2px var(--_text), var(--_shadow); }
+
+/* Map tooltip */
+.ms-map .leaflet-tooltip.ms-map-tip {
+  padding: 8px 10px;
+  max-width: 280px;
+  min-width: 180px;
+  white-space: normal;
+  border-radius: 8px;
+  border: 1px solid var(--_border);
+  background: var(--_tip-bg, var(--_surface));
+  color: var(--_text);
+  box-shadow: var(--_shadow);
+  font: 12px/1.4 var(--_font);
+}
+.ms-map .leaflet-tooltip-top.ms-map-tip::before { border-top-color: var(--_tip-bg, var(--_surface)); }
