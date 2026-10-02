@@ -1,7 +1,9 @@
 // Company registry: built-in boards + validation for custom boards.
 
 export const SOURCES = ['greenhouse', 'ashby', 'lever'];
-const SLUG_RE = /^[a-z0-9-_.]+$/i;
+// Must start and end alphanumeric and contain no "..", so "." / ".." can never
+// move the upstream URL path (review L1). Same rule as the client (public/app.js).
+const SLUG_RE = /^[a-z0-9](?:[a-z0-9_.-]{0,98}[a-z0-9])?$/i;
 
 export const COMPANIES = [
   { slug: 'anthropic', name: 'Anthropic', source: 'greenhouse', board: 'anthropic', color: '#d97757' },
@@ -21,13 +23,18 @@ export function getCompany(slug) {
 }
 
 export function isValidSlug(s) {
-  return typeof s === 'string' && s.length > 0 && s.length <= 100 && SLUG_RE.test(s);
+  return typeof s === 'string' && SLUG_RE.test(s) && !s.includes('..');
 }
 
 function colorFromString(str) {
   let h = 0;
   for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
   return `hsl(${h % 360}, 55%, 45%)`;
+}
+
+/** Name-independent display name for a custom board (used for cached data). */
+export function defaultName(board) {
+  return titleCase(String(board || ''));
 }
 
 function titleCase(s) {
@@ -52,7 +59,7 @@ export function resolveCompany(query = {}) {
       throw httpError(400, `Invalid source "${source}". Expected one of: ${SOURCES.join(', ')}`);
     }
     if (!isValidSlug(board)) {
-      throw httpError(400, `Invalid board slug "${board ?? ''}". Use letters, digits, - _ .`);
+      throw httpError(400, 'Invalid board slug. Use letters, digits, - _ . (must start and end with a letter or digit)');
     }
     // A built-in with the same source/board keeps its identity.
     const builtin = COMPANIES.find((c) => c.source === src && c.board.toLowerCase() === board.toLowerCase());

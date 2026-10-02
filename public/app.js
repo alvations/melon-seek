@@ -1232,8 +1232,11 @@ function findJob(id) { return data.jobs.find((j) => j.id === id); }
 function openDrawer(id, { fromHash = false } = {}) {
   const job = findJob(id);
   if (!job) { if (fromHash && data.status === 'ready') set({ job: null }, { replace: true }); return; }
-  if (!drawerJobId) drawerReturnFocus = document.activeElement;
+  if (!drawerJobId || !drawerReturnFocus) {
+    drawerReturnFocus = document.activeElement && document.activeElement !== document.body && !$('#drawer').contains(document.activeElement) ? document.activeElement : null;
+  }
   drawerJobId = id;
+  setBackgroundInert(true);
   if (S.job !== id) { S.job = id; commit({ replace: fromHash }); }
   const drawer = $('#drawer');
   drawer.replaceChildren(...drawerContent(job));
@@ -1246,11 +1249,18 @@ function openDrawer(id, { fromHash = false } = {}) {
   $(`.card[data-id="${cssId(id)}"]`)?.classList.add('is-open');
   highlightViz();
   renderDrawerNav();
-  if (!fromHash) $('#drawerClose')?.focus({ preventScroll: true });
+  $('#drawerClose')?.focus({ preventScroll: true }); // always — including deep links and Back/Forward
+}
+
+// Everything behind the modal drawer becomes inert (not focusable, hidden from AT).
+const behindDrawer = () => [$('.topbar'), $('.quickbar'), $('#layout'), $('.skip-link')];
+function setBackgroundInert(on) {
+  for (const n of behindDrawer()) if (n) { n.inert = on; if (on) n.setAttribute('aria-hidden', 'true'); else n.removeAttribute('aria-hidden'); }
 }
 
 function closeDrawer({ fromHash = false } = {}) {
   if (!drawerJobId) return;
+  const closedId = drawerJobId;
   drawerJobId = null;
   const drawer = $('#drawer');
   drawer.classList.remove('is-open');
@@ -1258,8 +1268,13 @@ function closeDrawer({ fromHash = false } = {}) {
   setTimeout(() => { if (!drawerJobId) { drawer.hidden = true; $('#drawerBackdrop').hidden = true; } }, 220);
   for (const c of document.querySelectorAll('.card.is-open')) c.classList.remove('is-open');
   if (!fromHash && S.job) { S.job = null; commit(); }
+  setBackgroundInert(false);
   highlightViz();
-  if (drawerReturnFocus?.isConnected) drawerReturnFocus.focus({ preventScroll: true });
+  // The original trigger may have been re-rendered away (e.g. a keyword toggled in the drawer).
+  const target = drawerReturnFocus?.isConnected ? drawerReturnFocus
+    : $(`.card[data-id="${cssId(closedId)}"]`) || $('#resultsList');
+  target?.focus({ preventScroll: true });
+  drawerReturnFocus = null;
 }
 
 function renderDrawerNav() {
@@ -1284,24 +1299,49 @@ function percentile(job) {
   return Math.round((mids.filter((m) => m < job._mid).length / mids.length) * 100);
 }
 
-function salaryDistributionSvg(job) {
+const SVGNS = 'http://www.w3.org/2000/svg';
+function svgEl(tag, attrs) {
+  const el = document.createElementNS(SVGNS, tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
+  return el;
+}
+
+/** Company pay distribution (midpoints, approx USD) with this job's range marked. DOM-built, no HTML strings. */
+function salaryDistribution(job) {
   const dom = salaryDomain();
-  const mids = data.jobs.filter((j) => j.salary).map((j) => j._mid).sort((a, b) => a - b);
-  if (!dom || !mids.length) return '';
+  const mids = data.jobs.filter((j) => j._usd).map((j) => j._mid).sort((a, b) => a - b);
+  if (!dom || !mids.length || !job._usd) return null;
   const W = 100, H = 40, N = 32;
   const counts = new Array(N).fill(0);
-  for (const m of mids) counts[Math.min(N - 1, Math.floor(((m - dom.lo) / (dom.hi - dom.lo)) * N))]++;
+  for (const m of mids) counts[Math.min(N - 1, Math.max(0, Math.floor(((m - dom.lo) / (dom.hi - dom.lo)) * N)))]++;
   const max = Math.max(...counts);
   const x = (v) => ((v - dom.lo) / (dom.hi - dom.lo)) * W;
   const bw = W / N;
-  const bars = counts.map((c, i) => c ? `<rect x="${(i * bw + 0.15).toFixed(2)}" y="${(H - (c / max) * (H - 6)).toFixed(2)}" width="${(bw - 0.3).toFixed(2)}" height="${((c / max) * (H - 6)).toFixed(2)}" rx="0.4" class="dist-bar${(i + 1) * bw > x(job.salary.min) && i * bw < x(job.salary.max) ? ' is-in' : ''}"/>` : '').join('');
-  const med = x(quantile(mids, 0.5));
-  return `<svg class="dist" viewBox="0 0 ${W} ${H + 12}" preserveAspectRatio="none" role="img" aria-label="Where this salary sits among ${mids.length} roles">
-    ${bars}
-    <rect x="${x(job.salary.min).toFixed(2)}" y="${H + 2}" width="${Math.max(0.8, x(job.salary.max) - x(job.salary.min)).toFixed(2)}" height="4" rx="2" class="dist-range"/>
-    <line x1="${med.toFixed(2)}" x2="${med.toFixed(2)}" y1="0" y2="${H}" class="dist-med" vector-effect="non-scaling-stroke"/>
-  </svg>
-  <div class="dist-axis"><span>${money(dom.lo)}</span><span class="dist-med-label" style="left:${med.toFixed(1)}%">median ${money(quantile(mids, 0.5))}</span><span>${money(dom.hi)}</span></div>`;
+  const median = quantile(mids, 0.5);
+  const svg = svgEl('svg', { class: 'dist', viewBox: `0 0 ${W} ${H + 12}`, preserveAspectRatio: 'none', role: 'img',
+    'aria-label': `Pay distribution of ${mids.length} roles; this role spans ${money(job._usd.min)} to ${money(job._usd.max)}, median ${money(median)}` });
+  counts.forEach((c, i) => {
+    if (!c) return;
+    const hgt = (c / max) * (H - 6);
+    const inRange = (i + 1) * bw > x(job._usd.min) && i * bw < x(job._usd.max);
+    svg.append(svgEl('rect', { x: (i * bw + 0.15).toFixed(2), y: (H - hgt).toFixed(2), width: (bw - 0.3).toFixed(2), height: hgt.toFixed(2), rx: 0.4, class: `dist-bar${inRange ? ' is-in' : ''}` }));
+  });
+  svg.append(svgEl('rect', { x: x(job._usd.min).toFixed(2), y: H + 2, width: Math.max(0.8, x(job._usd.max) - x(job._usd.min)).toFixed(2), height: 4, rx: 2, class: 'dist-range' }));
+  const mx = x(median).toFixed(2);
+  svg.append(svgEl('line', { x1: mx, x2: mx, y1: 0, y2: H, class: 'dist-med', 'vector-effect': 'non-scaling-stroke' }));
+  const medLabel = h('span', { class: 'dist-med-label' }, `median ${money(median)}`);
+  medLabel.style.left = `${Math.min(80, Math.max(20, x(median))).toFixed(1)}%`;
+  const foreign = job.salary.currency && job.salary.currency !== 'USD';
+  return h('div', { class: 'd-dist' }, svg,
+    h('div', { class: 'dist-axis' }, h('span', null, money(dom.lo)), medLabel, h('span', null, money(dom.hi))),
+    foreign ? h('p', { class: 'fnote' }, `≈ ${money(job._usd.min)}–${money(job._usd.max).replace(/^\$/, '')} in approx USD for comparison`) : null);
+}
+
+const INTERVAL_ADJ = { hour: 'hourly', day: 'daily', week: 'weekly', month: 'monthly', year: 'annual' };
+
+function annualNote(sal) {
+  const orig = sal.originalInterval || (sal.interval && sal.interval !== 'year' ? sal.interval : null);
+  return orig ? h('div', { class: 'd-annual' }, `Annualized from ${INTERVAL_ADJ[orig] || orig} pay${sal.text ? ` (${sal.text})` : ''}`) : null;
 }
 
 function drawerContent(job) {
@@ -1315,7 +1355,7 @@ function drawerContent(job) {
     }, k)))) : null));
   const bullets = (title, arr) => (arr?.length ? h('section', { class: 'd-sec' }, h('h3', null, title), h('ul', { class: 'bullets' }, ...arr.map((b) => h('li', null, b)))) : null);
   const desc = h('div', { class: 'desc' });
-  desc.append(sanitizeHtml(job.descriptionHtml || ''));
+  desc.append(sanitizeHtml(job.descriptionHtml || '', job.url));
   const descWrap = h('section', { class: 'd-sec d-desc is-collapsed' }, h('h3', null, 'Full description'), desc);
   const descToggle = h('button', { type: 'button', class: 'link-btn', 'aria-expanded': 'false', onclick: (e) => {
     const c = descWrap.classList.toggle('is-collapsed');
@@ -1334,10 +1374,10 @@ function drawerContent(job) {
   const sal = job.salary;
   const salaryBlock = h('section', { class: 'd-salary' },
     sal ? h('div', { class: 'd-sal-top' },
-      h('div', null, h('div', { class: 'd-sal-amt' }, salaryRange(sal)), h('div', { class: 'muted' }, `${sal.currency || 'USD'} · per year${sal.interval && sal.interval !== 'year' ? ` (annualized from ${sal.interval})` : ''}`)),
+      h('div', null, h('div', { class: 'd-sal-amt' }, salaryRange(sal)), h('div', { class: 'muted' }, `${sal.currency || 'USD'} · per year`), annualNote(sal)),
       pct != null ? h('div', { class: 'd-pct' }, h('div', { class: 'd-pct-num' }, `${pct}%`), h('div', { class: 'muted' }, 'percentile')) : null)
       : h('div', { class: 'd-sal-none' }, h('strong', null, 'Salary not listed'), h('span', { class: 'muted' }, ' — this posting doesn\u2019t include a pay range.')),
-    sal ? h('div', { class: 'd-dist', html: salaryDistributionSvg(job) }) : null,
+    sal ? salaryDistribution(job) : null,
     sal && pct != null ? h('p', { class: 'd-pct-text' }, `Pays more than ${pct}% of roles at ${company.name || job.companyName}`) : null);
 
   const locs = h('section', { class: 'd-sec' }, h('h3', null, job.locations.length > 1 ? `Locations (${job.locations.length})` : 'Location'),
@@ -1348,10 +1388,11 @@ function drawerContent(job) {
 
   const source = SOURCE_LABEL[company.source] || 'job board';
   const foot = h('div', { class: 'drawer-foot' },
-    h('a', { class: 'btn btn--primary btn--lg apply', href: safeUrl(job.url), target: '_blank', rel: 'noopener noreferrer' }, `Apply on ${source}`, h('span', { html: ICON.ext })),
+    h('a', { class: 'btn btn--primary btn--lg apply', href: job.url, target: '_blank', rel: 'noopener noreferrer', title: `Opens ${applyHost(job.url) || 'the posting'} in a new tab` },
+      h('span', { class: 'apply-label' }, `Apply on ${source}`, applyHost(job.url) ? h('span', { class: 'apply-host' }, applyHost(job.url)) : null), h('span', { html: ICON.ext })),
     h('button', { type: 'button', class: 'btn btn--ghost btn--lg', 'aria-label': 'Copy link to this role', html: ICON.link, onclick: copyLink }));
 
-  return [head, h('div', { class: 'drawer-scroll' },
+  return [head, h('div', { class: 'drawer-scroll', tabindex: '0', 'aria-label': 'Role details' },
     h('div', { class: 'd-company' }, h('span', { class: 'dot', style: `--dot:${companyColor(company)}` }), company.name || job.companyName,
       data.mode === 'demo' ? h('span', { class: 'tag tag--demo' }, 'Demo') : null),
     h('h2', { class: 'd-title', id: 'drawerTitle' }, job.title),
@@ -1370,15 +1411,23 @@ function copyLink() {
   (navigator.clipboard?.writeText(url) || Promise.reject()).then(() => toast('Link copied'), () => toast('Copy failed — use the address bar'));
 }
 
-function safeUrl(u) {
-  try { const x = new URL(u, location.href); return ['http:', 'https:'].includes(x.protocol) ? x.href : '#'; } catch { return '#'; }
+function applyHost(u) {
+  const x = safeUrl(u);
+  if (x === '#') return '';
+  try { return new URL(x).hostname.replace(/^www\./, ''); } catch { return ''; }
+}
+
+function safeUrl(u, base = location.href) {
+  try { const x = new URL(u, base); return ['http:', 'https:'].includes(x.protocol) ? x.href : '#'; } catch { return '#'; }
 }
 
 // Allowlist sanitizer: parse inertly (DOMParser never runs scripts), then
 // rebuild only safe elements with no attributes except vetted hrefs.
 const ALLOWED = new Set(['P', 'BR', 'UL', 'OL', 'LI', 'STRONG', 'B', 'EM', 'I', 'U', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'A', 'DIV', 'SPAN', 'BLOCKQUOTE', 'HR', 'CODE', 'PRE', 'SUB', 'SUP', 'SMALL', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TD', 'TH', 'DL', 'DT', 'DD']);
 const DROP = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'EMBED', 'FORM', 'INPUT', 'BUTTON', 'TEXTAREA', 'SELECT', 'LINK', 'META', 'BASE', 'SVG', 'MATH', 'TEMPLATE', 'NOSCRIPT', 'IMG', 'VIDEO', 'AUDIO', 'CANVAS', 'TITLE', 'HEAD']);
-function sanitizeHtml(html) {
+function sanitizeHtml(html, baseUrl) {
+  // Relative links in third-party HTML resolve against the posting, never against this app.
+  const base = safeUrl(baseUrl || '') !== '#' ? safeUrl(baseUrl) : null;
   let src = String(html);
   if (/&lt;\s*\/?\s*[a-z]/i.test(src) && !/<\s*[a-z]/i.test(src)) {
     src = new DOMParser().parseFromString(src, 'text/html').documentElement.textContent; // entity-escaped HTML
@@ -1394,7 +1443,8 @@ function sanitizeHtml(html) {
       if (!ALLOWED.has(tag)) { walk(n, out); continue; }
       const el = document.createElement(tag === 'H1' || tag === 'H2' ? 'h4' : tag.toLowerCase());
       if (tag === 'A') {
-        const href = safeUrl(n.getAttribute('href') || '');
+        const raw = n.getAttribute('href') || '';
+        const href = base || /^[a-z][a-z0-9+.-]*:/i.test(raw) ? safeUrl(raw, base || undefined) : '#';
         if (href !== '#') { el.href = href; el.target = '_blank'; el.rel = 'noopener noreferrer nofollow'; }
       }
       walk(n, el);
@@ -1511,9 +1561,11 @@ function bindEvents() {
 }
 
 function trapFocus(e, root) {
-  const f = [...root.querySelectorAll('a[href], button:not([disabled]), input, select, [tabindex]:not([tabindex="-1"])')].filter((x) => x.offsetParent !== null);
-  if (!f.length) return;
+  const f = [...root.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select, [tabindex]:not([tabindex="-1"])')]
+    .filter((x) => x.getClientRects().length);
+  if (!f.length) { e.preventDefault(); return; }
   const first = f[0], last = f[f.length - 1];
+  if (!root.contains(document.activeElement)) { e.preventDefault(); (e.shiftKey ? last : first).focus(); return; }
   if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 }
