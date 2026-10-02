@@ -7,7 +7,7 @@ import { colorFor, formatMoney, resetColors, assignColors, otherColor, toUSD, SL
 import { createChart, keyOf, VIEWS, DEFAULT_VIEW } from './viz/chart.js';
 import { createMap } from './viz/map.js';
 import * as api from './api.js';
-import { createCompstimateWidget, compstimateForJob, accuracyLine, isLowAccuracy, displayConfidence, queryFromState } from './features/compstimate.js';
+import { createCompstimateWidget, compstimateForJob, accuracyLine, isLowAccuracy, displayConfidence } from './features/compstimate.js';
 import { compsForJob, createCompsCard } from './features/comps.js';
 import { createCompsChart } from './viz/comps.js';
 import { roleFamily, FAMILY_LABELS } from './features/roles.js';
@@ -1368,7 +1368,7 @@ let map = null;
 let comp = null;      // Compstimate widget (insights mode)
 let insights = null;  // Market insights panel (insights mode)
 let dataSeq = 0;      // bumps on every successful fetch
-const featSig = { comp: -1, ins: '', comps: '', cq: '' };
+const featSig = { comp: -1, ins: '', comps: '' };
 let mapFitPending = true;
 let colorKeys = new Set(); // keys the chart gives a slot; others render as Other
 const vizSig = { chart: '', map: '' };
@@ -1431,11 +1431,6 @@ function renderInsights() {
     if (!comp) comp = createCompstimateWidget($('#compHost'), { onSelect: (job) => job && openDrawer(job.id) });
     if (!insights) { if (createInsights) insights = createInsights($('#insightsPanel'), { onFilter: onInsightFilter }); else loadInsights(); }
     if (featSig.comp !== dataSeq) { featSig.comp = dataSeq; comp.update(data.jobs, data.meta); }
-    const qsig = `${dataSeq}|${drawerJobId}|${S.q}|${S.rf}|${S.s.join()}|${S.l.join()}`;
-    if (featSig.cq !== qsig && comp.setQuery) {
-      featSig.cq = qsig;
-      comp.setQuery(queryFromState({ job: drawerJobId ? findJob(drawerJobId) : null, search: S.q, family: S.rf, seniority: S.s, location: S.l.length === 1 ? S.l[0] : '' }));
-    }
     const sig = `${dataSeq}|${derived.filtered.length}|${derived.filtered.map((j) => j.id).join(',')}`;
     if (insights && featSig.ins !== sig) { featSig.ins = sig; insights.update(derived.filtered, data.jobs); }
   } catch (err) { console.error('insights failed', err); }
@@ -1929,10 +1924,10 @@ function compstimateBlock(job) {
   if (!est || est.mid == null || !isFinite(est.mid)) return null;
   return h('div', { class: 'd-comp', role: 'note' },
     h('div', { class: 'd-comp-top' },
-      h('span', { class: 'd-comp-label', title: 'Compstimate: estimated pay from similar roles' }, 'Compstimate'),
+      h('span', { class: 'd-comp-label' }, 'Compstimate'),
       h('span', { class: 'd-comp-amt' }, `≈ ${money(est.mid)}`),
       h('span', { class: 'muted' }, `(${money(est.low)}–${money(est.high).replace(/^\$/, '')}, ${String(displayConfidence(est, data.meta) || '').toLowerCase()} confidence)`)),
-    h('p', { class: 'd-comp-note' }, `Estimated pay from ${plural(est.n || 0, 'similar role')} at ${data.company?.name || 'this company'} (approx USD / year) — not a figure from the posting.`),
+    h('p', { class: 'd-comp-note' }, `An estimate from ${plural(est.n || 0, 'comparable role')} at ${data.company?.name || 'this company'} (approx USD / year) — not a figure from the posting.`),
     accuracyLine(data.meta) ? h('p', { class: 'd-comp-note' }, isLowAccuracy(data.meta) ? h('strong', null, 'Low confidence. ') : null, `${accuracyLine(data.meta)}.`) : null);
 }
 

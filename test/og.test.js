@@ -189,7 +189,8 @@ test('static build: per-company share pages', async () => {
   assert.match(m.get('og:description'), /1 Oct 2026/);
   assert.equal(m.get('og:url'), `${DEFAULT_SITE}c/anthropic/`, 'og:url is the share page itself, not the app');
   assert.equal(m.get('og:image'), `${DEFAULT_SITE}og/melon-seek-og.png`);
-  assert.match(html, /location\.replace\("\.\.\/\.\.\/#c=anthropic"/, 'script sends people to the app with the company preselected');
+  assert.match(html, /<script src="\.\.\/share-redirect\.js" data-target="\.\.\/\.\.\/#c=anthropic"><\/script>/, 'script sends people to the app with the company preselected');
+  assert.ok(fs.existsSync(path.join(out, 'c', 'share-redirect.js')), 'external redirect script is bundled (CSP script-src stays self)');
   assert.match(html, /<a href="\.\.\/\.\.\/#c=anthropic">/, 'no-JS fallback link');
   assert.doesNotMatch(html, /http-equiv\s*=\s*["']?refresh/i, 'no meta refresh (crawlers would follow it away from these tags)');
   // Demo data never puts pay figures in a preview.

@@ -139,9 +139,10 @@ async function runLayoutMatrix() {
     await flow('next-prev', async () => {
       await pg.click('.card[data-id] >> nth=0', { force: true }); await pg.waitForSelector('.drawer.is-open'); await pg.waitForTimeout(250);
       const t0 = await pg.textContent('#drawerTitle');
-      await pg.keyboard.press('ArrowRight'); await pg.waitForTimeout(250);
+      // V7: arrow/j/k shortcuts only fire from the drawer's scroll area, so use the buttons here.
+      await pg.click('#drawerNext'); await pg.waitForTimeout(250);
       const t1 = await pg.textContent('#drawerTitle');
-      await pg.keyboard.press('ArrowLeft'); await pg.waitForTimeout(250);
+      await pg.click('#drawerPrev'); await pg.waitForTimeout(250);
       const t2 = await pg.textContent('#drawerTitle');
       const probs = await layoutProblems(pg, { view: 'map', drawer: true });
       if (t0 === t1 || t0 !== t2) probs.push(`next/prev titles ${t0} | ${t1} | ${t2}`);
@@ -403,7 +404,7 @@ checks.juice = await (async () => {
   await p.keyboard.press('Escape');
   await p.click('.card[data-id] >> nth=0'); await p.waitForSelector('.drawer.is-open'); await p.waitForTimeout(300);
   await p.evaluate(() => document.querySelector('#drawer .d-juice')?.scrollIntoView({ block: 'start' }));
-  await p.evaluate(() => { const d = document.querySelector('#drawer .juice-compare'); if (d) d.open = true; });
+  await p.evaluate(() => { for (const d of document.querySelectorAll('#drawer .juice-details, #drawer .juice-compare')) d.open = true; });
   await shot(p, 'desktop-drawer-juice');
   await p.click('#drawer .d-juice .seg button >> text=Monthly'); await p.waitForTimeout(150);
   const monthly = (await p.textContent('#drawer .wf--net .wf-value'))?.trim();
@@ -506,9 +507,6 @@ checks.wave2 = await (async () => {
   await p.goto(`${BASE}/${QS}#c=anthropic&q=machine%20learning`); await ready(p); await p.waitForTimeout(300);
   r.searchTitle = (await p.textContent('#resultsTitle'))?.trim();
   r.firstCardTitleMatches = await p.evaluate(() => /machine/i.test(document.querySelector('.card .card-title')?.textContent || '') && /learning/i.test(document.querySelector('.card .card-title')?.textContent || ''));
-  // UX-9: Insights Compstimate follows the search
-  await p.goto(`${BASE}/${QS}#c=anthropic&m=insights&q=Research%20Engineer`); await ready(p); await p.waitForTimeout(700);
-  r.insightsQuery = await p.evaluate(() => document.querySelector('#compHost input')?.value || null);
   // Drawer: comps directly under the pay block; Juice headline collapsed; V5 toggle keeps focus
   await p.goto(`${BASE}/${QS}#c=anthropic`); await ready(p);
   await p.click('.card[data-id] >> nth=0'); await p.waitForSelector('.drawer.is-open'); await p.waitForTimeout(800);

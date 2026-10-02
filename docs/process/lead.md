@@ -471,3 +471,14 @@ screenshots in `docs/screenshots/`.
     app.js (UX handed off those functions);
   - QA: automates the matrix as e2e tests, red first and then green.
   Simplicity rule: at most one "Reset to filters" link.
+- 2026-10-02: viz PERF-2 done (windowed chart rows): worst chart task at
+  4x CPU 125 ms (was 1,359); A11Y-1 bubble label contrast ≥7.6:1; DES-12 viz
+  fallbacks consolidated with light-dark(). devops fixed V2 (artifact trust
+  filter: same repo, push/schedule/dispatch only, trusted branches), V3 (CSP
+  and referrer meta on every built page, external share-redirect.js, build
+  fails on inline script), and V12 (permissions scoped to deploy, actions
+  pinned by SHA, col-refresh opens a PR instead of pushing to main). Lead
+  updated the og.test share-page assertion for V3. User asked for a link
+  checker; queued with UX (internal 200s, hash states, ATS host checks per
+  job, markdown links, plus an optional CI step for external HEAD checks).
+  npm test 272/272.
