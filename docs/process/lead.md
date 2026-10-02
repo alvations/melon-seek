@@ -192,3 +192,10 @@ screenshots in `docs/screenshots/`.
   html[data-theme] before first paint; tokens overridden under both the
   media query and data-theme; chart, map and map tile filter re-render on
   change.
+- 2026-10-02: devops finished: packed list format (largest list Anduril 1.30
+  MB of 2,418 jobs), lazy per-job descriptions, snapshots as artifacts
+  (`job-board-snapshots`, 14 days) restored by pages.yml before fetching,
+  Node 24 actions. Observed two Pages deployments per push: our
+  pages.yml and GitHub's "pages build and deployment" (branch mode). They
+  race (run 36971600567 finished after 36971601630). Asked the user to set
+  Settings → Pages → Source to "GitHub Actions".
