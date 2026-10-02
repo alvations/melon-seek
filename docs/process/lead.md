@@ -369,3 +369,12 @@ screenshots in `docs/screenshots/`.
   expectation. UX asked to fix the accuracy-unit bug in app.js
   (compAccuracy multiplied percents ≤1.5 by 100) and finish the comps
   wiring. npm test 249/249.
+- 2026-10-02: UX finished the final wiring (accuracy helpers, static comps
+  imports, stubs removed). Lead verification: npm test 249/249. Real-server
+  drawer and Insights screenshots reviewed: pay block plus caption, Juice
+  waterfall, Same role elsewhere, Compstimate "±14% (tested on 498)".
+  Spot-checked the £375K–640K London RL role against the source text
+  ("Annual Salary: £375,000 — £640,000 GBP"): correct. The full e2e suite
+  crashed at the outdated company-pill test (the UI now uses a company menu)
+  through an unhandled waitForResponse rejection; QA resumed to make the
+  harness robust, update the selectors and add v2 feature coverage.
