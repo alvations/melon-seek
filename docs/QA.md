@@ -33,8 +33,8 @@ stopped changing.
 | 6 | API: custom board `?source=greenhouse&board=foo&name=Foo Corp` falls back to demo with a valid shape | pass |
 | 7 | API: 404 for an unknown company, 400 for a bad source, a path-like board or missing params | pass |
 | 8 | Static: `/`, leaflet js/css, 404 for missing files, no path traversal | pass |
-| 9 | UI: loads with no console errors, chart is the default and shows bars, count equals the API count, demo is marked | pass |
-| 10 | UI: map mode shows price pins, clicking a pin shows the area chip | pass |
+| 9 | UI: loads with no console errors, chart is the default and shows bands (Clusters view), the Ranges view shows one bar per job, count equals the API count, demo is marked | pass |
+| 10 | UI: map mode shows price pins and the offline basemap note, clicking a pin shows the area chip | pass |
 | 11 | **UI: map initial fit keeps every pin inside the visible map** | **FAIL (BUG-1)** |
 | 12 | UI: switching to Anduril, then OpenAI, updates the count to the API count, the hash, the pressed pill and the cards | pass |
 | 13 | UI: salary min slider narrows the list, every card meets it (approx USD), count matches the API | pass |
@@ -94,11 +94,13 @@ Screenshots at 1440x900 (mobile at 390x844):
 
 ### BUG-4 (minor UX): company pills are clipped at 1440px with no visible way to reach them
 - **Owner:** `public/styles.css` (`.company-pills` overflow) and `public/app.js` `renderTopbar()`. The
-  trigger is `server/companies.js`, which now registers 9 companies (Scale AI, xAI, Cohere,
-  Palantir, Shield AI and Mistral AI on top of the 3 in the contract).
-- **Repro:** open `/` at 1440x900. The pill strip `#companyPills` is 520px wide but its content is 965px, and the
-  `#companySelect` fallback is `display:none`. xAI is half cut off, and Cohere, Palantir, Shield AI and
-  Mistral AI can only be reached by scrolling the strip sideways, which nothing on screen hints at.
+  trigger is `server/companies.js`, which now registers 8 companies (Scale AI, xAI, Cohere, Palantir
+  and Shield AI on top of the 3 in the contract). The list changed between runs: one run had 9,
+  including Mistral AI.
+- **Repro:** open `/` at 1440x900. The pill strip `#companyPills` is about 520px wide but its content is much
+  wider, and the `#companySelect` fallback is `display:none`. In the latest run, 4 of 8 pills (xAI, Cohere,
+  Palantir, Shield AI) are clipped and can only be reached by scrolling the strip sideways, which
+  nothing on screen hints at.
 - **Fix idea:** show a "More ▾" overflow menu or the `<select>` when the pills overflow, or add
   edge fades and scroll buttons. Separately, the lead should decide whether docs/CONTRACT.md
   should list the extra built-ins.
