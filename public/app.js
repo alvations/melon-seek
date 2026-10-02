@@ -366,7 +366,7 @@ function salaryDomain() {
 
 function sortJobs(list) {
   const out = list.slice();
-  const nullsLast = (a, b, f) => (a == null) - (b == null) || f();
+  const nullsLast = (a, b, f) => (a == null || b == null ? (a == null) - (b == null) : f());
   switch (S.sort) {
     case 'salary-asc': out.sort((a, b) => nullsLast(a._usd, b._usd, () => a._usd.min - b._usd.min || a.title.localeCompare(b.title))); break;
     case 'newest': out.sort((a, b) => (b._ts || 0) - (a._ts || 0) || a.title.localeCompare(b.title)); break;
@@ -1038,7 +1038,7 @@ function renderKpis() {
     tile('Open roles', st.n.toLocaleString(), st.n === total ? `at ${data.company?.name || 'this company'}` : `of ${total.toLocaleString()} total`),
     tile('With salary', st.n ? `${pct}%` : '—', `${st.withSalary.toLocaleString()} list pay`),
     tile('Median pay', money(st.median), 'range midpoint', 'kpi--accent'),
-    tile('Middle 50%', st.p25 != null ? compactRange(st.p25, st.p75) : '—', 'P25 – P75'),
+    tile('Middle 50%', st.p25 != null ? compactRange(st.p25, st.p75) : '—', 'P25 – P75', 'kpi--range'),
     tile('Top department', st.top ? st.top[0] : '—', st.top ? `${plural(st.top[1], 'role')} · ${Math.round((st.top[1] / st.n) * 100)}%` : '', 'kpi--wide'),
   );
 }
@@ -1134,7 +1134,15 @@ function renderViz() {
     vizSig[S.m] = sig;
     try {
       if (S.m === 'chart') chart.update(jobs, { groupBy: S.g, colorBy: S.cb });
-      else { map.update(jobs, mapFitPending ? { fit: true } : undefined); mapFitPending = false; }
+      else if (mapFitPending) {
+        mapFitPending = false;
+        map.update(jobs, { fit: true });
+        // Layout (banner, toolbar, fonts) can still shift this frame; refit once the container has its final size.
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          if (S.m !== 'map' || vizSig.map !== sig) return;
+          try { map.invalidateSize(); map.update(derived.filtered, { fit: true }); } catch { /* ignore */ }
+        }));
+      } else map.update(jobs);
     } catch (err) { console.error('viz update failed', err); }
   }
   highlightViz();

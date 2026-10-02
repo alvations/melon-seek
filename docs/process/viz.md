@@ -59,6 +59,25 @@ Files owned: `public/viz/palette.js`, `public/viz/chart.js`, `public/viz/map.js`
 14. **Map `onSelect`.** Called in addition to `onAreaSelect` when a clicked pill contains exactly one job.
 15. **CSS scoping.** Everything sits under `.ms-chart`, `.ms-map` or `.ms-viz-tip`. The chart tooltip is appended to `document.body` so it is never clipped. Private tokens (`--_*`) fall back from the `--ms-*` app tokens.
 
+16. **Keyboard map pins (REVIEW M3).**
+    - Each pin's click handler is now a named `activate()` that also runs on the marker's `keydown` for Enter and Space. Leaflet sends DOM key events to the focused marker, but on its own it maps Enter only to bound popups.
+    - Each pin icon (`role=button`, `tabindex=0`, set by Leaflet) gets an `aria-label` such as "San Francisco, CA: 114 postings, median $235K". The visual pill is `aria-hidden`.
+    - `draw()` notes the place keys of the focused cluster before it rebuilds. Afterwards it refocuses the new cluster that contains the old lead place (`members[0]`), or else any cluster sharing a member, using `focus({preventScroll:true})`. Focus therefore survives zooming and the fly-to after activation.
+    - `.ms-pin-icon:focus-visible .ms-pin` draws a 2px accent ring.
+17. **Chart listbox semantics (REVIEW L4).**
+    - Grouped rows are wrapped in `role=group` with `aria-label` set to "Director+, 32 postings, median $420K".
+    - The visual band header is `aria-hidden`, the gridline layer is `aria-hidden` and the rows container is `role=none`, so the listbox contains only groups and options.
+    - Each option has `aria-selected` and an `aria-label` of the form title, range ("$285K to $515K", plus " approx USD" for converted rows), department and location. The salary used to be missing because `.ms-row__val` is hidden until hover.
+    - `render()` saves the active job id, resets `activeIdx` and `aria-activedescendant`, then restores the active row on the same job, or nowhere if that job was filtered out. A stale index can no longer open a different job.
+    - Added Home, End, PageUp and PageDown.
+    - The active-row indicator is now a 2px `--_accent` inset ring (4.3:1 light, 4.8:1 dark). It was a 1px `--_axis` ring at 2.0:1.
+    - The legend has `role=group`.
+18. **Reduced motion (REVIEW L6).** `prefersReducedMotion()` is exported from `palette.js`. When it is true:
+    - `scrollToRow` uses `behavior:'auto'` instead of `'smooth'`.
+    - The map uses `fitBounds({animate:false})` and `setView({animate:false})` instead of `flyToBounds` and `flyTo`.
+    - The CSS already stopped the pin pulse under `prefers-reduced-motion`.
+19. **Annualization note (REVIEW C1, in chart.js).** The tooltip reads `salary.originalInterval`, falling back to a non-year `interval`. It maps hour, day, week and month to hourly, daily, weekly and monthly, which fixes the "dayly" text and the note that never showed.
+
 ## 4. Replayable steps
 ```sh
 # 0. palette validation (dataviz skill base dir)
@@ -73,7 +92,10 @@ cd public/viz && node -e "import('./palette.js').then(p=>console.log(p.formatMon
 # 2. screenshots (built-in static server on :5199 + Playwright, tiles blocked)
 #    playwright was already available globally at /opt/node-tools/node_modules/playwright (1.56.1);
 #    browser binary /opt/pw-browsers/chromium-1194/chrome-linux/chrome. Never `playwright install`.
-node docs/process/scripts/viz-screenshots.mjs /path/to/out
+node docs/process/scripts/viz-screenshots.mjs /path/to/out   # PORT env (default 5199) if the port is taken
+
+# 2b. keyboard / ARIA / reduced-motion checks (REVIEW M3, L4, L6); prints a JSON report
+PORT=5288 node docs/process/scripts/viz-a11y-check.mjs /path/to/out
 
 # 3. manual harness
 #    serve public/ + /vendor/leaflet/ (the script above does it), open /viz/demo.html
@@ -97,6 +119,15 @@ node docs/process/scripts/viz-screenshots.mjs /path/to/out
   - There were no page errors.
 - Empty state: all salaries null shows "No published salaries · N postings match…".
 - Screenshots from this run are in the agent scratchpad (`…/scratchpad/final/*.png`) and are not committed. Re-run step 2 to regenerate them.
+- After the review fixes (M3, L4, L6, C1), `viz-screenshots.mjs` was re-run with `PORT=5288` because another process held 5199. All 7 shots passed with no page errors, and their appearance was unchanged. Full render with 1000 jobs: 172 ms.
+- `viz-a11y-check.mjs` was run with Chromium emulating `reducedMotion: 'reduce'`:
+  - Listbox contents: 7 groups and 195 options, with 0 stray text nodes outside an option or `aria-hidden` element.
+  - Accessible names: the first group is "Director+, 32 postings, median $420K". The first option is "Research Scientist, Alignment, $505K to $840K, AI Research & Engineering, San Francisco".
+  - Re-render: after changing groupBy, the active row stayed on the same job, with `aria-selected=true` and a matching `aria-activedescendant`. End moves to the last row. The active ring is a 2px inset in `rgb(42,120,214)`.
+  - Reduced-motion scroll: `highlight()` scrolled to 3011px synchronously, with no smooth animation.
+  - Map with Enter: on the focused pin "Singapore, SG: 4 postings, median $111K" (`role=button`), Enter fired `onAreaSelect` and moved straight from zoom 2 to 9. Focus stayed on the same pin after the re-cluster.
+  - Map with Space and zoom-out: Space fired it again (zoom 11). After zooming out 2 levels, focus was still on that pin.
+  - There were no page errors.
 
 ## 6. Known gaps and follow-ups
 - Not tested with real tiles: the sandbox blocks the CARTO hosts. Tile switching on theme change uses `setUrl`.
@@ -111,3 +142,4 @@ node docs/process/scripts/viz-screenshots.mjs /path/to/out
 - 2026-10-02: palette.js, chart.js, map.js, viz.css and demo.html created. Palette validated.
 - 2026-10-02: Changed slot assignment from hash probing to sticky lowest-free-slot after a screenshot showed similar adjacent hues. Dark-mode bar and histogram opacity raised (.5 → .72, .42 → .62) because the bars looked muddy. Cluster footprint enlarged and recomputed when the offline state changes. Narrow-width captions shortened.
 - 2026-10-02: Process docs and the replayable screenshot script added.
+- 2026-10-02: Fixed REVIEW.md M3 (keyboard-activatable pins with focus kept across re-renders, plus pin aria-labels and a focus ring), L4 (listbox groups and options, `aria-selected`, salary in option names, stale `activeIdx` fixed, 3:1 active ring, Home/End/PageUp/PageDown) and L6 (reduced motion for `flyTo` and smooth scroll). Also fixed C1 (annualization note) in chart.js. Added `scripts/viz-a11y-check.mjs` and a `PORT` override in the screenshot script.

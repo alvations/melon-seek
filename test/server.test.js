@@ -30,8 +30,10 @@ let server;
 let base;
 // Upstream job boards: lever "example" serves the fixture, everything else fails
 // (mirrors the sandbox, where external hosts are blocked).
+const upstreamCalls = [];
 const upstream = async (url) => {
   url = String(url);
+  upstreamCalls.push(url);
   if (url.startsWith('https://api.lever.co/v0/postings/example')) {
     return new Response(fs.readFileSync(path.join(FIX, 'lever-postings.json')), { status: 200, headers: { 'content-type': 'application/json' } });
   }
@@ -109,7 +111,7 @@ test('custom lever board: live fetch then fresh cache', { skip: skipReason }, as
   const sup = body.jobs.find((j) => j.title === 'Support Specialist');
   assert.equal(sup.salary.min, 25 * 2080);
   assert.equal(sup.remote, true);
-  assert.ok(fs.existsSync(path.join(process.env.MELON_CACHE_DIR, 'lever-example.json')));
+  assert.ok(fs.existsSync(path.join(process.env.MELON_CACHE_DIR, 'custom', 'lever-example.json')));
 
   body = await (await get('/api/jobs?source=lever&board=example')).json();
   assert.equal(body.mode, 'cache');
@@ -163,4 +165,145 @@ test('gzip encoding for API responses', { skip: skipReason }, async () => {
   assert.equal(headers['content-encoding'], 'gzip');
   const parsed = JSON.parse(zlib.gunzipSync(body).toString('utf8'));
   assert.ok(Array.isArray(parsed.jobs));
+});
+
+test('security headers (CSP etc.) on API, static and streamed responses', { skip: skipReason }, async () => {
+  for (const p of ['/api/companies', '/vendor/leaflet/leaflet.css', '/vendor/leaflet/images/marker-icon.png', '/nope.js']) {
+    const res = await get(p);
+    await res.arrayBuffer();
+    assert.equal(res.headers.get('x-content-type-options'), 'nosniff', p);
+    assert.equal(res.headers.get('x-frame-options'), 'DENY', p);
+    assert.equal(res.headers.get('referrer-policy'), 'strict-origin-when-cross-origin', p);
+    const csp = res.headers.get('content-security-policy');
+    assert.ok(csp, `${p} has CSP`);
+    for (const needle of ["default-src 'self'", "script-src 'self'", "frame-ancestors 'none'", "object-src 'none'",
+      'https://*.basemaps.cartocdn.com', 'tile.openstreetmap.org', 'https://fonts.googleapis.com', 'https://fonts.gstatic.com',
+      'https://boards-api.greenhouse.io', 'https://api.ashbyhq.com', 'https://api.lever.co']) {
+      assert.ok(csp.includes(needle), `${p} CSP includes ${needle}`);
+    }
+    assert.ok(!/script-src[^;]*unsafe/.test(csp), 'no unsafe script-src');
+  }
+});
+
+test('refresh=1 is throttled to one live attempt per slug per window', { skip: skipReason }, async () => {
+  mod.resetState();
+  const n0 = upstreamCalls.filter((u) => u.includes('/postings/example')).length;
+  let body = await (await get('/api/jobs?source=lever&board=example&refresh=1')).json();
+  assert.equal(body.mode, 'live');
+  for (let i = 0; i < 3; i++) {
+    body = await (await get('/api/jobs?source=lever&board=example&refresh=1')).json();
+    assert.equal(body.mode, 'cache');
+    assert.equal(body.error, null);
+  }
+  assert.equal(upstreamCalls.filter((u) => u.includes('/postings/example')).length - n0, 1);
+});
+
+test('unknown custom board: one upstream attempt, then negative-cached demo', { skip: skipReason }, async () => {
+  mod.resetState();
+  const before = upstreamCalls.length;
+  const first = await (await get('/api/jobs?source=greenhouse&board=no-such-board')).json();
+  assert.equal(first.mode, 'demo');
+  for (let i = 0; i < 3; i++) {
+    const again = await (await get('/api/jobs?source=greenhouse&board=no-such-board&refresh=1')).json();
+    assert.equal(again.mode, 'demo');
+    assert.equal(again.error, first.error);
+    assert.equal(again.jobs.length, first.jobs.length);
+  }
+  assert.equal(upstreamCalls.length - before, 1);
+});
+
+test('client errors are generic (no upstream URL or body)', { skip: skipReason }, async () => {
+  mod.resetState();
+  const body = await (await get('/api/jobs?company=openai')).json();
+  assert.equal(body.mode, 'demo');
+  assert.equal(body.error, 'Live fetch failed: upstream unreachable');
+  assert.ok(!/https?:\/\//.test(body.error));
+  assert.equal(mod.publicError({ code: 'http', status: 404 }), 'Live fetch failed: board not found upstream (HTTP 404)');
+  assert.equal(mod.publicError({ code: 'http', status: 503 }), 'Live fetch failed: upstream returned HTTP 503');
+  assert.equal(mod.publicError({ code: 'timeout' }), 'Live fetch failed: upstream timed out');
+  assert.equal(mod.publicError(new Error('secret detail https://x')), 'Live fetch failed: upstream error');
+});
+
+test('caller-supplied display name is not cached', { skip: skipReason }, async () => {
+  mod.resetState();
+  const a = await (await get('/api/jobs?source=lever&board=example&name=First%20Caller&refresh=1')).json();
+  const b = await (await get('/api/jobs?source=lever&board=example&name=Second')).json();
+  const c = await (await get('/api/jobs?source=lever&board=example')).json();
+  assert.equal(a.company.name, 'First Caller');
+  assert.ok(a.jobs.every((j) => j.companyName === 'First Caller'));
+  assert.equal(b.mode, 'cache');
+  assert.ok(b.jobs.every((j) => j.companyName === 'Second'));
+  assert.ok(c.jobs.every((j) => j.companyName === 'Example'));
+  const disk = fs.readFileSync(path.join(process.env.MELON_CACHE_DIR, 'custom', 'lever-example.json'), 'utf8');
+  assert.ok(!disk.includes('First Caller') && !disk.includes('Second'));
+});
+
+test('HEAD /api/jobs never fetches upstream', { skip: skipReason }, async () => {
+  mod.resetState();
+  const before = upstreamCalls.length;
+  const res = await realFetch(`${base}/api/jobs?source=ashby&board=head-only-board`, { method: 'HEAD' });
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /json/);
+  const res2 = await realFetch(`${base}/api/jobs?company=anduril`, { method: 'HEAD' });
+  assert.equal(res2.status, 200);
+  assert.equal(upstreamCalls.length, before);
+});
+
+test('request-target parsing: "//api/..." is a path, not an authority', { skip: skipReason }, async () => {
+  const http = await import('node:http');
+  const { port } = server.address();
+  const raw = (target) => new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port, path: target, method: 'GET' }, (res) => {
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => resolve({ status: res.statusCode, body: Buffer.concat(chunks).toString('utf8') }));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+  let r = await raw('//api/companies');
+  assert.equal(r.status, 200);
+  assert.equal(JSON.parse(r.body).length, 3);
+  r = await raw('///api/companies');
+  assert.equal(r.status, 200);
+  r = await raw('http://evil.example/api/companies');
+  assert.equal(r.status, 400);
+});
+
+test('500s do not leak internal details', { skip: skipReason }, async () => {
+  const s2 = mod.createServer({ log: false });
+  const errSpy = console.error;
+  const logged = [];
+  console.error = (...args) => logged.push(args.map(String).join(' '));
+  try {
+    const out = await new Promise((resolve) => {
+      const req = { method: 'GET', headers: {}, get url() { throw new Error('secret internal detail'); } };
+      const res = {
+        headersSent: false, status: 0, body: null,
+        writeHead(status) { this.status = status; this.headersSent = true; },
+        end(body) { this.body = body; resolve(this); },
+        on() {},
+      };
+      s2.emit('request', req, res);
+    });
+    assert.equal(out.status, 500);
+    assert.deepEqual(JSON.parse(String(out.body)), { error: 'Internal error' });
+    assert.ok(logged.some((l) => l.includes('secret internal detail')), 'details go to the server log');
+  } finally {
+    console.error = errSpy;
+  }
+});
+
+test('upstream fetches are limited to MAX_UPSTREAM concurrent', { skip: skipReason }, async () => {
+  let active = 0;
+  let peak = 0;
+  const task = () => mod.withUpstreamSlot(async () => {
+    active++; peak = Math.max(peak, active);
+    await new Promise((r) => setTimeout(r, 10));
+    active--;
+    return 1;
+  });
+  const results = await Promise.all(Array.from({ length: 12 }, task));
+  assert.equal(results.length, 12);
+  assert.equal(peak, mod.MAX_UPSTREAM);
 });

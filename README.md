@@ -83,8 +83,65 @@ changes.
 npm test   # node --test test/
 ```
 
-CI ([`ci.yml`](.github/workflows/ci.yml)) runs the tests on Node 20 and 22 and
-smoke-tests the running server (`/api/companies`, `/api/jobs?company=anthropic`).
+CI ([`ci.yml`](.github/workflows/ci.yml)) runs the tests on Node 20 and 22,
+checks that the static build succeeds, and smoke-tests the running server
+(`/api/companies`, `/api/jobs?company=anthropic`).
+
+## Deploying to GitHub Pages
+
+The app also runs without a server, as a static site at
+<https://alvations.github.io/melon-seek/>.
+
+```sh
+npm run build          # -> dist/
+```
+
+`scripts/build-static.js` writes:
+
+| Path | Contents |
+| --- | --- |
+| `dist/` | A copy of `public/`. Absolute `/x` URLs in the HTML become relative, so the site works under the `/melon-seek/` sub-path. |
+| `dist/config.js` | Sets `window.MELON_STATIC = true`. It's loaded before `app.js`. |
+| `dist/lib/` | Browser copies of `normalize`, `salary`, `geo`, `keywords`, `demo`, `companies` and `sources/*`. |
+| `dist/vendor/leaflet/` | Leaflet. |
+| `dist/api/companies.json` | The built-in companies. |
+| `dist/api/jobs/<slug>.json` | The company's snapshot (`mode: "snapshot"`), or demo data if the build had no snapshot. |
+| `dist/api/demo/<slug>.json` | Demo data (`mode: "demo"`). |
+| `dist/.nojekyll` | Turns off Jekyll processing. |
+
+In static mode, `public/api.js` runs the fallback chain in the browser:
+
+1. A live fetch from the board, using the same adapters and normalizer as the
+   server.
+2. The bundled snapshot.
+3. The bundled demo data.
+4. Demo data generated in the browser.
+
+Custom boards try the live fetch and otherwise show demo data. Browsers only
+allow cross-origin requests when the board API permits them:
+
+- **Greenhouse** is built for client-side use, so live fetches are attempted.
+- **Ashby** is attempted too, but its API is reported not to allow cross-origin
+  requests.
+- **Lever** is skipped. Lever's docs say its postings API refuses cross-origin
+  requests from third-party sites.
+
+When a live fetch fails, the bundled snapshot is shown. The
+[`pages` workflow](.github/workflows/pages.yml) refreshes the snapshots before
+every build. It runs on pushes to `main` and `claude/stoic-ride-54ddxp`, on
+manual dispatch, and daily.
+
+Preview locally by serving `dist/` under the same sub-path, so relative URLs
+resolve the way they do on Pages.
+
+**One-time setup on GitHub:**
+
+1. **Settings → Pages → Build and deployment → Source: "GitHub Actions".**
+2. To deploy from a branch other than the default (e.g.
+   `claude/stoic-ride-54ddxp`), allow it under **Settings → Environments →
+   github-pages → Deployment branches and tags**. By default the
+   `github-pages` environment only accepts the default branch, and the deploy
+   job fails with a protection-rule error.
 
 ## API reference
 
@@ -159,7 +216,9 @@ server/keywords.js         responsibilities/fit sections, keyword facets, senior
 server/cache.js            memory + disk cache (data/cache/, gitignored)
 server/demo.js             synthetic offline demo jobs
 scripts/snapshot.js        npm run snapshot -> data/snapshots/*.json
+scripts/build-static.js    npm run build -> dist/ (GitHub Pages bundle, gitignored)
 public/                    index.html, styles.css, app.js (state, filters, list, drawer)
+public/api.js              data access: server API, or static mode (live -> snapshot -> demo)
 public/viz/                palette.js, chart.js, map.js
 test/*.test.js             node --test
 docs/                      CONTRACT.md, ARCHITECTURE.md, ADDING_A_BOARD.md

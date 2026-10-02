@@ -15,6 +15,10 @@ another account or machine.
   `docs/ARCHITECTURE.md`, `docs/ADDING_A_BOARD.md`, plus this log and its
   prompt file. Off limits: `server/`, `public/`, `test/*.test.js`. No git
   commit or push.
+- Second task (GitHub Pages): a static deploy served at
+  `https://alvations.github.io/melon-seek/`. Added files owned: `public/api.js`,
+  `scripts/build-static.js`, `.github/workflows/pages.yml`, plus the `build`
+  script in `package.json` and `dist/` in `.gitignore` and `.dockerignore`.
 
 ## 2. Inputs and sources
 
@@ -30,7 +34,11 @@ another account or machine.
 | `scripts/snapshot.js` (read later, once it existed) | Accepts slugs or `<source>:<board>` after `--`, writes only live data, keeps the old file if 0 jobs come back, and exits 1 only when every slug fails. The README snapshot section and workflow step match this. |
 | `server/index.js` (grep only) | `PORT` env with 5173 fallback, `refresh` accepts `1/true/yes`. |
 | Skills loaded | None. Nothing in this workstream is an artifact, chart or LLM task. |
-| External docs / web | None fetched. Endpoint URLs came from the prompt and the adapter sources. GitHub Actions and Docker conventions came from general knowledge (see decisions). |
+| External docs / web | None fetched for the first task. Endpoint URLs came from the prompt and the adapter sources. GitHub Actions and Docker conventions came from general knowledge (see decisions). |
+| `server/index.js` (`fetchLive`, `getJobs`, read for Pages) | The fallback chain that `public/api.js` reproduces in static mode, and the `ADAPTERS` map. |
+| `server/sources/*.js` exports (Pages) | `greenhouseUrl`/`ashbyUrl`/`leverUrl` and `mapGreenhouseJob`/`mapAshbyJob`/`mapLeverJob`. api.js reuses these but does its own `fetch` (decision 24). |
+| `public/app.js`, `public/index.html` (read only, Pages) | Absolute `/api/...`, `/favicon.svg`, `/vendor/...` URLs that break under a sub-path. Reported to the coordinator; app.js then switched to `import * as liveApi from './api.js'`. |
+| CORS research (Pages) | Lever's `github.com/lever/postings-api` README, fetched with WebFetch: "does not support cross-origin HTTP requests from sites outside of your company's domains". Web search: Greenhouse's job board API is meant to be called from client-side code, and Ashby's posting API is reported to lack CORS headers (secondary source, low confidence). Direct probes of the three APIs were blocked by the sandbox proxy (403). |
 
 ## 3. Decisions and rationale
 

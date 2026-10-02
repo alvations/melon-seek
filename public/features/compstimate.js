@@ -320,7 +320,9 @@ export function estimateComp(allJobs, query = {}) {
   const top = comps.slice(0, 5);
   const topSim = top.reduce((s, p) => s + p.w, 0) / top.length;
   const spread = mid > 0 ? (high - low) / mid : Infinity;
-  const confidence = nEff >= 5 && topSim >= 0.5 && spread <= 0.6 ? 'High'
+  // No title = a board-wide figure, never more than Low confidence.
+  const confidence = !hasTitle ? 'Low'
+    : nEff >= 5 && topSim >= 0.5 && spread <= 0.6 ? 'High'
     : nEff >= 2 && topSim >= 0.25 && spread <= 1 ? 'Medium' : 'Low';
 
   const close = comps.filter((p) => p.titleSim >= 0.75).length;

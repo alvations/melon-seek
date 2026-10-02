@@ -35,7 +35,13 @@ async function openApp(ctx, { hash = '', viewport = DESKTOP, colorScheme = 'ligh
     if (!isExternal(res.url(), ctx.baseUrl) && res.status() >= 400) errors.push(`HTTP ${res.status()}: ${res.url()}`);
   });
   await page.goto(`${ctx.baseUrl}/${hash ? `#${hash}` : ''}`);
-  await waitReady(page);
+  try {
+    await waitReady(page);
+  } catch (err) {
+    const title = await page.locator('#resultsTitle').innerText().catch(() => '?');
+    await context.close();
+    throw new Error(`app never became ready (results title "${title}")\n${errors.join('\n')}`);
+  }
   return { context, page, errors, close: () => context.close() };
 }
 

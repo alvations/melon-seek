@@ -9,7 +9,7 @@ function safe(fn, fallback) {
     const v = fn();
     return v == null ? fallback : v;
   } catch (err) {
-    if (process.env.DEBUG) console.warn('[normalize]', err);
+    if (globalThis.process?.env?.DEBUG) console.warn('[normalize]', err);
     return fallback;
   }
 }

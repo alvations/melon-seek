@@ -4,9 +4,10 @@ import fs from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { promisify } from 'node:util';
+import { pathToFileURL } from 'node:url';
 
-import { listCompanies, resolveCompany } from './companies.js';
+import { listCompanies, resolveCompany, defaultName } from './companies.js';
 import { fetchGreenhouse } from './sources/greenhouse.js';
 import { fetchAshby } from './sources/ashby.js';
 import { fetchLever } from './sources/lever.js';
@@ -14,9 +15,18 @@ import { normalizeJobs } from './normalize.js';
 import { getCached, setCached, ROOT } from './cache.js';
 import { demoJobs } from './demo.js';
 
+const gzip = promisify(zlib.gzip);
+
 const PUBLIC_DIR = path.join(ROOT, 'public');
 const LEAFLET_DIR = path.join(ROOT, 'node_modules', 'leaflet', 'dist');
 const SNAPSHOT_DIR = process.env.MELON_SNAPSHOT_DIR || path.join(ROOT, 'data', 'snapshots');
+
+/** At most one live upstream attempt per slug per this window (review H1). */
+export const MIN_REFRESH_MS = Number(process.env.MELON_MIN_REFRESH_MS) || 60_000;
+/** Custom boards that fell back to demo are answered from memory for this long. */
+export const NEGATIVE_TTL_MS = 10 * 60_000;
+/** Global cap on concurrent upstream fetches (review L2). */
+export const MAX_UPSTREAM = 4;
 
 export const ADAPTERS = { greenhouse: fetchGreenhouse, ashby: fetchAshby, lever: fetchLever };
 
@@ -29,7 +39,71 @@ const MIME = {
 };
 const COMPRESSIBLE = /^(text\/|application\/(json|javascript|manifest\+json)|image\/svg)/;
 
-/** Fetch live jobs for a company and normalize them. */
+// Review M2. Hosts: CARTO / OSM tiles (public/viz/map.js), Google Fonts
+// (public/index.html), and the three ATS APIs for the browser-side live fetch
+// in public/api.js. style-src-attr 'unsafe-inline' is needed while
+// public/app.js sets style="" attributes via setAttribute.
+export const CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' https://fonts.googleapis.com",
+  "style-src-elem 'self' https://fonts.googleapis.com",
+  "style-src-attr 'unsafe-inline'",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: https://*.basemaps.cartocdn.com https://tile.openstreetmap.org https://*.tile.openstreetmap.org",
+  "connect-src 'self' https://boards-api.greenhouse.io https://api.ashbyhq.com https://api.lever.co",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join('; ');
+
+export const SECURITY_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Cross-Origin-Opener-Policy': 'same-origin',
+  'Permissions-Policy': 'geolocation=(), camera=(), microphone=()',
+  'Content-Security-Policy': CSP,
+};
+
+/* ------------------------------------------------------------- helpers */
+
+function boundedSet(map, key, value, max) {
+  map.delete(key);
+  map.set(key, value);
+  while (map.size > max) map.delete(map.keys().next().value);
+}
+
+let activeUpstream = 0;
+const upstreamWaiters = [];
+/** Run fn with one of MAX_UPSTREAM global upstream slots. */
+export async function withUpstreamSlot(fn) {
+  if (activeUpstream >= MAX_UPSTREAM) await new Promise((r) => upstreamWaiters.push(r));
+  activeUpstream++;
+  try {
+    return await fn();
+  } finally {
+    activeUpstream--;
+    const next = upstreamWaiters.shift();
+    if (next) next();
+  }
+}
+
+/** Generic, client-safe description of a live-fetch failure (review L7). */
+export function publicError(err) {
+  const code = err && err.code;
+  const status = err && err.status;
+  if (code === 'http' && status === 404) return 'Live fetch failed: board not found upstream (HTTP 404)';
+  if (code === 'http' && status) return `Live fetch failed: upstream returned HTTP ${status}`;
+  if (code === 'timeout') return 'Live fetch failed: upstream timed out';
+  if (code === 'network') return 'Live fetch failed: upstream unreachable';
+  if (code === 'too_large') return 'Live fetch failed: upstream response too large';
+  if (code === 'invalid_json' || code === 'bad_shape') return 'Live fetch failed: unexpected upstream response';
+  return 'Live fetch failed: upstream error';
+}
+
+/** Fetch live jobs for a company and normalize them (detailed errors; used by the snapshot CLI). */
 export async function fetchLive(company) {
   const adapter = ADAPTERS[company.source];
   if (!adapter) throw new Error(`No adapter for source "${company.source}"`);
@@ -48,52 +122,102 @@ async function readSnapshot(slug) {
   }
 }
 
-const inflight = new Map();
+const inflight = new Map();     // slug -> Promise<Job[]>
+const lastAttempt = new Map();  // slug -> { at, error }  (bounded)
+const negative = new Map();     // custom slug -> { at, fetchedAt, error, jobs } (bounded)
+const demoMemo = new Map();     // slug -> Job[] (demo is deterministic; bounded)
+
+/** Reset throttles and memos (tests). */
+export function resetState() {
+  lastAttempt.clear(); negative.clear(); demoMemo.clear(); inflight.clear();
+}
+
+function demoFor(canonical) {
+  let jobs = demoMemo.get(canonical.slug);
+  if (!jobs) {
+    jobs = normalizeJobs(demoJobs(canonical.slug, canonical.name), canonical);
+    boundedSet(demoMemo, canonical.slug, jobs, 200);
+  }
+  return jobs;
+}
 
 /**
  * Resolve jobs with fallbacks:
  * fresh cache -> live -> stale cache -> snapshot -> demo.
+ * - refresh: skip the fresh cache (still throttled to one live attempt per
+ *   slug per MIN_REFRESH_MS).
+ * - offline: never fetch upstream (HEAD requests).
  */
-export async function getJobs(company, { refresh = false } = {}) {
+export async function getJobs(company, { refresh = false, offline = false } = {}) {
   const pub = { slug: company.slug, name: company.name, source: company.source, board: company.board, color: company.color };
-  const cached = await getCached(company.slug);
-  if (cached && cached.fresh && !refresh) {
-    return { company: pub, mode: 'cache', fetchedAt: cached.fetchedAt, error: null, jobs: cached.data };
+  // Cached data is built with a name that does not depend on the caller's
+  // ?name= (review L3); the requested display name is stamped on the way out.
+  const canonical = { ...company, name: company.custom ? defaultName(company.board) : company.name };
+  const stamp = (jobs) => (pub.name === canonical.name ? jobs
+    : jobs.map((j) => (j && j.companyName !== pub.name ? { ...j, companyName: pub.name } : j)));
+  const custom = !!company.custom;
+  const now = Date.now();
+
+  const cached = await getCached(company.slug, { custom });
+  const last = lastAttempt.get(company.slug);
+  // A recent attempt blocks another one, unless it succeeded and its cache entry
+  // has since been evicted (nothing to serve).
+  const throttled = offline || (!!last && now - last.at < MIN_REFRESH_MS && !(!cached && !last.error));
+
+  if (cached && cached.fresh && (!refresh || throttled)) {
+    return { company: pub, mode: 'cache', fetchedAt: cached.fetchedAt, error: null, jobs: stamp(cached.data) };
+  }
+  const neg = custom && negative.get(company.slug);
+  if (neg && now - neg.at < NEGATIVE_TTL_MS && (!refresh || throttled)) {
+    return { company: pub, mode: 'demo', fetchedAt: neg.fetchedAt, error: neg.error, jobs: stamp(neg.jobs) };
   }
 
   let error = null;
-  try {
-    let p = inflight.get(company.slug);
-    if (!p) {
-      p = fetchLive(company).finally(() => inflight.delete(company.slug));
-      inflight.set(company.slug, p);
+  if (throttled) {
+    error = offline ? null : last.error;
+  } else {
+    try {
+      let p = inflight.get(company.slug);
+      if (!p) {
+        boundedSet(lastAttempt, company.slug, { at: now, error: null }, 1000);
+        p = withUpstreamSlot(() => fetchLive(canonical)).finally(() => inflight.delete(company.slug));
+        inflight.set(company.slug, p);
+      }
+      const jobs = await p;
+      const entry = await setCached(company.slug, jobs, { custom });
+      negative.delete(company.slug);
+      return { company: pub, mode: 'live', fetchedAt: entry.fetchedAt, error: null, jobs: stamp(jobs) };
+    } catch (err) {
+      console.warn(`[live] ${company.slug}: ${err && err.message ? err.message : err}`);
+      error = publicError(err);
+      boundedSet(lastAttempt, company.slug, { at: now, error }, 1000);
     }
-    const jobs = await p;
-    const entry = await setCached(company.slug, jobs);
-    return { company: pub, mode: 'live', fetchedAt: entry.fetchedAt, error: null, jobs };
-  } catch (err) {
-    error = `Live fetch failed: ${err && err.message ? err.message : String(err)}`;
   }
 
-  if (cached) return { company: pub, mode: 'cache', fetchedAt: cached.fetchedAt, error, jobs: cached.data };
+  if (cached) return { company: pub, mode: 'cache', fetchedAt: cached.fetchedAt, error, jobs: stamp(cached.data) };
 
   const snap = await readSnapshot(company.slug);
-  if (snap) return { company: pub, mode: 'snapshot', fetchedAt: snap.fetchedAt, error, jobs: snap.jobs };
+  if (snap) return { company: pub, mode: 'snapshot', fetchedAt: snap.fetchedAt, error, jobs: stamp(snap.jobs) };
 
   let jobs = [];
   try {
-    jobs = normalizeJobs(demoJobs(company.slug, company.name), company);
+    jobs = demoFor(canonical);
   } catch (err) {
-    error = `${error}; demo generation failed: ${err.message}`;
+    console.error(`[demo] ${company.slug}:`, err);
+    error = error ? `${error}; demo data unavailable` : 'Demo data unavailable';
   }
-  return { company: pub, mode: 'demo', fetchedAt: new Date().toISOString(), error, jobs };
+  const fetchedAt = new Date().toISOString();
+  if (custom && !offline) boundedSet(negative, company.slug, { at: now, fetchedAt, error, jobs }, 200);
+  return { company: pub, mode: 'demo', fetchedAt, error, jobs: stamp(jobs) };
 }
 
-function send(req, res, status, body, type) {
+/* --------------------------------------------------------------- HTTP */
+
+async function send(req, res, status, body, type) {
   let buf = Buffer.isBuffer(body) ? body : Buffer.from(body);
-  const headers = { 'Content-Type': type, 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff' };
+  const headers = { ...SECURITY_HEADERS, 'Content-Type': type, 'Cache-Control': 'no-cache' };
   if (buf.length > 1024 && COMPRESSIBLE.test(type) && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) {
-    buf = zlib.gzipSync(buf);
+    buf = await gzip(buf); // async: large job payloads must not block the event loop (review L8)
     headers['Content-Encoding'] = 'gzip';
     headers.Vary = 'Accept-Encoding';
   }
@@ -103,7 +227,7 @@ function send(req, res, status, body, type) {
 }
 
 function sendJson(req, res, status, obj) {
-  send(req, res, status, JSON.stringify(obj), MIME['.json']);
+  return send(req, res, status, JSON.stringify(obj), MIME['.json']);
 }
 
 /** Map a URL path under a base dir; returns null on traversal. */
@@ -128,13 +252,25 @@ async function serveFile(req, res, file) {
   if (COMPRESSIBLE.test(type) && st.size < 5 * 1024 * 1024) {
     return send(req, res, 200, await fs.readFile(file), type);
   }
-  res.writeHead(200, { 'Content-Type': type, 'Content-Length': st.size, 'Cache-Control': 'no-cache' });
+  res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': type, 'Content-Length': st.size, 'Cache-Control': 'no-cache' });
   if (req.method === 'HEAD') return res.end();
   createReadStream(file).pipe(res);
 }
 
+/** Parse the request target as a path (review C2: "//api" is not an authority). */
+function parseTarget(target) {
+  const t = String(target || '/');
+  if (!t.startsWith('/')) return null; // absolute-form / asterisk-form are not served
+  try {
+    return new URL(t.replace(/^\/{2,}/, '/'), 'http://localhost');
+  } catch {
+    return null;
+  }
+}
+
 export async function handle(req, res) {
-  const url = new URL(req.url, 'http://localhost');
+  const url = parseTarget(req.url);
+  if (!url) return sendJson(req, res, 400, { error: 'Bad request' });
   const p = url.pathname;
 
   if (p.startsWith('/api/')) {
@@ -148,10 +284,11 @@ export async function handle(req, res) {
         return sendJson(req, res, err.status || 400, { error: err.message });
       }
       const refresh = ['1', 'true', 'yes'].includes(url.searchParams.get('refresh') || '');
-      return sendJson(req, res, 200, await getJobs(company, { refresh }));
+      // HEAD never triggers an upstream fetch (review C2).
+      return sendJson(req, res, 200, await getJobs(company, { refresh, offline: req.method === 'HEAD' }));
     }
     if (p === '/api/health') return sendJson(req, res, 200, { ok: true });
-    return sendJson(req, res, 404, { error: `Unknown API route ${p}` });
+    return sendJson(req, res, 404, { error: 'Unknown API route' });
   }
 
   if (req.method !== 'GET' && req.method !== 'HEAD') return sendJson(req, res, 405, { error: 'Method not allowed' });
@@ -173,8 +310,11 @@ export function createServer({ log = true } = {}) {
     try {
       await handle(req, res);
     } catch (err) {
-      console.error('[server]', err);
-      if (!res.headersSent) sendJson(req, res, 500, { error: err.message || 'Internal error' });
+      // Details stay in the server log; clients get a generic message (review L7).
+      let target = '';
+      try { target = req.url; } catch {}
+      console.error('[server]', req.method, target, err);
+      if (!res.headersSent) sendJson(req, res, 500, { error: 'Internal error' }).catch(() => res.end());
       else res.end();
     }
   });

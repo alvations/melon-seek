@@ -87,5 +87,41 @@ await p.click('.seg [data-mode="map"]'); await p.waitForTimeout(1000);
 await shot(p, 'mobile-map');
 await p.close();
 
+// Behaviour checks (desktop)
+const checks = {};
+p = await page({ viewport: { width: 1440, height: 900 } });
+for (const sort of ['salary-desc', 'salary-asc', 'newest', 'title']) {
+  await p.goto(`${BASE}/${QS}#c=anthropic&sort=${sort}`);
+  await ready(p);
+  checks[`sort:${sort}`] = await p.evaluate(() => document.querySelectorAll('.card[data-id]').length > 0);
+  await p.goto('about:blank');
+}
+// Jobs without salary must render (and sort last) — regression for nullsLast.
+await p.goto(`${BASE}/${QS}#c=anthropic&sort=salary-asc`);
+await ready(p);
+checks.noSalaryCardsRender = await p.evaluate(async () => {
+  while (document.querySelector('.list-more button')) { document.querySelector('.list-more button').click(); await new Promise((r) => setTimeout(r, 30)); }
+  const pills = [...document.querySelectorAll('.card .sal-pill')];
+  const none = pills.filter((x) => x.classList.contains('sal-pill--none')).length;
+  const firstNone = pills.findIndex((x) => x.classList.contains('sal-pill--none'));
+  return { total: pills.length, withoutSalary: none, noneAreLast: none === 0 || pills.slice(firstNone).every((x) => x.classList.contains('sal-pill--none')) };
+});
+// Deep link to a job: drawer opens with focus inside it, background inert.
+const firstId = await p.getAttribute('.card[data-id]', 'data-id');
+await p.goto('about:blank');
+await p.goto(`${BASE}/${QS}#c=anthropic&job=${encodeURIComponent(firstId)}`);
+await p.waitForSelector('.drawer.is-open');
+await p.waitForTimeout(300);
+checks.deepLinkFocus = await p.evaluate(() => document.getElementById('drawer').contains(document.activeElement));
+checks.backgroundInert = await p.evaluate(() => document.getElementById('layout').inert === true);
+await p.keyboard.press('Tab'); await p.keyboard.press('Shift+Tab'); await p.keyboard.press('Shift+Tab');
+checks.focusTrapped = await p.evaluate(() => document.getElementById('drawer').contains(document.activeElement));
+await p.keyboard.press('Escape'); await p.waitForTimeout(300);
+checks.escClosesAndReturnsFocus = await p.evaluate(() => !document.querySelector('.drawer.is-open') && document.activeElement !== document.body);
+checks.badge = (await p.textContent('#dataBadge'))?.trim().split('\n')[0];
+checks.slashFocusesSearch = await (async () => { await p.keyboard.press('/'); return p.evaluate(() => document.activeElement.id === 'search'); })();
+await p.close();
+
 await browser.close();
-console.log(JSON.stringify({ hashAfterDrawer: hash, hashAfterBack: hashBack, errors }, null, 2));
+console.log(JSON.stringify({ hashAfterDrawer: hash, hashAfterBack: hashBack, checks, errors }, null, 2));
+process.exitCode = errors.length ? 1 : 0;

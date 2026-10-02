@@ -23,8 +23,10 @@ async function readCapped(res, maxBytes, ctrl, label) {
   const len = Number(res.headers.get('content-length') || 0);
   if (len > maxBytes) throw new UpstreamError(`${label}: response too large (${len} bytes > ${maxBytes})`, { code: 'too_large' });
   if (!res.body) return '';
+  // Web-standard APIs only (no Buffer): this module is also bundled for the browser.
   const reader = res.body.getReader();
-  const chunks = [];
+  const decoder = new TextDecoder('utf-8');
+  let out = '';
   let n = 0;
   for (;;) {
     const { done, value } = await reader.read();
@@ -35,9 +37,9 @@ async function readCapped(res, maxBytes, ctrl, label) {
       try { await reader.cancel(); } catch {}
       throw new UpstreamError(`${label}: response exceeded ${maxBytes} bytes`, { code: 'too_large' });
     }
-    chunks.push(value);
+    out += decoder.decode(value, { stream: true });
   }
-  return Buffer.concat(chunks.map((c) => Buffer.from(c.buffer, c.byteOffset, c.byteLength))).toString('utf8');
+  return out + decoder.decode();
 }
 
 /**
