@@ -1,5 +1,5 @@
 // melon·seek — development mock of the HTTP API (loaded only with ?mock=1).
-import { roleFamily } from './features/compstimate.js';
+import { roleFamily } from './features/roles.js';
 // Synthesizes deterministic, contract-shaped Jobs so the UI can be built
 // without the backend. Never used in normal operation.
 
@@ -281,11 +281,12 @@ export async function getMarket() {
     const groups = new Map();
     for (const j of makeJobs(c)) {
       if (!j.salary) continue;
-      const fam = roleFamily(j.title);
+      const fam = roleFamily(j.title, j);
       if (!fam) continue;
-      const k = `${fam}|${j.seniority}`;
-      if (!groups.has(k)) groups.set(k, []);
-      groups.get(k).push(j.salary.mid * (FX[j.salary.currency] ?? 1));
+      for (const k of [`${fam}|${j.seniority}`, `${fam}|*`]) { // "*" = all-levels roll-up (melon-market-1)
+        if (!groups.has(k)) groups.set(k, []);
+        groups.get(k).push(j.salary.mid * (FX[j.salary.currency] ?? 1));
+      }
     }
     for (const [k, mids] of groups) {
       if (mids.length < 3) continue;
@@ -293,6 +294,7 @@ export async function getMarket() {
       cells.push({ company: c.slug, name: c.name, family, seniority, n: mids.length, p25: q(mids, 0.25), median: q(mids, 0.5), p75: q(mids, 0.75) });
     }
   }
-  marketCache = { basis: 'posted base pay ranges', currency: 'USD', generatedAt: new Date().toISOString(), cells };
+  marketCache = { format: 'melon-market-1', basis: 'posted base pay ranges', currency: 'USD', minN: 3, mode: 'demo', generatedAt: new Date().toISOString(),
+    companies: COMPANIES.map(({ slug, name, color }) => ({ slug, name, color })), cells };
   return marketCache;
 }

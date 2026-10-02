@@ -7,7 +7,9 @@ import { colorFor, formatMoney, resetColors, assignColors, otherColor, toUSD, SL
 import { createChart, keyOf, VIEWS, DEFAULT_VIEW } from './viz/chart.js';
 import { createMap } from './viz/map.js';
 import * as api from './api.js';
-import { createCompstimateWidget, compstimateForJob } from './features/compstimate.js';
+import { createCompstimateWidget, compstimateForJob, accuracyLine, isLowAccuracy, displayConfidence } from './features/compstimate.js';
+import { compsForJob, createCompsCard } from './features/comps.js';
+import { createCompsChart } from './viz/comps.js';
 import { roleFamily, FAMILY_LABELS } from './features/roles.js';
 import { createInsights } from './features/insights.js'; // getCompanies, getJobs, getJobDetail (namespace import: tolerate a missing optional export)
 
@@ -293,7 +295,7 @@ function prepare(jobs) {
     // falls back to updatedAt so the age slot and "Listed" filter still work.
     j._age = 'ageDays' in j ? (Number.isFinite(j.ageDays) ? j.ageDays : null)
       : j._ts ? Math.max(0, Math.floor((Date.now() - j._ts) / 864e5)) : null;
-    j._family = j._family ?? roleFamily(j.title, { department: j.department });
+    j._family = j._family ?? roleFamily(j.title, j); // same ctx comps.js uses, so rf filters match its rows
     j.juice = j.juice && j.juice.best ? j.juice : null;
     j._grade = j.juice ? (j.juice.best.grade === 'Rind' ? 'Dry' : j.juice.best.grade) : null;
     j._locKeys = j.locations.map(locKey);
@@ -1355,7 +1357,7 @@ function renderInsights() {
   try {
     if (!comp) comp = createCompstimateWidget($('#compHost'), { onSelect: (job) => job && openDrawer(job.id) });
     if (!insights) insights = createInsights($('#insightsPanel'), { onFilter: onInsightFilter });
-    if (featSig.comp !== dataSeq) { featSig.comp = dataSeq; comp.update(data.jobs); }
+    if (featSig.comp !== dataSeq) { featSig.comp = dataSeq; comp.update(data.jobs, data.meta); }
     const sig = `${dataSeq}|${derived.filtered.length}|${derived.filtered.map((j) => j.id).join(',')}`;
     if (featSig.ins !== sig) { featSig.ins = sig; insights.update(derived.filtered, data.jobs); }
   } catch (err) { console.error('insights failed', err); }
@@ -1363,11 +1365,11 @@ function renderInsights() {
   const cardHost = $('#compsCardHost');
   if (featSig.comps !== `${dataSeq}|${S.c}`) {
     featSig.comps = `${dataSeq}|${S.c}`;
-    loadComps().then((m) => {
-      if (!m?.createCompsCard) { cardHost.hidden = true; return; }
+    loadMarket().then((market) => {
+      if (!market) { cardHost.hidden = true; return; }
       try {
-        if (!compsCard) compsCard = m.createCompsCard(cardHost, { onPickCompany: (slug, filters) => pickCompany(slug, filters), market: m.market });
-        compsCard.update?.(m.market, { company: S.c, jobs: data.jobs });
+        if (!compsCard) compsCard = createCompsCard(cardHost, { onPickCompany: (slug, filters) => pickCompany(slug, filters) });
+        compsCard.update(market, { company: S.c, jobs: data.jobs });
         cardHost.hidden = false;
       } catch (err) { console.warn('createCompsCard failed', err); cardHost.hidden = true; }
     });
@@ -1808,14 +1810,6 @@ function payLabels(job) {
   return labels.length ? h('div', { class: 'pay-labels' }, ...labels.map(([t, tip]) => h('span', { class: 'pay-label', title: tip }, t))) : null;
 }
 
-/** "Typically within ±X% (tested on N listed salaries)" from meta.compstimate (F3). */
-function compAccuracy() {
-  const m = data.meta?.compstimate;
-  if (!m || m.medianAbsPctError == null || !m.n) return null;
-  const err = m.medianAbsPctError <= 1.5 ? m.medianAbsPctError * 100 : m.medianAbsPctError; // fraction or percent
-  return { pct: Math.round(err), n: m.n, low: err > 25 };
-}
-
 /** For postings without pay: an estimate from comparable roles, clearly labelled as such. */
 function compstimateBlock(job) {
   let est = null;
@@ -1825,9 +1819,9 @@ function compstimateBlock(job) {
     h('div', { class: 'd-comp-top' },
       h('span', { class: 'd-comp-label' }, 'Compstimate'),
       h('span', { class: 'd-comp-amt' }, `≈ ${money(est.mid)}`),
-      h('span', { class: 'muted' }, `(${money(est.low)}–${money(est.high).replace(/^\$/, '')}, ${String(est.confidence || '').toLowerCase()} confidence)`)),
+      h('span', { class: 'muted' }, `(${money(est.low)}–${money(est.high).replace(/^\$/, '')}, ${String(displayConfidence(est, data.meta) || '').toLowerCase()} confidence)`)),
     h('p', { class: 'd-comp-note' }, `An estimate from ${plural(est.n || 0, 'comparable role')} at ${data.company?.name || 'this company'} (approx USD / year) — not a figure from the posting.`),
-    (() => { const a = compAccuracy(); return a ? h('p', { class: 'd-comp-note' }, a.low ? h('strong', null, 'Low confidence. ') : null, `Typically within ±${a.pct}% (tested on ${a.n.toLocaleString()} listed salaries).`) : null; })());
+    accuracyLine(data.meta) ? h('p', { class: 'd-comp-note' }, isLowAccuracy(data.meta) ? h('strong', null, 'Low confidence. ') : null, `${accuracyLine(data.meta)}.`) : null);
 }
 
 function annualNote(sal) {
@@ -1945,22 +1939,11 @@ function listingSection(job) {
 }
 
 /* ---- F1: "Same role elsewhere" (product's compsForJob + viz's createCompsChart, loaded lazily) ---- */
-let compsPromise = null;
-async function fetchJson(path) {
-  const res = await fetch(path, { headers: { accept: 'application/json' } });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-function loadComps() {
-  if (!compsPromise) {
-    compsPromise = (async () => {
-      const [feat, viz] = await Promise.all([import('./features/comps.js').catch(() => null), import('./viz/comps.js').catch(() => null)]);
-      if (!feat?.compsForJob) return null;
-      const market = await Promise.resolve(dataApi.getMarket ? dataApi.getMarket() : fetchJson(api.isStatic?.() ? 'api/market.json' : 'api/market')).catch(() => null);
-      return market ? { ...feat, createCompsChart: viz?.createCompsChart, market } : null;
-    })();
-  }
-  return compsPromise;
+let marketPromise = null;
+/** The F1 market comps document (api.getMarket(); mock: fixture), fetched once. */
+function loadMarket() {
+  if (!marketPromise) marketPromise = Promise.resolve(dataApi.getMarket ? dataApi.getMarket() : null).catch(() => null);
+  return marketPromise;
 }
 /** Switch to another company with the matching role family and seniority filters (via the hash; Back returns). */
 function pickCompany(slug, filters = {}) {
@@ -1974,34 +1957,24 @@ function sameRoleSection(job) {
   if (!job._usd || !job._family) return null;
   const body = h('div', { class: 'comps-body' }, h('div', { class: 'sk sk-line', style: 'width:80%' }), h('div', { class: 'sk sk-line', style: 'width:60%' }));
   const sec = fold('d-comps', 'Same role elsewhere', body);
-  loadComps().then((m) => {
+  loadMarket().then((market) => {
     if (!sec.isConnected && drawerJobId !== job.id) return;
     let res = null;
-    try { res = m ? m.compsForJob(m.market, job) : null; } catch (err) { console.warn('compsForJob failed', err); }
+    try { res = market ? compsForJob(market, job, { includeSelf: true }) : null; } catch (err) { console.warn('compsForJob failed', err); }
     const rows = res?.rows || [];
-    const others = rows.filter((r) => (r.slug ?? r.company) !== job.company);
-    if (!others.length) { sec.hidden = true; applyDrawerBudget(); return; }
-    const family = FAMILY_LABEL[job._family] || job._family;
-    const bySen = res.matchedOn !== 'family';
-    const filters = { family: job._family, seniority: bySen ? job.seniority : null };
+    if (!rows.some((r) => !r.current)) { sec.hidden = true; applyDrawerBudget(); return; }
+    const family = FAMILY_LABEL[res.family] || res.family;
+    const bySen = res.matchedOn === 'family+seniority';
+    const filters = { family: res.family, seniority: bySen ? res.seniority : null };
     const chartHost = h('div', { class: 'comps-chart' });
     body.replaceChildren(
       h('p', { class: 'comps-note muted' }, bySen
-        ? `${job.seniority || 'Same level'} ${family.toLowerCase()} roles: median and middle 50% of posted base pay (approx USD).`
+        ? `${res.seniority} ${family.toLowerCase()} roles: median and middle 50% of posted base pay (approx USD).`
         : `No other company lists this level, so this compares all ${family.toLowerCase()} roles.`),
       chartHost);
-    if (m.createCompsChart) {
-      try {
-        m.createCompsChart(chartHost, { onSelect: (slug) => { if (slug && slug !== job.company) pickCompany(slug, filters); } }).update(rows, { current: job.company });
-        return;
-      } catch (err) { console.warn('createCompsChart failed', err); }
-    }
-    // Fallback: a plain list (one row per company).
-    chartHost.replaceChildren(h('ul', { class: 'comps-list' }, ...others.map((r) => h('li', null,
-      h('button', { type: 'button', class: 'comps-row', onclick: () => pickCompany(r.slug ?? r.company, filters), title: `Open ${r.name || r.slug} with these filters` },
-        h('span', { class: 'comps-name' }, r.name || r.slug || r.company),
-        h('span', { class: 'comps-med' }, money(r.median)),
-        h('span', { class: 'muted' }, `${compactRange(r.p25, r.p75)} · n=${r.n}`))))));
+    try {
+      createCompsChart(chartHost, { onSelect: (slug) => { if (slug && slug !== job.company) pickCompany(slug, filters); } }).update(rows, { current: job.company });
+    } catch (err) { console.warn('createCompsChart failed', err); sec.hidden = true; applyDrawerBudget(); }
   });
   return sec;
 }
