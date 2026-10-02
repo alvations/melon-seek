@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Features Demo Harness</title>
+  <meta name="color-scheme" content="light dark">
+  <link rel="stylesheet" href="./features.css">
+  <style>
+    /* App-like tokens (mirrors public/styles.css). Remove with ?tokens=none to
+       exercise the fallbacks in features.css. */
+    :root.app-tokens {
+      --ms-bg: #f5f6f8; --ms-surface: #ffffff; --ms-surface-2: #f0f2f5; --ms-text: #151821;
+      --ms-muted: #5c6474; --ms-border: #e1e4ea; --ms-border-strong: #c9ced8;
+      --ms-accent: #0b7a5c; --ms-accent-strong: #08654b; --ms-accent-soft: #e3f4ee;
+      --ms-radius: 10px;
+      --ms-font: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root.app-tokens:not([data-theme="light"]) {
+        --ms-bg: #0e1116; --ms-surface: #161a21; --ms-surface-2: #1d222b; --ms-text: #e9ecf2;
+        --ms-muted: #a2aab8; --ms-border: #2a303b; --ms-border-strong: #3a4250;
+        --ms-accent: #3ccf9a; --ms-accent-strong: #6be0b5; --ms-accent-soft: #123528;
+      }
+    }
+    :root.app-tokens[data-theme="dark"] {
+      --ms-bg: #0e1116; --ms-surface: #161a21; --ms-surface-2: #1d222b; --ms-text: #e9ecf2;
+      --ms-muted: #a2aab8; --ms-border: #2a303b; --ms-border-strong: #3a4250;
+      --ms-accent: #3ccf9a; --ms-accent-strong: #6be0b5; --ms-accent-soft: #123528;
+    }
+    :root { --page-bg: #f9f9f7; --page-text: #0b0b0b; --page-muted: #5f5e5a; --page-border: #e1e0d9; color-scheme: light; }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) { --page-bg: #0d0d0d; --page-text: #fff; --page-muted: #a9a89f; --page-border: #2c2c2a; color-scheme: dark; }
+    }
+    :root[data-theme="dark"] { --page-bg: #0d0d0d; --page-text: #fff; --page-muted: #a9a89f; --page-border: #2c2c2a; color-scheme: dark; }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--ms-bg, var(--page-bg));
+      color: var(--ms-text, var(--page-text));
+      font: 14px/1.45 var(--ms-font, system-ui, -apple-system, "Segoe UI", sans-serif);
+    }
+    .demo-top {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px;
+      padding: 12px 20px; border-bottom: 1px solid var(--ms-border, var(--page-border));
+      background: var(--ms-surface, transparent);
+    }
+    .demo-top h1 { margin: 0; font-size: 15px; font-weight: 650; }
+    .demo-badge { padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; background: #fff4dc; color: #7a4800; border: 1px solid #f3c86b; }
+    .demo-controls { display: flex; flex-wrap: wrap; gap: 10px; margin-left: auto; font-size: 12.5px; color: var(--ms-muted, var(--page-muted)); }
+    .demo-controls label { display: inline-flex; align-items: center; gap: 6px; }
+    .demo-controls select { font: inherit; padding: 3px 6px; border-radius: 6px; border: 1px solid var(--ms-border, var(--page-border)); background: var(--ms-surface, var(--page-bg)); color: inherit; }
+    .demo-main {
+      display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px;
+      max-width: 1320px; margin: 0 auto; padding: 20px 16px 40px;
+    }
+    @media (min-width: 900px) { .demo-main { grid-template-columns: 360px minmax(0, 1fr); padding: 20px; } }
+    .layout-narrow .demo-main { grid-template-columns: 360px 380px; justify-content: start; }
+    .layout-wide .demo-main { grid-template-columns: minmax(0, 1fr); }
+    .demo-filter { display: flex; align-items: center; gap: 8px; min-height: 28px; margin-bottom: 10px; font-size: 12.5px; color: var(--ms-muted, var(--page-muted)); }
+    .demo-filter button {
+      display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; cursor: pointer;
+      border: 1px solid var(--ms-accent, #2a78d6); background: transparent; color: var(--ms-text, var(--page-text)); font: inherit;
+    }
+    .demo-log { margin-top: 12px; font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ms-muted, var(--page-muted)); }
+  </style>
+</head>
+<body>
+  <header class="demo-top">
+    <h1>melon-seek · Compstimate &amp; Market insights</h1>
+    <span class="demo-badge">Fake demo data</span>
+    <div class="demo-controls">
+      <label>Company <select id="company"><option value="acme">Acme (demo)</option><option value="globex">Globex (demo)</option><option value="empty">Empty board</option><option value="nopay">No pay published</option></select></label>
+      <label>Theme <select id="theme"><option value="">Auto</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+      <label>Tokens <select id="tokens"><option value="app">App --ms-*</option><option value="none">Fallbacks only</option></select></label>
+    </div>
+  </header>
+  <main class="demo-main">
+    <aside id="comp"></aside>
+    <section>
+      <div class="demo-filter" id="filterBar" aria-live="polite"></div>
+      <div id="insights"></div>
+      <div class="demo-log" id="log" aria-live="polite"></div>
+    </section>
+  </main>
+  <script type="module">
+    import { fakeJobs } from './demo-data.js';
+    import { createCompstimateWidget } from './compstimate.js';
+    import { createInsights } from './insights.js';
+
+    const params = new URLSearchParams(location.search);
+    const root = document.documentElement;
+    const $ = (id) => document.getElementById(id);
+
+    function applyTheme() {
+      const t = $('theme').value;
+      if (t) root.setAttribute('data-theme', t); else root.removeAttribute('data-theme');
+      root.classList.toggle('app-tokens', $('tokens').value === 'app');
+    }
+    $('theme').value = params.get('theme') || '';
+    $('tokens').value = params.get('tokens') || 'app';
+    $('company').value = params.get('company') || 'acme';
+    if (params.get('layout')) document.body.classList.add(`layout-${params.get('layout')}`);
+    applyTheme();
+
+    let all = [];
+    let filter = null;
+    const log = (msg) => { $('log').textContent = msg; };
+
+    const matches = (job, f) => {
+      if (!f) return true;
+      if (f.type === 'department') return job.department === f.value;
+      if (f.type === 'location') return (job.locations || []).some((l) => (l.remote ? 'Remote' : l.city || l.name) === f.value);
+      const facet = { skill: 'skills', fit: 'fit', responsibility: 'responsibilities' }[f.type];
+      return (job.keywords?.[facet] || []).includes(f.value);
+    };
+
+    const comp = createCompstimateWidget($('comp'), {
+      getJobs: () => all,
+      onSelect: (job) => log(`onSelect → ${job.id} · ${job.title}`),
+    });
+    const insights = createInsights($('insights'), {
+      onFilter: (f) => { filter = f; log(`onFilter → ${JSON.stringify(f)}`); refresh(); },
+    });
+
+    function refresh() {
+      const view = all.filter((j) => matches(j, filter));
+      $('filterBar').replaceChildren();
+      if (filter) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = `${filter.type}: ${filter.value} ✕`;
+        b.setAttribute('aria-label', `Clear filter ${filter.type} ${filter.value}`);
+        b.onclick = () => { filter = null; refresh(); };
+        $('filterBar').append('Filtered by', b);
+      }
+      insights.update(view, all);
+    }
+
+    function load() {
+      const c = $('company').value;
+      all = c === 'empty' ? [] : c === 'nopay' ? fakeJobs('initech', 40).map((j) => ({ ...j, salary: null })) : fakeJobs(c, c === 'globex' ? 96 : 140);
+      filter = params.get('filter') ? JSON.parse(params.get('filter')) : null;
+      comp.update(all);
+      const q = params.get('q');
+      if (q) comp.setQuery(JSON.parse(q));
+      refresh();
+    }
+
+    $('company').onchange = load;
+    $('theme').onchange = applyTheme;
+    $('tokens').onchange = applyTheme;
+    load();
+    window.__demo = { comp, insights, get all() { return all; } };
+  </script>
+</body>
+</html>
