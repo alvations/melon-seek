@@ -1,0 +1,113 @@
+{
+ "anduril": {
+  "jobs": 2418,
+  "salaried": 2273,
+  "quarantined": 5,
+  "flagged": 201,
+  "critical": 3,
+  "blocking": 0,
+  "codes": {
+   "non_year_interval": 194,
+   "multiple_ranges": 2,
+   "interval_corrected": 1,
+   "currency_country_mismatch": 2,
+   "min_under_15k_fulltime": 3,
+   "ratio_over_3": 5,
+   "quarantined": 5
+  }
+ },
+ "anthropic": {
+  "jobs": 638,
+  "salaried": 559,
+  "quarantined": 0,
+  "flagged": 7,
+  "critical": 0,
+  "blocking": 0,
+  "codes": {
+   "non_year_interval": 3,
+   "multi_currency": 3,
+   "ratio_over_3": 4
+  }
+ },
+ "cohere": {
+  "jobs": 132,
+  "salaried": 93,
+  "quarantined": 0,
+  "flagged": 10,
+  "critical": 0,
+  "blocking": 0,
+  "codes": {
+   "non_year_interval": 3,
+   "no_pay_context": 3,
+   "currency_country_mismatch": 6,
+   "structured_text_disagree": 1
+  }
+ },
+ "openai": {
+  "jobs": 833,
+  "salaried": 674,
+  "quarantined": 0,
+  "flagged": 12,
+  "critical": 0,
+  "blocking": 0,
+  "codes": {
+   "missed_salary": 3,
+   "non_year_interval": 4,
+   "structured_text_disagree": 2,
+   "ratio_over_3": 1,
+   "currency_country_mismatch": 2
+  }
+ },
+ "palantir": {
+  "jobs": 320,
+  "salaried": 240,
+  "quarantined": 0,
+  "flagged": 41,
+  "critical": 0,
+  "blocking": 0,
+  "codes": {
+   "non_year_interval": 41
+  }
+ },
+ "scaleai": {
+  "jobs": 194,
+  "salaried": 128,
+  "quarantined": 2,
+  "flagged": 7,
+  "critical": 0,
+  "blocking": 0,
+  "codes": {
+   "non_year_interval": 5,
+   "structured_text_disagree": 2,
+   "currency_country_mismatch": 1,
+   "quarantined": 2
+  }
+ },
+ "shieldai": {
+  "jobs": 581,
+  "salaried": 456,
+  "quarantined": 0,
+  "flagged": 26,
+  "critical": 0,
+  "blocking": 0,
+  "codes": {
+   "non_year_interval": 24,
+   "ratio_over_3": 1,
+   "structured_text_disagree": 1,
+   "interval_corrected": 1
+  }
+ },
+ "xai": {
+  "jobs": 297,
+  "salaried": 139,
+  "quarantined": 0,
+  "flagged": 46,
+  "critical": 0,
+  "blocking": 0,
+  "codes": {
+   "non_year_interval": 41,
+   "ratio_over_3": 3,
+   "currency_country_mismatch": 2
+  }
+ }
+}

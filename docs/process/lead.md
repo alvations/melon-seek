@@ -250,3 +250,11 @@ screenshots in `docs/screenshots/`.
 - 2026-10-02: user asked for a plan only (no implementation) on reusing
   alvations/melon-corporate-ladder (cloned to /home/user/melon-corporate-
   ladder). Launched the ladder-brainstorm agent.
+- 2026-10-02: livability finished: Juice Score with 89 cities, a 33-country
+  tax model, sourced and dated figures, a monthly refresh. Lead decision:
+  compute juice client-side in api.js in both modes (one code path; packed
+  lists stay small); the server only serves /api/cities. Integration sent
+  to backend (/api/cities), devops (build plus api.js attachJuiceAll, and
+  the vet-salaries CI step), UX (card badge, "Most juice" sort, grade chips
+  in More, drawer waterfall) and viz (Pay | Juice map pin coloring, FX
+  table refresh to match cities.json).

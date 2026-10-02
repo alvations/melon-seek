@@ -28,7 +28,7 @@ export const MIN_ANNUAL = 10000;            // annualized floor for any salary
 export const MAX_ANNUAL = 1_200_000;        // text candidates above this are not pay (= vet.js bound)
 export const HARD_MAX_ANNUAL = 5_000_000;   // toJobSalary refuses above this; between the two the vetting gate quarantines
 const PLAUSIBLE_ANNUAL_MIN = 15000;
-const TIER_GAP = 100;                       // max chars between tiers of one list
+const TIER_GAP = 130;                       // max chars between tiers of one list
 const TIER_MAX_RATIO = 3;
 
 const FACTORS = { hour: 2080, day: 260, week: 52, month: 12, year: 1 };
@@ -200,7 +200,7 @@ function clauseSpan(text, s, e) {
 
 const PAY_RE = /\b(salary|salaries|compensation|pay|paid|wages?|ote|on[- ]target earnings|remuneration|stipends?|(?:hourly|contract|day|daily|pay|base) rate|rate of pay|hourly (?:range|wage|pay)|brutto|gross)\b/i;
 // "$500 home office stipend", "learning & development stipend": benefits, not pay.
-const BENEFIT_STIPEND_RE = /\b(?:lunch|meals?|food|snacks?|home[- ]office|office|workspace|learning(?:\s*(?:&|and)\s*development)?|development|education(?:al)?|tuition|wellness|well-?being|fitness|gym|commuter|commuting|transit|transportation|phone|mobile|cell|internet|wi-?fi|co-?working|relocation|equipment|books?|conference|travel|childcare|remote(?:[- ]work)?|wfh|tech(?:nology)?|health|lifestyle|productivity|setup)\s+(?:stipends?|allowances?|budgets?)\b/gi;
+export const BENEFIT_STIPEND_RE = /\b(?:lunch|meals?|food|snacks?|home[- ]office|office|workspace|learning(?:\s*(?:&|and)\s*development)?|development|education(?:al)?|tuition|wellness|well-?being|fitness|gym|commuter|commuting|transit|transportation|phone|mobile|cell|internet|wi-?fi|co-?working|relocation|equipment|books?|conference|travel|childcare|remote(?:[- ]work)?|wfh|tech(?:nology)?|health|lifestyle|productivity|setup)\s+(?:stipends?|allowances?|budgets?)\b/gi;
 const NEG_BEFORE_RE = /\b(raised|raising|funding|funded|series [a-f]|valuation|valued|revenue|arr|backed|invest\w*|budgets?|spend(?:ing)?|closing|closed|deals?|quotas?|bonus(?:es)?|signing|sign-on|relocation|reimburs\w*|allowances?|grants?|credits?|compute|expenses?|savings?|saved|worth|exploits?|prizes?|awards?|donat\w*|customers?|users|loans?|pric(?:e|es|ed|ing)|costs?|fees?|tuition|401)\b[^$£€¥\d]{0,40}$/i;
 const NEG_AFTER_RE = /^\W{0,3}(?:in\s+|of\s+)?(?:[\w-]+\s+){0,3}?(deals?|funding|raised|revenue|arr|valuation|budgets?|spend|quotas?|exploits?|customers|users|grants?|credits?|allowances?|bonus(?:es)?|signing|sign-on|savings|prizes?|stipends?|reimbursements?|contracts? (?:value|won)|in (?:annual )?spend)\b/i;
 const PAY_STIPEND_AFTER_RE = /^\W{0,3}(?:(?:weekly|monthly|bi-?weekly|living|base|research)\s+)stipend\b/i;

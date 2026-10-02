@@ -171,6 +171,12 @@ function findStructuredInText(text, sal) {
   return null;
 }
 
+/** Pay words in a clause, ignoring benefit stipends ("$500 home office stipend" is not pay). */
+export function hasPayWords(clause) {
+  const s = typeof salaryLib.BENEFIT_STIPEND_RE === 'object' ? clause.replace(salaryLib.BENEFIT_STIPEND_RE, ' ') : clause;
+  return PAY_WORDS_RE.test(s);
+}
+
 /** Pay clauses (pay word + currency amount) in the text, as { start, end, clause }. */
 export function payClauses(text) {
   const out = [];
@@ -178,7 +184,7 @@ export function payClauses(text) {
   for (const t of moneyTokens(text)) {
     if (!t.currency || t.value < 7) continue;
     const clause = clauseAround(text, t.start, t.end);
-    if (!PAY_WORDS_RE.test(clause)) continue;
+    if (!hasPayWords(clause)) continue;
     const key = flat(clause);
     if (seen.has(key)) continue;
     seen.add(key);
@@ -234,7 +240,7 @@ export function scanJob(job, { stat = null } = {}) {
     }
     const want = countries.map((c) => COUNTRY_CURRENCY[c]).filter(Boolean);
     if (want.length && !want.includes(String(sal.currency).toUpperCase())) flags.add('currency_country_mismatch');
-    if (text && source === 'text' && span && !PAY_WORDS_RE.test(clauseAround(text, span.start, span.end))) flags.add('no_pay_context');
+    if (text && source === 'text' && span && !hasPayWords(clauseAround(text, span.start, span.end))) flags.add('no_pay_context');
     if (text && source === 'structured' && typeof salaryLib.parseSalary === 'function') {
       const p = salaryLib.parseSalary(text, { countries });
       const pj = p && salaryLib.toJobSalary(p);
@@ -249,7 +255,7 @@ export function scanJob(job, { stat = null } = {}) {
     const pay = new Set();
     for (const r of moneyRanges(text)) {
       if (r.hi < 7 || r.hi > 5e6) continue; // prose like "$100K to $10M+ in annual spend"
-      if (PAY_WORDS_RE.test(clauseAround(text, r.start, r.end))) pay.add(`${r.lo}|${r.hi}|${r.currency}`);
+      if (hasPayWords(clauseAround(text, r.start, r.end))) pay.add(`${r.lo}|${r.hi}|${r.currency}`);
     }
     if (pay.size > 1) flags.add('multiple_ranges');
     for (const c of clauses) {
@@ -561,8 +567,10 @@ async function main() {
 
   if (o.writeFlags && o.files.length) {
     // A reviewed scan is an audit record: never overwrite it silently.
+    // flags.jsonl and sample.jsonl are the review inputs that verdicts.jsonl refers to.
     const reviewed = fs.existsSync(path.join(path.dirname(out), 'verdicts.jsonl'));
-    if (reviewed && !o.force && (fs.existsSync(out) || (o.sample > 0 && fs.existsSync(path.join(dir, 'sample.jsonl'))))) {
+    const inputs = (path.basename(out) === 'flags.jsonl' && fs.existsSync(out)) || (o.sample > 0 && fs.existsSync(path.join(dir, 'sample.jsonl')));
+    if (reviewed && !o.force && inputs) {
       throw new Error(`${path.relative(ROOT, out)} (or sample.jsonl) already has verdicts next to it; pass --out <file> for a new scan, or --force to overwrite`);
     }
     fs.mkdirSync(path.dirname(out), { recursive: true });
