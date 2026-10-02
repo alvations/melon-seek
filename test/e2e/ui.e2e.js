@@ -123,9 +123,20 @@ export function registerUiTests(suite) {
     try {
       const { page, errors } = app;
       assertEq(await modeBtn(page, 'chart').getAttribute('aria-pressed'), 'true', 'chart mode pressed by default');
-      await page.locator('#chartHost .ms-row__bar').first().waitFor({ timeout: 8000 });
-      const bars = await page.locator('#chartHost .ms-row__bar').count();
-      assert(bars > 5, `only ${bars} chart bars`);
+      // Default chart may be the "Clusters" summary (bands per group) or "Ranges" (one bar per job).
+      const BARS = '#chartHost .ms-row__bar, #chartHost .ms-crow__band';
+      await page.locator(BARS).first().waitFor({ timeout: 8000 });
+      const bars = await page.locator(BARS).count();
+      assert(bars >= 3, `only ${bars} chart bars/bands`);
+      const rangesBtn = page.locator('#chartHost, #vizArea, #main').getByRole('button', { name: /^ranges$/i }).first();
+      if (await rangesBtn.isVisible().catch(() => false)) {
+        await rangesBtn.click();
+        await page.locator('#chartHost .ms-row__bar').first().waitFor({ timeout: 5000 });
+        const rows = await page.locator('#chartHost .ms-row__bar').count();
+        assert(rows > 5, `ranges view shows only ${rows} per-job bars`);
+        const clustersBtn = page.locator('#chartHost, #vizArea, #main').getByRole('button', { name: /^clusters$/i }).first();
+        if (await clustersBtn.isVisible().catch(() => false)) await clustersBtn.click();
+      }
       assert(await page.locator('#mapHost').isHidden(), 'map host should be hidden in chart mode');
       const n = await resultCount(page);
       const api = await apiJobs(ctx, 'anthropic');
@@ -156,6 +167,10 @@ export function registerUiTests(suite) {
       const box = await page.locator('#mapHost').boundingBox();
       assert(box && box.width > 300 && box.height > 200, `map host too small ${JSON.stringify(box)}`);
       assert(/(^|&)m=map(&|$)/.test(await page.evaluate(() => location.hash.slice(1))), 'hash has m=map');
+      // Tiles are blocked here: the map must degrade gracefully with a visible note / fallback.
+      await page.waitForTimeout(1500);
+      const fallback = await page.locator('#mapHost').getByText(/basemap|tiles|offline/i).first().isVisible().catch(() => false);
+      assert(fallback, 'no offline/basemap-unavailable fallback shown while tiles fail');
       // Clicking a pin should narrow to an area.
       const before = await resultCount(page);
       // Every pin should sit inside the visible map viewport after the initial fit.

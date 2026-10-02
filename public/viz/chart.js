@@ -32,7 +32,7 @@ const CROW_H = 52;         // clusters: one group row (wide)
 const CROW_LABEL_H = 22;   // clusters, narrow: label line above the plot
 const CROW_PLOT_H = 44;    // clusters, narrow: plot height
 const BIN_STEPS = [10000, 20000, 25000, 50000, 100000, 200000, 250000, 500000];
-const MIN_BIN_PX = 22;     // a bin must be wide enough for a readable circle
+const MIN_BIN_PX = 34;     // a bin must be wide enough for a readable, countable circle
 const SENIORITY_ORDER = ['Director+', 'Manager', 'Staff+', 'Senior', 'Mid', 'Entry', 'Intern'];
 const ALL_ROLES = 'All roles';
 
@@ -307,15 +307,6 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     renderHist(x, d0, d1, plotL, plotW, labelW);
     renderAxis(ticks, x, stats.fxCount > 0, labelW, narrow);
 
-    // Bin width: the smallest standard step that leaves room for a readable circle.
-    const pxPer = plotW / (d1 - d0);
-    const binW = BIN_STEPS.find(b => b * pxPer >= MIN_BIN_PX) || BIN_STEPS[BIN_STEPS.length - 1];
-    const binPx = binW * pxPer;
-    const rowH = narrow ? CROW_LABEL_H + CROW_PLOT_H : CROW_H;
-    const plotH = narrow ? CROW_PLOT_H : CROW_H;
-    const rMax = Math.max(6, Math.min(binPx / 2 - 1.5, plotH / 2 - 7));
-    const rMin = Math.min(4.5, rMax);
-
     // Rows
     const dim = opts.groupBy;
     const m = new Map();
@@ -323,6 +314,13 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     for (const job of jobs) rowOf(dim === 'none' ? ALL_ROLES : keyOf(job, dim)).all.push(job);
     for (const p of plotted) rowOf(dim === 'none' ? ALL_ROLES : keyOf(p.job, dim)).items.push(p);
     cRows = [...m.values()];
+    // A lone row ("All roles", or a single group) gets more height and bigger circles.
+    const solo = cRows.length === 1;
+    // Bin width: the smallest standard step that leaves room for a readable circle.
+    const pxPer = plotW / (d1 - d0);
+    const minBinPx = solo ? 46 : MIN_BIN_PX;
+    const binW = BIN_STEPS.find(b => b * pxPer >= minBinPx) || BIN_STEPS[BIN_STEPS.length - 1];
+    const binPx = binW * pxPer;
     for (const r of cRows) {
       const s = r.items.map(p => p.mid).sort((a, b) => a - b);
       r.median = quantile(s, 0.5); r.p25 = quantile(s, 0.25); r.p75 = quantile(s, 0.75);
@@ -347,6 +345,11 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       for (const r of cRows) r.color = top.has(r.key) ? colorFor(r.key) : otherColor();
     }
     for (const r of cRows) r.ink = inkOn(r.color);
+
+    const plotH = narrow ? (solo ? 72 : CROW_PLOT_H) : (solo ? 92 : CROW_H);
+    const rowH = narrow ? CROW_LABEL_H + plotH : plotH;
+    const rMax = Math.max(6, Math.min(binPx / 2 - 1.5, plotH / 2 - 9, solo ? 30 : 16));
+    const rMin = Math.min(4.5, rMax);
 
     const maxN = Math.max(1, ...cRows.flatMap(r => r.bins.map(b => b.items.length)));
     const frag = document.createDocumentFragment();

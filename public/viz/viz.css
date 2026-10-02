@@ -369,9 +369,9 @@
 
 /* Dark surface: translucent fills go muddy, so lift the range bars. */
 @media (prefers-color-scheme: dark) {
-  :root:where(:not([data-theme="light"])) .ms-chart { --_bar-o: .72; --_hist-o: .62; --_hist-o-c: .42; --_bin-mix: 40%; --_band-mix: 14%; }
+  :root:where(:not([data-theme="light"])) .ms-chart { --_bar-o: .72; --_hist-o: .62; --_hist-o-c: .42; --_bin-mix: 52%; --_band-mix: 16%; }
 }
-:root[data-theme="dark"] .ms-chart { --_bar-o: .72; --_hist-o: .62; --_hist-o-c: .42; --_bin-mix: 40%; --_band-mix: 14%; }
+:root[data-theme="dark"] .ms-chart { --_bar-o: .72; --_hist-o: .62; --_hist-o-c: .42; --_bin-mix: 52%; --_band-mix: 16%; }
 
 /* ============================== tooltip ============================== */
 

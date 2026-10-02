@@ -14,7 +14,10 @@
 //         → demo generated in-browser      (mode "demo")
 //     Custom boards: live, else in-browser demo.
 //
-// Every function resolves to the HTTP API shapes in docs/CONTRACT.md.
+// Every function resolves to the HTTP API shapes in docs/CONTRACT.md, with one
+// exception: to keep bundles small, jobs from the static build's bundled lists
+// have no `descriptionHtml`. Call getJobDetail(job) for it (e.g. when the job
+// drawer opens). Live-fetched and in-browser demo jobs already include it.
 //
 // CORS: Greenhouse's job board API is built for client-side use. Ashby's posting
 // API is reported to have no CORS headers. Lever's postings-api docs say
@@ -297,6 +300,64 @@ export async function getJobs(params, { refresh = false, signal } = {}) {
   const r = refresh || truthy(p.refresh);
   if (isStatic()) return staticJobs(p, { refresh: r, signal });
   return getJson(`api/jobs?${jobsQuery(p, r)}`, { signal });
+}
+
+/* -------------------------------------------------------- job details */
+
+/**
+ * File-name-safe, collision-free form of a job's id within its company:
+ * the part after "<company>:", with every character outside [A-Za-z0-9_-]
+ * written as "~" + 4 hex digits ("." too, so no "..").
+ * Real ids (Greenhouse digits, Ashby/Lever UUIDs, "demo-<slug>-NNN") are
+ * unchanged.
+ */
+export function sanitizeJobId(job) {
+  const id = String(job && job.id != null ? job.id : '');
+  const prefix = job && job.company ? `${job.company}:` : '';
+  const local = prefix && id.startsWith(prefix) ? id.slice(prefix.length) : id;
+  return local.replace(/[^A-Za-z0-9_-]/g, (c) => `~${c.charCodeAt(0).toString(16).padStart(4, '0')}`) || '~empty';
+}
+
+/**
+ * Path of a job's description file in the static build, relative to the site
+ * root. The format is { id, descriptionHtml, sections? }.
+ * Shared with scripts/build-static.js so writer and reader can't drift apart.
+ */
+export function descPath(job) {
+  const company = String((job && job.company) || '').replace(/[^A-Za-z0-9_-]/g, '_');
+  return `api/desc/${company}/${sanitizeJobId(job)}.json`;
+}
+
+const detailCache = new Map(); // job id -> Promise<{ descriptionHtml, sections? }>
+
+/**
+ * Resolve a job with its `descriptionHtml` (and its `sections`, when the
+ * static list left them out to stay small).
+ *  - The job already has descriptionHtml (server mode, live-fetched or
+ *    in-browser demo jobs): it is returned unchanged.
+ *  - Static build list jobs: api/desc/<company>/<id>.json is fetched once and
+ *    cached by job id. A failed fetch rejects and isn't cached, so a retry can
+ *    succeed.
+ * @param job  a Job from getJobs()
+ * @param opts {signal?: AbortSignal}
+ */
+export async function getJobDetail(job, { signal } = {}) {
+  if (!job) throw new Error('getJobDetail: no job');
+  if (typeof job.descriptionHtml === 'string') return job;
+  if (!isStatic()) return { ...job, descriptionHtml: '' }; // the server always includes it
+  let p = detailCache.get(job.id);
+  if (!p) {
+    p = getJson(descPath(job), { signal }).then((d) => ({
+      descriptionHtml: d && typeof d.descriptionHtml === 'string' ? d.descriptionHtml : '',
+      sections: d && d.sections ? d.sections : null,
+    }));
+    detailCache.set(job.id, p);
+    p.catch(() => { if (detailCache.get(job.id) === p) detailCache.delete(job.id); });
+  }
+  const d = await p;
+  const out = { ...job, descriptionHtml: d.descriptionHtml };
+  if (d.sections) out.sections = d.sections;
+  return out;
 }
 
 /**
