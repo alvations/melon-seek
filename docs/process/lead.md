@@ -109,3 +109,10 @@ screenshots in `docs/screenshots/`.
 - 2026-10-02: viz finished (chart, map, palette, process log, screenshot
   script). Relayed integration notes to UX: resetColors on company switch,
   map fit only on company change, fixed-height chart container.
+- 2026-10-02: backend finished (29 tests). Fixed `npm test` for Node 22
+  (`node --test test/` treats the directory as a file; now
+  `node --test test/*.test.js`). Full suite: 61/61 passing.
+- 2026-10-02: review agent stopped on an API error after writing most of
+  docs/REVIEW.md; the lead wrote docs/process/review.md from it. Findings
+  routed by file owner: backend H1 M2 L1 L2 L3 L7 L8 C2; viz M3 L4 L6;
+  ux M1 M4 M5 L5 L9 L10 L11 C1; product L9 (features/shared.js).
