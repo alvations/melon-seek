@@ -13,6 +13,7 @@ import { fetchAshby } from './sources/ashby.js';
 import { fetchLever } from './sources/lever.js';
 import { MAX_BYTES, MAX_BYTES_BUILTIN } from './sources/util.js';
 import { normalizeJobs } from './normalize.js';
+import { vetSalaries } from './vet.js';
 import { getCached, setCached, ROOT } from './cache.js';
 import { demoJobs } from './demo.js';
 
@@ -163,8 +164,13 @@ export async function getJobs(company, { refresh = false, offline = false } = {}
   // Cached data is built with a name that does not depend on the caller's
   // ?name= (review L3); the requested display name is stamped on the way out.
   const canonical = { ...company, name: company.custom ? defaultName(company.board) : company.name };
-  const stamp = (jobs) => (pub.name === canonical.name ? jobs
-    : jobs.map((j) => (j && j.companyName !== pub.name ? { ...j, companyName: pub.name } : j)));
+  // Every response passes the salary gate, including cache and snapshot data
+  // that was normalized by older code (vetSalaries is idempotent).
+  const stamp = (rawJobs) => {
+    const jobs = vetSalaries(rawJobs);
+    return pub.name === canonical.name ? jobs
+      : jobs.map((j) => (j && j.companyName !== pub.name ? { ...j, companyName: pub.name } : j));
+  };
   const custom = !!company.custom;
   const now = Date.now();
 

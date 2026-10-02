@@ -221,3 +221,17 @@ screenshots in `docs/screenshots/`.
   simplicity budget (at most one new main-view control per feature,
   progressive disclosure). The check-in trigger now includes the fan-out
   step.
+- 2026-10-02: USER ESCALATION: "$4.5–5M outlier still not solved". Cause:
+  server/vet.js (vetting agent) existed but nothing called it. Lead hotfix:
+  - vetSalaries runs in normalizeJobs (server/normalize.js), in getJobs'
+    stamp (server/index.js, so cached and snapshot data is gated at serve
+    time), and on loaded snapshots in scripts/build-static.js; vet.js is now
+    bundled into dist/lib for the browser.
+  - New check: hourly_high (text-parsed hourly rate above $250/hr). This
+    catches Cohere's "$500 home office stipend" read as $500/hr, which is
+    $1.04M/yr in 39 postings: below the $1.2M cap and repeated so often that
+    the statistical check saw it as normal.
+  - Verified on the real snapshots after `npm run build`: 4,551 salaried, 51
+    quarantined, 0 remaining above $900K/yr or above $250/hr. Top remaining
+    salaries are plausible ($850K max for Anthropic and OpenAI).
+  - Added test/vet-gate.test.js with the 5 real cases (110/110 passing).

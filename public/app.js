@@ -4,7 +4,7 @@
 // chart and the map is delegated to ./viz/* (see docs/CONTRACT.md).
 
 import { colorFor, formatMoney, resetColors, assignColors, otherColor, toUSD, SLOT_COUNT } from './viz/palette.js';
-import { createChart, keyOf } from './viz/chart.js';
+import { createChart, keyOf, VIEWS, DEFAULT_VIEW } from './viz/chart.js';
 import { createMap } from './viz/map.js';
 import * as api from './api.js';
 import { createCompstimateWidget, compstimateForJob } from './features/compstimate.js';
@@ -172,7 +172,7 @@ const ARRAYS = ['d', 'l', 's', 'e', 'kr', 'kf', 'ks'];
 const DEFAULTS = {
   c: '', cn: '', m: 'chart', q: '', smin: null, smax: null, so: false,
   d: [], l: [], s: [], e: [], r: 'any', p: 0, kr: [], kf: [], ks: [],
-  v: 'clusters', g: 'department', sort: 'salary-desc', job: null,
+  v: DEFAULT_VIEW, g: 'department', sort: 'salary-desc', job: null,
 };
 const FILTER_KEYS = ['q', 'smin', 'smax', 'so', 'd', 'l', 's', 'e', 'r', 'p', 'kr', 'kf', 'ks'];
 const ORDER = ['c', 'cn', 'm', 'q', 'smin', 'smax', 'so', 'd', 'l', 's', 'e', 'r', 'p', 'kr', 'kf', 'ks', 'v', 'g', 'sort', 'job'];
@@ -198,17 +198,21 @@ function parseHash() {
   }
   if (!['chart', 'map', 'insights'].includes(st.m)) st.m = 'chart';
   if (!['any', 'remote', 'onsite'].includes(st.r)) st.r = 'any';
-  if (!['clusters', 'ranges'].includes(st.v)) st.v = 'clusters';
-  if (!['department', 'location', 'seniority', 'none'].includes(st.g)) st.g = DEFAULTS.g;
+  if (!VIEWS.includes(st.v)) st.v = DEFAULT_VIEW;
+  if (!p.has('g') || !['department', 'location', 'seniority', 'none'].includes(st.g)) st.g = groupDefault(st.v);
   if (st.p === 0) st.p = 0;
   return st;
 }
+
+/** Clusters need a grouping (department); ranges read best ungrouped. */
+const groupDefault = (view) => (view === 'ranges' ? 'none' : 'department');
 
 function serialize(st = S) {
   const p = new URLSearchParams();
   for (const k of ORDER) {
     const v = st[k];
     if (ARRAYS.includes(k)) { for (const x of v) p.append(k, x); continue; }
+    if (k === 'g') { if (v !== groupDefault(st.v)) p.set('g', v); continue; }
     if (v == null || v === '' || v === false || v === DEFAULTS[k]) continue;
     if (k === 'cn' && !isCustomKey(st.c)) continue;
     p.set(k, v === true ? '1' : String(v));
@@ -244,7 +248,7 @@ function toggleIn(key, value) {
 function clearFilters() {
   const patch = {};
   for (const k of FILTER_KEYS) patch[k] = structuredClone(DEFAULTS[k]);
-  area = null;
+  clearArea();
   $('#search').value = '';
   set(patch);
 }
@@ -413,7 +417,7 @@ async function loadJobs({ refresh = false } = {}) {
   const seq = ++loadSeq;
   abortCtl?.abort();
   abortCtl = new AbortController();
-  area = null;
+  clearArea();
   hoverId = null;
   resetColors();
   mapFitPending = true;
@@ -692,7 +696,7 @@ function renderQuickbar() {
       const count = derived.filtered.filter((j) => area.ids.has(j.id)).length;
       slot.append(h('span', { class: 'area-chip' },
         h('span', { class: 'area-ico', html: area.kind === 'cluster' ? ICON.cluster : ICON.pin }), h('span', { class: 'area-label' }, `${area.label} (${count})`),
-        h('button', { type: 'button', class: 'area-x', 'aria-label': `Clear area ${area.label}`, html: ICON.close, onclick: () => { area = null; scheduleRender(); } })));
+        h('button', { type: 'button', class: 'area-x', 'aria-label': `Clear area ${area.label}`, html: ICON.close, onclick: () => { clearArea(); scheduleRender(); } })));
     }
   }
 }
@@ -1269,9 +1273,17 @@ function vizColor(key) {
   return colorKeys.has(key) ? colorFor(key) : otherColor();
 }
 
+function clearChartSelection() { try { chart?.clearSelection?.(); } catch { /* ignore */ } }
+/** Drop the map-area / cluster narrowing (and the chart's selected bin with it). */
+function clearArea() {
+  if (area?.kind === 'cluster') clearChartSelection();
+  area = null;
+}
+
 /** Narrow the results list to a map area or chart cluster (replaces any previous one). */
 function setArea(kind, jobs, label) {
   if (!jobs?.length) return;
+  if (area?.kind === 'cluster' && kind !== 'cluster') clearChartSelection();
   area = { kind, label: label || (kind === 'map' ? 'Selected area' : 'Selected cluster'), ids: new Set(jobs.map((j) => j.id)) };
   resultsLimit = PAGE;
   scheduleRender();
@@ -1756,7 +1768,12 @@ function bindEvents() {
   $('#themeBtn').addEventListener('click', cycleTheme);
   renderThemeBtn();
   $('#groupBy').addEventListener('change', (e) => set({ g: e.target.value }));
-  for (const b of document.querySelectorAll('[data-view]')) b.addEventListener('click', () => set({ v: b.dataset.view }));
+  for (const b of document.querySelectorAll('[data-view]')) b.addEventListener('click', () => {
+    const v = b.dataset.view;
+    if (v === S.v) return;
+    // Keep an explicit grouping; otherwise follow the new view's default.
+    set({ v, g: S.g === groupDefault(S.v) ? groupDefault(v) : S.g });
+  });
   $('#sortBy').addEventListener('change', (e) => set({ sort: e.target.value }));
   $('#clearAll').addEventListener('click', clearFilters);
   $('#filtersClear').addEventListener('click', clearFilters);

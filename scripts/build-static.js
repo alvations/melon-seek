@@ -38,7 +38,7 @@ const SNAPSHOT_DIR = process.env.MELON_SNAPSHOT_DIR || path.join(ROOT, 'data', '
 
 // Server modules the browser needs (paths relative to server/). companies.js is
 // included for custom-board validation; demo.js is optional.
-const LIB_MODULES = ['companies.js', 'normalize.js', 'salary.js', 'geo.js', 'keywords.js', 'demo.js'];
+const LIB_MODULES = ['companies.js', 'normalize.js', 'salary.js', 'vet.js', 'geo.js', 'keywords.js', 'demo.js'];
 const OPTIONAL_LIB = new Set(['demo.js']);
 // Sources that public/api.js may fetch live from the browser, and those whose
 // CORS failures fall back to the bundled snapshot without an error (see the
@@ -232,6 +232,7 @@ async function main() {
   // 4. API data
   const { listCompanies } = await import(pathToFileURL(path.join(ROOT, 'server', 'companies.js')).href);
   const { normalizeJobs } = await import(pathToFileURL(path.join(ROOT, 'server', 'normalize.js')).href);
+  const { vetSalaries } = await import(pathToFileURL(path.join(ROOT, 'server', 'vet.js')).href);
   let demoJobs = null;
   if (existsSync(path.join(ROOT, 'server', 'demo.js'))) {
     ({ demoJobs } = await import(pathToFileURL(path.join(ROOT, 'server', 'demo.js')).href));
@@ -256,7 +257,7 @@ async function main() {
       try {
         const parsed = JSON.parse(await fs.readFile(snapFile, 'utf8'));
         const jobs = Array.isArray(parsed) ? parsed : parsed && parsed.jobs;
-        if (Array.isArray(jobs) && jobs.length) payload = { company: c, mode: 'snapshot', fetchedAt: parsed.fetchedAt || null, error: null, jobs };
+        if (Array.isArray(jobs) && jobs.length) payload = { company: c, mode: 'snapshot', fetchedAt: parsed.fetchedAt || null, error: null, jobs: vetSalaries(jobs) };
         else warn(`${rel(snapFile)} has no jobs; using demo`);
       } catch (err) {
         warn(`${rel(snapFile)} unreadable (${err.message}); using demo`);

@@ -1,0 +1,226 @@
+<!doctype html>
+<!--
+  Source for public/og/melon-seek-og.png, the 1200x630 social share card
+  (og:image / twitter:image). Render it with `node scripts/build-og.mjs`
+  (Playwright + Chromium); see docs/process/social.md. This page is a build
+  input only: scripts/build-static.js leaves it out of dist/.
+
+  Everything is drawn here in HTML/CSS + inline SVG. No real company names or
+  logos; the salaries and counts are illustrative, not data.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex">
+  <meta name="viewport" content="width=1200, height=630">
+  <title>melon·seek share card</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=block">
+  <style>
+    /* Light-theme tokens copied from public/styles.css :root, plus the
+       categorical/sequential steps from public/viz/palette.js (CAT_LIGHT,
+       SEQ_LIGHT). The card is always light: no dark variant. */
+    :root {
+      --bg: #ffffff;
+      --text: #151821;
+      --muted: #5c6474;
+      --faint: #8a91a0;
+      --border: #e3e6eb;
+      --grid: #eef0f3;
+      --melon: #ec4c6c;
+      --melon-soft: #fde8ed;
+      --accent-soft: #e3f4ee;
+      --c1: #2a78d6; --c2: #eb6834; --c3: #1baf7a; --c4: #eda100;
+      --seq-1: #cde2fb; --seq-4: #256abf; --seq-6: #184f95; --seq-7: #0d366b;
+      --font: Inter, "Liberation Sans", "DejaVu Sans", Arial, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 1200px; height: 630px; overflow: hidden; }
+    body {
+      position: relative;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-feature-settings: "tnum" 1, "cv11" 1;
+      -webkit-font-smoothing: antialiased;
+    }
+    /* Soft brand washes behind the illustration. */
+    .wash { position: absolute; border-radius: 50%; filter: blur(2px); }
+    .wash--green { width: 760px; height: 760px; right: -250px; top: -330px; background: radial-gradient(closest-side, var(--accent-soft), rgb(227 244 238 / 0)); }
+    .wash--melon { width: 620px; height: 620px; right: 120px; bottom: -420px; background: radial-gradient(closest-side, var(--melon-soft), rgb(253 232 237 / 0)); }
+
+    .copy { position: absolute; left: 68px; top: 60px; width: 500px; height: 500px; display: flex; flex-direction: column; }
+    .brand { display: flex; align-items: center; gap: 14px; }
+    .brand svg { width: 62px; height: 62px; flex: none; }
+    .wordmark { font-size: 46px; font-weight: 800; letter-spacing: -0.035em; line-height: 1; }
+    .wordmark .dot { color: var(--melon); padding: 0 2px; }
+    .tagline { margin-top: 74px; font-size: 70px; font-weight: 800; letter-spacing: -0.04em; line-height: 1.02; }
+    .tagline mark { color: inherit; background: linear-gradient(transparent 62%, var(--melon-soft) 62% 94%, transparent 94%); padding: 0 4px; margin: 0 -4px; }
+    .sub { margin-top: 26px; font-size: 25px; font-weight: 500; line-height: 1.38; color: var(--muted); max-width: 470px; }
+    .chips { margin-top: auto; display: flex; gap: 10px; }
+    .chip { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px 0 12px; border: 1.5px solid var(--border); border-radius: 999px; background: #fff; font-size: 18px; font-weight: 600; color: var(--text); }
+    .chip svg { width: 20px; height: 20px; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+    .panel { position: absolute; background: #fff; border: 1.5px solid var(--border); border-radius: 18px; box-shadow: 0 2px 6px rgb(16 24 40 / .06), 0 18px 44px rgb(16 24 40 / .12); overflow: hidden; }
+    .panel--chart { left: 604px; top: 44px; width: 552px; height: 352px; }
+    .panel--map { left: 712px; top: 370px; width: 452px; height: 212px; }
+    .panel svg { display: block; }
+    .t-axis { font-size: 13px; font-weight: 500; fill: var(--faint); }
+    .t-head { font-size: 15px; font-weight: 600; fill: var(--muted); }
+    .t-head b, .t-strong { font-weight: 800; fill: var(--text); }
+    .t-row { font-size: 16px; font-weight: 700; fill: var(--text); }
+    .t-rowsub { font-size: 13px; font-weight: 500; fill: var(--muted); }
+    .t-n { font-size: 13px; font-weight: 700; fill: var(--text); text-anchor: middle; dominant-baseline: central; }
+    /* Map pins: (left, top) is the pin's tip. */
+    .pin { position: absolute; transform: translate(-50%, calc(-100% - 9px)); display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 7px 0 14px; border-radius: 18px; border: 2px solid #fff; font-size: 17px; font-weight: 800; letter-spacing: -0.01em; white-space: nowrap; box-shadow: 0 2px 6px rgb(16 24 40 / .22); }
+    .pin::after { content: ""; position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%); border: 8px solid transparent; border-top: 9px solid var(--pin-bg); border-bottom: 0; }
+    .pin .n { display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 12px; font-size: 13px; font-weight: 800; background: #fff; color: var(--seq-7); }
+    .pin--dark { --pin-bg: var(--seq-6); background: var(--pin-bg); color: #fff; }
+    .pin--mid { --pin-bg: var(--seq-4); background: var(--pin-bg); color: #fff; }
+    .pin--light { --pin-bg: var(--seq-1); background: var(--pin-bg); color: var(--seq-7); }
+    .pin--light .n { background: var(--seq-7); color: #fff; }
+    .remote { position: absolute; left: 16px; bottom: 16px; display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px 0 10px; border-radius: 17px; background: #fff; border: 1.5px solid var(--border); font-size: 15px; font-weight: 700; box-shadow: 0 1px 3px rgb(16 24 40 / .08); }
+    .remote svg { width: 18px; height: 18px; fill: none; stroke: var(--seq-4); stroke-width: 1.6; }
+    .remote .muted { color: var(--muted); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="wash wash--green"></div>
+  <div class="wash wash--melon"></div>
+
+  <section class="copy">
+    <div class="brand">
+      <!-- Same drawing as public/favicon.svg -->
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <g transform="rotate(-14 32 32)">
+          <path d="M3 24a29 29 0 0 0 58 0z" fill="#2f9e44"/>
+          <path d="M7 24a25 25 0 0 0 50 0z" fill="#d9f7c9"/>
+          <path d="M10.5 24a21.5 21.5 0 0 0 43 0z" fill="#f2486a"/>
+          <g fill="#2b1b1f">
+            <ellipse cx="22" cy="31" rx="1.8" ry="2.8" transform="rotate(-25 22 31)"/>
+            <ellipse cx="32" cy="36" rx="1.8" ry="2.8"/>
+            <ellipse cx="42" cy="31" rx="1.8" ry="2.8" transform="rotate(25 42 31)"/>
+            <ellipse cx="27" cy="27.5" rx="1.5" ry="2.3" transform="rotate(-10 27 27.5)"/>
+            <ellipse cx="37" cy="27.5" rx="1.5" ry="2.3" transform="rotate(10 37 27.5)"/>
+          </g>
+        </g>
+      </svg>
+      <span class="wordmark">melon<span class="dot">·</span>seek</span>
+    </div>
+    <h1 class="tagline">The Zillow of <mark>job postings</mark></h1>
+    <p class="sub">Every role on a company’s job board, plotted by salary, location and skills.</p>
+    <div class="chips">
+      <span class="chip"><svg viewBox="0 0 20 20"><path d="M4 5h7M6 9h9M3 13h6M8 17h8"/></svg>Salary</span>
+      <span class="chip"><svg viewBox="0 0 20 20"><path d="M10 17s5-4.6 5-8.5a5 5 0 0 0-10 0C5 12.4 10 17 10 17Z"/><circle cx="10" cy="8.5" r="1.8"/></svg>Map</span>
+      <span class="chip"><svg viewBox="0 0 20 20"><path d="M3 5h14M6 10h8M8.5 15h3"/></svg>Skills</span>
+    </div>
+  </section>
+
+  <!-- Salary-cluster chart, in the style of the app's "Clusters" view:
+       one row per department, bubbles = roles at that pay, band = middle 50%,
+       tick = median. x: $100K at 176px -> $600K at 536px (0.72 px per $1K). -->
+  <div class="panel panel--chart">
+    <svg width="552" height="352" viewBox="0 0 552 352" aria-hidden="true">
+      <text class="t-head" x="24" y="34">Median <tspan class="t-strong">$318K</tspan> · 214 roles</text>
+      <g class="t-axis" text-anchor="middle">
+        <text x="212" y="64">$150K</text><text x="284" y="64">$250K</text><text x="356" y="64">$350K</text><text x="428" y="64">$450K</text><text x="500" y="64">$550K</text>
+      </g>
+      <g stroke="var(--grid)" stroke-width="1.5">
+        <path d="M212 76V340M284 76V340M356 76V340M428 76V340M500 76V340"/>
+        <path d="M0 76H552" stroke="var(--border)"/>
+      </g>
+
+      <!-- Row 1: Research (c2, orange) -->
+      <g transform="translate(0 76)">
+        <circle cx="30" cy="22" r="5" fill="var(--c2)"/>
+        <text class="t-row" x="44" y="28">Research</text>
+        <text class="t-rowsub" x="44" y="46">64 roles</text>
+        <rect x="350" y="12" width="124" height="34" rx="17" fill="var(--c2)" fill-opacity=".13"/>
+        <path d="M412 6V52" stroke="var(--text)" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="318" cy="29" r="5" fill="#f9c8b3" stroke="var(--c2)" stroke-width="2"/>
+        <circle cx="370" cy="29" r="13" fill="#fbd9cb" stroke="var(--c2)" stroke-width="2"/><text class="t-n" x="370" y="29">9</text>
+        <circle cx="404" cy="29" r="17" fill="#fbd9cb" stroke="var(--c2)" stroke-width="2"/><text class="t-n" x="404" y="29">18</text>
+        <circle cx="442" cy="29" r="15" fill="#fbd9cb" stroke="var(--c2)" stroke-width="2"/><text class="t-n" x="442" y="29">14</text>
+        <circle cx="478" cy="29" r="11" fill="#fbd9cb" stroke="var(--c2)" stroke-width="2"/><text class="t-n" x="478" y="29">6</text>
+        <circle cx="514" cy="29" r="5" fill="#f9c8b3" stroke="var(--c2)" stroke-width="2"/>
+      </g>
+      <!-- Row 2: Engineering (c1, blue) -->
+      <g transform="translate(0 134)">
+        <path d="M0 0H552" stroke="var(--grid)" stroke-width="1.5"/>
+        <circle cx="30" cy="24" r="5" fill="var(--c1)"/>
+        <text class="t-row" x="44" y="30">Engineering</text>
+        <text class="t-rowsub" x="44" y="48">88 roles</text>
+        <rect x="296" y="14" width="112" height="34" rx="17" fill="var(--c1)" fill-opacity=".12"/>
+        <path d="M350 8V54" stroke="var(--text)" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="262" cy="31" r="11" fill="#d3e4f7" stroke="var(--c1)" stroke-width="2"/><text class="t-n" x="262" y="31">5</text>
+        <circle cx="300" cy="31" r="16" fill="#d3e4f7" stroke="var(--c1)" stroke-width="2"/><text class="t-n" x="300" y="31">16</text>
+        <circle cx="338" cy="31" r="18" fill="#d3e4f7" stroke="var(--c1)" stroke-width="2"/><text class="t-n" x="338" y="31">24</text>
+        <circle cx="377" cy="31" r="16" fill="#d3e4f7" stroke="var(--c1)" stroke-width="2"/><text class="t-n" x="377" y="31">19</text>
+        <circle cx="413" cy="31" r="12" fill="#d3e4f7" stroke="var(--c1)" stroke-width="2"/><text class="t-n" x="413" y="31">8</text>
+        <circle cx="452" cy="31" r="5" fill="#b9d3f2" stroke="var(--c1)" stroke-width="2"/>
+      </g>
+      <!-- Row 3: Security (c4, amber) -->
+      <g transform="translate(0 196)">
+        <path d="M0 0H552" stroke="var(--grid)" stroke-width="1.5"/>
+        <circle cx="30" cy="24" r="5" fill="var(--c4)"/>
+        <text class="t-row" x="44" y="30">Security</text>
+        <text class="t-rowsub" x="44" y="48">27 roles</text>
+        <rect x="262" y="14" width="96" height="34" rx="17" fill="var(--c4)" fill-opacity=".14"/>
+        <path d="M312 8V54" stroke="var(--text)" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="236" cy="31" r="5" fill="#fbe2a6" stroke="var(--c4)" stroke-width="2"/>
+        <circle cx="280" cy="31" r="13" fill="#fdeac0" stroke="var(--c4)" stroke-width="2"/><text class="t-n" x="280" y="31">9</text>
+        <circle cx="318" cy="31" r="14" fill="#fdeac0" stroke="var(--c4)" stroke-width="2"/><text class="t-n" x="318" y="31">11</text>
+        <circle cx="352" cy="31" r="10" fill="#fdeac0" stroke="var(--c4)" stroke-width="2"/><text class="t-n" x="352" y="31">4</text>
+        <circle cx="390" cy="31" r="5" fill="#fbe2a6" stroke="var(--c4)" stroke-width="2"/>
+      </g>
+      <!-- Row 4: Sales (c3, green) -->
+      <g transform="translate(0 258)">
+        <path d="M0 0H552" stroke="var(--grid)" stroke-width="1.5"/>
+        <circle cx="30" cy="24" r="5" fill="var(--c3)"/>
+        <text class="t-row" x="44" y="30">Sales</text>
+        <text class="t-rowsub" x="44" y="48">35 roles</text>
+        <rect x="200" y="14" width="80" height="34" rx="17" fill="var(--c3)" fill-opacity=".13"/>
+        <path d="M238 8V54" stroke="var(--text)" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="196" cy="31" r="10" fill="#cdeee1" stroke="var(--c3)" stroke-width="2"/><text class="t-n" x="196" y="31">4</text>
+        <circle cx="226" cy="31" r="15" fill="#cdeee1" stroke="var(--c3)" stroke-width="2"/><text class="t-n" x="226" y="31">14</text>
+        <circle cx="260" cy="31" r="14" fill="#cdeee1" stroke="var(--c3)" stroke-width="2"/><text class="t-n" x="260" y="31">12</text>
+        <circle cx="292" cy="31" r="5" fill="#a9e2cc" stroke="var(--c3)" stroke-width="2"/>
+      </g>
+    </svg>
+  </div>
+
+  <!-- Map with Zillow-style price-tag pins (median pay · roles). Pin fill steps
+       up the sequential blue ramp with pay, as in public/viz/map.js. -->
+  <div class="panel panel--map">
+    <svg width="452" height="212" viewBox="0 0 452 212" aria-hidden="true">
+      <defs>
+        <clipPath id="mapclip"><rect width="452" height="212" rx="17"/></clipPath>
+      </defs>
+      <g clip-path="url(#mapclip)">
+        <rect width="452" height="212" fill="#dcebf6"/>
+        <!-- land -->
+        <path d="M0 0H452V232H150C132 214 140 196 118 186C96 176 74 192 56 176C36 158 46 134 24 120C12 112 0 114 0 104Z" fill="#f4f5f1"/>
+        <!-- parks -->
+        <path d="M236 22c24-8 52 4 58 24s-14 34-40 32-46-12-46-30 10-22 28-26Z" fill="#e1f0e0"/>
+        <path d="M364 150c18-6 40 2 42 18s-16 26-34 22-30-10-28-24 6-12 20-16Z" fill="#e1f0e0"/>
+        <!-- roads -->
+        <g fill="none" stroke="#ffffff" stroke-linecap="round">
+          <path d="M60 0C90 60 160 92 230 100S380 120 452 96" stroke-width="7"/>
+          <path d="M180 232C196 170 214 120 250 64S330 6 352 0" stroke-width="6"/>
+          <path d="M120 40H452M300 0V232M80 150C160 140 260 170 452 160" stroke-width="3.5"/>
+        </g>
+        <g fill="none" stroke="#e6e8e2" stroke-width="1.5">
+          <path d="M140 70H452M140 130H452M200 0V232M380 0V232"/>
+        </g>
+      </g>
+
+    </svg>
+    <span class="pin pin--dark" style="left:100px; top:80px">$436K <span class="n">8</span></span>
+    <span class="pin pin--mid" style="left:268px; top:132px">$368K <span class="n">12</span></span>
+    <span class="pin pin--light" style="left:378px; top:62px">$290K <span class="n">5</span></span>
+    <span class="remote"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M3 10h14M10 3c-3 4-3 10 0 14M10 3c3 4 3 10 0 14"/></svg>Remote <span class="muted">· 9 roles</span></span>
+  </div>
+
+</body>
+</html>

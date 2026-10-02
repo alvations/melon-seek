@@ -3,6 +3,7 @@ import { geocode } from './geo.js';
 import { extractSections, extractKeywords, inferSeniority } from './keywords.js';
 import { parseSalary, toJobSalary } from './salary.js';
 import { htmlToText } from './sources/util.js';
+import { vetSalaries } from './vet.js';
 
 function safe(fn, fallback) {
   try {
@@ -83,5 +84,6 @@ export function normalizeJobs(raws, company) {
     ids.add(job.id);
     out.push(job);
   }
-  return out;
+  // Salary gate: quarantine implausible or outlier pay (docs/VETTING.md).
+  return vetSalaries(out);
 }

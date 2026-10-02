@@ -166,6 +166,21 @@ checks.themeCycle = await (async () => {
   for (let i = 0; i < 3; i++) { await p.keyboard.press('t'); seq.push(await p.evaluate(() => `${document.documentElement.getAttribute('data-theme') || 'system'}:${document.getElementById('themeBtn').getAttribute('aria-label')}`)); }
   return seq;
 })();
+checks.clusters = await (async () => {
+  await p.goto(`${BASE}/${QS}#c=anthropic`); await ready(p); await p.waitForTimeout(400);
+  const bin = await p.$('.ms-chart [data-r][data-i]:not([data-i="-1"])');
+  if (!bin) return 'no bins';
+  await bin.click({ force: true }); await p.waitForTimeout(250);
+  const chip = (await p.textContent('#areaChipTop'))?.trim();
+  const listed = (await p.textContent('#resultsTitle'))?.trim();
+  await p.click('#areaChipTop .area-x'); await p.waitForTimeout(250);
+  const cleared = await p.evaluate(() => !document.querySelector('#areaChipTop .area-chip') && !document.querySelector('.ms-chart .is-selected'));
+  await p.click('[data-view="ranges"]'); await p.waitForTimeout(200);
+  const rangesHash = await p.evaluate(() => location.hash);
+  await p.click('[data-view="clusters"]'); await p.waitForTimeout(200);
+  const clustersHash = await p.evaluate(() => location.hash);
+  return { chip, listed, cleared, rangesHash, clustersHash };
+})();
 checks.slashFocusesSearch = await (async () => { await p.keyboard.press('/'); return p.evaluate(() => document.activeElement.id === 'search'); })();
 // Description loads lazily (getJobDetail) and is sanitized.
 await p.goto('about:blank');

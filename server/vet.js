@@ -15,10 +15,13 @@
 //   range_ratio       max/min > VET.RATIO_QUARANTINE
 //   junior_high       Intern/Fellow/Resident/Apprentice with mid > $300K/yr
 //   senior_low        Director/VP with max < $60K/yr
+//   hourly_high       hourly rate > $200/hour on an explicitly full-time role
 //   stat_outlier      log(mid) is an outlier company-wide (robust z on median/MAD
 //                     |z| > 3.5, or outside Tukey fences with k = 3) AND within
 //                     every comparison group (department, role family, pay kind)
-//                     that has at least VET.MIN_GROUP members.
+//                     that has at least VET.MIN_GROUP members. Low-side
+//                     statistical flags only apply to full-time roles
+//                     (contract/part-time/intern pay is legitimately low).
 // Amounts are compared in USD with rough FX (USD_PER) so a GBP role is not an
 // outlier against USD ones; FX only has to be right to within ~20%.
 
@@ -30,14 +33,15 @@ export const VET = Object.freeze({
   Z: 3.5,
   TUKEY_K: 3,
   MIN_GROUP: 8,
-  MIN_SIGMA: 0.25,        // floor on the MAD-based sigma (log units) so a
-                          // company with near-identical salaries can't make
-                          // every small deviation an "outlier"
+  MIN_SIGMA: 0.4,         // floor on the MAD-based sigma (log units): with
+                          // Z = 3.5 an outlier is >= e^1.4 ~ 4x from the median.
+                          // 0.25 quarantined 6 legit low-paid roles (VETTING.md)
   JUNIOR_MAX_MID: 300_000,
   SENIOR_MIN_MAX: 60_000,
+  HOURLY_MAX_FULLTIME: 200, // USD/hour on a role the source marks Full-time
 });
 
-export const CRITICAL_CODES = Object.freeze(['above_max', 'below_min']);
+export const CRITICAL_CODES = Object.freeze(['above_max', 'below_min', 'hourly_high']);
 
 // Rough USD per unit (only for cross-currency comparison inside one company).
 export const USD_PER = Object.freeze({
@@ -128,6 +132,11 @@ export function salaryChecks(job, salary = job && job.salary) {
   if (usd(min) < VET.MIN_ANNUAL_FULLTIME && isFullTime(job)) out.push({ code: 'below_min', reason: `annual min ${fmt(usd(min))} is below ${fmt(VET.MIN_ANNUAL_FULLTIME)} for a full-time role` });
   if (min > max) out.push({ code: 'min_gt_max', reason: 'min is greater than max' });
   else if (min > 0 && max / min > VET.RATIO_QUARANTINE) out.push({ code: 'range_ratio', reason: `range ${fmt(min)}–${fmt(max)} spans ${(max / min).toFixed(1)}x (more than ${VET.RATIO_QUARANTINE}x)` });
+  const iv = salary.statedInterval || salary.originalInterval;
+  if (iv === 'hour' && /full/i.test((job && job.employmentType) || '') && usd(max) / 2080 > VET.HOURLY_MAX_FULLTIME) {
+    out.push({ code: 'hourly_high', reason: `$${Math.round(usd(max) / 2080)}/hour is implausible for a full-time role (more than $${VET.HOURLY_MAX_FULLTIME}/hour)` });
+  }
+  if (!out.some((o) => o.code === 'hourly_high') && salary.originalInterval === 'hour' && usd(max) / 2080 > (VET.MAX_HOURLY_USD ?? 250)) out.push({ code: 'hourly_high', reason: `hourly rate ${fmt(usd(max) / 2080)}/hr is above the ${fmt((VET.MAX_HOURLY_USD ?? 250))}/hr plausibility bound` });
   const tc = titleClass(job && job.title);
   if (tc === 'junior' && usd(mid) > VET.JUNIOR_MAX_MID) out.push({ code: 'junior_high', reason: `${fmt(usd(mid))}/yr is implausible for an intern/fellow/resident title` });
   if (tc === 'senior' && usd(max) < VET.SENIOR_MIN_MAX) out.push({ code: 'senior_low', reason: `${fmt(usd(max))}/yr is implausible for a director/VP title` });
@@ -200,6 +209,7 @@ export function statOutliers(jobs, { exclude = new Set() } = {}) {
   for (const p of pts) {
     const c = outlierScore(p.x, all);
     if (!c.outlier) continue;
+    if (c.z < 0 && !isFullTime(jobs[p.i])) continue;
     let agree = true;
     const detail = [`company z=${c.z.toFixed(1)}${c.fence ? `, ${c.fence} fence` : ''}`];
     for (const g of p.groups) {
