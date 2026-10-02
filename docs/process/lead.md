@@ -417,3 +417,10 @@ screenshots in `docs/screenshots/`.
     re-runs e2e and the audit metrics.
   User decisions (Pages source, Numbeo, history branch, descriptions,
   companies, Level check) stay excluded until the user answers.
+- 2026-10-02: user: "keep it simple" and "have an engineer agent look for
+  mobile optimization". Launched the mobile engineer (prompts/mobile.md):
+  a Zillow-app-like phone layout (chart or map first, draggable results
+  sheet, one full-screen filter sheet, the job panel as a full page), touch
+  and safe-area fixes, deferred work on throttled phones. No new features.
+  Restated the simplicity rule for wave 2: findings that add UI will be
+  rejected or folded into existing controls.
