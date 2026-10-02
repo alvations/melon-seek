@@ -80,7 +80,7 @@ export function moneyTokens(text) {
     else if (['b', 'bn', 'billion'].includes(mu)) v *= 1e9;
     const code = (suf || pre || '').trim().toUpperCase() || null;
     const currency = code || (sym ? SYM_CUR[sym] || null : null);
-    out.push({ start: m.index + lead, end: m.index + full.length, value: v, currency, mag: /^(m|mm|mil|million|b|bn|billion)$/.test(mu) });
+    out.push({ start: m.index + lead, end: m.index + full.length, value: v, currency, weak: !code && sym === '$', mag: /^(m|mm|mil|million|b|bn|billion)$/.test(mu) });
   }
   return out;
 }
@@ -248,12 +248,15 @@ export function scanJob(job, { stat = null } = {}) {
   if (text) {
     const pay = new Set();
     for (const r of moneyRanges(text)) {
-      if (r.hi < 7) continue;
+      if (r.hi < 7 || r.hi > 5e6) continue; // prose like "$100K to $10M+ in annual spend"
       if (PAY_WORDS_RE.test(clauseAround(text, r.start, r.end))) pay.add(`${r.lo}|${r.hi}|${r.currency}`);
     }
     if (pay.size > 1) flags.add('multiple_ranges');
     for (const c of clauses) {
-      const curs = new Set(moneyTokens(c.clause).map((t) => t.currency).filter(Boolean));
+      const toks = moneyTokens(c.clause).filter((t) => t.currency);
+      const dollarCode = toks.some((t) => !t.weak && /^(USD|CAD|AUD|SGD|NZD|HKD)$/.test(t.currency));
+      // A bare "$" next to "$... CAD" is the same currency, not a second one.
+      const curs = new Set(toks.filter((t) => !(t.weak && dollarCode)).map((t) => t.currency));
       if (curs.size > 1) { flags.add('multi_currency'); break; }
     }
   }
