@@ -141,3 +141,17 @@ screenshots in `docs/screenshots/`.
   - UX: Clusters|Ranges toggle, cluster selection filters the list via a
     chip, compact demo notice, KPI tiles collapsed to one stats row, lighter
     cards, view stored in the URL hash.
+- 2026-10-02: user asked for a cost-of-living / livability score with a melon
+  pun ("Juice Score" by default). Launched the livability agent
+  (prompts/livability.md). It owns data/cities.json, server/juice.js,
+  scripts/update-col.js and the col-refresh workflow.
+- 2026-10-02: backend review fixes landed (43 backend tests). CI red only
+  because of 2 failing tests in test/features.test.js; sent to product.
+- 2026-10-02: first GitHub Actions Pages run (run 36970453911). Snapshot step
+  fetched REAL data from the runners: anthropic 638 jobs (558 with salary),
+  openai 833 (674), scaleai 194, xai 297, cohere 132, palantir 320, shieldai
+  581. anduril failed (body > 25 MB cap); mistral returned 0 jobs. The deploy
+  failed at configure-pages: "Get Pages site failed ... Not Found", so Pages
+  isn't enabled on the repo yet (a user setting). Follow-ups: raise the
+  built-in body cap and drop mistral (backend); lazy-load descriptions so
+  bundles stay small (devops, ux).

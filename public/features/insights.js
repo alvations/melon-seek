@@ -230,7 +230,11 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
 
   // (b) salary by department --------------------------------------------------
   function deptCard(jobs, allJobs) {
-    const boxes = deptBoxes(jobs).slice(0, 10);
+    // A box needs a few points: prefer departments with 3+ salaried roles.
+    const allBoxes = deptBoxes(jobs);
+    const solid = allBoxes.filter((b) => b.n >= 3);
+    const boxes = (solid.length ? solid : allBoxes).slice(0, 10);
+    const hidden = allBoxes.length - boxes.length;
     const sub = 'Middle 50% of pay (box), 10th–90th percentile (whiskers), median (tick).';
     if (!boxes.length) return card('Pay by department', sub, emptyNote('None of these roles publish pay.'), { headTag: `h${hl + 1}` });
     // Stable axis: domain from all jobs so filtering doesn't rescale the plot.
@@ -257,7 +261,9 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
       h('span', { class: 'msi-axis__pad' }),
       h('span', { class: 'msi-axis__track' }, ticks.map((t) => h('span', { class: 'msi-axis__tick', style: { left: x(t) } }, formatMoney(t)))),
       h('span', { class: 'msi-axis__pad msi-axis__pad--end' }));
-    return card('Pay by department', sub, h('div', { class: 'msi-rows msi-rows--box' }, rows, axis), { headTag: `h${hl + 1}` });
+    const foot = hidden > 0
+      ? h('p', { class: 'msi-foot' }, `${plural(hidden, 'department')} with fewer than 3 salaried roles not shown.`) : null;
+    return card('Pay by department', sub, [h('div', { class: 'msi-rows msi-rows--box' }, rows, axis), foot], { headTag: `h${hl + 1}` });
   }
 
   // (c) hot locations -------------------------------------------------------

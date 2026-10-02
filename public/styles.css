@@ -728,3 +728,13 @@ html[data-mode="map"] .demo-banner { padding: 0; }
 .area-x:hover { background: color-mix(in srgb, var(--ms-accent) 15%, transparent); }
 .area-label { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .loc-ico svg { color: var(--ms-accent); }
+.stats-line { flex: 1 1 100%; flex-wrap: nowrap; overflow: hidden; }
+.stat--top { min-width: 0; flex: 0 1 auto; max-width: none; }
+@media (max-width: 860px) {
+  .stats-line { font-size: 12.5px; gap: 2px 6px; }
+  .stat--top, .stat--top + .stat-sep { display: none; }
+}
+@media (max-width: 860px) {
+  .main { padding: 10px 14px 132px; gap: 8px; }
+  .stats-line { flex-wrap: wrap; }
+}

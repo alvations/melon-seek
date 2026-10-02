@@ -470,6 +470,45 @@ export function registerUiTests(suite) {
     } finally { await app.close(); }
   });
 
+  suite.test('UI: every company in /api/companies is visible in the switcher at 1440px', async (ctx) => {
+    const app = await openApp(ctx);
+    try {
+      const { page } = app;
+      const r = await page.evaluate(() => {
+        const box = document.querySelector('#companyPills');
+        const br = box.getBoundingClientRect();
+        const select = document.querySelector('#companySelect');
+        const selectVisible = select && getComputedStyle(select).display !== 'none' && select.getBoundingClientRect().width > 0;
+        const hidden = [...box.querySelectorAll('button')].filter((b) => {
+          const rr = b.getBoundingClientRect();
+          return rr.left < br.left - 1 || rr.right > br.right + 1;
+        }).map((b) => b.innerText.replace(/\s+/g, ' ').trim());
+        return { hidden, selectVisible, total: box.querySelectorAll('button').length };
+      });
+      const companies = await (await fetch(`${ctx.baseUrl}/api/companies`)).json();
+      assert(r.total >= companies.length, `only ${r.total} pills for ${companies.length} companies`);
+      assert(r.selectVisible || r.hidden.length === 0,
+        `${r.hidden.length}/${r.total} company pills are clipped in a horizontally-scrolling strip with no visible affordance: ${r.hidden.join(', ')}`);
+    } finally { await app.close(); }
+  });
+
+  suite.test('UI: keyboard - Enter on a focused card opens the drawer, Esc closes and restores focus', async (ctx) => {
+    const app = await openApp(ctx);
+    try {
+      const { page, errors } = app;
+      const card = page.locator('#resultsList .card[data-id]').nth(1);
+      const id = await card.getAttribute('data-id');
+      await card.focus();
+      await page.keyboard.press('Enter');
+      await page.locator('#drawer').waitFor({ state: 'visible', timeout: 3000 });
+      assertEq(new URLSearchParams(await page.evaluate(() => location.hash.slice(1))).get('job'), id, 'job in hash');
+      await page.keyboard.press('Escape');
+      await page.locator('#drawer').waitFor({ state: 'hidden', timeout: 3000 });
+      assertEq(await page.evaluate(() => document.activeElement?.dataset?.id), id, 'focus returns to the card');
+      assert(errors.length === 0, `console/page errors:\n${errors.join('\n')}`);
+    } finally { await app.close(); }
+  });
+
   suite.test('UI: search box filters by text', async (ctx) => {
     const app = await openApp(ctx);
     try {
