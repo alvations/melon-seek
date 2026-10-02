@@ -181,3 +181,9 @@ screenshots in `docs/screenshots/`.
   x3, e.g. "12,600–167,000 USD"); wrong interval label (shieldai
   "88,000–130,000 USD per-month-salary" → $1.56M/yr); possible missed
   salaries (xai 134/297 and scaleai 131/194 salaried).
+- 2026-10-02: USER-REPORTED BUG: map mode shows "API key required" on every
+  tile on the live site. Cause: CARTO basemaps
+  (basemaps.cartocdn.com/light_all, dark_all) now require a key. Sent to
+  viz: switch to keyless OSM standard tiles, CSS-filter dark mode on the
+  tile pane, configurable tile provider. The server CSP already allows
+  tile.openstreetmap.org (server/index.js img-src).
