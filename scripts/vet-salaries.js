@@ -15,6 +15,9 @@
 //     --no-write-flags    scan only (print counts, write nothing)
 //     --no-fixtures       skip the regression fixtures check
 //     --force             overwrite a flags/sample file that already has verdicts
+//     --build-fixtures <verdicts.jsonl...>
+//                         rebuild test/fixtures/real-salary-cases.json from
+//                         reviewed verdicts + snapshots (each excerpt verified)
 //
 // One JSON line per flagged job: { id, company, title, url, source, parsed,
 // excerpt (<= 300 chars around the matched pay text), pay_snippets (other pay
@@ -362,6 +365,98 @@ export async function checkFixtures(file = FIXTURES) {
   return { total: cases.length, failures, missing: false };
 }
 
+/* ------------------------------------------------------- fixture builder */
+
+/** Text from the heading line above [s, e) to the end of e's line (<= max chars). */
+function contextBlock(text, s, e, { before = 1, max = 420 } = {}) {
+  let a = s;
+  for (let k = 0; k <= before; k++) {
+    while (a > 0 && text[a - 1] !== '\n') a--;
+    if (k < before) { a--; while (a > 0 && /\s/.test(text[a - 1])) a--; }
+  }
+  a = Math.max(0, a);
+  let b = e;
+  while (b < text.length && text[b] !== '\n') b++;
+  let out = text.slice(a, b).replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  if (out.length > max) {
+    // keep the end (the amount) and the heading start
+    const tail = text.slice(s, b).replace(/[ \t]+/g, ' ').trim();
+    const headLen = Math.max(0, max - tail.length - 5);
+    out = `${text.slice(a, a + headLen).replace(/[ \t]+/g, ' ').trim()}\n...\n${tail}`.slice(0, max + 10);
+  }
+  return out;
+}
+
+/**
+ * Build test/fixtures/real-salary-cases.json from reviewed verdicts and the
+ * snapshots: one case per distinct (excerpt, structured input, countries,
+ * expectation), listing every job id it covers. Each excerpt is verified to
+ * reproduce the expected result on its own; cases that don't are reported.
+ */
+export async function buildFixtures(verdictFiles, { snapDir = path.join(ROOT, 'data', 'snapshots'), out = FIXTURES } = {}) {
+  const norm = await import('../server/normalize.js');
+  const verdicts = verdictFiles.flatMap((f) => fs.readFileSync(f, 'utf8').trim().split('\n').filter(Boolean).map((s) => JSON.parse(s)));
+  const jobsBy = new Map();
+  const companyJobs = new Map();
+  for (const co of [...new Set(verdicts.map((v) => v.company))]) {
+    const file = path.join(snapDir, `${co}.json`);
+    if (!fs.existsSync(file)) continue;
+    const jobs = JSON.parse(fs.readFileSync(file, 'utf8')).jobs;
+    companyJobs.set(co, jobs);
+    for (const j of jobs) jobsBy.set(j.id, j);
+  }
+  const cases = new Map();
+  const problems = [];
+  for (const v of verdicts) {
+    const job = jobsBy.get(v.id);
+    if (!job) { problems.push(`${v.id}: not in snapshots`); continue; }
+    const text = htmlToText(job.descriptionHtml || '');
+    const countries = countriesOf(job);
+    const structured = structuredFromSnapshot(job, text);
+    const [vetted] = vetSalaries([{ ...job, salary: norm.deriveSalary({ title: job.title, employmentType: job.employmentType, text, html: job.descriptionHtml || '', salary: structured }, job.locations || []) }], { stats: false });
+    const got = vetted.salary || vetted.salaryRaw;
+    const base = { company: v.company, title: job.title, employmentType: job.employmentType || null, countries, structured };
+    const expected = v.corrected ? { ...v.corrected, ...(v.kind ? { kind: v.kind } : {}) } : null;
+    // A quarantine case is one the full pipeline holds back: bad structured
+    // source data, or (rarely) a policy bound overriding a "correct" verdict.
+    const quarantine = !!vetted.salaryFlag;
+    let note = `${v.verdict}: ${String(v.evidence).replace(/^"[^"]*" — /, '').slice(0, 160)}`;
+    if (quarantine && v.corrected != null) note = `policy quarantine (${vetted.salaryFlag.codes.join(',')}) although the reviewer verdict is ${v.verdict}; ${note}`;
+    // Excerpt: decoy clause the old parser matched (if not the real pay) + the pay context.
+    const parts = [];
+    const oldSpan = v.parsed && v.parsed.text ? findLoose(text, v.parsed.text) : null;
+    const newSpan = got && got.source === 'text' && got.text ? findLoose(text, got.text.replace(/\.\.\.$/, '')) : (structured ? findStructuredInText(text, { ...structured, min: structured.min * (FACT[structured.interval] || 1), max: structured.max * (FACT[structured.interval] || 1), originalInterval: structured.interval }) : null);
+    if (oldSpan && (!newSpan || Math.abs(oldSpan.start - newSpan.start) > 200)) parts.push(flat(clauseAround(text, oldSpan.start, oldSpan.end)).slice(0, 240));
+    if (newSpan) parts.push(contextBlock(text, newSpan.start, newSpan.end));
+    if (!parts.length) {
+      const pc = payClauses(text)[0];
+      if (pc) parts.push(flat(pc.clause).slice(0, 240));
+    }
+    let c = { ...base, text: parts.join('\n\n'), expected, quarantine, note };
+    let msg = await checkFixtureCase({ ...c, id: v.id });
+    if (msg && newSpan) { // widen once
+      c = { ...c, text: [parts.length > 1 ? parts[0] : null, contextBlock(text, newSpan.start, newSpan.end, { before: 3, max: 700 })].filter(Boolean).join('\n\n') };
+      msg = await checkFixtureCase({ ...c, id: v.id });
+    }
+    if (msg) { problems.push(msg); continue; }
+    const key = JSON.stringify([c.text, c.structured, c.countries, c.employmentType, c.expected, c.quarantine, salaryChecks({ title: c.title }, { min: 1e5, max: 1e5, mid: 1e5, currency: 'USD' }).length]);
+    if (cases.has(key)) cases.get(key).ids.push(v.id);
+    else cases.set(key, { ids: [v.id], url: v.url, ...c });
+  }
+  const list = [...cases.values()].map(({ ids, url, company, title, employmentType, countries, structured, text, expected, quarantine, note }) => ({
+    ids, url, company, title, employmentType, countries, ...(structured ? { structured } : {}), text, expected, ...(quarantine ? { quarantine } : {}), note,
+  }));
+  const payload = {
+    about: 'Real salary cases reviewed in data/vetting/<date>/verdicts.jsonl (one entry per distinct excerpt; ids lists every job it covers). Built by `node scripts/vet-salaries.js --build-fixtures <verdicts.jsonl>`; run by test/salary.test.js and the CI scan. expected is in the source interval (null = no salary); quarantine = the vetting gate must hold it back.',
+    built_from: verdictFiles.map((f) => path.relative(ROOT, f)),
+    cases: list,
+  };
+  // One case per line: compact and diff-friendly.
+  const head = JSON.stringify({ about: payload.about, built_from: payload.built_from }, null, 1).replace(/\n}$/, '');
+  fs.writeFileSync(out, `${head},\n "cases": [\n${list.map((c) => `  ${JSON.stringify(c)}`).join(',\n')}\n ]\n}\n`);
+  return { cases: list.length, jobs: list.reduce((n, c) => n + c.ids.length, 0), problems };
+}
+
 /* ------------------------------------------------------------------ CLI */
 
 function mulberry32(seed) {
@@ -399,6 +494,7 @@ function parseArgs(argv) {
     else if (a === '--no-fixtures') o.fixtures = false;
     else if (a === '--no-write-flags') o.writeFlags = false;
     else if (a === '--force') o.force = true;
+    else if (a === '--build-fixtures') { o.buildFixtures = []; while (argv[i + 1] && !argv[i + 1].startsWith('--')) o.buildFixtures.push(path.resolve(argv[++i])); }
     else if (a.startsWith('--')) throw new Error(`unknown option ${a}`);
     else o.files.push(a);
   }
@@ -407,6 +503,13 @@ function parseArgs(argv) {
 
 async function main() {
   const o = parseArgs(process.argv.slice(2));
+  if (o.buildFixtures) {
+    const r = await buildFixtures(o.buildFixtures);
+    console.log(`fixtures: ${r.cases} cases covering ${r.jobs} reviewed jobs -> ${path.relative(ROOT, FIXTURES)}`);
+    for (const p of r.problems) console.error(`  not reproducible from a short excerpt: ${p}`);
+    process.exitCode = r.problems.length ? 1 : 0;
+    return;
+  }
   const snapDir = path.join(ROOT, 'data', 'snapshots');
   if (!o.files.length && fs.existsSync(snapDir)) {
     o.files = fs.readdirSync(snapDir).filter((f) => f.endsWith('.json')).sort().map((f) => path.join(snapDir, f));

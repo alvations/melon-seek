@@ -235,3 +235,18 @@ screenshots in `docs/screenshots/`.
     quarantined, 0 remaining above $900K/yr or above $250/hr. Top remaining
     salaries are plausible ($850K max for Anthropic and OpenAI).
   - Added test/vet-gate.test.js with the 5 real cases (110/110 passing).
+- 2026-10-02: viz: robust P1–P99 axis bounds with an IQR cutoff, plus edge
+  markers for out-of-range postings, so one bad salary can't stretch the
+  chart; map fitToData owns the initial fit. UX finished its queue
+  (clusters/ranges toggle, dark mode toggle via public/theme-init.js
+  because the CSP blocks inline scripts, Insights tab, company menu, QA and
+  review fixes). Asked UX to remove its map-fit workaround and show
+  "Pay unclear" for quarantined salaries.
+- 2026-10-02: social finished. Root cause of the missing link preview:
+  index.html had no og:/twitter: tags, and the only image was an SVG
+  favicon. Added the tags, a 1200x630 PNG card, absolute URLs via SITE_URL
+  in the build, per-company share pages at /c/<slug>/, and a live-preview
+  check after deploy.
+- 2026-10-02: user asked for a plan only (no implementation) on reusing
+  alvations/melon-corporate-ladder (cloned to /home/user/melon-corporate-
+  ladder). Launched the ladder-brainstorm agent.

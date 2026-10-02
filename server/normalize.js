@@ -1,9 +1,9 @@
 // Raw job (adapter / demo output) -> Job (API shape). See docs/CONTRACT.md.
 import { geocode } from './geo.js';
 import { extractSections, extractKeywords, inferSeniority } from './keywords.js';
-import { parseSalary, toJobSalary } from './salary.js';
+import { parseSalary, toJobSalary, currenciesFor } from './salary.js';
 import { htmlToText } from './sources/util.js';
-import { vetSalaries } from './vet.js';
+import { vetSalaries, salaryChecks } from './vet.js';
 
 function safe(fn, fallback) {
   try {
@@ -36,6 +36,47 @@ export function normalizeLocations(raw) {
   return out;
 }
 
+/**
+ * Job salary for a raw job (docs/VETTING.md): the structured salary
+ * (Greenhouse pay_input_ranges, Ashby compensation, Lever salaryRange) when
+ * usable, else the pay statement parsed from the description text. With
+ * several structured ranges (raw.payRanges), one in the location's currency
+ * is preferred, and the per-tier list is kept as salary.ranges.
+ * Per-job only: normalizeJobs then runs the vetting gate over the company.
+ */
+export function deriveSalary(raw, locations = []) {
+  const countries = [...new Set((locations || []).map((l) => l && l.country).filter(Boolean))];
+  const html = raw.html || '';
+  const text = raw.text || htmlToText(html);
+  const ranges = Array.isArray(raw.payRanges) ? raw.payRanges.filter((r) => r && Number.isFinite(r.min) && Number.isFinite(r.max)) : [];
+  let structured = raw.salary || null;
+  const want = currenciesFor(countries);
+  if (structured && ranges.length > 1 && want.length && !want.includes(String(structured.currency).toUpperCase())) {
+    const cur = want.find((c) => ranges.some((r) => r.currency === c));
+    if (cur) {
+      const pick = ranges.filter((r) => r.currency === cur && r.interval === ranges.find((x) => x.currency === cur).interval);
+      const lo = Math.min(...pick.map((r) => r.min));
+      const hi = Math.max(...pick.map((r) => r.max));
+      if (lo > 0 && hi / lo <= 3) structured = { min: lo, max: hi, currency: cur, interval: pick[0].interval, text: pick.map((r) => r.text || `${r.min}–${r.max} ${r.currency}`).join('; ') };
+    }
+  }
+  let salary = toJobSalary(structured, { source: 'structured' });
+  // Structured wins, unless it is implausible and the text gives a plausible
+  // pay statement (e.g. adapter unit bugs: JPY pay_input_ranges divided by 100).
+  const who = { title: raw.title, employmentType: raw.employmentType };
+  const hard = salary ? salaryChecks(who, salary).filter((c) => c.code !== 'junior_high' && c.code !== 'senior_low') : [];
+  if (hard.length) {
+    const fromText = toJobSalary(parseSalary(text, { countries }), { source: 'text' });
+    if (fromText && !salaryChecks(who, fromText).length) return { ...fromText, structuredRejected: hard.map((c) => c.code) };
+  }
+  if (salary && ranges.length > 1) salary.ranges = ranges.slice(0, 12).map(({ min, max, currency, interval, label }) => ({ min, max, currency, interval, ...(label ? { label } : {}) }));
+  if (!salary) {
+    const parsed = parseSalary(text, { countries }) || (raw.text && html ? parseSalary(htmlToText(html), { countries }) : null);
+    salary = toJobSalary(parsed, { source: 'text' });
+  }
+  return salary;
+}
+
 export function normalizeJob(raw, company) {
   const html = raw.html || '';
   const text = raw.text || htmlToText(html);
@@ -43,8 +84,7 @@ export function normalizeJob(raw, company) {
   const locations = normalizeLocations(raw);
   const remote = raw.remote === true || locations.some((l) => l && l.remote === true);
 
-  let salary = toJobSalary(raw.salary);
-  if (!salary) salary = toJobSalary(parseSalary(text) || (raw.text ? parseSalary(htmlToText(html)) : null));
+  const salary = deriveSalary(raw, locations);
 
   const emptySections = { responsibilities: [], fit: [] };
   const sections = safe(() => extractSections(html), emptySections);

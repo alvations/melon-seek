@@ -15,9 +15,11 @@
 //   range_ratio       max/min > VET.RATIO_QUARANTINE
 //   junior_high       Intern/Fellow/Resident/Apprentice with mid > $300K/yr
 //   senior_low        Director/VP with max < $60K/yr
-//   hourly_high       hourly rate > $200/hour on an explicitly full-time role
-//   stat_outlier      log(mid) is an outlier company-wide (robust z on median/MAD
-//                     |z| > 3.5, or outside Tukey fences with k = 3) AND within
+//   hourly_high       hourly rate > $250/hour on any role, or > $200/hour on an
+//                     explicitly full-time role (critical)
+//   stat_outlier      log(mid) is an outlier company-wide (robust z on median/MAD:
+//                     z > 3.5 or above the Tukey fence (k = 3); low side
+//                     z < -4.5 and below the fence) AND within
 //                     every comparison group (department, role family, pay kind)
 //                     that has at least VET.MIN_GROUP members. Low-side
 //                     statistical flags only apply to full-time roles
@@ -30,7 +32,11 @@ export const VET = Object.freeze({
   MIN_ANNUAL_FULLTIME: 15_000,
   RATIO_FLAG: 3,          // scan flag (human/LLM review), not a quarantine
   RATIO_QUARANTINE: 4,    // gate; legit real ranges reach 3.4x (docs/VETTING.md)
-  Z: 3.5,
+  Z: 3.5,                 // high side: |z| > 3.5 or above the Tukey fence
+  Z_LOW: 4.5,             // low side: z < -4.5 AND below the Tukey fence (~6x
+                          // under the median); gross low errors are caught by
+                          // the $15K floor / range ratio, legit low-paid roles
+                          // sit 3-5x under engineering medians (VETTING.md)
   TUKEY_K: 3,
   MIN_GROUP: 8,
   MIN_SIGMA: 0.4,         // floor on the MAD-based sigma (log units): with
@@ -39,22 +45,14 @@ export const VET = Object.freeze({
   JUNIOR_MAX_MID: 300_000,
   SENIOR_MIN_MAX: 60_000,
   HOURLY_MAX_FULLTIME: 200, // USD/hour on a role the source marks Full-time
+  MAX_HOURLY_USD: 250,      // USD/hour on any role (lead hotfix 9947fe8; see VETTING.md)
 });
 
 export const CRITICAL_CODES = Object.freeze(['above_max', 'below_min', 'hourly_high']);
 
-// Rough USD per unit (only for cross-currency comparison inside one company).
-export const USD_PER = Object.freeze({
-  USD: 1, CAD: 0.73, GBP: 1.27, EUR: 1.08, AUD: 0.66, NZD: 0.6, CHF: 1.12, JPY: 0.0068,
-  KRW: 0.00073, INR: 0.012, SGD: 0.74, ILS: 0.27, AED: 0.27, SAR: 0.27, QAR: 0.27,
-  PLN: 0.25, SEK: 0.095, NOK: 0.094, DKK: 0.145, CZK: 0.043, HKD: 0.128, TWD: 0.031,
-  CNY: 0.14, BRL: 0.18, MXN: 0.055, ZAR: 0.055,
-});
-
-export function toUSD(amount, currency) {
-  const r = USD_PER[String(currency || 'USD').toUpperCase()];
-  return r && Number.isFinite(amount) ? amount * r : null;
-}
+// Rough FX lives in salary.js (one table for parser bounds and this gate).
+import { USD_PER, toUSD } from './salary.js';
+export { USD_PER, toUSD };
 
 const PART_TIME_RE = /part[- ]?time|intern|co-?op|contract|temporary|seasonal|casual|per diem/i;
 
@@ -107,7 +105,8 @@ export function payKind(salary) {
 function fmt(n) {
   if (!Number.isFinite(n)) return String(n);
   if (n >= 1e6) return `$${(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M`;
-  if (n >= 1e3) return `$${Math.round(n / 1e3)}K`;
+  if (n >= 1e5) return `$${Math.round(n / 1e3)}K`;
+  if (n >= 1e3) return `$${(Math.round(n / 100) / 10).toLocaleString('en-US')}K`;
   return `$${Math.round(n)}`;
 }
 
@@ -132,11 +131,13 @@ export function salaryChecks(job, salary = job && job.salary) {
   if (usd(min) < VET.MIN_ANNUAL_FULLTIME && isFullTime(job)) out.push({ code: 'below_min', reason: `annual min ${fmt(usd(min))} is below ${fmt(VET.MIN_ANNUAL_FULLTIME)} for a full-time role` });
   if (min > max) out.push({ code: 'min_gt_max', reason: 'min is greater than max' });
   else if (min > 0 && max / min > VET.RATIO_QUARANTINE) out.push({ code: 'range_ratio', reason: `range ${fmt(min)}–${fmt(max)} spans ${(max / min).toFixed(1)}x (more than ${VET.RATIO_QUARANTINE}x)` });
-  const iv = salary.statedInterval || salary.originalInterval;
-  if (iv === 'hour' && /full/i.test((job && job.employmentType) || '') && usd(max) / 2080 > VET.HOURLY_MAX_FULLTIME) {
-    out.push({ code: 'hourly_high', reason: `$${Math.round(usd(max) / 2080)}/hour is implausible for a full-time role (more than $${VET.HOURLY_MAX_FULLTIME}/hour)` });
+  // Hourly rates (Job salary keeps the source interval in originalInterval).
+  if (salary.originalInterval === 'hour') {
+    const rate = usd(max) / 2080;
+    const ft = /full/i.test((job && job.employmentType) || '');
+    if (rate > VET.MAX_HOURLY_USD) out.push({ code: 'hourly_high', reason: `hourly rate ${fmt(rate)}/hr is above the ${fmt(VET.MAX_HOURLY_USD)}/hr plausibility bound` });
+    else if (ft && rate > VET.HOURLY_MAX_FULLTIME) out.push({ code: 'hourly_high', reason: `hourly rate ${fmt(rate)}/hr is implausible for a full-time role (more than ${fmt(VET.HOURLY_MAX_FULLTIME)}/hr)` });
   }
-  if (!out.some((o) => o.code === 'hourly_high') && salary.originalInterval === 'hour' && usd(max) / 2080 > (VET.MAX_HOURLY_USD ?? 250)) out.push({ code: 'hourly_high', reason: `hourly rate ${fmt(usd(max) / 2080)}/hr is above the ${fmt((VET.MAX_HOURLY_USD ?? 250))}/hr plausibility bound` });
   const tc = titleClass(job && job.title);
   if (tc === 'junior' && usd(mid) > VET.JUNIOR_MAX_MID) out.push({ code: 'junior_high', reason: `${fmt(usd(mid))}/yr is implausible for an intern/fellow/resident title` });
   if (tc === 'senior' && usd(max) < VET.SENIOR_MIN_MAX) out.push({ code: 'senior_low', reason: `${fmt(usd(max))}/yr is implausible for a director/VP title` });
@@ -171,11 +172,15 @@ export function robustStats(values, { k = VET.TUKEY_K, minSigma = VET.MIN_SIGMA 
   return { n: s.length, median: med, mad, sigma, q1, q3, lo: q1 - k * iqr, hi: q3 + k * iqr };
 }
 
-/** { z, fence } for x against stats; fence is 'low' | 'high' | null. */
-export function outlierScore(x, st, z = VET.Z) {
+/**
+ * { z, fence, outlier } for x against stats; fence is 'low' | 'high' | null.
+ * High side: z > Z or above the fence. Low side: z < -Z_LOW and below the fence.
+ */
+export function outlierScore(x, st, { z = VET.Z, zLow = VET.Z_LOW } = {}) {
   const zz = (x - st.median) / st.sigma;
   const fence = x < st.lo ? 'low' : x > st.hi ? 'high' : null;
-  return { z: zz, outlier: Math.abs(zz) > z || fence != null, fence };
+  const outlier = zz > 0 ? zz > z || fence === 'high' : zz < -zLow && fence === 'low';
+  return { z: zz, outlier, fence };
 }
 
 const logMidUSD = (s) => {

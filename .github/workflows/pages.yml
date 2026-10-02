@@ -64,7 +64,37 @@ jobs:
       # salary anomalies, before anything is bundled.
 
       - name: Build static site
+        env:
+          # Base for the absolute og:url / og:image / twitter:image link-preview
+          # tags (docs/process/social.md). Set the SITE_URL repo variable to
+          # override it (fork, custom domain).
+          SITE_URL: ${{ vars.SITE_URL || 'https://alvations.github.io/melon-seek/' }}
         run: npm run build
+
+      - name: Check link-preview tags (absolute og:url / og:image, image bundled)
+        env:
+          SITE_URL: ${{ vars.SITE_URL || 'https://alvations.github.io/melon-seek/' }}
+        run: |
+          set -euo pipefail
+          grep -oE '<meta (property|name)="(og|twitter):[a-z:_]+" content="[^"]*"' dist/index.html
+          img=$(sed -n 's/.*property="og:image" content="\([^"]*\)".*/\1/p' dist/index.html | head -1)
+          case "$img" in
+            "${SITE_URL%/}"/*) ;;
+            *) echo "::error::og:image '$img' is not an absolute URL under SITE_URL ($SITE_URL)"; exit 1 ;;
+          esac
+          for k in 'property="og:url" content="https://' 'name="twitter:image" content="https://' 'name="twitter:card" content="summary_large_image"'; do
+            grep -qF "$k" dist/index.html || { echo "::error::dist/index.html is missing: $k"; exit 1; }
+          done
+          file dist/og/melon-seek-og.png | grep -q 'PNG image data, 1200 x 630' || { echo "::error::dist/og/melon-seek-og.png missing or not 1200x630"; exit 1; }
+          {
+            echo "### Link previews"
+            echo ""
+            echo "og:image: $img"
+            echo ""
+            for f in dist/c/*/index.html; do
+              echo "- \`c/$(basename "$(dirname "$f")")/\`: $(sed -n 's/.*property="og:title" content="\([^"]*\)".*/\1/p' "$f")"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Summarize bundle
         run: |
@@ -102,3 +132,23 @@ jobs:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v5
+
+      # Warn-only: confirms crawlers can fetch the live og:image as image/png.
+      # LinkedIn etc. cache previews; re-scrape with
+      # https://www.linkedin.com/post-inspector/ (docs/process/social.md).
+      - name: Check live link preview
+        continue-on-error: true
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          img=''; type=''
+          for i in 1 2 3 4 5 6; do
+            # A fresh query string skips the CDN's cached copy of the page.
+            img=$(curl -fsSL "${PAGE_URL}?og-check=${GITHUB_RUN_ID}-${i}" | sed -n 's/.*property="og:image" content="\([^"]*\)".*/\1/p' | head -1)
+            type=''
+            [ -n "$img" ] && type=$(curl -fsSIL "$img" | tr -d '\r' | awk -F': *' 'tolower($1) == "content-type" { t = $2 } END { print t }')
+            if [ "$type" = "image/png" ]; then echo "og:image $img is live ($type)"; exit 0; fi
+            echo "attempt $i: og:image='$img' content-type='$type'; retrying in 20s"; sleep 20
+          done
+          echo "::warning::Live link preview check failed: og:image='$img' content-type='$type' (docs/process/social.md)"
+          exit 1

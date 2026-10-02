@@ -187,6 +187,37 @@ resolve the way they do on Pages.
    `github-pages` environment only accepts the default branch, and the deploy
    job fails with a protection-rule error.
 
+### Link previews (LinkedIn, Facebook, Slack, X)
+
+`public/index.html` carries static Open Graph and Twitter card tags; crawlers
+don't run JavaScript. The share image is
+[`public/og/melon-seek-og.png`](public/og/melon-seek-og.png) (1200×630). Its
+source is `public/og/card.html`, rendered by `scripts/build-og.mjs` with
+Playwright from outside the repo; the PNG is committed, so deploys need no
+browser. In server mode the tag URLs stay relative. The static build makes
+`og:url`, `og:image` and `twitter:image` absolute using `SITE_URL` (default
+`https://alvations.github.io/melon-seek/`; override it with the `SITE_URL`
+repository variable). The build also writes a share page per company,
+`c/<slug>/` (for example `…/melon-seek/c/anthropic/`). Each one has its own
+title, such as "Anthropic jobs by salary · 638 roles · median $352K", and
+opens the app with that company selected.
+
+Platforms cache previews, so after a deploy that changes them:
+
+- **LinkedIn** caches for about 7 days. Re-scrape with
+  [Post Inspector](https://www.linkedin.com/post-inspector/) by pasting the
+  URL and clicking *Inspect*. Posts made before that keep their old preview.
+- **Facebook/Meta**: use the
+  [Sharing Debugger](https://developers.facebook.com/tools/debug/) and click
+  *Scrape Again*.
+- **X, Slack, Discord**: there's no public refresh tool. Share the URL with a
+  query string such as `?v=2`.
+- **Telegram**: send the link to @WebpageBot.
+
+Wait about 10 minutes after a deploy before re-scraping, because Pages' CDN
+caches HTML. Details, verification commands and other platforms are in
+[docs/process/social.md](docs/process/social.md).
+
 ## API reference
 
 ### `GET /api/companies`

@@ -182,6 +182,155 @@ async function writeSplit(payload, file, api, slug) {
   return { listBytes, descBytes, descFiles: details.size, sectionsMoved };
 }
 
+/* ------------------------------------------------------- social previews */
+
+const DEFAULT_SITE_URL = 'https://alvations.github.io/melon-seek/';
+const OG_IMAGE_MAX_BYTES = 5 * 1024 * 1024; // LinkedIn ignores bigger og:images
+// URL-valued tags that crawlers need absolute.
+const SOCIAL_URL_KEYS = new Set(['og:url', 'og:image', 'og:image:url', 'og:image:secure_url', 'twitter:image', 'twitter:url']);
+
+/** SITE_URL (env) as an absolute URL ending in "/". */
+function siteUrl() {
+  const raw = (process.env.SITE_URL || '').trim() || DEFAULT_SITE_URL;
+  let u;
+  try { u = new URL(raw); } catch { throw new Error(`SITE_URL must be an absolute URL, got "${raw}"`); }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error(`SITE_URL must be http(s), got "${raw}"`);
+  if (u.protocol !== 'https:') warn(`SITE_URL ${u.href} is not https; LinkedIn and most crawlers want https og:image URLs`);
+  u.search = '';
+  u.hash = '';
+  if (!u.pathname.endsWith('/')) u.pathname += '/';
+  return u.href;
+}
+
+const escAttr = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const unescAttr = (s) => s.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+const metaKey = (tag) => { const m = tag.match(/\s(?:property|name)\s*=\s*(["'])(.*?)\1/i); return m ? m[2].toLowerCase() : null; };
+
+/** content="" of the first <meta property|name=key>, unescaped, or null. */
+function metaContent(html, key) {
+  for (const tag of html.match(/<meta\b[^>]*>/gi) || []) {
+    if (metaKey(tag) !== key) continue;
+    const m = tag.match(/\scontent\s*=\s*(["'])(.*?)\1/i);
+    return m ? unescAttr(m[2]) : null;
+  }
+  return null;
+}
+
+/**
+ * Make the URL-valued social tags absolute. "/x" is SITE_URL-relative (the
+ * site root, which may be a sub-path); anything else resolves against the page.
+ */
+function absolutizeSocial(html, pageUrl, site) {
+  return html.replace(/<meta\b[^>]*>/gi, (tag) => {
+    if (!SOCIAL_URL_KEYS.has(metaKey(tag))) return tag;
+    return tag.replace(/(\scontent\s*=\s*)(["'])(.*?)\2/i, (_, pre, q, v) => {
+      const raw = unescAttr(v.trim());
+      const abs = raw.startsWith('/') && !raw.startsWith('//') ? new URL(raw.slice(1), site) : new URL(raw, pageUrl);
+      return `${pre}${q}${escAttr(abs.href)}${q}`;
+    });
+  });
+}
+
+/** "$256K" / "$1.2M", like public/features/shared.js#formatMoney. */
+function money(n) {
+  if (n >= 999500) { const m = n / 1e6; return `$${m >= 10 ? Math.round(m) : +m.toFixed(1)}M`; }
+  return n >= 1000 ? `$${Math.round(n / 1000 - 1e-9)}K` : `$${Math.round(n)}`;
+}
+
+/**
+ * Share-page numbers for one company: role count and the median of salary
+ * midpoints (annualized, approx USD; vetted-out salaries are already null).
+ * Demo data gets no numbers: a share preview must not quote fake pay.
+ */
+function shareStats(c, payload, { annualize, toUSD }) {
+  const mids = [];
+  for (const j of payload.jobs) {
+    const s = j && j.salary;
+    if (!s) continue;
+    const fin = Number.isFinite;
+    const mid = fin(s.mid) ? s.mid : fin(s.min) && fin(s.max) ? (s.min + s.max) / 2 : fin(s.min) ? s.min : s.max;
+    const usd = fin(mid) ? toUSD(annualize(mid, s.interval), s.currency || 'USD') : null;
+    if (fin(usd) && usd > 0) mids.push(usd);
+  }
+  mids.sort((a, b) => a - b);
+  const h = mids.length / 2;
+  const median = !mids.length ? null : mids.length % 2 ? mids[Math.floor(h)] : (mids[h - 1] + mids[h]) / 2;
+  return { slug: c.slug, name: c.name, real: payload.mode !== 'demo', roles: payload.jobs.length, withPay: mids.length, median, fetchedAt: payload.fetchedAt };
+}
+
+/** dist/c/<slug>/index.html: crawlers read its tags, people get sent on to the app. */
+function sharePage(st, img) {
+  const n = (x) => x.toLocaleString('en-US');
+  const nums = st.real && st.roles ? [`${n(st.roles)} role${st.roles === 1 ? '' : 's'}`, st.median != null ? `median ${money(st.median)}` : null] : [];
+  const title = [`${st.name} jobs by salary`, ...nums.filter(Boolean)].join(' · ');
+  let desc = `Every open ${st.name} role on a salary chart and a map, with filters for pay, team, location and skills.`;
+  if (st.real && st.withPay) desc += ` ${n(st.withPay)} of ${n(st.roles)} roles list pay (median of range midpoints, approx USD).`;
+  const day = st.real && st.fetchedAt && !Number.isNaN(Date.parse(st.fetchedAt)) ? new Date(st.fetchedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : null;
+  if (day) desc += ` Data from ${st.name}'s public job board, ${day}.`;
+  const target = `../../#c=${encodeURIComponent(st.slug)}`;
+  const meta = (attr, key, value) => (value ? `  <meta ${attr}="${key}" content="${escAttr(value)}">\n` : '');
+  return '<!doctype html>\n<html lang="en">\n<head>\n' +
+    '  <meta charset="utf-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1">\n' +
+    `  <title>${escAttr(title)} — melon·seek</title>\n` +
+    meta('name', 'description', desc) +
+    '  <!-- Share page generated by scripts/build-static.js (docs/process/social.md). No meta refresh:\n' +
+    '       crawlers must stay on this page and read its tags; people are redirected by the script below. -->\n' +
+    meta('property', 'og:type', 'website') + meta('property', 'og:site_name', 'melon·seek') +
+    meta('property', 'og:title', title) + meta('property', 'og:description', desc) +
+    meta('property', 'og:url', './') +
+    meta('property', 'og:image', img.url) + meta('property', 'og:image:type', img.type) +
+    meta('property', 'og:image:width', img.width) + meta('property', 'og:image:height', img.height) +
+    meta('property', 'og:image:alt', img.alt) + meta('property', 'og:locale', 'en_US') +
+    meta('name', 'twitter:card', 'summary_large_image') +
+    meta('name', 'twitter:title', title) + meta('name', 'twitter:description', desc) +
+    meta('name', 'twitter:image', img.url) + meta('name', 'twitter:image:alt', img.alt) +
+    '  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">\n' +
+    // Keep any extra view state: c/<slug>/#m=map -> ../../#c=<slug>&m=map
+    `  <script>location.replace(${JSON.stringify(target).replace(/</g, '\\u003c')} + (location.hash.length > 1 ? '&' + location.hash.slice(1) : ''));</script>\n` +
+    '</head>\n<body>\n' +
+    `  <p><a href="${escAttr(target)}">${escAttr(st.name)} jobs on melon·seek</a></p>\n` +
+    '</body>\n</html>\n';
+}
+
+/** Write the share pages, then make social URLs absolute in every page. */
+async function writeSocial(shares) {
+  const site = siteUrl();
+  const index = await fs.readFile(path.join(OUT, 'index.html'), 'utf8');
+  const image = metaContent(index, 'og:image');
+  if (!image) warn('public/index.html has no og:image; link previews will have no picture');
+  for (const k of ['og:title', 'og:description', 'og:url', 'og:image:width', 'og:image:height', 'og:image:alt', 'twitter:card']) {
+    if (!metaContent(index, k)) warn(`public/index.html has no ${k} tag (link previews)`);
+  }
+  // Share pages sit two levels down; a page-relative image path needs ../../ in front.
+  const img = {
+    url: image && !image.startsWith('/') && !/^[a-z][a-z0-9+.-]*:/i.test(image) ? `../../${image}` : image,
+    type: metaContent(index, 'og:image:type'), width: metaContent(index, 'og:image:width'),
+    height: metaContent(index, 'og:image:height'), alt: metaContent(index, 'og:image:alt'),
+  };
+  for (const st of shares) {
+    const file = path.join(OUT, 'c', st.slug, 'index.html');
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(file, sharePage(st, img));
+  }
+  const images = new Set();
+  for (const file of (await walk(OUT)).filter((f) => f.endsWith('.html'))) {
+    const pageUrl = new URL(path.relative(OUT, file).split(path.sep).join('/'), site).href;
+    const html = await fs.readFile(file, 'utf8');
+    const out = absolutizeSocial(html, pageUrl, site);
+    if (out !== html) await fs.writeFile(file, out);
+    for (const k of ['og:image', 'twitter:image']) { const v = metaContent(out, k); if (v) images.add(v); }
+  }
+  // Every share image on this site must be in the bundle and under 5 MB.
+  for (const u of images) {
+    if (!u.startsWith(site)) continue;
+    const f = path.join(OUT, ...decodeURIComponent(u.slice(site.length)).split('/'));
+    if (!existsSync(f)) { warn(`share image ${u} is not in ${rel(OUT)}/`); continue; }
+    const bytes = (await fs.stat(f)).size;
+    if (bytes > OG_IMAGE_MAX_BYTES) warn(`share image ${u} is ${size(bytes)}; LinkedIn ignores images over 5 MB`);
+  }
+  return { site, image: metaContent(await fs.readFile(path.join(OUT, 'index.html'), 'utf8'), 'og:image'), pages: shares.length };
+}
+
 async function main() {
   const t0 = Date.now();
   await fs.rm(OUT, { recursive: true, force: true });
@@ -189,6 +338,7 @@ async function main() {
 
   // 1. public/ -> dist/
   await fs.cp(path.join(ROOT, 'public'), OUT, { recursive: true });
+  await fs.rm(path.join(OUT, 'og', 'card.html'), { force: true }); // share-card source (scripts/build-og.mjs), not a page
   for (const file of await walk(OUT)) {
     if (!file.endsWith('.html')) continue;
     const depth = path.relative(OUT, path.dirname(file)).split(path.sep).filter(Boolean).length;
@@ -253,6 +403,15 @@ async function main() {
 
   const builtAt = new Date().toISOString();
   const summary = [];
+  // Per-company share pages (section 6) need each payload's numbers.
+  const shares = [];
+  const salaryMod = await import(pathToFileURL(path.join(ROOT, 'server', 'salary.js')).href);
+  const vetMod = await import(pathToFileURL(path.join(ROOT, 'server', 'vet.js')).href);
+  if (typeof salaryMod.annualize !== 'function' || typeof vetMod.toUSD !== 'function') warn('share pages: salary.js#annualize or vet.js#toUSD missing; medians use annual USD salaries only');
+  const shareFx = {
+    annualize: typeof salaryMod.annualize === 'function' ? salaryMod.annualize : (v, interval) => (/year|annual/i.test(interval || 'year') ? v : null),
+    toUSD: typeof vetMod.toUSD === 'function' ? vetMod.toUSD : (v, cur) => (String(cur).toUpperCase() === 'USD' ? v : null),
+  };
   for (const c of companies) {
     let demo = null;
     if (demoJobs) {
@@ -287,6 +446,7 @@ async function main() {
       line += `  + demo list ${size(d.listBytes)}`;
     }
     summary.push(line);
+    shares.push(shareStats(c, payload, shareFx));
   }
 
   // 5. config.js + .nojekyll
@@ -299,8 +459,12 @@ async function main() {
     `window.MELON_BUILD = ${JSON.stringify(build)};\n`);
   await fs.writeFile(path.join(OUT, '.nojekyll'), '');
 
+  // 6. Social previews: c/<slug>/ share pages, absolute og:url / og:image (SITE_URL)
+  const social = await writeSocial(shares);
+
   console.log(`Built ${rel(OUT)}/ in ${Date.now() - t0}ms: ${libCount} lib modules, leaflet, ${companies.length} companies`);
   for (const line of summary) console.log(`  ${line}`);
+  console.log(`  social: og:image ${social.image || '(none)'}; ${social.pages} share pages at ${social.site}c/<slug>/`);
   if (warnings.length) {
     console.warn(`${warnings.length} warning(s)`);
     if (STRICT) process.exit(1);

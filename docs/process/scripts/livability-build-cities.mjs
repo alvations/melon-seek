@@ -160,8 +160,7 @@ async function main(argv) {
       url: page,
       asOf: month,
       retrieved: RETRIEVED,
-      kind: 'aggregator (crowd-sourced, commercial)',
-      via: VIA,
+      via: 'numbeo-snippets',
       ...(extra.note ? { note: extra.note } : {}),
     });
     const rec = {
@@ -194,9 +193,8 @@ async function main(argv) {
         url: page,
         asOf: month,
         retrieved: RETRIEVED,
-        kind: 'derived from aggregator figure',
         method: `100 × ${s.basis} ÷ New York ${s.nyc} (Numbeo, 2026-09)`,
-        via: VIA,
+        via: 'numbeo-snippets',
         ...(extra.publishedIndex != null ? { crossCheck: { name: 'Numbeo Cost of Living Index (NYC = 100, excl. rent)', value: extra.publishedIndex } } : {}),
       };
     }
@@ -243,10 +241,11 @@ async function main(argv) {
       monthlyUSD: NYC_SINGLE.usd,
       description: 'Annual single-person living costs excluding rent in New York City (Numbeo estimate × 12). Living cost for any city = costIndex / 100 × this.',
       sources: {
-        nycBasketUSD: { name: 'Numbeo, Cost of Living in New York: estimated monthly costs for a single person excluding rent ($1,665.2 / €1,466.0) × 12', url: NUMBEO('New-York'), asOf: '2026-09', retrieved: RETRIEVED, via: VIA },
+        nycBasketUSD: { name: 'Numbeo, Cost of Living in New York: estimated monthly costs for a single person excluding rent ($1,665.2 / €1,466.0) × 12', url: NUMBEO('New-York'), asOf: '2026-09', retrieved: RETRIEVED, via: 'numbeo-snippets' },
         crossCheck: { name: 'BLS Consumer Expenditure Survey 2024, one-person consumer units: total average annual expenditures $48,794 (includes shelter; personal insurance and pensions $4,329)', url: 'https://fred.stlouisfed.org/series/CXUTOTALEXPLB0502M', asOf: '2024', note: 'National average, all categories; shows the Numbeo basket is a lean, non-housing basket.' },
       },
     },
+    sourceNotes: { 'numbeo-snippets': VIA },
     fx: null,
     bigMac: null,
     cities: cities.map((c) => c.rec),

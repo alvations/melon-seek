@@ -1,0 +1,51 @@
+name: Refresh cost-of-living data
+
+# Monthly refresh of the machine-readable Juice Score inputs in data/cities.json:
+# The Economist's Big Mac index source data (CC BY 4.0, github.com/TheEconomist/big-mac-data)
+# gives each country's Big Mac price and the FX rates used to convert quoted local rents
+# to USD. Quoted rents, cost indexes and tax rules are refreshed by hand (docs/LIVABILITY.md).
+# Unlike snapshot.yml, this commits: cities.json is small (~250 KB) and changes monthly.
+on:
+  schedule:
+    - cron: "23 5 3 * *" # monthly, 05:23 UTC on the 3rd
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: col-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Refresh Big Mac prices and FX
+        run: node scripts/update-col.js
+
+      - name: Check the formula and data integrity
+        run: node --test test/juice.test.js
+
+      - name: Commit changed data
+        run: |
+          set -euo pipefail
+          git add data/cities.json
+          if git diff --cached --quiet; then
+            echo "No cost-of-living changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(data): refresh Big Mac prices and FX in cities.json ($(date -u +%Y-%m-%d))"
+          git push

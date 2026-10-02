@@ -131,6 +131,7 @@ export function applyBigMac(doc, bm, { minCountries = 20 } = {}) {
   }
   if (out.bigMac?.asOf !== bm.date) changes.push(`bigMac release ${out.bigMac?.asOf || '(none)'} -> ${bm.date}`);
   out.bigMac = { asOf: bm.date, source: src, byCountry };
+  out.sourceNotes = { ...(out.sourceNotes || {}), 'big-mac': `${src.name}. ${BIG_MAC_LICENSE}. ${BIG_MAC_REPO_URL}` };
 
   // FX table (local units per USD), from the same release.
   const perUSD = { ...(out.fx?.perUSD || {}), USD: 1 };
@@ -152,15 +153,17 @@ export function applyBigMac(doc, bm, { minCountries = 20 } = {}) {
       if (city.bigMacUSD !== row.dollarPrice) changes.push(`${city.key}: bigMacUSD ${city.bigMacUSD} -> ${row.dollarPrice}`);
       city.bigMacUSD = row.dollarPrice;
       city.sources.bigMacUSD = {
-        ...src,
-        name: `The Economist Big Mac index (${row.name}, ${row.localPrice} ${row.currency} at ${row.dollarEx} ${row.currency}/USD)`,
+        name: `The Economist Big Mac index: ${row.name}, ${row.localPrice} ${row.currency} at ${row.dollarEx}/USD`,
+        url: src.url,
+        asOf: bm.date,
+        note: 'big-mac',
       };
     }
     const fx = out.fx.perUSD[city.currency];
     if (fx > 0) {
       if (city.fxPerUSD !== fx) changes.push(`${city.key}: fxPerUSD ${city.fxPerUSD} -> ${fx}`);
       city.fxPerUSD = fx;
-      city.sources.fxPerUSD = { ...out.fx.source };
+      city.sources.fxPerUSD = { name: `Big Mac data dollar_ex (${city.currency} per USD)`, url: src.url, asOf: bm.date, note: 'big-mac' };
       for (const [usdField, localField] of [['rent1brCenterUSD', 'rent1brCenterLocal'], ['rent1brOutsideUSD', 'rent1brOutsideLocal']]) {
         if (city[localField] == null) continue;
         const usd = toUsdAt(city[localField], fx);
@@ -168,12 +171,11 @@ export function applyBigMac(doc, bm, { minCountries = 20 } = {}) {
         city[usdField] = usd;
         const local = city.sources[localField] || {};
         city.sources[usdField] = {
-          name: `${local.name || localField} converted to USD at ${fx} ${city.currency}/USD`,
+          name: `${localField} ÷ fxPerUSD (${fx} ${city.currency}/USD, ${bm.date})`,
           url: local.url || src.url,
           asOf: local.asOf || bm.date,
           fxAsOf: bm.date,
-          method: `${localField} ÷ fxPerUSD`,
-          ...(local.estimated ? { estimated: true } : {}),
+          ...(local.estimated ? { estimated: true, method: local.method } : {}),
         };
       }
     }

@@ -44,6 +44,27 @@ export function ashbySalary(comp) {
   return null;
 }
 
+/**
+ * Every salary component across compensation tiers, for normalize to pick the
+ * one in the job location's currency ("Multiple Ranges" summaries are often
+ * in another currency than the location).
+ */
+export function ashbyPayRanges(comp) {
+  if (!comp || !Array.isArray(comp.compensationTiers)) return [];
+  const out = [];
+  for (const t of comp.compensationTiers) {
+    for (const c of (t && Array.isArray(t.components) ? t.components : [])) {
+      if (!c || !/salary/i.test(c.compensationType || '') || (c.minValue == null && c.maxValue == null)) continue;
+      const min = Number(c.minValue ?? c.maxValue);
+      const max = Number(c.maxValue ?? c.minValue);
+      if (!Number.isFinite(min) || !Number.isFinite(max)) continue;
+      const label = str(t.title) || str(t.tierSummary);
+      out.push({ min: Math.min(min, max), max: Math.max(min, max), currency: (c.currencyCode || 'USD').toUpperCase(), interval: ashbyInterval(c.interval), ...(label ? { label: label.slice(0, 60) } : {}) });
+    }
+  }
+  return out;
+}
+
 export function mapAshbyJob(j) {
   const html = j.descriptionHtml || '';
   const extraLocations = [];
@@ -72,6 +93,7 @@ export function mapAshbyJob(j) {
     url: str(j.jobUrl) || str(j.applyUrl),
     updatedAt: str(j.publishedAt) || str(j.updatedAt),
     salary,
+    payRanges: ashbyPayRanges(j.compensation),
     compensationSummary: j.compensation ? str(j.compensation.compensationTierSummary) : null,
   };
 }

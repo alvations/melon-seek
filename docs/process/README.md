@@ -33,6 +33,11 @@ interface every agent built against), [../ARCHITECTURE.md](../ARCHITECTURE.md),
 | QA | [prompts/qa.md](prompts/qa.md) | [qa.md](qa.md) | `test/e2e/*`, `scripts/e2e.js`, `docs/QA.md` |
 | Security + a11y review | [prompts/review.md](prompts/review.md) | [review.md](review.md) | `docs/REVIEW.md` |
 | Data research | [prompts/research.md](prompts/research.md) | [research.md](research.md) | `docs/DATA_SOURCES.md` |
+| Livability (Juice Score) | [prompts/livability.md](prompts/livability.md) | [livability.md](livability.md) | `data/cities.json`, `server/juice.js`, `scripts/update-col.js`, `docs/LIVABILITY.md` |
+| Salary vetting | [prompts/vetting.md](prompts/vetting.md) | [vetting.md](vetting.md) | `server/salary.js`, `server/vet.js`, `scripts/vet-salaries.js`, `scripts/llm-vet.js`, `data/vetting/**`, `docs/VETTING.md` |
+| Social share previews | [prompts/social.md](prompts/social.md) | [social.md](social.md) | OG tags in `public/index.html`, `public/og/*`, `scripts/build-og.mjs` |
+| Strategy (competitors, roadmap) | [prompts/strategy.md](prompts/strategy.md) | [strategy.md](strategy.md) | `docs/strategy/COMPETITIVE_ANALYSIS.md`, `docs/strategy/ROADMAP.md` |
+| Corporate-ladder brainstorm (plan only) | [prompts/ladder-brainstorm.md](prompts/ladder-brainstorm.md) | [ladder-brainstorm.md](ladder-brainstorm.md) | `docs/strategy/CORPORATE_LADDER_PLAN.md` |
 
 ## Replaying the build from scratch
 
