@@ -1,0 +1,81 @@
+name: Site watchdog
+
+# Every 30 min (and on demand): is https://alvations.github.io/melon-seek/ the
+# melon-seek APP from the latest successful pages.yml deploy? If GitHub's
+# README page (branch-based Pages build) or a wrong build is being served, it
+# re-runs pages.yml and reports the problem in the job summary.
+# Root cause it guards against: Settings -> Pages -> Source = "Deploy from a
+# branch" (fix: Source = "GitHub Actions"; needs an admin, so this can't do it).
+on:
+  schedule:
+    - cron: "11,41 * * * *" # every 30 min, off the hour
+  workflow_dispatch:
+
+permissions:
+  actions: write   # dispatch pages.yml
+  contents: read   # sparse checkout of .github/scripts
+
+concurrency:
+  group: site-watchdog
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SITE: ${{ vars.SITE_URL || 'https://alvations.github.io/melon-seek/' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: Expected build (latest successful pages.yml deploy)
+        id: expect
+        run: |
+          set -euo pipefail
+          busy=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow pages.yml --limit 20 --json status \
+                   --jq '[.[] | select(.status != "completed")] | length')
+          echo "busy=$busy" >> "$GITHUB_OUTPUT"
+          read -r sha branch < <(gh run list --repo "$GITHUB_REPOSITORY" --workflow pages.yml --status success --limit 1 \
+                                   --json headSha,headBranch --jq '.[0] | "\(.headSha // "") \(.headBranch // "")"')
+          echo "sha=${sha:-}" >> "$GITHUB_OUTPUT"
+          echo "branch=${branch:-}" >> "$GITHUB_OUTPUT"
+          echo "Latest successful deploy: ${sha:-none} on ${branch:-?}; pages.yml runs in flight: $busy"
+
+      - name: Check the live site
+        id: check
+        if: steps.expect.outputs.busy == '0'
+        continue-on-error: true
+        env:
+          CHECK_TIMEOUT: "60"
+        run: bash .github/scripts/check-site.sh "$SITE" "${{ steps.expect.outputs.sha }}"
+
+      - name: Deploy in progress
+        if: steps.expect.outputs.busy != '0'
+        run: echo "A pages.yml run is in flight; skipping this check (it verifies the site itself)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Re-deploy and report
+        if: steps.check.outcome == 'failure'
+        env:
+          RESULT: ${{ steps.check.outputs.result }}
+          DETAIL: ${{ steps.check.outputs.detail }}
+          BRANCH: ${{ steps.expect.outputs.branch }}
+        run: |
+          ref="${BRANCH:-${{ github.event.repository.default_branch }}}"
+          dispatched="no"
+          if gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref "$ref"; then dispatched="yes (ref $ref)"; fi
+          {
+            echo "### Live site is NOT the app"
+            echo ""
+            echo "- URL: $SITE"
+            echo "- Problem: ${RESULT:-unknown}, ${DETAIL:-no detail}"
+            echo "- Re-ran pages.yml: $dispatched"
+            echo ""
+            if [ "$RESULT" = "readme" ]; then
+              echo "GitHub is publishing the README from a branch. Permanent fix: **Settings -> Pages -> Build and deployment -> Source: GitHub Actions**."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::Live site is not the app ($RESULT: $DETAIL); re-ran pages.yml: $dispatched"
+          exit 1

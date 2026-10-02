@@ -18,7 +18,7 @@
 import {
   salaryUSD, weightedPercentile, percentile, median, formatMoney, plural, h, uid, locationKey,
 } from './shared.js';
-import { normalizeTitle, familySim, rolePart, SENIORITY_LADDER } from './roles.js';
+import { normalizeTitle, familySim, rolePart, roleFamily, FAMILY_LABELS, SENIORITY_LADDER } from './roles.js';
 
 export { percentile, weightedPercentile, salaryUSD, toUSD, FX_FALLBACK } from './shared.js';
 // Role taxonomy lives in roles.js (no imports, Node-safe); re-exported for callers.
@@ -176,6 +176,10 @@ export function estimateComp(allJobs, query = {}) {
     excludeId: query.excludeId ?? null,
   };
   const excl = query.excludeIds ? new Set(query.excludeIds) : null;
+  // `within`: restrict comparables to these job ids (the Insights pool) while location
+  // resolution and IDF still use the whole board, so an unrestricted pool gives exactly
+  // the same numbers as no restriction (drawer = Insights, Rule 8).
+  const within = query.within ? (query.within instanceof Set ? query.within : new Set(query.within)) : null;
   const qn = normalizeTitle(q.title, { department: q.department || null });
   const level = q.seniority || qn.seniority || '';
   const ix = indexFor(allJobs);
@@ -192,6 +196,7 @@ export function estimateComp(allJobs, query = {}) {
   for (const p of ix.pool) {
     if (q.excludeId != null && p.job.id === q.excludeId) continue;
     if (excl && excl.has(p.job.id)) continue;
+    if (within && !within.has(p.job.id)) continue;
     const ts = hasTitle ? 0.7 * tokenSim(qn.tokens, qSum, p, ix.idf) + 0.3 * familySim(qn.family, p.norm.family) : 1;
     const w = ts * ts * senioritySim(level, p.job.seniority) * deptSim(q.department, p.job.department) * locationSim(ql, p.job);
     scored.push({ job: p.job, pay: p.pay, titleSim: ts, w });
@@ -237,32 +242,48 @@ export function estimateComp(allJobs, query = {}) {
     ql ? (ql.remote ? 'for remote work' : `in or near ${ql.key}`) : '',
     q.department ? `in ${q.department}` : '',
   ].filter(Boolean).join(' ');
-  const explanation =
-    `Weighted by similarity to ${what} across ${plural(comps.length, 'salaried role')}` +
-    (hasTitle ? ` (${close} with a closely matching title).` : '.') +
-    ` Range is the ${LOW_P * 100}th–${HIGH_P * 100}th percentile of their posted pay bands` +
+  const detail =
+    `Range is the ${LOW_P * 100}th–${HIGH_P * 100}th percentile of their posted pay bands` +
     (converted ? `; ${converted} non-USD ${converted === 1 ? 'band' : 'bands'} converted at approximate rates.` : '.') +
     (!hasTitle ? ' Add a role title for a sharper estimate.'
       : confidence === 'Low' ? ' Few close matches, so treat this as a rough guide.' : '');
+  const explanation =
+    `Weighted by similarity to ${what} across ${plural(comps.length, 'salaried role')}` +
+    (hasTitle ? ` (${close} with a closely matching title). ` : '. ') + detail;
 
   return {
     low, mid, high, currency: 'USD', confidence, n: comps.length,
     comparables: comps.slice(0, 5).map((p) => p.job),
     scores: comps.slice(0, 5).map((p) => Math.round(p.w * 100) / 100),
-    explanation, query: used,
+    explanation, detail, query: used,
   };
 }
 
+/** The app's location key (public/app.js locKey): city, or the remote entry's own name ("Remote (US)"). */
+export function locKeyOf(l) {
+  if (!l) return null;
+  return l.remote ? l.name || 'Remote' : l.city || l.name || 'Unknown';
+}
+
+/** The location a posting is estimated for: its first on-site key, else its first remote key. */
+export function jobLocationQuery(job) {
+  const locs = job?.locations || [];
+  const onsite = locs.find((l) => !l.remote);
+  if (onsite) return locKeyOf(onsite);
+  const remote = locs.find((l) => l.remote);
+  return remote ? locKeyOf(remote) : job?.remote ? 'Remote' : '';
+}
+
 /**
- * Compstimate for one posting (e.g. in a job drawer), excluding the posting itself.
+ * Compstimate for one posting (the drawer, and the backtest), excluding the posting itself.
+ * Title, level and location only; no department and no filters (task force Rule 8), so
+ * Insights with the same three fields edited shows the same numbers.
  * `opts.excludeIds` drops more postings (the backtest passes the job's duplicates).
  */
 export function compstimateForJob(allJobs, job, opts = {}) {
   if (!job) return estimateComp(allJobs, {});
-  const onsite = (job.locations || []).find((l) => !l.remote);
-  const loc = onsite ? locationKey(onsite) : job.remote ? 'Remote' : '';
   return estimateComp(allJobs, {
-    title: job.title, seniority: job.seniority || '', department: job.department || '', location: loc,
+    title: job.title, seniority: job.seniority || '', department: '', location: jobLocationQuery(job),
     excludeId: job.id, excludeIds: opts.excludeIds || null,
   });
 }
@@ -386,7 +407,9 @@ export function displayConfidence(result, meta) {
 // Form option helpers (pure, exported for tests)
 // ---------------------------------------------------------------------------
 
-const LEVEL_PREFIX = /^(?:(?:senior|sr\.?|staff|principal|lead|junior|jr\.?|associate|head of|director of|distinguished)\s+)+/i;
+const LEVEL_PREFIX = /^(?:(?:senior\+?|sr\.?|staff\+?|principal|lead|junior|jr\.?|associate|head of|director of|distinguished)\s+)+/i;
+
+const GENERIC_ROLE = /^(?:manager|senior manager|director|senior director|lead|head|engineer|associate|specialist|analyst|staff|member|principal|vp|chief)$/i;
 
 /** Datalist suggestions: role titles without level prefixes, most common first. */
 export function titleSuggestions(jobs, limit = 250) {
@@ -396,7 +419,8 @@ export function titleSuggestions(jobs, limit = 250) {
     const t = String(j.title || '').replace(LEVEL_PREFIX, '').replace(/\s+(?:I{1,3}|IV|[1-4])$/, '').trim();
     if (!t) continue;
     const role = t.split(/\s*(?:,|\s[-–—|:]\s|\()\s*/)[0].trim();
-    bump(role);
+    // A bare level/generic word ("Manager, Revenue Accounting" -> "Manager") is not a role title.
+    if (!GENERIC_ROLE.test(role)) bump(role);
     if (role !== t) bump(t);
   }
   return [...count].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, limit).map(([t]) => t);
@@ -406,7 +430,7 @@ export function titleSuggestions(jobs, limit = 250) {
 export function locationOptions(jobs) {
   const count = new Map();
   for (const j of jobs || []) {
-    const keys = new Set((j.locations || []).map(locationKey).filter(Boolean));
+    const keys = new Set((j.locations || []).map(locKeyOf).filter(Boolean));
     if (!keys.size && j.remote) keys.add('Remote');
     for (const k of keys) count.set(k, (count.get(k) || 0) + 1);
   }
@@ -426,32 +450,88 @@ export const FAMILY_TITLES = Object.freeze({
   it: 'IT Systems Engineer', admin: 'Executive Assistant', 'ai-training': 'AI Tutor',
 });
 
+// ---------------------------------------------------------------------------
+// Inputs from the app's filters (Compstimate task force spec, §3.2)
+// ---------------------------------------------------------------------------
+
+const arr = (v) => (Array.isArray(v) ? v.filter((x) => x != null && x !== '') : v ? [v] : []);
+const famOf = (j) => j._family ?? roleFamily(j.title || '', j);
+const deptOf = (j) => j.department || 'No department';
+const keysOf = (j) => (Array.isArray(j._locKeys) ? j._locKeys : (j.locations || []).map(locKeyOf));
+
 /**
- * Compstimate query from the app's current state (UX-9), for widget.setQuery().
- * Priority: the open job > the search text > the role-family filter. Level and
- * location are used only when exactly one is selected. Empty strings mean "not
- * set" (the widget then falls back to the board's most common role and says so).
- * @param {{ job?: Job, search?: string, family?: string, seniority?: string|string[], location?: string|string[] }} state
- * @returns {{ title: string, seniority: string, location: string, department: string }}
+ * Pure: the Insights Compstimate's pool, query and copy for the current filters
+ * and the user's per-field edits.
+ *
+ * Fields follow the filters until edited (Rule 1). Each field owns some filters:
+ * Title owns department `d` and role family `rf`; Location owns `l` and remote `r`;
+ * Level owns seniority `s`. The pool (Rule 3) is the salaried board jobs that pass the
+ * filters of every *following* field (same matching as app.js failures()); an edited
+ * field's filters are ignored. Other filters (search, chips, salary, ...) never narrow
+ * the pool; `visible` (jobs passing all non-salary filters) only picks the auto title.
+ *
+ * @param {{ d?, rf?, l?, r?, s? }} state  the app's filter values
+ * @param {{ title?: string, location?: string, seniority?: string }} edits  a key present = edited
+ * @param {Job[]} jobs  the whole board
+ * @param {{ visible?: Job[], company?: string }} [opts]
+ * @returns {{ pool: Job[], query: object, autoTitle: boolean, auto: string, filtered: boolean,
+ *   basisParts: string[], display: { location: string, seniority: string }, labels: { location: string, seniority: string } }}
  */
-export function queryFromState({ job, search, family, seniority, location } = {}) {
-  const one = (v) => (Array.isArray(v) ? (v.length === 1 ? v[0] : '') : v || '');
-  if (job) {
-    const onsite = (job.locations || []).find((l) => !l.remote);
-    return {
-      title: job.title || '', seniority: job.seniority || '', department: job.department || '',
-      location: onsite ? locationKey(onsite) : job.remote ? 'Remote' : '',
-    };
-  }
-  const text = String(search || '').trim();
+export function compstimateInputs(state = {}, edits = {}, jobs = [], { visible = null } = {}) {
+  const F = { d: arr(state.d), rf: state.rf || '', l: arr(state.l), r: state.r || 'any', s: arr(state.s) };
+  const ed = edits || {};
+  const titleF = !('title' in ed), locF = !('location' in ed), levF = !('seniority' in ed);
+  const passTitle = (j) => (!F.d.length || F.d.includes(deptOf(j))) && (!F.rf || famOf(j) === F.rf);
+  const passLoc = (j) => (!F.l.length || keysOf(j).some((k) => F.l.includes(k)))
+    && (F.r !== 'remote' || j.remote) && (F.r !== 'onsite' || (j.locations || []).some((l) => !l.remote));
+  const passLev = (j) => !F.s.length || F.s.includes(j.seniority || 'Unspecified');
+  const salaried = (jobs || []).filter((j) => j && salaryUSD(j));
+  const pool = salaried.filter((j) => (!titleF || passTitle(j)) && (!locF || passLoc(j)) && (!levF || passLev(j)));
+
+  // Auto title: most common role among visible jobs that are also in the pool (so it always fits
+  // the level/location in effect), else the most common role in the pool.
+  const inPool = new Set(pool.map((j) => j.id));
+  const vis = Array.isArray(visible) ? visible.filter((j) => j && inPool.has(j.id)) : pool;
+  const auto = titleSuggestions(vis, 1)[0] || titleSuggestions(pool, 1)[0] || '';
+  const title = titleF ? auto : String(ed.title || '');
+  const location = locF ? (F.l.length === 1 ? F.l[0] : !F.l.length && F.r === 'remote' ? 'Remote' : '') : String(ed.location || '');
+  const seniority = levF ? (F.s.length === 1 && F.s[0] !== 'Unspecified' ? F.s[0] : '') : String(ed.seniority || '');
+
+  const titleParts = titleF ? [...F.d, ...(F.rf ? [FAMILY_LABELS[F.rf] || F.rf] : [])] : [];
+  const levParts = levF ? F.s : seniority ? [seniority] : [];
+  const locParts = locF ? [...F.l, ...(F.r === 'remote' ? ['Remote'] : F.r === 'onsite' ? ['On-site'] : [])] : location ? [location] : [];
+  const filtered = (titleF && titleParts.length > 0) || (levF && F.s.length > 0) || (locF && locParts.length > 0);
+
+  const locLabel = locF && F.l.length > 1 ? `${F.l.join(' or ')} (filters)`
+    : locF && !F.l.length && F.r === 'remote' ? 'Remote (filters)'
+    : locF && F.l.length !== 1 && F.r === 'onsite' ? 'On-site (filters)' : 'Any location';
+  const levLabel = levF && (F.s.length > 1 || (F.s.length === 1 && F.s[0] === 'Unspecified')) ? `${F.s.join(' or ')} (filters)` : 'Any level';
+
   return {
-    title: text || (family && FAMILY_TITLES[family]) || '',
-    seniority: one(seniority), location: one(location), department: '',
+    pool,
+    query: { title, location, seniority, department: '' },
+    autoTitle: titleF,
+    auto,
+    filtered,
+    basisParts: [...titleParts, ...levParts, ...locParts],
+    display: { location: locF ? (F.l.length === 1 ? F.l[0] : '') : location, seniority: levF ? seniority : String(ed.seniority || '') },
+    labels: { location: locLabel, seniority: levLabel },
   };
 }
 
-function defaultTitle(jobs) {
-  return titleSuggestions((jobs || []).filter((j) => salaryUSD(j)), 1)[0] || '';
+/** "Based on 37 similar roles at Anthropic, Sales · London" (Rule 7). */
+export function basisLine(n, company, parts = []) {
+  return `Based on ${plural(n, 'similar role')} at ${company || 'this company'}${parts.length ? `, ${parts.join(' · ')}` : ''}`;
+}
+
+/** Below this many comparables (or pool size) no figure is shown (Rule 6). */
+export const MIN_COMPARABLES = 3;
+
+/** Insights estimate for compstimateInputs(): the board, restricted to the pool. */
+export function estimateForInputs(jobs, inputs) {
+  if (!inputs || inputs.pool.length < MIN_COMPARABLES) return null;
+  const r = estimateComp(jobs, { ...inputs.query, within: inputs.pool.map((j) => j.id) });
+  return r.mid == null || r.n < MIN_COMPARABLES ? null : r;
 }
 
 // ---------------------------------------------------------------------------
@@ -468,10 +548,15 @@ function signalIcon(level) {
   return h('svg:svg', { viewBox: '0 0 18 16', width: 18, height: 16, 'aria-hidden': 'true', class: 'ms-comp__sig' }, bars);
 }
 
-function jobMeta(job) {
-  const loc = (job.locations || [])[0];
-  const where = loc ? (loc.remote ? loc.name || 'Remote' : loc.city || loc.name) : job.remote ? 'Remote' : '';
-  const more = (job.locations || []).length > 1 ? ` +${job.locations.length - 1}` : '';
+/** Comparable row meta: the location that matched the query (else the first), level, department. */
+function jobMeta(job, locQuery) {
+  const locs = job.locations || [];
+  const want = String(locQuery || '').toLowerCase();
+  const hit = want ? locs.find((l) => [locKeyOf(l), l.city, l.name].some((x) => x && x.toLowerCase() === want))
+    || (/remote/.test(want) ? locs.find((l) => l.remote) : null) : null;
+  const loc = hit || locs[0];
+  const where = loc ? locKeyOf(loc) : job.remote ? 'Remote' : '';
+  const more = locs.length > 1 ? ` +${locs.length - 1}` : '';
   return [where && where + more, job.seniority, job.department].filter(Boolean).join(' · ');
 }
 
@@ -482,28 +567,43 @@ function payRange(job) {
   return (a === b ? a : `${a}–${b}`) + (p.converted ? '*' : '');
 }
 
+function hashIds(list) {
+  let x = 2166136261;
+  for (const j of list) { const s = String(j.id); for (let i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 16777619); } x ^= 44; }
+  return `${list.length}:${(x >>> 0).toString(36)}`;
+}
+
 /**
- * Compact Compstimate form + result card.
+ * Compact Compstimate form + result card for Insights.
+ *
+ * Feed it with setContext({ board, visible, filters, company, meta }) on every app
+ * render: fields follow the filters until the user edits them; it re-estimates only when
+ * the (company, pool, query, accuracy) signature changes. update(jobs, meta) is the
+ * filter-less shortcut. setQuery(partial) sets fields as edits ("" title = following).
+ *
  * @param {HTMLElement} container
- * @param {{ getJobs?: () => Job[], onSelect?: (job) => void, query?: object, headingLevel?: number }} opts
+ * @param {{ getJobs?, getMeta?, onSelect?, query?, headingLevel? }} opts
  */
 export function createCompstimateWidget(container, { getJobs, getMeta, onSelect, query: initial, headingLevel = 2 } = {}) {
   const id = { head: uid('comp'), title: uid('comp-t'), list: uid('comp-dl'), loc: uid('comp-l'), sen: uid('comp-s') };
-  let jobs = [];
-  let meta = null; // the /api/jobs response `meta` (or meta.compstimate): published backtest accuracy
+  let ctx = { board: [], visible: null, filters: {}, company: '', meta: null };
+  const edits = {};
+  for (const k of ['title', 'location', 'seniority']) if (initial && initial[k] != null && String(initial[k]).trim() !== '') edits[k] = String(initial[k]);
+  let inputs = null;
   let result = null;
-  let query = { title: '', location: '', seniority: '', department: '', ...(initial || {}) };
-  let autoTitle = !query.title;
+  let lastSig = null;
+  let renders = 0;
   let timer = 0;
 
   const titleInput = h('input', {
     id: id.title, class: 'ms-comp__input', type: 'text', list: id.list, autocomplete: 'off',
-    spellcheck: 'false', placeholder: 'e.g. Software Engineer', value: query.title,
-    'aria-describedby': `${id.head}-sub`,
+    spellcheck: 'false', placeholder: 'e.g. Software Engineer', 'aria-describedby': `${id.head}-sub`,
   });
   const datalist = h('datalist', { id: id.list });
   const locSelect = h('select', { id: id.loc, class: 'ms-comp__select' });
   const senSelect = h('select', { id: id.sen, class: 'ms-comp__select' });
+  const autoLine = h('p', { class: 'ms-comp__auto', hidden: true });
+  const resetBtn = h('button', { type: 'button', class: 'ms-comp__reset', hidden: true, onclick: () => reset() }, 'Reset to filters');
   const resultEl = h('div', { class: 'ms-comp__result' });
   const live = h('p', { class: 'msf-sr', 'aria-live': 'polite', 'aria-atomic': 'true' });
   const hTag = `h${Math.min(6, Math.max(1, headingLevel))}`;
@@ -512,74 +612,103 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
   const root = h('section', { class: 'ms-comp', 'aria-labelledby': id.head },
     h('header', { class: 'ms-comp__head' },
       h(hTag, { id: id.head, class: 'ms-comp__title' }, 'Compstimate'),
-      h('p', { id: `${id.head}-sub`, class: 'ms-comp__sub' }, 'Estimated pay from similar roles on this board.')),
-    h('form', { class: 'ms-comp__form', role: 'search', 'aria-label': 'Compstimate role details', onsubmit: (e) => { e.preventDefault(); run(); } },
+      h('p', { id: `${id.head}-sub`, class: 'ms-comp__sub' }, 'Estimated pay from similar roles. Follows your filters until you change a field.')),
+    h('form', { class: 'ms-comp__form', role: 'search', 'aria-label': 'Compstimate role details', onsubmit: (e) => { e.preventDefault(); commitTitle(); } },
       h('div', { class: 'msf-field msf-field--wide' }, h('label', { for: id.title }, 'Role title'), titleInput, datalist),
       h('div', { class: 'msf-field' }, h('label', { for: id.loc }, 'Location'), locSelect),
       h('div', { class: 'msf-field' }, h('label', { for: id.sen }, 'Level'), senSelect)),
-    h('p', { class: 'ms-comp__auto', hidden: true }), resultEl, live);
+    h('div', { class: 'ms-comp__formfoot' }, autoLine, resetBtn),
+    resultEl, live);
   container.appendChild(root);
 
-  titleInput.addEventListener('input', () => {
-    autoTitle = false;
-    query.title = titleInput.value;
+  function commitTitle() {
     clearTimeout(timer);
-    timer = setTimeout(run, 160);
-  });
-  titleInput.addEventListener('change', () => { query.title = titleInput.value; run(); });
-  locSelect.addEventListener('change', () => { query.location = locSelect.value; run(); });
-  senSelect.addEventListener('change', () => { query.seniority = senSelect.value; run(); });
+    const v = titleInput.value.trim();
+    if (v) edits.title = titleInput.value; else delete edits.title; // emptying = following again
+    refresh();
+  }
+  titleInput.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(commitTitle, 250); });
+  titleInput.addEventListener('change', commitTitle);
+  locSelect.addEventListener('change', () => { edits.location = locSelect.value; refresh(); });
+  senSelect.addEventListener('change', () => { edits.seniority = senSelect.value; refresh(); });
 
-  function fillOptions() {
-    datalist.replaceChildren(...titleSuggestions(jobs).map((t) => h('option', { value: t })));
-    const locs = locationOptions(jobs);
-    if (query.location && !locs.some((o) => o.value === query.location)) query.location = '';
-    locSelect.replaceChildren(
-      h('option', { value: '' }, 'Any location'),
-      ...locs.map((o) => h('option', { value: o.value, selected: o.value === query.location }, `${o.label} (${o.count})`)));
-    locSelect.value = query.location;
-    const levels = new Map();
-    for (const j of jobs) if (j.seniority) levels.set(j.seniority, (levels.get(j.seniority) || 0) + 1);
-    senSelect.replaceChildren(
-      h('option', { value: '' }, 'Any level'),
-      ...SENIORITY_LADDER.filter((s) => levels.has(s) || s === query.seniority)
-        .map((s) => h('option', { value: s }, `${s} (${levels.get(s) || 0})`)));
-    senSelect.value = query.seniority;
+  function reset() {
+    for (const k of Object.keys(edits)) delete edits[k];
+    refresh();
+    titleInput.focus({ preventScroll: true });
   }
 
-  function run() {
-    clearTimeout(timer);
-    const auto = root.querySelector('.ms-comp__auto');
-    auto.hidden = !(autoTitle && query.title);
-    auto.textContent = autoTitle && query.title ? `Showing the most common role on this board, “${query.title}”. Type any title, or filter the board.` : '';
-    result = estimateComp(jobs, query);
+  function fillForm() {
+    const board = ctx.board;
+    const salaried = board.filter((j) => salaryUSD(j));
+    if (document.activeElement !== titleInput) titleInput.value = inputs.query.title;
+    datalist.replaceChildren(...titleSuggestions(salaried).map((t) => h('option', { value: t })));
+    const locs = locationOptions(salaried);
+    const locVal = inputs.display.location;
+    if (locVal && !locs.some((o) => o.value === locVal)) locs.push({ value: locVal, label: locVal, count: 0 });
+    locSelect.replaceChildren(h('option', { value: '' }, inputs.labels.location),
+      ...locs.map((o) => h('option', { value: o.value }, `${o.label} (${o.count})`)));
+    locSelect.value = locVal;
+    const levels = new Map();
+    for (const j of salaried) if (j.seniority) levels.set(j.seniority, (levels.get(j.seniority) || 0) + 1);
+    const senVal = inputs.display.seniority;
+    senSelect.replaceChildren(h('option', { value: '' }, inputs.labels.seniority),
+      ...SENIORITY_LADDER.filter((s) => levels.has(s) || s === senVal).map((s) => h('option', { value: s }, `${s} (${levels.get(s) || 0})`)));
+    senSelect.value = senVal;
+    const edited = Object.keys(edits).length > 0;
+    resetBtn.hidden = !edited;
+    autoLine.hidden = !(inputs.autoTitle && inputs.query.title);
+    autoLine.textContent = autoLine.hidden ? ''
+      : `Showing the most common role ${inputs.filtered ? 'in your filters' : 'on this board'}: “${inputs.query.title}”. Type any title.`;
+  }
+
+  /** Recompute inputs; re-estimate and re-render only if the signature changed (Rule 10). */
+  function refresh() {
+    inputs = compstimateInputs(ctx.filters, edits, ctx.board, { visible: ctx.visible });
+    const acc = accuracyFrom(ctx.meta);
+    const sig = JSON.stringify([ctx.company, hashIds(ctx.board), hashIds(inputs.pool), inputs.query, inputs.labels, inputs.basisParts,
+      Object.keys(edits).sort(), acc ? [acc.medianAbsPctError, acc.n] : null]);
+    if (sig === lastSig) return false;
+    lastSig = sig;
+    fillForm();
+    result = estimateForInputs(ctx.board, inputs);
     render();
+    return true;
   }
 
   function render() {
+    renders += 1;
     resultEl.replaceChildren();
-    if (!jobs.length) {
+    const company = ctx.company || 'this company';
+    const meta = ctx.meta;
+    if (!ctx.board.length) {
       resultEl.appendChild(h('p', { class: 'ms-comp__empty' }, 'Load a job board to estimate pay.'));
       live.textContent = '';
       return;
     }
-    if (result.mid == null) {
+    const what = [inputs.query.title ? `“${inputs.query.title}”` : '', ...inputs.basisParts].filter(Boolean).join(' · ') || 'these filters';
+    if (!result) {
+      const msg = `Not enough comparable roles with posted pay at ${company} for ${what}. Remove a filter or try a broader title.`;
       resultEl.appendChild(h('div', { class: 'ms-comp__card ms-comp__card--empty' },
-        h('p', { class: 'ms-comp__empty-title' }, 'No estimate yet'),
-        h('p', { class: 'ms-comp__empty' }, result.explanation)));
-      live.textContent = result.explanation;
+        h('p', { class: 'ms-comp__empty-title' }, 'Not enough comparable roles'),
+        h('p', { class: 'ms-comp__empty' }, msg)));
+      live.textContent = msg;
       return;
     }
     const { low, mid, high, n } = result;
     const confidence = displayConfidence(result, meta);
     const accuracy = accuracyLine(meta);
     const lowAccuracy = isLowAccuracy(meta);
-    const market = jobs.map(salaryUSD).filter(Boolean).map((p) => p.mid);
-    let lo = Math.min(percentile(market, 0.05), low), hi = Math.max(percentile(market, 0.95), high);
+    const basis = basisLine(n, company, inputs.basisParts);
+    const market = inputs.pool.map((j) => salaryUSD(j).mid);
+    const p5 = percentile(market, 0.05), p95 = percentile(market, 0.95);
+    let lo = Math.min(p5, low), hi = Math.max(p95, high);
     if (!(hi > lo)) { lo = low * 0.8; hi = high * 1.2 || 1; }
     const pad = (hi - lo) * 0.04; lo -= pad; hi += pad;
     const pos = (v) => `${((v - lo) / (hi - lo)) * 100}%`;
-    const rangeLabel = `Estimated range ${formatMoney(low)} to ${formatMoney(high)}, within this board's typical range of ${formatMoney(percentile(market, 0.05))} to ${formatMoney(percentile(market, 0.95))}`;
+    const scaleName = inputs.filtered ? 'typical range for these filters' : 'typical range on this board';
+    const level = inputs.query.seniority ? ` at ${inputs.query.seniority} level` : '';
+    const place = inputs.query.location ? (/remote/i.test(inputs.query.location) ? ' for remote work' : ` in or near ${inputs.query.location}`) : '';
 
     const card = h('div', { class: 'ms-comp__card' },
       h('div', { class: 'ms-comp__eyebrow' }, 'Estimated base salary'),
@@ -589,80 +718,86 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
       h('div', { class: `ms-comp__conf ms-comp__conf--${confidence.toLowerCase()}` },
         signalIcon(CONF_LEVEL[confidence]),
         h('span', { class: 'ms-comp__conf-label' }, `${confidence} confidence`)),
-      h('div', { class: 'ms-comp__conf-n' }, `Based on ${plural(n, 'comparable role')}`),
+      h('div', { class: 'ms-comp__conf-n ms-comp__basis' }, basis),
       accuracy ? h('div', { class: `ms-comp__accuracy${lowAccuracy ? ' is-low' : ''}` }, accuracy,
-        lowAccuracy ? h('span', { class: 'ms-comp__accuracy-note' }, ' · past estimates on this board missed by more than 25%') : null) : null,
+        lowAccuracy ? h('span', { class: 'ms-comp__accuracy-note' }, ` · past estimates at ${company} missed by more than 25%`) : null) : null,
       h('div', { class: 'ms-comp__range' },
         h('div', { class: 'ms-comp__range-ends' },
           h('span', null, h('span', { class: 'ms-comp__k' }, 'Low '), h('b', null, formatMoney(low))),
           h('span', null, h('span', { class: 'ms-comp__k' }, 'High '), h('b', null, formatMoney(high)))),
-        h('div', { class: 'ms-comp__track', role: 'img', 'aria-label': rangeLabel },
+        h('div', { class: 'ms-comp__track', role: 'img', 'aria-label': `Estimated range ${formatMoney(low)} to ${formatMoney(high)}, within the ${scaleName} of ${formatMoney(p5)} to ${formatMoney(p95)}` },
           h('span', { class: 'ms-comp__band', style: { left: pos(low), width: `calc(${pos(high)} - ${pos(low)})` } }),
           h('span', { class: 'ms-comp__dot', style: { left: pos(mid) } })),
         h('div', { class: 'ms-comp__scale', 'aria-hidden': 'true' },
-          h('span', null, formatMoney(lo + pad)), h('span', null, 'typical range on this board'), h('span', null, formatMoney(hi - pad)))),
-      h('p', { class: 'ms-comp__explain' }, result.explanation));
+          h('span', null, formatMoney(p5)), h('span', null, scaleName), h('span', null, formatMoney(p95)))),
+      h('p', { class: 'ms-comp__explain' }, `Weighted by similarity to “${inputs.query.title}”${level}${place}. ${result.detail}`));
 
     const list = h('ol', { class: 'ms-comp__list' }, result.comparables.map((job, i) => {
       const score = Math.round((result.scores[i] ?? 0) * 100);
-      const btn = h('button', {
+      const m = jobMeta(job, inputs.query.location);
+      return h('li', null, h('button', {
         type: 'button', class: 'ms-comp__item', dataset: { key: `comp:${job.id}` },
-        'aria-label': `${job.title}, ${jobMeta(job)}, pays ${payRange(job).replace('–', ' to ')}, ${score}% match. Open role.`,
+        'aria-label': `${job.title}, ${m}, pays ${payRange(job).replace('–', ' to ')}, ${score}% match. Open role.`,
         onclick: () => onSelect && onSelect(job),
       },
       h('span', { class: 'ms-comp__item-main' },
         h('span', { class: 'ms-comp__item-title' }, job.title),
-        h('span', { class: 'ms-comp__item-meta' }, jobMeta(job))),
+        h('span', { class: 'ms-comp__item-meta' }, m)),
       h('span', { class: 'ms-comp__item-side' },
         h('span', { class: 'ms-comp__item-pay' }, payRange(job)),
-        h('span', { class: 'ms-comp__match' }, `${score}% match`)));
-      return h('li', null, btn);
+        h('span', { class: 'ms-comp__match' }, `${score}% match`))));
     }));
     const foot = result.comparables.some((j) => salaryUSD(j)?.converted)
       ? h('p', { class: 'ms-comp__foot' }, '* converted to USD at approximate rates') : null;
-
-    resultEl.append(card,
-      h('div', { class: 'ms-comp__comps' },
-        h(subTag, { class: 'ms-comp__comps-title' }, 'Most comparable roles'),
-        list, foot));
-    live.textContent = `Compstimate ${formatMoney(mid)}, range ${formatMoney(low)} to ${formatMoney(high)}, ${confidence.toLowerCase()} confidence, based on ${plural(n, 'comparable role')}.${accuracy ? ` ${accuracy}.` : ''}`;
+    resultEl.append(card, h('div', { class: 'ms-comp__comps' }, h(subTag, { class: 'ms-comp__comps-title' }, 'Most comparable roles'), list, foot));
+    live.textContent = `Compstimate ${formatMoney(mid)}, range ${formatMoney(low)} to ${formatMoney(high)}, ${confidence.toLowerCase()} confidence. ${basis}.${accuracy ? ` ${accuracy}.` : ''}`;
   }
 
   /**
-   * @param {Job[]} [allJobs] defaults to getJobs()
-   * @param {object|null} [respMeta] the /api/jobs `meta` ({ compstimate }) or the compstimate object; defaults to getMeta()
+   * The app's current state. Call on every render; cheap when nothing relevant changed.
+   * @param {{ board: Job[], visible?: Job[], filters?: { d?, rf?, l?, r?, s? }, company?: string, meta?: object }} next
    */
+  function setContext(next = {}) {
+    ctx = {
+      board: Array.isArray(next.board) ? next.board : ctx.board,
+      visible: next.visible !== undefined ? next.visible : ctx.visible,
+      filters: next.filters || {},
+      company: next.company ?? ctx.company,
+      meta: next.meta !== undefined ? next.meta : ctx.meta,
+    };
+    return refresh();
+  }
+
+  /** Filter-less shortcut: the whole board, following fields. */
   function update(allJobs, respMeta) {
-    jobs = Array.isArray(allJobs) ? allJobs : (typeof getJobs === 'function' ? getJobs() || [] : []);
-    meta = respMeta !== undefined ? respMeta : (typeof getMeta === 'function' ? getMeta() ?? null : meta);
-    if (autoTitle) {
-      query.title = defaultTitle(jobs);
-      titleInput.value = query.title;
-      autoTitle = true;
-    }
-    fillOptions();
-    run();
+    const board = Array.isArray(allJobs) ? allJobs : (typeof getJobs === 'function' ? getJobs() || [] : []);
+    const meta = respMeta !== undefined ? respMeta : (typeof getMeta === 'function' ? getMeta() ?? null : ctx.meta);
+    return setContext({ board, visible: null, filters: ctx.filters, meta });
   }
 
-  /** Merge into the query and re-estimate. title "" falls back to the board's most common role. */
+  /** Set fields as edits (title "" returns Title to following). */
   function setQuery(partial = {}) {
-    query = { ...query, ...partial };
-    if (partial.title != null) {
-      autoTitle = !String(partial.title).trim();
-      if (autoTitle) query.title = defaultTitle(jobs);
-      titleInput.value = query.title;
+    for (const k of ['title', 'location', 'seniority']) {
+      if (!(k in partial)) continue;
+      if (k === 'title' && !String(partial.title || '').trim()) delete edits.title; else edits[k] = String(partial[k] ?? '');
     }
-    fillOptions();
-    run();
+    if ('title' in partial) titleInput.value = partial.title || '';
+    return refresh();
   }
 
-  if (typeof getJobs === 'function') update(); else render();
+  if (typeof getJobs === 'function') update(); else refresh();
 
   return {
     update,
+    setContext,
     setQuery,
-    getQuery: () => ({ ...query }),
+    setMeta(meta) { ctx = { ...ctx, meta }; return refresh(); },
+    reset,
+    getQuery: () => ({ ...(inputs ? inputs.query : {}) }),
+    getEdits: () => ({ ...edits }),
+    getInputs: () => inputs,
     getResult: () => result,
+    renderCount: () => renders,
     destroy() { clearTimeout(timer); root.remove(); },
     el: root,
   };

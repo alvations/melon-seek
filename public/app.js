@@ -7,7 +7,7 @@ import { colorFor, formatMoney, resetColors, assignColors, otherColor, toUSD, SL
 import { createChart, keyOf, VIEWS, DEFAULT_VIEW } from './viz/chart.js';
 import { createMap } from './viz/map.js';
 import * as api from './api.js';
-import { createCompstimateWidget, compstimateForJob, accuracyLine, isLowAccuracy, displayConfidence } from './features/compstimate.js';
+import { createCompstimateWidget, compstimateForJob, accuracyLine, isLowAccuracy, displayConfidence, basisLine, MIN_COMPARABLES } from './features/compstimate.js';
 import { compsForJob, createCompsCard } from './features/comps.js';
 import { createCompsChart } from './viz/comps.js';
 import { roleFamily, FAMILY_LABELS } from './features/roles.js';
@@ -66,6 +66,8 @@ const FAMILY_LABEL = {
   ...FAMILY_LABELS, // product's taxonomy (features/roles.js) wins
 };
 const SENIORITY_ORDER = ['Intern', 'Entry', 'Mid', 'Senior', 'Staff+', 'Manager', 'Director+', 'Unspecified'];
+// Hosts users may be sent to (mirrors ALLOWED_HOSTS in scripts/links-policy.js): ATS job pages, map attribution.
+const LINK_HOSTS = new Set(['job-boards.greenhouse.io', 'boards.greenhouse.io', 'jobs.ashbyhq.com', 'jobs.lever.co', 'www.openstreetmap.org', 'openstreetmap.org']);
 const SOURCE_LABEL = { greenhouse: 'Greenhouse', ashby: 'Ashby', lever: 'Lever' };
 const FALLBACK_COMPANIES = [
   { slug: 'anthropic', name: 'Anthropic', source: 'greenhouse', board: 'anthropic', color: '#d97757' },
@@ -521,6 +523,12 @@ function render() {
   syncPopover();
   if (drawerJobId && data.status === 'ready') renderDrawerNav();
   scheduleViz(); // PERF-2: paint cards and stats first, the chart/map when idle
+  // Off the startup path but ready before a tap: Insights' module and Leaflet load when the page is idle.
+  if (data.status === 'ready' && !idlePrefetched) {
+    idlePrefetched = true;
+    whenIdle(loadInsights);
+    whenIdle(() => { if (typeof L === 'undefined' && !leafletLoading) loadLeaflet().catch(() => { /* retried on Map open */ }); });
+  }
 }
 
 let filtersDirty = false;
@@ -1386,7 +1394,11 @@ function ensureViz() {
     if (S.m === 'map' && !map) {
       // Leaflet (~150 KB) loads on first Map open, not at startup (PERF-3).
       if (typeof L === 'undefined') {
-        if (!leafletLoading) loadLeaflet().then(scheduleRender, (err) => { vizError = err; scheduleRender(); });
+        if (!leafletWaiting) {   // chain once onto the (possibly idle-prefetched) load
+          leafletWaiting = true;
+          vizError = null;
+          loadLeaflet().then(scheduleRender, (err) => { vizError = err; scheduleRender(); }).finally(() => { leafletWaiting = false; });
+        }
         return;
       }
       map = createMap($('#mapHost'), {
@@ -1402,6 +1414,7 @@ function ensureViz() {
 }
 
 let leafletLoading = null;
+let leafletWaiting = false;
 function loadLeaflet() {
   return leafletLoading ||= new Promise((resolve, reject) => {
     const css = h('link', { rel: 'stylesheet', href: new URL('./vendor/leaflet/leaflet.css', import.meta.url).href });
@@ -1416,9 +1429,12 @@ function loadLeaflet() {
 // Insights' panel module loads on first Insights open (it is not needed for the chart or map).
 let createInsights = null;
 let insightsLoading = null;
+let idlePrefetched = false;
+const whenIdle = (fn) => (window.requestIdleCallback ? requestIdleCallback(() => fn(), { timeout: 4000 }) : setTimeout(fn, 1500));
 function loadInsights() {
   insightsLoading ||= import('./features/insights.js')
-    .then((m) => { createInsights = m.createInsights; scheduleRender(); })
+    // Re-render only if Insights is showing: a prefetch must not rebuild the list (and drop focus).
+    .then((m) => { createInsights = m.createInsights; if (S.m === 'insights') scheduleRender(); })
     .catch((err) => { insightsLoading = null; console.error('insights module failed', err); });
 }
 
@@ -1430,7 +1446,12 @@ function renderInsights() {
   try {
     if (!comp) comp = createCompstimateWidget($('#compHost'), { onSelect: (job) => job && openDrawer(job.id) });
     if (!insights) { if (createInsights) insights = createInsights($('#insightsPanel'), { onFilter: onInsightFilter }); else loadInsights(); }
-    if (featSig.comp !== dataSeq) { featSig.comp = dataSeq; comp.update(data.jobs, data.meta); }
+    // Compstimate task force spec (docs/process/compstimate-taskforce.md §3.2): the widget follows
+    // the role-defining filters until the user edits a field; it re-estimates only when its own
+    // signature changes, so salary/sort/drawer changes cost nothing (Rule 10).
+    comp.setContext({ board: data.jobs, visible: compVisible(), company: data.company?.name || S.c, meta: data.meta,
+      filters: { d: S.d, rf: S.rf, l: S.l, r: S.r, s: S.s } });
+    ensureCompMeta();
     const sig = `${dataSeq}|${derived.filtered.length}|${derived.filtered.map((j) => j.id).join(',')}`;
     if (insights && featSig.ins !== sig) { featSig.ins = sig; insights.update(derived.filtered, data.jobs); }
   } catch (err) { console.error('insights failed', err); }
@@ -1464,6 +1485,9 @@ function renderViz() {
   renderInsights();
   $('#vizArea').hidden = S.m === 'insights' && data.status === 'ready';
   if (S.m === 'insights' && data.status === 'ready') { $('#vizControls').hidden = true; return; }
+  // Phones: the full-screen filter sheet hides the chart/map, so each filter tap skips the
+  // (expensive) viz update; setFiltersOpen(false) renders it once when the sheet closes.
+  if (data.status === 'ready' && (S.m === 'chart' ? chart : map) && isMobile() && document.body.classList.contains('filters-open')) { vizCovered = true; return; }
   const chartHost = $('#chartHost');
   const mapHost = $('#mapHost');
   const overlay = $('#vizOverlay');
@@ -1619,17 +1643,21 @@ function renderResults() {
     const btn = h('button', { type: 'button', class: 'btn btn--ghost btn--block' }, label());
     const more = h('li', { class: 'list-more' }, btn);
     // Append the next page in place (no full list rebuild, the scroll position stays put).
-    const loadMore = () => {
+    const loadMore = (n = PAGE * 2) => {
       const from = resultsLimit;
-      resultsLimit += PAGE * 2;
+      resultsLimit += n;
       more.before(...visible.slice(from, resultsLimit).map(card));
       if (visible.length <= resultsLimit) { listIO?.disconnect(); more.remove(); } else btn.textContent = label();
     };
-    btn.addEventListener('click', loadMore);
+    btn.addEventListener('click', () => loadMore());
     items.push(more);
     // Phones: cards render lazily, the next page loads as the list nears its end.
     if (isMobile() && 'IntersectionObserver' in window) {
-      listIO = new IntersectionObserver((es) => { if (es.some((x) => x.isIntersecting)) loadMore(); }, { root: list, rootMargin: '0px 0px 600px 0px' });
+      // Append 4 cards per frame while the end is near (~500 px of runway per frame): each step
+      // stays inside a frame budget at 4x CPU (a card costs 2-4 ms), so scrolling never stalls.
+      const near = () => more.isConnected && more.getBoundingClientRect().top - list.getBoundingClientRect().bottom < 600;
+      const step = () => { loadMore(4); if (near()) requestAnimationFrame(step); };
+      listIO = new IntersectionObserver((es) => { if (es.some((x) => x.isIntersecting)) requestAnimationFrame(step); }, { root: list, rootMargin: '0px 0px 600px 0px' });
       listIO.observe(more);
     }
   }
@@ -1825,7 +1853,7 @@ function salaryDistribution(job) {
 const INTERVAL_ADJ = { hour: 'hourly', day: 'daily', week: 'weekly', month: 'monthly', year: 'annual' };
 
 let juicePeriod = 'year'; // drawer waterfall: per year or per month (kept for the session)
-const JUICE_DOC = 'https://github.com/alvations/melon-seek/blob/main/docs/LIVABILITY.md#1-the-formula';
+const JUICE_DOC = 'methodology/#1-the-formula'; // site page rendered from docs/LIVABILITY.md (scripts/methodology.js); never off-site
 
 /** Drawer: Juice Score waterfall for the best location, plus the other locations in a disclosure. */
 function juiceBlock(job) {
@@ -1918,16 +1946,52 @@ function payLabels(job) {
 }
 
 /** For postings without pay: an estimate from comparable roles, clearly labelled as such. */
+/** Jobs passing every non-salary filter (Compstimate's auto title only; never its pool). Cached per state. */
+let compVisCache = { key: null, list: null };
+function compVisible() {
+  const key = `${dataSeq}|${JSON.stringify(FILTER_KEYS.filter((k) => !['smin', 'smax', 'so'].includes(k)).map((k) => S[k]))}`;
+  if (compVisCache.key !== key) {
+    const F = filterSpec(S), now = Date.now();
+    compVisCache = { key, list: data.jobs.filter((j) => failures(j, F, now).every((f) => f === 'sal')) };
+  }
+  return compVisCache.list;
+}
+
+/** Rule 9: if the backtest wasn't ready (meta.compstimate null), re-request once after ~5 s. */
+let compMetaRetry = -1;
+function ensureCompMeta() {
+  if (data.status !== 'ready' || !data.meta || data.meta.compstimate || compMetaRetry === dataSeq) return;
+  compMetaRetry = dataSeq;
+  const seq = dataSeq, key = S.c;
+  setTimeout(async () => {
+    if (seq !== dataSeq) return;
+    try {
+      const res = await dataApi.getJobs(jobsQuery(key), {});
+      if (seq !== dataSeq || !res?.meta?.compstimate) return;
+      data.meta = { ...data.meta, compstimate: res.meta.compstimate };
+      comp?.setMeta(data.meta);
+      scheduleRender();
+    } catch { /* keep the line hidden */ }
+  }, 5000);
+}
+
+/**
+ * Drawer estimate for postings without usable pay (Rule 8): title, level and location only,
+ * from all salaried jobs of the company, excluding the job. Independent of filters and of the
+ * Insights widget. Nothing is shown below MIN_COMPARABLES comparables (Rule 6).
+ */
 function compstimateBlock(job) {
+  ensureCompMeta();
   let est = null;
   try { est = compstimateForJob(data.jobs, job); } catch (err) { console.warn('compstimate failed', err); }
-  if (!est || est.mid == null || !isFinite(est.mid)) return null;
+  if (!est || est.mid == null || !isFinite(est.mid) || !(est.n >= MIN_COMPARABLES)) return null;
+  const parts = [est.query?.seniority, est.query?.location].filter(Boolean);
   return h('div', { class: 'd-comp', role: 'note' },
     h('div', { class: 'd-comp-top' },
-      h('span', { class: 'd-comp-label' }, 'Compstimate'),
+      h('span', { class: 'd-comp-label', title: 'Compstimate: estimated pay from similar roles' }, 'Compstimate'),
       h('span', { class: 'd-comp-amt' }, `≈ ${money(est.mid)}`),
       h('span', { class: 'muted' }, `(${money(est.low)}–${money(est.high).replace(/^\$/, '')}, ${String(displayConfidence(est, data.meta) || '').toLowerCase()} confidence)`)),
-    h('p', { class: 'd-comp-note' }, `An estimate from ${plural(est.n || 0, 'comparable role')} at ${data.company?.name || 'this company'} (approx USD / year) — not a figure from the posting.`),
+    h('p', { class: 'd-comp-note' }, `${basisLine(est.n, data.company?.name || 'this company', parts)}. An estimate, not a figure from the posting (approx USD / year).`),
     accuracyLine(data.meta) ? h('p', { class: 'd-comp-note' }, isLowAccuracy(data.meta) ? h('strong', null, 'Low confidence. ') : null, `${accuracyLine(data.meta)}.`) : null);
 }
 
@@ -2191,7 +2255,20 @@ function sanitizeHtml(html, baseUrl) {
       if (tag === 'A') {
         const raw = n.getAttribute('href') || '';
         const href = base || /^[a-z][a-z0-9+.-]*:/i.test(raw) ? safeUrl(raw, base || undefined) : '#';
-        if (href !== '#') { el.href = href; el.target = '_blank'; el.rel = 'noopener noreferrer nofollow'; }
+        // Link policy (scripts/links-policy.js): only allowlisted hosts stay clickable. Other links in
+        // company-written descriptions become text that names where they point, so nothing leaves the site.
+        let host = '';
+        try { host = new URL(href).hostname; } catch { /* '#' */ }
+        if (href !== '#' && LINK_HOSTS.has(host) && href.startsWith('https:')) { el.href = href; el.target = '_blank'; el.rel = 'noopener noreferrer nofollow'; }
+        else {
+          const span = document.createElement('span');
+          span.className = 'desc-offsite';
+          walk(n, span);
+          const shown = href !== '#' ? href.replace(/^https?:\/\//, '').replace(/\/$/, '') : '';
+          if (shown && !span.textContent.includes(shown)) span.append(` (${shown})`);
+          out.append(span);
+          continue;
+        }
       }
       walk(n, el);
       out.append(el);
@@ -2255,7 +2332,7 @@ function bindSheetDrag() {
     }
     g.y = Math.min(g.s.peek + 24, Math.max(0, g.y0 + dy));
     g.hist.push([e.timeStamp, e.clientY]);
-    if (g.hist.length > 6) g.hist.shift();
+    if (g.hist.length > 12) g.hist.shift();
     if (!frame) frame = requestAnimationFrame(paint);
   });
   const end = (e) => {
@@ -2264,11 +2341,13 @@ function bindSheetDrag() {
     g = null;
     if (!dragging) return;
     swallowClick = true; setTimeout(() => { swallowClick = false; }, 0);
-    const [t0, y0] = hist[0], [t1, y1] = hist[hist.length - 1];
-    const v = e.type === 'pointercancel' ? 0 : (y1 - y0) / Math.max(1, t1 - t0); // px/ms, + is down
+    // Release velocity over the last 100 ms only: a finger that rested before lifting has v = 0.
+    const recent = hist.filter(([t]) => e.timeStamp - t <= 100);
+    const v = e.type === 'pointercancel' || recent.length < 2 ? 0
+      : (recent[recent.length - 1][1] - recent[0][1]) / Math.max(16, e.timeStamp - recent[0][0]); // px/ms, + is down
     const order = SHEET.map((k) => [k, s[k]]);
     let target = order.reduce((a, b) => (Math.abs(b[1] - y) < Math.abs(a[1] - y) ? b : a))[0];
-    if (Math.abs(v) > 0.45) { // a flick goes one snap further in its direction
+    if (Math.abs(v) > 0.6) { // a flick goes one snap further in its direction
       const ahead = v < 0 ? order.filter(([, p]) => p < y - 1).sort((a, b) => b[1] - a[1]) : order.filter(([, p]) => p > y + 1).sort((a, b) => a[1] - b[1]);
       if (ahead.length) target = ahead[0][0];
     }
@@ -2322,8 +2401,10 @@ function setFiltersOpen(open) {
     try { localStorage.setItem('melon-seek.filtersCollapsed', open ? '0' : '1'); } catch { /* ignore */ }
   }
   $('#filtersToggle').setAttribute('aria-expanded', String(open));
+  if (!open && vizCovered) { vizCovered = false; scheduleRender(); }
   setTimeout(() => { try { map?.invalidateSize(); } catch { /* ignore */ } }, 260);
 }
+let vizCovered = false; // a viz update was skipped under the phone filter sheet
 const filtersAreOpen = () => (isOverlayFilters() ? document.body.classList.contains('filters-open') : !document.body.classList.contains('filters-collapsed'));
 
 /* ----------------------------------------------------------------- theme */
@@ -2374,6 +2455,7 @@ function bindEvents() {
     if (e.key === 'Enter') { lastHash = '__dirty'; commit(); search.blur(); }
   });
 
+  $('.seg [data-mode="insights"]').addEventListener('pointerdown', loadInsights, { passive: true });
   for (const b of document.querySelectorAll('.seg [data-mode]')) b.addEventListener('click', () => {
     set({ m: b.dataset.mode });
     if (isMobile()) setSheet('peek'); // the new view shows first (QA UX-10)

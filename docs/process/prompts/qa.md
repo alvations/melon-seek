@@ -47,3 +47,9 @@ New wave (the user asked the team to keep improving the app together). You run t
 3. Accessibility spot-checks: axe-core if you can load it from npm into the scratchpad, keyboard-only flow, contrast in both themes.
 Append an "Improvement audit (wave 1)" section to docs/QA.md: findings with an ID (UX-n / PERF-n / A11Y-n), severity, evidence (numbers, screenshot paths under docs/screenshots/audit/), the owning file and the suggested fix. Log it in docs/process/qa.md. Don't commit; report the top 10 findings briefly.
 ```
+
+Fourth follow-up from the coordinator (Compstimate task force):
+
+```
+You're on a new Compstimate task force (the user says Compstimate looks incoherent when filters are selected). An investigator is writing docs/process/compstimate-taskforce.md with a behaviour spec and a test matrix, and product is fixing the code. Your job: as soon as that file has its test matrix, automate every scenario in test/e2e/ui.e2e.js as a "Compstimate:" group running against real data. They'll fail first; that's expected. Then re-run after product's fix until all pass. Also add a consistency test: the drawer estimate equals the Insights estimate for the same role query. Log it in docs/process/qa.md; don't commit; report the pass/fail state at each stage.
+```

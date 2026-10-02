@@ -267,6 +267,47 @@ resolve the way they do on Pages.
    `github-pages` environment only accepts the default branch, and the deploy
    job fails with a protection-rule error.
 
+### Making sure the live site is the app (not the README)
+
+If **Settings → Pages → Source** is "Deploy from a branch", GitHub runs its own
+"pages build and deployment" on every push. That build publishes the README,
+and it races the app deploy. **The Source must be "GitHub Actions"**, which an
+admin has to set; a workflow token can't change it. The workflows also guard
+against the race:
+
+- **Deploy job (`pages.yml`)** runs these steps in order:
+  1. Wait up to 5 min until no branch-based Pages build for the commit is
+     queued or running.
+  2. Deploy.
+  3. Check the live URL (`.github/scripts/check-site.sh`, retrying up to
+     3 min for the CDN) for the build marker
+     `<meta name="melon-seek-build" content="<commit sha>">` and the absence
+     of README/Jekyll markup.
+  4. On failure, re-deploy once and check again.
+  5. If it still fails, the job fails with the Settings fix in the message.
+- **`site-watchdog.yml`** (every 30 min, plus on demand) runs the same check
+  against the latest successful deploy. If the README or a wrong build is
+  being served, it re-runs `pages.yml` and writes the problem to the job
+  summary.
+
+### Methodology page and the link policy
+
+`docs/LIVABILITY.md` is rendered into the site as `methodology/index.html`.
+`scripts/md.js` is a tiny dependency-free Markdown converter whose heading ids
+match GitHub's, so `#1-the-formula` works; `scripts/methodology.js` builds the
+page. The Juice "How it's calculated" link points there
+(`methodology/#1-the-formula`), never to GitHub. External source citations in
+the doc are shown as text with their URL, not as links.
+
+**Link policy** (`scripts/links-policy.js`; the build fails on any violation,
+and `test/links-policy.test.js` checks it too):
+- No link to github.com, raw.githubusercontent.com or the repo.
+- Absolute links only to the ATS job hosts (job-boards.greenhouse.io,
+  boards.greenhouse.io, jobs.ashbyhq.com, jobs.lever.co), the OpenStreetMap
+  attribution, Google Fonts, or the site itself. The reserved `example.com`
+  is allowed for dev mocks.
+- Every relative link in `dist/` resolves to a file, and its `#anchor` exists.
+
 ### Security headers on Pages
 
 GitHub Pages can't send HTTP headers, so the build adds two tags to every page:

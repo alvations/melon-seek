@@ -112,7 +112,11 @@ async function runLayoutMatrix() {
         await setFilters(pg, filtersOpen);
         if (filtersOpen && w < 1200) { await setFilters(pg, false); continue; } // overlay sheet: checked in flows
         for (const drawer of [false, true]) {
-          if (drawer) { await pg.click('.card[data-id] >> nth=0', { force: true }); await pg.waitForSelector('.drawer.is-open'); await pg.waitForTimeout(350); }
+          if (drawer) {
+            // Phones/tablet-portrait: cards live in the bottom sheet; open it first (it collapses on mode change).
+            if (w < 861 && !(await pg.evaluate(() => document.body.classList.contains('sheet-open')))) { await pg.click('#sheetHandle'); await pg.waitForTimeout(350); }
+            await pg.click('.card[data-id] >> nth=0'); await pg.waitForSelector('.drawer.is-open'); await pg.waitForTimeout(350);
+          }
           const tag = `${theme}-${w}x${hgt}-${view}-filters${filtersOpen ? 'Open' : 'Closed'}-drawer${drawer ? 'Open' : 'Closed'}`;
           const probs = await layoutProblems(pg, { view, drawer });
           layout.states++;
@@ -504,9 +508,9 @@ checks.wave2 = await (async () => {
   r.menuRoles = await p.evaluate(() => document.querySelectorAll('#popover [role="listbox"], #popover [role="option"]').length);
   await p.keyboard.press('Escape');
   // UX-2: title matches first, with "N in title"
-  await p.goto(`${BASE}/${QS}#c=anthropic&q=machine%20learning`); await ready(p); await p.waitForTimeout(300);
+  await p.goto(`${BASE}/${QS}#c=anthropic&q=research%20engineer`); await ready(p); await p.waitForTimeout(300);
   r.searchTitle = (await p.textContent('#resultsTitle'))?.trim();
-  r.firstCardTitleMatches = await p.evaluate(() => /machine/i.test(document.querySelector('.card .card-title')?.textContent || '') && /learning/i.test(document.querySelector('.card .card-title')?.textContent || ''));
+  r.firstCardTitleMatches = await p.evaluate(() => { const t = document.querySelector('.card .card-title')?.textContent || ''; return /research/i.test(t) && /engineer/i.test(t); });
   // Drawer: comps directly under the pay block; Juice headline collapsed; V5 toggle keeps focus
   await p.goto(`${BASE}/${QS}#c=anthropic`); await ready(p);
   await p.click('.card[data-id] >> nth=0'); await p.waitForSelector('.drawer.is-open'); await p.waitForTimeout(800);

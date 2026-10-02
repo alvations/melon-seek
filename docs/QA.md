@@ -219,3 +219,47 @@ Keyboard flow otherwise works:
 - The salary slider responds to arrow keys (`smin` updates) and shows a focus halo on the thumb (`audit/kbd-slider-focus.png`).
 - Map pins have `tabindex=0`.
 - Dark-mode axe on the drawer reports no contrast issues.
+
+---
+
+## Compstimate task force: e2e group (spec: `docs/process/compstimate-taskforce.md` §3.3)
+
+The suite has a "Compstimate:" group in `test/e2e/ui.e2e.js` (`registerCompstimateTests`). It has one test per matrix
+scenario (T1–T23, with T14 checked inside T13) plus a drawer = Insights consistency test, all run against
+the real server and snapshot data. Run it alone with `node scripts/e2e.js --grep='^Compstimate:'`.
+
+| Stage | Tree | Compstimate group | Whole suite |
+|---|---|---|---|
+| 1. Matrix automated (product's fix partly in the working tree) | 14:05 | 11/23 pass. Failing: T1–T7 (basis text, filters not followed), T15, T19, T20, T23, consistency | not run |
+| 2. After product's fix (compstimate.js 14:09, app.js 14:17) | 14:20–14:40 | **20/23 pass**. Failing: T15, T20, consistency | 52/56 (with intermittent BUG-6 and an Insights timing flake, since made robust) |
+
+**Still failing (product bugs):**
+- **CT-1 (T15 and consistency): the drawer can estimate for a location that Insights cannot select.**
+  - Owner: `public/features/compstimate.js` `fillOptions` and `locationOptions(salaried)`.
+  - The widget's Location options list only locations that have salaried roles. The drawer, under Rule 8, passes
+    the job's own first on-site city.
+  - Example: AE - DNB in Singapore. Anthropic has no salaried Singapore roles, so the widget has no "Singapore" option, while
+    the drawer estimates "for Singapore". The same happens for 3 of 3 OpenAI no-salary jobs (Tokyo, Mumbai, …).
+  - Result: the Rule 8 equality guarantee can't hold.
+  - Fix: list every board location (salaried count, possibly "(0)"). Alternatively, have the drawer drop a location
+    that has no salaried roles and say so.
+- **CT-2 (T20): "Same role elsewhere" → OpenAI shows "Not enough comparable roles".**
+  - Owner: `compstimate.js` auto-title selection.
+  - The hash is correct: `c=openai&rf=swe&s=Senior`.
+  - With rf=swe and s=Senior, the following auto title is "GPT Infrastructure Lead", and `estimateComp` finds n < 3 for it.
+    The pool, however, holds dozens of salaried Senior SWE roles. So the widget says "Not enough" with no basis line, instead of
+    "Based on N similar roles at OpenAI, Software engineering · Senior".
+  - Fix: pick the auto title by role family (`FAMILY_TITLES`) or by the most common *normalized* title with n ≥ 3, not a
+    raw title that happens to win a tie.
+
+**Found along the way:**
+- **BUG-6 (A11Y, intermittent in the full suite): any re-render drops keyboard focus to `<body>`.**
+  - Owner: `public/app.js` `renderResults()`, which rebuilds every card.
+  - Repro: Tab to a card, then change Group-by, or let any background render fire (for example after closing the drawer). Focus
+    goes from the card to BODY (`qa-audit` probe; the keyboard e2e test fails about 1 run in 3 in the full suite).
+  - Fix: reuse card nodes by id, or after `replaceChildren` re-focus the card with the same `data-id` when the old one had focus.
+- **Test-side updates for intentional UI changes:**
+  - Company menu rows are plain `.company-item` buttons with `aria-current`.
+  - Save/Saved is a label plus `.is-saved` (review V9, no aria-pressed).
+  - The Juice waterfall sits in `details.juice-details` (UX-5).
+  - Insights cards now get up to 8 s to fill.

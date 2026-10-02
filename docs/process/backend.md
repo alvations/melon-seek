@@ -282,7 +282,85 @@ Files owned: `server/index.js`, `server/companies.js`, `server/sources/{greenhou
       when bullet text alone is far over budget.
     - *Result (real Anduril snapshot, perf test):* cold about 0.7 s, **warm 1.9 ms**, **218 KB gzipped**. The test
       asserts warm < 300 ms and < 600 KB.
-21. **snapshot script.** `npm run snapshot -- anthropic anduril openai` runs the given slugs; with no args it runs
+21. **Pipeline performance: profile, golden test, keyword pre-filter (proposal).**
+    - *Profile:* Anduril has 2,418 postings, re-normalized from the snapshot. `normalizeJobs` took 14.3 s. Stage
+      totals were keywords 9.8 s, salary parse and checks 1.5 s, extras 1.2 s, `htmlToText` 0.9 s, sections 0.3 s,
+      geocode 0.2 s and vetting under 0.05 s. A `--cpu-prof` run put 6.8 s in the lexicon regexes
+      (`matchLexicon`). Each of the ~720 patterns starts with a lookbehind, which stops V8 from scanning for a
+      literal, so every pattern scans the whole ~20 KB haystack.
+    - *Golden test* (`test/golden-normalize.test.js`):
+      - Input: 300 real postings sampled with a seed (38 per company) from the snapshots, stored as raw jobs in
+        `test/fixtures/golden-raw.json.gz` (438 KB).
+      - Check: the sha256 of each job from `normalizeJobs` (per company, so vetting is included) is compared with
+        `test/fixtures/golden-normalize.json`, which records `normalizerVersion` and a history of re-baselines.
+        The test fails if hashes change without a version bump.
+      - Re-baselines: the initial one (norm-2), and norm-3 "UX-3 canonical locations (geo.js name/rawName)".
+      - The keyword changes were first confirmed byte-identical against the **old** baseline, using a copy of the
+        code with the old geo.js: golden passed, and the full-board output hashes for all 8 snapshots were the same.
+        Only then was the baseline regenerated for UX-3. Against the new baseline the patch passes again, along
+        with the 21 keywords tests.
+    - *Keyword pre-filter* (`docs/process/patches/keywords-perf.patch`). It is not applied, because
+      `server/keywords.js` belongs to features and needs their OK. `git apply --check` passes.
+      - Each pattern compiles to keys: a word-start token (exact, or a prefix for `\w*` and `s?` endings) when
+        the pattern is anchored by `B()` or `\b`; otherwise a mandatory literal substring.
+      - Per job, one word index (token → positions) is built over title + bullets + body + department, a superset
+        of every haystack. Candidate patterns come from key tables, and a pattern whose every alternative starts
+        at a word is tried with a sticky copy of its regex only at those token positions.
+      - Extras skip the two noise-removal passes when a segment has no equity/bonus hint word.
+      - Correctness argument: a match has to contain its key (lower-cased ASCII; the only characters that
+        lowercase to ASCII, U+0130 and U+212A, disable the index), so skipping can never change a result.
+    - *Measured:*
+
+      | Anduril, 2,418 jobs | before | with patch |
+      |---|---|---|
+      | Node `normalizeJobs` | 14.3 s | 9.0 s |
+      | Chromium (static live-fetch path, `/lib/normalize.js` in a page) | 13.3 s | 7.7 s |
+      | all 8 boards, Node | 31.1 s | 18.4 s |
+
+      The ≤ 3 s target is **not met**. What remains is spread out: keyword regexes that do run (~2.9 s),
+      `salary.js` parse (~1.5 s, vetting's file), extras (~0.9 s), `htmlToText` (~0.9 s), boilerplate keys
+      (~0.6 s) and GC. The next steps are owned elsewhere (salary.js fast pre-checks, sharing one HTML→text pass
+      between normalize/keywords/extras). In the server, PERF-1 (below) moves all of this off the event loop anyway.
+22. **PERF-1: first load per company blocked the server for 3–10 s; plus review V1, V4, V10, V14, V15.**
+    - *Pipeline workers:* the new `server/pipeline.js` does snapshot load and upgrade, live fetch + normalize, and
+      demo generation. It runs in a pool of 1–2 worker threads (`server/pipeline-worker.js`, `execArgv: []`,
+      `unref()` while idle). `fetchLive`, `ADAPTERS`, `maxBytesFor` and `BUILTIN_TIMEOUT_MS` moved there and are
+      re-exported from `index.js`. `setPipelineInline(true)` runs tasks in-thread, so server tests can mock
+      `fetch`; `MELON_PIPELINE_INLINE=1` does the same from the environment.
+    - *Stores* (`server/store.js`, `data/cache/store/`, with custom boards in `store/custom/` bounded to 100):
+      `<name>.list.json` holds the jobs without descriptions plus `desc` offsets, and `<name>.desc.ndjson` holds
+      one description per line. The main thread parses only the list (Anduril 9.5 MB, ~44 ms), and `/api/job`
+      reads one description by byte offset.
+    - *Cache format `melon-cache-2`:* the header goes first, then `store` and the list data. Legacy
+      full-description cache files are skipped by a 32-byte header check, without being parsed.
+    - *(a) `normalizerVersion`:* `NORMALIZER_VERSION` lives in `server/normalize.js` (`norm-3`), and
+      `scripts/snapshot.js` writes it into snapshots. The worker uses current-version snapshots as they are. Older
+      ones get `rekeyBoardJobs` (BUG-5) and the new `relocateJobs`, which re-geocodes from
+      `rawName || name` (UX-3), once per file version.
+    - *(b) Persistence:* the snapshot store is named by the snapshot's mtime and size plus the normalizer version,
+      so a restart reuses it (test: 37 ms reload, 1 ms lag).
+    - *(c) Off the request path:* the worker does all the heavy work. The main thread yields with `setImmediate`
+      between the remaining steps (parse list, vet ~43 ms, annotate, compstimate clone ~17 ms, list stringify
+      ~29 ms). `warmBuiltins()` runs after `listen` (disable with `MELON_WARM=0`).
+    - *V15:* `getMarket` aggregates one company per event-loop turn, using `mergeMarkets` (new; a test checks it
+      equals `buildMarket(all)`), and reuses unchanged companies.
+    - *V1:* `/api/job` and `/api/export` use `noBuild`. A custom board that `/api/jobs` has not loaded returns 404:
+      no demo build, no fetch, no store.
+    - *V4:* every per-board memo (negative cache, demo, compstimate, list bytes, store docs) is bounded to about
+      the main LRU (cache max + 16). Backtests run one at a time, with a 60 s timeout and a 512 MB heap limit.
+    - *V10:* CSV quotes `,` `;` `"` CR and LF. The formula prefix is checked on the raw value, so a leading CR or
+      LF counts. Custom-board export never fetches or builds anything.
+    - *V14:* `?name=` is ignored for built-ins, including `source=greenhouse&board=anthropic&name=…`.
+    - *History (UX-3):* `fingerprint()` uses `locations[0].rawName || name`, so ledgers keep their fingerprints
+      and nothing is reported as a repost.
+    - *Measured* (`test/perf.test.js`, real worker, real snapshots, 10 ms lag probe):
+      - First loads of anduril (current version) and cohere (old version, upgraded) in parallel: max event-loop
+        lag **91 ms**, worst `/api/health` 33 ms over 56 pings. Before, they blocked for 10.2 s and 3.0 s.
+      - Cold `/api/market`: max lag 95 ms in the test. On all 8 real snapshots with no normalizerVersion (all
+        upgraded in workers) it took 28 s cold, still with max lag 112 ms and worst health 48 ms. Warm requests
+        take about 1–2 ms.
+      - The bounds asserted are lag < 150 ms and health < 250 ms (goal 100 ms).
+23. **snapshot script.** `npm run snapshot -- anthropic anduril openai` runs the given slugs; with no args it runs
    every built-in. A `source:board` argument selects a custom board. It writes only live results; a failed or
    empty fetch is logged and skipped, so it never writes demo data. It exits 1 only if every slug failed.
 
@@ -377,6 +455,17 @@ treated as a file. The `npm test` script is now `node --test test/*.test.js`.
   - My test files: 103 pass, 0 fail.
   - `node scripts/e2e.js --api-only` now fails 5/8 on "descriptionHtml not string". That file
     (`test/e2e/api.e2e.js`, devops) still expects descriptions in the list; it needs the same change as `api.js`.
+- PERF-1 / review tests:
+  - `test/perf.test.js` (3): lag probe on first loads, store reuse after a reset plus a detail read from the
+    `.ndjson`, and a cold market.
+  - `test/server.test.js`: V1 (40 parallel unknown-board details all 404, nothing built, no fetch), V4 (memo
+    bounds with the max set to 3), V14 (built-in names), and V10 export 404 for unloaded custom boards.
+  - `test/export.test.js`: V10 escaping.
+  - `test/market.test.js`: merge equivalence.
+  - `test/history.test.js`: the rawName fingerprint.
+  - `test/sources.test.js`: legacy cache skip and store round-trip.
+  - `test/golden-normalize.test.js`.
+  - `npm test`: **277 pass, 0 fail**. `node scripts/e2e.js --api-only`: 9/9.
 - Demo fallback works for all 8 built-ins (offline `getJobs`): 74–120 jobs each.
 - Manual run against the real demo data: anthropic 111 jobs (96 with salary), anduril 120 (105), openai 120 (110).
   All jobs have locations. The demo jobs without a salary contain no currency amounts, so they are meant to have none.
@@ -420,3 +509,10 @@ treated as a file. The `npm test` script is now `node --test test/*.test.js`.
   memoized (decisions 15–19).
 - 2026-10-02 07:45 UTC: `/api/jobs` without descriptions (sections move when over 400 KB gzipped), new `/api/job`
   detail route, per-company cached list bytes with an ETag. Anduril warm 1.9 ms / 218 KB (decision 20).
+- 2026-10-02 13:50 UTC:
+  - Pipeline perf profile, plus the golden test (300 real jobs, versioned, re-baselined once for UX-3).
+  - Keyword pre-filter patch proposed to features; it is byte-identical on old and new baselines.
+    Anduril 14.3 → 9.0 s in Node and 13.3 → 7.7 s in Chromium.
+  - PERF-1: pipeline workers, stores, `melon-cache-2` and `normalizerVersion`. First loads no longer block
+    (max lag 91 ms, from 10.2 s).
+  - Review V1, V4, V10, V14 and V15 fixed; history fingerprint uses rawName (decisions 21–22).

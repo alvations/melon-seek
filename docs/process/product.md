@@ -760,3 +760,90 @@ Coordinator message (verbatim in [prompts/product.md](prompts/product.md)). Sour
 - A4: several filter values (2+ levels or locations) collapse to "Any" without saying so.
 - A5: an open drawer job overrides the filters, and closing the drawer flips the estimate back.
 - A6: search text that isn't a title (a skill, a team) becomes the role title.
+
+
+## Implementation of the spec (docs/process/compstimate-taskforce.md §3.2)
+- **Pure core (`compstimate.js`).**
+  - `compstimateInputs(state, edits, jobs, { visible }) -> { pool, query, autoTitle, auto, filtered, basisParts, display, labels }` implements Rules 1, 3 and 4. It replaces `queryFromState`, which is removed along with its job branch.
+    - Field ownership: Title owns `d` and `rf`; Location owns `l` and `r`; Level owns `s`.
+    - Matching is the same as `failures()` in `app.js`: department key `'No department'`, the app's `locKey`, `'Unspecified'` for a missing level, and `_family`.
+    - The auto title is the most common role among visible jobs that are also in the pool, falling back to the pool. It never uses the search text.
+  - Supporting exports:
+    - `estimateForInputs(board, inputs)` returns null below `MIN_COMPARABLES = 3` (Rule 6).
+    - `basisLine(n, company, parts)` builds the basis text (Rule 7).
+    - `locKeyOf` gives app-style location keys, so "Remote (US)" stays "Remote (US)" (I6).
+    - `jobLocationQuery(job)` gives the location a posting is estimated for.
+  - `estimateComp` takes `within` (the pool's ids) while location resolution and IDF still use the whole board. With every field edited, the pool is the whole salaried board and the numbers are identical to the drawer's. A unit test checks the Rule 8 equality guarantee.
+  - `estimateComp` results now also carry `detail`: the explanation without its opening clause.
+  - `LEVEL_PREFIX` now strips "Staff+" and "Senior+" (I8).
+  - `titleSuggestions` no longer counts a bare generic segment ("Manager, Revenue Accounting" no longer suggests "Manager").
+  - `compstimateForJob` drops `department` (Rule 8) and uses `jobLocationQuery`.
+  - `FX_FALLBACK` is now the palette's table plus CNY, so the two FX tables can't disagree.
+- **Widget.**
+  - New `setContext({ board, visible, filters, company, meta })`, called on every app render.
+  - Each field is either following or edited. Typing in Title, or choosing any option in Location or Level (including "Any"), marks that field edited; emptying the Title returns it to following.
+  - A single "Reset to filters" link appears when any field is edited (Rule 2).
+  - Multi-value filters show as "London or Seattle (filters)", "Senior or Staff+ (filters)", "Remote (filters)" or "On-site (filters)".
+  - An edited value that is missing on the board shows "(0)".
+  - Level and location counts are salaried roles only.
+  - The scale reads "typical range for these filters" and is computed over the pool.
+  - Each comparable's meta shows the location that matched.
+  - Rule 10: the widget re-estimates only when the signature (company, board, pool, query, labels, edits, accuracy) changes. Salary, sort and drawer changes cost 0 renders. A unit test with a fake DOM covers this.
+  - `update(jobs, meta)` (filter-less) and `setQuery(partial)` (which sets edits) are kept. New: `setMeta`, `reset`, `getEdits`, `getInputs`, `renderCount`.
+- **`app.js`** (Compstimate parts only; each edit was preceded by a re-read).
+  - `renderInsights` calls `comp.setContext(...)` with `S.d/rf/l/r/s`. `compVisible()` holds the jobs that pass every non-salary filter, cached per state.
+  - `ensureCompMeta()` implements Rule 9: if `meta.compstimate` is null, it re-requests once after 5 s and then calls `comp.setMeta`.
+  - `compstimateBlock` follows Rule 8: no block below 3 comparables, and the copy is the basis line plus "An estimate, not a figure from the posting (approx USD / year)."
+  - Opening or closing the drawer never touches the widget.
+
+## Backtest before and after Rule 8 (department dropped)
+Seed 20261002, maxN 500, vetted snapshots. Each cell shows median abs error · share within ±10%.
+
+| company | before (with department) | after (Rule 8) | Δ median (points) |
+|---|---|---|---|
+| anduril | 7.2% · 53.2% | 11.8% · 46.8% | +4.6 |
+| anthropic | 8.5% · 56% | 9.7% · 52.2% | +1.2 |
+| cohere | 6.5% · 59.3% | 6.9% · 59.1% | +0.4 |
+| openai | 9.2% · 53.7% | 9.4% · 51.3% | +0.2 |
+| palantir | 0.3% · 75.5% | 0.3% · 75.5% | +0.0 |
+| scaleai | 9.2% · 54.8% | 9.1% · 54.3% | -0.1 |
+| shieldai | 13.2% · 41.4% | 14.5% · 36.6% | +1.3 |
+| xai | 0.3% · 60.2% | 0.4% · 57.9% | +0.1 |
+
+**Raised to the lead:**
+- Anduril worsens by **+4.6 points**, Shield AI by +1.3 and Anthropic by +1.2, all above the spec's 1-point threshold.
+- On these boards the department carries a lot of signal (Anduril's departments name the product line).
+- Options:
+  - (a) Accept: the published figure becomes the new "after" numbers, and the server and build pick them up automatically.
+  - (b) Restore department in `compstimateForJob`, and keep the equality guarantee by giving Insights a hidden department value. When Title, Location and Level are all edited from a job, the widget would also carry that job's department.
+- The code currently implements the spec as written, i.e. option (a).
+
+## Verification
+- `node --test test/features.test.js`: 72/72 passing (13 task-force tests). They cover:
+  - the baseline and level-free auto title;
+  - department narrowing and the basis line;
+  - single and multi-value level and location;
+  - Remote (US), remote toggle and on-site;
+  - edits that drop their own filters and stick, with "Any" counting as an edit;
+  - search and chips moving only the auto title;
+  - "not enough";
+  - salary invariance;
+  - drawer = Insights equality;
+  - FX agreement with the palette;
+  - the widget state machine (no re-render for an unchanged signature or a salary change, edits surviving filters and a company switch, reset, empty title = following).
+- `npm test`: 290/290 passing.
+- Real app smoke test (Playwright, `node server/index.js`, Anthropic snapshot):
+  - no filters: "Software Engineer", 03K, "Based on 200 similar roles at Anthropic";
+  - `d=Sales`: "Enterprise Account Executive", "…37 similar roles at Anthropic, Sales";
+  - Senior + Staff+: Level shows "Senior or Staff+ (filters)";
+  - London + Senior: "Not enough comparable roles";
+  - adding `smin`: identical output;
+  - typed "Research Engineer" survives `d=Finance`, the reset link appears, and Reset returns to following ("…, Finance");
+  - the accuracy line, null on the cold first response, appeared via the Rule 9 retry;
+  - no page errors.
+- Screenshots: 30 PNGs, no page errors. New: `features-tf-follow-dept.png`, `features-tf-multi-level.png`, `features-tf-edited-reset-dark.png`, `features-tf-not-enough.png`. The demo harness now feeds `setContext` from its department/location filter and `?s=`.
+
+## Known gaps
+- Rule 9 refreshes the accuracy line in Insights in place. A drawer that is already open shows it the next time it renders.
+- The map/cluster area selection isn't part of `compVisible()`, so it doesn't move the auto title.
+- Odd auto titles on very small pools are still possible (spec §6).

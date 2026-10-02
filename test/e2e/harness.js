@@ -71,12 +71,12 @@ function freePort() {
 }
 
 /** Spawn the real server (`node server/index.js`) on a free port; resolves {baseUrl, stop, logs}. */
-export async function startServer({ timeoutMs = 20000 } = {}) {
+export async function startServer({ timeoutMs = 20000, env = {} } = {}) {
   const port = await freePort();
   const logs = [];
   const child = spawn(process.execPath, [path.join(ROOT, 'server', 'index.js')], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(port) },
+    env: { ...process.env, ...env, PORT: String(port) },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   child.stdout.on('data', (d) => logs.push(String(d)));

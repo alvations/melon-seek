@@ -11,12 +11,11 @@ import * as palette from '../viz/palette.js';
 // FX
 // ---------------------------------------------------------------------------
 
-/** Static, approximate FX rates to USD (fallback when palette.js lacks a currency). */
-export const FX_FALLBACK = Object.freeze({
-  USD: 1, GBP: 1.27, EUR: 1.09, CAD: 0.73, AUD: 0.66, JPY: 0.0067, SGD: 0.74, CHF: 1.13,
-  INR: 0.012, SEK: 0.095, NOK: 0.093, DKK: 0.146, PLN: 0.25, ILS: 0.27, KRW: 0.00073,
-  HKD: 0.128, NZD: 0.6, MXN: 0.055, BRL: 0.18, CNY: 0.14,
-});
+/**
+ * FX to USD: exactly palette.js's table (the app's single source), plus a currency it
+ * lacks. No rate here may disagree with the palette (task force: one FX table).
+ */
+export const FX_FALLBACK = Object.freeze({ ...(palette.FX_TO_USD || { USD: 1 }), CNY: 0.14 });
 
 /**
  * Convert an amount to approximate USD. Uses palette.toUSD when palette knows

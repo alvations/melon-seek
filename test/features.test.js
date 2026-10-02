@@ -6,7 +6,8 @@ import {
   estimateComp, compstimateForJob, normalizeTitle, roleFamily, inferSeniority, senioritySim,
   resolveLocation, locationSim, titleSuggestions, locationOptions, SENIORITY_LADDER,
   backtest, accuracyLine, accuracyFrom, isLowAccuracy, displayConfidence, ACCURACY_LOW_THRESHOLD, BACKTEST_SEED,
-  FAMILY_LABELS, queryFromState, FAMILY_TITLES,
+  FAMILY_LABELS, FAMILY_TITLES, compstimateInputs, estimateForInputs, basisLine, locKeyOf, jobLocationQuery, MIN_COMPARABLES,
+  createCompstimateWidget,
 } from '../public/features/compstimate.js';
 import fsSync from 'node:fs';
 import * as roles from '../public/features/roles.js';
@@ -282,7 +283,7 @@ describe('estimateComp', () => {
     assert.ok(!t.some((x) => /^(Senior|Staff) /.test(x)));
     const locs = locationOptions(jobs);
     assert.deepEqual(locs[0], { value: 'San Francisco', label: 'San Francisco', count: 3 });
-    assert.ok(locs.some((o) => o.value === 'Remote' && o.count === 1));
+    assert.ok(locs.some((o) => o.value === 'Remote (US)' && o.count === 1), 'app location key');
   });
 });
 
@@ -610,23 +611,166 @@ describe('market comps', () => {
 // wave 2: UX-9 prefill, DES-9 tokens, A11Y-1 contrast
 // ---------------------------------------------------------------------------
 
-describe('queryFromState (UX-9)', () => {
-  test('open job wins: title, level, department, first on-site city', () => {
-    const j = job({ title: 'Engineering Manager, Platform', seniority: 'Manager', locations: [REMOTE_US, NYC] });
-    assert.deepEqual(queryFromState({ job: j, search: 'ignored', family: 'swe' }),
-      { title: 'Engineering Manager, Platform', seniority: 'Manager', department: 'Engineering', location: 'New York' });
-    assert.equal(queryFromState({ job: job({ locations: [REMOTE_US] }) }).location, 'Remote');
+describe('Compstimate task force: inputs follow filters (spec §3.2)', () => {
+  // Board: 6 Sales AEs (London/SF), 6 Senior SWEs (SF/NYC), 3 Staff SWEs, 2 remote SWEs, 1 no-pay.
+  const REM = { name: 'Remote (US)', city: null, region: null, country: 'US', remote: true };
+  const board = [
+    ...[0, 1, 2].map((i) => job({ title: 'Account Executive', department: 'Sales', seniority: 'Mid', mid: 150000 + i * 1000, locations: [LON], id: `ae-l${i}` })),
+    ...[0, 1, 2].map((i) => job({ title: 'Account Executive', department: 'Sales', seniority: 'Mid', mid: 180000 + i * 1000, locations: [SF], id: `ae-s${i}` })),
+    ...[0, 1, 2, 3].map((i) => job({ title: 'Senior Software Engineer', seniority: 'Senior', mid: 250000 + i * 1000, locations: [SF], id: `swe-s${i}` })),
+    ...[0, 1].map((i) => job({ title: 'Senior Software Engineer', seniority: 'Senior', mid: 240000 + i * 1000, locations: [NYC], id: `swe-n${i}` })),
+    ...[0, 1, 2].map((i) => job({ title: 'Staff+ Software Engineer', seniority: 'Staff+', mid: 330000 + i * 1000, locations: [SF], id: `stf${i}` })),
+    ...[0, 1].map((i) => job({ title: 'Software Engineer', seniority: 'Mid', mid: 200000, locations: [REM], id: `rem${i}` })),
+    job({ title: 'Account Executive', department: 'Sales', mid: null, id: 'nopay' }),
+  ];
+  const inp = (state, edits, opts) => compstimateInputs(state, edits, board, opts);
+
+  test('no filters: whole salaried board, auto title without level words (I8)', () => {
+    const r = inp({}, {});
+    assert.equal(r.pool.length, board.length - 1);
+    assert.equal(r.autoTitle, true);
+    assert.doesNotMatch(r.query.title, /\b(senior|staff)\b/i);
+    assert.deepEqual([r.query.location, r.query.seniority, r.filtered], ['', '', false]);
+    assert.deepEqual(r.labels, { location: 'Any location', seniority: 'Any level' });
+    assert.deepEqual(titleSuggestions([job({ title: 'Staff+ Data Scientist' }), job({ title: 'Senior+ Recruiter' })]).sort(), ['Data Scientist', 'Recruiter']);
+    assert.deepEqual(titleSuggestions([job({ title: 'Manager, Revenue Accounting' })]), ['Manager, Revenue Accounting'], 'no bare "Manager"');
   });
-  test('search text, then role family; single level/location only', () => {
-    assert.deepEqual(queryFromState({ search: '  Recruiter ', family: 'swe', seniority: ['Senior'], location: ['London'] }),
-      { title: 'Recruiter', seniority: 'Senior', location: 'London', department: '' });
-    const q = queryFromState({ family: 'eng-manager', seniority: ['Manager', 'Senior'], location: 'San Francisco' });
-    assert.deepEqual(q, { title: 'Engineering Manager', seniority: '', location: 'San Francisco', department: '' });
-    assert.deepEqual(queryFromState({}), { title: '', seniority: '', location: '', department: '' });
-    for (const id of Object.keys(FAMILY_LABELS)) assert.ok(FAMILY_TITLES[id], `title for ${id}`);
-    for (const id of Object.keys(FAMILY_LABELS)) assert.equal(roleFamily(FAMILY_TITLES[id]), id, `${FAMILY_TITLES[id]} maps back to ${id}`);
+
+  test('department narrows pool, auto title and basis (I1, I4)', () => {
+    const r = inp({ d: ['Sales'] }, {});
+    assert.ok(r.pool.every((j) => j.department === 'Sales'));
+    assert.equal(r.pool.length, 6);
+    assert.equal(r.query.title, 'Account Executive');
+    assert.deepEqual(r.basisParts, ['Sales']);
+    assert.equal(basisLine(37, 'Anthropic', r.basisParts), 'Based on 37 similar roles at Anthropic, Sales');
+    assert.equal(basisLine(1, 'X', []), 'Based on 1 similar role at X');
+  });
+
+  test('seniority / location: single value fills the field, several show "(filters)" and narrow the pool', () => {
+    const one = inp({ s: ['Senior'] }, {});
+    assert.equal(one.query.seniority, 'Senior');
+    assert.ok(one.pool.every((j) => j.seniority === 'Senior'));
+    const two = inp({ s: ['Senior', 'Staff+'] }, {});
+    assert.equal(two.query.seniority, '');
+    assert.equal(two.labels.seniority, 'Senior or Staff+ (filters)');
+    assert.ok(two.pool.every((j) => ['Senior', 'Staff+'].includes(j.seniority)));
+    const lon = inp({ l: ['London'] }, {});
+    assert.deepEqual([lon.query.location, lon.display.location, lon.pool.length], ['London', 'London', 3]);
+    const both = inp({ l: ['London', 'New York'] }, {});
+    assert.equal(both.labels.location, 'London or New York (filters)');
+    assert.equal(both.pool.length, 5);
+  });
+
+  test('Remote (US) keeps the app key (I6); remote toggle shows "Remote (filters)"', () => {
+    assert.equal(locKeyOf(REM), 'Remote (US)');
+    const r = inp({ l: ['Remote (US)'] }, {});
+    assert.equal(r.display.location, 'Remote (US)');
+    assert.equal(r.pool.length, 2);
+    const t = inp({ r: 'remote' }, {});
+    assert.deepEqual([t.query.location, t.labels.location, t.pool.length], ['Remote', 'Remote (filters)', 2]);
+    assert.equal(inp({ r: 'onsite' }, {}).labels.location, 'On-site (filters)');
+    assert.equal(jobLocationQuery(board.find((j) => j.id === 'rem0')), 'Remote (US)');
+  });
+
+  test('edited fields drop their filters and keep their value (Rules 1, 3)', () => {
+    const r = inp({ d: ['Sales'], s: ['Senior'], l: ['San Francisco'] }, { title: 'Senior Software Engineer' });
+    assert.equal(r.query.title, 'Senior Software Engineer');
+    assert.equal(r.autoTitle, false);
+    assert.ok(r.pool.length === 4 && r.pool.every((j) => j.department !== 'Sales'), 'department filter ignored once Title is edited');
+    assert.ok(r.pool.every((j) => j.seniority === 'Senior' && j.locations[0].city === 'San Francisco'), 'level/location still follow');
+    assert.deepEqual(r.basisParts, ['Senior', 'San Francisco']);
+    const anyLevel = inp({ s: ['Senior'] }, { seniority: '' });
+    assert.equal(anyLevel.query.seniority, '', '"Any" is an edit');
+    assert.equal(anyLevel.pool.length, board.length - 1);
+  });
+
+  test('search / chips only move the auto title, never the pool or the title text (I7)', () => {
+    const visible = board.filter((j) => j.department === 'Sales'); // e.g. search "python" matched only these
+    const r = inp({}, {}, { visible });
+    assert.equal(r.query.title, 'Account Executive');
+    assert.equal(r.pool.length, board.length - 1);
+    assert.equal(r.filtered, false);
+  });
+
+  test('not enough comparables -> null (Rule 6)', () => {
+    const r = inp({ l: ['London'], s: ['Senior'] }, {});
+    assert.equal(r.pool.length, 0);
+    assert.equal(estimateForInputs(board, r), null);
+    assert.equal(MIN_COMPARABLES, 3);
+    assert.ok(estimateForInputs(board, inp({ d: ['Sales'] }, {})).n >= 3);
+  });
+
+  test('salary filters never change inputs (Rule 3)', () => {
+    const a = inp({ d: ['Sales'] }, {});
+    const b = inp({ d: ['Sales'], smin: 300000, smax: 1, so: true }, {});
+    assert.deepEqual(b.query, a.query);
+    assert.deepEqual(b.pool.map((j) => j.id), a.pool.map((j) => j.id));
+  });
+
+  test('drawer equality: all three fields edited = drawer numbers, whatever the filters (Rule 8)', () => {
+    const target = job({ title: 'Senior Software Engineer', seniority: 'Senior', mid: null, locations: [SF], department: 'Product', id: 'tgt' });
+    const b2 = [...board, target];
+    const drawer = compstimateForJob(b2, target);
+    assert.equal(drawer.query.department, '');
+    const ins = estimateForInputs(b2, compstimateInputs({ d: ['Sales'], s: ['Mid'], l: ['London'], r: 'remote' },
+      { title: target.title, seniority: target.seniority, location: jobLocationQuery(target) }, b2));
+    for (const k of ['mid', 'low', 'high', 'n', 'confidence']) assert.equal(ins[k], drawer[k], k);
+  });
+
+  test('FX: salaryUSD agrees with the palette for every snapshot currency', () => {
+    for (const cur of ['USD', 'GBP', 'EUR', 'CAD', 'CHF', 'AUD', 'SGD', 'JPY']) {
+      const p = salaryUSD({ salary: { min: 100000, max: 100000, currency: cur } });
+      assert.ok(Math.abs(p.mid - 100000 * FX_TO_USD[cur]) < 1e-6, cur);
+    }
+    for (const [c, v] of Object.entries(FX_FALLBACK)) if (FX_TO_USD[c] != null) assert.equal(v, FX_TO_USD[c], `fallback ${c} = palette`);
+  });
+
+  test('widget state machine with a fake DOM: edits stick, reset, one render per real change (Rules 1, 2, 10)', () => {
+    withFakeDom(() => {
+      const host = document.createElement('div');
+      const w = createCompstimateWidget(host, {});
+      const ctx = (filters, extra = {}) => w.setContext({ board, visible: null, company: 'Acme', meta: null, filters, ...extra });
+      assert.equal(ctx({}), true);
+      const r0 = w.renderCount();
+      assert.equal(ctx({}), false, 'same signature: no re-render');
+      assert.equal(ctx({ smin: 1 }), false, 'salary change: no re-render');
+      assert.equal(w.renderCount(), r0);
+      ctx({ d: ['Sales'] });
+      assert.equal(w.getQuery().title, 'Account Executive');
+      w.setQuery({ title: 'Research Engineer', location: 'London' });
+      ctx({ d: ['Sales'], s: ['Senior'], l: ['New York'] });
+      assert.deepEqual([w.getQuery().title, w.getQuery().location, w.getQuery().seniority], ['Research Engineer', 'London', 'Senior']);
+      ctx({}, { board: board.slice(0, 9), company: 'Other' }); // company switch keeps edits
+      assert.equal(w.getQuery().title, 'Research Engineer');
+      w.reset();
+      assert.deepEqual(w.getEdits(), {});
+      assert.equal(w.getInputs().autoTitle, true);
+      w.setQuery({ title: '' });
+      assert.equal(w.getInputs().autoTitle, true, 'empty title = following');
+    });
   });
 });
+
+// Minimal DOM for widget tests (elements record attributes/children; enough for createCompstimateWidget).
+function withFakeDom(fn) {
+  class El {
+    constructor(tag) { this.tagName = String(tag).toUpperCase(); this.attrs = {}; this.children = []; this.dataset = {}; this.style = { setProperty() {} }; this.hidden = false; this.value = ''; this.textContent = ''; this.listeners = {}; }
+    setAttribute(k, v) { this.attrs[k] = String(v); if (k === 'hidden') this.hidden = true; }
+    removeAttribute(k) { delete this.attrs[k]; }
+    addEventListener(t, f) { (this.listeners[t] ||= []).push(f); }
+    appendChild(c) { this.children.push(c); return c; }
+    append(...c) { this.children.push(...c); }
+    replaceChildren(...c) { this.children = c; }
+    remove() {}
+    focus() {}
+    querySelector() { return null; }
+    querySelectorAll() { return []; }
+    contains() { return false; }
+  }
+  const prev = globalThis.document;
+  globalThis.document = { createElement: (t) => new El(t), createElementNS: (_n, t) => new El(t), createTextNode: (text) => ({ text }), activeElement: null };
+  try { fn(); } finally { if (prev === undefined) delete globalThis.document; else globalThis.document = prev; }
+}
 
 describe('features.css tokens and contrast (DES-9, A11Y-1)', () => {
   const css = fsSync.readFileSync(new URL('../public/features/features.css', import.meta.url), 'utf8');

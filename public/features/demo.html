@@ -149,6 +149,10 @@
         $('filterBar').append('Filtered by', b);
       }
       insights.update(view, all);
+      // Compstimate follows the role-defining filters (task force spec): department / location here.
+      const f = filter || {};
+      comp.setContext({ board: all, visible: view, company: $('company').selectedOptions[0].textContent, meta: comp.__meta,
+        filters: { d: f.type === 'department' ? [f.value] : [], l: f.type === 'location' ? [f.value] : [], s: params.get('s') ? params.get('s').split(',') : [] } });
     }
 
     function load() {
@@ -158,7 +162,8 @@
       // Stand-in for the /api/jobs response meta (the server/build computes this with the same backtest()).
       const acc = params.get('accuracy') ? { medianAbsPctError: Number(params.get('accuracy')), within10Pct: 20, n: 120, seed: 20261002 }
         : all.length ? backtest(all, { seed: 20261002, maxN: 200 }) : null;
-      comp.update(all, { compstimate: acc && acc.n ? acc : null });
+      comp.__meta = { compstimate: acc && acc.n ? acc : null };
+      comp.update(all, comp.__meta);
       compare.update(market, { company: params.get('marketCompany') || c, jobs: all });
       const q = params.get('q');
       if (q) comp.setQuery(JSON.parse(q));

@@ -124,7 +124,8 @@ async function switchCompany(page, slug, name) {
     const pop = page.locator('#popover.popover--company');
     await pop.waitFor({ state: 'visible', timeout: 5000 });
     await pop.getByRole('searchbox', { name: 'Search companies' }).fill(name);
-    await pop.getByRole('option', { name: new RegExp(`^${name}\\b`) }).first().click();
+    // Menu rows are plain buttons (.company-item; the active one has aria-current).
+    await pop.locator('.company-item').filter({ has: page.locator('.company-item-name', { hasText: new RegExp(`^${name}$`) }) }).first().click();
   }
   await resp.done();
   await page.waitForFunction((s) => document.querySelector('#resultsTitle strong')
@@ -286,7 +287,7 @@ export function registerUiTests(suite) {
       await pop.waitFor({ state: 'visible', timeout: 5000 });
       const options = await pop.locator('.company-item').count();
       assert(options >= companies.length, `company menu lists ${options} of ${companies.length} companies`);
-      assertEq(await pop.locator('.company-item[aria-selected="true"]').count(), 1, 'exactly one company marked selected');
+      assertEq(await pop.locator('.company-item[aria-current="true"]').count(), 1, 'exactly one company marked current');
       await page.keyboard.press('Escape');
       await pop.waitFor({ state: 'hidden', timeout: 3000 });
 
@@ -568,6 +569,10 @@ export function registerUiTests(suite) {
       // Waterfall in the drawer of the juiciest role.
       await page.locator('#resultsList .card[data-id]').first().click();
       const wf = page.locator('#drawer .d-juice .waterfall');
+      // UX-5: the waterfall now sits in a disclosure under a one-line headline.
+      const jd = page.locator('#drawer .d-juice details.juice-details');
+      await jd.waitFor({ state: 'attached', timeout: 5000 });
+      if (!(await jd.evaluate((e) => e.open))) await jd.locator('summary').first().click();
       await wf.waitFor({ timeout: 5000 });
       const labels = (await wf.locator('.wf-label').allInnerTexts()).map((t) => t.trim());
       assertEq(JSON.stringify(labels), JSON.stringify(['Gross pay', 'Tax', 'Rent', 'Living costs', 'Juice left']), 'waterfall rows');
@@ -642,6 +647,8 @@ export function registerUiTests(suite) {
       assertEq((await hashParams(page)).get('m'), 'insights', 'hash m=insights');
       await page.locator('#insightsHost').waitFor({ state: 'visible', timeout: 5000 });
       assert(await page.locator('#vizArea').isHidden(), 'chart/map area hidden in insights');
+      // Insights cards render after the host is shown; give them a moment on a busy run.
+      await page.waitForFunction(() => ['#compHost', '#insightsPanel'].every((sel) => (document.querySelector(sel)?.innerText || '').trim().length > 20), null, { timeout: 8000 }).catch(() => {});
       assert((await page.locator('#compHost').innerText()).trim().length > 20, 'Compstimate card empty');
       assert((await page.locator('#insightsPanel').innerText()).trim().length > 20, 'Market insights card empty');
       const card = page.locator('#compsCardHost');
@@ -671,10 +678,11 @@ export function registerUiTests(suite) {
       const skill = await chip.getAttribute('data-kw');
       await chip.click();
       await save.waitFor({ state: 'visible', timeout: 3000 });
-      assertEq(await save.getAttribute('aria-pressed'), 'false', 'Save not pressed yet');
+      // V9: Save/Saved is a label change (+ .is-saved), not aria-pressed.
+      assert(!(await save.evaluate((e) => e.classList.contains('is-saved'))), 'Save already marked saved');
       assertEq((await save.innerText()).trim(), 'Save', 'label Save');
       await save.click();
-      await page.waitForFunction(() => document.querySelector('#saveSearch')?.getAttribute('aria-pressed') === 'true');
+      await page.waitForFunction(() => document.querySelector('#saveSearch')?.classList.contains('is-saved'));
       assertEq((await save.innerText()).trim(), 'Saved', 'label Saved');
       const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('melon.saved') || '[]'));
       assertEq(stored.length, 1, 'one saved search in localStorage');
@@ -687,12 +695,12 @@ export function registerUiTests(suite) {
       const pop = page.locator('#popover.popover--company');
       await pop.waitFor({ state: 'visible' });
       assert(await pop.getByText('Saved searches').isVisible(), '"Saved searches" group in the company menu');
-      await pop.getByRole('option', { name: stored[0].name }).click();
+      await pop.locator('.company-item').filter({ hasText: stored[0].name }).first().click();
       await page.waitForFunction((s) => new URLSearchParams(location.hash.slice(1)).getAll('ks').includes(s), skill, { timeout: 5000 });
       await save.waitFor({ state: 'visible' });
-      assertEq(await save.getAttribute('aria-pressed'), 'true', 'restored search shows as Saved');
+      assertEq((await save.innerText()).trim(), 'Saved', 'restored search shows as Saved');
       await save.click();
-      await page.waitForFunction(() => document.querySelector('#saveSearch')?.getAttribute('aria-pressed') === 'false');
+      await page.waitForFunction(() => !document.querySelector('#saveSearch')?.classList.contains('is-saved'));
       assertEq(await page.evaluate(() => JSON.parse(localStorage.getItem('melon.saved') || '[]').length), 0, 'second click removes the saved search');
       noErrors(errors);
     } finally { await close(); }
@@ -903,7 +911,10 @@ export function registerUiTests(suite) {
       assertEq((await hashParams(page)).get('job'), id, 'job in hash');
       await page.keyboard.press('Escape');
       await page.locator('#drawer').waitFor({ state: 'hidden', timeout: 3000 });
-      assertEq(await page.evaluate(() => document.activeElement?.dataset?.id), id, 'focus returns to the card');
+      // Allow the close transition and any re-render 1 s; report where focus went if it is lost.
+      await page.waitForFunction((i) => document.activeElement?.dataset?.id === i, id, { timeout: 1000 }).catch(() => {});
+      const ae = await page.evaluate(() => { const e = document.activeElement; return { id: e?.dataset?.id, d: `${e?.tagName}${e?.id ? '#' + e.id : ''}.${e?.className}` }; });
+      assertEq(ae.id, id, `focus returns to the card (focus is on ${ae.d})`);
       noErrors(errors);
     } finally { await close(); }
   });
@@ -920,5 +931,641 @@ export function registerUiTests(suite) {
       assert((await page.locator('#resultsList .card-title').allInnerTexts()).length > 0, 'no cards after search');
       noErrors(errors);
     } finally { await close(); }
+  });
+  registerCompstimateTests(suite);
+}
+
+/* ======================================================================
+ * Compstimate task force (docs/process/compstimate-taskforce.md §3.3).
+ * One test per matrix scenario (T1–T23) plus a drawer = Insights consistency
+ * test. Expected pools/memberships come from /api/jobs + Rule 3, never from
+ * product's helper. Board filters are set through the hash (the same commit
+ * path as the filter panel) except T2, which clicks the real checkbox.
+ * ==================================================================== */
+
+// A level word as a title prefix (what LEVEL_PREFIX strips), or the Staff+/Senior+ labels anywhere.
+const LEVEL_WORD = /^(intern|entry|junior|jr\.?|mid|senior|sr\.?|staff|principal|lead|director)\b|(staff|senior|director)\+/i;
+
+/** Snapshot of the Insights Compstimate widget. */
+function readComp(page) {
+  return page.evaluate(() => {
+    const root = document.querySelector('#compHost');
+    if (!root || !root.querySelector('.ms-comp')) return null;
+    const vis = (e) => !!e && e.offsetParent !== null;
+    const txt = (sel) => { const e = root.querySelector(sel); return e && vis(e) ? e.textContent.replace(/\s+/g, ' ').trim() : null; };
+    const sels = root.querySelectorAll('select');
+    const opt = (s) => (s ? { value: s.value, text: (s.selectedOptions[0]?.textContent || '').trim() } : null);
+    // Basis: the smallest visible element whose text starts with "Based on ".
+    let basis = null;
+    for (const e of root.querySelectorAll('*')) {
+      const t = e.textContent.replace(/\s+/g, ' ').trim();
+      if (vis(e) && /^Based on /.test(t) && (!basis || t.length < basis.length)) basis = t;
+    }
+    const ends = [...root.querySelectorAll('.ms-comp__range-ends b')].map((b) => b.textContent.trim());
+    const resets = [...document.querySelectorAll('a, button')].filter((e) => vis(e) && /^Reset to filters$/i.test(e.textContent.trim()));
+    return {
+      title: root.querySelector('.ms-comp__input')?.value ?? null,
+      location: opt(sels[0]), level: opt(sels[1]),
+      hero: txt('.ms-comp__hero'), per: txt('.ms-comp__per'), low: ends[0] ?? null, high: ends[1] ?? null,
+      conf: txt('.ms-comp__conf-label'), basis, n: basis && /Based on (\d[\d,]*)/.test(basis) ? Number(basis.match(/Based on (\d[\d,]*)/)[1].replace(/,/g, '')) : null,
+      accuracy: txt('.ms-comp__accuracy'), explain: txt('.ms-comp__explain'), auto: txt('.ms-comp__auto'),
+      foot: txt('.ms-comp__foot'),
+      notEnough: /Not enough comparable roles/i.test(root.textContent), noEstimateYet: /No estimate yet/i.test(root.textContent),
+      items: [...root.querySelectorAll('.ms-comp__item')].map((b) => ({ id: (b.dataset.key || '').replace(/^comp:/, ''), meta: b.querySelector('.ms-comp__item-meta')?.textContent.trim() || '' })),
+      resetLinks: resets.length,
+      text: root.innerText,
+    };
+  });
+}
+const numbers = (c) => c && { hero: c.hero, low: c.low, high: c.high, n: c.n, conf: c.conf, ids: c.items.map((i) => i.id).join(',') };
+const fields = (c) => c && { title: c.title, location: c.location?.value, locationText: c.location?.text, level: c.level?.value, levelText: c.level?.text };
+
+/** Count widget renders: MutationObserver callbacks on .ms-comp__result that add nodes. */
+async function installRenderCounter(page) {
+  await page.evaluate(() => {
+    const el = document.querySelector('#compHost .ms-comp__result');
+    window.__compRenders = 0;
+    window.__compSaw = [];
+    if (!el || el.__counted) return;
+    el.__counted = true;
+    new MutationObserver((recs) => {
+      if (recs.some((r) => r.addedNodes.length)) {
+        window.__compRenders++;
+        window.__compSaw.push(el.textContent.slice(0, 80));
+      }
+    }).observe(el, { childList: true, subtree: true, characterData: true });
+  });
+}
+const renders = (page) => page.evaluate(() => window.__compRenders || 0);
+const resetRenders = (page) => page.evaluate(() => { window.__compRenders = 0; window.__compSaw = []; });
+
+/** Wait until the widget stops re-rendering (no new render for `quiet` ms). */
+async function settle(page, { quiet = 450, max = 8000 } = {}) {
+  const t0 = Date.now();
+  let last = await renders(page), since = Date.now();
+  while (Date.now() - t0 < max) {
+    await page.waitForTimeout(100);
+    const n = await renders(page);
+    if (n !== last) { last = n; since = Date.now(); } else if (Date.now() - since >= quiet) break;
+  }
+}
+
+/** Open Insights for a company and wait for the widget's first estimate. */
+async function openComp(ctx, hash = 'c=anthropic&m=insights', opts = {}) {
+  const app = await openApp(ctx, { hash, ...opts });
+  await app.page.locator('#compHost .ms-comp__result').waitFor({ state: 'attached', timeout: 15000 });
+  await app.page.waitForFunction(() => document.querySelector('#compHost .ms-comp__result')?.childElementCount > 0, null, { timeout: 15000 });
+  await installRenderCounter(app.page);
+  await settle(app.page);
+  await resetRenders(app.page);
+  return app;
+}
+
+/** Set board filters through the hash (pushState-equivalent; keeps c and m). null deletes a key. */
+async function setFilters(page, patch) {
+  await page.evaluate((patch) => {
+    const p = new URLSearchParams(location.hash.slice(1));
+    for (const [k, v] of Object.entries(patch)) {
+      p.delete(k);
+      if (v == null) continue;
+      for (const x of [].concat(v)) p.append(k, x);
+    }
+    location.hash = p.toString();
+  }, patch);
+  await settle(page);
+}
+
+async function editTitle(page, text) {
+  const input = page.locator('#compHost .ms-comp__input');
+  await input.fill(text);
+  await input.dispatchEvent('change');
+  await settle(page);
+}
+async function pickWidget(page, which, value) {
+  const sel = page.locator('#compHost select').nth(which === 'location' ? 0 : 1);
+  const opts = await sel.locator('option').evaluateAll((os) => os.map((o) => ({ v: o.value, t: o.textContent.trim() })));
+  const hit = opts.find((o) => o.v === value) || opts.find((o) => o.t.toLowerCase().startsWith(String(value).toLowerCase()));
+  assert(hit, `widget ${which} select has no option "${value}" (options: ${opts.slice(0, 8).map((o) => o.t).join(' | ')})`);
+  await sel.selectOption(hit.v);
+  await settle(page);
+}
+
+const salaried = (jobs) => jobs.filter((j) => j.salary);
+const locKeys = (j) => (j.locations || []).map((l) => (l.remote ? l.name || 'Remote' : l.city || l.name));
+const byIdOf = (api) => new Map(api.jobs.map((j) => [j.id, j]));
+const resetBtn = (page) => page.locator('#compHost').getByRole('button', { name: /^Reset to filters$/i })
+  .or(page.locator('#compHost').getByRole('link', { name: /^Reset to filters$/i }));
+
+/** Parse the drawer Compstimate block ("≈ $X ($L–H, conf confidence)" + "Based on N similar roles …"). */
+async function readDrawerComp(page) {
+  const block = page.locator('#drawer .d-comp');
+  if (!(await block.count())) return null;
+  const t = (await block.innerText()).replace(/\s+/g, ' ');
+  const mid = t.match(/≈\s*(\$[\d.,]+[KM]?)/);
+  const rng = t.match(/\((\$[\d.,]+[KM]?)\s*[–-]\s*\$?([\d.,]+[KM]?)/);
+  const conf = t.match(/,\s*([A-Za-z]+) confidence\)/);
+  const n = t.match(/Based on (\d[\d,]*)/) || t.match(/from (\d[\d,]*) (?:comparable|similar)/);
+  return { text: t, mid: mid && parseMoney(mid[1]), low: rng && parseMoney(rng[1]), high: rng && parseMoney('$' + rng[2].replace(/^\$/, '')), conf: conf && conf[1].toLowerCase(), n: n && Number(n[1].replace(/,/g, '')) };
+}
+const widgetNums = (c) => c && { mid: parseMoney(c.hero), low: parseMoney(c.low), high: parseMoney(c.high), conf: (c.conf || '').replace(/ confidence$/i, '').toLowerCase(), n: c.n };
+function sameNums(a, b, label) {
+  assert(a && b, `${label}: missing estimate (widget ${JSON.stringify(a)}, drawer ${JSON.stringify(b)})`);
+  for (const k of ['mid', 'low', 'high']) assert(Math.abs(a[k] - b[k]) <= 1000, `${label}: ${k} widget ${a[k]} vs drawer ${b[k]}`);
+  assertEq(a.n, b.n, `${label}: n`);
+  assertEq(a.conf, b.conf, `${label}: confidence`);
+}
+
+function registerCompstimateTests(suite) {
+  suite.test('Compstimate: T1 baseline (no level word in title, Any level, basis "Based on N similar roles at Anthropic")', async (ctx) => {
+    const { page, errors, close } = await openComp(ctx);
+    try {
+      const c = await readComp(page);
+      assert(c.title && !LEVEL_WORD.test(c.title), `auto title carries a level word: "${c.title}"`);
+      assertEq(c.level.value, '', 'Level value');
+      assert(/^Any level$/i.test(c.level.text), `Level text "${c.level.text}"`);
+      assert(!/\bat (Intern|Entry|Mid|Senior|Staff\+|Manager|Director\+) level\b/.test(c.explain || ''), `explanation names a level: "${c.explain}"`);
+      assert(c.basis && /^Based on \d[\d,]* similar roles at Anthropic\b/.test(c.basis), `basis "${c.basis}"`);
+      ctx.compT1 = { fields: fields(c), numbers: numbers(c) };
+      noErrors(errors);
+    } finally { await close(); }
+  });
+
+  suite.test('Compstimate: T2 Department = Sales narrows (real checkbox); untick restores T1', async (ctx) => {
+    const { page, errors, close } = await openComp(ctx);
+    try {
+      const before = await readComp(page);
+      const api = await apiJobs(ctx, 'anthropic');
+      const byId = byIdOf(api);
+      await filterSection(page, 'Department').locator('label.check').filter({ has: page.locator('.check-label', { hasText: /^Sales$/ }) }).first().click();
+      await settle(page);
+      const c = await readComp(page);
+      assert(c.title !== before.title, `title did not change with Department = Sales ("${c.title}")`);
+      assert(c.basis && /, Sales$/.test(c.basis), `basis should end ", Sales": "${c.basis}"`);
+      const off = c.items.filter((i) => byId.get(i.id)?.department !== 'Sales');
+      assert(c.items.length > 0 && off.length === 0, `${off.length}/${c.items.length} comparables outside Sales: ${off.map((i) => i.meta).join(' | ')}`);
+      await filterSection(page, 'Department').locator('label.check').filter({ has: page.locator('.check-label', { hasText: /^Sales$/ }) }).first().click();
+      await settle(page);
+      const back = await readComp(page);
+      assertEq(JSON.stringify(numbers(back)), JSON.stringify(numbers(before)), 'untick restores numbers');
+      assertEq(JSON.stringify(fields(back)), JSON.stringify(fields(before)), 'untick restores fields');
+      noErrors(errors);
+    } finally { await close(); }
+  });
+
+  suite.test('Compstimate: T3 two departments (Sales + Finance) — basis lists both, comparables only from them', async (ctx) => {
+    const { page, errors, close } = await openComp(ctx);
+    try {
+      await setFilters(page, { d: ['Sales', 'Finance'] });
+      const c = await readComp(page);
+      const byId = byIdOf(await apiJobs(ctx, 'anthropic'));
+      assert(c.basis && /Sales/.test(c.basis) && /Finance/.test(c.basis), `basis "${c.basis}"`);
+      const off = c.items.filter((i) => !['Sales', 'Finance'].includes(byId.get(i.id)?.department));
+      assert(c.items.length && !off.length, `${off.length} comparables outside Sales/Finance: ${off.map((i) => i.meta).join(' | ')}`);
+      noErrors(errors);
+    } finally { await close(); }
+  });
+
+  suite.test('Compstimate: T4 seniority — one level shows it; two levels show "Senior or Staff+ (filters)"', async (ctx) => {
+    const { page, errors, close } = await openComp(ctx);
+    try {
+      const byId = byIdOf(await apiJobs(ctx, 'anthropic'));
+      await setFilters(page, { s: 'Senior' });
+      let c = await readComp(page);
+      assertEq(c.level.value, 'Senior', 'Level follows s=Senior');
+      let off = c.items.filter((i) => byId.get(i.id)?.seniority !== 'Senior');
+      assert(c.items.length && !off.length, `${off.length}/${c.items.length} comparables not Senior: ${off.map((i) => i.meta).join(' | ')}`);
+      await setFilters(page, { s: ['Senior', 'Staff+'] });
+      c = await readComp(page);
+      assert(/Senior or Staff\+ \(filters\)/.test(c.level.text), `Level text "${c.level.text}"`);
+      off = c.items.filter((i) => !['Senior', 'Staff+'].includes(byId.get(i.id)?.seniority));
+      assert(c.items.length && !off.length, `${off.length} comparables outside Senior/Staff+: ${off.map((i) => i.meta).join(' | ')}`);
+      noErrors(errors);
+    } finally { await close(); }
+  });
+
+  suite.test('Compstimate: T5 location — London shows London (all comparables list it); "Remote (US)" is not "Any location"', async (ctx) => {
+    const { page, errors, close } = await openComp(ctx);
+    try {
+      const byId = byIdOf(await apiJobs(ctx, 'anthropic'));
+      await setFilters(page, { l: 'London' });
+      let c = await readComp(page);
+      assertEq(c.location.value, 'London', 'Location follows l=London');
+      const off = c.items.filter((i) => !locKeys(byId.get(i.id) || {}).includes('London'));
+      assert(c.items.length && !off.length, `${off.length}/${c.items.length} comparables don't list London: ${off.map((i) => i.meta).join(' | ')}`);
+      assert(c.items.every((i) => /London/.test(i.meta)), `comparable meta should show the matching location: ${c.items.map((i) => i.meta).join(' | ')}`);
+      await setFilters(page, { l: 'Remote (US)' });
+      c = await readComp(page);
+      assertEq(c.location.value, 'Remote (US)', 'Location follows l=Remote (US)');
+      assert(!/^Any location$/i.test(c.location.text), `Location text "${c.location.text}"`);
+      noErrors(errors);
+    } finally { await close(); }
+  });
+
+  suite.test('Compstimate: T6 Remote only — Location shows "Remote (filters)", comparables all remote', async (ctx) => {
+    const { page, errors, close } = await openComp(ctx);
+    try {
+      const byId = byIdOf(await apiJobs(ctx, 'anthropic'));
+      await setFilters(page, { r: 'remote' });
+      const c = await readComp(page);
+      assert(/^Remote( \(filters\))?$/.test(c.location.text) && /Remote/.test(c.location.text), `Location text "${c.location.text}"`);
+      assert(/\(filters\)/.test(c.location.text) || c.location.value === 'Remote', `Location should read "Remote (filters)" (got "${c.location.text}")`);
+      const off = c.items.filter((i) => !byId.get(i.id)?.remote);
+      assert(c.items.length && !off.length, `${off.length} comparables not remote: ${off.map((i) => i.meta).join(' | ')}`);
+      noErrors(errors);
+    } finally { await close(); }
+  });
+
+  suite.test('Compstimate: T7 London + Senior — "Not enough comparable roles", no figure, no confidence', async (ctx) => {
+    const { page, errors, close } = await openComp(ctx);
+    try {
+      await setFilters(page, { l: 'London', s: 'Senior' });
+      const c = await readComp(page);
+      assert(c.notEnough, `expected "Not enough comparable roles"; got hero ${c.hero}, basis "${c.basis}"`);
+      assertEq(c.hero, null, 'no .ms-comp__hero');
+      assertEq(c.conf, null, 'no confidence label');
+      noErrors(errors);
+    } finally { await close(); }
+  });
+
+  suite.test('Compstimate: T8 salary filters never change the estimate (0 renders)', async (ctx) => {
+    const { page, errors, close } = await openComp(ctx);
+    try {
+      const rec = numbers(await readComp(page));
+      await resetRenders(page);
+      const lo = filterSection(page, 'Salary').locator('input.range--lo');
+      await lo.evaluate((e) => { e.value = '300000'; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); });
+      await settle(page);
+      assertEq(JSON.stringify(numbers(await readComp(page))), JSON.stringify(rec), 'after min slider $300K');
+      await filterSection(page, 'Salary').locator('input.switch').click();
+      await settle(page);
+      assertEq(JSON.stringify(numbers(await readComp(page))), JSON.stringify(rec), 'after "listed only"');
+      await setFilters(page, { smax: '400000' });
+      assertEq(JSON.stringify(numbers(await readComp(page))), JSON.stringify(rec), 'after smax');
+      assertEq(await renders(page), 0, 'widget renders during salary changes');
+      noErrors(errors);
+    } finally { await close(); }
+  });
+
+  suite.test('Compstimate: T9 chips never narrow the pool (edited title: identical; following: title from filtered list, no chip in basis)', async (ctx) => {
+    const { page, errors, close } = await openComp(ctx);
+    try {
+      await editTitle(page, 'Research Engineer');
+      const rec = numbers(await readComp(page));
+      const api = await apiJobs(ctx, 'anthropic');
+      const resp = api.jobs.flatMap((j) => j.keywords.responsibilities)[0];
+      await setFilters(page, { ks: 'Python' });
+      await setFilters(page, { kr: resp });
+      assertEq(JSON.stringify(numbers(await readComp(page))), JSON.stringify(rec), 'edited title: chips change the numbers');
+      // Following title on a fresh page.
+      await page.evaluate(() => { location.hash = 'c=anthropic&m=insights'; });
+      await page.reload(); await waitReady(page); await installRenderCounter(page);
+      await page.waitForFunction(() => document.querySelector('#compHost .ms-comp__result')?.childElementCount > 0);
+      await setFilters(page, { ks: 'Python' });
+      const c = await readComp(page);
+      const filtered = api.jobs.filter((j) => j.keywords.skills.includes('Python'));
+      assert(c.title && filtered.some((j) => j.title.toLowerCase().includes(c.title.toLowerCase())), `following title "${c.title}" is not a role among the ${filtered.length} Python jobs`);
+      assert(c.basis && !/Python/.test(c.basis), `basis names the chip: "${c.basis}"`);
+      noErrors(errors);
+    } finally { await close(); }
+  });
+
+  suite.test('Compstimate: T10 search — never used verbatim as the title; typing never flashes "No estimate yet"', async (ctx) => {
+    const { page, errors, close } = await openComp(ctx);
+    try {
+      await setFilters(page, { q: 'python' });
+      let c = await readComp(page);
+      assert(c.title && c.title.toLowerCase() !== 'python', `title is the raw search "${c.title}"`);
+      assert(c.hero && !c.noEstimateYet, `no estimate for search "python" (${c.notEnough ? 'not enough' : 'no estimate yet'})`);
+      await setFilters(page, { q: 'London' });
+      c = await readComp(page);
+      assert(c.title && c.title.toLowerCase() !== 'london', `title is the raw search "${c.title}"`);
+      await setFilters(page, { q: null });
+      await resetRenders(page);
+      await page.evaluate(() => {
+        window.__commits = 0;
+        const wrap = (fn) => function (...a) { const before = location.hash; const r = fn.apply(this, a); if (location.hash !== before) window.__commits++; return r; };
+        history.replaceState = wrap(history.replaceState); history.pushState = wrap(history.pushState);
+      });
+      await page.locator('#search').click();
+      await page.keyboard.type('Product Manager', { delay: 50 });
+      await settle(page, { quiet: 600 });
+      const saw = await page.evaluate(() => window.__compSaw);
+      const commits = await page.evaluate(() => window.__commits);
+      assert(!saw.some((t) => /No estimate yet/i.test(t)), `"No estimate yet" flashed while typing (${saw.filter((t) => /No estimate yet/i.test(t)).length}×)`);
+      const n = await renders(page);
+      assert(n <= Math.max(1, commits), `${n} widget renders for ${commits} committed searches`);
+      noErrors(errors);
+    } finally { await close(); }
+  });
+
+  suite.test('Compstimate: T11 an edited title sticks through filters, search, Clear all, Back, Forward', async (ctx) => {
+    const { page, errors, close } = await openComp(ctx);
+    try {
+      await setFilters(page, { s: 'Senior', l: 'London' });
+      await editTitle(page, 'Research Engineer');
+      assert(await resetBtn(page).first().isVisible(), '"Reset to filters" link not shown after an edit');
+      const steps = [
+        ['add Department Sales', () => setFilters(page, { d: 'Sales' })],
+        ['untick Senior', () => setFilters(page, { s: null })],
+        ['change search', () => setFilters(page, { q: 'safety' })],
+        ['Clear all', async () => { await page.locator('#clearAll').click(); await settle(page); }],
+        ['Back', async () => { await page.goBack(); await settle(page); }],
+        ['Forward', async () => { await page.goForward(); await settle(page); }],
+      ];
+      for (const [name, fn] of steps) {
+        await fn();
+        assertEq((await readComp(page)).title, 'Research Engineer', `title after "${name}"`);
+      }
+      noErrors(errors);
+    } finally { await close(); }
+  });
+
+  suite.test('Compstimate: T12 edited Location and Level stick through filter changes', async (ctx) => {
+    const { page, errors, close } = await openComp(ctx);
+    try {
+      await pickWidget(page, 'location', 'Seattle');
+      await pickWidget(page, 'level', 'Staff+');
+      for (const patch of [{ l: 'London' }, { l: null }, { s: 'Senior' }, { s: null }]) {
+        await setFilters(page, patch);
+        const c = await readComp(page);
+        assertEq(c.location.value, 'Seattle', `Location after ${JSON.stringify(patch)}`);
+        assertEq(c.level.value, 'Staff+', `Level after ${JSON.stringify(patch)}`);
+      }
+      noErrors(errors);
+    } finally { await close(); }
+  });
+
+  suite.test('Compstimate: T13 "Reset to filters" returns every field to the filters (equals a fresh load); T14 at most one link', async (ctx) => {
+    const { page, errors, context, close } = await openComp(ctx);
+    try {
+      await setFilters(page, { s: 'Senior', d: 'Sales' });
+      await editTitle(page, 'Research Engineer');
+      await pickWidget(page, 'location', 'Seattle');
+      let c = await readComp(page);
+      assert(c.resetLinks <= 1, `${c.resetLinks} "Reset to filters" links`);
+      const link = resetBtn(page).first();
+      assert(await link.isVisible(), 'reset link not visible while edited');
+      await link.click();
+      await settle(page);
+      c = await readComp(page);
+      assertEq(c.resetLinks, 0, 'reset link hidden after reset');
+      const hash = await page.evaluate(() => location.hash);
+      const page2 = await context.newPage();
+      await page2.goto(`${ctx.baseUrl}/${hash}`);
+      await waitReady(page2);
+      await page2.waitForFunction(() => document.querySelector('#compHost .ms-comp__result')?.childElementCount > 0, null, { timeout: 15000 });
+      await page2.waitForTimeout(800);
+      const fresh = await readComp(page2);
+      assertEq(JSON.stringify(fields(c)), JSON.stringify(fields(fresh)), 'fields after reset vs fresh load');
+      assertEq(JSON.stringify(numbers(c)), JSON.stringify(numbers(fresh)), 'numbers after reset vs fresh load');
+      await page2.close();
+      noErrors(errors);
+    } finally { await close(); }
+  });
+
+  suite.test('Compstimate: T15 drawer equals Insights (AE - DNB with Senior+London set; 3 OpenAI no-salary jobs)', async (ctx) => {
+    const cases = [['anthropic', 'anthropic:5391376008', { s: 'Senior', l: 'London' }]];
+    const oa = await apiJobs(ctx, 'openai');
+    const noSal = oa.jobs.filter((j) => !j.salary);
+    for (const i of [0, Math.floor(noSal.length / 2), noSal.length - 1]) if (noSal[i]) cases.push(['openai', noSal[i].id, {}]);
+    const problems = [];
+    for (const [slug, id, filters] of cases) {
+      const api = await apiJobs(ctx, slug);
+      const job = api.jobs.find((j) => j.id === id);
+      if (!job) { problems.push(`${id} not in /api/jobs`); continue; }
+      const { page, close } = await openComp(ctx, `c=${slug}&m=insights`);
+      try {
+        await setFilters(page, filters);
+        const before = await readComp(page);
+        await resetRenders(page);
+        await setFilters(page, { job: id });
+        await page.locator('#drawer').waitFor({ state: 'visible', timeout: 8000 });
+        await page.waitForTimeout(600);
+        const drawer = await readDrawerComp(page);
+        const during = await readComp(page);
+        if (JSON.stringify(numbers(during)) !== JSON.stringify(numbers(before)) || JSON.stringify(fields(during)) !== JSON.stringify(fields(before))) problems.push(`${id}: opening the drawer changed Insights (${before.title} -> ${during.title})`);
+        if (!drawer) { problems.push(`${id}: no drawer Compstimate`); continue; }
+        await page.keyboard.press('Escape');
+        await page.locator('#drawer').waitFor({ state: 'hidden', timeout: 3000 });
+        const onsite = (job.locations || []).find((l) => !l.remote);
+        const loc = onsite ? onsite.city || onsite.name : 'Remote';
+        await editTitle(page, job.title);
+        await pickWidget(page, 'location', loc);
+        await pickWidget(page, 'level', job.seniority);
+        try { sameNums(widgetNums(await readComp(page)), drawer, `${id} (${job.title} · ${loc} · ${job.seniority})`); } catch (e) { problems.push(e.message); }
+      } catch (e) { problems.push(`${id}: ${e.message}`); } finally { await close(); }
+    }
+    assert(problems.length === 0, problems.join('\n'));
+  });
+
+  suite.test('Compstimate: T16 opening a comparable, Esc and a Sort change never touch Insights (0 renders)', async (ctx) => {
+    const { page, errors, close } = await openComp(ctx);
+    try {
+      const rec = await readComp(page);
+      await resetRenders(page);
+      await page.locator('#compHost .ms-comp__item').first().click();
+      await page.locator('#drawer').waitFor({ state: 'visible', timeout: 5000 });
+      await page.waitForTimeout(400);
+      assertEq(JSON.stringify(numbers(await readComp(page))), JSON.stringify(numbers(rec)), 'after opening a comparable');
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(400);
+      assertEq(JSON.stringify(numbers(await readComp(page))), JSON.stringify(numbers(rec)), 'after Esc');
+      await page.locator('#sortBy').selectOption('title');
+      await settle(page);
+      assertEq(JSON.stringify(numbers(await readComp(page))), JSON.stringify(numbers(rec)), 'after Sort change');
+      assertEq(JSON.stringify(fields(await readComp(page))), JSON.stringify(fields(rec)), 'fields unchanged');
+      assertEq(await renders(page), 0, 'widget renders');
+      noErrors(errors);
+    } finally { await close(); }
+  });
+
+  suite.test('Compstimate: T17 a drawer keyword chip leaves the drawer estimate unchanged', async (ctx) => {
+    const { page, errors, close } = await openComp(ctx, 'c=anthropic&m=insights&job=anthropic%3A5391376008');
+    try {
+      await page.locator('#drawer').waitFor({ state: 'visible', timeout: 8000 });
+      await page.waitForTimeout(600);
+      const d0 = await readDrawerComp(page);
+      assert(d0, 'no drawer Compstimate for the no-salary job');
+      const w0 = await readComp(page);
+      const chip = page.locator('#drawer .kw').first();
+      await chip.scrollIntoViewIfNeeded();
+      await chip.click();
+      await settle(page);
+      const d1 = await readDrawerComp(page);
+      assertEq(JSON.stringify(d1 && { ...d1, text: undefined }), JSON.stringify({ ...d0, text: undefined }), 'drawer estimate after a chip');
+      const w1 = await readComp(page);
+      assertEq(w1.location.value, w0.location.value, 'Insights Location unchanged');
+      assertEq(w1.level.value, w0.level.value, 'Insights Level unchanged');
+      noErrors(errors);
+    } finally { await close(); }
+  });
+
+  suite.test('Compstimate: T18 Back/Forward restore the following fields and output exactly (1 render per step)', async (ctx) => {
+    const { page, errors, close } = await openComp(ctx);
+    try {
+      await setFilters(page, { s: 'Senior', l: 'London', q: 'Software Engineer' });
+      const A = await readComp(page);
+      await page.locator('#clearAll').click();
+      await settle(page);
+      const B = await readComp(page);
+      await resetRenders(page);
+      await page.goBack(); await settle(page);
+      let c = await readComp(page);
+      assertEq(JSON.stringify([fields(c), numbers(c)]), JSON.stringify([fields(A), numbers(A)]), 'Back restores A');
+      assertEq(await renders(page), 1, 'renders on Back');
+      await resetRenders(page);
+      await page.goForward(); await settle(page);
+      c = await readComp(page);
+      assertEq(JSON.stringify([fields(c), numbers(c)]), JSON.stringify([fields(B), numbers(B)]), 'Forward restores B');
+      assertEq(await renders(page), 1, 'renders on Forward');
+      noErrors(errors);
+    } finally { await close(); }
+  });
+
+  suite.test('Compstimate: T19 company switches re-derive the auto title + accuracy (1 render each); an edited title survives', async (ctx) => {
+    const { page, errors, close } = await openComp(ctx);
+    try {
+      const problems = [];
+      for (const slug of ['openai', 'cohere', 'xai']) {
+        const meta = (await apiJobs(ctx, slug)).meta?.compstimate;
+        await resetRenders(page);
+        await setFilters(page, { c: slug });
+        await page.waitForFunction((s) => document.querySelector(`#resultsList .card[data-id^="${s}:"]`), slug, { timeout: 20000 });
+        await settle(page);
+        const c = await readComp(page);
+        const r = await renders(page);
+        if (r !== 1) problems.push(`${slug}: ${r} renders on switch`);
+        if (!c.title || LEVEL_WORD.test(c.title)) problems.push(`${slug}: auto title "${c.title}"`);
+        if (meta?.n && !(c.accuracy || '').includes(String(meta.n))) problems.push(`${slug}: accuracy "${c.accuracy}" does not name backtest n=${meta.n}`);
+      }
+      await editTitle(page, 'Research Engineer');
+      for (const slug of ['anthropic', 'openai']) {
+        await setFilters(page, { c: slug });
+        await page.waitForFunction((s) => document.querySelector(`#resultsList .card[data-id^="${s}:"]`), slug, { timeout: 20000 });
+        await settle(page);
+        const t = (await readComp(page)).title;
+        if (t !== 'Research Engineer') problems.push(`edited title lost on switch to ${slug}: "${t}"`);
+      }
+      assert(problems.length === 0, problems.join('\n'));
+      noErrors(errors);
+    } finally { await close(); }
+  });
+
+  suite.test('Compstimate: T20 "Same role elsewhere" -> OpenAI sets rf=swe&s=Senior; Level Senior; basis at OpenAI; Back reopens the drawer', async (ctx) => {
+    const { roleFamily } = await lib('features/roles.js');
+    const api = await apiJobs(ctx, 'anthropic');
+    const job = api.jobs.find((j) => j.salary && j.seniority === 'Senior' && roleFamily(j.title, j) === 'swe');
+    assert(job, 'no salaried Senior software engineer at Anthropic');
+    const { page, errors, close } = await openComp(ctx, `c=anthropic&m=insights&job=${encodeURIComponent(job.id)}`);
+    try {
+      await page.locator('#drawer').waitFor({ state: 'visible', timeout: 8000 });
+      const row = page.locator('#drawer .ms-comps__row').filter({ hasText: 'OpenAI' }).first();
+      await row.waitFor({ timeout: 10000 });
+      await row.click();
+      await page.waitForFunction(() => new URLSearchParams(location.hash.slice(1)).get('c') === 'openai', null, { timeout: 10000 });
+      await page.waitForFunction(() => document.querySelector('#resultsList .card[data-id^="openai:"], #resultsList .list-empty'), null, { timeout: 20000 });
+      await settle(page);
+      const hp = await hashParams(page);
+      assertEq(hp.get('rf'), 'swe', 'hash rf');
+      assertEq(hp.getAll('s').join(','), 'Senior', 'hash s');
+      const c = await readComp(page);
+      assertEq(c.level.value, 'Senior', 'Level shows Senior');
+      assert(c.basis && /at OpenAI/.test(c.basis) && /Senior/.test(c.basis), `basis "${c.basis}"`);
+      await page.goBack();
+      await page.waitForFunction(() => new URLSearchParams(location.hash.slice(1)).get('c') === 'anthropic', null, { timeout: 10000 });
+      await page.locator('#drawer').waitFor({ state: 'visible', timeout: 10000 });
+      noErrors(errors);
+    } finally { await close(); }
+  });
+
+  suite.test('Compstimate: T21 cold server — the accuracy line appears within 10 s without user action', async (ctx) => {
+    const { mkdtempSync } = await import('node:fs');
+    const os = await import('node:os');
+    const { startServer } = await import('./harness.js');
+    const cache = mkdtempSync(path.join(os.tmpdir(), 'melon-cold-cache-'));
+    const hist = mkdtempSync(path.join(os.tmpdir(), 'melon-cold-hist-'));
+    const cold = await startServer({ env: { MELON_CACHE_DIR: cache, MELON_HISTORY_DIR: hist } });
+    ctx.cleanup.push(() => cold.stop());
+    const { page, close } = await openComp({ ...ctx, baseUrl: cold.baseUrl }, 'c=anduril&m=insights');
+    try {
+      const first = await readComp(page);
+      const t0 = Date.now();
+      let c = first;
+      while (Date.now() - t0 < 10000 && !c.accuracy) { await page.waitForTimeout(500); c = await readComp(page); }
+      assert(c.accuracy, `no accuracy line ${Math.round((Date.now() - t0) / 1000)} s after the first estimate (first visit on a cold server)`);
+      assertEq(JSON.stringify(fields(c)), JSON.stringify(fields(first)), 'other fields unchanged when the accuracy arrives');
+    } finally { await close(); }
+  });
+
+  suite.test('Compstimate: T22 FX — USD hero and "*" footnote (Cohere CAD, Anthropic London); drawer says approx USD; salaryUSD == palette toUSD', async (ctx) => {
+    const problems = [];
+    for (const [hash, label] of [['c=cohere&m=insights', 'Cohere'], ['c=anthropic&m=insights&l=London', 'Anthropic London']]) {
+      const { page, close } = await openComp(ctx, hash);
+      try {
+        const c = await readComp(page);
+        if (!/USD/.test(c.per || '')) problems.push(`${label}: hero unit "${c.per}"`);
+        if (!c.foot || !/\*/.test(c.foot)) problems.push(`${label}: no "*" converted footnote (foot "${c.foot}")`);
+      } finally { await close(); }
+    }
+    const { page, close } = await openComp(ctx, 'c=anthropic&m=insights&job=anthropic%3A5391376008');
+    try {
+      await page.locator('#drawer').waitFor({ state: 'visible', timeout: 8000 });
+      const d = await readDrawerComp(page);
+      if (!d || !/approx USD/.test(d.text)) problems.push(`drawer Compstimate lacks "approx USD": "${d && d.text}"`);
+    } finally { await close(); }
+    const shared = await lib('features/shared.js');
+    const { toUSD } = await lib('viz/palette.js');
+    for (const slug of ['anthropic', 'openai', 'cohere']) {
+      for (const j of salaried((await apiJobs(ctx, slug)).jobs)) {
+        const s = shared.salaryUSD(j);
+        const mid = (j.salary.min + j.salary.max) / 2;
+        const p = toUSD(mid, j.salary.currency);
+        if (!s || Math.abs(s.mid - p) > Math.max(1, p * 0.005)) { problems.push(`${slug} ${j.salary.currency}: salaryUSD ${s && Math.round(s.mid)} vs palette ${Math.round(p)}`); break; }
+      }
+    }
+    assert(problems.length === 0, [...new Set(problems)].join('\n'));
+  });
+
+  suite.test('Compstimate: T23 no "on this board" copy while a role-defining filter is active', async (ctx) => {
+    const { page, errors, close } = await openComp(ctx);
+    try {
+      for (const patch of [{ d: 'Sales' }, { d: null, s: 'Senior' }, { s: null, l: 'London' }]) {
+        await setFilters(page, patch);
+        const t = (await readComp(page)).text;
+        const i = t.toLowerCase().indexOf('on this board');
+        assert(i < 0, `widget says "on this board" with ${JSON.stringify(patch)}: "…${t.slice(Math.max(0, i - 80), i + 20).replace(/\s+/g, ' ')}…"`);
+      }
+      noErrors(errors);
+    } finally { await close(); }
+  });
+
+  suite.test('Compstimate: consistency — drawer estimate equals Insights for the same role query (no filters, 3 Anthropic no-salary jobs)', async (ctx) => {
+    const api = await apiJobs(ctx, 'anthropic');
+    const pool = api.jobs.filter((j) => !j.salary && !j.salaryFlag);
+    // Spread picks across the list; a job whose drawer has no estimate (Rule 6) is skipped, until 3 compared.
+    const order = [...pool.keys()].sort((a, b) => ((a * 7919) % pool.length) - ((b * 7919) % pool.length));
+    const problems = [];
+    let compared = 0;
+    for (const idx of order) {
+      if (compared >= 3) break;
+      const job = pool[idx];
+      const { page, close } = await openComp(ctx, `c=anthropic&m=insights&job=${encodeURIComponent(job.id)}`);
+      try {
+        await page.locator('#drawer').waitFor({ state: 'visible', timeout: 8000 });
+        await page.waitForTimeout(600);
+        const d = await readDrawerComp(page);
+        if (!d) continue; // Rule 6: not enough comparable roles -> no drawer block
+        compared++;
+        await page.keyboard.press('Escape');
+        await page.locator('#drawer').waitFor({ state: 'hidden', timeout: 3000 });
+        const onsite = (job.locations || []).find((l) => !l.remote);
+        await editTitle(page, job.title);
+        await pickWidget(page, 'location', onsite ? onsite.city || onsite.name : 'Remote');
+        await pickWidget(page, 'level', job.seniority);
+        sameNums(widgetNums(await readComp(page)), d, `${job.title}`);
+      } catch (e) { problems.push(`${job.id}: ${e.message}`); } finally { await close(); }
+    }
+    assert(compared >= 1, 'no no-salary Anthropic job had a drawer estimate');
+    assert(problems.length === 0, problems.join('\n'));
   });
 }

@@ -814,7 +814,8 @@ html[data-mode="insights"] .viz-controls { display: none; }
 .company-menu > .btn { margin-top: 6px; justify-content: flex-start; color: var(--ms-muted); border-style: dashed; }
 /* Recent pills by width: 3 at ≥1920, 2 at ≥1600, 1 below, none below 1200 (see next rule).
    Guard: the company bar may shrink and clip pills, so the top bar never widens the page. */
-.company-bar { flex: 0 1 auto; min-width: 0; }
+.company-bar { flex: 0 0 auto; min-width: 0; } /* never shrink: the search box (min 100px) absorbs the squeeze, so pills are never clipped */
+@media (min-width: 861px) { .search { min-width: 100px; } }
 .company-menu-btn { flex: none; }
 .company-pills { flex: 0 1 auto; min-width: 0; overflow: hidden; }
 .company-pill { flex: none; }
@@ -1063,10 +1064,12 @@ html[data-mode="insights"] .viz-controls { display: none; }
   .area-x { width: 36px; height: 36px; }
   .cards { touch-action: none; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 2px var(--m-gutter-r) 24px var(--m-gutter-l); }
   body[data-sheet="full"] .cards { touch-action: pan-y; }
-  .card { content-visibility: auto; contain-intrinsic-size: auto 96px; padding: 12px 14px; }
+  /* No content-visibility here: it defers card rendering to the first sheet drag (a 50 ms frame at
+     4x CPU). The list is bounded by lazy pages (24, then +48 as it scrolls) instead. */
+  .card { padding: 12px 14px; }
   .card-title { font-size: 15px; }
   .card-meta { font-size: 13px; }
-  .tag, .card-foot .tag, .card-foot .sen, .card-age, .juice-badge, .sal-pill { font-size: 12px; }
+  .tag, .sen, .card-foot .tag, .card-foot .sen, .card-age, .juice-badge, .sal-pill { font-size: 12px; }
   #insightsHost input, #insightsHost select { font-size: 16px; }   /* no iOS focus zoom in the Insights forms */
   .sal-pill { font-size: 13px; }
   .list-more .btn { height: var(--m-row); }
@@ -1087,6 +1090,7 @@ html[data-mode="insights"] .viz-controls { display: none; }
   .filters-foot { padding: 10px var(--m-gutter-r) calc(10px + env(safe-area-inset-bottom)) var(--m-gutter-l); background: var(--ms-bg); }
   .filters-foot .btn { height: 48px; font-size: 16px; }
   body.kb-open .filters-foot { display: none; }   /* the keyboard would cover it anyway */
+  body.filters-open .results { content-visibility: hidden; }   /* covered by the sheet; catches up on close */
   .fsec > summary { min-height: 52px; padding: 0; font-size: 15px; }
   .fsec-badge { min-width: 20px; height: 20px; font-size: 12px; }
   .check, .radio { min-height: var(--m-row); font-size: 15px; padding: 0 6px; }
@@ -1115,7 +1119,7 @@ html[data-mode="insights"] .viz-controls { display: none; }
 
   /* ---- bottom-sheet popovers (company menu, data badge, "More") */
   .popover, .popover--more, .popover--board, .popover--badge, .popover--company {
-    max-height: 82vh; max-height: 82dvh; padding-bottom: env(safe-area-inset-bottom);
+    width: 100%; max-height: 82vh; max-height: 82dvh; padding-bottom: env(safe-area-inset-bottom);
   }
   body.kb-open .popover { top: calc(8px + env(safe-area-inset-top)) !important; bottom: auto; max-height: calc(var(--vvh, 60vh) - 16px); border-radius: 16px; }
   .pop-head .icon-btn { width: var(--m-row); height: var(--m-row); }
@@ -1148,7 +1152,7 @@ html[data-mode="insights"] .viz-controls { display: none; }
 
 /* Phone landscape (short screens): fold the top bar into one row so the chart keeps ~170px. */
 @media (max-width: 860px) and (max-height: 500px) {
-  :root { --m-topbar: calc(6px + var(--m-row) + 6px + env(safe-area-inset-top)); --m-quickbar: 52px; --sheet-peek: 64px; --sheet-half: .6; }
+  :root { --m-topbar: calc(6px + var(--m-row) + 6px + env(safe-area-inset-top)); --m-quickbar: 52px; --sheet-peek: 64px; --sheet-half: .45; }
   .topbar { flex-wrap: nowrap; }
   .topbar::after { display: none; }
   .company-bar { flex: 0 1 220px; }
@@ -1173,3 +1177,4 @@ html[data-mode="insights"] .viz-controls { display: none; }
   .card:active, .chip:active, .btn:active, .icon-btn:active, .seg button:active, .company-item:active, .check:active, .kw:active { background-color: var(--ms-surface-2); }
   .btn--primary:active { background: var(--ms-accent-strong); }
 }
+.desc-offsite { color: var(--ms-text); } /* off-site links in descriptions shown as text (link policy) */

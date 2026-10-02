@@ -210,3 +210,43 @@ by axe only.
 - Scripted walk-through plus phone walk: UX-1 to UX-14.
 - axe in both themes, the keyboard flow and tap targets: A11Y-1 to 5.
 - Appended the audit to QA.md, copied the scripts to `docs/process/scripts/qa-audit-*.mjs`, and appended the prompt.
+
+## 9. Compstimate task force (e2e for the spec's test matrix)
+
+**Brief:** automate every scenario of `docs/process/compstimate-taskforce.md` §3.3 as a "Compstimate:" group in
+`test/e2e/ui.e2e.js`, against real data. Run it before and after product's fix, and add a drawer = Insights consistency test.
+
+**Decisions:**
+1. **Pool and membership checks use `/api/jobs` data.** Comparable ids come from `.ms-comp__item[data-key]` and are
+   checked for department, seniority, location keys (`locKey` rule) and `remote`. This follows the spec ("not from product's
+   helper").
+2. **Renders** are counted as MutationObserver callbacks on `.ms-comp__result` that add nodes, which is one per microtask
+   batch, i.e. one per render. `settle()` waits for 450 ms without a render.
+3. **Board filters are set through the hash.** That is the same commit path as the panel and avoids "Show all" truncation. T2
+   clicks the real Department checkbox. Clear all, Back and Forward, the drawer, comparables and Sort use the real UI.
+4. **The basis line is found by text** (the smallest visible element starting "Based on "), so product can rename classes.
+   The reset link is matched by role and text "Reset to filters".
+5. **Level-word check:** a level word as a title *prefix* (what LEVEL_PREFIX strips), or Staff+ / Senior+ anywhere.
+   "Member of Technical Staff" is a title, not a level (the first draft of the regex was a false positive at Cohere).
+6. **T21 starts its own cold server** (`startServer({env:{MELON_CACHE_DIR, MELON_HISTORY_DIR}})`, temp dirs). The harness
+   gained an `env` option for this.
+7. **T22's unit-level FX check** imports `features/shared.js` and `viz/palette.js` in Node and compares `salaryUSD`
+   with palette `toUSD` for every salaried Anthropic, OpenAI and Cohere job.
+8. **The consistency test** skips jobs whose drawer shows no estimate (Rule 6) until 3 jobs have been compared.
+
+**Replay:** `node scripts/e2e.js --grep='^Compstimate:'` (about 2.5 min), then `node scripts/e2e.js` for the whole suite.
+
+**Results:**
+- Stage 1 (matrix automated, product's work in progress): 11/23.
+- Stage 2 (product's fix): 20/23. Still failing: T15 and consistency (CT-1: no widget option for a location without
+  salaried roles) and T20 (CT-2: auto title "GPT Infrastructure Lead" gives "Not enough" for OpenAI SWE Senior).
+- Whole suite: 52/56. Two intermittent issues showed up:
+  - The keyboard focus test fails because of BUG-6 (re-render drops focus to body; confirmed by a probe that changes Group-by).
+  - The Insights test flaked on timing; it was made robust.
+- Six UI tests were updated for intentional changes (company menu buttons, Save label, Juice disclosure).
+- Details are in `docs/QA.md` § "Compstimate task force".
+
+**Change log:**
+- ~14:00 Spec landed. Wrote 24 tests. Stage 1 was 11/23.
+- ~14:20 Product's fix landed. Stage 2 was 20/23.
+- I updated 6 UI tests for the new UI and found BUG-6, CT-1 and CT-2. Nothing was committed.

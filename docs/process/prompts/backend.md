@@ -71,3 +71,29 @@ Network note: external job-board hosts are BLOCKED in this sandbox; do not try t
 > (1) Like static mode, return the list WITHOUT descriptionHtml (keep sections and keywords), and add `GET /api/job?company=<slug>&id=<id>` returning `{ descriptionHtml, sections }`. Tell devops so public/api.js getJobDetail uses it in server mode.
 > (2) Cache the final vetted, annotated payload per company, with its gzip bytes, keyed by data fetchedAt + ledger mtime + code version, so repeat requests are near-instant.
 > Target: anduril under 300 ms warm and under 600 KB gzipped. Add a perf assertion test with a generous bound, and log it in backend.md.
+
+> New wave (team-wide improvement). Your task is pipeline performance. Normalizing Anduril's 2,418 postings takes about 12–15 s, mostly keyword regexes at about 5 ms per job. The same code runs in the browser on live fetches in static mode, so it blocks the main thread there.
+> 1. Profile `normalizeJobs` on data/snapshots/*.json (node --cpu-prof or manual timers): split the time between salary parsing, sections, keywords, extras, geocoding, boilerplate and vetting.
+> 2. Optimize without changing output, e.g. compile the lexicons into a few combined regexes or a token index, pre-filter on cheap substring checks, tokenize once, and memoize geocoding. Coordinate with the features agent, which owns keywords.js. Send it your proposed changes, or make them yourself if it agrees, but don't both edit at once.
+> 3. Add a golden test: normalized output for a fixed sample of 300 real jobs (stored as short fixtures, or as hashes of the output) must be byte-identical before and after.
+> 4. Target: Anduril full normalization ≤ 3 s in Node. Measure the browser too (Chromium, static live-fetch path) and report it.
+> Log it in docs/process/backend.md. Don't commit; report the before/after timing table.
+
+> Add to your perf work, as top priority: QA's PERF-1 (docs/QA.md "Improvement audit"). The first request per company runs rekeyBoardJobs synchronously inside readSnapshot (which I added for BUG-5) and blocks the whole server: Anthropic 3.0 s, Anduril 10.2 s, OpenAI 3.3 s. Other requests stall too, e.g. a company switch took 16.5 s. Fix it simply:
+> (a) scripts/snapshot.js already writes freshly normalized jobs; add a `normalizerVersion` to snapshot files and rekey only when it's missing or old;
+> (b) persist the rekeyed result to data/cache/ so it happens once per snapshot file;
+> (c) do any remaining heavy work (rekey, vet, backtest) off the request path in the existing worker thread, or warm all built-ins at startup without blocking.
+> The goal is that no request blocks the event loop for more than 100 ms. Your faster keywords work will shrink this further. Add a test (an event-loop-lag probe during the first company load), and log it in backend.md.
+
+> Two things from features' UX-3 change (geo.js now sets canonical location `name` and keeps the source string in a new `rawName` field):
+> (1) test/golden-normalize.test.js fails now. Separate your perf work from this intentional output change: first confirm your optimizations are byte-identical against the OLD baseline, then re-baseline once with `UPDATE_GOLDEN=1`, recording the reason ("UX-3 canonical locations") in backend.md.
+> (2) In server/history.js fingerprint(), use `locations[0].rawName || locations[0].name`, so ledger fingerprints don't shift and existing jobs aren't reported as reposts. Add a test.
+> Also make the snapshot normalizerVersion bump (from PERF-1) cover this change, so stored snapshots are re-normalized once.
+
+> From the finished security review (docs/REVIEW.md, "v2 review"), add these server findings to your PERF-1 work, since they're related:
+> - V1: `/api/job?id=<source>-<new board>:x` builds a full demo board with no throttle. 40 parallel requests stalled /api/health for 7 s. Reuse the same throttle and negative cache as /api/jobs, or 404 unknown custom boards in /api/job until /api/jobs has loaded them.
+> - V4: compstimateMemo and listCache keep job arrays for up to 200 boards after the main cache evicts them. Tie them to the main LRU or bound them by bytes. Cap backtest workers (concurrency 1–2, with a timeout and resourceLimits).
+> - V15: the cold first /api/market takes 24.5 s and stalls /api/health for up to 9 s. Same fix as PERF-1: off the main thread, warmed or cached.
+> - V10: CSV escaping: quote any cell containing `;`, `,`, CR or LF, apply the formula prefix after the CR check, and limit /api/export for custom boards with the same throttle.
+> - V14: the server applies `?name=` only to custom boards and never lets it override a built-in company's display name.
+> Tests for each; log them in backend.md.

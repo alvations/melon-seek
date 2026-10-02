@@ -331,7 +331,13 @@
   line-height: 1.4;
 }
 .ms-comp__head { margin-bottom: 12px; }
-.ms-comp__auto { margin: 10px 0 0; color: var(--_muted); font-size: 12px; }
+.ms-comp__formfoot { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.ms-comp__auto { flex: 1 1 220px; margin: 10px 0 0; color: var(--_muted); font-size: 12px; }
+.ms-comp__reset {
+  margin: 10px 0 0; padding: 0; border: 0; background: none; cursor: pointer;
+  color: var(--_accent-ink); font: 500 12.5px var(--_font); text-decoration: underline; text-underline-offset: 2px;
+}
+.ms-comp__reset:focus-visible { outline: none; box-shadow: var(--_focus); border-radius: 3px; }
 .ms-comp__title { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -.01em; }
 .ms-comp__sub { margin: 2px 0 0; color: var(--_muted); font-size: 12.5px; }
 

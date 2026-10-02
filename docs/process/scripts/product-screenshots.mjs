@@ -87,6 +87,11 @@ const SHOTS = [
   { name: 'w2-comp-prefill-dark', viewport: [1360, 1000], query: `theme=dark&q=${encodeURIComponent(JSON.stringify({ title: 'Engineering Manager', seniority: 'Manager', location: 'San Francisco' }))}`, element: '.ms-comp' },
   { name: 'w2-insights-light', viewport: [1360, 1000], query: 'theme=light', element: '.ms-insights:not(.ms-compare)' },
   { name: 'w2-insights-dark', viewport: [1360, 1000], query: 'theme=dark', element: '.ms-insights:not(.ms-compare)' },
+  // Compstimate task force: following filters, multi-value label, edited + reset link, not enough
+  { name: 'tf-follow-dept', viewport: [1360, 1000], query: `theme=light&filter=${encodeURIComponent(JSON.stringify({ type: 'department', value: 'Go To Market' }))}`, element: '.ms-comp' },
+  { name: 'tf-multi-level', viewport: [1360, 1000], query: 'theme=light&s=Senior,Staff%2B', element: '.ms-comp' },
+  { name: 'tf-edited-reset-dark', viewport: [1360, 1000], query: `theme=dark&s=Senior&q=${encodeURIComponent(JSON.stringify({ title: 'Research Engineer', location: 'London' }))}`, element: '.ms-comp' },
+  { name: 'tf-not-enough', viewport: [1360, 1000], query: `theme=light&s=Intern&filter=${encodeURIComponent(JSON.stringify({ type: 'location', value: 'Dublin' }))}`, element: '.ms-comp' },
   // v2: published accuracy + compare companies
   { name: 'v2-comp-accuracy', viewport: [1360, 1000], query: 'theme=light', element: '.ms-comp' },
   { name: 'v2-comp-lowacc-dark', viewport: [1360, 1000], query: 'theme=dark&accuracy=31', element: '.ms-comp' },

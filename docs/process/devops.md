@@ -623,6 +623,94 @@ feature-detected, so the build and site work before each owner lands it.
       inline code; the share page uses the external redirect; dev pages
       aren't deployed.
 
+### URGENT: live site showed the README / linked to GitHub (2026-10-02)
+
+**Root causes:**
+- (A) Pages was still in "Deploy from a branch" mode. GitHub's dynamic
+  `pages build and deployment` published the README on every push and
+  raced pages.yml; the last one to finish won (e.g. runs 37015077791 vs
+  37015077526).
+- (B) `public/app.js` JUICE_DOC hard-linked to
+  `github.com/…/blob/main/docs/LIVABILITY.md`, which is off-site and not
+  on `main`.
+
+**Fixes and guards:**
+
+61. **Wait before deploying.** The deploy job runs
+    `.github/scripts/wait-pages-build.sh`, which polls
+    `GET /actions/runs?head_sha=<sha>` for runs named "pages build and
+    deployment" or with path `dynamic/pages/pages-build-deployment` (verified
+    against run 37015077791) that aren't completed. It waits up to 300 s,
+    warns, and never fails. The deploy job's permissions are `pages` and
+    `id-token` write plus `actions: read` and `contents: read` (for a sparse
+    checkout of `.github/scripts`). I used a script rather than a YAML anchor,
+    to avoid depending on anchor support in Actions.
+62. **Build marker plus a hard post-deploy check.** The build injects
+    `<meta name="melon-seek-build" content="$GITHUB_SHA">` into `index.html`.
+    `.github/scripts/check-site.sh <url> [sha]`:
+    - retries for 180 s with cache-busting queries;
+    - passes only on the expected marker and the absence of README markup
+      (`<meta name="generator" content="Jekyll`, `<h1 id="melon-seek"`,
+      `markdown-body`);
+    - writes `result` (ok, readme, wrong-build, no-marker or unreachable) and
+      `detail` to the step outputs.
+
+    On failure the job waits again, re-deploys once with deploy-pages, and
+    checks again. If that fails too, the job fails with "set Settings → Pages
+    → Source: GitHub Actions" in the error and the step summary. Tested
+    locally against the app (ok), a wrong sha (wrong-build), a Jekyll README
+    page (readme) and an unreachable host. The real site is unreachable from
+    this sandbox.
+63. **`site-watchdog.yml`.**
+    - Runs at `11,41 * * * *` and on workflow_dispatch, with
+      `actions: write` and `contents: read` only.
+    - Expected build = the head SHA of the latest successful pages.yml run.
+      It skips the check while a pages.yml run is in flight.
+    - On a bad check it runs `gh workflow run pages.yml --ref <that run's
+      branch>` (dispatch from GITHUB_TOKEN is allowed to trigger workflows),
+      writes the problem and the Settings fix to the summary, and fails.
+    - Self-healing on first run: the current live deploy has no marker yet,
+      so the watchdog re-deploys once.
+64. **Methodology page.**
+    - `scripts/md.js` is a dependency-free converter: GitHub-style heading
+      ids (`#1-the-formula`, de-duplicated), paragraphs, nested lists, GFM
+      tables with alignment, fenced and inline code, emphasis, blockquotes
+      and rules. It escapes everything; raw HTML shows as text.
+    - Links: `#anchors` stay links; the policy keeps or maps site links
+      (`../data/cities.json` → `../api/cities.json`); every other link
+      becomes text with its URL. Decision: the ~60 external tax and source
+      citations aren't on the allowlist, so they're copyable references, not
+      outbound links.
+    - `scripts/methodology.js` renders the page with the site's
+      `styles.css`, `theme-init.js` and its own `methodology.css` (CSP:
+      nothing inline), a sticky "← Back to the jobs" link, a table of
+      contents and a footer with the build.
+    - First render bug, fixed: `--ms-accent-text` is white (text on
+      accent), so links were invisible. It now uses `--ms-accent`.
+    - JUICE_DOC = `'methodology/#1-the-formula'`, the one line edited in
+      app.js. Server mode needs backend's `/methodology/` route; snippet
+      sent through the coordinator.
+65. **Link policy (`scripts/links-policy.js`).**
+    - What counts as a link: HTML `href`, `src`, `action` and `formaction`;
+      in comment-stripped JS, `href`/`src` literals, `window.open`,
+      `location.assign`, `replace` and `href`, plus directory-style page
+      constants such as JUICE_DOC.
+    - Rules: GitHub and the repo are banned; other hosts must be on the
+      allowlist (ATS job hosts, OSM attribution, Google Fonts, the site
+      itself, and the RFC 2606 example domains for dev mocks); in dist,
+      relative links and `#anchors` must resolve.
+    - URL strings that aren't links (tax citations in `juice.js`, the
+      User-Agent in `util.js`, SVG namespaces) are deliberately out of
+      scope.
+    - The build fails on any violation (step 8, after the CSP pass).
+    - `test/links-policy.test.js` (4 tests): public/ is clean; a built dist
+      is clean; JUICE_DOC is relative and its target and anchor exist;
+      negative cases (GitHub, raw, unknown host, broken relative link,
+      missing anchor, broken JS page constant) are caught.
+    - The QA e2e click test (all in-app `<a>` stay on the origin or the
+      allowlist; the Juice link opens the methodology page) was sent to QA
+      through the coordinator.
+
 ## 4. Replayable steps
 
 Run from `/home/user/melon-seek`. File contents are the committed files
@@ -914,6 +1002,7 @@ quoted `cat > FILE <<'EOF'` heredocs).
 | `test/static-build.test.js` v2 (07:30Z) | **10/10.** The five new tests: (a) the packed-2 list deep-equals an independent recomputation, `annotate(vetSalaries(snapshot), ledger, builtAt)`, using the real Greenhouse fixture through the real adapter and normalizer plus a 3-run ledger with a repost; (b) `api/history` = `compactLedger(ledger)`, closed postings left out, repost count kept, `api/meta` = list meta, `{}` without a ledger; (c) CSV header, rows, RFC 4180 quoting, formula prefix, README, none for demo; (d) market.json ≤ 150 kB and `getMarket()` (feature-detected); (e) a static **live** fetch, the board stubbed with the fixture, gets firstSeenAt from `api/history` and meta from `api/meta`. Every build in the test uses its own temp out, snapshot and history dirs. |
 | Server-mode drawer and e2e (07:41Z) | `node scripts/e2e.js --api-only` **8/8**. Chromium against `node server/index.js`: the drawer description loads with one `/api/job?id=` request, the bullets show, it's cached on reopen, and there are 0 page errors and 0 local 4xx. `test/static-build.test.js` **11/11** (adds a server-mode `getJobDetail` unit test). |
 | Wave 2 security (CSP, trust, permissions) | Chromium on the real-data dist under the injected CSP: **0 `securitypolicyviolation` events** across load, drawer and map mode; the share page `c/openai/#m=map` redirects to `#c=openai&m=map`; full smoke PASS. `test/workflows.test.js` 5/5; `test/static-build.test.js` 12/12. Real-repo dry-run of `restore-artifact`: push runs on the deploy branch pass the trust check (the download is blocked by the sandbox, as before). |
+| Live-site guards and methodology (13:57Z) | Chromium on the real-data dist: open a job's drawer, expand the Juice section, click "How it's calculated". It opens a new tab at `http://127.0.0.1:4173/melon-seek/methodology/#1-the-formula` (same origin), scrolled to "1. The formula", with 0 CSP violations; screenshot `<scratchpad>/methodology.png`. Build: CSP in 10 pages, links OK, marker injected. `test/links-policy.test.js` 4/4; `check-site.sh` 4/4 local cases; `wait-pages-build.sh` and the watchdog's queries dry-run against the real repo. |
 | Full `npm test` ×3 (07:26Z) and ×3 (07:28Z) | **My tests green in all 6 runs.** Run set 1 was 201/206: 4 `demo.test.js` (features was editing `server/demo.js`, uncommitted) and 1 `features.test.js`. Run set 2 was 212/213 ×3: only `features.test.js` "title normalization › role families" (product's in-progress `compstimate.js` / `roles.js`). The coordinator's intermittent "packed list doesn't round-trip (job 0)" was the window between my packer emitting `columns` and api.js decoding them (two edits a few minutes apart); not seen since. |
 | Real-data build (8 companies, pre-v2 snapshots, no local ledger) | Pass, 0 warnings. Anduril list 1.29 MB, market.json 22 kB (real, 391 cells), 8 CSVs (Anduril 695 kB), backtest on every real company, e.g. Anduril n=500, MdAPE 7.1%, within 10% 53.6%. |
 | Browser, real-data packed-2 dist (07:32Z) | **PASS.** Smoke switches all 8 companies with 0 app or page errors and 0 local 404s. `getJobs` returns v2 fields and `meta`; `getMarket` returns `melon-market-1`. The drawer description loads lazily, the bullets now show in over-budget companies (the UX re-render landed), and it's cached on reopen. One local 404, `features/comps.js`: app.js's guarded `import('./features/comps.js').catch(() => null)` for product's not-yet-landed F1 module. |
@@ -1107,3 +1196,10 @@ quoted `cat > FILE <<'EOF'` heredocs).
   build gate, dev pages excluded; V12 deploy-only pages/id-token, SHA-pinned
   actions, col-refresh opens a PR. Added `test/workflows.test.js` and a CSP
   test. README updated.
+- 2026-10-02T13:58Z: URGENT site fix. Root cause: Pages "Deploy from a
+  branch" publishing the README and racing pages.yml, plus JUICE_DOC linking
+  to GitHub. Added the deploy-job wait, the build marker, the hard
+  post-deploy check with one re-deploy, `site-watchdog.yml`, the methodology
+  page (`scripts/md.js`, `scripts/methodology.js`), JUICE_DOC → on-site, the
+  link policy (build gate + `test/links-policy.test.js`). Sent the server
+  route snippet (backend) and the e2e click test (QA).

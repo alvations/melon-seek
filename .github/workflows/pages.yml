@@ -205,13 +205,58 @@ jobs:
     permissions:
       pages: write
       id-token: write
+      actions: read    # see whether GitHub's own branch-based Pages build is running
+      contents: read   # sparse checkout of .github/scripts
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SITE: ${{ vars.SITE_URL || 'https://alvations.github.io/melon-seek/' }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      # While Settings -> Pages -> Source is "Deploy from a branch", GitHub runs
+      # its own "pages build and deployment" on every push and publishes the
+      # README, racing this deploy. Wait until it is done so the app lands last.
+      # The real fix is Source = "GitHub Actions" (needs an admin).
+      - name: Wait for GitHub's branch-based Pages build (it would overwrite the app)
+        run: bash .github/scripts/wait-pages-build.sh
+
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+      # HARD check: the live site must be THIS build of the app (marker
+      # <meta name="melon-seek-build" content="<sha>">), not the README.
+      - name: Verify the live site is the app (not the README)
+        id: verify
+        continue-on-error: true
+        run: bash .github/scripts/check-site.sh "$SITE" "$GITHUB_SHA"
+
+      - name: Wait again before re-deploying
+        if: steps.verify.outcome == 'failure'
+        run: bash .github/scripts/wait-pages-build.sh
+
+      - name: Re-deploy once
+        id: redeploy
+        if: steps.verify.outcome == 'failure'
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+      - name: Verify again (fails the job)
+        if: steps.verify.outcome == 'failure'
+        run: |
+          if bash .github/scripts/check-site.sh "$SITE" "$GITHUB_SHA"; then
+            echo "Recovered after one re-deploy (${{ steps.verify.outputs.result }} at first)." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          msg="The live site is not the app after deploy + one re-deploy (${{ steps.verify.outputs.detail }}). Most likely GitHub Pages is still set to 'Deploy from a branch', so GitHub publishes the README on every push. FIX: Settings -> Pages -> Build and deployment -> Source: GitHub Actions."
+          echo "::error::$msg"
+          { echo "### Live site check FAILED"; echo ""; echo "$msg"; } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
 
       # Warn-only: confirms crawlers can fetch the live og:image as image/png.
       # LinkedIn etc. cache previews; re-scrape with

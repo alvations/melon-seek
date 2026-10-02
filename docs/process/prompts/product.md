@@ -30,3 +30,10 @@ Report back concisely: exported APIs exactly (so the lead can wire them into app
 > - DES-9: features.css hard-codes blue and red; use the app tokens.
 > - A11Y-1: faint text to at least 4.5:1.
 > Tests and screenshots; log it in product.md.
+
+> The user reports that Compstimate "looks incoherent when the user clicks and selects the filters". You're on a dedicated Compstimate task force:
+> - An investigator agent is reproducing the problems and writing a behaviour spec in docs/process/compstimate-taskforce.md.
+> - QA will automate its test matrix.
+> - You implement the fix.
+> For this task force you own public/features/compstimate.js AND the Compstimate-related code in public/app.js: the Insights widget creation and update calls, the setQuery/queryFromState wiring, and the drawer's compstimate block. I've told UX not to touch those parts. Keep your app.js edits limited to those functions and re-read the file before each edit, because UX and mobile edit other parts of it.
+> Start now by reading the current code paths and writing down how the widget's state flows. Then wait for the spec (I'll forward it, or check for that file) before changing behaviour. Keep it simple: no new controls beyond at most one "Reset to filters" link if the spec calls for it. Tests go in test/features.test.js; log it in docs/process/product.md under "Compstimate task force". Don't commit; report back when done.

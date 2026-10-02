@@ -23,6 +23,10 @@
 //   dist/api/cities.json      data/cities.json (Juice Score inputs; juice itself is
 //                             computed in the browser by api.js + lib/juice.js and is
 //                             never stored in the job lists)
+//   dist/methodology/         docs/LIVABILITY.md as a site page (scripts/methodology.js), the
+//                             target of the Juice "How it's calculated" link; never GitHub
+//   dist/index.html           also carries <meta name="melon-seek-build" content="<sha>">, the
+//                             marker the post-deploy check and site-watchdog.yml look for
 //   dist/.nojekyll
 //   dist/og/melon-seek-og.png share card (og:image), from public/og/ (card.html, its
 //                             source, is left out; see scripts/build-og.mjs)
@@ -438,6 +442,8 @@ async function writeSocial(shares) {
 // left out of the deployed site instead of loosening the CSP.
 const DEV_PAGES = ['viz/demo.html', 'features/demo.html'];
 const REFERRER_POLICY = 'strict-origin-when-cross-origin';
+// Build id for the deploy marker: the commit in CI, else a local timestamp.
+const BUILD_SHA = process.env.GITHUB_SHA || `local-${new Date().toISOString().replace(/[-:.]/g, '').slice(0, 15)}`;
 
 /**
  * The server's CSP (server/index.js#CSP) as a <meta> policy: GitHub Pages can't
@@ -692,6 +698,17 @@ async function main() {
     `window.MELON_BUILD = ${JSON.stringify(build)};\n`);
   await fs.writeFile(path.join(OUT, '.nojekyll'), '');
 
+  // 5b. Methodology page (Juice Score docs on the site itself).
+  const livability = path.join(ROOT, 'docs', 'LIVABILITY.md');
+  if (existsSync(livability)) {
+    const { renderMethodologyPage, METHODOLOGY_CSS } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'methodology.js')).href);
+    await fs.mkdir(path.join(OUT, 'methodology'), { recursive: true });
+    await fs.writeFile(path.join(OUT, 'methodology', 'index.html'), renderMethodologyPage({ md: await fs.readFile(livability, 'utf8'), sha: BUILD_SHA }));
+    await fs.writeFile(path.join(OUT, 'methodology', 'methodology.css'), METHODOLOGY_CSS);
+  } else {
+    warn('docs/LIVABILITY.md missing; no methodology page (the Juice link would break; the link check will fail)');
+  }
+
   // 6. Social previews: c/<slug>/ share pages, absolute og:url / og:image (SITE_URL)
   const social = await writeSocial(shares);
 
@@ -702,17 +719,27 @@ async function main() {
   const hazards = [];
   let pages = 0;
   for (const file of (await walk(OUT)).filter((f) => f.endsWith('.html'))) {
-    const html = injectSecurityMeta(await fs.readFile(file, 'utf8'), csp);
+    let html = injectSecurityMeta(await fs.readFile(file, 'utf8'), csp);
+    // Deploy marker: proves the live site is this build of the app, not GitHub's README page.
+    if (file === path.join(OUT, 'index.html')) {
+      html = html.replace(/\s*<meta name="melon-seek-build"[^>]*>/g, '').replace(/(<meta name="referrer"[^>]*>)/, `$1\n  <meta name="melon-seek-build" content="${escAttr(BUILD_SHA)}">`);
+    }
     for (const h of inlineHazards(html)) hazards.push(`${path.relative(OUT, file)}: ${h}`);
     await fs.writeFile(file, html);
     pages++;
   }
   if (hazards.length) throw new Error(`CSP (script-src/style-src 'self') would break: ${hazards.join('; ')}`);
 
+  // 8. Link policy (scripts/links-policy.js): never off-site except allowlisted
+  // hosts, never GitHub, every relative link and #anchor resolves.
+  const { checkDist } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'links-policy.js')).href);
+  const linkViolations = checkDist(OUT, { siteUrl: siteUrl() });
+  if (linkViolations.length) throw new Error(`link policy: ${linkViolations.length} violation(s):\n  ${linkViolations.slice(0, 30).join('\n  ')}`);
+
   console.log(`Built ${rel(OUT)}/ in ${Date.now() - t0}ms: ${libCount} lib modules, leaflet, ${companies.length} companies`);
   for (const line of summary) console.log(`  ${line}`);
   console.log(`  social: og:image ${social.image || '(none)'}; ${social.pages} share pages at ${social.site}c/<slug>/`);
-  console.log(`  security: CSP + referrer <meta> in ${pages} pages; no inline scripts/styles/handlers`);
+  console.log(`  security: CSP + referrer <meta> in ${pages} pages; no inline scripts/styles/handlers; links OK; build marker ${BUILD_SHA}`);
   console.log(`  juice: api/cities.json ${citiesNote}, lib/juice.js ${existsSync(path.join(OUT, 'lib', 'juice.js')) ? 'bundled' : 'missing'}`);
   console.log(`  market: ${marketNote}; csv: ${csvRows.length ? `data/*.csv for ${csvRows.length} companies (${csvRows.filter((r) => r.mode === 'demo').length} demo) + data/README.txt` : 'none'}`);
   if (warnings.length) {
