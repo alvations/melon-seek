@@ -326,7 +326,10 @@ body.filters-collapsed .filters { visibility: hidden; }
   background: var(--ms-amber-bg); color: var(--ms-text); border: 1px solid var(--ms-amber-border); font-size: 13px;
 }
 .demo-banner .demo-ico svg { color: var(--ms-amber); width: 18px; height: 18px; display: block; }
-.demo-banner > span:nth-child(2) { flex: 1 1 300px; }
+.demo-banner > .banner-long { flex: 1 1 300px; }
+.demo-banner > .link-btn { white-space: nowrap; order: 2; }
+.demo-banner > code { order: 3; flex: 1 1 100%; margin-left: 28px; max-width: max-content; }
+html[data-mode="map"] .demo-banner > code { order: 0; flex: 0 1 auto; margin-left: 0; }
 .demo-banner code { font: 11.5px var(--ms-mono); color: var(--ms-amber); background: color-mix(in srgb, var(--ms-amber) 10%, transparent); padding: 2px 6px; border-radius: 5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .demo-banner .link-btn { color: var(--ms-amber); }
 
@@ -553,8 +556,7 @@ body.filters-collapsed .filters { visibility: hidden; }
   .data-badge { height: 30px; max-width: 34px; padding: 0 0 0 12px; overflow: hidden; }
   .data-badge .badge-label { opacity: 0; }
   .data-badge.is-demo { max-width: 92px; padding: 0 10px; }
-  .data-badge.is-demo .badge-label { opacity: 1; font-size: 0; }
-  .data-badge.is-demo .badge-label::before { content: "Demo data"; font-size: 12px; }
+  .data-badge.is-demo .badge-label { opacity: 1; }
   .quickbar { padding: 0 12px; height: 48px; gap: 6px; }
   .quickbar-end #areaChipTop { display: none; }
   .chip { height: 32px; padding: 0 11px; font-size: 13px; }
@@ -626,3 +628,23 @@ html[data-mode="map"] .viz-toolbar { min-height: 0; }
 .apply-label { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.15; }
 .apply-host { font-size: 11.5px; font-weight: 500; opacity: .85; }
 .drawer-scroll:focus-visible { outline-offset: -2px; }
+
+/* Short badge label when the top bar gets crowded (the banner carries the full message). */
+@media (max-width: 1599px) {
+  .data-badge .badge-label { font-size: 0; }
+  .data-badge .badge-label::before { content: attr(data-short); font-size: 12.5px; }
+}
+
+@media (max-width: 860px) {
+  .search { flex-basis: 150px; }
+  .data-badge.is-demo { max-width: 76px; padding: 0 10px; }
+  .data-badge.is-demo .badge-label::before { content: attr(data-tiny); font-size: 12px; }
+  .demo-banner { flex-wrap: nowrap; }
+  .demo-banner .banner-long, .demo-banner code { display: none; }
+  .demo-banner .banner-short { display: inline; margin-right: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+}
+
+@media (prefers-color-scheme: dark) {
+  /* Brand colours from /api/companies can be near-black; ring keeps them visible. */
+  .dot { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ms-text) 40%, transparent); }
+}

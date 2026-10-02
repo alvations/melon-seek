@@ -65,6 +65,8 @@ const SHOTS = [
   { name: 'fallback-dark', viewport: [1360, 1000], query: 'theme=dark&tokens=none', full: true },
   { name: 'sidebar-narrow', viewport: [820, 1400], query: 'theme=light&layout=narrow', full: true },
   { name: 'mobile', viewport: [390, 844], query: 'theme=light', full: true },
+  { name: 'mobile-comp', viewport: [390, 844], query: 'theme=light', element: '.ms-comp' },
+  { name: 'mobile-insights-dark', viewport: [390, 844], query: 'theme=dark', element: '.ms-insights' },
   { name: 'wide-comp', viewport: [1100, 900], query: 'theme=light&layout=wide', element: '.ms-comp' },
   { name: 'comp-staff-research', viewport: [1360, 1000], query: `theme=light&q=${encodeURIComponent(JSON.stringify({ title: 'Research Engineer', seniority: 'Staff+', location: 'San Francisco' }))}`, element: '.ms-comp' },
   { name: 'comp-london-dark', viewport: [1360, 1000], query: `theme=dark&q=${encodeURIComponent(JSON.stringify({ title: 'Account Executive', location: 'London' }))}`, element: '.ms-comp' },

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // End-to-end suite: real server + headless Chromium via Playwright.
-// Usage: node scripts/e2e.js [--api-only] [--headed]
+// Usage: node scripts/e2e.js [--api-only] [--headed] [--grep=<regex>]
 // Not part of `npm test` (needs a browser). Playwright is NOT a repo dependency:
 //   npm i playwright --no-save            (or install anywhere and set NODE_PATH / PLAYWRIGHT_MODULE)
 // Uses a preinstalled Chromium (PLAYWRIGHT_BROWSERS_PATH, /opt/pw-browsers, or CHROMIUM_PATH).
@@ -10,6 +10,8 @@ import { registerUiTests } from '../test/e2e/ui.e2e.js';
 
 const args = new Set(process.argv.slice(2));
 const apiOnly = args.has('--api-only');
+const grepArg = process.argv.find((a) => a.startsWith('--grep='));
+const grep = grepArg ? new RegExp(grepArg.slice(7), 'i') : null;
 
 const pw = apiOnly ? null : await loadPlaywright();
 if (!apiOnly && !pw) {
@@ -26,7 +28,7 @@ if (!apiOnly && !pw) {
 const server = await startServer();
 console.log(`e2e: server at ${server.baseUrl}`);
 const suite = createSuite();
-const ctx = { baseUrl: server.baseUrl, data: {}, pw, browser: null };
+const ctx = { baseUrl: server.baseUrl, data: {}, notes: [], pw, browser: null };
 registerApiTests(suite);
 
 let browser = null;
@@ -40,12 +42,16 @@ if (!apiOnly) {
 
 let results;
 try {
-  results = await suite.run(ctx);
+  results = await suite.run(ctx, grep);
 } finally {
   if (browser) await browser.close().catch(() => {});
   await server.stop();
 }
 const failed = results.filter((r) => !r.ok);
+if (ctx.notes.length) {
+  console.log('\ne2e notes (non-fatal observations):');
+  for (const n of [...new Set(ctx.notes)]) console.log(`  * ${n}`);
+}
 console.log(`\ne2e: ${results.length - failed.length}/${results.length} passed, ${failed.length} failed`);
 if (failed.length) {
   for (const f of failed) console.log(`  - ${f.name}`);

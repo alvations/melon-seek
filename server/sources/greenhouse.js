@@ -22,19 +22,41 @@ function metaValue(metadata, re) {
   return Array.isArray(m.value) ? m.value.join(', ') : String(m.value);
 }
 
-function payRangeSalary(ranges) {
+function rangeInterval(r) {
+  const hint = `${r.title || ''} ${r.blurb || ''}`.toLowerCase();
+  if (/hour/.test(hint)) return 'hour';
+  if (/month/.test(hint)) return 'month';
+  return 'year';
+}
+
+/**
+ * `pay_input_ranges` (needs pay_transparency=true): [{min_cents, max_cents,
+ * currency_type, title, blurb}], no interval field. Amounts are cents. With
+ * several ranges (e.g. per location tier) the salary spans the overall min and
+ * max of the ranges that share the first range's currency and interval.
+ * Returns null when nothing usable is present (normalize then parses the text).
+ */
+export function payRangeSalary(ranges) {
   if (!Array.isArray(ranges) || !ranges.length) return null;
-  const r = ranges.find((x) => x && (x.min_cents != null || x.max_cents != null));
-  if (!r) return null;
-  const min = r.min_cents != null ? Number(r.min_cents) / 100 : null;
-  const max = r.max_cents != null ? Number(r.max_cents) / 100 : null;
-  if (!Number.isFinite(min ?? max)) return null;
-  const blurb = `${r.title || ''} ${r.blurb || ''}`.toLowerCase();
-  const interval = /hour/.test(blurb) ? 'hour' : /month/.test(blurb) ? 'month' : 'year';
-  const currency = (r.currency_type || 'USD').toUpperCase();
+  const usable = ranges
+    .filter((x) => x && (x.min_cents != null || x.max_cents != null))
+    .map((x) => {
+      const lo = x.min_cents != null ? Number(x.min_cents) / 100 : Number(x.max_cents) / 100;
+      const hi = x.max_cents != null ? Number(x.max_cents) / 100 : lo;
+      return { lo: Math.min(lo, hi), hi: Math.max(lo, hi), currency: String(x.currency_type || 'USD').toUpperCase(), interval: rangeInterval(x), title: x.title };
+    })
+    .filter((x) => Number.isFinite(x.lo) && Number.isFinite(x.hi) && x.hi > 0);
+  if (!usable.length) return null;
+  const first = usable[0];
+  const same = usable.filter((x) => x.currency === first.currency && x.interval === first.interval);
+  const min = Math.min(...same.map((x) => x.lo));
+  const max = Math.max(...same.map((x) => x.hi));
   const fmt = (n) => n.toLocaleString('en-US');
-  const text = min != null && max != null && min !== max ? `${fmt(min)}–${fmt(max)} ${currency}` : `${fmt(min ?? max)} ${currency}`;
-  return { min: min ?? max, max: max ?? min, currency, interval, text };
+  let text = min !== max ? `${fmt(min)}–${fmt(max)} ${first.currency}` : `${fmt(min)} ${first.currency}`;
+  if (first.interval !== 'year') text += ` per ${first.interval}`;
+  if (same.length > 1) text += ` (${same.length} ranges)`;
+  else if (first.title) text = `${first.title}: ${text}`;
+  return { min, max, currency: first.currency, interval: first.interval, text };
 }
 
 export function mapGreenhouseJob(j) {

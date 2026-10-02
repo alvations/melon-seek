@@ -106,7 +106,7 @@
 /* ============================== insights ============================== */
 
 .ms-insights {
-  container-type: inline-size;
+  container: ms-insights / inline-size;
   font-family: var(--_font);
   font-size: 13px;
   line-height: 1.4;
@@ -122,8 +122,11 @@
   gap: 8px;
   margin-bottom: 12px;
 }
-@container (min-width: 620px) {
+@container ms-insights (min-width: 620px) {
   .msi-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@container ms-insights (max-width: 480px) {
+  .ms-insights .msi-stat__value { font-size: 17px; }
 }
 .msi-stat {
   padding: 10px 12px;
@@ -137,11 +140,12 @@
 .msi-stat__note { color: var(--_muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .msi-cards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: start; }
-@container (min-width: 720px) {
+@container ms-insights (min-width: 720px) {
   .msi-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 .msi-card {
+  container: msi-card / inline-size;
   padding: 14px 16px 12px;
   border: 1px solid var(--_border);
   border-radius: var(--_radius);
@@ -238,19 +242,37 @@
 }
 .msi-row:hover .msi-box__iqr { background: color-mix(in srgb, var(--_box) 80%, var(--_accent)); }
 
+/* narrow card: label + median on one line, full-width plot below */
+.msi-rows--box .msi-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "label value" "plot plot";
+  row-gap: 3px;
+  padding-top: 5px; padding-bottom: 6px;
+}
+.msi-rows--box .msi-row__label { grid-area: label; }
+.msi-rows--box .msi-row__value { grid-area: value; }
+.msi-rows--box .msi-box { grid-area: plot; }
 .msi-axis {
   display: grid;
-  grid-template-columns: var(--_lw) minmax(0, 1fr) var(--_vw);
+  grid-template-columns: minmax(0, 1fr);
   column-gap: 10px;
   margin-top: 4px;
+}
+.msi-axis__pad { display: none; }
+@container msi-card (min-width: 500px) {
+  .msi-rows--box .msi-row {
+    grid-template-columns: var(--_lw) minmax(0, 1fr) var(--_vw);
+    grid-template-areas: "label plot value";
+    padding-top: 3px; padding-bottom: 3px;
+  }
+  .msi-axis { grid-template-columns: var(--_lw) minmax(0, 1fr) var(--_vw); }
+  .msi-axis__pad { display: block; }
 }
 .msi-axis__track { position: relative; height: 16px; border-top: 1px solid var(--_axis); }
 .msi-axis__tick {
   position: absolute; top: 3px; transform: translateX(-50%);
   color: var(--_muted); font-size: 10.5px; font-variant-numeric: tabular-nums; white-space: nowrap;
 }
-.msi-axis__tick.is-first { transform: none; }
-.msi-axis__tick.is-last { transform: translateX(-100%); }
 
 /* (c) locations */
 .msi-cols {
@@ -289,7 +311,7 @@
 /* ============================== compstimate ============================== */
 
 .ms-comp {
-  container-type: inline-size;
+  container: ms-comp / inline-size;
   padding: 16px;
   border: 1px solid var(--_border);
   border-radius: var(--_radius);
@@ -346,8 +368,7 @@
 .ms-comp__sig-on { fill: var(--_accent); }
 .ms-comp__sig-off { fill: color-mix(in srgb, var(--_muted) 30%, var(--_surface)); }
 .ms-comp__conf-label { font-weight: 600; }
-.ms-comp__conf-n { color: var(--_muted); }
-.ms-comp__conf-n::before { content: "·"; margin-right: 6px; }
+.ms-comp__conf-n { margin-top: 2px; color: var(--_muted); font-size: 12.5px; }
 
 .ms-comp__range { margin-top: 14px; }
 .ms-comp__range-ends { display: flex; justify-content: space-between; font-size: 12.5px; }
@@ -373,7 +394,7 @@
 .ms-comp__comps-title { margin: 0 0 4px; font-size: 13px; font-weight: 600; }
 .ms-comp__list { display: grid; gap: 1px; margin: 0 -8px; padding: 0; list-style: none; }
 .ms-comp__item {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
   width: 100%; padding: 7px 8px;
   border: 0; border-radius: 8px; background: transparent;
   color: inherit; font: inherit; text-align: left; cursor: pointer;
@@ -382,7 +403,10 @@
 .ms-comp__item:hover { background: var(--_wash); }
 .ms-comp__item:focus-visible { outline: none; box-shadow: var(--_focus); }
 .ms-comp__item-main { display: grid; min-width: 0; }
-.ms-comp__item-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 550; }
+.ms-comp__item-title {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+  overflow: hidden; font-size: 13px; font-weight: 550; line-height: 1.3;
+}
 .ms-comp__item:hover .ms-comp__item-title { text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--_axis); }
 .ms-comp__item-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--_muted); font-size: 11.5px; }
 .ms-comp__item-side { display: grid; justify-items: end; flex: none; }
@@ -393,7 +417,7 @@
 .ms-comp__empty-title { margin: 0; font-weight: 600; }
 .ms-comp__empty { margin: 4px 0 0; color: var(--_muted); font-size: 12.5px; }
 
-@container (min-width: 640px) {
+@container ms-comp (min-width: 640px) {
   .ms-comp__form { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); }
   .msf-field--wide { grid-column: auto; }
   .ms-comp__result { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }

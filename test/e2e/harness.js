@@ -110,8 +110,9 @@ export function createSuite() {
   const results = [];
   return {
     test(name, fn) { tests.push({ name, fn }); },
-    async run(ctx) {
+    async run(ctx, grep = null) {
       for (const t of tests) {
+        if (grep && !grep.test(t.name)) continue;
         const start = Date.now();
         try {
           await t.fn(ctx);

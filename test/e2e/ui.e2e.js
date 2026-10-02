@@ -3,6 +3,7 @@
 // roles/text are preferred, ids are used for app-owned containers.
 import path from 'node:path';
 import { mkdirSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { ROOT, assert, assertEq } from './harness.js';
 
 const SHOTS = path.join(ROOT, 'docs', 'screenshots');
@@ -71,7 +72,8 @@ async function countChange(page, prev, timeout = 5000) {
 
 /** The Chart/Map toggle button in the "View" group. */
 function modeBtn(page, mode) {
-  return page.getByRole('group', { name: 'View' }).getByRole('button', { name: mode === 'map' ? 'Map' : 'Chart', exact: true });
+  // Accessible names are checked separately (they vanish on mobile); select by data-mode here.
+  return page.locator(`.topbar .seg button[data-mode="${mode}"]`);
 }
 
 async function cardIds(page) {
@@ -147,7 +149,21 @@ export function registerUiTests(suite) {
       assert(/(^|&)m=map(&|$)/.test(await page.evaluate(() => location.hash.slice(1))), 'hash has m=map');
       // Clicking a pin should narrow to an area.
       const before = await resultCount(page);
-      await page.locator('#mapHost .ms-pin').last().click({ force: true });
+      // Every pin should sit inside the visible map viewport after the initial fit.
+      const geom = await page.evaluate(() => {
+        const host = document.querySelector('#mapHost .leaflet-container') || document.querySelector('#mapHost');
+        const hr = host.getBoundingClientRect();
+        return [...document.querySelectorAll('#mapHost .ms-pin')].map((pin, i) => {
+          const r = pin.getBoundingClientRect();
+          const inside = r.left >= hr.left - 1 && r.right <= hr.right + 1 && r.top >= hr.top - 1 && r.bottom <= hr.bottom + 1;
+          return { i, inside, label: pin.closest('[aria-label]')?.getAttribute('aria-label') || pin.textContent };
+        });
+      });
+      const clipped = geom.filter((g) => !g.inside);
+      ctx.notes.push(...clipped.map((g) => `map pin clipped by viewport after initial fit: ${g.label}`));
+      const target = geom.find((g) => g.inside);
+      assert(target, 'no pin fully inside the map viewport');
+      await page.locator('#mapHost .ms-pin').nth(target.i).click();
       await page.waitForTimeout(500);
       const areaChip = page.locator('.area-chip').first();
       assert(await areaChip.isVisible().catch(() => false), 'clicking a pin should show an area chip');
@@ -156,6 +172,7 @@ export function registerUiTests(suite) {
       await areaChip.locator('button').click();
       await page.waitForTimeout(500);
       await page.screenshot({ path: path.join(SHOTS, 'map.png') });
+      assert(clipped.length === 0, `${clipped.length}/${geom.length} pins outside the visible map after initial fit: ${clipped.map((g) => g.label).join('; ')}`);
       assert(errors.length === 0, `console/page errors:\n${errors.join('\n')}`);
     } finally { await app.close(); }
   });
@@ -203,9 +220,12 @@ export function registerUiTests(suite) {
       assert(smin > 0, `hash should contain smin (got "${hash}")`);
       const api = await apiJobs(ctx, 'anthropic');
       const byId = new Map(api.jobs.map((j) => [j.id, j]));
-      const bad = (await cardIds(page)).filter((id) => { const j = byId.get(id); return !j || !j.salary || j.salary.max < smin; });
+      // The app compares in approximate USD (palette.toUSD), so mirror that here.
+      const { toUSD } = await import(pathToFileURL(path.join(ROOT, 'public', 'viz', 'palette.js')).href);
+      const usdMax = (j) => toUSD(j.salary.max, j.salary.currency);
+      const bad = (await cardIds(page)).filter((id) => { const j = byId.get(id); return !j || !j.salary || usdMax(j) < smin; });
       assert(bad.length === 0, `${bad.length} cards violate salary >= ${smin}: ${bad.slice(0, 3)}`);
-      const expected = api.jobs.filter((j) => j.salary && j.salary.max >= smin).length;
+      const expected = api.jobs.filter((j) => j.salary && usdMax(j) >= smin).length;
       assertEq(after, expected, 'count vs API-computed salary filter');
       assert(errors.length === 0, `console/page errors:\n${errors.join('\n')}`);
     } finally { await app.close(); }
@@ -369,6 +389,10 @@ export function registerUiTests(suite) {
       assert(m.scrollWidth <= m.clientWidth && m.bodyScroll <= m.clientWidth,
         `horizontal overflow: scrollWidth=${m.scrollWidth} body=${m.bodyScroll} client=${m.clientWidth}; offenders: ${m.offenders.join(', ')}`);
       await page.screenshot({ path: path.join(SHOTS, 'mobile.png') });
+      const unnamed = await page.locator('button:visible').evaluateAll((els) => els
+        .filter((b) => !(b.getAttribute('aria-label') || b.getAttribute('title') || b.getAttribute('aria-labelledby') || b.innerText.trim()))
+        .map((b) => b.outerHTML.slice(0, 90)));
+      if (unnamed.length) ctx.notes.push(`mobile: ${unnamed.length} visible buttons without an accessible name, e.g. ${unnamed[0]}`);
       // Map mode and the filter sheet on mobile shouldn't overflow either.
       await modeBtn(page, 'map').click();
       await page.waitForTimeout(500);
@@ -379,6 +403,7 @@ export function registerUiTests(suite) {
       assert(await page.locator('#filters').isVisible(), 'filters panel opens on mobile');
       const m3 = await noHScroll(page);
       assert(m3.scrollWidth <= m3.clientWidth, `filters open overflow: ${m3.scrollWidth} > ${m3.clientWidth}`);
+      assert(unnamed.length === 0, `${unnamed.length} visible buttons have no accessible name at 390px, e.g. ${unnamed.join(' | ')}`);
       assert(errors.length === 0, `console/page errors:\n${errors.join('\n')}`);
     } finally { await app.close(); }
   });

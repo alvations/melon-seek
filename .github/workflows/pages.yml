@@ -39,7 +39,7 @@ jobs:
         run: npm ci
 
       - name: Refresh snapshots (best effort; committed snapshots are used if this fails)
-        run: npm run snapshot -- anthropic anduril openai || true
+        run: npm run snapshot || true # no args = every built-in in server/companies.js
 
       - name: Build static site
         run: npm run build

@@ -16,17 +16,22 @@
 //
 // Every function resolves to the HTTP API shapes in docs/CONTRACT.md.
 //
-// CORS: Greenhouse's job board API is built for client-side use. Lever's postings
-// API rejects cross-origin requests from third-party sites (per Lever's
-// postings-api docs), and Ashby's posting API is reported to have no CORS
-// headers either. So static mode only tries live fetches for the sources listed
-// in `window.MELON_LIVE_SOURCES` (default: greenhouse + ashby). A source whose
-// fetch fails at the network/CORS level is skipped for the rest of the session
-// unless the user asks for a refresh.
+// CORS: Greenhouse's job board API is built for client-side use. Ashby's posting
+// API is reported to have no CORS headers. Lever's postings-api docs say
+// cross-origin requests from third-party sites aren't supported, although it
+// currently answers with `Access-Control-Allow-Origin: *`. Static mode tries live
+// fetches for the sources in `window.MELON_LIVE_SOURCES` (default: all three).
+// A source whose fetch fails at the network/CORS level is skipped for the rest
+// of the session unless the user asks for a refresh. For sources in
+// `window.MELON_QUIET_CORS_SOURCES` (default: lever), that kind of failure is
+// expected: when the bundled snapshot is served, it is returned with
+// `error: null`, so the UI shows no error banner. Demo fallbacks always keep
+// their error, so demo data is never shown without an explanation.
 
 const FRESH_TTL_MS = 30 * 60 * 1000; // same as the server cache (responsible use)
 const LIVE_TIMEOUT_MS = 12000;
-const DEFAULT_LIVE_SOURCES = ['greenhouse', 'ashby'];
+const DEFAULT_LIVE_SOURCES = ['greenhouse', 'ashby', 'lever'];
+const DEFAULT_QUIET_CORS_SOURCES = ['lever'];
 
 const g = typeof window !== 'undefined' ? window : globalThis;
 
@@ -35,10 +40,11 @@ export function isStatic() {
   return !!g.MELON_STATIC;
 }
 
-function liveSources() {
-  const v = g.MELON_LIVE_SOURCES;
-  return Array.isArray(v) ? v.map((s) => String(s).toLowerCase()) : DEFAULT_LIVE_SOURCES;
+function sourceList(v, fallback) {
+  return Array.isArray(v) ? v.map((s) => String(s).toLowerCase()) : fallback;
 }
+const liveSources = () => sourceList(g.MELON_LIVE_SOURCES, DEFAULT_LIVE_SOURCES);
+const quietCorsSources = () => sourceList(g.MELON_QUIET_CORS_SOURCES, DEFAULT_QUIET_CORS_SOURCES);
 
 /* ---------------------------------------------------------------- helpers */
 
@@ -217,12 +223,14 @@ async function staticJobs(p, { refresh = false, signal } = {}) {
 
   // 1. Live, from the browser.
   let error = null;
+  let quiet = false; // expected CORS failure: serve the snapshot without an error
   const allowed = liveSources().includes(company.source);
   if (refresh) blockedSources.delete(company.source);
   if (!allowed) {
     error = `Live fetch skipped: ${company.source} does not allow cross-origin requests from this site (static deploy)`;
   } else if (blockedSources.has(company.source)) {
     error = `Live fetch skipped: ${company.source} was unreachable from this browser earlier in this session (blocked by CORS or the network); use refresh to retry`;
+    quiet = quietCorsSources().includes(company.source);
   } else {
     try {
       const jobs = await fetchLiveInBrowser(lib, company, signal);
@@ -231,7 +239,10 @@ async function staticJobs(p, { refresh = false, signal } = {}) {
       return { company: pub, mode: 'live', fetchedAt, error: null, jobs };
     } catch (err) {
       if (err && err.name === 'AbortError') throw err;
-      if (err && err.network) blockedSources.add(company.source);
+      if (err && err.network) {
+        blockedSources.add(company.source);
+        quiet = quietCorsSources().includes(company.source);
+      }
       error = `Live fetch failed: ${err && err.message ? err.message : String(err)}`;
     }
   }
@@ -245,6 +256,9 @@ async function staticJobs(p, { refresh = false, signal } = {}) {
       const body = await bundled(path, signal);
       if (body) {
         const mode = body.mode === 'snapshot' ? 'snapshot' : 'demo';
+        if (mode === 'snapshot' && quiet) {
+          return { company: pub, mode, fetchedAt: body.fetchedAt || null, error: null, jobs: body.jobs };
+        }
         const note = body.error && mode === 'demo' ? body.error : null;
         return { company: pub, mode, fetchedAt: body.fetchedAt || null, error: [error, note].filter(Boolean).join('; ') || null, jobs: body.jobs };
       }

@@ -489,7 +489,7 @@ function renderTopbar() {
   badge.className = `data-badge ${info ? info.cls : ''}`;
   badge.hidden = !info;
   if (info) {
-    badge.replaceChildren(h('span', { class: 'badge-dot', 'aria-hidden': 'true' }), h('span', { class: 'badge-label' }, info.label),
+    badge.replaceChildren(h('span', { class: 'badge-dot', 'aria-hidden': 'true' }), h('span', { class: 'badge-label', 'data-short': info.short || info.label, 'data-tiny': info.tiny || '' }, info.label),
       h('span', { class: 'sr-only', id: 'dataBadgeTip' }, info.tip));
     badge.setAttribute('aria-describedby', 'dataBadgeTip');
     badge.title = info.tip;
@@ -516,12 +516,12 @@ function badgeInfo() {
   if (data.status !== 'ready') return null;
   const src = data.company?.source ? `${SOURCE_LABEL[data.company.source] || data.company.source} / ${data.company.board}` : '';
   const when = data.fetchedAt ? ago(data.fetchedAt) : null;
-  if (MOCK) return { label: 'Mock data', cls: 'is-demo', tip: `Synthetic development data from mock-api.js (?mock=1, localhost only) — not real postings. Simulated mode: ${data.mode}.` };
+  if (MOCK) return { label: 'Mock data', short: 'Mock data', tiny: 'Mock', cls: 'is-demo', tip: `Synthetic development data from mock-api.js (?mock=1, localhost only) — not real postings. Simulated mode: ${data.mode}.` };
   switch (data.mode) {
     case 'live': return { label: 'Live', cls: 'is-live', tip: `Fetched live from ${src}${when ? ` · ${when}` : ''}.` };
     case 'cache': return { label: when ? `Cached · ${when}` : 'Cached', cls: 'is-cache', tip: `Served from a recent copy of ${src}${data.error ? ` (live fetch failed: ${data.error})` : ''}. Refresh to fetch live.` };
     case 'snapshot': return { label: data.fetchedAt ? `Snapshot · ${shortDate(data.fetchedAt)}` : 'Snapshot', cls: 'is-snapshot', tip: `Saved snapshot of ${src}${data.fetchedAt ? ` from ${shortDate(data.fetchedAt)}` : ''}${data.error ? `. Live fetch failed: ${data.error}` : ''}.` };
-    case 'demo': return { label: 'Demo data — live board unreachable', cls: 'is-demo', tip: `Generated sample data, not real postings.${data.error ? ` Error: ${data.error}` : ''}` };
+    case 'demo': return { label: 'Demo data — live board unreachable', short: 'Demo data', tiny: 'Demo', cls: 'is-demo', tip: `Generated sample data, not real postings.${data.error ? ` Error: ${data.error}` : ''}` };
     default: return { label: String(data.mode), cls: '', tip: src };
   }
 }

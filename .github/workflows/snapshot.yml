@@ -29,7 +29,7 @@ jobs:
         run: npm ci
 
       - name: Fetch snapshots
-        run: npm run snapshot -- anthropic anduril openai
+        run: npm run snapshot # no args = every built-in in server/companies.js
 
       - name: Commit changed snapshots
         run: |

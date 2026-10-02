@@ -133,3 +133,11 @@ screenshots in `docs/screenshots/`.
   (Scale AI, xAI, Cohere, Palantir, Shield AI, Mistral). Sent to backend
   (pay ranges, new built-ins) and devops (snapshot all built-ins; quiet
   Lever fallback in static mode).
+- 2026-10-02: user feedback: "the chart mode is still too noisy, similar more
+  sleek like how one would view or cluster postings". Spec sent to viz and UX:
+  - viz: new default "clusters" view (per-group rows, postings binned by
+    salary into count-sized circles, P25–P75 band, median tick), current bars
+    kept as "ranges", new onClusterSelect callback.
+  - UX: Clusters|Ranges toggle, cluster selection filters the list via a
+    chip, compact demo notice, KPI tiles collapsed to one stats row, lighter
+    cards, view stored in the URL hash.

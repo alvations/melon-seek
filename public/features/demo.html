@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Features Demo Harness</title>
   <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="./features.css">
   <style>
     /* App-like tokens (mirrors public/styles.css). Remove with ?tokens=none to
@@ -58,11 +59,12 @@
     @media (min-width: 900px) { .demo-main { grid-template-columns: 360px minmax(0, 1fr); padding: 20px; } }
     .layout-narrow .demo-main { grid-template-columns: 360px 380px; justify-content: start; }
     .layout-wide .demo-main { grid-template-columns: minmax(0, 1fr); }
-    .demo-filter { display: flex; align-items: center; gap: 8px; min-height: 28px; margin-bottom: 10px; font-size: 12.5px; color: var(--ms-muted, var(--page-muted)); }
+    .demo-filter { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 12.5px; color: var(--ms-muted, var(--page-muted)); }
     .demo-filter button {
       display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; cursor: pointer;
       border: 1px solid var(--ms-accent, #2a78d6); background: transparent; color: var(--ms-text, var(--page-text)); font: inherit;
     }
+    .demo-filter:empty { display: none; }
     .demo-log { margin-top: 12px; font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ms-muted, var(--page-muted)); }
   </style>
 </head>
