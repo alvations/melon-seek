@@ -463,3 +463,11 @@ screenshots in `docs/screenshots/`.
   - vetting: V11 (llm-vet prompt-injection hardening).
   - UX: V5–V9, V13, V14 client side.
 - 2026-10-02: vetting fixed V11 (llm-vet). Residual risk accepted: a hostile posting can make its own quote and numbers 'verify', but LLM verdicts are advisory only and the hard salary bounds still gate publishing. Full suite temporarily red from backend's in-progress pipeline refactor.
+- 2026-10-02: user reports Compstimate looks incoherent when filters are
+  selected; asked for a dedicated task force. Formed one:
+  - investigator (new): reproduce, find root causes, write the behaviour spec
+    and test matrix in docs/process/compstimate-taskforce.md;
+  - product: owns the fix in compstimate.js plus the Compstimate parts of
+    app.js (UX handed off those functions);
+  - QA: automates the matrix as e2e tests, red first and then green.
+  Simplicity rule: at most one "Reset to filters" link.

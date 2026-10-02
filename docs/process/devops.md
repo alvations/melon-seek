@@ -565,6 +565,64 @@ feature-detected, so the build and site work before each owner lands it.
       broken "Download CSV" links. This reverses decision 49's real-only
       choice.
 
+### Wave 2 security fixes (docs/REVIEW.md "v2 review")
+
+57. **V2, artifact trust.** `ledger.sh` has a single `restore_artifact`, also
+    exposed as `restore-artifact`, which pages.yml now uses for
+    `job-board-snapshots` instead of its own `gh run list` loop. It considers
+    only non-expired artifacts whose `workflow_run.head_repository_id ==
+    repository_id`, so fork runs are dropped at the listing. Then
+    `GET /actions/runs/{id}` must show:
+    - `event` in push, schedule or workflow_dispatch (not pull_request,
+      pull_request_target or workflow_run);
+    - `head_repository.full_name` equal to this repo;
+    - `head_branch` equal to the default branch, from `GET /repos`, or a
+      branch in `TRUSTED_BRANCHES` (workflow env; the deploy branch).
+
+    Skipped runs are logged with the reason. The branch store is unaffected:
+    the `data-history` branch can only be written by `persist-ledger`, which
+    never runs on PRs.
+58. **V3, CSP on Pages.**
+    - The policy is generated from `server/index.js#CSP`, a single source,
+      with `frame-ancestors`, `report-*` and `sandbox` stripped because meta
+      tags ignore them. It's injected with the referrer policy after
+      `<meta charset>` in **every** built page.
+    - The share-page redirect is moved to an external `c/share-redirect.js`,
+      which reads its target from `data-target`.
+    - Dev harness pages with inline code (`viz/demo.html`,
+      `features/demo.html`, not linked from the app) are removed from `dist/`
+      rather than loosening the policy.
+    - **Build gate:** any inline `<script>`, `<style>` element, `on*=`
+      handler or `javascript:` URL in a shipped page fails the build.
+      JSON-LD/JSON scripts are allowed.
+    - The build refuses to run if the server has no `CSP` export.
+59. **V12.**
+    - pages.yml's workflow-level permissions are now `contents: read,
+      actions: read`, and `pages: write` / `id-token: write` sit on the deploy
+      job only. `persist-ledger` keeps its own gated `contents: write`.
+    - All `actions/*` uses in all four workflows are pinned to the commit the
+      major tag pointed to (resolved with `git ls-remote --tags`), with
+      `# vX.Y.Z`: checkout v7.0.1, setup-node v7.0.0, upload-artifact v7.0.1,
+      download-artifact v8.0.1, configure-pages v6.0.0,
+      upload-pages-artifact v5.0.0, deploy-pages v5.0.1. Update them together
+      (or let Dependabot do it).
+    - col-refresh (livability's workflow, changed at the coordinator's
+      request) commits to `bot/col-refresh`, force-pushes that branch only,
+      and opens or updates a PR (`pull-requests: write`). If the repository
+      doesn't allow Actions to create PRs, it warns and leaves the branch.
+      Caveat: PRs opened with GITHUB_TOKEN don't trigger CI.
+60. **Tests:**
+    - `test/workflows.test.js` (new): SHA pins with version comments;
+      pages/id-token only on deploy; `contents: write` only in
+      `persist-ledger`, plus col-refresh pushing only its branch; no PR
+      triggers on pages/snapshot/col-refresh; and the `ledger.sh` trust
+      filter against a stub `gh` (fork, PR, other-branch and expired
+      artifacts skipped; the trusted run restored).
+    - `test/static-build.test.js` gains a CSP test: every page's meta equals
+      the server CSP minus frame-ancestors, has the referrer meta and no
+      inline code; the share page uses the external redirect; dev pages
+      aren't deployed.
+
 ## 4. Replayable steps
 
 Run from `/home/user/melon-seek`. File contents are the committed files
@@ -855,6 +913,7 @@ quoted `cat > FILE <<'EOF'` heredocs).
 | Salary vetting gate on real snapshots | **Exit 1.** 8 unquarantined critical salaries, e.g. Anthropic Fellows "$4.6M", Scale AI "Strategist, Qatar: $500K to $5M", Anduril "12,600–167,000 USD", Shield AI "88,000–130,000 USD per-month-salary". Fixtures 435/435. As wired, this blocks `pages.yml` deploys until the vetting agent fixes or quarantines them. |
 | `test/static-build.test.js` v2 (07:30Z) | **10/10.** The five new tests: (a) the packed-2 list deep-equals an independent recomputation, `annotate(vetSalaries(snapshot), ledger, builtAt)`, using the real Greenhouse fixture through the real adapter and normalizer plus a 3-run ledger with a repost; (b) `api/history` = `compactLedger(ledger)`, closed postings left out, repost count kept, `api/meta` = list meta, `{}` without a ledger; (c) CSV header, rows, RFC 4180 quoting, formula prefix, README, none for demo; (d) market.json ≤ 150 kB and `getMarket()` (feature-detected); (e) a static **live** fetch, the board stubbed with the fixture, gets firstSeenAt from `api/history` and meta from `api/meta`. Every build in the test uses its own temp out, snapshot and history dirs. |
 | Server-mode drawer and e2e (07:41Z) | `node scripts/e2e.js --api-only` **8/8**. Chromium against `node server/index.js`: the drawer description loads with one `/api/job?id=` request, the bullets show, it's cached on reopen, and there are 0 page errors and 0 local 4xx. `test/static-build.test.js` **11/11** (adds a server-mode `getJobDetail` unit test). |
+| Wave 2 security (CSP, trust, permissions) | Chromium on the real-data dist under the injected CSP: **0 `securitypolicyviolation` events** across load, drawer and map mode; the share page `c/openai/#m=map` redirects to `#c=openai&m=map`; full smoke PASS. `test/workflows.test.js` 5/5; `test/static-build.test.js` 12/12. Real-repo dry-run of `restore-artifact`: push runs on the deploy branch pass the trust check (the download is blocked by the sandbox, as before). |
 | Full `npm test` ×3 (07:26Z) and ×3 (07:28Z) | **My tests green in all 6 runs.** Run set 1 was 201/206: 4 `demo.test.js` (features was editing `server/demo.js`, uncommitted) and 1 `features.test.js`. Run set 2 was 212/213 ×3: only `features.test.js` "title normalization › role families" (product's in-progress `compstimate.js` / `roles.js`). The coordinator's intermittent "packed list doesn't round-trip (job 0)" was the window between my packer emitting `columns` and api.js decoding them (two edits a few minutes apart); not seen since. |
 | Real-data build (8 companies, pre-v2 snapshots, no local ledger) | Pass, 0 warnings. Anduril list 1.29 MB, market.json 22 kB (real, 391 cells), 8 CSVs (Anduril 695 kB), backtest on every real company, e.g. Anduril n=500, MdAPE 7.1%, within 10% 53.6%. |
 | Browser, real-data packed-2 dist (07:32Z) | **PASS.** Smoke switches all 8 companies with 0 app or page errors and 0 local 404s. `getJobs` returns v2 fields and `meta`; `getMarket` returns `melon-market-1`. The drawer description loads lazily, the bullets now show in over-budget companies (the UX re-render landed), and it's cached on reopen. One local 404, `features/comps.js`: app.js's guarded `import('./features/comps.js').catch(() => null)` for product's not-yet-landed F1 module. |
@@ -1042,3 +1101,9 @@ quoted `cat > FILE <<'EOF'` heredocs).
   (jobsToCsv/csvReadme/CSV_COLUMNS, demo CSVs marked `data_mode=demo`) and
   `BACKTEST_OPTS`, and vets demo payloads. README API reference updated
   (lazy lists, `/api/job`, other endpoints).
+- 2026-10-02T07:55Z: Wave 2 security: V2 artifact trust filter in `ledger.sh`
+  (pages.yml snapshot restore uses it too); V3 CSP + referrer meta in every
+  page from `server/index.js#CSP`, an external share redirect, an inline-code
+  build gate, dev pages excluded; V12 deploy-only pages/id-token, SHA-pinned
+  actions, col-refresh opens a PR. Added `test/workflows.test.js` and a CSP
+  test. README updated.

@@ -318,3 +318,28 @@ test('server mode getJobDetail: api/job?id=, merge, sections only when empty, ca
     globalThis.MELON_STATIC = true;
   }
 });
+
+test('V3: every built page has the server CSP (meta form) + referrer policy, and no inline script', async () => {
+  const { CSP } = await import(pathToFileURL(path.join(ROOT, 'server', 'index.js')).href);
+  const expected = CSP.split(';').map((d) => d.trim()).filter((d) => d && !/^frame-ancestors\b/.test(d)).join('; ');
+  const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
+  const pages = walk(DIST2).filter((f) => f.endsWith('.html'));
+  assert.ok(pages.length >= 2, 'index + share pages');
+  for (const f of pages) {
+    const html = fs.readFileSync(f, 'utf8');
+    const rel = path.relative(DIST2, f);
+    const m = /<meta http-equiv="Content-Security-Policy" content="([^"]+)">/.exec(html);
+    assert.ok(m, `${rel}: CSP meta`);
+    assert.equal(m[1].replace(/&#39;/g, "'"), expected, `${rel}: CSP matches server/index.js#CSP`);
+    assert.match(m[1], /script-src 'self'(;|$)/, `${rel}: script-src 'self' only`);
+    assert.match(html, /<meta name="referrer" content="strict-origin-when-cross-origin">/, `${rel}: referrer policy`);
+    for (const s of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
+      assert.ok(/\bsrc=/.test(s[1]) && !s[2].trim(), `${rel}: inline <script>`);
+    }
+    assert.doesNotMatch(html, /<style\b|\son[a-z]+\s*=/i, `${rel}: inline style element or handler`);
+  }
+  const share = fs.readFileSync(path.join(DIST2, 'c', 'anthropic', 'index.html'), 'utf8');
+  assert.match(share, /<script src="\.\.\/share-redirect\.js" data-target="\.\.\/\.\.\/#c=anthropic"><\/script>/);
+  assert.ok(fs.existsSync(path.join(DIST2, 'c', 'share-redirect.js')), 'share-redirect.js bundled');
+  for (const dev of ['viz/demo.html', 'features/demo.html']) assert.ok(!fs.existsSync(path.join(DIST2, dev)), `${dev} not deployed`);
+});

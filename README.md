@@ -100,6 +100,18 @@ for data that's stale within hours. Instead:
   download a recent artifact:
   `gh run download --repo alvations/melon-seek --name job-board-snapshots --dir data/snapshots`.
 
+**Artifact trust.** Workflows only restore artifacts (snapshots and the ledger)
+from runs that meet all three conditions:
+- they ran on this repository, never a fork;
+- they were triggered by `push`, `schedule` or `workflow_dispatch`, never a
+  pull request;
+- they ran on the default branch or the deploy branch (`TRUSTED_BRANCHES` in
+  the workflows).
+
+A pull request can't plant data that Pages then publishes.
+(`.github/scripts/ledger.sh restore-artifact`; tested in
+`test/workflows.test.js`.)
+
 ### History ledger (listing age, freshness, reposts)
 
 `npm run snapshot` also records each successful fetch in a per-company **ledger**,
@@ -254,6 +266,28 @@ resolve the way they do on Pages.
    github-pages → Deployment branches and tags**. By default the
    `github-pages` environment only accepts the default branch, and the deploy
    job fails with a protection-rule error.
+
+### Security headers on Pages
+
+GitHub Pages can't send HTTP headers, so the build adds two tags to every page:
+- `<meta http-equiv="Content-Security-Policy">`, generated from the server's
+  own policy (`server/index.js#CSP`): scripts and styles from `'self'`, Google
+  Fonts, the map tile hosts, and the three job-board APIs for live fetches.
+  `frame-ancestors` is dropped, because browsers ignore it in a meta tag.
+- `<meta name="referrer" content="strict-origin-when-cross-origin">`.
+
+**The build fails if any shipped page has an inline script, a `<style>` block
+or an `on*=` handler.** The share pages' redirect is an external file,
+`c/share-redirect.js`. The dev-only demo pages (`viz/demo.html`,
+`features/demo.html`) aren't deployed.
+
+**Workflow hardening:**
+- Every action is pinned by commit SHA, with its version as a comment.
+- In `pages.yml` only the deploy job has `pages: write` and `id-token: write`.
+- `col-refresh.yml` pushes the `bot/col-refresh` branch and opens a pull
+  request instead of pushing to `main`. Opening the PR needs Settings →
+  Actions → General → "Allow GitHub Actions to create and approve pull
+  requests"; without it, the run asks you to open the PR by hand.
 
 ### Link previews (LinkedIn, Facebook, Slack, X)
 

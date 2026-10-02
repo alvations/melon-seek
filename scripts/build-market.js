@@ -120,6 +120,29 @@ export function buildMarket(payloads, { minN = MIN_N, generatedAt = new Date().t
   };
 }
 
+/**
+ * Merge per-company docs (each from buildMarket([payload])) into the doc that
+ * buildMarket(allPayloads) returns. Lets the server build one company per
+ * event-loop turn (PERF-1 / review V15) and reuse unchanged companies.
+ */
+export function mergeMarkets(docs, { minN = MIN_N, generatedAt = new Date().toISOString() } = {}) {
+  const list = (docs || []).filter((d) => d && d.format === MARKET_FORMAT);
+  const real = list.filter((d) => d.mode === 'real');
+  const use = real.length ? real : list;
+  const cells = use.flatMap((d) => d.cells);
+  cells.sort((a, b) => (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0) || (a[2] < b[2] ? -1 : a[2] > b[2] ? 1 : 0) || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  return {
+    format: MARKET_FORMAT, basis: BASIS, currency: 'USD',
+    stat: 'midpoint of each posted range, annualized, in USD',
+    fx: { asOf: FX_AS_OF, source: 'public/viz/palette.js FX_PER_USD' },
+    generatedAt, minN, mode: real.length ? 'real' : 'demo',
+    companies: use.flatMap((d) => d.companies),
+    families: [...new Set(cells.map((c) => c[1]))].sort(),
+    columns: [...COLUMNS],
+    cells,
+  };
+}
+
 /* ---------------------------------------------------------------- CLI */
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');

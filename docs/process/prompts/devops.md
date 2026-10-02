@@ -101,3 +101,13 @@ Build functions to wire if you haven't already:
 - `backtest(jobs, BACKTEST_OPTS)`, with BACKTEST_OPTS exported from server/index.js (seed 20261002, maxN 500), adding computedAt;
 - `compactLedger` (server/history.js).
 Then confirm the full `npm test` is green 3 runs in a row, and report.
+
+---
+
+Eighth request (Wave 2 security fixes), from the coordinator:
+
+Wave 2 security fixes for devops, from docs/REVIEW.md "v2 review":
+- V2 (medium): ledger.sh and pages.yml restore the newest `history-ledger` / snapshot artifacts from ANY run, and a fork PR could upload poisoned data that Pages then publishes. Filter artifacts to runs on this repo's own branches (head_repository == this repo) with event in (push, schedule, workflow_dispatch), never pull_request, and only from the default or deploy branch.
+- V3 (medium): the static Pages build has no CSP. Inject a `<meta http-equiv="Content-Security-Policy">` matching the server's policy (tile hosts, ATS API hosts for live fetches, Google Fonts) plus `<meta name="referrer" content="strict-origin-when-cross-origin">` into every built HTML page. Move the share page's inline redirect into a small external file so script-src stays 'self'.
+- V12 (low): move `pages: write` and `id-token: write` to the deploy job only, pin third-party actions by full SHA (with the version as a comment), and make col-refresh open its own branch for review instead of pushing to main directly (or document why not).
+Tests or CI checks where possible; log it in devops.md.

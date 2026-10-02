@@ -192,6 +192,17 @@ Files owned: `public/viz/palette.js`, `public/viz/chart.js`, `public/viz/map.js`
     - Overrides: `createMap(…, { juiceScale })` or `map.setJuiceScale({ netForScore, breaks } | juiceModule)`. Both re-render the legend and pins.
     - The screenshot and a11y servers now map `/lib/` to `server/`, as `server/index.js` does.
 
+31. **PERF-2: the chart rows are windowed.** QA measured 1.4–2.2 s long tasks on a 4×-throttled phone.
+    - **Cause:** I measured with `docs/process/scripts/viz-perf.mjs` (CDP `Emulation.setCPUThrottlingRate: 4`, real snapshots, 390×844). Before the change, Anduril ranges (2,418 jobs, 1,820 rows, about 9k nodes) took 1,339 ms in one long task. Most of that was style recalc and layout (374–597 ms) plus building (≈230 ms); data prep was ≤ 25 ms.
+    - **Fix:** both views now compute a flat list of fixed-height items (`{ y, h, build, unbuild }`) once per data, size or option change. Only the items in the visible window plus a 600px buffer exist in the DOM; they are absolutely positioned at their precomputed y and appended in one `DocumentFragment` per paint.
+    - **Scrolling:** scrolling the chart (or the page, in flow mode) schedules one rAF paint, which does two `getBoundingClientRect` reads and a binary search. There are no layout reads inside the loops.
+    - **What depends on rows not in the DOM:** hover, click, keyboard, highlight and selection work on data. Active, highlighted and selected state is applied when a row is built, and `setActive`, `setCActive` and `highlight()` scroll to the item's y and paint synchronously before touching the element.
+    - **Bins:** computed once per render (data, width or options). Rows are not rebuilt on hover.
+    - **Chunking:** a separate chunked rendering is not needed; windowing caps the work per frame at roughly a screenful.
+    - **A11y side effect:** ranges no longer uses `role=group` wrappers, because rows are windowed and a group can't be partially painted. Each option name now begins with its group ("Director+: Research Scientist, Alignment, $505K to $840K, …"). Band headers stay `aria-hidden`. Clusters keep a `role=group` per row.
+32. **A11Y-1: circle count labels.** The ink is now chosen in JS from the actual mixed fill: the row color at `--_bin-mix` over the computed surface, via `inkOn()`. It is set as `--c-rest-ink`. The neutral "Other" rows in dark mode use a 60% mix instead of 88% (the 3.43:1 case QA found). Viz text otherwise uses `--_muted`, which measures 5.9:1 light and 7.9:1 dark with the app tokens; the only sub-4.5 text tokens are in `styles.css` (`--ms-faint`, listed in QA for UX).
+33. **DES-12: one source for the viz fallback tokens.** Every color fallback is declared once with `light-dark(light, dark)` and driven by `color-scheme`. The non-color dark tweaks (bar, histogram and bin opacities, mix percentages, map-bg mix) scale with a 0/1 flag `--_d` through `calc()`. The only per-theme CSS left is two one-line switches, `{ --_d: 1; color-scheme: dark }`, one for the OS media query and one for `data-theme="dark"`. Previously there were five duplicated dark blocks. The fallback accent is now the app's rind green, not the old blue. `features.css` still has its own copy (product owns it); the same pattern would work there.
+
 ## 4. Replayable steps
 ```sh
 # 0. palette validation (dataviz skill base dir)
@@ -288,6 +299,27 @@ PORT=5288 node docs/process/scripts/viz-a11y-check.mjs /path/to/out
   - `map-juice-legend-live`: the legend is built from the live `/lib/juice.js` (Dry < 45 < $48K/yr | Ripe 45–69 $48K–$96K/yr | Juicy 70+ ≥ $96K/yr).
   - `map-juice-retuned`: `setJuiceScale` with B = $400K gives < $43K | $43K–$125K | ≥ $125K.
   - The a11y check is unchanged and passes with no page errors.
+- PERF-2 timings at 4× CPU throttle, 390×844, real snapshots (`viz-perf.mjs`). Columns: first `update()` / filter update / longest task.
+
+  | Board, view | Before | After |
+  |---|---|---|
+  | Anthropic, clusters | 40 / 75 / none | 36 / 22 / 56 ms |
+  | Anthropic, ranges | 364 / 310 / 366 ms | 39 / 37 / none |
+  | Anduril, clusters | 405 / 372 / 405 ms | 124 / 39 / 125 ms |
+  | Anduril, ranges | 1,339 / 948 / 1,359 ms | 39 / 32 / none |
+
+  - DOM rows went from 1,820 to about 52 for Anduril ranges. No task exceeds 200 ms.
+  - QA's 1.4–2.2 s also includes `app.js` `render()`, which is not viz.
+- After windowing, A11Y-1 and DES-12: `viz-screenshots.mjs` passes all 30 shots and the visuals match.
+  - Rows, bands, ticks and labels are unchanged.
+  - The `chart-dark-1000-scrolled` shot (scrolled 3,000px) paints its rows.
+  - The demo's strip is now green, because the fallback accent is green.
+- `viz-a11y-check.mjs` was updated for windowing:
+  - "End" is checked against the last data index.
+  - `highlight()` of the lowest-paid job scrolls synchronously (scrollTop 3694) and the row is painted.
+  - Option names carry the group prefix.
+  - New: a circle-label contrast scan in both themes, with minimums of 13.0:1 light and 7.6:1 dark.
+  - All other checks pass, with no page errors.
 
 ## Design audit (wave 1)
 
@@ -308,7 +340,7 @@ PORT=5288 node docs/process/scripts/viz-a11y-check.mjs /path/to/out
 | DES-9 | Low | `public/features/features.css` (product) | **Duplicated hard-coded colors.** `--_pos: #2a78d6` and `--_neg: #e34948` are hard-coded blue/red in a green-accent app. The `--_accent` fallback `#2a78d6` is a different accent from the app's `#0b7a5c`. | `--_pos: var(--ms-accent, #0b7a5c)`, `--_neg: var(--ms-danger, #c4323f)`, and fall back to the app accent value. Better still, import shared tokens from one `:root` block (see DES-12). | Listed (wave 2) |
 | DES-10 | Low | `public/styles.css` / `app.js` (UX) | **The same number appears three or more times on the chart page.** "$352K median" in the summary bar, "Median $352K" in the strip caption, and "638 roles · median $352K" in the results header. "87% list pay" in the summary repeats "556 of 638 roles list pay…" in the filters and "556 postings with salary · 82 without" in the chart footer. | Keep the summary bar as the single headline. The results header can drop the median ("638 roles"), and the filter note can lose its first sentence. The viz caption stays (it is the strip's reference line), but `createChart` could take `{ notes: false }` if UX wants the footer hidden (viz will add it on request). | Listed (wave 2) |
 | DES-11 | Low | `public/styles.css` (UX) | **Status badge hue.** "Snapshot · Oct 2" uses `--ms-blue`/`--ms-blue-bg`, a hue used nowhere else except Remote. Fine as a status, but with DES-7 it should be the only blue in the UI. | Keep it, and reserve `--ms-blue` for data-source status only. | Listed (wave 2) |
-| DES-12 | Low | all three CSS files | **Three copies of the dark-mode token switch:** `styles.css` `:root[data-theme]` and media query, `viz.css` `--_*` fallbacks, `features.css` `--_*` fallbacks. In the app the `--ms-*` values win, so the fallbacks only matter for standalone demos. This is correct but drifts silently (DES-9). | Wave 2: keep the fallbacks for demos, but add a test that the viz and features fallback values match `styles.css` tokens, or make the fallbacks reference each other. No visual change. | Listed |
+| DES-12 | Low | all three CSS files (viz part **fixed**, see decision 33) | **Three copies of the dark-mode token switch:** `styles.css` `:root[data-theme]` and media query, `viz.css` `--_*` fallbacks, `features.css` `--_*` fallbacks. In the app the `--ms-*` values win, so the fallbacks only matter for standalone demos. This is correct but drifts silently (DES-9). | Wave 2: keep the fallbacks for demos, but add a test that the viz and features fallback values match `styles.css` tokens, or make the fallbacks reference each other. No visual change. | Listed |
 | DES-13 | Info | `public/viz/chart.js` | **Many gray "Other" rows in clusters.** Anthropic has 20 departments, so 13 rows are neutral gray. That is calm, and correct by the 8-slot rule; the row label carries identity. | No change. If it reads as "disabled", UX could default the chart to the top 8 departments with "Show all 20", as the filter already does. | Note |
 
 **Fixed in viz in this wave:** DES-1, DES-2, DES-3, DES-4 and DES-6. After the fixes, `viz-screenshots.mjs` passes all 30 shots and `viz-a11y-check.mjs` passes with no page errors. `audit2/*` shows the app with the green pay pins, matching department colors and clean mobile axis labels.
@@ -342,3 +374,4 @@ PORT=5288 node docs/process/scripts/viz-a11y-check.mjs /path/to/out
 - 2026-10-02: Added the map "Pay | Juice" segmented control: Juice-colored pins with "🍉 score" labels, a stepped ordinal ramp with breaks at 45 and 70, neutral no-data pins, a legend from `juiceNetForScore`, and the `onColorModeChange` callback plus `update({ colorMode })`. Map tooltips now flip inward at the edges. `palette.js` FX is now `data/cities.json` `fx.perUSD` (Big Mac `dollar_ex`, 2026-07-01), with `FX_TO_USD` derived from it. New `public/viz/comps.js` compact comps chart with a demo `mode=comps`. Extended the screenshot and a11y scripts.
 - 2026-10-02: Cluster labels are now sized from measured text. Names can take two lines, the subtitle is never truncated, and "69 · $512K" is used when space is short or on narrow screens. The notes footer wraps. The Juice legend, grades and pin steps now come from the live `server/juice.js` (`netForScore`, `GRADES`), with the palette mirror as a fallback, plus a `juiceScale` option and `setJuiceScale()`. The test servers map `/lib/` to `server/`. Added label-fit and legend screenshots.
 - 2026-10-02: Design audit wave 1 (see "Design audit (wave 1)", DES-1..13). Fixed in viz: green pay ramp (DES-1), clusters color ranking matches the app (DES-2), the app's raised/shadow/soft tokens (DES-3), radius tokens (DES-4), mobile axis edge labels and tick gap (DES-6). Added `scripts/viz-design-audit.mjs`. The styles.css and features.css items are listed for wave 2.
+- 2026-10-02: PERF-2: windowed rows in both chart views. At 4× CPU the worst chart task went from 1,359 ms to 125 ms, and the DOM from 1,820 rows to about 52. A11Y-1: circle label ink is computed from the actual fill, and the dark "Other" mix is now 60%. DES-12 (viz): one `light-dark()` token source plus a `--_d` flag replaces five duplicated dark blocks. Added `scripts/viz-perf.mjs` and updated the a11y check for windowing.

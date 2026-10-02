@@ -268,6 +268,7 @@ function annotateCached(jobs, ledger) {
 export async function getJobs(company, opts = {}) {
   const payload = await getJobsBase(company, opts);
   if (!payload) return null;
+  await yieldNow();
   const ledger = await loadLedger(company.slug);
   return {
     ...payload,
@@ -503,21 +504,31 @@ async function sendBytes(req, res, { json, gz, etag }) {
 
 let marketModule;
 let marketMemo = null; // { arrays: Job[][], doc }
+const marketParts = new WeakMap(); // jobs array -> { key, doc } (one company's part)
 /**
- * Market comps over the built-in companies from data already on hand
- * (cache, snapshot or demo; never triggers live fetches). Recomputed only
- * when one of the underlying job lists changes.
+ * Market comps over the built-in companies from data already on hand (cache,
+ * snapshot or demo; never triggers live fetches). One company is aggregated per
+ * event-loop turn and reused while its job list is unchanged (PERF-1, review V15).
  */
 export async function getMarket() {
   if (!marketModule) marketModule = await import('../scripts/build-market.js');
-  const payloads = [];
+  const parts = [];
+  const arrays = [];
   for (const c of listCompanies()) {
     const p = await getJobsBase(c, { offline: true });
-    payloads.push({ company: p.company, mode: p.mode, fetchedAt: p.fetchedAt, jobs: p.jobs });
+    arrays.push(p.jobs);
+    let part = marketParts.get(p.jobs);
+    const key = `${p.mode}|${p.fetchedAt}`;
+    if (!part || part.key !== key) {
+      await yieldNow();
+      part = { key, doc: marketModule.buildMarket([{ company: p.company, mode: p.mode, fetchedAt: p.fetchedAt, jobs: p.jobs }]) };
+      marketParts.set(p.jobs, part);
+    }
+    parts.push(part.doc);
   }
-  const arrays = payloads.map((p) => p.jobs);
   if (marketMemo && marketMemo.arrays.length === arrays.length && marketMemo.arrays.every((a, i) => a === arrays[i])) return marketMemo.doc;
-  const doc = marketModule.buildMarket(payloads);
+  await yieldNow();
+  const doc = marketModule.mergeMarkets(parts);
   marketMemo = { arrays, doc };
   return doc;
 }
