@@ -65,7 +65,11 @@ posting.
 ```sh
 npm run snapshot                              # built-in companies
 npm run snapshot -- anthropic anduril openai  # explicit list
+npm run snapshot -- lever:acme                # custom board as <source>:<board>
 ```
+
+Only live data is ever written; if a fetch fails (or returns 0 jobs) the
+existing snapshot is kept, and demo data never ends up in `data/snapshots/`.
 
 This fetches live data and writes `data/snapshots/<slug>.json`, which is
 committed to the repo so a fresh checkout has real data even without network

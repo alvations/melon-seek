@@ -194,7 +194,7 @@ export function createChart(container, { onSelect, onHover } = {}) {
     container.classList.toggle('ms-chart--narrow', narrow);
 
     renderHist(x, d0, d1, plotL, plotW, labelW);
-    renderAxis(nt.ticks, x, fxCount > 0, labelW);
+    renderAxis(nt.ticks, x, fxCount > 0, labelW, narrow);
 
     // Rows
     const frag = document.createDocumentFragment();
@@ -338,9 +338,9 @@ export function createChart(container, { onSelect, onHover } = {}) {
     hist.append(ml);
   }
 
-  function renderAxis(ticks, x, approx, labelW) {
+  function renderAxis(ticks, x, approx, labelW, narrow) {
     axis.replaceChildren();
-    const cap = el('div', 'ms-axis__cap', approx ? 'Annual salary · approx USD' : 'Annual salary · USD');
+    const cap = el('div', 'ms-axis__cap', narrow ? (approx ? 'Approx USD / yr' : 'USD / yr') : (approx ? 'Annual salary · approx USD' : 'Annual salary · USD'));
     cap.style.width = labelW + 'px';
     axis.append(cap);
     const minGap = 44;

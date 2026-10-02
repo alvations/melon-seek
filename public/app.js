@@ -1,0 +1,1530 @@
+// melon·seek — application shell.
+// Owns state (mirrored in location.hash), data fetching, filters, the results
+// list, the job drawer and the company switcher. Rendering of the salary
+// chart and the map is delegated to ./viz/* (see docs/CONTRACT.md).
+
+import { colorFor, formatMoney } from './viz/palette.js';
+import { createChart } from './viz/chart.js';
+import { createMap } from './viz/map.js';
+
+const MOCK = new URLSearchParams(location.search).has('mock');
+
+/* ------------------------------------------------------------------ utils */
+
+const $ = (sel, root = document) => root.querySelector(sel);
+
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === 'class') el.className = v;
+    else if (k === 'html') el.innerHTML = v; // only ever used with static icon markup
+    else if (k === 'dataset') Object.assign(el.dataset, v);
+    else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const kid of kids.flat(Infinity)) {
+    if (kid == null || kid === false) continue;
+    el.append(kid instanceof Node ? kid : String(kid));
+  }
+  return el;
+}
+
+const ICON = {
+  pin: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 17s5-4.6 5-8.5a5 5 0 0 0-10 0C5 12.4 10 17 10 17Z"/><circle cx="10" cy="8.5" r="1.8"/></svg>',
+  close: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>',
+  chevron: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4"/></svg>',
+  ext: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8 4H4v12h12v-4M11 4h5v5M16 4l-7 7"/></svg>',
+  link: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8.5 11.5a3 3 0 0 0 4.2 0l2.6-2.6a3 3 0 0 0-4.2-4.2l-.8.8M11.5 8.5a3 3 0 0 0-4.2 0l-2.6 2.6a3 3 0 0 0 4.2 4.2l.8-.8"/></svg>',
+  prev: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5-5 5 5 5"/></svg>',
+  next: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg>',
+  search: '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.5"/><path d="m13.2 13.2 3.3 3.3"/></svg>',
+  trash: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M8 6V4h4v2M6 6l1 10h6l1-10"/></svg>',
+  globe: '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M3 10h14M10 3c2.5 2.5 2.5 11.5 0 14M10 3c-2.5 2.5-2.5 11.5 0 14"/></svg>',
+  alert: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3 2.5 16.5h15L10 3Z"/><path d="M10 8v4M10 14.2v.3"/></svg>',
+};
+
+const SENIORITY_ORDER = ['Intern', 'Entry', 'Mid', 'Senior', 'Staff+', 'Manager', 'Director+'];
+const SOURCE_LABEL = { greenhouse: 'Greenhouse', ashby: 'Ashby', lever: 'Lever' };
+const FALLBACK_COMPANIES = [
+  { slug: 'anthropic', name: 'Anthropic', source: 'greenhouse', board: 'anthropic', color: '#d97757' },
+  { slug: 'anduril', name: 'Anduril', source: 'greenhouse', board: 'andurilindustries', color: '#3b5bdb' },
+  { slug: 'openai', name: 'OpenAI', source: 'ashby', board: 'openai', color: '#10a37f' },
+];
+const BOARDS_KEY = 'melon-seek.boards.v1';
+const PAGE = 60;
+
+let regionNames = null;
+try { regionNames = new Intl.DisplayNames(['en'], { type: 'region' }); } catch { /* old browser */ }
+const countryName = (cc) => {
+  if (!cc) return 'Other';
+  try { return regionNames?.of(cc) || cc; } catch { return cc; }
+};
+
+const CUR_SYM = { USD: '$', GBP: '£', EUR: '€', CAD: 'CA$', AUD: 'A$', JPY: '¥', INR: '₹', CHF: 'CHF ', SGD: 'S$' };
+function money(n, currency = 'USD') {
+  if (n == null || !isFinite(n)) return '—';
+  if (!currency || currency === 'USD') {
+    try { return formatMoney(n); } catch { /* fall through */ }
+  }
+  const sym = CUR_SYM[currency] ?? `${currency} `;
+  const abs = Math.abs(n);
+  const body = abs >= 1e6 ? `${(n / 1e6).toFixed(abs >= 1e7 ? 0 : 1)}M` : abs >= 1e3 ? `${Math.round(n / 1e3)}K` : `${Math.round(n)}`;
+  return sym + body;
+}
+function salaryRange(s) {
+  if (!s) return null;
+  if (s.min === s.max || s.max == null) return money(s.min, s.currency);
+  return `${money(s.min, s.currency)}–${money(s.max, s.currency).replace(/^[^\d]+/, '')}`;
+}
+
+function quantile(sorted, q) {
+  if (!sorted.length) return null;
+  const pos = (sorted.length - 1) * q;
+  const lo = Math.floor(pos), hi = Math.ceil(pos);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+}
+
+function ago(ts) {
+  if (!ts) return null;
+  const d = (Date.now() - ts) / 1000;
+  if (d < 90) return 'just now';
+  if (d < 3600) return `${Math.round(d / 60)} min ago`;
+  if (d < 86400) return `${Math.round(d / 3600)} h ago`;
+  if (d < 86400 * 45) return `${Math.round(d / 86400)} d ago`;
+  return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+const shortDate = (ts) => new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+const plural = (n, one, many = one + 's') => `${n.toLocaleString()} ${n === 1 ? one : many}`;
+const cssId = (id) => (window.CSS?.escape ? CSS.escape(id) : String(id).replace(/["\\]/g, '\\$&'));
+
+function rafThrottle(fn) {
+  let queued = false;
+  return () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; fn(); });
+  };
+}
+
+let toastTimer = 0;
+function toast(msg) {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.hidden = false;
+  el.classList.add('is-on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.classList.remove('is-on'); setTimeout(() => (el.hidden = true), 200); }, 2400);
+}
+
+/* --------------------------------------------------------------- storage */
+
+function loadBoards() {
+  try {
+    const v = JSON.parse(localStorage.getItem(BOARDS_KEY) || '[]');
+    return Array.isArray(v) ? v.filter((b) => b && b.source && b.board) : [];
+  } catch { return []; }
+}
+function saveBoards(list) {
+  try { localStorage.setItem(BOARDS_KEY, JSON.stringify(list)); } catch { /* private mode */ }
+}
+
+/* ------------------------------------------------------------------- API */
+
+async function api(path, signal) {
+  if (MOCK) {
+    const { mockApi } = await import('./mock-api.js');
+    const res = await mockApi(path);
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    return res;
+  }
+  const res = await fetch(path, { signal, headers: { accept: 'application/json' } });
+  let body = null;
+  try { body = await res.json(); } catch { /* non-JSON */ }
+  if (!res.ok) throw new Error(body?.error || `HTTP ${res.status} ${res.statusText}`.trim());
+  return body;
+}
+
+const isCustomKey = (key) => key.includes(':');
+function jobsPath(key, refresh) {
+  const p = new URLSearchParams();
+  if (isCustomKey(key)) {
+    const [source, board] = key.split(':');
+    const saved = boards.find((b) => b.source === source && b.board === board);
+    p.set('source', source);
+    p.set('board', board);
+    if (saved?.name || S.cn) p.set('name', saved?.name || S.cn);
+  } else p.set('company', key);
+  if (refresh) p.set('refresh', '1');
+  return `/api/jobs?${p}`;
+}
+
+/* ----------------------------------------------------------------- state */
+
+const ARRAYS = ['d', 'l', 's', 'e', 'kr', 'kf', 'ks'];
+const DEFAULTS = {
+  c: '', cn: '', m: 'chart', q: '', smin: null, smax: null, so: false,
+  d: [], l: [], s: [], e: [], r: 'any', p: 0, kr: [], kf: [], ks: [],
+  g: 'none', cb: 'department', sort: 'salary-desc', job: null,
+};
+const FILTER_KEYS = ['q', 'smin', 'smax', 'so', 'd', 'l', 's', 'e', 'r', 'p', 'kr', 'kf', 'ks'];
+const ORDER = ['c', 'cn', 'm', 'q', 'smin', 'smax', 'so', 'd', 'l', 's', 'e', 'r', 'p', 'kr', 'kf', 'ks', 'g', 'cb', 'sort', 'job'];
+
+let S = structuredClone(DEFAULTS);
+let companies = [];
+let boards = loadBoards();
+let data = { status: 'idle', jobs: [], company: null, mode: null, fetchedAt: null, error: null };
+let area = null; // { label, ids:Set } from map onAreaSelect — not shareable, so not in hash
+let hoverId = null;
+let resultsLimit = PAGE;
+let lastHash = '';
+
+function parseHash() {
+  const p = new URLSearchParams(location.hash.replace(/^#/, ''));
+  const st = structuredClone(DEFAULTS);
+  for (const k of ORDER) {
+    if (!p.has(k)) continue;
+    if (ARRAYS.includes(k)) st[k] = p.getAll(k).filter(Boolean);
+    else if (k === 'smin' || k === 'smax' || k === 'p') { const n = Number(p.get(k)); st[k] = Number.isFinite(n) && n > 0 ? n : DEFAULTS[k]; }
+    else if (k === 'so') st.so = p.get(k) === '1';
+    else st[k] = p.get(k);
+  }
+  if (!['chart', 'map'].includes(st.m)) st.m = 'chart';
+  if (!['any', 'remote', 'onsite'].includes(st.r)) st.r = 'any';
+  if (st.p === 0) st.p = 0;
+  return st;
+}
+
+function serialize(st = S) {
+  const p = new URLSearchParams();
+  for (const k of ORDER) {
+    const v = st[k];
+    if (ARRAYS.includes(k)) { for (const x of v) p.append(k, x); continue; }
+    if (v == null || v === '' || v === false || v === DEFAULTS[k]) continue;
+    if (k === 'cn' && !isCustomKey(st.c)) continue;
+    p.set(k, v === true ? '1' : String(v));
+  }
+  return p.toString();
+}
+
+function commit({ replace = false } = {}) {
+  const str = serialize();
+  if (str !== lastHash) {
+    lastHash = str;
+    const url = location.pathname + location.search + (str ? `#${str}` : '');
+    if (replace) history.replaceState(null, '', url);
+    else history.pushState(null, '', url);
+  }
+}
+
+/** Mutate state, push to history and re-render. */
+function set(patch, { replace = false, keepPage = false } = {}) {
+  const prevCompany = S.c;
+  Object.assign(S, patch);
+  if (!keepPage) resultsLimit = PAGE;
+  commit({ replace });
+  if (S.c !== prevCompany) { loadJobs(); return; }
+  scheduleRender();
+}
+
+function toggleIn(key, value) {
+  const arr = S[key];
+  set({ [key]: arr.includes(value) ? arr.filter((x) => x !== value) : [...arr, value] });
+}
+
+function clearFilters() {
+  const patch = {};
+  for (const k of FILTER_KEYS) patch[k] = structuredClone(DEFAULTS[k]);
+  area = null;
+  $('#search').value = '';
+  set(patch);
+}
+
+function activeFilterCount(st = S) {
+  return (st.q ? 1 : 0) + (st.smin != null || st.smax != null ? 1 : 0) + (st.so ? 1 : 0) +
+    st.d.length + st.l.length + st.s.length + st.e.length + (st.r !== 'any' ? 1 : 0) + (st.p ? 1 : 0) +
+    st.kr.length + st.kf.length + st.ks.length;
+}
+
+/* ------------------------------------------------------------------ data */
+
+const locKey = (l) => (l.remote ? l.name || 'Remote' : l.city || l.name || 'Unknown');
+const deptKey = (j) => j.department || 'Other';
+const empKey = (j) => j.employmentType || 'Unspecified';
+
+function prepare(jobs) {
+  for (const j of jobs) {
+    j.locations = Array.isArray(j.locations) ? j.locations : [];
+    j.keywords = { responsibilities: [], fit: [], skills: [], ...(j.keywords || {}) };
+    j.sections = { responsibilities: [], fit: [], ...(j.sections || {}) };
+    if (j.salary && j.salary.min == null && j.salary.max == null) j.salary = null;
+    if (j.salary) {
+      j.salary.min ??= j.salary.max;
+      j.salary.max ??= j.salary.min;
+      j.salary.mid ??= (j.salary.min + j.salary.max) / 2;
+    }
+    j._mid = j.salary ? j.salary.mid : null;
+    j._ts = j.updatedAt ? Date.parse(j.updatedAt) || null : null;
+    j._locKeys = j.locations.map(locKey);
+    j._hay = [j.title, j.department, j.team, j.employmentType, j.seniority,
+      ...j.locations.map((l) => l.name), ...j.keywords.responsibilities, ...j.keywords.fit, ...j.keywords.skills]
+      .filter(Boolean).join(' \u0001 ').toLowerCase();
+  }
+  return jobs;
+}
+
+function filterSpec() {
+  return {
+    q: S.q.toLowerCase().split(/\s+/).filter(Boolean),
+    smin: S.smin, smax: S.smax, so: S.so,
+    d: new Set(S.d), l: new Set(S.l), s: new Set(S.s), e: new Set(S.e),
+    r: S.r, p: S.p,
+    kw: { responsibilities: S.kr, fit: S.kf, skills: S.ks },
+  };
+}
+
+/** Returns the list of facet names this job fails (empty = passes all). */
+function failures(j, F, now) {
+  const out = [];
+  if (F.q.length && !F.q.every((t) => j._hay.includes(t))) out.push('q');
+  const salActive = F.so || F.smin != null || F.smax != null;
+  if (salActive && (!j.salary || (F.smin != null && j.salary.max < F.smin) || (F.smax != null && j.salary.min > F.smax))) out.push('sal');
+  if (F.d.size && !F.d.has(deptKey(j))) out.push('d');
+  if (F.l.size && !j._locKeys.some((k) => F.l.has(k))) out.push('l');
+  if (F.s.size && !F.s.has(j.seniority)) out.push('s');
+  if (F.e.size && !F.e.has(empKey(j))) out.push('e');
+  if (F.r === 'remote' && !j.remote) out.push('r');
+  if (F.r === 'onsite' && !j.locations.some((l) => !l.remote)) out.push('r');
+  if (F.p && !(j._ts && now - j._ts <= F.p * 864e5)) out.push('p');
+  for (const cat of ['responsibilities', 'fit', 'skills']) {
+    const sel = F.kw[cat];
+    if (sel.length && !sel.every((k) => j.keywords[cat].includes(k))) { out.push('kw'); break; }
+  }
+  return out;
+}
+
+/**
+ * One pass over all jobs: the filtered set plus faceted counts, where each
+ * facet's counts ignore that facet's own selection (Zillow-style).
+ * Keyword clouds are AND, so their counts use the fully filtered set.
+ */
+function derive() {
+  const jobs = data.jobs;
+  const F = filterSpec();
+  const now = Date.now();
+  const filtered = [];
+  const bump = (m, k) => m.set(k, (m.get(k) || 0) + 1);
+  const fc = { d: new Map(), l: new Map(), lGroup: new Map(), s: new Map(), e: new Map(), r: { any: 0, remote: 0, onsite: 0 },
+    p: { 0: 0, 7: 0, 30: 0, 90: 0 }, kw: { responsibilities: new Map(), fit: new Map(), skills: new Map() }, salMids: [] };
+  for (const j of jobs) {
+    const fails = failures(j, F, now);
+    if (fails.length > 1) continue;
+    const only = fails[0];
+    const counts = (facet) => !only || only === facet;
+    if (!only) {
+      filtered.push(j);
+      for (const cat of ['responsibilities', 'fit', 'skills']) for (const k of j.keywords[cat]) bump(fc.kw[cat], k);
+    }
+    if (counts('d')) bump(fc.d, deptKey(j));
+    if (counts('l')) {
+      for (let i = 0; i < j.locations.length; i++) {
+        const k = j._locKeys[i];
+        if (j._locKeys.indexOf(k) !== i) continue;
+        bump(fc.l, k);
+        const l = j.locations[i];
+        if (!fc.lGroup.has(k)) fc.lGroup.set(k, l.remote ? '~remote' : l.country || 'ZZ');
+      }
+    }
+    if (counts('s')) bump(fc.s, j.seniority || 'Mid');
+    if (counts('e')) bump(fc.e, empKey(j));
+    if (counts('r')) {
+      fc.r.any++;
+      if (j.remote) fc.r.remote++;
+      if (j.locations.some((l) => !l.remote)) fc.r.onsite++;
+    }
+    if (counts('p')) {
+      fc.p[0]++;
+      for (const d of [7, 30, 90]) if (j._ts && now - j._ts <= d * 864e5) fc.p[d]++;
+    }
+    if (counts('sal') && j.salary) fc.salMids.push(j._mid);
+  }
+  return { filtered, fc };
+}
+
+function salaryDomain() {
+  let lo = Infinity, hi = -Infinity;
+  for (const j of data.jobs) if (j.salary) { lo = Math.min(lo, j.salary.min); hi = Math.max(hi, j.salary.max); }
+  if (!isFinite(lo)) return null;
+  lo = Math.floor(lo / 10000) * 10000;
+  hi = Math.ceil(hi / 10000) * 10000;
+  if (hi <= lo) hi = lo + 10000;
+  return { lo, hi };
+}
+
+function sortJobs(list) {
+  const out = list.slice();
+  const nullsLast = (a, b, f) => (a == null) - (b == null) || f();
+  switch (S.sort) {
+    case 'salary-asc': out.sort((a, b) => nullsLast(a.salary, b.salary, () => (a.salary?.min ?? 0) - (b.salary?.min ?? 0) || a.title.localeCompare(b.title))); break;
+    case 'newest': out.sort((a, b) => (b._ts || 0) - (a._ts || 0) || a.title.localeCompare(b.title)); break;
+    case 'title': out.sort((a, b) => a.title.localeCompare(b.title)); break;
+    default: out.sort((a, b) => nullsLast(a.salary, b.salary, () => (b.salary?.max ?? 0) - (a.salary?.max ?? 0) || a.title.localeCompare(b.title)));
+  }
+  return out;
+}
+
+function stats(list) {
+  const mids = list.filter((j) => j.salary).map((j) => j._mid).sort((a, b) => a - b);
+  const depts = new Map();
+  for (const j of list) depts.set(deptKey(j), (depts.get(deptKey(j)) || 0) + 1);
+  const top = [...depts].sort((a, b) => b[1] - a[1])[0] || null;
+  return {
+    n: list.length, withSalary: mids.length,
+    median: quantile(mids, 0.5), p25: quantile(mids, 0.25), p75: quantile(mids, 0.75), top,
+  };
+}
+
+/* --------------------------------------------------------------- loading */
+
+let loadSeq = 0;
+let abortCtl = null;
+
+async function loadJobs({ refresh = false } = {}) {
+  const seq = ++loadSeq;
+  abortCtl?.abort();
+  abortCtl = new AbortController();
+  area = null;
+  hoverId = null;
+  data = { status: 'loading', jobs: [], company: companyInfo(S.c), mode: null, fetchedAt: null, error: null };
+  render();
+  try {
+    const res = await api(jobsPath(S.c, refresh), abortCtl.signal);
+    if (seq !== loadSeq) return;
+    data = {
+      status: 'ready',
+      jobs: prepare(Array.isArray(res?.jobs) ? res.jobs : []),
+      company: { ...companyInfo(S.c), ...(res?.company || {}) },
+      mode: res?.mode || 'live',
+      fetchedAt: res?.fetchedAt ? Date.parse(res.fetchedAt) : null,
+      error: res?.error || null,
+    };
+    if (refresh) toast(data.mode === 'live' ? 'Fetched fresh from the live board' : 'Live board unreachable — showing fallback data');
+  } catch (err) {
+    if (err?.name === 'AbortError' || seq !== loadSeq) return;
+    data = { status: 'error', jobs: [], company: companyInfo(S.c), mode: null, fetchedAt: null, error: err?.message || String(err) };
+  }
+  render();
+  if (S.job) openDrawer(S.job, { fromHash: true });
+}
+
+function companyInfo(key) {
+  const builtin = companies.find((c) => c.slug === key);
+  if (builtin) return builtin;
+  if (isCustomKey(key)) {
+    const [source, board] = key.split(':');
+    const saved = boards.find((b) => b.source === source && b.board === board);
+    return { slug: key, name: saved?.name || S.cn || board, source, board, color: null, custom: true };
+  }
+  return { slug: key, name: key, source: null, board: key, color: null };
+}
+const companyColor = (c) => c?.color || colorFor(c?.slug || c?.board || 'x');
+
+/* ============================================================== RENDER == */
+
+const scheduleRender = rafThrottle(render);
+let derived = { filtered: [], fc: null };
+let visible = []; // sorted list after map-area filter
+
+function render() {
+  derived = data.status === 'ready' ? derive() : { filtered: [], fc: null };
+  const listed = area ? derived.filtered.filter((j) => area.ids.has(j.id)) : derived.filtered;
+  visible = sortJobs(listed);
+
+  document.documentElement.dataset.mode = S.m;
+  renderTopbar();
+  renderQuickbar();
+  renderFilterPanel();
+  renderKpis();
+  renderViz();
+  renderResults();
+  syncPopover();
+  if (drawerJobId && data.status === 'ready') renderDrawerNav();
+}
+
+/* ---------------------------------------------------------------- topbar */
+
+function renderTopbar() {
+  const all = [...companies, ...boards.map((b) => ({ slug: `${b.source}:${b.board}`, name: b.name || b.board, source: b.source, board: b.board, color: null, custom: true }))];
+  if (S.c && !all.some((c) => c.slug === S.c)) all.push(companyInfo(S.c));
+
+  const pills = $('#companyPills');
+  const sig = all.map((c) => c.slug + c.name).join('|') + '§' + S.c + '§' + data.status + data.jobs.length;
+  if (pills.dataset.sig !== sig) {
+    pills.dataset.sig = sig;
+    pills.replaceChildren(...all.map((c) => {
+      const active = c.slug === S.c;
+      const b = h('button', { type: 'button', class: 'company-pill', 'aria-pressed': String(active), title: `${c.name} · ${SOURCE_LABEL[c.source] || c.source || ''} / ${c.board}`, onclick: () => { if (!active) set({ c: c.slug, cn: c.custom ? c.name : '', job: null, ...resetFiltersPatch() }); } },
+        h('span', { class: 'dot', style: `--dot:${companyColor(c)}` }), h('span', { class: 'company-name' }, c.name),
+        active && data.status === 'ready' ? h('span', { class: 'company-count' }, data.jobs.length) : null);
+      return b;
+    }));
+    const sel = $('#companySelect');
+    sel.replaceChildren(...all.map((c) => h('option', { value: c.slug, selected: c.slug === S.c }, c.name)));
+  }
+
+  for (const b of document.querySelectorAll('.seg [data-mode]')) b.setAttribute('aria-pressed', String(b.dataset.mode === S.m));
+  const search = $('#search');
+  if (document.activeElement !== search && search.value !== S.q) search.value = S.q;
+
+  // Data-mode badge
+  const badge = $('#dataBadge');
+  const banner = $('#demoBanner');
+  badge.className = 'data-badge';
+  banner.hidden = true;
+  if (data.status === 'ready') {
+    const src = data.company?.source ? `${SOURCE_LABEL[data.company.source] || data.company.source} / ${data.company.board}` : '';
+    const when = data.fetchedAt ? ago(data.fetchedAt) : null;
+    let label, tip, cls;
+    switch (data.mode) {
+      case 'live': label = 'Live'; cls = 'is-live'; tip = `Fetched live from ${src}${when ? ` · ${when}` : ''}`; break;
+      case 'cache': label = when ? `Cached · ${when}` : 'Cached'; cls = 'is-cache'; tip = `Served from cache of ${src}. Use refresh to fetch live.`; break;
+      case 'snapshot': label = data.fetchedAt ? `Snapshot · ${shortDate(data.fetchedAt)}` : 'Snapshot'; cls = 'is-snapshot'; tip = `Saved snapshot of ${src}${data.error ? ` — live fetch failed: ${data.error}` : ''}`; break;
+      case 'demo': label = 'Demo data — live board unreachable'; cls = 'is-demo'; tip = `Generated sample data, not real postings.${data.error ? ` Error: ${data.error}` : ''}`; break;
+      default: label = data.mode; cls = ''; tip = src;
+    }
+    badge.classList.add(cls);
+    badge.innerHTML = '';
+    badge.append(h('span', { class: 'badge-dot', 'aria-hidden': 'true' }), h('span', { class: 'badge-label' }, label));
+    badge.title = tip;
+    badge.setAttribute('aria-label', `Data source: ${label}. ${tip}`);
+    badge.hidden = false;
+    if (data.mode === 'demo') {
+      banner.hidden = false;
+      banner.replaceChildren(h('span', { class: 'demo-ico', html: ICON.alert }),
+        h('span', null, h('strong', null, 'You\u2019re looking at demo data. '), `The ${data.company?.name || ''} board couldn\u2019t be reached, so these roles are generated samples — not real postings.`),
+        data.error ? h('code', { title: data.error }, data.error.length > 70 ? data.error.slice(0, 70) + '…' : data.error) : null,
+        h('button', { type: 'button', class: 'link-btn', onclick: () => loadJobs({ refresh: true }) }, 'Try live again'));
+    }
+  } else if (data.status === 'loading') {
+    badge.classList.add('is-loading');
+    badge.replaceChildren(h('span', { class: 'badge-dot' }), h('span', { class: 'badge-label' }, 'Loading'));
+    badge.title = '';
+    badge.hidden = false;
+  } else if (data.status === 'error') {
+    badge.classList.add('is-error');
+    badge.replaceChildren(h('span', { class: 'badge-dot' }), h('span', { class: 'badge-label' }, 'Offline'));
+    badge.title = data.error;
+    badge.hidden = false;
+  } else badge.hidden = true;
+  $('#refreshBtn').disabled = data.status === 'loading';
+  $('#refreshBtn').classList.toggle('is-spinning', data.status === 'loading');
+}
+
+function resetFiltersPatch() {
+  const patch = {};
+  for (const k of FILTER_KEYS) patch[k] = structuredClone(DEFAULTS[k]);
+  return patch;
+}
+
+/* -------------------------------------------------------------- quickbar */
+
+const QUICK = [
+  { id: 'salary', label: 'Salary' },
+  { id: 'dept', label: 'Department' },
+  { id: 'loc', label: 'Location' },
+  { id: 'sen', label: 'Seniority' },
+  { id: 'remote', label: 'Remote' },
+  { id: 'more', label: 'More' },
+];
+
+function summarize(list, noun) {
+  if (!list.length) return null;
+  if (list.length === 1) return list[0].length > 22 ? list[0].slice(0, 21) + '…' : list[0];
+  return `${noun} · ${list.length}`;
+}
+
+function quickLabel(id) {
+  switch (id) {
+    case 'salary':
+      if (S.smin != null && S.smax != null) return `${money(S.smin)}–${money(S.smax).slice(1)}`;
+      if (S.smin != null) return `${money(S.smin)}+`;
+      if (S.smax != null) return `Up to ${money(S.smax)}`;
+      return S.so ? 'Has salary' : null;
+    case 'dept': return summarize(S.d, 'Departments');
+    case 'loc': return summarize(S.l, 'Locations');
+    case 'sen': return summarize(S.s, 'Seniority');
+    case 'remote': return S.r === 'remote' ? 'Remote only' : S.r === 'onsite' ? 'On-site' : null;
+    case 'more': {
+      const n = S.e.length + (S.p ? 1 : 0) + S.kr.length + S.kf.length + S.ks.length;
+      return n ? `More · ${n}` : null;
+    }
+  }
+  return null;
+}
+
+function renderQuickbar() {
+  const wrap = $('#quickChips');
+  if (!wrap.childElementCount) {
+    for (const q of QUICK) {
+      wrap.append(h('button', { type: 'button', class: 'chip chip--drop', dataset: { pop: q.id }, 'aria-haspopup': 'dialog', 'aria-expanded': 'false',
+        onclick: (e) => togglePopover(q.id, e.currentTarget) },
+      h('span', { class: 'chip-label' }, q.label), h('span', { class: 'chip-caret', html: ICON.chevron })));
+    }
+  }
+  for (const btn of wrap.children) {
+    const q = QUICK.find((x) => x.id === btn.dataset.pop);
+    const lbl = quickLabel(q.id);
+    btn.classList.toggle('is-active', !!lbl);
+    btn.querySelector('.chip-label').textContent = lbl || q.label;
+    btn.setAttribute('aria-expanded', String(popover.id === q.id));
+    btn.disabled = data.status !== 'ready';
+  }
+  const n = activeFilterCount();
+  const cnt = $('#filtersCount');
+  cnt.hidden = !n;
+  cnt.textContent = n;
+  $('#clearAll').hidden = !n && !area;
+
+  for (const slot of [$('#areaChipTop'), $('#areaChipList')]) {
+    slot.replaceChildren();
+    if (area) {
+      const count = derived.filtered.filter((j) => area.ids.has(j.id)).length;
+      slot.append(h('span', { class: 'area-chip' },
+        h('span', { class: 'area-ico', html: ICON.pin }), h('span', null, `${area.label} (${count})`),
+        h('button', { type: 'button', class: 'area-x', 'aria-label': `Clear area ${area.label}`, html: ICON.close, onclick: () => { area = null; scheduleRender(); } })));
+    }
+  }
+}
+
+/* --------------------------------------------------------- filter panel */
+// Each control is a small component with persistent DOM and a sync() that
+// updates it in place, so focus / slider drags survive re-renders. The left
+// column and the quick-filter popovers both mount these components.
+
+function section(title, body, { open = true, badge = null } = {}) {
+  const det = h('details', { class: 'fsec', open });
+  const sum = h('summary', null, h('span', { class: 'fsec-title' }, title), badge, h('span', { class: 'fsec-caret', html: ICON.chevron }));
+  det.append(sum, body.el);
+  return { el: det, sync: body.sync, badge };
+}
+
+function makeSalary({ compact = false } = {}) {
+  const hist = h('div', { class: 'hist', 'aria-hidden': 'true' });
+  const lo = h('input', { type: 'range', class: 'range range--lo', 'aria-label': 'Minimum salary', step: 5000 });
+  const hi = h('input', { type: 'range', class: 'range range--hi', 'aria-label': 'Maximum salary', step: 5000 });
+  const fill = h('div', { class: 'range-fill' });
+  const track = h('div', { class: 'range-wrap' }, h('div', { class: 'range-track' }), fill, lo, hi);
+  const minOut = h('output', { class: 'range-val' });
+  const maxOut = h('output', { class: 'range-val' });
+  const vals = h('div', { class: 'range-vals' }, h('div', null, h('span', null, 'Min'), minOut), h('span', { class: 'range-dash' }, '–'), h('div', null, h('span', null, 'Max'), maxOut));
+  const toggle = h('input', { type: 'checkbox', role: 'switch', class: 'switch' });
+  const toggleRow = h('label', { class: 'switch-row' }, h('span', null, 'Only show jobs with salary'), toggle);
+  const note = h('p', { class: 'fnote' });
+  const empty = h('p', { class: 'fnote' }, 'No salary information on this board.');
+  const el = h('div', { class: `salary-ctl${compact ? ' salary-ctl--compact' : ''}` }, hist, track, vals, toggleRow, note, empty);
+  let dom = null;
+  let bins = [];
+
+  const onInput = (which) => () => {
+    let a = Number(lo.value), b = Number(hi.value);
+    if (a > b) { if (which === 'lo') { a = b; lo.value = a; } else { b = a; hi.value = b; } }
+    paint();
+    set({ smin: a <= dom.lo ? null : a, smax: b >= dom.hi ? null : b }, { replace: true });
+  };
+  lo.addEventListener('input', onInput('lo'));
+  hi.addEventListener('input', onInput('hi'));
+  // A drag produces many replaceState calls; push one history entry when it ends.
+  const settle = () => { lastHash = '__dirty'; commit(); };
+  lo.addEventListener('change', settle);
+  hi.addEventListener('change', settle);
+  toggle.addEventListener('change', () => set({ so: toggle.checked }));
+
+  function paint() {
+    if (!dom) return;
+    const a = Number(lo.value), b = Number(hi.value);
+    const pct = (v) => ((v - dom.lo) / (dom.hi - dom.lo)) * 100;
+    fill.style.left = `${pct(a)}%`;
+    fill.style.right = `${100 - pct(b)}%`;
+    minOut.textContent = a <= dom.lo ? 'Any' : money(a);
+    maxOut.textContent = b >= dom.hi ? 'Any' : money(b);
+    lo.setAttribute('aria-valuetext', minOut.textContent);
+    hi.setAttribute('aria-valuetext', maxOut.textContent);
+    bins.forEach((bar, i) => {
+      const x0 = dom.lo + (i / bins.length) * (dom.hi - dom.lo);
+      const x1 = dom.lo + ((i + 1) / bins.length) * (dom.hi - dom.lo);
+      bar.classList.toggle('is-in', x1 > a && x0 < b);
+    });
+  }
+
+  function sync() {
+    dom = salaryDomain();
+    const has = !!dom;
+    for (const n of [hist, track, vals, note]) n.hidden = !has;
+    empty.hidden = has;
+    toggle.checked = S.so;
+    if (!has) return;
+    for (const r of [lo, hi]) { r.min = dom.lo; r.max = dom.hi; }
+    if (document.activeElement !== lo) lo.value = S.smin ?? dom.lo;
+    if (document.activeElement !== hi) hi.value = S.smax ?? dom.hi;
+    // histogram of midpoints (faceted: ignores the salary filter itself)
+    const N = compact ? 30 : 26;
+    const counts = new Array(N).fill(0);
+    for (const m of derived.fc?.salMids || []) counts[Math.min(N - 1, Math.max(0, Math.floor(((m - dom.lo) / (dom.hi - dom.lo)) * N)))]++;
+    const max = Math.max(1, ...counts);
+    if (bins.length !== N) { bins = counts.map(() => h('span', { class: 'hist-bar' })); hist.replaceChildren(...bins); }
+    counts.forEach((c, i) => { bins[i].style.height = `${c ? Math.max(6, (c / max) * 100) : 0}%`; });
+    const withSal = data.jobs.filter((j) => j.salary).length;
+    note.textContent = `${withSal} of ${data.jobs.length} roles list pay. Ranges overlap-match; non-USD shown at face value.`;
+    paint();
+  }
+  return { el, sync };
+}
+
+function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8, order = null } = {}) {
+  let query = '';
+  let expanded = false;
+  const input = h('input', { type: 'search', class: 'fsearch', placeholder: 'Search…', 'aria-label': 'Search options' });
+  const searchWrap = h('div', { class: 'fsearch-wrap' }, h('span', { html: ICON.search }), input);
+  const list = h('div', { class: 'checklist', role: 'group' });
+  const more = h('button', { type: 'button', class: 'link-btn more-btn' });
+  const el = h('div', { class: 'checklist-wrap' }, searchWrap, list, more);
+  input.addEventListener('input', () => { query = input.value.trim().toLowerCase(); sync(); });
+  more.addEventListener('click', () => { expanded = !expanded; sync(); });
+  list.addEventListener('change', (e) => {
+    const cb = e.target.closest('input[type=checkbox]');
+    if (cb) { focusKey = cb.value; toggleIn(facet, cb.value); }
+  });
+  let focusKey = null;
+
+  function sync() {
+    const counts = derived.fc?.[facet] || new Map();
+    const selected = new Set(S[facet]);
+    let items = [...new Set([...counts.keys(), ...selected])].map((k) => ({ key: k, count: counts.get(k) || 0 }))
+      .filter((it) => it.count > 0 || selected.has(it.key));
+    if (order) items.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
+    else items.sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
+    const showSearch = searchable === true || (searchable === 'auto' && items.length > 8);
+    searchWrap.hidden = !showSearch;
+    if (query) items = items.filter((it) => it.key.toLowerCase().includes(query));
+    const hadFocus = list.contains(document.activeElement) ? document.activeElement.value : focusKey;
+    focusKey = null;
+
+    const row = (it) => {
+      const id = `f-${facet}-${btoa(unescape(encodeURIComponent(it.key))).replace(/[^a-z0-9]/gi, '')}-${uid}`;
+      return h('label', { class: `check${it.count === 0 ? ' is-zero' : ''}`, for: id },
+        h('input', { type: 'checkbox', id, value: it.key, checked: selected.has(it.key) }),
+        h('span', { class: 'check-box', 'aria-hidden': 'true' }),
+        h('span', { class: 'check-label' }, it.key), h('span', { class: 'check-count' }, it.count));
+    };
+
+    const nodes = [];
+    let shown = 0;
+    const cap = expanded || query ? Infinity : limit;
+    if (grouped) {
+      const groups = new Map();
+      for (const it of items) {
+        const g = derived.fc?.lGroup.get(it.key) || 'ZZ';
+        if (!groups.has(g)) groups.set(g, { items: [], total: 0 });
+        const grp = groups.get(g);
+        grp.items.push(it);
+        grp.total += it.count;
+      }
+      const ordered = [...groups].sort((a, b) => (a[0] === '~remote' ? -1 : b[0] === '~remote' ? 1 : b[1].total - a[1].total));
+      for (const [g, grp] of ordered) {
+        if (shown >= cap) break;
+        nodes.push(h('div', { class: 'check-group' }, g === '~remote' ? 'Remote' : countryName(g)));
+        for (const it of grp.items) { if (shown >= cap && !selected.has(it.key)) continue; nodes.push(row(it)); shown++; }
+      }
+    } else {
+      for (const it of items) { if (shown >= cap && !selected.has(it.key)) continue; nodes.push(row(it)); shown++; }
+    }
+    if (!items.length) nodes.push(h('p', { class: 'fnote' }, query ? 'No matches' : 'Nothing to filter'));
+    list.replaceChildren(...nodes);
+    const hidden = items.length - shown;
+    more.hidden = !(hidden > 0 || (expanded && items.length > limit)) || !!query;
+    more.textContent = expanded ? 'Show fewer' : `Show all ${items.length}`;
+    if (hadFocus) list.querySelector(`input[value="${cssId(hadFocus)}"]`)?.focus();
+  }
+  const uid = Math.random().toString(36).slice(2, 7);
+  return { el, sync };
+}
+
+function makeRemote() {
+  const opts = [['any', 'Any'], ['remote', 'Remote'], ['onsite', 'On-site']];
+  const el = h('div', { class: 'seg seg--block', role: 'group', 'aria-label': 'Remote' });
+  const btns = opts.map(([v, label]) => {
+    const b = h('button', { type: 'button', 'aria-pressed': 'false', onclick: () => set({ r: v }) }, h('span', null, label), h('span', { class: 'seg-count' }));
+    el.append(b);
+    return [v, b];
+  });
+  return {
+    el,
+    sync() {
+      for (const [v, b] of btns) {
+        b.setAttribute('aria-pressed', String(S.r === v));
+        b.querySelector('.seg-count').textContent = derived.fc ? derived.fc.r[v] : '';
+      }
+    },
+  };
+}
+
+function makePosted() {
+  const opts = [[0, 'Any time'], [7, 'Past week'], [30, 'Past month'], [90, 'Past 3 months']];
+  const el = h('div', { class: 'radio-list', role: 'radiogroup', 'aria-label': 'Updated' });
+  const name = 'posted-' + Math.random().toString(36).slice(2, 7);
+  const rows = opts.map(([v, label]) => {
+    const input = h('input', { type: 'radio', name, value: v, onchange: () => set({ p: v }) });
+    const count = h('span', { class: 'check-count' });
+    el.append(h('label', { class: 'radio' }, input, h('span', { class: 'radio-dot', 'aria-hidden': 'true' }), h('span', { class: 'check-label' }, label), count));
+    return [v, input, count];
+  });
+  return { el, sync() { for (const [v, input, count] of rows) { input.checked = S.p === v; count.textContent = derived.fc ? derived.fc.p[v] : ''; } } };
+}
+
+const KW_CATS = [
+  { cat: 'responsibilities', key: 'kr', title: 'Responsibilities', hint: 'What the work involves' },
+  { cat: 'fit', key: 'kf', title: 'Fit', hint: 'What they look for' },
+  { cat: 'skills', key: 'ks', title: 'Skills', hint: 'Tools & technologies' },
+];
+
+function makeCloud({ cat, key }, { limit = 14 } = {}) {
+  let expanded = false;
+  const cloud = h('div', { class: 'cloud' });
+  const more = h('button', { type: 'button', class: 'link-btn more-btn' });
+  const el = h('div', null, cloud, more);
+  more.addEventListener('click', () => { expanded = !expanded; sync(); });
+  cloud.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-kw]');
+    if (b) { refocus = b.dataset.kw; toggleIn(key, b.dataset.kw); }
+  });
+  let refocus = null;
+  function sync() {
+    const counts = derived.fc?.kw[cat] || new Map();
+    const sel = S[key];
+    const rest = [...counts].filter(([k]) => !sel.includes(k)).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    const items = [...sel.map((k) => [k, counts.get(k) || 0, true]), ...rest.map(([k, c]) => [k, c, false])];
+    const shown = expanded ? items : items.slice(0, Math.max(limit, sel.length));
+    const focusK = cloud.contains(document.activeElement) ? document.activeElement.dataset.kw : refocus;
+    refocus = null;
+    cloud.replaceChildren(...shown.map(([k, c, on]) => h('button', { type: 'button', class: 'kw', 'aria-pressed': String(on), dataset: { kw: k } },
+      h('span', null, k), h('span', { class: 'kw-count' }, c))));
+    if (!items.length) cloud.append(h('p', { class: 'fnote' }, 'No keywords for the current roles.'));
+    more.hidden = items.length <= limit;
+    more.textContent = expanded ? 'Show fewer' : `Show ${items.length - shown.length} more`;
+    if (focusK) cloud.querySelector(`button[data-kw="${cssId(focusK)}"]`)?.focus();
+  }
+  return { el, sync };
+}
+
+function makeSwitch(label, key) {
+  const input = h('input', { type: 'checkbox', role: 'switch', class: 'switch', onchange: () => set({ [key]: input.checked }) });
+  return { el: h('label', { class: 'switch-row' }, h('span', null, label), input), sync() { input.checked = !!S[key]; } };
+}
+
+let panel = null;
+function renderFilterPanel() {
+  const body = $('#filterBody');
+  if (data.status !== 'ready') {
+    if (!body.querySelector('.skeleton-stack')) {
+      panel = null;
+      body.replaceChildren(h('div', { class: 'skeleton-stack', 'aria-hidden': 'true' },
+        ...[70, 40, 90, 55, 80, 35, 65].map((w) => h('div', { class: 'sk sk-line', style: `width:${w}%` }))));
+    }
+    return;
+  }
+  if (!panel) {
+    const sel = (key) => h('span', { class: 'fsec-badge', dataset: { badge: key } });
+    panel = [
+      section('Salary', makeSalary(), { badge: sel('sal') }),
+      section('Department', makeChecklist('d'), { badge: sel('d') }),
+      section('Location', makeChecklist('l', { grouped: true, limit: 10, searchable: 'auto' }), { badge: sel('l') }),
+      section('Seniority', makeChecklist('s', { order: SENIORITY_ORDER, limit: 10 }), { badge: sel('s') }),
+      section('Remote', makeRemote(), { badge: sel('r') }),
+      ...KW_CATS.map((k) => section(k.title, makeCloud(k), { badge: sel(k.key) })),
+      section('Employment type', makeChecklist('e', { limit: 6 }), { open: false, badge: sel('e') }),
+      section('Updated', makePosted(), { open: false, badge: sel('p') }),
+    ];
+    body.replaceChildren(...panel.map((s) => s.el));
+  }
+  for (const s of panel) s.sync();
+  const counts = { sal: (S.smin != null || S.smax != null ? 1 : 0) + (S.so ? 1 : 0), d: S.d.length, l: S.l.length, s: S.s.length, r: S.r !== 'any' ? 1 : 0, kr: S.kr.length, kf: S.kf.length, ks: S.ks.length, e: S.e.length, p: S.p ? 1 : 0 };
+  for (const b of body.querySelectorAll('[data-badge]')) {
+    const n = counts[b.dataset.badge];
+    b.textContent = n || '';
+    b.hidden = !n;
+  }
+  $('#filtersDone').textContent = `Show ${plural(visible.length, 'role')}`;
+}
+
+/* ------------------------------------------------------------- popovers */
+
+const popover = { id: null, anchor: null, parts: [] };
+
+function popoverParts(id) {
+  switch (id) {
+    case 'salary': return [makeSalary({ compact: true })];
+    case 'dept': return [makeChecklist('d', { limit: 12 })];
+    case 'loc': return [makeChecklist('l', { grouped: true, limit: 14 })];
+    case 'sen': return [makeChecklist('s', { order: SENIORITY_ORDER, limit: 10 })];
+    case 'remote': return [makeRemote()];
+    case 'more': return [
+      titled('Pay', makeSwitch('Only show jobs with salary', 'so')),
+      titled('Employment type', makeChecklist('e', { limit: 6 })),
+      titled('Updated', makePosted()),
+      ...KW_CATS.map((k) => titled(k.title, makeCloud(k, { limit: 10 }), k.hint)),
+    ];
+    case 'board': return [makeBoardForm()];
+  }
+  return [];
+}
+function titled(title, part, hint) {
+  return { el: h('div', { class: 'pop-sec' }, h('h3', null, title, hint ? h('span', null, hint) : null), part.el), sync: part.sync };
+}
+
+function togglePopover(id, anchor) {
+  if (popover.id === id) return closePopover();
+  closePopover(false);
+  const el = $('#popover');
+  popover.id = id;
+  popover.anchor = anchor;
+  popover.parts = popoverParts(id);
+  const title = id === 'board' ? 'Add a job board' : QUICK.find((q) => q.id === id)?.label;
+  const head = h('div', { class: 'pop-head' }, h('h2', { id: 'popTitle' }, title),
+    h('button', { type: 'button', class: 'icon-btn icon-btn--sm', 'aria-label': 'Close', html: ICON.close, onclick: () => closePopover() }));
+  const foot = id === 'board' ? null : h('div', { class: 'pop-foot' },
+    h('button', { type: 'button', class: 'link-btn', onclick: () => clearPopoverFacet(id) }, 'Reset'),
+    h('button', { type: 'button', class: 'btn btn--primary btn--sm pop-done', onclick: () => closePopover() }, 'Done'));
+  el.className = `popover popover--${id}`;
+  el.setAttribute('aria-labelledby', 'popTitle');
+  el.replaceChildren(head, h('div', { class: 'pop-body' }, ...popover.parts.map((p) => p.el)), foot);
+  el.hidden = false;
+  anchor?.setAttribute('aria-expanded', 'true');
+  syncPopover();
+  positionPopover();
+  requestAnimationFrame(() => el.querySelector('input:not([type=range]), button.kw, select, .range, button:not(.icon-btn)')?.focus({ preventScroll: true }));
+}
+
+function clearPopoverFacet(id) {
+  const patches = {
+    salary: { smin: null, smax: null, so: false }, dept: { d: [] }, loc: { l: [] }, sen: { s: [] }, remote: { r: 'any' },
+    more: { so: false, e: [], p: 0, kr: [], kf: [], ks: [] },
+  };
+  set(patches[id] || {});
+}
+
+function syncPopover() {
+  if (!popover.id) return;
+  for (const p of popover.parts) p.sync?.();
+  const done = $('#popover .pop-done');
+  if (done) done.textContent = `See ${plural(visible.length, 'role')}`;
+}
+
+function positionPopover() {
+  const el = $('#popover');
+  if (!popover.anchor || el.hidden) return;
+  if (matchMedia('(max-width: 720px)').matches) { el.style.left = el.style.top = ''; return; }
+  const r = popover.anchor.getBoundingClientRect();
+  const w = el.offsetWidth;
+  el.style.top = `${r.bottom + 8}px`;
+  el.style.left = `${Math.max(12, Math.min(r.left, innerWidth - w - 12))}px`;
+}
+
+function closePopover(restoreFocus = true) {
+  if (!popover.id) return;
+  const anchor = popover.anchor;
+  anchor?.setAttribute('aria-expanded', 'false');
+  popover.id = null;
+  popover.anchor = null;
+  popover.parts = [];
+  $('#popover').hidden = true;
+  if (restoreFocus) anchor?.focus({ preventScroll: true });
+}
+
+/* ------------------------------------------------------- add-board form */
+
+function makeBoardForm() {
+  const source = h('select', { id: 'abSource', required: true },
+    h('option', { value: 'greenhouse' }, 'Greenhouse'), h('option', { value: 'ashby' }, 'Ashby'), h('option', { value: 'lever' }, 'Lever'));
+  const board = h('input', { id: 'abBoard', required: true, placeholder: 'e.g. stripe', pattern: '[A-Za-z0-9][A-Za-z0-9._\\-]*', autocomplete: 'off', spellcheck: 'false' });
+  const name = h('input', { id: 'abName', placeholder: 'e.g. Stripe', autocomplete: 'off' });
+  const hint = h('p', { class: 'fnote' });
+  const updateHint = () => {
+    const slug = board.value.trim() || '<slug>';
+    hint.textContent = { greenhouse: `boards.greenhouse.io/${slug}`, ashby: `jobs.ashbyhq.com/${slug}`, lever: `jobs.lever.co/${slug}` }[source.value];
+  };
+  source.addEventListener('change', updateHint);
+  board.addEventListener('input', updateHint);
+  updateHint();
+  const saved = h('div', { class: 'saved-boards' });
+  const form = h('form', { class: 'board-form', novalidate: true },
+    h('div', { class: 'field' }, h('label', { for: 'abSource' }, 'Source'), source),
+    h('div', { class: 'field' }, h('label', { for: 'abBoard' }, 'Board slug'), board, hint),
+    h('div', { class: 'field' }, h('label', { for: 'abName' }, 'Display name ', h('span', { class: 'muted' }, '(optional)')), name),
+    h('button', { type: 'submit', class: 'btn btn--primary btn--block' }, 'Add & open board'),
+    saved);
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const slug = board.value.trim().replace(/^https?:\/\/[^/]+\//, '').replace(/\/.*$/, '');
+    if (!slug || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(slug)) { board.setAttribute('aria-invalid', 'true'); board.focus(); hint.textContent = 'Enter the board\u2019s slug (letters, numbers, dashes).'; return; }
+    const entry = { source: source.value, board: slug, name: name.value.trim() || slug.charAt(0).toUpperCase() + slug.slice(1) };
+    boards = [...boards.filter((b) => !(b.source === entry.source && b.board === entry.board)), entry];
+    saveBoards(boards);
+    closePopover(false);
+    set({ c: `${entry.source}:${entry.board}`, cn: entry.name, job: null, ...resetFiltersPatch() });
+    toast(`Added ${entry.name}`);
+  });
+  function sync() {
+    saved.replaceChildren();
+    if (!boards.length) return;
+    saved.append(h('h3', null, 'Your boards'));
+    for (const b of boards) {
+      saved.append(h('div', { class: 'saved-board' },
+        h('span', { class: 'dot', style: `--dot:${colorFor(b.board)}` }),
+        h('span', { class: 'saved-name' }, b.name, h('span', { class: 'muted' }, ` · ${SOURCE_LABEL[b.source]}/${b.board}`)),
+        h('button', { type: 'button', class: 'icon-btn icon-btn--sm', 'aria-label': `Remove ${b.name}`, html: ICON.trash, onclick: () => {
+          boards = boards.filter((x) => x !== b);
+          saveBoards(boards);
+          if (S.c === `${b.source}:${b.board}`) set({ c: companies[0]?.slug || 'anthropic', cn: '', job: null });
+          else render();
+        } })));
+    }
+  }
+  return { el: form, sync };
+}
+
+/* ------------------------------------------------------------------ KPIs */
+
+function renderKpis() {
+  const el = $('#kpis');
+  if (data.status === 'loading' || data.status === 'idle') {
+    el.replaceChildren(...[0, 1, 2, 3, 4].map(() => h('div', { class: 'kpi' }, h('div', { class: 'sk sk-line', style: 'width:50%' }), h('div', { class: 'sk sk-num' }))));
+    return;
+  }
+  if (data.status === 'error') { el.replaceChildren(); return; }
+  const listed = area ? derived.filtered.filter((j) => area.ids.has(j.id)) : derived.filtered;
+  const st = stats(listed);
+  const total = data.jobs.length;
+  const tile = (label, value, sub, extra = '') => h('div', { class: `kpi ${extra}` }, h('div', { class: 'kpi-label' }, label), h('div', { class: 'kpi-value' }, value), h('div', { class: 'kpi-sub' }, sub));
+  const pct = st.n ? Math.round((st.withSalary / st.n) * 100) : 0;
+  el.replaceChildren(
+    tile('Open roles', st.n.toLocaleString(), st.n === total ? `at ${data.company?.name || 'this company'}` : `of ${total.toLocaleString()} total`),
+    tile('With salary', st.n ? `${pct}%` : '—', `${st.withSalary.toLocaleString()} list pay`),
+    tile('Median pay', money(st.median), 'midpoint of range', 'kpi--accent'),
+    tile('Middle 50%', st.p25 != null ? `${money(st.p25)}–${money(st.p75).replace(/^\$/, '')}` : '—', 'P25 – P75'),
+    tile('Top department', st.top ? st.top[0] : '—', st.top ? `${plural(st.top[1], 'role')} · ${Math.round((st.top[1] / st.n) * 100)}%` : '', 'kpi--wide'),
+  );
+}
+
+/* ------------------------------------------------------------------- viz */
+
+let chart = null;
+let map = null;
+const vizSig = { chart: '', map: '' };
+let vizError = null;
+
+function ensureViz() {
+  try {
+    if (S.m === 'chart' && !chart) {
+      chart = createChart($('#chartHost'), { onSelect: (job) => job && openDrawer(job.id), onHover: (job) => hoverFromViz(job) });
+    }
+    if (S.m === 'map' && !map) {
+      map = createMap($('#mapHost'), {
+        onSelect: (job) => job && openDrawer(job.id),
+        onAreaSelect: (jobs, label) => {
+          if (!jobs?.length) return;
+          area = { label: label || 'Selected area', ids: new Set(jobs.map((j) => j.id)) };
+          resultsLimit = PAGE;
+          scheduleRender();
+          if (isMobile()) setSheet(true);
+        },
+      });
+    }
+    vizError = null;
+  } catch (err) {
+    console.error(err);
+    vizError = err;
+  }
+}
+
+function renderViz() {
+  const chartHost = $('#chartHost');
+  const mapHost = $('#mapHost');
+  const overlay = $('#vizOverlay');
+  const wasHidden = mapHost.hidden;
+  chartHost.hidden = S.m !== 'chart';
+  mapHost.hidden = S.m !== 'map';
+  $('#vizControls').hidden = S.m !== 'chart';
+  $('#groupBy').value = S.g;
+  $('#colorBy').value = S.cb;
+
+  const title = $('#vizTitle');
+  overlay.hidden = true;
+  overlay.className = 'viz-overlay';
+
+  if (data.status === 'loading' || data.status === 'idle') {
+    title.replaceChildren(h('div', { class: 'sk sk-line', style: 'width:220px' }));
+    overlay.hidden = false;
+    overlay.classList.add('is-loading');
+    overlay.replaceChildren(h('div', { class: 'chart-skeleton', 'aria-label': 'Loading roles', role: 'status' },
+      ...Array.from({ length: 18 }, (_, i) => h('div', { class: 'sk sk-bar', style: `margin-left:${8 + ((i * 37) % 45)}%;width:${14 + ((i * 53) % 22)}%` }))));
+    return;
+  }
+  if (data.status === 'error') {
+    title.replaceChildren();
+    overlay.hidden = false;
+    overlay.replaceChildren(stateCard({ icon: ICON.alert, title: 'Couldn\u2019t load this board', body: data.error || 'Unknown error', action: ['Retry', () => loadJobs()], tone: 'error' }));
+    return;
+  }
+  const jobs = derived.filtered;
+  const plotted = jobs.filter((j) => j.salary).length;
+  title.replaceChildren(S.m === 'chart'
+    ? h('span', null, h('strong', null, 'Salary ranges'), h('span', { class: 'muted' }, ` · ${plural(plotted, 'role')} plotted${jobs.length - plotted ? ` · ${jobs.length - plotted} without pay hidden` : ''}`))
+    : h('span', null, h('strong', null, 'Where the roles are'), h('span', { class: 'muted' }, ' · click a pin to list its roles')));
+
+  if (!data.jobs.length) {
+    overlay.hidden = false;
+    overlay.replaceChildren(stateCard({ title: 'No open roles on this board', body: 'The board returned zero postings. Check the slug or try another company.' }));
+    return;
+  }
+  if (!jobs.length) {
+    overlay.hidden = false;
+    overlay.replaceChildren(stateCard({ title: 'No roles match', body: 'Try widening the salary range or removing a filter.', action: ['Clear filters', clearFilters] }));
+  }
+
+  ensureViz();
+  const inst = S.m === 'chart' ? chart : map;
+  if (!inst) {
+    overlay.hidden = false;
+    overlay.replaceChildren(stateCard({ icon: ICON.alert, title: `${S.m === 'chart' ? 'Chart' : 'Map'} unavailable`, body: vizError ? String(vizError.message || vizError) : 'The visualization module failed to load.', tone: 'error' }));
+    return;
+  }
+  if (S.m === 'map' && wasHidden) { try { map.invalidateSize(); } catch { /* ignore */ } }
+  const sig = jobs.map((j) => j.id).join(',') + (S.m === 'chart' ? `|${S.g}|${S.cb}` : '');
+  if (vizSig[S.m] !== sig) {
+    vizSig[S.m] = sig;
+    try {
+      if (S.m === 'chart') chart.update(jobs, { groupBy: S.g, colorBy: S.cb });
+      else map.update(jobs);
+    } catch (err) { console.error('viz update failed', err); }
+  }
+  highlightViz();
+}
+
+function highlightViz() {
+  const inst = S.m === 'chart' ? chart : map;
+  try { inst?.highlight(hoverId ?? drawerJobId ?? null); } catch { /* ignore */ }
+}
+
+function hoverFromViz(job) {
+  hoverId = job?.id ?? null;
+  for (const c of document.querySelectorAll('.card.is-hot')) c.classList.remove('is-hot');
+  if (hoverId) $(`.card[data-id="${cssId(hoverId)}"]`)?.classList.add('is-hot');
+}
+
+function stateCard({ icon = null, title, body, action = null, tone = '' }) {
+  return h('div', { class: `state-card ${tone ? `state-card--${tone}` : ''}` },
+    icon ? h('div', { class: 'state-ico', html: icon }) : h('div', { class: 'state-ico state-ico--melon' }, h('img', { src: '/favicon.svg', alt: '' })),
+    h('h3', null, title), body ? h('p', null, body) : null,
+    action ? h('button', { type: 'button', class: 'btn btn--primary btn--sm', onclick: action[1] }, action[0]) : null);
+}
+
+/* --------------------------------------------------------------- results */
+
+function renderResults() {
+  const list = $('#resultsList');
+  const title = $('#resultsTitle');
+  $('#sortBy').value = S.sort;
+  if (data.status === 'loading' || data.status === 'idle') {
+    title.textContent = 'Loading roles…';
+    list.replaceChildren(...Array.from({ length: 7 }, () => h('li', { class: 'card card--sk', 'aria-hidden': 'true' },
+      h('div', { class: 'sk sk-line', style: 'width:72%' }), h('div', { class: 'sk sk-line', style: 'width:48%' }), h('div', { class: 'sk sk-line', style: 'width:30%' }))));
+    return;
+  }
+  if (data.status === 'error') {
+    title.textContent = 'No data';
+    list.replaceChildren(h('li', { class: 'list-empty' }, stateCard({ icon: ICON.alert, title: 'Board unavailable', body: 'We couldn\u2019t reach the API.', action: ['Retry', () => loadJobs()], tone: 'error' })));
+    return;
+  }
+  const st = stats(visible);
+  title.replaceChildren(h('strong', null, plural(st.n, 'role')), st.median != null ? h('span', { class: 'muted' }, ` · median ${money(st.median)}`) : null);
+  if (!visible.length) {
+    list.replaceChildren(h('li', { class: 'list-empty' }, stateCard({
+      title: data.jobs.length ? 'No roles match' : 'No open roles',
+      body: data.jobs.length ? 'Nothing fits every filter you\u2019ve set.' : 'This board has no postings right now.',
+      action: data.jobs.length ? ['Clear filters', clearFilters] : null,
+    })));
+    return;
+  }
+  const items = visible.slice(0, resultsLimit).map(card);
+  if (visible.length > resultsLimit) {
+    items.push(h('li', { class: 'list-more' }, h('button', { type: 'button', class: 'btn btn--ghost btn--block', onclick: () => { resultsLimit += PAGE * 2; renderResults(); } },
+      `Show ${Math.min(PAGE * 2, visible.length - resultsLimit)} more of ${visible.length - resultsLimit}`)));
+  }
+  list.replaceChildren(...items);
+}
+
+function locSummary(job, max = 1) {
+  const names = job.locations.map((l) => (l.remote ? l.name || 'Remote' : l.city && l.region ? `${l.city}, ${l.region}` : l.name));
+  if (!names.length) return 'Location not listed';
+  return names.slice(0, max).join(' · ') + (names.length > max ? ` +${names.length - max}` : '');
+}
+
+function topTags(job, n = 3) {
+  const tags = [...job.keywords.skills, ...job.keywords.responsibilities, ...job.keywords.fit];
+  return [...new Set(tags)].slice(0, n);
+}
+
+function card(job) {
+  const color = colorFor(deptKey(job));
+  const range = salaryRange(job.salary);
+  const isOpen = job.id === drawerJobId;
+  const el = h('li', null, h('article', {
+    class: `card${isOpen ? ' is-open' : ''}`, dataset: { id: job.id }, tabindex: '0', role: 'button',
+    'aria-label': `${job.title}, ${range || 'salary not listed'}, ${locSummary(job, 3)}`, style: `--stripe:${color}`,
+  },
+  h('div', { class: 'card-top' },
+    h('h3', { class: 'card-title' }, job.title),
+    range ? h('span', { class: 'sal-pill' }, range) : h('span', { class: 'sal-pill sal-pill--none' }, 'No salary')),
+  h('div', { class: 'card-meta' },
+    h('span', { class: 'card-dept' }, deptKey(job)), h('span', { class: 'sep', 'aria-hidden': 'true' }, '·'),
+    h('span', { class: 'card-loc' }, locSummary(job, 1)), job.remote ? h('span', { class: 'tag tag--remote' }, 'Remote') : null),
+  h('div', { class: 'card-foot' },
+    h('span', { class: `sen sen--${(job.seniority || 'mid').toLowerCase().replace(/\W/g, '')}` }, job.seniority || '—'),
+    ...topTags(job).map((t) => h('span', { class: 'tag' }, t)),
+    job._ts ? h('span', { class: 'card-age' }, ago(job._ts)) : null)));
+  return el;
+}
+
+/* ---------------------------------------------------------------- drawer */
+
+let drawerJobId = null;
+let drawerReturnFocus = null;
+
+function findJob(id) { return data.jobs.find((j) => j.id === id); }
+
+function openDrawer(id, { fromHash = false } = {}) {
+  const job = findJob(id);
+  if (!job) { if (fromHash && data.status === 'ready') set({ job: null }, { replace: true }); return; }
+  if (!drawerJobId) drawerReturnFocus = document.activeElement;
+  drawerJobId = id;
+  if (S.job !== id) { S.job = id; commit({ replace: fromHash }); }
+  const drawer = $('#drawer');
+  drawer.replaceChildren(...drawerContent(job));
+  drawer.hidden = false;
+  $('#drawerBackdrop').hidden = false;
+  requestAnimationFrame(() => { drawer.classList.add('is-open'); $('#drawerBackdrop').classList.add('is-open'); });
+  drawer.scrollTop = 0;
+  drawer.querySelector('.drawer-scroll')?.scrollTo(0, 0);
+  for (const c of document.querySelectorAll('.card.is-open')) c.classList.remove('is-open');
+  $(`.card[data-id="${cssId(id)}"]`)?.classList.add('is-open');
+  highlightViz();
+  renderDrawerNav();
+  if (!fromHash) $('#drawerClose')?.focus({ preventScroll: true });
+}
+
+function closeDrawer({ fromHash = false } = {}) {
+  if (!drawerJobId) return;
+  drawerJobId = null;
+  const drawer = $('#drawer');
+  drawer.classList.remove('is-open');
+  $('#drawerBackdrop').classList.remove('is-open');
+  setTimeout(() => { if (!drawerJobId) { drawer.hidden = true; $('#drawerBackdrop').hidden = true; } }, 220);
+  for (const c of document.querySelectorAll('.card.is-open')) c.classList.remove('is-open');
+  if (!fromHash && S.job) { S.job = null; commit(); }
+  highlightViz();
+  if (drawerReturnFocus?.isConnected) drawerReturnFocus.focus({ preventScroll: true });
+}
+
+function renderDrawerNav() {
+  const idx = visible.findIndex((j) => j.id === drawerJobId);
+  const prev = $('#drawerPrev'), next = $('#drawerNext'), pos = $('#drawerPos');
+  if (!prev) return;
+  prev.disabled = idx <= 0;
+  next.disabled = idx < 0 || idx >= visible.length - 1;
+  pos.textContent = idx >= 0 ? `${idx + 1} of ${visible.length}` : '';
+}
+function stepDrawer(d) {
+  const idx = visible.findIndex((j) => j.id === drawerJobId);
+  const nxt = visible[idx + d];
+  if (nxt) openDrawer(nxt.id);
+}
+
+function percentile(job) {
+  if (!job.salary) return null;
+  const mids = data.jobs.filter((j) => j.salary && j.id !== job.id).map((j) => j._mid);
+  if (!mids.length) return null;
+  return Math.round((mids.filter((m) => m < job._mid).length / mids.length) * 100);
+}
+
+function salaryDistributionSvg(job) {
+  const dom = salaryDomain();
+  const mids = data.jobs.filter((j) => j.salary).map((j) => j._mid).sort((a, b) => a - b);
+  if (!dom || !mids.length) return '';
+  const W = 100, H = 40, N = 32;
+  const counts = new Array(N).fill(0);
+  for (const m of mids) counts[Math.min(N - 1, Math.floor(((m - dom.lo) / (dom.hi - dom.lo)) * N))]++;
+  const max = Math.max(...counts);
+  const x = (v) => ((v - dom.lo) / (dom.hi - dom.lo)) * W;
+  const bw = W / N;
+  const bars = counts.map((c, i) => c ? `<rect x="${(i * bw + 0.15).toFixed(2)}" y="${(H - (c / max) * (H - 6)).toFixed(2)}" width="${(bw - 0.3).toFixed(2)}" height="${((c / max) * (H - 6)).toFixed(2)}" rx="0.4" class="dist-bar${(i + 1) * bw > x(job.salary.min) && i * bw < x(job.salary.max) ? ' is-in' : ''}"/>` : '').join('');
+  const med = x(quantile(mids, 0.5));
+  return `<svg class="dist" viewBox="0 0 ${W} ${H + 12}" preserveAspectRatio="none" role="img" aria-label="Where this salary sits among ${mids.length} roles">
+    ${bars}
+    <rect x="${x(job.salary.min).toFixed(2)}" y="${H + 2}" width="${Math.max(0.8, x(job.salary.max) - x(job.salary.min)).toFixed(2)}" height="4" rx="2" class="dist-range"/>
+    <line x1="${med.toFixed(2)}" x2="${med.toFixed(2)}" y1="0" y2="${H}" class="dist-med" vector-effect="non-scaling-stroke"/>
+  </svg>
+  <div class="dist-axis"><span>${money(dom.lo)}</span><span class="dist-med-label" style="left:${med.toFixed(1)}%">median ${money(quantile(mids, 0.5))}</span><span>${money(dom.hi)}</span></div>`;
+}
+
+function drawerContent(job) {
+  const company = data.company || {};
+  const pct = percentile(job);
+  const kwCat = KW_CATS.map(({ cat, key, title }) => (job.keywords[cat].length ? h('div', { class: 'kw-group' },
+    h('h4', null, title),
+    h('div', { class: 'cloud' }, ...job.keywords[cat].map((k) => h('button', {
+      type: 'button', class: 'kw', 'aria-pressed': String(S[key].includes(k)), title: S[key].includes(k) ? 'Remove filter' : 'Filter roles by this keyword',
+      onclick: (e) => { toggleIn(key, k); e.currentTarget.setAttribute('aria-pressed', String(S[key].includes(k))); toast(S[key].includes(k) ? `Filtering by “${k}”` : `Removed “${k}”`); },
+    }, k)))) : null));
+  const bullets = (title, arr) => (arr?.length ? h('section', { class: 'd-sec' }, h('h3', null, title), h('ul', { class: 'bullets' }, ...arr.map((b) => h('li', null, b)))) : null);
+  const desc = h('div', { class: 'desc' });
+  desc.append(sanitizeHtml(job.descriptionHtml || ''));
+  const descWrap = h('section', { class: 'd-sec d-desc is-collapsed' }, h('h3', null, 'Full description'), desc);
+  const descToggle = h('button', { type: 'button', class: 'link-btn', 'aria-expanded': 'false', onclick: (e) => {
+    const c = descWrap.classList.toggle('is-collapsed');
+    e.currentTarget.textContent = c ? 'Read full description' : 'Show less';
+    e.currentTarget.setAttribute('aria-expanded', String(!c));
+  } }, 'Read full description');
+  descWrap.append(descToggle);
+
+  const head = h('div', { class: 'drawer-head' },
+    h('div', { class: 'drawer-nav' },
+      h('button', { type: 'button', class: 'icon-btn icon-btn--sm', id: 'drawerPrev', 'aria-label': 'Previous role', html: ICON.prev, onclick: () => stepDrawer(-1) }),
+      h('span', { class: 'drawer-pos', id: 'drawerPos' }),
+      h('button', { type: 'button', class: 'icon-btn icon-btn--sm', id: 'drawerNext', 'aria-label': 'Next role', html: ICON.next, onclick: () => stepDrawer(1) })),
+    h('button', { type: 'button', class: 'icon-btn', id: 'drawerClose', 'aria-label': 'Close details (Esc)', html: ICON.close, onclick: () => closeDrawer() }));
+
+  const sal = job.salary;
+  const salaryBlock = h('section', { class: 'd-salary' },
+    sal ? h('div', { class: 'd-sal-top' },
+      h('div', null, h('div', { class: 'd-sal-amt' }, salaryRange(sal)), h('div', { class: 'muted' }, `${sal.currency || 'USD'} · per year${sal.interval && sal.interval !== 'year' ? ` (annualized from ${sal.interval})` : ''}`)),
+      pct != null ? h('div', { class: 'd-pct' }, h('div', { class: 'd-pct-num' }, `${pct}%`), h('div', { class: 'muted' }, 'percentile')) : null)
+      : h('div', { class: 'd-sal-none' }, h('strong', null, 'Salary not listed'), h('span', { class: 'muted' }, ' — this posting doesn\u2019t include a pay range.')),
+    sal ? h('div', { class: 'd-dist', html: salaryDistributionSvg(job) }) : null,
+    sal && pct != null ? h('p', { class: 'd-pct-text' }, `Pays more than ${pct}% of roles at ${company.name || job.companyName}`) : null);
+
+  const locs = h('section', { class: 'd-sec' }, h('h3', null, job.locations.length > 1 ? `Locations (${job.locations.length})` : 'Location'),
+    h('ul', { class: 'loc-list' }, ...(job.locations.length ? job.locations.map((l) => h('li', null,
+      h('span', { class: 'loc-ico', html: l.remote ? ICON.globe : ICON.pin }),
+      h('span', null, l.name || [l.city, l.region].filter(Boolean).join(', ')),
+      l.country && !l.remote ? h('span', { class: 'muted' }, ` · ${countryName(l.country)}`) : null)) : [h('li', { class: 'muted' }, 'Not listed')])));
+
+  const source = SOURCE_LABEL[company.source] || 'job board';
+  const foot = h('div', { class: 'drawer-foot' },
+    h('a', { class: 'btn btn--primary btn--lg apply', href: safeUrl(job.url), target: '_blank', rel: 'noopener noreferrer' }, `Apply on ${source}`, h('span', { html: ICON.ext })),
+    h('button', { type: 'button', class: 'btn btn--ghost btn--lg', 'aria-label': 'Copy link to this role', html: ICON.link, onclick: copyLink }));
+
+  return [head, h('div', { class: 'drawer-scroll' },
+    h('div', { class: 'd-company' }, h('span', { class: 'dot', style: `--dot:${companyColor(company)}` }), company.name || job.companyName,
+      data.mode === 'demo' ? h('span', { class: 'tag tag--demo' }, 'Demo') : null),
+    h('h2', { class: 'd-title', id: 'drawerTitle' }, job.title),
+    h('div', { class: 'd-meta' }, ...[deptKey(job), job.team, job.employmentType].filter(Boolean).map((t, i) => [i ? h('span', { class: 'sep' }, '·') : null, h('span', null, t)]),
+      h('span', { class: `sen sen--${(job.seniority || 'mid').toLowerCase().replace(/\W/g, '')}` }, job.seniority || '—')),
+    job._ts ? h('div', { class: 'd-updated muted' }, `Updated ${ago(job._ts)}`) : null,
+    salaryBlock, locs,
+    kwCat.some(Boolean) ? h('section', { class: 'd-sec' }, h('h3', null, 'Keywords ', h('span', { class: 'muted small' }, 'click to filter')), ...kwCat) : null,
+    bullets('What you\u2019ll do', job.sections.responsibilities),
+    bullets('What they look for', job.sections.fit),
+    job.descriptionHtml ? descWrap : null), foot];
+}
+
+function copyLink() {
+  const url = location.href;
+  (navigator.clipboard?.writeText(url) || Promise.reject()).then(() => toast('Link copied'), () => toast('Copy failed — use the address bar'));
+}
+
+function safeUrl(u) {
+  try { const x = new URL(u, location.href); return ['http:', 'https:'].includes(x.protocol) ? x.href : '#'; } catch { return '#'; }
+}
+
+// Allowlist sanitizer: parse inertly (DOMParser never runs scripts), then
+// rebuild only safe elements with no attributes except vetted hrefs.
+const ALLOWED = new Set(['P', 'BR', 'UL', 'OL', 'LI', 'STRONG', 'B', 'EM', 'I', 'U', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'A', 'DIV', 'SPAN', 'BLOCKQUOTE', 'HR', 'CODE', 'PRE', 'SUB', 'SUP', 'SMALL', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TD', 'TH', 'DL', 'DT', 'DD']);
+const DROP = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'EMBED', 'FORM', 'INPUT', 'BUTTON', 'TEXTAREA', 'SELECT', 'LINK', 'META', 'BASE', 'SVG', 'MATH', 'TEMPLATE', 'NOSCRIPT', 'IMG', 'VIDEO', 'AUDIO', 'CANVAS', 'TITLE', 'HEAD']);
+function sanitizeHtml(html) {
+  let src = String(html);
+  if (/&lt;\s*\/?\s*[a-z]/i.test(src) && !/<\s*[a-z]/i.test(src)) {
+    src = new DOMParser().parseFromString(src, 'text/html').documentElement.textContent; // entity-escaped HTML
+  }
+  const doc = new DOMParser().parseFromString(src, 'text/html');
+  const frag = document.createDocumentFragment();
+  const walk = (node, out) => {
+    for (const n of node.childNodes) {
+      if (n.nodeType === 3) { out.append(n.textContent); continue; }
+      if (n.nodeType !== 1) continue;
+      const tag = n.tagName;
+      if (DROP.has(tag)) continue;
+      if (!ALLOWED.has(tag)) { walk(n, out); continue; }
+      const el = document.createElement(tag === 'H1' || tag === 'H2' ? 'h4' : tag.toLowerCase());
+      if (tag === 'A') {
+        const href = safeUrl(n.getAttribute('href') || '');
+        if (href !== '#') { el.href = href; el.target = '_blank'; el.rel = 'noopener noreferrer nofollow'; }
+      }
+      walk(n, el);
+      out.append(el);
+    }
+  };
+  walk(doc.body, frag);
+  return frag;
+}
+
+/* --------------------------------------------------------------- mobile */
+
+const isMobile = () => matchMedia('(max-width: 860px)').matches;
+const isOverlayFilters = () => matchMedia('(max-width: 1199px)').matches;
+
+function setSheet(open) {
+  document.body.classList.toggle('sheet-open', open);
+  $('#sheetHandle').setAttribute('aria-expanded', String(open));
+}
+
+function setFiltersOpen(open) {
+  if (isOverlayFilters()) {
+    document.body.classList.toggle('filters-open', open);
+    $('#filtersScrim').hidden = !open;
+    if (open) setTimeout(() => $('#filters summary')?.focus({ preventScroll: true }), 50);
+  } else {
+    document.body.classList.toggle('filters-collapsed', !open);
+    try { localStorage.setItem('melon-seek.filtersCollapsed', open ? '0' : '1'); } catch { /* ignore */ }
+  }
+  $('#filtersToggle').setAttribute('aria-expanded', String(open));
+  setTimeout(() => { try { map?.invalidateSize(); } catch { /* ignore */ } }, 260);
+}
+const filtersAreOpen = () => (isOverlayFilters() ? document.body.classList.contains('filters-open') : !document.body.classList.contains('filters-collapsed'));
+
+/* ---------------------------------------------------------------- events */
+
+function bindEvents() {
+  const search = $('#search');
+  let searchTimer = 0;
+  search.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => set({ q: search.value.trim() }, { replace: true }), 120);
+  });
+  search.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && search.value) { e.stopPropagation(); search.value = ''; set({ q: '' }, { replace: true }); }
+    if (e.key === 'Enter') { lastHash = '__dirty'; commit(); search.blur(); }
+  });
+
+  for (const b of document.querySelectorAll('.seg [data-mode]')) b.addEventListener('click', () => set({ m: b.dataset.mode }));
+  $('#companySelect').addEventListener('change', (e) => {
+    const c = e.target.value;
+    const info = companyInfo(c);
+    set({ c, cn: info.custom ? info.name : '', job: null, ...resetFiltersPatch() });
+  });
+  $('#addBoardBtn').addEventListener('click', (e) => togglePopover('board', e.currentTarget));
+  $('#refreshBtn').addEventListener('click', () => loadJobs({ refresh: true }));
+  $('#groupBy').addEventListener('change', (e) => set({ g: e.target.value }));
+  $('#colorBy').addEventListener('change', (e) => set({ cb: e.target.value }));
+  $('#sortBy').addEventListener('change', (e) => set({ sort: e.target.value }));
+  $('#clearAll').addEventListener('click', clearFilters);
+  $('#filtersClear').addEventListener('click', clearFilters);
+  $('#filtersToggle').addEventListener('click', () => setFiltersOpen(!filtersAreOpen()));
+  $('#filtersClose').addEventListener('click', () => setFiltersOpen(false));
+  $('#filtersDone').addEventListener('click', () => setFiltersOpen(false));
+  $('#filtersScrim').addEventListener('click', () => setFiltersOpen(false));
+  $('#drawerBackdrop').addEventListener('click', () => closeDrawer());
+  $('#sheetHandle').addEventListener('click', () => setSheet(!document.body.classList.contains('sheet-open')));
+  $('.results-head').addEventListener('click', (e) => { if (isMobile() && !e.target.closest('select, label')) setSheet(!document.body.classList.contains('sheet-open')); });
+  $('.brand').addEventListener('click', (e) => { e.preventDefault(); set({ ...resetFiltersPatch(), job: null, m: 'chart' }); closeDrawer(); });
+
+  const list = $('#resultsList');
+  list.addEventListener('click', (e) => { const c = e.target.closest('.card[data-id]'); if (c) openDrawer(c.dataset.id); });
+  list.addEventListener('keydown', (e) => {
+    const c = e.target.closest('.card[data-id]');
+    if (!c) return;
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrawer(c.dataset.id); }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const cards = [...list.querySelectorAll('.card[data-id]')];
+      cards[cards.indexOf(c) + (e.key === 'ArrowDown' ? 1 : -1)]?.focus();
+    }
+  });
+  const hover = (id) => { if (hoverId === id) return; hoverId = id; highlightViz(); };
+  list.addEventListener('mouseover', (e) => { const c = e.target.closest('.card[data-id]'); hover(c ? c.dataset.id : null); });
+  list.addEventListener('mouseleave', () => hover(null));
+  list.addEventListener('focusin', (e) => { const c = e.target.closest('.card[data-id]'); if (c) hover(c.dataset.id); });
+  list.addEventListener('focusout', () => hover(null));
+
+  document.addEventListener('keydown', (e) => {
+    const typing = e.target.closest?.('input, textarea, select, [contenteditable]');
+    if (e.key === '/' && !typing && !e.metaKey && !e.ctrlKey) { e.preventDefault(); search.focus(); search.select(); return; }
+    if (e.key === 'Escape') {
+      if (popover.id) { closePopover(); return; }
+      if (drawerJobId) { closeDrawer(); return; }
+      if (document.body.classList.contains('filters-open')) { setFiltersOpen(false); return; }
+      if (document.body.classList.contains('sheet-open')) { setSheet(false); return; }
+    }
+    if (drawerJobId && !typing && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'j' || e.key === 'k')) {
+      stepDrawer(e.key === 'ArrowRight' || e.key === 'j' ? 1 : -1);
+    }
+    if (drawerJobId && e.key === 'Tab') trapFocus(e, $('#drawer'));
+  });
+
+  document.addEventListener('pointerdown', (e) => {
+    if (!popover.id) return;
+    if ($('#popover').contains(e.target) || popover.anchor?.contains(e.target)) return;
+    closePopover(false);
+  });
+  addEventListener('resize', rafThrottle(() => { positionPopover(); }));
+  addEventListener('scroll', () => positionPopover(), true);
+
+  addEventListener('popstate', onHashChange);
+  addEventListener('hashchange', onHashChange);
+}
+
+function trapFocus(e, root) {
+  const f = [...root.querySelectorAll('a[href], button:not([disabled]), input, select, [tabindex]:not([tabindex="-1"])')].filter((x) => x.offsetParent !== null);
+  if (!f.length) return;
+  const first = f[0], last = f[f.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+}
+
+function onHashChange() {
+  const next = parseHash();
+  if (!next.c) next.c = S.c;
+  const str = serialize(next);
+  lastHash = str;
+  const companyChanged = next.c !== S.c;
+  S = next;
+  resultsLimit = PAGE;
+  if (companyChanged) { closeDrawer({ fromHash: true }); loadJobs(); return; }
+  render();
+  if (S.job && S.job !== drawerJobId) openDrawer(S.job, { fromHash: true });
+  else if (!S.job && drawerJobId) closeDrawer({ fromHash: true });
+}
+
+/* ------------------------------------------------------------------ boot */
+
+async function boot() {
+  try {
+    if (localStorage.getItem('melon-seek.filtersCollapsed') === '1') document.body.classList.add('filters-collapsed');
+  } catch { /* ignore */ }
+  if (isOverlayFilters()) $('#filtersToggle').setAttribute('aria-expanded', 'false');
+  bindEvents();
+  S = parseHash();
+  render();
+  try {
+    const list = await api('/api/companies');
+    companies = Array.isArray(list) && list.length ? list : FALLBACK_COMPANIES;
+  } catch (err) {
+    console.warn('companies failed', err);
+    companies = FALLBACK_COMPANIES;
+  }
+  if (!S.c) S.c = companies[0].slug;
+  lastHash = serialize();
+  history.replaceState(null, '', location.pathname + location.search + (lastHash ? `#${lastHash}` : ''));
+  await loadJobs();
+}
+
+boot();

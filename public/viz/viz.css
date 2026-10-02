@@ -244,6 +244,7 @@
 
 .ms-chart--narrow .ms-row__label, .ms-chart--narrow .ms-group__name,
 .ms-chart--narrow .ms-axis__cap, .ms-chart--narrow .ms-hist__cap { padding-left: 12px; }
+.ms-chart--narrow .ms-hist__title { display: none; }
 .ms-chart--narrow .ms-chart__head { padding-left: 12px; padding-right: 12px; }
 
 .ms-chart__empty {
