@@ -402,3 +402,18 @@ screenshots in `docs/screenshots/`.
   static-build round-trip test to match. The lead also updated the e2e
   "Listed" test for UX's L1 empty state (options hidden when no job has
   ageDays). FINAL: npm test 254/254; e2e 33/33 on real snapshot data.
+- 2026-10-02: user: "fan out the agents so they work together cohesively to
+  improve the application". Plan: two waves.
+  - Wave 1 (parallel audits plus one perf track):
+    - QA: UX heuristics plus a performance and a11y audit → docs/QA.md
+      "Improvement audit".
+    - backend + features: profile and speed up normalizeJobs (Anduril
+      12–15 s → ≤3 s), proven byte-identical by a golden test.
+    - new reviewer: finish the REVIEW.md re-check and review the v2 code
+      (incl. workflows and llm-vet prompt injection).
+    - viz: whole-app visual design consistency audit (DES-n).
+  - Wave 2: the lead merges all findings into one prioritized backlog, routed
+    to file owners under the contract and the ROADMAP §8 UI budget; then QA
+    re-runs e2e and the audit metrics.
+  User decisions (Pages source, Numbeo, history branch, descriptions,
+  companies, Level check) stay excluded until the user answers.
