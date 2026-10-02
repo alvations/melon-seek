@@ -647,7 +647,7 @@ to stand in for `meta.compstimate`.
   - `features-v2-compare-real-light.png` (Anthropic as current), `-real-dark.png` (OpenAI)
     and `-real-narrow.png` (Anduril): the real market doc. The AI research family shows 7
     companies; xAI and Cohere have near-zero-width bars because they post one band.
-  - No page errors.
+  - Full script run at 07:50Z: **22 PNGs** (16 from v1, 6 from v2), no page errors.
 
 ## v2.6 Known gaps
 - About 8–10% of titles still get the wrong family, mostly ambiguous operations and
@@ -666,6 +666,16 @@ to stand in for `meta.compstimate`.
 - The compare card has only a family picker, per §8; levels use the all-levels roll-up.
 - The widget does not compute a backtest itself when `meta.compstimate` is missing (for
   example, custom boards fetched live); no accuracy line is shown then.
+- **Integration notes for UX (`public/app.js`, not product-owned)**, as of 07:50Z:
+  - `comp.update(data.jobs)` passes no meta. It should be `comp.update(data.jobs, data.meta)`,
+    or the card shows no accuracy line.
+  - `compAccuracy()` guesses units (`<= 1.5` is treated as a fraction, ×100). The values are
+    always percents, so Palantir's and xAI's 0.3 would display as 30% and wrongly as
+    "Low confidence". Use `accuracyLine(data.meta)`, `isLowAccuracy(data.meta)` and
+    `displayConfidence(est, data.meta)` from `compstimate.js` instead.
+  - The compare card's root has the classes `ms-insights ms-compare`, so it shares the
+    insights tokens and row styles. Selectors that mean only the Market insights panel need
+    `.ms-insights:not(.ms-compare)`.
 
 ## v2.7 Change log
 - 06:50Z: read ROADMAP §6.2/§7.1/§8, CONTRACT v2 and the backend's `build-market.js`.
