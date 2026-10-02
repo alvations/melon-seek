@@ -303,3 +303,12 @@ screenshots in `docs/screenshots/`.
   the user's permission. D2 (full descriptions), D3 (companies) and the
   Numbeo question went to the user. D7 (neutral wording) and D8 (drop commute
   and draw-a-boundary) use the roadmap's recommendations.
+- 2026-10-02: devops reported the vetting gate would block deploys (8
+  critical). The lead re-ran it on the final vetting code
+  (`node scripts/vet-salaries.js --no-write-flags`): exit 0, 0 blocking, 51
+  quarantined, 435/435 fixtures. The report predated the gate's "apply
+  quarantine first" default. Installed the vetting agent's final steps in
+  pages.yml: a hard gate writing flags.jsonl and the step summary; an
+  advisory LLM review (needs the ANTHROPIC_API_KEY secret; default model
+  claude-sonnet-5-5, overridden by the VET_LLM_MODEL variable); and a
+  vetting-report artifact (30 days). npm test: 166/166.

@@ -59,19 +59,32 @@ jobs:
       - name: Fetch fresh snapshots (best effort; a failed board keeps the restored file)
         run: npm run snapshot || true # no args = every built-in in server/companies.js
 
-      # Salary vetting gate (scripts/vet-salaries.js; flag definitions in its header
-      # and docs/VETTING.md once written). Exits 1 when a job whose salary would be
-      # shown (not quarantined) has a critical flag, or a regression fixture fails;
-      # that stops this deploy, so implausible pay is never published. Guarded so the
-      # workflow still runs on a checkout without the script.
+      # Salary vetting gate (docs/VETTING.md). Applies the same quarantine the
+      # build and server use, then exits 1 if any job would be published with a
+      # critical salary, or if a regression fixture fails. That stops the deploy,
+      # so implausible pay is never published.
       - name: Salary vetting gate (fails on critical anomalies)
-        continue-on-error: false
         run: |
-          if [ -f scripts/vet-salaries.js ]; then
-            node scripts/vet-salaries.js --no-write-flags --summary "$GITHUB_STEP_SUMMARY"
-          else
-            echo "::notice::scripts/vet-salaries.js not found; salary vetting gate skipped"
-          fi
+          mkdir -p "$RUNNER_TEMP/vetting"
+          node scripts/vet-salaries.js --out "$RUNNER_TEMP/vetting/flags.jsonl" --summary "$GITHUB_STEP_SUMMARY"
+
+      # Advisory LLM review of flagged salaries. Does nothing without an
+      # ANTHROPIC_API_KEY secret and never blocks the deploy.
+      - name: LLM salary review (advisory; no-op without ANTHROPIC_API_KEY)
+        if: always()
+        continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          VET_LLM_MODEL: ${{ vars.VET_LLM_MODEL || 'claude-sonnet-5-5' }}
+        run: node scripts/llm-vet.js --flags "$RUNNER_TEMP/vetting/flags.jsonl" --out "$RUNNER_TEMP/vetting/llm-verdicts.jsonl" --skip-reviewed --limit 100
+
+      - name: Upload salary vetting report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: salary-vetting
+          path: ${{ runner.temp }}/vetting
+          retention-days: 30
 
       - name: Build static site
         env:
