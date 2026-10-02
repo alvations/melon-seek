@@ -312,13 +312,15 @@
 }
 .ms-crow__text { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
 .ms-crow__name {
-  font-size: 13px; font-weight: 600; color: var(--_text);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 13px; font-weight: 600; color: var(--_text); line-height: 1.22;
+  /* up to two lines; the column is sized so the subtitle never needs to truncate */
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+  overflow: hidden; overflow-wrap: anywhere;
 }
 .ms-crow__sub {
   color: var(--_muted);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap;   /* never truncated: the JS picks the short "69 · $512K" form when needed */
 }
 .ms-crow__label:hover .ms-crow__name { text-decoration: underline; text-decoration-color: var(--_axis); text-underline-offset: 3px; }
 .ms-crow.is-selected .ms-crow__name { text-decoration: underline; text-decoration-color: var(--c); text-decoration-thickness: 2px; text-underline-offset: 3px; }
@@ -329,9 +331,9 @@
   padding: 0 12px; gap: 8px;
   align-items: flex-end;
 }
-.ms-chart--narrow .ms-crow__text { flex-direction: row; align-items: baseline; gap: 8px; }
-.ms-chart--narrow .ms-crow__name { flex: 0 1 auto; min-width: 0; }
-.ms-chart--narrow .ms-crow__sub { flex: 0 6 auto; min-width: 0; }
+.ms-chart--narrow .ms-crow__text { flex-direction: row; align-items: baseline; gap: 8px; min-width: 0; }
+.ms-chart--narrow .ms-crow__name { display: block; flex: 0 1 auto; min-width: 0; white-space: nowrap; text-overflow: ellipsis; }
+.ms-chart--narrow .ms-crow__sub { flex: none; }
 
 .ms-crow__plot { position: absolute; left: 0; right: 0; pointer-events: none; } /* spans the row; only circles take the pointer, so the label stays clickable */
 .ms-crow__plot .ms-bin { pointer-events: auto; }

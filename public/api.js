@@ -244,7 +244,10 @@ async function fetchLiveInBrowser(lib, company, signal) {
  *    every job carries (postedAt, firstSeenAt, ageDays, ageIsMinimum,
  *    freshness, repost, extras, reqId, remote, updatedAt), one value per job;
  *    'bool' is 0/1, 'dict' indexes `dict`;
- *  - salary.currency/interval/kind/source as `dict` indexes.
+ *    ('ts' is epoch ms for an ISO string that equals its own toISOString());
+ *  - salary.currency/interval/kind/source as `dict` indexes, and salary as a
+ *    value tuple in `shared.salaryKeys` order when it has exactly those keys;
+ *  - keywords as [responsibilities, fit, skills] (index arrays).
  * Returns plain Job objects. Bodies that aren't packed are returned unchanged.
  */
 export const PACKED_FORMAT = 'melon-packed-2';
@@ -254,17 +257,20 @@ export function unpackJobs(body) {
   if (!body || !PACKED_FORMATS.has(body.format)) return body && Array.isArray(body.jobs) ? body.jobs : [];
   const { shared = {}, dict = [] } = body;
   const at = (i) => (i == null ? null : dict[i]);
-  const kw = (k = {}) => ({
-    responsibilities: (k.responsibilities || []).map(at),
-    fit: (k.fit || []).map(at),
-    skills: (k.skills || []).map(at),
-  });
+  const kw = (k = {}) => (Array.isArray(k)
+    ? { responsibilities: (k[0] || []).map(at), fit: (k[1] || []).map(at), skills: (k[2] || []).map(at) }
+    : { responsibilities: (k.responsibilities || []).map(at), fit: (k.fit || []).map(at), skills: (k.skills || []).map(at) });
   const columns = body.format === PACKED_FORMAT && Array.isArray(body.columns) ? body.columns : [];
-  const decode = (c, v) => (c.enc === 'bool' ? (v === 1 ? true : v === 0 ? false : v) : c.enc === 'dict' ? at(v) : v);
+  const salaryKeys = Array.isArray(shared.salaryKeys) ? shared.salaryKeys : [];
+  const decode = (c, v) => (c.enc === 'bool' ? (v === 1 ? true : v === 0 ? false : v)
+    : c.enc === 'dict' ? at(v)
+    : c.enc === 'ts' ? (typeof v === 'number' ? new Date(v).toISOString() : v)
+    : v);
   return body.jobs.map((j, i) => {
     const job = { ...j };
     for (const c of columns) job[c.key] = decode(c, c.values[i]);
     if (columns.length || body.format === PACKED_FORMAT) {
+      if (Array.isArray(job.salary)) job.salary = Object.fromEntries(salaryKeys.map((k, n) => [k, job.salary[n]]));
       if (job.salary && typeof job.salary === 'object') {
         const sal = { ...job.salary };
         for (const k of SALARY_REFS) if (typeof sal[k] === 'number') sal[k] = at(sal[k]);

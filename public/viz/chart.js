@@ -96,7 +96,20 @@ export function robustBounds(values) {
   if (lo < fLo) { const inl = v.filter(x => x >= fLo); lo = inl.length ? inl[0] : lo; }
   return [lo, Math.max(lo, hi)];
 }
-const AXIS_PAD = 0.04; // pad the robust span by 4% on each side before snapping to ticks
+const AXIS_PAD = 0.04;
+
+// Text measurement for sizing the clusters label column (canvas, no layout thrash).
+const NAME_FONT = '600 13px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+const SUB_FONT = '12px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+const LABEL_PAD = 16 + 8 + 10 + 12 + 4; // left pad + swatch + gap + right pad + slack
+let measureCtx = null;
+function textWidth(text, font) {
+  try {
+    measureCtx ||= document.createElement('canvas').getContext('2d');
+    measureCtx.font = font;
+    return Math.ceil(measureCtx.measureText(String(text)).width);
+  } catch { return String(text).length * 7; }
+} // pad the robust span by 4% on each side before snapping to ticks
 
 export function createChart(container, { onSelect, onHover, onClusterSelect } = {}) {
   container.classList.add('ms-chart');
@@ -312,7 +325,36 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
 
   // ======================= clusters view =======================
   function renderClusters(stats, narrow) {
-    const labelW = narrow ? 0 : Math.round(Math.max(150, Math.min(260, width * 0.26)));
+    // Rows first (names, counts, medians), so the label column can be sized to fit them.
+    const dim = opts.groupBy;
+    const m = new Map();
+    const rowOf = k => { if (!m.has(k)) m.set(k, { key: k, name: k, all: [], items: [] }); return m.get(k); };
+    for (const job of jobs) rowOf(dim === 'none' ? ALL_ROLES : keyOf(job, dim)).all.push(job);
+    for (const p of plotted) rowOf(dim === 'none' ? ALL_ROLES : keyOf(p.job, dim)).items.push(p);
+    cRows = [...m.values()];
+    for (const r of cRows) {
+      const s = r.items.map(p => p.mid).sort((a, b) => a - b);
+      r.median = quantile(s, 0.5); r.p25 = quantile(s, 0.25); r.p75 = quantile(s, 0.75);
+      r.subFull = r.items.length ? `${plural(r.all.length, 'role')} · median ${formatMoney(r.median)}` : `${plural(r.all.length, 'role')} · no published salary`;
+      r.subShort = r.items.length ? `${r.all.length.toLocaleString()} · ${formatMoney(r.median)}` : `${r.all.length.toLocaleString()} · no salary`;
+    }
+
+    // Label column: wide enough that "N roles · median $XK" always shows in full and the
+    // group name fits on at most two lines; capped at 36% of the width (then the subtitle
+    // switches to the short "69 · $512K" form instead of truncating).
+    let labelW = 0;
+    if (!narrow) {
+      const maxW = Math.max(150, Math.min(320, Math.round(width * 0.36)));
+      let need = 0;
+      for (const r of cRows) {
+        const nameW = textWidth(r.name, NAME_FONT);
+        need = Math.max(need, textWidth(r.subFull, SUB_FONT), nameW > 150 ? Math.min(nameW, nameW / 2 + 24) : nameW);
+      }
+      labelW = Math.round(Math.max(150, Math.min(maxW, need + LABEL_PAD)));
+      for (const r of cRows) r.useShort = textWidth(r.subFull, SUB_FONT) + LABEL_PAD > labelW;
+    } else {
+      for (const r of cRows) r.useShort = true; // stacked label line: the short form never truncates
+    }
     const plotL = narrow ? 16 : labelW + 16;
     const padR = narrow ? 16 : 32;
     const plotW = Math.max(80, width - plotL - padR);
@@ -333,13 +375,6 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     renderHist(x, d0, d1, plotL, plotW, labelW);
     renderAxis(ticks, x, stats.fxCount > 0, labelW, narrow);
 
-    // Rows
-    const dim = opts.groupBy;
-    const m = new Map();
-    const rowOf = k => { if (!m.has(k)) m.set(k, { key: k, name: k, all: [], items: [] }); return m.get(k); };
-    for (const job of jobs) rowOf(dim === 'none' ? ALL_ROLES : keyOf(job, dim)).all.push(job);
-    for (const p of plotted) rowOf(dim === 'none' ? ALL_ROLES : keyOf(p.job, dim)).items.push(p);
-    cRows = [...m.values()];
     // A lone row ("All roles", or a single group) gets more height and bigger circles.
     const solo = cRows.length === 1;
     // Bin width: the smallest standard step that leaves room for a readable circle.
@@ -348,8 +383,6 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const binW = BIN_STEPS.find(b => b * pxPer >= minBinPx) || BIN_STEPS[BIN_STEPS.length - 1];
     const binPx = binW * pxPer;
     for (const r of cRows) {
-      const s = r.items.map(p => p.mid).sort((a, b) => a - b);
-      r.median = quantile(s, 0.5); r.p25 = quantile(s, 0.25); r.p75 = quantile(s, 0.75);
       const bm = new Map();
       const below = [], above = [];
       for (const p of r.items) {
@@ -391,10 +424,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     cRows.forEach((r, ri) => {
       const row = el('div', r.other ? 'ms-crow ms-crow--other' : 'ms-crow');
       row.setAttribute('role', 'group');
-      const sub = r.items.length
-        ? `${plural(r.all.length, 'role')} · median ${formatMoney(r.median)}`
-        : `${plural(r.all.length, 'role')} · no published salary`;
-      row.setAttribute('aria-label', `${r.name}, ${sub.replace(' · ', ', ')}`);
+      const sub = r.useShort ? r.subShort : r.subFull;
+      row.setAttribute('aria-label', `${r.name}, ${r.subFull.replace(' · ', ', ')}`);
       row.style.height = rowH + 'px';
       row.style.setProperty('--c', r.color);
       row.style.setProperty('--c-ink', r.ink);
@@ -411,7 +442,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       const txt = el('span', 'ms-crow__text');
       txt.append(el('span', 'ms-crow__name', r.name), el('span', 'ms-crow__sub', sub));
       lab.append(sw, txt);
-      lab.title = `Show all ${plural(r.all.length, 'role')} in ${r.name}`;
+      lab.title = `${r.name}: ${r.subFull}. Click to show all ${plural(r.all.length, 'role')}`;
       r.labelEl = lab;
       row.append(lab);
 

@@ -25,3 +25,10 @@ Report back concisely: files, lexicon sizes, any contract deviations, test resul
 ## Follow-up message from the coordinator (verbatim)
 
 > Bug found on real data: inferSeniority in server/keywords.js classes "Member of Technical Staff" titles as Staff+ (33 postings at Cohere and xAI). "MTS" and "Member of Technical Staff" are the labs' generic IC title, so they should be Mid unless a level word is also present (e.g. "Senior Member of Technical Staff" → Senior, "Principal MTS" → Staff+). Check "Technical Staff" in other forms too. Add tests using these real titles, run `npm test`, and log it in docs/process/features.md (prompt append, decision, change log). Don't commit.
+
+## Follow-up message from the coordinator: 1-up features (verbatim)
+
+> New work: the 1-up features (docs/strategy/ROADMAP.md §7, docs/CONTRACT.md "v2 additions"). Your part:
+> 1. server/keywords.js: export `extractCompExtras(text) -> { equity: boolean, bonus: boolean }`. Use a lexicon over description text: equity means RSUs, stock options, equity grants, "offers equity" and so on; bonus means a signing, annual or performance bonus, commission, OTE and so on. It must REJECT DEI senses ("pay equity", "health equity", "equity and inclusion", "diversity, equity"). Hand-label at least 100 real postings from data/snapshots/*.json (local, gitignored) and report precision ≥ 95%. Record the labels in test/fixtures/extras-labels.json as short excerpts, and log precision and recall in docs/process/features.md.
+> 2. server/demo.js: emit plausible `postedAt` values (a spread from 1 to 400 days, with a few evergreen roles), occasional equity and bonus text, and some multi-zone pay text, so demo mode exercises F2 and F4.
+> Tests; don't commit; report back with precision and recall.

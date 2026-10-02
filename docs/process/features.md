@@ -143,6 +143,102 @@ and the prompt copy).
     sentence appears in about 30% of postings, and never for Anduril
     (clearance roles).
 
+15. **Comp extras (F2): definitions first.** I wrote the labelling guidelines
+    (stored in `test/fixtures/extras-labels.json` → `guidelines`) before
+    writing any rules. `equity` is true only when the text says this hire's pay
+    includes, or may include, employer equity. `bonus` is true only when it
+    says the same for a bonus or variable pay (commission, OTE, incentive
+    compensation). Judgment calls, chosen for honest numbers over coverage:
+    - Anthropic's "optional equity donation matching" is a donation benefit,
+      not a statement about the offer, so it is `false`.
+    - Hedges such as "this estimate excludes the value of any potential
+      sign-on bonus … long-term incentives" are `false`.
+    - Anduril's "equity grants … in the majority of full time offers" is
+      `false` on intern, co-op and contract postings.
+    - Anthropic's "For sales roles, the range … OTE … commissions" is `true`
+      only on quota-carrying sales titles, not on sales enablement, sales
+      strategy or pre-sales roles.
+16. **Input = description text + salary summary.** Ashby puts "• Offers
+    Equity • Offers Commission" only in the compensation summary, so the
+    labels and the evaluation use `htmlToText(descriptionHtml) + "\n" +
+    salary.text`, with `opts.title`. `server/normalize.js` `compExtras()`
+    already passes the description plus `compensationSummary` and
+    `salary.text`, and the title. The signature is
+    `extractCompExtras(text, { title }?)`, so the contract's one-argument
+    form still works.
+17. **How the classifier works.** It works sentence by sentence:
+    1. Strip the non-compensation senses: DEI (pay/health/racial equity;
+       diversity, equity and inclusion; DEI), finance subject matter
+       (private/growth equity, equity research/instruments/teams/events,
+       stockholders' equity), "equity donation", and nice-to-have bonus
+       ("It's a bonus if", "Bonus:", "Bonus points", "is a bonus").
+    2. Skip sentences that are negations or hedges ("not eligible", "excludes").
+       A negation that names interns or part-timers vetoes the facet when the
+       title is one of those roles.
+    3. Skip sentences that describe compensation *work* (payroll, accounting,
+       ASC 718, administration, governance, "experience with", "knowledge",
+       valuation, counteroffers).
+    4. Skip "For sales roles" sentences unless the title is a quota-carrying
+       sales role.
+    5. Skip full-time-scoped sentences on intern, co-op or contract titles.
+    6. Then require either a strong phrase (RSUs, restricted stock, stock
+       options, equity grants/participation/options, "Offers Equity",
+       "+ Equity", sign-on/annual/performance bonus, "+ Bonus",
+       bonus-eligible, OTE, commission structure, "earn commissions",
+       "salary + commission", incentive/variable compensation, Ashby
+       "Offers Commission" / "$X Commission"), or a bare equity/bonus word
+       next to a compensation cue (salary, compensation, pay, benefits,
+       package, total rewards, 401k).
+
+    `compExtrasEvidence()` returns the deciding sentences, for audits.
+18. **Labelling protocol.** All labels are mine (the features agent, Claude),
+    made by reading every candidate sentence of each posting in context
+    (windows of ±110 characters around equity, stock, RSU, options, shares,
+    bonus, commission, OTE, incentive and similar words). They were not
+    labelled by a human.
+    - **Dev set, 147 postings.** 13 per company were drawn at random with
+      seed 20261002, plus 43 targeted hard cases: DEI, nice-to-have bonus,
+      "commission" as a verb, equity as a duty, Anthropic sales roles, Shield
+      AI interns, Palantir hedge-only text, Ashby commission, and multi-range
+      pay. I labelled these before writing the rules, then developed the
+      rules on them.
+    - **Held-out set, 72 postings.** 4 per company plus 40 uniformly at
+      random (seed 777001, dev excluded). I labelled these blind, with the
+      rules frozen, and only then compared.
+    - **Corpus audit.** After that, I reviewed every distinct evidence
+      sentence template across all 5,413 snapshot postings (48 equity
+      templates and 16 bonus templates), plus the negative-side sentences
+      that mention candidate words.
+
+    Excerpts in the fixture are the candidate sentences (8 at most, each 320
+    characters or fewer). Each excerpt reproduces the full-text prediction
+    for its posting, so the test can run without the gitignored snapshots.
+19. **Demo data for F4 and F2.**
+    - **Dates.** `postedAt` comes from weighted freshness bands: 1–7 days
+      (15%), 8–59 (45%), 60–179 (27%) and 180–400 (13%). Four role templates
+      are flagged `evergreen` (for example "Research Engineer, Pretraining"
+      and "Production Technician") and draw 180–400 days 60% of the time.
+      `updatedAt` falls between `postedAt` and the fixed base date
+      2026-09-30.
+    - **`reqId`.** Greenhouse-like catalogs get `DEMO-<SLUG>-<n>`. Ashby
+      (OpenAI) gets `null`.
+    - **Extras phrasing per catalog.** These mirror the real patterns seen
+      while labelling, paraphrased rather than copied:
+      - Anthropic: an equity line in 35% of postings, an OTE sentence that
+        counts only for sales titles, and an occasional performance bonus.
+      - Anduril: an equity line scoped to "most full-time offers", so it is
+        not credited to interns, plus an occasional signing bonus.
+      - OpenAI: an Ashby-style `compensationSummary` with "Offers Equity",
+        "Offers Commission" on sales roles, and "Multiple Ranges".
+      - Generic: "base salary + bonus + benefits + equity".
+    - **Negatives in the demo text.** About 25% of postings carry the line
+      "pay equity … diversity, equity and inclusion", and one common fit
+      bullet reads "It's a bonus if you have contributed to open source".
+    - **Multi-zone pay.** About 15% of US salaried roles list two
+      location-based ranges, in the per-location wording `salary.js`
+      recognises (2 zones). OpenAI's version is structured instead:
+      `salary.zones: 2` plus a two-tier `payRanges`.
+
 ## 4. Replayable steps
 ```sh
 cd /home/user/melon-seek
@@ -155,6 +251,17 @@ node -e 'import("./server/demo.js").then(async d=>{const k=await import("./serve
   console.log(s,j.length,k.inferSeniority(j[0].title),k.extractKeywords({title:j[0].title,sections:k.extractSections(j[0].html),text:j[0].text}))}})'
 ```
 Node v22.22.0. There are no dependencies and no build step.
+
+F2 comp-extras labelling and evaluation (needs the local, gitignored
+`data/snapshots/*.json`; `eval` falls back to the fixture excerpts):
+```sh
+node docs/process/scripts/extras-eval.mjs sample dev       # re-draws the 147-posting dev sample (seed 20261002) for labelling
+node docs/process/scripts/extras-eval.mjs sample holdout   # re-draws the 72-posting held-out sample (seed 777001)
+node docs/process/scripts/extras-eval.mjs eval             # precision/recall of extractCompExtras vs test/fixtures/extras-labels.json
+node docs/process/scripts/extras-eval.mjs audit equity     # every distinct evidence template over all snapshot postings
+node docs/process/scripts/extras-eval.mjs audit bonus
+node --test test/keywords.test.js test/geo.test.js test/demo.test.js
+```
 
 ## 5. Verification
 - `node --test test/keywords.test.js test/geo.test.js test/demo.test.js` →
@@ -179,6 +286,53 @@ Node v22.22.0. There are no dependencies and no build step.
   compare `public/viz/palette.js` and `public/features/shared.js` rates and
   do not involve `server/keywords.js`, `geo.js` or `demo.js`.
 
+- **F2 comp extras (2026-10-02).** 219 hand-labelled real postings
+  (anduril 45, anthropic 29, openai 35, shieldai 26, cohere 21, palantir 22,
+  scaleai 23, xai 18). 143 are equity-positive and 48 bonus-positive.
+
+  | Set | Facet | TP / FP / FN | Precision | Recall |
+  |---|---|---|---|---|
+  | Held-out, blind, frozen rules v1 (72) | equity | 52 / 2 / 0 | **0.963** | 1.000 |
+  | Held-out, blind, frozen rules v1 (72) | bonus | 8 / 0 / 1 | **1.000** | 0.889 |
+  | Dev (147), rules developed here | equity | 91 / 0 / 0 | 1.000 | 1.000 |
+  | Dev (147), rules developed here | bonus | 39 / 0 / 0 | 1.000 | 1.000 |
+  | All 219, final rules | equity | 143 / 0 / 0 | 1.000 | 1.000 |
+  | All 219, final rules | bonus | 48 / 0 / 0 | 1.000 | 1.000 |
+
+  - **v1 held-out errors.** Two equity false positives (Anduril's
+    full-time-only grant line on a "(Contract)" recruiter and a co-op) and
+    one bonus false negative (Ashby "$189K – $220.5K Commission"). Both are
+    general patterns and were fixed. After the fixes the held-out set is no
+    longer blind, so **the honest out-of-sample estimate is the v1 row:
+    equity precision 96.3%, bonus precision 100%.**
+  - **Corpus audit (5,413 postings).** This found 12 bonus false positives
+    ("install and commission systems" as a verb), 8 equity false positives
+    (equity as HR or finance work, e.g. "employees understand their equity
+    compensation", "Equity teams", "equity instruments") and 3 non-quota
+    sales-org titles. All were fixed with general patterns. After the fixes
+    no evidence template is a false positive.
+  - **Final corpus rates.** Equity 4,004/5,413 and bonus 737/5,413.
+    By company:
+    - Anduril: equity 2,368/2,418, bonus 0.
+    - Shield AI: equity 461/581, bonus 460.
+    - Palantir: equity 200/320, bonus 200.
+    - OpenAI: equity 663/833, bonus 22.
+    - Scale AI: equity 125/194, bonus 2.
+    - xAI: equity 97/297, bonus 1.
+    - Cohere: equity 79/132, bonus 2.
+    - Anthropic: equity 11/638, bonus 50, because its boilerplate only
+      mentions equity donation matching.
+- **Tests after F2/F4.** `node --test test/keywords.test.js test/geo.test.js
+  test/demo.test.js` → **40/40 pass**. The keywords tests now include
+  extractCompExtras unit cases (DEI, nice-to-have, verb, duty, hedge,
+  full-time scope, sales OTE, HTML input) and the fixture gate (precision
+  ≥ 0.95 and recall ≥ 0.9 per facet and split). The demo tests now cover
+  postedAt bands, reqId, extras and zones. `npm test` → 213 tests, 212 pass.
+  The one failure is `test/features.test.js` "role families"
+  (`roleFamily('Policy Analyst')` returns `'policy'`, expected `'legal'`),
+  which belongs to the product workstream (`public/features`) and does not
+  import my modules.
+
 ## 6. Known gaps and follow-ups
 - Coordinates are approximate and come from general knowledge, not a
   surveyed dataset. Small towns that are not in the gazetteer fall back to the
@@ -194,6 +348,20 @@ Node v22.22.0. There are no dependencies and no build step.
   non-engineering titles where "Staff" means junior ("Staff Accountant",
   "Staff Auditor", "Staff Nurse") would be misclassified. None have been seen
   yet. If they appear, add an exception list next to `MTS_PHRASE_RE`.
+- Comp extras: the labels are agent-made and from one snapshot date (8
+  companies, mostly boilerplate). Other boards will phrase things
+  differently. Run `extras-eval.mjs audit` on new snapshots and add labels
+  to the fixture.
+- Comp extras: Anthropic jobs show `equity:false` because the text never
+  states equity compensation. The only mention is "equity donation
+  matching". This is deliberate, per the guidelines. Flip it in
+  `EQUITY_NOISE_RE` if the product prefers inference.
+- Comp extras: sales-ness for the "For sales roles … OTE" boilerplate comes
+  from the title (`SALES_TITLE_RE`), so unusual sales titles can be missed.
+- For the salary.js owner: a second tier written as `Label: $X—$Y USD` on its
+  own line ("All other US locations: $335,000—$445,000 USD") is not counted
+  as a zone. The phrase "The … salary range … in <locations> is:" followed
+  by a range line is. The demo uses the second form.
 - The " and " separator splits multi-word country names such as "Trinidad and
   Tobago". This is rare in job boards.
 
@@ -212,3 +380,14 @@ Node v22.22.0. There are no dependencies and no build step.
   (33 postings at Cohere and xAI) were classed Staff+ and are now Mid unless
   another level word is present. SMTS→Senior, LMTS/PMTS→Staff+. Added 25
   title tests.
+- 2026-10-02: F2 `extractCompExtras(text, {title}?)` and `compExtrasEvidence`
+  added to keywords.js. 219 postings hand-labelled into
+  `test/fixtures/extras-labels.json`. Blind v1 held-out score: equity
+  P 0.963 / R 1.0, bonus P 1.0 / R 0.889. Then fixed: full-time scope,
+  Ashby "$X Commission", "commission" as a verb, HR/finance-duty equity, and
+  non-quota sales titles. Final score on all 219: P 1.0 / R 1.0 for both.
+- 2026-10-02: demo.js F4/F2. Added `postedAt` (1–400 days, freshness bands,
+  evergreen roles), `reqId`, an Ashby-style `compensationSummary`, equity
+  and bonus phrasing per catalog with DEI and nice-to-have negatives, and
+  multi-zone pay (text, plus `salary.zones` and `payRanges` for OpenAI).
+  Added `docs/process/scripts/extras-eval.mjs`.

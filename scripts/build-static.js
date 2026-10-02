@@ -117,10 +117,18 @@ function commonPrefix(strs) {
 // as 0/1; low-cardinality ones as dict indexes (firstSeenAt has one value per
 // ledger run). String enums inside salary are dict indexes too. A field missing
 // on any job stays inline, so key presence round-trips exactly.
+// Also lossless, only where exactly reversible (else the value stays as is):
+// ISO timestamps that equal their own toISOString() become epoch ms ('ts');
+// salary objects with the list's common key set become value tuples in
+// `shared.salaryKeys` order; keywords become [responsibilities, fit, skills].
 const COLUMN_KEYS = ['postedAt', 'firstSeenAt', 'ageDays', 'ageIsMinimum', 'freshness', 'repost', 'extras', 'reqId', 'remote', 'updatedAt'];
 const DICT_COLUMNS = new Set(['firstSeenAt', 'freshness', 'repost', 'extras']);
+const TS_COLUMNS = new Set(['postedAt', 'updatedAt']);
 const SALARY_REFS = ['currency', 'interval', 'kind', 'source'];
+const KEYWORD_KEYS = ['responsibilities', 'fit', 'skills'];
 const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+const sameKeys = (o, keys) => { const k = Object.keys(o); return k.length === keys.length && keys.every((x) => has(o, x)); };
+const exactIso = (v) => typeof v === 'string' && !Number.isNaN(Date.parse(v)) && new Date(Date.parse(v)).toISOString() === v;
 
 /** Pack a plain list payload as PACKED_FORMAT (decoded by public/api.js#unpackJobs). */
 function packList(list, PACKED_FORMAT) {
@@ -143,27 +151,34 @@ function packList(list, PACKED_FORMAT) {
   for (const key of COLUMN_KEYS) {
     if (!jobs.length || !jobs.every((j) => has(j, key))) continue;
     const vals = jobs.map((j) => j[key]);
-    const enc = vals.every((v) => typeof v === 'boolean') ? 'bool' : DICT_COLUMNS.has(key) ? 'dict' : 'raw';
-    columns.push({ key, enc, values: enc === 'bool' ? vals.map((v) => (v ? 1 : 0)) : enc === 'dict' ? vals.map(ref) : vals });
+    const enc = vals.every((v) => typeof v === 'boolean') ? 'bool' : DICT_COLUMNS.has(key) ? 'dict' : TS_COLUMNS.has(key) ? 'ts' : 'raw';
+    const values = enc === 'bool' ? vals.map((v) => (v ? 1 : 0))
+      : enc === 'dict' ? vals.map(ref)
+      : enc === 'ts' ? vals.map((v) => (exactIso(v) ? Date.parse(v) : v))
+      : vals;
+    columns.push({ key, enc, values });
   }
+  const firstSalary = jobs.find((j) => j.salary && typeof j.salary === 'object' && !Array.isArray(j.salary));
+  const salaryKeys = firstSalary ? Object.keys(firstSalary.salary) : [];
   const packed = jobs.map((j) => {
     const { company, companyName, sections, ...r } = j;
     for (const c of columns) delete r[c.key];
     if (r.salary && typeof r.salary === 'object') {
       const sal = { ...r.salary };
       for (const k of SALARY_REFS) if (typeof sal[k] === 'string') sal[k] = ref(sal[k]);
-      r.salary = sal;
+      r.salary = salaryKeys.length && sameKeys(sal, salaryKeys) ? salaryKeys.map((k) => sal[k]) : sal;
     }
     r.id = String(j.id).slice(idPrefix.length);
     r.url = j.url == null ? null : j.url.slice(urlPrefix.length);
     for (const k of ['department', 'team', 'employmentType', 'seniority']) r[k] = ref(j[k]);
     r.locations = (j.locations || []).map(ref);
     const kw = j.keywords || {};
-    r.keywords = { responsibilities: (kw.responsibilities || []).map(ref), fit: (kw.fit || []).map(ref), skills: (kw.skills || []).map(ref) };
+    const kwRefs = { responsibilities: (kw.responsibilities || []).map(ref), fit: (kw.fit || []).map(ref), skills: (kw.skills || []).map(ref) };
+    r.keywords = j.keywords && sameKeys(j.keywords, KEYWORD_KEYS) && KEYWORD_KEYS.every((k) => Array.isArray(j.keywords[k])) ? KEYWORD_KEYS.map((k) => kwRefs[k]) : kwRefs;
     if (hasSections(sections)) r.sections = sections;
     return r;
   });
-  return { ...list, format: PACKED_FORMAT, shared: { company: first.company, companyName: first.companyName, idPrefix, urlPrefix }, dict, columns, jobs: packed };
+  return { ...list, format: PACKED_FORMAT, shared: { company: first.company, companyName: first.companyName, idPrefix, urlPrefix, salaryKeys }, dict, columns, jobs: packed };
 }
 
 /** Key-order-insensitive deep equality (for the pack round-trip check). */
