@@ -362,8 +362,16 @@ function derive() {
 
 function salaryDomain() {
   let lo = Infinity, hi = -Infinity;
-  for (const j of data.jobs) if (j._usd) { lo = Math.min(lo, j._usd.min); hi = Math.max(hi, j._usd.max); }
+  const maxes = [];
+  for (const j of data.jobs) if (j._usd) { lo = Math.min(lo, j._usd.min); hi = Math.max(hi, j._usd.max); maxes.push(j._usd.max); }
   if (!isFinite(lo)) return null;
+  // One mis-parsed or exotic posting ($4.6M) must not squash the slider: cap the domain near
+  // the 99th percentile. The max thumb at the cap means "no upper bound", so outliers still match.
+  if (maxes.length >= 20) {
+    maxes.sort((a, b) => a - b);
+    const p99 = quantile(maxes, 0.99);
+    if (hi > p99 * 1.3) hi = p99 * 1.15;
+  }
   lo = Math.floor(lo / 10000) * 10000;
   hi = Math.ceil(hi / 10000) * 10000;
   if (hi <= lo) hi = lo + 10000;
@@ -1274,6 +1282,7 @@ function setArea(kind, jobs, label) {
  */
 function fitMapToPins(jobs) {
   const lm = map?.leaflet;
+  if (MOCK || location.hostname === 'localhost') window.__msDebug = { map, chart, lm };
   const host = $('#mapHost');
   if (!lm || !window.L || host.hidden || !host.clientWidth || !host.clientHeight) return;
   const pts = [];
@@ -1282,8 +1291,10 @@ function fitMapToPins(jobs) {
   const bounds = L.latLngBounds(pts);
   const pad = [Math.min(96, host.clientWidth / 6), Math.min(64, host.clientHeight / 6)];
   lm.invalidateSize({ pan: false });
+  const prevMin = lm.getMinZoom();
+  lm.setMinZoom(0); // getBoundsZoom clamps to minZoom, so measure unclamped first
   const z = lm.getBoundsZoom(bounds, false, L.point(pad[0] * 2, pad[1] * 2));
-  if (z < lm.getMinZoom()) lm.setMinZoom(Math.max(0.5, Math.floor(z * 2) / 2));
+  lm.setMinZoom(Math.min(prevMin, Math.max(0.5, Math.floor(z * 2) / 2)));
   lm.fitBounds(bounds, { paddingTopLeft: [pad[0], pad[1] + 20], paddingBottomRight: [pad[0], pad[1]], maxZoom: 11, animate: false });
 }
 
@@ -1459,7 +1470,8 @@ function svgEl(tag, attrs) {
 
 /** Company pay distribution (midpoints, approx USD) with this job's range marked. DOM-built, no HTML strings. */
 function salaryDistribution(job) {
-  const dom = salaryDomain();
+  const base = salaryDomain();
+  const dom = base && job._usd ? { lo: Math.min(base.lo, job._usd.min), hi: Math.max(base.hi, job._usd.max) } : base;
   const mids = data.jobs.filter((j) => j._usd).map((j) => j._mid).sort((a, b) => a - b);
   if (!dom || !mids.length || !job._usd) return null;
   const W = 100, H = 40, N = 32;

@@ -321,8 +321,11 @@
   align-items: flex-end;
 }
 .ms-chart--narrow .ms-crow__text { flex-direction: row; align-items: baseline; gap: 8px; }
+.ms-chart--narrow .ms-crow__name { flex: 0 1 auto; min-width: 4em; }
+.ms-chart--narrow .ms-crow__sub { flex: 0 4 auto; min-width: 0; }
 
-.ms-crow__plot { position: absolute; left: 0; right: 0; }
+.ms-crow__plot { position: absolute; left: 0; right: 0; pointer-events: none; } /* spans the row; only circles take the pointer, so the label stays clickable */
+.ms-crow__plot .ms-bin { pointer-events: auto; }
 .ms-crow__band {
   position: absolute; top: 50%;
   border-radius: 999px;

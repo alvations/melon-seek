@@ -36,3 +36,24 @@ New task from the user: deploy the app on GitHub Pages (repo alvations/melon-see
 Follow-up to the second task, from the coordinator:
 
 The backend is adding six more built-in companies (scaleai, xai, cohere, palantir, shieldai, mistral). In snapshot.yml and pages.yml, call `npm run snapshot` with no arguments (= all built-ins) instead of listing slugs, and make build-static.js write dist/api/jobs/<slug>.json for every company returned by server/companies.js, not a hardcoded list. Research also found that Lever's docs say it doesn't support cross-origin requests from other sites, even though `*` is returned today. So in static mode, Lever boards should fall back to the bundled snapshot quietly, without an error banner, when a CORS fetch fails. Update README and docs/process/devops.md.
+
+---
+
+Third request (bundle size), from the coordinator:
+
+The first real Pages build on GitHub worked up to configure-pages, which failed only because Pages isn't enabled yet (the user will do that). Problem: the bundles are huge (anthropic 8.5 MB, openai 10 MB, shieldai 7.2 MB) because of descriptionHtml. Please:
+1. In build-static.js, write dist/api/jobs/<slug>.json without descriptionHtml (keep sections and keywords), and write each description to dist/api/desc/<slug>/<sanitized-id>.json. Target under 1.5 MB per company list file.
+2. In api.js, export `getJobDetail(job) -> Promise<job with descriptionHtml>`. Server mode returns the job unchanged when it already has descriptionHtml; static mode fetches the desc file, and live-fetched jobs already have it. Cache results.
+3. Print the per-company list and desc sizes in the build summary.
+4. Also update `actions/*` to versions that run on Node 24 if available (the runner warns that Node 20 actions are deprecated).
+I'll tell UX to call getJobDetail when the drawer opens. Update docs/process/devops.md.
+
+---
+
+Fourth request (snapshots as artifacts), from the coordinator:
+
+Lead decision: the snapshot workflow committed 74 MB of raw JSON (anduril.json alone is 38 MB), and committing that daily would bloat the repo. I've untracked data/snapshots/*.json and added it to .gitignore. Please change snapshot.yml to upload data/snapshots/ as a workflow artifact (retention about 14 days) instead of committing, and remove `contents: write`. Then:
+- Make sure pages.yml still fetches fresh data each run, which it already does.
+- The vetting agent will add `node scripts/vet-salaries.js` to the pipeline. Leave room for a step after the snapshot that runs it and fails the build if it reports critical salary anomalies; add the step once that script exists.
+- Update the README "snapshot" section and docs/process/devops.md (decision + change log) to explain why snapshots are not committed.
+Noted on getJobDetail and fillDescription; I'm relaying the re-render to UX.

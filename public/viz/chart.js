@@ -397,7 +397,6 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         band.style.width = bw + 'px';
         band.style.height = bandH + 'px';
         band.style.marginTop = (-bandH / 2) + 'px';
-        band.title = `Middle 50%: ${moneyRange(r.p25, r.p75)}`;
         plot.append(band);
         const med = el('div', 'ms-crow__median');
         med.setAttribute('aria-hidden', 'true');

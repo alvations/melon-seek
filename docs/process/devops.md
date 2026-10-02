@@ -38,6 +38,8 @@ another account or machine.
 | `server/index.js` (`fetchLive`, `getJobs`, read for Pages) | The fallback chain that `public/api.js` reproduces in static mode, and the `ADAPTERS` map. |
 | `server/sources/*.js` exports (Pages) | `greenhouseUrl`/`ashbyUrl`/`leverUrl` and `mapGreenhouseJob`/`mapAshbyJob`/`mapLeverJob`. api.js reuses these but does its own `fetch` (decision 24). |
 | `public/app.js`, `public/index.html` (read only, Pages) | Absolute `/api/...`, `/favicon.svg`, `/vendor/...` URLs that break under a sub-path. Reported to the coordinator; app.js then switched to `import * as liveApi from './api.js'`. |
+| Real snapshots (bundle-size work) | `data/snapshots/*.json` (74 MB, 8 companies) appeared locally at 05:55Z, from the lead's GitHub run. Used to measure per-field bytes and verify the 1.5 MB target; never committed (gitignored). |
+| `actions/*` repos (shallow `git clone --depth 1 --branch vN`) | `runs.using` from each `action.yml`, the README "Breaking changes" sections, and the upload-pages-artifact v4→v5 diff (dotfile handling). |
 | CORS research (Pages) | Lever's `github.com/lever/postings-api` README, fetched with WebFetch: "does not support cross-origin HTTP requests from sites outside of your company's domains". Web search: Greenhouse's job board API is meant to be called from client-side code, and Ashby's posting API is reported to lack CORS headers (secondary source, low confidence). Direct probes of the three APIs were blocked by the sandbox proxy (403). |
 
 ## 3. Decisions and rationale
@@ -101,25 +103,39 @@ another account or machine.
 13. **`schedule: cron "17 6 * * *"` + `workflow_dispatch`.** It runs daily at
     06:17 UTC. The odd minute avoids GitHub's top-of-hour scheduling
     congestion, where scheduled runs get delayed or dropped.
-14. **`permissions: contents: write`** so the default `GITHUB_TOKEN` can push.
-    No PAT is needed.
+14. **`permissions: contents: read`** (was `contents: write`, removed with
+    decision 18). The workflow no longer pushes anything.
 15. **`concurrency: group: snapshot, cancel-in-progress: false`**, so a manual
-    run and the scheduled run can't race their pushes.
+    run and the scheduled run don't overlap.
 16. **Node 22 only.** This is a data job and doesn't need the matrix.
 17. **`npm run snapshot` with no arguments** (originally
     `-- anthropic anduril openai`; changed so new built-ins are picked up
     automatically). With no arguments, `scripts/snapshot.js` snapshots every
     built-in. It exits non-zero only when every slug fails, so a single flaky
     board doesn't block the others.
-18. **Commit only on change:**
-    - `git add -A data/snapshots/*.json || true` means an unmatched glob
-      doesn't kill the `set -e` script.
-    - `git diff --cached --quiet` then exits 0 when nothing changed.
-    - The bot identity is `github-actions[bot]` /
-      `41898282+github-actions[bot]@users.noreply.github.com`, the standard
-      Actions bot id, so commits show the bot avatar.
-    - The message is `chore(data): refresh job board snapshots (YYYY-MM-DD)`.
-    - The commit is pushed with a plain `git push`.
+18. **Upload snapshots as an artifact; don't commit them** (lead decision,
+    2026-10-02). The original design committed changed snapshots as
+    `github-actions[bot]`. The first real run showed why that doesn't scale:
+    - One day's real snapshots are ~74 MB (`anduril.json` ~38 MB,
+      `openai.json` ~11 MB, `anthropic.json` ~9 MB).
+    - Daily commits would add that much to the git history every day, and
+      every clone would carry it, for data that's stale within hours.
+
+    So the lead untracked `data/snapshots/*.json` and gitignored it, and
+    `snapshot.yml` now uploads `data/snapshots/*.json` with
+    `actions/upload-artifact@v7`: name `job-board-snapshots`,
+    `retention-days: 14`, `if-no-files-found: error`. JSON zips well, so
+    artifact storage is a fraction of the raw size.
+    - Considered: Git LFS (still grows LFS storage daily and adds a clone
+      dependency); a separate data branch (still grows history); committing
+      only a compact digest (loses the descriptions the static site needs).
+      The artifact is simplest and expires on its own.
+    - Cost: a fresh clone has no real data until `npm run snapshot` or
+      `gh run download --name job-board-snapshots` is run. Demo data covers
+      this and is clearly labelled.
+    - A placeholder (`TODO(vetting)`) marks where `node scripts/vet-salaries.js`
+      goes, between the fetch and the upload, so bad salary data fails the job
+      before it is published. The script doesn't exist yet.
 
 ### Docs
 
@@ -225,27 +241,118 @@ another account or machine.
     - Builds on push to `main` and `claude/stoic-ride-54ddxp`, on
       `workflow_dispatch`, and daily at `41 7 * * *` (an off-the-hour minute,
       after snapshot.yml's 06:17 run).
-    - Permissions are `contents: read`, `pages: write`, `id-token: write`.
+    - Permissions are `contents: read`, `actions: read` (to download the
+      snapshot artifact), `pages: write`, `id-token: write`.
     - `concurrency: pages` with no cancel-in-progress, so a deploy is never cut
       off partway.
-    - `npm run snapshot || true`, with no arguments, so every built-in in
-      `server/companies.js` is refreshed (the backend is adding six more). A
-      board outage doesn't block the deploy; committed snapshots, then demo
-      data, cover it. `snapshot.yml` also calls it with no arguments. The build
-      already loops over `listCompanies()`, so no slug list is hardcoded
-      anywhere.
-    - A step summary table lists each company's bundled mode, job count and
-      `fetchedAt`, so a demo-only deploy is visible in the run.
+    - **Restore, then refresh.** First, a `gh run download` step restores the
+      newest `job-board-snapshots` artifact. It tries the last 5 successful
+      `snapshot.yml` runs, because the newest one may predate artifacts or
+      have expired, and it only warns if none has the artifact. Then
+      `npm run snapshot || true` (no arguments, so every built-in in
+      `server/companies.js`) fetches fresh data. `snapshot.js` leaves a file
+      alone when its board fails, so a failing board keeps yesterday's real
+      data instead of dropping to demo. That's the job committed snapshots
+      used to do. The build loops over `listCompanies()`, so no slug list is
+      hardcoded anywhere.
+    - A second `TODO(vetting)` placeholder sits after the fetch, for
+      `scripts/vet-salaries.js` to fail the build on critical salary anomalies
+      before anything is bundled.
+    - A step summary table lists each company's bundled mode, job count, list
+      size, description file count and size, and `fetchedAt`, plus the site
+      total against Pages' 1 GB limit. A demo-only or oversized deploy is
+      visible in the run.
     - Separate build and deploy jobs follow GitHub's starter workflow, with
       `environment: github-pages` and the page URL output.
-    - Action versions: `configure-pages@v5`, `upload-pages-artifact@v3`,
-      `deploy-pages@v4`.
+    - Action versions: see decision 38.
 33. **CI also runs `npm run build`** and checks `dist/` with `jq` (companies
     array, every `jobs/*.json` has a `jobs` array, `config.js`, `.nojekyll` and
     Leaflet present). A broken Pages bundle now fails PRs, not just the
     deploy.
 34. **`dist/` is gitignored and dockerignored.** It's a build output; Pages
     gets it as an artifact, not from the repo.
+
+### Bundle size (lazy descriptions, packed lists)
+
+The first real Pages build bundled 8.5 MB for Anthropic, 10 MB for OpenAI and
+7.2 MB for Shield AI per list file. Target: under 1.5 MB per company list.
+Measured on that real data, `descriptionHtml` was ~90% of a job's bytes.
+
+35. **Descriptions are lazy-loaded, one file per job:**
+    `dist/api/desc/<slug>/<id>.json` = `{ id, descriptionHtml, sections? }`.
+    - List jobs omit the `descriptionHtml` key. `public/api.js#getJobDetail(job)`
+      fetches the file when the drawer opens and caches it by job id (in-flight
+      promises are shared; failures aren't cached, so a retry works).
+    - Jobs that already have `descriptionHtml` are returned unchanged: server
+      mode, live browser fetches, in-browser demo.
+    - A job with an empty description keeps `descriptionHtml: ""` in the list
+      and gets no file, so nothing is fetched for it.
+    - Considered: one desc file per company (still multi-MB on first open), or
+      chunks of N jobs (more complex, little gain). Per-job files are what the
+      drawer needs, and Pages serves thousands of small files fine (~7,000
+      today, 75 MB site total, against a 1 GB limit).
+    - The file name comes from `api.js#descPath`, which the build imports, so
+      writer and reader can't drift. `sanitizeJobId` drops the `<slug>:` prefix
+      and writes any character outside `[A-Za-z0-9_-]` as `~` + 4 hex digits.
+      That's injective (no collisions) and can't produce `..`. Real ids
+      (Greenhouse digits, Ashby/Lever UUIDs, `demo-<slug>-NNN`) pass through
+      unchanged. The build also throws on any path collision.
+36. **Lists use a lossless packed format, `melon-packed-1`.**
+    - It's needed because even without HTML, Anduril (2,418 jobs) was 2.94 MB,
+      at ~1.27 KB per job, mostly repeated keyword labels (39%) and location
+      objects (16%).
+    - What it does:
+      - `company`/`companyName` are stored once in `shared`.
+      - ids drop the `<slug>:` prefix, and urls drop their longest common
+        prefix.
+      - locations, keyword labels, department, team, employmentType and
+        seniority are indexes into one `dict` array.
+      - empty `sections` are omitted.
+    - `api.js#unpackJobs` restores plain contract-shaped Jobs; it's the only
+      reader, since the UI never fetches list files directly. Plain lists still
+      load unchanged.
+    - Safety: the build unpacks every packed list with the browser's own
+      `unpackJobs` and deep-compares each job with the unpacked original. Any
+      mismatch fails the build.
+    - Considered: shortening key names (unreadable, small gain); dropping
+      fields (changes the contract).
+    - Result on real data: Anduril went from 2.94 MB to 1.30 MB.
+37. **If a packed list is still over 1.5 MB, that company's `sections` move into
+    the desc files too.** The list keeps `{responsibilities: [], fit: []}` and
+    `getJobDetail` returns the real sections. `keywords` always stay in the
+    list, because the filters need them up front, and only the drawer uses
+    `sections`.
+    - On real data this happens for anthropic, anduril, openai and shieldai
+      (real bullet lists are long). The build prints it for each company.
+    - If a list is still over budget after that, the build warns (and fails
+      under `--strict`).
+    - UX follow-up (reported): in that case the open drawer shows the
+      description but only redraws the bullets on reopen, because
+      `fillDescription` copies `detail.sections` onto the job without
+      re-rendering them.
+    - Sizes are in decimal units (1 MB = 1,000,000 bytes) to match the target
+      literally.
+38. **Actions upgraded to Node 24 versions.** The runner had warned that
+    Node 20 actions are deprecated. I checked each version's `action.yml` by
+    shallow-cloning the action repo at the tag, since the GitHub MCP tool is
+    scoped to this repo and I didn't add others.
+
+    | Action | Version | Runtime |
+    | --- | --- | --- |
+    | `actions/checkout` | v7 | node24 |
+    | `actions/setup-node` | v7 | node24 |
+    | `actions/configure-pages` | v6 | node24 |
+    | `actions/deploy-pages` | v5 | node24 |
+    | `actions/upload-artifact` | v7 | node24 |
+    | `actions/upload-pages-artifact` | v5 | composite, wraps upload-artifact v7 |
+
+    Breaking changes reviewed:
+    - checkout v7 refuses fork checkouts under `pull_request_target` and
+      `workflow_run`; we use neither.
+    - setup-node v6+ auto-caches when `packageManager` is set; we set
+      `cache: npm` explicitly anyway.
+    - upload-pages-artifact v4+ drops dotfiles by default, so
+      `include-hidden-files: true` keeps `.nojekyll`.
 
 ## 4. Replayable steps
 
@@ -386,6 +493,50 @@ quoted `cat > FILE <<'EOF'` heredocs).
     Expect: anthropic → `snapshot` with `error: null` and the banner hidden;
     anduril → `demo` with the error kept; `PASS`.
 
+**Bundle size and snapshot-artifact follow-ups:**
+
+20. Find out where the bytes go (on real data in `data/snapshots/`, which
+    appeared locally at 05:55Z):
+    ```sh
+    npm run build
+    node -e "const d=require('./dist/api/jobs/anduril.json'); /* sum JSON bytes per field across d.jobs */"
+    ```
+    Result: without HTML, sections 47% and keywords 20% on demo data. On real
+    Anduril, keywords 39% and locations 16%, at ~1.27 KB/job.
+21. Check action runtimes (no GitHub MCP access to `actions/*`):
+    ```sh
+    for r in checkout setup-node configure-pages upload-pages-artifact deploy-pages upload-artifact; do
+      git ls-remote --tags --refs https://github.com/actions/$r.git | sed 's#.*refs/tags/##' | grep -E '^v[0-9]+$' | sort -V | tail -1
+    done
+    git clone -q --depth 1 --branch v7 https://github.com/actions/checkout.git && grep using: checkout/action.yml   # node24
+    ```
+22. Stress-test the over-budget path with a real-sized fixture (scratchpad
+    only): 833 jobs, 12 KB HTML and 16 bullets each, as openai. Then check the
+    drawer:
+    ```sh
+    MELON_SNAPSHOT_DIR=$S/fixture-big node scripts/build-static.js --out $S/dist-big
+    #   openai snapshot 833 jobs list 838 KB desc 833 files 11.51 MB (sections moved to desc ...)
+    node $S/serve-subpath.mjs $S/dist-big 4175 /melon-seek/ &
+    node $S/drawer-test.mjs http://127.0.0.1:4175/melon-seek/ openai "Real postings are long"
+    ```
+23. Real-data build, smoke test and drawer test:
+    ```sh
+    npm run build      # every list < 1.5 MB, 0 warnings
+    node $S/pages-smoke.mjs http://127.0.0.1:4173/melon-seek/
+    node $S/drawer-test.mjs http://127.0.0.1:4173/melon-seek/ anthropic
+    ```
+    The smoke test now switches companies through `#companyMenuBtn` →
+    `.company-item`, since UX replaced the pill bar with a menu. The old loop
+    found 0 pills and silently skipped switching, which is why it now also
+    asserts that every company was visited.
+24. Dry-run the Pages artifact-restore loop against the real repo (read-only):
+    ```sh
+    GITHUB_REPOSITORY=alvations/melon-seek bash -c '<the step body, with --dir pointed at a scratch dir>'
+    #   ::warning::No snapshot artifact found ...   (expected: no artifact-producing run yet)
+    ```
+25. Validate all three workflows with the PyYAML loop. Confirm
+    `grep -n "contents: write" .github/workflows/*.yml` matches nothing.
+
 ## 5. Verification
 
 | Check | Result |
@@ -405,7 +556,13 @@ quoted `cat > FILE <<'EOF'` heredocs).
 | Custom boards in static mode (same run) | `lever:acme` → demo (100 jobs) with an error. A bogus Greenhouse board → demo with an error. |
 | Quiet Lever fallback (`quiet-test.mjs`, scratch build with a fixture snapshot and a test-only `MELON_QUIET_CORS_SOURCES=["greenhouse"]`) | **PASS.** Snapshot fallback → `mode: "snapshot"`, `error: null`, demo banner hidden, badge "Snapshot · Oct 1". No-snapshot company → `mode: "demo"` and the error is kept. |
 | api.js in server mode (`server-mode-api.mjs` against `node server/index.js`) | Pass. `isStatic()` is false, relative `api/companies` and `api/jobs` work, `apiFetch('/api/jobs?company=openai')` works, and an unknown company throws `Unknown company "nope"`. |
-| Pages workflow on GitHub | Not run (no push from this workstream). |
+| Pages workflow on GitHub | Not run by me. The lead's run 36970453911 reached `configure-pages` and failed only because Pages wasn't enabled yet. |
+| Real-data bundle sizes (8 companies, 06:00Z) | **All lists < 1.5 MB.** anduril 1.30 MB (2,418 jobs), xai 924 kB, openai 430 kB, palantir 391 kB, scaleai 378 kB, cohere 321 kB, shieldai 320 kB, anthropic 316 kB. Description files total ~66 MB; site total 75 MB. Before: anthropic 8.5 MB, openai 10 MB, shieldai 7.2 MB, anduril 2.94 MB even without HTML. The round-trip check passed for every company. |
+| Real-sized fixture, over-budget path (`dist-big`) | Pass. openai list 838 KB with sections moved; the drawer loads the 12 KB description; `getJobDetail` returns 8 sections; the reopen is served from cache (no new request); 0 page errors or 4xx. |
+| Drawer, real anthropic | Pass. Packed list, no `descriptionHtml` key, 14 KB of drawer text after the lazy load, cached on reopen. The bullets don't show in the same drawer when sections were moved (UX follow-up, decision 37). |
+| Full smoke on real data (06:01Z) | **PASS.** All 8 companies switch via the company menu (hash `c=<slug>`, title shows the real count, e.g. "2,418 roles"). Snapshot badge on all of them; Lever boards (palantir, shieldai) have no live-fetch error (quiet), the others show it in the badge details. Map: 9 pins. 0 app or page errors, 0 local 404s. |
+| Artifact restore dry-run | Pass (warns "No snapshot artifact found" and continues; the only successful snapshot run predates the artifact). |
+| YAML (3 workflows) | Pass. No `contents: write` remains. |
 
 ## 6. Known gaps and follow-ups
 
@@ -451,9 +608,25 @@ quoted `cat > FILE <<'EOF'` heredocs).
 - **Deploying from `claude/stoic-ride-54ddxp`** needs that branch allowed on
   the `github-pages` environment (documented in the README). Otherwise the
   deploy job fails with a protection-rule error.
-- **`upload-pages-artifact@v3`** was chosen because it keeps dotfiles such as
-  `.nojekyll`. Before upgrading to v4, check its dotfile handling. Actions
-  deploys don't run Jekyll anyway.
+- **Pages source setting.** A `pages-build-deployment` run appeared at
+  ~06:00Z. That's GitHub's branch-based Pages builder, which suggests Pages
+  may be set to "Deploy from a branch". It must be "GitHub Actions" for
+  `pages.yml` to deploy the app; otherwise the repo root (README) gets served.
+- **Vetting step is a placeholder.** Add `node scripts/vet-salaries.js` at the
+  `TODO(vetting)` markers in `snapshot.yml` and `pages.yml` once the script
+  exists, and confirm it exits non-zero only on *critical* anomalies. Example
+  for it: real Anthropic data shows "Anthropic Fellows Program" roles at
+  $4.6M, likely a misparse or annualization error.
+- **Artifact fallback starts empty.** The first new-style `snapshot.yml` run
+  creates `job-board-snapshots`. Until then a board that fails during a Pages
+  build falls back to demo data. Artifacts expire after 14 days, and the
+  restore loop only looks at the last 5 successful runs.
+- **Drawer bullets in over-budget companies** need the app.js re-render
+  (decision 37). Reported, and being relayed to UX.
+- **Desc files include the bundled demo's descriptions** (~110 extra per
+  company when a real snapshot exists). Small, but they could be skipped by
+  dropping `api/demo/<slug>.json`, which is only reached if the main list fails
+  to load.
 
 ## 7. Change log
 
@@ -491,3 +664,24 @@ quoted `cat > FILE <<'EOF'` heredocs).
   fallback (`MELON_QUIET_CORS_SOURCES`). The quiet-fallback test passed. Made
   the warning scan ignore comments. Updated the README, ADDING_A_BOARD and
   this log.
+- 2026-10-02T05:50Z: Bundle-size follow-up. `descriptionHtml` is now
+  lazy-loaded from `api/desc/<slug>/<id>.json`. Added
+  `api.js#getJobDetail`, `descPath` and `sanitizeJobId` (shared with the
+  build). Over-budget lists move sections into the desc files. The build
+  summary prints list and desc sizes. Added desc checks to CI.
+- 2026-10-02T05:52Z: Bumped actions to their Node 24 majors (checkout v7,
+  setup-node v7, configure-pages v6, deploy-pages v5, upload-pages-artifact v5
+  with `include-hidden-files: true`), checked from each `action.yml`.
+- 2026-10-02T05:53Z: The fixture stress test passed. Found and reported that
+  over-budget drawers need a bullet re-render (UX).
+- 2026-10-02T05:56Z: Real snapshots appeared. Anduril's list was 2.94 MB even
+  without HTML, so I added the lossless `melon-packed-1` list format with a
+  build-time round-trip check. All 8 lists are now under 1.5 MB (largest
+  1.30 MB).
+- 2026-10-02T05:58Z: Lead decision: snapshots are no longer committed.
+  `snapshot.yml` uploads the `job-board-snapshots` artifact (14 days) and drops
+  `contents: write`. `pages.yml` restores the newest artifact before fetching
+  fresh data (`actions: read`). Added `TODO(vetting)` placeholders. Updated the
+  README, ARCHITECTURE, ADDING_A_BOARD and the Dockerfile comment.
+- 2026-10-02T06:01Z: Updated the smoke test for the new company menu. Full
+  real-data smoke (8 companies), drawer test and YAML checks all pass.

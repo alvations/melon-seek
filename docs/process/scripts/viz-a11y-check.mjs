@@ -22,8 +22,8 @@ const out={};
 // ---- chart ----
 let p=await b.newPage({viewport:{width:1280,height:820},reducedMotion:'reduce'});
 const errs=[];p.on('pageerror',e=>errs.push(e.message));
-await p.route(/basemaps/,r=>r.abort());
-await p.goto('http://localhost:'+PORT+'/viz/demo.html?groupBy=seniority&colorBy=department');await p.waitForTimeout(500);
+await p.route(/basemaps|tile\.openstreetmap\.org/,r=>r.abort());
+await p.goto('http://localhost:'+PORT+'/viz/demo.html?view=ranges&groupBy=seniority&colorBy=department');await p.waitForTimeout(500);
 out.listboxChildren=await p.evaluate(()=>{const lb=document.querySelector('[role=listbox]');
   // every element with text inside listbox must be within an option or group header aria-hidden
   const bad=[...lb.querySelectorAll('*')].filter(e=>!e.closest('[role=option]')&&!e.closest('[aria-hidden=true]')&&!['group','none','option'].includes(e.getAttribute('role'))&&e.children.length===0&&e.textContent.trim());
@@ -45,9 +45,39 @@ out.reducedScroll=await p.evaluate(()=>{const ids=[...document.querySelectorAll(
   return new Promise(res=>{let found=null;for(const j of __viz.jobs){__viz.chart.highlight(j.id);const h=document.querySelector('.ms-row.is-highlighted');if(h===ids[150]){found=j;break}} sc.scrollTop=0;__viz.chart.highlight(null);__viz.chart.highlight(found.id);res(sc.scrollTop)})});
 await p.screenshot({path:OUT+'/a11y-chart-active.png'});
 await p.close();
+// ---- clusters view (default) ----
+p=await b.newPage({viewport:{width:1280,height:520},reducedMotion:'reduce'});p.on('pageerror',e=>errs.push(e.message));
+await p.route(/basemaps|tile\.openstreetmap\.org/,r=>r.abort());
+await p.goto('http://localhost:'+PORT+'/viz/demo.html');await p.waitForTimeout(500);
+const C={};
+C.structure=await p.evaluate(()=>{const lb=document.querySelector('[role=listbox]');
+  const bad=[...lb.querySelectorAll('*')].filter(e=>!e.closest('[role=option]')&&!e.closest('[aria-hidden=true]')&&!['group','none','option'].includes(e.getAttribute('role'))&&e.children.length===0&&e.textContent.trim());
+  return {view:__viz.chart.view, label:lb.getAttribute('aria-label'), groups:lb.querySelectorAll('[role=group]').length, options:lb.querySelectorAll('[role=option]').length, circles:lb.querySelectorAll('.ms-bin').length, strayText:bad.length,
+    firstGroup:lb.querySelector('[role=group]').getAttribute('aria-label'), firstLabelOption:lb.querySelector('.ms-crow__label').getAttribute('aria-label'), firstCircle:lb.querySelector('.ms-bin').getAttribute('aria-label'),
+    minHit:Math.min(...[...lb.querySelectorAll('.ms-bin')].map(e=>Math.min(e.offsetWidth,e.offsetHeight)))};});
+await p.focus('.ms-chart__body');
+const act=()=>p.evaluate(()=>{const a=document.querySelector('.is-active');return a&&{label:a.getAttribute('aria-label'),sel:a.getAttribute('aria-selected'),ad:document.querySelector('[role=listbox]').getAttribute('aria-activedescendant')===a.id,tip:!document.querySelector('.ms-viz-tip').hidden}});
+await p.keyboard.press('ArrowRight'); C.afterRight1=await act();
+await p.keyboard.press('ArrowRight'); await p.keyboard.press('ArrowRight'); C.afterRight3=await act();
+await p.keyboard.press('ArrowDown'); C.afterDown=await act();
+await p.keyboard.press('Enter'); await p.waitForTimeout(100);
+C.afterEnter=await p.evaluate(()=>({log:document.getElementById('log').innerText.split('\n')[0], selected:document.querySelectorAll('.ms-bin.is-selected').length}));
+C.activeRing=await p.evaluate(()=>getComputedStyle(document.querySelector('.ms-bin.is-active .ms-bin__dot')).boxShadow);
+await p.selectOption('#theme','dark'); await p.waitForTimeout(200);
+C.afterThemeRerender=await act(); C.activeKept=C.afterThemeRerender?.label===C.afterDown?.label;
+C.selectedKept=await p.evaluate(()=>document.querySelectorAll('.ms-bin.is-selected').length);
+await p.click('.ms-crow__label >> nth=2'); await p.waitForTimeout(100);
+C.labelClick=await p.evaluate(()=>({log:document.getElementById('log').innerText.split('\n')[0], rowSelected:document.querySelectorAll('.ms-crow.is-selected').length}));
+C.highlight=await p.evaluate(()=>{const sc=document.querySelector('.ms-chart__scroll');sc.scrollTop=0;
+  const rows=[...document.querySelectorAll('.ms-crow')];const last=rows[rows.length-1];const idx=+last.querySelector('.ms-bin').dataset.r;
+  const job=__viz.jobs.find(j=>j.salary&&(j.department||'No department')===last.querySelector('.ms-crow__name').textContent);
+  __viz.chart.highlight(job.id);const h=document.querySelector('.ms-bin.is-highlighted');return {highlighted:!!h, inLastRow:last.contains(h), scrollTopSync:sc.scrollTop}});
+await p.screenshot({path:OUT+'/a11y-clusters.png'});
+out.clusters=C;
+await p.close();
 // ---- map ----
 p=await b.newPage({viewport:{width:1280,height:820},reducedMotion:'reduce'});p.on('pageerror',e=>errs.push(e.message));
-await p.route(/basemaps/,r=>r.abort());
+await p.route(/basemaps|tile\.openstreetmap\.org/,r=>r.abort());
 await p.goto('http://localhost:'+PORT+'/viz/demo.html?mode=map');await p.waitForTimeout(1200);
 await p.focus('.ms-pin-icon');
 const z0=await p.evaluate(()=>__viz.map.leaflet.getZoom());

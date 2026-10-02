@@ -93,7 +93,7 @@ for data that's stale within hours. Instead:
 ## Tests
 
 ```sh
-npm test   # node --test test/
+npm test   # node --test test/*.test.js
 ```
 
 CI ([`ci.yml`](.github/workflows/ci.yml)) runs the tests on Node 20 and 22,

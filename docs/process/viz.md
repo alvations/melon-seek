@@ -89,6 +89,41 @@ Files owned: `public/viz/palette.js`, `public/viz/chart.js`, `public/viz/map.js`
       - `tileerror` and the 4 s no-tile timer still trigger offline as before.
     - The CSP in `server/index.js` already allows `https://tile.openstreetmap.org` in `img-src`. I left it unchanged.
 
+21. **Clusters view is the new default chart; ranges becomes the detail view** (user feedback: "too noisy, should feel like browsing clustered listings").
+    - API: `update(jobs, { view: 'clusters'|'ranges', groupBy, colorBy })`. `VIEWS` and `DEFAULT_VIEW` are exported from `chart.js`, and `chart.view` reads the current view.
+    - In clusters, `groupBy` defaults to `department`; `'none'` gives one "All roles" row. In ranges it defaults to `'none'`, as before. `colorBy` applies to ranges only.
+    - New callback `onClusterSelect(jobs, label)`. New method `clearSelection()`.
+    - Rows: one per group, 52px tall (66px stacked on narrow screens), sorted by median with high values first. Rows without a published salary go last and show "No published salaries".
+      - The label is a swatch, the group name and "N roles · median $XK". N counts every posting in the group; the median uses salaried postings only.
+      - A lone row ("All roles") is 92px tall with circles up to r = 30, and uses at least 46px per bin.
+    - Axis and bins: the x-axis is approx USD over posting midpoints, with ticks every $100K. The step drops to $50K when the span is under $300K and rises to $250K when it is over $1.5M.
+      - The bin width is the smallest of 10K/20K/25K/50K/100K/200K/250K/500K that gives at least 34px per bin, so a circle can carry a readable count. In the demo at 1280px that is $50K. A narrower data range gives $25K, as the user suggested.
+      - Each bin is one circle with r = max(4.5, rMax·√(n/maxN)). maxN is global so sizes compare across rows, and rMax = min(binPx/2 − 1.5, 16). The count is printed when n ≥ 2 and r ≥ 8.
+      - Hit targets are at least 24px.
+    - Behind the circles: a soft rounded P25–P75 band, 9% of the row color mixed into the surface (16% in dark), and a 2px median tick at 38% ink.
+      - Circles inside the band take a ring of the band's tint. Outside it they take a surface ring. A surface-colored ring inside the band read as dark "sockets" in dark mode.
+    - Color: one restrained palette. Circles are the row's category color mixed into the surface at 30% (52% in dark), with text-token counts.
+      - On hover, selection or highlight a circle fills with the full row color, and its text color comes from `inkOn`.
+      - Only the top 8 groups by count get category hues, in fixed slot order. Further groups fold into neutral gray, lifted in dark mode so they don't read as holes.
+      - There is no legend: the row label names the color.
+    - Interaction:
+      - Hovering a circle shows a tooltip: "12 roles", "$300K–$325K midpoint (· approx USD)", the group, the top 4 titles with ×n, and "+N more titles".
+      - Clicking a circle calls `onClusterSelect(binJobs, "Group · $300K–$350K")` and marks it `is-selected` (with ring). A single-job bin also calls `onSelect(job)`.
+      - Clicking a row label calls `onClusterSelect(allGroupJobs, "Group")` and marks the row selected.
+      - `highlight(jobId)` gives that job's circle a solid fill and an ink ring, and scrolls to its row. Reduced motion makes the scroll instant.
+      - The selection persists across re-renders, keyed by group and bin start.
+    - Keyboard and ARIA:
+      - The body is `role=listbox`. Each row is `role=group`, labelled e.g. "AI Research & Engineering, 77 roles, median $382K".
+      - The row label is the first option ("…: all 77 roles, median $382K"); each circle is an option ("12 roles, $300K to $350K, Group").
+      - Left/Right move within a row, Home/End jump to the row ends, Up/Down (and PageUp/PageDown, 5 rows) move to the nearest circle by salary, and Enter/Space select.
+      - The active option keeps `aria-activedescendant` and a 2px accent ring, and survives re-renders by key.
+      - The plot layer has `pointer-events:none` (circles opt back in), so row labels stay clickable.
+22. **Shared chrome, both views.**
+    - The distribution strip is slimmer: 28px, captioned with one "Median $XK" line, in the accent at 26% opacity for clusters.
+    - The notes moved into one muted line under the chart (`.ms-chart__foot`), e.g. "195 postings with salary · 45 postings without published salary · 32 non-USD shown as approx USD", with the FX caveat in its `title`.
+    - The ranges legend stays on top. The clusters view has no head.
+23. **Performance.** The clusters view renders 1000 jobs grouped by location (129 circles) in about 13–25 ms. Ranges takes about 110 ms for 819 rows.
+
 ## 4. Replayable steps
 ```sh
 # 0. palette validation (dataviz skill base dir)
@@ -144,6 +179,20 @@ PORT=5288 node docs/process/scripts/viz-a11y-check.mjs /path/to/out
   - `map-tiles-ok-dark-filter`: 200 stub in dark mode. dark=true. The tile pane is inverted to a dark tone and the pins are unfiltered.
   - `map-tiles-error-image`: 403 PNG, the error-image case. bad=true and offline=true. Tiles are hidden and the fallback note shows. Chromium fired `tileload` for the 403 image, which confirms that the status probe is needed.
   - aborted tiles (`map-light-hover`, `map-dark`, `map-light-us`): offline=true, as before.
+- Clusters view: `viz-screenshots.mjs` now runs 16 shots, all ok:
+  - `clusters-light`, `clusters-light-hover` (tooltip on the largest circle, plus a highlighted circle), `clusters-dark` (by seniority), `clusters-dark-location-1000` (13 ms, 129 circles), `clusters-all-roles` and `clusters-mobile-light`.
+  - The ranges shots now pass `view=ranges`.
+- I compared the two views side by side. Clusters shows 12 calm rows with about 65 circles where ranges showed 195 bars, and the medians and spread can be read at a glance. Ranges keeps per-posting detail.
+- `viz-a11y-check.mjs` now includes a clusters block, run with reduced motion and a 520px-tall viewport:
+  - Structure: 12 groups and 77 options (12 row labels plus 65 circles), 0 stray text, minimum circle hit target 24px.
+  - Keyboard: Right goes to the row label and then to the circles. Down goes to the nearest circle in the next row. `aria-activedescendant` matches the active option, and the tooltip shows on circles.
+  - Enter selects: `is-selected` is set and `onClusterSelect`/`onSelect` fire.
+  - The active ring is a 2px accent (`#2a78d6`).
+  - After a theme re-render the active option and the selection are kept.
+  - Clicking a row label logs "cluster: Product Engineering (75)" and selects the row.
+  - `highlight()` marks the circle in the last row and scrolls synchronously (scrollTop 273).
+  - The ranges and map results are unchanged from before. There were no page errors.
+- Bug found and fixed during this check: the full-width plot layer covered the row labels, so clicking a label did nothing.
 
 ## 6. Known gaps and follow-ups
 - Not tested against real OSM tiles, because the sandbox blocks tile hosts. The screenshot script stubs tile responses with 200, 403 and abort, and checks the request URLs instead.
@@ -155,9 +204,13 @@ PORT=5288 node docs/process/scripts/viz-a11y-check.mjs /path/to/out
 - There is no texture or forced-colors fallback for CVD readers. Identity is still always available as text through the legend, the tooltip and the group headers.
 - The chart's tooltip does not track touch drags. On touch, a tap selects.
 
+- `public/app.js` (owned by UX) still passes `groupBy: S.g`, whose default is `'none'`. That gives a single "All roles" row in the clusters view. To get the department-rows default, the app should omit `groupBy` or default it to `'department'`, add a view toggle that passes `view`, and wire up `onClusterSelect`.
+- In clusters, a multi-location job sits only in its first on-site location's row when grouping by location, the same as in ranges.
+
 ## 7. Change log
 - 2026-10-02: palette.js, chart.js, map.js, viz.css and demo.html created. Palette validated.
 - 2026-10-02: Changed slot assignment from hash probing to sticky lowest-free-slot after a screenshot showed similar adjacent hues. Dark-mode bar and histogram opacity raised (.5 → .72, .42 → .62) because the bars looked muddy. Cluster footprint enlarged and recomputed when the offline state changes. Narrow-width captions shortened.
 - 2026-10-02: Process docs and the replayable screenshot script added.
 - 2026-10-02: Fixed REVIEW.md M3 (keyboard-activatable pins with focus kept across re-renders, plus pin aria-labels and a focus ring), L4 (listbox groups and options, `aria-selected`, salary in option names, stale `activeIdx` fixed, 3:1 active ring, Home/End/PageUp/PageDown) and L6 (reduced motion for `flyTo` and smooth scroll). Also fixed C1 (annualization note) in chart.js. Added `scripts/viz-a11y-check.mjs` and a `PORT` override in the screenshot script.
 - 2026-10-02 (urgent): Switched the basemap from CARTO (now key-gated, showing "API key required" on the live site) to OSM standard tiles. Added a configurable `tiles` option and exported `OSM_TILES`. Dark mode is now a CSS filter on the tile pane only. Error-image tiles are detected with a one-off cached status probe. The screenshot script now stubs tiles (200, 403, abort) and asserts that only OSM tile URLs are requested.
+- 2026-10-02: Added the clusters view as the default chart, with ranges kept as the detail view. New `onClusterSelect` callback, `clearSelection()`, and exported `VIEWS`/`DEFAULT_VIEW`. Slimmer 28px distribution strip and a notes footer. Added `slotColor()` to palette.js. demo.html has a View toggle. Iterated on the visuals: bins went from 22 to 34px minimum, a lone row gets taller, Other rows are lifted in dark mode, and rings take the band tint. Fixed the plot layer swallowing label clicks. Extended the screenshot and a11y scripts.
