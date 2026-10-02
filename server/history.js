@@ -75,7 +75,10 @@ function hash(str) {
 
 /** Fingerprint of a normalized Job: title + department + primary location. */
 export function fingerprint(job) {
-  const loc = job && Array.isArray(job.locations) && job.locations[0] ? job.locations[0].name : job && job.locationText;
+  // rawName (the source's own location string, geo.js UX-3) keeps fingerprints stable
+  // when canonical location names change; older jobs only have name.
+  const first = job && Array.isArray(job.locations) ? job.locations[0] : null;
+  const loc = first ? (first.rawName || first.name) : job && job.locationText;
   return hash([normText(job && job.title), normText(job && job.department), normText(loc)].join('|'));
 }
 

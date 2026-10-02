@@ -153,7 +153,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
   let raf = 0;
   let outCount = 0;          // postings whose midpoint is beyond the axis domain (shown as ›/‹ markers)
   // ranges view state
-  let rowByJob = new Map();  // jobId -> row element
+  let idxByJob = new Map();  // jobId -> option index (ranges)
+  let rowY = [];             // option index -> y (ranges)
   let itemByRow = [];        // row index -> plotted item
   let hoverIdx = -1;
   let activeIdx = -1;
@@ -183,6 +184,67 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     return { noSalary, fxCount, unknownFx: [...unknownFx] };
   }
 
+  // ---------- windowed rows (PERF-2) ----------
+  // Rows have fixed heights, so each view computes a flat list of { y, h, build, unbuild }
+  // items and only the ones within the visible window (plus a buffer) exist in the DOM.
+  // A 2,400-posting board therefore builds ~60 rows instead of ~1,800, and scrolling
+  // paints new rows in one rAF from a DocumentFragment, with two rect reads per paint.
+  const V_BUFFER = 600;
+  let vItems = [];
+  let vPainted = new Map(); // item index -> element
+  let vRaf = 0;
+  function vReset() {
+    for (const [i] of vPainted) vItems[i]?.unbuild?.();
+    vItems = []; vPainted = new Map();
+    if (vRaf) { cancelAnimationFrame(vRaf); vRaf = 0; }
+    rowsEl.replaceChildren();
+  }
+  function paint() {
+    vRaf = 0;
+    const n = vItems.length;
+    if (!n || scroll.hidden) return;
+    const br = body.getBoundingClientRect();
+    let clipTop = 0, clipBot = innerHeight;
+    if (!container.classList.contains('ms-chart--flow')) { const sr = scroll.getBoundingClientRect(); clipTop = sr.top; clipBot = sr.bottom; }
+    const top = clipTop - br.top - V_BUFFER, bot = clipBot - br.top + V_BUFFER;
+    let lo = 0, hi = n;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (vItems[m].y + vItems[m].h < top) lo = m + 1; else hi = m; }
+    let end = lo;
+    while (end < n && vItems[end].y <= bot) end++;
+    if (end === lo && n) end = Math.min(n, lo + 1);
+    for (const [i, e] of vPainted) if (i < lo || i >= end) { e.remove(); vPainted.delete(i); vItems[i].unbuild?.(); }
+    const frag = document.createDocumentFragment();
+    for (let i = lo; i < end; i++) {
+      if (vPainted.has(i)) continue;
+      const it = vItems[i];
+      const e = it.build();
+      e.style.top = it.y + 'px';
+      vPainted.set(i, e);
+      frag.append(e);
+    }
+    if (frag.childNodes.length) rowsEl.append(frag);
+  }
+  const schedulePaint = () => { if (!vRaf && vItems.length) vRaf = requestAnimationFrame(paint); };
+  /** Scroll so that [y, y+h] (body coordinates) is visible, then paint synchronously. */
+  function scrollToY(y, h, smooth = false) {
+    const behavior = smooth && !prefersReducedMotion() ? 'smooth' : 'auto';
+    const stickyH = sticky.offsetHeight;
+    if (container.classList.contains('ms-chart--flow')) {
+      const br = body.getBoundingClientRect();
+      const t = br.top + y, b = t + h;
+      if (t < stickyH + 8 || b > innerHeight - 8) scrollTo({ top: scrollY + t - innerHeight / 2 + h / 2, behavior });
+    } else {
+      const top = body.offsetTop + y;
+      const viewTop = scroll.scrollTop + stickyH, viewBot = scroll.scrollTop + scroll.clientHeight;
+      if (top < viewTop + 4 || top + h > viewBot - 4) {
+        const target = top - stickyH - (scroll.clientHeight - stickyH) / 2 + h / 2;
+        if (behavior === 'auto') scroll.scrollTop = target; else scroll.scrollTo({ top: target, behavior });
+      }
+    }
+    paint();
+    if (behavior === 'smooth') setTimeout(paint, 450); // smooth scroll lands later
+  }
+
   // ---------- render (shared) ----------
   function render() {
     raf = 0;
@@ -201,7 +263,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const activeCKey = cActive ? cKeyOf(cActive.r, cActive.i) : null;
     activeIdx = -1; cActive = null; hoverIdx = -1; cHover = null;
     body.removeAttribute('aria-activedescendant');
-    rowByJob = new Map(); itemByRow = []; binByJob = new Map(); cRows = []; outCount = 0;
+    idxByJob = new Map(); rowY = []; itemByRow = []; binByJob = new Map(); cRows = []; outCount = 0;
+    vReset();
     hideTip();
 
     const narrow = width < 520;
@@ -226,13 +289,10 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     if (clusters) {
       head.hidden = true;
       renderClusters(stats, narrow);
-      if (activeCKey) { const a = cFindKey(activeCKey); if (a) setCActive(a.r, a.i, false); }
+      if (activeCKey) { const a = cFindKey(activeCKey); if (a) cActive = { r: a.r, i: a.i }; }
     } else {
       renderRanges(stats, narrow);
-      if (activeJobId != null) {
-        const i = itemByRow.findIndex(p => p.job.id === activeJobId);
-        if (i >= 0) setActive(i, false);
-      }
+      if (activeJobId != null && idxByJob.has(activeJobId)) activeIdx = idxByJob.get(activeJobId); // applied when the row is built
     }
     renderNotes(stats, narrow);
 
@@ -240,6 +300,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     // otherwise flow with the page so the sticky header sticks to the viewport.
     container.classList.remove('ms-chart--flow');
     if (scroll.scrollHeight <= scroll.clientHeight + 1) container.classList.add('ms-chart--flow');
+    paint();
 
     if (highlighted) applyHighlight(highlighted, false);
   }
@@ -424,10 +485,15 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const rMin = Math.min(4.5, rMax);
 
     const maxN = Math.max(1, ...cRows.flatMap(r => r.bins.filter(b => !b.overflow).map(b => b.items.length)));
-    const frag = document.createDocumentFragment();
     const gridFrag = document.createDocumentFragment();
     cRows.forEach((r, ri) => {
+      r.index = ri;
+      for (const b of r.bins) for (const p of b.items) binByJob.set(p.job.id, b);
+      vItems.push({ y: ri * rowH, h: rowH, build: () => buildCRow(r, ri), unbuild: () => { r.el = r.labelEl = null; for (const b of r.bins) b.el = null; } });
+    });
+    function buildCRow(r, ri) {
       const row = el('div', r.other ? 'ms-crow ms-crow--other' : 'ms-crow');
+      if (ri === cRows.length - 1) row.classList.add('ms-crow--last');
       row.setAttribute('role', 'group');
       const sub = r.useShort ? r.subShort : r.subFull;
       row.setAttribute('aria-label', `${r.name}, ${r.subFull.replace(' · ', ', ')}`);
@@ -481,7 +547,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       }
       r.bins.forEach((b, bi) => {
         const n = b.items.length;
-        if (b.overflow) { plot.append(overflowMarker(b, ri, bi, plotL, plotW, narrow)); for (const p of b.items) binByJob.set(p.job.id, b); return; }
+        if (b.overflow) { const o = overflowMarker(b, ri, bi, plotL, plotW, narrow); plot.append(o); decorateBin(b, ri, bi); return; }
         const rad = Math.max(rMin, rMax * Math.sqrt(n / maxN));
         const cx = Math.min(plotL + plotW, Math.max(plotL, x(b.center)));
         const hit = Math.max(24, Math.min(binPx, 2 * rad + 6));
@@ -504,17 +570,27 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         bin.append(dot);
         plot.append(bin);
         b.el = bin;
-        for (const p of b.items) binByJob.set(p.job.id, b);
-        if (selectedKey === cKeyOf(ri, bi)) bin.classList.add('is-selected');
+        decorateBin(b, ri, bi);
       });
       if (selectedKey === cKeyOf(ri, -1)) row.classList.add('is-selected');
+      if (cActive && cActive.r === ri && cActive.i < 0) markActive(lab);
       row.append(plot);
-      frag.append(row);
-    });
+      return row;
+    }
+    function decorateBin(b, ri, bi) {
+      if (selectedKey === cKeyOf(ri, bi)) b.el.classList.add('is-selected');
+      if (highlighted != null && b.items.some(p => p.job.id === highlighted)) b.el.classList.add('is-highlighted');
+      if (cActive && cActive.r === ri && cActive.i === bi) markActive(b.el);
+    }
     renderGridlines(ticks, x, gridFrag);
     grid.replaceChildren(gridFrag);
-    rowsEl.replaceChildren(frag);
     body.style.height = (cRows.length * rowH + 8) + 'px';
+  }
+
+  function markActive(e) {
+    e.classList.add('is-active');
+    e.setAttribute('aria-selected', 'true');
+    body.setAttribute('aria-activedescendant', e.id);
   }
 
   // A small "›" (or "‹") chip at the axis edge for postings beyond the domain.
@@ -568,7 +644,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     rowsEl.querySelectorAll('.is-selected').forEach(n => n.classList.remove('is-selected'));
     selectedKey = cKeyOf(r, i);
     const list = i < 0 ? row.all : row.bins[i].items.map(p => p.job);
-    if (i < 0) row.el.classList.add('is-selected'); else row.bins[i].el.classList.add('is-selected');
+    if (i < 0) row.el?.classList.add('is-selected'); else row.bins[i].el?.classList.add('is-selected');
     onClusterSelect?.(list, clusterLabel(r, i));
     if (list.length === 1) onSelect?.(list[0]);
   }
@@ -626,16 +702,13 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const prev = rowsEl.querySelector('.is-active');
     prev?.classList.remove('is-active');
     prev?.setAttribute('aria-selected', 'false');
-    const e = cEl(r, i);
-    if (!e) { cActive = null; body.removeAttribute('aria-activedescendant'); return; }
+    if (!cRows[r]) { cActive = null; body.removeAttribute('aria-activedescendant'); return; }
     cActive = { r, i };
-    e.classList.add('is-active');
-    e.setAttribute('aria-selected', 'true');
-    body.setAttribute('aria-activedescendant', e.id);
-    if (announce) {
-      scrollToRow(cRows[r].el);
-      if (i >= 0) setCHover(e); else setCHover(null);
-    }
+    if (announce && vItems[r]) scrollToY(vItems[r].y, vItems[r].h);
+    const e = cEl(r, i);
+    if (!e) { body.removeAttribute('aria-activedescendant'); return; }
+    markActive(e);
+    if (announce) { if (i >= 0) setCHover(e); else setCHover(null); }
   }
 
   function onClusterKey(e) {
@@ -733,19 +806,38 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     renderHist(x, d0, d1, plotL, plotW, labelW);
     renderAxis(nt.ticks, x, stats.fxCount > 0, labelW, narrow);
 
-    const frag = document.createDocumentFragment();
     const gridFrag = document.createDocumentFragment();
     let y = 0;
     let idx = 0;
+    let gi = 0;
     for (const g of groups()) {
-      let parent = frag;
       if (g.name != null) {
-        const wrap = el('div', 'ms-chart__grp');
-        wrap.setAttribute('role', 'group');
-        wrap.setAttribute('aria-label', `${g.name}, ${plural(g.items.length, 'posting')}, median ${formatMoney(g.median)}`);
-        frag.append(wrap);
-        parent = wrap;
-        const h = el('div', 'ms-group');
+        const first = gi++ === 0;
+        vItems.push({ y, h: HEAD_H, build: () => buildHead(g, first) });
+        y += HEAD_H;
+        const mx = xc(g.median);
+        const line = el('div', 'ms-chart__median');
+        line.style.left = mx + 'px';
+        line.style.top = (y - 6) + 'px';
+        line.style.height = (g.items.length * ROW_H + 6) + 'px';
+        gridFrag.append(line);
+      }
+      for (const p of g.items) {
+        const i = idx++;
+        itemByRow[i] = p;
+        idxByJob.set(p.job.id, i);
+        rowY[i] = y;
+        p.group = g.name;
+        p.clipped = p.hi > d1 || p.lo < d0;
+        if (p.mid < d0 || p.mid > d1) outCount++;
+        vItems.push({ y, h: ROW_H, build: () => buildRow(p, i) });
+        y += ROW_H;
+      }
+    }
+    // Group bands are visual only (aria-hidden); options carry the group in their name.
+    function buildHead(g, first) {
+      {
+        const h = el('div', first ? 'ms-group ms-group--first' : 'ms-group');
         h.setAttribute('aria-hidden', 'true');
         h.style.height = HEAD_H + 'px';
         const name = el('div', 'ms-group__name');
@@ -758,21 +850,17 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         ml.style.left = mx + 'px';
         if (mx > width - 110) ml.classList.add('ms-group__median--left');
         h.append(ml);
-        wrap.append(h);
-        y += HEAD_H;
-        const line = el('div', 'ms-chart__median');
-        line.style.left = mx + 'px';
-        line.style.top = (y - 6) + 'px';
-        line.style.height = (g.items.length * ROW_H + 6) + 'px';
-        gridFrag.append(line);
+        return h;
       }
-      for (const p of g.items) {
+    }
+    function buildRow(p, idx) {
+      {
         const r = el('div', 'ms-row');
         r.style.height = ROW_H + 'px';
         r.dataset.idx = idx;
         r.setAttribute('role', 'option');
         r.setAttribute('aria-selected', 'false');
-        r.setAttribute('aria-label', optionName(p));
+        r.setAttribute('aria-label', (p.group != null ? `${p.group}: ` : '') + optionName(p));
         r.id = `${uid}-${idx}`;
         const lab = el('div', 'ms-row__label', p.job.title || 'Untitled');
         lab.style.width = labelW + 'px';
@@ -782,9 +870,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         bar.style.width = Math.max(0, bx1 - bx0) + 'px';
         const dot = el('div', 'ms-row__dot');
         dot.style.left = x(p.mid) + 'px';
-        const midOut = p.mid < d0 || p.mid > d1;
-        p.clipped = p.hi > d1 || p.lo < d0;
-        if (midOut) { dot.hidden = true; outCount++; }
+        if (p.mid < d0 || p.mid > d1) dot.hidden = true;
         if (p.lo >= d1) bar.hidden = true;  // entirely beyond: the marker alone shows it
         if (p.hi <= d0) bar.hidden = true;
         const c = colorOf(p);
@@ -796,16 +882,13 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         // Clipped by the axis: a small chevron at the edge (the tooltip has the real values).
         if (p.hi > d1) { const o = el('div', 'ms-row__over ms-row__over--hi', '›'); o.style.left = (x(d1) + 3) + 'px'; o.setAttribute('aria-hidden', 'true'); r.append(o); }
         if (p.lo < d0) { const o = el('div', 'ms-row__over ms-row__over--lo', '‹'); o.style.left = (x(d0) - 11) + 'px'; o.setAttribute('aria-hidden', 'true'); r.append(o); }
-        parent.append(r);
-        itemByRow[idx] = p;
-        rowByJob.set(p.job.id, r);
-        idx++;
-        y += ROW_H;
+        if (idx === activeIdx) markActive(r);
+        if (highlighted != null && p.job.id === highlighted) r.classList.add('is-highlighted');
+        return r;
       }
     }
     renderGridlines(nt.ticks, x, gridFrag);
     grid.replaceChildren(gridFrag);
-    rowsEl.replaceChildren(frag);
     body.style.height = (y + 8) + 'px';
   }
 
@@ -878,13 +961,13 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const prev = rowsEl.querySelector('.ms-row.is-active');
     prev?.classList.remove('is-active');
     prev?.setAttribute('aria-selected', 'false');
+    if (!itemByRow[i]) { activeIdx = -1; body.removeAttribute('aria-activedescendant'); return; }
     activeIdx = i;
+    if (announce) scrollToY(rowY[i], ROW_H);
     const r = rowsEl.querySelector(`.ms-row[data-idx="${i}"]`);
-    if (!r) { activeIdx = -1; body.removeAttribute('aria-activedescendant'); return; }
-    r.classList.add('is-active');
-    r.setAttribute('aria-selected', 'true');
-    body.setAttribute('aria-activedescendant', r.id);
-    if (announce) { scrollToRow(r); setHover(i); }
+    if (!r) { body.removeAttribute('aria-activedescendant'); return; }
+    markActive(r);
+    if (announce) setHover(i);
   }
 
   function onRangesKey(e) {
@@ -962,24 +1045,9 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
   hist.addEventListener('pointerleave', onHistLeave);
   body.addEventListener('keydown', onKey);
   body.addEventListener('blur', onLeave);
-  scroll.addEventListener('scroll', () => { if (!tip.hidden) hideTip(); }, { passive: true });
-
-  function scrollToRow(r, smooth = false) {
-    const behavior = smooth && !prefersReducedMotion() ? 'smooth' : 'auto';
-    const stickyH = sticky.offsetHeight;
-    if (container.classList.contains('ms-chart--flow')) {
-      const b = r.getBoundingClientRect();
-      if (b.top < stickyH + 8 || b.bottom > innerHeight - 8) r.scrollIntoView({ block: 'center', behavior });
-      return;
-    }
-    const h = r.offsetHeight || ROW_H;
-    const top = r.offsetTop + body.offsetTop;
-    const viewTop = scroll.scrollTop + stickyH;
-    const viewBot = scroll.scrollTop + scroll.clientHeight;
-    if (top < viewTop + 4 || top + h > viewBot - 4) {
-      scroll.scrollTo({ top: top - stickyH - (scroll.clientHeight - stickyH) / 2 + h / 2, behavior });
-    }
-  }
+  scroll.addEventListener('scroll', () => { if (!tip.hidden) hideTip(); schedulePaint(); }, { passive: true });
+  const onWinScroll = () => { if (container.classList.contains('ms-chart--flow')) schedulePaint(); };
+  addEventListener('scroll', onWinScroll, { passive: true });
 
   function applyHighlight(id, scrollIt) {
     rowsEl.querySelectorAll('.is-highlighted').forEach(n => n.classList.remove('is-highlighted'));
@@ -987,14 +1055,15 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     if (opts.view === 'clusters') {
       const b = binByJob.get(id);
       if (!b) return;
-      b.el.classList.add('is-highlighted');
-      if (scrollIt) scrollToRow(b.row.el, true);
+      const ri = b.row.index;
+      if (scrollIt) scrollToY(vItems[ri].y, vItems[ri].h, true);
+      b.el?.classList.add('is-highlighted');
       return;
     }
-    const r = rowByJob.get(id);
-    if (!r) return;
-    r.classList.add('is-highlighted');
-    if (scrollIt) scrollToRow(r, true);
+    const i = idxByJob.get(id);
+    if (i == null) return;
+    if (scrollIt) scrollToY(rowY[i], ROW_H, true);
+    rowsEl.querySelector(`.ms-row[data-idx="${i}"]`)?.classList.add('is-highlighted');
   }
 
   // ---------- lifecycle ----------
@@ -1041,7 +1110,9 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     destroy() {
       ro.disconnect();
       offTheme();
+      removeEventListener('scroll', onWinScroll);
       if (raf) cancelAnimationFrame(raf);
+      vReset();
       tip.remove();
       container.replaceChildren();
       container.classList.remove('ms-chart', 'ms-chart--flow', 'ms-chart--narrow', 'ms-chart--clusters', 'ms-chart--ranges');

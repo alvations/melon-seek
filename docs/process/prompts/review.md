@@ -17,3 +17,29 @@ Mid-task addendum from the coordinator (verbatim):
 ```text
 New requirement from the user: document how you produced your work so another agent can replicate it. Before you finish: (1) copy your original task prompt verbatim into docs/process/prompts/review.md; (2) write docs/process/review.md following docs/process/TEMPLATE.md (brief, files reviewed + at which point in time, methodology/checklist used, commands run, results summary pointing at docs/REVIEW.md, known gaps, change log). You may write those two files in addition to docs/REVIEW.md. Don't commit; the lead does.
 ```
+
+## Re-check prompt
+
+Verbatim task prompt given to the review agent for the second pass (2026-10-02, ~13:00 UTC):
+
+```text
+You are the security and accessibility reviewer for melon-seek (/home/user/melon-seek), a zero-build Node app with a static GitHub Pages build. An earlier review wrote docs/REVIEW.md, but its "Re-check" section was never completed, and a lot of code has been added since. Your job is to finish that review. Read docs/REVIEW.md, docs/CONTRACT.md (including the "v2 additions"), docs/process/README.md and docs/process/TEMPLATE.md first.
+
+Treat all code as read-only. You may edit only docs/REVIEW.md and docs/process/review.md, and append to docs/process/prompts/review.md (paste this prompt there under a "Re-check prompt" heading). Don't commit.
+
+1. Re-check each of the original findings (H1, M1–M5, L1–L11, C1–C3) against the current code. Mark each one as fixed, partially fixed or open, citing file:line as evidence.
+2. Review the newer code with the same checklist:
+   - server routes: /api/job, /api/market, /api/export, /api/cities, /lib/*;
+   - server/compstimate-worker.js and server/history.js;
+   - CSV formula-injection handling;
+   - public/api.js (static live fetches, loading the packed format);
+   - scripts/build-static.js, including the share pages under /c/<slug>/ and their redirect script;
+   - scripts/llm-vet.js: API key handling, and how the posting text it sends to the model is handled (prompt-injection risk from job descriptions);
+   - .github/workflows/* and .github/scripts/ledger.sh: token permissions, script injection through `${{ }}`, and artifact trust;
+   - public/app.js: localStorage-saved searches, hash state, and the new drawer sections;
+   - the features/ and viz/ modules.
+   Cover XSS sinks, injection, SSRF, path traversal, DoS and resource limits, and supply chain.
+3. For accessibility, check the new controls: Save chip, company menu, Pay|Juice toggle, Juice waterfall, comps chart, Listed filter and theme toggle. Look at keyboard access, names and roles, contrast and reduced motion. You may run the app (`PORT=<free port> node server/index.js`, using the local data/snapshots) and Playwright: Chromium is under /opt/pw-browsers, and a scratchpad copy of playwright lives at /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/pw. Never run `playwright install`.
+
+Write the results into the "Re-check" section of docs/REVIEW.md, plus a new "v2 review" section. Each finding gets an ID, severity, file:line, a concrete reproduction and a suggested patch. Update docs/process/review.md with the files you reviewed, your method and the commands you ran. Report back briefly with the findings that are still open or new, ordered by severity.
+```

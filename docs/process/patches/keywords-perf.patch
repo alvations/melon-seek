@@ -1,0 +1,342 @@
+--- a/server/keywords.js
++++ b/server/keywords.js
+@@ -650,11 +650,169 @@
+   ['Visa sponsorship', 'visa sponsorship', 'sponsor (?:visas|work authorization)', 'we do sponsor visas'],
+ ];
+ 
++// Perf (docs/process/backend.md, "pipeline performance"): each pattern gets a
++// cheap substring pre-filter, `needles`: one literal per top-level alternative
++// that every match must contain. When none of them occurs in the haystack the
++// regex cannot match, so it is skipped. Output is unchanged (golden test).
++
++const QUANT_ZERO = /^(?:\?|\*|\{0[,}])/;
++
++/** Longest literal run that every match of this regex alternative must contain (ASCII, >= 2 chars), or ''. */
++function mandatoryLiteral(alt) {
++  let best = '';
++  let run = '';
++  const end = () => { if (run.length > best.length) best = run; run = ''; };
++  for (let i = 0; i < alt.length; i++) {
++    const ch = alt[i];
++    if (ch === '\\') {
++      const nx = alt[i + 1];
++      if (nx === undefined) { end(); break; }
++      // Escaped punctuation is a literal; class escapes (\b \w \s \d ...) and others are not.
++      const lit = /[^A-Za-z0-9]/.test(nx) ? nx : null;
++      i++;
++      if (lit === null || lit.charCodeAt(0) > 127) { end(); continue; }
++      if (QUANT_ZERO.test(alt.slice(i + 1))) { end(); continue; }
++      run += lit;
++      if (/^[+{]/.test(alt.slice(i + 1))) end();
++      continue;
++    }
++    if (ch === '(' || ch === '[') {
++      end();
++      // Skip the whole group / class (it may be optional or alternated).
++      if (ch === '[') {
++        let j = i + 1;
++        if (alt[j] === '^') j++;
++        if (alt[j] === ']') j++;
++        for (; j < alt.length && alt[j] !== ']'; j++) if (alt[j] === '\\') j++;
++        i = j;
++      } else {
++        let depth = 0;
++        let j = i;
++        for (; j < alt.length; j++) {
++          const c = alt[j];
++          if (c === '\\') { j++; continue; }
++          if (c === '[') { for (j++; j < alt.length && alt[j] !== ']'; j++) if (alt[j] === '\\') j++; continue; }
++          if (c === '(') depth++;
++          else if (c === ')' && --depth === 0) break;
++        }
++        i = j;
++      }
++      // A quantifier after the group/class is skipped with it.
++      const q = /^(?:[?*+]|\{\d*,?\d*\})\??/.exec(alt.slice(i + 1));
++      if (q) i += q[0].length;
++      continue;
++    }
++    if ('.^$)|]?*+{}'.includes(ch)) { end(); continue; }
++    if (ch.charCodeAt(0) > 127) { end(); continue; }
++    if (QUANT_ZERO.test(alt.slice(i + 1))) { end(); continue; }
++    run += ch;
++    if (/^[+{]/.test(alt.slice(i + 1))) end();
++  }
++  end();
++  return best.length >= 2 ? best : '';
++}
++
++/** Split a regex source on top-level `|`. */
++function topLevelAlternatives(src) {
++  const out = [];
++  let depth = 0;
++  let cur = '';
++  for (let i = 0; i < src.length; i++) {
++    const c = src[i];
++    if (c === '\\') { cur += c + (src[i + 1] ?? ''); i++; continue; }
++    if (c === '[') {
++      let j = i + 1;
++      for (; j < src.length && src[j] !== ']'; j++) if (src[j] === '\\') j++;
++      cur += src.slice(i, j + 1); i = j; continue;
++    }
++    if (c === '(') depth++;
++    else if (c === ')') depth--;
++    if (c === '|' && depth === 0) { out.push(cur); cur = ''; continue; }
++    cur += c;
++  }
++  out.push(cur);
++  return out;
++}
++
++/**
++ * Leading literal of an alternative when it is anchored at a word start:
++ * B() patterns (preceded by a non-alphanumeric) or RegExps starting with \b.
++ * Returns { seg, exact }: the first alphanumeric segment, and whether the
++ * token must equal it (a non-alphanumeric literal follows) or only start with it.
++ */
++function wordStartKey(alt, anchored) {
++  let i = 0;
++  if (!anchored) {
++    if (!alt.startsWith('\\b')) return null;
++    i = 2;
++  }
++  let seg = '';
++  for (; i < alt.length; i++) {
++    const c = alt[i];
++    if (!/[A-Za-z0-9]/.test(c)) break;
++    if (QUANT_ZERO.test(alt.slice(i + 1))) return seg.length >= 3 ? { seg: seg.toLowerCase(), exact: false } : null;
++    seg += c;
++    if (/^[+{]/.test(alt.slice(i + 1))) return seg.length >= 3 ? { seg: seg.toLowerCase(), exact: false } : null;
++  }
++  if (seg.length < 2) return null;
++  const next = alt[i];
++  // End of a B() pattern (then "(?![A-Za-z0-9])") or a "\b": the token is exactly seg.
++  if (next === undefined && anchored) return { seg: seg.toLowerCase(), exact: true };
++  if (next === '\\' && alt[i + 1] === 'b') return { seg: seg.toLowerCase(), exact: true };
++  // A plain literal punctuation char (or an escaped one) right after: the token ends there.
++  const nextLit = next !== undefined && (/[ \/&'’#\-,:]/.test(next) && !QUANT_ZERO.test(alt.slice(i + 1)));
++  if (nextLit) return { seg: seg.toLowerCase(), exact: true };
++  return seg.length >= 3 ? { seg: seg.toLowerCase(), exact: false } : null;
++}
++
++/**
++ * Pre-filter for one compiled pattern, or null (always run the regex). For each
++ * top-level alternative: a word-index key when it starts at a word boundary,
++ * else a substring needle. The pattern can only match if some alternative's
++ * check passes.
++ */
++function prefilterFor(src, flags, anchored) {
++  if (/[uvym]/.test(flags)) return null;
++  const alts = [];
++  for (const alt of topLevelAlternatives(src)) {
++    const key = wordStartKey(alt, anchored);
++    if (key) { alts.push(key); continue; }
++    const lit = mandatoryLiteral(alt);
++    if (!lit) return null;
++    alts.push({ needle: lit.toLowerCase() });
++  }
++  return alts;
++}
++
++/**
++ * Compile a lexicon: entries keep their order (output order); every pattern
++ * also goes in a key table so a job's candidate patterns can be found from its
++ * word index instead of testing all ~700 regexes.
++ */
+ function compileLexicon(lex) {
+-  return lex.map(([label, ...pats]) => ({
+-    label,
+-    res: pats.map((p) => (p instanceof RegExp ? p : B(p))),
+-  }));
++  const entries = [];
++  const exact = new Map();   // token -> [pattern ids]
++  const prefix = new Map();  // token prefix -> [pattern ids]
++  const needle = new Map();  // substring -> [pattern ids]
++  const always = [];         // no usable pre-filter
++  let id = 0;
++  const add = (map, k, pid) => { const a = map.get(k); if (a) { if (a[a.length - 1] !== pid) a.push(pid); } else map.set(k, [pid]); };
++  for (const [label, ...pats] of lex) {
++    const res = pats.map((p) => {
++      const re = p instanceof RegExp ? p : B(p);
++      const pf = p instanceof RegExp ? prefilterFor(p.source, p.flags, false) : prefilterFor(p, 'i', true);
++      const pid = id++;
++      if (!pf) always.push(pid);
++      else for (const k of pf) add(k.needle ? needle : k.exact ? exact : prefix, k.needle || k.seg, pid);
++      // Every alternative starts with a word-start key: matches can only begin at those
++      // tokens, so a sticky copy of the regex is tried there instead of scanning the text.
++      const keys = pf && pf.every((k) => !k.needle) ? pf : null;
++      const sticky = keys ? new RegExp(re.source, re.flags.replace(/[gy]/g, '') + 'y') : null;
++      return { re, pid, keys, sticky };
++    });
++    entries.push({ label, res });
++  }
++  return { entries, exact, prefix: [...prefix], needle: [...needle], always };
+ }
+ 
+ const SKILLS = compileLexicon(SKILL_LEXICON);
+@@ -662,11 +820,106 @@
+ const FIT = compileLexicon(FIT_LEXICON);
+ const FIT_GLOBAL = compileLexicon(FIT_GLOBAL_LEXICON);
+ 
+-function matchLexicon(compiled, hay) {
++/**
++ * Word index of a text: lower-cased text, token -> start positions, and the
++ * sorted token list (lazy). Built once per job. Disabled (every pattern is a
++ * candidate) when the text has U+0130 or U+212A, the only characters whose
++ * lower case is ASCII and could merge or shift tokens.
++ */
++function wordIndex(text) {
++  const src = String(text || '');
++  if (/[\u0130\u212A]/.test(src)) return { disabled: true, text: src };
++  const lower = src.toLowerCase();
++  const pos = new Map();
++  const re = /[a-z0-9]+/g;
++  let m;
++  while ((m = re.exec(lower))) {
++    const a = pos.get(m[0]);
++    if (a) a.push(m.index); else pos.set(m[0], [m.index]);
++  }
++  return { text: src, lower, tokens: pos, sorted: null };
++}
++
++function sortedTokens(idx) {
++  return idx.sorted || (idx.sorted = [...idx.tokens.keys()].sort());
++}
++
++/** Index of the first sorted token >= seg. */
++function lowerBound(a, seg) {
++  let lo = 0, hi = a.length;
++  while (lo < hi) { const mid = (lo + hi) >> 1; if (a[mid] < seg) lo = mid + 1; else hi = mid; }
++  return lo;
++}
++
++/** Some token starts with seg. */
++function tokenStartsWith(idx, seg) {
++  const a = sortedTokens(idx);
++  const i = lowerBound(a, seg);
++  return i < a.length && a[i].startsWith(seg);
++}
++
++/** Start positions of tokens matching a word-start key. */
++function keyPositions(idx, k, out) {
++  if (k.exact) {
++    const p = idx.tokens.get(k.seg);
++    if (p) for (const x of p) out.push(x);
++    return;
++  }
++  const a = sortedTokens(idx);
++  for (let i = lowerBound(a, k.seg); i < a.length && a[i].startsWith(k.seg); i++) for (const x of idx.tokens.get(a[i])) out.push(x);
++}
++
++/** Pattern ids of `compiled` that may match text covered by `idx` (memoized on idx). */
++function candidates(compiled, idx) {
++  let cache = idx.cand;
++  if (!cache) cache = idx.cand = new Map();
++  let set = cache.get(compiled);
++  if (set) return set;
++  if (idx.disabled) {
++    set = { has: () => true, size: 1 };
++    cache.set(compiled, set);
++    return set;
++  }
++  set = new Set(compiled.always);
++  if (compiled.exact.size < idx.tokens.size) {
++    for (const [k, ids] of compiled.exact) if (idx.tokens.has(k)) for (const i of ids) set.add(i);
++  } else {
++    for (const t of idx.tokens.keys()) { const ids = compiled.exact.get(t); if (ids) for (const i of ids) set.add(i); }
++  }
++  for (const [k, ids] of compiled.prefix) if (tokenStartsWith(idx, k)) for (const i of ids) set.add(i);
++  for (const [k, ids] of compiled.needle) if (idx.lower.includes(k)) for (const i of ids) set.add(i);
++  cache.set(compiled, set);
++  return set;
++}
++
++/**
++ * Lexicon labels whose patterns match `hay`, in lexicon order. `idx` is a word
++ * index of a superset of `hay`; it only narrows which regexes run.
++ */
++function matchLexicon(compiled, hay, idx = wordIndex(hay)) {
+   const out = [];
+   if (!hay) return out;
+-  for (const { label, res } of compiled) {
+-    if (res.some((re) => re.test(hay))) out.push(label);
++  const cand = candidates(compiled, idx);
++  if (!cand.size) return out;
++  // Positions are only valid for the text the index was built on (or its prefix).
++  const sameText = !idx.disabled && idx.text.startsWith(hay);
++  for (const { label, res } of compiled.entries) {
++    for (const { re, pid, keys, sticky } of res) {
++      if (!cand.has(pid)) continue;
++      if (sameText && keys) {
++        const at = [];
++        for (const k of keys) keyPositions(idx, k, at);
++        let hit = false;
++        for (const p of at) {
++          if (p >= hay.length) continue;
++          sticky.lastIndex = p;
++          if (sticky.test(hay)) { hit = true; break; }
++        }
++        if (hit) { out.push(label); break; }
++        continue;
++      }
++      if (re.test(hay)) { out.push(label); break; }
++    }
+   }
+   return out;
+ }
+@@ -723,17 +976,19 @@
+   const body = String(text || '');
+   const all = [title, ...resp, ...fit, body].filter(Boolean).join('\n');
+ 
+-  const skills = matchLexicon(SKILLS, all);
++  // One word index of everything the haystacks below are cut from (pre-filter only).
++  const idx = wordIndex(`${all}\n${department || ''}`);
++  const skills = matchLexicon(SKILLS, all, idx);
+ 
+   const respHay = [title, ...(resp.length ? resp : [body, department])].filter(Boolean).join('\n');
+-  const responsibilities = matchLexicon(RESP, respHay);
++  const responsibilities = matchLexicon(RESP, respHay, idx);
+ 
+   const fitHay = (fit.length ? fit : [body]).join('\n');
+   const fitOut = [];
+   const bucket = yearsBucket(yearsOfExperience(fitHay));
+   if (bucket) fitOut.push(bucket);
+-  fitOut.push(...matchLexicon(FIT, fitHay));
+-  fitOut.push(...matchLexicon(FIT_GLOBAL, [fitHay, all].join('\n')));
++  fitOut.push(...matchLexicon(FIT, fitHay, idx));
++  fitOut.push(...matchLexicon(FIT_GLOBAL, [fitHay, all].join('\n'), idx));
+ 
+   return {
+     responsibilities: [...new Set(responsibilities)],
+@@ -863,6 +1118,9 @@
+   /\bprofit[- ]sharing\b/i,
+ ];
+ 
++const EQ_HINT_RE = /equity|stock|rsu|espp|ownership stake/i;
++const BN_HINT_RE = /bonus|commission|ote|on[- ]target|incentive|variable|profit[- ]sharing/i;
++
+ function compSegments(text) {
+   return String(text || '')
+     .split(/\n+|(?<=[.!?])\s+(?=[A-Z(“"])/)
+@@ -883,10 +1141,12 @@
+   const vetoed = { equity: false, bonus: false };
+ 
+   for (const seg of compSegments(src)) {
+-    const eqText = seg.replace(EQUITY_NOISE_RE, ' ');
+-    const bnText = seg.replace(BONUS_NOISE_RE, ' ');
+-    const hasEq = /\bequity\b|\bstock\b|\bRSUs?\b|\bESPP\b|\bownership stake\b/i.test(eqText);
+-    const hasBn = /\bbonus(?:es)?\b|\bcommissions?\b|\bOTE\b|on[- ]target|incentive|variable|profit[- ]sharing/i.test(bnText);
++    // Perf: the noise removal only blanks text out, so a facet word missing from
++    // the raw segment cannot appear after it; skip both regex passes then.
++    const eqText = EQ_HINT_RE.test(seg) ? seg.replace(EQUITY_NOISE_RE, ' ') : '';
++    const bnText = BN_HINT_RE.test(seg) ? seg.replace(BONUS_NOISE_RE, ' ') : '';
++    const hasEq = eqText !== '' && /\bequity\b|\bstock\b|\bRSUs?\b|\bESPP\b|\bownership stake\b/i.test(eqText);
++    const hasBn = bnText !== '' && /\bbonus(?:es)?\b|\bcommissions?\b|\bOTE\b|on[- ]target|incentive|variable|profit[- ]sharing/i.test(bnText);
+     if (!hasEq && !hasBn) continue;
+ 
+     if (COMP_NEGATION_RE.test(seg)) {
+@@ -931,3 +1191,4 @@
+   const { equity, bonus } = compExtrasEvidence(text, opts);
+   return { equity, bonus };
+ }
++

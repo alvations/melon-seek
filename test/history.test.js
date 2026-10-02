@@ -254,3 +254,18 @@ test('scripts/snapshot.js: ledger updated after a successful fetch only', async 
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('fingerprint uses the raw source location when present (UX-3 canonical names)', () => {
+  const before = job(1, 'SRE', { locations: [{ name: 'Remote-Friendly (Travel Required)' }] });
+  const after = job(1, 'SRE', { locations: [{ name: 'Remote (US)', rawName: 'Remote-Friendly (Travel Required)' }] });
+  assert.equal(fingerprint(after), fingerprint(before));
+  // A ledger written before the change sees no closes or reposts afterwards.
+  const l1 = updateLedger(null, [before, job(2, 'Other')], at(0));
+  const l2 = updateLedger(l1, [after, job(2, 'Other')], at(1));
+  assert.deepEqual(diffLedger(l1, l2), { open: 2, added: 0, closed: 0, reopened: 0, reposts: 0, total: 2 });
+  assert.equal(l2.jobs['acme:1'].k, l1.jobs['acme:1'].k);
+  // A brand-new id with the canonical name still matches a closed old posting by fingerprint.
+  const l3 = updateLedger(l1, [job(2, 'Other')], at(1));
+  const l4 = updateLedger(l3, [job(2, 'Other'), job(3, 'SRE', { locations: [{ name: 'Remote (US)', rawName: 'Remote-Friendly (Travel Required)' }] })], at(5));
+  assert.equal(l4.jobs['acme:3'].n, 1);
+});

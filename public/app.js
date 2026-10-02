@@ -11,7 +11,8 @@ import { createCompstimateWidget, compstimateForJob, accuracyLine, isLowAccuracy
 import { compsForJob, createCompsCard } from './features/comps.js';
 import { createCompsChart } from './viz/comps.js';
 import { roleFamily, FAMILY_LABELS } from './features/roles.js';
-import { createInsights } from './features/insights.js'; // getCompanies, getJobs, getJobDetail (namespace import: tolerate a missing optional export)
+// ./features/insights.js is imported on first use (Insights mode), see renderInsights.
+// api.js: getCompanies, getJobs, getJobDetail (namespace import: tolerate a missing optional export)
 
 // ?mock=1 swaps the data layer for a local generator. Development only: it is
 // honoured on localhost only, and the UI always labels it "Mock data".
@@ -74,7 +75,8 @@ const FALLBACK_COMPANIES = [
 const BOARDS_KEY = 'melon-seek.boards.v1';
 const SOURCES = ['greenhouse', 'ashby', 'lever'];
 const SLUG_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
-const PAGE = 60;
+// Phones render a shorter first page (the sheet shows ~4 cards); more load as the list scrolls.
+const PAGE = matchMedia('(max-width: 860px)').matches ? 24 : 60;
 
 let regionNames = null;
 try { regionNames = new Intl.DisplayNames(['en'], { type: 'region' }); } catch { /* old browser */ }
@@ -1346,6 +1348,11 @@ function ensureViz() {
       });
     }
     if (S.m === 'map' && !map) {
+      // Leaflet (~150 KB) loads on first Map open, not at startup (PERF-3).
+      if (typeof L === 'undefined') {
+        if (!leafletLoading) loadLeaflet().then(scheduleRender, (err) => { vizError = err; scheduleRender(); });
+        return;
+      }
       map = createMap($('#mapHost'), {
         onSelect: (job) => job && openDrawer(job.id),
         onAreaSelect: (jobs, label) => setArea('map', jobs, label),
@@ -1358,6 +1365,27 @@ function ensureViz() {
   }
 }
 
+let leafletLoading = null;
+function loadLeaflet() {
+  return leafletLoading ||= new Promise((resolve, reject) => {
+    const css = h('link', { rel: 'stylesheet', href: new URL('./vendor/leaflet/leaflet.css', import.meta.url).href });
+    document.head.insertBefore(css, document.querySelector('link[href$="viz/viz.css"]')); // viz/app overrides still win
+    const js = h('script', { src: new URL('./vendor/leaflet/leaflet.js', import.meta.url).href });
+    js.addEventListener('load', () => resolve());
+    js.addEventListener('error', () => { leafletLoading = null; js.remove(); reject(new Error('The map library (Leaflet) failed to load.')); });
+    document.head.append(js);
+  });
+}
+
+// Insights' panel module loads on first Insights open (it is not needed for the chart or map).
+let createInsights = null;
+let insightsLoading = null;
+function loadInsights() {
+  insightsLoading ||= import('./features/insights.js')
+    .then((m) => { createInsights = m.createInsights; scheduleRender(); })
+    .catch((err) => { insightsLoading = null; console.error('insights module failed', err); });
+}
+
 /** Insights mode: Compstimate (all jobs of the company) + market insights (filtered vs. all). */
 function renderInsights() {
   const host = $('#insightsHost');
@@ -1365,10 +1393,10 @@ function renderInsights() {
   if (host.hidden) return;
   try {
     if (!comp) comp = createCompstimateWidget($('#compHost'), { onSelect: (job) => job && openDrawer(job.id) });
-    if (!insights) insights = createInsights($('#insightsPanel'), { onFilter: onInsightFilter });
+    if (!insights) { if (createInsights) insights = createInsights($('#insightsPanel'), { onFilter: onInsightFilter }); else loadInsights(); }
     if (featSig.comp !== dataSeq) { featSig.comp = dataSeq; comp.update(data.jobs, data.meta); }
     const sig = `${dataSeq}|${derived.filtered.length}|${derived.filtered.map((j) => j.id).join(',')}`;
-    if (featSig.ins !== sig) { featSig.ins = sig; insights.update(derived.filtered, data.jobs); }
+    if (insights && featSig.ins !== sig) { featSig.ins = sig; insights.update(derived.filtered, data.jobs); }
   } catch (err) { console.error('insights failed', err); }
   // F1: "Compare companies" card (third Insights card), once product's comps module and market data exist.
   const cardHost = $('#compsCardHost');
@@ -1439,6 +1467,12 @@ function renderViz() {
 
   ensureViz();
   const inst = S.m === 'chart' ? chart : map;
+  if (!inst && S.m === 'map' && leafletLoading && !vizError) { // Leaflet still loading: keep the skeleton up
+    overlay.hidden = false;
+    overlay.classList.add('is-loading');
+    overlay.replaceChildren(h('div', { class: 'chart-skeleton', 'aria-label': 'Loading the map', role: 'status' }));
+    return;
+  }
   if (!inst) {
     overlay.hidden = false;
     overlay.replaceChildren(stateCard({ icon: ICON.alert, title: `${S.m === 'chart' ? 'Chart' : 'Map'} unavailable`, body: vizError ? String(vizError.message || vizError) : 'The visualization module failed to load.', tone: 'error' }));
@@ -1870,7 +1904,8 @@ function drawerContent(job) {
       h('button', { type: 'button', class: 'icon-btn icon-btn--sm', id: 'drawerPrev', 'aria-label': 'Previous role', html: ICON.prev, onclick: () => stepDrawer(-1) }),
       h('span', { class: 'drawer-pos', id: 'drawerPos' }),
       h('button', { type: 'button', class: 'icon-btn icon-btn--sm', id: 'drawerNext', 'aria-label': 'Next role', html: ICON.next, onclick: () => stepDrawer(1) })),
-    h('button', { type: 'button', class: 'icon-btn', id: 'drawerClose', 'aria-label': 'Close details (Esc)', html: ICON.close, onclick: () => closeDrawer() }));
+    // Phones show this as a "Back" arrow at the left of a full-screen page (styles.css).
+    h('button', { type: 'button', class: 'icon-btn', id: 'drawerClose', 'aria-label': 'Close details (Esc)', html: `<span class="ico-close">${ICON.close}</span><span class="ico-back">${ICON.prev}</span>`, onclick: () => closeDrawer() }));
 
   const sal = job.salary;
   const salaryBlock = h('section', { class: 'd-salary' },
