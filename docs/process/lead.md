@@ -155,3 +155,22 @@ screenshots in `docs/screenshots/`.
   isn't enabled on the repo yet (a user setting). Follow-ups: raise the
   built-in body cap and drop mistral (backend); lazy-load descriptions so
   bundles stay small (devops, ux).
+- 2026-10-02: USER-REPORTED BUG: anthropic job 5183044008 ("Anthropic
+  Fellows Program, AI Safety & Security") plotted at $4.6M. Root cause, found
+  from the real snapshot: no salary in the posting (only "Weekly stipend of
+  3,850 USD / 2,310 GBP / 4,300 CAD"); parseSalary matched "$4.6M" in the
+  sentence "AI agents find $4.6M in blockchain smart contract exploits". The
+  parser accepted money amounts with no pay context and has no stipend or
+  weekly interval support.
+  How the real data was obtained: the sandbox can't reach the boards, the
+  Pages site, or the artifact blob host, so the snapshot workflow
+  (snapshot.yml) was dispatched on this branch; its bot commit (acfeaa9) was
+  pulled. The 74 MB of snapshots were then untracked (gitignored); the
+  workflow uploads an artifact instead (devops).
+  User asked for LLM vetting with an audit trail, that it "NEVER happen
+  again", and outlier detection. Launched the data-vetting agent
+  (prompts/vetting.md): deterministic flag scan, review of every flagged job
+  plus a seeded stratified sample, verdicts.jsonl audit trail, parser fixes
+  with real-case regression fixtures, a runtime robust-z/Tukey outlier
+  quarantine shared by server and static modes, a CI gate in the Pages
+  workflow, and an optional Claude API vetting step for CI.
