@@ -469,6 +469,128 @@ node docs/process/scripts/boilerplate-report.mjs anthropic anduril openai   # BU
 - The " and " separator splits multi-word country names such as "Trinidad and
   Tobago". This is rare in job boards.
 
+## 6a. Lexicon review: proposals, NOT applied (sequenced after the perf work)
+
+**Method.** All 5,413 snapshot postings, normalized with the BUG-5 fix.
+Label counts come from the whole corpus. Precision was eyeballed from
+matched contexts in a 1/7 sample, using a ±50-character window around the
+pattern that fired. Co-occurrence was measured with Jaccard and P(b|a).
+Scratch scripts were used; replay them with the `ctx` and `pairs` logic
+described here.
+
+**A. Low-precision patterns** (the noisy pattern → the proposed change):
+1. **Skill "Alignment"** (736 jobs). The bare `alignment` pattern mostly
+   matches business language ("ensuring alignment between business
+   objectives", "driving alignment"). Drop the bare pattern and keep
+   `ai alignment`, `alignment research`, `alignment science` and
+   `superalignment`. Expect it to fall to roughly a fifth.
+2. **Skill "Docker"** (293). `containers?` matches ISO shipping containers
+   (data-center designs). Keep `docker`, `containeriz\w*` and
+   `container (orchestration|images?|runtime|security|hardening)`.
+3. **Skill "GPUs"**. `accelerators?` matches startup and "delivery
+   accelerators". Require hardware context (`accelerator (chips?|families|
+   hardware|clusters?)`) or co-occurrence with GPU, TPU or chip.
+4. **Skill "Inference"** collides with "causal inference" (Statistics).
+   Add a negative lookbehind: `(?<!causal |statistical |bayesian )inference`.
+5. **Skill "Speech / audio"**. `speech` matches "free speech" and
+   "protected speech" (xAI and trust & safety). Keep only `speech
+   recognition`, `text-to-speech`, `speech models?` and `audio models?`.
+6. **Skill "Excel"**. The case-sensitive `\bExcel\b` still fires on
+   sentence-initial "Excel at debugging…". Require `Excel(?! at\b|s\b)`,
+   or `(in|with|and) Excel`, or `Excel/`.
+7. **Skill "Observability"**. `monitoring` matches financial and control
+   monitoring. Keep `observability`, `prometheus`, `grafana`, `datadog`,
+   `opentelemetry` and `(system|infrastructure|production) monitoring`.
+8. **Skill "Composites"**. `composite` matches "composite tracking"
+   (radar). Keep only `composites` and `composite (materials|structures|
+   layup|manufacturing)`.
+9. **Skill "Power electronics"**. `batter(y|ies)` and `power systems` match
+   logistics ("hazmat rules for lithium batteries") and site generators.
+   Move them to a new "Batteries" label or drop them, and keep `power
+   electronics`.
+10. **Skill "Contract negotiation"**. `negotiat\w*` fires on any
+    negotiation (supplier, hiring). It is fine for sales, legal and
+    procurement, but it is noisy on engineering roles. Proposed:
+    `negotiat\w* (contracts?|agreements?|deals?|terms)` or `contract
+    negotiation`.
+11. **Responsibility "Security"** (1,238). `secure` ("secure executive
+    alignment", "secure deals"), `protect\w*` ("fire protection",
+    "lightning protection") and `threats?` fire on non-security roles.
+    Drop the bare `secure` and `protect\w*`, and keep `security` plus
+    `threat (model|detection|intel)\w*`.
+12. **Responsibility "Writing / docs"** (very high count).
+    `writ(e|ing)|document\w*` fires on "write code" and "construction
+    documents". Restrict it to `documentation`, `technical writing`,
+    `write (specs|docs|documentation|reports|policies|content)`,
+    `whitepapers?` and `blog`.
+13. **Responsibility "Design"**. `interfaces?` fires on "utility
+    interfaces" and "the interface between X and Y". Drop the bare
+    `interfaces?`, and keep `user interfaces?`, UI/UX, mockups,
+    wireframes and prototypes.
+14. **Responsibility "Customer-facing"**. `clients?` and `customers?`
+    match "internal clients" and "existing customers" in infra roles.
+    Proposed: `(external|enterprise)?\s?customers?` only in
+    customer-verb phrases (`work with|support|engage|partner with|for`),
+    or add an `internal clients?` exclusion.
+
+**B. Near-duplicates and overlapping chips** (corpus co-occurrence):
+
+| Pair | Counts | Jaccard | Proposal |
+|---|---|---|---|
+| skill "Simulation" / resp "Simulation" | 828 / 641 | 0.73 | Same signal in two facets. Keep the skill, drop the resp theme. |
+| skill "GTM" / resp "Go-to-market" | 528 / 794 | 0.54 (P(resp\|skill) 0.88) | Drop skill "GTM". "Go-to-market" is a responsibility, not a skill. |
+| skill "Marketing" / resp "Marketing" | 670 / 804 | 0.54 | Drop the skill (keep the resp theme). |
+| skill "Security" / resp "Security" | 1,266 / 1,238 | 0.51 | Keep both after fix A11 (skill = security engineering, resp = security work). Revisit. |
+| skill "Interpretability" / resp "Interpretability" | 18 / 10 | 0.56 | Drop the resp theme (the skill covers it). |
+| skill "Autonomy" / resp "Autonomy" | 1,202 / 656 | 0.39 | Drop the resp theme. |
+| skill "Program management" / resp "Program management" | 752 / 1,924 | 0.29 | Drop the skill (it's a responsibility). |
+| skill "Analytics" / resp "Analytics" | 850 / 2,665 | 0.22 | Drop the skill, and tighten the resp theme (bare `analy[sz]\w*` is very broad). |
+| skill "Evals" / resp "Evaluation" | 312 / 1,149 | 0.22 | Rename the resp theme "Model evaluation" and require model/eval context. `evaluat\w*` alone fires on "evaluate vendors". |
+| skill "Systems engineering" / resp "Systems engineering" | 434 / 220 | 0.29 | Drop the resp theme. |
+| skill "Data pipelines" / resp "Data pipelines" | 268 / 431 | 0.33 | Drop the skill. |
+| skill "Recruiting" / resp "Hiring" | 249 / 650 | 0.24 | Keep both. Skill = recruiting as a profession, resp = hiring for one's own team. |
+| fit "Bachelor's" / "Degree or equivalent" | 2,249 / 1,233 | 0.32 | Keep both (distinct meanings). |
+| fit "Leadership" / "Management experience" | 918 / 210 | 0.09 | Keep both. |
+| skill "Alignment" / fit "AI safety interest" | 736 / 420 | 0.30 | Revisit after fix A1. |
+
+"LLMs" vs "Large language models" is **already one label**. `LLMs`
+covers `llms?|large language models?|language models?|foundation
+models?|frontier models?`. LLMs and Transformers (Jaccard 0.05), and
+Machine learning and Deep learning (0.06), are distinct enough to keep.
+Kubernetes and Docker (0.45) stay separate (different tools).
+
+**C. Low-value labels.**
+- **No hits in 5,413 postings:** Objective-C, PHP, Elixir and Spring.
+  These are harmless, since a chip only shows when present. Keep them for
+  other boards.
+- **Fewer than 10 hits:** OCaml 3, scikit-learn 2, Ruby 2, Rails 2,
+  Django 3, Flask 4, HubSpot 6, SEO 6, Redis 6, Hugging Face 6,
+  Recommender systems 6, Triton 8. Keep them. The UI should show chips
+  for counts of 2 or more anyway.
+
+**Expected effect if all are applied.** Roughly −10 to −15% of chip
+assignments, concentrated in Alignment, Writing / docs, Security (resp),
+Design, Customer-facing and Analytics. Every change alters output, so it
+should land after the perf golden test, with that golden file
+re-baselined in the same change.
+
+## 6b. Perf coordination (keywords.js)
+I own `server/keywords.js`. I am not editing it until the backend's perf
+proposals arrive. I will then either implement the agreed changes myself
+or grant backend written, function-scoped permission (likely
+`compileLexicon`, `matchLexicon`, `extractKeywords` and
+`yearsOfExperience`). Output must stay byte-identical against backend's
+300-job golden test.
+
+Candidate ideas to review with backend:
+- One combined alternation pre-filter per label (`re.test` on a lowercased
+  haystack once).
+- Avoid re-joining haystacks.
+- Skip a label's patterns when a cheap literal pre-check (`includes`)
+  fails.
+
+Lexicon changes (§6a) come after that.
+
 ## 7. Change log
 - 2026-10-02: geo.js written (gazetteer, split, geocode). Removed the
   `Tokyo-to` pseudo-region so Tokyo's region is null.
@@ -501,3 +623,7 @@ node docs/process/scripts/boilerplate-report.mjs anthropic anduril openai   # BU
   `normalizeJobs` and `normalizeJob` take the per-board set and run the
   guard (`jobs.droppedKeywords`). demo.js gained realistic shared
   boilerplate. Added `docs/process/scripts/boilerplate-report.mjs`.
+- 2026-10-02: Lexicon review against real snapshots: 14 low-precision
+  pattern fixes and 15 near-duplicate or overlap decisions proposed in §6a.
+  **None applied** (they change output and are sequenced after the perf
+  wave). keywords.js is frozen pending backend perf proposals (§6b).
