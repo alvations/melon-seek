@@ -123,3 +123,52 @@ test/*.test.js             node --test                               [each owner
 - `public/app.js` owns state (company, mode chart|map, filters) mirrored in
   `location.hash`, fetching, filter panel, results list, job detail drawer,
   company switcher (+ "Add board" for custom greenhouse/ashby/lever slugs).
+
+---
+
+## v2 additions (2026-10-02): 1-up features (docs/strategy/ROADMAP.md §7)
+
+All existing fields keep their meaning. New fields are optional for readers;
+writers must emit them once their owner lands the change.
+
+**RawJob** adds:
+- `postedAt: ISO|null`: Greenhouse `first_published`, Ashby `publishedAt`,
+  Lever `createdAt`. (F4)
+- `reqId: string|null`: Greenhouse `internal_job_id`, `null` elsewhere. (F4)
+- `salary.zones?: number`: the count of structured pay tiers the adapter saw. (F2)
+
+**Job** adds:
+```js
+postedAt: ISO|null, firstSeenAt: ISO|null,            // F4
+ageDays: number|null, ageIsMinimum: boolean,          // F4
+freshness: "new"|"active"|"stale"|"evergreen"|null,   // F4 (≤7, 8–59, 60–179, ≥180 days)
+repost: { count, firstSeenAt } | null,                // F4
+salary: { ...existing, spread, zones, kind, source } | null, // F2 (+ vetting)
+salaryRaw?, salaryFlag?: { codes, reason },           // vetting quarantine (salary is then null)
+extras: { equity: boolean, bonus: boolean },          // F2
+juice: { best, byLocation } | null,                   // livability, attached in public/api.js
+```
+
+**`/api/jobs` response** adds `meta: { compstimate: { medianAbsPctError,
+within10Pct, n, seed, computedAt } | null, history: { since, runs } }`.
+
+**New endpoints and static files:**
+
+| Feature | Server | Static (Pages) |
+|---|---|---|
+| Cities (Juice) | `GET /api/cities` | `api/cities.json` |
+| Market comps (F1) | `GET /api/market` | `api/market.json` (≤150 KB, vetted salaries only, n ≥ 3 per cell, USD, `basis: "posted base pay ranges"`) |
+| History (F4) | merged on the server | `api/history/<slug>.json`: `id → [firstSeenAt, postedAt, repostCount]` |
+| CSV (F7) | `GET /api/export?company=` | `data/<slug>.csv` plus `data/README.txt` |
+| Browser lib | `GET /lib/<allowlisted>.js` | `lib/*.js` (allowlist in `server/lib-modules.js`) |
+
+**Packed list format:** `melon-packed-1` becomes `melon-packed-2` with the
+fields above, and the build's round-trip check covers them.
+
+**Shared FX:** `public/viz/palette.js` `FX_PER_USD` is the single source.
+Copies in `server/juice.js` and `server/salary.js` are guarded by
+`test/fx-consistency.test.js`.
+
+**UI simplicity budget:** ROADMAP §8 is binding. At most one new main-view
+control across all of these features: the conditional "Save" button. Modes
+stay Chart, Map and Insights. New drawer sections go in the fixed order.
