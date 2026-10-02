@@ -780,7 +780,8 @@ function makeSalary({ compact = false } = {}) {
     counts.forEach((c, i) => { bins[i].style.height = `${c ? Math.max(6, (c / max) * 100) : 0}%`; });
     const withSal = data.jobs.filter((j) => j._usd).length;
     const foreign = data.jobs.filter((j) => j._usd && j.salary.currency && j.salary.currency !== 'USD').length;
-    note.textContent = `${withSal} of ${data.jobs.length} roles list pay. A role matches if its range overlaps yours${foreign ? `; ${foreign} non-USD ranges compared in approx USD` : ''}.`;
+    const unclear = data.jobs.filter((j) => j.salaryFlag).length;
+    note.textContent = `${withSal} of ${data.jobs.length} roles list pay${unclear ? ` (${unclear} with unclear pay left out)` : ''}. A role matches if its range overlaps yours${foreign ? `; ${foreign} non-USD ranges compared in approx USD` : ''}.`;
     paint();
   }
   return { el, sync };
@@ -1239,16 +1240,10 @@ function renderViz() {
     vizSig[S.m] = sig;
     try {
       if (S.m === 'chart') chart.update(jobs, { view: S.v, groupBy: S.g, colorBy: colorBy() });
-      else if (mapFitPending) {
-        mapFitPending = false;
-        map.update(jobs, { fit: true });
-        fitMapToPins(jobs);
-        // Layout (banner, toolbar, fonts) can still shift this frame; refit once the container has its final size.
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          if (S.m !== 'map' || vizSig.map !== sig) return;
-          try { map.invalidateSize(); fitMapToPins(derived.filtered); } catch { /* ignore */ }
-        }));
-      } else map.update(jobs);
+      // Fit once per company load (map.js pads by half a pin, lowers minZoom as needed and
+      // waits for a hidden container to be sized); plain updates keep the user's viewport.
+      else if (mapFitPending) { mapFitPending = false; map.update(jobs, { fit: true }); }
+      else map.update(jobs);
     } catch (err) { console.error('viz update failed', err); }
   }
   highlightViz();
@@ -1288,29 +1283,6 @@ function setArea(kind, jobs, label) {
   resultsLimit = PAGE;
   scheduleRender();
   if (isMobile()) setSheet(true);
-}
-
-/**
- * Fit the first view so every price pin is fully visible: padding of ~half a pin
- * (pins are ~85px wide, centred on the point) and a min zoom low enough to show
- * boards that span SF–London–Tokyo in a ~700px column. Uses map.leaflet (escape hatch).
- */
-function fitMapToPins(jobs) {
-  const lm = map?.leaflet;
-  if (MOCK || location.hostname === 'localhost') window.__msDebug = { map, chart, lm };
-  const host = $('#mapHost');
-  if (!lm || !window.L || host.hidden || !host.clientWidth || !host.clientHeight) return;
-  const pts = [];
-  for (const j of jobs) for (const l of j.locations) if (!l.remote && l.lat != null && l.lng != null) pts.push([l.lat, l.lng]);
-  if (pts.length < 2) return;
-  const bounds = L.latLngBounds(pts);
-  const pad = [Math.min(96, host.clientWidth / 6), Math.min(64, host.clientHeight / 6)];
-  lm.invalidateSize({ pan: false });
-  const prevMin = lm.getMinZoom();
-  lm.setMinZoom(0); // getBoundsZoom clamps to minZoom, so measure unclamped first
-  const z = lm.getBoundsZoom(bounds, false, L.point(pad[0] * 2, pad[1] * 2));
-  lm.setMinZoom(Math.min(prevMin, Math.max(0.5, Math.floor(z * 2) / 2)));
-  lm.fitBounds(bounds, { paddingTopLeft: [pad[0], pad[1] + 20], paddingBottomRight: [pad[0], pad[1]], maxZoom: 11, animate: false });
 }
 
 function highlightViz() {
@@ -1383,11 +1355,13 @@ function card(job) {
   const isOpen = job.id === drawerJobId;
   const el = h('li', null, h('article', {
     class: `card${isOpen ? ' is-open' : ''}`, dataset: { id: job.id }, tabindex: '0', role: 'button',
-    'aria-label': `${job.title}, ${range || 'salary not listed'}, ${locSummary(job, 3)}`, style: `--stripe:${color}`,
+    'aria-label': `${job.title}, ${range || (job.salaryFlag ? 'pay unclear, see posting' : 'salary not listed')}, ${locSummary(job, 3)}`, style: `--stripe:${color}`,
   },
   h('div', { class: 'card-top' },
     h('h3', { class: 'card-title' }, job.title),
-    range ? h('span', { class: 'sal-pill' }, range) : h('span', { class: 'sal-pill sal-pill--none' }, 'No salary')),
+    range ? h('span', { class: 'sal-pill' }, range)
+      : job.salaryFlag ? h('span', { class: 'sal-pill sal-pill--unclear', title: job.salaryFlag.reason || 'Pay unclear' }, 'Pay unclear')
+        : h('span', { class: 'sal-pill sal-pill--none' }, 'No salary')),
   h('div', { class: 'card-meta' },
     h('span', { class: 'card-dot', style: `--dot:${color}`, 'aria-hidden': 'true' }),
     h('span', { class: 'card-dept' }, deptKey(job)), h('span', { class: 'sep', 'aria-hidden': 'true' }, '·'),
@@ -1517,6 +1491,20 @@ function salaryDistribution(job) {
 
 const INTERVAL_ADJ = { hour: 'hourly', day: 'daily', week: 'weekly', month: 'monthly', year: 'annual' };
 
+/** Salary quarantined by the server's vetting gate (salary null + salaryFlag): say so, keep the reason one click away. */
+function payUnclearBlock(job) {
+  const raw = job.salaryRaw;
+  const rawText = raw?.text || (raw && raw.min != null ? `${money(raw.min, raw.currency)}–${money(raw.max ?? raw.min, raw.currency)}` : null);
+  return h('div', { class: 'd-sal-none d-sal-unclear' },
+    h('strong', null, 'Pay unclear, see posting'),
+    h('span', { class: 'muted' }, ' — the listed figure didn\u2019t pass our sanity checks, so it\u2019s left out of charts and medians.'),
+    h('details', { class: 'd-unclear' }, h('summary', null, 'Why?'),
+      h('p', null, job.salaryFlag?.reason || 'The pay information looked implausible.'),
+      rawText ? h('p', { class: 'muted' }, 'As parsed: ', h('code', null, rawText)) : null,
+      h('a', { href: job.url, target: '_blank', rel: 'noopener noreferrer' }, 'Check the posting')),
+    compstimateBlock(job));
+}
+
 /** For postings without pay: an estimate from comparable roles, clearly labelled as such. */
 function compstimateBlock(job) {
   let est = null;
@@ -1570,7 +1558,8 @@ function drawerContent(job) {
     sal ? h('div', { class: 'd-sal-top' },
       h('div', null, h('div', { class: 'd-sal-amt' }, salaryRange(sal)), h('div', { class: 'muted' }, `${sal.currency || 'USD'} · per year`), annualNote(sal)),
       pct != null ? h('div', { class: 'd-pct' }, h('div', { class: 'd-pct-num' }, pct >= 100 ? 'Top' : `${pct}%`), h('div', { class: 'muted' }, pct >= 100 ? 'paid here' : 'percentile')) : null)
-      : h('div', { class: 'd-sal-none' }, h('strong', null, 'Salary not listed'), h('span', { class: 'muted' }, ' — this posting doesn\u2019t include a pay range.'), compstimateBlock(job)),
+      : job.salaryFlag ? payUnclearBlock(job)
+        : h('div', { class: 'd-sal-none' }, h('strong', null, 'Salary not listed'), h('span', { class: 'muted' }, ' — this posting doesn\u2019t include a pay range.'), compstimateBlock(job)),
     sal ? salaryDistribution(job) : null,
     sal && pct != null ? h('p', { class: 'd-pct-text' }, pct >= 100 ? `Top-paid role at ${company.name || job.companyName}` : `Pays more than ${pct}% of roles at ${company.name || job.companyName}`) : null);
 

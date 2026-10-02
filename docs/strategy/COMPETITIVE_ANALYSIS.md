@@ -240,7 +240,7 @@ verified against the repo and real snapshots [L].
 |---|---|---|---|---|---|---|---|
 | Posted pay shown when the employer gives it | ● 85% of postings carry a range [L] | ● | ● (≈50% of US postings) | ● "Employer provided" | ◐ | ● | – |
 | Estimate when no pay is posted | ● Compstimate | ● estimated salary | ● Indeed estimate | ● "Glassdoor est." | – | ◐ | – |
-| Published accuracy of that estimate | – | – | – | ◐ (range-accuracy study) | – | – | – |
+| Published accuracy of that estimate | – | – | – | ◐ (studies posted ranges, not its estimate) | – | – | – |
 | Whole-board pay chart (every posting on one axis) | ● clusters and ranges | – | – | – | – | ◐ (self-reported, not postings) | – |
 | Map view | ● price-tag pins | – | ◐ (unverified) | ◐ Job Explorer | ◐ location/commute filter | ● heatmap | – |
 | Same role compared across companies | – (one company at a time) | – | – | ◐ (salary pages) | – | ● | ◐ (threads) |

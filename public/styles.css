@@ -816,3 +816,11 @@ html[data-mode="insights"] .viz-controls { display: none; }
   .company-menu-btn .company-count { display: none; }
   .topbar .seg button { padding: 0 8px; }
 }
+
+/* Salary quarantined by the vetting gate */
+.sal-pill--unclear { background: var(--ms-amber-bg); color: var(--ms-amber); font-weight: 600; cursor: help; }
+.d-unclear { margin-top: 8px; font-size: 12.5px; }
+.d-unclear > summary { cursor: pointer; color: var(--ms-accent); font-weight: 600; width: fit-content; border-radius: 4px; }
+.d-unclear p { margin: 6px 0; }
+.d-unclear code { font: 11.5px var(--ms-mono); }
+.d-unclear a { color: var(--ms-accent); font-weight: 600; }
