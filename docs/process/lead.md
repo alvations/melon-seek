@@ -174,3 +174,10 @@ screenshots in `docs/screenshots/`.
   with real-case regression fixtures, a runtime robust-z/Tukey outlier
   quarantine shared by server and static modes, a CI gate in the Pages
   workflow, and an optional Claude API vetting step for CI.
+- 2026-10-02: lead quick scan of real snapshots (node one-liner: max > $1.2M,
+  min < $15K, M/B suffix in text). Found 4 bug classes, sent to vetting:
+  prose money read as pay (anthropic Fellows x2 "$4.6M"; scaleai "Strategist,
+  Qatar" "$500K to $5M"); merged pay tiers with an implausible min (anduril
+  x3, e.g. "12,600–167,000 USD"); wrong interval label (shieldai
+  "88,000–130,000 USD per-month-salary" → $1.56M/yr); possible missed
+  salaries (xai 134/297 and scaleai 131/194 salaried).
