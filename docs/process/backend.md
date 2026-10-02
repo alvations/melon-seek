@@ -157,7 +157,59 @@ Files owned: `server/index.js`, `server/companies.js`, `server/sources/{greenhou
     - A test checks that the allowlist is closed under relative imports (juice → geo, normalize → vet → salary, ...)
       and has no Node imports. `normalizeJobs` already calls `vetSalaries`, so live data fetched through
       `lib/normalize.js` is vetted; vetting twice is idempotent.
-14. **snapshot script.** `npm run snapshot -- anthropic anduril openai` runs the given slugs; with no args it runs
+14. **F4 listing history (ROADMAP §6.2 Top 3, §7.1).**
+    - *Adapters:* `postedAt` comes from Greenhouse `first_published`, Ashby `publishedAt` and Lever `createdAt`,
+      normalized to a UTC ISO string by `isoOrNull` in `sources/util.js`. `reqId` is Greenhouse `internal_job_id`
+      as a string and `null` elsewhere. `updatedAt` is unchanged. normalize copies both onto the Job.
+      Age is never derived from `updatedAt`, because Greenhouse bulk edits reset it.
+    - *`server/history.js`* is pure and browser-safe, and is in `lib-modules.js`. The locked exports are
+      `updateLedger(prev, jobs, fetchedAt)`, `annotate(jobs, ledger, fetchedAt)`, `fromCompact(compact)` and
+      `ledgerMeta(ledger)`. It also exports `compactLedger`, `diffLedger`, `fingerprint` and `freshnessFor`.
+    - *Ledger format `melon-history-1`:* one small plain-JSON file per company, `data/history/<slug>.json`. The
+      header holds `since`, `lastRunAt` and `runs`. Each job id maps to `{f: firstSeenAt, l: lastSeenAt,
+      p: postedAt, k: fingerprint, r?: reqId, c?: closedAt, n?: repostCount, o?: chain firstSeenAt,
+      s?: successor id}`. The fingerprint is an FNV-1a hash (base36) of the normalized title, department and
+      primary location, so it stays short. `scripts/history.js` writes one entry per line with sorted ids, which
+      keeps diffs readable if a data branch is chosen later. Measured size: 72 KB for anthropic's 638 jobs
+      (about 113 B/job, so roughly 0.6 MB for 5.4k postings). The test caps 5,413 synthetic jobs at 1.5 MB.
+    - *Rules:*
+      - An id missing from a run gets `closedAt` set to that run.
+      - An id that comes back is **reopened**: firstSeenAt is kept and it is not a repost.
+      - A **repost** is a new id matching a closed, unconsumed entry, either by fingerprint within 30 days of the
+        close, or by the same Greenhouse `internal_job_id` at any time. Two open postings that share a reqId
+        (one requisition posted in several places) are **not** reposts.
+      - Repost chains carry the count and the original firstSeenAt.
+      - Closed entries are pruned after 400 days.
+      - Replayed or out-of-order runs (`fetchedAt` not newer than `lastRunAt`) and empty job lists return
+        `prev` unchanged.
+    - *annotate:*
+      - `postedAt` is the job's own, else the ledger's. `firstSeenAt` comes only from the ledger.
+      - `ageDays` comes from postedAt, else firstSeenAt.
+      - `ageIsMinimum` is true when the age comes from a firstSeenAt that equals the ledger's first run
+        (the posting may be older).
+      - `freshness` is new ≤7, active 8–59, stale 60–179 and evergreen ≥180 days. For a minimum age only
+        `evergreen` is certain, so lower buckets become `null`.
+      - `repost` is `{count, firstSeenAt}` or `null`.
+      - The server computes ages as of **now**, not the data's fetchedAt, so a 3-day-old snapshot still shows
+        current ages.
+    - *Compact (static) form:* `compactLedger()` emits the contract's
+      `{id: [firstSeenAt, postedAt, repostCount]}` for open entries only. Reposts carry an optional 4th element,
+      the chain's first firstSeenAt, so the drawer can say since when; 3-element readers are unaffected.
+      `fromCompact()` rebuilds a ledger: `since` is the earliest firstSeenAt and `runs` is null, because the
+      compact map has no header.
+    - *Capture:* `scripts/snapshot.js` is now an exported `runSnapshot(targets, {fetchLive, outDir, historyDir,
+      now, log, error})` with a thin CLI. After writing a snapshot it calls `recordRun(slug, jobs, fetchedAt)`
+      from `scripts/history.js`. A failed or empty fetch writes neither a snapshot nor the ledger. A ledger write
+      error is logged and leaves the snapshot in place. A corrupt ledger throws and is never overwritten.
+      CLI: `node scripts/history.js [stats [slug...]]` prints a summary, and
+      `node scripts/history.js record [slug...]` replays `data/snapshots/<slug>.json` into the ledger, which can
+      seed it from downloaded snapshot artifacts; older runs are ignored. `MELON_HISTORY_DIR` overrides the folder.
+    - *Server:* `/api/jobs` annotates every mode (live, cache, snapshot, demo) from `data/history/<slug>.json`,
+      reloaded when its mtime or size changes. Results are memoized per jobs array, ledger version and hour. It
+      adds `meta: { compstimate: null, history: ledgerMeta(ledger) }`; F3 fills `compstimate` later.
+      The server does not write ledgers itself; only snapshot runs do.
+    - *Persistence:* the interim decision is workflow artifacts, owned by devops (`.github/scripts/ledger.sh`).
+15. **snapshot script.** `npm run snapshot -- anthropic anduril openai` runs the given slugs; with no args it runs
    every built-in. A `source:board` argument selects a custom board. It writes only live results; a failed or
    empty fetch is logged and skipped, so it never writes demo data. It exits 1 only if every slug failed.
 
@@ -214,6 +266,19 @@ treated as a file. The `npm test` script is now `node --test test/*.test.js`.
   - The allowlist is closed under imports.
   - My 3 files: 65 pass, 0 fail. The full `npm test` had 4 failures at the time, all FX expectations in
     `test/features.test.js` and `test/juice.test.js` (other workstreams' FX tables were changing concurrently).
+- F4 tests:
+  - `test/history.test.js` (14 tests): new, unchanged, closed and reopened entries; failed, empty and replayed
+    runs; repost by fingerprint (chained, consumed once); no repost outside the window or with a different
+    department or location; reqId reposts plus concurrent shared reqIds; pruning; freshness thresholds 7/8, 59/60
+    and 179/180; annotate with postedAt, firstSeenAt, minimum ages and missing dates, ignoring `updatedAt`;
+    the repost field; compact round-trip; fingerprint normalization; size; `recordRun` (an empty run leaves the
+    file byte-identical with the same mtime; a corrupt file is not overwritten); `runSnapshot` (success records,
+    and failed, empty and mixed runs leave the ledger alone).
+  - Adapter fixture test for `postedAt` and `reqId` (Greenhouse `first_published` added to the fixture).
+  - Server test: annotation and `meta.history` from a written ledger, reload on change, demo jobs carry the fields,
+    and `/lib/history.js` is served. `npm test`: 187 pass, 0 fail.
+  - CLI smoke test: `history.js record anthropic` on the real committed snapshot recorded 638 open jobs (72 KB);
+    a second `record` of the same snapshot reported "unchanged".
 - Demo fallback works for all 8 built-ins (offline `getJobs`): 74–120 jobs each.
 - Manual run against the real demo data: anthropic 111 jobs (96 with salary), anduril 120 (105), openai 120 (110).
   All jobs have locations. The demo jobs without a salary contain no currency amounts, so they are meant to have none.
@@ -249,3 +314,6 @@ treated as a file. The `npm test` script is now `node --test test/*.test.js`.
 - 2026-10-02 (Juice integration): `data/cities.json` is loaded at startup and served at `/api/cities` (max-age=3600,
   ETag, reload on mtime change, plus a `/api/cities.json` alias). `/lib/` serves the browser-safe allowlist from the new
   shared `server/lib-modules.js` (decision 13). Tests cover allowed, disallowed and traversal requests.
+- 2026-10-02 07:20 UTC: F4 ledger capture. Adapters emit `postedAt` and `reqId`. Added `server/history.js` (locked
+  exports), `scripts/history.js`, and `runSnapshot` with ledger capture. The server annotates jobs and adds
+  `meta.history` (decision 14). F1, F3, F7 and extras come next.

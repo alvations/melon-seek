@@ -820,7 +820,16 @@ export function attachJuice(job, cities, opts = {}) {
   if (!byLocation.length) return job;
   const best = byLocation.reduce((a, b) => (b.score > a.score || (b.score === a.score && b.net > a.net) ? b : a));
   const { locationName, ...bestRest } = best;
-  job.juice = { best: { ...bestRest, locationName }, byLocation, salaryUSD: Math.round(salaryUSD) };
+  // Payload guard: full `inputs` (~1.5 KB) stay on `best`; other locations keep confidence only
+  // unless opts.inputs === 'all' ('none' drops them everywhere). computeJuice itself always
+  // returns inputs, so a drawer can recompute any location in the browser.
+  const mode = opts.inputs || 'best';
+  const strip = (e) => { const { inputs, ...rest } = e; return rest; };
+  job.juice = {
+    best: mode === 'none' ? strip({ ...bestRest, locationName }) : { ...bestRest, locationName },
+    byLocation: mode === 'all' ? byLocation : byLocation.map(strip),
+    salaryUSD: Math.round(salaryUSD),
+  };
   return job;
 }
 

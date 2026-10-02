@@ -406,7 +406,10 @@ export function parseSalary(text, { countries = [] } = {}) {
   }
   let t = flat(s.slice(start, end));
   if (t.length > 160) t = `${t.slice(0, 157)}...`;
-  const out = { min: round2(lo), max: round2(hi), currency: best.currency, interval: best.interval, text: t, kind: best.kind };
+  // zones: distinct pay ranges in the posting (tiers, locations, levels); one
+  // amount offered in several currencies is one zone.
+  const zones = new Set(cands.map((c) => `${c.lo}|${c.hi}|${c.currency}|${c.interval}`)).size;
+  const out = { min: round2(lo), max: round2(hi), currency: best.currency, interval: best.interval, text: t, kind: best.kind, zones: Math.max(1, zones) };
   if (best.intervalCorrected) Object.assign(out, { intervalCorrected: true, statedInterval: best.statedInterval });
   return out;
 }
@@ -414,7 +417,8 @@ export function parseSalary(text, { countries = [] } = {}) {
 /**
  * Convert a raw/structured or parsed salary into the Job salary shape:
  * { min, max, mid (annualized), currency, interval: "year", text, kind,
- *   source?, originalInterval?, intervalCorrected?, statedInterval?, ranges? }.
+ *   spread (max ÷ min), zones (>= 1), source?, originalInterval?,
+ *   intervalCorrected?, statedInterval?, ranges? }.
  * A stated interval that makes the pay implausible while the raw numbers are a
  * plausible annual salary (Lever "88,000–130,000 USD per-month-salary") is
  * read as annual and marked intervalCorrected. Returns null when annualized
@@ -449,6 +453,9 @@ export function toJobSalary(sal, { source } = {}) {
     currency: cur, interval: 'year',
     text: sal.text || null, kind,
   };
+  // F2 pay-clarity fields: spread = max ÷ min (2 decimals), zones = distinct pay ranges (>= 1).
+  out.spread = Math.round((aMax / aMin) * 100) / 100;
+  out.zones = Math.max(1, Math.round(Number(sal.zones) || 1));
   const src = source || sal.source;
   if (src) out.source = src;
   if (interval !== 'year') out.originalInterval = interval;

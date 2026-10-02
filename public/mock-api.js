@@ -1,4 +1,5 @@
 // melon·seek — development mock of the HTTP API (loaded only with ?mock=1).
+import { roleFamily } from './features/compstimate.js';
 // Synthesizes deterministic, contract-shaped Jobs so the UI can be built
 // without the backend. Never used in normal operation.
 
@@ -198,9 +199,27 @@ function makeJobs(company) {
       sections,
       keywords,
       juice: mockJuice(salary, locations),
+      ...listingFields(r, updatedAt),
+      extras: { equity: r() < 0.55, bonus: r() < 0.3 },
     });
+    if (salary) {
+      salary.spread = Math.round((salary.max / salary.min) * 100) / 100;
+      salary.zones = r() < 0.12 ? 2 + Math.floor(r() * 2) : 1;
+    }
   }
   return jobs;
+}
+
+// F4 listing fields (contract v2). Ledger "started" 400 days before the mock's today.
+const MOCK_TODAY = Date.parse('2026-10-02T12:00:00Z');
+function listingFields(r, updatedAt) {
+  const age = Math.floor(Math.pow(r(), 1.8) * 420);
+  const minimum = age > 380;
+  const postedAt = minimum ? null : new Date(MOCK_TODAY - age * 864e5).toISOString();
+  const firstSeenAt = new Date(MOCK_TODAY - Math.min(age, 380) * 864e5).toISOString();
+  const freshness = age <= 7 ? 'new' : age < 60 ? 'active' : age < 180 ? 'stale' : 'evergreen';
+  const repost = r() < 0.07 ? { count: 1 + Math.floor(r() * 3), firstSeenAt: new Date(MOCK_TODAY - (age + 60) * 864e5).toISOString() } : null;
+  return { postedAt, firstSeenAt, ageDays: minimum ? 380 : age, ageIsMinimum: minimum, freshness, repost, updatedAt };
 }
 
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
@@ -226,6 +245,7 @@ export async function mockApi(path) {
       error: mode === 'demo' ? `fetch ${company.source}/${company.board} failed: getaddrinfo ENOTFOUND api.${company.source}.io` : null,
       // Like the static deploy: the list omits descriptionHtml; getJobDetail() supplies it.
       jobs: makeJobs(company).map(({ descriptionHtml, ...rest }) => rest),
+      meta: { compstimate: { medianAbsPctError: 0.14, within10Pct: 0.41, n: 96, seed: 1, computedAt: new Date().toISOString() }, history: { since: '2025-08-28T00:00:00Z', runs: 400 } },
     };
   }
   throw new Error('404 ' + url.pathname);
@@ -248,4 +268,31 @@ export async function getJobDetail(job) {
   }
   if (job.title.includes('Intern')) throw new Error('mock: detail unavailable'); // exercises the failure path
   return { ...job, descriptionHtml: detailCache.get(job.id) || '' };
+}
+
+/** F1 market comps fixture: per company × role family × seniority, n ≥ 3, posted base pay (approx USD). */
+let marketCache = null;
+export async function getMarket() {
+  await delay(120);
+  if (marketCache) return marketCache;
+  const q = (a, p) => { const s = a.slice().sort((x, y) => x - y); const i = (s.length - 1) * p; const lo = Math.floor(i); return Math.round(s[lo] + (s[Math.ceil(i)] - s[lo]) * (i - lo)); };
+  const cells = [];
+  for (const c of COMPANIES) {
+    const groups = new Map();
+    for (const j of makeJobs(c)) {
+      if (!j.salary) continue;
+      const fam = roleFamily(j.title);
+      if (!fam) continue;
+      const k = `${fam}|${j.seniority}`;
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(j.salary.mid * (FX[j.salary.currency] ?? 1));
+    }
+    for (const [k, mids] of groups) {
+      if (mids.length < 3) continue;
+      const [family, seniority] = k.split('|');
+      cells.push({ company: c.slug, name: c.name, family, seniority, n: mids.length, p25: q(mids, 0.25), median: q(mids, 0.5), p75: q(mids, 0.75) });
+    }
+  }
+  marketCache = { basis: 'posted base pay ranges', currency: 'USD', generatedAt: new Date().toISOString(), cells };
+  return marketCache;
 }

@@ -40,6 +40,7 @@ function h(tag, attrs, ...kids) {
 
 const ICON = {
   cluster: '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="6" cy="10" r="2.2"/><circle cx="12.5" cy="6.5" r="2.2"/><circle cx="13" cy="13.5" r="2.2"/></svg>',
+  bookmark: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 3.5h8v13l-4-3-4 3z"/></svg>',
   info: '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M10 9v4.5M10 6.3v.2"/></svg>',
   pin: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 17s5-4.6 5-8.5a5 5 0 0 0-10 0C5 12.4 10 17 10 17Z"/><circle cx="10" cy="8.5" r="1.8"/></svg>',
   close: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg>',
@@ -54,6 +55,11 @@ const ICON = {
   alert: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3 2.5 16.5h15L10 3Z"/><path d="M10 8v4M10 14.2v.3"/></svg>',
 };
 
+const FAMILY_LABEL = {
+  swe: 'Software engineering', ml: 'ML & research', data: 'Data', 'eng-manager': 'Engineering management', design: 'Design',
+  product: 'Product', program: 'Program & operations', security: 'Security', hardware: 'Hardware', sales: 'Sales & solutions',
+  marketing: 'Marketing', support: 'Support', legal: 'Legal & policy', people: 'People & recruiting', finance: 'Finance',
+};
 const SENIORITY_ORDER = ['Intern', 'Entry', 'Mid', 'Senior', 'Staff+', 'Manager', 'Director+', 'Unspecified'];
 const SOURCE_LABEL = { greenhouse: 'Greenhouse', ashby: 'Ashby', lever: 'Lever' };
 const FALLBACK_COMPANIES = [
@@ -567,6 +573,15 @@ function badgeInfo() {
   }
 }
 
+/** F7: open-data CSV for the current built-in company (server: /api/export, static: data/<slug>.csv). */
+function csvLink() {
+  const c = data.company;
+  if (MOCK || !c?.slug || isCustomKey(S.c) || data.status !== 'ready') return null;
+  const href = api.isStatic?.() ? `data/${encodeURIComponent(c.slug)}.csv` : `api/export?company=${encodeURIComponent(c.slug)}`;
+  return h('p', { class: 'badge-csv' }, h('a', { href, download: `${c.slug}-jobs.csv` }, 'Download CSV'),
+    h('span', { class: 'muted' }, ' · titles, teams, locations and posted pay; links to the original postings'));
+}
+
 function makeBadgeDetails() {
   const el = h('div', { class: 'badge-details' });
   function sync() {
@@ -581,7 +596,8 @@ function makeBadgeDetails() {
     el.replaceChildren(...nn(h('p', null, info?.tip || ''),
       h('dl', null, ...rows.map(([k, v]) => [h('dt', null, k), h('dd', null, v)])),
       data.error ? h('pre', { class: 'badge-error' }, data.error) : null,
-      MOCK ? null : h('button', { type: 'button', class: 'btn btn--ghost btn--sm btn--block', onclick: () => { closePopover(false); loadJobs({ refresh: true }); } }, 'Refresh from the live board')));
+      MOCK ? null : h('button', { type: 'button', class: 'btn btn--ghost btn--sm btn--block', onclick: () => { closePopover(false); loadJobs({ refresh: true }); } }, 'Refresh from the live board'),
+      csvLink()));
   }
   return { el, sync };
 }
@@ -636,8 +652,105 @@ function makeCompanyMenu() {
       h('span', { class: 'company-item-board' }, c.board), c.slug === S.c ? h('span', { class: 'company-item-check', 'aria-hidden': 'true' }, '✓') : null)),
     ]));
     if (!groups.length) list.append(h('p', { class: 'fnote' }, 'No matching company — add it as a board below.'));
+    const saved = loadSaved().filter((x) => !q || x.name.toLowerCase().includes(q));
+    if (saved.length) {
+      list.prepend(h('div', { class: 'check-group' }, 'Saved searches'), ...saved.map((x) => {
+        const n = savedNewCount(x);
+        return h('div', { class: 'saved-row' },
+          h('button', { type: 'button', class: 'company-item', role: 'option', 'aria-selected': 'false', title: x.name, onclick: () => openSaved(x) },
+            h('span', { class: 'saved-ico', html: ICON.bookmark }), h('span', { class: 'company-item-name' }, x.name),
+            n ? h('span', { class: 'saved-new' }, `${n} new`) : null),
+          h('button', { type: 'button', class: 'icon-btn icon-btn--sm', 'aria-label': `Remove saved search ${x.name}`, html: ICON.close, onclick: () => { removeSaved(x.id); sync(); } }));
+      }));
+    }
   }
   return { el, sync };
+}
+
+/* ---- F5: saved searches and "new since your last visit" (localStorage, try/catch) ---- */
+const SAVED_KEY = 'melon.saved';
+const seenKey = (slug) => `melon.seen.${slug}`;       // last visit ISO (per ROADMAP F5)
+const seenIdsKey = (slug) => `melon.seenIds.${slug}`; // ids seen then (fallback when there is no ledger)
+const jobCache = new Map(); // slug -> jobs loaded this session (for "N new" counts)
+let visit = { slug: null, since: null, seenIds: null };
+
+const lsGet = (k, fallback) => { try { const v = localStorage.getItem(k); return v == null ? fallback : JSON.parse(v); } catch { return fallback; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage blocked: feature degrades */ } };
+
+/** Remember this visit; keep the previous one for the session so "New" stays stable across refreshes. */
+function markVisit(slug, jobs) {
+  jobCache.set(slug, jobs);
+  if (visit.slug === slug) return;
+  const since = lsGet(seenKey(slug), null);
+  const ids = lsGet(seenIdsKey(slug), null);
+  visit = { slug, since: typeof since === 'string' ? since : null, seenIds: Array.isArray(ids) ? new Set(ids) : null };
+  lsSet(seenKey(slug), new Date().toISOString());
+  lsSet(seenIdsKey(slug), jobs.map((j) => j.id));
+}
+/** New = first seen after `since` (ledger), else an id we had not seen at that visit. */
+function isNewSince(job, since, seenIds) {
+  if (!since) return false;
+  if (job.firstSeenAt) return Date.parse(job.firstSeenAt) > Date.parse(since);
+  return seenIds ? !seenIds.has(job.id) : false;
+}
+const isNewJob = (job) => visit.slug === S.c && isNewSince(job, visit.since, visit.seenIds);
+
+function loadSaved() {
+  const v = lsGet(SAVED_KEY, []);
+  return Array.isArray(v) ? v.filter((x) => x && typeof x.hash === 'string' && typeof x.name === 'string' && x.id).slice(0, 50) : [];
+}
+const storeSaved = (list) => lsSet(SAVED_KEY, list);
+/** The shareable part of the state a saved search restores: company + filters + sort. */
+function searchHash(st = S) {
+  const x = structuredClone(DEFAULTS);
+  for (const k of ['c', 'cn', 'sort', ...FILTER_KEYS]) x[k] = structuredClone(st[k]);
+  return serialize(x);
+}
+function searchName(st = S) {
+  const parts = [];
+  if (st.q) parts.push(`“${st.q}”`);
+  const sal = quickLabel('salary'); if (sal) parts.push(sal);
+  if (st.rf) parts.push(FAMILY_LABEL[st.rf] || st.rf);
+  for (const k of ['s', 'd', 'l', 'ks', 'kr', 'kf', 'jg', 'e']) for (const v of st[k]) parts.push(v);
+  if (st.r !== 'any') parts.push(st.r === 'remote' ? 'Remote' : 'On-site');
+  if (st.p) parts.push(`listed ≤${st.p}d`);
+  const name = companyInfo(st.c)?.name || st.c;
+  return `${name} · ${parts.slice(0, 3).join(' · ')}${parts.length > 3 ? ` +${parts.length - 3}` : ''}`;
+}
+const currentSaved = () => { const hsh = searchHash(); return loadSaved().find((x) => x.hash === hsh) || null; };
+function matchingIds(hash, jobs) {
+  const F = filterSpec(parseHash(`#${hash}`)), now = Date.now();
+  return jobs.filter((j) => !failures(j, F, now).length).map((j) => j.id);
+}
+function toggleSave() {
+  const existing = currentSaved();
+  if (existing) { removeSaved(existing.id); toast('Removed saved search'); renderQuickbar(); return; }
+  const now = new Date().toISOString();
+  const hash = searchHash();
+  const entry = { id: Math.random().toString(36).slice(2, 10), name: searchName(), hash, createdAt: now, lastSeenAt: now, seen: matchingIds(hash, data.jobs).slice(0, 2000) };
+  storeSaved([entry, ...loadSaved()].slice(0, 50));
+  toast('Saved — find it in the company menu');
+  renderQuickbar();
+}
+function removeSaved(id) { storeSaved(loadSaved().filter((x) => x.id !== id)); }
+/** "N new" for a saved search, when that company's jobs are loaded this session. */
+function savedNewCount(x) {
+  const slug = parseHash(`#${x.hash}`).c;
+  const jobs = jobCache.get(slug);
+  if (!jobs) return 0;
+  const seen = Array.isArray(x.seen) ? new Set(x.seen) : null;
+  const ids = new Set(matchingIds(x.hash, jobs));
+  return jobs.filter((j) => ids.has(j.id) && isNewSince(j, x.lastSeenAt, seen)).length;
+}
+function openSaved(x) {
+  closePopover(false);
+  const list = loadSaved();
+  const slug = parseHash(`#${x.hash}`).c;
+  const jobs = jobCache.get(slug);
+  const entry = list.find((y) => y.id === x.id);
+  if (entry) { entry.lastSeenAt = new Date().toISOString(); if (jobs) entry.seen = matchingIds(x.hash, jobs).slice(0, 2000); storeSaved(list); }
+  history.pushState(null, '', `${location.pathname}${location.search}#${x.hash}`);
+  onHashChange();
 }
 
 function resetFiltersPatch() {
@@ -704,9 +817,24 @@ function renderQuickbar() {
   cnt.hidden = !n;
   cnt.textContent = n;
   $('#clearAll').hidden = !n && !area;
+  // F5: the one new main-view control — only when a filter is active.
+  const save = $('#saveSearch');
+  save.hidden = !n || data.status !== 'ready';
+  if (!save.hidden) {
+    const on = !!currentSaved();
+    save.setAttribute('aria-pressed', String(on));
+    save.querySelector('span:last-child').textContent = on ? 'Saved' : 'Save';
+    save.setAttribute('aria-label', on ? 'Saved search — remove it' : 'Save this search');
+    save.title = on ? 'Saved — click to remove. Saved searches are in the company menu.' : 'Save this search; the company menu will show new matches next time';
+  }
 
   for (const slot of [$('#areaChipTop'), $('#areaChipList')]) {
     slot.replaceChildren();
+    if (S.rf) {
+      const label = FAMILY_LABEL[S.rf] || S.rf;
+      slot.append(h('span', { class: 'area-chip' }, h('span', { class: 'area-label' }, `Role: ${label}`),
+        h('button', { type: 'button', class: 'area-x', 'aria-label': `Clear role filter ${label}`, html: ICON.close, onclick: () => set({ rf: '' }) })));
+    }
     if (area) {
       const count = derived.filtered.filter((j) => area.ids.has(j.id)).length;
       slot.append(h('span', { class: 'area-chip' },
@@ -1189,7 +1317,7 @@ let map = null;
 let comp = null;      // Compstimate widget (insights mode)
 let insights = null;  // Market insights panel (insights mode)
 let dataSeq = 0;      // bumps on every successful fetch
-const featSig = { comp: -1, ins: '' };
+const featSig = { comp: -1, ins: '', comps: '' };
 let mapFitPending = true;
 let colorKeys = new Set(); // keys the chart gives a slot; others render as Other
 const vizSig = { chart: '', map: '' };
@@ -1229,7 +1357,21 @@ function renderInsights() {
     const sig = `${dataSeq}|${derived.filtered.length}|${derived.filtered.map((j) => j.id).join(',')}`;
     if (featSig.ins !== sig) { featSig.ins = sig; insights.update(derived.filtered, data.jobs); }
   } catch (err) { console.error('insights failed', err); }
+  // F1: "Compare companies" card (third Insights card), once product's comps module and market data exist.
+  const cardHost = $('#compsCardHost');
+  if (featSig.comps !== `${dataSeq}|${S.c}`) {
+    featSig.comps = `${dataSeq}|${S.c}`;
+    loadComps().then((m) => {
+      if (!m?.createCompsCard) { cardHost.hidden = true; return; }
+      try {
+        if (!compsCard) compsCard = m.createCompsCard(cardHost, { onPickCompany: (slug, filters) => pickCompany(slug, filters), market: m.market });
+        compsCard.update?.(m.market, { company: S.c, jobs: data.jobs });
+        cardHost.hidden = false;
+      } catch (err) { console.warn('createCompsCard failed', err); cardHost.hidden = true; }
+    });
+  }
 }
+let compsCard = null;
 
 /** Map an insights click ({type, value}) onto the matching filter toggle. */
 function onInsightFilter({ type, value } = {}) {
@@ -1478,6 +1620,7 @@ function openDrawer(id, { fromHash = false } = {}) {
   if (S.job !== id) { S.job = id; commit({ replace: fromHash }); }
   const drawer = $('#drawer');
   drawer.replaceChildren(...drawerContent(job));
+  applyDrawerBudget();
   drawer.hidden = false;
   $('#drawerBackdrop').hidden = false;
   requestAnimationFrame(() => { drawer.classList.add('is-open'); $('#drawerBackdrop').classList.add('is-open'); });
@@ -1699,13 +1842,17 @@ function drawerContent(job) {
       type: 'button', class: 'kw', 'aria-pressed': String(S[key].includes(k)), title: S[key].includes(k) ? 'Remove filter' : 'Filter roles by this keyword',
       onclick: (e) => { toggleIn(key, k); e.currentTarget.setAttribute('aria-pressed', String(S[key].includes(k))); toast(S[key].includes(k) ? `Filtering by “${k}”` : `Removed “${k}”`); },
     }, k)))) : null));
-  const bullets = (title, arr) => (arr?.length ? h('section', { class: 'd-sec' }, h('h3', null, title), h('ul', { class: 'bullets' }, ...arr.map((b) => h('li', null, b)))) : null);
+  const bullets = (title, arr) => (arr?.length ? h('div', { class: 'd-bullet-group' }, h('h4', null, title), h('ul', { class: 'bullets' }, ...arr.map((b) => h('li', null, b)))) : null);
   const bulletsHost = h('div', { class: 'd-bullets' });
-  const renderBullets = () => bulletsHost.replaceChildren(...[bullets('What you\u2019ll do', job.sections.responsibilities), bullets('What they look for', job.sections.fit)].filter(Boolean));
-  renderBullets();
+  const bulletsFold = fold('d-about', 'About the role', bulletsHost);
+  const renderBullets = () => {
+    bulletsHost.replaceChildren(...[bullets('What you\u2019ll do', job.sections.responsibilities), bullets('What they look for', job.sections.fit)].filter(Boolean));
+    bulletsFold.hidden = !bulletsHost.childElementCount;
+    applyDrawerBudget();
+  };
   const desc = h('div', { class: 'desc' });
-  const descWrap = h('section', { class: 'd-sec d-desc is-collapsed' }, h('h3', null, 'Full description'), desc);
-  fillDescription(job, desc, descWrap, renderBullets);
+  const descWrap = fold('d-desc is-collapsed', 'Full description', desc);
+  queueMicrotask(() => { renderBullets(); fillDescription(job, desc, descWrap, renderBullets); });
   const descToggle = h('button', { type: 'button', class: 'link-btn d-desc-toggle', 'aria-expanded': 'false', onclick: (e) => {
     const c = descWrap.classList.toggle('is-collapsed');
     e.currentTarget.textContent = c ? 'Read full description' : 'Show less';
@@ -1732,7 +1879,7 @@ function drawerContent(job) {
     sal ? h('p', { class: 'd-pay-caption' }, 'Posted base pay. Equity and bonus aren\u2019t included.') : null,
     sal && pct != null ? h('p', { class: 'd-pct-text' }, pct >= 100 ? `Top-paid role at ${company.name || job.companyName}` : `Pays more than ${pct}% of roles at ${company.name || job.companyName}`) : null);
 
-  const locs = h('section', { class: 'd-sec' }, h('h3', null, job.locations.length > 1 ? `Locations (${job.locations.length})` : 'Location'),
+  const locs = fold('d-locs', job.locations.length > 1 ? `Locations (${job.locations.length})` : 'Location',
     h('ul', { class: 'loc-list' }, ...(job.locations.length ? job.locations.map((l) => h('li', null,
       h('span', { class: 'loc-ico', html: l.remote ? ICON.globe : ICON.pin }),
       h('span', null, l.name || [l.city, l.region].filter(Boolean).join(', ')),
@@ -1752,10 +1899,105 @@ function drawerContent(job) {
     h('div', { class: 'd-meta' }, ...[deptKey(job), job.team, job.employmentType].filter(Boolean).map((t, i) => [i ? h('span', { class: 'sep' }, '·') : null, h('span', null, t)]),
       h('span', { class: `sen sen--${(job.seniority || 'mid').toLowerCase().replace(/\W/g, '')}` }, job.seniority || '—')),
     job._ts ? h('div', { class: 'd-updated muted' }, `Updated ${ago(job._ts)}`) : null,
-    salaryBlock, juiceBlock(job), locs,
-    kwCat.some(Boolean) ? h('section', { class: 'd-sec' }, h('h3', null, 'Keywords ', h('span', { class: 'muted small' }, 'click to filter')), ...kwCat) : null,
-    bulletsHost,
+    // Fixed order (ROADMAP §8): pay block → Same role elsewhere → Listing → Locations → Keywords → Bullets → Description.
+    salaryBlock, juiceBlock(job),
+    sameRoleSection(job),
+    listingSection(job),
+    locs,
+    kwCat.some(Boolean) ? fold('d-kw', ['Keywords ', h('span', { class: 'muted small' }, 'click to filter')], ...kwCat) : null,
+    bulletsFold,
     descWrap), foot];
+}
+
+/** A drawer section that can collapse (details/summary). */
+function fold(cls, title, ...body) {
+  const d = h('details', { class: `d-sec d-fold ${cls || ''}`, open: true },
+    h('summary', null, h('h3', null, title), h('span', { class: 'fsec-caret', html: ICON.chevron })), ...body);
+  d.querySelector('summary').addEventListener('click', () => { d.dataset.touched = '1'; });
+  return d;
+}
+/** If more than 3 sections follow the pay block, the rest start collapsed (unless the user toggled them). */
+function applyDrawerBudget() {
+  const scroll = $('#drawer .drawer-scroll');
+  if (!scroll) return;
+  const folds = [...scroll.querySelectorAll(':scope > .d-fold')].filter((f) => !f.hidden);
+  folds.forEach((f, i) => { if (!f.dataset.touched) f.open = folds.length <= 3 || i < 3; });
+}
+
+/** F4 "Listing": listed / first seen / reposts, and one neutral line for long-open roles. */
+function listingSection(job) {
+  const lines = [];
+  const posted = job.postedAt ? Date.parse(job.postedAt) : null;
+  if (job._age != null && 'ageDays' in job) {
+    lines.push(job.ageIsMinimum
+      ? `Open at least ${plural(job._age, 'day')} (it was already listed when melon-seek started tracking this board)`
+      : `Listed ${job._age === 0 ? 'today' : `${plural(job._age, 'day')} ago`}${posted ? ` (${new Date(posted).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })})` : ''}`);
+  }
+  if (job.firstSeenAt) lines.push(`First seen by melon-seek on ${new Date(job.firstSeenAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`);
+  if (job.repost?.count > 0) lines.push(`Reposted ${job.repost.count}×${job.repost.firstSeenAt ? ` since ${new Date(job.repost.firstSeenAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}` : ''}`);
+  if (job.freshness === 'evergreen' || (job._age != null && job._age >= 180 && 'ageDays' in job)) {
+    lines.push('Open 180+ days. Some companies keep a posting open to collect applicants for a recurring role.');
+  }
+  if (!lines.length) return null;
+  return fold('d-listing', 'Listing', h('ul', { class: 'listing-lines' }, ...lines.map((t) => h('li', null, t))));
+}
+
+/* ---- F1: "Same role elsewhere" (product's compsForJob + viz's createCompsChart, loaded lazily) ---- */
+let compsPromise = null;
+async function fetchJson(path) {
+  const res = await fetch(path, { headers: { accept: 'application/json' } });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+function loadComps() {
+  if (!compsPromise) {
+    compsPromise = (async () => {
+      const [feat, viz] = await Promise.all([import('./features/comps.js').catch(() => null), import('./viz/comps.js').catch(() => null)]);
+      if (!feat?.compsForJob) return null;
+      const market = await Promise.resolve(dataApi.getMarket ? dataApi.getMarket() : fetchJson(api.isStatic?.() ? 'api/market.json' : 'api/market')).catch(() => null);
+      return market ? { ...feat, createCompsChart: viz?.createCompsChart, market } : null;
+    })();
+  }
+  return compsPromise;
+}
+/** Switch to another company with the matching role family and seniority filters (via the hash; Back returns). */
+function pickCompany(slug, filters = {}) {
+  if (!slug) return;
+  const known = allCompanies().find((c) => c.slug === slug);
+  if (drawerJobId) closeDrawer({ fromHash: true });
+  set({ ...resetFiltersPatch(), c: slug, cn: known?.custom ? known.name : '', job: null,
+    rf: filters.family || '', s: filters.seniority ? [filters.seniority] : [] });
+}
+function sameRoleSection(job) {
+  if (!job._usd || !job._family) return null;
+  const body = h('div', { class: 'comps-body' }, h('div', { class: 'sk sk-line', style: 'width:80%' }), h('div', { class: 'sk sk-line', style: 'width:60%' }));
+  const sec = fold('d-comps', 'Same role elsewhere', body);
+  loadComps().then((m) => {
+    if (!sec.isConnected && drawerJobId !== job.id) return;
+    let res = null;
+    try { res = m ? m.compsForJob(m.market, job) : null; } catch (err) { console.warn('compsForJob failed', err); }
+    const rows = (res?.rows || []).filter((r) => (r.slug ?? r.company) !== job.company);
+    if (!rows.length) { sec.hidden = true; applyDrawerBudget(); return; }
+    const family = FAMILY_LABEL[job._family] || job._family;
+    const bySen = res.matchedOn !== 'family';
+    const filters = { family: job._family, seniority: bySen ? job.seniority : null };
+    const chartHost = h('div', { class: 'comps-chart' });
+    body.replaceChildren(
+      h('p', { class: 'comps-note muted' }, bySen
+        ? `${job.seniority || 'Same level'} ${family.toLowerCase()} roles: median and middle 50% of posted base pay (approx USD).`
+        : `No other company lists this level, so this compares all ${family.toLowerCase()} roles.`),
+      chartHost);
+    if (m.createCompsChart) {
+      try { m.createCompsChart(chartHost, { onSelect: (slug) => pickCompany(slug, filters) }).update(rows); return; } catch (err) { console.warn('createCompsChart failed', err); }
+    }
+    // Fallback: a plain list (one row per company).
+    chartHost.replaceChildren(h('ul', { class: 'comps-list' }, ...rows.map((r) => h('li', null,
+      h('button', { type: 'button', class: 'comps-row', onclick: () => pickCompany(r.slug ?? r.company, filters), title: `Open ${r.name || r.slug} with these filters` },
+        h('span', { class: 'comps-name' }, r.name || r.slug || r.company),
+        h('span', { class: 'comps-med' }, money(r.median)),
+        h('span', { class: 'muted' }, `${compactRange(r.p25, r.p75)} · n=${r.n}`))))));
+  });
+  return sec;
 }
 
 /**
@@ -1766,7 +2008,7 @@ function fillDescription(job, desc, wrap, onSections = () => {}) {
   const toggle = () => wrap.querySelector('.d-desc-toggle');
   const show = (html) => {
     desc.replaceChildren(sanitizeHtml(html, job.url));
-    if (!desc.textContent.trim()) { wrap.hidden = true; return; }
+    if (!desc.textContent.trim()) { wrap.hidden = true; applyDrawerBudget(); return; }
     wrap.hidden = false;
     if (toggle()) toggle().hidden = false;
   };
@@ -1934,6 +2176,7 @@ function bindEvents() {
   });
   $('#sortBy').addEventListener('change', (e) => set({ sort: e.target.value }));
   $('#clearAll').addEventListener('click', clearFilters);
+  $('#saveSearch').addEventListener('click', toggleSave);
   $('#filtersClear').addEventListener('click', clearFilters);
   $('#filtersToggle').addEventListener('click', () => setFiltersOpen(!filtersAreOpen()));
   $('#filtersClose').addEventListener('click', () => setFiltersOpen(false));

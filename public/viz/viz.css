@@ -651,6 +651,7 @@
 .ms-comps__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--_text); }
 .ms-comps__n { flex: none; color: var(--_muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .ms-comps__row.is-current .ms-comps__label { font-weight: 700; }
+.ms-comps--narrow .ms-comps__n { display: none; } /* count stays in the tooltip and option name */
 .ms-comps__bar {
   position: absolute; top: 50%;
   height: 8px; margin-top: -4px;

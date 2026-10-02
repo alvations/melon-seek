@@ -38,11 +38,13 @@ restore_artifact() {
   # Newest first, non-expired, across every workflow that uploads the ledger.
   ids=$(gh api "repos/$repo/actions/artifacts?name=$ARTIFACT&per_page=100" \
           --jq '[.artifacts[] | select(.expired | not)] | sort_by(.created_at) | reverse | .[].workflow_run.id' 2>/dev/null || true)
+  local err
   for id in $ids; do
-    if gh run download "$id" --repo "$repo" --name "$ARTIFACT" --dir "$DIR" 2>/dev/null; then
+    if err=$(gh run download "$id" --repo "$repo" --name "$ARTIFACT" --dir "$DIR" 2>&1); then
       log "restored $(count) file(s) from artifact '$ARTIFACT' of run $id"
       return 0
     fi
+    echo "::warning::ledger: could not download '$ARTIFACT' from run $id: $(printf '%s' "$err" | head -1 | cut -c1-200)"
   done
   log "no '$ARTIFACT' artifact found; starting a fresh ledger"
 }

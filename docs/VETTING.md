@@ -27,6 +27,8 @@ the review that found the bugs is recorded.
 | `intervalCorrected`, `statedInterval` | The source's interval label made the pay implausible while the numbers are a plausible annual salary, so it was read as annual. Example: "88,000–130,000 USD per-month-salary" |
 | `ranges` | The per-tier list `[{min, max, currency, interval, label?}]` (source units) when the board gave several structured ranges |
 | `structuredRejected` | Codes of the hard check that rejected the structured value when the text value was used instead |
+| `spread` | max ÷ min, 2 decimals (F2 pay-clarity labels; "Wide range" when ≥ 2.0) |
+| `zones` | Number of distinct pay ranges in the posting, at least 1: the distinct pay-context ranges the text parser finds (one amount in several currencies counts once), merged (max) with the adapter's tier count (`payRanges.length`, or a raw `salary.zones`) |
 
 A quarantined job has `salary: null`. It keeps what was parsed in `salaryRaw` and
 gets `salaryFlag: { codes, reason }`, where `reason` starts with "Pay unclear:". Such
@@ -125,6 +127,16 @@ Human Frontier Collective" postings state $300/hr for a part-time expert
 contract. The reviewer verdict is `correct`, but the any-role $250/hr bound
 (lead decision) quarantines them. An annualized $624K for 10–20 hours a week
 would mislead the chart anyway.
+
+### Aggregates read vetted salaries only
+
+Every data path runs the gate: `normalizeJobs`, server responses, the static
+build and the browser (`public/api.js`). So `job.salary` is always the vetted
+value, and quarantined jobs have `salary: null`. Aggregates (market comps,
+the Compstimate backtest, medians) must read `job.salary` and never
+`salaryRaw`. Code that loads snapshot files directly (for example a market
+build script) should call `vettedSalaried(jobs)` from `server/vet.js`, which
+applies the gate per company and returns only jobs with a plotted salary.
 
 ## 4. Scan flags (`scripts/vet-salaries.js`)
 

@@ -91,6 +91,9 @@
     <div class="quick-chips" id="quickChips"></div>
     <div class="quickbar-end">
       <div id="areaChipTop"></div>
+      <button class="chip chip--save" id="saveSearch" type="button" aria-pressed="false" hidden>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 3.5h8v13l-4-3-4 3z"/></svg><span>Save</span>
+      </button>
       <button class="link-btn" id="clearAll" type="button" hidden>Clear all</button>
     </div>
   </nav>
@@ -138,6 +141,7 @@
       <div class="insights-host" id="insightsHost" hidden>
         <section class="insights-card" id="compHost" aria-label="Compstimate"></section>
         <section class="insights-card" id="insightsPanel" aria-label="Market insights"></section>
+        <section class="insights-card" id="compsCardHost" aria-label="Compare companies" hidden></section>
       </div>
     </main>
 

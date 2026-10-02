@@ -39,7 +39,32 @@ score   = 100 × ln(1 + net / $10,000) / ln(1 + $250,000 / $10,000), clamped to 
 | `rentBurden` | rent ÷ after-tax pay (0.30 = 30% of take-home goes to rent). |
 | `bigMacs` | net ÷ the country's Big Mac price: how many Big Macs a year of juice buys. |
 | `estimated` | `true` when an input is an estimate (cost-index proxy, approximate tax schedule). Show a "≈" or "est." marker. |
-| `rentBasis` | `'outside'` only when called with `{ rent: 'outside' }`. |
+| `rentBasis` | `'outside'` with `{ rent: 'outside' }`; `'override'` with `{ rentOverrideUSD }`. |
+| `confidence` | `"high"`, `"medium"` or `"low"`; see [Guardrails](#guardrails-inputs-confidence-rent-override). |
+| `inputs` | every input with its source and as-of date: `rent` (monthly USD/local, basis, class, source), `tax` (jurisdiction keys, effective rate, sources), `costIndex` (value, NYC baseline, class, source, method), `fx` (rate and where it came from), `bigMac`. |
+
+### Guardrails: inputs, confidence, rent override
+
+Required by the strategy review (ROADMAP §7.1 F8, D6). Every `computeJuice` result
+carries `inputs` and a `confidence`:
+
+- **Source class** of each dataset value (`sources.*.class` in cities.json):
+  `official` and `open` (and a user-entered rent, `user`) count as **high**, `aggregator`
+  (Numbeo, Zumper) as **medium**, `estimate` (proxies, derived) as **low**.
+- **Tax confidence:** a verified schedule is high; an unverified or approximate one is
+  medium; an estimated schedule (Switzerland, Finland) is low.
+- **Overall** = the lowest of rent, cost index and tax. **Outside the US it is "low"
+  unless both rent and cost index come from an official, open or user source.**
+- Today: US cities are medium (30) or low (10: cost-index proxies, approximate taxes);
+  all 49 non-US cities are low. Replacing Numbeo per §7 lifts US cities to high.
+- **Rent override:** `computeJuice(salaryUSD, city, { rentOverrideUSD })` takes the user's
+  own **monthly** rent in USD (0 is allowed; `null`/`undefined` means no override). It
+  replaces the dataset rent, sets `rentBasis: 'override'` and `inputs.rent.class: 'user'`.
+  It does not change the cost-index confidence, so a non-US city stays "low".
+  `attachJuice(job, cities, { rentOverrides: { [cityKey]: monthlyUSD } })` applies it per city.
+- **No rent:** a city whose rent is `null` (the plan in §7 leaves cities without an open
+  rent source that way) throws `err.code === 'NO_RENT'` unless an override is given;
+  attachJuice skips such locations.
 
 ### Score anchors and grades
 
@@ -104,6 +129,9 @@ Rules:
 - **Best:** the location with the highest score (ties: higher net).
 - **Proxies:** some suburbs use their metro's record (`nearby` in cities.json, e.g. Brooklyn
   uses New York, Herndon uses Reston). Those entries carry `proxy: true`.
+- **Payload:** full `inputs` (~1.5 KB) are kept on `best` only; `byLocation` entries keep
+  `confidence` but drop `inputs` (`opts.inputs: 'all'` keeps them, `'none'` drops them
+  everywhere). The drawer can recompute any location with `computeJuice` in the browser.
 
 `findCity(location, cities)` returns the city record for a Job location object
 (`{ city, region, country }`) or a raw string (geocoded with `server/geo.js`). It matches
@@ -278,6 +306,40 @@ each euro member (Ireland, Germany, France, ...) separately. All 33 countries in
 dataset are in the 2026-07-01 release. Countries without a Big Mac price (e.g. Kenya,
 Nigeria) were left out rather than estimated.
 
+### 4.1 Numbeo terms of use: reuse is not cleared
+
+Checked 2026-10-02 because the strategy research (ROADMAP S67) says Numbeo forbids reuse.
+The terms page ([numbeo.com/common/terms_of_use.jsp](https://www.numbeo.com/common/terms_of_use.jsp),
+with [Data License](https://www.numbeo.com/premium/commercial-license) and
+[API plans](https://www.numbeo.com/common/api.jsp)) was read through web-search summaries,
+because numbeo.com is blocked in the build sandbox; re-read the page itself before
+relying on the wording. What it says:
+
+- **Allowed, with credit (a link to Numbeo.com):** personal use, including personal blogs,
+  websites and social media; newspapers, journals, books, radio, TV and academic works.
+- **Otherwise prohibited without prior written permission:** "use, copy, reproduce,
+  distribute, display, modify, or create derivative works based on Numbeo's data".
+- **Automated collection** (scraping, crawling) is prohibited without written permission.
+- **Paid licences** (Data License, plans, API) are non-exclusive and time-limited, and do
+  **not** allow republication "through other APIs or public-facing data feeds" without
+  Numbeo's consent.
+
+**Assessment:** melon-seek is a product, not a personal blog or a journalistic or academic
+work. It republishes the figures in a public repository and (once wired) on GitHub Pages
+and `/api/cities`, which is a public-facing data feed, and it derives an index from them.
+That is outside the free uses and outside what even a paid licence allows without consent.
+No scraping took place (figures were read from search-engine snippets), but the terms
+restrict reuse regardless of how the figures were collected. **Treat the Numbeo figures as
+not cleared.** They stay in the dataset only until the user decides (ROADMAP D6). Each one is
+marked `class: "aggregator"` / `"estimate"` with `terms: "numbeo-terms"`, and
+`dataStatus.numbeo` says "UNDER REVIEW". The figures are already in the public git history
+(cities.json and the builder script), so a "remove" decision should also cover the builder's
+embedded figures.
+
+Also a correction to ROADMAP S68: the Big Mac **code** is MIT, but the **data** is CC BY 4.0
+(repository README, "Licence"). It is free to reuse with attribution, which the dataset and
+UI must keep.
+
 ### Estimates
 
 Marked `estimated: true` with a `method` in `sources.costIndex`. `computeJuice` then
@@ -348,3 +410,48 @@ The initial assembly is replayable with
 `node docs/process/scripts/livability-build-cities.mjs --csv <big-mac-source-data-v2.csv>`
 (it embeds every quoted figure with its page and month). After the first build, edit
 `data/cities.json` directly instead; re-running the builder overwrites it.
+
+## 7. Plan: replacing Numbeo with official and open sources
+
+Prepared for the user's decision (ROADMAP D6, recommended "US first, non-US marked low
+confidence"). Nothing has been deleted. Numbeo supplies 3 fields per city: centre rent,
+outside rent and the cost index (via the single-person basket), plus the NYC baseline. That is
+267 figures plus 1. Big Mac, FX and tax are already open or official.
+
+| Replaces | Open / official source | License | Notes |
+|---|---|---|---|
+| US rent (40 cities) | [HUD Fair Market Rents](https://www.huduser.gov/portal/datasets/fmr.html) FY2026, 1-bedroom by FMR area (metro), and **Small Area FMRs** by ZIP for a downtown ZIP as "centre" | US government, public domain | API needs a free token (secret `HUD_API_TOKEN`). FMR = 40th-percentile gross rent incl. utilities, so lower than asking rents. Document as "typical", not "city centre" |
+| US cost index | [BEA Regional Price Parities](https://www.bea.gov/data/prices-inflation/regional-price-parities-state-and-metro-area) by MSA (goods, utilities, other services; i.e. excluding housing), rescaled to New York MSA = 100 | public domain | MSA level: Palo Alto, Sunnyvale, etc. share the San Jose MSA value officially, which removes the 9 proxy estimates. API key `BEA_API_KEY` (free) |
+| NYC baseline | [BLS Consumer Expenditure Survey](https://www.bls.gov/cex/) one-person units (total − shelter − insurance/pensions − cash contributions) × New York MSA non-housing RPP | public domain | Larger basket than Numbeo's (includes healthcare, vehicles); anchors would need re-tuning |
+| Canada rent (4) | [CMHC Rental Market Survey](https://www.cmhc-schl.gc.ca/professionals/housing-markets-data-and-research/housing-data/data-tables/rental-market) 1-bedroom average by CMA and downtown zone | Open Government Licence, Canada | Has a real centre/outside split |
+| Canada cost index | [StatCan inter-city indexes of price differentials](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1810000301) × country price level | OGL Canada | official city factor |
+| UK rent (5) | [ONS Price Index of Private Rents](https://www.ons.gov.uk/economy/inflationandpriceindices/bulletins/privaterentandhousepricesuk/latest), one-bed mean by local authority (incl. Edinburgh) | OGL v3 | mean of all tenancies, no centre split |
+| Ireland (1) | [RTB Rent Index](https://www.rtb.ie/data-insights) / CSO PxStat RIQ02 by bedrooms, Dublin | CC BY 4.0 | new tenancies |
+| Australia (2), NZ (1) | [NSW Rent and Sales Report](https://dcj.nsw.gov.au/about-us/families-and-communities-statistics/housing-rent-and-sales/rent-and-sales-report.html), [Victoria Rental Report](https://www.dffh.vic.gov.au/publications/rental-report), [NZ Tenancy Services market rent](https://www.tenancy.govt.nz/rent-bond-and-bills/market-rent/) | CC BY 4.0 | bond data, by bedrooms and area |
+| Norway, Israel, Switzerland (4) | [SSB rental market survey](https://www.ssb.no/en/priser-og-prisindekser/boligpriser-og-boligprisindekser/statistikk/leiemarkedsundersokelsen), [CBS Israel average rent by rooms](https://www.cbs.gov.il/en/), [BFS average rent by rooms and canton](https://www.bfs.admin.ch/bfs/en/home/statistics/construction-housing/dwellings/rented-dwellings.html) | open (NLOD / CBS / OGD) | by number of rooms |
+| Rest of EU, JP, KR, SG, TW, HK, Dubai rent (17) | €/m² or local statistics: Destatis Census 2022, OLAP/OLL Paris, SERPAVI (ES), INE (PT), OMI (IT), Statistik Austria, SCB (SE), Statistics Finland, Japan Housing and Land Survey 2023, Korea REB, URA/HDB, MOI Taiwan, HK RVD, Dubai Pulse (DLD) | mostly open (CC BY / national open licences) | a size assumption (e.g. 45 m²) or dated survey turns them into **estimates (low)** |
+| Non-US cost index | [World Bank ICP 2021](https://www.worldbank.org/en/programs/icp) price levels for household consumption excluding housing (extrapolated with CPI and Big Mac FX), [Eurostat price level indices](https://ec.europa.eu/eurostat/web/purchasing-power-parities) for EU/EFTA (annual, more recent); **Big Mac dollar price ÷ US price** as the fallback where neither applies | CC BY 4.0 | country level only (no city factor except Canada, Japan's regional difference index); class `open`, confidence medium at best |
+| No open rent source (15) | Netherlands, Belgium, Denmark, Poland ×2, Czechia, Estonia, Abu Dhabi, Riyadh, India ×4, Mexico City, São Paulo | n/a | **rent `null`** (score only with the user's rent override) or drop the city; confidence low |
+
+**Resulting coverage** (89 cities): 44 with official rent and cost index (US 40, Canada 4),
+which can reach "high". 13 with official rent and a country-level open price index (UK 5,
+IE, AU 2, NZ, NO, IL, CH 2), "low" by the non-US rule until a city-level index exists, but
+much better sourced. 17 with official but size-assumed or dated rent (low). 15 without an
+open rent source (rent override only, or drop).
+
+**Effort** (developer-days, excluding review). The build sandbox cannot reach any of these
+hosts, so fetchers would be written against the documented formats with fixture files and
+first run in GitHub Actions:
+
+| Scope | Work | Days |
+|---|---|---:|
+| US official | HUD FMR + SAFMR and BEA RPP fetchers in `update-col.js`, 40-city crosswalk (FMR area, CBSA, downtown ZIP), BLS CE baseline, tests, re-tuned anchors | 2.5-3 |
+| Non-US minimum (D6 recommendation) | Drop Numbeo rents (set `null`, rent override only), country cost index from ICP/Eurostat with the Big Mac fallback, docs and UI labels | 1.5-2 |
+| Non-US official rents | 9 sources for the 13 "B" cities (manual yearly quotes ~2 days; automated parsers ~5) | 2-5 |
+| Non-US estimates | €/m²-based rents for the 17 "B−" cities, size assumptions documented | 3-4 |
+| **Total** | D6 recommendation (US official + non-US minimum) | **≈ 4-5** |
+| | Full global replacement | **≈ 10-14** |
+
+User actions needed: decide D6; register free HUD and BEA API keys and add them as
+repository secrets; decide whether the 15 cities without open rent data stay (override only)
+or go.

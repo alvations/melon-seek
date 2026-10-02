@@ -46,3 +46,21 @@ Network note: external job-board hosts are BLOCKED in this sandbox; do not try t
 > Don't commit; report back briefly.
 
 > Addition to the /api/cities task, from devops, so api.js resolves lib modules the same way in both modes: add `GET /lib/<path>.js` → `server/<path>.js`, ONLY for the browser-safe allowlist the static build ships: companies, normalize, salary, vet, geo, keywords, demo, juice, sources/*. Serve it as text/javascript with path-traversal protection; anything else is a 404. Ideally import the allowlist from one shared place (e.g. export LIB_MODULES from a small module that build-static.js also uses) so they can't drift. Note: normalizeJobs already calls vetSalaries, so live fetches through lib/normalize.js are vetted; double vetting is idempotent. Add tests for allowed, disallowed and traversal requests.
+
+> New work: the 1-up features from docs/strategy/ROADMAP.md §6.2, §7.1 and §7.3, with the field and endpoint shapes in docs/CONTRACT.md "v2 additions". Read both first. Your part, server-side:
+> 1. F4 (start first, the clock is running):
+>    - Adapters emit `postedAt` (Greenhouse `first_published`, Ashby `publishedAt`, Lever `createdAt`) and `reqId` (Greenhouse `internal_job_id`), each with a fixture test. `updatedAt` keeps its meaning.
+>    - New pure, browser-safe `server/history.js`: `updateLedger(prev, jobs, fetchedAt)` and `annotate(jobs, ledger, fetchedAt)`, giving postedAt, firstSeenAt, ageDays, ageIsMinimum, freshness and repost per ROADMAP §6.2 Top 3. Add it to server/lib-modules.js.
+>    - New `scripts/history.js`, called from scripts/snapshot.js after each successful fetch, writing data/history/<slug>.json. A failed or empty fetch leaves the ledger unchanged (with a test).
+>    - The server annotates jobs from the local ledger.
+>    - Persistence in the workflows belongs to devops. Interim decision: workflow artifacts, until the user decides on a data branch. Use a small, portable format.
+> 2. F1: new `scripts/build-market.js` (an aggregation from vetted salaries only; it uses product's role-family helpers in public/features/compstimate.js once they're importable from Node) plus `GET /api/market`.
+> 3. F3: on the server, run product's `backtest()` per company (once it exists) and put the result in `meta.compstimate`.
+> 4. F7: `GET /api/export?company=` returning CSV with the columns from ROADMAP §7.1 F7 and no descriptions.
+> 5. normalize.js: call features' `extractCompExtras(text)` (once it exists) to set `job.extras`.
+> Coordinate with devops for the build and static side (build-static.js, api.js, workflows) and tell me the exact functions you export. Tests for everything; log it in docs/process/backend.md. Don't commit. Report back when F4 ledger capture works, before doing the rest, so devops can persist it right away.
+
+> Locked interfaces for your 1-up work (devops builds against these):
+> - server/history.js (pure, browser-safe, add it to server/lib-modules.js) exports `updateLedger(prev, jobs, fetchedAt) -> ledger`, `annotate(jobs, ledger, fetchedAt) -> jobs`, `fromCompact(compact) -> ledger` (compact = `{ id: [firstSeenAt, postedAt, repostCount] }`) and `ledgerMeta(ledger) -> { since, runs }`. Ledger files go in `data/history/<slug>.json`.
+> - scripts/build-market.js exports a pure `buildMarket(payloads /* [{ company, mode, jobs }] after vetSalaries */) -> marketDoc`, with a thin CLI wrapper. The server route `GET /api/market` uses it over the loaded companies.
+> - The server calls product's `backtest(jobs, { seed: 20261002, maxN: 500 })` per company for `meta.compstimate`, adding computedAt.

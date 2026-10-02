@@ -256,3 +256,23 @@ export function vetSalaries(jobs, { stats = true } = {}) {
     return { ...j, salary: null, salaryRaw: j.salary, salaryFlag: { codes: f.map((x) => x.code), reason: `Pay unclear: ${f.map((x) => x.reason).join('; ')}` } };
   });
 }
+
+/**
+ * Jobs whose salary passed the gate, for aggregates (market comps, the
+ * Compstimate backtest, medians). Applies vetSalaries per company (the
+ * statistics are per company; idempotent on already-vetted jobs) and keeps
+ * only jobs with a plotted salary. Never read salaryRaw for numbers.
+ */
+export function vettedSalaried(jobs) {
+  if (!Array.isArray(jobs)) return [];
+  const byCompany = new Map();
+  for (const j of jobs) {
+    if (!j) continue;
+    const k = j.company || '';
+    if (!byCompany.has(k)) byCompany.set(k, []);
+    byCompany.get(k).push(j);
+  }
+  const out = [];
+  for (const group of byCompany.values()) for (const j of vetSalaries(group)) if (j.salary) out.push(j);
+  return out;
+}

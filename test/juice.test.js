@@ -7,6 +7,7 @@ import {
   JUICE, NYC_BASKET_USD, SCORE_ANCHORS, FX_TO_USD, TAX_SOURCES, TAX_COUNTRIES,
   computeJuice, findCity, matchCity, attachJuice, attachJuiceAll, progressive, taxFor, taxKeys,
   scoreFromNet, netForScore, gradeFor, toUSD, usdPerUnit, citiesOf,
+  SOURCE_CLASSES, CONFIDENCE_LEVELS, sourceClass,
 } from '../server/juice.js';
 import { FX_TO_USD as PALETTE_FX } from '../public/viz/palette.js';
 import { demoJobs, DEMO_CATALOGS } from '../server/demo.js';
@@ -200,7 +201,9 @@ test('attachJuice: best + byLocation, salary.mid, null cases', () => {
   assert.equal(j.juice.best.city, best.city);
   assert.equal(j.juice.best.score, Math.max(...j.juice.byLocation.map((x) => x.score)));
   assert.equal(j.juice.byLocation[0].locationName, 'San Francisco, CA');
-  assert.deepEqual(computeJuice(250000, city('austin-tx-us')), (({ locationName, city: _c, cityName, ...rest }) => rest)(j.juice.byLocation.find((x) => x.city === 'austin-tx-us')));
+  const { inputs, ...austinFull } = computeJuice(250000, city('austin-tx-us'));
+  assert.deepEqual(austinFull, (({ locationName, city: _c, cityName, ...rest }) => rest)(j.juice.byLocation.find((x) => x.city === 'austin-tx-us')));
+  assert.ok(inputs && j.juice.best.inputs, 'best keeps its inputs');
 
   assert.equal(attachJuice(job(null, [loc('Seattle, WA')]), DOC).juice, null, 'no salary');
   const quarantined = { ...job(null, [loc('Seattle, WA')]), salaryRaw: { mid: 9e6, currency: 'USD' }, salaryFlag: { codes: ['above_max'], reason: 'x' } };
@@ -237,6 +240,75 @@ test('attachJuice over normalized demo jobs: every salaried non-remote job gets 
   }
 });
 
+// ---------------------------------------------------------------- guardrails (ROADMAP F8)
+
+test('guardrails: every result carries rent, tax and cost-index inputs with source and as-of', () => {
+  for (const c of CITIES) {
+    const j = computeJuice(150000, c);
+    assert.ok(CONFIDENCE_LEVELS.includes(j.confidence), `${c.key} confidence ${j.confidence}`);
+    const { rent, tax, costIndex, fx, bigMac } = j.inputs;
+    near(rent.monthlyUSD * 12, j.rent, 6, `${c.key} rent input matches (monthly rounded)`);
+    assert.ok(SOURCE_CLASSES.includes(rent.class) && rent.source.name && /^https:/.test(rent.source.url) && rent.source.asOf, `${c.key} rent source`);
+    assert.equal(costIndex.value, c.costIndex);
+    assert.ok(costIndex.source.name && /^https:/.test(costIndex.source.url) && costIndex.source.asOf, `${c.key} cost source`);
+    assert.ok(tax.sources.length >= 1 && tax.sources.every((s) => s.name && /^https:/.test(s.url) && s.asOf), `${c.key} tax sources`);
+    assert.ok(tax.effectiveRate >= 0 && tax.effectiveRate < 0.6);
+    assert.ok(fx.usdPerUnit > 0 && bigMac.usd === c.bigMacUSD && bigMac.source.asOf);
+  }
+});
+
+test('guardrails: confidence rules (non-US low unless official/open; estimates low)', () => {
+  assert.equal(computeJuice(150000, city('london-gb')).confidence, 'low', 'non-US with aggregator data');
+  assert.equal(computeJuice(150000, city('austin-tx-us')).confidence, 'medium', 'US with aggregator data');
+  assert.equal(computeJuice(150000, city('costa-mesa-ca-us')).confidence, 'low', 'cost-index proxy is an estimate');
+  // The same London record with official/open rent and cost index: capped only by the (verified) UK tax.
+  const official = structuredClone(city('london-gb'));
+  for (const f of ['rent1brCenterLocal', 'costIndex']) official.sources[f] = { ...official.sources[f], class: 'official' };
+  assert.equal(computeJuice(150000, official).confidence, 'high');
+  official.sources.costIndex.class = 'open';
+  assert.equal(computeJuice(150000, official).confidence, 'high');
+  official.sources.costIndex.class = 'aggregator';
+  assert.equal(computeJuice(150000, official).confidence, 'low', 'one non-official input keeps non-US low');
+  assert.equal(computeJuice(150000, city('zurich-ch')).inputs.tax.confidence, 'low', 'estimated Swiss schedule');
+  assert.equal(sourceClass({ url: 'https://www.numbeo.com/x' }), 'aggregator');
+  assert.equal(sourceClass({ url: 'https://x', estimated: true, class: 'official' }), 'estimate');
+  assert.equal(sourceClass(undefined), 'estimate');
+});
+
+test('guardrails: rentOverrideUSD (user-edited monthly rent)', () => {
+  const c = city('san-francisco-ca-us');
+  const base = computeJuice(300000, c);
+  const j = computeJuice(300000, c, { rentOverrideUSD: 2500 });
+  assert.equal(j.rent, 30000);
+  assert.equal(j.rentBasis, 'override');
+  assert.equal(j.inputs.rent.class, 'user');
+  assert.equal(j.net, base.net + base.rent - 30000);
+  assert.equal(j.tax, base.tax, 'override changes rent only');
+  assert.equal(computeJuice(300000, c, { rentOverrideUSD: 0 }).rent, 0, 'zero is a valid override');
+  assert.equal(computeJuice(300000, c, { rentOverrideUSD: null }).rent, base.rent, 'null means no override');
+  assert.equal(computeJuice(150000, city('london-gb'), { rentOverrideUSD: 2000 }).confidence, 'low', 'cost index still aggregator');
+  // A city without rent (e.g. no open source) needs an override.
+  const noRent = { ...structuredClone(c), rent1brCenterLocal: null, rent1brCenterUSD: null };
+  assert.throws(() => computeJuice(300000, noRent), (e) => e.code === 'NO_RENT');
+  assert.equal(computeJuice(300000, noRent, { rentOverrideUSD: 3000 }).rent, 36000);
+  const cities = CITIES.map((x) => (x.key === c.key ? noRent : x));
+  const loc = geocode('San Francisco, CA')[0];
+  assert.equal(attachJuice({ salary: { mid: 300000, currency: 'USD' }, locations: [loc] }, cities).juice, null);
+  const withOv = attachJuice({ salary: { mid: 300000, currency: 'USD' }, locations: [loc] }, cities, { rentOverrides: { [c.key]: 3000 } });
+  assert.equal(withOv.juice.best.rent, 36000);
+});
+
+test('guardrails: attachJuice payload keeps full inputs on best only (opts.inputs)', () => {
+  const locs = ['San Francisco, CA', 'Seattle, WA', 'Austin, TX'].map((s) => geocode(s)[0]);
+  const mk = () => ({ salary: { mid: 250000, currency: 'USD' }, locations: locs });
+  const d = attachJuice(mk(), DOC).juice;
+  assert.ok(d.best.inputs);
+  assert.ok(d.byLocation.every((e) => !e.inputs && e.confidence));
+  assert.ok(attachJuice(mk(), DOC, { inputs: 'all' }).juice.byLocation.every((e) => e.inputs));
+  const none = attachJuice(mk(), DOC, { inputs: 'none' }).juice;
+  assert.ok(!none.best.inputs && none.best.confidence);
+});
+
 // ---------------------------------------------------------------- data integrity
 
 const DATE_RE = /^\d{4}(-\d{2}(-\d{2})?)?$/;
@@ -255,6 +327,11 @@ test('cities.json: every numeric field has a source with name, https url and as-
       assert.match(s.url, /^https:\/\//, `${c.key}.${f} source url`);
       assert.match(String(s.asOf), DATE_RE, `${c.key}.${f} asOf`);
       if (s.estimated) assert.ok(s.method && /LIVABILITY\.md/.test(s.method), `${c.key}.${f}: estimates must explain the method`);
+      assert.ok(SOURCE_CLASSES.includes(s.class), `${c.key}.${f}: source class ${s.class}`);
+      if (/numbeo\.com/.test(s.url)) {
+        assert.ok(['aggregator', 'estimate'].includes(s.class), `${c.key}.${f}: Numbeo is never official/open`);
+        assert.equal(s.terms, 'numbeo-terms', `${c.key}.${f}: Numbeo terms flag`);
+      }
     }
   }
   for (const [k, s] of Object.entries(DOC.baseline.sources)) {
@@ -262,6 +339,8 @@ test('cities.json: every numeric field has a source with name, https url and as-
     assert.match(String(s.asOf), DATE_RE, `baseline ${k}`);
   }
   assert.match(DOC.fx.source.url, /^https:\/\//);
+  assert.match(DOC.dataStatus.numbeo, /UNDER REVIEW/, 'Numbeo terms status recorded until the user decides');
+  assert.match(DOC.sourceNotes['numbeo-terms'], /terms_of_use/);
   assert.match(DOC.bigMac.source.url, /^https:\/\//);
 });
 

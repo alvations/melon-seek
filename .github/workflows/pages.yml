@@ -65,7 +65,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           HISTORY_STORE: ${{ vars.HISTORY_STORE || 'artifact' }}
-        run: .github/scripts/ledger.sh restore
+        run: bash .github/scripts/ledger.sh restore
 
       - name: Fetch fresh snapshots (best effort; a failed board keeps the restored file)
         run: npm run snapshot || true # no args = every built-in in server/companies.js; also updates data/history/
@@ -196,7 +196,7 @@ jobs:
           name: history-ledger
           path: data/history
       - name: Commit ledger to the data-history branch
-        run: .github/scripts/ledger.sh commit-branch
+        run: bash .github/scripts/ledger.sh commit-branch
 
   deploy:
     needs: build

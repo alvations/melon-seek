@@ -10,6 +10,7 @@ const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'melon-server-'));
 process.env.MELON_CACHE_DIR = path.join(tmp, 'cache');
 process.env.MELON_SNAPSHOT_DIR = path.join(tmp, 'snapshots');
+process.env.MELON_HISTORY_DIR = path.join(tmp, 'history');
 fs.mkdirSync(process.env.MELON_SNAPSHOT_DIR, { recursive: true });
 // Temp copy of data/cities.json so the reload-on-mtime test can rewrite it.
 const REAL_CITIES = path.join(FIX, '..', '..', 'data', 'cities.json');
@@ -478,4 +479,53 @@ test('/lib/ serves exactly the shared browser-safe allowlist (server/lib-modules
     }
     assert.ok(!/\bfrom\s+['"]node:|\bimport\s*\(\s*['"]node:|\brequire\s*\(/.test(code), `${rel}: node import`);
   }
+});
+
+test('F4: /api/jobs annotates jobs from the local ledger and adds meta.history', { skip: skipReason }, async () => {
+  const { updateLedger } = await import('../server/history.js');
+  const { writeLedger } = await import('../scripts/history.js');
+  mod.resetState();
+  // No ledger yet: fields present, ages from postedAt (Lever createdAt), meta.history empty.
+  let body = await (await get('/api/jobs?source=lever&board=example&refresh=1')).json();
+  assert.deepEqual(body.meta.history, { since: null, runs: 0 });
+  assert.equal(body.meta.compstimate, null);
+  const be = body.jobs.find((j) => j.title === 'Senior Backend Engineer');
+  assert.equal(be.postedAt, new Date(1758000000000).toISOString());
+  assert.equal(be.firstSeenAt, null);
+  assert.equal(be.ageDays, Math.floor((Date.now() - 1758000000000) / 86400000));
+  assert.equal(be.ageIsMinimum, false);
+  assert.ok(['new', 'active', 'stale', 'evergreen'].includes(be.freshness));
+  assert.equal(be.repost, null);
+
+  // Ledger with two runs: the first run saw the backend role, the second added a repost-free row.
+  const since = new Date(Date.now() - 40 * 86400000).toISOString();
+  let ledger = updateLedger(null, body.jobs.filter((j) => j.title === 'Senior Backend Engineer'), since);
+  ledger = updateLedger(ledger, body.jobs, new Date(Date.now() - 3 * 86400000).toISOString());
+  await writeLedger('lever-example', ledger, { dir: process.env.MELON_HISTORY_DIR });
+  body = await (await get('/api/jobs?source=lever&board=example')).json();
+  assert.equal(body.mode, 'cache');
+  assert.deepEqual(body.meta.history, { since, runs: 2 });
+  const be2 = body.jobs.find((j) => j.title === 'Senior Backend Engineer');
+  assert.equal(be2.firstSeenAt, since);
+  const sup = body.jobs.find((j) => j.title === 'Support Specialist');
+  assert.equal(sup.firstSeenAt, ledger.jobs[sup.id].f);
+
+  // The ledger file is re-read when it changes.
+  ledger = updateLedger(ledger, body.jobs, new Date(Date.now() - 1 * 86400000).toISOString());
+  await writeLedger('lever-example', ledger, { dir: process.env.MELON_HISTORY_DIR });
+  const later = new Date(Date.now() + 5000);
+  fs.utimesSync(path.join(process.env.MELON_HISTORY_DIR, 'lever-example.json'), later, later);
+  body = await (await get('/api/jobs?source=lever&board=example')).json();
+  assert.equal(body.meta.history.runs, 3);
+
+  // Demo and snapshot payloads get the fields too.
+  const demo = await (await get('/api/jobs?company=anthropic')).json();
+  for (const k of ['postedAt', 'firstSeenAt', 'ageDays', 'ageIsMinimum', 'freshness', 'repost']) assert.ok(k in demo.jobs[0], `demo job has ${k}`);
+  assert.deepEqual(demo.meta.history, { since: null, runs: 0 });
+});
+
+test('F4: /lib/history.js is served (browser-safe allowlist)', { skip: skipReason }, async () => {
+  const res = await get('/lib/history.js');
+  assert.equal(res.status, 200);
+  assert.match(await res.text(), /export function annotate/);
 });

@@ -638,3 +638,142 @@ export function inferSeniority(title) {
     || /\s(?:I|1)(?=\s*(?:[,()\-–—]|$))/.test(t)) return 'Entry';
   return 'Mid';
 }
+
+// ---------------------------------------------------------------------------
+// Compensation extras (F2): does the posting say the offer includes equity
+// and/or a bonus / commission? Evaluated against hand-labelled real postings
+// in test/fixtures/extras-labels.json (see docs/process/features.md).
+// ---------------------------------------------------------------------------
+
+// "equity" senses that are not employee equity: DEI, finance subject matter,
+// donation programmes. Removed before matching.
+const EQUITY_NOISE_RE = new RegExp([
+  String.raw`\b(?:pay|health|healthcare|racial|gender|social|educational|digital|internal|external|compensation|salary|wage|income|housing|economic|brand|home|private|growth|public|sweat|negative|positive|shareholders?['’]?|stockholders?['’]?)\s+equity\b`,
+  String.raw`\bdiversity,?\s+(?:and\s+)?equity\b`,
+  String.raw`\bequity,?\s+(?:and|&)\s+(?:inclusion|belonging|diversity|access|justice)\b`,
+  String.raw`\bequity,\s*(?:inclusion|belonging)\b`,
+  String.raw`\bDE&?I&?B?\b`,
+  String.raw`\bequity[- ](?:research|markets?|investments?|investing|investors?|financing|capital|analysts?|analysis|deals?|transactions?|method|accounting|roll-?forwards?|administration|team|donations?|minded|lens)\b`,
+  String.raw`\b(?:optional\s+)?equity donation(?: matching)?\b`,
+  String.raw`\bequitabl[ey]\b`,
+].join('|'), 'gi');
+
+// Nice-to-have senses of "bonus": "It's a bonus if you have", "Bonus:", "Bonus points".
+const BONUS_NOISE_RE = /\[bonus\]|\bbonus\s*points?\b|\b(?:it(?:['’]s| is)|is|as|would be|a (?:big|huge|real))\s+an?\s+(?:big\s+|huge\s+|nice\s+|major\s+|real\s+)?bonus\b|\bas a bonus\b|\bbonus\s+(?:if|for|to have)\b|\bbonus\s*[:–—-]\s*(?=\S)|^\s*bonus\b(?!\s*(?:\+|,|and|eligib|plan|program|potential|structure|target))/gim;
+
+// The sentence is about doing compensation work, not about this offer.
+const COMP_DUTY_RE = /\b(?:payroll|accounting|accruals?|ASC\s?\d{3}|GAAP|SOX|audits?|tax(?:es)?|administ\w*|roll-?forwards?|footnotes?|reconcil\w*|benchmark\w*|governance|oversee|design(?:ing)?,? (?:and|&) (?:oversee|manage|run)|compensation (?:programs?|programmes?|planning|methodolog\w*|strategy|philosophy|practices|professionals?|experience|expertise|principles|governance)|incentive (?:plan )?design|experience (?:with|in|designing|managing|building)|knowledge of|familiarity with|matters|counsel|securities|negotiat\w*|structures|cap tables?|tender offers?|process stock options|equity team|equity programmes)\b/i;
+
+// The sentence denies or merely hedges ("This estimate excludes ... bonus").
+const COMP_NEGATION_RE = /\bnot\s+(?:be\s+)?eligible\b|\bineligible\b|\b(?:are|is|will be)\s+not\s+(?:offered|included|provided)\b|\bdoes(?:n['’]t| not) (?:include|offer)\b|\bno (?:equity|bonus|commission)\b|\bexclud(?:es?|ing)\b/i;
+
+// Conditional boilerplate: "For sales roles, the range ... OTE ... commissions".
+const SALES_CONDITIONAL_RE = /\b(?:for|in|on)\s+(?:sales|commissioned|quota[- ]carrying|commission[- ]eligible)\s+roles\b/i;
+const SALES_TITLE_RE = /\b(?:account executive|account director|account manager|ae\b|business development (?:rep\w*|manager|executive|director)|bdr|sdr|partner sales|sales(?!\s+(?:strategy|operations|ops|enablement|engineer\w*|compensation|analytics|systems|planning|finance|recruit\w*))\b|seller)/i;
+const NON_FULLTIME_TITLE_RE = /\b(?:intern(?:ship)?s?|co-?op|part[- ]time|temporary|temp|seasonal|fellow(?:ship)?s?|contractor)\b/i;
+const NON_FULLTIME_MENTION_RE = /\b(?:intern(?:ship)?s?|co-?ops?|part[- ]time|temporary|fellows?|contractors?)\b/i;
+
+const COMP_CUE_RE = /\b(?:compensation|salary|salaries|base pay|pay\b|total rewards|offer package|package|benefits|401\s?\(?k\)?|remuneration|perks)\b/i;
+
+const EQUITY_STRONG = [
+  /\boffers?\s+equity\b/i,
+  /\bRSUs?\b/,
+  /\brestricted stock(?: units?)?\b/i,
+  /\bstock[- ]options?\b/i,
+  /\bstock (?:grants?|awards?|compensation|units?|purchase plan|plan)\b/i,
+  /\bstock-based\b/i,
+  /\bemployee stock\b/i,
+  /\bESPP\b/,
+  /\bequity(?:[- ]based)?\s+(?:grants?|awards?|packages?|compensation|participation|options?|refresh(?:ers?)?|stakes?|incentives?|upside)\b/i,
+  /\b(?:meaningful|significant|generous|competitive|attractive)\s+(?:equity|ownership stake)\b/i,
+  /\bownership stake\b/i,
+  /\b(?:granted|receive|eligible for|includes?|including|plus|and|with)\s+(?:an?\s+)?(?:annual\s+|initial\s+)?equity\b/i,
+  /\+\s*equity\b/i,
+];
+
+const BONUS_STRONG = [
+  /\b(?:sign[- ]?on|signing|joining|hiring|annual|performance(?:[- ]based)?|year[- ]end|retention|relocation|quarterly|target|discretionary|cash|spot|completion|incentive|variable)\s+bonus(?:es)?\b/i,
+  /\bbonus(?:es)?\s+(?:eligib\w*|plan|program(?:me)?s?|potential|opportunit\w*|structure|target|pool|payments?|scheme)\b/i,
+  /\b(?:eligible for|eligibility for|qualify for)\s+(?:an?\s+|our\s+)?(?:annual\s+|discretionary\s+|performance\s+)?bonus/i,
+  /\bbonus[- ]eligible\b/i,
+  /\+\s*bonus\b/i,
+  /\boffers?\s+(?:a\s+)?(?:bonus|commission)\b/i,
+  /\bOTE\b/,
+  /\bon[- ]target earnings\b/i,
+  /\bcommission(?:s)?\s+(?:structure|plan|opportunit\w*|eligib\w*|scheme|rate|target)\b/i,
+  /\bcommission-based\b/i,
+  /\b(?:earn|uncapped|plus|and|with|sales)\s+commissions?\b/i,
+  /\+\s*commissions?\b/i,
+  /\beligible (?:for|to earn) (?:sales )?commissions?\b/i,
+  /\b(?:incentive|variable) (?:compensation|pay|plan|comp)\b/i,
+  /\bshort[- ]term incentives?\b/i,
+  /\bprofit[- ]sharing\b/i,
+];
+
+function compSegments(text) {
+  return String(text || '')
+    .split(/\n+|(?<=[.!?])\s+(?=[A-Z(“"])/)
+    .map((s) => s.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+}
+
+/**
+ * Like extractCompExtras but also returns the sentences that decided each facet.
+ * @returns {{equity:boolean, bonus:boolean, evidence:{equity:string[], bonus:string[]}}}
+ */
+export function compExtrasEvidence(text, { title = '' } = {}) {
+  let src = String(text || '');
+  if (/<(?:p|li|ul|div|br|h[1-6])\b/i.test(src)) src = htmlToText(src);
+  const salesTitle = SALES_TITLE_RE.test(title);
+  const nonFullTime = NON_FULLTIME_TITLE_RE.test(title);
+  const evidence = { equity: [], bonus: [] };
+  const vetoed = { equity: false, bonus: false };
+
+  for (const seg of compSegments(src)) {
+    const eqText = seg.replace(EQUITY_NOISE_RE, ' ');
+    const bnText = seg.replace(BONUS_NOISE_RE, ' ');
+    const hasEq = /\bequity\b|\bstock\b|\bRSUs?\b|\bESPP\b|\bownership stake\b/i.test(eqText);
+    const hasBn = /\bbonus(?:es)?\b|\bcommissions?\b|\bOTE\b|on[- ]target|incentive|variable|profit[- ]sharing/i.test(bnText);
+    if (!hasEq && !hasBn) continue;
+
+    if (COMP_NEGATION_RE.test(seg)) {
+      // "Interns/Part-time not eligible for bonus, benefits or equity" applies to this posting.
+      if (nonFullTime && NON_FULLTIME_MENTION_RE.test(seg)) {
+        if (hasEq) vetoed.equity = true;
+        if (hasBn) vetoed.bonus = true;
+      }
+      continue;
+    }
+    if (COMP_DUTY_RE.test(seg)) continue;
+    if (SALES_CONDITIONAL_RE.test(seg) && !salesTitle) continue;
+
+    if (hasEq && (EQUITY_STRONG.some((re) => re.test(eqText)) || (/\bequity\b/i.test(eqText) && COMP_CUE_RE.test(eqText)))) {
+      evidence.equity.push(seg);
+    }
+    if (hasBn && (BONUS_STRONG.some((re) => re.test(bnText)) || (/\bbonus(?:es)?\b/i.test(bnText) && COMP_CUE_RE.test(bnText)))) {
+      evidence.bonus.push(seg);
+    }
+  }
+  return {
+    equity: evidence.equity.length > 0 && !vetoed.equity,
+    bonus: evidence.bonus.length > 0 && !vetoed.bonus,
+    evidence,
+  };
+}
+
+/**
+ * Compensation extras stated in a posting (F2).
+ * equity: RSUs, stock options, equity grants, "Offers Equity", "+ Equity"...
+ * bonus: signing/annual/performance bonus, commission, OTE, incentive comp...
+ * Rejects DEI senses ("pay equity", "diversity, equity and inclusion"),
+ * nice-to-have "bonus" ("It's a bonus if you have"), compensation *work*
+ * (payroll, equity accounting), negations and hedges, and "For sales roles"
+ * boilerplate unless `title` looks like a sales role.
+ * @param {string} text  description text (HTML is accepted) plus any salary summary text
+ * @param {{title?: string}} [opts]
+ * @returns {{equity: boolean, bonus: boolean}}
+ */
+export function extractCompExtras(text, opts = {}) {
+  const { equity, bonus } = compExtrasEvidence(text, opts);
+  return { equity, bonus };
+}

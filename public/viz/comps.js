@@ -63,9 +63,10 @@ export function createCompsChart(container, { onSelect } = {}) {
     if (opts.sort !== false) items.sort((a, b) => (has(b) - has(a)) || (b.median ?? 0) - (a.median ?? 0));
 
     const width = container.clientWidth || 360;
-    const narrow = width < 360;
-    const labelW = Math.round(Math.max(88, Math.min(180, width * (narrow ? 0.3 : 0.32))));
-    const valW = 52;
+    const narrow = width < 420;
+    container.classList.toggle('ms-comps--narrow', narrow);
+    const labelW = Math.round(Math.max(88, Math.min(180, width * (narrow ? 0.34 : 0.32))));
+    const valW = narrow ? 46 : 52;
     const plotL = labelW + 8, plotW = Math.max(60, width - plotL - valW - 8);
     const vals = items.filter(has).flatMap(r => [r.p25 ?? r.median, r.p75 ?? r.median, r.median].map(Number));
     list.replaceChildren(grid);
@@ -79,15 +80,19 @@ export function createCompsChart(container, { onSelect } = {}) {
     // Robust domain (same rule as the main chart), padded and snapped to nice ticks.
     const [lo, hi] = robustBounds(vals);
     const pad = Math.max((hi - lo) * 0.06, 5000);
-    const nt = niceTicks(Math.max(0, lo - pad), hi + pad, Math.max(2, Math.min(4, Math.floor(plotW / 70))));
+    const nt = niceTicks(Math.max(0, lo - pad), hi + pad, Math.max(4, Math.min(6, Math.floor(plotW / 60))));
     const d0 = Math.max(0, nt.start), d1 = nt.end > d0 ? nt.end : d0 + 1;
     const x = v => plotL + ((Math.min(d1, Math.max(d0, v)) - d0) / (d1 - d0)) * plotW;
 
+    let lastX = -Infinity;
     for (const t of nt.ticks) {
       if (t < d0 || t > d1) continue;
-      const tk = el('div', 'ms-comps__tick', formatMoney(t));
-      tk.style.left = x(t) + 'px';
-      axis.append(tk);
+      if (x(t) - lastX >= 42) { // skip labels that would collide; gridlines stay
+        const tk = el('div', 'ms-comps__tick', formatMoney(t));
+        tk.style.left = x(t) + 'px';
+        axis.append(tk);
+        lastX = x(t);
+      }
       const gl = el('div', 'ms-comps__gridline');
       gl.style.left = x(t) + 'px';
       grid.append(gl);

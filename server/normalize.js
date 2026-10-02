@@ -61,19 +61,21 @@ export function deriveSalary(raw, locations = []) {
     }
   }
   let salary = toJobSalary(structured, { source: 'structured' });
+  const parsed = parseSalary(text, { countries }) || (raw.text && html ? parseSalary(htmlToText(html), { countries }) : null);
+  // zones (F2): the text's distinct pay ranges merged with the adapter's tier count.
+  const adapterZones = Math.max(Number(raw.salary && raw.salary.zones) || 0, ranges.length);
+  const zonesOf = (s) => Math.max(1, s.zones || 1, adapterZones, (parsed && parsed.zones) || 0);
   // Structured wins, unless it is implausible and the text gives a plausible
   // pay statement (e.g. adapter unit bugs: JPY pay_input_ranges divided by 100).
   const who = { title: raw.title, employmentType: raw.employmentType };
   const hard = salary ? salaryChecks(who, salary).filter((c) => c.code !== 'junior_high' && c.code !== 'senior_low') : [];
   if (hard.length) {
-    const fromText = toJobSalary(parseSalary(text, { countries }), { source: 'text' });
-    if (fromText && !salaryChecks(who, fromText).length) return { ...fromText, structuredRejected: hard.map((c) => c.code) };
+    const fromText = toJobSalary(parsed, { source: 'text' });
+    if (fromText && !salaryChecks(who, fromText).length) return { ...fromText, zones: zonesOf(fromText), structuredRejected: hard.map((c) => c.code) };
   }
   if (salary && ranges.length > 1) salary.ranges = ranges.slice(0, 12).map(({ min, max, currency, interval, label }) => ({ min, max, currency, interval, ...(label ? { label } : {}) }));
-  if (!salary) {
-    const parsed = parseSalary(text, { countries }) || (raw.text && html ? parseSalary(htmlToText(html), { countries }) : null);
-    salary = toJobSalary(parsed, { source: 'text' });
-  }
+  if (!salary) salary = toJobSalary(parsed, { source: 'text' });
+  if (salary) salary.zones = zonesOf(salary);
   return salary;
 }
 

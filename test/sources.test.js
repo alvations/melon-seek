@@ -294,3 +294,31 @@ test('greenhouse pay_input_ranges -> structured salary (cents, tiers, hourly, fa
   // Ranges in another currency than the first are not mixed in.
   assert.deepEqual([mixed.salary.min, mixed.salary.max, mixed.salary.currency], [180000, 220000, 'AUD']);
 });
+
+test('F4: adapters emit postedAt and reqId; updatedAt keeps its meaning', async () => {
+  mockFetch(() => jsonResponse(fixture('greenhouse-jobs.json')));
+  const gh = await fetchGreenhouse('anthropic');
+  assert.equal(gh[0].postedAt, '2026-07-14T14:00:00.000Z', 'first_published, as UTC ISO');
+  assert.equal(gh[0].updatedAt, '2026-09-30T12:00:00-04:00', 'updated_at unchanged');
+  assert.equal(gh[0].reqId, '4001', 'internal_job_id as string');
+  assert.equal(gh[1].postedAt, null, 'no first_published -> null, never updated_at');
+  assert.equal(gh[1].reqId, '4002');
+
+  mockFetch(() => jsonResponse(fixture('ashby-board.json')));
+  const ab = await fetchAshby('openai');
+  assert.equal(ab[0].postedAt, '2026-09-20T17:01:32.123Z');
+  assert.equal(ab[0].updatedAt, '2026-09-20T17:01:32.123+00:00');
+  assert.equal(ab[0].reqId, null);
+
+  mockFetch(() => jsonResponse(fixture('lever-postings.json')));
+  const lv = await fetchLever('example');
+  assert.equal(lv[0].postedAt, new Date(1758000000000).toISOString());
+  assert.equal(lv[0].reqId, null);
+
+  // normalize carries them onto the Job.
+  const { normalizeJob } = await import('../server/normalize.js');
+  const j = normalizeJob(gh[0], { slug: 'anthropic', name: 'Anthropic' });
+  assert.deepEqual([j.postedAt, j.reqId, j.updatedAt], ['2026-07-14T14:00:00.000Z', '4001', '2026-09-30T12:00:00-04:00']);
+  const bad = normalizeJob({ ...gh[0], postedAt: 'not a date', reqId: '' }, { slug: 'anthropic', name: 'Anthropic' });
+  assert.deepEqual([bad.postedAt, bad.reqId], [null, null]);
+});

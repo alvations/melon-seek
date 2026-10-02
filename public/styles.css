@@ -859,3 +859,35 @@ html[data-mode="insights"] .viz-controls { display: none; }
 .juice-disclaimer { margin: 10px 0 0; font-size: 11.5px; color: var(--ms-faint); }
 .juice-disclaimer a { color: var(--ms-accent); }
 @media (max-width: 860px) { .wf-row { grid-template-columns: 76px 1fr 84px; } }
+
+/* 1-up features (ROADMAP §6.2): monochrome labels, folds, saved searches */
+.pay-labels { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.pay-label { font-size: 11.5px; font-weight: 550; color: var(--ms-muted); border: 1px solid var(--ms-border-strong); border-radius: 99px; padding: 1px 8px; cursor: help; }
+.d-pay-caption { margin: 8px 0 0; font-size: 11.5px; color: var(--ms-faint); }
+.tag--status { background: transparent; border: 1px solid var(--ms-border-strong); color: var(--ms-text); font-weight: 650; }
+.d-fold { border-top: 1px solid var(--ms-border); padding-top: 4px; margin-top: 14px; }
+.d-fold > summary { list-style: none; display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px 0; border-radius: 6px; }
+.d-fold > summary::-webkit-details-marker { display: none; }
+.d-fold > summary h3 { margin: 0 auto 0 0; font-size: 14px; }
+.d-fold:not([open]) .fsec-caret svg { transform: rotate(-90deg); }
+.d-fold .fsec-caret svg { width: 16px; height: 16px; color: var(--ms-faint); transition: transform .15s; }
+.d-bullet-group + .d-bullet-group { margin-top: 12px; }
+.d-bullet-group h4 { margin: 2px 0 6px; font-size: 12px; color: var(--ms-muted); text-transform: uppercase; letter-spacing: .05em; }
+.listing-lines { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; }
+.listing-lines li::marker { color: var(--ms-faint); }
+.comps-note { margin: 0 0 8px; font-size: 12.5px; }
+.comps-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.comps-row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: baseline; width: 100%; padding: 6px 8px; border: 0; border-radius: 7px; background: none; text-align: left; font-size: 13px; }
+.comps-row:hover, .comps-row:focus-visible { background: var(--ms-surface-2); }
+.comps-name { font-weight: 600; }
+.comps-med { font-weight: 700; font-variant-numeric: tabular-nums; }
+.chip--save svg { width: 15px; height: 15px; }
+.chip--save[aria-pressed="true"] { background: var(--ms-accent-soft); border-color: var(--ms-accent); color: var(--ms-accent-strong); }
+.chip--save[aria-pressed="true"] svg { fill: currentColor; }
+.saved-row { display: flex; align-items: center; gap: 2px; }
+.saved-row .company-item { flex: 1; min-width: 0; }
+.saved-ico svg { width: 15px; height: 15px; color: var(--ms-accent); display: block; }
+.saved-new { font-size: 11px; font-weight: 700; color: var(--ms-accent-strong); background: var(--ms-accent-soft); border-radius: 99px; padding: 0 7px; white-space: nowrap; }
+.badge-csv { margin: 10px 0 0; font-size: 12.5px; }
+.badge-csv a { color: var(--ms-accent); font-weight: 600; }
+@media (max-width: 860px) { .chip--save span { display: none; } .chip--save { padding: 0 9px; } }

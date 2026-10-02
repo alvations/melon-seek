@@ -107,7 +107,7 @@ test('annualize', () => {
 
 test('toJobSalary annualizes and adds mid', () => {
   assert.deepEqual(toJobSalary({ min: 300000, max: 405000, currency: 'usd', interval: 'year', text: 'x' }),
-    { min: 300000, max: 405000, mid: 352500, currency: 'USD', interval: 'year', text: 'x', kind: 'salary' });
+    { min: 300000, max: 405000, mid: 352500, currency: 'USD', interval: 'year', text: 'x', kind: 'salary', spread: 1.35, zones: 1 });
   const h = toJobSalary({ min: 60, max: 75, currency: 'USD', interval: 'hour', text: '$60 – $75' });
   assert.equal(h.min, 124800);
   assert.equal(h.max, 156000);
@@ -425,4 +425,39 @@ test('llm-vet --skip-reviewed: a job with the same parsed salary is not re-asked
   const fetchImpl = async (url, init) => { asked.push(JSON.parse(JSON.parse(init.body).messages[0].content.split('\n\n')[1]).id); return { ok: true, status: 200, json: async () => ({ model: 'm', stop_reason: 'end_turn', content: [{ type: 'text', text: '{"verdict":"correct","corrected":null,"kind":null,"evidence":"x"}' }] }) }; };
   await llmRun({ flagsFile, outFile: path.join(dir, 'out.jsonl'), apiKey: 'k', env: {}, fetchImpl, skipReviewed: [prior], log: () => {} });
   assert.deepEqual(asked, ['a:2'], 'only the job whose parsed salary changed');
+});
+
+/* ------------------------------------------------ F2: salary.spread / salary.zones */
+import { vettedSalaried } from '../server/vet.js';
+
+test('F2: spread (max ÷ min, 2 decimals) and zones (distinct pay ranges, >= 1)', () => {
+  const one = toJobSalary({ min: 150000, max: 200000, currency: 'USD', interval: 'year' });
+  assert.deepEqual([one.spread, one.zones], [1.33, 1]);
+  assert.equal(toJobSalary({ min: 60, max: 60, interval: 'hour' }).spread, 1);
+  const tiers = parseSalary('US Hourly Range\nProduction Technician/Level 1: $25 - $33/hour Production Technician/Level 2: $28 - $38/hour Production Technician/Level 3: $33 - $43/hour');
+  assert.deepEqual([tiers.min, tiers.max, tiers.zones], [25, 43, 3]);
+  const locs = parseSalary('For pay transparency purposes, the base salary range for this full-time position in the locations of San Francisco, New York, Seattle is:\n$198,400 — $311,000 USD\n\nThe base salary range for this full-time position in the location of St. Louis is:\n$148,800 — $233,000 USD');
+  assert.equal(locs.zones, 2);
+  const fellows = parseSalary('• Weekly stipend of 3,850 USD / 2,310 GBP / 4,300 CAD + benefits\n\nCompensation\nThe expected base stipend for this role is 3,850 USD / 2,310 GBP / 4,300 CAD per week.', { countries: ['US'] });
+  assert.equal(fellows.zones, 1, 'one stipend in three currencies, stated twice, is one zone');
+  // normalize merges the adapter's tier count with the text's
+  const structured = { min: 133000, max: 249000, currency: 'USD', interval: 'year', text: '133,000–249,000 USD (3 ranges)' };
+  const payRanges = [{ min: 166000, max: 249000, currency: 'USD', interval: 'year' }, { min: 149000, max: 224000, currency: 'USD', interval: 'year' }, { min: 133000, max: 199000, currency: 'USD', interval: 'year' }];
+  const d = deriveSalary({ title: 'Engineer', text: 'US Salary Range\n$150,000 — $200,000 USD', salary: structured, payRanges }, loc('US'));
+  assert.deepEqual([d.zones, d.spread, d.ranges.length], [3, 1.87, 3]);
+  const e = deriveSalary({ title: 'Engineer', text: 'Salary: $100,000 - $120,000. Senior: Salary: $130,000 - $150,000.', salary: { min: 100000, max: 150000, currency: 'USD', interval: 'year', text: 'x' } }, loc('US'));
+  assert.equal(e.zones, 2, 'single structured range, two ranges in the text');
+});
+
+test('vettedSalaried: aggregates read only salaries that passed the gate, per company', () => {
+  const mk = (company, id, salary) => ({ id: `${company}:${id}`, company, title: 'Software Engineer', department: 'Eng', employmentType: 'Full-time', salary, locations: [] });
+  const a = Array.from({ length: 10 }, (_, i) => mk('a', i, sal(150000 + i * 1000, 200000 + i * 1000)));
+  const b = Array.from({ length: 10 }, (_, i) => mk('b', i, sal(300000 + i * 1000, 400000 + i * 1000)));
+  const bad = mk('a', 'bad', sal(4600000, 4600000));
+  const quarantined = { ...mk('b', 'q', null), salaryRaw: sal(4600000, 4600000), salaryFlag: { codes: ['above_max'], reason: 'Pay unclear' } };
+  const out = vettedSalaried([...a, bad, ...b, quarantined, mk('a', 'none', null)]);
+  assert.equal(out.length, 20);
+  assert.ok(out.every((j) => j.salary && j.salary.max < 1_200_000));
+  assert.ok(!out.some((j) => j.id === 'a:bad' || j.id === 'b:q'));
+  assert.deepEqual(vettedSalaried(null), []);
 });
