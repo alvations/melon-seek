@@ -70,9 +70,18 @@ export const FX_TO_USD = Object.freeze(Object.fromEntries(
 // Same value as data/cities.json baseline.nycBasketUSD (a test keeps them equal).
 export const NYC_BASKET_USD = 19982;
 
-// Score anchors: score = 100 × ln(1 + net/A) / ln(1 + B/A), clamped to 0..100.
-// A sets the curve (the first $10K of juice matters most), B is the "full glass".
-export const SCORE_ANCHORS = Object.freeze({ A: 10000, B: 250000 });
+// Score curve: a saturating exponential, score = 100 × (1 − e^(−net / K)), K = $80,000.
+// Every extra K of juice closes 63% of the remaining gap to a full glass, so the score keeps
+// separating high-paying roles instead of clamping at 100. Tuned on the real snapshots
+// (2026-10-02, 4,034 scored jobs): the 90th-percentile net ($172.6K) scores 88, the 99th
+// ($277K) 97, and a rounded 100 needs ≥ $423,866 net (fullGlassUSD). See docs/LIVABILITY.md.
+// (Replaced the clamped log curve A = $10K / B = $250K, which put 1.7% of jobs at 100.)
+const K_USD = 80000;
+export const SCORE_ANCHORS = Object.freeze({
+  curve: 'exponential',
+  K: K_USD,
+  fullGlassUSD: Math.round(K_USD * Math.log(200)), // net where the rounded score first shows 100
+});
 
 // Grades (by score; net <= 0 is always "Rind": the costs eat the whole melon).
 export const GRADES = Object.freeze([
@@ -86,11 +95,10 @@ const pos = (x) => (x > 0 ? x : 0);
 const min = Math.min;
 const INF = Infinity;
 
-/** Score 0..100 for annual net disposable income (USD). */
+/** Score 0..100 (unrounded, never quite 100) for annual net disposable income (USD). */
 export function scoreFromNet(net) {
   if (!(net > 0)) return 0;
-  const { A, B } = SCORE_ANCHORS;
-  return Math.max(0, Math.min(100, (100 * Math.log1p(net / A)) / Math.log1p(B / A)));
+  return -100 * Math.expm1(-net / SCORE_ANCHORS.K);
 }
 
 /** Grade label for a score (and net, so a non-positive net is "Rind"). */
@@ -99,11 +107,16 @@ export function gradeFor(score, net = 1) {
   return (GRADES.find((g) => score >= g.min) || GRADES[GRADES.length - 1]).label;
 }
 
-/** Inverse of scoreFromNet: annual net (USD) needed for a score. Handy for legends. */
+/**
+ * Inverse of scoreFromNet: annual net (USD) needed for a score (legends, grade $ thresholds).
+ * The curve never reaches 100, so netForScore(100) returns fullGlassUSD, the net at which the
+ * rounded score first shows 100. netForScore(0) = 0.
+ */
 export function netForScore(score) {
-  const { A, B } = SCORE_ANCHORS;
-  const s = Math.max(0, Math.min(100, score));
-  return A * Math.expm1((s / 100) * Math.log1p(B / A));
+  const s = Number(score);
+  if (!(s > 0)) return 0;
+  if (s >= 99.5) return SCORE_ANCHORS.K * Math.log(100 / (100 - Math.min(s, 99.5)));
+  return -SCORE_ANCHORS.K * Math.log1p(-s / 100);
 }
 
 // ---------------------------------------------------------------------------

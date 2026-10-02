@@ -231,18 +231,22 @@ const JUICE_DARK = ['#8a363c', '#c9505a', '#f59a95'];
 const JUICE_ANCHORS = Object.freeze({ A: 10000, B: 250000 }); // = server/juice.js SCORE_ANCHORS
 
 /** Grade label for a juice score (and net, so net <= 0 is "Rind"); mirrors server/juice.js gradeFor. */
-export function juiceGrade(score, net = 1) {
+export function juiceGrade(score, net = 1, breaks = JUICE_BREAKS) {
   if (!(net > 0)) return 'Rind';
-  return score >= JUICE_BREAKS[1] ? 'Juicy' : score >= JUICE_BREAKS[0] ? 'Ripe' : 'Dry';
+  return score >= breaks[1] ? 'Juicy' : score >= breaks[0] ? 'Ripe' : 'Dry';
 }
 
 /** Fill color for a juice score: Dry / Ripe / Juicy step (Rind uses the Dry step). */
-export function juiceColor(score) {
+export function juiceColor(score, breaks = JUICE_BREAKS) {
   const ramp = isDark() ? JUICE_DARK : JUICE_LIGHT;
-  return ramp[score >= JUICE_BREAKS[1] ? 2 : score >= JUICE_BREAKS[0] ? 1 : 0];
+  return ramp[score >= breaks[1] ? 2 : score >= breaks[0] ? 1 : 0];
 }
 
-/** Annual net juice (USD) needed for a score; mirrors server/juice.js netForScore (legend labels). */
+/**
+ * Annual net juice (USD) needed for a score. Fallback mirror of server/juice.js
+ * netForScore (A = $10K, B = $250K); map.js prefers the live juice.js module so the
+ * legend follows re-tuned anchors automatically.
+ */
 export function juiceNetForScore(score) {
   const { A, B } = JUICE_ANCHORS;
   const s = Math.max(0, Math.min(100, score));

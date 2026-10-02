@@ -641,7 +641,8 @@ async function main() {
     if (r.sectionsMoved) line += '  (sections moved to desc: list was over budget)';
     line += `  history ${Object.keys(compact).length} open (${size(histBytes)}), runs ${payload.meta.history.runs}`;
     const bt = payload.meta.compstimate;
-    line += bt ? `  backtest n=${bt.n} MdAPE ${(bt.medianAbsPctError * 100).toFixed(1)}% within10 ${(bt.within10Pct * 100).toFixed(0)}%` : '  backtest -';
+    // backtest() returns PERCENT numbers (14.2 means 14.2%).
+    line += bt ? `  backtest n=${bt.n} MdAPE ${bt.medianAbsPctError ?? '-'}% within10 ${bt.within10Pct ?? '-'}%` : '  backtest -';
     line += csvNote;
     if (payload.fetchedAt) line += `  fetchedAt ${payload.fetchedAt}`;
     // The bundled demo is only a separate fallback when the main list is real.

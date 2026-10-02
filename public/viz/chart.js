@@ -99,8 +99,6 @@ export function robustBounds(values) {
 const AXIS_PAD = 0.04;
 
 // Text measurement for sizing the clusters label column (canvas, no layout thrash).
-const NAME_FONT = '600 13px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
-const SUB_FONT = '12px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 const LABEL_PAD = 16 + 8 + 10 + 12 + 4; // left pad + swatch + gap + right pad + slack
 let measureCtx = null;
 function textWidth(text, font) {
@@ -343,6 +341,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     // group name fits on at most two lines; capped at 36% of the width (then the subtitle
     // switches to the short "69 · $512K" form instead of truncating).
     let labelW = 0;
+    const fam = (typeof getComputedStyle === 'function' && getComputedStyle(container).fontFamily) || 'system-ui, sans-serif';
+    const NAME_FONT = `600 13px ${fam}`, SUB_FONT = `12px ${fam}`;
     if (!narrow) {
       const maxW = Math.max(150, Math.min(320, Math.round(width * 0.36)));
       let need = 0;

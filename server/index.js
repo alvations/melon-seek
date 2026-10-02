@@ -167,16 +167,17 @@ const demoMemo = new Map();     // slug -> Job[] (demo is deterministic; bounded
 /** Reset throttles and memos (tests). */
 export function resetState() {
   lastAttempt.clear(); negative.clear(); demoMemo.clear(); inflight.clear(); ledgers.clear();
-  snapshots.clear(); compstimateMemo.clear(); marketMemo = null;
+  snapshots.clear(); compstimateMemo.clear(); marketMemo = null; listCache.clear();
 }
 
+/** Demo jobs plus the time they were generated (stable, so payload caches can key on it). */
 function demoFor(canonical) {
-  let jobs = demoMemo.get(canonical.slug);
-  if (!jobs) {
-    jobs = normalizeJobs(demoJobs(canonical.slug, canonical.name), canonical);
-    boundedSet(demoMemo, canonical.slug, jobs, 200);
+  let hit = demoMemo.get(canonical.slug);
+  if (!hit) {
+    hit = { jobs: normalizeJobs(demoJobs(canonical.slug, canonical.name), canonical), fetchedAt: new Date().toISOString() };
+    boundedSet(demoMemo, canonical.slug, hit, 200);
   }
-  return jobs;
+  return hit;
 }
 
 /* ------------------------------------------------------------ history (F4) */
@@ -321,6 +322,88 @@ export async function compstimateMeta(payload, { wait = BACKTEST_WAIT_MS } = {})
   }
 }
 
+/* ------------------------------------------------- /api/jobs list + /api/job */
+
+/** Bump when the list payload shape changes (part of every cache key). */
+export const PAYLOAD_VERSION = 'jobs-list-1';
+/** A list whose gzipped size would exceed this moves `sections` to /api/job too. */
+export const LIST_GZIP_BUDGET = 400 * 1024;
+const EMPTY_SECTIONS = Object.freeze({ responsibilities: Object.freeze([]), fit: Object.freeze([]) });
+const listCache = new Map(); // slug -> { key, promise -> { json, gz, etag, sectionsMoved } } (bounded)
+let etagSeq = 0;
+
+function listBody(payload, jobs, sectionsMoved) {
+  return JSON.stringify({
+    ...payload,
+    jobs,
+    meta: { ...payload.meta, lazy: { descriptionHtml: true, sections: sectionsMoved } },
+  });
+}
+
+async function buildList(payload) {
+  const noDesc = payload.jobs.map((j) => {
+    if (!j || typeof j !== 'object') return j;
+    const { descriptionHtml, ...rest } = j;
+    return rest;
+  });
+  let json = listBody(payload, noDesc, false);
+  let gz = json.length > 12 * LIST_GZIP_BUDGET ? null : await gzip(Buffer.from(json));
+  let sectionsMoved = false;
+  if (!gz || gz.length > LIST_GZIP_BUDGET) {
+    sectionsMoved = true;
+    json = listBody(payload, noDesc.map((j) => (j && typeof j === 'object' ? { ...j, sections: EMPTY_SECTIONS } : j)), true);
+    gz = await gzip(Buffer.from(json));
+  }
+  return { json: Buffer.from(json), gz, etag: `"jl-${(++etagSeq).toString(36)}-${Date.now().toString(36)}"`, sectionsMoved };
+}
+
+/**
+ * The /api/jobs body as bytes: getJobs() without descriptionHtml (and, for big
+ * boards, without sections), fetched per job from /api/job. Cached per company
+ * and keyed by the data (mode, fetchedAt, error, annotated job list, ledger,
+ * compstimate, display name) and PAYLOAD_VERSION, so warm requests only send bytes.
+ */
+export async function getJobsList(company, opts = {}) {
+  const payload = await getJobs(company, opts);
+  const c = payload.meta && payload.meta.compstimate;
+  const h = payload.meta && payload.meta.history;
+  const key = [PAYLOAD_VERSION, payload.company.name, payload.mode, payload.fetchedAt, payload.error,
+    h && h.since, h && h.runs, c ? c.computedAt : '-'].join('|');
+  const hit = listCache.get(company.slug);
+  if (hit && hit.key === key && hit.jobs === payload.jobs) return hit.promise;
+  const promise = buildList(payload);
+  boundedSet(listCache, company.slug, { key, jobs: payload.jobs, promise }, 100);
+  promise.catch(() => { if (listCache.get(company.slug)?.promise === promise) listCache.delete(company.slug); });
+  return promise;
+}
+
+const jobIndex = new WeakMap(); // jobs array -> Map(id -> job)
+/** { id, descriptionHtml, sections } for one job, from the same data /api/jobs serves; null if unknown. */
+export async function getJobDetail(company, id) {
+  const base = await getJobsBase(company, { offline: true }); // never fetches upstream
+  let idx = jobIndex.get(base.jobs);
+  if (!idx) {
+    idx = new Map(base.jobs.filter(Boolean).map((j) => [j.id, j]));
+    jobIndex.set(base.jobs, idx);
+  }
+  const job = idx.get(id);
+  if (!job) return null;
+  return { id, descriptionHtml: typeof job.descriptionHtml === 'string' ? job.descriptionHtml : '', sections: job.sections || { responsibilities: [], fit: [] } };
+}
+
+async function sendBytes(req, res, { json, gz, etag }) {
+  const headers = { ...SECURITY_HEADERS, 'Content-Type': MIME['.json'], 'Cache-Control': 'no-cache', ETag: etag, Vary: 'Accept-Encoding' };
+  if ((req.headers['if-none-match'] || '').split(/\s*,\s*/).includes(etag)) {
+    res.writeHead(304, headers);
+    return res.end();
+  }
+  let body = json;
+  if (gz && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) { body = gz; headers['Content-Encoding'] = 'gzip'; }
+  headers['Content-Length'] = body.length;
+  res.writeHead(200, headers);
+  res.end(req.method === 'HEAD' ? undefined : body);
+}
+
 /* ------------------------------------------------------------ market (F1) */
 
 let marketModule;
@@ -401,13 +484,13 @@ async function getJobsBase(company, { refresh = false, offline = false } = {}) {
   if (snap) return { company: pub, mode: 'snapshot', fetchedAt: snap.fetchedAt, error, jobs: stamp(snap.jobs) };
 
   let jobs = [];
+  let fetchedAt = new Date().toISOString();
   try {
-    jobs = demoFor(canonical);
+    ({ jobs, fetchedAt } = demoFor(canonical));
   } catch (err) {
     console.error(`[demo] ${company.slug}:`, err);
     error = error ? `${error}; demo data unavailable` : 'Demo data unavailable';
   }
-  const fetchedAt = new Date().toISOString();
   if (custom && !offline) boundedSet(negative, company.slug, { at: now, fetchedAt, error, jobs }, 200);
   return { company: pub, mode: 'demo', fetchedAt, error, jobs: stamp(jobs) };
 }
@@ -541,7 +624,20 @@ export async function handle(req, res) {
       }
       const refresh = ['1', 'true', 'yes'].includes(url.searchParams.get('refresh') || '');
       // HEAD never triggers an upstream fetch (review C2).
-      return sendJson(req, res, 200, await getJobs(company, { refresh, offline: req.method === 'HEAD' }));
+      return sendBytes(req, res, await getJobsList(company, { refresh, offline: req.method === 'HEAD' }));
+    }
+    if (p === '/api/job') {
+      let company;
+      try {
+        company = resolveCompany(url.searchParams);
+      } catch (err) {
+        return sendJson(req, res, err.status || 400, { error: err.message });
+      }
+      const id = url.searchParams.get('id');
+      if (!id || id.length > 300) return sendJson(req, res, 400, { error: 'Missing or invalid ?id=' });
+      const detail = await getJobDetail(company, id);
+      if (!detail) return sendJson(req, res, 404, { error: 'Job not found' });
+      return sendJson(req, res, 200, detail);
     }
     // /api/cities.json matches the static build's dist/api/cities.json, so api.js can use one URL.
     if (p === '/api/cities' || p === '/api/cities.json') return serveCities(req, res);

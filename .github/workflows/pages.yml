@@ -160,13 +160,13 @@ jobs:
             echo ""
             echo "Site total: $(( $(du -sb dist | cut -f1) / 1000000 )) MB (GitHub Pages limit: 1 GB)"
             echo ""
-            echo "### Compstimate backtest (meta.compstimate)"
+            echo "### Compstimate backtest (meta.compstimate; seeded leave-one-out, percent values)"
             echo ""
             echo "| company | n | median abs % error | within 10% | seed | history (since, runs) |"
             echo "| --- | ---: | ---: | ---: | --- | --- |"
             for f in dist/api/jobs/*.json; do
               jq -r '(.meta.compstimate // {}) as $c | (.meta.history // {}) as $h |
-                "| \(.company.slug) | \($c.n // "-") | \(if $c.medianAbsPctError == null then "-" else ($c.medianAbsPctError * 100 | round | tostring) + "%" end) | \(if $c.within10Pct == null then "-" else ($c.within10Pct * 100 | round | tostring) + "%" end) | \($c.seed // "-") | \($h.since // "-"), \($h.runs // 0) |"' "$f"
+                "| \(.company.slug) | \($c.n // "-") | \(if $c.medianAbsPctError == null then "-" else ($c.medianAbsPctError | tostring) + "%" end) | \(if $c.within10Pct == null then "-" else ($c.within10Pct | tostring) + "%" end) | \($c.seed // "-") | \($h.since // "-"), \($h.runs // 0) |"' "$f"
             done
           } >> "$GITHUB_STEP_SUMMARY"
 

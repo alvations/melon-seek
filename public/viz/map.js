@@ -108,7 +108,7 @@ export function juiceAt(job, names) {
 }
 
 /** Median juice over a cluster: { score, net, n (jobs with juice), grade } or null. */
-function summarizeJuice(jobs, members) {
+function summarizeJuice(jobs, members, scale) {
   const scores = [], nets = [];
   for (const job of jobs) {
     const names = new Set();
@@ -120,11 +120,26 @@ function summarizeJuice(jobs, members) {
   }
   if (!scores.length) return null;
   const score = Math.round(median(scores));
-  const net = nets.length ? median(nets) : juiceNetForScore(score);
-  return { score, net, n: scores.length, grade: juiceGrade(score, net) };
+  const net = nets.length ? median(nets) : (scale?.netForScore || juiceNetForScore)(score);
+  return { score, net, n: scores.length, grade: juiceGrade(score, net, scale?.breaks) };
 }
 
-export function createMap(container, { onSelect, onAreaSelect, onColorModeChange, colorMode: initialMode, tiles: tileOpts } = {}) {
+/**
+ * Normalize a Juice scale: { netForScore(score), breaks: [ripeMin, juicyMin] }. Accepts the
+ * server/juice.js module itself ({ netForScore, GRADES }) or a plain object.
+ */
+function toJuiceScale(src) {
+  if (!src || typeof src.netForScore !== 'function') return null;
+  let breaks = Array.isArray(src.breaks) ? src.breaks.slice(0, 2) : null;
+  if (!breaks && Array.isArray(src.GRADES)) {
+    const mins = src.GRADES.map(g => +g.min).filter(v => v > 0).sort((a, b) => a - b);
+    if (mins.length >= 2) breaks = [mins[0], mins[mins.length - 1]];
+  }
+  if (!breaks || breaks.length < 2 || !breaks.every(Number.isFinite)) breaks = [...JUICE_BREAKS];
+  return { netForScore: src.netForScore, breaks };
+}
+
+export function createMap(container, { onSelect, onAreaSelect, onColorModeChange, colorMode: initialMode, juiceScale, tiles: tileOpts } = {}) {
   const T = { ...OSM_TILES, ...(tileOpts || {}) };
   const darkUrl = typeof T.dark === 'string' && T.dark !== 'filter' ? T.dark : null;
   if (typeof L === 'undefined') throw new Error('melon-seek map: Leaflet global `L` not loaded');
@@ -232,25 +247,49 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       }
       const legend = L.DomUtil.create('div', 'ms-modes__legend', box);
       legend.setAttribute('aria-label', 'Juice Score legend');
-      const [b1, b2] = JUICE_BREAKS;
-      for (const [grade, score, range] of [
-        ['Dry', 0, `< ${formatMoney(juiceNetForScore(b1))}`],
-        ['Ripe', b1, `${formatMoney(juiceNetForScore(b1))}–${formatMoney(juiceNetForScore(b2))}`],
-        ['Juicy', b2, `≥ ${formatMoney(juiceNetForScore(b2))}`],
-      ]) {
-        const row = L.DomUtil.create('div', 'ms-modes__key', legend);
-        const sw = L.DomUtil.create('span', 'ms-modes__sw', row);
-        sw.dataset.score = score;
-        const t = L.DomUtil.create('span', 'ms-modes__grade', row);
-        t.textContent = `${grade} ${score === 0 ? `< ${b1}` : score === b1 ? `${b1}–${b2 - 1}` : `${b2}+`}`;
-        const r = L.DomUtil.create('span', 'ms-modes__net', row);
-        r.textContent = `${range}/yr`;
-      }
-      L.DomUtil.create('div', 'ms-modes__none', legend).textContent = 'Gray: no Juice data';
       return box;
     },
   });
   const modeBox = new ModeControl().addTo(map).getContainer();
+  // Juice scale (grade breaks + netForScore for the legend $ labels). Prefer the live
+  // server/juice.js module (served at /lib/juice.js, bundled as dist/lib/juice.js) so a
+  // re-tuned SCORE_ANCHORS / GRADES updates the legend and pin steps with no viz change.
+  let jScale = toJuiceScale(juiceScale) || { netForScore: juiceNetForScore, breaks: [...JUICE_BREAKS] };
+  function renderJuiceLegend() {
+    const legend = modeBox.querySelector('.ms-modes__legend');
+    if (!legend) return;
+    legend.replaceChildren();
+    const [b1, b2] = jScale.breaks;
+    const nf = s => formatMoney(jScale.netForScore(s));
+    for (const [grade, score, scoreTxt, range] of [
+      ['Dry', 0, `< ${b1}`, `< ${nf(b1)}`],
+      ['Ripe', b1, `${b1}–${b2 - 1}`, `${nf(b1)}–${nf(b2)}`],
+      ['Juicy', b2, `${b2}+`, `≥ ${nf(b2)}`],
+    ]) {
+      const row = L.DomUtil.create('div', 'ms-modes__key', legend);
+      const sw = L.DomUtil.create('span', 'ms-modes__sw', row);
+      sw.dataset.score = score;
+      L.DomUtil.create('span', 'ms-modes__grade', row).textContent = `${grade} ${scoreTxt}`;
+      L.DomUtil.create('span', 'ms-modes__net', row).textContent = `${range}/yr`;
+    }
+    L.DomUtil.create('div', 'ms-modes__none', legend).textContent = 'Gray: no Juice data';
+  }
+  function setJuiceScale(src) {
+    const sc = toJuiceScale(src);
+    if (!sc) return false;
+    jScale = sc;
+    renderJuiceLegend();
+    paintModeControl();
+    if (places.length) draw();
+    return true;
+  }
+  if (!juiceScale) {
+    import(new URL('../lib/juice.js', import.meta.url).href)
+      .then(mod => { if (!destroyed) setJuiceScale(mod); })
+      .catch(() => { /* no juice.js here (e.g. the viz demo): keep the palette mirror */ });
+  }
+  let destroyed = false;
+
   function paintModeControl() {
     for (const b of modeBox.querySelectorAll('.ms-modes__btn')) {
       const on = b.dataset.mode === colorMode;
@@ -259,7 +298,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       b.classList.toggle('is-on', on);
     }
     modeBox.classList.toggle('ms-modes--juice', colorMode === 'juice');
-    for (const sw of modeBox.querySelectorAll('.ms-modes__sw')) sw.style.background = juiceColor(+sw.dataset.score);
+    for (const sw of modeBox.querySelectorAll('.ms-modes__sw')) sw.style.background = juiceColor(+sw.dataset.score, jScale.breaks);
   }
   function setColorMode(mode, fromUser) {
     if (!COLOR_MODES.includes(mode) || mode === colorMode) return;
@@ -270,6 +309,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     if (fromUser) onColorModeChange?.(mode);
   }
   container.classList.toggle('ms-map--juice', colorMode === 'juice');
+  renderJuiceLegend();
   paintModeControl();
 
   // Offline note control
@@ -308,7 +348,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       const jobs = [];
       for (const m of c.members) for (const j of m.jobs) if (!ids.has(j.id)) { ids.add(j.id); jobs.push(j); }
       const label = c.members.length > 1 ? `${c.lead.label} + ${c.members.length - 1} nearby` : c.lead.label;
-      return { lat: c.lead.lat, lng: c.lead.lng, members: c.members, jobs, ids, label, ...summarize(jobs), juice: summarizeJuice(jobs, c.members) };
+      return { lat: c.lead.lat, lng: c.lead.lng, members: c.members, jobs, ids, label, ...summarize(jobs), juice: summarizeJuice(jobs, c.members, jScale) };
     });
   }
 
@@ -348,7 +388,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     if (colorMode === 'juice') {
       const J = c.juice;
       if (J) {
-        const bg = juiceColor(J.score);
+        const bg = juiceColor(J.score, jScale.breaks);
         pin.style.setProperty('--pin-bg', bg);
         pin.style.setProperty('--pin-fg', inkOn(bg));
         pin.classList.add('ms-pin--juice');
@@ -521,6 +561,8 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       drawRemote();
     },
     highlight(jobId) { highlighted = jobId ?? null; applyHighlight(); },
+    /** Override the Juice scale: a juice.js-like module or { netForScore(score), breaks: [45, 70] }. */
+    setJuiceScale,
     /** Current pin color mode: 'pay' | 'juice'. */
     get colorMode() { return colorMode; },
     invalidateSize() {
@@ -529,6 +571,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       draw();
     },
     destroy() {
+      destroyed = true;
       clearTimeout(offlineTimer);
       ro.disconnect();
       offTheme();

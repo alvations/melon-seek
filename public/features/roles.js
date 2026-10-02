@@ -59,13 +59,13 @@ const STOPWORDS = new Set([
 export function expandTitle(title) {
   let s = String(title || '').toLowerCase()
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/c\+\+/g, ' cplusplus ').replace(/c#/g, ' csharp ').replace(/&/g, ' and ')
+    .replace(/c\+\+/g, ' cplusplus ').replace(/c#/g, ' csharp ')
+    .replace(/\bi\s*&\s*t\b/g, ' integration and test ').replace(/\bv\s*&\s*v\b/g, ' verification and validation ')
+    .replace(/\bm\s*&\s*a\b/g, ' mergers and acquisitions ').replace(/\bfp\s*&\s*a\b/g, ' fpanda ')
+    .replace(/\bs\s*&\s*op\b/g, ' sales and operations planning ').replace(/&/g, ' and ')
     .replace(/\bfront[\s-]?end\b/g, 'frontend').replace(/\bback[\s-]?end\b/g, 'backend')
     .replace(/\bfull[\s-]?stack\b/g, 'fullstack').replace(/\bdev[\s-]?ops\b/g, 'devops')
-    .replace(/\bon[\s-]?site\b/g, 'onsite').replace(/\bi\s*&\s*t\b/g, 'integration and test')
-    .replace(/\bv\s*&\s*v\b/g, 'verification and validation')
-    .replace(/\bm\s*&\s*a\b/g, 'mergers and acquisitions').replace(/\bfp\s*&\s*a\b/g, 'fpanda')
-    .replace(/\bs\s*&\s*op\b/g, 'sales and operations planning')
+    .replace(/\bon[\s-]?site\b/g, 'onsite')
     .replace(/[^a-z0-9+]+/g, ' ');
   s = s.split(' ').filter(Boolean).map((w) => ABBREV[w] || w).join(' ');
   return s.replace(/\bsite reliability\b/g, 'sitereliability').replace(/\bmachine learning\b/g, 'machinelearning');
@@ -78,7 +78,7 @@ function stem(w) {
 
 // A segment of the title that names the role (vs a team / location / req id).
 const SEGMENT_SPLIT = /\s*(?:,|;|\s[-–—|:]\s|[-–—]\s|\s[-–—]|\(|\)|\|)\s*/;
-const ROLE_NOUN = /\b(engineer\w*|developer|scientist|research\w*|manager|director|lead|head|analyst|designer|architect|specialist|coordinator|associate|executive|counsel|attorney|recruiter|technician|operator|writer|editor|partner|strategist|consultant|administrator|assistant|officer|planner|buyer|inspector|tutor|fellow|intern|vp|chief|representative|advisor|accountant|controller|producer|electrician|supervisor|agent|machinist|fabricator|assembler|scheduler|expert|owner|generalist|principal|member|programmer|worker|cook|drafter)\b/;
+const ROLE_NOUN = /\b(engineer\w*|developer|scientist|researcher|manager|director|lead|head|analyst|designer|architect|specialist|coordinator|associate|executive|counsel|attorney|recruiter|technician|operator|writer|editor|partner|strategist|consultant|administrator|assistant|officer|planner|buyer|inspector|tutor|fellow|intern|vp|chief|representative|advisor|accountant|controller|producer|electrician|supervisor|agent|machinist|fabricator|assembler|scheduler|expert|owner|generalist|principal|member|programmer|worker|cook|drafter)\b/;
 
 /** The title segment that names the role: "Human Data - Business Operations Analyst" -> "Business Operations Analyst". */
 export function rolePart(title) {
@@ -133,9 +133,9 @@ const FAMILIES = [
   ['product', /\b(product (manager|management|lead|owner|director)|(head|director|vp) (of )?product\b|assistant product owner)/],
   ['people', /\b(recruit\w*|talent|people|human resources|sourcer|compensation|benefits|payroll partner|learning and development|hr business partner|hr)\b/],
   ['admin', /\b(executive assistant|administrative|office manager|receptionist|executive business partner|executive operations|front desk)\b/],
-  ['finance', /\b(financ\w*|accountant|accounting|accounts (payable|receivable)|tax|treasury|(?<!flight )controller|payroll|fpanda|audit\w*|billing|order to cash|revenue manager|investor relations|pricing)\b/],
+  ['finance', /\b(financ\w*\b(?! (services|systems))|accountant|accounting|accounts (payable|receivable)|tax|treasury|(?<!flight )controller|payroll|fpanda|audit\w*|billing|order to cash|revenue manager|investor relations|pricing)\b/],
   ['support', /\b(support|customer success|customer (experience|service|learning|education)|technical account manager|user operations|technical (training|education))\b/],
-  ['solutions', /\b(solutions? (architect|engineer\w*|consultant|lead|specialist|principal)|sales engineer|forward deployed|deployment (strategist|lead)|applied ai (engineer\w*|architect)|customer engineer|field (application|solutions) engineer|implementation (engineer|manager|consultant|lead)|technical success|ai advisory|engagement manager|delivery (lead|manager)|(field|executive|enterprise|principal|customer) architect|field engineer)\b/],
+  ['solutions', /\b(solutions? (architect\w*|engineer\w*|consultant|lead|specialist|principal)|sales engineer|forward deployed|deployment (strategist|lead)|applied ai (engineer\w*|architect)|customer engineer|field (application|solutions) engineer|implementation (engineer|manager|consultant|lead)|technical success|ai advisory|engagement manager|delivery (lead|manager)|(field|executive|enterprise|principal|customer) architect|field engineer|technical deployment)\b/],
   ['supply-chain', /\b(supply (chain|planner|planning)|demand (and supply|planner|planning)|sourcing|procurement|buyer|purchasing|materials? (planner|associate|handler|manager|management|coordinator|specialist)|capacity (planner|planning)|logistics|warehous\w*|inventory|shipping|receiving|sales and operations planning|master scheduler|subcontracts?|supplier (development|management)|vendor manager|commodity|expediter|cost value engineer)\b/],
   ['legal', /\b(counsel|legal|attorney|lawyer|paralegal|compliance|regulatory|export control|trade control|patent|contracts? (manager|administrator|specialist|lead|director|negotiator|management|operations))\b/],
   ['trust-safety', /\b(trust and safety|safeguards?|enforcement|integrity|content moderation|moderator|user safety|abuse|harms?|safety operations|child safety|fraud|anti money laundering|aml|bsa|investigator)\b/],
@@ -146,7 +146,7 @@ const FAMILIES = [
   ['marketing', /\b(marketing|communications|comms|content|brand|community|events|public relations|writer|editor|documentation|producer|social media|growth (marketing|lead|manager)|lifecycle|campaigns?|copywriter)\b/],
   ['sales', /\b(account (executive|manager|director|associate|lead|strategist)|sales|business development|capture|partnerships?|partner (manager|director|lead|enablement|development|success)|partner\b|channel|alliances?|reseller|renewals|go to market|deal team|district manager|agency development|strategic pursuits|commercial lead|proposals?|(sales|revenue|partner|reseller|go to market|business development representative|leader|customer) enablement)\b/],
   ['data', /\b(data (scientist|science|engineer\w*|analyst|analytics|governance|platform|strategy)|analytics|business intelligence|enterprise data|data (acquisition|strategist|operations))\b/],
-  ['it', /\b(it|information technology|help ?desk|service desk|systems? administrator|sysadmin|enterprise (applications|systems)|business systems|corporate network|endpoint|netsuite|workday|asset management|audio visual|network operations)\b/],
+  ['it', /\b(it|information technology|help ?desk|service desk|systems? administrator|sysadmin|enterprise (applications|systems)|business systems|corporate network|endpoint|netsuite|workday|asset management|audio visual|network operations|financ\w* systems)\b/],
   ['manufacturing', /\b(technician|assembler|assembly|machinist|cnc|fabricat\w*|welder|welding|inspector|inspection|production (associate|coordinator|supervisor|manager|lead|operator|planner|control|technician|worker|operations)|((vp|head|director|deputy head|manager) (of )?production)|manufacturing (associate|technician|operator|supervisor|lead|manager|specialist)|factory|maintenance (lead|technician|supervisor|manager)|quality\b(?! (assurance )?engineer)|metrology|machine operator|sheet metal|wire harness|solder\w*|line lead|shift lead)\b/],
   ['field-ops', /\b(operator|mission operations|field (service|services|operations|support)|deployment(s)? (and training|specialist|engineer|manager)|mission readiness|training (lead|coordinator|specialist|instructor)|instructor|trainer|range (safety|operations)|sustainment\b(?! engineer))/],
   ['program', /\b(program (manager|management|director|lead|assistant|coordinator|analyst|specialist)|programs\b|project (manager|management|coordinator|lead)|technical program|pmo|configuration (manager|management|analyst)|change control|mission (manager|director)|product operations)\b/],
@@ -189,6 +189,7 @@ const ML_HINT = /\b(training|model\w*|research|post|pretrain\w*|multimodal|rl|re
 const PRIORITY = [
   ['ai-training', /\b(human frontier collective|ai tutor)\b/],
   ['trust-safety', /\bfinancial crimes?\b/],
+  ['security', /\b(cross domain|gsoc|security operations center)\b/],
 ];
 
 function firstFamily(text) {
@@ -215,7 +216,9 @@ export function roleFamily(title, ctx) {
   let fam = firstFamily(role) || firstFamily(full);
   // Context overrides: building-systems engineers, and policy work inside Trust & Safety.
   if (fam === 'manufacturing' && /\bengineer\b/.test(full)) fam = 'hardware'; // "Staff Engineer, Quality"
-  if (fam === 'hardware' && /\b(facilit\w*|construction)\b/.test(full)) fam = 'facilities';
+  if (fam === 'hardware' && (/\b(facilit\w*|construction)\b/.test(full) ||
+    (/\bdata ?center\b/.test(full) && /\b(electrical|mechanical|controls)\b/.test(full)))) fam = 'facilities';
+  if (fam === 'policy' && /\bsecurity\b/.test(deptText)) fam = 'security';
   // Technicians, operators and ops staff on a data-center campus are facilities work.
   if (['manufacturing', 'bizops', 'field-ops'].includes(fam) && /\bdata ?center\b/.test(`${full} ${deptText}`)) fam = 'facilities';
   if (fam === 'policy' && /\b(safeguards|trust and safety|integrity)\b/.test(deptText)) fam = 'trust-safety';
