@@ -29,6 +29,13 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      - name: Static build (GitHub Pages bundle)
+        run: |
+          npm run build
+          jq -e 'type == "array" and length >= 3' dist/api/companies.json
+          for f in dist/api/jobs/*.json; do jq -e '.jobs | type == "array"' "$f" > /dev/null; done
+          test -f dist/config.js && test -f dist/.nojekyll && test -f dist/vendor/leaflet/leaflet.js
+
       - name: Smoke test (start server, hit API)
         env:
           PORT: 5173
