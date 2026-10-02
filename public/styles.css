@@ -400,6 +400,9 @@ html[data-mode="map"] .demo-banner > code { order: 0; flex: 0 1 auto; margin-lef
 .select-field select:focus, .board-form select:focus, .board-form input:focus { border-color: var(--ms-accent); box-shadow: var(--ms-focus); }
 
 .viz {
+  /* isolation: Leaflet panes/controls use z-index 400–1000; keep them inside the map so the drawer,
+     its scrim and popovers (z 60–80) always cover the map instead of the map bleeding through. */
+  isolation: isolate;
   position: relative; flex: 1; min-height: 0; background: var(--ms-surface); border: 1px solid var(--ms-border);
   border-radius: 12px; overflow: hidden; box-shadow: var(--ms-shadow-sm);
 }
@@ -810,7 +813,7 @@ html[data-mode="insights"] .viz-controls { display: none; }
 .company-item-check { color: var(--ms-accent); font-weight: 700; }
 .company-menu > .btn { margin-top: 6px; justify-content: flex-start; color: var(--ms-muted); border-style: dashed; }
 @media (max-width: 1360px) { .company-pill:nth-child(n+3) { display: none; } }
-@media (max-width: 1199px) { .topbar .seg button span { display: none; } .company-pill:nth-child(n+2) { display: none; } }
+@media (max-width: 1199px) { .topbar .seg button span { display: none; } .company-pills { display: none; } /* recents live in the company menu; pills overflowed the bar at 1024 */ }
 @media (max-width: 860px) {
   #addBoardBtn { display: none; }               /* "Add a board" lives in the company menu */
   .company-menu-btn .company-count { display: none; }

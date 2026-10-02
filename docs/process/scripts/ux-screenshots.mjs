@@ -27,6 +27,191 @@ async function page(opts) {
 const ready = (p) => p.waitForSelector('.card[data-id]', { timeout: 15000 });
 const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`) });
 
+// ---------------------------------------------------------------------------
+// Layout matrix (LAYOUT=0 skips it, LAYOUT_ONLY=1 runs only it). Views × drawer × filter
+// column × viewports × themes, plus flows. Screenshots go to LAYOUT_OUT (default OUT/ux-layout).
+// ---------------------------------------------------------------------------
+const LAYOUT_OUT = process.env.LAYOUT_OUT || path.join(OUT, 'ux-layout');
+const layout = { states: 0, failures: [] };
+/** Geometry/stacking checks for the current page state; returns a list of problems. */
+async function layoutProblems(pg, { view, drawer }) {
+  return pg.evaluate(({ view, drawer }) => {
+    const bad = [];
+    const R = (el) => el && el.getBoundingClientRect();
+    const de = document.documentElement;
+    if (de.scrollWidth > de.clientWidth + 1) bad.push(`horizontal scroll ${de.scrollWidth}>${de.clientWidth}`);
+    // Top bar items must not overlap each other.
+    const items = [...document.querySelectorAll('.topbar .brand, #companyMenuBtn, .search, .topbar .seg, #dataBadge, #themeBtn, #refreshBtn')]
+      .filter((e) => e.offsetParent !== null && e.getClientRects().length).map((e) => [e.id || e.className.split(' ')[0], R(e)]);
+    for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
+      const [na, a] = items[i], [nb, b] = items[j];
+      if (a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1) bad.push(`topbar overlap ${na}/${nb}`);
+    }
+    const viz = R(document.getElementById('vizArea'));
+    if (view === 'map') {
+      const host = R(document.getElementById('mapHost')), lc = R(document.querySelector('#mapHost .leaflet-container'));
+      if (!lc) bad.push('no leaflet container');
+      else {
+        if (Math.abs(lc.width - host.width) > 2 || Math.abs(lc.height - host.height) > 2) bad.push(`map not filling host ${lc.width|0}x${lc.height|0} vs ${host.width|0}x${host.height|0}`);
+        if (host.width < viz.width - 4 || host.height < viz.height - 4) bad.push(`map host smaller than its area ${host.width|0}x${host.height|0} vs ${viz.width|0}x${viz.height|0}`);
+        const pins = [...document.querySelectorAll('#mapHost .leaflet-marker-icon > *')].map(R).filter((r) => r.width);
+        if (!pins.length) bad.push('no pins');
+        // Leaflet's own size must match its container (stale size = gaps / misplaced pins).
+        const lm = document.querySelector('#mapHost .leaflet-container');
+        const pane = R(lm.querySelector('.leaflet-map-pane'));
+        if (!pane) bad.push('no map pane');
+      }
+      if (!drawer) {
+        for (const sel of ['.leaflet-control-zoom', '.leaflet-bottom.leaflet-left .leaflet-control', '.leaflet-top.leaflet-right .leaflet-control, .leaflet-bottom.leaflet-right .leaflet-control']) {
+          const c = document.querySelector(`#mapHost ${sel}`);
+          if (!c) continue;
+          const r = R(c);
+          if (r.left < host.left - 1 || r.right > host.right + 1 || r.top < host.top - 1 || r.bottom > host.bottom + 1) bad.push(`map control clipped: ${sel}`);
+        }
+      }
+    }
+    if (view !== 'insights' && view !== 'map') {
+      const ch = R(document.getElementById('chartHost'));
+      if (ch && (ch.height < 120 || ch.width < 200)) bad.push(`chart too small ${ch.width|0}x${ch.height|0}`);
+    }
+    if (drawer) {
+      const d = document.getElementById('drawer'), dr = R(d);
+      if (!d.contains(document.activeElement)) bad.push('focus not in drawer');
+      // Nothing from the page (map panes/controls, chart) may paint over the drawer or the scrim.
+      const probes = [[dr.left + 12, dr.top + 160], [dr.left + 40, dr.top + dr.height / 2], [dr.left + 12, dr.bottom - 40], [dr.left + dr.width / 2, dr.top + 220]];
+      for (const [x, y] of probes) { const e = document.elementFromPoint(x, y); if (e && !d.contains(e)) bad.push(`covered drawer at ${x|0},${y|0} by ${e.className || e.tagName}`); }
+      if (dr.left > 40) {
+        const e = document.elementFromPoint(Math.max(5, dr.left / 2), viz.top + viz.height / 2);
+        if (e && e.id !== 'drawerBackdrop') bad.push(`scrim not on top of page at left: ${e.className || e.tagName}`);
+      }
+    } else if (document.activeElement === document.body && document.querySelector('.drawer.is-open')) bad.push('drawer state');
+    return bad;
+  }, { view, drawer });
+}
+async function setFilters(pg, open) {
+  await pg.evaluate((open) => {
+    const t = document.getElementById('filtersToggle');
+    const isOpen = t.getAttribute('aria-expanded') === 'true';
+    if (isOpen !== open) t.click();
+  }, open);
+  await pg.waitForTimeout(320);
+}
+async function runLayoutMatrix() {
+  fs.mkdirSync(LAYOUT_OUT, { recursive: true });
+  const VIEWPORTS = (process.env.VIEWPORTS || '1920x1080,1440x900,1280x800,1024x768,768x1024,390x844').split(',').map((v) => v.split('x').map(Number));
+  const VIEWS = [['clusters', ''], ['ranges', '&v=ranges'], ['map', '&m=map'], ['insights', '&m=insights']];
+  for (const theme of ['light', 'dark']) for (const [w, hgt] of VIEWPORTS) {
+    const pg = await page({ viewport: { width: w, height: hgt }, deviceScaleFactor: 1, isMobile: w < 500, hasTouch: w < 500 });
+    // Seed recent companies so the top bar shows its widest state (recent pills).
+    await pg.addInitScript((t) => { try { localStorage.setItem('melon-seek.theme', t); localStorage.setItem('melon-seek.recent.v1', JSON.stringify(['openai', 'anduril', 'xai', 'anthropic'])); } catch {} }, theme);
+    for (const [view, q] of VIEWS) try {
+      await pg.goto('about:blank');
+      await pg.goto(`${BASE}/${QS}#c=anthropic${q}`); await ready(pg); await pg.waitForTimeout(view === 'map' ? 900 : 300);
+      for (const filtersOpen of w >= 1200 ? [true, false] : [false, true]) {
+        if (w < 861 && filtersOpen) continue; // phones: filters are a full-screen sheet (mobile workstream)
+        await setFilters(pg, filtersOpen);
+        if (filtersOpen && w < 1200) { await setFilters(pg, false); continue; } // overlay sheet: checked in flows
+        for (const drawer of [false, true]) {
+          if (drawer) { await pg.click('.card[data-id] >> nth=0', { force: true }); await pg.waitForSelector('.drawer.is-open'); await pg.waitForTimeout(350); }
+          const tag = `${theme}-${w}x${hgt}-${view}-filters${filtersOpen ? 'Open' : 'Closed'}-drawer${drawer ? 'Open' : 'Closed'}`;
+          const probs = await layoutProblems(pg, { view, drawer });
+          layout.states++;
+          if (probs.length) layout.failures.push({ tag, probs });
+          if (view === 'map' || (view === 'clusters' && drawer)) await pg.screenshot({ path: path.join(LAYOUT_OUT, `${tag}.png`) });
+          if (drawer) { await pg.keyboard.press('Escape'); await pg.waitForTimeout(300); }
+        }
+      }
+    } catch (e) { layout.failures.push({ tag: `${theme}-${w}x${hgt}-${view}`, probs: [`run error: ${String(e.message || e).split('\n')[0]}`] }); }
+    await pg.close();
+  }
+  // Flows (1440x900 and 1024x768, light)
+  for (const [w, hgt] of [[1440, 900], [1024, 768]]) {
+    const pg = await page({ viewport: { width: w, height: hgt } });
+    const flow = async (name, fn) => { try { const probs = await fn(); layout.states++; if (probs?.length) layout.failures.push({ tag: `flow-${w}-${name}`, probs }); } catch (e) { layout.failures.push({ tag: `flow-${w}-${name}`, probs: [String(e.message || e).split('\n')[0]] }); } };
+    await pg.goto(`${BASE}/${QS}#c=anthropic&m=map`); await ready(pg); await pg.waitForTimeout(900);
+    const mapSize = () => pg.evaluate(() => { const r = document.querySelector('#mapHost .leaflet-container').getBoundingClientRect(); return `${r.width|0}x${r.height|0}`; });
+    const size0 = await mapSize();
+    await flow('drawer-repeat', async () => {
+      for (let i = 0; i < 5; i++) { await pg.click(`.card[data-id] >> nth=${i}`, { force: true }); await pg.waitForSelector('.drawer.is-open'); await pg.waitForTimeout(250); await pg.keyboard.press('Escape'); await pg.waitForTimeout(250); }
+      const s1 = await mapSize();
+      return [...(s1 !== size0 ? [`map size drifted ${size0} -> ${s1}`] : []), ...(await layoutProblems(pg, { view: 'map', drawer: false }))];
+    });
+    await flow('next-prev', async () => {
+      await pg.click('.card[data-id] >> nth=0', { force: true }); await pg.waitForSelector('.drawer.is-open'); await pg.waitForTimeout(250);
+      const t0 = await pg.textContent('#drawerTitle');
+      await pg.keyboard.press('ArrowRight'); await pg.waitForTimeout(250);
+      const t1 = await pg.textContent('#drawerTitle');
+      await pg.keyboard.press('ArrowLeft'); await pg.waitForTimeout(250);
+      const t2 = await pg.textContent('#drawerTitle');
+      const probs = await layoutProblems(pg, { view: 'map', drawer: true });
+      if (t0 === t1 || t0 !== t2) probs.push(`next/prev titles ${t0} | ${t1} | ${t2}`);
+      return probs;
+    });
+    await flow('resize-with-drawer', async () => {
+      await pg.setViewportSize({ width: w - 200, height: hgt - 100 }); await pg.waitForTimeout(500);
+      const probs = await layoutProblems(pg, { view: 'map', drawer: true });
+      await pg.keyboard.press('Escape'); await pg.waitForTimeout(400);
+      probs.push(...(await layoutProblems(pg, { view: 'map', drawer: false })));
+      await pg.screenshot({ path: path.join(LAYOUT_OUT, `flow-${w}-resized-map.png`) });
+      await pg.setViewportSize({ width: w, height: hgt }); await pg.waitForTimeout(500);
+      probs.push(...(await layoutProblems(pg, { view: 'map', drawer: false })));
+      return probs;
+    });
+    await flow('filters-toggle-map', async () => {
+      const probs = [];
+      for (const open of [w >= 1200 ? false : true, w >= 1200 ? true : false]) {
+        await setFilters(pg, open);
+        if (!(open && w < 1200)) probs.push(...(await layoutProblems(pg, { view: 'map', drawer: false })));
+      }
+      await setFilters(pg, w >= 1200);
+      return probs;
+    });
+    await flow('switch-company-with-drawer', async () => {
+      await pg.click('.card[data-id] >> nth=0', { force: true }); await pg.waitForSelector('.drawer.is-open'); await pg.waitForTimeout(200);
+      await pg.evaluate(() => { location.hash = '#c=openai&m=map'; });
+      await ready(pg); await pg.waitForTimeout(900);
+      const probs = await layoutProblems(pg, { view: 'map', drawer: false });
+      if (await pg.evaluate(() => !!document.querySelector('.drawer.is-open'))) probs.push('drawer stayed open after company switch');
+      if (await pg.evaluate(() => document.getElementById('layout').inert)) probs.push('background still inert');
+      return probs;
+    });
+    await flow('deep-link-job-map', async () => {
+      const id = await pg.getAttribute('.card[data-id] >> nth=2', 'data-id');
+      await pg.goto('about:blank');
+      await pg.goto(`${BASE}/${QS}#c=openai&m=map&job=${encodeURIComponent(id)}`); await pg.waitForSelector('.drawer.is-open'); await pg.waitForTimeout(900);
+      const probs = await layoutProblems(pg, { view: 'map', drawer: true });
+      await pg.screenshot({ path: path.join(LAYOUT_OUT, `flow-${w}-deeplink-map-drawer.png`) });
+      await pg.keyboard.press('Escape'); await pg.waitForTimeout(400);
+      probs.push(...(await layoutProblems(pg, { view: 'map', drawer: false })));
+      return probs;
+    });
+    await flow('back-forward', async () => {
+      await pg.click('.topbar .seg [data-mode="chart"]'); await pg.waitForTimeout(400);
+      await pg.click('.card[data-id] >> nth=0', { force: true }); await pg.waitForSelector('.drawer.is-open'); await pg.waitForTimeout(250);
+      await pg.goBack(); await pg.waitForTimeout(400); // drawer closes
+      const probs = [];
+      if (await pg.evaluate(() => !!document.querySelector('.drawer.is-open'))) probs.push('Back did not close drawer');
+      await pg.goBack(); await pg.waitForTimeout(900); // back to map
+      if (!(await pg.evaluate(() => location.hash.includes('m=map')))) probs.push('Back did not return to map');
+      else probs.push(...(await layoutProblems(pg, { view: 'map', drawer: false })));
+      await pg.goForward(); await pg.waitForTimeout(500);
+      if (!(await pg.evaluate(() => !location.hash.includes('m=map')))) probs.push('Forward did not return to chart');
+      return probs;
+    });
+    await pg.close();
+  }
+  return layout;
+}
+if (process.env.LAYOUT !== '0') {
+  await runLayoutMatrix();
+  console.log(JSON.stringify({ layoutStates: layout.states, layoutFailures: layout.failures }, null, 2));
+}
+if (process.env.LAYOUT_ONLY === '1') {
+  await browser.close();
+  console.log(JSON.stringify({ errors }, null, 2));
+  process.exit(errors.length || layout.failures.length ? 1 : 0);
+}
+
 // Desktop chart
 let p = await page({ viewport: { width: 1440, height: 900 }, colorScheme: 'light' });
 await p.goto(`${BASE}/${QS}#c=anthropic`);
@@ -321,4 +506,4 @@ await p.close();
 
 await browser.close();
 console.log(JSON.stringify({ hashAfterDrawer: hash, hashAfterBack: hashBack, checks, errors }, null, 2));
-process.exitCode = errors.length ? 1 : 0;
+process.exitCode = errors.length || layout.failures.length ? 1 : 0;
