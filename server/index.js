@@ -16,6 +16,7 @@ import { normalizeJobs } from './normalize.js';
 import { vetSalaries } from './vet.js';
 import { getCached, setCached, ROOT } from './cache.js';
 import { demoJobs } from './demo.js';
+import { isLibModule } from './lib-modules.js';
 
 const gzip = promisify(zlib.gzip);
 
@@ -25,16 +26,9 @@ const SNAPSHOT_DIR = process.env.MELON_SNAPSHOT_DIR || path.join(ROOT, 'data', '
 const SERVER_DIR = path.join(ROOT, 'server');
 export const CITIES_FILE = process.env.MELON_CITIES_FILE || path.join(ROOT, 'data', 'cities.json');
 
-/**
- * Browser-safe server modules served at /lib/<path> so public/api.js can
- * `import('./lib/juice.js')` etc. in server mode with the same relative paths
- * as the static build (dist/lib/). Explicit allowlist: node-only modules
- * (index.js, cache.js) are never exposed. Must stay closed under imports.
- */
-export const BROWSER_LIB = new Set([
-  'companies.js', 'normalize.js', 'salary.js', 'geo.js', 'keywords.js', 'demo.js', 'juice.js', 'vet.js',
-  'sources/greenhouse.js', 'sources/ashby.js', 'sources/lever.js', 'sources/util.js',
-]);
+// Browser-safe modules served at /lib/<path> (allowlist shared with the static
+// build: server/lib-modules.js). Node-only modules (index.js, cache.js) never match.
+export { LIB_MODULES, isLibModule } from './lib-modules.js';
 
 /** At most one live upstream attempt per slug per this window (review H1). */
 export const MIN_REFRESH_MS = Number(process.env.MELON_MIN_REFRESH_MS) || 60_000;
@@ -381,8 +375,10 @@ export async function handle(req, res) {
   if (p.startsWith('/lib/')) {
     let rel;
     try { rel = decodeURIComponent(p.slice('/lib/'.length)); } catch { rel = null; }
-    if (!rel || !BROWSER_LIB.has(rel)) return sendJson(req, res, 404, { error: 'Not found' });
-    return serveFile(req, res, path.join(SERVER_DIR, ...rel.split('/')));
+    if (!rel || !isLibModule(rel)) return sendJson(req, res, 404, { error: 'Not found' });
+    const file = safeJoin(SERVER_DIR, rel); // belt and braces: the allowlist already excludes traversal
+    if (!file) return sendJson(req, res, 404, { error: 'Not found' });
+    return serveFile(req, res, file);
   }
   if (p.startsWith('/vendor/leaflet/')) {
     const file = safeJoin(LEAFLET_DIR, p.slice('/vendor/leaflet/'.length));

@@ -258,3 +258,9 @@ screenshots in `docs/screenshots/`.
   the vet-salaries CI step), UX (card badge, "Most juice" sort, grade chips
   in More, drawer waterfall) and viz (Pay | Juice map pin coloring, FX
   table refresh to match cities.json).
+- 2026-10-02: ladder-brainstorm finished (plan only, nothing implemented):
+  docs/strategy/CORPORATE_LADDER_PLAN.md. It recommends "Level check" (a
+  drawer section using corporate-ladder's two generic IC ladders, honest
+  about titles with no level) and optionally an "interview prep" card.
+  Questions went to the user. Bug sent to features: "Member of Technical
+  Staff" titles were classed as Staff+.

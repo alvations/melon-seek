@@ -108,7 +108,7 @@ export function formatMoney(n, { symbol = '$' } = {}) {
   return sign + symbol + s;
 }
 
-const SYMBOLS = { USD: '$', GBP: '£', EUR: '€', CAD: 'CA$', AUD: 'A$', JPY: '¥', SGD: 'S$', CHF: 'CHF ' };
+const SYMBOLS = { USD: '$', GBP: '£', EUR: '€', CAD: 'CA$', AUD: 'A$', NZD: 'NZ$', JPY: '¥', SGD: 'S$', HKD: 'HK$', CHF: 'CHF ', INR: '₹', KRW: '₩', ILS: '₪' };
 
 /** Format in the original currency, e.g. formatCurrency(95000,"GBP") -> "£95K". */
 export function formatCurrency(n, currency = 'USD') {
@@ -116,10 +116,45 @@ export function formatCurrency(n, currency = 'USD') {
   return formatMoney(n, { symbol: SYMBOLS[c] ?? (c + ' ') });
 }
 
-/** Static, approximate FX rates to USD (labelled "approx USD" in the UI; no live FX). */
-export const FX_TO_USD = Object.freeze({
-  USD: 1, GBP: 1.27, EUR: 1.09, CAD: 0.73, AUD: 0.66, JPY: 0.0067, SGD: 0.74, CHF: 1.13,
+/**
+ * Static FX: local currency units per 1 USD, copied verbatim from data/cities.json
+ * `fx.perUSD` so the chart, Compstimate and the Juice Score all use one table.
+ * Source: The Economist Big Mac index source data v2, `dollar_ex` column
+ * (Refinitiv/LSEG rates), release 2026-07-01; data CC BY 4.0.
+ * https://raw.githubusercontent.com/TheEconomist/big-mac-data/master/source-data/big-mac-source-data-v2.csv
+ * Copied 2026-10-02. Refresh both together (scripts/update-col.js updates cities.json).
+ * Labelled "approx USD" in the UI; there is no live FX.
+ */
+export const FX_AS_OF = '2026-07-01';
+export const FX_PER_USD = Object.freeze({
+  AED: 3.67285,
+  AUD: 1.42867347667691,
+  BRL: 5.07935,
+  CAD: 1.40515,
+  CHF: 0.80735,
+  CZK: 21.1625,
+  DKK: 6.5366,
+  EUR: 0.87439,
+  GBP: 0.74187,
+  HKD: 7.83895,
+  ILS: 2.9993,
+  INR: 96.26375,
+  JPY: 162.135,
+  KRW: 1485.9,
+  MXN: 17.386,
+  NOK: 9.68565,
+  NZD: 1.71335560695622,
+  PLN: 3.77915,
+  SAR: 3.755,
+  SEK: 9.63495,
+  SGD: 1.29005,
+  TWD: 32.1875,
+  USD: 1,
 });
+
+/** USD per one unit of each currency (1 / FX_PER_USD), e.g. GBP ≈ 1.348. */
+export const FX_TO_USD = Object.freeze(Object.fromEntries(
+  Object.entries(FX_PER_USD).map(([c, per]) => [c, c === 'USD' ? 1 : 1 / per])));
 
 /** Convert amount in currency to approximate USD. Unknown currency -> amount unchanged. */
 export function toUSD(amount, currency = 'USD') {
@@ -183,4 +218,33 @@ export function median(values) {
   if (!v.length) return null;
   const m = v.length >> 1;
   return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
+}
+
+// ---------- Juice Score scale (see docs/LIVABILITY.md, server/juice.js) ----------
+// Stepped ordinal ramp, one hue (watermelon red), breaks at the grade boundaries
+// 45 (Dry→Ripe) and 70 (Ripe→Juicy). Validated with validate_palette.js --ordinal:
+// light end 2.14:1 on the light surface, 2.22:1 on the dark surface. Dark mode is its
+// own steps (brighter = juicier), like the salary ramp.
+export const JUICE_BREAKS = Object.freeze([45, 70]);
+const JUICE_LIGHT = ['#ee9893', '#d9534f', '#a51f35']; // Dry, Ripe, Juicy
+const JUICE_DARK = ['#8a363c', '#c9505a', '#f59a95'];
+const JUICE_ANCHORS = Object.freeze({ A: 10000, B: 250000 }); // = server/juice.js SCORE_ANCHORS
+
+/** Grade label for a juice score (and net, so net <= 0 is "Rind"); mirrors server/juice.js gradeFor. */
+export function juiceGrade(score, net = 1) {
+  if (!(net > 0)) return 'Rind';
+  return score >= JUICE_BREAKS[1] ? 'Juicy' : score >= JUICE_BREAKS[0] ? 'Ripe' : 'Dry';
+}
+
+/** Fill color for a juice score: Dry / Ripe / Juicy step (Rind uses the Dry step). */
+export function juiceColor(score) {
+  const ramp = isDark() ? JUICE_DARK : JUICE_LIGHT;
+  return ramp[score >= JUICE_BREAKS[1] ? 2 : score >= JUICE_BREAKS[0] ? 1 : 0];
+}
+
+/** Annual net juice (USD) needed for a score; mirrors server/juice.js netForScore (legend labels). */
+export function juiceNetForScore(score) {
+  const { A, B } = JUICE_ANCHORS;
+  const s = Math.max(0, Math.min(100, score));
+  return A * Math.expm1((s / 100) * Math.log1p(B / A));
 }
