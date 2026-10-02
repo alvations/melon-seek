@@ -199,3 +199,12 @@ screenshots in `docs/screenshots/`.
   pages.yml and GitHub's "pages build and deployment" (branch mode). They
   race (run 36971600567 finished after 36971601630). Asked the user to set
   Settings → Pages → Source to "GitHub Actions".
+- 2026-10-02 ~06:05–06:40 UTC: UX, viz, vetting and livability agents
+  stopped on a session limit (HTTP 429, reset 06:40 UTC). At 06:40 all four
+  were resumed with "resume where you left off" notes. A send_later check-in
+  (45 min) is armed so work resumes on its own after any further limits.
+- 2026-10-02: user reported no preview image when the link is shared on
+  LinkedIn and other social sites. Launched the social-sharing agent
+  (prompts/social.md): OG/Twitter meta tags, a 1200x630 card generated from
+  an HTML template with Playwright, absolute og URLs via SITE_URL in the
+  static build, optional per-company share pages, and a test.
