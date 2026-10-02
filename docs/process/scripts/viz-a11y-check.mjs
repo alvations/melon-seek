@@ -12,7 +12,7 @@ const PORT = +process.env.PORT || 5288;
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png' };
 const server = http.createServer((req, res) => {
   const u = decodeURIComponent(req.url.split('?')[0]);
-  const f = u.startsWith('/vendor/leaflet/') ? path.join(LEAFLET, u.slice(16)) : path.join(PUB, u);
+  const f = u.startsWith('/vendor/leaflet/') ? path.join(LEAFLET, u.slice(16)) : u.startsWith('/lib/') ? path.join(ROOT, 'server', u.slice(5)) : path.join(PUB, u); // /lib/ = browser-safe server modules, as server/index.js serves them
   fs.readFile(f, (e, d) => { if (e) { res.writeHead(404); return res.end(); } res.writeHead(200, { 'content-type': TYPES[path.extname(f)] || 'application/octet-stream' }); res.end(d); });
 }).listen(PORT);
 let pw; for (const m of [process.env.PLAYWRIGHT_MODULE, 'playwright', '/opt/node-tools/node_modules/playwright/index.mjs'].filter(Boolean)) { try { pw = await import(m); break; } catch {} }

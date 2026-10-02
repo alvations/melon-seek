@@ -68,8 +68,8 @@ const SHOTS = [
 
 const server = http.createServer((req, res) => {
   const u = decodeURIComponent(req.url.split('?')[0]);
-  const f = u.startsWith('/vendor/leaflet/') ? path.join(LEAFLET, u.slice(16)) : path.join(PUB, u);
-  if (!f.startsWith(PUB) && !f.startsWith(LEAFLET)) { res.writeHead(403); return res.end(); }
+  const f = u.startsWith('/vendor/leaflet/') ? path.join(LEAFLET, u.slice(16)) : u.startsWith('/lib/') ? path.join(ROOT, 'server', u.slice(5)) : path.join(PUB, u); // /lib/ = browser-safe server modules, as server/index.js serves them
+  if (!f.startsWith(PUB) && !f.startsWith(LEAFLET) && !f.startsWith(path.join(ROOT, 'server'))) { res.writeHead(403); return res.end(); }
   fs.readFile(f, (e, d) => {
     if (e) { res.writeHead(404); return res.end('not found'); }
     res.writeHead(200, { 'content-type': TYPES[path.extname(f)] || 'application/octet-stream' });

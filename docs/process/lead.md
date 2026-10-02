@@ -341,3 +341,11 @@ screenshots in `docs/screenshots/`.
   Next check-in armed for +45 min (trig_01UytGUESHhy6ZM7EZRuWrf9). Note: a
   lead cleanup `kill` of node server processes may also have stopped
   agents' test servers; agents restart their own servers as needed.
+- 2026-10-02: features finished extractCompExtras: held-out precision
+  equity 96.3% and bonus 100% (rules frozen, labels blind, 72 postings); 219
+  agent-labelled postings in total, plus a corpus-wide review of every
+  triggering sentence. Accepted judgement: Anthropic's "optional equity
+  donation matching" is not equity in the offer, so "+ equity mentioned"
+  stays off there. Open minor: salary.js doesn't count a second pay tier
+  written on its own line ("All other US locations: $X—$Y") as a zone. UX
+  finished wiring every 1-up feature; F1 waits on product's comps.js.
