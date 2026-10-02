@@ -174,3 +174,82 @@ test('cache stores to disk and reports freshness', async () => {
   assert.deepEqual(hit.data, [1]);
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('slug validation rejects dot-only and edge-dot slugs (L1)', () => {
+  for (const bad of ['.', '..', '...', 'a..b', '.hidden', 'trailing.', '-x', 'x-', '_x', 'a/b', 'a b', '', 'x'.repeat(101)]) {
+    assert.throws(() => resolveCompany({ source: 'greenhouse', board: bad }), (e) => e.status === 400, `rejects ${JSON.stringify(bad)}`);
+  }
+  for (const ok of ['a', 'anthropic', 'andurilindustries', 'acme-co', 'acme_co', 'acme.io', 'x'.repeat(100)]) {
+    assert.equal(resolveCompany({ source: 'lever', board: ok }).board, ok);
+  }
+});
+
+test('fetchJson: no redirects, typed errors, body-size cap (L2)', async () => {
+  const { fetchJson, UpstreamError } = await import('../server/sources/util.js');
+  mockFetch(() => jsonResponse({ ok: 1 }));
+  assert.deepEqual(await fetchJson('https://example.test/a', { label: 't' }), { ok: 1 });
+  assert.equal(calls[0].opts.redirect, 'error');
+
+  mockFetch(() => new Response('x'.repeat(10), { status: 200, headers: { 'content-length': String(10 * 1024 * 1024 * 1024) } }));
+  await assert.rejects(fetchJson('https://example.test/big', { label: 't' }), (e) => e instanceof UpstreamError && e.code === 'too_large');
+
+  // Streamed body without content-length that exceeds the cap.
+  mockFetch(() => new Response(new ReadableStream({
+    start(c) { for (let i = 0; i < 5; i++) c.enqueue(new TextEncoder().encode('a'.repeat(1000))); c.close(); },
+  }), { status: 200 }));
+  await assert.rejects(fetchJson('https://example.test/stream', { label: 't', maxBytes: 2500 }), (e) => e.code === 'too_large');
+
+  mockFetch(() => new Response('nope', { status: 404, statusText: 'Not Found' }));
+  await assert.rejects(fetchJson('https://example.test/404', { label: 't' }), (e) => e.code === 'http' && e.status === 404);
+  mockFetch(() => new Response('{bad json', { status: 200 }));
+  await assert.rejects(fetchJson('https://example.test/bad', { label: 't' }), (e) => e.code === 'invalid_json');
+  mockFetch(() => { throw new TypeError('fetch failed', { cause: new Error('unexpected redirect') }); });
+  await assert.rejects(fetchJson('https://example.test/redir', { label: 't' }), (e) => e.code === 'network');
+
+  // Multi-byte UTF-8 split across chunks decodes correctly.
+  const bytes = new TextEncoder().encode(JSON.stringify({ s: '£95k – €80.000' }));
+  mockFetch(() => new Response(new ReadableStream({
+    start(c) { for (const b of bytes) c.enqueue(new Uint8Array([b])); c.close(); },
+  }), { status: 200 }));
+  assert.deepEqual(await fetchJson('https://example.test/utf8', { label: 't' }), { s: '£95k – €80.000' });
+});
+
+test('cache: custom boards are LRU-bounded in memory and on disk (H1)', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'melon-lru-'));
+  cache.setCacheDir(dir);
+  cache.setCacheLimits({ memory: 2, disk: 3 });
+  try {
+    await cache.setCached('anthropic', [0]);
+    for (const slug of ['lever-a', 'lever-b', 'lever-c']) {
+      await cache.setCached(slug, [slug], { custom: true });
+      await new Promise((r) => setTimeout(r, 15)); // distinct mtimes
+    }
+    assert.deepEqual(cache.memoryKeys(), ['anthropic', 'lever-b', 'lever-c'], 'oldest custom evicted, built-in kept');
+    await cache.getCached('lever-b', { custom: true }); // touch -> most recent
+    await cache.setCached('lever-d', ['d'], { custom: true });
+    assert.deepEqual(cache.memoryKeys(), ['anthropic', 'lever-b', 'lever-d']);
+    await new Promise((r) => setTimeout(r, 15));
+    await cache.setCached('lever-e', ['e'], { custom: true });
+    const files = fs.readdirSync(path.join(dir, 'custom')).sort();
+    assert.equal(files.length, 3);
+    assert.ok(files.includes('lever-e.json') && files.includes('lever-d.json'));
+    assert.ok(fs.existsSync(path.join(dir, 'anthropic.json')), 'built-in file is never pruned');
+    // Evicted from memory but still on disk -> read back.
+    cache.clearMemory();
+    assert.deepEqual((await cache.getCached('lever-d', { custom: true })).data, ['d']);
+    assert.equal(await cache.getCached('lever-a', { custom: true }), null);
+  } finally {
+    cache.setCacheLimits({ memory: 50, disk: 100 });
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('browser-bundled modules use no Node-only APIs', () => {
+  const root = path.join(FIX, '..', '..', 'server');
+  const files = ['companies.js', 'normalize.js', 'salary.js', ...fs.readdirSync(path.join(root, 'sources')).map((f) => `sources/${f}`)];
+  for (const f of files) {
+    const code = fs.readFileSync(path.join(root, f), 'utf8').replace(/^\s*\/\/.*$/gm, '');
+    assert.ok(!/\bfrom\s+['"]node:|\bimport\s*\(\s*['"]node:|\brequire\s*\(/.test(code), `${f}: node import`);
+    assert.ok(!/(?<![.?\w])(process\.|Buffer\b|__dirname)/.test(code), `${f}: node global`);
+  }
+});

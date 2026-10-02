@@ -222,7 +222,7 @@ async function staticJobs(p, { refresh = false, signal } = {}) {
   if (!allowed) {
     error = `Live fetch skipped: ${company.source} does not allow cross-origin requests from this site (static deploy)`;
   } else if (blockedSources.has(company.source)) {
-    error = `Live fetch skipped: ${company.source} was unreachable from this browser earlier in this session (${NETWORK_REASON}); use refresh to retry`;
+    error = `Live fetch skipped: ${company.source} was unreachable from this browser earlier in this session (blocked by CORS or the network); use refresh to retry`;
   } else {
     try {
       const jobs = await fetchLiveInBrowser(lib, company, signal);
