@@ -83,6 +83,9 @@ export function colorFor(key) {
   return (dark ? CAT_DARK : CAT_LIGHT)[slot];
 }
 
+/** Categorical slot color by index (0 = slot 1, the default single-series accent). */
+export function slotColor(i = 0) { return (isDark() ? CAT_DARK : CAT_LIGHT)[((i % SLOT_COUNT) + SLOT_COUNT) % SLOT_COUNT]; }
+
 /** Neutral color for "Other" / unencoded marks. */
 export function otherColor() { return isDark() ? OTHER_DARK : OTHER_LIGHT; }
 

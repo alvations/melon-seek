@@ -31,7 +31,15 @@ const shot = (p, name) => p.screenshot({ path: path.join(OUT, `${name}.png`) });
 let p = await page({ viewport: { width: 1440, height: 900 }, colorScheme: 'light' });
 await p.goto(`${BASE}/${QS}#c=anthropic`);
 await ready(p); await p.waitForTimeout(600);
-await shot(p, 'desktop-chart');
+await shot(p, 'desktop-chart'); // default view: clusters, grouped by department
+await p.goto(`${BASE}/${QS}#c=anthropic&v=ranges`);
+await ready(p); await p.waitForTimeout(500);
+await shot(p, 'desktop-ranges');
+await p.click('#demoBanner summary').catch(() => {});
+await p.waitForTimeout(200);
+await shot(p, 'desktop-banner-open');
+await p.goto(`${BASE}/${QS}#c=anthropic`);
+await ready(p); await p.waitForTimeout(400);
 // Quick filter popover
 await p.click('[data-pop="salary"]'); await p.waitForTimeout(250);
 await shot(p, 'desktop-popover-salary');

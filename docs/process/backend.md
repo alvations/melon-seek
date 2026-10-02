@@ -140,7 +140,7 @@ Files owned: `server/index.js`, `server/companies.js`, `server/sources/{greenhou
 cd /home/user/melon-seek
 # fixtures were generated with a one-off python3 script (html.escape on hand-written descriptions;
 # Anduril job is double-escaped). Files: test/fixtures/*.json
-npm test   # node --test test/*.test.js -> 75 pass (all owners' unit tests)
+npm test   # node --test test/*.test.js; my 3 files: 43 pass
 node scripts/e2e.js --api-only   # 8/8
 NODE_PATH=$(npm root -g) node scripts/e2e.js   # full UI e2e with Playwright, see §5
 PORT=5999 node server/index.js &   # then:
@@ -157,7 +157,7 @@ treated as a file. The `npm test` script is now `node --test test/*.test.js`.
   Covered: `/api/companies`, demo fallback with an error string, snapshot used before demo,
   live then fresh cache for a custom Lever board, 400/404 validation, static MIME types and `/vendor/leaflet/`,
   4 traversal attempts returning 403/404, and gzip.
-- After the review fixes: `npm test` gives **75 pass, 0 fail**. My new tests cover: security headers and CSP hosts on
+- After the review fixes: `npm test` gave **75 pass, 0 fail**. A later run gave 101 tests with 2 failing, both in the newly added `test/features.test.js` (weightedPercentile, not a backend file); my 3 files give 43 pass, 0 fail. My new tests cover: security headers and CSP hosts on
   API, static and streamed responses; `refresh=1` throttled to 1 upstream call in 4 requests; an unknown custom
   board making 1 upstream call in 4 requests (negative cache); generic client errors; caller name kept out of the
   memory and disk cache; HEAD making 0 upstream calls; `//api/companies` as a path and absolute-form getting 400;

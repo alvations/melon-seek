@@ -71,7 +71,10 @@ function num(v) {
 
 function finite(values) {
   const out = [];
-  for (const v of values || []) { const n = typeof v === 'number' ? v : num(v); if (n != null) out.push(n); }
+  for (const v of values || []) {
+    const n = typeof v === 'number' ? (Number.isFinite(v) ? v : null) : num(v);
+    if (n != null) out.push(n);
+  }
   return out;
 }
 

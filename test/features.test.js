@@ -68,8 +68,9 @@ describe('weightedPercentile', () => {
     assert.equal(weightedPercentile([[1, 1], [3, 1]], 0.95), 3);
   });
   test('heavier weight pulls the median', () => {
-    const m = weightedPercentile([[100, 9], [200, 1]], 0.5);
-    assert.ok(m < 110, `got ${m}`);
+    // centres: 100 at 0.45, 200 at 0.95 -> p50 interpolates 10% of the way
+    assert.equal(weightedPercentile([[100, 9], [200, 1]], 0.5), 110);
+    assert.equal(weightedPercentile([[100, 1], [200, 9]], 0.5), 190);
   });
   test('empty / zero weights -> null; single -> value', () => {
     assert.equal(weightedPercentile([], 0.5), null);
