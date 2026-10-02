@@ -14,6 +14,13 @@
 //         → demo generated in-browser      (mode "demo")
 //     Custom boards: live, else in-browser demo.
 //
+// v2 (docs/CONTRACT.md "v2 additions"): results carry `meta` ({ compstimate,
+// history }). In static mode, live-fetched and in-browser demo jobs get the F4
+// fields (postedAt, firstSeenAt, ageDays, ageIsMinimum, freshness, repost) from
+// lib/history.js#annotate, with the bundled ledger api/history/<slug>.json
+// (fromCompact) for built-ins; bundled lists are annotated at build time.
+// getMarket() returns the F1 market comps document.
+//
 // Juice Score: every getJobs result (live, cache, snapshot, demo, server) is
 // passed through vetSalaries (static mode; the server vets its own responses)
 // and then juice.js#attachJuiceAll with the cities from getCities(), so jobs
@@ -133,11 +140,14 @@ function loadLib() {
       import('./lib/sources/lever.js'),
       import('./lib/demo.js').catch(() => null),
       import('./lib/vet.js').catch(() => null),
-    ]).then(([normalize, companies, gh, ashby, lever, demo, vet]) => ({
+      import('./lib/history.js').catch(() => null),
+    ]).then(([normalize, companies, gh, ashby, lever, demo, vet, history]) => ({
       normalizeJobs: normalize.normalizeJobs,
       resolveCompany: companies.resolveCompany,
       demoJobs: demo && demo.demoJobs,
       vetSalaries: vet && typeof vet.vetSalaries === 'function' ? vet.vetSalaries : null,
+      // F4: annotate(jobs, ledger, fetchedAt) + fromCompact(api/history/<slug>.json)
+      history: history && typeof history.annotate === 'function' && typeof history.fromCompact === 'function' ? history : null,
       sources: {
         // URL builders + mappers come from the adapters. The fetch itself is
         // done here without the adapters' User-Agent header, which is not
@@ -161,7 +171,33 @@ function staticCompanies(signal) {
   return companiesPromise;
 }
 
-const memCache = new Map(); // slug -> { jobs, fetchedAt, at }
+const memCache = new Map(); // slug -> { jobs, fetchedAt, at, meta }
+
+/** `meta` when nothing better is known (custom boards, in-browser demo). */
+const noMeta = () => ({ compstimate: null, history: { since: null, runs: 0 } });
+
+const historyCache = new Map(); // slug -> Promise<compact ledger | null>
+const metaCache = new Map(); // slug -> Promise<meta | null>
+/** api/history/<slug>.json (built-ins only), cached; null on failure. */
+function compactHistory(slug) {
+  if (!historyCache.has(slug)) historyCache.set(slug, getJson(`api/history/${encodeURIComponent(slug)}.json`).catch(() => null));
+  return historyCache.get(slug);
+}
+/** api/meta/<slug>.json, the bundled list's `meta`, for live results; cached; null on failure. */
+function bundledMeta(slug) {
+  if (!metaCache.has(slug)) metaCache.set(slug, getJson(`api/meta/${encodeURIComponent(slug)}.json`).catch(() => null));
+  return metaCache.get(slug);
+}
+
+/** F4 fields for live / in-browser jobs; jobs unchanged if history.js is unavailable. */
+function annotateHistory(lib, jobs, compact, fetchedAt) {
+  if (!lib.history) return jobs;
+  try {
+    return lib.history.annotate(jobs, compact ? lib.history.fromCompact(compact) : null, fetchedAt);
+  } catch {
+    return jobs;
+  }
+}
 const blockedSources = new Set(); // sources that failed at the network/CORS level this session
 const NETWORK_REASON = 'the browser could not reach the board (blocked by CORS or the network)';
 
@@ -195,18 +231,27 @@ async function fetchLiveInBrowser(lib, company, signal) {
 }
 
 /**
- * Static build list format "melon-packed-1" (written by scripts/build-static.js),
- * a lossless way to keep big boards' lists small:
+ * Static build list formats (written by scripts/build-static.js), a lossless
+ * way to keep big boards' lists small.
+ * "melon-packed-1":
  *  - `shared.company` / `shared.companyName` are stored once, not per job;
  *  - ids drop `shared.idPrefix` ("<slug>:"), urls drop `shared.urlPrefix`;
  *  - locations, keyword labels, department, team, employmentType and
  *    seniority are indexes into `dict`;
  *  - empty `sections` are omitted.
+ * "melon-packed-2" (v2 fields, docs/CONTRACT.md) adds:
+ *  - `columns: [{ key, enc: 'raw'|'bool'|'dict', values }]`: top-level fields
+ *    every job carries (postedAt, firstSeenAt, ageDays, ageIsMinimum,
+ *    freshness, repost, extras, reqId, remote, updatedAt), one value per job;
+ *    'bool' is 0/1, 'dict' indexes `dict`;
+ *  - salary.currency/interval/kind/source as `dict` indexes.
  * Returns plain Job objects. Bodies that aren't packed are returned unchanged.
  */
-export const PACKED_FORMAT = 'melon-packed-1';
+export const PACKED_FORMAT = 'melon-packed-2';
+const PACKED_FORMATS = new Set(['melon-packed-1', PACKED_FORMAT]);
+const SALARY_REFS = ['currency', 'interval', 'kind', 'source'];
 export function unpackJobs(body) {
-  if (!body || body.format !== PACKED_FORMAT) return body && Array.isArray(body.jobs) ? body.jobs : [];
+  if (!body || !PACKED_FORMATS.has(body.format)) return body && Array.isArray(body.jobs) ? body.jobs : [];
   const { shared = {}, dict = [] } = body;
   const at = (i) => (i == null ? null : dict[i]);
   const kw = (k = {}) => ({
@@ -214,8 +259,18 @@ export function unpackJobs(body) {
     fit: (k.fit || []).map(at),
     skills: (k.skills || []).map(at),
   });
-  return body.jobs.map((j) => {
+  const columns = body.format === PACKED_FORMAT && Array.isArray(body.columns) ? body.columns : [];
+  const decode = (c, v) => (c.enc === 'bool' ? (v === 1 ? true : v === 0 ? false : v) : c.enc === 'dict' ? at(v) : v);
+  return body.jobs.map((j, i) => {
     const job = { ...j };
+    for (const c of columns) job[c.key] = decode(c, c.values[i]);
+    if (columns.length || body.format === PACKED_FORMAT) {
+      if (job.salary && typeof job.salary === 'object') {
+        const sal = { ...job.salary };
+        for (const k of SALARY_REFS) if (typeof sal[k] === 'number') sal[k] = at(sal[k]);
+        job.salary = sal;
+      }
+    }
     job.id = (shared.idPrefix || '') + j.id;
     job.company = shared.company;
     job.companyName = shared.companyName;
@@ -232,7 +287,7 @@ async function bundled(path, signal) {
   try {
     const raw = await getJson(path, { signal });
     if (!raw || !Array.isArray(raw.jobs)) return null;
-    const { format, shared, dict, ...body } = raw;
+    const { format, shared, dict, columns, ...body } = raw;
     body.jobs = unpackJobs(raw);
     return body.jobs.length ? body : null;
   } catch (err) {
@@ -268,7 +323,7 @@ async function staticJobs(p, { refresh = false, signal } = {}) {
 
   const cached = memCache.get(slug);
   if (cached && !refresh && Date.now() - cached.at < FRESH_TTL_MS) {
-    return { company: pub, mode: 'cache', fetchedAt: cached.fetchedAt, error: null, jobs: cached.jobs };
+    return { company: pub, mode: 'cache', fetchedAt: cached.fetchedAt, error: null, jobs: cached.jobs, meta: cached.meta };
   }
 
   // 1. Live, from the browser.
@@ -283,10 +338,15 @@ async function staticJobs(p, { refresh = false, signal } = {}) {
     quiet = quietCorsSources().includes(company.source);
   } else {
     try {
-      const jobs = await fetchLiveInBrowser(lib, company, signal);
+      const raw = await fetchLiveInBrowser(lib, company, signal);
       const fetchedAt = new Date().toISOString();
-      memCache.set(slug, { jobs, fetchedAt, at: Date.now() });
-      return { company: pub, mode: 'live', fetchedAt, error: null, jobs };
+      // F4: built-ins merge the bundled ledger (api/history) and reuse the
+      // build's meta (compstimate backtest, ledger since/runs).
+      const [compact, meta] = builtin ? await Promise.all([compactHistory(slug), bundledMeta(slug)]) : [null, null];
+      const jobs = annotateHistory(lib, raw, compact, fetchedAt);
+      const m = meta || noMeta();
+      memCache.set(slug, { jobs, fetchedAt, at: Date.now(), meta: m });
+      return { company: pub, mode: 'live', fetchedAt, error: null, jobs, meta: m };
     } catch (err) {
       if (err && err.name === 'AbortError') throw err;
       if (err && err.network) {
@@ -298,7 +358,7 @@ async function staticJobs(p, { refresh = false, signal } = {}) {
   }
 
   // 2. Earlier live result from this session, even if stale.
-  if (cached) return { company: pub, mode: 'cache', fetchedAt: cached.fetchedAt, error, jobs: cached.jobs };
+  if (cached) return { company: pub, mode: 'cache', fetchedAt: cached.fetchedAt, error, jobs: cached.jobs, meta: cached.meta };
 
   // 3. Bundled snapshot (or build-time demo) and bundled demo, built-ins only.
   if (builtin) {
@@ -306,27 +366,29 @@ async function staticJobs(p, { refresh = false, signal } = {}) {
       const body = await bundled(path, signal);
       if (body) {
         const mode = body.mode === 'snapshot' ? 'snapshot' : 'demo';
+        const meta = body.meta || noMeta();
         if (mode === 'snapshot' && quiet) {
-          return { company: pub, mode, fetchedAt: body.fetchedAt || null, error: null, jobs: body.jobs };
+          return { company: pub, mode, fetchedAt: body.fetchedAt || null, error: null, jobs: body.jobs, meta };
         }
         const note = body.error && mode === 'demo' ? body.error : null;
-        return { company: pub, mode, fetchedAt: body.fetchedAt || null, error: [error, note].filter(Boolean).join('; ') || null, jobs: body.jobs };
+        return { company: pub, mode, fetchedAt: body.fetchedAt || null, error: [error, note].filter(Boolean).join('; ') || null, jobs: body.jobs, meta };
       }
     }
   }
 
   // 4. Demo generated in the browser.
   let jobs = [];
+  const demoAt = new Date().toISOString();
   if (lib.demoJobs) {
     try {
-      jobs = lib.normalizeJobs(lib.demoJobs(slug, company.name), company);
+      jobs = annotateHistory(lib, lib.normalizeJobs(lib.demoJobs(slug, company.name), company), null, demoAt);
     } catch (err) {
       error = `${error}; demo generation failed: ${err.message}`;
     }
   } else {
     error = `${error}; demo generator unavailable`;
   }
-  return { company: pub, mode: 'demo', fetchedAt: new Date().toISOString(), error, jobs };
+  return { company: pub, mode: 'demo', fetchedAt: demoAt, error, jobs, meta: noMeta() };
 }
 
 /* ------------------------------------------------------------- public API */
@@ -358,6 +420,25 @@ export function getCities({ refresh = false } = {}) {
       .then((doc) => { citiesFailed = !doc; return doc; });
   }
   return citiesPromise;
+}
+
+let marketPromise = null;
+let marketFailed = false;
+/**
+ * F1 market comps: `api/market.json` in static mode, `api/market` from the
+ * server. Cached for the session; null when unavailable (remembered; `refresh`
+ * retries after a failure).
+ */
+export function getMarket({ refresh = false } = {}) {
+  if (refresh && marketFailed) marketPromise = null;
+  if (!marketPromise) {
+    marketFailed = false;
+    marketPromise = getJson(isStatic() ? 'api/market.json' : 'api/market')
+      .then((doc) => (doc && typeof doc === 'object' ? doc : null))
+      .catch(() => null)
+      .then((doc) => { marketFailed = !doc; return doc; });
+  }
+  return marketPromise;
 }
 
 let juicePromise = null;

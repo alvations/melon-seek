@@ -1,9 +1,25 @@
 // Raw job (adapter / demo output) -> Job (API shape). See docs/CONTRACT.md.
 import { geocode } from './geo.js';
 import { extractSections, extractKeywords, inferSeniority } from './keywords.js';
+import * as keywordsModule from './keywords.js';
 import { parseSalary, toJobSalary, currenciesFor } from './salary.js';
 import { htmlToText, isoOrNull } from './sources/util.js';
 import { vetSalaries, salaryChecks } from './vet.js';
+
+const NO_EXTRAS = Object.freeze({ equity: false, bonus: false });
+
+/**
+ * F2 extras: { equity, bonus } from keywords.extractCompExtras (feature-detected,
+ * so an older keywords.js still works). Input: the description text plus the
+ * source's compensation summary (e.g. Ashby "$310K – $460K • Offers Equity").
+ */
+export function compExtras(raw, text, title) {
+  const fn = keywordsModule.extractCompExtras;
+  if (typeof fn !== 'function') return { ...NO_EXTRAS };
+  const summary = [raw && raw.compensationSummary, raw && raw.salary && raw.salary.text].filter(Boolean).join('\n');
+  const out = safe(() => fn(summary ? `${text}\n${summary}` : text, { title }), NO_EXTRAS);
+  return { equity: out.equity === true, bonus: out.bonus === true };
+}
 
 function safe(fn, fallback) {
   try {
@@ -95,6 +111,7 @@ export function normalizeJob(raw, company) {
     { responsibilities: [], fit: [], skills: [] },
   );
   const seniority = safe(() => inferSeniority(title), 'Mid');
+  const extras = compExtras(raw, text, title);
 
   return {
     id: `${company.slug}:${raw.sourceId}`,
@@ -113,6 +130,7 @@ export function normalizeJob(raw, company) {
     postedAt: isoOrNull(raw.postedAt),                                    // F4
     reqId: raw.reqId != null && raw.reqId !== '' ? String(raw.reqId) : null, // F4 (Greenhouse internal_job_id)
     descriptionHtml: html,
+    extras,                                                               // F2
     sections,
     keywords,
   };

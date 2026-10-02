@@ -671,6 +671,8 @@ const COMP_NEGATION_RE = /\bnot\s+(?:be\s+)?eligible\b|\bineligible\b|\b(?:are|i
 // Conditional boilerplate: "For sales roles, the range ... OTE ... commissions".
 const SALES_CONDITIONAL_RE = /\b(?:for|in|on)\s+(?:sales|commissioned|quota[- ]carrying|commission[- ]eligible)\s+roles\b/i;
 const SALES_TITLE_RE = /\b(?:account executive|account director|account manager|ae\b|business development (?:rep\w*|manager|executive|director)|bdr|sdr|partner sales|sales(?!\s+(?:strategy|operations|ops|enablement|engineer\w*|compensation|analytics|systems|planning|finance|recruit\w*))\b|seller)/i;
+// Sales-org roles that are not quota-carrying.
+const SALES_TITLE_EXCLUDE_RE = /\b(?:enablement|pre-?sales|presales|operations|strategy|analyst|developer|recruit\w*)\b/i;
 const NON_FULLTIME_TITLE_RE = /\b(?:intern(?:ship)?s?|co-?op|part[- ]time|temporary|seasonal|fellow(?:ship)?s?|contractor)\b|\((?:contract|temp|contract-to-hire)\)|,\s*contract\s*$/i;
 // "... included in the majority of full time offers" does not apply to interns/contractors.
 const FULLTIME_SCOPE_RE = /\bfull[- ]time\b/i;
@@ -729,7 +731,7 @@ function compSegments(text) {
 export function compExtrasEvidence(text, { title = '' } = {}) {
   let src = String(text || '');
   if (/<(?:p|li|ul|div|br|h[1-6])\b/i.test(src)) src = htmlToText(src);
-  const salesTitle = SALES_TITLE_RE.test(title);
+  const salesTitle = SALES_TITLE_RE.test(title) && !SALES_TITLE_EXCLUDE_RE.test(title);
   const nonFullTime = NON_FULLTIME_TITLE_RE.test(title);
   const evidence = { equity: [], bonus: [] };
   const vetoed = { equity: false, bonus: false };

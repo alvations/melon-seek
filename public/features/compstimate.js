@@ -11,150 +11,21 @@
 // Pure logic (everything except createCompstimateWidget) runs in Node.
 
 import {
-  salaryUSD, weightedPercentile, percentile, formatMoney, plural, h, uid, locationKey,
+  salaryUSD, weightedPercentile, percentile, median, formatMoney, plural, h, uid, locationKey,
 } from './shared.js';
+import { normalizeTitle, familySim, SENIORITY_LADDER } from './roles.js';
 
 export { percentile, weightedPercentile, salaryUSD, toUSD, FX_FALLBACK } from './shared.js';
-
-// ---------------------------------------------------------------------------
-// Title normalization
-// ---------------------------------------------------------------------------
-
-/** Abbreviations expanded before tokenizing ("Sr. SWE" -> "senior software engineer"). */
-const ABBREV = {
-  swe: 'software engineer', sde: 'software engineer', sw: 'software', sre: 'site reliability engineer',
-  mle: 'machine learning engineer', ml: 'machine learning', pm: 'product manager',
-  tpm: 'technical program manager', em: 'engineering manager', ae: 'account executive',
-  sdr: 'sales development representative', bdr: 'business development representative',
-  csm: 'customer success manager', se: 'solutions engineer', sa: 'solutions architect',
-  ds: 'data scientist', da: 'data analyst', eng: 'engineer', engr: 'engineer', dev: 'developer',
-  infra: 'infrastructure', ops: 'operations', mgr: 'manager', mgmt: 'management',
-  admin: 'administrator', hr: 'people', ea: 'executive assistant', gtm: 'go to market',
-  sr: 'senior', jr: 'junior', dir: 'director', assoc: 'associate', rs: 'research scientist',
-  fde: 'forward deployed engineer', qa: 'quality assurance', vp: 'vp',
-};
-
-/** Token synonyms applied after stemming. */
-const SYNONYM = {
-  developer: 'engineer', programmer: 'engineer', engineering: 'engineer', management: 'manager',
-  researcher: 'research', science: 'scientist', analytic: 'analyst', analysi: 'analyst',
-  architecture: 'architect', designer: 'design', recruiting: 'recruiter', recruitment: 'recruiter',
-};
-
-/** Words that describe level, not role: dropped from tokens, used to infer seniority. */
-const LEVEL_WORDS = new Set([
-  'senior', 'staff', 'principal', 'lead', 'junior', 'intern', 'internship', 'head', 'director', 'vp',
-  'vice', 'president', 'chief', 'distinguished', 'fellow', 'associate', 'entry', 'level', 'new', 'grad',
-  'graduate', 'mid', 'i', 'ii', 'iii', 'iv', 'v', '1', '2', '3', '4', 'apprentice', 'trainee', 'founding',
-]);
-
-const STOPWORDS = new Set([
-  'a', 'an', 'the', 'of', 'and', 'for', 'to', 'in', 'on', 'at', 'with', 'or', 'our', 'team', 'remote',
-  'hybrid', 'onsite', 'site', 'based', 'us', 'usa', 'uk', 'emea', 'apac', 'amer', 'contract', 'contractor',
-  'temporary', 'temp', 'part', 'full', 'time', 'fulltime', 'parttime', 'all', 'levels', 'role', 'position',
-  'opening', 'general', 'application', 'experienced',
-]);
-// 'site' is a stopword only outside "site reliability" (collapsed to "sitereliability" below).
-
-function expand(title) {
-  let s = String(title || '').toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/c\+\+/g, ' cplusplus ').replace(/c#/g, ' csharp ').replace(/&/g, ' and ')
-    .replace(/\bfront[\s-]?end\b/g, 'frontend').replace(/\bback[\s-]?end\b/g, 'backend')
-    .replace(/\bfull[\s-]?stack\b/g, 'fullstack').replace(/\bdev[\s-]?ops\b/g, 'devops')
-    .replace(/\bon[\s-]?site\b/g, 'onsite')
-    .replace(/[^a-z0-9+]+/g, ' ');
-  s = s.split(' ').filter(Boolean).map((w) => ABBREV[w] || w).join(' ');
-  return s.replace(/\bsite reliability\b/g, 'sitereliability').replace(/\bmachine learning\b/g, 'machinelearning');
-}
-
-function stem(w) {
-  if (w.length > 4 && w.endsWith('s') && !/(ss|us|is)$/.test(w)) w = w.slice(0, -1);
-  return SYNONYM[w] || w;
-}
-
-/**
- * Normalize a job title into comparable role tokens.
- *   normalizeTitle("Sr. SWE, Platform") ->
- *     { tokens: ["software","engineer","platform"], family: "swe", seniority: "Senior", role: "software engineer" }
- */
-export function normalizeTitle(title) {
-  const raw = String(title || '');
-  const rolePart = raw.split(/\s*(?:,|\s[-–—|:]\s|\()\s*/)[0] || raw;
-  const expanded = expand(raw);
-  const tokens = [];
-  const seen = new Set();
-  for (const w of expanded.split(' ')) {
-    if (!w || LEVEL_WORDS.has(w) || STOPWORDS.has(w)) continue;
-    const t = stem(w);
-    if (t && !seen.has(t)) { seen.add(t); tokens.push(t); }
-  }
-  const roleExpanded = expand(rolePart);
-  const role = roleExpanded.split(' ').filter((w) => w && !LEVEL_WORDS.has(w) && !STOPWORDS.has(w)).join(' ');
-  return {
-    tokens,
-    family: roleFamily(rolePart) || roleFamily(raw),
-    seniority: inferSeniority(raw),
-    role,
-  };
-}
-
-/** Role families, tested in order against the expanded title text. */
-const FAMILIES = [
-  ['eng-manager', /\b(engineer(ing)? manager|manager (of )?engineer(ing)?|(director|head|vp) (of )?engineer(ing)?)\b/],
-  ['data', /\b(data (scientist|science|engineer\w*|analyst|analytics)|analytics|business intelligence)\b/],
-  ['design', /\b(designer|design lead|ux|ui|user experience|user research\w*)\b/],
-  ['legal', /\b(counsel|legal|attorney|lawyer|paralegal|policy|compliance|privacy|regulatory)\b/],
-  ['people', /\b(recruit\w*|talent|people|human resources|sourcer)\b/],
-  ['finance', /\b(financ\w*|accountant|accounting|tax|treasury|controller|payroll)\b/],
-  ['sales', /\b(account (executive|manager|director)|sales|business development|solutions? (architect|engineer|consultant)|partner\w*|customer success|go to market|forward deployed|deployment strategist)\b/],
-  ['marketing', /\b(marketing|communications|comms|content|brand|growth|community|events)\b/],
-  ['product', /\b(product (manager|management|lead|owner|director)|(head|director|vp) (of )?product)\b/],
-  ['program', /\b(program manager|project manager|technical program|chief of staff|operations|strategy)\b/],
-  ['support', /\b(support|customer (experience|service)|technical account)\b/],
-  ['ml', /\b(machinelearning|research (engineer|scientist)|scientist|researcher|research|ai|deep learning|nlp|computer vision|interpretability|alignment|pretraining|reinforcement learning|llm)\b/],
-  ['hardware', /\b(electrical|mechanical|hardware|firmware|embedded|rf|avionics|manufacturing|propulsion|aerospace|structural|thermal|test engineer|integration engineer|systems engineer|technician)\b/],
-  ['security', /\b(security|offensive|red team|threat|detection)\b/],
-  ['swe', /\b(software|engineer|sitereliability|devops|infrastructure|platform|backend|frontend|fullstack|mobile|ios|android|web)\b/],
-];
-
-/** Partial credit between related families (symmetric). */
-const FAMILY_AFFINITY = {
-  'swe|security': 0.6, 'swe|ml': 0.45, 'swe|data': 0.45, 'ml|data': 0.55, 'swe|eng-manager': 0.4,
-  'swe|hardware': 0.35, 'product|program': 0.35, 'sales|support': 0.4, 'sales|marketing': 0.3,
-  'product|design': 0.25, 'eng-manager|program': 0.25,
-};
-
-/** Role family id for a title, or null when nothing matches. */
-export function roleFamily(title) {
-  const s = expand(title);
-  for (const [id, re] of FAMILIES) if (re.test(s)) return id;
-  return null;
-}
-
-function familySim(a, b) {
-  if (!a || !b) return 0.35;
-  if (a === b) return 1;
-  return FAMILY_AFFINITY[`${a}|${b}`] ?? FAMILY_AFFINITY[`${b}|${a}`] ?? 0;
-}
-
-/** Seniority guessed from a free-text title (null when the title has no level words). */
-export function inferSeniority(title) {
-  const s = expand(title);
-  if (/\b(intern|internship|apprentice)\b/.test(s)) return 'Intern';
-  if (/\b(chief|vp|vice president|head|director)\b/.test(s)) return 'Director+';
-  if (/\b(staff|principal|distinguished|fellow)\b/.test(s)) return 'Staff+';
-  if (/\bmanager\b/.test(s) && !/\b(product|program|project|account|partner\w*|marketing|success|community|office|operations|territory|sales)\s+manager\b/.test(s)) return 'Manager';
-  if (/\b(senior|lead)\b/.test(s)) return 'Senior';
-  if (/\b(junior|new grad|graduate|entry|associate|trainee)\b/.test(s)) return 'Entry';
-  return null;
-}
+// Role taxonomy lives in roles.js (no imports, Node-safe); re-exported for callers.
+export {
+  normalizeTitle, roleFamily, inferSeniority, expandTitle, rolePart, familySim,
+  FAMILY_LABELS, SENIORITY_LADDER,
+} from './roles.js';
 
 // ---------------------------------------------------------------------------
 // Similarity
 // ---------------------------------------------------------------------------
 
-export const SENIORITY_LADDER = ['Intern', 'Entry', 'Mid', 'Senior', 'Staff+', 'Manager', 'Director+'];
 const LEVEL_INDEX = { Intern: 0, Entry: 1, Mid: 2, Senior: 3, Manager: 3.5, 'Staff+': 4, 'Director+': 5 };
 
 /**

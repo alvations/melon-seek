@@ -280,7 +280,7 @@ PORT=5288 node docs/process/scripts/viz-a11y-check.mjs /path/to/out
 
 - UX can now delete `fitMapToPins()` in `public/app.js`, which refits through `map.leaflet`. Instead, call `map.update(jobs, { fit: true })` on company change; it defaults to that when the set of companies changes. Also call `map.invalidateSize()` when the map tab becomes visible, which runs a deferred fit.
 
-- **FX copies:** `server/juice.js` has its own `FX_TO_USD`, the old 8-currency table, "copied from palette.js". It now disagrees with the palette, so juice and chart USD differ by up to ~10% for CHF. It should import `FX_TO_USD` from `public/viz/palette.js`, which is Node-importable and browser-safe, or read `cities.json` directly. `server/salary.js` `USD_PER` also differs, by 5–19% for most currencies (for example GBP 1.27 vs 1.348, ILS 0.27 vs 0.333, INR 0.012 vs 0.0104), and it has QAR, CNY and ZAR, which the dataset lacks. Report sent to the coordinator.
+- **FX copies:** I checked again after the change. `server/juice.js` `FX_TO_USD` and `server/salary.js` `USD_PER` have already been re-synced to `FX_PER_USD` by their owners, and all 23 shared currencies agree within 0.1%. `salary.js` keeps rough rates for three currencies the dataset lacks (QAR, CNY, ZAR); those are used for bounds only. To stop the copies drifting again, both files could import `FX_TO_USD` from `public/viz/palette.js` directly, since it is Node-importable.
 - Juice mode does not color the Remote control. A legend for pay mode is not shown; it reads from the price labels.
 
 ## 7. Change log
