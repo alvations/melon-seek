@@ -383,3 +383,13 @@ screenshots in `docs/screenshots/`.
   the branch-mode build at 07:58:10, so the app is live). All integration
   items from the check-in list are done. One more safety-net check-in
   armed (+45 min) for the QA result.
+- 2026-10-02: QA refreshed the e2e suite: a robust harness (isolated waits,
+  per-test timeouts, crash containment), current-UI selectors, and v2
+  coverage for pay unclear, Juice, the caption, drawer order, the lazy
+  description, comps, Insights compare, Save, CSV, the map toggle, theme and
+  dark mode. Result on real data: 32/33 in 4 runs. Open: BUG-5 (company
+  boilerplate becomes keywords on every job: Anthropic 638/638 get
+  "Interpretability" etc.), sent to features with a two-layer fix
+  (boilerplate-paragraph removal per board, plus a >90%-share facet guard).
+  L1–L4 (empty "Listed" filter, doubled tooltip prefix, CSV filename, phone
+  badge) sent to UX.
