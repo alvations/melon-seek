@@ -168,7 +168,8 @@ checks.themeCycle = await (async () => {
 })();
 checks.clusters = await (async () => {
   await p.goto(`${BASE}/${QS}#c=anthropic`); await ready(p); await p.waitForTimeout(400);
-  const bin = await p.$('.ms-chart [data-r][data-i]:not([data-i="-1"])');
+  // A bin holding one job opens the drawer (onSelect); use a numbered multi-job bin.
+  const bin = await p.$('.ms-chart [data-r][data-i]:not([data-i="-1"]):has(.ms-bin__dot:not(:empty))');
   if (!bin) return 'no bins';
   await bin.click({ force: true }); await p.waitForTimeout(250);
   const chip = (await p.textContent('#areaChipTop'))?.trim();

@@ -37,3 +37,10 @@ Network note: external job-board hosts are BLOCKED in this sandbox; do not try t
 > - `✗ anduril: greenhouse/andurilindustries: response exceeded 26214400 bytes`. Raise the body cap for built-in boards (e.g. 120 MB) and keep 25 MB for custom boards, or make it configurable per company.
 > - `✗ mistral: live fetch returned 0 jobs`. Remove Mistral from the built-ins (the Lever slug is likely stale), and note it in DATA_SOURCES.md's "could not confirm" section and in backend.md.
 > Also add a test for the per-source body cap. Then report back.
+
+> Small integration task for the Juice Score (cost-of-living livability; see docs/LIVABILITY.md and server/juice.js). Lead decision: juice is computed in the browser (public/api.js) in BOTH server and static mode, so there's one code path and the payload stays small. Your part:
+> - Load data/cities.json once at startup.
+> - Serve it at `GET /api/cities` with Cache-Control max-age=3600. Reload it if the file's mtime changes.
+> - Make sure the static file route serves server/juice.js to the browser if api.js imports it from the server (check how api.js resolves lib modules in server mode).
+> - Add a server test, and log it in docs/process/backend.md (prompt append, decision, change log).
+> Don't commit; report back briefly.

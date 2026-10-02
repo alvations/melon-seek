@@ -332,7 +332,8 @@ function evaluate(text, u, countries) {
   if (want.includes(u.currency)) score += 2;
   if (lo > 0 && hi / lo > 3) score -= 2;
   return {
-    score, start: u.start, end: u.end, lo, hi, currency: u.currency, interval, kind,
+    // For "3,850 USD / 2,310 GBP / 4,300 CAD per week" the text is the whole statement.
+    score, start: gs, end: ge, lo, hi, currency: u.currency, interval, kind,
     ...(intervalCorrected ? { intervalCorrected, statedInterval } : {}),
   };
 }

@@ -44,7 +44,7 @@ const NUM = String.raw`\d{1,3}(?:[,.  ]\d{3})+(?:[.,]\d{1,2}(?!\d))?|\d+(?:[.,]\
 const MULT = String.raw`(?:\s?(?:thousand|million|billion|mil)\b|(?:k|K|mm|MM|m|M|bn|B)(?![A-Za-z]))`;
 const MONEY_RE = new RegExp(String.raw`(?<![\w.])(${CODE}\s?)?(${SYM})?\s?(${NUM})(${MULT})?(\s?${CODE}(?![A-Za-z]))?`, 'g');
 const SEP_RE = /^\s*(?:[-–—‒―~]|to|and|through)\s*$/i;
-export const PAY_WORDS_RE = /\b(salary|salaries|compensation|pay|base|range|ote|on-target|annual(?:ly)?|hourly|stipends?|wages?)\b/i;
+export const PAY_WORDS_RE = /\b(salary|salaries|compensation|pay|base|range|ote|on-target|annual(?:ly)?|hourly|stipends?|wages?|(?:contract|pay|day) rate)\b/i;
 const MAG_RE = /\d\s?(?:m|mm|b|bn|million|billion|mil)\b/i;
 
 const SYM_CUR = { 'US$': 'USD', 'CA$': 'CAD', C$: 'CAD', 'AU$': 'AUD', A$: 'AUD', S$: 'SGD', 'SG$': 'SGD', 'NZ$': 'NZD', 'HK$': 'HKD', R$: 'BRL', $: 'USD', '£': 'GBP', '€': 'EUR', '¥': 'JPY', '₩': 'KRW', '₹': 'INR', '₪': 'ILS' };

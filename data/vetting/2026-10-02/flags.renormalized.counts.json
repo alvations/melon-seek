@@ -38,7 +38,6 @@
   "blocking": 0,
   "codes": {
    "non_year_interval": 3,
-   "no_pay_context": 3,
    "currency_country_mismatch": 6,
    "structured_text_disagree": 1
   }

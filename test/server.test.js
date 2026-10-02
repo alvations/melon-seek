@@ -11,6 +11,10 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'melon-server-'));
 process.env.MELON_CACHE_DIR = path.join(tmp, 'cache');
 process.env.MELON_SNAPSHOT_DIR = path.join(tmp, 'snapshots');
 fs.mkdirSync(process.env.MELON_SNAPSHOT_DIR, { recursive: true });
+// Temp copy of data/cities.json so the reload-on-mtime test can rewrite it.
+const REAL_CITIES = path.join(FIX, '..', '..', 'data', 'cities.json');
+process.env.MELON_CITIES_FILE = path.join(tmp, 'cities.json');
+if (fs.existsSync(REAL_CITIES)) fs.copyFileSync(REAL_CITIES, process.env.MELON_CITIES_FILE);
 
 // server/index.js depends on geo.js, keywords.js and demo.js (owned by another
 // engineer). Skip gracefully if they are not present yet.
@@ -356,5 +360,85 @@ test('a body between 25 MB and 120 MB fails for custom boards and passes for bui
     assert.deepEqual(await fetchJson('https://boards-api.greenhouse.io/x', { label: 'builtin', maxBytes: mod.maxBytesFor({ custom: false }) }), { jobs: [] });
   } finally {
     globalThis.fetch = saved;
+  }
+});
+
+test('GET /api/cities serves data/cities.json with max-age=3600, ETag, gzip and reload on mtime change', { skip: skipReason || (!fs.existsSync(REAL_CITIES) && 'data/cities.json missing') }, async () => {
+  const real = JSON.parse(fs.readFileSync(REAL_CITIES, 'utf8'));
+  let res = await get('/api/cities');
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /application\/json/);
+  assert.equal(res.headers.get('cache-control'), 'public, max-age=3600');
+  assert.ok(res.headers.get('content-security-policy'));
+  const etag = res.headers.get('etag');
+  assert.ok(etag);
+  const body = await res.json();
+  assert.equal(body.cities.length, real.cities.length);
+  assert.deepEqual(body.cities[0], real.cities[0]);
+
+  // Conditional request.
+  res = await get('/api/cities', { 'if-none-match': etag });
+  assert.equal(res.status, 304);
+
+  // gzip (raw client so the encoding is visible).
+  const http = await import('node:http');
+  const { port } = server.address();
+  const gz = await new Promise((resolve, reject) => {
+    http.get({ host: '127.0.0.1', port, path: '/api/cities', headers: { 'accept-encoding': 'gzip' } }, (r) => {
+      const chunks = []; r.on('data', (c) => chunks.push(c)); r.on('end', () => resolve({ headers: r.headers, body: Buffer.concat(chunks) }));
+    }).on('error', reject);
+  });
+  assert.equal(gz.headers['content-encoding'], 'gzip');
+  assert.equal(JSON.parse(zlib.gunzipSync(gz.body).toString('utf8')).cities.length, real.cities.length);
+
+  // Rewrite the file with a newer mtime -> served data changes, ETag changes.
+  const edited = { ...real, cities: real.cities.slice(0, 3) };
+  fs.writeFileSync(process.env.MELON_CITIES_FILE, JSON.stringify(edited));
+  const later = new Date(Date.now() + 5000);
+  fs.utimesSync(process.env.MELON_CITIES_FILE, later, later);
+  res = await get('/api/cities');
+  assert.equal((await res.json()).cities.length, 3);
+  assert.notEqual(res.headers.get('etag'), etag);
+
+  // A broken rewrite keeps the last good copy.
+  const errSpy = console.warn; console.warn = () => {};
+  try {
+    fs.writeFileSync(process.env.MELON_CITIES_FILE, '{ not json');
+    const later2 = new Date(Date.now() + 10000);
+    fs.utimesSync(process.env.MELON_CITIES_FILE, later2, later2);
+    res = await get('/api/cities');
+    assert.equal(res.status, 200);
+    assert.equal((await res.json()).cities.length, 3);
+  } finally {
+    console.warn = errSpy;
+    fs.copyFileSync(REAL_CITIES, process.env.MELON_CITIES_FILE);
+  }
+});
+
+test('/lib/ serves browser-safe server modules (juice.js and its imports) and nothing else', { skip: skipReason }, async () => {
+  const serverDir = path.join(FIX, '..', '..', 'server');
+  for (const rel of mod.BROWSER_LIB) {
+    if (!fs.existsSync(path.join(serverDir, rel))) continue;
+    const res = await get(`/lib/${rel}`);
+    assert.equal(res.status, 200, rel);
+    assert.match(res.headers.get('content-type'), /text\/javascript/, rel);
+    assert.equal(await res.text(), fs.readFileSync(path.join(serverDir, rel), 'utf8'), rel);
+  }
+  if (fs.existsSync(path.join(serverDir, 'juice.js'))) assert.equal((await get('/lib/juice.js')).status, 200);
+  for (const p of ['/lib/index.js', '/lib/cache.js', '/lib/../package.json', '/lib/%2e%2e/server/index.js', '/lib/sources/../index.js', '/lib/', '/lib/nope.js']) {
+    const res = await get(p);
+    assert.ok([403, 404].includes(res.status), `${p} -> ${res.status}`);
+    assert.ok(!(await res.text()).includes('createServer'), `${p} must not leak server code`);
+  }
+  // Closed under relative imports, and free of Node-only APIs.
+  for (const rel of mod.BROWSER_LIB) {
+    const file = path.join(serverDir, rel);
+    if (!fs.existsSync(file)) continue;
+    const code = fs.readFileSync(file, 'utf8');
+    for (const m of code.matchAll(/(?:from\s+|import\s*\(\s*)['"](\.{1,2}\/[^'"]+)['"]/g)) {
+      const target = path.posix.normalize(path.posix.join(path.posix.dirname(rel), m[1]));
+      assert.ok(mod.BROWSER_LIB.has(target), `${rel} imports ${m[1]} -> ${target}, which is not in BROWSER_LIB`);
+    }
+    assert.ok(!/\bfrom\s+['"]node:|\brequire\s*\(/.test(code), `${rel}: node import`);
   }
 });

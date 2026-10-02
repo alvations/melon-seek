@@ -137,7 +137,19 @@ Files owned: `server/index.js`, `server/companies.js`, `server/sources/{greenhou
     built-ins** (`MAX_BYTES_BUILTIN`) and **25 MB for custom boards** (`MAX_BYTES`). Adapters take
     `(board, { maxBytes, timeoutMs })`. Built-ins also get a 45 s timeout (`BUILTIN_TIMEOUT_MS`), because a body
     that large may not finish within 15 s; custom boards keep 15 s.
-13. **snapshot script.** `npm run snapshot -- anthropic anduril openai` runs the given slugs; with no args it runs
+13. **Juice Score data for the browser.** The lead decided juice is computed in `public/api.js` in both server
+    and static mode, so the server only serves the inputs.
+    - `data/cities.json` is loaded once when `createServer()` runs (path override: `MELON_CITIES_FILE`).
+    - `GET /api/cities` serves the parsed and re-serialized document with `Cache-Control: public, max-age=3600`,
+      an ETag (from mtime and size; `If-None-Match` gets a 304) and a gzip copy computed once per version.
+    - Each request stats the file, and a change in mtime or size triggers a reload. If the new file fails to
+      parse, the last good copy is kept and a warning is logged. If no copy was ever loaded, the route returns 503.
+    - In server mode, `api.js` resolves `import('./lib/<module>.js')` to `/lib/...`. The server maps `/lib/<path>`
+      to `server/<path>` for an explicit allowlist (`BROWSER_LIB`): companies, normalize, salary, geo, keywords,
+      demo, juice, vet, and sources/{greenhouse,ashby,lever,util}. Anything else under `/lib/` is a 404, so
+      `index.js` and `cache.js` are never served. Server mode therefore uses the same relative paths as `dist/lib/`.
+      A test checks that the allowlist is closed under relative imports (juice → geo, normalize → vet → salary, ...).
+14. **snapshot script.** `npm run snapshot -- anthropic anduril openai` runs the given slugs; with no args it runs
    every built-in. A `source:board` argument selects a custom board. It writes only live results; a failed or
    empty fetch is logged and skipped, so it never writes demo data. It exits 1 only if every slug failed.
 
@@ -182,6 +194,15 @@ treated as a file. The `npm test` script is now `node --test test/*.test.js`.
   built-in adapters and 25 MB and the default timeout to custom ones; a per-company override rejects the Lever
   fixture; a streamed 26 MB body fails at the custom cap and parses at the built-in cap.
   `npm test`: 106 pass, 0 fail. My 3 files: 46 pass.
+- Juice integration tests:
+  - `/api/cities` returns 200 with max-age=3600 and the same 89 cities as the file.
+  - A request with the ETag gets 304, and gzip works.
+  - Rewriting the file with a newer mtime serves the new data under a new ETag.
+  - A broken rewrite keeps the previous copy.
+  - `/lib/` serves every allowlisted module byte-for-byte as `text/javascript`.
+  - `/lib/index.js`, `/lib/cache.js` and traversal attempts return 403/404.
+  - The allowlist is closed under imports.
+  - `npm test`: 154 pass, 0 fail.
 - Demo fallback works for all 8 built-ins (offline `getJobs`): 74–120 jobs each.
 - Manual run against the real demo data: anthropic 111 jobs (96 with salary), anduril 120 (105), openai 120 (110).
   All jobs have locations. The demo jobs without a salary contain no currency amounts, so they are meant to have none.
@@ -191,6 +212,8 @@ treated as a file. The `npm test` script is now `node --test test/*.test.js`.
   Run `npm run snapshot` where the network is open and spot-check the Greenhouse pay-range parsing on real Anthropic/Anduril postings.
 - Text salary parsing picks a single range. When a posting lists different ranges per location in text, the
   first-scored one wins. Structured Greenhouse ranges use the overall min–max instead (decision 10).
+- `scripts/build-static.js` `LIB_MODULES` does not yet include `juice.js`, and the build does not yet emit
+  `api/cities` (devops/lead own that file). Static mode needs both for the browser-side juice path.
 - Throttle, negative cache and LRU state is per process. It is not shared across replicas.
 - `style-src-attr 'unsafe-inline'` stays until `public/app.js` `h()` uses CSSOM (the patch is in REVIEW.md M2).
 - Pay ranges: only the overall span across tiers is kept. Per-tier ranges are not exposed.
@@ -212,3 +235,5 @@ treated as a file. The `npm test` script is now `node --test test/*.test.js`.
   title/blurb (decision 10, new fixture `test/fixtures/greenhouse-pay-ranges.json`). Added 6 built-ins (decision 11).
 - 2026-10-02 (after the first real-data run): body cap is per company, 120 MB for built-ins and 25 MB for custom
   boards, plus a 45 s timeout for built-ins (decision 12). Mistral removed from the built-ins. Tests added.
+- 2026-10-02 (Juice integration): `data/cities.json` is loaded at startup and served at `/api/cities` (max-age=3600,
+  ETag, reload on mtime change). `/lib/` serves an allowlist of browser-safe server modules (decision 13). Tests added.

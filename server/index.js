@@ -22,6 +22,19 @@ const gzip = promisify(zlib.gzip);
 const PUBLIC_DIR = path.join(ROOT, 'public');
 const LEAFLET_DIR = path.join(ROOT, 'node_modules', 'leaflet', 'dist');
 const SNAPSHOT_DIR = process.env.MELON_SNAPSHOT_DIR || path.join(ROOT, 'data', 'snapshots');
+const SERVER_DIR = path.join(ROOT, 'server');
+export const CITIES_FILE = process.env.MELON_CITIES_FILE || path.join(ROOT, 'data', 'cities.json');
+
+/**
+ * Browser-safe server modules served at /lib/<path> so public/api.js can
+ * `import('./lib/juice.js')` etc. in server mode with the same relative paths
+ * as the static build (dist/lib/). Explicit allowlist: node-only modules
+ * (index.js, cache.js) are never exposed. Must stay closed under imports.
+ */
+export const BROWSER_LIB = new Set([
+  'companies.js', 'normalize.js', 'salary.js', 'geo.js', 'keywords.js', 'demo.js', 'juice.js', 'vet.js',
+  'sources/greenhouse.js', 'sources/ashby.js', 'sources/lever.js', 'sources/util.js',
+]);
 
 /** At most one live upstream attempt per slug per this window (review H1). */
 export const MIN_REFRESH_MS = Number(process.env.MELON_MIN_REFRESH_MS) || 60_000;
@@ -227,6 +240,61 @@ export async function getJobs(company, { refresh = false, offline = false } = {}
   return { company: pub, mode: 'demo', fetchedAt, error, jobs: stamp(jobs) };
 }
 
+/* ------------------------------------------------------------- cities */
+
+// data/cities.json (Juice Score inputs) is loaded once at startup and served at
+// /api/cities. Each request stats the file and reloads it when mtime/size change;
+// a reload that fails to parse keeps the last good copy.
+let cities = null;        // { key, json: Buffer, gz: Buffer|null, etag }
+let citiesLoading = null;
+
+export async function refreshCities() {
+  if (citiesLoading) return citiesLoading;
+  citiesLoading = (async () => {
+    let st;
+    try {
+      st = await fs.stat(CITIES_FILE);
+    } catch (err) {
+      if (!cities) console.warn(`[cities] ${CITIES_FILE} unavailable: ${err.code || err.message}`);
+      return cities;
+    }
+    const key = `${st.mtimeMs}:${st.size}`;
+    if (cities && cities.key === key) return cities;
+    try {
+      const parsed = JSON.parse(await fs.readFile(CITIES_FILE, 'utf8'));
+      if (!parsed || !(Array.isArray(parsed) || Array.isArray(parsed.cities))) throw new Error('no cities array');
+      const json = Buffer.from(JSON.stringify(parsed));
+      const gz = await gzip(json);
+      const etag = `"cities-${Math.round(st.mtimeMs).toString(36)}-${st.size.toString(36)}"`;
+      const count = Array.isArray(parsed) ? parsed.length : parsed.cities.length;
+      if (cities) console.log(`[cities] reloaded ${count} cities (mtime changed)`);
+      cities = { key, json, gz, etag, count };
+    } catch (err) {
+      console.warn(`[cities] could not load ${CITIES_FILE}: ${err.message}${cities ? ' (keeping previous copy)' : ''}`);
+    }
+    return cities;
+  })().finally(() => { citiesLoading = null; });
+  return citiesLoading;
+}
+
+async function serveCities(req, res) {
+  const c = await refreshCities();
+  if (!c) return sendJson(req, res, 503, { error: 'City data unavailable' });
+  const headers = {
+    ...SECURITY_HEADERS, 'Content-Type': MIME['.json'], 'Cache-Control': 'public, max-age=3600',
+    ETag: c.etag, Vary: 'Accept-Encoding',
+  };
+  if ((req.headers['if-none-match'] || '').split(/\s*,\s*/).includes(c.etag)) {
+    res.writeHead(304, headers);
+    return res.end();
+  }
+  let body = c.json;
+  if (/\bgzip\b/.test(req.headers['accept-encoding'] || '')) { body = c.gz; headers['Content-Encoding'] = 'gzip'; }
+  headers['Content-Length'] = body.length;
+  res.writeHead(200, headers);
+  res.end(req.method === 'HEAD' ? undefined : body);
+}
+
 /* --------------------------------------------------------------- HTTP */
 
 async function send(req, res, status, body, type) {
@@ -303,12 +371,19 @@ export async function handle(req, res) {
       // HEAD never triggers an upstream fetch (review C2).
       return sendJson(req, res, 200, await getJobs(company, { refresh, offline: req.method === 'HEAD' }));
     }
+    if (p === '/api/cities') return serveCities(req, res);
     if (p === '/api/health') return sendJson(req, res, 200, { ok: true });
     return sendJson(req, res, 404, { error: 'Unknown API route' });
   }
 
   if (req.method !== 'GET' && req.method !== 'HEAD') return sendJson(req, res, 405, { error: 'Method not allowed' });
 
+  if (p.startsWith('/lib/')) {
+    let rel;
+    try { rel = decodeURIComponent(p.slice('/lib/'.length)); } catch { rel = null; }
+    if (!rel || !BROWSER_LIB.has(rel)) return sendJson(req, res, 404, { error: 'Not found' });
+    return serveFile(req, res, path.join(SERVER_DIR, ...rel.split('/')));
+  }
   if (p.startsWith('/vendor/leaflet/')) {
     const file = safeJoin(LEAFLET_DIR, p.slice('/vendor/leaflet/'.length));
     if (!file) return sendJson(req, res, 403, { error: 'Forbidden' });
@@ -320,6 +395,7 @@ export async function handle(req, res) {
 }
 
 export function createServer({ log = true } = {}) {
+  refreshCities(); // load data/cities.json once at startup
   return http.createServer(async (req, res) => {
     const t0 = Date.now();
     if (log) res.on('finish', () => console.log(`${req.method} ${req.url} ${res.statusCode} ${Date.now() - t0}ms`));
