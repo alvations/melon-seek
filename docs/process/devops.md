@@ -147,6 +147,86 @@ another account or machine.
     2-space indent (matches the existing JS). Markdown keeps trailing
     whitespace for hard line breaks. Makefiles use tabs.
 
+### GitHub Pages (static deploy)
+
+23. **Mode switch is a global, `window.MELON_STATIC`, set by a generated
+    `dist/config.js`.** The build injects it as a classic `<script>` before the
+    first script in `dist/index.html`, so it's set before the `app.js` module
+    runs. The alternative, detecting by hostname, was rejected: it's brittle,
+    and a local preview of `dist/` should behave exactly like Pages.
+24. **api.js reuses the adapters' URL builders and mappers but does its own
+    `fetch`.** `server/sources/util.js#fetchJson` sends a `User-Agent` header.
+    That header isn't CORS-safelisted, so Firefox would send a preflight that
+    the boards may reject. So api.js calls `greenhouseUrl`/`mapGreenhouseJob`
+    and the others with a plain GET (only `Accept`, `credentials: 'omit'`). It
+    then runs the same `normalizeJobs`, so browser and server output are
+    identical. It also repeats the adapters' two response checks (Greenhouse
+    `jobs` array; Ashby `isListed !== false`).
+25. **Live sources in static mode: `["greenhouse", "ashby"]`, set in
+    `config.js` as `MELON_LIVE_SOURCES`.** Lever is excluded because its
+    official docs say cross-origin requests from third-party sites are refused,
+    so every attempt would only add a guaranteed console error. Ashby is
+    uncertain (one secondary source), so it's attempted, and a failure falls
+    back cleanly. To change the list, edit `LIVE_SOURCES` in the build script.
+26. **A network/CORS failure blocks that source for the rest of the session,
+    and Refresh clears the block.** This avoids a failed request and console
+    error on every company switch. HTTP errors (e.g. a 404 board slug) don't
+    block the source, because they're specific to one board.
+27. **The static fallback chain mirrors the server's:**
+    1. In-memory cache (30-minute TTL, the same responsible-use limit as the
+       server).
+    2. Live fetch from the browser.
+    3. Stale in-memory result.
+    4. `api/jobs/<slug>.json`.
+    5. `api/demo/<slug>.json`.
+    6. Demo generated in the browser.
+
+    Custom boards skip steps 4 and 5, as the brief asked. The mode returned is
+    whatever the bundle says (`snapshot` or `demo`), so a build that had no
+    snapshot is never shown as real data.
+28. **`apiFetch(path)` drop-in.** app.js already built `/api/...` path strings,
+    so the smallest change on its side was to route those strings through one
+    function. app.js now imports `api.js` and prefers `getJobs`/`getCompanies`.
+29. **Build rewrites absolute URLs in HTML (`href="/x"` becomes `href="./x"`,
+    or `../x` one level down) instead of asking for changes to
+    `public/index.html`.** The server works either way, and the build stays
+    correct even if someone adds an absolute URL later. JS can't be rewritten
+    safely, so the build *warns* about absolute `/api/` or asset URLs in
+    `dist/*.js` (except `api.js` and `mock-api.js`, which only mention them
+    in comments or for dev use).
+30. **Browser-safety gate for `dist/lib/`.** The build fails if a copied module
+    has a `node:` import or `require(`, naming the module so its owner can fix
+    it; the build never patches it. Node globals (`process`, `Buffer`,
+    `__dirname`) only produce a warning. The one hit is `normalize.js:12`
+    (`process.env.DEBUG` in a catch path), which api.js covers with a
+    `globalThis.process = { env: {} }` stub. This was reported to the
+    coordinator.
+31. **`dist/api/jobs/<slug>.json` is always written.** It holds the snapshot if
+    `data/snapshots/<slug>.json` has jobs, otherwise build-time demo data with
+    an explicit "Synthetic demo data" note in `error`, so the UI's demo banner
+    explains why.
+32. **`pages.yml`:**
+    - Builds on push to `main` and `claude/stoic-ride-54ddxp`, on
+      `workflow_dispatch`, and daily at `41 7 * * *` (an off-the-hour minute,
+      after snapshot.yml's 06:17 run).
+    - Permissions are `contents: read`, `pages: write`, `id-token: write`.
+    - `concurrency: pages` with no cancel-in-progress, so a deploy is never cut
+      off partway.
+    - `npm run snapshot ... || true` means a board outage doesn't block the
+      deploy; committed snapshots, then demo data, cover it.
+    - A step summary table lists each company's bundled mode, job count and
+      `fetchedAt`, so a demo-only deploy is visible in the run.
+    - Separate build and deploy jobs follow GitHub's starter workflow, with
+      `environment: github-pages` and the page URL output.
+    - Action versions: `configure-pages@v5`, `upload-pages-artifact@v3`,
+      `deploy-pages@v4`.
+33. **CI also runs `npm run build`** and checks `dist/` with `jq` (companies
+    array, every `jobs/*.json` has a `jobs` array, `config.js`, `.nojekyll` and
+    Leaflet present). A broken Pages bundle now fails PRs, not just the
+    deploy.
+34. **`dist/` is gitignored and dockerignored.** It's a build output; Pages
+    gets it as an artifact, not from the repo.
+
 ## 4. Replayable steps
 
 Run from `/home/user/melon-seek`. File contents are the committed files

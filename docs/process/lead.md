@@ -126,3 +126,10 @@ screenshots in `docs/screenshots/`.
   console errors were blocked basemap tile requests. Bugs sent to UX: map
   not fitting bounds on deep link, map too short, company pills
   overflowing, KPI text truncated.
+- 2026-10-02: research finished (docs/DATA_SOURCES.md). The three built-in
+  slugs are confirmed. Greenhouse pay_input_ranges use cents and have no
+  interval. Greenhouse and Ashby send `access-control-allow-origin: *`;
+  Lever's docs say no cross-origin support. Six more boards confirmed
+  (Scale AI, xAI, Cohere, Palantir, Shield AI, Mistral). Sent to backend
+  (pay ranges, new built-ins) and devops (snapshot all built-ins; quiet
+  Lever fallback in static mode).
