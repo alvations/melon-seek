@@ -181,6 +181,28 @@ checks.clusters = await (async () => {
   const clustersHash = await p.evaluate(() => location.hash);
   return { chip, listed, cleared, rangesHash, clustersHash };
 })();
+checks.payUnclear = await (async () => {
+  await p.goto(`${BASE}/${QS}#c=anthropic&sort=salary-asc`); await ready(p);
+  await p.evaluate(async () => { while (document.querySelector('.list-more button')) { document.querySelector('.list-more button').click(); await new Promise((r) => setTimeout(r, 30)); } });
+  const n = await p.evaluate(() => document.querySelectorAll('.sal-pill--unclear').length);
+  if (!n) return { cards: 0 };
+  await p.click('.card:has(.sal-pill--unclear) >> nth=0'); await p.waitForSelector('.drawer.is-open'); await p.waitForTimeout(300);
+  await p.click('#drawer .d-unclear summary'); await p.waitForTimeout(150);
+  await shot(p, 'desktop-drawer-pay-unclear');
+  const r = await p.evaluate(() => ({ title: document.querySelector('#drawer .d-sal-unclear strong')?.textContent, reason: document.querySelector('#drawer .d-unclear p')?.textContent }));
+  await p.keyboard.press('Escape');
+  return { cards: n, ...r };
+})();
+checks.mapPinsInside = await (async () => {
+  await p.goto('about:blank');
+  await p.goto(`${BASE}/${QS}#c=anthropic&m=map`); await ready(p); await p.waitForTimeout(1500);
+  return p.evaluate(() => {
+    const hr = document.getElementById('mapHost').getBoundingClientRect();
+    const pins = [...document.querySelectorAll('.ms-map .leaflet-marker-icon')].map((e) => e.getBoundingClientRect()).filter((r) => r.width || r.height || r.left);
+    const out = pins.filter((r) => r.left < hr.left - 1 || r.right > hr.right + 1 || r.top < hr.top - 1 || r.bottom > hr.bottom + 1).length;
+    return { pins: pins.length, outside: out };
+  });
+})();
 checks.slashFocusesSearch = await (async () => { await p.keyboard.press('/'); return p.evaluate(() => document.activeElement.id === 'search'); })();
 // Description loads lazily (getJobDetail) and is sanitized.
 await p.goto('about:blank');

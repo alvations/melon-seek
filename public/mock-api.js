@@ -143,7 +143,15 @@ function makeJobs(company) {
       (salary ? `<p>The expected salary range for this position is: <b>${salary.text}</b></p>` : '') +
       `<p><a href="https://example.com/benefits" onclick="alert(1)">Benefits</a></p>` +
       `<script>window.__pwned = true</script><img src="x" onerror="window.__pwned=true">`;
+    // A few salaries "quarantined" the way server/vet.js does (salary null + salaryFlag).
+    let salaryRaw, salaryFlag;
+    if (salary && i % 41 === 7) {
+      salaryRaw = { ...salary, min: salary.min * 12, max: salary.max * 12, text: `${salary.text} per month` };
+      salaryFlag = { codes: ['above_max'], reason: 'Pay unclear: annualized max above $1.2M (likely a monthly figure read as yearly)' };
+      salary = null;
+    }
     jobs.push({
+      ...(salaryFlag ? { salaryRaw, salaryFlag } : {}),
       id: `${company.slug}:${id}`,
       company: company.slug,
       companyName: company.name,

@@ -22,8 +22,8 @@
 //                     z < -4.5 and below the fence) AND within
 //                     every comparison group (department, role family, pay kind)
 //                     that has at least VET.MIN_GROUP members. Low-side
-//                     statistical flags only apply to full-time roles
-//                     (contract/part-time/intern pay is legitimately low).
+//                     statistical flags only apply to full-time salaried roles
+//                     (hourly/stipend/contract/intern pay is legitimately low).
 // Amounts are compared in USD with rough FX (USD_PER) so a GBP role is not an
 // outlier against USD ones; FX only has to be right to within ~20%.
 
@@ -214,7 +214,8 @@ export function statOutliers(jobs, { exclude = new Set() } = {}) {
   for (const p of pts) {
     const c = outlierScore(p.x, all);
     if (!c.outlier) continue;
-    if (c.z < 0 && !isFullTime(jobs[p.i])) continue;
+    // Low side: full-time salaried roles only (hourly/stipend/contract/intern pay is legitimately low).
+    if (c.z < 0 && (!isFullTime(jobs[p.i]) || payKind(jobs[p.i].salary) !== 'salary')) continue;
     let agree = true;
     const detail = [`company z=${c.z.toFixed(1)}${c.fence ? `, ${c.fence} fence` : ''}`];
     for (const g of p.groups) {
