@@ -102,3 +102,14 @@ test('real snapshots: market.json for the built-ins is <= 150 KB', { skip: !fs.e
     assert.ok(c[5] >= 10000 && c[5] <= 5000000, `plausible USD median ${c[5]}`);
   }
 });
+
+test('mergeMarkets(per-company docs) equals buildMarket(all payloads)', async () => {
+  const { mergeMarkets } = await import('../scripts/build-market.js');
+  const swe = 'Software Engineer';
+  const jobs = (k) => [job(swe, 'Mid', sal(100000 * k)), job(swe, 'Mid', sal(110000 * k)), job(swe, 'Mid', sal(120000 * k)), job('Product Manager', 'Senior', sal(150000)), job('Product Manager', 'Senior', sal(160000)), job('Product Manager', 'Senior', sal(170000))];
+  const ps = [payload('b', jobs(1)), payload('a', jobs(2), 'live'), payload('d', jobs(1), 'demo')];
+  const opts = { generatedAt: 'x' };
+  assert.deepEqual(mergeMarkets(ps.map((p) => buildMarket([p], opts)), opts), buildMarket(ps, opts));
+  const demoOnly = [payload('d', jobs(1), 'demo'), payload('e', jobs(2), 'demo')];
+  assert.deepEqual(mergeMarkets(demoOnly.map((p) => buildMarket([p], opts)), opts), buildMarket(demoOnly, opts));
+});

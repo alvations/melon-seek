@@ -270,11 +270,10 @@ export async function getJobs(company, opts = {}) {
   if (!payload) return null;
   await yieldNow();
   const ledger = await loadLedger(company.slug);
-  return {
-    ...payload,
-    jobs: annotateCached(payload.jobs, ledger),
-    meta: { compstimate: await compstimateMeta(payload), history: ledgerMeta(ledger) },
-  };
+  const jobs = annotateCached(payload.jobs, ledger);
+  await yieldNow();
+  const compstimate = await compstimateMeta(payload);
+  return { ...payload, jobs, meta: { compstimate, history: ledgerMeta(ledger) } };
 }
 
 /* ------------------------------------------------------ compstimate (F3) */
@@ -363,7 +362,7 @@ export async function compstimateMeta(payload, { wait = BACKTEST_WAIT_MS } = {})
     entry = { jobs, value: undefined, promise: null };
     const run = compstimateOverride !== undefined
       ? Promise.resolve().then(() => mod.backtest(jobs, { ...BACKTEST_OPTS }))
-      : runBacktestInWorker(jobs);
+      : yieldNow().then(() => runBacktestInWorker(jobs));
     entry.promise = run.then((r) => { entry.value = toMeta(r); return entry.value; }, (err) => {
       if (!compstimateWarned) console.warn(`[compstimate] backtest failed: ${err && err.message}`);
       compstimateWarned = true;
@@ -404,6 +403,7 @@ function listBody({ store, ...payload }, jobs, sectionsMoved) {
 }
 
 async function buildList(payload) {
+  await yieldNow();
   const noDesc = payload.jobs.map((j) => {
     if (!j || typeof j !== 'object') return j;
     const { descriptionHtml, ...rest } = j;
@@ -426,6 +426,7 @@ async function buildList(payload) {
     sectionsMoved = gz.length > LIST_GZIP_BUDGET;
   }
   if (sectionsMoved) {
+    await yieldNow();
     json = listBody(payload, noDesc.map((j) => (j && typeof j === 'object' ? { ...j, sections: EMPTY_SECTIONS } : j)), true);
     gz = await gzip(Buffer.from(json));
   }
