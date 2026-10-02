@@ -253,3 +253,22 @@ test('browser-bundled modules use no Node-only APIs', () => {
     assert.ok(!/(?<![.?\w])(process\.|Buffer\b|__dirname)/.test(code), `${f}: node global`);
   }
 });
+
+test('greenhouse pay_input_ranges -> structured salary (cents, tiers, hourly, fallback)', async () => {
+  mockFetch(() => jsonResponse(fixture('greenhouse-pay-ranges.json')));
+  const jobs = await fetchGreenhouse('andurilindustries');
+  assert.ok(calls[0].url.includes('content=true') && calls[0].url.includes('pay_transparency=true'));
+  const [tiers, hourly, none, mixed] = jobs;
+  // Several tiers: overall min and max of the tiers (structured beats the text range).
+  assert.deepEqual({ ...tiers.salary, text: undefined }, { min: 133000, max: 249000, currency: 'USD', interval: 'year', text: undefined });
+  assert.match(tiers.salary.text, /133,000–249,000 USD \(3 ranges\)/);
+  // Interval comes from title/blurb only.
+  assert.deepEqual([hourly.salary.min, hourly.salary.max, hourly.salary.interval], [28, 36, 'hour']);
+  assert.equal(toJobSalary(hourly.salary).min, 28 * 2080);
+  // Empty ranges -> null here; normalize falls back to parsing the text.
+  assert.equal(none.salary, null);
+  const parsed = parseSalary(none.text);
+  assert.deepEqual([parsed.min, parsed.max, parsed.currency], [90000, 115000, 'GBP']);
+  // Ranges in another currency than the first are not mixed in.
+  assert.deepEqual([mixed.salary.min, mixed.salary.max, mixed.salary.currency], [180000, 220000, 'AUD']);
+});

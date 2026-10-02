@@ -1,0 +1,127 @@
+{
+ "jobs": [
+  {
+   "id": 4600000001,
+   "internal_job_id": 5001,
+   "title": "Software Engineer, Autonomy",
+   "absolute_url": "https://boards.greenhouse.io/andurilindustries/jobs/4600000001",
+   "updated_at": "2026-09-30T09:00:00-07:00",
+   "location": {
+    "name": "Costa Mesa, California, United States"
+   },
+   "departments": [
+    {
+     "id": 3,
+     "name": "Software"
+    }
+   ],
+   "offices": [],
+   "metadata": [],
+   "content": "&lt;p&gt;Build autonomy software.&lt;/p&gt;&lt;p&gt;US Salary Range&lt;/p&gt;&lt;p&gt;$150,000&amp;mdash;$200,000 USD&lt;/p&gt;",
+   "pay_input_ranges": [
+    {
+     "min_cents": 16600000,
+     "max_cents": 24900000,
+     "currency_type": "USD",
+     "title": "Tier 1: SF / NYC / Seattle",
+     "blurb": "Annual base salary for Tier 1 locations."
+    },
+    {
+     "min_cents": 14900000,
+     "max_cents": 22400000,
+     "currency_type": "USD",
+     "title": "Tier 2: Costa Mesa / Boston",
+     "blurb": "Annual base salary for Tier 2 locations."
+    },
+    {
+     "min_cents": 13300000,
+     "max_cents": 19900000,
+     "currency_type": "USD",
+     "title": "Tier 3: Other US",
+     "blurb": ""
+    }
+   ]
+  },
+  {
+   "id": 4600000002,
+   "internal_job_id": 5002,
+   "title": "Manufacturing Technician",
+   "absolute_url": "https://boards.greenhouse.io/andurilindustries/jobs/4600000002",
+   "updated_at": "2026-09-29T09:00:00-07:00",
+   "location": {
+    "name": "Columbus, Ohio, United States"
+   },
+   "departments": [
+    {
+     "id": 4,
+     "name": "Manufacturing"
+    }
+   ],
+   "offices": [],
+   "metadata": [],
+   "content": "&lt;p&gt;Second shift.&lt;/p&gt;",
+   "pay_input_ranges": [
+    {
+     "min_cents": 2800,
+     "max_cents": 3600,
+     "currency_type": "USD",
+     "title": "Hourly Pay Range",
+     "blurb": "<p>Plus overtime.</p>"
+    }
+   ]
+  },
+  {
+   "id": 4600000003,
+   "internal_job_id": 5003,
+   "title": "Program Manager",
+   "absolute_url": "https://boards.greenhouse.io/andurilindustries/jobs/4600000003",
+   "updated_at": "2026-09-28T09:00:00-07:00",
+   "location": {
+    "name": "London, England, United Kingdom"
+   },
+   "departments": [
+    {
+     "id": 5,
+     "name": "Programs"
+    }
+   ],
+   "offices": [],
+   "metadata": [],
+   "content": "&lt;p&gt;Lead programs.&lt;/p&gt;&lt;p&gt;Salary: &amp;pound;90,000 - &amp;pound;115,000 per annum&lt;/p&gt;",
+   "pay_input_ranges": []
+  },
+  {
+   "id": 4600000004,
+   "internal_job_id": 5004,
+   "title": "Mixed Currency Role",
+   "absolute_url": "https://boards.greenhouse.io/andurilindustries/jobs/4600000004",
+   "updated_at": "2026-09-27T09:00:00-07:00",
+   "location": {
+    "name": "Sydney, Australia"
+   },
+   "departments": [],
+   "offices": [],
+   "metadata": [],
+   "content": "&lt;p&gt;x&lt;/p&gt;",
+   "pay_input_ranges": [
+    {
+     "min_cents": 18000000,
+     "max_cents": 22000000,
+     "currency_type": "AUD",
+     "title": "Australia",
+     "blurb": ""
+    },
+    {
+     "min_cents": 15000000,
+     "max_cents": 30000000,
+     "currency_type": "USD",
+     "title": "US",
+     "blurb": ""
+    }
+   ]
+  }
+ ],
+ "meta": {
+  "total": 4
+ }
+}

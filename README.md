@@ -63,7 +63,7 @@ posting.
 ### Snapshots
 
 ```sh
-npm run snapshot                              # built-in companies
+npm run snapshot                              # every built-in in server/companies.js
 npm run snapshot -- anthropic anduril openai  # explicit list
 npm run snapshot -- lever:acme                # custom board as <source>:<board>
 ```
@@ -123,13 +123,19 @@ allow cross-origin requests when the board API permits them:
 - **Greenhouse** is built for client-side use, so live fetches are attempted.
 - **Ashby** is attempted too, but its API is reported not to allow cross-origin
   requests.
-- **Lever** is skipped. Lever's docs say its postings API refuses cross-origin
-  requests from third-party sites.
+- **Lever** is attempted. Its docs say cross-origin requests from other sites
+  aren't supported, though it currently returns `Access-Control-Allow-Origin: *`.
+  Because that failure is expected, a Lever board whose live fetch is blocked
+  falls back to the bundled snapshot **without an error banner**.
 
-When a live fetch fails, the bundled snapshot is shown. The
-[`pages` workflow](.github/workflows/pages.yml) refreshes the snapshots before
-every build. It runs on pushes to `main` and `claude/stoic-ride-54ddxp`, on
-manual dispatch, and daily.
+When a live fetch fails, the bundled snapshot is shown. After a network or CORS
+failure, that source isn't retried for the rest of the session unless you click
+Refresh. Demo fallbacks always show why they're demo data.
+
+The [`pages` workflow](.github/workflows/pages.yml) refreshes the snapshots for
+every built-in company in `server/companies.js` before each build. It runs on
+pushes to `main` and `claude/stoic-ride-54ddxp`, on manual dispatch, and
+daily.
 
 Preview locally by serving `dist/` under the same sub-path, so relative URLs
 resolve the way they do on Pages.

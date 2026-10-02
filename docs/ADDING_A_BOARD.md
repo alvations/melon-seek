@@ -54,8 +54,10 @@ npm test
 npm run snapshot -- acme    # optional: commit data/snapshots/acme.json
 ```
 
-and add `acme` to the `npm run snapshot` line in
-`.github/workflows/snapshot.yml` so it's refreshed daily.
+Nothing else needs to change. The `snapshot` and `pages` workflows run
+`npm run snapshot` with no arguments, which covers every built-in. The static
+build (`npm run build`) also bundles `api/jobs/<slug>.json` for every company
+that `server/companies.js` returns.
 
 ## 3. A new source adapter
 
