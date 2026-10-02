@@ -14,7 +14,7 @@ export const LIB_MODULES = Object.freeze([
 /** Every *.js file directly in server/<LIB_SOURCES_DIR>/ is also browser-safe. */
 export const LIB_SOURCES_DIR = 'sources';
 
-const SOURCE_RE = new RegExp(`^${LIB_SOURCES_DIR}/[a-z0-9][a-z0-9_-]*\\.js$`, 'i');
+const SOURCE_RE = new RegExp(`^${LIB_SOURCES_DIR}/[a-z0-9][a-z0-9_-]*\\.js$`);
 
 /** True if `rel` (e.g. "juice.js", "sources/lever.js") may be served to the browser. */
 export function isLibModule(rel) {

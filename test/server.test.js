@@ -415,30 +415,61 @@ test('GET /api/cities serves data/cities.json with max-age=3600, ETag, gzip and 
   }
 });
 
-test('/lib/ serves browser-safe server modules (juice.js and its imports) and nothing else', { skip: skipReason }, async () => {
+test('/lib/ serves exactly the shared browser-safe allowlist (server/lib-modules.js)', { skip: skipReason }, async () => {
   const serverDir = path.join(FIX, '..', '..', 'server');
-  for (const rel of mod.BROWSER_LIB) {
-    if (!fs.existsSync(path.join(serverDir, rel))) continue;
+  const { LIB_MODULES, LIB_SOURCES_DIR, isLibModule } = await import('../server/lib-modules.js');
+  assert.equal(mod.isLibModule, isLibModule, 'index.js uses the shared allowlist');
+  for (const m of ['companies.js', 'normalize.js', 'salary.js', 'vet.js', 'geo.js', 'keywords.js', 'demo.js', 'juice.js']) {
+    assert.ok(LIB_MODULES.includes(m), `${m} in LIB_MODULES`);
+  }
+  const allowed = [
+    ...LIB_MODULES,
+    ...fs.readdirSync(path.join(serverDir, LIB_SOURCES_DIR)).filter((f) => f.endsWith('.js')).map((f) => `${LIB_SOURCES_DIR}/${f}`),
+  ].filter((rel) => fs.existsSync(path.join(serverDir, rel)));
+  assert.ok(allowed.includes('juice.js') || !fs.existsSync(path.join(serverDir, 'juice.js')));
+
+  // Allowed: served byte-for-byte as JavaScript with the security headers.
+  for (const rel of allowed) {
     const res = await get(`/lib/${rel}`);
     assert.equal(res.status, 200, rel);
-    assert.match(res.headers.get('content-type'), /text\/javascript/, rel);
+    assert.match(res.headers.get('content-type'), /^text\/javascript/, rel);
+    assert.equal(res.headers.get('x-content-type-options'), 'nosniff', rel);
     assert.equal(await res.text(), fs.readFileSync(path.join(serverDir, rel), 'utf8'), rel);
   }
-  if (fs.existsSync(path.join(serverDir, 'juice.js'))) assert.equal((await get('/lib/juice.js')).status, 200);
-  for (const p of ['/lib/index.js', '/lib/cache.js', '/lib/../package.json', '/lib/%2e%2e/server/index.js', '/lib/sources/../index.js', '/lib/', '/lib/nope.js']) {
+
+  // Disallowed: node-only or unknown modules, other extensions, nesting, case variants.
+  const disallowed = ['/lib/index.js', '/lib/cache.js', '/lib/lib-modules.js', '/lib/nope.js', '/lib/', '/lib',
+    '/lib/juice', '/lib/juice.json', '/lib/sources/', '/lib/sources/sub/x.js', '/lib/SOURCES/lever.js', '/lib/sources/util.js/'];
+  // Traversal: raw, encoded, double-encoded and backslash forms.
+  const traversal = ['/lib/../package.json', '/lib/%2e%2e/package.json', '/lib/..%2fpackage.json', '/lib/%2e%2e%2fserver%2findex.js',
+    '/lib/sources/../index.js', '/lib/sources/..%2findex.js', '/lib/sources/..%2f..%2fpackage.json', '/lib/..%5cindex.js',
+    '/lib/%252e%252e/index.js', '/lib/sources/%2e%2e/cache.js', '/lib/juice.js%00.png'];
+  for (const p of [...disallowed, ...traversal]) {
     const res = await get(p);
-    assert.ok([403, 404].includes(res.status), `${p} -> ${res.status}`);
-    assert.ok(!(await res.text()).includes('createServer'), `${p} must not leak server code`);
+    assert.ok([400, 403, 404].includes(res.status), `${p} -> ${res.status}`);
+    const text = await res.text();
+    assert.ok(!text.includes('createServer') && !text.includes('"melon-seek"') && !text.includes('setCached'), `${p} must not leak files`);
   }
-  // Closed under relative imports, and free of Node-only APIs.
-  for (const rel of mod.BROWSER_LIB) {
-    const file = path.join(serverDir, rel);
-    if (!fs.existsSync(file)) continue;
-    const code = fs.readFileSync(file, 'utf8');
+  // Raw request targets (fetch normalizes dot segments, so send these unparsed).
+  const http = await import('node:http');
+  const { port } = server.address();
+  for (const target of ['/lib/../server/index.js', '/lib/sources/../../package.json', '/lib/./cache.js']) {
+    const r = await new Promise((resolve, reject) => {
+      const req = http.request({ host: '127.0.0.1', port, path: target }, (res) => {
+        const chunks = []; res.on('data', (c) => chunks.push(c)); res.on('end', () => resolve({ status: res.statusCode, body: Buffer.concat(chunks).toString('utf8') }));
+      });
+      req.on('error', reject); req.end();
+    });
+    assert.ok(!r.body.includes('createServer') && !r.body.includes('"melon-seek"') && !r.body.includes('setCached'), `${target} -> ${r.status} must not leak`);
+  }
+
+  // The allowlist is closed under relative imports and free of Node-only APIs.
+  for (const rel of allowed) {
+    const code = fs.readFileSync(path.join(serverDir, rel), 'utf8');
     for (const m of code.matchAll(/(?:from\s+|import\s*\(\s*)['"](\.{1,2}\/[^'"]+)['"]/g)) {
       const target = path.posix.normalize(path.posix.join(path.posix.dirname(rel), m[1]));
-      assert.ok(mod.BROWSER_LIB.has(target), `${rel} imports ${m[1]} -> ${target}, which is not in BROWSER_LIB`);
+      assert.ok(isLibModule(target), `${rel} imports ${m[1]} -> ${target}, which is not browser-safe`);
     }
-    assert.ok(!/\bfrom\s+['"]node:|\brequire\s*\(/.test(code), `${rel}: node import`);
+    assert.ok(!/\bfrom\s+['"]node:|\bimport\s*\(\s*['"]node:|\brequire\s*\(/.test(code), `${rel}: node import`);
   }
 });

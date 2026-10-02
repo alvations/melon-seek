@@ -14,6 +14,14 @@
 //         → demo generated in-browser      (mode "demo")
 //     Custom boards: live, else in-browser demo.
 //
+// Juice Score: every getJobs result (live, cache, snapshot, demo, server) is
+// passed through vetSalaries (static mode; the server vets its own responses)
+// and then juice.js#attachJuiceAll with the cities from getCities(), so jobs
+// carry `juice` ({ best, byLocation, salaryUSD } or null). Juice is computed
+// here, in the browser, in both modes. It is never stored in bundled lists. If
+// cities or juice.js can't be loaded, every job gets `juice: null` and no error
+// is reported.
+//
 // Every function resolves to the HTTP API shapes in docs/CONTRACT.md, with one
 // exception: to keep bundles small, jobs from the static build's bundled lists
 // have no `descriptionHtml`. Call getJobDetail(job) for it (e.g. when the job
@@ -124,10 +132,12 @@ function loadLib() {
       import('./lib/sources/ashby.js'),
       import('./lib/sources/lever.js'),
       import('./lib/demo.js').catch(() => null),
-    ]).then(([normalize, companies, gh, ashby, lever, demo]) => ({
+      import('./lib/vet.js').catch(() => null),
+    ]).then(([normalize, companies, gh, ashby, lever, demo, vet]) => ({
       normalizeJobs: normalize.normalizeJobs,
       resolveCompany: companies.resolveCompany,
       demoJobs: demo && demo.demoJobs,
+      vetSalaries: vet && typeof vet.vetSalaries === 'function' ? vet.vetSalaries : null,
       sources: {
         // URL builders + mappers come from the adapters. The fetch itself is
         // done here without the adapters' User-Agent header, which is not
@@ -327,16 +337,72 @@ export async function getCompanies({ signal } = {}) {
   return getJson('api/companies', { signal });
 }
 
+/* ----------------------------------------------------------- juice score */
+
+let citiesPromise = null;
+let citiesFailed = false;
 /**
- * `GET /api/jobs` → { company, mode, fetchedAt, error, jobs }
+ * The cities document for the Juice Score (data/cities.json):
+ * `api/cities.json` in static mode, `api/cities` from the server. Cached for the
+ * session. A failure resolves to null and is remembered, so a missing route
+ * isn't re-requested on every company switch; `refresh: true` retries only
+ * after a failure (loaded cities are kept).
+ */
+export function getCities({ refresh = false } = {}) {
+  if (refresh && citiesFailed) citiesPromise = null;
+  if (!citiesPromise) {
+    citiesFailed = false;
+    citiesPromise = getJson(isStatic() ? 'api/cities.json' : 'api/cities')
+      .then((doc) => (doc && (Array.isArray(doc) || Array.isArray(doc.cities)) ? doc : null))
+      .catch(() => null)
+      .then((doc) => { citiesFailed = !doc; return doc; });
+  }
+  return citiesPromise;
+}
+
+let juicePromise = null;
+/** juice.js from ./lib/ (bundled in dist/lib/; served at /lib/ by the server), or null. */
+function loadJuice() {
+  if (!juicePromise) {
+    juicePromise = import('./lib/juice.js')
+      .then((m) => (m && typeof m.attachJuiceAll === 'function' ? m : null))
+      .catch(() => null);
+  }
+  return juicePromise;
+}
+
+/** Attach juice to every job of a getJobs result (mutates and returns it). */
+async function withJuice(res, { refresh = false } = {}) {
+  if (!res || !Array.isArray(res.jobs)) return res;
+  const [cities, juice] = await Promise.all([getCities({ refresh }), loadJuice()]);
+  let ok = false;
+  if (cities && juice) {
+    try { juice.attachJuiceAll(res.jobs, cities); ok = true; } catch { ok = false; }
+  }
+  if (!ok) for (const j of res.jobs) if (j && typeof j === 'object') j.juice = null;
+  return res;
+}
+
+/**
+ * `GET /api/jobs` → { company, mode, fetchedAt, error, jobs }, every job
+ * with `juice` attached (see the header).
  * @param params {company} | {source, board, name?} | URLSearchParams | slug string
  * @param opts   {refresh?: boolean, signal?: AbortSignal}
  */
 export async function getJobs(params, { refresh = false, signal } = {}) {
   const p = toParams(params);
   const r = refresh || truthy(p.refresh);
-  if (isStatic()) return staticJobs(p, { refresh: r, signal });
-  return getJson(`api/jobs?${jobsQuery(p, r)}`, { signal });
+  let res;
+  if (isStatic()) {
+    res = await staticJobs(p, { refresh: r, signal });
+    // Salary gate first (bundled lists were vetted at build time; it is
+    // idempotent, and live/in-browser-demo jobs need it).
+    const lib = await loadLib();
+    if (lib.vetSalaries && Array.isArray(res.jobs)) res = { ...res, jobs: lib.vetSalaries(res.jobs) };
+  } else {
+    res = await getJson(`api/jobs?${jobsQuery(p, r)}`, { signal }); // vetted by the server
+  }
+  return withJuice(res, { refresh: r });
 }
 
 /* -------------------------------------------------------- job details */
