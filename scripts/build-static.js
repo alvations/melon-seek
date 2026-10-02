@@ -82,7 +82,7 @@ async function main() {
   // Sub-path hazards in JS that the build can't fix (owned by app code).
   for (const file of (await walk(OUT)).filter((f) => f.endsWith('.js') && !/(^|\/)(mock-api|api)\.js$/.test(f))) {
     const src = await fs.readFile(file, 'utf8');
-    if (/['"`]\/api\//.test(src)) warn(`${path.relative(OUT, file)} uses absolute "/api/..." URLs; route them through api.js (apiFetch/getJobs) or the static site can't load data`);
+    if (/['"`]\/api\//.test(src) && !/from\s+['"]\.\/api\.js['"]/.test(src)) warn(`${path.relative(OUT, file)} uses absolute "/api/..." URLs; route them through api.js (apiFetch/getJobs) or the static site can't load data`);
     const abs = src.match(/['"`]\/(favicon\.svg|vendor\/|viz\/|styles\.css|app\.js)/);
     if (abs) warn(`${path.relative(OUT, file)} references absolute "/${abs[1]}"; use a relative URL for sub-path hosting`);
   }

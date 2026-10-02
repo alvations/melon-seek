@@ -201,8 +201,12 @@ export function h(tag, attrs, ...children) {
         if (sv == null) continue;
         if (sk.startsWith('--')) el.style.setProperty(sk, String(sv)); else el.style[sk] = sv;
       }
-    } else if (k.startsWith('on') && typeof v === 'function') {
-      el.addEventListener(k.slice(2), v);
+    } else if (/^on/i.test(k)) {
+      // Event handlers only as functions; on* strings are never set as attributes
+      // (REVIEW.md L9: no inline-handler injection via data-derived attrs).
+      if (typeof v === 'function') el.addEventListener(k.slice(2).toLowerCase(), v);
+    } else if (URL_ATTRS.has(k.toLowerCase()) && !SAFE_URL.test(String(v).trim())) {
+      // drop javascript:/data:/vbscript: style URLs
     } else if (k === 'dataset') {
       Object.assign(el.dataset, v);
     } else if (!isSvg && (k === 'value' || k === 'checked' || k === 'selected')) {

@@ -116,3 +116,7 @@ screenshots in `docs/screenshots/`.
   docs/REVIEW.md; the lead wrote docs/process/review.md from it. Findings
   routed by file owner: backend H1 M2 L1 L2 L3 L7 L8 C2; viz M3 L4 L6;
   ux M1 M4 M5 L5 L9 L10 L11 C1; product L9 (features/shared.js).
+- 2026-10-02: features finished (172 skills, 48 responsibility themes, 28+4
+  fit facets, 246-city gazetteer; 32 tests). Its contract deviations are
+  accepted: ISO alpha-2 country codes (GB not UK), optional 3rd arg to
+  demoJobs, structured salary in OpenAI demo, fit fallback sentences.
