@@ -537,3 +537,18 @@ screenshots in `docs/screenshots/`.
     api.js and build-static.js).
   The QA agents don't edit product code; the lead routes fixes by file owner
   afterwards to avoid collisions.
+
+### Full QA pass, desktop and mobile, plus mobile perf (2026-10-03)
+- Request: "Run a proper QA test on all the functionality on the desktop site and also the mobile and fix all the issues. Check the timing and resource use on the mobile."
+- Agents, run in parallel:
+  - desktop QA: [qa-desktop.md](qa-desktop.md), D-1..D-16;
+  - mobile QA: [qa-mobile.md](qa-mobile.md), M-1..M-18;
+  - mobile perf: [perf-mobile.md](perf-mobile.md);
+  - frontend fixer: [fix-frontend.md](fix-frontend.md).
+- Lead fixed M-5 and M-6 (methodology page, `scripts/md.js`, `scripts/methodology.js`, `test/md.test.js`).
+- M-2 and D-1 were routed to perf, which owns `build-static.js`. The perf agent's two patches in `patches/` were applied by the lead.
+- The fixer hit the account session limit during the desktop batch. Its code was complete, so the lead verified it, wrote the batch section of fix-frontend.md, and committed.
+- Final: `npm test` 303/303, `node scripts/e2e.js` 86/86.
+- Open user decisions:
+  - live-first loading of huge boards (Anduril live is about 16 s to first chart on Fast 4G);
+  - self-hosting the Inter font.
