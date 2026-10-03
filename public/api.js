@@ -29,6 +29,18 @@
 // cities or juice.js can't be loaded, every job gets `juice: null` and no error
 // is reported.
 //
+// Mobile performance (docs/process/perf-mobile.md), all behaviour-identical:
+//  - getJobs starts cities + juice.js together with the list, not after it;
+//  - static mode loads only what the bundled path needs up front (STATIC_PRELOAD,
+//    which the build also modulepreloads); a live board response is parsed and
+//    normalized in unpack-worker.js (main-thread fallback, same result), and
+//    demo.js loads only when the in-browser demo runs;
+//  - vetting and Juice run in chunks that yield to the main thread, so a big
+//    board (Anduril, 2,418 jobs) is no longer one long task;
+//  - the last BUNDLE_CACHE_MAX bundled lists stay in memory, already vetted and
+//    juiced, so switching back to a company doesn't redo that work (same job
+//    objects, like the live memCache; refresh bypasses it).
+//
 // Every function resolves to the HTTP API shapes in docs/CONTRACT.md, with one
 // exception: to keep bundles small, jobs from the static build's bundled lists
 // have no `descriptionHtml`. Call getJobDetail(job) for it (e.g. when the job
@@ -82,6 +94,21 @@ async function getJson(url, { signal } = {}) {
   return body;
 }
 
+/**
+ * Let the browser render and handle input before the next chunk of work:
+ * scheduler.yield() where available, else a MessageChannel task (not throttled
+ * in background tabs the way setTimeout is), else setTimeout.
+ */
+function yieldToMain() {
+  if (g.scheduler && typeof g.scheduler.yield === 'function') return g.scheduler.yield();
+  return new Promise((resolve) => {
+    if (typeof MessageChannel !== 'function') { setTimeout(resolve, 0); return; }
+    const ch = new MessageChannel();
+    ch.port1.onmessage = () => { ch.port1.close(); resolve(); };
+    ch.port2.postMessage(null);
+  });
+}
+
 function toParams(params) {
   if (params instanceof URLSearchParams) return Object.fromEntries(params);
   if (typeof params === 'string') return { company: params };
@@ -126,40 +153,141 @@ function jobsQuery(p, refresh) {
 
 /* ------------------------------------------------------------ static mode */
 
+/**
+ * The ./lib/ modules the bundled path needs (plus their static imports). The
+ * static build adds <link rel="modulepreload"> for these, so keep this list and
+ * loadLib/loadJuice in step.
+ */
+export const STATIC_PRELOAD = Object.freeze(['companies.js', 'sources/greenhouse.js', 'sources/ashby.js', 'sources/lever.js', 'vet.js', 'juice.js']);
+
+/** The postings array of each board API's response (shared with unpack-worker.js). */
+export const BOARD_LISTS = Object.freeze({
+  greenhouse: (d) => d && d.jobs,
+  ashby: (d) => d && Array.isArray(d.jobs) ? d.jobs.filter((j) => j && j.isListed !== false) : null,
+  lever: (d) => (Array.isArray(d) ? d : null),
+});
+
+// normalize.js reads process.env.DEBUG on its error path; give it a stub.
+const stubProcess = () => { if (typeof g.process === 'undefined') g.process = { env: {} }; };
+
 let libPromise = null;
-/** Lazy-load the browser copies of the server modules (dist/lib/). */
+/** Lazy-load the browser copies of the server modules (dist/lib/) that every static load needs. */
 function loadLib() {
   if (!libPromise) {
-    // normalize.js reads process.env.DEBUG on its error path; give it a stub.
-    if (typeof g.process === 'undefined') g.process = { env: {} };
+    stubProcess();
     libPromise = Promise.all([
-      import('./lib/normalize.js'),
       import('./lib/companies.js'),
       import('./lib/sources/greenhouse.js'),
       import('./lib/sources/ashby.js'),
       import('./lib/sources/lever.js'),
-      import('./lib/demo.js').catch(() => null),
       import('./lib/vet.js').catch(() => null),
-      import('./lib/history.js').catch(() => null),
-    ]).then(([normalize, companies, gh, ashby, lever, demo, vet, history]) => ({
-      normalizeJobs: normalize.normalizeJobs,
+    ]).then(([companies, gh, ashby, lever, vet]) => ({
       resolveCompany: companies.resolveCompany,
-      demoJobs: demo && demo.demoJobs,
       vetSalaries: vet && typeof vet.vetSalaries === 'function' ? vet.vetSalaries : null,
-      // F4: annotate(jobs, ledger, fetchedAt) + fromCompact(api/history/<slug>.json)
-      history: history && typeof history.annotate === 'function' && typeof history.fromCompact === 'function' ? history : null,
       sources: {
         // URL builders + mappers come from the adapters. The fetch itself is
         // done here without the adapters' User-Agent header, which is not
         // CORS-safelisted and would force a preflight in some browsers.
-        greenhouse: { url: gh.greenhouseUrl, list: (d) => d && d.jobs, map: gh.mapGreenhouseJob },
-        ashby: { url: ashby.ashbyUrl, list: (d) => d && Array.isArray(d.jobs) ? d.jobs.filter((j) => j && j.isListed !== false) : null, map: ashby.mapAshbyJob },
-        lever: { url: lever.leverUrl, list: (d) => (Array.isArray(d) ? d : null), map: lever.mapLeverJob },
+        greenhouse: { url: gh.greenhouseUrl, list: BOARD_LISTS.greenhouse, map: gh.mapGreenhouseJob },
+        ashby: { url: ashby.ashbyUrl, list: BOARD_LISTS.ashby, map: ashby.mapAshbyJob },
+        lever: { url: lever.leverUrl, list: BOARD_LISTS.lever, map: lever.mapLeverJob },
       },
     }));
     libPromise.catch(() => { libPromise = null; });
   }
   return libPromise;
+}
+
+let historyPromise = null;
+/** history.js (F4 fields for live / in-browser jobs), or null. */
+function loadHistory() {
+  if (!historyPromise) {
+    historyPromise = import('./lib/history.js')
+      // F4: annotate(jobs, ledger, fetchedAt) + fromCompact(api/history/<slug>.json)
+      .then((h) => (h && typeof h.annotate === 'function' && typeof h.fromCompact === 'function' ? h : null))
+      .catch(() => null);
+  }
+  return historyPromise;
+}
+
+let livePromise = null;
+/**
+ * normalize.js (+ keywords.js) and history.js: needed only to turn a live board
+ * response (or the in-browser demo) into Jobs on the main thread, i.e. when
+ * unpack-worker.js is unavailable. A bundled-list load never downloads them.
+ */
+function loadLive() {
+  if (!livePromise) {
+    stubProcess();
+    livePromise = Promise.all([import('./lib/normalize.js'), loadHistory()])
+      .then(([normalize, history]) => ({ normalizeJobs: normalize.normalizeJobs, history }));
+    livePromise.catch(() => { livePromise = null; });
+  }
+  return livePromise;
+}
+
+// Live boards are big (Anduril: ~33 MB of JSON, 2,418 postings) and normalizeJobs
+// runs for seconds on a phone, so a browser with module workers parses and
+// normalizes them in unpack-worker.js. The fetch, its timeout and its errors stay
+// here. Whenever the worker can't do it (no Worker, it fails to start within
+// WORKER_READY_MS, or it reports a failure) the same bytes go through the
+// main-thread code, so results and error messages are the same either way.
+const WORKER_READY_MS = 10000;
+let workerPromise = null;
+/** Resolves to { normalize(source, company, buf) -> Promise<jobs|null> }, or null. */
+function liveWorker() {
+  if (workerPromise) return workerPromise;
+  workerPromise = new Promise((resolve) => {
+    if (typeof Worker !== 'function' || typeof g.document === 'undefined') { resolve(null); return; }
+    let w;
+    try { w = new Worker(new URL('./unpack-worker.js', import.meta.url), { type: 'module' }); } catch { resolve(null); return; }
+    const pending = new Map();
+    let ready = false;
+    let seq = 0;
+    const fail = () => {
+      clearTimeout(timer);
+      try { w.terminate(); } catch { /* already gone */ }
+      for (const done of pending.values()) done(null);
+      pending.clear();
+      workerPromise = Promise.resolve(null); // main thread for the rest of the session
+      resolve(null);
+    };
+    const timer = setTimeout(() => { if (!ready) fail(); }, WORKER_READY_MS);
+    w.onerror = (e) => { if (e && e.preventDefault) e.preventDefault(); fail(); };
+    w.onmessageerror = () => fail();
+    w.onmessage = ({ data }) => {
+      if (data && data.ready) {
+        ready = true;
+        clearTimeout(timer);
+        resolve({
+          normalize(source, company, buf) {
+            return new Promise((done) => {
+              const id = ++seq;
+              pending.set(id, done);
+              // Copied, not transferred: the main thread keeps the bytes for the fallback.
+              try { w.postMessage({ id, source, company, buf }); } catch { pending.delete(id); done(null); }
+            });
+          },
+        });
+        return;
+      }
+      const done = data && pending.get(data.id);
+      if (!done) return;
+      pending.delete(data.id);
+      if (!Array.isArray(data.jobs)) { done(null); return; }
+      // normalizeJobs' non-enumerable per-board diagnostics don't survive postMessage.
+      if (data.droppedKeywords) Object.defineProperty(data.jobs, 'droppedKeywords', { value: data.droppedKeywords, enumerable: false, configurable: true });
+      done(data.jobs);
+    };
+  });
+  return workerPromise;
+}
+
+let demoPromise = null;
+/** demo.js#demoJobs (last-resort fallback only), or null. */
+function loadDemo() {
+  if (!demoPromise) demoPromise = import('./lib/demo.js').then((m) => m.demoJobs || null).catch(() => null);
+  return demoPromise;
 }
 
 let companiesPromise = null;
@@ -190,10 +318,10 @@ function bundledMeta(slug) {
 }
 
 /** F4 fields for live / in-browser jobs; jobs unchanged if history.js is unavailable. */
-function annotateHistory(lib, jobs, compact, fetchedAt) {
-  if (!lib.history) return jobs;
+function annotateHistory(live, jobs, compact, fetchedAt) {
+  if (!live.history) return jobs;
   try {
-    return lib.history.annotate(jobs, compact ? lib.history.fromCompact(compact) : null, fetchedAt);
+    return live.history.annotate(jobs, compact ? live.history.fromCompact(compact) : null, fetchedAt);
   } catch {
     return jobs;
   }
@@ -201,11 +329,15 @@ function annotateHistory(lib, jobs, compact, fetchedAt) {
 const blockedSources = new Set(); // sources that failed at the network/CORS level this session
 const NETWORK_REASON = 'the browser could not reach the board (blocked by CORS or the network)';
 
+/** Live board fetch -> { jobs (normalized), live: { history } }. */
 async function fetchLiveInBrowser(lib, company, signal) {
   const src = lib.sources[company.source];
   if (!src) throw new Error(`No adapter for source "${company.source}"`);
   const label = `${company.source}/${company.board}`;
   const url = src.url(company.board);
+  // Both load while the board answers.
+  const workerPending = liveWorker();
+  const historyPending = loadHistory();
   const t = withTimeout(signal, LIVE_TIMEOUT_MS);
   let res;
   try {
@@ -220,11 +352,24 @@ async function fetchLiveInBrowser(lib, company, signal) {
   }
   try {
     if (!res.ok) throw new Error(`${label}: HTTP ${res.status}${res.status === 404 ? ' — board not found (check the slug)' : ''}`);
+    const worker = await workerPending;
     let data;
-    try { data = await res.json(); } catch (err) { throw new Error(`${label}: invalid JSON (${err.message})`); }
-    const list = src.list(data);
-    if (!Array.isArray(list)) throw new Error(`${label}: unexpected response (no jobs array)`);
-    return lib.normalizeJobs(list.map(src.map), company);
+    let jobs = null;
+    if (worker) {
+      let buf;
+      try { buf = await res.arrayBuffer(); } catch (err) { throw new Error(`${label}: invalid JSON (${err.message})`); }
+      jobs = await worker.normalize(company.source, company, buf);
+      // TextDecoder + JSON.parse is what res.json() does (UTF-8, BOM dropped).
+      if (!jobs) try { data = JSON.parse(new TextDecoder().decode(buf)); } catch (err) { throw new Error(`${label}: invalid JSON (${err.message})`); }
+    } else {
+      try { data = await res.json(); } catch (err) { throw new Error(`${label}: invalid JSON (${err.message})`); }
+    }
+    if (!jobs) {
+      const list = src.list(data);
+      if (!Array.isArray(list)) throw new Error(`${label}: unexpected response (no jobs array)`);
+      jobs = (await loadLive()).normalizeJobs(list.map(src.map), company);
+    }
+    return { jobs, live: { history: await historyPending } };
   } finally {
     t.done();
   }
@@ -289,12 +434,35 @@ export function unpackJobs(body) {
   });
 }
 
-async function bundled(path, signal) {
+// Bundled lists already vetted and juiced, most recently used last (see the header).
+const BUNDLE_CACHE_MAX = 3;
+const bundleCache = new Map(); // path -> body
+const bundleOrigin = new WeakMap(); // freshly unpacked body.jobs -> { path, body }
+const finished = new WeakSet(); // job arrays that are vetted and juiced already
+
+/** getJobs: remember a fresh bundled list once it is vetted and juiced. */
+function rememberBundle(rawJobs, jobs) {
+  const o = bundleOrigin.get(rawJobs);
+  if (!o) return;
+  bundleCache.delete(o.path);
+  bundleCache.set(o.path, { ...o.body, jobs });
+  while (bundleCache.size > BUNDLE_CACHE_MAX) bundleCache.delete(bundleCache.keys().next().value);
+  finished.add(jobs);
+}
+
+async function bundled(path, signal, refresh = false) {
+  const hit = refresh ? null : bundleCache.get(path);
+  if (hit) {
+    bundleCache.delete(path);
+    bundleCache.set(path, hit);
+    return { ...hit };
+  }
   try {
     const raw = await getJson(path, { signal });
     if (!raw || !Array.isArray(raw.jobs)) return null;
     const { format, shared, dict, columns, ...body } = raw;
     body.jobs = unpackJobs(raw);
+    if (body.jobs.length) bundleOrigin.set(body.jobs, { path, body });
     return body.jobs.length ? body : null;
   } catch (err) {
     if (signal && signal.aborted) throw abortError();
@@ -344,12 +512,12 @@ async function staticJobs(p, { refresh = false, signal } = {}) {
     quiet = quietCorsSources().includes(company.source);
   } else {
     try {
-      const raw = await fetchLiveInBrowser(lib, company, signal);
+      const { jobs: raw, live } = await fetchLiveInBrowser(lib, company, signal);
       const fetchedAt = new Date().toISOString();
       // F4: built-ins merge the bundled ledger (api/history) and reuse the
       // build's meta (compstimate backtest, ledger since/runs).
       const [compact, meta] = builtin ? await Promise.all([compactHistory(slug), bundledMeta(slug)]) : [null, null];
-      const jobs = annotateHistory(lib, raw, compact, fetchedAt);
+      const jobs = annotateHistory(live, raw, compact, fetchedAt);
       const m = meta || noMeta();
       memCache.set(slug, { jobs, fetchedAt, at: Date.now(), meta: m });
       return { company: pub, mode: 'live', fetchedAt, error: null, jobs, meta: m };
@@ -369,7 +537,7 @@ async function staticJobs(p, { refresh = false, signal } = {}) {
   // 3. Bundled snapshot (or build-time demo) and bundled demo, built-ins only.
   if (builtin) {
     for (const path of [`api/jobs/${encodeURIComponent(slug)}.json`, `api/demo/${encodeURIComponent(slug)}.json`]) {
-      const body = await bundled(path, signal);
+      const body = await bundled(path, signal, refresh);
       if (body) {
         const mode = body.mode === 'snapshot' ? 'snapshot' : 'demo';
         const meta = body.meta || noMeta();
@@ -385,9 +553,11 @@ async function staticJobs(p, { refresh = false, signal } = {}) {
   // 4. Demo generated in the browser.
   let jobs = [];
   const demoAt = new Date().toISOString();
-  if (lib.demoJobs) {
+  const demoJobs = await loadDemo();
+  if (demoJobs) {
     try {
-      jobs = annotateHistory(lib, lib.normalizeJobs(lib.demoJobs(slug, company.name), company), null, demoAt);
+      const live = await loadLive();
+      jobs = annotateHistory(live, live.normalizeJobs(demoJobs(slug, company.name), company), null, demoAt);
     } catch (err) {
       error = `${error}; demo generation failed: ${err.message}`;
     }
@@ -458,16 +628,30 @@ function loadJuice() {
   return juicePromise;
 }
 
-/** Attach juice to every job of a getJobs result (mutates and returns it). */
-async function withJuice(res, { refresh = false } = {}) {
-  if (!res || !Array.isArray(res.jobs)) return res;
-  const [cities, juice] = await Promise.all([getCities({ refresh }), loadJuice()]);
+/** Cities + juice.js for withJuice; started early so they load alongside the job list. */
+const juiceInputs = ({ refresh = false } = {}) => Promise.all([getCities({ refresh }), loadJuice()]);
+
+// Jobs per juice chunk: about 10 ms on a phone (4x CPU throttle), so loading a
+// big board never blocks input for long.
+const JUICE_CHUNK = 400;
+
+/** Attach juice to every job of a getJobs result (mutates it); true when juice was computed. */
+async function withJuice(res, inputs) {
+  if (!res || !Array.isArray(res.jobs)) return false;
+  const [cities, juice] = await inputs;
   let ok = false;
   if (cities && juice) {
-    try { juice.attachJuiceAll(res.jobs, cities); ok = true; } catch { ok = false; }
+    try {
+      // attachJuiceAll is per job, so slices give exactly the same result.
+      for (let i = 0; i < res.jobs.length; i += JUICE_CHUNK) {
+        await yieldToMain();
+        juice.attachJuiceAll(res.jobs.slice(i, i + JUICE_CHUNK), cities);
+      }
+      ok = true;
+    } catch { ok = false; }
   }
   if (!ok) for (const j of res.jobs) if (j && typeof j === 'object') j.juice = null;
-  return res;
+  return ok;
 }
 
 /**
@@ -479,17 +663,25 @@ async function withJuice(res, { refresh = false } = {}) {
 export async function getJobs(params, { refresh = false, signal } = {}) {
   const p = toParams(params);
   const r = refresh || truthy(p.refresh);
+  const inputs = juiceInputs({ refresh: r });
   let res;
   if (isStatic()) {
     res = await staticJobs(p, { refresh: r, signal });
+    if (finished.has(res.jobs)) return res; // bundled list from memory, vetted and juiced already
+    const raw = res.jobs;
     // Salary gate first (bundled lists were vetted at build time; it is
     // idempotent, and live/in-browser-demo jobs need it).
     const lib = await loadLib();
-    if (lib.vetSalaries && Array.isArray(res.jobs)) res = { ...res, jobs: lib.vetSalaries(res.jobs) };
-  } else {
-    res = await getJson(`api/jobs?${jobsQuery(p, r)}`, { signal }); // vetted by the server
+    if (lib.vetSalaries && Array.isArray(res.jobs)) {
+      await yieldToMain();
+      res = { ...res, jobs: lib.vetSalaries(res.jobs) };
+    }
+    if (await withJuice(res, inputs)) rememberBundle(raw, res.jobs);
+    return res;
   }
-  return withJuice(res, { refresh: r });
+  res = await getJson(`api/jobs?${jobsQuery(p, r)}`, { signal }); // vetted by the server
+  await withJuice(res, inputs);
+  return res;
 }
 
 /* -------------------------------------------------------- job details */

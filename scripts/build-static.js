@@ -33,6 +33,13 @@
 //   dist/c/<slug>/index.html  per-company share page: company-specific og:title and
 //                             og:description, then a script sends people to ../../#c=<slug>
 //
+// Load hints (docs/process/perf-mobile.md): dist/index.html gets, right after the CSP,
+// <link rel=preload> for its head scripts and stylesheets, <link rel=modulepreload> for
+// app.js's static import graph and api.js#STATIC_PRELOAD (+ their imports), fetch
+// preloads for api/companies.json and api/cities.json. Without them every module level and the
+// parser-blocking head scripts cost one round trip each (about 10 in a row, 0.56 s
+// apiece on a Slow 4G phone). Lazy modules (Insights, Leaflet, normalize/demo) stay lazy.
+//
 // Social previews: crawlers (LinkedIn, Facebook, Slack, X) don't run JS and want
 // absolute https URLs, so og:url, og:image and twitter:image in every page are
 // made absolute against SITE_URL (default https://alvations.github.io/melon-seek/).
@@ -242,6 +249,57 @@ async function writeSplit(payload, file, api, slug) {
   for (const [p, rec] of details) descBytes += await writeJson(path.join(OUT, p), rec);
   if (listBytes > LIST_BUDGET) warn(`${slug}: list is ${size(listBytes)} even without descriptions/sections (budget ${size(LIST_BUDGET)})`);
   return { listBytes, descBytes, descFiles: details.size, sectionsMoved };
+}
+
+/* ------------------------------------------------------------ load hints */
+
+// Static imports/re-exports with a relative specifier (dynamic import() is lazy on purpose).
+const STATIC_IMPORT_RE = /(?:^|[;\n}])\s*(?:import|export)\s*(?:[\w*{}\s,$]+?\sfrom\s*)?['"](\.{1,2}\/[^'"]+)['"]/g;
+
+/** Files (relative to OUT, "/"-separated) reachable from `entries` through static imports, entries first. */
+async function staticGraph(entries) {
+  const seen = new Set();
+  const queue = [...entries];
+  while (queue.length) {
+    const rel = queue.shift();
+    if (seen.has(rel)) continue;
+    const file = path.join(OUT, ...rel.split('/'));
+    if (!existsSync(file)) continue;
+    seen.add(rel);
+    // Whole-line // comments first (they may contain "/*", e.g. "viz/*"), then block comments.
+    const code = (await fs.readFile(file, 'utf8')).replace(/^[ \t]*\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const m of code.matchAll(STATIC_IMPORT_RE)) {
+      queue.push(path.posix.normalize(path.posix.join(path.posix.dirname(rel), m[1])));
+    }
+  }
+  return [...seen];
+}
+
+/** The <link> hints for dist/index.html (see the header). */
+async function loadHints(html, { staticLib, boardOrigins }) {
+  const attr = (tag, name) => { const m = tag.match(new RegExp(`\\s${name}\\s*=\\s*(["'])(.*?)\\1`, 'i')); return m ? m[2] : null; };
+  const head = html.slice(0, html.search(/<\/head>/i));
+  const scripts = [...head.matchAll(/<script\b[^>]*>/gi)].map((m) => m[0]);
+  const classic = scripts.filter((t) => attr(t, 'src') && !/type\s*=\s*["']module/i.test(t) && !/\s(async|defer)\b/i.test(t)).map((t) => attr(t, 'src'));
+  const entries = scripts.filter((t) => /type\s*=\s*["']module/i.test(t) && attr(t, 'src')).map((t) => attr(t, 'src').replace(/^\.\//, ''));
+  const styles = [...head.matchAll(/<link\b[^>]*>/gi)].map((m) => m[0]).filter((t) => /\srel\s*=\s*["']stylesheet["']/i.test(t)).map((t) => attr(t, 'href'));
+  const modules = await staticGraph([...entries, ...staticLib.map((f) => `lib/${f}`)]);
+  const json = ['api/companies.json', 'api/cities.json'].filter((f) => existsSync(path.join(OUT, f)));
+  const lines = [
+    ...boardOrigins.map((o) => `<link rel="preconnect" href="${escAttr(o)}" crossorigin>`),
+    ...classic.map((s) => `<link rel="preload" href="${escAttr(s)}" as="script">`),
+    ...styles.map((h) => `<link rel="preload" href="${escAttr(h)}" as="style">`),
+    ...modules.map((m) => `<link rel="modulepreload" href="${escAttr(m)}">`),
+    // Same mode/credentials as api.js's fetch() (cors, same-origin), so the preload is reused.
+    ...json.map((f) => `<link rel="preload" href="${escAttr(f)}" as="fetch" crossorigin>`),
+  ];
+  return { lines, modules, json };
+}
+
+/** Insert the hints right after <meta charset> (the CSP <meta>, added later, goes in front of them). */
+function injectHints(html, lines) {
+  const block = `\n  <!-- Load hints (scripts/build-static.js): fetch everything the first chart needs at once. -->\n  ${lines.join('\n  ')}`;
+  return /<meta\s+charset[^>]*>/i.test(html) ? html.replace(/(<meta\s+charset[^>]*>)/i, `$1${block}`) : html.replace(/<head[^>]*>/i, (m) => `${m}${block}`);
 }
 
 /* ---------------------------------------------------- F7 open data (CSV) */
@@ -539,7 +597,7 @@ async function main() {
 
   // 4. API data
   const { listCompanies } = await import(pathToFileURL(path.join(ROOT, 'server', 'companies.js')).href);
-  const { normalizeJobs } = await import(pathToFileURL(path.join(ROOT, 'server', 'normalize.js')).href);
+  const { normalizeJobs, relocateJobs, NORMALIZER_VERSION } = await import(pathToFileURL(path.join(ROOT, 'server', 'normalize.js')).href);
   const { vetSalaries } = await import(pathToFileURL(path.join(ROOT, 'server', 'vet.js')).href);
   const { rekeyBoardJobs } = await import(pathToFileURL(path.join(ROOT, 'server', 'keywords.js')).href);
   let demoJobs = null;
@@ -627,7 +685,11 @@ async function main() {
       try {
         const parsed = JSON.parse(await fs.readFile(snapFile, 'utf8'));
         const jobs = Array.isArray(parsed) ? parsed : parsed && parsed.jobs;
-        if (Array.isArray(jobs) && jobs.length) payload = { company: c, mode: 'snapshot', fetchedAt: parsed.fetchedAt || null, error: null, jobs: vetSalaries(rekeyBoardJobs(jobs).jobs) }; // rekey: QA BUG-5
+        // Same upgrade as server mode (server/pipeline.js#runTask 'snapshot', then the response's
+        // salary gate): snapshots from an older normalizer get sections/keywords re-derived
+        // (QA BUG-5) and locations re-geocoded to canonical names (UX-3; QA M-2), then vetting.
+        const current = parsed && parsed.normalizerVersion === NORMALIZER_VERSION;
+        if (Array.isArray(jobs) && jobs.length) payload = { company: c, mode: 'snapshot', fetchedAt: parsed.fetchedAt || null, error: null, jobs: vetSalaries(current ? jobs : relocateJobs(rekeyBoardJobs(jobs).jobs)) };
         else warn(`${rel(snapFile)} has no jobs; using demo`);
       } catch (err) {
         warn(`${rel(snapFile)} unreadable (${err.message}); using demo`);
@@ -700,6 +762,16 @@ async function main() {
     `window.MELON_BUILD = ${JSON.stringify(build)};\n`);
   await fs.writeFile(path.join(OUT, '.nojekyll'), '');
 
+  // 5a. Load hints in index.html (after the data files exist; the CSP goes in front in step 7).
+  const indexFile = path.join(OUT, 'index.html');
+  // No preconnect to the live board APIs: scripts/links-policy.js allows no off-site link
+  // to them (see docs/process/perf-mobile.md, follow-ups).
+  const boardOrigins = [];
+  if (!Array.isArray(api.STATIC_PRELOAD)) warn('public/api.js has no STATIC_PRELOAD; lib modules are not preloaded');
+  const hints = await loadHints(await fs.readFile(indexFile, 'utf8'), { staticLib: api.STATIC_PRELOAD || [], boardOrigins });
+  await fs.writeFile(indexFile, injectHints(await fs.readFile(indexFile, 'utf8'), hints.lines));
+  const hintNote = `${hints.modules.length} modulepreload, ${hints.json.length} fetch preload, ${boardOrigins.length} preconnect`;
+
   // 5b. Methodology page (Juice Score docs on the site itself).
   const livability = path.join(ROOT, 'docs', 'LIVABILITY.md');
   if (existsSync(livability)) {
@@ -742,6 +814,7 @@ async function main() {
   for (const line of summary) console.log(`  ${line}`);
   console.log(`  social: og:image ${social.image || '(none)'}; ${social.pages} share pages at ${social.site}c/<slug>/`);
   console.log(`  security: CSP + referrer <meta> in ${pages} pages; no inline scripts/styles/handlers; links OK; build marker ${BUILD_SHA}`);
+  console.log(`  load hints: ${hintNote}`);
   console.log(`  juice: api/cities.json ${citiesNote}, lib/juice.js ${existsSync(path.join(OUT, 'lib', 'juice.js')) ? 'bundled' : 'missing'}`);
   console.log(`  market: ${marketNote}; csv: ${csvRows.length ? `data/*.csv for ${csvRows.length} companies (${csvRows.filter((r) => r.mode === 'demo').length} demo) + data/README.txt` : 'none'}`);
   if (warnings.length) {

@@ -57,7 +57,9 @@ async function makeV2Fixture(dir) {
   const company = getCompany('anthropic');
   const live = normalizeJobs(GH_FIXTURE.jobs.map(mapGreenhouseJob), company);
   const tricky = [
-    { ...live[0], id: 'anthropic:csv-1', title: 'Engineer, "Infra", SF' },
+    // Pre-UX-3 location (source string as the name, no rawName): the build must re-geocode it
+    // like server mode does (QA M-2).
+    { ...live[0], id: 'anthropic:csv-1', title: 'Engineer, "Infra", SF', remote: false, locations: [{ name: 'Remote-Friendly US (Travel Required)', city: null, region: null, country: 'US', lat: null, lng: null, remote: true }] },
     { ...live[0], id: 'anthropic:csv-2', title: '=HYPERLINK("http://x")' },
   ];
   const A = { ...live[1], id: 'anthropic:repost-a' };
@@ -203,13 +205,20 @@ test('v2: melon-packed-2 list round-trips every v2 field exactly', async () => {
   const { vetSalaries } = await import(pathToFileURL(path.join(ROOT, 'server', 'vet.js')).href);
   const history = await import(pathToFileURL(path.join(ROOT, 'server', 'history.js')).href);
   const { rekeyBoardJobs } = await import(pathToFileURL(path.join(ROOT, 'server', 'keywords.js')).href);
-  // The build re-keys snapshot jobs (boilerplate fix, QA BUG-5) before vetting.
-  const expected = history.annotate(vetSalaries(rekeyBoardJobs(V2.snapshotJobs).jobs), V2.ledger, V2.builtAt).map(withoutHtml);
+  const { relocateJobs } = await import(pathToFileURL(path.join(ROOT, 'server', 'normalize.js')).href);
+  // Like server mode (server/pipeline.js), an old-normalizer snapshot is re-keyed (QA BUG-5)
+  // and re-geocoded (UX-3, QA M-2) before vetting.
+  const expected = history.annotate(vetSalaries(relocateJobs(rekeyBoardJobs(V2.snapshotJobs).jobs)), V2.ledger, V2.builtAt).map(withoutHtml);
   const got = api.unpackJobs(raw).map(withoutHtml);
   assert.deepEqual(got, expected);
   for (const k of ['postedAt', 'firstSeenAt', 'ageDays', 'ageIsMinimum', 'freshness', 'repost', 'extras', 'reqId']) {
     assert.ok(got.every((j) => k in j), `every job has ${k}`);
   }
+  // QA M-2: the Location filter shows the same canonical names as server mode.
+  const csv1 = got.find((j) => j.id === 'anthropic:csv-1');
+  assert.deepEqual(csv1.locations.map((l) => [l.name, l.rawName, l.remote]), [['Remote (US)', 'Remote-Friendly US (Travel Required)', true]]);
+  assert.equal(csv1.remote, true);
+  assert.ok(got.every((j) => j.locations.every((l) => l.rawName)), 'every location re-geocoded (rawName kept)');
   const b = got.find((j) => j.id === 'anthropic:repost-b');
   assert.deepEqual(b.repost, { count: 1, firstSeenAt: V2.runs[0] }, 'repost chain from the ledger');
   assert.equal(got.find((j) => j.id === V2.live[0].id).firstSeenAt, V2.runs[0], 'firstSeenAt = first run');

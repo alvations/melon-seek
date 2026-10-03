@@ -495,6 +495,8 @@ function stats(list) {
 
 /* --------------------------------------------------------------- loading */
 
+const PREPARE_CHUNK = 300;
+const yieldTask = () => (globalThis.scheduler?.yield ? globalThis.scheduler.yield() : new Promise((r) => setTimeout(r, 0)));
 let loadSeq = 0;
 let abortCtl = null;
 
@@ -511,11 +513,19 @@ async function loadJobs({ refresh = false } = {}) {
   try {
     const res = await dataApi.getJobs(jobsQuery(S.c), { refresh, signal: abortCtl.signal });
     if (seq !== loadSeq) return;
+    // Mobile perf (docs/process/perf-mobile.md): prepare() is per job, so big boards are
+    // prepared in chunks that yield, instead of one 0.4 s task on a phone.
+    const jobs = Array.isArray(res?.jobs) ? res.jobs : [];
+    for (let i = 0; i < jobs.length; i += PREPARE_CHUNK) {
+      prepare(jobs.slice(i, i + PREPARE_CHUNK));
+      await yieldTask();
+      if (seq !== loadSeq) return;
+    }
     dataSeq++;
     rememberCompany(S.c);
     data = {
       status: 'ready',
-      jobs: prepare(Array.isArray(res?.jobs) ? res.jobs : []),
+      jobs,
       company: { ...companyInfo(S.c), ...(res?.company || {}) },
       mode: res?.mode || 'live',
       fetchedAt: res?.fetchedAt ? Date.parse(res.fetchedAt) : null,

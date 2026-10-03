@@ -62,7 +62,8 @@ export const CSP = [
   "style-src-attr 'unsafe-inline'",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: https://*.basemaps.cartocdn.com https://tile.openstreetmap.org https://*.tile.openstreetmap.org",
-  "connect-src 'self' https://boards-api.greenhouse.io https://api.ashbyhq.com https://api.lever.co",
+  // Tile hosts too: viz/map.js re-reads the first tile with fetch() to check its HTTP status.
+  "connect-src 'self' https://boards-api.greenhouse.io https://api.ashbyhq.com https://api.lever.co https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com",
   "object-src 'none'",
   "base-uri 'none'",
   "form-action 'self'",
