@@ -246,3 +246,38 @@ Screenshots in `docs/screenshots/mobile/` (DPR 3):
 - ~14:00 Lazy append in place, then chunked to 4 cards per frame. Idle prefetch of Insights and Leaflet. Fixed the Leaflet load chaining.
 - ~14:15 Release velocity fixed (last 100 ms only). Full-width phone popovers (the company menu was 340px).
 - ~14:40 Insights prefetch no longer re-renders outside Insights (the keyboard e2e flake). Final audits, screenshots and log.
+
+## Lead mobile pass (2026-10-03)
+Audit: `docs/process/scripts/mobile-audit.mjs` on the static build served under
+/melon-seek/ (`qa-audit-static-server.mjs`, PORT=5410), at 360x740, 390x844,
+430x932 and 844x390, light and dark, with 4x CPU for perf. Screenshots were
+reviewed by eye.
+
+Found and fixed:
+- **360px:** the data badge covered the company name. Cause: a later
+  `.company-menu-btn { flex: none }` rule overrode the phone shrink rule. Fix:
+  phone rule `flex: 0 1 auto; min-width: 0; overflow: hidden`. At ≤400px
+  the badge shows `● Oct 2` (new `data-micro` label) so "Anthropic" fits.
+- **360px:** "Group: Department" ran off the screen edge (the select doesn't
+  shrink inside its label). At ≤400px "Group:" is visually hidden but stays
+  the accessible name, and the select gets max-width 40vw.
+- **Landscape 844x390:** about 1.5 chart rows were visible. The distribution
+  strip and notes line are hidden at max-height 500px; now about 2.5 rows.
+- **Drawer copy:** "Mid ai research & ml engineering roles" now reads "AI
+  research & ML engineering roles at Mid level" (label casing kept).
+
+Checked and fine:
+- no horizontal scroll, overlaps or inputs <16px on any device;
+- sheet drag, list scroll and map pan worst frame 17 ms at 4x CPU;
+- first paint 0.34–0.53 s, interactive 1.2–1.9 s;
+- the sheet handle plus header form one 84px drag zone, so no change needed.
+
+Known gaps:
+- Anduril (2,418 jobs) still has one 0.5 s task while loading at 4x CPU
+  (list parse and unpack). Gestures are unaffected. Possible follow-up:
+  unpack in a worker.
+- Offline-only map place labels can collide (no basemap); real users get
+  OSM tiles and no labels.
+
+Results: npm test 294/294, e2e 56/56. Before/after shots are in
+docs/screenshots/mobile/.

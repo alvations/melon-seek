@@ -1003,7 +1003,10 @@ html[data-mode="insights"] .viz-controls { display: none; }
   .topbar { padding: calc(6px + env(safe-area-inset-top)) var(--m-gutter-r) 6px var(--m-gutter-l); row-gap: 6px; column-gap: 8px; }
   .topbar::after { margin-top: -6px; }
   .brand { display: none; }                         /* the company menu carries identity; saves a row slot */
-  .company-menu-btn { height: var(--m-row); font-size: 16px; }
+  .company-menu-btn { height: var(--m-row); font-size: 16px; flex: 0 1 auto; min-width: 0; overflow: hidden; }   /* shrink (ellipsis) instead of sliding under the data badge at 360px */
+  .viz-controls { min-width: 0; }
+  .quiet-select { min-width: 0; }
+  .quiet-select select { max-width: 44vw; text-overflow: ellipsis; }   /* "Group: Department" never runs off the edge */
   .data-badge, .data-badge.is-demo { height: var(--m-row); border-radius: 22px; padding: 0 12px; max-width: none; flex: none; }
   .company-bar { min-width: 0; }
   .data-badge .badge-label::before { font-size: 13px; }
@@ -1162,6 +1165,7 @@ html[data-mode="insights"] .viz-controls { display: none; }
   .theme-btn { order: 6; }
   .viz-toolbar { padding-top: 4px; padding-bottom: 4px; }
   .stats-line { display: none; }
+  .ms-chart__hist, .ms-chart__foot { display: none; }   /* landscape: rows matter more than the strip and notes */
   .results-head { min-height: 40px; }
   .sheet-handle { height: 20px; }
 }
@@ -1178,3 +1182,13 @@ html[data-mode="insights"] .viz-controls { display: none; }
   .btn--primary:active { background: var(--ms-accent-strong); }
 }
 .desc-offsite { color: var(--ms-text); } /* off-site links in descriptions shown as text (link policy) */
+
+/* Small phones (≤400px): the badge keeps just its dot and date ("● Oct 2"), so the
+   company name has room; the full "Snapshot · Oct 2" is in the badge's popover. */
+@media (max-width: 400px) {
+  .data-badge .badge-label::before { content: attr(data-micro); }
+  /* "Group:" stays the select's accessible name but is hidden visually, so the
+     select ("Department ▾") fits next to Clusters | Ranges. */
+  .quiet-select > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .quiet-select select { max-width: 40vw; }
+}

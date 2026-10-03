@@ -580,7 +580,7 @@ function renderTopbar() {
   badge.className = `data-badge ${info ? info.cls : ''}`;
   badge.hidden = !info;
   if (info) {
-    badge.replaceChildren(h('span', { class: 'badge-dot', 'aria-hidden': 'true' }), h('span', { class: 'badge-label', 'data-short': info.short || info.label, 'data-tiny': info.tiny || info.short || info.label }, info.label),
+    badge.replaceChildren(h('span', { class: 'badge-dot', 'aria-hidden': 'true' }), h('span', { class: 'badge-label', 'data-short': info.short || info.label, 'data-tiny': info.tiny || info.short || info.label, 'data-micro': info.micro || info.tiny || info.short || info.label }, info.label),
       h('span', { class: 'sr-only', id: 'dataBadgeTip' }, info.tip));
     badge.setAttribute('aria-describedby', 'dataBadgeTip');
     badge.title = info.tip;
@@ -615,8 +615,8 @@ function badgeInfo() {
   if (MOCK) return { label: 'Mock data', short: 'Mock data', tiny: 'Mock', cls: 'is-demo', tip: `Synthetic development data from mock-api.js (?mock=1, localhost only) — not real postings. Simulated mode: ${data.mode}.` };
   switch (data.mode) {
     case 'live': return { label: 'Live', tiny: 'Live', cls: 'is-live', tip: `Fetched live from ${src}${when ? ` · ${when}` : ''}.` };
-    case 'cache': return { label: when ? `Cached · ${when}` : 'Cached', tiny: 'Cached', cls: 'is-cache', tip: `Served from a recent copy of ${src}${failed ? ` (${failed})` : ''}. Refresh to fetch live.` };
-    case 'snapshot': return { label: data.fetchedAt ? `Snapshot · ${shortDate(data.fetchedAt)}` : 'Snapshot', cls: 'is-snapshot', tip: `Saved snapshot of ${src}${data.fetchedAt ? ` from ${shortDate(data.fetchedAt)}` : ''}${failed ? `. ${failed}` : ''}.` };
+    case 'cache': return { label: when ? `Cached · ${when}` : 'Cached', tiny: 'Cached', micro: 'Cached', cls: 'is-cache', tip: `Served from a recent copy of ${src}${failed ? ` (${failed})` : ''}. Refresh to fetch live.` };
+    case 'snapshot': return { label: data.fetchedAt ? `Snapshot · ${shortDate(data.fetchedAt)}` : 'Snapshot', micro: data.fetchedAt ? shortDate(data.fetchedAt) : 'Saved', cls: 'is-snapshot', tip: `Saved snapshot of ${src}${data.fetchedAt ? ` from ${shortDate(data.fetchedAt)}` : ''}${failed ? `. ${failed}` : ''}.` };
     case 'demo': return { label: 'Demo data — live board unreachable', short: 'Demo data', tiny: 'Demo', cls: 'is-demo', tip: `Generated sample data, not real postings.${data.error ? ` Error: ${data.error}` : ''}` };
     default: return { label: String(data.mode), cls: '', tip: src };
   }
@@ -2165,8 +2165,8 @@ function sameRoleSection(job) {
     const chartHost = h('div', { class: 'comps-chart' });
     body.replaceChildren(
       h('p', { class: 'comps-note muted' }, bySen
-        ? `${res.seniority} ${family.toLowerCase()} roles: median and middle 50% of posted base pay (approx USD).`
-        : `No other company lists this level, so this compares all ${family.toLowerCase()} roles.`),
+        ? `${family} roles at ${res.seniority} level: median and middle 50% of posted base pay (approx USD).`
+        : `No other company lists this level, so this compares all ${family} roles.`),
       chartHost);
     try {
       destroyDrawerComps();
