@@ -633,3 +633,354 @@ accessibility failure. **Low** means polish. Screenshots are in `docs/screenshot
   the layout the way iOS does.
 - **Already-known items not repeated as new bugs:** Juice barely discriminates (Juicy on 501 of 638; UX-7), "Listed" has no data (L1),
   the BUG-5 keywords, and the 28px sheet grip (it is part of an 84px drag zone, so not a bug).
+
+---
+
+## Full QA pass (desktop) 2026-10-03
+
+A functional pass of the desktop site by the desktop QA agent. The process log, with every replayable command, is in
+[`docs/process/qa-desktop.md`](process/qa-desktop.md). No product code was changed.
+
+**Setup**
+- **Code under test: commit `15ac5fc`.** Other agents were editing `public/` in the shared working tree during
+  the pass, so `git archive HEAD` was exported to a scratch directory and both modes ran from that export.
+- **Static build** (what Pages users get): `node scripts/build-static.js` in the export. Its `dist/` was served
+  under `/melon-seek/` by `docs/process/scripts/qa-audit-static-server.mjs`.
+- **Server mode:** `node server/index.js` from the same export.
+- **Data:** the local `data/snapshots/*.json`, so every board is `mode: "snapshot"`. That covers 8 boards:
+  - Anthropic 638, Anduril 2,418, OpenAI 833 and Cohere 132;
+  - xAI 297, Scale AI 194, Palantir 320 and Shield AI 581.
+- **Browser:** Playwright 1.63 with Chromium 141. External hosts were blocked.
+- **Viewports and themes:** 1440x900 and 1280x800, each in light and dark.
+- **Method:**
+  - Every count and order was checked against the app's own data. The test pulled jobs through `public/api.js`
+    `getJobs()` and computed approx USD with `palette.toUSD`.
+  - The listing-age features have no ledger data in the snapshots. They were exercised in server mode by
+    injecting `ageDays`, `postedAt`, `firstSeenAt` and `repost` into `/api/jobs` with `page.route`.
+  - Colour contrast was checked with axe-core 4.13.
+
+**New e2e tests:** [`test/e2e/desktop-qa.e2e.js`](../test/e2e/desktop-qa.e2e.js), registered in `scripts/e2e.js`.
+Run them with `node scripts/e2e.js --grep='^Desktop QA'`.
+- On `15ac5fc`: **10/22 pass**. The 12 failures are the tests tagged `[D-1]`…`[D-12]`. They encode the bugs
+  below and should pass once those are fixed.
+- On the final tree (HEAD `3eb353d` plus this pass's files): **11/22 pass**. `[D-1]` now passes because
+  `db18658` fixed it (see D-1).
+- `[D-1]` serves `dist/` itself and skips when there's no build.
+
+**Existing suites:** see "Suite results" at the end of this section.
+
+### What works on desktop (both modes unless noted)
+
+- **Company and boards:**
+  - The company menu lists all 8 boards and focuses its search. "open" + Enter, ArrowDown + Enter, and a
+    search by ATS ("lever") all work, and Esc closes it. Each switch loads the right count and clears filters.
+  - Recent pills work. By design only one shows below 1600px and none below 1200px.
+  - Add board:
+    - An invalid slug gets `aria-invalid` and a hint.
+    - A custom board, e.g. `lever:qa-fake-board`, falls back to labelled demo data: a banner, a "Demo" badge
+      and "Open the real Lever board" on Apply.
+    - The board survives a reload and is listed under "Your boards".
+    - Removing it returns to a built-in. A custom name that matches a built-in becomes "Anthropic (custom)".
+- **Search:** title and team matches always rank first, in every sort, and "· N in title" equals them. Tested
+  with "engineer" (222 of 266), "safety", "machine learning", "python" and "sales manager". Esc clears.
+- **Filters:**
+  - Every count equalled the app's data on Anthropic, OpenAI and Anduril:
+    - salary min, max and overlap;
+    - "Only show jobs with salary";
+    - Department, with OR within the facet;
+    - Location, and its option search;
+    - Seniority, in ladder order;
+    - Remote and On-site;
+    - the Responsibilities, Fit and Skills chips, with AND within each;
+    - More: Employment type and the Juicy/Ripe/Dry grades.
+  - The salary thumbs respond to arrow keys and to a mouse drag that starts on a thumb. They can't cross.
+  - The quick-chip labels, Filters badge, "See N roles", Clear all, the panel Reset and the per-popover Reset
+    are all correct.
+  - Facet counts ignore their own facet. The exception is a cluster or map area (D-2).
+  - "Listed" shows "Listing dates appear after a few daily runs." With injected history, its options, counts,
+    `p=` and "Hide 180+ days" (`ho=1`) are all correct.
+- **Sorting:**
+  - Highest pay and Lowest pay follow the approx-USD **midpoint** on all 4 boards checked, and across the
+    "Show more" page.
+  - Most juice is descending with unscored roles last. Title A–Z ignores the `[London]` title tag.
+  - With injected history, Newest gives 0d, 3d, 6d…, and "18d+" for lower-bound ages.
+- **Chart:**
+  - Clusters is the default.
+  - Hover tooltips show "N roles", the band and the top titles.
+  - A cluster click gives a chip, e.g. "AI Research & Engineering · $300K–$350K (8)", and the list, stats line
+    and Clear all all follow it. Dismissing the chip restores everything. A row label selects the whole row.
+  - Overflow markers ("1 role above $500K", OpenAI) have their own tooltip and chip.
+  - Keyboard: arrows move `aria-activedescendant` with a tooltip, and Enter selects.
+  - Group by Location, Seniority and None works, and so does Ranges:
+    - `v=ranges` defaults to ungrouped;
+    - hovering or clicking a row opens the job;
+    - End reaches the last virtualised row;
+    - group headers show when grouped;
+    - card hover highlights the row.
+- **Map:**
+  - Pins (`$347K · 490`) all fit inside the initial view, with an offline basemap note.
+  - Tooltips stay inside the map.
+  - A pin click gives an area chip whose count follows the other filters. Enter on a focused pin works.
+  - The Remote control count equals its list.
+  - Pay|Juice switches the pins to 🍉 scores, checks the radio and shows the legend.
+  - Zoom works with the buttons and the wheel.
+  - The map refits after a resize with the drawer open, and after collapsing Filters.
+- **Insights:**
+  - Compstimate:
+    - It gives an estimate and the accuracy line (e.g. "Typically within ±14% (tested on 500 listed salaries)").
+    - The Seniority and department filters prefill it, and editing the title shows "Reset to filters".
+    - An edited title sticks through filter changes, and Reset restores follow mode. The one exception is D-5.
+  - Market insights: clicking a row adds its filter, and clicking again removes it.
+  - Compare companies: the role-family select works. A row click switches company with `rf=`, the "Role:" chip
+    shows and the view stays in Insights. Back returns.
+- **Job drawer:**
+  - Pay block: the range, "USD · per year", the percentile and the distribution.
+    - At most 2 honest-number labels ("Single figure", "Wide range (2.1×)").
+    - The caption "Posted base pay. Equity and bonus aren't included."
+    - Non-USD shows "≈ $… in approx USD", and hourly roles show "Annualized from hourly pay".
+    - "Salary not listed" comes with a labelled Compstimate. "Pay unclear" gives a reason under "Why?", the
+      posting link and no caption.
+  - Juice waterfall: Gross − Tax − Rent − Living = Juice left, within $2K. Monthly is Yearly / 12 and keeps
+    focus. "How it's calculated" opens the on-site `methodology/#1-the-formula` in a new tab, in both modes, and
+    the anchor exists.
+  - Same role elsewhere: rows include the current company. A click switches company with `rf`, `s`, `l` and `q`
+    (UX-4). Back reopens the original drawer, and Forward works.
+  - Listing block (with injected data): "Listed 15 days ago (Sep 18, 2026)", "First seen…", "Reposted 2×…",
+    "Open at least 18 days…" and the 180+ days note.
+  - Keywords toggle filters while the drawer stays open.
+  - The description loads lazily: `api/desc/<slug>/<id>.json` in static, `/api/job?id=` in server. It is
+    sanitised: no img, script, iframe or style, and links only to ATS hosts.
+  - Apply goes to the right ATS host (greenhouse.io, jobs.ashbyhq.com, jobs.lever.co), shows that host, and has
+    `target=_blank rel=noopener`.
+  - Copy link copies `location.href` with `job=`.
+  - Prev and Next work, and Prev is disabled at 1. The drawer traps focus. Esc closes it and returns focus to
+    the opening card. A backdrop click, Back and Forward all work.
+- **Other:**
+  - Save is hidden with no filter, and Save/Saved toggles. "N new" shows in the company menu once the saved
+    company has loaded this session (D-10), and resets after opening. "New" card tags work.
+  - Download CSV gives one row per job (834 lines for OpenAI) with the documented header: `data/<slug>.csv` in
+    static, `api/export` in server.
+  - Theme: System > Light > Dark. Dark persists across a reload and `t` cycles back.
+  - The hash round-trips a full state through a reload. A deep link to an unrendered role (the last Anduril job)
+    opens it. An unknown `job=` is dropped. Back and Forward walk mode, filter, sort and drawer states exactly,
+    and junk hash values don't crash.
+  - Share pages `/c/<slug>/` (static) have the right titles and OG tags, and pass extra state through, e.g.
+    `#m=map&ks=Python`.
+  - Shortcuts don't fire while typing: `/`, `t`, `j` and `k` are typed into the search, company search and Add
+    board fields, and `t` on a focused select does nothing.
+- **Layout and errors:**
+  - 1440x900 and 1280x800, light and dark: no horizontal scroll, no top-bar overlap, and every popover and the
+    drawer stay inside the viewport.
+  - axe color-contrast: 0 violations in every view, popover and drawer (about 140 nodes checked per view).
+  - No console or page errors in any flow. The only HTTP errors are the expected 404 for an unknown company, and
+    `/c/<slug>/` in server mode (D-15).
+
+### Bugs (ordered by severity)
+
+Repro steps assume a fresh 1440x900 window on `#c=anthropic` unless stated. "Both" means static and server mode.
+
+#### D-1 (High): the static build (GitHub Pages) shows raw source location names; the UX-3 fix only reaches server mode
+- **Status:** **fixed in `db18658`**, committed at 02:32 during this pass. It is the same bug as mobile **M-2**.
+  `scripts/build-static.js` now runs `relocateJobs()` on stale snapshots, and `[D-1]` passes on the final tree.
+  Kept here for the record.
+- **Repro (static):** open `/melon-seek/#c=anthropic`, then click **Location**.
+- **Expected:** the canonical names server mode shows: "Remote (US)", "Remote", "Remote (AU)", "Remote (CA)",
+  San Francisco, and so on (CONTRACT.md, "Location (2026-10-02, UX-3)").
+- **Actual:** six raw remote variants, two of which differ only by a hyphen:
+  - "Remote-Friendly US (Travel Required)" 48
+  - "Remote-Friendly, United States" 25
+  - "Remote-Friendly (Travel-Required)" 20
+  - "Remote-Friendly (Travel Required)" 8
+  - "Remote-Friendly, Australia"
+  - "Remote-Friendly, Canada"
+- **Same root cause elsewhere:**
+  - Anthropic and Anduril list "Tokyo Prefecture" next to "Tokyo".
+  - OpenAI shows "US - Remote", "Ontario - Remote", "Bangalore - Remote" and others.
+  - Cards read "London, England". Map pins and chart rows read "Alberta, CAN" and "Ontario, CAN" (server mode
+    says "Alberta, Canada").
+  - Compstimate's Location select lists the raw variants.
+  - The static jobs have no `rawName`.
+- **Screenshots:** `docs/screenshots/qa-desktop/D-1-location-names-static.png`, with
+  `D-1-location-names-server.png` for comparison.
+- **Owner:** `scripts/build-static.js`, the snapshot load (around line 630). It runs
+  `vetSalaries(rekeyBoardJobs(jobs).jobs)` but never `relocateJobs()`. `server/pipeline.js:55` runs
+  `relocateJobs(rekeyBoardJobs(jobs).jobs)` for snapshots written by an older normalizer
+  (`server/normalize.js#relocateJobs`).
+
+#### D-2 (Medium): facet counts ignore an active chart cluster or map area
+- **Repro (both):**
+  1. Click a 3-role cluster, e.g. "AI Research & Engineering · $500K–$550K". The list shows 3 roles.
+  2. Open **Seniority**.
+- **Expected:** counts within the 3 roles. The checklist footer already says "See 3 roles".
+- **Actual:** board-wide counts: Mid 377, Senior 64, Staff+ 93, Manager 68 and so on. Picking "Mid 377" gives 1 or 2
+  roles. The same happens with a map pin: on Anduril, Seniority showed 18 and the result was 1.
+- **Screenshot:** `D-2-facets-ignore-cluster-static.png` (also `-server`).
+- **Owner:** `public/app.js` `derive()`. The faceted counts are computed before the `area` narrowing in
+  `render()`, which only filters `listed`. `makeChecklist`, `makeCloud`, `makeRemote` and `makeJuiceChips` read
+  `derived.fc`.
+
+#### D-3 (Medium): the salary thumbs lock once the min thumb is dragged to the right end
+- **Repro (both):**
+  1. Drag the left (Min) thumb of the Salary slider past the right end. This gives `smin=870000` and 0 roles.
+  2. Try to drag either thumb back to the left.
+- **Expected:** the thumbs separate and the bound decreases.
+- **Actual:** neither thumb moves. The Max input is on top, and `onInput('hi')` clamps it to the min value. Only
+  the arrow keys, Reset or Clear all recover.
+- **Screenshot:** `D-3-salary-thumbs-stuck-static.png` (also `-server`).
+- **Owner:** `public/app.js` `makeSalary()` `onInput` (no z-index swap when the thumbs meet) and
+  `public/styles.css` `.range` / `.range--lo`.
+
+#### D-4 (Medium): OpenAI "Remote" disagrees between the filter, the cards and the map
+- **Repro (both):** `#c=openai&m=map`, then Remote > **Remote**.
+- **Expected:** the Remote filter and the map's Remote badge count the same roles.
+- **Actual:** the filter gives **562 of 833**. The map badge says **Remote · 60**.
+  - 502 roles have `remote: true` but only on-site locations. For example "Software Engineer, Financial
+    Engineering" (San Francisco, CA) shows a "Remote" tag on its card.
+  - The flag is already `true` in `data/snapshots/openai.json`. That file holds normalized jobs, so I could not
+    tell whether Ashby sends `isRemote: true` for these roles.
+- **Screenshots:** `D-4-openai-remote-card-static.png` and `D-4-openai-remote-map-static.png` (also `-server`).
+- **Owner:**
+  - data: `server/sources/ashby.js` line 76 (`j.isRemote === true` → `remote`);
+  - UI: `public/app.js` `failures()` (`r` uses `job.remote`) and `card()`, versus `public/viz/map.js` (the
+    Remote bucket uses `location.remote`).
+
+#### D-5 (Medium): Compstimate's Role title goes stale after "Reset to filters"
+- **Repro (both):**
+  1. Go to `#c=anthropic&m=insights` and tick Department **Sales**.
+  2. Type "Account Executive" in Role title and press Enter.
+  3. Click **Reset to filters**. The title becomes "Enterprise Account Executive".
+  4. Press the browser **Back** button (focus stays in the field).
+- **Expected:** the title follows the filters again, showing "Software Engineer".
+- **Actual:** the field still says "Enterprise Account Executive". The estimate, the auto line and the
+  "Weighted by similarity to 'Software Engineer'" basis are all for Software Engineer. The field and the number
+  disagree until the field loses focus and the filters change again.
+- **Screenshot:** `D-5-compstimate-title-stale-static.png` (also `-server`).
+- **Owner:** `public/features/compstimate.js`. `reset()` focuses `titleInput`, and `fillForm()` skips writing
+  the value while it has focus (`if (document.activeElement !== titleInput)`).
+
+#### D-6 (Medium): j/k and ←/→ don't step the drawer right after it opens
+- **Repro (both):** click any card (or press Enter on it), then press `j` or `→`.
+- **Expected:** the next role ("2 of 638").
+- **Actual:** nothing happens. `openDrawer()` puts focus on `#drawerClose`, and the shortcut guard (V7) rejects
+  buttons. The keys only work after clicking inside the drawer body or tabbing to `.drawer-scroll`.
+- **Screenshot:** `D-6-drawer-jk-on-open-static.png` (also `-server`).
+- **Owner:** `public/app.js` `bindEvents()` keydown `shortcutOk`, and `openDrawer()`'s initial focus. Arrow keys
+  could be allowed on `#drawerClose`, or the initial focus moved to the drawer itself.
+
+#### D-7 (Low): a cluster chip outlives its cluster when Group by or the view changes
+- **Repro (both):**
+  1. Click a cluster, e.g. "AI Research & Engineering · $400K–$450K (11)".
+  2. Change **Group** to Seniority, or switch to Ranges.
+- **Expected:** the selection is cleared, or kept visible in the chart.
+- **Actual:** the chip stays and the list keeps showing the 11 roles. The chart now has no such cluster and no
+  selection (`.is-selected` count 0).
+- **Screenshot:** `D-7-cluster-chip-stale-static.png` (also `-server`).
+- **Owner:** `public/app.js`, the `#groupBy` change and `[data-view]` click handlers in `bindEvents()`. They don't
+  call `clearArea()` for `area.kind === 'cluster'`.
+
+#### D-8 (Low): Esc never closes the drawer while focus is in "Same role elsewhere"
+- **Repro (both):** open a role with comps rows (e.g. `#c=anthropic&job=anthropic%3A4461450008`), Tab into the
+  comps list, then press Esc three times.
+- **Expected:** the first Esc clears the list's own state, and the next one closes the drawer.
+- **Actual:** the drawer stays open.
+- **Screenshot:** `D-8-esc-in-comps-static.png` (also `-server`).
+- **Owner:** `public/app.js` keydown (`if (e.key === 'Escape' && e.target.closest?.('.ms-comps')) return;`) and
+  `public/viz/comps.js` (its Escape handling).
+
+#### D-9 (Low): Clusters grouped by Seniority are ordered by median, not by the ladder
+- **Repro (both):** `#c=anthropic&g=seniority`.
+- **Expected:** Intern, Entry, Mid, Senior, Staff+, Manager, Director+. This is the order of Ranges view
+  (`groups()`) and of the Seniority filter.
+- **Actual:** Staff+, Manager, Director+, Mid, Senior, Entry, Intern. OpenAI and xAI are mixed the same way.
+- **Screenshot:** `D-9-seniority-cluster-order-static.png`.
+- **Owner:** `public/viz/chart.js`, the clusters row ordering. Ranges `groups()` has the seniority rank sort
+  (around line 794).
+
+#### D-10 (Low): a saved search's "N new" only appears once its company has loaded this session
+- **Repro (both):**
+  1. Save `#c=anthropic&ks=Python&s=Senior`.
+  2. Later, after new roles appear (simulated by removing 2 ids from `melon.saved[0].seen`), open a new tab on
+     `#c=openai` and open the company menu.
+- **Expected:** "Anthropic · Senior · Python · 2 new". The Save tooltip says "the company menu will show new
+  matches next time".
+- **Actual:** no badge until Anthropic has been opened once in that tab.
+- **Screenshot:** `D-10-saved-new-missing-static.png`.
+- **Owner:** `public/app.js` `savedNewCount()`, which only uses `jobCache`. A cheap fix is to prefetch saved
+  companies' lists when the menu opens.
+
+#### D-11 (Low): "Newest" sort is offered while no role has a listing date
+- **Repro (both):** choose Sort > **Newest** on any snapshot board.
+- **Expected:** like the "Listed" filter, which hides itself with "Listing dates appear after a few daily runs",
+  the option should be disabled or explained.
+- **Actual:** it is selectable and silently keeps the board order. All 638 / 833 / 2,418 jobs have
+  `ageDays: null`, and no card shows an age.
+- **Screenshot:** `D-11-newest-no-dates-static.png`.
+- **Owner:** `public/app.js` `sortJobs()` / `renderResults()` (`#sortBy` in `public/index.html`). The
+  `makePosted()` "any age" check is the pattern to copy.
+
+#### D-12 (Low): an unknown `sort=` leaves the Sort select blank
+- **Repro (both):** open `#c=anthropic&sort=pay`, e.g. from a hand-edited or old link.
+- **Expected:** "Highest pay" is shown, which is how the list is actually sorted.
+- **Actual:** the select is empty (`value ""`).
+- **Screenshot:** `D-12-sort-select-blank-static.png`.
+- **Owner:** `public/app.js` `parseHash()`. It validates `m`, `r`, `v` and `g` but not `sort`.
+
+#### D-13 (Low): the Salary "Min" and "Max" boxes look like inputs but are read-only
+- **Repro:** click the Min or Max box under the salary slider and try to type a value.
+- **Expected:** an exact bound can be entered (min/max inputs).
+- **Actual:** they are `<output>` elements styled as bordered fields. Only the slider sets values, in $5K steps.
+- **Screenshot:** `D-13-salary-min-max-readonly.png`.
+- **Owner:** `public/app.js` `makeSalary()` (`output.range-val`) and `public/styles.css` `.range-vals > div`.
+
+#### D-14 (Low): the map's Pay|Juice choice isn't kept
+- **Repro:** on `#c=anthropic&m=map`, click **Juice**, then reload or share the URL.
+- **Expected:** Juice stays selected, like every other view setting, which lives in the hash.
+- **Actual:** the hash is unchanged (`c=anthropic&m=map`), and after a reload Pay is selected.
+- **Screenshot:** `D-14-map-juice-not-kept.png`.
+- **Owner:** `public/app.js` `ensureViz()`. `createMap` is called without `colorMode` or `onColorModeChange`, which
+  `public/viz/map.js` supports.
+
+#### D-15 (Low): server mode has no share pages
+- **Repro (server):** open `/c/anthropic/`.
+- **Expected:** a share page, or a redirect to `/#c=anthropic`. A link copied from Pages works on Pages only.
+- **Actual:** HTTP 404 "Not found".
+- **Screenshot:** `D-15-server-share-page-404.png`.
+- **Owner:** `server/index.js` (the route table). The pages are generated only by `scripts/build-static.js`.
+
+#### D-16 (Low): Location options use bare city keys
+- **Repro (server):** open **Location**.
+- **Expected:** the canonical names from the contract ("Washington, DC", "San Francisco, CA").
+- **Actual:** "Washington", next to "Seattle", reads like Washington state but is Washington, DC (65 roles), as
+  the cards show. All cities appear without their state or country, and only the group header disambiguates.
+- **Screenshot:** `D-16-location-bare-city-keys.png`.
+- **Owner:** `public/app.js` `locKey` (`l.city`).
+
+### Notes
+- **A transient working-tree regression, now gone (not counted above).** At about 02:00 an uncommitted
+  `public/viz/chart.js` edit from another agent (tagged "M-8") used `binPx` before `const binPx` was declared.
+  - Every Clusters render threw `ReferenceError: Cannot access 'binPx' before initialization`. I saw it in server
+    mode, which serves the live tree.
+  - In the committed version, HEAD `3eb353d`, the declaration comes first (chart.js:462–463), and the final suite
+    run is clean.
+- The documented PERF-1 cold start still applies in server mode: the first `/api/jobs` per company takes seconds.
+  I didn't re-measure it.
+- Already known and not repeated: UX-7 (Juice barely discriminates), L1 (no listing data), L3 (CSV filename).
+- **Not testable here:**
+  - live board fetches, since every mode is "snapshot";
+  - real map tiles;
+  - the real clipboard outside Chromium;
+  - real ledger data. Listing, New and Reposted were exercised with injected data only.
+
+### Suite results
+| Suite | Tree | Result |
+|---|---|---|
+| `npm test` | start of the pass (HEAD `e567ca0`) | **294/294** pass |
+| `npm test` | end of the pass (HEAD `3eb353d` + this pass's files) | **301/301** pass (other agents added tests in between) |
+| `node scripts/e2e.js` | start (API + UI + Compstimate groups only) | **56/56** pass |
+| `node scripts/e2e.js --grep='^Desktop QA'` | the `15ac5fc` export | **10/22**: the 10 guard tests pass; `[D-1]`…`[D-12]` fail |
+| `node scripts/e2e.js` | end (adds the Mobile QA and Desktop QA groups) | **75/86**: every existing, mobile and desktop guard test passes. The 11 failures are exactly `[D-2]`…`[D-12]` (`[D-1]` is fixed). Exit code 1 by design until those bugs are fixed. |
+
+All runs used `NODE_PATH=<scratchpad>/pw/node_modules PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`.
+
+On the final tree, D-13…D-16, which have no e2e test, were re-checked with a quick script in server mode. All four
+still reproduce.
