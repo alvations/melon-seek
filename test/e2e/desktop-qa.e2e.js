@@ -7,6 +7,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ROOT, assert, assertEq, skip } from './harness.js';
+import { readableTitle } from '../../public/features/roles.js';
 
 const DESKTOP = { width: 1440, height: 900 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -117,11 +118,13 @@ export function registerDesktopQaTests(suite) {
     for (const q of ['engineer', 'safety', 'sales manager']) {
       await page.fill('#search', q); await sleep(700);
       const toks = q.split(/\s+/);
-      const strong = (await cardIds(page)).map((id) => { const j = jobs.get(id); return toks.every((t) => `${j.title} ${j.team || ''}`.toLowerCase().includes(t)); });
+      // The app matches the displayed title (role abbreviations written out: "SWE" -> "Software Engineer").
+      const inTitle = (j) => toks.every((t) => `${readableTitle(j.title)} ${j.team || ''}`.toLowerCase().includes(t));
+      const strong = (await cardIds(page)).map((id) => inTitle(jobs.get(id)));
       const firstWeak = strong.indexOf(false);
       assert(firstWeak === -1 || strong.lastIndexOf(true) < firstWeak, `"${q}": a keyword-only match ranks above a title match`);
       const shown = Number(((await page.locator('#resultsTitle').innerText()).match(/·\s*([\d,]+) in title/) || [])[1]?.replace(/,/g, ''));
-      const exp = [...jobs.values()].filter((j) => toks.every((t) => `${j.title} ${j.team || ''}`.toLowerCase().includes(t))).length;
+      const exp = [...jobs.values()].filter(inTitle).length;
       assertEq(shown, exp, `"${q}": "· N in title"`);
     }
   });

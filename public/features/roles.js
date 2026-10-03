@@ -80,6 +80,50 @@ function stem(w) {
 const SEGMENT_SPLIT = /\s*(?:,|;|\s[-–—|:]\s|[-–—]\s|\s[-–—]|\(|\)|\|)\s*/;
 const ROLE_NOUN = /\b(engineer\w*|developer|scientist|researcher|manager|director|lead|head|analyst|designer|architect|specialist|coordinator|associate|executive|counsel|attorney|recruiter|technician|operator|writer|editor|partner|strategist|consultant|administrator|assistant|officer|planner|buyer|inspector|tutor|fellow|intern|vp|chief|representative|advisor|accountant|controller|producer|electrician|supervisor|agent|machinist|fabricator|assembler|scheduler|expert|owner|generalist|principal|member|programmer|worker|cook|drafter)\b/;
 
+// ---------------------------------------------------------------------------
+// Display titles
+// ---------------------------------------------------------------------------
+
+// Role abbreviations companies put in titles ("RE / RS", "SWE", "GTM"), written out for display.
+// Only role words: domain terms (EW, GNC, SOX…) are the company's own and stay as posted.
+const TITLE_ABBR = [
+  [/\bRE\s*\/\s*RS\b/g, 'Research Engineer / Research Scientist'],
+  [/\bRS\s*\/\s*RE\b/g, 'Research Scientist / Research Engineer'],
+  [/\bTPM Manager\b/g, 'Manager, Technical Program Management'],
+  [/\bSW Eng\.?(?=[\s,)]|$)/g, 'Software Engineer'],
+  [/\bSWEs\b/g, 'Software Engineers'],
+  [/\bSWE\b/g, 'Software Engineer'],
+  [/\bTPM\b/g, 'Technical Program Manager'],
+  [/\bMTS\b/g, 'Member of Technical Staff'],
+  [/\bGTM\b/g, 'Go-to-Market'],
+  [/\bBD\b/g, 'Business Development'],
+  [/\bSr\.\s*/g, 'Senior '],
+  [/\bJr\.\s*/g, 'Junior '],
+];
+const initials = (words) => words.split(/[\s-]+/).filter(Boolean).map((w) => w[0]).join('').toUpperCase();
+
+/**
+ * Title for display: role abbreviations written out, and a "(FDE)" that only repeats the words
+ * before it ("Forward Deployed Engineer (FDE)") dropped. The posted title is kept by the caller.
+ * @param {string} title
+ * @returns {string}
+ */
+export function readableTitle(title) {
+  let t = String(title || '');
+  // "Forward Deployed Engineer (FDE)" / "Go-To-Market (GTM)" -> drop the repeat: the
+  // parenthesis spells the initials of words earlier in the title.
+  t = t.replace(/\s*\(([A-Z]{2,5})\)/g, (m, ab, at) => {
+    const ws = t.slice(0, at).split(/[^A-Za-z]+/).filter(Boolean);
+    for (let i = 0; i + ab.length <= ws.length; i++) if (initials(ws.slice(i, i + ab.length).join(' ')) === ab) return '';
+    return m;
+  });
+  const hasMgr = /\bmanager\b/i.test(t);
+  t = t.replace(/\bMLE\b/g, hasMgr ? 'Machine Learning Engineering' : 'Machine Learning Engineer');
+  t = t.replace(/\bFDE\b/g, /\bengineer\b/i.test(t.replace(/\bFDE\b/g, '')) && !hasMgr ? 'Forward Deployed Engineer' : 'Forward Deployed Engineering');
+  for (const [re, to] of TITLE_ABBR) t = t.replace(re, to);
+  return t.replace(/\s{2,}/g, ' ').replace(/\s+([,)])/g, '$1').trim();
+}
+
 /** The title segment that names the role: "Human Data - Business Operations Analyst" -> "Business Operations Analyst". */
 export function rolePart(title) {
   const raw = String(title || '');

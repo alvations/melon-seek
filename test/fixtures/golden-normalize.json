@@ -1,5 +1,5 @@
 {
- "normalizerVersion": "norm-4",
+ "normalizerVersion": "norm-5",
  "history": [
   {
    "normalizerVersion": "norm-2",
@@ -15,6 +15,11 @@
    "normalizerVersion": "norm-4",
    "reason": "norm-4 features §6a lexicon fixes: 14 noisy patterns, near-duplicate chips dropped/renamed (keywords only)",
    "at": "2026-10-02T20:58:07.340Z"
+  },
+  {
+   "normalizerVersion": "norm-5",
+   "reason": "norm-5: remote locations name the country (Remote (Canada), not Remote (CA))",
+   "at": "2026-10-03T12:57:44.894Z"
   }
  ],
  "hashes": {

@@ -53,6 +53,8 @@ function midUSD(job) {
 }
 
 function locLabel(l) {
+  // Outside the US the canonical name already spells the country ("Tokyo, Japan", "Sydney, Australia").
+  if (l.city && l.country && l.country !== 'US' && l.name && !l.remote) return l.name;
   if (l.city) return l.region && l.region !== l.city ? `${l.city}, ${l.region}` : (l.country && l.country !== l.city ? `${l.city}, ${l.country}` : l.city);
   return l.name || 'Unknown';
 }

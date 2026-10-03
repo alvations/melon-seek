@@ -569,3 +569,19 @@ screenshots in `docs/screenshots/`.
   - `@font-face` is in `public/styles.css`, so the methodology page shares it. `public/og/card.html` uses the local file, and `scripts/build-og.mjs` no longer routes Google Fonts.
   - Google Fonts was removed from the CSP (`style-src`, `font-src 'self'`) and from `scripts/links-policy.js` ALLOWED_HOSTS. Tests in `test/server.test.js` and `test/links-policy.test.js` now fail if it comes back.
 - Final: `npm test` 304/304, `node scripts/e2e.js` 86/86.
+
+### User request: no unexplained abbreviations ("RS/RE"), 2026-10-03
+- **Source.** "RE / RS" is OpenAI's own posted title ("RE / RS - Foundations, Search", "RE/RS, Data Understanding (MM)"), copied as posted. A scan of every visible string in both modes also found the site's own unexplained codes:
+  - "Remote (CA)", which could mean Canada or California;
+  - bare country codes in the Insights location tags ("GB", "KR", "IE");
+  - map labels "Singapore, SG", "Tokyo, JP", "Sydney, NSW".
+- **Display titles.** `public/features/roles.js` `readableTitle()` writes out role abbreviations:
+  - RE/RS, SWE, SW Eng., MLE, TPM, MTS, GTM, FDE, BD, Sr./Jr.;
+  - and drops a parenthesis that repeats earlier initials ("Forward Deployed Engineer (FDE)").
+
+  Domain terms that belong to the company (EW, GNC, SOX, RL…) stay as posted. `app.js` `prepare()` keeps `_postedTitle`; search matches both forms, and the drawer shows "Posted as …" when the title differs. Tests: `test/readable-title.test.js`.
+- **Locations.**
+  - `server/geo.js` `canonicalName`: "Remote (Canada)" / "Remote (Australia)". US stays "US" and GB stays "UK". `NORMALIZER_VERSION` is now norm-5, so snapshots are relocated on load, and the golden hashes were re-baselined.
+  - `viz/map.js` uses the canonical name outside the US ("Tokyo, Japan").
+  - `features/insights.js` shows country names via `Intl.DisplayNames`.
+- **Results.** `npm test` 306/306 and `node scripts/e2e.js` 86/86. The desktop QA search test now compares against the displayed titles. A browser re-scan of server and static modes found no RE/RS, SWE, TPM, GTM, MLE or FDE, and no bare country codes.

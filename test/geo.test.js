@@ -124,8 +124,8 @@ test('UX-3: canonical display names collapse variants; rawName keeps the source 
   // remote variants
   for (const r of ['Remote-Friendly US (Travel Required)', 'Remote-Friendly, United States', 'US - Remote', 'Remote (US)', 'Remote, USA']) assert.equal(name(r), 'Remote (US)', r);
   for (const r of ['Remote-Friendly (Travel-Required)', 'Remote-Friendly (Travel Required)', 'Remote', 'Anywhere']) assert.equal(name(r), 'Remote', r);
-  assert.equal(name('Ontario - Remote'), 'Remote (CA)');
-  assert.equal(name('Remote-Friendly, Australia'), 'Remote (AU)');
+  assert.equal(name('Ontario - Remote'), 'Remote (Canada)');
+  assert.equal(name('Remote-Friendly, Australia'), 'Remote (Australia)');
   // region / prefecture / format duplicates collapse to one city name
   assert.equal(name('Tokyo Prefecture'), 'Tokyo, Japan');
   assert.equal(name('Tokyo'), 'Tokyo, Japan');

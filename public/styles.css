@@ -536,7 +536,7 @@ html[data-mode="map"] .demo-banner > code { order: 0; flex: 0 1 auto; margin-lef
 .d-title { margin: 6px 0 6px; font-size: 23px; line-height: 1.22; letter-spacing: -.02em; }
 .d-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--ms-muted); font-size: 13.5px; }
 .d-meta .sen { margin-left: 4px; }
-.d-updated { font-size: 12.5px; margin-top: 4px; }
+.d-updated, .d-posted { font-size: 12.5px; margin-top: 4px; }
 .d-salary { margin: 18px 0 6px; padding: 16px; border-radius: 12px; background: var(--ms-surface-2); border: 1px solid var(--ms-border); }
 .d-sal-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .d-sal-amt { font-size: 26px; font-weight: 750; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }

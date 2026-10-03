@@ -741,13 +741,13 @@ function regionLabel(region, country) {
 
 /**
  * Canonical display name (UX-3) so one place is one filter entry:
- * remote -> "Remote" / "Remote (US)"; city -> "San Francisco, CA" (US) or
+ * remote -> "Remote" / "Remote (US)" / "Remote (Canada)"; city -> "San Francisco, CA" (US) or
  * "Tokyo, Japan" / "London, UK"; region only -> "Ontario, Canada";
  * country only -> "Germany"; unknown -> the raw string, trimmed.
  */
 export function canonicalName(loc) {
   if (!loc) return '';
-  if (loc.remote) return loc.country ? `Remote (${loc.country})` : 'Remote';
+  if (loc.remote) return loc.country ? `Remote (${countryLabel(loc.country)})` : 'Remote'; // "Remote (Canada)", not the ambiguous "(CA)"
   if (loc.city && loc.country) {
     if (loc.country === 'US') return loc.region ? `${loc.city}, ${loc.region}` : loc.city;
     const cl = countryLabel(loc.country);

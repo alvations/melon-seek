@@ -20,6 +20,13 @@ export { percentile, median, salaryUSD, toUSD } from './shared.js';
 // Pure stats
 // ---------------------------------------------------------------------------
 
+/** "GB" -> "UK", "KR" -> "South Korea": a name, not a bare country code. */
+let regionNames = null;
+function countryName(code) {
+  if (code === 'US' || code === 'GB') return code === 'GB' ? 'UK' : 'US';
+  try { regionNames ??= new Intl.DisplayNames(['en'], { type: 'region' }); return regionNames.of(code) || code; } catch { return code; }
+}
+
 function midOf(job) { const p = salaryUSD(job); return p ? p.mid : null; }
 
 function kw(job, facet) {
@@ -274,9 +281,9 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
     const max = Math.max(...locs.map((l) => l.count));
     const head = h('div', { class: 'msi-cols', 'aria-hidden': 'true' }, h('span', null, 'Location'), h('span'), h('span', null, 'Roles'), h('span', null, 'Median'));
     const rows = locs.map((l) => row('location', l.location,
-      `${l.location}${l.country && !l.remote ? `, ${l.country}` : ''}: ${plural(l.count, 'role')}, median pay ${l.median == null ? 'not published' : formatMoney(l.median)}. Filter by this location.`,
+      `${l.location}${l.country && !l.remote ? `, ${countryName(l.country)}` : ''}: ${plural(l.count, 'role')}, median pay ${l.median == null ? 'not published' : formatMoney(l.median)}. Filter by this location.`,
       [
-        h('span', { class: 'msi-row__label' }, h('span', { class: 'msi-row__name' }, l.location), l.country && !l.remote ? h('span', { class: 'msi-row__tag' }, l.country) : null),
+        h('span', { class: 'msi-row__label' }, h('span', { class: 'msi-row__name' }, l.location), l.country && !l.remote ? h('span', { class: 'msi-row__tag' }, countryName(l.country)) : null),
         h('span', { class: 'msi-bar', 'aria-hidden': 'true' }, h('span', { class: 'msi-bar__fill', style: { width: `${(l.count / max) * 100}%` } })),
         h('span', { class: 'msi-row__value msi-row__value--count' }, String(l.count)),
         h('span', { class: 'msi-row__value' }, l.median == null ? '—' : formatMoney(l.median)),

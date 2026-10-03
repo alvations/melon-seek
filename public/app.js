@@ -10,7 +10,7 @@ import * as api from './api.js';
 import { createCompstimateWidget, compstimateForJob, accuracyLine, isLowAccuracy, displayConfidence, basisLine, MIN_COMPARABLES } from './features/compstimate.js';
 import { compsForJob, createCompsCard } from './features/comps.js';
 import { createCompsChart } from './viz/comps.js';
-import { roleFamily, FAMILY_LABELS } from './features/roles.js';
+import { roleFamily, FAMILY_LABELS, readableTitle } from './features/roles.js';
 // ./features/insights.js is imported on first use (Insights mode), see renderInsights.
 // api.js: getCompanies, getJobs, getJobDetail (namespace import: tolerate a missing optional export)
 
@@ -386,13 +386,19 @@ function prepare(jobs, { source = null } = {}) {
     // falls back to updatedAt so the age slot and "Listed" filter still work.
     const tagm = typeof j.title === 'string' ? j.title.match(/^\s*\[([^\]]{1,16})\]\s*/) : null;
     if (tagm && !j._rawTitle) { j._rawTitle = j.title; j._titleTag = tagm[1]; j.title = j.title.slice(tagm[0].length) || j.title; }
+    // Role abbreviations written out ("RE / RS" -> "Research Engineer / Research Scientist"); the
+    // posted title stays searchable and is shown in the drawer when it differs.
+    if (j._postedTitle == null && typeof j.title === 'string') {
+      j._postedTitle = j._rawTitle || j.title;
+      j.title = readableTitle(j.title) || j.title;
+    }
     j._age = 'ageDays' in j ? (Number.isFinite(j.ageDays) ? j.ageDays : null)
       : j._ts ? Math.max(0, Math.floor((Date.now() - j._ts) / 864e5)) : null;
     j._family = j._family ?? roleFamily(j.title, j); // same ctx comps.js uses, so rf filters match its rows
     j.juice = j.juice && j.juice.best ? j.juice : null;
     j._grade = j.juice ? (j.juice.best.grade === 'Rind' ? 'Dry' : j.juice.best.grade) : null;
     j._locKeys = j.locations.map(locKey);
-    j._hay = [j.title, j.department, j.team, j.employmentType, j.seniority,
+    j._hay = [j.title, j._postedTitle !== j.title ? j._postedTitle : null, j.department, j.team, j.employmentType, j.seniority,
       ...j.locations.map((l) => l.name), ...j.keywords.responsibilities, ...j.keywords.fit, ...j.keywords.skills]
       .filter(Boolean).join(' \u0001 ').toLowerCase();
   }
@@ -2253,6 +2259,7 @@ function drawerContent(job) {
     h('div', { class: 'd-company' }, h('span', { class: 'dot', style: `--dot:${companyColor(company)}` }), company.name || job.companyName,
       data.mode === 'demo' ? h('span', { class: 'tag tag--demo' }, 'Demo') : null),
     h('h2', { class: 'd-title', id: 'drawerTitle' }, job.title),
+    job._postedTitle && job._postedTitle.replace(/^\s*\[[^\]]{1,16}\]\s*/, '') !== job.title ? h('div', { class: 'd-posted muted' }, `Posted as “${job._postedTitle}”`) : null,
     h('div', { class: 'd-meta' }, ...[deptKey(job), job.team, job.employmentType].filter(Boolean).map((t, i) => [i ? h('span', { class: 'sep' }, '·') : null, h('span', null, t)]),
       h('span', { class: `sen sen--${(job.seniority || 'mid').toLowerCase().replace(/\W/g, '')}` }, job.seniority || '—'),
       job._titleTag ? h('span', { class: 'tag', title: `The posting's title starts with “[${job._titleTag}]”, a tag the company adds (often a team or office code)` }, `Tag: ${job._titleTag}`) : null),
