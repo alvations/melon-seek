@@ -263,3 +263,373 @@ the real server and snapshot data. Run it alone with `node scripts/e2e.js --grep
   - Save/Saved is a label plus `.is-saved` (review V9, no aria-pressed).
   - The Juice waterfall sits in `details.juice-details` (UX-5).
   - Insights cards now get up to 8 s to fill.
+
+---
+
+## Full QA pass (mobile) 2026-10-03
+
+A functional pass of the phone site by the mobile QA agent. The process log, with every replayable command, is in
+[`docs/process/qa-mobile.md`](process/qa-mobile.md). No product code was changed.
+
+**Setup**
+- **Static build** (what users get): `npm run build`, then `dist/` served under `/melon-seek/` by
+  `docs/process/scripts/qa-audit-static-server.mjs`. Most testing used this build.
+- **Server mode** (`node server/index.js`): spot-checked for chart, filters, job page, map, Insights and CSV.
+- **Data:** local snapshots, so every board is `mode: "snapshot"`.
+- **Browser:** Playwright Chromium 141 with `isMobile`, `hasTouch` and DPR 3, with external hosts blocked.
+  - Devices: 360x740 Android, 390x844 and 430x932 iPhone UA, 844x390 landscape iPhone UA.
+  - Each device ran in light and dark.
+- **Gestures** are real touch input: `touchscreen.tap`, plus CDP `Input.dispatchTouchEvent` for drags, flicks and
+  two-finger pinch.
+- **Simulations:**
+  - Safe areas: CDP `Emulation.setSafeAreaInsetsOverride` (portrait top 47 / bottom 34; landscape left and right 47 / bottom 21).
+  - On-screen keyboard: `visualViewport.height` overridden to `innerHeight − 336` while a field has focus, with a
+    `resize` event fired.
+
+**New e2e tests:** [`test/e2e/mobile-qa.e2e.js`](../test/e2e/mobile-qa.e2e.js), registered in `scripts/e2e.js`.
+Run them with `node scripts/e2e.js --grep='^Mobile QA'`. Result: **5/8 pass**. The 3 failures are tests tagged
+`[M-1]`, `[M-3]` and `[M-4]`, which encode open bugs below and should pass once those are fixed.
+
+### What works on phones
+
+- **Every screen, device and theme:** no console or page errors, no horizontal page scroll, and no input under
+  16px, so iOS doesn't zoom on focus. That includes the Compstimate fields, search, the company search and the
+  filter searches.
+- **Top bar:**
+  - The company menu is a full-width bottom sheet. Typing "open" + Enter and tapping a row both switch company,
+    with the right count and hash.
+  - The data badge popover opens and closes on an outside tap.
+  - Theme cycles System > Light > Dark.
+  - Chart, Map and Insights switch views, and each switch collapses the sheet to peek.
+- **Quick chips:**
+  - The row scrolls sideways under a swipe and the page doesn't move.
+  - Salary, Department, Location, Seniority and Remote open the filter sheet scrolled to their section. More
+    opens its own sheet; Juicy gives 501, and "See 501 roles" is correct.
+- **Filter sheet:**
+  - The salary thumbs follow a touch drag ($410K–$695K).
+  - The salary-only switch, checklists, the Remote segment and keyword chips all work.
+  - "Show N roles" always equalled the results count. I checked one stack independently against `/api/jobs`:
+    salary 202 → department 48 → Mid 37 → on-site 37 → LLMs 29, the same as the app.
+  - Reset clears everything, including the slider and search. ✕ closes.
+- **Results sheet:**
+  - A slow drag snaps peek → half → full.
+  - Flicks above 0.6 px/ms go one snap further: peek → half, and full → half.
+  - The full list scrolls natively and lazy-loads (24 → 44 → 208 cards on Anduril).
+  - A card tap opens the job page.
+  - All five sort options reorder the list and update `sort=` in the hash.
+- **Chart:**
+  - Tapping a cluster bin gives an area chip, e.g. "AI Research & Engineering · $300K–$400K (16)", and the sheet
+    shows the 16 roles.
+  - Tapping a row label gives the whole row (69).
+  - A Ranges row tap opens the job.
+  - No information is hover-only on the main path.
+- **Map:**
+  - One-finger pan and pinch move only the map: `scrollY` 0, `visualViewport.scale` 1, and clustering went from
+    4 to 8 pins.
+  - A pin tap selects the area (Sydney, 10).
+  - Pay|Juice recolours the pins.
+  - The Remote badge gives "Remote (71)".
+- **Insights:** Compstimate re-estimates as you type. A Compare companies row switches to OpenAI with `rf=swe`.
+- **Job page:**
+  - It is full screen.
+  - The Back arrow and hardware Back both close it.
+  - Next and prev step through the list (1 → 2 → 3 → 2 of 638).
+  - Apply opens a new tab.
+  - The Juice waterfall adds up: $675K − $229K − $29K − $19K = $398K.
+  - "Same role elsewhere" rows switch company, and Back reopens the job.
+- **Save and CSV:**
+  - Save, then the toast, then "5 new" in the company menu (simulated by trimming `seen`), reopen and un-save
+    all work.
+  - CSV download: static gives `data/anthropic.csv` with 638 rows; the server gives `/api/export`.
+- **Device behaviour:**
+  - Rotating with the sheet at full or the job page open re-snaps correctly.
+  - With the keyboard up, the company sheet moves to the top, the filters footer hides and the focused field stays
+    inside the visual viewport.
+  - Portrait safe areas are respected by the top bar, sheet, filter footer and job page footer.
+
+### Bugs
+
+Severity: **High** means a core task is blocked or hidden. **Medium** means friction, wrong output or an
+accessibility failure. **Low** means polish. Screenshots are in `docs/screenshots/qa-mobile/`.
+
+| ID | Sev | Device / orientation | Summary |
+|---|---|---|---|
+| M-1 | High | 844x390 landscape, all themes | Map pins and the Remote badge are hidden under the results sheet |
+| M-2 | High | Static build (Pages), every device | Location filter shows raw "Remote-Friendly…" variants instead of canonical names (UX-3 not applied) |
+| M-3 | Medium | All phones (Android Back, iOS swipe-back) | Back with the filter sheet or a popover open undoes a filter and leaves the sheet open |
+| M-4 | Medium | All phones | Closing the filter sheet (✕ or "Show N roles") drops focus to `<body>` |
+| M-5 | Medium | All phones | The methodology page ("How it's calculated") is laid out at 881px and clipped |
+| M-6 | Medium | All devices | The methodology page shows "Code: undefined … Tests: undefined." |
+| M-7 | Medium | All phones | The full-screen filter sheet isn't a modal: no dialog role, and the background stays focusable |
+| M-8 | Medium | All phones | Touch targets under 44px with no hit slop (map controls, chart bins, Ranges rows, comps rows, Insights fields, CSV link) |
+| M-9 | Medium | All phones | Job page next/prev push one history entry per role, so hardware Back walks back through every role |
+| M-10 | Low | Landscape with a notch | Chart labels and map controls ignore the left/right safe-area insets |
+| M-11 | Low | All phones | A quick chip scrolls the sheet to its section, but focus goes to "Salary" |
+| M-12 | Low | All phones, keyboard up | While typing a search, the result count sits under the keyboard |
+| M-13 | Low | All phones | Text under 12px in viz, features and the badge popover |
+| M-14 | Low | All phones | The badge popover repeats the fetch-error sentence twice, once in an 11.5px monospace box |
+| M-15 | Low | All phones | Chips that open the filter sheet never set `aria-expanded="true"` |
+| M-16 | Low | All phones | After hardware Back closes the job page, focus is on `<body>` |
+| M-17 | Low | 360–430 portrait | Ranges row labels are cut to about 12 characters ("Engineering …"), so rows can't be told apart without tapping |
+| M-18 | Low | All | The empty search state reads "0 roles · 0 in title" |
+
+#### M-1 (High): landscape map hides pins and the Remote badge under the results sheet
+- **Device:** iPhone UA 844x390 landscape, light and dark, static and server.
+- **Repro:**
+  1. Open `#c=anthropic&m=map` in landscape.
+  2. Wait for the pins.
+- **Expected:** the map's fitted view and its bottom-left Remote badge sit inside the visible map area, above the
+  peek sheet (sheet top y=326).
+- **Actual:**
+  - `#mapHost` is 320px tall, but `#vizArea` is only 191px (bottom 326). The map runs 130px under the sheet.
+  - The initial fit centres on 320px. Sydney's pin (bottom 379) is fully hidden and Singapore (bottom 326) is cut in half.
+  - The Remote badge (bottom-left) is hidden.
+  - A tap on Sydney's position hits `.results-head` and opens the sheet instead.
+- **Screenshots:** `map-land-initial.png`, `e2e-landscape-map.png`.
+- **Owner:** `public/viz/viz.css` `.ms-map { min-height: 320px }`; it wins over the landscape block in
+  `public/styles.css` (`@media (max-width: 860px) and (max-height: 500px)`), which needs `.ms-map { min-height: 0 }`.
+- **Test:** `Mobile QA: [M-1] …` (fails today).
+
+#### M-2 (High): the Pages build lists raw remote location names
+- **Device:** every device; static build only. Server mode is correct.
+- **Repro:**
+  1. Open the static site.
+  2. Tap the Location chip.
+- **Expected** (server mode, CONTRACT UX-3): "Remote (US) 53", "Remote 28", "Remote (AU)", "Remote (CA)", then cities.
+- **Actual:**
+  - The list shows "Remote-Friendly US (Travel Required) 48", "Remote-Friendly, United States 25",
+    "Remote-Friendly (Travel-Required) 20", "Remote-Friendly (Travel Required) 8", "Remote-Friendly, Australia" and
+    "Remote-Friendly, Canada".
+  - On a phone that is six long rows before any city.
+  - The Compstimate Location select and the card meta show the same raw names.
+- **Screenshot:** `chip-loc-390.png`.
+- **Owner:** `scripts/build-static.js` snapshot branch (around line 630). It runs `vetSalaries(rekeyBoardJobs(jobs).jobs)` but
+  never `relocateJobs()` from `server/normalize.js`, which `server/pipeline.js` applies to old snapshots.
+
+#### M-3 (Medium): Back with the filter sheet or a popover open undoes a filter instead of closing it
+- **Device:** all phones (390x844 tested); Android hardware Back, iOS edge swipe.
+- **Repro:**
+  1. Tap the Department chip; the filter sheet opens.
+  2. Tick "Sales" (122 roles).
+  3. Press Back.
+- **Expected:** the sheet closes and the filter is kept.
+- **Actual:**
+  - The sheet stays open.
+  - `d=Sales` is removed silently (hash `#c=anthropic&d=Sales` → `#c=anthropic`).
+  - Every filter tap pushes a history entry, so each Back undoes one filter.
+- **Also:**
+  - With the company menu or More open, Back changes the filters underneath and leaves the popover open.
+  - Pressing Back as the first action leaves the site.
+- **Screenshot:** `filters-after-back-390.png`.
+- **Owner:** `public/app.js`:
+  - `setFiltersOpen()` and `togglePopover()` should push a history state when they open on phones;
+  - `onHashChange()` (popstate) should close an open sheet or popover first.
+
+  This was listed as a known gap in `docs/process/mobile.md` §6.
+- **Test:** `Mobile QA: [M-3] …` (fails today).
+
+#### M-4 (Medium): closing the filter sheet loses focus
+- **Device:** all phones.
+- **Repro:**
+  1. Tap Filters.
+  2. Tap ✕, or "Show N roles".
+- **Expected:** focus returns to the Filters chip, or to the quick chip that opened the sheet.
+- **Actual:** `document.activeElement` is `<body>`. The sheet gets `visibility: hidden` while it holds focus.
+- **Screenshot:** `filters-open-390.png`.
+- **Owner:** `public/app.js` `setFiltersOpen(false)`. Remember the opener in `setFiltersOpen(true)` / `openFiltersAt()` and refocus it.
+- **Test:** `Mobile QA: [M-4] …` (fails today).
+
+#### M-5 (Medium): the methodology page is unreadable on phones
+- **Device:** 390x844 (all phones).
+- **Repro:**
+  1. Open a job page.
+  2. Open 🍉 Juice.
+  3. Tap "How it's calculated", which opens `methodology/#1-the-formula`.
+- **Expected:** the text reflows to 390px; wide `<pre>` blocks and tables scroll inside their own box.
+- **Actual:**
+  - The layout viewport grows to 881px: the formula `<pre>` is 838px with `overflow: visible`, and the tables are 728–897px.
+  - `body { overflow-x: hidden }` clips the right side.
+  - Sentences, the formula's comments and table columns are cut off, and there is no way to scroll to them.
+- **Screenshots:** `methodology-390.png`, `methodology-top-390.png`.
+- **Owner:** `scripts/methodology.js` `METHODOLOGY_CSS` (emitted as `methodology/methodology.css`). Give `pre` `overflow-x: auto; max-width: 100%`
+  and keep tables inside a scrolling wrapper, so no element widens the page.
+
+#### M-6 (Medium): "undefined" in the methodology page
+- **Device:** all.
+- **Repro:** open `methodology/` and read the paragraph under the intro.
+- **Expected:** "Code: `server/juice.js` (pure ES module…). Data: `data/cities.json` (89 cities). Refresh: … Tests: …".
+- **Actual:** "Code: undefined (pure ES module, also loaded in the browser). Data: undefined (89 cities). Refresh:
+  undefined and undefined. Tests: undefined."
+- **Screenshot:** `methodology-top-390.png`.
+- **Owner:** `scripts/md.js` `inline()`.
+  - Cause: a link whose label is a code span (``[`server/juice.js`](../server/juice.js)``). The outer call has already
+    swapped the code for a `\u0000N\u0000` placeholder. The recursive `inline(label)` then resolves it against its own,
+    empty, `codes` array.
+  - Fix: pass `codes` into the recursive call, or restore code placeholders in the label before recursing.
+
+#### M-7 (Medium): the full-screen filter sheet is not a modal dialog
+- **Device:** all phones (screen reader / switch / keyboard users).
+- **Repro:**
+  1. Tap Filters.
+  2. Press Shift+Tab three times (an external keyboard, or VoiceOver's swipe-left).
+- **Expected:** focus stays in the sheet. It has `role="dialog"` and `aria-modal="true"`, and the top bar, quick bar
+  and results are `inert`, as the job page already does with `setBackgroundInert`.
+- **Actual:**
+  - `#filters` is an `<aside>` with no role.
+  - `.topbar` and `#results` are not inert.
+  - Focus goes from ✕ to Reset, then to the hidden "Clear all" and Save chip behind the sheet.
+- **Screenshot:** `filters-open-390.png`.
+- **Owner:** `public/app.js` `setFiltersOpen()`, plus `public/index.html` `#filters`.
+
+#### M-8 (Medium): touch targets under 44px with no hit slop
+- **Device:** 390x844, measured from bounding boxes and confirmed by hit testing.
+- **Repro:** open each view and measure (`docs/process/qa-mobile.md` §4 has the audit script).
+- **Expected:** at least a 44x44 hit area (WCAG 2.5.5, iOS HIG), or padding or a `::before` slop that gives one.
+- **Actual:**
+
+  | Control | Size (px) | Screenshot | Owner |
+  |---|---|---|---|
+  | Map zoom ± | 30x30 | `map-390.png` | `public/viz/viz.css` |
+  | Pay\|Juice buttons | 52x26 | `map-390.png` | `public/viz/viz.css` |
+  | Map Remote badge | 189x32 | `map-390.png` | `public/viz/viz.css` |
+  | Cluster bins | 24x24 to 29x29 | `chart-bin-tap-390.png` | `public/viz/viz.css` `.ms-bin::before` |
+  | Ranges rows | 390x22 | `chart-ranges-390.png` | `public/viz/chart.js` row height on coarse pointers |
+  | "Same role elsewhere" rows | 28 tall | `job-comps-390.png` | `public/viz/comps.js` / `viz.css` |
+  | Insights Compstimate title, Location and Level | 34 tall | `insights-390.png` | `public/features/features.css` `.ms-comp__input`, `.ms-comp__select` |
+  | Compare companies select | 34 tall | — | `public/features/features.css` |
+  | Badge popover "Download CSV" link | 106x15 | `badge-popover-390.png` | `public/app.js` `makeBadgeDetails` / `styles.css` |
+
+  The touch sizes for viz were already routed in `docs/process/mobile.md` §6 item 3 and are still open.
+
+#### M-9 (Medium): next/prev on the job page fill the history
+- **Device:** all phones.
+- **Repro:**
+  1. Open a card.
+  2. Tap Next twice and Prev once.
+  3. Close with the Back arrow.
+  4. Open another card.
+  5. Press hardware Back twice.
+- **Expected:** one Back closes the job page; a second leaves the job pages altogether.
+- **Actual:**
+  - `history.length` grows by one per Next/Prev (8 → 9 → 10 → 11).
+  - The second Back reopens the job page on an earlier role ("Engineering Manager, GPU", 2 of 638).
+  - After paging through N roles it takes N Backs to get out.
+- **Screenshot:** `job-page-390.png`.
+- **Owner:** `public/app.js` `stepDrawer()` → `openDrawer()` → `commit()`. Use `replace` when stepping within an open
+  drawer.
+
+#### M-10 (Low): landscape notch overlaps the chart labels and map controls
+- **Device:** 844x390 with insets left/right 47 and bottom 21.
+- **Repro:**
+  1. Set the safe-area override in landscape.
+  2. Open Chart, then Map.
+- **Expected:** content and controls stay inside `env(safe-area-inset-left/right)`, as the top bar, quick bar and
+  sheet already do.
+- **Actual:**
+  - Chart row swatches and labels start at x=0. The axis caption "Annual salary · approx USD" starts at 15.
+  - Map zoom and Remote are at left 10. Pay|Juice, the offline note and the attribution reach 834–844.
+- **Screenshots:** `safearea-land-chart.png`, `safearea-land-map.png`.
+- **Owner:** `public/styles.css` phone block. Add `padding-left: var(--m-gutter-l); padding-right: var(--m-gutter-r)`
+  to the chart's scroll host, and offset `.leaflet-control-container` by the insets. Alternatively, this belongs in
+  `public/viz/viz.css`.
+
+#### M-11 (Low): a quick chip opens the right section, but focus lands on "Salary"
+- **Device:** all phones.
+- **Repro:** tap the Department (or Location, Seniority, Remote) chip.
+- **Expected:** focus is on the Department section's `<summary>`.
+- **Actual:**
+  - Focus is on the Salary `<summary>`.
+  - `openFiltersAt()` focuses the section in a rAF, but `setFiltersOpen()`'s `setTimeout(…, 50)` then focuses the
+    first summary.
+  - A screen reader announces "Salary" while Department is on screen.
+- **Screenshot:** `chip-dept-390.png`.
+- **Owner:** `public/app.js` `setFiltersOpen()` / `openFiltersAt()`.
+
+#### M-12 (Low): no result count while typing a search with the keyboard up
+- **Device:** 390x844 with the simulated keyboard (visual viewport 508px).
+- **Repro:** tap Search and type "python".
+- **Expected:** some visible feedback, such as the count or the first cards.
+- **Actual:**
+  - The list filters to "186 roles · 0 in title", but that title sits at y=801, under the keyboard.
+  - The chart above changes, but nothing says how many roles match until the keyboard closes.
+- **Screenshot:** `kb-search-390.png`.
+- **Owner:** `public/styles.css` phone block, for example lifting the sheet peek above `--vvh` under `body.kb-open`
+  (the popovers already do this).
+
+#### M-13 (Low): text under 12px on phones
+- **Device:** all phones.
+- **Actual:**
+
+  | Text | Size (px) | Owner |
+  |---|---|---|
+  | Cluster bin counts `.ms-bin__dot--sm` / `.ms-bin__dot` | 10 / 11 | `public/viz/viz.css` |
+  | Chart footnote `.ms-chart__foot` | 11.5 | `public/viz/viz.css` |
+  | Map `.ms-pin__label` / `.ms-pin__count` | 10.5 | `public/viz/viz.css` |
+  | Map offline note | 11 | `public/viz/viz.css` |
+  | Leaflet attribution | 10 | `public/viz/viz.css` |
+  | Comps ticks `.ms-comps__tick` / note | 10.5 / 11 | `public/viz/viz.css` |
+  | Juice waterfall `.wf-detail` | 11.5 | `public/styles.css` |
+  | Compare companies `.msi-row__n` / `.msi-row__tag` / axis | 11 / 10.5 | `public/features/features.css` |
+  | Compstimate distribution labels | 10.5 | `public/features/features.css` |
+  | Saved "5 new" `.saved-new` | 11 | `public/styles.css` |
+  | Badge popover `.badge-error` | 11.5 | `public/styles.css` |
+
+- **Screenshots:** `landing-s360-light.png`, `map-390.png`, `job-juice-390.png`.
+- This was routed in `docs/process/mobile.md` §6 item 4 and is still open.
+
+#### M-14 (Low): the badge popover repeats the error
+- **Device:** all phones.
+- **Repro:** open Anduril and tap the data badge.
+- **Actual:**
+  - The paragraph reads "Saved snapshot … Live fetch skipped: greenhouse was unreachable … use refresh to retry."
+  - Then the same sentence appears again as a yellow 11.5px monospace `.badge-error` box.
+- **Screenshot:** `badge-popover-390.png`.
+- **Owner:** `public/app.js` `makeBadgeDetails()` / `badgeInfo()`. See also L2.
+
+#### M-15 (Low): sheet-opening chips never report "expanded"
+- **Device:** all phones.
+- **Repro:** tap the Salary chip.
+- **Expected:** `aria-expanded="true"` (and `aria-controls="filters"`) on the chip.
+- **Actual:** it stays `false`. Only More gets `true`, because it uses a popover.
+- **Screenshot:** `chip-salary-390.png`.
+- **Owner:** `public/app.js` `togglePopover()` (the `openFiltersAt` branch) / `renderQuickbar()`.
+
+#### M-16 (Low): focus is lost after hardware Back closes the job page
+- **Device:** all phones.
+- **Repro:**
+  1. Tap a card.
+  2. Press hardware Back.
+- **Expected:** focus is on the card that opened the page.
+- **Actual:** `<body>`. The ✕ / Back arrow path returns focus to the card correctly.
+- **Owner:** `public/app.js` `onHashChange()` → `render()` → `closeDrawer({ fromHash: true })`: the card is re-rendered
+  before focus is restored. Same family as BUG-6.
+
+#### M-17 (Low): Ranges labels are truncated to uselessness at phone width
+- **Device:** 360–430 portrait.
+- **Repro:** Chart, then Ranges.
+- **Actual:**
+  - Labels read "Research Eng…", "Staff+ Resear…", "Engineering …" (three different roles look identical) and
+    "Head of Strat…".
+  - The full title is only in the hover `title`/tooltip.
+  - A tap opens the job, so the information is reachable, but scanning the chart isn't possible.
+- **Screenshot:** `chart-ranges-390.png`.
+- **Owner:** `public/viz/chart.js` Ranges label width on narrow screens. For example, put the label above the bar
+  on phones, as Clusters does with `narrow`.
+
+#### M-18 (Low): odd empty-search copy
+- **Device:** all.
+- **Repro:** search "zzzzqqq".
+- **Actual:** the title reads "0 roles · 0 in title". The "· N in title" suffix should be dropped when N = 0, or
+  when the count is 0.
+- **Screenshot:** `empty-390.png`.
+- **Owner:** `public/app.js` results title (UX-2 suffix).
+
+### Coverage notes
+- **Not testable here:**
+  - Real WebKit/iOS Safari: dvh with the toolbar, a real keyboard, rubber-banding.
+  - Live boards and real map tiles: the offline basemap was used.
+  - Real-device double-tap zoom.
+- **Keyboard simulation:** a `visualViewport.height` override drives the app's own `kb-open` path. It does not move
+  the layout the way iOS does.
+- **Already-known items not repeated as new bugs:** Juice barely discriminates (Juicy on 501 of 638; UX-7), "Listed" has no data (L1),
+  the BUG-5 keywords, and the 28px sheet grip (it is part of an 84px drag zone, so not a bug).
