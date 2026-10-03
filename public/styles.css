@@ -316,9 +316,15 @@ body.filters-collapsed .filters { visibility: hidden; }
 .range:focus-visible::-webkit-slider-thumb { box-shadow: var(--ms-focus); }
 .range:focus-visible::-moz-range-thumb { box-shadow: var(--ms-focus); }
 .range-vals { display: flex; align-items: center; gap: 8px; }
-.range-vals > div { flex: 1; display: flex; flex-direction: column; padding: 6px 10px; border: 1px solid var(--ms-border-strong); border-radius: 8px; }
-.range-vals > div > span { font-size: 11px; color: var(--ms-muted); font-weight: 500; }
+.range-vals > label { flex: 1; display: flex; flex-direction: column; padding: 6px 10px; border: 1px solid var(--ms-border-strong); border-radius: 8px; }
+.range-vals > label > span { font-size: 11px; color: var(--ms-muted); font-weight: 500; }
 .range-val { font-weight: 650; font-size: 14px; }
+/* D-13: Min/Max are typeable; the bordered box (the label) stays the field, the input is borderless inside it. */
+input.range-val { width: 100%; min-width: 0; padding: 0; border: 0; background: transparent; color: var(--ms-text); font-family: inherit; outline: none; }
+.range-vals > label { cursor: text; }
+.range-vals > label:focus-within { border-color: var(--ms-accent); box-shadow: var(--ms-focus); }
+/* D-3: when the min thumb is in the right half it sits above the max thumb (app.js makeSalary). */
+.range.is-top { z-index: 2; }
 .range-dash { color: var(--ms-faint); }
 
 .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0 0; font-size: 13.5px; cursor: pointer; }
@@ -1113,8 +1119,8 @@ html[data-mode="insights"] .viz-controls { display: none; }
   .range::-webkit-slider-thumb { width: 28px; height: 28px; margin-top: 8px; }
   .range::-moz-range-thumb { width: 24px; height: 24px; }
   .hist { padding: 0 14px; }
-  .range-vals > div > span { font-size: 12px; }
-  .range-val { font-size: 15px; }
+  .range-vals > label > span { font-size: 12px; }
+  .range-val { font-size: 16px; }   /* an input now (D-13): 16px, no iOS focus zoom */
   .switch-row { min-height: var(--m-row); font-size: 15px; padding: 0; }
   .switch { width: 51px; height: 31px; }
   .switch::after { top: 3px; left: 3px; width: 25px; height: 25px; }

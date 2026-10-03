@@ -767,3 +767,20 @@ test('review V14: ?name= never renames a built-in company', { skip: skipReason }
   const custom = await (await get('/api/jobs?source=lever&board=example&name=Example%20Co')).json();
   assert.equal(custom.company.name, 'Example Co');
 });
+
+test('share pages /c/<slug>/ work in server mode (D-15)', { skip: skipReason }, async () => {
+  const res = await get('/c/anthropic/');
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/html/);
+  const html = await res.text();
+  assert.match(html, /<script src="\/c\/share-redirect\.js" data-target="\/#c=anthropic"><\/script>/);
+  assert.match(html, /<a href="\/#c=anthropic">Anthropic jobs on melon·seek<\/a>/);
+  const js = await get('/c/share-redirect.js');
+  assert.equal(js.status, 200);
+  assert.match(js.headers.get('content-type'), /javascript/);
+  assert.match(await js.text(), /location\.replace/);
+  const bare = await realFetch(base + '/c/anthropic', { redirect: 'manual' });
+  assert.equal(bare.status, 301);
+  assert.equal(bare.headers.get('location'), '/c/anthropic/');
+  assert.equal((await get('/c/not-a-company/')).status, 404);
+});

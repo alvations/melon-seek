@@ -201,7 +201,14 @@ export function createCompsChart(container, { onSelect } = {}) {
     else if (k === 'Home') i = 0;
     else if (k === 'End') i = n - 1;
     else if ((k === 'Enter' || k === ' ') && active >= 0) { e.preventDefault(); select(active); return; }
-    else if (k === 'Escape') { setHover(-1); return; }
+    else if (k === 'Escape') {
+      // D-8: the first Esc clears the list's own state (tooltip, active row) and is consumed; with
+      // nothing left to clear it bubbles, so the drawer around the list closes.
+      if (hover < 0 && active < 0) return;
+      e.preventDefault();
+      setHover(-1); setActive(-1);
+      return;
+    }
     if (i == null) return;
     e.preventDefault();
     setActive(i);

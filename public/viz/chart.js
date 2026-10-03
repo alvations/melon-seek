@@ -34,7 +34,8 @@ const CROW_LABEL_H = 22;   // clusters, narrow: label line above the plot
 const CROW_PLOT_H = 44;    // clusters, narrow: plot height
 const BIN_STEPS = [10000, 20000, 25000, 50000, 100000, 200000, 250000, 500000];
 const MIN_BIN_PX = 34;     // a bin must be wide enough for a readable, countable circle
-const SENIORITY_ORDER = ['Director+', 'Manager', 'Staff+', 'Senior', 'Mid', 'Entry', 'Intern'];
+// D-9: the same ladder as the Seniority filter and features/roles SENIORITY_LADDER (Clusters and Ranges).
+const SENIORITY_ORDER = ['Intern', 'Entry', 'Mid', 'Senior', 'Staff+', 'Manager', 'Director+', 'Unspecified'];
 const ALL_ROLES = 'All roles';
 
 const INTERVAL_ADJ = { hour: 'hourly', day: 'daily', week: 'weekly', month: 'monthly' };
@@ -478,7 +479,10 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       if (above.length) r.bins.push({ start: 'hi', end: d1, center: d1 + binW, overflow: 'hi', items: above.sort((a, b) => b.mid - a.mid), row: r });
       outCount += below.length + above.length;
     }
-    cRows.sort((a, b) => (b.items.length ? 1 : 0) - (a.items.length ? 1 : 0)
+    // D-9: grouped by seniority, rows follow the ladder (as Ranges and the Seniority filter do).
+    const senRank = n => { const i = SENIORITY_ORDER.indexOf(n); return i < 0 ? 99 : i; };
+    cRows.sort((a, b) => (dim === 'seniority' ? senRank(a.key) - senRank(b.key) : 0)
+      || (b.items.length ? 1 : 0) - (a.items.length ? 1 : 0)
       || (b.median ?? 0) - (a.median ?? 0) || b.all.length - a.all.length);
 
     // Color: the row's category color (identity is named by the row label).

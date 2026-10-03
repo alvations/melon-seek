@@ -623,13 +623,15 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
     resultEl, live);
   container.appendChild(root);
 
+  let typing = false; // a keystroke not yet committed (the 250 ms debounce)
   function commitTitle() {
     clearTimeout(timer);
+    typing = false;
     const v = titleInput.value.trim();
     if (v) edits.title = titleInput.value; else delete edits.title; // emptying = following again
     refresh();
   }
-  titleInput.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(commitTitle, 250); });
+  titleInput.addEventListener('input', () => { typing = true; clearTimeout(timer); timer = setTimeout(commitTitle, 250); });
   titleInput.addEventListener('change', commitTitle);
   locSelect.addEventListener('change', () => { edits.location = locSelect.value; refresh(); });
   senSelect.addEventListener('change', () => { edits.seniority = senSelect.value; refresh(); });
@@ -643,7 +645,10 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
   function fillForm() {
     const board = ctx.board;
     const salaried = board.filter((j) => salaryUSD(j));
-    if (document.activeElement !== titleInput) titleInput.value = inputs.query.title;
+    // Never overwrite what the user is typing; a *following* title is written even while the field
+    // has focus (D-5: after "Reset to filters", which focuses it, Back left a stale title). A field
+    // the user just emptied stays empty until they leave it.
+    if (document.activeElement !== titleInput || (!typing && !('title' in edits) && titleInput.value !== '')) titleInput.value = inputs.query.title;
     datalist.replaceChildren(...titleSuggestions(salaried).map((t) => h('option', { value: t })));
     // Every location on the board is selectable (not only ones with posted pay), so
     // a drawer estimate for, e.g., a Singapore role can be reproduced here exactly.

@@ -136,3 +136,28 @@ Screenshots go to `docs/screenshots/fix-frontend/`.
 
 ## 7. Change log
 - 2026-10-03: M-1, M-3, M-4, M-7 to M-18 fixed; process log and check script added.
+
+## Desktop batch (D-2 … D-16), 2026-10-03
+
+Source: the "Full QA pass (desktop) 2026-10-03" section of [../QA.md](../QA.md). D-1 was already fixed by the perf workstream (it is the same bug as M-2).
+The fixer agent made all the code changes below. It hit the account session limit before writing this section, so the lead wrote it from the diff and re-ran every suite.
+
+| Bug | Fix (file) | Verified by |
+|---|---|---|
+| D-2 facet counts ignore cluster/area | `derive()` counts facets over the jobs left by the cluster/area selection (`public/app.js`) | e2e `[D-2]` |
+| D-3 Min thumb stuck at the right end | thumb stacking and z-order swap when both thumbs meet (`app.js` `makeSalary`, `styles.css .range`) | e2e `[D-3]` |
+| D-4 OpenAI "Remote" 562 vs map 60 | Ashby: remote = `workplaceType` Remote or a remote location; `isRemote` alone isn't enough. Remote workplaces get a "Remote" location (`server/sources/ashby.js`). Old snapshots are fixed on load in `app.js` `prepare()` | e2e `[D-4]`, `test/sources.test.js` |
+| D-5 Compstimate title out of sync after Reset + Back | `fillForm()` re-reads the title from the state it renders (`public/features/compstimate.js`) | e2e `[D-5]` |
+| D-6 j/k dead right after the drawer opens | the shortcut guard lets the drawer's own buttons through (`app.js` keydown) | e2e `[D-6]` |
+| D-7 stale cluster chip after Group by or view change | the cluster selection is cleared when grouping or view changes (`app.js`) | e2e `[D-7]` |
+| D-8 Esc ignored inside "Same role elsewhere" | Esc no longer swallowed in `.ms-comps` (`app.js`, `viz/comps.js`) | e2e `[D-8]` |
+| D-9 Seniority clusters ordered by median | rows use the ladder order Ranges and the filter use (`viz/chart.js`) | e2e `[D-9]` |
+| D-10 saved-search "N new" only after a load | counts fall back to the stored per-company snapshot (`app.js` `savedNewCount`) | e2e `[D-10]` |
+| D-11 "Newest" offered with no dates | option hidden and disabled when no loaded role has a listing date (`app.js`) | e2e `[D-11]` |
+| D-12 unknown `sort=` blanks the select | `parseHash()` falls back to the default sort | e2e `[D-12]` |
+| D-13 Min/Max boxes read-only | typeable, clamped, committed on change or Enter (`app.js` `makeSalary`) | lead re-check of the e2e suite (no dedicated test) |
+| D-14 map Pay/Juice lost on reload | persisted (`app.js`, `viz/map.js`) | — |
+| D-15 `/c/<slug>/` 404 in server mode | server serves the share page and `c/share-redirect.js`, matching the static build (`server/index.js`) | `test/server.test.js` |
+| D-16 "Washington" next to "Seattle" | same-name or ambiguous cities get their region only when they clash (`app.js` `locKey`) | — |
+
+Results after the batch (lead run, 2026-10-03 08:55 UTC): `npm test` 303/303 and `node scripts/e2e.js` 86/86. The 86 include all Desktop QA and Mobile QA groups.

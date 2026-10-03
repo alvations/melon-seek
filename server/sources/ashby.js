@@ -72,9 +72,18 @@ export function mapAshbyJob(j) {
     const loc = str(typeof s === 'string' ? s : s && (s.location || (s.address && s.address.postalAddress && s.address.postalAddress.addressLocality)));
     if (loc && loc !== j.location && !extraLocations.includes(loc)) extraLocations.push(loc);
   }
+  // D-4 (docs/QA.md): a role is remote when Ashby's workplaceType says Remote, or one of its
+  // locations does. `isRemote: true` next to on-site-only locations (OpenAI flagged 502 of 833
+  // that way) is not enough. A Remote workplace whose locations don't say so gets a "Remote"
+  // location, so the location facet, the map's Remote bucket and the Remote filter agree.
   let remote = null;
-  if (j.isRemote === true || /remote/i.test(j.workplaceType || '')) remote = true;
-  else if (j.isRemote === false) remote = false;
+  const wp = str(j.workplaceType) || '';
+  const locRemote = [j.location, ...extraLocations].some((l) => /remote/i.test(l || ''));
+  if (/remote/i.test(wp)) {
+    remote = true;
+    if (!locRemote) extraLocations.push('Remote');
+  } else if (locRemote) remote = true;
+  else if (wp || j.isRemote === false) remote = false;
   const salary = ashbySalary(j.compensation);
   if (salary && !salary.text) {
     salary.text = `${salary.min.toLocaleString('en-US')}–${salary.max.toLocaleString('en-US')} ${salary.currency}`;

@@ -186,10 +186,10 @@ const ARRAYS = ['d', 'l', 's', 'e', 'kr', 'kf', 'ks', 'jg'];
 const DEFAULTS = {
   c: '', cn: '', m: 'chart', q: '', smin: null, smax: null, so: false,
   d: [], l: [], s: [], e: [], r: 'any', p: 0, ho: false, rf: '', kr: [], kf: [], ks: [], jg: [],
-  v: DEFAULT_VIEW, g: 'department', sort: 'salary-desc', job: null,
+  v: DEFAULT_VIEW, g: 'department', sort: 'salary-desc', mc: 'pay', job: null,
 };
 const FILTER_KEYS = ['q', 'smin', 'smax', 'so', 'd', 'l', 's', 'e', 'r', 'p', 'ho', 'rf', 'kr', 'kf', 'ks', 'jg'];
-const ORDER = ['c', 'cn', 'm', 'q', 'smin', 'smax', 'so', 'd', 'l', 's', 'e', 'r', 'p', 'ho', 'rf', 'kr', 'kf', 'ks', 'jg', 'v', 'g', 'sort', 'job'];
+const ORDER = ['c', 'cn', 'm', 'q', 'smin', 'smax', 'so', 'd', 'l', 's', 'e', 'r', 'p', 'ho', 'rf', 'kr', 'kf', 'ks', 'jg', 'v', 'g', 'sort', 'mc', 'job'];
 
 let S = structuredClone(DEFAULTS);
 let companies = [];
@@ -212,6 +212,8 @@ function parseHash(hash = location.hash) {
   }
   if (!['chart', 'map', 'insights'].includes(st.m)) st.m = 'chart';
   if (!['any', 'remote', 'onsite'].includes(st.r)) st.r = 'any';
+  if (!['pay', 'juice'].includes(st.mc)) st.mc = DEFAULTS.mc; // D-14: the map's Pay|Juice colouring
+  if (!SORTS.includes(st.sort)) st.sort = DEFAULTS.sort; // D-12: an old or hand-edited sort= shows as Highest pay
   if (!VIEWS.includes(st.v)) st.v = DEFAULT_VIEW;
   if (!p.has('g') || !['department', 'location', 'seniority', 'none'].includes(st.g)) st.g = groupDefault(st.v);
   if (st.p === 0) st.p = 0;
@@ -220,6 +222,15 @@ function parseHash(hash = location.hash) {
 
 /** Clusters need a grouping (department); ranges read best ungrouped. */
 const groupDefault = (view) => (view === 'ranges' ? 'none' : 'department');
+const SORTS = ['salary-desc', 'salary-asc', 'newest', 'title', 'juice'];
+/* D-11: "Newest" needs listing dates; with none loaded (every snapshot board today) it is hidden and
+   a newest link sorts like the default, as the "Listed" filter hides itself. */
+let agesFor = null, agesKnown = false;
+function hasListingDates() {
+  if (agesFor !== data.jobs) { agesFor = data.jobs; agesKnown = data.jobs.some((j) => j._age != null); }
+  return agesKnown;
+}
+const effectiveSort = () => (S.sort === 'newest' && data.status === 'ready' && !hasListingDates() ? DEFAULTS.sort : S.sort);
 
 function serialize(st = S) {
   const p = new URLSearchParams();
@@ -321,12 +332,43 @@ function activeFilterCount(st = S) {
 /* ------------------------------------------------------------------ data */
 
 const locKey = (l) => (l.remote ? l.name || 'Remote' : l.city || l.name || 'Unknown');
+/* D-16: a bare city key is kept unless it is ambiguous: two places on the board share the name
+   (Cambridge, MA / Cambridge, England), or the name alone reads as something else ("Washington" is
+   Washington, DC, not the state). Those get ", <region or country>". Run once per loaded board. */
+const AMBIGUOUS_CITIES = new Set(['Washington']);
+function disambiguateLocations(jobs) {
+  const places = new Map(); // bare key -> Set of "region|country"
+  for (const j of jobs) for (const l of j.locations) {
+    if (l.remote || !l.city) continue;
+    const k = locKey(l);
+    if (!places.has(k)) places.set(k, new Set());
+    places.get(k).add(`${l.region || ''}|${l.country || ''}`);
+  }
+  const clash = new Set([...places].filter(([k, v]) => v.size > 1 || AMBIGUOUS_CITIES.has(k)).map(([k]) => k));
+  if (!clash.size) return;
+  for (const j of jobs) {
+    let changed = false;
+    const keys = j.locations.map((l, i) => {
+      const k = j._locKeys[i];
+      if (l.remote || !l.city || !clash.has(k)) return k;
+      const tag = l.region || l.country;
+      if (!tag) return k;
+      changed = true;
+      return `${k}, ${tag}`;
+    });
+    if (changed) { j._locAlt = j._locKeys; j._locKeys = keys; } // _locAlt: old bare-city links (l=Washington) still match
+  }
+}
 const deptKey = (j) => keyOf(j, 'department'); // same keys the chart colors by
 const empKey = (j) => j.employmentType || 'Unspecified';
 
-function prepare(jobs) {
+function prepare(jobs, { source = null } = {}) {
   for (const j of jobs) {
     j.locations = Array.isArray(j.locations) ? j.locations : [];
+    // D-4: Ashby's isRemote flag sits on on-site-only roles (OpenAI 502 of 833, Cohere 120 of 132).
+    // Saved snapshots no longer carry workplaceType, so for Ashby boards a role is remote when one of
+    // its locations is (server/sources/ashby.js now adds a "Remote" location for workplaceType Remote).
+    if (source === 'ashby') j.remote = j.locations.some((l) => l && l.remote);
     j.keywords = { responsibilities: [], fit: [], skills: [], ...(j.keywords || {}) };
     j.sections = { responsibilities: [], fit: [], ...(j.sections || {}) };
     if (j.salary && j.salary.min == null && j.salary.max == null) j.salary = null;
@@ -375,7 +417,7 @@ function failures(j, F, now) {
   const salActive = F.so || F.smin != null || F.smax != null;
   if (salActive && (!j._usd || (F.smin != null && j._usd.max < F.smin) || (F.smax != null && j._usd.min > F.smax))) out.push('sal');
   if (F.d.size && !F.d.has(deptKey(j))) out.push('d');
-  if (F.l.size && !j._locKeys.some((k) => F.l.has(k))) out.push('l');
+  if (F.l.size && !j._locKeys.some((k) => F.l.has(k)) && !j._locAlt?.some((k) => F.l.has(k))) out.push('l');
   if (F.s.size && !F.s.has(j.seniority || 'Unspecified')) out.push('s');
   if (F.e.size && !F.e.has(empKey(j))) out.push('e');
   if (F.r === 'remote' && !j.remote) out.push('r');
@@ -407,9 +449,11 @@ function derive() {
     const fails = failures(j, F, now);
     if (fails.length > 1) continue;
     const only = fails[0];
+    if (!only) filtered.push(j); // the chart/map draw the whole filtered set; a cluster/map area narrows the list in render()
+    // D-2: with a cluster or map area active, the facet counts describe the roles in that area (the list).
+    if (area && !area.ids.has(j.id)) continue;
     const counts = (facet) => !only || only === facet;
     if (!only) {
-      filtered.push(j);
       for (const cat of ['responsibilities', 'fit', 'skills']) for (const k of j.keywords[cat]) bump(fc.kw[cat], k);
     }
     if (counts('d')) bump(fc.d, deptKey(j));
@@ -461,7 +505,7 @@ function salaryDomain() {
 function sortJobs(list) {
   const out = list.slice();
   const nullsLast = (a, b, f) => (a == null || b == null ? (a == null) - (b == null) : f());
-  switch (S.sort) {
+  switch (effectiveSort()) {
     case 'salary-asc': out.sort((a, b) => nullsLast(a._usd, b._usd, () => a._usd.mid - b._usd.mid || a.title.localeCompare(b.title))); break;
     case 'newest': out.sort((a, b) => nullsLast(a._age, b._age, () => a._age - b._age || a.title.localeCompare(b.title))); break;
     case 'title': out.sort((a, b) => a.title.localeCompare(b.title)); break;
@@ -516,11 +560,13 @@ async function loadJobs({ refresh = false } = {}) {
     // Mobile perf (docs/process/perf-mobile.md): prepare() is per job, so big boards are
     // prepared in chunks that yield, instead of one 0.4 s task on a phone.
     const jobs = Array.isArray(res?.jobs) ? res.jobs : [];
+    const source = res?.company?.source || companyInfo(S.c)?.source || null;
     for (let i = 0; i < jobs.length; i += PREPARE_CHUNK) {
-      prepare(jobs.slice(i, i + PREPARE_CHUNK));
+      prepare(jobs.slice(i, i + PREPARE_CHUNK), { source });
       await yieldTask();
       if (seq !== loadSeq) return;
     }
+    disambiguateLocations(jobs);
     dataSeq++;
     rememberCompany(S.c);
     data = {
@@ -848,6 +894,25 @@ function savedNewCount(x) {
   const ids = new Set(matchingIds(x.hash, jobs));
   return jobs.filter((j) => ids.has(j.id) && isNewSince(j, x.lastSeenAt, seen)).length;
 }
+/* D-10: "N new" needs the saved company's roles. The menu fetches the boards of saved searches
+   that haven't loaded this session (one request each, at most once), then re-counts in place. */
+const savedFetches = new Set();
+function prefetchSaved() {
+  if (MOCK) return;
+  for (const slug of new Set(loadSaved().map((x) => parseHash(`#${x.hash}`).c).filter(Boolean))) {
+    if (jobCache.has(slug) || savedFetches.has(slug)) continue;
+    savedFetches.add(slug);
+    (async () => {
+      const res = await dataApi.getJobs(jobsQuery(slug));
+      const jobs = Array.isArray(res?.jobs) ? res.jobs : [];
+      const source = res?.company?.source || companyInfo(slug)?.source || null;
+      for (let i = 0; i < jobs.length; i += PREPARE_CHUNK) { prepare(jobs.slice(i, i + PREPARE_CHUNK), { source }); await yieldTask(); }
+      disambiguateLocations(jobs);
+      if (!jobCache.has(slug)) jobCache.set(slug, jobs);
+      if (popover.id === 'company') syncPopover();
+    })().catch(() => { /* offline: the badge just stays off */ });
+  }
+}
 function openSaved(x) {
   closePopover(false);
   const list = loadSaved();
@@ -971,9 +1036,11 @@ function makeSalary({ compact = false } = {}) {
   const hi = h('input', { type: 'range', class: 'range range--hi', 'aria-label': 'Maximum salary', step: 5000 });
   const fill = h('div', { class: 'range-fill' });
   const track = h('div', { class: 'range-wrap' }, h('div', { class: 'range-track' }), fill, lo, hi);
-  const minOut = h('output', { class: 'range-val' });
-  const maxOut = h('output', { class: 'range-val' });
-  const vals = h('div', { class: 'range-vals' }, h('div', null, h('span', null, 'Min'), minOut), h('span', { class: 'range-dash' }, '–'), h('div', null, h('span', null, 'Max'), maxOut));
+  // D-13: the Min/Max boxes take a typed bound ("250k", "$300,000", "any"), committed on change/Enter.
+  const valInput = (label) => h('input', { type: 'text', class: 'range-val', inputmode: 'numeric', autocomplete: 'off', spellcheck: 'false', 'aria-label': label });
+  const minOut = valInput('Minimum salary, approx USD per year');
+  const maxOut = valInput('Maximum salary, approx USD per year');
+  const vals = h('div', { class: 'range-vals' }, h('label', null, h('span', null, 'Min'), minOut), h('span', { class: 'range-dash' }, '–'), h('label', null, h('span', null, 'Max'), maxOut));
   const toggle = h('input', { type: 'checkbox', role: 'switch', class: 'switch' });
   const toggleRow = h('label', { class: 'switch-row' }, h('span', null, 'Only show jobs with salary'), toggle);
   const note = h('p', { class: 'fnote' });
@@ -985,8 +1052,8 @@ function makeSalary({ compact = false } = {}) {
   const onInput = (which) => () => {
     let a = Number(lo.value), b = Number(hi.value);
     if (a > b) { if (which === 'lo') { a = b; lo.value = a; } else { b = a; hi.value = b; } }
-    paint();
     set({ smin: a <= dom.lo ? null : a, smax: b >= dom.hi ? null : b }, { replace: true });
+    paint(true);
   };
   lo.addEventListener('input', onInput('lo'));
   hi.addEventListener('input', onInput('hi'));
@@ -994,18 +1061,49 @@ function makeSalary({ compact = false } = {}) {
   const settle = () => { lastHash = '__dirty'; commit(); };
   lo.addEventListener('change', settle);
   hi.addEventListener('change', settle);
+  /** "250k" / "$1.2M" / "300,000" -> 250000 / 1200000 / 300000; "" or "any" -> null; junk -> undefined. */
+  const parseBound = (txt) => {
+    const t = String(txt).trim().toLowerCase().replace(/[$,\s]|usd/g, '');
+    if (!t || t === 'any') return null;
+    const m = t.match(/^(\d+(?:\.\d+)?)(k|m)?$/);
+    if (!m) return undefined;
+    return Math.round(Number(m[1]) * (m[2] === 'm' ? 1e6 : m[2] === 'k' ? 1e3 : 1));
+  };
+  const typed = (which) => () => {
+    if (!dom) return;
+    const v = parseBound((which === 'lo' ? minOut : maxOut).value);
+    if (v === undefined) { paint(true); return; } // not a number: show the current bound again
+    let a = S.smin, b = S.smax;
+    const c = v == null ? null : Math.min(dom.hi, Math.max(dom.lo, v)); // clamped to the slider's domain
+    if (which === 'lo') { a = c == null || c <= dom.lo ? null : c; if (a != null && b != null && a > b) b = a; }
+    else { b = c == null || c >= dom.hi ? null : c; if (a != null && b != null && b < a) a = b; }
+    lo.value = a ?? dom.lo; hi.value = b ?? dom.hi;
+    set({ smin: a, smax: b });
+    paint(true);
+  };
+  for (const [inp, which] of [[minOut, 'lo'], [maxOut, 'hi']]) {
+    inp.addEventListener('change', typed(which));
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); typed(which)(); } });
+    inp.addEventListener('focus', () => inp.select());
+  }
   toggle.addEventListener('change', () => set({ so: toggle.checked }));
 
-  function paint() {
+  function paint(force = false) {
     if (!dom) return;
     const a = Number(lo.value), b = Number(hi.value);
     const pct = (v) => ((v - dom.lo) / (dom.hi - dom.lo)) * 100;
     fill.style.left = `${pct(a)}%`;
     fill.style.right = `${100 - pct(b)}%`;
-    minOut.textContent = a <= dom.lo ? 'Any' : money(a);
-    maxOut.textContent = b >= dom.hi ? 'Any' : money(b);
-    lo.setAttribute('aria-valuetext', minOut.textContent);
-    hi.setAttribute('aria-valuetext', maxOut.textContent);
+    // D-3: once the min thumb is in the right half it goes on top, so a min thumb pushed to the
+    // right end (both thumbs together) can still be dragged back; otherwise max stays on top.
+    lo.classList.toggle('is-top', pct(a) > 50);
+    // The text follows the state, so a typed bound stays exact (the slider snaps to $5K).
+    const minShow = S.smin == null ? 'Any' : money(S.smin);
+    const maxShow = S.smax == null ? 'Any' : money(S.smax);
+    if (force || document.activeElement !== minOut) minOut.value = minShow;
+    if (force || document.activeElement !== maxOut) maxOut.value = maxShow;
+    lo.setAttribute('aria-valuetext', minShow);
+    hi.setAttribute('aria-valuetext', maxShow);
     bins.forEach((bar, i) => {
       const x0 = dom.lo + (i / bins.length) * (dom.hi - dom.lo);
       const x1 = dom.lo + ((i + 1) / bins.length) * (dom.hi - dom.lo);
@@ -1310,6 +1408,7 @@ function togglePopover(id, anchor) {
   el.hidden = false;
   anchor?.setAttribute('aria-expanded', 'true');
   overlayHistPush(id);
+  if (id === 'company') prefetchSaved();
   syncPopover();
   positionPopover();
   requestAnimationFrame(() => [...el.querySelectorAll('.pop-body input:not([type=range]), .pop-body button.kw, .pop-body select, .pop-body .range, .pop-body button:not(.icon-btn), .pop-body label.check input')]
@@ -1465,6 +1564,8 @@ function ensureViz() {
       map = createMap($('#mapHost'), {
         onSelect: (job) => job && openDrawer(job.id),
         onAreaSelect: (jobs, label) => setArea('map', jobs, label),
+        colorMode: S.mc,
+        onColorModeChange: (mode) => set({ mc: mode }), // D-14: kept in the hash like the other view settings
       });
     }
     vizError = null;
@@ -1600,15 +1701,15 @@ function renderViz() {
     return;
   }
   if (S.m === 'map' && wasHidden) { try { map.invalidateSize(); } catch { /* ignore */ } }
-  const sig = jobs.map((j) => j.id).join(',') + (S.m === 'chart' ? `|${S.v}|${S.g}` : '');
+  const sig = jobs.map((j) => j.id).join(',') + (S.m === 'chart' ? `|${S.v}|${S.g}` : `|${S.mc}`);
   if (vizSig[S.m] !== sig) {
     vizSig[S.m] = sig;
     try {
       if (S.m === 'chart') chart.update(jobs, { view: S.v, groupBy: S.g, colorBy: colorBy() });
       // Fit once per company load (map.js pads by half a pin, lowers minZoom as needed and
       // waits for a hidden container to be sized); plain updates keep the user's viewport.
-      else if (mapFitPending) { mapFitPending = false; map.update(jobs, { fit: true }); }
-      else map.update(jobs);
+      else if (mapFitPending) { mapFitPending = false; map.update(jobs, { fit: true, colorMode: S.mc }); }
+      else map.update(jobs, { colorMode: S.mc });
     } catch (err) { console.error('viz update failed', err); }
   }
   highlightViz();
@@ -1639,6 +1740,8 @@ function clearArea() {
   if (area?.kind === 'cluster') clearChartSelection();
   area = null;
 }
+/** D-7: a cluster only exists in one grouping and view; regrouping or switching view drops it. */
+function dropClusterArea() { if (area?.kind === 'cluster') clearArea(); }
 
 /** Narrow the results list to a map area or chart cluster (replaces any previous one). */
 function setArea(kind, jobs, label) {
@@ -1670,10 +1773,18 @@ function stateCard({ icon = null, title, body, action = null, tone = '' }) {
 
 /* --------------------------------------------------------------- results */
 
+let newestOpt = null;
 function renderResults() {
   const list = $('#resultsList');
   const title = $('#resultsTitle');
-  $('#sortBy').value = S.sort;
+  // D-11: "Newest" is only offered when some loaded role has a listing date (removed, not just hidden:
+  // a hidden <option> is still reachable by keyboard on some platforms).
+  const sortSel = $('#sortBy');
+  newestOpt ??= sortSel.querySelector('option[value="newest"]');
+  const dated = data.status !== 'ready' || hasListingDates();
+  if (dated && !newestOpt.isConnected) sortSel.querySelector('option[value="title"]').before(newestOpt);
+  else if (!dated && newestOpt.isConnected) newestOpt.remove();
+  sortSel.value = effectiveSort();
   if (data.status === 'loading' || data.status === 'idle') {
     title.textContent = 'Loading roles…';
     list.replaceChildren(...Array.from({ length: 7 }, () => h('li', { class: 'card card--sk', 'aria-hidden': 'true' },
@@ -2574,10 +2685,11 @@ function bindEvents() {
   $('#refreshBtn').addEventListener('click', () => loadJobs({ refresh: true }));
   $('#themeBtn').addEventListener('click', cycleTheme);
   renderThemeBtn();
-  $('#groupBy').addEventListener('change', (e) => set({ g: e.target.value }));
+  $('#groupBy').addEventListener('change', (e) => { dropClusterArea(); set({ g: e.target.value }); });
   for (const b of document.querySelectorAll('[data-view]')) b.addEventListener('click', () => {
     const v = b.dataset.view;
     if (v === S.v) return;
+    dropClusterArea();
     // Keep an explicit grouping; otherwise follow the new view's default.
     set({ v, g: S.g === groupDefault(S.v) ? groupDefault(v) : S.g });
   });
@@ -2623,14 +2735,16 @@ function bindEvents() {
     const shortcutOk = !mod && !typing && (t === document.body || t === document.documentElement || t.closest?.('.card, .drawer-scroll') === t || t.id === 'drawer');
     if (e.key === '/' && shortcutOk) { e.preventDefault(); search.focus(); search.select(); return; }
     if ((e.key === 't' || e.key === 'T') && shortcutOk) { cycleTheme(); return; }
-    if (e.key === 'Escape' && e.target.closest?.('.ms-comps')) return; // V13: the comps list handles its own Escape
+    if (e.key === 'Escape' && e.defaultPrevented) return; // V13/D-8: a widget (the comps list) used this Esc for itself
     if (e.key === 'Escape') {
       if (popover.id) { closePopover(); return; }
       if (drawerJobId) { closeDrawer(); return; }
       if (document.body.classList.contains('filters-open')) { setFiltersOpen(false); return; }
       if (document.body.classList.contains('sheet-open')) { setSheet(false); return; }
     }
-    if (drawerJobId && shortcutOk && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'j' || e.key === 'k')) {
+    // D-6: the drawer opens with focus on its Back/close button, so its own nav buttons accept the step keys too.
+    const stepOk = shortcutOk || (!mod && !typing && !!t.closest?.('#drawerClose, #drawerPrev, #drawerNext'));
+    if (drawerJobId && stepOk && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'j' || e.key === 'k')) {
       stepDrawer(e.key === 'ArrowRight' || e.key === 'j' ? 1 : -1);
     }
     if (drawerJobId && e.key === 'Tab') trapFocus(e, $('#drawer'));
@@ -2671,6 +2785,7 @@ function onHashChange() {
   if (str === lastHash && str === serialize() && (S.job || null) === (drawerJobId || null)) return;
   lastHash = str;
   const companyChanged = next.c !== S.c;
+  if (next.g !== S.g || next.v !== S.v) dropClusterArea(); // D-7, also through Back/Forward
   S = next;
   resultsLimit = PAGE;
   if (companyChanged) { closeDrawer({ fromHash: true }); loadJobs(); return; }

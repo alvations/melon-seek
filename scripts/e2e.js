@@ -8,6 +8,7 @@ import { createSuite, loadPlaywright, findChromium, startServer, playwrightInfo 
 import { registerApiTests } from '../test/e2e/api.e2e.js';
 import { registerUiTests } from '../test/e2e/ui.e2e.js';
 import { registerMobileQaTests } from '../test/e2e/mobile-qa.e2e.js';
+import { registerDesktopQaTests } from '../test/e2e/desktop-qa.e2e.js';
 
 const args = new Set(process.argv.slice(2));
 const apiOnly = args.has('--api-only');
@@ -41,6 +42,7 @@ if (!apiOnly) {
   console.log(`e2e: chromium ${browser.version()} (${executablePath || 'playwright default'})`);
   registerUiTests(suite);
   registerMobileQaTests(suite);
+  registerDesktopQaTests(suite);
 }
 
 let results;

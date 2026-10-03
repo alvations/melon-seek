@@ -7,7 +7,7 @@ import zlib from 'node:zlib';
 import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
 
-import { listCompanies, resolveCompany, defaultName } from './companies.js';
+import { listCompanies, resolveCompany, defaultName, getCompany } from './companies.js';
 import { NORMALIZER_VERSION } from './normalize.js';
 import { vetSalaries } from './vet.js';
 import { getCached, setCached, ROOT } from './cache.js';
@@ -741,6 +741,24 @@ function parseTarget(target) {
   }
 }
 
+const escHtml = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+/** Server-mode share page (D-15). The static build writes richer ones (og tags, counts): scripts/build-static.js#sharePage. */
+function sharePage(company) {
+  const target = `/#c=${encodeURIComponent(company.slug)}`;
+  const name = escHtml(company.name);
+  return '<!doctype html>\n<html lang="en">\n<head>\n  <meta charset="utf-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1">\n' +
+    `  <title>${name} jobs by salary — melon·seek</title>\n  <link rel="icon" href="/favicon.svg" type="image/svg+xml">\n` +
+    `  <script src="/c/share-redirect.js" data-target="${escHtml(target)}"></script>\n</head>\n<body>\n` +
+    `  <p><a href="${escHtml(target)}">${name} jobs on melon·seek</a></p>\n</body>\n</html>\n`;
+}
+// Same behaviour as the static build's c/share-redirect.js (an external file: CSP script-src 'self').
+const SHARE_REDIRECT_JS = `(function () {
+  var s = document.currentScript;
+  var t = s && s.getAttribute('data-target');
+  if (t) location.replace(t + (location.hash.length > 1 ? '&' + location.hash.slice(1) : ''));
+})();
+`;
+
 export async function handle(req, res) {
   const url = parseTarget(req.url);
   if (!url) return sendJson(req, res, 400, { error: 'Bad request' });
@@ -816,6 +834,17 @@ export async function handle(req, res) {
     const file = safeJoin(SERVER_DIR, rel); // belt and braces: the allowlist already excludes traversal
     if (!file) return sendJson(req, res, 404, { error: 'Not found' });
     return serveFile(req, res, file);
+  }
+  // D-15: share links (/c/<slug>/) work in server mode too, like the static build's share pages:
+  // a tiny page that sends people on to /#c=<slug>, keeping extra view state (#m=map -> &m=map).
+  if (p === '/c/share-redirect.js') return send(req, res, 200, SHARE_REDIRECT_JS, 'text/javascript; charset=utf-8');
+  {
+    const m = p.match(/^\/c\/([a-z0-9][a-z0-9_-]{0,63})(\/?)$/i);
+    const company = m && getCompany(m[1]);
+    if (company) {
+      if (!m[2]) { res.writeHead(301, { Location: `/c/${encodeURIComponent(company.slug)}/` }); return res.end(); }
+      return send(req, res, 200, sharePage(company), 'text/html; charset=utf-8');
+    }
   }
   // The Juice methodology page (docs/LIVABILITY.md), rendered like the static
   // build does, so the in-app "How it's calculated" link works in server mode too.

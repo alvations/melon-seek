@@ -78,7 +78,8 @@ export function aggregate(jobs) {
       p.locNames.get(job.id).add(norm(l.name || locLabel(l)));
       placed = true;
     }
-    if (isRemote || (!placed && job.remote)) remote.push(job);
+    // D-4: the Remote bucket is exactly the Remote filter (job.remote), also for roles that have a pin.
+    if (isRemote || job.remote) remote.push(job);
   }
   return { places: [...places.values()], remote };
 }

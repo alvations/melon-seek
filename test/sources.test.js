@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { fetchGreenhouse, greenhouseUrl } from '../server/sources/greenhouse.js';
-import { fetchAshby } from '../server/sources/ashby.js';
+import { fetchAshby, mapAshbyJob } from '../server/sources/ashby.js';
 import { fetchLever } from '../server/sources/lever.js';
 import { decodeHtmlContent, htmlToText } from '../server/sources/util.js';
 import { resolveCompany, listCompanies } from '../server/companies.js';
@@ -114,6 +114,23 @@ test('ashby adapter maps jobs, skips unlisted, builds salary', async () => {
   assert.equal(toJobSalary(intern.salary).min, 124800);
   assert.equal(se.salary, null, 'no structured salary');
   assert.equal(parseSalary(se.text).currency, 'GBP');
+});
+
+test('ashby remote: workplaceType Remote or a remote location, never isRemote alone (D-4)', () => {
+  const base = { id: '1', title: 'Software Engineer', location: 'San Francisco, CA', secondaryLocations: [], descriptionHtml: '' };
+  // OpenAI-style: isRemote true next to an on-site-only location is not a remote role.
+  assert.equal(mapAshbyJob({ ...base, isRemote: true, workplaceType: 'OnSite' }).remote, false);
+  assert.equal(mapAshbyJob({ ...base, isRemote: true }).remote, null, 'no workplaceType: the locations decide (normalize)');
+  // workplaceType Remote counts, and gets a "Remote" location so facet, map and filter agree.
+  const wp = mapAshbyJob({ ...base, isRemote: false, workplaceType: 'Remote' });
+  assert.equal(wp.remote, true);
+  assert.deepEqual(wp.extraLocations, ['Remote']);
+  // A remote location string counts on its own and adds nothing.
+  const loc = mapAshbyJob({ ...base, location: 'Remote - US', isRemote: true });
+  assert.equal(loc.remote, true);
+  assert.deepEqual(loc.extraLocations, []);
+  assert.equal(mapAshbyJob({ ...base, isRemote: false }).remote, false);
+  assert.equal(mapAshbyJob({ ...base, workplaceType: 'Hybrid' }).remote, false);
 });
 
 test('lever adapter combines lists and maps salaryRange', async () => {
