@@ -524,3 +524,16 @@ screenshots in `docs/screenshots/`.
   re-baselined the golden test; added scripts/external-links.js and a ci.yml
   `links` job (site URLs blocking, job Apply URLs advisory). Lead verified:
   npm test 294/294, e2e 56/56, all workflows parse.
+- 2026-10-03: user: "run a proper QA test on all the functionality on the
+  desktop site and also the mobile and fix all the issues; check the timing
+  and resource use on mobile and optimize". Launched three agents in
+  parallel:
+  - desktop QA (prompts/qa-desktop.md): every feature in static and server
+    mode, bugs D-n;
+  - mobile QA (prompts/qa-mobile.md): every feature with touch emulation at 4
+    sizes, bugs M-n;
+  - mobile perf engineer (prompts/perf-mobile.md): timing, heap, requests,
+    idle CPU and leaks; optimize the Anduril load long task (it owns
+    api.js and build-static.js).
+  The QA agents don't edit product code; the lead routes fixes by file owner
+  afterwards to avoid collisions.
