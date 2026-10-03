@@ -57,10 +57,10 @@ const COMPRESSIBLE = /^(text\/|application\/(json|javascript|manifest\+json)|ima
 export const CSP = [
   "default-src 'self'",
   "script-src 'self'",
-  "style-src 'self' https://fonts.googleapis.com",
-  "style-src-elem 'self' https://fonts.googleapis.com",
+  "style-src 'self'",
+  "style-src-elem 'self'",
   "style-src-attr 'unsafe-inline'",
-  "font-src 'self' https://fonts.gstatic.com",
+  "font-src 'self'", // Inter is self-hosted (public/fonts/)
   "img-src 'self' data: https://*.basemaps.cartocdn.com https://tile.openstreetmap.org https://*.tile.openstreetmap.org",
   // Tile hosts too: viz/map.js re-reads the first tile with fetch() to check its HTTP status.
   "connect-src 'self' https://boards-api.greenhouse.io https://api.ashbyhq.com https://api.lever.co https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com",

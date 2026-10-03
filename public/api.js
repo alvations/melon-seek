@@ -470,7 +470,7 @@ async function bundled(path, signal, refresh = false) {
   }
 }
 
-async function staticJobs(p, { refresh = false, signal } = {}) {
+async function staticJobs(p, { refresh = false, signal, onUpgrade = null } = {}) {
   const lib = await loadLib();
 
   let company;
@@ -500,53 +500,91 @@ async function staticJobs(p, { refresh = false, signal } = {}) {
     return { company: pub, mode: 'cache', fetchedAt: cached.fetchedAt, error: null, jobs: cached.jobs, meta: cached.meta };
   }
 
-  // 1. Live, from the browser.
+  // 1. Live, from the browser. For built-ins (not on refresh) the bundled list is fetched at the
+  //    same time: whichever arrives first is shown, and a live result that lands after the bundle
+  //    is handed to onUpgrade, so a big live board (Anduril: 33 MB) never blocks the first chart.
   let error = null;
   let quiet = false; // expected CORS failure: serve the snapshot without an error
   const allowed = liveSources().includes(company.source);
   if (refresh) blockedSources.delete(company.source);
+  let livePending = null;
   if (!allowed) {
     error = `Live fetch skipped: ${company.source} does not allow cross-origin requests from this site (static deploy)`;
   } else if (blockedSources.has(company.source)) {
     error = `Live fetch skipped: ${company.source} was unreachable from this browser earlier in this session (blocked by CORS or the network); use refresh to retry`;
     quiet = quietCorsSources().includes(company.source);
   } else {
-    try {
-      const { jobs: raw, live } = await fetchLiveInBrowser(lib, company, signal);
-      const fetchedAt = new Date().toISOString();
-      // F4: built-ins merge the bundled ledger (api/history) and reuse the
-      // build's meta (compstimate backtest, ledger since/runs).
-      const [compact, meta] = builtin ? await Promise.all([compactHistory(slug), bundledMeta(slug)]) : [null, null];
-      const jobs = annotateHistory(live, raw, compact, fetchedAt);
-      const m = meta || noMeta();
-      memCache.set(slug, { jobs, fetchedAt, at: Date.now(), meta: m });
-      return { company: pub, mode: 'live', fetchedAt, error: null, jobs, meta: m };
-    } catch (err) {
-      if (err && err.name === 'AbortError') throw err;
-      if (err && err.network) {
-        blockedSources.add(company.source);
-        quiet = quietCorsSources().includes(company.source);
+    // Resolves { ok } or { error, quiet }; rejects only on abort.
+    livePending = (async () => {
+      try {
+        const { jobs: raw, live } = await fetchLiveInBrowser(lib, company, signal);
+        const fetchedAt = new Date().toISOString();
+        // F4: built-ins merge the bundled ledger (api/history) and reuse the
+        // build's meta (compstimate backtest, ledger since/runs).
+        const [compact, meta] = builtin ? await Promise.all([compactHistory(slug), bundledMeta(slug)]) : [null, null];
+        const jobs = annotateHistory(live, raw, compact, fetchedAt);
+        const m = meta || noMeta();
+        memCache.set(slug, { jobs, fetchedAt, at: Date.now(), meta: m });
+        return { ok: { company: pub, mode: 'live', fetchedAt, error: null, jobs, meta: m } };
+      } catch (err) {
+        if (err && err.name === 'AbortError') throw err;
+        let q = false;
+        if (err && err.network) {
+          blockedSources.add(company.source);
+          q = quietCorsSources().includes(company.source);
+        }
+        return { error: `Live fetch failed: ${err && err.message ? err.message : String(err)}`, quiet: q };
       }
-      error = `Live fetch failed: ${err && err.message ? err.message : String(err)}`;
+    })();
+  }
+
+  // 3. (fetched now, used below) Bundled snapshot (or build-time demo) and bundled demo, built-ins only.
+  const bundlePending = builtin && !cached && (!livePending || !refresh)
+    ? (async () => {
+      for (const path of [`api/jobs/${encodeURIComponent(slug)}.json`, `api/demo/${encodeURIComponent(slug)}.json`]) {
+        const body = await bundled(path, signal, refresh);
+        if (body) return body;
+      }
+      return null;
+    })()
+    : null;
+  if (bundlePending) bundlePending.catch(() => {}); // an abort is rethrown where it is awaited
+  const fromBundle = (body) => {
+    const mode = body.mode === 'snapshot' ? 'snapshot' : 'demo';
+    const meta = body.meta || noMeta();
+    if (mode === 'snapshot' && quiet) {
+      return { company: pub, mode, fetchedAt: body.fetchedAt || null, error: null, jobs: body.jobs, meta };
     }
+    const note = body.error && mode === 'demo' ? body.error : null;
+    return { company: pub, mode, fetchedAt: body.fetchedAt || null, error: [error, note].filter(Boolean).join('; ') || null, jobs: body.jobs, meta };
+  };
+
+  if (livePending) {
+    if (bundlePending) {
+      const first = await Promise.race([livePending.then((r) => ({ r })), bundlePending.then((b) => ({ b }))]);
+      if (!first.r && first.b) {
+        // Bundle first: show it now; the live board replaces it if it arrives.
+        livePending.then((r) => { if (r.ok && onUpgrade && !(signal && signal.aborted)) onUpgrade(r.ok); }).catch(() => {});
+        return fromBundle(first.b);
+      }
+    }
+    const r = await livePending;
+    if (r.ok) return r.ok;
+    error = r.error;
+    quiet = r.quiet;
   }
 
   // 2. Earlier live result from this session, even if stale.
   if (cached) return { company: pub, mode: 'cache', fetchedAt: cached.fetchedAt, error, jobs: cached.jobs, meta: cached.meta };
 
-  // 3. Bundled snapshot (or build-time demo) and bundled demo, built-ins only.
-  if (builtin) {
+  // 3. The bundled list.
+  if (bundlePending) {
+    const body = await bundlePending;
+    if (body) return fromBundle(body);
+  } else if (builtin) {
     for (const path of [`api/jobs/${encodeURIComponent(slug)}.json`, `api/demo/${encodeURIComponent(slug)}.json`]) {
       const body = await bundled(path, signal, refresh);
-      if (body) {
-        const mode = body.mode === 'snapshot' ? 'snapshot' : 'demo';
-        const meta = body.meta || noMeta();
-        if (mode === 'snapshot' && quiet) {
-          return { company: pub, mode, fetchedAt: body.fetchedAt || null, error: null, jobs: body.jobs, meta };
-        }
-        const note = body.error && mode === 'demo' ? body.error : null;
-        return { company: pub, mode, fetchedAt: body.fetchedAt || null, error: [error, note].filter(Boolean).join('; ') || null, jobs: body.jobs, meta };
-      }
+      if (body) return fromBundle(body);
     }
   }
 
@@ -660,24 +698,33 @@ async function withJuice(res, inputs) {
  * @param params {company} | {source, board, name?} | URLSearchParams | slug string
  * @param opts   {refresh?: boolean, signal?: AbortSignal}
  */
-export async function getJobs(params, { refresh = false, signal } = {}) {
+export async function getJobs(params, { refresh = false, signal, onUpdate = null } = {}) {
   const p = toParams(params);
   const r = refresh || truthy(p.refresh);
   const inputs = juiceInputs({ refresh: r });
   let res;
   if (isStatic()) {
-    res = await staticJobs(p, { refresh: r, signal });
-    if (finished.has(res.jobs)) return res; // bundled list from memory, vetted and juiced already
-    const raw = res.jobs;
-    // Salary gate first (bundled lists were vetted at build time; it is
-    // idempotent, and live/in-browser-demo jobs need it).
-    const lib = await loadLib();
-    if (lib.vetSalaries && Array.isArray(res.jobs)) {
-      await yieldToMain();
-      res = { ...res, jobs: lib.vetSalaries(res.jobs) };
-    }
-    if (await withJuice(res, inputs)) rememberBundle(raw, res.jobs);
-    return res;
+    // Vet + juice a static result (bundled lists from memory are done already).
+    const finish = async (out) => {
+      if (finished.has(out.jobs)) return out;
+      const raw = out.jobs;
+      // Salary gate first (bundled lists were vetted at build time; it is
+      // idempotent, and live/in-browser-demo jobs need it).
+      const lib = await loadLib();
+      if (lib.vetSalaries && Array.isArray(out.jobs)) {
+        await yieldToMain();
+        out = { ...out, jobs: lib.vetSalaries(out.jobs) };
+      }
+      if (await withJuice(out, inputs)) rememberBundle(raw, out.jobs);
+      return out;
+    };
+    // A live board that lands after the bundled list was shown: finished the same way, then
+    // passed to onUpdate (static mode only; see staticJobs step 1).
+    const onUpgrade = typeof onUpdate === 'function'
+      ? (live) => { finish(live).then((done) => { if (!(signal && signal.aborted)) onUpdate(done); }).catch(() => {}); }
+      : null;
+    res = await staticJobs(p, { refresh: r, signal, onUpgrade });
+    return finish(res);
   }
   res = await getJson(`api/jobs?${jobsQuery(p, r)}`, { signal }); // vetted by the server
   await withJuice(res, inputs);

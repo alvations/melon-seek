@@ -55,7 +55,8 @@ test('the policy catches violations (negative cases)', () => {
   assert.equal(t('a.html', '<a href="https://raw.githubusercontent.com/x/y">x</a>').length, 1);
   assert.equal(t('a.html', '<a href="https://tracker.io/">x</a>').length, 1);
   assert.equal(t('a.js', "// see https://github.com/foo (a comment, not a link)").length, 0);
-  assert.equal(t('a.html', '<a href="https://jobs.lever.co/acme/1">apply</a><link href="https://fonts.googleapis.com/css2">').length, 0);
+  assert.equal(t('a.html', '<a href="https://jobs.lever.co/acme/1">apply</a>').length, 0);
+  assert.equal(t('a.html', '<link href="https://fonts.googleapis.com/css2">').length, 1, 'fonts are self-hosted');
   // Relative links that don't resolve, or anchors that don't exist, fail in dist.
   const bad = path.join(TMP, 'bad');
   fs.mkdirSync(path.join(bad, 'methodology'), { recursive: true });

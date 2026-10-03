@@ -555,30 +555,12 @@ async function loadJobs({ refresh = false } = {}) {
   data = { status: 'loading', jobs: [], company: companyInfo(S.c), mode: null, fetchedAt: null, error: null };
   render();
   try {
-    const res = await dataApi.getJobs(jobsQuery(S.c), { refresh, signal: abortCtl.signal });
+    // Static mode shows the bundled list as soon as it lands and fetches the live board at the same
+    // time; onUpdate swaps the live jobs in when they arrive (api.js staticJobs step 1).
+    const onUpdate = (live) => { if (seq === loadSeq) applyJobs(live, seq, { upgrade: true }); };
+    const res = await dataApi.getJobs(jobsQuery(S.c), { refresh, signal: abortCtl.signal, onUpdate });
     if (seq !== loadSeq) return;
-    // Mobile perf (docs/process/perf-mobile.md): prepare() is per job, so big boards are
-    // prepared in chunks that yield, instead of one 0.4 s task on a phone.
-    const jobs = Array.isArray(res?.jobs) ? res.jobs : [];
-    const source = res?.company?.source || companyInfo(S.c)?.source || null;
-    for (let i = 0; i < jobs.length; i += PREPARE_CHUNK) {
-      prepare(jobs.slice(i, i + PREPARE_CHUNK), { source });
-      await yieldTask();
-      if (seq !== loadSeq) return;
-    }
-    disambiguateLocations(jobs);
-    dataSeq++;
-    rememberCompany(S.c);
-    data = {
-      status: 'ready',
-      jobs,
-      company: { ...companyInfo(S.c), ...(res?.company || {}) },
-      mode: res?.mode || 'live',
-      fetchedAt: res?.fetchedAt ? Date.parse(res.fetchedAt) : null,
-      error: res?.error || null,
-      meta: res?.meta || null,
-    };
-    markVisit(S.c, data.jobs);
+    if (!(await applyJobs(res, seq))) return;
     if (refresh) toast(data.mode === 'live' ? 'Fetched fresh from the live board' : 'Live board unreachable — showing fallback data');
   } catch (err) {
     if (err?.name === 'AbortError' || seq !== loadSeq) return;
@@ -587,6 +569,39 @@ async function loadJobs({ refresh = false } = {}) {
   settleCarry();
   render();
   if (S.job) openDrawer(S.job, { fromHash: true });
+}
+
+/** Prepare a getJobs result and make it the current data. false if a newer load took over. */
+async function applyJobs(res, seq, { upgrade = false } = {}) {
+  // Mobile perf (docs/process/perf-mobile.md): prepare() is per job, so big boards are
+  // prepared in chunks that yield, instead of one 0.4 s task on a phone.
+  const jobs = Array.isArray(res?.jobs) ? res.jobs : [];
+  const source = res?.company?.source || companyInfo(S.c)?.source || null;
+  for (let i = 0; i < jobs.length; i += PREPARE_CHUNK) {
+    prepare(jobs.slice(i, i + PREPARE_CHUNK), { source });
+    await yieldTask();
+    if (seq !== loadSeq) return false;
+  }
+  if (upgrade && (data.status !== 'ready' || data.mode === 'live')) return false;
+  disambiguateLocations(jobs);
+  dataSeq++;
+  rememberCompany(S.c);
+  data = {
+    status: 'ready',
+    jobs,
+    company: { ...companyInfo(S.c), ...(res?.company || {}) },
+    mode: res?.mode || 'live',
+    fetchedAt: res?.fetchedAt ? Date.parse(res.fetchedAt) : null,
+    error: res?.error || null,
+    meta: res?.meta || null,
+  };
+  markVisit(S.c, data.jobs);
+  if (upgrade) {
+    // Same filters and view; the open job (if any) is re-resolved by id on render.
+    settleCarry();
+    render();
+  }
+  return true;
 }
 
 function companyInfo(key) {

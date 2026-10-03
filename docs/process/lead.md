@@ -552,3 +552,20 @@ screenshots in `docs/screenshots/`.
 - Open user decisions:
   - live-first loading of huge boards (Anduril live is about 16 s to first chart on Fast 4G);
   - self-hosting the Inter font.
+
+### User decisions: "fetch both at once" and "self-host the Inter font" (2026-10-03)
+- **Parallel live + bundled fetch.**
+  - `public/api.js` `staticJobs`: for built-in boards (not on refresh), the live board and `api/jobs/<slug>.json` are fetched together. Whichever arrives first is shown.
+  - When the bundle wins, the live result is vetted and juiced the same way, then handed to `getJobs(…, { onUpdate })`.
+  - `public/app.js`: `loadJobs` → `applyJobs(res, seq, { upgrade: true })` swaps the live jobs in with the same filters and view. The swap is skipped if the user switched company, or live is already showing.
+  - A live failure after the bundle leaves the snapshot in place, with no error banner, since the user already has data. Refresh keeps the old order: live first, bundle only as fallback.
+  - Tests in `test/static-build.test.js`:
+    - bundle first, then live via onUpdate, with history and meta merged;
+    - live first returns directly, with no onUpdate;
+    - live fails after the bundle, with no onUpdate.
+  - Browser check (static build, 390px, live board delayed 2.5 s): "Snapshot" badge at 0.36 s, then "Live", no console errors.
+- **Self-hosted Inter.**
+  - Files: `public/fonts/inter-latin-wght-normal.woff2` (48 KB, preloaded) and `inter-latin-ext-wght-normal.woff2` (85 KB, loaded only when needed), from `npm pack @fontsource-variable/inter@5.3.0`, plus `Inter-LICENSE.txt` (OFL 1.1).
+  - `@font-face` is in `public/styles.css`, so the methodology page shares it. `public/og/card.html` uses the local file, and `scripts/build-og.mjs` no longer routes Google Fonts.
+  - Google Fonts was removed from the CSP (`style-src`, `font-src 'self'`) and from `scripts/links-policy.js` ALLOWED_HOSTS. Tests in `test/server.test.js` and `test/links-policy.test.js` now fail if it comes back.
+- Final: `npm test` 304/304, `node scripts/e2e.js` 86/86.

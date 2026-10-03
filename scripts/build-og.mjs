@@ -71,11 +71,7 @@ async function main() {
   });
   try {
     const page = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: 1, colorScheme: 'light' });
-    // Fetch web fonts from Node rather than Chromium: Node trusts the CAs in
-    // NODE_EXTRA_CA_CERTS (needed behind TLS-inspecting proxies), Chromium may not.
-    await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, async (route) => {
-      try { await route.fulfill({ response: await route.fetch() }); } catch { await route.abort(); }
-    });
+    // Inter is self-hosted (public/fonts/), so the card renders offline.
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     page.on('requestfailed', (r) => errors.push(`request failed: ${r.url()} (${r.failure() && r.failure().errorText})`));
@@ -85,7 +81,7 @@ async function main() {
       return ['500', '700', '800'].every((w) => document.fonts.check(`${w} 20px Inter`)) &&
         [...document.fonts].some((f) => f.family.replace(/"/g, '') === 'Inter' && f.status === 'loaded');
     });
-    if (!inter) console.warn('! Inter did not load (offline or blocked?); the card used the fallback font. Re-run with network access before committing.');
+    if (!inter) console.warn('! Inter did not load from public/fonts/; the card used the fallback font.');
     for (const e of errors) console.warn(`! ${e}`);
     // Nothing in the card may spill past the 1200x630 frame.
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth || document.documentElement.scrollHeight > innerHeight);

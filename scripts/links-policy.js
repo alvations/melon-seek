@@ -23,8 +23,7 @@ export const ALLOWED_HOSTS = Object.freeze([
   'job-boards.greenhouse.io', 'boards.greenhouse.io', 'jobs.ashbyhq.com', 'jobs.lever.co',
   // Map attribution
   'www.openstreetmap.org', 'openstreetmap.org',
-  // Google Fonts (stylesheet + preconnect)
-  'fonts.googleapis.com', 'fonts.gstatic.com',
+  // No font hosts: Inter is self-hosted (public/fonts/).
 ]);
 // IANA-reserved example domains (RFC 2606): used by dev mocks/demo data; they
 // can never be a real third-party site.

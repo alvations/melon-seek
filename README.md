@@ -304,7 +304,7 @@ and `test/links-policy.test.js` checks it too):
 - No link to github.com, raw.githubusercontent.com or the repo.
 - Absolute links only to the ATS job hosts (job-boards.greenhouse.io,
   boards.greenhouse.io, jobs.ashbyhq.com, jobs.lever.co), the OpenStreetMap
-  attribution, Google Fonts, or the site itself. The reserved `example.com`
+  attribution, or the site itself (fonts are self-hosted in `public/fonts/`). The reserved `example.com`
   is allowed for dev mocks.
 - Every relative link in `dist/` resolves to a file, and its `#anchor` exists.
 

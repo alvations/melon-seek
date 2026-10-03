@@ -273,7 +273,7 @@ test('v2: api/market.json when scripts/build-market.js#buildMarket exists', asyn
   } finally { DIST = saved; }
 });
 
-test('v2: static live fetch merges api/history through history.annotate, and reuses api/meta', async () => {
+test('v2: static live fetch (bundle first, live via onUpdate) merges api/history through history.annotate, and reuses api/meta', async () => {
   const saved = DIST; DIST = DIST2;
   const inner = staticFetch();
   globalThis.fetch = async (url) => {
@@ -283,14 +283,56 @@ test('v2: static live fetch merges api/history through history.annotate, and reu
   globalThis.MELON_LIVE_SOURCES = ['greenhouse'];
   try {
     const api = await freshApi();
-    const res = await api.getJobs({ company: 'anthropic' });
+    // The bundled list and the live board are fetched together; the local bundle lands
+    // first, then the live board arrives through onUpdate.
+    let upgraded;
+    const live = new Promise((resolve) => { upgraded = resolve; });
+    const first = await api.getJobs({ company: 'anthropic' }, { onUpdate: upgraded });
+    assert.equal(first.mode, 'snapshot', 'bundle shown first');
+    assert.equal(first.error, null);
+    const res = await live;
     assert.equal(res.mode, 'live');
     assert.equal(res.jobs.length, V2.live.length);
+    assert.ok(res.jobs.every((j) => j.juice !== undefined), 'upgrade is vetted and juiced too');
     for (const j of res.jobs) {
       assert.equal(j.firstSeenAt, V2.runs[0], `${j.id}: firstSeenAt from api/history`);
       assert.ok('ageDays' in j && 'freshness' in j && 'repost' in j, `${j.id}: F4 fields`);
     }
     assert.deepEqual(res.meta, readJson(DIST2, 'api', 'meta', 'anthropic.json'), 'meta from api/meta');
+  } finally {
+    DIST = saved;
+    globalThis.MELON_LIVE_SOURCES = [];
+  }
+});
+
+test('static live vs bundle race: live first is returned directly; a failed live board after the bundle never calls onUpdate', async () => {
+  const saved = DIST; DIST = DIST2;
+  const inner = staticFetch();
+  globalThis.MELON_LIVE_SOURCES = ['greenhouse'];
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  try {
+    // Live fast, bundle slow.
+    globalThis.fetch = async (url) => {
+      if (String(url).startsWith('https://boards-api.greenhouse.io/')) return new Response(JSON.stringify(GH_FIXTURE), { status: 200 });
+      if (String(url).includes('api/jobs/')) await wait(300);
+      return inner(url);
+    };
+    let calls = 0;
+    let api = await freshApi();
+    const res = await api.getJobs({ company: 'anthropic' }, { onUpdate: () => { calls++; } });
+    assert.equal(res.mode, 'live');
+    await wait(400);
+    assert.equal(calls, 0, 'no upgrade when live won');
+    // Bundle first, then the live board fails: the snapshot stays, no onUpdate.
+    globalThis.fetch = async (url) => {
+      if (String(url).startsWith('https://boards-api.greenhouse.io/')) { await wait(100); return new Response('{"error":"down"}', { status: 503 }); }
+      return inner(url);
+    };
+    api = await freshApi();
+    const snap = await api.getJobs({ company: 'anthropic' }, { onUpdate: () => { calls++; } });
+    assert.equal(snap.mode, 'snapshot');
+    await wait(300);
+    assert.equal(calls, 0, 'failed live board is not an upgrade');
   } finally {
     DIST = saved;
     globalThis.MELON_LIVE_SOURCES = [];

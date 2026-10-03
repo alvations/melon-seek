@@ -186,11 +186,12 @@ test('security headers (CSP etc.) on API, static and streamed responses', { skip
     const csp = res.headers.get('content-security-policy');
     assert.ok(csp, `${p} has CSP`);
     for (const needle of ["default-src 'self'", "script-src 'self'", "frame-ancestors 'none'", "object-src 'none'",
-      'https://*.basemaps.cartocdn.com', 'tile.openstreetmap.org', 'https://fonts.googleapis.com', 'https://fonts.gstatic.com',
+      'https://*.basemaps.cartocdn.com', 'tile.openstreetmap.org', "font-src 'self'",
       'https://boards-api.greenhouse.io', 'https://api.ashbyhq.com', 'https://api.lever.co']) {
       assert.ok(csp.includes(needle), `${p} CSP includes ${needle}`);
     }
     assert.ok(!/script-src[^;]*unsafe/.test(csp), 'no unsafe script-src');
+    assert.ok(!/fonts\.(googleapis|gstatic)\.com/.test(csp), 'fonts are self-hosted: no Google Fonts in the CSP');
   }
 });
 

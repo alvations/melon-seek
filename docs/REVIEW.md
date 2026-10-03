@@ -120,7 +120,7 @@ if (MOCK) { data.mode = 'demo'; data.error = 'Mock API (?mock=1): synthetic deve
 **Compatibility notes** (checked against the code):
 - Leaflet 1.9.4 positions everything through CSSOM (`el.style.x = ...`). CSP allows that, and `leaflet.css` has no `data:` URLs.
 - CARTO tiles load from `https://{a-d}.basemaps.cartocdn.com` with `crossOrigin: true` (`public/viz/map.js:16-17,92-94`).
-- Google Fonts: CSS from `fonts.googleapis.com`, font files from `fonts.gstatic.com` (`public/index.html:12-14`).
+- Fonts: Inter is self-hosted (`public/fonts/`, OFL 1.1) since 2026-10-03; Google Fonts was removed from the CSP and the link policy.
 - `public/app.js` `h()` sets `style="..."` **attributes** via `setAttribute` (`:467, :831, :982, :1000, :1069, :1140, :1183, :1276, :1327`). These need `style-src-attr 'unsafe-inline'` until they are converted to `el.style.setProperty(...)`. `features/shared.js` `h()` already uses CSSOM.
 - `mock-api.js` is a same-origin dynamic import, so `script-src 'self'` covers it.
 
