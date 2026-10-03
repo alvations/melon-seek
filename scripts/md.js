@@ -29,10 +29,13 @@ function plain(s) {
 function inline(src, opts) {
   // Protect code spans first, then escape, then apply emphasis and links.
   const codes = [];
-  let s = src.replace(/`([^`]+)`/g, (_, c) => { codes.push(`<code>${esc(c)}</code>`); return `\u0000${codes.length - 1}\u0000`; });
+  const raw = [];
+  let s = src.replace(/`([^`]+)`/g, (m, c) => { codes.push(`<code>${esc(c)}</code>`); raw.push(m); return `\u0000${codes.length - 1}\u0000`; });
   const links = [];
   s = s.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (_, label, href) => {
-    links.push({ label, href });
+    // The label is rendered by a recursive call with its own code table, so
+    // put its code spans back as source text first.
+    links.push({ label: label.replace(/\u0000(\d+)\u0000/g, (_m, i) => raw[Number(i)]), href });
     return `\u0001${links.length - 1}\u0001`;
   });
   s = esc(s)
