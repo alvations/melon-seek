@@ -7,6 +7,7 @@
 import { createSuite, loadPlaywright, findChromium, startServer, playwrightInfo } from '../test/e2e/harness.js';
 import { registerApiTests } from '../test/e2e/api.e2e.js';
 import { registerUiTests } from '../test/e2e/ui.e2e.js';
+import { registerMobileQaTests } from '../test/e2e/mobile-qa.e2e.js';
 
 const args = new Set(process.argv.slice(2));
 const apiOnly = args.has('--api-only');
@@ -39,6 +40,7 @@ if (!apiOnly) {
   console.log(`e2e: playwright ${playwrightInfo.path}`);
   console.log(`e2e: chromium ${browser.version()} (${executablePath || 'playwright default'})`);
   registerUiTests(suite);
+  registerMobileQaTests(suite);
 }
 
 let results;

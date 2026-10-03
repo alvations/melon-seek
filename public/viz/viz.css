@@ -664,3 +664,49 @@
 .ms-comps__empty { padding: 12px 6px; color: var(--_muted); }
 .ms-comps__note { padding: 6px 6px 0; color: var(--_muted); font-size: 11px; }
 
+
+/* ============================== phones (<= 860px) ==============================
+   docs/QA.md "Full QA pass (mobile)": M-8 (44px touch targets, by hit slop where the
+   visual stays small), M-13 (12px text floor), M-17 (Ranges titles readable). Desktop
+   density is unchanged: everything here is inside the phone breakpoint. */
+
+/* Ranges, narrow: the title gets its own full-width line above the bar (chart.js ms-chart--stack, 44px rows). */
+.ms-chart--stack .ms-row__label { right: 0; bottom: auto; height: 20px; line-height: 20px; padding: 0 12px; }
+.ms-chart--stack .ms-row__bar, .ms-chart--stack .ms-row__dot { top: 32px; }
+.ms-chart--stack .ms-row__val, .ms-chart--stack .ms-row__over { top: 20px; line-height: 24px; }
+.ms-chart--stack .ms-row::before { inset: 1px 4px; }
+.ms-chart--stack .ms-group__name { max-width: calc(100% - 124px); padding-left: 12px; }
+.ms-chart--stack .ms-group__title { min-width: 0; }
+.ms-chart--stack .ms-group__median, .ms-chart--stack .ms-group__median--left { left: auto !important; right: 12px; transform: none; padding: 0; }
+
+@media (max-width: 860px) {
+  /* Cluster circles: a 44px-tall slop, as wide as the bin spacing allows (--ms-bin-slop, chart.js). */
+  .ms-bin::before { content: ""; position: absolute; left: 50%; top: 50%; width: max(100%, var(--ms-bin-slop, 34px)); height: max(100%, 44px); transform: translate(-50%, -50%); }
+
+  /* Map controls: zoom ± 30px and Pay|Juice 26px tall look the same, but take a 44px tap. */
+  .ms-map .leaflet-bar { overflow: visible; }
+  .ms-map .leaflet-bar a { position: relative; }
+  .ms-map .leaflet-bar a:first-child { border-radius: var(--_radius-sm) var(--_radius-sm) 0 0; }
+  .ms-map .leaflet-bar a:last-child { border-radius: 0 0 var(--_radius-sm) var(--_radius-sm); }
+  .ms-map .leaflet-bar a::after { content: ""; position: absolute; inset: 0 -7px; }
+  .ms-map .leaflet-bar a:first-child::after { top: -14px; }
+  .ms-map .leaflet-bar a:last-child::after { bottom: -14px; }
+  .ms-map .leaflet-top .leaflet-control-zoom { margin-top: 14px; }
+  .ms-map .ms-modes__btn { position: relative; }
+  .ms-map .ms-modes__btn::after { content: ""; position: absolute; inset: -9px 0; }
+  .ms-map .ms-remote { position: relative; }
+  .ms-map .ms-remote::after { content: ""; position: absolute; inset: -7px -1px; }   /* from the padding box: 30 + 14 */
+
+  /* Same role elsewhere: 44px rows (comps.js sets --ms-comps-row). */
+  .ms-comps__over, .ms-comps__nodata { line-height: var(--ms-comps-row, 28px); }
+
+  /* 12px text floor */
+  .ms-chart__foot, .ms-bin__dot, .ms-bin__dot--sm, .ms-bin__chip,
+  .ms-map .leaflet-control-attribution, .ms-pin__count, .ms-pin__label, .ms-map__offline-note, .ms-modes__none,
+  .ms-comps__tick, .ms-comps__n, .ms-comps__note { font-size: 12px; }
+  .ms-bin__dot--sm { letter-spacing: -.03em; }
+
+  /* M-10: landscape notch: Leaflet controls stay inside the safe area (the map itself stays full-bleed). */
+  .ms-map .leaflet-left { left: env(safe-area-inset-left, 0px); }
+  .ms-map .leaflet-right { right: env(safe-area-inset-right, 0px); }
+}

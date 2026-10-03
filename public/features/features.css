@@ -455,3 +455,12 @@
 @media (prefers-reduced-motion: reduce) {
   .ms-insights *, .ms-comp * { transition: none !important; }
 }
+
+/* ============================== phones (<= 860px) ==============================
+   docs/QA.md "Full QA pass (mobile)": M-8 (44px fields), M-13 (12px text floor).
+   Desktop density is unchanged. */
+@media (max-width: 860px) {
+  .ms-comp__input, .ms-comp__select { height: 44px; }
+  .msi-stat__note, .msi-foot, .msi-row__n, .msi-row__tag, .msi-row__delta, .msi-legend, .msi-axis__tick,
+  .msi-cols, .msi-chip__n, .ms-comp__scale, .ms-comp__item-meta, .ms-comp__match, .ms-comp__foot { font-size: 12px; }
+}

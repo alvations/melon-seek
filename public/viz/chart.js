@@ -26,6 +26,7 @@ export const VIEWS = Object.freeze(['clusters', 'ranges']);
 export const DEFAULT_VIEW = 'clusters';
 
 const ROW_H = 22;          // ranges: one posting
+const ROW_H_NARROW = 44;   // ranges, narrow (phones): title line above the bar, a 44px touch target (M-8, M-17)
 const HEAD_H = 30;         // ranges: group band header
 const HIST_H = 28;         // distribution strip
 const CROW_H = 52;         // clusters: one group row (wide)
@@ -166,6 +167,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
   // ranges view state
   let idxByJob = new Map();  // jobId -> option index (ranges)
   let rowY = [];             // option index -> y (ranges)
+  let rowH = ROW_H;          // ranges row height for the current layout
   let itemByRow = [];        // row index -> plotted item
   let hoverIdx = -1;
   let activeIdx = -1;
@@ -447,6 +449,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     for (let t = d0; t <= d1 + 1; t += step) ticks.push(t);
     container.style.setProperty('--ms-plot-l', plotL + 'px');
     container.style.setProperty('--ms-label-w', labelW + 'px');
+    container.classList.remove('ms-chart--stack');
     renderHist(x, d0, d1, plotL, plotW, labelW);
     renderAxis(ticks, x, stats.fxCount > 0, labelW, narrow);
 
@@ -457,6 +460,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const minBinPx = solo ? 46 : MIN_BIN_PX;
     const binW = BIN_STEPS.find(b => b * pxPer >= minBinPx) || BIN_STEPS[BIN_STEPS.length - 1];
     const binPx = binW * pxPer;
+    container.style.setProperty('--ms-bin-slop', Math.round(Math.min(44, binPx)) + 'px'); // touch slop never reaches a neighbour (M-8)
     for (const r of cRows) {
       const bm = new Map();
       const below = [], above = [];
@@ -807,9 +811,12 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     renderLegend(top, counts, ordered);
     head.hidden = legend.hidden;
 
-    const labelW = Math.round(Math.max(narrow ? 92 : 140, Math.min(300, width * 0.3)));
+    // Narrow (phones): the full-width title sits above its bar, so titles stay readable (M-17).
+    rowH = narrow ? ROW_H_NARROW : ROW_H;
+    const labelW = narrow ? 0 : Math.round(Math.max(140, Math.min(300, width * 0.3)));
     const padR = narrow ? 16 : 28;
-    const plotL = labelW + 12;
+    const plotL = narrow ? 12 : labelW + 12;
+    container.classList.toggle('ms-chart--stack', narrow);
     const plotW = Math.max(80, width - plotL - padR);
     // Robust domain: P1..P99 of midpoints, widened to the robust ends of the bars
     // (P1 of minimums, P99 of maximums) so ordinary ranges are not clipped, then
@@ -842,7 +849,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         const line = el('div', 'ms-chart__median');
         line.style.left = mx + 'px';
         line.style.top = (y - 6) + 'px';
-        line.style.height = (g.items.length * ROW_H + 6) + 'px';
+        line.style.height = (g.items.length * rowH + 6) + 'px';
         gridFrag.append(line);
       }
       for (const p of g.items) {
@@ -853,8 +860,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         p.group = g.name;
         p.clipped = p.hi > d1 || p.lo < d0;
         if (p.mid < d0 || p.mid > d1) outCount++;
-        vItems.push({ y, h: ROW_H, build: () => buildRow(p, i) });
-        y += ROW_H;
+        vItems.push({ y, h: rowH, build: () => buildRow(p, i) });
+        y += rowH;
       }
     }
     // Group bands are visual only (aria-hidden); options carry the group in their name.
@@ -864,7 +871,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         h.setAttribute('aria-hidden', 'true');
         h.style.height = HEAD_H + 'px';
         const name = el('div', 'ms-group__name');
-        name.style.width = labelW + 'px';
+        if (!narrow) name.style.width = labelW + 'px';
         name.append(el('span', 'ms-group__title', g.name), el('span', 'ms-group__count', g.items.length.toLocaleString()));
         name.title = `${g.name} · ${plural(g.items.length, 'posting')}`;
         h.append(name);
@@ -879,14 +886,14 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     function buildRow(p, idx) {
       {
         const r = el('div', 'ms-row');
-        r.style.height = ROW_H + 'px';
+        r.style.height = rowH + 'px';
         r.dataset.idx = idx;
         r.setAttribute('role', 'option');
         r.setAttribute('aria-selected', 'false');
         r.setAttribute('aria-label', (p.group != null ? `${p.group}: ` : '') + optionName(p));
         r.id = `${uid}-${idx}`;
         const lab = el('div', 'ms-row__label', p.job.title || 'Untitled');
-        lab.style.width = labelW + 'px';
+        if (!narrow) lab.style.width = labelW + 'px';
         const bx0 = xc(p.lo), bx1 = xc(p.hi);
         const bar = el('div', 'ms-row__bar');
         bar.style.left = bx0 + 'px';
@@ -986,7 +993,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     prev?.setAttribute('aria-selected', 'false');
     if (!itemByRow[i]) { activeIdx = -1; body.removeAttribute('aria-activedescendant'); return; }
     activeIdx = i;
-    if (announce) scrollToY(rowY[i], ROW_H);
+    if (announce) scrollToY(rowY[i], rowH);
     const r = rowsEl.querySelector(`.ms-row[data-idx="${i}"]`);
     if (!r) { body.removeAttribute('aria-activedescendant'); return; }
     markActive(r);
@@ -996,7 +1003,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
   function onRangesKey(e) {
     const n = itemByRow.length;
     if (!n) return;
-    const page = Math.max(1, Math.floor((scroll.clientHeight - sticky.offsetHeight) / ROW_H) - 1);
+    const page = Math.max(1, Math.floor((scroll.clientHeight - sticky.offsetHeight) / rowH) - 1);
     const step = { ArrowDown: 1, ArrowUp: -1, PageDown: page, PageUp: -page }[e.key];
     if (step != null) {
       e.preventDefault();
@@ -1085,7 +1092,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     }
     const i = idxByJob.get(id);
     if (i == null) return;
-    if (scrollIt) scrollToY(rowY[i], ROW_H, true);
+    if (scrollIt) scrollToY(rowY[i], rowH, true);
     rowsEl.querySelector(`.ms-row[data-idx="${i}"]`)?.classList.add('is-highlighted');
   }
 
@@ -1138,7 +1145,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       vReset();
       tip.remove();
       container.replaceChildren();
-      container.classList.remove('ms-chart', 'ms-chart--flow', 'ms-chart--narrow', 'ms-chart--clusters', 'ms-chart--ranges');
+      container.classList.remove('ms-chart', 'ms-chart--flow', 'ms-chart--narrow', 'ms-chart--stack', 'ms-chart--clusters', 'ms-chart--ranges');
     },
   };
 }

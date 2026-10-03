@@ -234,14 +234,59 @@ function serialize(st = S) {
   return p.toString();
 }
 
+const hashUrl = (str) => location.pathname + location.search + (str ? `#${str}` : '');
 function commit({ replace = false } = {}) {
   const str = serialize();
   if (str !== lastHash) {
     lastHash = str;
-    const url = location.pathname + location.search + (str ? `#${str}` : '');
-    if (replace) history.replaceState(null, '', url);
-    else history.pushState(null, '', url);
+    // M-3: while a phone overlay owns the top history entry, filter changes rewrite that entry.
+    if (overlayHist.open) history.replaceState(history.state, '', hashUrl(str));
+    else if (replace) history.replaceState(null, '', hashUrl(str));
+    else history.pushState(null, '', hashUrl(str));
   }
+}
+
+/* M-3: phone overlays (the filter sheet, the company menu, "More", the badge and board sheets) own
+   one history entry while open, so hardware Back / iOS swipe-back closes the overlay instead of
+   undoing a filter. Changes made inside the overlay rewrite that entry (commit above); once it is
+   gone (Back, or the overlay closed from the UI, which pops it), the changes land as one entry. */
+const overlayHist = { open: null, base: null, popping: false, reopen: null };
+const wantsOverlayHist = (id) => (id === 'filters' ? isOverlayFilters() : isMobile());
+function overlayHistPush(id) {
+  if (!wantsOverlayHist(id)) return;
+  if (overlayHist.popping) { overlayHist.reopen = id; return; } // a close is still popping its entry
+  if (overlayHist.open) { overlayHist.open = id; return; }      // one overlay replaced another: keep the entry
+  overlayHist.open = id;
+  overlayHist.base = lastHash;
+  history.pushState({ msOverlay: id }, '', location.href);
+}
+/** The overlay was closed from the UI (✕, Done, a tap outside): drop its history entry. */
+function overlayHistRelease() {
+  if (!overlayHist.open) return;
+  if (overlayHist.popping) { overlayHist.reopen = null; return; }
+  overlayHist.popping = true;
+  if (history.state?.msOverlay) history.back(); else overlayHistLanded();
+}
+/** The overlay's entry is gone: record what changed inside it as one ordinary entry. */
+function overlayHistLanded() {
+  const { base, reopen } = overlayHist;
+  overlayHist.open = overlayHist.base = overlayHist.reopen = null;
+  overlayHist.popping = false;
+  const str = serialize();
+  lastHash = str;
+  if (str !== base) history.pushState(null, '', hashUrl(str));
+  else if (serialize(parseHash()) !== str) history.replaceState(null, '', hashUrl(str));
+  if (reopen) overlayHistPush(reopen);
+}
+function onPopState() {
+  if (!overlayHist.open) { onHashChange(); return; }
+  if (!overlayHist.popping) { // hardware Back / swipe-back with an overlay open: close it, keep the filters
+    overlayHist.popping = true;
+    if (popover.id) closePopover();
+    if (document.body.classList.contains('filters-open')) setFiltersOpen(false);
+    overlayHist.reopen = null;
+  }
+  overlayHistLanded();
 }
 
 /** Mutate state, push to history and re-render. */
@@ -644,7 +689,8 @@ function makeBadgeDetails() {
     ];
     el.replaceChildren(...nn(h('p', null, info?.tip || ''),
       h('dl', null, ...rows.map(([k, v]) => [h('dt', null, k), h('dd', null, v)])),
-      data.error ? h('pre', { class: 'badge-error' }, data.error) : null,
+      // M-14: the raw error only when the sentence above doesn't already carry it.
+      data.error && !(info?.tip || '').includes(data.error) ? h('pre', { class: 'badge-error' }, data.error) : null,
       MOCK ? null : h('button', { type: 'button', class: 'btn btn--ghost btn--sm btn--block', onclick: () => { closePopover(false); loadJobs({ refresh: true }); } }, 'Refresh from the live board'),
       csvLink()));
   }
@@ -799,8 +845,11 @@ function openSaved(x) {
   const jobs = jobCache.get(slug);
   const entry = list.find((y) => y.id === x.id);
   if (entry) { entry.lastSeenAt = new Date().toISOString(); if (jobs) entry.seen = matchingIds(x.hash, jobs).slice(0, 2000); storeSaved(list); }
-  history.pushState(null, '', `${location.pathname}${location.search}#${x.hash}`);
-  onHashChange();
+  // Through set(), not pushState + onHashChange: the menu's history entry may still be popping (M-3).
+  const next = parseHash(`#${x.hash}`);
+  if (!next.c) next.c = S.c;
+  if (drawerJobId) closeDrawer();
+  set({ ...next, job: null });
 }
 
 function resetFiltersPatch() {
@@ -859,9 +908,9 @@ function renderQuickbar() {
     const lbl = quickLabel(q.id);
     btn.classList.toggle('is-active', !!lbl);
     btn.querySelector('.chip-label').textContent = lbl || q.label;
-    btn.setAttribute('aria-expanded', String(popover.id === q.id));
     btn.disabled = data.status !== 'ready';
   }
+  syncChipsExpanded();
   const n = activeFilterCount();
   const cnt = $('#filtersCount');
   cnt.hidden = !n;
@@ -1232,9 +1281,9 @@ function titled(title, part, hint) {
 }
 
 function togglePopover(id, anchor) {
-  if (id in CHIP_SECTION && isMobile()) { openFiltersAt(id); return; }
+  if (id in CHIP_SECTION && isMobile()) { closePopover(false, { keepHist: true }); openFiltersAt(id, anchor); return; }
   if (popover.id === id) return closePopover();
-  closePopover(false);
+  closePopover(false, { keepHist: true }); // one overlay replaces another: it keeps the history entry
   const el = $('#popover');
   popover.id = id;
   popover.anchor = anchor;
@@ -1250,6 +1299,7 @@ function togglePopover(id, anchor) {
   el.replaceChildren(...[head, h('div', { class: 'pop-body' }, ...popover.parts.map((p) => p.el)), foot].filter(Boolean));
   el.hidden = false;
   anchor?.setAttribute('aria-expanded', 'true');
+  overlayHistPush(id);
   syncPopover();
   positionPopover();
   requestAnimationFrame(() => [...el.querySelectorAll('.pop-body input:not([type=range]), .pop-body button.kw, .pop-body select, .pop-body .range, .pop-body button:not(.icon-btn), .pop-body label.check input')]
@@ -1281,8 +1331,9 @@ function positionPopover() {
   el.style.left = `${Math.max(12, Math.min(r.left, innerWidth - w - 12))}px`;
 }
 
-function closePopover(restoreFocus = true) {
+function closePopover(restoreFocus = true, { keepHist = false } = {}) {
   if (!popover.id) return;
+  if (!keepHist) overlayHistRelease();
   const anchor = popover.anchor;
   anchor?.setAttribute('aria-expanded', 'false');
   popover.id = null;
@@ -1626,7 +1677,8 @@ function renderResults() {
   }
   const st = stats(visible);
   const tokens = S.q.toLowerCase().split(/\s+/).filter(Boolean);
-  const inTitle = tokens.length ? visible.filter((j) => titleMatch(j, tokens)).length : null;
+  // M-18: the "· N in title" suffix only when it says something (no "0 roles · 0 in title").
+  const inTitle = tokens.length && visible.length ? visible.filter((j) => titleMatch(j, tokens)).length || null : null;
   title.replaceChildren(...nn(h('strong', null, plural(st.n, 'role')), inTitle != null ? h('span', { class: 'muted', title: 'Roles whose title or team matches come first; the rest match on skills or keywords' }, ` · ${inTitle.toLocaleString()} in title`) : null));
   if (!visible.length) {
     list.replaceChildren(h('li', { class: 'list-empty' }, stateCard({
@@ -1739,7 +1791,7 @@ let drawerReturnFocus = null;
 
 function findJob(id) { return data.jobs.find((j) => j.id === id); }
 
-function openDrawer(id, { fromHash = false } = {}) {
+function openDrawer(id, { fromHash = false, step = false } = {}) {
   const job = findJob(id);
   if (!job) { if (fromHash && data.status === 'ready') set({ job: null }, { replace: true }); return; }
   if (!drawerJobId || !drawerReturnFocus) {
@@ -1747,7 +1799,8 @@ function openDrawer(id, { fromHash = false } = {}) {
   }
   drawerJobId = id;
   setBackgroundInert(true);
-  if (S.job !== id) { S.job = id; commit({ replace: fromHash }); }
+  // M-9: paging next/prev rewrites the job page's entry, so one Back always leaves the job page.
+  if (S.job !== id) { S.job = id; commit({ replace: fromHash || step }); }
   const drawer = $('#drawer');
   drawer.replaceChildren(...drawerContent(job));
   applyDrawerBudget();
@@ -1800,7 +1853,7 @@ function renderDrawerNav() {
 function stepDrawer(d) {
   const idx = visible.findIndex((j) => j.id === drawerJobId);
   const nxt = visible[idx + d];
-  if (nxt) openDrawer(nxt.id);
+  if (nxt) openDrawer(nxt.id, { step: true });
 }
 
 function percentile(job) {
@@ -2364,12 +2417,13 @@ function bindSheetDrag() {
 /* On phones the quick-filter chips open the one full-screen filter sheet at their section.
    "More" keeps its own sheet: it carries Juice, which the filter panel does not have. */
 const CHIP_SECTION = { salary: 0, dept: 1, loc: 2, sen: 3, remote: 4 };
-function openFiltersAt(id) {
-  setFiltersOpen(true);
+function openFiltersAt(id, opener = null) {
+  if (filtersDirty || !panel) { filtersDirty = false; renderFilterPanel(); }
   const sec = panel?.[CHIP_SECTION[id]]?.el;
-  if (!sec) return;
-  sec.open = true;
-  requestAnimationFrame(() => { sec.scrollIntoView({ block: 'start' }); sec.querySelector('summary')?.focus({ preventScroll: true }); });
+  if (sec) sec.open = true;
+  // M-11: the chip's own section takes focus (setFiltersOpen would otherwise focus "Salary").
+  setFiltersOpen(true, { opener, focus: sec?.querySelector('summary') });
+  if (sec) requestAnimationFrame(() => sec.scrollIntoView({ block: 'start' }));
 }
 
 /* The on-screen keyboard: iOS keeps the layout viewport, so fixed footers and bottom sheets sit
@@ -2380,6 +2434,7 @@ function bindKeyboardInsets() {
   const sync = rafThrottle(() => {
     const open = isMobile() && vv.height < innerHeight * 0.78 && !!document.activeElement?.matches?.('input, textarea, select');
     document.body.classList.toggle('kb-open', open);
+    document.body.classList.toggle('kb-search', open && document.activeElement?.id === 'search'); // M-12: lift the peek row
     document.documentElement.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
   });
   vv.addEventListener('resize', sync);
@@ -2390,12 +2445,27 @@ function bindKeyboardInsets() {
   document.addEventListener('focusout', () => setTimeout(sync, 50));
 }
 
-function setFiltersOpen(open) {
+let filtersOpener = null; // the chip or Filters button that opened the overlay sheet (M-4, M-15)
+function setFiltersOpen(open, { opener = null, focus = null } = {}) {
   if (open && filtersDirty) { filtersDirty = false; renderFilterPanel(); } // PERF-2: catch up the skipped sync
   if (isOverlayFilters()) {
+    const was = document.body.classList.contains('filters-open');
     document.body.classList.toggle('filters-open', open);
     $('#filtersScrim').hidden = !open;
-    if (open) setTimeout(() => $('#filters summary')?.focus({ preventScroll: true }), 50);
+    setFiltersModal(open && isMobile());
+    if (open) {
+      if (!was || opener) filtersOpener = opener || filtersOpener;
+      const target = focus || $('#filters summary');
+      setTimeout(() => target?.focus({ preventScroll: true }), 50);
+      if (!was) overlayHistPush('filters');
+    } else if (was) {
+      overlayHistRelease();
+      // M-4: back to the control that opened the sheet (focus would otherwise fall to <body>).
+      const back = filtersOpener?.isConnected && filtersOpener.getClientRects().length ? filtersOpener : $('#filtersToggle');
+      filtersOpener = null;
+      back?.focus({ preventScroll: true });
+    }
+    syncChipsExpanded();
   } else {
     document.body.classList.toggle('filters-collapsed', !open);
     try { localStorage.setItem('melon-seek.filtersCollapsed', open ? '0' : '1'); } catch { /* ignore */ }
@@ -2403,6 +2473,34 @@ function setFiltersOpen(open) {
   $('#filtersToggle').setAttribute('aria-expanded', String(open));
   if (!open && vizCovered) { vizCovered = false; scheduleRender(); }
   setTimeout(() => { try { map?.invalidateSize(); } catch { /* ignore */ } }, 260);
+}
+
+/* M-7: on phones the filter sheet is full screen, so it is a modal dialog while open: dialog
+   semantics, everything behind it inert, and Tab kept inside (bindEvents). Wider screens keep
+   the plain labelled <aside> (a docked column, or a side sheet with its scrim). */
+let filtersModal = false;
+function setFiltersModal(on) {
+  if (on === filtersModal) return;
+  filtersModal = on;
+  const f = $('#filters');
+  if (on) { f.setAttribute('role', 'dialog'); f.setAttribute('aria-modal', 'true'); } else { f.removeAttribute('role'); f.removeAttribute('aria-modal'); }
+  for (const n of [$('.topbar'), $('.quickbar'), $('#main'), $('#results'), ...document.querySelectorAll('.skip-link')]) {
+    if (!n) continue;
+    n.inert = on;
+    if (on) n.setAttribute('aria-hidden', 'true'); else n.removeAttribute('aria-hidden');
+  }
+}
+
+/** M-15: chips that open the phone filter sheet say so (aria-controls) and report it (aria-expanded). */
+function syncChipsExpanded() {
+  const sheet = isMobile();
+  const open = sheet && document.body.classList.contains('filters-open');
+  for (const btn of $('#quickChips').children) {
+    const id = btn.dataset.pop;
+    const viaSheet = sheet && id in CHIP_SECTION;
+    if (viaSheet) btn.setAttribute('aria-controls', 'filters'); else btn.removeAttribute('aria-controls');
+    btn.setAttribute('aria-expanded', String(viaSheet ? open && filtersOpener === btn : popover.id === id));
+  }
 }
 let vizCovered = false; // a viz update was skipped under the phone filter sheet
 const filtersAreOpen = () => (isOverlayFilters() ? document.body.classList.contains('filters-open') : !document.body.classList.contains('filters-collapsed'));
@@ -2477,7 +2575,7 @@ function bindEvents() {
   $('#clearAll').addEventListener('click', clearFilters);
   $('#saveSearch').addEventListener('click', toggleSave);
   $('#filtersClear').addEventListener('click', clearFilters);
-  $('#filtersToggle').addEventListener('click', () => setFiltersOpen(!filtersAreOpen()));
+  $('#filtersToggle').addEventListener('click', (e) => setFiltersOpen(!filtersAreOpen(), { opener: e.currentTarget }));
   $('#filtersClose').addEventListener('click', () => setFiltersOpen(false));
   $('#filtersDone').addEventListener('click', () => setFiltersOpen(false));
   $('#filtersScrim').addEventListener('click', () => setFiltersOpen(false));
@@ -2526,6 +2624,7 @@ function bindEvents() {
       stepDrawer(e.key === 'ArrowRight' || e.key === 'j' ? 1 : -1);
     }
     if (drawerJobId && e.key === 'Tab') trapFocus(e, $('#drawer'));
+    else if (filtersModal && !popover.id && e.key === 'Tab') trapFocus(e, $('#filters'));
   });
 
   document.addEventListener('pointerdown', (e) => {
@@ -2533,10 +2632,13 @@ function bindEvents() {
     if ($('#popover').contains(e.target) || popover.anchor?.contains(e.target)) return;
     closePopover(false);
   });
-  addEventListener('resize', rafThrottle(() => { positionPopover(); }));
+  addEventListener('resize', rafThrottle(() => {
+    positionPopover();
+    if (document.body.classList.contains('filters-open')) { setFiltersModal(isMobile()); syncChipsExpanded(); } // rotation / resize across 860px
+  }));
   addEventListener('scroll', () => positionPopover(), true);
 
-  addEventListener('popstate', onHashChange);
+  addEventListener('popstate', onPopState);
   addEventListener('hashchange', onHashChange);
 }
 
@@ -2554,6 +2656,9 @@ function onHashChange() {
   const next = parseHash();
   if (!next.c) next.c = S.c;
   const str = serialize(next);
+  // The hashchange that trails a popstate we already handled (or our own write): nothing to do.
+  // Re-rendering here would rebuild the cards and drop the focus closeDrawer just restored (M-16).
+  if (str === lastHash && str === serialize() && (S.job || null) === (drawerJobId || null)) return;
   lastHash = str;
   const companyChanged = next.c !== S.c;
   S = next;

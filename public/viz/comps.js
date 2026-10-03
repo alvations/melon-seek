@@ -14,6 +14,8 @@ import { colorFor, formatMoney, niceTicks, onThemeChange } from './palette.js';
 import { robustBounds } from './chart.js';
 
 const ROW_H = 28;
+const ROW_H_TOUCH = 44; // phones: every row is a 44px tap target (docs/QA.md M-8)
+const rowHeight = () => (globalThis.matchMedia?.('(max-width: 860px)').matches ? ROW_H_TOUCH : ROW_H);
 const AXIS_H = 20;
 
 function el(tag, cls, text) {
@@ -63,6 +65,8 @@ export function createCompsChart(container, { onSelect } = {}) {
     if (opts.sort !== false) items.sort((a, b) => (has(b) - has(a)) || (b.median ?? 0) - (a.median ?? 0));
 
     const width = container.clientWidth || 360;
+    const rowH = rowHeight();
+    container.style.setProperty('--ms-comps-row', rowH + 'px');
     const narrow = width < 420;
     container.classList.toggle('ms-comps--narrow', narrow);
     const labelW = Math.round(Math.max(88, Math.min(180, width * (narrow ? 0.34 : 0.32))));
@@ -100,7 +104,7 @@ export function createCompsChart(container, { onSelect } = {}) {
 
     items.forEach((r, i) => {
       const row = el('div', 'ms-comps__row' + (r.current ? ' is-current' : ''));
-      row.style.height = ROW_H + 'px';
+      row.style.height = rowH + 'px';
       row.id = `${uid}-${i}`;
       row.dataset.i = i;
       row.setAttribute('role', 'option');
@@ -135,7 +139,7 @@ export function createCompsChart(container, { onSelect } = {}) {
       r.el = row;
       list.append(row);
     });
-    list.style.height = (items.length * ROW_H) + 'px';
+    list.style.height = (items.length * rowH) + 'px';
     if (activeSlug != null) { const i = items.findIndex(r => r.slug === activeSlug); if (i >= 0) setActive(i, false); }
   }
 

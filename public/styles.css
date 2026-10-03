@@ -1192,3 +1192,26 @@ html[data-mode="insights"] .viz-controls { display: none; }
   .quiet-select > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .quiet-select select { max-width: 40vw; }
 }
+
+/* ===================================================================
+   Mobile QA fixes (docs/QA.md "Full QA pass (mobile) 2026-10-03"; docs/process/fix-frontend.md)
+   =================================================================== */
+@media (max-width: 860px) {
+  /* M-12: typing a search with the keyboard up: the peek row (the live count) sits just above it. */
+  body.kb-search[data-sheet="peek"] .results {
+    transform: translateY(calc(var(--vvh, 100dvh) - var(--sheet-peek) - var(--m-top, calc(var(--m-topbar) + var(--m-quickbar)))));
+  }
+  /* M-8: "Download CSV" in the badge sheet: its own 44px line (the wrapped note below it would
+     otherwise sit on top of any slop). */
+  .badge-csv { margin-top: 4px; }
+  .badge-csv a { display: flex; align-items: center; width: fit-content; min-height: 44px; }
+  /* M-13: 12px text floor on phones */
+  .company-count, .seg-count, .board-form .fnote, .select-field, .saved-new, .wf-detail, .badge-error, .kpi-label,
+  .card-foot .tag, .card-foot .sen, .card-age, .juice-badge, .d-comp-label { font-size: 12px; }
+  /* M-10: landscape notch: the chart's rows, labels and axis caption stay inside the safe area. */
+  #chartHost { left: env(safe-area-inset-left, 0px); right: env(safe-area-inset-right, 0px); }
+}
+/* M-1: phone landscape: the map fits the visible strip above the peek sheet (viz.css sets 320px). */
+@media (max-width: 860px) and (max-height: 500px) {
+  .ms-map { min-height: 0; }
+}
