@@ -80,17 +80,20 @@ These are the rules learned the hard way on 2026-10-10.
      full e2e suite and a YAML parse of the workflows.
    - Timing tests (PERF-1, V15, Compstimate T21) can fail under load. Re-run them alone before
      calling them failures, and compare against an unchanged baseline worktree.
-4. **Commit inside that worktree:**
+4. **Shrink finished screenshot folders** with `bash scripts/cycle/shrink-screenshots.sh docs/screenshots/<role>`
+   before committing them: 8-bit PNG at most 1440 px wide, about 4x smaller, with the same file names.
+   A persona folder is about 15 MB before.
+5. **Commit inside that worktree:**
    - stage explicit paths only; never `git add -A data` (a snapshot symlink once leaked that way);
    - check that `git diff --cached --name-only` has no `snapshots`, `node_modules` or `dist` entries;
    - push from the worktree with `git push origin HEAD:claude/stoic-ride-54ddxp`.
-5. **Sync the shared checkout** with `bash scripts/cycle/sync-shared.sh <old-head> <new-head>`:
+6. **Sync the shared checkout** with `bash scripts/cycle/sync-shared.sh <old-head> <new-head>`:
    - a file no one touched takes the new version;
    - a file that already equals the new version is left alone;
    - any other text file gets a 3-way merge, and a conflict keeps the agent's copy;
    - binary files are never merged;
    - then `git reset <new-head>` (mixed) moves HEAD without touching any agent's work.
-6. **Watch the deploy.** pages.yml's post-deploy check must pass for `/` and, warning only, for
+7. **Watch the deploy.** pages.yml's post-deploy check must pass for `/` and, warning only, for
    `/beta/`. CI must be green; fix it before the next batch.
 
 ## Stage 4. Record and repeat

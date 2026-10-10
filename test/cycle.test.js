@@ -20,7 +20,7 @@ test('the playbook links every template, script and the skill, and each exists',
     assert.ok(fs.existsSync(path.join(ROOT, 'docs/process/prompts/cycle', `${t}.md`)), `${t}.md exists`);
     assert.ok(book.includes(`prompts/cycle/${t}.md`), `PLAYBOOK links ${t}.md`);
   }
-  for (const s of ['scripts/cycle/local-data.js', 'scripts/cycle/serve.mjs', 'scripts/cycle/sync-shared.sh']) {
+  for (const s of ['scripts/cycle/local-data.js', 'scripts/cycle/serve.mjs', 'scripts/cycle/sync-shared.sh', 'scripts/cycle/shrink-screenshots.sh']) {
     assert.ok(fs.existsSync(path.join(ROOT, s)), `${s} exists`);
     assert.ok(book.includes(s), `PLAYBOOK names ${s}`);
   }
