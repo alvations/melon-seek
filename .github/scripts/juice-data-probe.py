@@ -24,7 +24,7 @@ import urllib.request
 UA = "melon-seek-juice-data-probe/1.0 (+https://github.com/alvations/melon-seek)"
 
 
-def get(url, binary=False, timeout=90, data=None, headers=None):
+def get(url, binary=False, timeout=150, data=None, headers=None):
     h = {"User-Agent": UA, "Accept": "*/*"}
     if headers:
         h.update(headers)
@@ -129,7 +129,7 @@ def hud():
     for page in ["https://www.huduser.gov/portal/datasets/fmr.html",
                  "https://www.huduser.gov/portal/datasets/fmr/smallarea/index.html"]:
         try:
-            ls = links(page, r"\.xlsx?$")
+            ls = links(page, r"\.xlsx?(\?|$)")
             print(f"  links on {page}:")
             for u in ls[:60]:
                 print(f"    {u}")
@@ -272,7 +272,7 @@ def ons():
              "https://www.ons.gov.uk/economy/inflationandpriceindices/datasets/pricesofprivaterentsbylocalauthorityandbedroomsuk"]
     for page in pages:
         try:
-            ls = links(page, r"\.xlsx?$")
+            ls = links(page, r"\.xlsx?(\?|$)")
         except Exception as e:
             print(f"  {page}: {e}")
             continue
@@ -294,7 +294,7 @@ def ons():
                 headers[sheet] = cells
                 print(f"  [{sheet}] header: {cells[:24]}")
                 continue
-            if any(re.match(ONS_AREAS, c, re.I) for c in cells[:4]) and printed < 400:
+            if any(re.match(ONS_AREAS, c, re.I) for c in cells[:4]) and printed < 250:
                 printed += 1
                 print(f"  [{sheet}] {cells[:24]}")
         print(f"  source: {u}")
@@ -349,7 +349,7 @@ def nsw():
     section("NSW Rent and Sales Report (DCJ)")
     page = "https://dcj.nsw.gov.au/about-us/families-and-communities-statistics/housing-rent-and-sales/rent-and-sales-report.html"
     try:
-        ls = links(page, r"rent.*\.xlsx?$|\.xlsx?$")
+        ls = links(page, r"\.xlsx?(\?|$)")
     except Exception as e:
         print(f"  {page}: {e}")
         return
@@ -367,7 +367,7 @@ def nsw():
             hdr[sheet] = cells
             print(f"  [{sheet}] header: {cells[:16]}")
             continue
-        if any(re.fullmatch(r"Sydney|Greater Sydney|Sydney \(C\)|City of Sydney", c, re.I) for c in cells[:4]):
+        if (sheet == "LGA" and len(cells) > 4 and cells[3] == "Sydney" and cells[2] == "Total") or (sheet == "Postcode" and cells[:1] in (["2000"], ["2000.0"])) or (sheet == "GMR" and "Greater Sydney" in cells[:2]):
             print(f"  [{sheet}] {cells[:16]}")
     print(f"  source: {u}")
 
@@ -376,7 +376,7 @@ def vic():
     section("Victoria Rental Report (DFFH)")
     page = "https://www.dffh.vic.gov.au/publications/rental-report"
     try:
-        ls = links(page, r"\.xlsx?$")
+        ls = links(page, r"\.xlsx?(\?|$)")
     except Exception as e:
         print(f"  {page}: {e}")
         return
@@ -406,7 +406,7 @@ def cmhc():
     ls = []
     for page in pages:
         try:
-            ls += links(page, r"\.xlsx?$")
+            ls += links(page, r"\.xlsx?(\?|$)")
         except Exception as e:
             print(f"  {page}: {e}")
     for u in ls[:40]:
@@ -451,23 +451,27 @@ def zurich():
             if str(r.get("format", "")).lower() == "csv":
                 print(f"    csv {r['url']}")
                 csvs.append((p["name"], r["url"]))
-    for name, u in csvs[:4]:
+    for name, u in csvs[:1]:
         try:
             text = get(u, timeout=120)
         except Exception as e:
             print(f"  {u}: {e}")
             continue
-        rows = list(csv.reader(io.StringIO(text)))
-        print(f"  {name} header: {rows[0]}")
-        years = sorted({r[0] for r in rows[1:] if r})
-        last = years[-1] if years else None
-        n = 0
-        for r in rows[1:]:
-            if r and r[0] == last and n < 80:
-                line = " | ".join(r)
-                if re.search(r"Ganze Stadt|Total|Stadt Z", line, re.I) or n < 20:
-                    print(f"    {line[:220]}")
-                    n += 1
+        rows = list(csv.reader(io.StringIO(text.lstrip("\ufeff"))))
+        hdr = [h.strip('"') for h in rows[0]]
+        print(f"  {name} header: {hdr}")
+        recs = [dict(zip(hdr, r)) for r in rows[1:] if r]
+        years = sorted({r["StichtagDatJahr"] for r in recs})
+        print(f"  years: {years}")
+        print(f"  Raumeinheit: {sorted({r['RaumeinheitLang'] for r in recs})}")
+        print(f"  Gliederung: {sorted({r['GliederungLang'] for r in recs})}")
+        for yr in years[-2:]:
+            for r in recs:
+                if r["StichtagDatJahr"] != yr or r["EinheitLang"] != "Wohnung" or r["GemeinnuetzigLang"] != "Nicht gemeinnützig":
+                    continue
+                if r["GliederungLang"] not in ("Neubezug bis 2 Jahre", "Ganze Stadt"):
+                    continue
+                print(f"    {yr} | {r['RaumeinheitLang']} | {r['GliederungLang']} | {r['ZimmerLang']} | {r['PreisartLang']} | mean {r['mean']} | median {r['qu50']} | q25 {r['qu25']} | q75 {r['qu75']} | n {r.get('Sample1')}")
 
 
 # --------------------------------------------------------------------------- Singapore
@@ -481,25 +485,32 @@ def sg():
                 print(f"  dataset {ds.get('datasetId')}: {ds.get('name')} (updated {ds.get('lastUpdatedAt')})")
         except Exception as e:
             print(f"  {url}: {e}")
-    for rid in ("d_23000a00c52996c55106084ed0339566",):
-        url = f"https://data.gov.sg/api/action/datastore_search?resource_id={rid}&limit=10000"
+    rid = "d_23000a00c52996c55106084ed0339566"
+    recs, offset = [], 0
+    while True:
+        url = f"https://data.gov.sg/api/action/datastore_search?resource_id={rid}&limit=5000&offset={offset}"
         try:
             d = json.loads(get(url))
-            recs = d["result"]["records"]
-            qs = sorted({r.get("quarter") for r in recs})
-            last = qs[-4:]
-            for r in recs:
-                if r.get("quarter") in last and re.search(r"CENTRAL|BUKIT MERAH|QUEENSTOWN|KALLANG|TOA PAYOH", str(r.get("town")), re.I):
-                    print(f"    {r}")
         except Exception as e:
             print(f"  {url}: {e}")
+            break
+        batch = d["result"]["records"]
+        recs += batch
+        offset += len(batch)
+        if not batch or offset >= int(d["result"].get("total", 0)):
+            break
+    qs = sorted({r.get("quarter") for r in recs})
+    print(f"  {len(recs)} records, quarters {qs[:1]}..{qs[-1:]}")
+    for r in recs:
+        if r.get("quarter") in qs[-2:] and re.search(r"CENTRAL|BUKIT MERAH|QUEENSTOWN|KALLANG", str(r.get("town")), re.I):
+            print(f"    {r.get('quarter')} | {r.get('town')} | {r.get('flat_type')} | {r.get('median_rent')}")
 
 
 # --------------------------------------------------------------------------- US: BLS CE by household size
 def bls():
     section("BLS Consumer Expenditure Survey by consumer-unit size (API v1, no key)")
-    items = ["TOTALEXP", "HOUSING", "SHELTER", "PERINSPENS", "CASHCONT", "FOODTOTL", "FOOD", "TRANS", "HEALTH", "ENTRTAIN", "UTILS", "APPAREL", "EDUCATN", "PERSCARE", "MISC", "ALCBEVG", "READING", "TOBACCO", "HHOPER", "HKPGSUPP", "HOUSEFUR"]
-    sizes = {"02": "one person", "03": "two persons", "04": "three persons", "05": "four persons", "06": "five or more"}
+    items = ["TOTALEXP", "HOUSING", "SHELTER", "PERINSUR", "PERSINS", "INSPENSN", "CASHCONT", "FOODTOTL", "FOODHOME", "FOODAWAY", "TRANS", "HEALTH", "ENTRTAIN", "UTILS", "APPAREL", "EDUCATN", "PERSCARE", "MISC", "ALCBEVG", "READING", "TOBACCO", "HHOPER", "HKPGSUPP", "HOUSEQ", "INCAFTTX", "PERSONS", "EARNERS", "AGE"]
+    sizes = {"02": "one person", "04": "two persons", "05": "three persons", "06": "four persons", "07": "five or more"}
     series = [f"CXU{it}LB05{s}M" for it in items for s in sizes]
     out = {}
     for i in range(0, len(series), 25):
@@ -522,7 +533,7 @@ def bls():
             pts = out.get(f"CXU{it}LB05{s}M") or {}
             yr = max(pts) if pts else None
             row.append(f"{pts[yr]}@{yr}" if yr else "-")
-        print(f"  CE {it:11s} 1p..5+p: {row}")
+        print(f"  CE {it:11s} 1p,2p,3p,4p,5+p: {row}")
     print("  source: https://api.bls.gov/publicAPI/v1/timeseries/data/ (CX series, demographic LB05 size of consumer unit)")
 
 
