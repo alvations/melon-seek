@@ -1,0 +1,15 @@
+{
+ "BASIS": "posted base pay ranges",
+ "COLUMNS": [
+  "company",
+  "family",
+  "seniority",
+  "n",
+  "p25",
+  "median",
+  "p75"
+ ],
+ "MARKET_FORMAT": "melon-market-1",
+ "MIN_N": 3,
+ "OTE_BASIS": "posted on-target earnings ranges (base plus commission at target)"
+}

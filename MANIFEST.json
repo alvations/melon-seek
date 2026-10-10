@@ -1,7 +1,7 @@
 {
  "format": "melon-archive",
  "schemaVersion": 1,
- "updatedAt": "2026-10-10T13:54:47.544Z",
+ "updatedAt": "2026-10-10T13:55:07.046Z",
  "generator": "scripts/archive@be5691cef24a793e4e5ae7e329535e34039efd56",
  "tables": {
   "audit/flags": 1249,
@@ -16,8 +16,8 @@
   "jobs.versions": 29498,
   "ledger/entries": 29595,
   "observations": 221,
-  "reference.files": 134,
-  "reference/index": 134
+  "reference.files": 137,
+  "reference/index": 137
  },
  "files": {
   "audit/flags/2026-10.jsonl": {
@@ -405,9 +405,9 @@
   },
   "reference/index/2026.jsonl": {
    "kind": "append",
-   "bytes": 62649,
-   "sha256": "db9b69a304527476e3fd75e02d0e78a7011e19086077fcc0db80efc0fc900039",
-   "rows": 134
+   "bytes": 63883,
+   "sha256": "53a6f7fb63a768360832ffdb96b7db2e395ce2b540d5abfdddcb784fe998469f",
+   "rows": 137
   },
   "reference/jobs-aggregates/2026-10-09.json": {
    "kind": "immutable",
@@ -549,6 +549,11 @@
    "bytes": 745928,
    "sha256": "2c56b2c96ffd058b9e69d70ffa35f8904328df2d338165d2f2ebee4c403fd5cd"
   },
+  "reference/repo.freshness-registry/2026-10-10~3.json": {
+   "kind": "immutable",
+   "bytes": 745932,
+   "sha256": "eddfabf40dd2722355d7ac6cbb52b6750b0bdbc27cf830d33737dc1a4aaab782"
+  },
   "reference/repo.fx-juice/2026-07-01.json": {
    "kind": "immutable",
    "bytes": 463,
@@ -584,6 +589,11 @@
    "bytes": 182,
    "sha256": "6e1f8899eee995af115099da56b59344bc958bd29fefe8e71705f95a36f00d9c"
   },
+  "reference/repo.market-policy/2026-10-10~2.json": {
+   "kind": "immutable",
+   "bytes": 265,
+   "sha256": "c9dc14ab75091dadbfa06f46c2b3b1a3405cf2d4eb5b7f2cb94d783e30acacde"
+  },
   "reference/repo.normalizer/2026-10-10.json": {
    "kind": "immutable",
    "bytes": 36,
@@ -598,6 +608,11 @@
    "kind": "immutable",
    "bytes": 1252,
    "sha256": "b51cc8ec6313a5b2765e2e44fcc1356dc5730d934155566c1d26a9b10e8a5c4e"
+  },
+  "reference/repo.roles/2026-10-10~3.json": {
+   "kind": "immutable",
+   "bytes": 1369,
+   "sha256": "94a2bd7b9a799b62a3d0ed6ea2ece09d59dee99055487bcc4a72b30baceed66b"
   },
   "reference/repo.salary-policy/2026-10-10.json": {
    "kind": "immutable",

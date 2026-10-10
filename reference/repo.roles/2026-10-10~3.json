@@ -1,0 +1,49 @@
+{
+ "FAMILY_LABELS": {
+  "swe": "Software engineering",
+  "ml": "AI research & ML engineering",
+  "data": "Data science & analytics",
+  "security": "Security",
+  "eng-manager": "Engineering management",
+  "hardware": "Hardware & systems engineering",
+  "manufacturing": "Manufacturing, production & technicians",
+  "supply-chain": "Supply chain & procurement",
+  "facilities": "Facilities, construction & data centers",
+  "field-ops": "Field operations & test",
+  "product": "Product management",
+  "design": "Design",
+  "program": "Program & project management",
+  "bizops": "Business operations & strategy",
+  "solutions": "Solutions & forward-deployed engineering",
+  "sales": "Sales & partnerships",
+  "support": "Customer support & success",
+  "marketing": "Marketing, comms & content",
+  "legal": "Legal & contracts",
+  "policy": "Policy & government affairs",
+  "trust-safety": "Trust & safety",
+  "people": "People & recruiting",
+  "finance": "Finance & accounting",
+  "it": "IT & enterprise systems",
+  "admin": "Executive & administrative support",
+  "ai-training": "AI tutors & expert contributors"
+ },
+ "LEVEL_NOT_STATED": "Mid",
+ "SENIORITY_DISPLAY_ORDER": [
+  "Intern",
+  "Entry",
+  "Senior",
+  "Staff+",
+  "Manager",
+  "Director+",
+  "Mid"
+ ],
+ "SENIORITY_LADDER": [
+  "Intern",
+  "Entry",
+  "Mid",
+  "Senior",
+  "Staff+",
+  "Manager",
+  "Director+"
+ ]
+}
