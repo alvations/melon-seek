@@ -1,8 +1,8 @@
 // Raw job (adapter / demo output) -> Job (API shape). See docs/CONTRACT.md.
-import { geocode } from './geo.js';
-import { extractSections, extractKeywords, inferSeniority } from './keywords.js';
+import { geocodeMany } from './geo.js';
+import { extractSections, extractKeywords, inferSeniority, isSalesTitle } from './keywords.js';
 import * as keywordsModule from './keywords.js';
-import { parseSalary, toJobSalary, currenciesFor } from './salary.js';
+import { parseSalary, toJobSalary, currenciesFor, payTerms, mayRelabelPay } from './salary.js';
 import { htmlToText, isoOrNull } from './sources/util.js';
 import { vetSalaries, salaryChecks } from './vet.js';
 
@@ -15,9 +15,13 @@ import { vetSalaries, salaryChecks } from './vet.js';
  * History: norm-2 = BUG-5 boilerplate-aware keywords; norm-3 = UX-3 canonical
  * location names (geo.js rawName); norm-4 = features §6a lexicon fixes
  * (14 noisy patterns, near-duplicate chips dropped or renamed); norm-5 = remote
- * locations name the country ("Remote (Canada)", not "Remote (CA)").
+ * locations name the country ("Remote (Canada)", not "Remote (CA)"); norm-6 = pay
+ * data fixes from the 2026-10-10 persona review (salary.kind 'ote', salary.termWeeks,
+ * term pay, level rules for Account Director / Fellow, keyword patterns and skill
+ * order, Canadian cities and location context). Stored snapshots are upgraded with
+ * relocateJobs (which also re-derives the pay labels and the level) and rekeyBoardJobs.
  */
-export const NORMALIZER_VERSION = 'norm-5';
+export const NORMALIZER_VERSION = 'norm-6';
 
 const NO_EXTRAS = Object.freeze({ equity: false, bonus: false });
 
@@ -49,18 +53,18 @@ export function normalizeLocations(raw) {
     .filter((s) => typeof s === 'string' && s.trim());
   const seen = new Set();
   const out = [];
-  for (const input of inputs) {
-    const locs = safe(() => geocode(input), []);
-    for (const loc of Array.isArray(locs) ? locs : []) {
-      if (!loc || !loc.name) continue;
-      // Dedupe by name, and by resolved city ("San Francisco" == "San Francisco, CA").
-      const key = String(loc.name).toLowerCase();
-      const cityKey = loc.city && loc.lat != null ? `city:${loc.city}|${loc.country || ''}`.toLowerCase() : null;
-      if (seen.has(key) || (cityKey && seen.has(cityKey))) continue;
-      seen.add(key);
-      if (cityKey) seen.add(cityKey);
-      out.push(loc);
-    }
+  // P-9: all of the job's location strings are geocoded together, so a bare "Victoria"
+  // next to Toronto and Calgary is Victoria, BC (geo.js#geocodeMany).
+  const locs = safe(() => geocodeMany(inputs), []);
+  for (const loc of Array.isArray(locs) ? locs : []) {
+    if (!loc || !loc.name) continue;
+    // Dedupe by name, and by resolved city ("San Francisco" == "San Francisco, CA").
+    const key = String(loc.name).toLowerCase();
+    const cityKey = loc.city && loc.lat != null ? `city:${loc.city}|${loc.country || ''}`.toLowerCase() : null;
+    if (seen.has(key) || (cityKey && seen.has(cityKey))) continue;
+    seen.add(key);
+    if (cityKey) seen.add(cityKey);
+    out.push(loc);
   }
   return out;
 }
@@ -94,18 +98,70 @@ export function deriveSalary(raw, locations = []) {
   // zones (F2): the text's distinct pay ranges merged with the adapter's tier count.
   const adapterZones = Math.max(Number(raw.salary && raw.salary.zones) || 0, ranges.length);
   const zonesOf = (s) => Math.max(1, s.zones || 1, adapterZones, (parsed && parsed.zones) || 0);
+  // P-1 / P-8: on-target earnings and the programme length, from the posting's own words.
+  const terms = (s) => payTerms(s, { text, title: raw.title || '', employmentType: raw.employmentType || '', salesRole: isSalesTitle(raw.title) });
   // Structured wins, unless it is implausible and the text gives a plausible
   // pay statement (e.g. adapter unit bugs: JPY pay_input_ranges divided by 100).
   const who = { title: raw.title, employmentType: raw.employmentType };
   const hard = salary ? salaryChecks(who, salary).filter((c) => c.code !== 'junior_high' && c.code !== 'senior_low') : [];
   if (hard.length) {
     const fromText = toJobSalary(parsed, { source: 'text' });
-    if (fromText && !salaryChecks(who, fromText).length) return { ...fromText, zones: zonesOf(fromText), structuredRejected: hard.map((c) => c.code) };
+    if (fromText && !salaryChecks(who, fromText).length) return terms({ ...fromText, zones: zonesOf(fromText), structuredRejected: hard.map((c) => c.code) });
   }
   if (salary && ranges.length > 1) salary.ranges = ranges.slice(0, 12).map(({ min, max, currency, interval, label }) => ({ min, max, currency, interval, ...(label ? { label } : {}) }));
   if (!salary) salary = toJobSalary(parsed, { source: 'text' });
   if (salary) salary.zones = zonesOf(salary);
-  return salary;
+  return salary ? terms(salary) : salary;
+}
+
+/**
+ * Re-derive the pay labels of a STORED Job salary (P-1, P-8; snapshots written before
+ * norm-6) from the stored posting: kind 'ote', termWeeks and term pay ("$100,000–$167,000
+ * USD for the four-month fellowship", which older parsers read as a yearly salary). The
+ * stored numbers are kept unless the text salary is that term amount. Same rules as
+ * deriveSalary for a fresh posting.
+ */
+function relabelSalary(sal, { text, title, employmentType, countries }) {
+  if (!sal || typeof sal !== 'object') return sal;
+  let s = sal;
+  if (s.source === 'text' && s.originalInterval !== 'term' && text && mayRelabelPay(text)) {
+    const p = parseSalary(text, { countries });
+    // The stored yearly figure is the term amount the parser now reads per term.
+    if (p && p.interval === 'term' && Math.abs(p.min - s.min) <= 1 && Math.abs(p.max - s.max) <= 1) {
+      const t = toJobSalary(p, { source: 'text' });
+      if (t) s = { ...t, zones: Math.max(s.zones || 1, t.zones || 1) };
+    } else if (p && p.kind === 'ote' && s.kind !== 'ote' && Math.abs((toJobSalary(p) || {}).min - s.min) <= 1) {
+      s = { ...s, kind: 'ote' };
+    }
+  }
+  return payTerms(s, { text, title, employmentType, salesRole: isSalesTitle(title) });
+}
+
+/**
+ * Upgrade stored jobs to the norm-6 pay labels and level rules: salary (and salaryRaw)
+ * relabelled from the posting text, seniority re-derived from the title. Pure; returns
+ * new objects for changed jobs. Called by relocateJobs, so every snapshot upgrade path
+ * (server/pipeline.js, scripts/build-static.js, the archive ingest and the refresh
+ * report) gets it with the location upgrade.
+ */
+export function relabelJobs(jobs) {
+  return (jobs || []).map((j) => {
+    if (!j || typeof j !== 'object') return j;
+    const title = j.title || '';
+    const seniority = title ? safe(() => inferSeniority(title), j.seniority) : j.seniority;
+    const html = typeof j.descriptionHtml === 'string' ? j.descriptionHtml : '';
+    if (!j.salary && !j.salaryRaw) return seniority === j.seniority ? j : { ...j, seniority };
+    const ctx = {
+      text: html ? htmlToText(html) : '',
+      title,
+      employmentType: j.employmentType || '',
+      countries: [...new Set((j.locations || []).map((l) => l && l.country).filter(Boolean))],
+    };
+    const out = { ...j, seniority };
+    if (j.salary) out.salary = safe(() => relabelSalary(j.salary, ctx), j.salary);
+    if (j.salaryRaw) out.salaryRaw = safe(() => relabelSalary(j.salaryRaw, ctx), j.salaryRaw);
+    return out;
+  });
 }
 
 export function normalizeJob(raw, company, { boilerplate = null } = {}) {
@@ -159,10 +215,13 @@ export function normalizeJob(raw, company, { boilerplate = null } = {}) {
  * Upgrade stored, already-normalized jobs (snapshots written by an older
  * normalizer) to the current location model: re-geocode each location from its
  * source string (rawName, or the old name, which was the source string), and
- * recompute `remote`. Used once per snapshot file by server/pipeline.js.
+ * recompute `remote`. Since norm-6 it also re-derives the pay labels and the level
+ * (relabelJobs), so the server (server/pipeline.js), the static build
+ * (scripts/build-static.js#readSnapshot) and the archive show the fixes on stored
+ * snapshots before the next crawl. Used once per snapshot file version.
  */
 export function relocateJobs(jobs) {
-  return (jobs || []).map((j) => {
+  const moved = (jobs || []).map((j) => {
     if (!j || !Array.isArray(j.locations) || !j.locations.length) return j;
     const inputs = j.locations.map((l) => l && (l.rawName || l.name)).filter(Boolean);
     if (!inputs.length) return j;
@@ -170,6 +229,7 @@ export function relocateJobs(jobs) {
     const remote = j.remote === true || locations.some((l) => l && l.remote === true);
     return { ...j, locations, remote };
   });
+  return relabelJobs(moved);
 }
 
 export function normalizeJobs(raws, company) {

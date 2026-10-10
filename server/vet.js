@@ -95,7 +95,7 @@ export function roleFamily(title) {
   return 'other';
 }
 
-/** Pay kind of a Job salary: explicit kind, else hourly when the source interval was hourly. */
+/** Pay kind of a Job salary ('salary' | 'hourly' | 'stipend' | 'ote'): explicit kind, else hourly when the source interval was hourly. */
 export function payKind(salary) {
   if (!salary) return null;
   if (salary.kind) return salary.kind;
@@ -139,7 +139,10 @@ export function salaryChecks(job, salary = job && job.salary) {
     else if (ft && rate > VET.HOURLY_MAX_FULLTIME) out.push({ code: 'hourly_high', reason: `hourly rate ${fmt(rate)}/hr is implausible for a full-time role (more than ${fmt(VET.HOURLY_MAX_FULLTIME)}/hr)` });
   }
   const tc = titleClass(job && job.title);
-  if (tc === 'junior' && usd(mid) > VET.JUNIOR_MAX_MID) out.push({ code: 'junior_high', reason: `${fmt(usd(mid))}/yr is implausible for an intern/fellow/resident title` });
+  // Term pay (originalInterval 'term', P-8) is the posting's own amount for a stated term
+  // ("$100,000–$167,000 USD for the four-month fellowship"), annualized over that term: a
+  // high yearly equivalent there is not a misread.
+  if (tc === 'junior' && usd(mid) > VET.JUNIOR_MAX_MID && salary.originalInterval !== 'term') out.push({ code: 'junior_high', reason: `${fmt(usd(mid))}/yr is implausible for an intern/fellow/resident title` });
   if (tc === 'senior' && usd(max) < VET.SENIOR_MIN_MAX) out.push({ code: 'senior_low', reason: `${fmt(usd(max))}/yr is implausible for a director/VP title` });
   return out;
 }
@@ -214,8 +217,10 @@ export function statOutliers(jobs, { exclude = new Set() } = {}) {
   for (const p of pts) {
     const c = outlierScore(p.x, all);
     if (!c.outlier) continue;
-    // Low side: full-time salaried roles only (hourly/stipend/contract/intern pay is legitimately low).
-    if (c.z < 0 && (!isFullTime(jobs[p.i]) || payKind(jobs[p.i].salary) !== 'salary')) continue;
+    // Low side: full-time salaried roles only (hourly/stipend/contract/intern pay is legitimately low);
+    // on-target earnings (kind 'ote', P-1) are full-time pay too.
+    const pk = payKind(jobs[p.i].salary);
+    if (c.z < 0 && (!isFullTime(jobs[p.i]) || (pk !== 'salary' && pk !== 'ote'))) continue;
     let agree = true;
     const detail = [`company z=${c.z.toFixed(1)}${c.fence ? `, ${c.fence} fence` : ''}`];
     for (const g of p.groups) {

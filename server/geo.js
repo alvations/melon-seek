@@ -83,16 +83,25 @@ ON|Ontario|CA|50.00|-85.00|
 QC|Quebec|CA|52.94|-73.55|Québec
 BC|British Columbia|CA|53.73|-127.65|
 AB|Alberta|CA|53.93|-116.58|
+MB|Manitoba|CA|53.76|-98.81|
+SK|Saskatchewan|CA|52.94|-106.45|
+NS|Nova Scotia|CA|44.68|-63.74|
+NB|New Brunswick|CA|46.57|-66.46|
 NSW|New South Wales|AU|-31.84|145.61|
 VIC|Victoria|AU|-36.85|144.28|
 QLD|Queensland|AU|-20.92|142.70|
 ACT|Australian Capital Territory|AU|-35.47|149.01|
+TAS|Tasmania|AU|-42.04|146.81|
 England|England|GB|52.36|-1.17|
 Scotland|Scotland|GB|56.49|-4.20|
 Wales|Wales|GB|52.13|-3.78|
 Northern Ireland|Northern Ireland|GB|54.79|-6.49|
 Bavaria|Bavaria|DE|48.79|11.50|Bayern
 Ile-de-France|Île-de-France|FR|48.85|2.64|Ile de France
+CT|Catalonia|ES|41.59|1.52|Cataluña;Catalunya
+MD|Community of Madrid|ES|40.42|-3.70|Comunidad de Madrid
+AR|Aragon|ES|41.60|-0.88|Aragón
+SP|São Paulo State|BR|-22.19|-48.79|
 `;
 
 // ---------------------------------------------------------------------------
@@ -103,11 +112,13 @@ const COUNTRIES_RAW = `
 US|United States|39.83|-98.58|USA;U.S.;U.S.A.;United States of America;America;US
 CA|Canada|56.13|-106.35|CAN
 MX|Mexico|23.63|-102.55|México;MEX
+CR|Costa Rica|9.75|-83.75|
 BR|Brazil|-14.24|-51.93|Brasil;BRA
 AR|Argentina|-38.42|-63.62|
 CL|Chile|-35.68|-71.54|
 CO|Colombia|4.57|-74.30|
 PE|Peru|-9.19|-75.02|
+UY|Uruguay|-32.52|-55.77|
 GB|United Kingdom|54.00|-2.00|UK;U.K.;Great Britain;Britain;GB;GBR
 IE|Ireland|53.41|-8.24|Republic of Ireland;IE;IRL
 FR|France|46.23|2.21|FR;FRA
@@ -134,12 +145,15 @@ HU|Hungary|47.16|19.50|HU
 RO|Romania|45.94|24.97|RO
 BG|Bulgaria|42.73|25.49|BG
 RS|Serbia|44.02|21.01|RS
+HR|Croatia|45.10|15.20|
 GR|Greece|39.07|21.82|GR
 TR|Turkey|38.96|35.24|Türkiye;Turkiye;TR
 UA|Ukraine|48.38|31.17|UA
+AM|Armenia|40.07|45.04|
 IL|Israel|31.05|34.85|ISR
+KW|Kuwait|29.31|47.48|
 AE|United Arab Emirates|23.42|53.85|UAE;U.A.E.;AE;ARE
-SA|Saudi Arabia|23.89|45.08|KSA
+SA|Saudi Arabia|23.89|45.08|KSA;Kingdom of Saudi Arabia
 QA|Qatar|25.35|51.18|QA
 EG|Egypt|26.82|30.80|EG
 NG|Nigeria|9.08|8.68|NG
@@ -168,7 +182,7 @@ NZ|New Zealand|-40.90|174.89|NZ
 // ---------------------------------------------------------------------------
 
 const CITIES_RAW = `
-San Francisco|CA|US|37.7749|-122.4194|SF;S.F.;San Francisco Bay Area;SF Bay Area;Bay Area;San Francisco HQ
+San Francisco|CA|US|37.7749|-122.4194|SF;S.F.;San Francisco Bay Area;San Francisco Bay;SF Bay Area;Bay Area;San Francisco HQ
 New York|NY|US|40.7128|-74.0060|New York City;NYC;NY City;Manhattan;New York Metro
 Brooklyn|NY|US|40.6782|-73.9442|
 Seattle|WA|US|47.6062|-122.3321|Greater Seattle
@@ -182,11 +196,14 @@ Boston|MA|US|42.3601|-71.0589|Greater Boston
 Cambridge|MA|US|42.3736|-71.1097|
 Burlington|MA|US|42.5048|-71.1956|
 Waltham|MA|US|42.3765|-71.2356|
+Quincy|MA|US|42.2529|-71.0023|
+Westford|MA|US|42.5793|-71.4378|
 Lexington|MA|US|42.4473|-71.2245|
 Andover|MA|US|42.6583|-71.1368|
 Nashua|NH|US|42.7654|-71.4676|
 Providence|RI|US|41.8240|-71.4128|
 Newport|RI|US|41.4901|-71.3128|
+Quonset|RI|US|41.5876|-71.4137|Quonset Point
 Hartford|CT|US|41.7658|-72.6734|
 New Haven|CT|US|41.3083|-72.9279|
 Stamford|CT|US|41.0534|-73.5387|
@@ -203,6 +220,8 @@ Austin|TX|US|30.2672|-97.7431|
 Dallas|TX|US|32.7767|-96.7970|Dallas-Fort Worth;DFW
 Fort Worth|TX|US|32.7555|-97.3308|
 Plano|TX|US|33.0198|-96.6989|
+Addison|TX|US|32.9618|-96.8292|
+Irving|TX|US|32.8140|-96.9489|
 Houston|TX|US|29.7604|-95.3698|
 San Antonio|TX|US|29.4241|-98.4936|
 El Paso|TX|US|31.7619|-106.4850|
@@ -210,6 +229,9 @@ Arlington|VA|US|38.8816|-77.0910|
 Arlington|TX|US|32.7357|-97.1081|
 Los Angeles|CA|US|34.0522|-118.2437|LA;L.A.;Greater Los Angeles
 Santa Monica|CA|US|34.0195|-118.4912|
+Culver City|CA|US|34.0211|-118.3965|
+Foothill Ranch|CA|US|33.6864|-117.6609|
+Victorville|CA|US|34.5362|-117.2928|
 El Segundo|CA|US|33.9192|-118.4165|
 Hawthorne|CA|US|33.9164|-118.3526|
 Torrance|CA|US|33.8358|-118.3406|
@@ -235,6 +257,10 @@ Sunnyvale|CA|US|37.3688|-122.0363|
 San Jose|CA|US|37.3382|-121.8863|
 Santa Clara|CA|US|37.3541|-121.9552|
 Cupertino|CA|US|37.3230|-122.0322|
+Los Gatos|CA|US|37.2358|-121.9624|
+San Bruno|CA|US|37.6305|-122.4111|
+Santa Cruz|CA|US|36.9741|-122.0308|
+Elk Grove|CA|US|38.4088|-121.3716|
 Redwood City|CA|US|37.4852|-122.2364|
 San Mateo|CA|US|37.5630|-122.3255|
 South San Francisco|CA|US|37.6547|-122.4077|
@@ -271,9 +297,13 @@ Huntsville|AL|US|34.7304|-86.5861|
 Colorado Springs|CO|US|38.8339|-104.8214|
 Denver|CO|US|39.7392|-104.9903|
 Boulder|CO|US|40.0150|-105.2705|
+Broomfield|CO|US|39.9205|-105.0867|
+Fort Collins|CO|US|40.5853|-105.0844|
+Thornton|CO|US|39.8680|-104.9719|
 Aurora|CO|US|39.7294|-104.8319|
 Chicago|IL|US|41.8781|-87.6298|
 Columbus|OH|US|39.9612|-82.9988|
+Ashville|OH|US|39.7156|-82.9530|
 Dayton|OH|US|39.7589|-84.1916|
 Cleveland|OH|US|41.4993|-81.6944|
 Cincinnati|OH|US|39.1031|-84.5120|
@@ -285,13 +315,17 @@ Chandler|AZ|US|33.3062|-111.8413|
 Tucson|AZ|US|32.2226|-110.9747|
 Portland|OR|US|45.5152|-122.6784|
 Hillsboro|OR|US|45.5229|-122.9898|
+Beaverton|OR|US|45.4871|-122.8037|
+Prineville|OR|US|44.2999|-120.8345|
 Salt Lake City|UT|US|40.7608|-111.8910|SLC
 Lehi|UT|US|40.3916|-111.8508|
 Las Vegas|NV|US|36.1699|-115.1398|
 Reno|NV|US|39.5296|-119.8138|
+Sparks|NV|US|39.5349|-119.7527|
 Albuquerque|NM|US|35.0844|-106.6504|
 Boise|ID|US|43.6150|-116.2023|
 Miami|FL|US|25.7617|-80.1918|
+Miami Beach|FL|US|25.7907|-80.1300|
 Orlando|FL|US|28.5383|-81.3792|
 Tampa|FL|US|27.9506|-82.4572|
 Jacksonville|FL|US|30.3322|-81.6557|
@@ -299,10 +333,17 @@ Melbourne|FL|US|28.0836|-80.6081|
 Cape Canaveral|FL|US|28.3922|-80.6077|
 Atlanta|GA|US|33.7490|-84.3880|
 Raleigh|NC|US|35.7796|-78.6382|
+Cary|NC|US|35.7915|-78.7811|
+Morrisville|NC|US|35.8235|-78.8256|
+Maiden|NC|US|35.5757|-81.2118|
 Durham|NC|US|35.9940|-78.8986|
 Charlotte|NC|US|35.2271|-80.8431|
 Charleston|SC|US|32.7765|-79.9311|
 Nashville|TN|US|36.1627|-86.7816|
+Memphis|TN|US|35.1495|-90.0490|
+Clarksville|TN|US|36.5298|-87.3595|
+Southaven|MS|US|34.9890|-90.0126|
+McHenry|MS|US|30.7113|-89.1336|
 Minneapolis|MN|US|44.9778|-93.2650|
 Detroit|MI|US|42.3314|-83.0458|
 Ann Arbor|MI|US|42.2808|-83.7430|
@@ -312,6 +353,13 @@ Indianapolis|IN|US|39.7684|-86.1581|
 Madison|WI|US|43.0731|-89.4012|
 Milwaukee|WI|US|43.0389|-87.9065|
 Omaha|NE|US|41.2565|-95.9345|
+Lincoln|NE|US|40.8136|-96.7026|
+Council Bluffs|IA|US|41.2619|-95.8608|
+Waukee|IA|US|41.6117|-93.8852|
+Cedar Rapids|IA|US|41.9779|-91.6656|
+Fargo|ND|US|46.8772|-96.7898|
+Cheyenne|WY|US|41.1400|-104.8202|
+Wichita|KS|US|37.6872|-97.3301|
 Oklahoma City|OK|US|35.4676|-97.5164|
 Honolulu|HI|US|21.3069|-157.8583|
 Anchorage|AK|US|61.2181|-149.9003|
@@ -328,51 +376,76 @@ Cork||IE|51.8985|-8.4756|
 Zurich||CH|47.3769|8.5417|Zürich;Zuerich
 Geneva||CH|46.2044|6.1432|Genève;Geneve
 Lausanne||CH|46.5197|6.6323|
-Paris|Ile-de-France|FR|48.8566|2.3522|
+Paris|Ile-de-France|FR|48.8566|2.3522|Courbevoie;La Défense;La Defense
 Berlin||DE|52.5200|13.4050|
 Munich|Bavaria|DE|48.1351|11.5820|München;Muenchen
 Hamburg||DE|53.5511|9.9937|
 Frankfurt||DE|50.1109|8.6821|Frankfurt am Main
+Cologne||DE|50.9375|6.9603|Köln;Koeln
 Stuttgart||DE|48.7758|9.1829|
-Amsterdam||NL|52.3676|4.9041|
+Amsterdam||NL|52.3676|4.9041|Schiphol
 Eindhoven||NL|51.4416|5.4697|
-Brussels||BE|50.8503|4.3517|Bruxelles
+Brussels||BE|50.8503|4.3517|Bruxelles;Zaventem
+Saint-Ghislain||BE|50.4469|3.8186|
 Madrid||ES|40.4168|-3.7038|
 Barcelona||ES|41.3874|2.1686|
+Zaragoza||ES|41.6488|-0.8891|
 Lisbon||PT|38.7223|-9.1393|Lisboa
 Milan||IT|45.4642|9.1900|Milano
 !Rome||IT|41.9028|12.4964|Roma
 Vienna||AT|48.2082|16.3738|Wien
+Linz||AT|48.3069|14.2858|
 Prague||CZ|50.0755|14.4378|Praha
 Warsaw||PL|52.2297|21.0122|Warszawa
 Krakow||PL|50.0647|19.9450|Kraków
 Stockholm||SE|59.3293|18.0686|
+Gävle||SE|60.6749|17.1413|Gavle
 Copenhagen||DK|55.6761|12.5683|København
 Oslo||NO|59.9139|10.7522|
-Helsinki||FI|60.1699|24.9384|
+Stavanger||NO|58.9700|5.7331|
+Zagreb||HR|45.8150|15.9819|
+Helsinki||FI|60.1699|24.9384|HKI
+Vaasa||FI|63.0960|21.6158|
+Hamina||FI|60.5697|27.1981|
 Tallinn||EE|59.4370|24.7536|
 Bucharest||RO|44.4268|26.1025|
 Athens||GR|37.9838|23.7275|
 Istanbul||TR|41.0082|28.9784|
 Kyiv||UA|50.4501|30.5234|Kiev
+Lviv||UA|49.8397|24.0297|Lvov;Lwów
+The Hague||NL|52.0705|4.3007|Den Haag
 Tel Aviv||IL|32.0853|34.7818|Tel Aviv-Yafo;Tel-Aviv
+Herzliya||IL|32.1663|34.8433|Herzliya Pituah
+Ra'anana||IL|32.1848|34.8713|Raanana
+Yokneam||IL|32.6593|35.1052|Yokne'am Illit;Yokneam Illit;Yokne'am
+Beersheba||IL|31.2518|34.7913|Be'er Sheva;Beer Sheva
 Haifa||IL|32.7940|34.9896|
 Jerusalem||IL|31.7683|35.2137|
 Dubai||AE|25.2048|55.2708|
 Abu Dhabi||AE|24.4539|54.3773|
 Riyadh||SA|24.7136|46.6753|
+Jeddah||SA|21.4858|39.1925|Jiddah
+Dammam||SA|26.4207|50.0888|Dhahran;Khobar;Al Khobar
+Kuwait City||KW|29.3759|47.9774|
+Yerevan||AM|40.1792|44.4991|
 Doha||QA|25.2854|51.5310|
-Tokyo||JP|35.6762|139.6503|
+Tokyo||JP|35.6762|139.6503|Minato;Minato City;Minato-ku;Shibuya;Chiyoda
 Osaka||JP|34.6937|135.5023|
+Yokohama||JP|35.4437|139.6380|
 Seoul||KR|37.5665|126.9780|
 Beijing||CN|39.9042|116.4074|
 Shanghai||CN|31.2304|121.4737|
 Shenzhen||CN|22.5431|114.0579|
-Hong Kong||HK|22.3193|114.1694|
-Taipei||TW|25.0330|121.5654|
+Suzhou||CN|31.2989|120.5853|
+Chengdu||CN|30.5728|104.0668|
+Xi'an||CN|34.3416|108.9398|Xian
+Hong Kong||HK|22.3193|114.1694|Hong Kong Island
+Taipei||TW|25.0330|121.5654|Taipei City
+New Taipei||TW|25.0120|121.4657|New Taipei City
 Hsinchu||TW|24.8138|120.9675|
 Singapore||SG|1.3521|103.8198|
-Kuala Lumpur||MY|3.1390|101.6869|
+Kuala Lumpur||MY|3.1390|101.6869|Klang Valley
+Johor Bahru||MY|1.4927|103.7414|
 Jakarta||ID|-6.2088|106.8456|
 Manila||PH|14.5995|120.9842|
 Bangkok||TH|13.7563|100.5018|
@@ -386,12 +459,14 @@ New Delhi||IN|28.6139|77.2090|Delhi
 Gurugram||IN|28.4595|77.0266|Gurgaon
 Noida||IN|28.5355|77.3910|
 Chennai||IN|13.0827|80.2707|
-Sydney|NSW|AU|-33.8688|151.2093|
+Sydney|NSW|AU|-33.8688|151.2093|Alexandria;Penrith;North Sydney;Parramatta
 !Melbourne|VIC|AU|-37.8136|144.9631|
 Brisbane|QLD|AU|-27.4698|153.0251|
-Canberra|ACT|AU|-35.2809|149.1300|
+Canberra|ACT|AU|-35.2809|149.1300|Belconnen
 Adelaide||AU|-34.9285|138.6007|
 Perth||AU|-31.9505|115.8605|
+Hobart|TAS|AU|-42.8821|147.3272|
+Wollongong|NSW|AU|-34.4278|150.8931|
 Auckland||NZ|-36.8485|174.7633|
 Wellington||NZ|-41.2865|174.7762|
 Toronto|ON|CA|43.6532|-79.3832|
@@ -399,16 +474,26 @@ Waterloo|ON|CA|43.4643|-80.5204|
 Ottawa|ON|CA|45.4215|-75.6972|
 Montreal|QC|CA|45.5017|-73.5673|Montréal
 Vancouver|BC|CA|49.2827|-123.1207|
+Victoria|BC|CA|48.4284|-123.3656|
 Calgary|AB|CA|51.0447|-114.0719|
 Edmonton|AB|CA|53.5461|-113.4938|
+Winnipeg|MB|CA|49.8951|-97.1384|
+Halifax|NS|CA|44.6488|-63.5752|
+Quebec City|QC|CA|46.8139|-71.2080|Québec City;Ville de Québec
+Kitchener|ON|CA|43.4516|-80.4925|Kitchener-Waterloo
+Saskatoon|SK|CA|52.1332|-106.6700|
+Regina|SK|CA|50.4452|-104.6189|
 Mexico City||MX|19.4326|-99.1332|CDMX;Ciudad de México
 Guadalajara||MX|20.6597|-103.3496|
 Sao Paulo||BR|-23.5505|-46.6333|São Paulo
 Rio de Janeiro||BR|-22.9068|-43.1729|
+Brasília||BR|-15.7939|-47.8828|Brasilia
+Belo Horizonte||BR|-19.9167|-43.9345|
 Buenos Aires||AR|-34.6037|-58.3816|
 Bogota||CO|4.7110|-74.0721|Bogotá
 Santiago||CL|-33.4489|-70.6693|
 Lima||PE|-12.0464|-77.0428|
+San José||CR|9.9281|-84.0907|San Jose
 Cape Town||ZA|-33.9249|18.4241|
 Johannesburg||ZA|-26.2041|28.0473|
 Nairobi||KE|-1.2921|36.8219|
@@ -433,10 +518,12 @@ STATES.set('washington dc', STATE_BY_ABBR.get('DC'));
 
 const REGIONS = new Map(); // non-US regions: key -> region
 const REGION_BY_CODE = new Map();
+const REGION_BY_CODE_COUNTRY = new Map(); // "CT|ES" -> Catalonia (codes repeat across countries)
 for (const line of OTHER_REGIONS_RAW.trim().split('\n')) {
   const [code, name, country, lat, lng, aliases] = line.split('|');
   const r = { abbr: code, name, country, lat: +lat, lng: +lng };
   REGION_BY_CODE.set(code, r);
+  REGION_BY_CODE_COUNTRY.set(`${code}|${country}`, r);
   for (const k of [code, name, ...(aliases ? aliases.split(';') : [])]) REGIONS.set(normKey(k), r);
 }
 
@@ -638,7 +725,10 @@ function pickCity(cands, ctx) {
   const countries = ctx.map((c) => c.country).filter(Boolean);
   const byRegion = cands.find((c) => c.region && regions.includes(c.region));
   if (byRegion) return byRegion;
-  const byCountry = cands.find((c) => countries.includes(c.country));
+  // A country match only when the context names no state or region in that country:
+  // "Springfield, IL" is not Springfield, VA (P-9, norm-6).
+  const stated = new Set(ctx.filter((c) => c.region && c.kind !== 'country').map((c) => c.country));
+  const byCountry = cands.find((c) => countries.includes(c.country) && !stated.has(c.country));
   if (byCountry) return byCountry;
   return null; // known name but context says elsewhere
 }
@@ -655,36 +745,122 @@ function unknown(name, remote = false) {
   return { name, city: null, region: null, country: null, lat: null, lng: null, remote };
 }
 
-/** Resolve a non-remote place string to a Location. */
-function resolvePlace(name) {
+/**
+ * The readings of a bare place name that has no context of its own, default first:
+ * its gazetteer cities, then a non-US region of the same name ("Victoria" is a city in
+ * British Columbia and a state of Australia; "Melbourne" is in Australia and Florida).
+ * More than one country means the job's other locations decide (geocodeMany).
+ */
+function bareReadings(cleaned, cities) {
+  const out = cities.map((c) => ({ country: c.country, city: c }));
+  const key = normKey(cleaned);
+  const r = REGIONS.get(key);
+  if (r && !STATES.has(key) && key.length > 3) out.push({ country: r.country, region: { kind: 'region', region: r.abbr, country: r.country, lat: r.lat, lng: r.lng } });
+  return out;
+}
+
+/**
+ * Resolve a non-remote place string to a Location. `countries`: the countries of the
+ * job's other locations (P-9), used only for a bare name with readings in several
+ * countries. Returns { loc, ambiguous }.
+ */
+function resolvePlaceIn(name, countries = []) {
   const cleaned = cleanPlace(name);
   const extra = parens(name).map(regionInfo).filter(Boolean);
-  if (!cleaned) return extra.length ? fromRegion(name, extra[0]) : unknown(name);
+  if (!cleaned) return { loc: extra.length ? fromRegion(name, extra[0]) : unknown(name), ambiguous: false };
 
   // Whole-string alias ("Washington, D.C.", "New York City", "Bay Area").
   const whole = CITY_INDEX.get(normKey(name.replace(/\([^)]*\)/g, ' '))) || CITY_INDEX.get(normKey(cleaned));
   if (whole) {
+    if (!extra.length && !cleaned.includes(',')) {
+      const readings = bareReadings(cleaned, whole);
+      if (new Set(readings.map((r) => r.country)).size > 1) {
+        const pick = readings.find((r) => countries.includes(r.country)) || readings[0];
+        return { loc: pick.city ? fromCity(name, pick.city) : fromRegion(name, pick.region), ambiguous: true };
+      }
+    }
     const c = pickCity(whole, extra) || whole[0];
-    return fromCity(name, c);
+    return { loc: fromCity(name, c), ambiguous: false };
   }
+  return { loc: resolvePlaceTokens(name, cleaned, extra), ambiguous: false };
+}
 
+// The final token of "City, Region, CC" read as an ISO country code (DQ-1, P-9). Eightfold
+// boards (Microsoft, NVIDIA) write "Bengaluru, KA, IN", "Tel Aviv-Yafo, Tel Aviv District, IL",
+// "Munich, BY, DE", "Jakarta, ID", "San José, San José Province, CR" and "Stavanger, Rogaland,
+// NO"; before norm-6 a code that is also a US state (IN Indiana, IL Illinois, DE Delaware, ID
+// Idaho, CA California) was always the state, and a code with no alias (NO, BR, SA, BE) was
+// nothing. A US "City, ST" string ("Boise, ID", "Columbus, IN", "Aliso Viejo, CA") keeps its
+// state: the code is a country only when the shape says so (a known city in that country, a
+// non-US subdivision before it, or a third part), never for a city the gazetteer knows elsewhere.
+const NON_US_SUBDIVISION_RE = /\b(?:district|province|prefecture|governorate|oblast|state of|region|county)\b/i;
+function finalCountry(token, cands, tokens) {
+  const t = String(token || '').replace(/\./g, '');
+  if (!/^[A-Z]{2}$/.test(t) || !COUNTRY_BY_CODE.has(t)) return null;
+  const plain = regionInfo(t);
+  if (plain && plain.kind === 'country') return null; // "UK", "NL", "FR": regionInfo already says so
+  const c = COUNTRY_BY_CODE.get(t);
+  const asCountry = { kind: 'country', region: null, country: c.code, lat: c.lat, lng: c.lng };
+  const known = cands || [];
+  if (known.some((k) => k.country === c.code)) return asCountry; // Bengaluru is in India, Jakarta in Indonesia
+  if (!plain) return tokens.length > 2 || !known.length ? asCountry : null; // "Stavanger, Rogaland, NO"; not "Adelaide, SA"
+  if (known.some((k) => k.country === plain.country)) return null; // "Columbus, IN" is Indiana, "Boise, ID" Idaho
+  const middle = tokens.slice(1, -1);
+  if (middle.some((m) => (NON_US_SUBDIVISION_RE.test(m) && !/\bcounty\b/i.test(m)) || (/^[A-Z]{2,3}$/.test(m) && !STATE_BY_ABBR.has(m)))) return asCountry; // "North District", "KA"
+  const lead = tokens.length > 1 ? regionInfo(tokens[0]) : null;
+  if (lead && lead.kind === 'region' && lead.country === c.code) return asCountry; // "ON, CA", "Bavaria, DE"
+  return null;
+}
+
+/** "City, Region" / "City, Country" / "Region" / unknown-city fallbacks of resolvePlaceIn. */
+function resolvePlaceTokens(name, cleaned, extra) {
   let tokens = cleaned.split(/\s*,\s*/).filter(Boolean);
-  // "Seattle WA" / "Austin TX" without comma.
-  if (tokens.length === 1) {
-    const m = tokens[0].match(/^(.*\S)\s+([A-Z]{2}|[A-Z]\.[A-Z]\.)$/);
-    if (m && regionInfo(m[2]) && isKnownCity(m[1])) tokens = [m[1], m[2]];
+  // A bare ISO code is a country, even one that is also a US state's code: Eightfold lists
+  // "DE", "IN", "IL", "CA" for postings in Germany, India, Israel and Canada (DQ-1). No other
+  // board in the 13 snapshots writes a bare two-letter location.
+  if (tokens.length === 1 && /^[A-Z]{2}$/.test(tokens[0]) && COUNTRY_BY_CODE.has(tokens[0])) {
+    const c = COUNTRY_BY_CODE.get(tokens[0]);
+    return fromRegion(name, { region: null, country: c.code, lat: c.lat, lng: c.lng });
   }
+  // "Seattle WA" / "Austin TX" / "Sydney NSW, Australia" without comma.
+  const m = tokens[0].match(/^(.*\S)\s+([A-Z]{2,3}|[A-Z]\.[A-Z]\.)$/);
+  if (m && regionInfo(m[2]) && isKnownCity(m[1])) tokens = [m[1], m[2], ...tokens.slice(1)];
   const [first, ...rest] = tokens;
-  const ctx = [...rest.map(regionInfo).filter(Boolean), ...extra];
-
   const cands = CITY_INDEX.get(normKey(first));
+  const lastToken = rest.length ? rest[rest.length - 1] : null;
+  const final = lastToken ? finalCountry(lastToken, cands, tokens) || regionInfo(lastToken) : null;
+  let ctx = [...rest.slice(0, -1).map(regionInfo), final].filter(Boolean);
+  // A stated non-US country overrides US-state readings of the parts before it:
+  // "Middenmeer, NH, NL" is North Holland, not New Hampshire.
+  if (final && final.kind === 'country' && final.country !== 'US') ctx = ctx.filter((c) => c.kind !== 'state');
+  ctx = [...ctx, ...extra];
+
   if (cands) {
     const c = pickCity(cands, ctx);
     if (c) return fromCity(name, c);
+    // "Barcelona, CT", "Madrid, MD", "Zaragoza, AR": a city the gazetteer knows only outside
+    // the US, with its own region's ISO 3166-2 code, which is also a US state's (Catalonia,
+    // Madrid, Aragon). "Dublin, CA" and "Vienna, VA" stay in the US: CA and VA are not Irish or
+    // Austrian region codes.
+    if (rest.length === 1 && !cands.some((k) => k.country === 'US')) {
+      const code = rest[0].replace(/\./g, '');
+      const local = cands.find((k) => REGION_BY_CODE_COUNTRY.has(`${code}|${k.country}`) && (!k.region || k.region === code));
+      if (local) return fromCity(name, local);
+    }
+  }
+  // "กทม, Bangkok, TH": the city is a later token (never a region or country token).
+  for (const t of rest) {
+    if (regionInfo(t)) continue;
+    const later = CITY_INDEX.get(normKey(t));
+    const c = later && ctx.length && pickCity(later, ctx);
+    if (c) return fromCity(name, c);
   }
   const firstAsRegion = regionInfo(first);
-  if (firstAsRegion && !cands) {
-    // "California, United States" / "UK" / "Germany".
+  // "California, United States" / "UK" / "Germany"; and "Victoria, Australia", where the
+  // name is also a city elsewhere (Victoria, BC) but the context is the region's country.
+  // Not when a different country is stated: "BG, RS" is Belgrade, Serbia, not Bulgaria.
+  const otherCountry = ctx.some((c) => c.kind === 'country') && !ctx.some((c) => firstAsRegion && c.country === firstAsRegion.country);
+  if (firstAsRegion && !otherCountry && (!cands || ctx.some((c) => c.country === firstAsRegion.country))) {
     return fromRegion(name, firstAsRegion);
   }
   // Unknown city with a known region/country -> region centroid (approximate).
@@ -758,10 +934,49 @@ export function canonicalName(loc) {
   return String(loc.rawName || loc.name || '').replace(/\s+/g, ' ').trim();
 }
 
-export function geocode(str) {
-  return splitLocations(str).map((part) => {
-    const loc = REMOTE_RE.test(part) ? resolveRemote(part) : resolvePlace(part);
-    const rawName = loc.name;
-    return { ...loc, name: canonicalName({ ...loc, rawName }), rawName };
+/**
+ * How precisely a Location is placed (diagnostics, P-9): 'city' (a gazetteer city's own
+ * coordinates), 'centroid' (a named place the gazetteer does not know, put at its
+ * region's or country's centre: the "Alexandria, New South Wales" case), 'region' or
+ * 'country' (the string names only that), 'remote', or 'unknown' (no coordinates).
+ */
+export function locationPrecision(loc) {
+  if (!loc) return 'unknown';
+  if (loc.remote) return 'remote';
+  if (loc.lat == null || loc.lng == null) return 'unknown';
+  if (loc.city) {
+    const known = (CITY_INDEX.get(normKey(loc.city)) || []).some((c) => c.country === loc.country && c.lat === loc.lat && c.lng === loc.lng);
+    return known ? 'city' : 'centroid';
+  }
+  return loc.region ? 'region' : 'country';
+}
+
+const finish = (loc) => {
+  const rawName = loc.name;
+  return { ...loc, name: canonicalName({ ...loc, rawName }), rawName };
+};
+
+/**
+ * Geocode all of one job's location strings together (P-9). Each part is resolved on
+ * its own first; a bare name with readings in several countries ("Victoria": British
+ * Columbia or Australia) then takes the reading in a country the job's other locations
+ * name ("Canada | Calgary | Toronto | Victoria" -> Victoria, BC), else its default.
+ * Returns the parts' Locations in order (not deduped).
+ */
+export function geocodeMany(inputs) {
+  const parts = [];
+  for (const s of Array.isArray(inputs) ? inputs : [inputs]) for (const part of splitLocations(s)) parts.push(part);
+  const first = parts.map((part) => (REMOTE_RE.test(part) ? { loc: resolveRemote(part), ambiguous: false } : resolvePlaceIn(part)));
+  const sure = [...new Set(first.filter((r) => !r.ambiguous && r.loc.country).map((r) => r.loc.country))];
+  return first.map((r, i) => {
+    if (!r.ambiguous) return finish(r.loc);
+    // No unambiguous neighbour ("Melbourne | Victoria"): the other bare names' defaults.
+    const ctx = sure.length ? sure : first.filter((o, k) => k !== i && o.ambiguous && o.loc.country).map((o) => o.loc.country);
+    return finish(ctx.length ? resolvePlaceIn(parts[i], ctx).loc : r.loc);
   });
+}
+
+/** Geocode one location string; its own parts are each other's context ("Toronto | Victoria"). */
+export function geocode(str) {
+  return geocodeMany([str]);
 }

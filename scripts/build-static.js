@@ -875,6 +875,10 @@ async function readSnapshot(ctx, file, c) {
     // Same upgrade as server mode (server/pipeline.js#runTask 'snapshot', then the response's
     // salary gate): snapshots from an older normalizer get sections/keywords re-derived
     // (QA BUG-5) and locations re-geocoded to canonical names (UX-3; QA M-2), then vetting.
+    // Since norm-6 relocateJobs also re-derives the pay labels and the level from the stored
+    // posting (normalize.js#relabelJobs: salary.kind 'ote', salary.termWeeks, term pay,
+    // seniority), so a bundle built from older snapshots shows those fixes before the next
+    // crawl writes norm-6 snapshots (whose stored values are already current).
     const current = parsed && parsed.normalizerVersion === ctx.NORMALIZER_VERSION;
     if (Array.isArray(jobs) && jobs.length) return { payload: { company: c, mode: 'snapshot', fetchedAt: parsed.fetchedAt || null, error: null, jobs: ctx.vetSalaries(current ? jobs : ctx.relocateJobs(ctx.rekeyBoardJobs(jobs).jobs)) } };
     return { problem: 'has no jobs' };

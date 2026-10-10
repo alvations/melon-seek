@@ -22,7 +22,9 @@ the review that found the bugs is recorded.
 
 | Field | Meaning |
 |---|---|
-| `kind` | `"salary"`, `"hourly"` (source interval is hourly) or `"stipend"` |
+| `kind` | `"salary"`, `"hourly"` (source interval is hourly), `"stipend"`, or `"ote"`: the posting says the range is on-target earnings, base pay plus commission at target (norm-6, §2) |
+| `termWeeks`, `termWeeksMax` | The programme length in weeks that an internship, co-op or fellowship posting states ("12-week internship" → 12, "4 months" → 17, "16 to 24-week" → 16 and 24). Absent otherwise (norm-6, §2) |
+| `originalInterval: "term"` | The amount is for the whole programme ("$100,000–$167,000 USD for the four-month fellowship"); `min`/`max` are annualized over the term (norm-6) |
 | `source` | `"structured"` (Greenhouse `pay_input_ranges`, Ashby `compensation`, Lever `salaryRange`) or `"text"` (parsed from the description) |
 | `intervalCorrected`, `statedInterval` | The source's interval label made the pay implausible while the numbers are a plausible annual salary, so it was read as annual. Example: "88,000–130,000 USD per-month-salary" |
 | `ranges` | The per-tier list `[{min, max, currency, interval, label?}]` (source units) when the board gave several structured ranges |
@@ -69,6 +71,30 @@ source interval, or `null`.
 - **Implausible interval labels**: when the stated interval puts annual pay
   above $1.2M but the numbers are $15K–$1.2M, they are read as annual, with
   `intervalCorrected`.
+- **On-target earnings** (norm-6, persona review P-1). `kind: "ote"` when the posting's
+  own words say the range includes commission at target: "OTE", "On Target Earnings",
+  "on-target earnings", "on target compensation", "base + commission at target".
+  - In the clause that holds the range, right before or after the amount with no other
+    amount in between ("OTE: $200,000 - $250,000", "$200K–$250K OTE"). "Base salary:
+    $150,000 – $180,000. OTE: $300,000" keeps the base range as `"salary"`.
+  - In the structured range's own label (a Greenhouse pay range titled "OTE").
+  - In a sentence about the range (`oteStatement`: "The figure above represents On-Target
+    Earnings (OTE)"). Sentences about compensation work ("Design and administer OTE plans")
+    do not count.
+  - "For sales roles, the range provided is the role's On Target Earnings ("OTE") range"
+    (Anthropic, on every posting) applies only to a sales title (`keywords.js#isSalesTitle`,
+    the same rule as the bonus extras). On the 2026-10-10 snapshots that is 46 Anthropic
+    postings plus 1 at Cohere; Customer Success, partnerships, enablement and GTM strategy
+    titles in Anthropic's Sales department stay `"salary"` (see the fix-pay-data log).
+- **Term pay** (norm-6, P-8). "$100,000–$167,000 USD for the four-month fellowship" is
+  `interval: "term"`: annualized over the term (× 52 ÷ weeks; 4 months = 52/3 weeks, so × 3),
+  with `termWeeks` 17. Before norm-6 it was read as $100K–$167K a year.
+- **Programme length** (`programTerm`, P-8). For internships, co-ops, fellowships,
+  residencies and apprenticeships only: "N-week/N-month <internship|co-op|fellowship|
+  program|residency|placement|work term>", "<programme> runs/lasts/spans N weeks|months",
+  or "for N months" in the pay sentence. Stored as `termWeeks` (and `termWeeksMax` for a
+  range). The annualized figure stays the full-time-equivalent rate; surfaces show the pay
+  as posted and say the term ("$3,850 a week for about 17 weeks").
 - **Bounds** are checked in rough USD (`USD_PER`, derived from
   `public/viz/palette.js` `FX_PER_USD`): a text candidate must be $10K–$1.2M per
   year. `toJobSalary` refuses values outside $10K–$5M. Values between $1.2M and $5M are
@@ -95,7 +121,7 @@ is pure and browser-safe, and it is idempotent. It returns a new array.
 | `hourly_high` (critical) | hourly rate > **$250/hr** on any role, or > **$200/hr** on a role the source marks Full-time | Catches "$500 home office stipend" read as $500/hr ($1.04M/yr, 39 postings). That cluster is under the $1.2M cap and too common for the statistics to see |
 | `range_ratio` | max/min > **4×** | Real stated ranges reach 3.4× (Anthropic $280K–$850K, xAI $180K–$600K, OpenAI $125K–$400K). A 3× cutoff would hide 10 legitimate postings. The Anduril typos are 13.3× |
 | `min_gt_max` | min > max | |
-| `junior_high` | Intern/Fellow/Resident/Apprentice/Co-op title with mid > **$300K/yr** ("Technical/Distinguished/Senior Fellow" excluded) | The Fellows stipend is $200K annualized |
+| `junior_high` | Intern/Fellow/Resident/Apprentice/Co-op title with mid > **$300K/yr** ("Technical/Distinguished/Senior Fellow" excluded; not term pay, `originalInterval: "term"`) | The Fellows stipend is $200K annualized. Term pay is the posting's own amount for a stated term: Anthropic's Conceptual Reasoning Fellow states "$100,000–$167,000 USD for the four-month fellowship (equivalent to $300,000–$500,000 USD annualized)" |
 | `senior_low` | Director/VP title with max < **$60K/yr** | |
 
 ### Statistical outliers (per company)
@@ -110,8 +136,10 @@ outlier company-wide **and** in each such group, in the same direction:
 - Tukey fences on log pay: Q1 − 3·IQR and Q3 + 3·IQR (IQR floored at 0.4);
 - **high side**: z > **3.5** or above the upper fence (at least about 4× the median);
 - **low side**: z < **−4.5** and below the lower fence (at least about 6× under the median),
-  and only for full-time salaried roles. Hourly, stipend, contract and intern
-  pay is legitimately low.
+  and only for full-time salaried roles (`kind` "salary" or "ote"). Hourly, stipend,
+  contract and intern pay is legitimately low. "ote" is its own pay-kind group, so OTE
+  ranges are compared with each other; on the 2026-10-10 snapshots this changes no
+  quarantine.
 
 Tuning on the real snapshots (5,413 jobs) is in
 `data/vetting/2026-10-02/summary.md`. The first draft (σ floor 0.25, symmetric z,

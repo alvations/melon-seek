@@ -1,0 +1,1318 @@
+{
+ "about": "P-17 labelled sample (fix-pay-data, 2026-10-10). For each skill label: the postings in the 8 stable snapshots that carried it with the norm-5 lexicon, split into \"removed\" (the norm-6 patterns drop it) and \"kept\"; a deterministic spread sample of each, judged by hand from the matched contexts: truth \"tp\" when the role itself involves the skill, \"fp\" when the word was used in another sense (personal autonomy, \"embedded in the business\", \"AI/ML companies\", \"4,300 CAD per week\", \"VAT mechanisms\", a degree list). text = title + the matched contexts; test/fix-pay-data.test.js re-runs extractKeywords on it.",
+ "labels": {
+  "Machine learning": {
+   "before": 885,
+   "removed": 123,
+   "kept": 762,
+   "precisionBefore": 57,
+   "precisionAfter": 67,
+   "items": [
+    {
+     "id": "anduril:4650972007",
+     "title": "Lead Electrical Architect - Expeditionary AI/HPC Data Centers",
+     "text": ", SCIF-accreditable, electromagnetic hardening Work in tight coupling with Lattice and AI/ML teams to ensure physical infrastructure meets mission-criti",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:4986159008",
+     "title": "Customer Success Manager, GSI",
+     "text": "tems Integrator industries Technical fluency with ability to understand and articulate AI/ML concepts, API integrations, and software implementation pat",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5116820008",
+     "title": "Lead Data Scientist, Platform Product",
+     "text": "doption, engagement, and retention in developer or enterprise contexts Experience with AI/ML products, large language models, or developer tools in the \ntexts Experience with AI/ML products, large language models, or developer tools in the AI/ML ecosystem Comfort operating in ambiguous, fast-moving envir",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5182605008",
+     "title": "Data Scientist, Product",
+     "text": "he company’s mission of building helpful, honest, and harmless AI Some experience with AI/ML products, large language models, or developer tools in the \n Some experience with AI/ML products, large language models, or developer tools in the AI/ML ecosystem About Anthropic About the role As part of our gro",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5286008008",
+     "title": "Life Sciences Counsel",
+     "text": "— with the ability to operate independently and hit the ground running Experience with AI/ML companies or products deployed into regulated scientific an",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5356621008",
+     "title": "Recruiter, Applied AI",
+     "text": "ales recruiting experience, ideally within GTM organizations at enterprise software or AI/ML companies Direct experience recruiting for pre-sales/soluti\nompanies Direct experience recruiting for pre-sales/solutions engineering roles in the AI/ML space Demonstrated success working within GTM recruiting or",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5388726008",
+     "title": "Customer Programs Manager, Co-Marketing & Measurement",
+     "text": "erience operating co-marketing or partner marketing programs at a developer-focused or AI/ML company Background in revenue operations or marketing analy",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5391112008",
+     "title": "Customer Success Manager",
+     "text": "d success metrics for each Technical fluency with ability to understand and articulate AI/ML concepts, API integrations, and software implementation pat",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5391376008",
+     "title": "Account Executive - DNB",
+     "text": "ratch Bachelor's degree in a related field or equivalent experience Experience selling AI/ML, developer platforms, cloud, or API-based products to techn\nn a related field or equivalent experience Preferred qualifications Experience selling AI/ML, developer platforms, cloud, or API-based products to techn",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5398829008",
+     "title": "Transaction Principal, EU",
+     "text": "ted (yield-on-cost, cap rates, development fees) Understand technical requirements for AI/ML workloads including power density, cooling, and network con",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5418421008",
+     "title": "Transaction Manager, Canada",
+     "text": "erscale infrastructure transactions specifically Understand technical requirements for AI/ML workloads including power density, cooling, and network con",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5422436008",
+     "title": "Manager, Customer Success - Commercial",
+     "text": "e Proven track record of managing and building customer success teams in SaaS, API, or AI/ML companies Experience managing large customer portfolios at \n value realization across different pricing structures Technical fluency to understand AI/ML products, navigate technical conversations, and coach teams",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5424443008",
+     "title": "Head of Customer Success, APAC",
+     "text": " managers Track record of scaling CS teams across APAC at enterprise software, SaaS or AI/ML companies Demonstrated ability to balance global alignment \nPI products, developer platforms or consumption-based business models Familiarity with AI/ML technologies and the ability to explain complex technical c",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5431578008",
+     "title": "Finance & Strategy, Deal Strategy - APAC",
+     "text": "ional partnership Have 5+ years of relevant experience Experience at a SaaS, cloud, or AI/ML company with complex enterprise sales cycles Background in \ned qualifications Have 5+ years of relevant experience Experience at a SaaS, cloud, or AI/ML company with complex enterprise sales cycles Background in ",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5444860008",
+     "title": "Partner Account Manager - Italy",
+     "text": "n 12+ years of experience in enterprise technology partnerships, ideally within cloud, AI/ML, or platform businesses Deep existing relationships at VP+ ",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "cohere:597e18f5-c33c-4350-8bcd-05a751cece3a",
+     "title": "Customer Success Manager - Public Sector & Defense, France",
+     "text": "holders, long sales cycles, and multi-year implementation timelines Experience leading AI/ML, cloud, or enterprise software implementations in secure or",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "cohere:f6100cdd-94fc-4f4b-bac5-7efa5069cdd5",
+     "title": "Revenue Enablement Program Manager",
+     "text": "ast-paced environments Bachelor's degree or equivalent experience Technical fluency in AI/ML concepts (RAG, model selection, competitive differentiation\nironments Bachelor's degree or equivalent experience Nice to Have Technical fluency in AI/ML concepts (RAG, model selection, competitive differentiation",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "openai:569fcba5-c7a2-48ae-b580-e86e181adfd8",
+     "title": "Account Director, Government",
+     "text": " public-sector environments is valuable. Selling or delivering enterprise SaaS, cloud, AI/ML, data platforms, cybersecurity, API-based products, or othe",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "openai:a90cdb7c-1c33-4fca-9a96-26c236006f14",
+     "title": "Backend Software Engineer, Gov",
+     "text": "ce with underlying infrastructure primitives like Kubernetes and Terraform Interest in AI/ML (direct experience not required) Ability to move fast in an",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "scaleai:4687384005",
+     "title": "Engagement Manager (Hawaii), Public Sector",
+     "text": "ly refine Lead a cross-functional project team to deliver on and exceed the customer's AI/ML objectives Lead with a “whatever-it-takes” mentality, proac",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "scaleai:4713648005",
+     "title": "Forward Deployed Product Manager, Public Sector",
+     "text": " What We're Looking For Core Competencies: Enterprise deployment ownership: has driven AI/ML or complex/real-time software products from contract to pro\nty to travel, including to classified facilities. Nice-To-Have: Direct experience with AI/ML platform products — agentic capabilities, human-agent inter",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "scaleai:4725317005",
+     "title": "Partner Development Manager",
+     "text": "d to track partner health, pipeline, and ROI. Technical Literacy: Familiarity with the AI/ML landscape and the ability to articulate Scale's value propo",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "scaleai:4739727005",
+     "title": "Account Based Marketing Lead",
+     "text": "dvertising strategies. Experience at a high-growth B2B SaaS, enterprise technology, or AI/ML company. At Scale, we develop reliable AI systems for the w\ndvertising strategies. Experience at a high-growth B2B SaaS, enterprise technology, or AI/ML company. Please reference the job posting's subtitle for wh",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "shieldai:7a28d334-dc1e-4db8-a9fa-ea0946a6d0b7",
+     "title": "Sr. Staff BD Account Executive - Autonomy Specialist, Taiwan (R5097)",
+     "text": "ience in business development, sales, or capture roles in technically complex domains (AI/ML, autonomy, SaaS, aerospace/defense, or similar) Proven trac\nt Bachelor’s degree required Fluent in: English, Mandarin Experience selling autonomy, AI/ML, or unmanned systems (UAS) solutions a plus Prior military ",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "shieldai:de2f1379-b396-4713-8238-e334aad49b56",
+     "title": "Senior Executive Sourcer",
+     "text": " build deep, data-informed sourcing strategies across Engineering, Software, Embedded, AI/ML, Systems, Manufacturing, Operations, Product, Program Manag\nmission-driven environment. Prior experience supporting aerospace, robotics, autonomy, AI/ML, or advanced vehicle engineering organizations. Experience ",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:4159543007",
+     "title": "Mission Operations Engineer, Connected Warfare (Active Clearance)",
+     "text": "first and foremost a technology company, working at the leading edge of capabilities like machine learning, autonomy, distributed networking, and multi-modal sensor f",
+     "stratum": "kept",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5152317007",
+     "title": "Lead Systems Engineer, Battlespace",
+     "text": "rsing, modeling & simulation, data analysis, and visualization. Skilled in Statistics, AI/ML, Requirements, Testing, MBSE. Demonstrated proficiency in t",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5226944007",
+     "title": "Software Engineer, Target Tracking",
+     "text": "erformance computing (multithreading, GPU acceleration, distributed systems) Knowledge of machine learning techniques for classification, clustering, or data associat",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5244696007",
+     "title": "Senior Mission Operations Engineer, Connected Warfare",
+     "text": "first and foremost a technology company, working at the leading edge of capabilities like machine learning, autonomy, distributed networking, and multi-modal sensor f",
+     "stratum": "kept",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:4951844008",
+     "title": "Staff+ Software Engineer, Safeguards",
+     "text": "on Have experience building trust and safety detection mechanisms and intervention for AI/ML systems Have experience with prompt engineering, jailbreak ",
+     "stratum": "kept",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5211498008",
+     "title": "Staff Software Engineer, Node Infra",
+     "text": "age (e.g., Rust, Go, or Python), IaC proficiency with Terraform. Hands-on experience with machine learning accelerators (GPUs, TPUs, or Trainium) Track record of lead\nmons Familiarity with high-performance networking (EFA, RDMA, InfiniBand) for distributed ML workloads. Demonstrated ownership of production reliability",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anthropic:5370555008",
+     "title": "IT Support Engineer, Executive Support",
+     "text": "e building runbooks, self-service content, or support automation Experience supporting AI/ML research environments or highly technical user bases About \ne building runbooks, self-service content, or support automation Experience supporting AI/ML research environments or highly technical user bases Deadli",
+     "stratum": "kept",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5428950008",
+     "title": "Staff+ Software Engineer, Storage + Transfer",
+     "text": "ns and unique security, usability, and business requirements: everything from large-scale ML and training workloads, to financial data processing with s",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "cohere:859e2e47-02fb-4afe-bb8a-e83bf4d8c265",
+     "title": "Member of Technical Staff, Pre-Training Data",
+     "text": "lve complex data-related challenges in AI model training. Who are we? Role Overview: As a Machine Learning Engineer specializing in pretraining data, you will play a ",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "openai:3a05c5d7-fdd9-4e0e-823a-2ae08b59958b",
+     "title": "Technical Program Manager, AI Safety & Safeguards",
+     "text": " delivering high-impact technical programs across product, platform, API, infrastructure, machine learning, or safety domains. Bring strong technical judgment across \nuted systems, cloud deployments, public or internal APIs, developer platforms, production machine learning, or scalable product architecture. Can engage credibly with",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "openai:7caed1e8-c6f6-4569-9d45-2d7a7a56a025",
+     "title": "Software Engineer, Search Infrastructure",
+     "text": "or resource efficiency. Bring experience in one or more of search, information retrieval, ML infrastructure, inference serving, or other high-throughput\nrry projects through deployment and measurable results. Enjoy learning across systems and ML, investigating unfamiliar problems, and sharing technical d",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "openai:db993e24-ce4f-4f55-9187-403726bcb957",
+     "title": "Technical Program Manager, Cloud AI Partnerships",
+     "text": "clear operating rhythms, and sustained follow-through. Understand cloud architectures, AI/ML deployment, model serving, and the practical integration ch",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "scaleai:4609736005",
+     "title": "AI Product Manager (Coding/Multimodal)",
+     "text": "drive projects to completion. Technical curiosity and a desire to learn about AI systems, machine learning, coding, or data products. Experience working with technica",
+     "stratum": "kept",
+     "truth": "fp"
+    },
+    {
+     "id": "scaleai:4720501005",
+     "title": "Senior AI Product Manager",
+     "text": "management, consulting, or customer-facing technical roles. Strong technical fluency with machine learning systems, AI model evaluation, benchmarking, or data product\npment, launches, infrastructure investments, and expansion. Drive alignment across AI-PM, ML, Engineering, Operations, and GTM stakeholders. Evaluate, p\nm ideation and design to launch, scaling, maintenance, and sunset decisions. Partner with ML researchers and domain experts to develop trustworthy evalu",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "shieldai:9b5488c4-b23c-47a2-8afe-a8c64915bd1c",
+     "title": "Staff Engineer, AI Operations & Governance, Workplace AI (R5428)",
+     "text": "unicate on incidents and changes 8+ years in roles such as platform engineer, DevOps/SRE, ML/AI operations, or technical SaaS operations, with hands-on \non, and comfort operating close to production in a high-stakes environment. Experience in ML/AI ops specifically (model deployment, evaluation, drift mo\neded. Required qualifications: · 8+ years in roles such as platform engineer, DevOps/SRE, ML/AI operations, or technical SaaS operations, with hands-on ",
+     "stratum": "kept",
+     "truth": "tp"
+    }
+   ]
+  },
+  "Mechanical design": {
+   "before": 847,
+   "removed": 616,
+   "kept": 231,
+   "precisionBefore": 25,
+   "precisionAfter": 80,
+   "items": [
+    {
+     "id": "anduril:4588656007",
+     "title": "Senior GNC Engineer, Robotics",
+     "text": " required to support functional evaluation of GNC software Bachelor’s degree in Robotics, Mechanical Engineering, Electrical Engineering, Aerospace Engineering, or a relate\nand maintain an active U.S. Secret security clearance Master’s Degree of PhD in Robotics, Mechanical Engineering, Electrical Engineering, Aerospace Engineering, or a relate\nctional evaluation of GNC software REQUIRED QUALIFICATIONS Bachelor’s degree in Robotics, Mechanical Engineering, Electrical Engineering, Aerospace Engineering, or a relate",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:4985350007",
+     "title": "Supply Chain Master Data Analyst",
+     "text": "ensuring that documentation is current and accessible Implement and maintain data control mechanisms to prevent unauthorized access or data corruption Coordinat",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5053421007",
+     "title": "Maritime Technical Operations Engineer",
+     "text": "e, including significant time spent offshore on vessels of all sizes Bachelor's degree in mechanical engineering, electrical engineering, ocean engineering, related discipl\ntime spent offshore on vessels of all sizes PREFERRED QUALIFICATIONS Bachelor's degree in mechanical engineering, electrical engineering, ocean engineering, related discipl",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5116367007",
+     "title": "Manufacturing Engineer, Actuators",
+     "text": " lines Generate machine specifications, standards, and documentation Bachelor's degree in Mechanical Engineering, Electrical Engineering, Robotics, or a related technical f\nchine specifications, standards, and documentation What You'll Bring Bachelor's degree in Mechanical Engineering, Electrical Engineering, Robotics, or a related technical f",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5158089007",
+     "title": "Staff System Safety Engineer",
+     "text": "xperience as a System Safety Engineer or equivalent engineering background B.S. degree in Mechanical Engineering, Aerospace Engineering, Systems Engineering, or equivalent \n-functionally Eligibility to obtain and maintain a U.S. security clearance M.S. degree in Mechanical Engineering, Aerospace Engineering, Systems Engineering, or equivalent ",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5172472007",
+     "title": "Senior Reliability Engineer",
+     "text": "e as a Reliability Engineer, Design/Development Engineer, or Test Engineer B.S. Degree in Mechanical Engineering, Aerospace Engineering, Systems Engineering, or equivalent \nership Eligibility to obtain/maintain a U.S. Secret clearance, as required M.S. Degree in Mechanical Engineering, Aerospace Engineering, Systems Engineering, or equivalent \ning for candidates who bring deep technical knowledge of hardware reliability and failure mechanisms, practical experience in both design and production environ",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5191917007",
+     "title": "Engineering Systems Administrator",
+     "text": " that the operating system of the hardware lifecycle is how we win. It will be one of the mechanisms by which Anduril out-builds, out-adapts, and out-scales the",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5213033007",
+     "title": "Senior Program Finance Manager, AD&S",
+     "text": "audits. Build scalable processes and tooling: standard templates, dashboards, models, and mechanisms that improve speed, accuracy, and governance as program vol",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5227261007",
+     "title": "Deputy Chief Engineer - Altius",
+     "text": "ctional background in electrical engineering, controls engineering, software engineering, mechanical engineering, and small drone systems development. You will drive the te",
+     "stratum": "removed",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5234578007",
+     "title": "Staff Controls Engineer, Rocket Motor Systems",
+     "text": "l direction on integrator-delivered work Bachelor's degree in Robotics, Computer Science, Mechanical Engineering, or Electrical Engineering 8+ years of experience in contro\nr-delivered work REQUIRED QUALIFICATIONS Bachelor's degree in Robotics, Computer Science, Mechanical Engineering, or Electrical Engineering 8+ years of experience in contro",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5236921007",
+     "title": "2027 Early Career Industrial Engineer",
+     "text": "ing or have recently completed a bachelor’s or master’s degree in Industrial Engineering, Mechanical Engineering, Aerospace Engineering, Manufacturing Engineering, Electric",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5249094007",
+     "title": "Lead Hardware Engineer",
+     "text": " rapid resolution of hardware field issues Education: Degree in a technical field such as mechanical engineering, electrical engineering, optical engineering, systems engin\ndware field issues REQUIRED QUALIFICATIONS Education: Degree in a technical field such as mechanical engineering, electrical engineering, optical engineering, systems engin",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5254434007",
+     "title": "Manufacturing Test Engineer, Missiles",
+     "text": "ility (DFT) and optimize station cycle times Bachelor’s degree in Electrical Engineering, Mechanical Engineering, Computer Engineering, or a related field 3+ years of relev\n station cycle times REQUIRED QUALIFICATIONS Bachelor’s degree in Electrical Engineering, Mechanical Engineering, Computer Engineering, or a related field 3+ years of relev",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5261334007",
+     "title": "Director, CEO Office",
+     "text": "and holding high-performing teams accountable. A record of building systems and operating mechanisms that allow a function to scale rather than relying on heroi",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5257689008",
+     "title": "Platform Hardware Security",
+     "text": "frastructure teams without impacting training performance Prototype and validate security mechanisms before production deployment Conduct firmware vulnerability",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5443871008",
+     "title": "Security Risk & Compliance, Agent Security",
+     "text": "ize sensitive data, PII, or intellectual property, and understand how identity and access mechanisms implement or undermine protection boundaries Think about no",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "openai:356c5dca-472d-458e-826e-51d923e93eaa",
+     "title": "Research Program Manager, Frontier Assurance",
+     "text": "rty assessments and safeguard testing for OpenAI’s flagship launches, pilot new assurance mechanisms such as embedded auditing, run our misalignment disclosure ",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "openai:8a50f878-5252-4f65-ad84-80ae2dc5637e",
+     "title": "Senior Manager, Ads Revenue Accounting",
+     "text": "evenue presentation. Track record building 0-to-1 accounting processes, governance, close mechanisms, reconciliations, and controls that scale. Ability to turn ",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "openai:d8ebcb30-c789-4e75-bf9b-a1e3fb09dd2f",
+     "title": "Field Engineer",
+     "text": "mplex issues to ground without adding unnecessary complexity. Hold a Bachelor's degree in Mechanical Engineering, Electrical Engineering, Mechatronics, Robotics, Computer E",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "scaleai:4727162005",
+     "title": "Subcontracts Manager, Public Sector",
+     "text": "including status reviews, action tracking, risk management, decision logs, and escalation mechanisms Drive resolution of technical and programmatic blockers acr",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "shieldai:39a7aa1b-9988-4ac7-ade9-12dd16cbae62",
+     "title": "Engineer II, Simulation Framework (R6204)",
+     "text": " teams. Master’s degree in Computer Science, Computer Engineering, Aerospace Engineering, Mechanical Engineering, Systems Engineering, or a related technical discipline; eq\nations: Master’s degree in Computer Science, Computer Engineering, Aerospace Engineering, Mechanical Engineering, Systems Engineering, or a related technical discipline; eq",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "shieldai:5a47cd5d-0efb-4d4e-925a-eb104f90904c",
+     "title": "Senior Engineer, Systems Test (R5038)",
+     "text": "skills, with the ability to work effectively with cross-functional software, hardware and mechanical engineering teams Adaptability and a willingness to learn new technolog",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "shieldai:82ee14ce-eba4-4cef-a540-599f828cd652",
+     "title": "Senior Engineer, Autonomy and Motion Planning (R5263)",
+     "text": "e BS/MS/PhD in Computer Science, Aerospace Engineering, Electrical Engineering, Robotics, Mechanical Engineering, or a related field Proficient in production-level C++ soft\n: BS/MS/PhD in Computer Science, Aerospace Engineering, Electrical Engineering, Robotics, Mechanical Engineering, or a related field Proficient in production-level C++ soft",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "shieldai:b682f55e-ca09-444b-8251-38422567ada8",
+     "title": "Software Engineer II, Autonomy Behaviors (R5202)",
+     "text": "er teams BS in Computer Science, Aerospace Engineering, Electrical Engineering, Robotics, Mechanical Engineering, or a related field Experience in production-level C++ soft\ncations: BS in Computer Science, Aerospace Engineering, Electrical Engineering, Robotics, Mechanical Engineering, or a related field Experience in production-level C++ soft\nr multi-agent coordination Expose to autonomy, control, or decision-making systems Safety mechanisms such as collision avoidance or constraint enforcement Famil",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "shieldai:dfe3c9f3-900f-4f97-afac-7acf1cb7e592",
+     "title": "Engineer II, Systems Test (R5038)",
+     "text": "skills, with the ability to work effectively with cross-functional software, hardware and mechanical engineering teams Adaptability and a willingness to learn new technolog",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:4244791007",
+     "title": "Systems Integration Engineer, Air Vehicles",
+     "text": " with customers as needed Travel to test sites as needed B.S. in Aerospace Engineering or Mechanical Engineering, or equivalent experience 5+ years experience in aircraft s\n secret DoD clearance Unmanned Air Vehicle design experience The Air Dominance and Strike Mechanical Engineering Team is responsible for designing and integrating advanced \nd Travel to test sites as needed REQUIRED QUALIFICATIONS B.S. in Aerospace Engineering or Mechanical Engineering, or equivalent experience 5+ years experience in aircraft s",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5010190007",
+     "title": "Mechanical Engineer, Drones",
+     "text": "hnical content in a cohesive way to help inform and shape future requirements BS or MS in mechanical engineering, or equivalent work experience Experience in Solidworks or \nhnical content in a cohesive way to help inform and shape future requirements BS or MS in mechanical engineering, or equivalent work experience PREFERRED QUALIFICATIONS Exp\ning) Strong understanding of engineering fundamentals in structures, fluids, thermal, and mechanisms Demonstrated project/technical leadership skills (collegiat",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5080535007",
+     "title": "Manufacturing Test Engineer, Intelligence Systems",
+     "text": "or data parsing and data visualization. Experience with test automation, PCBA design, and mechanical design. Experience with computer hardware communication protocols:\ngies. Execute testing as required. Bachelor’s degree in Electrical/Electronics, Computer, Mechanical Engineering, or related fields OR 6+ years of advanced knowledge acquir",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5130692007",
+     "title": "Senior Global Sourcing Manager, Composites",
+     "text": "ity to relocate, if not already local to be onsite in Costa Mesa, CA Bachelor's degree in mechanical engineering or metallurgical/materials engineering Previous experience \nlready local to be onsite in Costa Mesa, CA PREFERRED QUALIFICATIONS Bachelor's degree in mechanical engineering or metallurgical/materials engineering Previous experience ",
+     "stratum": "kept",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5166948007",
+     "title": "Mechanical Engineer, Lifting and Handling Equipment",
+     "text": "sites Bachelor's degree in Mechanical Engineering or equivalent 5+ years of experience in mechanical design, rigging, or material handling equipment Experience with li\nTIONS Bachelor's degree in Mechanical Engineering or equivalent 5+ years of experience in mechanical design, rigging, or material handling equipment Experience with li\ndards Travel up to 25% to manufacturing, test, and operational sites Bachelor's degree in Mechanical Engineering or equivalent 5+ years of experience in mechanical design, ",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5190503007",
+     "title": "Test Technician",
+     "text": " and analysis. Providing status updates to leadership and customers. Bachelor’s degree in mechanical engineering or equivalent degree OR significant experience in data acqu\nstatus updates to leadership and customers. REQUIRED QUALIFICATIONS: Bachelor’s degree in mechanical engineering or equivalent degree OR significant experience in data acqu",
+     "stratum": "kept",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5204131007",
+     "title": "Senior Electro-Mechanical Engineer, EW",
+     "text": "etter understand the customers’ requirements. Travel to test sites as needed. 5+ years of mechanical design experience in a professional setting BSME, MS or PhD in a r\nomers’ requirements. Travel to test sites as needed. REQUIRED QUALIFICATIONS: 5+ years of mechanical design experience in a professional setting BSME, MS or PhD in a r",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5220900007",
+     "title": "Mechanical Engineer - Undersea Reconnaissance & Strike",
+     "text": "nto your technical solutions Support integration and test activities Bachelor's degree in Mechanical Engineering, Robotics, Mechatronics, a relevant field, or equivalent ex\nical Engineer on our Undersea Reconnaissance & Strike team will join a small, high-output mechanical engineering group supporting multiple vehicle variants through rapid pr\nions Support integration and test activities REQUIRED QUALIFICATIONS Bachelor's degree in Mechanical Engineering, Robotics, Mechatronics, a relevant field, or equivalent ex",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5236601007",
+     "title": "Winter 2027 Mechanical Engineer Co-op",
+     "text": " to test sites and vendors as needed. Must be pursuing a bachelor’s or master’s degree in Mechanical Engineering, Mathematics, Physics, or any related field. Must be return\nrs as needed. REQUIRED QUALIFICATIONS Must be pursuing a bachelor’s or master’s degree in Mechanical Engineering, Mathematics, Physics, or any related field. Must be return",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5242381007",
+     "title": "Mechanical Engineer, Anduril Expeditionary Systems",
+     "text": "t and gathering invaluable feedback for continuous improvement. 4-8 years of professional mechanical engineering experience. Demonstrated ability to design, prototype, and \nle feedback for continuous improvement. REQUIRED QUALIFICATIONS 4-8 years of professional mechanical engineering experience. Demonstrated ability to design, prototype, and ",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5253766007",
+     "title": "Senior Product Sourcing Engineer, Counter Intrusion",
+     "text": " but this role is open to remote in Texas Master's degree or advanced technical degree in mechanical engineering Deeper experience within: Design & development of electroni\n remote in Texas PREFERRED QUALIFICATIONS Master's degree or advanced technical degree in mechanical engineering Deeper experience within: Design & development of electroni",
+     "stratum": "kept",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5261435007",
+     "title": "Manufacturing Test Engineering Manager",
+     "text": " teams. Proficiency in LabVIEW, MATLAB, and test automation. Knowledge of PCBA design and mechanical design Familiarity with various hardware communication protocols. \nring test and product sustainment. Bachelor’s degree in Electrical/Electronics, Computer, Mechanical Engineering, or a related field. Minimum of 2+ years as a people manage",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "shieldai:3360a96c-3595-4b8d-8c95-a48f26f1a051",
+     "title": "Director, Avionics Mechanical Engineering",
+     "text": " the organization. B.S. in Mechanical or Aerospace Engineering 15+ years of experience in mechanical design around electronics and electrical systems, including signif\nED QUALIFICATIONS: B.S. in Mechanical or Aerospace Engineering 15+ years of experience in mechanical design around electronics and electrical systems, including signif\nDirector, Avionics Mechanical Engineering Own the technical vision, strategy, and roadmap for mechani",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "shieldai:7507c2f7-e2c4-4d3f-a55f-17f9c63140db",
+     "title": "Engineer II, Hydraulics (R4936)",
+     "text": " place for you! As a Mechanical Engineer, you will be responsible for contributing to the mechanical design and development of Shield AI's autonomous UAV products. You",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "shieldai:cab43888-5844-48d5-a981-d26960de9bee",
+     "title": "Staff Mechanical Engineer, Battery Pack Design (R6047)",
+     "text": "bles in support of program objectives Work in a fast-paced environment You have a B.S. in Mechanical Engineering or equivalent Aerospace enclosure design experience on larg\n) 5+ years relevant experience Have delivered aerospace systems to market Proficient with mechanical engineering development tools, simulation, and test equipment Strong te\nm objectives Work in a fast-paced environment REQUIRED QUALIFICATIONS: You have a B.S. in Mechanical Engineering or equivalent Aerospace enclosure design experience on larg",
+     "stratum": "kept",
+     "truth": "tp"
+    }
+   ]
+  },
+  "Embedded": {
+   "before": 594,
+   "removed": 157,
+   "kept": 437,
+   "precisionBefore": 69,
+   "precisionAfter": 93,
+   "items": [
+    {
+     "id": "anduril:4619191007",
+     "title": "Business Operations Associate, Production",
+     "text": "zation to help deliver hardware On-time, with Quality, at Cost. ABOUT THE JOB You will be embedded in the operations of the business - working across Supply C",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5088646007",
+     "title": "Senior Software Engineer, Simulation Platform",
+     "text": "EEE 1278.1) distributed simulation standard Experience with Python/C++ interop (pybind11, embedded interpreters) Familiarity with behavior trees or autonomous\n++20 codebase with an Entity-Component-System architecture, a stable C ABI plugin system, embedded scripting, and a variety of physics-based models. Keeping t",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5173534007",
+     "title": "AI Solutions Engineer, Talent Acquisition",
+     "text": "e to required access to U.S. export controlled information or facilities Prior experience embedded in or directly partnering with a Talent Acquisition, Recrui\nEngineer, Talent Acquisition to join our rapidly growing TA Operations team. This role is embedded within the TA Team — and you will be the hands-on technical\n.S. export controlled information or facilities PREFERRED QUALIFICATIONS Prior experience embedded in or directly partnering with a Talent Acquisition, Recrui",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5195711007",
+     "title": "Business Operations, Production",
+     "text": "zation to help deliver hardware On-time, with Quality, at Cost. ABOUT THE JOB You will be embedded in the operations of the business - working across Supply C",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5214661007",
+     "title": "Recruiter, G&A - Legal (Contract)",
+     "text": "y member of Anduril's recruiting team, you will be a specialized Contract Legal Recruiter embedded at the front lines of our mission to scale the teams that s",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5231686007",
+     "title": "Staff Technical Program & Manufacturing Engineer, Display Systems",
+     "text": "Mandarin, including executive-level status reporting and technical documentation Supplier-Embedded Presence: Willingness and ability to work primarily on-site",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5246780007",
+     "title": "Electrical Test Technician, Hardware Platform EE Lab",
+     "text": "re Engineering Services team within Anduril's Hardware Platform Organization. You will be embedded in a fast-paced R&D lab building the test infrastructure an",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5251191007",
+     "title": "Chief Engineer, Dive-LD",
+     "text": "e closely with manufacturing and supply chain teams to ensure design for manufacturing is embedded in early concepts and matured to support full rate producti",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5256727007",
+     "title": "Division Talent, Planning & Strategy",
+     "text": "rtHop), ATS (Greenhouse), and BI or analytics platforms. Exposure to the DivOps or BizOps embedded partner model. Defense, aerospace or other program-driven h\nows its hiring picture cold and can turn that into a plan. That is this role. You are the embedded planning partner for one division, running its demand and c",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5260092007",
+     "title": "Division Talent, Planning & Strategy",
+     "text": "rtHop), ATS (Greenhouse), and BI or analytics platforms. Exposure to the DivOps or BizOps embedded partner model. Defense, aerospace or other program-driven h\nows its hiring picture cold and can turn that into a plan. That is this role. You are the embedded planning partner for one division, running its demand and c",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5116820008",
+     "title": "Lead Data Scientist, Platform Product",
+     "text": "beneficial AI by driving data-informed decision-making across the organization. You'll be embedded with teams supporting our Developer Platform — the infrastr",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5357951008",
+     "title": "Senior Manager, Infrastructure Lease Accounting",
+     "text": "rastructure arrangements under ASC 842 (lease classification, measurement, modifications, embedded leases, and reassessments) Partner with Real Estate, Legal,",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5421541008",
+     "title": "Manager, Customer Success – Cyber",
+     "text": "work and other surfaces, both inside their own engineering and security organizations and embedded in the products they sell to their customers. You'll direct",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5437172008",
+     "title": "Applied AI Engineer, Beneficial Deployments (Life Sciences)",
+     "text": " flagship research partners like Howard Hughes Medical Institute and The Allen Institute, embedded in their scientific workflows. This isn't consulting from t",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5446607008",
+     "title": "Head of Programmatic Customer Success",
+     "text": "tegy to design and operate the system that moves customers from signed contract to deeply embedded, outcome centric usage. The right person for this role has ",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "openai:393b88d7-1fbc-466a-9108-a7c1bafeb8d8",
+     "title": "Systems Test Engineer, End-to-End Validation | Consumer Devices",
+     "text": "sion tests and maintain coverage across product releases. Partner across teams: Work with embedded, systems, cloud, hardware, QA, and product teams to underst",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "openai:9c18de41-d414-453e-9848-27a98a33c6bd",
+     "title": "Finance Manager - Hardware Consolidations",
+     "text": "accurate, and timely financial view of the hardware business. This role will serve as the embedded owner of the hardware financial backbone, with end-to-end r",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "openai:ed871ac9-44ae-47fa-beaa-b9ab7ff31012",
+     "title": "Recruiter, AI/ML Research",
+     "text": "’s possible. Our Research Recruiting team plays a critical role in this effort. We are an embedded part of the research organization, working side by side wit",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "palantir:4e7d0732-f477-4c7a-aac9-abd62f8c9987",
+     "title": "Senior Front End Software Engineer - Application Development",
+     "text": " an exclusive program unlike any other. This unique, short-term assignment involves being embedded with customers, allowing you to work directly with users an",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "palantir:ab7e3425-81d5-4705-a7b5-cd60c8a45cdb",
+     "title": "Backend Software Engineer - Application Development",
+     "text": " an exclusive program unlike any other. This unique, short-term assignment involves being embedded with customers, allowing you to work directly with users an",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "scaleai:4673051005",
+     "title": "Forward Deployed Product Manager, Enterprise",
+     "text": "e environment where process didn't exist and had to be created. Prior forward-deployed or embedded role (consulting, field PM, solutions engineering with owne\neployed PM is the person who makes enterprise deployments succeed from the product side — embedded with customers, shaping real production outcomes, and trans",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "shieldai:000362bc-8cc0-4569-8b47-a3c463f67b2f",
+     "title": "Technical Program Manager, Mission Autonomy - V-BAT (R6151)",
+     "text": "r to lead the integration of Shield AI’s Hivemind autonomy stack onto V-BAT. This role is embedded within the Aircraft division and serves as a critical coord\n Hivemind autonomy software onto V-BAT. Drive Hardware & Software Alignment Operate as an embedded partner to aircraft engineering teams ensuring software dev",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "shieldai:52b8f7b5-3a88-4e78-8f22-a3edc3bf1e73",
+     "title": "Modeling & Simulation Engineer (R4869)",
+     "text": " (V&V) analysis studies on models and model tooling. Collaborate tightly across autonomy, embedded, GNC, and test engineering teams to ensure our simulation m",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "shieldai:819a0502-f705-4f02-8784-ddfb1ca2b289",
+     "title": "Power Electronics - Principal Electrical Engineer (R4822)",
+     "text": "turing and reliability Cross-functional collaboration: Work closely with Mechanical, CAD, Embedded, Software, Supply Chain, Test Automation, Production and va",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "shieldai:ce828e5e-dcc2-4cab-94cf-c6e8fca728d4",
+     "title": "Senior Electrical, Motor and Motor Drive Engineer (R6021)",
+     "text": "g, simulation, analysis, and testing Engage cross functionally with software, mechanical, embedded, CAD, production, users, and all other relevant teams Execu",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:4164476007",
+     "title": "Flight Software Engineer, Embedded C/C++, Air Dominance & Strike",
+     "text": "Flight Software Engineer, Embedded C/C++, Air Dominance & Strike Develop microcontroller softw\n experience with DO-178 standards or similar certifications Direct experience in aircraft embedded software or other safety critical systems Strong C programm\nware or other safety critical systems Strong C programming skills Background in low-level embedded software architecture, design and development Low-level dev",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:4948330007",
+     "title": "Software Engineer",
+     "text": "ience in the delivery of a military mission system Experience writing backend services or embedded software in C++, Rust and/or Go Experience writing frontend\n horizontally scaled cloud technologies Experience with the implementation and support of embedded software, particularly in the field of robotics Experience ",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5044386007",
+     "title": "Systems Security Engineer, Anti-Tamper",
+     "text": " record of excelling across the broader Systems Security Engineering domain, encompassing embedded Program Protection Implementation Plans, Software Security,\niated documentation Experience with Systems Security Engineering, reverse engineering, or embedded security on DoD programs Familiarity with Cybersecurity, So\nurance, and Supply Chain Risk Management. To support program protection implementation on embedded weapon systems. Strong understanding of the \"why\" behind th",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5113524007",
+     "title": "Robotics Software Engineer",
+     "text": "ardware-Interfacing Software: Write code that interfaces directly with hardware, bridging embedded devices, sensors, and payload electronics with higher-level\nUDP and TCP. Hardware Interfacing: Experience writing code that interfaces with hardware (embedded devices, sensors, or payload electronics). Systems-Level Th\n-tolerant distributed systems and message-passing frameworks for multi-node coordination. Embedded & Real-Time Systems: Experience with embedded Linux, RTOS, ",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5161108007",
+     "title": "Mission Software Engineer, EW",
+     "text": "ols and interfaces that make complex systems usable in high-stakes environments Work with embedded software and DSP engineers to bridge the gap between algori\navel up to 30% Experience with Haskell or Rust Familiarity with Nix/NixOS Experience with embedded systems, real-time systems, or hardware/software integratio\nny part of the stack, figure out how it works, and make it better. The problems here span embedded systems, backend services, data pipelines, deployment infra",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5182752007",
+     "title": "Senior Software Engineer, Maritime",
+     "text": "role for the delivery of a military mission system Experience writing backend services or embedded software in C++, Rust and/or Go Experience writing frontend\ntally scaled cloud technologies Experience with the design, implementation and support of embedded software, particularly in the field of robotics Experience ",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5203389007",
+     "title": "Senior Electrical Engineer, Counter Intrusion",
+     "text": "will require identifying high risk areas, creating and validating electronics designs for embedded compute and/or power systems, and testing for long term-rel",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5221253007",
+     "title": "Mission Software Engineer - Undersea Reconnaissance & Strike",
+     "text": "e-loop or hardware-in-the-loop test setups. CI/CD and versioned deployment experience for embedded or fleet software. Actual on-call or field-support experien",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5235529007",
+     "title": "Staff Systems Engineer - Payload Lead",
+     "text": "a 70), Air Launched Effects, and laser target designation systems Software programming or embedded systems experience (C++, MATLAB, Python, PERL scripting, et",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5247538007",
+     "title": "Program Security Manager",
+     "text": "g national security requirements. ABOUT THE JOB The Program Security Manager will provide embedded security support to a dynamic and robust program with class",
+     "stratum": "kept",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5254383007",
+     "title": "Manufacturing Test Engineer, Missiles",
+     "text": "nts, and hardware checkouts Interface test equipment with devices under test (DUTs) using embedded communication protocols including UART, CAN, and RS-485 / R\nting, SSH, and network setup/debugging Hands-on experience interfacing with and debugging embedded hardware communication protocols: UART, CAN, and RS-485 / R",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "openai:1dc05fc7-ceb7-4827-a905-9d1beb77a4a0",
+     "title": "Camera Software Engineer, Consumer Devices",
+     "text": "gration, and keep the camera stack stable as the device evolves. Deep experience shipping embedded camera systems, including sensor bring-up, driver developme\nsor bring-up, driver development, and board-level debugging. Strong C/C++ experience with embedded or Linux-based systems; comfortable debugging across kernel\nion through reproducible failures and well-scoped fixes. Experience with common mobile or embedded SoC camera stacks and vendor frameworks. Experience integra",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "shieldai:1ade04ff-f436-487d-9376-7e230be3234f",
+     "title": "Staff Deep Learning Engineer, State Estimation (R5785)",
+     "text": "sor modality Experience with model export, quantization, TensorRT, ONNX, or deployment on embedded compute platforms. Experience validating perception or robo",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "shieldai:513eb618-2704-40e0-bbcd-5f946b60d1b2",
+     "title": "Senior Engineer, Autonomy Software Integration & Test (R5606)",
+     "text": "ears of experience developing and integrating software for robotics, autonomy, aerospace, embedded systems, or related technical fields Strong software engine\nion Experience contributing to complex software systems in robotics, autonomy, aerospace, embedded systems, or related domains Experience working with Linux-b\nce with SIL, HIL, VIL, simulation, or flight test environments Familiarity with ROS, DDS, embedded systems, or real-time systems Experience with RF communicat",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "shieldai:b5a0906c-ecaa-47de-9173-fa7ce02989cd",
+     "title": "Staff Engineer, Perception (R5611)",
+     "text": "and autonomy systems. Implement and optimize algorithms in C++ for real-time operation on embedded Linux platforms. Develop and maintain real-time camera and \nies such as GStreamer and V4L2. Optimize workloads for NVIDIA Jetson, Orin, or comparable embedded-compute platforms, including CUDA and TensorRT where approp\nexperience working in Linux environments. Experience with NVIDIA Jetson, Orin, or similar embedded-compute platforms. Experience optimizing perception workloa",
+     "stratum": "kept",
+     "truth": "tp"
+    }
+   ]
+  },
+  "Autonomy": {
+   "before": 1224,
+   "removed": 289,
+   "kept": 935,
+   "precisionBefore": 57,
+   "precisionAfter": 73,
+   "items": [
+    {
+     "id": "anduril:4457719007",
+     "title": "Staff Analytics Engineer",
+     "text": " / Consultant with a strong engineering background 2+ years in a Lead role, demonstrating autonomy and process ownership Experience managing a team in a dynam",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:4912619007",
+     "title": "Senior Systems Engineer, Air Vehicle Systems",
+     "text": "nd Integrated Modeling Environments (i.e. Teamwork Cloud) Demonstrated High ownership and autonomy across the end-to-end systems engineering lifecycle. Must b",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5055631007",
+     "title": "Structures Engineer, Hypersonic Air Vehicles",
+     "text": "ion Excellent problem-solving and communication skills Self-driven with a strong sense of autonomy and adaptability in a dynamic environment Eligible to obtai",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5151696007",
+     "title": "Senior Executive Recruiter",
+     "text": " to drive process alongside C-level stakeholders. If you are someone who can operate with autonomy, build the systems that turn founder-led referrals into a r",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5186566007",
+     "title": "Electrical Engineer (Motor Controls)",
+     "text": " electro-mechanical systems High level system ownership with large levels of professional autonomy Lead design reviews, run analysis, visit vendors, define an",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5202192007",
+     "title": "Senior Technical Recruiter, Mission Readiness (Contract)",
+     "text": "ies, and set a high bar of talent and performance. To achieve this, you will be given the autonomy and tools to execute, build, and develop Anduril's world cl",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5215166007",
+     "title": "Technical Writer, RMS",
+     "text": "al skills, with emphasis on technical subjects The ability to thrive with a high level of autonomy and responsibility, managing competing demands and occasion",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5229310007",
+     "title": "Recruiting Coordinator",
+     "text": " stakeholders (Recruiters, Sourcers, Hiring Managers, Interviewers) with a high degree of autonomy. In addition to managing all interview scheduling, you will",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5235308007",
+     "title": "Senior Technical Recruiter, Intelligence Systems",
+     "text": "gn principles for applicant-facing platforms. Experience working in a low-hierarchy, high-autonomy environment. ABOUT THE TEAM To empower Anduril's Talent Acq\ngn principles for applicant-facing platforms. Experience working in a low-hierarchy, high-autonomy environment. US Hourly Range $70 — $75 USD Benefits Protect",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5246665007",
+     "title": "Senior Software Engineer, Greenfield Product",
+     "text": "mer value, technical quality, and long-term maintainability. Ability to operate with high autonomy, make decisions with incomplete information, and communicat\nr-growth startup-like environments, with demonstrated success balancing speed, ambiguity, autonomy, and long-term product health. Eligible to obtain and maint",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5255870007",
+     "title": "System Architect, Space Electronics",
+     "text": "bility, test, and EMI/EMC compliance from day one. You will operate with a high degree of autonomy and be a technical anchor for less experienced engineers on",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5097186008",
+     "title": "Full Stack Engineer, Education Labs",
+     "text": "tion Previous experience in research labs, frontier tech companies, or startups with high autonomy and ambiguity Published writing, talks, or open-source work",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5274117008",
+     "title": "Legal Program Manager, Compute & Infrastructure",
+     "text": "ng yourself on your adaptability and ability to pivot with speed and grace Initiative and autonomy in managing complex contractual matters, effectively priori",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5383114008",
+     "title": "Staff+ Software Engineer, Privacy",
+     "text": "on't yet have established answers. This is a senior individual contributor role with high autonomy and broad influence. Key responsibilities Design and implem",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5400160008",
+     "title": "Software Engineer, Business Technology",
+     "text": "e that support a variety of use cases—not just one-off features Build tools that maximize autonomy and creative freedom for less-technical users Make product ",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "cohere:8c035d3d-081d-4c8a-914a-72f4efaad254",
+     "title": "Software Engineer Intern (Winter 2027)",
+     "text": "ees, and you’ll have plenty of opportunities to push code to production. You'll have full autonomy and ownership over high-impact work, and will be backed by ",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "openai:6fbb72e6-1d69-4863-aaf3-3c5830e49e8a",
+     "title": "Engineering Manager, Distillation & Detection Platform",
+     "text": "ation, adversarial evaluation, or scalable detection/mitigation approaches. Background in autonomy, high-scale real-time systems, or intelligence-adjacent tec",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "openai:e1cc86e5-b56c-49c0-a4a6-8cf766c27281",
+     "title": "Researcher, Agent Safety, Training and Evaluations",
+     "text": "ight and system mitigation mechanisms that reduce harmful actions while preserving useful autonomy (for example future versions of auto-review ). About the Ro",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "palantir:2e6b0ac8-83e9-4be5-a3aa-cf319f751728",
+     "title": "Forward Deployed Software Engineer, New Grad - Commercial",
+     "text": "e chaos, or the consequences. FDEs are entrusted with real ownership, operating with real autonomy, and held to a real standard, no matter their tenure. What ",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "palantir:701a9307-0619-45d3-b077-cabe9897cd12",
+     "title": "Forward Deployed Infrastructure Engineer, New Grad - US Government",
+     "text": "ng and/or utilizing tooling built in these languages Ability to work with a high level of autonomy and responsibility in a rapidly changing environment with d",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "palantir:c9426c38-9c6f-44bc-acad-bb2e6ed315f6",
+     "title": "Technical Writer",
+     "text": "r communication channels. Teams and individuals at Palantir operate with a high degree of autonomy and independence. In this role, you’ll be responsible for s",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "shieldai:16e2e233-4fed-463d-bc14-a69af7681737",
+     "title": "Staff Engineer, Aircraft Trajectory Modeling (R5787)",
+     "text": "rajectory prediction, aircraft-response modeling, aerospace simulation, robotics, applied autonomy, or GNC-adjacent domains, including 3DOF and/or 6DOF aircra\ns team is responsible for a suite of core products and capabilities that brings resilient autonomy and intelligence to aircraft and other platforms operating \noduct that the Foundations team develops is a real-time safety capability that helps keep autonomy safe, predictable, and effective at the edge. As a senior m",
+     "stratum": "removed",
+     "truth": "tp"
+    },
+    {
+     "id": "shieldai:7ddea36b-a5c2-401c-9bb1-06ff262ff3ff",
+     "title": "Director of Business Development, Collaborative Combat Aircraft (Northeast Asia) (R5041)",
+     "text": "value opportunities across Northeast Asia next-gen airpower programs relevant to CCAs and autonomy. Drive Regional Sales Pipeline: Lead the full business deve\nition, business development, sales, or strategy, ideally with a focus on air platforms or autonomy. 5+ years of experience in region either operationally or f\nheast Asia (30–50%). Job Description: At Shield AI, we’re redefining the battlespace with autonomy-enabled airpower. As part of our global expansion, we’re lo",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "shieldai:caad3e56-08d2-45d4-bd80-151d673cf122",
+     "title": "Staff Talent Sourcer - UK & EU",
+     "text": "onally distributed environment. Prior experience supporting aerospace, defense, robotics, autonomy, AI/ML, advanced technology, manufacturing, or other comple\nt mapping, proactive candidate generation, and pipeline cultivation across our aerospace, autonomy, AI, advanced hardware, and broader business organizations.\nment. Preferred qualifications: Prior experience supporting aerospace, defense, robotics, autonomy, AI/ML, advanced technology, manufacturing, or other comple",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "xai:5212192007",
+     "title": "Sr. Manager, Data Center Facilities - Memphis",
+     "text": "o environment. Highly organized, self-driven leader capable of operating with significant autonomy while aligning to company priorities. Experience managing l",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:4159543007",
+     "title": "Mission Operations Engineer, Connected Warfare (Active Clearance)",
+     "text": "s, effectively transforming the way that militaries close kills chains and enable mission autonomy. In Expeditionary Systems, we containerize warfighting func\n a technology company, working at the leading edge of capabilities like machine learning, autonomy, distributed networking, and multi-modal sensor fusion. Do ",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:4961601007",
+     "title": "Senior Robotics Engineer",
+     "text": "tain an Australian Government Negative Vetting 2 security clearance (NV2) Experience with autonomous systems in the ground, air, maritime or space domains Experience wi\nithm validation and testing Knowledge of safety standards and certification processes for autonomous systems Familiarity with System Engineering concepts About the Team\nadically evolve the capabilities of our customers. We are fielding the next generation of autonomous systems to tackle the extremely challenging industry demands of mar",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5102393007",
+     "title": "Software Engineer, Robotics",
+     "text": "are Engineer on the Air Defense team, you will solve a wide variety of problems involving autonomy, systems integration, robotics, networking, and more, while",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5157743007",
+     "title": "Manager, Product Quality, RoadRunner",
+     "text": " Be able to obtain and hold a U.S. security clearance ABOUT THE SITE Anduril, a leader in autonomous systems and weapons manufacturing, is building Arsenal-1 , its firs\nth of Columbus, Ohio in Pickaway County. Arsenal-1 is redefining the scale and speed that autonomous systems and weapons can be produced for the United States and its a",
+     "stratum": "kept",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5177623007",
+     "title": "Staff Technical Program Manager, Sentry Maneuver Systems",
+     "text": "inate execution across Mechanical Engineering, Electrical Engineering, Embedded Software, Autonomy, Systems Engineering, Manufacturing, Supply Chain, Reliabil\nies spanning vehicle platforms, chassis, sensors, communications, compute, power systems, autonomy hardware, and mission payloads. Drive engineering readiness\ns team develops these next-generation platforms by integrating vehicle systems, robotics, autonomy, sensing, communications, power systems, and mission payloa",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5199079007",
+     "title": "Staff Software Engineer, Quality Integration",
+     "text": "nt of our software solutions, directly contributing to our mission of delivering advanced autonomous systems. ABOUT THE ROLE Ensuring we deliver high quality, trustable",
+     "stratum": "kept",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5216763007",
+     "title": "Senior System Engineer, ModSim, Joint Simulation Environment (JSE)",
+     "text": " be used in support of product development, delivery, and sustainment of advanced mission autonomy systems. WHAT YOU’LL DO Red-team designs, models, and analy",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5231782007",
+     "title": "Sr. Manager, Production, Air Maneuver Dominance",
+     "text": "E JOB The Maneuver Dominance team at Anduril develops operationally relevant, multi-asset autonomy. We are focused on new air vehicle development programs, an\nonomy. We are focused on new air vehicle development programs, and making large groups of autonomous systems work effectively together. ABOUT THE JOB You will lead all \nems work effectively together. ABOUT THE JOB You will lead all production activity for an autonomous vehicle program within the Air Maneuver business line. You will bui",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5242787007",
+     "title": "Systems Engineer, Air Defense",
+     "text": "admap with the strategic vision Minimum of 4+ years experience as a System engineer in an autonomous systems, robotics, or software development environment. Proven clie\n vision REQUIRED QUALIFICATIONS Minimum of 4+ years experience as a System engineer in an autonomous systems, robotics, or software development environment. Proven clie",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5252479007",
+     "title": "Senior Technical Program Manager, Autonomous Launchers",
+     "text": "rld enters an era of strategic competition, Anduril is committed to bringing cutting-edge autonomy to the military in months, not years. Anduril Expeditionary\neal-time, 3D command and control center and transforms our hardware into state-of-the-art autonomous systems. As the world enters an era of strategic competition, Andur",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "scaleai:4609736005",
+     "title": "AI Product Manager (Coding/Multimodal)",
+     "text": " in AI, including frontier model training, enterprise adoption, defense applications, and autonomous vehicles. Our mission is to develop reliable AI systems for the worl",
+     "stratum": "kept",
+     "truth": "fp"
+    },
+    {
+     "id": "shieldai:2394368a-67ff-441c-83c3-e998446327e7",
+     "title": "Applications Engineer, Autonomy (open level)",
+     "text": "Applications Engineer, Autonomy (open level) Deploy with customers on site globally (~50% t\ntivities. Become an expert user of the Hivemind enterprise software stack and its various autonomy modules. Provide technical support and training to customer\nrious autonomy modules. Provide technical support and training to customers. Develop AI & Autonomy applications using the Shield AI enterprise software develo",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "shieldai:57c61eb1-b3cc-4ce8-8884-8f8f277164bb",
+     "title": "Senior C++ Engineer – Foundations (R6023)",
+     "text": "utonomous systems, between agents, and with third-party systems. Collaborate closely with autonomy, systems, simulation, and test engineers to deliver capabil\n Senior Engineer to help design and develop the middleware framework upon which Shield AI autonomy is developed. As part of the Hivemind Foundations team, you\nctive and demanding environments around the world. They also create the tools that enable autonomy engineers develop, understand, debug, and rapidly iterate o",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "shieldai:8ab0ecee-89be-4670-bcc0-055b8afbf254",
+     "title": "Mission Systems Software Engineer - BlueSky (R5199)",
+     "text": "and technical decision records. Integrate sensors, effectors, communications, navigation, autonomy, mission management, command-and-control, data-processing, \nernment reference architectures and open-mission-system standards. Experience integrating autonomy, mission management, command-and-control, sensor processing",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "shieldai:cb1b575b-abfb-4903-887e-0f3b7a0ee23f",
+     "title": "Sr Director, Simulation - International (R5920)",
+     "text": "ion, training, and visualization programs Align partner strategy with Shield AI’s broader autonomy and platform roadmap Partner with Product and Engineering t\nof B2B sales experience in technically complex domains (simulation, visualization, AI/ML, autonomy, SaaS, aerospace/defense, or similar) 5+ years of senior sa\nng with Large Systems Integrators (LSIs), primes, and partner ecosystems Familiarity with autonomy, training systems, or digital battlefield environments Expe",
+     "stratum": "kept",
+     "truth": "fp",
+     "snippetDiffers": true
+    }
+   ]
+  },
+  "CAD": {
+   "before": 517,
+   "removed": 6,
+   "kept": 511,
+   "precisionBefore": 99,
+   "precisionAfter": 100,
+   "items": [
+    {
+     "id": "anthropic:5183044008",
+     "title": "Anthropic Fellows Program, AI Safety & Security",
+     "text": "AI safety and security research community Weekly stipend of 3,850 USD / 2,310 GBP / 4,300 CAD + benefits (these vary by country) Funding for compute (~$1\non. Compensation The expected base stipend for this role is 3,850 USD / 2,310 GBP / 4,300 CAD per week, with an expectation of 40 hours per week for 4 mo",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5183051008",
+     "title": "Anthropic Fellows Program, ML Systems & Reinforcement Learning",
+     "text": "AI safety and security research community Weekly stipend of 3,850 USD / 2,310 GBP / 4,300 CAD + benefits (these vary by country) Funding for compute (~$1\nll. Compensation The expected base stipend for this role is 3,850 USD / 2,310 GBP / 4,300 CAD per week, with an expectation of 40 hours per week for 4 mo",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5183053008",
+     "title": "Anthropic Fellows Program, The Anthropic Institute (Economics & Policy)",
+     "text": "ect mentorship from Anthropic researchers Weekly stipend of 3,850 USD / 2,310 GBP / 4,300 CAD + benefits (these vary by country) Substantial funding for \nll. Compensation The expected base stipend for this role is 3,850 USD / 2,310 GBP / 4,300 CAD per week, with an expectation of 40 hours per week for 4 mo",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5391499008",
+     "title": "Sales Lead, Canada Public Sector",
+     "text": "ty to articulate its importance in government contexts Annual Salary: $420,000 — $495,000 CAD Logistics How we're different Come work with us!",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "cohere:9845c80d-95ba-4769-94a7-62408d73d603",
+     "title": "Data Annotation Specialist, Data Science",
+     "text": "in Canada. We seek candidates who are able to commit to 16 hours per week minimum at a 40 CAD/hour contract rate. This role is BYOD 💻 - Bring Your Own D",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "cohere:a7321948-288c-4e9f-9fbe-2f9ccda07ffa",
+     "title": "Data Annotation Specialist, Generalist",
+     "text": "available within Canada only. We seek candidates who can commit to 16 hours per week at a CAD $30/hour contract rate. This role is BYOD 💻 (Bring Your Ow",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:4244791007",
+     "title": "Systems Integration Engineer, Air Vehicles",
+     "text": "eamless integration of avionics and mission systems within aircraft. Create and modify 3D CAD models and 2D drawings for secondary structures and system ",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5032526007",
+     "title": "Systems Integration Engineer, High Speed Missiles",
+     "text": "tegrate avionics and mission systems into air vehicles effectively. Develop and modify 3D CAD models and 2D drawings for secondary structures and system \n Familiarity with hypersonic missiles and military standards. Proficiency with Siemens NX CAD software. Strong communication, collaboration, and teamwork",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5084913007",
+     "title": "Senior Supply Chain Manufacturing Engineer, Casting",
+     "text": "gory technical expertise, as applicable, mechanical casting manufacturing, IPC standards, CAD, GD&T Ability to travel at least 50% of the time Bachelor’s\ngory technical expertise, as applicable, mechanical casting manufacturing, IPC standards, CAD, GD&T Ability to travel at least 50% of the time PREFERRED ",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5156588007",
+     "title": "Industrial Space Planner",
+     "text": "ience in industrial, manufacturing, supply chain or production environment Proficiency in CAD software, ArcGIS, Archibus, Power BI, JIRA and/or similar s",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5188063007",
+     "title": "Senior Manager, Mechanical Engineering",
+     "text": "m concepts into ruggedized fielded products. Experience with military hardware a plus. 3D CAD proficiency (any platform) and ability to understand and ap",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5208194007",
+     "title": "Configuration Design Engineer",
+     "text": "w air vehicles and missile systems from concept to preliminary design. Develop parametric CAD models, complex surface models, and high-fidelity Outer Mol\nd aerial systems (UAS), or missile systems. Strong, hands-on proficiency in 3D parametric CAD modeling and advanced surfacing (Siemens NX preferred , CAT",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5220501007",
+     "title": "Staff Propulsion Engineer, Air Vehicles (Air Breathing Engine Integration)",
+     "text": "ical hardware demonstrations with customers as needed. Critical member of team supporting CAD design for inlet / exhaust shaping, surfaces and structures\nms and troubleshooting anomalies. Experience designing mechanical parts and surface loft (CAD) with the ability to perform design reviews and provide det",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5232440007",
+     "title": "Senior Mechanical Design Engineer, Hardware Platform, 7+ years of experience",
+     "text": "rations. Design for Excellence (DFM / DFA): Sit at the critical interface between initial CAD concepts and production reality. You will drive high-rate m\nnitial concept through fabrication and functional test. High proficiency in parametric 3D CAD (SolidWorks, NX, or Creo) and modern PLM/PDM environments (",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5236589007",
+     "title": "Winter 2027 Manufacturing Engineer Co-op",
+     "text": "extracurricular projects. Software scripting experience in any language. Familiarity with CAD software, Manufacturing Execution Systems, or ERP/MRP syste",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5246823007",
+     "title": "Senior IT Security Engineer, Space",
+     "text": "nments Familiarity with engineering applications such as Siemens NX, Teamcenter, or other CAD/CAM/CAE software Track record of leading environments throu",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5254377007",
+     "title": "Senior Electrical Engineer (Sensor Systems)",
+     "text": " standard interfaces such as CAN, I2C, SPI, etc. Comfortable with a variety of electronic CAD tools (Altium preferred, Eagle and others acceptable) Exper",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5261440007",
+     "title": "Senior Supplier Industrialization Engineer, Core Tech Mechanical",
+     "text": " technical expertise, as applicable, mechanical fabrication manufacturing, IPC standards, CAD, GD&T Ability to travel at least 50% of the time Ability to",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "shieldai:2e2f8207-6ff1-41f8-8745-5623b8799651",
+     "title": "Staff Engineer, Composite Advance Manufacturing",
+     "text": "e in manufacturing engineering, with a focus in rapid growth environments. Proficiency in CAD software (Solidwork, NX, or CATIA). Experience with Composi",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "shieldai:752f3c4e-2836-46de-a878-b3f1033d09ea",
+     "title": "Staff Engineer, Advanced Manufacturing (R4968)",
+     "text": "ng priorities. Knowledge of quality standards, such as AS9100 or ISO 9001. Proficiency in CAD software Familiarity with advanced manufacturing technologi\nualifications: Knowledge of quality standards, such as AS9100 or ISO 9001. Proficiency in CAD software Familiarity with advanced manufacturing technologi",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "shieldai:d6ad26fa-bc40-4beb-b28a-c1133bd8242a",
+     "title": "Technical Writer (R5662)",
+     "text": "pport, and/or mission-system interfaces. Ability to interpret engineering drawings, BOMs, CAD outputs, schematics, system architectures, requirements, in",
+     "stratum": "kept",
+     "truth": "tp"
+    }
+   ]
+  }
+ }
+}

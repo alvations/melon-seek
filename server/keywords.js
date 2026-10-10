@@ -1,5 +1,6 @@
 // Job description parsing: bullet sections, keyword facets and seniority.
 // No DOM library: a small regex tokenizer walks the HTML.
+import { SALES_CONDITIONAL_RE } from './salary.js';
 
 // ---------------------------------------------------------------------------
 // HTML helpers
@@ -375,12 +376,19 @@ const GO_PATTERNS = [
   /\bGo\s+(?:programming|language|services|microservices|backend|codebase)\b/,
 ];
 
+// P-17 (persona review 2026-10-10): technical contexts for three words that are mostly
+// ordinary English in postings ("embedded in the business", "high autonomy").
+const EMBEDDED_NOUNS = 'systems?|software|firmware|linux|c\\+\\+|c|rust|development|developers?|engineer(?:s|ing)?|devices?|hardware|electronics|processors?|processing|platforms?|targets?|programming|rtos|controllers?|microcontrollers?|computing|compute|code|coder|applications?|security|gpus?|boards?|os|environments?|products?|domain|dsp|hw|sw|ml|ai|vision|real-time|protocols?|interfaces?|communications?|mission systems?|deployments?';
+const AUTONOMY_AFTER = 'software|stacks?|systems?|engineer(?:s|ing)?|algorithms?|capabilit(?:y|ies)|behaviou?rs?|pipelines?|development|research|architectures?|applications?|products?|platforms?|frameworks?|integration|solutions?|features?|modules?|simulations?|testing|code|engines?|kits?|services|missions?|c2|middleware|teams?|programs?|computers?|researchers?';
+const DISCIPLINES = 'aerospace|aeronautical|electrical|electronics|computer|software|systems|manufacturing|industrial|civil|chemical|materials|physics|robotics|mechatronics|controls?|mathematics|math|computer science|engineering physics|related|biomedical|nuclear|ocean|marine';
+const AUTONOMY_BEFORE = 'mission|vehicle|robot(?:ic)?|robotics|drone|aircraft|air|airborne|maritime|undersea|subsea|ground|edge|flight|uas|uav|hivemind|lattice|multi-?agent|multi-?vehicle|collaborative|full[- ]stack|onboard|end-to-end|swarm|weapons?|multi-asset|multi-domain|unsupervised|layered';
+
 export const SKILL_LEXICON = [
   // Languages
   ['Python', 'python'],
   ['Rust', /\bRust\b/],
   ['Go', ...GO_PATTERNS],
-  ['TypeScript', 'typescript'],
+  ['TypeScript', 'typescript'], // P-17: kept; a nice-to-have mention sorts last (orderSkills)
   ['JavaScript', 'javascript', /\bJS\b/],
   ['Java', /\bJava\b/],
   ['C++', /(?<![\w+])C\+\+(?![\w+])/, /\bCpp\b/],
@@ -425,7 +433,8 @@ export const SKILL_LEXICON = [
   ['pandas', /\bpandas\b/i],
   ['scikit-learn', 'scikit-learn', 'sklearn'],
   ['Hugging Face', 'hugging ?face'],
-  ['Machine learning', 'machine learning', /\bML\b/],
+  // P-17: "AI/ML" ("articulate AI/ML concepts", "AI/ML companies") names the industry, not the skill
+  ['Machine learning', 'machine learning', /(?<!\bAI\s?\/\s?)\bML\b(?!\s?\/\s?AI\b)/],
   ['Deep learning', 'deep learning', 'neural networks?'],
   ['LLMs', 'llms?', 'large language models?', 'language models?', 'foundation models?', 'frontier models?'],
   ['Transformers', 'transformers?(?: models?| architectures?)?'],
@@ -496,7 +505,8 @@ export const SKILL_LEXICON = [
   ['AppSec', 'application security', 'appsec', 'secure code review'],
   ['Vulnerability research', 'vulnerability research', 'exploit development', 'fuzzing', 'reverse engineering'],
   // Hardware / defense
-  ['Embedded', 'embedded'],
+  // P-17: a technical noun after "embedded"; not "embedded within our legal operations"
+  ['Embedded', `embedded (?:(?:and|or|and/or) (?:[\\w+#-]+ ){0,2})?(?:${EMBEDDED_NOUNS})`, '(?:edge|firmware|real-time|rtos|bare-metal)\\s*(?:/|or|and)\\s*embedded'],
   ['Firmware', 'firmware'],
   ['RTOS', /\bRTOS\b/, 'real-time operating systems?', 'freertos', 'zephyr'],
   ['FPGA', 'fpgas?'],
@@ -510,15 +520,20 @@ export const SKILL_LEXICON = [
   ['Robotics', 'robotics?', 'robots?'],
   ['Controls', 'control systems?', 'controls engineering', 'controls', 'feedback control'],
   ['ROS', /\bROS ?2?\b/],
-  ['Autonomy', 'autonomy', 'autonomous systems?', 'autonomous vehicles?'],
+  // P-17: robot/vehicle autonomy only; not "operate with a high degree of ownership and autonomy"
+  ['Autonomy', /\bAutonomy\b/, `autonomy (?:${AUTONOMY_AFTER})`, `(?:${AUTONOMY_BEFORE}) autonomy`, 'autonomous systems?', 'autonomous vehicles?'],
   ['GNC', /\bGNC\b/, 'guidance,? navigation,? (?:and|&) control'],
   ['Sensor fusion', 'sensor fusion', 'kalman filter\\w*', 'state estimation'],
   ['SLAM', /\bSLAM\b/],
   ['Avionics', 'avionics'],
   ['Propulsion', 'propulsion', 'rocket engines?'],
   ['Aerodynamics', 'aerodynamic\\w*', /\bCFD\b/, 'computational fluid dynamics'],
-  ['Mechanical design', 'mechanical design', 'mechanical engineering', 'mechanisms'],
-  ['CAD', /\bCAD\b/],
+  // P-17: not bare "mechanisms" ("VAT mechanisms", "escalation mechanisms"), and not one
+  // discipline in a degree list ("BS in Computer Science, Electrical Engineering, Mechanical
+  // Engineering, or a related field") or "mechanical engineering teams"
+  ['Mechanical design', 'mechanical design', new RegExp(String.raw`(?<!\b(?:${DISCIPLINES})(?: engineering)?\s*(?:,|\/|\bor\b|\band\b)\s*)\bmechanical engineering\b(?!\s*(?:,|\/|\bor\b|\band\b)\s*(?:${DISCIPLINES})\b|\s+teams\b)`, 'i')],
+  // P-17: not the currency ("4,300 CAD per week", "$495,000 CAD", "CAD 150,000", "30 CAD/hour")
+  ['CAD', /(?<!\d[\d,.]*\s?[kKmM]?\s?|\b(?:USD|GBP|EUR|AUD)\s?\/\s?)\bCAD\b(?!\s?(?:\$|\d|\/\s?(?:hour|hr|h|year|yr|annum|month|mo|week|wk|day)\b|per\s|an?\s+(?:hour|year|week|month)\b|annually|hourly|weekly|monthly))/],
   ['SolidWorks', 'solidworks'],
   ['Siemens NX', /\bSiemens NX\b/i, /\bNX\b/],
   ['GD&T', /\bGD&T\b/i, 'geometric dimensioning'],
@@ -674,6 +689,68 @@ function matchLexicon(compiled, hay) {
   return out;
 }
 
+// P-17: domain words that are a skill only in a technical role. An engineer's "Experience
+// with UAVs, robotics, autonomy, embedded systems" or "Skilled in Statistics, AI/ML" is a
+// skill; a sourcer's "recruiting within aerospace, robotics, autonomy" and a customer
+// success manager's "articulate AI/ML concepts" are not.
+const TECH_TITLE_WORDS_RE = /\b(?:engineers?|engineering|scientists?|science|research(?:ers?)?|developers?|architects?|technical|technicians?|data|machine learning|devops|programmers?|software|hardware|firmware|systems|security|infrastructure|robotics|simulation|modeling|modelling)\b/i;
+const TECH_TITLE_CAPS_RE = /\b(?:ML|SRE|TPM|FDE|GNC|SWE|MTS)\b/;
+/** A technical role from its title (engineer, scientist, technical program manager, ...). */
+export function isTechnicalTitle(title) {
+  const t = String(title || '');
+  return TECH_TITLE_WORDS_RE.test(t) || TECH_TITLE_CAPS_RE.test(t);
+}
+const AUTONOMY_LIST_TERMS = 'networking|robotics|uavs?|uas|gnc|perception|sensor fusion|sensors?|simulation|systems integration|embedded systems|munitions|isr|mission systems|avionics|radar|ew|acoustics|machine learning|computer vision|navigation|c2|command and control|missiles|cyber|flight controls|propulsion|payloads?|ground systems|unmanned systems|aircraft';
+const AIML_NOT_SKILL = 'compan(?:y|ies)|industr(?:y|ies)|space|sectors?|markets?|landscape|products?|teams?|engineers|researchers|experts|ecosystems?|startups?|businesses|firms|vendors|customers|concepts|dynamics|organi[sz]ations|leaders';
+const GATED_SKILLS = compileLexicon([
+  ['Machine learning', new RegExp(String.raw`(?<!\b[Ii]nterest(?:ed)?\s+in\s+|\b[Pp]assion(?:ate)?\s+(?:for|about)\s+)\b(?:AI\s?\/\s?ML|ML\s?\/\s?AI)\b(?![\s-]+(?:${AIML_NOT_SKILL})\b)`)],
+  ['Autonomy', `(?:${AUTONOMY_LIST_TERMS})\\s*(?:,|and|or|&)\\s*(?:the\\s+)?autonomy`, `autonomy\\s*(?:,|and|or|&)\\s*(?:${AUTONOMY_LIST_TERMS})`],
+]);
+// The title alone names the skill ("Senior Mechanical Engineer: Mechanisms, Space").
+const TITLE_SKILLS = compileLexicon([
+  ['Mechanical design', /\b(?:mechanical|electro-?mechanical|mechatronics?|mechanisms?)\b/i],
+  ['Embedded', /\bembedded\b/i],
+  ['Autonomy', /\bautonom(?:y|ous)\b/i],
+]);
+const LEXICON_ORDER = new Map(SKILL_LEXICON.map(([label], i) => [label, i]));
+
+const SKILL_RES = new Map(SKILLS.map(({ label, res }) => [label, res]));
+for (const { label, res } of [...TITLE_SKILLS, ...GATED_SKILLS]) SKILL_RES.set(label, [...(SKILL_RES.get(label) || []), ...res]);
+
+/** Skill labels for a job: the lexicon, plus the title-only and technical-role-only patterns (P-17), in lexicon order. */
+function matchSkills(title, all) {
+  const out = new Set(matchLexicon(SKILLS, all));
+  for (const { label, res } of TITLE_SKILLS) if (!out.has(label) && res.some((re) => re.test(title))) out.add(label);
+  if (isTechnicalTitle(title)) for (const { label, res } of GATED_SKILLS) if (!out.has(label) && res.some((re) => re.test(all))) out.add(label);
+  return [...out].sort((a, b) => LEXICON_ORDER.get(a) - LEXICON_ORDER.get(b));
+}
+// "Familiarity with HTML, CSS, Javascript, and Typescript is appreciated" (Palantir designers),
+// "Experience with Rust is a plus": the skill is real but not what the role is about.
+const NICE_TO_HAVE_RE = /\b(?:a (?:big |huge |strong |nice )?plus|nice[- ]to[- ]haves?|(?:is|are|would be) (?:also |very |highly )?(?:appreciated|a bonus|helpful|desirable|welcome|beneficial)|bonus points?|(?:is |are )?not (?:required|necessary)|don['’]t need to be an expert)\b/i;
+const splitSentences = (s) => String(s || '').split(/\n+|(?<=[.!?])\s+(?=[A-Z(“"])/);
+
+/**
+ * Skills in lexicon order, except that skills the posting names only in nice-to-have
+ * sentences ("Familiarity with ... Typescript is appreciated", "Rust is a plus") come
+ * last (P-17: a card shows the first two, and a designer's card should not lead with
+ * TypeScript). The set is unchanged; only the order moves.
+ */
+function orderSkills(skills, { title, resp, fit, body }) {
+  if (skills.length < 2) return skills;
+  const core = [String(title || '')];
+  let nice = false;
+  for (const p of [...resp, ...fit, body]) {
+    for (const s of splitSentences(p)) {
+      if (NICE_TO_HAVE_RE.test(s)) nice = true;
+      else core.push(s);
+    }
+  }
+  if (!nice) return skills;
+  const coreText = core.join('\n');
+  const late = new Set(skills.filter((label) => !(SKILL_RES.get(label) || []).some((re) => re.test(coreText))));
+  return late.size ? [...skills.filter((l) => !late.has(l)), ...skills.filter((l) => late.has(l))] : skills;
+}
+
 // ---------------------------------------------------------------------------
 // Years of experience
 // ---------------------------------------------------------------------------
@@ -718,7 +795,8 @@ export function yearsBucket(n) {
 
 /**
  * Keyword facets for a job: { responsibilities, fit, skills } (display labels,
- * deduped, in lexicon order).
+ * deduped; responsibilities and fit in lexicon order, skills in salience order,
+ * see orderSkills).
  */
 export function extractKeywords({ title = '', department = '', sections = null, text = '' } = {}) {
   const resp = (sections && sections.responsibilities) || [];
@@ -726,7 +804,7 @@ export function extractKeywords({ title = '', department = '', sections = null, 
   const body = String(text || '');
   const all = [title, ...resp, ...fit, body].filter(Boolean).join('\n');
 
-  const skills = matchLexicon(SKILLS, all);
+  const skills = orderSkills(matchSkills(String(title || ''), all), { title, resp, fit, body });
 
   const respHay = [title, ...(resp.length ? resp : [body, department])].filter(Boolean).join('\n');
   const responsibilities = matchLexicon(RESP, respHay);
@@ -789,14 +867,27 @@ export function seniorityBasis(title) {
 const byTitle = (level) => ({ level, basis: 'title' });
 const BY_DEFAULT = Object.freeze({ level: 'Mid', basis: 'default' });
 
+// P-3 (persona review 2026-10-10). "Account Director" / "Partner Director" are sales and
+// partner titles (OpenAI's ~40 Account Directors, "Federal Account Director") and a "Test
+// Director" runs test events ("Senior Staff Engineer, Test Director"): none is an
+// executive, so these phrases never make a title Director+.
+// ("People Business Partner Director" is an HR director, so "business partner" is left out.)
+const NON_EXEC_DIRECTOR_RE = /\b(?:accounts?|(?<!\bbusiness\s)partner|client|test)\s+director\b/gi;
+// A distinguished-type fellow is a senior individual-contributor rank. Any other "Fellow"
+// ("Conceptual Reasoning Fellow", "SWE Fellow - Human Frontier Collective") is a
+// fixed-term fellowship, filed with internships like "Anthropic Fellows Program".
+const SENIOR_FELLOW_RE = /\b(?:distinguished|technical|senior|principal|corporate|chief)\s+fellows?\b/i;
+const FELLOW_RE = /\bfellows?\b/i;
+
 function seniorityOf(title) {
   const t = stripGenericStaff(String(title || ''));
   if (!t.trim()) return BY_DEFAULT;
-  if (/\b(?:director|vp|svp|evp|vice[- ]president|head of|chief|cto|cfo|ceo|coo|ciso|cmo|cpo|president|general manager|partner,)\b/i.test(t)
+  const exec = t.replace(NON_EXEC_DIRECTOR_RE, ' ');
+  if (/\b(?:director|vp|svp|evp|vice[- ]president|head of|chief|cto|cfo|ceo|coo|ciso|cmo|cpo|president|general manager|partner,)\b/i.test(exec)
     || /^head\b/i.test(t)) return byTitle('Director+');
   if (/\b(?:intern(?:ship)?s?|fellowships?|fellows program|co-?op|apprentice(?:ship)?|summer (?:analyst|associate|student)|residency|resident)\b/i.test(t)
-    ) return byTitle('Intern');
-  if (/\b(?:staff|principal|distinguished|fellow)\b/i.test(t)) return byTitle('Staff+');
+    || (FELLOW_RE.test(t) && !SENIOR_FELLOW_RE.test(t))) return byTitle('Intern');
+  if (/\b(?:staff|principal|distinguished)\b/i.test(t) || SENIOR_FELLOW_RE.test(t)) return byTitle('Staff+');
   const isManager = /\bmanager\b/i.test(t) && !NON_PEOPLE_MANAGER.test(t);
   if (isManager || /\b(?:team lead|people lead|supervisor|engineering lead|lead,? (?:people|team))\b/i.test(t)
     || /\bmanager,\s/i.test(t) && !NON_PEOPLE_MANAGER.test(t)) return byTitle('Manager');
@@ -835,11 +926,21 @@ const COMP_DUTY_RE = /\b(?:payroll|accounting|accruals?|ASC\s?\d{3}|GAAP|SOX|aud
 // The sentence denies or merely hedges ("This estimate excludes ... bonus").
 const COMP_NEGATION_RE = /\bnot\s+(?:be\s+)?eligible\b|\bineligible\b|\b(?:are|is|will be)\s+not\s+(?:offered|included|provided)\b|\bdoes(?:n['’]t| not) (?:include|offer)\b|\bno (?:equity|bonus|commission)\b|\bexclud(?:es?|ing)\b/i;
 
-// Conditional boilerplate: "For sales roles, the range ... OTE ... commissions".
-const SALES_CONDITIONAL_RE = /\b(?:for|in|on)\s+(?:sales|commissioned|quota[- ]carrying|commission[- ]eligible)\s+roles\b/i;
+// Conditional boilerplate: "For sales roles, the range ... OTE ... commissions"
+// (SALES_CONDITIONAL_RE, defined in server/salary.js, which uses it for on-target earnings).
 const SALES_TITLE_RE = /\b(?:account executive|account director|account manager|ae\b|business development (?:rep\w*|manager|executive|director)|bdr|sdr|partner sales|sales(?!\s+(?:strategy|operations|ops|enablement|engineer\w*|compensation|analytics|systems|planning|finance|recruit\w*))\b|seller)/i;
 // Sales-org roles that are not quota-carrying.
 const SALES_TITLE_EXCLUDE_RE = /\b(?:enablement|pre-?sales|presales|operations|strategy|analyst|developer|recruit\w*)\b/i;
+
+/**
+ * A quota-carrying sales title ("Enterprise Account Executive", "Sales Lead", "Business
+ * Development Representative"; not "Sales Enablement Lead" or "Customer Success Manager").
+ * A "for sales roles" sentence applies only to these (extras here, OTE in server/salary.js).
+ */
+export function isSalesTitle(title) {
+  const t = String(title || '');
+  return SALES_TITLE_RE.test(t) && !SALES_TITLE_EXCLUDE_RE.test(t);
+}
 const NON_FULLTIME_TITLE_RE = /\b(?:intern(?:ship)?s?|co-?op|part[- ]time|temporary|seasonal|fellow(?:ship)?s?|contractor)\b|\((?:contract|temp|contract-to-hire)\)|,\s*contract\s*$/i;
 // "... included in the majority of full time offers" does not apply to interns/contractors.
 const FULLTIME_SCOPE_RE = /\bfull[- ]time\b/i;
@@ -898,7 +999,7 @@ function compSegments(text) {
 export function compExtrasEvidence(text, { title = '' } = {}) {
   let src = String(text || '');
   if (/<(?:p|li|ul|div|br|h[1-6])\b/i.test(src)) src = htmlToText(src);
-  const salesTitle = SALES_TITLE_RE.test(title) && !SALES_TITLE_EXCLUDE_RE.test(title);
+  const salesTitle = isSalesTitle(title);
   const nonFullTime = NON_FULLTIME_TITLE_RE.test(title);
   const evidence = { equity: [], bonus: [] };
   const vetoed = { equity: false, bonus: false };

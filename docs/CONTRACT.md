@@ -222,3 +222,68 @@ They appear only at `https://alvations.github.io/melon-seek/beta/`. The main sit
 **Server mode (`server/index.js`, deploy engineer).**
 - `/api/companies` lists stable companies only, unless the env var `MELON_CHANNEL=beta` is set.
 - `/api/jobs?company=<beta slug>` works either way.
+
+## v4 additions (2026-10-10): pay data fixes (fix-pay-data lane, persona review P-1, P-3, P-8, P-9, P-17)
+
+All existing fields keep their meaning; every addition is optional for readers.
+`NORMALIZER_VERSION` is `norm-6`: stored `norm-5` snapshots are upgraded once by
+`relocateJobs(rekeyBoardJobs(jobs).jobs)` in the server, the static build, the archive ingest
+and the refresh report, and `relocateJobs` now also re-derives the pay labels and the level
+(`server/normalize.js#relabelJobs`). Log: [docs/process/fix-pay-data.md](process/fix-pay-data.md).
+
+**Job `salary`:**
+
+| Field | Meaning |
+|---|---|
+| `kind` | `'salary'` \| `'hourly'` \| `'stipend'` \| **`'ote'`**. `'ote'` = the posting says the range is on-target earnings (base pay plus commission at target), in its own words: in the clause that holds the range ("OTE: $X–$Y", "$X–$Y OTE", "On target compensation: …", "Base + commission at target: …"), in the pay range's own label (a Greenhouse range titled "OTE"), or in a sentence about the range ("The figure above represents On-Target Earnings (OTE)"). A conditional sentence ("For sales roles, the range provided is the role's On Target Earnings ("OTE") range") counts only for a sales title (`keywords.js#isSalesTitle`: Account Executive, Account Director/Manager, Sales …, BDR/SDR, Partner Sales; not enablement, strategy, operations, Customer Success). A stipend is never OTE. An hourly sales range can be OTE; `originalInterval` still says `'hour'`. Surfaces show it as "On-target earnings (base plus commission at target)", compare it only with other OTE ranges, and leave it out of base-pay medians |
+| `termWeeks` | Integer, 1–104. The programme length the posting states, for an internship, co-op, fellowship, residency or apprenticeship (title or employment type): "12-week internship" → 12, "The program runs for 4 months" → 17 (months × 52 ÷ 12, rounded), "16 to 24-week internship" → 16. Only phrases tied to the programme or to the pay sentence count, never "within two weeks of your offer" or "6 weeks of paid vacation". Absent for every other role |
+| `termWeeksMax` | Integer, only when the posting states a range ("16 to 24-week internship" → 24) |
+| `originalInterval: 'term'` | New value. The posted amount covers the whole programme ("$100,000–$167,000 USD for the four-month fellowship"); `min`/`max` are annualized over the term (× 52 ÷ the term's exact weeks, here × 3), `termWeeks` is set, and `text` keeps the posting's words including "for the four-month fellowship". The term amount is `min × termWeeks ÷ 52` (approximately) |
+
+`parseSalary(text, { countries })` returns `kind: 'ote'` for the in-clause case and, for term
+pay, `interval: 'term'` with `termWeeks` and `termFactor` (the annualization factor;
+`toJobSalary` uses it and does not copy it). New helpers in `server/salary.js` (all pure):
+`hasOte(s)`, `oteStatement(text, { salesRole })`, `programTerm(text) -> { weeks, weeksMax? } | null`,
+`isFixedTermRole({ title, employmentType })`, `payTerms(salary, { text, title, employmentType, salesRole })`
+(used by `deriveSalary` and by `relabelJobs`), and `SALES_CONDITIONAL_RE` (moved here from
+keywords.js; `salary.js` has no imports, because it is in the static site's startup module graph).
+
+**Vetting (`server/vet.js`):** `payKind` can return `'ote'`; OTE counts as full-time salaried
+pay for the low-side outlier test. `junior_high` does not apply to term pay (`originalInterval:
+'term'`): its yearly equivalent is the posting's own statement.
+
+**Seniority (`server/keywords.js#seniorityOf`):** "Account Director", "Partner Director"
+(not "Business Partner Director"), "Client Director" and "Test Director" never make a title
+Director+; with no other level word the title is `'Mid'` by default (shown as "Level not
+stated"). A "Fellow" is a fixed-term fellowship (`'Intern'`, like "Fellows Program") unless it is
+a Distinguished, Technical, Senior, Principal, Corporate or Chief Fellow (`'Staff+'`). `'Mid'`
+is still never produced by a title rule.
+
+**Locations (`server/geo.js`):**
+- `geocodeMany(inputs) -> Location[]` (new): one job's location strings geocoded together. A bare
+  name with readings in several countries ("Victoria": British Columbia or Australia;
+  "Melbourne": Australia or Florida; "Alexandria": Virginia or Sydney) takes the reading in a
+  country that the job's other locations name. `geocode(str)` is `geocodeMany([str])`, so the
+  parts of one string are each other's context. `normalizeLocations` uses it.
+- A final ISO country code that is also a US state ("Bengaluru, KA, IN", "Tel Aviv-Yafo, Tel
+  Aviv District, IL", "Munich, BY, DE", "Jakarta, ID") is read as the country when the city is
+  in that country, or when another token is a non-US subdivision; "Chicago, IL" and "Fort Wayne,
+  IN, USA" stay in the US. A country match never overrides a stated state ("Springfield, IL" is
+  not Springfield, VA).
+- Eightfold forms (Microsoft, NVIDIA; DQ-1 in docs/process/data-check-beta.md): a final ISO code
+  with no other reading is the country in a three-part string ("Stavanger, Rogaland, NO") or
+  after an unknown city ("SP, BR"), never after a city the gazetteer knows elsewhere ("Adelaide,
+  SA" stays in Australia). A bare ISO code is a country ("DE" Germany, "IN" India, "CA" Canada).
+  A stated non-US country drops US-state readings before it ("Middenmeer, NH, NL"). A city known
+  only abroad followed by its own region's ISO 3166-2 code that is also a US state ("Barcelona,
+  CT", "Madrid, MD", "Zaragoza, AR") is that city; "Dublin, CA" and "Vienna, VA" stay in the US.
+- Suburbs are filed under their metro area when the gazetteer knows them (aliases: Alexandria,
+  Penrith, North Sydney, Parramatta -> Sydney; Courbevoie, La Défense -> Paris; Schiphol ->
+  Amsterdam; Minato -> Tokyo; …). `rawName` keeps the posting's words; `name` is the metro's.
+- `locationPrecision(loc) -> 'city' | 'centroid' | 'region' | 'country' | 'remote' | 'unknown'`
+  (new, diagnostics): `'centroid'` is a named place the gazetteer does not know, placed at its
+  region's or country's centre.
+
+**Keywords (`server/keywords.js`):** skills keep lexicon order, except skills named only in
+nice-to-have sentences ("… is appreciated", "is a plus") come last, so a card's first two tags
+are the most telling. New exports: `isSalesTitle(title)`, `isTechnicalTitle(title)`.

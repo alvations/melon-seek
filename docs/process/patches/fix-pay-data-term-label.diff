@@ -1,0 +1,41 @@
+fix-pay-data -> frontend owner (public/app.js, public/viz/chart.js; not owned by this lane).
+Why: salary.originalInterval can now be 'term' (pay for a whole fixed-term programme, CONTRACT v4)
+and salary.termWeeks gives the programme length (P-8). Without this patch the drawer says
+"Annualized from term pay (...)" and the chart tooltip "Annualized from term pay", and neither
+shows the programme length. Apply from the repo root with: git apply -p1 <this file>
+
+--- a/public/app.js	2026-10-10 13:38:39.153942584 +0000
++++ b/public/app.js	2026-10-10 13:38:58.688641286 +0000
+@@ -2155,7 +2155,7 @@
+     foreign ? h('p', { class: 'fnote' }, `≈ ${money(job._usd.min)}–${money(job._usd.max).replace(/^\$/, '')} in approx USD for comparison`) : null);
+ }
+ 
+-const INTERVAL_ADJ = { hour: 'hourly', day: 'daily', week: 'weekly', month: 'monthly', year: 'annual' };
++const INTERVAL_ADJ = { hour: 'hourly', day: 'daily', week: 'weekly', month: 'monthly', year: 'annual', term: 'fixed-term' };
+ 
+ let juicePeriod = 'year'; // drawer waterfall: per year or per month (kept for the session)
+ const JUICE_DOC = 'methodology/#1-the-formula'; // site page rendered from docs/LIVABILITY.md (scripts/methodology.js); never off-site
+@@ -2394,7 +2394,11 @@
+ 
+ function annualNote(sal) {
+   const orig = sal.originalInterval || (sal.interval && sal.interval !== 'year' ? sal.interval : null);
+-  return orig ? h('div', { class: 'd-annual' }, `Annualized from ${INTERVAL_ADJ[orig] || orig} pay${sal.text ? ` (${sal.text})` : ''}`) : null;
++  if (!orig) return null;
++  // CONTRACT v4 (fix-pay-data P-8): 'term' is pay for the whole programme; termWeeks is its length.
++  const what = orig === 'term' && sal.termWeeks ? `pay for a ${sal.termWeeks}-week programme` : `${INTERVAL_ADJ[orig] || orig} pay`;
++  const lasts = orig !== 'term' && sal.termWeeks ? `; the programme lasts about ${sal.termWeeks} weeks` : '';
++  return h('div', { class: 'd-annual' }, `Annualized from ${what}${sal.text ? ` (${sal.text})` : ''}${lasts}`);
+ }
+ 
+ function drawerContent(job) {
+--- a/public/viz/chart.js	2026-10-10 13:38:39.159482392 +0000
++++ b/public/viz/chart.js	2026-10-10 13:38:59.761058562 +0000
+@@ -38,7 +38,7 @@
+ const SENIORITY_ORDER = ['Intern', 'Entry', 'Mid', 'Senior', 'Staff+', 'Manager', 'Director+', 'Unspecified'];
+ const ALL_ROLES = 'All roles';
+ 
+-const INTERVAL_ADJ = { hour: 'hourly', day: 'daily', week: 'weekly', month: 'monthly' };
++const INTERVAL_ADJ = { hour: 'hourly', day: 'daily', week: 'weekly', month: 'monthly', term: 'fixed-term' };
+ const DIM_LABEL = { department: 'department', location: 'location', seniority: 'seniority' };
+ 
+ /** Category key for a job along a dimension. */

@@ -23,6 +23,23 @@
 // toJobSalary(s, { source }) annualizes into the Job shape (adds mid, kind,
 // source). annualize(value, interval). Bounds are compared in rough USD
 // (USD_PER), so a ¥20M salary is not mistaken for $20M.
+//
+// Pay basis and term (persona review 2026-10-10, docs/VETTING.md §2):
+//   - kind 'ote': the posting says the range is on-target earnings (base plus
+//     commission at target), in the clause that holds the range ("OTE: $X–$Y",
+//     "$X–$Y OTE") or in a sentence about the range ("The figure above represents
+//     On-Target Earnings (OTE)"). A "For sales roles, the range provided is the
+//     role's OTE range" sentence counts only for a sales title (`salesRole`).
+//   - interval 'term': the amount covers a whole programme ("$100,000–$167,000 USD
+//     for the four-month fellowship"); it is annualized over the term.
+//   - programTerm(text): the stated length of an internship or fellowship, which
+//     payTerms() stores as salary.termWeeks.
+// No imports: this module is in the static site's startup graph and must not pull
+// in keywords.js (test/perf-mobile.test.js); keywords.js imports from here instead.
+
+// Conditional boilerplate: "For sales roles, the range ... OTE ... commissions".
+// Also read by keywords.js (comp extras) for the same sentence.
+export const SALES_CONDITIONAL_RE = /\b(?:for|in|on)\s+(?:sales|commissioned|quota[- ]carrying|commission[- ]eligible)\s+roles\b/i;
 
 export const MIN_ANNUAL = 10000;            // annualized floor for any salary
 export const MAX_ANNUAL = 1_200_000;        // text candidates above this are not pay (= vet.js bound)
@@ -41,6 +58,7 @@ export function annualize(value, interval = 'year') {
 
 export function normalizeInterval(interval) {
   const s = String(interval || 'year').toLowerCase();
+  if (s === 'term') return 'term'; // the whole programme (annualized with termFactor / termWeeks)
   if (/hour|hr/.test(s)) return 'hour';
   if (/day|daily/.test(s)) return 'day';
   if (/week/.test(s)) return 'week';
@@ -230,7 +248,7 @@ function clauseSpan(text, s, e) {
   return { start: a, end: b, heading };
 }
 
-const PAY_RE = /\b(salary|salaries|compensation|pay|paid|wages?|ote|on[- ]target earnings|remuneration|stipends?|(?:hourly|contract|day|daily|pay|base) rate|rate of pay|hourly (?:range|wage|pay)|brutto|gross|range for this (?:role|position|job))\b/i;
+const PAY_RE = /\b(salary|salaries|compensation|pay|paid|wages?|ote|on[- ]target[- ](?:earnings|compensation|comp|pay|income|cash)|commissions?\s+(?:at|on)\s+target|remuneration|stipends?|(?:hourly|contract|day|daily|pay|base) rate|rate of pay|hourly (?:range|wage|pay)|brutto|gross|range for this (?:role|position|job))\b/i;
 // "$500 home office stipend", "learning & development stipend": benefits, not pay.
 export const BENEFIT_STIPEND_RE = /\b(?:lunch|meals?|food|snacks?|home[- ]office|office|workspace|learning(?:\s*(?:&|and)\s*development)?|development|education(?:al)?|tuition|wellness|well-?being|fitness|gym|commuter|commuting|transit|transportation|phone|mobile|cell|internet|wi-?fi|co-?working|relocation|equipment|books?|conference|travel|childcare|remote(?:[- ]work)?|wfh|tech(?:nology)?|health|lifestyle|productivity|setup)\s+(?:stipends?|allowances?|budgets?)\b/gi;
 const NEG_BEFORE_RE = /\b(raised|raising|funding|funded|series [a-f]|valuation|valued|revenue|arr|backed|invest\w*|budgets?|spend(?:ing)?|closing|closed|deals?|quotas?|bonus(?:es)?|signing|sign-on|relocation|reimburs\w*|allowances?|grants?|credits?|compute|expenses?|savings?|saved|worth|exploits?|prizes?|awards?|donat\w*|customers?|users|loans?|pric(?:e|es|ed|ing)|costs?|fees?|tuition|401)\b[^$£€¥\d]{0,40}$/i;
@@ -281,6 +299,160 @@ function intervalIn(s, fromEnd) {
     }
   }
   return best ? best.iv : null;
+}
+
+/* ------------------------------------------- on-target earnings (OTE, P-1) */
+
+// The posting's own words for base plus commission at target: "OTE" (capitals only),
+// "On Target Earnings", "on-target earnings", "on target compensation", "base +
+// commission at target".
+const OTE_CAPS_RE = /\bOTE\b/;
+const OTE_WORDS_RE = /\bon[- ]target[- ](?:earnings|compensation|comp|pay|income|cash)\b|\bbase(?:\s+(?:salary|pay))?\s*(?:\+|plus|and)\s*commissions?\s+(?:at|on)\s+target\b|\bcommissions?\s+at\s+target\b/i;
+/** True when s names on-target earnings. */
+export function hasOte(s) {
+  const t = String(s || '');
+  return OTE_CAPS_RE.test(t) || OTE_WORDS_RE.test(t);
+}
+// "OTE: $X", "On-target earnings for this role are $X": the phrase right before the amount.
+const OTE_BEFORE_RE = /(?:\bOTE\b|\bon[- ]target[- ](?:earnings|compensation|comp|pay|income|cash)\b|\bcommissions?\s+at\s+target\b)[^\d$£€¥]{0,40}$/i;
+// "$X–$Y OTE", "$X - $Y USD (on-target earnings)": the phrase right after it.
+const OTE_AFTER_RE = new RegExp(String.raw`^\s*(?:\(?(?:${'USD|CAD|GBP|EUR|AUD|NZD|CHF|SGD|INR|JPY|ILS'})\)?\s*)?(?:per\s+(?:year|annum)\s*|annually\s*|a\s+year\s*)?[,(\-–—:]?\s*(?:\bOTE\b|on[- ]target[- ](?:earnings|compensation|comp|pay|income|cash)\b|base(?:\s+(?:salary|pay))?\s*(?:\+|plus|and)\s*commissions?\s+(?:at|on)\s+target\b)`, 'i');
+// A sentence about the posted range ("the range provided", "The figure above").
+const RANGE_REF_RE = /\b(?:range|figure|amount|number|salary|pay|compensation)s?\b[^.\n]{0,60}?\b(?:is|are|represents?|reflects?|provided|above|below|listed|shown|stated|posted|includes?|means?|meaning)\b|\b(?:above|below|listed|posted|provided|stated|following)\s+(?:\w+\s+){0,2}?(?:range|figure|amount|salary|pay|compensation)s?\b/i;
+// Sentences about doing compensation work ("Design and administer OTE plans").
+const OTE_DUTY_RE = /\b(?:design(?:ing)?|administer(?:ing)?|model(?:ing|ling)?|build(?:ing)?|calculat(?:e|ing)|plann?(?:ing)?|analy[sz](?:e|ing)|audit(?:ing)?|benchmark(?:ing)?)\b[^.\n]{0,40}\b(?:OTE|on[- ]target)\b/i;
+
+function paySentences(text) {
+  return String(text || '').split(/\n+|(?<=[.!?])\s+(?=[A-Z(“"])/).map((x) => x.trim()).filter(Boolean);
+}
+
+/**
+ * The sentence in which the posting says its range is on-target earnings ("For sales
+ * roles, the range provided is the role's On Target Earnings ("OTE") range, meaning
+ * that the range includes both the sales commissions/sales bonuses target and annual
+ * base salary"; "The figure above represents On-Target Earnings (OTE)"), or null. A
+ * "for sales roles" sentence applies only when `salesRole` (keywords.js#isSalesTitle).
+ */
+export function oteStatement(text, { salesRole = false } = {}) {
+  for (const seg of paySentences(text)) {
+    if (!hasOte(seg) || !RANGE_REF_RE.test(seg) || OTE_DUTY_RE.test(seg)) continue;
+    if (SALES_CONDITIONAL_RE.test(seg) && !salesRole) continue;
+    return seg.length > 300 ? `${seg.slice(0, 297)}...` : seg;
+  }
+  return null;
+}
+
+/* ------------------------------------------- programme length (term, P-8) */
+
+const TERM_NUM_WORDS = Object.freeze({
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11,
+  twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, eighteen: 18, twenty: 20, 'twenty-four': 24,
+});
+const TN = String.raw`(?:\d{1,2}|${Object.keys(TERM_NUM_WORDS).sort((a, b) => b.length - a.length).join('|')})`;
+const TERM_SPAN = String.raw`(${TN})(?:\s*(?:-|–|—|to)\s*(${TN}))?`;
+const PROGRAMME = String.raw`(?:internships?|co-?ops?|fellowships?|programs?|programmes?|residenc(?:y|ies)|apprenticeships?|placements?|work[- ]terms?|rotations?)`;
+const TERM_MODS = String.raw`(?:(?:paid|unpaid|in-person|in person|full-time|full time|part-time|summer|winter|fall|autumn|spring|remote|hybrid|research|immersive|onsite|on-site|intensive),?\s+){0,3}`;
+// "12-week internship", "Our 10-week paid internship program", "16 to 24-week internship",
+// "a full-time 3-6 month internship", "the four-month fellowship", "12-month fellowship".
+const TERM_BEFORE_RE = new RegExp(String.raw`\b${TERM_SPAN}[- ](week|month)s?(?:[- ]long)?[- ]${TERM_MODS}${PROGRAMME}\b`, 'i');
+// "The program runs for 4 months", "an internship that lasts for 4-6 months",
+// "The internship typically spans 3-4 months".
+const TERM_AFTER_RE = new RegExp(String.raw`\b${PROGRAMME}\s+(?:that\s+|which\s+)?(?:typically\s+|usually\s+|generally\s+|will\s+)?(?:runs?|lasts?|spans?|is|takes place over|runs? over)\s+(?:for\s+|over\s+)?(?:about\s+|approximately\s+|around\s+|roughly\s+|up to\s+)?${TERM_SPAN}\s+(week|month)s?\b`, 'i');
+// In a pay sentence: "3,850 USD ... per week, with an expectation of 40 hours per week for 4 months".
+const TERM_PAY_RE = new RegExp(String.raw`\bfor\s+(?:a\s+(?:period|term)\s+of\s+)?(?:about\s+|approximately\s+)?${TERM_SPAN}[- ](week|month)s?\b`, 'i');
+const TERM_PAY_WORD_RE = /\b(?:stipend|salary|pay|paid|compensation|wage|rate|per\s+(?:week|month|hour))\b/i;
+// "$100,000–$167,000 USD for the four-month fellowship": the amount covers the whole term.
+const TERM_AMOUNT_AFTER_RE = new RegExp(String.raw`^\s*(?:\(?(?:USD|CAD|GBP|EUR|AUD|NZD|CHF|SGD|INR|JPY|ILS)\)?\s*)?(?:in\s+total\s+)?(?:for|over)\s+(?:the|a|an|this|each|its|our)\s+(?:entire\s+|whole\s+|full\s+)?${TERM_SPAN}[- ](week|month)s?(?:[- ]long)?[- ]${TERM_MODS}(?:${PROGRAMME}|term|period|engagement)\b`, 'i');
+const TERM_AMOUNT_ANYWHERE_RE = new RegExp(TERM_AMOUNT_AFTER_RE.source.replace(/^\^\\s\*/, '\\b'), 'i');
+/**
+ * Whether the text can hold pay that the norm-6 parser reads differently from older ones:
+ * an amount for a whole term ("for the four-month fellowship") or on-target earnings
+ * wording. A cheap pre-check for the stored-snapshot relabel (normalize.js#relabelJobs),
+ * which re-parses a stored posting only when this is true.
+ */
+export function mayRelabelPay(text) {
+  const t = String(text || '');
+  return TERM_AMOUNT_ANYWHERE_RE.test(t) || hasOte(t);
+}
+// Fixed-term roles: internships, co-ops, fellowships, residencies, apprenticeships.
+const FIXED_TERM_TITLE_RE = /\b(?:intern(?:ship)?s?|co-?ops?|fellows?|fellowships?|residen(?:t|cy|cies)|apprentice(?:ship)?s?|summer\s+(?:analyst|associate|student)s?)\b/i;
+const SENIOR_FELLOW_TITLE_RE = /\b(?:distinguished|technical|senior|principal|corporate|chief)\s+fellows?\b/i;
+
+const termNum = (s) => {
+  const k = String(s || '').toLowerCase();
+  return TERM_NUM_WORDS[k] ?? (Number.parseInt(k, 10) || null);
+};
+/** { weeks, weeksMax?, exact } from a matched span ("4", "month"); exact = unrounded weeks of the lower bound. */
+function termOf(lo, hi, unit) {
+  const a = termNum(lo);
+  const b = hi ? termNum(hi) : null;
+  if (!a) return null;
+  const perUnit = /month/i.test(unit) ? 52 / 12 : 1;
+  const exact = a * perUnit;
+  const weeks = Math.round(exact);
+  if (weeks < 1 || weeks > 104) return null;
+  const out = { weeks, exact };
+  if (b && b > a) out.weeksMax = Math.round(b * perUnit);
+  return out;
+}
+
+/** True for an internship, co-op, fellowship, residency or apprenticeship (title or employment type). */
+export function isFixedTermRole({ title = '', employmentType = '' } = {}) {
+  const t = String(title || '');
+  if (FIXED_TERM_TITLE_RE.test(t) && !SENIOR_FELLOW_TITLE_RE.test(t)) return true;
+  return /\b(?:intern(?:ship)?|temporary|seasonal|co-?op)\b/i.test(String(employmentType || ''));
+}
+
+/**
+ * The programme length the posting states, in weeks: { weeks, weeksMax? } or null.
+ * "12-week internship" -> 12; "4 months" -> 17 (4 × 52 / 12, rounded); "16 to 24-week
+ * internship" -> { weeks: 16, weeksMax: 24 }. Only phrases tied to the programme (or to
+ * the pay sentence) count, never "within two weeks of your offer" or "6 weeks of vacation".
+ */
+export function programTerm(text) {
+  const s = String(text || '').replace(/\s+/g, ' ');
+  let best = null;
+  for (const re of [TERM_BEFORE_RE, TERM_AFTER_RE]) {
+    const m = re.exec(s);
+    if (m && (!best || m.index < best.index)) best = { index: m.index, m };
+  }
+  if (best) {
+    const { m } = best;
+    const t = termOf(m[1], m[2], m[3]);
+    if (t) return { weeks: t.weeks, ...(t.weeksMax ? { weeksMax: t.weeksMax } : {}) };
+  }
+  for (const seg of paySentences(text)) {
+    if (!TERM_PAY_WORD_RE.test(seg)) continue;
+    const m = TERM_PAY_RE.exec(seg);
+    const t = m && termOf(m[1], m[2], m[3]);
+    if (t) return { weeks: t.weeks, ...(t.weeksMax ? { weeksMax: t.weeksMax } : {}) };
+  }
+  return null;
+}
+
+/**
+ * Pay basis and programme length for a Job salary (P-1, P-8), from the posting text:
+ * kind 'ote' when the posting says the range is on-target earnings (in the salary's own
+ * text, e.g. a Greenhouse pay range titled "OTE", or in a sentence about the range), and
+ * termWeeks (+ termWeeksMax) for a fixed-term role that states its length. Returns a new
+ * salary object; the numbers are never changed.
+ */
+export function payTerms(salary, { text = '', title = '', employmentType = '', salesRole = false } = {}) {
+  if (!salary || typeof salary !== 'object') return salary;
+  const out = { ...salary };
+  const fixedTerm = isFixedTermRole({ title, employmentType });
+  // A stipend is never commission pay; an hourly sales range can be OTE (originalInterval
+  // still says it was posted per hour).
+  if (out.kind !== 'ote' && out.kind !== 'stipend'
+    && (hasOte(out.text) || oteStatement(text, { salesRole: salesRole && !fixedTerm }))) out.kind = 'ote';
+  if (fixedTerm && !out.termWeeks) {
+    const t = programTerm(text);
+    if (t) {
+      out.termWeeks = t.weeks;
+      if (t.weeksMax) out.termWeeksMax = t.weeksMax;
+    }
+  }
+  return out;
 }
 
 /* ------------------------------------------------------------ candidates */
@@ -358,7 +530,10 @@ function evaluate(text, u, countries) {
 
   // Interval: on the amount, right after it (same line), else earlier in the same clause/heading.
   const afterLine = after.split('\n')[0];
-  let interval = unitIv || intervalIn(afterLine.slice(0, 30), false) || intervalIn(before, true) || intervalIn(cl.heading, true);
+  // P-8: "$100,000–$167,000 USD for the four-month fellowship" is pay for the whole term.
+  const termAmount = !unitIv ? TERM_AMOUNT_AFTER_RE.exec(afterLine) : null;
+  const term = termAmount ? termOf(termAmount[1], termAmount[2], termAmount[3]) : null;
+  let interval = term ? 'term' : unitIv || intervalIn(afterLine.slice(0, 30), false) || intervalIn(before, true) || intervalIn(cl.heading, true);
   const stated = !!interval;
   if (lo > hi) [lo, hi] = [hi, lo];
   if (!interval) {
@@ -369,17 +544,21 @@ function evaluate(text, u, countries) {
   let intervalCorrected = false;
   let statedInterval = null;
   const cur = u.currency;
-  if (interval !== 'year' && usdOr(hi * FACTORS[interval], cur) > MAX_ANNUAL && usdOr(lo, cur) >= PLAUSIBLE_ANNUAL_MIN && usdOr(hi, cur) <= MAX_ANNUAL) {
+  if (interval !== 'year' && interval !== 'term' && usdOr(hi * FACTORS[interval], cur) > MAX_ANNUAL && usdOr(lo, cur) >= PLAUSIBLE_ANNUAL_MIN && usdOr(hi, cur) <= MAX_ANNUAL) {
     statedInterval = interval;
     interval = 'year';
     intervalCorrected = true;
   }
-  const annLo = usdOr(lo * FACTORS[interval], cur);
-  const annHi = usdOr(hi * FACTORS[interval], cur);
+  // A term amount is annualized over the term (4 months -> × 3).
+  const factor = interval === 'term' ? 52 / term.exact : FACTORS[interval];
+  const annLo = usdOr(lo * factor, cur);
+  const annHi = usdOr(hi * factor, cur);
   if (!(annLo >= MIN_ANNUAL && annHi <= MAX_ANNUAL)) return null;
 
   const stipend = /\bstipend/i.test(kwClause) || /\bstipend/i.test(kwHeading) || payStipendAfter;
-  const kind = stipend ? 'stipend' : interval === 'hour' ? 'hourly' : 'salary';
+  // P-1: "OTE: $X–$Y", "$X–$Y OTE" (no other amount in between).
+  const ote = OTE_BEFORE_RE.test(before) || OTE_AFTER_RE.test(afterLine);
+  const kind = stipend ? 'stipend' : ote ? 'ote' : interval === 'hour' ? 'hourly' : 'salary';
   let score = 0;
   if (b) score += 3;
   if (u.explicit) score += 2;
@@ -401,8 +580,10 @@ function evaluate(text, u, countries) {
   const natCode = national ? NATION_CODE[national.replace(/\.$/, '')] || null : null;
   if (natCode && (countries || []).map((c) => String(c).toUpperCase()).includes(natCode)) score += 3;
   return {
-    // For "3,850 USD / 2,310 GBP / 4,300 CAD per week" the text is the whole statement.
-    score, start: gs, end: ge, lo, hi, currency: u.currency, interval, kind, national, level,
+    // For "3,850 USD / 2,310 GBP / 4,300 CAD per week" the text is the whole statement;
+    // a term amount keeps its "for the four-month fellowship".
+    score, start: gs, end: term ? ge + termAmount[0].length : ge, lo, hi, currency: u.currency, interval, kind, national, level,
+    ...(term ? { termWeeks: term.weeks, termFactor: Math.round((52 / term.exact) * 10000) / 10000 } : {}),
     ...(intervalCorrected ? { intervalCorrected, statedInterval } : {}),
   };
 }
@@ -471,6 +652,7 @@ export function parseSalary(text, { countries = [] } = {}) {
   // amount offered in several currencies is one zone.
   const zones = new Set(cands.map((c) => `${c.lo}|${c.hi}|${c.currency}|${c.interval}`)).size;
   const out = { min: round2(lo), max: round2(hi), currency: best.currency, interval: best.interval, text: t, kind: best.kind, zones: Math.max(1, zones) };
+  if (best.termWeeks) Object.assign(out, { termWeeks: best.termWeeks, termFactor: best.termFactor });
   if (best.intervalCorrected) Object.assign(out, { intervalCorrected: true, statedInterval: best.statedInterval });
   return out;
 }
@@ -479,7 +661,10 @@ export function parseSalary(text, { countries = [] } = {}) {
  * Convert a raw/structured or parsed salary into the Job salary shape:
  * { min, max, mid (annualized), currency, interval: "year", text, kind,
  *   spread (max ÷ min), zones (>= 1), source?, originalInterval?,
- *   intervalCorrected?, statedInterval?, ranges? }.
+ *   termWeeks?, termWeeksMax?, intervalCorrected?, statedInterval?, ranges? }.
+ * kind is 'salary' | 'hourly' | 'stipend' | 'ote' and is kept as given. A 'term'
+ * interval (pay for the whole programme) is annualized with termFactor (or 52 ÷
+ * termWeeks) and kept as originalInterval 'term'.
  * A stated interval that makes the pay implausible while the raw numbers are a
  * plausible annual salary (Lever "88,000–130,000 USD per-month-salary") is
  * read as annual and marked intervalCorrected. Returns null when annualized
@@ -500,13 +685,16 @@ export function toJobSalary(sal, { source } = {}) {
   let intervalCorrected = !!sal.intervalCorrected;
   let statedInterval = sal.statedInterval || null;
   const cur = (sal.currency || 'USD').toUpperCase();
-  if (interval !== 'year' && usdOr(annualize(max, interval), cur) > MAX_ANNUAL && usdOr(min, cur) >= PLAUSIBLE_ANNUAL_MIN && usdOr(max, cur) <= MAX_ANNUAL) {
+  // Term pay (P-8): annualized over the stated term; without a length it cannot be annualized.
+  const termFactor = interval === 'term' ? (Number(sal.termFactor) > 0 ? Number(sal.termFactor) : Number(sal.termWeeks) > 0 ? 52 / Number(sal.termWeeks) : null) : null;
+  if (interval === 'term' && !termFactor) return null;
+  if (interval !== 'year' && interval !== 'term' && usdOr(annualize(max, interval), cur) > MAX_ANNUAL && usdOr(min, cur) >= PLAUSIBLE_ANNUAL_MIN && usdOr(max, cur) <= MAX_ANNUAL) {
     statedInterval = interval;
     interval = 'year';
     intervalCorrected = true;
   }
-  const aMin = annualize(min, interval);
-  const aMax = annualize(max, interval);
+  const aMin = termFactor ? Math.round(min * termFactor) : annualize(min, interval);
+  const aMax = termFactor ? Math.round(max * termFactor) : annualize(max, interval);
   if (!(usdOr(aMin, cur) >= MIN_ANNUAL && usdOr(aMax, cur) <= HARD_MAX_ANNUAL)) return null;
   const kind = sal.kind || (interval === 'hour' ? 'hourly' : 'salary');
   const out = {
@@ -520,6 +708,13 @@ export function toJobSalary(sal, { source } = {}) {
   const src = source || sal.source;
   if (src) out.source = src;
   if (interval !== 'year') out.originalInterval = interval;
+  // P-8: the programme length in weeks (termWeeksMax when a range such as "16 to 24 weeks").
+  const tw = Math.round(Number(sal.termWeeks));
+  if (tw >= 1 && tw <= 104) {
+    out.termWeeks = tw;
+    const twMax = Math.round(Number(sal.termWeeksMax));
+    if (twMax > tw && twMax <= 104) out.termWeeksMax = twMax;
+  }
   if (intervalCorrected) { out.intervalCorrected = true; out.statedInterval = statedInterval; }
   if (Array.isArray(sal.ranges) && sal.ranges.length > 1) out.ranges = sal.ranges;
   return out;

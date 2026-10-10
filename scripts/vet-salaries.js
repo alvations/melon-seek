@@ -243,7 +243,8 @@ export function scanJob(job, { stat = null } = {}) {
     if (sal.originalInterval && sal.originalInterval !== 'year') flags.add('non_year_interval');
     if (sal.intervalCorrected) flags.add('interval_corrected');
     if (sal.originalInterval && sal.originalInterval !== 'year') {
-      const raw = sal.max / (FACT[sal.originalInterval] || 1);
+      // Term pay (P-8) was annualized over its term (× 52 ÷ termWeeks).
+      const raw = sal.max / (sal.originalInterval === 'term' && sal.termWeeks > 0 ? 52 / sal.termWeeks : FACT[sal.originalInterval] || 1);
       if ((toUSD(sal.max, sal.currency) ?? sal.max) > VET.MAX_ANNUAL && raw >= 15000 && raw <= VET.MAX_ANNUAL) flags.add('interval_suspect');
     }
     const want = countries.map((c) => COUNTRY_CURRENCY[c]).filter(Boolean);
