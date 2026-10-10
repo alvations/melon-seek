@@ -1,0 +1,90 @@
+name: Archive (daily ingest into the data branch)
+
+# The permanent historical database (docs/DATA_ARCHIVE.md). After every run of
+# "Snapshot job boards" and "Deploy to GitHub Pages" (and daily as a safety net) it
+# sweeps every trusted artifact that is not in the archive yet (job-board snapshots,
+# the F4 ledger, salary-vetting reports, reference-data spools), folds each into the
+# append-only archive, verifies the result against the previous commit and commits
+# it to the orphan data-archive branch. It never pushes to the code branch and never
+# force-pushes; artifacts from pull_request, fork or untrusted-branch runs are never
+# read (same rules as .github/scripts/ledger.sh).
+#
+# The sweep covers the triggering run and any run whose archive job was skipped or
+# replaced while queued (the concurrency group keeps one pending run), so nothing
+# is missed when many deploys finish close together.
+on:
+  workflow_run:
+    workflows: ["Snapshot job boards", "Deploy to GitHub Pages"]
+    types: [completed]
+  schedule:
+    - cron: "37 9 * * *" # daily safety net, after snapshot.yml (06:17) and pages.yml (07:41)
+  workflow_dispatch:
+    inputs:
+      verify_history:
+        description: "Also re-verify this many past data-branch commits (0 = skip)"
+        required: false
+        default: "0"
+
+permissions:
+  contents: read
+
+# Artifacts are only read from trusted runs (REVIEW.md V2; scripts/archive/sweep.js).
+env:
+  TRUSTED_BRANCHES: claude/stoic-ride-54ddxp
+
+# Shared with archive-backfill.yml: two archive runs never interleave on the data branch.
+concurrency:
+  group: archive
+  cancel-in-progress: false
+
+jobs:
+  # Job id kept as persist-ledger: test/workflows.test.js allows contents: write only in
+  # a job of that name (it also persists the F4 ledger mirror, history/<slug>.json).
+  persist-ledger:
+    name: Ingest into the data-archive branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write # push the orphan data-archive branch (never the code branch)
+      actions: read   # list and download workflow artifacts
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERIFY_HISTORY: ${{ inputs.verify_history || '0' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Open the data-archive branch
+        env:
+          ARCHIVE_DEPTH: ${{ (inputs.verify_history && inputs.verify_history != '0') && '400' || '1' }}
+        run: |
+          echo "ARCHIVE=$RUNNER_TEMP/archive" >> "$GITHUB_ENV"
+          bash scripts/archive/branch.sh open "$RUNNER_TEMP/archive"
+
+      - name: Verify the archive before ingesting
+        run: |
+          node scripts/archive/verify.js --archive "$ARCHIVE"
+          case "$VERIFY_HISTORY" in ''|0|*[!0-9]*) ;; *) node scripts/archive/verify.js --archive "$ARCHIVE" --history "$VERIFY_HISTORY" ;; esac
+
+      - name: Sweep, verify and commit
+        run: |
+          set -uo pipefail
+          for i in $(seq 1 20); do
+            if [ "$SECONDS" -gt 4200 ]; then echo "::warning::time budget used; the next run continues"; break; fi
+            node scripts/archive/sweep.js --archive "$ARCHIVE" --max 3 --run-cache "$RUNNER_TEMP/runs.json"
+            rc=$?
+            if [ "$rc" -ne 0 ] && [ "$rc" -ne 10 ]; then echo "::error::sweep failed (exit $rc)"; exit "$rc"; fi
+            node scripts/archive/verify.js --archive "$ARCHIVE" --prev-rev HEAD || { echo "::error::archive verify failed; nothing from this run is committed"; exit 1; }
+            bash scripts/archive/branch.sh commit "$ARCHIVE" "archive: $(date -u +%Y-%m-%dT%H:%MZ) ($(node scripts/archive/status.js --archive "$ARCHIVE" --oneline))" || exit 1
+            [ "$rc" -eq 10 ] || break
+          done
+
+      - name: Summary
+        if: ${{ always() }}
+        run: |
+          if [ -f "$ARCHIVE/MANIFEST.json" ]; then
+            node scripts/archive/status.js --archive "$ARCHIVE" --markdown | tee -a "$GITHUB_STEP_SUMMARY"
+          fi

@@ -1,0 +1,97 @@
+name: Archive backfill (rescue artifacts into the data branch)
+
+# One-off and repeatable rescue (docs/DATA_ARCHIVE.md "Backfill"): lists EVERY
+# non-expired job-board-snapshots(-pages|-beta), history-ledger, salary-vetting and
+# archive-reference artifact, keeps only those from TRUSTED runs (the rules of
+# .github/scripts/ledger.sh: push, schedule or workflow_dispatch runs of this repo
+# on the default branch or TRUSTED_BRANCHES), downloads them oldest first, folds
+# each into the archive and commits a batch at a time to the orphan data-archive
+# branch. Artifacts already in the archive's ingest log are skipped, so running it
+# again only picks up what is new. It never pushes to the code branch and never
+# force-pushes. archive.yml runs the same sweep daily.
+on:
+  workflow_dispatch:
+    inputs:
+      names:
+        description: "Artifact names, comma-separated (empty = all the archive ingests)"
+        required: false
+        default: ""
+      batch:
+        description: "Snapshot artifacts per commit (small vetting and ledger artifacts ride along)"
+        required: false
+        default: "2"
+      dry_run:
+        description: "Only list what would be ingested"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+# Artifacts are only read from trusted runs (REVIEW.md V2; scripts/archive/sweep.js).
+env:
+  TRUSTED_BRANCHES: claude/stoic-ride-54ddxp
+
+# Shared with archive.yml: two archive runs never interleave on the data branch.
+concurrency:
+  group: archive
+  cancel-in-progress: false
+
+jobs:
+  # Job id kept as persist-ledger: test/workflows.test.js allows contents: write only in
+  # a job of that name (it also persists the F4 ledger mirror, history/<slug>.json).
+  persist-ledger:
+    name: Backfill the data-archive branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    permissions:
+      contents: write # push the orphan data-archive branch (never the code branch)
+      actions: read   # list and download workflow artifacts
+    env:
+      GH_TOKEN: ${{ github.token }}
+      NAMES: ${{ inputs.names }}
+      BATCH: ${{ inputs.batch }}
+      DRY_RUN: ${{ inputs.dry_run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Open the data-archive branch
+        run: |
+          echo "ARCHIVE=$RUNNER_TEMP/archive" >> "$GITHUB_ENV"
+          bash scripts/archive/branch.sh open "$RUNNER_TEMP/archive"
+
+      - name: Verify the archive before ingesting
+        run: node scripts/archive/verify.js --archive "$ARCHIVE"
+
+      - name: Dry run (list only)
+        if: ${{ inputs.dry_run }}
+        run: node scripts/archive/sweep.js --archive "$ARCHIVE" --dry-run ${NAMES:+--names "$NAMES"}
+
+      - name: Sweep, verify and commit in batches
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -uo pipefail
+          batch="${BATCH:-2}"
+          case "$batch" in ''|*[!0-9]*) batch=2 ;; esac
+          for i in $(seq 1 80); do
+            # Stop starting new batches after 120 minutes; what is left waits for the next run.
+            if [ "$SECONDS" -gt 7200 ]; then echo "::warning::time budget used; run the backfill again for the rest"; break; fi
+            node scripts/archive/sweep.js --archive "$ARCHIVE" --max "$batch" --run-cache "$RUNNER_TEMP/runs.json" ${NAMES:+--names "$NAMES"}
+            rc=$?
+            if [ "$rc" -ne 0 ] && [ "$rc" -ne 10 ]; then echo "::error::sweep failed (exit $rc)"; exit "$rc"; fi
+            node scripts/archive/verify.js --archive "$ARCHIVE" --prev-rev HEAD || { echo "::error::archive verify failed; nothing from this batch is committed"; exit 1; }
+            bash scripts/archive/branch.sh commit "$ARCHIVE" "archive: backfill batch $i ($(node scripts/archive/status.js --archive "$ARCHIVE" --oneline))" || exit 1
+            [ "$rc" -eq 10 ] || break
+          done
+
+      - name: Summary
+        if: ${{ always() }}
+        run: |
+          if [ -f "$ARCHIVE/MANIFEST.json" ]; then
+            node scripts/archive/status.js --archive "$ARCHIVE" --markdown | tee -a "$GITHUB_STEP_SUMMARY"
+          fi

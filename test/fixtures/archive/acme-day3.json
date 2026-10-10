@@ -1,0 +1,363 @@
+{
+ "company": {
+  "slug": "acme",
+  "name": "Acme Robotics",
+  "source": "greenhouse",
+  "board": "acme",
+  "color": "#c0ffee"
+ },
+ "mode": "snapshot",
+ "fetchedAt": "2026-10-04T06:00:00.000Z",
+ "error": null,
+ "jobs": [
+  {
+   "id": "acme:1",
+   "company": "acme",
+   "companyName": "Acme Robotics",
+   "title": "Senior Software Engineer",
+   "department": "Engineering",
+   "team": null,
+   "employmentType": "Full-time",
+   "seniority": "Senior",
+   "locations": [
+    {
+     "name": "San Francisco, CA",
+     "rawName": "San Francisco, CA",
+     "city": "San Francisco",
+     "region": "CA",
+     "country": "US",
+     "lat": 37.7749,
+     "lng": -122.4194,
+     "remote": false
+    }
+   ],
+   "remote": false,
+   "salary": {
+    "min": 210000,
+    "max": 260000,
+    "mid": 235000,
+    "currency": "USD",
+    "interval": "year",
+    "text": "$210,000 - $260,000 USD",
+    "kind": "salary",
+    "source": "text"
+   },
+   "url": "https://boards.example.test/acme/jobs/1",
+   "updatedAt": "2026-09-30T12:00:00Z",
+   "postedAt": "2026-09-01T00:00:00.000Z",
+   "reqId": "R1",
+   "descriptionHtml": "<p>Acme Robotics builds synthetic test fixtures.</p><h3>Responsibilities</h3><ul><li>Build and ship Senior Software Engineer work in Python and Kubernetes</li><li>Work cross-functionally with research</li></ul><h3>Qualifications</h3><ul><li>5+ years of experience</li><li>Strong communication</li></ul><p>Annual Salary: $210,000 - $260,000 USD</p>",
+   "extras": {
+    "equity": true,
+    "bonus": false
+   },
+   "sections": {
+    "responsibilities": [],
+    "fit": []
+   },
+   "keywords": {
+    "responsibilities": [
+     "Cross-functional"
+    ],
+    "fit": [
+     "5+ yrs"
+    ],
+    "skills": [
+     "Python",
+     "Kubernetes"
+    ]
+   }
+  },
+  {
+   "id": "acme:2",
+   "company": "acme",
+   "companyName": "Acme Robotics",
+   "title": "Machine Learning Engineer",
+   "department": "Applied AI",
+   "team": null,
+   "employmentType": "Full-time",
+   "seniority": "Mid",
+   "locations": [
+    {
+     "name": "London, UK",
+     "rawName": "London, UK",
+     "city": "London",
+     "region": null,
+     "country": "GB",
+     "lat": 51.5072,
+     "lng": -0.1276,
+     "remote": false
+    }
+   ],
+   "remote": false,
+   "salary": {
+    "min": 90000,
+    "max": 110000,
+    "mid": 100000,
+    "currency": "GBP",
+    "interval": "year",
+    "text": "£90,000 - £110,000",
+    "kind": "salary",
+    "source": "text"
+   },
+   "url": "https://boards.example.test/acme/jobs/2",
+   "updatedAt": "2026-09-30T12:00:00Z",
+   "postedAt": "2026-09-01T00:00:00.000Z",
+   "reqId": "R2",
+   "descriptionHtml": "<p>Acme Robotics builds synthetic test fixtures.</p><h3>Responsibilities</h3><ul><li>Build and ship Machine Learning Engineer work in Python and Kubernetes</li><li>Work cross-functionally with research</li></ul><h3>Qualifications</h3><ul><li>5+ years of experience</li><li>Strong communication</li></ul><p>Annual Salary: £90,000 - £110,000</p>",
+   "extras": {
+    "equity": true,
+    "bonus": false
+   },
+   "sections": {
+    "responsibilities": [],
+    "fit": []
+   },
+   "keywords": {
+    "responsibilities": [
+     "Cross-functional"
+    ],
+    "fit": [
+     "5+ yrs"
+    ],
+    "skills": [
+     "Python",
+     "Kubernetes"
+    ]
+   }
+  },
+  {
+   "id": "acme:3",
+   "company": "acme",
+   "companyName": "Acme Robotics",
+   "title": "Account Executive",
+   "department": "Sales",
+   "team": null,
+   "employmentType": "Full-time",
+   "seniority": "Mid",
+   "locations": [
+    {
+     "name": "New York, NY",
+     "rawName": "New York, NY",
+     "city": "New York",
+     "region": "NY",
+     "country": "US",
+     "lat": 40.7128,
+     "lng": -74.006,
+     "remote": false
+    }
+   ],
+   "remote": false,
+   "salary": null,
+   "url": "https://boards.example.test/acme/jobs/3",
+   "updatedAt": "2026-09-30T12:00:00Z",
+   "postedAt": "2026-09-01T00:00:00.000Z",
+   "reqId": "R3",
+   "descriptionHtml": "<p>Acme Robotics builds synthetic test fixtures.</p><h3>Responsibilities</h3><ul><li>Build and ship Account Executive work in Python and Kubernetes</li><li>Work cross-functionally with research</li></ul><h3>Qualifications</h3><ul><li>5+ years of experience</li><li>Strong communication</li></ul>",
+   "extras": {
+    "equity": true,
+    "bonus": false
+   },
+   "sections": {
+    "responsibilities": [],
+    "fit": []
+   },
+   "keywords": {
+    "responsibilities": [
+     "Cross-functional"
+    ],
+    "fit": [
+     "5+ yrs"
+    ],
+    "skills": [
+     "Python",
+     "Kubernetes"
+    ]
+   }
+  },
+  {
+   "id": "acme:4",
+   "company": "acme",
+   "companyName": "Acme Robotics",
+   "title": "Research Intern",
+   "department": "Research",
+   "team": null,
+   "employmentType": "Full-time",
+   "seniority": "Intern",
+   "locations": [
+    {
+     "name": "San Francisco, CA",
+     "rawName": "San Francisco, CA",
+     "city": "San Francisco",
+     "region": "CA",
+     "country": "US",
+     "lat": 37.7749,
+     "lng": -122.4194,
+     "remote": false
+    }
+   ],
+   "remote": false,
+   "salary": {
+    "min": 4600000,
+    "max": 4600000,
+    "mid": 4600000,
+    "currency": "USD",
+    "interval": "year",
+    "text": "$4.6M",
+    "kind": "salary",
+    "source": "text"
+   },
+   "url": "https://boards.example.test/acme/jobs/4",
+   "updatedAt": "2026-09-30T12:00:00Z",
+   "postedAt": "2026-09-01T00:00:00.000Z",
+   "reqId": "R4",
+   "descriptionHtml": "<p>Acme Robotics builds synthetic test fixtures.</p><h3>Responsibilities</h3><ul><li>Build and ship Research Intern work in Python and Kubernetes</li><li>Work cross-functionally with research</li></ul><h3>Qualifications</h3><ul><li>5+ years of experience</li><li>Strong communication</li></ul><p>Annual Salary: $4.6M</p>",
+   "extras": {
+    "equity": true,
+    "bonus": false
+   },
+   "sections": {
+    "responsibilities": [],
+    "fit": []
+   },
+   "keywords": {
+    "responsibilities": [
+     "Cross-functional"
+    ],
+    "fit": [
+     "5+ yrs"
+    ],
+    "skills": [
+     "Python",
+     "Kubernetes"
+    ]
+   }
+  },
+  {
+   "id": "acme:5",
+   "company": "acme",
+   "companyName": "Acme Robotics",
+   "title": "Staff Software Engineer",
+   "department": "Engineering",
+   "team": null,
+   "employmentType": "Full-time",
+   "seniority": "Staff+",
+   "locations": [
+    {
+     "name": "Seattle, WA",
+     "rawName": "Seattle, WA",
+     "city": "Seattle",
+     "region": "WA",
+     "country": "US",
+     "lat": 47.6062,
+     "lng": -122.3321,
+     "remote": false
+    }
+   ],
+   "remote": false,
+   "salary": {
+    "min": 250000,
+    "max": 320000,
+    "mid": 285000,
+    "currency": "USD",
+    "interval": "year",
+    "text": "$250,000 - $320,000 USD",
+    "kind": "salary",
+    "source": "text"
+   },
+   "url": "https://boards.example.test/acme/jobs/5",
+   "updatedAt": "2026-09-30T12:00:00Z",
+   "postedAt": "2026-09-01T00:00:00.000Z",
+   "reqId": "R5",
+   "descriptionHtml": "<p>Acme Robotics builds synthetic test fixtures.</p><h3>Responsibilities</h3><ul><li>Build and ship Staff Software Engineer work in Python and Kubernetes</li><li>Work cross-functionally with research</li></ul><h3>Qualifications</h3><ul><li>5+ years of experience</li><li>Strong communication</li></ul><p>Annual Salary: $250,000 - $320,000 USD</p>",
+   "extras": {
+    "equity": true,
+    "bonus": false
+   },
+   "sections": {
+    "responsibilities": [],
+    "fit": []
+   },
+   "keywords": {
+    "responsibilities": [
+     "Cross-functional"
+    ],
+    "fit": [
+     "5+ yrs"
+    ],
+    "skills": [
+     "Python",
+     "Kubernetes"
+    ]
+   }
+  },
+  {
+   "id": "acme:6",
+   "company": "acme",
+   "companyName": "Acme Robotics",
+   "title": "Senior Machine Learning Engineer",
+   "department": "Research",
+   "team": null,
+   "employmentType": "Full-time",
+   "seniority": "Senior",
+   "locations": [
+    {
+     "name": "San Francisco, CA",
+     "rawName": "San Francisco, CA",
+     "city": "San Francisco",
+     "region": "CA",
+     "country": "US",
+     "lat": 37.7749,
+     "lng": -122.4194,
+     "remote": false
+    },
+    {
+     "name": "New York, NY",
+     "rawName": "New York, NY",
+     "city": "New York",
+     "region": "NY",
+     "country": "US",
+     "lat": 40.7128,
+     "lng": -74.006,
+     "remote": false
+    }
+   ],
+   "remote": false,
+   "salary": {
+    "min": 240000,
+    "max": 300000,
+    "mid": 270000,
+    "currency": "USD",
+    "interval": "year",
+    "text": "$240,000 - $300,000 USD",
+    "kind": "salary",
+    "source": "text"
+   },
+   "url": "https://boards.example.test/acme/jobs/6",
+   "updatedAt": "2026-09-30T12:00:00Z",
+   "postedAt": "2026-09-01T00:00:00.000Z",
+   "reqId": "R6",
+   "descriptionHtml": "<p>Acme Robotics builds synthetic test fixtures.</p><h3>Responsibilities</h3><ul><li>Build and ship Senior Machine Learning Engineer work in Python and Kubernetes</li><li>Work cross-functionally with research</li></ul><h3>Qualifications</h3><ul><li>5+ years of experience</li><li>Strong communication</li></ul><p>Annual Salary: $240,000 - $300,000 USD</p>",
+   "extras": {
+    "equity": true,
+    "bonus": false
+   },
+   "sections": {
+    "responsibilities": [],
+    "fit": []
+   },
+   "keywords": {
+    "responsibilities": [
+     "Cross-functional"
+    ],
+    "fit": [
+     "5+ yrs"
+    ],
+    "skills": [
+     "Python",
+     "Kubernetes"
+    ]
+   }
+  }
+ ]
+}

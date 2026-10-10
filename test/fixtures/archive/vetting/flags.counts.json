@@ -1,0 +1,15 @@
+{
+ "acme": {
+  "jobs": 5,
+  "salaried": 3,
+  "quarantined": 1,
+  "flagged": 2,
+  "critical": 1,
+  "blocking": 0,
+  "codes": {
+   "max_over_1_2m": 1,
+   "title_junior_high": 1,
+   "ratio_over_3": 1
+  }
+ }
+}
