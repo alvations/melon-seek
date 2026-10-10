@@ -1,0 +1,10 @@
+{
+ "FRESHNESS": {
+  "NEW_MAX": 7,
+  "ACTIVE_MAX": 59,
+  "STALE_MAX": 179
+ },
+ "HISTORY_FORMAT": "melon-history-1",
+ "PRUNE_CLOSED_DAYS": 400,
+ "REPOST_WINDOW_DAYS": 30
+}
