@@ -4,9 +4,11 @@
 // server/juice.js can be checked against primary sources. Read-only: it writes nothing back.
 //
 // REQUESTS (env, JSON): [{ "url": "...", "grep": "regex", "ctx": 1, "max": 120,
-//                          "start": 0, "len": 120, "name": "label" }]
+//                          "start": 0, "len": 120, "name": "label", "ua": "curl/8", "width": 400 }]
 //   grep  case-insensitive regex; prints matching lines with `ctx` lines around them, at most
 //         `max` lines. Without grep it prints `len` lines from `start`.
+//   ua    optional User-Agent override (some sites answer 403 to a browser UA without JS)
+//   width characters printed per line (default 400)
 // PDFs go through pdftotext -layout; HTML is reduced to text lines.
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -33,9 +35,10 @@ function htmlToLines(html) {
 
 function show(lines, r) {
   const max = r.max || 150;
+  const W = r.width || 400;
   if (!r.grep) {
     const start = r.start || 0;
-    lines.slice(start, start + (r.len || 120)).forEach((l, i) => console.log(`${String(start + i).padStart(5)}: ${l.slice(0, 400)}`));
+    lines.slice(start, start + (r.len || 120)).forEach((l, i) => console.log(`${String(start + i).padStart(5)}: ${l.slice(0, W)}`));
     return;
   }
   const re = new RegExp(r.grep, 'i');
@@ -48,7 +51,7 @@ function show(lines, r) {
   for (const i of idx) {
     if (printed >= max) { console.log(`  ... (${idx.length - printed} more lines)`); break; }
     if (i !== last + 1) console.log('  --');
-    console.log(`${String(i).padStart(5)}: ${lines[i].slice(0, 400)}`);
+    console.log(`${String(i).padStart(5)}: ${lines[i].slice(0, W)}`);
     last = i;
     printed++;
   }
@@ -58,7 +61,7 @@ function show(lines, r) {
 for (const [n, r] of reqs.entries()) {
   console.log(`\n===== [${n}] ${r.name || ''} ${r.url}`);
   try {
-    const res = await fetch(r.url, { headers: { 'user-agent': UA, accept: '*/*', 'accept-language': 'en,de;q=0.8,fr;q=0.6' }, redirect: 'follow', signal: AbortSignal.timeout(60000) });
+    const res = await fetch(r.url, { headers: { 'user-agent': r.ua || UA, accept: '*/*', 'accept-language': 'en,de;q=0.8,fr;q=0.6' }, redirect: 'follow', signal: AbortSignal.timeout(60000) });
     const buf = Buffer.from(await res.arrayBuffer());
     const type = res.headers.get('content-type') || '';
     console.log(`status ${res.status} type ${type} bytes ${buf.length} final ${res.url}`);
