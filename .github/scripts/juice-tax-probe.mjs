@@ -10,6 +10,7 @@
 //   ua    optional User-Agent override (some sites answer 403 to a browser UA without JS)
 //   width characters printed per line (default 400)
 //   timeout ms for the request (default 60000); sleep ms to wait first (rate-limited hosts)
+//   raw   HTML only: keep the markup, one line per <a> tag, so link targets can be grepped
 // PDFs go through pdftotext -layout; HTML is reduced to text lines.
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -74,7 +75,7 @@ async function probe(n, r, ac) {
     const cs = (/charset=([\w-]+)/i.exec(type) || /<meta[^>]+charset=["']?([\w-]+)/i.exec(buf.subarray(0, 4096).toString('latin1')) || [])[1] || 'utf-8';
     let text;
     try { text = new TextDecoder(cs.toLowerCase()).decode(buf); } catch { text = buf.toString('utf8'); }
-    lines = htmlToLines(text);
+    lines = r.raw ? text.split(/(?=<a\s)/i).map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean) : htmlToLines(text);
   }
   console.log(`lines ${lines.length}`);
   show(lines, r);
