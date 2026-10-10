@@ -53,26 +53,26 @@
  },
  "apple": {
   "slug": "apple",
-  "lastObservedAt": "2026-10-10T12:19:51.916Z",
+  "lastObservedAt": "2026-10-10T19:30:55.719Z",
   "firstObservedAt": "2026-10-10T12:19:51.916Z",
-  "observations": 1,
+  "observations": 2,
   "name": "Apple",
   "channel": "beta",
   "source": "apple",
   "board": "apple",
   "color": "#6e6e73",
-  "open": 6105,
-  "ids": 6105,
+  "open": 6101,
+  "ids": 6106,
   "pending": {
-   "opened": 0,
+   "opened": 1,
    "reopened": 0,
    "resumed": 0,
-   "closed": 0,
+   "closed": 5,
    "unseen": 0,
-   "changed": 0,
-   "payChanged": 0,
-   "sourceChanged": 0,
-   "observations": 0
+   "changed": 1680,
+   "payChanged": 23,
+   "sourceChanged": 23,
+   "observations": 1
   },
   "lastDailyDate": "2026-10-10",
   "lastDailyAt": "2026-10-10T12:19:51.916Z"
@@ -105,9 +105,9 @@
  },
  "google": {
   "slug": "google",
-  "lastObservedAt": "2026-10-10T11:09:51.834Z",
+  "lastObservedAt": "2026-10-10T18:26:11.430Z",
   "firstObservedAt": "2026-10-10T11:09:51.834Z",
-  "observations": 1,
+  "observations": 2,
   "name": "Google",
   "channel": "beta",
   "source": "google",
@@ -121,10 +121,10 @@
    "resumed": 0,
    "closed": 0,
    "unseen": 0,
-   "changed": 0,
-   "payChanged": 0,
-   "sourceChanged": 0,
-   "observations": 0
+   "changed": 604,
+   "payChanged": 20,
+   "sourceChanged": 44,
+   "observations": 1
   },
   "lastDailyDate": "2026-10-10",
   "lastDailyAt": "2026-10-10T11:09:51.834Z"
