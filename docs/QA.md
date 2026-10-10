@@ -1075,7 +1075,7 @@ changed.
 - **Insights:**
   - Compstimate prefills from Seniority ("Software Engineer · Senior", "$242K, high confidence, 264 similar roles at
     Apple"). Editing the title shows "Reset to filters", and Reset restores it. The accuracy line shows on every board
-    ("Typically within ±12% (tested on 500 listed salaries, Oct 2026)").
+    (e.g. "Typically within ±12% (tested on 500 listed salaries, Oct 2026)").
   - A Market insights row click adds its filter, and a second click removes it.
   - Compare companies covers the beta companies, up to 13 per family ("Software engineering (13 companies)"). A row
     click switches company with `rf=` and stays in Insights, and Back returns.

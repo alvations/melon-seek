@@ -128,6 +128,10 @@ These are the rules learned the hard way on 2026-10-10.
   on a quiet machine (its timings are the deliverable). Run the persona review on the fixed
   build, so it finds new problems instead of known ones. Beta on 2026-10-10: desktop QA, mobile
   QA and the data check first; perf and personas after the main-site fixes were integrated.
+- Run the whole `npm test` before every push, docs-only commits included. Tests read the docs:
+  scripts/refresh/jobs.js flags a hand-written accuracy figure ("Typically within ±12% …") in
+  docs/QA.md unless it reads as an example ("e.g."). be5691c, a QA-docs commit checked with the
+  markdown tests only, turned CI red that way.
 - Never run `playwright install`. Chromium is at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`,
   with Playwright in `<scratchpad>/pw/node_modules`.
 - The Long Tasks API misses work after `fetch()` resolves. Read long tasks from a Chrome trace.
