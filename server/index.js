@@ -886,17 +886,22 @@ export async function handle(req, res) {
       return send(req, res, 200, sharePage(company), 'text/html; charset=utf-8');
     }
   }
-  // The Juice methodology page (docs/LIVABILITY.md), rendered like the static
-  // build does, so the in-app "How it's calculated" link works in server mode too.
-  if (p === '/methodology' || p === '/methodology/') {
-    if (p === '/methodology') { res.writeHead(301, { Location: '/methodology/' }); return res.end(); }
-    const { renderMethodologyPage } = await import('../scripts/methodology.js');
-    const md = await fs.readFile(path.join(ROOT, 'docs', 'LIVABILITY.md'), 'utf8');
-    return send(req, res, 200, renderMethodologyPage({ md }), 'text/html; charset=utf-8');
-  }
-  if (p === '/methodology/methodology.css') {
-    const { METHODOLOGY_CSS } = await import('../scripts/methodology.js');
-    return send(req, res, 200, METHODOLOGY_CSS, 'text/css; charset=utf-8');
+  // The Juice methodology pages, rendered like the static build does (scripts/methodology.js),
+  // so the in-app "How it's calculated" link works in server mode too: the guide
+  // (docs/METHODOLOGY_GUIDE.md with build-time charts) at /methodology/ and the technical
+  // reference (docs/LIVABILITY.md) at /methodology/reference/. Rendered per request from the
+  // repo files, so doc and data edits show up on reload.
+  {
+    const METHODOLOGY = { '/methodology/': 'index.html', '/methodology/reference/': 'reference/index.html', '/methodology/methodology.css': 'methodology.css' };
+    if (p === '/methodology' || p === '/methodology/reference') { res.writeHead(301, { Location: `${p}/` }); return res.end(); }
+    if (METHODOLOGY[p]) {
+      const m = await import('../scripts/methodology.js');
+      if (p.endsWith('.css')) return send(req, res, 200, m.METHODOLOGY_CSS, 'text/css; charset=utf-8');
+      const html = p === '/methodology/reference/'
+        ? m.renderReferencePage({ md: await fs.readFile(path.join(ROOT, 'docs', 'LIVABILITY.md'), 'utf8') })
+        : (await m.methodologyPages({ root: ROOT, citiesFile: CITIES_FILE })).files[METHODOLOGY[p]];
+      return send(req, res, 200, html, 'text/html; charset=utf-8');
+    }
   }
   if (p.startsWith('/vendor/leaflet/')) {
     const file = safeJoin(LEAFLET_DIR, p.slice('/vendor/leaflet/'.length));

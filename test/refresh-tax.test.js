@@ -386,17 +386,26 @@ test('manual entries: staleness from the tax year end + grace, confirmed by the 
 });
 
 test('LLM second opinion is advisory: listed as a finding, never changes the status', async () => {
-  const ctx = ctxWith({ offline: false });
-  ctx.env = { ANTHROPIC_API_KEY: 'test' };
-  ctx.llm = async () => '{"US_FED top threshold, 37% (single)": 650000, "US_STD standard deduction (single)": 16100}';
-  const findings = await llmSecondOpinion(ctx, watch('tax-us'), 2026, new Map([['US_FED top threshold, 37% (single)', 640600], ['US_STD standard deduction (single)', 16100]]), new Map());
+  // Deterministic: fixtures only (ctxWith serves test/fixtures/refresh/tax), a fixed clock (NOW),
+  // a stubbed model with no timers or network, and a fresh cache for every call. The property
+  // under test is that the status is the same with and without the (disagreeing) model answer.
+  const answer = '{"US_FED top threshold, 37% (single)": 650000, "US_STD standard deduction (single)": 16100}';
+  const withLlm = () => { const c = ctxWith({ offline: false }); c.env = { ANTHROPIC_API_KEY: 'test' }; c.llm = async () => answer; return c; };
+  const findings = await llmSecondOpinion(withLlm(), watch('tax-us'), 2026, new Map([['US_FED top threshold, 37% (single)', 640600], ['US_STD standard deduction (single)', 16100]]), new Map());
   assert.equal(findings.length, 1);
   assert.match(findings[0].note, /^advisory/);
-  const r = await checkEntry(ctx, watch('tax-us'), { src: SNAP, taxSources: SNAP_TS, params: null });
-  assert.equal(r.status, 'ok', r.summary);
+  const plain = await checkEntry(ctxWith(), watch('tax-us'), { src: SNAP, taxSources: SNAP_TS, params: null, cache: new Map() });
+  const r = await checkEntry(withLlm(), watch('tax-us'), { src: SNAP, taxSources: SNAP_TS, params: null, cache: new Map() });
+  assert.equal(r.status, plain.status, `the model never changes the status (${r.summary})`);
+  assert.equal(plain.status, 'ok', plain.summary);
   assert.ok(r.findings.some((f) => /^advisory/.test(f.note)));
-  ctx.env = {};
-  assert.deepEqual(await llmSecondOpinion(ctx, watch('tax-us'), 2026, new Map(), new Map()), [], 'no key, no call');
+  assert.ok(!plain.findings.some((f) => /^advisory/.test(f.note)), 'no key, no advisory finding');
+  const noKey = ctxWith({ offline: false });
+  noKey.env = {};
+  let called = false;
+  noKey.llm = async () => { called = true; return answer; };
+  assert.deepEqual(await llmSecondOpinion(noKey, watch('tax-us'), 2026, new Map(), new Map()), [], 'no key, no call');
+  assert.equal(called, false);
 });
 
 test('registry entries: one per id, valid for the registry schema', () => {

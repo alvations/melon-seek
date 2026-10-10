@@ -46,9 +46,9 @@ test('examples: tables are computed from computeJuice and cities.json, in the do
   assert.equal(hh.length, EX.HOUSEHOLD_EXAMPLES.length * 3);
   assert.equal(hh[0][0], "Research engineer, San Francisco (the user's example)", 'the $675K case is first');
   assert.deepEqual(hh.slice(0, 3).map((r) => r[2]), ['Just me (1 bed)', 'Couple (2 bed)', 'Family (3 bed)']);
-  // Score legend: straight from netForScore and GRADES.
+  // Score legend: the rounding-aware threshold (what the shown score needs) and GRADES.
   const legend = EX.renderBlock('juice-worked-examples/score-legend', J, CITIES);
-  assert.ok(legend.includes(`≥ ${EX.usd(J.netForScore(70))}`) && legend.includes(`100 = ${EX.usd(J.SCORE_ANCHORS.fullGlassUSD)}.`));
+  assert.ok(legend.includes(`≥ ${EX.usd(EX.netForShownScore(J, 70))}`) && legend.includes(`100 = ${EX.usd(J.SCORE_ANCHORS.fullGlassUSD)}.`));
   // Tax table: one row per TAX_SOURCES key.
   assert.equal(EX.expectedRows('juice-worked-examples/tax-sources', J, CITIES).length, Object.keys(J.TAX_SOURCES).length);
   // Deterministic.

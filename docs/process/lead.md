@@ -690,3 +690,25 @@ screenshots in `docs/screenshots/`.
 - **Offline dry run (fixtures):** 131 checks. 104 ok, 1 changed (FX: 22 rates moved to ECB 2026-09 monthly averages), 6 drift, 2 stale, 2 flag, 16 skipped.
   - The drifts: HUD FY2027 rents (needs a `HUD_API_TOKEN` secret); next-year tax figures for Canada EI, Ireland's Budget 2027 and Portland SHS.
 - **Verified** on a clean worktree from c0df589 plus exactly these files and patches: `npm test` 531/531, build OK, `dist/api/freshness.json` present. e2e 85/86; the failure is the same T21 cold-server timing test, which also fails on the baseline under load.
+
+### Batch: methodology guide + infographics, data badge fix, freshness retry fix (2026-10-10)
+- **Methodology** (copywriter [methodology-copy.md](methodology-copy.md), UX [methodology-ux.md](methodology-ux.md)).
+  - `methodology/` is the human guide, docs/METHODOLOGY_GUIDE.md: about 1,930 words, 13% of the reference. It has 8 build-time SVG/HTML figures from server/juice.js and data/cities.json: formula, waterfall, households, score curve, grades, tax split, sources, confidence.
+  - `methodology/reference/` is docs/LIVABILITY.md, unchanged, with every old anchor kept or aliased.
+  - links-policy fails the build if any reference heading id is missing from methodology/.
+  - md.js drops whole-line HTML comments.
+- **LIVABILITY** (lead):
+  - applied freshness col-livability-refreshing, plus derived-docs-counts by hand (one row overlapped; "64 of 88", "266 figures");
+  - inserted the freshness markers around the 4 generated tables;
+  - grade thresholds are rounding-aware ($94,996 / $47,103), the same rule as the figures (examples.js and policy.js `netForShownScore`).
+- **Badge** ([badge-ux.md](badge-ux.md)).
+  - Cause: since 2666ae1 the snapshot shows first and live swaps in later, but the Live dot pulsed forever (from 93ec6dc), so a settled page looked like it was loading.
+  - Fixes:
+    - the Live dot is steady, with a pulse only while loading or "checking live…";
+    - `pending` plus exactly one `onUpdate`, including on failure;
+    - the swap keeps focus, scroll and open panels;
+    - one polite announcement;
+    - reduced motion is respected.
+- **Freshness:** run.js retries an online 'error' once; the tax "LLM second opinion" test is deterministic.
+- **Archive docs:** 928c17c, measured sizes after the rescue.
+- **Verified** on a clean worktree from 8c20896 plus exactly these files: `npm test` 579/579, build OK, e2e 103/104 (1 opt-in skip, 0 failed).

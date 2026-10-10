@@ -290,8 +290,10 @@ test('v2: static live fetch (bundle first, live via onUpdate) merges api/history
     const first = await api.getJobs({ company: 'anthropic' }, { onUpdate: upgraded });
     assert.equal(first.mode, 'snapshot', 'bundle shown first');
     assert.equal(first.error, null);
+    assert.equal(first.pending, true, 'a bundle shown before the live board is pending (badge: "checking live…")');
     const res = await live;
     assert.equal(res.mode, 'live');
+    assert.ok(!res.pending, 'the live result settles it');
     assert.equal(res.jobs.length, V2.live.length);
     assert.ok(res.jobs.every((j) => j.juice !== undefined), 'upgrade is vetted and juiced too');
     for (const j of res.jobs) {
@@ -305,7 +307,7 @@ test('v2: static live fetch (bundle first, live via onUpdate) merges api/history
   }
 });
 
-test('static live vs bundle race: live first is returned directly; a failed live board after the bundle never calls onUpdate', async () => {
+test('static live vs bundle race: live first is returned directly; a pending bundle is settled by exactly one onUpdate', async () => {
   const saved = DIST; DIST = DIST2;
   const inner = staticFetch();
   globalThis.MELON_LIVE_SOURCES = ['greenhouse'];
@@ -317,25 +319,78 @@ test('static live vs bundle race: live first is returned directly; a failed live
       if (String(url).includes('api/jobs/')) await wait(300);
       return inner(url);
     };
-    let calls = 0;
+    let calls = [];
     let api = await freshApi();
-    const res = await api.getJobs({ company: 'anthropic' }, { onUpdate: () => { calls++; } });
+    const res = await api.getJobs({ company: 'anthropic' }, { onUpdate: (u) => { calls.push(u); } });
     assert.equal(res.mode, 'live');
+    assert.ok(!res.pending, 'live first: nothing pending');
     await wait(400);
-    assert.equal(calls, 0, 'no upgrade when live won');
-    // Bundle first, then the live board fails: the snapshot stays, no onUpdate.
+    assert.equal(calls.length, 0, 'no upgrade when live won');
+    // Bundle first, then the live board fails: one onUpdate settles the same list, with the reason.
     globalThis.fetch = async (url) => {
       if (String(url).startsWith('https://boards-api.greenhouse.io/')) { await wait(100); return new Response('{"error":"down"}', { status: 503 }); }
       return inner(url);
     };
     api = await freshApi();
-    const snap = await api.getJobs({ company: 'anthropic' }, { onUpdate: () => { calls++; } });
+    const snap = await api.getJobs({ company: 'anthropic' }, { onUpdate: (u) => { calls.push(u); } });
     assert.equal(snap.mode, 'snapshot');
+    assert.equal(snap.pending, true, 'pending while the live board loads');
+    assert.equal(snap.error, null, 'no error while it is still loading');
     await wait(300);
-    assert.equal(calls, 0, 'failed live board is not an upgrade');
+    assert.equal(calls.length, 1, 'a failed live board settles the pending list once');
+    const [settled] = calls;
+    assert.equal(settled.mode, 'snapshot');
+    assert.equal(settled.pending, false);
+    assert.equal(settled.jobs, snap.jobs, 'same jobs array (nothing to re-prepare)');
+    assert.match(settled.error, /^Live fetch failed: greenhouse\/anthropic: HTTP 503/, 'the reason, as if the live fetch had failed first');
+    // Without onUpdate nothing can settle it, so nothing is marked pending.
+    api = await freshApi();
+    const plain = await api.getJobs({ company: 'anthropic' });
+    assert.equal(plain.mode, 'snapshot');
+    assert.ok(!('pending' in plain), 'no pending flag without onUpdate');
   } finally {
     DIST = saved;
     globalThis.MELON_LIVE_SOURCES = [];
+  }
+});
+
+test('static pending bundle: a quiet CORS failure settles with error null; an abort never calls onUpdate', async () => {
+  const saved = DIST; DIST = DIST2;
+  const inner = staticFetch();
+  globalThis.MELON_LIVE_SOURCES = ['greenhouse'];
+  globalThis.MELON_QUIET_CORS_SOURCES = ['greenhouse'];
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  try {
+    // A network-level failure (CORS) of a quiet source after the bundle: settled quietly.
+    globalThis.fetch = async (url) => {
+      if (String(url).startsWith('https://boards-api.greenhouse.io/')) { await wait(100); throw new TypeError('Failed to fetch'); }
+      return inner(url);
+    };
+    const calls = [];
+    let api = await freshApi();
+    const snap = await api.getJobs({ company: 'anthropic' }, { onUpdate: (u) => { calls.push(u); } });
+    assert.equal(snap.pending, true);
+    await wait(300);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].pending, false);
+    assert.equal(calls[0].error, null, 'expected CORS failure: no error text');
+    // Aborted (the user switched company) while pending: no onUpdate at all.
+    globalThis.fetch = async (url) => {
+      if (String(url).startsWith('https://boards-api.greenhouse.io/')) { await wait(150); return new Response(JSON.stringify(GH_FIXTURE), { status: 200 }); }
+      return inner(url);
+    };
+    api = await freshApi();
+    const ctl = new AbortController();
+    let later = 0;
+    const first = await api.getJobs({ company: 'anthropic' }, { signal: ctl.signal, onUpdate: () => { later++; } });
+    assert.equal(first.pending, true);
+    ctl.abort();
+    await wait(400);
+    assert.equal(later, 0, 'no onUpdate after an abort');
+  } finally {
+    DIST = saved;
+    globalThis.MELON_LIVE_SOURCES = [];
+    delete globalThis.MELON_QUIET_CORS_SOURCES;
   }
 });
 

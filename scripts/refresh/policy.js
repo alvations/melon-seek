@@ -13,6 +13,7 @@
 // Status: 'flag' when a copy disagrees or a data check says the policy no longer fits,
 // 'stale' when the review is past due, else 'ok'. llm-vet-config is 'detect': with
 // ANTHROPIC_API_KEY it asks the Models API whether the default model id still exists.
+import { netForShownScore } from './examples.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { result, errorResult, isoDate, extractConst, findFigure, excerptAround, daysBetween } from './lib.js';
@@ -276,8 +277,8 @@ export async function check(ctx) {
     for (const [label, re] of [['Juicy', new RegExp(`score ${hi}\\+`)], ['Ripe', new RegExp(`${lo}[–-]${hi - 1}`)], ['Dry', new RegExp(`under ${lo}`)]]) {
       if (!re.test(app)) { status = 'flag'; findings.push(finding(`public/app.js JUICE_GRADES ${label}`, String(re), 'not found', '', 'grade chip tooltip copy no longer matches GRADES')); }
     }
-    for (const c of docChecks(liv, [[`LIVABILITY Juicy net (score ${hi})`, new RegExp(`${hi}-100 \\| ≥ \\$([\\d,]+)`), Math.round(juice.netForScore(hi))], [`LIVABILITY Ripe net (score ${lo})`, new RegExp(`${lo}-${hi - 1} \\| ≥ \\$([\\d,]+)`), Math.round(juice.netForScore(lo))]])) {
-      if (!c.ok) { status = 'flag'; findings.push(finding(`docs/LIVABILITY.md ${c.key}`, c.code, c.doc, 'USD', 'grade table differs from netForScore()')); }
+    for (const c of docChecks(liv, [[`LIVABILITY Juicy net (score ${hi})`, new RegExp(`${hi}-100 \\| ≥ \\$([\\d,]+)`), netForShownScore(juice, hi)], [`LIVABILITY Ripe net (score ${lo})`, new RegExp(`${lo}-${hi - 1} \\| ≥ \\$([\\d,]+)`), netForShownScore(juice, lo)]])) {
+      if (!c.ok) { status = 'flag'; findings.push(finding(`docs/LIVABILITY.md ${c.key}`, c.code, c.doc, 'USD', 'grade table differs from the rounded-score thresholds (examples.js netForShownScore)')); }
     }
     let summary = `grades ${juice.GRADES.map((g) => `${g.label} >= ${g.min}`).join(', ')}, Rind when net <= 0`;
     if (haveData) {

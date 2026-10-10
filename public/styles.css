@@ -247,13 +247,18 @@ svg:not(.ms-chart svg, .ms-map svg, .ms-viz-tip svg, .leaflet-container svg, .di
 .badge-label { overflow: hidden; text-overflow: ellipsis; }
 .badge-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
 .data-badge.is-live { color: var(--ms-live); background: color-mix(in srgb, var(--ms-live) 10%, var(--ms-surface)); border-color: color-mix(in srgb, var(--ms-live) 30%, transparent); }
-.data-badge.is-live .badge-dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ms-live) 25%, transparent); animation: pulse 2s ease-in-out infinite; }
+/* The dot pulses only while work is in progress (loading, or a bundled list on screen while the live
+   board loads: is-pending, whose label also says "checking live…"). A settled Live dot is steady,
+   with one soft pulse when the live board has just replaced the list (is-arrived). docs/process/badge-ux.md */
+.data-badge.is-live .badge-dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ms-live) 25%, transparent); }
+.data-badge.is-live.is-arrived .badge-dot { animation: pulse 1.2s ease-in-out 1; }
 .data-badge.is-cache { color: var(--ms-muted); }
 .data-badge.is-snapshot { color: var(--ms-blue); background: var(--ms-blue-bg); border-color: color-mix(in srgb, var(--ms-blue) 30%, transparent); }
 .data-badge.is-demo { color: var(--ms-amber); background: var(--ms-amber-bg); border-color: var(--ms-amber-border); }
 .data-badge.is-error { color: var(--ms-danger); background: var(--ms-danger-bg); border-color: color-mix(in srgb, var(--ms-danger) 30%, transparent); }
-.data-badge.is-loading .badge-dot { animation: pulse 1s ease-in-out infinite; }
+.data-badge.is-loading .badge-dot, .data-badge.is-pending .badge-dot { animation: pulse 1s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .data-badge .badge-dot { animation: none !important; } }
 
 /* ----------------------------------------------------------- quick bar */
 .quickbar {
@@ -716,6 +721,11 @@ html[data-mode="map"] .viz-toolbar { min-height: 0; }
   .demo-banner .banner-short { display: inline; margin-right: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 }
 
+/* While the live board loads (is-pending): the top bar has no room for "Snapshot · checking live…"
+   at 1020px and below, so it says "Checking live…" (narrower than "Snapshot · Oct 2"), and
+   "Checking…" on small phones (≤400px, like their "● Oct 2"). The popover has the full status. */
+@media (max-width: 1020px) { .data-badge.is-pending .badge-label::before { content: attr(data-tiny); } }
+@media (max-width: 400px) { .data-badge.is-pending .badge-label::before { content: attr(data-micro); } }
 
 
 /* ===================================================================

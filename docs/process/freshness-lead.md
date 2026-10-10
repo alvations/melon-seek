@@ -144,7 +144,10 @@ node --test test/freshness*.test.js test/refresh-*.test.js
 - Decode self-tests: a 2 MB random body through a pipe gives 890/890 chunks with sha256 ok; with 127 BOM-prefixed chunk lines it still checks out.
 
 ## 6. Known gaps and follow-ups
-- **Live run.** The orchestrator has not yet run on a GitHub runner end to end; the code is not on the branch. Every module was verified against real responses captured today on runners: the fixtures and the probe runs listed in each sub-agent log. After the lead's batch push, dispatch monthly-refresh.yml with dry_run=true.
+- **Live run (done 2026-10-10, after the lead pushed f68efe7 and 94f9dd6).** monthly-refresh.yml ran with dry_run=true on a GitHub runner: runs 38040981168, 38041238228 and, targeted, 38041463639. All three succeeded.
+  - Every one of the 131 entries was checked against the live hosts; there were 0 problems. The FX module read the live ECB monthly API and FRED; the other results are in DATA_FRESHNESS.md §1 "First live run".
+  - gov.scot (living-scale) and gov.bc.ca (tax-ca-bc) failed once and passed on the targeted re-run. That led to the one-retry rule in run.js.
+  - Probe 38041390129 confirmed gov.scot serves the same bytes to our User-Agent and a browser's; gov.bc.ca failed for both at that moment.
 - **FX source change.** The first real run will move every approx-USD figure; on the Sep 2026 fixture, KRW moves −8.6% and JPY −3.5%. A human should review the first PR.
 - **Repo settings.** PR creation needs "Allow GitHub Actions to create and approve pull requests". Optional secrets: HUD_API_TOKEN (the HUD FY2027 FMRs are out, but eGIS still serves FY2026), ANTHROPIC_API_KEY and BLS_API_KEY.
 - **Stale encoded data (2026-10-10), which the first run will report:**
@@ -222,4 +225,8 @@ node --test test/freshness*.test.js test/refresh-*.test.js
   - the FX updater now also converts the code-only currencies (CNY, ZAR, QAR);
   - unpinned the FX month in the tests;
   - simulated a landed FX refresh, and applied all 17 patches in order on fresh copies.
+- 09:19–09:35:
+  - live dry runs 38040981168 and 38041238228, where the second has per-result log lines, plus the targeted run 38041463639 and probe 38041390129;
+  - added one delayed retry for errored results in online runs (test in refresh-run);
+  - made the tax LLM test deterministic (fresh contexts and caches, the stub never times out, and the status is compared with and without the model).
 

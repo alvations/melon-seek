@@ -149,6 +149,8 @@ extras: { equity: boolean, bonus: boolean },          // F2
 juice: { best, byLocation, household } | null,        // livability, attached in public/api.js; household = 'single'|'couple'|'family' (default single; app.js re-attaches for the chosen household). best.taxBasis = 'single'|'joint'|'individual'|'partial' (server/juice.js taxFor)
 ```
 
+**Static-mode `getJobs(…, { onUpdate })`** (public/api.js): the result carries `pending: true` when a bundled list is returned while the live board is still loading (only when `onUpdate` is passed). `onUpdate` is then called exactly once, never after an abort: with the live result, or with the same list, `pending: false` and the failure reason in `error` (`null` for quiet sources). `live: false` companies are never pending. The data badge reads "Snapshot · checking live…" while pending (docs/process/badge-ux.md).
+
 **`/api/jobs` response** adds `meta: { compstimate: { medianAbsPctError,
 within10Pct, n, seed, computedAt } | null, history: { since, runs } }`.
 

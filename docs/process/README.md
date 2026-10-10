@@ -39,6 +39,16 @@ interface every agent built against), [../ARCHITECTURE.md](../ARCHITECTURE.md),
 | Strategy (competitors, roadmap) | [prompts/strategy.md](prompts/strategy.md) | [strategy.md](strategy.md) | `docs/strategy/COMPETITIVE_ANALYSIS.md`, `docs/strategy/ROADMAP.md` |
 | Corporate-ladder brainstorm (plan only) | [prompts/ladder-brainstorm.md](prompts/ladder-brainstorm.md) | [ladder-brainstorm.md](ladder-brainstorm.md) | `docs/strategy/CORPORATE_LADDER_PLAN.md` |
 | Finish (lexicon fixes, external link CI) | [prompts/finish.md](prompts/finish.md) | [features.md](features.md) §6c, [devops.md](devops.md) decisions 66–67 | `server/keywords.js` lexicons, `scripts/external-links.js`, ci.yml `links` job |
+| Big-tech boards (beta) | [prompts/bigtech-data.md](prompts/bigtech-data.md) | [bigtech-data.md](bigtech-data.md) | `server/sources/*` (big-tech adapters), `server/companies.js` beta entries, `scripts/snapshot.js --channel beta`, `docs/DATA_SOURCES.md` §7 |
+| Beta site deploy | [prompts/beta-deploy.md](prompts/beta-deploy.md) | [beta-deploy.md](beta-deploy.md) | `scripts/build-static.js` (dist/beta), `pages.yml`, `snapshot.yml` beta crawl, `public/api.js` live:false |
+| Juice household + rent | [prompts/juice-household.md](prompts/juice-household.md) | [juice-household.md](juice-household.md) | `data/cities.json` rents by bedrooms, households in `server/juice.js`, drawer Juice block |
+| Juice tax verification | [prompts/juice-tax.md](prompts/juice-tax.md) | [juice-tax.md](juice-tax.md) | tax section of `server/juice.js`, `test/juice-tax-golden.test.js` |
+| Data freshness (lead + 7 helpers) | [prompts/freshness-lead.md](prompts/freshness-lead.md) and `prompts/freshness-*.md` | [freshness-lead.md](freshness-lead.md) and `freshness-*.md` | `data/freshness.json`, `docs/DATA_FRESHNESS.md`, `scripts/refresh/**`, `monthly-refresh.yml` |
+| Historical archive | [prompts/archive.md](prompts/archive.md) | [archive.md](archive.md) | `scripts/archive/**`, `archive*.yml`, `docs/DATA_ARCHIVE.md`, the `data-archive` branch |
+| Data badge (Live / Snapshot) | [prompts/badge-ux.md](prompts/badge-ux.md) | [badge-ux.md](badge-ux.md) | badge code in `public/app.js`, `pending` in `public/api.js`, `test/e2e/badge.e2e.js` |
+| Methodology copy | [prompts/methodology-copy.md](prompts/methodology-copy.md) | [methodology-copy.md](methodology-copy.md) | `docs/METHODOLOGY_GUIDE.md` |
+| Methodology UX + infographics | [prompts/methodology-ux.md](prompts/methodology-ux.md) | [methodology-ux.md](methodology-ux.md) | `scripts/methodology.js`, `scripts/methodology-figures.js`, `scripts/md.js` |
+| Desktop / mobile QA, mobile perf, fixes | [prompts/qa-desktop.md](prompts/qa-desktop.md), [qa-mobile.md](prompts/qa-mobile.md), [perf-mobile.md](prompts/perf-mobile.md), [fix-frontend.md](prompts/fix-frontend.md) | [qa-desktop.md](qa-desktop.md), [qa-mobile.md](qa-mobile.md), [perf-mobile.md](perf-mobile.md), [fix-frontend.md](fix-frontend.md) | `docs/QA.md`, `test/e2e/*-qa.e2e.js`, `public/unpack-worker.js` |
 
 ## Replaying the build from scratch
 

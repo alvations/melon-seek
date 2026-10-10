@@ -63,6 +63,13 @@
 // beta site send no CORS headers) is never fetched from the browser. Its bundled
 // snapshot is served quietly: `error: null`, so the badge reads "Snapshot · <date>"
 // with no "Live fetch skipped" message.
+//
+// Bundle first (static mode): for built-ins the live board and the bundled list are
+// fetched together. When the bundle lands first and the caller passed `onUpdate`,
+// the result carries `pending: true` (the live board is still loading) and onUpdate
+// is called exactly once to settle it: with the live result, or, if the live fetch
+// fails, with the same list, `pending: false` and the failure in `error`
+// (docs/process/badge-ux.md).
 
 const FRESH_TTL_MS = 30 * 60 * 1000; // same as the server cache (responsible use)
 const LIVE_TIMEOUT_MS = 12000;
@@ -476,7 +483,7 @@ async function bundled(path, signal, refresh = false) {
   }
 }
 
-async function staticJobs(p, { refresh = false, signal, onUpgrade = null } = {}) {
+async function staticJobs(p, { refresh = false, signal, onLive = null } = {}) {
   const lib = await loadLib();
 
   let company;
@@ -507,8 +514,10 @@ async function staticJobs(p, { refresh = false, signal, onUpgrade = null } = {})
   }
 
   // 1. Live, from the browser. For built-ins (not on refresh) the bundled list is fetched at the
-  //    same time: whichever arrives first is shown, and a live result that lands after the bundle
-  //    is handed to onUpgrade, so a big live board (Anduril: 33 MB) never blocks the first chart.
+  //    same time: whichever arrives first is shown, so a big live board (Anduril: 33 MB) never
+  //    blocks the first chart. A bundle shown first is marked `pending` (when onLive is given)
+  //    and onLive is called once when the live fetch ends: with the live result, or with the
+  //    bundle again carrying the failure exactly as if the live fetch had failed first.
   let error = null;
   let quiet = false; // expected CORS failure: serve the snapshot without an error
   const allowed = liveSources().includes(company.source);
@@ -575,8 +584,15 @@ async function staticJobs(p, { refresh = false, signal, onUpgrade = null } = {})
       const first = await Promise.race([livePending.then((r) => ({ r })), bundlePending.then((b) => ({ b }))]);
       if (!first.r && first.b) {
         // Bundle first: show it now; the live board replaces it if it arrives.
-        livePending.then((r) => { if (r.ok && onUpgrade && !(signal && signal.aborted)) onUpgrade(r.ok); }).catch(() => {});
-        return fromBundle(first.b);
+        if (!onLive) return fromBundle(first.b);
+        livePending.then((r) => {
+          if (signal && signal.aborted) return;
+          if (r.ok) return onLive(r.ok);
+          error = r.error;
+          quiet = r.quiet;
+          onLive(fromBundle(first.b));
+        }).catch(() => {});
+        return { ...fromBundle(first.b), pending: true };
       }
     }
     const r = await livePending;
@@ -707,7 +723,11 @@ async function withJuice(res, inputs) {
  * `GET /api/jobs` → { company, mode, fetchedAt, error, jobs }, every job
  * with `juice` attached (see the header).
  * @param params {company} | {source, board, name?} | URLSearchParams | slug string
- * @param opts   {refresh?: boolean, signal?: AbortSignal}
+ * @param opts   {refresh?: boolean, signal?: AbortSignal, onUpdate?: (result) => void}
+ *   onUpdate (static mode): a result with `pending: true` is a bundled list shown while the
+ *   live board still loads. onUpdate is then called exactly once, never after an abort: with
+ *   the live result (mode "live"), or, if the live fetch fails, with the same result
+ *   (same `jobs` array) with `pending: false` and the failure in `error` (null when quiet).
  */
 export async function getJobs(params, { refresh = false, signal, onUpdate = null } = {}) {
   const p = toParams(params);
@@ -729,13 +749,20 @@ export async function getJobs(params, { refresh = false, signal, onUpdate = null
       if (await withJuice(out, inputs)) rememberBundle(raw, out.jobs);
       return out;
     };
-    // A live board that lands after the bundled list was shown: finished the same way, then
-    // passed to onUpdate (static mode only; see staticJobs step 1).
-    const onUpgrade = typeof onUpdate === 'function'
-      ? (live) => { finish(live).then((done) => { if (!(signal && signal.aborted)) onUpdate(done); }).catch(() => {}); }
+    // The live fetch behind a `pending` bundle ended (staticJobs step 1): a live board is
+    // finished the same way; a failure settles the result this call returned (shown).
+    let showResult;
+    const shown = new Promise((resolve) => { showResult = resolve; });
+    const onLive = typeof onUpdate === 'function'
+      ? (next) => {
+        const done = next.mode === 'live' ? finish(next) : shown.then((s) => ({ ...s, pending: false, error: next.error }));
+        done.then((d) => { if (!(signal && signal.aborted)) onUpdate(d); }).catch(() => {});
+      }
       : null;
-    res = await staticJobs(p, { refresh: r, signal, onUpgrade });
-    return finish(res);
+    res = await staticJobs(p, { refresh: r, signal, onLive });
+    const out = finish(res);
+    showResult(out);
+    return out;
   }
   res = await getJson(`api/jobs?${jobsQuery(p, r)}`, { signal }); // vetted by the server
   await withJuice(res, inputs);

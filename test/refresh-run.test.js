@@ -99,7 +99,7 @@ test('run: ok / changed / thrown / missing / unregistered results, writes only w
       mod('two', ['c'], async () => { throw new Error('kaboom'); }),
       mod('three', ['d'], async (ctx) => [res('d', 'ok', { summary: `sees ${ctx.readText('data/x.json').trim()}` })]),
     ];
-    const dry = await run.runRefresh({ root: s.dir, modules, now: NOW, dryRun: true, log: () => {} });
+    const dry = await run.runRefresh({ root: s.dir, modules, now: NOW, retryDelayMs: 0, dryRun: true, log: () => {} });
     const by = Object.fromEntries(dry.results.map((r) => [r.id, r]));
     assert.equal(by.a.status, 'ok');
     assert.equal(by.b.status, 'changed');
@@ -109,7 +109,7 @@ test('run: ok / changed / thrown / missing / unregistered results, writes only w
     assert.ok(dry.problems.some((p) => /unregistered id zzz/.test(p)));
     assert.deepEqual(dry.files.sort(), ['data/freshness.json', 'data/x.json']);
     assert.equal(s.read('data/x.json'), '{"v":1}\n', 'dry run writes nothing');
-    const wet = await run.runRefresh({ root: s.dir, modules, now: NOW, log: () => {} });
+    const wet = await run.runRefresh({ root: s.dir, modules, now: NOW, retryDelayMs: 0, log: () => {} });
     assert.deepEqual(wet.written.sort(), ['data/freshness.json', 'data/x.json']);
     assert.equal(s.read('data/x.json'), '{"v":2}\n');
     const reg = JSON.parse(s.read('data/freshness.json'));
@@ -129,7 +129,7 @@ test('run: a staged file that fails validation flags every result that wrote it'
       res('a', 'changed', { writes: [{ file: 'data/x.json', content: '{ not json' }] }),
       res('b', 'changed', { writes: [{ file: 'lib/y.js', content: 'export const A = ;\n' }] }),
     ])];
-    const r = await run.runRefresh({ root: s.dir, modules, now: NOW, log: () => {} });
+    const r = await run.runRefresh({ root: s.dir, modules, now: NOW, retryDelayMs: 0, log: () => {} });
     const by = Object.fromEntries(r.results.map((x) => [x.id, x]));
     assert.equal(by.a.status, 'flag');
     assert.match(by.a.summary, /not JSON/);
@@ -147,7 +147,7 @@ test('run: writes outside the repo and writes from non-changed results are refus
       res('a', 'changed', { writes: [{ file: '../escape.txt', content: 'x' }] }),
       res('b', 'drift', { writes: [{ file: 'data/z.json', content: '{}' }] }),
     ])];
-    const r = await run.runRefresh({ root: s.dir, modules, now: NOW, log: () => {} });
+    const r = await run.runRefresh({ root: s.dir, modules, now: NOW, retryDelayMs: 0, log: () => {} });
     const by = Object.fromEntries(r.results.map((x) => [x.id, x]));
     assert.equal(by.a.status, 'error');
     assert.equal(by.b.status, 'drift');
@@ -187,7 +187,7 @@ test('run: --only limits modules and ids', async () => {
   try {
     let calls = 0;
     const modules = [mod('one', ['a'], async () => { calls++; return [res('a', 'ok')]; }), mod('two', ['b'], async () => { calls++; return [res('b', 'ok')]; })];
-    const r = await run.runRefresh({ root: s.dir, modules, now: NOW, dryRun: true, only: ['two'], log: () => {} });
+    const r = await run.runRefresh({ root: s.dir, modules, now: NOW, retryDelayMs: 0, dryRun: true, only: ['two'], log: () => {} });
     assert.equal(calls, 1);
     assert.deepEqual(r.results.map((x) => x.id), ['b']);
   } finally { s.cleanup(); }
@@ -277,8 +277,31 @@ test('staleness: reviewCadence keeps a human-review clock that lastChecked canno
   const s = scratch([entry('m', { mode: 'manual', updater: 'scripts/refresh/test.js', checklist: ['look'], lastChecked: '2026-01-01' })]);
   try {
     const modules = [mod('one', ['m'], async () => [lib.result('m', 'manual', 'ok', { summary: 'not due' })])];
-    await run.runRefresh({ root: s.dir, modules, now: NOW, log: () => {} });
+    await run.runRefresh({ root: s.dir, modules, now: NOW, retryDelayMs: 0, log: () => {} });
     const reg = JSON.parse(s.read('data/freshness.json'));
     assert.equal(reg.entries[0].lastChecked, '2026-01-01');
+  } finally { s.cleanup(); }
+});
+
+test('run: online, a result that errored is retried once and replaced only if the retry could check it', async () => {
+  const s = scratch([entry('a'), entry('b'), entry('c')]);
+  try {
+    let calls = 0;
+    const modules = [mod('one', ['a', 'b', 'c'], async () => {
+      calls++;
+      return calls === 1
+        ? [res('a', 'ok'), res('b', 'error', { summary: 'host blip' }), res('c', 'error', { summary: 'down' })]
+        : [res('a', 'drift'), res('b', 'ok', { summary: 'fine now' }), res('c', 'error', { summary: 'still down' })];
+    })];
+    const r = await run.runRefresh({ root: s.dir, modules, now: NOW, retryDelayMs: 0, dryRun: true, retryDelayMs: 0, fetchImpl: noNet, log: () => {} });
+    const by = Object.fromEntries(r.results.map((x) => [x.id, x]));
+    assert.equal(calls, 2);
+    assert.equal(by.a.status, 'ok', 'a non-error first result is kept');
+    assert.equal(by.b.status, 'ok');
+    assert.match(by.b.summary, /after one retry/);
+    assert.equal(by.c.status, 'error');
+    const off = await run.runRefresh({ root: s.dir, modules, now: NOW, retryDelayMs: 0, dryRun: true, offline: true, log: () => {} });
+    assert.equal(calls, 3, 'offline runs are never retried');
+    assert.ok(off.results.length === 3);
   } finally { s.cleanup(); }
 });

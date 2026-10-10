@@ -295,7 +295,9 @@ against the race:
 
 ### Methodology page and the link policy
 
-`docs/LIVABILITY.md` is rendered into the site as `methodology/index.html`.
+The Juice Score has a human guide, `docs/METHODOLOGY_GUIDE.md`, rendered as `methodology/` with
+charts built from the live code at build time (`scripts/methodology-figures.js`), and the full
+technical reference, `docs/LIVABILITY.md`, rendered as `methodology/reference/`.
 `scripts/md.js` is a tiny dependency-free Markdown converter whose heading ids
 match GitHub's, so `#1-the-formula` works; `scripts/methodology.js` builds the
 page. The Juice "How it's calculated" link points there

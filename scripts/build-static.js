@@ -28,8 +28,10 @@
 //                             registry: id, asOf, taxYear, source, cadence, lastChecked, stale),
 //                             from scripts/refresh/derived.js#publicFreshness; read by
 //                             public/features/freshness.js for the "as of" labels. Optional.
-//   dist/methodology/         docs/LIVABILITY.md as a site page (scripts/methodology.js), the
-//                             target of the Juice "How it's calculated" link; never GitHub
+//   dist/methodology/         the Juice Score guide, docs/METHODOLOGY_GUIDE.md with build-time charts
+//                             from server/juice.js + data/cities.json (scripts/methodology.js), the
+//                             target of the Juice "How it's calculated" link; never GitHub.
+//                             methodology/reference/ is docs/LIVABILITY.md, the full technical reference
 //   dist/index.html           also carries <meta name="melon-seek-build" content="<sha>">, the
 //                             marker the post-deploy check and site-watchdog.yml look for
 //   dist/.nojekyll
@@ -1138,14 +1140,19 @@ async function buildSite(ctx, site) {
   await fs.writeFile(indexFile, injectHints(await fs.readFile(indexFile, 'utf8'), hints.lines));
   const hintNote = `${hints.modules.length} modulepreload, ${hints.json.length} fetch preload, ${boardOrigins.length} preconnect`;
 
-  // 5b. Methodology page (Juice Score docs on the site itself).
-  const livability = path.join(ROOT, 'docs', 'LIVABILITY.md');
-  if (existsSync(livability)) {
-    const { renderMethodologyPage, METHODOLOGY_CSS } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'methodology.js')).href);
-    await fs.mkdir(path.join(out, 'methodology'), { recursive: true });
-    await fs.writeFile(path.join(out, 'methodology', 'index.html'), renderMethodologyPage({ md: await fs.readFile(livability, 'utf8'), sha: BUILD_SHA }));
-    await fs.writeFile(path.join(out, 'methodology', 'methodology.css'), METHODOLOGY_CSS);
-  } else {
+  // 5b. Methodology pages (Juice Score docs on the site itself; scripts/methodology.js): the guide
+  // with build-time charts at methodology/, the technical reference at methodology/reference/.
+  // A guide error (unknown placeholder, no #1-the-formula) fails the build.
+  const { methodologyPages } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'methodology.js')).href);
+  try {
+    const m = await methodologyPages({ root: ROOT, sha: BUILD_SHA });
+    for (const [rel, body] of Object.entries(m.files)) {
+      await fs.mkdir(path.dirname(path.join(out, 'methodology', rel)), { recursive: true });
+      await fs.writeFile(path.join(out, 'methodology', rel), body);
+    }
+    for (const w of m.warnings) warn(w);
+  } catch (err) {
+    if (err.code !== 'NO_REFERENCE') throw new Error(`methodology page: ${err.message}`);
     warn('docs/LIVABILITY.md missing; no methodology page (the Juice link would break; the link check will fail)');
   }
 

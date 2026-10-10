@@ -562,14 +562,17 @@ async function loadJobs({ refresh = false } = {}) {
   mapFitPending = true;
   data = { status: 'loading', jobs: [], company: companyInfo(S.c), mode: null, fetchedAt: null, error: null };
   render();
+  // Static mode shows the bundled list as soon as it lands, marked `pending` while the live board
+  // loads (api.js staticJobs step 1); onUpdate then settles it once (settleLive). It waits until
+  // the first list is on screen, so a quick live answer or failure is never dropped mid-prepare.
+  let onScreen;
+  const shown = new Promise((resolve) => { onScreen = resolve; });
+  const onUpdate = (next) => { shown.then(() => { if (seq === loadSeq) settleLive(next, seq); }); };
   try {
-    // Static mode shows the bundled list as soon as it lands and fetches the live board at the same
-    // time; onUpdate swaps the live jobs in when they arrive (api.js staticJobs step 1).
-    const onUpdate = (live) => { if (seq === loadSeq) applyJobs(live, seq, { upgrade: true }); };
     const res = await dataApi.getJobs(jobsQuery(S.c), { refresh, signal: abortCtl.signal, onUpdate });
     if (seq !== loadSeq) return;
     if (!(await applyJobs(res, seq))) return;
-    if (refresh) toast(data.mode === 'live' ? 'Fetched fresh from the live board' : 'Live board unreachable — showing fallback data');
+    if (refresh) toast(data.mode === 'live' ? 'Fetched fresh from the live board' : bundleOnly(data.company) ? 'This board is only available as a saved snapshot' : 'Live board unreachable — showing fallback data');
   } catch (err) {
     if (err?.name === 'AbortError' || seq !== loadSeq) return;
     data = { status: 'error', jobs: [], company: companyInfo(S.c), mode: null, fetchedAt: null, error: err?.message || String(err) };
@@ -577,6 +580,25 @@ async function loadJobs({ refresh = false } = {}) {
   settleCarry();
   render();
   if (S.job) openDrawer(S.job, { fromHash: true });
+  onScreen();
+}
+
+/** The live fetch behind a `pending` list ended: swap the live board in, or keep the list quietly. */
+function settleLive(next, seq) {
+  if (data.status !== 'ready' || !data.pending) return;
+  const settle = (error) => {
+    if (seq !== loadSeq || !data.pending) return;
+    data = { ...data, pending: false, error };
+    renderTopbar();
+    syncPopover();
+  };
+  if (next?.mode === 'live') {
+    // A failed swap must not leave the badge saying "checking live…".
+    applyJobs(next, seq, { upgrade: true }).catch((err) => console.error('live update failed', err)).then(() => settle(data.error));
+    return;
+  }
+  // The live board failed: same list; the badge stops checking and the popover gives the reason.
+  settle(next?.error ?? null);
 }
 
 /** Prepare a getJobs result and make it the current data. false if a newer load took over. */
@@ -606,14 +628,42 @@ async function applyJobs(res, seq, { upgrade = false } = {}) {
     fetchedAt: res?.fetchedAt ? Date.parse(res.fetchedAt) : null,
     error: res?.error || null,
     meta: res?.meta || null,
+    pending: !!res?.pending, // static mode: the live board is still loading (api.js getJobs onUpdate)
   };
   markVisit(S.c, data.jobs);
   if (upgrade) {
-    // Same filters and view; the open job (if any) is re-resolved by id on render.
+    // The live board replaces the list on screen: same filters, view, scroll, selection, hover and
+    // open drawer (re-resolved by id on render). A focused card keeps focus, and screen readers
+    // hear one polite note instead of the results count's live region (docs/process/badge-ux.md).
+    data.arrivedAt = performance.now();
+    const focusId = document.activeElement?.closest?.('#resultsList .card[data-id]')?.dataset.id;
+    const list = $('#resultsList');
+    const top = list?.scrollTop ?? 0; // rebuilding the list under a focused card resets its scroll
     settleCarry();
-    render();
+    quietly($('#resultsTitle'), render);
+    if (focusId && !document.activeElement?.closest?.('#resultsList .card')) $(`#resultsList .card[data-id="${cssId(focusId)}"]`)?.focus({ preventScroll: true });
+    if (list && Math.abs(list.scrollTop - top) > 1) list.scrollTop = top;
+    announce(`Updated from the live board: ${plural(data.jobs.length, 'role')}.`);
   }
   return true;
+}
+
+/** Run fn with el's polite live region muted; restored once the accessibility tree has caught up. */
+function quietly(el, fn) {
+  const was = el?.getAttribute('aria-live');
+  if (was) el.setAttribute('aria-live', 'off');
+  try { fn(); } finally { if (was) setTimeout(() => el.setAttribute('aria-live', was), 1000); }
+}
+/** The polite status region for data-source changes (created on the first render, before any use). */
+function liveRegion() {
+  return $('#dataLive') || document.body.appendChild(h('div', { id: 'dataLive', class: 'sr-only', role: 'status', 'aria-live': 'polite' }));
+}
+let announceTimer = 0;
+function announce(msg) {
+  const el = liveRegion();
+  el.textContent = msg;
+  clearTimeout(announceTimer);
+  announceTimer = setTimeout(() => { el.textContent = ''; }, 8000);
 }
 
 function companyInfo(key) {
@@ -701,24 +751,40 @@ function renderTopbar() {
   const search = $('#search');
   if (document.activeElement !== search && search.value !== S.q) search.value = S.q;
 
-  // Data-mode badge (a button: details open in a popover; tip also exposed via aria-describedby)
+  // Data-mode badge (a button: details open in a popover). Its name is the spoken label and the tip
+  // its description; the narrow-width labels (data-short/-tiny/-micro, styles.css) are visual only.
+  // Rebuilt only when it changes, so the dot's animation is never restarted by an unrelated render.
   const badge = $('#dataBadge');
   const banner = $('#demoBanner');
   const info = badgeInfo();
-  badge.className = `data-badge ${info ? info.cls : ''}`;
+  // One soft pulse when the live board has just replaced the list (none with reduced motion).
+  const arrived = info?.cls === 'is-live' && data.arrivedAt && performance.now() - data.arrivedAt < 1500;
+  badge.className = `data-badge ${info ? info.cls : ''}${arrived ? ' is-arrived' : ''}`;
   badge.hidden = !info;
+  liveRegion();
   if (info) {
-    badge.replaceChildren(h('span', { class: 'badge-dot', 'aria-hidden': 'true' }), h('span', { class: 'badge-label', 'data-short': info.short || info.label, 'data-tiny': info.tiny || info.short || info.label, 'data-micro': info.micro || info.tiny || info.short || info.label }, info.label),
-      h('span', { class: 'sr-only', id: 'dataBadgeTip' }, info.tip));
-    badge.setAttribute('aria-describedby', 'dataBadgeTip');
-    badge.title = info.tip;
+    const short = info.short || info.label;
+    const tiny = info.tiny || short;
+    const micro = info.micro || tiny;
+    const sig = [info.label, short, tiny, micro, info.sr, info.tip].join('␟');
+    if (badge.dataset.sig !== sig) {
+      badge.dataset.sig = sig;
+      badge.replaceChildren(h('span', { class: 'badge-dot', 'aria-hidden': 'true' }),
+        h('span', { class: 'badge-label', 'aria-hidden': 'true', 'data-short': short, 'data-tiny': tiny, 'data-micro': micro }, info.label),
+        h('span', { class: 'sr-only', id: 'dataBadgeTip' }, info.tip));
+      badge.setAttribute('aria-label', `Data source: ${info.sr || info.label}`);
+      badge.setAttribute('aria-describedby', 'dataBadgeTip');
+      badge.title = info.tip;
+    }
   }
   banner.hidden = true;
   if (data.status === 'ready' && (MOCK || data.mode === 'demo')) {
     // One thin muted line; the full explanation and the raw error sit in a disclosure.
     banner.hidden = false;
     const wasOpen = banner.querySelector('details')?.open;
-    const short = MOCK ? 'Mock data — not real postings' : `Demo data — the ${data.company?.name || ''} board couldn’t be reached`;
+    const short = MOCK ? 'Mock data — not real postings'
+      : data.pending ? `Demo data for now — checking the ${data.company?.name || ''} live board…`
+        : `Demo data — the ${data.company?.name || ''} board couldn’t be reached`;
     const long = MOCK
       ? 'These roles come from the local development generator (?mock=1, localhost only), not from any job board.'
       : 'So you can still explore the interface, these roles are generated samples — not real postings, salaries or locations.';
@@ -732,23 +798,46 @@ function renderTopbar() {
   $('#refreshBtn').classList.toggle('is-spinning', data.status === 'loading');
 }
 
+/**
+ * The data badge: { label, short?, tiny?, micro? (narrower widths), cls, sr? (spoken), tip }.
+ * The dot pulses only while work is in progress: loading, or `pending` (a bundled list on screen
+ * while the live board loads); then the label says "checking live…" too, so the pulse never
+ * carries the meaning alone. Live, Snapshot, Cached and Demo are steady.
+ */
 function badgeInfo() {
-  if (data.status === 'loading') return { label: 'Loading', cls: 'is-loading', tip: 'Fetching roles…' };
+  if (data.status === 'loading') return { label: 'Loading', cls: 'is-loading', sr: 'loading', tip: 'Fetching roles…' };
   if (data.status === 'error') return { label: 'Offline', cls: 'is-error', tip: `Couldn’t load this board: ${data.error}` };
   if (data.status !== 'ready') return null;
-  const src = data.company?.source ? `${SOURCE_LABEL[data.company.source] || data.company.source} / ${data.company.board}` : '';
+  const src = sourceText(data.company);
   const when = data.fetchedAt ? ago(data.fetchedAt) : null;
+  const day = data.fetchedAt ? shortDate(data.fetchedAt) : null;
   // The server already says "Live fetch failed: …"; add that prefix only when it's missing.
   const failed = data.error ? (/^live fetch (failed|skipped)/i.test(data.error) ? data.error : `Live fetch failed: ${data.error}`) : '';
+  const checking = 'Checking the live board now; the list updates by itself if it answers.';
   if (MOCK) return { label: 'Mock data', short: 'Mock data', tiny: 'Mock', cls: 'is-demo', tip: `Synthetic development data from mock-api.js (?mock=1, localhost only) — not real postings. Simulated mode: ${data.mode}.` };
   switch (data.mode) {
-    case 'live': return { label: 'Live', tiny: 'Live', cls: 'is-live', tip: `Fetched live from ${src}${when ? ` · ${when}` : ''}.` };
+    case 'live': return { label: 'Live', tiny: 'Live', cls: 'is-live', sr: 'live board', tip: `Fetched live from ${src}${when ? ` · ${when}` : ''}.` };
     case 'cache': return { label: when ? `Cached · ${when}` : 'Cached', tiny: 'Cached', micro: 'Cached', cls: 'is-cache', tip: `Served from a recent copy of ${src}${failed ? ` (${failed})` : ''}. Refresh to fetch live.` };
-    case 'snapshot': return { label: data.fetchedAt ? `Snapshot · ${shortDate(data.fetchedAt)}` : 'Snapshot', micro: data.fetchedAt ? shortDate(data.fetchedAt) : 'Saved', cls: 'is-snapshot', tip: `Saved snapshot of ${src}${data.fetchedAt ? ` from ${shortDate(data.fetchedAt)}` : ''}${failed ? `. ${failed}` : ''}.` };
-    case 'demo': return { label: 'Demo data — live board unreachable', short: 'Demo data', tiny: 'Demo', cls: 'is-demo', tip: `Generated sample data, not real postings.${data.error ? ` Error: ${data.error}` : ''}` };
+    case 'snapshot': {
+      const tip = `Saved snapshot of ${src}${day ? ` from ${day}` : ''}`;
+      const sr = `saved snapshot${day ? ` from ${day}` : ''}`;
+      if (data.pending) return { label: `Snapshot${day ? ` · ${day}` : ''} · checking live…`, short: 'Snapshot · checking live…', tiny: 'Checking live…', micro: 'Checking…', cls: 'is-snapshot is-pending', sr: `${sr}, checking the live board`, tip: `${tip}. ${checking}` };
+      const only = bundleOnly(data.company) ? ' This board is collected by the site’s crawler; your browser can’t fetch it live.' : '';
+      return { label: day ? `Snapshot · ${day}` : 'Snapshot', micro: day || 'Saved', cls: 'is-snapshot', sr, tip: `${tip}${failed ? `. ${failed}` : ''}.${only}` };
+    }
+    case 'demo':
+      if (data.pending) return { label: 'Demo data · checking live…', short: 'Demo · checking live…', tiny: 'Checking live…', micro: 'Checking…', cls: 'is-demo is-pending', sr: 'demo data, checking the live board', tip: `Generated sample data, not real postings. ${checking}` };
+      return { label: 'Demo data — live board unreachable', short: 'Demo data', tiny: 'Demo', cls: 'is-demo', tip: `Generated sample data, not real postings.${data.error ? ` Error: ${data.error}` : ''}` };
     default: return { label: String(data.mode), cls: '', tip: src };
   }
 }
+/** "Greenhouse / anthropic", or "<Name> careers site" for a built-in-only source (big-tech beta). */
+function sourceText(c) {
+  if (!c?.source) return '';
+  return SOURCE_LABEL[c.source] ? `${SOURCE_LABEL[c.source]} / ${c.board}` : `${c.name || c.board} careers site`;
+}
+/** Static build, `live: false` company (docs/CONTRACT.md v3): served from its snapshot only. */
+function bundleOnly(c) { return !!(api.isStatic?.() && c?.live === false); }
 
 /** F7: open-data CSV for the current built-in company (server: /api/export, static: data/<slug>.csv). */
 function csvLink() {
@@ -760,22 +849,34 @@ function csvLink() {
 }
 
 function makeBadgeDetails() {
-  const el = h('div', { class: 'badge-details' });
+  // Built once per popover; sync() updates it in place, so focus on its button or link survives
+  // a re-render (e.g. the live board replacing the snapshot while the popover is open).
+  const tip = h('p');
+  const dl = h('dl');
+  const err = h('pre', { class: 'badge-error', hidden: true });
+  const refresh = MOCK ? null : h('button', { type: 'button', class: 'btn btn--ghost btn--sm btn--block', onclick: () => { closePopover(false); loadJobs({ refresh: true }); } }, 'Refresh from the live board');
+  const csv = h('div');
+  const el = h('div', { class: 'badge-details' }, ...nn(tip, dl, err, refresh, csv));
   function sync() {
     const info = badgeInfo();
     const c = data.company || {};
     const rows = [
       ['Status', info?.label || '—'],
-      ['Source', c.source ? `${SOURCE_LABEL[c.source] || c.source} / ${c.board}` : '—'],
+      ['Source', sourceText(c) || '—'],
       ['Fetched', data.fetchedAt ? `${new Date(data.fetchedAt).toLocaleString()} (${ago(data.fetchedAt)})` : '—'],
       ['Roles', data.jobs.length.toLocaleString()],
     ];
-    el.replaceChildren(...nn(h('p', null, info?.tip || ''),
-      h('dl', null, ...rows.map(([k, v]) => [h('dt', null, k), h('dd', null, v)])),
-      // M-14: the raw error only when the sentence above doesn't already carry it.
-      data.error && !(info?.tip || '').includes(data.error) ? h('pre', { class: 'badge-error' }, data.error) : null,
-      MOCK ? null : h('button', { type: 'button', class: 'btn btn--ghost btn--sm btn--block', onclick: () => { closePopover(false); loadJobs({ refresh: true }); } }, 'Refresh from the live board'),
-      csvLink()));
+    tip.textContent = info?.tip || '';
+    dl.replaceChildren(...rows.flatMap(([k, v]) => [h('dt', null, k), h('dd', null, v)]));
+    // M-14: the raw error only when the sentence above doesn't already carry it.
+    const raw = data.error && !(info?.tip || '').includes(data.error) ? data.error : '';
+    err.textContent = raw;
+    err.hidden = !raw;
+    // A snapshot-only board (static `live: false`) has no live board to refresh from.
+    if (refresh) refresh.hidden = bundleOnly(c);
+    const link = csvLink();
+    const href = link?.querySelector('a')?.getAttribute('href') || '';
+    if (csv.dataset.href !== href) { csv.dataset.href = href; csv.replaceChildren(...nn(link)); }
   }
   return { el, sync };
 }

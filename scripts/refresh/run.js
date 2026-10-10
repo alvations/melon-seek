@@ -278,6 +278,32 @@ export async function runRefresh(opts = {}) {
     results.push(...list);
   }
 
+  // One delayed retry for results that could not be checked (online only): a host that blips
+  // once should not land in the monthly issue. Only the ids that errored take the retry's result.
+  if (!opts.offline && opts.retryErrors !== false) {
+    const errored = new Set(results.filter((r) => r.status === 'error').map((r) => r.id));
+    const retryMods = modules.filter((m) => !m.loadError && m.ids.some((id) => errored.has(id)));
+    if (retryMods.length) {
+      await new Promise((ok) => setTimeout(ok, opts.retryDelayMs ?? 20000));
+      for (const mod of retryMods) {
+        const ctx = makeContext({ moduleName: mod.name, offline: false, dryRun: opts.dryRun, now, root, registry, fetchImpl: opts.fetchImpl, fixturesDir: opts.fixturesDir, log: (...a) => log(`${mod.name} (retry):`, ...a) });
+        ctx.readText = (rel) => overlay.read(rel);
+        ctx.readJson = (rel) => JSON.parse(overlay.read(rel));
+        ctx.exists = (rel) => overlay.exists(rel);
+        let raw;
+        try { raw = await withTimeout(Promise.resolve(mod.check(ctx)), opts.timeoutMs || MODULE_TIMEOUT_MS, `module ${mod.name}`); } catch { continue; }
+        for (const r of (Array.isArray(raw) ? raw : []).map((x) => normalizeResult(x, mod.name))) {
+          if (!errored.has(r.id) || r.status === 'error') continue;
+          const i = results.findIndex((x) => x.id === r.id);
+          r.summary = `${r.summary} (after one retry)`;
+          results[i] = r;
+          if (r.status === 'changed') for (const w of r.writes) overlay.stage(w.file, w.content, r.id);
+        }
+        log(`${mod.name} (retry): ${summarize(results.filter((x) => mod.ids.includes(x.id)))}`);
+      }
+    }
+  }
+
   // Validate staged files; a bad file flags every result that wrote it.
   for (const [rel, p] of [...overlay.pending.entries()]) {
     const errs = await validateStagedFile(rel, p.content, root);

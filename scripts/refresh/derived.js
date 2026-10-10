@@ -178,7 +178,7 @@ export function compareUnmarked(text, id, juice, cities) {
     const sentence = EX.legendSentence(juice);
     if (!flat.includes(sentence)) {
       const m = /Other legend points:[^.]*?100 = \$[\d,]+\./.exec(flat);
-      findings.push({ key: `${id} legend points`, encoded: m ? m[0] : '(missing)', official: sentence, unit: 'sentence', url: null, note: 'netForScore() points' });
+      findings.push({ key: `${id} legend points`, encoded: m ? m[0] : '(missing)', official: sentence, unit: 'sentence', url: null, note: 'rounded-score thresholds (examples.js netForShownScore)' });
     }
   }
   return { found: true, findings };

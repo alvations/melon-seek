@@ -17,6 +17,11 @@
 //   3. dist only: every relative link (HTML attributes, and directory-style
 //      page links in JS such as 'methodology/#1-the-formula') must resolve to a
 //      file in dist, and its #anchor must exist in the target page.
+//   4. dist only (checkMethodology): where the technical reference is built
+//      (methodology/reference/, docs/LIVABILITY.md), methodology/ (the guide) exists
+//      and carries every one of the reference's heading ids, so an old link such as
+//      methodology/#3-tax-model or #score-curve-and-grades still lands on the guide
+//      (scripts/methodology.js gives each one a home there).
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -156,7 +161,25 @@ export function checkRelative(dist, file, text) {
   return v;
 }
 
-/** Every violation in a built dist (rules 1-3). */
+/** Rule 4: the guide (methodology/) keeps every heading id of the reference (methodology/reference/). */
+export function checkMethodology(dist) {
+  const v = [];
+  for (const prefix of ['', 'beta/']) {
+    const ref = path.join(dist, prefix, 'methodology', 'reference', 'index.html');
+    if (!fs.existsSync(ref)) continue;
+    const guide = path.join(dist, prefix, 'methodology', 'index.html');
+    if (!fs.existsSync(guide)) { v.push(`${prefix}methodology/index.html missing (the reference is built, the guide is not)`); continue; }
+    const have = idsIn(guide);
+    const headings = [...fs.readFileSync(ref, 'utf8').matchAll(/<h[1-6]\s+id\s*=\s*["']([^"']+)["']/g)].map((m) => m[1]);
+    if (!headings.length) v.push(`${prefix}methodology/reference/index.html has no headings`);
+    for (const id of headings) {
+      if (!have.has(id)) v.push(`${prefix}methodology/index.html: no id="${id}" (old links to methodology/#${id} would break; methodology/reference/ has it)`);
+    }
+  }
+  return v;
+}
+
+/** Every violation in a built dist (rules 1-4). */
 export function checkDist(dist, opts = {}) {
   idCache.clear();
   const v = [];
@@ -165,5 +188,6 @@ export function checkDist(dist, opts = {}) {
     const rel = path.relative(dist, f).split(path.sep).join('/');
     v.push(...checkText(rel, text, opts), ...checkRelative(dist, f, text));
   }
+  v.push(...checkMethodology(dist));
   return v;
 }

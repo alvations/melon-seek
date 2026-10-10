@@ -58,6 +58,22 @@ GitHub runs `schedule:` triggers only from the repository's **default branch**.
 - `col-refresh.yml` is now manual-only, so it doesn't race the monthly refresh.
 - If the default branch later becomes `main`, every schedule moves with it. The workflows read `github.event.repository.default_branch` for the PR base, so nothing needs to change.
 
+### First live run (2026-10-10)
+
+`monthly-refresh.yml` ran with `dry_run: true` on a GitHub runner: runs 38040981168, 38041238228 and 38041463639. It used the live hosts and needed about one minute.
+- **Restored:** 8 job snapshots and the history ledger.
+- **Exported for the archive:** 109 reference datasets, before anything changed.
+- **Checked:** all 131 registry entries.
+- **Would change:** the FX table, now ECB September 2026 monthly averages. That touches cities.json and four code copies, plus the registry and this page.
+- **Real alerts:**
+  - HUD FY2027 FMRs are published, but HUD's eGIS still serves FY2026; it needs `HUD_API_TOKEN`.
+  - 8 Numbeo rents and 5 cost-index values are past due.
+  - Next-year tax figures are out for Ireland (Budget 2027), Canada (EI 2027) and Portland (Metro SHS 2027).
+  - Columbus is still encoded at tax year 2024.
+  - Node 18 and 20 are past end of life.
+  - Some LIVABILITY tables and counts have drifted.
+- **Transient errors:** gov.scot and gov.bc.ca failed once. Both checked fine on a re-run, which led to the retry above.
+
 ### What the repository owner must enable
 
 | Setting | Why | Without it |
@@ -175,6 +191,7 @@ lib.js also provides these helpers:
   - JSON files must parse;
   - JS files must pass `node --check`.
   A failure turns the result into `flag`, and nothing is written.
+- Online runs give every result that came back `error` one more try, about 20 s later. A host that blips once doesn't land in the issue; a host that is really down still does.
 - After a run, `lastChecked` moves for every `ok` or `changed` result. `asOf` moves to the source's as-of on `changed`. On `ok`, it moves for fetched or derived data when the module saw newer data.
 
 ## 4. Operator runbook
