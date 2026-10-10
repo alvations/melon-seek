@@ -156,17 +156,26 @@ function span(list) {
   return v.length === 1 ? v[0] : `${v[0]} to ${v[v.length - 1]}`;
 }
 
-/** "rent 2025-10 to 2026-09 · living costs 2026-09 · FX 2026-07-01 · tax years 2025 to 2026": the as-of dates of the inputs a block used. */
+/**
+ * "rent 2026-08 to 2026-09 (2- and 3-bedroom ratios 2025-10 to 2026-10) · living costs 2026-09 · FX 2026-07-01 ·
+ * tax years 2025 to 2026": the as-of dates of the inputs a block used. An estimated 2- or 3-bedroom
+ * rent is the 1-bedroom rent (inputs.rent.base) × a bedroom ratio (its own source date), so it
+ * gives both dates instead of passing the ratio's date off as the rent's (fix-viz P-13).
+ */
 export function inputsAsOf(results) {
-  const rent = [], living = [], fx = [], tax = [];
+  const rent = [], ratio = [], living = [], fx = [], tax = [];
   for (const j of results) {
     const i = j.inputs || {};
-    rent.push(i.rent && i.rent.source && i.rent.source.asOf);
+    const r = i.rent || {};
+    const own = r.source && r.source.asOf;
+    if ((r.bedrooms || 1) > 1 && r.class === 'estimate' && r.basis !== 'outside') { rent.push(r.base && r.base.asOf); ratio.push(own); }
+    else rent.push(own);
     living.push(i.costIndex && i.costIndex.source && i.costIndex.source.asOf);
     fx.push(i.fx && i.fx.asOf);
     for (const s of (i.tax && i.tax.sources) || []) tax.push(...years(s.asOf).map(String));
   }
-  return `rent ${span(rent)} · living costs ${span(living)} · FX ${span(fx)} · tax years ${span(tax)}`;
+  const ratios = ratio.some(Boolean) ? ` (2- and 3-bedroom ratios ${span(ratio)})` : '';
+  return `rent ${span(rent)}${ratios} · living costs ${span(living)} · FX ${span(fx)} · tax years ${span(tax)}`;
 }
 
 function blockResults(name, juice, doc) {

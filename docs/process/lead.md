@@ -764,3 +764,44 @@ screenshots in `docs/screenshots/`.
 - Improvements every group asked for: keep the search and filters when switching company; plain words instead of jargon; saved searches that are easy to find, with a return visit opening where you left off; a one-line explanation on arrival.
 - Good, keep: speed (first cards in about 1 s), the Juice breakdown with households, honest pay labels, "Same role elsewhere" when it matches, Apply and Copy link, the methodology page.
 - Decision (lead): the stored level stays 'Mid' (no data or archive change), and every surface shows it as "Level not stated" (`levelLabel` in public/features/roles.js). Three groups called the label broken, so the open question to the user is answered this way. A pay range applies to the locations in its currency's countries (`payLocations` in public/features/shared.js). Both helpers landed before the fix lanes started.
+
+### Persona fix wave, batch 1: estimates, app shell, charts and map (2026-10-10)
+- Four fix lanes ran in their own worktrees from a9a46a7 ([PLAYBOOK](PLAYBOOK.md) Stage 2); this batch lands three of them. The pay-data lane (server) is still running and lands next.
+  - **fix-viz** (2a152f2):
+    - map groups say "nearby" only within 150 km;
+    - pay on a pin only where it applies (Anduril's Sydney pin no longer shows $61K from US contractor pay);
+    - "Level not stated" goes last;
+    - one empty-chart message;
+    - as-of dates without "(update due)";
+    - both rent dates;
+    - grade fills instead of three reds;
+    - text of at least 12 px.
+  - **fix-estimates** (c1dd915):
+    - the pay estimate never uses another country's pay and says what it is based on;
+    - interns only from interns;
+    - no "±%" at low confidence;
+    - the drawer and Insights give the same answer;
+    - on-target earnings never pooled with base pay;
+    - fixed family rules (19 of 4,824 postings move, all intended);
+    - Compare companies follows the open job and has a Level choice;
+    - Insights hides samples under 5.
+  - **fix-app** (738b667 tests, 39967bb fixes):
+    - pay labels for on-target and fixed-term pay;
+    - whole-word search and "Best match";
+    - the salary box reads £, k, A$ and AUD;
+    - Juice for the filtered place, rounded so the rows add up;
+    - "Level not stated" on cards and filters;
+    - filters kept on company switch;
+    - one line saying what the site is;
+    - plain words, with no ATS headings or slugs;
+    - saved searches reopen the last view;
+    - phone quickbar and 125% zoom fixes.
+- Integration, all by the lead:
+  - two conflicting `scripts/e2e.js` registrations, both kept;
+  - five cross-lane patches: juice.js rent base date, examples.js with the LIVABILITY block, the D-9 level order, the badge fills in styles.css, and the estimates lane's app.js wiring.
+  - The estimates lane's app.js patch was written against a9a46a7, so it was applied to that version and 3-way merged with the app lane's app.js. Three conflicts (imports, compstimateBlock and the comps note) were all resolved to the estimates side; the app lane had marked its own text there as a stand-in.
+  - Registry lines re-resolved.
+  - The beta data check's 26 red tests were committed as to-dos (each turns green when its fix lands; CI stays green meanwhile).
+  - Its DATA_SOURCES §7 counts were checked against the snapshots: Apple 6,105 postings with 3,848 paid, NVIDIA 2,664 with 1,394. Both match.
+- Verified on the integrated tree (91fb7ae plus the lanes): npm test 654/654 (7 skipped); build OK (stable 8 companies, beta 5/5); full e2e 143/147. The 1 failure was the Anduril JPY test, already fixed in 125bf64, and the 3 skips are by design.
+- Lesson: a lane's patch to a file another lane rewrote applies by 3-way merge against the patch's own base (`git show <base>:file`, patch, `git merge-file`), not by `git apply`.

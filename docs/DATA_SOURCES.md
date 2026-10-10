@@ -200,16 +200,23 @@ check is also part of the probe run.
 - **robots.txt is fetched and checked at the start of every crawl**: a disallowed
   path aborts that company (`code: 'robots'`).
 
-| Company | Slug | Status | Endpoint (front-end's own) | Postings (run 7) | With pay | Snapshot | Posting URL host |
+| Company | Slug | Status | Endpoint (front-end's own) | Postings (run 38044091555) | With pay | Snapshot | Posting URL host |
 |---|---|---|---|---:|---:|---:|---|
-| Google | `google` | works | jobs sitemap + `batchexecute` `sf9Qmf` | TBD | TBD | TBD | `www.google.com` |
-| Microsoft | `microsoft` | works | Eightfold PCSX `apply.careers.microsoft.com/api/pcsx/*` | TBD | TBD | TBD | `apply.careers.microsoft.com` |
-| Meta | `meta` | works | jobs sitemap + job pages (`public_compensation`) | TBD | TBD | TBD | `www.metacareers.com` |
-| Apple | `apple` | works | `jobs.apple.com/api/v1/search` + `jobDetails` | TBD | TBD | TBD | `jobs.apple.com` |
-| Netflix | `netflix` | works | Eightfold classic `explore.jobs.netflix.net/api/apply/v2/jobs` | TBD | TBD | TBD | `explore.jobs.netflix.net` |
-| Amazon | `amazon` | works | `www.amazon.jobs/en/search.json` | TBD | TBD | TBD | `www.amazon.jobs` |
-| NVIDIA | `nvidia` | works | Eightfold PCSX `jobs.nvidia.com/api/pcsx/*` | TBD | TBD | TBD | `jobs.nvidia.com` |
+| Google | `google` | works | jobs sitemap + `batchexecute` `sf9Qmf` | 3,417 | 2,032 (59.5%) | 23.5 MB | `www.google.com` |
+| Microsoft | `microsoft` | works | Eightfold PCSX `apply.careers.microsoft.com/api/pcsx/*` | 2,320 | 1,482 (63.9%) | 30.1 MB | `apply.careers.microsoft.com` |
+| Meta | `meta` | **paused (terms)** | jobs sitemap + job pages (`public_compensation`) | — (not crawled) | — | — | `www.metacareers.com` |
+| Apple | `apple` | works | `jobs.apple.com/api/v1/search` + `jobDetails` | 6,105 | 3,848 (63.0%) | 32.0 MB | `jobs.apple.com` |
+| Netflix | `netflix` | works | Eightfold classic `explore.jobs.netflix.net/api/apply/v2/jobs` | 456 | 294 (64.5%) | 4.7 MB | `explore.jobs.netflix.net` |
+| Amazon | `amazon` | **paused (terms)** | `www.amazon.jobs/en/search.json` | — (not crawled) | — | — | `www.amazon.jobs` |
+| NVIDIA | `nvidia` | works | Eightfold PCSX `jobs.nvidia.com/api/pcsx/*` | 2,664 | 1,394 (52.3%) | 18.2 MB | `jobs.nvidia.com` |
 | Tesla | — | **blocked, left out** | `www.tesla.com/cua-api/apps/careers/state` | — | — | — | — |
+
+Counts are from the first full big-tech crawl, `snapshot.yml` run 38044091555 (2026-10-10; job logs and
+`data/beta/snapshots/<slug>.json` agree exactly). "With pay" is postings with a published base range after the
+vetting gate (Netflix: 1 more quarantined). "Snapshot" is the crawl's JSON file. Crawl cost per board: Netflix 504 s
+(503 requests), Microsoft 2,572 s (2,553), NVIDIA 2,939 s (2,932), Google 3,432 s (3,424), Apple 7,625 s (4,716
+requests, 4,401 detail pages). Apple's 6,105 postings are 4,882 requisitions: Apple lists one posting per location
+(`<req>-<location id>`), see docs/process/data-check-beta.md DQ-2.
 
 ### 7a. Pay rules (all companies)
 

@@ -56,10 +56,10 @@ test('local-data picks each company\'s last folded or late observation on or bef
 });
 
 test('local beta data is gitignored', () => {
-  // data/snapshots itself, not a file inside: a lane worktree symlinks that folder, and git
-  // refuses to look "beyond a symbolic link".
-  const out = execFileSync('git', ['-C', ROOT, 'check-ignore', 'data/beta/snapshots/apple.json', 'data/snapshots']).toString();
-  assert.match(out, /data\/beta\/snapshots\/apple\.json/);
+  // The folders themselves, not files inside: a lane or integration worktree symlinks them, and
+  // git refuses to look "beyond a symbolic link".
+  const out = execFileSync('git', ['-C', ROOT, 'check-ignore', 'data/beta/snapshots', 'data/snapshots']).toString();
+  assert.match(out, /^data\/beta\/snapshots$/m);
   assert.match(out, /^data\/snapshots$/m);
 });
 

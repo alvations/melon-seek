@@ -7,8 +7,8 @@ import { colorFor, formatMoney, resetColors, assignColors, otherColor, toUSD, SL
 import { createChart, keyOf, VIEWS, DEFAULT_VIEW } from './viz/chart.js';
 import { createMap } from './viz/map.js';
 import * as api from './api.js';
-import { createCompstimateWidget, compstimateForJob, accuracyLine, displayConfidence, basisLine, MIN_COMPARABLES } from './features/compstimate.js';
-import { compsForJob, createCompsCard } from './features/comps.js';
+import { createCompstimateWidget, compstimateForJob, estimateView } from './features/compstimate.js';
+import { compsForJob, compsNote, createCompsCard } from './features/comps.js';
 import { loadFreshness, freshnessDoc, juiceAsOfText, juiceSpanText, marketAsOfText, compstimateAsOfText } from './features/freshness.js';
 import { createCompsChart } from './viz/comps.js';
 import { roleFamily, FAMILY_LABELS, readableTitle, levelLabel } from './features/roles.js';
@@ -2159,6 +2159,7 @@ function renderInsights() {
   const host = $('#insightsHost');
   host.hidden = S.m !== 'insights' || data.status !== 'ready';
   if (host.hidden) return;
+  const ids = derived.filtered.map((j) => j.id).join(',');
   try {
     if (!comp) comp = createCompstimateWidget($('#compHost'), { onSelect: (job) => job && openDrawer(job.id) });
     if (!insights) { if (createInsights) insights = createInsights($('#insightsPanel'), { onFilter: onInsightFilter }); else loadInsights(); }
@@ -2168,18 +2169,22 @@ function renderInsights() {
     comp.setContext({ board: data.jobs, visible: compVisible(), company: data.company?.name || S.c, meta: data.meta, asOf: data.fetchedAt,
       filters: { d: S.d, rf: S.rf, l: S.l, r: S.r, s: S.s } });
     ensureCompMeta();
-    const sig = `${dataSeq}|${derived.filtered.length}|${derived.filtered.map((j) => j.id).join(',')}`;
-    if (insights && featSig.ins !== sig) { featSig.ins = sig; insights.update(derived.filtered, data.jobs, { asOf: data.fetchedAt }); }
+    // P-6: with a location filter, pay figures use only pay posted for those places (payLocations).
+    const sig = `${dataSeq}|${derived.filtered.length}|${ids}|${S.l.join('|')}`;
+    if (insights && featSig.ins !== sig) { featSig.ins = sig; insights.update(derived.filtered, data.jobs, { asOf: data.fetchedAt, places: S.l }); }
   } catch (err) { console.error('insights failed', err); }
   // F1: "Compare companies" card (third Insights card), once product's comps module and market data exist.
+  // I-8: it follows the view: the role-family and level filters, else the roles in view.
   const cardHost = $('#compsCardHost');
-  if (featSig.comps !== `${dataSeq}|${S.c}`) {
-    featSig.comps = `${dataSeq}|${S.c}`;
+  const compsSig = `${dataSeq}|${S.c}|${S.rf}|${S.s.join('|')}|${S.l.join('|')}|${ids}`;
+  if (featSig.comps !== compsSig) {
+    featSig.comps = compsSig;
+    const view = { company: S.c, jobs: data.jobs, visible: derived.filtered, filters: { rf: S.rf, s: S.s.slice(), l: S.l.slice() } };
     loadMarket().then((market) => {
       if (!market) { cardHost.hidden = true; return; }
       try {
         if (!compsCard) compsCard = createCompsCard(cardHost, { onPickCompany: (slug, filters) => pickCompany(slug, filters) });
-        compsCard.update(market, { company: S.c, jobs: data.jobs });
+        compsCard.update(market, view);
         cardHost.hidden = false;
       } catch (err) { console.warn('createCompsCard failed', err); cardHost.hidden = true; }
     });
@@ -2997,28 +3002,25 @@ function ensureCompMeta() {
 /**
  * Drawer estimate for postings without usable pay (Rule 8): title, level and location only,
  * from all salaried jobs of the company, excluding the job. Independent of filters and of the
- * Insights widget. Nothing is shown below MIN_COMPARABLES comparables (Rule 6).
+ * Insights widget. estimateView() (features/compstimate.js) decides what may be shown, the same
+ * way for the drawer and Insights (P-2): no other country's pay, no full-time pay for an
+ * internship, a basis line that names the comparables, no accuracy figure at low confidence.
+ * Without a figure the drawer says why, in one muted line.
  */
 function compstimateBlock(job) {
   ensureCompMeta();
   let est = null;
   try { est = compstimateForJob(data.jobs, job); } catch (err) { console.warn('compstimate failed', err); }
-  if (!est || est.mid == null || !isFinite(est.mid) || !(est.n >= MIN_COMPARABLES)) return null;
-  const conf = displayConfidence(est, data.meta) || 'Low';
-  // P-2: the basis line is the one the estimate returns (it names the comparables' own level and
-  // place); this block builds no level or location text of its own.
-  const basis = typeof est.basis === 'string' && est.basis ? est.basis
-    : typeof est.basisLine === 'string' && est.basisLine ? est.basisLine
-      : basisLine(est.n, data.company?.name || 'this company');
-  // P-2: no accuracy claim ("Typically within ±8%") next to a low-confidence figure.
-  const accuracy = conf !== 'Low' ? accuracyLine(data.meta) : null;
+  if (!est) return null;
+  const v = estimateView(est, { company: data.company?.name || 'this company', meta: data.meta });
+  if (!v.ok) return v.reason ? h('p', { class: 'd-comp-note d-comp-none' }, v.reason) : null;
   return h('div', { class: 'd-comp', role: 'note' },
     h('div', { class: 'd-comp-top' },
-      h('span', { class: 'd-comp-label', title: 'An estimate of the pay, from similar roles that list pay' }, 'Pay estimate'),
-      h('span', { class: 'd-comp-amt' }, `≈ ${money(est.mid)}`),
-      h('span', { class: 'muted' }, `(${money(est.low)}–${money(est.high).replace(/^\$/, '')}, ${conf.toLowerCase()} confidence)`)),
-    h('p', { class: 'd-comp-note' }, `${basis.replace(/\.$/, '')}. An estimate, not a figure from the posting (approx USD / year).`),
-    accuracy ? h('p', { class: 'd-comp-note' }, `${accuracy}.`) : null,
+      h('span', { class: 'd-comp-label', title: 'Estimated pay from similar roles at this company' }, 'Pay estimate'),
+      h('span', { class: 'd-comp-amt' }, `about ${money(est.mid)}`),
+      h('span', { class: 'muted' }, `(${money(est.low)}–${money(est.high).replace(/^\$/, '')}, ${v.confidence.toLowerCase()} confidence)`)),
+    h('p', { class: 'd-comp-note' }, `${v.basis}. ${v.kind === 'ote' ? 'On-target earnings (base plus commission at target), like the roles it is based on. ' : ''}An estimate, not a figure from the posting (approx USD / year).`),
+    v.accuracy || v.caution ? h('p', { class: 'd-comp-note' }, v.accuracy ? `${v.accuracy}.` : v.caution) : null,
     asOfNote('d-comp-note d-comp-asof', () => compstimateAsOfText({ fetchedAt: data.fetchedAt, meta: data.meta })));
 }
 
@@ -3222,21 +3224,18 @@ function sameRoleSection(job) {
     try { res = market ? compsForJob(market, job, { includeSelf: true }) : null; } catch (err) { console.warn('compsForJob failed', err); }
     const rows = res?.rows || [];
     if (!rows.some((r) => !r.current)) { sec.hidden = true; applyDrawerBudget(); return; }
-    const family = FAMILY_LABEL[res.family] || res.family;
     const bySen = res.matchedOn === 'family+seniority';
-    const filters = { family: res.family, seniority: bySen ? res.seniority : null };
+    const filters = { family: res.family, seniority: bySen ? res.level : null };
     const chartHost = h('div', { class: 'comps-chart' });
     body.replaceChildren(
-      // P-3: "Level not stated" is never presented as a level ("Mid level").
-      h('p', { class: 'comps-note muted' }, bySen
-        ? `${family} roles ${res.seniority === 'Mid' ? 'whose title names no level' : `at ${levelLabel(res.seniority)} level`}: median and middle half of posted base pay (approx US dollars).`
-        : `Too few postings at this level elsewhere, so this compares all ${family} roles.`),
+      // P-11: the note says what is really compared (compsNote reads res.fallback).
+      h('p', { class: 'comps-note muted' }, compsNote(res)),
       chartHost,
       asOfNote('comps-asof', () => marketAsOfText(market, rows.map((r) => r.slug))));
     try {
       destroyDrawerComps();
       drawerComps = createCompsChart(chartHost, { onSelect: (slug) => { if (slug && slug !== job.company) pickCompany(slug, filters); } });
-      drawerComps.update(rows, { current: job.company });
+      drawerComps.update(rows, { current: job.company, kind: res.kind });
     } catch (err) { console.warn('createCompsChart failed', err); sec.hidden = true; applyDrawerBudget(); }
   });
   return sec;

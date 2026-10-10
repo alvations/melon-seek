@@ -54,6 +54,10 @@ interface every agent built against), [../ARCHITECTURE.md](../ARCHITECTURE.md),
 | Persona review 35–44 (main site) | [prompts/persona-stable-35-44.md](prompts/persona-stable-35-44.md) | [persona-stable-35-44.md](persona-stable-35-44.md) | none (review only); screenshots in `docs/screenshots/persona-stable-35-44/` |
 | Persona review 45–54 (main site) | [prompts/persona-stable-45-54.md](prompts/persona-stable-45-54.md) | [persona-stable-45-54.md](persona-stable-45-54.md) | none (review only); screenshots in `docs/screenshots/persona-stable-45-54/` |
 | Persona review 55 and over (main site) | [prompts/persona-stable-55-plus.md](prompts/persona-stable-55-plus.md) | [persona-stable-55-plus.md](persona-stable-55-plus.md) | none (review only); screenshots in `docs/screenshots/persona-stable-55-plus/` |
+| Fix lane: estimates and comparisons | [prompts/fix-estimates.md](prompts/fix-estimates.md) | [fix-estimates.md](fix-estimates.md) | `public/features/{compstimate,comps,roles,insights,shared}.js`, `public/viz/comps.js`, `scripts/build-market.js` |
+| Fix lane: app shell | [prompts/fix-app.md](prompts/fix-app.md) | [fix-app.md](fix-app.md) | `public/app.js`, `public/index.html`, `public/styles.css` |
+| Fix lane: charts, map and freshness | [prompts/fix-viz.md](prompts/fix-viz.md) | [fix-viz.md](fix-viz.md) | `public/viz/{chart,map}.js`, `viz.css`, `public/features/freshness.js`, `scripts/methodology*.js` |
+| Data check (beta) | [prompts/data-check-beta.md](prompts/data-check-beta.md) | [data-check-beta.md](data-check-beta.md) | none (review only); `test/beta-data-check.test.js` holds its findings as to-do tests |
 | Desktop / mobile QA, mobile perf, fixes | [prompts/qa-desktop.md](prompts/qa-desktop.md), [qa-mobile.md](prompts/qa-mobile.md), [perf-mobile.md](prompts/perf-mobile.md), [fix-frontend.md](prompts/fix-frontend.md) | [qa-desktop.md](qa-desktop.md), [qa-mobile.md](qa-mobile.md), [perf-mobile.md](perf-mobile.md), [fix-frontend.md](fix-frontend.md) | `docs/QA.md`, `test/e2e/*-qa.e2e.js`, `public/unpack-worker.js` |
 
 ## Replaying the build from scratch

@@ -406,10 +406,10 @@
       "owners": [
         "server/juice.js:139 K_USD",
         "server/juice.js:140 SCORE_ANCHORS",
-        "public/viz/palette.js:238 JUICE_ANCHORS (copy)",
-        "public/viz/palette.js:238 JUICE_ANCHORS (fallback copy)",
-        "public/viz/palette.js:238 JUICE_ANCHORS {K: 80000, fullGlassUSD: 423866} (fallback copy of server/juice.js SCORE_ANCHORS)",
-        "public/viz/palette.js:257 juiceNetForScore (fallback mirror of netForScore)"
+        "public/viz/palette.js:249 JUICE_ANCHORS (copy)",
+        "public/viz/palette.js:249 JUICE_ANCHORS (fallback copy)",
+        "public/viz/palette.js:249 JUICE_ANCHORS {K: 80000, fullGlassUSD: 423866} (fallback copy of server/juice.js SCORE_ANCHORS)",
+        "public/viz/palette.js:268 juiceNetForScore (fallback mirror of netForScore)"
       ],
       "values": "K = 80000, fullGlassUSD = 423866; legend points 25=$23,015, 45=$47,827, 70=$96,318, 80=$128,755, 90=$184,207, 95=$239,659, 99=$368,414, 100=$423,866 (all re-verified against server/juice.js netForScore 2026-10-10)",
       "consumers": [
@@ -534,12 +534,12 @@
       "owners": [
         "server/juice.js:147 GRADES",
         "server/juice.js:152 RIND",
-        "public/viz/palette.js:233 JUICE_BREAKS (copy)",
-        "public/app.js:1425 JUICE_GRADES (UI copy \"70+\", \"45–69\", \"under 45\")",
-        "public/viz/palette.js:233 JUICE_BREAKS [45, 70] (copy)",
-        "public/viz/palette.js:233 JUICE_BREAKS [45, 70]",
-        "public/app.js:1425 JUICE_GRADES chip tooltips \"(score 70+)\", \"(45–69)\", \"(under 45)\" (hard-coded copy)",
-        "public/app.js:365 gradeKey: Rind is filtered as Dry"
+        "public/viz/palette.js:244 JUICE_BREAKS (copy)",
+        "public/app.js:1819 JUICE_GRADES (UI copy \"70+\", \"45–69\", \"under 45\")",
+        "public/viz/palette.js:244 JUICE_BREAKS [45, 70] (copy)",
+        "public/viz/palette.js:244 JUICE_BREAKS [45, 70]",
+        "public/app.js:1819 JUICE_GRADES chip tooltips \"(score 70+)\", \"(45–69)\", \"(under 45)\" (hard-coded copy)",
+        "public/app.js:425 gradeKey: Rind is filtered as Dry"
       ],
       "values": "breaks 45 / 70; labels Dry, Ripe, Juicy, Rind",
       "consumers": [
@@ -750,10 +750,10 @@
       "type": "product-policy",
       "owners": [
         "server/juice.js:106 HOUSEHOLDS",
-        "public/app.js:2168 HOUSEHOLDS (UI labels)",
+        "public/app.js:2745 HOUSEHOLDS (UI labels)",
         "server/juice.js:112 DEFAULT_HOUSEHOLD",
-        "public/app.js:2168 HOUSEHOLDS (UI copy: labels, tooltips, bedrooms)",
-        "public/app.js:2168 HOUSEHOLDS labels/bedrooms/people (UI copy of server/juice.js HOUSEHOLDS)"
+        "public/app.js:2745 HOUSEHOLDS (UI copy: labels, tooltips, bedrooms)",
+        "public/app.js:2745 HOUSEHOLDS labels/bedrooms/people (UI copy of server/juice.js HOUSEHOLDS)"
       ],
       "values": "single 1 bedroom / couple 2 / family 3; \"two adults and two children\"",
       "consumers": [
@@ -1033,13 +1033,13 @@
       "description": "Per-job annual pay converted to approx USD (client side, palette FX) and every statistic derived from it in the UI.",
       "type": "derived-at-build",
       "owners": [
-        "public/app.js:384 _usd",
+        "public/app.js:464 _usd",
         "public/features/shared.js:25 toUSD",
         "public/viz/palette.js:1 palette toUSD (chart/map/comps)",
         "public/features/shared.js:1 shared toUSD (Compstimate/Insights: palette then FX_FALLBACK)",
         "server/salary.js:1 salary.js toUSD (vetting, share pages via vet.js)",
         "server/juice.js:6 juice.js toUSD (Juice)",
-        "scripts/build-market.js:51 usdMid (market comps; drops currencies without palette FX)",
+        "scripts/build-market.js:65 usdMid (market comps; drops currencies without palette FX)",
         "public/app.js:383",
         "public/features/shared.js:45 salaryUSD (also annualizes)"
       ],
@@ -14146,8 +14146,8 @@
         "data/vetting/2026-10-02/review-rules.mjs:18 F (copy, audit trail)",
         "server/export.js:62 csvReadme text",
         "public/features/shared.js:45 salaryUSD defensive annualization (2080 h if mid < 1000, ×12 if mid < 30000): duplicate of server/salary.js annualize",
-        "public/viz/chart.js:41 INTERVAL_ADJ labels",
-        "public/app.js:2158 INTERVAL_ADJ labels"
+        "public/viz/chart.js:52 INTERVAL_ADJ labels",
+        "public/app.js:2735 INTERVAL_ADJ labels"
       ],
       "values": "2080 hours/yr, 12 months, 52 weeks",
       "consumers": [
@@ -14509,7 +14509,7 @@
         "server/sources/eightfold.js:25 EIGHTFOLD_BOARDS",
         "scripts/probe-bigtech.js:3 probe SLUGS",
         "server/companies.js [core]",
-        "public/app.js:73 FALLBACK_COMPANIES (3 of 8 stable: anthropic, anduril, openai with colours)",
+        "public/app.js:90 FALLBACK_COMPANIES (3 of 8 stable: anthropic, anduril, openai with colours)",
         "public/mock-api.js:1 mock COMPANIES (same 3)"
       ],
       "values": "8 stable (anthropic, anduril, openai, scaleai, xai, cohere, palantir, shieldai) + 7 beta (google, microsoft, meta, apple, netflix, amazon, nvidia)",
@@ -14661,14 +14661,14 @@
       "description": "Market comps (company × family × seniority: n, p25/median/p75 USD) in \"Same role elsewhere\" (drawer) and \"Compare companies\" (Insights).",
       "type": "derived-at-build",
       "owners": [
-        "scripts/build-market.js:34 MIN_N",
-        "scripts/build-market.js:48 round100",
-        "scripts/build-market.js:40 percentileSorted (linear)",
-        "scripts/build-market.js:61 buildMarket",
+        "scripts/build-market.js:47 MIN_N",
+        "scripts/build-market.js:62 round100",
+        "scripts/build-market.js:54 percentileSorted (linear)",
+        "scripts/build-market.js:75 buildMarket",
         "scripts/build-static.js:124 MARKET_MAX_BYTES",
         "scripts/build-market.js MIN_N 3, round100 [jobs]",
-        "public/features/comps.js:73 compsForJob: family+seniority, falls back to the family across levels",
-        "public/features/comps.js:104 defaultFamily: families covered by ≥ 2 companies"
+        "public/features/comps.js:101 compsForJob: family+seniority, falls back to the family across levels",
+        "public/features/comps.js:208 defaultFamily: families covered by ≥ 2 companies"
       ],
       "values": "company x family x seniority cells with n >= 3 (plus \"*\" family roll-ups): n, p25, median, p75 of USD midpoints rounded to $100; 391 cells over 8 companies and 26 families on 2026-10-02 (live site 2026-10-10: 379 cells)",
       "consumers": [
@@ -14771,14 +14771,14 @@
         "server/index.js:345 BACKTEST_TIMEOUT_MS",
         "server/index.js:317 BACKTEST_WAIT_MS",
         "server/index.js:66 worker memory",
-        "public/features/compstimate.js:338 backtest() defaults",
-        "public/features/compstimate.js:299 ACCURACY_LOW_THRESHOLD",
-        "public/features/compstimate.js:297 BACKTEST_SEED",
-        "public/features/compstimate.js:299 ACCURACY_LOW_THRESHOLD 25%",
+        "public/features/compstimate.js:448 backtest() defaults",
+        "public/features/compstimate.js:409 ACCURACY_LOW_THRESHOLD",
+        "public/features/compstimate.js:407 BACKTEST_SEED",
+        "public/features/compstimate.js:409 ACCURACY_LOW_THRESHOLD 25%",
         "public/features/compstimate.js:8 maxN 500, dedupe 'title' default",
         "server/index.js:315 BACKTEST_OPTS {seed 20261002, maxN 500, dedupe \"role\"}",
         "scripts/build-static.js:122 BACKTEST_FALLBACK {seed, maxN} (no dedupe → \"title\")",
-        "public/features/compstimate.js:338 backtest"
+        "public/features/compstimate.js:448 backtest"
       ],
       "values": "per company { medianAbsPctError, within10Pct, n, seed 20261002, maxN 500, dedupe \"role\" } shown as \"Typically within ±N% (tested on N listed salaries)\"; live 2026-10-10: Anduril 11.9% (499), Anthropic 14.2% (498), Cohere 8.1% (80), OpenAI 9.8% (499), Palantir 6.7% (232), Scale AI 11.1% (123), Shield AI 15.9% (485), xAI 20.5% (126)",
       "consumers": [
@@ -14854,24 +14854,24 @@
       "description": "Compstimate similarity model and thresholds (LEVEL_INDEX, seniority/location/department/title weights, selection cut-offs, percentiles, confidence rules, minimum comparables).",
       "type": "product-policy",
       "owners": [
-        "public/features/compstimate.js:35 LEVEL_INDEX",
-        "public/features/compstimate.js:161 MIN_WEIGHT / REL_WEIGHT / MAX_COMPARABLES / LOW_P, HIGH_P",
-        "public/features/compstimate.js:546 MIN_COMPARABLES",
+        "public/features/compstimate.js:39 LEVEL_INDEX",
+        "public/features/compstimate.js:176 MIN_WEIGHT / REL_WEIGHT / MAX_COMPARABLES / LOW_P, HIGH_P",
+        "public/features/compstimate.js:666 MIN_COMPARABLES",
         "server/compstimate-worker.js:8 compstimate worker (server)",
-        "public/features/compstimate.js:35 LEVEL_INDEX Intern 0, Entry 1, Mid 2, Senior 3, Manager 3.5, Staff+ 4, Director+ 5",
-        "public/features/compstimate.js:42 senioritySim: same 1, ≤0.5 0.55, ≤1 0.35, ≤1.5 0.2, ≤2 0.1, else 0.03; no level asked: Intern 0.25, Director+ 0.5; unknown 0.5",
-        "public/features/compstimate.js:51 deptSim 1 / 0.7 (no dept) / 0.5",
-        "public/features/compstimate.js:89 locationSim 1 / 0.75 / 0.6 / 0.4 / 0.3 / 0.25",
-        "public/features/compstimate.js:153 tokenSim 0.7 coverage + 0.3 precision; title = 0.7 token + 0.3 family",
-        "public/features/compstimate.js:161 MIN_WEIGHT 0.02, REL_WEIGHT 0.12, MAX_COMPARABLES 500, LOW_P 0.15, HIGH_P 0.85",
+        "public/features/compstimate.js:39 LEVEL_INDEX Intern 0, Entry 1, Mid 2, Senior 3, Manager 3.5, Staff+ 4, Director+ 5",
+        "public/features/compstimate.js:46 senioritySim: same 1, ≤0.5 0.55, ≤1 0.35, ≤1.5 0.2, ≤2 0.1, else 0.03; no level asked: Intern 0.25, Director+ 0.5; unknown 0.5",
+        "public/features/compstimate.js:55 deptSim 1 / 0.7 (no dept) / 0.5",
+        "public/features/compstimate.js:97 locationSim 1 / 0.75 / 0.6 / 0.4 / 0.3 / 0.25",
+        "public/features/compstimate.js:168 tokenSim 0.7 coverage + 0.3 precision; title = 0.7 token + 0.3 family",
+        "public/features/compstimate.js:176 MIN_WEIGHT 0.02, REL_WEIGHT 0.12, MAX_COMPARABLES 500, LOW_P 0.15, HIGH_P 0.85",
         "public/features/compstimate.js:218 band weights 0.25/0.5/0.25; rounding to $1K",
         "public/features/compstimate.js:233 confidence High (nEff ≥ 5, topSim ≥ 0.5, spread ≤ 0.6) / Medium (≥ 2, ≥ 0.25, ≤ 1)",
-        "public/features/compstimate.js:546 MIN_COMPARABLES 3",
-        "public/features/compstimate.js:458 FAMILY_TITLES (26 representative titles)",
-        "public/features/roles.js:281 FAMILY_AFFINITY (24 pairs, unknown family 0.35)",
-        "public/features/compstimate.js:42 senioritySim",
-        "public/features/compstimate.js:161 MIN_WEIGHT / REL_WEIGHT / LOW_P / HIGH_P",
-        "public/features/compstimate.js:299 ACCURACY_LOW_THRESHOLD"
+        "public/features/compstimate.js:666 MIN_COMPARABLES 3",
+        "public/features/compstimate.js:568 FAMILY_TITLES (26 representative titles)",
+        "public/features/roles.js:296 FAMILY_AFFINITY (24 pairs, unknown family 0.35)",
+        "public/features/compstimate.js:46 senioritySim",
+        "public/features/compstimate.js:176 MIN_WEIGHT / REL_WEIGHT / LOW_P / HIGH_P",
+        "public/features/compstimate.js:409 ACCURACY_LOW_THRESHOLD"
       ],
       "values": "LEVEL_INDEX { Intern 0, Entry 1, Mid 2, Senior 3, Manager 3.5, Staff+ 4, Director+ 5 } -> senioritySim weights 1 / 0.55 / 0.35 / 0.2 / 0.1 / 0.03 by distance; MIN_WEIGHT 0.02, REL_WEIGHT 0.12, LOW_P 0.15, HIGH_P 0.85, confidence High nEff>=5 topSim>=0.5 spread<=0.6 / Medium nEff>=2 topSim>=0.25 spread<=1, ACCURACY_LOW_THRESHOLD 25, MIN_COMPARABLES 3, BACKTEST_SEED 20261002",
       "consumers": [
@@ -14996,14 +14996,14 @@
         "server/keywords.js:687 years range 1..30",
         "server/vet.js:1 vet.js titleClass (junior/senior, separate ladder)",
         "server/demo.js:1 demo IC_LEVELS",
-        "public/features/roles.js:301 SENIORITY_LADDER (UI order)",
-        "public/features/roles.js:301 SENIORITY_LADDER",
+        "public/features/roles.js:316 SENIORITY_LADDER (UI order)",
+        "public/features/roles.js:316 SENIORITY_LADDER",
         "public/viz/chart.js:1 chart SENIORITY_ORDER (+ Unspecified)",
         "public/app.js:1 app SENIORITY_ORDER (+ Unspecified)",
-        "public/features/roles.js:304 roles.js inferSeniority (null when no level word)",
-        "public/features/compstimate.js:35 LEVEL_INDEX",
-        "public/app.js:69 SENIORITY_ORDER",
-        "public/viz/chart.js:38 SENIORITY_ORDER",
+        "public/features/roles.js:321 roles.js inferSeniority (null when no level word)",
+        "public/features/compstimate.js:39 LEVEL_INDEX",
+        "public/app.js:71 SENIORITY_ORDER",
+        "public/viz/chart.js:49 SENIORITY_ORDER",
         "public/features/roles.js inferSeniority (query side; null without a level word)",
         "scripts/archive/report.js:33 LADDER (archive reports; jobs.js seniority-ladder compares it with roles.js)"
       ],
@@ -15097,11 +15097,11 @@
       "owners": [
         "server/vet.js:1 vet.js FAMILIES (10 + other)",
         "server/vet.js:1 vet.js roleFamily",
-        "public/features/roles.js:174 roles.js FAMILIES",
+        "public/features/roles.js:321 roles.js FAMILIES",
         "public/features/roles.js:139 FAMILY_LABELS",
         "public/features/roles.js:139 FAMILY_LABELS (26)",
         "public/features/roles.js:174 FAMILIES regex lexicon",
-        "public/features/roles.js:205 DEPT_HINTS",
+        "public/features/roles.js:208 DEPT_HINTS",
         "public/features/roles.js:21 ABBREV / SYNONYM / LEVEL_WORDS / STOPWORDS",
         "public/app.js:1 app FAMILY_LABEL (15 older labels, overridden by FAMILY_LABELS)"
       ],
@@ -15284,7 +15284,7 @@
         "public/app.js:1 app.js 180 (copy)",
         "public/app.js:227 Listed filter 7 / 30 / 90 days",
         "public/app.js:1268 hide roles open ≥ 180 days",
-        "public/app.js:2012 card age: < 60 → \"Nd\", < 730 → months (÷30.44), else years; \"+\" when a lower bound"
+        "public/app.js:2568 card age: < 60 → \"Nd\", < 730 → months (÷30.44), else years; \"+\" when a lower bound"
       ],
       "values": "filter 7/30/90; 180+ days; contract freshness new ≤ 7, active 8–59, stale 60–179, evergreen ≥ 180 (server/history.js FRESHNESS)",
       "consumers": [
@@ -15563,7 +15563,7 @@
         "scripts/update-col.js:53 ISO3_TO_ISO2",
         "data/cities.json cities[].currency",
         "public/viz/palette.js:111 SYMBOLS (13 currencies)",
-        "public/app.js:91 CUR_SYM (9, a subset copy)"
+        "public/app.js:108 CUR_SYM (9, a subset copy)"
       ],
       "values": "USD $, GBP £, EUR €, CAD CA$, AUD A$, NZD NZ$, JPY ¥, SGD S$, HKD HK$, CHF, INR ₹, KRW ₩, ILS ₪",
       "consumers": [
@@ -15755,8 +15755,8 @@
         "public/api.js:75 LIVE_TIMEOUT_MS 12 s",
         "public/api.js:248 WORKER_READY_MS 10 s",
         "public/api.js:701 JUICE_CHUNK 400",
-        "public/app.js:551 PREPARE_CHUNK 300",
-        "public/app.js:82 PAGE 24/60",
+        "public/app.js:781 PREPARE_CHUNK 300",
+        "public/app.js:99 PAGE 24/60",
         "public/app.js:10 compstimate meta retry 5 s",
         "public/viz/map.js:154 map offline 4 s"
       ],
@@ -16104,7 +16104,7 @@
         "server/index.js /methodology/",
         "scripts/methodology.js:83 renderReferencePage",
         "scripts/methodology.js:219 renderGuidePage",
-        "scripts/methodology.js:288 methodologyPages",
+        "scripts/methodology.js:289 methodologyPages",
         "scripts/methodology-figures.js:26 EXAMPLE (salaryUSD 200000, described as \"about the median posted salary\": a data claim, unchecked)",
         "scripts/methodology-figures.js:28 TAX_SPLIT_CITIES",
         "scripts/methodology-figures.js:99 CADENCE_DEFAULTS (fallback copy of registry cadences)"
@@ -17705,8 +17705,8 @@
       "description": "Juice Score per salaried job (best location: net, score, grade, confidence), computed with data/cities.json in the browser and at build (share pages).",
       "type": "derived-at-build",
       "owners": [
-        "server/juice.js:1437 attachJuice",
-        "server/juice.js:1491 attachJuiceAll",
+        "server/juice.js:1442 attachJuice",
+        "server/juice.js:1496 attachJuiceAll",
         "server/juice.js:1219 computeJuice",
         "data/cities.json (registry cities-dataset)"
       ],
@@ -17804,12 +17804,12 @@
       "description": "Insights panel statistics computed in the browser for the jobs in view: headline tiles (roles, % with pay, median, middle 50%, remote share), skill premiums, pay by department, hot locations, what roles ask for.",
       "type": "derived-at-build",
       "owners": [
-        "public/features/insights.js:42 summaryStats",
-        "public/features/insights.js:62 skillPremiums (limit 12, minCount 3)",
-        "public/features/insights.js:93 deptBoxes",
-        "public/features/insights.js:115 hotLocations (limit 8)",
-        "public/features/insights.js:141 fitRequirements (limit 8, minPremiumN 3)",
-        "public/features/insights.js:167 topResponsibilities (limit 12)"
+        "public/features/insights.js:74 summaryStats",
+        "public/features/insights.js:97 skillPremiums (limit 12, minCount 3)",
+        "public/features/insights.js:134 deptBoxes",
+        "public/features/insights.js:159 hotLocations (limit 8)",
+        "public/features/insights.js:188 fitRequirements (limit 8, minPremiumN 3)",
+        "public/features/insights.js:219 topResponsibilities (limit 12)"
       ],
       "values": "skill premium: 12 most frequent skills with >= 3 salaried postings, premium = skill median - all median; departments: boxes p10/p25/median/p75/p90, departments with < 3 salaried hidden; hot locations top 8; fit requirements top 8 (premium needs >= 3); responsibilities top 10-12",
       "consumers": [
@@ -17844,9 +17844,9 @@
       "description": "Market comps policy: minimum postings per cell (minN 3), $100 rounding of p25/median/p75, the \"Same role elsewhere\" fallback from family+seniority to family, and the UI copy that restates minN.",
       "type": "product-policy",
       "owners": [
-        "scripts/build-market.js:34 MIN_N",
-        "scripts/build-market.js:48 round100",
-        "public/features/comps.js:73 compsForJob",
+        "scripts/build-market.js:47 MIN_N",
+        "scripts/build-market.js:62 round100",
+        "public/features/comps.js:101 compsForJob",
         "public/features/comps.js:172 / :207 minN || 3 fallback copy",
         "scripts/archive/report.js:32 MIN_N (copy; test/freshness-policy.test.js keeps it equal)"
       ],

@@ -363,7 +363,7 @@ export function registerDesktopQaTests(suite) {
   suite.test('Desktop QA: [D-9] Clusters grouped by Seniority follow the seniority ladder', async (ctx) => {
     const { page } = await openDesk(ctx, { hash: 'c=anthropic&g=seniority' });
     await sleep(600);
-    const ladder = ['Intern', 'Entry', 'Mid', 'Senior', 'Staff+', 'Manager', 'Director+', 'Unspecified'];
+    const ladder = ['Intern', 'Entry', 'Senior', 'Staff+', 'Manager', 'Director+', 'Level not stated']; // P-3 (fix-viz): the default level reads "Level not stated" and goes last
     const rows = await page.locator('#chartHost .ms-crow__name').allInnerTexts();
     const want = [...rows].sort((a, b) => ladder.indexOf(a) - ladder.indexOf(b));
     assert(rows.join() === want.join(), `row order ${JSON.stringify(rows)}, expected ${JSON.stringify(want)}`);

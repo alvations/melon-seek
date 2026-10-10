@@ -1254,6 +1254,7 @@ export function computeJuice(salaryUSD, city, opts = {}) {
       confidence: CLASS_CONFIDENCE[r.cls],
       source: brief(r.src),
       ...(r.method ? { method: r.method } : {}),
+      ...(r.base?.asOf ? { base: { asOf: r.base.asOf } } : {}), // the 1-bedroom rent's date (kept small: ~5k jobs carry it)
     };
   }
   const rent = rentMonthly * 12;
@@ -1319,7 +1320,8 @@ export function computeJuice(salaryUSD, city, opts = {}) {
 }
 
 /**
- * Monthly rent (USD) for `bedrooms` in a city: { monthly, local, src, cls, method }.
+ * Monthly rent (USD) for `bedrooms` in a city: { monthly, local, src, cls, method, base? }
+ * (base: the 1-bedroom rent's source, for an estimated city-centre 2- or 3-bedroom rent).
  * City centre: the quoted field for that bedroom count (RENT_FIELDS). Outside the centre, only
  * the 1-bedroom figure is quoted, so 2 and 3 bedrooms apply the city's own centre bedroom
  * ratio to it (an estimate). monthly is null when the city has no figure.
@@ -1330,7 +1332,10 @@ function rentFor(city, bedrooms, outside, usdPer) {
     const local = city[f.local];
     const src = city.sources?.[f.local] || city.sources?.[f.usd];
     const monthly = local != null ? local * usdPer : city[f.usd] ?? null;
-    return { monthly, local: local ?? null, src, cls: sourceClass(src), method: src?.method || null };
+    // An estimated 2- or 3-bedroom rent scales the 1-bedroom rent: keep that rent's source too, so
+    // the UI can date both (its own asOf is the bedroom ratio's; fix-viz P-13).
+    const base = bedrooms > 1 && sourceClass(src) === 'estimate' ? (city.sources?.rent1brCenterLocal || city.sources?.rent1brCenterUSD || null) : null;
+    return { monthly, local: local ?? null, src, cls: sourceClass(src), method: src?.method || null, base };
   }
   const local1 = city.rent1brOutsideLocal;
   const src1 = city.sources?.rent1brOutsideLocal || city.sources?.rent1brOutsideUSD;
