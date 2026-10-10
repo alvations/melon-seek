@@ -9,6 +9,7 @@
 //         `max` lines. Without grep it prints `len` lines from `start`.
 //   ua    optional User-Agent override (some sites answer 403 to a browser UA without JS)
 //   width characters printed per line (default 400)
+//   timeout ms for the request (default 60000); sleep ms to wait first (rate-limited hosts)
 // PDFs go through pdftotext -layout; HTML is reduced to text lines.
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -61,7 +62,8 @@ function show(lines, r) {
 for (const [n, r] of reqs.entries()) {
   console.log(`\n===== [${n}] ${r.name || ''} ${r.url}`);
   try {
-    const res = await fetch(r.url, { headers: { 'user-agent': r.ua || UA, accept: '*/*', 'accept-language': 'en,de;q=0.8,fr;q=0.6' }, redirect: 'follow', signal: AbortSignal.timeout(60000) });
+    if (r.sleep) await new Promise((ok) => setTimeout(ok, r.sleep));
+    const res = await fetch(r.url, { headers: { 'user-agent': r.ua || UA, accept: '*/*', 'accept-language': 'en,de;q=0.8,fr;q=0.6' }, redirect: 'follow', signal: AbortSignal.timeout(r.timeout || 60000) });
     const buf = Buffer.from(await res.arrayBuffer());
     const type = res.headers.get('content-type') || '';
     console.log(`status ${res.status} type ${type} bytes ${buf.length} final ${res.url}`);
@@ -71,7 +73,10 @@ for (const [n, r] of reqs.entries()) {
       fs.writeFileSync(f, buf);
       lines = execFileSync('pdftotext', ['-layout', f, '-'], { encoding: 'utf8', maxBuffer: 1 << 28 }).split('\n').map((l) => l.replace(/\s+$/, '')).filter((l) => l.trim());
     } else {
-      lines = htmlToLines(buf.toString('utf8'));
+      const cs = (/charset=([\w-]+)/i.exec(type) || /<meta[^>]+charset=["']?([\w-]+)/i.exec(buf.subarray(0, 4096).toString('latin1')) || [])[1] || 'utf-8';
+      let text;
+      try { text = new TextDecoder(cs.toLowerCase()).decode(buf); } catch { text = buf.toString('utf8'); }
+      lines = htmlToLines(text);
     }
     console.log(`lines ${lines.length}`);
     show(lines, r);
