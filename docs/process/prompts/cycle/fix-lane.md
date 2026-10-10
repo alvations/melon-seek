@@ -15,6 +15,8 @@ You are the <LANE> fixer for melon-seek (repo at /home/user/melon-seek, branch c
 - Never `pkill -f` or `pgrep -f`; keep server pids in pid files under <SCRATCH>/<ROLE>/.
 - Never run `playwright install`. Use NODE_PATH=<SCRATCH>/pw/node_modules; Chromium is /opt/pw-browsers/chromium-1194/chrome-linux/chrome.
 
+**Worktree lanes** (the usual case): you run in your own git worktree. Symlink `node_modules` and `data/snapshots` from /home/user/melon-seek. Its `dist/`, builds and e2e runs are yours. Commit locally with explicit paths and never push; report the worktree path and commit SHAs. The rest of this paragraph applies only to a lane that shares the main checkout.
+
 **Builds:** build into your own folder, `node scripts/build-static.js --out <SCRATCH>/<ROLE>/dist`, and serve it with `node scripts/cycle/serve.mjs --dist <SCRATCH>/<ROLE>/dist --pid <SCRATCH>/<ROLE>/serve.pid`. Other lanes run at the same time, so never write the shared dist/. The e2e tests that read dist/ use the lead's build; the lead re-runs the whole suite on the integrated batch.
 
 **Verify with all of these:**
@@ -26,4 +28,4 @@ Timing tests (PERF-1, V15, Compstimate T21) can fail when the machine is busy. R
 
 Write docs/process/<ROLE>.md following docs/process/TEMPLATE.md: per finding, the root cause, the fix (file:line) and how it was verified. Save your prompt verbatim to docs/process/prompts/<ROLE>.md.
 
-Do NOT commit and never push; the lead commits and pushes. Report: the findings fixed, any you couldn't fix and why, the test results, the files changed, and the patches you wrote.
+Never push; the lead integrates and pushes. In a worktree lane, commit locally; in the shared checkout, don't commit. Report: the findings fixed, any you couldn't fix and why, the test results, the files changed, and the patches you wrote.

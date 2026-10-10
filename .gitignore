@@ -17,3 +17,5 @@ data/snapshots
 # rebuilt from the archive with scripts/cycle/local-data.js. Never committed.
 data/beta/
 data/beta-fresh/
+# Agent worktrees (Agent isolation: "worktree"), one per fix lane; integrated by the lead
+.claude/worktrees/

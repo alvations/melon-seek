@@ -55,6 +55,15 @@ Rules for every stage 1 agent:
 ## Stage 2. Fix (agents by file ownership)
 
 - The lead triages every finding into lanes by owning file. Use [cycle/fix-lane.md](prompts/cycle/fix-lane.md).
+- Decide shared rules before the lanes start, and land any helper several lanes need in the base
+  commit first. On 2026-10-10 these were `levelLabel` and `payLocations`, and the
+  `salary.kind: 'ote'` and `salary.termWeeks` fields one lane produces and the others consume.
+  Write the rules into every lane's prompt.
+- Run each fix lane in its own git worktree (Agent `isolation: "worktree"`). Its `dist/`, builds
+  and e2e runs are its own, and stage 1 agents can keep testing the shared checkout. The lane
+  symlinks `node_modules` and `data/snapshots`, commits locally, never pushes, and reports its
+  worktree path and commit SHAs. A long lane prompt can live in a file the agent reads and saves
+  verbatim.
 - One agent per lane. Shared files go to a single owner; any other agent that needs a change there
   writes a patch to `docs/process/patches/<role>-<name>.diff` instead.
 - Keep the UI simple (docs/strategy/ROADMAP.md §8). Use no unexplained abbreviations.
@@ -70,8 +79,9 @@ These are the rules learned the hard way on 2026-10-10.
 
 1. **Agents never push.** Every push to the deploy branch starts GitHub's branch build, which
    briefly serves the holding page (repo-root `index.html`). The lead batches pushes.
-2. **Check for agents' local commits** first: `git log origin/claude/stoic-ride-54ddxp..HEAD`.
-   Cherry-pick them into the batch.
+2. **Check for agents' local commits** first: `git log origin/claude/stoic-ride-54ddxp..HEAD`,
+   plus each worktree lane's reported SHAs. Cherry-pick them into the batch, then apply the
+   lanes' patches (`docs/process/patches/`) in order.
 3. **Build each batch in a clean worktree:**
    - create it with `git worktree add --detach <scratch>/wt-<name> HEAD` and symlink `node_modules`;
    - copy only the lane's files, apply its patches in order, and run
