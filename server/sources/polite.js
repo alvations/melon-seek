@@ -271,10 +271,18 @@ const robotsCache = new Map(); // origin -> Promise<rules|null>
 export async function checkRobots(origin, paths, { label = 'source', stats = null, signal } = {}) {
   if (!robotsCache.has(origin)) {
     robotsCache.set(origin, (async () => {
-      const r = await politeRequest(`${origin}/robots.txt`, { accept: 'text/plain', label: `${label} robots.txt`, throwOnHttpError: false, retries: 2, stats, signal, maxBytes: 512 * 1024 });
-      if (r.status >= 400 && r.status < 500) return [];
-      if (!r.ok) throw new UpstreamError(`${label}: robots.txt returned HTTP ${r.status}; not crawling`, { code: 'robots', status: r.status });
-      return robotsRules(r.text);
+      // RFC 9309 §2.3.1.2: follow up to five redirects (jobs.apple.com redirects
+      // robots.txt to an HTML "page not found": no rules).
+      let url = `${origin}/robots.txt`;
+      for (let hop = 0; hop <= 5; hop++) {
+        const r = await politeRequest(url, { accept: 'text/plain', label: `${label} robots.txt`, throwOnHttpError: false, retries: 2, stats, signal, maxBytes: 512 * 1024 });
+        if (r.status >= 300 && r.status < 400 && r.headers.get('location') && hop < 5) { url = new URL(r.headers.get('location'), url).href; continue; }
+        if (r.status >= 400 && r.status < 500) return [];
+        if (!r.ok) throw new UpstreamError(`${label}: robots.txt returned HTTP ${r.status}; not crawling`, { code: 'robots', status: r.status });
+        if (/html/i.test(r.headers.get('content-type') || '') && /<html/i.test(r.text)) return [];
+        return robotsRules(r.text);
+      }
+      throw new UpstreamError(`${label}: robots.txt redirected too many times; not crawling`, { code: 'robots' });
     })());
   }
   let rules;

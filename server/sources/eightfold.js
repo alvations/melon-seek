@@ -1,0 +1,164 @@
+// Eightfold career sites (beta channel): Microsoft and NVIDIA ("PCSX" API) and
+// Netflix ("classic" apply/v2 API). docs/DATA_SOURCES.md §7.
+//
+// Both are the JSON calls the sites' own search pages make; they answer
+// anonymously (no login, no token). robots.txt on every tenant is
+// "Disallow: /" with "Allow: /careers", "Allow: /api/apply", "Allow: /api/pcsx".
+//   PCSX     GET /api/pcsx/search?domain=<d>&query=&location=&start=N&sort_by=timestamp
+//              -> { data: { count, positions: [{ id, displayJobId, name, locations[],
+//                   standardizedLocations[], postedTs, creationTs, department,
+//                   workLocationOption, positionUrl }] } }   (10 per page, fixed)
+//            GET /api/pcsx/position_details?position_id=<id>&domain=<d>&hl=en
+//              -> { data: { jobDescription (HTML), publicUrl, efcustomTextEmploymentType[], … } }
+//   classic  GET /api/apply/v2/jobs?domain=<d>&start=N&num=10&sort_by=relevance
+//              -> { count, positions: [{ id, name, location, locations[], department,
+//                   business_unit, t_create, t_update, display_job_id, canonicalPositionUrl,
+//                   job_description: "" (empty in the list) }] }
+//            GET /api/apply/v2/jobs/<id>?domain=<d>  -> the position with job_description
+// Pay is only in the description text (parsed by server/salary.js in normalize).
+// The list carries no description, so each posting costs one detail request;
+// at about 1 request/s per host a 2,500-posting board takes ~45 minutes.
+import { UpstreamError, htmlToText, str, isoOrNull } from './util.js';
+import { politeJson, checkRobots, mapLimit, cookieJar, newStats } from './polite.js';
+
+/** Fixed tenants (board key -> host, Eightfold group id, API flavour). */
+export const EIGHTFOLD_BOARDS = Object.freeze({
+  microsoft: { host: 'apply.careers.microsoft.com', domain: 'microsoft.com', api: 'pcsx' },
+  nvidia: { host: 'jobs.nvidia.com', domain: 'nvidia.com', api: 'pcsx' },
+  netflix: { host: 'explore.jobs.netflix.net', domain: 'netflix.com', api: 'classic' },
+});
+
+const PAGE = 10; // fixed by the API (num / pageSize are ignored)
+const MAX_PAGES = 1500; // runaway guard (15,000 postings)
+
+export function eightfoldSearchUrl(t, start) {
+  const q = new URLSearchParams({ domain: t.domain });
+  if (t.api === 'pcsx') { q.set('query', ''); q.set('location', ''); q.set('start', String(start)); q.set('sort_by', 'timestamp'); }
+  else { q.set('start', String(start)); q.set('num', String(PAGE)); q.set('sort_by', 'relevance'); }
+  return `https://${t.host}/api/${t.api === 'pcsx' ? 'pcsx/search' : 'apply/v2/jobs'}?${q}`;
+}
+
+export function eightfoldDetailUrl(t, id) {
+  const q = new URLSearchParams({ domain: t.domain });
+  if (t.api === 'pcsx') return `https://${t.host}/api/pcsx/position_details?position_id=${encodeURIComponent(id)}&${q}&hl=en`;
+  return `https://${t.host}/api/apply/v2/jobs/${encodeURIComponent(id)}?${q}`;
+}
+
+const seconds = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? new Date(Number(v) * 1000).toISOString() : null);
+
+/** "Los Angeles,California,United States of America" -> "Los Angeles, California, United States of America". */
+export function tidyLocation(s) {
+  const t = str(s);
+  return t ? t.replace(/\s*,\s*/g, ', ').replace(/\s+/g, ' ').trim() : null;
+}
+
+/**
+ * Map one Eightfold position (search row merged with its detail, either API
+ * flavour) to a RawJob. `t` is the tenant from EIGHTFOLD_BOARDS.
+ */
+export function mapEightfoldJob(p, t = EIGHTFOLD_BOARDS.microsoft) {
+  const pcsx = t.api === 'pcsx';
+  const html = String((pcsx ? p.jobDescription : p.job_description) || '');
+  // PCSX standardizedLocations ("Redmond, WA, US") geocode better than locations ("United States, Washington, Redmond").
+  const raw = pcsx
+    ? (Array.isArray(p.standardizedLocations) && p.standardizedLocations.length ? p.standardizedLocations : p.locations)
+    : (Array.isArray(p.locations) && p.locations.length ? p.locations : [p.location]);
+  const locs = [];
+  for (const l of Array.isArray(raw) ? raw : []) {
+    const s = tidyLocation(l);
+    if (s && !locs.includes(s)) locs.push(s);
+  }
+  const wlo = String(p.workLocationOption || p.work_location_option || '').toLowerCase();
+  let remote = null;
+  if (/remote/.test(wlo) || locs.some((l) => /\bremote\b/i.test(l))) remote = true;
+  // Classic lists report every Netflix posting as "onsite"; only PCSX's value is trusted.
+  else if (pcsx && /onsite|on-site|hybrid/.test(wlo)) remote = false;
+  const site = Array.isArray(p.efcustomTextWorkSite) ? p.efcustomTextWorkSite[0] : null;
+  if (pcsx && /remote|100% work from home/i.test(site || '')) remote = true;
+  const emp = Array.isArray(p.efcustomTextEmploymentType) ? str(p.efcustomTextEmploymentType[0]) : null;
+  let url = str(p.publicUrl) || (p.positionUrl ? `https://${t.host}${p.positionUrl}` : null) || str(p.canonicalPositionUrl);
+  if (url) url = url.replace(/[?&]microsite=[^&]*$/, '');
+  if (!url) url = `https://${t.host}/careers/job/${p.id}`;
+  return {
+    sourceId: String(p.id ?? ''),
+    title: str(p.posting_name) || str(p.name) || 'Untitled role',
+    department: str(p.department),
+    team: str(p.business_unit) || (Array.isArray(p.efcustomTextTaDisciplineName) ? str(p.efcustomTextTaDisciplineName[0]) : null),
+    employmentType: emp ? emp.replace(/^Full-Time$/i, 'Full-time').replace(/^Part-Time$/i, 'Part-time') : null,
+    locationText: locs[0] || '',
+    extraLocations: locs.slice(1),
+    remote,
+    html,
+    text: htmlToText(html),
+    url,
+    updatedAt: seconds(pcsx ? p.postedTs : p.t_update),
+    // The requisition's creation (t_create / creationTs); postedTs and t_update move on edits and reposts.
+    postedAt: seconds(pcsx ? p.creationTs : p.t_create) || seconds(pcsx ? p.postedTs : p.t_update),
+    reqId: str(p.displayJobId) || str(p.display_job_id) || str(p.atsJobId) || str(p.ats_job_id),
+    salary: null,
+  };
+}
+
+/**
+ * Fetch every posting of an Eightfold tenant: the search pages, then one
+ * detail request per posting (descriptions, and so pay, are only there).
+ * Options: maxJobs (probe), stats (polite.newStats()), log, keepRaw, signal,
+ * concurrency (detail requests in flight; the 1 request/s spacing still applies).
+ * Returns { jobs: RawJob[], stats }.
+ */
+export async function fetchEightfold(board, opts = {}) {
+  const key = typeof board === 'string' ? board : board && board.board;
+  const t = EIGHTFOLD_BOARDS[key];
+  if (!t) throw new UpstreamError(`eightfold: unknown board "${key}"`, { code: 'bad_board' });
+  const { maxJobs = 0, stats = newStats(), log = () => {}, keepRaw = false, signal, concurrency = 2, timeoutMs } = opts;
+  const label = `eightfold/${key}`;
+  const jar = cookieJar(); // the site's own session cookies (_vs, _vscid): cookieless clients share a tiny bucket
+  const common = { label, jar, stats, signal, timeoutMs };
+  await checkRobots(`https://${t.host}`, [new URL(eightfoldSearchUrl(t, 0)).pathname + new URL(eightfoldSearchUrl(t, 0)).search, new URL(eightfoldDetailUrl(t, 1)).pathname], { label, stats, signal });
+
+  const rows = [];
+  const seen = new Set();
+  let total = null;
+  for (let page = 0, start = 0; page < MAX_PAGES; page++, start += PAGE) {
+    const body = await politeJson(eightfoldSearchUrl(t, start), common);
+    stats.pages++;
+    const data = t.api === 'pcsx' ? body && body.data : body;
+    const positions = data && Array.isArray(data.positions) ? data.positions : null;
+    if (!positions) throw new UpstreamError(`${label}: unexpected search response (no positions)`, { code: 'bad_shape' });
+    if (total == null && Number.isFinite(Number(data.count))) total = Number(data.count);
+    let added = 0;
+    for (const p of positions) {
+      if (!p || p.id == null || seen.has(String(p.id))) continue;
+      seen.add(String(p.id));
+      rows.push(p);
+      added++;
+    }
+    if (page % 25 === 0) log(`search page ${page + 1}: ${rows.length}/${total ?? '?'} postings`);
+    if (!positions.length || (total != null && start + PAGE >= total) || (maxJobs && rows.length >= maxJobs)) break;
+    if (!added && page > 0) { stats.notes.push(`search page ${page + 1} repeated earlier postings; stopped`); break; }
+  }
+  if (total != null && rows.length < total && !maxJobs) stats.notes.push(`search listed ${rows.length} of ${total} postings`);
+  const list = maxJobs ? rows.slice(0, maxJobs) : rows;
+
+  const t0 = Date.now();
+  const { results, errors } = await mapLimit(list, concurrency, async (p, i) => {
+    const d = await politeJson(eightfoldDetailUrl(t, p.id), { ...common, retries: 3 });
+    stats.details++;
+    if ((i + 1) % 200 === 0) log(`details ${i + 1}/${list.length} (${Math.round((Date.now() - t0) / 1000)} s)`);
+    return t.api === 'pcsx' ? d && d.data : d;
+  }, { shouldStop: () => signal && signal.aborted });
+  stats.detailErrors += errors.length;
+  if (errors.length) stats.notes.push(`${errors.length} detail request(s) failed, first: ${errors[0].error.message}`);
+  // A board where most details fail is broken, not partially available.
+  if (list.length && errors.length > Math.max(5, list.length * 0.2)) {
+    throw new UpstreamError(`${label}: ${errors.length}/${list.length} detail requests failed (first: ${errors[0].error.message})`, { code: 'details_failed' });
+  }
+  const jobs = list.map((p, i) => {
+    const merged = { ...p, ...(results[i] || {}) };
+    const job = mapEightfoldJob(merged, t);
+    if (keepRaw) job._raw = merged;
+    return job;
+  });
+  log(`done: ${jobs.length} postings, ${stats.requests} requests`);
+  return { jobs, stats };
+}

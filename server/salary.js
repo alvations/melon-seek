@@ -204,8 +204,13 @@ function findTokens(text) {
 function isBoundary(text, i) {
   const ch = text[i];
   if (ch === '\n' || ch === '•' || ch === ';') return true;
-  return (ch === '.' || ch === '!' || ch === '?') && (i + 1 >= text.length || /\s/.test(text[i + 1]));
+  if (!((ch === '.' || ch === '!' || ch === '?') && (i + 1 >= text.length || /\s/.test(text[i + 1])))) return false;
+  // "across the U.S. is USD $85,400 - …" (Microsoft): an abbreviation's final
+  // dot is not a sentence end, so the pay words before it stay in the clause.
+  if (ch === '.' && ABBREV_END_RE.test(text.slice(Math.max(0, i - 5), i))) return false;
+  return true;
 }
+const ABBREV_END_RE = /(?:^|[^A-Za-z.])(?:[A-Z]\.[A-Z]|e\.g|i\.e)$/;
 
 /** { start, end, heading } of the sentence/clause around [s, e). */
 function clauseSpan(text, s, e) {
@@ -225,11 +230,13 @@ function clauseSpan(text, s, e) {
   return { start: a, end: b, heading };
 }
 
-const PAY_RE = /\b(salary|salaries|compensation|pay|paid|wages?|ote|on[- ]target earnings|remuneration|stipends?|(?:hourly|contract|day|daily|pay|base) rate|rate of pay|hourly (?:range|wage|pay)|brutto|gross)\b/i;
+const PAY_RE = /\b(salary|salaries|compensation|pay|paid|wages?|ote|on[- ]target earnings|remuneration|stipends?|(?:hourly|contract|day|daily|pay|base) rate|rate of pay|hourly (?:range|wage|pay)|brutto|gross|range for this (?:role|position|job))\b/i;
 // "$500 home office stipend", "learning & development stipend": benefits, not pay.
 export const BENEFIT_STIPEND_RE = /\b(?:lunch|meals?|food|snacks?|home[- ]office|office|workspace|learning(?:\s*(?:&|and)\s*development)?|development|education(?:al)?|tuition|wellness|well-?being|fitness|gym|commuter|commuting|transit|transportation|phone|mobile|cell|internet|wi-?fi|co-?working|relocation|equipment|books?|conference|travel|childcare|remote(?:[- ]work)?|wfh|tech(?:nology)?|health|lifestyle|productivity|setup)\s+(?:stipends?|allowances?|budgets?)\b/gi;
 const NEG_BEFORE_RE = /\b(raised|raising|funding|funded|series [a-f]|valuation|valued|revenue|arr|backed|invest\w*|budgets?|spend(?:ing)?|closing|closed|deals?|quotas?|bonus(?:es)?|signing|sign-on|relocation|reimburs\w*|allowances?|grants?|credits?|compute|expenses?|savings?|saved|worth|exploits?|prizes?|awards?|donat\w*|customers?|users|loans?|pric(?:e|es|ed|ing)|costs?|fees?|tuition|401)\b[^$£€¥\d]{0,40}$/i;
 const NEG_AFTER_RE = /^\W{0,3}(?:in\s+|of\s+)?(?:[\w-]+\s+){0,3}?(deals?|funding|raised|revenue|arr|valuation|budgets?|spend|quotas?|exploits?|customers|users|grants?|credits?|allowances?|bonus(?:es)?|signing|sign-on|savings|prizes?|stipends?|reimbursements?|contracts? (?:value|won)|in (?:annual )?spend)\b/i;
+const TOTAL_COMP_BEFORE_RE = /\btotal\s+(?:(?:target|annual|cash|expected)\s+)*comp(?:ensation)?\b[^$£€¥\d]{0,40}$/i;
+const PLUS_EXTRAS_AFTER_RE = /^\s*(?:\(?(?:USD|CAD|GBP|EUR|AUD|SGD)\)?\s*)?(?:per\s+(?:year|annum|hour)\s*)?(?:\+|plus\b)\s*(?:an?\s+)?(?:annual\s+|target\s+)?(?:bonus|equity|benefits|commission|stock|rsus?)\b/i;
 const PAY_STIPEND_AFTER_RE = /^\W{0,3}(?:(?:weekly|monthly|bi-?weekly|living|base|research)\s+)stipend\b/i;
 const FILLER_RE = new RegExp(String.raw`\b(?:${CODES}|per|an?|hour|hours|year|annum|month|week|day|hourly|annually|yearly|monthly|weekly|base|gross|brutto|net|ote|range|up|to|from|between|starting|at|approx|approximately|about|plus|offers|equity|multiple|ranges|and|usd)\b|[^A-Za-z]+`, 'gi');
 
@@ -320,8 +327,12 @@ function evaluate(text, u, countries) {
 
   // Benefits, funding, deals, bonuses ... right around the amount.
   if (NEG_BEFORE_RE.test(before.slice(-60))) return null;
+  // Base pay only: a total-compensation range includes bonus/equity/sign-on.
+  if (TOTAL_COMP_BEFORE_RE.test(before.slice(-60))) return null;
   const payStipendAfter = PAY_STIPEND_AFTER_RE.test(after);
-  if (!payStipendAfter && NEG_AFTER_RE.test(after)) return null;
+  // "$141,000-$202,000 + bonus + equity + benefits": base pay, extras on top.
+  const plusExtras = PLUS_EXTRAS_AFTER_RE.test(after);
+  if (!payStipendAfter && !plusExtras && NEG_AFTER_RE.test(after)) return null;
   if (!(kwInClause || kwInHeading || standalone || unitIv === 'hour' || payStipendAfter)) return null;
 
   // Interval: on the amount, right after it (same line), else earlier in the same clause/heading.

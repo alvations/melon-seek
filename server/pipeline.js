@@ -14,6 +14,11 @@ import fs from 'node:fs/promises';
 import { fetchGreenhouse } from './sources/greenhouse.js';
 import { fetchAshby } from './sources/ashby.js';
 import { fetchLever } from './sources/lever.js';
+import { fetchEightfold } from './sources/eightfold.js';
+import { fetchAmazon } from './sources/amazon.js';
+import { fetchApple } from './sources/apple.js';
+import { fetchGoogle } from './sources/google.js';
+import { fetchMeta } from './sources/meta.js';
 import { MAX_BYTES, MAX_BYTES_BUILTIN } from './sources/util.js';
 import { normalizeJobs, relocateJobs, NORMALIZER_VERSION } from './normalize.js';
 import { rekeyBoardJobs } from './keywords.js';
@@ -21,7 +26,13 @@ import { demoJobs } from './demo.js';
 import { getCacheDir, setCacheDir, setCached } from './cache.js';
 import { writeStore, pruneStores } from './store.js';
 
-export const ADAPTERS = { greenhouse: fetchGreenhouse, ashby: fetchAshby, lever: fetchLever };
+// Stable boards (greenhouse/ashby/lever: one request, an array of RawJobs) and the
+// beta channel's big-tech career sites (docs/DATA_SOURCES.md §7: many polite
+// requests, { jobs, stats }). Beta sources are built-in only (companies.js SOURCES).
+export const ADAPTERS = {
+  greenhouse: fetchGreenhouse, ashby: fetchAshby, lever: fetchLever,
+  eightfold: fetchEightfold, amazon: fetchAmazon, apple: fetchApple, google: fetchGoogle, meta: fetchMeta,
+};
 
 /** Built-in boards can be tens of MB, so they get a longer timeout than custom boards (15 s). */
 export const BUILTIN_TIMEOUT_MS = 45_000;
@@ -32,11 +43,20 @@ export function maxBytesFor(company) {
   return company && company.custom ? MAX_BYTES : MAX_BYTES_BUILTIN;
 }
 
-/** Fetch live jobs for a company and normalize them (in the calling thread; used by the snapshot CLI). */
-export async function fetchLive(company) {
+/**
+ * Fetch live jobs for a company and normalize them (in the calling thread; used
+ * by the snapshot CLI). `opts.log` / `opts.stats` reach the beta adapters
+ * (progress lines, request counts). Adapters return RawJob[] or { jobs }.
+ */
+export async function fetchLive(company, opts = {}) {
   const adapter = ADAPTERS[company.source];
   if (!adapter) throw new Error(`No adapter for source "${company.source}"`);
-  const raws = await adapter(company.board, { maxBytes: maxBytesFor(company), timeoutMs: company.custom ? undefined : BUILTIN_TIMEOUT_MS });
+  const extra = {};
+  if (opts.log) extra.log = opts.log;
+  if (opts.stats) extra.stats = opts.stats;
+  const out = await adapter(company.board, { maxBytes: maxBytesFor(company), timeoutMs: company.custom ? undefined : BUILTIN_TIMEOUT_MS, ...extra });
+  const raws = Array.isArray(out) ? out : out && Array.isArray(out.jobs) ? out.jobs : null;
+  if (!raws) throw new Error(`Adapter for "${company.source}" returned no job list`);
   return normalizeJobs(raws, company);
 }
 
@@ -66,6 +86,14 @@ export async function runTask(task) {
     return { name: task.name, fetchedAt, count: jobs.length };
   }
   if (task.type === 'live') {
+    // Beta big-tech boards are snapshot-only (companies.js live: false): a live
+    // crawl is ~1 request/s for up to an hour, never something an HTTP request
+    // should start. The server then falls back to cache / snapshot.
+    if (task.company && task.company.live === false) {
+      const err = new Error(`live fetch disabled for ${task.company.slug} (snapshot only: node scripts/snapshot.js --channel beta)`);
+      err.code = 'live_disabled';
+      throw err;
+    }
     const jobs = await fetchLive(task.company);
     const fetchedAt = new Date().toISOString();
     const name = `live-${task.company.slug}-${Date.now().toString(36)}`;
