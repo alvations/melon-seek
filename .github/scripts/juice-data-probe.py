@@ -7,7 +7,7 @@ log. Nothing is written back to the repository and no artifact is uploaded.
 
   python3 .github/scripts/juice-data-probe.py [section ...]   (default: all)
 
-Sections: hud2 acs2 ons2 cso2 zurich2 sg2 olap cmhc2 hud acs ons cso nsw vic cmhc zurich sg bls zillow mit
+Sections: hud3 statcan misc3 hud2 acs2 ons2 cso2 zurich2 sg2 olap cmhc2 hud acs ons cso nsw vic cmhc zurich sg bls zillow mit
 Each section is independent: a failure is printed and the next one runs.
 Needs openpyxl for .xlsx (the workflow pip-installs it on the runner only).
 """
@@ -798,7 +798,172 @@ def cmhc2():
                 print(f"    {h_[:220]}")
 
 
-SECTIONS = {"hud2": hud2, "acs2": acs2, "ons2": ons2, "cso2": cso2, "zurich2": zurich2, "sg2": sg2, "olap": olap, "cmhc2": cmhc2,
+# --------------------------------------------------------------------------- round 3
+HUD_AREAS = ["San Francisco, CA", "New York, NY", "Seattle-Bellevue", "Boston-Cambridge-Quincy", "Austin-Round Rock",
+             "Washington-Arlington-Alexandria", "Los Angeles-Long Beach", "Chicago-Joliet", "Denver-Aurora", "Atlanta-Sandy Springs",
+             "Columbus, OH", "Santa Ana-Anaheim", "Huntsville, AL", "San Diego", "San Jose-Sunnyvale", "Dallas, TX", "Houston-The Woodlands",
+             "Miami-Miami Beach", "Philadelphia-Camden", "Pittsburgh, PA", "Raleigh, NC", "Portland-Vancouver", "Salt Lake City, UT",
+             "Phoenix-Mesa", "Minneapolis-St. Paul", "Baltimore-Columbia", "Colorado Springs", "Boulder, CO", "Detroit-Warren", "Nashville-Davidson"]
+
+
+def hud3():
+    section("HUD FMR (ArcGIS Fair_Market_Rents) by metro name; SAFMR layers")
+    try:
+        meta = json.loads(get(f"{HUD_ARCGIS}/Fair_Market_Rents/FeatureServer/0?f=json"))
+        desc = re.sub(r"<[^>]+>", " ", str(meta.get("description")))
+        print(f"  description (FY mentions): {re.findall(r'FY ?20[0-9][0-9][^.]{0,80}', desc)[:6]}")
+        print(f"  serviceItemId {meta.get('serviceItemId')} | lastEdit {meta.get('editingInfo', {}).get('lastEditDate')}")
+    except Exception as e:
+        print(f"  meta: {e}")
+    for nm in HUD_AREAS:
+        try:
+            res = arcgis_query("Fair_Market_Rents", f"FMR_AREANAME LIKE '{nm}%'", fields="FMR_CODE,FMR_AREANAME,FMR_0BDR,FMR_1BDR,FMR_2BDR,FMR_3BDR,FMR_4BDR", n=5)
+            for ft in res.get("features", [])[:3]:
+                a = ft["attributes"]
+                print(f"    FMR | {a['FMR_AREANAME']} | {a['FMR_CODE']} | 0-4BR {a['FMR_0BDR']} {a['FMR_1BDR']} {a['FMR_2BDR']} {a['FMR_3BDR']} {a['FMR_4BDR']}")
+            if res.get("error"):
+                print(f"    {nm}: {res['error']}")
+        except Exception as e:
+            print(f"    {nm}: {e}")
+    for svc in ("HUD_PDR_Small_Area_Fair_Market_Rents", "SAFMR_Year", "SAFMR_Ratio_Point"):
+        try:
+            root = json.loads(get(f"{HUD_ARCGIS}/{svc}/FeatureServer?f=json"))
+            items = [(l["id"], l["name"], "layer") for l in root.get("layers", [])] + [(t["id"], t["name"], "table") for t in root.get("tables", [])]
+            print(f"  {svc}: {items} | {re.sub(r'<[^>]+>', ' ', str(root.get('serviceDescription')))[:300]}")
+            for lid, lname, kind in items:
+                m = json.loads(get(f"{HUD_ARCGIS}/{svc}/FeatureServer/{lid}?f=json"))
+                fields = [f["name"] for f in m.get("fields", [])]
+                print(f"    [{lid}] {lname} ({kind}) fields: {fields}")
+                zf = next((f for f in fields if re.search(r"zcta|zip", f, re.I)), None)
+                if zf:
+                    zips = sorted({z for zs in US_ZIPS.values() for z in zs})
+                    for i in range(0, len(zips), 50):
+                        chunk = zips[i:i + 50]
+                        q = arcgis_query(f"{svc}", f"{zf} IN ({','.join(repr(z) for z in chunk)})", fields="*", layer=lid, n=400)
+                        for ft in q.get("features", []):
+                            a = {k: v for k, v in ft["attributes"].items() if not re.search(r"shape|objectid|aland|awater|intpt|mtfcc|classfp|funcstat", k, re.I)}
+                            z = str(a.get(zf))
+                            city = next((c for c, zs in US_ZIPS.items() if z in zs), "?")
+                            print(f"      {svc}[{lid}] | {city} | {a}")
+                        if q.get("error"):
+                            print(f"      error {q['error']}")
+        except Exception as e:
+            print(f"  {svc}: {e}")
+
+
+def statcan():
+    section("Statistics Canada: CMHC average rents (34-10-0133) and quarterly asking rents (46-10-0092)")
+    import zipfile
+    for pid in ("34100133", "46100092"):
+        url = f"https://www150.statcan.gc.ca/n1/tbl/csv/{pid}-eng.zip"
+        try:
+            blob = get(url, binary=True, timeout=240)
+        except Exception as e:
+            print(f"  {url}: {e}")
+            continue
+        z = zipfile.ZipFile(io.BytesIO(blob))
+        name = next(n for n in z.namelist() if n.endswith(".csv") and "MetaData" not in n)
+        text = z.read(name).decode("utf-8-sig", "replace")
+        rows = list(csv.reader(io.StringIO(text)))
+        hdr = rows[0]
+        print(f"  {pid} {name} header: {hdr}")
+        gi = hdr.index("GEO")
+        ri = hdr.index("REF_DATE")
+        vi = hdr.index("VALUE")
+        recs = [r for r in rows[1:] if len(r) > vi and re.search(r"Toronto|Vancouver|Montr|Ottawa", r[gi])]
+        dates = sorted({r[ri] for r in recs})
+        print(f"  dates {dates[:2]}..{dates[-3:]} | geos {sorted({r[gi] for r in recs})[:12]}")
+        for r in recs:
+            if r[ri] in dates[-2:]:
+                print(f"    {' | '.join(c for i, c in enumerate(r) if i not in (hdr.index('DGUID') if 'DGUID' in hdr else -1,) and c and len(c) < 80)}")
+
+
+def misc3():
+    section("Zurich combos, RTB Dublin LEAs, HDB latest, OLAP header, Victoria via data.vic")
+    u = "https://data.stadt-zuerich.ch/dataset/bau_whg_mpe_mietpreis_raum_zizahl_gn_jahr_od5161/download/BAU516OD5161.csv"
+    try:
+        text = get(u, timeout=120)
+        rows = list(csv.reader(io.StringIO(text.lstrip("﻿"))))
+        hdr = [h.strip('"') for h in rows[0]]
+        recs = [dict(zip(hdr, r)) for r in rows[1:] if r]
+        combos = sorted({(r["RaumeinheitLang"], r["GemeinnuetzigLang"], r["PreisartLang"], r["EinheitLang"]) for r in recs if r["StichtagDatJahr"] == "2026"})
+        print(f"  zurich combos 2026: {combos}")
+        for r in recs:
+            if r["StichtagDatJahr"] == "2026" and re.search(r"Kreis 1\)|Kreis 2\)|Kreis 4\)|Kreis 5\)|Kreis 6\)|Kreis 8\)", r["GliederungLang"]) and r["EinheitLang"] == "Wohnung" and r["PreisartLang"] == "netto":
+                print(f"    {r['RaumeinheitLang']} | {r['GliederungLang']} | {r['GemeinnuetzigLang']} | {r['ZimmerLang']} | mean {r['mean']} | median {r['qu50']} | n {r.get('Sample1')}")
+    except Exception as e:
+        print(f"  zurich: {e}")
+    try:
+        url = "https://ws.cso.ie/public/api.restful/PxStat.Data.Cube_API.ReadDataset/RIQ02/JSON-stat/2.0/en"
+        d = json.loads(get(url, timeout=240))
+        ids, size = d["id"], d["size"]
+
+        def cats(i):
+            c = d["dimension"][i]["category"]
+            idx = c["index"]
+            order = idx if isinstance(idx, list) else sorted(idx, key=lambda k: idx[k])
+            return [c.get("label", {}).get(k, k) for k in order]
+        labels = {i: cats(i) for i in ids}
+        loc = ids[-1]
+        dub = [x for x in labels[loc] if re.search(r"Dublin", x)]
+        print(f"  RTB Dublin locations: {dub}")
+        strides = [1] * len(ids)
+        for n in range(len(ids) - 2, -1, -1):
+            strides[n] = strides[n + 1] * size[n + 1]
+        q = len(labels[ids[1]]) - 1
+        for li, lname in enumerate(labels[loc]):
+            if lname not in dub:
+                continue
+            for bi, bname in enumerate(labels[ids[2]]):
+                if bname not in ("One bed", "Two bed", "Three bed", "All bedrooms"):
+                    continue
+                for pi_, pname in enumerate(labels[ids[3]]):
+                    if pname not in ("All property types", "Apartment"):
+                        continue
+                    off = 0 * strides[0] + q * strides[1] + bi * strides[2] + pi_ * strides[3] + li * strides[4]
+                    v = d["value"][off] if isinstance(d["value"], list) else d["value"].get(str(off))
+                    print(f"    RTB {labels[ids[1]][q]} | {lname} | {bname} | {pname} = {v}")
+    except Exception as e:
+        print(f"  rtb: {e}")
+    try:
+        rid = "d_23000a00c52996c55106084ed0339566"
+        d = json.loads(get(f"https://data.gov.sg/api/action/datastore_search?resource_id={rid}&limit=1"))
+        total = int(d["result"]["total"])
+        d = json.loads(get(f"https://data.gov.sg/api/action/datastore_search?resource_id={rid}&limit=300&offset={max(0, total - 300)}"))
+        recs = d["result"]["records"]
+        qs = sorted({r.get("quarter") for r in recs})
+        for r in recs:
+            if r.get("quarter") == qs[-1] and re.search(r"CENTRAL|BUKIT MERAH|QUEENSTOWN|KALLANG", str(r.get("town")), re.I):
+                print(f"    HDB {r.get('quarter')} | {r.get('town')} | {r.get('flat_type')} | {r.get('median_rent')}")
+    except Exception as e:
+        print(f"  hdb: {e}")
+    try:
+        t = get("https://www.observatoires-des-loyers.org/datagouv/2025/Base_OP_2025_Nationale.csv", timeout=180)
+        print(f"  OLAP header: {t.splitlines()[0]}")
+    except Exception as e:
+        print(f"  olap: {e}")
+    try:
+        d = json.loads(get("https://discover.data.vic.gov.au/api/3/action/package_search?q=rental%20report%20moving%20annual%20rents&rows=5"))
+        for p_ in d["result"]["results"]:
+            print(f"  vic pkg {p_['name']}: {p_.get('title')} | {p_.get('license_title')}")
+            for r in p_.get("resources", [])[:6]:
+                print(f"    {r.get('format')} {r.get('name')} {r.get('url')}")
+        res = [r for p_ in d["result"]["results"] for r in p_.get("resources", []) if str(r.get("format", "")).lower() in ("xlsx", "xls") and re.search(r"moving|suburb", f"{r.get('name')} {r.get('url')}", re.I)]
+        if res:
+            u = res[0]["url"]
+            blob = get(u, binary=True, timeout=180)
+            n = 0
+            for sheet, row in xlsx_rows(blob):
+                cells = [norm(c) for c in row]
+                if n < 4 or any(re.search(r"^(Melbourne|Southbank|Docklands|Carlton|East Melbourne|Group Total)$", c) for c in cells[:3]):
+                    print(f"    [{sheet}] {cells[:3]} ... {cells[-6:]}")
+                    n += 1
+            print(f"  source: {u}")
+    except Exception as e:
+        print(f"  vic: {e}")
+
+
+SECTIONS = {"hud3": hud3, "statcan": statcan, "misc3": misc3, "hud2": hud2, "acs2": acs2, "ons2": ons2, "cso2": cso2, "zurich2": zurich2, "sg2": sg2, "olap": olap, "cmhc2": cmhc2,
             "hud": hud, "acs": acs, "ons": ons, "cso": cso, "nsw": nsw, "vic": vic, "cmhc": cmhc,
             "zurich": zurich, "sg": sg, "bls": bls, "zillow": zillow, "mit": mit}
 
