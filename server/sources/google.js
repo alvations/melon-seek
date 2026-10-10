@@ -13,7 +13,7 @@
 // The record is a positional array (no keys); see mapGoogleJob for the slots.
 // Pay is text in the "about the job" HTML: "The US base salary range for this
 // full-time position is $X-$Y + bonus + equity + benefits."
-import { UpstreamError, htmlToText, str } from './util.js';
+import { UpstreamError, htmlToText, str, decodeEntitiesOnce } from './util.js';
 import { politeRequest, checkRobots, mapLimit, cookieJar, newStats, spreadSample } from './polite.js';
 
 export const GOOGLE_ORIGIN = 'https://www.google.com';
@@ -59,6 +59,25 @@ export function parseGoogleDetail(text) {
 }
 
 const htmlAt = (v) => (Array.isArray(v) ? str(v[1]) || str(v[0]) || '' : str(v) || '');
+
+/** A posting title as written: "Databases &amp; Analytics" is "Databases & Analytics" (DQ-16). */
+export function googleTitle(v) {
+  const t = str(v);
+  return t && /&(?:#\d+|#x[0-9a-f]+|[a-z]+);/i.test(t) ? str(decodeEntitiesOnce(t)) : t;
+}
+
+/**
+ * Stored Google Jobs (crawled before 2026-10-10) -> the current mapping: titles decoded
+ * (DQ-16) and the brand as the department (D-24). Pure; other companies pass through.
+ */
+export function upgradeGoogleJobs(jobs) {
+  return (jobs || []).map((j) => {
+    if (!j || j.company !== 'google') return j;
+    const title = googleTitle(j.title) || j.title;
+    const department = j.department || j.team || null;
+    return title === j.title && department === j.department ? j : { ...j, title, department };
+  });
+}
 const secs = (v) => (Array.isArray(v) && Number(v[0]) > 0 ? new Date(Number(v[0]) * 1000).toISOString() : null);
 
 /**
@@ -68,6 +87,11 @@ const secs = (v) => (Array.isArray(v) && Number(v[0]) > 0 ? new Date(Number(v[0]
  * 9 locations [[display, addresses, city, zip, state, country]…], 10 about the
  * job [_, html] (carries the pay sentence), 12 created [s, ns], 13 updated,
  * 16 1 on remote-eligible reqs. `entry` is the sitemap entry ({ id, slug }).
+ * No slot holds a department or team (D-24): 5 is the brand's company resource name, 8 the
+ * language, 11 a list of small integers ([2] on both Technical Program Manager fixtures, null
+ * on a general application; probably a job-category code, not mapped until a probe confirms
+ * the codes), 14 a timestamp, 15 an apply note, 18 a location note, 19 the minimum
+ * qualifications. The sitemap gives only id, slug and lastmod.
  */
 export function mapGoogleJob(rec, entry = {}) {
   const id = String(rec[0] ?? entry.id ?? '');
@@ -83,11 +107,14 @@ export function mapGoogleJob(rec, entry = {}) {
   const remote = rec[16] === 1 || rec[16] === true || locs.some((l) => /\bremote\b/i.test(l)) ? true : null;
   if (remote && !locs.some((l) => /\bremote\b/i.test(l))) locs.push('Remote');
   const slug = entry.slug || String(rec[1] || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const brand = str(rec[7]);
   return {
     sourceId: id,
-    title: str(rec[1]) || 'Untitled role',
-    department: null,
-    team: str(rec[7]),
+    title: googleTitle(rec[1]) || 'Untitled role',
+    // D-24: the record has no department, team or category field (see the slot list above);
+    // the brand (Google, YouTube, DeepMind, Waymo, …) is the only grouping Google publishes.
+    department: brand,
+    team: brand,
     employmentType: /\b(fixed[- ]term|contract)\b/i.test(String(rec[1] || '')) ? 'Contract' : /\bintern(ship)?\b/i.test(String(rec[1] || '')) ? 'Intern' : null,
     locationText: locs[0] || '',
     extraLocations: locs.slice(1),

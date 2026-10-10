@@ -105,7 +105,7 @@ function appleCopy(locId, own, low, high) {
   return mapAppleJob(row, detail);
 }
 
-test('DQ-2 Apple per-location copies never show two different pay ranges for the same city', TODO, () => {
+test('DQ-2 Apple per-location copies never show two different pay ranges for the same city', () => {
   // apple:200680778-5763 (Alturas, $119,800-$222,000) and apple:200680778-0836 (Cupertino, $150,400-$277,600)
   const jobs = normalizeJobs([appleCopy('5763', 'Alturas', '$119,800', '$222,000'), appleCopy('0836', 'Cupertino', '$150,400', '$277,600')], company('apple'));
   const payByCity = new Map();
@@ -173,7 +173,7 @@ test('DQ-3 a Microsoft pay sentence that names the level (IC6) decides a title w
 // Area" (328 location entries), Beaverton (294), Culver City (144), Waltham (130), Google San
 // Bruno (82), Microsoft Hillsboro (62).
 
-test('DQ-4 big-tech hub locations match a Juice city (directly or as "nearby")', TODO, () => {
+test('DQ-4 big-tech hub locations match a Juice city (directly or as "nearby")', () => {
   const missing = [];
   for (const raw of [
     'Los Gatos, California, United States of America', // netflix
@@ -316,7 +316,7 @@ test('DQ-8 per-level ranges are kept with their level labels', () => {
 // Mall", "Barton Creek"): 124 of 184 US retail postings get an extra place pinned at the centre
 // of the United States (39.83, -98.58).
 
-test('DQ-9 an Apple store name is not a second place pinned at the US centroid', TODO, () => {
+test('DQ-9 an Apple store name is not a second place pinned at the US centroid', () => {
   // apple:200679746-2593 "US-Technical Expert", Bellevue, WA
   const row = {
     id: '200679746-2593', positionId: '200679746', postingTitle: 'US-Technical Expert', transformedPostingTitle: 'us-technical-expert',
@@ -328,7 +328,7 @@ test('DQ-9 an Apple store name is not a second place pinned at the US centroid',
   assert.ok(!store || store.lat == null, `store placed at ${store && `${store.lat}, ${store.lng}`} as "${store && store.name}"`);
 });
 
-test('DQ-9 an Apple link slug that is already percent-encoded is not encoded twice', TODO, () => {
+test('DQ-9 an Apple link slug that is already percent-encoded is not encoded twice', () => {
   // apple:200463726-3631 "Apple Diversity Program - 장애인 채용": 19 Apple links contain "%25".
   const raw = mapAppleJob({ id: '200463726-3631', postingTitle: 'Apple Diversity Program - 장애인 채용', transformedPostingTitle: 'apple-diversity-program-%EC%9E%A5%EC%95%A0%EC%9D%B8-%EC%B1%84%EC%9A%A9', locations: [{ city: 'Seoul', countryName: 'Korea' }] }, null);
   assert.doesNotMatch(raw.url, /%25[0-9A-F]{2}/, raw.url);
@@ -338,7 +338,7 @@ test('DQ-9 an Apple link slug that is already percent-encoded is not encoded twi
 // Apple and Netflix write Korea as "Korea, Republic of", so every Korean posting gets a second,
 // unplaceable location "Republic of" (Apple 24, Netflix 18 postings).
 
-test('DQ-10 "Seoul, Korea, Republic of" is one location in South Korea', TODO, () => {
+test('DQ-10 "Seoul, Korea, Republic of" is one location in South Korea', () => {
   const locs = geocode('Seoul, Korea, Republic of');
   assert.deepEqual(locs.map((l) => [l.name, l.country]), [['Seoul, South Korea', 'KR']]);
 });
@@ -377,7 +377,7 @@ test('DQ-15 a Canadian CAD line is never merged into the US range', () => {
 /* ------------------------------------------------------------------ DQ-16 */
 // Google titles keep HTML entities ("Databases &amp; Analytics"): 4 postings.
 
-test('DQ-16 Google titles are decoded', TODO, () => {
+test('DQ-16 Google titles are decoded', () => {
   const raw = mapGoogleJob(['103168109170303686', 'Senior Product Manager, Databases &amp; Analytics, Google Cloud']);
   assert.equal(raw.title, 'Senior Product Manager, Databases & Analytics, Google Cloud');
 });

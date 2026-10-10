@@ -357,3 +357,54 @@ numbers (labels only), re-derives the level, and runs the vetting gate again
 salary but an amount in the parser's pay context, or with a pay word in the parser's clause,
 that no parser rule rejects. `multiple_ranges` counts only pay ranges beyond the salary's
 `zones`. Flag definitions: [VETTING.md](VETTING.md) §4.
+
+## Beta fix wave additions (2026-10-10): big-tech sources and locations (fix-beta-sources lane)
+
+Findings DQ-2, DQ-4, DQ-9 to DQ-12, DQ-16 ([docs/process/data-check-beta.md](process/data-check-beta.md))
+and D-23, D-24 ([docs/QA.md](QA.md)). Log: [docs/process/fix-beta-sources.md](process/fix-beta-sources.md).
+Every addition is optional for readers; no export changed its signature or return shape.
+
+**Job adds `pool: true`** (absent otherwise) on a talent pool or general application: a posting
+that collects interest instead of hiring for one opening. `server/sources/pool.js#isTalentPool`
+decides from the posting's own words: a title with "Expression of Interest", "Open … Career
+Opportunities", "Join Our Talent Network/Community/Pool" or ending in "General Interest/Application",
+or a description saying "This posting is not for a specific job opening". The app labels it.
+
+**Apple: one Job per requisition** (DQ-2). Apple lists a requisition once per location
+(`200680778-0836` is requisition 200680778 in Cupertino); `fetchApple` merges the listings:
+- `id`, `url` and the description are the lowest listing id's; `locations` are every listing's
+  place (each listing's own place first);
+- when the listings' pay differs, `salary` is structured (`source: 'structured'`): `min`/`max`
+  span the listings, `zones` is the number of distinct ranges, `text` names each range's places,
+  and `salary.ranges` holds each range: `{ label, min, max, currency, interval: 'year', locations }`.
+  `min`/`max` are annual, like `salary.min`/`max`; `label` is the places in the posting's words
+  ("Antioch, Cupertino"); `locations` are those places' `rawName`s. A listed place with no
+  listing of its own has no range. The description has one "Pay & Benefits (places)" section per
+  range. When the listings agree, the salary is the plain text salary, as before;
+- `mapAppleJob(row, detail)` maps one listing, which lists only the place its pay is for.
+
+**Other mapping changes:** Apple drops store names given as places ("Bellevue Square, United States
+of America") and encodes links once; Apple `employmentType` is `'Part-time'` only when the posting
+backs Apple's weekly-hours figure (its words, retail, pipeline, student, intern, seasonal or hourly
+pay), else `null` (DQ-9). NVIDIA: a description tagged `#LI-Hybrid` or `#LI-Onsite` makes
+`workLocationOption: 'remote_local'` not remote; a "Remote" location still does (DQ-12). Google:
+titles are entity-decoded (DQ-16) and `department` is the brand (Google, YouTube, DeepMind, …),
+the only grouping its record has (D-24).
+
+**Stored snapshots:** `server/sources/upgrade.js#upgradeStoredJobs(jobs)` applies these changes to
+stored, normalized Jobs. The static build (`readSnapshot`) and the server (`pipeline.js` snapshot
+task) call it on every snapshot after `relocateJobs`; it is idempotent, so a snapshot crawled with
+the fixed adapters passes through. Unlike `relocateJobs` it can return fewer jobs (Apple merges),
+so the archive ingest, which pairs jobs by index, does not use it.
+
+**Locations (`server/geo.js`):** new export `countryCode(name) -> ISO2 | null`.
+- "Seoul, Korea, Republic of" is one location; a stored dangling "Republic of" is dropped (DQ-10).
+- Apple's "City-CC" ("Klang Valley-MY", "Xi’an-CN") drops the country-code suffix.
+- Local-script names with an English name are read ("ב"ש" Be'er Sheva, "กทม" Bangkok); one the
+  gazetteer cannot read is filed under the district the posting names ("Haifa District, Israel").
+- "BG, RS" is Belgrade. New countries Macao, Maldives, Ghana and Palestine; new cities Macao,
+  Belgrade, Rawabi and Accra; "BKC" is Mumbai (D-23).
+- `data/cities.json` adds `nearby` proxies for big-tech suburbs (DQ-4): Los Gatos and Fremont (San
+  Jose), San Bruno and South San Francisco (San Francisco), Culver City (Los Angeles), Waltham
+  (Boston), Beaverton and Hillsboro (Portland), Cary and Morrisville (Raleigh), Thornton (Denver),
+  Addison and Irving (Dallas), Springfield (Arlington, VA).

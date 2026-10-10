@@ -52,6 +52,26 @@ export function tidyLocation(s) {
   return t ? t.replace(/\s*,\s*/g, ', ').replace(/\s+/g, ' ').trim() : null;
 }
 
+// The recruiter's LinkedIn work-mode tag, as NVIDIA writes it (also "#LI-Hybid", "#LI-Hybrind").
+const OFFICE_TAG_RE = /#LI-(?:Hyb\w*|On-?site)\b/i;
+/** True when the description carries a hybrid or on-site work-mode tag (DQ-12). */
+export function officeTag(html) {
+  return OFFICE_TAG_RE.test(String(html || ''));
+}
+
+/**
+ * Stored Eightfold Jobs (crawled before 2026-10-10) -> the DQ-12 rule of mapEightfoldJob: a
+ * posting flagged remote only by workLocationOption, whose description carries NVIDIA's own
+ * hybrid or on-site tag and none of whose locations is remote, is not remote. Pure.
+ */
+export function upgradeEightfoldJobs(jobs) {
+  return (jobs || []).map((j) => {
+    if (!j || j.remote !== true || !['nvidia', 'microsoft'].includes(j.company)) return j;
+    if ((j.locations || []).some((l) => l && l.remote) || !officeTag(j.descriptionHtml)) return j;
+    return { ...j, remote: false };
+  });
+}
+
 /**
  * Map one Eightfold position (search row merged with its detail, either API
  * flavour) to a RawJob. `t` is the tenant from EIGHTFOLD_BOARDS.
@@ -70,7 +90,11 @@ export function mapEightfoldJob(p, t = EIGHTFOLD_BOARDS.microsoft) {
   }
   const wlo = String(p.workLocationOption || p.work_location_option || '').toLowerCase();
   let remote = null;
-  if (/remote/.test(wlo) || locs.some((l) => /\bremote\b/i.test(l))) remote = true;
+  // DQ-12: NVIDIA tags hybrid and on-site roles in the description ("#LI-Hybrid", "#LI-Onsite").
+  // Its own tag wins over workLocationOption "remote_local"; a "Remote" location still counts.
+  const tagged = officeTag(html);
+  if ((/remote/.test(wlo) && !tagged) || locs.some((l) => /\bremote\b/i.test(l))) remote = true;
+  else if (pcsx && tagged) remote = false;
   // Classic lists report every Netflix posting as "onsite"; only PCSX's value is trusted.
   else if (pcsx && /onsite|on-site|hybrid/.test(wlo)) remote = false;
   const site = Array.isArray(p.efcustomTextWorkSite) ? p.efcustomTextWorkSite[0] : null;

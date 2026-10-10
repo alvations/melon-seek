@@ -102,6 +102,7 @@ CT|Catalonia|ES|41.59|1.52|Cataluña;Catalunya
 MD|Community of Madrid|ES|40.42|-3.70|Comunidad de Madrid
 AR|Aragon|ES|41.60|-0.88|Aragón
 SP|São Paulo State|BR|-22.19|-48.79|
+BG|Belgrade|RS|44.79|20.45|Beograd
 `;
 
 // ---------------------------------------------------------------------------
@@ -152,19 +153,23 @@ UA|Ukraine|48.38|31.17|UA
 AM|Armenia|40.07|45.04|
 IL|Israel|31.05|34.85|ISR
 KW|Kuwait|29.31|47.48|
+PS|Palestine|31.95|35.23|State of Palestine;Palestinian Territories
 AE|United Arab Emirates|23.42|53.85|UAE;U.A.E.;AE;ARE
 SA|Saudi Arabia|23.89|45.08|KSA;Kingdom of Saudi Arabia
 QA|Qatar|25.35|51.18|QA
 EG|Egypt|26.82|30.80|EG
 NG|Nigeria|9.08|8.68|NG
+GH|Ghana|7.95|-1.02|
 KE|Kenya|-0.02|37.91|KE
 ZA|South Africa|-30.56|22.94|ZA
 IN|India|20.59|78.96|IND
 PK|Pakistan|30.38|69.35|PK
+MV|Maldives|3.20|73.22|
 JP|Japan|36.20|138.25|JP;JPN
 KR|South Korea|35.91|127.77|Korea;Republic of Korea;KR;KOR
 CN|China|35.86|104.20|CN;PRC
 HK|Hong Kong|22.32|114.17|HK;Hong Kong SAR
+MO|Macao|22.20|113.55|Macau;Macao SAR
 TW|Taiwan|23.70|120.96|TW
 SG|Singapore|1.35|103.82|SG;SGP
 MY|Malaysia|4.21|101.98|MY
@@ -404,6 +409,7 @@ Copenhagen||DK|55.6761|12.5683|København
 Oslo||NO|59.9139|10.7522|
 Stavanger||NO|58.9700|5.7331|
 Zagreb||HR|45.8150|15.9819|
+Belgrade||RS|44.7866|20.4489|Beograd
 Helsinki||FI|60.1699|24.9384|HKI
 Vaasa||FI|63.0960|21.6158|
 Hamina||FI|60.5697|27.1981|
@@ -421,6 +427,7 @@ Yokneam||IL|32.6593|35.1052|Yokne'am Illit;Yokneam Illit;Yokne'am
 Beersheba||IL|31.2518|34.7913|Be'er Sheva;Beer Sheva
 Haifa||IL|32.7940|34.9896|
 Jerusalem||IL|31.7683|35.2137|
+Rawabi||PS|32.0094|35.1886|
 Dubai||AE|25.2048|55.2708|
 Abu Dhabi||AE|24.4539|54.3773|
 Riyadh||SA|24.7136|46.6753|
@@ -440,6 +447,7 @@ Suzhou||CN|31.2989|120.5853|
 Chengdu||CN|30.5728|104.0668|
 Xi'an||CN|34.3416|108.9398|Xian
 Hong Kong||HK|22.3193|114.1694|Hong Kong Island
+Macao||MO|22.1987|113.5439|Macau
 Taipei||TW|25.0330|121.5654|Taipei City
 New Taipei||TW|25.0120|121.4657|New Taipei City
 Hsinchu||TW|24.8138|120.9675|
@@ -453,7 +461,7 @@ Ho Chi Minh City||VN|10.8231|106.6297|Saigon
 Hanoi||VN|21.0278|105.8342|
 Bengaluru||IN|12.9716|77.5946|Bangalore
 Hyderabad||IN|17.3850|78.4867|
-Mumbai||IN|19.0760|72.8777|Bombay
+Mumbai||IN|19.0760|72.8777|Bombay;BKC;Bandra Kurla Complex
 Pune||IN|18.5204|73.8567|
 New Delhi||IN|28.6139|77.2090|Delhi
 Gurugram||IN|28.4595|77.0266|Gurgaon
@@ -498,6 +506,7 @@ Cape Town||ZA|-33.9249|18.4241|
 Johannesburg||ZA|-26.2041|28.0473|
 Nairobi||KE|-1.2921|36.8219|
 Lagos||NG|6.5244|3.3792|
+Accra||GH|5.6037|-0.1870|
 Cairo||EG|30.0444|31.2357|
 `;
 
@@ -604,6 +613,35 @@ function isKnownCity(token) {
   return CITY_INDEX.has(normKey(token));
 }
 
+/** ISO2 code for a country name, alias or code ("United States of America" -> "US"), or null. */
+export function countryCode(name) {
+  const raw = String(name || '').trim();
+  if (/^[A-Z]{2}$/.test(raw) && COUNTRY_BY_CODE.has(raw)) return raw;
+  const c = COUNTRIES.get(normKey(raw));
+  return c ? c.code : null;
+}
+
+// The tail of an inverted ISO country name, "Korea, Republic of" (Apple and Netflix write "Seoul,
+// Korea, Republic of"; DQ-10). It belongs to the country before it and is never a place itself.
+const INVERTED_TAIL_RE = /^(?:the\s+)?(?:(?:islamic|united|democratic|people[’']?s|bolivarian|federal|arab|socialist|plurinational|federated|former\s+yugoslav)\s+)*(?:republic|state|states|province|kingdom)\s+of(?:\s+the)?$/i;
+
+// Place names in a local script, or local abbreviations, that boards write instead of the English
+// name (D-23: NVIDIA and Microsoft "ב"ש, South District, IL"; "กทม, Bangkok, TH"). normKey drops
+// non-Latin letters, so these are matched on the exact token.
+const LOCAL_NAMES = new Map([
+  ['ב"ש', 'Beersheba'], ['באר שבע', 'Beersheba'], ['תל אביב', 'Tel Aviv'], ['תל אביב-יפו', 'Tel Aviv'],
+  ['חיפה', 'Haifa'], ['ירושלים', 'Jerusalem'], ['יקנעם', 'Yokneam'], ['יקנעם עילית', 'Yokneam'],
+  ['רעננה', "Ra'anana"], ['הרצליה', 'Herzliya'], ['กทม', 'Bangkok'], ['กรุงเทพมหานคร', 'Bangkok'],
+]);
+const localName = (t) => LOCAL_NAMES.get(String(t || '').trim().replace(/[״“”]/g, '"')) || null;
+// Approximate centres of the districts the Eightfold boards name next to an unreadable city.
+const DISTRICT_CENTRES = {
+  'IL|haifa district': [32.62, 35.05], 'IL|north district': [32.95, 35.45], 'IL|center district': [32.0, 34.9],
+  'IL|tel aviv district': [32.08, 34.8], 'IL|south district': [30.85, 34.8], 'IL|jerusalem district': [31.75, 35.05],
+};
+/** A token with no Latin letter or digit ("ק"א"): a local-script name the gazetteer cannot read. */
+const unreadable = (t) => !!String(t || '').trim() && !/[A-Za-z0-9]/.test(String(t));
+
 // ---------------------------------------------------------------------------
 // splitLocations
 // ---------------------------------------------------------------------------
@@ -635,6 +673,7 @@ function splitCommaGroups(part) {
       cur = { toks: [tok], hasRegion: false, remote: isRemote };
       continue;
     }
+    if (INVERTED_TAIL_RE.test(tok)) { cur.toks.push(tok); continue; } // "Seoul, Korea, Republic of"
     if (reg && !isRemote && !(isKnownCity(tok) && cur.hasRegion)) {
       cur.toks.push(tok);
       cur.hasRegion = true;
@@ -815,6 +854,17 @@ function finalCountry(token, cands, tokens) {
 /** "City, Region" / "City, Country" / "Region" / unknown-city fallbacks of resolvePlaceIn. */
 function resolvePlaceTokens(name, cleaned, extra) {
   let tokens = cleaned.split(/\s*,\s*/).filter(Boolean);
+  // "Seoul, Korea, Republic of": the tail adds nothing to the country before it (DQ-10).
+  if (tokens.length > 1) tokens = tokens.filter((t, i) => i === 0 || !INVERTED_TAIL_RE.test(t));
+  // Apple's "City-CC" names ("Klang Valley-MY, Malaysia", "Xi’an-CN, China", "Riyadh-SA, Saudi
+  // Arabia"): the suffix is the country's ISO code, not part of the name (DQ-10).
+  const cc = /^(.*\S)-([A-Z]{2})$/.exec(tokens[0] || '');
+  if (cc && COUNTRY_BY_CODE.has(cc[2])) {
+    const stated = tokens.slice(1).map(countryCode).filter(Boolean);
+    if (!stated.length || stated.includes(cc[2])) tokens = [cc[1], ...tokens.slice(1)];
+  }
+  // A local-script name or abbreviation with a known English name ("ב"ש" is Be'er Sheva).
+  tokens = tokens.map((t) => localName(t) || t);
   // A bare ISO code is a country, even one that is also a US state's code: Eightfold lists
   // "DE", "IN", "IL", "CA" for postings in Germany, India, Israel and Canada (DQ-1). No other
   // board in the 13 snapshots writes a bare two-letter location.
@@ -828,6 +878,13 @@ function resolvePlaceTokens(name, cleaned, extra) {
   const [first, ...rest] = tokens;
   const cands = CITY_INDEX.get(normKey(first));
   const lastToken = rest.length ? rest[rest.length - 1] : null;
+  // "BG, RS": a city's own subdivision code before its country (Microsoft writes Belgrade so).
+  if (!cands && rest.length === 1 && /^[A-Z]{2,3}$/.test(first)) {
+    const country = countryCode(rest[0]);
+    const r = country && REGION_BY_CODE_COUNTRY.get(`${first}|${country}`);
+    const city = r && (CITY_INDEX.get(normKey(r.name)) || []).find((c) => c.country === country);
+    if (city) return fromCity(name, city);
+  }
   const final = lastToken ? finalCountry(lastToken, cands, tokens) || regionInfo(lastToken) : null;
   let ctx = [...rest.slice(0, -1).map(regionInfo), final].filter(Boolean);
   // A stated non-US country overrides US-state readings of the parts before it:
@@ -866,6 +923,14 @@ function resolvePlaceTokens(name, cleaned, extra) {
   // Unknown city with a known region/country -> region centroid (approximate).
   if (ctx.length) {
     const best = ctx.find((c) => c.kind === 'state' || c.kind === 'region') || ctx[0];
+    // A local-script name the gazetteer cannot read ("ק"א, Haifa District, IL") is not shown as
+    // a city: the place is the district the posting names, in that country (D-23).
+    if (unreadable(first)) {
+      const district = rest.slice(0, -1).find((t) => NON_US_SUBDIVISION_RE.test(t) && !regionInfo(t));
+      if (!district || best.kind !== 'country') return fromRegion(name, best);
+      const [lat, lng] = DISTRICT_CENTRES[`${best.country}|${normKey(district)}`] || [best.lat, best.lng];
+      return { ...fromRegion(name, best), region: district, lat, lng };
+    }
     return fromRegion(name, best, first);
   }
   // Last resort: look for a known city name inside the string.
@@ -965,7 +1030,11 @@ const finish = (loc) => {
  */
 export function geocodeMany(inputs) {
   const parts = [];
-  for (const s of Array.isArray(inputs) ? inputs : [inputs]) for (const part of splitLocations(s)) parts.push(part);
+  // A dangling "Republic of" (a stored location split from "Seoul, Korea, Republic of" before
+  // norm-6) belongs to the country before it (DQ-10).
+  for (const s of Array.isArray(inputs) ? inputs : [inputs]) {
+    for (const part of splitLocations(s)) if (!(parts.length && INVERTED_TAIL_RE.test(part))) parts.push(part);
+  }
   const first = parts.map((part) => (REMOTE_RE.test(part) ? { loc: resolveRemote(part), ambiguous: false } : resolvePlaceIn(part)));
   const sure = [...new Set(first.filter((r) => !r.ambiguous && r.loc.country).map((r) => r.loc.country))];
   return first.map((r, i) => {

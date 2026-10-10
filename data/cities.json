@@ -324,7 +324,10 @@
       "country": "US",
       "currency": "USD",
       "aliases": [],
-      "nearby": [],
+      "nearby": [
+        "San Bruno",
+        "South San Francisco"
+      ],
       "tax": {
         "country": "US",
         "region": "CA",
@@ -806,7 +809,9 @@
       "country": "US",
       "currency": "USD",
       "aliases": [],
-      "nearby": [],
+      "nearby": [
+        "Waltham"
+      ],
       "tax": {
         "country": "US",
         "region": "MA",
@@ -1270,7 +1275,8 @@
         "El Segundo",
         "Hawthorne",
         "Torrance",
-        "Long Beach"
+        "Long Beach",
+        "Culver City"
       ],
       "tax": {
         "country": "US",
@@ -1528,7 +1534,8 @@
       "currency": "USD",
       "aliases": [],
       "nearby": [
-        "Aurora"
+        "Aurora",
+        "Thornton"
       ],
       "tax": {
         "country": "US",
@@ -2562,7 +2569,9 @@
       "aliases": [],
       "nearby": [
         "Santa Clara",
-        "Cupertino"
+        "Cupertino",
+        "Los Gatos",
+        "Fremont"
       ],
       "tax": {
         "country": "US",
@@ -3460,7 +3469,8 @@
       "currency": "USD",
       "aliases": [],
       "nearby": [
-        "Alexandria"
+        "Alexandria",
+        "Springfield"
       ],
       "tax": {
         "country": "US",
@@ -3590,7 +3600,9 @@
       "currency": "USD",
       "aliases": [],
       "nearby": [
-        "Plano"
+        "Plano",
+        "Addison",
+        "Irving"
       ],
       "tax": {
         "country": "US",
@@ -4232,7 +4244,9 @@
       "currency": "USD",
       "aliases": [],
       "nearby": [
-        "Durham"
+        "Durham",
+        "Cary",
+        "Morrisville"
       ],
       "tax": {
         "country": "US",
@@ -4361,7 +4375,10 @@
       "country": "US",
       "currency": "USD",
       "aliases": [],
-      "nearby": [],
+      "nearby": [
+        "Beaverton",
+        "Hillsboro"
+      ],
       "tax": {
         "country": "US",
         "region": "OR",

@@ -1,0 +1,21 @@
+diff --git a/server/pipeline.js b/server/pipeline.js
+index bcd9c70..c3b4d40 100644
+--- a/server/pipeline.js
++++ b/server/pipeline.js
+@@ -22,6 +22,7 @@ import { fetchMeta } from './sources/meta.js';
+ import { MAX_BYTES, MAX_BYTES_BUILTIN } from './sources/util.js';
+ import { normalizeJobs, relocateJobs, NORMALIZER_VERSION } from './normalize.js';
+ import { rekeyBoardJobs } from './keywords.js';
++import { upgradeStoredJobs } from './sources/upgrade.js';
+ import { demoJobs } from './demo.js';
+ import { getCacheDir, setCacheDir, setCached } from './cache.js';
+ import { writeStore, pruneStores } from './store.js';
+@@ -73,6 +74,8 @@ export async function runTask(task) {
+     // (UX-3 canonical names), once per file version.
+     const current = parsed.normalizerVersion === NORMALIZER_VERSION;
+     if (!current) jobs = relocateJobs(rekeyBoardJobs(jobs).jobs);
++    // Big-tech adapter fixes on stored jobs (Apple requisitions, pools, …); a no-op once crawled.
++    jobs = upgradeStoredJobs(jobs);
+     const fetchedAt = parsed.fetchedAt || null;
+     await writeStore(task.name, { fetchedAt, normalizerVersion: NORMALIZER_VERSION, sourceKey: task.key, jobs, custom });
+     if (task.prunePrefix) await pruneStores(task.prunePrefix, [task.name], { custom });

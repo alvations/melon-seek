@@ -221,7 +221,8 @@ test('DQ-1 (lead, 2026-10-10): Eightfold country codes, bare or after a region, 
   assert.equal(where('Jeddah, Makkah Province, SA'), 'Jeddah, Saudi Arabia [SA]');
   assert.equal(where('Santiago de Querétaro, Qro., MX'), 'Santiago de Querétaro, Mexico [MX]', 'not Santiago, Chile');
   assert.equal(where('SP, BR'), 'São Paulo State, Brazil [BR]');
-  assert.equal(where('BG, RS'), 'BG, Serbia [RS]', 'BG is Belgrade here, not Bulgaria');
+  // fix-beta-sources (D-23): the city is named, not shown as the bare code "BG".
+  assert.equal(where('BG, RS'), 'Belgrade, Serbia [RS]', 'BG is Belgrade here, not Bulgaria');
   assert.equal(where('ON, CA'), 'Ontario, Canada [CA]');
   for (const [code, name] of [['DE', 'Germany'], ['IN', 'India'], ['IL', 'Israel'], ['ID', 'Indonesia'], ['CA', 'Canada'], ['ES', 'Spain'], ['NO', 'Norway'], ['KW', 'Kuwait']]) {
     assert.equal(where(code), `${name} [${code}]`, `bare "${code}"`);
