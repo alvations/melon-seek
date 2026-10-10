@@ -13,6 +13,7 @@ import { registerMethodologyTests } from '../test/e2e/methodology.e2e.js';
 import { registerBadgeTests } from '../test/e2e/badge.e2e.js';
 import { registerFixVizTests } from '../test/e2e/fix-viz.e2e.js';
 import { registerFixEstimatesTests } from '../test/e2e/fix-estimates.e2e.js';
+import { registerFixAppTests } from '../test/e2e/fix-app.e2e.js';
 
 const args = new Set(process.argv.slice(2));
 const apiOnly = args.has('--api-only');
@@ -51,6 +52,7 @@ if (!apiOnly) {
   registerMethodologyTests(suite);
   registerFixVizTests(suite);
   registerFixEstimatesTests(suite);
+  registerFixAppTests(suite);
 }
 
 let results;
