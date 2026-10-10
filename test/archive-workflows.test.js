@@ -32,9 +32,9 @@ test('archive workflows: pinned actions, no PR triggers, trusted branches, share
     assert.doesNotMatch(t, /\$\{\{\s*github\.event\.(workflow_run|head_commit|pull_request)/, `${f}: no untrusted event fields in scripts`);
   }
   const daily = read('archive.yml');
-  assert.match(daily, /workflow_run:\s*\n\s+workflows: \["Snapshot job boards", "Deploy to GitHub Pages"\]/);
-  for (const name of ['Snapshot job boards', 'Deploy to GitHub Pages']) {
-    const owner = name === 'Snapshot job boards' ? 'snapshot.yml' : 'pages.yml';
+  assert.match(daily, /workflow_run:\s*\n\s+workflows: \["Snapshot job boards", "Deploy to GitHub Pages", "Monthly data refresh"\]/);
+  for (const [name, owner] of [['Snapshot job boards', 'snapshot.yml'], ['Deploy to GitHub Pages', 'pages.yml'], ['Monthly data refresh', 'monthly-refresh.yml']]) {
+    if (!fs.existsSync(path.join(WF, owner))) continue; // the monthly refresh lands separately
     assert.match(read(owner), new RegExp(`^name: ${name}$`, 'm'), `${owner} is still named "${name}" (archive.yml listens for it)`);
   }
   assert.match(read('archive-backfill.yml'), /workflow_dispatch:/);

@@ -10,7 +10,8 @@
 //              ever appended. A partition whose month is before the current month is CLOSED:
 //              its bytes never change again. A partition that would pass PART_MAX_BYTES rolls
 //              over to `YYYY-MM.2.jsonl`, so closed partitions are never rewritten or gzipped.
-//   immutable  written once, never changed (monthly comparisons, reference-data versions).
+//   immutable  written once, never changed (monthly comparisons, reference-data versions,
+//              raw-rescue/ copies of artifacts).
 //   mutable    current state, rewritten in place (open job versions, company state, ledger
 //              mirror). Every older version stays in git history, and verify.js checks that no
 //              row is ever dropped from them without landing in an append partition.
@@ -218,18 +219,21 @@ export function appendRows(dir, table, month, rows) {
   let file = parts.length ? parts[parts.length - 1] : path.join(tableDir, `${month}.jsonl`);
   let size = fs.existsSync(file) ? fs.statSync(file).size : 0;
   let n = parts.length || 1;
-  let chunk = '';
-  const flush = () => { if (chunk) { fs.appendFileSync(file, chunk); size += Buffer.byteLength(chunk); chunk = ''; } };
+  let chunk = [];
+  let chunkBytes = 0;
+  const flush = () => { if (chunk.length) { fs.appendFileSync(file, chunk.join('')); size += chunkBytes; chunk = []; chunkBytes = 0; } };
   for (const r of rows) {
     const line = JSON.stringify(r) + '\n';
     const len = Buffer.byteLength(line);
-    if (size + Buffer.byteLength(chunk) + len > PART_MAX_BYTES && size + Buffer.byteLength(chunk) > 0) {
+    if (size + chunkBytes + len > PART_MAX_BYTES && size + chunkBytes > 0) {
       flush();
       n += 1;
       file = path.join(tableDir, `${month}.${n}.jsonl`);
       size = 0;
     }
-    chunk += line;
+    chunk.push(line);
+    chunkBytes += len;
+    if (chunkBytes > 8 * 1024 * 1024) flush();
   }
   flush();
   return rows.length;
@@ -237,7 +241,7 @@ export function appendRows(dir, table, month, rows) {
 
 /* ------------------------------------------------------------ manifest */
 
-const APPEND_TABLES = ['observations', 'daily', 'ingests', 'reference/index', 'audit/flags', 'audit/verdicts', 'audit/runs', 'audit/refresh', 'ledger/closed'];
+const APPEND_TABLES = ['observations', 'daily', 'ingests', 'blobs', 'late', 'reference/index', 'audit/flags', 'audit/verdicts', 'audit/runs', 'audit/refresh', 'ledger/entries'];
 
 /** File kind by archive-relative path (posix separators). */
 export function kindOf(rel) {
@@ -247,6 +251,7 @@ export function kindOf(rel) {
   for (const t of APPEND_TABLES) if (new RegExp(`^${t}/\\d{4}(-\\d{2})?(?:\\.\\d+)?\\.jsonl$`).test(rel)) return 'append';
   if (/^monthly\/\d{4}-\d{2}\/[a-z0-9-]+\.(jsonl|json)$/.test(rel)) return 'immutable';
   if (/^reference\/[a-z0-9][a-z0-9_.-]*\/\d{4}-\d{2}-\d{2}(~\d+)?\.json$/.test(rel) && !rel.startsWith('reference/index/')) return 'immutable';
+  if (/^raw-rescue\/[a-z0-9][a-z0-9_.-]*\/\d+-\d+\/.+$/.test(rel) && !rel.includes('..')) return 'immutable';
   if (/^state\/[a-z0-9-]+\.json$/.test(rel)) return 'mutable';
   if (/^(beta\/)?history\/[a-z0-9][a-z0-9_.-]*\.json$/.test(rel)) return 'mutable';
   if (/^reports\//.test(rel)) return 'derived';
@@ -328,6 +333,7 @@ export function writeManifest(dir, opts = {}) {
   const next = buildManifest(dir, opts);
   const file = path.join(dir, 'MANIFEST.json');
   const prev = readJson(file, null);
+  if (prev && Array.isArray(prev.migrations)) next.migrations = prev.migrations; // applied migrations stay listed
   if (prev && prev.schemaVersion === next.schemaVersion && canonical(prev.files) === canonical(next.files)) return false;
   writeIfChanged(file, JSON.stringify(next, null, 1) + '\n');
   return true;

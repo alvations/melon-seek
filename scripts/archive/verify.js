@@ -25,8 +25,9 @@ import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import {
   SCHEMA_VERSION, ARCHIVE_FORMAT, MONTH_RE, DATE_RE, SLUG_RE, DATASET_RE, kindOf, isClosedPartition, walkFiles,
-  fileInfo, readJsonl, readJson, readManifest, tableTotals, parseArgs, archiveDir, iso, mutablePath,
+  fileInfo, readJsonl, readJson, readManifest, tableTotals, parseArgs, archiveDir, iso, mutablePath, canonical,
 } from './lib.js';
+import { scanBlobs, blobHash, refsOf } from './blobs.js';
 
 /* ------------------------------------------------------------ row schemas */
 
@@ -48,25 +49,28 @@ function check(row, spec, where, errs) {
 const SALARY = (v) => v == null || (isObj(v) && opt(isNum)(v.min) && opt(isNum)(v.max) && opt(isStr)(v.currency));
 const DIST = (v) => isObj(v) && isNum(v.n) && ['p10', 'p25', 'p50', 'p75', 'p90'].every((k) => opt(isNum)(v[k]));
 
+const HASH32 = (v) => typeof v === 'string' && /^[0-9a-f]{32}$/.test(v);
+
 export const SCHEMAS = {
   job: {
     id: isStr, company: (v) => isStr(v) && SLUG_RE.test(v), seq: (v) => Number.isInteger(v) && v >= 1,
-    validFrom: isIso, validTo: opt(isIso), end: (v) => v == null || ['changed', 'closed', 'unseen'].includes(v), endAt: opt(isIso),
-    cause: (v) => ['new', 'reopened', 'source', 'derived'].includes(v), changed: opt(isArr(isStr)),
-    title: isStr, department: opt((v) => typeof v === 'string'), seniority: opt(isStr), family: opt(isStr),
-    locations: isArr(isObj), rawLocations: isArr((x) => x == null || typeof x === 'string'), remote: (v) => typeof v === 'boolean',
-    salary: SALARY, salaryRaw: SALARY, vet: (v) => ['ok', 'quarantined', 'none'].includes(v),
-    usd: (v) => v == null || (isObj(v) && opt(isNum)(v.mid) && isNum(v.fxPerUSD) && isStr(v.fxAsOf)),
-    url: opt(isStr), postedAt: opt(isIso), descHash: opt(isStr), descLen: isNum, keywords: isObj, key: isStr,
+    validFrom: isIso, validTo: opt(isIso), end: (v) => v == null || ['changed', 'closed', 'unseen', 'gap'].includes(v), endAt: opt(isIso),
+    cause: (v) => ['new', 'reopened', 'resumed', 'source', 'derived', 'touched'].includes(v), changed: opt(isArr(isStr)),
+    family: opt(isStr), titleReadable: opt((v) => typeof v === 'string'), vet: (v) => ['ok', 'quarantined', 'none'].includes(v),
+    vetCodes: opt(isArr(isStr)), usd: (v) => v == null || (isObj(v) && opt(isNum)(v.mid) && isNum(v.fxPerUSD) && isStr(v.fxAsOf)),
+    descHash: opt(isStr), descLen: isNum, src: isObj, up: opt(isObj), key: HASH32,
   },
-  observations: { company: isStr, channel: isStr, observedAt: opt(isIso), status: (v) => ['folded', 'late', 'rejected'].includes(v), ingestedAt: isIso },
+  observations: { company: isStr, channel: isStr, observedAt: opt(isIso), status: (v) => ['folded', 'late', 'rejected'].includes(v), ingestedAt: isIso, payload: opt(isObj), extraJobs: opt(Array.isArray) },
   daily: { date: (v) => DATE_RE.test(v), company: isStr, channel: isStr, observedAt: isIso, postings: isNum, salaried: isNum, opened: isNum, closed: isNum, changed: isNum, payChanged: isNum, usd: DIST, cells: isArr(Array.isArray) },
-  ingests: { key: isStr, status: (v) => ['ingested', 'superseded', 'empty', 'untrusted', 'failed'].includes(v), name: isStr, ingestedAt: isIso },
+  ingests: { key: isStr, status: (v) => ['ingested', 'superseded', 'empty', 'untrusted', 'failed'].includes(v), name: isStr, ingestedAt: isIso, files: opt(isArr(isObj)) },
+  blobs: { h: HASH32, bytes: isNum },
+  late: { company: isStr, observedAt: isIso, payload: isObj, jobs: Array.isArray, recordedAt: isIso },
   'reference/index': { dataset: (v) => DATASET_RE.test(v), asOf: (v) => DATE_RE.test(v), kind: (v) => ['version', 'confirm'].includes(v), sha256: (v) => /^[0-9a-f]{64}$/.test(v), file: isStr, recordedAt: isIso },
   'audit/flags': { key: isStr, firstSeenAt: isIsoish, id: isStr, flags: isArr(isStr) },
   'audit/verdicts': { key: isStr, recordedAt: isIso, id: isStr },
   'audit/runs': { at: isIsoish, recordedAt: isIso },
-  'ledger/closed': { company: isStr, id: isStr, f: isIsoish, c: isIsoish, recordedAt: isIso },
+  'audit/refresh': { key: isStr, id: isStr, recordedAt: isIso },
+  'ledger/entries': { company: isStr, id: isStr, f: isIsoish, recordedAt: isIso },
   'monthly/market': { month: (v) => MONTH_RE.test(v), scope: isStr, company: isStr, family: isStr, level: isStr, n: isNum, usd: DIST },
   'monthly/compstimate': { month: (v) => MONTH_RE.test(v), company: isStr, asOf: isIso },
   'monthly/juice': { month: (v) => MONTH_RE.test(v), kind: (v) => ['city', 'company'].includes(v), key: isStr, n: isNum },
@@ -124,6 +128,7 @@ export function verifyTree(dir, { now = new Date().toISOString() } = {}) {
 
   // Job version invariants, per company.
   const companies = readJson(path.join(dir, 'state', 'companies.json'), {});
+  const refs = new Set();
   let versions = 0;
   for (const slug of fs.existsSync(path.join(dir, 'jobs')) ? fs.readdirSync(path.join(dir, 'jobs')).sort() : []) {
     const cdir = path.join(dir, 'jobs', slug);
@@ -160,9 +165,29 @@ export function verifyTree(dir, { now = new Date().toISOString() } = {}) {
       if (openIds.has(id) && open.find((r) => r.id === id).seq !== s[s.length - 1]) errors.push(`jobs/${slug}: open version of ${id} is not its latest`);
     }
     for (const id of Object.keys(ids)) if (!seqs.has(id)) errors.push(`jobs/${slug}: ids.json lists ${id} with no version`);
+    for (const r of [...closed, ...open]) {
+      if (r.src && r.src.id !== r.id) errors.push(`jobs/${slug}: ${r.id}#${r.seq} src.id is ${r.src.id}`);
+      for (const h of refsOf(r.src).concat(refsOf(r.up))) refs.add(h);
+    }
     versions += closed.length + open.length;
   }
-  return { errors, warnings, stats: { files: files.length, rowsChecked, versions } };
+
+  // Blobs: each stored once, hash matches content, the index is exact, every reference resolves.
+  let blobs = new Map();
+  try { blobs = scanBlobs(dir); } catch (err) { errors.push(err.message); }
+  for (const [h, { rel, row }] of blobs) {
+    if (blobHash(row.v) !== h) errors.push(`${rel}: blob ${h} content does not match its hash`);
+  }
+  const index = readJson(path.join(dir, 'state', 'blob-index.json'), {});
+  for (const [h, rel] of Object.entries(index)) if (!blobs.has(h) || blobs.get(h).rel !== rel) errors.push(`state/blob-index.json: ${h} -> ${rel} is wrong`);
+  for (const [h] of blobs) if (!index[h]) errors.push(`state/blob-index.json: blob ${h} not indexed`);
+  const entryRefs = (e) => (e && e.src ? refsOf(e.src) : []);
+  for (const f of files.filter((x) => /^observations\//.test(x))) for (const o of readJsonl(path.join(dir, f))) for (const e of o.extraJobs || []) for (const h of entryRefs(e)) refs.add(h);
+  for (const f of files.filter((x) => /^late\//.test(x))) for (const o of readJsonl(path.join(dir, f))) for (const e of o.jobs || []) for (const h of entryRefs(e)) refs.add(h);
+  for (const f of files.filter((x) => /^ingests\//.test(x))) for (const o of readJsonl(path.join(dir, f))) for (const x of o.files || []) if (x.blob) refs.add(x.blob);
+  for (const f of files.filter((x) => /^audit\/refresh\//.test(x))) for (const o of readJsonl(path.join(dir, f))) if (o.report && o.report.$blob) refs.add(o.report.$blob);
+  for (const h of refs) if (!blobs.has(h)) errors.push(`blob ${h} is referenced but not stored`);
+  return { errors, warnings, stats: { files: files.length, rowsChecked, versions, blobs: blobs.size, blobRefs: refs.size } };
 }
 
 function openRowsByKey(dir) {
@@ -190,7 +215,7 @@ function closedRowsByKey(dir, onlyNewerThan = null) {
 }
 
 const sameExceptClose = (a, b) => {
-  const strip = ({ validTo, end, endAt, ...rest }) => JSON.stringify(rest);
+  const strip = ({ validTo, end, endAt, missedAt, ...rest }) => canonical(rest);
   return strip(a) === strip(b);
 };
 

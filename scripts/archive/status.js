@@ -16,8 +16,11 @@ export function status(dir) {
   const byName = {};
   for (const r of ingests) { const k = `${r.name}:${r.status}`; byName[k] = (byName[k] || 0) + 1; }
   const bytes = Object.values(manifest.files || {}).reduce((s, f) => s + (f.bytes || 0), 0);
+  const bytesByArea = {};
+  for (const [rel, f] of Object.entries(manifest.files || {})) { const k = rel.split('/')[0]; bytesByArea[k] = (bytesByArea[k] || 0) + (f.bytes || 0); }
   return {
     schemaVersion: manifest.schemaVersion ?? null, updatedAt: manifest.updatedAt ?? null, bytes, files: Object.keys(manifest.files || {}).length,
+    bytesByArea: Object.fromEntries(Object.entries(bytesByArea).sort(([a], [b]) => (a < b ? -1 : 1))),
     tables: manifest.tables || {}, observedFrom: range[0], observedTo: range[1], artifacts: byName,
     companies: Object.values(companies).map((c) => ({ slug: c.slug, channel: c.channel || null, observations: c.observations || 0, first: c.firstObservedAt || null, last: c.lastObservedAt || null, open: c.open ?? null, ids: c.ids ?? null })),
   };
@@ -26,6 +29,8 @@ export function status(dir) {
 export function markdown(s) {
   const out = ['### Data archive', '', `Observations from **${s.observedFrom || '-'}** to **${s.observedTo || '-'}**; ${s.files} files, ${(s.bytes / 1e6).toFixed(1)} MB; schema v${s.schemaVersion ?? '-'}.`, '', '| table | rows |', '| --- | ---: |'];
   for (const [t, n] of Object.entries(s.tables)) out.push(`| ${t} | ${n} |`);
+  out.push('', '| area | MB |', '| --- | ---: |');
+  for (const [k, b] of Object.entries(s.bytesByArea || {})) out.push(`| ${k}/ | ${(b / 1e6).toFixed(1)} |`);
   out.push('', '| company | channel | observations | first seen | last seen | open versions | ids |', '| --- | --- | ---: | --- | --- | ---: | ---: |');
   for (const c of s.companies) out.push(`| ${c.slug} | ${c.channel || '-'} | ${c.observations} | ${c.first || '-'} | ${c.last || '-'} | ${c.open ?? '-'} | ${c.ids ?? '-'} |`);
   out.push('', '| artifact:status | count |', '| --- | ---: |');
@@ -35,7 +40,7 @@ export function markdown(s) {
 
 export function oneline(s) {
   const t = s.tables;
-  return `${s.observedFrom ? s.observedFrom.slice(0, 10) : '-'}..${s.observedTo ? s.observedTo.slice(0, 10) : '-'}; ${s.companies.length} companies, ${t['jobs.versions'] || 0} job versions, ${t.observations || 0} observations, ${t.daily || 0} daily rows`;
+  return `${s.observedFrom ? s.observedFrom.slice(0, 10) : '-'}..${s.observedTo ? s.observedTo.slice(0, 10) : '-'}; ${s.companies.length} companies, ${t['jobs.versions'] || 0} job versions, ${t.blobs || 0} blobs, ${t.observations || 0} observations, ${(s.bytes / 1e6).toFixed(0)} MB`;
 }
 
 async function main(argv) {

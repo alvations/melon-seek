@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { openArchive, closeArchive, ingestArtifact } from '../scripts/archive/ingest.js';
 import { verifyAll, verifyTree, verifyAgainst } from '../scripts/archive/verify.js';
 import { readJsonl, readJson, readTable, appendRows, partitionParts, kindOf, isClosedPartition, canonical, writeManifest } from '../scripts/archive/lib.js';
-import { foldObservation, suspectDrop, versionsAt, UNSEEN_CLOSE_DAYS } from '../scripts/archive/jobs.js';
+import { foldObservation, suspectDrop, versionsAt, view, UNSEEN_CLOSE_DAYS } from '../scripts/archive/jobs.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FIX = path.join(ROOT, 'test', 'fixtures', 'archive');
@@ -48,10 +48,12 @@ async function threeDays() {
   return { root, archive };
 }
 
-const versions = (archive) => [
+const stored = (archive) => [
   ...readJsonl(path.join(archive, 'jobs', 'acme', '2026-10.jsonl')),
   ...readJsonl(path.join(archive, 'jobs', 'acme', 'open.jsonl')),
 ];
+/** Stored rows as view() plus the lossless parts (src, key). */
+const versions = (archive) => stored(archive).map((r) => ({ ...view(r), src: r.src, up: r.up, key: r.key }));
 const byKey = (rows) => Object.fromEntries(rows.map((r) => [`${r.id}#${r.seq}`, r]));
 
 test('versioning: a change in a key field closes the old version and opens the next one', async () => {
@@ -79,7 +81,7 @@ test('versioning: a change in a key field closes the old version and opens the n
   assert.match(r.usd.fxAsOf, /^\d{4}-\d{2}-\d{2}$/);
   assert.equal(r.family, 'ml');
   assert.equal(typeof r.descHash, 'string');
-  assert.equal('descriptionHtml' in r, false);
+  assert.match(r.src.descriptionHtml.$blob, /^[0-9a-f]{32}$/, 'the description is kept, in the blob store');
   assert.deepEqual(r.locations[0].rawName, 'London, UK');
   assert.deepEqual(r.keywords.skills.length > 0, true);
 });
@@ -186,27 +188,33 @@ test('beta artifact: snapshots fold on the beta channel and its ledger is mirror
   assert.equal(fs.existsSync(path.join(archive, 'history', 'acme.json')), false);
 });
 
-test('ledger: the newest ledger is mirrored and closed entries are kept forever in ledger/closed', async () => {
+test('ledger: the newest ledger is mirrored and every new or changed entry is kept forever in ledger/entries', async () => {
   const root = tmp();
   const archive = path.join(root, 'archive');
   const ledger = fixture('ledger-acme.json');
   await ingest(archive, 'history-ledger', artifactDir(root, 'l1', { 'acme.json': ledger }), { id: 1, now: '2026-10-04T08:00:00.000Z' });
   const mirror = readJson(path.join(archive, 'history', 'acme.json'));
   assert.deepEqual(mirror, ledger);
-  let closed = readTable(archive, 'ledger/closed');
-  assert.deepEqual(closed.map((c) => c.id), ['acme:9']);
-  // An older ledger never replaces the mirror; a newer one appends only new closes.
+  let entries = readTable(archive, 'ledger/entries');
+  assert.equal(entries.length, Object.keys(ledger.jobs).length, 'the first ledger: every entry');
+  assert.deepEqual(entries.find((e) => e.id === 'acme:9'), { company: 'acme', channel: 'stable', id: 'acme:9', ...ledger.jobs['acme:9'], ledgerRunAt: ledger.lastRunAt, ledgerRuns: 3, recordedAt: '2026-10-04T08:00:00.000Z', artifact: { id: 1, name: 'history-ledger', runId: 10 } });
+  // An older ledger never replaces the mirror (its file is kept as a blob instead).
   const older = { ...ledger, lastRunAt: '2026-10-03T06:00:00.000Z' };
-  await ingest(archive, 'history-ledger', artifactDir(root, 'l0', { 'acme.json': older }), { id: 2, now: '2026-10-04T09:00:00.000Z' });
+  const r0 = await ingest(archive, 'history-ledger', artifactDir(root, 'l0', { 'acme.json': older }), { id: 2, now: '2026-10-04T09:00:00.000Z' });
+  assert.equal(r0.results[0].status, 'not-newer');
+  assert.equal(r0.files[0].stored, 'blob');
   assert.deepEqual(readJson(path.join(archive, 'history', 'acme.json')), ledger);
+  // A newer ledger appends only the entries that changed (lastSeen alone does not count).
   const newer = JSON.parse(JSON.stringify(ledger));
   newer.lastRunAt = '2026-10-05T06:00:00.000Z';
+  for (const e of Object.values(newer.jobs)) if (!e.c) e.l = '2026-10-05T06:00:00.000Z';
   newer.jobs['acme:3'].c = '2026-10-05T06:00:00.000Z';
-  delete newer.jobs['acme:9']; // pruned by the ledger: still in ledger/closed
+  delete newer.jobs['acme:9']; // pruned by the ledger: still in ledger/entries
   await ingest(archive, 'history-ledger', artifactDir(root, 'l2', { 'acme.json': newer }), { id: 3, now: '2026-10-05T08:00:00.000Z' });
-  closed = readTable(archive, 'ledger/closed');
-  assert.deepEqual(closed.map((c) => c.id), ['acme:9', 'acme:3']);
-  assert.equal(verifyTree(archive).errors.length, 0);
+  entries = readTable(archive, 'ledger/entries');
+  assert.deepEqual(entries.slice(Object.keys(ledger.jobs).length).map((e) => [e.id, e.c]), [['acme:3', '2026-10-05T06:00:00.000Z']]);
+  assert.ok(entries.some((e) => e.id === 'acme:9'), 'a pruned entry stays in the archive');
+  assert.deepEqual(verifyTree(archive).errors, []);
 });
 
 test('vetting audit: flags and LLM verdicts are recorded once per distinct record, run counts every time', async () => {

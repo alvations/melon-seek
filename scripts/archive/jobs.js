@@ -1,19 +1,24 @@
 // Job postings as versioned rows (slowly-changing dimension, docs/DATA_ARCHIVE.md "jobs").
 //
-// One row per distinct version of a posting. A new version starts only when a
-// KEY field changes (KEY_FIELDS); disappearance from a full observation closes the
-// open version. Rows are built from normalized, vetted Jobs (docs/CONTRACT.md),
-// never from raw HTML: the description is kept as a hash and a length only.
+// LOSSLESS: each row keeps the posting exactly as the snapshot had it (`src`, every field;
+// large fields such as descriptionHtml and sections as content-addressed blob references,
+// scripts/archive/blobs.js), so scripts/archive/reconstruct.js rebuilds any observed
+// snapshot. A new version starts when ANY field of the posting changes, or when the vetting
+// gate's verdict on its pay changes. Next to `src` the row carries analytic fields derived
+// at ingest (vetted pay, USD conversion with the FX used, role family, readable title,
+// description hash) and, for snapshots written by an older normalizer, the fields the
+// upgrade changed (`up`). Readers use view(row).
 //
 // Company state on disk (all under jobs/<slug>/):
 //   open.jsonl      the open version of every posting seen in the latest observation
-//                   (validTo null = "seen in the company's latest observation"),
-//                   plus postings missing from a partial observation (explicit validTo)
-//   ids.json        { id: lastSeq } for every id ever seen (so a returning id continues its sequence)
+//                   (validTo null = "seen in the company's latest observation"), plus postings
+//                   missing from a partial observation (explicit validTo, missedAt)
+//   ids.json        { id: lastSeq } for every id ever seen (a returning id continues its sequence)
 //   YYYY-MM.jsonl   closed versions, appended in the month they were closed (append-only)
 import fs from 'node:fs';
 import path from 'node:path';
-import { hashOf, iso, dist, round100, readJsonl, readJson, jsonlText, writeMutable, writeIfChanged, mutablePath, allPartitions, assertSlug, monthOf } from './lib.js';
+import { hashOf, iso, dist, round100, canonical, readJsonl, readJson, jsonlText, writeMutable, mutablePath, allPartitions, assertSlug, monthOf } from './lib.js';
+import { BLOB_MIN_BYTES, isRef } from './blobs.js';
 
 /** Postings unseen this long on a partial board are closed with end "unseen". */
 export const UNSEEN_CLOSE_DAYS = 30;
@@ -22,10 +27,10 @@ export const SUSPECT_DROP_SHARE = 0.5;
 export const SUSPECT_DROP_MIN_OPEN = 40;
 const DAY = 86400000;
 
-/** Fields whose change starts a new version (see deriveRow for each). */
-export const KEY_FIELDS = Object.freeze(['title', 'department', 'team', 'employmentType', 'rawLocations', 'remote', 'salary', 'salaryRaw', 'vet', 'vetCodes', 'url', 'postedAt', 'reqId', 'descHash']);
-/** Key fields that come from the posting itself; a change in any other key field is "derived". */
-export const SOURCE_FIELDS = Object.freeze(['title', 'department', 'team', 'employmentType', 'rawLocations', 'remote', 'url', 'postedAt', 'reqId', 'descHash', 'salaryText']);
+/** Fields a normalizer upgrade (relocateJobs, rekeyBoardJobs) may change; kept in `up` when it did. */
+export const UPGRADE_FIELDS = Object.freeze(['locations', 'remote', 'sections', 'keywords']);
+/** Posting fields whose change means the company edited the posting (cause "source"). */
+export const SOURCE_FIELDS = Object.freeze(['title', 'department', 'team', 'employmentType', 'url', 'postedAt', 'reqId', 'descriptionHtml']);
 
 let helpers = null;
 /** Lazily import the product modules the row needs (readable titles, role families, FX). */
@@ -46,43 +51,19 @@ export async function loadHelpers() {
 }
 
 const str = (v) => (v == null || v === '' ? null : String(v));
-const num = (v) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Number(v) : null);
-
-function cleanSalary(s) {
-  if (!s || typeof s !== 'object') return null;
-  const out = {};
-  for (const k of ['min', 'max', 'mid']) out[k] = num(s[k]);
-  out.currency = str(s.currency) ? String(s.currency).toUpperCase() : null;
-  out.interval = str(s.interval);
-  out.text = str(s.text);
-  for (const k of ['originalInterval', 'kind', 'source', 'statedInterval']) if (s[k] != null) out[k] = s[k];
-  for (const k of ['spread', 'zones']) if (s[k] != null && Number.isFinite(Number(s[k]))) out[k] = Number(s[k]);
-  if (s.intervalCorrected) out.intervalCorrected = true;
-  if (Array.isArray(s.ranges) && s.ranges.length) out.ranges = s.ranges.slice(0, 12).map((r) => ({ min: num(r.min), max: num(r.max), currency: str(r.currency), interval: str(r.interval), ...(r.label ? { label: String(r.label) } : {}) }));
-  if (Array.isArray(s.structuredRejected) && s.structuredRejected.length) out.structuredRejected = s.structuredRejected.map(String);
-  return out;
-}
-
-function cleanLocation(l) {
-  if (!l || typeof l !== 'object') return null;
-  return {
-    name: str(l.name), rawName: str(l.rawName) || str(l.name),
-    city: str(l.city), region: str(l.region), country: str(l.country),
-    lat: num(l.lat), lng: num(l.lng), remote: l.remote === true,
-  };
-}
-
-const strList = (a) => (Array.isArray(a) ? a.filter((x) => x != null && x !== '').map(String) : []);
 
 /** USD view of a vetted salary with the FX used, or null. */
 export function usdOf(salary, h) {
-  if (!salary) return null;
-  const cur = salary.currency || 'USD';
+  if (!salary || typeof salary !== 'object') return null;
+  const cur = String(salary.currency || 'USD').toUpperCase();
   const rate = cur === 'USD' ? 1 : h.FX_PER_USD[cur];
   if (!(rate > 0)) return null;
+  const n = (v) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
+  const min = n(salary.min);
+  const max = n(salary.max);
+  const mid = n(salary.mid) != null ? n(salary.mid) : (min != null && max != null ? (min + max) / 2 : null);
   const conv = (v) => (v == null ? null : Math.round(v / rate));
-  const mid = salary.mid != null ? salary.mid : (salary.min != null && salary.max != null ? (salary.min + salary.max) / 2 : null);
-  return { min: conv(salary.min), max: conv(salary.max), mid: conv(mid), fxPerUSD: rate, fxAsOf: h.FX_AS_OF };
+  return { min: conv(min), max: conv(max), mid: conv(mid), fxPerUSD: rate, fxAsOf: h.FX_AS_OF };
 }
 
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', '#39': "'" };
@@ -90,7 +71,8 @@ const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', 
 /**
  * Plain text of a description for hashing: tags removed, the common entities decoded,
  * whitespace collapsed. Owned by the archive and frozen (descHash "v1"): it must never
- * follow changes in the product's own HTML handling, or every posting would look edited.
+ * follow changes in the product's own HTML handling. descHash tells a text edit from a
+ * markup-only edit; the exact HTML is in the blob store.
  */
 export function descriptionPlainText(html) {
   return String(html || '')
@@ -106,77 +88,106 @@ export function descriptionPlainText(html) {
     .trim();
 }
 
-export function descriptionFingerprint(job) {
-  const text = descriptionPlainText(typeof job.descriptionHtml === 'string' ? job.descriptionHtml : '');
+export function descriptionFingerprint(html) {
+  const text = descriptionPlainText(typeof html === 'string' ? html : '');
   return { descHash: text ? hashOf(text) : null, descLen: text.length };
 }
 
+/** Large values go to the blob store; the rest stay inline. */
+function storeValue(k, v, blobs) {
+  if (v == null) return v;
+  if (isRef(v)) return blobs.put(v); // a raw value shaped like a reference is stored as a blob, so it round-trips
+  if (k === 'descriptionHtml') return typeof v === 'string' && v.length ? blobs.put(v) : v;
+  return JSON.stringify(v).length >= BLOB_MIN_BYTES ? blobs.put(v) : v;
+}
+
+/** The posting as stored: every field, large ones as blob references. */
+export function storedSrc(job, blobs) {
+  const out = {};
+  for (const [k, v] of Object.entries(job)) if (v !== undefined) out[k] = storeValue(k, v, blobs);
+  return out;
+}
+
+/** The posting exactly as observed (blob references resolved). */
+export function restoreSrc(src, blobs) {
+  const out = {};
+  for (const [k, v] of Object.entries(src || {})) out[k] = isRef(v) ? blobs.get(v) : v;
+  return out;
+}
+
 /**
- * The archived fields of one vetted, normalized Job (no validity dates yet).
- * `ctx`: { helpers, norm (normalizer version), trimmedTo }.
+ * One version's fields (no validity dates yet).
+ * @param original  the job exactly as in the snapshot
+ * @param vetted    the same job after the normalizer upgrade (old snapshots) and the vetting gate
+ * @param ctx       { helpers, norm, blobs }
  */
-export function deriveRow(job, ctx) {
+export function deriveRow(original, vetted, ctx) {
   const h = ctx.helpers;
-  const title = str(job.title) || 'Untitled role';
-  const locations = (Array.isArray(job.locations) ? job.locations : []).map(cleanLocation).filter(Boolean);
-  const salary = cleanSalary(job.salary);
-  const salaryRaw = job.salary ? null : cleanSalary(job.salaryRaw);
-  const flag = job.salaryFlag && typeof job.salaryFlag === 'object' ? job.salaryFlag : null;
-  const vet = salary ? 'ok' : (salaryRaw || flag ? 'quarantined' : 'none');
+  const src = storedSrc(original, ctx.blobs);
+  const up = {};
+  for (const k of UPGRADE_FIELDS) {
+    if (vetted[k] === undefined || canonical(vetted[k]) === canonical(original[k])) continue;
+    up[k] = storeValue(k, vetted[k], ctx.blobs);
+  }
+  const flag = vetted.salaryFlag && typeof vetted.salaryFlag === 'object' ? vetted.salaryFlag : null;
+  const vet = vetted.salary ? 'ok' : (vetted.salaryRaw || flag ? 'quarantined' : 'none');
+  const title = str(original.title) || 'Untitled role';
   let family = null;
-  try { family = h.roleFamily(title, job) || null; } catch { family = null; }
+  try { family = h.roleFamily(title, vetted) || null; } catch { family = null; }
   let titleReadable = title;
   try { titleReadable = h.readableTitle(title) || title; } catch { /* keep */ }
-  const kw = job.keywords && typeof job.keywords === 'object' ? job.keywords : {};
-  const extras = job.extras && typeof job.extras === 'object' ? { equity: !!job.extras.equity, bonus: !!job.extras.bonus } : null;
-  const { descHash, descLen } = descriptionFingerprint(job);
   const row = {
-    title,
     titleReadable,
-    department: str(job.department),
-    team: str(job.team),
-    employmentType: str(job.employmentType),
     family,
-    seniority: str(job.seniority),
-    locations,
-    rawLocations: locations.map((l) => l.rawName),
-    remote: job.remote === true,
-    salary,
-    salaryRaw,
     vet,
     vetCodes: flag && Array.isArray(flag.codes) ? flag.codes.map(String) : null,
-    vetReason: flag && flag.reason ? String(flag.reason).slice(0, 500) : null,
-    usd: usdOf(salary, h),
-    url: str(job.url),
-    postedAt: iso(job.postedAt),
-    updatedAt: str(job.updatedAt),
-    reqId: str(job.reqId),
-    descHash,
-    descLen,
-    keywords: { responsibilities: strList(kw.responsibilities), fit: strList(kw.fit), skills: strList(kw.skills) },
-    extras,
+    vetReason: flag && flag.reason ? String(flag.reason) : null,
+    usd: usdOf(vetted.salary, h),
+    ...descriptionFingerprint(original.descriptionHtml),
     norm: ctx.norm || null,
   };
-  if (ctx.trimmedTo) row.descTrimmedTo = ctx.trimmedTo;
-  row.key = hashOf(KEY_FIELDS.map((k) => row[k]));
+  if (Object.keys(up).length) row.up = up;
+  row.src = src;
+  row.key = hashOf([src, vet, row.vetCodes], 32);
   return row;
 }
 
-const sourceView = (r) => ({ ...Object.fromEntries(SOURCE_FIELDS.map((k) => [k, r[k]])), salaryText: (r.salary || r.salaryRaw || {}).text || null });
+const rawNames = (locs) => (Array.isArray(locs) ? locs.map((l) => (l && (l.rawName || l.name)) || null) : []);
 
-/** Key fields that differ between two rows, and whether any came from the posting itself. */
+/** Top-level posting fields that differ between two rows, and why. */
 export function changedFields(a, b) {
-  const changed = KEY_FIELDS.filter((k) => hashOf(a[k]) !== hashOf(b[k]));
-  const sa = sourceView(a);
-  const sb = sourceView(b);
-  const source = SOURCE_FIELDS.some((k) => hashOf(sa[k]) !== hashOf(sb[k]));
-  return { changed, cause: source ? 'source' : 'derived' };
+  const keys = new Set([...Object.keys(a.src || {}), ...Object.keys(b.src || {})]);
+  const changed = [...keys].filter((k) => canonical(a.src[k]) !== canonical(b.src[k])).sort();
+  if (a.vet !== b.vet || canonical(a.vetCodes) !== canonical(b.vetCodes)) changed.push('vet');
+  let cause = 'derived';
+  const edited = changed.some((k) => SOURCE_FIELDS.includes(k))
+    || (changed.includes('locations') && canonical(rawNames(a.src.locations)) !== canonical(rawNames(b.src.locations)))
+    || (changed.includes('salary') && ((a.src.salary || {}).text || null) !== ((b.src.salary || {}).text || null));
+  if (edited) cause = 'source';
+  else if (changed.length === 1 && changed[0] === 'updatedAt') cause = 'touched';
+  return { changed, cause };
+}
+
+/** The flat, analysis-friendly view of a stored row (no blob reads). */
+export function view(row) {
+  const s = { ...(row.src || {}), ...(row.up || {}) };
+  const salary = row.vet === 'ok' ? s.salary || null : null;
+  const salaryRaw = row.vet === 'quarantined' ? (s.salary || s.salaryRaw || null) : null;
+  return {
+    id: row.id, company: row.company, seq: row.seq, validFrom: row.validFrom, validTo: row.validTo, end: row.end, endAt: row.endAt,
+    cause: row.cause, changed: row.changed,
+    title: s.title || 'Untitled role', titleReadable: row.titleReadable, department: s.department ?? null, team: s.team ?? null,
+    employmentType: s.employmentType ?? null, family: row.family, seniority: s.seniority || 'Mid',
+    locations: Array.isArray(s.locations) ? s.locations : [], rawLocations: rawNames(s.locations), remote: s.remote === true,
+    salary, salaryRaw, vet: row.vet, vetCodes: row.vetCodes, vetReason: row.vetReason, usd: row.usd,
+    url: s.url ?? null, postedAt: s.postedAt ?? null, updatedAt: s.updatedAt ?? null, reqId: s.reqId ?? null,
+    descHash: row.descHash, descLen: row.descLen, keywords: isRef(s.keywords) ? null : s.keywords || null, extras: s.extras || null, norm: row.norm,
+  };
 }
 
 /** Assemble a stored version row in the documented field order. */
 function versionRow(id, company, seq, from, data, extra) {
-  const { key, ...fields } = data;
-  return { id, company, seq, validFrom: from, validTo: null, end: null, endAt: null, cause: extra.cause, changed: extra.changed || null, ...fields, key };
+  return { id, company, seq, validFrom: from, validTo: null, end: null, endAt: null, cause: extra.cause, changed: extra.changed || null, ...data };
 }
 
 /* ------------------------------------------------------------ company state */
@@ -221,10 +232,10 @@ export function allVersions(dir, slug) {
 /* ------------------------------------------------------------ fold */
 
 /**
- * Fold one observation of a company into its state (mutates `state`).
+ * Fold one observation of a company into its state (mutates `state` and `meta`).
  * @param {{open, ids}} state
- * @param {object} meta       company meta from state/companies.json ({ lastObservedAt, ... }), mutated
- * @param {object} obs        { observedAt, rows: [{ id, data }], partial: boolean }
+ * @param {object} meta   company meta from state/companies.json ({ lastObservedAt, ... })
+ * @param {object} obs    { observedAt, rows: [{ id, data }], partial: boolean }
  * @returns {{ status, closedRows, stats }}  status: "folded" | "duplicate" | "late"
  */
 export function foldObservation(state, meta, obs, { company }) {
@@ -232,15 +243,15 @@ export function foldObservation(state, meta, obs, { company }) {
   if (meta.lastObservedAt && at === meta.lastObservedAt) return { status: 'duplicate', closedRows: [], stats: null };
   if (meta.lastObservedAt && at < meta.lastObservedAt) return { status: 'late', closedRows: [], stats: null };
   const prevAt = meta.lastObservedAt || null;
-  const stats = { postings: 0, opened: 0, reopened: 0, closed: 0, unseen: 0, changed: 0, payChanged: 0, sourceChanged: 0, partial: !!obs.partial };
+  const stats = { postings: 0, opened: 0, reopened: 0, resumed: 0, closed: 0, unseen: 0, changed: 0, payChanged: 0, sourceChanged: 0, partial: !!obs.partial };
   const closedRows = [];
   const seen = new Set();
-  const close = (row, end) => {
-    const lastSeen = row.validTo || prevAt;
-    const done = { ...row, validTo: lastSeen, end, endAt: at };
-    closedRows.push(done);
+  const close = (row, end, endAt = at) => {
+    const { missedAt, ...rest } = row;
+    closedRows.push({ ...rest, validTo: row.validTo || prevAt, end, endAt: missedAt || endAt });
     state.open.delete(row.id);
   };
+  const nextSeq = (id, cur) => Math.max(Number(state.ids.get(id)) || 0, cur ? cur.seq : 0) + 1;
 
   for (const { id, data } of obs.rows) {
     if (seen.has(id)) continue;
@@ -248,7 +259,13 @@ export function foldObservation(state, meta, obs, { company }) {
     stats.postings++;
     const cur = state.open.get(id);
     if (cur && cur.key === data.key) {
-      if (cur.validTo) state.open.set(id, { ...cur, validTo: null }); // seen again after a partial miss
+      if (!cur.validTo) continue; // seen in every observation since it started
+      // Missing from a partial observation, back now unchanged: the gap ends this version.
+      close(cur, 'gap');
+      stats.resumed++;
+      const seq = nextSeq(id, cur);
+      state.open.set(id, versionRow(id, company, seq, at, data, { cause: 'resumed' }));
+      state.ids.set(id, seq);
       continue;
     }
     const lastSeq = Number(state.ids.get(id)) || 0;
@@ -258,8 +275,9 @@ export function foldObservation(state, meta, obs, { company }) {
       stats.changed++;
       if (changed.includes('salary') || changed.includes('salaryRaw') || changed.includes('vet')) stats.payChanged++;
       if (cause === 'source') stats.sourceChanged++;
-      state.open.set(id, versionRow(id, company, Math.max(lastSeq, cur.seq) + 1, at, data, { cause, changed }));
-      state.ids.set(id, Math.max(lastSeq, cur.seq) + 1);
+      const seq = nextSeq(id, cur);
+      state.open.set(id, versionRow(id, company, seq, at, data, { cause, changed }));
+      state.ids.set(id, seq);
     } else {
       if (lastSeq) stats.reopened++; else stats.opened++;
       state.open.set(id, versionRow(id, company, lastSeq + 1, at, data, { cause: lastSeq ? 'reopened' : 'new' }));
@@ -267,13 +285,14 @@ export function foldObservation(state, meta, obs, { company }) {
     }
   }
 
-  // Close (full observation) or age out (partial) what was not seen.
-  const openBefore = [...state.open.values()].filter((r) => !seen.has(r.id));
-  for (const row of openBefore) {
+  // Close (full observation) or mark missing (partial) what was not seen.
+  const notSeen = [...state.open.values()].filter((r) => !seen.has(r.id));
+  for (const row of notSeen) {
     if (!obs.partial) { close(row, 'closed'); stats.closed++; continue; }
     const lastSeen = row.validTo || prevAt;
-    if (lastSeen && Date.parse(at) - Date.parse(lastSeen) > UNSEEN_CLOSE_DAYS * DAY) { close(row, 'unseen'); stats.unseen++; continue; }
-    if (!row.validTo) state.open.set(row.id, { ...row, validTo: lastSeen });
+    const marked = row.validTo ? row : { ...row, validTo: lastSeen, missedAt: at };
+    if (lastSeen && Date.parse(at) - Date.parse(lastSeen) > UNSEEN_CLOSE_DAYS * DAY) { close(marked, 'unseen'); stats.unseen++; continue; }
+    if (marked !== row) state.open.set(row.id, marked);
   }
   closedRows.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : a.seq - b.seq));
   meta.lastObservedAt = at;
@@ -299,21 +318,22 @@ export function versionsAt(versions, t, lastObservedAt) {
   return versions.filter((r) => r.validFrom <= t && resolvedValidTo(r, lastObservedAt) >= t);
 }
 
-/** A version row as a Job-like object for product code (buildMarket, backtest, juice). */
+/** A stored row as a Job-like object for product code (buildMarket, backtest, juice). */
 export function rowAsJob(r) {
+  const v = r.src ? view(r) : r;
   return {
-    id: r.id, company: r.company, title: r.title, department: r.department, team: r.team,
-    employmentType: r.employmentType, seniority: r.seniority || 'Mid', locations: r.locations || [],
-    remote: !!r.remote, salary: r.salary ? { ...r.salary } : null, url: r.url, postedAt: r.postedAt, reqId: r.reqId,
+    id: v.id, company: v.company, title: v.title, department: v.department, team: v.team,
+    employmentType: v.employmentType, seniority: v.seniority || 'Mid', locations: v.locations || [],
+    remote: !!v.remote, salary: v.salary ? { ...v.salary } : null, url: v.url, postedAt: v.postedAt, reqId: v.reqId,
   };
 }
 
 /* ------------------------------------------------------------ aggregates */
 
 /**
- * Pay statistics of a set of version rows: overall USD midpoint distribution and one cell
- * per family x level, plus family x "*" (all levels) and "*" x level (all families), each
- * [family, level, n, p10, p25, p50, p75, p90] in USD.
+ * Pay statistics of a set of rows (stored or viewed): overall USD midpoint distribution and
+ * one cell per family x level, plus family x "*" (all levels) and "*" x level (all families),
+ * each [family, level, n, p10, p25, p50, p75, p90] in USD.
  */
 export function payStats(rows) {
   const mids = [];
@@ -321,7 +341,8 @@ export function payStats(rows) {
   const add = (k, v) => { let a = groups.get(k); if (!a) groups.set(k, (a = [])); a.push(v); };
   let salaried = 0;
   let quarantined = 0;
-  for (const r of rows) {
+  for (const raw of rows) {
+    const r = raw.src ? view(raw) : raw;
     if (r.vet === 'quarantined') quarantined++;
     if (!r.salary) continue;
     salaried++;
@@ -341,10 +362,9 @@ export function payStats(rows) {
     cells.push([family, level, d.n, d.p10, d.p25, d.p50, d.p75, d.p90]);
   }
   cells.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0));
-  const d = dist(mids);
-  return { salaried, quarantined, usd: d, cells };
+  return { salaried, quarantined, usd: dist(mids), cells };
 }
 
 export const CELL_COLUMNS = Object.freeze(['family', 'level', 'n', 'p10', 'p25', 'p50', 'p75', 'p90']);
 
-export { round100, monthOf };
+export { round100, monthOf, iso };

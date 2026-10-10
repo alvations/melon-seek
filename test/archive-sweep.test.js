@@ -64,20 +64,17 @@ process.exit(1);
   assert.equal(runTrust(null, 'o/r', trusted), 'run lookup failed');
 });
 
-test('planSweep: only the newest trusted ledger is read; ingested artifacts are skipped', () => {
-  const art = (id, name, run, at) => ({ id, name, created_at: at, workflow_run: { id: run } });
+test('planSweep: pending artifacts oldest first, raw copies merged in by id, ingested ones skipped', () => {
+  const art = (id, name, run, at, extra = {}) => ({ id, name, created_at: at, workflow_run: { id: run }, ...extra });
   const list = [
     art(10, 'history-ledger', 1, '2026-10-02T01:00:00Z'),
     art(11, 'job-board-snapshots', 1, '2026-10-02T01:00:01Z'),
     art(12, 'history-ledger', 2, '2026-10-03T01:00:00Z'),
-    art(13, 'history-ledger', 4, '2026-10-04T01:00:00Z'), // pull_request: never read
     art(14, 'job-board-snapshots', 2, '2026-10-03T01:00:01Z'),
   ];
-  const trust = (a) => runTrust(asRun(a.workflow_run.id), 'o/r', ['main']);
-  const p = planSweep(list, new Set(['artifact:11']), trust);
-  assert.deepEqual(p.todo.map((a) => a.id), [12, 14]);
-  assert.deepEqual(p.superseded.map((a) => a.id), [10]);
-  assert.deepEqual(p.untrusted.map(({ a, why }) => [a.id, why]), [[13, "event 'pull_request'"]]);
+  const raws = [art(14, 'job-board-snapshots', 2, '2026-10-03T01:00:01Z', { via: 'raw-rescue' }), art(9, 'job-board-snapshots', 1, '2026-10-01T00:00:00Z', { via: 'raw-rescue' })];
+  const p = planSweep(list, new Set(['artifact:11']), raws);
+  assert.deepEqual(p.todo.map((a) => [a.id, a.via || 'live']), [[9, 'raw-rescue'], [10, 'live'], [12, 'live'], [14, 'raw-rescue']]);
 });
 
 /** Stub gh serving artifacts from local directories. */
@@ -93,8 +90,8 @@ const fx = JSON.parse(fs.readFileSync(${JSON.stringify(fix)}, 'utf8'));
 const api = a[0] === 'api' ? a.find((x, i) => i > 0 && !x.startsWith('--') && a[i - 1] !== '--jq') : null;
 if (api === 'repos/o/r') { console.log(JSON.stringify({ d: 'main' })); process.exit(0); }
 if (api && api.startsWith('repos/o/r/actions/artifacts')) {
-  const name = decodeURIComponent(/name=([^&]+)/.exec(api)[1]);
-  for (const x of fx.artifacts.filter((x) => x.name === name)) { const { src, ...rest } = x; console.log(JSON.stringify(rest)); }
+  const m = /name=([^&]+)/.exec(api);
+  for (const x of fx.artifacts.filter((x) => !m || x.name === decodeURIComponent(m[1]))) { const { src, ...rest } = x; console.log(JSON.stringify(rest)); }
   process.exit(0);
 }
 if (api && api.startsWith('repos/o/r/actions/runs/')) { const r = fx.runs[api.split('/').pop()]; if (!r) process.exit(1); console.log(JSON.stringify(r)); process.exit(0); }
@@ -148,7 +145,12 @@ test('sweep: downloads trusted artifacts oldest first, in batches, and never twi
     assert.equal(r3.status, 0, logs.join('\n'));
     const ingests = readTable(archive, 'ingests');
     const st = Object.fromEntries(ingests.map((r) => [r.id, r.status]));
-    assert.deepEqual(st, { 101: 'ingested', 102: 'ingested', 103: 'untrusted', 104: 'ingested', 105: 'superseded', 106: 'ingested', 107: 'ingested' });
+    assert.deepEqual(st, { 101: 'ingested', 102: 'ingested', 103: 'untrusted', 104: 'ingested', 105: 'ingested', 106: 'ingested', 107: 'ingested' });
+    const files = Object.fromEntries(ingests.map((r) => [r.id, (r.files || []).map((f) => f.stored)]));
+    assert.deepEqual(files[101], ['snapshot']);
+    assert.deepEqual(files[102], ['blob', 'blob'], 'vetting files are kept whole');
+    assert.deepEqual(files[105], ['ledger']);
+    assert.deepEqual(files[106], ['blob'], 'a ledger that is not newer is kept whole');
     const obs = readTable(archive, 'observations').map((o) => [o.observedAt.slice(0, 10), o.status]);
     assert.deepEqual(obs, [['2026-10-02', 'folded'], ['2026-10-03', 'folded'], ['2026-10-04', 'folded']], 'folded in date order');
     assert.ok(readJson(path.join(archive, 'history', 'acme.json')));

@@ -1,0 +1,24 @@
+diff --git a/.github/workflows/pages.yml b/.github/workflows/pages.yml
+index c67d8fb..63777ae 100644
+--- a/.github/workflows/pages.yml
++++ b/.github/workflows/pages.yml
+@@ -94,6 +94,19 @@ jobs:
+       - name: Fetch fresh snapshots (best effort; a failed board keeps the restored file)
+         run: npm run snapshot || true # no args = every built-in in server/companies.js; also updates data/history/
+ 
++      # What this run fetched, for the permanent archive (docs/DATA_ARCHIVE.md): archive.yml
++      # ingests it after this run, so a day whose snapshot.yml run failed is still archived.
++      # Restored (unchanged) files are recognised there by fetchedAt and skipped.
++      - name: Upload stable snapshots for the archive
++        if: ${{ !cancelled() }}
++        continue-on-error: true
++        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
++        with:
++          name: job-board-snapshots-pages
++          path: data/snapshots/*.json
++          retention-days: 14 # transport only: the archive ingests it within hours and keeps it forever
++          if-no-files-found: ignore
++
+       # Always upload the updated ledger (also the hand-off to persist-ledger in
+       # branch mode), even if a later step such as the vetting gate fails.
+       - name: Upload history ledger

@@ -1,17 +1,30 @@
 name: Archive backfill (rescue artifacts into the data branch)
 
-# One-off and repeatable rescue (docs/DATA_ARCHIVE.md "Backfill"): lists EVERY
-# non-expired job-board-snapshots(-pages|-beta), history-ledger, salary-vetting and
-# archive-reference artifact, keeps only those from TRUSTED runs (the rules of
-# .github/scripts/ledger.sh: push, schedule or workflow_dispatch runs of this repo
-# on the default branch or TRUSTED_BRANCHES), downloads them oldest first, folds
-# each into the archive and commits a batch at a time to the orphan data-archive
-# branch. Artifacts already in the archive's ingest log are skipped, so running it
-# again only picks up what is new. It never pushes to the code branch and never
-# force-pushes. archive.yml runs the same sweep daily.
+# One-off and repeatable rescue (docs/DATA_ARCHIVE.md "Backfill"). Lists EVERY non-expired
+# artifact the archive ingests (job-board-snapshots(-pages|-beta), beta-crawl-<slug>,
+# history-ledger, salary-vetting, archive-reference, monthly-refresh-report), keeps only
+# those from TRUSTED runs (the rules of .github/scripts/ledger.sh: push, schedule or
+# workflow_dispatch runs of this repo on the default branch or TRUSTED_BRANCHES) and,
+# by `mode`:
+#   ingest   (default) downloads them oldest first, folds each into the lossless archive
+#            (every snapshot is checked to reconstruct deep-equal before it is kept) and
+#            commits a batch at a time to the orphan data-archive branch;
+#   raw      copies them AS-IS, gzipped, to raw-rescue/<artifact>/<run>-<id>/ on the
+#            data branch (outside the append-only tables) without parsing anything; the
+#            next ingest folds those copies in losslessly, even after the artifact expired;
+#   dry-run  lists what ingest would do and writes nothing.
+# Artifacts already in the archive's ingest log are skipped, so running it again only
+# picks up what is new. It never pushes to the code branch and never force-pushes.
+# archive.yml runs the same sweep after every snapshot/deploy/refresh run.
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: "ingest (lossless archive), raw (as-is gzipped copies), dry-run (list only)"
+        type: choice
+        options: [ingest, raw, dry-run]
+        required: false
+        default: ingest
       names:
         description: "Artifact names, comma-separated (empty = all the archive ingests)"
         required: false
@@ -20,11 +33,10 @@ on:
         description: "Snapshot artifacts per commit (small vetting and ledger artifacts ride along)"
         required: false
         default: "2"
-      dry_run:
-        description: "Only list what would be ingested"
-        type: boolean
+      expiring_before:
+        description: "raw mode: only artifacts expiring before this ISO time (empty = all not yet ingested)"
         required: false
-        default: false
+        default: ""
 
 permissions:
   contents: read
@@ -50,9 +62,10 @@ jobs:
       actions: read   # list and download workflow artifacts
     env:
       GH_TOKEN: ${{ github.token }}
+      MODE: ${{ inputs.mode || 'ingest' }}
       NAMES: ${{ inputs.names }}
       BATCH: ${{ inputs.batch }}
-      DRY_RUN: ${{ inputs.dry_run }}
+      EXPIRING_BEFORE: ${{ inputs.expiring_before }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -65,15 +78,25 @@ jobs:
           echo "ARCHIVE=$RUNNER_TEMP/archive" >> "$GITHUB_ENV"
           bash scripts/archive/branch.sh open "$RUNNER_TEMP/archive"
 
-      - name: Verify the archive before ingesting
-        run: node scripts/archive/verify.js --archive "$ARCHIVE"
+      - name: Migrate the schema if the code is newer, then verify before writing
+        run: |
+          node scripts/archive/migrate.js --archive "$ARCHIVE"
+          node scripts/archive/verify.js --archive "$ARCHIVE"
 
       - name: Dry run (list only)
-        if: ${{ inputs.dry_run }}
+        if: ${{ inputs.mode == 'dry-run' }}
         run: node scripts/archive/sweep.js --archive "$ARCHIVE" --dry-run ${NAMES:+--names "$NAMES"}
 
+      - name: Raw rescue (as-is gzipped copies under raw-rescue/)
+        if: ${{ inputs.mode == 'raw' }}
+        run: |
+          set -euo pipefail
+          node scripts/archive/raw.js --archive "$ARCHIVE" --run-cache "$RUNNER_TEMP/runs.json" ${NAMES:+--names "$NAMES"} ${EXPIRING_BEFORE:+--expiring-before "$EXPIRING_BEFORE"}
+          node scripts/archive/verify.js --archive "$ARCHIVE" --prev-rev HEAD
+          bash scripts/archive/branch.sh commit "$ARCHIVE" "archive: raw rescue copies ($(date -u +%Y-%m-%dT%H:%MZ))"
+
       - name: Sweep, verify and commit in batches
-        if: ${{ !inputs.dry_run }}
+        if: ${{ inputs.mode != 'raw' && inputs.mode != 'dry-run' }}
         run: |
           set -uo pipefail
           batch="${BATCH:-2}"
@@ -83,11 +106,22 @@ jobs:
             if [ "$SECONDS" -gt 7200 ]; then echo "::warning::time budget used; run the backfill again for the rest"; break; fi
             node scripts/archive/sweep.js --archive "$ARCHIVE" --max "$batch" --run-cache "$RUNNER_TEMP/runs.json" ${NAMES:+--names "$NAMES"}
             rc=$?
-            if [ "$rc" -ne 0 ] && [ "$rc" -ne 10 ]; then echo "::error::sweep failed (exit $rc)"; exit "$rc"; fi
+            if [ "$rc" -ne 0 ] && [ "$rc" -ne 10 ]; then echo "::error::sweep failed (exit $rc); nothing from this batch is committed"; exit "$rc"; fi
             node scripts/archive/verify.js --archive "$ARCHIVE" --prev-rev HEAD || { echo "::error::archive verify failed; nothing from this batch is committed"; exit 1; }
             bash scripts/archive/branch.sh commit "$ARCHIVE" "archive: backfill batch $i ($(node scripts/archive/status.js --archive "$ARCHIVE" --oneline))" || exit 1
             [ "$rc" -eq 10 ] || break
           done
+
+      - name: Reference data, monthly comparisons and reports
+        if: ${{ inputs.mode != 'raw' && inputs.mode != 'dry-run' }}
+        run: |
+          set -euo pipefail
+          node scripts/archive/record.js --archive "$ARCHIVE" --from-repo
+          node scripts/archive/monthly.js --archive "$ARCHIVE"
+          node scripts/archive/report.js --archive "$ARCHIVE" --auto
+          node scripts/archive/reconstruct.js --archive "$ARCHIVE" --check-all
+          node scripts/archive/verify.js --archive "$ARCHIVE" --prev-rev HEAD
+          bash scripts/archive/branch.sh commit "$ARCHIVE" "archive: reference data, monthly comparisons and reports ($(date -u +%Y-%m-%d))"
 
       - name: Summary
         if: ${{ always() }}
