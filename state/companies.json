@@ -51,6 +51,32 @@
   "lastDailyDate": "2026-10-10",
   "lastDailyAt": "2026-10-10T09:23:36.720Z"
  },
+ "apple": {
+  "slug": "apple",
+  "lastObservedAt": "2026-10-10T12:19:51.916Z",
+  "firstObservedAt": "2026-10-10T12:19:51.916Z",
+  "observations": 1,
+  "name": "Apple",
+  "channel": "beta",
+  "source": "apple",
+  "board": "apple",
+  "color": "#6e6e73",
+  "open": 6105,
+  "ids": 6105,
+  "pending": {
+   "opened": 0,
+   "reopened": 0,
+   "resumed": 0,
+   "closed": 0,
+   "unseen": 0,
+   "changed": 0,
+   "payChanged": 0,
+   "sourceChanged": 0,
+   "observations": 0
+  },
+  "lastDailyDate": "2026-10-10",
+  "lastDailyAt": "2026-10-10T12:19:51.916Z"
+ },
  "cohere": {
   "slug": "cohere",
   "lastObservedAt": "2026-10-10T11:42:36.566Z",
