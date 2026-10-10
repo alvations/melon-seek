@@ -59,28 +59,41 @@ function show(lines, r) {
   if (!idx.length) console.log('  (no match)');
 }
 
+async function probe(n, r, ac) {
+  if (r.sleep) await new Promise((ok) => setTimeout(ok, r.sleep));
+  const res = await fetch(r.url, { headers: { 'user-agent': r.ua || UA, accept: '*/*', 'accept-language': 'en,de;q=0.8,fr;q=0.6' }, redirect: 'follow', signal: ac.signal });
+  const buf = Buffer.from(await res.arrayBuffer());
+  const type = res.headers.get('content-type') || '';
+  console.log(`status ${res.status} type ${type} bytes ${buf.length} final ${res.url}`);
+  let lines;
+  if (/pdf/i.test(type) || buf.subarray(0, 5).toString() === '%PDF-') {
+    const f = path.join(tmp, `doc${n}.pdf`);
+    fs.writeFileSync(f, buf);
+    lines = execFileSync('pdftotext', ['-layout', f, '-'], { encoding: 'utf8', maxBuffer: 1 << 28, timeout: 60000 }).split('\n').map((l) => l.replace(/\s+$/, '')).filter((l) => l.trim());
+  } else {
+    const cs = (/charset=([\w-]+)/i.exec(type) || /<meta[^>]+charset=["']?([\w-]+)/i.exec(buf.subarray(0, 4096).toString('latin1')) || [])[1] || 'utf-8';
+    let text;
+    try { text = new TextDecoder(cs.toLowerCase()).decode(buf); } catch { text = buf.toString('utf8'); }
+    lines = htmlToLines(text);
+  }
+  console.log(`lines ${lines.length}`);
+  show(lines, r);
+}
+
 for (const [n, r] of reqs.entries()) {
   console.log(`\n===== [${n}] ${r.name || ''} ${r.url}`);
+  // Hard deadline per request (fetch + body + parsing), so one slow host cannot stall the run.
+  let timer;
+  const ac = new AbortController();
+  const deadline = new Promise((_, no) => {
+    timer = setTimeout(() => { ac.abort(); no(new Error(`deadline ${r.timeout || 60000} ms`)); }, (r.timeout || 60000) + (r.sleep || 0));
+  });
   try {
-    if (r.sleep) await new Promise((ok) => setTimeout(ok, r.sleep));
-    const res = await fetch(r.url, { headers: { 'user-agent': r.ua || UA, accept: '*/*', 'accept-language': 'en,de;q=0.8,fr;q=0.6' }, redirect: 'follow', signal: AbortSignal.timeout(r.timeout || 60000) });
-    const buf = Buffer.from(await res.arrayBuffer());
-    const type = res.headers.get('content-type') || '';
-    console.log(`status ${res.status} type ${type} bytes ${buf.length} final ${res.url}`);
-    let lines;
-    if (/pdf/i.test(type) || buf.subarray(0, 5).toString() === '%PDF-') {
-      const f = path.join(tmp, `doc${n}.pdf`);
-      fs.writeFileSync(f, buf);
-      lines = execFileSync('pdftotext', ['-layout', f, '-'], { encoding: 'utf8', maxBuffer: 1 << 28 }).split('\n').map((l) => l.replace(/\s+$/, '')).filter((l) => l.trim());
-    } else {
-      const cs = (/charset=([\w-]+)/i.exec(type) || /<meta[^>]+charset=["']?([\w-]+)/i.exec(buf.subarray(0, 4096).toString('latin1')) || [])[1] || 'utf-8';
-      let text;
-      try { text = new TextDecoder(cs.toLowerCase()).decode(buf); } catch { text = buf.toString('utf8'); }
-      lines = htmlToLines(text);
-    }
-    console.log(`lines ${lines.length}`);
-    show(lines, r);
+    await Promise.race([probe(n, r, ac), deadline]);
   } catch (e) {
     console.log(`ERROR ${e.name}: ${e.message}`);
+  } finally {
+    clearTimeout(timer);
   }
 }
+process.exit(0);
