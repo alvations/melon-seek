@@ -1,0 +1,54 @@
+name: Big-tech probe
+
+# Manual probe of the big-tech career sites for the beta channel
+# (docs/DATA_SOURCES.md §7, scripts/probe-bigtech.js). The build sandbox has no
+# route to these hosts; GitHub-hosted runners do. Everything is printed to the
+# job log (no artifacts, no commits, read-only token). Requests are polite:
+# honest User-Agent, about 1 request/s per host, backoff on 429/5xx.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "recon (robots.txt + one request per endpoint) or full (run the adapters)"
+        type: choice
+        options: [recon, full]
+        default: recon
+      companies:
+        description: "Comma-separated slugs (empty = all): amazon,netflix,microsoft,nvidia,apple,google,meta,tesla"
+        type: string
+        default: ""
+      max_jobs:
+        description: "full mode: cap postings per company (0 = all)"
+        type: string
+        default: "60"
+      raw:
+        description: "Optional JSON array of extra requests [{url, method, body, grep, show}] (career-site hosts only)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bigtech-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      # Inputs reach the script through env, never interpolated into the shell.
+      - name: Probe
+        env:
+          PROBE_MODE: ${{ inputs.mode }}
+          PROBE_COMPANIES: ${{ inputs.companies }}
+          PROBE_MAX_JOBS: ${{ inputs.max_jobs }}
+          PROBE_RAW: ${{ inputs.raw }}
+        run: node scripts/probe-bigtech.js
