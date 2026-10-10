@@ -1,5 +1,6 @@
 // API-level e2e checks against the real running server.
 import { assert, assertEq } from './harness.js';
+import { toUSD } from '../../server/salary.js';
 
 const SENIORITY = ['Intern', 'Entry', 'Mid', 'Senior', 'Staff+', 'Manager', 'Director+'];
 const MODES = ['live', 'cache', 'snapshot', 'demo'];
@@ -42,7 +43,9 @@ export function validateJob(j, slug) {
       f(Math.abs(s.mid - (s.min + s.max) / 2) <= 1, `salary mid ${s.mid} != avg(min,max)`);
       f(isStr(s.currency), 'salary.currency missing');
       f(s.interval === 'year', `salary.interval ${JSON.stringify(s.interval)} (annualized expected "year")`);
-      f(s.min >= 10000 && s.max <= 5_000_000, `salary range implausible ${s.min}-${s.max}`);
+      // Plausibility in US dollars: a Tokyo range of 20,454,000-30,680,000 JPY is about $137K-206K.
+      const usd = (n) => toUSD(n, s.currency) ?? n;
+      f(usd(s.min) >= 10000 && usd(s.max) <= 5_000_000, `salary range implausible ${s.min}-${s.max} ${s.currency}`);
     }
   }
   f(isStr(j.url) && /^https?:\/\//.test(j.url), 'url not http(s)');
