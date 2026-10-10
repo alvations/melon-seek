@@ -11,3 +11,5 @@ data/history/
 
 # Stray agent scratch written with a relative path
 tmp/
+# Never commit a snapshots symlink either (a lead worktree link leaked into a2e7f32)
+data/snapshots
