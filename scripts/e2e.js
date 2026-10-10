@@ -15,6 +15,7 @@ import { registerFixVizTests } from '../test/e2e/fix-viz.e2e.js';
 import { registerFixEstimatesTests } from '../test/e2e/fix-estimates.e2e.js';
 import { registerFixAppTests } from '../test/e2e/fix-app.e2e.js';
 import { registerBetaDesktopQaTests } from '../test/e2e/beta-desktop-qa.e2e.js';
+import { registerBetaMobileQaTests } from '../test/e2e/beta-mobile-qa.e2e.js';
 
 const args = new Set(process.argv.slice(2));
 const apiOnly = args.has('--api-only');
@@ -55,6 +56,7 @@ if (!apiOnly) {
   registerFixEstimatesTests(suite);
   registerFixAppTests(suite);
   registerBetaDesktopQaTests(suite);
+  registerBetaMobileQaTests(suite);
 }
 
 let results;

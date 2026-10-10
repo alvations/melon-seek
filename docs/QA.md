@@ -1445,3 +1445,423 @@ The beta mobile QA found some of the same bugs on phones:
 - `[M-24]` is part of D-23;
 - `[M-25]` is the paused-company message in D-19;
 - `[M-23]` is the menu scroll in D-25.
+
+---
+
+## Full QA pass (mobile, beta) 2026-10-10
+
+A functional pass of the phone beta site (`/melon-seek/beta/`) by the beta mobile QA agent. The process log, with
+every replayable command, is in [`docs/process/qa-mobile-beta.md`](process/qa-mobile-beta.md). No product code was
+changed.
+
+**Setup**
+- **Builds:**
+  - The pass ran on `node scripts/build-static.js --out <scratch>/qa-mobile-beta/dist` at HEAD `48f913c`.
+  - The lead then integrated persona fix wave batch 1 (`ea7cd0b`, `be5691c`) into the shared checkout. I rebuilt at
+    `be5691c` (`<scratch>/qa-mobile-beta/dist-head`) and re-checked every finding there.
+  - All of M-19…M-26 still reproduce at `be5691c`. M-27 is new in batch 1. Where batch 1 changed what a phone shows, it
+    is noted.
+  - Both builds log `beta: 5/5 beta companies included` and the expected warning that Apple's list is 2.55 MB (budget
+    1.50 MB). Each was served under `/melon-seek/` by `scripts/cycle/serve.mjs` (gzip, pid file).
+- **Data:** the first full big-tech crawl (snapshot.yml run 38044091555) in `data/beta/snapshots/` and the stable boards
+  from 11:42 UTC. Every board is `mode: "snapshot"`: Apple 6,105, Google 3,417, NVIDIA 2,664, Microsoft 2,320, Netflix
+  456, and Anduril 2,491 for comparison.
+- **Browser:** Playwright 1.63 and Chromium 141, with `isMobile`, `hasTouch` and DPR 3. Every request to another host
+  was aborted and logged.
+  - Devices: 360x740 Android UA, 390x844 and 430x932 iPhone UA, and 844x390 landscape with an iPhone UA.
+  - Each device ran in light and dark.
+- **Gestures:** real touch, using `touchscreen.tap` and CDP `Input.dispatchTouchEvent` for drags, flicks, swipes and
+  the two-finger pinch.
+- **Simulations:**
+  - Safe areas: CDP `setSafeAreaInsetsOverride`, portrait 47/34, landscape 47/47/21.
+  - The keyboard: `visualViewport.height = innerHeight − 336` while a field has focus.
+  - CPU throttled 4x for the timings.
+- **Load:** the machine's load average was 4 to 10 (other agents), so timings are about ±30%. The performance agent
+  measures later on a quiet machine.
+- **Overlap with the parallel reports:** these items reproduce the same way on phones and are not re-filed:
+  - D-18: a saved search with more than 2,000 matches shows "392 new" right after saving. On phones: "Apple · Hardware ·
+    392 new".
+  - D-24: Google has no departments.
+  - DQ-10: the phantom "Republic of" location. On phones it shows as "UNKNOWN REGION · Republic of 18" in Netflix's
+    Location filter.
+
+  M-21 adds the phone parts of D-25.
+
+  The desktop section's closing list (for example "`[M-20]` is D-18") refers to my first draft numbering. In the final
+  numbering:
+  - draft M-20 (D-18), M-21 (D-24) and M-24 (DQ-10, part of D-23) were dropped as duplicates;
+  - draft M-23 (company menu) is now **M-21**;
+  - draft M-25 (paused board) is now **M-22**.
+
+**New e2e tests:** [`test/e2e/beta-mobile-qa.e2e.js`](../test/e2e/beta-mobile-qa.e2e.js), registered in
+`scripts/e2e.js`. Run them with `node scripts/e2e.js --grep='^Beta mobile QA'`.
+- They serve the shared `dist/` (`npm run build`) under `/melon-seek/` and open `/beta/`. They skip when `dist/beta/` is
+  missing, and `BETA_QA_DIST=<dir>` points them at another build.
+- **On a build of HEAD `be5691c`, 5/14 pass:** the 5 guards. The 9 failures are exactly the tests tagged
+  `[M-19]`…`[M-27]`.
+- The shared `dist/` predates batch 1 (build `local-20261010T123230`), so `[M-27]` passes there. Rebuild `dist/` to see
+  it.
+
+### What works on phones (beta)
+
+- **Beta only:**
+  - **The Beta pill at 360 px:**
+    - On the `48f913c` build it fits: the pill sits at x 12–55, the company menu starts at 61 and "Microsoft" is whole.
+    - Batch 1 shows the logo on phones (I-2), and the pill moved beside it. Now the company name is cut off ("Mic…"):
+      see M-27.
+  - There is no horizontal scroll on any board, size or theme, and no console or page error anywhere, on either build.
+  - **`live: false` boards make no live request.**
+    - Apple, Google, Microsoft, NVIDIA and Netflix sent 0 requests to any other host. Anduril sends its one expected
+      Greenhouse attempt.
+    - The badge reads "Snapshot · Oct 10" (at ≤400 px, "Oct 10"), and its accessible name is "saved snapshot from Oct 10".
+    - The popover says "This board is collected by the site's crawler; your browser can't fetch it live", with no
+      "Refresh from the live board". The top-bar refresh is hidden on phones.
+  - **The big boards on a phone, 4x CPU, iPhone 390:**
+
+    | Board | First card | Chart | Sort, to next frame | Filter tap (Event Timing) | Heap |
+    |---|---|---|---|---|---|
+    | Apple | 3.75 s | 3.95 s | 248–305 ms | 272–312 ms | 30 MB |
+    | Google | 3.20 s | 3.53 s | 112–326 ms | 440 ms | 14 MB |
+    | NVIDIA | 3.16 s | 3.46 s | 193–288 ms | 240–320 ms | 13 MB |
+    | Microsoft | 2.30 s | 2.52 s | 136–201 ms | 200–232 ms | 13 MB |
+    | Netflix | 1.81 s | 2.06 s | 107–172 ms | 192–288 ms | 8 MB |
+    | Anduril (stable) | 2.81 s | 3.17 s | 170–416 ms | 240–304 ms | 14 MB |
+
+    - Everything answers well within a second. At 1x, Apple's sorts take 59–161 ms.
+    - **What Apple's 2.55 MB list costs a user:**
+      - 367 kB gzipped (Google 270 kB, Netflix 311 kB, Anduril 164 kB), about 1.8 s on Slow 4G before parsing;
+      - about 1 s more to the first card than Anduril, and 1.5 s more than Microsoft, at 4x CPU;
+      - a 258 ms long task while loading;
+      - twice the heap of any other board.
+  - **Memory stays bounded across the big boards.**
+    - The heap goes from 6.7 MB (Netflix) to 34 MB after one round of Apple, Microsoft, Google and NVIDIA. It then stays
+      at 34–35 MB over two more rounds, 36–37 MB in Map and 40 MB in Insights.
+    - About 960 DOM nodes per board. The session cache keeps each visited board, so the ceiling is the number of boards.
+  - **The company menu** is a full-width sheet (0–360) and lists the 5 big-tech boards. "micro" plus Enter switches to
+    Microsoft (2,320), and focus returns to the menu button. At `be5691c` the headings are gone: there is one
+    "Companies" list, with the big-tech boards still last (M-21).
+  - **CSV:** the badge popover link is 44 px tall, and `data/microsoft.csv` has 2,321 lines (header plus 2,320 roles),
+    and so on for each board.
+- **Top bar:**
+  - Theme cycles Light > Dark > System, and the body background follows.
+  - Chart, Map and Insights each collapse the sheet to peek.
+  - The badge popover closes on a tap outside.
+- **Quick chips:**
+  - A swipe scrolls the row 199 px while the page stays at 0,0.
+  - Each chip opens the filter sheet at its section, with focus on that section, `aria-expanded="true"`, and focus back
+    on the chip after ✕. M-4, M-11 and M-15 are fixed.
+  - More: Juicy 2,071 gives "See 2,071 roles" and 2,071 results.
+- **Filter sheet (Apple), counts checked against the bundle:**
+  - Salary drag ($40K–$510K domain): smin 250K gives 2,774.
+  - Typed max "300k" gives 3,835.
+  - Salary-only switch, then Hardware, gives 1,799.
+  - Seniority, On-site and keyword chips stack down to 1 role.
+  - "Show N roles" always equals the results title.
+  - Back closes the sheet and keeps the filters (M-3 is fixed).
+  - Reset clears everything, including the slider and the Min box. The sheet is a modal dialog with the page behind it
+    inert (M-7).
+- **Results sheet (Apple):**
+  - A slow drag snaps peek > half > full.
+  - Flicks go full > half and half > full.
+  - Handle taps cycle.
+  - The list lazy-loads 24 > 80 > 552 cards over 30 swipes, with worst frames of 17–33 ms at 1x.
+  - All 5 sorts reorder the list. A card tap opens the job page.
+- **Chart:**
+  - A bin tap gives the chip "Hardware · $200K–$250K (776)" and the 776 roles.
+  - A row-label tap gives "Design (49)".
+  - A single-role bin opens the job.
+  - Ranges labels use the full width (M-17 is fixed), and a row tap opens the job.
+  - No information is hover-only.
+- **Map (Apple, Microsoft, Google, landscape):**
+  - Pan and pinch move only the map: the page stays at 0,0 at scale 1, and pins go from 5 to 14, 18 or 19.
+  - A pin tap gives "Anchorage, AK (3)".
+  - Pay|Juice recolours the pins and sets `mc=juice`.
+  - Remote gives "Remote (313)" on Microsoft.
+  - In landscape, the Remote badge (bottom 316) sits above the sheet (326). M-1 is fixed.
+- **Insights:**
+  - Every Compstimate input and select is 16 px and 44 px tall, and focus doesn't zoom (scale 1).
+  - Compstimate is ready in 0.87 s on Apple (2.8 s at 4x).
+  - Compare companies lists all 13 companies. A row tap switches company with `rf=swe` (NVIDIA to Netflix, 78 roles).
+- **Job page (each big board):**
+  - It is full screen (390x844), with Back at x=4, 44 px, holding focus.
+  - Next and prev step 1 > 2 > 3 > 2 of 6105 and add a single history entry (M-9 is fixed).
+  - Apply opens the posting in a new tab on jobs.apple.com, google.com/about/careers, apply.careers.microsoft.com,
+    jobs.nvidia.com or explore.jobs.netflix.net.
+  - Juice → Family recomputes ($194K > $181K left for an Apple director in San Jose).
+  - "How it's calculated" opens `/beta/methodology/` (200). It reflows at 390 with no "undefined" (M-5 and M-6 are
+    fixed).
+  - A "Same role elsewhere" row switches to Anthropic with `s=Mid&rf=sales`, and Back reopens the Microsoft job.
+  - The Back arrow and hardware Back both close the page, with focus on the card (M-16 is fixed).
+- **Save:**
+  - The Save chip is 44x44, and saving shows a toast.
+  - 5 simulated new roles on a Netflix search show "5 new".
+  - Reopening applies the search, and un-saving works.
+- **Device behaviour:**
+  - Rotating with the sheet full or the job page open re-snaps.
+  - Safe areas: the top bar starts at 53 with a 47 px notch in portrait, and in landscape the top bar and chart labels
+    start at 47 (M-10 is fixed).
+  - With the keyboard up:
+    - the search count stays above the keyboard ("443 roles · 18 in title", ending at 487 of 508; M-12 is fixed);
+    - the company menu lifts to 8–500;
+    - the filters footer hides;
+    - a focused Min or Max box stays visible.
+  - No text under 12 px and no input under 16 px in any state at 360, 430 or landscape.
+
+### Earlier mobile bugs on the beta build
+
+| ID | Status |
+|---|---|
+| M-1, M-3, M-4, M-5, M-6, M-7, M-9, M-10 (chart), M-11, M-12, M-13, M-15, M-16, M-17 | Fixed |
+| M-2, M-14, M-18 | Fixed in code. Canonical "Remote (US)" names are in the lists; the M-14 and M-18 paths were read, not driven |
+| M-8 | Partly fixed. CSV link, comps rows (44 px) and Insights fields (44 px) are fixed. The map zoom (30x30), Pay\|Juice (52x26) and Remote badge (32 tall) are still open (`public/viz/viz.css`); M-25 lists new ones |
+
+### Known items seen on the beta boards (not re-filed)
+
+- **P-3 "Mid":** Apple 4,588 of 6,105 roles (75%) show "Mid", Google 1,622 and Netflix 246. The Seniority chip's
+  biggest option is "Mid". DQ-3 has the board-level causes.
+- **P-6:**
+  - At world zoom, cluster labels group whole regions: "Shanghai, China + 45 nearby · 1,254 jobs" and "Cupertino, CA +
+    109 nearby".
+  - Labels overlap and get cut off at 360–390 ("Redmond, WA" cut at the left edge; "London, UK + 24 nea…" under
+    Cupertino's pin).
+  - `map-apple-390-light.png`, `map-microsoft-360-dark.png`.
+- **P-11:** at `48f913c`, "No other company lists this level, so this compares all Data science & analytics roles" on
+  an Apple director, and a Google "(Fixed-Term Contract)" role compared at Mid. At `be5691c` the note gives the real
+  reason ("Too few Director+ … roles elsewhere list pay").
+- **P-12:** a reopened saved search with "5 new" marks no card New (`48f913c`).
+- **P-14:** "(update due)" on Juice and comps footnotes at `48f913c`; gone at `be5691c`.
+- **I-3 / D-25:** "Apply on job board" on every big-tech posting, and the "Other" heading in the company menu, at
+  `48f913c`. At `be5691c` the button reads "Apply on Apple's careers site" (and so on for each board), and the menu has
+  one "Companies" list.
+- **Data (`data-check-beta.md`):**
+  - NVIDIA's departments are job-family codes: 146 values such as "Engineer, Sys SW", "Mgmt, Legal (Legal)" and
+    "Intern" (140). Microsoft has 141 departments. So the default Department chart opens with 1- and 2-role rows
+    ("Segment Management · 2 · $435K").
+  - DQ-1 (NVIDIA and Microsoft locations), DQ-10 ("Republic of").
+
+### Bugs (ordered by severity)
+
+Severity: **High** blocks or hides a core task; **Medium** is friction, wrong output or an accessibility failure;
+**Low** is polish. Screenshots are in `docs/screenshots/qa-mobile-beta/`.
+
+| ID | Sev | Device / orientation | Summary |
+|---|---|---|---|
+| M-19 | Medium | All phones (390x844 iPhone tested) | Changing the sort or a filter while scrolled down keeps the scroll offset: the new top results are above the view |
+| M-27 | Medium | 360x740 (and 430x932 for Netflix), `be5691c` only | With the logo now shown on phones, the Beta pill and logo push the company name to "Mic…" |
+| M-20 | Medium | All phones; 1x and 4x CPU | The results list never recycles cards: a long scroll on Apple leaves 1,500–2,000 cards (23–31k nodes) in the page; the worst swipe frame goes from 34 to 83–133 ms (1x), and a sort from 0.48 to 0.8–0.9 s (4x) |
+| M-21 | Low | 360–430 portrait | Company menu: the five big-tech boards are below the fold, and the menu opens without the current board (Apple ✓) in view |
+| M-22 | Low | All | A link to a paused board (`#c=amazon`, `#c=meta`, `#c=tesla`) shows "Offline" and a Retry that can never work |
+| M-23 | Low | All | Big counts: map pins cap at "999+" (Cupertino is 4,460), and the job page reads "1 of 6105" |
+| M-24 | Low | 390x844, keyboard up | In the filter sheet, the Location/Department search scrolls to mid-screen, so its matches are under the keyboard |
+| M-25 | Low | 360–430 portrait | Touch targets under 44 px: the filter-sheet Remote segment (32), Juice "How it's calculated" (15) and 38 Market insights rows (26) |
+| M-26 | Low | All phones | The Filters button after a chip reopens the sheet at that chip's section, with focus on Salary, 1,800 px off-screen |
+
+#### M-19 (Medium): a new sort or filter keeps the old scroll offset, so the top results are hidden
+- **Device:** iPhone 390x844, light. The same code runs on every phone; it matters most on long lists.
+- **Repro:**
+  1. Open `/melon-seek/beta/#c=apple`.
+  2. Tap the sheet handle twice to get the full sheet.
+  3. Swipe the list up 8 times (scrollTop 12,384, 112 cards).
+  4. In the sheet header, choose Sort → "Lowest pay".
+- **Expected:** the list starts at the top of the new order, the $46K–60K "Community Specialist" role.
+- **Actual:**
+  - The list is rebuilt with 40 cards but keeps scrollTop 2,872. The first visible card is #27, "Seasonal Advisor,
+    Channel Retail $51K–62K".
+  - The 26 lowest-paid roles sit above the view, and nothing says so.
+  - The e2e runs give #20 (scrollTop 2,110) and #31 (3,296); the number depends on how far you scrolled.
+  - A filter change behaves the same: after `s=Senior`, the first visible card is #20.
+- **Screenshots:** `sort-while-scrolled-apple-390.png`, `e2e-M-19-sort-while-scrolled.png`.
+- **Owner:** `public/app.js` `renderResults()`.
+  - `list.replaceChildren(...items)` keeps the old `scrollTop`.
+  - When the list is rebuilt for a new order or filter (`set()` resets `resultsLimit = PAGE`), set `#resultsList.scrollTop = 0`.
+  - `settleLive()` keeps its own scroll restore for the live-board swap.
+- **Test:** `Beta mobile QA: [M-19] …` (fails today).
+
+#### M-27 (Medium): at HEAD `be5691c` the company name no longer fits the phone top bar next to the Beta pill
+- **New in persona fix wave batch 1.** On the `48f913c` build the same row fit.
+- **Device:** 360x740 (Android UA), light and dark. Netflix is also cut at 430x932: above 400 px the badge shows the
+  full "Snapshot · Oct 10" (153 px).
+- **Repro:** on a build of `be5691c`, open `/melon-seek/beta/#c=microsoft` at 360x740.
+- **Expected:** the Beta pill fits the 360 px top bar, as the brief requires, and the board's name stays whole
+  ("Microsoft"), as it did before batch 1.
+- **Actual:**
+  - I-2 now shows the melon logo on phones, and the beta pill moved beside it (`.brand::after`). The row is:
+    logo and pill 12–89, company menu 97–206, badge 214–296, theme 304–348.
+  - The menu shows "Mic…": 44 of the name's 74 px.
+  - Apple loses 2 px at 360. Netflix shows 43 of 51 px at 430.
+  - The logo link is a 77x26 tap target, and in landscape the theme button shrinks to 40x44.
+- **Screenshots:** `head-landing-microsoft-360-light.png`, `e2e-M-27-topbar-360.png`, `head-landing-netflix-430-dark.png`.
+- **Owner:** `public/styles.css`. Two rules meet:
+  - the I-2 phone rule in the "Persona review fixes" block (`.brand { display: flex; order: 1 }`);
+  - the beta pill (`html[data-channel="beta"] .brand::after`, with `.company-bar::before { content: none }`).
+
+  For example, in the beta channel show the pill instead of the logo image at ≤ 400 px, or switch the badge to its
+  short label earlier. Both rules are the app lane's file.
+- **Test:** `Beta mobile QA: [M-27] …` fails on a `be5691c` build. It passes on the older shared `dist/`.
+
+#### M-20 (Medium): the results list grows without limit, so long scrolls on the big boards slow down
+- **Device:** iPhone 390x844, at 1x and 4x CPU.
+- **Repro:**
+  1. Open `/melon-seek/beta/#c=apple` with the sheet full.
+  2. Keep scrolling: each time the end comes near, 4 more cards are appended per frame.
+- **Expected:** scrolling stays as smooth on a 6,105-role board as at the top of the list, and a sort answers as fast.
+- **Actual:** cards are only ever appended, never recycled.
+
+  Apple, the same machine and run, 6 swipes each:
+
+  | Cards in the page | DOM nodes | Worst swipe frame, 1x | Worst swipe frame, 4x CPU | Sort to the next frame, 1x / 4x |
+  |---|---|---|---|---|
+  | 24 (top of the list) | 877 | 34 ms (0 of 251 frames over 50 ms) | 83 ms (6 of 247) | 144 / 481 ms |
+  | 2,000 (one long scroll) | 30,585 | **83–133 ms (7–9 over 50 ms)** | **250 ms (9–13 over 50 ms)** | 204–240 / **798–913 ms** |
+
+  - The e2e test stops at 1,504 cards and 23,084 nodes.
+  - Two runs at load average 3 and 9 bracket the 2,000-card row.
+
+  Scrolling through all of Apple would leave about 6,100 cards (≈ 95k nodes). Google (3,417) is next in size. The
+  heap stays small (17 MB), so the cost is layout and style, not memory.
+- **Screenshot:** `deep-list-apple-390.png`. A probe overlay prints the card and node counts; there is no other
+  visible symptom.
+- **Owner:** `public/app.js` `renderResults()`.
+  - The lazy pages (`listIO`, `loadMore(4)`) never remove anything.
+  - Fix: keep a window of cards with spacers of the known card height, as `public/viz/chart.js` already does for chart
+    rows (`vItems`); or cap the in-page list (for example 300 cards) and replace it on "Show more".
+  - For the performance agent to confirm on a quiet machine.
+- **Test:** `Beta mobile QA: [M-20] …` asserts at most 600 cards in the page after scrolling past 1,500 roles. It fails
+  today with 1,504.
+
+#### M-21 (Low): company menu: the big-tech boards are below the fold, and the current one is not shown
+- **Same cause as D-25** (the "Other" group in `makeCompanyMenu()`), which the desktop pass filed for the heading and
+  order. Filed here for the phone symptoms.
+- **Device:** 360x740, 390x844 and 430x932 portrait.
+- **Repro:** on `/melon-seek/beta/#c=apple`, tap the company menu.
+- **Expected:** the beta's five boards are visible without scrolling. The menu opens with the current board (✓) in
+  view, so you can see where you are.
+- **Actual:**
+  - At `48f913c` the list shows the 8 stable boards first, under GREENHOUSE, ASHBY and LEVER, and the big-tech boards
+    last under "Other". At 360x740 the list area is 329–669 while Google starts at 767 and Apple ✓ at 855. At 390x844
+    Apple ✓ is at 959–1003 against a visible list of 433–773.
+  - At `be5691c` there is one "Companies" list, with the five still last. At 360x740 Google starts at 702 against a list
+    ending at 669. At 390x844 Apple ✓ is at 894–938 against 433–773.
+  - On a phone you scroll past every stable board to reach the one you are on.
+- **Screenshots:** `company-menu-360.png`, `e2e-M-21-company-menu.png`.
+- **Owner:** `public/app.js` `makeCompanyMenu()` `sync()` (the groups), and `togglePopover('company')`, which should
+  scroll the `aria-current` item into view when the menu opens.
+- **Test:** `Beta mobile QA: [M-21] …` (fails today).
+
+#### M-22 (Low): a link to a paused board says "Offline" and offers a Retry that can never work
+- **Device:** all (390x844 iPhone tested).
+- **Repro:** open `/melon-seek/beta/#c=amazon`. The same happens for `#c=meta` and `#c=tesla`. The user asked for these
+  three, and the README says Amazon and Meta are paused because of their terms.
+- **Expected:**
+  - The page says the board isn't on melon-seek, and why (paused: the site's terms bar automated collection).
+  - It offers the company menu.
+  - There is no "Offline" state and no Retry.
+- **Actual:**
+  - The badge is a red "Offline" (aria "Data source: Offline").
+  - The chart area reads "Couldn't load this board · Unknown company "amazon"" with a green **Retry**.
+  - The sheet reads "No data".
+  - The company button shows the slug, "amazon", in lower case.
+- **Screenshots:** `deeplink-amazon-390.png`, `e2e-M-22-paused-board.png`.
+- **Owner:**
+  - `public/app.js`: `loadJobs()` (the error path), `badgeInfo()` (the `error` branch), and the error card in
+    `renderViz()` and `renderResults()`;
+  - `public/api.js` `getJobs()` for a slug missing from `api/companies.json`.
+
+  Paused companies are in `server/companies.js` (`paused: 'terms'`). The build could list them as paused, so the app
+  can say so. The desktop pass's D-19 (a beta saved search opened on the main site) ends on the same error card.
+- **Test:** `Beta mobile QA: [M-22] …` (fails today).
+
+#### M-23 (Low): big counts are capped or unformatted
+- **Device:** all (390x844 and 360x740 tested).
+- **Repro:**
+  1. Open `/melon-seek/beta/#c=apple&m=map`.
+  2. Tap the "$214K 999+ Cupertino, CA + 109 nearby" pin ("Cupertino, Austin and 108 more" at `be5691c`).
+  3. Open any role.
+- **Expected:** pins say how many roles they hold, as their neighbours do, and the job page counter is formatted like
+  the rest of the app ("6,105 roles").
+- **Actual:**
+  - The pin says "999+", and its chip says "Cupertino, CA + 109 nearby (4,460)".
+  - The next pin, without pay, prints "1,254 jobs".
+  - Microsoft's Redmond pin is also "999+".
+  - The job page reads "1 of 6105".
+  - The big boards are the first where clusters pass 999.
+- **Screenshots:** `map-apple-390-light.png`, `map-microsoft-360-dark.png`, `job-apple-390.png`.
+- **Owner:**
+  - `public/viz/map.js` `pinElement()` (lines 404 and 413, `c.n > 999 ? '999+'`). Use `formatMoney`-style short
+    counts ("4.5K"), as the stats do.
+  - `public/viz/chart.js` line 598 (the same cap on bins).
+  - `public/app.js` `renderDrawerNav()` (`${idx + 1} of ${visible.length}` without `toLocaleString()`).
+- **Test:** `Beta mobile QA: [M-23] …` (fails today).
+
+#### M-24 (Low): with the keyboard up, filter-sheet search results are under the keyboard
+- **Device:** iPhone 390x844 with the simulated keyboard (visible height 508 px).
+- **Repro:**
+  1. On `/melon-seek/beta/#c=apple`, tap Filters.
+  2. Tap the Location search box. Apple has 444 locations, so the search is how you find a city.
+  3. Type "sea" (or "san").
+- **Expected:** the box moves near the top of the visible area, so its matches show above the keyboard.
+- **Actual:**
+  - The box is scrolled to the middle of the full 844 px screen (field 428–472), which is the keyboard's top edge.
+  - The first match, "Seattle 82", ends at 544, under the keyboard (508). Further matches are hidden.
+  - You have to close the keyboard to see what you typed for.
+- **Screenshots:** `e2e-M-24-keyboard-location-search.png` (the grey box marks the keyboard),
+  `kb-filter-location-apple-390.png`.
+- **Owner:** `public/app.js` `bindKeyboardInsets()`. The focusin handler runs `e.target.scrollIntoView({ block: 'center' })`
+  for `#filters input`. With `body.kb-open`, scroll to `block: 'start'`, or keep the field and a few rows inside `--vvh`.
+- **Test:** `Beta mobile QA: [M-24] …` (fails today).
+
+#### M-25 (Low): more touch targets under 44 px
+- **Device:** 360–430 portrait.
+- **Repro and actual:**
+
+  | Control | Size (px) | Screenshot |
+  |---|---|---|
+  | Filter-sheet Remote segment (Any / Remote / On-site) | 109–132 x 32 | `filters-remote-segment-32px-390.png` |
+  | Juice "How it's calculated" link | 106x15 | `juice-link-15px-390.png` |
+  | Market insights rows (skills, departments, locations; 38 on Apple) | 318x26 | `insights-rows-26px-390.png` |
+
+- **Expected:** at least a 44 px hit area, or padding that gives one. The salary Min and Max boxes are 23 px tall, but
+  their labels are 172x55, which is an equivalent hit area, so they are fine.
+- **Owner:**
+  - `public/styles.css` phone block: `.seg--block button` and `.juice-disclaimer a`;
+  - `public/features/features.css`: the Market insights row buttons.
+
+  The open M-8 items (map zoom, Pay|Juice, Remote badge) are in `public/viz/viz.css`.
+- **Test:** `Beta mobile QA: [M-25] …` (fails today).
+
+#### M-26 (Low): the Filters button after a chip: focus lands on Salary, off-screen
+- **Device:** all phones (390x844 tested).
+- **Repro:**
+  1. Tap the Remote chip; the sheet opens at Remote.
+  2. Tap ✕.
+  3. Tap Filters.
+- **Expected:** the sheet opens at the top with focus on Salary, or keeps Remote with focus on Remote.
+- **Actual:**
+  - The sheet keeps scrollTop 1,855, with Remote at the top.
+  - Focus goes to the Salary summary at y −1,798, off-screen.
+  - A screen reader announces "Salary" while Remote is on screen (the M-11 family, by another path).
+- **Screenshot:** `filters-button-after-chip-focus-390.png`.
+- **Owner:** `public/app.js` `setFiltersOpen()`, `target = focus || $('#filters summary')`. When the sheet is opened
+  from `#filtersToggle`, scroll `#filterBody` to the top.
+- **Test:** `Beta mobile QA: [M-26] …` (fails today).
+
+### Coverage notes
+- **Not testable here:**
+  - real WebKit/iOS Safari (toolbar dvh, a real keyboard, swipe-back);
+  - live boards and map tiles (grey tiles are expected);
+  - a beta ledger: this build has `history 0 open`, which is why D-18 shows. On Pages, once the beta ledger carries
+    `firstSeenAt`, the cap is hidden.
+- **No network throttling.** The performance agent will measure Apple's 367 kB (gzipped) list on Fast and Slow 4G, and
+  M-20's frame times on a quiet machine.
+- **Not re-checked:** pay parsing and per-board locations, which `data-check-beta.md` covers, and the desktop-only beta
+  items D-19, D-20 and D-26 to D-30. On phones the top-bar Refresh of D-26 is hidden, so D-26 does not apply there.
+
+### Suite results
+| Suite | Tree | Result |
+|---|---|---|
+| `BETA_QA_DIST=<build of be5691c> node scripts/e2e.js --grep='^Beta mobile QA'` | HEAD `be5691c` (after batch 1) | **5/14**: the 5 guards pass; the 9 failures are exactly `[M-19]`…`[M-27]` |
+| `node scripts/e2e.js --grep='^Beta mobile QA'` | shared `dist/` (build `local-20261010T123230`, from `48f913c`) | **6/14** with the earlier wording, in which the pill check was a guard; the 8 failures were `[M-19]`…`[M-26]`. `[M-27]` alone passes on this older build. |
+| `node scripts/e2e.js` (full) | shared `dist/` and the server on the tree of 13:43 | **111/140 pass, 2 skipped, 27 failed.** Of the failures:<br>• 14 are the beta desktop agent's `[D-17]`…`[D-30]`;<br>• 11 were this group's bug tests, from a draft of this file loaded before I dropped the D-18, D-24 and DQ-10 duplicates and renumbered (all 6 guards passed);<br>• `Desktop QA: [D-9]` and `Compstimate: T21` both pass when re-run alone (`--grep='T21\|\[D-9\]'`: 2/2). T21 is a timing test the PLAYBOOK says can fail under load (load average 9 during the run).<br>Every other existing test passes. |
+| `npm test` (`node --test test/*.test.js`) | HEAD `be5691c` plus this pass's files | **664/690 pass, 0 fail, 26 todo** (the data-check agent's `DQ-n` tests, todo until the beta fix wave). An earlier run during the integration, at load average 9–10, had 1–3 timing failures (PERF-1), which pass alone. |
+
+All browser runs used `NODE_PATH=<scratchpad>/pw/node_modules PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`.
