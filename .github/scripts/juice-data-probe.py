@@ -7,7 +7,7 @@ log. Nothing is written back to the repository and no artifact is uploaded.
 
   python3 .github/scripts/juice-data-probe.py [section ...]   (default: all)
 
-Sections: hud4 hud3 statcan misc3 hud2 acs2 ons2 cso2 zurich2 sg2 olap cmhc2 hud acs ons cso nsw vic cmhc zurich sg bls zillow mit
+Sections: hud5 hud4 hud3 statcan misc3 hud2 acs2 ons2 cso2 zurich2 sg2 olap cmhc2 hud acs ons cso nsw vic cmhc zurich sg bls zillow mit
 Each section is independent: a failure is printed and the next one runs.
 Needs openpyxl for .xlsx (the workflow pip-installs it on the runner only).
 """
@@ -975,7 +975,21 @@ def hud4():
         print(f"    SAFMR_table | {ft['attributes']}")
 
 
-SECTIONS = {"hud4": hud4, "hud3": hud3, "statcan": statcan, "misc3": misc3, "hud2": hud2, "acs2": acs2, "ons2": ons2, "cso2": cso2, "zurich2": zurich2, "sg2": sg2, "olap": olap, "cmhc2": cmhc2,
+def hud5():
+    section("HUD Small Area FMRs for the central ZIP codes (SAFMR_table, ID = ZIP)")
+    zips = sorted({z for zs in US_ZIPS.values() for z in zs})
+    for i in range(0, len(zips), 50):
+        chunk = zips[i:i + 50]
+        res = arcgis_query("HUD_PDR_Small_Area_Fair_Market_Rents", f"ID IN ({','.join(repr(z) for z in chunk)})", fields="ID,FMR_NAME,SAFMR_0BR,SAFMR_1BR,SAFMR_2BR,SAFMR_3BR,SAFMR_4BR", layer=1, n=400)
+        if res.get("error"):
+            print(f"    error {res['error']}")
+        for ft in res.get("features", []):
+            a = ft["attributes"]
+            city = next((c for c, zs in US_ZIPS.items() if a["ID"] in zs), "?")
+            print(f"    SAFMR | {city} | {a['ID']} | {a['FMR_NAME']} | 0-4BR {a['SAFMR_0BR']} {a['SAFMR_1BR']} {a['SAFMR_2BR']} {a['SAFMR_3BR']} {a['SAFMR_4BR']}")
+
+
+SECTIONS = {"hud5": hud5, "hud4": hud4, "hud3": hud3, "statcan": statcan, "misc3": misc3, "hud2": hud2, "acs2": acs2, "ons2": ons2, "cso2": cso2, "zurich2": zurich2, "sg2": sg2, "olap": olap, "cmhc2": cmhc2,
             "hud": hud, "acs": acs, "ons": ons, "cso": cso, "nsw": nsw, "vic": vic, "cmhc": cmhc,
             "zurich": zurich, "sg": sg, "bls": bls, "zillow": zillow, "mit": mit}
 
