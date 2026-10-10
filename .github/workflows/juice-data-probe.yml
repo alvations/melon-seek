@@ -1,0 +1,37 @@
+name: Juice data probe
+
+# Manual, read-only probe for the Juice Score household/rent work
+# (docs/process/juice-household.md). The build sandbox cannot reach the
+# official statistics hosts (HUD, Census, ONS, CSO, NSW DCJ, CMHC, BLS, ...),
+# so this downloads their published datasets on a runner and PRINTS the few
+# values the Juice Score needs to the job log. It writes nothing back, uploads
+# no artifact and never runs on a schedule, push or pull request.
+on:
+  workflow_dispatch:
+    inputs:
+      sections:
+        description: "Space-separated sections (hud acs ons cso nsw vic cmhc zurich sg bls zillow mit) or all"
+        required: false
+        default: "all"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: juice-data-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install the xlsx reader (runner only, not a project dependency)
+        run: python3 -m pip install --quiet "openpyxl==3.1.5"
+
+      - name: Probe official rent and household-spending datasets
+        env:
+          SECTIONS: ${{ inputs.sections }}
+        run: python3 .github/scripts/juice-data-probe.py $SECTIONS
