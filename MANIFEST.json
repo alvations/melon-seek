@@ -1,7 +1,7 @@
 {
  "format": "melon-archive",
  "schemaVersion": 1,
- "updatedAt": "2026-10-10T11:40:39.037Z",
+ "updatedAt": "2026-10-10T11:41:01.401Z",
  "generator": "scripts/archive@a9a46a7c436da86acc1640bf2e493fac87a2ed46",
  "tables": {
   "audit/flags": 1249,
@@ -16,8 +16,8 @@
   "jobs.versions": 23390,
   "ledger/entries": 14632,
   "observations": 172,
-  "reference.files": 133,
-  "reference/index": 133
+  "reference.files": 134,
+  "reference/index": 134
  },
  "files": {
   "audit/flags/2026-10.jsonl": {
@@ -369,9 +369,9 @@
   },
   "reference/index/2026.jsonl": {
    "kind": "append",
-   "bytes": 62250,
-   "sha256": "faadd1ad21341cee1eab8b361a1d979bb5da7adc2394bc09b15fb0b70decf1c2",
-   "rows": 133
+   "bytes": 62649,
+   "sha256": "db9b69a304527476e3fd75e02d0e78a7011e19086077fcc0db80efc0fc900039",
+   "rows": 134
   },
   "reference/jobs-aggregates/2026-10-09.json": {
    "kind": "immutable",
@@ -557,6 +557,11 @@
    "kind": "immutable",
    "bytes": 1224,
    "sha256": "5d71bcc65bb498f7ce909399befac679b841027ec49a2e1a8c15107f28b79269"
+  },
+  "reference/repo.roles/2026-10-10~2.json": {
+   "kind": "immutable",
+   "bytes": 1252,
+   "sha256": "b51cc8ec6313a5b2765e2e44fcc1356dc5730d934155566c1d26a9b10e8a5c4e"
   },
   "reference/repo.salary-policy/2026-10-10.json": {
    "kind": "immutable",
