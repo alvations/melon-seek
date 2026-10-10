@@ -264,7 +264,8 @@ test('freshness.js: labels come from the registry, with stale flags on the viewe
   assert.equal(FR.asOf('fx-per-usd'), '2026-07-01');
   assert.equal(FR.asOfLabel('fx-per-usd', { now: NOW }), 'as of Jul 2026');
   assert.equal(FR.isStale('tax-us-ca', NOW), true);
-  assert.equal(FR.asOfLabel('tax-us-ca', { now: NOW }), 'as of Jan 2025, update due');
+  assert.equal(FR.asOfLabel('tax-us-ca', { now: NOW }), 'as of Jan 2025', 'fix-viz P-14: the app shows the date only');
+  assert.equal(FR.asOfLabel('tax-us-ca', { now: NOW, status: true }), 'as of Jan 2025, update due');
   assert.equal(FR.isStale('fx-per-usd', NOW), false);
   assert.equal(FR.isStale('fx-per-usd', new Date('2027-01-01')), true, 'staleAfter is judged on the viewer clock');
   assert.equal(FR.asOfLabel('nope', { fallback: '2026-09' }), 'as of Sep 2026');
@@ -281,13 +282,14 @@ test('freshness.js: Juice block line uses the registry for FX and tax, the city 
   // No registry: the data's own dates, still a useful line.
   const plain = FR.juiceAsOfText(us, { now: NOW });
   assert.match(plain, /^Data as of: rent \w{3} \d{4} · living costs \w{3} \d{4} · tax /);
-  assert.ok(!/FX/.test(plain), 'a USD salary in a USD city needs no FX line');
+  assert.ok(!/exchange rates/.test(plain), 'a USD salary in a USD city needs no exchange-rate line');
   // FX date from the juice inputs (FX_AS_OF), not a pinned month: the monthly refresh moves it.
-  assert.match(FR.juiceAsOfText(gb, { now: NOW }), new RegExp(`FX ${FR.formatAsOf(J.FX_AS_OF)}`), 'FX from the juice inputs (FX_AS_OF)');
-  // With the registry: tax years and "update due" from it.
+  assert.match(FR.juiceAsOfText(gb, { now: NOW }), new RegExp(`exchange rates ${FR.formatAsOf(J.FX_AS_OF)}`), 'FX from the juice inputs (FX_AS_OF)');
+  // With the registry: tax years from it, and "update due" only when asked (fix-viz P-14).
   FR.setFreshness(PUB);
-  const reg = FR.juiceAsOfText(us, { now: NOW });
+  const reg = FR.juiceAsOfText(us, { now: NOW, status: true });
   assert.match(reg, /tax US 2026, CA 2025 \(update due\)/, reg);
+  assert.doesNotMatch(FR.juiceAsOfText(us, { now: NOW }), /update due/);
   assert.match(reg, new RegExp(`rent ${FR.formatAsOf(us.inputs.rent.source.asOf)}`), 'rent keeps the city record date');
   const items = FR.juiceAsOf(us, { now: NOW });
   assert.deepEqual(items.find((x) => x.key === 'rent').ids, ['rents-1br-quoted']);
@@ -308,18 +310,19 @@ test('freshness.js: the map legend line spans the inputs of every job shown', ()
   const pick = (k) => CITIES.cities.find((c) => c.key === k);
   const res = [J.computeJuice(200000, pick('san-francisco-ca-us')), J.computeJuice(150000, pick('london-gb'))];
   const t = FR.juiceSpanText(res, { now: NOW });
-  assert.match(t, new RegExp(`^As of: rent \\w{3}(–\\w{3})? \\d{4} · living costs .+ · FX ${FR.formatAsOf(J.FX_AS_OF)} · tax \\d{4}(–\\d{4})?$`), t);
+  assert.match(t, new RegExp(`^As of: rent \\w{3}(–\\w{3})? \\d{4} · living costs .+ · exchange rates ${FR.formatAsOf(J.FX_AS_OF)} · tax \\d{4}(–\\d{4})?$`), t);
   assert.equal(FR.juiceSpanText([]), '');
   FR.setFreshness(PUB);
-  assert.match(FR.juiceSpanText(res, { now: NOW }), /some inputs due for update$/, 'tax-us-ca is stale in PUB');
+  assert.match(FR.juiceSpanText(res, { now: NOW, status: true }), /some inputs due for update$/, 'tax-us-ca is stale in PUB');
+  assert.doesNotMatch(FR.juiceSpanText(res, { now: NOW }), /due for update/, 'fix-viz P-14: the map legend shows dates only');
   FR.setFreshness(null);
 });
 
 test('freshness.js: market comps and Compstimate lines', () => {
   const market = { fx: { asOf: '2026-07-01' }, companies: [{ slug: 'a', fetchedAt: '2026-10-09T07:00:00Z' }, { slug: 'b', fetchedAt: '2026-10-08T07:00:00Z' }, { slug: 'c', fetchedAt: null }] };
   FR.setFreshness(null);
-  assert.equal(FR.marketAsOfText(market, ['a']), 'Postings as of 9 Oct 2026 · FX as of Jul 2026');
-  assert.equal(FR.marketAsOfText(market), 'Postings as of 8 Oct 2026 to 9 Oct 2026 · FX as of Jul 2026');
+  assert.equal(FR.marketAsOfText(market, ['a']), 'Postings as of 9 Oct 2026 · exchange rates as of Jul 2026');
+  assert.equal(FR.marketAsOfText(market), 'Postings as of 8 Oct 2026 to 9 Oct 2026 · exchange rates as of Jul 2026');
   assert.equal(FR.marketAsOfText(null), '');
   assert.equal(FR.compstimateAsOfText({ fetchedAt: Date.parse('2026-10-09T07:00:00Z'), meta: { compstimate: { computedAt: '2026-10-09T08:00:00Z' } } }), 'Postings as of 9 Oct 2026 · accuracy tested 9 Oct 2026');
   FR.setFreshness(PUB);

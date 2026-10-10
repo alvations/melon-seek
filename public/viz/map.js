@@ -11,9 +11,19 @@
 // never overlap at the current zoom. Each cluster is a Zillow-style price-tag
 // pill: median salary (approx USD) + count badge, filled on a one-hue
 // sequential scale by median. Remote-only postings live in a "Remote" control.
+// A posting's pay counts only at the places it applies to (payLocations in
+// public/features/shared.js: the locations in the pay currency's countries), so US
+// pay is never the median of a Sydney or London pin; the posting is still counted
+// there. A cluster is "<place> + N nearby" only when its places are within NEAR_KM
+// of each other; otherwise it names its two biggest places ("San Francisco, New
+// York and 2 more"). Offline, place names show under the pins; a name that would
+// run into another pin or name is hidden (the tooltip and the pin's name keep it).
 // A "Pay | Juice" segmented control switches pin color to the Juice Score
 // (docs/LIVABILITY.md): the median score at that location on a stepped ramp with
 // breaks at 45 and 70 (Dry / Ripe / Juicy); pins without juice data are neutral.
+// The grade also shows without colour (ROADMAP §8 adds no colours): Juicy pins are
+// filled, Ripe pins tinted with a solid ring, Dry pins an outline with a dashed ring
+// (Rind dotted), and the legend's swatches match.
 // Basemap: OpenStreetMap standard tiles by default (no API key). Dark mode
 // inverts the tile pane only with a CSS filter (pins are never filtered), or
 // swaps to `tiles.dark` when that is a URL. If tiles fail, the container
@@ -23,8 +33,11 @@ import {
   formatMoney, toUSD, median, salaryColor, inkOn, onThemeChange, isDark, prefersReducedMotion,
   juiceColor, juiceGrade, juiceNetForScore, JUICE_BREAKS,
 } from './palette.js';
+import { payLocations } from '../features/shared.js';
 
 export const COLOR_MODES = Object.freeze(['pay', 'juice']);
+/** I-10: how full a Juice pin (and its legend swatch) is drawn, by grade. */
+export const GRADE_FILL = Object.freeze({ Juicy: 'full', Ripe: 'half', Dry: 'none', Rind: 'none' });
 
 /** Default basemap: OSM standard tiles (no key). Usage policy: attribution visible, no prefetch. */
 export const OSM_TILES = Object.freeze({
@@ -36,6 +49,7 @@ export const OSM_TILES = Object.freeze({
 const BASE_MIN_ZOOM = 2; // lowered per dataset by fitToData() when the pins need it
 const CLUSTER_W = 76;  // px: pill width + gap
 const CLUSTER_H = 34;  // px: pill height + gap (labels add more when offline)
+const LABEL_GAP = 5;   // px between a pin and a place name moved above it (viz.css .ms-pin__label--above)
 
 function el(tag, cls, text) {
   const e = document.createElement(tag);
@@ -61,34 +75,97 @@ function locLabel(l) {
 
 const plural = (n, one, many = one + 's') => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 
-/** Aggregate jobs into { places: [{key,lat,lng,label,jobs}], remote: jobs[] }. */
+/** Places closer than this to a cluster's biggest place are "nearby" (a metro area, not a coast). */
+export const NEAR_KM = 150;
+
+/** Great-circle distance in km between two { lat, lng }. */
+export function distanceKm(a, b) {
+  const R = 6371, rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/**
+ * Aggregate jobs into { places: [{key,lat,lng,label,city,jobs,paid}], remote: jobs[], remotePaid }.
+ * A job counts at every place it lists; `paid` (a Set of job ids) holds the jobs whose pay applies
+ * there (payLocations), and `remotePaid` those whose pay applies to their remote location.
+ */
 export function aggregate(jobs) {
   const places = new Map();
   const remote = [];
+  const remotePaid = new Set();
   for (const job of jobs) {
     let placed = false, isRemote = false;
     const seen = new Set();
+    const hasPay = !!job.salary && (job.salary.min != null || job.salary.max != null);
+    const payAt = hasPay ? new Set(payLocations(job)) : null;
     for (const l of job.locations || []) {
       if (l.remote) { isRemote = true; continue; }
       if (l.lat == null || l.lng == null || !isFinite(l.lat) || !isFinite(l.lng)) continue;
       const key = `${l.lat.toFixed(1)},${l.lng.toFixed(1)}`;
-      if (seen.has(key)) { places.get(key)?.locNames.get(job.id)?.add(norm(l.name || locLabel(l))); continue; }
-      seen.add(key);
       let p = places.get(key);
-      if (!p) { p = { key, lat: +l.lat, lng: +l.lng, label: locLabel(l), jobs: [], locNames: new Map() }; places.set(key, p); }
+      if (seen.has(key)) {
+        p?.locNames.get(job.id)?.add(norm(l.name || locLabel(l)));
+        if (payAt?.has(l)) p?.paid.add(job.id);
+        continue;
+      }
+      seen.add(key);
+      if (!p) { p = { key, lat: +l.lat, lng: +l.lng, label: locLabel(l), city: l.city || null, jobs: [], locNames: new Map(), paid: new Set() }; places.set(key, p); }
       if (!p.locNames.has(job.id)) { p.jobs.push(job); p.locNames.set(job.id, new Set()); }
       p.locNames.get(job.id).add(norm(l.name || locLabel(l)));
+      if (payAt?.has(l)) p.paid.add(job.id);
       placed = true;
     }
     // D-4: the Remote bucket is exactly the Remote filter (job.remote), also for roles that have a pin.
-    if (isRemote || job.remote) remote.push(job);
+    if (isRemote || job.remote) {
+      remote.push(job);
+      // Pay counts for Remote when it covers a remote location, or when the posting names none.
+      if (hasPay && ([...payAt].some((l) => l.remote) || !isRemote)) remotePaid.add(job.id);
+    }
   }
-  return { places: [...places.values()], remote };
+  return { places: [...places.values()], remote, remotePaid };
 }
 
-function summarize(jobs) {
-  const mids = jobs.map(midUSD).filter(v => v != null);
-  return { n: jobs.length, salaried: mids.length, median: median(mids) };
+/**
+ * { n, salaried, elsewhere, median } for jobs at a place: the median (approx USD) is over the jobs
+ * in `paid` only (pay that applies here); `elsewhere` counts salaried jobs whose pay is for
+ * another country. Without `paid` every salary counts.
+ */
+export function summarize(jobs, paid = null) {
+  const mids = [];
+  let elsewhere = 0;
+  for (const j of jobs) {
+    const v = midUSD(j);
+    if (v == null) continue;
+    if (!paid || paid.has(j.id)) mids.push(v); else elsewhere++;
+  }
+  return { n: jobs.length, salaried: mids.length, elsewhere, median: median(mids) };
+}
+
+const shortPlace = (p) => p.city || String(p.label || '').split(',')[0].trim() || 'Unknown';
+
+/**
+ * Plain label for a cluster of places (members[0] is its biggest): the place itself; "<place> + N
+ * nearby" when every member is within NEAR_KM of it; otherwise its two biggest areas by name,
+ * "San Francisco, New York and 2 more" (never "+ N nearby" for places a continent apart).
+ */
+export function clusterLabel(members) {
+  if (!members?.length) return 'Unknown';
+  const lead = members[0];
+  if (members.length === 1) return lead.label;
+  if (members.every((m) => distanceKm(m, lead) <= NEAR_KM)) return `${lead.label} + ${members.length - 1} nearby`;
+  const areas = [];
+  for (const m of members.slice().sort((a, b) => b.jobs.length - a.jobs.length)) {
+    const a = areas.find((x) => distanceKm(x.lead, m) <= NEAR_KM);
+    if (a) a.n += m.jobs.length; else areas.push({ lead: m, n: m.jobs.length });
+  }
+  areas.sort((a, b) => b.n - a.n);
+  // Name cities; a region or country-wide place ("United States") is counted in "more".
+  const names = [...new Set(areas.filter((a) => a.lead.city).map((a) => shortPlace(a.lead)))];
+  if (!names.length) return `${lead.label} and ${members.length - 1} more`;
+  if (names.length === 1) return `${names[0]} and ${members.length - 1} more`;
+  return members.length === 2 ? `${names[0]} and ${names[1]}` : `${names[0]}, ${names[1]} and ${members.length - 2} more`;
 }
 
 const norm = s => String(s || '').trim().toLowerCase();
@@ -231,7 +308,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       const seg = L.DomUtil.create('div', 'ms-modes__seg', box);
       seg.setAttribute('role', 'radiogroup');
       seg.setAttribute('aria-label', 'Pin color');
-      for (const [mode, label, hint] of [['pay', 'Pay', 'Color pins by median salary'], ['juice', 'Juice', 'Color pins by median Juice Score: livability $ left after rent, tax and living costs']]) {
+      for (const [mode, label, hint] of [['pay', 'Pay', 'Colour pins by median salary'], ['juice', 'Juice', 'Colour pins by median Juice: the money left a year after tax, rent and living costs']]) {
         const b = L.DomUtil.create('button', 'ms-modes__btn', seg);
         b.type = 'button';
         b.dataset.mode = mode;
@@ -265,19 +342,27 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     legend.replaceChildren();
     const [b1, b2] = jScale.breaks;
     const nf = s => formatMoney(jScale.netForScore(s));
-    for (const [grade, score, scoreTxt, range] of [
-      ['Dry', 0, `< ${b1}`, `< ${nf(b1)}`],
-      ['Ripe', b1, `${b1}–${b2 - 1}`, `${nf(b1)}–${nf(b2)}`],
-      ['Juicy', b2, `${b2}+`, `≥ ${nf(b2)}`],
+    // I-10: each grade has its own fill (outline, tint, solid), the same as the pins, so the
+    // grades read without telling shades of red apart; the dollars are the money left a year.
+    for (const [grade, scoreTxt, range] of [
+      ['Dry', `< ${b1}`, `under ${nf(b1)}`],
+      ['Ripe', `${b1}–${b2 - 1}`, `${nf(b1)}–${nf(b2)}`],
+      ['Juicy', `${b2}+`, `${nf(b2)} or more`],
     ]) {
       const row = L.DomUtil.create('div', 'ms-modes__key', legend);
       const sw = L.DomUtil.create('span', 'ms-modes__sw', row);
-      sw.dataset.score = score;
+      sw.dataset.grade = grade;
+      sw.dataset.fill = GRADE_FILL[grade];
       L.DomUtil.create('span', 'ms-modes__grade', row).textContent = `${grade} ${scoreTxt}`;
-      L.DomUtil.create('span', 'ms-modes__net', row).textContent = `${range}/yr`;
+      const net = L.DomUtil.create('span', 'ms-modes__net', row);
+      net.append(range, el('span', 'ms-modes__unit', ' left a year')); // phones: the dollars only
     }
     L.DomUtil.create('div', 'ms-modes__none', legend).textContent = 'Gray: no Juice data';
-    if (juiceNote) L.DomUtil.create('div', 'ms-modes__none ms-modes__asof', legend).textContent = juiceNote;
+    if (juiceNote) {
+      const n = L.DomUtil.create('div', 'ms-modes__none ms-modes__asof', legend);
+      n.textContent = juiceNote;
+      n.title = juiceNote; // phones show it on one line
+    }
   }
   function setJuiceScale(src) {
     const sc = toJuiceScale(src);
@@ -303,7 +388,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       b.classList.toggle('is-on', on);
     }
     modeBox.classList.toggle('ms-modes--juice', colorMode === 'juice');
-    for (const sw of modeBox.querySelectorAll('.ms-modes__sw')) sw.style.background = juiceColor(+sw.dataset.score, jScale.breaks);
+    for (const sw of modeBox.querySelectorAll('.ms-modes__sw')) sw.style.setProperty('--pin-hue', juiceHue());
   }
   function setColorMode(mode, fromUser) {
     if (!COLOR_MODES.includes(mode) || mode === colorMode) return;
@@ -327,6 +412,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
   const markerLayer = L.layerGroup().addTo(map);
   let places = [];
   let remoteJobs = [];
+  let remotePaid = new Set();
   let clusters = [];
   let highlighted = null;
   let lastSig = null;
@@ -351,9 +437,13 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     return out.map(c => {
       const ids = new Set();
       const jobs = [];
-      for (const m of c.members) for (const j of m.jobs) if (!ids.has(j.id)) { ids.add(j.id); jobs.push(j); }
-      const label = c.members.length > 1 ? `${c.lead.label} + ${c.members.length - 1} nearby` : c.lead.label;
-      return { lat: c.lead.lat, lng: c.lead.lng, members: c.members, jobs, ids, label, ...summarize(jobs), juice: summarizeJuice(jobs, c.members, jScale) };
+      const paid = new Set();
+      for (const m of c.members) {
+        for (const j of m.jobs) if (!ids.has(j.id)) { ids.add(j.id); jobs.push(j); }
+        for (const id of m.paid || []) paid.add(id);
+      }
+      const label = clusterLabel(c.members);
+      return { lat: c.lead.lat, lng: c.lead.lng, members: c.members, jobs, ids, label, ...summarize(jobs, paid), juice: summarizeJuice(jobs, c.members, jScale) };
     });
   }
 
@@ -371,8 +461,9 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       root.append(el('div', 'ms-tip__value', c.median != null ? `${formatMoney(c.median)} median` : plural(c.n, 'job')));
       root.append(el('div', 'ms-tip__title', c.label));
       root.append(el('div', 'ms-tip__meta', c.median != null
-        ? `${plural(c.n, 'posting')} · ${c.salaried.toLocaleString()} with salary`
-        : `${plural(c.n, 'posting')} · no published salary`));
+        ? `${plural(c.n, 'posting')} · ${c.salaried.toLocaleString()} with salary for here`
+        : `${plural(c.n, 'posting')} · ${c.elsewhere ? 'no salary posted for here' : 'no published salary'}`));
+      if (c.elsewhere) root.append(el('div', 'ms-tip__meta', `${plural(c.elsewhere, 'posting')} ${c.elsewhere === 1 ? 'lists' : 'list'} pay for another country only, so not in the median`));
     }
     const counts = new Map();
     for (const j of c.jobs) counts.set(j.title, (counts.get(j.title) || 0) + 1);
@@ -388,14 +479,22 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     return root;
   }
 
+  /** One melon hue for every grade (the Juicy step); the fill level tells the grades apart. */
+  function juiceHue() { return juiceColor(jScale.breaks[1], jScale.breaks); }
+
   function pinElement(c, t) {
     const pin = el('div', 'ms-pin');
     if (colorMode === 'juice') {
       const J = c.juice;
       if (J) {
-        const bg = juiceColor(J.score, jScale.breaks);
-        pin.style.setProperty('--pin-bg', bg);
-        pin.style.setProperty('--pin-fg', inkOn(bg));
+        const hue = juiceHue();
+        pin.dataset.grade = J.grade;
+        pin.dataset.fill = GRADE_FILL[J.grade] || 'none';
+        pin.style.setProperty('--pin-hue', hue);
+        if (pin.dataset.fill === 'full') {
+          pin.style.setProperty('--pin-bg', hue);
+          pin.style.setProperty('--pin-fg', inkOn(hue));
+        }
         pin.classList.add('ms-pin--juice');
       } else {
         pin.classList.add('ms-pin--nosalary', 'ms-pin--juice');
@@ -424,7 +523,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       const J = c.juice;
       return `${c.label}: ${plural(c.n, 'posting')}, ${J ? `Juice ${J.score}, ${J.grade}, median ${formatMoney(J.net)} a year left` : 'no Juice data'}`;
     }
-    return `${c.label}: ${plural(c.n, 'posting')}${c.median != null ? `, median ${formatMoney(c.median)}` : ', no published salary'}`;
+    return `${c.label}: ${plural(c.n, 'posting')}${c.median != null ? `, median ${formatMoney(c.median)}` : c.elsewhere ? ', no salary posted for here' : ', no published salary'}`;
   }
 
   function draw() {
@@ -490,13 +589,58 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     });
     refocus?.focus({ preventScroll: true });
     applyHighlight();
+    placeLabels();
+  }
+
+  /**
+   * P-6: offline, place names show under the pins. Biggest cluster first, a name that would run
+   * into another pin or an earlier name moves above its pin, and is hidden when that collides too
+   * (its pin's tooltip and accessible name keep it). A name near the map's left or right edge
+   * slides inward instead of being cut off. One read of every box, then the writes, so it costs
+   * one layout per draw.
+   */
+  function placeLabels() {
+    if (!container.classList.contains('ms-map--offline')) return;
+    const host = container.getBoundingClientRect();
+    if (!host.width || !host.height) return; // hidden: placed again when it gets a size
+    const items = [];
+    for (const c of clusters) {
+      const lab = c.pinEl?.querySelector('.ms-pin__label');
+      if (!lab || !c.pinEl.isConnected) continue;
+      lab.classList.remove('ms-pin__label--hidden', 'ms-pin__label--above');
+      lab.style.marginLeft = '';
+      items.push({ c, lab });
+    }
+    for (const it of items) { it.pin = it.c.pinEl.getBoundingClientRect(); it.box = it.lab.getBoundingClientRect(); }
+    const EDGE = 4;
+    const hit = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+    const placed = [];
+    items.sort((a, b) => b.c.n - a.c.n);
+    for (const it of items) {
+      const b = it.box;
+      let shift = 0;
+      if (b.right > host.right - EDGE) shift = host.right - EDGE - b.right;
+      if (b.left + shift < host.left + EDGE) shift = host.left + EDGE - b.left;
+      it.shift = shift;
+      const below = { left: b.left + shift - 2, right: b.right + shift + 2, top: b.top - 1, bottom: b.bottom + 1 };
+      const h = b.bottom - b.top;
+      const above = { ...below, top: it.pin.top - LABEL_GAP - h - 1, bottom: it.pin.top - LABEL_GAP + 1 };
+      const free = (r) => r.top >= host.top && !placed.some((p) => hit(p, r)) && !items.some((o) => o !== it && hit(o.pin, r));
+      it.where = free(below) ? 'below' : free(above) ? 'above' : 'hidden';
+      if (it.where !== 'hidden') placed.push(it.where === 'below' ? below : above);
+    }
+    for (const it of items) {
+      if (it.where === 'hidden') { it.lab.classList.add('ms-pin__label--hidden'); continue; }
+      if (it.where === 'above') it.lab.classList.add('ms-pin__label--above');
+      if (it.shift) it.lab.style.marginLeft = `${Math.round(it.shift)}px`;
+    }
   }
 
   function drawRemote() {
     remoteBtn.replaceChildren();
     remoteBtn.hidden = !remoteJobs.length;
     if (!remoteJobs.length) return;
-    const s = summarize(remoteJobs);
+    const s = summarize(remoteJobs, remotePaid);
     remoteBtn.append(el('span', 'ms-remote__icon', '🌐'), el('span', 'ms-remote__label', 'Remote'),
       el('span', 'ms-remote__n', s.n.toLocaleString()));
     if (s.median != null) remoteBtn.append(el('span', 'ms-remote__price', formatMoney(s.median)));
@@ -537,6 +681,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
   const ro = new ResizeObserver(() => {
     map.invalidateSize({ pan: false });
     if (pendingFit && map.getSize().x && map.getSize().y) { fitToData(); draw(); }
+    else placeLabels(); // the map's edges moved
   });
   ro.observe(container);
   const offTheme = onThemeChange(dark => {
@@ -550,7 +695,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     update(jobs, { fit, colorMode: mode } = {}) {
       jobs = Array.isArray(jobs) ? jobs : [];
       if (mode != null) setColorMode(mode, false); // programmatic (e.g. from the URL hash): no callback
-      ({ places, remote: remoteJobs } = aggregate(jobs));
+      ({ places, remote: remoteJobs, remotePaid } = aggregate(jobs));
       // Default: refit only when the dataset identity (set of companies) changes.
       const sig = [...new Set(jobs.map(j => j.company))].sort().join('|');
       const doFit = fit ?? (first || sig !== lastSig);

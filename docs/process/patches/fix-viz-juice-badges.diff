@@ -1,0 +1,22 @@
+diff --git a/public/styles.css b/public/styles.css
+index 6dce017..46859c3 100644
+--- a/public/styles.css
++++ b/public/styles.css
+@@ -965,6 +965,17 @@ html[data-mode="insights"] .viz-controls { display: none; }
+ .juice-badge.juice--ripe, .juice-score.juice--ripe, .juice-grade.juice--ripe,
+ .juice-badge.juice--rind, .juice-score.juice--rind, .juice-grade.juice--rind { color: var(--ms-text); background: color-mix(in srgb, var(--_j) 18%, transparent); }
+ .kw--juice[aria-pressed="true"] { background: var(--ms-juice-juicy); border-color: var(--ms-juice-juicy); color: #fff; }
++/* I-10 (fix-viz, persona review 2026-10-10): three shades of red read as one grade, and as a
++   warning. One melon hue (the Juicy step) and the badge's fill tells the grade, like the map's
++   pins: Juicy filled (a tint) with a solid ring, Ripe a solid ring, Dry a dashed ring, Rind dotted.
++   The rings are outlines, so badge sizes do not change. No new colours (ROADMAP §8). */
++.juice-badge.juice--juicy, .juice-score.juice--juicy, .juice-grade.juice--juicy,
++.juice-badge.juice--ripe, .juice-score.juice--ripe, .juice-grade.juice--ripe,
++.juice-badge.juice--dry, .juice-score.juice--dry, .juice-grade.juice--dry,
++.juice-badge.juice--rind, .juice-score.juice--rind, .juice-grade.juice--rind { color: var(--ms-text); background: transparent; outline: 1.5px solid var(--ms-juice-juicy); outline-offset: -1.5px; }
++.juice-badge.juice--juicy, .juice-score.juice--juicy, .juice-grade.juice--juicy { background: color-mix(in srgb, var(--ms-juice-juicy) 20%, transparent); }
++.juice-badge.juice--dry, .juice-score.juice--dry, .juice-grade.juice--dry { outline-style: dashed; }
++.juice-badge.juice--rind, .juice-score.juice--rind, .juice-grade.juice--rind { outline-style: dotted; }
+ 
+ /* DES-7: two chip shapes only — pills (99px) for values (salary, Juice), 5px tags for attributes. */
+ .tag, .card-foot .tag, .sen, .card-foot .sen, .tag--status, .tag--remote {

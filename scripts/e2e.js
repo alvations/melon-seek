@@ -11,6 +11,7 @@ import { registerMobileQaTests } from '../test/e2e/mobile-qa.e2e.js';
 import { registerDesktopQaTests } from '../test/e2e/desktop-qa.e2e.js';
 import { registerMethodologyTests } from '../test/e2e/methodology.e2e.js';
 import { registerBadgeTests } from '../test/e2e/badge.e2e.js';
+import { registerFixVizTests } from '../test/e2e/fix-viz.e2e.js';
 
 const args = new Set(process.argv.slice(2));
 const apiOnly = args.has('--api-only');
@@ -47,6 +48,7 @@ if (!apiOnly) {
   registerDesktopQaTests(suite);
   registerBadgeTests(suite);
   registerMethodologyTests(suite);
+  registerFixVizTests(suite);
 }
 
 let results;

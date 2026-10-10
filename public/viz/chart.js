@@ -1,8 +1,16 @@
 // melon-seek salary landscape chart.
 //
 // createChart(container, { onSelect(job), onHover(job|null), onClusterSelect(jobs, label) })
-//   -> { update(jobs, { view, groupBy, colorBy }), highlight(jobId|null),
+//   -> { update(jobs, { view, groupBy, colorBy, empty? }), highlight(jobId|null),
 //        clearSelection(), destroy() }
+//
+// Empty states (P-16): postings that list no salary get the chart's own note ("N postings
+// match, but none list a salary range"). With no postings at all the chart stays blank, because
+// the host knows why (a search word, a filter) and says it once; pass `empty` ("text" or
+// { title, sub }) to have the chart say it instead.
+//
+// Group by seniority shows the stored levels through levelLabel (public/features/roles.js):
+// the default 'Mid' reads "Level not stated" and comes last (P-3).
 //
 // Two views share one approx-USD salary axis, a slim sticky midpoint
 // distribution strip, and a muted notes line under the chart:
@@ -19,8 +27,9 @@
 
 import {
   colorFor, assignColors, otherColor, slotColor, inkOn, OTHER_KEY, SLOT_COUNT, formatMoney,
-  formatCurrency, toUSD, isForeign, hasFx, niceTicks, median, onThemeChange, prefersReducedMotion, isDark, FX_AS_OF, FX_PER_USD,
+  formatCurrency, toUSD, isForeign, hasFx, niceTicks, median, onThemeChange, prefersReducedMotion, isDark, FX_AS_OF,
 } from './palette.js';
+import { levelLabel, LEVEL_NOT_STATED } from '../features/roles.js';
 
 export const VIEWS = Object.freeze(['clusters', 'ranges']);
 export const DEFAULT_VIEW = 'clusters';
@@ -34,19 +43,39 @@ const CROW_LABEL_H = 22;   // clusters, narrow: label line above the plot
 const CROW_PLOT_H = 44;    // clusters, narrow: plot height
 const BIN_STEPS = [10000, 20000, 25000, 50000, 100000, 200000, 250000, 500000];
 const MIN_BIN_PX = 34;     // a bin must be wide enough for a readable, countable circle
-// D-9: the same ladder as the Seniority filter and features/roles SENIORITY_LADDER (Clusters and Ranges).
-const SENIORITY_ORDER = ['Intern', 'Entry', 'Mid', 'Senior', 'Staff+', 'Manager', 'Director+', 'Unspecified'];
+// D-9 / P-3: the seniority ladder for Clusters and Ranges, by stored level. The default level
+// (LEVEL_NOT_STATED, 'Mid', given to every title that names no level) reads "Level not stated" and
+// goes last (lead decision, 2026-10-10).
+export const SENIORITY_ORDER = Object.freeze(['Intern', 'Entry', 'Senior', 'Staff+', 'Manager', 'Director+', LEVEL_NOT_STATED]);
 const ALL_ROLES = 'All roles';
 
 const INTERVAL_ADJ = { hour: 'hourly', day: 'daily', week: 'weekly', month: 'monthly' };
 const DIM_LABEL = { department: 'department', location: 'location', seniority: 'seniority' };
 
-/** Category key for a job along a dimension. */
+/** Category key for a job along a dimension (seniority: the stored level; none counts as not stated). */
 export function keyOf(job, dim) {
   if (dim === 'department') return job.department || 'No department';
-  if (dim === 'seniority') return job.seniority || 'Unspecified';
+  if (dim === 'seniority') return job.seniority || LEVEL_NOT_STATED;
   if (dim === 'location') return primaryLocation(job);
   return 'All';
+}
+
+/** What people read for a key: seniority through levelLabel ("Level not stated"), others as is. */
+export function groupName(dim, key) {
+  return dim === 'seniority' ? levelLabel(key) : key;
+}
+
+const senRank = (k) => { const i = SENIORITY_ORDER.indexOf(k); return i < 0 ? SENIORITY_ORDER.length - 1.5 : i; };
+
+/**
+ * Where a ranges row's pay label goes (P-16): right of the bar, else left of it, else on the bar
+ * inside the plot, so it never runs into the title column. `w` is the label's width in px.
+ * Returns { side: 'right'|'left'|'in', x } (x = the label's left edge).
+ */
+export function rowValPlacement({ bx0, bx1, plotL, width, w, gap = 10, pad = 4 }) {
+  if (bx1 + gap + w <= width - pad) return { side: 'right', x: bx1 + gap };
+  if (bx0 - gap - w >= plotL) return { side: 'left', x: bx0 - gap - w };
+  return { side: 'in', x: Math.max(plotL, Math.min(width - pad - w, Math.max(bx0, plotL) + 8)) };
 }
 
 function primaryLocation(job) {
@@ -91,6 +120,9 @@ function parseColor(str) {
 const toHex = c => '#' + c.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
 
 const moneyRange = (a, b) => `${formatMoney(a)}–${formatMoney(b)}`;
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** '2026-07-01' -> 'Jul 2026'. */
+const formatMonth = (iso) => { const m = /^(\d{4})-(\d{2})/.exec(String(iso || '')); return m ? `${MONTHS[+m[2] - 1]} ${m[1]}` : String(iso || ''); };
 
 /**
  * Robust axis bounds: P1..P99, tightened by a Tukey far-out fence (Q1 − 3·IQR,
@@ -287,13 +319,14 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     if (!plotted.length) {
       head.hidden = true;
       scroll.hidden = true;
-      empty.hidden = false;
-      empty.replaceChildren(
-        el('div', 'ms-chart__empty-title', jobs.length ? 'No published salaries' : 'No postings to plot'),
-        el('div', 'ms-chart__empty-sub', jobs.length
-          ? `${plural(jobs.length, 'posting')} match, but none list a salary range.`
-          : 'Try widening the filters.'),
-      );
+      // P-16: one message, with its real cause. No postings at all: the host says why (search or
+      // filters), unless it handed the chart the words.
+      const e = opts.empty;
+      const msg = jobs.length
+        ? ['No published salaries', `${plural(jobs.length, 'posting')} match, but none list a salary range.`]
+        : e ? (typeof e === 'string' ? [e, ''] : [e.title || '', e.sub || '']) : null;
+      empty.hidden = !msg;
+      empty.replaceChildren(...(msg ? [el('div', 'ms-chart__empty-title', msg[0]), msg[1] ? el('div', 'ms-chart__empty-sub', msg[1]) : ''].filter(Boolean) : []));
       renderNotes(stats, narrow);
       return;
     }
@@ -323,13 +356,13 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     foot.replaceChildren();
     const parts = [];
     if (plotted.length) parts.push(`${plural(plotted.length, 'posting')} with salary`);
-    if (noSalary) parts.push(`${plural(noSalary, 'posting')} without published salary`);
-    if (fxCount) parts.push(`${fxCount.toLocaleString()} non-USD shown as approx USD`);
-    if (unknownFx.length) parts.push(`${unknownFx.join(', ')} plotted unconverted`);
-    if (outCount) parts.push(`${plural(outCount, 'posting')} beyond the axis (›)`);
-    if (narrow && plotted.length) parts.push('annual salary');
+    if (noSalary) parts.push(`${noSalary.toLocaleString()} with no salary posted`);
+    if (fxCount) parts.push(`${fxCount.toLocaleString()} converted from another currency`);
+    if (unknownFx.length) parts.push(`${unknownFx.join(', ')} pay shown unconverted`);
+    if (outCount) parts.push(`${plural(outCount, 'posting')} past the edge of the chart (›)`);
+    if (narrow && plotted.length) parts.push('yearly pay');
     foot.textContent = parts.join(' · ');
-    foot.title = fxCount ? `Non-USD salaries are converted with a static exchange-rate table (${Object.keys(FX_PER_USD).filter((c) => c !== 'USD').join(', ')}; rates as of ${FX_AS_OF}). Approximate.` : '';
+    foot.title = fxCount ? `Pay in other currencies is converted to US dollars with fixed exchange rates (as of ${formatMonth(FX_AS_OF)}), so it is approximate.` : '';
     foot.hidden = !parts.length;
   }
 
@@ -372,7 +405,9 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
   function renderAxis(ticks, x, approx, labelW, narrow) {
     axis.replaceChildren();
     if (labelW > 0) {
-      const cap = el('div', 'ms-axis__cap', narrow ? (approx ? 'Approx USD / yr' : 'USD / yr') : (approx ? 'Annual salary · approx USD' : 'Annual salary · USD'));
+      // I-3: plain words ("Annual salary · approx USD" read as jargon).
+      const cap = el('div', 'ms-axis__cap', narrow ? (approx ? 'US$ a year, converted' : 'US$ a year') : (approx ? 'Yearly pay, US$ (converted)' : 'Yearly pay, US$'));
+      cap.title = approx ? 'Yearly pay in US dollars; pay in other currencies is converted at fixed rates' : 'Yearly pay in US dollars';
       cap.style.width = labelW + 'px';
       axis.append(cap);
     }
@@ -404,7 +439,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     // Rows first (names, counts, medians), so the label column can be sized to fit them.
     const dim = opts.groupBy;
     const m = new Map();
-    const rowOf = k => { if (!m.has(k)) m.set(k, { key: k, name: k, all: [], items: [] }); return m.get(k); };
+    const rowOf = k => { if (!m.has(k)) m.set(k, { key: k, name: groupName(dim, k), all: [], items: [] }); return m.get(k); };
     for (const job of jobs) rowOf(dim === 'none' ? ALL_ROLES : keyOf(job, dim)).all.push(job);
     for (const p of plotted) rowOf(dim === 'none' ? ALL_ROLES : keyOf(p.job, dim)).items.push(p);
     cRows = [...m.values()];
@@ -479,8 +514,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       if (above.length) r.bins.push({ start: 'hi', end: d1, center: d1 + binW, overflow: 'hi', items: above.sort((a, b) => b.mid - a.mid), row: r });
       outCount += below.length + above.length;
     }
-    // D-9: grouped by seniority, rows follow the ladder (as Ranges and the Seniority filter do).
-    const senRank = n => { const i = SENIORITY_ORDER.indexOf(n); return i < 0 ? 99 : i; };
+    // D-9 / P-3: grouped by seniority, rows follow the ladder, "Level not stated" last.
     cRows.sort((a, b) => (dim === 'seniority' ? senRank(a.key) - senRank(b.key) : 0)
       || (b.items.length ? 1 : 0) - (a.items.length ? 1 : 0)
       || (b.median ?? 0) - (a.median ?? 0) || b.all.length - a.all.length);
@@ -586,7 +620,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         bin.setAttribute('role', 'option');
         bin.setAttribute('aria-selected', 'false');
         const approx = b.items.some(p => isForeign(p.cur) && hasFx(p.cur));
-        bin.setAttribute('aria-label', `${plural(n, 'role')}, ${formatMoney(b.start)} to ${formatMoney(b.end)}${approx ? ' approx USD' : ''}, ${r.name}`);
+        bin.setAttribute('aria-label', `${plural(n, 'role')}, ${formatMoney(b.start)} to ${formatMoney(b.end)}${approx ? ' in US dollars, converted' : ''}, ${r.name}`);
         bin.id = `${uid}-${ri}-${bi}`;
         bin.dataset.r = ri; bin.dataset.i = bi;
         bin.style.left = (cx - hit / 2) + 'px';
@@ -687,7 +721,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const approx = b.items.some(p => isForeign(p.cur) && hasFx(p.cur));
     if (b.overflow) {
       // Beyond the axis: give the real values, one line per posting.
-      tip.append(el('div', 'ms-tip__sub', `${b.overflow === 'hi' ? 'above' : 'below'} the axis (${formatMoney(b.end)})${approx ? ' · approx USD' : ''}`));
+      tip.append(el('div', 'ms-tip__sub', `${b.overflow === 'hi' ? 'above' : 'below'} ${formatMoney(b.end)}, past the edge of the chart${approx ? ' · converted to US$' : ''}`));
       tip.append(el('div', 'ms-tip__title', b.row.name));
       const list = el('ul', 'ms-tip__roles');
       for (const p of b.items.slice(0, 5)) {
@@ -700,7 +734,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       tip.hidden = false;
       return;
     }
-    tip.append(el('div', 'ms-tip__sub', `${moneyRange(b.start, b.end)} midpoint${approx ? ' · approx USD' : ''}`));
+    tip.append(el('div', 'ms-tip__sub', `${moneyRange(b.start, b.end)} midpoint${approx ? ' · converted to US$' : ''}`));
     tip.append(el('div', 'ms-tip__title', b.row.name));
     const counts = new Map();
     for (const p of b.items) { const t = p.job.title || 'Untitled'; counts.set(t, (counts.get(t) || 0) + 1); }
@@ -796,12 +830,11 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       if (!m.has(k)) m.set(k, []);
       m.get(k).push(p);
     }
-    const out = [...m].map(([name, items]) => ({
-      name, items: items.sort((a, b) => b.mid - a.mid), median: median(items.map(i => i.mid)),
+    const out = [...m].map(([key, items]) => ({
+      key, name: groupName(opts.groupBy, key), items: items.sort((a, b) => b.mid - a.mid), median: median(items.map(i => i.mid)),
     }));
     if (opts.groupBy === 'seniority') {
-      const rank = n => { const i = SENIORITY_ORDER.indexOf(n); return i < 0 ? 99 : i; };
-      out.sort((a, b) => rank(a.name) - rank(b.name) || b.median - a.median);
+      out.sort((a, b) => senRank(a.key) - senRank(b.key) || b.median - a.median);
     } else {
       out.sort((a, b) => b.median - a.median || b.items.length - a.items.length);
     }
@@ -818,6 +851,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     // Narrow (phones): the full-width title sits above its bar, so titles stay readable (M-17).
     rowH = narrow ? ROW_H_NARROW : ROW_H;
     const labelW = narrow ? 0 : Math.round(Math.max(140, Math.min(300, width * 0.3)));
+    const valFont = `600 12px ${(typeof getComputedStyle === 'function' && getComputedStyle(container).fontFamily) || 'system-ui, sans-serif'}`;
     const padR = narrow ? 16 : 28;
     const plotL = narrow ? 12 : labelW + 12;
     container.classList.toggle('ms-chart--stack', narrow);
@@ -909,9 +943,14 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         if (p.hi <= d0) bar.hidden = true;
         const c = colorOf(p);
         if (c) { bar.style.background = c; dot.style.background = c; }
-        const val = el('div', 'ms-row__val', rangeText(p));
-        if (bx1 + 120 < width) { val.style.left = (bx1 + 10) + 'px'; }
-        else { val.style.right = (width - bx0 + 10) + 'px'; val.classList.add('ms-row__val--left'); }
+        const text = rangeText(p);
+        const val = el('div', 'ms-row__val', text);
+        // P-16: never over the title column (it ran into "…Discove$350K–$850K").
+        const tw = textWidth(text, valFont) + 2;
+        let vp = rowValPlacement({ bx0: Math.max(bx0, plotL), bx1, plotL, width, w: tw });
+        if (vp.side === 'in') { vp = { side: 'in', x: Math.max(plotL, Math.min(width - 4 - (tw + 10), Math.max(bx0, plotL) + 8)) }; val.classList.add('ms-row__val--in'); } // + the chip's padding
+        else if (vp.side === 'left') val.classList.add('ms-row__val--left');
+        val.style.left = vp.x + 'px';
         r.append(lab, bar, dot, val);
         // Clipped by the axis: a small chevron at the edge (the tooltip has the real values).
         if (p.hi > d1) { const o = el('div', 'ms-row__over ms-row__over--hi', '›'); o.style.left = (x(d1) + 3) + 'px'; o.setAttribute('aria-hidden', 'true'); r.append(o); }
@@ -931,7 +970,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const range = Math.round(p.lo / 1000) === Math.round(p.hi / 1000)
       ? formatMoney(p.lo) : `${formatMoney(p.lo)} to ${formatMoney(p.hi)}`;
     const where = [p.job.department, primaryLocation(p.job)].filter(Boolean).join(', ');
-    return `${p.job.title || 'Untitled'}, ${range}${approx ? ' approx USD' : ''}${where ? ', ' + where : ''}`;
+    return `${p.job.title || 'Untitled'}, ${range}${approx ? ' in US dollars, converted' : ''}${where ? ', ' + where : ''}`;
   }
 
   function rangeText(p) {
@@ -953,7 +992,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       item.title = `${key}: ${plural(n, 'posting')}`;
       legend.append(item);
     };
-    for (const k of top) add(k, counts.get(k), colorFor(k));
+    for (const k of top) add(groupName(opts.colorBy, k), counts.get(k), colorFor(k));
     const rest = ordered.slice(top.length);
     if (rest.length) add(`${OTHER_KEY} (${rest.length})`, rest.reduce((s, k) => s + counts.get(k), 0), otherColor());
   }
@@ -979,14 +1018,14 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       ? formatCurrency(s.min ?? s.max, cur)
       : `${formatCurrency(s.min, cur)} – ${formatCurrency(s.max, cur)}`;
     tip.append(el('div', 'ms-tip__value', native + (cur !== 'USD' ? ` ${cur}` : '')));
-    if (isForeign(cur) && hasFx(cur)) tip.append(el('div', 'ms-tip__sub', `≈ ${formatMoney(p.lo)} – ${formatMoney(p.hi)} USD (approx)`));
+    if (isForeign(cur) && hasFx(cur)) tip.append(el('div', 'ms-tip__sub', `about ${formatMoney(p.lo)} – ${formatMoney(p.hi)} in US dollars`));
     const orig = s.originalInterval || (s.interval && s.interval !== 'year' ? s.interval : null);
-    if (orig && orig !== 'year') tip.append(el('div', 'ms-tip__sub', `Annualized from ${INTERVAL_ADJ[orig] || orig} pay`));
-    if (p.clipped) tip.append(el('div', 'ms-tip__sub', 'Extends beyond the chart axis (›)'));
+    if (orig && orig !== 'year') tip.append(el('div', 'ms-tip__sub', `A yearly figure worked out from ${INTERVAL_ADJ[orig] || orig} pay`));
+    if (p.clipped) tip.append(el('div', 'ms-tip__sub', 'Runs past the edge of the chart (›)'));
     tip.append(el('div', 'ms-tip__title', j.title || 'Untitled'));
     const meta = [j.department, locationText(j)].filter(Boolean).join(' · ');
     if (meta) tip.append(el('div', 'ms-tip__meta', meta));
-    const meta2 = [j.seniority, j.employmentType].filter(Boolean).join(' · ');
+    const meta2 = [levelLabel(j.seniority), j.employmentType].filter(Boolean).join(' · ');
     if (meta2) tip.append(el('div', 'ms-tip__meta', meta2));
     tip.hidden = false;
   }
@@ -1127,6 +1166,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         view,
         groupBy: o.groupBy || (view === 'clusters' ? 'department' : 'none'),
         colorBy: o.colorBy || 'none',
+        empty: o.empty ?? null, // P-16: the host's words when there are no postings (else the chart stays blank)
       };
       if (raf) { cancelAnimationFrame(raf); raf = 0; }
       render();

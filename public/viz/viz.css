@@ -81,7 +81,7 @@
   padding: 8px 16px 10px;
   border-top: 1px solid var(--_border);
   color: var(--_muted);
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.4;  /* wraps rather than truncating: every note carries a number */
 }
 .ms-chart__foot[hidden] { display: none; }
@@ -244,6 +244,8 @@
   visibility: hidden;
 }
 .ms-row.is-hover .ms-row__val, .ms-row.is-highlighted .ms-row__val { visibility: visible; }
+/* P-16: no room either side of the bar: the pay sits on it, on a surface chip, never over the title. */
+.ms-row__val--in { top: 2px; line-height: 18px; padding: 0 5px; border-radius: 4px; background: var(--_surface); box-shadow: 0 0 0 1px var(--_border); }
 .ms-row__bar[hidden], .ms-row__dot[hidden] { display: none; }
 /* Axis-overflow chevrons (ranges): the bar continues beyond the domain. */
 .ms-row__over {
@@ -360,11 +362,11 @@
   background: color-mix(in srgb, var(--c) var(--_bin-mix, 30%), var(--_surface));
   box-shadow: 0 0 0 2px var(--ring);
   color: var(--c-rest-ink, var(--_text)); /* A11Y-1: ink chosen in JS from the actual mixed fill */
-  font-size: 11px; font-weight: 600; line-height: 1;
+  font-size: 12px; font-weight: 600; line-height: 1;
   font-variant-numeric: tabular-nums;
   transition: background-color .12s, color .12s, transform .12s;
 }
-.ms-bin__dot--sm { font-size: 10px; }
+.ms-bin__dot--sm { font-size: 12px; letter-spacing: -.03em; }
 /* Axis-overflow marker (clusters): a small neutral chip at the axis edge, "›3". */
 .ms-bin__chip {
   width: auto !important; height: 18px !important;
@@ -373,7 +375,7 @@
   background: var(--_surface);
   box-shadow: 0 0 0 1px var(--_axis);
   color: var(--_muted);
-  font-size: 11px; font-weight: 700;
+  font-size: 12px; font-weight: 700;
 }
 .ms-bin--overflow.is-hover .ms-bin__chip,
 .ms-bin--overflow.is-selected .ms-bin__chip,
@@ -448,7 +450,7 @@
 .ms-map .leaflet-bar a.leaflet-disabled { color: var(--_muted); opacity: .5; }
 .ms-map .leaflet-control-attribution {
   background: color-mix(in srgb, var(--_surface) 80%, transparent);
-  color: var(--_muted); font-size: 10px;
+  color: var(--_muted); font-size: 12px;
 }
 .ms-map .leaflet-control-attribution a { color: var(--_muted); }
 
@@ -491,7 +493,7 @@
   border-radius: 9px;
   background: var(--_surface);
   color: var(--_text);
-  font-size: 10.5px; font-weight: 600;
+  font-size: 12px; font-weight: 600;
 }
 .ms-pin--nosalary {
   --pin-bg: var(--_surface);
@@ -509,9 +511,11 @@
   border-radius: 4px;
   background: color-mix(in srgb, var(--_surface) 82%, transparent);
   color: var(--_text);
-  font-size: 10.5px; font-weight: 500;
+  font-size: 12px; font-weight: 500;
   pointer-events: none;
 }
+.ms-pin__label--above { top: auto; bottom: calc(100% + 5px); } /* below would run into another pin or name (map.js placeLabels) */
+.ms-map--offline .ms-pin__label.ms-pin__label--hidden { display: none; } /* above and below would */
 /* Offline: no basemap, so name the places under the pins. */
 .ms-map--offline .ms-pin__label { display: block; }
 .ms-map__offline-note {
@@ -521,7 +525,7 @@
   background: color-mix(in srgb, var(--_surface) 90%, transparent);
   border: 1px solid var(--_border);
   color: var(--_muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 .ms-map--offline .ms-map__offline-note { display: block; }
 
@@ -544,6 +548,7 @@
   color: var(--_text);
   box-shadow: var(--_shadow);
   font: 12px/1.3 var(--_font);
+  max-width: 340px; /* the as-of line wraps rather than widening the box over the map */
 }
 .ms-modes__seg { display: flex; gap: 2px; padding: 2px; border-radius: 7px; background: color-mix(in srgb, var(--_text) 6%, var(--_surface)); }
 .ms-map .ms-modes__btn {
@@ -560,12 +565,26 @@
 .ms-map .ms-modes__btn:focus-visible { outline: 2px solid var(--_accent); outline-offset: 1px; }
 .ms-modes__legend { display: none; padding: 2px 6px 4px; }
 .ms-modes--juice .ms-modes__legend { display: grid; gap: 3px; }
-.ms-modes__key { display: grid; grid-template-columns: 10px auto auto; align-items: center; gap: 6px; }
-.ms-modes__sw { width: 10px; height: 10px; border-radius: 3px; }
+.ms-modes__key { display: grid; grid-template-columns: 12px auto auto; align-items: center; gap: 6px; }
+.ms-modes__sw { box-sizing: border-box; width: 12px; height: 12px; border-radius: 3px; }
 .ms-modes__grade { font-weight: 600; white-space: nowrap; }
 .ms-modes__net { color: var(--_muted); font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
-.ms-modes__none { color: var(--_muted); font-size: 11px; }
+.ms-modes__none { color: var(--_muted); font-size: 12px; }
 .ms-pin--juice .ms-pin__price { letter-spacing: .01em; }
+
+/* I-10: Juice grades without colour (ROADMAP §8: no new colours). One melon hue (--pin-hue, the
+   Juicy step of palette.js juiceColor); the fill tells the grade: Juicy solid, Ripe tinted with a
+   solid ring, Dry an outline with a dashed ring, Rind dotted. Legend swatches match the pins. */
+.ms-pin[data-fill] { box-sizing: border-box; border: 2px solid var(--pin-hue); }
+.ms-pin[data-fill]::after { background: var(--pin-hue); box-shadow: 2px 2px 0 0 var(--_surface); }
+.ms-pin[data-fill="half"] { --pin-bg: color-mix(in srgb, var(--pin-hue) 24%, var(--_surface)); --pin-fg: var(--_text); }
+.ms-pin[data-fill="none"] { --pin-bg: var(--_surface); --pin-fg: var(--_text); border-style: dashed; }
+.ms-pin[data-grade="Rind"] { border-style: dotted; }
+.ms-pin[data-fill="half"] .ms-pin__count, .ms-pin[data-fill="none"] .ms-pin__count { background: color-mix(in srgb, var(--_text) 9%, var(--_surface)); }
+.ms-modes__sw[data-fill] { border: 2px solid var(--pin-hue); }
+.ms-modes__sw[data-fill="full"] { background: var(--pin-hue); }
+.ms-modes__sw[data-fill="half"] { background: color-mix(in srgb, var(--pin-hue) 24%, var(--_surface)); }
+.ms-modes__sw[data-fill="none"] { background: var(--_surface); border-style: dashed; }
 
 /* Remote control */
 .ms-map .ms-remote {
@@ -614,7 +633,7 @@
 .ms-comps__tick {
   position: absolute; bottom: 3px;
   transform: translateX(-50%);
-  color: var(--_muted); font-size: 10.5px;
+  color: var(--_muted); font-size: 12px;
   font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .ms-comps__list { position: relative; outline: none; border-top: 1px solid var(--_border); }
@@ -633,7 +652,7 @@
 }
 .ms-comps__sw { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
 .ms-comps__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--_text); }
-.ms-comps__n { flex: none; color: var(--_muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.ms-comps__n { flex: none; color: var(--_muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .ms-comps__row.is-current .ms-comps__label { font-weight: 700; }
 .ms-comps--narrow .ms-comps__n { display: none; } /* count stays in the tooltip and option name */
 .ms-comps__bar {
@@ -662,7 +681,7 @@
 .ms-comps__over { position: absolute; top: 0; line-height: 28px; color: var(--_muted); font-weight: 700; pointer-events: none; }
 .ms-comps__nodata { position: absolute; top: 0; line-height: 28px; color: var(--_muted); font-style: italic; }
 .ms-comps__empty { padding: 12px 6px; color: var(--_muted); }
-.ms-comps__note { padding: 6px 6px 0; color: var(--_muted); font-size: 11px; }
+.ms-comps__note { padding: 6px 6px 0; color: var(--_muted); font-size: 12px; }
 
 
 /* ============================== phones (<= 860px) ==============================
@@ -705,6 +724,17 @@
   .ms-map .leaflet-control-attribution, .ms-pin__count, .ms-pin__label, .ms-map__offline-note, .ms-modes__none,
   .ms-comps__tick, .ms-comps__n, .ms-comps__note { font-size: 12px; }
   .ms-bin__dot--sm { letter-spacing: -.03em; }
+
+  /* P-6: the Juice legend took a third of a phone map. Three grades side by side (grade over its
+     dollars), the as-of on one line (full text in its title), no gray-pin line (the gray pin's
+     tooltip says it), and a box no wider than its content. */
+  .ms-map .ms-modes { max-width: min(300px, calc(100vw - 72px)); }
+  .ms-modes--juice .ms-modes__legend { grid-template-columns: repeat(3, auto); column-gap: 10px; row-gap: 2px; padding: 0 4px 2px; }
+  .ms-modes__key { grid-template-columns: 12px auto; column-gap: 5px; row-gap: 0; align-items: center; }
+  .ms-modes__net { grid-column: 1 / -1; text-align: left; }
+  .ms-modes__key .ms-modes__net { padding-left: 0; }
+  .ms-modes__none, .ms-modes__unit { display: none; }
+  .ms-modes__none.ms-modes__asof { display: block; grid-column: 1 / -1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   /* M-10: landscape notch: Leaflet controls stay inside the safe area (the map itself stays full-bleed). */
   .ms-map .leaflet-left { left: env(safe-area-inset-left, 0px); }

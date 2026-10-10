@@ -149,9 +149,14 @@ export function figureContext({ juice, cities: doc, freshness = null }) {
     return (entries.get(id) && entries.get(id).cadence) || CADENCE_DEFAULTS[id] || 'ad-hoc';
   };
 
+  // Past due (an entry's `stale`, as api/freshness.json and loadFigureInputs carry it); 'tax' is any tax entry.
+  const due = (ids) => (ids || []).some((id) => (id === 'tax'
+    ? [...entries.values()].some((e) => e.group === 'tax' && e.stale)
+    : !!(entries.get(id) && entries.get(id).stale)));
+
   const countries = new Set(list.map((c) => c.country).filter(Boolean));
   const taxSources = Object.values(juice.TAX_SOURCES || {});
-  return { juice, doc, list, example, households, taxSplit, confidence, cadence, countries, taxSources, freshness: !!freshness };
+  return { juice, doc, list, example, households, taxSplit, confidence, cadence, due, countries, taxSources, freshness: !!freshness };
 }
 
 /* ------------------------------------------------------------ values */
@@ -159,6 +164,22 @@ export function figureContext({ juice, cities: doc, freshness = null }) {
 function srcOf(city, field) { return (city.sources && city.sources[field]) || null; }
 
 function rentAsOf(ctx) { return monthRange(ctx.list.map((c) => (srcOf(c, 'rent1brCenterLocal') || {}).asOf)); }
+/**
+ * P-13: the dates behind the 2- and 3-bedroom rents (most are the 1-bedroom rent × an official
+ * bedroom ratio, so their source date is the ratio's), for US cities (`us: true`) or the rest.
+ * '' when there are none.
+ */
+function bedroomsAsOf(ctx, us) {
+  const dates = ctx.list.filter((c) => (c.country === 'US') === us)
+    .flatMap((c) => ['rent2brCenterLocal', 'rent3brCenterLocal'].map((f) => (srcOf(c, f) || {}).asOf));
+  return dates.some(Boolean) ? monthRange(dates) : '';
+}
+/** "1-bedroom rents May–October 2026; 2- and 3-bedroom rents October 2025 in US cities and January 2025–October 2026 elsewhere". */
+function rentDates(ctx) {
+  const us = bedroomsAsOf(ctx, true), other = bedroomsAsOf(ctx, false);
+  const big = [us && `${us} in US cities`, other && `${other} ${us ? 'elsewhere' : 'everywhere'}`].filter(Boolean).join(' and ');
+  return `1-bedroom rents ${rentAsOf(ctx)}${big ? `; 2- and 3-bedroom rents ${big}` : ''}`;
+}
 function livingAsOf(ctx) { return monthRange(ctx.list.map((c) => (srcOf(c, 'costIndex') || {}).asOf)); }
 function taxReviewed(ctx) {
   const r = ctx.taxSources.map((s) => s.reviewed).filter(Boolean).sort();
@@ -198,6 +219,10 @@ const VALUE_FNS = {
   'tax.years': (c) => yearSpan(c.taxSources.flatMap((s) => years(s.asOf))),
   'tax.rules': (c) => String(c.taxSources.length),
   'rent.asOf': (c) => rentAsOf(c),
+  'rent.bedrooms.us': (c) => bedroomsAsOf(c, true) || 'n/a',
+  'rent.bedrooms.other': (c) => bedroomsAsOf(c, false) || 'n/a',
+  'rent.dates': (c) => rentDates(c),
+  'rent.method': () => 'A 2- or 3-bedroom rent is the city\'s 1-bedroom rent times an official figure for how much more a bigger home costs there, so its date is the date of that bedroom data.',
   'living.asOf': (c) => livingAsOf(c),
   'nyc.basket': (c) => usd((c.doc.baseline && c.doc.baseline.nycBasketUSD) || c.juice.NYC_BASKET_USD),
   'score.k': (c) => usd(c.juice.SCORE_ANCHORS.K),
@@ -494,7 +519,8 @@ function sourcesFigure(ctx) {
   const ratios = Object.entries(doc.bedroomRatios || {}).filter(([k, v]) => k !== 'description' && v && typeof v === 'object');
   const pubs = [...new Set(ratios.filter(([k]) => /^[A-Z]{2}/.test(k)).map(([, v]) => plainPublisher(v.name)).filter((n) => n && !/^(pooled|median)\b/i.test(n)))];
   const ratioText = `Estimated: the 1-bedroom rent × how much rents rise per extra bedroom, from official rent statistics: ${pubs.join('; ')}${ratios.some(([k]) => /pooled/i.test(k)) ? '. Other countries use the median of these' : ''}`;
-  const ratioAsOf = monthRange(ratios.map(([, v]) => v.asOf));
+  const ratioUS = bedroomsAsOf(ctx, true), ratioOther = bedroomsAsOf(ctx, false);
+  const ratioAsOf = ratioUS && ratioOther ? `${ratioUS} in US cities; ${ratioOther} elsewhere` : (ratioUS || ratioOther || monthRange(ratios.map(([, v]) => v.asOf)));
   const verified = ctx.taxSources.filter((s) => s.verified).length;
   const taxYears = yearSpan(ctx.taxSources.flatMap((s) => years(s.asOf)));
   const fxSrc = (doc.fx && doc.fx.source && doc.fx.source.name) || 'Exchange rates';
@@ -502,17 +528,19 @@ function sourcesFigure(ctx) {
   const baseSrc = (base.sources && base.sources.nycBasketUSD) || {};
   const hh = ctx.example.j.inputs && ctx.example.j.inputs.household;
   const rows = [
-    ['Gross pay', 'Each job posting\'s base-pay range (its midpoint), from the company\'s job board', 'The latest postings', ctx.cadence('job-postings')],
-    ['Exchange rates', plainPublisher(fxSrc), fmtDate(juice.FX_AS_OF || (doc.fx && doc.fx.asOf)), ctx.cadence('fx-per-usd')],
-    ['Tax', `Official tax rules for ${ctx.taxSources.length} countries, states, provinces and cities (${verified} checked line by line against the official source)`, `Tax years ${taxYears}; checked ${taxReviewed(ctx)}`, ctx.cadence('tax')],
-    ['Rent, 1 bedroom', cap(rent1Text), rentAsOf(ctx), ctx.cadence('rents-1br-quoted')],
-    ['Rent, 2 and 3 bedrooms', ratioText, ratioAsOf, ctx.cadence('rents-bedroom-ratios')],
-    ['Living costs', cap(ciText), livingAsOf(ctx), ctx.cadence('cost-index')],
-    ['New York living costs (the index base)', `${usd(base.nycBasketUSD || juice.NYC_BASKET_USD)} a year: ${shortName(baseSrc.name) || 'Numbeo'}, one person, excluding rent`, fmtDate(baseSrc.asOf), ctx.cadence('nyc-basket')],
-    ['Household scale (living costs)', plainPublisher((hh && hh.source && hh.source.name) || (juice.LIVING_SCALE && juice.LIVING_SCALE.name)), fmtDate(hh && hh.source && hh.source.asOf), ctx.cadence('living-scale')],
+    ['Gross pay', 'Each job posting\'s base-pay range (its midpoint), from the company\'s job board', 'The latest postings', ctx.cadence('job-postings'), ['job-postings']],
+    ['Exchange rates', plainPublisher(fxSrc), fmtDate(juice.FX_AS_OF || (doc.fx && doc.fx.asOf)), ctx.cadence('fx-per-usd'), ['fx-per-usd']],
+    ['Tax', `Official tax rules for ${ctx.taxSources.length} countries, states, provinces and cities (${verified} checked line by line against the official source)`, `Tax years ${taxYears}; checked ${taxReviewed(ctx)}`, ctx.cadence('tax'), ['tax']],
+    ['Rent, 1 bedroom', cap(rent1Text), rentAsOf(ctx), ctx.cadence('rents-1br-quoted'), ['rents-1br-quoted', 'rents-nsw-official']],
+    ['Rent, 2 and 3 bedrooms', ratioText, ratioAsOf, ctx.cadence('rents-bedroom-ratios'), ['rents-bedroom-ratios', 'rents-us-hud-fmr', 'rents-gb-ons', 'rents-ie-rtb', 'rents-ch-zurich', 'rents-fr-olap', 'rents-ca-statcan', 'rents-sg-hdb']],
+    ['Living costs', cap(ciText), livingAsOf(ctx), ctx.cadence('cost-index'), ['cost-index']],
+    ['New York living costs (the index base)', `${usd(base.nycBasketUSD || juice.NYC_BASKET_USD)} a year: ${shortName(baseSrc.name) || 'Numbeo'}, one person, excluding rent`, fmtDate(baseSrc.asOf), ctx.cadence('nyc-basket'), ['nyc-basket']],
+    ['Household scale (living costs)', plainPublisher((hh && hh.source && hh.source.name) || (juice.LIVING_SCALE && juice.LIVING_SCALE.name)), fmtDate(hh && hh.source && hh.source.asOf), ctx.cadence('living-scale'), ['living-scale']],
   ];
   const head = ['Input', 'Where it comes from', 'As of', 'Refreshed'];
-  const body = rows.map(([what, src, asOf, cad]) => `<tr><th scope="row" data-label="${head[0]}">${esc(what)}</th><td data-label="${head[1]}">${esc(src)}</td><td data-label="${head[2]}">${esc(asOf)}</td><td data-label="${head[3]}">${esc(CADENCE_TEXT[cad] || cap(String(cad)))}</td></tr>`).join('');
+  // P-14: the app shows "as of" dates only; the maintenance status ("update due") lives here.
+  const refreshed = (cad, ids) => `${CADENCE_TEXT[cad] || cap(String(cad))}${ctx.due(ids) ? ' · update due' : ''}`;
+  const body = rows.map(([what, src, asOf, cad, ids]) => `<tr><th scope="row" data-label="${head[0]}">${esc(what)}</th><td data-label="${head[1]}">${esc(src)}</td><td data-label="${head[2]}">${esc(asOf)}</td><td data-label="${head[3]}">${esc(refreshed(cad, ids))}</td></tr>`).join('');
   return figure('sources', `<div class="mf-table-wrap"><table class="mf-sources"><caption class="sr-only">Data sources, their as-of dates and how often they are refreshed</caption><colgroup><col class="mf-col-what"><col class="mf-col-src"><col class="mf-col-asof"><col class="mf-col-cad"></colgroup><thead><tr>${head.map((x) => `<th scope="col">${x}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>`,
     `Read from <code>data/cities.json</code> and the tax rules in the code when this page was built${ctx.freshness ? '; refresh schedule from <code>data/freshness.json</code>' : ''}. Every city's own sources are in the technical reference.`);
 }
@@ -549,5 +577,14 @@ export async function loadFigureInputs(root, { citiesFile = null } = {}) {
   const cities = JSON.parse(await readFile(citiesFile || path.join(root, 'data', 'cities.json'), 'utf8'));
   let freshness = null;
   try { freshness = JSON.parse(await readFile(path.join(root, 'data', 'freshness.json'), 'utf8')); } catch { freshness = null; }
+  if (freshness && Array.isArray(freshness.entries)) {
+    // The sources table's "update due": staleness at the build time (MELON_BUILT_AT pins it), as api/freshness.json.
+    try {
+      const { staleness } = await import(pathToFileURL(path.join(root, 'scripts', 'refresh', 'lib.js')).href);
+      const t = Date.parse(process.env.MELON_BUILT_AT || '');
+      const now = Number.isFinite(t) ? new Date(t) : new Date();
+      freshness = { ...freshness, entries: freshness.entries.map((e) => (e && e.id && !e.retired ? { ...e, stale: !!staleness(e, now).overdue } : e)) };
+    } catch { /* no refresh lib: no status column */ }
+  }
   return { juice, cities, freshness };
 }

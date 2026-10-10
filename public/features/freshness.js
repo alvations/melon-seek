@@ -12,12 +12,19 @@
 //   entry(id) / asOf(id)       -> registry entry / its asOf ('YYYY-MM-DD') or null
 //   isStale(id, now?)          -> true when past cadence + grace (the viewer's clock, else the build's flag)
 //   formatAsOf(date, style?)   -> 'Jul 2026' ('month'), '1 Jul 2026' ('day'), '2026' ('year')
-//   asOfLabel(id, opts?)       -> 'as of Jul 2026' (+ ', update due' when stale), or '' / opts.fallback
-//   juiceAsOf(best)            -> [{ key, label, asOf, ids, stale }] for a computeJuice result with inputs
-//   juiceAsOfText(best)        -> 'Data as of: rent Sep 2026 · living costs Sep 2026 · FX Jul 2026 · tax US 2026, CA 2025'
-//   juiceSpanText(bests)       -> 'As of: rent Aug–Sep 2026 · living costs Sep 2026 · FX Jul 2026 · tax 2025–2026' (map legend)
-//   marketAsOfText(market, slugs) -> 'Postings as of 9 Oct 2026 · FX as of Jul 2026'
+//   asOfLabel(id, opts?)       -> 'as of Jul 2026' (+ ', update due' when stale and opts.status), or '' / opts.fallback
+//   juiceAsOf(best)            -> [{ key, label, asOf, ids, stale, ratioAsOf?, bedrooms? }] for a computeJuice result with inputs
+//   juiceAsOfText(best)        -> 'Data as of: rent Sep 2026 · living costs Sep 2026 · exchange rates Jul 2026 · tax US 2026, CA 2025'
+//   juiceSpanText(bests)       -> 'As of: rent Aug–Sep 2026 · living costs Sep 2026 · exchange rates Jul 2026 · tax 2025–2026' (map legend)
+//   marketAsOfText(market, slugs) -> 'Postings as of 9 Oct 2026 · exchange rates as of Jul 2026'
 //   compstimateAsOfText({ fetchedAt, meta }) -> 'Postings as of 9 Oct 2026 · accuracy tested 9 Oct 2026'
+//
+// P-14 (persona review 2026-10-10): job seekers need the date, not our maintenance status, so the
+// lines say "as of <month year>" only. `status: true` adds "(update due)" for past-due datasets,
+// for maintenance pages (the methodology page shows it in its own sources table).
+// P-13: a 2- or 3-bedroom rent is the 1-bedroom rent × an official bedroom ratio, so its line
+// names both dates: "rent Sep 2026 (sized for 2 bedrooms with Oct 2025 figures)". The 1-bedroom
+// date comes from server/juice.js inputs.rent.base; without it the line names the ratio only.
 //
 // Degrades gracefully: without the registry (old build, fetch failed) every label
 // falls back to the dates the data itself carries (juice inputs, market.json), and a
@@ -92,12 +99,12 @@ export function formatAsOf(value, style = 'month') {
   return `${mon} ${y}`;
 }
 
-/** 'as of Jul 2026' for a registry id ('' or opts.fallback without one); ', update due' when stale. */
-export function asOfLabel(id, { fallback = null, style = 'month', now = new Date(), prefix = 'as of ' } = {}) {
+/** 'as of Jul 2026' for a registry id ('' or opts.fallback without one); ', update due' when stale and `status`. */
+export function asOfLabel(id, { fallback = null, style = 'month', now = new Date(), prefix = 'as of ', status = false } = {}) {
   const e = entry(id);
   const when = e ? (e.asOf || null) : fallback;
   if (!when) return '';
-  return `${prefix}${formatAsOf(when, style)}${e && isStale(id, now) ? ', update due' : ''}`;
+  return `${prefix}${formatAsOf(when, style)}${status && e && isStale(id, now) ? ', update due' : ''}`;
 }
 
 /* ------------------------------------------------------------------ Juice */
@@ -150,11 +157,18 @@ export function juiceAsOf(best, { now = new Date() } = {}) {
     if (!when) return;
     out.push({ key, label, asOf: when, ids, stale: ids.some((id) => isStale(id, now)) });
   };
-  const rIds = rentIds(i.rent);
-  if (rIds.length) add('rent', 'rent', (i.rent.source && i.rent.source.asOf) || asOf(rIds[0]), rIds);
+  const r = i.rent;
+  const rIds = rentIds(r);
+  if (rIds.length) {
+    const own = (r.source && r.source.asOf) || asOf(rIds[0]);
+    // An estimated 2- or 3-bedroom rent: its source date is the bedroom ratio's, not the rent's.
+    if ((r.bedrooms || 1) > 1 && r.class === 'estimate' && r.basis !== 'outside' && own) {
+      out.push({ key: 'rent', label: 'rent', asOf: (r.base && r.base.asOf) || null, ratioAsOf: own, bedrooms: r.bedrooms, ids: rIds, stale: rIds.some((id) => isStale(id, now)) });
+    } else add('rent', 'rent', own, rIds);
+  }
   const lIds = ['cost-index', 'nyc-basket', ...(i.household && i.household.key && i.household.key !== 'single' ? ['living-scale'] : [])];
   add('living', 'living costs', (i.costIndex && i.costIndex.source && i.costIndex.source.asOf) || asOf('cost-index'), lIds);
-  if (i.fx && i.fx.currency && String(i.fx.currency).toUpperCase() !== 'USD') add('fx', 'FX', asOf('fx-per-usd') || i.fx.asOf, ['fx-per-usd']);
+  if (i.fx && i.fx.currency && String(i.fx.currency).toUpperCase() !== 'USD') add('fx', 'exchange rates', asOf('fx-per-usd') || i.fx.asOf, ['fx-per-usd']);
   for (const s of (i.tax && i.tax.sources) || []) {
     if (!s || !s.key) continue;
     const e = entry(taxId(s.key));
@@ -163,12 +177,23 @@ export function juiceAsOf(best, { now = new Date() } = {}) {
   return out;
 }
 
-/** One line for the drawer's Juice block; '' when nothing is dated. */
-export function juiceAsOfText(best, { now = new Date() } = {}) {
+/** '(sized for 2 bedrooms with Oct 2025 figures)' for an estimated bigger home's rent. */
+const sizedText = (bedrooms, ratioWhen) => `sized for ${Number.isFinite(bedrooms) ? `${bedrooms} bedrooms` : 'bigger homes'} with ${ratioWhen} figures`;
+
+/** 'rent Sep 2026 (sized for 2 bedrooms with Oct 2025 figures)', or 'rent Sep 2026'. */
+function rentText(x, when, ratioWhen, due = '') {
+  if (!ratioWhen) return `rent ${when}${due}`;
+  return when ? `rent ${when}${due} (${sizedText(x.bedrooms, ratioWhen)})` : `rent ${sizedText(x.bedrooms, ratioWhen)}${due}`;
+}
+
+/** One line for the drawer's Juice block; '' when nothing is dated. `status: true` marks past-due inputs. */
+export function juiceAsOfText(best, { now = new Date(), status = false } = {}) {
   const items = juiceAsOf(best, { now });
   if (!items.length) return '';
-  const fmt = (x) => `${formatAsOf(x.asOf)}${x.stale ? ' (update due)' : ''}`;
-  const parts = items.filter((x) => !x.key.startsWith('tax:')).map((x) => `${x.label} ${fmt(x)}`);
+  const due = (x) => (status && x.stale ? ' (update due)' : '');
+  const fmt = (x) => `${formatAsOf(x.asOf)}${due(x)}`;
+  const parts = items.filter((x) => !x.key.startsWith('tax:'))
+    .map((x) => (x.key === 'rent' ? rentText(x, x.asOf ? formatAsOf(x.asOf) : '', x.ratioAsOf ? formatAsOf(x.ratioAsOf) : '', due(x)) : `${x.label} ${fmt(x)}`));
   const tax = items.filter((x) => x.key.startsWith('tax:'));
   if (tax.length) parts.push(`tax ${tax.map((x) => `${x.label} ${fmt(x)}`).join(', ')}`);
   return `Data as of: ${parts.join(' · ')}`;
@@ -191,8 +216,10 @@ export function monthSpan(list) {
  * across the jobs shown, e.g. 'As of: rent Aug–Sep 2026 · living costs Sep 2026 · FX Jul 2026 ·
  * tax 2025–2026', plus ' · some inputs due for update' when a registry entry behind them is stale.
  */
-export function juiceSpanText(results, { now = new Date() } = {}) {
+export function juiceSpanText(results, { now = new Date(), status = false } = {}) {
   const rent = [];
+  const ratios = [];
+  const beds = new Set();
   const living = [];
   const fx = [];
   const years = [];
@@ -200,20 +227,22 @@ export function juiceSpanText(results, { now = new Date() } = {}) {
   for (const b of Array.isArray(results) ? results : []) {
     for (const x of juiceAsOf(b, { now })) {
       if (x.stale) stale = true;
-      if (x.key === 'rent') rent.push(x.asOf);
-      else if (x.key === 'living') living.push(x.asOf);
+      if (x.key === 'rent') {
+        if (x.asOf) rent.push(x.asOf);
+        if (x.ratioAsOf) { ratios.push(x.ratioAsOf); beds.add(x.bedrooms); }
+      } else if (x.key === 'living') living.push(x.asOf);
       else if (x.key === 'fx') fx.push(x.asOf);
       else years.push(...(String(x.asOf).match(/(?:19|20)\d\d/g) || []));
     }
   }
   const parts = [];
-  if (rent.length) parts.push(`rent ${monthSpan(rent)}`);
+  if (rent.length || ratios.length) parts.push(rentText({ bedrooms: beds.size === 1 ? [...beds][0] : 'more' }, monthSpan(rent), monthSpan(ratios)));
   if (living.length) parts.push(`living costs ${monthSpan(living)}`);
-  if (fx.length) parts.push(`FX ${monthSpan(fx)}`);
+  if (fx.length) parts.push(`exchange rates ${monthSpan(fx)}`);
   const ys = [...new Set(years)].sort();
   if (ys.length) parts.push(`tax ${ys[0] === ys[ys.length - 1] ? ys[0] : `${ys[0]}–${ys[ys.length - 1]}`}`);
   if (!parts.length) return '';
-  return `As of: ${parts.join(' · ')}${stale ? ' · some inputs due for update' : ''}`;
+  return `As of: ${parts.join(' · ')}${status && stale ? ' · some inputs due for update' : ''}`;
 }
 
 /* ------------------------------------------------------------------ comps, Compstimate */
@@ -226,8 +255,8 @@ function dateSpan(list, style = 'day') {
   return a === b ? a : `${a} to ${b}`;
 }
 
-/** 'Postings as of 9 Oct 2026 · FX as of Jul 2026' for market comps (rows' companies only, when given). */
-export function marketAsOfText(market, slugs = null) {
+/** 'Postings as of 9 Oct 2026 · exchange rates as of Jul 2026' for market comps (rows' companies only, when given). */
+export function marketAsOfText(market, slugs = null, { status = false } = {}) {
   if (!market || typeof market !== 'object') return '';
   const want = slugs ? new Set(slugs) : null;
   const companies = (Array.isArray(market.companies) ? market.companies : []).filter((c) => c && (!want || want.has(c.slug)));
@@ -235,12 +264,12 @@ export function marketAsOfText(market, slugs = null) {
   const fx = asOf('fx-per-usd') || (market.fx && market.fx.asOf) || null;
   const parts = [];
   if (posts) parts.push(`Postings as of ${posts}`);
-  if (fx) parts.push(`FX as of ${formatAsOf(fx)}${isStale('fx-per-usd') ? ' (update due)' : ''}`);
+  if (fx) parts.push(`exchange rates as of ${formatAsOf(fx)}${status && isStale('fx-per-usd') ? ' (update due)' : ''}`);
   return parts.join(' · ');
 }
 
 /** 'Postings as of 9 Oct 2026 · accuracy tested 9 Oct 2026' for a Compstimate estimate on one board. */
-export function compstimateAsOfText({ fetchedAt = null, meta = null } = {}) {
+export function compstimateAsOfText({ fetchedAt = null, meta = null, status = false } = {}) {
   const parts = [];
   const posts = dateSpan([fetchedAt]);
   if (posts) parts.push(`Postings as of ${posts}`);
@@ -248,7 +277,7 @@ export function compstimateAsOfText({ fetchedAt = null, meta = null } = {}) {
   const tested = bt && bt.computedAt ? dateSpan([bt.computedAt]) : '';
   if (tested) parts.push(`accuracy tested ${tested}`);
   const model = entry('compstimate-model');
-  if (model && model.asOf) parts.push(`level model ${formatAsOf(model.asOf)}${isStale('compstimate-model') ? ' (update due)' : ''}`);
+  if (model && model.asOf) parts.push(`level model ${formatAsOf(model.asOf)}${status && isStale('compstimate-model') ? ' (update due)' : ''}`);
   return parts.join(' · ');
 }
 

@@ -244,7 +244,8 @@ export function renderGuidePage({ md, figures, referenceMd = null, sha = null } 
       <ul class="g-facts">
         <li><strong>${v('cities.count')}</strong> cities in <strong>${v('countries.count')}</strong> countries</li>
         <li><strong>${v('tax.rules')}</strong> tax rules, checked ${v('tax.asOf')}</li>
-        <li>Rents as of <strong>${v('rent.asOf')}</strong></li>
+        <li>1-bedroom rents <strong>${v('rent.asOf')}</strong></li>
+        <li title="${v('rent.method')}">2- and 3-bedroom rents <strong>${v('rent.bedrooms.us')}</strong> in US cities</li>
       </ul>
       <p class="g-hero-links"><a class="g-btn g-btn--primary" href="#1-the-formula">See the formula</a><a class="g-btn" href="reference/">Full technical reference</a></p>
     </header>`;
