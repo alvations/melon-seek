@@ -56,7 +56,7 @@ export const VERDICT_SCHEMA = {
         },
       ],
     },
-    kind: { anyOf: [{ type: 'null' }, { type: 'string', enum: ['salary', 'stipend', 'hourly'] }] },
+    kind: { anyOf: [{ type: 'null' }, { type: 'string', enum: ['salary', 'stipend', 'hourly', 'ote'] }] },
     quote: { type: 'string' },
     evidence: { type: 'string' },
   },
@@ -76,7 +76,7 @@ Verdicts:
 - Several currencies for one amount: use the one matching the job's location countries; if several match, USD; if none, USD.
 - Tiered lists (levels or locations) for one role: span the lowest minimum to the highest maximum when that span is at most 3x.
 - A structured salary (from the board's own pay field) wins over the description text unless it is implausible and the text is plausible.
-kind is "stipend" for a stipend, "hourly" for an hourly rate, else "salary" (null when corrected is null).
+kind is "stipend" for a stipend, "hourly" for an hourly rate, "ote" when the posting says the range is on-target earnings (base plus commission at target), else "salary" (null when corrected is null).
 quote: the relevant source words copied EXACTLY (character for character) from the posting text; it is checked against the text and a verdict whose quote is not found is discarded.
 evidence: one or two sentences explaining the verdict.
 

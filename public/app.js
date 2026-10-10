@@ -2732,7 +2732,7 @@ function salaryDistribution(job) {
     approx);
 }
 
-const INTERVAL_ADJ = { hour: 'hourly', day: 'daily', week: 'weekly', month: 'monthly', year: 'annual' };
+const INTERVAL_ADJ = { hour: 'hourly', day: 'daily', week: 'weekly', month: 'monthly', year: 'annual', term: 'fixed-term' };
 
 let juicePeriod = 'year'; // drawer waterfall: per year or per month (kept for the session); 'term' for fixed-term pay
 const JUICE_DOC = 'methodology/#1-the-formula'; // site page rendered from docs/LIVABILITY.md (scripts/methodology.js); never off-site
@@ -3028,7 +3028,11 @@ function annualNote(sal) {
   // P-8: fixed-term pay is shown as posted, so it gets no "annualized" note, just the posted text.
   if (sal.termWeeks > 0) return h('div', { class: 'd-annual' }, `Fixed-term pay, not a yearly salary${sal.text ? ` (as posted: ${sal.text})` : ''}`);
   const orig = sal.originalInterval || (sal.interval && sal.interval !== 'year' ? sal.interval : null);
-  return orig ? h('div', { class: 'd-annual' }, `Annualized from ${INTERVAL_ADJ[orig] || orig} pay${sal.text ? ` (${sal.text})` : ''}`) : null;
+  if (!orig) return null;
+  // CONTRACT v4 (fix-pay-data P-8): 'term' is pay for the whole programme; termWeeks is its length.
+  const what = orig === 'term' && sal.termWeeks ? `pay for a ${sal.termWeeks}-week programme` : `${INTERVAL_ADJ[orig] || orig} pay`;
+  const lasts = orig !== 'term' && sal.termWeeks ? `; the programme lasts about ${sal.termWeeks} weeks` : '';
+  return h('div', { class: 'd-annual' }, `Annualized from ${what}${sal.text ? ` (${sal.text})` : ''}${lasts}`);
 }
 
 /** P-16: "Revenue · Revenue" and "Internships · Internships · Intern [Intern]" once each. */

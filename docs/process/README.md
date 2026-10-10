@@ -57,6 +57,7 @@ interface every agent built against), [../ARCHITECTURE.md](../ARCHITECTURE.md),
 | Fix lane: estimates and comparisons | [prompts/fix-estimates.md](prompts/fix-estimates.md) | [fix-estimates.md](fix-estimates.md) | `public/features/{compstimate,comps,roles,insights,shared}.js`, `public/viz/comps.js`, `scripts/build-market.js` |
 | Fix lane: app shell | [prompts/fix-app.md](prompts/fix-app.md) | [fix-app.md](fix-app.md) | `public/app.js`, `public/index.html`, `public/styles.css` |
 | Fix lane: charts, map and freshness | [prompts/fix-viz.md](prompts/fix-viz.md) | [fix-viz.md](fix-viz.md) | `public/viz/{chart,map}.js`, `viz.css`, `public/features/freshness.js`, `scripts/methodology*.js` |
+| Fix lane: pay data (server) | [prompts/fix-pay-data.md](prompts/fix-pay-data.md) | [fix-pay-data.md](fix-pay-data.md) | `server/{salary,keywords,geo,normalize,vet}.js`, `scripts/vet-salaries.js` |
 | Data check (beta) | [prompts/data-check-beta.md](prompts/data-check-beta.md) | [data-check-beta.md](data-check-beta.md) | none (review only); `test/beta-data-check.test.js` holds its findings as to-do tests |
 | Desktop QA (beta) | [prompts/qa-desktop-beta.md](prompts/qa-desktop-beta.md) | [qa-desktop-beta.md](qa-desktop-beta.md) | none (review only); `test/e2e/beta-desktop-qa.e2e.js` holds D-17 to D-30 |
 | Mobile QA (beta) | [prompts/qa-mobile-beta.md](prompts/qa-mobile-beta.md) | [qa-mobile-beta.md](qa-mobile-beta.md) | none (review only); `test/e2e/beta-mobile-qa.e2e.js` holds M-19 to M-27 |

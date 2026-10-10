@@ -40,7 +40,7 @@ const company = (slug) => getCompany(slug) || { slug, name: slug };
 // a failing to-do is reported, not counted. The fix that makes one pass removes TODO from it.
 const TODO = { todo: 'beta fix wave: docs/process/data-check-beta.md' };
 
-test('DQ-1 "City, Region, CC" keeps its ISO country instead of a US state', TODO, () => {
+test('DQ-1 "City, Region, CC" keeps its ISO country instead of a US state',  () => {
   const cases = [
     ['Bengaluru, KA, IN', 'IN'], // microsoft:1970393556657600, nvidia: 196 postings
     ['Hyderabad, TS, IN', 'IN'],
@@ -56,14 +56,14 @@ test('DQ-1 "City, Region, CC" keeps its ISO country instead of a US state', TODO
   }
 });
 
-test('DQ-1 a known non-US city is not moved to a US state by a region code', TODO, () => {
+test('DQ-1 a known non-US city is not moved to a US state by a region code',  () => {
   for (const [raw, country] of [['Jakarta, ID', 'ID'], ['Barcelona, CT', 'ES']]) {
     const [loc] = geocode(raw);
     assert.equal(loc.country, country, `${raw} -> ${loc.name} [${loc.country}]`);
   }
 });
 
-test('DQ-1 an NVIDIA Israel posting is not filed in the United States', TODO, () => {
+test('DQ-1 an NVIDIA Israel posting is not filed in the United States',  () => {
   // nvidia:893394752123 "Senior Performance Engineer - LLM Inference Frameworks"
   const position = {
     id: 893394752123, displayJobId: 'JR2016000', name: 'Senior Performance Engineer - LLM Inference Frameworks',
@@ -75,7 +75,7 @@ test('DQ-1 an NVIDIA Israel posting is not filed in the United States', TODO, ()
   assert.deepEqual([...new Set(job.locations.map((l) => l.country))], ['IL'], job.locations.map((l) => `${l.name} [${l.country}]`).join('; '));
 });
 
-test('DQ-1 bare Eightfold country codes are countries ("DE" Germany, "IN" India, "CA" Canada)', TODO, () => {
+test('DQ-1 bare Eightfold country codes are countries ("DE" Germany, "IN" India, "CA" Canada)',  () => {
   for (const [code, country] of [['DE', 'DE'], ['IN', 'IN'], ['IL', 'IL'], ['CA', 'CA']]) {
     const raw = mapEightfoldJob({ id: 1, name: 'Solutions Architect', standardizedLocations: [code], jobDescription: '<p>x</p>' }, EIGHTFOLD_BOARDS.nvidia);
     const [loc] = normalizeLocations(raw);

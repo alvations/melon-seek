@@ -805,3 +805,22 @@ screenshots in `docs/screenshots/`.
   - Its DATA_SOURCES §7 counts were checked against the snapshots: Apple 6,105 postings with 3,848 paid, NVIDIA 2,664 with 1,394. Both match.
 - Verified on the integrated tree (91fb7ae plus the lanes): npm test 654/654 (7 skipped); build OK (stable 8 companies, beta 5/5); full e2e 143/147. The 1 failure was the Anduril JPY test, already fixed in 125bf64, and the 3 skips are by design.
 - Lesson: a lane's patch to a file another lane rewrote applies by 3-way merge against the patch's own base (`git show <base>:file`, patch, `git merge-file`), not by `git apply`.
+
+### Persona fix wave, batch 2: pay data (2026-10-10)
+- **fix-pay-data** (36b5300, 2be6d3e):
+  - on-target earnings are `salary.kind: 'ote'` (Anthropic 46 postings, Cohere 1);
+  - fixed-term pay carries `salary.termWeeks` (stable 28, beta 46; CONTRACT v4);
+  - level rules: 47 Account/Partner Directors are no longer Director+, and a bare "Fellow" is a fixed-term fellowship;
+  - Victoria, BC and Alexandria, NSW resolve correctly;
+  - keyword-tag precision is up: Mechanical design 25% → 80%, Embedded 69% → 93%;
+  - and, added mid-lane from the beta data check, DQ-1: Eightfold country codes are no longer read as US states. NVIDIA's postings in the US went from 2,123 to 1,403 (Israel 0 → 420, India 0 → 239), and Microsoft's from 1,518 to 1,188.
+  - Locations that fell back to a region or country centroid went from 4,054 postings to 799.
+  - NORMALIZER_VERSION is norm-6: stored snapshots are re-derived at build time until the next crawl writes norm-6. The local build took 154 s instead of about 80 s, and a cold server spends about 15 s on Anduril.
+- Integration:
+  - its term-label patch was 3-way merged into app.js and chart.js against its base a9a46a7, with no conflicts;
+  - the llm-vet 'ote' patch applied cleanly;
+  - the 4 DQ-1 to-do tests are now plain tests and pass;
+  - the registry lines were re-resolved.
+- An open question, answered conservatively: 46 more paid postings in Anthropic's Sales department (Customer Success, Partnerships) are not marked on-target. The "for sales roles" sentence applies only to sales titles, and Anthropic puts it on 565 postings.
+- CI: be5691c (beta desktop QA docs) turned CI red for about 25 minutes. docs/QA.md quoted a hand-written accuracy figure, which scripts/refresh/jobs.js reports as drift, and I had run only the markdown tests. af368e9 fixed it; the lesson is in PLAYBOOK known traps: run the whole npm test before every push.
+- Verified on the integrated tree (af368e9 plus the lane): npm test 676 passed with 1 failure, the refresh-jobs drift fixed by af368e9 before the final run. Build OK, beta 5/5. Full e2e 156/170: all 11 failures are the beta desktop [D-n] bug tests awaiting the beta fix wave, and D-17, D-19 and D-25 now pass.

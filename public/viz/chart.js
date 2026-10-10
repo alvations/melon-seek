@@ -49,7 +49,7 @@ const MIN_BIN_PX = 34;     // a bin must be wide enough for a readable, countabl
 export const SENIORITY_ORDER = Object.freeze(['Intern', 'Entry', 'Senior', 'Staff+', 'Manager', 'Director+', LEVEL_NOT_STATED]);
 const ALL_ROLES = 'All roles';
 
-const INTERVAL_ADJ = { hour: 'hourly', day: 'daily', week: 'weekly', month: 'monthly' };
+const INTERVAL_ADJ = { hour: 'hourly', day: 'daily', week: 'weekly', month: 'monthly', term: 'fixed-term' };
 const DIM_LABEL = { department: 'department', location: 'location', seniority: 'seniority' };
 
 /** Category key for a job along a dimension (seniority: the stored level; none counts as not stated). */
