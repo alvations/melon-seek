@@ -672,3 +672,21 @@ screenshots in `docs/screenshots/`.
   - From now on the lead commits INSIDE the tested worktree, pushes from it, then runs `git reset <sha>` (mixed) in the shared checkout, which leaves the working tree untouched. A file can no longer change between test and commit.
 - **Verified** on a clean worktree from HEAD plus exactly these files: `npm test` 397/397 and build OK.
   - e2e 85/86. The one failure, Compstimate T21 "cold server accuracy within 10 s", also fails on the pre-batch baseline worktree at load average 8 (about ten agents running), so it's a timing failure, not a regression. It passed 86/86 at 08:20.
+
+### Freshness batch: every number gets a monthly update path (2026-10-10)
+- **Agents:** the freshness lead ([freshness-lead.md](freshness-lead.md)) and six helpers: audit-core, audit-surface, tax, col, jobs, derived. Each helper's prompt and log is in this folder. freshness-review runs next.
+- **What landed:**
+  - `data/freshness.json`: 131 registry entries, every number with its consumers, source, as-of date, cadence, updater and validator. `docs/DATA_FRESHNESS.md` holds the inventory and runbook.
+  - `scripts/refresh/**`: run.js, the orchestrator, plus fx, bigmac, rents, living, tax, tax-watch, jobs, policy, derived and examples.
+  - `monthly-refresh.yml`: reviewed through the bot/monthly-refresh branch and a single `data-freshness` issue; it never pushes main or the deploy branch. col-refresh.yml becomes a manual shim.
+  - Staleness steps in CI and pages, warn-only.
+  - `/api/freshness.json`.
+- **Patches applied, in order:** ci-staleness, pages-staleness, derived-api-freshness, audit-core-backtest-fallback, lead-retention-docs, derived-readme-builtins, audit-surface-demo-mock-fx, audit-surface-chart-fx-footnote, derived-test-pins, col-zurich-licence, tax-export, jobs-seniority-default. Then `registry.js --sync-tax --lines --write` and `--docs --write`.
+  - One registry reference, `docs/DATA_SOURCES.md:216`, points into the big-tech engineer's unpushed §7, so it was made line-less for now.
+- **Patches held:**
+  - bg-euro: waits for the big-tech engineer.
+  - derived-ui-asof, jobs-backtest-asof, col-ui-rent-ids: wait for the badge agent, because they touch app.js.
+  - The LIVABILITY patches (col-livability-refreshing, derived-docs-counts, the markers): wait for md.js comment support from the methodology engineer.
+- **Offline dry run (fixtures):** 131 checks. 104 ok, 1 changed (FX: 22 rates moved to ECB 2026-09 monthly averages), 6 drift, 2 stale, 2 flag, 16 skipped.
+  - The drifts: HUD FY2027 rents (needs a `HUD_API_TOKEN` secret); next-year tax figures for Canada EI, Ireland's Budget 2027 and Portland SHS.
+- **Verified** on a clean worktree from c0df589 plus exactly these files and patches: `npm test` 531/531, build OK, `dist/api/freshness.json` present. e2e 85/86; the failure is the same T21 cold-server timing test, which also fails on the baseline under load.

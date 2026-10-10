@@ -1,0 +1,12 @@
+{
+  "https://alvations.github.io/melon-seek/api/market.json": "site/market.json",
+  "https://alvations.github.io/melon-seek/api/companies.json": "site/companies.json",
+  "https://alvations.github.io/melon-seek/api/meta/anduril.json": "site/meta-anduril.json",
+  "https://alvations.github.io/melon-seek/api/meta/anthropic.json": "site/meta-anthropic.json",
+  "https://alvations.github.io/melon-seek/api/meta/cohere.json": "site/meta-cohere.json",
+  "https://alvations.github.io/melon-seek/api/meta/openai.json": "site/meta-openai.json",
+  "https://alvations.github.io/melon-seek/api/meta/palantir.json": "site/meta-palantir.json",
+  "https://alvations.github.io/melon-seek/api/meta/scaleai.json": "site/meta-scaleai.json",
+  "https://alvations.github.io/melon-seek/api/meta/shieldai.json": "site/meta-shieldai.json",
+  "https://alvations.github.io/melon-seek/api/meta/xai.json": "site/meta-xai.json"
+}

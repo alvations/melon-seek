@@ -1,0 +1,25 @@
+--- a/README.md	2026-10-10 08:26:20.734072153 +0000
++++ b/README.md	2026-10-10 08:26:20.883959247 +0000
+@@ -13,8 +13,9 @@
+ - **Zillow-like filters** — salary range, responsibilities, fit / requirements,
+   skills keywords, department, location, seniority. Filter and view state lives
+   in the URL hash, so any view is shareable.
+-- **Company switcher** — built-in Anthropic, Anduril and OpenAI, plus
+-  **Add board** for any custom Greenhouse, Ashby or Lever board slug.
++- **Company switcher** — built-in Anthropic, Anduril, OpenAI, Scale AI, xAI,
++  Cohere, Palantir and Shield AI, plus **Add board** for any custom Greenhouse,
++  Ashby or Lever board slug.
+ 
+ Zero build step, Node >= 18, one runtime dependency (`leaflet`).
+ 
+@@ -461,7 +462,9 @@
+ ```
+ 
+ Built-ins: `anthropic` (greenhouse/`anthropic`), `anduril`
+-(greenhouse/`andurilindustries`), `openai` (ashby/`openai`). Stable companies
++(greenhouse/`andurilindustries`), `openai` (ashby/`openai`), `scaleai`
++(greenhouse/`scaleai`), `xai` (greenhouse/`xai`), `cohere` (ashby/`cohere`),
++`palantir` (lever/`palantir`), `shieldai` (lever/`shieldai`). Stable companies
+ only; with `MELON_CHANNEL=beta` the beta-channel companies follow them (see
+ [Beta site](#beta-site)).
+ 

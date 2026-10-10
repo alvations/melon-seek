@@ -104,3 +104,30 @@ FINAL REPORT
 - The default-branch and schedule finding, and exactly what the user must enable.
 - Patches the lead must apply, and in which order relative to the other agents.
 - Test results and open risks.
+
+---
+
+## Course correction from the lead (verbatim, received mid-task)
+
+The scope is extended by a new user request (verbatim): "not just the ones un-related to the job positings, ALSO include all the company and job related numbers esp. when we compare them across the levels etc. And make sure we dont lose ANY of the old data, at some point maybe we have some sort of historical data anlaysis of those numbers too so that we can have some sort of annual review of how the numbers changed within the years and across the years per job / per company and also the non-job / non-company numbers, make sure this backend database is well established properly maintained and autonmatically updated and kept in the repo!"
+
+1. Your inventory and registry must ALSO cover every job and company number, especially cross-level comparisons. That includes:
+   - per-job pay (min/max/mid, currency, interval, USD conversion);
+   - salary vetting flags;
+   - per-company counts and medians;
+   - market comps cells (company × family × seniority: n, p25/median/p75);
+   - "Same role elsewhere", Insights distributions, Compare, Compstimate levels, its LEVEL_INDEX multipliers and backtest;
+   - Juice per job;
+   - listing age and freshness;
+   - the history ledger fields;
+   - seniority and level ladders;
+   - role families;
+   - counts on share pages and OG images.
+2. Default-branch finding, already established by the lead: `origin/HEAD` points to claude/stoic-ride-54ddxp, which is the only remote branch. Scheduled workflows on it DO fire. Verify and record this, but you don't need to investigate further.
+3. A separate ARCHIVE agent is starting now. It owns the permanent historical database kept in the repo, on an orphan data branch: scripts/archive/**, .github/workflows/archive*.yml and docs/DATA_ARCHIVE.md.
+   - Every reference-data update your monthly refresh makes must be recorded there as a new dated version, never an overwrite.
+   - The archive agent will publish a CLI such as `node scripts/archive/record.js --dataset <registry id> --asof <date> --file <json>`. Check the working tree for its final name before you wire it, and call it from your orchestrator.
+   - Your registry ids are the dataset keys it will use. Keep them stable, and put the registry schema in docs/DATA_FRESHNESS.md early so it can read it.
+   - Don't build your own history store; link to its docs from yours.
+
+Address this before completing your current task.

@@ -1,0 +1,78 @@
+--- a/server/keywords.js
++++ b/server/keywords.js
+@@ -772,20 +772,38 @@
+ }
+ 
+ export function inferSeniority(title) {
++  return seniorityOf(title).level;
++}
++
++/**
++ * Where a title's seniority came from: 'title' when a level word decided it, 'default'
++ * when the title has none and the job is "Mid" by convention. On the 2026-10 boards
++ * about half the postings are 'default' (most of them at the labs, whose titles carry no
++ * level), so market-comps "Mid" cells and Compstimate's Mid weighting are mostly
++ * defaults. scripts/refresh/jobs.js reports the share monthly (seniority-ladder).
++ */
++export function seniorityBasis(title) {
++  return seniorityOf(title).basis;
++}
++
++const byTitle = (level) => ({ level, basis: 'title' });
++const BY_DEFAULT = Object.freeze({ level: 'Mid', basis: 'default' });
++
++function seniorityOf(title) {
+   const t = stripGenericStaff(String(title || ''));
+-  if (!t.trim()) return 'Mid';
++  if (!t.trim()) return BY_DEFAULT;
+   if (/\b(?:director|vp|svp|evp|vice[- ]president|head of|chief|cto|cfo|ceo|coo|ciso|cmo|cpo|president|general manager|partner,)\b/i.test(t)
+-    || /^head\b/i.test(t)) return 'Director+';
++    || /^head\b/i.test(t)) return byTitle('Director+');
+   if (/\b(?:intern(?:ship)?s?|fellowships?|fellows program|co-?op|apprentice(?:ship)?|summer (?:analyst|associate|student)|residency|resident)\b/i.test(t)
+-    ) return 'Intern';
+-  if (/\b(?:staff|principal|distinguished|fellow)\b/i.test(t)) return 'Staff+';
++    ) return byTitle('Intern');
++  if (/\b(?:staff|principal|distinguished|fellow)\b/i.test(t)) return byTitle('Staff+');
+   const isManager = /\bmanager\b/i.test(t) && !NON_PEOPLE_MANAGER.test(t);
+   if (isManager || /\b(?:team lead|people lead|supervisor|engineering lead|lead,? (?:people|team))\b/i.test(t)
+-    || /\bmanager,\s/i.test(t) && !NON_PEOPLE_MANAGER.test(t)) return 'Manager';
+-  if (/\b(?:senior|sr\.?|lead|iii)\b/i.test(t) || /\bIII\b/.test(t)) return 'Senior';
++    || /\bmanager,\s/i.test(t) && !NON_PEOPLE_MANAGER.test(t)) return byTitle('Manager');
++  if (/\b(?:senior|sr\.?|lead|iii)\b/i.test(t) || /\bIII\b/.test(t)) return byTitle('Senior');
+   if (/\b(?:junior|jr\.?|associate|new grad(?:uate)?|graduate|entry[- ]level|early career)\b/i.test(t)
+-    || /\s(?:I|1)(?=\s*(?:[,()\-–—]|$))/.test(t)) return 'Entry';
+-  return 'Mid';
++    || /\s(?:I|1)(?=\s*(?:[,()\-–—]|$))/.test(t)) return byTitle('Entry');
++  return BY_DEFAULT;
+ }
+ 
+ // ---------------------------------------------------------------------------
+--- a/test/keywords.test.js
++++ b/test/keywords.test.js
+@@ -2,7 +2,7 @@
+ import assert from 'node:assert/strict';
+ import fs from 'node:fs';
+ import {
+-  extractSections, extractKeywords, inferSeniority, classifyHeading,
++  extractSections, extractKeywords, inferSeniority, seniorityBasis, classifyHeading,
+   extractCompExtras, compExtrasEvidence,
+   boilerplateParagraphs, descriptionText, dropUbiquitousKeywords, rekeyBoardJobs,
+   yearsOfExperience, yearsBucket, htmlToText, decodeEntities,
+@@ -218,6 +218,17 @@
+   for (const [t, want] of Object.entries(cases)) assert.equal(inferSeniority(t), want, t);
+ });
+ 
++test('seniorityBasis: a level word decides it, otherwise "Mid" is a default', () => {
++  assert.equal(seniorityBasis('Senior Software Engineer'), 'title');
++  assert.equal(seniorityBasis('Engineering Manager'), 'title');
++  assert.equal(seniorityBasis('Software Engineer'), 'default');
++  assert.equal(seniorityBasis('Member of Technical Staff'), 'default');
++  assert.equal(seniorityBasis(''), 'default');
++  for (const t of ['Software Engineer', 'Staff Engineer', 'Associate', 'Head of Sales', 'Research Scientist II']) {
++    assert.equal(seniorityBasis(t) === 'default', inferSeniority(t) === 'Mid', `${t}: "Mid" exactly when the level is a default`);
++  }
++});
++
+ test('inferSeniority: "Member of Technical Staff" / MTS is a generic IC title', () => {
+   const cases = {
+     // Generic IC titles as posted by Cohere / xAI and other labs -> Mid

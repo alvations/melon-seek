@@ -1,0 +1,118 @@
+{
+ "description": "Documents matching '\"Cost-of-Living Increase and Other Determinations\"' and from Social Security Administration",
+ "count": 34,
+ "total_pages": 7,
+ "next_page_url": "https://www.federalregister.gov/api/v1/documents?conditions%5Bagencies%5D%5B%5D=social-security-administration&conditions%5Bterm%5D=%22Cost-of-Living+Increase+and+Other+Determinations%22&format=json&order=newest&page=2&per_page=5",
+ "results": [
+  {
+   "title": "Cost-of-Living Increase and Other Determinations for 2026",
+   "type": "Notice",
+   "abstract": "Under title II of the Social Security Act (Act), there will be a 2.8 percent cost-of-living increase in Social Security benefits effective December 2025. In addition, the national average wage index for 2024 is $69,846.57. The cost-of-living increase and national average wage index affect other program parameters as described below.",
+   "document_number": "2025-19763",
+   "html_url": "https://www.federalregister.gov/documents/2025/11/03/2025-19763/cost-of-living-increase-and-other-determinations-for-2026",
+   "pdf_url": "https://www.govinfo.gov/content/pkg/FR-2025-11-03/pdf/2025-19763.pdf",
+   "public_inspection_pdf_url": "https://public-inspection.federalregister.gov/2025-19763.pdf?1761914707",
+   "publication_date": "2025-11-03",
+   "agencies": [
+    {
+     "raw_name": "Social Security Administration",
+     "name": "Social Security Administration",
+     "id": 470,
+     "url": "https://www.federalregister.gov/agencies/social-security-administration",
+     "json_url": "https://www.federalregister.gov/api/v1/agencies/470",
+     "parent_id": null,
+     "slug": "social-security-administration"
+    }
+   ],
+   "excerpts": ""
+  },
+  {
+   "title": "Cost-of-Living Increase and Other Determinations for 2025",
+   "type": "Notice",
+   "abstract": "Under title II of the Social Security Act (Act), there will be a 2.5 percent cost-of-living increase in Social Security benefits effective December 2024. In addition, the national average wage index for 2023 is $66,621.80. The cost-of-living increase and national average wage index affect other program parameters as described below.",
+   "document_number": "2024-24871",
+   "html_url": "https://www.federalregister.gov/documents/2024/10/25/2024-24871/cost-of-living-increase-and-other-determinations-for-2025",
+   "pdf_url": "https://www.govinfo.gov/content/pkg/FR-2024-10-25/pdf/2024-24871.pdf",
+   "public_inspection_pdf_url": "https://public-inspection.federalregister.gov/2024-24871.pdf?1729773935",
+   "publication_date": "2024-10-25",
+   "agencies": [
+    {
+     "raw_name": "Social Security Administration",
+     "name": "Social Security Administration",
+     "id": 470,
+     "url": "https://www.federalregister.gov/agencies/social-security-administration",
+     "json_url": "https://www.federalregister.gov/api/v1/agencies/470",
+     "parent_id": null,
+     "slug": "social-security-administration"
+    }
+   ],
+   "excerpts": ""
+  },
+  {
+   "title": "Cost-of-Living Increase and Other Determinations for 2024",
+   "type": "Notice",
+   "abstract": "Under title II of the Social Security Act (Act), there will be a 3.2 percent cost-of-living increase in Social Security benefits effective December 2023. In addition, the national average wage index for 2022 is $63,795.13. The cost-of-living increase and national average wage index affect other program parameters as described below.",
+   "document_number": "2023-23317",
+   "html_url": "https://www.federalregister.gov/documents/2023/10/23/2023-23317/cost-of-living-increase-and-other-determinations-for-2024",
+   "pdf_url": "https://www.govinfo.gov/content/pkg/FR-2023-10-23/pdf/2023-23317.pdf",
+   "public_inspection_pdf_url": "https://public-inspection.federalregister.gov/2023-23317.pdf?1697805973",
+   "publication_date": "2023-10-23",
+   "agencies": [
+    {
+     "raw_name": "Social Security Administration",
+     "name": "Social Security Administration",
+     "id": 470,
+     "url": "https://www.federalregister.gov/agencies/social-security-administration",
+     "json_url": "https://www.federalregister.gov/api/v1/agencies/470",
+     "parent_id": null,
+     "slug": "social-security-administration"
+    }
+   ],
+   "excerpts": ""
+  },
+  {
+   "title": "Cost-of-Living Increase and Other Determinations for 2023",
+   "type": "Notice",
+   "abstract": "Under title II of the Social Security Act (Act), there will be an 8.7 percent cost-of-living increase in Social Security benefits effective December 2022. In addition, the national average wage index for 2021 is $60,575.07. The cost-of-living increase and national average wage index affect other program parameters as described below.",
+   "document_number": "2022-23073",
+   "html_url": "https://www.federalregister.gov/documents/2022/10/24/2022-23073/cost-of-living-increase-and-other-determinations-for-2023",
+   "pdf_url": "https://www.govinfo.gov/content/pkg/FR-2022-10-24/pdf/2022-23073.pdf",
+   "public_inspection_pdf_url": null,
+   "publication_date": "2022-10-24",
+   "agencies": [
+    {
+     "raw_name": "Social Security Administration",
+     "name": "Social Security Administration",
+     "id": 470,
+     "url": "https://www.federalregister.gov/agencies/social-security-administration",
+     "json_url": "https://www.federalregister.gov/api/v1/agencies/470",
+     "parent_id": null,
+     "slug": "social-security-administration"
+    }
+   ],
+   "excerpts": ""
+  },
+  {
+   "title": "Cost-of-Living Increase and Other Determinations for 2022",
+   "type": "Notice",
+   "abstract": "Under title II of the Social Security Act (Act), there will be a 5.9 percent cost-of-living increase in Social Security benefits effective December 2021. In addition, the national average wage index for 2020 is $55,628.60. The cost-of-living increase and national average wage index affect other program parameters as described below.",
+   "document_number": "2021-23031",
+   "html_url": "https://www.federalregister.gov/documents/2021/10/22/2021-23031/cost-of-living-increase-and-other-determinations-for-2022",
+   "pdf_url": "https://www.govinfo.gov/content/pkg/FR-2021-10-22/pdf/2021-23031.pdf",
+   "public_inspection_pdf_url": "https://public-inspection.federalregister.gov/2021-23031.pdf?1634820325",
+   "publication_date": "2021-10-22",
+   "agencies": [
+    {
+     "raw_name": "Social Security Administration",
+     "name": "Social Security Administration",
+     "id": 470,
+     "url": "https://www.federalregister.gov/agencies/social-security-administration",
+     "json_url": "https://www.federalregister.gov/api/v1/agencies/470",
+     "parent_id": null,
+     "slug": "social-security-administration"
+    }
+   ],
+   "excerpts": ""
+  }
+ ]
+}

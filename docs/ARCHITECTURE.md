@@ -77,7 +77,7 @@ background if tiles can't load.
   of the static build (`npm run build`), and a smoke test that boots the server
   and checks the API with `jq`.
 - **Snapshots** (`.github/workflows/snapshot.yml`): daily `npm run snapshot`
-  on GitHub runners. `data/snapshots/*.json` is uploaded as the 14-day artifact
+  on GitHub runners. `data/snapshots/*.json` is uploaded as the 90-day artifact
   `job-board-snapshots` and **not committed**: one day's real snapshots are
   ~74 MB, too much to add to git history daily. Locally, `data/snapshots/` is
   gitignored.

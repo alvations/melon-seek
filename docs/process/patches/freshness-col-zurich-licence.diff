@@ -1,0 +1,12 @@
+diff --git a/data/cities.json b/data/cities.json
+--- a/data/cities.json
++++ b/data/cities.json
+@@ -12111,7 +12111,7 @@
+       "url": "https://data.stadt-zuerich.ch/dataset/bau_whg_mpe_mietpreis_raum_zizahl_gn_jahr_od5161",
+       "asOf": "2026-04",
+       "file": "https://data.stadt-zuerich.ch/dataset/bau_whg_mpe_mietpreis_raum_zizahl_gn_jahr_od5161/download/BAU516OD5161.csv",
+-      "license": "Stadt Zürich Open Government Data (licence as stated on the dataset page)",
++      "license": "CC0 1.0 (Creative Commons Zero), per the dataset metadata on data.stadt-zuerich.ch (license_id cc-zero, read 2026-10-10)",
+       "note": "Swiss room counts include the living room, so a 2-room flat has one bedroom.",
+       "r2": 1.227,
+       "r3": 1.467

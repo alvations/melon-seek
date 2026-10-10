@@ -1,0 +1,20 @@
+--- a/public/viz/chart.js
++++ b/public/viz/chart.js
+@@ -19,7 +19,7 @@
+ 
+ import {
+   colorFor, assignColors, otherColor, slotColor, inkOn, OTHER_KEY, SLOT_COUNT, formatMoney,
+-  formatCurrency, toUSD, isForeign, hasFx, niceTicks, median, onThemeChange, prefersReducedMotion, isDark,
++  formatCurrency, toUSD, isForeign, hasFx, niceTicks, median, onThemeChange, prefersReducedMotion, isDark, FX_AS_OF, FX_PER_USD,
+ } from './palette.js';
+ 
+ export const VIEWS = Object.freeze(['clusters', 'ranges']);
+@@ -329,7 +329,7 @@
+     if (outCount) parts.push(`${plural(outCount, 'posting')} beyond the axis (›)`);
+     if (narrow && plotted.length) parts.push('annual salary');
+     foot.textContent = parts.join(' · ');
+-    foot.title = fxCount ? 'Non-USD salaries are converted with a static exchange-rate table (GBP, EUR, CAD, AUD, JPY, SGD, CHF). Approximate.' : '';
++    foot.title = fxCount ? `Non-USD salaries are converted with a static exchange-rate table (${Object.keys(FX_PER_USD).filter((c) => c !== 'USD').join(', ')}; rates as of ${FX_AS_OF}). Approximate.` : '';
+     foot.hidden = !parts.length;
+   }
+ 

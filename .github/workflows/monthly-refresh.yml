@@ -1,0 +1,235 @@
+name: Monthly data refresh
+
+# Monthly refresh of every reference number the product shows, cites or computes
+# from: FX, Big Mac prices, rents, cost index, the NYC living-cost baseline, tax
+# rules, and the models built on job data (market comps, Compstimate backtest,
+# vetting health, lexicon coverage). The registry is data/freshness.json; the
+# runbook is docs/DATA_FRESHNESS.md. Job postings themselves are refreshed daily
+# by snapshot.yml / pages.yml and are only health-checked here.
+#
+# scripts/refresh/run.js runs one updater per data family (scripts/refresh/*.js):
+#   auto    fetch + validate + diff; validated changes become a REVIEW PR
+#   detect  compare the official source with the encoded values; a mismatch or a
+#           newly published tax/data year becomes a GitHub ISSUE with the evidence
+#   manual  past-due entries are listed in the same issue with their checklist
+# Safety model (REVIEW.md V12, as col-refresh.yml before it): nothing is ever
+# pushed to the default/deploy branch. Changes go to the bot/monthly-refresh
+# branch and a pull request for a human to review; merging it deploys.
+#
+# Repo settings this needs (the workflow degrades gracefully without them):
+#   - Settings -> Actions -> General -> Workflow permissions ->
+#     "Allow GitHub Actions to create and approve pull requests" (to open the PR;
+#     without it the branch is pushed and the run says to open the PR by hand).
+#   - Optional secrets: ANTHROPIC_API_KEY (advisory LLM read of tax pages),
+#     HUD_API_TOKEN (HUD USER API for US rents), BLS_API_KEY (BLS API v2 limits).
+# PRs opened with GITHUB_TOKEN don't trigger CI; re-run CI from the PR (or push to it).
+on:
+  schedule:
+    - cron: "17 5 3 * *" # monthly, 05:17 UTC on the 3rd (after ECB/Fed monthly averages are out)
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Comma-separated updater modules or registry ids (empty = everything)"
+        required: false
+        default: ""
+        type: string
+      dry_run:
+        description: "Report only: no branch, PR or issue"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: monthly-refresh
+  cancel-in-progress: false
+
+env:
+  TRUSTED_BRANCHES: claude/stoic-ride-54ddxp
+  REVIEW_BRANCH: bot/monthly-refresh
+  ISSUE_LABEL: data-freshness
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write      # push the bot/monthly-refresh review branch (never the default branch)
+      pull-requests: write # open / update the review PR
+      issues: write        # open / update the data-freshness issue
+      actions: read        # restore the latest trusted job-board snapshot artifact
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Install pdftotext (official tax schedules are often PDFs)
+        run: command -v pdftotext || (sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils > /dev/null)
+
+      # The job-data checks (market comps, Compstimate backtest, vetting health)
+      # read the newest snapshots. Trusted runs only (REVIEW.md V2). Best effort:
+      # without them those checks report 'skipped'.
+      - name: Restore last snapshots artifact (trusted runs only)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LEDGER_ARTIFACT: job-board-snapshots
+          LEDGER_DIR: data/snapshots
+        run: bash .github/scripts/ledger.sh restore-artifact
+
+      - name: Restore history ledger (best effort)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HISTORY_STORE: ${{ vars.HISTORY_STORE || 'artifact' }}
+        run: bash .github/scripts/ledger.sh restore
+
+      - name: Restore last beta snapshots artifact (trusted runs only; best effort)
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LEDGER_ARTIFACT: job-board-snapshots-beta
+          LEDGER_DIR: data/beta
+        run: bash .github/scripts/ledger.sh restore-artifact
+
+      # Last month's archived aggregates are the baseline for the month-over-month
+      # checks (docs/DATA_ARCHIVE.md). Read-only worktree; without it the checks
+      # fall back to absolute bounds and say so.
+      - name: Check out the data archive (read-only baseline; best effort)
+        continue-on-error: true
+        run: |
+          if git fetch --depth=1 origin data-archive 2>/dev/null; then
+            git worktree add --detach tmp/archive FETCH_HEAD
+          else
+            echo "No data-archive branch yet; month-over-month checks use absolute bounds."
+          fi
+
+      # The archive (docs/DATA_ARCHIVE.md) keeps every version of every dataset forever.
+      # BEFORE the refresh touches anything, export the current (live, merged) value of each
+      # registry dataset; archive.yml imports tmp/refresh/ (report, archive/ and reference/
+      # manifests) from the uploaded artifact into the data-archive branch. Proposed changes
+      # in the review PR are archived once merged (the archive's capture of the code branch).
+      - name: Export the current reference datasets for the archive
+        continue-on-error: true
+        run: node scripts/refresh/run.js --export-reference tmp/refresh/reference
+
+      - name: Refresh (fetch, validate, diff)
+        id: refresh
+        env:
+          MELON_ARCHIVE_DIR: tmp/archive
+          MELON_BETA_SNAPSHOT_DIR: data/beta/snapshots
+          MELON_BETA_HISTORY_DIR: data/beta/history
+          ONLY: ${{ inputs.only }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          HUD_API_TOKEN: ${{ secrets.HUD_API_TOKEN }}
+          BLS_API_KEY: ${{ secrets.BLS_API_KEY }}
+        run: |
+          set -euo pipefail
+          args=(--out tmp/refresh)
+          if [ -n "${ONLY:-}" ]; then args+=(--only "$ONLY"); fi
+          if [ "${DRY_RUN:-false}" = "true" ]; then args+=(--dry-run); fi
+          node scripts/refresh/run.js "${args[@]}" > tmp-refresh.log 2>&1 || { cat tmp-refresh.log; exit 1; }
+          tail -n 40 tmp-refresh.log
+          node -e '
+            const o = require("./tmp/refresh/outcome.json");
+            const out = require("fs").createWriteStream(process.env.GITHUB_OUTPUT, { flags: "a" });
+            out.write(`files=${o.files.length}\nalerts=${o.alerts + o.problems}\n`);
+            out.end();
+            console.log(`files changed: ${o.files.length}, alerts: ${o.alerts}, problems: ${o.problems}`);
+          '
+
+      # The suite runs against the refreshed data, so a PR shows which tests a
+      # data change breaks (e.g. worked examples pinned to old FX). Never blocks
+      # the PR: a human decides.
+      - name: Tests against the refreshed data (advisory)
+        id: tests
+        if: steps.refresh.outputs.files != '0' && inputs.dry_run != true
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee tmp/refresh/npm-test.log | tail -n 25
+          echo "Tests passed against the refreshed data." > tmp/refresh/tests.md
+
+      - name: Note failing tests
+        if: steps.refresh.outputs.files != '0' && inputs.dry_run != true && steps.tests.outcome == 'failure'
+        run: |
+          {
+            echo "**Tests FAILED against the refreshed data.** Review before merging; failing tests may pin old values (see docs/DATA_FRESHNESS.md, 'Pinned values')."
+            echo
+            echo '```'
+            grep -E '^not ok|^# (pass|fail)' tmp/refresh/npm-test.log | head -n 40 || true
+            echo '```'
+          } > tmp/refresh/tests.md
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: monthly-refresh-report
+          path: tmp/refresh/
+          retention-days: 90
+          if-no-files-found: ignore
+
+      - name: Push the review branch and open a PR (never the default branch)
+        if: steps.refresh.outputs.files != '0' && inputs.dry_run != true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          branch="$REVIEW_BRANCH"
+          day=$(date -u +%Y-%m-%d)
+          # Stage exactly the files the orchestrator reported (never `git add -A`).
+          node -e 'for (const f of require("./tmp/refresh/outcome.json").files) console.log(f)' > tmp/refresh/files.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          xargs -a tmp/refresh/files.txt -d '\n' git add --
+          if git diff --cached --quiet; then echo "No changes to commit."; exit 0; fi
+          git commit -m "chore(data): monthly refresh of reference data ($day)" -m "Generated by .github/workflows/monthly-refresh.yml (scripts/refresh/run.js). See the PR body for the report."
+          git push --force origin "$branch"
+          { cat tmp/refresh/tests.md 2>/dev/null || true; echo; cat tmp/refresh/summary.md; } | head -c 64000 > tmp/refresh/pr-body.md
+          base="${{ github.event.repository.default_branch }}"
+          if gh pr view "$branch" --json state --jq .state 2>/dev/null | grep -q OPEN; then
+            gh pr edit "$branch" --title "chore(data): monthly data refresh ($day)" --body-file tmp/refresh/pr-body.md
+            echo "Updated the open PR for $branch."
+          elif gh pr create --base "$base" --head "$branch" --title "chore(data): monthly data refresh ($day)" --body-file tmp/refresh/pr-body.md; then
+            echo "Opened a PR for $branch."
+          else
+            echo "::warning::Pushed $branch but could not open a PR (enable Settings -> Actions -> General -> 'Allow GitHub Actions to create and approve pull requests', or open it by hand)."
+          fi
+
+      - name: Open or update the data-freshness issue (drift, flags, stale entries, errors)
+        if: inputs.dry_run != true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ALERTS: ${{ steps.refresh.outputs.alerts }}
+        run: |
+          set -euo pipefail
+          day=$(date -u +%Y-%m-%d)
+          head -c 64000 tmp/refresh/summary.md > tmp/refresh/issue-body.md
+          open=$(gh issue list --label "$ISSUE_LABEL" --state open --json number --jq '.[0].number' 2>/dev/null || true)
+          if [ "${ALERTS:-0}" = "0" ]; then
+            if [ -n "$open" ]; then
+              gh issue comment "$open" --body "Monthly refresh $day: no drift, flags, stale entries or errors. Closing." && gh issue close "$open" --reason completed || true
+            fi
+            echo "No alerts."
+            exit 0
+          fi
+          gh label create "$ISSUE_LABEL" --color FBCA04 --description "Reference data needs a human (docs/DATA_FRESHNESS.md)" 2>/dev/null || true
+          title="Data freshness: $ALERTS item(s) need review ($day)"
+          if [ -n "$open" ]; then
+            gh issue edit "$open" --title "$title" --body-file tmp/refresh/issue-body.md
+            gh issue comment "$open" --body "Monthly refresh $day updated this issue: $ALERTS item(s). Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          else
+            gh issue create --title "$title" --label "$ISSUE_LABEL" --body-file tmp/refresh/issue-body.md
+          fi

@@ -266,7 +266,7 @@ resumes.
         with:
           name: salary-vetting
           path: ${{ runner.temp }}/vetting
-          retention-days: 30
+          retention-days: 90 # GitHub maximum; the permanent copy is the data-archive branch
 ```
 
 The gate step fails the deploy when a job would be published with a critical

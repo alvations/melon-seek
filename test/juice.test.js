@@ -447,6 +447,7 @@ test('update-col: parses CSV (quotes), applies the latest release, keeps quoted 
     return `${r.name},${iso3Of[iso2]},${r.currency},${price},${ex},1,1,2099-01-01`;
   })];
   const bm = latestBigMac(parseCsv(lines.join('\n')));
+  const releaseBefore = DOC.bigMac.asOf; // not a literal: the monthly Big Mac refresh moves it (e2e-pinned-values)
   assert.equal(bm.date, '2099-01-01');
   const { doc, changes } = applyBigMac(DOC, bm);
   const before = city('london-gb');
@@ -458,7 +459,7 @@ test('update-col: parses CSV (quotes), applies the latest release, keeps quoted 
   assert.equal(after.costIndex, before.costIndex, 'costIndex untouched');
   assert.equal(after.sources.bigMacUSD.asOf, '2099-01-01');
   assert.ok(changes.some((c) => c.includes('london-gb')));
-  assert.equal(DOC.bigMac.asOf, '2026-07-01', 'input document not mutated');
+  assert.equal(DOC.bigMac.asOf, releaseBefore, 'input document not mutated');
   assert.throws(() => applyBigMac(DOC, { date: '2099-01-01', byCountry: {} }), /incomplete/);
 });
 

@@ -25,6 +25,8 @@ const LEAFLET_DIR = path.join(ROOT, 'node_modules', 'leaflet', 'dist');
 const SNAPSHOT_DIR = process.env.MELON_SNAPSHOT_DIR || path.join(ROOT, 'data', 'snapshots');
 const SERVER_DIR = path.join(ROOT, 'server');
 export const CITIES_FILE = process.env.MELON_CITIES_FILE || path.join(ROOT, 'data', 'cities.json');
+/** The data-freshness registry (docs/DATA_FRESHNESS.md); GET /api/freshness serves its client-safe subset. */
+export const FRESHNESS_FILE = process.env.MELON_FRESHNESS_FILE || path.join(ROOT, 'data', 'freshness.json');
 
 // Browser-safe modules served at /lib/<path> (allowlist shared with the static
 // build: server/lib-modules.js). Node-only modules (index.js, cache.js) never match.
@@ -707,6 +709,20 @@ async function serveCities(req, res) {
   res.end(req.method === 'HEAD' ? undefined : body);
 }
 
+/**
+ * GET /api/freshness(.json): the same document the static build publishes as
+ * api/freshness.json (scripts/refresh/derived.js#publicFreshness), read on each request
+ * so a refreshed registry shows up without a restart. Without a registry it is an empty
+ * document (`missing: true`), never a 404: public/features/freshness.js then falls back
+ * to the data's own dates.
+ */
+async function serveFreshness(req, res) {
+  let reg = null;
+  try { reg = JSON.parse(await fs.readFile(FRESHNESS_FILE, 'utf8')); } catch { /* no registry yet */ }
+  const { publicFreshness } = await import('../scripts/refresh/derived.js');
+  return sendJson(req, res, 200, publicFreshness(reg));
+}
+
 /* --------------------------------------------------------------- HTTP */
 
 async function send(req, res, status, body, type, extraHeaders = null) {
@@ -820,6 +836,7 @@ export async function handle(req, res) {
     }
     // /api/cities.json matches the static build's dist/api/cities.json, so api.js can use one URL.
     if (p === '/api/cities' || p === '/api/cities.json') return serveCities(req, res);
+    if (p === '/api/freshness' || p === '/api/freshness.json') return serveFreshness(req, res);
     if (p === '/api/market' || p === '/api/market.json') {
       try {
         return sendJson(req, res, 200, await getMarket());

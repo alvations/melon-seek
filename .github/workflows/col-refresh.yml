@@ -1,19 +1,25 @@
-name: Refresh cost-of-living data
+name: Refresh cost-of-living data (Big Mac + FX only)
 
-# Monthly refresh of the machine-readable Juice Score inputs in data/cities.json:
-# The Economist's Big Mac index source data (CC BY 4.0, github.com/TheEconomist/big-mac-data)
-# gives each country's Big Mac price and the FX rates used to convert quoted local rents
-# to USD. Quoted rents, cost indexes and tax rules are refreshed by hand (docs/LIVABILITY.md).
-# Unlike snapshot.yml, this commits: cities.json is small (~250 KB) and changes monthly.
-# It does NOT push to main (REVIEW.md V12): the upstream source is a mutable
-# third-party branch, so changes go to the bot/col-refresh branch and a pull
-# request for human review. Opening the PR needs Settings -> Actions -> General
-# -> "Allow GitHub Actions to create and approve pull requests"; without it the
-# branch is still pushed and the run says to open the PR by hand. PRs opened
-# with GITHUB_TOKEN don't trigger CI; re-run CI from the PR (or push to it).
+# Superseded by .github/workflows/monthly-refresh.yml (2026-10), which refreshes
+# every reference dataset in data/freshness.json on the 3rd of each month,
+# including the two this workflow used to own. This file stays as a MANUAL
+# shortcut (workflow_dispatch only, no schedule, so the two never open
+# competing PRs) that runs just the Big Mac and FX updaters of the same
+# orchestrator: scripts/refresh/run.js --only bigmac,fx.
+#
+# Big Mac prices: The Economist's Big Mac index source data (CC BY 4.0,
+# github.com/TheEconomist/big-mac-data), two releases a year.
+# FX: ECB euro reference rates (monthly averages) crossed through USD, the
+# Federal Reserve G.5 for TWD, and the official AED/SAR/QAR pegs, written to
+# data/cities.json and to the code copies (server/juice.js, public/viz/palette.js,
+# server/salary.js, public/features/shared.js) together.
+# It does NOT push to the default branch (REVIEW.md V12): changes go to the
+# bot/col-refresh branch and a pull request for human review. Opening the PR
+# needs Settings -> Actions -> General -> "Allow GitHub Actions to create and
+# approve pull requests"; without it the branch is still pushed and the run
+# says to open the PR by hand. PRs opened with GITHUB_TOKEN don't trigger CI;
+# re-run CI from the PR (or push to it).
 on:
-  schedule:
-    - cron: "23 5 3 * *" # monthly, 05:23 UTC on the 3rd
   workflow_dispatch:
 
 permissions:
@@ -39,18 +45,18 @@ jobs:
         run: npm ci
 
       - name: Refresh Big Mac prices and FX
-        run: node scripts/update-col.js
+        run: node scripts/refresh/run.js --only bigmac,fx --out tmp/refresh
 
-      - name: Check the formula and data integrity
-        run: node --test test/juice.test.js
+      - name: Check the formula, data integrity and FX copies
+        run: node --test test/juice.test.js test/fx-consistency.test.js
 
       - name: Push a review branch and open a PR (never main)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          git add data/cities.json
-          if git diff --cached --quiet; then
+          node -e 'for (const f of require("./tmp/refresh/outcome.json").files) console.log(f)' > tmp/refresh/files.txt
+          if [ ! -s tmp/refresh/files.txt ]; then
             echo "No cost-of-living changes."
             exit 0
           fi
@@ -59,14 +65,18 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "$branch"
-          git commit -m "chore(data): refresh Big Mac prices and FX in cities.json ($day)"
+          xargs -a tmp/refresh/files.txt -d '\n' git add --
+          if git diff --cached --quiet; then echo "No cost-of-living changes."; exit 0; fi
+          git commit -m "chore(data): refresh Big Mac prices and FX ($day)"
           git push --force origin "$branch"
+          head -c 64000 tmp/refresh/summary.md > tmp/refresh/pr-body.md
           base="${{ github.event.repository.default_branch }}"
           if gh pr view "$branch" --json state --jq .state 2>/dev/null | grep -q OPEN; then
+            gh pr edit "$branch" --body-file tmp/refresh/pr-body.md
             echo "Updated the open PR for $branch."
           elif gh pr create --base "$base" --head "$branch" \
-                 --title "chore(data): refresh cost-of-living data ($day)" \
-                 --body "Monthly refresh from The Economist's Big Mac index (CC BY 4.0) by .github/workflows/col-refresh.yml. test/juice.test.js passed in the run. Review the diff of data/cities.json before merging."; then
+                 --title "chore(data): refresh Big Mac prices and FX ($day)" \
+                 --body-file tmp/refresh/pr-body.md; then
             echo "Opened a PR for $branch."
           else
             echo "::warning::Pushed $branch but could not open a PR (enable 'Allow GitHub Actions to create and approve pull requests', or open it by hand)."

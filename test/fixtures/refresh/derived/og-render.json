@@ -1,0 +1,9 @@
+{
+  "card": "public/og/card.html",
+  "cardSha256": "c4c516b0138fdd8a74c235254f8b43175dcb48a4dddb7a6b941403ba884c2daf",
+  "png": "public/og/melon-seek-og.png",
+  "pngSha256": "e086b42fa8f137821ff91388c13ecb19aec9ec8d823d98c3ce5b9099aadbdfc2",
+  "renderedAt": "2026-10-02",
+  "by": "scripts/build-og.mjs",
+  "note": "Recorded 2026-10-10 by freshness-derived. The PNG was rendered on 2026-10-02 (commit 9947fe8); card.html changed on 2026-10-03 (2666ae1) only to self-host the same Inter font, so the picture is unchanged. Re-record with: node scripts/refresh/derived.js --og-hashes"
+}

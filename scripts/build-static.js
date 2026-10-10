@@ -24,6 +24,10 @@
 //   dist/api/cities.json      data/cities.json (Juice Score inputs; juice itself is
 //                             computed in the browser by api.js + lib/juice.js and is
 //                             never stored in the job lists)
+//   dist/api/freshness.json   the client-safe subset of data/freshness.json (data-freshness
+//                             registry: id, asOf, taxYear, source, cadence, lastChecked, stale),
+//                             from scripts/refresh/derived.js#publicFreshness; read by
+//                             public/features/freshness.js for the "as of" labels. Optional.
 //   dist/methodology/         docs/LIVABILITY.md as a site page (scripts/methodology.js), the
 //                             target of the Juice "How it's calculated" link; never GitHub
 //   dist/index.html           also carries <meta name="melon-seek-build" content="<sha>">, the
@@ -113,7 +117,7 @@ export const BETA_DIR = 'beta';
 const OPTIONAL_LIB = new Set(['demo.js', 'juice.js', 'history.js']);
 // F3 Compstimate backtest parameters: server/index.js#BACKTEST_OPTS (shared with
 // the server); this copy is only the fallback if that export is missing.
-const BACKTEST_FALLBACK = Object.freeze({ seed: 20261002, maxN: 500 });
+const BACKTEST_FALLBACK = Object.freeze({ seed: 20261002, maxN: 500, dedupe: 'role' });
 // F1 market.json size cap (docs/CONTRACT.md).
 const MARKET_MAX_BYTES = 150_000;
 const CITIES_FILE = path.join(ROOT, 'data', 'cities.json');
@@ -729,6 +733,20 @@ async function loadContext() {
     warn('data/cities.json missing; Juice Score will be null');
   }
 
+  // Data freshness (docs/DATA_FRESHNESS.md): the "as of" labels' registry, published as
+  // api/freshness.json. Stale flags are computed at the build time (MELON_BUILT_AT pins it).
+  // Always written (entries: [] without a registry), so the page never meets a 404.
+  ctx.freshness = null;
+  try {
+    const { publicFreshness } = await imp('scripts', 'refresh', 'derived.js');
+    const freshnessFile = path.join(ROOT, 'data', 'freshness.json');
+    const reg = existsSync(freshnessFile) ? JSON.parse(await fs.readFile(freshnessFile, 'utf8')) : null;
+    ctx.freshness = publicFreshness(reg, { now: new Date(ctx.builtAt) });
+    if (!reg) console.log('  note: no data/freshness.json yet; api/freshness.json is empty and "as of" labels use the data\'s own dates');
+  } catch (err) {
+    warn(`data/freshness.json unusable (${err.message}); no api/freshness.json, so "as of" labels use the data's own dates`);
+  }
+
   // v2 (ROADMAP §7), each feature-detected so the build works before its owner lands it.
   const historyFile = path.join(ROOT, 'server', 'history.js');
   ctx.history = existsSync(historyFile) ? await import(pathToFileURL(historyFile).href) : null;
@@ -1059,6 +1077,7 @@ async function buildSite(ctx, site) {
   // 4. API data
   let citiesNote = 'no cities.json (juice: null)';
   if (ctx.cities) citiesNote = `${ctx.cityCount} cities (${size(await writeJson(path.join(out, 'api', 'cities.json'), ctx.cities))})`;
+  if (ctx.freshness) citiesNote += `; api/freshness.json ${ctx.freshness.entries.length} datasets (${size(await writeJson(path.join(out, 'api', 'freshness.json'), ctx.freshness))})`;
   const companies = [];
   const summary = [];
   const shares = [];

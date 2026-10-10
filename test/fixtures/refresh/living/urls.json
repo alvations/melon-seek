@@ -1,0 +1,4 @@
+{
+  "https://api.bls.gov/publicAPI/v1/timeseries/data/": "bls-v1-cpi-ce.json",
+  "https://www.gov.scot/publications/poverty-in-scotland-methodology/pages/income-equivalisation/": "govscot-equivalisation.html"
+}

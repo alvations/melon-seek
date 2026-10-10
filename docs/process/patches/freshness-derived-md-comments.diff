@@ -1,0 +1,45 @@
+diff -ru a/scripts/md.js b/scripts/md.js
+--- a/scripts/md.js	2026-10-10 08:23:08.704943462 +0000
++++ b/scripts/md.js	2026-10-10 08:23:08.733534173 +0000
+@@ -3,7 +3,9 @@
+ // ATX headings (GitHub-style ids, so #1-the-formula anchors keep working),
+ // paragraphs, nested ul/ol, GFM tables, fenced and inline code, bold, italic,
+ // links, blockquotes and rules. Everything is HTML-escaped; raw HTML in the
+-// Markdown is shown as text, never interpreted.
++// Markdown is shown as text, never interpreted. HTML comments that start a line
++// (e.g. the <!-- freshness:begin ... --> markers around generated tables,
++// docs/DATA_FRESHNESS.md) are dropped, as GitHub drops them.
+ //
+ // Links (site link policy, test/links-policy.test.js): `#anchor` links stay
+ // links; anything else goes through `opts.link(href)`, which returns a
+@@ -114,6 +116,13 @@
+       out.push(`<pre><code${fence[3] ? ` class="language-${esc(fence[3])}"` : ''}>${esc(body.join('\n'))}</code></pre>`);
+       continue;
+     }
++    if (/^\s*<!--/.test(line)) {
++      // An HTML comment (one line or several): not content.
++      flushPara(para);
++      while (i < lines.length && !lines[i].includes('-->')) i++;
++      i++;
++      continue;
++    }
+     const h = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
+     if (h) {
+       flushPara(para);
+diff -ru a/test/md.test.js b/test/md.test.js
+--- a/test/md.test.js	2026-10-10 08:23:08.716490554 +0000
++++ b/test/md.test.js	2026-10-10 08:23:08.733709085 +0000
+@@ -18,3 +18,13 @@
+   assert.ok(!/\bundefined\b/.test(text), 'found "undefined" outside a code span');
+   assert.ok(!/[\u0000\u0001]/.test(html), 'placeholder byte leaked');
+ });
++
++test('HTML comments are dropped (generated-block markers never show on the page)', () => {
++  const md = 'Before.\n\n<!-- freshness:begin x/y -->\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n<!-- freshness:end x/y -->\n\n<!--\nmulti-line\n-->\nAfter.\n\n```\n<!-- kept in code -->\n```';
++  const { html } = mdToHtml(md);
++  assert.doesNotMatch(html, /freshness:|multi-line/);
++  assert.match(html, /<table>/);
++  assert.match(html, /<p>Before\.<\/p>/);
++  assert.match(html, /<p>After\.<\/p>/);
++  assert.match(html, /&lt;!-- kept in code --&gt;/, 'comments inside code fences stay');
++});

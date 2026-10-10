@@ -3,6 +3,7 @@
 // "(demo)" so nothing here can be mistaken for a real posting.
 
 import { roleFamily } from './roles.js';
+import { FX_TO_USD } from '../viz/palette.js';
 
 const CITIES = [
   { name: 'San Francisco, CA', city: 'San Francisco', region: 'CA', country: 'US', lat: 37.77, lng: -122.42, w: 10, pay: 1 },
@@ -93,7 +94,7 @@ export function fakeJobs(slug = 'acme', n = 140) {
       const phd = fit.includes('PhD') ? 1.1 : 1;
       const usdMid = dept.base * lv[1] * geo * skillBoost * phd * (0.86 + r() * 0.28);
       const cur = remote ? 'USD' : city.cur || 'USD';
-      const fx = { USD: 1, GBP: 1.27, EUR: 1.09, CHF: 1.13 }[cur];
+      const fx = FX_TO_USD[cur]; // the app's one FX table (USD per unit)
       const mid = usdMid / fx;
       const spread = 0.12 + r() * 0.14;
       const min = Math.round((mid * (1 - spread)) / 5000) * 5000;
@@ -126,7 +127,7 @@ export function fakeJobs(slug = 'acme', n = 140) {
  * n >= 3 per cell, plus a family roll-up with seniority "*".
  */
 export function fakeMarket(boards) {
-  const FX = { USD: 1, GBP: 1.27, EUR: 1.09, CHF: 1.13 };
+  const FX = FX_TO_USD;
   const groups = new Map();
   const add = (k, v) => { if (!groups.has(k)) groups.set(k, []); groups.get(k).push(v); };
   for (const { slug, jobs } of boards) {

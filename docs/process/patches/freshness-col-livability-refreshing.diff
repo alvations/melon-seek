@@ -1,0 +1,58 @@
+diff --git a/docs/LIVABILITY.md b/docs/LIVABILITY.md
+--- a/docs/LIVABILITY.md
++++ b/docs/LIVABILITY.md
+@@ -696,14 +696,14 @@
+ | Field | Source | As of | License / terms | Refresh |
+ |---|---|---|---|---|
+ | `bigMacUSD`, `fxPerUSD`, `*USD` conversions | [The Economist Big Mac index](https://github.com/TheEconomist/big-mac-data), `source-data/big-mac-source-data-v2.csv` (per-country prices incl. each euro member; `dollar_ex` exchange rates from Refinitiv/LSEG) | release 2026-07-01 | data CC BY 4.0, code MIT | automatic, monthly |
+-| `rent1brCenterLocal`, `rent1brOutsideLocal` | [Numbeo](https://www.numbeo.com/cost-of-living/) city pages ("1 bedroom apartment in city centre / outside of centre") | page month, 2026-05 to 2026-10 (64 of 89 are 2026-09) | crowd-sourced, commercial; **terms restrict reuse, not cleared (§4.1)** | manual; replacement plan §7 |
+-| `costIndex` | derived: `100 × Numbeo "estimated monthly costs for a single person, excluding rent" ÷ New York's` | same pages | as above | manual; replacement plan §7 |
+-| `baseline.nycBasketUSD` | Numbeo New York single-person estimate excluding rent, $1,665.2/month × 12 = **$19,982** | 2026-09 | as above | manual; replacement plan §7 |
++| `rent1brCenterLocal`, `rent1brOutsideLocal` | [Numbeo](https://www.numbeo.com/cost-of-living/) city pages ("1 bedroom apartment in city centre / outside of centre") | page month, 2026-05 to 2026-10 (64 of 89 are 2026-09) | crowd-sourced, commercial; **terms restrict reuse, not cleared (§4.1)** | manual: the monthly refresh lists every city past page month + 92 + 30 days (`rents-1br-quoted`); replacement plan §7 |
++| `costIndex` | derived: `100 × Numbeo "estimated monthly costs for a single person, excluding rent" ÷ New York's` | same pages | as above | manual: monthly staleness list (`cost-index`); replacement plan §7 |
++| `baseline.nycBasketUSD` | Numbeo New York single-person estimate excluding rent, $1,665.2/month × 12 = **$19,982** | 2026-09 | as above | manual re-read; monthly drift check against the BLS CPI-U New York, all items less shelter (`nyc-basket`, alert at 3%) |
+ | cross-checks (not used in the formula) | [Zumper National Rent Report](https://www.zumper.com/rent-research/national-rent-report) Sep 2026 (SF $4,400, NYC $4,580, Seattle $1,960, Austin $1,520, DC $2,250 in Jul); Numbeo's published index (SF 90.32, London 85.9, Zurich 118.5-123.1); [BLS CE 2024](https://fred.stlouisfed.org/series/CXUTOTALEXPLB0502M) one-person households $48,794/yr all-in | 2024-2026 | public reports | n/a |
+-| `rent2brCenterLocal`, `rent3brCenterLocal` (US, 40 cities) | estimate: 1-bedroom × the HUD area's 2-bedroom ÷ 1-bedroom and 3-bedroom ÷ 1-bedroom [Fair Market Rent](https://www.huduser.gov/portal/datasets/fmr.html) ratios, FY2026 (read from HUD's [eGIS feature service](https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0)) | 2025-10 | US government, public domain | manual, yearly (§4.2) |
+-| same (UK 5, Ireland, Switzerland 2, France, Canada 4, Melbourne, Singapore) | estimate: 1-bedroom × the ratio from [ONS Price Index of Private Rents](https://www.ons.gov.uk/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics) (Aug 2026, London / Cambridge / Oxford / Manchester / Scotland), [RTB via CSO RIQ02](https://data.cso.ie/table/RIQ02) (2025 Q4), [Stadt Zürich Mietpreiserhebung](https://data.stadt-zuerich.ch/dataset/bau_whg_mpe_mietpreis_raum_zizahl_gn_jahr_od5161) (2026), [OLAP](https://www.data.gouv.fr/fr/datasets/resultats-nationaux-des-observatoires-locaux-des-loyers/) (2025), [Statistics Canada 46-10-0092-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=4610009201) asking rents (2026 Q2), NSW (Melbourne), [HDB median rents](https://data.gov.sg/datasets/d_23000a00c52996c55106084ed0339566/view) (Singapore's third bedroom) | 2025-01 to 2026-08 | OGL v3, CC BY 4.0, Stadt Zürich OGD, Licence Ouverte 2.0, Statistics Canada Open Licence, Singapore Open Data Licence | manual, yearly |
+-| same (33 other cities) | estimate: 1-bedroom × the pooled ratio (median of the London, Dublin, Zurich, Paris, Sydney and Toronto ratios: 1.281 and 1.533) | 2026-10 | n/a | with the ratios above |
+-| `rent1brCenterLocal`, `rent2brCenterLocal`, `rent3brCenterLocal` (Sydney) | **official**: [NSW Rent and Sales Report](https://dcj.nsw.gov.au/about-us/families-and-communities-statistics/housing-rent-and-sales/rent-and-sales-report.html), June quarter 2026, median weekly rent for new bonds, Sydney LGA, flats and units ($819 / $1,150 / $1,550 a week) | 2026-06 | NSW Government open data | manual, quarterly |
++| `rent2brCenterLocal`, `rent3brCenterLocal` (US, 40 cities) | estimate: 1-bedroom × the HUD area's 2-bedroom ÷ 1-bedroom and 3-bedroom ÷ 1-bedroom [Fair Market Rent](https://www.huduser.gov/portal/datasets/fmr.html) ratios, FY2026 (read from HUD's [eGIS feature service](https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0)) | 2025-10 | US government, public domain | automatic, checked monthly (`rents-us-hud-fmr`); a new fiscal year on the Federal Register is an alert until the HUD USER API (`HUD_API_TOKEN`) or eGIS has it |
++| same (UK 5, Ireland, Switzerland 2, France, Canada 4, Melbourne, Singapore) | estimate: 1-bedroom × the ratio from [ONS Price Index of Private Rents](https://www.ons.gov.uk/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics) (Aug 2026, London / Cambridge / Oxford / Manchester / Scotland), [RTB via CSO RIQ02](https://data.cso.ie/table/RIQ02) (2025 Q4), [Stadt Zürich Mietpreiserhebung](https://data.stadt-zuerich.ch/dataset/bau_whg_mpe_mietpreis_raum_zizahl_gn_jahr_od5161) (2026), [OLAP](https://www.data.gouv.fr/fr/datasets/resultats-nationaux-des-observatoires-locaux-des-loyers/) (2025), [Statistics Canada 46-10-0092-01](https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=4610009201) asking rents (2026 Q2), NSW (Melbourne), [HDB median rents](https://data.gov.sg/datasets/d_23000a00c52996c55106084ed0339566/view) (Singapore's third bedroom) | 2025-01 to 2026-08 | OGL v3, CC BY 4.0, Stadt Zürich open data (CC0), Licence Ouverte 2.0, Statistics Canada Open Licence, Singapore Open Data Licence | automatic, checked monthly (`rents-gb-ons`, `rents-ie-rtb`, `rents-ch-zurich`, `rents-fr-olap`, `rents-ca-statcan`, `rents-sg-hdb`) |
++| same (33 other cities) | estimate: 1-bedroom × the pooled ratio (median of the London, Dublin, Zurich, Paris, Sydney and Toronto ratios: 1.281 and 1.533) | 2026-10 | n/a | recomputed when a member ratio changes (`rents-bedroom-ratios`) |
++| `rent1brCenterLocal`, `rent2brCenterLocal`, `rent3brCenterLocal` (Sydney) | **official**: [NSW Rent and Sales Report](https://dcj.nsw.gov.au/about-us/families-and-communities-statistics/housing-rent-and-sales/rent-and-sales-report.html), June quarter 2026, median weekly rent for new bonds, Sydney LGA, flats and units ($819 / $1,150 / $1,550 a week) | 2026-06 | NSW Government open data | automatic, checked monthly (`rents-nsw-official`); alert if the new quarter's xlsx cannot be read |
+ | living-cost household scale | [DWP after-housing-costs modified OECD scale](https://www.gov.scot/publications/poverty-in-scotland-methodology/pages/income-equivalisation/) (`LIVING_SCALE`), checked against BLS CE 2024 and MIT Living Wage (§1) | 2026 | official methodology | n/a |
+ | tax rules | `TAX_SOURCES` in `server/juice.js` (table above) | per jurisdiction | official schedules | manual, yearly |
+ 
+@@ -912,15 +912,29 @@
+ node scripts/update-col.js --csv file.csv  # offline, from a downloaded copy
+ ```
+ 
++**Automatic (monthly), bedroom rents and living-cost checks:** the monthly data refresh
++(`scripts/refresh/run.js`, docs/DATA_FRESHNESS.md) runs `scripts/refresh/rents.js` and
++`scripts/refresh/living.js`. `rents.js` reads each official bedroom-ratio source in §4.2 (HUD
++eGIS, ONS, CSO RIQ02, Stadt Zürich, OLAP, Statistics Canada, HDB, NSW) and, when a release
++changed, rewrites the matching `bedroomRatios` entries, the 2- and 3-bedroom rents of the cities
++that cite them (1-bedroom × ratio, USD at the city's FX), the pooled ratio when one of its members
++moved, and Sydney's three official rents. A ratio that moves more than 15% or a rent more than 25%
++between releases is held back (flag), and every write must pass `validateDoc`; changes go to a
++review PR, never straight to the branch. `living.js` checks the NYC basket against the BLS CPI-U
++for New York (alert at 3%) and the household scale against the HBAI weights and the latest BLS
++Consumer Expenditure Survey year. The Numbeo figures (1-bedroom rents, cost index, NYC basket)
++stay manual; the refresh lists the cities that are past due. Tests: `test/refresh-col.test.js`.
++
+ **Manual (quarterly is plenty):**
+ 
+-1. Bedroom rents: re-read the official sources in §4.2 (yearly; NSW quarterly), update the
+-   tables in `docs/process/scripts/juice-household-rents.mjs` / `juice-household-hud.mjs`, and
++1. Bedroom rents, only when the refresh reports a drift it could not apply (for example a new
++   HUD fiscal year without `HUD_API_TOKEN`): re-read the official source named in the alert,
++   update the tables in `docs/process/scripts/juice-household-rents.mjs` / `juice-household-hud.mjs`, and
+    run `node docs/process/scripts/juice-household-rents.mjs` (re-derives the 2- and 3-bedroom
+    fields from the current 1-bedroom figures, then validates). The figures were read with the
+    manual workflow `.github/workflows/juice-data-probe.yml` (`workflow_dispatch`, read-only;
+    it prints them to the job log).
+-2. Rents and cost index: for each city, open its Numbeo page (`sources.rent1brCenterLocal.url`),
++2. Rents and cost index: for each city the refresh lists as past due, open its Numbeo page (`sources.rent1brCenterLocal.url`),
+    update `rent1brCenterLocal`, `rent1brOutsideLocal` and the single-person figure in
+    `sources.costIndex.method`, recompute `costIndex = 100 × city ÷ New York`, and set each
+    `asOf` to the page month. Then run `node scripts/update-col.js` (re-derives the USD fields)

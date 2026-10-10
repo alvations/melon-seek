@@ -1,0 +1,40 @@
+diff --git a/README.md b/README.md
+index b3d602a..f6a0596 100644
+--- a/README.md
++++ b/README.md
+@@ -81,7 +81,8 @@ for data that's stale within hours. Instead:
+ 
+ - The [`snapshot` workflow](.github/workflows/snapshot.yml) runs daily on GitHub
+   Actions, whose runners can reach the boards. It uploads `data/snapshots/` as
+-  the workflow artifact **`job-board-snapshots`**, kept for 14 days.
++  the workflow artifact **`job-board-snapshots`**, kept for 90 days (GitHub's
++  maximum); the permanent copy is the `data-archive` branch ([docs/DATA_ARCHIVE.md](docs/DATA_ARCHIVE.md)).
+ - The [`pages` workflow](.github/workflows/pages.yml) restores the newest
+   artifact, then fetches fresh data. A board that fails during that run keeps
+   its last good snapshot instead of dropping to demo data.
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+index 40c7042..12a4d9d 100644
+--- a/docs/ARCHITECTURE.md
++++ b/docs/ARCHITECTURE.md
+@@ -77,7 +77,7 @@ background if tiles can't load.
+   of the static build (`npm run build`), and a smoke test that boots the server
+   and checks the API with `jq`.
+ - **Snapshots** (`.github/workflows/snapshot.yml`): daily `npm run snapshot`
+-  on GitHub runners. `data/snapshots/*.json` is uploaded as the 14-day artifact
++  on GitHub runners. `data/snapshots/*.json` is uploaded as the 90-day artifact
+   `job-board-snapshots` and **not committed**: one day's real snapshots are
+   ~74 MB, too much to add to git history daily. Locally, `data/snapshots/` is
+   gitignored.
+diff --git a/docs/VETTING.md b/docs/VETTING.md
+index 308fb29..67eda48 100644
+--- a/docs/VETTING.md
++++ b/docs/VETTING.md
+@@ -266,7 +266,7 @@ resumes.
+         with:
+           name: salary-vetting
+           path: ${{ runner.temp }}/vetting
+-          retention-days: 30
++          retention-days: 90 # GitHub maximum; the permanent copy is the data-archive branch
+ ```
+ 
+ The gate step fails the deploy when a job would be published with a critical

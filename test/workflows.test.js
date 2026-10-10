@@ -48,13 +48,19 @@ test('pages.yml: pages/id-token only on the deploy job; build is read-only', () 
 // main and claude/*, and never force-pushes).
 const WRITE_JOBS = { 'archive.yml': ['archive-ingest'], 'archive-backfill.yml': ['archive-ingest'] };
 
-test('contents: write only where needed (gated ledger job, archive job, col-refresh branch)', () => {
+// Workflows that may write, but only to their own bot review branch (a human merges the PR).
+const REVIEW_BRANCH_WORKFLOWS = Object.freeze({ 'col-refresh.yml': 'bot/col-refresh', 'monthly-refresh.yml': 'bot/monthly-refresh' });
+
+test('contents: write only where needed (gated ledger job, archive job, review-branch refresh workflows)', () => {
   for (const f of files) {
     const t = read(f);
-    if (f === 'col-refresh.yml') {
-      assert.match(t, /branch="bot\/col-refresh"/, 'col-refresh works on its review branch');
+    if (REVIEW_BRANCH_WORKFLOWS[f]) {
+      const b = REVIEW_BRANCH_WORKFLOWS[f];
+      const esc = b.replace(/[/]/g, '\\/');
+      assert.ok(new RegExp(`branch="${esc}"`).test(t) || (new RegExp(`REVIEW_BRANCH:\\s*${esc}\\s*$`, 'm').test(t) && /branch="\$REVIEW_BRANCH"/.test(t)), `${f} works on its review branch ${b}`);
       const pushes = t.split('\n').filter((l) => /\bgit push\b/.test(l) && !/^\s*#/.test(l));
-      assert.ok(pushes.length > 0 && pushes.every((l) => l.includes('origin "$branch"')), `col-refresh pushes only its branch: ${pushes.join(' | ')}`);
+      assert.ok(pushes.length > 0 && pushes.every((l) => l.includes('origin "$branch"')), `${f} pushes only its branch: ${pushes.join(' | ')}`);
+      assert.doesNotMatch(t, /git push[^\n]*\b(main|master|HEAD:|claude\/)/, `${f} never pushes to the default or deploy branch`);
       continue;
     }
     assert.doesNotMatch(topPermissions(t), /contents:\s*write/, `${f}: no workflow-level contents: write`);
@@ -77,7 +83,7 @@ test('the archive branch helper refuses code and deploy branches and never force
 });
 
 test('workflows that publish or persist data never run on pull_request', () => {
-  for (const f of ['pages.yml', 'snapshot.yml', 'col-refresh.yml']) {
+  for (const f of ['pages.yml', 'snapshot.yml', 'col-refresh.yml', 'monthly-refresh.yml']) {
     assert.doesNotMatch(read(f), /^\s*pull_request(_target)?\s*:/m, `${f} must not trigger on PRs`);
   }
 });

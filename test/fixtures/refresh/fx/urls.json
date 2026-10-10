@@ -1,0 +1,6 @@
+{
+  "https://data-api.ecb.europa.eu/service/data/EXR/M.AUD+BRL+CAD+CHF+CNY+CZK+DKK+GBP+HKD+ILS+INR+JPY+KRW+MXN+NOK+NZD+PLN+SEK+SGD+USD+ZAR.EUR.SP00.A?lastNObservations=3&format=csvdata": "ecb-monthly-2026-09.csv",
+  "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml": "ecb-daily-2026-10-09.xml",
+  "https://fred.stlouisfed.org/graph/fredgraph.csv?id=EXTAUS": "fred-extaus.csv",
+  "https://www.federalreserve.gov/releases/g5/current/default.htm": "fed-g5-2026-09.html"
+}

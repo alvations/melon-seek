@@ -1,0 +1,18 @@
+diff --git a/.github/workflows/pages.yml b/.github/workflows/pages.yml
+index 1f166c5..f1b71e3 100644
+--- a/.github/workflows/pages.yml
++++ b/.github/workflows/pages.yml
+@@ -145,6 +145,13 @@ jobs:
+           BETA_GATE_TIMEOUT: "120"
+         run: bash .github/scripts/beta-gate.sh data/beta/snapshots data/beta/rejected
+ 
++      # Warn-only staleness gate (docs/DATA_FRESHNESS.md): a step-summary table of every
++      # dataset's age plus a warning per entry past its cadence + grace. Never blocks the deploy.
++      - name: Data freshness (warn only, never blocks the deploy)
++        continue-on-error: true
++        timeout-minutes: 2
++        run: node scripts/refresh/run.js --staleness
++
+       - name: Build static site
+         env:
+           # Base for the absolute og:url / og:image / twitter:image link-preview

@@ -59,7 +59,8 @@ async function capture(n, r) {
 }
 
 function decode(logFile, outDir) {
-  const lines = fs.readFileSync(logFile, 'utf8').split(/\r?\n/).map((l) => l.replace(/^\S*\d{4}-\d{2}-\d{2}T[\d:.]+Z\s/, ''));
+  // Job logs carry a timestamp per line and, at blob boundaries, a U+FEFF byte-order mark.
+  const lines = fs.readFileSync(logFile, 'utf8').split(/\r?\n/).map((l) => l.replace(/\uFEFF/g, '').replace(/^\S*\d{4}-\d{2}-\d{2}T[\d:.]+Z\s/, ''));
   fs.mkdirSync(outDir, { recursive: true });
   const docs = new Map();
   for (const l of lines) {

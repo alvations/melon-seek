@@ -1,5 +1,6 @@
 // melon·seek — development mock of the HTTP API (loaded only with ?mock=1).
 import { roleFamily } from './features/roles.js';
+import { FX_TO_USD } from './viz/palette.js';
 // Synthesizes deterministic, contract-shaped Jobs so the UI can be built
 // without the backend. Never used in normal operation.
 
@@ -35,7 +36,7 @@ const LIVING = {
   Zurich: { rent: 34074, living: 22320, tax: [0.2, 0.33], estimated: true }, Tokyo: { rent: 16000, living: 13500, tax: [0.22, 0.42] },
   Sydney: { rent: 26000, living: 15500, tax: [0.26, 0.44] },
 };
-const FX = { USD: 1, GBP: 1.27, EUR: 1.09 };
+const FX = FX_TO_USD; // the app's one FX table (USD per unit)
 function mockJuice(salary, locations) {
   if (!salary) return null;
   const gross = Math.round(salary.mid * (FX[salary.currency] ?? 1));
@@ -44,7 +45,7 @@ function mockJuice(salary, locations) {
     const rate = Math.min(c.tax[1], c.tax[0] + gross / 2_000_000);
     const tax = Math.round(gross * rate), rent = c.rent, living = c.living;
     const net = gross - tax - rent - living;
-    const score = net <= 0 ? 0 : Math.max(0, Math.min(100, Math.round((100 * Math.log(1 + net / 10000)) / Math.log(26))));
+    const score = net <= 0 ? 0 : Math.round(100 * (1 - Math.exp(-net / 80000))); // server/juice.js SCORE_ANCHORS (K = $80K)
     const grade = score >= 70 ? 'Juicy' : score >= 45 ? 'Ripe' : score >= 1 ? 'Dry' : 'Rind';
     return { locationName: l.name, city: l.city.toLowerCase().replace(/\W+/g, '-'), cityName: l.city, gross, tax, rent, living, net, score, grade,
       rentBurden: Math.round((rent / Math.max(1, gross - tax)) * 100) / 100, bigMacs: Math.round(net / 5.69), estimated: !!c.estimated,
@@ -245,7 +246,7 @@ export async function mockApi(path) {
       error: mode === 'demo' ? `fetch ${company.source}/${company.board} failed: getaddrinfo ENOTFOUND api.${company.source}.io` : null,
       // Like the static deploy: the list omits descriptionHtml; getJobDetail() supplies it.
       jobs: makeJobs(company).map(({ descriptionHtml, ...rest }) => rest),
-      meta: { compstimate: { medianAbsPctError: 0.14, within10Pct: 0.41, n: 96, seed: 1, computedAt: new Date().toISOString() }, history: { since: '2025-08-28T00:00:00Z', runs: 400 } },
+      meta: { compstimate: { medianAbsPctError: 14, within10Pct: 41, n: 96, seed: 1, computedAt: new Date().toISOString() }, history: { since: '2025-08-28T00:00:00Z', runs: 400 } },
     };
   }
   throw new Error('404 ' + url.pathname);

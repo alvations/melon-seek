@@ -13,8 +13,9 @@ responsibilities, fit).
 - **Zillow-like filters** — salary range, responsibilities, fit / requirements,
   skills keywords, department, location, seniority. Filter and view state lives
   in the URL hash, so any view is shareable.
-- **Company switcher** — built-in Anthropic, Anduril and OpenAI, plus
-  **Add board** for any custom Greenhouse, Ashby or Lever board slug.
+- **Company switcher** — built-in Anthropic, Anduril, OpenAI, Scale AI, xAI,
+  Cohere, Palantir and Shield AI, plus **Add board** for any custom Greenhouse,
+  Ashby or Lever board slug.
 
 Zero build step, Node >= 18, one runtime dependency (`leaflet`).
 
@@ -81,7 +82,8 @@ for data that's stale within hours. Instead:
 
 - The [`snapshot` workflow](.github/workflows/snapshot.yml) runs daily on GitHub
   Actions, whose runners can reach the boards. It uploads `data/snapshots/` as
-  the workflow artifact **`job-board-snapshots`**, kept for 14 days.
+  the workflow artifact **`job-board-snapshots`**, kept for 90 days (GitHub's
+  maximum); the permanent copy is the `data-archive` branch ([docs/DATA_ARCHIVE.md](docs/DATA_ARCHIVE.md)).
 - The [`pages` workflow](.github/workflows/pages.yml) restores the newest
   artifact, then fetches fresh data. A board that fails during that run keeps
   its last good snapshot instead of dropping to demo data.
@@ -461,7 +463,9 @@ Contract: [docs/CONTRACT.md](docs/CONTRACT.md) "v3 additions"; build log:
 ```
 
 Built-ins: `anthropic` (greenhouse/`anthropic`), `anduril`
-(greenhouse/`andurilindustries`), `openai` (ashby/`openai`). Stable companies
+(greenhouse/`andurilindustries`), `openai` (ashby/`openai`), `scaleai`
+(greenhouse/`scaleai`), `xai` (greenhouse/`xai`), `cohere` (ashby/`cohere`),
+`palantir` (lever/`palantir`), `shieldai` (lever/`shieldai`). Stable companies
 only; with `MELON_CHANNEL=beta` the beta-channel companies follow them (see
 [Beta site](#beta-site)).
 

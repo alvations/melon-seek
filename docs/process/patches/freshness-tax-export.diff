@@ -1,0 +1,38 @@
+--- a/server/juice.js
++++ b/server/juice.js
+@@ -959,6 +959,35 @@
+ });
+ 
+ /**
++ * Every named tax figure, keyed by TAX_SOURCES key, for the monthly refresh
++ * (scripts/refresh/tax.js reads these through the `params` locators in
++ * scripts/refresh/tax-watch.js, so the watch list does not depend on constant names such as
++ * US_FED_2026). Built from the same constants the rules use, so it can never disagree with
++ * taxFor. When a tax year moves (US_FED_2026 -> US_FED_2027), update the reference here and
++ * TAX_SOURCES[key].asOf; the watch list stays as it is. Read-only.
++ */
++export const TAX_PARAMS = Object.freeze({
++  US: Object.freeze({ federal: US_FED_2026, standardDeduction: US_STD_2026, ssWageBase: US_SS_BASE_2026, addlMedicareThreshold: US_ADDL_MEDICARE, childTaxCredit: US_CTC_2026, childTaxCreditPhaseOut: US_CTC_PHASE }),
++  'US-CA': Object.freeze({ single: CA_X_2025, mfj: CA_Y_2025 }),
++  'US-NY': Object.freeze({ single: NYS_2026.single, mfj: NYS_2026.mfj, recapture: NYS_RECAPTURE_2026 }),
++  'US-LOCAL-NYC': Object.freeze({ single: NYC_2026.single, mfj: NYC_2026.mfj }),
++  'US-OR': Object.freeze({ single: OR_2026.single, mfj: OR_2026.mfj }),
++  'US-AL': Object.freeze({ single: AL_2025.single, mfj: AL_2025.mfj }),
++  'US-MD': Object.freeze({ single: MD_2025.single, mfj: MD_2025.mfj }),
++  GB: Object.freeze({ bands: GB_RUK, scotlandBands: GB_SCT }),
++  'GB-SCT': Object.freeze({ bands: GB_SCT }),
++  CH: Object.freeze({ federalSingle: CH_FED_SINGLE, federalMarried: CH_FED_MARRIED }),
++  'CH-ZH': Object.freeze({ grundtarif: ZH_GRUND, verheiratetentarif: ZH_VERH, steuerfuss: ZH_STEUERFUSS }),
++  'CH-GE': Object.freeze({ combined: CH_GE_COMBINED }),
++  DE: Object.freeze({ tariff: DE_2026 }),
++  FR: Object.freeze({ bareme: FR_BAREME, pass: FR_PASS_2026 }),
++  ES: Object.freeze({ state: ES_STATE }),
++  'ES-MD': Object.freeze({ regional: ES_REGIONAL.MD }),
++  'ES-CT': Object.freeze({ regional: ES_REGIONAL.CT }),
++  CA: Object.freeze({ federal: CA_FED_2026 }),
++});
++
++/**
+  * How each level taxes a one-earner couple or family (TAX_SOURCES keys):
+  *   joint      household rules applied (joint brackets, allowances, child credits)
+  *   individual the level taxes each person separately: the earner pays what a single person

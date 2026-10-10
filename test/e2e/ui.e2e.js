@@ -110,6 +110,23 @@ async function apiJobs(ctx, slug) {
 }
 
 /**
+ * The Anthropic job without posted pay that the Compstimate tests open. Pinned to a real
+ * posting (AE - DNB, Senior, London) while it is listed; once it closes, the first Anthropic
+ * job without pay at Senior level in London, else any without pay, so the tests keep
+ * checking something (e2e-pinned-values, docs/DATA_FRESHNESS.md). -> { id, filters }
+ */
+const PINNED_NO_SALARY = 'anthropic:5391376008';
+async function noSalaryJob(ctx) {
+  const jobs = (await apiJobs(ctx, 'anthropic')).jobs || [];
+  const london = (j) => (j.locations || []).some((l) => /london/i.test(`${l.name || ''} ${l.city || ''}`));
+  const pinned = jobs.find((j) => j.id === PINNED_NO_SALARY);
+  const noPay = jobs.filter((j) => !j.salary);
+  const pick = pinned || noPay.find((j) => j.seniority === 'Senior' && london(j));
+  if (pick) return { id: pick.id, filters: { s: 'Senior', l: 'London' } };
+  return { id: noPay[0] ? noPay[0].id : PINNED_NO_SALARY, filters: {} };
+}
+
+/**
  * Switch company through the UI: a recent-company pill when one exists, else the
  * searchable company menu (#companyMenuBtn -> popover listbox). Waits for the new
  * company's /api/jobs response and its cards.
@@ -1324,7 +1341,8 @@ function registerCompstimateTests(suite) {
   });
 
   suite.test('Compstimate: T15 drawer equals Insights (AE - DNB with Senior+London set; 3 OpenAI no-salary jobs)', async (ctx) => {
-    const cases = [['anthropic', 'anthropic:5391376008', { s: 'Senior', l: 'London' }]];
+    const pin = await noSalaryJob(ctx);
+    const cases = [['anthropic', pin.id, pin.filters]];
     const oa = await apiJobs(ctx, 'openai');
     const noSal = oa.jobs.filter((j) => !j.salary);
     for (const i of [0, Math.floor(noSal.length / 2), noSal.length - 1]) if (noSal[i]) cases.push(['openai', noSal[i].id, {}]);
@@ -1380,7 +1398,7 @@ function registerCompstimateTests(suite) {
   });
 
   suite.test('Compstimate: T17 a drawer keyword chip leaves the drawer estimate unchanged', async (ctx) => {
-    const { page, errors, close } = await openComp(ctx, 'c=anthropic&m=insights&job=anthropic%3A5391376008');
+    const { page, errors, close } = await openComp(ctx, `c=anthropic&m=insights&job=${encodeURIComponent((await noSalaryJob(ctx)).id)}`);
     try {
       await page.locator('#drawer').waitFor({ state: 'visible', timeout: 8000 });
       await page.waitForTimeout(600);
@@ -1507,7 +1525,7 @@ function registerCompstimateTests(suite) {
         if (!c.foot || !/\*/.test(c.foot)) problems.push(`${label}: no "*" converted footnote (foot "${c.foot}")`);
       } finally { await close(); }
     }
-    const { page, close } = await openComp(ctx, 'c=anthropic&m=insights&job=anthropic%3A5391376008');
+    const { page, close } = await openComp(ctx, `c=anthropic&m=insights&job=${encodeURIComponent((await noSalaryJob(ctx)).id)}`);
     try {
       await page.locator('#drawer').waitFor({ state: 'visible', timeout: 8000 });
       const d = await readDrawerComp(page);

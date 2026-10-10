@@ -1,0 +1,84 @@
+diff -ru a/scripts/build-static.js b/scripts/build-static.js
+--- a/scripts/build-static.js	2026-10-10 08:24:06.952457853 +0000
++++ b/scripts/build-static.js	2026-10-10 08:25:23.790878114 +0000
+@@ -24,6 +24,10 @@
+ //   dist/api/cities.json      data/cities.json (Juice Score inputs; juice itself is
+ //                             computed in the browser by api.js + lib/juice.js and is
+ //                             never stored in the job lists)
++//   dist/api/freshness.json   the client-safe subset of data/freshness.json (data-freshness
++//                             registry: id, asOf, taxYear, source, cadence, lastChecked, stale),
++//                             from scripts/refresh/derived.js#publicFreshness; read by
++//                             public/features/freshness.js for the "as of" labels. Optional.
+ //   dist/methodology/         docs/LIVABILITY.md as a site page (scripts/methodology.js), the
+ //                             target of the Juice "How it's calculated" link; never GitHub
+ //   dist/index.html           also carries <meta name="melon-seek-build" content="<sha>">, the
+@@ -729,6 +733,20 @@
+     warn('data/cities.json missing; Juice Score will be null');
+   }
+ 
++  // Data freshness (docs/DATA_FRESHNESS.md): the "as of" labels' registry, published as
++  // api/freshness.json. Stale flags are computed at the build time (MELON_BUILT_AT pins it).
++  // Always written (entries: [] without a registry), so the page never meets a 404.
++  ctx.freshness = null;
++  try {
++    const { publicFreshness } = await imp('scripts', 'refresh', 'derived.js');
++    const freshnessFile = path.join(ROOT, 'data', 'freshness.json');
++    const reg = existsSync(freshnessFile) ? JSON.parse(await fs.readFile(freshnessFile, 'utf8')) : null;
++    ctx.freshness = publicFreshness(reg, { now: new Date(ctx.builtAt) });
++    if (!reg) console.log('  note: no data/freshness.json yet; api/freshness.json is empty and "as of" labels use the data\'s own dates');
++  } catch (err) {
++    warn(`data/freshness.json unusable (${err.message}); no api/freshness.json, so "as of" labels use the data's own dates`);
++  }
++
+   // v2 (ROADMAP §7), each feature-detected so the build works before its owner lands it.
+   const historyFile = path.join(ROOT, 'server', 'history.js');
+   ctx.history = existsSync(historyFile) ? await import(pathToFileURL(historyFile).href) : null;
+@@ -1059,6 +1077,7 @@
+   // 4. API data
+   let citiesNote = 'no cities.json (juice: null)';
+   if (ctx.cities) citiesNote = `${ctx.cityCount} cities (${size(await writeJson(path.join(out, 'api', 'cities.json'), ctx.cities))})`;
++  if (ctx.freshness) citiesNote += `; api/freshness.json ${ctx.freshness.entries.length} datasets (${size(await writeJson(path.join(out, 'api', 'freshness.json'), ctx.freshness))})`;
+   const companies = [];
+   const summary = [];
+   const shares = [];
+diff -ru a/server/index.js b/server/index.js
+--- a/server/index.js	2026-10-10 08:24:07.028466332 +0000
++++ b/server/index.js	2026-10-10 08:25:23.799489883 +0000
+@@ -25,6 +25,8 @@
+ const SNAPSHOT_DIR = process.env.MELON_SNAPSHOT_DIR || path.join(ROOT, 'data', 'snapshots');
+ const SERVER_DIR = path.join(ROOT, 'server');
+ export const CITIES_FILE = process.env.MELON_CITIES_FILE || path.join(ROOT, 'data', 'cities.json');
++/** The data-freshness registry (docs/DATA_FRESHNESS.md); GET /api/freshness serves its client-safe subset. */
++export const FRESHNESS_FILE = process.env.MELON_FRESHNESS_FILE || path.join(ROOT, 'data', 'freshness.json');
+ 
+ // Browser-safe modules served at /lib/<path> (allowlist shared with the static
+ // build: server/lib-modules.js). Node-only modules (index.js, cache.js) never match.
+@@ -707,6 +709,20 @@
+   res.end(req.method === 'HEAD' ? undefined : body);
+ }
+ 
++/**
++ * GET /api/freshness(.json): the same document the static build publishes as
++ * api/freshness.json (scripts/refresh/derived.js#publicFreshness), read on each request
++ * so a refreshed registry shows up without a restart. Without a registry it is an empty
++ * document (`missing: true`), never a 404: public/features/freshness.js then falls back
++ * to the data's own dates.
++ */
++async function serveFreshness(req, res) {
++  let reg = null;
++  try { reg = JSON.parse(await fs.readFile(FRESHNESS_FILE, 'utf8')); } catch { /* no registry yet */ }
++  const { publicFreshness } = await import('../scripts/refresh/derived.js');
++  return sendJson(req, res, 200, publicFreshness(reg));
++}
++
+ /* --------------------------------------------------------------- HTTP */
+ 
+ async function send(req, res, status, body, type, extraHeaders = null) {
+@@ -820,6 +836,7 @@
+     }
+     // /api/cities.json matches the static build's dist/api/cities.json, so api.js can use one URL.
+     if (p === '/api/cities' || p === '/api/cities.json') return serveCities(req, res);
++    if (p === '/api/freshness' || p === '/api/freshness.json') return serveFreshness(req, res);
+     if (p === '/api/market' || p === '/api/market.json') {
+       try {
+         return sendJson(req, res, 200, await getMarket());

@@ -1,0 +1,20 @@
+--- a/docs/LIVABILITY.md	2026-10-10 08:26:20.764610566 +0000
++++ b/docs/LIVABILITY.md	2026-10-10 08:26:53.891394731 +0000
+@@ -396,7 +396,7 @@
+ | Field | Source | As of | License / terms | Refresh |
+ |---|---|---|---|---|
+ | `bigMacUSD`, `fxPerUSD`, `*USD` conversions | [The Economist Big Mac index](https://github.com/TheEconomist/big-mac-data), `source-data/big-mac-source-data-v2.csv` (per-country prices incl. each euro member; `dollar_ex` exchange rates from Refinitiv/LSEG) | release 2026-07-01 | data CC BY 4.0, code MIT | automatic, monthly |
+-| `rent1brCenterLocal`, `rent1brOutsideLocal` | [Numbeo](https://www.numbeo.com/cost-of-living/) city pages ("1 bedroom apartment in city centre / outside of centre") | page month, 2026-05 to 2026-10 (64 of 89 are 2026-09) | crowd-sourced, commercial; **terms restrict reuse, not cleared (§4.1)** | manual; replacement plan §7 |
++| `rent1brCenterLocal`, `rent1brOutsideLocal` | [Numbeo](https://www.numbeo.com/cost-of-living/) city pages ("1 bedroom apartment in city centre / outside of centre") | page month, 2026-05 to 2026-10 (64 of 88 are 2026-09) | crowd-sourced, commercial; **terms restrict reuse, not cleared (§4.1)** | manual; replacement plan §7 |
+ | `costIndex` | derived: `100 × Numbeo "estimated monthly costs for a single person, excluding rent" ÷ New York's` | same pages | as above | manual; replacement plan §7 |
+ | `baseline.nycBasketUSD` | Numbeo New York single-person estimate excluding rent, $1,665.2/month × 12 = **$19,982** | 2026-09 | as above | manual; replacement plan §7 |
+ | cross-checks (not used in the formula) | [Zumper National Rent Report](https://www.zumper.com/rent-research/national-rent-report) Sep 2026 (SF $4,400, NYC $4,580, Seattle $1,960, Austin $1,520, DC $2,250 in Jul); Numbeo's published index (SF 90.32, London 85.9, Zurich 118.5-123.1); [BLS CE 2024](https://fred.stlouisfed.org/series/CXUTOTALEXPLB0502M) one-person households $48,794/yr all-in | 2024-2026 | public reports | n/a |
+@@ -636,7 +636,7 @@
+ Prepared for the user's decision (ROADMAP D6, recommended "US first, non-US marked low
+ confidence"). Nothing has been deleted. Numbeo supplies 3 fields per city: centre rent,
+ outside rent and the cost index (via the single-person basket), plus the NYC baseline. That is
+-267 figures plus 1. Big Mac, FX and tax are already open or official.
++266 figures plus 1. Big Mac, FX and tax are already open or official.
+ 
+ | Replaces | Open / official source | License | Notes |
+ |---|---|---|---|

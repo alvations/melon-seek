@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
-  extractSections, extractKeywords, inferSeniority, classifyHeading,
+  extractSections, extractKeywords, inferSeniority, seniorityBasis, classifyHeading,
   extractCompExtras, compExtrasEvidence,
   boilerplateParagraphs, descriptionText, dropUbiquitousKeywords, rekeyBoardJobs,
   yearsOfExperience, yearsBucket, htmlToText, decodeEntities,
@@ -216,6 +216,17 @@ test('inferSeniority', () => {
     '': 'Mid',
   };
   for (const [t, want] of Object.entries(cases)) assert.equal(inferSeniority(t), want, t);
+});
+
+test('seniorityBasis: a level word decides it, otherwise "Mid" is a default', () => {
+  assert.equal(seniorityBasis('Senior Software Engineer'), 'title');
+  assert.equal(seniorityBasis('Engineering Manager'), 'title');
+  assert.equal(seniorityBasis('Software Engineer'), 'default');
+  assert.equal(seniorityBasis('Member of Technical Staff'), 'default');
+  assert.equal(seniorityBasis(''), 'default');
+  for (const t of ['Software Engineer', 'Staff Engineer', 'Associate', 'Head of Sales', 'Research Scientist II']) {
+    assert.equal(seniorityBasis(t) === 'default', inferSeniority(t) === 'Mid', `${t}: "Mid" exactly when the level is a default`);
+  }
 });
 
 test('inferSeniority: "Member of Technical Staff" / MTS is a generic IC title', () => {

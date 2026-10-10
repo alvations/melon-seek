@@ -29,6 +29,13 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      # Warn-only staleness gate (docs/DATA_FRESHNESS.md): a step-summary table of every
+      # dataset's age plus a warning per entry past its cadence + grace. Never fails CI.
+      - name: Data freshness (warn only)
+        if: matrix.node == 22
+        continue-on-error: true
+        run: node scripts/refresh/run.js --staleness
+
       - name: Static build (GitHub Pages bundle)
         run: |
           npm run build

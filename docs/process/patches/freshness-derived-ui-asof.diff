@@ -1,0 +1,207 @@
+diff -ru a/public/app.js b/public/app.js
+--- a/public/app.js	2026-10-10 08:25:47.936209642 +0000
++++ b/public/app.js	2026-10-10 08:38:43.317180446 +0000
+@@ -9,6 +9,7 @@
+ import * as api from './api.js';
+ import { createCompstimateWidget, compstimateForJob, accuracyLine, isLowAccuracy, displayConfidence, basisLine, MIN_COMPARABLES } from './features/compstimate.js';
+ import { compsForJob, createCompsCard } from './features/comps.js';
++import { loadFreshness, freshnessDoc, juiceAsOfText, juiceSpanText, marketAsOfText, compstimateAsOfText } from './features/freshness.js';
+ import { createCompsChart } from './viz/comps.js';
+ import { roleFamily, FAMILY_LABELS, readableTitle } from './features/roles.js';
+ // ./features/insights.js is imported on first use (Insights mode), see renderInsights.
+@@ -1639,11 +1640,11 @@
+     // Compstimate task force spec (docs/process/compstimate-taskforce.md §3.2): the widget follows
+     // the role-defining filters until the user edits a field; it re-estimates only when its own
+     // signature changes, so salary/sort/drawer changes cost nothing (Rule 10).
+-    comp.setContext({ board: data.jobs, visible: compVisible(), company: data.company?.name || S.c, meta: data.meta,
++    comp.setContext({ board: data.jobs, visible: compVisible(), company: data.company?.name || S.c, meta: data.meta, asOf: data.fetchedAt,
+       filters: { d: S.d, rf: S.rf, l: S.l, r: S.r, s: S.s } });
+     ensureCompMeta();
+     const sig = `${dataSeq}|${derived.filtered.length}|${derived.filtered.map((j) => j.id).join(',')}`;
+-    if (insights && featSig.ins !== sig) { featSig.ins = sig; insights.update(derived.filtered, data.jobs); }
++    if (insights && featSig.ins !== sig) { featSig.ins = sig; insights.update(derived.filtered, data.jobs, { asOf: data.fetchedAt }); }
+   } catch (err) { console.error('insights failed', err); }
+   // F1: "Compare companies" card (third Insights card), once product's comps module and market data exist.
+   const cardHost = $('#compsCardHost');
+@@ -1738,6 +1739,7 @@
+       // waits for a hidden container to be sized); plain updates keep the user's viewport.
+       else if (mapFitPending) { mapFitPending = false; map.update(jobs, { fit: true, colorMode: S.mc }); }
+       else map.update(jobs, { colorMode: S.mc });
++      if (S.m === 'map') map.setJuiceNote?.(juiceSpanText(jobs.map((j) => j.juice && j.juice.best).filter(Boolean)));
+     } catch (err) { console.error('viz update failed', err); }
+   }
+   highlightViz();
+@@ -2121,6 +2123,17 @@
+   }
+ }
+ 
++/**
++ * "Data as of …" note (public/features/freshness.js, docs/DATA_FRESHNESS.md): the data's own
++ * dates at once, the published registry's (dates, "update due") when api/freshness.json has loaded.
++ */
++function asOfNote(cls, text) {
++  const p = h('p', { class: `fnote ${cls}` }, text() || '');
++  p.hidden = !p.textContent;
++  if (!freshnessDoc()) loadFreshness().then(() => { const t = text(); if (t) { p.textContent = t; p.hidden = false; } });
++  return p;
++}
++
+ /** Drawer: Juice Score waterfall for the best location, plus the other locations in a disclosure. */
+ function juiceBlock(job) {
+   const jb = job.juice;
+@@ -2182,6 +2195,7 @@
+           h('span', { class: 'jc-name' }, l.locationName || l.cityName, l === b ? h('span', { class: 'muted' }, ' · best') : null),
+           h('span', { class: `juice-grade juice--${String(l.grade).toLowerCase()}` }, `${l.estimated ? '≈' : ''}${l.score} ${l.grade}`),
+           h('span', { class: 'jc-net' }, `${l.net < 0 ? '−' : ''}${money(Math.abs(l.net) / div)}${per}`))))) : null,
++      asOfNote('juice-asof', () => juiceAsOfText(b)), // rent, living costs, FX and each tax line
+       h('p', { class: 'juice-disclaimer' }, 'Estimate, not financial advice. ', h('a', { href: JUICE_DOC, target: '_blank', rel: 'noopener noreferrer' }, 'How it’s calculated')),
+     ));
+     if (focusPeriod) body.querySelector(`[data-period="${focusPeriod}"]`)?.focus({ preventScroll: true });
+@@ -2266,7 +2280,8 @@
+       h('span', { class: 'd-comp-amt' }, `≈ ${money(est.mid)}`),
+       h('span', { class: 'muted' }, `(${money(est.low)}–${money(est.high).replace(/^\$/, '')}, ${String(displayConfidence(est, data.meta) || '').toLowerCase()} confidence)`)),
+     h('p', { class: 'd-comp-note' }, `${basisLine(est.n, data.company?.name || 'this company', parts)}. An estimate, not a figure from the posting (approx USD / year).`),
+-    accuracyLine(data.meta) ? h('p', { class: 'd-comp-note' }, isLowAccuracy(data.meta) ? h('strong', null, 'Low confidence. ') : null, `${accuracyLine(data.meta)}.`) : null);
++    accuracyLine(data.meta) ? h('p', { class: 'd-comp-note' }, isLowAccuracy(data.meta) ? h('strong', null, 'Low confidence. ') : null, `${accuracyLine(data.meta)}.`) : null,
++    asOfNote('d-comp-note d-comp-asof', () => compstimateAsOfText({ fetchedAt: data.fetchedAt, meta: data.meta })));
+ }
+ 
+ function annualNote(sal) {
+@@ -2442,7 +2457,8 @@
+       h('p', { class: 'comps-note muted' }, bySen
+         ? `${family} roles at ${res.seniority} level: median and middle 50% of posted base pay (approx USD).`
+         : `No other company lists this level, so this compares all ${family} roles.`),
+-      chartHost);
++      chartHost,
++      asOfNote('comps-asof', () => marketAsOfText(market, rows.map((r) => r.slug))));
+     try {
+       destroyDrawerComps();
+       drawerComps = createCompsChart(chartHost, { onSelect: (slug) => { if (slug && slug !== job.company) pickCompany(slug, filters); } });
+diff -ru a/public/features/comps.js b/public/features/comps.js
+--- a/public/features/comps.js	2026-10-10 08:25:48.114015604 +0000
++++ b/public/features/comps.js	2026-10-10 08:25:48.462125951 +0000
+@@ -20,6 +20,7 @@
+ 
+ import { roleFamily, FAMILY_LABELS } from './roles.js';
+ import { formatMoney, plural, niceTicks, h, uid, createTooltip, preserveFocus } from './shared.js';
++import { marketAsOfText } from './freshness.js';
+ 
+ const DEFAULT_COLUMNS = ['company', 'family', 'seniority', 'n', 'p25', 'median', 'p75'];
+ const PARSED = new WeakMap();
+@@ -203,7 +204,9 @@
+             h('span', { class: 'msi-axis__pad msi-axis__pad--end' })));
+         body.appendChild(list);
+       }
+-      const asOf = market.fx?.asOf ? ` FX as of ${market.fx.asOf}.` : '';
++      // Postings and FX dates (docs/DATA_FRESHNESS.md): the market document's, the registry's FX when loaded.
++      const dated = marketAsOfText(market, rows.map((r) => r.slug));
++      const asOf = dated ? ` ${dated}.` : '';
+       foot.textContent = `${capitalize(market.basis || 'posted base pay ranges')}, midpoints in approx. USD; companies need ${market.minN || 3}+ salaried postings. Equity and bonus aren't included.${asOf}`;
+       live.textContent = rows.length ? `${label}: ${plural(rows.length, 'company', 'companies')} compared.` : '';
+     });
+diff -ru a/public/features/compstimate.js b/public/features/compstimate.js
+--- a/public/features/compstimate.js	2026-10-10 08:25:48.236454535 +0000
++++ b/public/features/compstimate.js	2026-10-10 08:26:01.206892911 +0000
+@@ -19,6 +19,7 @@
+   salaryUSD, weightedPercentile, percentile, median, formatMoney, plural, h, uid, locationKey,
+ } from './shared.js';
+ import { normalizeTitle, familySim, rolePart, roleFamily, FAMILY_LABELS, SENIORITY_LADDER } from './roles.js';
++import { compstimateAsOfText } from './freshness.js';
+ 
+ export { percentile, weightedPercentile, salaryUSD, toUSD, FX_FALLBACK } from './shared.js';
+ // Role taxonomy lives in roles.js (no imports, Node-safe); re-exported for callers.
+@@ -742,7 +743,8 @@
+           h('span', { class: 'ms-comp__dot', style: { left: pos(mid) } })),
+         h('div', { class: 'ms-comp__scale', 'aria-hidden': 'true' },
+           h('span', null, formatMoney(p5)), h('span', null, scaleName), h('span', null, formatMoney(p95)))),
+-      h('p', { class: 'ms-comp__explain' }, `Weighted by similarity to “${inputs.query.title}”${level}${place}. ${result.detail}`));
++      h('p', { class: 'ms-comp__explain' }, `Weighted by similarity to “${inputs.query.title}”${level}${place}. ${result.detail}`),
++      compstimateAsOfText({ fetchedAt: ctx.asOf, meta }) ? h('p', { class: 'ms-comp__asof' }, compstimateAsOfText({ fetchedAt: ctx.asOf, meta })) : null);
+ 
+     const list = h('ol', { class: 'ms-comp__list' }, result.comparables.map((job, i) => {
+       const score = Math.round((result.scores[i] ?? 0) * 100);
+@@ -776,6 +778,7 @@
+       filters: next.filters || {},
+       company: next.company ?? ctx.company,
+       meta: next.meta !== undefined ? next.meta : ctx.meta,
++      asOf: next.asOf !== undefined ? next.asOf : ctx.asOf, // the board's fetchedAt, for the "as of" line
+     };
+     return refresh();
+   }
+diff -ru a/public/features/insights.js b/public/features/insights.js
+--- a/public/features/insights.js	2026-10-10 08:38:43.277254678 +0000
++++ b/public/features/insights.js	2026-10-10 08:38:43.312852606 +0000
+@@ -13,6 +13,10 @@
+   salaryUSD, percentile, median, formatMoney, formatDelta, formatPct, plural, niceTicks,
+   jobLocationKeys, h, createTooltip, preserveFocus, uid,
+ } from './shared.js';
++import { formatAsOf } from './freshness.js';
++
++/** ' · postings as of 9 Oct 2026' for the board's fetchedAt ('' without one). */
++const postedAsOf = (asOf) => { const d = formatAsOf(asOf, 'day'); return d ? ` · postings as of ${d}` : ''; };
+ 
+ export { percentile, median, salaryUSD, toUSD } from './shared.js';
+ 
+@@ -337,7 +341,7 @@
+         .map((t) => { t.setAttribute('role', 'listitem'); return t; }));
+   }
+ 
+-  function update(filteredJobs = [], allJobs = filteredJobs) {
++  function update(filteredJobs = [], allJobs = filteredJobs, { asOf = null } = {}) {
+     const jobs = Array.isArray(filteredJobs) ? filteredJobs : [];
+     const all = Array.isArray(allJobs) ? allJobs : jobs;
+     tip.hide();
+@@ -346,8 +350,8 @@
+         h(`h${hl}`, { id: headId, class: 'ms-insights__title' }, 'Market insights'),
+         h('p', { class: 'ms-insights__sub' }, !all.length ? 'No roles loaded yet.'
+           : jobs.length === all.length
+-          ? `All ${plural(all.length, 'role')} on this board · pay in approx. USD`
+-          : `${jobs.length} of ${plural(all.length, 'role')} match your filters · pay in approx. USD`));
++          ? `All ${plural(all.length, 'role')} on this board · pay in approx. USD${postedAsOf(asOf)}`
++          : `${jobs.length} of ${plural(all.length, 'role')} match your filters · pay in approx. USD${postedAsOf(asOf)}`));
+       if (!jobs.length) {
+         body.replaceChildren(emptyNote(all.length ? 'No roles match the current filters.' : 'Insights appear once a job board is loaded.'));
+         return;
+diff -ru a/public/viz/map.js b/public/viz/map.js
+--- a/public/viz/map.js	2026-10-10 08:38:43.258088129 +0000
++++ b/public/viz/map.js	2026-10-10 08:38:43.302557552 +0000
+@@ -4,7 +4,7 @@
+ //                        colorMode?: 'pay' | 'juice',
+ //                        tiles?: { url, attribution, maxZoom, subdomains, dark: 'filter' | url } })
+ //   -> { update(jobs, { fit, colorMode }), highlight(jobId|null), invalidateSize(),
+-//        colorMode (getter), destroy(), leaflet }
++//        setJuiceNote(text) (an "as of" line under the Juice legend), colorMode (getter), destroy(), leaflet }
+ //
+ // Jobs are aggregated per location (lat/lng rounded to 0.1°; a job with several
+ // locations counts in each), then greedily clustered in screen space so pills
+@@ -258,6 +258,7 @@
+   // server/juice.js module (served at /lib/juice.js, bundled as dist/lib/juice.js) so a
+   // re-tuned SCORE_ANCHORS / GRADES updates the legend and pin steps with no viz change.
+   let jScale = toJuiceScale(juiceScale) || { netForScore: juiceNetForScore, breaks: [...JUICE_BREAKS] };
++  let juiceNote = ''; // "As of: rent … · FX … · tax …" for the scores shown (app.js, public/features/freshness.js)
+   function renderJuiceLegend() {
+     const legend = modeBox.querySelector('.ms-modes__legend');
+     if (!legend) return;
+@@ -276,6 +277,7 @@
+       L.DomUtil.create('span', 'ms-modes__net', row).textContent = `${range}/yr`;
+     }
+     L.DomUtil.create('div', 'ms-modes__none', legend).textContent = 'Gray: no Juice data';
++    if (juiceNote) L.DomUtil.create('div', 'ms-modes__none ms-modes__asof', legend).textContent = juiceNote;
+   }
+   function setJuiceScale(src) {
+     const sc = toJuiceScale(src);
+@@ -566,6 +568,14 @@
+     highlight(jobId) { highlighted = jobId ?? null; applyHighlight(); },
+     /** Override the Juice scale: a juice.js-like module or { netForScore(score), breaks: [45, 70] }. */
+     setJuiceScale,
++    /** The data as-of line under the Juice legend ('' hides it). */
++    setJuiceNote(text) {
++      const next = String(text || '');
++      if (next === juiceNote) return;
++      juiceNote = next;
++      renderJuiceLegend();
++      paintModeControl();
++    },
+     /** Current pin color mode: 'pay' | 'juice'. */
+     get colorMode() { return colorMode; },
+     invalidateSize() {
