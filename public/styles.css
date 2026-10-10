@@ -493,6 +493,7 @@ html[data-mode="map"] .demo-banner > code { order: 0; flex: 0 1 auto; margin-lef
 .card--sk::before { display: none; }
 .list-empty { padding: 32px 8px; display: grid; place-items: center; }
 .list-more { padding: 4px 0; }
+.list-spacer { flex: none; list-style: none; } /* M-20: stands for the cards above or below the list's window (app.js paintWindow) */
 
 /* ----------------------------------------------------------- popover */
 .popover {
@@ -1267,11 +1268,12 @@ html[data-mode="insights"] .viz-controls { display: none; }
 
 /* Beta site (the dist/beta/ copy of the app, docs/process/beta-deploy.md): scripts/build-static.js
    writes <html data-channel="beta"> into dist/beta/index.html only. A monochrome "Beta" pill by the logo is the
-   one visible difference (no JS, no control). Phones hide the logo, so there it leads the company menu. */
-html[data-channel="beta"] .brand::after,
-html[data-channel="beta"] .company-bar::before { content: "Beta"; flex: none; align-self: center; padding: 1px 7px; border: 1px solid var(--ms-border-strong); border-radius: 99px; color: var(--ms-muted); font-size: 12px; font-weight: 650; line-height: 1.4; letter-spacing: .02em; white-space: nowrap; }
-/* I-2: phones show the logo now, so the pill stays beside it there too (not a second one by the company menu). */
-html[data-channel="beta"] .company-bar::before { content: none; }
+   one visible difference. D-27 / D-28 (shared decision 3): the pill is a link back to the main site
+   (.beta-tag in index.html, hidden on the main site; app.js markChannel() sets its link). */
+html[data-channel="beta"] .beta-tag[hidden] { display: inline-flex; }
+.beta-tag { display: inline-flex; align-items: center; justify-content: center; flex: none; margin-left: -8px; text-decoration: none; border-radius: 99px; }
+.beta-tag > span { padding: 1px 7px; border: 1px solid var(--ms-border-strong); border-radius: 99px; color: var(--ms-muted); font-size: 12px; font-weight: 650; line-height: 1.4; letter-spacing: .02em; white-space: nowrap; }
+.beta-tag:hover > span { color: var(--ms-text); border-color: var(--ms-muted); }
 
 /* ===================================================================
    Persona review fixes (docs/process/fix-app.md, 2026-10-10)
@@ -1324,4 +1326,33 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
 @media (min-width: 861px) and (max-width: 1299px) {
   .card-age-top { display: block; }
   .card-foot .card-age { display: none; }
+}
+
+/* ===================================================================
+   Beta fix wave (docs/process/fix-beta-app.md, 2026-10-10). Phone-only rules stay in the phone queries.
+   =================================================================== */
+/* DQ-11: a talent pool's label on its card and in the drawer, monochrome like the other tags. */
+.tag--pool { background: transparent; box-shadow: inset 0 0 0 1px var(--ms-border-strong); color: var(--ms-text); }
+.d-pool { margin: 6px 0 0; font-size: 12.5px; line-height: 1.4; }
+/* D-21: "Pay by level: Level 2: $184K–287.5K · Level 3: $224K–356.5K" under the range. */
+.d-sal-levels { margin: 4px 0 0; font-size: 13px; line-height: 1.4; color: var(--ms-text); }
+@media (max-width: 860px) {
+  /* M-27: the Beta tag stays by the logo (I-2); the pill keeps its size and takes taps over 44 x 44px. */
+  .beta-tag { order: 1; margin-left: 0; position: relative; }
+  .beta-tag::before { content: ""; position: absolute; inset: -12px -2px; }
+  /* M-27: the logo link keeps its 26px mark but takes taps over a 44px-tall area. */
+  .brand { position: relative; }
+  .brand::before { content: ""; position: absolute; inset: -9px -4px; }
+  /* M-25: 44px touch targets: the filter sheet's Remote segment and the Juice "How it's calculated" link. */
+  .seg--block button { height: var(--m-row); }
+  .juice-disclaimer a { display: inline-flex; align-items: center; min-height: var(--m-row); }
+}
+/* M-27, beta site only: the tag takes room in row 1, so the data badge keeps its short "● Oct 10" up to 440px
+   ("Netflix" whole at 430px), and at 379px and below the tag leads the row instead of the logo ("Microsoft"
+   whole at 360px). */
+@media (max-width: 440px) {
+  html[data-channel="beta"] .data-badge .badge-label::before { content: attr(data-micro); }
+}
+@media (max-width: 379px) {
+  html[data-channel="beta"] .brand { display: none; }
 }

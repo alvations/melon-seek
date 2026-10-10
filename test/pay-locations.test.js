@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { COUNTRY_CURRENCY as BROWSER } from '../public/viz/palette.js';
 import { COUNTRY_CURRENCY as SERVER } from '../server/salary.js';
 import { payLocations } from '../public/features/shared.js';
-import { levelLabel, LEVEL_NOT_STATED } from '../public/features/roles.js';
+import { levelLabel, displayLevel, LEVEL_NOT_STATED, NOT_STATED } from '../public/features/roles.js';
 
 const loc = (city, country, remote = false) => ({ name: city, city, country, remote });
 
@@ -34,8 +34,11 @@ test('payLocations returns every location when it cannot tell', () => {
 });
 
 test('levelLabel: the default level reads "Level not stated"; real levels are unchanged', () => {
+  // Shared decision 1 (beta fix wave): people see levelLabel(displayLevel(job)); the stored default stays 'Mid'.
   assert.equal(LEVEL_NOT_STATED, 'Mid');
-  assert.equal(levelLabel('Mid'), 'Level not stated');
+  assert.equal(levelLabel(displayLevel({ seniority: 'Mid' })), 'Level not stated');
+  assert.equal(levelLabel(NOT_STATED), 'Level not stated');
   assert.equal(levelLabel(null), 'Level not stated');
+  assert.equal(levelLabel('Mid'), 'Mid', 'a stated mid level (Google "III", basis "title") reads Mid');
   for (const l of ['Intern', 'Entry', 'Senior', 'Staff+', 'Manager', 'Director+']) assert.equal(levelLabel(l), l);
 });

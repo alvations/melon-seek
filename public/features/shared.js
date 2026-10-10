@@ -195,7 +195,9 @@ export function formatPct(x) {
   return (p > 0 && p < 1 ? '<1' : String(Math.round(p))) + '%';
 }
 
-export function plural(n, word, many = word + 's') { return `${n} ${n === 1 ? word : many}`; }
+// M-23: big counts with thousands separators ("3,848 salaried roles"), as app.js writes them.
+export const fmtCount = (n) => (typeof n === 'number' ? n.toLocaleString() : String(n ?? ''));
+export function plural(n, word, many = word + 's') { return `${fmtCount(n)} ${n === 1 ? word : many}`; }
 
 // ---------------------------------------------------------------------------
 // Locations

@@ -10,7 +10,7 @@
 // Pure stats helpers are exported for tests and reuse.
 
 import {
-  salaryUSD, percentile, median, formatMoney, formatDelta, formatPct, plural, niceTicks,
+  salaryUSD, percentile, median, formatMoney, formatDelta, formatPct, plural, fmtCount, niceTicks,
   jobLocationKeys, payLocations, countryName, isOTE, h, createTooltip, preserveFocus, uid,
 } from './shared.js';
 import { formatAsOf } from './freshness.js';
@@ -278,7 +278,7 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
       return row('skill', it.skill,
         `${it.skill}: average ${formatMoney(it.average)}, ${delta.replace('−', 'minus ')} vs. all roles in view, ${plural(it.n, 'salaried role')}. Filter by this skill.`,
         [
-          h('span', { class: 'msi-row__label' }, h('span', { class: 'msi-row__name' }, it.skill), h('span', { class: 'msi-row__n' }, String(it.n))),
+          h('span', { class: 'msi-row__label' }, h('span', { class: 'msi-row__name' }, it.skill), h('span', { class: 'msi-row__n' }, fmtCount(it.n))),
           h('span', { class: 'msi-div', 'aria-hidden': 'true' },
             h('span', { class: `msi-div__bar ${pos ? 'msi-div__bar--pos' : 'msi-div__bar--neg'}`, style: pos ? { left: '50%', width: `${frac}%` } : { right: '50%', width: `${frac}%` } }),
             h('span', { class: 'msi-div__zero' })),
@@ -318,7 +318,7 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
     const rows = boxes.map((b) => row('department', b.department,
       `${b.department}: median ${formatMoney(b.median)}, middle half ${formatMoney(b.p25)} to ${formatMoney(b.p75)}, most roles ${formatMoney(b.p10)} to ${formatMoney(b.p90)}, ${plural(b.n, 'role')}. Filter by this department.`,
       [
-        h('span', { class: 'msi-row__label' }, h('span', { class: 'msi-row__name' }, b.department), h('span', { class: 'msi-row__n' }, String(b.n))),
+        h('span', { class: 'msi-row__label' }, h('span', { class: 'msi-row__name' }, b.department), h('span', { class: 'msi-row__n' }, fmtCount(b.n))),
         h('span', { class: 'msi-row__value' }, formatMoney(b.median)),
         h('span', { class: 'msi-box', 'aria-hidden': 'true' }, grid(),
           h('span', { class: 'msi-box__whisker', style: { left: x(b.p10), width: `calc(${x(b.p90)} - ${x(b.p10)})` } }),
@@ -368,14 +368,14 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
       parts.push(emptyNote(`Not enough roles in view to show shares: ${plural(total, 'role')}, and shares need ${MIN_SAMPLE} or more.`));
     } else if (items.length) {
       parts.push(h('div', { class: 'msi-rows msi-rows--fit' }, items.map((f) => row('fit', f.label,
-        `${f.label}: ${formatPct(f.pct)} of roles (${f.count} of ${total})${f.premium == null ? '' : `, average pay ${formatDelta(f.premium).replace('−', 'minus ')} vs. all roles`}. Filter by this requirement.`,
+        `${f.label}: ${formatPct(f.pct)} of roles (${fmtCount(f.count)} of ${fmtCount(total)})${f.premium == null ? '' : `, average pay ${formatDelta(f.premium).replace('−', 'minus ')} vs. all roles`}. Filter by this requirement.`,
         [
           h('span', { class: 'msi-row__label' }, h('span', { class: 'msi-row__name' }, f.label)),
           h('span', { class: 'msi-meter', 'aria-hidden': 'true' }, h('span', { class: 'msi-meter__fill', style: { width: `${f.pct * 100}%` } })),
           h('span', { class: 'msi-row__value' }, formatPct(f.pct)),
           h('span', { class: `msi-row__delta${f.premium == null ? '' : f.premium >= 0 ? ' is-pos' : ' is-neg'}` }, f.premium == null ? '' : formatDelta(f.premium)),
         ],
-        () => ({ value: `${formatPct(f.pct)} of roles`, label: f.label, rows: [['Roles', `${f.count} of ${total}`], ['Average pay', f.average == null ? 'not enough roles with pay' : formatMoney(f.average)], ['vs. all roles', formatDelta(f.premium)]] })))));
+        () => ({ value: `${formatPct(f.pct)} of roles`, label: f.label, rows: [['Roles', `${fmtCount(f.count)} of ${fmtCount(total)}`], ['Average pay', f.average == null ? 'not enough roles with pay' : formatMoney(f.average)], ['vs. all roles', formatDelta(f.premium)]] })))));
     } else {
       parts.push(emptyNote('No requirements detected in these postings.'));
     }
@@ -384,7 +384,7 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
         h(`h${hl + 2}`, { class: 'msi-mini-title' }, 'Common responsibilities'),
         h('ul', { class: 'msi-chips' }, resp.map((r) => h('li', null, row('responsibility', r.label,
           `${r.label}: ${plural(r.count, 'role')} (${formatPct(r.pct)}). Filter by this responsibility.`,
-          [h('span', null, r.label), h('span', { class: 'msi-chip__n' }, String(r.count))]))))));
+          [h('span', null, r.label), h('span', { class: 'msi-chip__n' }, fmtCount(r.count))]))))));
     }
     const c = card('What roles ask for', sub, parts, { headTag: `h${hl + 1}` });
     c.querySelectorAll('.msi-chips .msi-row').forEach((el) => el.classList.add('msi-chip'));
@@ -401,7 +401,7 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
     return h('div', { class: 'msi-stats', role: 'list' },
       [tile('Median base pay', enough ? formatMoney(s.median) : '—', !s.salaried ? 'no pay published' : enough ? `of ${plural(s.salaried, 'salaried role')}` : `too few with pay (${s.salaried})`),
         tile('Middle half', enough && s.p25 != null ? `${formatMoney(s.p25)}–${formatMoney(s.p75)}` : '—', 'of salaried roles'),
-        tile('Pay published', formatPct(s.payShare), `${s.salaried} of ${s.total}`),
+        tile('Pay published', formatPct(s.payShare), `${fmtCount(s.salaried)} of ${fmtCount(s.total)}`),
         tile('Remote-eligible', formatPct(s.remoteShare), plural(jobs.filter((j) => j.remote).length, 'role'))]
         .map((t) => { t.setAttribute('role', 'listitem'); return t; }));
   }
@@ -435,7 +435,7 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
         h('p', { class: 'ms-insights__sub' }, !all.length ? 'No roles loaded yet.'
           : jobs.length === all.length
           ? `All ${plural(all.length, 'role')} on this board · pay in approx. USD${postedAsOf(asOf)}${notes}`
-          : `${jobs.length} of ${plural(all.length, 'role')} match your filters · pay in approx. USD${postedAsOf(asOf)}${notes}`));
+          : `${fmtCount(jobs.length)} of ${plural(all.length, 'role')} match your filters · pay in approx. USD${postedAsOf(asOf)}${notes}`));
       if (!jobs.length) {
         body.replaceChildren(emptyNote(all.length ? 'No roles match the current filters.' : 'Insights appear once a job board is loaded.'));
         return;

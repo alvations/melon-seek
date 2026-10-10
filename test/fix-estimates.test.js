@@ -12,7 +12,7 @@ import {
   estimateComp, compstimateForJob, compstimateInputs, estimateForInputs, estimateInputsResult,
   estimateView, estimateBasisLine, basisParts, noEstimateText, rangeScale, MIN_COMPARABLES,
 } from '../public/features/compstimate.js';
-import { roleFamily, levelLabel, SENIORITY_DISPLAY_ORDER } from '../public/features/roles.js';
+import { roleFamily, levelLabel, displayLevel, NOT_STATED, SENIORITY_DISPLAY_ORDER, DISPLAY_LEVEL_ORDER } from '../public/features/roles.js';
 import {
   compsForJob, compsNote, marketComps, levelOptions, missingCompanies, missingNote, compareDefaults,
 } from '../public/features/comps.js';
@@ -348,8 +348,11 @@ describe('I-9 plain words on the estimate and compare surfaces', () => {
     assert.match(src('public/features/compstimate.js'), /export function createCompstimateWidget/);
   });
   test('people see "Level not stated", last in any level list', () => {
-    assert.equal(levelLabel('Mid'), 'Level not stated');
+    // Shared decision 1 (beta fix wave): the default 'Mid' is shown through displayLevel.
+    assert.equal(levelLabel(displayLevel({ seniority: 'Mid' })), 'Level not stated');
+    assert.equal(levelLabel(displayLevel({ seniority: 'Mid', seniorityBasis: 'default' })), 'Level not stated');
     assert.equal(SENIORITY_DISPLAY_ORDER[SENIORITY_DISPLAY_ORDER.length - 1], 'Mid');
+    assert.equal(DISPLAY_LEVEL_ORDER[DISPLAY_LEVEL_ORDER.length - 1], NOT_STATED);
     assert.equal(countryInSentence('US'), 'the US');
     assert.equal(countryInSentence('AU'), 'Australia');
     assert.match(OTE_LABEL, /^On-target earnings \(base plus commission at target\)$/);

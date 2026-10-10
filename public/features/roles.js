@@ -316,20 +316,65 @@ export function familySim(a, b) {
 export const SENIORITY_LADDER = Object.freeze(['Intern', 'Entry', 'Mid', 'Senior', 'Staff+', 'Manager', 'Director+']);
 
 /**
- * "Mid" is never read from a title: server/keywords.js gives it to every title that names no
- * level (about half of all postings). The stored value stays 'Mid'; job seekers see
- * "Level not stated" (persona review 2026-10-10: "$500K research roles read Mid").
+ * server/keywords.js stores 'Mid' for every title that names no level (about half of all
+ * postings): the stored default. The stored value stays 'Mid'.
  */
 export const LEVEL_NOT_STATED = 'Mid';
+/** The level people see for a posting whose level is only the default (displayLevel). */
+export const NOT_STATED = 'Not stated';
+
+/**
+ * Shared decision 1 (beta fix wave, 2026-10-10): the level a job seeker sees for a posting.
+ * server/normalize.js sets `job.seniorityBasis`: 'title' (the title named the level, e.g. a
+ * company ladder rung that means mid level, Google "III" or Netflix "L4", stored as 'Mid'),
+ * 'pay' (the pay sentence named it, Microsoft "IC6") or 'default'. A stored 'Mid' whose basis is
+ * 'default' or missing is the default, so it reads NOT_STATED; any other level is shown as stored.
+ * Cards, the Seniority filter, the chart's grouping, the drawer and saved-search names all use it;
+ * stored data keeps 'Mid'. levelLabel(displayLevel(job)) is the words to show.
+ *   displayLevel({ seniority: 'Mid' })                           -> 'Not stated'
+ *   displayLevel({ seniority: 'Mid', seniorityBasis: 'title' })  -> 'Mid'
+ *   displayLevel({ seniority: 'Senior' })                        -> 'Senior'
+ * @param {{ seniority?: string|null, seniorityBasis?: 'title'|'pay'|'default'|null }} job
+ * @returns {string} a SENIORITY_LADDER level or NOT_STATED
+ */
+export function displayLevel(job) {
+  const level = job && job.seniority;
+  if (!level || level === NOT_STATED) return NOT_STATED;
+  if (level === LEVEL_NOT_STATED && (!job.seniorityBasis || job.seniorityBasis === 'default')) return NOT_STATED;
+  return level;
+}
+/** Words for a displayLevel() value: NOT_STATED (or nothing) reads "Level not stated"; a level reads as itself ("Mid"). */
 export function levelLabel(level) {
-  return !level || level === LEVEL_NOT_STATED ? 'Level not stated' : level;
+  return !level || level === NOT_STATED ? 'Level not stated' : level;
 }
-/** True for a level the posting itself states (anything but the 'Mid' default). */
+/**
+ * True for a stored level that can be compared across companies (market comps, Compstimate's
+ * "at Senior level"): anything but the stored 'Mid' (mostly the default) and NOT_STATED.
+ */
 export function levelStated(level) {
-  return !!level && level !== LEVEL_NOT_STATED;
+  return !!level && level !== LEVEL_NOT_STATED && level !== NOT_STATED;
 }
-/** The ladder in the order people see it: "Level not stated" ('Mid') goes last. */
+/** Stored levels in the order people see them: 'Mid' (mostly the default) goes last. */
 export const SENIORITY_DISPLAY_ORDER = Object.freeze([...SENIORITY_LADDER.filter((l) => l !== LEVEL_NOT_STATED), LEVEL_NOT_STATED]);
+/** displayLevel() values in the order people see them: the ladder, then "Level not stated" last. */
+export const DISPLAY_LEVEL_ORDER = Object.freeze([...SENIORITY_LADDER, NOT_STATED]);
+
+/**
+ * The value that stands for a displayLevel() value in links (s=) and in selects. "Level not stated"
+ * keeps the stored 'Mid', which is what earlier links, saved searches and stored levels mean by it;
+ * a mid level the posting states is 'Mid-level'. levelFromKey() reads one back.
+ *   levelKey('Not stated') -> 'Mid', levelKey('Mid') -> 'Mid-level', levelKey('Senior') -> 'Senior'
+ */
+export const MID_STATED_KEY = 'Mid-level';
+export function levelKey(level) {
+  if (!level || level === NOT_STATED) return LEVEL_NOT_STATED;
+  return level === LEVEL_NOT_STATED ? MID_STATED_KEY : level;
+}
+/** levelKey() reversed: 'Mid' (and the old 'Unspecified') -> 'Not stated', 'Mid-level' -> 'Mid'. */
+export function levelFromKey(key) {
+  if (key === LEVEL_NOT_STATED || key === 'Unspecified') return NOT_STATED;
+  return key === MID_STATED_KEY ? LEVEL_NOT_STATED : key;
+}
 
 /** Seniority guessed from a free-text title (null when the title has no level words). */
 export function inferSeniority(title) {

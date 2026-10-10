@@ -225,6 +225,12 @@ export function registerBetaMobileQaTests(suite) {
     await swipeList(page, cdp, 6);
     const n1 = await page.$$eval('#resultsList .card[data-id]', (e) => e.length);
     assert(n1 > n0, `lazy loading: ${n0} -> ${n1} cards`);
+    // A tap during a fling only stops the fling (Chromium suppresses that tap, as phones do). Since the list
+    // keeps only the cards near the view (M-20) a fling runs its full ~2 s, so let it end before tapping.
+    await page.waitForFunction(() => new Promise((res) => {
+      const l = document.querySelector('#resultsList'); let y = l.scrollTop, still = 0;
+      const t = setInterval(() => { if (Math.abs(l.scrollTop - y) < 0.5) still++; else still = 0; y = l.scrollTop; if (still >= 6) { clearInterval(t); res(true); } }, 50);
+    }), null, { timeout: 8000 });
     await tapSel(page, '.topbar .seg [data-mode=map]', 1200);
     assertEq(await sheet(page), 'peek', 'a view change collapses the sheet');
   });
@@ -407,9 +413,12 @@ export function registerBetaMobileQaTests(suite) {
     const { page, errors } = await openBeta(ctx, { hash: 'c=microsoft', viewport: SMALL, ua: ANDROID });
     const g = await page.evaluate(() => {
       const r = (s) => document.querySelector(s).getBoundingClientRect();
-      // The pill is CSS content: by the logo (.brand::after) when the logo shows, else before the company menu.
-      const host = [['.brand', '::after'], ['.company-bar', '::before']].map(([sel, pseudo]) => ({ el: document.querySelector(sel), pseudo }))
-        .find(({ el, pseudo }) => el && getComputedStyle(el).display !== 'none' && getComputedStyle(el, pseudo).content === '"Beta"');
+      // The pill was CSS content (by the logo, .brand::after, or before the company menu); since the beta fix
+      // wave (shared decision 3) it is the .beta-tag link by the logo. Either way it must be visible and read "Beta".
+      const tag = document.querySelector('.topbar a.beta-tag');
+      const host = (tag && getComputedStyle(tag).display !== 'none' && tag.getClientRects().length && tag.textContent.trim() === 'Beta' ? { el: tag } : null)
+        || [['.brand', '::after'], ['.company-bar', '::before']].map(([sel, pseudo]) => ({ el: document.querySelector(sel), pseudo }))
+          .find(({ el, pseudo }) => el && getComputedStyle(el).display !== 'none' && getComputedStyle(el, pseudo).content === '"Beta"');
       const name = document.querySelector('#companyMenuBtn .company-name');
       return {
         channel: document.documentElement.dataset.channel, pill: !!host,

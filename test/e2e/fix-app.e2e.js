@@ -566,10 +566,12 @@ export function registerFixAppTests(suite) {
         noErrors(errors);
         // Phones show the logo now (I-2): the beta site keeps one "Beta" pill, beside it.
         const { page: ph, errors: phErr } = await openFx(ctx, { base: `${st.base}${sub}`, hash: 'c=cohere', phone: true });
+        // The pill was CSS content; since the beta fix wave (shared decision 3) it is the .beta-tag link.
         const pills = await ph.evaluate(() => ['.brand', '.company-bar'].map((s) => {
           const c = getComputedStyle(document.querySelector(s), s === '.brand' ? '::after' : '::before').content;
           return c && c !== 'none' && c !== 'normal' ? 1 : 0;
-        }).reduce((a, b) => a + b, 0));
+        }).reduce((a, b) => a + b, 0)
+          + [...document.querySelectorAll('.topbar a.beta-tag')].filter((a) => a.getClientRects().length && a.textContent.trim() === 'Beta').length);
         assertEq(pills, sub ? 1 : 0, `${sub || '/'}: "Beta" pills on the phone`);
         assert(await ph.locator('.brand img').isVisible(), `${sub || '/'}: logo on the phone`);
         noErrors(phErr);

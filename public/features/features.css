@@ -461,6 +461,8 @@
    Desktop density is unchanged. */
 @media (max-width: 860px) {
   .ms-comp__input, .ms-comp__select { height: 44px; }
+  /* M-25: Market insights rows and chips (and Compare companies rows) are 44px touch targets. */
+  .ms-insights .msi-row, .ms-insights .msi-row.msi-chip { min-height: 44px; }
   .msi-stat__note, .msi-foot, .msi-row__n, .msi-row__tag, .msi-row__delta, .msi-legend, .msi-axis__tick,
   .msi-cols, .msi-chip__n, .ms-comp__scale, .ms-comp__item-meta, .ms-comp__match, .ms-comp__foot { font-size: 12px; }
 }

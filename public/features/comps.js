@@ -28,7 +28,7 @@
 // - "Level not stated" (the stored 'Mid' default) is never a level match.
 
 import { roleFamily, FAMILY_LABELS, levelLabel, levelStated, SENIORITY_DISPLAY_ORDER } from './roles.js';
-import { formatMoney, plural, niceTicks, h, uid, createTooltip, preserveFocus, isOTE, isInternLike } from './shared.js';
+import { formatMoney, plural, fmtCount, niceTicks, h, uid, createTooltip, preserveFocus, isOTE, isInternLike } from './shared.js';
 import { marketAsOfText } from './freshness.js';
 
 const DEFAULT_COLUMNS = ['company', 'family', 'seniority', 'n', 'p25', 'median', 'p75'];
@@ -344,7 +344,7 @@ export function createCompsCard(container, { onPickCompany, market: initialMarke
             h('span', { class: 'msi-row__label' },
               h('i', { class: 'msi-swatch', style: r.color ? { background: r.color } : null, 'aria-hidden': 'true' }),
               h('span', { class: 'msi-row__name' }, r.name),
-              h('span', { class: 'msi-row__n' }, String(r.n)),
+              h('span', { class: 'msi-row__n' }, fmtCount(r.n)),
               cur ? h('span', { class: 'msi-row__tag' }, 'this company') : null),
             h('span', { class: 'msi-row__value' }, formatMoney(r.median)),
             h('span', { class: 'msi-box', 'aria-hidden': 'true' },

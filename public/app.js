@@ -11,7 +11,7 @@ import { createCompstimateWidget, compstimateForJob, estimateView } from './feat
 import { compsForJob, compsNote, createCompsCard } from './features/comps.js';
 import { loadFreshness, freshnessDoc, juiceAsOfText, juiceSpanText, marketAsOfText, compstimateAsOfText } from './features/freshness.js';
 import { createCompsChart } from './viz/comps.js';
-import { roleFamily, FAMILY_LABELS, readableTitle, levelLabel } from './features/roles.js';
+import { roleFamily, FAMILY_LABELS, readableTitle, levelLabel, displayLevel, NOT_STATED, DISPLAY_LEVEL_ORDER, levelKey, levelFromKey } from './features/roles.js';
 import { payLocations } from './features/shared.js';
 // ./features/insights.js is imported on first use (Insights mode), see renderInsights.
 // api.js: getCompanies, getJobs, getJobDetail (namespace import: tolerate a missing optional export)
@@ -21,6 +21,10 @@ import { payLocations } from './features/shared.js';
 const MOCK = new URLSearchParams(location.search).has('mock') &&
   ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
 const dataApi = MOCK ? await import('./mock-api.js') : api;
+/* The site: 'beta' for the dist/beta/ copy (scripts/build-static.js writes <html data-channel="beta">),
+   else 'stable'. Both sites share one origin, so what this browser stores is kept per site where it
+   matters (saved searches, the last view; D-19). */
+const CHANNEL = document.documentElement.dataset.channel === 'beta' ? 'beta' : 'stable';
 
 /* ------------------------------------------------------------------ utils */
 
@@ -69,15 +73,19 @@ const FAMILY_LABEL = {
 };
 // The level ladder (kept identical to roles.js SENIORITY_LADDER and chart.js; scripts/refresh/jobs.js checks).
 const SENIORITY_ORDER = ['Intern', 'Entry', 'Mid', 'Senior', 'Staff+', 'Manager', 'Director+', 'Unspecified'];
-// P-3: the stored default 'Mid' is shown as "Level not stated" (levelLabel), and goes last in level lists.
-const SENIORITY_SHOWN = [...SENIORITY_ORDER.filter((k) => k !== 'Mid' && k !== 'Unspecified'), 'Mid', 'Unspecified'];
-const senLabel = (k) => (k === 'Unspecified' ? 'Level not stated' : levelLabel(k));
+// Shared decision 1 (beta fix wave): people see displayLevel(job) (features/roles.js). The stored default
+// 'Mid' is NOT_STATED, "Level not stated", listed last; a stated mid level (Google "III") reads "Mid".
+const SENIORITY_SHOWN = DISPLAY_LEVEL_ORDER;
+const senKey = (j) => displayLevel(j);
+const senLabel = (k) => levelLabel(k);
 const SEN_TIP = {
   'Staff+': 'Staff, principal or distinguished level',
   'Director+': 'Director, head of, vice president or chief',
-  Mid: 'The posting’s title names no level',
-  Unspecified: 'The posting’s title names no level',
+  Mid: 'A mid level the posting names (for example “III” or “L4”)',
+  [NOT_STATED]: 'The posting’s title names no level',
 };
+/* The Seniority filter in the link (s=, roles.js levelKey): "Level not stated" keeps its old value 'Mid', so
+   earlier links and saved searches still mean what they said; a stated mid level is 'Mid-level'. */
 const SEN_NOTE = 'Staff+ means staff, principal and above. Director+ means director, head of, vice president and above. “Level not stated”: the title names no level.';
 const SEN_OPTS = { labelOf: senLabel, tipOf: (k) => SEN_TIP[k] || null, note: SEN_NOTE };
 /** I-6: what a city pick finds. */
@@ -258,7 +266,7 @@ function parseHash(hash = location.hash) {
   const st = structuredClone(DEFAULTS);
   for (const k of ORDER) {
     if (!p.has(k)) continue;
-    if (ARRAYS.includes(k)) st[k] = p.getAll(k).filter(Boolean);
+    if (ARRAYS.includes(k)) st[k] = p.getAll(k).filter(Boolean).map((x) => (k === 's' ? levelFromKey(x) : x));
     else if (k === 'smin' || k === 'smax' || k === 'p') { const n = Number(p.get(k)); st[k] = Number.isFinite(n) && n > 0 ? n : DEFAULTS[k]; }
     else if (k === 'so' || k === 'ho') st[k] = p.get(k) === '1';
     else st[k] = p.get(k);
@@ -295,7 +303,7 @@ function serialize(st = S) {
   const p = new URLSearchParams();
   for (const k of ORDER) {
     const v = st[k];
-    if (ARRAYS.includes(k)) { for (const x of v) p.append(k, x); continue; }
+    if (ARRAYS.includes(k)) { for (const x of v) p.append(k, k === 's' ? levelKey(x) : x); continue; }
     if (k === 'g') { if (v !== groupDefault(st.v)) p.set('g', v); continue; }
     if (v == null || v === '' || v === false || v === DEFAULTS[k]) continue;
     if (k === 'cn' && !isCustomKey(st.c)) continue;
@@ -481,7 +489,7 @@ function prepare(jobs, { source = null } = {}) {
     j.juice = j.juice && j.juice.best ? j.juice : null;
     j._grade = gradeKey(j);
     j._locKeys = j.locations.map(locKey);
-    j._hay = [j.title, j._postedTitle !== j.title ? j._postedTitle : null, j.department, j.team, j.employmentType, j.seniority,
+    j._hay = [j.title, j._postedTitle !== j.title ? j._postedTitle : null, j.department, j.team, j.employmentType, senKey(j) === NOT_STATED ? null : j.seniority,
       ...j.locations.map((l) => l.name), ...j.keywords.responsibilities, ...j.keywords.fit, ...j.keywords.skills]
       .filter(Boolean).join(' \u0001 ').toLowerCase();
   }
@@ -595,7 +603,7 @@ function failures(j, F, now) {
   if (salActive && (!j._usd || (F.smin != null && j._usd.max < F.smin) || (F.smax != null && j._usd.min > F.smax))) out.push('sal');
   if (F.d.size && !F.d.has(deptKey(j))) out.push('d');
   if (F.l.size && !locMatches(j, F)) out.push('l');
-  if (F.s.size && !F.s.has(j.seniority || 'Unspecified')) out.push('s');
+  if (F.s.size && !F.s.has(senKey(j))) out.push('s');
   if (F.e.size && !F.e.has(empKey(j))) out.push('e');
   if (F.r === 'remote' && !j.remote) out.push('r');
   if (F.r === 'onsite' && !j.locations.some((l) => !l.remote)) out.push('r');
@@ -657,7 +665,7 @@ function derive() {
         for (const k of covers(l)) if (!seen.has(k)) { seen.add(k); bump(covered, k); }
       }
     }
-    if (counts('s')) bump(fc.s, j.seniority || 'Unspecified');
+    if (counts('s')) bump(fc.s, senKey(j));
     if (counts('e')) bump(fc.e, empKey(j));
     if (counts('r')) {
       fc.r.any++;
@@ -807,7 +815,10 @@ async function loadJobs({ refresh = false } = {}) {
     if (refresh) toast(data.mode === 'live' ? 'Fetched fresh from the live board' : bundleOnly(data.company) ? 'This board is only available as a saved snapshot' : 'Live board unreachable — showing fallback data');
   } catch (err) {
     if (err?.name === 'AbortError' || seq !== loadSeq) return;
-    data = { status: 'error', jobs: [], company: companyInfo(S.c), mode: null, fetchedAt: null, error: err?.message || String(err) };
+    // D-19 / M-22: a company this site doesn't list (a beta board on the main site, a paused one) is
+    // not an outage: no "Offline" badge and no Retry, just a plain message (status 'unknown').
+    const unknown = !isCustomKey(S.c) && err?.status === 404 && /unknown company/i.test(err?.message || '');
+    data = { status: unknown ? 'unknown' : 'error', jobs: [], company: companyInfo(S.c), mode: null, fetchedAt: null, error: err?.message || String(err) };
   }
   settleCarry();
   settleKeep();
@@ -874,6 +885,7 @@ async function applyJobs(res, seq, { upgrade = false } = {}) {
     const list = $('#resultsList');
     const top = list?.scrollTop ?? 0; // rebuilding the list under a focused card resets its scroll
     settleCarry();
+    win.keep = true; // M-19: the same roles, refreshed: the list keeps its place
     quietly($('#resultsTitle'), render);
     if (focusId && !document.activeElement?.closest?.('#resultsList .card')) $(`#resultsList .card[data-id="${cssId(focusId)}"]`)?.focus({ preventScroll: true });
     if (list && Math.abs(list.scrollTop - top) > 1) list.scrollTop = top;
@@ -910,7 +922,8 @@ function companyInfo(key) {
     if (!saved && companies.some((c) => c.name.toLowerCase() === String(name).toLowerCase().trim())) name = `${name} (custom)`;
     return { slug: key, name, source, board, color: null, custom: true };
   }
-  return { slug: key, name: key, source: null, board: key, color: null };
+  // A slug this site doesn't list (D-19): "amazon" reads "Amazon".
+  return { slug: key, name: key ? key.charAt(0).toUpperCase() + key.slice(1) : key, source: null, board: key, color: null };
 }
 const companyColor = (c) => c?.color || colorFor(c?.slug || c?.board || 'x');
 
@@ -967,13 +980,13 @@ function renderTopbar() {
   // Company switcher: one dropdown button for the active company + up to 3 recent ones as pills.
   const active = all.find((c) => c.slug === S.c) || companyInfo(S.c);
   const pageTitle = $('#pageTitle');
-  if (pageTitle) pageTitle.textContent = `${active?.name || 'Company'} jobs by salary — melon·seek`;
+  if (pageTitle) pageTitle.textContent = `${active?.name || 'Company'} jobs by salary — melon·seek${CHANNEL === 'beta' ? ' beta' : ''}`;
   const menuBtn = $('#companyMenuBtn');
   const sig = all.map((c) => c.slug + c.name).join('|') + '§' + S.c + '§' + data.status + data.jobs.length + '§' + recents.join(',');
   if (menuBtn.dataset.sig !== sig) {
     menuBtn.dataset.sig = sig;
     menuBtn.replaceChildren(...nn(h('span', { class: 'dot', style: `--dot:${companyColor(active)}` }), h('span', { class: 'company-name' }, active?.name || 'Choose company'),
-      data.status === 'ready' ? h('span', { class: 'company-count' }, data.jobs.length) : null, h('span', { class: 'chip-caret', html: ICON.chevron })));
+      data.status === 'ready' ? h('span', { class: 'company-count' }, data.jobs.length.toLocaleString()) : null, h('span', { class: 'chip-caret', html: ICON.chevron }))); // M-23: "6,105"
     menuBtn.setAttribute('aria-label', `Company: ${active?.name || 'none'}. Choose another company or open a saved search`);
     const recent = recents.filter((slug) => slug !== S.c).map((slug) => all.find((c) => c.slug === slug)).filter(Boolean).slice(0, 3);
     $('#companyPills').replaceChildren(...recent.map((c) => h('button', {
@@ -1029,8 +1042,12 @@ function renderTopbar() {
         data.error ? h('code', null, data.error) : null,
         MOCK ? null : h('button', { type: 'button', class: 'btn btn--ghost btn--sm', onclick: () => loadJobs({ refresh: true }) }, 'Try the live board again'))));
   }
-  $('#refreshBtn').disabled = data.status === 'loading';
-  $('#refreshBtn').classList.toggle('is-spinning', data.status === 'loading');
+  const refresh = $('#refreshBtn');
+  // D-26: a snapshot-only board (static `live: false`, the big-tech boards) has no live board to refresh
+  // from, as the badge popover already says, and a company this site doesn't list has nothing to refresh.
+  refresh.hidden = bundleOnly(data.company) || data.status === 'unknown';
+  refresh.disabled = data.status === 'loading';
+  refresh.classList.toggle('is-spinning', data.status === 'loading');
 }
 
 /**
@@ -1042,6 +1059,7 @@ function renderTopbar() {
 function badgeInfo() {
   if (data.status === 'loading') return { label: 'Loading', cls: 'is-loading', sr: 'loading', tip: 'Fetching roles…' };
   if (data.status === 'error') return { label: 'Offline', cls: 'is-error', tip: `Couldn’t load this board: ${data.error}` };
+  if (data.status === 'unknown') return null; // D-19: not an outage, so no badge
   if (data.status !== 'ready') return null;
   const src = sourceText(data.company);
   const when = data.fetchedAt ? ago(data.fetchedAt) : null;
@@ -1118,7 +1136,8 @@ function makeBadgeDetails() {
 
 function allCompanies() {
   const all = [...companies, ...boards.map((b) => ({ slug: `${b.source}:${b.board}`, name: b.name || b.board, source: b.source, board: b.board, color: null, custom: true }))];
-  if (S.c && !all.some((c) => c.slug === S.c)) all.push(companyInfo(S.c));
+  // A custom board opened from a link is listed; a company this site doesn't list is not (D-19).
+  if (S.c && isCustomKey(S.c) && !all.some((c) => c.slug === S.c)) all.push(companyInfo(S.c));
   return all;
 }
 
@@ -1148,7 +1167,7 @@ function settleKeep() {
   const any = (fn) => (x) => jobs.some((j) => fn(j, x));
   keepArr('d', any((j, x) => deptKey(j) === x));
   keepArr('l', (x) => { const F = { l: new Set([x]), lCover: placeCover([x], jobs) }; return jobs.some((j) => locMatches(j, F)); });
-  keepArr('s', any((j, x) => (j.seniority || 'Unspecified') === x), senLabel);
+  keepArr('s', any((j, x) => senKey(j) === x), senLabel);
   keepArr('e', any((j, x) => empKey(j) === x), empLabel);
   for (const { key, cat } of KW_CATS) keepArr(key, any((j, x) => j.keywords[cat].includes(x)));
   keepArr('jg', any((j, x) => gradeKey(j) === x), (x) => `Juice: ${x}`);
@@ -1194,8 +1213,12 @@ function makeCompanyMenu() {
   function sync() {
     const q = input.value.trim().toLowerCase();
     const all = allCompanies().filter((c) => !q || `${c.name} ${c.board} ${c.source}`.toLowerCase().includes(q));
+    // D-25 / M-21: the beta site's big-tech boards (static `live: false`: their own careers sites) come
+    // first, under their own heading, instead of last below the fold; the main site keeps one list.
+    const builtins = all.filter((c) => !c.custom);
+    const bigTech = builtins.filter((c) => c.live === false);
     const groups = [
-      ['Companies', all.filter((c) => !c.custom)],
+      ...(bigTech.length ? [['Big tech', bigTech], ['More companies', builtins.filter((c) => c.live !== false)]] : [['Companies', builtins]]),
       ['Your boards', all.filter((c) => c.custom)],
     ].filter(([, items]) => items.length);
     const group = (label, kids) => {
@@ -1209,7 +1232,7 @@ function makeCompanyMenu() {
     }, h('span', { class: 'dot', style: `--dot:${companyColor(c)}` }), h('span', { class: 'company-item-name' }, c.name),
     c.slug === S.c ? h('span', { class: 'company-item-check', 'aria-hidden': 'true' }, '✓') : null)))));
     if (!groups.length) list.append(h('p', { class: 'fnote' }, 'No matching company — add its job board below.'));
-    const saved = loadSaved().filter((x) => !q || x.name.toLowerCase().includes(q));
+    const saved = listSaved().filter((x) => !q || x.name.toLowerCase().includes(q));
     if (saved.length) {
       list.prepend(group('Saved searches', saved.map((x) => {
         const n = savedNewCount(x);
@@ -1221,7 +1244,14 @@ function makeCompanyMenu() {
       })));
     }
   }
-  return { el, sync };
+  /** M-21: the menu opens with the current company (✓) in view. */
+  function reveal() {
+    const cur = list.querySelector('.company-item[aria-current="true"]');
+    if (!cur) return;
+    const lr = list.getBoundingClientRect(), cr = cur.getBoundingClientRect();
+    if (cr.top < lr.top || cr.bottom > lr.bottom) list.scrollTop += cr.top - lr.top - Math.max(0, (lr.height - cr.height) / 2);
+  }
+  return { el, sync, reveal };
 }
 
 /* ---- F5: saved searches and "new since your last visit" (localStorage, try/catch) ---- */
@@ -1257,9 +1287,9 @@ function savedViewIds() {
   const v = savedView;
   if (!v || v.slug !== S.c) return null;
   if (!v.ids && data.status === 'ready' && data.company?.slug === v.slug) {
-    v.ids = new Set(savedNewIds({ hash: v.hash, lastSeenAt: v.since, seen: v.seen }, data.jobs));
+    v.ids = new Set(savedNewIds({ hash: v.hash, lastSeenAt: v.since, seen: v.seen, seenHash: v.seenHash }, data.jobs));
     const list = loadSaved(), entry = list.find((y) => y.id === v.id);
-    if (entry) { entry.seen = matchingIds(v.hash, data.jobs).slice(0, 2000); storeSaved(list); }
+    if (entry) { rememberSeen(entry, matchingIds(v.hash, data.jobs)); storeSaved(list); }
   }
   return v.ids;
 }
@@ -1273,11 +1303,69 @@ function settleSaved() {
   if (n) toast(`${plural(n, 'new role')} since you last opened this search${S.sort === 'best' ? ' — listed first,' : ','} marked New`, 4500);
 }
 
+/** Every saved search in this browser, both sites' (the main site and /beta/ share one origin). */
 function loadSaved() {
   const v = lsGet(SAVED_KEY, []);
   return Array.isArray(v) ? v.filter((x) => x && typeof x.hash === 'string' && typeof x.name === 'string' && x.id).slice(0, 50) : [];
 }
 const storeSaved = (list) => lsSet(SAVED_KEY, list);
+/* D-19: each site lists its own saved searches. A search carries the site it was saved on; one saved
+   before that is listed where its company is (so a beta company's search never shows on the main site). */
+function savedHere(x) {
+  if (x.channel) return x.channel === CHANNEL;
+  const slug = parseHash(`#${x.hash}`).c;
+  return !slug || isCustomKey(slug) || companies.some((c) => c.slug === slug);
+}
+/** The saved searches this site lists. */
+const listSaved = () => loadSaved().filter(savedHere);
+
+/* D-18: what a saved search matched when it was last opened. Under 2,000 matches it keeps their ids
+   (`seen`); a bigger one keeps a compact set (`seenHash`): the 32-bit FNV-1a hash of each id, sorted,
+   in base64, about 5.5 characters a role (Apple's 6,105 take 33 KB). Before, the ids were cut at 2,000,
+   so a search with more matches showed thousands of "new" roles at once. A hash collision (about 1 in
+   700,000 a role at 6,000 matches) hides one new role. */
+const SEEN_IDS_MAX = 2000;
+function idHash(id) {
+  const t = String(id);
+  let x = 0x811c9dc5;
+  for (let i = 0; i < t.length; i++) { x ^= t.charCodeAt(i); x = Math.imul(x, 0x01000193); }
+  return x >>> 0;
+}
+function packSeen(ids) {
+  const a = Uint32Array.from(new Set(Array.from(ids, idHash))).sort();
+  const b = new Uint8Array(a.buffer);
+  let bin = '';
+  for (let i = 0; i < b.length; i += 0x8000) bin += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+const seenSets = new Map(); // packed string -> Set of id hashes, decoded once
+function unpackSeen(packed) {
+  let set = seenSets.get(packed);
+  if (!set) {
+    try {
+      const bin = atob(packed);
+      const b = new Uint8Array(bin.length - (bin.length % 4));
+      for (let i = 0; i < b.length; i++) b[i] = bin.charCodeAt(i);
+      set = new Set(new Uint32Array(b.buffer));
+    } catch { return null; }
+    if (seenSets.size >= 60) seenSets.delete(seenSets.keys().next().value);
+    seenSets.set(packed, set);
+  }
+  return { has: (id) => set.has(idHash(id)) };
+}
+/** Store what a saved search matches now (`ids`) as what it has seen. */
+function rememberSeen(entry, ids) {
+  delete entry.seen;
+  delete entry.seenHash;
+  if (ids.length < SEEN_IDS_MAX) entry.seen = ids; else entry.seenHash = packSeen(ids);
+}
+/** What a saved search had seen ({ has(id) }), or null when that is unknown (then it counts nothing new). */
+function savedSeen(x) {
+  if (typeof x.seenHash === 'string') return unpackSeen(x.seenHash);
+  if (x.seen instanceof Set) return x.seen;
+  // An id list of 2,000 or more is one cut at 2,000 before D-18: it can't tell new roles from unlisted ones.
+  return Array.isArray(x.seen) && x.seen.length < SEEN_IDS_MAX ? new Set(x.seen) : null;
+}
 /** The shareable part of the state a saved search restores: company + filters + sort. */
 function searchHash(st = S) {
   const x = structuredClone(DEFAULTS);
@@ -1296,7 +1384,7 @@ function searchName(st = S) {
   const name = companyInfo(st.c)?.name || st.c;
   return `${name} · ${parts.slice(0, 3).join(' · ')}${parts.length > 3 ? ` +${parts.length - 3}` : ''}`;
 }
-const currentSaved = () => { const hsh = searchHash(); return loadSaved().find((x) => x.hash === hsh) || null; };
+const currentSaved = () => { const hsh = searchHash(); return listSaved().find((x) => x.hash === hsh) || null; };
 function matchingIds(hash, jobs) {
   const F = filterSpec(parseHash(`#${hash}`), jobs), now = Date.now();
   return jobs.filter((j) => !failures(j, F, now).length).map((j) => j.id);
@@ -1306,7 +1394,8 @@ function toggleSave() {
   if (existing) { removeSaved(existing.id); toast('Removed saved search'); renderQuickbar(); return; }
   const now = new Date().toISOString();
   const hash = searchHash();
-  const entry = { id: Math.random().toString(36).slice(2, 10), name: searchName(), hash, createdAt: now, lastSeenAt: now, seen: matchingIds(hash, data.jobs).slice(0, 2000) };
+  const entry = { id: Math.random().toString(36).slice(2, 10), name: searchName(), hash, channel: CHANNEL, createdAt: now, lastSeenAt: now };
+  rememberSeen(entry, matchingIds(hash, data.jobs));
   storeSaved([entry, ...loadSaved()].slice(0, 50));
   toast('Saved in this browser. Find it in the company menu, with its new roles', 4000); // I-4: say once where saves live
   renderQuickbar();
@@ -1314,7 +1403,7 @@ function toggleSave() {
 function removeSaved(id) { storeSaved(loadSaved().filter((x) => x.id !== id)); }
 /** The ids a saved search counts as new: its matches first seen after its last opening. */
 function savedNewIds(x, jobs) {
-  const seen = Array.isArray(x.seen) ? new Set(x.seen) : x.seen instanceof Set ? x.seen : null;
+  const seen = savedSeen(x);
   const ids = new Set(matchingIds(x.hash, jobs));
   return jobs.filter((j) => ids.has(j.id) && isNewSince(j, x.lastSeenAt, seen)).map((j) => j.id);
 }
@@ -1330,7 +1419,7 @@ function savedNewCount(x) {
 const savedFetches = new Set();
 function prefetchSaved() {
   if (MOCK) return;
-  for (const slug of new Set(loadSaved().map((x) => parseHash(`#${x.hash}`).c).filter(Boolean))) {
+  for (const slug of new Set(listSaved().map((x) => parseHash(`#${x.hash}`).c).filter(Boolean))) {
     if (jobCache.has(slug) || savedFetches.has(slug)) continue;
     savedFetches.add(slug);
     (async () => {
@@ -1356,8 +1445,8 @@ function openSaved(x) {
   // P-12: remember what the menu counted as new before this opening resets the count.
   const before = entry || x;
   savedView = { id: x.id, slug, hash: x.hash, since: before.lastSeenAt, seen: Array.isArray(before.seen) ? [...before.seen] : null,
-    ids: jobs ? new Set(savedNewIds(before, jobs)) : null, told: false };
-  if (entry) { entry.lastSeenAt = new Date().toISOString(); if (jobs) entry.seen = matchingIds(x.hash, jobs).slice(0, 2000); storeSaved(list); }
+    seenHash: typeof before.seenHash === 'string' ? before.seenHash : null, ids: jobs ? new Set(savedNewIds(before, jobs)) : null, told: false };
+  if (entry) { entry.lastSeenAt = new Date().toISOString(); if (jobs) rememberSeen(entry, matchingIds(x.hash, jobs)); storeSaved(list); }
   // Through set(), not pushState + onHashChange: the menu's history entry may still be popping (M-3).
   if (drawerJobId) closeDrawer();
   pendingKeep = null;
@@ -1710,10 +1799,12 @@ function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8,
         groups.get(g).total += it.count;
       }
       for (const it of pick) groups.get(derived.fc?.lGroup.get(it.key) || 'ZZ').items.push(it);
-      const ordered = [...groups].sort((a, b) => (a[0] === '~remote' ? -1 : b[0] === '~remote' ? 1 : b[1].total - a[1].total));
+      // D-23: places with no known country ('ZZ', which Intl names "Unknown Region") go last, as "Other places".
+      const rank = (g) => (g === '~remote' ? 0 : g === 'ZZ' ? 2 : 1);
+      const ordered = [...groups].sort((a, b) => rank(a[0]) - rank(b[0]) || b[1].total - a[1].total);
       for (const [g, grp] of ordered) {
         if (!grp.items.length) continue;
-        nodes.push(h('div', { class: 'check-group' }, g === '~remote' ? 'Remote' : countryName(g)));
+        nodes.push(h('div', { class: 'check-group' }, g === '~remote' ? 'Remote' : g === 'ZZ' ? 'Other places' : countryName(g)));
         for (const it of grp.items) { nodes.push(row(it)); if (!selected.has(it.key)) shown++; }
       }
       shown += pick.filter((it) => selected.has(it.key)).length;
@@ -1852,6 +1943,11 @@ function makeSwitch(label, key) {
 let panel = null;
 function renderFilterPanel() {
   const body = $('#filterBody');
+  if (data.status === 'unknown') { // D-19: nothing is loading, so no skeleton
+    panel = null;
+    body.replaceChildren(h('p', { class: 'fnote' }, 'No filters: this board isn’t on this site.'));
+    return;
+  }
   if (data.status !== 'ready') {
     if (!body.querySelector('.skeleton-stack')) {
       panel = null;
@@ -1935,6 +2031,7 @@ function togglePopover(id, anchor) {
   if (id === 'company') prefetchSaved();
   syncPopover();
   positionPopover();
+  for (const p of popover.parts) p.reveal?.();
   requestAnimationFrame(() => [...el.querySelectorAll('.pop-body input:not([type=range]), .pop-body button.kw, .pop-body select, .pop-body .range, .pop-body button:not(.icon-btn), .pop-body label.check input')]
     .find((x) => x.getClientRects().length && !x.closest('[hidden]'))?.focus({ preventScroll: true }));
 }
@@ -2045,7 +2142,7 @@ function renderKpis() {
     el.replaceChildren(h('span', { class: 'sk sk-line', style: 'width:340px;display:inline-block' }));
     return;
   }
-  if (data.status === 'error') { el.replaceChildren(); return; }
+  if (data.status === 'error' || data.status === 'unknown') { el.replaceChildren(); return; }
   const listed = area ? derived.filtered.filter((j) => area.ids.has(j.id)) : derived.filtered;
   const st = stats(listed);
   const total = data.jobs.length;
@@ -2234,6 +2331,11 @@ function renderViz() {
     overlay.replaceChildren(stateCard({ icon: ICON.alert, title: 'Couldn\u2019t load this board', body: data.error || 'Unknown error', action: ['Retry', () => loadJobs()], tone: 'error' }));
     return;
   }
+  if (data.status === 'unknown') {
+    overlay.hidden = false;
+    overlay.replaceChildren(stateCard(notHereState()));
+    return;
+  }
   const jobs = derived.filtered;
 
   if (!data.jobs.length) {
@@ -2374,6 +2476,16 @@ function emptyState() {
   return { title: 'No roles match', body: 'Nothing fits every filter you’ve set.', action: ['Clear filters', clearFilters] };
 }
 
+/** D-19 / M-22: the plain message for a company this site doesn't list (no Offline, no Retry). */
+function notHereState() {
+  const name = data.company?.name || S.c;
+  return {
+    title: 'This board isn\u2019t on this site',
+    body: `melon\u00b7seek doesn\u2019t list ${name}\u2019s jobs here. Choose a company from the menu.`,
+    action: ['Choose a company', () => togglePopover('company', $('#companyMenuBtn'))],
+  };
+}
+
 function stateCard({ icon = null, title, body, action = null, tone = '' }) {
   return h('div', { class: `state-card ${tone ? `state-card--${tone}` : ''}` },
     icon ? h('div', { class: 'state-ico', html: icon }) : h('div', { class: 'state-ico state-ico--melon' }, h('img', { src: 'favicon.svg', alt: '' })),
@@ -2399,6 +2511,7 @@ function renderResults() {
   if (hasQuery() && !bestOpt.isConnected) sortSel.prepend(bestOpt);
   else if (!hasQuery() && bestOpt.isConnected) bestOpt.remove();
   sortSel.value = effectiveSort();
+  if (data.status !== 'ready' || !visible.length) { win.sig = ''; win.more = null; listIO?.disconnect(); listIO = null; }
   if (data.status === 'loading' || data.status === 'idle') {
     title.textContent = 'Loading roles…';
     list.replaceChildren(...Array.from({ length: 7 }, () => h('li', { class: 'card card--sk', 'aria-hidden': 'true' },
@@ -2408,6 +2521,11 @@ function renderResults() {
   if (data.status === 'error') {
     title.textContent = 'No data';
     list.replaceChildren(h('li', { class: 'list-empty' }, stateCard({ icon: ICON.alert, title: 'Board unavailable', body: 'We couldn\u2019t reach the API.', action: ['Retry', () => loadJobs()], tone: 'error' })));
+    return;
+  }
+  if (data.status === 'unknown') {
+    title.textContent = 'No roles';
+    list.replaceChildren(h('li', { class: 'list-empty' }, h('p', { class: 'fnote' }, 'No roles to list.'))); // the message is by the chart
     return;
   }
   const n = visible.length;
@@ -2422,44 +2540,182 @@ function renderResults() {
       : { title: 'No open roles', body: 'This board has no postings right now.' })));
     return;
   }
+  // M-19: a new result set (another sort, filter, area or board) starts at the top of the list; the same
+  // set re-rendered (a view switch, the live board replacing the snapshot) keeps its place and its pages.
+  const sig = `${visible.length}|${visible.map((j) => j.id).join(',')}`;
+  const fresh = sig !== win.sig;
+  win.sig = sig;
+  if (fresh && !win.keep) { win.heights.clear(); toTop(list); }
+  else resultsLimit = Math.max(resultsLimit, win.loaded);
+  win.keep = false;
   measureCardFit();
-  const items = visible.slice(0, resultsLimit).map(card);
-  const scale = juiceScaleNote(items);
-  if (scale) items.unshift(scale);
+  buildWindow(list);
+}
+
+/** Scroll the list to its top, also mid-fling: a fling still running would carry on from the top (M-19). */
+function toTop(list) {
+  if (!list.scrollTop) return;
+  list.style.overflowY = 'hidden'; // ends a touch fling (iOS and Chrome stop momentum on a non-scrolling box)
+  list.scrollTop = 0;
+  requestAnimationFrame(() => { list.style.overflowY = ''; });
+}
+
+/* M-20: the results list keeps only the cards near its viewport in the page: a window of cards between
+   two spacers that stand for the cards above and below it, at their measured heights (the average for
+   one not yet measured). Up to WINDOW_ALL loaded cards are all kept, so a list of a few pages (and
+   find in page) works as before; past that the window holds the cards within a screen or more of the
+   view, and at least WINDOW_MIN of them (about 60 either side: 3,500 page nodes, not 30,000). The list
+   still has `resultsLimit` cards loaded: "Show N more" and the phones' lazy loading add to it. Each card
+   carries aria-posinset/aria-setsize, so a screen reader hears "12 of 6,105" however few are in the page. */
+const WINDOW_ALL = 150;
+const WINDOW_MIN = 120;
+const win = { sig: '', keep: false, loaded: 0, heights: new Map(), width: 0, gap: 8, base: 0, els: new Map(), top: null, bottom: null, more: null, btn: null };
+let listIO = null;
+
+/** Rebuild the list's cards (state changed): the note, the window, the spacers and "Show more". */
+function buildWindow(list) {
   listIO?.disconnect();
-  if (visible.length > resultsLimit) {
-    const label = () => `Show ${Math.min(PAGE * 2, visible.length - resultsLimit)} more of ${visible.length - resultsLimit}`;
-    const btn = h('button', { type: 'button', class: 'btn btn--ghost btn--block' }, label());
-    const more = h('li', { class: 'list-more' }, btn);
-    // Append the next page in place (no full list rebuild, the scroll position stays put).
-    const loadMore = (n = PAGE * 2) => {
-      const from = resultsLimit;
-      resultsLimit += n;
-      more.before(...visible.slice(from, resultsLimit).map(card));
-      if (visible.length <= resultsLimit) { listIO?.disconnect(); more.remove(); } else btn.textContent = label();
-    };
-    btn.addEventListener('click', () => loadMore());
-    items.push(more);
-    // Phones: cards render lazily, the next page loads as the list nears its end.
-    if (isMobile() && 'IntersectionObserver' in window) {
-      // Append 4 cards per frame while the end is near (~500 px of runway per frame): each step
-      // stays inside a frame budget at 4x CPU (a card costs 2-4 ms), so scrolling never stalls.
-      const near = () => more.isConnected && more.getBoundingClientRect().top - list.getBoundingClientRect().bottom < 600;
-      const step = () => { loadMore(4); if (near()) requestAnimationFrame(step); };
-      listIO = new IntersectionObserver((es) => { if (es.some((x) => x.isIntersecting)) requestAnimationFrame(step); }, { root: list, rootMargin: '0px 0px 600px 0px' });
-      listIO.observe(more);
+  listIO = null;
+  const cs = getComputedStyle(list);
+  win.gap = parseFloat(cs.rowGap) || 0;
+  const note = juiceScaleNote(visible.slice(0, PAGE));
+  if (note) note.setAttribute('role', 'none');
+  const spacer = () => h('li', { class: 'list-spacer', 'aria-hidden': 'true', role: 'none' });
+  win.top = spacer();
+  win.bottom = spacer();
+  win.els = new Map();
+  win.btn = h('button', { type: 'button', class: 'btn btn--ghost btn--block', onclick: () => loadMore() });
+  win.more = h('li', { class: 'list-more', role: 'none' }, win.btn);
+  const focusId = document.activeElement?.closest?.('#resultsList .card[data-id]')?.dataset.id;
+  // No layout is read until the cards and spacers are back, so the browser never clamps the scroll position.
+  const keepTop = list.scrollTop;
+  list.replaceChildren(...nn(note, win.top, win.bottom, win.more));
+  paintWindow(keepTop);
+  if (Math.abs(list.scrollTop - keepTop) > 1) list.scrollTop = keepTop;
+  const base = parseFloat(cs.paddingTop) + (note ? note.offsetHeight + win.gap : 0);
+  if (Math.abs(base - win.base) > 1) { win.base = base; scheduleWindow(); }
+  if (focusId) win.els.get(focusId)?.querySelector('.card')?.focus({ preventScroll: true });
+  // Phones: cards render lazily, the next page loads as the list nears its end.
+  if (isMobile() && 'IntersectionObserver' in window && visible.length > resultsLimit) {
+    // Append 4 cards per frame while the end is near (~500 px of runway per frame): each step
+    // stays inside a frame budget at 4x CPU (a card costs 2-4 ms), so scrolling never stalls.
+    const more = win.more;
+    const near = () => more.isConnected && visible.length > resultsLimit && more.getBoundingClientRect().top - list.getBoundingClientRect().bottom < 600;
+    const step = () => { if (!more.isConnected) return; loadMore(4); if (near()) requestAnimationFrame(step); };
+    listIO = new IntersectionObserver((es) => { if (es.some((x) => x.isIntersecting)) requestAnimationFrame(step); }, { root: list, rootMargin: '0px 0px 600px 0px' });
+    listIO.observe(more);
+  }
+}
+
+/** Load `n` more cards into the list (the scroll position stays put). */
+function loadMore(n = PAGE * 2) {
+  resultsLimit = Math.min(visible.length, resultsLimit + n);
+  paintWindow();
+}
+
+const avgHeight = () => {
+  let sum = 0, k = 0;
+  for (const v of win.heights.values()) { sum += v; k++; }
+  return k ? sum / k : 110;
+};
+
+/** Show the cards near the list's viewport (window mode), or all loaded ones; keeps the cards already shown. */
+function paintWindow(scrollTop = null) {
+  const list = $('#resultsList');
+  if (!list || !win.more || !win.more.isConnected) return;
+  const n = Math.min(resultsLimit, visible.length);
+  win.loaded = n;
+  const resized = list.clientWidth !== win.width;
+  if (resized) { win.width = list.clientWidth; win.heights.clear(); } // card heights follow the column's width
+  const gap = win.gap, avg = avgHeight();
+  const hOf = (i) => win.heights.get(visible[i].id) ?? avg;
+  let start = 0, end = n;
+  if (n > WINDOW_ALL) {
+    const view = list.clientHeight || innerHeight;
+    const over = Math.max(600, view);
+    const top = (typeof scrollTop === 'number' ? scrollTop : list.scrollTop) - win.base;
+    const lo = top - over, hi = top + view + over;
+    let y = 0;
+    start = -1;
+    for (let i = 0; i < n; i++) {
+      y += hOf(i) + gap;
+      if (start < 0 && y > lo) start = i;
+      if (y >= hi) { end = i + 1; break; }
+    }
+    if (start < 0) start = Math.max(0, n - 1);
+    const short = WINDOW_MIN - (end - start);
+    if (short > 0) {
+      start = Math.max(0, start - Math.ceil(short / 2));
+      end = Math.min(n, start + WINDOW_MIN);
+      start = Math.max(0, end - WINDOW_MIN);
     }
   }
-  list.replaceChildren(...items);
+  // Cards leaving the page; a focused one hands focus to the list, so it never falls to the page.
+  const keep = new Set();
+  for (let i = start; i < end; i++) keep.add(visible[i].id);
+  for (const [id, li] of win.els) {
+    if (keep.has(id)) continue;
+    if (li.contains(document.activeElement)) list.focus({ preventScroll: true });
+    li.remove();
+    win.els.delete(id);
+  }
+  let prev = win.top;
+  const added = [];
+  for (let i = start; i < end; i++) {
+    const job = visible[i];
+    let li = win.els.get(job.id);
+    if (!li) { li = card(job, i + 1, visible.length); win.els.set(job.id, li); added.push(li); }
+    if (prev.nextSibling !== li) prev.after(li);
+    prev = li;
+  }
+  let above = 0, below = 0;
+  for (let i = 0; i < start; i++) above += hOf(i) + gap;
+  for (let i = end; i < n; i++) below += hOf(i) + gap;
+  // A spacer stands for its cards and the gaps after them, less its own gap.
+  win.top.style.display = start > 0 ? '' : 'none';
+  win.top.style.height = `${Math.max(0, above - gap)}px`;
+  win.bottom.style.display = end < n ? '' : 'none';
+  win.bottom.style.height = `${Math.max(0, below - gap)}px`;
+  const rest = visible.length - n;
+  win.more.style.display = rest > 0 ? '' : 'none';
+  if (rest > 0) win.btn.textContent = `Show ${Math.min(PAGE * 2, rest).toLocaleString()} more of ${rest.toLocaleString()}`;
+  else { listIO?.disconnect(); listIO = null; }
+  // Measure the new cards (every card after a resize); when that moves the window's edges, place it again.
+  let changed = false;
+  for (const li of resized ? [...win.els.values()] : added) {
+    const id = li.firstElementChild?.dataset.id;
+    const hgt = li.getBoundingClientRect().height; // not offsetHeight: rounding would shift the content under a scroll
+    if (id && hgt && Math.abs((win.heights.get(id) ?? avg) - hgt) > 1) changed = true;
+    if (id && hgt) win.heights.set(id, hgt);
+  }
+  if (changed && n > WINDOW_ALL) scheduleWindow();
 }
-let listIO = null;
+const scheduleWindow = rafThrottle(() => paintWindow());
+
+/** Focus result `idx` (0-based in `visible`), bringing it into the page first if the window had left it out. */
+function focusResult(idx) {
+  const job = visible[idx];
+  const list = $('#resultsList');
+  if (!job || !list || idx >= win.loaded) return false;
+  if (!win.els.has(job.id)) {
+    let y = win.base;
+    const avg = avgHeight();
+    for (let i = 0; i < idx; i++) y += (win.heights.get(visible[i].id) ?? avg) + win.gap;
+    list.scrollTop = Math.max(0, y - list.clientHeight / 3);
+    paintWindow();
+  }
+  const el = win.els.get(job.id)?.querySelector('.card');
+  if (!el) return false;
+  el.focus();
+  return true;
+}
 
 /* I-3: the Juice grades in dollars, once: above the cards the first time they show Juice in this
    browser (kept for that visit). The same scale is in every badge's and the drawer's tooltip. */
 const JUICE_SCALE_KEY = 'melon-seek.juiceScale.v1';
 let juiceScaleShown = null;
-function juiceScaleNote(items) {
-  if (!items.some((li) => li.querySelector?.('.juice-badge'))) return null;
+function juiceScaleNote(jobs) {
+  if (!jobs.some((j) => shownJuice(j))) return null;
   if (juiceScaleShown === null) {
     try {
       juiceScaleShown = sessionStorage.getItem(JUICE_SCALE_KEY) === '1' || !localStorage.getItem(JUICE_SCALE_KEY);
@@ -2565,17 +2821,26 @@ function payPill(job) {
   return { text: range, tip: null };
 }
 
-function card(job) {
+/** DQ-11: a talent pool (job.pool, from the sources lane) collects applications for roles that may open later. */
+const isPool = (j) => j?.pool === true;
+const POOL_LABEL = 'General application (no specific opening)';
+const POOL_TIP = 'The company collects applications here for roles that may open later; it is not one specific job';
+
+/** One result card; `pos` (1-based) and `size` are its place in the whole result list, for screen readers (M-20). */
+function card(job, pos = null, size = null) {
   const status = statusTag(job);
   const color = vizColor(keyOf(job, colorBy()));
   const pay = payPill(job);
   const isOpen = job.id === drawerJobId;
   const ote = isOte(job);
   const juice = juiceBadge(job);
-  const sen = job.seniority || 'Mid';
-  const el = h('li', null, h('article', {
+  const sen = senKey(job);
+  const pool = isPool(job);
+  // DQ-11: a talent pool's label takes the keyword slots, and "Level not stated" adds nothing to it.
+  const level = pool && sen === NOT_STATED ? null : sen;
+  const el = h('li', { 'aria-posinset': pos, 'aria-setsize': size }, h('article', {
     class: `card${isOpen ? ' is-open' : ''}`, dataset: { id: job.id }, tabindex: '0', role: 'button',
-    'aria-label': `${job.title}, ${pay ? `${pay.text}${pay.tip ? ` (${pay.tip})` : ''}` : job.salaryFlag ? 'pay unclear, see posting' : 'salary not listed'}, ${locSummary(job, 3)}`, style: `--stripe:${color}`,
+    'aria-label': `${job.title}${pool ? `, ${POOL_LABEL}` : ''}, ${pay ? `${pay.text}${pay.tip ? ` (${pay.tip})` : ''}` : job.salaryFlag ? 'pay unclear, see posting' : 'salary not listed'}, ${locSummary(job, 3)}`, style: `--stripe:${color}`,
   },
   h('div', { class: 'card-top' },
     h('h3', { class: 'card-title' }, job.title),
@@ -2590,11 +2855,12 @@ function card(job) {
     h('span', { class: 'card-dept' }, deptKey(job)), h('span', { class: 'sep', 'aria-hidden': 'true' }, '·'),
     h('span', { class: 'card-loc' }, locSummary(job, 1)), job.remote ? h('span', { class: 'tag tag--remote' }, 'Remote') : null),
   h('div', { class: 'card-foot' },
-    h('span', { class: `sen sen--${sen.toLowerCase().replace(/\W/g, '')}`, title: SEN_TIP[sen] || null }, senLabel(sen)),
+    level ? h('span', { class: `sen sen--${level.toLowerCase().replace(/\W/g, '')}`, title: SEN_TIP[level] || null }, senLabel(level)) : null,
+    pool ? h('span', { class: 'tag tag--pool', title: POOL_TIP }, POOL_LABEL) : null,
     juice,
     // P-1: on-target pay takes the first keyword slot (a plain-words label, not a status).
     ote ? h('span', { class: 'tag tag--pay', title: OTE_LABEL }, 'On-target earnings') : null,
-    ...footTags(job, { level: senLabel(sen), juice: juice?.textContent || '', status: status?.textContent || '', ote, age: ageText(job), slots: Math.max(0, 2 - (juice ? 1 : 0) - (status ? 1 : 0) - (ote ? 1 : 0)) }).map((t) => h('span', { class: 'tag' }, t)),
+    ...footTags(job, { level: level ? senLabel(level) : '', juice: juice?.textContent || '', status: status?.textContent || '', ote, age: ageText(job), slots: pool ? 0 : Math.max(0, 2 - (juice ? 1 : 0) - (status ? 1 : 0) - (ote ? 1 : 0)) }).map((t) => h('span', { class: 'tag' }, t)),
     status, // at most one status tag, in the second keyword slot (ROADMAP §8)
     ageText(job) ? h('span', { class: 'card-age', title: ageTitle(job) }, ageText(job)) : null)));
   return el;
@@ -2651,10 +2917,11 @@ function closeDrawer({ fromHash = false } = {}) {
   if (!fromHash && S.job) { S.job = null; commit(); }
   setBackgroundInert(false);
   highlightViz();
-  // The original trigger may have been re-rendered away (e.g. a keyword toggled in the drawer).
-  const target = drawerReturnFocus?.isConnected ? drawerReturnFocus
-    : $(`.card[data-id="${cssId(closedId)}"]`) || $('#resultsList');
-  target?.focus({ preventScroll: true });
+  // The original trigger may have been re-rendered away (e.g. a keyword toggled in the drawer), or
+  // left the page with the list's window (M-20): then its card is brought back if it is loaded.
+  const target = drawerReturnFocus?.isConnected ? drawerReturnFocus : $(`.card[data-id="${cssId(closedId)}"]`);
+  if (target) target.focus({ preventScroll: true });
+  else if (!focusResult(visible.findIndex((j) => j.id === closedId))) $('#resultsList')?.focus({ preventScroll: true });
   drawerReturnFocus = null;
 }
 
@@ -2664,7 +2931,7 @@ function renderDrawerNav() {
   if (!prev) return;
   prev.disabled = idx <= 0;
   next.disabled = idx < 0 || idx >= visible.length - 1;
-  pos.textContent = idx >= 0 ? `${idx + 1} of ${visible.length}` : '';
+  pos.textContent = idx >= 0 ? `${(idx + 1).toLocaleString()} of ${visible.length.toLocaleString()}` : ''; // M-23: "1 of 6,105"
 }
 function stepDrawer(d) {
   const idx = visible.findIndex((j) => j.id === drawerJobId);
@@ -2953,13 +3220,39 @@ function payUnclearBlock(job) {
     compstimateBlock(job));
 }
 
+/**
+ * Shared decision 2 (D-21): salary.levels, when one posting prices several levels (NVIDIA "Level 2 …
+ * Level 3", Microsoft "IC4 … IC5"): [{ label, min, max }], yearly, in the salary's currency.
+ * Two or more, else null.
+ */
+function payLevels(s) {
+  const lv = Array.isArray(s?.levels) ? s.levels.filter((l) => l && l.label && Number.isFinite(l.min)) : [];
+  return lv.length > 1 ? lv : null;
+}
+/** "$287.5K": a level's ends keep the hundreds the posting states ("287,500 USD"); whole thousands read "$184K". */
+function levelMoney(n, currency) {
+  const a = Math.abs(n);
+  if (!(a >= 1000 && a < 999500) || Math.round(a / 100) % 10 === 0) return money(n, currency);
+  const sym = !currency || currency === 'USD' ? '$' : CUR_SYM[currency] ?? `${currency} `;
+  return `${n < 0 ? '-' : ''}${sym}${(Math.round(a / 100) / 10).toFixed(1)}K`;
+}
+/** "Pay by level: Level 2: $184K–287.5K · Level 3: $224K–356.5K" under the range in the pay block. */
+function payLevelsLine(s) {
+  const lv = payLevels(s);
+  if (!lv) return null;
+  const range = (a, b) => { const x = levelMoney(a, s.currency), y = levelMoney(b, s.currency); return x === y ? x : `${x}–${y.replace(/^[^\d]+/, '')}`; };
+  return h('p', { class: 'd-sal-levels' }, h('span', { class: 'muted' }, 'Pay by level: '),
+    lv.map((l) => `${String(l.label).trim()}: ${range(l.min, l.max ?? l.min)}`).join(' · '));
+}
+
 /** At most two muted honest-number labels (ROADMAP F2), in the roadmap's priority order. */
 function payLabels(job) {
   const s = job.salary;
   if (!s) return null;
   const spread = s.spread ?? (s.min > 0 ? s.max / s.min : null);
   const labels = [
-    s.zones > 1 ? ['Multiple pay zones', 'The posting lists different ranges for different locations or levels'] : null,
+    // D-21: a range that covers several levels lists them (payLevelsLine) instead of a bare "Multiple pay zones".
+    s.zones > 1 && !payLevels(s) ? ['Multiple pay zones', 'The posting lists different ranges for different locations or levels'] : null,
     spread != null && spread >= 2 ? [`Wide range (${spread.toFixed(1)}×)`, 'The top of the range is at least twice the bottom'] : null,
     s.min === s.max ? ['Single figure', 'The posting gives one number, not a range'] : null,
     job.extras?.equity ? ['+ equity mentioned', 'The description mentions equity; it isn\u2019t in this figure'] : null,
@@ -3037,7 +3330,7 @@ function annualNote(sal) {
 
 /** P-16: "Revenue · Revenue" and "Internships · Internships · Intern [Intern]" once each. */
 function metaParts(job) {
-  const seen = new Set([String(senLabel(job.seniority || 'Mid')).toLowerCase()]);
+  const seen = new Set([String(senLabel(senKey(job))).toLowerCase()]);
   const out = [];
   for (const t of [deptKey(job), job.team, job.employmentType ? empLabel(job.employmentType) : null]) {
     const k = String(t || '').trim().toLowerCase();
@@ -3098,7 +3391,8 @@ function drawerContent(job) {
       h('div', null,
         h('div', { class: 'd-sal-amt' }, term ? `${term.amount}${term.per ? ` a ${term.per}` : ''}` : salaryRange(sal)),
         h('div', { class: 'muted' }, term ? `${sal.currency || 'USD'} · for ${termText(term.weeks)}` : `${sal.currency || 'USD'} · per year`),
-        annualNote(sal)))
+        annualNote(sal),
+        term ? null : payLevelsLine(sal)))
       : job.salaryFlag ? payUnclearBlock(job)
         : h('div', { class: 'd-sal-none' }, h('strong', null, 'Salary not listed'), h('span', { class: 'muted' }, ' — this posting doesn’t include a pay range.'), compstimateBlock(job)),
     sal ? salaryDistribution(job) : null,
@@ -3123,12 +3417,13 @@ function drawerContent(job) {
       h('span', { class: 'apply-label' }, data.mode === 'demo' && !MOCK ? `Open ${coName}’s real job board` : `Apply on ${coName}’s careers site`, applyHost(job.url) ? h('span', { class: 'apply-host' }, applyHost(job.url)) : null), h('span', { html: ICON.ext })),
     h('button', { type: 'button', class: 'btn btn--ghost btn--lg', 'aria-label': 'Copy link to this role', html: ICON.link, onclick: copyLink }));
 
-  const sen = job.seniority || 'Mid';
+  const sen = senKey(job);
   return [head, h('div', { class: 'drawer-scroll', tabindex: '0', 'aria-label': 'Role details' },
     h('div', { class: 'd-company' }, h('span', { class: 'dot', style: `--dot:${companyColor(company)}` }), coName,
       data.mode === 'demo' ? h('span', { class: 'tag tag--demo' }, 'Demo') : null),
     h('h2', { class: 'd-title', id: 'drawerTitle' }, job.title),
     job._postedTitle && job._postedTitle.replace(/^\s*\[[^\]]{1,16}\]\s*/, '') !== job.title ? h('div', { class: 'd-posted muted' }, `Posted as “${job._postedTitle}”`) : null,
+    isPool(job) ? h('p', { class: 'd-pool' }, h('strong', null, POOL_LABEL), h('span', { class: 'muted' }, `. ${POOL_TIP}.`)) : null,
     h('div', { class: 'd-meta' }, ...metaParts(job).map((t, i) => [i ? h('span', { class: 'sep' }, '·') : null, h('span', null, t)]),
       h('span', { class: `sen sen--${sen.toLowerCase().replace(/\W/g, '')}`, title: SEN_TIP[sen] || null }, senLabel(sen)),
       job._titleTag ? h('span', { class: 'tag', title: `The posting's title starts with “[${job._titleTag}]”, a tag the company adds (often a team or office code)` }, `Tag: ${job._titleTag}`) : null),
@@ -3455,9 +3750,26 @@ function bindKeyboardInsets() {
   vv.addEventListener('resize', sync);
   document.addEventListener('focusin', (e) => {
     sync();
-    if (isMobile() && e.target.matches?.('#filters input, #popover input')) setTimeout(() => e.target.scrollIntoView?.({ block: 'center' }), 300);
+    if (isMobile() && e.target.matches?.('#filters input, #popover input')) setTimeout(() => revealField(e.target), 300);
   });
   document.addEventListener('focusout', () => setTimeout(sync, 50));
+}
+
+/* M-24: a search or text field in the filter sheet or a popover moves near the top of its scrolling panel,
+   so what it finds shows above the on-screen keyboard (the keyboard covers the screen's lower part; iOS keeps
+   the layout viewport). Only the panel scrolls, never the page. */
+function revealField(el) {
+  if (!el?.isConnected || document.activeElement !== el) return;
+  let box = el.parentElement;
+  while (box && box !== document.body) {
+    const oy = getComputedStyle(box).overflowY;
+    if ((oy === 'auto' || oy === 'scroll') && box.scrollHeight > box.clientHeight) break;
+    box = box.parentElement;
+  }
+  if (!box || box === document.body) return;
+  const top = el.closest('.fsearch-wrap, label, .field') || el;
+  const delta = top.getBoundingClientRect().top - box.getBoundingClientRect().top - 8;
+  if (Math.abs(delta) > 4) box.scrollTop += delta;
 }
 
 let filtersOpener = null; // the chip or Filters button that opened the overlay sheet (M-4, M-15)
@@ -3470,6 +3782,8 @@ function setFiltersOpen(open, { opener = null, focus = null } = {}) {
     setFiltersModal(open && isMobile());
     if (open) {
       if (!was || opener) filtersOpener = opener || filtersOpener;
+      // M-26: the Filters button opens the sheet at its top, where focus goes (Salary); a chip passes its own section.
+      if (!focus) $('#filterBody').scrollTop = 0;
       const target = focus || $('#filters summary');
       setTimeout(() => target?.focus({ preventScroll: true }), 50);
       if (!was) overlayHistPush('filters');
@@ -3605,15 +3919,24 @@ function bindEvents() {
   const list = $('#resultsList');
   list.addEventListener('click', (e) => { const c = e.target.closest('.card[data-id]'); if (c) openDrawer(c.dataset.id); });
   list.addEventListener('keydown', (e) => {
+    const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
     const c = e.target.closest('.card[data-id]');
-    if (!c) return;
+    if (!c) {
+      // M-20: focus handed to the list (its card scrolled out of the page) goes on from the first card in view.
+      if (e.target === list && step) {
+        e.preventDefault();
+        const top = list.getBoundingClientRect().top;
+        [...list.querySelectorAll('.card[data-id]')].find((x) => x.getBoundingClientRect().bottom > top + 4)?.focus();
+      }
+      return;
+    }
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrawer(c.dataset.id); }
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if (step) {
       e.preventDefault();
-      const cards = [...list.querySelectorAll('.card[data-id]')];
-      cards[cards.indexOf(c) + (e.key === 'ArrowDown' ? 1 : -1)]?.focus();
+      focusResult(visible.findIndex((j) => j.id === c.dataset.id) + step); // M-20: by result, not by card in the page
     }
   });
+  list.addEventListener('scroll', () => { if (win.loaded > WINDOW_ALL) scheduleWindow(); }, { passive: true });
   const hover = (id) => { if (hoverId === id) return; hoverId = id; highlightViz(); };
   list.addEventListener('mouseover', (e) => { const c = e.target.closest('.card[data-id]'); hover(c ? c.dataset.id : null); });
   list.addEventListener('mouseleave', () => hover(null));
@@ -3652,6 +3975,7 @@ function bindEvents() {
   });
   addEventListener('resize', rafThrottle(() => {
     positionPopover();
+    if (win.more?.isConnected) paintWindow(); // M-20: card heights follow the list's width
     if (document.body.classList.contains('filters-open')) { setFiltersModal(isMobile()); syncChipsExpanded(); } // rotation / resize across 860px
   }));
   addEventListener('scroll', () => positionPopover(), true);
@@ -3690,7 +4014,20 @@ function onHashChange() {
 
 /* ------------------------------------------------------------------ boot */
 
+/* D-27 / D-28 (shared decision 3): on the beta site the small Beta tag by the logo (index.html .beta-tag)
+   links back to the main site, its name says so for screen readers, and the tab title reads "melon·seek beta". */
+function markChannel() {
+  if (CHANNEL !== 'beta') return;
+  document.title = document.title.replace(/^melon·seek(?! beta)/, 'melon·seek beta');
+  $('.brand')?.setAttribute('aria-label', 'melon·seek beta home');
+  const tag = $('.beta-tag');
+  if (!tag) return;
+  tag.setAttribute('href', new URL('../', location.href).href); // the main site: dist/beta/ sits under it
+  tag.hidden = false;
+}
+
 async function boot() {
+  markChannel();
   try {
     if (localStorage.getItem('melon-seek.filtersCollapsed') === '1') document.body.classList.add('filters-collapsed');
   } catch { /* ignore */ }
@@ -3723,7 +4060,7 @@ async function boot() {
 }
 
 /** I-4: remember the last view (company, filters, sort, mode; not the open role) for the next visit. */
-const LAST_KEY = 'melon-seek.last.v1';
+const LAST_KEY = CHANNEL === 'beta' ? 'melon-seek.last.beta.v1' : 'melon-seek.last.v1'; // D-19: each site its own
 let lastSaved = null;
 function rememberView() {
   if (data.status !== 'ready' || MOCK) return;

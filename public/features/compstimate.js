@@ -21,7 +21,7 @@ import {
 } from './shared.js';
 import {
   normalizeTitle, familySim, rolePart, roleFamily, FAMILY_LABELS, SENIORITY_LADDER,
-  levelLabel, levelStated, SENIORITY_DISPLAY_ORDER,
+  levelLabel, levelStated, displayLevel, NOT_STATED, LEVEL_NOT_STATED, DISPLAY_LEVEL_ORDER, levelKey, levelFromKey,
 } from './roles.js';
 import { compstimateAsOfText } from './freshness.js';
 
@@ -586,6 +586,8 @@ const deptOf = (j) => j.department || 'No department';
 // Location keys of the places a posting's pay applies to (payLocations): a US range listed in
 // Sydney is not a Sydney comparable (shared decision 2, persona review 2026-10-10).
 const keysOf = (j) => payLocations(j).map(locKeyOf);
+/** A Level select value (levelKey) as the stored level the estimate weighs: both "not stated" and a stated mid level are 'Mid'. */
+const storedLevel = (key) => { if (!key) return ''; const l = levelFromKey(key); return l === NOT_STATED ? LEVEL_NOT_STATED : l; };
 
 /**
  * Pure: the Insights Compstimate's pool, query and copy for the current filters
@@ -606,13 +608,16 @@ const keysOf = (j) => payLocations(j).map(locKeyOf);
  *   basisParts: string[], display: { location: string, seniority: string }, labels: { location: string, seniority: string } }}
  */
 export function compstimateInputs(state = {}, edits = {}, jobs = [], { visible = null } = {}) {
+  // Shared decision 1: the app's Seniority filter (state.s) holds displayLevel() values; the Level select and
+  // its edits hold levelKey() values ('Mid' = "Level not stated", the stored default; 'Mid-level' = a stated
+  // mid level). The estimate itself weighs stored levels, where both are the stored 'Mid'.
   const F = { d: arr(state.d), rf: state.rf || '', l: arr(state.l), r: state.r || 'any', s: arr(state.s) };
   const ed = edits || {};
   const titleF = !('title' in ed), locF = !('location' in ed), levF = !('seniority' in ed);
   const passTitle = (j) => (!F.d.length || F.d.includes(deptOf(j))) && (!F.rf || famOf(j) === F.rf);
   const passLoc = (j) => (!F.l.length || keysOf(j).some((k) => F.l.includes(k)))
     && (F.r !== 'remote' || j.remote) && (F.r !== 'onsite' || (j.locations || []).some((l) => !l.remote));
-  const passLev = (j) => !F.s.length || F.s.includes(j.seniority || 'Unspecified');
+  const passLev = (j) => !F.s.length || F.s.includes(displayLevel(j));
   const salaried = (jobs || []).filter((j) => j && salaryUSD(j));
   const pool = salaried.filter((j) => (!titleF || passTitle(j)) && (!locF || passLoc(j)) && (!levF || passLev(j)));
 
@@ -625,28 +630,28 @@ export function compstimateInputs(state = {}, edits = {}, jobs = [], { visible =
   const auto = (F.rf && FAMILY_TITLES[F.rf]) || titleSuggestions(vis, 1)[0] || titleSuggestions(pool, 1)[0] || '';
   const title = titleF ? auto : String(ed.title || '');
   const location = locF ? (F.l.length === 1 ? F.l[0] : !F.l.length && F.r === 'remote' ? 'Remote' : '') : String(ed.location || '');
-  const seniority = levF ? (F.s.length === 1 && F.s[0] !== 'Unspecified' ? F.s[0] : '') : String(ed.seniority || '');
+  const seniority = levF ? (F.s.length === 1 ? levelKey(F.s[0]) : '') : String(ed.seniority || '');
 
   const titleParts = titleF ? [...F.d, ...(F.rf ? [FAMILY_LABELS[F.rf] || F.rf] : [])] : [];
-  const lvl = (s) => (s === 'Unspecified' ? s : levelLabel(s));
-  const levParts = (levF ? F.s : seniority ? [seniority] : []).map(lvl);
+  const lvl = (s) => levelLabel(s);
+  const levParts = (levF ? F.s : seniority ? [levelFromKey(seniority)] : []).map(lvl);
   const locParts = locF ? [...F.l, ...(F.r === 'remote' ? ['Remote'] : F.r === 'onsite' ? ['On-site'] : [])] : location ? [location] : [];
   const filtered = (titleF && titleParts.length > 0) || (levF && F.s.length > 0) || (locF && locParts.length > 0);
   // Pool restrictions the estimate's own basis does not describe (P-2: the basis line names the
   // comparables' level and place, not the filter's): a stated single level or a single place is
   // described from the comparables; several levels, "level not stated", remote or on-site come
   // from the filters, which every comparable passes.
-  const levPool = levF && F.s.length && !(F.s.length === 1 && levelStated(F.s[0]) && F.s[0] !== 'Unspecified') ? F.s.map(lvl) : [];
+  const levPool = levF && F.s.length && !(F.s.length === 1 && levelStated(F.s[0])) ? F.s.map(lvl) : [];
   const locPool = locF && !(F.l.length === 1) ? locParts : [];
 
   const locLabel = locF && F.l.length > 1 ? `${F.l.join(' or ')} (filters)`
     : locF && !F.l.length && F.r === 'remote' ? 'Remote (filters)'
     : locF && F.l.length !== 1 && F.r === 'onsite' ? 'On-site (filters)' : 'Any location';
-  const levLabel = levF && (F.s.length > 1 || (F.s.length === 1 && F.s[0] === 'Unspecified')) ? `${F.s.map(lvl).join(' or ')} (filters)` : 'Any level';
+  const levLabel = levF && F.s.length > 1 ? `${F.s.map(lvl).join(' or ')} (filters)` : 'Any level';
 
   return {
     pool,
-    query: { title, location, seniority, department: '' },
+    query: { title, location, seniority: storedLevel(seniority), department: '' },
     autoTitle: titleF,
     auto,
     filtered,
@@ -768,7 +773,7 @@ function jobMeta(job, locQuery) {
   const loc = hit || locs[0];
   const where = loc ? locKeyOf(loc) : job.remote ? 'Remote' : '';
   const more = locs.length > 1 ? ` +${locs.length - 1}` : '';
-  return [where && where + more, levelLabel(job.seniority), job.department].filter(Boolean).join(' · ');
+  return [where && where + more, levelLabel(displayLevel(job)), job.department].filter(Boolean).join(' · ');
 }
 
 function payRange(job) {
@@ -872,11 +877,11 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
       ...locs.map((o) => h('option', { value: o.value }, o.count ? `${o.label} (${o.count})` : `${o.label} (no listed pay)`)));
     locSelect.value = locVal;
     const levels = new Map();
-    for (const j of salaried) if (j.seniority) levels.set(j.seniority, (levels.get(j.seniority) || 0) + 1);
+    for (const j of salaried) { const k = displayLevel(j); levels.set(k, (levels.get(k) || 0) + 1); }
     const senVal = inputs.display.seniority;
-    // "Level not stated" (the stored 'Mid' default) is listed last (shared decision 1).
+    // Levels as people see them (displayLevel), valued by levelKey; "Level not stated" (the stored 'Mid' default) is last.
     senSelect.replaceChildren(h('option', { value: '' }, inputs.labels.seniority),
-      ...SENIORITY_DISPLAY_ORDER.filter((s) => levels.has(s) || s === senVal).map((s) => h('option', { value: s }, `${levelLabel(s)} (${levels.get(s) || 0})`)));
+      ...DISPLAY_LEVEL_ORDER.filter((s) => levels.has(s) || levelKey(s) === senVal).map((s) => h('option', { value: levelKey(s) }, `${levelLabel(s)} (${levels.get(s) || 0})`)));
     senSelect.value = senVal;
     const edited = Object.keys(edits).length > 0;
     resetBtn.hidden = !edited;
