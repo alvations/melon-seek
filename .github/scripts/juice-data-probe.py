@@ -7,7 +7,7 @@ log. Nothing is written back to the repository and no artifact is uploaded.
 
   python3 .github/scripts/juice-data-probe.py [section ...]   (default: all)
 
-Sections: hud acs ons cso nsw vic cmhc zurich sg bls zillow mit
+Sections: hud2 acs2 ons2 cso2 zurich2 sg2 olap cmhc2 hud acs ons cso nsw vic cmhc zurich sg bls zillow mit
 Each section is independent: a failure is printed and the next one runs.
 Needs openpyxl for .xlsx (the workflow pip-installs it on the runner only).
 """
@@ -575,7 +575,231 @@ def mit():
         print(f"  {name}: {t[i:i + 2600] if i >= 0 else t[:400]}")
 
 
-SECTIONS = {"hud": hud, "acs": acs, "ons": ons, "cso": cso, "nsw": nsw, "vic": vic, "cmhc": cmhc,
+# --------------------------------------------------------------------------- round 2
+HUD_ARCGIS = "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services"
+
+
+def arcgis_query(service, where, fields="*", layer=0, n=2000):
+    q = urllib.parse.urlencode({"where": where, "outFields": fields, "returnGeometry": "false", "f": "json", "resultRecordCount": n})
+    return json.loads(get(f"{HUD_ARCGIS}/{service}/FeatureServer/{layer}/query?{q}"))
+
+
+def hud2():
+    section("HUD FMR / SAFMR via HUD's ArcGIS feature services")
+    try:
+        d = json.loads(get(f"{HUD_ARCGIS}?f=json"))
+        for sv in d.get("services", []):
+            if re.search(r"fmr|fair|rent", sv.get("name", ""), re.I):
+                print(f"  service {sv['name']} ({sv.get('type')})")
+    except Exception as e:
+        print(f"  services list: {e}")
+    for svc in ("Fair_Market_Rents", "HUD_PDR_Small_Area_Fair_Market_Rents"):
+        try:
+            meta = json.loads(get(f"{HUD_ARCGIS}/{svc}/FeatureServer/0?f=json"))
+            print(f"  {svc}: name={meta.get('name')} | fields={[f['name'] for f in meta.get('fields', [])]}")
+            print(f"    description: {re.sub(r'<[^>]+>', ' ', str(meta.get('description')))[:700]}")
+            print(f"    copyright: {meta.get('copyrightText')} | edited: {meta.get('editingInfo', {}).get('lastEditDate')}")
+        except Exception as e:
+            print(f"  {svc} meta: {e}")
+            continue
+        fields = [f["name"] for f in meta.get("fields", [])]
+        if svc == "Fair_Market_Rents":
+            fips_f = next((f for f in fields if re.search(r"fips", f, re.I)), None)
+            print(f"    county field: {fips_f}")
+            for city, county in US_COUNTIES.items():
+                try:
+                    where = f"{fips_f} LIKE '{county}%'" if fips_f else "1=1"
+                    res = arcgis_query(svc, where, n=40)
+                except Exception as e:
+                    print(f"    {city}: {e}")
+                    continue
+                seen = set()
+                for ft in res.get("features", [])[:40]:
+                    a = ft["attributes"]
+                    vals = {k: v for k, v in a.items() if re.search(r"fmr|area|name|town|fips|year|fy", k, re.I)}
+                    key = json.dumps({k: v for k, v in vals.items() if re.search(r"fmr", k, re.I)}, sort_keys=True)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    print(f"    FMR | {city} | {vals}")
+        else:
+            zf = next((f for f in fields if re.search(r"zcta|zip", f, re.I)), None)
+            print(f"    zip field: {zf}")
+            zips = sorted({z for zs in US_ZIPS.values() for z in zs})
+            for i in range(0, len(zips), 40):
+                chunk = zips[i:i + 40]
+                try:
+                    res = arcgis_query(svc, f"{zf} IN ({','.join(repr(z) for z in chunk)})", n=200)
+                except Exception as e:
+                    print(f"    zips {chunk[0]}..: {e}")
+                    continue
+                if res.get("error"):
+                    print(f"    error {res['error']}")
+                for ft in res.get("features", []):
+                    a = ft["attributes"]
+                    z = str(a.get(zf))
+                    city = next((c for c, zs in US_ZIPS.items() if z in zs), "?")
+                    vals = {k: v for k, v in a.items() if re.search(r"safmr|fmr|area|name|fy|year", k, re.I)}
+                    print(f"    SAFMR | {city} | {z} | {vals}")
+
+
+def acs2():
+    section("Census ACS (debug the response)")
+    url = "https://api.census.gov/data/2024/acs/acs1?get=NAME,B25031_001E,B25031_003E,B25031_004E,B25031_005E&for=place:67000&in=state:06"
+    try:
+        t = get(url)
+        print(f"  body: {re.sub(r'<[^>]+>', ' ', t)[:600]}")
+    except Exception as e:
+        print(f"  {url}: {e}")
+
+
+ONS_TARGETS = ["London", "Inner London", "Westminster", "Camden", "Kensington and Chelsea", "City of London", "Islington",
+               "Tower Hamlets", "Southwark", "Hackney", "Lambeth", "Cambridge", "Oxford", "Manchester", "City of Edinburgh",
+               "Edinburgh", "England", "United Kingdom", "Scotland"]
+
+
+def ons2():
+    section("ONS PIPR Table 1: latest month by bedrooms")
+    u = "https://www.ons.gov.uk/file?uri=/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics/16september2026/priceindexofprivaterentsukmonthlypricestatistics.xlsx"
+    blob = get(u, binary=True, timeout=240)
+    hdr = None
+    latest = {}
+    sheets = set()
+    for sheet, row in xlsx_rows(blob):
+        sheets.add(sheet)
+        if sheet != "Table 1":
+            continue
+        cells = [norm(c) for c in row]
+        if hdr is None:
+            if "Area name" in cells:
+                hdr = cells
+                print(f"  header: {hdr}")
+            continue
+        rec = dict(zip(hdr, cells))
+        name = rec.get("Area name")
+        if name in ONS_TARGETS:
+            if name not in latest or rec["Time period"] > latest[name]["Time period"]:
+                latest[name] = rec
+    print(f"  sheets: {sorted(sheets)}")
+    for name in ONS_TARGETS:
+        r = latest.get(name)
+        if r:
+            print(f"  {r['Time period'][:10]} | {name} | all {r.get('Rental price')} | 1 bed {r.get('Rental price one bed')} | 2 bed {r.get('Rental price two bed')} | 3 bed {r.get('Rental price three bed')} | 4+ {r.get('Rental price four or more bed')} | annual change {r.get('Annual change')}")
+    print(f"  source: {u}")
+
+
+def cso2():
+    section("CSO PxStat RIQ02 RTB average monthly rent (Ireland), latest quarter")
+    url = "https://ws.cso.ie/public/api.restful/PxStat.Data.Cube_API.ReadDataset/RIQ02/JSON-stat/2.0/en"
+    d = json.loads(get(url, timeout=240))
+    ids, size = d["id"], d["size"]
+    print(f"  {d.get('label')} | updated {d.get('updated')} | ids {ids} sizes {size}")
+
+    def cats(i):
+        c = d["dimension"][i]["category"]
+        idx = c["index"]
+        order = idx if isinstance(idx, list) else sorted(idx, key=lambda k: idx[k])
+        lab = c.get("label", {})
+        return [lab.get(k, k) for k in order]
+
+    labels = {i: cats(i) for i in ids}
+    for i in ids:
+        print(f"    {i} ({d['dimension'][i].get('label')}): {len(labels[i])} e.g. {labels[i][:8]} ... {labels[i][-3:]}")
+    vals = d["value"]
+    tid = next((i for i in ids if re.search(r"quarter|tlist", i, re.I)), ids[-1])
+    lastq = labels[tid][-2:]
+    import itertools
+    strides = [1] * len(ids)
+    for n in range(len(ids) - 2, -1, -1):
+        strides[n] = strides[n + 1] * size[n + 1]
+    loc = next((i for i in ids if any(re.search(r"Dublin", x) for x in labels[i])), None)
+    for combo in itertools.product(*[range(x) for x in size]):
+        lab = {i: labels[i][combo[n]] for n, i in enumerate(ids)}
+        if lab[tid] not in lastq:
+            continue
+        if loc and not re.search(r"^(Dublin City|Dublin 1|Dublin 2|Dublin 4|Dublin|Ireland|State)$", lab[loc]):
+            continue
+        off = sum(c * st for c, st in zip(combo, strides))
+        v = vals[off] if isinstance(vals, list) else vals.get(str(off))
+        if v is None:
+            continue
+        print(f"    {' | '.join(lab[i] for i in ids)} = {v}")
+    print(f"  source: {url}")
+
+
+def zurich2():
+    section("Stadt Zuerich rents: city districts (Kreis 1, 2, 4, 5, 6, 8), private, latest year")
+    u = "https://data.stadt-zuerich.ch/dataset/bau_whg_mpe_mietpreis_raum_zizahl_gn_jahr_od5161/download/BAU516OD5161.csv"
+    text = get(u, timeout=120)
+    rows = list(csv.reader(io.StringIO(text.lstrip("﻿"))))
+    hdr = [h.strip('"') for h in rows[0]]
+    recs = [dict(zip(hdr, r)) for r in rows[1:] if r]
+    for r in recs:
+        if r["StichtagDatJahr"] != "2026" or r["EinheitLang"] != "Wohnung" or r["GemeinnuetzigLang"] != "Nicht gemeinnützig" or r["PreisartLang"] != "netto":
+            continue
+        if r["RaumeinheitLang"] == "Stadtkreise" and re.search(r"Kreis (1|2|3|4|5|6|7|8)\)", r["GliederungLang"]):
+            print(f"    2026 | {r['GliederungLang']} | {r['ZimmerLang']} | mean {r['mean']} | median {r['qu50']} | q25 {r['qu25']} | q75 {r['qu75']} | n {r.get('Sample1')}")
+    print(f"  source: {u}")
+
+
+def sg2():
+    section("Singapore HDB median rent (latest quarters, sorted)")
+    rid = "d_23000a00c52996c55106084ed0339566"
+    url = f"https://data.gov.sg/api/action/datastore_search?resource_id={rid}&limit=400&sort=quarter%20desc"
+    try:
+        d = json.loads(get(url))
+        recs = d["result"]["records"]
+        qs = sorted({r.get("quarter") for r in recs})
+        print(f"  total {d['result'].get('total')} | quarters in page {qs[0]}..{qs[-1]}")
+        for r in recs:
+            if r.get("quarter") in qs[-2:] and re.search(r"CENTRAL|BUKIT MERAH|QUEENSTOWN|KALLANG", str(r.get("town")), re.I):
+                print(f"    {r.get('quarter')} | {r.get('town')} | {r.get('flat_type')} | {r.get('median_rent')}")
+    except Exception as e:
+        print(f"  {url}: {e}")
+
+
+def olap():
+    section("France: observatoires locaux des loyers (data.gouv.fr), Paris by number of rooms")
+    api = "https://www.data.gouv.fr/api/1/datasets/?q=observatoires%20locaux%20des%20loyers&page_size=10"
+    try:
+        d = json.loads(get(api))
+    except Exception as e:
+        print(f"  {api}: {e}")
+        return
+    res = []
+    for ds in d.get("data", []):
+        print(f"  dataset {ds.get('slug')}: {ds.get('title')} | org {ds.get('organization', {}).get('name') if ds.get('organization') else None} | license {ds.get('license')}")
+        for r in ds.get("resources", [])[:12]:
+            print(f"    {r.get('format')} {r.get('title')} {r.get('url')}")
+            if str(r.get("format", "")).lower() == "csv":
+                res.append(r.get("url"))
+    for u in res[:3]:
+        try:
+            t = get(u, timeout=180)
+        except Exception as e:
+            print(f"  {u}: {e}")
+            continue
+        lines = t.splitlines()
+        print(f"  {u} header: {lines[0][:400]}")
+        n = 0
+        for ln in lines[1:]:
+            if re.search(r"L7500|Paris", ln) and n < 60:
+                print(f"    {ln[:300]}")
+                n += 1
+
+
+def cmhc2():
+    section("CMHC: link patterns on the data tables pages")
+    for page in ["https://www.cmhc-schl.gc.ca/professionals/housing-markets-data-and-research/housing-data/data-tables/rental-market/rental-market-report-data-tables"]:
+        text = get(page)
+        hrefs = sorted(set(re.findall(r'href="([^"]+)"', text)))
+        for h_ in hrefs:
+            if re.search(r"rental|rmr|xlsx|media", h_, re.I):
+                print(f"    {h_[:220]}")
+
+
+SECTIONS = {"hud2": hud2, "acs2": acs2, "ons2": ons2, "cso2": cso2, "zurich2": zurich2, "sg2": sg2, "olap": olap, "cmhc2": cmhc2,
+            "hud": hud, "acs": acs, "ons": ons, "cso": cso, "nsw": nsw, "vic": vic, "cmhc": cmhc,
             "zurich": zurich, "sg": sg, "bls": bls, "zillow": zillow, "mit": mit}
 
 if __name__ == "__main__":
