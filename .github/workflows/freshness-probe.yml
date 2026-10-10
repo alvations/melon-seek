@@ -1,0 +1,38 @@
+name: Freshness capture probe
+
+# Manual only (workflow_dispatch). Downloads the official / open source documents
+# that the monthly reference-data refresh reads (scripts/refresh/*, docs/DATA_FRESHNESS.md)
+# on a runner, and prints each response gzip+base64 in numbered chunks to the job
+# log, so the exact bytes can be rebuilt as test fixtures where the agent sandbox
+# cannot reach the hosts (see .github/scripts/freshness-probe.mjs --decode).
+# Read-only: nothing is committed, uploaded or deployed.
+on:
+  workflow_dispatch:
+    inputs:
+      requests:
+        description: 'JSON list of {"url": "...", "name": "label", "maxBytes": 400000} (see .github/scripts/freshness-probe.mjs)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: freshness-probe-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Capture
+        env:
+          REQUESTS: ${{ inputs.requests }}
+        run: node .github/scripts/freshness-probe.mjs
