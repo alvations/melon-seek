@@ -39,6 +39,9 @@ const HOSTS = new Set([
   'www.amazon.jobs', 'amazon.jobs', 'explore.jobs.netflix.net', 'jobs.netflix.com', 'apply.careers.microsoft.com', 'careers.microsoft.com',
   'jobs.careers.microsoft.com', 'nvidia.wd5.myworkdayjobs.com', 'jobs.nvidia.com', 'www.nvidia.com', 'jobs.apple.com', 'www.apple.com',
   'www.google.com', 'careers.google.com', 'www.metacareers.com', 'metacareers.com', 'www.tesla.com',
+  // Terms-of-use pages of the same companies (read once, for the ToS notes in docs/process/bigtech-data.md).
+  'www.amazon.com', 'policies.google.com', 'www.facebook.com', 'www.meta.com', 'help.netflix.com', 'www.netflix.com',
+  'www.microsoft.com', 'www.nvidia.com', 'eightfold.ai', 'www.eightfold.ai',
 ]);
 
 /* ---------------------------------------------------------------- output */
