@@ -123,6 +123,11 @@ These are the rules learned the hard way on 2026-10-10.
 - The sandbox has tools the CI runner lacks (for example `pdftotext`, which the tax refresh
   tests need; ci.yml installs it). A green local run is not a green CI run, so check CI on every
   push before the next batch. 15ed02b went red this way.
+- The sandbox has 4 CPUs. Each browser agent adds about 1 to 2 to the load, and 4 fix lanes alone
+  reached load 7, so stagger: run QA and the data check alongside fix lanes, but run mobile perf
+  on a quiet machine (its timings are the deliverable). Run the persona review on the fixed
+  build, so it finds new problems instead of known ones. Beta on 2026-10-10: desktop QA, mobile
+  QA and the data check first; perf and personas after the main-site fixes were integrated.
 - Never run `playwright install`. Chromium is at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`,
   with Playwright in `<scratchpad>/pw/node_modules`.
 - The Long Tasks API misses work after `fetch()` resolves. Read long tasks from a Chrome trace.
