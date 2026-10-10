@@ -175,14 +175,14 @@ test('jobs: seniority defaults, unread level tokens and ladder drift', async () 
     for (const j of doc.jobs) {
       if (j.seniority !== 'Mid') { j.title = j.title.replace(/^(Associate|Senior|Staff) /, ''); j.seniority = 'Mid'; }
     }
-    if (slug === 'acme') doc.jobs.slice(0, 6).forEach((j) => { j.title = j.title.replace(/^(Software Engineer|Data Scientist)/, '$1 L5'); });
+    if (slug === 'acme') doc.jobs.slice(0, 6).forEach((j) => { j.title = j.title.replace(/^(Software Engineer|Data Scientist)/, '$1 E5'); });
   });
   const r = byId(await jobs.check(ctxFor('jobs', envFor({ snapshots: snaps }))))['seniority-ladder'];
   assert.equal(r.status, 'drift', r.summary);
   const pooled = r.findings.find((f) => /level is a default/.test(f.key));
   assert.equal(pooled.official, 100);
   assert.match(pooled.note, /outnumbers every explicitly levelled posting/);
-  assert.ok(r.findings.some((f) => f.key === 'acme unread level tokens' && /L5/.test(f.note)));
+  assert.ok(r.findings.some((f) => f.key === 'acme unread level tokens' && /E5/.test(f.note)));
 });
 
 test('jobs: backtest drift against the live claim and a hand-written doc figure', async () => {

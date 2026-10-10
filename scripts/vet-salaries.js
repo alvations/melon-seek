@@ -41,17 +41,16 @@ export const FIXTURES = path.join(ROOT, 'test', 'fixtures', 'real-salary-cases.j
 
 /* ------------------------------------------------------------ tokenizing */
 
-const SYM = String.raw`(?:US\$|CA\$|C\$|AU\$|A\$|S\$|SG\$|NZ\$|HK\$|R\$|\$|£|€|¥|₩|₹|₪)`;
-export const CODES = 'USD|CAD|GBP|EUR|AUD|NZD|CHF|JPY|KRW|INR|SGD|ILS|AED|SAR|QAR|PLN|SEK|NOK|DKK|CZK|HKD|TWD|CNY|BRL|MXN|ZAR';
-const CODE = `(?:${CODES})`;
-const NUM = String.raw`\d{1,3}(?:[,.  ]\d{3})+(?:[.,]\d{1,2}(?!\d))?|\d+(?:[.,]\d{1,2}(?!\d))?`;
-const MULT = String.raw`(?:\s?(?:thousand|million|billion|mil)\b|(?:k|K|mm|MM|m|M|bn|B)(?![A-Za-z]))`;
-const MONEY_RE = new RegExp(String.raw`(?<![\w.])(${CODE}\s?)?(${SYM})?\s?(${NUM})(${MULT})?(\s?${CODE}(?![A-Za-z]))?`, 'g');
+// DQ-17 (beta data check): the scan reads amounts, clauses and pay context with the
+// parser's own rules (server/salary.js findMoneyTokens, payContextAt), so it agrees with
+// salary.js on "across the U.S. is USD $X" (an abbreviation does not end the clause),
+// Google's "US: $X - $Y (USD) + 15% bonus target + equity" (pay context), and "zł280000 -
+// zł287000 (PLN)" (an amount). Where the parser finds pay context but no salary was
+// published, the job is missed_salary.
+export const CODES = 'USD|CAD|GBP|EUR|AUD|NZD|CHF|JPY|KRW|INR|SGD|ILS|AED|SAR|QAR|PLN|SEK|NOK|DKK|CZK|HKD|TWD|CNY|BRL|MXN|ZAR|RON';
 const SEP_RE = /^\s*(?:[-–—‒―~]|to|and|through)\s*$/i;
-export const PAY_WORDS_RE = /\b(salary|salaries|compensation|pay|base|range|ote|on-target|annual(?:ly)?|hourly|stipends?|wages?|(?:contract|pay|day) rate)\b/i;
+export const PAY_WORDS_RE = /\b(salary|salaries|salaire|compensation|pay|base|range|ote|on-target|annual(?:ly)?|hourly|stipends?|wages?|(?:contract|pay|day) rate)\b/i;
 const MAG_RE = /\d\s?(?:m|mm|b|bn|million|billion|mil)\b/i;
-
-const SYM_CUR = { 'US$': 'USD', 'CA$': 'CAD', C$: 'CAD', 'AU$': 'AUD', A$: 'AUD', S$: 'SGD', 'SG$': 'SGD', 'NZ$': 'NZD', 'HK$': 'HKD', R$: 'BRL', $: 'USD', '£': 'GBP', '€': 'EUR', '¥': 'JPY', '₩': 'KRW', '₹': 'INR', '₪': 'ILS' };
 
 export const COUNTRY_CURRENCY = {
   US: 'USD', CA: 'CAD', GB: 'GBP', UK: 'GBP', CH: 'CHF', JP: 'JPY', KR: 'KRW', IN: 'INR', SG: 'SGD', AU: 'AUD',
@@ -60,36 +59,12 @@ export const COUNTRY_CURRENCY = {
   ...Object.fromEntries('IE DE FR NL ES IT BE AT FI PT LU GR EE LV LT SK SI HR MT CY BG'.split(' ').map((c) => [c, 'EUR'])),
 };
 
-function numberOf(raw) {
-  const s = raw.replace(/[  ]/g, ',');
-  let m = s.match(/^(\d{1,3}(?:[,.]\d{3})+)(?:[.,](\d{1,2}))?$/);
-  if (m) return Number(m[1].replace(/[,.]/g, '') + (m[2] ? `.${m[2]}` : ''));
-  m = s.match(/^(\d+)(?:[.,](\d{1,2}))?$/);
-  return m ? Number(m[1] + (m[2] ? `.${m[2]}` : '')) : NaN;
+/** Money-ish tokens: { start, end, value, currency|null, weak, mag (M/B suffix), unit }, read like salary.js reads them. */
+export function moneyTokens(text, opts = {}) {
+  return salaryLib.findMoneyTokens(text, opts).map((t) => ({ start: t.start, end: t.end, value: t.value, currency: t.currency || null, weak: !!t.weak, mag: !!t.mag, unit: t.unit || null }));
 }
 
-/** Money-ish tokens: { start, end, value, currency|null, mag (M/B suffix) }. */
-export function moneyTokens(text) {
-  const out = [];
-  MONEY_RE.lastIndex = 0;
-  let m;
-  while ((m = MONEY_RE.exec(text))) {
-    const [full, pre, sym, num, mult, suf] = m;
-    const lead = full.length - full.trimStart().length;
-    let v = numberOf(num);
-    if (!Number.isFinite(v)) continue;
-    const mu = (mult || '').trim().toLowerCase();
-    if (mu === 'k' || mu === 'thousand') v *= 1e3;
-    else if (['m', 'mm', 'mil', 'million'].includes(mu)) v *= 1e6;
-    else if (['b', 'bn', 'billion'].includes(mu)) v *= 1e9;
-    const code = (suf || pre || '').trim().toUpperCase() || null;
-    const currency = code || (sym ? SYM_CUR[sym] || null : null);
-    out.push({ start: m.index + lead, end: m.index + full.length, value: v, currency, weak: !code && sym === '$', mag: /^(m|mm|mil|million|b|bn|billion)$/.test(mu) });
-  }
-  return out;
-}
-
-/** Ranges among tokens: { lo, hi, currency, start, end }. */
+/** Ranges among tokens: { lo, hi, currency, start, end, unit }. */
 export function moneyRanges(text, toks = moneyTokens(text)) {
   const out = [];
   for (let i = 0; i + 1 < toks.length; i++) {
@@ -98,36 +73,22 @@ export function moneyRanges(text, toks = moneyTokens(text)) {
     if (!SEP_RE.test(text.slice(a.end, b.start))) continue;
     const cur = a.currency || b.currency;
     if (!cur) continue;
-    out.push({ lo: Math.min(a.value, b.value), hi: Math.max(a.value, b.value), currency: cur, start: a.start, end: b.end });
+    out.push({ lo: Math.min(a.value, b.value), hi: Math.max(a.value, b.value), currency: cur, start: a.start, end: b.end, unit: b.unit || a.unit || null });
     i++;
   }
   return out;
 }
 
-/** Clause boundary at text[i]: newline, bullet, semicolon, or sentence end (. ! ? before whitespace). */
-function isBoundary(text, i) {
-  const ch = text[i];
-  if (ch === '\n' || ch === '•' || ch === ';') return true;
-  return (ch === '.' || ch === '!' || ch === '?') && (i + 1 >= text.length || /\s/.test(text[i + 1]));
+/** The sentence/clause around [s, e) (salary.js clause rules), plus the previous line when it is a short heading. */
+export function clauseAround(text, s, e) {
+  const c = salaryLib.payContextAt(text, s, e);
+  const clause = text.slice(c.start, Math.min(text.length, c.end + 1));
+  return c.heading ? `${c.heading}\n${clause}` : clause;
 }
 
-/** The sentence/clause around [s, e), plus the previous line when it is a short heading. */
-export function clauseAround(text, s, e) {
-  let a = s;
-  while (a > 0 && !isBoundary(text, a - 1)) a--;
-  let b = e;
-  while (b < text.length && !isBoundary(text, b)) b++;
-  let clause = text.slice(a, b + 1);
-  if (a > 0 && text[a - 1] === '\n') {
-    // Previous non-blank line, if it is a short heading ("Annual Salary:").
-    let prevEnd = a - 1;
-    while (prevEnd > 0 && /\s/.test(text[prevEnd - 1])) prevEnd--;
-    let p = prevEnd;
-    while (p > 0 && text[p - 1] !== '\n') p--;
-    const prev = text.slice(p, prevEnd).trim();
-    if (prev && prev.length <= 80) clause = `${prev}\n${clause}`;
-  }
-  return clause;
+/** Is the amount at [s, e) pay by the parser's rules (pay word, heading, "+ bonus + equity", hourly unit)? */
+export function inPayContext(text, s, e, opts = {}) {
+  return salaryLib.payContextAt(text, s, e, opts).pay;
 }
 
 const flat = (s) => String(s || '').replace(/\s+/g, ' ').trim();
@@ -181,18 +142,32 @@ export function hasPayWords(clause) {
   return PAY_WORDS_RE.test(s);
 }
 
-/** Pay clauses (pay word + currency amount) in the text, as { start, end, clause }. */
-export function payClauses(text) {
+/**
+ * Pay clauses in the text: amounts with a currency (a range, or a single figure with its
+ * currency) in pay context, as { start, end, clause }: the parser's pay context, or a pay
+ * word in the parser's clause. A total or cash compensation range, a pay floor and prose
+ * money are not pay clauses (the parser's rejections, salary.js payContextAt).
+ */
+export function payClauses(text, { countries = [] } = {}) {
   const out = [];
   const seen = new Set();
-  for (const t of moneyTokens(text)) {
-    if (!t.currency || t.value < 7) continue;
-    const clause = clauseAround(text, t.start, t.end);
-    if (!hasPayWords(clause)) continue;
-    const key = flat(clause);
+  const toks = moneyTokens(text, { countries });
+  const ranges = moneyRanges(text, toks);
+  const inRange = new Set(ranges.flatMap((r) => toks.filter((t) => t.start >= r.start && t.end <= r.end)));
+  const units = [...ranges.map((r) => ({ ...r, single: false })), ...toks.filter((t) => !inRange.has(t)).map((t) => ({ ...t, lo: t.value, hi: t.value, single: true }))]
+    .sort((x, y) => x.start - y.start);
+  for (const u of units) {
+    if (!u.currency || u.hi < 7 || u.mag) continue;
+    // The parser's clause (an abbreviation does not end it) and its rejections (total or
+    // cash compensation, a pay floor, funding or bonus words around the amount); within
+    // that, either the parser's own pay context or a broader pay word ("the annual range
+    // for our interns is ..."), so a range the parser misses still shows up as missed.
+    const c = salaryLib.payContextAt(text, u.start, u.end, { unit: u.unit, single: u.single });
+    if (!c.pay && (c.reason || !hasPayWords(`${c.heading}\n${c.clause}`))) continue;
+    const key = flat(clauseAround(text, u.start, u.end));
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push({ start: t.start, end: t.end, clause: key });
+    out.push({ start: u.start, end: u.end, clause: key });
   }
   return out;
 }
@@ -224,8 +199,8 @@ export function scanJob(job, { stat = null } = {}) {
   const flags = new Set();
   let span = null;
   let source = null;
-  const clauses = text ? payClauses(text) : [];
   const countries = countriesOf(job);
+  const clauses = text ? payClauses(text, { countries }) : [];
 
   if (sal) {
     source = text ? salarySource(job, text, sal) : (sal.source || null);
@@ -249,7 +224,7 @@ export function scanJob(job, { stat = null } = {}) {
     }
     const want = countries.map((c) => COUNTRY_CURRENCY[c]).filter(Boolean);
     if (want.length && !want.includes(String(sal.currency).toUpperCase())) flags.add('currency_country_mismatch');
-    if (text && source === 'text' && span && !hasPayWords(clauseAround(text, span.start, span.end))) flags.add('no_pay_context');
+    if (text && source === 'text' && span && !inPayContext(text, span.start, span.end, { unit: sal.originalInterval === 'hour' ? 'hour' : null, single: sal.min === sal.max })) flags.add('no_pay_context');
     if (text && source === 'structured' && typeof salaryLib.parseSalary === 'function') {
       const p = salaryLib.parseSalary(text, { countries });
       const pj = p && salaryLib.toJobSalary(p);
@@ -262,11 +237,14 @@ export function scanJob(job, { stat = null } = {}) {
 
   if (text) {
     const pay = new Set();
-    for (const r of moneyRanges(text)) {
+    for (const r of moneyRanges(text, moneyTokens(text, { countries }))) {
       if (r.hi < 7 || r.hi > 5e6) continue; // prose like "$100K to $10M+ in annual spend"
-      if (hasPayWords(clauseAround(text, r.start, r.end))) pay.add(`${r.lo}|${r.hi}|${r.currency}`);
+      if (inPayContext(text, r.start, r.end, { unit: r.unit })) pay.add(`${r.lo}|${r.hi}|${r.currency}`);
     }
-    if (pay.size > 1) flags.add('multiple_ranges');
+    // More pay ranges than the salary accounts for (its zones: the parser's own count of the
+    // posting's ranges, so a level list or a national + city pair it read by rule is not a
+    // flag; DQ-17). With no salary, any two.
+    if (pay.size > 1 && pay.size > (sal ? Math.max(1, Number(sal.zones) || 1) : 1)) flags.add('multiple_ranges');
     for (const c of clauses) {
       const toks = moneyTokens(c.clause).filter((t) => t.currency);
       const dollarCode = toks.some((t) => !t.weak && /^(USD|CAD|AUD|SGD|NZD|HKD)$/.test(t.currency));

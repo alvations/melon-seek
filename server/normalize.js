@@ -1,8 +1,8 @@
 // Raw job (adapter / demo output) -> Job (API shape). See docs/CONTRACT.md.
 import { geocodeMany } from './geo.js';
-import { extractSections, extractKeywords, inferSeniority, isSalesTitle } from './keywords.js';
+import { extractSections, extractKeywords, jobSeniority, isSalesTitle } from './keywords.js';
 import * as keywordsModule from './keywords.js';
-import { parseSalary, toJobSalary, currenciesFor, payTerms, mayRelabelPay } from './salary.js';
+import { parseSalary, toJobSalary, currenciesFor, payTerms, mayRelabelPay, payAreas } from './salary.js';
 import { htmlToText, isoOrNull } from './sources/util.js';
 import { vetSalaries, salaryChecks } from './vet.js';
 
@@ -18,10 +18,14 @@ import { vetSalaries, salaryChecks } from './vet.js';
  * locations name the country ("Remote (Canada)", not "Remote (CA)"); norm-6 = pay
  * data fixes from the 2026-10-10 persona review (salary.kind 'ote', salary.termWeeks,
  * term pay, level rules for Account Director / Fellow, keyword patterns and skill
- * order, Canadian cities and location context). Stored snapshots are upgraded with
- * relocateJobs (which also re-derives the pay labels and the level) and rekeyBoardJobs.
+ * order, Canadian cities and location context); norm-7 = beta fix wave pay and levels
+ * (docs/process/fix-beta-pay.md: board ladders and job.seniorityBasis, salary.levels,
+ * zł/kr/lei and "(CAD)" codes, Google country lines, bonus-target %, Canadian "$", the
+ * SF Bay Area / NYC range, union floors, single figures that are not zones). Stored
+ * snapshots are upgraded with relocateJobs (which also re-derives text-sourced pay, the
+ * pay labels and the level, then re-runs the vetting gate) and rekeyBoardJobs.
  */
-export const NORMALIZER_VERSION = 'norm-6';
+export const NORMALIZER_VERSION = 'norm-7';
 
 const NO_EXTRAS = Object.freeze({ equity: false, bonus: false });
 
@@ -94,7 +98,9 @@ export function deriveSalary(raw, locations = []) {
     }
   }
   let salary = toJobSalary(structured, { source: 'structured' });
-  const parsed = parseSalary(text, { countries }) || (raw.text && html ? parseSalary(htmlToText(html), { countries }) : null);
+  // DQ-13: a job whose US locations are all in the SF Bay Area / NYC uses that range.
+  const areas = payAreas(locations);
+  const parsed = parseSalary(text, { countries, areas }) || (raw.text && html ? parseSalary(htmlToText(html), { countries, areas }) : null);
   // zones (F2): the text's distinct pay ranges merged with the adapter's tier count.
   const adapterZones = Math.max(Number(raw.salary && raw.salary.zones) || 0, ranges.length);
   const zonesOf = (s) => Math.max(1, s.zones || 1, adapterZones, (parsed && parsed.zones) || 0);
@@ -138,30 +144,66 @@ function relabelSalary(sal, { text, title, employmentType, countries }) {
 }
 
 /**
- * Upgrade stored jobs to the norm-6 pay labels and level rules: salary (and salaryRaw)
- * relabelled from the posting text, seniority re-derived from the title. Pure; returns
- * new objects for changed jobs. Called by relocateJobs, so every snapshot upgrade path
- * (server/pipeline.js, scripts/build-static.js, the archive ingest and the refresh
- * report) gets it with the location upgrade.
+ * The salary a STORED posting gets from the current parser (norm-7, the beta fix wave:
+ * DQ-5, DQ-6, DQ-8 levels, DQ-13, DQ-14, DQ-15, D-22, D-30): its text-sourced salary, or
+ * its missing one, is derived again from the posting text exactly as deriveSalary does for
+ * a fresh posting. Returns undefined when the stored salary is structured (Greenhouse,
+ * Ashby, Lever ranges are not stored raw, so only their labels are re-derived).
+ */
+function rederiveTextSalary(j, text) {
+  const sal = j.salary || j.salaryRaw || null;
+  if (sal && sal.source !== 'text') return undefined;
+  if (!text) return sal ? undefined : null;
+  const fresh = deriveSalary({ title: j.title || '', employmentType: j.employmentType || '', text, html: '' }, j.locations || []);
+  // The parser no longer reads pay here, but the stored figure fails the gate's hard checks
+  // anyway (an old misread such as "$4.6M"): keep it, so the gate keeps it quarantined ("Pay
+  // unclear") instead of the upgrade erasing the record. A plausible stored figure that the
+  // text no longer supports (a union pay floor) is dropped.
+  if (!fresh && sal && salaryChecks({ title: j.title, employmentType: j.employmentType }, sal).length) return undefined;
+  // A text salary that replaced a rejected structured one keeps that record and its zones.
+  if (fresh && sal && sal.structuredRejected) return { ...fresh, zones: Math.max(fresh.zones || 1, sal.zones || 1), structuredRejected: sal.structuredRejected };
+  return fresh;
+}
+
+/**
+ * Upgrade stored jobs to the current pay and level rules: a text-sourced (or missing)
+ * salary is derived again from the posting text, a structured one keeps its numbers and
+ * gets the pay labels (salary.kind 'ote', termWeeks), and the level is re-derived from the
+ * title and the pay sentence (job.seniority, job.seniorityBasis). The list then goes
+ * through the vetting gate again, so a re-derived salary is quarantined like a fresh one.
+ * Pure and idempotent; called by relocateJobs, so every snapshot upgrade path
+ * (server/pipeline.js, scripts/build-static.js, the archive ingest and the refresh report)
+ * gets it with the location upgrade. Pass a whole company's list (the gate's statistics are
+ * per company).
  */
 export function relabelJobs(jobs) {
-  return (jobs || []).map((j) => {
+  if (!Array.isArray(jobs)) return jobs;
+  let changed = false;
+  const out = jobs.map((j) => {
     if (!j || typeof j !== 'object') return j;
     const title = j.title || '';
-    const seniority = title ? safe(() => inferSeniority(title), j.seniority) : j.seniority;
     const html = typeof j.descriptionHtml === 'string' ? j.descriptionHtml : '';
-    if (!j.salary && !j.salaryRaw) return seniority === j.seniority ? j : { ...j, seniority };
-    const ctx = {
-      text: html ? htmlToText(html) : '',
-      title,
-      employmentType: j.employmentType || '',
-      countries: [...new Set((j.locations || []).map((l) => l && l.country).filter(Boolean))],
-    };
-    const out = { ...j, seniority };
-    if (j.salary) out.salary = safe(() => relabelSalary(j.salary, ctx), j.salary);
-    if (j.salaryRaw) out.salaryRaw = safe(() => relabelSalary(j.salaryRaw, ctx), j.salaryRaw);
-    return out;
+    const text = html ? htmlToText(html) : '';
+    const lvl = title ? safe(() => jobSeniority({ title, text, company: j.company || null }), null) : null;
+    const next = { ...j };
+    if (lvl) { next.seniority = lvl.level; next.seniorityBasis = lvl.basis; }
+    else if (!next.seniorityBasis) next.seniorityBasis = (next.seniority || 'Mid') === 'Mid' ? 'default' : 'title';
+    // (Not safe(): a fresh null, "no salary", must replace the stored one.)
+    let fresh;
+    try { fresh = rederiveTextSalary(j, text); } catch { fresh = undefined; }
+    if (fresh !== undefined) {
+      delete next.salaryRaw;
+      delete next.salaryFlag;
+      next.salary = fresh;
+    } else if (j.salary || j.salaryRaw) {
+      const ctx = { text, title, employmentType: j.employmentType || '', countries: [...new Set((j.locations || []).map((l) => l && l.country).filter(Boolean))] };
+      if (j.salary) next.salary = safe(() => relabelSalary(j.salary, ctx), j.salary);
+      if (j.salaryRaw) next.salaryRaw = safe(() => relabelSalary(j.salaryRaw, ctx), j.salaryRaw);
+    }
+    changed = true;
+    return next;
   });
+  return changed ? vetSalaries(out) : out;
 }
 
 export function normalizeJob(raw, company, { boilerplate = null } = {}) {
@@ -185,7 +227,8 @@ export function normalizeJob(raw, company, { boilerplate = null } = {}) {
     () => extractKeywords({ title, department: raw.department || null, sections, text: kwText }),
     { responsibilities: [], fit: [], skills: [] },
   );
-  const seniority = safe(() => inferSeniority(title), 'Mid');
+  // DQ-3: the title's level on the board's ladder, else the level the pay sentence names.
+  const level = safe(() => jobSeniority({ title, text, company: company.slug }), { level: 'Mid', basis: 'default' });
   const extras = compExtras(raw, text, title);
 
   return {
@@ -196,7 +239,8 @@ export function normalizeJob(raw, company, { boilerplate = null } = {}) {
     department: raw.department || null,
     team: raw.team || null,
     employmentType: raw.employmentType || null,
-    seniority,
+    seniority: level.level,
+    seniorityBasis: level.basis,                                          // 'title' | 'pay' | 'default'
     locations,
     remote,
     salary,

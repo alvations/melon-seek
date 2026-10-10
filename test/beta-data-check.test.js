@@ -127,7 +127,7 @@ test('DQ-2 Apple per-location copies never show two different pay ranges for the
 // Senior median ($315K). Google "II"/"IV", Microsoft "II"/"2", NVIDIA "New College Grad" and
 // Apple "Student" fall back to the "Mid" default (shown as "Level not stated" after P-3).
 
-test('DQ-3 titles that state a board level are not the "Mid" default', TODO, () => {
+test('DQ-3 titles that state a board level are not the "Mid" default', () => {
   for (const t of [
     'Distributed Systems Engineer (L5) - Data Platform', // netflix:790298020581
     'Software Engineer 6 - Ads Identity & Privacy', // netflix
@@ -141,25 +141,25 @@ test('DQ-3 titles that state a board level are not the "Mid" default', TODO, () 
   ]) assert.equal(seniorityBasis(t), 'title', `"${t}" -> ${inferSeniority(t)} (default)`);
 });
 
-test('DQ-3 Netflix levels keep their order (L4 < L5 < L6)', TODO, () => {
+test('DQ-3 Netflix levels keep their order (L4 < L5 < L6)', () => {
   const rank = (t) => LADDER.indexOf(inferSeniority(t));
   assert.ok(rank('Software Engineer 4 - Ads Engineering') < rank('Software Engineer 6 - Ads Conversions API'), 'Engineer 4 below Engineer 6');
   assert.ok(rank('Data Engineer (L5)') < rank('Data Engineer (L6) - Ads (Signals and Measurement)'), 'L5 below L6');
 });
 
-test('DQ-3 new-grad and student titles are entry or intern level', TODO, () => {
+test('DQ-3 new-grad and student titles are entry or intern level', () => {
   assert.equal(inferSeniority('Research Scientist, ML Systems - PhD New College Grad 2026'), 'Entry');
   assert.equal(inferSeniority('Hardware Engineering Student'), 'Intern');
 });
 
-test('DQ-3 Google ladder: "III" sits below "Senior", and "Associate ... Counsel" is not entry level', TODO, () => {
+test('DQ-3 Google ladder: "III" sits below "Senior", and "Associate ... Counsel" is not entry level', () => {
   // Google: SWE II (L3) < SWE III (L4) < Senior (L5). Medians in this crawl: II $168K, III $179K, Senior $213K.
   assert.notEqual(inferSeniority('Software Engineer III, Full Stack'), inferSeniority('Senior Software Engineer, Infrastructure'));
   // google "Associate Product Counsel, Ads" $217K-$314K: Google legal "Entry" median $266K > "Mid" $166K.
   assert.notEqual(inferSeniority('Associate Product Counsel, Ads'), 'Entry');
 });
 
-test('DQ-3 a Microsoft pay sentence that names the level (IC6) decides a title with no level', TODO, () => {
+test('DQ-3 a Microsoft pay sentence that names the level (IC6) decides a title with no level', () => {
   // microsoft:1970393556913038 "Member of Technical Staff, Microsoft Robotics" (MTS is not a level)
   const html = '<p>Software Engineering IC6 - The typical base pay range for this role across the U.S. is USD $165,600 - $296,400 per year. There is a different range applicable to specific work locations, within the San Francisco Bay area and New York City metropolitan area, and the base pay range for this role in those locations is USD $220,800 - $331,200 per year. </p>';
   const job = normalizeJob({ sourceId: '1970393556913038', title: 'Member of Technical Staff, Microsoft Robotics', locationText: 'Redmond, WA, US', html }, company('microsoft'));
@@ -197,7 +197,7 @@ test('DQ-4 big-tech hub locations match a Juice city (directly or as "nearby")',
 const GOOGLE_PRE = 'Individual pay is determined by factors including job-related skills, experience, and relevant education or training.\n\n';
 const GOOGLE_POST = '\n\nLearn more about benefits at Google .';
 
-test('DQ-5 Google base range followed by a large or fractional bonus target is still base pay', TODO, () => {
+test('DQ-5 Google base range followed by a large or fractional bonus target is still base pay', () => {
   for (const [line, countries, want] of [
     ['US: $152000 - $221000 (USD) + 42.86% bonus target + equity + benefits', ['US'], [152000, 221000, 'USD']], // google:100868290011636422
     ['US: $147000 - $204000 (USD) + 150% bonus target + equity + benefits', ['US'], [147000, 204000, 'USD']], // google:102079530918650566
@@ -213,7 +213,7 @@ test('DQ-5 Google base range followed by a large or fractional bonus target is s
 // Google's Polish, Swedish and Danish lines use symbol prefixes the parser does not know:
 // every range written in zł (63 postings), kr (12) or kr. (6) gets no pay.
 
-test('DQ-6 Google "zł", "kr" and "kr." ranges are parsed in PLN, SEK and DKK', TODO, () => {
+test('DQ-6 Google "zł", "kr" and "kr." ranges are parsed in PLN, SEK and DKK', () => {
   for (const [line, countries, want] of [
     ['Poland: zł280000 - zł287000 (PLN) + 15% bonus target + equity + benefits', ['PL'], [280000, 287000, 'PLN']], // google:143569415361700550
     ['Sweden: kr660000 - kr675000 (SEK) + 15% bonus target + equity + benefits', ['SE'], [660000, 675000, 'SEK']], // google:101989064948753094
@@ -302,11 +302,13 @@ test('DQ-7 stable: the demo fallback never says no snapshot was bundled when one
 // NVIDIA's paid ones) and Microsoft one per IC level. The Job keeps only the span ($184K-$356K)
 // and the drawer says "Multiple pay zones" without naming the levels.
 
-test('DQ-8 per-level ranges are kept with their level labels', TODO, () => {
+test('DQ-8 per-level ranges are kept with their level labels', () => {
   const s = toJobSalary(parseSalary('Your base salary will be determined based on your location, experience, and the pay of employees in similar positions. The base salary range is 184,000 USD - 287,500 USD for Level 4, and 224,000 USD - 356,500 USD for Level 5.', { countries: ['US'] }), { source: 'text' });
   assert.equal(s.min, 184000);
-  assert.ok(Array.isArray(s.ranges), 'salary.ranges is set');
-  assert.deepEqual(s.ranges.map((r) => [r.min, r.max, r.label]), [[184000, 287500, 'Level 4'], [224000, 356500, 'Level 5']]);
+  // The field is salary.levels (beta fix wave, shared decision 2); salary.ranges stays the
+  // structured per-tier list.
+  assert.ok(Array.isArray(s.levels), 'salary.levels is set');
+  assert.deepEqual(s.levels.map((r) => [r.min, r.max, r.label]), [[184000, 287500, 'Level 4'], [224000, 356500, 'Level 5']]);
 });
 
 /* ------------------------------------------------------------------ DQ-9 */
@@ -346,7 +348,7 @@ test('DQ-10 "Seoul, Korea, Republic of" is one location in South Korea', TODO, (
 // A posting whose only location is in one of those areas still shows the national range
 // (31 postings, median 18% below the posted local range). Proposed rule, see the log.
 
-test('DQ-13 a Microsoft posting located only in the SF Bay Area uses the SF Bay Area range', TODO, () => {
+test('DQ-13 a Microsoft posting located only in the SF Bay Area uses the SF Bay Area range', () => {
   // microsoft:1970393556933263 "Senior Silicon Engineer", Santa Clara, CA
   const html = '<p>Silicon Engineering IC4 - The typical base pay range for this role across the U.S. is USD $119,800 - $234,700 per year. There is a different range applicable to specific work locations, within the San Francisco Bay area and New York City metropolitan area, and the base pay range for this role in those locations is USD $160,200 - $261,000 per year.</p>';
   const s = deriveSalary({ html }, geocode('Santa Clara, CA, US'));
@@ -358,14 +360,14 @@ test('DQ-13 a Microsoft posting located only in the SF Bay Area uses the SF Bay 
 // posting with five US cities; a Canadian minimum mixed into the US range; French, German and
 // Irish lines spanned together).
 
-test('DQ-15 a US posting with an Irish and a US line uses the US line', TODO, () => {
+test('DQ-15 a US posting with an Irish and a US line uses the US line', () => {
   // google:102246871434437318: New York, Chicago, Mountain View, Los Angeles, San Francisco, London, Dublin
   const text = `${GOOGLE_PRE}Ireland: €142000 - €145000 (EUR) + 20% bonus target + equity + benefits\nUS: $171000 - $247000 (USD) + 20% bonus target + equity + benefits${GOOGLE_POST}`;
   const s = parseSalary(text, { countries: ['US', 'US', 'US', 'US', 'US', 'GB', 'IE'] });
   assert.deepEqual(s && [s.min, s.max, s.currency], [171000, 247000, 'USD']);
 });
 
-test('DQ-15 a Canadian CAD line is never merged into the US range', TODO, () => {
+test('DQ-15 a Canadian CAD line is never merged into the US range', () => {
   // google:106785017631253190: Sunnyvale, Waterloo ON, Austin. Today: USD 144000-217000.
   const text = `${GOOGLE_PRE}US: $150000 - $217000 (USD) + 15% bonus target + equity + benefits\nCanada: $144000 - $147000 (CAD) + 15% bonus target + equity + benefits${GOOGLE_POST}`;
   const s = parseSalary(text, { countries: ['US', 'CA', 'US'] });
@@ -392,19 +394,19 @@ function scanned(html, countries, title = 'Software Engineer') {
   return { salary, ...scanJob({ id: 'x:1', title, descriptionHtml: html, salary, locations }) };
 }
 
-test('DQ-17 vet scan: Microsoft "across the U.S. is USD ..." has pay context', TODO, () => {
+test('DQ-17 vet scan: Microsoft "across the U.S. is USD ..." has pay context', () => {
   const r = scanned('<p>Software Engineering IC5 - The typical base pay range for this role across the U.S. is USD $142,800 - $274,800 per year. There is a different range applicable to specific work locations, within the San Francisco Bay area and New York City metropolitan area, and the base pay range for this role in those locations is USD $188,000 - $304,200 per year.</p>', ['US']);
   assert.equal(r.salary && r.salary.min, 142800, 'salary.js parses the national range');
   assert.ok(!r.flags.includes('no_pay_context'), `flags: ${r.flags.join(', ')}`);
 });
 
-test('DQ-17 vet scan: Google "US: $X - $Y (USD) + 15% bonus target + equity" has pay context', TODO, () => {
+test('DQ-17 vet scan: Google "US: $X - $Y (USD) + 15% bonus target + equity" has pay context', () => {
   const r = scanned(`<p>${GOOGLE_PRE}US: $141000 - $205000 (USD) + 15% bonus target + equity + benefits${GOOGLE_POST}</p>`.replace(/\n/g, '<br>'), ['US']);
   assert.equal(r.salary && r.salary.min, 141000, 'salary.js parses it');
   assert.ok(!r.flags.includes('no_pay_context'), `flags: ${r.flags.join(', ')}`);
 });
 
-test('DQ-17 vet scan: a Google posting whose posted range was not parsed is flagged missed_salary', TODO, () => {
+test('DQ-17 vet scan: a Google posting whose posted range was not parsed is flagged missed_salary', () => {
   // google:143569415361700550 (Kraków): salary null today, and the scan does not notice.
   const r = scanned(`<p>${GOOGLE_PRE}Poland: zł280000 - zł287000 (PLN) + 15% bonus target + equity + benefits${GOOGLE_POST}</p>`.replace(/\n/g, '<br>'), ['PL']);
   if (r.salary) return; // fixed in salary.js (DQ-6): nothing left to miss

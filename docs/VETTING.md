@@ -28,6 +28,7 @@ the review that found the bugs is recorded.
 | `source` | `"structured"` (Greenhouse `pay_input_ranges`, Ashby `compensation`, Lever `salaryRange`) or `"text"` (parsed from the description) |
 | `intervalCorrected`, `statedInterval` | The source's interval label made the pay implausible while the numbers are a plausible annual salary, so it was read as annual. Example: "88,000–130,000 USD per-month-salary" |
 | `ranges` | The per-tier list `[{min, max, currency, interval, label?}]` (source units) when the board gave several structured ranges |
+| `levels` | `[{label, min, max}]` (annual, in the salary's currency) when one posting prices several levels: NVIDIA "184,000 USD - 287,500 USD for Level 4, and 224,000 USD - 356,500 USD for Level 5" → `Level 4`, `Level 5`; Microsoft "IC4 - …", "IC5 - …" → `IC4`, `IC5`. `min`/`max` stay the overall span (norm-7, beta fix wave DQ-8) |
 | `structuredRejected` | Codes of the hard check that rejected the structured value when the text value was used instead |
 | `spread` | max ÷ min, 2 decimals (F2 pay-clarity labels; "Wide range" when ≥ 2.0) |
 | `zones` | Number of distinct pay ranges in the posting, at least 1: the distinct pay-context ranges the text parser finds (one amount in several currencies counts once), merged (max) with the adapter's tier count (`payRanges.length`, or a raw `salary.zones`) |
@@ -65,6 +66,26 @@ source interval, or `null`.
   match it picks USD, and if none match, USD.
 - **Ranges** accept a unit on each side ("$35/hour - $45/hour") and a redundant
   "k" ("$150,000 - 250,000k").
+- **Currency symbols shared by several currencies** (norm-7, beta fix wave): `zł` is PLN,
+  `kr` and `kr.` are SEK, NOK or DKK by the job's country (SEK and DKK when none is Nordic),
+  `lei` is RON, and a code in parentheses after the amount wins ("$99000 (CAD)", Google). A bare
+  "$" in a posting whose locations are all in Canada is CAD unless the amount's own sentence,
+  its heading or a "US:" line says USD (Google's Canada-only roles, Netflix Toronto and
+  Vancouver). Pay in a currency with no rate in `FX_PER_USD` is not used (RON today: the site
+  would plot lei as dollars), and the job then gets no other country's range either.
+- **One line per country** ("US: $171000 - $247000 (USD) + 20% bonus target …", "Ireland:
+  €142000 - €145000 (EUR) …"): the line for the job's country (the US one when the job has a US
+  location, else its first location's country). Lines for different countries are never
+  spanned; lines for one country are ("[Bachelor's degree] Poland: zł156000", "[Master's
+  degree] Poland: zł159000" → 156,000–159,000). A country label starts a new line even when the
+  page has no line break between them.
+- **SF Bay Area / NYC** (Microsoft, decided by the lead for DQ-13): "There is a different range
+  applicable to … the San Francisco Bay area and New York City metropolitan area, and the base
+  pay range for this role in those locations is …" is used for a job whose US locations are all
+  within 75 km of the bay or 60 km of Manhattan (`payAreas`), by level like the national ranges.
+- **Floors and area bands are not pay**: a single figure after "no less than", "not less than",
+  "at least" or "a minimum of" (Netflix's union-covered roles: "will be no less than $62.74 an
+  hour"), and Netflix's sales "range for roles in this area".
 - **Tiered lists** in one block, with the same currency, interval and kind and
   at most 130 characters apart, are spanned to overall min–max when the span is
   at most 3× ("Level 1: $25 - $33/hour … Level 3: $33 - $43/hour" → 25–43).
@@ -95,6 +116,11 @@ source interval, or `null`.
   or "for N months" in the pay sentence. Stored as `termWeeks` (and `termWeeksMax` for a
   range). The annualized figure stays the full-time-equivalent rate; surfaces show the pay
   as posted and say the term ("$3,850 a week for about 17 weeks").
+- **Above the bound**: a posted range above $1.2M, written out in full with a pay word in its
+  own clause ("The range for this role is $737,000.00 - $1,430,000.00", Netflix L7), is read and
+  then quarantined by the gate (`above_max`), so the posting shows "Pay unclear, see posting"
+  rather than nothing. Netflix pays all cash, so the figure may be real, but one posting does not
+  justify loosening a bound that caught three real errors. It never beats a plausible amount.
 - **Bounds** are checked in rough USD (`USD_PER`, derived from
   `public/viz/palette.js` `FX_PER_USD`): a text candidate must be $10K–$1.2M per
   year. `toJobSalary` refuses values outside $10K–$5M. Values between $1.2M and $5M are
@@ -179,16 +205,16 @@ is **blocking** and makes the scan exit 1.
 | `min_under_15k_fulltime` **critical** | annual min < $15K on a full-time role (employment type and title not part-time/intern/contract) |
 | `hourly_over_cap` **critical** | the gate's `hourly_high` |
 | `ratio_over_3` | max/min > 3 (review flag; the gate quarantines above 4) |
-| `no_pay_context` | text-sourced salary whose clause or heading has no pay word (salary, compensation, pay, base, range, OTE, annual, hourly, stipend, wage, contract/pay rate; benefit stipends excluded) |
+| `no_pay_context` | text-sourced salary whose amount is not pay by the parser's own rules (`server/salary.js#payContextAt`: the same clause ends, so "across the U.S. is USD $X" keeps its pay words, and the same pay context, so "US: $X - $Y (USD) + 15% bonus target + equity" is pay) |
 | `magnitude_suffix` | the matched text has an M/B/million/billion suffix |
 | `currency_country_mismatch` | currency is none of the location countries' currencies (only when countries are known) |
 | `non_year_interval` | source interval is hour/day/week/month |
 | `interval_suspect` | non-year interval whose annualized pay is over $1.2M while the raw numbers are plausible as annual |
 | `interval_corrected` | the parser or derivation already read the stated interval as annual |
-| `multiple_ranges` | more than one distinct money range in pay context (prose ranges over $5M excluded) |
+| `multiple_ranges` | more distinct money ranges in pay context than the salary's `zones` (the parser's own count: level tiers and national + city ranges it read by rule are not flagged); with no salary, two or more. Prose ranges over $5M excluded |
 | `multi_currency` | a pay clause lists more than one currency (a bare "$" next to "$… CAD" counts once) |
 | `structured_text_disagree` | structured salary and the text parse differ by > 10% in min or max, or in currency |
-| `missed_salary` | no salary, but a clause has a pay word and a currency amount |
+| `missed_salary` | no salary, but an amount with a currency is in the parser's pay context, or has a pay word (salary, compensation, pay, base, range, OTE, annual, hourly, stipend, wage, contract/pay rate) in the parser's clause, and no parser rule rejects it (total or cash compensation, a pay floor, an area band, funding or bonus words). Amounts are read with the parser's tokens (`findMoneyTokens`: "zł280000", "kr 577,000.00", "$99000 (CAD)") |
 | `title_junior_high`, `title_senior_low` | the gate's title checks |
 | `stat_outlier` | the gate's statistical test |
 | `quarantined` | the gate quarantined the job (`salaryFlag`) |

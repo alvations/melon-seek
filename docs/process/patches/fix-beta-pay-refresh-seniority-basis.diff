@@ -1,0 +1,12 @@
+--- a/scripts/refresh/jobs.js
++++ b/scripts/refresh/jobs.js
+@@ -306,7 +306,8 @@
+     const fam = (() => { try { return D.roleFamily(j.title || '', j); } catch { return null; } })();
+     if (fam) bump(s.families, fam);
+     else { s.familyUnknown++; if (s.familyUnknownExamples.length < 5) s.familyUnknownExamples.push(String(j.title || '').slice(0, 90)); }
+-    if ((j.seniority || 'Mid') === 'Mid' && D.seniorityBasis(j.title || '') === 'default') {
++    // norm-7: a level the pay sentence names (job.seniorityBasis 'pay', Microsoft IC6) is not a default.
++    if ((j.seniority || 'Mid') === 'Mid' && j.seniorityBasis !== 'pay' && D.seniorityBasis(j.title || '') === 'default') {
+       s.midDefault++;
+       if (LEVEL_TOKEN_RE.test(String(j.title || ''))) { s.levelTokens++; if (s.levelTokenExamples.length < 5) s.levelTokenExamples.push(String(j.title).slice(0, 90)); }
+     }

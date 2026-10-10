@@ -224,8 +224,15 @@ test('seniorityBasis: a level word decides it, otherwise "Mid" is a default', ()
   assert.equal(seniorityBasis('Software Engineer'), 'default');
   assert.equal(seniorityBasis('Member of Technical Staff'), 'default');
   assert.equal(seniorityBasis(''), 'default');
-  for (const t of ['Software Engineer', 'Staff Engineer', 'Associate', 'Head of Sales', 'Research Scientist II']) {
+  for (const t of ['Software Engineer', 'Staff Engineer', 'Associate', 'Head of Sales']) {
     assert.equal(seniorityBasis(t) === 'default', inferSeniority(t) === 'Mid', `${t}: "Mid" exactly when the level is a default`);
+  }
+  // Beta fix wave, shared decision 1: a ladder rung that means mid-level is 'Mid' with basis
+  // 'title' (it states the level), so "Mid" is no longer always a default; a default is
+  // still always "Mid".
+  assert.deepEqual([inferSeniority('Research Scientist II'), seniorityBasis('Research Scientist II')], ['Mid', 'title']);
+  for (const t of ['Software Engineer', 'Member of Technical Staff', 'Product Manager', '']) {
+    if (seniorityBasis(t) === 'default') assert.equal(inferSeniority(t), 'Mid', t);
   }
 });
 

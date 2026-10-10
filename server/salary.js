@@ -141,13 +141,17 @@ export function pickCurrency(offered, countries) {
   return offered[0];
 }
 
-const CODES = 'USD|CAD|GBP|EUR|AUD|NZD|CHF|JPY|KRW|INR|SGD|ILS|AED|SAR|QAR|PLN|SEK|NOK|DKK|CZK|HKD|TWD|CNY|BRL|MXN|ZAR';
-const SYMS = String.raw`US\$|CA\$|C\$|AU\$|A\$|SG\$|S\$|NZ\$|HK\$|R\$|\$|£|€|¥|₩|₹|₪|Kč`;
-const SYM_CUR = { 'US$': 'USD', 'CA$': 'CAD', C$: 'CAD', 'AU$': 'AUD', A$: 'AUD', 'SG$': 'SGD', S$: 'SGD', 'NZ$': 'NZD', 'HK$': 'HKD', R$: 'BRL', $: 'USD', '£': 'GBP', '€': 'EUR', '¥': 'JPY', '₩': 'KRW', '₹': 'INR', '₪': 'ILS', 'Kč': 'CZK', 'KČ': 'CZK' };
+const CODES = 'USD|CAD|GBP|EUR|AUD|NZD|CHF|JPY|KRW|INR|SGD|ILS|AED|SAR|QAR|PLN|SEK|NOK|DKK|CZK|HKD|TWD|CNY|BRL|MXN|ZAR|RON';
+// DQ-6: Google writes Polish, Swedish, Danish and Romanian pay as "zł280000", "kr660000",
+// "kr.600000" and "lei162000", each followed by its ISO code in parentheses.
+const SYMS = String.raw`US\$|CA\$|C\$|AU\$|A\$|SG\$|S\$|NZ\$|HK\$|R\$|\$|£|€|¥|₩|₹|₪|Kč|zł|kr\.|kr|lei`;
+const SYM_CUR = { 'US$': 'USD', 'CA$': 'CAD', C$: 'CAD', 'AU$': 'AUD', A$: 'AUD', 'SG$': 'SGD', S$: 'SGD', 'NZ$': 'NZD', 'HK$': 'HKD', R$: 'BRL', $: 'USD', '£': 'GBP', '€': 'EUR', '¥': 'JPY', '₩': 'KRW', '₹': 'INR', '₪': 'ILS', 'Kč': 'CZK', 'KČ': 'CZK', 'zł': 'PLN', 'kr.': 'DKK', kr: 'SEK', lei: 'RON' };
+// Symbols shared by several currencies: a code next to the amount, or the job's country, decides.
+const WEAK_SYMS = Object.freeze({ $: null, kr: { SE: 'SEK', NO: 'NOK', DK: 'DKK' }, 'kr.': { DK: 'DKK', NO: 'NOK', SE: 'SEK' } });
 
 function currencyOf(token) {
   if (!token) return null;
-  const t = token.replace(/\s+/g, '').toUpperCase();
+  const t = token.replace(/[\s()]+/g, '').toUpperCase();
   const code = t.match(new RegExp(`^(${CODES})`));
   if (code) return code[1];
   return SYM_CUR[t] || SYM_CUR[token.trim()] || null;
@@ -158,7 +162,8 @@ function currencyOf(token) {
 const PRE = String.raw`(?:(?:${CODES})\s?(?:${SYMS})?|(?:${SYMS}))`;
 const NUM = String.raw`\d{1,3}(?:[,.  ]\d{3})+(?:[.,]\d{1,2}(?!\d))?|\d+(?:[.,]\d{1,2}(?!\d))?`;
 const MULT = String.raw`(?:\s?(?:thousand|million|billion|mil)\b|(?:k|K|mm|MM|m|M|bn|B)(?![A-Za-z]))`;
-const SUF = String.raw`(?:\s?(?:${CODES}|€|£)(?![A-Za-z]))`;
+// A code after the amount, also in parentheses ("$99000 (CAD)", Google, DQ-15 / D-22).
+const SUF = String.raw`(?:\s?\(\s?(?:${CODES})\s?\)|\s?(?:${CODES}|€|£|zł|lei)(?![A-Za-z]))`;
 const UNIT = String.raw`(?:\s?\/\s?(?:hr|hour|h|yr|year|annum|mo|month|wk|week|day)\b\.?|\s?per[\s-]+(?:hour|year|annum|month|week|day)\b|\s(?:an?\s+(?:hour|year)|hourly|annually|yearly|monthly|weekly)\b)`;
 const TOKEN_RE = new RegExp(String.raw`(?<![A-Za-z0-9.,])(${PRE})?\s?(${NUM})(${MULT})?(${SUF})?(${UNIT})?(${SUF})?`, 'g');
 const RANGE_SEP_RE = /^\s*(?:[-–—‒―~]|to|and|through|until)\s*$/i;
@@ -204,17 +209,54 @@ function findTokens(text) {
     const multEff = mult && !(base >= 1000 && /^\s?k$/i.test(mult)) ? mult : null;
     const sufCur = currencyOf(suf) || currencyOf(suf2);
     const preCur = currencyOf(pre);
-    const weak = !!pre && pre.trim() === '$';
+    const sym = pre ? pre.trim() : null;
+    const weak = !!sym && Object.prototype.hasOwnProperty.call(WEAK_SYMS, sym);
     // Suffix code wins over a bare "$" ("$150,000 CAD", "$8,500 SGD/month").
     const currency = sufCur && (!preCur || weak) ? sufCur : preCur;
     out.push({
       start: m.index + lead, end: m.index + full.length, base, mult: multEff,
       mag: !!multEff && multFactor(multEff) >= 1e6,
       value: base * multFactor(multEff), currency, explicit: !!(pre || suf || suf2), weak: weak && !sufCur,
+      sym: weak && !sufCur ? sym : null,
       unit: unitInterval(unit),
     });
   }
   return out;
+}
+
+// "The text says USD": the code, "US$" or "US dollars" anywhere in the posting, or a range
+// it calls the US one ("The US base salary range ...", "across the U.S. is", "US: $X").
+const USD_MENTION_RE = /\bUSD\b|\bUS\$|\bU\.?S\.?\s+dollars?\b|\bAmerican\s+dollars?\b/i;
+const US_RANGE_RE = /\b(?:US|U\.S\.)\s+(?:base\s+)?(?:salary|pay|compensation|wage|hourly)|\bacross\s+the\s+U\.?S\.?(?!\w)|(?:^|\n)\s*(?:US|U\.S\.|United States)\s*:/;
+
+/**
+ * A symbol several currencies share, with no code next to it, takes the job's currency:
+ *   - "$" in a posting whose locations are all in Canada is CAD unless the text says USD
+ *     (D-22, DQ-14: Google "$150000 - $153000" in Waterloo, Netflix "$135,000.00 -
+ *     185,000.00" in Toronto). Everywhere else a bare "$" stays USD.
+ *   - "kr" / "kr." is SEK, NOK or DKK by the job's country ("kr" SEK and "kr." DKK when
+ *     no Nordic country is listed).
+ */
+function resolveWeakCurrencies(toks, text, countries) {
+  const cs = (countries || []).map((c) => String(c || '').toUpperCase()).filter(Boolean);
+  const canadaOnly = cs.length > 0 && cs.every((c) => c === 'CA');
+  for (const t of toks) {
+    if (!t.sym) continue;
+    if (t.sym === '$') {
+      // "The text says USD" in the amount's own sentence or heading, or on a "US:" line
+      // (a posting's "USD technology" or "Pixar's USD" elsewhere is not about pay).
+      if (canadaOnly) {
+        const cl = clauseSpan(text, t.start, t.end);
+        const near = `${cl.heading}\n${text.slice(cl.start, cl.end)}`;
+        if (!USD_MENTION_RE.test(near) && !US_RANGE_RE.test(near) && lineCountry(text, t.start) !== 'US') t.currency = 'CAD';
+      }
+      continue;
+    }
+    const byCountry = WEAK_SYMS[t.sym];
+    const hit = byCountry && cs.find((c) => byCountry[c]);
+    if (hit) t.currency = byCountry[hit];
+  }
+  return toks;
 }
 
 /* --------------------------------------------------------------- context */
@@ -248,7 +290,7 @@ function clauseSpan(text, s, e) {
   return { start: a, end: b, heading };
 }
 
-const PAY_RE = /\b(salary|salaries|compensation|pay|paid|wages?|ote|on[- ]target[- ](?:earnings|compensation|comp|pay|income|cash)|commissions?\s+(?:at|on)\s+target|remuneration|stipends?|(?:hourly|contract|day|daily|pay|base) rate|rate of pay|hourly (?:range|wage|pay)|brutto|gross|range for this (?:role|position|job))\b/i;
+const PAY_RE = /\b(salary|salaries|salaire|r[ée]mun[ée]ration|compensation|pay|paid|wages?|ote|on[- ]target[- ](?:earnings|compensation|comp|pay|income|cash)|commissions?\s+(?:at|on)\s+target|remuneration|stipends?|(?:hourly|contract|day|daily|pay|base) rate|rate of pay|hourly (?:range|wage|pay)|brutto|gross|range for (?:this|the|our) (?:role|position|job|interns?|internships?))\b/i;
 // "$500 home office stipend", "learning & development stipend": benefits, not pay.
 export const BENEFIT_STIPEND_RE = /\b(?:lunch|meals?|food|snacks?|home[- ]office|office|workspace|learning(?:\s*(?:&|and)\s*development)?|development|education(?:al)?|tuition|wellness|well-?being|fitness|gym|commuter|commuting|transit|transportation|phone|mobile|cell|internet|wi-?fi|co-?working|relocation|equipment|books?|conference|travel|childcare|remote(?:[- ]work)?|wfh|tech(?:nology)?|health|lifestyle|productivity|setup)\s+(?:stipends?|allowances?|budgets?)\b/gi;
 const NEG_BEFORE_RE = /\b(raised|raising|funding|funded|series [a-f]|valuation|valued|revenue|arr|backed|invest\w*|budgets?|spend(?:ing)?|closing|closed|deals?|quotas?|bonus(?:es)?|signing|sign-on|relocation|reimburs\w*|allowances?|grants?|credits?|compute|expenses?|savings?|saved|worth|exploits?|prizes?|awards?|donat\w*|customers?|users|loans?|pric(?:e|es|ed|ing)|costs?|fees?|tuition|401)\b[^$£€¥\d]{0,40}$/i;
@@ -265,7 +307,7 @@ function totalCompBefore(before) {
 // "$141,000-$202,000 + bonus + equity + benefits" (Google, Meta), "US: $300000 -
 // $333000 (USD) + 25% bonus target + equity + benefits": a base range with the
 // extras named after it. This is pay context, and the bonus is not the amount.
-const PLUS_EXTRAS_AFTER_RE = /^\s*(?:\(?(?:USD|CAD|GBP|EUR|AUD|SGD|CHF|INR|JPY|ILS)\)?\s*)?(?:per\s+(?:year|annum|hour)\s*)?(?:\+|plus\b)\s*(?:an?\s+)?(?:\d{1,2}(?:\.\d)?%\s+)?(?:annual\s+|target\s+)?(?:bonus|equity|benefits|commission|stock|rsus?)\b/i;
+const PLUS_EXTRAS_AFTER_RE = /^\s*(?:\(?(?:USD|CAD|GBP|EUR|AUD|SGD|CHF|INR|JPY|ILS|PLN|SEK|DKK|NOK|RON|CZK)\)?\s*)?(?:per\s+(?:year|annum|hour)\s*)?(?:\+|plus\b)\s*(?:an?\s+)?(?:\d{1,3}(?:\.\d{1,2})?%\s+)?(?:annual\s+|target\s+)?(?:bonus|equity|benefits|commission|stock|rsus?)\b/i;
 const NATIONAL_RE = /\btypical\s+base\s+pay\s+range\s+for\s+this\s+role\s+across\s+(?:the\s+)?([A-Z][\w.]*(?:\s+[A-Z][\w.]*){0,2})\s+is\b[^$£€¥\d]{0,12}$/;
 const NATION_CODE = Object.freeze({
   'u.s': 'US', us: 'US', usa: 'US', 'united states': 'US', canada: 'CA', 'united kingdom': 'GB', uk: 'GB', 'u.k': 'GB',
@@ -276,6 +318,86 @@ const NATION_CODE = Object.freeze({
   taiwan: 'TW', romania: 'RO', hungary: 'HU', slovakia: 'SK', slovenia: 'SI', bulgaria: 'BG', serbia: 'RS', estonia: 'EE',
   latvia: 'LV', lithuania: 'LT', 'united arab emirates': 'AE', 'saudi arabia': 'SA', 'south africa': 'ZA', egypt: 'EG', turkey: 'TR',
 });
+// DQ-15: one pay line per country ("US: $171000 - $247000 (USD) + 20% bonus target ...",
+// "Ireland: €142000 - €145000 (EUR) ...", "[Master's degree] Poland: zł159000 (PLN)"): the
+// country name right before the amount on its line.
+const LINE_LABEL_RE = /(?:^|[\]\s.])([A-Z][A-Za-z.]*(?:\s+[A-Z][A-Za-z.]*){0,2})\s*:\s*$/;
+/** The country a unit's range is for: "across Germany is …" (Microsoft) or a "Germany:" line label. */
+function unitCountry(text, u) {
+  const gs = u.groupStart ?? u.start;
+  const cl = clauseSpan(text, gs, u.groupEnd ?? u.end);
+  const nat = NATIONAL_RE.exec(text.slice(cl.start, gs));
+  if (nat) return NATION_CODE[nat[1].replace(/\s+/g, ' ').toLowerCase().replace(/\.$/, '')] || null;
+  return lineCountry(text, gs);
+}
+/** { code, at } of the country label right before the amount on its line ("US: $X"), or null. */
+function lineLabel(text, start) {
+  const ls = text.lastIndexOf('\n', start - 1) + 1;
+  const from = Math.max(ls, start - 120);
+  const m = LINE_LABEL_RE.exec(text.slice(from, start));
+  const code = m ? NATION_CODE[m[1].toLowerCase().replace(/\.$/, '')] || null : null;
+  return code ? { code, at: from + m.index + m[0].indexOf(m[1]) } : null;
+}
+/** ISO code of the country that labels the amount's line, or null. */
+function lineCountry(text, start) {
+  const l = lineLabel(text, start);
+  return l ? l.code : null;
+}
+// DQ-13: Microsoft prices the San Francisco Bay Area and the New York City metro apart
+// from the national range: "There is a different range applicable to specific work
+// locations, within the San Francisco Bay area and New York City metropolitan area, and the
+// base pay range for this role in those locations is USD $160,200 - $261,000 per year."
+const CITY_RANGE_RE = /\bwithin\s+(?:the\s+)?((?:San Francisco Bay|New York City)[\s\S]{0,120}?)\bin\s+those\s+locations\s+is\b[^$£€¥\d]{0,12}$/i;
+/** Area keys a city-range sentence names ('sf-bay', 'nyc'), or null. */
+function cityAreasOf(before) {
+  const m = CITY_RANGE_RE.exec(before);
+  if (!m) return null;
+  const out = [];
+  if (/San Francisco Bay/i.test(m[1])) out.push('sf-bay');
+  if (/New York City/i.test(m[1])) out.push('nyc');
+  return out.length ? out : null;
+}
+// DQ-14: a single amount stated as a floor ("pay ... will be no less than $62.74 an hour",
+// Netflix's union-covered roles) is a minimum, not the role's posted pay.
+const FLOOR_BEFORE_RE = /\b(?:(?:no|not)\s+less\s+than|at\s+least|a\s+minimum\s+of|minimum\s+(?:of|rate\s+of|wage\s+of))\s*$/i;
+const AREA_BAND_RE = /\brange\s+for\s+roles\s+in\s+this\s+area\b/i;
+// DQ-8: "184,000 USD - 287,500 USD for Level 4, and ...": the level label after a tier.
+const LEVEL_AFTER_RE = /^\s*,?\s*(?:for|at)\s+(level|grade|band)\s*([\w.-]{1,4})\b/i;
+
+/**
+ * Pay areas with their own posted range (DQ-13): the SF Bay Area (75 km around the bay)
+ * and the New York City metro (60 km around Manhattan). Returns 'sf-bay', 'nyc' or null
+ * for a location { country, lat, lng, remote }.
+ */
+export const PAY_AREAS = Object.freeze({
+  'sf-bay': Object.freeze({ lat: 37.6, lng: -122.2, km: 75 }),
+  nyc: Object.freeze({ lat: 40.73, lng: -73.99, km: 60 }),
+});
+export function payAreaOf(loc) {
+  if (!loc || loc.remote || String(loc.country || '').toUpperCase() !== 'US') return null;
+  const lat = Number(loc.lat);
+  const lng = Number(loc.lng);
+  if (loc.lat == null || loc.lng == null || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const rad = (x) => (x * Math.PI) / 180;
+  for (const [key, a] of Object.entries(PAY_AREAS)) {
+    const dLat = rad(lat - a.lat);
+    const dLng = rad(lng - a.lng);
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(lat)) * Math.sin(dLng / 2) ** 2;
+    if (2 * 6371 * Math.asin(Math.sqrt(h)) <= a.km) return key;
+  }
+  return null;
+}
+/**
+ * The pay areas a job is located in, when EVERY one of its US locations is in one of them
+ * (['sf-bay'], ['sf-bay', 'nyc']); [] when any US location (a remote one included) is
+ * elsewhere, or the job has none. parseSalary's `areas` option.
+ */
+export function payAreas(locations) {
+  const us = (locations || []).filter((l) => l && String(l.country || '').toUpperCase() === 'US');
+  if (!us.length) return [];
+  const keys = us.map(payAreaOf);
+  return keys.every(Boolean) ? [...new Set(keys)] : [];
+}
 const PAY_STIPEND_AFTER_RE = /^\W{0,3}(?:(?:weekly|monthly|bi-?weekly|living|base|research)\s+)stipend\b/i;
 const FILLER_RE = new RegExp(String.raw`\b(?:${CODES}|per|an?|hour|hours|year|annum|month|week|day|hourly|annually|yearly|monthly|weekly|base|gross|brutto|net|ote|range|up|to|from|between|starting|at|approx|approximately|about|plus|offers|equity|multiple|ranges|and|usd)\b|[^A-Za-z]+`, 'gi');
 
@@ -493,6 +615,67 @@ function buildUnits(text, toks, countries) {
   return out;
 }
 
+/**
+ * The pay-context test for the amount at [gs, ge) (docs/VETTING.md §2): is it pay, and if
+ * not, why. `unit`: the interval attached to the amount; `single`: one figure, not a range.
+ * evaluate() and the vetting scan (scripts/vet-salaries.js, DQ-17) both use it, so they agree
+ * on clause ends ("U.S." does not end one) and on pay context ("+ 15% bonus target + equity").
+ */
+function contextOf(text, gs, ge, { unit = null, single = false } = {}) {
+  const cl = clauseSpan(text, gs, ge);
+  // A country label starts a new pay line even without a line break ("... + equity +
+  // benefits US: $147000 - $210000 (USD)", some Google pages): the words before it belong
+  // to the previous line's range, not to this amount.
+  const label = lineLabel(text, gs);
+  const before = text.slice(label && label.at > cl.start ? label.at : cl.start, gs);
+  const after = text.slice(ge, Math.min(text.length, ge + 60));
+  const clause = text.slice(cl.start, cl.end);
+  const kwClause = clause.replace(BENEFIT_STIPEND_RE, ' ');
+  const kwHeading = cl.heading.replace(BENEFIT_STIPEND_RE, ' ');
+  const kwInClause = PAY_RE.test(kwClause);
+  const kwInHeading = PAY_RE.test(kwHeading);
+  const standalone = !kwInClause && clause.length <= 90
+    && (clause.slice(0, gs - cl.start) + clause.slice(ge - cl.start)).replace(FILLER_RE, '').length <= 3;
+  const payStipendAfter = PAY_STIPEND_AFTER_RE.test(after);
+  // "$141,000-$202,000 + bonus + equity + benefits": base pay, extras on top.
+  const plusExtras = PLUS_EXTRAS_AFTER_RE.test(after);
+  let reject = null;
+  // Benefits, funding, deals, bonuses ... right around the amount.
+  if (NEG_BEFORE_RE.test(before.slice(-60))) reject = 'not_pay_before';
+  // DQ-14: "will be no less than $62.74 an hour" is a floor, not the posted pay.
+  else if (single && FLOOR_BEFORE_RE.test(before)) reject = 'pay_floor';
+  // Base pay only: a total-compensation range includes bonus/equity/sign-on.
+  else if (totalCompBefore(before)) reject = 'total_compensation';
+  // Netflix sales: "The overall market range for roles in this area of Netflix is typically
+  // $X - $Y. A portion of this compensation is variable." A band for an area, not this role
+  // (docs/DATA_SOURCES.md §7a).
+  else if (AREA_BAND_RE.test(before)) reject = 'area_band';
+  else if (!payStipendAfter && !plusExtras && NEG_AFTER_RE.test(after)) reject = 'not_pay_after';
+  const pay = !reject && (kwInClause || kwInHeading || standalone || unit === 'hour' || payStipendAfter || plusExtras);
+  return { cl, before, after, clause, kwClause, kwHeading, kwInClause, kwInHeading, standalone, payStipendAfter, plusExtras, reject, pay: !!pay };
+}
+
+/**
+ * Pay context of the amount at [start, end) of `text`, by the parser's own rules:
+ * { pay, reason, clause, heading }. `reason` names a rejection ('not_pay_before',
+ * 'pay_floor', 'total_compensation', 'area_band', 'not_pay_after') or is null. For the vetting scan.
+ */
+export function payContextAt(text, start, end, { unit = null, single = false } = {}) {
+  const s = String(text || '');
+  const c = contextOf(s, start, end, { unit, single });
+  return { pay: c.pay, reason: c.reject, clause: c.clause, heading: c.cl.heading, start: c.cl.start, end: c.cl.end };
+}
+
+/**
+ * Money amounts in text, read like the parser reads them: [{ start, end, value, currency
+ * (null when none), weak (a bare "$" or "kr"), mag (million/billion), unit, single? }].
+ * "zł280000", "kr.600000", "$99000 (CAD)", "$35/hour" are each one token. For the scan.
+ */
+export function findMoneyTokens(text, { countries = [] } = {}) {
+  const s = String(text || '');
+  return resolveWeakCurrencies(findTokens(s), s, countries);
+}
+
 function evaluate(text, u, countries) {
   const { a, b } = u;
   if (a.mag || (b && b.mag)) return null; // million/billion amounts are never pay
@@ -502,31 +685,18 @@ function evaluate(text, u, countries) {
   if (b && !a.mult && b.mult && a.base < 1000) lo = a.base * multFactor(b.mult);
   if (b && a.mult && !b.mult && b.base < 1000) hi = b.base * multFactor(a.mult);
   if (!u.currency) return null;
+  // Pay in a currency the site has no exchange rate for (FX_PER_USD, shared with the
+  // browser's palette.js) cannot be plotted or compared, so it is not read: Romanian "lei"
+  // (RON) today. The vetting scan still sees it and flags the posting missed_salary.
+  if (!FX_PER_USD[u.currency]) return null;
   if (!b && !u.explicit) return null;
 
   const gs = u.groupStart ?? u.start;
   const ge = u.groupEnd ?? u.end;
-  const cl = clauseSpan(text, gs, ge);
-  const before = text.slice(cl.start, gs);
-  const after = text.slice(ge, Math.min(text.length, ge + 60));
-  const clause = text.slice(cl.start, cl.end);
-  const kwClause = clause.replace(BENEFIT_STIPEND_RE, ' ');
-  const kwHeading = cl.heading.replace(BENEFIT_STIPEND_RE, ' ');
-  const kwInClause = PAY_RE.test(kwClause);
-  const kwInHeading = PAY_RE.test(kwHeading);
   const unitIv = (b && b.unit) || a.unit || u.groupUnit || null;
-  const standalone = !kwInClause && clause.length <= 90
-    && (clause.slice(0, gs - cl.start) + clause.slice(ge - cl.start)).replace(FILLER_RE, '').length <= 3;
-
-  // Benefits, funding, deals, bonuses ... right around the amount.
-  if (NEG_BEFORE_RE.test(before.slice(-60))) return null;
-  // Base pay only: a total-compensation range includes bonus/equity/sign-on.
-  if (totalCompBefore(before)) return null;
-  const payStipendAfter = PAY_STIPEND_AFTER_RE.test(after);
-  // "$141,000-$202,000 + bonus + equity + benefits": base pay, extras on top.
-  const plusExtras = PLUS_EXTRAS_AFTER_RE.test(after);
-  if (!payStipendAfter && !plusExtras && NEG_AFTER_RE.test(after)) return null;
-  if (!(kwInClause || kwInHeading || standalone || unitIv === 'hour' || payStipendAfter || plusExtras)) return null;
+  const ctx = contextOf(text, gs, ge, { unit: unitIv, single: !b });
+  if (!ctx.pay) return null;
+  const { cl, before, after, kwClause, kwHeading, kwInClause, kwInHeading, standalone, payStipendAfter, plusExtras } = ctx;
 
   // Interval: on the amount, right after it (same line), else earlier in the same clause/heading.
   const afterLine = after.split('\n')[0];
@@ -553,7 +723,12 @@ function evaluate(text, u, countries) {
   const factor = interval === 'term' ? 52 / term.exact : FACTORS[interval];
   const annLo = usdOr(lo * factor, cur);
   const annHi = usdOr(hi * factor, cur);
-  if (!(annLo >= MIN_ANNUAL && annHi <= MAX_ANNUAL)) return null;
+  // DQ-14: a posted range above the $1.2M bound, written out in full with a pay word in
+  // its own clause ("The range for this role is $737,000.00 - $1,430,000.00", Netflix L7),
+  // is read so that the vetting gate quarantines it visibly ("Pay unclear, see posting")
+  // instead of the posting silently showing no pay. It never beats a plausible amount.
+  const over = !(annHi <= MAX_ANNUAL) && !!b && u.explicit && kwInClause && !a.mult && !b.mult && annHi <= HARD_MAX_ANNUAL;
+  if (!(annLo >= MIN_ANNUAL && (annHi <= MAX_ANNUAL || over))) return null;
 
   const stipend = /\bstipend/i.test(kwClause) || /\bstipend/i.test(kwHeading) || payStipendAfter;
   // P-1: "OTE: $X–$Y", "$X–$Y OTE" (no other amount in between).
@@ -578,11 +753,27 @@ function evaluate(text, u, countries) {
   // One posting may list a national range per country ("across Ireland", "across
   // Germany"): the one for the job's own country scores highest.
   const natCode = national ? NATION_CODE[national.replace(/\.$/, '')] || null : null;
-  if (natCode && (countries || []).map((c) => String(c).toUpperCase()).includes(natCode)) score += 3;
+  const cs = (countries || []).map((c) => String(c).toUpperCase());
+  // The job's own country scores highest; with several, the US one when the job has a US
+  // location (as pickCurrency), else its first location's country (a small tie-break, so
+  // scores between other amounts keep their order).
+  const own = (code) => (code && cs.includes(code) ? 3 + 0.5 - 0.01 * (code === 'US' ? -1 : cs.indexOf(code)) : 0);
+  score += own(natCode);
+  // DQ-15: "US: $X - $Y (USD) ...", "Ireland: €X - €Y (EUR) ...": the line for the job's
+  // country, and lines for different countries are never spanned together.
+  const area = natCode || lineCountry(text, gs);
+  if (!natCode) score += own(area);
+  // DQ-13: the SF Bay Area / NYC range ("... in those locations is USD $X - $Y").
+  const cityAreas = cityAreasOf(before);
+  // DQ-8: "... for Level 4": the level a tier is for.
+  const lab = LEVEL_AFTER_RE.exec(text.slice(ge, ge + 30));
+  const levelLabel = lab ? `${lab[1][0].toUpperCase()}${lab[1].slice(1).toLowerCase()} ${lab[2]}` : null;
+  if (over) score -= 20;
   return {
     // For "3,850 USD / 2,310 GBP / 4,300 CAD per week" the text is the whole statement;
     // a term amount keeps its "for the four-month fellowship".
     score, start: gs, end: term ? ge + termAmount[0].length : ge, lo, hi, currency: u.currency, interval, kind, national, level,
+    area, cityAreas, levelLabel, single: !b, over,
     ...(term ? { termWeeks: term.weeks, termFactor: Math.round((52 / term.exact) * 10000) / 10000 } : {}),
     ...(intervalCorrected ? { intervalCorrected, statedInterval } : {}),
   };
@@ -592,69 +783,132 @@ function round2(n) { return Math.round(n * 100) / 100; }
 const flat = (s) => s.replace(/\s+/g, ' ').trim();
 
 /**
- * Parse the pay statement from text. `countries`: ISO codes of the job's
- * locations (currency choice). Returns { min, max, currency, interval, text,
- * kind[, intervalCorrected, statedInterval] } or null.
+ * Parse the pay statement from text. `countries`: ISO codes of the job's locations, in
+ * location order (currency and country-line choice). `areas`: the pay areas every US
+ * location of the job is in (payAreas(locations), DQ-13). Returns { min, max, currency,
+ * interval, text, kind, zones[, levels, termWeeks, termFactor, intervalCorrected,
+ * statedInterval] } or null. `levels` ([{ label, min, max }], source interval) is set when
+ * the posting prices several levels (NVIDIA "for Level 4 ... for Level 5", Microsoft "IC4
+ * - ...", "IC5 - ..."); min and max are then the span.
  */
-export function parseSalary(text, { countries = [] } = {}) {
+export function parseSalary(text, { countries = [], areas = [] } = {}) {
   if (text == null) return null;
   const s = String(text).replace(/&nbsp;| /g, ' ');
   if (!/\d/.test(s)) return null;
-  const toks = findTokens(s);
+  const toks = resolveWeakCurrencies(findTokens(s), s, countries);
   if (!toks.length) return null;
   const cands = [];
+  const cs = (countries || []).map((c) => String(c || '').toUpperCase());
+  let unreadableOwn = false;
   for (const u of buildUnits(s, toks, countries)) {
+    // The job's own country's range in a currency the site cannot convert (Microsoft
+    // "across Romania is lei …"): another country's range is then not the job's pay.
+    if (u.currency && !FX_PER_USD[u.currency]) {
+      const code = unitCountry(s, u);
+      if (code && cs.includes(code)) unreadableOwn = true;
+      continue;
+    }
     const r = evaluate(s, u, countries);
     if (r) cands.push(r);
   }
   if (!cands.length) return null;
+  // A city range (DQ-13) belongs to the national range before it: same country and level.
+  let lastNational = null;
+  for (const c of cands) {
+    if (c.national) lastNational = c;
+    else if (c.cityAreas && lastNational) { c.cityOf = lastNational; c.level = lastNational.level; }
+  }
   let best = cands[0];
   for (const c of cands) if (c.score > best.score) best = c;
+  if (unreadableOwn && best.area && !cs.includes(best.area)) return null;
 
-  // Tiered list around the best candidate: same currency/interval/kind, adjacent.
-  const same = (c) => c.currency === best.currency && c.interval === best.interval && c.kind === best.kind;
-  let i0 = cands.indexOf(best);
-  let i1 = i0;
-  // National ranges (Microsoft) are grouped by country and level below, never as adjacent tiers.
-  if (!best.national) while (i0 > 0 && same(cands[i0 - 1]) && best.start - cands[i0 - 1].end <= TIER_GAP && cands[i0].start - cands[i0 - 1].end <= TIER_GAP) i0--;
-  if (!best.national) while (i1 + 1 < cands.length && same(cands[i1 + 1]) && cands[i1 + 1].start - cands[i1].end <= TIER_GAP) i1++;
+  // A job whose US locations are all in the areas a city range names uses the city ranges
+  // of the chosen country (Microsoft SF Bay Area / NYC, DQ-13).
+  const want = (areas || []).filter(Boolean);
+  const nationalPick = best;
+  const local = (c) => !!c.cityOf && c.cityOf.national === nationalPick.national && c.currency === nationalPick.currency && want.every((a) => c.cityAreas.includes(a));
+  let city = false;
+  if (best.national && want.length && cands.some(local)) {
+    const own = cands.filter(local);
+    best = own.find((c) => c.cityOf === nationalPick) || own[0];
+    city = true;
+  }
+
+  const same = (c) => c.currency === best.currency && c.interval === best.interval && c.kind === best.kind && (!c.over || best.over);
   let lo = best.lo;
   let hi = best.hi;
   let start = best.start;
   let end = best.end;
-  if (i1 > i0) {
-    const tier = cands.slice(i0, i1 + 1);
-    const tlo = Math.min(...tier.map((c) => c.lo));
-    const thi = Math.max(...tier.map((c) => c.hi));
-    if (tlo > 0 && thi / tlo <= TIER_MAX_RATIO) { lo = tlo; hi = thi; start = tier[0].start; end = tier[tier.length - 1].end; }
-  }
-  // Several levels, each with its own national range (Microsoft "IC4 - …", "IC5 - …"):
-  // span the lowest min to the highest max (at most 4x, the gate's ratio bound),
-  // and name the levels in the text. City ranges are never part of the span.
-  let levelText = null;
-  if (best.national) {
-    const group = cands.filter((c) => c.national === best.national && same(c));
+  let groupText = null;
+  let levels = null;
+  // Several ranges of one kind, kept together and spanned:
+  //   - national ranges by level (Microsoft "IC4 - …", "IC5 - …"), at most 4x apart (the
+  //     gate's ratio bound); city ranges are never part of that span;
+  //   - the city ranges by level, for a job located only in those areas (DQ-13), at most 4x;
+  //   - the lines for one country ("[Bachelor's degree] Poland: zł156000", "[Master's
+  //     degree] Poland: zł159000"), at most 3x. Lines for other countries are never part of
+  //     the span (DQ-15).
+  let group = null;
+  if (city) group = cands.filter((c) => local(c) && same(c));
+  else if (best.national) group = cands.filter((c) => c.national === best.national && !c.cityOf && same(c));
+  else if (best.area) group = cands.filter((c) => !c.national && !c.cityOf && c.area === best.area && same(c));
+  if (group) {
     const glo = Math.min(...group.map((c) => c.lo));
     const ghi = Math.max(...group.map((c) => c.hi));
-    if (group.length > 1 && glo > 0 && ghi / glo <= 4) {
+    const bound = best.national || city ? 4 : TIER_MAX_RATIO;
+    if (group.length > 1 && glo > 0 && ghi / glo <= bound) {
       lo = glo; hi = ghi;
-      levelText = group.map((c) => `${c.level ? `${c.level.replace(/\s+/g, ' ')}: ` : ''}${flat(s.slice(c.start, c.end))}`).join('; ');
+      groupText = group.map((c) => `${c.level ? `${c.level.replace(/\s+/g, ' ')}: ` : ''}${flat(s.slice(c.start, c.end))}`).join('; ');
+      const names = group.map((c) => (c.level ? levelName(c.level) : null));
+      if (names.every(Boolean) && new Set(names).size === names.length) levels = group.map((c, i) => ({ label: names[i], min: c.lo, max: c.hi }));
+    }
+  } else {
+    // Tiered list around the best candidate: same currency/interval/kind, adjacent, and
+    // never across country lines or city ranges.
+    const tierOk = (c) => same(c) && !c.national && !c.cityAreas && !c.area;
+    let i0 = cands.indexOf(best);
+    let i1 = i0;
+    while (i0 > 0 && tierOk(cands[i0 - 1]) && best.start - cands[i0 - 1].end <= TIER_GAP && cands[i0].start - cands[i0 - 1].end <= TIER_GAP) i0--;
+    while (i1 + 1 < cands.length && tierOk(cands[i1 + 1]) && cands[i1 + 1].start - cands[i1].end <= TIER_GAP) i1++;
+    if (i1 > i0) {
+      const tier = cands.slice(i0, i1 + 1);
+      const tlo = Math.min(...tier.map((c) => c.lo));
+      const thi = Math.max(...tier.map((c) => c.hi));
+      if (tlo > 0 && thi / tlo <= TIER_MAX_RATIO) {
+        lo = tlo; hi = thi; start = tier[0].start; end = tier[tier.length - 1].end;
+        // DQ-8: each range's own level ("… for Level 4, and … for Level 5").
+        const ranged = tier.filter((c) => !c.single);
+        if (ranged.length > 1 && ranged.every((c) => c.levelLabel) && new Set(ranged.map((c) => c.levelLabel)).size === ranged.length) {
+          levels = ranged.map((c) => ({ label: c.levelLabel, min: c.lo, max: c.hi }));
+        }
+      }
+    }
+    // "… for Level 4, and 196,000 USD - 310,500 USD for Level 5": keep the last label.
+    if (i1 > i0) {
+      const lab = /^\s*(?:for|at)\s+(?:level|grade|band|ic|l)\s*[\w.-]{1,4}\b/i.exec(s.slice(end, end + 24));
+      if (lab) end += lab[0].length;
     }
   }
-  // "… for Level 4, and 196,000 USD - 310,500 USD for Level 5": keep the last label.
-  if (i1 > i0) {
-    const lab = /^\s*(?:for|at)\s+(?:level|grade|band|ic|l)\s*[\w.-]{1,4}\b/i.exec(s.slice(end, end + 24));
-    if (lab) end += lab[0].length;
-  }
-  let t = levelText || flat(s.slice(start, end));
+  let t = groupText || flat(s.slice(start, end));
   if (t.length > 160) t = `${t.slice(0, 157)}...`;
-  // zones: distinct pay ranges in the posting (tiers, locations, levels); one
-  // amount offered in several currencies is one zone.
-  const zones = new Set(cands.map((c) => `${c.lo}|${c.hi}|${c.currency}|${c.interval}`)).size;
+  // zones: distinct pay ranges in the posting (tiers, locations, levels); one amount
+  // offered in several currencies is one zone, and a single figure inside another range
+  // ("$23.00 and $30.59/hr, and most new hires start at $23.00", D-30) is not a zone.
+  const inside = (c) => c.single && cands.some((o) => !o.single && o.currency === c.currency && o.interval === c.interval && c.lo >= o.lo && c.hi <= o.hi);
+  const zones = new Set(cands.filter((c) => !inside(c)).map((c) => `${c.lo}|${c.hi}|${c.currency}|${c.interval}`)).size;
   const out = { min: round2(lo), max: round2(hi), currency: best.currency, interval: best.interval, text: t, kind: best.kind, zones: Math.max(1, zones) };
+  if (levels && levels.length > 1) out.levels = levels.map((l) => ({ label: l.label, min: round2(l.min), max: round2(l.max) }));
   if (best.termWeeks) Object.assign(out, { termWeeks: best.termWeeks, termFactor: best.termFactor });
   if (best.intervalCorrected) Object.assign(out, { intervalCorrected: true, statedInterval: best.statedInterval });
   return out;
+}
+
+/** "Software Engineering IC4" -> "IC4", "Critical Environment Ops ATR-C" -> "ATR-C"; "Level 4" stays; a long label is cut to 40 characters. */
+function levelName(level) {
+  const t = String(level || '').replace(/\s+/g, ' ').trim();
+  const code = /\b((?:IC|M|L)\d{1,2}|ATR-?[A-Z0-9]{1,3})$/i.exec(t);
+  if (code) return code[1].toUpperCase();
+  return t.length > 40 ? `${t.slice(0, 39)}…` : t;
 }
 
 /**
@@ -717,5 +971,15 @@ export function toJobSalary(sal, { source } = {}) {
   }
   if (intervalCorrected) { out.intervalCorrected = true; out.statedInterval = statedInterval; }
   if (Array.isArray(sal.ranges) && sal.ranges.length > 1) out.ranges = sal.ranges;
+  // DQ-8: pay by level, annualized like min/max, in the salary's currency.
+  const toAnnual = (v) => (termFactor ? Math.round(v * termFactor) : annualize(v, interval));
+  const levels = Array.isArray(sal.levels)
+    ? sal.levels.filter((l) => l && l.label && Number.isFinite(Number(l.min)) && Number.isFinite(Number(l.max))).map((l) => {
+      const a = toAnnual(Math.min(Number(l.min), Number(l.max)));
+      const b = toAnnual(Math.max(Number(l.min), Number(l.max)));
+      return { label: String(l.label), min: a, max: b };
+    })
+    : [];
+  if (levels.length > 1) out.levels = levels;
   return out;
 }

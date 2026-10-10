@@ -257,7 +257,8 @@ pay for the low-side outlier test. `junior_high` does not apply to term pay (`or
 Director+; with no other level word the title is `'Mid'` by default (shown as "Level not
 stated"). A "Fellow" is a fixed-term fellowship (`'Intern'`, like "Fellows Program") unless it is
 a Distinguished, Technical, Senior, Principal, Corporate or Chief Fellow (`'Staff+'`). `'Mid'`
-is still never produced by a title rule.
+is still never produced by a title rule. *(Superseded in v5: a ladder rung that means mid-level
+is `'Mid'` with `seniorityBasis: 'title'`.)*
 
 **Locations (`server/geo.js`):**
 - `geocodeMany(inputs) -> Location[]` (new): one job's location strings geocoded together. A bare
@@ -287,3 +288,72 @@ is still never produced by a title rule.
 **Keywords (`server/keywords.js`):** skills keep lexicon order, except skills named only in
 nice-to-have sentences ("… is appreciated", "is a plus") come last, so a card's first two tags
 are the most telling. New exports: `isSalesTitle(title)`, `isTechnicalTitle(title)`.
+
+## v5 additions (2026-10-10): big-tech pay and levels (fix-beta-pay lane, beta fix wave)
+
+All existing fields keep their meaning; every addition is optional for readers.
+`NORMALIZER_VERSION` is `norm-7`. Stored older snapshots are upgraded once by
+`relocateJobs(rekeyBoardJobs(jobs).jobs)`, which now re-derives a text-sourced (or missing)
+salary from the stored posting text with the current parser, keeps a structured salary's
+numbers (labels only), re-derives the level, and runs the vetting gate again
+(`server/normalize.js#relabelJobs`). Log: [docs/process/fix-beta-pay.md](process/fix-beta-pay.md).
+
+**Job** adds (shared decision 1):
+
+| Field | Meaning |
+|---|---|
+| `seniorityBasis` | `'title'` \| `'pay'` \| `'default'`, on every job. `'title'`: the title states the level, by a level word or a rung on the board's ladder ("Software Engineer III" at Google, "(L5)" or "Engineer 5" at Netflix, "Engineer II"). `'pay'`: the title states none, and the pay sentence names the board's level (Microsoft "Software Engineering IC6 - The typical base pay range …", NVIDIA "… for Level 4, and … for Level 5"). `'default'`: neither, and the level is the `'Mid'` default. A rung that means mid-level (Google "III", Netflix "L4", "Engineer II") is `'Mid'` with basis `'title'`, so `'Mid'` is no longer always a default; a default is always `'Mid'`. Surfaces show `'Mid'` with basis `'default'` (or missing) as "Level not stated" (`public/features/roles.js#displayLevel`, app lane) |
+
+**Job `salary`** adds (shared decision 2):
+
+| Field | Meaning |
+|---|---|
+| `levels` | `[{ label, min, max }]` when one posting prices several levels: NVIDIA `"Level 4"`, `"Level 5"`; Microsoft `"IC4"`, `"IC5"` (or `"M5"`, `"ATR-C"`). `min`/`max` are annual, in the salary's currency, annualized like the salary's own `min`/`max` (an hourly tier × 2080). At least 2 entries, in the posting's order; the salary's `min`/`max` stay the overall span. Absent otherwise |
+
+`salary.text` for a Google line now keeps its code: `"$141000 - $205000 (USD)"`.
+
+**Levels (`server/keywords.js`):**
+- `inferSeniority(title, { company } = {})` and `seniorityBasis(title, { company } = {})` take an
+  optional company slug, which picks that board's ladder for numbered rungs. Without it the
+  generic ladder applies. Both keep their return values.
+- New: `jobSeniority({ title, text, company }) -> { level, basis }` (what `normalizeJob` and
+  `relabelJobs` store) and `seniorityFromPay(text, { company }) -> { level, label } | null`.
+- Ladders (evidence in the log): generic I Entry, II Mid, III Mid, IV Senior, V+ Staff+; Google
+  I and II Entry, III Mid, IV Senior, V+ Staff+; L-levels (Netflix, also generic in parentheses or
+  after a role word) L3 Entry, L4 Mid, L5 Senior, L6+ Staff+, and Netflix's "Engineer N" is LN
+  (a two-level title takes its upper level); Microsoft IC1/IC2 Entry, IC3 Mid, IC4 Senior, IC5+
+  Staff+, M1–M5 Manager, M6+ Director+; NVIDIA Level 1 Entry, 2 Mid, 3–5 Senior, 6+ Staff+ (a
+  two-level posting takes its lower level).
+- A student role is `'Intern'` ("Hardware Engineering Student", "Student Researcher",
+  "Stagiaire", "Étudiant-chercheur"); "New College Grad", "University Graduate" and "Early
+  Careers" are `'Entry'`; "Associate … Counsel" is not entry level (no level stated).
+
+**Pay parsing (`server/salary.js`):**
+- `parseSalary(text, { countries, areas })`: `areas` is `payAreas(locations)`. New pure exports:
+  `payAreas(locations) -> ('sf-bay' | 'nyc')[]` (the areas every US location of the job is in,
+  else `[]`), `payAreaOf(location)`, `PAY_AREAS`, `payContextAt(text, start, end, { unit, single })
+  -> { pay, reason, clause, heading, start, end }` and `findMoneyTokens(text, { countries })` (the
+  parser's own tokens and pay-context test, used by the vetting scan).
+- Currency symbols `zł` (PLN), `kr` and `kr.` (SEK, NOK or DKK by the job's country), `lei` (RON),
+  and a code in parentheses after the amount ("$99000 (CAD)") are read. Pay in a currency with no
+  rate in `FX_PER_USD` (RON today) is not used, and then another country's range is not used for
+  that country's job either.
+- A bare "$" in a posting whose locations are all in Canada is CAD, unless the amount's own
+  sentence, its heading or a "US:" line says USD.
+- One pay line per country ("US: …", "Ireland: …"): the line for the job's country (the US one
+  when the job has a US location, else its first location's country); lines for different
+  countries are never spanned together; lines for one country are (degree tiers).
+- Microsoft's SF Bay Area / NYC range is used for a job whose US locations are all in those areas.
+- Any bonus-target percentage after a range ("+ 42.86% bonus target") keeps it base pay.
+- A single figure stated as a floor ("no less than $62.74 an hour") is not pay; Netflix's sales
+  "range for roles in this area" is not pay (unchanged rule, now explicit).
+- A posted range above $1.2M written out in full with a pay word in its clause is read, so the
+  gate quarantines it visibly; it never beats a plausible amount.
+- `zones` does not count a single figure that lies inside another range ("… and most new hires
+  start at $23.00").
+
+**Vetting scan (`scripts/vet-salaries.js`):** amounts, clause ends and pay context come from
+`server/salary.js` (`findMoneyTokens`, `payContextAt`). `missed_salary` is a posting with no
+salary but an amount in the parser's pay context, or with a pay word in the parser's clause,
+that no parser rule rejects. `multiple_ranges` counts only pay ranges beyond the salary's
+`zones`. Flag definitions: [VETTING.md](VETTING.md) §4.

@@ -1,0 +1,14 @@
+--- a/scripts/build-static.js
++++ b/scripts/build-static.js
+@@ -179,8 +179,9 @@
+ // ISO timestamps that equal their own toISOString() become epoch ms ('ts');
+ // salary objects with the list's common key set become value tuples in
+ // `shared.salaryKeys` order; keywords become [responsibilities, fit, skills].
+-const COLUMN_KEYS = ['postedAt', 'firstSeenAt', 'ageDays', 'ageIsMinimum', 'freshness', 'repost', 'extras', 'reqId', 'remote', 'updatedAt'];
+-const DICT_COLUMNS = new Set(['firstSeenAt', 'freshness', 'repost', 'extras']);
++const COLUMN_KEYS = ['postedAt', 'firstSeenAt', 'ageDays', 'ageIsMinimum', 'freshness', 'repost', 'extras', 'reqId', 'remote', 'updatedAt', 'seniorityBasis'];
++// seniorityBasis (norm-7, fix-beta-pay): 'title' | 'pay' | 'default' on every job, one dict index each.
++const DICT_COLUMNS = new Set(['firstSeenAt', 'freshness', 'repost', 'extras', 'seniorityBasis']);
+ const TS_COLUMNS = new Set(['postedAt', 'updatedAt']);
+ const SALARY_REFS = ['currency', 'interval', 'kind', 'source'];
+ const KEYWORD_KEYS = ['responsibilities', 'fit', 'skills'];

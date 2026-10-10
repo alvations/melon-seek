@@ -849,23 +849,146 @@ function stripGenericStaff(title) {
   return t.replace(MTS_PHRASE_RE, ' ').replace(/\s+/g, ' ').trim();
 }
 
-export function inferSeniority(title) {
-  return seniorityOf(title).level;
+/**
+ * Seniority from a job title. `company` (a slug) picks that board's own ladder for
+ * numbered rungs (Google "III", Netflix "Engineer 5"); without it the generic ladder is
+ * used (docs/process/fix-beta-pay.md, DQ-3).
+ */
+export function inferSeniority(title, { company = null } = {}) {
+  return seniorityOf(title, company).level;
 }
 
 /**
- * Where a title's seniority came from: 'title' when a level word decided it, 'default'
- * when the title has none and the job is "Mid" by convention. On the 2026-10 boards
- * about half the postings are 'default' (most of them at the labs, whose titles carry no
- * level), so market-comps "Mid" cells and Compstimate's Mid weighting are mostly
- * defaults. scripts/refresh/jobs.js reports the share monthly (seniority-ladder).
+ * Where a title's seniority came from: 'title' when a level word or a ladder rung decided
+ * it, 'default' when the title has none and the job is "Mid" by convention. On the 2026-10
+ * boards about half the postings are 'default' (most of them at the labs, whose titles
+ * carry no level), so market-comps "Mid" cells and Compstimate's Mid weighting are mostly
+ * defaults. scripts/refresh/jobs.js reports the share monthly (seniority-ladder). A rung
+ * that means mid-level (Google "III", Netflix "L4", "Engineer II") is 'Mid' with basis
+ * 'title' (beta fix wave, shared decision 1).
  */
-export function seniorityBasis(title) {
-  return seniorityOf(title).basis;
+export function seniorityBasis(title, { company = null } = {}) {
+  return seniorityOf(title, company).basis;
+}
+
+/**
+ * A job's level and where it came from: { level, basis: 'title' | 'pay' | 'default' }.
+ * The title decides when it states a level; otherwise a level named in the pay sentence
+ * (Microsoft "Software Engineering IC6 - The typical base pay range ...", NVIDIA "... for
+ * Level 4, and ... for Level 5") decides, read on that company's ladder; otherwise it is
+ * the 'Mid' default. normalize.js stores this as job.seniority and job.seniorityBasis.
+ */
+export function jobSeniority({ title = '', text = '', company = null } = {}) {
+  const byTitleLevel = seniorityOf(title, company);
+  if (byTitleLevel.basis !== 'default') return byTitleLevel;
+  const pay = seniorityFromPay(text, { company });
+  return pay ? { level: pay.level, basis: 'pay' } : byTitleLevel;
 }
 
 const byTitle = (level) => ({ level, basis: 'title' });
 const BY_DEFAULT = Object.freeze({ level: 'Mid', basis: 'default' });
+
+// ---------------------------------------------------------------- board ladders (DQ-3)
+// Numbered rungs, mapped to our levels with evidence from the boards' own titles and pay
+// (2026-10-10 crawl; tables in docs/process/fix-beta-pay.md):
+//   generic  I Entry, II Mid, III Mid, IV Senior, V+ Staff+ ("Engineer I" ... "Engineer V";
+//            III is below a separate "Senior" on the Google and Microsoft ladders).
+//   google   I and II Entry (II is Google's university-graduate band: TPM II $138K-$197K =
+//            "Silicon Engineer, PhD, University Graduate" $138K-$197K), III Mid (L4, one
+//            step below Senior: SWE III $179K vs Senior $213K), IV Senior (L5), V+ Staff+.
+//   L-levels (Netflix, Google numbering) L3 Entry, L4 Mid, L5 Senior, L6+ Staff+.
+//   netflix  "Engineer 5" is L5; a two-level title ("4/5", "L5/L6") is priced at its upper
+//            level (4/5 postings post the L5 band, $466K-$750K), so it takes that one.
+const GENERIC_RUNG = [null, 'Entry', 'Mid', 'Mid', 'Senior', 'Staff+', 'Staff+', 'Staff+', 'Staff+', 'Staff+'];
+const GOOGLE_RUNG = [null, 'Entry', 'Entry', 'Mid', 'Senior', 'Staff+', 'Staff+', 'Staff+', 'Staff+', 'Staff+'];
+const L_LADDER = [null, 'Entry', 'Entry', 'Entry', 'Mid', 'Senior', 'Staff+', 'Staff+', 'Staff+', 'Staff+', 'Staff+'];
+const ROMAN = Object.freeze({ I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6 });
+const ROLE_NOUN = String.raw`(?:engineer(?:ing)?|scientist|developer|researcher|analyst|designer|architect|manager|technician|specialist|consultant|administrator|accountant|planner|inspector|representative|executive|programmer|writer|artist|producer|editor|recruiter|coordinator|advisor|partner|lead)`;
+// "Engineer II", "Technician IV, Maintenance", "Customer Engineer I, Platform"; never
+// "III-V Photonics", "V-BAT", "V&V", "A/V", "UK&I", "I/O".
+const ROMAN_RE = /(?<![-/&\w.])(II|III|IV|VI|V)(?![-/&'’\w])|\s(I)(?=\s*(?:[,()\-–—]|$))/;
+// "(L5)", "Software Engineer L4/5", "Product Manager L6, Data Platform", "Software Engineer
+// L5/L6"; not "Senior Software Engineer, L4 - Autonomous Vehicles" (autonomy level 4) or a
+// support tier ("Support Engineer L2").
+const L_LEVEL_RE = new RegExp(String.raw`\(L(\d{1,2})(?:\s*\/\s*L?(\d{1,2}))?\)|\b${ROLE_NOUN}\s+L(\d{1,2})(?:\s*\/\s*L?(\d{1,2}))?\b`, 'i');
+const L_TIER_RE = /\b(?:support|tier|soc|helpdesk|help desk|service desk)\b/i;
+// "Software Engineer 6 - Ads", "Data Scientist 4- Interactive", "Software Engineer 4/5 –
+// Model Serving", "Site Reliability Engineer 2", "Technician 3, Quality".
+const TRAIL_NUM_RE = new RegExp(String.raw`\b${ROLE_NOUN}\s+(\d)(?:\s*\/\s*(\d))?(?=\s*(?:[-–—,:(|]|$))`, 'i');
+
+function rungLevel(n, table) {
+  if (!Number.isFinite(n) || n < 1) return null;
+  return table[Math.min(n, table.length - 1)] || null;
+}
+
+/** The ladder rung a title names, read on the company's ladder, or null. */
+function ladderRung(t, company) {
+  const slug = String(company || '').toLowerCase();
+  const pick = (a, b) => (b && Number.isFinite(b) ? (slug === 'netflix' ? Math.max(a, b) : Math.min(a, b)) : a);
+  const l = L_TIER_RE.test(t) ? null : L_LEVEL_RE.exec(t);
+  if (l) {
+    const a = Number(l[1] || l[3]);
+    const b = Number(l[2] || l[4]);
+    const lv = rungLevel(pick(a, b), L_LADDER);
+    if (lv) return lv;
+  }
+  const n = TRAIL_NUM_RE.exec(t);
+  if (n) {
+    const a = Number(n[1]);
+    const b = n[2] ? Number(n[2]) : null;
+    const lv = rungLevel(pick(a, b), slug === 'netflix' ? L_LADDER : GENERIC_RUNG);
+    if (lv) return lv;
+  }
+  const r = ROMAN_RE.exec(t);
+  if (r) return rungLevel(ROMAN[r[1] || r[2]], slug === 'google' ? GOOGLE_RUNG : GENERIC_RUNG);
+  return null;
+}
+
+// ------------------------------------------------- levels named in the pay text (DQ-3)
+// Microsoft: "<Profession> IC5 - The typical base pay range for this role across ...".
+// Evidence (median US base and the level Microsoft's own titles carry at each band):
+// IC2 $127K (Entry), IC3 $152K ("Software Engineer II": Mid), IC4 $177K (305 "Senior"
+// titles), IC5 $209K (216 "Principal"), IC6 $231K (42 "Principal"/"Partner"); M3/M4/M5 are
+// people managers, M6+ directors (28 of 47 M6 titles say Director).
+const MICROSOFT_IC = [null, 'Entry', 'Entry', 'Mid', 'Senior', 'Staff+', 'Staff+', 'Staff+', 'Staff+'];
+const MICROSOFT_M = [null, 'Manager', 'Manager', 'Manager', 'Manager', 'Manager', 'Director+', 'Director+', 'Director+'];
+const MICROSOFT_LEVEL_RE = /\b(IC|M)(\d{1,2})\s+[-–—]\s+the typical base pay range\b/gi;
+// NVIDIA: "... 184,000 USD - 287,500 USD for Level 4, and 224,000 USD - 356,500 USD for Level
+// 5." The posting hires at either level; its lower level decides. Evidence (NVIDIA's own
+// titles at each pair): 1/2 "New College Grad" (Entry), 2/3 no level word ($167K: Mid), 3/4
+// 193 "Senior", 4/5 381 "Senior", 5/6 64 "Senior" (1 "Principal"), 6/7 "Principal" (Staff+).
+const NVIDIA_LEVEL = [null, 'Entry', 'Mid', 'Senior', 'Senior', 'Senior', 'Staff+', 'Staff+', 'Staff+'];
+const NVIDIA_LEVEL_RE = /\bfor\s+Level\s+(\d{1,2})\b/gi;
+
+/**
+ * The level a posting's pay sentence names, on that company's ladder: { level, label } or
+ * null (Microsoft "IC6" -> Staff+, NVIDIA "Level 4 ... Level 5" -> Senior). Only for the
+ * boards whose pay text names their ladder (microsoft, nvidia).
+ */
+export function seniorityFromPay(text, { company = null } = {}) {
+  const slug = String(company || '').toLowerCase();
+  const s = String(text || '');
+  if (slug === 'microsoft') {
+    let best = null;
+    for (const m of s.matchAll(MICROSOFT_LEVEL_RE)) {
+      const kind = m[1].toUpperCase();
+      const n = Number(m[2]);
+      const level = rungLevel(n, kind === 'IC' ? MICROSOFT_IC : MICROSOFT_M);
+      // Several levels: the lowest one the posting hires at (IC rungs before M rungs).
+      const rank = (kind === 'IC' ? 0 : 100) + n;
+      if (level && (!best || rank < best.rank)) best = { level, label: `${kind}${n}`, rank };
+    }
+    return best ? { level: best.level, label: best.label } : null;
+  }
+  if (slug === 'nvidia') {
+    const ns = [...s.matchAll(NVIDIA_LEVEL_RE)].map((m) => Number(m[1])).filter((n) => n >= 1);
+    if (!ns.length) return null;
+    const n = Math.min(...ns);
+    const level = rungLevel(n, NVIDIA_LEVEL);
+    return level ? { level, label: `Level ${n}` } : null;
+  }
+  return null;
+}
 
 // P-3 (persona review 2026-10-10). "Account Director" / "Partner Director" are sales and
 // partner titles (OpenAI's ~40 Account Directors, "Federal Account Director") and a "Test
@@ -879,21 +1002,30 @@ const NON_EXEC_DIRECTOR_RE = /\b(?:accounts?|(?<!\bbusiness\s)partner|client|tes
 const SENIOR_FELLOW_RE = /\b(?:distinguished|technical|senior|principal|corporate|chief)\s+fellows?\b/i;
 const FELLOW_RE = /\bfellows?\b/i;
 
-function seniorityOf(title) {
+// A student role is filed with internships ("Hardware Engineering Student", "Student
+// Researcher", "Student Worker Opportunities", French "Stagiaire", "Étudiant-chercheur"),
+// but not a role that serves students ("Student Success Manager").
+const STUDENT_RE = /\bstudents?\b(?!\s+(?:success|affairs|loans?|services?|experience|engagement|recruit\w*|outreach|programs?|community|support|marketing))|\bstagiaires?\b|(?:^|[\s,(])[ÉéEe]tudiante?s?[- ]chercheu(?:r|se)s?\b/i;
+// "Associate General Counsel", "Associate Product Counsel": a lawyer's title, not entry level.
+const ASSOCIATE_COUNSEL_RE = /\bassociate\s+(?:[\w&-]+\s+){0,3}?counsel\b/gi;
+
+function seniorityOf(title, company = null) {
   const t = stripGenericStaff(String(title || ''));
   if (!t.trim()) return BY_DEFAULT;
   const exec = t.replace(NON_EXEC_DIRECTOR_RE, ' ');
   if (/\b(?:director|vp|svp|evp|vice[- ]president|head of|chief|cto|cfo|ceo|coo|ciso|cmo|cpo|president|general manager|partner,)\b/i.test(exec)
     || /^head\b/i.test(t)) return byTitle('Director+');
   if (/\b(?:intern(?:ship)?s?|fellowships?|fellows program|co-?op|apprentice(?:ship)?|summer (?:analyst|associate|student)|residency|resident)\b/i.test(t)
-    || (FELLOW_RE.test(t) && !SENIOR_FELLOW_RE.test(t))) return byTitle('Intern');
+    || (FELLOW_RE.test(t) && !SENIOR_FELLOW_RE.test(t)) || STUDENT_RE.test(t)) return byTitle('Intern');
   if (/\b(?:staff|principal|distinguished)\b/i.test(t) || SENIOR_FELLOW_RE.test(t)) return byTitle('Staff+');
   const isManager = /\bmanager\b/i.test(t) && !NON_PEOPLE_MANAGER.test(t);
   if (isManager || /\b(?:team lead|people lead|supervisor|engineering lead|lead,? (?:people|team))\b/i.test(t)
     || /\bmanager,\s/i.test(t) && !NON_PEOPLE_MANAGER.test(t)) return byTitle('Manager');
-  if (/\b(?:senior|sr\.?|lead|iii)\b/i.test(t) || /\bIII\b/.test(t)) return byTitle('Senior');
-  if (/\b(?:junior|jr\.?|associate|new grad(?:uate)?|graduate|entry[- ]level|early career)\b/i.test(t)
-    || /\s(?:I|1)(?=\s*(?:[,()\-–—]|$))/.test(t)) return byTitle('Entry');
+  if (/\b(?:senior|sr\.?|lead)\b/i.test(t)) return byTitle('Senior');
+  if (/\b(?:junior|jr\.?|associate|new (?:college |university )?grad(?:uate)?|(?:college|university) grad(?:uate)?|graduate|entry[- ]level|early careers?)\b/i.test(t.replace(ASSOCIATE_COUNSEL_RE, ' counsel'))) return byTitle('Entry');
+  // A numbered rung on the board's ladder (Google "III", Netflix "(L5)", "Engineer II").
+  const rung = ladderRung(t, company);
+  if (rung) return byTitle(rung);
   return BY_DEFAULT;
 }
 

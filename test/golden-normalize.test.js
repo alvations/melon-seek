@@ -7,7 +7,7 @@
 // NORMALIZER_VERSION in server/normalize.js (stored snapshots are then upgraded
 // once by the server), then regenerate with:
 //   UPDATE_GOLDEN=1 GOLDEN_REASON="what changed" node --test test/golden-normalize.test.js
-// Re-baselines: 2026-10-02 initial; norm-3 "UX-3 canonical locations" (geo.js name/rawName).
+// Re-baselines: 2026-10-02 initial; norm-3 "UX-3 canonical locations" (geo.js name/rawName); norm-7 job.seniorityBasis (fix-beta-pay).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
