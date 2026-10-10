@@ -118,4 +118,9 @@ FINAL REPORT
 
 ## Mid-task messages from the coordinator (verbatim)
 
-(none so far)
+1. (2026-10-10, ~07:58 UTC)
+
+> LEAD: STOP PUSHING to claude/stoic-ride-54ddxp, starting now.
+> - Every push starts GitHub's branch-mode "pages build and deployment", which publishes the repo README at https://alvations.github.io/melon-seek/ until our pages.yml deploy replaces it. The user has seen the README and is upset.
+> - From now on, commit locally if you like (explicit paths only), but do NOT push. Send the lead (SendMessage to "main") the list of commits or files you need pushed; the lead batches pushes.
+> - workflow_dispatch runs of workflows that already exist on the branch are fine; they don't trigger branch builds.

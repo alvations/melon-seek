@@ -193,3 +193,28 @@ test('mapLimit runs at most N at once and collects errors', async () => {
   assert.equal(errors.length, 1);
   assert.equal(errors[0].index, 2);
 });
+
+test('pipeline: beta adapters registered; { jobs } results normalized; live tasks refused for live: false companies', async () => {
+  const { ADAPTERS, fetchLive, runTask } = await import('../server/pipeline.js');
+  for (const s of ['eightfold', 'amazon', 'apple', 'google', 'meta']) assert.equal(typeof ADAPTERS[s], 'function', s);
+  for (const c of listCompanies({ channel: 'beta' })) assert.equal(typeof ADAPTERS[c.source], 'function', `${c.slug} has an adapter`);
+  const orig = ADAPTERS.eightfold;
+  const seen = [];
+  try {
+    ADAPTERS.eightfold = async (board, opts) => {
+      seen.push({ board, opts });
+      opts.log && opts.log('hello');
+      return { jobs: [{ sourceId: '1', title: 'Software Engineer', locationText: 'Redmond, WA, US', extraLocations: [], html: '<p>x</p>', text: 'x', url: 'https://apply.careers.microsoft.com/careers/job/1', salary: null }], stats: {} };
+    };
+    const logs = [];
+    const jobs = await fetchLive(getCompany('microsoft'), { log: (m) => logs.push(m) });
+    assert.equal(jobs.length, 1);
+    assert.equal(jobs[0].id, 'microsoft:1');
+    assert.equal(seen[0].board, 'microsoft');
+    assert.deepEqual(logs, ['hello']);
+    await assert.rejects(runTask({ type: 'live', company: getCompany('microsoft') }), (e) => e.code === 'live_disabled');
+    assert.equal(seen.length, 1, 'the refused live task made no request');
+  } finally {
+    ADAPTERS.eightfold = orig;
+  }
+});

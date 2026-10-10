@@ -159,3 +159,146 @@ sites were blocked, so none of these is confirmed from the company side.
   ([jobs.lever.co/mistral/5ee49b30-…](https://jobs.lever.co/mistral/5ee49b30-7757-4e24-aa54-080265ce1d15)),
   but the first real-data snapshot run on GitHub Actions (2026-10-02) got **0 jobs** from
   `api.lever.co/v0/postings/mistral`. The slug is probably stale, so Mistral was removed from the built-ins.
+
+## 7. Big-tech career sites (beta)
+
+Verified on 2026-10-10 against **real responses from GitHub-hosted runners**
+(`.github/workflows/bigtech-probe.yml` → `scripts/probe-bigtech.js`; the build
+sandbox has no route to these hosts). Run numbers refer to that workflow's runs;
+the log is in [process/bigtech-data.md](process/bigtech-data.md). These boards are
+on the **beta channel only** (`channel: 'beta'`, `live: false` in
+`server/companies.js`): `node scripts/snapshot.js --channel beta` writes
+`data/snapshots/<slug>.json`, and only the `/beta/` site shows them. None of the
+hosts sends CORS headers (`access-control-allow-origin` absent on every response),
+so the browser never fetches them.
+
+**How every adapter collects** (`server/sources/polite.js`):
+- It uses only the JSON or HTML endpoints that the careers site's own front end
+  calls, or the sitemap the site publishes for crawlers.
+- It sends an honest User-Agent: `melon-seek/0.2 (+https://alvations.github.io/melon-seek/; open-source job-postings salary chart; about 1 request/s)`.
+  There is no browser impersonation, and no spoofed Referer or Origin.
+- Requests to one host start at least **1 s apart**, with at most 2 in flight.
+- 429 and 5xx are retried after 2/4/8/16 s (or after `Retry-After`, up to 60 s).
+  A 403 is never retried.
+- Redirects are never followed off the fixed host.
+- The site's own session cookies are kept in a per-run jar (Eightfold puts
+  cookieless clients in a tiny shared rate bucket). Nothing needs a login, and no
+  token is used except what the site itself serves.
+- **robots.txt is fetched and checked at the start of every crawl**: a disallowed
+  path aborts that company (`code: 'robots'`).
+
+| Company | Slug | Status | Endpoint (front-end's own) | Postings (run 7) | With pay | Snapshot | Posting URL host |
+|---|---|---|---|---:|---:|---:|---|
+| Google | `google` | works | jobs sitemap + `batchexecute` `sf9Qmf` | TBD | TBD | TBD | `www.google.com` |
+| Microsoft | `microsoft` | works | Eightfold PCSX `apply.careers.microsoft.com/api/pcsx/*` | TBD | TBD | TBD | `apply.careers.microsoft.com` |
+| Meta | `meta` | works | jobs sitemap + job pages (`public_compensation`) | TBD | TBD | TBD | `www.metacareers.com` |
+| Apple | `apple` | works | `jobs.apple.com/api/v1/search` + `jobDetails` | TBD | TBD | TBD | `jobs.apple.com` |
+| Netflix | `netflix` | works | Eightfold classic `explore.jobs.netflix.net/api/apply/v2/jobs` | TBD | TBD | TBD | `explore.jobs.netflix.net` |
+| Amazon | `amazon` | works | `www.amazon.jobs/en/search.json` | TBD | TBD | TBD | `www.amazon.jobs` |
+| NVIDIA | `nvidia` | works | Eightfold PCSX `jobs.nvidia.com/api/pcsx/*` | TBD | TBD | TBD | `jobs.nvidia.com` |
+| Tesla | — | **blocked, left out** | `www.tesla.com/cua-api/apps/careers/state` | — | — | — | — |
+
+### 7a. Pay rules (all companies)
+
+Pay is read by `server/salary.js` from the posting text, or from the site's own
+structured field where one exists (Meta `public_compensation`, Amazon's per-location
+pay table). Every result then passes the vetting gate (`server/vet.js`); see
+[VETTING.md](VETTING.md). Real-text fixtures for each format are in
+`test/bigtech-salary.test.js`.
+
+| Rule | Applied as |
+|---|---|
+| **Base pay only** | "+ bonus + equity + benefits" after a range marks it as base pay, and the extras are never added. A **total** compensation range (Google DeepMind "Total Compensation Range: $550,000 – $1,100,000 (includes … sign-on bonus …)") and NVIDIA's sales **cash** compensation range ("85% paid through base salary and 15% variable compensation. The cash compensation range is …") are not base pay, so the posting gets `salary: null` |
+| **Several ranges by location** | The first or national range. Microsoft states the U.S. range first and the SF Bay Area / NYC range second, so the U.S. one is used. Amazon has no national figure, only a per-location table, so the row for the posting's own primary city is used (else the first row). Every row is kept in `salary.ranges` and counted in `zones` |
+| **Several ranges by level** | Lowest listed min to highest listed max, with the levels named in `salary.text`: NVIDIA "168,000 USD - 264,500 USD for Level 4, and 196,000 USD - 310,500 USD for Level 5"; Microsoft "IC4: USD $119,800 - $234,700 per year; IC5: USD $142,800 - $274,800 per year". The span is capped at 4× (the gate's ratio bound). Microsoft also prices one level per **country** ("across Ireland is €…", "across Germany is €…"). Those are not levels: the job's own country is used, and countries are never mixed |
+| **Netflix** | "The range for this role is $210,000.00 - $360,000.00" is a **real posted range**. It is role-specific, and Netflix says pay "consists solely of an annual salary; we do not have bonuses" (options are carved out of that salary at the employee's choice). The sales-only "The overall market range for roles in this area of Netflix is typically $X - $Y. A portion of this compensation is variable." is **not** used: it is a band for an area, not this role, and it includes variable pay. Those postings get `salary: null` |
+| **No range** | `salary: null`. Examples: Apple postings whose "Pay & Benefits" footer gives no numbers, NVIDIA outside the US/PL/CA, and most non-US postings at every company |
+| **Prose money** | Never pay (the $4.6M rule): amounts need pay context, and million/billion amounts are never pay. The parser changes for these formats change **0 of 5,413** stable-board parses |
+
+Parser changes made for these formats (`server/salary.js`):
+- "U.S." no longer ends a clause, so "typical base pay range for this role across the U.S. is USD …" keeps its pay words.
+- "range for this role/position" counts as pay context.
+- "+ bonus + equity + benefits" (and "+ 25% bonus target + equity") after an amount is pay context, and is not read as "this amount is a bonus".
+- A clause naming total or cash compensation before the amount rejects it, unless "base pay/salary" follows that phrase.
+- Microsoft's national-range sentences are grouped by country and spanned by level (`NATIONAL_RE`, `NATION_CODE`).
+- Level tiers keep a trailing "for Level N" label.
+- `Kč` maps to CZK.
+
+### 7b. Google (`server/sources/google.js`)
+
+| Fact | Value |
+|---|---|
+| robots.txt (www.google.com) | **Disallows every paged results URL**: `/about/careers/applications/jobs/results?page=`, `…/results/?page=`, `…/results?*&page=`, `…/results/?*&page=`. Single postings (`…/jobs/results/<id>-<slug>`) and the RPC path are not disallowed. So the board is **not** read by paging search results (neither the HTML pages nor the `r06xKb` search RPC behind them) |
+| List | `GET https://www.google.com/about/careers/applications/jobs/sitemap.xml`: the jobs sitemap (~620 KB, one `<loc>https://careers.google.com/jobs/results/<id>-<slug>/</loc>` per posting with `lastmod`). careers.google.com 301s to www.google.com |
+| Detail | `POST https://www.google.com/about/careers/applications/_/HiringCportalFrontendUi/data/batchexecute`, form body `f.req=[[["sf9Qmf","[\"<id>\"]",null,"generic"]]]`, `Content-Type: application/x-www-form-urlencoded;charset=UTF-8`. No cookie or token. The response is XSSI-guarded (`)]}'`): the `wrb.fr` row's JSON string holds `[record]`. About 5 KB per posting, against ~1.3 MB for the HTML job page |
+| Record (positional) | 0 id, 1 title, 3 responsibilities `[_, html]`, 4 qualifications `[_, html]`, 7 brand (Google, DeepMind, YouTube, Verily…), 9 locations `[[display, addresses, city, zip, state, country]…]`, 10 about the job `[_, html]` (holds the pay line), 12 created `[s, ns]`, 13 updated, 16 remote flag |
+| Mapping | sourceId = id; team = brand; locations = slot 9 display names; url = `https://www.google.com/about/careers/applications/jobs/results/<id>-<slug>`; postedAt = slot 12; updatedAt = slot 13; html = about + responsibilities + qualifications |
+| Pay | Text, in two phrasings: "The US base salary range for this full-time position is $141,000-$202,000 + bonus + equity + benefits." and "US: $300000 - $333000 (USD) + 25% bonus target + equity + benefits". EU postings carry "€190000 - €194000" style lines. DeepMind lists "Base Salary Range" and "Total Compensation Range"; only base is used |
+| Requests | 1 (sitemap) + 1 per posting. Run 6: 3 × HTTP 502, all recovered on retry |
+
+### 7c. Microsoft and NVIDIA: Eightfold PCSX (`server/sources/eightfold.js`)
+
+| Fact | Value |
+|---|---|
+| Hosts | Microsoft `apply.careers.microsoft.com` (domain `microsoft.com`). NVIDIA `jobs.nvidia.com` (domain `nvidia.com`), NVIDIA's own careers front end. Its Workday CXS API (`nvidia.wd5.myworkdayjobs.com/wday/cxs/…`) answered every POST with a 303 to `community.workday.com/maintenance-page` during run 1 (Saturday 07:18 UTC, Workday's maintenance window), and its Workday robots.txt is empty. Workday is therefore not used |
+| robots.txt | Both: `User-agent: *`, `Disallow: /`, `Allow: /careers`, `Allow: /api/apply`, `Allow: /api/pcsx`, `Allow: /api/events`, `Allow: /careerhub/explore/jobs`, `Allow: /api/career_hub` |
+| List | `GET /api/pcsx/search?domain=<d>&query=&location=&start=N&sort_by=timestamp` → `{ status, data: { count, positions[] } }`. Exactly **10 per page** (`num` is ignored). `count` is the true total |
+| Position fields | `id`, `displayJobId`, `name`, `locations[]` ("United States, Washington, Redmond"), `standardizedLocations[]` ("Redmond, WA, US"; NVIDIA remote: "CA,US"), `postedTs`, `creationTs` (epoch s), `department`, `workLocationOption` (`onsite`, `remote_local`, …), `positionUrl` |
+| Detail | `GET /api/pcsx/position_details?position_id=<id>&domain=<d>&hl=en` → `data.jobDescription` (HTML), `publicUrl`, Microsoft `efcustomTextEmploymentType[]`, `efcustomTextWorkSite[]`, `efcustomTextTaDisciplineName[]`; NVIDIA `efcustomTextTimeType[]`. The list has no description, so pay costs one detail request per posting |
+| Mapping | sourceId = id; reqId = displayJobId; locations = standardizedLocations; remote = workLocationOption ~ remote, or a "Remote" location; url = publicUrl (`https://<host>/careers/job/<id>`); postedAt = creationTs; updatedAt = postedTs |
+| Pay (Microsoft) | "Software Engineering IC2 - The typical base pay range for this role across the U.S. is USD $85,400 - $168,100 per year. There is a different range applicable to specific work locations, within the San Francisco Bay area and New York City metropolitan area, and the base pay range for this role in those locations is USD $111,100 - $183,700 per year." Hourly and monthly (interns: "USD $6,810 - $13,480 per month") versions exist. Outside the US: "…across Germany is € 130,200.00 - € 222,000.00 per year", "…across Czechia is Kč 1,338,000.00 - Kč 2,448,000". Several levels, or several countries, can be listed in one posting (rules in 7a) |
+| Pay (NVIDIA) | "Your base salary will be determined based on your location, experience, and the pay of employees in similar positions. The base salary range is 272,000 USD - 431,250 USD." Levels: "… 168,000 USD - 264,500 USD for Level 4, and 196,000 USD - 310,500 USD for Level 5." Interns: "The hourly rate for our interns is 20 USD - 71 USD." Sales: "cash compensation range" (not base: null) |
+
+### 7d. Netflix: Eightfold classic (`server/sources/eightfold.js`)
+
+| Fact | Value |
+|---|---|
+| Host, robots.txt | `explore.jobs.netflix.net`. Same Eightfold robots.txt as 7c (`/api/apply` allowed). PCSX answers 403 `{"message": "PCSX is not enabled for this user."}`, so the classic API is the front end's |
+| List | `GET /api/apply/v2/jobs?domain=netflix.com&start=N&num=10&sort_by=relevance` → `{ count, positions[] }`, 10 per page; `count` was the real total (456). `job_description` is empty in the list |
+| Position fields | `id`, `name`, `posting_name`, `location`, `locations[]` ("Los Angeles,California,United States of America"), `department`, `business_unit`, `t_create`, `t_update`, `display_job_id` (JR…), `work_location_option` (always "onsite" in the list), `canonicalPositionUrl` |
+| Detail | `GET /api/apply/v2/jobs/<id>?domain=netflix.com` → the position with `job_description` (HTML) and `custom_JD.data_fields` (`posting_date`, `team`, `work_type`) |
+| Mapping | locations get spaces after commas; remote only from "Remote, United States" style locations (the list's "onsite" is not trusted); url = canonicalPositionUrl without `?microsite=`; team = business_unit; postedAt = t_create; updatedAt = t_update |
+| Pay | "…to determine your compensation in the market range. The range for this role is $210,000.00 - $360,000.00." (see 7a for the market-range decision) |
+
+### 7e. Amazon (`server/sources/amazon.js`)
+
+| Fact | Value |
+|---|---|
+| robots.txt | `User-agent: AhrefsBot / Disallow: /`; `User-agent: *` disallows only `/internal` and `/<lang>/internal` |
+| List | `GET https://www.amazon.jobs/en/search.json?offset=N&result_limit=100&sort=recent[&normalized_country_code[]=USA][&business_category[]=aws][&facets[]=normalized_country_code&facets[]=business_category]`. `result_limit` up to 100. **`hits` is capped at 10,000** per query (offset 9,900 works, beyond returns nothing). `facets[]=…` returns `normalized_country_code_facet: [{USA: n}, …]` (58 countries) and `business_category_facet` (62 categories). `job_schedule_type[]` is ignored |
+| Partitioning | Country by country; a country at the cap (the US) is split by business category. Postings are deduped on `id_icims`. Facet total: **22,415 postings** (run 6) |
+| Row fields | The whole posting is in the row: `id_icims`, `title`, `job_path`, `description`, `basic_qualifications`, `preferred_qualifications` (HTML with `<br/>` and "- " bullets), `job_category`, `job_family`, `business_category`, `job_schedule_type`, `city`, `state`, `country_code`, `normalized_location`, `locations[]` (JSON strings: `normalizedLocation`, `type: ONSITE`…), `posted_date` ("October 10, 2026"), `updated_time` ("about 5 hours"). No detail request |
+| Mapping | sourceId = reqId = id_icims; department = job_category; team = job_family (when different); locations = each `locations[].normalizedLocation`; url = `https://www.amazon.jobs<job_path>`; postedAt = posted_date (UTC date); the "- " lines become `<ul>` lists |
+| Pay | After "The base salary range for this position is listed below.", a **per-location table**, one line each: "USA, CA, East Palo Alto - 165,200.00 - 223,600.00 USD annually", "Seattle, WA, USA - 80,200.00 USD Annually", "USA, VA, Aldie - 27.98 - 48.99 USD hourly", "CAN, ON, Toronto - 84,600.00 - 126,800.00 CAD annually". Parsed by the adapter (`amazonPayTable`: structured). Older postings use the national sentence "ranges from $129,300/year in our lowest geographic market up to $223,600/year in our highest geographic market", which the text parser reads |
+
+### 7f. Apple (`server/sources/apple.js`)
+
+| Fact | Value |
+|---|---|
+| robots.txt | jobs.apple.com has none: `/robots.txt` 301s to `apple.com/pagenotfound`, a 404 (no rules, RFC 9309 §2.3.1.3) |
+| List | `POST https://jobs.apple.com/api/v1/search`, JSON body `{query:"", filters:{}, page, locale:"en-us", sort:"newest", format:{longDate:"MMMM D, YYYY", mediumDate:"MMM D, YYYY"}}` → `{ res: { searchResults[], totalRecords } }`. 20 per page; 6,105 total, 4,401 US (run 1). **Without `format` the API answers 200 with zero results.** No CSRF token or cookie is needed (the `CSRFToken` endpoint is not used). Random empty pages mid-board are retried |
+| Row fields | `id` (`200674386-0836` per location, `PIPE-…` for retail pipeline roles), `positionId`, `postingTitle`, `transformedPostingTitle`, `jobSummary`, `locations[]` (`name`, `city`, `stateProvince`, `countryName`), `team.teamName`, `homeOffice`, `standardWeeklyHours`, `postingDate`, `managedPipelineRole` |
+| Detail | `GET /api/v1/jobDetails/<id>?locale=en-us` → `res.description`, `responsibilities`, `minimumQualifications`, `preferredQualifications`, `postingFooters[]` (`postLocationId`, `localizations.en_US[]` with `name: "Pay & Benefits"`), `selectedLocation`, `teamNames`, `postingDateMeta`. ~2 s per request server-side |
+| Scope | **Detail requests only for US postings.** Apple publishes pay only there; elsewhere the search row's `jobSummary` is the description. This halves a ~2-hour crawl |
+| Mapping | url = `https://jobs.apple.com/en-us/details/<id without PIPE->/<transformedPostingTitle>`; department = team; employmentType from `standardWeeklyHours` (≥ 35 h = Full-time); postedAt = `postingDateMeta`, except managed-pipeline (retail) rows, which are re-stamped on every request and get `null` |
+| Pay | Footer: "The base pay range for this role is between $150,400 and $277,600, and your base pay will depend on your skills, qualifications, experience, and location." Hourly: "between $34.31 and $73.20/hr". Some US footers give no range (seasonal retail): null |
+
+### 7g. Meta (`server/sources/meta.js`)
+
+| Fact | Value |
+|---|---|
+| robots.txt | `User-agent: *` disallows `/ajax/`, `/tealium/`, `/intern/`, `/internal/`, `/login/`, `/oidc/callback/`, `/signup/`, `/resume/`, …; job pages are allowed. Lists `Sitemap: https://www.metacareers.com/jobsearch/sitemap.xml` |
+| List | `GET https://www.metacareers.com/jobsearch/sitemap.xml` (~150 KB): `<loc>https://www.metacareers.com/profile/job_details/<id>/</loc>` per open posting (1,143 in run 6). `/jobs` 301s to `/jobsearch/` |
+| Detail | The public job page (~480 KB HTML) carries a schema.org `JobPosting` (`title`, `description`, `datePosted`, `jobLocation[]`, `employmentType`) and the page's own data after `"apply_for_this_job_section"`: `title`, `locations[]`, `departments[]`, `internal_departments[]`, `description` (`{"__html": …}`), `responsibilities[]`, `minimum_qualifications[]`, `preferred_qualifications[]`, `public_compensation[]`. The GraphQL search (`/graphql` with an `LSD` token and a rotating persisted `doc_id`) is **not** used |
+| Mapping | title = JSON-LD title; department = internal_departments[0]; team = departments[0]; locations = page locations ("Sunnyvale, CA", "Remote, US"); url = the sitemap URL; postedAt = datePosted |
+| Pay | Structured: `public_compensation: [{compensation_amount_minimum: "$173,000/year", compensation_amount_maximum: "$245,000/year", country_code: "US", has_bonus, has_equity}]`, also "$7,313/month" for interns. The range for the first location's country is used, else the US one. Text reads "$173,000/year to $245,000/year + bonus + equity (US)" |
+
+### 7h. Tesla: blocked, left out
+
+Every plain request to `www.tesla.com` returned HTTP 403 "Access Denied" from
+Akamai (`server: AkamaiGHost`): `/robots.txt`, `/cua-api/apps/careers/state`
+(the careers search API) and `/careers/search/` (runs 1 and 2). Getting past
+that would mean impersonating a browser or evading bot protection, which this
+project does not do. Tesla is therefore not in `server/companies.js`, has no
+adapter, and is not on the beta site. `scripts/probe-bigtech.js --mode recon
+--companies tesla` re-checks it.
