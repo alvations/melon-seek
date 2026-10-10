@@ -80,6 +80,51 @@ function parseLocations(job) {
   return { locs: out, remote };
 }
 
+const PAY_LINE_RE = /^\s*([^<>\n]{0,89}?[A-Za-z)\]])\s+-\s+(\d[\d,]*(?:\.\d+)?)(?:\s*-\s*(\d[\d,]*(?:\.\d+)?))?\s+([A-Z]{3})\s+(annually|hourly|monthly|weekly|per year|per hour|per month)\s*$/i;
+const IV = { annually: 'year', 'per year': 'year', hourly: 'hour', 'per hour': 'hour', monthly: 'month', 'per month': 'month', weekly: 'week' };
+
+/**
+ * Amazon's pay table (2026 format), after "The base salary range for this
+ * position is listed below.": one line per location,
+ *   "USA, CA, East Palo Alto - 165,200.00 - 223,600.00 USD annually"
+ *   "Seattle, WA, USA - 80,200.00 USD Annually"   "… - 25.50 - 29.00 USD hourly"
+ * Returns [{ location, min, max, currency, interval, line }] in page order.
+ */
+export function amazonPayTable(...blocks) {
+  const out = [];
+  for (const b of blocks) {
+    for (const raw of String(b || '').split(/<br\s*\/?>|<\/p>|<\/li>|\n/i)) {
+      const line = htmlToText(raw).replace(/\s+/g, ' ').trim();
+      const m = PAY_LINE_RE.exec(line);
+      if (!m) continue;
+      const lo = Number(m[2].replace(/,/g, ''));
+      const hi = m[3] ? Number(m[3].replace(/,/g, '')) : lo;
+      if (!(lo > 0) || !(hi > 0)) continue;
+      out.push({ location: m[1].trim(), min: Math.min(lo, hi), max: Math.max(lo, hi), currency: m[4].toUpperCase(), interval: IV[m[5].toLowerCase()] || 'year', line });
+    }
+  }
+  return out;
+}
+
+const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+/**
+ * Pay rule (docs/DATA_SOURCES.md §7): the row for the posting's primary
+ * location (the job's own city/state), else the first row. Every row is kept
+ * as payRanges (salary.ranges), and their count is the zone count.
+ */
+export function amazonSalary(j, table = amazonPayTable(j.description, j.basic_qualifications, j.preferred_qualifications)) {
+  if (!table.length) return { salary: null, payRanges: [] };
+  const city = norm(j.city);
+  const state = norm(j.state);
+  const pick = (city && table.find((r) => { const t = norm(r.location).split(' '); const l = norm(r.location); return l.includes(city) && (!state || t.includes(state) || l.includes(state)); }))
+    || (city && table.find((r) => norm(r.location).includes(city)))
+    || table[0];
+  const distinct = new Set(table.map((r) => `${r.min}|${r.max}|${r.currency}|${r.interval}`)).size;
+  const salary = { min: pick.min, max: pick.max, currency: pick.currency, interval: pick.interval, text: pick.line, zones: distinct };
+  const payRanges = table.slice(0, 12).map((r) => ({ min: r.min, max: r.max, currency: r.currency, interval: r.interval, label: r.location.slice(0, 60) }));
+  return { salary, payRanges };
+}
+
 /** One search.json row -> RawJob. */
 export function mapAmazonJob(j) {
   const { locs, remote } = parseLocations(j);
@@ -107,7 +152,7 @@ export function mapAmazonJob(j) {
     updatedAt: posted,
     postedAt: posted,
     reqId: str(j.id_icims),
-    salary: null,
+    ...amazonSalary(j),
   };
 }
 
@@ -143,43 +188,44 @@ export async function fetchAmazon(board = 'amazon', opts = {}) {
     return hits;
   };
 
-  // Partition plan: the facet counts the search page itself asks for.
+  // Partition plan: the facet counts the search page itself asks for
+  // (facets[]=normalized_country_code, business_category).
+  const facet = (body, name) => {
+    const f = body && body.facets && (body.facets[`${name}_facet`] || body.facets[name]);
+    return (Array.isArray(f) ? f : []).map((x) => {
+      if (Array.isArray(x)) return { value: x[0], count: Number(x[1]) || 0 };
+      if (x && typeof x === 'object') { const k = Object.keys(x)[0]; return k ? { value: k, count: Number(x[k]) || 0 } : null; }
+      return null;
+    }).filter((x) => x && x.value).sort((a, b) => b.count - a.count);
+  };
   const first = await politeJson(amazonSearchUrl(0, {}, { facets: true }), common);
   stats.pages++;
   if (!first || !Array.isArray(first.jobs)) throw new UpstreamError(`${label}: unexpected response (no jobs array)`, { code: 'bad_shape' });
   add(first.jobs);
   const total = Number(first.hits) || 0;
-  const facet = (name) => {
-    const f = first.facets && first.facets[`${name}_facet`] || (first.facets && first.facets[name]);
-    return Array.isArray(f) ? f.map((x) => (Array.isArray(x) ? { value: x[0], count: Number(x[1]) } : x && typeof x === 'object' ? { value: Object.keys(x)[0], count: Number(Object.values(x)[0]) } : null)).filter((x) => x && x.value) : [];
-  };
-  const countries = opts.partitions ? opts.partitions.countries : facet('normalized_country_code');
-  log(`total hits ${total}${total >= CAP ? ' (capped)' : ''}; ${countries.length} country facets`);
-  if (total < CAP) {
+  const countries = opts.partitions ? opts.partitions.countries : facet(first, 'normalized_country_code');
+  const sum = countries.reduce((n, c) => n + c.count, 0);
+  log(`hits ${total}${total >= CAP ? ' (capped)' : ''}; ${countries.length} countries totalling ${sum} postings`);
+  stats.notes.push(`board size from country facets: ${sum} postings in ${countries.length} countries`);
+  if (total < CAP || !countries.length) {
+    if (total >= CAP) stats.notes.push('no country facets returned; read only up to the 10,000-hit cap');
     await crawl({}, total);
   } else {
-    if (!countries.length) stats.notes.push('no country facets returned; the board is read only up to the 10,000-hit cap');
-    else {
-      for (const c of countries.sort((a, b) => b.count - a.count)) {
+    for (const c of countries) {
+      if (full()) break;
+      if (c.count < CAP) { await crawl({ normalized_country_code: c.value }, c.count); continue; }
+      // A country at the cap (the US): split by business category.
+      const sub = await politeJson(amazonSearchUrl(0, { normalized_country_code: c.value }, { facets: true }), common);
+      stats.pages++;
+      add(sub && sub.jobs);
+      const cats = opts.partitions && opts.partitions.categories ? opts.partitions.categories : facet(sub, 'business_category');
+      if (!cats.length) { stats.notes.push(`${c.value}: no category facets; first 10,000 only`); await crawl({ normalized_country_code: c.value }, c.count); continue; }
+      for (const b of cats) {
         if (full()) break;
-        if (c.count < CAP) { await crawl({ normalized_country_code: c.value }, c.count); continue; }
-        // A country at the cap (the US): split by business category.
-        const sub = await politeJson(amazonSearchUrl(0, { normalized_country_code: c.value }, { facets: true }), common);
-        stats.pages++;
-        add(sub && sub.jobs);
-        const cats = (sub && sub.facets) ? Object.assign(first, { facets: sub.facets }) && facet('business_category') : [];
-        let covered = 0;
-        for (const b of cats.sort((x, y) => y.count - x.count)) {
-          if (full()) break;
-          covered += b.count;
-          const h = await crawl({ normalized_country_code: c.value, business_category: b.value }, b.count);
-          if (h >= CAP) stats.notes.push(`${c.value}/${b.value} still at the cap; first 10,000 only`);
-        }
-        if (cats.length && covered < c.count) stats.notes.push(`${c.value}: business categories cover ${covered} of ${c.count}+ postings`);
-        if (!cats.length) { stats.notes.push(`${c.value}: no category facets; first 10,000 only`); await crawl({ normalized_country_code: c.value }, c.count); }
+        const h = await crawl({ normalized_country_code: c.value, business_category: b.value }, b.count);
+        if (h >= CAP) stats.notes.push(`${c.value}/${b.value} still at the cap; first 10,000 only`);
       }
     }
-    if (!countries.length) await crawl({}, total);
   }
   log(`listed ${rows.size} postings in ${stats.pages} pages`);
   let list = [...rows.values()];

@@ -14,7 +14,7 @@
 // Pay is text in the "about the job" HTML: "The US base salary range for this
 // full-time position is $X-$Y + bonus + equity + benefits."
 import { UpstreamError, htmlToText, str } from './util.js';
-import { politeRequest, checkRobots, mapLimit, cookieJar, newStats } from './polite.js';
+import { politeRequest, checkRobots, mapLimit, cookieJar, newStats, spreadSample } from './polite.js';
 
 export const GOOGLE_ORIGIN = 'https://www.google.com';
 export const GOOGLE_BASE = '/about/careers/applications';
@@ -114,7 +114,7 @@ export async function fetchGoogle(board = 'google', opts = {}) {
   let entries = parseGoogleSitemap(sm.text);
   if (!entries.length) throw new UpstreamError(`${label}: the jobs sitemap lists no postings`, { code: 'bad_shape' });
   log(`sitemap: ${entries.length} postings`);
-  if (maxJobs) entries = entries.slice(0, maxJobs);
+  if (maxJobs) entries = spreadSample(entries, maxJobs); // probe: a spread, not the oldest evergreen posts
   const t0 = Date.now();
   let missing = 0;
   const { results, errors } = await mapLimit(entries, concurrency, async (e, i) => {

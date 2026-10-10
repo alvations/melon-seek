@@ -421,6 +421,9 @@ async function full(slug) {
     say(`     text: ${trim(s.text, 220)}`);
     say(`     -> ${s.currency} ${s.min}-${s.max}/yr kind=${s.kind} source=${s.source}${s.originalInterval ? ` from ${s.originalInterval}` : ''} zones=${s.zones} spread=${s.spread}`);
   }
+  const multi = salaried.filter((j) => (j.salary.zones || 1) >= 3 || (j.salary.ranges && j.salary.ranges.length > 2)).slice(0, 4);
+  say(`\njobs with 3+ pay zones: ${salaried.filter((j) => (j.salary.zones || 1) >= 3).length}`);
+  for (const j of multi) say(`  [${j.id}] ${trim(j.title, 50)} -> ${j.salary.min}-${j.salary.max} "${trim(j.salary.text, 200)}"\n     ${JSON.stringify(paySentences(htmlToText(j.descriptionHtml || ''), 6)).slice(0, 1400)}`);
   const unpaid = jobs.filter((j) => !j.salary && !j.salaryRaw && /\b(salary|base pay|pay range|compensation range|market range)\b/i.test(htmlToText(j.descriptionHtml || '')));
   say(`\njobs with pay words but no parsed range: ${unpaid.length}`);
   for (const j of unpaid.slice(0, 6)) say(`  [${j.id}] ${trim(j.title, 60)} @ ${trim(j.locations.map((l) => l.name).join(' | '), 40)}: ${JSON.stringify(paySentences(htmlToText(j.descriptionHtml || ''), 2))}`);

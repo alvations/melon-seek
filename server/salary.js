@@ -235,8 +235,20 @@ const PAY_RE = /\b(salary|salaries|compensation|pay|paid|wages?|ote|on[- ]target
 export const BENEFIT_STIPEND_RE = /\b(?:lunch|meals?|food|snacks?|home[- ]office|office|workspace|learning(?:\s*(?:&|and)\s*development)?|development|education(?:al)?|tuition|wellness|well-?being|fitness|gym|commuter|commuting|transit|transportation|phone|mobile|cell|internet|wi-?fi|co-?working|relocation|equipment|books?|conference|travel|childcare|remote(?:[- ]work)?|wfh|tech(?:nology)?|health|lifestyle|productivity|setup)\s+(?:stipends?|allowances?|budgets?)\b/gi;
 const NEG_BEFORE_RE = /\b(raised|raising|funding|funded|series [a-f]|valuation|valued|revenue|arr|backed|invest\w*|budgets?|spend(?:ing)?|closing|closed|deals?|quotas?|bonus(?:es)?|signing|sign-on|relocation|reimburs\w*|allowances?|grants?|credits?|compute|expenses?|savings?|saved|worth|exploits?|prizes?|awards?|donat\w*|customers?|users|loans?|pric(?:e|es|ed|ing)|costs?|fees?|tuition|401)\b[^$£€¥\d]{0,40}$/i;
 const NEG_AFTER_RE = /^\W{0,3}(?:in\s+|of\s+)?(?:[\w-]+\s+){0,3}?(deals?|funding|raised|revenue|arr|valuation|budgets?|spend|quotas?|exploits?|customers|users|grants?|credits?|allowances?|bonus(?:es)?|signing|sign-on|savings|prizes?|stipends?|reimbursements?|contracts? (?:value|won)|in (?:annual )?spend)\b/i;
-const TOTAL_COMP_BEFORE_RE = /\btotal\s+(?:(?:target|annual|cash|expected)\s+)*comp(?:ensation)?\b[^$£€¥\d]{0,40}$/i;
-const PLUS_EXTRAS_AFTER_RE = /^\s*(?:\(?(?:USD|CAD|GBP|EUR|AUD|SGD)\)?\s*)?(?:per\s+(?:year|annum|hour)\s*)?(?:\+|plus\b)\s*(?:an?\s+)?(?:annual\s+|target\s+)?(?:bonus|equity|benefits|commission|stock|rsus?)\b/i;
+// "Total Compensation Range: $550,000 – $1,100,000" (Google DeepMind) and NVIDIA's
+// "The cash compensation range is …, with 85% paid through base salary and 15%
+// variable": not base pay, so not a salary (docs/DATA_SOURCES.md §7 pay rules).
+const TOTAL_COMP_RE = /\b(?:total\s+(?:(?:target|annual|cash|expected)\s+)*comp(?:ensation)?|(?:target\s+)?cash\s+comp(?:ensation)?)\b/i;
+/** The clause names a total/cash compensation range before the amount, and no "base pay/salary" after that phrase. */
+function totalCompBefore(before) {
+  const i = before.search(TOTAL_COMP_RE);
+  return i >= 0 && !/\bbase\s+(?:pay|salary)\b/i.test(before.slice(i));
+}
+// "$141,000-$202,000 + bonus + equity + benefits" (Google, Meta), "US: $300000 -
+// $333000 (USD) + 25% bonus target + equity + benefits": a base range with the
+// extras named after it. This is pay context, and the bonus is not the amount.
+const PLUS_EXTRAS_AFTER_RE = /^\s*(?:\(?(?:USD|CAD|GBP|EUR|AUD|SGD|CHF|INR|JPY|ILS)\)?\s*)?(?:per\s+(?:year|annum|hour)\s*)?(?:\+|plus\b)\s*(?:an?\s+)?(?:\d{1,2}(?:\.\d)?%\s+)?(?:annual\s+|target\s+)?(?:bonus|equity|benefits|commission|stock|rsus?)\b/i;
+const NATIONAL_RE = /\btypical\s+base\s+pay\s+range\s+for\s+this\s+role\s+across\s+(?:the\s+)?[A-Z][\w.]*(?:\s+[A-Z][\w.]*)?\s+is\b[^$£€¥\d]{0,12}$/;
 const PAY_STIPEND_AFTER_RE = /^\W{0,3}(?:(?:weekly|monthly|bi-?weekly|living|base|research)\s+)stipend\b/i;
 const FILLER_RE = new RegExp(String.raw`\b(?:${CODES}|per|an?|hour|hours|year|annum|month|week|day|hourly|annually|yearly|monthly|weekly|base|gross|brutto|net|ote|range|up|to|from|between|starting|at|approx|approximately|about|plus|offers|equity|multiple|ranges|and|usd)\b|[^A-Za-z]+`, 'gi');
 
@@ -328,12 +340,12 @@ function evaluate(text, u, countries) {
   // Benefits, funding, deals, bonuses ... right around the amount.
   if (NEG_BEFORE_RE.test(before.slice(-60))) return null;
   // Base pay only: a total-compensation range includes bonus/equity/sign-on.
-  if (TOTAL_COMP_BEFORE_RE.test(before.slice(-60))) return null;
+  if (totalCompBefore(before)) return null;
   const payStipendAfter = PAY_STIPEND_AFTER_RE.test(after);
   // "$141,000-$202,000 + bonus + equity + benefits": base pay, extras on top.
   const plusExtras = PLUS_EXTRAS_AFTER_RE.test(after);
   if (!payStipendAfter && !plusExtras && NEG_AFTER_RE.test(after)) return null;
-  if (!(kwInClause || kwInHeading || standalone || unitIv === 'hour' || payStipendAfter)) return null;
+  if (!(kwInClause || kwInHeading || standalone || unitIv === 'hour' || payStipendAfter || plusExtras)) return null;
 
   // Interval: on the amount, right after it (same line), else earlier in the same clause/heading.
   const afterLine = after.split('\n')[0];
@@ -363,15 +375,21 @@ function evaluate(text, u, countries) {
   if (b) score += 3;
   if (u.explicit) score += 2;
   if (kwInClause) score += 4;
-  else if (kwInHeading) score += 3;
+  else if (kwInHeading || plusExtras) score += 3;
   else if (standalone) score += 2;
   if (stated) score += 1;
   const want = currenciesFor(countries);
   if (want.includes(u.currency)) score += 2;
   if (lo > 0 && hi / lo > 3) score -= 2;
+  // Microsoft: "<Profession> IC4 - The typical base pay range for this role across
+  // the U.S. is USD $X - $Y per year." One such national sentence per level; the
+  // city ranges that follow ("…in those locations is…") are not national.
+  const nat = NATIONAL_RE.exec(before);
+  const national = !!nat;
+  const level = national ? (/^\s*(.{2,60}?)\s+[-–—]\s+the typical\b/i.exec(before) || [])[1] || null : null;
   return {
     // For "3,850 USD / 2,310 GBP / 4,300 CAD per week" the text is the whole statement.
-    score, start: gs, end: ge, lo, hi, currency: u.currency, interval, kind,
+    score, start: gs, end: ge, lo, hi, currency: u.currency, interval, kind, national, level,
     ...(intervalCorrected ? { intervalCorrected, statedInterval } : {}),
   };
 }
@@ -415,7 +433,25 @@ export function parseSalary(text, { countries = [] } = {}) {
     const thi = Math.max(...tier.map((c) => c.hi));
     if (tlo > 0 && thi / tlo <= TIER_MAX_RATIO) { lo = tlo; hi = thi; start = tier[0].start; end = tier[tier.length - 1].end; }
   }
-  let t = flat(s.slice(start, end));
+  // Several levels, each with its own national range (Microsoft "IC4 - …", "IC5 - …"):
+  // span the lowest min to the highest max (at most 4x, the gate's ratio bound),
+  // and name the levels in the text. City ranges are never part of the span.
+  let levelText = null;
+  if (best.national) {
+    const group = cands.filter((c) => c.national && same(c));
+    const glo = Math.min(...group.map((c) => c.lo));
+    const ghi = Math.max(...group.map((c) => c.hi));
+    if (group.length > 1 && glo > 0 && ghi / glo <= 4) {
+      lo = glo; hi = ghi;
+      levelText = group.map((c) => `${c.level ? `${c.level.replace(/\s+/g, ' ')}: ` : ''}${flat(s.slice(c.start, c.end))}`).join('; ');
+    }
+  }
+  // "… for Level 4, and 196,000 USD - 310,500 USD for Level 5": keep the last label.
+  if (i1 > i0) {
+    const lab = /^\s*(?:for|at)\s+(?:level|grade|band|ic|l)\s*[\w.-]{1,4}\b/i.exec(s.slice(end, end + 24));
+    if (lab) end += lab[0].length;
+  }
+  let t = levelText || flat(s.slice(start, end));
   if (t.length > 160) t = `${t.slice(0, 157)}...`;
   // zones: distinct pay ranges in the posting (tiers, locations, levels); one
   // amount offered in several currencies is one zone.

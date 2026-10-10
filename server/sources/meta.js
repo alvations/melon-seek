@@ -13,7 +13,7 @@
 //     posted base range (the page says bonus and equity are extra).
 // No GraphQL, token or doc_id is used: the sitemap is the list, the page is the record.
 import { UpstreamError, htmlToText, str, isoOrNull, decodeEntitiesOnce } from './util.js';
-import { politeRequest, checkRobots, mapLimit, cookieJar, newStats } from './polite.js';
+import { politeRequest, checkRobots, mapLimit, cookieJar, newStats, spreadSample } from './polite.js';
 
 export const META_ORIGIN = 'https://www.metacareers.com';
 export const META_SITEMAP = `${META_ORIGIN}/jobsearch/sitemap.xml`;
@@ -33,9 +33,15 @@ export function parseMetaSitemap(xml) {
 
 /** The JSON value that follows `"key":` at or after `from` in `text` (string-aware scan), or undefined. */
 export function jsonValueAfter(text, key, from = 0) {
+  const r = jsonSpanAfter(text, key, from);
+  return r ? r.value : undefined;
+}
+
+/** { value, end } of the JSON value after `"key":`, or null. */
+export function jsonSpanAfter(text, key, from = 0) {
   const needle = `"${key}":`;
   const at = text.indexOf(needle, from);
-  if (at < 0) return undefined;
+  if (at < 0) return null;
   let i = at + needle.length;
   while (/\s/.test(text[i] || '')) i++;
   const start = i;
@@ -54,7 +60,7 @@ export function jsonValueAfter(text, key, from = 0) {
   } else {
     while (i < text.length && !/[,}\]]/.test(text[i])) i++;
   }
-  try { return JSON.parse(text.slice(start, i)); } catch { return undefined; }
+  try { return { value: JSON.parse(text.slice(start, i)), end: i }; } catch { return null; }
 }
 
 /** schema.org JobPosting blocks in the page. */
@@ -73,10 +79,13 @@ function jsonLd(html) {
 export function extractMetaPage(html, id) {
   const page = String(html || '');
   const ld = jsonLd(page)[0] || null;
-  // The page's own requisition object: the keys follow "apply_for_this_job_section".
-  let from = page.indexOf('"apply_for_this_job_section"');
-  if (from < 0) from = Math.max(0, page.indexOf(`"requisition_id":"${id}"`));
-  const get = (k) => (from >= 0 ? jsonValueAfter(page, k, from) : undefined);
+  // The page's own requisition object: its keys (title, locations, departments,
+  // description, public_compensation …) follow the "apply_for_this_job_section"
+  // object, which has a title and description of its own, so start after it.
+  const section = jsonSpanAfter(page, 'apply_for_this_job_section');
+  let from = section ? section.end : page.indexOf(`"requisition_id":"${id}"`);
+  if (from < 0) from = 0;
+  const get = (k) => jsonValueAfter(page, k, from);
   let descHtml = get('description');
   if (typeof descHtml === 'string' && descHtml.startsWith('{')) {
     try { descHtml = JSON.parse(descHtml).__html; } catch { descHtml = null; }
@@ -85,7 +94,7 @@ export function extractMetaPage(html, id) {
   const items = (k) => (list(k) || []).map((x) => (typeof x === 'string' ? x : x && (x.item || x.text || x.description))).filter(Boolean);
   return {
     id: String(id),
-    title: str(get('title')) || (ld && str(ld.title)) || null,
+    title: (ld && str(ld.title)) || str(get('title')) || null,
     locations: list('locations'),
     departments: list('departments'),
     internal_departments: list('internal_departments'),
@@ -197,7 +206,7 @@ export async function fetchMeta(board = 'meta', opts = {}) {
   let entries = parseMetaSitemap(sm.text);
   if (!entries.length) throw new UpstreamError(`${label}: the jobs sitemap lists no postings`, { code: 'bad_shape' });
   log(`sitemap: ${entries.length} postings`);
-  if (maxJobs) entries = entries.slice(0, maxJobs);
+  if (maxJobs) entries = spreadSample(entries, maxJobs);
   const t0 = Date.now();
   let empty = 0;
   const { results, errors } = await mapLimit(entries, concurrency, async (e, i) => {

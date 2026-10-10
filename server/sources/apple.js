@@ -126,11 +126,12 @@ export async function fetchApple(board = 'apple', opts = {}) {
     if (total == null) throw new UpstreamError(`${label}: search returned no postings (totalRecords 0)`, { code: 'empty' });
     for (const r of res.searchResults) if (r && r.id != null && !rows.has(String(r.id))) rows.set(String(r.id), r);
     if (page % 50 === 0) log(`search page ${page}: ${rows.size}/${total}`);
-    if (!res.searchResults.length || rows.size >= total || page * PAGE >= total || (maxJobs && rows.size >= maxJobs)) break;
+    if (!res.searchResults.length || rows.size >= total || page * PAGE >= total || (maxJobs && rows.size >= Math.max(maxJobs * 4, 200))) break;
   }
   if (total != null && rows.size < total && !maxJobs) stats.notes.push(`search listed ${rows.size} of ${total} postings`);
   let list = [...rows.values()];
-  if (maxJobs) list = list.slice(0, maxJobs);
+  // Probe runs: US postings first, so pay parsing is exercised.
+  if (maxJobs) list = [...list.filter(isUS), ...list.filter((r) => !isUS(r))].slice(0, maxJobs);
 
   const want = list.filter((r) => detailsFor === 'all' || isUS(r));
   log(`details for ${want.length} of ${list.length} postings (${detailsFor})`);

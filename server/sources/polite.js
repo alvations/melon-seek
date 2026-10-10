@@ -191,7 +191,7 @@ export async function politeJson(url, opts = {}) {
  * `shouldStop()` (optional) is checked before each new item.
  */
 export async function mapLimit(items, concurrency, fn, { shouldStop } = {}) {
-  const results = new Array(items.length);
+  const results = Array.from({ length: items.length }, () => undefined);
   const errors = [];
   let next = 0;
   const worker = async () => {
@@ -295,6 +295,13 @@ export async function checkRobots(origin, paths, { label = 'source', stats = nul
 
 /** Tests: forget cached robots.txt files. */
 export function resetRobots() { robotsCache.clear(); }
+
+/** `n` items spread evenly over `list` (probe runs with maxJobs); the whole list when n is 0 or larger. */
+export function spreadSample(list, n) {
+  if (!(n > 0) || n >= list.length) return list;
+  const step = list.length / n;
+  return Array.from({ length: n }, (_, i) => list[Math.floor(i * step)]);
+}
 
 /** Fresh request statistics for one company fetch. */
 export function newStats() {
