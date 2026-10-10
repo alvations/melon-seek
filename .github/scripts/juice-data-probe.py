@@ -7,7 +7,7 @@ log. Nothing is written back to the repository and no artifact is uploaded.
 
   python3 .github/scripts/juice-data-probe.py [section ...]   (default: all)
 
-Sections: hud3 statcan misc3 hud2 acs2 ons2 cso2 zurich2 sg2 olap cmhc2 hud acs ons cso nsw vic cmhc zurich sg bls zillow mit
+Sections: hud4 hud3 statcan misc3 hud2 acs2 ons2 cso2 zurich2 sg2 olap cmhc2 hud acs ons cso nsw vic cmhc zurich sg bls zillow mit
 Each section is independent: a failure is printed and the next one runs.
 Needs openpyxl for .xlsx (the workflow pip-installs it on the runner only).
 """
@@ -963,7 +963,19 @@ def misc3():
         print(f"  vic: {e}")
 
 
-SECTIONS = {"hud3": hud3, "statcan": statcan, "misc3": misc3, "hud2": hud2, "acs2": acs2, "ons2": ons2, "cso2": cso2, "zurich2": zurich2, "sg2": sg2, "olap": olap, "cmhc2": cmhc2,
+def hud4():
+    section("HUD FMR: remaining metros (LIKE '%name%')")
+    for nm in ("Raleigh", "Durham", "Cary"):
+        res = arcgis_query("Fair_Market_Rents", f"FMR_AREANAME LIKE '%{nm}%'", fields="FMR_CODE,FMR_AREANAME,FMR_0BDR,FMR_1BDR,FMR_2BDR,FMR_3BDR,FMR_4BDR", n=10)
+        for ft in res.get("features", []):
+            a = ft["attributes"]
+            print(f"    FMR | {a['FMR_AREANAME']} | {a['FMR_CODE']} | 0-4BR {a['FMR_0BDR']} {a['FMR_1BDR']} {a['FMR_2BDR']} {a['FMR_3BDR']} {a['FMR_4BDR']}")
+    res = arcgis_query("HUD_PDR_Small_Area_Fair_Market_Rents", "FMR_NAME LIKE 'San Francisco%'", fields="*", layer=1, n=5)
+    for ft in res.get("features", [])[:5]:
+        print(f"    SAFMR_table | {ft['attributes']}")
+
+
+SECTIONS = {"hud4": hud4, "hud3": hud3, "statcan": statcan, "misc3": misc3, "hud2": hud2, "acs2": acs2, "ons2": ons2, "cso2": cso2, "zurich2": zurich2, "sg2": sg2, "olap": olap, "cmhc2": cmhc2,
             "hud": hud, "acs": acs, "ons": ons, "cso": cso, "nsw": nsw, "vic": vic, "cmhc": cmhc,
             "zurich": zurich, "sg": sg, "bls": bls, "zillow": zillow, "mit": mit}
 

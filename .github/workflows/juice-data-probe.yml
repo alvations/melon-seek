@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       sections:
-        description: "Space-separated sections (hud3 statcan misc3 hud2 acs2 ons2 cso2 zurich2 sg2 olap cmhc2 hud acs ons cso nsw vic cmhc zurich sg bls zillow mit) or all"
+        description: "Space-separated sections (hud4 hud3 statcan misc3 hud2 acs2 ons2 cso2 zurich2 sg2 olap cmhc2 hud acs ons cso nsw vic cmhc zurich sg bls zillow mit) or all"
         required: false
         default: "all"
 
