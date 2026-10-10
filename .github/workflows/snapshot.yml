@@ -190,6 +190,18 @@ jobs:
           BETA_GATE_TIMEOUT: "300"
         run: bash .github/scripts/beta-gate.sh data/beta-fresh "$RUNNER_TEMP/beta-rejected"
 
+      # A snapshot the gate rejected is never published, but it is what the board said: keep it
+      # for the permanent archive (docs/DATA_ARCHIVE.md), which quarantines implausible pay itself.
+      - name: Keep a rejected snapshot for the archive (never published)
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: beta-crawl-rejected-${{ matrix.slug }}
+          path: ${{ runner.temp }}/beta-rejected/*.json
+          retention-days: 90
+          if-no-files-found: ignore
+
       - name: Hand the snapshot to the merge
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

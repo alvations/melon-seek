@@ -139,7 +139,14 @@ jobs:
           if [ -n "${ONLY:-}" ]; then args+=(--only "$ONLY"); fi
           if [ "${DRY_RUN:-false}" = "true" ]; then args+=(--dry-run); fi
           node scripts/refresh/run.js "${args[@]}" > tmp-refresh.log 2>&1 || { cat tmp-refresh.log; exit 1; }
-          tail -n 40 tmp-refresh.log
+          # The log keeps one line per module and per result (the full report is in the artifact
+          # and the step summary), so a run can be audited from the job log alone.
+          grep -E '^\[refresh\]' tmp-refresh.log || true
+          node -e '
+            const r = require("./tmp/refresh/report.json");
+            for (const x of r.results) console.log(`${x.status.padEnd(8)} ${x.id.padEnd(28)} ${String(x.summary).replace(/\s+/g, " ").slice(0, 220)}`);
+            for (const p of r.problems) console.log(`problem  ${p}`);
+          '
           node -e '
             const o = require("./tmp/refresh/outcome.json");
             const out = require("fs").createWriteStream(process.env.GITHUB_OUTPUT, { flags: "a" });

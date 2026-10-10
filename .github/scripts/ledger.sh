@@ -21,6 +21,11 @@
 #                               workflows for job-board-snapshots-beta into data/beta/)
 #   ledger.sh commit-branch     commit data/history/*.json to the data-history branch
 #
+# Last resort for `restore`: when the store has no ledger (no trusted artifact in 90 days, or
+# no branch yet), the newest ledger is read from the permanent archive's mirror,
+# ARCHIVE_BRANCH:history/ (default data-archive; written by .github/workflows/archive.yml,
+# docs/DATA_ARCHIVE.md). Read-only: this script never writes the archive branch.
+#
 # Artifact trust (REVIEW.md V2): only artifacts from runs that (a) ran on this
 # repository itself (head repository == this repo, so never a fork), (b) were
 # triggered by push, schedule or workflow_dispatch (never pull_request /
@@ -39,6 +44,8 @@ DIR="${LEDGER_DIR:-data/history}"
 BRANCH="${LEDGER_BRANCH:-data-history}"
 ARTIFACT="${LEDGER_ARTIFACT:-history-ledger}"
 REMOTE="${LEDGER_REMOTE:-origin}"
+ARCHIVE_BRANCH="${ARCHIVE_BRANCH:-data-archive}"
+ARCHIVE_SUBDIR="${ARCHIVE_SUBDIR:-history}"
 
 log() { echo "ledger: $*"; }
 # Recursive: the job-board-snapshots-beta artifact (pages.yml) holds snapshots/ and history/.
@@ -71,7 +78,26 @@ restore_artifact() {
     fi
     echo "::warning::ledger: could not download '$ARTIFACT' from run $id: $(printf '%s' "$err" | head -1 | cut -c1-200)"
   done
-  log "no trusted '$ARTIFACT' artifact found; starting fresh"
+  log "no trusted '$ARTIFACT' artifact found"
+  return 1
+}
+
+# The archive's ledger mirror (read-only). Returns 0 either way: no mirror means start fresh.
+restore_archive_mirror() {
+  local tmp
+  if ! git fetch --quiet --depth 1 "$REMOTE" "refs/heads/$ARCHIVE_BRANCH" 2>/dev/null; then
+    log "no '$ARCHIVE_BRANCH' branch either; starting fresh"
+    return 0
+  fi
+  tmp=$(mktemp -d)
+  git archive FETCH_HEAD "$ARCHIVE_SUBDIR" 2>/dev/null | tar -x -C "$tmp" 2>/dev/null || true
+  if compgen -G "$tmp/$ARCHIVE_SUBDIR/*.json" > /dev/null; then
+    cp "$tmp/$ARCHIVE_SUBDIR"/*.json "$DIR"/
+    log "restored $(count) file(s) from the archive mirror '$ARCHIVE_BRANCH:$ARCHIVE_SUBDIR' ($(git rev-parse --short FETCH_HEAD))"
+  else
+    log "the archive has no '$ARCHIVE_SUBDIR/' ledger yet; starting fresh"
+  fi
+  rm -rf "$tmp"
 }
 
 restore_branch() {
@@ -80,7 +106,7 @@ restore_branch() {
     # First run after switching to the branch store: seed it from the newest
     # artifact (still uploaded every run), so the switch loses no history.
     log "no '$BRANCH' branch yet; seeding from the newest '$ARTIFACT' artifact"
-    restore_artifact
+    restore_artifact || restore_archive_mirror
     return 0
   fi
   tmp=$(mktemp -d)
@@ -131,12 +157,12 @@ case "${1:-}" in
   restore)
     mkdir -p "$DIR"
     case "$STORE" in
-      artifact) restore_artifact ;;
+      artifact) restore_artifact || restore_archive_mirror ;;
       branch) restore_branch ;;
       *) echo "ledger: unknown HISTORY_STORE '$STORE' (artifact|branch)" >&2; exit 2 ;;
     esac
     ;;
-  restore-artifact) mkdir -p "$DIR"; restore_artifact ;;
+  restore-artifact) mkdir -p "$DIR"; restore_artifact || log "starting fresh" ;;
   commit-branch) commit_branch ;;
   *) echo "usage: $0 restore|restore-artifact|commit-branch" >&2; exit 2 ;;
 esac
