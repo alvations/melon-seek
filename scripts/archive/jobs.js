@@ -311,8 +311,9 @@ export function rowAsJob(r) {
 /* ------------------------------------------------------------ aggregates */
 
 /**
- * Pay statistics of a set of version rows: overall USD midpoint distribution and
- * one cell per family x level (plus family x "*"), each [family, level, n, p10, p25, p50, p75, p90].
+ * Pay statistics of a set of version rows: overall USD midpoint distribution and one cell
+ * per family x level, plus family x "*" (all levels) and "*" x level (all families), each
+ * [family, level, n, p10, p25, p50, p75, p90] in USD.
  */
 export function payStats(rows) {
   const mids = [];
@@ -327,8 +328,10 @@ export function payStats(rows) {
     const v = r.usd && r.usd.mid;
     if (!(v > 0)) continue;
     mids.push(v);
+    const level = r.seniority || 'Mid';
+    add(`*|${level}`, v); // every family at one level (cross-level ladders)
     if (!r.family) continue;
-    add(`${r.family}|${r.seniority || 'Mid'}`, v);
+    add(`${r.family}|${level}`, v);
     add(`${r.family}|*`, v);
   }
   const cells = [];

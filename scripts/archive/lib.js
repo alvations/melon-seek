@@ -194,7 +194,7 @@ export function partitionParts(tableDir, month) {
 export function allPartitions(tableDir) {
   let names = [];
   try { names = fs.readdirSync(tableDir); } catch { return []; }
-  const re = /^(\d{4}-\d{2})(?:\.(\d+))?\.jsonl$/;
+  const re = /^(\d{4}(?:-\d{2})?)(?:\.(\d+))?\.jsonl$/;
   return names.map((n) => [n, re.exec(n)]).filter(([, m]) => m)
     .sort((a, b) => (a[1][1] < b[1][1] ? -1 : a[1][1] > b[1][1] ? 1 : Number(a[1][2] || 1) - Number(b[1][2] || 1)))
     .map(([n]) => path.join(tableDir, n));
@@ -211,7 +211,7 @@ export function readTable(dir, table) {
  */
 export function appendRows(dir, table, month, rows) {
   if (!rows.length) return 0;
-  if (!MONTH_RE.test(month)) throw new Error(`bad partition month "${month}"`);
+  if (!MONTH_RE.test(month) && !/^\d{4}$/.test(month)) throw new Error(`bad partition key "${month}" (YYYY-MM or YYYY)`);
   const tableDir = path.join(dir, table);
   fs.mkdirSync(tableDir, { recursive: true });
   const parts = partitionParts(tableDir, month);
@@ -237,7 +237,7 @@ export function appendRows(dir, table, month, rows) {
 
 /* ------------------------------------------------------------ manifest */
 
-const APPEND_TABLES = ['observations', 'daily', 'ingests', 'reference/index', 'audit/flags', 'audit/verdicts', 'audit/runs', 'ledger/closed'];
+const APPEND_TABLES = ['observations', 'daily', 'ingests', 'reference/index', 'audit/flags', 'audit/verdicts', 'audit/runs', 'audit/refresh', 'ledger/closed'];
 
 /** File kind by archive-relative path (posix separators). */
 export function kindOf(rel) {
