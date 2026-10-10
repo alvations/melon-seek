@@ -1,0 +1,119 @@
+diff --git a/docs/LIVABILITY.md b/docs/LIVABILITY.md
+index 5520171..87ee03a 100644
+--- a/docs/LIVABILITY.md
++++ b/docs/LIVABILITY.md
+@@ -8,9 +8,10 @@
+ > simplified model. It is not a payslip calculator.
+ 
+ Code: [`server/juice.js`](../server/juice.js) (pure ES module, also loaded in the
+-browser). Data: [`data/cities.json`](../data/cities.json) (89 cities). Refresh:
+-[`scripts/update-col.js`](../scripts/update-col.js) and
+-[`.github/workflows/col-refresh.yml`](../.github/workflows/col-refresh.yml). Tests:
++browser). Data: [`data/cities.json`](../data/cities.json) (89 cities). Refresh: the monthly
++data refresh, [`scripts/refresh/run.js`](../scripts/refresh/run.js) and
++[`.github/workflows/monthly-refresh.yml`](../.github/workflows/monthly-refresh.yml)
++([`docs/DATA_FRESHNESS.md`](DATA_FRESHNESS.md)); §6. Tests:
+ [`test/juice.test.js`](../test/juice.test.js) and
+ [`test/juice-household.test.js`](../test/juice-household.test.js) (households, bedroom rents).
+ 
+@@ -709,7 +710,8 @@ rents, keyed by `ratioKey`), `sourceNotes` (shared notes referenced by `via` / `
+ 
+ | Field | Source | As of | License / terms | Refresh |
+ |---|---|---|---|---|
+-| `bigMacUSD`, `fxPerUSD`, `*USD` conversions | [The Economist Big Mac index](https://github.com/TheEconomist/big-mac-data), `source-data/big-mac-source-data-v2.csv` (per-country prices incl. each euro member; `dollar_ex` exchange rates from Refinitiv/LSEG) | release 2026-07-01 | data CC BY 4.0, code MIT | automatic, monthly |
++| `bigMacUSD` | [The Economist Big Mac index](https://github.com/TheEconomist/big-mac-data), `source-data/big-mac-source-data-v2.csv` (per-country prices incl. each euro member) | release 2026-07-01 | data CC BY 4.0, code MIT | automatic, monthly check (`bigmac-prices`; two releases a year) |
++| `fxPerUSD`, `fx.perUSD`, `*USD` conversions | the table named by `fx.source.name` and dated `fx.asOf` in `data/cities.json`: from the first monthly refresh, [ECB euro reference rates](https://data.ecb.europa.eu/), monthly averages, crossed through USD; TWD [Federal Reserve G.5](https://www.federalreserve.gov/releases/g5/); AED/SAR/QAR official pegs. Before it, the Big Mac data's `dollar_ex` column (Refinitiv/LSEG), release 2026-07-01 | `fx.asOf` | ECB: reuse with source acknowledgement; Federal Reserve: public domain | automatic, monthly (`fx-per-usd`, `scripts/refresh/fx.js`; every copy together) |
+ | `rent1brCenterLocal`, `rent1brOutsideLocal` | [Numbeo](https://www.numbeo.com/cost-of-living/) city pages ("1 bedroom apartment in city centre / outside of centre") | page month, 2026-05 to 2026-10 (64 of 88 are 2026-09) | crowd-sourced, commercial; **terms restrict reuse, not cleared (§4.1)** | manual: the monthly refresh lists every city past page month + 92 + 30 days (`rents-1br-quoted`); replacement plan §7 |
+ | `costIndex` | derived: `100 × Numbeo "estimated monthly costs for a single person, excluding rent" ÷ New York's` | same pages | as above | manual: monthly staleness list (`cost-index`); replacement plan §7 |
+ | `baseline.nycBasketUSD` | Numbeo New York single-person estimate excluding rent, $1,665.2/month × 12 = **$19,982** | 2026-09 | as above | manual re-read; monthly drift check against the BLS CPI-U New York, all items less shelter (`nyc-basket`, alert at 3%) |
+@@ -905,27 +907,33 @@ returns `estimated: true`.
+   credits) are applied only where the tax model implements them (`TAX_HOUSEHOLD`, §3); elsewhere
+   the household is taxed as a single filer or, where the country taxes each person separately,
+   as one person, and the drawer says so.
+-- FX is one static table, `FX_PER_USD` in `server/juice.js` and `public/viz/palette.js`, set to the
+-  Big Mac data's July 2026 `dollar_ex` (test/fx-consistency.test.js keeps the copies equal). The
+-  monthly refresh updates `cities.json` `fx` but not those two tables, so they can drift by a month or more.
++- FX is one static table: `data/cities.json` `fx` and its copies `FX_PER_USD` in `server/juice.js`
++  and `public/viz/palette.js` (`FX_AS_OF` and `FX_SOURCE` name the date and source;
++  test/fx-consistency.test.js keeps the copies equal). The monthly refresh
++  (`scripts/refresh/fx.js`) rewrites all of them together from the ECB monthly reference rates
++  crossed through USD (TWD from the Federal Reserve G.5, AED/SAR/QAR at their official pegs), so
++  amounts are converted at last month's average rate, not today's. Until the first monthly refresh
++  is merged the table is the Big Mac data's `dollar_ex` column (release 2026-07-01).
+ - Cost-index proxies treat a suburb like its metro; quoted rents for small cities rest on
+   few Numbeo submissions.
+ - Job locations outside the 89 cities get no juice (a job still shows if any location matches).
+ 
+ ## 6. Refreshing
+ 
+-**Superseded:** `.github/workflows/col-refresh.yml` is now a manual-only shim; the monthly data
+-refresh (`monthly-refresh.yml`) owns FX and Big Mac. Running `scripts/update-col.js` by hand
+-after a monthly FX refresh resets the FX table to the Big Mac rates, so use it only to re-derive
+-Big Mac prices on purpose. What it does: `node scripts/update-col.js` fetches the Big Mac CSV from GitHub raw,
+-updates `bigMac`, `fx`, each city's `bigMacUSD` / `fxPerUSD`, re-converts the quoted rents
+-to USD, updates the as-of dates, runs `node --test test/juice.test.js`, and commits
+-`data/cities.json` if anything changed.
++**Automatic (monthly), Big Mac and FX:** the monthly data refresh (`monthly-refresh.yml`,
++`scripts/refresh/run.js`) owns both: `scripts/refresh/bigmac.js` updates `bigMac` and each
++city's `bigMacUSD` when The Economist publishes a release, and `scripts/refresh/fx.js` writes the
++FX table (`fx`, every city's `fxPerUSD`, the USD rents, and the code copies `FX_PER_USD` /
++`FX_AS_OF` / `FX_SOURCE` in `server/juice.js`, `public/viz/palette.js`, `server/salary.js` and
++`public/features/shared.js`) in one validated change. `.github/workflows/col-refresh.yml` is a
++manual-only shim that runs just those two. `node scripts/update-col.js` still refreshes the Big
++Mac prices by hand and leaves FX alone; only `--fx-from-bigmac` replaces the FX table with the
++Big Mac `dollar_ex` column (the pre-2026-10 behaviour, which undoes the monthly FX refresh).
+ 
+ ```sh
+-node scripts/update-col.js                 # live
+-node scripts/update-col.js --dry-run       # show changes only
+-node scripts/update-col.js --csv file.csv  # offline, from a downloaded copy
++node scripts/refresh/run.js --only bigmac,fx --dry-run   # what the monthly run would change
++node scripts/update-col.js --dry-run                     # Big Mac prices only, show changes
++node scripts/refresh/rents.js --reconcile --dry-run      # derived rents vs their inputs
+ ```
+ 
+ **Automatic (monthly), bedroom rents and living-cost checks:** the monthly data refresh
+@@ -945,23 +953,30 @@ stay manual; the refresh lists the cities that are past due. Tests: `test/refres
+ 
+ 1. Bedroom rents, only when the refresh reports a drift it could not apply (for example a new
+    HUD fiscal year without `HUD_API_TOKEN`): re-read the official source named in the alert,
+-   update the tables in `docs/process/scripts/juice-household-rents.mjs` / `juice-household-hud.mjs`, and
+-   run `node docs/process/scripts/juice-household-rents.mjs` (re-derives the 2- and 3-bedroom
+-   fields from the current 1-bedroom figures, then validates). The figures were read with the
+-   manual workflow `.github/workflows/juice-data-probe.yml` (`workflow_dispatch`, read-only;
+-   it prints them to the job log).
++   update the matching `bedroomRatios` entry in `data/cities.json` (`r2`, `r3`, `asOf`, `label`,
++   `name`), then run `node scripts/refresh/rents.js --reconcile`: it re-derives the 2- and
++   3-bedroom rents of every city that cites the entry (1-bedroom × ratio) and their USD fields,
++   then validates. A read-only probe is `.github/workflows/juice-data-probe.yml`
++   (`workflow_dispatch`; it prints the figures to the job log).
++   `docs/process/scripts/juice-household-rents.mjs` / `juice-household-hud.mjs` are the
++   historical one-time builders (2026-10-02); don't re-run them, they overwrite the refreshed
++   ratios.
+ 2. Rents and cost index: for each city the refresh lists as past due, open its Numbeo page (`sources.rent1brCenterLocal.url`),
+    update `rent1brCenterLocal`, `rent1brOutsideLocal` and the single-person figure in
+    `sources.costIndex.method`, recompute `costIndex = 100 × city ÷ New York`, and set each
+-   `asOf` to the page month, and update the city's 2- and 3-bedroom rents and USD fields by
+-   hand (local × `bedroomRatios`, then ÷ the FX in `data/cities.json`). Then run
+-   `node --test test/juice.test.js test/freshness.test.js`, which fails if a numeric field lacks
+-   a source or date or if the FX copies disagree. **Do not run `node scripts/update-col.js`
+-   for this:** after a monthly FX refresh it resets the FX table to the Big Mac rates
+-   (freshness-review finding, 2026-10-10; an automatic re-derive is being added to the
+-   monthly refresh).
++   `asOf` to the page month. Then run `node scripts/refresh/rents.js --reconcile` (no network):
++   it re-derives the city's 2- and 3-bedroom rents (1-bedroom × the encoded ratio) and every USD
++   field at the city's current `fxPerUSD`, validates and writes; the monthly refresh does the
++   same on every run. Then run `node --test test/juice.test.js test/freshness.test.js`, which
++   fails if a numeric field lacks a source or date or if the FX copies disagree. The next
++   refresh moves the `rents-1br-quoted` / `cost-index` due dates in `data/freshness.json` from
++   the new page months.
+ 3. Tax: each January (April for UK/AU/IN/NZ fiscal years), update the brackets in
+-   `server/juice.js` and the matching `TAX_SOURCES` entry (`asOf`, `verified`).
++   `server/juice.js`, `TAX_HOUSEHOLD` if the household basis or child credits changed, and the
++   matching `TAX_SOURCES` entry (`asOf`, `reviewed`, `verified`); then
++   `node scripts/refresh/registry.js --sync-tax --write`. The monthly refresh lists each
++   jurisdiction whose new tax year is published (`tax-*`, docs/DATA_FRESHNESS.md), and marks
++   rules two tax years old as stale.
+ 4. Upgrading to official feeds (if a runner can reach them): HUD Fair Market Rents API
+    (US 1-bedroom, needs a token) for `rent1brOutsideLocal`; ONS Price Index of Private Rents
+    (UK); CMHC Rental Market Survey (Canada); RTB Rent Index (Ireland); BEA Regional Price

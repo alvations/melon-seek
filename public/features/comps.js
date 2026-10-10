@@ -20,6 +20,7 @@
 
 import { roleFamily, FAMILY_LABELS } from './roles.js';
 import { formatMoney, plural, niceTicks, h, uid, createTooltip, preserveFocus } from './shared.js';
+import { marketAsOfText } from './freshness.js';
 
 const DEFAULT_COLUMNS = ['company', 'family', 'seniority', 'n', 'p25', 'median', 'p75'];
 const PARSED = new WeakMap();
@@ -203,7 +204,9 @@ export function createCompsCard(container, { onPickCompany, market: initialMarke
             h('span', { class: 'msi-axis__pad msi-axis__pad--end' })));
         body.appendChild(list);
       }
-      const asOf = market.fx?.asOf ? ` FX as of ${market.fx.asOf}.` : '';
+      // Postings and FX dates (docs/DATA_FRESHNESS.md): the market document's, the registry's FX when loaded.
+      const dated = marketAsOfText(market, rows.map((r) => r.slug));
+      const asOf = dated ? ` ${dated}.` : '';
       foot.textContent = `${capitalize(market.basis || 'posted base pay ranges')}, midpoints in approx. USD; companies need ${market.minN || 3}+ salaried postings. Equity and bonus aren't included.${asOf}`;
       live.textContent = rows.length ? `${label}: ${plural(rows.length, 'company', 'companies')} compared.` : '';
     });

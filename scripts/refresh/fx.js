@@ -45,8 +45,10 @@ export const MAX_MOVE = 0.2;
 export const WARN_MOVE = 0.1;
 /** Code copies of the table: file, the table constant, and an optional as-of constant. */
 export const FX_CODE_COPIES = Object.freeze([
-  Object.freeze({ file: 'server/juice.js', table: 'FX_PER_USD', asOf: 'FX_AS_OF' }),
-  Object.freeze({ file: 'public/viz/palette.js', table: 'FX_PER_USD', asOf: 'FX_AS_OF' }),
+  // source: the label the product cites for the table (computeJuice inputs.fx.source); rewritten
+  // with the table when the constant exists, equal to data/cities.json fx.source.name.
+  Object.freeze({ file: 'server/juice.js', table: 'FX_PER_USD', asOf: 'FX_AS_OF', source: 'FX_SOURCE' }),
+  Object.freeze({ file: 'public/viz/palette.js', table: 'FX_PER_USD', asOf: 'FX_AS_OF', source: 'FX_SOURCE' }),
   Object.freeze({ file: 'server/salary.js', table: 'FX_PER_USD', extra: 'EXTRA_FX_PER_USD' }),
 ]);
 export const SHARED_FALLBACK_FILE = 'public/features/shared.js';
@@ -216,6 +218,15 @@ export function rewriteDateConst(src, name, date) {
   return { src: src.replace(re, `$1${date}$3`), changed: m[2] !== date, found: true, before: m[2] };
 }
 
+/** Rewrite `const NAME = '...'` (a one-line string constant). -> { src, changed: bool, found } */
+export function rewriteStringConst(src, name, value) {
+  const re = new RegExp(`((?:export\\s+)?const\\s+${name}\\s*=\\s*)'((?:[^'\\\\\\n]|\\\\.)*)'`);
+  const m = re.exec(src);
+  if (!m) return { src, changed: false, found: false };
+  const lit = String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  return { src: src.slice(0, m.index) + `${m[1]}'${lit}'` + src.slice(m.index + m[0].length), changed: m[2] !== lit, found: true, before: m[2] };
+}
+
 /** Rewrite the CNY entry of shared.js FX_FALLBACK (USD per CNY, 4 significant digits). */
 export function rewriteSharedFallback(src, perUSD) {
   const re = /(FX_FALLBACK\s*=\s*Object\.freeze\([^;\n]*?CNY\s*:\s*)([\d.]+)/;
@@ -360,6 +371,7 @@ export async function check(ctx) {
       src = t.src;
       let changed = t.changed.length > 0;
       if (copy.asOf) { const d = rewriteDateConst(src, copy.asOf, table.asOf); if (d.found) { src = d.src; changed = changed || d.changed; } }
+      if (copy.source) { const l = rewriteStringConst(src, copy.source, meta.name); if (l.found) { src = l.src; changed = changed || l.changed; } }
       if (copy.extra) { const e = rewriteTable(src, copy.extra, table.perUSD); if (e.found && e.changed.length) { src = e.src; changed = true; allChanges.push(...e.changed.map((x) => ({ ...x, key: `${copy.file} ${x.key}` }))); } }
       if (changed) writes.push({ file: copy.file, content: src });
     }

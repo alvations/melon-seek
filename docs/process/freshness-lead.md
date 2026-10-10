@@ -103,15 +103,16 @@ node --test test/freshness*.test.js test/refresh-*.test.js
 
 | File | Tests |
 |---|---|
-| test/freshness.test.js | 8 |
-| test/freshness-policy.test.js | 6 |
-| test/refresh-run.test.js | 14 |
+| test/freshness.test.js | 10 |
+| test/freshness-policy.test.js | 9 |
+| test/refresh-run.test.js | 15 |
 | test/refresh-fx.test.js | 10 |
-| test/refresh-registry.test.js | 7 |
-| test/refresh-col.test.js (sub-agent) | 30 |
+| test/refresh-registry.test.js | 8 |
+| test/refresh-col.test.js (sub-agent, plus my review fixes) | 34 |
 | test/refresh-derived.test.js (sub-agent) | 19 |
-| test/refresh-jobs.test.js (sub-agent) | 13 |
+| test/refresh-jobs.test.js (sub-agent, plus my review fixes) | 14 |
 | test/refresh-tax.test.js (sub-agent) | 26 |
+| test/workflows.test.js (shared) | 6 |
 
 - I made test/refresh-derived.test.js independent of the current FX month, so it keeps passing after a refresh PR merges.
 - test/refresh-fx.test.js runs against a fixed July 2026 baseline rebuilt from the Big Mac fixture, for the same reason.
@@ -130,6 +131,8 @@ node --test test/freshness*.test.js test/refresh-*.test.js
 ### Patch application
 - I applied all 17 freshness patches in the recommended order to a fresh copy of the tree. Every one applied.
 - The full suite on that copy: 545/553 pass. The 1 failure is the pre-existing static race test.
+- Review round (2026-10-10, after the lead pushed e9ee15d; HEAD 3361c90): a clean `git archive HEAD` copy, plus this round's batch files, plus the 7 patches of this round (update-col-fx, fx-source, livability-refresh, compstimate-threshold, derived-ui-asof, jobs-backtest-asof, col-ui-rent-ids), in that order. Every patch applied, and `npm test` gave 590 tests, 583 pass, 0 fail, 7 skipped.
+- On a copy of that tree I then let the offline refresh write (`run.js --offline`, the "refresh landed" case). It changed cities.json, juice.js, palette.js (FX_SOURCE now names the ECB table), salary.js, shared.js, LIVABILITY.md (the worked examples), freshness.json and the inventory, with 0 problems. The freshness, fx, juice, juice-household and all refresh tests passed on it (181 tests).
 
 ### Dry runs
 - Offline dry run (`node scripts/refresh/run.js --dry-run --offline`, with no local snapshots, as in CI): one result per registry entry, 0 registry problems, and no file changed. test/refresh-run.test.js checks this on a repo copy with content hashes.
@@ -143,6 +146,19 @@ node --test test/freshness*.test.js test/refresh-*.test.js
 ### Probe
 - Decode self-tests: a 2 MB random body through a pipe gives 890/890 chunks with sha256 ok; with 127 BOM-prefixed chunk lines it still checks out.
 
+### Review findings (freshness-review, 20 findings; log docs/process/freshness-review.md)
+- High (Numbeo hand edits): rents.js reconciles every derived rent on every run, including a hand-edited `bedroomRatios` entry; `node scripts/refresh/rents.js --reconcile` is the no-network command; update-col.js keeps FX by default (patch); LIVABILITY §6 points at the real command (patch). Tests: refresh-col (Oxford 1-bed edit, bedroomRatios edit, the CLI on a temp copy with FX unchanged).
+- Medium:
+  - staleness vs the report: lastChecked reset to the live run's results; module `dueDate` stored and honoured; tax rules two years old are stale; a test asserts the gate lists every id the offline refresh reports stale. The gate now shows fx-per-usd, rents-1br-quoted, cost-index and tax-us-local-columbus as STALE, which is the reality.
+  - workflow: refresh (read-only) and publish (write) jobs; persist-credentials false; the token reaches only the push; trusted-branch gate; PR only on data changes; PR base fallback; a failed refresh is reported on the issue. Same for col-refresh.yml.
+  - TAX_HOUSEHOLD: in every tax entry's owners and extract (per-jurisdiction extracts), one generated checklist.
+  - archive copies: archive-reports and archive-policy entries; report.js LADDER in seniority-ladder and in jobs.js's ladder comparison; MIN_N in market-comps-policy's extract; tests keep the copies equal.
+  - ad-hoc entries: yearly cadence or reviewCadence; country-currency has a copy-agreement test.
+  - FX source label: fx.js rewrites FX_SOURCE; juice.js/palette.js patch adds it and uses it in inputs.fx.source.
+  - big-tech envelopes: market-comps reports companies whose salaried postings with several ranges exceed 20% (drift on +10 points); caveat in the notes.
+- Low, done: PR base fallback, failure step, PR-on-data-only; Dockerfile in runtime-versions; mode alignment plus a mode-mismatch check in run.js; resolveLines in every run (top-level definitions or identifiers only, so prose refs no longer jump); owner dedupe; validator texts; extras lexicons as owners; compstimate 25% patch; licence wording; tax checklist; MIN_N extract; missing asOf; README CI-matrix rule; CORPORATE_LADDER_PLAN owners; CADENCE_DEFAULTS test.
+- Low, not done (open): an extras.equity/bonus coverage drift check; the EXAMPLE.salaryUSD median check; a SIX ISO 4217 fetcher; the archive's native-currency yoy column and money() rounding (archive agent).
+
 ## 6. Known gaps and follow-ups
 - **Live run (done 2026-10-10, after the lead pushed f68efe7 and 94f9dd6).** monthly-refresh.yml ran with dry_run=true on a GitHub runner: runs 38040981168, 38041238228 and, targeted, 38041463639. All three succeeded.
   - Every one of the 131 entries was checked against the live hosts; there were 0 problems. The FX module read the live ECB monthly API and FRED; the other results are in DATA_FRESHNESS.md §1 "First live run".
@@ -150,13 +166,15 @@ node --test test/freshness*.test.js test/refresh-*.test.js
   - Probe 38041390129 confirmed gov.scot serves the same bytes to our User-Agent and a browser's; gov.bc.ca failed for both at that moment.
 - **FX source change.** The first real run will move every approx-USD figure; on the Sep 2026 fixture, KRW moves −8.6% and JPY −3.5%. A human should review the first PR.
 - **Repo settings.** PR creation needs "Allow GitHub Actions to create and approve pull requests". Optional secrets: HUD_API_TOKEN (the HUD FY2027 FMRs are out, but eGIS still serves FY2026), ANTHROPIC_API_KEY and BLS_API_KEY.
+- **bg-euro.** Bulgaria is already in the euro lists of salary.js and vet-salaries.js (3361c90, big-tech engineer), so freshness-audit-core-bg-euro.diff is moot; drop it.
+- **README drift the refresh reports.** README still lists Amazon and Meta as beta boards; 3361c90 paused them (readme-counts, owner: big-tech engineer).
 - **Stale encoded data (2026-10-10), which the first run will report:**
   - 13 tax jurisdictions are still on tax year 2025, so their manual reviews are past due.
   - Columbus is on tax year 2024 (flag).
   - Next-year signals are published for IE (Budget 2027), CA EI 2027 and the Portland Metro SHS threshold.
   - 8 Numbeo rent quotes and 5 cost-index values are past due.
   - Node 18 and Node 20 are past end of life (engines, CI matrix).
-- **Fragile locators.** Tax "detect" extractors read named constants and some inline literals in server/juice.js. When the juice-tax agent reshapes rules, they report `error`, which is never a false ok. freshness-tax-export.diff (TAX_PARAMS) is the durable fix.
+- **Fragile locators.** Tax "detect" extractors read named constants and some inline literals in server/juice.js. When the juice-tax agent reshapes rules, they report `error`, which is never a false ok. The durable fix is an exported parameter table; juice.js now has its own TAX_PARAMS, so freshness-tax-export.diff is superseded and the extractors should move to it (tax owner).
 - **Hosts that refuse runners.** ONS publishes its PIPR xlsx at 25 MB, which is too large for the probe log, so there is no fixture. ssa.gov, ato.gov.au, gesetze-im-internet.de, revenuquebec.ca and detroitmi.gov refuse runners, so those entries are manual or read another official page.
 - **User decisions pending:**
   - D6, the Numbeo replacement plan;
@@ -211,6 +229,28 @@ node --test test/freshness*.test.js test/refresh-*.test.js
     - `node scripts/refresh/registry.js --docs --write`;
     - `npm test`.
 
+### Review-round batch (on top of 3361c90)
+
+**Files** (all mine or my sub-agents'; `git add` these paths only):
+- `.github/workflows/monthly-refresh.yml`, `.github/workflows/col-refresh.yml`;
+- `data/freshness.json`, `docs/DATA_FRESHNESS.md`;
+- `scripts/refresh/{derived,fx,jobs,lib,living,policy,registry,rents,run}.js`;
+- `test/{freshness,freshness-policy,refresh-col,refresh-jobs,refresh-registry}.test.js`;
+- `docs/process/freshness-lead.md`, `docs/process/freshness-review.md` (the reviewer's log, new);
+- `docs/process/patches/freshness-lead-{update-col-fx,fx-source,livability-refresh,compstimate-threshold}.diff` (new).
+
+**Patches, in order** (each applies to 3361c90 plus the files above; verified together):
+1. `freshness-lead-update-col-fx.diff` (scripts/update-col.js: keep FX unless `--fx-from-bigmac`);
+2. `freshness-lead-fx-source.diff` (server/juice.js and public/viz/palette.js: FX_SOURCE, used in inputs.fx.source);
+3. `freshness-lead-livability-refresh.diff` (docs/LIVABILITY.md intro, §5 FX bullet and sources rows, §6 commands and steps 1-3);
+4. `freshness-lead-compstimate-threshold.diff` (public/features/compstimate.js: the 25% copy uses ACCURACY_LOW_THRESHOLD);
+5. `freshness-derived-ui-asof.diff`, then `freshness-jobs-backtest-asof.diff`, then `freshness-col-ui-rent-ids.diff` (app.js; unblocked by the badge work);
+6. drop `freshness-audit-core-bg-euro.diff` (already in 3361c90) and `freshness-tax-export.diff` (server/juice.js already declares TAX_PARAMS; applying it gives "Identifier 'TAX_PARAMS' has already been declared").
+
+Status of every freshness patch on 3361c90 (`git apply --check`, forward and reverse): applied: workflows-test, ci-staleness, pages-staleness, retention-docs, audit-core-backtest-fallback, audit-core-bg-euro, audit-surface-chart-fx-footnote, audit-surface-demo-mock-fx, col-zurich-licence, derived-readme-builtins, derived-test-pins, jobs-seniority-default; landed by hand (neither direction applies): col-livability-refreshing, derived-api-freshness, derived-docs-counts, derived-livability-markers, derived-md-comments; pending: the 7 above; superseded: tax-export.
+
+After applying: `node scripts/refresh/registry.js --lines --write && node scripts/refresh/registry.js --docs --write` (the patches shift a few referenced lines in juice.js, palette.js and app.js), then `npm test`.
+
 ## 7. Change log
 - 2026-10-10 07:48: saved the prompt. I sent the 6 sub-agent prompts to the lead, since I have no Agent tool.
 - 07:58: committed and pushed the freshness-probe workflow and helper (b9b78db). That was the only push.
@@ -229,4 +269,10 @@ node --test test/freshness*.test.js test/refresh-*.test.js
   - live dry runs 38040981168 and 38041238228, where the second has per-result log lines, plus the targeted run 38041463639 and probe 38041390129;
   - added one delayed retry for errored results in online runs (test in refresh-run);
   - made the tax LLM test deterministic (fresh contexts and caches, the stub never times out, and the status is compared with and without the model).
-
+- 09:50–11:10, freshness-review round (lead's order: high, mediums, unblocked patches):
+  - rents.js reconcile (1-bed edits, FX, hand-edited bedroomRatios) and `--reconcile` CLI; update-col keepFx patch; LIVABILITY §1/§5/§6 patch;
+  - staleness: dueDate (rents.js, living.js), tax-year ceiling, lastChecked reset to the live run, POLICY lastReviewed, gate-vs-report test;
+  - monthly-refresh.yml and col-refresh.yml split into read-only refresh and write publish jobs; trusted-branch gate; PR only on data; failure issue; base fallback;
+  - registry: TAX_HOUSEHOLD, generated tax checklists, per-jurisdiction extracts, archive-reports and archive-policy (133 entries), ad-hoc review dates, modes aligned, licence wording, owner dedupe, safer resolveLines run on every refresh;
+  - fx.js FX_SOURCE; jobs.js multi-range share and the archive ladder copy; policy.js Dockerfile; derived.js README CI-matrix rule and the LIVABILITY rules for the new text;
+  - verified: HEAD + batch + 7 patches = 590 tests, 0 fail; refresh-landed copy 181 freshness/juice tests pass.

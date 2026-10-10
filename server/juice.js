@@ -35,11 +35,14 @@ export const JUICE = Object.freeze({
 // ---------------------------------------------------------------------------
 // FX. Copied from public/viz/palette.js (FX_TO_USD, viz workstream) so juice amounts
 // are in the same "approx USD" unit the salary chart plots. Currencies the palette
-// does not list fall back to the city's fxPerUSD (Big Mac data dollar_ex, refreshed
-// monthly by scripts/update-col.js).
+// does not list fall back to the city's fxPerUSD (data/cities.json). The monthly refresh
+// (scripts/refresh/fx.js) rewrites data/cities.json fx, this table, FX_AS_OF and FX_SOURCE
+// together; docs/DATA_FRESHNESS.md "FX".
 // ---------------------------------------------------------------------------
-// FX date reported in computeJuice inputs.fx (matches the Big Mac release in data/cities.json).
+// FX date and source reported in computeJuice inputs.fx (equal to data/cities.json fx.asOf and
+// fx.source.name; test/freshness.test.js checks both).
 export const FX_AS_OF = '2026-07-01';
+export const FX_SOURCE = 'The Economist Big Mac index source data v2, dollar_ex column (release 2026-07-01)';
 // Keep in sync with public/viz/palette.js FX_PER_USD (as of 2026-07-01);
 // test/fx-consistency.test.js fails if they drift.
 export const FX_PER_USD = Object.freeze({
@@ -1291,7 +1294,7 @@ export function computeJuice(salaryUSD, city, opts = {}) {
       source: brief(ciSrc),
       ...(ciSrc?.method ? { method: ciSrc.method } : {}),
     },
-    fx: { currency: city.currency, usdPerUnit: usdPer, source: palette ? 'FX_PER_USD (Big Mac data dollar_ex, shared with public/viz/palette.js)' : 'city fxPerUSD (Big Mac data dollar_ex)', asOf: palette ? FX_AS_OF : city.sources?.fxPerUSD?.asOf || null },
+    fx: { currency: city.currency, usdPerUnit: usdPer, source: palette ? `FX_PER_USD (${FX_SOURCE}; shared with public/viz/palette.js)` : `city fxPerUSD (${city.sources?.fxPerUSD?.name || 'data/cities.json'})`, asOf: palette ? FX_AS_OF : city.sources?.fxPerUSD?.asOf || null },
     bigMac: { usd: city.bigMacUSD, source: brief(city.sources?.bigMacUSD) },
   };
 

@@ -13,6 +13,10 @@ import {
   salaryUSD, percentile, median, formatMoney, formatDelta, formatPct, plural, niceTicks,
   jobLocationKeys, h, createTooltip, preserveFocus, uid,
 } from './shared.js';
+import { formatAsOf } from './freshness.js';
+
+/** ' · postings as of 9 Oct 2026' for the board's fetchedAt ('' without one). */
+const postedAsOf = (asOf) => { const d = formatAsOf(asOf, 'day'); return d ? ` · postings as of ${d}` : ''; };
 
 export { percentile, median, salaryUSD, toUSD } from './shared.js';
 
@@ -337,7 +341,7 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
         .map((t) => { t.setAttribute('role', 'listitem'); return t; }));
   }
 
-  function update(filteredJobs = [], allJobs = filteredJobs) {
+  function update(filteredJobs = [], allJobs = filteredJobs, { asOf = null } = {}) {
     const jobs = Array.isArray(filteredJobs) ? filteredJobs : [];
     const all = Array.isArray(allJobs) ? allJobs : jobs;
     tip.hide();
@@ -346,8 +350,8 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
         h(`h${hl}`, { id: headId, class: 'ms-insights__title' }, 'Market insights'),
         h('p', { class: 'ms-insights__sub' }, !all.length ? 'No roles loaded yet.'
           : jobs.length === all.length
-          ? `All ${plural(all.length, 'role')} on this board · pay in approx. USD`
-          : `${jobs.length} of ${plural(all.length, 'role')} match your filters · pay in approx. USD`));
+          ? `All ${plural(all.length, 'role')} on this board · pay in approx. USD${postedAsOf(asOf)}`
+          : `${jobs.length} of ${plural(all.length, 'role')} match your filters · pay in approx. USD${postedAsOf(asOf)}`));
       if (!jobs.length) {
         body.replaceChildren(emptyNote(all.length ? 'No roles match the current filters.' : 'Insights appear once a job board is loaded.'));
         return;

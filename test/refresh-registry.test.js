@@ -3,6 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as R from '../scripts/refresh/registry.js';
@@ -22,14 +23,38 @@ test('taxYearOf: tax-year labels -> the first day the encoded rules apply', () =
 test('taxEntries: one entry per TAX_SOURCES key, keeping hand-written fields', () => {
   const src = { 'US-NY': { name: 'NY 2026', url: 'https://www.tax.ny.gov/x', asOf: '2026', reviewed: '2026-10-10', verified: true }, GB: { name: 'HMRC', url: 'https://www.gov.uk/x', asOf: '2026/27' } };
   const existing = new Map([['tax-gb', { id: 'tax-gb', checklist: ['mine'], mode: 'detect', updater: 'scripts/refresh/tax.js', lastChecked: '2026-09-01' }]]);
-  const [ny, gb] = R.taxEntries(src, existing);
+  const [ny, gb] = R.taxEntries(src, existing, { TAX_HOUSEHOLD: { 'US-NY': { basis: 'joint' }, GB: { basis: 'neutral' } } });
   assert.equal(ny.id, 'tax-us-ny');
   assert.equal(ny.asOf, '2026-01-01');
   assert.equal(ny.lastChecked, '2026-10-10', 'TAX_SOURCES.reviewed');
   assert.equal(gb.id, 'tax-gb');
-  assert.deepEqual(gb.checklist, ['mine']);
+  assert.equal(gb.mode, 'detect', 'hand-written fields are kept');
   assert.equal(gb.lastChecked, '2026-09-01');
   assert.match(gb.notes, /unverified/);
+  // one generated checklist (review finding): 6 steps, with the household basis; 3 when household-neutral
+  assert.equal(ny.checklist.length, 6);
+  assert.match(ny.checklist.join(' '), /NEW tax year/);
+  assert.match(ny.checklist.join(' '), /TAX_HOUSEHOLD\['US-NY'\]/);
+  assert.equal(gb.checklist.length, 3);
+  assert.equal(new Set(ny.checklist).size, ny.checklist.length);
+  // TAX_HOUSEHOLD is owned and archived per jurisdiction
+  assert.ok(ny.owners.includes("server/juice.js TAX_HOUSEHOLD['US-NY']"));
+  assert.deepEqual(ny.extract, [
+    { file: 'server/juice.js', const: 'TAX_SOURCES', path: ['US-NY'], as: 'TAX_SOURCES' },
+    { file: 'server/juice.js', const: 'TAX_HOUSEHOLD', path: ['US-NY'], as: 'TAX_HOUSEHOLD' },
+  ]);
+});
+
+test('dedupeRefs: one owner per file + text, the line-numbered one wins; resolveLines leaves prose words alone', () => {
+  assert.deepEqual(R.dedupeRefs(["server/juice.js TAX_SOURCES['US-WA']", "server/juice.js:887 TAX_SOURCES['US-WA']", 'server/juice.js RULES.US', 'public/viz/palette.js:128 FX_AS_OF', 'public/viz/palette.js:128 FX_AS_OF']),
+    ["server/juice.js:887 TAX_SOURCES['US-WA']", 'server/juice.js RULES.US', 'public/viz/palette.js:128 FX_AS_OF']);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'reg-lines-'));
+  try {
+    fs.writeFileSync(path.join(dir, 'a.js'), 'x\nfunction show() {\n  const drawer = 1;\n}\nexport const LIMIT = 3;\n');
+    const reg = { entries: [{ owners: ['a.js:1 drawer width 32 bins', 'a.js:1 LIMIT', 'a.js:1 show (the drawer)'], consumers: [] }] };
+    const { reg: out } = R.resolveLines(reg, dir);
+    assert.deepEqual(out.entries[0].owners, ['a.js:1 drawer width 32 bins', 'a.js:5 LIMIT', 'a.js:2 show (the drawer)']);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('mergeEntries: fragments add and update by id, union owners and consumers, never blank out values', () => {

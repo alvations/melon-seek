@@ -102,13 +102,30 @@ export function asOfLabel(id, { fallback = null, style = 'month', now = new Date
 
 /* ------------------------------------------------------------------ Juice */
 
+/** The official bedroom-ratio source family behind an estimated 2-/3-bedroom rent, from its source URL (scripts/refresh/rents.js ids). */
+const RATIO_SOURCE_IDS = [
+  [/huduser\.gov|services\.arcgis\.com\/VTyQ9soqVukalItT/, 'rents-us-hud-fmr'],
+  [/ons\.gov\.uk/, 'rents-gb-ons'],
+  [/cso\.ie/, 'rents-ie-rtb'],
+  [/stadt-zuerich\.ch/, 'rents-ch-zurich'],
+  [/data\.gouv\.fr|observatoires-des-loyers\.org/, 'rents-fr-olap'],
+  [/statcan\.gc\.ca/, 'rents-ca-statcan'],
+  [/data\.gov\.sg/, 'rents-sg-hdb'],
+  [/dcj\.nsw\.gov\.au/, 'rents-nsw-official'],
+];
+
 /** Registry ids behind the rent a juice result used (docs/DATA_FRESHNESS.md ids). */
 function rentIds(rent) {
   if (!rent || rent.basis === 'override') return [];
   const name = (rent.source && rent.source.name) || '';
+  const url = (rent.source && rent.source.url) || '';
   if (rent.class === 'official' && /\bNSW\b/.test(name)) return ['rents-nsw-official'];
   const ids = ['rents-1br-quoted'];
-  if ((rent.bedrooms || 1) > 1 || rent.class === 'estimate' || rent.method) ids.push('rents-bedroom-ratios');
+  if ((rent.bedrooms || 1) > 1 || rent.class === 'estimate' || rent.method) {
+    ids.push('rents-bedroom-ratios');
+    const fam = RATIO_SOURCE_IDS.find(([re]) => re.test(url));
+    if (fam && !ids.includes(fam[1])) ids.push(fam[1]);
+  }
   return ids;
 }
 

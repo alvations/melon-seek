@@ -9,6 +9,7 @@ import { createMap } from './viz/map.js';
 import * as api from './api.js';
 import { createCompstimateWidget, compstimateForJob, accuracyLine, isLowAccuracy, displayConfidence, basisLine, MIN_COMPARABLES } from './features/compstimate.js';
 import { compsForJob, createCompsCard } from './features/comps.js';
+import { loadFreshness, freshnessDoc, juiceAsOfText, juiceSpanText, marketAsOfText, compstimateAsOfText } from './features/freshness.js';
 import { createCompsChart } from './viz/comps.js';
 import { roleFamily, FAMILY_LABELS, readableTitle } from './features/roles.js';
 // ./features/insights.js is imported on first use (Insights mode), see renderInsights.
@@ -1740,11 +1741,11 @@ function renderInsights() {
     // Compstimate task force spec (docs/process/compstimate-taskforce.md §3.2): the widget follows
     // the role-defining filters until the user edits a field; it re-estimates only when its own
     // signature changes, so salary/sort/drawer changes cost nothing (Rule 10).
-    comp.setContext({ board: data.jobs, visible: compVisible(), company: data.company?.name || S.c, meta: data.meta,
+    comp.setContext({ board: data.jobs, visible: compVisible(), company: data.company?.name || S.c, meta: data.meta, asOf: data.fetchedAt,
       filters: { d: S.d, rf: S.rf, l: S.l, r: S.r, s: S.s } });
     ensureCompMeta();
     const sig = `${dataSeq}|${derived.filtered.length}|${derived.filtered.map((j) => j.id).join(',')}`;
-    if (insights && featSig.ins !== sig) { featSig.ins = sig; insights.update(derived.filtered, data.jobs); }
+    if (insights && featSig.ins !== sig) { featSig.ins = sig; insights.update(derived.filtered, data.jobs, { asOf: data.fetchedAt }); }
   } catch (err) { console.error('insights failed', err); }
   // F1: "Compare companies" card (third Insights card), once product's comps module and market data exist.
   const cardHost = $('#compsCardHost');
@@ -1839,6 +1840,7 @@ function renderViz() {
       // waits for a hidden container to be sized); plain updates keep the user's viewport.
       else if (mapFitPending) { mapFitPending = false; map.update(jobs, { fit: true, colorMode: S.mc }); }
       else map.update(jobs, { colorMode: S.mc });
+      if (S.m === 'map') map.setJuiceNote?.(juiceSpanText(jobs.map((j) => j.juice && j.juice.best).filter(Boolean)));
     } catch (err) { console.error('viz update failed', err); }
   }
   highlightViz();
@@ -2222,6 +2224,17 @@ async function setHousehold(hh) {
   }
 }
 
+/**
+ * "Data as of …" note (public/features/freshness.js, docs/DATA_FRESHNESS.md): the data's own
+ * dates at once, the published registry's (dates, "update due") when api/freshness.json has loaded.
+ */
+function asOfNote(cls, text) {
+  const p = h('p', { class: `fnote ${cls}` }, text() || '');
+  p.hidden = !p.textContent;
+  if (!freshnessDoc()) loadFreshness().then(() => { const t = text(); if (t) { p.textContent = t; p.hidden = false; } });
+  return p;
+}
+
 /** Drawer: Juice Score waterfall for the best location, plus the other locations in a disclosure. */
 function juiceBlock(job) {
   const jb = job.juice;
@@ -2290,6 +2303,7 @@ function juiceBlock(job) {
           h('span', { class: 'jc-name' }, l.locationName || l.cityName, l === b ? h('span', { class: 'muted' }, ' · best') : null),
           h('span', { class: `juice-grade juice--${String(l.grade).toLowerCase()}` }, `${l.estimated ? '≈' : ''}${l.score} ${l.grade}`),
           h('span', { class: 'jc-net' }, `${l.net < 0 ? '−' : ''}${money(Math.abs(l.net) / div)}${per}`))))) : null,
+      asOfNote('juice-asof', () => juiceAsOfText(b)), // rent, living costs, FX and each tax line
       h('p', { class: 'juice-disclaimer' }, 'Estimate, not financial advice. ', h('a', { href: JUICE_DOC, target: '_blank', rel: 'noopener noreferrer' }, 'How it’s calculated')),
     ));
     if (focusPeriod) body.querySelector(`[data-period="${focusPeriod}"]`)?.focus({ preventScroll: true });
@@ -2374,7 +2388,8 @@ function compstimateBlock(job) {
       h('span', { class: 'd-comp-amt' }, `≈ ${money(est.mid)}`),
       h('span', { class: 'muted' }, `(${money(est.low)}–${money(est.high).replace(/^\$/, '')}, ${String(displayConfidence(est, data.meta) || '').toLowerCase()} confidence)`)),
     h('p', { class: 'd-comp-note' }, `${basisLine(est.n, data.company?.name || 'this company', parts)}. An estimate, not a figure from the posting (approx USD / year).`),
-    accuracyLine(data.meta) ? h('p', { class: 'd-comp-note' }, isLowAccuracy(data.meta) ? h('strong', null, 'Low confidence. ') : null, `${accuracyLine(data.meta)}.`) : null);
+    accuracyLine(data.meta) ? h('p', { class: 'd-comp-note' }, isLowAccuracy(data.meta) ? h('strong', null, 'Low confidence. ') : null, `${accuracyLine(data.meta)}.`) : null,
+    asOfNote('d-comp-note d-comp-asof', () => compstimateAsOfText({ fetchedAt: data.fetchedAt, meta: data.meta })));
 }
 
 function annualNote(sal) {
@@ -2550,7 +2565,8 @@ function sameRoleSection(job) {
       h('p', { class: 'comps-note muted' }, bySen
         ? `${family} roles at ${res.seniority} level: median and middle 50% of posted base pay (approx USD).`
         : `No other company lists this level, so this compares all ${family} roles.`),
-      chartHost);
+      chartHost,
+      asOfNote('comps-asof', () => marketAsOfText(market, rows.map((r) => r.slug))));
     try {
       destroyDrawerComps();
       drawerComps = createCompsChart(chartHost, { onSelect: (slug) => { if (slug && slug !== job.company) pickCompany(slug, filters); } });

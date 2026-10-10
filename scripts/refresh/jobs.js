@@ -69,6 +69,8 @@ export const BOUNDS = Object.freeze({
   midDefaultPooledMax: 0.5,    // pooled: default-"Mid" postings outnumber every explicitly levelled posting combined
   midDefaultPooledRisePts: 5,  // pooled share up 5+ points month over month
   levelTokenMaxShare: 0.01,    // > 1% of postings carry a level token the lexicon does not read
+  multiRangeShareMax: 0.2,     // > 20% of salaried postings state several pay ranges (levels, tiers, locations)
+  multiRangeRisePts: 10,       // ... and a rise of more than 10 points since last month is a drift
   skillsNoneMaxShare: 0.15,    // > 15% of postings with no skill keyword
   skillsNoneRisePts: 5,
   juiceCoverageDropPts: 10,    // share of salaried postings with a Juice Score falls 10+ points
@@ -285,7 +287,7 @@ export function companyStats(board, D) {
     normalizerVersion: board.normalizerVersion, upgraded: !!board.upgraded,
     jobs: jobs.length, salaried: 0, quarantined: board.scan.quarantined, remote: 0,
     usd: null, currencies: {}, noFx: 0, noFxCurrencies: {}, converted: 0, intervals: {}, kinds: {}, sources: {},
-    seniority: {}, midDefault: 0, levelTokens: 0, levelTokenExamples: [],
+    seniority: {}, midDefault: 0, levelTokens: 0, levelTokenExamples: [], multiRange: 0, multiRangeExamples: [],
     families: {}, familyUnknown: 0, familyUnknownExamples: [],
     keywords: { noSkills: 0, noResponsibilities: 0, noFit: 0 },
     vet: { ...board.scan, blockingIds: undefined },
@@ -315,6 +317,9 @@ export function companyStats(board, D) {
     const sal = j.salary;
     if (!sal) continue;
     s.salaried++;
+    // Several stated pay ranges (salary.js zones: levels, tiers, locations) collapse to one
+    // lowest-min..highest-max envelope in one seniority bucket.
+    if ((Number(sal.zones) || 1) > 1) { s.multiRange++; if (s.multiRangeExamples.length < 3) s.multiRangeExamples.push(String(sal.text || j.title || '').slice(0, 120)); }
     const cur = String(sal.currency || 'USD').toUpperCase();
     bump(s.currencies, cur);
     bump(s.intervals, sal.originalInterval || 'year');
@@ -353,6 +358,7 @@ export function companyStats(board, D) {
     critical: round3(share(s.vet.critical, s.vet.payBearing)),
     statistical: round3(share(s.vet.statistical, s.vet.payBearing)),
     review: round3(share(s.vet.review, s.vet.payBearing)),
+    multiRange: round3(share(s.multiRange, s.salaried)),
   };
   return s;
 }
@@ -806,7 +812,21 @@ export async function check(ctx) {
       findings.push(finding(`live ${channel} market.json agreement`, live.json.cells.length, mine.cells.length, 'cells', `${cmp.shared} shared cells, ${cmp.within5} with medians within 5%; live minN ${live.json.minN}, FX as of ${live.json.fx && live.json.fx.asOf}`, docUrl));
       evidence.push({ url: docUrl, fetchedAt: live.fetchedAt, excerpt: excerpt(`generatedAt ${live.json.generatedAt}; ${live.json.cells.length} cells; companies ${(live.json.companies || []).map((c) => `${c.slug} ${c.fetchedAt || ''}`).join(', ')}`) });
     }
-    return result('market-comps', 'detect', status, { ...base, summary: `buildMarket(): ${sum.cells} cells over ${Object.keys(sum.companies).length} companies and ${sum.families.length} families${status === 'flag' ? '; the live market.json is stale' : ''}`, findings, evidence });
+    // Cross-level mixing: postings with several pay ranges (e.g. "Level 4 ... Level 5", per-location
+    // tables) enter one level cell with the envelope of all ranges.
+    const multi = [];
+    for (const st of stats.values()) {
+      if (st.salaried < BOUNDS.minSalaried || st.shares.multiRange == null) continue;
+      const pv = prevOf(prev, st.slug);
+      const was = pv && pv.shares && pv.shares.multiRange != null ? pv.shares.multiRange : null;
+      const rose = was != null && (st.shares.multiRange - was) * 100 > BOUNDS.multiRangeRisePts;
+      if (st.shares.multiRange <= BOUNDS.multiRangeShareMax && !rose) continue;
+      if (rose) status = worst(status, 'drift');
+      multi.push(st.slug);
+      findings.push(finding(`${st.slug} postings with several pay ranges`, was != null ? pts(was) : `<= ${pts(BOUNDS.multiRangeShareMax)}`, pts(st.shares.multiRange), `% of salaried (${st.channel || 'stable'})`,
+        `${st.multiRange}/${st.salaried} state more than one range (levels, tiers or locations); each enters one level cell with the lowest-min..highest-max envelope, so its market-comps cells and Compstimate comparables can mix levels${rose ? `; up more than ${BOUNDS.multiRangeRisePts} points since ${prev.asOf}` : ''}${st.multiRangeExamples.length ? `. e.g. "${st.multiRangeExamples[0]}"` : ''}`));
+    }
+    return result('market-comps', 'detect', status, { ...base, summary: `buildMarket(): ${sum.cells} cells over ${Object.keys(sum.companies).length} companies and ${sum.families.length} families${multi.length ? `; ${multi.length} compan${multi.length === 1 ? 'y' : 'ies'} with many multi-range postings (${multi.join(', ')})` : ''}${status === 'flag' ? '; the live market.json is stale' : ''}`, findings, evidence });
   });
 
   // Compstimate backtest per company (needed by the aggregate too)
@@ -903,7 +923,7 @@ export async function check(ctx) {
     const findings = [];
     let status = 'ok';
     const lists = [['public/features/roles.js SENIORITY_LADDER', D.SENIORITY_LADDER]];
-    for (const [file, name] of [['public/app.js', 'SENIORITY_ORDER'], ['public/viz/chart.js', 'SENIORITY_ORDER']]) {
+    for (const [file, name] of [['public/app.js', 'SENIORITY_ORDER'], ['public/viz/chart.js', 'SENIORITY_ORDER'], ['scripts/archive/report.js', 'LADDER']]) {
       try { const v = extractConst(ctx.readText(file), name); if (Array.isArray(v)) lists.push([`${file} ${name}`, v.filter((x) => x !== 'Unspecified')]); } catch { /* optional */ }
     }
     const ref = lists[0][1].join(' < ');

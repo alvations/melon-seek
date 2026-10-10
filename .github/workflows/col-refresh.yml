@@ -18,22 +18,41 @@ name: Refresh cost-of-living data (Big Mac + FX only)
 # needs Settings -> Actions -> General -> "Allow GitHub Actions to create and
 # approve pull requests"; without it the branch is still pushed and the run
 # says to open the PR by hand. PRs opened with GITHUB_TOKEN don't trigger CI;
-# re-run CI from the PR (or push to it).
+# re-run CI from the PR (or push to it). As monthly-refresh.yml: the refresh job
+# fetches with a read-only token; the publish job (write token, checkout without
+# persisted credentials) re-applies exactly the reported files and pushes.
 on:
   workflow_dispatch:
 
 permissions:
-  contents: write       # push the bot/col-refresh branch (never main)
-  pull-requests: write  # open the review PR
+  contents: read
 
 concurrency:
   group: col-refresh
   cancel-in-progress: false
 
+env:
+  TRUSTED_BRANCHES: claude/stoic-ride-54ddxp
+
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      trusted: ${{ steps.trust.outputs.trusted }}
+      datafiles: ${{ steps.collect.outputs.datafiles }}
     steps:
+      - name: Trusted branch?
+        id: trust
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          trusted=false
+          case " ${DEFAULT_BRANCH:-} $TRUSTED_BRANCHES " in *" $GITHUB_REF_NAME "*) trusted=true ;; esac
+          echo "trusted=$trusted" >> "$GITHUB_OUTPUT"
+          [ "$trusted" = true ] || echo "::notice::$GITHUB_REF_NAME is not the default or a trusted branch: report only."
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -50,27 +69,85 @@ jobs:
       - name: Check the formula, data integrity and FX copies
         run: node --test test/juice.test.js test/fx-consistency.test.js
 
+      - name: Collect the changed files
+        id: collect
+        run: |
+          set -euo pipefail
+          node -e 'for (const f of require("./tmp/refresh/outcome.json").dataFiles || []) console.log(f)' > tmp/refresh/data-files.txt
+          echo "datafiles=$(grep -c . tmp/refresh/data-files.txt || true)" >> "$GITHUB_OUTPUT"
+          node -e 'for (const f of require("./tmp/refresh/outcome.json").files) console.log(f)' > tmp/refresh/files.txt
+          mkdir -p tmp/changes
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            mkdir -p "tmp/changes/$(dirname "$f")"
+            cp -- "$f" "tmp/changes/$f"
+          done < tmp/refresh/files.txt
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: col-refresh-report
+          path: tmp/refresh/
+          retention-days: 90
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: steps.collect.outputs.datafiles != '0'
+        with:
+          name: col-refresh-changes
+          path: tmp/changes/
+          retention-days: 7
+
+  publish:
+    needs: refresh
+    if: needs.refresh.outputs.trusted == 'true' && needs.refresh.outputs.datafiles != '0'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write       # push the bot/col-refresh branch (never main)
+      pull-requests: write  # open the review PR
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: col-refresh-report
+          path: tmp/refresh
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: col-refresh-changes
+          path: tmp/changes
+
       - name: Push a review branch and open a PR (never main)
         env:
           GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-          node -e 'for (const f of require("./tmp/refresh/outcome.json").files) console.log(f)' > tmp/refresh/files.txt
-          if [ ! -s tmp/refresh/files.txt ]; then
-            echo "No cost-of-living changes."
-            exit 0
-          fi
           branch="bot/col-refresh"
           day=$(date -u +%Y-%m-%d)
+          jq -r '.files[]' tmp/refresh/outcome.json > tmp/refresh/files.txt
+          while IFS= read -r f; do
+            case "$f" in
+              ""|/*|*..*|.*|*/.*|node_modules/*|package.json|package-lock.json) echo "::error::refusing to publish '$f'"; exit 1 ;;
+            esac
+            printf '%s' "$f" | grep -Eq '^[A-Za-z0-9_][A-Za-z0-9_./-]*$' || { echo "::error::refusing to publish '$f'"; exit 1; }
+            [ -f "tmp/changes/$f" ] || { echo "::error::$f is not in the changes artifact"; exit 1; }
+            mkdir -p "$(dirname "$f")"
+            cp -- "tmp/changes/$f" "$f"
+          done < tmp/refresh/files.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "$branch"
           xargs -a tmp/refresh/files.txt -d '\n' git add --
           if git diff --cached --quiet; then echo "No cost-of-living changes."; exit 0; fi
           git commit -m "chore(data): refresh Big Mac prices and FX ($day)"
-          git push --force origin "$branch"
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
+          GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.https://github.com/.extraheader GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth" git push --force origin "$branch"
           head -c 64000 tmp/refresh/summary.md > tmp/refresh/pr-body.md
-          base="${{ github.event.repository.default_branch }}"
+          base="${DEFAULT_BRANCH:-}"
+          base="${base:-$(gh repo view "$GITHUB_REPOSITORY" --json defaultBranchRef --jq .defaultBranchRef.name)}"
           if gh pr view "$branch" --json state --jq .state 2>/dev/null | grep -q OPEN; then
             gh pr edit "$branch" --body-file tmp/refresh/pr-body.md
             echo "Updated the open PR for $branch."

@@ -24,7 +24,7 @@
 //                 Expenditure Survey cross-check (spending excluding housing, insurance/pensions and
 //                 cash contributions, two-person and four-person ÷ one-person units) is recomputed;
 //                 a newer CE year than the one cited in server/juice.js is a review alert.
-import { result, errorResult, daysBetween, extractConst, constInitializer } from './lib.js';
+import { result, errorResult, daysBetween, extractConst, constInitializer, earliestDueDate } from './lib.js';
 
 export const MODULE = Object.freeze({ name: 'living', ids: Object.freeze(['cost-index', 'nyc-basket', 'living-scale']) });
 
@@ -138,7 +138,7 @@ export const COST_INDEX_CHECKLIST = Object.freeze([
   'Re-read New York first: if its basket changed, update baseline.nycBasketUSD in data/cities.json AND NYC_BASKET_USD in server/juice.js (test/juice.test.js keeps them equal), then every city\'s costIndex.',
   'Metro proxies (Costa Mesa, Reston, Palo Alto, Sunnyvale, Mountain View, Menlo Park, Bellevue, Redmond, Cambridge MA) copy their metro\'s index; Boulder and Hyderabad are comparison-derived (docs/LIVABILITY.md §4 "Estimates").',
   'Official replacement (D6, not automatic yet): US metros from BEA Regional Price Parities (goods + other services, i.e. excluding housing; needs BEA_API_KEY), rescaled to New York MSA = 100; EU/EFTA from Eurostat price level indices (prc_ppp_ind, household consumption excluding housing); elsewhere World Bank ICP 2021 price levels extrapolated with CPI.',
-  'Run `node --test test/juice.test.js test/juice-household.test.js`, then set lastChecked of cost-index in data/freshness.json.',
+  'Run `node --test test/juice.test.js test/juice-household.test.js`. The next refresh (or `node scripts/refresh/run.js --only living --offline`) recomputes the entry\'s dueDate in data/freshness.json from the page months; there is no lastChecked to set by hand.',
 ]);
 export const BASKET_CHECKLIST = Object.freeze([
   'The NYC basket is Numbeo\'s New York single-person estimate excluding rent × 12 (docs/LIVABILITY.md §4); re-read it on the Numbeo New York page by hand (terms forbid scraping).',
@@ -189,6 +189,8 @@ export async function check(ctx) {
       sourceAsOf: oldest ? `${oldest}-01`.slice(0, 10) : null,
       findings: overdue.slice(0, 60).map((r) => ({ key: `${r.key}.costIndex`, encoded: r.value, unit: 'index (NYC = 100)', url: r.url, note: `page month ${r.asOf}, ${-r.dueInDays} day(s) past due${r.estimated ? '; estimate (proxy)' : ''}` })),
       checklist: [...COST_INDEX_CHECKLIST, ...lines],
+      // the earliest city due date, stored in the registry so the staleness gate shows it too
+      dueDate: earliestDueDate(rows, ctx.today),
     };
     const mix = Object.entries(classes).map(([k, v]) => `${v} ${k}`).join(', ');
     if (overdue.length) out.push(result('cost-index', 'manual', 'stale', { ...base, summary: `${overdue.length} of ${rows.length} cities' costIndex past due (page month + ${COST_INDEX_CADENCE_DAYS} + ${COST_INDEX_GRACE_DAYS} days; oldest ${oldest}; sources ${mix}); aggregator figure, no automatic feed` }));

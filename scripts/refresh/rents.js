@@ -38,7 +38,7 @@
 // token that case is a 'drift' alert with the steps to update by hand. huduser.gov's xlsx files
 // answer scripted downloads with an HTTP 202 bot challenge, so they are not used.
 import zlib from 'node:zlib';
-import { result, errorResult, excerpt, relChange, isoDate, daysBetween, decodeEntities } from './lib.js';
+import { result, errorResult, excerpt, relChange, isoDate, daysBetween, decodeEntities, earliestDueDate } from './lib.js';
 import { RENT_PAIRS, toUsdAt, formatDoc, validateDoc, parseCsv } from '../update-col.js';
 
 export const MODULE = Object.freeze({
@@ -834,6 +834,62 @@ export function rederiveCities(doc, key, r, entry) {
   return touched;
 }
 
+/** Ratio rounding (3 decimals) moves a derived rent by at most ~0.05%; more than this is a changed input. */
+export const RECONCILE_TOLERANCE = 0.002;
+
+/**
+ * Keep every derived rent consistent with its inputs, whatever changed them (a hand-edited
+ * 1-bedroom quote, an FX change, an earlier release): 2- and 3-bedroom rents that are
+ * 1-bedroom × an official ratio are re-derived at the encoded ratio when they drift beyond
+ * ratio rounding, and every USD rent is local ÷ the city's current fxPerUSD. Idempotent;
+ * mutates `doc`. -> [{ key, encoded, official, unit, note }]
+ */
+export function reconcileRents(doc) {
+  const changes = [];
+  // A hand-edited bedroomRatios entry (r2 / r3 / asOf) re-derives every city that cites it.
+  const br = doc.bedroomRatios || {};
+  const edited = new Set();
+  for (const c of doc.cities || []) {
+    for (const n of [2, 3]) {
+      const src = c.sources && c.sources[`rent${n}brCenterLocal`];
+      const e = src && src.ratioKey && br[src.ratioKey];
+      if (e && typeof e[`r${n}`] === 'number' && typeof src.ratio === 'number' && (round3(e[`r${n}`]) !== round3(src.ratio) || (e.asOf && src.asOf !== e.asOf))) edited.add(src.ratioKey);
+    }
+  }
+  for (const key of [...edited].sort()) {
+    const e = br[key];
+    const before = new Map(doc.cities.map((c) => [c.key, [c.rent2brCenterLocal, c.rent3brCenterLocal]]));
+    for (const k of rederiveCities(doc, key, [e.r2, e.r3], e)) {
+      const c = doc.cities.find((x) => x.key === k);
+      [2, 3].forEach((n, i) => {
+        const was = before.get(k)[i];
+        const now = c[`rent${n}brCenterLocal`];
+        if (was !== now) changes.push({ key: `${k}.rent${n}brCenterLocal`, encoded: was, official: now, unit: c.currency, note: `bedroomRatios.${key} (${e.r2} / ${e.r3}, ${e.asOf}) differs from the ratio the city cited: re-derived` });
+      });
+    }
+  }
+  for (const c of doc.cities || []) {
+    for (const n of [2, 3]) {
+      const lf = `rent${n}brCenterLocal`;
+      const src = c.sources && c.sources[lf];
+      if (!src || !src.ratioKey || typeof src.ratio !== 'number' || c.rent1brCenterLocal == null || c[lf] == null) continue;
+      const expected = round2(c.rent1brCenterLocal * src.ratio);
+      if (Math.abs(c[lf] - expected) / expected <= RECONCILE_TOLERANCE) continue;
+      changes.push({ key: `${c.key}.${lf}`, encoded: c[lf], official: expected, unit: c.currency, note: `1-bedroom rent ${c.rent1brCenterLocal} × ratio ${src.ratio} (${src.ratioKey}): the 1-bedroom quote changed, so the ${n}-bedroom rent is re-derived` });
+      c[lf] = expected;
+    }
+    if (!(c.fxPerUSD > 0)) continue;
+    for (const [uf, lf] of RENT_PAIRS) {
+      if (c[lf] == null) continue;
+      const usd = toUsdAt(c[lf], c.fxPerUSD);
+      if (c[uf] === usd) continue;
+      changes.push({ key: `${c.key}.${uf}`, encoded: c[uf], official: usd, unit: 'USD/month', note: `${lf} ${c[lf]} ÷ fxPerUSD ${c.fxPerUSD}` });
+      c[uf] = usd;
+    }
+  }
+  return changes;
+}
+
 /**
  * Apply one family's release to `doc` (mutated). Only entries whose content changes are rewritten.
  * -> { changes: [{ key, encoded, official, unit, note }], ratios: { key: [r2, r3] unrounded }, cities: [...] }
@@ -948,8 +1004,8 @@ export const QUOTE_CHECKLIST = Object.freeze([
   'Numbeo terms forbid automated collection and do not clear reuse (docs/LIVABILITY.md §4.1); the replacement plan and decision D6 are in §7. Until D6 is decided, re-read the figures by hand only.',
   'For each city below, open sources.rent1brCenterLocal.url and read "1 bedroom apartment in city centre" and "... outside of centre" (local currency).',
   'Update rent1brCenterLocal / rent1brOutsideLocal and set sources.*.asOf to the page month and retrieved to today; keep class "aggregator" and terms "numbeo-terms".',
-  'Re-derive the 2- and 3-bedroom rents (1-bedroom × the city\'s ratio in bedroomRatios) and the USD fields: `node scripts/refresh/run.js --only rents --offline` reports them; `node scripts/update-col.js --dry-run` re-converts USD.',
-  'Run `node --test test/juice.test.js test/juice-household.test.js test/refresh-col.test.js`, then set lastChecked of rents-1br-quoted in data/freshness.json.',
+  'Re-derive the 2- and 3-bedroom rents (1-bedroom × the city\'s encoded ratio) and the USD fields (local ÷ the city\'s current fxPerUSD): run `node scripts/refresh/rents.js --reconcile` (no network; `--dry-run` to preview). The monthly refresh does the same on every run. Never use a Big Mac FX rate for this: data/cities.json fx.perUSD is owned by scripts/refresh/fx.js.',
+  'Run `node --test test/juice.test.js test/juice-household.test.js test/refresh-col.test.js`. The next refresh recomputes the entry\'s dueDate in data/freshness.json from the page months; there is no lastChecked to set by hand.',
 ]);
 
 // ---------------------------------------------------------------- the check
@@ -1258,6 +1314,10 @@ export async function check(ctx) {
     results.push(errorResult('rents-sg-hdb', 'auto', err));
   }
 
+  // 3b. Derived rents follow their inputs (a hand-read 1-bedroom quote, FX): re-derive on every run.
+  let reconciled = [];
+  try { reconciled = reconcileRents(work); } catch (err) { poolProblems.push(`reconcile: ${err.message}`); }
+
   // 4. The table as a whole: pooled ratio + whole-document validation.
   const { problems, warnings } = validateRentDoc(work, prev, { today: ctx.today });
   const allProblems = [...poolProblems, ...problems];
@@ -1276,7 +1336,13 @@ export async function check(ctx) {
   if (allProblems.length && after !== before) {
     results.push(result('rents-bedroom-ratios', 'auto', 'flag', { summary: `refreshed bedroom rents failed validation: ${allProblems.slice(0, 3).join('; ')}`, sourceAsOf: dayOf(pooledEntry.asOf), findings: allProblems.map((p) => ({ key: 'validation', note: p })) }));
   } else if (pooledRes.changed) {
-    results.push(result('rents-bedroom-ratios', 'auto', 'changed', { summary: `pooled ratio ${pooledEntry.r2} / ${pooledEntry.r3} (median of ${POOL_KEYS.join(', ')}); ${pooledRes.cities.length} cities re-derived${warnings.length ? `; ${warnings.length} warning(s)` : ''}`, sourceAsOf: dayOf(pooledEntry.asOf), findings: pooledRes.changes, writes }));
+    results.push(result('rents-bedroom-ratios', 'auto', 'changed', { summary: `pooled ratio ${pooledEntry.r2} / ${pooledEntry.r3} (median of ${POOL_KEYS.join(', ')}); ${pooledRes.cities.length} cities re-derived${reconciled.length ? `; ${reconciled.length} derived rent(s) re-aligned with their inputs` : ''}${warnings.length ? `; ${warnings.length} warning(s)` : ''}`, sourceAsOf: dayOf(pooledEntry.asOf), findings: [...pooledRes.changes, ...reconciled], writes }));
+  } else if (reconciled.length && writes.length) {
+    const cities = new Set(reconciled.map((c) => c.key.split('.')[0]));
+    results.push(result('rents-bedroom-ratios', 'auto', 'changed', {
+      summary: `${reconciled.length} derived rent(s) in ${cities.size} cit${cities.size === 1 ? 'y' : 'ies'} re-aligned with their inputs (a changed 1-bedroom quote or FX): 2/3-bedroom = 1-bedroom × the encoded ratio, USD = local ÷ fxPerUSD`,
+      sourceAsOf: dayOf(pooledEntry.asOf), findings: reconciled, writes,
+    }));
   } else {
     const n = Object.keys(work.bedroomRatios).filter((k) => k !== 'description').length;
     results.push(result('rents-bedroom-ratios', 'auto', 'ok', {
@@ -1293,7 +1359,7 @@ export async function check(ctx) {
     const oldest = rows.map((r) => r.asOf).sort()[0] || null;
     const cities = new Set(rows.map((r) => r.key));
     const lines = overdue.map((r) => `${r.name} (${r.key}): ${r.field} = ${r.value} ${r.currency}, page month ${r.asOf}, ${-r.dueInDays} day(s) past due: ${r.url}`);
-    const base = { sourceAsOf: dayOf(oldest), findings: overdue.slice(0, 60).map((r) => ({ key: `${r.key}.${r.field}`, encoded: r.value, unit: r.currency, url: r.url, note: `page month ${r.asOf}, ${-r.dueInDays} day(s) past due` })), checklist: [...QUOTE_CHECKLIST, ...lines] };
+    const base = { sourceAsOf: dayOf(oldest), dueDate: earliestDueDate(rows, ctx.today), findings: overdue.slice(0, 60).map((r) => ({ key: `${r.key}.${r.field}`, encoded: r.value, unit: r.currency, url: r.url, note: `page month ${r.asOf}, ${-r.dueInDays} day(s) past due` })), checklist: [...QUOTE_CHECKLIST, ...lines] };
     if (overdue.length) {
       const nCities = new Set(overdue.map((r) => r.key)).size;
       results.push(result('rents-1br-quoted', 'manual', 'stale', { ...base, summary: `${nCities} of ${cities.size} cities have a Numbeo-quoted 1-bedroom rent past due (page month + ${QUOTE_CADENCE_DAYS} + ${QUOTE_GRACE_DAYS} days; oldest ${oldest}); no automatic feed (terms)` }));
@@ -1309,3 +1375,41 @@ export async function check(ctx) {
   const order = new Map(MODULE.ids.map((id, i) => [id, i]));
   return results.sort((a, b) => order.get(a.id) - order.get(b.id));
 }
+
+// ---------------------------------------------------------------- CLI
+
+/**
+ * node scripts/refresh/rents.js --reconcile [--dry-run] [--file <cities.json>]
+ * Re-derive every derived rent in data/cities.json from its inputs (reconcileRents: 2/3-bedroom =
+ * 1-bedroom × the encoded ratio, USD = local ÷ the city's fxPerUSD), validate, write. No network.
+ * Use it after hand-editing a Numbeo-quoted 1-bedroom rent.
+ */
+async function main(argv) {
+  if (!argv.includes('--reconcile')) {
+    console.log('usage: node scripts/refresh/rents.js --reconcile [--dry-run]   (the monthly checks run through scripts/refresh/run.js)');
+    return 2;
+  }
+  const fsp = await import('node:fs/promises');
+  const pathm = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const fi = argv.indexOf('--file'); // another copy of cities.json (tests)
+  const file = fi >= 0 ? pathm.resolve(argv[fi + 1]) : pathm.resolve(pathm.dirname(fileURLToPath(import.meta.url)), '..', '..', 'data', 'cities.json');
+  const doc = JSON.parse(await fsp.readFile(file, 'utf8'));
+  const changes = reconcileRents(doc);
+  const problems = validateDoc(doc);
+  if (problems.length) {
+    for (const p of problems.slice(0, 40)) console.error(`  invalid: ${p}`);
+    console.error(`${problems.length} validation problem(s); nothing written`);
+    return 1;
+  }
+  for (const c of changes.slice(0, 60)) console.log(`  ${c.key}: ${c.encoded} -> ${c.official} (${c.note})`);
+  if (changes.length > 60) console.log(`  ... ${changes.length - 60} more`);
+  if (!changes.length) { console.log('data/cities.json: every derived rent already matches its inputs'); return 0; }
+  if (argv.includes('--dry-run')) { console.log(`${changes.length} change(s) (dry run, nothing written)`); return 0; }
+  await fsp.writeFile(file, formatDoc(doc));
+  console.log(`${changes.length} change(s) written to data/cities.json`);
+  return 0;
+}
+
+const isMain = process.argv[1] && import.meta.url === (await import('node:url')).pathToFileURL((await import('node:path')).resolve(process.argv[1])).href;
+if (isMain) main(process.argv.slice(2)).then((c) => { process.exitCode = c; }, (e) => { console.error(e.stack || e); process.exitCode = 2; });

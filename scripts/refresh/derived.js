@@ -279,6 +279,7 @@ export async function loadFacts(ctx) {
   F.freshTtl = F.const('server/cache.js', 'FRESH_TTL_MS');
   F.freshness = F.const('server/history.js', 'FRESHNESS');
   try { F.engines = JSON.parse(src('package.json')).engines; } catch { F.engines = null; }
+  try { const m = /^\s*node:\s*\[([^\]]+)\]/m.exec(src('.github/workflows/ci.yml')); F.ciNode = m ? m[1].split(',').map((x) => x.trim()) : null; } catch { F.ciNode = null; }
   const snap = src('.github/workflows/snapshot.yml');
   // retention-days of the upload step that names this artifact (within that step only).
   const ret = (name) => { const m = new RegExp(`\\n\\s+name: ${name}[ \\t]*(?=\\n)(?:(?!\\n\\s*- )[\\s\\S])*?retention-days: (\\d+)`).exec(snap); return m ? Number(m[1]) : null; };
@@ -310,6 +311,7 @@ export const README_RULES = Object.freeze([
   { key: 'snapshot artifact retention (days)', file: 'README.md', re: /artifact\s+\*\*`job-board-snapshots`\*\*, kept for (\d+) days/, expect: (F) => String(need(F.retention.snapshots, 'snapshot.yml retention')), note: '.github/workflows/snapshot.yml' },
   { key: 'ledger artifact retention (days)', file: 'README.md', re: /\*\*(\d+)-day retention\*\*/, expect: (F) => String(need(F.retention.ledger, 'snapshot.yml ledger retention')), note: '.github/workflows/snapshot.yml' },
   { key: 'minimum Node version', file: 'README.md', re: /Node >= (\d+), one runtime dependency/, expect: (F) => (/(\d+)/.exec(need(F.engines && F.engines.node, 'package.json engines.node')) || [])[1] },
+  { key: 'CI Node matrix', file: 'README.md', re: /runs the tests on Node (\d+) and (\d+)/, expect: (F) => need(F.ciNode, '.github/workflows/ci.yml matrix.node'), note: '.github/workflows/ci.yml strategy.matrix.node (runtime-versions)' },
   {
     key: 'share-page title example (format)', file: 'README.md', re: /title, such as "([^"]+)"/,
     // Illustrative (a real title on some day); only its shape must match scripts/build-static.js#sharePage.
@@ -335,7 +337,8 @@ export const DOCS_RULES = Object.freeze([
   { key: 'grade boundaries', file: LIVABILITY, re: /The score boundaries \((\d+) \/ (\d+)\)/, expect: (F) => need(F.gradeMins, 'GRADES').map(String) },
   { key: 'confidence counts', file: LIVABILITY, re: /US cities are medium \((\d+)\) or low \((\d+):[^)]*\);\s+all (\d+) non-US cities are low/, expect: (F) => { const c = need(F.confidence, 'confidence'); return [String(c.usMedium), String(c.usLow), String(c.nonUsOther ? `${c.nonUsLow} (+${c.nonUsOther} not low)` : c.nonUsLow)]; }, note: 'computeJuice() confidence for every city' },
   { key: 'Big Mac countries and release', file: LIVABILITY, re: /All (\d+) countries in the\s+dataset are in the (\d{4}-\d{2}-\d{2}) release/, expect: (F) => [String(need(F.bigMacCountries, 'bigMac.byCountry')), need(F.bigMacAsOf, 'bigMac.asOf')] },
-  { key: 'Big Mac release (sources table)', file: LIVABILITY, re: /\| `bigMacUSD`, `fxPerUSD`, `\*USD` conversions \|[^\n]*?\| release (\d{4}-\d{2}-\d{2}) \|/, expect: (F) => need(F.bigMacAsOf, 'bigMac.asOf') },
+  // the sources-table row: `bigMacUSD` alone since FX has its own row (freshness-lead-livability-refresh.diff), or the older combined row
+  { key: 'Big Mac release (sources table)', file: LIVABILITY, re: /\| `bigMacUSD`(?:, `fxPerUSD`, `\*USD` conversions)? \|[^\n]*?\| release (\d{4}-\d{2}-\d{2}) \|/, expect: (F) => need(F.bigMacAsOf, 'bigMac.asOf') },
   { key: 'bedroom rents: direct (official) cities', file: LIVABILITY, re: /\*\*Direct \(official, (\d+) city\)\.\*\*/, expect: (F) => String(need(F.rent2Official, 'rent classes')) },
   { key: 'bedroom rents: ratio (estimate) cities', file: LIVABILITY, re: /\*\*Ratio \(estimate, (\d+) cities\)\.\*\*/, expect: (F) => String(need(F.rent2Estimate, 'rent classes')) },
   { key: 'bedroom rents: pooled-ratio cities (§4.2)', file: LIVABILITY, re: /\*\*Everyone else \((\d+) cities:/, expect: (F) => String(need(F.pooled, 'pooled')) },
@@ -347,7 +350,8 @@ export const DOCS_RULES = Object.freeze([
   { key: 'cost-index metro proxies', file: LIVABILITY, re: /\*\*Metro proxy \((\d+) cities\)\.\*\*/, expect: (F) => String(need(F.proxies, 'proxies')) },
   { key: 'cost-index comparison-derived', file: LIVABILITY, re: /\*\*Comparison-derived \((\d+) cities\)\.\*\*/, expect: (F) => String(need(F.comparisonDerived, 'comparison-derived')) },
   { key: 'Numbeo figures to replace', file: LIVABILITY, re: /That is\s+(\d+) figures plus 1/, expect: (F) => String(need(F.numbeoFields, 'numbeo fields')), note: 'fields with terms "numbeo-terms" (centre rent, outside rent, cost index)' },
-  { key: 'FX table month', file: LIVABILITY, re: /set to the\s+Big Mac data's (\w+ \d{4}) `dollar_ex`/, expect: (F) => need(monthName(F.fxAsOf), 'FX_AS_OF'), note: 'server/juice.js FX_AS_OF' },
+  // Only the pre-refresh sentence states a month; the current text names FX_AS_OF instead (no rule needed).
+  { key: 'FX table month', file: LIVABILITY, optional: true, re: /set to the\s+Big Mac data's (\w+ \d{4}) `dollar_ex`/, expect: (F) => need(monthName(F.fxAsOf), 'FX_AS_OF'), note: 'server/juice.js FX_AS_OF' },
   { key: 'Sydney official 1-bedroom rent', file: LIVABILITY, re: /official one, A\$([\d,]+) instead of A\$([\d,]+)\)/, expect: (F) => { const s = need(F.sydney, 'Sydney'); return [int(s.rent1), int(need(s.replaced, 'replaced'))]; } },
   { key: 'market.json cap (KB)', file: 'docs/CONTRACT.md', re: /`api\/market\.json` \(≤(\d+) KB/, expect: (F) => String(need(F.marketMax, 'MARKET_MAX_BYTES') / 1000) },
   { key: 'market comps minimum n', file: 'docs/CONTRACT.md', re: /n ≥ (\d+) per cell/, expect: (F) => String(need(F.marketMinN, 'build-market MIN_N')) },

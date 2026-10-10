@@ -341,4 +341,18 @@ test('policy pure helpers: Juice distribution, grade mix, near-bound pay, minN s
   const eol = policy.nodeEol(used, sched, '2026-10-10');
   assert.deepEqual(eol.map((e) => [e.major, e.end, e.past]), [[18, '2025-04-30', true], [20, '2026-04-30', true], [22, '2027-04-30', false]]);
   assert.equal(eol.find((e) => e.major === 22).where.length, 2);
+  // the Dockerfile base image counts too (review finding: runtime-versions owners)
+  const withDocker = policy.nodeVersionsInUse('{}', [['Dockerfile', '# app\nFROM node:22-alpine\nWORKDIR /app\n']]);
+  assert.deepEqual(withDocker, [{ where: 'Dockerfile:2 FROM', major: 22 }]);
+});
+
+test('companyStats: the share of salaried postings with several pay ranges (cross-level envelope caveat)', () => {
+  const D = { roleFamily: () => 'swe', seniorityBasis: () => 'title', hasFx: () => true, usdMid: (s) => s.mid };
+  const job = (zones) => ({ title: 'Software Engineer', seniority: 'Senior', salary: { min: 1, max: 2, mid: 150000, currency: 'USD', zones, text: zones > 1 ? '$150K for Level 4; $190K for Level 5' : '$150K' } });
+  const board = { slug: 'x', name: 'X', channel: 'beta', jobs: [job(2), job(3), job(1), job(1)], scan: { quarantined: 0, payBearing: 4 } };
+  const s = jobs.companyStats(board, D);
+  assert.equal(s.multiRange, 2);
+  assert.equal(s.shares.multiRange, 0.5);
+  assert.match(s.multiRangeExamples[0], /Level 4/);
+  assert.ok(jobs.BOUNDS.multiRangeShareMax > 0 && jobs.BOUNDS.multiRangeShareMax < 1);
 });

@@ -10,10 +10,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { validateRegistry, loadModules, stalenessRows, readExtractAsync } from '../scripts/refresh/run.js';
+import os from 'node:os';
+import { validateRegistry, loadModules, stalenessRows, readExtractAsync, runRefresh } from '../scripts/refresh/run.js';
 import { taxYearOf } from '../scripts/refresh/registry.js';
-import { TAX_SOURCES, FX_AS_OF as JUICE_FX_AS_OF } from '../server/juice.js';
-import { FX_AS_OF as PALETTE_FX_AS_OF, FX_PER_USD as PALETTE_FX } from '../public/viz/palette.js';
+import * as JUICE from '../server/juice.js';
+import * as PALETTE from '../public/viz/palette.js';
+
+const { TAX_SOURCES, FX_AS_OF: JUICE_FX_AS_OF } = JUICE;
+const { FX_AS_OF: PALETTE_FX_AS_OF, FX_PER_USD: PALETTE_FX } = PALETTE;
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const REG = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'freshness.json'), 'utf8'));
@@ -40,7 +44,8 @@ test('registry: every updater module is registered, and every module-updated ent
     }
   }
   for (const e of live) {
-    const m = /^scripts\/refresh\/([\w-]+)\.js$/.exec(e.updater || '');
+    // "scripts/refresh/x.js" or "scripts/refresh/x.js (note)": the module must claim the id
+    const m = /^scripts\/refresh\/([\w-]+)\.js\b/.exec(e.updater || '');
     if (!m) continue;
     assert.equal(claimed.get(e.id), m[1], `${e.id}: updater ${e.updater} must list it in MODULE.ids`);
   }
@@ -113,4 +118,27 @@ test('staleness: warn (never fail) on datasets past cadence + grace; FRESHNESS_S
   for (const r of stale) t.diagnostic(`STALE ${r.id}: as of ${r.asOf || '-'}, last checked ${r.lastChecked || '-'}, cadence ${r.cadence}`);
   t.diagnostic(`${rows.length} datasets: ${stale.length} stale, ${rows.filter((r) => r.status === 'due soon').length} due soon`);
   if (process.env.FRESHNESS_STRICT === '1') assert.deepEqual(stale.map((r) => r.id), []);
+});
+
+test('FX source label: FX_SOURCE (when the code copies export it) names the table data/cities.json uses', () => {
+  for (const [name, mod] of [['server/juice.js', JUICE], ['public/viz/palette.js', PALETTE]]) {
+    if (!('FX_SOURCE' in mod)) continue; // lands with docs/process/patches/freshness-lead-fx-source.diff
+    assert.equal(mod.FX_SOURCE, CITIES.fx.source.name, `${name} FX_SOURCE vs data/cities.json fx.source.name (scripts/refresh/fx.js rewrites both)`);
+  }
+});
+
+test('staleness gate agrees with the refresh: every id the offline dry run reports stale is past due in the registry', async () => {
+  const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'freshness-gate-'));
+  const saved = {};
+  for (const k of ['MELON_SNAPSHOT_DIR', 'MELON_HISTORY_DIR', 'MELON_BETA_SNAPSHOT_DIR', 'MELON_BETA_HISTORY_DIR', 'MELON_ARCHIVE_DIR']) { saved[k] = process.env[k]; process.env[k] = empty; }
+  try {
+    const rep = await runRefresh({ offline: true, dryRun: true, now: today, log: () => {} });
+    const gate = new Set(stalenessRows(REG, new Date(`${today}T12:00:00Z`)).filter((r) => r.status === 'STALE').map((r) => r.id));
+    const stale = rep.results.filter((r) => r.status === 'stale').map((r) => r.id);
+    const missing = stale.filter((id) => !gate.has(id));
+    assert.deepEqual(missing, [], `reported stale by the refresh but not by run.js --staleness (the CI / Pages gate and the UI "update due"): ${missing.join(', ')}. Store the module's dueDate (run the refresh) or fix lastChecked.`);
+  } finally {
+    for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    fs.rmSync(empty, { recursive: true, force: true });
+  }
 });

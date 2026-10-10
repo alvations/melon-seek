@@ -117,15 +117,16 @@ export function formatCurrency(n, currency = 'USD') {
 }
 
 /**
- * Static FX: local currency units per 1 USD, copied verbatim from data/cities.json
- * `fx.perUSD` so the chart, Compstimate and the Juice Score all use one table.
- * Source: The Economist Big Mac index source data v2, `dollar_ex` column
- * (Refinitiv/LSEG rates), release 2026-07-01; data CC BY 4.0.
- * https://raw.githubusercontent.com/TheEconomist/big-mac-data/master/source-data/big-mac-source-data-v2.csv
- * Copied 2026-10-02. Refresh both together (scripts/update-col.js updates cities.json).
+ * Static FX: local currency units per 1 USD, equal to data/cities.json `fx.perUSD` so the
+ * chart, Compstimate and the Juice Score all use one table. The source and date are FX_SOURCE
+ * and FX_AS_OF (equal to cities.json fx.source.name and fx.asOf). The monthly refresh
+ * (scripts/refresh/fx.js: ECB monthly reference rates crossed through USD, TWD from the
+ * Federal Reserve G.5, AED/SAR/QAR official pegs) rewrites cities.json, this table and
+ * server/juice.js together; test/fx-consistency.test.js keeps the copies equal.
  * Labelled "approx USD" in the UI; there is no live FX.
  */
 export const FX_AS_OF = '2026-07-01';
+export const FX_SOURCE = 'The Economist Big Mac index source data v2, dollar_ex column (release 2026-07-01)';
 export const FX_PER_USD = Object.freeze({
   AED: 3.67285,
   AUD: 1.42867347667691,

@@ -464,7 +464,8 @@ test('orchestrator: run.js runs rents + living offline (dry run) with no registr
   const mods = (await loadModules()).filter((m) => m.name === 'rents' || m.name === 'living');
   assert.deepEqual(mods.map((m) => m.name).sort(), ['living', 'rents']);
   const ids = mods.flatMap((m) => m.ids);
-  const entries = ids.map((id) => ({ id, description: `test entry for ${id}`, type: 'static-data', owners: ['data/cities.json'], consumers: [{ at: 'server/juice.js', surface: 'drawer Juice block' }], source: { name: 'test', url: 'https://example.org/' }, asOf: '2026-09-01', cadence: 'monthly', mode: 'manual', updater: 'manual', checklist: ['x'], validator: 'test/refresh-col.test.js', before: 'none', lastChecked: '2026-10-01' }));
+  const real = new Map(JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'freshness.json'), 'utf8')).entries.map((e) => [e.id, e.mode]));
+  const entries = ids.map((id) => ({ id, description: `test entry for ${id}`, type: 'static-data', owners: ['data/cities.json'], consumers: [{ at: 'server/juice.js', surface: 'drawer Juice block' }], source: { name: 'test', url: 'https://example.org/' }, asOf: '2026-09-01', cadence: 'monthly', mode: real.get(id) || 'manual', updater: 'manual', checklist: ['x'], validator: 'test/refresh-col.test.js', before: 'none', lastChecked: '2026-10-01' }));
   const before = fs.readFileSync(path.join(ROOT, 'data', 'cities.json'), 'utf8');
   const rep = await runRefresh({ offline: true, dryRun: true, now: '2026-10-10', registry: { format: 'melon-freshness-1', entries }, modules: mods, log: () => {} });
   assert.deepEqual(rep.problems, []);
@@ -472,4 +473,77 @@ test('orchestrator: run.js runs rents + living offline (dry run) with no registr
   assert.deepEqual(rep.dataFiles, []);
   assert.equal(rep.counts.error || 0, 0);
   assert.equal(fs.readFileSync(path.join(ROOT, 'data', 'cities.json'), 'utf8'), before);
+});
+
+test('rents: a hand-edited 1-bedroom quote re-derives its 2/3-bedroom and USD rents on the next run (review finding, high)', async () => {
+  const doc = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'cities.json'), 'utf8'));
+  const ox = doc.cities.find((c) => c.key === 'oxford-gb');
+  assert.ok(ox, 'oxford-gb in cities.json');
+  const r2 = ox.sources.rent2brCenterLocal.ratio;
+  const r3 = ox.sources.rent3brCenterLocal.ratio;
+  ox.rent1brCenterLocal = 1900; // the operator re-read Numbeo
+  const ctx = ctxFor('rents');
+  const text = formatDoc(doc);
+  ctx.readText = (rel) => (rel === 'data/cities.json' ? text : fs.readFileSync(path.join(ROOT, rel), 'utf8'));
+  ctx.readJson = (rel) => JSON.parse(ctx.readText(rel));
+  const res = await rents.check(ctx);
+  const br = res.find((r) => r.id === 'rents-bedroom-ratios');
+  assert.equal(br.status, 'changed', br.summary);
+  const out = JSON.parse(br.writes.find((w) => w.file === 'data/cities.json').content);
+  const o = out.cities.find((c) => c.key === 'oxford-gb');
+  assert.equal(o.rent2brCenterLocal, Math.round(1900 * r2 * 100) / 100);
+  assert.equal(o.rent3brCenterLocal, Math.round(1900 * r3 * 100) / 100);
+  for (const [uf, lf] of RENT_PAIRS) if (o[lf] != null) assert.equal(o[uf], toUsdAt(o[lf], o.fxPerUSD), `${uf}`);
+  assert.deepEqual(validateDoc(out), []);
+  // idempotent: the re-derived document is left alone
+  assert.deepEqual(rents.reconcileRents(structuredClone(out)), []);
+  const untouched = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'cities.json'), 'utf8'));
+  assert.deepEqual(rents.reconcileRents(untouched), [], 'the committed data is already consistent');
+});
+
+test('rents.js --reconcile: the no-network re-derive after a hand edit (the LIVABILITY §6 command)', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rents-reconcile-'));
+  try {
+    const doc = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'cities.json'), 'utf8'));
+    const ox = doc.cities.find((c) => c.key === 'oxford-gb');
+    ox.rent1brCenterLocal = 1900;
+    const f = path.join(dir, 'cities.json');
+    fs.writeFileSync(f, formatDoc(doc));
+    const script = path.join(ROOT, 'scripts', 'refresh', 'rents.js');
+    const dry = execFileSync(process.execPath, [script, '--reconcile', '--dry-run', '--file', f], { encoding: 'utf8' });
+    assert.match(dry, /oxford-gb\.rent2brCenterLocal/);
+    assert.equal(fs.readFileSync(f, 'utf8'), formatDoc(doc), 'dry run writes nothing');
+    execFileSync(process.execPath, [script, '--reconcile', '--file', f], { encoding: 'utf8' });
+    const out = JSON.parse(fs.readFileSync(f, 'utf8'));
+    assert.deepEqual(validateDoc(out), []);
+    const o = out.cities.find((c) => c.key === 'oxford-gb');
+    assert.equal(o.rent2brCenterLocal, Math.round(1900 * ox.sources.rent2brCenterLocal.ratio * 100) / 100);
+    assert.equal(o.rent1brCenterUSD, toUsdAt(1900, o.fxPerUSD));
+    assert.equal(o.fxPerUSD, ox.fxPerUSD, 'FX is never touched');
+    assert.deepEqual(out.fx, doc.fx, 'the FX table is never touched');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('rents-1br-quoted and cost-index carry the earliest item due date (staleness gate = report)', async () => {
+  const r = (await rents.check(ctxFor('rents'))).find((x) => x.id === 'rents-1br-quoted');
+  const l = (await living.check(ctxFor('living'))).find((x) => x.id === 'cost-index');
+  for (const x of [r, l]) {
+    assert.match(String(x.dueDate), /^\d{4}-\d{2}-\d{2}$/, `${x.id} dueDate`);
+    assert.equal(x.status === 'stale', x.dueDate < NOW.toISOString().slice(0, 10), `${x.id}: stale exactly when its due date has passed`);
+  }
+});
+
+test('rents reconcile: a hand-edited bedroomRatios entry re-derives the cities that cite it (replaces juice-household-rents.mjs as the writer)', () => {
+  const doc = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'cities.json'), 'utf8'));
+  doc.bedroomRatios['GB-oxford'] = { ...doc.bedroomRatios['GB-oxford'], r2: 1.3, asOf: '2026-09', label: 'ONS private rents, Oxford, September 2026' };
+  const changes = rents.reconcileRents(doc);
+  const o = doc.cities.find((c) => c.key === 'oxford-gb');
+  assert.ok(changes.some((c) => c.key === 'oxford-gb.rent2brCenterLocal'));
+  assert.equal(o.rent2brCenterLocal, Math.round(o.rent1brCenterLocal * 1.3 * 100) / 100);
+  assert.equal(o.sources.rent2brCenterLocal.ratio, 1.3);
+  assert.equal(o.sources.rent2brCenterLocal.asOf, '2026-09');
+  assert.equal(o.rent2brCenterUSD, toUsdAt(o.rent2brCenterLocal, o.fxPerUSD));
+  assert.deepEqual(validateDoc(doc), []);
+  assert.deepEqual(rents.reconcileRents(doc), [], 'idempotent');
 });

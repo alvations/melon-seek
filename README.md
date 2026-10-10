@@ -370,8 +370,9 @@ caches HTML. Details, verification commands and other platforms are in
 
 <https://alvations.github.io/melon-seek/beta/> is a full second copy of the
 app: the stable companies plus the big-tech career sites (Google, Microsoft,
-Meta, Apple, Netflix, Amazon and NVIDIA; Tesla is left out because its site
-blocks plain requests, see [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) §7).
+Apple, Netflix and NVIDIA). Amazon and Meta are paused because their terms bar
+automated collection, and Tesla is left out because its site blocks plain
+requests; see [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) §7.
 The main site at `/melon-seek/` doesn't change and doesn't link to it.
 Contract: [docs/CONTRACT.md](docs/CONTRACT.md) "v3 additions"; build log:
 [docs/process/beta-deploy.md](docs/process/beta-deploy.md).
@@ -396,8 +397,8 @@ Contract: [docs/CONTRACT.md](docs/CONTRACT.md) "v3 additions"; build log:
 - **How fresh:** the big-tech boards are re-crawled **every 6 hours**
   (`snapshot.yml`, 00:47, 06:47, 12:47 and 18:47 UTC), and each crawl is
   deployed as soon as it finishes. A full crawl takes over an hour, because the
-  crawl is polite (about 1 request/s per host) and Amazon alone has about 22k
-  postings. So a post on `/beta/` is usually under 6 hours old, plus the crawl
+  crawl is polite (about 1 request/s per host); Apple alone takes about 2 hours
+  for about 6,100 postings. So a post on `/beta/` is usually under 6 hours old, plus the crawl
   time. The stable boards keep their own cadence (daily snapshot, plus a fresh
   fetch on every deploy).
 - **Build:** `npm run build` writes `dist/` and then `dist/beta/`. The stable

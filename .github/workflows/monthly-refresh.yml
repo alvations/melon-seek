@@ -15,6 +15,11 @@ name: Monthly data refresh
 # Safety model (REVIEW.md V12, as col-refresh.yml before it): nothing is ever
 # pushed to the default/deploy branch. Changes go to the bot/monthly-refresh
 # branch and a pull request for a human to review; merging it deploys.
+# Two jobs: `refresh` fetches and parses the remote sources with a READ-ONLY
+# token; `publish` (write token, no npm, no remote content parsed, checkout
+# without persisted credentials) re-applies exactly the files `refresh`
+# reported, pushes the review branch, opens the PR and updates the issue. Only
+# runs on the default branch (schedule) or a TRUSTED_BRANCHES dispatch publish.
 #
 # Repo settings this needs (the workflow degrades gracefully without them):
 #   - Settings -> Actions -> General -> Workflow permissions ->
@@ -56,11 +61,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
-      contents: write      # push the bot/monthly-refresh review branch (never the default branch)
-      pull-requests: write # open / update the review PR
-      issues: write        # open / update the data-freshness issue
-      actions: read        # restore the latest trusted job-board snapshot artifact
+      contents: read  # read-only while remote pages and PDFs are fetched and parsed
+      actions: read   # restore the latest trusted job-board snapshot artifact
+    outputs:
+      trusted: ${{ steps.trust.outputs.trusted }}
+      files: ${{ steps.refresh.outputs.files }}
+      datafiles: ${{ steps.refresh.outputs.datafiles }}
+      alerts: ${{ steps.refresh.outputs.alerts }}
     steps:
+      # Publishing (branch, PR, issue) happens only for the scheduled run (GitHub runs
+      # schedules on the default branch only) or a dispatch on the default / a trusted branch.
+      - name: Trusted branch?
+        id: trust
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          trusted=false
+          case "$GITHUB_EVENT_NAME" in
+            schedule) trusted=true ;;
+            workflow_dispatch) case " ${DEFAULT_BRANCH:-} $TRUSTED_BRANCHES " in *" $GITHUB_REF_NAME "*) trusted=true ;; esac ;;
+          esac
+          echo "trusted=$trusted" >> "$GITHUB_OUTPUT"
+          [ "$trusted" = true ] || echo "::notice::$GITHUB_REF_NAME is not the default or a trusted branch: report only (no branch, PR or issue)."
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -150,9 +173,9 @@ jobs:
           node -e '
             const o = require("./tmp/refresh/outcome.json");
             const out = require("fs").createWriteStream(process.env.GITHUB_OUTPUT, { flags: "a" });
-            out.write(`files=${o.files.length}\nalerts=${o.alerts + o.problems}\n`);
+            out.write(`files=${o.files.length}\ndatafiles=${(o.dataFiles || []).length}\nalerts=${o.alerts + o.problems}\n`);
             out.end();
-            console.log(`files changed: ${o.files.length}, alerts: ${o.alerts}, problems: ${o.problems}`);
+            console.log(`files changed: ${o.files.length} (data: ${(o.dataFiles || []).length}), alerts: ${o.alerts}, problems: ${o.problems}`);
           '
 
       # The suite runs against the refreshed data, so a PR shows which tests a
@@ -178,6 +201,20 @@ jobs:
             echo '```'
           } > tmp/refresh/tests.md
 
+      # Exactly the files the orchestrator wrote, for the publish job (which never runs npm or
+      # parses remote content). Kept a week; the report artifact is the permanent record.
+      - name: Collect the changed files
+        if: steps.refresh.outputs.files != '0' && inputs.dry_run != true
+        run: |
+          set -euo pipefail
+          node -e 'for (const f of require("./tmp/refresh/outcome.json").files) console.log(f)' > tmp/refresh/files.txt
+          mkdir -p tmp/changes
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            mkdir -p "tmp/changes/$(dirname "$f")"
+            cp -- "$f" "tmp/changes/$f"
+          done < tmp/refresh/files.txt
+
       - name: Upload the report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -187,25 +224,81 @@ jobs:
           retention-days: 90
           if-no-files-found: ignore
 
-      - name: Push the review branch and open a PR (never the default branch)
+      - name: Upload the changed files (for the publish job)
         if: steps.refresh.outputs.files != '0' && inputs.dry_run != true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: monthly-refresh-changes
+          path: tmp/changes/
+          retention-days: 7
+          if-no-files-found: error
+
+  publish:
+    needs: refresh
+    if: always() && needs.refresh.outputs.trusted == 'true' && inputs.dry_run != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write      # push the bot/monthly-refresh review branch (never the default branch)
+      pull-requests: write # open / update the review PR
+      issues: write        # open / update the data-freshness issue
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # the write token is passed to the one push below only
+
+      - name: Download the report
+        if: needs.refresh.result == 'success'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: monthly-refresh-report
+          path: tmp/refresh
+
+      - name: Download the changed files
+        if: needs.refresh.result == 'success' && needs.refresh.outputs.datafiles != '0'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: monthly-refresh-changes
+          path: tmp/changes
+
+      # A PR only when reference data changed: a month where only lastChecked / dueDate moved
+      # opens none (the next data PR carries that bookkeeping; the archive keeps the report).
+      - name: Push the review branch and open a PR (never the default branch)
+        if: needs.refresh.result == 'success' && needs.refresh.outputs.datafiles != '0'
         env:
           GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
           branch="$REVIEW_BRANCH"
+          case "$branch" in bot/*) ;; *) echo "::error::refusing to push $branch (review branches are bot/*)"; exit 1 ;; esac
           day=$(date -u +%Y-%m-%d)
-          # Stage exactly the files the orchestrator reported (never `git add -A`).
-          node -e 'for (const f of require("./tmp/refresh/outcome.json").files) console.log(f)' > tmp/refresh/files.txt
+          # Re-apply exactly the files the refresh job reported (never `git add -A`); refuse
+          # anything outside the reference data and its code copies.
+          jq -r '.files[]' tmp/refresh/outcome.json > tmp/refresh/files.txt
+          while IFS= read -r f; do
+            case "$f" in
+              ""|/*|*..*|.*|*/.*|node_modules/*|package.json|package-lock.json) echo "::error::refusing to publish '$f'"; exit 1 ;;
+            esac
+            printf '%s' "$f" | grep -Eq '^[A-Za-z0-9_][A-Za-z0-9_./-]*$' || { echo "::error::refusing to publish '$f'"; exit 1; }
+            [ -f "tmp/changes/$f" ] || { echo "::error::$f is not in the changes artifact"; exit 1; }
+            mkdir -p "$(dirname "$f")"
+            cp -- "tmp/changes/$f" "$f"
+          done < tmp/refresh/files.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "$branch"
           xargs -a tmp/refresh/files.txt -d '\n' git add --
           if git diff --cached --quiet; then echo "No changes to commit."; exit 0; fi
           git commit -m "chore(data): monthly refresh of reference data ($day)" -m "Generated by .github/workflows/monthly-refresh.yml (scripts/refresh/run.js). See the PR body for the report."
-          git push --force origin "$branch"
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
+          # The token goes to this one command (environment config), never into .git/config.
+          GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.https://github.com/.extraheader GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth" git push --force origin "$branch"
           { cat tmp/refresh/tests.md 2>/dev/null || true; echo; cat tmp/refresh/summary.md; } | head -c 64000 > tmp/refresh/pr-body.md
-          base="${{ github.event.repository.default_branch }}"
+          # schedule events carry no repository payload: ask the API for the default branch.
+          base="${DEFAULT_BRANCH:-}"
+          base="${base:-$(gh repo view "$GITHUB_REPOSITORY" --json defaultBranchRef --jq .defaultBranchRef.name)}"
           if gh pr view "$branch" --json state --jq .state 2>/dev/null | grep -q OPEN; then
             gh pr edit "$branch" --title "chore(data): monthly data refresh ($day)" --body-file tmp/refresh/pr-body.md
             echo "Updated the open PR for $branch."
@@ -215,11 +308,15 @@ jobs:
             echo "::warning::Pushed $branch but could not open a PR (enable Settings -> Actions -> General -> 'Allow GitHub Actions to create and approve pull requests', or open it by hand)."
           fi
 
+      - name: No data change, no PR
+        if: needs.refresh.result == 'success' && needs.refresh.outputs.datafiles == '0'
+        run: echo "No reference data changed (files ${{ needs.refresh.outputs.files }}, all bookkeeping); no PR this month. The report artifact has the details."
+
       - name: Open or update the data-freshness issue (drift, flags, stale entries, errors)
-        if: inputs.dry_run != true
+        if: needs.refresh.result == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
-          ALERTS: ${{ steps.refresh.outputs.alerts }}
+          ALERTS: ${{ needs.refresh.outputs.alerts }}
         run: |
           set -euo pipefail
           day=$(date -u +%Y-%m-%d)
@@ -240,3 +337,19 @@ jobs:
           else
             gh issue create --title "$title" --label "$ISSUE_LABEL" --body-file tmp/refresh/issue-body.md
           fi
+
+      # A crashed refresh would otherwise only reach the actor's failure email.
+      - name: Report a failed refresh on the data-freshness issue
+        if: needs.refresh.result != 'success' && needs.refresh.result != 'skipped'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          day=$(date -u +%Y-%m-%d)
+          run="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          msg="The monthly data refresh of $day did not finish (refresh job: ${{ needs.refresh.result }}). Nothing was published. Log and report artifact: $run"
+          gh label create "$ISSUE_LABEL" --color FBCA04 --description "Reference data needs a human (docs/DATA_FRESHNESS.md)" 2>/dev/null || true
+          open=$(gh issue list --label "$ISSUE_LABEL" --state open --json number --jq '.[0].number' 2>/dev/null || true)
+          if [ -n "$open" ]; then gh issue comment "$open" --body "$msg"
+          else gh issue create --title "Data freshness: monthly refresh failed ($day)" --label "$ISSUE_LABEL" --body "$msg"; fi
+          echo "::error::$msg"

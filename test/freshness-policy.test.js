@@ -57,3 +57,29 @@ test('households: the app.js switch (labels, bedrooms) matches server/juice.js H
     assert.equal(bedrooms, HOUSEHOLDS[key].bedrooms, `${key} bedrooms`);
   }
 });
+
+test('country currencies: the salary.js, vet-salaries.js and meta.js copies agree', () => {
+  const salary = extractConst(src('server/salary.js'), 'COUNTRY_CURRENCY');
+  const vet = extractConst(src('scripts/vet-salaries.js'), 'COUNTRY_CURRENCY');
+  const meta = extractConst(src('server/sources/meta.js'), 'COUNTRY_CUR');
+  assert.deepEqual(vet, salary, 'scripts/vet-salaries.js COUNTRY_CURRENCY equals server/salary.js');
+  for (const [k, v] of Object.entries(meta)) assert.equal(v, salary[k], `server/sources/meta.js COUNTRY_CUR.${k}`);
+});
+
+test('archive copies: report.js MIN_N and LADDER equal build-market.js MIN_N and roles.js SENIORITY_LADDER', async () => {
+  const { MIN_N } = await import('../scripts/build-market.js');
+  const { SENIORITY_LADDER } = await import('../public/features/roles.js');
+  const report = src('scripts/archive/report.js');
+  assert.equal(extractConst(report, 'MIN_N'), MIN_N);
+  assert.deepEqual(extractConst(report, 'LADDER'), [...SENIORITY_LADDER]);
+});
+
+test('methodology guide: CADENCE_DEFAULTS (its fallback when the registry is absent) equals the registry cadences', () => {
+  const defaults = extractConst(src('scripts/methodology-figures.js'), 'CADENCE_DEFAULTS');
+  const reg = JSON.parse(src('data/freshness.json'));
+  const byId = new Map(reg.entries.map((e) => [e.id, e.cadence]));
+  for (const [id, cadence] of Object.entries(defaults)) {
+    if (id === 'tax') { assert.ok(reg.entries.filter((e) => e.group === 'tax' && !e.retired).every((e) => e.cadence === cadence), 'every tax entry is yearly'); continue; }
+    assert.equal(cadence, byId.get(id), `scripts/methodology-figures.js CADENCE_DEFAULTS['${id}'] vs data/freshness.json`);
+  }
+});

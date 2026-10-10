@@ -185,6 +185,11 @@ export function nodeVersionsInUse(pkgText, workflows) {
       if (/matrix\.node/.test(v) && matrix) for (const x of matrix[1].split(',')) { const n = parseInt(x, 10); if (n) out.push({ where: `${file}:${i + 1} matrix`, major: n }); }
       else { const n = parseInt(v, 10); if (n) out.push({ where: `${file}:${i + 1}`, major: n }); }
     });
+    // Dockerfile-style files: FROM node:22-alpine
+    lines.forEach((l, i) => {
+      const m = /^\s*FROM\s+(?:[\w./-]+\/)?node:(\d+)/i.exec(l);
+      if (m) out.push({ where: `${file}:${i + 1} FROM`, major: Number(m[1]) });
+    });
   }
   return out;
 }
@@ -581,7 +586,7 @@ export async function check(ctx) {
     const wfDir = path.join(ctx.root, '.github', 'workflows');
     let files = [];
     try { files = fs.readdirSync(wfDir).filter((f) => /\.ya?ml$/.test(f)).sort(); } catch { files = []; }
-    const inUse = nodeVersionsInUse(read(ctx, 'package.json'), files.map((f) => [`.github/workflows/${f}`, read(ctx, `.github/workflows/${f}`)]));
+    const inUse = nodeVersionsInUse(read(ctx, 'package.json'), [...files.map((f) => [`.github/workflows/${f}`, read(ctx, `.github/workflows/${f}`)]), ...(ctx.exists('Dockerfile') ? [['Dockerfile', read(ctx, 'Dockerfile')]] : [])]);
     let sched;
     try { sched = await ctx.fetchJson(NODE_SCHEDULE_URL); } catch (err) {
       const missing = err && err.code === 'FIXTURE_MISSING';

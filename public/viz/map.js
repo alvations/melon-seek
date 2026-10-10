@@ -4,7 +4,7 @@
 //                        colorMode?: 'pay' | 'juice',
 //                        tiles?: { url, attribution, maxZoom, subdomains, dark: 'filter' | url } })
 //   -> { update(jobs, { fit, colorMode }), highlight(jobId|null), invalidateSize(),
-//        colorMode (getter), destroy(), leaflet }
+//        setJuiceNote(text) (an "as of" line under the Juice legend), colorMode (getter), destroy(), leaflet }
 //
 // Jobs are aggregated per location (lat/lng rounded to 0.1°; a job with several
 // locations counts in each), then greedily clustered in screen space so pills
@@ -258,6 +258,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
   // server/juice.js module (served at /lib/juice.js, bundled as dist/lib/juice.js) so a
   // re-tuned SCORE_ANCHORS / GRADES updates the legend and pin steps with no viz change.
   let jScale = toJuiceScale(juiceScale) || { netForScore: juiceNetForScore, breaks: [...JUICE_BREAKS] };
+  let juiceNote = ''; // "As of: rent … · FX … · tax …" for the scores shown (app.js, public/features/freshness.js)
   function renderJuiceLegend() {
     const legend = modeBox.querySelector('.ms-modes__legend');
     if (!legend) return;
@@ -276,6 +277,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       L.DomUtil.create('span', 'ms-modes__net', row).textContent = `${range}/yr`;
     }
     L.DomUtil.create('div', 'ms-modes__none', legend).textContent = 'Gray: no Juice data';
+    if (juiceNote) L.DomUtil.create('div', 'ms-modes__none ms-modes__asof', legend).textContent = juiceNote;
   }
   function setJuiceScale(src) {
     const sc = toJuiceScale(src);
@@ -566,6 +568,14 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     highlight(jobId) { highlighted = jobId ?? null; applyHighlight(); },
     /** Override the Juice scale: a juice.js-like module or { netForScore(score), breaks: [45, 70] }. */
     setJuiceScale,
+    /** The data as-of line under the Juice legend ('' hides it). */
+    setJuiceNote(text) {
+      const next = String(text || '');
+      if (next === juiceNote) return;
+      juiceNote = next;
+      renderJuiceLegend();
+      paintModeControl();
+    },
     /** Current pin color mode: 'pay' | 'juice'. */
     get colorMode() { return colorMode; },
     invalidateSize() {

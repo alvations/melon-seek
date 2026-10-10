@@ -1,0 +1,122 @@
+diff --git a/scripts/update-col.js b/scripts/update-col.js
+index c3d0bd7..53cef6a 100644
+--- a/scripts/update-col.js
++++ b/scripts/update-col.js
+@@ -5,16 +5,25 @@
+ //   node scripts/update-col.js --csv <file>    use a local copy of big-mac-source-data-v2.csv (offline / tests)
+ //   node scripts/update-col.js --dry-run       print what would change, write nothing
+ //   node scripts/update-col.js --out <file>    write somewhere other than data/cities.json
++//   node scripts/update-col.js --fx-from-bigmac  ALSO replace the FX table with the Big Mac
++//                                              dollar_ex column (the pre-2026-10 behaviour; this
++//                                              undoes the monthly FX refresh, so don't)
++//
++// The monthly refresh (scripts/refresh/run.js; docs/DATA_FRESHNESS.md) is the normal way to
++// update these numbers: scripts/refresh/bigmac.js for the Big Mac prices, scripts/refresh/fx.js
++// for FX (ECB monthly reference rates crossed through USD), which owns doc.fx and every city's
++// fxPerUSD. To re-derive 2/3-bedroom and USD rents after a hand edit, use
++// `node scripts/refresh/rents.js --reconcile`.
+ //
+ // What it refreshes (open, machine-readable source):
+ //   The Economist's Big Mac index source data (CC BY 4.0, github.com/TheEconomist/big-mac-data),
+ //   latest release date in the file:
+ //     - doc.bigMac.byCountry[ISO2]  local price, currency, dollar_ex, dollar price
+-//     - doc.fx.perUSD[currency]     local currency units per USD (Big Mac "dollar_ex")
+-//     - city.bigMacUSD, city.fxPerUSD
++//     - city.bigMacUSD
+ //     - city.rent1brCenterUSD / rent1brOutsideUSD / rent2brCenterUSD / rent3brCenterUSD,
+-//       re-converted from the quoted local-currency rents at the refreshed FX (the local
+-//       quotes themselves are NOT touched)
++//       re-converted from the quoted local-currency rents at the city's current fxPerUSD (the
++//       local quotes themselves are NOT touched)
++//     - with --fx-from-bigmac only: doc.fx.perUSD (Big Mac "dollar_ex") and city.fxPerUSD
+ //   and the matching `sources.*.asOf` dates.
+ //
+ // Before writing, validateDoc() checks every city's rents (1 < 2 < 3 bedrooms, each with a
+@@ -117,8 +126,11 @@ export function toUsdAt(amountLocal, perUSD) {
+ /**
+  * Apply a parsed Big Mac release to a cities document. Pure: returns a new doc plus a list of
+  * human-readable changes. Throws if the release is implausibly small (bad download).
++ * keepFx: leave doc.fx and every city's fxPerUSD alone (they belong to scripts/refresh/fx.js) and
++ * re-derive the USD rents at the city's current fxPerUSD. The CLI passes keepFx unless
++ * --fx-from-bigmac is given.
+  */
+-export function applyBigMac(doc, bm, { minCountries = 20 } = {}) {
++export function applyBigMac(doc, bm, { minCountries = 20, keepFx = false } = {}) {
+   if (!bm || !bm.date || Object.keys(bm.byCountry).length < minCountries) {
+     throw new Error(`Big Mac data looks incomplete (${bm ? Object.keys(bm.byCountry).length : 0} countries); refusing to update`);
+   }
+@@ -146,18 +158,20 @@ export function applyBigMac(doc, bm, { minCountries = 20 } = {}) {
+   out.bigMac = { asOf: bm.date, source: src, byCountry };
+   out.sourceNotes = { ...(out.sourceNotes || {}), 'big-mac': `${src.name}. ${BIG_MAC_LICENSE}. ${BIG_MAC_REPO_URL}` };
+ 
+-  // FX table (local units per USD), from the same release.
+-  const perUSD = { ...(out.fx?.perUSD || {}), USD: 1 };
+-  for (const iso2 of Object.keys(byCountry)) {
+-    const { currency, dollarEx } = byCountry[iso2];
+-    if (bm.byCountry[iso2]) perUSD[currency] = dollarEx;
++  // FX table (local units per USD), from the same release: only with --fx-from-bigmac.
++  if (!keepFx) {
++    const perUSD = { ...(out.fx?.perUSD || {}), USD: 1 };
++    for (const iso2 of Object.keys(byCountry)) {
++      const { currency, dollarEx } = byCountry[iso2];
++      if (bm.byCountry[iso2]) perUSD[currency] = dollarEx;
++    }
++    out.fx = {
++      asOf: bm.date,
++      note: 'Local currency units per US dollar, from the Big Mac data "dollar_ex" column (Refinitiv/LSEG rates as published by The Economist).',
++      source: { ...src, name: `The Economist Big Mac index source data v2, dollar_ex column (release ${bm.date})` },
++      perUSD: Object.fromEntries(Object.entries(perUSD).sort(([a], [b]) => a.localeCompare(b))),
++    };
+   }
+-  out.fx = {
+-    asOf: bm.date,
+-    note: 'Local currency units per US dollar, from the Big Mac data "dollar_ex" column (Refinitiv/LSEG rates as published by The Economist).',
+-    source: { ...src, name: `The Economist Big Mac index source data v2, dollar_ex column (release ${bm.date})` },
+-    perUSD: Object.fromEntries(Object.entries(perUSD).sort(([a], [b]) => a.localeCompare(b))),
+-  };
+ 
+   for (const city of out.cities) {
+     city.sources = city.sources || {};
+@@ -173,11 +187,14 @@ export function applyBigMac(doc, bm, { minCountries = 20 } = {}) {
+         note: 'big-mac',
+       };
+     }
+-    const fx = out.fx.perUSD[city.currency];
++    const fx = keepFx ? city.fxPerUSD : out.fx.perUSD[city.currency];
+     if (fx > 0) {
+-      if (city.fxPerUSD !== fx) changes.push(`${city.key}: fxPerUSD ${city.fxPerUSD} -> ${fx}`);
+-      city.fxPerUSD = fx;
+-      city.sources.fxPerUSD = { name: `Big Mac data dollar_ex (${city.currency} per USD)`, url: src.url, asOf: bm.date, class: 'open', note: 'big-mac' };
++      const fxAsOf = keepFx ? city.sources.fxPerUSD?.asOf || out.fx?.asOf || bm.date : bm.date;
++      if (!keepFx) {
++        if (city.fxPerUSD !== fx) changes.push(`${city.key}: fxPerUSD ${city.fxPerUSD} -> ${fx}`);
++        city.fxPerUSD = fx;
++        city.sources.fxPerUSD = { name: `Big Mac data dollar_ex (${city.currency} per USD)`, url: src.url, asOf: bm.date, class: 'open', note: 'big-mac' };
++      }
+       for (const [usdField, localField] of RENT_PAIRS) {
+         if (city[localField] == null) continue;
+         const usd = toUsdAt(city[localField], fx);
+@@ -185,10 +202,10 @@ export function applyBigMac(doc, bm, { minCountries = 20 } = {}) {
+         city[usdField] = usd;
+         const local = city.sources[localField] || {};
+         city.sources[usdField] = {
+-          name: `${localField} ÷ fxPerUSD (${fx} ${city.currency}/USD, ${bm.date})`,
++          name: `${localField} ÷ fxPerUSD (${fx} ${city.currency}/USD, ${fxAsOf})`,
+           url: local.url || src.url,
+           asOf: local.asOf || bm.date,
+-          fxAsOf: bm.date,
++          fxAsOf,
+           ...(local.class ? { class: local.class } : {}),
+           ...(local.terms ? { terms: local.terms } : {}),
+           ...(local.estimated ? { estimated: true, method: local.method } : {}),
+@@ -256,7 +273,9 @@ async function main(argv) {
+   const outFile = path.resolve(opt('--out') || CITIES_FILE);
+   const doc = JSON.parse(await fs.readFile(CITIES_FILE, 'utf8'));
+   const bm = latestBigMac(parseCsv(await readCsv(opt('--csv'))));
+-  const { doc: next, changes } = applyBigMac(doc, bm);
++  const fxFromBigMac = argv.includes('--fx-from-bigmac');
++  if (fxFromBigMac) console.warn('--fx-from-bigmac: replacing the FX table with the Big Mac dollar_ex column (this undoes the monthly ECB FX refresh)');
++  const { doc: next, changes } = applyBigMac(doc, bm, { keepFx: !fxFromBigMac });
+   const before = formatDoc(doc);
+   const after = formatDoc(next);
+   if (before === after) {

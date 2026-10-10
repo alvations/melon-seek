@@ -75,6 +75,7 @@ export function validateRegistry(reg, { root = ROOT } = {}) {
     if (e.type !== 'product-policy' && e.type !== 'derived-at-build' && e.source && e.source.url && !/^https:\/\//.test(e.source.url)) problems.push(`${at}: source.url must be https`);
     if (e.asOf != null && !DATE.test(e.asOf)) problems.push(`${at}: asOf ${e.asOf}`);
     if (e.lastChecked != null && !DATE.test(e.lastChecked)) problems.push(`${at}: lastChecked ${e.lastChecked}`);
+    if (e.dueDate != null && !DATE.test(e.dueDate)) problems.push(`${at}: dueDate ${e.dueDate}`);
     if (e.graceDays != null && !(Number.isInteger(e.graceDays) && e.graceDays >= 0)) problems.push(`${at}: graceDays`);
     if (!e.updater) problems.push(`${at}: updater`);
     else if (/^scripts\/refresh\/[\w-]+\.js$/.test(e.updater) && !fs.existsSync(path.join(root, e.updater))) problems.push(`${at}: updater ${e.updater} does not exist`);
@@ -157,6 +158,9 @@ export function normalizeResult(r, mod) {
     checklist: Array.isArray(r && r.checklist) ? r.checklist : [], module: mod,
   };
   if (r && r.archive) out.archive = r.archive;
+  // An item-level due date (the earliest due item, e.g. the oldest Numbeo page month + cadence):
+  // stored in the registry so the staleness gate agrees with the report. null clears it.
+  if (r && r.dueDate !== undefined) out.dueDate = r.dueDate && /^\d{4}-\d{2}-\d{2}$/.test(r.dueDate) ? r.dueDate : null;
   if (r && !STATUSES.includes(r.status)) out.summary = `bad status ${r.status}; ${out.summary}`;
   if (out.writes.length && out.status !== 'changed') out.writes = []; // only 'changed' may write
   if (out.writes.some((w) => path.isAbsolute(w.file) || w.file.includes('..'))) { out.status = 'error'; out.summary = `write outside the repo refused; ${out.summary}`; out.writes = []; }
@@ -174,7 +178,8 @@ export function genericResult(entry, now) {
     return { ...base, status: 'ok', summary: `refreshed by the daily job-board pipeline (${entry.updater})` };
   }
   if (s.overdue) {
-    return { ...base, status: 'stale', summary: `past due by ${-s.dueInDays} day(s): asOf ${entry.asOf || '-'}, last checked ${entry.lastChecked || '-'}, cadence ${entry.cadence} + ${s.graceDays ?? 0} days grace` };
+    const why = s.dueReason === 'taxYear' ? `tax year ${entry.taxYear} started two or more years ago` : s.dueReason === 'dueDate' ? `item due ${entry.dueDate}` : `cadence ${entry.cadence} + ${s.graceDays ?? 0} days grace`;
+    return { ...base, status: 'stale', summary: `past due by ${-s.dueInDays} day(s): asOf ${entry.asOf || '-'}, last checked ${entry.lastChecked || '-'}, ${why}` };
   }
   const due = s.dueInDays == null ? 'no fixed cadence' : `next review due in ${s.dueInDays} day(s)`;
   return { ...base, status: 'ok', summary: `${entry.mode === 'manual' ? 'manual' : 'no updater ran'}; ${due}` };
@@ -218,6 +223,11 @@ export function applyResultsToRegistry(reg, results, today) {
   for (const e of out.entries) {
     const r = byId.get(e.id);
     if (!r || r.module === 'registry' || r.module === 'pipeline') continue; // generic results confirm nothing
+    // The module's item-level due date is a fact about the data, not a check: stored for every mode.
+    if (r.dueDate !== undefined && r.status !== 'error' && r.status !== 'skipped') {
+      if (r.dueDate && e.dueDate !== r.dueDate) { e.dueDate = r.dueDate; touched = true; }
+      else if (!r.dueDate && e.dueDate != null) { delete e.dueDate; touched = true; }
+    }
     // A 'manual' result is a reminder, not a check: only a person sets lastChecked / lastReviewed.
     if (r.mode === 'manual') continue;
     if (r.status === 'ok' || r.status === 'changed') {
@@ -326,8 +336,22 @@ export async function runRefresh(opts = {}) {
     results.push(genericResult(e, now));
   }
 
-  // Registry bookkeeping (lastChecked / asOf) staged like any other write.
-  const nextReg = applyResultsToRegistry(registry, results, today);
+  // The registry mode must match what the updater reports in steady state ('ok'); a drift or
+  // flag may legitimately fall back to 'detect' (e.g. a release that cannot be read).
+  const regById = new Map(registry.entries.map((e) => [e.id, e]));
+  for (const r of results) {
+    const e = regById.get(r.id);
+    if (e && r.status === 'ok' && r.module !== 'registry' && r.module !== 'pipeline' && r.mode !== e.mode) problems.push(`registry: ${r.id} is mode '${e.mode}' but ${r.module}.js reports '${r.mode}'`);
+  }
+
+  // Registry bookkeeping (lastChecked / asOf / dueDate) staged like any other write; file:line
+  // references in owners and consumers follow their symbols (registry.js --lines).
+  let nextReg = applyResultsToRegistry(registry, results, today);
+  try {
+    const { resolveLines } = await import('./registry.js');
+    const moved = resolveLines(nextReg, root);
+    if (moved.moved.length) { nextReg = moved.reg; log(`registry: ${moved.moved.length} file:line reference(s) followed their symbol`); }
+  } catch (err) { problems.push(`could not re-resolve registry file:line references: ${err.message}`); }
   const changedFiles = overlay.changedFiles();
   if (JSON.stringify(nextReg) !== JSON.stringify(registry)) {
     overlay.stage('data/freshness.json', jsonText(nextReg), '(registry)');
@@ -374,7 +398,9 @@ export function stalenessRows(reg, now = new Date()) {
     // Job data refreshed every day by snapshot.yml / pages.yml: its age is the deploy's
     // business (site-watchdog, the snapshot badge), not the monthly refresh's.
     const pipeline = e.cadence === 'daily';
-    const status = pipeline ? 'pipeline' : e.cadence === 'ad-hoc' ? 'ad-hoc' : s.dueInDays == null ? 'unknown' : s.overdue ? 'STALE' : s.dueInDays <= 14 ? 'due soon' : 'fresh';
+    // 'ad-hoc' only when nothing schedules a review (an ad-hoc entry with reviewCadence or a
+    // dueDate has a due date like any other).
+    const status = pipeline ? 'pipeline' : e.cadence === 'ad-hoc' && s.dueInDays == null ? 'ad-hoc' : s.dueInDays == null ? 'unknown' : s.overdue ? 'STALE' : s.dueInDays <= 14 ? 'due soon' : 'fresh';
     return { id: e.id, type: e.type, mode: e.mode, cadence: e.cadence, asOf: e.asOf || null, lastChecked: e.lastChecked || null, ageDays: s.ageDays, dueInDays: s.dueInDays, status };
   });
 }
@@ -464,20 +490,27 @@ function fmt(v) {
 // ---------------------------------------------------------------- reference export (archive)
 
 /** Read one `extract` spec: { file, const } (a JS constant), { file, path } (a JSON path), or { file } (whole file). */
+/** path: 'a.b' or ['a', 'key.with.dots']; keyPrefix keeps only the object keys starting with it; pick keeps fields of array items. */
+function selectExtract(v, spec) {
+  const keys = Array.isArray(spec.path) ? spec.path : spec.path ? spec.path.split('.') : [];
+  for (const k of keys) v = v == null ? undefined : v[k];
+  if (spec.keyPrefix && v && typeof v === 'object' && !Array.isArray(v)) v = Object.fromEntries(Object.entries(v).filter(([k]) => k.startsWith(spec.keyPrefix)));
+  if (spec.pick && v && Array.isArray(v)) v = v.map((x) => Object.fromEntries(spec.pick.filter((k) => k in x).map((k) => [k, x[k]])));
+  return v;
+}
+const pathLabel = (spec) => [].concat(spec.path || []).join('.');
+
 export function readExtract(spec, root = ROOT) {
   const text = fs.readFileSync(path.join(root, spec.file), 'utf8');
   if (spec.const) {
     const v = extractConst(text, spec.const);
-    return v === undefined ? { error: `constant ${spec.const} not found or not a literal in ${spec.file}` } : { value: v };
+    if (v === undefined) return { error: `constant ${spec.const} not found or not a literal in ${spec.file}` };
+    const sel = selectExtract(v, spec);
+    return sel === undefined ? { error: `path ${pathLabel(spec)} not in ${spec.file} ${spec.const}` } : { value: sel };
   }
   if (spec.file.endsWith('.json')) {
-    let v = JSON.parse(text);
-    // path: 'a.b' or ['a', 'key.with.dots']; keyPrefix keeps only the object keys starting with it
-    const keys = Array.isArray(spec.path) ? spec.path : spec.path ? spec.path.split('.') : [];
-    for (const k of keys) v = v == null ? undefined : v[k];
-    if (spec.keyPrefix && v && typeof v === 'object' && !Array.isArray(v)) v = Object.fromEntries(Object.entries(v).filter(([k]) => k.startsWith(spec.keyPrefix)));
-    if (spec.pick && v && Array.isArray(v)) v = v.map((x) => Object.fromEntries(spec.pick.filter((k) => k in x).map((k) => [k, x[k]])));
-    return v === undefined ? { error: `path ${spec.path} not in ${spec.file}` } : { value: v };
+    const v = selectExtract(JSON.parse(text), spec);
+    return v === undefined ? { error: `path ${pathLabel(spec)} not in ${spec.file}` } : { value: v };
   }
   return { value: text };
 }
@@ -498,7 +531,9 @@ export async function readExtractAsync(spec, root = ROOT) {
   if (!r.error || !spec.const || !/\.m?js$/.test(spec.file)) return r;
   try {
     const mod = await import(pathToFileURL(path.join(root, spec.file)).href);
-    return spec.const in mod ? { value: mod[spec.const] } : r;
+    if (!(spec.const in mod)) return r;
+    const sel = selectExtract(mod[spec.const], spec);
+    return sel === undefined ? { error: `path ${pathLabel(spec)} not in ${spec.file} ${spec.const}` } : { value: sel };
   } catch { return r; }
 }
 

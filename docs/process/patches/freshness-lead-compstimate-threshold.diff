@@ -1,0 +1,13 @@
+diff --git a/public/features/compstimate.js b/public/features/compstimate.js
+index 4a89470..0c4760a 100644
+--- a/public/features/compstimate.js
++++ b/public/features/compstimate.js
+@@ -732,7 +732,7 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
+         h('span', { class: 'ms-comp__conf-label' }, `${confidence} confidence`)),
+       h('div', { class: 'ms-comp__conf-n ms-comp__basis' }, basis),
+       accuracy ? h('div', { class: `ms-comp__accuracy${lowAccuracy ? ' is-low' : ''}` }, accuracy,
+-        lowAccuracy ? h('span', { class: 'ms-comp__accuracy-note' }, ` · past estimates at ${company} missed by more than 25%`) : null) : null,
++        lowAccuracy ? h('span', { class: 'ms-comp__accuracy-note' }, ` · past estimates at ${company} missed by more than ${ACCURACY_LOW_THRESHOLD}%`) : null) : null,
+       h('div', { class: 'ms-comp__range' },
+         h('div', { class: 'ms-comp__range-ends' },
+           h('span', null, h('span', { class: 'ms-comp__k' }, 'Low '), h('b', null, formatMoney(low))),

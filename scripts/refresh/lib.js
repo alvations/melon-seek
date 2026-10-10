@@ -61,13 +61,20 @@ export function addDays(d, n) {
   const x = parseDate(d);
   return x ? new Date(x.getTime() + n * DAY) : null;
 }
+/** The date the earliest item falls due, from rows with dueInDays counted from `today` (null when none). */
+export function earliestDueDate(rows, today) {
+  const ds = (rows || []).map((r) => r && r.dueInDays).filter((x) => Number.isFinite(x));
+  return ds.length ? isoDate(addDays(today, Math.min(...ds))) : null;
+}
 
 /**
  * Staleness of a registry entry at `now`.
  * The clock starts at the later of entry.asOf and entry.lastChecked: a dataset
  * whose source has not published anything newer is fresh as long as someone
- * (or the refresh) checked it within cadence + grace.
- * -> { ageDays, checkedDays, dueInDays, overdue, cadenceDays, graceDays }
+ * (or the refresh) checked it within cadence + grace. entry.dueDate (stored by a
+ * module) and a tax year two or more years old are ceilings that lastChecked
+ * cannot extend.
+ * -> { ageDays, checkedDays, dueInDays, dueReason, overdue, cadenceDays, graceDays }
  */
 export function staleness(entry, now = new Date()) {
   const cadenceDays = CADENCE_DAYS[entry.cadence] ?? null;
@@ -87,7 +94,24 @@ export function staleness(entry, now = new Date()) {
     reviewDueInDays = reviewDays + (DEFAULT_GRACE[entry.reviewCadence] || 0) - Math.min(...rref);
     dueInDays = dueInDays == null ? reviewDueInDays : Math.min(dueInDays, reviewDueInDays);
   }
-  return { ageDays: asOfAge, checkedDays: checkedAge, reviewedDays: reviewedAge, dueInDays, reviewDueInDays, overdue: dueInDays != null && dueInDays < 0, cadenceDays, graceDays };
+  // Hard ceilings that no lastChecked can extend:
+  //  - dueDate: an item-level due date a module stored (e.g. the oldest Numbeo page month +
+  //    cadence + grace from rents.js / living.js), so the gate shows what the report shows;
+  //  - taxYear: rules for a tax year that started two or more years ago are stale whatever the
+  //    last review said (taxYear < current year - 1; asOf is the tax year's first day).
+  let dueReason = null;
+  const ceilings = [];
+  if (entry.dueDate && parseDate(entry.dueDate)) ceilings.push(['dueDate', -daysBetween(entry.dueDate, now)]);
+  if (entry.taxYear && parseDate(entry.asOf)) {
+    const a = parseDate(entry.asOf);
+    const ceiling = new Date(Date.UTC(a.getUTCFullYear() + 2, a.getUTCMonth(), a.getUTCDate()));
+    ceilings.push(['taxYear', -daysBetween(ceiling, now)]);
+  }
+  for (const [why, d] of ceilings) {
+    if (d == null) continue;
+    if (dueInDays == null || d < dueInDays) { dueInDays = d; dueReason = why; }
+  }
+  return { ageDays: asOfAge, checkedDays: checkedAge, reviewedDays: reviewedAge, dueInDays, reviewDueInDays, dueReason, overdue: dueInDays != null && dueInDays < 0, cadenceDays, graceDays };
 }
 
 // ---------------------------------------------------------------- text and numbers

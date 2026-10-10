@@ -712,3 +712,19 @@ screenshots in `docs/screenshots/`.
 - **Freshness:** run.js retries an online 'error' once; the tax "LLM second opinion" test is deterministic.
 - **Archive docs:** 928c17c, measured sizes after the rescue.
 - **Verified** on a clean worktree from 8c20896 plus exactly these files: `npm test` 579/579, build OK, e2e 103/104 (1 opt-in skip, 0 failed).
+
+### Freshness final batch: review findings fixed (2026-10-10)
+- The freshness-review agent filed 20 findings (1 high, 7 medium, 12 low); [freshness-review.md](freshness-review.md).
+- The freshness lead fixed the high and all mediums, plus most lows:
+  - rents.js re-derives the 2- and 3-bedroom rents and USD fields on every run, with `--reconcile` as the offline command;
+  - update-col.js keeps FX unless `--fx-from-bigmac` is passed;
+  - the staleness gate shows real state (lastChecked reset to live-confirmed only; 2-year-old tax rules count as stale);
+  - the monthly-refresh write token is isolated in a publish job (persist-credentials false, trusted-branch check, PR only when reference data changed);
+  - TAX_HOUSEHOLD and the archive copies are registered;
+  - every ad-hoc entry has a yearly review date;
+  - fx.js rewrites the FX_SOURCE label;
+  - jobs.js checks big-tech multi-level ranges.
+- Held patches applied: derived-ui-asof (as-of dates in the drawer, comps, Compare, Compstimate, Insights and the map legend), jobs-backtest-asof and col-ui-rent-ids. Dropped: bg-euro (already in 3361c90) and tax-export (TAX_PARAMS already exists).
+- Lead: README beta list is now the 5 crawled companies; Amazon and Meta are paused for their terms.
+- Verified on a clean worktree from 3361c90 plus exactly these files and patches: npm test 584/584 (7 skipped), build OK, YAML OK, e2e 103/104 (1 opt-in skip).
+- Registry: 133 entries.

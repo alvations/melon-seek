@@ -7,7 +7,7 @@
 //   compstimateForJob(allJobs, job, { excludeIds }?)  // estimate for one posting (excludes itself)
 //   backtest(jobs, { seed = 20261002, maxN = 500 })
 //     -> { medianAbsPctError, within10Pct, n, seed, skipped }   // percents, 1 decimal
-//   accuracyLine(meta) -> "Typically within ±8% (tested on 500 listed salaries)" | null
+//   accuracyLine(meta) -> "Typically within ±8% (tested on 500 listed salaries, Oct 2026)" | null
 //   displayConfidence(result, meta) -> "High"|"Medium"|"Low" (Low when backtest error > 25%)
 //   createCompstimateWidget(container, { getJobs, getMeta, onSelect, query })
 //     -> { update(allJobs?, meta?), setQuery(partial), getQuery(), getResult(), destroy() }
@@ -19,6 +19,7 @@ import {
   salaryUSD, weightedPercentile, percentile, median, formatMoney, plural, h, uid, locationKey,
 } from './shared.js';
 import { normalizeTitle, familySim, rolePart, roleFamily, FAMILY_LABELS, SENIORITY_LADDER } from './roles.js';
+import { compstimateAsOfText } from './freshness.js';
 
 export { percentile, weightedPercentile, salaryUSD, toUSD, FX_FALLBACK } from './shared.js';
 // Role taxonomy lives in roles.js (no imports, Node-safe); re-exported for callers.
@@ -383,12 +384,27 @@ export function accuracyFrom(meta) {
   return acc && Number.isFinite(acc.medianAbsPctError) && acc.n > 0 ? acc : null;
 }
 
-/** "Typically within ±14% (tested on 500 listed salaries)", or null without a backtest. */
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** "Oct 2026" for the backtest's computedAt (the data it was measured on), or null. */
+export function accuracyAsOf(meta) {
+  const acc = accuracyFrom(meta);
+  const t = acc && acc.computedAt ? Date.parse(acc.computedAt) : NaN;
+  if (!Number.isFinite(t)) return null;
+  const d = new Date(t);
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
+/**
+ * "Typically within ±14% (tested on 500 listed salaries, Oct 2026)", or null without a
+ * backtest. The month is the backtest's computedAt (left out when it is missing).
+ */
 export function accuracyLine(meta) {
   const acc = accuracyFrom(meta);
   if (!acc) return null;
+  const asOf = accuracyAsOf(meta);
   // Floor at ±1%: boards with standard pay bands can back-test near 0%, and "±0%" reads as broken.
-  return `Typically within ±${Math.max(1, Math.round(acc.medianAbsPctError))}% (tested on ${plural(acc.n, 'listed salary', 'listed salaries')})`;
+  return `Typically within ±${Math.max(1, Math.round(acc.medianAbsPctError))}% (tested on ${plural(acc.n, 'listed salary', 'listed salaries')}${asOf ? `, ${asOf}` : ''})`;
 }
 
 /** True when the board's backtest error is above ACCURACY_LOW_THRESHOLD (estimates are then "Low confidence"). */
@@ -732,7 +748,7 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
         h('span', { class: 'ms-comp__conf-label' }, `${confidence} confidence`)),
       h('div', { class: 'ms-comp__conf-n ms-comp__basis' }, basis),
       accuracy ? h('div', { class: `ms-comp__accuracy${lowAccuracy ? ' is-low' : ''}` }, accuracy,
-        lowAccuracy ? h('span', { class: 'ms-comp__accuracy-note' }, ` · past estimates at ${company} missed by more than 25%`) : null) : null,
+        lowAccuracy ? h('span', { class: 'ms-comp__accuracy-note' }, ` · past estimates at ${company} missed by more than ${ACCURACY_LOW_THRESHOLD}%`) : null) : null,
       h('div', { class: 'ms-comp__range' },
         h('div', { class: 'ms-comp__range-ends' },
           h('span', null, h('span', { class: 'ms-comp__k' }, 'Low '), h('b', null, formatMoney(low))),
@@ -742,7 +758,8 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
           h('span', { class: 'ms-comp__dot', style: { left: pos(mid) } })),
         h('div', { class: 'ms-comp__scale', 'aria-hidden': 'true' },
           h('span', null, formatMoney(p5)), h('span', null, scaleName), h('span', null, formatMoney(p95)))),
-      h('p', { class: 'ms-comp__explain' }, `Weighted by similarity to “${inputs.query.title}”${level}${place}. ${result.detail}`));
+      h('p', { class: 'ms-comp__explain' }, `Weighted by similarity to “${inputs.query.title}”${level}${place}. ${result.detail}`),
+      compstimateAsOfText({ fetchedAt: ctx.asOf, meta }) ? h('p', { class: 'ms-comp__asof' }, compstimateAsOfText({ fetchedAt: ctx.asOf, meta })) : null);
 
     const list = h('ol', { class: 'ms-comp__list' }, result.comparables.map((job, i) => {
       const score = Math.round((result.scores[i] ?? 0) * 100);
@@ -776,6 +793,7 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
       filters: next.filters || {},
       company: next.company ?? ctx.company,
       meta: next.meta !== undefined ? next.meta : ctx.meta,
+      asOf: next.asOf !== undefined ? next.asOf : ctx.asOf, // the board's fetchedAt, for the "as of" line
     };
     return refresh();
   }

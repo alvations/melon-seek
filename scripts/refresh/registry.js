@@ -46,8 +46,47 @@ export function taxYearOf(label, key) {
 
 const latest = (a, b) => (!b || a > b ? a : b);
 
+/**
+ * The one checklist of a tax entry (generated, never merged): the 6 steps for a jurisdiction
+ * with an income tax, 3 for a household-neutral one (no wage income tax: only premiums / levies).
+ */
+export function taxChecklist(key, src, household) {
+  const watch = `scripts/refresh/tax-watch.js (detectSources and expectedPublication for ${key})`;
+  if (household && household.basis === 'neutral') {
+    return [
+      `Check whether anything changed for the NEW tax year: the sources and the usual publication month are in ${watch}; start from ${src.url}. Confirm there is still no wage income tax and re-read the premium / levy rates and caps.`,
+      `If anything changed: update the constants in server/juice.js and TAX_SOURCES['${key}'] (name, url, asOf = the new tax year, reviewed, verified: true only after reading the official source), the golden vectors in test/juice*.test.js, and docs/LIVABILITY.md §3; run npm test.`,
+      'Run node scripts/refresh/registry.js --sync-tax --write: it sets lastChecked from TAX_SOURCES.reviewed (never edit data/freshness.json by hand).',
+    ];
+  }
+  return [
+    `Find the schedule for the NEW tax year (a new document, not the current ${src.url}): the official sources and the usual publication month are in ${watch}.`,
+    `Update the brackets, allowances, credits, caps and rates in server/juice.js (the RULES entry and the constants it uses), and TAX_HOUSEHOLD['${key}'] if the household basis (joint / individual filing) or the child credits changed.`,
+    `Update TAX_SOURCES['${key}']: name, url, asOf (the new tax year), reviewed, verified: true only after reading the official schedule; then the docs/LIVABILITY.md §3 row.`,
+    'Recompute the golden vectors in test/juice*.test.js (and test/fixtures/tax-golden.json) by hand from the official schedule, in the same change; run npm test.',
+    'Run node scripts/refresh/registry.js --sync-tax --write: it sets lastChecked from TAX_SOURCES.reviewed (never edit data/freshness.json by hand).',
+    'Regenerate the worked examples (node scripts/refresh/run.js --only derived). If a constant name, rule block or official URL changed, update scripts/refresh/tax-watch.js, re-capture its fixtures (freshness-probe.yml) and run node --test test/refresh-tax.test.js.',
+  ];
+}
+
+/** Owner refs without duplicates: one per file + text (ignoring the line number), preferring the one with a line number. */
+export function dedupeRefs(refs) {
+  const keyOf = (r) => {
+    const m = /^([\w./-]+\.\w+)(?::\d+)?\s+(.+)$/.exec(String(r).trim());
+    return m ? `${m[1]} ${m[2]}` : String(r).trim();
+  };
+  const best = new Map();
+  for (const r of refs || []) {
+    const k = keyOf(r);
+    const cur = best.get(k);
+    const hasLine = /^[\w./-]+\.\w+:\d+\s/.test(String(r));
+    if (!cur || (hasLine && !cur.hasLine)) best.set(k, { r, hasLine, i: cur ? cur.i : best.size });
+  }
+  return [...best.values()].sort((a, b) => a.i - b.i).map((x) => x.r);
+}
+
 /** Registry entries for every TAX_SOURCES key (pure). `existing` keeps hand-written fields. */
-export function taxEntries(TAX_SOURCES, existing = new Map(), { today = isoDate() } = {}) {
+export function taxEntries(TAX_SOURCES, existing = new Map(), { today = isoDate(), TAX_HOUSEHOLD = {} } = {}) {
   const out = [];
   for (const [key, src] of Object.entries(TAX_SOURCES)) {
     const id = `tax-${key.toLowerCase()}`;
@@ -59,7 +98,7 @@ export function taxEntries(TAX_SOURCES, existing = new Map(), { today = isoDate(
       group: 'tax',
       description: `Tax rules for ${key}: ${name}`,
       type: 'static-constant-from-a-source',
-      owners: prev.owners || [`server/juice.js TAX_SOURCES['${key}']`, `server/juice.js RULES.${key.split('-')[0]}`],
+      owners: dedupeRefs([...(prev.owners || [`server/juice.js TAX_SOURCES['${key}']`, `server/juice.js RULES.${key.split('-')[0]}`]), ...(TAX_HOUSEHOLD[key] ? [`server/juice.js TAX_HOUSEHOLD['${key}']`] : [])]),
       values: prev.values || name,
       consumers: prev.consumers || [
         { at: 'server/juice.js taxFor()', surface: 'drawer Juice block (Tax line: income / regional / social)' },
@@ -75,20 +114,19 @@ export function taxEntries(TAX_SOURCES, existing = new Map(), { today = isoDate(
       graceDays: prev.graceDays ?? 60,
       mode: prev.mode || 'detect',
       updater: prev.updater || 'scripts/refresh/tax.js',
-      checklist: prev.checklist || [
-        `Open ${src.url} and find the schedule for the next tax year.`,
-        `Update the brackets, allowances, caps and rates for ${key} in server/juice.js (RULES / the constants it uses).`,
-        `Update TAX_SOURCES['${key}'] (asOf, url, verified: true only after checking the official schedule) and docs/LIVABILITY.md §3.`,
-        'Update or add the golden vectors in the tax tests, then npm test.',
-        'Run node scripts/refresh/registry.js --sync-tax --write and regenerate the worked examples.',
-      ],
+      checklist: taxChecklist(key, src, TAX_HOUSEHOLD[key]),
       validator: prev.validator || 'scripts/refresh/tax.js (official figures vs encoded, newer tax year published) + test/juice*.test.js golden vectors',
       before: prev.before || 'manual, yearly (docs/LIVABILITY.md §6 step 3); no automatic check',
       // TAX_SOURCES.reviewed is the date the tax rules were last checked against the source.
       lastChecked: /^\d{4}-\d{2}-\d{2}$/.test(String(src.reviewed || '')) ? latest(src.reviewed, prev.lastChecked) : (prev.lastChecked || null),
       verified: !!src.verified,
       archive: true,
-      extract: prev.extract || [{ file: 'server/juice.js', const: 'TAX_SOURCES', as: 'TAX_SOURCES' }],
+      // This jurisdiction's own source record and household basis (archived per jurisdiction, so a
+      // change in one country versions only its dataset).
+      extract: [
+        { file: 'server/juice.js', const: 'TAX_SOURCES', path: [key], as: 'TAX_SOURCES' },
+        ...(TAX_HOUSEHOLD[key] ? [{ file: 'server/juice.js', const: 'TAX_HOUSEHOLD', path: [key], as: 'TAX_HOUSEHOLD' }] : []),
+      ],
       ...(prev.notes ? { notes: prev.notes } : {}),
       ...(src.verified ? {} : { notes: [prev.notes, 'TAX_SOURCES marks this schedule unverified'].filter(Boolean).join('; ') }),
     });
@@ -108,7 +146,7 @@ export function mergeEntries(reg, fragment) {
       const cur = out.entries[byId.get(f.id)];
       const consumers = [...(cur.consumers || [])];
       for (const c of f.consumers || []) if (!consumers.some((x) => x.at === c.at && x.surface === c.surface)) consumers.push(c);
-      const owners = [...new Set([...(cur.owners || []), ...(f.owners || [])])];
+      const owners = dedupeRefs([...new Set([...(cur.owners || []), ...(f.owners || [])])]);
       const next = { ...cur };
       for (const [k, v] of Object.entries(f)) {
         const empty = v == null || v === '' || (Array.isArray(v) && !v.length);
@@ -147,8 +185,12 @@ export function resolveLines(reg, root = ROOT) {
     if (!L) return ref;
     const base = sym.split('.')[0];
     if ((L[Number(ln) - 1] || '').includes(base)) return ref;
-    let i = L.findIndex((l) => new RegExp(`(?:const|let|var|function|class)\\s+${base.replace(/\$/g, '\\$')}\\b`).test(l));
-    if (i < 0) i = L.findIndex((l) => l.includes(base));
+    // a top-level definition (not an indented local of the same name)
+    let i = L.findIndex((l) => new RegExp(`^(?:export\\s+)?(?:async\\s+)?(?:const|let|var|function\\*?|class)\\s+${base.replace(/\$/g, '\\$')}\\b`).test(l));
+    // Without a definition, follow only code identifiers (UPPER_CASE, camelCase, a.b): a prose
+    // word ("drawer", "and") would land on its first occurrence anywhere in the file.
+    const identifier = /[A-Z_$]/.test(base) && !/^[A-Z][a-z]+$/.test(base) || sym.includes('.');
+    if (i < 0 && identifier) i = L.findIndex((l) => l.includes(base));
     if (i < 0) return ref;
     const next = ref.replace(`${file}:${ln}`, `${file}:${i + 1}`);
     moved.push(`${ref} -> ${file}:${i + 1}`);
@@ -309,13 +351,19 @@ async function main(argv) {
     return 1;
   }
   if (argv.includes('--sync-tax')) {
-    const { TAX_SOURCES } = await import(pathToFileURL(path.join(ROOT, 'server', 'juice.js')).href);
+    const { TAX_SOURCES, TAX_HOUSEHOLD } = await import(pathToFileURL(path.join(ROOT, 'server', 'juice.js')).href);
     const existing = new Map(reg.entries.map((e) => [e.id, e]));
-    const tax = taxEntries(TAX_SOURCES, existing);
+    const tax = taxEntries(TAX_SOURCES, existing, { TAX_HOUSEHOLD: TAX_HOUSEHOLD || {} });
     const ids = new Set(tax.map((e) => e.id));
     const stale = reg.entries.filter((e) => e.group === 'tax' && !ids.has(e.id) && !e.retired);
     for (const e of stale) { e.retired = isoDate(); console.log(`retired ${e.id} (no longer in TAX_SOURCES)`); }
     ({ reg } = mergeEntries(reg, tax));
+    // The generated checklist, owners and extract replace what a merge would union.
+    const gen = new Map(tax.map((e) => [e.id, e]));
+    for (const e of reg.entries) {
+      const g = gen.get(e.id);
+      if (g) { e.checklist = g.checklist; e.extract = g.extract; e.owners = g.owners; }
+    }
     console.log(`tax entries: ${tax.length}`);
   }
   const mi = argv.indexOf('--merge');
