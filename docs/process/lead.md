@@ -599,3 +599,13 @@ screenshots in `docs/screenshots/`.
   - Deploy engineer, [beta-deploy.md](beta-deploy.md). Owns: build-static.js, the workflows, api.js, server/index.js, the links policy and the Beta pill. Does not push.
   - Juice household, [juice-household.md](juice-household.md). Owns: cities.json, and the rent, living and household parts of juice.js plus their UI. Its job is to verify rents against official data, without adding new Numbeo inputs (§4.1). Does not push product code.
   - Juice tax, [juice-tax.md](juice-tax.md). Owns: the tax section of juice.js and golden vectors from official schedules, starting with the user's SF $675K case. Adds a household filing status where it can be verified. Does not push product code.
+
+### Data freshness: monthly refresh of every number (2026-10-10)
+- **Request:** "make sure that all the numbers we're citing and comparing the juice, the compensation, the levels etc. there's a way to pull in new data to update all of them … monthly … be VERY VERY thorough … list down all the numbers and comparison and places … auto-updating of EACH of those numbers. Launch any amount of sub-agents."
+- **Agent:** freshness lead, [freshness-lead.md](freshness-lead.md); its prompt is in prompts/. It may launch its own sub-agents: inventory auditors, updater builders per data family, and a reviewer. If it can't, it asks the lead to launch them.
+- **Deliverables:**
+  - `data/freshness.json` (registry) and `docs/DATA_FRESHNESS.md` (inventory and runbook);
+  - `scripts/refresh/**` with `monthly-refresh.yml`, which reviews changes through a bot branch and PR or issue, never by pushing directly;
+  - `test/freshness.test.js` as a staleness gate (warn-only on deploy);
+  - a finding on whether scheduled workflows fire from the default branch.
+- **Coordination.** It reads, but doesn't edit, the files of the 4 running agents (big-tech data, beta deploy, Juice household, Juice tax). Changes it needs in their files go to `docs/process/patches/freshness-*.diff`, which the lead applies after those agents finish.
