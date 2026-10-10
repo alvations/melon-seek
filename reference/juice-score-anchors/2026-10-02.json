@@ -1,0 +1,22 @@
+{
+ "dataset": "juice-score-anchors",
+ "asOf": "2026-10-02",
+ "taxYear": null,
+ "source": {
+  "name": "melon-seek (our own choice)",
+  "url": "https://github.com/alvations/melon-seek",
+  "licence": "repository licence"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "server/juice.js#SCORE_ANCHORS": {
+   "curve": "exponential",
+   "K": 80000,
+   "fullGlassUSD": 423866
+  },
+  "public/viz/palette.js#JUICE_ANCHORS": {
+   "K": 80000,
+   "fullGlassUSD": 423866
+  }
+ }
+}

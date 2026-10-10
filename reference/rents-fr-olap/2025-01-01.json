@@ -1,0 +1,24 @@
+{
+ "dataset": "rents-fr-olap",
+ "asOf": "2025-01-01",
+ "taxYear": null,
+ "source": {
+  "name": "Résultats nationaux des observatoires locaux des loyers (Base_OP_<year>_Nationale.csv)",
+  "url": "https://www.data.gouv.fr/fr/datasets/resultats-nationaux-des-observatoires-locaux-des-loyers/",
+  "licence": "Licence Ouverte / Open Licence 2.0"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "bedroomRatios.FR": {
+   "label": "OLAP new tenants, Paris, 2025",
+   "name": "Observatoire des loyers de l'agglomération parisienne (OLAP), loyers 2025, Paris intra-muros, tenants who moved in less than a year ago: median monthly rent excluding charges by rooms (2 rooms €1,180, 3 rooms €1,750, 4 or more rooms €2,548; 2 / 3 / 4+ rooms = 1 / 2 / 3+ bedrooms)",
+   "url": "https://www.data.gouv.fr/fr/datasets/resultats-nationaux-des-observatoires-locaux-des-loyers/",
+   "asOf": "2025-01",
+   "file": "https://www.observatoires-des-loyers.org/datagouv/2025/Base_OP_2025_Nationale.csv",
+   "license": "Licence Ouverte / Open Licence 2.0",
+   "note": "Rents at 1 January 2025 (data year 2025). The \"4 or more rooms\" class averages 99 m², so it overstates a typical 3-bedroom flat.",
+   "r2": 1.483,
+   "r3": 2.159
+  }
+ }
+}

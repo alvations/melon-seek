@@ -1,0 +1,812 @@
+{
+ "dataset": "tax-us-tx",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "No state income tax on wages (Texas Constitution art. 8 §24-a)",
+  "url": "https://statutes.capitol.texas.gov/Docs/CN/htm/CN.8.htm",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "TAX_SOURCES": {
+   "US": {
+    "name": "IRS Rev. Proc. 2025-32 (2026 brackets, standard deduction $16,100 / $32,200, child tax credit $2,200); IRC §164(b)(7) SALT cap $40,400 phased down over $505,000 MAGI (floor $10,000); Pub. 15 (2026) Social Security 6.2% to $184,500, Medicare 1.45% + 0.9% over $200,000 / $250,000",
+    "url": "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+    "checkedVia": [
+     "https://www.irs.gov/pub/irs-pdf/p15.pdf",
+     "https://www.irs.gov/taxtopics/tc560",
+     "https://www.law.cornell.edu/uscode/text/26/164",
+     "https://www.irs.gov/pub/irs-pdf/i1040sca.pdf",
+     "https://www.irs.gov/pub/irs-pdf/i1040s8.pdf"
+    ],
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": true,
+    "notModeled": [
+     "refundable part of the child tax credit",
+     "itemized deductions other than state and local income taxes",
+     "alternative minimum tax"
+    ]
+   },
+   "US-CA": {
+    "name": "California FTB 2025 tax rate schedules X / Y (latest published; EDD 2026 withholding uses the same brackets), standard deduction $5,706 / $11,412, exemption credit $153 cut $6 per $2,500 over $252,203 / $504,411 AGI, Behavioral Health Services Tax 1% over $1M; SDI 1.3% of all wages (2026)",
+    "url": "https://www.ftb.ca.gov/forms/2025/2025-540-tax-rate-schedules.pdf",
+    "checkedVia": [
+     "https://www.ftb.ca.gov/forms/2025/2025-540-booklet.pdf",
+     "https://edd.ca.gov/siteassets/files/pdf_pub_ctr/26methb.pdf",
+     "https://edd.ca.gov/en/payroll_taxes/rates_and_withholding/"
+    ],
+    "asOf": "2025 (brackets) / 2026 (SDI)",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "personal exemption credit amount $153 (printed on Form 540, not in the booklet text)"
+    ],
+    "notModeled": [
+     "dependent exemption credit (amount not verified)",
+     "alternative minimum tax"
+    ]
+   },
+   "US-NY": {
+    "name": "New York State 2026 (IT-2105-I): rates, tax-benefit recapture worksheets, standard deduction $8,000 / $16,050, $1,000 per dependent; Paid Family Leave 0.432% to $411.91; disability benefits $0.60 a week",
+    "url": "https://www.tax.ny.gov/pdf/current_forms/it/it2105i.pdf",
+    "checkedVia": [
+     "https://www.tax.ny.gov/pdf/2025/inc/it201i_2025.pdf"
+    ],
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "Paid Family Leave 0.432% / $411.91 (secondary source; DFS page blocked)",
+     "disability benefits 0.5% up to $0.60 a week"
+    ],
+    "notModeled": [
+     "Empire State child credit"
+    ]
+   },
+   "US-WA": {
+    "name": "No income tax on wages; WA Cares 0.58% of all wages; Paid Family and Medical Leave 1.13% (employee 71.43%)",
+    "url": "https://wacaresfund.wa.gov/employers/",
+    "checkedVia": [
+     "https://esd.wa.gov/node/1109",
+     "https://paidleave.wa.gov/employers/"
+    ],
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "PFML wage cap taken as the Social Security wage base"
+    ]
+   },
+   "US-TX": {
+    "name": "No state income tax on wages (Texas Constitution art. 8 §24-a)",
+    "url": "https://statutes.capitol.texas.gov/Docs/CN/htm/CN.8.htm",
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "constitution text did not render for the probe"
+    ]
+   },
+   "US-FL": {
+    "name": "No state income tax on wages (Florida Constitution art. VII §5(a))",
+    "url": "https://www.leg.state.fl.us/statutes/index.cfm?submenu=3",
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": true
+   },
+   "US-TN": {
+    "name": "No state income tax on wages (Hall tax repealed from 2021; Tennessee Constitution art. II §28)",
+    "url": "https://www.capitol.tn.gov/about/docs/TN-Constitution.pdf",
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "tn.gov and the constitution PDF were not readable from the probe"
+    ]
+   },
+   "US-NV": {
+    "name": "No state income tax on wages (Nevada Constitution art. 10 §1(9))",
+    "url": "https://www.leg.state.nv.us/const/nvconst.html",
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": true
+   },
+   "US-MA": {
+    "name": "Massachusetts Form 1 (2025): 5% after the personal exemption $4,400 / $8,800, $1,000 per dependent and up to $2,000 of FICA; 4% surtax over $1,107,750 (2026 Form 1-ES); PFML employee 0.46% to the Social Security wage base",
+    "url": "https://www.mass.gov/doc/2025-form-1-instructions/download",
+    "checkedVia": [
+     "https://www.mass.gov/doc/2026-form-1-es-estimated-tax-payment-vouchers-instructions-and-worksheets/download"
+    ],
+    "asOf": "2025 / 2026 (surtax)",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "PFML employee share 0.46% (secondary source; mass.gov rate page blocked)"
+    ]
+   },
+   "US-GA": {
+    "name": "Georgia HB 463: 4.99% for 2026, standard deduction $15,000 / $30,000, $5,000 per dependent",
+    "url": "https://www.legis.ga.gov/api/legislation/document/20252026/249080",
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": true
+   },
+   "US-DC": {
+    "name": "District of Columbia 4%-10.75% (tax years after 2021, all filing statuses); standard deduction $15,000 / $30,000",
+    "url": "https://otr.cfo.dc.gov/page/dc-individual-and-fiduciary-income-tax-rates",
+    "asOf": "2025",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "standard deduction $15,000 / $30,000 (secondary source)"
+    ]
+   },
+   "US-AL": {
+    "name": "Alabama Form 40 (2025): 2% / 4% / 5%, federal income tax deduction, standard deduction chart ($2,500 / $5,000 from $35,500 AGI), personal exemption $1,500 / $3,000, dependents $1,000 / $500 / $300 (Huntsville: no occupational tax)",
+    "url": "https://www.revenue.alabama.gov/wp-content/uploads/2026/01/25f40bk.pdf",
+    "asOf": "2025",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "rate brackets ($500 / $3,000 single, $1,000 / $6,000 joint) not re-read"
+    ]
+   },
+   "US-OH": {
+    "name": "Ohio ORC 5747.02(A)(3)(c): $332 + 2.75% over $26,050 (2026 on); ORC 5747.025 personal exemptions, none from $500,000 MAGI in 2026",
+    "url": "https://codes.ohio.gov/ohio-revised-code/section-5747.02",
+    "checkedVia": [
+     "https://codes.ohio.gov/ohio-revised-code/section-5747.025",
+     "https://tax.ohio.gov/static/forms/ohio_individual/individual/2025/it1040-booklet.pdf"
+    ],
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "2026 indexed exemption amounts (2025 values $2,400 / $2,150 / $1,900 used)"
+    ]
+   },
+   "US-VA": {
+    "name": "Virginia Form 760 (2025): 2%-5.75%, standard deduction $8,750 / $17,500 (2025 and 2026), $930 per exemption",
+    "url": "https://www.tax.virginia.gov/sites/default/files/vatax-pdf/2025-760-instructions.pdf",
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": true
+   },
+   "US-IL": {
+    "name": "Illinois 4.95%, exemption $2,925 per person for 2026 (IL-700-T), none above $250,000 / $500,000 AGI",
+    "url": "https://tax.illinois.gov/content/dam/soi/en/web/tax/forms/withholding/documents/currentyear/il-700-t.pdf",
+    "checkedVia": [
+     "https://tax.illinois.gov/content/dam/soi/en/web/tax/forms/incometax/documents/currentyear/individual/il-1040-instr.pdf"
+    ],
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": true
+   },
+   "US-CO": {
+    "name": "Colorado 4.4% of federal taxable income (2025 rate); state income tax addback (an itemizer keeps the standard deduction); deduction capped at $1,000 / $2,000 above $300,000 AGI from 2026",
+    "url": "https://tax.colorado.gov/individual-income-tax-guide",
+    "checkedVia": [
+     "https://tax.colorado.gov/sites/tax/files/documents/ITT_State_Income_Tax_Addback_Nov_2025.pdf",
+     "https://tax.colorado.gov/sites/tax/files/documents/DR0104_2025.pdf"
+    ],
+    "asOf": "2025 (rate) / 2026 (addback)",
+    "reviewed": "2026-10-10",
+    "verified": true,
+    "notModeled": [
+     "FAMLI paid-leave premium (0.45% employee, page blocked)",
+     "Denver occupational privilege tax"
+    ]
+   },
+   "US-PA": {
+    "name": "Pennsylvania 3.07% of compensation; unemployment compensation employee withholding 0.07%",
+    "url": "https://www.pa.gov/agencies/revenue/resources/tax-types-and-information/personal-income-tax",
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "UC employee rate 0.07%"
+    ]
+   },
+   "US-NC": {
+    "name": "North Carolina 3.99% (2026), standard deduction $12,750 / $25,500, child deduction table (D-401)",
+    "url": "https://www.ncdor.gov/taxes-forms/individual-income-tax",
+    "checkedVia": [
+     "https://www.ncdor.gov/2025-d-401-individual-income-tax-instructions/open"
+    ],
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": true
+   },
+   "US-OR": {
+    "name": "Oregon 2026 withholding formulas: 4.75%-9.9%, standard deduction $2,910 / $5,820, federal tax subtraction (max $8,750, phased out from $125,000 / $250,000), exemption credit $263; statewide transit tax 0.1%; Paid Leave Oregon 1% (employee 60%)",
+    "url": "https://www.oregon.gov/dor/forms/FormsPubs/withholding-tax-formulas_206-436_2026.pdf",
+    "checkedVia": [
+     "https://www.oregon.gov/dor/programs/businesses/Pages/Statewide-Transit-Tax.aspx",
+     "https://paidleave.oregon.gov/employers/"
+    ],
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "Paid Leave employee share 60% (secondary source)"
+    ]
+   },
+   "US-UT": {
+    "name": "Utah TC-40 (2025): 4.5% less the taxpayer tax credit (6% of the federal standard deduction + $2,111 per dependent, cut 1.3% over $18,213 / $36,426)",
+    "url": "https://tax.utah.gov/forms/current/tc-40inst.pdf",
+    "asOf": "2025",
+    "reviewed": "2026-10-10",
+    "verified": true,
+    "notModeled": [
+     "any 2026 rate change"
+    ]
+   },
+   "US-AZ": {
+    "name": "Arizona Form 140 (2025): 2.5%, standard deduction $15,750 / $31,500, $100 dependent credit",
+    "url": "https://azdor.gov/sites/default/files/document/FORMS_INDIVIDUAL_2025_140i.pdf",
+    "asOf": "2025",
+    "reviewed": "2026-10-10",
+    "verified": true
+   },
+   "US-MN": {
+    "name": "Minnesota 2026: 5.35%-9.85%, standard deduction $15,300 / $30,600, dependent exemption $5,300; Paid Leave 0.88% (half from the employee)",
+    "url": "https://www.revenue.state.mn.us/mndor-pp/21641",
+    "checkedVia": [
+     "https://paidleave.mn.gov/employers/premiums"
+    ],
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "Paid Leave employee share 0.44%"
+    ],
+    "notModeled": [
+     "standard deduction phase-out at high income"
+    ]
+   },
+   "US-MI": {
+    "name": "Michigan 4.25%, personal exemption $5,900 per person (2026 withholding data)",
+    "url": "https://www.michigan.gov/taxes/-/media/Project/Websites/taxes/Tax-Interest-Calculator/2026WithholdingtaxinfoJson.json",
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": true
+   },
+   "US-MD": {
+    "name": "Maryland 2025 (Budget Reconciliation and Financing Act 2025): 2%-6.5% with 6.25% / 6.5% top brackets, standard deduction $3,350 / $6,700",
+    "url": "https://www.marylandtaxes.gov/individual/income/tax-info/tax-rates.php",
+    "asOf": "2025",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "brackets below $500,000 / $600,000 (assumed unchanged)"
+    ],
+    "notModeled": [
+     "personal exemptions ($3,200 phased out above $100,000, not verified)"
+    ]
+   },
+   "US-LOCAL-NYC": {
+    "name": "New York City resident tax 3.078%-3.876% on NYS taxable income, NYC school tax credit (IT-2105-I 2026)",
+    "url": "https://www.tax.ny.gov/pdf/current_forms/it/it2105i.pdf",
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": true
+   },
+   "US-LOCAL-COLUMBUS": {
+    "name": "Columbus, OH city income tax 2.5% (IR-25 instructions)",
+    "url": "https://www.columbus.gov/files/sharedassets/city/v/4/city-auditor/tax-forms/individuals/2024-ir-25-instructions.pdf",
+    "asOf": "2024",
+    "reviewed": "2026-10-10",
+    "verified": true
+   },
+   "US-LOCAL-PHILADELPHIA": {
+    "name": "Philadelphia resident wage tax 3.74% to 30 June 2026, 3.735% from 1 July 2026 (calendar-year average)",
+    "url": "https://www.phila.gov/services/payments-assistance-taxes/business-taxes/wage-tax-employers/",
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": true
+   },
+   "US-LOCAL-PITTSBURGH": {
+    "name": "Pittsburgh earned income tax 3% (city 1% + school district 2%) and $52 Local Services Tax",
+    "url": "https://www.pittsburghpa.gov/finance/tax-descriptions",
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": true
+   },
+   "US-LOCAL-DETROIT": {
+    "name": "Detroit resident city income tax 2.4%, $600 exemption per person",
+    "url": "https://detroitmi.gov/departments/office-chief-financial-officer/ocfo-divisions/office-treasury/income-tax",
+    "checkedVia": [
+     "https://finance.umich.edu/sites/default/files/2026-01/2026%20Figuring%20Your%20Taxes.pdf"
+    ],
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "rate and exemption from a university payroll guide (detroitmi.gov blocked)"
+    ]
+   },
+   "US-LOCAL-PORTLAND": {
+    "name": "Portland area 2026: Metro supportive housing 1% over $128,000 / $205,000, Multnomah preschool 1.5% over $125,000 / $200,000 + 1.5% over $250,000 / $400,000 (Oregon taxable income), arts tax $50",
+    "url": "https://www.portland.gov/revenue/personal-tax",
+    "checkedVia": [
+     "https://www.portland.gov/revenue/arts-tax"
+    ],
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": true
+   },
+   "US-LOCAL-MD-COUNTY": {
+    "name": "Maryland local income tax, Baltimore City 3.2% of Maryland taxable income",
+    "url": "https://www.marylandtaxes.gov/individual/income/tax-info/tax-rates.php",
+    "asOf": "2025",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "Baltimore City rate 3.20% (Comptroller page renders client-side)"
+    ]
+   },
+   "GB": {
+    "name": "HMRC 2026/27: personal allowance £12,570 (tapered over £100,000), 20% / 40% / 45% (£37,700 / £125,140); employee Class 1 NICs 8% from £12,570 to £50,270, 2% above",
+    "url": "https://www.gov.uk/government/publications/rates-and-allowances-income-tax/income-tax-rates-and-allowances-current-and-past",
+    "checkedVia": [
+     "https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027"
+    ],
+    "asOf": "2026/27",
+    "reviewed": "2026-10-10",
+    "verified": true
+   },
+   "GB-SCT": {
+    "name": "Scottish income tax 2026/27: 19% / 20% / 21% / 42% / 45% / 48% (bands to £16,537 / £29,526 / £43,662 / £75,000 / £125,140)",
+    "url": "https://www.gov.uk/scottish-income-tax",
+    "asOf": "2026/27",
+    "reviewed": "2026-10-10",
+    "verified": true
+   },
+   "IE": {
+    "name": "Revenue 2026: 20% to €44,000 (married, one income: €53,000) then 40%, personal credit €2,000 (married €4,000) + employee credit €2,000; USC 0.5% / 2% / 3% / 8%; PRSI Class A 4.2% to 30 Sep 2026, 4.35% from 1 Oct",
+    "url": "https://www.revenue.ie/en/personal-tax-credits-reliefs-and-exemptions/tax-relief-charts/index.aspx",
+    "checkedVia": [
+     "https://www.revenue.ie/en/jobs-and-pensions/usc/standard-rates-thresholds.aspx",
+     "https://www.citizensinformation.ie/en/social-welfare/irish-social-welfare-system/social-insurance-prsi/paying-social-insurance/"
+    ],
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": true
+   },
+   "CH": {
+    "name": "Direct federal tax 2026 (ESTV tariffs, single and married, CHF 263 per child), deductions: work expenses 3% (CHF 2,000-4,000), insurance CHF 1,800 / 3,700 + 700 per child, child CHF 6,800, married CHF 2,800; employee AHV/IV/EO 5.3%, ALV 1.1% to CHF 148,200, non-occupational accident ~1% (2nd pillar excluded and not deducted)",
+    "url": "https://www.estv.admin.ch/dam/de/sd-web/vFK3ntWLQ4s4/2-215-D-2025-d.pdf",
+    "checkedVia": [
+     "https://www.ahv-iv.ch/p/2.01.d"
+    ],
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "approximate": true,
+    "unverified": [
+     "ALV 1.1% to CHF 148,200",
+     "non-occupational accident premium ~1% (insurer-specific)"
+    ],
+    "notModeled": [
+     "deduction of 2nd-pillar contributions",
+     "commuting and meal deductions",
+     "church tax"
+    ]
+   },
+   "CH-ZH": {
+    "name": "Canton of Zurich 2026 (Kantonsblatt ZH): Grundtarif / Verheiratetentarif 0%-13%, insurance deduction CHF 2,900 / 5,800 + 1,300 per child, child deduction CHF 9,400; cantonal Steuerfuss 95% (Kantonsrat, 15 Dec 2025) + City of Zurich 119%",
+    "url": "https://www.estv2.admin.ch/stp/kb/zh-de.pdf",
+    "checkedVia": [
+     "https://www.notes.zh.ch/appl/zhlex_r.nsf/WebView/BA3B8CC78A88D4DEC1258D88003B2E23/$File/631.21_15.12.25_132.pdf"
+    ],
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "City of Zurich Steuerfuss 119% (city pages not reachable)"
+    ]
+   },
+   "CH-GE": {
+    "name": "Geneva (canton GE): approximation, one combined federal + cantonal + communal marginal schedule calibrated to the cantonal calculator (not re-derived)",
+    "url": "https://www.estv2.admin.ch/stp/kb/ge-fr.pdf",
+    "asOf": "2025",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "approximate": true,
+    "estimated": true
+   },
+   "DE": {
+    "name": "§ 32a EStG 2026 tariff (Grundfreibetrag €12,348) with splitting for married couples; Soli 5.5% with Freigrenze €20,350 / €40,700; children: Kinderfreibetrag €6,828 + €2,928 or Kindergeld €259/month; social: pension 9.3% + unemployment 1.3% to €101,400, health 7.3% + 1.45% (half the 2.9% average Zusatzbeitrag) + care 1.8% (+0.6% childless) to €69,750",
+    "url": "https://dejure.org/gesetze/EStG/32a.html",
+    "checkedVia": [
+     "https://dejure.org/gesetze/SolZG/3.html",
+     "https://www.finanzamt.nrw.de/en/node/31",
+     "https://www.bmas.de/DE/Service/Presse/Pressemitteilungen/2025/sozialversicherungsrechengroessen-2026.html",
+     "https://dejure.org/gesetze/SGB_XI/55.html"
+    ],
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "contribution rates 9.3% / 1.3% / 7.3% / care 1.8% (statutory rates not re-read)"
+    ],
+    "notModeled": [
+     "care-insurance reduction of 0.25 points from the second child"
+    ]
+   },
+   "FR": {
+    "name": "Barème on 2025 income (latest enacted): 0/11/30/41/45%, quotient familial with the €1,807 cap per half-part, 10% deduction (cap €14,555), CEHR 3% / 4%; employee contributions 2026: old age 6.90% to the PASS (€48,060) + 0.40%, AGIRC-ARRCO 3.15% / 8.64%, CEG 0.86% / 1.08%, CET 0.14%, APEC 0.024%, CSG 9.2% + CRDS 0.5% on 98.25% to 4 PASS",
+    "url": "https://www.service-public.fr/particuliers/vosdroits/F1419",
+    "checkedVia": [
+     "https://www.impots.gouv.fr/www2/fichiers/documentation/brochure/ir_2026/pdf_som/21-calcul_impot_369a382.pdf",
+     "https://www.service-public.fr/particuliers/vosdroits/F31130",
+     "https://www.service-public.fr/particuliers/vosdroits/F1989",
+     "https://www.urssaf.fr/accueil/outils-documentation/taux-baremes/taux-cotisations-secteur-prive.html",
+     "https://www.urssaf.fr/accueil/outils-documentation/taux-baremes/plafonds-securite-sociale.html",
+     "https://www.agirc-arrco.fr/storage/chiffrAA_2026_VF.pdf"
+    ],
+    "asOf": "2025 income (barème) / 2026 (contributions)",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "AGIRC-ARRCO employee shares 3.15% / 8.64% (derived from the contractual rates)",
+     "APEC 0.024%"
+    ],
+    "notModeled": [
+     "décote (low incomes only)",
+     "company health and provident plans"
+    ]
+   },
+   "NL": {
+    "name": "Box 1 2026: 35.75% to €38,883, 37.56% to €78,426, 49.50% above (incl. national insurance); general credit €3,115 (cut 6.398% over €29,736); labour credit table 2026. 30% ruling not modeled",
+    "url": "https://www.belastingdienst.nl/wps/wcm/connect/nl/voorlopige-aanslag/content/voorlopige-aanslag-tarieven-en-heffingskortingen",
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": true
+   },
+   "ES": {
+    "name": "IRPF state scale (art. 63 LIRPF) 9.5%-24.5%, personal minimum €5,550, €2,000 work deduction; employee social security 2026 6.50% (4.70 + 1.55 + 0.10 + MEI 0.15) to €61,214.40. Regional part: the region's scale (state scale where none is set)",
+    "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764",
+    "checkedVia": [
+     "https://www.seg-social.es/wps/portal/wss/internet/Trabajadores/CotizacionRecaudacionTrabajadores/36537"
+    ],
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": true,
+    "notModeled": [
+     "solidarity contribution on pay above the maximum base"
+    ]
+   },
+   "ES-MD": {
+    "name": "Comunidad de Madrid regional scale: five tranches 8.5% to 20.5% (to €13,362.22 / €19,004.63 / €35,425.68 / €57,320.40)",
+    "url": "https://www.hacienda.gob.es/sgfal/financiacionterritorial/autonomica/capitulo-i-tributacion-autonomica-2026.pdf",
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "tranche thresholds (the 2026 summary confirms five tranches from 8.50% to 20.50%)"
+    ],
+    "notModeled": [
+     "Madrid's higher regional minimums"
+    ]
+   },
+   "ES-CT": {
+    "name": "Catalonia regional scale 9.5%-25.5% (to €12,500 / 22,000 / 33,000 / 53,000 / 90,000 / 120,000 / 175,000)",
+    "url": "https://www.hacienda.gob.es/sgfal/financiacionterritorial/autonomica/capitulo-ii-tributacion-autonomica-2025.pdf",
+    "asOf": "2025",
+    "reviewed": "2026-10-10",
+    "verified": true,
+    "notModeled": [
+     "Catalonia's own personal minimum"
+    ]
+   },
+   "PT": {
+    "name": "IRS 2026 scale 12.5%-48% (Lei 73-A/2025, CIRS art. 68), solidarity surcharge 2.5% / 5% over €80,000 / €250,000; specific deduction €4,462.15 or contributions; social security 11%. IFICI regime not modeled",
+    "url": "https://info.portaldasfinancas.gov.pt/pt/informacao_fiscal/codigos_tributarios/cirs_rep/Pages/irs68.aspx",
+    "checkedVia": [
+     "https://info.portaldasfinancas.gov.pt/pt/informacao_fiscal/codigos_tributarios/cirs_rep/Pages/irs68a.aspx"
+    ],
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "specific deduction €4,462.15 (2026 IAS not read)",
+     "employee social security 11%"
+    ]
+   },
+   "IT": {
+    "name": "IRPEF 2026 23/33/43%; Lombardy regional surcharge up to 1.73% + Milan municipal 0.8%; INPS 9.19% to €120,607",
+    "url": "https://www.agenziaentrate.gov.it/",
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "approximate": true,
+    "unverified": [
+     "all values (agenziaentrate page did not list the scale)"
+    ]
+   },
+   "AT": {
+    "name": "Einkommensteuertarif 2026 0%-55% (€13,539 / 21,992 / 36,458 / 70,365 / 104,859 / 1M) on 12 regular salaries, 13th/14th at 6%; social insurance 18.07% to €90,300",
+    "url": "https://www.usp.gv.at/steuern-finanzen/einkommensteuer-ueberblick/weitere-informationen-est/tarifstufen.html",
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "approximate": true,
+    "unverified": [
+     "social insurance 18.07% and the 2025 cap €90,300 (2026 cap not read)",
+     "flat 6% on all special payments (higher rates above €25,000 not modeled)"
+    ]
+   },
+   "BE": {
+    "name": "Federal rates 25/40/45/50%, basic allowance €10,910, flat professional expenses (30%, cap €5,930), communal surcharge ~7%; social 13.07%",
+    "url": "https://finance.belgium.be/en/private-individuals/tax-return/rates",
+    "asOf": "2025",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "approximate": true,
+    "unverified": [
+     "all values (FPS Finance pages blocked)"
+    ]
+   },
+   "SE": {
+    "name": "State tax 20% above SEK 643,000 taxable (brytpunkt 660,400), basic allowance SEK 17,400 at high income; Stockholm municipal tax 30.55%; job tax credit approximated",
+    "url": "https://www.skatteverket.se/privat/skatter/beloppochprocent/2026.4.1522bf3f19aea8075ba21.html",
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "approximate": true,
+    "unverified": [
+     "Stockholm municipal rate 30.55%",
+     "job tax credit formula"
+    ]
+   },
+   "DK": {
+    "name": "AM contribution 8%, bottom tax 12.01%, Copenhagen municipal 23.39%, 2026 middle/top/top-top tax 7.5%/7.5%/5%, personal allowance DKK 54,100, employment deduction 12.75%",
+    "url": "https://skat.dk/",
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "approximate": true,
+    "unverified": [
+     "all values (skat.dk not readable)"
+    ]
+   },
+   "NO": {
+    "name": "Skatteetaten 2026: tax on general income 22%, bracket tax 1.7% / 4.0% / 13.7% / 16.8% / 17.8% from NOK 226,100 / 318,300 / 725,050 / 980,100 / 1,467,200, minimum standard deduction 46% (max NOK 92,000), personal allowance NOK 108,550; national insurance 7.6%",
+    "url": "https://www.skatteetaten.no/en/rates/bracket-tax/",
+    "checkedVia": [
+     "https://www.skatteetaten.no/en/rates/national-insurance-contributions/",
+     "https://www.skatteetaten.no/en/rates/minimum-standard-deduction/",
+     "https://www.skatteetaten.no/en/rates/personal-allowance/",
+     "https://www.skatteetaten.no/en/rates/general-income/"
+    ],
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": true
+   },
+   "FI": {
+    "name": "Approximation: state progressive tax + Helsinki municipal 5.3% as one schedule; employee contributions ~9% (pension, unemployment, health)",
+    "url": "https://vero.fi/en/individuals/tax-cards-and-tax-returns/tax_card/tax-rate-and-income-ceiling/tax-bases/",
+    "asOf": "2025",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "approximate": true,
+    "estimated": true
+   },
+   "PL": {
+    "name": "PIT 12%/32% (PLN 120,000), PLN 3,600 tax-reducing amount, PLN 3,000 costs; ZUS 11.26% to 30x cap + sickness 2.45%; health 9%",
+    "url": "https://www.podatki.gov.pl/",
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "all values"
+    ],
+    "notModeled": [
+     "solidarity levy 4% on income over PLN 1M"
+    ]
+   },
+   "CZ": {
+    "name": "PIT 15%/23% (36x average wage), CZK 30,840 credit; social 7.1% (capped), health 4.5%",
+    "url": "https://www.financnisprava.cz/cs/dane/dane/dan-z-prijmu/fyzicke-osoby",
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "approximate": true,
+    "unverified": [
+     "all values"
+    ]
+   },
+   "EE": {
+    "name": "Income tax 22%, basic exemption €8,400; unemployment insurance 1.6% (2nd pillar excluded)",
+    "url": "https://www.emta.ee/en/private-client/taxes-and-payment/income-tax",
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "all values (EMTA pages moved)"
+    ]
+   },
+   "IL": {
+    "name": "Income tax 10%-47% + 3% surtax (2025 thresholds, frozen), 2.25 credit points; Bituach Leumi + health 2026: 4.27% to NIS 7,703/month, 12.17% to NIS 51,910/month (pension fund excluded)",
+    "url": "https://www.btl.gov.il/English%20Homepage/Insurance/Ratesandamount/Pages/forSalaried.aspx",
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "income tax brackets and credit point value"
+    ]
+   },
+   "AE": {
+    "name": "No personal income tax; no social security for expatriates",
+    "url": "https://tax.gov.ae/",
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false
+   },
+   "SA": {
+    "name": "No personal income tax on employment income; GOSI annuities apply to Saudi nationals only",
+    "url": "https://zatca.gov.sa/",
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false
+   },
+   "JP": {
+    "name": "NTA 2026: income tax 5%-45% x 1.021, employment income deduction (min ¥740,000, max ¥1.95M), basic deduction ¥620,000 (tapering above ¥23.5M); resident tax 10% + ¥5,000 (Tokyo, basic deduction ¥430,000); health ~4.96%, pension 9.15% (capped), employment insurance 0.55%",
+    "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/2260.htm",
+    "checkedVia": [
+     "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1410.htm",
+     "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1199.htm",
+     "https://www.tax.metro.tokyo.lg.jp/kazei/life/kojin_ju"
+    ],
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "approximate": true,
+    "unverified": [
+     "social insurance rates and caps"
+    ]
+   },
+   "KR": {
+    "name": "Income tax 6%-45% + 10% local income tax, employment income deduction, ₩500,000 wage-earner credit (approx); NPS 4.75% (capped), NHI 3.595% + LTC, EI 0.9%",
+    "url": "https://www.nts.go.kr/english/",
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "approximate": true,
+    "unverified": [
+     "all values"
+    ]
+   },
+   "SG": {
+    "name": "IRAS resident rates YA2024 onward 0%-24%, earned income relief S$1,000 (below 55); CPF not applied (Employment Pass holders do not contribute)",
+    "url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/individual-income-tax-rates",
+    "checkedVia": [
+     "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/earned-income-relief"
+    ],
+    "asOf": "YA2026",
+    "reviewed": "2026-10-10",
+    "verified": true
+   },
+   "HK": {
+    "name": "Salaries tax 2026/27: progressive 2%-17% after allowances (basic HK$145,000, married HK$290,000, HK$140,000 per child; derived from the gov.hk standard-rate zone table), capped at the standard rate 15% (16% over HK$5M); MPF 5% to HK$18,000 deducted (funded, not counted as tax)",
+    "url": "https://www.gov.hk/en/residents/taxes/taxfiling/taxrates/salariesrates.htm",
+    "asOf": "2026/27",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "MPF cap HK$18,000"
+    ]
+   },
+   "TW": {
+    "name": "Income tax 5%-40%, exemption + standard + salary deductions NT$446,000; labour and health insurance (capped)",
+    "url": "https://www.etax.nat.gov.tw/",
+    "asOf": "2025",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "approximate": true,
+    "unverified": [
+     "all values"
+    ]
+   },
+   "IN": {
+    "name": "New regime FY2026-27: 0/5/10/15/20/25/30% slabs, ₹75,000 standard deduction, section 87A rebate to ₹12 lakh, surcharge to 25%, 4% cess; professional tax ₹2,500 (KA/MH/TS). EPF (funded) excluded",
+    "url": "https://incometaxindia.gov.in/",
+    "asOf": "FY2026-27",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "all values (secondary sources only)"
+    ]
+   },
+   "AU": {
+    "name": "Resident rates 2026-27: 0/15/30/37/45% ($18,200 / $45,000 / $135,000 / $190,000), LITO, Medicare levy 2%. Super is employer-paid on top, excluded",
+    "url": "https://treasury.gov.au/tax-cuts",
+    "asOf": "2026-27",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "15% rate from 1 July 2026",
+     "LITO and Medicare levy (ATO blocks the probe)"
+    ]
+   },
+   "NZ": {
+    "name": "IRD rates from 1 Apr 2025: 10.5/17.5/30/33/39% ($15,600 / $53,500 / $78,100 / $180,000); ACC earners levy 1.67% (capped)",
+    "url": "https://www.ird.govt.nz/income-tax/income-tax-for-individuals/tax-codes-and-tax-rates-for-individuals/tax-rates-for-individuals",
+    "asOf": "2026/27",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "ACC earners levy 1.67% to $152,790 (2025/26 values)"
+    ]
+   },
+   "CA": {
+    "name": "CRA T4127 (January 2026): federal 14/20.5/26/29/33% ($58,523 / $117,045 / $181,440 / $258,482), basic personal amount $16,452 falling to $14,829, Canada employment amount $1,501; CPP 5.95% to $74,600 (enhanced part deducted) + CPP2 4% to $85,000; EI 1.63% to $68,900",
+    "url": "https://www.canada.ca/en/revenue-agency/services/forms-publications/payroll/t4127-payroll-deductions-formulas/t4127-jan/t4127-jan-payroll-deductions-formulas-computer-programs.html",
+    "checkedVia": [
+     "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/payroll/payroll-deductions-contributions/canada-pension-plan-cpp/cpp-contribution-rates-maximums-exemptions.html",
+     "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/payroll/payroll-deductions-contributions/employment-insurance-ei/ei-premium-rates-maximums.html"
+    ],
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "unverified": [
+     "CPP2 ceiling $85,000",
+     "deduction of the enhanced CPP contributions from income (not re-read in T4127)"
+    ]
+   },
+   "CA-ON": {
+    "name": "Ontario 2026 (T4127 Table 8.1): 5.05/9.15/11.16/12.16/13.16% ($53,891 / $107,785 / $150,000 / $220,000), basic personal amount $12,989, surtax 20% over $5,818 + 36% over $7,446, Ontario Health Premium",
+    "url": "https://www.canada.ca/en/revenue-agency/services/forms-publications/payroll/t4127-payroll-deductions-formulas/t4127-jan/t4127-jan-payroll-deductions-formulas-computer-programs.html",
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": true
+   },
+   "CA-BC": {
+    "name": "British Columbia 2026: 5.60/7.70/10.50/12.29/14.70/16.80/20.50% ($50,363 / $100,728 / $115,648 / $140,430 / $190,405 / $265,545; lowest rate raised by Budget 2026), basic personal amount $13,216",
+    "url": "https://www2.gov.bc.ca/gov/content/taxes/income-taxes/personal/tax-rates",
+    "checkedVia": [
+     "https://www2.gov.bc.ca/gov/content/taxes/income-taxes/personal/credits/basic"
+    ],
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": true
+   },
+   "CA-QC": {
+    "name": "Quebec 2025 brackets 14/19/24/25.75%, federal abatement 16.5%; QPP 6.3%, QPIP 0.43%, EI 1.30%",
+    "url": "https://www.revenuquebec.ca/en/citizens/income-tax-return/",
+    "asOf": "2025",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "approximate": true,
+    "unverified": [
+     "Quebec brackets, basic amount and QPP/QPIP (Revenu Québec blocks the probe); abatement 16.5% and EI 1.30% are from CRA"
+    ]
+   },
+   "MX": {
+    "name": "ISR annual table (Art. 152 LISR, 2025 values) 1.92%-35%; IMSS employee ~2.775% (capped at 25 UMA)",
+    "url": "https://www.sat.gob.mx/",
+    "asOf": "2025",
+    "reviewed": "2026-10-10",
+    "verified": false,
+    "approximate": true,
+    "unverified": [
+     "all values (2026 table update not read)"
+    ]
+   },
+   "BR": {
+    "name": "Receita Federal 2026 monthly IRPF table 0%-27.5%, R$189.59 per dependent; INSS 2026 7.5%-14% to R$8,475.55; x12 (13th salary not modeled)",
+    "url": "https://www.gov.br/receitafederal/pt-br/assuntos/meu-imposto-de-renda/tabelas/2026",
+    "checkedVia": [
+     "https://www.gov.br/inss/pt-br/direitos-e-deveres/inscricao-e-contribuicao/tabela-de-contribuicao-mensal"
+    ],
+    "asOf": "2026",
+    "reviewed": "2026-10-10",
+    "verified": true,
+    "approximate": true
+   }
+  }
+ }
+}

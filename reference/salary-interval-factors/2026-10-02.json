@@ -1,0 +1,20 @@
+{
+ "dataset": "salary-interval-factors",
+ "asOf": "2026-10-02",
+ "taxYear": null,
+ "source": {
+  "name": "melon-seek (our own choice)",
+  "url": "https://github.com/alvations/melon-seek",
+  "licence": "repository licence"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "server/salary.js#FACTORS": {
+   "hour": 2080,
+   "day": 260,
+   "week": 52,
+   "month": 12,
+   "year": 1
+  }
+ }
+}

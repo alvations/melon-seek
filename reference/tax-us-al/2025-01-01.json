@@ -1,0 +1,43 @@
+{
+ "dataset": "tax-us-al",
+ "asOf": "2025-01-01",
+ "taxYear": "2025",
+ "source": {
+  "name": "Alabama Form 40 (2025): 2% / 4% / 5%, federal income tax deduction, standard deduction chart ($2,500 / $5,000 from $35,500 AGI), personal exemption $1,500 / $3,000, dependents $1,000 / $500 / $300 (Huntsville: no occupational tax)",
+  "url": "https://www.revenue.alabama.gov/wp-content/uploads/2026/01/25f40bk.pdf",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "AL_2025": {
+   "single": [
+    [
+     500,
+     0.02
+    ],
+    [
+     3000,
+     0.04
+    ],
+    [
+     "Infinity",
+     0.05
+    ]
+   ],
+   "mfj": [
+    [
+     1000,
+     0.02
+    ],
+    [
+     6000,
+     0.04
+    ],
+    [
+     "Infinity",
+     0.05
+    ]
+   ]
+  }
+ }
+}

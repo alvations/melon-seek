@@ -1,0 +1,30 @@
+{
+ "dataset": "fx-usd-pegs",
+ "asOf": "2026-10-10",
+ "taxYear": null,
+ "source": {
+  "name": "Central Bank of the UAE; Saudi Central Bank (SAMA); Qatar Central Bank",
+  "url": "https://www.centralbank.ae/en/",
+  "licence": "official publication"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "PEGS": {
+   "AED": {
+    "perUSD": 3.6725,
+    "name": "Central Bank of the UAE: dirham pegged at 3.6725 per US dollar (since 1997)",
+    "url": "https://www.centralbank.ae/en/"
+   },
+   "SAR": {
+    "perUSD": 3.75,
+    "name": "Saudi Central Bank (SAMA): riyal pegged at 3.75 per US dollar (since 1986)",
+    "url": "https://www.sama.gov.sa/en-US/Pages/default.aspx"
+   },
+   "QAR": {
+    "perUSD": 3.64,
+    "name": "Qatar Central Bank: riyal pegged at 3.64 per US dollar (since 2001)",
+    "url": "https://www.qcb.gov.qa/en/"
+   }
+  }
+ }
+}

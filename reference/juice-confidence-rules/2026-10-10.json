@@ -1,0 +1,27 @@
+{
+ "dataset": "juice-confidence-rules",
+ "asOf": "2026-10-10",
+ "taxYear": null,
+ "source": {
+  "name": "melon-seek (our own choice)",
+  "url": "https://github.com/alvations/melon-seek",
+  "licence": "repository licence"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "server/juice.js#SOURCE_CLASSES": [
+   "official",
+   "open",
+   "user",
+   "aggregator",
+   "estimate"
+  ],
+  "server/juice.js#CLASS_CONFIDENCE": {
+   "official": "high",
+   "open": "high",
+   "user": "high",
+   "aggregator": "medium",
+   "estimate": "low"
+  }
+ }
+}

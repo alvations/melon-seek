@@ -1,0 +1,371 @@
+{
+ "dataset": "cost-index",
+ "asOf": "2026-06-01",
+ "taxYear": null,
+ "source": {
+  "name": "Numbeo city pages: \"estimated monthly costs for a single person, excluding rent\" (crowd-sourced aggregator), read by hand",
+  "url": "https://www.numbeo.com/cost-of-living/",
+  "licence": "Numbeo terms: reuse not cleared, automated collection prohibited (docs/LIVABILITY.md §4.1)"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "cities.costIndex": [
+   {
+    "key": "san-francisco-ca-us",
+    "costIndex": 91
+   },
+   {
+    "key": "new-york-ny-us",
+    "costIndex": 100
+   },
+   {
+    "key": "seattle-wa-us",
+    "costIndex": 94
+   },
+   {
+    "key": "boston-ma-us",
+    "costIndex": 91.5
+   },
+   {
+    "key": "austin-tx-us",
+    "costIndex": 70.7
+   },
+   {
+    "key": "washington-dc-us",
+    "costIndex": 95.8
+   },
+   {
+    "key": "los-angeles-ca-us",
+    "costIndex": 89.2
+   },
+   {
+    "key": "chicago-il-us",
+    "costIndex": 76.3
+   },
+   {
+    "key": "denver-co-us",
+    "costIndex": 78.4
+   },
+   {
+    "key": "atlanta-ga-us",
+    "costIndex": 81
+   },
+   {
+    "key": "columbus-oh-us",
+    "costIndex": 73.2
+   },
+   {
+    "key": "costa-mesa-ca-us",
+    "costIndex": 78.2
+   },
+   {
+    "key": "huntsville-al-us",
+    "costIndex": 63
+   },
+   {
+    "key": "reston-va-us",
+    "costIndex": 83.4
+   },
+   {
+    "key": "san-diego-ca-us",
+    "costIndex": 84.5
+   },
+   {
+    "key": "palo-alto-ca-us",
+    "costIndex": 89.6
+   },
+   {
+    "key": "san-jose-ca-us",
+    "costIndex": 89.6
+   },
+   {
+    "key": "sunnyvale-ca-us",
+    "costIndex": 89.6
+   },
+   {
+    "key": "mountain-view-ca-us",
+    "costIndex": 89.6
+   },
+   {
+    "key": "menlo-park-ca-us",
+    "costIndex": 89.6
+   },
+   {
+    "key": "bellevue-wa-us",
+    "costIndex": 94
+   },
+   {
+    "key": "redmond-wa-us",
+    "costIndex": 94
+   },
+   {
+    "key": "cambridge-ma-us",
+    "costIndex": 91.5
+   },
+   {
+    "key": "arlington-va-us",
+    "costIndex": 83.4
+   },
+   {
+    "key": "dallas-tx-us",
+    "costIndex": 78.3
+   },
+   {
+    "key": "houston-tx-us",
+    "costIndex": 67.1
+   },
+   {
+    "key": "miami-fl-us",
+    "costIndex": 87
+   },
+   {
+    "key": "philadelphia-pa-us",
+    "costIndex": 83.2
+   },
+   {
+    "key": "pittsburgh-pa-us",
+    "costIndex": 72.1
+   },
+   {
+    "key": "raleigh-nc-us",
+    "costIndex": 70.3
+   },
+   {
+    "key": "portland-or-us",
+    "costIndex": 90.2
+   },
+   {
+    "key": "salt-lake-city-ut-us",
+    "costIndex": 67.3
+   },
+   {
+    "key": "phoenix-az-us",
+    "costIndex": 78.2
+   },
+   {
+    "key": "minneapolis-mn-us",
+    "costIndex": 77
+   },
+   {
+    "key": "baltimore-md-us",
+    "costIndex": 77.9
+   },
+   {
+    "key": "irvine-ca-us",
+    "costIndex": 78.2
+   },
+   {
+    "key": "colorado-springs-co-us",
+    "costIndex": 76.6
+   },
+   {
+    "key": "boulder-co-us",
+    "costIndex": 76.1
+   },
+   {
+    "key": "detroit-mi-us",
+    "costIndex": 71
+   },
+   {
+    "key": "nashville-tn-us",
+    "costIndex": 74.6
+   },
+   {
+    "key": "london-gb",
+    "costIndex": 86.3
+   },
+   {
+    "key": "cambridge-gb",
+    "costIndex": 71.3
+   },
+   {
+    "key": "oxford-gb",
+    "costIndex": 72.6
+   },
+   {
+    "key": "manchester-gb",
+    "costIndex": 65.9
+   },
+   {
+    "key": "edinburgh-gb",
+    "costIndex": 71.6
+   },
+   {
+    "key": "dublin-ie",
+    "costIndex": 74.5
+   },
+   {
+    "key": "zurich-ch",
+    "costIndex": 111.7
+   },
+   {
+    "key": "geneva-ch",
+    "costIndex": 99.9
+   },
+   {
+    "key": "paris-fr",
+    "costIndex": 71.4
+   },
+   {
+    "key": "berlin-de",
+    "costIndex": 71.5
+   },
+   {
+    "key": "munich-de",
+    "costIndex": 73.5
+   },
+   {
+    "key": "amsterdam-nl",
+    "costIndex": 78.1
+   },
+   {
+    "key": "madrid-es",
+    "costIndex": 55.9
+   },
+   {
+    "key": "barcelona-es",
+    "costIndex": 56.4
+   },
+   {
+    "key": "lisbon-pt",
+    "costIndex": 51.9
+   },
+   {
+    "key": "milan-it",
+    "costIndex": 71.7
+   },
+   {
+    "key": "vienna-at",
+    "costIndex": 68.2
+   },
+   {
+    "key": "brussels-be",
+    "costIndex": 71.6
+   },
+   {
+    "key": "stockholm-se",
+    "costIndex": 76.5
+   },
+   {
+    "key": "copenhagen-dk",
+    "costIndex": 82.4
+   },
+   {
+    "key": "oslo-no",
+    "costIndex": 92.1
+   },
+   {
+    "key": "helsinki-fi",
+    "costIndex": 69.3
+   },
+   {
+    "key": "warsaw-pl",
+    "costIndex": 56.1
+   },
+   {
+    "key": "krakow-pl",
+    "costIndex": 52.4
+   },
+   {
+    "key": "prague-cz",
+    "costIndex": 54.8
+   },
+   {
+    "key": "tallinn-ee",
+    "costIndex": 65.4
+   },
+   {
+    "key": "tel-aviv-il",
+    "costIndex": 98.4
+   },
+   {
+    "key": "dubai-ae",
+    "costIndex": 68.7
+   },
+   {
+    "key": "abu-dhabi-ae",
+    "costIndex": 59
+   },
+   {
+    "key": "riyadh-sa",
+    "costIndex": 54.1
+   },
+   {
+    "key": "tokyo-jp",
+    "costIndex": 53.2
+   },
+   {
+    "key": "osaka-jp",
+    "costIndex": 47.3
+   },
+   {
+    "key": "seoul-kr",
+    "costIndex": 67.1
+   },
+   {
+    "key": "singapore-sg",
+    "costIndex": 70.9
+   },
+   {
+    "key": "hong-kong-hk",
+    "costIndex": 68.3
+   },
+   {
+    "key": "taipei-tw",
+    "costIndex": 50.8
+   },
+   {
+    "key": "bengaluru-in",
+    "costIndex": 21.1
+   },
+   {
+    "key": "hyderabad-in",
+    "costIndex": 19.3
+   },
+   {
+    "key": "mumbai-in",
+    "costIndex": 23
+   },
+   {
+    "key": "new-delhi-in",
+    "costIndex": 21.1
+   },
+   {
+    "key": "sydney-nsw-au",
+    "costIndex": 76.6
+   },
+   {
+    "key": "melbourne-vic-au",
+    "costIndex": 73.3
+   },
+   {
+    "key": "auckland-nz",
+    "costIndex": 63.3
+   },
+   {
+    "key": "toronto-on-ca",
+    "costIndex": 60.6
+   },
+   {
+    "key": "ottawa-on-ca",
+    "costIndex": 64.3
+   },
+   {
+    "key": "montreal-qc-ca",
+    "costIndex": 55.4
+   },
+   {
+    "key": "vancouver-bc-ca",
+    "costIndex": 60.2
+   },
+   {
+    "key": "mexico-city-mx",
+    "costIndex": 48.9
+   },
+   {
+    "key": "sao-paulo-br",
+    "costIndex": 42.2
+   }
+  ]
+ }
+}

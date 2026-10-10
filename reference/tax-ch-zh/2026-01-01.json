@@ -1,0 +1,71 @@
+{
+ "dataset": "tax-ch-zh",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "Canton of Zurich 2026 (Kantonsblatt ZH): Grundtarif / Verheiratetentarif 0%-13%, insurance deduction CHF 2,900 / 5,800 + 1,300 per child, child deduction CHF 9,400; cantonal Steuerfuss 95% (Kantonsrat, 15 Dec 2025) + City of Zurich 119%",
+  "url": "https://www.estv2.admin.ch/stp/kb/zh-de.pdf",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "ZH_GRUND": [
+   [
+    7000,
+    0
+   ],
+   [
+    12000,
+    0.02
+   ],
+   [
+    16800,
+    0.03
+   ],
+   [
+    24800,
+    0.04
+   ],
+   [
+    34500,
+    0.05
+   ],
+   [
+    45700,
+    0.06
+   ],
+   [
+    58800,
+    0.07
+   ],
+   [
+    76400,
+    0.08
+   ],
+   [
+    110400,
+    0.09
+   ],
+   [
+    144100,
+    0.1
+   ],
+   [
+    197400,
+    0.11
+   ],
+   [
+    266700,
+    0.12
+   ],
+   [
+    "Infinity",
+    0.13
+   ]
+  ],
+  "ZH_STEUERFUSS": {
+   "canton": 0.95,
+   "city": 1.19
+  }
+ }
+}

@@ -1,0 +1,1400 @@
+{
+ "dataset": "cities-dataset",
+ "asOf": "2026-10-02",
+ "taxYear": null,
+ "source": {
+  "name": "composite: see rents-*, cost-index, nyc-basket, bigmac-prices, fx-per-usd, tax-*",
+  "url": "https://alvations.github.io/melon-seek/api/cities.json",
+  "licence": "Numbeo figures (class aggregator/estimate, terms numbeo-terms) are NOT cleared for redistribution under the Numbeo terms of use; see dataStatus and docs/LIVABILITY.md section 4.1. Big Mac data and FX: The Economist, CC BY 4.0 (attribution required). Tax tables: official schedules cited in server/juice.js TAX_SOURCES."
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "cities": [
+   {
+    "key": "san-francisco-ca-us",
+    "name": "San Francisco",
+    "city": "San Francisco",
+    "region": "CA",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "US",
+     "region": "CA",
+     "local": null
+    }
+   },
+   {
+    "key": "new-york-ny-us",
+    "name": "New York",
+    "city": "New York",
+    "region": "NY",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [
+     "Brooklyn"
+    ],
+    "tax": {
+     "country": "US",
+     "region": "NY",
+     "local": "NYC"
+    }
+   },
+   {
+    "key": "seattle-wa-us",
+    "name": "Seattle",
+    "city": "Seattle",
+    "region": "WA",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "US",
+     "region": "WA",
+     "local": null
+    }
+   },
+   {
+    "key": "boston-ma-us",
+    "name": "Boston",
+    "city": "Boston",
+    "region": "MA",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "US",
+     "region": "MA",
+     "local": null
+    }
+   },
+   {
+    "key": "austin-tx-us",
+    "name": "Austin",
+    "city": "Austin",
+    "region": "TX",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "US",
+     "region": "TX",
+     "local": null
+    }
+   },
+   {
+    "key": "washington-dc-us",
+    "name": "Washington",
+    "city": "Washington",
+    "region": "DC",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "US",
+     "region": "DC",
+     "local": null
+    }
+   },
+   {
+    "key": "los-angeles-ca-us",
+    "name": "Los Angeles",
+    "city": "Los Angeles",
+    "region": "CA",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [
+     "Santa Monica",
+     "El Segundo",
+     "Hawthorne",
+     "Torrance",
+     "Long Beach"
+    ],
+    "tax": {
+     "country": "US",
+     "region": "CA",
+     "local": null
+    }
+   },
+   {
+    "key": "chicago-il-us",
+    "name": "Chicago",
+    "city": "Chicago",
+    "region": "IL",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "US",
+     "region": "IL",
+     "local": null
+    }
+   },
+   {
+    "key": "denver-co-us",
+    "name": "Denver",
+    "city": "Denver",
+    "region": "CO",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [
+     "Aurora"
+    ],
+    "tax": {
+     "country": "US",
+     "region": "CO",
+     "local": null
+    }
+   },
+   {
+    "key": "atlanta-ga-us",
+    "name": "Atlanta",
+    "city": "Atlanta",
+    "region": "GA",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "US",
+     "region": "GA",
+     "local": null
+    }
+   },
+   {
+    "key": "columbus-oh-us",
+    "name": "Columbus",
+    "city": "Columbus",
+    "region": "OH",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "US",
+     "region": "OH",
+     "local": "COLUMBUS"
+    }
+   },
+   {
+    "key": "costa-mesa-ca-us",
+    "name": "Costa Mesa",
+    "city": "Costa Mesa",
+    "region": "CA",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "US",
+     "region": "CA",
+     "local": null
+    }
+   },
+   {
+    "key": "huntsville-al-us",
+    "name": "Huntsville",
+    "city": "Huntsville",
+    "region": "AL",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "US",
+     "region": "AL",
+     "local": null
+    }
+   },
+   {
+    "key": "reston-va-us",
+    "name": "Reston",
+    "city": "Reston",
+    "region": "VA",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [
+     "Herndon",
+     "Chantilly",
+     "Dulles",
+     "Sterling",
+     "McLean",
+     "Tysons",
+     "Fairfax"
+    ],
+    "tax": {
+     "country": "US",
+     "region": "VA",
+     "local": null
+    }
+   },
+   {
+    "key": "san-diego-ca-us",
+    "name": "San Diego",
+    "city": "San Diego",
+    "region": "CA",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [
+     "Carlsbad"
+    ],
+    "tax": {
+     "country": "US",
+     "region": "CA",
+     "local": null
+    }
+   },
+   {
+    "key": "palo-alto-ca-us",
+    "name": "Palo Alto",
+    "city": "Palo Alto",
+    "region": "CA",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "US",
+     "region": "CA",
+     "local": null
+    }
+   },
+   {
+    "key": "san-jose-ca-us",
+    "name": "San Jose",
+    "city": "San Jose",
+    "region": "CA",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [
+     "Santa Clara",
+     "Cupertino"
+    ],
+    "tax": {
+     "country": "US",
+     "region": "CA",
+     "local": null
+    }
+   },
+   {
+    "key": "sunnyvale-ca-us",
+    "name": "Sunnyvale",
+    "city": "Sunnyvale",
+    "region": "CA",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "US",
+     "region": "CA",
+     "local": null
+    }
+   },
+   {
+    "key": "mountain-view-ca-us",
+    "name": "Mountain View",
+    "city": "Mountain View",
+    "region": "CA",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "US",
+     "region": "CA",
+     "local": null
+    }
+   },
+   {
+    "key": "menlo-park-ca-us",
+    "name": "Menlo Park",
+    "city": "Menlo Park",
+    "region": "CA",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [
+     "Redwood City"
+    ],
+    "tax": {
+     "country": "US",
+     "region": "CA",
+     "local": null
+    }
+   },
+   {
+    "key": "bellevue-wa-us",
+    "name": "Bellevue",
+    "city": "Bellevue",
+    "region": "WA",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [
+     "Kirkland"
+    ],
+    "tax": {
+     "country": "US",
+     "region": "WA",
+     "local": null
+    }
+   },
+   {
+    "key": "redmond-wa-us",
+    "name": "Redmond",
+    "city": "Redmond",
+    "region": "WA",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "US",
+     "region": "WA",
+     "local": null
+    }
+   },
+   {
+    "key": "cambridge-ma-us",
+    "name": "Cambridge",
+    "city": "Cambridge",
+    "region": "MA",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "US",
+     "region": "MA",
+     "local": null
+    }
+   },
+   {
+    "key": "arlington-va-us",
+    "name": "Arlington",
+    "city": "Arlington",
+    "region": "VA",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [
+     "Alexandria"
+    ],
+    "tax": {
+     "country": "US",
+     "region": "VA",
+     "local": null
+    }
+   },
+   {
+    "key": "dallas-tx-us",
+    "name": "Dallas",
+    "city": "Dallas",
+    "region": "TX",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [
+     "Plano"
+    ],
+    "tax": {
+     "country": "US",
+     "region": "TX",
+     "local": null
+    }
+   },
+   {
+    "key": "houston-tx-us",
+    "name": "Houston",
+    "city": "Houston",
+    "region": "TX",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "US",
+     "region": "TX",
+     "local": null
+    }
+   },
+   {
+    "key": "miami-fl-us",
+    "name": "Miami",
+    "city": "Miami",
+    "region": "FL",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "US",
+     "region": "FL",
+     "local": null
+    }
+   },
+   {
+    "key": "philadelphia-pa-us",
+    "name": "Philadelphia",
+    "city": "Philadelphia",
+    "region": "PA",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "US",
+     "region": "PA",
+     "local": "PHILADELPHIA"
+    }
+   },
+   {
+    "key": "pittsburgh-pa-us",
+    "name": "Pittsburgh",
+    "city": "Pittsburgh",
+    "region": "PA",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "US",
+     "region": "PA",
+     "local": "PITTSBURGH"
+    }
+   },
+   {
+    "key": "raleigh-nc-us",
+    "name": "Raleigh",
+    "city": "Raleigh",
+    "region": "NC",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [
+     "Durham"
+    ],
+    "tax": {
+     "country": "US",
+     "region": "NC",
+     "local": null
+    }
+   },
+   {
+    "key": "portland-or-us",
+    "name": "Portland",
+    "city": "Portland",
+    "region": "OR",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "US",
+     "region": "OR",
+     "local": "PORTLAND"
+    }
+   },
+   {
+    "key": "salt-lake-city-ut-us",
+    "name": "Salt Lake City",
+    "city": "Salt Lake City",
+    "region": "UT",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [
+     "Lehi"
+    ],
+    "tax": {
+     "country": "US",
+     "region": "UT",
+     "local": null
+    }
+   },
+   {
+    "key": "phoenix-az-us",
+    "name": "Phoenix",
+    "city": "Phoenix",
+    "region": "AZ",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [
+     "Tempe",
+     "Scottsdale",
+     "Chandler",
+     "Mesa"
+    ],
+    "tax": {
+     "country": "US",
+     "region": "AZ",
+     "local": null
+    }
+   },
+   {
+    "key": "minneapolis-mn-us",
+    "name": "Minneapolis",
+    "city": "Minneapolis",
+    "region": "MN",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "US",
+     "region": "MN",
+     "local": null
+    }
+   },
+   {
+    "key": "baltimore-md-us",
+    "name": "Baltimore",
+    "city": "Baltimore",
+    "region": "MD",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [
+     "Columbia",
+     "Fort Meade",
+     "Annapolis Junction"
+    ],
+    "tax": {
+     "country": "US",
+     "region": "MD",
+     "local": "MD-COUNTY"
+    }
+   },
+   {
+    "key": "irvine-ca-us",
+    "name": "Irvine",
+    "city": "Irvine",
+    "region": "CA",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [
+     "Santa Ana",
+     "Anaheim"
+    ],
+    "tax": {
+     "country": "US",
+     "region": "CA",
+     "local": null
+    }
+   },
+   {
+    "key": "colorado-springs-co-us",
+    "name": "Colorado Springs",
+    "city": "Colorado Springs",
+    "region": "CO",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "US",
+     "region": "CO",
+     "local": null
+    }
+   },
+   {
+    "key": "boulder-co-us",
+    "name": "Boulder",
+    "city": "Boulder",
+    "region": "CO",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "US",
+     "region": "CO",
+     "local": null
+    }
+   },
+   {
+    "key": "detroit-mi-us",
+    "name": "Detroit",
+    "city": "Detroit",
+    "region": "MI",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "US",
+     "region": "MI",
+     "local": "DETROIT"
+    }
+   },
+   {
+    "key": "nashville-tn-us",
+    "name": "Nashville",
+    "city": "Nashville",
+    "region": "TN",
+    "country": "US",
+    "currency": "USD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "US",
+     "region": "TN",
+     "local": null
+    }
+   },
+   {
+    "key": "london-gb",
+    "name": "London",
+    "city": "London",
+    "region": "England",
+    "country": "GB",
+    "currency": "GBP",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "GB",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "cambridge-gb",
+    "name": "Cambridge",
+    "city": "Cambridge",
+    "region": "England",
+    "country": "GB",
+    "currency": "GBP",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "GB",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "oxford-gb",
+    "name": "Oxford",
+    "city": "Oxford",
+    "region": "England",
+    "country": "GB",
+    "currency": "GBP",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "GB",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "manchester-gb",
+    "name": "Manchester",
+    "city": "Manchester",
+    "region": "England",
+    "country": "GB",
+    "currency": "GBP",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "GB",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "edinburgh-gb",
+    "name": "Edinburgh",
+    "city": "Edinburgh",
+    "region": "Scotland",
+    "country": "GB",
+    "currency": "GBP",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "GB",
+     "region": "SCT",
+     "local": null
+    }
+   },
+   {
+    "key": "dublin-ie",
+    "name": "Dublin",
+    "city": "Dublin",
+    "region": null,
+    "country": "IE",
+    "currency": "EUR",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "IE",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "zurich-ch",
+    "name": "Zurich",
+    "city": "Zurich",
+    "region": null,
+    "country": "CH",
+    "currency": "CHF",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "CH",
+     "region": "ZH",
+     "local": null
+    }
+   },
+   {
+    "key": "geneva-ch",
+    "name": "Geneva",
+    "city": "Geneva",
+    "region": null,
+    "country": "CH",
+    "currency": "CHF",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "CH",
+     "region": "GE",
+     "local": null
+    }
+   },
+   {
+    "key": "paris-fr",
+    "name": "Paris",
+    "city": "Paris",
+    "region": "Ile-de-France",
+    "country": "FR",
+    "currency": "EUR",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "FR",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "berlin-de",
+    "name": "Berlin",
+    "city": "Berlin",
+    "region": null,
+    "country": "DE",
+    "currency": "EUR",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "DE",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "munich-de",
+    "name": "Munich",
+    "city": "Munich",
+    "region": "Bavaria",
+    "country": "DE",
+    "currency": "EUR",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "DE",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "amsterdam-nl",
+    "name": "Amsterdam",
+    "city": "Amsterdam",
+    "region": null,
+    "country": "NL",
+    "currency": "EUR",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "NL",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "madrid-es",
+    "name": "Madrid",
+    "city": "Madrid",
+    "region": null,
+    "country": "ES",
+    "currency": "EUR",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "ES",
+     "region": "MD",
+     "local": null
+    }
+   },
+   {
+    "key": "barcelona-es",
+    "name": "Barcelona",
+    "city": "Barcelona",
+    "region": null,
+    "country": "ES",
+    "currency": "EUR",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "ES",
+     "region": "CT",
+     "local": null
+    }
+   },
+   {
+    "key": "lisbon-pt",
+    "name": "Lisbon",
+    "city": "Lisbon",
+    "region": null,
+    "country": "PT",
+    "currency": "EUR",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "PT",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "milan-it",
+    "name": "Milan",
+    "city": "Milan",
+    "region": null,
+    "country": "IT",
+    "currency": "EUR",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "IT",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "vienna-at",
+    "name": "Vienna",
+    "city": "Vienna",
+    "region": null,
+    "country": "AT",
+    "currency": "EUR",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "AT",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "brussels-be",
+    "name": "Brussels",
+    "city": "Brussels",
+    "region": null,
+    "country": "BE",
+    "currency": "EUR",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "BE",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "stockholm-se",
+    "name": "Stockholm",
+    "city": "Stockholm",
+    "region": null,
+    "country": "SE",
+    "currency": "SEK",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "SE",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "copenhagen-dk",
+    "name": "Copenhagen",
+    "city": "Copenhagen",
+    "region": null,
+    "country": "DK",
+    "currency": "DKK",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "DK",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "oslo-no",
+    "name": "Oslo",
+    "city": "Oslo",
+    "region": null,
+    "country": "NO",
+    "currency": "NOK",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "NO",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "helsinki-fi",
+    "name": "Helsinki",
+    "city": "Helsinki",
+    "region": null,
+    "country": "FI",
+    "currency": "EUR",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "FI",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "warsaw-pl",
+    "name": "Warsaw",
+    "city": "Warsaw",
+    "region": null,
+    "country": "PL",
+    "currency": "PLN",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "PL",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "krakow-pl",
+    "name": "Krakow",
+    "city": "Krakow",
+    "region": null,
+    "country": "PL",
+    "currency": "PLN",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "PL",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "prague-cz",
+    "name": "Prague",
+    "city": "Prague",
+    "region": null,
+    "country": "CZ",
+    "currency": "CZK",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "CZ",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "tallinn-ee",
+    "name": "Tallinn",
+    "city": "Tallinn",
+    "region": null,
+    "country": "EE",
+    "currency": "EUR",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "EE",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "tel-aviv-il",
+    "name": "Tel Aviv",
+    "city": "Tel Aviv",
+    "region": null,
+    "country": "IL",
+    "currency": "ILS",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "IL",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "dubai-ae",
+    "name": "Dubai",
+    "city": "Dubai",
+    "region": null,
+    "country": "AE",
+    "currency": "AED",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "AE",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "abu-dhabi-ae",
+    "name": "Abu Dhabi",
+    "city": "Abu Dhabi",
+    "region": null,
+    "country": "AE",
+    "currency": "AED",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "AE",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "riyadh-sa",
+    "name": "Riyadh",
+    "city": "Riyadh",
+    "region": null,
+    "country": "SA",
+    "currency": "SAR",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "SA",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "tokyo-jp",
+    "name": "Tokyo",
+    "city": "Tokyo",
+    "region": null,
+    "country": "JP",
+    "currency": "JPY",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "JP",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "osaka-jp",
+    "name": "Osaka",
+    "city": "Osaka",
+    "region": null,
+    "country": "JP",
+    "currency": "JPY",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "JP",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "seoul-kr",
+    "name": "Seoul",
+    "city": "Seoul",
+    "region": null,
+    "country": "KR",
+    "currency": "KRW",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "KR",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "singapore-sg",
+    "name": "Singapore",
+    "city": "Singapore",
+    "region": null,
+    "country": "SG",
+    "currency": "SGD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "SG",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "hong-kong-hk",
+    "name": "Hong Kong",
+    "city": "Hong Kong",
+    "region": null,
+    "country": "HK",
+    "currency": "HKD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "HK",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "taipei-tw",
+    "name": "Taipei",
+    "city": "Taipei",
+    "region": null,
+    "country": "TW",
+    "currency": "TWD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "TW",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "bengaluru-in",
+    "name": "Bengaluru",
+    "city": "Bengaluru",
+    "region": null,
+    "country": "IN",
+    "currency": "INR",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "IN",
+     "region": null,
+     "local": "PROF-TAX"
+    }
+   },
+   {
+    "key": "hyderabad-in",
+    "name": "Hyderabad",
+    "city": "Hyderabad",
+    "region": null,
+    "country": "IN",
+    "currency": "INR",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "IN",
+     "region": null,
+     "local": "PROF-TAX"
+    }
+   },
+   {
+    "key": "mumbai-in",
+    "name": "Mumbai",
+    "city": "Mumbai",
+    "region": null,
+    "country": "IN",
+    "currency": "INR",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "IN",
+     "region": null,
+     "local": "PROF-TAX"
+    }
+   },
+   {
+    "key": "new-delhi-in",
+    "name": "New Delhi",
+    "city": "New Delhi",
+    "region": null,
+    "country": "IN",
+    "currency": "INR",
+    "aliases": [],
+    "nearby": [
+     "Gurugram",
+     "Noida"
+    ],
+    "tax": {
+     "country": "IN",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "sydney-nsw-au",
+    "name": "Sydney",
+    "city": "Sydney",
+    "region": "NSW",
+    "country": "AU",
+    "currency": "AUD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "AU",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "melbourne-vic-au",
+    "name": "Melbourne",
+    "city": "Melbourne",
+    "region": "VIC",
+    "country": "AU",
+    "currency": "AUD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "AU",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "auckland-nz",
+    "name": "Auckland",
+    "city": "Auckland",
+    "region": null,
+    "country": "NZ",
+    "currency": "NZD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "NZ",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "toronto-on-ca",
+    "name": "Toronto",
+    "city": "Toronto",
+    "region": "ON",
+    "country": "CA",
+    "currency": "CAD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "CA",
+     "region": "ON",
+     "local": null
+    }
+   },
+   {
+    "key": "ottawa-on-ca",
+    "name": "Ottawa",
+    "city": "Ottawa",
+    "region": "ON",
+    "country": "CA",
+    "currency": "CAD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "CA",
+     "region": "ON",
+     "local": null
+    }
+   },
+   {
+    "key": "montreal-qc-ca",
+    "name": "Montreal",
+    "city": "Montreal",
+    "region": "QC",
+    "country": "CA",
+    "currency": "CAD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "CA",
+     "region": "QC",
+     "local": null
+    }
+   },
+   {
+    "key": "vancouver-bc-ca",
+    "name": "Vancouver",
+    "city": "Vancouver",
+    "region": "BC",
+    "country": "CA",
+    "currency": "CAD",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "CA",
+     "region": "BC",
+     "local": null
+    }
+   },
+   {
+    "key": "mexico-city-mx",
+    "name": "Mexico City",
+    "city": "Mexico City",
+    "region": null,
+    "country": "MX",
+    "currency": "MXN",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "MX",
+     "region": null,
+     "local": null
+    }
+   },
+   {
+    "key": "sao-paulo-br",
+    "name": "Sao Paulo",
+    "city": "Sao Paulo",
+    "region": null,
+    "country": "BR",
+    "currency": "BRL",
+    "aliases": [],
+    "nearby": [],
+    "tax": {
+     "country": "BR",
+     "region": null,
+     "local": null
+    }
+   }
+  ]
+ }
+}

@@ -1,0 +1,24 @@
+{
+ "dataset": "rents-ch-zurich",
+ "asOf": "2026-04-01",
+ "taxYear": null,
+ "source": {
+  "name": "Stadt Zürich open data, bau_whg_mpe_mietpreis_raum_zizahl_gn_jahr_od5161 (BAU516OD5161.csv)",
+  "url": "https://data.stadt-zuerich.ch/dataset/bau_whg_mpe_mietpreis_raum_zizahl_gn_jahr_od5161",
+  "licence": "CC0 (Creative Commons Zero, per the dataset metadata, read 2026-10-10)"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "bedroomRatios.CH": {
+   "label": "Stadt Zürich new tenancies, April 2026",
+   "name": "Statistik Stadt Zürich, Mietpreiserhebung April 2026: median net rent of private (not non-profit) flats let in the last 2 years, whole city, by rooms (2 rooms CHF 1,834, 3 rooms CHF 2,250, 4 rooms CHF 2,690; 2 / 3 / 4 rooms = 1 / 2 / 3 bedrooms)",
+   "url": "https://data.stadt-zuerich.ch/dataset/bau_whg_mpe_mietpreis_raum_zizahl_gn_jahr_od5161",
+   "asOf": "2026-04",
+   "file": "https://data.stadt-zuerich.ch/dataset/bau_whg_mpe_mietpreis_raum_zizahl_gn_jahr_od5161/download/BAU516OD5161.csv",
+   "license": "CC0 1.0 (Creative Commons Zero), per the dataset metadata on data.stadt-zuerich.ch (license_id cc-zero, read 2026-10-10)",
+   "note": "Swiss room counts include the living room, so a 2-room flat has one bedroom.",
+   "r2": 1.227,
+   "r3": 1.467
+  }
+ }
+}

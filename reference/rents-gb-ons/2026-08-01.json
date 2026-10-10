@@ -1,0 +1,68 @@
+{
+ "dataset": "rents-gb-ons",
+ "asOf": "2026-08-01",
+ "taxYear": null,
+ "source": {
+  "name": "ONS Price Index of Private Rents, UK: monthly price statistics (dataset xlsx, Table 1)",
+  "url": "https://www.ons.gov.uk/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics",
+  "licence": "Open Government Licence v3.0"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "bedroomRatios.GB-london": {
+   "label": "ONS private rents, London, August 2026",
+   "name": "ONS Price Index of Private Rents, August 2026: mean monthly private rent by bedrooms, London (1 bed £1760, 2 bed £2232, 3 bed £2643)",
+   "url": "https://www.ons.gov.uk/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics",
+   "asOf": "2026-08",
+   "file": "https://www.ons.gov.uk/file?uri=/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics/16september2026/priceindexofprivaterentsukmonthlypricestatistics.xlsx",
+   "license": "Open Government Licence v3.0",
+   "note": "All private tenancies (not only new lets), Table 1 of the 16 September 2026 release.",
+   "r2": 1.268,
+   "r3": 1.502
+  },
+  "bedroomRatios.GB-cambridge": {
+   "label": "ONS private rents, Cambridge, August 2026",
+   "name": "ONS Price Index of Private Rents, August 2026: mean monthly private rent by bedrooms, Cambridge (1 bed £1256, 2 bed £1613, 3 bed £1907)",
+   "url": "https://www.ons.gov.uk/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics",
+   "asOf": "2026-08",
+   "file": "https://www.ons.gov.uk/file?uri=/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics/16september2026/priceindexofprivaterentsukmonthlypricestatistics.xlsx",
+   "license": "Open Government Licence v3.0",
+   "note": "All private tenancies (not only new lets), Table 1 of the 16 September 2026 release.",
+   "r2": 1.284,
+   "r3": 1.518
+  },
+  "bedroomRatios.GB-oxford": {
+   "label": "ONS private rents, Oxford, August 2026",
+   "name": "ONS Price Index of Private Rents, August 2026: mean monthly private rent by bedrooms, Oxford (1 bed £1351, 2 bed £1667, 3 bed £2034)",
+   "url": "https://www.ons.gov.uk/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics",
+   "asOf": "2026-08",
+   "file": "https://www.ons.gov.uk/file?uri=/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics/16september2026/priceindexofprivaterentsukmonthlypricestatistics.xlsx",
+   "license": "Open Government Licence v3.0",
+   "note": "All private tenancies (not only new lets), Table 1 of the 16 September 2026 release.",
+   "r2": 1.234,
+   "r3": 1.506
+  },
+  "bedroomRatios.GB-manchester": {
+   "label": "ONS private rents, Manchester, August 2026",
+   "name": "ONS Price Index of Private Rents, August 2026: mean monthly private rent by bedrooms, Manchester (1 bed £1003, 2 bed £1233, 3 bed £1433)",
+   "url": "https://www.ons.gov.uk/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics",
+   "asOf": "2026-08",
+   "file": "https://www.ons.gov.uk/file?uri=/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics/16september2026/priceindexofprivaterentsukmonthlypricestatistics.xlsx",
+   "license": "Open Government Licence v3.0",
+   "note": "All private tenancies (not only new lets), Table 1 of the 16 September 2026 release.",
+   "r2": 1.229,
+   "r3": 1.429
+  },
+  "bedroomRatios.GB-scotland": {
+   "label": "ONS private rents, Scotland, August 2026",
+   "name": "ONS Price Index of Private Rents, August 2026: mean monthly private rent by bedrooms, Scotland (1 bed £702, 2 bed £911, 3 bed £1172)",
+   "url": "https://www.ons.gov.uk/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics",
+   "asOf": "2026-08",
+   "file": "https://www.ons.gov.uk/file?uri=/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics/16september2026/priceindexofprivaterentsukmonthlypricestatistics.xlsx",
+   "license": "Open Government Licence v3.0",
+   "note": "All private tenancies (not only new lets), Table 1 of the 16 September 2026 release.",
+   "r2": 1.298,
+   "r3": 1.67
+  }
+ }
+}

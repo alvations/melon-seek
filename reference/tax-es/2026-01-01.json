@@ -1,0 +1,39 @@
+{
+ "dataset": "tax-es",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "IRPF state scale (art. 63 LIRPF) 9.5%-24.5%, personal minimum €5,550, €2,000 work deduction; employee social security 2026 6.50% (4.70 + 1.55 + 0.10 + MEI 0.15) to €61,214.40. Regional part: the region's scale (state scale where none is set)",
+  "url": "https://www.boe.es/buscar/act.php?id=BOE-A-2006-20764",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "ES_STATE": [
+   [
+    12450,
+    0.095
+   ],
+   [
+    20200,
+    0.12
+   ],
+   [
+    35200,
+    0.15
+   ],
+   [
+    60000,
+    0.185
+   ],
+   [
+    300000,
+    0.225
+   ],
+   [
+    "Infinity",
+    0.245
+   ]
+  ]
+ }
+}

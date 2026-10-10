@@ -1,0 +1,15 @@
+{
+ "dataset": "llm-vet-config",
+ "asOf": "2026-10-06",
+ "taxYear": null,
+ "source": {
+  "name": "Anthropic Models API (GET /v1/models/{id}) and the model deprecations page",
+  "url": "https://docs.anthropic.com/en/docs/about-claude/model-deprecations",
+  "licence": "n/a"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "scripts/llm-vet.js#DEFAULT_MODEL": "claude-sonnet-5-5",
+  "scripts/llm-vet.js#API_VERSION": "2023-06-01"
+ }
+}

@@ -1,0 +1,1377 @@
+{
+ "dataset": "rents-bedroom-ratios",
+ "asOf": "2026-10-01",
+ "taxYear": null,
+ "source": {
+  "name": "Derived: 1-bedroom quote × official bedroom ratio (sources per family: rents-us-hud-fmr, rents-gb-ons, rents-ie-rtb, rents-ch-zurich, rents-fr-olap, rents-ca-statcan, rents-sg-hdb, rents-nsw-official)",
+  "url": "https://github.com/alvations/melon-seek/blob/main/docs/LIVABILITY.md#42-rent-by-number-of-bedrooms",
+  "licence": "derived; inherits terms \"numbeo-terms\" of the 1-bedroom figure"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "bedroomRatios": {
+   "description": "Official bedroom ratios (2-bedroom ÷ 1-bedroom = r2, 3-bedroom ÷ 1-bedroom = r3) behind the estimated rent2brCenterLocal / rent3brCenterLocal fields (sources.*.ratioKey). See docs/LIVABILITY.md §4.2.",
+   "AU-sydney": {
+    "label": "NSW new bonds, Sydney local government area, June quarter 2026",
+    "name": "NSW Department of Communities and Justice, Rent and Sales Report, June quarter 2026: median weekly rent for new bonds, Sydney local government area (City of Sydney), flats and units",
+    "url": "https://dcj.nsw.gov.au/about-us/families-and-communities-statistics/housing-rent-and-sales/rent-and-sales-report.html",
+    "asOf": "2026-06",
+    "file": "https://dcj.nsw.gov.au/content/dam/dcj/dcj-website/documents/about-us/families-and-communities-statistics/housing-and-rent-sales/rent-tables-june-2026-quarter.xlsx",
+    "license": "NSW Government open data (CC BY 4.0 per docs/LIVABILITY.md §7; licence line not re-read on the page)",
+    "note": "New bonds lodged in the quarter, i.e. new leases. Flats and units: 1 bedroom $819, 2 bedrooms $1,150, 3 bedrooms $1,550 a week (2,862 / 1,737 / 277 new bonds). Monthly = weekly × 52 ÷ 12. Cross-check, postcode 2000 (the CBD): $915 / $1,400 / $2,300.",
+    "r2": 1.404,
+    "r3": 1.893
+   },
+   "CA-montreal": {
+    "label": "Statistics Canada asking rents, Montréal, 2026 Q2",
+    "name": "Statistics Canada table 46-10-0092-01, Quarterly rent statistics, 2026 Q2: average asking rent for apartments by bedrooms, Montréal census metropolitan area (1 bedroom $1480, 2 bedrooms $1820, 3 or more bedrooms $2260)",
+    "url": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=4610009201",
+    "asOf": "2026-04",
+    "file": "https://www150.statcan.gc.ca/n1/tbl/csv/46100092-eng.zip",
+    "license": "Statistics Canada Open Licence",
+    "note": "Asking rents of listed apartments (new lettings), produced with CMHC. REF_DATE 2026-04 is the second quarter.",
+    "r2": 1.23,
+    "r3": 1.527
+   },
+   "CA-ottawa": {
+    "label": "Statistics Canada asking rents, Ottawa (Ontario part), 2026 Q2",
+    "name": "Statistics Canada table 46-10-0092-01, Quarterly rent statistics, 2026 Q2: average asking rent for apartments by bedrooms, Ottawa - Gatineau (Ontario part) census metropolitan area (1 bedroom $1900, 2 bedrooms $2360, 3 or more bedrooms $2740)",
+    "url": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=4610009201",
+    "asOf": "2026-04",
+    "file": "https://www150.statcan.gc.ca/n1/tbl/csv/46100092-eng.zip",
+    "license": "Statistics Canada Open Licence",
+    "note": "Asking rents of listed apartments (new lettings), produced with CMHC. REF_DATE 2026-04 is the second quarter.",
+    "r2": 1.242,
+    "r3": 1.442
+   },
+   "CA-toronto": {
+    "label": "Statistics Canada asking rents, Toronto, 2026 Q2",
+    "name": "Statistics Canada table 46-10-0092-01, Quarterly rent statistics, 2026 Q2: average asking rent for apartments by bedrooms, Toronto census metropolitan area (1 bedroom $2090, 2 bedrooms $2650, 3 or more bedrooms $3270)",
+    "url": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=4610009201",
+    "asOf": "2026-04",
+    "file": "https://www150.statcan.gc.ca/n1/tbl/csv/46100092-eng.zip",
+    "license": "Statistics Canada Open Licence",
+    "note": "Asking rents of listed apartments (new lettings), produced with CMHC. REF_DATE 2026-04 is the second quarter.",
+    "r2": 1.268,
+    "r3": 1.565
+   },
+   "CA-vancouver": {
+    "label": "Statistics Canada asking rents, Vancouver, 2026 Q2",
+    "name": "Statistics Canada table 46-10-0092-01, Quarterly rent statistics, 2026 Q2: average asking rent for apartments by bedrooms, Vancouver census metropolitan area (1 bedroom $2280, 2 bedrooms $3030, 3 or more bedrooms $4150)",
+    "url": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=4610009201",
+    "asOf": "2026-04",
+    "file": "https://www150.statcan.gc.ca/n1/tbl/csv/46100092-eng.zip",
+    "license": "Statistics Canada Open Licence",
+    "note": "Asking rents of listed apartments (new lettings), produced with CMHC. REF_DATE 2026-04 is the second quarter.",
+    "r2": 1.329,
+    "r3": 1.82
+   },
+   "CH": {
+    "label": "Stadt Zürich new tenancies, April 2026",
+    "name": "Statistik Stadt Zürich, Mietpreiserhebung April 2026: median net rent of private (not non-profit) flats let in the last 2 years, whole city, by rooms (2 rooms CHF 1,834, 3 rooms CHF 2,250, 4 rooms CHF 2,690; 2 / 3 / 4 rooms = 1 / 2 / 3 bedrooms)",
+    "url": "https://data.stadt-zuerich.ch/dataset/bau_whg_mpe_mietpreis_raum_zizahl_gn_jahr_od5161",
+    "asOf": "2026-04",
+    "file": "https://data.stadt-zuerich.ch/dataset/bau_whg_mpe_mietpreis_raum_zizahl_gn_jahr_od5161/download/BAU516OD5161.csv",
+    "license": "CC0 1.0 (Creative Commons Zero), per the dataset metadata on data.stadt-zuerich.ch (license_id cc-zero, read 2026-10-10)",
+    "note": "Swiss room counts include the living room, so a 2-room flat has one bedroom.",
+    "r2": 1.227,
+    "r3": 1.467
+   },
+   "FR": {
+    "label": "OLAP new tenants, Paris, 2025",
+    "name": "Observatoire des loyers de l'agglomération parisienne (OLAP), loyers 2025, Paris intra-muros, tenants who moved in less than a year ago: median monthly rent excluding charges by rooms (2 rooms €1,180, 3 rooms €1,750, 4 or more rooms €2,548; 2 / 3 / 4+ rooms = 1 / 2 / 3+ bedrooms)",
+    "url": "https://www.data.gouv.fr/fr/datasets/resultats-nationaux-des-observatoires-locaux-des-loyers/",
+    "asOf": "2025-01",
+    "file": "https://www.observatoires-des-loyers.org/datagouv/2025/Base_OP_2025_Nationale.csv",
+    "license": "Licence Ouverte / Open Licence 2.0",
+    "note": "Rents at 1 January 2025 (data year 2025). The \"4 or more rooms\" class averages 99 m², so it overstates a typical 3-bedroom flat.",
+    "r2": 1.483,
+    "r3": 2.159
+   },
+   "GB-cambridge": {
+    "label": "ONS private rents, Cambridge, August 2026",
+    "name": "ONS Price Index of Private Rents, August 2026: mean monthly private rent by bedrooms, Cambridge (1 bed £1256, 2 bed £1613, 3 bed £1907)",
+    "url": "https://www.ons.gov.uk/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics",
+    "asOf": "2026-08",
+    "file": "https://www.ons.gov.uk/file?uri=/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics/16september2026/priceindexofprivaterentsukmonthlypricestatistics.xlsx",
+    "license": "Open Government Licence v3.0",
+    "note": "All private tenancies (not only new lets), Table 1 of the 16 September 2026 release.",
+    "r2": 1.284,
+    "r3": 1.518
+   },
+   "GB-london": {
+    "label": "ONS private rents, London, August 2026",
+    "name": "ONS Price Index of Private Rents, August 2026: mean monthly private rent by bedrooms, London (1 bed £1760, 2 bed £2232, 3 bed £2643)",
+    "url": "https://www.ons.gov.uk/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics",
+    "asOf": "2026-08",
+    "file": "https://www.ons.gov.uk/file?uri=/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics/16september2026/priceindexofprivaterentsukmonthlypricestatistics.xlsx",
+    "license": "Open Government Licence v3.0",
+    "note": "All private tenancies (not only new lets), Table 1 of the 16 September 2026 release.",
+    "r2": 1.268,
+    "r3": 1.502
+   },
+   "GB-manchester": {
+    "label": "ONS private rents, Manchester, August 2026",
+    "name": "ONS Price Index of Private Rents, August 2026: mean monthly private rent by bedrooms, Manchester (1 bed £1003, 2 bed £1233, 3 bed £1433)",
+    "url": "https://www.ons.gov.uk/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics",
+    "asOf": "2026-08",
+    "file": "https://www.ons.gov.uk/file?uri=/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics/16september2026/priceindexofprivaterentsukmonthlypricestatistics.xlsx",
+    "license": "Open Government Licence v3.0",
+    "note": "All private tenancies (not only new lets), Table 1 of the 16 September 2026 release.",
+    "r2": 1.229,
+    "r3": 1.429
+   },
+   "GB-oxford": {
+    "label": "ONS private rents, Oxford, August 2026",
+    "name": "ONS Price Index of Private Rents, August 2026: mean monthly private rent by bedrooms, Oxford (1 bed £1351, 2 bed £1667, 3 bed £2034)",
+    "url": "https://www.ons.gov.uk/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics",
+    "asOf": "2026-08",
+    "file": "https://www.ons.gov.uk/file?uri=/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics/16september2026/priceindexofprivaterentsukmonthlypricestatistics.xlsx",
+    "license": "Open Government Licence v3.0",
+    "note": "All private tenancies (not only new lets), Table 1 of the 16 September 2026 release.",
+    "r2": 1.234,
+    "r3": 1.506
+   },
+   "GB-scotland": {
+    "label": "ONS private rents, Scotland, August 2026",
+    "name": "ONS Price Index of Private Rents, August 2026: mean monthly private rent by bedrooms, Scotland (1 bed £702, 2 bed £911, 3 bed £1172)",
+    "url": "https://www.ons.gov.uk/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics",
+    "asOf": "2026-08",
+    "file": "https://www.ons.gov.uk/file?uri=/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics/16september2026/priceindexofprivaterentsukmonthlypricestatistics.xlsx",
+    "license": "Open Government Licence v3.0",
+    "note": "All private tenancies (not only new lets), Table 1 of the 16 September 2026 release.",
+    "r2": 1.298,
+    "r3": 1.67
+   },
+   "IE": {
+    "label": "RTB new tenancies, Dublin, 2025 Q4",
+    "name": "Residential Tenancies Board Rent Index via CSO PxStat table RIQ02, 2025 Q4: standardised average monthly rent for new tenancies, Dublin, all property types (1 bed €1,740.68, 2 bed €2,253.28, 3 bed €2,585.87)",
+    "url": "https://data.cso.ie/table/RIQ02",
+    "asOf": "2025-12",
+    "file": "https://ws.cso.ie/public/api.restful/PxStat.Data.Cube_API.ReadDataset/RIQ02/JSON-stat/2.0/en",
+    "license": "CC BY 4.0 (CSO)",
+    "note": "Quarter 2025 Q4 (table updated 2026-05-14). New tenancies registered with the RTB, county Dublin.",
+    "r2": 1.294,
+    "r3": 1.486
+   },
+   "pooled": {
+    "label": "pooled official ratios (median of London, Dublin, Zurich, Paris, Sydney and Toronto)",
+    "name": "Median of the official ratios (GB-london, IE, CH, FR, AU-sydney, CA-toronto), used where no official bedroom breakdown was found",
+    "url": "https://github.com/alvations/melon-seek/blob/main/docs/LIVABILITY.md#42-rent-by-number-of-bedrooms",
+    "asOf": "2026-10",
+    "pooled": [
+     "GB-london",
+     "IE",
+     "CH",
+     "FR",
+     "AU-sydney",
+     "CA-toronto"
+    ],
+    "r2": 1.281,
+    "r3": 1.533
+   },
+   "SG": {
+    "label": "pooled official ratio and HDB Central Area 4-room ÷ 3-room, 2026 Q2",
+    "name": "Pooled 2-bedroom ÷ 1-bedroom ratio 1.281, then Housing & Development Board via data.gov.sg, median rent by town and flat type, 2026 Q2, Central Area: 3-room S$3,300, 4-room S$4,600 (3-room = 2 bedrooms, 4-room = 3 bedrooms)",
+    "url": "https://data.gov.sg/datasets/d_23000a00c52996c55106084ed0339566/view",
+    "asOf": "2026-06",
+    "license": "Singapore Open Data Licence",
+    "note": "Public-housing flats; no 2-room (1-bedroom) median is published for the Central Area, so only the 3-bedroom ÷ 2-bedroom step (1.394) is taken from it.",
+    "r2": 1.281,
+    "r3": 1.786
+   },
+   "US:Atlanta-Sandy Springs-Roswell, GA HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Atlanta-Sandy Springs-Roswell, GA HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Atlanta-Sandy Springs-Roswell, GA HUD Metro FMR Area: 1 bedroom $1,660, 2 bedrooms $1,820, 3 bedrooms $2,182",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.096,
+    "r3": 1.314
+   },
+   "US:Austin-Round Rock-San Marcos, TX MSA": {
+    "label": "HUD FY2026 Fair Market Rents, Austin-Round Rock-San Marcos, TX MSA",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Austin-Round Rock-San Marcos, TX MSA: 1 bedroom $1,562, 2 bedrooms $1,852, 3 bedrooms $2,347",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.186,
+    "r3": 1.503
+   },
+   "US:Baltimore-Columbia-Towson, MD MSA": {
+    "label": "HUD FY2026 Fair Market Rents, Baltimore-Columbia-Towson, MD MSA",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Baltimore-Columbia-Towson, MD MSA: 1 bedroom $1,511, 2 bedrooms $1,857, 3 bedrooms $2,358",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.229,
+    "r3": 1.561
+   },
+   "US:Boston-Cambridge-Quincy, MA-NH HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Boston-Cambridge-Quincy, MA-NH HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Boston-Cambridge-Quincy, MA-NH HUD Metro FMR Area: 1 bedroom $2,476, 2 bedrooms $2,941, 3 bedrooms $3,526",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.188,
+    "r3": 1.424
+   },
+   "US:Boulder, CO MSA": {
+    "label": "HUD FY2026 Fair Market Rents, Boulder, CO MSA",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Boulder, CO MSA: 1 bedroom $1,795, 2 bedrooms $2,124, 3 bedrooms $2,820",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.183,
+    "r3": 1.571
+   },
+   "US:Chicago-Joliet-Naperville, IL HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Chicago-Joliet-Naperville, IL HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Chicago-Joliet-Naperville, IL HUD Metro FMR Area: 1 bedroom $1,581, 2 bedrooms $1,781, 3 bedrooms $2,294",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.127,
+    "r3": 1.451
+   },
+   "US:Colorado Springs, CO HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Colorado Springs, CO HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Colorado Springs, CO HUD Metro FMR Area: 1 bedroom $1,464, 2 bedrooms $1,735, 3 bedrooms $2,413",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.185,
+    "r3": 1.648
+   },
+   "US:Columbus, OH HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Columbus, OH HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Columbus, OH HUD Metro FMR Area: 1 bedroom $1,194, 2 bedrooms $1,430, 3 bedrooms $1,715",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.198,
+    "r3": 1.436
+   },
+   "US:Dallas, TX HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Dallas, TX HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Dallas, TX HUD Metro FMR Area: 1 bedroom $1,648, 2 bedrooms $1,931, 3 bedrooms $2,431",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.172,
+    "r3": 1.475
+   },
+   "US:Denver-Aurora-Centennial, CO MSA": {
+    "label": "HUD FY2026 Fair Market Rents, Denver-Aurora-Centennial, CO MSA",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Denver-Aurora-Centennial, CO MSA: 1 bedroom $1,754, 2 bedrooms $2,089, 3 bedrooms $2,734",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.191,
+    "r3": 1.559
+   },
+   "US:Detroit-Warren-Livonia, MI HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Detroit-Warren-Livonia, MI HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Detroit-Warren-Livonia, MI HUD Metro FMR Area: 1 bedroom $1,122, 2 bedrooms $1,411, 3 bedrooms $1,724",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.258,
+    "r3": 1.537
+   },
+   "US:Houston-The Woodlands-Sugar Land, TX HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Houston-The Woodlands-Sugar Land, TX HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Houston-The Woodlands-Sugar Land, TX HUD Metro FMR Area: 1 bedroom $1,323, 2 bedrooms $1,573, 3 bedrooms $2,116",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.189,
+    "r3": 1.599
+   },
+   "US:Huntsville, AL MSA": {
+    "label": "HUD FY2026 Fair Market Rents, Huntsville, AL MSA",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Huntsville, AL MSA: 1 bedroom $1,136, 2 bedrooms $1,310, 3 bedrooms $1,690",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.153,
+    "r3": 1.488
+   },
+   "US:Los Angeles-Long Beach-Glendale, CA HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Los Angeles-Long Beach-Glendale, CA HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Los Angeles-Long Beach-Glendale, CA HUD Metro FMR Area: 1 bedroom $2,085, 2 bedrooms $2,601, 3 bedrooms $3,298",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.247,
+    "r3": 1.582
+   },
+   "US:Miami-Miami Beach-Kendall, FL HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Miami-Miami Beach-Kendall, FL HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Miami-Miami Beach-Kendall, FL HUD Metro FMR Area: 1 bedroom $1,995, 2 bedrooms $2,436, 3 bedrooms $3,127",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.221,
+    "r3": 1.567
+   },
+   "US:Minneapolis-St. Paul-Bloomington, MN-WI HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Minneapolis-St. Paul-Bloomington, MN-WI HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Minneapolis-St. Paul-Bloomington, MN-WI HUD Metro FMR Area: 1 bedroom $1,405, 2 bedrooms $1,709, 3 bedrooms $2,262",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.216,
+    "r3": 1.61
+   },
+   "US:Nashville-Davidson--Murfreesboro--Franklin, TN HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Nashville-Davidson--Murfreesboro--Franklin, TN HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Nashville-Davidson--Murfreesboro--Franklin, TN HUD Metro FMR Area: 1 bedroom $1,578, 2 bedrooms $1,730, 3 bedrooms $2,211",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.096,
+    "r3": 1.401
+   },
+   "US:New York, NY HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, New York, NY HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), New York, NY HUD Metro FMR Area: 1 bedroom $2,655, 2 bedrooms $2,910, 3 bedrooms $3,644",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.096,
+    "r3": 1.373
+   },
+   "US:Philadelphia-Camden-Wilmington, PA-NJ-DE-MD MSA": {
+    "label": "HUD FY2026 Fair Market Rents, Philadelphia-Camden-Wilmington, PA-NJ-DE-MD MSA",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Philadelphia-Camden-Wilmington, PA-NJ-DE-MD MSA: 1 bedroom $1,520, 2 bedrooms $1,810, 3 bedrooms $2,170",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.191,
+    "r3": 1.428
+   },
+   "US:Phoenix-Mesa-Chandler, AZ MSA": {
+    "label": "HUD FY2026 Fair Market Rents, Phoenix-Mesa-Chandler, AZ MSA",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Phoenix-Mesa-Chandler, AZ MSA: 1 bedroom $1,583, 2 bedrooms $1,839, 3 bedrooms $2,452",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.162,
+    "r3": 1.549
+   },
+   "US:Pittsburgh, PA HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Pittsburgh, PA HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Pittsburgh, PA HUD Metro FMR Area: 1 bedroom $1,077, 2 bedrooms $1,299, 3 bedrooms $1,661",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.206,
+    "r3": 1.542
+   },
+   "US:Portland-Vancouver-Hillsboro, OR-WA MSA": {
+    "label": "HUD FY2026 Fair Market Rents, Portland-Vancouver-Hillsboro, OR-WA MSA",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Portland-Vancouver-Hillsboro, OR-WA MSA: 1 bedroom $1,677, 2 bedrooms $1,922, 3 bedrooms $2,619",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.146,
+    "r3": 1.562
+   },
+   "US:Raleigh-Cary, NC MSA": {
+    "label": "HUD FY2026 Fair Market Rents, Raleigh-Cary, NC MSA",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Raleigh-Cary, NC MSA: 1 bedroom $1,596, 2 bedrooms $1,750, 3 bedrooms $2,196",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.096,
+    "r3": 1.376
+   },
+   "US:Salt Lake City, UT HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Salt Lake City, UT HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Salt Lake City, UT HUD Metro FMR Area: 1 bedroom $1,456, 2 bedrooms $1,747, 3 bedrooms $2,333",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.2,
+    "r3": 1.602
+   },
+   "US:San Diego-Chula Vista-Carlsbad, CA MSA": {
+    "label": "HUD FY2026 Fair Market Rents, San Diego-Chula Vista-Carlsbad, CA MSA",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), San Diego-Chula Vista-Carlsbad, CA MSA: 1 bedroom $2,459, 2 bedrooms $3,001, 3 bedrooms $3,998",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.22,
+    "r3": 1.626
+   },
+   "US:San Francisco, CA HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, San Francisco, CA HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), San Francisco, CA HUD Metro FMR Area: 1 bedroom $2,977, 2 bedrooms $3,604, 3 bedrooms $4,604",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.211,
+    "r3": 1.547
+   },
+   "US:San Jose-Sunnyvale-Santa Clara, CA HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, San Jose-Sunnyvale-Santa Clara, CA HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), San Jose-Sunnyvale-Santa Clara, CA HUD Metro FMR Area: 1 bedroom $2,982, 2 bedrooms $3,483, 3 bedrooms $4,602",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.168,
+    "r3": 1.543
+   },
+   "US:Santa Ana-Anaheim-Irvine, CA HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Santa Ana-Anaheim-Irvine, CA HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Santa Ana-Anaheim-Irvine, CA HUD Metro FMR Area: 1 bedroom $2,746, 2 bedrooms $3,236, 3 bedrooms $4,393",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.178,
+    "r3": 1.6
+   },
+   "US:Seattle-Bellevue, WA HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Seattle-Bellevue, WA HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Seattle-Bellevue, WA HUD Metro FMR Area: 1 bedroom $2,146, 2 bedrooms $2,501, 3 bedrooms $3,272",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.165,
+    "r3": 1.525
+   },
+   "US:Washington-Arlington-Alexandria, DC-VA-MD HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Washington-Arlington-Alexandria, DC-VA-MD HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Washington-Arlington-Alexandria, DC-VA-MD HUD Metro FMR Area: 1 bedroom $2,015, 2 bedrooms $2,246, 3 bedrooms $2,835",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.115,
+    "r3": 1.407
+   }
+  },
+  "cities.rents": [
+   {
+    "key": "san-francisco-ca-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 3678.75,
+    "rent2brCenterLocal": 4453.55,
+    "rent2brCenterUSD": 4454,
+    "rent3brCenterLocal": 5689.27,
+    "rent3brCenterUSD": 5689
+   },
+   {
+    "key": "new-york-ny-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 4370.5,
+    "rent2brCenterLocal": 4790.27,
+    "rent2brCenterUSD": 4790,
+    "rent3brCenterLocal": 5998.53,
+    "rent3brCenterUSD": 5999
+   },
+   {
+    "key": "seattle-wa-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 2454.06,
+    "rent2brCenterLocal": 2860.02,
+    "rent2brCenterUSD": 2860,
+    "rent3brCenterLocal": 3741.7,
+    "rent3brCenterUSD": 3742
+   },
+   {
+    "key": "boston-ma-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 3400.5,
+    "rent2brCenterLocal": 4039.12,
+    "rent2brCenterUSD": 4039,
+    "rent3brCenterLocal": 4842.55,
+    "rent3brCenterUSD": 4843
+   },
+   {
+    "key": "austin-tx-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 1924,
+    "rent2brCenterLocal": 2281.21,
+    "rent2brCenterUSD": 2281,
+    "rent3brCenterLocal": 2890.93,
+    "rent3brCenterUSD": 2891
+   },
+   {
+    "key": "washington-dc-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 2688.12,
+    "rent2brCenterLocal": 2996.29,
+    "rent2brCenterUSD": 2996,
+    "rent3brCenterLocal": 3782.04,
+    "rent3brCenterUSD": 3782
+   },
+   {
+    "key": "los-angeles-ca-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 2549.8,
+    "rent2brCenterLocal": 3180.83,
+    "rent2brCenterUSD": 3181,
+    "rent3brCenterLocal": 4033.21,
+    "rent3brCenterUSD": 4033
+   },
+   {
+    "key": "chicago-il-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 2400,
+    "rent2brCenterLocal": 2703.61,
+    "rent2brCenterUSD": 2704,
+    "rent3brCenterLocal": 3482.35,
+    "rent3brCenterUSD": 3482
+   },
+   {
+    "key": "denver-co-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 2026.54,
+    "rent2brCenterLocal": 2413.59,
+    "rent2brCenterUSD": 2414,
+    "rent3brCenterLocal": 3158.81,
+    "rent3brCenterUSD": 3159
+   },
+   {
+    "key": "atlanta-ga-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 2089,
+    "rent2brCenterLocal": 2290.35,
+    "rent2brCenterUSD": 2290,
+    "rent3brCenterLocal": 2745.9,
+    "rent3brCenterUSD": 2746
+   },
+   {
+    "key": "columbus-oh-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 1543.62,
+    "rent2brCenterLocal": 1848.72,
+    "rent2brCenterUSD": 1849,
+    "rent3brCenterLocal": 2217.18,
+    "rent3brCenterUSD": 2217
+   },
+   {
+    "key": "costa-mesa-ca-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 2699,
+    "rent2brCenterLocal": 3180.61,
+    "rent2brCenterUSD": 3181,
+    "rent3brCenterLocal": 4317.81,
+    "rent3brCenterUSD": 4318
+   },
+   {
+    "key": "huntsville-al-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 1392,
+    "rent2brCenterLocal": 1605.21,
+    "rent2brCenterUSD": 1605,
+    "rent3brCenterLocal": 2070.85,
+    "rent3brCenterUSD": 2071
+   },
+   {
+    "key": "reston-va-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 2333.33,
+    "rent2brCenterLocal": 2600.82,
+    "rent2brCenterUSD": 2601,
+    "rent3brCenterLocal": 3282.87,
+    "rent3brCenterUSD": 3283
+   },
+   {
+    "key": "san-diego-ca-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 3344.71,
+    "rent2brCenterLocal": 4081.93,
+    "rent2brCenterUSD": 4082,
+    "rent3brCenterLocal": 5438.04,
+    "rent3brCenterUSD": 5438
+   },
+   {
+    "key": "palo-alto-ca-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 3600,
+    "rent2brCenterLocal": 4204.83,
+    "rent2brCenterUSD": 4205,
+    "rent3brCenterLocal": 5555.73,
+    "rent3brCenterUSD": 5556
+   },
+   {
+    "key": "san-jose-ca-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 3085.56,
+    "rent2brCenterLocal": 3603.96,
+    "rent2brCenterUSD": 3604,
+    "rent3brCenterLocal": 4761.82,
+    "rent3brCenterUSD": 4762
+   },
+   {
+    "key": "sunnyvale-ca-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 3292.5,
+    "rent2brCenterLocal": 3845.67,
+    "rent2brCenterUSD": 3846,
+    "rent3brCenterLocal": 5081.18,
+    "rent3brCenterUSD": 5081
+   },
+   {
+    "key": "mountain-view-ca-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 2898.75,
+    "rent2brCenterLocal": 3385.76,
+    "rent2brCenterUSD": 3386,
+    "rent3brCenterLocal": 4473.52,
+    "rent3brCenterUSD": 4474
+   },
+   {
+    "key": "menlo-park-ca-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 3166.67,
+    "rent2brCenterLocal": 3833.62,
+    "rent2brCenterUSD": 3834,
+    "rent3brCenterLocal": 4897.33,
+    "rent3brCenterUSD": 4897
+   },
+   {
+    "key": "bellevue-wa-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 2734,
+    "rent2brCenterLocal": 3186.27,
+    "rent2brCenterUSD": 3186,
+    "rent3brCenterLocal": 4168.52,
+    "rent3brCenterUSD": 4169
+   },
+   {
+    "key": "redmond-wa-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 2900,
+    "rent2brCenterLocal": 3379.73,
+    "rent2brCenterUSD": 3380,
+    "rent3brCenterLocal": 4421.62,
+    "rent3brCenterUSD": 4422
+   },
+   {
+    "key": "cambridge-ma-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 3425,
+    "rent2brCenterLocal": 4068.22,
+    "rent2brCenterUSD": 4068,
+    "rent3brCenterLocal": 4877.44,
+    "rent3brCenterUSD": 4877
+   },
+   {
+    "key": "arlington-va-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 2457.78,
+    "rent2brCenterLocal": 2739.54,
+    "rent2brCenterUSD": 2740,
+    "rent3brCenterLocal": 3457.97,
+    "rent3brCenterUSD": 3458
+   },
+   {
+    "key": "dallas-tx-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 1791.82,
+    "rent2brCenterLocal": 2099.52,
+    "rent2brCenterUSD": 2100,
+    "rent3brCenterLocal": 2643.15,
+    "rent3brCenterUSD": 2643
+   },
+   {
+    "key": "houston-tx-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 1700.27,
+    "rent2brCenterLocal": 2021.56,
+    "rent2brCenterUSD": 2022,
+    "rent3brCenterLocal": 2719.4,
+    "rent3brCenterUSD": 2719
+   },
+   {
+    "key": "miami-fl-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 2600,
+    "rent2brCenterLocal": 3174.74,
+    "rent2brCenterUSD": 3175,
+    "rent3brCenterLocal": 4075.29,
+    "rent3brCenterUSD": 4075
+   },
+   {
+    "key": "philadelphia-pa-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 1971.19,
+    "rent2brCenterLocal": 2347.27,
+    "rent2brCenterUSD": 2347,
+    "rent3brCenterLocal": 2814.13,
+    "rent3brCenterUSD": 2814
+   },
+   {
+    "key": "pittsburgh-pa-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 1570,
+    "rent2brCenterLocal": 1893.62,
+    "rent2brCenterUSD": 1894,
+    "rent3brCenterLocal": 2421.33,
+    "rent3brCenterUSD": 2421
+   },
+   {
+    "key": "raleigh-nc-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 1742.22,
+    "rent2brCenterLocal": 1910.33,
+    "rent2brCenterUSD": 1910,
+    "rent3brCenterLocal": 2397.19,
+    "rent3brCenterUSD": 2397
+   },
+   {
+    "key": "portland-or-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 2036.19,
+    "rent2brCenterLocal": 2333.67,
+    "rent2brCenterUSD": 2334,
+    "rent3brCenterLocal": 3179.95,
+    "rent3brCenterUSD": 3180
+   },
+   {
+    "key": "salt-lake-city-ut-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 1640.9,
+    "rent2brCenterLocal": 1968.85,
+    "rent2brCenterUSD": 1969,
+    "rent3brCenterLocal": 2629.27,
+    "rent3brCenterUSD": 2629
+   },
+   {
+    "key": "phoenix-az-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 1764.38,
+    "rent2brCenterLocal": 2049.71,
+    "rent2brCenterUSD": 2050,
+    "rent3brCenterLocal": 2732.95,
+    "rent3brCenterUSD": 2733
+   },
+   {
+    "key": "minneapolis-mn-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 1778.29,
+    "rent2brCenterLocal": 2163.06,
+    "rent2brCenterUSD": 2163,
+    "rent3brCenterLocal": 2862.98,
+    "rent3brCenterUSD": 2863
+   },
+   {
+    "key": "baltimore-md-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 1760,
+    "rent2brCenterLocal": 2163.02,
+    "rent2brCenterUSD": 2163,
+    "rent3brCenterLocal": 2746.58,
+    "rent3brCenterUSD": 2747
+   },
+   {
+    "key": "irvine-ca-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 2890,
+    "rent2brCenterLocal": 3405.7,
+    "rent2brCenterUSD": 3406,
+    "rent3brCenterLocal": 4623.37,
+    "rent3brCenterUSD": 4623
+   },
+   {
+    "key": "colorado-springs-co-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 1731.43,
+    "rent2brCenterLocal": 2051.93,
+    "rent2brCenterUSD": 2052,
+    "rent3brCenterLocal": 2853.78,
+    "rent3brCenterUSD": 2854
+   },
+   {
+    "key": "boulder-co-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 2396,
+    "rent2brCenterLocal": 2835.16,
+    "rent2brCenterUSD": 2835,
+    "rent3brCenterLocal": 3764.19,
+    "rent3brCenterUSD": 3764
+   },
+   {
+    "key": "detroit-mi-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 1520,
+    "rent2brCenterLocal": 1911.52,
+    "rent2brCenterUSD": 1912,
+    "rent3brCenterLocal": 2335.54,
+    "rent3brCenterUSD": 2336
+   },
+   {
+    "key": "nashville-tn-us",
+    "currency": "USD",
+    "fxPerUSD": 1,
+    "rent1brCenterLocal": 1932.44,
+    "rent2brCenterLocal": 2118.58,
+    "rent2brCenterUSD": 2119,
+    "rent3brCenterLocal": 2707.62,
+    "rent3brCenterUSD": 2708
+   },
+   {
+    "key": "london-gb",
+    "currency": "GBP",
+    "fxPerUSD": 0.74187,
+    "rent1brCenterLocal": 2150,
+    "rent2brCenterLocal": 2726.59,
+    "rent2brCenterUSD": 3675,
+    "rent3brCenterLocal": 3228.66,
+    "rent3brCenterUSD": 4352
+   },
+   {
+    "key": "cambridge-gb",
+    "currency": "GBP",
+    "fxPerUSD": 0.74187,
+    "rent1brCenterLocal": 1567.92,
+    "rent2brCenterLocal": 2013.58,
+    "rent2brCenterUSD": 2714,
+    "rent3brCenterLocal": 2380.59,
+    "rent3brCenterUSD": 3209
+   },
+   {
+    "key": "oxford-gb",
+    "currency": "GBP",
+    "fxPerUSD": 0.74187,
+    "rent1brCenterLocal": 1710,
+    "rent2brCenterLocal": 2109.97,
+    "rent2brCenterUSD": 2844,
+    "rent3brCenterLocal": 2574.49,
+    "rent3brCenterUSD": 3470
+   },
+   {
+    "key": "manchester-gb",
+    "currency": "GBP",
+    "fxPerUSD": 0.74187,
+    "rent1brCenterLocal": 1355.36,
+    "rent2brCenterLocal": 1666.16,
+    "rent2brCenterUSD": 2246,
+    "rent3brCenterLocal": 1936.42,
+    "rent3brCenterUSD": 2610
+   },
+   {
+    "key": "edinburgh-gb",
+    "currency": "GBP",
+    "fxPerUSD": 0.74187,
+    "rent1brCenterLocal": 1204.62,
+    "rent2brCenterLocal": 1563.26,
+    "rent2brCenterUSD": 2107,
+    "rent3brCenterLocal": 2011.13,
+    "rent3brCenterUSD": 2711
+   },
+   {
+    "key": "dublin-ie",
+    "currency": "EUR",
+    "fxPerUSD": 0.87439,
+    "rent1brCenterLocal": 2202,
+    "rent2brCenterLocal": 2850.45,
+    "rent2brCenterUSD": 3260,
+    "rent3brCenterLocal": 3271.18,
+    "rent3brCenterUSD": 3741
+   },
+   {
+    "key": "zurich-ch",
+    "currency": "CHF",
+    "fxPerUSD": 0.80735,
+    "rent1brCenterLocal": 2512.86,
+    "rent2brCenterLocal": 3082.84,
+    "rent2brCenterUSD": 3818,
+    "rent3brCenterLocal": 3685.71,
+    "rent3brCenterUSD": 4565
+   },
+   {
+    "key": "geneva-ch",
+    "currency": "CHF",
+    "fxPerUSD": 0.80735,
+    "rent1brCenterLocal": 2312.5,
+    "rent2brCenterLocal": 2837.04,
+    "rent2brCenterUSD": 3514,
+    "rent3brCenterLocal": 3391.83,
+    "rent3brCenterUSD": 4201
+   },
+   {
+    "key": "paris-fr",
+    "currency": "EUR",
+    "fxPerUSD": 0.87439,
+    "rent1brCenterLocal": 1386.05,
+    "rent2brCenterLocal": 2055.58,
+    "rent2brCenterUSD": 2351,
+    "rent3brCenterLocal": 2992.93,
+    "rent3brCenterUSD": 3423
+   },
+   {
+    "key": "berlin-de",
+    "currency": "EUR",
+    "fxPerUSD": 0.87439,
+    "rent1brCenterLocal": 1316.15,
+    "rent2brCenterLocal": 1686.43,
+    "rent2brCenterUSD": 1929,
+    "rent3brCenterLocal": 2017.85,
+    "rent3brCenterUSD": 2308
+   },
+   {
+    "key": "munich-de",
+    "currency": "EUR",
+    "fxPerUSD": 0.87439,
+    "rent1brCenterLocal": 1512.75,
+    "rent2brCenterLocal": 1938.34,
+    "rent2brCenterUSD": 2217,
+    "rent3brCenterLocal": 2319.27,
+    "rent3brCenterUSD": 2652
+   },
+   {
+    "key": "amsterdam-nl",
+    "currency": "EUR",
+    "fxPerUSD": 0.87439,
+    "rent1brCenterLocal": 2307.69,
+    "rent2brCenterLocal": 2956.92,
+    "rent2brCenterUSD": 3382,
+    "rent3brCenterLocal": 3538.03,
+    "rent3brCenterUSD": 4046
+   },
+   {
+    "key": "madrid-es",
+    "currency": "EUR",
+    "fxPerUSD": 0.87439,
+    "rent1brCenterLocal": 1341.15,
+    "rent2brCenterLocal": 1718.46,
+    "rent2brCenterUSD": 1965,
+    "rent3brCenterLocal": 2056.18,
+    "rent3brCenterUSD": 2352
+   },
+   {
+    "key": "barcelona-es",
+    "currency": "EUR",
+    "fxPerUSD": 0.87439,
+    "rent1brCenterLocal": 1463.85,
+    "rent2brCenterLocal": 1875.68,
+    "rent2brCenterUSD": 2145,
+    "rent3brCenterLocal": 2244.3,
+    "rent3brCenterUSD": 2567
+   },
+   {
+    "key": "lisbon-pt",
+    "currency": "EUR",
+    "fxPerUSD": 0.87439,
+    "rent1brCenterLocal": 1419.23,
+    "rent2brCenterLocal": 1818.51,
+    "rent2brCenterUSD": 2080,
+    "rent3brCenterLocal": 2175.89,
+    "rent3brCenterUSD": 2488
+   },
+   {
+    "key": "milan-it",
+    "currency": "EUR",
+    "fxPerUSD": 0.87439,
+    "rent1brCenterLocal": 1522.73,
+    "rent2brCenterLocal": 1951.12,
+    "rent2brCenterUSD": 2231,
+    "rent3brCenterLocal": 2334.57,
+    "rent3brCenterUSD": 2670
+   },
+   {
+    "key": "vienna-at",
+    "currency": "EUR",
+    "fxPerUSD": 0.87439,
+    "rent1brCenterLocal": 1127,
+    "rent2brCenterLocal": 1444.06,
+    "rent2brCenterUSD": 1652,
+    "rent3brCenterLocal": 1727.86,
+    "rent3brCenterUSD": 1976
+   },
+   {
+    "key": "brussels-be",
+    "currency": "EUR",
+    "fxPerUSD": 0.87439,
+    "rent1brCenterLocal": 1196.67,
+    "rent2brCenterLocal": 1533.33,
+    "rent2brCenterUSD": 1754,
+    "rent3brCenterLocal": 1834.67,
+    "rent3brCenterUSD": 2098
+   },
+   {
+    "key": "stockholm-se",
+    "currency": "SEK",
+    "fxPerUSD": 9.63495,
+    "rent1brCenterLocal": 17000,
+    "rent2brCenterLocal": 21782.65,
+    "rent2brCenterUSD": 2261,
+    "rent3brCenterLocal": 26063.53,
+    "rent3brCenterUSD": 2705
+   },
+   {
+    "key": "copenhagen-dk",
+    "currency": "DKK",
+    "fxPerUSD": 6.5366,
+    "rent1brCenterLocal": 13311.82,
+    "rent2brCenterLocal": 17056.86,
+    "rent2brCenterUSD": 2609,
+    "rent3brCenterLocal": 20409,
+    "rent3brCenterUSD": 3122
+   },
+   {
+    "key": "oslo-no",
+    "currency": "NOK",
+    "fxPerUSD": 9.68565,
+    "rent1brCenterLocal": 19234.73,
+    "rent2brCenterLocal": 24646.08,
+    "rent2brCenterUSD": 2545,
+    "rent3brCenterLocal": 29489.71,
+    "rent3brCenterUSD": 3045
+   },
+   {
+    "key": "helsinki-fi",
+    "currency": "EUR",
+    "fxPerUSD": 0.87439,
+    "rent1brCenterLocal": 1095.23,
+    "rent2brCenterLocal": 1403.35,
+    "rent2brCenterUSD": 1605,
+    "rent3brCenterLocal": 1679.15,
+    "rent3brCenterUSD": 1920
+   },
+   {
+    "key": "warsaw-pl",
+    "currency": "PLN",
+    "fxPerUSD": 3.77915,
+    "rent1brCenterLocal": 4683.41,
+    "rent2brCenterLocal": 6001,
+    "rent2brCenterUSD": 1588,
+    "rent3brCenterLocal": 7180.36,
+    "rent3brCenterUSD": 1900
+   },
+   {
+    "key": "krakow-pl",
+    "currency": "PLN",
+    "fxPerUSD": 3.77915,
+    "rent1brCenterLocal": 3584.38,
+    "rent2brCenterLocal": 4592.78,
+    "rent2brCenterUSD": 1215,
+    "rent3brCenterLocal": 5495.39,
+    "rent3brCenterUSD": 1454
+   },
+   {
+    "key": "prague-cz",
+    "currency": "CZK",
+    "fxPerUSD": 21.1625,
+    "rent1brCenterLocal": 24752.29,
+    "rent2brCenterLocal": 31715.91,
+    "rent2brCenterUSD": 1499,
+    "rent3brCenterLocal": 37948.95,
+    "rent3brCenterUSD": 1793
+   },
+   {
+    "key": "tallinn-ee",
+    "currency": "EUR",
+    "fxPerUSD": 0.87439,
+    "rent1brCenterLocal": 725.31,
+    "rent2brCenterLocal": 929.36,
+    "rent2brCenterUSD": 1063,
+    "rent3brCenterLocal": 1112.01,
+    "rent3brCenterUSD": 1272
+   },
+   {
+    "key": "tel-aviv-il",
+    "currency": "ILS",
+    "fxPerUSD": 2.9993,
+    "rent1brCenterLocal": 6696.43,
+    "rent2brCenterLocal": 8580.35,
+    "rent2brCenterUSD": 2861,
+    "rent3brCenterLocal": 10266.62,
+    "rent3brCenterUSD": 3423
+   },
+   {
+    "key": "dubai-ae",
+    "currency": "AED",
+    "fxPerUSD": 3.67285,
+    "rent1brCenterLocal": 8842.11,
+    "rent2brCenterLocal": 11329.68,
+    "rent2brCenterUSD": 3085,
+    "rent3brCenterLocal": 13556.27,
+    "rent3brCenterUSD": 3691
+   },
+   {
+    "key": "abu-dhabi-ae",
+    "currency": "AED",
+    "fxPerUSD": 3.67285,
+    "rent1brCenterLocal": 7222.14,
+    "rent2brCenterLocal": 9253.96,
+    "rent2brCenterUSD": 2520,
+    "rent3brCenterLocal": 11072.62,
+    "rent3brCenterUSD": 3015
+   },
+   {
+    "key": "riyadh-sa",
+    "currency": "SAR",
+    "fxPerUSD": 3.755,
+    "rent1brCenterLocal": 4426.06,
+    "rent2brCenterLocal": 5671.25,
+    "rent2brCenterUSD": 1510,
+    "rent3brCenterLocal": 6785.81,
+    "rent3brCenterUSD": 1807
+   },
+   {
+    "key": "tokyo-jp",
+    "currency": "JPY",
+    "fxPerUSD": 162.135,
+    "rent1brCenterLocal": 198131.58,
+    "rent2brCenterLocal": 253872.38,
+    "rent2brCenterUSD": 1566,
+    "rent3brCenterLocal": 303765.22,
+    "rent3brCenterUSD": 1874
+   },
+   {
+    "key": "osaka-jp",
+    "currency": "JPY",
+    "fxPerUSD": 162.135,
+    "rent1brCenterLocal": 110666.67,
+    "rent2brCenterLocal": 141800.77,
+    "rent2brCenterUSD": 875,
+    "rent3brCenterLocal": 169668.49,
+    "rent3brCenterUSD": 1046
+   },
+   {
+    "key": "seoul-kr",
+    "currency": "KRW",
+    "fxPerUSD": 1485.9,
+    "rent1brCenterLocal": 1188235.29,
+    "rent2brCenterLocal": 1522524.16,
+    "rent2brCenterUSD": 1025,
+    "rent3brCenterLocal": 1821741.66,
+    "rent3brCenterUSD": 1226
+   },
+   {
+    "key": "singapore-sg",
+    "currency": "SGD",
+    "fxPerUSD": 1.29005,
+    "rent1brCenterLocal": 3804.35,
+    "rent2brCenterLocal": 4874.64,
+    "rent2brCenterUSD": 3779,
+    "rent3brCenterLocal": 6794.95,
+    "rent3brCenterUSD": 5267
+   },
+   {
+    "key": "hong-kong-hk",
+    "currency": "HKD",
+    "fxPerUSD": 7.83895,
+    "rent1brCenterLocal": 17632,
+    "rent2brCenterLocal": 22592.45,
+    "rent2brCenterUSD": 2882,
+    "rent3brCenterLocal": 27032.48,
+    "rent3brCenterUSD": 3448
+   },
+   {
+    "key": "taipei-tw",
+    "currency": "TWD",
+    "fxPerUSD": 32.1875,
+    "rent1brCenterLocal": 28210.53,
+    "rent2brCenterLocal": 36147.06,
+    "rent2brCenterUSD": 1123,
+    "rent3brCenterLocal": 43250.94,
+    "rent3brCenterUSD": 1344
+   },
+   {
+    "key": "bengaluru-in",
+    "currency": "INR",
+    "fxPerUSD": 96.26375,
+    "rent1brCenterLocal": 30103.45,
+    "rent2brCenterLocal": 38572.52,
+    "rent2brCenterUSD": 401,
+    "rent3brCenterLocal": 46153.07,
+    "rent3brCenterUSD": 479
+   },
+   {
+    "key": "hyderabad-in",
+    "currency": "INR",
+    "fxPerUSD": 96.26375,
+    "rent1brCenterLocal": 22380.95,
+    "rent2brCenterLocal": 28677.43,
+    "rent2brCenterUSD": 298,
+    "rent3brCenterLocal": 34313.33,
+    "rent3brCenterUSD": 356
+   },
+   {
+    "key": "mumbai-in",
+    "currency": "INR",
+    "fxPerUSD": 96.26375,
+    "rent1brCenterLocal": 60500,
+    "rent2brCenterLocal": 77520.6,
+    "rent2brCenterUSD": 805,
+    "rent3brCenterLocal": 92755.51,
+    "rent3brCenterUSD": 964
+   },
+   {
+    "key": "new-delhi-in",
+    "currency": "INR",
+    "fxPerUSD": 96.26375,
+    "rent1brCenterLocal": 26416.67,
+    "rent2brCenterLocal": 33848.53,
+    "rent2brCenterUSD": 352,
+    "rent3brCenterLocal": 40500.69,
+    "rent3brCenterUSD": 421
+   },
+   {
+    "key": "sydney-nsw-au",
+    "currency": "AUD",
+    "fxPerUSD": 1.42867347667691,
+    "rent1brCenterLocal": 3549,
+    "rent2brCenterLocal": 4983.33,
+    "rent2brCenterUSD": 3488,
+    "rent3brCenterLocal": 6716.67,
+    "rent3brCenterUSD": 4701
+   },
+   {
+    "key": "melbourne-vic-au",
+    "currency": "AUD",
+    "fxPerUSD": 1.42867347667691,
+    "rent1brCenterLocal": 2435.44,
+    "rent2brCenterLocal": 3419.73,
+    "rent2brCenterUSD": 2394,
+    "rent3brCenterLocal": 4609.2,
+    "rent3brCenterUSD": 3226
+   },
+   {
+    "key": "auckland-nz",
+    "currency": "NZD",
+    "fxPerUSD": 1.71335560695622,
+    "rent1brCenterLocal": 2263.3,
+    "rent2brCenterLocal": 2900.04,
+    "rent2brCenterUSD": 1693,
+    "rent3brCenterLocal": 3469.98,
+    "rent3brCenterUSD": 2025
+   },
+   {
+    "key": "toronto-on-ca",
+    "currency": "CAD",
+    "fxPerUSD": 1.40515,
+    "rent1brCenterLocal": 2282.89,
+    "rent2brCenterLocal": 2894.57,
+    "rent2brCenterUSD": 2060,
+    "rent3brCenterLocal": 3571.79,
+    "rent3brCenterUSD": 2542
+   },
+   {
+    "key": "ottawa-on-ca",
+    "currency": "CAD",
+    "fxPerUSD": 1.40515,
+    "rent1brCenterLocal": 2108.33,
+    "rent2brCenterLocal": 2618.77,
+    "rent2brCenterUSD": 1864,
+    "rent3brCenterLocal": 3040.43,
+    "rent3brCenterUSD": 2164
+   },
+   {
+    "key": "montreal-qc-ca",
+    "currency": "CAD",
+    "fxPerUSD": 1.40515,
+    "rent1brCenterLocal": 1740.74,
+    "rent2brCenterLocal": 2140.64,
+    "rent2brCenterUSD": 1523,
+    "rent3brCenterLocal": 2658.16,
+    "rent3brCenterUSD": 1892
+   },
+   {
+    "key": "vancouver-bc-ca",
+    "currency": "CAD",
+    "fxPerUSD": 1.40515,
+    "rent1brCenterLocal": 2507.24,
+    "rent2brCenterLocal": 3331.99,
+    "rent2brCenterUSD": 2371,
+    "rent3brCenterLocal": 4563.62,
+    "rent3brCenterUSD": 3248
+   },
+   {
+    "key": "mexico-city-mx",
+    "currency": "MXN",
+    "fxPerUSD": 17.386,
+    "rent1brCenterLocal": 19977.27,
+    "rent2brCenterLocal": 25597.52,
+    "rent2brCenterUSD": 1472,
+    "rent3brCenterLocal": 30628.13,
+    "rent3brCenterUSD": 1762
+   },
+   {
+    "key": "sao-paulo-br",
+    "currency": "BRL",
+    "fxPerUSD": 5.07935,
+    "rent1brCenterLocal": 3453.16,
+    "rent2brCenterLocal": 4424.65,
+    "rent2brCenterUSD": 871,
+    "rent3brCenterLocal": 5294.21,
+    "rent3brCenterUSD": 1042
+   }
+  ]
+ }
+}

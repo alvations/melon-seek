@@ -1,0 +1,33 @@
+{
+ "dataset": "salary-vetting-bounds",
+ "asOf": "2026-10-02",
+ "taxYear": null,
+ "source": {
+  "name": "melon-seek (our own choice)",
+  "url": "https://github.com/alvations/melon-seek",
+  "licence": "repository licence"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "server/vet.js#VET": {
+   "MAX_ANNUAL": 1200000,
+   "MIN_ANNUAL_FULLTIME": 15000,
+   "RATIO_FLAG": 3,
+   "RATIO_QUARANTINE": 4,
+   "Z": 3.5,
+   "Z_LOW": 4.5,
+   "TUKEY_K": 3,
+   "MIN_GROUP": 8,
+   "MIN_SIGMA": 0.4,
+   "JUNIOR_MAX_MID": 300000,
+   "SENIOR_MIN_MAX": 60000,
+   "HOURLY_MAX_FULLTIME": 200,
+   "MAX_HOURLY_USD": 250
+  },
+  "server/vet.js#CRITICAL_CODES": [
+   "above_max",
+   "below_min",
+   "hourly_high"
+  ]
+ }
+}

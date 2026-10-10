@@ -1,0 +1,23 @@
+{
+ "dataset": "rents-sg-hdb",
+ "asOf": "2026-06-01",
+ "taxYear": null,
+ "source": {
+  "name": "Housing & Development Board, Median Rent by Town and Flat Type (data.gov.sg datastore API, town CENTRAL)",
+  "url": "https://data.gov.sg/datasets/d_23000a00c52996c55106084ed0339566/view",
+  "licence": "Singapore Open Data Licence"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "bedroomRatios.SG": {
+   "label": "pooled official ratio and HDB Central Area 4-room ÷ 3-room, 2026 Q2",
+   "name": "Pooled 2-bedroom ÷ 1-bedroom ratio 1.281, then Housing & Development Board via data.gov.sg, median rent by town and flat type, 2026 Q2, Central Area: 3-room S$3,300, 4-room S$4,600 (3-room = 2 bedrooms, 4-room = 3 bedrooms)",
+   "url": "https://data.gov.sg/datasets/d_23000a00c52996c55106084ed0339566/view",
+   "asOf": "2026-06",
+   "license": "Singapore Open Data Licence",
+   "note": "Public-housing flats; no 2-room (1-bedroom) median is published for the Central Area, so only the 3-bedroom ÷ 2-bedroom step (1.394) is taken from it.",
+   "r2": 1.281,
+   "r3": 1.786
+  }
+ }
+}

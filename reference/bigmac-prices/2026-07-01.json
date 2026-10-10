@@ -1,0 +1,257 @@
+{
+ "dataset": "bigmac-prices",
+ "asOf": "2026-07-01",
+ "taxYear": null,
+ "source": {
+  "name": "The Economist Big Mac index, source-data/big-mac-source-data-v2.csv",
+  "url": "https://github.com/TheEconomist/big-mac-data",
+  "licence": "data CC BY 4.0, code MIT"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "cities.bigMac": {
+   "asOf": "2026-07-01",
+   "source": {
+    "name": "The Economist Big Mac index, source data v2 (release 2026-07-01)",
+    "class": "open",
+    "url": "https://raw.githubusercontent.com/TheEconomist/big-mac-data/master/source-data/big-mac-source-data-v2.csv",
+    "repo": "https://github.com/TheEconomist/big-mac-data",
+    "license": "Data CC BY 4.0, code MIT (The Economist)",
+    "asOf": "2026-07-01"
+   },
+   "byCountry": {
+    "AE": {
+     "name": "United Arab Emirates",
+     "currency": "AED",
+     "localPrice": 19,
+     "dollarEx": 3.67285,
+     "dollarPrice": 5.17
+    },
+    "AT": {
+     "name": "Austria",
+     "currency": "EUR",
+     "localPrice": 5.63,
+     "dollarEx": 0.87439,
+     "dollarPrice": 6.44
+    },
+    "AU": {
+     "name": "Australia",
+     "currency": "AUD",
+     "localPrice": 8.5,
+     "dollarEx": 1.42867347667691,
+     "dollarPrice": 5.95
+    },
+    "BE": {
+     "name": "Belgium",
+     "currency": "EUR",
+     "localPrice": 5.39,
+     "dollarEx": 0.87439,
+     "dollarPrice": 6.16
+    },
+    "BR": {
+     "name": "Brazil",
+     "currency": "BRL",
+     "localPrice": 23.9,
+     "dollarEx": 5.07935,
+     "dollarPrice": 4.71
+    },
+    "CA": {
+     "name": "Canada",
+     "currency": "CAD",
+     "localPrice": 8.17,
+     "dollarEx": 1.40515,
+     "dollarPrice": 5.81
+    },
+    "CH": {
+     "name": "Switzerland",
+     "currency": "CHF",
+     "localPrice": 7.3,
+     "dollarEx": 0.80735,
+     "dollarPrice": 9.04
+    },
+    "CZ": {
+     "name": "Czech Republic",
+     "currency": "CZK",
+     "localPrice": 115,
+     "dollarEx": 21.1625,
+     "dollarPrice": 5.43
+    },
+    "DE": {
+     "name": "Germany",
+     "currency": "EUR",
+     "localPrice": 6.99,
+     "dollarEx": 0.87439,
+     "dollarPrice": 7.99
+    },
+    "DK": {
+     "name": "Denmark",
+     "currency": "DKK",
+     "localPrice": 46,
+     "dollarEx": 6.5366,
+     "dollarPrice": 7.04
+    },
+    "EE": {
+     "name": "Estonia",
+     "currency": "EUR",
+     "localPrice": 4.7,
+     "dollarEx": 0.87439,
+     "dollarPrice": 5.38
+    },
+    "ES": {
+     "name": "Spain",
+     "currency": "EUR",
+     "localPrice": 5.9,
+     "dollarEx": 0.87439,
+     "dollarPrice": 6.75
+    },
+    "FI": {
+     "name": "Finland",
+     "currency": "EUR",
+     "localPrice": 6.35,
+     "dollarEx": 0.87439,
+     "dollarPrice": 7.26
+    },
+    "FR": {
+     "name": "France",
+     "currency": "EUR",
+     "localPrice": 5.6,
+     "dollarEx": 0.87439,
+     "dollarPrice": 6.4
+    },
+    "GB": {
+     "name": "Britain",
+     "currency": "GBP",
+     "localPrice": 5.49,
+     "dollarEx": 0.74187,
+     "dollarPrice": 7.4
+    },
+    "HK": {
+     "name": "Hong Kong",
+     "currency": "HKD",
+     "localPrice": 25.5,
+     "dollarEx": 7.83895,
+     "dollarPrice": 3.25
+    },
+    "IE": {
+     "name": "Ireland",
+     "currency": "EUR",
+     "localPrice": 6.6,
+     "dollarEx": 0.87439,
+     "dollarPrice": 7.55
+    },
+    "IL": {
+     "name": "Israel",
+     "currency": "ILS",
+     "localPrice": 23,
+     "dollarEx": 2.9993,
+     "dollarPrice": 7.67
+    },
+    "IN": {
+     "name": "India",
+     "currency": "INR",
+     "localPrice": 236.25,
+     "dollarEx": 96.26375,
+     "dollarPrice": 2.45
+    },
+    "IT": {
+     "name": "Italy",
+     "currency": "EUR",
+     "localPrice": 6.56,
+     "dollarEx": 0.87439,
+     "dollarPrice": 7.5
+    },
+    "JP": {
+     "name": "Japan",
+     "currency": "JPY",
+     "localPrice": 500,
+     "dollarEx": 162.135,
+     "dollarPrice": 3.08
+    },
+    "KR": {
+     "name": "South Korea",
+     "currency": "KRW",
+     "localPrice": 5700,
+     "dollarEx": 1485.9,
+     "dollarPrice": 3.84
+    },
+    "MX": {
+     "name": "Mexico",
+     "currency": "MXN",
+     "localPrice": 109,
+     "dollarEx": 17.386,
+     "dollarPrice": 6.27
+    },
+    "NL": {
+     "name": "Netherlands",
+     "currency": "EUR",
+     "localPrice": 6.26,
+     "dollarEx": 0.87439,
+     "dollarPrice": 7.16
+    },
+    "NO": {
+     "name": "Norway",
+     "currency": "NOK",
+     "localPrice": 78,
+     "dollarEx": 9.68565,
+     "dollarPrice": 8.05
+    },
+    "NZ": {
+     "name": "New Zealand",
+     "currency": "NZD",
+     "localPrice": 8.8,
+     "dollarEx": 1.71335560695622,
+     "dollarPrice": 5.14
+    },
+    "PL": {
+     "name": "Poland",
+     "currency": "PLN",
+     "localPrice": 23.5,
+     "dollarEx": 3.77915,
+     "dollarPrice": 6.22
+    },
+    "PT": {
+     "name": "Portugal",
+     "currency": "EUR",
+     "localPrice": 5.65,
+     "dollarEx": 0.87439,
+     "dollarPrice": 6.46
+    },
+    "SA": {
+     "name": "Saudi Arabia",
+     "currency": "SAR",
+     "localPrice": 19,
+     "dollarEx": 3.755,
+     "dollarPrice": 5.06
+    },
+    "SE": {
+     "name": "Sweden",
+     "currency": "SEK",
+     "localPrice": 69,
+     "dollarEx": 9.63495,
+     "dollarPrice": 7.16
+    },
+    "SG": {
+     "name": "Singapore",
+     "currency": "SGD",
+     "localPrice": 7.45,
+     "dollarEx": 1.29005,
+     "dollarPrice": 5.77
+    },
+    "TW": {
+     "name": "Taiwan",
+     "currency": "TWD",
+     "localPrice": 78,
+     "dollarEx": 32.1875,
+     "dollarPrice": 2.42
+    },
+    "US": {
+     "name": "United States",
+     "currency": "USD",
+     "localPrice": 6.22,
+     "dollarEx": 1,
+     "dollarPrice": 6.22
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,51 @@
+{
+ "dataset": "tax-us-local-nyc",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "New York City resident tax 3.078%-3.876% on NYS taxable income, NYC school tax credit (IT-2105-I 2026)",
+  "url": "https://www.tax.ny.gov/pdf/current_forms/it/it2105i.pdf",
+  "licence": "New York State public information"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "NYC_2026": {
+   "single": [
+    [
+     12000,
+     0.03078
+    ],
+    [
+     25000,
+     0.03762
+    ],
+    [
+     50000,
+     0.03819
+    ],
+    [
+     "Infinity",
+     0.03876
+    ]
+   ],
+   "mfj": [
+    [
+     21600,
+     0.03078
+    ],
+    [
+     45000,
+     0.03762
+    ],
+    [
+     90000,
+     0.03819
+    ],
+    [
+     "Infinity",
+     0.03876
+    ]
+   ]
+  }
+ }
+}

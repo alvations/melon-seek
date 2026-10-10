@@ -1,0 +1,57 @@
+{
+ "dataset": "rents-ca-statcan",
+ "asOf": "2026-04-01",
+ "taxYear": null,
+ "source": {
+  "name": "Statistics Canada, Quarterly rent statistics, table 46-10-0092-01 (full-table CSV zip)",
+  "url": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=4610009201",
+  "licence": "Statistics Canada Open Licence"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "bedroomRatios.CA-toronto": {
+   "label": "Statistics Canada asking rents, Toronto, 2026 Q2",
+   "name": "Statistics Canada table 46-10-0092-01, Quarterly rent statistics, 2026 Q2: average asking rent for apartments by bedrooms, Toronto census metropolitan area (1 bedroom $2090, 2 bedrooms $2650, 3 or more bedrooms $3270)",
+   "url": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=4610009201",
+   "asOf": "2026-04",
+   "file": "https://www150.statcan.gc.ca/n1/tbl/csv/46100092-eng.zip",
+   "license": "Statistics Canada Open Licence",
+   "note": "Asking rents of listed apartments (new lettings), produced with CMHC. REF_DATE 2026-04 is the second quarter.",
+   "r2": 1.268,
+   "r3": 1.565
+  },
+  "bedroomRatios.CA-vancouver": {
+   "label": "Statistics Canada asking rents, Vancouver, 2026 Q2",
+   "name": "Statistics Canada table 46-10-0092-01, Quarterly rent statistics, 2026 Q2: average asking rent for apartments by bedrooms, Vancouver census metropolitan area (1 bedroom $2280, 2 bedrooms $3030, 3 or more bedrooms $4150)",
+   "url": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=4610009201",
+   "asOf": "2026-04",
+   "file": "https://www150.statcan.gc.ca/n1/tbl/csv/46100092-eng.zip",
+   "license": "Statistics Canada Open Licence",
+   "note": "Asking rents of listed apartments (new lettings), produced with CMHC. REF_DATE 2026-04 is the second quarter.",
+   "r2": 1.329,
+   "r3": 1.82
+  },
+  "bedroomRatios.CA-montreal": {
+   "label": "Statistics Canada asking rents, Montréal, 2026 Q2",
+   "name": "Statistics Canada table 46-10-0092-01, Quarterly rent statistics, 2026 Q2: average asking rent for apartments by bedrooms, Montréal census metropolitan area (1 bedroom $1480, 2 bedrooms $1820, 3 or more bedrooms $2260)",
+   "url": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=4610009201",
+   "asOf": "2026-04",
+   "file": "https://www150.statcan.gc.ca/n1/tbl/csv/46100092-eng.zip",
+   "license": "Statistics Canada Open Licence",
+   "note": "Asking rents of listed apartments (new lettings), produced with CMHC. REF_DATE 2026-04 is the second quarter.",
+   "r2": 1.23,
+   "r3": 1.527
+  },
+  "bedroomRatios.CA-ottawa": {
+   "label": "Statistics Canada asking rents, Ottawa (Ontario part), 2026 Q2",
+   "name": "Statistics Canada table 46-10-0092-01, Quarterly rent statistics, 2026 Q2: average asking rent for apartments by bedrooms, Ottawa - Gatineau (Ontario part) census metropolitan area (1 bedroom $1900, 2 bedrooms $2360, 3 or more bedrooms $2740)",
+   "url": "https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=4610009201",
+   "asOf": "2026-04",
+   "file": "https://www150.statcan.gc.ca/n1/tbl/csv/46100092-eng.zip",
+   "license": "Statistics Canada Open Licence",
+   "note": "Asking rents of listed apartments (new lettings), produced with CMHC. REF_DATE 2026-04 is the second quarter.",
+   "r2": 1.242,
+   "r3": 1.442
+  }
+ }
+}

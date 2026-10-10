@@ -1,0 +1,32 @@
+{
+ "dataset": "seniority-ladder",
+ "asOf": "2026-10-02",
+ "taxYear": null,
+ "source": {
+  "name": "melon-seek (our own choice)",
+  "url": "https://github.com/alvations/melon-seek",
+  "licence": "repository licence"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "public/features/roles.js#SENIORITY_LADDER": [
+   "Intern",
+   "Entry",
+   "Mid",
+   "Senior",
+   "Staff+",
+   "Manager",
+   "Director+"
+  ],
+  "public/viz/chart.js#SENIORITY_ORDER": [
+   "Intern",
+   "Entry",
+   "Mid",
+   "Senior",
+   "Staff+",
+   "Manager",
+   "Director+",
+   "Unspecified"
+  ]
+ }
+}

@@ -1,0 +1,6783 @@
+{
+ "format": "melon-jobs-aggregates-1",
+ "dataset": "jobs-aggregates",
+ "asOf": "2026-10-09",
+ "generatedAt": "2026-10-10",
+ "basis": "vetted posted base pay ranges; USD midpoints at public/viz/palette.js FX",
+ "inputs": {
+  "snapshots": [
+   {
+    "slug": "anduril",
+    "channel": "stable",
+    "fetchedAt": "2026-10-09T13:25:54.682Z",
+    "normalizerVersion": "norm-5",
+    "upgraded": false,
+    "jobs": 2478,
+    "ledger": true
+   },
+   {
+    "slug": "anthropic",
+    "channel": "stable",
+    "fetchedAt": "2026-10-09T13:25:46.792Z",
+    "normalizerVersion": "norm-5",
+    "upgraded": false,
+    "jobs": 643,
+    "ledger": true
+   },
+   {
+    "slug": "cohere",
+    "channel": "stable",
+    "fetchedAt": "2026-10-09T13:25:59.044Z",
+    "normalizerVersion": "norm-5",
+    "upgraded": false,
+    "jobs": 120,
+    "ledger": true
+   },
+   {
+    "slug": "openai",
+    "channel": "stable",
+    "fetchedAt": "2026-10-09T13:25:57.154Z",
+    "normalizerVersion": "norm-5",
+    "upgraded": false,
+    "jobs": 817,
+    "ledger": true
+   },
+   {
+    "slug": "palantir",
+    "channel": "stable",
+    "fetchedAt": "2026-10-09T13:26:00.841Z",
+    "normalizerVersion": "norm-5",
+    "upgraded": false,
+    "jobs": 313,
+    "ledger": true
+   },
+   {
+    "slug": "scaleai",
+    "channel": "stable",
+    "fetchedAt": "2026-10-09T13:25:57.833Z",
+    "normalizerVersion": "norm-5",
+    "upgraded": false,
+    "jobs": 182,
+    "ledger": true
+   },
+   {
+    "slug": "shieldai",
+    "channel": "stable",
+    "fetchedAt": "2026-10-09T13:26:02.765Z",
+    "normalizerVersion": "norm-5",
+    "upgraded": false,
+    "jobs": 594,
+    "ledger": true
+   },
+   {
+    "slug": "xai",
+    "channel": "stable",
+    "fetchedAt": "2026-10-09T13:25:58.664Z",
+    "normalizerVersion": "norm-5",
+    "upgraded": false,
+    "jobs": 305,
+    "ledger": true
+   }
+  ],
+  "fx": {
+   "asOf": "2026-07-01"
+  },
+  "market": {
+   "minN": 3
+  },
+  "backtest": {
+   "seed": 20261002,
+   "maxN": 500,
+   "dedupe": "role"
+  },
+  "levelIndex": {
+   "Intern": 0,
+   "Entry": 1,
+   "Mid": 2,
+   "Senior": 3,
+   "Manager": 3.5,
+   "Staff+": 4,
+   "Director+": 5
+  },
+  "cities": {
+   "cities": 89
+  }
+ },
+ "companies": [
+  {
+   "slug": "anduril",
+   "name": "Anduril",
+   "channel": "stable",
+   "mode": "snapshot",
+   "fetchedAt": "2026-10-09T13:25:54.682Z",
+   "normalizerVersion": "norm-5",
+   "upgraded": false,
+   "jobs": 2478,
+   "salaried": 2332,
+   "quarantined": 5,
+   "remote": 40,
+   "usd": {
+    "n": 2332,
+    "p10": 109200,
+    "p25": 146500,
+    "p50": 170000,
+    "p75": 193000,
+    "p90": 222000
+   },
+   "currencies": {
+    "USD": 2327,
+    "EUR": 2,
+    "JPY": 1,
+    "GBP": 2
+   },
+   "noFx": 0,
+   "noFxCurrencies": {},
+   "converted": 5,
+   "intervals": {
+    "year": 2136,
+    "hour": 196
+   },
+   "kinds": {
+    "salary": 2136,
+    "hourly": 196
+   },
+   "sources": {
+    "structured": 2255,
+    "text": 77
+   },
+   "seniority": {
+    "Entry": 52,
+    "Intern": 27,
+    "Mid": 1023,
+    "Director+": 130,
+    "Senior": 922,
+    "Manager": 138,
+    "Staff+": 186
+   },
+   "midDefault": 1023,
+   "levelTokens": 1,
+   "families": {
+    "hardware": 907,
+    "swe": 450,
+    "finance": 55,
+    "security": 57,
+    "supply-chain": 242,
+    "manufacturing": 162,
+    "sales": 24,
+    "bizops": 52,
+    "ml": 43,
+    "solutions": 14,
+    "data": 12,
+    "facilities": 34,
+    "people": 94,
+    "it": 14,
+    "field-ops": 44,
+    "program": 133,
+    "marketing": 28,
+    "legal": 20,
+    "support": 19,
+    "eng-manager": 29,
+    "design": 14,
+    "admin": 3,
+    "product": 23
+   },
+   "familyUnknown": 5,
+   "keywords": {
+    "noSkills": 90,
+    "noResponsibilities": 2,
+    "noFit": 1
+   },
+   "vet": {
+    "payBearing": 2337,
+    "flagged": 203,
+    "critical": 3,
+    "blocking": 0,
+    "quarantined": 5,
+    "statistical": 0,
+    "review": 198,
+    "codes": {
+     "non_year_interval": 196,
+     "multiple_ranges": 2,
+     "currency_country_mismatch": 2,
+     "min_under_15k_fulltime": 3,
+     "ratio_over_3": 5,
+     "quarantined": 5,
+     "interval_corrected": 1
+    },
+    "gateCodes": {
+     "below_min": 3,
+     "range_ratio": 5
+    }
+   },
+   "juice": {
+    "scored": 1952,
+    "coverage": 0.837,
+    "score": {
+     "p10": 35.1,
+     "p50": 56,
+     "p90": 76
+    },
+    "net": {
+     "n": 1952,
+     "p10": 34700,
+     "p25": 54100,
+     "p50": 65700,
+     "p75": 92900,
+     "p90": 113800
+    },
+    "grades": {
+     "Dry": 335,
+     "Ripe": 1151,
+     "Juicy": 460,
+     "Rind": 6
+    },
+    "unmatched": [
+     [
+      "Ashville, US",
+      103
+     ],
+     [
+      "Waltham, US",
+      56
+     ],
+     [
+      "Broomfield, US",
+      49
+     ],
+     [
+      "Quincy, US",
+      48
+     ],
+     [
+      "Quonset, US",
+      33
+     ],
+     [
+      "McHenry, US",
+      22
+     ],
+     [
+      "Lexington, US",
+      18
+     ],
+     [
+      "Fort Collins, US",
+      15
+     ]
+    ]
+   },
+   "freshness": {
+    "new": 263,
+    "active": 1072,
+    "stale": 698,
+    "evergreen": 445,
+    "unknown": 0
+   },
+   "payShare": 0.941,
+   "remoteShare": 0.016,
+   "shares": {
+    "familyUnknown": 0.002,
+    "midDefault": 0.413,
+    "levelTokens": 0,
+    "noSkills": 0.036,
+    "quarantined": 0.002,
+    "critical": 0.001,
+    "statistical": 0,
+    "review": 0.085
+   },
+   "backtest": {
+    "medianAbsPctError": 11.8,
+    "within10Pct": 42.4,
+    "n": 500,
+    "seed": 20261002,
+    "skipped": 0
+   }
+  },
+  {
+   "slug": "anthropic",
+   "name": "Anthropic",
+   "channel": "stable",
+   "mode": "snapshot",
+   "fetchedAt": "2026-10-09T13:25:46.792Z",
+   "normalizerVersion": "norm-5",
+   "upgraded": false,
+   "jobs": 643,
+   "salaried": 564,
+   "quarantined": 1,
+   "remote": 72,
+   "usd": {
+    "n": 564,
+    "p10": 235000,
+    "p25": 287500,
+    "p50": 348800,
+    "p75": 411100,
+    "p90": 481900
+   },
+   "currencies": {
+    "USD": 509,
+    "EUR": 15,
+    "GBP": 39,
+    "CAD": 1
+   },
+   "noFx": 0,
+   "noFxCurrencies": {},
+   "converted": 55,
+   "intervals": {
+    "year": 561,
+    "week": 3
+   },
+   "kinds": {
+    "salary": 561,
+    "stipend": 3
+   },
+   "sources": {
+    "structured": 561,
+    "text": 3
+   },
+   "seniority": {
+    "Mid": 382,
+    "Manager": 69,
+    "Intern": 3,
+    "Senior": 62,
+    "Director+": 31,
+    "Staff+": 96
+   },
+   "midDefault": 382,
+   "levelTokens": 0,
+   "families": {
+    "sales": 96,
+    "field-ops": 3,
+    "bizops": 10,
+    "ml": 57,
+    "security": 36,
+    "policy": 7,
+    "people": 12,
+    "finance": 38,
+    "solutions": 50,
+    "it": 15,
+    "legal": 20,
+    "program": 32,
+    "marketing": 22,
+    "facilities": 21,
+    "support": 28,
+    "data": 10,
+    "swe": 110,
+    "trust-safety": 18,
+    "eng-manager": 22,
+    "hardware": 5,
+    "supply-chain": 9,
+    "design": 5,
+    "product": 17
+   },
+   "familyUnknown": 0,
+   "keywords": {
+    "noSkills": 18,
+    "noResponsibilities": 0,
+    "noFit": 3
+   },
+   "vet": {
+    "payBearing": 565,
+    "flagged": 8,
+    "critical": 0,
+    "blocking": 0,
+    "quarantined": 1,
+    "statistical": 0,
+    "review": 7,
+    "codes": {
+     "non_year_interval": 3,
+     "multi_currency": 3,
+     "ratio_over_3": 5,
+     "quarantined": 1
+    },
+    "gateCodes": {
+     "range_ratio": 1
+    }
+   },
+   "juice": {
+    "scored": 548,
+    "coverage": 0.972,
+    "score": {
+     "p10": 73,
+     "p50": 87,
+     "p90": 96
+    },
+    "net": {
+     "n": 548,
+     "p10": 104100,
+     "p25": 132000,
+     "p50": 164100,
+     "p75": 208400,
+     "p90": 253700
+    },
+    "grades": {
+     "Juicy": 500,
+     "Ripe": 45,
+     "Dry": 3
+    },
+    "unmatched": [
+     [
+      "(remote only)",
+      15
+     ],
+     [
+      "Ontario, Canada, CA",
+      1
+     ]
+    ]
+   },
+   "freshness": {
+    "new": 57,
+    "active": 323,
+    "stale": 144,
+    "evergreen": 119,
+    "unknown": 0
+   },
+   "payShare": 0.877,
+   "remoteShare": 0.112,
+   "shares": {
+    "familyUnknown": 0,
+    "midDefault": 0.594,
+    "levelTokens": 0,
+    "noSkills": 0.028,
+    "quarantined": 0.002,
+    "critical": 0,
+    "statistical": 0,
+    "review": 0.012
+   },
+   "backtest": {
+    "medianAbsPctError": 13.8,
+    "within10Pct": 38,
+    "n": 498,
+    "seed": 20261002,
+    "skipped": 2
+   }
+  },
+  {
+   "slug": "cohere",
+   "name": "Cohere",
+   "channel": "stable",
+   "mode": "snapshot",
+   "fetchedAt": "2026-10-09T13:25:59.044Z",
+   "normalizerVersion": "norm-5",
+   "upgraded": false,
+   "jobs": 120,
+   "salaried": 84,
+   "quarantined": 0,
+   "remote": 82,
+   "usd": {
+    "n": 84,
+    "p10": 173300,
+    "p25": 199300,
+    "p50": 251700,
+    "p75": 279300,
+    "p90": 313200
+   },
+   "currencies": {
+    "CAD": 45,
+    "USD": 38,
+    "EUR": 1
+   },
+   "noFx": 0,
+   "noFxCurrencies": {},
+   "converted": 46,
+   "intervals": {
+    "year": 81,
+    "hour": 3
+   },
+   "kinds": {
+    "salary": 81,
+    "hourly": 3
+   },
+   "sources": {
+    "structured": 80,
+    "text": 4
+   },
+   "seniority": {
+    "Senior": 28,
+    "Mid": 67,
+    "Staff+": 3,
+    "Intern": 3,
+    "Director+": 9,
+    "Manager": 10
+   },
+   "midDefault": 67,
+   "levelTokens": 0,
+   "families": {
+    "swe": 14,
+    "ml": 25,
+    "sales": 24,
+    "policy": 3,
+    "solutions": 17,
+    "security": 2,
+    "bizops": 2,
+    "product": 3,
+    "data": 2,
+    "ai-training": 3,
+    "finance": 3,
+    "eng-manager": 5,
+    "program": 6,
+    "marketing": 5,
+    "it": 1,
+    "legal": 1,
+    "support": 3,
+    "admin": 1
+   },
+   "familyUnknown": 0,
+   "keywords": {
+    "noSkills": 5,
+    "noResponsibilities": 0,
+    "noFit": 2
+   },
+   "vet": {
+    "payBearing": 84,
+    "flagged": 7,
+    "critical": 0,
+    "blocking": 0,
+    "quarantined": 0,
+    "statistical": 0,
+    "review": 7,
+    "codes": {
+     "non_year_interval": 3,
+     "currency_country_mismatch": 3,
+     "structured_text_disagree": 1
+    },
+    "gateCodes": {}
+   },
+   "juice": {
+    "scored": 72,
+    "coverage": 0.857,
+    "score": {
+     "p10": 54.3,
+     "p50": 74,
+     "p90": 84.9
+    },
+    "net": {
+     "n": 72,
+     "p10": 62500,
+     "p25": 83800,
+     "p50": 108900,
+     "p75": 127400,
+     "p90": 149700
+    },
+    "grades": {
+     "Ripe": 20,
+     "Juicy": 46,
+     "Dry": 6
+    },
+    "unmatched": [
+     [
+      "United States, US",
+      9
+     ],
+     [
+      "Canada, CA",
+      2
+     ],
+     [
+      "Halifax",
+      1
+     ]
+    ]
+   },
+   "freshness": {
+    "new": 6,
+    "active": 61,
+    "stale": 30,
+    "evergreen": 23,
+    "unknown": 0
+   },
+   "payShare": 0.7,
+   "remoteShare": 0.683,
+   "shares": {
+    "familyUnknown": 0,
+    "midDefault": 0.558,
+    "levelTokens": 0,
+    "noSkills": 0.042,
+    "quarantined": 0,
+    "critical": 0,
+    "statistical": 0,
+    "review": 0.083
+   },
+   "backtest": {
+    "medianAbsPctError": 8.1,
+    "within10Pct": 60,
+    "n": 80,
+    "seed": 20261002,
+    "skipped": 4
+   }
+  },
+  {
+   "slug": "openai",
+   "name": "OpenAI",
+   "channel": "stable",
+   "mode": "snapshot",
+   "fetchedAt": "2026-10-09T13:25:57.154Z",
+   "normalizerVersion": "norm-5",
+   "upgraded": false,
+   "jobs": 817,
+   "salaried": 656,
+   "quarantined": 0,
+   "remote": 55,
+   "usd": {
+    "n": 656,
+    "p10": 220000,
+    "p25": 247000,
+    "p50": 307500,
+    "p75": 360000,
+    "p90": 417000
+   },
+   "currencies": {
+    "USD": 646,
+    "GBP": 3,
+    "SGD": 3,
+    "CAD": 4
+   },
+   "noFx": 0,
+   "noFxCurrencies": {},
+   "converted": 10,
+   "intervals": {
+    "year": 652,
+    "hour": 4
+   },
+   "kinds": {
+    "salary": 652,
+    "hourly": 4
+   },
+   "sources": {
+    "structured": 656
+   },
+   "seniority": {
+    "Mid": 571,
+    "Senior": 114,
+    "Manager": 62,
+    "Director+": 52,
+    "Entry": 9,
+    "Staff+": 9
+   },
+   "midDefault": 571,
+   "levelTokens": 0,
+   "families": {
+    "program": 41,
+    "ml": 59,
+    "swe": 181,
+    "data": 23,
+    "security": 20,
+    "marketing": 51,
+    "eng-manager": 23,
+    "support": 44,
+    "solutions": 94,
+    "facilities": 21,
+    "manufacturing": 2,
+    "hardware": 35,
+    "supply-chain": 16,
+    "sales": 84,
+    "finance": 34,
+    "trust-safety": 3,
+    "bizops": 17,
+    "admin": 2,
+    "people": 13,
+    "product": 12,
+    "legal": 14,
+    "it": 6,
+    "policy": 9,
+    "ai-training": 1,
+    "field-ops": 2,
+    "design": 8
+   },
+   "familyUnknown": 2,
+   "keywords": {
+    "noSkills": 55,
+    "noResponsibilities": 0,
+    "noFit": 10
+   },
+   "vet": {
+    "payBearing": 656,
+    "flagged": 11,
+    "critical": 0,
+    "blocking": 0,
+    "quarantined": 0,
+    "statistical": 0,
+    "review": 11,
+    "codes": {
+     "missed_salary": 3,
+     "non_year_interval": 4,
+     "structured_text_disagree": 3,
+     "ratio_over_3": 1
+    },
+    "gateCodes": {}
+   },
+   "juice": {
+    "scored": 644,
+    "coverage": 0.982,
+    "score": {
+     "p10": 67,
+     "p50": 81,
+     "p90": 92
+    },
+    "net": {
+     "n": 644,
+     "p10": 87700,
+     "p25": 103800,
+     "p50": 134700,
+     "p75": 168400,
+     "p90": 200000
+    },
+    "grades": {
+     "Juicy": 537,
+     "Ripe": 105,
+     "Dry": 2
+    },
+    "unmatched": [
+     [
+      "(remote only)",
+      12
+     ]
+    ]
+   },
+   "freshness": {
+    "new": 72,
+    "active": 381,
+    "stale": 234,
+    "evergreen": 130,
+    "unknown": 0
+   },
+   "payShare": 0.803,
+   "remoteShare": 0.067,
+   "shares": {
+    "familyUnknown": 0.002,
+    "midDefault": 0.699,
+    "levelTokens": 0,
+    "noSkills": 0.067,
+    "quarantined": 0,
+    "critical": 0,
+    "statistical": 0,
+    "review": 0.017
+   },
+   "backtest": {
+    "medianAbsPctError": 10.1,
+    "within10Pct": 49.6,
+    "n": 498,
+    "seed": 20261002,
+    "skipped": 2
+   }
+  },
+  {
+   "slug": "palantir",
+   "name": "Palantir",
+   "channel": "stable",
+   "mode": "snapshot",
+   "fetchedAt": "2026-10-09T13:26:00.841Z",
+   "normalizerVersion": "norm-5",
+   "upgraded": false,
+   "jobs": 313,
+   "salaried": 237,
+   "quarantined": 0,
+   "remote": 0,
+   "usd": {
+    "n": 237,
+    "p10": 99400,
+    "p25": 120000,
+    "p50": 140000,
+    "p75": 167500,
+    "p90": 170000
+   },
+   "currencies": {
+    "USD": 233,
+    "EUR": 2,
+    "SGD": 2
+   },
+   "noFx": 0,
+   "noFxCurrencies": {},
+   "converted": 4,
+   "intervals": {
+    "year": 198,
+    "month": 38,
+    "hour": 1
+   },
+   "kinds": {
+    "salary": 236,
+    "hourly": 1
+   },
+   "sources": {
+    "text": 237
+   },
+   "seniority": {
+    "Mid": 198,
+    "Intern": 47,
+    "Entry": 34,
+    "Manager": 11,
+    "Senior": 23
+   },
+   "midDefault": 198,
+   "levelTokens": 0,
+   "families": {
+    "admin": 6,
+    "swe": 99,
+    "legal": 14,
+    "data": 1,
+    "sales": 4,
+    "security": 19,
+    "solutions": 110,
+    "finance": 12,
+    "bizops": 6,
+    "people": 9,
+    "supply-chain": 3,
+    "design": 13,
+    "hardware": 2,
+    "support": 2,
+    "program": 7,
+    "marketing": 3,
+    "facilities": 1
+   },
+   "familyUnknown": 2,
+   "keywords": {
+    "noSkills": 16,
+    "noResponsibilities": 6,
+    "noFit": 0
+   },
+   "vet": {
+    "payBearing": 237,
+    "flagged": 39,
+    "critical": 0,
+    "blocking": 0,
+    "quarantined": 0,
+    "statistical": 0,
+    "review": 39,
+    "codes": {
+     "non_year_interval": 39
+    },
+    "gateCodes": {}
+   },
+   "juice": {
+    "scored": 222,
+    "coverage": 0.937,
+    "score": {
+     "p10": 11.1,
+     "p50": 38,
+     "p90": 54.9
+    },
+    "net": {
+     "n": 222,
+     "p10": 9500,
+     "p25": 20800,
+     "p50": 37800,
+     "p75": 51100,
+     "p90": 63400
+    },
+    "grades": {
+     "Dry": 144,
+     "Rind": 14,
+     "Ripe": 64
+    },
+    "unmatched": [
+     [
+      "Honolulu, US",
+      8
+     ],
+     [
+      "Fayetteville, US",
+      3
+     ],
+     [
+      "Kitsap, US",
+      2
+     ],
+     [
+      "Vilnius, LT",
+      2
+     ]
+    ]
+   },
+   "freshness": {
+    "new": 1,
+    "active": 23,
+    "stale": 64,
+    "evergreen": 225,
+    "unknown": 0
+   },
+   "payShare": 0.757,
+   "remoteShare": 0,
+   "shares": {
+    "familyUnknown": 0.006,
+    "midDefault": 0.633,
+    "levelTokens": 0,
+    "noSkills": 0.051,
+    "quarantined": 0,
+    "critical": 0,
+    "statistical": 0,
+    "review": 0.165
+   },
+   "backtest": {
+    "medianAbsPctError": 6.7,
+    "within10Pct": 57.7,
+    "n": 234,
+    "seed": 20261002,
+    "skipped": 3
+   }
+  },
+  {
+   "slug": "scaleai",
+   "name": "Scale AI",
+   "channel": "stable",
+   "mode": "snapshot",
+   "fetchedAt": "2026-10-09T13:25:57.833Z",
+   "normalizerVersion": "norm-5",
+   "upgraded": false,
+   "jobs": 182,
+   "salaried": 123,
+   "quarantined": 2,
+   "remote": 18,
+   "usd": {
+    "n": 123,
+    "p10": 153600,
+    "p25": 190500,
+    "p50": 220000,
+    "p75": 246900,
+    "p90": 283500
+   },
+   "currencies": {
+    "USD": 123
+   },
+   "noFx": 0,
+   "noFxCurrencies": {},
+   "converted": 0,
+   "intervals": {
+    "year": 121,
+    "hour": 2
+   },
+   "kinds": {
+    "salary": 121,
+    "hourly": 2
+   },
+   "sources": {
+    "structured": 121,
+    "text": 2
+   },
+   "seniority": {
+    "Senior": 34,
+    "Mid": 73,
+    "Staff+": 38,
+    "Director+": 5,
+    "Manager": 22,
+    "Entry": 7,
+    "Intern": 3
+   },
+   "midDefault": 73,
+   "levelTokens": 0,
+   "families": {
+    "marketing": 5,
+    "solutions": 23,
+    "product": 14,
+    "sales": 9,
+    "bizops": 5,
+    "ml": 20,
+    "data": 5,
+    "swe": 36,
+    "support": 5,
+    "eng-manager": 8,
+    "finance": 5,
+    "admin": 1,
+    "ai-training": 17,
+    "it": 2,
+    "legal": 2,
+    "facilities": 1,
+    "people": 1,
+    "security": 7,
+    "program": 11,
+    "design": 4,
+    "supply-chain": 1
+   },
+   "familyUnknown": 0,
+   "keywords": {
+    "noSkills": 3,
+    "noResponsibilities": 4,
+    "noFit": 9
+   },
+   "vet": {
+    "payBearing": 125,
+    "flagged": 6,
+    "critical": 2,
+    "blocking": 0,
+    "quarantined": 2,
+    "statistical": 0,
+    "review": 4,
+    "codes": {
+     "non_year_interval": 4,
+     "structured_text_disagree": 2,
+     "hourly_over_cap": 2,
+     "currency_country_mismatch": 1,
+     "quarantined": 2
+    },
+    "gateCodes": {
+     "hourly_high": 2
+    }
+   },
+   "juice": {
+    "scored": 121,
+    "coverage": 0.984,
+    "score": {
+     "p10": 42,
+     "p50": 69,
+     "p90": 81
+    },
+    "net": {
+     "n": 121,
+     "p10": 43200,
+     "p25": 71500,
+     "p50": 93800,
+     "p75": 114800,
+     "p90": 134500
+    },
+    "grades": {
+     "Ripe": 48,
+     "Dry": 13,
+     "Rind": 1,
+     "Juicy": 59
+    },
+    "unmatched": [
+     [
+      "Honolulu, US",
+      1
+     ],
+     [
+      "Omaha, US",
+      1
+     ]
+    ]
+   },
+   "freshness": {
+    "new": 7,
+    "active": 44,
+    "stale": 62,
+    "evergreen": 69,
+    "unknown": 0
+   },
+   "payShare": 0.676,
+   "remoteShare": 0.099,
+   "shares": {
+    "familyUnknown": 0,
+    "midDefault": 0.401,
+    "levelTokens": 0,
+    "noSkills": 0.016,
+    "quarantined": 0.016,
+    "critical": 0.016,
+    "statistical": 0,
+    "review": 0.032
+   },
+   "backtest": {
+    "medianAbsPctError": 11.2,
+    "within10Pct": 47.1,
+    "n": 121,
+    "seed": 20261002,
+    "skipped": 2
+   }
+  },
+  {
+   "slug": "shieldai",
+   "name": "Shield AI",
+   "channel": "stable",
+   "mode": "snapshot",
+   "fetchedAt": "2026-10-09T13:26:02.765Z",
+   "normalizerVersion": "norm-5",
+   "upgraded": false,
+   "jobs": 594,
+   "salaried": 466,
+   "quarantined": 0,
+   "remote": 25,
+   "usd": {
+    "n": 466,
+    "p10": 111800,
+    "p25": 142500,
+    "p50": 190000,
+    "p75": 234000,
+    "p90": 275000
+   },
+   "currencies": {
+    "USD": 466
+   },
+   "noFx": 0,
+   "noFxCurrencies": {},
+   "converted": 0,
+   "intervals": {
+    "year": 441,
+    "hour": 25
+   },
+   "kinds": {
+    "salary": 441,
+    "hourly": 25
+   },
+   "sources": {
+    "structured": 466
+   },
+   "seniority": {
+    "Mid": 105,
+    "Director+": 33,
+    "Entry": 23,
+    "Senior": 142,
+    "Manager": 56,
+    "Intern": 6,
+    "Staff+": 229
+   },
+   "midDefault": 105,
+   "levelTokens": 0,
+   "families": {
+    "hardware": 196,
+    "swe": 149,
+    "product": 3,
+    "it": 16,
+    "facilities": 9,
+    "sales": 28,
+    "bizops": 10,
+    "ml": 12,
+    "program": 23,
+    "manufacturing": 21,
+    "marketing": 15,
+    "eng-manager": 16,
+    "people": 11,
+    "legal": 5,
+    "admin": 2,
+    "field-ops": 9,
+    "solutions": 13,
+    "policy": 1,
+    "finance": 17,
+    "design": 5,
+    "data": 4,
+    "support": 6,
+    "security": 5,
+    "supply-chain": 12
+   },
+   "familyUnknown": 6,
+   "keywords": {
+    "noSkills": 11,
+    "noResponsibilities": 0,
+    "noFit": 3
+   },
+   "vet": {
+    "payBearing": 466,
+    "flagged": 26,
+    "critical": 0,
+    "blocking": 0,
+    "quarantined": 0,
+    "statistical": 0,
+    "review": 26,
+    "codes": {
+     "non_year_interval": 25,
+     "ratio_over_3": 1,
+     "interval_corrected": 1
+    },
+    "gateCodes": {}
+   },
+   "juice": {
+    "scored": 427,
+    "coverage": 0.916,
+    "score": {
+     "p10": 42,
+     "p50": 68,
+     "p90": 84
+    },
+    "net": {
+     "n": 427,
+     "p10": 43300,
+     "p25": 62700,
+     "p50": 90300,
+     "p75": 120500,
+     "p90": 145400
+    },
+    "grades": {
+     "Ripe": 180,
+     "Juicy": 188,
+     "Dry": 57,
+     "Rind": 2
+    },
+    "unmatched": [
+     [
+      "San Mateo, US",
+      20
+     ],
+     [
+      "(remote only)",
+      10
+     ],
+     [
+      "Wichita Metro Area",
+      5
+     ],
+     [
+      "United States, US",
+      2
+     ],
+     [
+      "Bonham, US",
+      1
+     ],
+     [
+      "Orlando, US",
+      1
+     ]
+    ]
+   },
+   "freshness": {
+    "new": 35,
+    "active": 288,
+    "stale": 199,
+    "evergreen": 72,
+    "unknown": 0
+   },
+   "payShare": 0.785,
+   "remoteShare": 0.042,
+   "shares": {
+    "familyUnknown": 0.01,
+    "midDefault": 0.177,
+    "levelTokens": 0,
+    "noSkills": 0.019,
+    "quarantined": 0,
+    "critical": 0,
+    "statistical": 0,
+    "review": 0.056
+   },
+   "backtest": {
+    "medianAbsPctError": 15.9,
+    "within10Pct": 31.7,
+    "n": 464,
+    "seed": 20261002,
+    "skipped": 2
+   }
+  },
+  {
+   "slug": "xai",
+   "name": "xAI",
+   "channel": "stable",
+   "mode": "snapshot",
+   "fetchedAt": "2026-10-09T13:25:58.664Z",
+   "normalizerVersion": "norm-5",
+   "upgraded": false,
+   "jobs": 305,
+   "salaried": 129,
+   "quarantined": 0,
+   "remote": 29,
+   "usd": {
+    "n": 129,
+    "p10": 83200,
+    "p25": 90000,
+    "p50": 179000,
+    "p75": 310000,
+    "p90": 310000
+   },
+   "currencies": {
+    "USD": 123,
+    "GBP": 5,
+    "EUR": 1
+   },
+   "noFx": 0,
+   "noFxCurrencies": {},
+   "converted": 6,
+   "intervals": {
+    "year": 93,
+    "hour": 36
+   },
+   "kinds": {
+    "salary": 93,
+    "hourly": 36
+   },
+   "sources": {
+    "text": 129
+   },
+   "seniority": {
+    "Manager": 39,
+    "Mid": 226,
+    "Senior": 31,
+    "Director+": 5,
+    "Intern": 4
+   },
+   "midDefault": 226,
+   "levelTokens": 0,
+   "families": {
+    "sales": 11,
+    "ai-training": 27,
+    "data": 4,
+    "security": 14,
+    "facilities": 125,
+    "hardware": 16,
+    "swe": 45,
+    "legal": 5,
+    "marketing": 5,
+    "trust-safety": 5,
+    "people": 5,
+    "bizops": 3,
+    "supply-chain": 12,
+    "it": 6,
+    "ml": 13,
+    "eng-manager": 1,
+    "program": 5,
+    "support": 3
+   },
+   "familyUnknown": 0,
+   "keywords": {
+    "noSkills": 28,
+    "noResponsibilities": 7,
+    "noFit": 5
+   },
+   "vet": {
+    "payBearing": 129,
+    "flagged": 41,
+    "critical": 0,
+    "blocking": 0,
+    "quarantined": 0,
+    "statistical": 0,
+    "review": 41,
+    "codes": {
+     "non_year_interval": 36,
+     "ratio_over_3": 3,
+     "currency_country_mismatch": 2
+    },
+    "gateCodes": {}
+   },
+   "juice": {
+    "scored": 97,
+    "coverage": 0.752,
+    "score": {
+     "p10": 21.2,
+     "p50": 70,
+     "p90": 82
+    },
+    "net": {
+     "n": 97,
+     "p10": 18900,
+     "p25": 41600,
+     "p50": 95700,
+     "p75": 136000,
+     "p90": 136000
+    },
+    "grades": {
+     "Ripe": 18,
+     "Dry": 20,
+     "Juicy": 52,
+     "Rind": 7
+    },
+    "unmatched": [
+     [
+      "(remote only)",
+      22
+     ],
+     [
+      "Memphis, US",
+      10
+     ]
+    ]
+   },
+   "freshness": {
+    "new": 27,
+    "active": 135,
+    "stale": 80,
+    "evergreen": 63,
+    "unknown": 0
+   },
+   "payShare": 0.423,
+   "remoteShare": 0.095,
+   "shares": {
+    "familyUnknown": 0,
+    "midDefault": 0.741,
+    "levelTokens": 0,
+    "noSkills": 0.092,
+    "quarantined": 0,
+    "critical": 0,
+    "statistical": 0,
+    "review": 0.318
+   },
+   "backtest": {
+    "medianAbsPctError": 20.5,
+    "within10Pct": 23.8,
+    "n": 126,
+    "seed": 20261002,
+    "skipped": 3
+   }
+  }
+ ],
+ "families": [
+  {
+   "family": "hardware",
+   "companies": 5,
+   "n": 1091,
+   "p10": 129000,
+   "p25": 150000,
+   "p50": 170000,
+   "p75": 193000,
+   "p90": 250000,
+   "levels": {
+    "Entry": {
+     "n": 23,
+     "p10": 100000,
+     "p25": 100000,
+     "p50": 110500,
+     "p75": 122500,
+     "p90": 129400
+    },
+    "Intern": {
+     "n": 21,
+     "p10": 72800,
+     "p25": 78000,
+     "p50": 87400,
+     "p75": 91500,
+     "p90": 107100
+    },
+    "Mid": {
+     "n": 390,
+     "p10": 114500,
+     "p25": 131000,
+     "p50": 150000,
+     "p75": 170000,
+     "p90": 193000
+    },
+    "Senior": {
+     "n": 404,
+     "p10": 146500,
+     "p25": 170000,
+     "p50": 170000,
+     "p75": 193000,
+     "p90": 222000
+    },
+    "Director+": {
+     "n": 49,
+     "p10": 221000,
+     "p25": 222000,
+     "p50": 256000,
+     "p75": 294500,
+     "p90": 295000
+    },
+    "Manager": {
+     "n": 19,
+     "p10": 170000,
+     "p25": 191500,
+     "p50": 235000,
+     "p75": 248000,
+     "p90": 297500
+    },
+    "Staff+": {
+     "n": 185,
+     "p10": 172500,
+     "p25": 191500,
+     "p50": 222000,
+     "p75": 233000,
+     "p90": 256000
+    }
+   }
+  },
+  {
+   "family": "swe",
+   "companies": 8,
+   "n": 965,
+   "p10": 155000,
+   "p25": 193000,
+   "p50": 222000,
+   "p75": 310000,
+   "p90": 396000,
+   "levels": {
+    "Entry": {
+     "n": 18,
+     "p10": 128900,
+     "p25": 140800,
+     "p50": 150000,
+     "p75": 150000,
+     "p90": 150000
+    },
+    "Intern": {
+     "n": 22,
+     "p10": 73000,
+     "p25": 98500,
+     "p50": 126000,
+     "p75": 126000,
+     "p90": 126000
+    },
+    "Mid": {
+     "n": 470,
+     "p10": 165000,
+     "p25": 193000,
+     "p50": 222000,
+     "p75": 350000,
+     "p90": 385100
+    },
+    "Director+": {
+     "n": 4,
+     "p10": 216800,
+     "p25": 220200,
+     "p50": 239000,
+     "p75": 258300,
+     "p90": 262300
+    },
+    "Manager": {
+     "n": 9,
+     "p10": 161400,
+     "p25": 167500,
+     "p50": 193000,
+     "p75": 235000,
+     "p90": 337700
+    },
+    "Senior": {
+     "n": 260,
+     "p10": 169800,
+     "p25": 193000,
+     "p50": 222000,
+     "p75": 222000,
+     "p90": 256000
+    },
+    "Staff+": {
+     "n": 182,
+     "p10": 221100,
+     "p25": 256000,
+     "p50": 294500,
+     "p75": 402500,
+     "p90": 445000
+    }
+   }
+  },
+  {
+   "family": "supply-chain",
+   "companies": 6,
+   "n": 273,
+   "p10": 97200,
+   "p25": 130500,
+   "p50": 167000,
+   "p75": 193000,
+   "p90": 253800,
+   "levels": {
+    "Intern": {
+     "n": 2,
+     "p10": 62800,
+     "p25": 63400,
+     "p50": 64500,
+     "p75": 65500,
+     "p90": 66100
+    },
+    "Mid": {
+     "n": 91,
+     "p10": 99000,
+     "p25": 129000,
+     "p50": 131000,
+     "p75": 150000,
+     "p90": 210000
+    },
+    "Senior": {
+     "n": 80,
+     "p10": 131000,
+     "p25": 150000,
+     "p50": 170000,
+     "p75": 170000,
+     "p90": 171000
+    },
+    "Director+": {
+     "n": 19,
+     "p10": 201500,
+     "p25": 221500,
+     "p50": 256000,
+     "p75": 294500,
+     "p90": 339000
+    },
+    "Manager": {
+     "n": 52,
+     "p10": 123000,
+     "p25": 153000,
+     "p50": 185200,
+     "p75": 193000,
+     "p90": 250400
+    },
+    "Entry": {
+     "n": 18,
+     "p10": 56200,
+     "p25": 56200,
+     "p50": 57200,
+     "p75": 66500,
+     "p90": 90600
+    },
+    "Staff+": {
+     "n": 11,
+     "p10": 167000,
+     "p25": 186300,
+     "p50": 215000,
+     "p75": 222000,
+     "p90": 222000
+    }
+   }
+  },
+  {
+   "family": "program",
+   "companies": 8,
+   "n": 230,
+   "p10": 131000,
+   "p25": 167000,
+   "p50": 193000,
+   "p75": 259000,
+   "p90": 327500,
+   "levels": {
+    "Director+": {
+     "n": 10,
+     "p10": 220700,
+     "p25": 256000,
+     "p50": 256000,
+     "p75": 272400,
+     "p90": 294500
+    },
+    "Mid": {
+     "n": 132,
+     "p10": 127700,
+     "p25": 148900,
+     "p50": 193000,
+     "p75": 293400,
+     "p90": 348700
+    },
+    "Manager": {
+     "n": 11,
+     "p10": 130500,
+     "p25": 160000,
+     "p50": 214000,
+     "p75": 307500,
+     "p90": 365000
+    },
+    "Senior": {
+     "n": 55,
+     "p10": 167000,
+     "p25": 170000,
+     "p50": 193000,
+     "p75": 193000,
+     "p90": 218500
+    },
+    "Staff+": {
+     "n": 21,
+     "p10": 190000,
+     "p25": 193000,
+     "p50": 222000,
+     "p75": 222000,
+     "p90": 230000
+    },
+    "Intern": {
+     "n": 1,
+     "p10": 75900,
+     "p25": 75900,
+     "p50": 75900,
+     "p75": 75900,
+     "p90": 75900
+    }
+   }
+  },
+  {
+   "family": "ml",
+   "companies": 7,
+   "n": 203,
+   "p10": 205900,
+   "p25": 256000,
+   "p50": 310000,
+   "p75": 440000,
+   "p90": 600000,
+   "levels": {
+    "Mid": {
+     "n": 145,
+     "p10": 193000,
+     "p25": 279300,
+     "p50": 370000,
+     "p75": 440000,
+     "p90": 600000
+    },
+    "Senior": {
+     "n": 28,
+     "p10": 209500,
+     "p25": 221800,
+     "p50": 256000,
+     "p75": 279300,
+     "p90": 284400
+    },
+    "Staff+": {
+     "n": 18,
+     "p10": 247500,
+     "p25": 260800,
+     "p50": 299000,
+     "p75": 418800,
+     "p90": 675000
+    },
+    "Manager": {
+     "n": 10,
+     "p10": 290800,
+     "p25": 306700,
+     "p50": 347500,
+     "p75": 347500,
+     "p90": 427000
+    },
+    "Intern": {
+     "n": 1,
+     "p10": 200200,
+     "p25": 200200,
+     "p50": 200200,
+     "p75": 200200,
+     "p90": 200200
+    },
+    "Director+": {
+     "n": 1,
+     "p10": 446400,
+     "p25": 446400,
+     "p50": 446400,
+     "p75": 446400,
+     "p90": 446400
+    }
+   }
+  },
+  {
+   "family": "solutions",
+   "companies": 7,
+   "n": 192,
+   "p10": 128500,
+   "p25": 140000,
+   "p50": 208700,
+   "p75": 255300,
+   "p90": 294100,
+   "levels": {
+    "Mid": {
+     "n": 129,
+     "p10": 140000,
+     "p25": 167500,
+     "p50": 228600,
+     "p75": 251500,
+     "p90": 285600
+    },
+    "Senior": {
+     "n": 20,
+     "p10": 130500,
+     "p25": 130500,
+     "p50": 245300,
+     "p75": 270800,
+     "p90": 319000
+    },
+    "Director+": {
+     "n": 2,
+     "p10": 270900,
+     "p25": 293200,
+     "p50": 330400,
+     "p75": 367700,
+     "p90": 390000
+    },
+    "Manager": {
+     "n": 9,
+     "p10": 184400,
+     "p25": 207700,
+     "p50": 207700,
+     "p75": 290000,
+     "p90": 348500
+    },
+    "Intern": {
+     "n": 16,
+     "p10": 98400,
+     "p25": 98400,
+     "p50": 120000,
+     "p75": 120000,
+     "p90": 120000
+    },
+    "Entry": {
+     "n": 10,
+     "p10": 140000,
+     "p25": 140000,
+     "p50": 140000,
+     "p75": 140000,
+     "p90": 140000
+    },
+    "Staff+": {
+     "n": 6,
+     "p10": 229100,
+     "p25": 234500,
+     "p50": 249300,
+     "p75": 277600,
+     "p90": 309600
+    }
+   }
+  },
+  {
+   "family": "manufacturing",
+   "companies": 3,
+   "n": 171,
+   "p10": 67600,
+   "p25": 77000,
+   "p50": 89500,
+   "p75": 115500,
+   "p90": 170000,
+   "levels": {
+    "Mid": {
+     "n": 109,
+     "p10": 65300,
+     "p25": 70700,
+     "p50": 89400,
+     "p75": 100000,
+     "p90": 131600
+    },
+    "Director+": {
+     "n": 11,
+     "p10": 221000,
+     "p25": 230500,
+     "p50": 303500,
+     "p75": 317000,
+     "p90": 317000
+    },
+    "Manager": {
+     "n": 14,
+     "p10": 100000,
+     "p25": 129000,
+     "p50": 148300,
+     "p75": 167000,
+     "p90": 184000
+    },
+    "Senior": {
+     "n": 31,
+     "p10": 77000,
+     "p25": 83200,
+     "p50": 100000,
+     "p75": 114300,
+     "p90": 129000
+    },
+    "Entry": {
+     "n": 4,
+     "p10": 60300,
+     "p25": 60300,
+     "p50": 60300,
+     "p75": 65000,
+     "p90": 73400
+    },
+    "Staff+": {
+     "n": 2,
+     "p10": 93000,
+     "p25": 95200,
+     "p50": 98800,
+     "p75": 102400,
+     "p90": 104600
+    }
+   }
+  },
+  {
+   "family": "sales",
+   "companies": 8,
+   "n": 155,
+   "p10": 185200,
+   "p25": 221000,
+   "p50": 283000,
+   "p75": 351500,
+   "p90": 415000,
+   "levels": {
+    "Director+": {
+     "n": 35,
+     "p10": 195800,
+     "p25": 214500,
+     "p50": 256000,
+     "p75": 323000,
+     "p90": 417300
+    },
+    "Manager": {
+     "n": 7,
+     "p10": 145800,
+     "p25": 172800,
+     "p50": 290000,
+     "p75": 457500,
+     "p90": 500000
+    },
+    "Senior": {
+     "n": 34,
+     "p10": 218700,
+     "p25": 244400,
+     "p50": 310300,
+     "p75": 347400,
+     "p90": 372500
+    },
+    "Staff+": {
+     "n": 1,
+     "p10": 256000,
+     "p25": 256000,
+     "p50": 256000,
+     "p75": 256000,
+     "p90": 256000
+    },
+    "Mid": {
+     "n": 77,
+     "p10": 167500,
+     "p25": 220000,
+     "p50": 283000,
+     "p75": 411100,
+     "p90": 415000
+    },
+    "Entry": {
+     "n": 1,
+     "p10": 134000,
+     "p25": 134000,
+     "p50": 134000,
+     "p75": 134000,
+     "p90": 134000
+    }
+   }
+  },
+  {
+   "family": "finance",
+   "companies": 7,
+   "n": 148,
+   "p10": 112900,
+   "p25": 130500,
+   "p50": 193000,
+   "p75": 250400,
+   "p90": 285500,
+   "levels": {
+    "Entry": {
+     "n": 2,
+     "p10": 83500,
+     "p25": 88600,
+     "p50": 97300,
+     "p75": 105900,
+     "p90": 111100
+    },
+    "Director+": {
+     "n": 25,
+     "p10": 252400,
+     "p25": 265000,
+     "p50": 265000,
+     "p75": 337500,
+     "p90": 432900
+    },
+    "Manager": {
+     "n": 44,
+     "p10": 128300,
+     "p25": 155000,
+     "p50": 171000,
+     "p75": 210000,
+     "p90": 246400
+    },
+    "Mid": {
+     "n": 33,
+     "p10": 89500,
+     "p25": 112500,
+     "p50": 247000,
+     "p75": 263000,
+     "p90": 282500
+    },
+    "Senior": {
+     "n": 44,
+     "p10": 114500,
+     "p25": 114500,
+     "p50": 139500,
+     "p75": 210000,
+     "p90": 228000
+    }
+   }
+  },
+  {
+   "family": "security",
+   "companies": 8,
+   "n": 147,
+   "p10": 130500,
+   "p25": 167500,
+   "p50": 193000,
+   "p75": 308800,
+   "p90": 362500,
+   "levels": {
+    "Entry": {
+     "n": 1,
+     "p10": 79000,
+     "p25": 79000,
+     "p50": 79000,
+     "p75": 79000,
+     "p90": 79000
+    },
+    "Director+": {
+     "n": 4,
+     "p10": 230200,
+     "p25": 286000,
+     "p50": 436000,
+     "p75": 572500,
+     "p90": 604000
+    },
+    "Mid": {
+     "n": 86,
+     "p10": 130500,
+     "p25": 167500,
+     "p50": 193000,
+     "p75": 291800,
+     "p90": 359000
+    },
+    "Manager": {
+     "n": 10,
+     "p10": 149700,
+     "p25": 170000,
+     "p50": 180800,
+     "p75": 293900,
+     "p90": 415000
+    },
+    "Senior": {
+     "n": 30,
+     "p10": 146500,
+     "p25": 168100,
+     "p50": 193000,
+     "p75": 205000,
+     "p90": 320800
+    },
+    "Staff+": {
+     "n": 14,
+     "p10": 158000,
+     "p25": 189400,
+     "p50": 376700,
+     "p75": 402500,
+     "p90": 440100
+    },
+    "Intern": {
+     "n": 2,
+     "p10": 133400,
+     "p25": 144600,
+     "p50": 163100,
+     "p75": 181700,
+     "p90": 192800
+    }
+   }
+  },
+  {
+   "family": "people",
+   "companies": 7,
+   "n": 122,
+   "p10": 94000,
+   "p25": 135200,
+   "p50": 156000,
+   "p75": 193000,
+   "p90": 233000,
+   "levels": {
+    "Entry": {
+     "n": 1,
+     "p10": 131000,
+     "p25": 131000,
+     "p50": 131000,
+     "p75": 131000,
+     "p90": 131000
+    },
+    "Mid": {
+     "n": 60,
+     "p10": 68700,
+     "p25": 98500,
+     "p50": 135200,
+     "p75": 170000,
+     "p90": 228700
+    },
+    "Staff+": {
+     "n": 2,
+     "p10": 154300,
+     "p25": 160800,
+     "p50": 171500,
+     "p75": 182300,
+     "p90": 188700
+    },
+    "Senior": {
+     "n": 48,
+     "p10": 140400,
+     "p25": 146300,
+     "p50": 170000,
+     "p75": 170000,
+     "p90": 224800
+    },
+    "Manager": {
+     "n": 9,
+     "p10": 167000,
+     "p25": 167000,
+     "p50": 193000,
+     "p75": 193000,
+     "p90": 193000
+    },
+    "Director+": {
+     "n": 2,
+     "p10": 245000,
+     "p25": 260000,
+     "p50": 285000,
+     "p75": 310000,
+     "p90": 325000
+    }
+   }
+  },
+  {
+   "family": "marketing",
+   "companies": 8,
+   "n": 109,
+   "p10": 127900,
+   "p25": 170000,
+   "p50": 228000,
+   "p75": 287500,
+   "p90": 320000,
+   "levels": {
+    "Manager": {
+     "n": 10,
+     "p10": 150600,
+     "p25": 175000,
+     "p50": 196300,
+     "p75": 296900,
+     "p90": 314200
+    },
+    "Senior": {
+     "n": 30,
+     "p10": 170000,
+     "p25": 172100,
+     "p50": 280500,
+     "p75": 310800,
+     "p90": 360000
+    },
+    "Mid": {
+     "n": 57,
+     "p10": 115700,
+     "p25": 130500,
+     "p50": 227000,
+     "p75": 255000,
+     "p90": 302500
+    },
+    "Director+": {
+     "n": 7,
+     "p10": 240000,
+     "p25": 240000,
+     "p50": 256000,
+     "p75": 318500,
+     "p90": 388600
+    },
+    "Entry": {
+     "n": 1,
+     "p10": 80000,
+     "p25": 80000,
+     "p50": 80000,
+     "p75": 80000,
+     "p90": 80000
+    },
+    "Staff+": {
+     "n": 4,
+     "p10": 147500,
+     "p25": 158800,
+     "p50": 167500,
+     "p75": 180000,
+     "p90": 198000
+    }
+   }
+  },
+  {
+   "family": "bizops",
+   "companies": 8,
+   "n": 92,
+   "p10": 115100,
+   "p25": 130500,
+   "p50": 170000,
+   "p75": 230000,
+   "p90": 293300,
+   "levels": {
+    "Mid": {
+     "n": 38,
+     "p10": 113500,
+     "p25": 127100,
+     "p50": 150500,
+     "p75": 179800,
+     "p90": 236400
+    },
+    "Entry": {
+     "n": 5,
+     "p10": 126500,
+     "p25": 126500,
+     "p50": 130500,
+     "p75": 130500,
+     "p90": 130800
+    },
+    "Director+": {
+     "n": 11,
+     "p10": 192500,
+     "p25": 193000,
+     "p50": 205200,
+     "p75": 254700,
+     "p90": 278000
+    },
+    "Senior": {
+     "n": 23,
+     "p10": 160600,
+     "p25": 170000,
+     "p50": 207500,
+     "p75": 266800,
+     "p90": 370300
+    },
+    "Manager": {
+     "n": 9,
+     "p10": 97300,
+     "p25": 108000,
+     "p50": 167000,
+     "p75": 175000,
+     "p90": 200000
+    },
+    "Staff+": {
+     "n": 4,
+     "p10": 209200,
+     "p25": 229000,
+     "p50": 265800,
+     "p75": 306100,
+     "p90": 332500
+    },
+    "Intern": {
+     "n": 2,
+     "p10": 52500,
+     "p25": 52500,
+     "p50": 52500,
+     "p75": 52500,
+     "p90": 52500
+    }
+   }
+  },
+  {
+   "family": "eng-manager",
+   "companies": 6,
+   "n": 91,
+   "p10": 170000,
+   "p25": 226000,
+   "p50": 293000,
+   "p75": 423000,
+   "p90": 445000,
+   "levels": {
+    "Director+": {
+     "n": 5,
+     "p10": 257300,
+     "p25": 261500,
+     "p50": 265000,
+     "p75": 315000,
+     "p90": 329400
+    },
+    "Mid": {
+     "n": 3,
+     "p10": 170000,
+     "p25": 170000,
+     "p50": 170000,
+     "p75": 170000,
+     "p90": 170000
+    },
+    "Manager": {
+     "n": 83,
+     "p10": 170000,
+     "p25": 232300,
+     "p50": 305000,
+     "p75": 423000,
+     "p90": 463800
+    }
+   }
+  },
+  {
+   "family": "facilities",
+   "companies": 6,
+   "n": 86,
+   "p10": 60700,
+   "p25": 113400,
+   "p50": 155000,
+   "p75": 255900,
+   "p90": 362500,
+   "levels": {
+    "Senior": {
+     "n": 12,
+     "p10": 118500,
+     "p25": 210800,
+     "p50": 253000,
+     "p75": 362500,
+     "p90": 362500
+    },
+    "Entry": {
+     "n": 5,
+     "p10": 51200,
+     "p25": 59300,
+     "p50": 59300,
+     "p75": 78000,
+     "p90": 91200
+    },
+    "Manager": {
+     "n": 14,
+     "p10": 100000,
+     "p25": 118100,
+     "p50": 132000,
+     "p75": 203000,
+     "p90": 270700
+    },
+    "Mid": {
+     "n": 50,
+     "p10": 59600,
+     "p25": 113000,
+     "p50": 132300,
+     "p75": 260800,
+     "p90": 310800
+    },
+    "Staff+": {
+     "n": 4,
+     "p10": 229700,
+     "p25": 242800,
+     "p50": 253000,
+     "p75": 282600,
+     "p90": 330600
+    },
+    "Director+": {
+     "n": 1,
+     "p10": 192600,
+     "p25": 192600,
+     "p50": 192600,
+     "p75": 192600,
+     "p90": 192600
+    }
+   }
+  },
+  {
+   "family": "support",
+   "companies": 6,
+   "n": 73,
+   "p10": 132400,
+   "p25": 170000,
+   "p50": 220000,
+   "p75": 247000,
+   "p90": 298500,
+   "levels": {
+    "Senior": {
+     "n": 13,
+     "p10": 151200,
+     "p25": 200000,
+     "p50": 234500,
+     "p75": 294500,
+     "p90": 299500
+    },
+    "Director+": {
+     "n": 6,
+     "p10": 254500,
+     "p25": 264500,
+     "p50": 294500,
+     "p75": 324900,
+     "p90": 367500
+    },
+    "Mid": {
+     "n": 43,
+     "p10": 134400,
+     "p25": 162000,
+     "p50": 205000,
+     "p75": 228000,
+     "p90": 232500
+    },
+    "Manager": {
+     "n": 8,
+     "p10": 160600,
+     "p25": 221300,
+     "p50": 263800,
+     "p75": 292500,
+     "p90": 305100
+    },
+    "Staff+": {
+     "n": 3,
+     "p10": 128000,
+     "p25": 132500,
+     "p50": 140000,
+     "p75": 157500,
+     "p90": 168000
+    }
+   }
+  },
+  {
+   "family": "legal",
+   "companies": 8,
+   "n": 72,
+   "p10": 119200,
+   "p25": 170900,
+   "p50": 247500,
+   "p75": 300000,
+   "p90": 359300,
+   "levels": {
+    "Mid": {
+     "n": 57,
+     "p10": 108700,
+     "p25": 167500,
+     "p50": 240000,
+     "p75": 279000,
+     "p90": 360000
+    },
+    "Manager": {
+     "n": 2,
+     "p10": 224300,
+     "p25": 245600,
+     "p50": 281300,
+     "p75": 316900,
+     "p90": 338300
+    },
+    "Senior": {
+     "n": 10,
+     "p10": 228000,
+     "p25": 257300,
+     "p50": 311300,
+     "p75": 348000,
+     "p90": 348000
+    },
+    "Entry": {
+     "n": 1,
+     "p10": 402000,
+     "p25": 402000,
+     "p50": 402000,
+     "p75": 402000,
+     "p90": 402000
+    },
+    "Director+": {
+     "n": 1,
+     "p10": 235000,
+     "p25": 235000,
+     "p50": 235000,
+     "p75": 235000,
+     "p90": 235000
+    },
+    "Staff+": {
+     "n": 1,
+     "p10": 160000,
+     "p25": 160000,
+     "p50": 160000,
+     "p75": 160000,
+     "p90": 160000
+    }
+   }
+  },
+  {
+   "family": "product",
+   "companies": 6,
+   "n": 67,
+   "p10": 192800,
+   "p25": 193000,
+   "p50": 272500,
+   "p75": 345000,
+   "p90": 418500,
+   "levels": {
+    "Senior": {
+     "n": 12,
+     "p10": 193000,
+     "p25": 193000,
+     "p50": 193000,
+     "p75": 205900,
+     "p90": 231300
+    },
+    "Mid": {
+     "n": 48,
+     "p10": 192900,
+     "p25": 222000,
+     "p50": 337500,
+     "p75": 345000,
+     "p90": 422500
+    },
+    "Director+": {
+     "n": 2,
+     "p10": 297600,
+     "p25": 302100,
+     "p50": 309800,
+     "p75": 317400,
+     "p90": 322000
+    },
+    "Staff+": {
+     "n": 5,
+     "p10": 204400,
+     "p25": 222000,
+     "p50": 222000,
+     "p75": 272500,
+     "p90": 274000
+    }
+   }
+  },
+  {
+   "family": "data",
+   "companies": 8,
+   "n": 60,
+   "p10": 167000,
+   "p25": 193000,
+   "p50": 307500,
+   "p75": 344900,
+   "p90": 393700,
+   "levels": {
+    "Mid": {
+     "n": 42,
+     "p10": 170000,
+     "p25": 307500,
+     "p50": 324000,
+     "p75": 365800,
+     "p90": 404000
+    },
+    "Senior": {
+     "n": 13,
+     "p10": 167000,
+     "p25": 193000,
+     "p50": 202500,
+     "p75": 215000,
+     "p90": 249400
+    },
+    "Staff+": {
+     "n": 3,
+     "p10": 192000,
+     "p25": 195000,
+     "p50": 200000,
+     "p75": 211000,
+     "p90": 217600
+    },
+    "Manager": {
+     "n": 2,
+     "p10": 139500,
+     "p25": 153800,
+     "p50": 177500,
+     "p75": 201300,
+     "p90": 215500
+    }
+   }
+  },
+  {
+   "family": "field-ops",
+   "companies": 4,
+   "n": 51,
+   "p10": 99000,
+   "p25": 129800,
+   "p50": 168500,
+   "p75": 193000,
+   "p90": 290000,
+   "levels": {
+    "Mid": {
+     "n": 25,
+     "p10": 98500,
+     "p25": 113000,
+     "p50": 131000,
+     "p75": 170000,
+     "p90": 195400
+    },
+    "Senior": {
+     "n": 15,
+     "p10": 125000,
+     "p25": 128500,
+     "p50": 168500,
+     "p75": 193000,
+     "p90": 274800
+    },
+    "Manager": {
+     "n": 3,
+     "p10": 170000,
+     "p25": 170000,
+     "p50": 170000,
+     "p75": 181500,
+     "p90": 188400
+    },
+    "Director+": {
+     "n": 6,
+     "p10": 224300,
+     "p25": 254500,
+     "p50": 274500,
+     "p75": 294500,
+     "p90": 302300
+    },
+    "Staff+": {
+     "n": 2,
+     "p10": 101600,
+     "p25": 113900,
+     "p50": 134200,
+     "p75": 154600,
+     "p90": 166800
+    }
+   }
+  },
+  {
+   "family": "it",
+   "companies": 7,
+   "n": 51,
+   "p10": 89000,
+   "p25": 150000,
+   "p50": 185000,
+   "p75": 276000,
+   "p90": 305000,
+   "levels": {
+    "Mid": {
+     "n": 28,
+     "p10": 84600,
+     "p25": 150000,
+     "p50": 217300,
+     "p75": 295600,
+     "p90": 305000
+    },
+    "Manager": {
+     "n": 2,
+     "p10": 158000,
+     "p25": 166300,
+     "p50": 180000,
+     "p75": 193800,
+     "p90": 202000
+    },
+    "Senior": {
+     "n": 10,
+     "p10": 119400,
+     "p25": 140800,
+     "p50": 177500,
+     "p75": 191300,
+     "p90": 242400
+    },
+    "Director+": {
+     "n": 3,
+     "p10": 270500,
+     "p25": 278800,
+     "p50": 292500,
+     "p75": 311300,
+     "p90": 322500
+    },
+    "Entry": {
+     "n": 4,
+     "p10": 88000,
+     "p25": 88600,
+     "p50": 94000,
+     "p75": 99000,
+     "p90": 99000
+    },
+    "Staff+": {
+     "n": 4,
+     "p10": 157500,
+     "p25": 168800,
+     "p50": 175000,
+     "p75": 175000,
+     "p90": 175000
+    }
+   }
+  },
+  {
+   "family": "design",
+   "companies": 6,
+   "n": 43,
+   "p10": 104500,
+   "p25": 132500,
+   "p50": 193000,
+   "p75": 277500,
+   "p90": 345000,
+   "levels": {
+    "Mid": {
+     "n": 20,
+     "p10": 122200,
+     "p25": 144900,
+     "p50": 277500,
+     "p75": 294400,
+     "p90": 345000
+    },
+    "Staff+": {
+     "n": 6,
+     "p10": 143500,
+     "p25": 166400,
+     "p50": 245500,
+     "p75": 261100,
+     "p90": 273900
+    },
+    "Senior": {
+     "n": 9,
+     "p10": 188400,
+     "p25": 193000,
+     "p50": 193000,
+     "p75": 193000,
+     "p90": 252800
+    },
+    "Intern": {
+     "n": 4,
+     "p10": 102000,
+     "p25": 102000,
+     "p50": 102000,
+     "p75": 102000,
+     "p90": 102000
+    },
+    "Entry": {
+     "n": 4,
+     "p10": 132500,
+     "p25": 132500,
+     "p50": 132500,
+     "p75": 132500,
+     "p90": 132500
+    }
+   }
+  },
+  {
+   "family": "ai-training",
+   "companies": 3,
+   "n": 31,
+   "p10": 83200,
+   "p25": 83200,
+   "p50": 83200,
+   "p75": 114400,
+   "p90": 143000,
+   "levels": {
+    "Mid": {
+     "n": 29,
+     "p10": 78400,
+     "p25": 83200,
+     "p50": 83200,
+     "p75": 114400,
+     "p90": 124800
+    },
+    "Manager": {
+     "n": 2,
+     "p10": 137800,
+     "p25": 138700,
+     "p50": 140100,
+     "p75": 141600,
+     "p90": 142400
+    }
+   }
+  },
+  {
+   "family": "trust-safety",
+   "companies": 3,
+   "n": 24,
+   "p10": 154400,
+   "p25": 263800,
+   "p50": 265000,
+   "p75": 307500,
+   "p90": 307500,
+   "levels": {
+    "Senior": {
+     "n": 6,
+     "p10": 122800,
+     "p25": 178100,
+     "p50": 307500,
+     "p75": 307500,
+     "p90": 307500
+    },
+    "Director+": {
+     "n": 1,
+     "p10": 362500,
+     "p25": 362500,
+     "p50": 362500,
+     "p75": 362500,
+     "p90": 362500
+    },
+    "Manager": {
+     "n": 1,
+     "p10": 265000,
+     "p25": 265000,
+     "p50": 265000,
+     "p75": 265000,
+     "p90": 265000
+    },
+    "Mid": {
+     "n": 16,
+     "p10": 224800,
+     "p25": 263800,
+     "p50": 265000,
+     "p75": 292500,
+     "p90": 307500
+    }
+   }
+  },
+  {
+   "family": "policy",
+   "companies": 3,
+   "n": 17,
+   "p10": 215400,
+   "p25": 225500,
+   "p50": 247500,
+   "p75": 271000,
+   "p90": 288200,
+   "levels": {
+    "Intern": {
+     "n": 1,
+     "p10": 200200,
+     "p25": 200200,
+     "p50": 200200,
+     "p75": 200200,
+     "p90": 200200
+    },
+    "Mid": {
+     "n": 4,
+     "p10": 225500,
+     "p25": 225500,
+     "p50": 236500,
+     "p75": 247500,
+     "p90": 247500
+    },
+    "Manager": {
+     "n": 5,
+     "p10": 225400,
+     "p25": 271000,
+     "p50": 271000,
+     "p75": 280000,
+     "p90": 292300
+    },
+    "Senior": {
+     "n": 6,
+     "p10": 239000,
+     "p25": 247500,
+     "p50": 250000,
+     "p75": 262600,
+     "p90": 292300
+    },
+    "Entry": {
+     "n": 1,
+     "p10": 225500,
+     "p25": 225500,
+     "p50": 225500,
+     "p75": 225500,
+     "p90": 225500
+    }
+   }
+  },
+  {
+   "family": "admin",
+   "companies": 6,
+   "n": 12,
+   "p10": 78500,
+   "p25": 83400,
+   "p50": 102600,
+   "p75": 150800,
+   "p90": 155300,
+   "levels": {
+    "Mid": {
+     "n": 11,
+     "p10": 78500,
+     "p25": 81800,
+     "p50": 90700,
+     "p75": 151500,
+     "p90": 155500
+    },
+    "Senior": {
+     "n": 1,
+     "p10": 114500,
+     "p25": 114500,
+     "p50": 114500,
+     "p75": 114500,
+     "p90": 114500
+    }
+   }
+  }
+ ],
+ "market": {
+  "stable": {
+   "format": "melon-market-1",
+   "minN": 3,
+   "fx": {
+    "asOf": "2026-07-01",
+    "source": "public/viz/palette.js FX_PER_USD"
+   },
+   "columns": [
+    "company",
+    "family",
+    "seniority",
+    "n",
+    "p25",
+    "median",
+    "p75"
+   ],
+   "cells": [
+    [
+     "palantir",
+     "admin",
+     "*",
+     4,
+     78500,
+     81800,
+     85000
+    ],
+    [
+     "palantir",
+     "admin",
+     "Mid",
+     4,
+     78500,
+     81800,
+     85000
+    ],
+    [
+     "cohere",
+     "ai-training",
+     "*",
+     3,
+     44400,
+     44400,
+     51800
+    ],
+    [
+     "xai",
+     "ai-training",
+     "*",
+     27,
+     83200,
+     83200,
+     114400
+    ],
+    [
+     "cohere",
+     "ai-training",
+     "Mid",
+     3,
+     44400,
+     44400,
+     51800
+    ],
+    [
+     "xai",
+     "ai-training",
+     "Mid",
+     25,
+     83200,
+     83200,
+     114400
+    ],
+    [
+     "anduril",
+     "bizops",
+     "*",
+     52,
+     130500,
+     168500,
+     183000
+    ],
+    [
+     "anthropic",
+     "bizops",
+     "*",
+     8,
+     231900,
+     251300,
+     365600
+    ],
+    [
+     "openai",
+     "bizops",
+     "*",
+     9,
+     266000,
+     293500,
+     304000
+    ],
+    [
+     "palantir",
+     "bizops",
+     "*",
+     5,
+     120200,
+     126500,
+     126500
+    ],
+    [
+     "scaleai",
+     "bizops",
+     "*",
+     4,
+     191500,
+     204300,
+     212200
+    ],
+    [
+     "shieldai",
+     "bizops",
+     "*",
+     9,
+     170000,
+     205000,
+     230000
+    ],
+    [
+     "xai",
+     "bizops",
+     "*",
+     3,
+     52500,
+     52500,
+     101800
+    ],
+    [
+     "anduril",
+     "bizops",
+     "Director+",
+     9,
+     193000,
+     193000,
+     253400
+    ],
+    [
+     "anduril",
+     "bizops",
+     "Entry",
+     5,
+     126500,
+     130500,
+     130500
+    ],
+    [
+     "anduril",
+     "bizops",
+     "Manager",
+     8,
+     106000,
+     158500,
+     171300
+    ],
+    [
+     "anduril",
+     "bizops",
+     "Mid",
+     23,
+     129000,
+     150000,
+     170000
+    ],
+    [
+     "anthropic",
+     "bizops",
+     "Mid",
+     4,
+     221300,
+     232500,
+     266900
+    ],
+    [
+     "openai",
+     "bizops",
+     "Mid",
+     3,
+     266500,
+     293500,
+     293500
+    ],
+    [
+     "palantir",
+     "bizops",
+     "Mid",
+     5,
+     120200,
+     126500,
+     126500
+    ],
+    [
+     "anduril",
+     "bizops",
+     "Senior",
+     6,
+     164800,
+     170000,
+     187300
+    ],
+    [
+     "anthropic",
+     "bizops",
+     "Senior",
+     4,
+     258800,
+     321300,
+     409400
+    ],
+    [
+     "openai",
+     "bizops",
+     "Senior",
+     5,
+     266000,
+     304000,
+     351500
+    ],
+    [
+     "shieldai",
+     "bizops",
+     "Senior",
+     5,
+     170000,
+     205000,
+     230000
+    ],
+    [
+     "shieldai",
+     "bizops",
+     "Staff+",
+     3,
+     243800,
+     291500,
+     320800
+    ],
+    [
+     "anduril",
+     "data",
+     "*",
+     11,
+     167000,
+     170000,
+     193000
+    ],
+    [
+     "anthropic",
+     "data",
+     "*",
+     10,
+     332500,
+     332500,
+     355000
+    ],
+    [
+     "openai",
+     "data",
+     "*",
+     23,
+     308300,
+     365000,
+     398300
+    ],
+    [
+     "scaleai",
+     "data",
+     "*",
+     5,
+     202500,
+     205200,
+     207000
+    ],
+    [
+     "shieldai",
+     "data",
+     "*",
+     4,
+     180000,
+     195000,
+     206300
+    ],
+    [
+     "xai",
+     "data",
+     "*",
+     4,
+     169000,
+     198500,
+     238800
+    ],
+    [
+     "anduril",
+     "data",
+     "Mid",
+     5,
+     130500,
+     170000,
+     170000
+    ],
+    [
+     "anthropic",
+     "data",
+     "Mid",
+     9,
+     332500,
+     332500,
+     362500
+    ],
+    [
+     "openai",
+     "data",
+     "Mid",
+     23,
+     308300,
+     365000,
+     398300
+    ],
+    [
+     "anduril",
+     "data",
+     "Senior",
+     5,
+     167000,
+     193000,
+     193000
+    ],
+    [
+     "scaleai",
+     "data",
+     "Senior",
+     4,
+     204500,
+     206100,
+     209500
+    ],
+    [
+     "anduril",
+     "design",
+     "*",
+     14,
+     170000,
+     193000,
+     193000
+    ],
+    [
+     "anthropic",
+     "design",
+     "*",
+     5,
+     345000,
+     345000,
+     345000
+    ],
+    [
+     "openai",
+     "design",
+     "*",
+     8,
+     277500,
+     277500,
+     277500
+    ],
+    [
+     "palantir",
+     "design",
+     "*",
+     10,
+     102000,
+     132500,
+     132500
+    ],
+    [
+     "shieldai",
+     "design",
+     "*",
+     4,
+     132900,
+     143500,
+     178900
+    ],
+    [
+     "palantir",
+     "design",
+     "Entry",
+     4,
+     132500,
+     132500,
+     132500
+    ],
+    [
+     "palantir",
+     "design",
+     "Intern",
+     4,
+     102000,
+     102000,
+     102000
+    ],
+    [
+     "anduril",
+     "design",
+     "Mid",
+     5,
+     123000,
+     146500,
+     170000
+    ],
+    [
+     "anthropic",
+     "design",
+     "Mid",
+     5,
+     345000,
+     345000,
+     345000
+    ],
+    [
+     "openai",
+     "design",
+     "Mid",
+     7,
+     277500,
+     277500,
+     277500
+    ],
+    [
+     "anduril",
+     "design",
+     "Senior",
+     8,
+     193000,
+     193000,
+     193000
+    ],
+    [
+     "shieldai",
+     "design",
+     "Staff+",
+     3,
+     143500,
+     143500,
+     214300
+    ],
+    [
+     "anduril",
+     "eng-manager",
+     "*",
+     25,
+     170000,
+     170000,
+     222000
+    ],
+    [
+     "anthropic",
+     "eng-manager",
+     "*",
+     22,
+     369600,
+     445000,
+     445000
+    ],
+    [
+     "cohere",
+     "eng-manager",
+     "*",
+     4,
+     250900,
+     250900,
+     253100
+    ],
+    [
+     "openai",
+     "eng-manager",
+     "*",
+     20,
+     342400,
+     423000,
+     427300
+    ],
+    [
+     "scaleai",
+     "eng-manager",
+     "*",
+     6,
+     245000,
+     265300,
+     282500
+    ],
+    [
+     "shieldai",
+     "eng-manager",
+     "*",
+     14,
+     231100,
+     263200,
+     275000
+    ],
+    [
+     "shieldai",
+     "eng-manager",
+     "Director+",
+     3,
+     263200,
+     265000,
+     290000
+    ],
+    [
+     "anduril",
+     "eng-manager",
+     "Manager",
+     20,
+     170000,
+     176500,
+     222000
+    ],
+    [
+     "anthropic",
+     "eng-manager",
+     "Manager",
+     22,
+     369600,
+     445000,
+     445000
+    ],
+    [
+     "cohere",
+     "eng-manager",
+     "Manager",
+     4,
+     250900,
+     250900,
+     253100
+    ],
+    [
+     "openai",
+     "eng-manager",
+     "Manager",
+     20,
+     342400,
+     423000,
+     427300
+    ],
+    [
+     "scaleai",
+     "eng-manager",
+     "Manager",
+     6,
+     245000,
+     265300,
+     282500
+    ],
+    [
+     "shieldai",
+     "eng-manager",
+     "Manager",
+     11,
+     215000,
+     240000,
+     275000
+    ],
+    [
+     "anduril",
+     "eng-manager",
+     "Mid",
+     3,
+     170000,
+     170000,
+     170000
+    ],
+    [
+     "anduril",
+     "facilities",
+     "*",
+     33,
+     100000,
+     129000,
+     134000
+    ],
+    [
+     "anthropic",
+     "facilities",
+     "*",
+     13,
+     362500,
+     362500,
+     362500
+    ],
+    [
+     "openai",
+     "facilities",
+     "*",
+     21,
+     231000,
+     255500,
+     292000
+    ],
+    [
+     "shieldai",
+     "facilities",
+     "*",
+     8,
+     59300,
+     132000,
+     139000
+    ],
+    [
+     "xai",
+     "facilities",
+     "*",
+     10,
+     42900,
+     63200,
+     100000
+    ],
+    [
+     "shieldai",
+     "facilities",
+     "Entry",
+     3,
+     52500,
+     59300,
+     59300
+    ],
+    [
+     "anduril",
+     "facilities",
+     "Manager",
+     5,
+     100000,
+     114500,
+     129000
+    ],
+    [
+     "shieldai",
+     "facilities",
+     "Manager",
+     4,
+     132000,
+     132000,
+     139000
+    ],
+    [
+     "anduril",
+     "facilities",
+     "Mid",
+     21,
+     113000,
+     129000,
+     130500
+    ],
+    [
+     "anthropic",
+     "facilities",
+     "Mid",
+     6,
+     362500,
+     362500,
+     362500
+    ],
+    [
+     "openai",
+     "facilities",
+     "Mid",
+     14,
+     235900,
+     259000,
+     292000
+    ],
+    [
+     "xai",
+     "facilities",
+     "Mid",
+     9,
+     42600,
+     56200,
+     100000
+    ],
+    [
+     "anduril",
+     "facilities",
+     "Senior",
+     3,
+     114800,
+     115000,
+     132500
+    ],
+    [
+     "anthropic",
+     "facilities",
+     "Senior",
+     4,
+     362500,
+     362500,
+     362500
+    ],
+    [
+     "openai",
+     "facilities",
+     "Senior",
+     5,
+     231000,
+     250500,
+     255500
+    ],
+    [
+     "anduril",
+     "field-ops",
+     "*",
+     38,
+     130500,
+     167500,
+     193000
+    ],
+    [
+     "anthropic",
+     "field-ops",
+     "*",
+     3,
+     271300,
+     310000,
+     313800
+    ],
+    [
+     "shieldai",
+     "field-ops",
+     "*",
+     8,
+     123800,
+     125800,
+     149500
+    ],
+    [
+     "anduril",
+     "field-ops",
+     "Director+",
+     5,
+     254500,
+     254500,
+     294500
+    ],
+    [
+     "anduril",
+     "field-ops",
+     "Manager",
+     3,
+     170000,
+     170000,
+     181500
+    ],
+    [
+     "anduril",
+     "field-ops",
+     "Mid",
+     21,
+     100000,
+     130500,
+     150000
+    ],
+    [
+     "anduril",
+     "field-ops",
+     "Senior",
+     9,
+     166500,
+     187000,
+     193000
+    ],
+    [
+     "shieldai",
+     "field-ops",
+     "Senior",
+     4,
+     123800,
+     125000,
+     125400
+    ],
+    [
+     "anduril",
+     "finance",
+     "*",
+     52,
+     114500,
+     130500,
+     170000
+    ],
+    [
+     "anthropic",
+     "finance",
+     "*",
+     33,
+     251600,
+     265000,
+     282500
+    ],
+    [
+     "cohere",
+     "finance",
+     "*",
+     3,
+     200000,
+     245000,
+     291300
+    ],
+    [
+     "openai",
+     "finance",
+     "*",
+     33,
+     228000,
+     247000,
+     247000
+    ],
+    [
+     "palantir",
+     "finance",
+     "*",
+     8,
+     114400,
+     120000,
+     138100
+    ],
+    [
+     "scaleai",
+     "finance",
+     "*",
+     4,
+     130800,
+     143600,
+     154400
+    ],
+    [
+     "shieldai",
+     "finance",
+     "*",
+     15,
+     132500,
+     155000,
+     177500
+    ],
+    [
+     "anduril",
+     "finance",
+     "Director+",
+     6,
+     230500,
+     275300,
+     294500
+    ],
+    [
+     "anthropic",
+     "finance",
+     "Director+",
+     13,
+     265000,
+     265000,
+     265000
+    ],
+    [
+     "openai",
+     "finance",
+     "Director+",
+     4,
+     324400,
+     352500,
+     366000
+    ],
+    [
+     "anduril",
+     "finance",
+     "Manager",
+     10,
+     135400,
+     160500,
+     174800
+    ],
+    [
+     "anthropic",
+     "finance",
+     "Manager",
+     8,
+     210000,
+     210000,
+     271900
+    ],
+    [
+     "openai",
+     "finance",
+     "Manager",
+     10,
+     171000,
+     228000,
+     228000
+    ],
+    [
+     "palantir",
+     "finance",
+     "Manager",
+     6,
+     120000,
+     123800,
+     159400
+    ],
+    [
+     "shieldai",
+     "finance",
+     "Manager",
+     6,
+     155600,
+     176300,
+     198800
+    ],
+    [
+     "anduril",
+     "finance",
+     "Mid",
+     13,
+     89500,
+     89500,
+     150000
+    ],
+    [
+     "anthropic",
+     "finance",
+     "Mid",
+     10,
+     263500,
+     282500,
+     282500
+    ],
+    [
+     "openai",
+     "finance",
+     "Mid",
+     8,
+     247000,
+     247000,
+     247000
+    ],
+    [
+     "anduril",
+     "finance",
+     "Senior",
+     21,
+     114500,
+     114500,
+     139500
+    ],
+    [
+     "openai",
+     "finance",
+     "Senior",
+     11,
+     228000,
+     228000,
+     240000
+    ],
+    [
+     "shieldai",
+     "finance",
+     "Senior",
+     8,
+     115900,
+     135000,
+     145000
+    ],
+    [
+     "anduril",
+     "hardware",
+     "*",
+     868,
+     150000,
+     170000,
+     193000
+    ],
+    [
+     "anthropic",
+     "hardware",
+     "*",
+     5,
+     362500,
+     362500,
+     402500
+    ],
+    [
+     "openai",
+     "hardware",
+     "*",
+     32,
+     271500,
+     293300,
+     340400
+    ],
+    [
+     "shieldai",
+     "hardware",
+     "*",
+     184,
+     142500,
+     185000,
+     230000
+    ],
+    [
+     "anduril",
+     "hardware",
+     "Director+",
+     40,
+     222000,
+     256000,
+     294500
+    ],
+    [
+     "shieldai",
+     "hardware",
+     "Director+",
+     9,
+     265400,
+     282500,
+     295000
+    ],
+    [
+     "anduril",
+     "hardware",
+     "Entry",
+     12,
+     100000,
+     100000,
+     122500
+    ],
+    [
+     "shieldai",
+     "hardware",
+     "Entry",
+     11,
+     108400,
+     118500,
+     123600
+    ],
+    [
+     "anduril",
+     "hardware",
+     "Intern",
+     16,
+     77200,
+     81600,
+     87400
+    ],
+    [
+     "shieldai",
+     "hardware",
+     "Intern",
+     5,
+     99800,
+     107100,
+     115400
+    ],
+    [
+     "anduril",
+     "hardware",
+     "Manager",
+     9,
+     170000,
+     193000,
+     222000
+    ],
+    [
+     "shieldai",
+     "hardware",
+     "Manager",
+     8,
+     223800,
+     240000,
+     240000
+    ],
+    [
+     "anduril",
+     "hardware",
+     "Mid",
+     324,
+     131000,
+     150000,
+     167300
+    ],
+    [
+     "anthropic",
+     "hardware",
+     "Mid",
+     4,
+     362500,
+     382500,
+     402500
+    ],
+    [
+     "openai",
+     "hardware",
+     "Mid",
+     30,
+     271500,
+     286000,
+     350100
+    ],
+    [
+     "shieldai",
+     "hardware",
+     "Mid",
+     30,
+     115400,
+     134000,
+     145300
+    ],
+    [
+     "anduril",
+     "hardware",
+     "Senior",
+     372,
+     170000,
+     170000,
+     193000
+    ],
+    [
+     "shieldai",
+     "hardware",
+     "Senior",
+     31,
+     144400,
+     165000,
+     167500
+    ],
+    [
+     "anduril",
+     "hardware",
+     "Staff+",
+     95,
+     193000,
+     222000,
+     226500
+    ],
+    [
+     "shieldai",
+     "hardware",
+     "Staff+",
+     90,
+     185000,
+     200000,
+     234000
+    ],
+    [
+     "anduril",
+     "it",
+     "*",
+     12,
+     145300,
+     151300,
+     170000
+    ],
+    [
+     "anthropic",
+     "it",
+     "*",
+     15,
+     247500,
+     292500,
+     305000
+    ],
+    [
+     "openai",
+     "it",
+     "*",
+     6,
+     243900,
+     287000,
+     319300
+    ],
+    [
+     "shieldai",
+     "it",
+     "*",
+     10,
+     99000,
+     119000,
+     168800
+    ],
+    [
+     "xai",
+     "it",
+     "*",
+     5,
+     82500,
+     85500,
+     185000
+    ],
+    [
+     "shieldai",
+     "it",
+     "Entry",
+     4,
+     88600,
+     94000,
+     99000
+    ],
+    [
+     "anduril",
+     "it",
+     "Mid",
+     7,
+     140300,
+     150000,
+     160000
+    ],
+    [
+     "anthropic",
+     "it",
+     "Mid",
+     12,
+     252500,
+     298800,
+     305000
+    ],
+    [
+     "openai",
+     "it",
+     "Mid",
+     4,
+     221400,
+     258300,
+     304100
+    ],
+    [
+     "xai",
+     "it",
+     "Mid",
+     4,
+     81000,
+     84000,
+     112600
+    ],
+    [
+     "anduril",
+     "it",
+     "Senior",
+     4,
+     160300,
+     170000,
+     175800
+    ],
+    [
+     "shieldai",
+     "it",
+     "Staff+",
+     4,
+     168800,
+     175000,
+     175000
+    ],
+    [
+     "anduril",
+     "legal",
+     "*",
+     18,
+     172000,
+     242500,
+     256000
+    ],
+    [
+     "anthropic",
+     "legal",
+     "*",
+     20,
+     290600,
+     303800,
+     360000
+    ],
+    [
+     "openai",
+     "legal",
+     "*",
+     12,
+     256500,
+     331500,
+     348000
+    ],
+    [
+     "palantir",
+     "legal",
+     "*",
+     13,
+     100000,
+     127500,
+     136000
+    ],
+    [
+     "shieldai",
+     "legal",
+     "*",
+     3,
+     185000,
+     210000,
+     222500
+    ],
+    [
+     "xai",
+     "legal",
+     "*",
+     4,
+     200000,
+     232500,
+     243100
+    ],
+    [
+     "anduril",
+     "legal",
+     "Mid",
+     18,
+     172000,
+     242500,
+     256000
+    ],
+    [
+     "anthropic",
+     "legal",
+     "Mid",
+     17,
+     300000,
+     300000,
+     360000
+    ],
+    [
+     "openai",
+     "legal",
+     "Mid",
+     4,
+     256500,
+     266000,
+     292100
+    ],
+    [
+     "palantir",
+     "legal",
+     "Mid",
+     13,
+     100000,
+     127500,
+     136000
+    ],
+    [
+     "xai",
+     "legal",
+     "Mid",
+     4,
+     200000,
+     232500,
+     243100
+    ],
+    [
+     "openai",
+     "legal",
+     "Senior",
+     7,
+     271500,
+     348000,
+     348000
+    ],
+    [
+     "anduril",
+     "manufacturing",
+     "*",
+     149,
+     73800,
+     89500,
+     114000
+    ],
+    [
+     "shieldai",
+     "manufacturing",
+     "*",
+     20,
+     84500,
+     92300,
+     171300
+    ],
+    [
+     "anduril",
+     "manufacturing",
+     "Director+",
+     9,
+     221000,
+     303500,
+     317000
+    ],
+    [
+     "anduril",
+     "manufacturing",
+     "Entry",
+     4,
+     60300,
+     60300,
+     65000
+    ],
+    [
+     "anduril",
+     "manufacturing",
+     "Manager",
+     10,
+     107300,
+     137800,
+     162800
+    ],
+    [
+     "shieldai",
+     "manufacturing",
+     "Manager",
+     4,
+     158800,
+     177500,
+     192500
+    ],
+    [
+     "anduril",
+     "manufacturing",
+     "Mid",
+     100,
+     70700,
+     89400,
+     100000
+    ],
+    [
+     "shieldai",
+     "manufacturing",
+     "Mid",
+     7,
+     74400,
+     77500,
+     83700
+    ],
+    [
+     "anduril",
+     "manufacturing",
+     "Senior",
+     26,
+     79300,
+     100000,
+     114000
+    ],
+    [
+     "shieldai",
+     "manufacturing",
+     "Senior",
+     5,
+     86300,
+     93000,
+     120500
+    ],
+    [
+     "anduril",
+     "marketing",
+     "*",
+     27,
+     124000,
+     130500,
+     170000
+    ],
+    [
+     "anthropic",
+     "marketing",
+     "*",
+     21,
+     287500,
+     320000,
+     320000
+    ],
+    [
+     "cohere",
+     "marketing",
+     "*",
+     3,
+     188800,
+     197500,
+     218800
+    ],
+    [
+     "openai",
+     "marketing",
+     "*",
+     38,
+     232600,
+     250000,
+     302500
+    ],
+    [
+     "scaleai",
+     "marketing",
+     "*",
+     4,
+     171500,
+     181400,
+     189600
+    ],
+    [
+     "shieldai",
+     "marketing",
+     "*",
+     10,
+     142500,
+     162500,
+     185000
+    ],
+    [
+     "xai",
+     "marketing",
+     "*",
+     4,
+     142800,
+     156500,
+     186000
+    ],
+    [
+     "openai",
+     "marketing",
+     "Manager",
+     3,
+     248800,
+     302500,
+     308000
+    ],
+    [
+     "anduril",
+     "marketing",
+     "Mid",
+     14,
+     117500,
+     130500,
+     130500
+    ],
+    [
+     "anthropic",
+     "marketing",
+     "Mid",
+     12,
+     273800,
+     287500,
+     320000
+    ],
+    [
+     "openai",
+     "marketing",
+     "Mid",
+     23,
+     217800,
+     237500,
+     250000
+    ],
+    [
+     "shieldai",
+     "marketing",
+     "Mid",
+     4,
+     97500,
+     126300,
+     152500
+    ],
+    [
+     "anduril",
+     "marketing",
+     "Senior",
+     9,
+     170000,
+     170000,
+     170000
+    ],
+    [
+     "anthropic",
+     "marketing",
+     "Senior",
+     6,
+     330000,
+     360000,
+     360000
+    ],
+    [
+     "openai",
+     "marketing",
+     "Senior",
+     11,
+     281300,
+     299500,
+     308000
+    ],
+    [
+     "scaleai",
+     "marketing",
+     "Senior",
+     3,
+     181400,
+     184500,
+     194800
+    ],
+    [
+     "shieldai",
+     "marketing",
+     "Staff+",
+     4,
+     158800,
+     167500,
+     180000
+    ],
+    [
+     "anduril",
+     "ml",
+     "*",
+     36,
+     193000,
+     221500,
+     256000
+    ],
+    [
+     "anthropic",
+     "ml",
+     "*",
+     53,
+     350000,
+     445000,
+     675000
+    ],
+    [
+     "cohere",
+     "ml",
+     "*",
+     23,
+     279300,
+     279300,
+     279300
+    ],
+    [
+     "openai",
+     "ml",
+     "*",
+     52,
+     379900,
+     440000,
+     440000
+    ],
+    [
+     "scaleai",
+     "ml",
+     "*",
+     20,
+     235600,
+     244000,
+     302200
+    ],
+    [
+     "shieldai",
+     "ml",
+     "*",
+     6,
+     232500,
+     241300,
+     269200
+    ],
+    [
+     "xai",
+     "ml",
+     "*",
+     13,
+     310000,
+     310000,
+     310000
+    ],
+    [
+     "anthropic",
+     "ml",
+     "Manager",
+     7,
+     347500,
+     347500,
+     386300
+    ],
+    [
+     "anduril",
+     "ml",
+     "Mid",
+     15,
+     178800,
+     191500,
+     207500
+    ],
+    [
+     "anthropic",
+     "ml",
+     "Mid",
+     40,
+     362500,
+     599800,
+     675000
+    ],
+    [
+     "cohere",
+     "ml",
+     "Mid",
+     14,
+     279300,
+     279300,
+     279300
+    ],
+    [
+     "openai",
+     "ml",
+     "Mid",
+     50,
+     386600,
+     440000,
+     440000
+    ],
+    [
+     "scaleai",
+     "ml",
+     "Mid",
+     11,
+     194400,
+     243000,
+     243000
+    ],
+    [
+     "xai",
+     "ml",
+     "Mid",
+     13,
+     310000,
+     310000,
+     310000
+    ],
+    [
+     "anduril",
+     "ml",
+     "Senior",
+     15,
+     215300,
+     222000,
+     256000
+    ],
+    [
+     "cohere",
+     "ml",
+     "Senior",
+     8,
+     279300,
+     279300,
+     279300
+    ],
+    [
+     "anduril",
+     "ml",
+     "Staff+",
+     6,
+     245100,
+     256000,
+     270300
+    ],
+    [
+     "anthropic",
+     "ml",
+     "Staff+",
+     5,
+     600000,
+     675000,
+     675000
+    ],
+    [
+     "scaleai",
+     "ml",
+     "Staff+",
+     5,
+     300000,
+     308700,
+     326700
+    ],
+    [
+     "anduril",
+     "people",
+     "*",
+     92,
+     135200,
+     150800,
+     170000
+    ],
+    [
+     "anthropic",
+     "people",
+     "*",
+     9,
+     207500,
+     267500,
+     332500
+    ],
+    [
+     "openai",
+     "people",
+     "*",
+     10,
+     206800,
+     214500,
+     227600
+    ],
+    [
+     "palantir",
+     "people",
+     "*",
+     6,
+     97500,
+     101300,
+     105000
+    ],
+    [
+     "shieldai",
+     "people",
+     "*",
+     3,
+     146800,
+     150000,
+     192500
+    ],
+    [
+     "anduril",
+     "people",
+     "Manager",
+     9,
+     167000,
+     193000,
+     193000
+    ],
+    [
+     "anduril",
+     "people",
+     "Mid",
+     36,
+     88700,
+     130500,
+     135200
+    ],
+    [
+     "anthropic",
+     "people",
+     "Mid",
+     8,
+     207500,
+     251300,
+     283800
+    ],
+    [
+     "openai",
+     "people",
+     "Mid",
+     8,
+     208300,
+     214500,
+     226900
+    ],
+    [
+     "palantir",
+     "people",
+     "Mid",
+     6,
+     97500,
+     101300,
+     105000
+    ],
+    [
+     "anduril",
+     "people",
+     "Senior",
+     45,
+     146500,
+     170000,
+     170000
+    ],
+    [
+     "anthropic",
+     "policy",
+     "*",
+     6,
+     247500,
+     247500,
+     247500
+    ],
+    [
+     "openai",
+     "policy",
+     "*",
+     9,
+     225500,
+     266000,
+     271000
+    ],
+    [
+     "openai",
+     "policy",
+     "Manager",
+     3,
+     271000,
+     271000,
+     285800
+    ],
+    [
+     "openai",
+     "policy",
+     "Senior",
+     3,
+     248300,
+     266000,
+     292300
+    ],
+    [
+     "anduril",
+     "product",
+     "*",
+     23,
+     193000,
+     193000,
+     195300
+    ],
+    [
+     "anthropic",
+     "product",
+     "*",
+     17,
+     345000,
+     345000,
+     422500
+    ],
+    [
+     "cohere",
+     "product",
+     "*",
+     3,
+     222500,
+     222500,
+     231300
+    ],
+    [
+     "openai",
+     "product",
+     "*",
+     12,
+     321400,
+     339000,
+     410300
+    ],
+    [
+     "scaleai",
+     "product",
+     "*",
+     9,
+     231000,
+     231300,
+     270000
+    ],
+    [
+     "shieldai",
+     "product",
+     "*",
+     3,
+     240000,
+     275000,
+     300000
+    ],
+    [
+     "anduril",
+     "product",
+     "Mid",
+     11,
+     176300,
+     193000,
+     193000
+    ],
+    [
+     "anthropic",
+     "product",
+     "Mid",
+     17,
+     345000,
+     345000,
+     422500
+    ],
+    [
+     "cohere",
+     "product",
+     "Mid",
+     3,
+     222500,
+     222500,
+     231300
+    ],
+    [
+     "openai",
+     "product",
+     "Mid",
+     12,
+     321400,
+     339000,
+     410300
+    ],
+    [
+     "scaleai",
+     "product",
+     "Mid",
+     4,
+     250700,
+     270000,
+     270600
+    ],
+    [
+     "anduril",
+     "product",
+     "Senior",
+     9,
+     193000,
+     193000,
+     193000
+    ],
+    [
+     "scaleai",
+     "product",
+     "Senior",
+     3,
+     231200,
+     231300,
+     231300
+    ],
+    [
+     "anduril",
+     "program",
+     "*",
+     119,
+     150000,
+     171000,
+     193000
+    ],
+    [
+     "anthropic",
+     "program",
+     "*",
+     32,
+     316900,
+     327500,
+     400000
+    ],
+    [
+     "openai",
+     "program",
+     "*",
+     40,
+     234800,
+     283500,
+     308400
+    ],
+    [
+     "palantir",
+     "program",
+     "*",
+     6,
+     126500,
+     126500,
+     126500
+    ],
+    [
+     "scaleai",
+     "program",
+     "*",
+     9,
+     150800,
+     170100,
+     203400
+    ],
+    [
+     "shieldai",
+     "program",
+     "*",
+     20,
+     179000,
+     211300,
+     232600
+    ],
+    [
+     "anduril",
+     "program",
+     "Director+",
+     8,
+     256000,
+     256000,
+     281000
+    ],
+    [
+     "anduril",
+     "program",
+     "Manager",
+     5,
+     130500,
+     150000,
+     170000
+    ],
+    [
+     "anthropic",
+     "program",
+     "Manager",
+     4,
+     317500,
+     346300,
+     390000
+    ],
+    [
+     "anduril",
+     "program",
+     "Mid",
+     47,
+     134000,
+     150000,
+     170000
+    ],
+    [
+     "anthropic",
+     "program",
+     "Mid",
+     26,
+     327500,
+     327500,
+     400000
+    ],
+    [
+     "openai",
+     "program",
+     "Mid",
+     35,
+     240500,
+     283500,
+     326000
+    ],
+    [
+     "palantir",
+     "program",
+     "Mid",
+     6,
+     126500,
+     126500,
+     126500
+    ],
+    [
+     "scaleai",
+     "program",
+     "Mid",
+     7,
+     147400,
+     170100,
+     178700
+    ],
+    [
+     "shieldai",
+     "program",
+     "Mid",
+     7,
+     143300,
+     225000,
+     247700
+    ],
+    [
+     "anduril",
+     "program",
+     "Senior",
+     43,
+     170000,
+     193000,
+     193000
+    ],
+    [
+     "openai",
+     "program",
+     "Senior",
+     4,
+     276400,
+     298000,
+     302500
+    ],
+    [
+     "shieldai",
+     "program",
+     "Senior",
+     4,
+     175800,
+     190500,
+     205600
+    ],
+    [
+     "anduril",
+     "program",
+     "Staff+",
+     15,
+     193000,
+     222000,
+     222000
+    ],
+    [
+     "shieldai",
+     "program",
+     "Staff+",
+     6,
+     196300,
+     222500,
+     236800
+    ],
+    [
+     "anduril",
+     "sales",
+     "*",
+     17,
+     193000,
+     222000,
+     222000
+    ],
+    [
+     "anthropic",
+     "sales",
+     "*",
+     70,
+     257500,
+     332500,
+     415000
+    ],
+    [
+     "cohere",
+     "sales",
+     "*",
+     14,
+     230600,
+     310300,
+     330000
+    ],
+    [
+     "openai",
+     "sales",
+     "*",
+     37,
+     239500,
+     258000,
+     351500
+    ],
+    [
+     "palantir",
+     "sales",
+     "*",
+     4,
+     158800,
+     167500,
+     167500
+    ],
+    [
+     "scaleai",
+     "sales",
+     "*",
+     6,
+     192700,
+     220000,
+     220000
+    ],
+    [
+     "xai",
+     "sales",
+     "*",
+     5,
+     105000,
+     173500,
+     187500
+    ],
+    [
+     "anduril",
+     "sales",
+     "Director+",
+     12,
+     193000,
+     222000,
+     230500
+    ],
+    [
+     "anthropic",
+     "sales",
+     "Director+",
+     3,
+     563800,
+     625000,
+     637500
+    ],
+    [
+     "openai",
+     "sales",
+     "Director+",
+     17,
+     214500,
+     262500,
+     400000
+    ],
+    [
+     "anthropic",
+     "sales",
+     "Manager",
+     4,
+     383800,
+     457500,
+     500000
+    ],
+    [
+     "anthropic",
+     "sales",
+     "Mid",
+     49,
+     256400,
+     335000,
+     415000
+    ],
+    [
+     "cohere",
+     "sales",
+     "Mid",
+     5,
+     175000,
+     207500,
+     302500
+    ],
+    [
+     "openai",
+     "sales",
+     "Mid",
+     10,
+     249800,
+     257000,
+     302500
+    ],
+    [
+     "palantir",
+     "sales",
+     "Mid",
+     4,
+     158800,
+     167500,
+     167500
+    ],
+    [
+     "scaleai",
+     "sales",
+     "Mid",
+     5,
+     183600,
+     220000,
+     220000
+    ],
+    [
+     "xai",
+     "sales",
+     "Mid",
+     3,
+     94300,
+     105000,
+     146300
+    ],
+    [
+     "anduril",
+     "sales",
+     "Senior",
+     3,
+     178500,
+     222000,
+     222000
+    ],
+    [
+     "anthropic",
+     "sales",
+     "Senior",
+     14,
+     265600,
+     306300,
+     332500
+    ],
+    [
+     "cohere",
+     "sales",
+     "Senior",
+     8,
+     302300,
+     330000,
+     344400
+    ],
+    [
+     "openai",
+     "sales",
+     "Senior",
+     9,
+     243500,
+     318000,
+     351500
+    ],
+    [
+     "anduril",
+     "security",
+     "*",
+     54,
+     150000,
+     170000,
+     193000
+    ],
+    [
+     "anthropic",
+     "security",
+     "*",
+     34,
+     321900,
+     362500,
+     399600
+    ],
+    [
+     "openai",
+     "security",
+     "*",
+     20,
+     219500,
+     299300,
+     355500
+    ],
+    [
+     "palantir",
+     "security",
+     "*",
+     19,
+     122300,
+     167500,
+     172500
+    ],
+    [
+     "scaleai",
+     "security",
+     "*",
+     5,
+     245400,
+     245400,
+     267300
+    ],
+    [
+     "shieldai",
+     "security",
+     "*",
+     5,
+     125000,
+     155000,
+     165000
+    ],
+    [
+     "xai",
+     "security",
+     "*",
+     8,
+     179000,
+     179000,
+     185500
+    ],
+    [
+     "anduril",
+     "security",
+     "Manager",
+     6,
+     155000,
+     170000,
+     170000
+    ],
+    [
+     "anthropic",
+     "security",
+     "Manager",
+     3,
+     371300,
+     415000,
+     415000
+    ],
+    [
+     "anduril",
+     "security",
+     "Mid",
+     27,
+     150000,
+     170000,
+     193000
+    ],
+    [
+     "anthropic",
+     "security",
+     "Mid",
+     17,
+     307500,
+     352500,
+     362500
+    ],
+    [
+     "openai",
+     "security",
+     "Mid",
+     15,
+     231900,
+     305000,
+     355500
+    ],
+    [
+     "palantir",
+     "security",
+     "Mid",
+     15,
+     118500,
+     167500,
+     172500
+    ],
+    [
+     "scaleai",
+     "security",
+     "Mid",
+     5,
+     245400,
+     245400,
+     267300
+    ],
+    [
+     "xai",
+     "security",
+     "Mid",
+     6,
+     179000,
+     179000,
+     179000
+    ],
+    [
+     "anduril",
+     "security",
+     "Senior",
+     17,
+     170000,
+     193000,
+     193000
+    ],
+    [
+     "anthropic",
+     "security",
+     "Senior",
+     4,
+     325600,
+     345000,
+     386900
+    ],
+    [
+     "palantir",
+     "security",
+     "Senior",
+     3,
+     167500,
+     167500,
+     167500
+    ],
+    [
+     "anthropic",
+     "security",
+     "Staff+",
+     7,
+     376700,
+     402500,
+     402500
+    ],
+    [
+     "shieldai",
+     "security",
+     "Staff+",
+     4,
+     147500,
+     160000,
+     168400
+    ],
+    [
+     "anduril",
+     "solutions",
+     "*",
+     14,
+     130500,
+     132500,
+     150000
+    ],
+    [
+     "anthropic",
+     "solutions",
+     "*",
+     31,
+     277500,
+     280000,
+     323500
+    ],
+    [
+     "cohere",
+     "solutions",
+     "*",
+     6,
+     199300,
+     206400,
+     227800
+    ],
+    [
+     "openai",
+     "solutions",
+     "*",
+     46,
+     242500,
+     247800,
+     263900
+    ],
+    [
+     "palantir",
+     "solutions",
+     "*",
+     71,
+     120000,
+     140000,
+     167500
+    ],
+    [
+     "scaleai",
+     "solutions",
+     "*",
+     20,
+     201600,
+     212400,
+     234500
+    ],
+    [
+     "shieldai",
+     "solutions",
+     "*",
+     4,
+     204400,
+     231500,
+     243500
+    ],
+    [
+     "palantir",
+     "solutions",
+     "Entry",
+     10,
+     140000,
+     140000,
+     140000
+    ],
+    [
+     "palantir",
+     "solutions",
+     "Intern",
+     16,
+     98400,
+     120000,
+     120000
+    ],
+    [
+     "anthropic",
+     "solutions",
+     "Manager",
+     3,
+     314000,
+     345000,
+     353800
+    ],
+    [
+     "scaleai",
+     "solutions",
+     "Manager",
+     5,
+     187200,
+     207700,
+     207700
+    ],
+    [
+     "anduril",
+     "solutions",
+     "Mid",
+     5,
+     150000,
+     150000,
+     150000
+    ],
+    [
+     "anthropic",
+     "solutions",
+     "Mid",
+     25,
+     277500,
+     277500,
+     300000
+    ],
+    [
+     "cohere",
+     "solutions",
+     "Mid",
+     5,
+     199300,
+     199300,
+     213500
+    ],
+    [
+     "openai",
+     "solutions",
+     "Mid",
+     38,
+     242500,
+     246800,
+     256100
+    ],
+    [
+     "palantir",
+     "solutions",
+     "Mid",
+     45,
+     140000,
+     155000,
+     167500
+    ],
+    [
+     "scaleai",
+     "solutions",
+     "Mid",
+     10,
+     199800,
+     212400,
+     225300
+    ],
+    [
+     "anduril",
+     "solutions",
+     "Senior",
+     8,
+     130500,
+     130500,
+     130600
+    ],
+    [
+     "anthropic",
+     "solutions",
+     "Senior",
+     3,
+     296900,
+     327500,
+     345000
+    ],
+    [
+     "openai",
+     "solutions",
+     "Senior",
+     7,
+     256300,
+     262000,
+     301300
+    ],
+    [
+     "scaleai",
+     "solutions",
+     "Staff+",
+     4,
+     237200,
+     261000,
+     296600
+    ],
+    [
+     "anduril",
+     "supply-chain",
+     "*",
+     235,
+     130500,
+     150000,
+     170000
+    ],
+    [
+     "anthropic",
+     "supply-chain",
+     "*",
+     9,
+     210000,
+     362500,
+     445000
+    ],
+    [
+     "openai",
+     "supply-chain",
+     "*",
+     14,
+     255500,
+     255500,
+     277900
+    ],
+    [
+     "palantir",
+     "supply-chain",
+     "*",
+     3,
+     75000,
+     75000,
+     101300
+    ],
+    [
+     "shieldai",
+     "supply-chain",
+     "*",
+     11,
+     127500,
+     150000,
+     196000
+    ],
+    [
+     "anduril",
+     "supply-chain",
+     "Director+",
+     17,
+     221000,
+     256000,
+     294500
+    ],
+    [
+     "anduril",
+     "supply-chain",
+     "Entry",
+     18,
+     56200,
+     57200,
+     66500
+    ],
+    [
+     "anduril",
+     "supply-chain",
+     "Manager",
+     40,
+     150000,
+     170000,
+     193000
+    ],
+    [
+     "openai",
+     "supply-chain",
+     "Manager",
+     6,
+     255500,
+     255500,
+     255500
+    ],
+    [
+     "shieldai",
+     "supply-chain",
+     "Manager",
+     3,
+     143800,
+     165000,
+     185000
+    ],
+    [
+     "anduril",
+     "supply-chain",
+     "Mid",
+     76,
+     114500,
+     130500,
+     150000
+    ],
+    [
+     "anthropic",
+     "supply-chain",
+     "Mid",
+     7,
+     210000,
+     362500,
+     445000
+    ],
+    [
+     "openai",
+     "supply-chain",
+     "Mid",
+     4,
+     249400,
+     262800,
+     272600
+    ],
+    [
+     "anduril",
+     "supply-chain",
+     "Senior",
+     73,
+     150000,
+     170000,
+     170000
+    ],
+    [
+     "openai",
+     "supply-chain",
+     "Senior",
+     3,
+     251300,
+     255500,
+     271300
+    ],
+    [
+     "shieldai",
+     "supply-chain",
+     "Senior",
+     4,
+     106300,
+     120800,
+     136900
+    ],
+    [
+     "anduril",
+     "supply-chain",
+     "Staff+",
+     9,
+     179500,
+     193000,
+     222000
+    ],
+    [
+     "anduril",
+     "support",
+     "*",
+     18,
+     150000,
+     161000,
+     216500
+    ],
+    [
+     "anthropic",
+     "support",
+     "*",
+     22,
+     224400,
+     232500,
+     292500
+    ],
+    [
+     "openai",
+     "support",
+     "*",
+     25,
+     205000,
+     223100,
+     247000
+    ],
+    [
+     "shieldai",
+     "support",
+     "*",
+     6,
+     128800,
+     140000,
+     166300
+    ],
+    [
+     "anduril",
+     "support",
+     "Director+",
+     4,
+     254500,
+     274500,
+     294500
+    ],
+    [
+     "anthropic",
+     "support",
+     "Manager",
+     5,
+     235000,
+     292500,
+     292500
+    ],
+    [
+     "anduril",
+     "support",
+     "Mid",
+     11,
+     140300,
+     161000,
+     161000
+    ],
+    [
+     "anthropic",
+     "support",
+     "Mid",
+     15,
+     203600,
+     232500,
+     232500
+    ],
+    [
+     "openai",
+     "support",
+     "Mid",
+     15,
+     205000,
+     220000,
+     224000
+    ],
+    [
+     "anduril",
+     "support",
+     "Senior",
+     3,
+     165300,
+     200000,
+     211000
+    ],
+    [
+     "openai",
+     "support",
+     "Senior",
+     9,
+     234500,
+     247000,
+     299500
+    ],
+    [
+     "shieldai",
+     "support",
+     "Staff+",
+     3,
+     132500,
+     140000,
+     157500
+    ],
+    [
+     "anduril",
+     "swe",
+     "*",
+     418,
+     193000,
+     221000,
+     222000
+    ],
+    [
+     "anthropic",
+     "swe",
+     "*",
+     108,
+     362500,
+     402500,
+     445000
+    ],
+    [
+     "cohere",
+     "swe",
+     "*",
+     12,
+     186400,
+     216300,
+     245000
+    ],
+    [
+     "openai",
+     "swe",
+     "*",
+     177,
+     317500,
+     355500,
+     372500
+    ],
+    [
+     "palantir",
+     "swe",
+     "*",
+     80,
+     150000,
+     167500,
+     167500
+    ],
+    [
+     "scaleai",
+     "swe",
+     "*",
+     22,
+     201800,
+     239900,
+     281500
+    ],
+    [
+     "shieldai",
+     "swe",
+     "*",
+     109,
+     180000,
+     204000,
+     244000
+    ],
+    [
+     "xai",
+     "swe",
+     "*",
+     39,
+     248700,
+     310000,
+     310000
+    ],
+    [
+     "anduril",
+     "swe",
+     "Entry",
+     3,
+     127800,
+     130500,
+     130500
+    ],
+    [
+     "palantir",
+     "swe",
+     "Entry",
+     11,
+     150000,
+     150000,
+     150000
+    ],
+    [
+     "anduril",
+     "swe",
+     "Intern",
+     4,
+     91800,
+     102400,
+     106100
+    ],
+    [
+     "palantir",
+     "swe",
+     "Intern",
+     15,
+     126000,
+     126000,
+     126000
+    ],
+    [
+     "palantir",
+     "swe",
+     "Manager",
+     3,
+     167500,
+     167500,
+     167500
+    ],
+    [
+     "anduril",
+     "swe",
+     "Mid",
+     176,
+     169600,
+     193000,
+     193000
+    ],
+    [
+     "anthropic",
+     "swe",
+     "Mid",
+     25,
+     362500,
+     362500,
+     565000
+    ],
+    [
+     "cohere",
+     "swe",
+     "Mid",
+     7,
+     198400,
+     212500,
+     247500
+    ],
+    [
+     "openai",
+     "swe",
+     "Mid",
+     165,
+     317500,
+     355500,
+     370000
+    ],
+    [
+     "palantir",
+     "swe",
+     "Mid",
+     37,
+     167500,
+     167500,
+     167500
+    ],
+    [
+     "scaleai",
+     "swe",
+     "Mid",
+     7,
+     198700,
+     201800,
+     202200
+    ],
+    [
+     "shieldai",
+     "swe",
+     "Mid",
+     17,
+     147500,
+     192500,
+     220000
+    ],
+    [
+     "xai",
+     "swe",
+     "Mid",
+     36,
+     248700,
+     310000,
+     310000
+    ],
+    [
+     "anduril",
+     "swe",
+     "Senior",
+     193,
+     221000,
+     222000,
+     222000
+    ],
+    [
+     "anthropic",
+     "swe",
+     "Senior",
+     5,
+     295000,
+     320000,
+     327500
+    ],
+    [
+     "cohere",
+     "swe",
+     "Senior",
+     4,
+     184100,
+     202500,
+     220600
+    ],
+    [
+     "openai",
+     "swe",
+     "Senior",
+     4,
+     307400,
+     324000,
+     353300
+    ],
+    [
+     "palantir",
+     "swe",
+     "Senior",
+     14,
+     167500,
+     170000,
+     172500
+    ],
+    [
+     "scaleai",
+     "swe",
+     "Senior",
+     7,
+     239900,
+     243000,
+     253000
+    ],
+    [
+     "shieldai",
+     "swe",
+     "Senior",
+     33,
+     155000,
+     175500,
+     204000
+    ],
+    [
+     "anduril",
+     "swe",
+     "Staff+",
+     39,
+     256000,
+     256000,
+     275300
+    ],
+    [
+     "anthropic",
+     "swe",
+     "Staff+",
+     77,
+     402500,
+     405000,
+     445000
+    ],
+    [
+     "openai",
+     "swe",
+     "Staff+",
+     7,
+     355500,
+     355500,
+     402300
+    ],
+    [
+     "scaleai",
+     "swe",
+     "Staff+",
+     5,
+     283500,
+     283500,
+     283500
+    ],
+    [
+     "shieldai",
+     "swe",
+     "Staff+",
+     53,
+     215000,
+     244000,
+     276000
+    ],
+    [
+     "anthropic",
+     "trust-safety",
+     "*",
+     18,
+     265000,
+     276300,
+     307500
+    ],
+    [
+     "openai",
+     "trust-safety",
+     "*",
+     3,
+     232800,
+     266000,
+     300500
+    ],
+    [
+     "xai",
+     "trust-safety",
+     "*",
+     3,
+     114000,
+     117500,
+     126300
+    ],
+    [
+     "anthropic",
+     "trust-safety",
+     "Mid",
+     12,
+     265000,
+     265000,
+     292500
+    ],
+    [
+     "openai",
+     "trust-safety",
+     "Mid",
+     3,
+     232800,
+     266000,
+     300500
+    ],
+    [
+     "anthropic",
+     "trust-safety",
+     "Senior",
+     4,
+     307500,
+     307500,
+     307500
+    ]
+   ],
+   "companies": [
+    {
+     "slug": "anduril",
+     "name": "Anduril",
+     "color": "#1f2a37",
+     "mode": "snapshot",
+     "fetchedAt": "2026-10-09T13:25:54.682Z",
+     "jobs": 2478,
+     "salaried": 2332,
+     "used": 2327
+    },
+    {
+     "slug": "anthropic",
+     "name": "Anthropic",
+     "color": "#d97757",
+     "mode": "snapshot",
+     "fetchedAt": "2026-10-09T13:25:46.792Z",
+     "jobs": 643,
+     "salaried": 564,
+     "used": 564
+    },
+    {
+     "slug": "cohere",
+     "name": "Cohere",
+     "color": "#39594d",
+     "mode": "snapshot",
+     "fetchedAt": "2026-10-09T13:25:59.044Z",
+     "jobs": 120,
+     "salaried": 84,
+     "used": 84
+    },
+    {
+     "slug": "openai",
+     "name": "OpenAI",
+     "color": "#10a37f",
+     "mode": "snapshot",
+     "fetchedAt": "2026-10-09T13:25:57.154Z",
+     "jobs": 817,
+     "salaried": 656,
+     "used": 654
+    },
+    {
+     "slug": "palantir",
+     "name": "Palantir",
+     "color": "#101113",
+     "mode": "snapshot",
+     "fetchedAt": "2026-10-09T13:26:00.841Z",
+     "jobs": 313,
+     "salaried": 237,
+     "used": 235
+    },
+    {
+     "slug": "scaleai",
+     "name": "Scale AI",
+     "color": "#6e3cf2",
+     "mode": "snapshot",
+     "fetchedAt": "2026-10-09T13:25:57.833Z",
+     "jobs": 182,
+     "salaried": 123,
+     "used": 123
+    },
+    {
+     "slug": "shieldai",
+     "name": "Shield AI",
+     "color": "#1c6dd0",
+     "mode": "snapshot",
+     "fetchedAt": "2026-10-09T13:26:02.765Z",
+     "jobs": 594,
+     "salaried": 466,
+     "used": 460
+    },
+    {
+     "slug": "xai",
+     "name": "xAI",
+     "color": "#3b3b3b",
+     "mode": "snapshot",
+     "fetchedAt": "2026-10-09T13:25:58.664Z",
+     "jobs": 305,
+     "salaried": 129,
+     "used": 129
+    }
+   ],
+   "summary": {
+    "cells": 374,
+    "companies": {
+     "palantir": {
+      "cells": 31,
+      "families": 12,
+      "n": 229
+     },
+     "cohere": {
+      "cells": 19,
+      "families": 9,
+      "n": 71
+     },
+     "xai": {
+      "cells": 20,
+      "families": 12,
+      "n": 125
+     },
+     "anduril": {
+      "cells": 95,
+      "families": 22,
+      "n": 2325
+     },
+     "anthropic": {
+      "cells": 64,
+      "families": 23,
+      "n": 564
+     },
+     "openai": {
+      "cells": 62,
+      "families": 22,
+      "n": 647
+     },
+     "scaleai": {
+      "cells": 28,
+      "families": 12,
+      "n": 114
+     },
+     "shieldai": {
+      "cells": 55,
+      "families": 21,
+      "n": 456
+     }
+    },
+    "families": [
+     {
+      "family": "swe",
+      "companies": 8,
+      "n": 965,
+      "medianOfMedians": 230500,
+      "min": 167500,
+      "max": 402500
+     },
+     {
+      "family": "ml",
+      "companies": 7,
+      "n": 203,
+      "medianOfMedians": 279300,
+      "min": 221500,
+      "max": 445000
+     },
+     {
+      "family": "solutions",
+      "companies": 7,
+      "n": 192,
+      "medianOfMedians": 212400,
+      "min": 132500,
+      "max": 280000
+     },
+     {
+      "family": "sales",
+      "companies": 7,
+      "n": 153,
+      "medianOfMedians": 222000,
+      "min": 167500,
+      "max": 332500
+     },
+     {
+      "family": "finance",
+      "companies": 7,
+      "n": 148,
+      "medianOfMedians": 155000,
+      "min": 120000,
+      "max": 265000
+     },
+     {
+      "family": "security",
+      "companies": 7,
+      "n": 145,
+      "medianOfMedians": 179000,
+      "min": 155000,
+      "max": 362500
+     },
+     {
+      "family": "marketing",
+      "companies": 7,
+      "n": 107,
+      "medianOfMedians": 181400,
+      "min": 130500,
+      "max": 320000
+     },
+     {
+      "family": "bizops",
+      "companies": 7,
+      "n": 90,
+      "medianOfMedians": 204300,
+      "min": 52500,
+      "max": 293500
+     },
+     {
+      "family": "program",
+      "companies": 6,
+      "n": 226,
+      "medianOfMedians": 191200,
+      "min": 126500,
+      "max": 327500
+     },
+     {
+      "family": "eng-manager",
+      "companies": 6,
+      "n": 91,
+      "medianOfMedians": 264300,
+      "min": 170000,
+      "max": 445000
+     },
+     {
+      "family": "legal",
+      "companies": 6,
+      "n": 70,
+      "medianOfMedians": 237500,
+      "min": 127500,
+      "max": 331500
+     },
+     {
+      "family": "product",
+      "companies": 6,
+      "n": 67,
+      "medianOfMedians": 253200,
+      "min": 193000,
+      "max": 345000
+     },
+     {
+      "family": "data",
+      "companies": 6,
+      "n": 57,
+      "medianOfMedians": 201900,
+      "min": 170000,
+      "max": 365000
+     },
+     {
+      "family": "supply-chain",
+      "companies": 5,
+      "n": 272,
+      "medianOfMedians": 150000,
+      "min": 75000,
+      "max": 362500
+     },
+     {
+      "family": "people",
+      "companies": 5,
+      "n": 120,
+      "medianOfMedians": 150800,
+      "min": 101300,
+      "max": 267500
+     },
+     {
+      "family": "facilities",
+      "companies": 5,
+      "n": 85,
+      "medianOfMedians": 132000,
+      "min": 63200,
+      "max": 362500
+     },
+     {
+      "family": "it",
+      "companies": 5,
+      "n": 48,
+      "medianOfMedians": 151300,
+      "min": 85500,
+      "max": 292500
+     },
+     {
+      "family": "design",
+      "companies": 5,
+      "n": 41,
+      "medianOfMedians": 193000,
+      "min": 132500,
+      "max": 345000
+     },
+     {
+      "family": "hardware",
+      "companies": 4,
+      "n": 1089,
+      "medianOfMedians": 239200,
+      "min": 170000,
+      "max": 362500
+     },
+     {
+      "family": "support",
+      "companies": 4,
+      "n": 71,
+      "medianOfMedians": 192100,
+      "min": 140000,
+      "max": 232500
+     },
+     {
+      "family": "field-ops",
+      "companies": 3,
+      "n": 49,
+      "medianOfMedians": 167500,
+      "min": 125800,
+      "max": 310000
+     },
+     {
+      "family": "trust-safety",
+      "companies": 3,
+      "n": 24,
+      "medianOfMedians": 266000,
+      "min": 117500,
+      "max": 276300
+     },
+     {
+      "family": "manufacturing",
+      "companies": 2,
+      "n": 169,
+      "medianOfMedians": 90900,
+      "min": 89500,
+      "max": 92300
+     },
+     {
+      "family": "ai-training",
+      "companies": 2,
+      "n": 30,
+      "medianOfMedians": 63800,
+      "min": 44400,
+      "max": 83200
+     },
+     {
+      "family": "policy",
+      "companies": 2,
+      "n": 15,
+      "medianOfMedians": 256800,
+      "min": 247500,
+      "max": 266000
+     },
+     {
+      "family": "admin",
+      "companies": 1,
+      "n": 4,
+      "medianOfMedians": 81800,
+      "min": 81800,
+      "max": 81800
+     }
+    ],
+    "compareFamilies": 25
+   }
+  },
+  "all": null
+ },
+ "levels": {
+  "reference": "Mid",
+  "byLevel": {
+   "Director+": {
+    "groups": 13,
+    "q25": 1.427,
+    "median": 1.707,
+    "q75": 1.962
+   },
+   "Entry": {
+    "groups": 8,
+    "q25": 0.673,
+    "median": 0.773,
+    "q75": 0.887
+   },
+   "Manager": {
+    "groups": 25,
+    "q25": 1,
+    "median": 1.177,
+    "q75": 1.303
+   },
+   "Senior": {
+    "groups": 49,
+    "q25": 0.979,
+    "median": 1.133,
+    "q75": 1.242
+   },
+   "Intern": {
+    "groups": 5,
+    "q25": 0.544,
+    "median": 0.752,
+    "q75": 0.774
+   },
+   "Staff+": {
+    "groups": 16,
+    "q25": 1.138,
+    "median": 1.298,
+    "q75": 1.423
+   }
+  },
+  "pairs": 116
+ },
+ "pooled": {
+  "jobs": 5452,
+  "midDefault": 2645,
+  "midDefaultShare": 0.485
+ },
+ "backtest": {
+  "anduril": {
+   "medianAbsPctError": 11.8,
+   "within10Pct": 42.4,
+   "n": 500,
+   "seed": 20261002,
+   "skipped": 0
+  },
+  "anthropic": {
+   "medianAbsPctError": 13.8,
+   "within10Pct": 38,
+   "n": 498,
+   "seed": 20261002,
+   "skipped": 2
+  },
+  "cohere": {
+   "medianAbsPctError": 8.1,
+   "within10Pct": 60,
+   "n": 80,
+   "seed": 20261002,
+   "skipped": 4
+  },
+  "openai": {
+   "medianAbsPctError": 10.1,
+   "within10Pct": 49.6,
+   "n": 498,
+   "seed": 20261002,
+   "skipped": 2
+  },
+  "palantir": {
+   "medianAbsPctError": 6.7,
+   "within10Pct": 57.7,
+   "n": 234,
+   "seed": 20261002,
+   "skipped": 3
+  },
+  "scaleai": {
+   "medianAbsPctError": 11.2,
+   "within10Pct": 47.1,
+   "n": 121,
+   "seed": 20261002,
+   "skipped": 2
+  },
+  "shieldai": {
+   "medianAbsPctError": 15.9,
+   "within10Pct": 31.7,
+   "n": 464,
+   "seed": 20261002,
+   "skipped": 2
+  },
+  "xai": {
+   "medianAbsPctError": 20.5,
+   "within10Pct": 23.8,
+   "n": 126,
+   "seed": 20261002,
+   "skipped": 3
+  }
+ },
+ "ledgers": {
+  "stable/anduril": {
+   "since": "2026-10-02T07:17:54.638Z",
+   "lastRunAt": "2026-10-10T09:05:13.493Z",
+   "runs": 92,
+   "ageDays": -0.4,
+   "spanDays": 8.1,
+   "runsPerDay": 11.4,
+   "entries": 2714,
+   "open": 2491,
+   "closed": 223,
+   "reposted": 8,
+   "withPostedAt": 2714,
+   "pruneSoon": 0,
+   "maxGapDays": 1
+  },
+  "stable/anthropic": {
+   "since": "2026-10-02T07:17:36.791Z",
+   "lastRunAt": "2026-10-10T09:05:05.883Z",
+   "runs": 92,
+   "ageDays": -0.4,
+   "spanDays": 8.1,
+   "runsPerDay": 11.4,
+   "entries": 711,
+   "open": 645,
+   "closed": 66,
+   "reposted": 0,
+   "withPostedAt": 711,
+   "pruneSoon": 0,
+   "maxGapDays": 1
+  },
+  "stable/cohere": {
+   "since": "2026-10-02T07:17:59.321Z",
+   "lastRunAt": "2026-10-10T09:05:17.776Z",
+   "runs": 92,
+   "ageDays": -0.4,
+   "spanDays": 8.1,
+   "runsPerDay": 11.4,
+   "entries": 141,
+   "open": 119,
+   "closed": 22,
+   "reposted": 0,
+   "withPostedAt": 141,
+   "pruneSoon": 0,
+   "maxGapDays": 2
+  },
+  "stable/openai": {
+   "since": "2026-10-02T07:17:57.331Z",
+   "lastRunAt": "2026-10-10T09:05:16.080Z",
+   "runs": 92,
+   "ageDays": -0.4,
+   "spanDays": 8.1,
+   "runsPerDay": 11.4,
+   "entries": 892,
+   "open": 815,
+   "closed": 77,
+   "reposted": 0,
+   "withPostedAt": 892,
+   "pruneSoon": 0,
+   "maxGapDays": 1
+  },
+  "stable/palantir": {
+   "since": "2026-10-02T07:18:01.769Z",
+   "lastRunAt": "2026-10-10T09:05:19.552Z",
+   "runs": 92,
+   "ageDays": -0.4,
+   "spanDays": 8.1,
+   "runsPerDay": 11.4,
+   "entries": 323,
+   "open": 309,
+   "closed": 14,
+   "reposted": 0,
+   "withPostedAt": 323,
+   "pruneSoon": 0,
+   "maxGapDays": 3
+  },
+  "stable/scaleai": {
+   "since": "2026-10-02T07:17:58.033Z",
+   "lastRunAt": "2026-10-10T09:05:16.712Z",
+   "runs": 92,
+   "ageDays": -0.4,
+   "spanDays": 8.1,
+   "runsPerDay": 11.4,
+   "entries": 205,
+   "open": 183,
+   "closed": 22,
+   "reposted": 0,
+   "withPostedAt": 205,
+   "pruneSoon": 0,
+   "maxGapDays": 3
+  },
+  "stable/shieldai": {
+   "since": "2026-10-02T07:18:04.241Z",
+   "lastRunAt": "2026-10-10T09:05:21.501Z",
+   "runs": 92,
+   "ageDays": -0.4,
+   "spanDays": 8.1,
+   "runsPerDay": 11.4,
+   "entries": 655,
+   "open": 615,
+   "closed": 40,
+   "reposted": 0,
+   "withPostedAt": 655,
+   "pruneSoon": 0,
+   "maxGapDays": 2
+  },
+  "stable/xai": {
+   "since": "2026-10-02T07:17:58.908Z",
+   "lastRunAt": "2026-10-10T09:05:17.458Z",
+   "runs": 92,
+   "ageDays": -0.4,
+   "spanDays": 8.1,
+   "runsPerDay": 11.4,
+   "entries": 329,
+   "open": 305,
+   "closed": 24,
+   "reposted": 4,
+   "withPostedAt": 329,
+   "pruneSoon": 0,
+   "maxGapDays": 3
+  }
+ }
+}

@@ -1,0 +1,64 @@
+{
+ "dataset": "tax-ch",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "Direct federal tax 2026 (ESTV tariffs, single and married, CHF 263 per child), deductions: work expenses 3% (CHF 2,000-4,000), insurance CHF 1,800 / 3,700 + 700 per child, child CHF 6,800, married CHF 2,800; employee AHV/IV/EO 5.3%, ALV 1.1% to CHF 148,200, non-occupational accident ~1% (2nd pillar excluded and not deducted)",
+  "url": "https://www.estv.admin.ch/dam/de/sd-web/vFK3ntWLQ4s4/2-215-D-2025-d.pdf",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "CH_FED_SINGLE": {
+   "steps": [
+    [
+     15200,
+     0,
+     0.0077
+    ],
+    [
+     33200,
+     138.6,
+     0.0088
+    ],
+    [
+     43500,
+     229.2,
+     0.0264
+    ],
+    [
+     58000,
+     612,
+     0.0297
+    ],
+    [
+     76200,
+     1152.5,
+     0.0594
+    ],
+    [
+     82100,
+     1502.95,
+     0.066
+    ],
+    [
+     108900,
+     3271.75,
+     0.088
+    ],
+    [
+     141500,
+     6140.55,
+     0.11
+    ],
+    [
+     185100,
+     10936.55,
+     0.132
+    ]
+   ],
+   "flatFrom": 794000,
+   "flat": 0.115
+  }
+ }
+}

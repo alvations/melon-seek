@@ -1,0 +1,16 @@
+{
+ "dataset": "runtime-versions",
+ "asOf": "2026-10-10",
+ "taxYear": null,
+ "source": {
+  "name": "Node.js release schedule",
+  "url": "https://raw.githubusercontent.com/nodejs/Release/main/schedule.json",
+  "licence": "MIT (nodejs/Release)"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "package.json#engines": {
+   "node": ">=18"
+  }
+ }
+}

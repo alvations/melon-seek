@@ -1,0 +1,99 @@
+{
+ "dataset": "tax-us-md",
+ "asOf": "2025-01-01",
+ "taxYear": "2025",
+ "source": {
+  "name": "Maryland 2025 (Budget Reconciliation and Financing Act 2025): 2%-6.5% with 6.25% / 6.5% top brackets, standard deduction $3,350 / $6,700",
+  "url": "https://www.marylandtaxes.gov/individual/income/tax-info/tax-rates.php",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "MD_2025": {
+   "single": [
+    [
+     1000,
+     0.02
+    ],
+    [
+     2000,
+     0.03
+    ],
+    [
+     3000,
+     0.04
+    ],
+    [
+     100000,
+     0.0475
+    ],
+    [
+     125000,
+     0.05
+    ],
+    [
+     150000,
+     0.0525
+    ],
+    [
+     250000,
+     0.055
+    ],
+    [
+     500000,
+     0.0575
+    ],
+    [
+     1000000,
+     0.0625
+    ],
+    [
+     "Infinity",
+     0.065
+    ]
+   ],
+   "mfj": [
+    [
+     1000,
+     0.02
+    ],
+    [
+     2000,
+     0.03
+    ],
+    [
+     3000,
+     0.04
+    ],
+    [
+     150000,
+     0.0475
+    ],
+    [
+     175000,
+     0.05
+    ],
+    [
+     225000,
+     0.0525
+    ],
+    [
+     300000,
+     0.055
+    ],
+    [
+     600000,
+     0.0575
+    ],
+    [
+     1200000,
+     0.0625
+    ],
+    [
+     "Infinity",
+     0.065
+    ]
+   ]
+  }
+ }
+}

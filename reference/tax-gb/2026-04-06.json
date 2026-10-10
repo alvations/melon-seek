@@ -1,0 +1,27 @@
+{
+ "dataset": "tax-gb",
+ "asOf": "2026-04-06",
+ "taxYear": "2026/27",
+ "source": {
+  "name": "HMRC 2026/27: personal allowance £12,570 (tapered over £100,000), 20% / 40% / 45% (£37,700 / £125,140); employee Class 1 NICs 8% from £12,570 to £50,270, 2% above",
+  "url": "https://www.gov.uk/government/publications/rates-and-allowances-income-tax/income-tax-rates-and-allowances-current-and-past",
+  "licence": "Crown copyright, Open Government Licence v3.0"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "GB_RUK": [
+   [
+    37700,
+    0.2
+   ],
+   [
+    125140,
+    0.4
+   ],
+   [
+    "Infinity",
+    0.45
+   ]
+  ]
+ }
+}

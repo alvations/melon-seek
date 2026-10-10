@@ -1,0 +1,71 @@
+{
+ "dataset": "tax-es-md",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "Comunidad de Madrid regional scale: five tranches 8.5% to 20.5% (to €13,362.22 / €19,004.63 / €35,425.68 / €57,320.40)",
+  "url": "https://www.hacienda.gob.es/sgfal/financiacionterritorial/autonomica/capitulo-i-tributacion-autonomica-2026.pdf",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "ES_REGIONAL": {
+   "MD": [
+    [
+     13362.22,
+     0.085
+    ],
+    [
+     19004.63,
+     0.107
+    ],
+    [
+     35425.68,
+     0.128
+    ],
+    [
+     57320.4,
+     0.174
+    ],
+    [
+     "Infinity",
+     0.205
+    ]
+   ],
+   "CT": [
+    [
+     12500,
+     0.095
+    ],
+    [
+     22000,
+     0.125
+    ],
+    [
+     33000,
+     0.16
+    ],
+    [
+     53000,
+     0.19
+    ],
+    [
+     90000,
+     0.215
+    ],
+    [
+     120000,
+     0.235
+    ],
+    [
+     175000,
+     0.245
+    ],
+    [
+     "Infinity",
+     0.255
+    ]
+   ]
+  }
+ }
+}

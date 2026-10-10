@@ -1,0 +1,36 @@
+{
+ "dataset": "tax-fr",
+ "asOf": "2025-01-01",
+ "taxYear": "2025 income (barème) / 2026 (contributions)",
+ "source": {
+  "name": "Barème on 2025 income (latest enacted): 0/11/30/41/45%, quotient familial with the €1,807 cap per half-part, 10% deduction (cap €14,555), CEHR 3% / 4%; employee contributions 2026: old age 6.90% to the PASS (€48,060) + 0.40%, AGIRC-ARRCO 3.15% / 8.64%, CEG 0.86% / 1.08%, CET 0.14%, APEC 0.024%, CSG 9.2% + CRDS 0.5% on 98.25% to 4 PASS",
+  "url": "https://www.service-public.fr/particuliers/vosdroits/F1419",
+  "licence": "Service-Public.fr (DILA) public information (licence not reviewed)"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "FR_BAREME": [
+   [
+    11600,
+    0
+   ],
+   [
+    29579,
+    0.11
+   ],
+   [
+    84577,
+    0.3
+   ],
+   [
+    181917,
+    0.41
+   ],
+   [
+    "Infinity",
+    0.45
+   ]
+  ],
+  "FR_PASS_2026": 48060
+ }
+}

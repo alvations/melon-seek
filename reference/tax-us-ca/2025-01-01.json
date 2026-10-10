@@ -1,0 +1,89 @@
+{
+ "dataset": "tax-us-ca",
+ "asOf": "2025-01-01",
+ "taxYear": "2025 (brackets) / 2026 (SDI)",
+ "source": {
+  "name": "California FTB 2025 tax rate schedules X / Y (latest published; EDD 2026 withholding uses the same brackets), standard deduction $5,706 / $11,412, exemption credit $153 cut $6 per $2,500 over $252,203 / $504,411 AGI, Behavioral Health Services Tax 1% over $1M; SDI 1.3% of all wages (2026)",
+  "url": "https://www.ftb.ca.gov/forms/2025/2025-540-tax-rate-schedules.pdf",
+  "licence": "State of California public information"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "CA_X_2025": [
+   [
+    11079,
+    0.01
+   ],
+   [
+    26264,
+    0.02
+   ],
+   [
+    41452,
+    0.04
+   ],
+   [
+    57542,
+    0.06
+   ],
+   [
+    72724,
+    0.08
+   ],
+   [
+    371479,
+    0.093
+   ],
+   [
+    445771,
+    0.103
+   ],
+   [
+    742953,
+    0.113
+   ],
+   [
+    "Infinity",
+    0.123
+   ]
+  ],
+  "CA_Y_2025": [
+   [
+    22158,
+    0.01
+   ],
+   [
+    52528,
+    0.02
+   ],
+   [
+    82904,
+    0.04
+   ],
+   [
+    115084,
+    0.06
+   ],
+   [
+    145448,
+    0.08
+   ],
+   [
+    742958,
+    0.093
+   ],
+   [
+    891542,
+    0.103
+   ],
+   [
+    1485906,
+    0.113
+   ],
+   [
+    "Infinity",
+    0.123
+   ]
+  ]
+ }
+}

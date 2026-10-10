@@ -1,0 +1,20 @@
+{
+ "dataset": "living-scale",
+ "asOf": "2026-10-10",
+ "taxYear": null,
+ "source": {
+  "name": "UK DWP Households Below Average Income, modified OECD scale (after housing costs), as reproduced by the Scottish Government poverty methodology; BLS Consumer Expenditure Survey by size of consumer unit (API v1)",
+  "url": "https://www.gov.scot/publications/poverty-in-scotland-methodology/pages/income-equivalisation/",
+  "licence": "OGL v3; BLS public domain"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "LIVING_SCALE": {
+   "name": "Modified OECD equivalence scale, after-housing-costs version (UK DWP Households Below Average Income): first adult 0.58, each further adult 0.42, each child under 14 0.20",
+   "url": "https://www.gov.scot/publications/poverty-in-scotland-methodology/pages/income-equivalisation/",
+   "firstAdult": 0.58,
+   "extraAdult": 0.42,
+   "child": 0.2
+  }
+ }
+}

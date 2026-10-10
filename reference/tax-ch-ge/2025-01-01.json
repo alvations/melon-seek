@@ -1,0 +1,51 @@
+{
+ "dataset": "tax-ch-ge",
+ "asOf": "2025-01-01",
+ "taxYear": "2025",
+ "source": {
+  "name": "Geneva (canton GE): approximation, one combined federal + cantonal + communal marginal schedule calibrated to the cantonal calculator (not re-derived)",
+  "url": "https://www.estv2.admin.ch/stp/kb/ge-fr.pdf",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "CH_GE_COMBINED": [
+   [
+    17000,
+    0
+   ],
+   [
+    25000,
+    0.08
+   ],
+   [
+    40000,
+    0.14
+   ],
+   [
+    60000,
+    0.21
+   ],
+   [
+    90000,
+    0.27
+   ],
+   [
+    130000,
+    0.32
+   ],
+   [
+    200000,
+    0.37
+   ],
+   [
+    300000,
+    0.41
+   ],
+   [
+    "Infinity",
+    0.445
+   ]
+  ]
+ }
+}

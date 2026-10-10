@@ -1,0 +1,17 @@
+{
+ "dataset": "ops-constants",
+ "asOf": "2026-10-10",
+ "taxYear": null,
+ "source": {
+  "name": "melon-seek (our own choice)",
+  "url": "https://github.com/alvations/melon-seek",
+  "licence": "repository licence"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "server/cache.js#FRESH_TTL_MS": 1800000,
+  "server/index.js#NEGATIVE_TTL_MS": 600000,
+  "server/index.js#MAX_UPSTREAM": 4,
+  "server/index.js#LIST_GZIP_BUDGET": 409600
+ }
+}

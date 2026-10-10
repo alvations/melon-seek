@@ -1,0 +1,315 @@
+{
+ "dataset": "rents-us-hud-fmr",
+ "asOf": "2025-10-01",
+ "taxYear": null,
+ "source": {
+  "name": "HUD Fair Market Rents (40th-percentile gross rent incl. utilities), via HUD eGIS Fair_Market_Rents feature service; HUD USER API with HUD_API_TOKEN",
+  "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+  "licence": "US government work (public domain)"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "bedroomRatios.US": {
+   "US:Atlanta-Sandy Springs-Roswell, GA HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Atlanta-Sandy Springs-Roswell, GA HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Atlanta-Sandy Springs-Roswell, GA HUD Metro FMR Area: 1 bedroom $1,660, 2 bedrooms $1,820, 3 bedrooms $2,182",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.096,
+    "r3": 1.314
+   },
+   "US:Austin-Round Rock-San Marcos, TX MSA": {
+    "label": "HUD FY2026 Fair Market Rents, Austin-Round Rock-San Marcos, TX MSA",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Austin-Round Rock-San Marcos, TX MSA: 1 bedroom $1,562, 2 bedrooms $1,852, 3 bedrooms $2,347",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.186,
+    "r3": 1.503
+   },
+   "US:Baltimore-Columbia-Towson, MD MSA": {
+    "label": "HUD FY2026 Fair Market Rents, Baltimore-Columbia-Towson, MD MSA",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Baltimore-Columbia-Towson, MD MSA: 1 bedroom $1,511, 2 bedrooms $1,857, 3 bedrooms $2,358",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.229,
+    "r3": 1.561
+   },
+   "US:Boston-Cambridge-Quincy, MA-NH HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Boston-Cambridge-Quincy, MA-NH HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Boston-Cambridge-Quincy, MA-NH HUD Metro FMR Area: 1 bedroom $2,476, 2 bedrooms $2,941, 3 bedrooms $3,526",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.188,
+    "r3": 1.424
+   },
+   "US:Boulder, CO MSA": {
+    "label": "HUD FY2026 Fair Market Rents, Boulder, CO MSA",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Boulder, CO MSA: 1 bedroom $1,795, 2 bedrooms $2,124, 3 bedrooms $2,820",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.183,
+    "r3": 1.571
+   },
+   "US:Chicago-Joliet-Naperville, IL HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Chicago-Joliet-Naperville, IL HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Chicago-Joliet-Naperville, IL HUD Metro FMR Area: 1 bedroom $1,581, 2 bedrooms $1,781, 3 bedrooms $2,294",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.127,
+    "r3": 1.451
+   },
+   "US:Colorado Springs, CO HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Colorado Springs, CO HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Colorado Springs, CO HUD Metro FMR Area: 1 bedroom $1,464, 2 bedrooms $1,735, 3 bedrooms $2,413",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.185,
+    "r3": 1.648
+   },
+   "US:Columbus, OH HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Columbus, OH HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Columbus, OH HUD Metro FMR Area: 1 bedroom $1,194, 2 bedrooms $1,430, 3 bedrooms $1,715",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.198,
+    "r3": 1.436
+   },
+   "US:Dallas, TX HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Dallas, TX HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Dallas, TX HUD Metro FMR Area: 1 bedroom $1,648, 2 bedrooms $1,931, 3 bedrooms $2,431",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.172,
+    "r3": 1.475
+   },
+   "US:Denver-Aurora-Centennial, CO MSA": {
+    "label": "HUD FY2026 Fair Market Rents, Denver-Aurora-Centennial, CO MSA",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Denver-Aurora-Centennial, CO MSA: 1 bedroom $1,754, 2 bedrooms $2,089, 3 bedrooms $2,734",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.191,
+    "r3": 1.559
+   },
+   "US:Detroit-Warren-Livonia, MI HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Detroit-Warren-Livonia, MI HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Detroit-Warren-Livonia, MI HUD Metro FMR Area: 1 bedroom $1,122, 2 bedrooms $1,411, 3 bedrooms $1,724",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.258,
+    "r3": 1.537
+   },
+   "US:Houston-The Woodlands-Sugar Land, TX HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Houston-The Woodlands-Sugar Land, TX HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Houston-The Woodlands-Sugar Land, TX HUD Metro FMR Area: 1 bedroom $1,323, 2 bedrooms $1,573, 3 bedrooms $2,116",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.189,
+    "r3": 1.599
+   },
+   "US:Huntsville, AL MSA": {
+    "label": "HUD FY2026 Fair Market Rents, Huntsville, AL MSA",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Huntsville, AL MSA: 1 bedroom $1,136, 2 bedrooms $1,310, 3 bedrooms $1,690",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.153,
+    "r3": 1.488
+   },
+   "US:Los Angeles-Long Beach-Glendale, CA HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Los Angeles-Long Beach-Glendale, CA HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Los Angeles-Long Beach-Glendale, CA HUD Metro FMR Area: 1 bedroom $2,085, 2 bedrooms $2,601, 3 bedrooms $3,298",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.247,
+    "r3": 1.582
+   },
+   "US:Miami-Miami Beach-Kendall, FL HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Miami-Miami Beach-Kendall, FL HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Miami-Miami Beach-Kendall, FL HUD Metro FMR Area: 1 bedroom $1,995, 2 bedrooms $2,436, 3 bedrooms $3,127",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.221,
+    "r3": 1.567
+   },
+   "US:Minneapolis-St. Paul-Bloomington, MN-WI HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Minneapolis-St. Paul-Bloomington, MN-WI HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Minneapolis-St. Paul-Bloomington, MN-WI HUD Metro FMR Area: 1 bedroom $1,405, 2 bedrooms $1,709, 3 bedrooms $2,262",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.216,
+    "r3": 1.61
+   },
+   "US:Nashville-Davidson--Murfreesboro--Franklin, TN HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Nashville-Davidson--Murfreesboro--Franklin, TN HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Nashville-Davidson--Murfreesboro--Franklin, TN HUD Metro FMR Area: 1 bedroom $1,578, 2 bedrooms $1,730, 3 bedrooms $2,211",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.096,
+    "r3": 1.401
+   },
+   "US:New York, NY HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, New York, NY HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), New York, NY HUD Metro FMR Area: 1 bedroom $2,655, 2 bedrooms $2,910, 3 bedrooms $3,644",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.096,
+    "r3": 1.373
+   },
+   "US:Philadelphia-Camden-Wilmington, PA-NJ-DE-MD MSA": {
+    "label": "HUD FY2026 Fair Market Rents, Philadelphia-Camden-Wilmington, PA-NJ-DE-MD MSA",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Philadelphia-Camden-Wilmington, PA-NJ-DE-MD MSA: 1 bedroom $1,520, 2 bedrooms $1,810, 3 bedrooms $2,170",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.191,
+    "r3": 1.428
+   },
+   "US:Phoenix-Mesa-Chandler, AZ MSA": {
+    "label": "HUD FY2026 Fair Market Rents, Phoenix-Mesa-Chandler, AZ MSA",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Phoenix-Mesa-Chandler, AZ MSA: 1 bedroom $1,583, 2 bedrooms $1,839, 3 bedrooms $2,452",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.162,
+    "r3": 1.549
+   },
+   "US:Pittsburgh, PA HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Pittsburgh, PA HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Pittsburgh, PA HUD Metro FMR Area: 1 bedroom $1,077, 2 bedrooms $1,299, 3 bedrooms $1,661",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.206,
+    "r3": 1.542
+   },
+   "US:Portland-Vancouver-Hillsboro, OR-WA MSA": {
+    "label": "HUD FY2026 Fair Market Rents, Portland-Vancouver-Hillsboro, OR-WA MSA",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Portland-Vancouver-Hillsboro, OR-WA MSA: 1 bedroom $1,677, 2 bedrooms $1,922, 3 bedrooms $2,619",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.146,
+    "r3": 1.562
+   },
+   "US:Raleigh-Cary, NC MSA": {
+    "label": "HUD FY2026 Fair Market Rents, Raleigh-Cary, NC MSA",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Raleigh-Cary, NC MSA: 1 bedroom $1,596, 2 bedrooms $1,750, 3 bedrooms $2,196",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.096,
+    "r3": 1.376
+   },
+   "US:Salt Lake City, UT HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Salt Lake City, UT HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Salt Lake City, UT HUD Metro FMR Area: 1 bedroom $1,456, 2 bedrooms $1,747, 3 bedrooms $2,333",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.2,
+    "r3": 1.602
+   },
+   "US:San Diego-Chula Vista-Carlsbad, CA MSA": {
+    "label": "HUD FY2026 Fair Market Rents, San Diego-Chula Vista-Carlsbad, CA MSA",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), San Diego-Chula Vista-Carlsbad, CA MSA: 1 bedroom $2,459, 2 bedrooms $3,001, 3 bedrooms $3,998",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.22,
+    "r3": 1.626
+   },
+   "US:San Francisco, CA HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, San Francisco, CA HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), San Francisco, CA HUD Metro FMR Area: 1 bedroom $2,977, 2 bedrooms $3,604, 3 bedrooms $4,604",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.211,
+    "r3": 1.547
+   },
+   "US:San Jose-Sunnyvale-Santa Clara, CA HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, San Jose-Sunnyvale-Santa Clara, CA HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), San Jose-Sunnyvale-Santa Clara, CA HUD Metro FMR Area: 1 bedroom $2,982, 2 bedrooms $3,483, 3 bedrooms $4,602",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.168,
+    "r3": 1.543
+   },
+   "US:Santa Ana-Anaheim-Irvine, CA HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Santa Ana-Anaheim-Irvine, CA HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Santa Ana-Anaheim-Irvine, CA HUD Metro FMR Area: 1 bedroom $2,746, 2 bedrooms $3,236, 3 bedrooms $4,393",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.178,
+    "r3": 1.6
+   },
+   "US:Seattle-Bellevue, WA HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Seattle-Bellevue, WA HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Seattle-Bellevue, WA HUD Metro FMR Area: 1 bedroom $2,146, 2 bedrooms $2,501, 3 bedrooms $3,272",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.165,
+    "r3": 1.525
+   },
+   "US:Washington-Arlington-Alexandria, DC-VA-MD HUD Metro FMR Area": {
+    "label": "HUD FY2026 Fair Market Rents, Washington-Arlington-Alexandria, DC-VA-MD HUD Metro FMR Area",
+    "name": "HUD Fair Market Rents FY2026 (40th-percentile gross rent incl. utilities), Washington-Arlington-Alexandria, DC-VA-MD HUD Metro FMR Area: 1 bedroom $2,015, 2 bedrooms $2,246, 3 bedrooms $2,835",
+    "url": "https://www.huduser.gov/portal/datasets/fmr.html",
+    "asOf": "2025-10",
+    "via": "https://services.arcgis.com/VTyQ9soqVukalItT/ArcGIS/rest/services/Fair_Market_Rents/FeatureServer/0",
+    "license": "US government work (public domain)",
+    "r2": 1.115,
+    "r3": 1.407
+   }
+  }
+ }
+}

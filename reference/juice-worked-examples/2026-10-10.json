@@ -1,0 +1,1168 @@
+{
+ "format": "melon-worked-examples-1",
+ "computedAt": "2026-10-10",
+ "model": {
+  "scoreAnchors": {
+   "curve": "exponential",
+   "K": 80000,
+   "fullGlassUSD": 423866
+  },
+  "fxAsOf": "2026-09-30",
+  "nycBasketUSD": 19982,
+  "citiesUpdated": "2026-10-10"
+ },
+ "rows": [
+  {
+   "table": "single",
+   "job": "Software engineer, San Francisco",
+   "city": "san-francisco-ca-us",
+   "amount": 300000,
+   "currency": "USD",
+   "household": "single",
+   "gross": 300000,
+   "tax": 108447,
+   "taxParts": {
+    "income": 64083,
+    "regional": 23775,
+    "social": 20589
+   },
+   "rent": 44145,
+   "living": 18184,
+   "net": 129224,
+   "score": 80,
+   "grade": "Juicy",
+   "estimated": false,
+   "confidence": "medium",
+   "inputsAsOf": {
+    "rent": "2026-09",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "US",
+      "asOf": "2026"
+     },
+     {
+      "key": "US-CA",
+      "asOf": "2025 (brackets) / 2026 (SDI)"
+     }
+    ]
+   }
+  },
+  {
+   "table": "single",
+   "job": "Software engineer, New York",
+   "city": "new-york-ny-us",
+   "amount": 250000,
+   "currency": "USD",
+   "household": "single",
+   "gross": 250000,
+   "tax": 88994,
+   "taxParts": {
+    "income": 48445,
+    "regional": 24593,
+    "social": 15957
+   },
+   "rent": 52446,
+   "living": 19982,
+   "net": 88578,
+   "score": 67,
+   "grade": "Ripe",
+   "estimated": false,
+   "confidence": "medium",
+   "inputsAsOf": {
+    "rent": "2026-09",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "US",
+      "asOf": "2026"
+     },
+     {
+      "key": "US-NY",
+      "asOf": "2026"
+     },
+     {
+      "key": "US-LOCAL-NYC",
+      "asOf": "2026"
+     }
+    ]
+   }
+  },
+  {
+   "table": "single",
+   "job": "Software engineer, Austin",
+   "city": "austin-tx-us",
+   "amount": 150000,
+   "currency": "USD",
+   "household": "single",
+   "gross": 150000,
+   "tax": 36209,
+   "taxParts": {
+    "income": 24734,
+    "regional": 0,
+    "social": 11475
+   },
+   "rent": 23088,
+   "living": 14127,
+   "net": 76576,
+   "score": 62,
+   "grade": "Ripe",
+   "estimated": false,
+   "confidence": "medium",
+   "inputsAsOf": {
+    "rent": "2026-09",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "US",
+      "asOf": "2026"
+     },
+     {
+      "key": "US-TX",
+      "asOf": "2026"
+     }
+    ]
+   }
+  },
+  {
+   "table": "single",
+   "job": "Manufacturing engineer, Costa Mesa",
+   "city": "costa-mesa-ca-us",
+   "amount": 100000,
+   "currency": "USD",
+   "household": "single",
+   "gross": 100000,
+   "tax": 27175,
+   "taxParts": {
+    "income": 13170,
+    "regional": 5055,
+    "social": 8950
+   },
+   "rent": 32388,
+   "living": 15626,
+   "net": 24811,
+   "score": 27,
+   "grade": "Dry",
+   "estimated": true,
+   "confidence": "low",
+   "inputsAsOf": {
+    "rent": "2026-08",
+    "costIndex": "2026-06",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "US",
+      "asOf": "2026"
+     },
+     {
+      "key": "US-CA",
+      "asOf": "2025 (brackets) / 2026 (SDI)"
+     }
+    ]
+   }
+  },
+  {
+   "table": "single",
+   "job": "Research engineer, London",
+   "city": "london-gb",
+   "amount": 120000,
+   "currency": "GBP",
+   "household": "single",
+   "gross": 161001,
+   "tax": 58822,
+   "taxParts": {
+    "income": 52905,
+    "regional": 0,
+    "social": 5918
+   },
+   "rent": 34615,
+   "living": 17244,
+   "net": 50320,
+   "score": 47,
+   "grade": "Ripe",
+   "estimated": false,
+   "confidence": "low",
+   "inputsAsOf": {
+    "rent": "2026-09",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "GB",
+      "asOf": "2026/27"
+     }
+    ]
+   }
+  },
+  {
+   "table": "single",
+   "job": "Engineer, Zurich",
+   "city": "zurich-ch",
+   "amount": 150000,
+   "currency": "CHF",
+   "household": "single",
+   "gross": 183140,
+   "tax": 44325,
+   "taxParts": {
+    "income": 6599,
+    "regional": 24220,
+    "social": 13506
+   },
+   "rent": 36816,
+   "living": 22320,
+   "net": 79679,
+   "score": 63,
+   "grade": "Ripe",
+   "estimated": false,
+   "confidence": "low",
+   "inputsAsOf": {
+    "rent": "2026-09",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "CH",
+      "asOf": "2026"
+     },
+     {
+      "key": "CH-ZH",
+      "asOf": "2026"
+     }
+    ]
+   }
+  },
+  {
+   "table": "single",
+   "job": "Engineer, Berlin",
+   "city": "berlin-de",
+   "amount": 90000,
+   "currency": "EUR",
+   "household": "single",
+   "gross": 103619,
+   "tax": 42385,
+   "taxParts": {
+    "income": 22447,
+    "regional": 0,
+    "social": 19938
+   },
+   "rent": 18184,
+   "living": 14287,
+   "net": 28763,
+   "score": 30,
+   "grade": "Dry",
+   "estimated": false,
+   "confidence": "low",
+   "inputsAsOf": {
+    "rent": "2026-09",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "DE",
+      "asOf": "2026"
+     }
+    ]
+   }
+  },
+  {
+   "table": "single",
+   "job": "Engineer, Bengaluru",
+   "city": "bengaluru-in",
+   "amount": 4000000,
+   "currency": "INR",
+   "household": "single",
+   "gross": 41899,
+   "tax": 8278,
+   "taxParts": {
+    "income": 8252,
+    "regional": 26,
+    "social": 0
+   },
+   "rent": 3784,
+   "living": 4216,
+   "net": 25621,
+   "score": 27,
+   "grade": "Dry",
+   "estimated": false,
+   "confidence": "low",
+   "inputsAsOf": {
+    "rent": "2026-09",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "IN",
+      "asOf": "FY2026-27"
+     }
+    ]
+   }
+  },
+  {
+   "table": "household",
+   "job": "Research engineer, San Francisco (the user's example)",
+   "city": "san-francisco-ca-us",
+   "amount": 675000,
+   "currency": "USD",
+   "household": "single",
+   "gross": 675000,
+   "tax": 297923,
+   "taxParts": {
+    "income": 199750,
+    "regional": 63896,
+    "social": 34277
+   },
+   "rent": 44145,
+   "living": 18184,
+   "net": 314748,
+   "score": 98,
+   "grade": "Juicy",
+   "estimated": false,
+   "confidence": "medium",
+   "inputsAsOf": {
+    "rent": "2026-09",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "US",
+      "asOf": "2026"
+     },
+     {
+      "key": "US-CA",
+      "asOf": "2025 (brackets) / 2026 (SDI)"
+     }
+    ]
+   }
+  },
+  {
+   "table": "household",
+   "job": "Research engineer, San Francisco (the user's example)",
+   "city": "san-francisco-ca-us",
+   "amount": 675000,
+   "currency": "USD",
+   "household": "couple",
+   "gross": 675000,
+   "tax": 250936,
+   "taxParts": {
+    "income": 162519,
+    "regional": 54591,
+    "social": 33827
+   },
+   "rent": 53443,
+   "living": 31351,
+   "net": 339270,
+   "score": 99,
+   "grade": "Juicy",
+   "estimated": true,
+   "confidence": "low",
+   "inputsAsOf": {
+    "rent": "2025-10",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "US",
+      "asOf": "2026"
+     },
+     {
+      "key": "US-CA",
+      "asOf": "2025 (brackets) / 2026 (SDI)"
+     }
+    ]
+   }
+  },
+  {
+   "table": "household",
+   "job": "Research engineer, San Francisco (the user's example)",
+   "city": "san-francisco-ca-us",
+   "amount": 675000,
+   "currency": "USD",
+   "household": "family",
+   "gross": 675000,
+   "tax": 250936,
+   "taxParts": {
+    "income": 162519,
+    "regional": 54591,
+    "social": 33827
+   },
+   "rent": 68271,
+   "living": 43891,
+   "net": 311902,
+   "score": 98,
+   "grade": "Juicy",
+   "estimated": true,
+   "confidence": "low",
+   "inputsAsOf": {
+    "rent": "2025-10",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "US",
+      "asOf": "2026"
+     },
+     {
+      "key": "US-CA",
+      "asOf": "2025 (brackets) / 2026 (SDI)"
+     }
+    ]
+   }
+  },
+  {
+   "table": "household",
+   "job": "Software engineer, San Francisco",
+   "city": "san-francisco-ca-us",
+   "amount": 300000,
+   "currency": "USD",
+   "household": "single",
+   "gross": 300000,
+   "tax": 108447,
+   "taxParts": {
+    "income": 64083,
+    "regional": 23775,
+    "social": 20589
+   },
+   "rent": 44145,
+   "living": 18184,
+   "net": 129224,
+   "score": 80,
+   "grade": "Juicy",
+   "estimated": false,
+   "confidence": "medium",
+   "inputsAsOf": {
+    "rent": "2026-09",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "US",
+      "asOf": "2026"
+     },
+     {
+      "key": "US-CA",
+      "asOf": "2025 (brackets) / 2026 (SDI)"
+     }
+    ]
+   }
+  },
+  {
+   "table": "household",
+   "job": "Software engineer, San Francisco",
+   "city": "san-francisco-ca-us",
+   "amount": 300000,
+   "currency": "USD",
+   "household": "couple",
+   "gross": 300000,
+   "tax": 89017,
+   "taxParts": {
+    "income": 49468,
+    "regional": 19410,
+    "social": 20139
+   },
+   "rent": 53443,
+   "living": 31351,
+   "net": 126189,
+   "score": 79,
+   "grade": "Juicy",
+   "estimated": true,
+   "confidence": "low",
+   "inputsAsOf": {
+    "rent": "2025-10",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "US",
+      "asOf": "2026"
+     },
+     {
+      "key": "US-CA",
+      "asOf": "2025 (brackets) / 2026 (SDI)"
+     }
+    ]
+   }
+  },
+  {
+   "table": "household",
+   "job": "Software engineer, San Francisco",
+   "city": "san-francisco-ca-us",
+   "amount": 300000,
+   "currency": "USD",
+   "household": "family",
+   "gross": 300000,
+   "tax": 84617,
+   "taxParts": {
+    "income": 45068,
+    "regional": 19410,
+    "social": 20139
+   },
+   "rent": 68271,
+   "living": 43891,
+   "net": 103221,
+   "score": 72,
+   "grade": "Juicy",
+   "estimated": true,
+   "confidence": "low",
+   "inputsAsOf": {
+    "rent": "2025-10",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "US",
+      "asOf": "2026"
+     },
+     {
+      "key": "US-CA",
+      "asOf": "2025 (brackets) / 2026 (SDI)"
+     }
+    ]
+   }
+  },
+  {
+   "table": "household",
+   "job": "Software engineer, New York",
+   "city": "new-york-ny-us",
+   "amount": 250000,
+   "currency": "USD",
+   "household": "single",
+   "gross": 250000,
+   "tax": 88994,
+   "taxParts": {
+    "income": 48445,
+    "regional": 24593,
+    "social": 15957
+   },
+   "rent": 52446,
+   "living": 19982,
+   "net": 88578,
+   "score": 67,
+   "grade": "Ripe",
+   "estimated": false,
+   "confidence": "medium",
+   "inputsAsOf": {
+    "rent": "2026-09",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "US",
+      "asOf": "2026"
+     },
+     {
+      "key": "US-NY",
+      "asOf": "2026"
+     },
+     {
+      "key": "US-LOCAL-NYC",
+      "asOf": "2026"
+     }
+    ]
+   }
+  },
+  {
+   "table": "household",
+   "job": "Software engineer, New York",
+   "city": "new-york-ny-us",
+   "amount": 250000,
+   "currency": "USD",
+   "household": "couple",
+   "gross": 250000,
+   "tax": 74975,
+   "taxParts": {
+    "income": 37468,
+    "regional": 22000,
+    "social": 15507
+   },
+   "rent": 57483,
+   "living": 34452,
+   "net": 83090,
+   "score": 65,
+   "grade": "Ripe",
+   "estimated": true,
+   "confidence": "low",
+   "inputsAsOf": {
+    "rent": "2025-10",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "US",
+      "asOf": "2026"
+     },
+     {
+      "key": "US-NY",
+      "asOf": "2026"
+     },
+     {
+      "key": "US-LOCAL-NYC",
+      "asOf": "2026"
+     }
+    ]
+   }
+  },
+  {
+   "table": "household",
+   "job": "Software engineer, New York",
+   "city": "new-york-ny-us",
+   "amount": 250000,
+   "currency": "USD",
+   "household": "family",
+   "gross": 250000,
+   "tax": 70384,
+   "taxParts": {
+    "income": 33068,
+    "regional": 21809,
+    "social": 15507
+   },
+   "rent": 71982,
+   "living": 48232,
+   "net": 59402,
+   "score": 52,
+   "grade": "Ripe",
+   "estimated": true,
+   "confidence": "low",
+   "inputsAsOf": {
+    "rent": "2025-10",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "US",
+      "asOf": "2026"
+     },
+     {
+      "key": "US-NY",
+      "asOf": "2026"
+     },
+     {
+      "key": "US-LOCAL-NYC",
+      "asOf": "2026"
+     }
+    ]
+   }
+  },
+  {
+   "table": "household",
+   "job": "Software engineer, Austin",
+   "city": "austin-tx-us",
+   "amount": 150000,
+   "currency": "USD",
+   "household": "single",
+   "gross": 150000,
+   "tax": 36209,
+   "taxParts": {
+    "income": 24734,
+    "regional": 0,
+    "social": 11475
+   },
+   "rent": 23088,
+   "living": 14127,
+   "net": 76576,
+   "score": 62,
+   "grade": "Ripe",
+   "estimated": false,
+   "confidence": "medium",
+   "inputsAsOf": {
+    "rent": "2026-09",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "US",
+      "asOf": "2026"
+     },
+     {
+      "key": "US-TX",
+      "asOf": "2026"
+     }
+    ]
+   }
+  },
+  {
+   "table": "household",
+   "job": "Software engineer, Austin",
+   "city": "austin-tx-us",
+   "amount": 150000,
+   "currency": "USD",
+   "household": "couple",
+   "gross": 150000,
+   "tax": 26815,
+   "taxParts": {
+    "income": 15340,
+    "regional": 0,
+    "social": 11475
+   },
+   "rent": 27375,
+   "living": 24357,
+   "net": 71453,
+   "score": 59,
+   "grade": "Ripe",
+   "estimated": true,
+   "confidence": "low",
+   "inputsAsOf": {
+    "rent": "2025-10",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "US",
+      "asOf": "2026"
+     },
+     {
+      "key": "US-TX",
+      "asOf": "2026"
+     }
+    ]
+   }
+  },
+  {
+   "table": "household",
+   "job": "Software engineer, Austin",
+   "city": "austin-tx-us",
+   "amount": 150000,
+   "currency": "USD",
+   "household": "family",
+   "gross": 150000,
+   "tax": 22415,
+   "taxParts": {
+    "income": 10940,
+    "regional": 0,
+    "social": 11475
+   },
+   "rent": 34691,
+   "living": 34100,
+   "net": 58794,
+   "score": 52,
+   "grade": "Ripe",
+   "estimated": true,
+   "confidence": "low",
+   "inputsAsOf": {
+    "rent": "2025-10",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "US",
+      "asOf": "2026"
+     },
+     {
+      "key": "US-TX",
+      "asOf": "2026"
+     }
+    ]
+   }
+  },
+  {
+   "table": "household",
+   "job": "Research engineer, London",
+   "city": "london-gb",
+   "amount": 120000,
+   "currency": "GBP",
+   "household": "single",
+   "gross": 161001,
+   "tax": 58822,
+   "taxParts": {
+    "income": 52905,
+    "regional": 0,
+    "social": 5918
+   },
+   "rent": 34615,
+   "living": 17244,
+   "net": 50320,
+   "score": 47,
+   "grade": "Ripe",
+   "estimated": false,
+   "confidence": "low",
+   "inputsAsOf": {
+    "rent": "2026-09",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "GB",
+      "asOf": "2026/27"
+     }
+    ]
+   }
+  },
+  {
+   "table": "household",
+   "job": "Research engineer, London",
+   "city": "london-gb",
+   "amount": 120000,
+   "currency": "GBP",
+   "household": "couple",
+   "gross": 161001,
+   "tax": 58822,
+   "taxParts": {
+    "income": 52905,
+    "regional": 0,
+    "social": 5918
+   },
+   "rent": 43898,
+   "living": 29732,
+   "net": 28549,
+   "score": 30,
+   "grade": "Dry",
+   "estimated": true,
+   "confidence": "low",
+   "inputsAsOf": {
+    "rent": "2026-08",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "GB",
+      "asOf": "2026/27"
+     }
+    ]
+   }
+  },
+  {
+   "table": "household",
+   "job": "Research engineer, London",
+   "city": "london-gb",
+   "amount": 120000,
+   "currency": "GBP",
+   "household": "family",
+   "gross": 161001,
+   "tax": 58822,
+   "taxParts": {
+    "income": 52905,
+    "regional": 0,
+    "social": 5918
+   },
+   "rent": 51982,
+   "living": 41625,
+   "net": 8572,
+   "score": 10,
+   "grade": "Dry",
+   "estimated": true,
+   "confidence": "low",
+   "inputsAsOf": {
+    "rent": "2026-08",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "GB",
+      "asOf": "2026/27"
+     }
+    ]
+   }
+  },
+  {
+   "table": "household",
+   "job": "Engineer, Zurich",
+   "city": "zurich-ch",
+   "amount": 150000,
+   "currency": "CHF",
+   "household": "single",
+   "gross": 183140,
+   "tax": 44325,
+   "taxParts": {
+    "income": 6599,
+    "regional": 24220,
+    "social": 13506
+   },
+   "rent": 36816,
+   "living": 22320,
+   "net": 79679,
+   "score": 63,
+   "grade": "Ripe",
+   "estimated": false,
+   "confidence": "low",
+   "inputsAsOf": {
+    "rent": "2026-09",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "CH",
+      "asOf": "2026"
+     },
+     {
+      "key": "CH-ZH",
+      "asOf": "2026"
+     }
+    ]
+   }
+  },
+  {
+   "table": "household",
+   "job": "Engineer, Zurich",
+   "city": "zurich-ch",
+   "amount": 150000,
+   "currency": "CHF",
+   "household": "couple",
+   "gross": 183140,
+   "tax": 36291,
+   "taxParts": {
+    "income": 4290,
+    "regional": 18494,
+    "social": 13506
+   },
+   "rent": 45167,
+   "living": 38483,
+   "net": 63199,
+   "score": 55,
+   "grade": "Ripe",
+   "estimated": true,
+   "confidence": "low",
+   "inputsAsOf": {
+    "rent": "2026-04",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "CH",
+      "asOf": "2026"
+     },
+     {
+      "key": "CH-ZH",
+      "asOf": "2026"
+     }
+    ]
+   }
+  },
+  {
+   "table": "household",
+   "job": "Engineer, Zurich",
+   "city": "zurich-ch",
+   "amount": 150000,
+   "currency": "CHF",
+   "household": "family",
+   "gross": 183140,
+   "tax": 29969,
+   "taxParts": {
+    "income": 2453,
+    "regional": 14010,
+    "social": 13506
+   },
+   "rent": 54000,
+   "living": 53876,
+   "net": 45295,
+   "score": 43,
+   "grade": "Dry",
+   "estimated": true,
+   "confidence": "low",
+   "inputsAsOf": {
+    "rent": "2026-04",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "CH",
+      "asOf": "2026"
+     },
+     {
+      "key": "CH-ZH",
+      "asOf": "2026"
+     }
+    ]
+   }
+  },
+  {
+   "table": "household",
+   "job": "Engineer, Sydney",
+   "city": "sydney-nsw-au",
+   "amount": 200000,
+   "currency": "AUD",
+   "household": "single",
+   "gross": 142439,
+   "tax": 42639,
+   "taxParts": {
+    "income": 39790,
+    "regional": 0,
+    "social": 2849
+   },
+   "rent": 30331,
+   "living": 15306,
+   "net": 54163,
+   "score": 49,
+   "grade": "Ripe",
+   "estimated": false,
+   "confidence": "low",
+   "inputsAsOf": {
+    "rent": "2026-06",
+    "costIndex": "2026-10",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "AU",
+      "asOf": "2026-27"
+     }
+    ]
+   }
+  },
+  {
+   "table": "household",
+   "job": "Engineer, Sydney",
+   "city": "sydney-nsw-au",
+   "amount": 200000,
+   "currency": "AUD",
+   "household": "couple",
+   "gross": 142439,
+   "tax": 42639,
+   "taxParts": {
+    "income": 39790,
+    "regional": 0,
+    "social": 2849
+   },
+   "rent": 42589,
+   "living": 26390,
+   "net": 30821,
+   "score": 32,
+   "grade": "Dry",
+   "estimated": false,
+   "confidence": "low",
+   "inputsAsOf": {
+    "rent": "2026-06",
+    "costIndex": "2026-10",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "AU",
+      "asOf": "2026-27"
+     }
+    ]
+   }
+  },
+  {
+   "table": "household",
+   "job": "Engineer, Sydney",
+   "city": "sydney-nsw-au",
+   "amount": 200000,
+   "currency": "AUD",
+   "household": "family",
+   "gross": 142439,
+   "tax": 42639,
+   "taxParts": {
+    "income": 39790,
+    "regional": 0,
+    "social": 2849
+   },
+   "rent": 57403,
+   "living": 36946,
+   "net": 5451,
+   "score": 7,
+   "grade": "Dry",
+   "estimated": false,
+   "confidence": "low",
+   "inputsAsOf": {
+    "rent": "2026-06",
+    "costIndex": "2026-10",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "AU",
+      "asOf": "2026-27"
+     }
+    ]
+   }
+  },
+  {
+   "table": "household",
+   "job": "Engineer, Berlin",
+   "city": "berlin-de",
+   "amount": 90000,
+   "currency": "EUR",
+   "household": "single",
+   "gross": 103619,
+   "tax": 42385,
+   "taxParts": {
+    "income": 22447,
+    "regional": 0,
+    "social": 19938
+   },
+   "rent": 18184,
+   "living": 14287,
+   "net": 28763,
+   "score": 30,
+   "grade": "Dry",
+   "estimated": false,
+   "confidence": "low",
+   "inputsAsOf": {
+    "rent": "2026-09",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "DE",
+      "asOf": "2026"
+     }
+    ]
+   }
+  },
+  {
+   "table": "household",
+   "job": "Engineer, Berlin",
+   "city": "berlin-de",
+   "amount": 90000,
+   "currency": "EUR",
+   "household": "couple",
+   "gross": 103619,
+   "tax": 34013,
+   "taxParts": {
+    "income": 14076,
+    "regional": 0,
+    "social": 19938
+   },
+   "rent": 23300,
+   "living": 24633,
+   "net": 21673,
+   "score": 24,
+   "grade": "Dry",
+   "estimated": true,
+   "confidence": "low",
+   "inputsAsOf": {
+    "rent": "2026-10",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "DE",
+      "asOf": "2026"
+     }
+    ]
+   }
+  },
+  {
+   "table": "household",
+   "job": "Engineer, Berlin",
+   "city": "berlin-de",
+   "amount": 90000,
+   "currency": "EUR",
+   "household": "family",
+   "gross": 103619,
+   "tax": 26516,
+   "taxParts": {
+    "income": 7060,
+    "regional": 0,
+    "social": 19456
+   },
+   "rent": 27878,
+   "living": 34486,
+   "net": 14739,
+   "score": 17,
+   "grade": "Dry",
+   "estimated": true,
+   "confidence": "low",
+   "inputsAsOf": {
+    "rent": "2026-10",
+    "costIndex": "2026-09",
+    "fx": "2026-09-30",
+    "tax": [
+     {
+      "key": "DE",
+      "asOf": "2026"
+     }
+    ]
+   }
+  }
+ ]
+}

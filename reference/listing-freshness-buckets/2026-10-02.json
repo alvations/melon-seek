@@ -1,0 +1,20 @@
+{
+ "dataset": "listing-freshness-buckets",
+ "asOf": "2026-10-02",
+ "taxYear": null,
+ "source": {
+  "name": "melon-seek (our own choice)",
+  "url": "https://github.com/alvations/melon-seek",
+  "licence": "repository licence"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "server/history.js#FRESHNESS": {
+   "NEW_MAX": 7,
+   "ACTIVE_MAX": 59,
+   "STALE_MAX": 179
+  },
+  "server/history.js#REPOST_WINDOW_DAYS": 30,
+  "server/history.js#PRUNE_CLOSED_DAYS": 400
+ }
+}

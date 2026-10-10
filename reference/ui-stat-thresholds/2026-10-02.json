@@ -1,0 +1,24 @@
+{
+ "dataset": "ui-stat-thresholds",
+ "asOf": "2026-10-02",
+ "taxYear": null,
+ "source": {
+  "name": "melon-seek (our own choice)",
+  "url": "https://github.com/alvations/melon-seek",
+  "licence": "repository licence"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "public/viz/chart.js#BIN_STEPS": [
+   10000,
+   20000,
+   25000,
+   50000,
+   100000,
+   200000,
+   250000,
+   500000
+  ],
+  "public/viz/chart.js#MIN_BIN_PX": 34
+ }
+}

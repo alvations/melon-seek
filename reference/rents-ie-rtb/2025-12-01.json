@@ -1,0 +1,24 @@
+{
+ "dataset": "rents-ie-rtb",
+ "asOf": "2025-12-01",
+ "taxYear": null,
+ "source": {
+  "name": "Residential Tenancies Board Rent Index, CSO PxStat table RIQ02 (JSON-RPC query: Dublin, one/two/three bed, all property types)",
+  "url": "https://data.cso.ie/table/RIQ02",
+  "licence": "CC BY 4.0 (CSO)"
+ },
+ "exportedAt": "2026-10-10",
+ "values": {
+  "bedroomRatios.IE": {
+   "label": "RTB new tenancies, Dublin, 2025 Q4",
+   "name": "Residential Tenancies Board Rent Index via CSO PxStat table RIQ02, 2025 Q4: standardised average monthly rent for new tenancies, Dublin, all property types (1 bed €1,740.68, 2 bed €2,253.28, 3 bed €2,585.87)",
+   "url": "https://data.cso.ie/table/RIQ02",
+   "asOf": "2025-12",
+   "file": "https://ws.cso.ie/public/api.restful/PxStat.Data.Cube_API.ReadDataset/RIQ02/JSON-stat/2.0/en",
+   "license": "CC BY 4.0 (CSO)",
+   "note": "Quarter 2025 Q4 (table updated 2026-05-14). New tenancies registered with the RTB, county Dublin.",
+   "r2": 1.294,
+   "r3": 1.486
+  }
+ }
+}
