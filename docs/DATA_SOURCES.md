@@ -172,6 +172,19 @@ on the **beta channel only** (`channel: 'beta'`, `live: false` in
 hosts sends CORS headers (`access-control-allow-origin` absent on every response),
 so the browser never fetches them.
 
+
+**Terms of use: Amazon and Meta are paused (2026-10-10).** The adapters work, but two sites'
+terms bar automated collection, so both are `paused: 'terms'` in `server/companies.js` and are
+not crawled, built or listed. `listCompanies()` skips them unless `includePaused: true`.
+- Amazon's Conditions of Use exclude "data mining, robots, or similar data gathering and
+  extraction tools".
+- Meta's Automated Data Collection Terms bar automated collection "without … express written
+  permission", even though robots.txt and the sitemap expose the job pages.
+These quotes come from search results and the live pages are being re-checked (probe run
+38036154904). Resuming either needs the user's decision, or the company's permission. The other
+boards' terms were not found to bar this kind of polite, robots.txt-respecting collection; that
+check is also part of the probe run.
+
 **How every adapter collects** (`server/sources/polite.js`):
 - It uses only the JSON or HTML endpoints that the careers site's own front end
   calls, or the sitemap the site publishes for crawlers.

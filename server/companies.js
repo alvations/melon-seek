@@ -25,10 +25,15 @@ export const COMPANIES = [
   // `board` is a key into that adapter's fixed host table.
   { slug: 'google', name: 'Google', source: 'google', board: 'google', color: '#4285f4', channel: 'beta', live: false },
   { slug: 'microsoft', name: 'Microsoft', source: 'eightfold', board: 'microsoft', color: '#00a4ef', channel: 'beta', live: false },
-  { slug: 'meta', name: 'Meta', source: 'meta', board: 'meta', color: '#0866ff', channel: 'beta', live: false },
+  // PAUSED (2026-10-10, lead): Meta's Automated Data Collection Terms bar automated collection
+  // "without ... express written permission", even though robots.txt and the sitemap expose the
+  // job pages. Not crawled until the user decides (docs/DATA_SOURCES.md §7 "Terms of use").
+  { slug: 'meta', name: 'Meta', source: 'meta', board: 'meta', color: '#0866ff', channel: 'beta', live: false, paused: 'terms' },
   { slug: 'apple', name: 'Apple', source: 'apple', board: 'apple', color: '#6e6e73', channel: 'beta', live: false },
   { slug: 'netflix', name: 'Netflix', source: 'eightfold', board: 'netflix', color: '#e50914', channel: 'beta', live: false },
-  { slug: 'amazon', name: 'Amazon', source: 'amazon', board: 'amazon', color: '#ff9900', channel: 'beta', live: false },
+  // PAUSED (2026-10-10, lead): Amazon's Conditions of Use exclude "data mining, robots, or similar
+  // data gathering and extraction tools". Not crawled until the user decides (DATA_SOURCES §7).
+  { slug: 'amazon', name: 'Amazon', source: 'amazon', board: 'amazon', color: '#ff9900', channel: 'beta', live: false, paused: 'terms' },
   // NVIDIA's own careers site (jobs.nvidia.com) is an Eightfold tenant; its Workday
   // CXS API was in a maintenance redirect during the first probe.
   { slug: 'nvidia', name: 'NVIDIA', source: 'eightfold', board: 'nvidia', color: '#76b900', channel: 'beta', live: false },
@@ -46,10 +51,13 @@ const channelOf = (c) => c.channel || 'stable';
  * 'stable' (default) -> stable companies only, exactly the pre-v3 list;
  * 'beta' or 'all'    -> stable companies plus the beta ones.
  */
-export function listCompanies({ channel = 'stable' } = {}) {
+export function listCompanies({ channel = 'stable', includePaused = false } = {}) {
   const ch = String(channel || 'stable').toLowerCase();
   if (ch !== 'stable' && ch !== 'beta' && ch !== 'all') throw new Error(`Unknown channel "${channel}" (expected stable, beta or all)`);
-  const list = ch === 'stable' ? COMPANIES.filter((c) => channelOf(c) === 'stable') : COMPANIES;
+  // A `paused` built-in (e.g. paused: 'terms', its site's terms bar automated collection) is
+  // never crawled, built or listed unless asked for explicitly; getCompany() still resolves it.
+  const list = (ch === 'stable' ? COMPANIES.filter((c) => channelOf(c) === 'stable') : COMPANIES)
+    .filter((c) => includePaused || !c.paused);
   return list.map((c) => ({ ...c }));
 }
 
