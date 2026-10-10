@@ -1,7 +1,7 @@
 {
  "format": "melon-archive",
  "schemaVersion": 1,
- "updatedAt": "2026-10-10T12:37:55.312Z",
+ "updatedAt": "2026-10-10T12:43:03.101Z",
  "generator": "scripts/archive@91fb7ae100f7399a85add3f7d92399b11232a32c",
  "tables": {
   "audit/flags": 1249,
@@ -10,12 +10,12 @@
   "audit/verdicts": 681,
   "blobs": 30468,
   "daily": 77,
-  "ingests": 245,
+  "ingests": 247,
   "jobs.closed": 9053,
   "jobs.open": 20442,
   "jobs.versions": 29495,
   "ledger/entries": 29594,
-  "observations": 197,
+  "observations": 205,
   "reference.files": 134,
   "reference/index": 134
  },
@@ -102,48 +102,48 @@
   "history/anduril.json": {
    "kind": "mutable",
    "bytes": 415970,
-   "sha256": "7c4724d964cb17612151ce5711e1d31a36e6e80653c3b8e247a49288348b1ab5"
+   "sha256": "90c6ea65356136a40205884a70aba1730f80096baec09b0b5e6a15b138e95cb4"
   },
   "history/anthropic.json": {
    "kind": "mutable",
    "bytes": 110581,
-   "sha256": "fd1e4bb90d81036094bd50fecfb0384af74da91d9b2aaa10a48edc31f65f5d61"
+   "sha256": "a2a6485332324ba5e76c6ac2b2b8c78328c86d4956908e39245afdee4ef4961d"
   },
   "history/cohere.json": {
    "kind": "mutable",
    "bytes": 23152,
-   "sha256": "e38437cedf6f335327e9cdf0e2bd77196bb4eedae913a90a30be66e61cadcd92"
+   "sha256": "cdd21aaae2802ed19b036238da4fd977fc7cda248726c68db37b123d2219b280"
   },
   "history/openai.json": {
    "kind": "mutable",
    "bytes": 143873,
-   "sha256": "d0f7d95082ef191fd42dd865f04bece8778a068bc52daeb9c54e2c608be6e453"
+   "sha256": "cf83d10d6e10457e8522a21f226392687cbafa74ac4f05e53a9c5729ef712c7a"
   },
   "history/palantir.json": {
    "kind": "mutable",
    "bytes": 52415,
-   "sha256": "63efcafea868e4d0f9b523064ad5ff29a9b4e96d580199777e05266b264b5750"
+   "sha256": "3e322b5baca9b455eabaedc172add4bf487a6d01a2d8cc9bd9f4b4fa623f207c"
   },
   "history/scaleai.json": {
    "kind": "mutable",
    "bytes": 31652,
-   "sha256": "e1a78fb4f677482f56ffd7553cbb3909e278a23929965cb7d3ea83ca462e3020"
+   "sha256": "940d1338c33792a9147eefd14de3b48f5fbe0f79a877c9cda46fc00cdccd08a4"
   },
   "history/shieldai.json": {
    "kind": "mutable",
    "bytes": 106540,
-   "sha256": "768300c5f6b6ec91c241920bfa657f00a91c41a61aec1be5843f6637d819eab0"
+   "sha256": "b2cd83d8dcacd8fe8fe665400a6bf42513cc1f400906fe3c11c130ea251b4ea7"
   },
   "history/xai.json": {
    "kind": "mutable",
    "bytes": 49268,
-   "sha256": "17e76e82d87f3728b3e6edcffac03b2a11d77d9448582fa00d67e61c849f0496"
+   "sha256": "257c05022f4e7db3cfca62790c38d41ead94fd972a25aca02e971ec501dd9946"
   },
   "ingests/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 332772,
-   "sha256": "f7a99061b593b754b16c2e9d7a53f99f04e23bf06a134fbcfe9a82079a9c539f",
-   "rows": 245
+   "bytes": 335649,
+   "sha256": "3ba3953b8edcf9ef4724f9ad022438db7760e66fd0518736e2ebe31e2ec074c5",
+   "rows": 247
   },
   "jobs/anduril/2026-10.jsonl": {
    "kind": "append",
@@ -344,9 +344,9 @@
   },
   "observations/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 149213,
-   "sha256": "258bcf3a2b4b48dc422d6acd106ba03380a15395e2366aebb7d508ed65612f87",
-   "rows": 197
+   "bytes": 155241,
+   "sha256": "7376423808768104786b245f365161ec0f94f3fa4cfa7161948dfa1736aa240b",
+   "rows": 205
   },
   "reference/bigmac-prices/2026-07-01.json": {
    "kind": "immutable",
@@ -1042,7 +1042,7 @@
   "state/companies.json": {
    "kind": "mutable",
    "bytes": 7276,
-   "sha256": "5e0e47f7a1ba38ea0c2873ffb7590de9f6c1c814aabf95efdfa420421adf04ac"
+   "sha256": "1893c97a887ec29570d66921f7af5f38f017056ba5aa08c51583c348b31aa2a0"
   }
  }
 }
