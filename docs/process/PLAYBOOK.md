@@ -105,6 +105,9 @@ These are the rules learned the hard way on 2026-10-10.
   for data, GitHub Actions probe workflows for live checks (`workflow_dispatch` plus
   `get_job_logs`), and the post-deploy check for the live site.
 - `pkill -f` or `pgrep -f` with a pattern your own shell contains kills that shell. Use pid files.
+- The sandbox has tools the CI runner lacks (for example `pdftotext`, which the tax refresh
+  tests need; ci.yml installs it). A green local run is not a green CI run, so check CI on every
+  push before the next batch. 15ed02b went red this way.
 - Never run `playwright install`. Chromium is at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`,
   with Playwright in `<scratchpad>/pw/node_modules`.
 - The Long Tasks API misses work after `fetch()` resolves. Read long tasks from a Chrome trace.

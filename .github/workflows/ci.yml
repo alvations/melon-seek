@@ -26,6 +26,11 @@ jobs:
       - name: Install
         run: npm ci
 
+      # The tax refresh reads official PDF schedules (scripts/refresh/tax.js), and its offline
+      # check in test/refresh-tax.test.js runs on those PDFs, as monthly-refresh.yml does.
+      - name: Install pdftotext
+        run: command -v pdftotext || (sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils > /dev/null)
+
       - name: Unit tests
         run: npm test
 
