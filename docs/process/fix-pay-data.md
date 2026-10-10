@@ -235,13 +235,15 @@
 - The four DQ-1 tests of `test/beta-data-check.test.js`, run against this worktree from a scratch copy: 4/4
   pass; 4/4 fail against the base code. The other DQ tests in that file are not this lane's (DQ-3, DQ-5/6, DQ-17
   left for the next wave).
-- Full e2e (`NODE_PATH=… node scripts/e2e.js`): 104/108 passed, 2 failed, 2 skipped.
+- Full e2e (`NODE_PATH=… node scripts/e2e.js`), final code (commit 1ee82da): **105/108 passed, 1 failed, 2
+  skipped**.
   - "API: /api/jobs?company=anduril returns valid Job[]" fails on the base too (anduril:5243013007, a JPY range
     20,454,000–30,680,000 read as implausible).
-  - Compstimate T21 (cold server) is a timing test. It passes alone (1/1, 31.4 s). The base takes 11.1 s, because
-    on a cold cache the server now upgrades each stored norm-5 snapshot once (rekey + relocate + relabel: about
-    15 s of CPU for Anduril's 2,491 postings, 13 s of it the existing `rekeyBoardJobs`). Stores persist after the
-    first load, and the next crawl writes norm-6 snapshots, which need no upgrade.
+  - Compstimate T21 (cold server, a timing test) passed in this run (28.6 s). In an earlier full run on a busy
+    machine it failed, and alone it took 31.4 s; the base takes 11.1 s, because on a cold cache the server now
+    upgrades each stored norm-5 snapshot once (rekey + relocate + relabel: about 15 s of CPU for Anduril's 2,491
+    postings, 13 s of it the existing `rekeyBoardJobs`). Stores persist after the first load, and the next crawl
+    writes norm-6 snapshots, which need no upgrade.
   - Base e2e: 101/104 passed, 1 failed (the same Anduril test), 2 skipped.
   - The 4 lane e2e tests (`test/e2e/fix-pay-data.e2e.js`): 4/4 after, 0/4 on the base build. They cover the
     server (upgraded snapshots), the static main and beta bundles (re-derived from stored snapshots, including
@@ -360,8 +362,9 @@ from the base build and `-after` from this worktree's build; main site and `/mel
 - **Not taken on (lead):** DQ-3 levels, DQ-5/6 Google pay, DQ-17 vet-salaries.
 - **Cold-server upgrade time:** until the next crawl writes norm-6 snapshots, a server with an empty cache spends
   about 15 s of worker CPU upgrading Anduril's snapshot on first load (section 3, Delivery). Compstimate T21 took
-  31.4 s alone (base 11.1 s) and failed in the busy full run. If the integrated run needs T21 green before the
-  next crawl, either re-crawl first or speed up `rekeyBoardJobs` (an existing cost, 11.8 s on the base code too).
+  28.6 to 31.4 s (base 11.1 s) and failed once in a full run on a busy machine. If T21 is flaky in the integrated
+  run before the next crawl, re-crawl first or speed up `rekeyBoardJobs` (an existing cost, 11.8 s on the base
+  code too).
 - **Suburbs shown under their metro:** "Dhahran" and "Khobar" show as Dammam, "Zaventem" as Brussels, "Alexandria,
   NSW" as Sydney (`rawName` keeps the posting's words).
 - **Country-only locations** read "Spain · Spain" in the drawer (the frontend prints the name and the country);
@@ -381,4 +384,5 @@ from the base build and `-after` from this worktree's build; main site and `/mel
   US states; DQ-1 tests green; NVIDIA/Microsoft country counts; npm test and full e2e re-run.
 - 2026-10-10 14:00 `mayRelabelPay` pre-check for the stored-snapshot relabel (same results, compare re-run);
   DQ-1 check added to the lane e2e beta test (red on base); screenshots re-taken for both builds and shrunk;
-  term-label and llm-vet patches written; final npm test.
+  term-label and llm-vet patches written; final npm test; commit 1ee82da.
+- 2026-10-10 14:30 Final full e2e on 1ee82da: 105/108 passed (only the pre-existing Anduril JPY test fails).
