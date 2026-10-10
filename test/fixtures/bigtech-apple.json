@@ -1,0 +1,521 @@
+{
+ "about": "Real apple records captured by scripts/probe-bigtech.js on GitHub Actions (runs 5-6, 2026-10-10), descriptions trimmed to their head plus the pay paragraphs. Used by test/bigtech-sources.test.js.",
+ "captured": "2026-10-10",
+ "source": "POST https://jobs.apple.com/api/v1/search row + GET /api/v1/jobDetails/<id> res (null outside the US: no detail request)",
+ "records": [
+  {
+   "row": {
+    "id": "PIPE-114438158",
+    "jobSummary": "Apple Retail is where the best of Apple comes together. We bring our expertise to help people do what they love, delivering an only-at-Apple experience. We believe inclusion is a shared responsibility and we work together to foster a culture where everyone belongs and is inspired to do their best work.\n\nAs a Specialist, you build brand loyalty and create owners of Apple products and services. You’re dedicated to selling and delivering a customer service experience that is unlike any other. A Specialist is curious — you ask questions to learn about our customers’ needs, customizing recommendations to enrich their lives.",
+    "locations": [
+     {
+      "postLocationId": "postLocation-USA",
+      "city": "",
+      "stateProvince": "",
+      "countryName": "United States of America",
+      "metro": "",
+      "region": "",
+      "name": "United States",
+      "countryID": "iso-country-USA",
+      "level": 1
+     }
+    ],
+    "positionId": "114438158",
+    "postingDate": "Oct 10, 2026",
+    "postingTitle": "US - Specialist: Seasonal, Part-time",
+    "localeInfo": {
+     "languageCode": "en_US",
+     "dateFormat": "MMM D, YYYY",
+     "defaultLocaleCode": "en-us"
+    },
+    "postDateInGMT": "2026-10-10T07:40:28.189467443Z",
+    "transformedPostingTitle": "us-specialist-seasonal-part-time",
+    "reqId": "PIPE-114438158",
+    "managedPipelineRole": true,
+    "standardWeeklyHours": 40,
+    "team": {
+     "teamName": "Apple Retail",
+     "teamID": "teamsAndSubTeams-APPST",
+     "teamCode": "APPST"
+    },
+    "type": "PIPE",
+    "homeOffice": false,
+    "jobPositionId": "PIPE-114438158",
+    "isMultiLocation": false,
+    "postExternal": true
+   },
+   "detail": {
+    "id": "PIPE-114438158",
+    "type": "PIPE",
+    "managedPipelineRole": true,
+    "reqId": "PIPE-114438158",
+    "jobNumber": "114438158",
+    "postingTitle": "US - Specialist: Seasonal, Part-time",
+    "transformedPostingTitle": "us-specialist-seasonal-part-time",
+    "jobSummary": "Apple Retail is where the best of Apple comes together. We bring our expertise to help people do what they love, delivering an only-at-Apple experience. We believe inclusion is a shared responsibility and we work together to foster a culture where everyone belongs and is inspired to do their best work.\n\nAs a Specialist, you build brand loyalty and create owners of Apple products and services. You’re dedicated to selling and delivering a customer service experience that is unlike any other. A Specialist is curious — you ask questions to learn about our customers’ needs, customizing recommendations to enrich their lives.",
+    "description": "Deliver excellent service to Apple customers by seeking to understand their needs, identifying ownership opportunities, presenting products and services, and educating customers on relevant ways to buy products. \n\nUnderstand and proactively stay up to date on Apple’s products, services, purchase options, and Product Zone sales processes.\n\nSupport your peers throughout the store as needed by sharing knowledge about Apple’s products, services, and purchase options, and assist in offering ownership opportunities.\n\nMaintain accuracy and follow guidance.\n\nPerform other tasks as needed, including but not limited to providing customer service and support in other areas of the store.\n\nContribute to an inclusive environment by respecting each other’s differences and having the curiosity to learn. \n\nDemonstrate Apple’s values of inclusion and diversity in daily activities.",
+    "teamNames": [
+     "Apple Retail"
+    ],
+    "locations": [
+     {
+      "id": "postLocation-USA",
+      "name": "United States",
+      "code": "USA",
+      "countryName": "United States",
+      "countryID": "iso-country-USA",
+      "level": 1,
+      "active": true,
+      "postLocationCountryID": "postLocation-USA",
+      "postingIdentifier": "3810",
+      "showPayAndBenefits": false,
+      "promotedOnLinkedIn": false
+     }
+    ],
+    "localeInfo": {
+     "languageCode": "en_US",
+     "dateFormat": "MMM D, YYYY",
+     "defaultLocaleCode": "en-US",
+     "locale": "en-us",
+     "data": "en_US",
+     "translation": "en-US"
+    },
+    "postDateInGMT": "2026-10-10T07:40:46.198+00:00",
+    "longPostingDate": "2026-10-10T07:40:46.198+00:00",
+    "postingDateMeta": "2026-10-10",
+    "usaIndicator": false,
+    "uaeIndicator": false,
+    "homeOffice": false,
+    "positionId": "114438158",
+    "isFavorited": false,
+    "submitted": false,
+    "resubmitted": false,
+    "jobType": "RETAIL",
+    "preferredQualifications": "You can:\nDemonstrate knowledge of Apple products and services. \nPersonalize solutions based on customer needs, and effectively communicate them.\nWork in a fast-paced environment, often supporting multiple customers at the same time.\nWork in a team environment, demonstrating shared responsibility and accountability with other team members.\nBe curious and open to learning from others and helping each other grow.\nLearn about and deepen your understanding of Apple products and services, and third-party products, to enhance the customer experience.\nBe trusted with sensitive or confidential information, keeping with Apple’s core values.",
+    "minimumQualifications": "You should have availability to work a schedule based on business needs that may include nights, weekends, and public holidays in the retail store, and reliably attend work as scheduled, in line with local laws and subject to any approved accommodations.",
+    "internalDetails": null,
+    "questionarieTemplateID": "questionnaire-200180",
+    "roleLocationSelection": true,
+    "pipelineType": "managed",
+    "postingFooters": [
+     {
+      "postLocationId": "postLocation-USA",
+      "localizations": {
+       "en_US": [
+        {
+         "displayOrder": 1,
+         "name": "Pay & Benefits",
+         "content": "<p>At Apple, base pay is one part of our total compensation package and is determined within a range. This provides the opportunity to progress as you grow and develop within a role. Your base pay will depend on your skills, qualifications, experience, and location.<br><br>Apple employees also have the opportunity to become an Apple shareholder through participation in Apple’s discretionary employee stock programs. Apple employees are eligible for discretionary restricted stock unit awards, and can purchase Apple stock at a discount if voluntarily participating in Apple’s Employee Stock Purchase Plan. You’ll also receive benefits including: Comprehensive medical and dental coverage, retirement benefits, a range of discounted products and free services, and for formal education related to advancing your career at Apple, reimbursement for certain educational expenses — including tuition. Additionally, this role might be eligible for discretionary bonuses or commission payments as well as relocation. <a href=\"https://www.apple.com/careers/us/benefits.html\" target=\"_blank\" aria-label=\"Learn more about Apple Benefits (Opens in new window)\">Learn more about Apple Benefits</a><a href=\"https://www.apple.com/careers/us/benefits.html\"><span class=\"icon icon-after icon-external\" aria-hidden=\"true\"><a target=\"_blank\" aria-label=\"Learn more about Apple Benefits (Opens in new window)\"></a></span></a><br><br>For information about pay, if you are interested in roles located in one of our California, Colorado, Connecticut, Hawaii, Illinois, Maine, Maryland, Massachusetts, Minnesota, New York, New Jersey, Ohio, Vermont, Virginia, Washington, or Washington DC locations <a class=\"jobs_detail_inline\" href=\"https://jobs.apple.com/en-us/details/114438158/locationPicker\" target=\"_self\"><span>select a store and view pay information.</span></a><br><br>Note: Apple benefit, compensation and employee stock programs are subject to eligibility requirements and other terms of the applicable plan or program.<br>&nbsp;</p>",
+         "label": "Pay & Benefits"
+        },
+        {
+         "displayOrder": 2,
+         "name": "EEO Statement",
+         "content": "<p>Apple is an equal opportunity employer that is committed to inclusion and diversity. We seek to promote equal opportunity for all applicants without regard to race, color, religion, sex, sexual orientation, gender identity, national origin, disability, Veteran status, or other legally protected characteristics. <a href='https://www.eeoc.gov/sites/default/files/2023-06/22-088_EEOC_KnowYourRights6.12ScreenRdr.pdf' target='_blank' aria-label='Learn more about your EEO rights as an applicant (Opens PDF in new window)'>Learn more about your EEO rights as an applicant<span class='icon icon-after icon-external' aria-hidden='true'></span></a></p>"
+        },
+        {
+         "displayOrder": 3,
+         "name": "Accessibility",
+         "content": "<p>At Apple, we believe accessibility is a fundamental human right. You’ll find that idea reflected in everything here — in our culture, our benefits and our digital tools. By welcoming as many perspectives as possible, we help you build a career where you feel like you belong.<br><br><a href='https://www.apple.com/careers/us/accessibility.html' target='_blank' aria-label='Learn about accessibility in Apple’s workplace (Opens in new window)' rel='noopener noreferrer'>Learn about accessibility in Apple’s workplace<span class='icon icon-after icon-external' aria-hidden='true'></span></a><br><br><a href='https://www.apple.com/careers/us/accommodation.html' aria-label='Learn about reasonable accommodations for job applicants (Opens in new window)' target='_blank' rel='noopener noreferrer'>Learn about reasonable accommodations for job applicants<span class='icon icon-after icon-external' aria-hidden='true'></span></a></p>"
+        },
+        {
+         "displayOrder": 4,
+         "name": "Application Deadline",
+         "content": "<p>Apple accepts applications to this posting on an ongoing basis.</p>"
+        }
+       ]
+      }
+     }
+    ],
+    "postingDate": "Oct 10, 2026",
+    "selectedLocale": "en_US",
+    "translationCd": "en-US"
+   }
+  },
+  {
+   "row": {
+    "id": "200687453-0157",
+    "jobSummary": "In Places, we don’t sit back and let things happen, we make things happen, and we do this in service to all Apple employees and customers. Our team is a diverse and nimble group that manages Apple’s retail stores, workplaces, and workplace services. We develop and manage Apple’s global real estate portfolio, lead all related capital construction projects, provide outstanding facilities and site services, develop and lead sustainability initiatives to reduce the environmental impact of all Apple facilities, including commute and renewable energy programs, and do everything we can to ensure the health and safety of all Apple personnel, facilities, and customers in our facilities around the world. \nThe Facilities team within Places is responsible for creating spaces that represent Apple’s worldwide reputation, fostering an environment that inspires. You’ll work with cutting-edge building automation technology across a diverse portfolio of facilities, and the work you do will directly impact the comfort, safety, and productivity of thousands of Apple employees and customers.\nWe are seeking someone who is motivated to join our team as a BMS Controls Specialist to maintain our existing systems and continue to create more as we grow.",
+    "locations": [
+     {
+      "postLocationId": "postLocation-AST",
+      "city": "",
+      "stateProvince": "",
+      "countryName": "United States of America",
+      "metro": "",
+      "region": "",
+      "name": "Austin",
+      "countryID": "iso-country-USA",
+      "level": 5
+     }
+    ],
+    "positionId": "200687453",
+    "postingDate": "Oct 09, 2026",
+    "postingTitle": "BMS Control Specialist",
+    "localeInfo": {
+     "languageCode": "en_US",
+     "dateFormat": "MMM D, YYYY",
+     "defaultLocaleCode": "en-us"
+    },
+    "postDateInGMT": "2026-10-09T22:32:45.289Z",
+    "transformedPostingTitle": "bms-control-specialist",
+    "reqId": "200687453-0157",
+    "managedPipelineRole": false,
+    "standardWeeklyHours": 40,
+    "team": {
+     "teamName": "Corporate Functions",
+     "teamID": "teamsAndSubTeams-CORSV",
+     "teamCode": "CORSV"
+    },
+    "type": "REQ",
+    "homeOffice": false,
+    "jobPositionId": "REQ-200687453",
+    "isMultiLocation": false,
+    "postExternal": true
+   },
+   "detail": {
+    "id": "REQ-200687453",
+    "type": "REQ",
+    "managedPipelineRole": false,
+    "reqId": "REQ-200687453",
+    "jobNumber": "200687453-0157",
+    "postingTitle": "BMS Control Specialist",
+    "transformedPostingTitle": "bms-control-specialist",
+    "jobSummary": "In Places, we don’t sit back and let things happen, we make things happen, and we do this in service to all Apple employees and customers. Our team is a diverse and nimble group that manages Apple’s retail stores, workplaces, and workplace services. We develop and manage Apple’s global real estate portfolio, lead all related capital construction projects, provide outstanding facilities and site services, develop and lead sustainability initiatives to reduce the environmental impact of all Apple facilities, including commute and renewable energy programs, and do everything we can to ensure the health and safety of all Apple personnel, facilities, and customers in our facilities around the world. \nThe Facilities team within Places is responsible for creating spaces that represent Apple’s worldwide reputation, fostering an environment that inspires. You’ll work with cutting-edge building automation technology across a diverse portfolio of facilities, and the work you do will directly impact the comfort, safety, and productivity of thousands of Apple employees and customers.\nWe are seeking someone who is motivated to join our team as a BMS Controls Specialist to maintain our existing systems and continue to create more as we grow.",
+    "description": "The BMS Controls Specialist is responsible for the day-to-day monitoring, maintenance, troubleshooting, and optimization of building automation and control systems across the facilities portfolio. This role ensures reliable operation of HVAC, chiller plants, fire alarm systems, and other critical building infrastructure through direct work on BMS platforms and field-level controls.\nAs a BMS Controls Specialist, you will strive to maintain the systems that operate to the best of their ability, identifying issues and creating solutions. You will work closely with other Places teams, such as Project Management, to maintain our high standards as new infrastructure is brought online.",
+    "responsibilities": "Monitor, operate, and maintain building management systems (BMS) including HVAC controls, chiller plant automation, lighting controls, and energy management systems\nProgram, configure, and troubleshoot DDC (Direct Digital Control) controllers, sensors, actuators, and related field devices\nRespond to BMS alarms and system faults — diagnose root cause, implement corrective actions, and document resolution\nPerform preventive maintenance on control system hardware and software, including firmware updates, calibration, and network health checks\nMonitor and optimize chiller plant sequences, air handling unit operations, and VAV systems for energy efficiency and occupant comfort\nSupport fire alarm system monitoring, inspection coordination, and interface with life safety infrastructure\nMaintain accurate as-built documentation, point schedules, control sequences, and system drawings\nCoordinate with mechanical, electrical, and fire protection trades during commissioning, retrofits, and tenant improvement projects\nGenerate and analyze trend data, energy reports, and system performance metrics to identify optimization opportunities\nParticipate in after-hours on-call rotation for critical system alarms and emergencies",
+    "standardWeeklyHours": 40,
+    "highJobTitle": "Critical Facilities IC3",
+    "teamNames": [
+     "Corporate Functions"
+    ],
+    "locations": [
+     {
+      "id": "postLocation-AST",
+      "name": "Austin",
+      "city": "Austin",
+      "code": "AST",
+      "stateProvince": "Texas",
+      "metro": "Austin Metro Area",
+      "countryName": "United States",
+      "countryID": "iso-country-USA",
+      "zipCode": "78727",
+      "region": "South West",
+      "level": 5,
+      "active": true,
+      "postLocationCountryID": "postLocation-USA",
+      "postingIdentifier": "0157",
+      "showPayAndBenefits": false,
+      "promotedOnLinkedIn": false
+     }
+    ],
+    "localeInfo": {
+     "languageCode": "en_US",
+     "dateFormat": "MMM D, YYYY",
+     "defaultLocaleCode": "en-US",
+     "locale": "en-us",
+     "data": "en_US",
+     "translation": "en-US"
+    },
+    "postDateInGMT": "2026-10-09T22:32:45.289+00:00",
+    "longPostingDate": "2026-10-09T22:32:45.289+00:00",
+    "postingDateMeta": "2026-10-09",
+    "usaIndicator": false,
+    "uaeIndicator": false,
+    "employmentType": "Fixed",
+    "homeOffice": false,
+    "positionId": "200687453",
+    "isFavorited": false,
+    "submitted": false,
+    "resubmitted": false,
+    "jobType": "CORPORATE",
+    "preferredQualifications": "Associate's degree or technical certification in HVAC, controls, electrical, or a related field\nNiagara 4 certification (Tridium)\nExperience with energy management and analytics platforms\nKnowledge of IT networking fundamentals (IP addressing, VLANs, switch configuration) as applied to BMS networks\nOSHA 10 or OSHA 30 certification",
+    "minimumQualifications": "Minimum **3 years** of hands-on experience with building automation / BMS controls (e.g., Siemens, Johnson Controls, Honeywell, Tridium/Niagara, Schneider Electric)\nWorking knowledge of HVAC mechanical systems, chiller plant operations, and air-side/water-side control sequences\nExperience with DDC programming, BACnet/IP, and Modbus communication protocols\nFamiliarity with fire alarm systems and NFPA 72 inspection/testing requirements\nAbility to read and interpret mechanical, electrical, and controls drawings\nStrong troubleshooting skills across both hardware (controllers, sensors, wiring) and software (graphics, programming, network)\nComfortable working from ladders, in mechanical rooms, and above ceilings",
+    "internalDetails": null,
+    "roleLocationSelection": false,
+    "selectedLocation": {
+     "id": "postLocation-AST",
+     "name": "Austin",
+     "city": "Austin",
+     "code": "AST",
+     "stateProvince": "Texas",
+     "metro": "Austin Metro Area",
+     "countryName": "United States",
+     "countryID": "iso-country-USA",
+     "zipCode": "78727",
+     "region": "South West",
+     "level": 5,
+     "active": true,
+     "postLocationCountryID": "postLocation-USA",
+     "postingIdentifier": "0157",
+     "showPayAndBenefits": false,
+     "promotedOnLinkedIn": false
+    },
+    "postingFooters": [
+     {
+      "postLocationId": "postLocation-AST",
+      "localizations": {
+       "en_US": [
+        {
+         "displayOrder": 2,
+         "name": "EEO Statement",
+         "content": "<p>Apple is an equal opportunity employer that is committed to inclusion and diversity. We seek to promote equal opportunity for all applicants without regard to race, color, religion, sex, sexual orientation, gender identity, national origin, disability, Veteran status, or other legally protected characteristics. <a href='https://www.eeoc.gov/sites/default/files/2023-06/22-088_EEOC_KnowYourRights6.12ScreenRdr.pdf' target='_blank' aria-label='Learn more about your EEO rights as an applicant (Opens PDF in new window)'>Learn more about your EEO rights as an applicant<span class='icon icon-after icon-external' aria-hidden='true'></span></a></p>"
+        },
+        {
+         "displayOrder": 3,
+         "name": "Accessibility",
+         "content": "<p>At Apple, we believe accessibility is a fundamental human right. You’ll find that idea reflected in everything here — in our culture, our benefits and our digital tools. By welcoming as many perspectives as possible, we help you build a career where you feel like you belong.<br><br><a href='https://www.apple.com/careers/us/accessibility.html' target='_blank' aria-label='Learn about accessibility in Apple’s workplace (Opens in new window)' rel='noopener noreferrer'>Learn about accessibility in Apple’s workplace<span class='icon icon-after icon-external' aria-hidden='true'></span></a><br><br><a href='https://www.apple.com/careers/us/accommodation.html' aria-label='Learn about reasonable accommodations for job applicants (Opens in new window)' target='_blank' rel='noopener noreferrer'>Learn about reasonable accommodations for job applicants<span class='icon icon-after icon-external' aria-hidden='true'></span></a></p>"
+        },
+        {
+         "displayOrder": 4,
+         "name": "Application Deadline",
+         "content": "<p>Apple accepts applications to this posting on an ongoing basis.</p>"
+        }
+       ]
+      }
+     }
+    ],
+    "postingDate": "Oct 09, 2026",
+    "selectedLocale": "en_US",
+    "translationCd": "en-US"
+   }
+  },
+  {
+   "row": {
+    "id": "200687484-0157",
+    "jobSummary": "The Asset Intelligence Platform is the consolidated registry that maps applications and services to their underlying infrastructure and dependencies across our data centers, compute facilities, and labs, spanning both internal and third-party environments. By aggregating data from dozens of integrations and discovery tools, it forms the information backbone for operational excellence, IT service management, software asset management, and critical security, privacy, and compliance programs.\n\nIn any large, evolving infrastructure, visibility is the foundation for everything that follows. Teams responsible for security, compliance, and reliability depend on accurate, comprehensive insight into the environment to do their jobs effectively, and this platform delivers it. As the Application Engineer in this role, you won't just keep the system running—you'll help it evolve alongside the infrastructure and the stakeholders who rely on it.",
+    "locations": [
+     {
+      "postLocationId": "postLocation-AST",
+      "city": "",
+      "stateProvince": "",
+      "countryName": "United States of America",
+      "metro": "",
+      "region": "",
+      "name": "Austin",
+      "countryID": "iso-country-USA",
+      "level": 5
+     }
+    ],
+    "positionId": "200687484",
+    "postingDate": "Oct 09, 2026",
+    "postingTitle": "Sr Application Engineer — IT Inventory Platform, IS&T",
+    "localeInfo": {
+     "languageCode": "en_US",
+     "dateFormat": "MMM D, YYYY",
+     "defaultLocaleCode": "en-us"
+    },
+    "postDateInGMT": "2026-10-09T15:24:48.354Z",
+    "transformedPostingTitle": "sr-application-engineer-it-inventory-platform-is-t",
+    "reqId": "200687484-0157",
+    "managedPipelineRole": false,
+    "standardWeeklyHours": 40,
+    "team": {
+     "teamName": "Software and Services",
+     "teamID": "teamsAndSubTeams-SFTWR",
+     "teamCode": "SFTWR"
+    },
+    "type": "REQ",
+    "homeOffice": false,
+    "jobPositionId": "REQ-200687484",
+    "isMultiLocation": true,
+    "postExternal": true
+   },
+   "detail": {
+    "id": "REQ-200687484",
+    "type": "REQ",
+    "managedPipelineRole": false,
+    "reqId": "REQ-200687484",
+    "jobNumber": "200687484-0157",
+    "postingTitle": "Sr Application Engineer — IT Inventory Platform, IS&T",
+    "transformedPostingTitle": "sr-application-engineer-it-inventory-platform-is-t",
+    "jobSummary": "The Asset Intelligence Platform is the consolidated registry that maps applications and services to their underlying infrastructure and dependencies across our data centers, compute facilities, and labs, spanning both internal and third-party environments. By aggregating data from dozens of integrations and discovery tools, it forms the information backbone for operational excellence, IT service management, software asset management, and critical security, privacy, and compliance programs.\n\nIn any large, evolving infrastructure, visibility is the foundation for everything that follows. Teams responsible for security, compliance, and reliability depend on accurate, comprehensive insight into the environment to do their jobs effectively, and this platform delivers it. As the Application Engineer in this role, you won't just keep the system running—you'll help it evolve alongside the infrastructure and the stakeholders who rely on it.",
+    "description": "We are seeking an Application Engineer who operates at the intersection of customer need and engineering execution. In this role, you will develop a deep understanding of the problems internal customers face, translate those insights into product direction, onboard new teams onto the platform, support established users, and help stakeholders at every level understand the business value this system delivers.\n\nThis is a role for someone who wants meaningful influence over both the what and the how of a product, and who values the people using a system as much as the system itself.\n",
+    "responsibilities": "Customer Discovery and Advocacy Build strong relationships with the internal teams and business partners who depend on IT inventory data for security, compliance, operations, and planning. Understand their workflows, challenges, and goals, and ensure those insights inform every decision the engineering team makes.\nProduct Roadmap Development Play a significant role in defining and prioritizing the product roadmap. Drawing on customer feedback, usage data, and your own technical judgment, help determine what the team builds next and ensure investments are aligned with the highest-impact opportunities.\nTechnical Collaboration with Engineering Participate actively in design reviews, architectural discussions, and engineering tradeoff decisions. Bring a product lens to technical conversations by consistently grounding them in real customer problems. You should be comfortable reading and reviewing code, prototyping solutions, and building integrations when the situation calls for it.\nCustomer Onboarding Own the end-to-end onboarding experience for new teams, users, and business partners. This includes assessing their requirements, configuring or tailoring solutions, developing documentation, leading enablement sessions, and ensuring successful adoption.\nOngoing Customer Support Serve as a trusted point of contact for teams already using the platform. Triage issues, collect feedback, identify patterns that signal deeper systemic needs, and close the loop so customers know their input has been heard and acted upon.\nStorytelling and Value Communication Help the team articulate the business value of the IT Inventory platform to leadership, stakeholders, and partner organizations. Whether through a strategy document, a quarterly review, or a cross-functional presentation, make a clear and compelling case for the platform's impact and direction.",
+    "standardWeeklyHours": 40,
+    "highJobTitle": "Software Engineering Applications ICT4",
+    "teamNames": [
+     "Software and Services"
+    ],
+    "locations": [
+     {
+      "id": "postLocation-AST",
+      "name": "Austin",
+      "city": "Austin",
+      "code": "AST",
+      "stateProvince": "Texas",
+      "metro": "Austin Metro Area",
+      "countryName": "United States",
+      "countryID": "iso-country-USA",
+      "zipCode": "78727",
+      "region": "South West",
+      "level": 5,
+      "active": true,
+      "postLocationCountryID": "postLocation-USA",
+      "postingIdentifier": "0157",
+      "showPayAndBenefits": false,
+      "promotedOnLinkedIn": false
+     },
+     {
+      "id": "postLocation-SVL",
+      "name": "Sunnyvale",
+      "city": "Sunnyvale",
+      "code": "SVL",
+      "stateProvince": "California",
+      "metro": "San Francisco Bay Area",
+      "countryName": "United States",
+      "countryID": "iso-country-USA",
+      "zipCode": "94085",
+      "region": "West",
+      "level": 5,
+      "active": true,
+      "postLocationCountryID": "postLocation-USA",
+      "postingIdentifier": "3956",
+      "showPayAndBenefits": false,
+      "promotedOnLinkedIn": false
+     }
+    ],
+    "localeInfo": {
+     "languageCode": "en_US",
+     "dateFormat": "MMM D, YYYY",
+     "defaultLocaleCode": "en-US",
+     "locale": "en-us",
+     "data": "en_US",
+     "translation": "en-US"
+    },
+    "postDateInGMT": "2026-10-09T15:24:48.354+00:00",
+    "longPostingDate": "2026-10-09T15:24:48.354+00:00",
+    "postingDateMeta": "2026-10-09",
+    "usaIndicator": false,
+    "uaeIndicator": false,
+    "employmentType": "Standard",
+    "homeOffice": false,
+    "positionId": "200687484",
+    "isFavorited": false,
+    "submitted": false,
+    "resubmitted": false,
+    "jobType": "CORPORATE",
+    "preferredQualifications": "Familiarity with IT operations concepts such as asset management, configuration management, or CMDB tools\nExposure to security, privacy, and compliance frameworks\nComfort with ambiguity and the ability to operate effectively across a broad and evolving set of responsibilities\nExcellent written and verbal communication skills, with the ability to convey complex technical topics to both technical and non-technical audiences",
+    "minimumQualifications": "6+ years of experience in a role combining technical depth with customer or product engagement, such as solutions engineering, technical product management, application engineering, or a comparable discipline\nStrong understanding of infrastructure and platform engineering, including data centers, cloud environments, networking, compute, and the services built on top of them\nTechnical fluency sufficient to read and review code, write scripts or prototypes, work with APIs and data models, and contribute meaningfully to architecture discussions\nDemonstrated ability to build trust with customers, understand their needs deeply, and communicate solutions clearly\nStrong product instincts, including the ability to evaluate tradeoffs, assess impact, and prioritize based on customer and business value\nBS in Computer Science, Engineering, or a technical related field, or international degree equivalent\n",
+    "internalDetails": null,
+    "roleLocationSelection": false,
+    "selectedLocation": {
+     "id": "postLocation-AST",
+     "name": "Austin",
+     "city": "Austin",
+     "code": "AST",
+     "stateProvince": "Texas",
+     "metro": "Austin Metro Area",
+     "countryName": "United States",
+     "countryID": "iso-country-USA",
+     "zipCode": "78727",
+     "region": "South West",
+     "level": 5,
+     "active": true,
+     "postLocationCountryID": "postLocation-USA",
+     "postingIdentifier": "0157",
+     "showPayAndBenefits": false,
+     "promotedOnLinkedIn": false
+    },
+    "postingFooters": [
+     {
+      "postLocationId": "postLocation-SVL",
+      "localizations": {
+       "en_US": [
+        {
+         "displayOrder": 1,
+         "name": "Pay & Benefits",
+         "content": "At Apple, base pay is one part of our total compensation package and is determined within a range. This provides the opportunity to progress as you grow and develop within a role. The base pay range for this role is between $184,700 and $277,600, and your base pay will depend on your skills, qualifications, experience, and location.<br><br>Apple employees also have the opportunity to become an Apple shareholder through participation in Apple’s discretionary employee stock programs. Apple employees are eligible for discretionary restricted stock unit awards, and can purchase Apple stock at a discount if voluntarily participating in Apple’s Employee Stock Purchase Plan. You’ll also receive benefits including: Comprehensive medical and dental coverage, retirement benefits, a range of discounted products and free services, and for formal education related to advancing your career at Apple, reimbursement for certain educational expenses — including tuition. Additionally, this role might be eligible for discretionary bonuses or commission payments as well as relocation. <a href='https://www.apple.com/careers/us/benefits.html' target='_blank' aria-label='Learn more about Apple Benefits (Opens in new window)'>Learn more about Apple Benefits<span class='icon icon-after icon-external' aria-hidden='true'></span></a><br><br>Note: Apple benefit, compensation and employee stock programs are subject to eligibility requirements and other terms of the applicable plan or program.<br>",
+         "label": "Pay & Benefits"
+        },
+        {
+         "displayOrder": 2,
+         "name": "EEO Statement",
+         "content": "<p>Apple is an equal opportunity employer that is committed to inclusion and diversity. We seek to promote equal opportunity for all applicants without regard to race, color, religion, sex, sexual orientation, gender identity, national origin, disability, Veteran status, or other legally protected characteristics. <a href='https://www.eeoc.gov/sites/default/files/2023-06/22-088_EEOC_KnowYourRights6.12ScreenRdr.pdf' target='_blank' aria-label='Learn more about your EEO rights as an applicant (Opens PDF in new window)'>Learn more about your EEO rights as an applicant<span class='icon icon-after icon-external' aria-hidden='true'></span></a></p>"
+        },
+        {
+         "displayOrder": 3,
+         "name": "Accessibility",
+         "content": "<p>At Apple, we believe accessibility is a fundamental human right. You’ll find that idea reflected in everything here — in our culture, our benefits and our digital tools. By welcoming as many perspectives as possible, we help you build a career where you feel like you belong.<br><br><a href='https://www.apple.com/careers/us/accessibility.html' target='_blank' aria-label='Learn about accessibility in Apple’s workplace (Opens in new window)' rel='noopener noreferrer'>Learn about accessibility in Apple’s workplace<span class='icon icon-after icon-external' aria-hidden='true'></span></a><br><br><a href='https://www.apple.com/careers/us/accommodation.html' aria-label='Learn about reasonable accommodations for job applicants (Opens in new window)' target='_blank' rel='noopener noreferrer'>Learn about reasonable accommodations for job applicants<span class='icon icon-after icon-external' aria-hidden='true'></span></a></p>"
+        },
+        {
+         "displayOrder": 4,
+         "name": "Application Deadline",
+         "content": "<p>Apple accepts applications to this posting on an ongoing basis.</p>"
+        }
+       ]
+      }
+     },
+     {
+      "postLocationId": "postLocation-AST",
+      "localizations": {
+       "en_US": [
+        {
+         "displayOrder": 2,
+         "name": "EEO Statement",
+         "content": "<p>Apple is an equal opportunity employer that is committed to inclusion and diversity. We seek to promote equal opportunity for all applicants without regard to race, color, religion, sex, sexual orientation, gender identity, national origin, disability, Veteran status, or other legally protected characteristics. <a href='https://www.eeoc.gov/sites/default/files/2023-06/22-088_EEOC_KnowYourRights6.12ScreenRdr.pdf' target='_blank' aria-label='Learn more about your EEO rights as an applicant (Opens PDF in new window)'>Learn more about your EEO rights as an applicant<span class='icon icon-after icon-external' aria-hidden='true'></span></a></p>"
+        },
+        {
+         "displayOrder": 3,
+         "name": "Accessibility",
+         "content": "<p>At Apple, we believe accessibility is a fundamental human right. You’ll find that idea reflected in everything here — in our culture, our benefits and our digital tools. By welcoming as many perspectives as possible, we help you build a career where you feel like you belong.<br><br><a href='https://www.apple.com/careers/us/accessibility.html' target='_blank' aria-label='Learn about accessibility in Apple’s workplace (Opens in new window)' rel='noopener noreferrer'>Learn about accessibility in Apple’s workplace<span class='icon icon-after icon-external' aria-hidden='true'></span></a><br><br><a href='https://www.apple.com/careers/us/accommodation.html' aria-label='Learn about reasonable accommodations for job applicants (Opens in new window)' target='_blank' rel='noopener noreferrer'>Learn about reasonable accommodations for job applicants<span class='icon icon-after icon-external' aria-hidden='true'></span></a></p>"
+        },
+        {
+         "displayOrder": 4,
+         "name": "Application Deadline",
+         "content": "<p>Apple accepts applications to this posting on an ongoing basis.</p>"
+        }
+       ]
+      }
+     }
+    ],
+    "postingDate": "Oct 09, 2026",
+    "selectedLocale": "en_US",
+    "translationCd": "en-US"
+   }
+  },
+  {
+   "row": {
+    "id": "PIPE-200313970",
+    "jobSummary": "Apple Retail is where the best of Apple comes together. We bring our expertise to help people do what they love, delivering an only-at-Apple experience. We believe inclusion is a shared responsibility and we work together to foster a culture where everyone belongs and is inspired to do their best work.\n\nAs a Business Expert, you’re part of a team that’s passionate about helping businesses succeed. You create owners by connecting with new and existing business customers to identify opportunities, propose solutions, forecast needs, and close sales. Your knowledge of industry trends and expertise with Apple products and services — along with third-party technologies — help you to develop business solutions tailored to the needs of customers.\n\nYou’re a top sales performer who has exceptional interpersonal and influencing skills, and you’re considered a resource to the wider Retail Store or Contact Center team. You inspire an environment where Apple Retail Business is a part of everyone’s role, no matter how the customer chooses to visit Apple.",
+    "locations": [
+     {
+      "postLocationId": "postLocation-INDC",
+      "city": "",
+      "stateProvince": "",
+      "countryName": "India",
+      "metro": "",
+      "region": "",
+      "name": "India",
+      "countryID": "iso-country-IND",
+      "level": 1
+     }
+    ],
+    "positionId": "200313970",
+    "postingDate": "Oct 10, 2026",
+    "postingTitle": "IN-Business Expert",
+    "localeInfo": {
+     "languageCode": "en_US",
+     "dateFormat": "MMM D, YYYY",
+     "defaultLocaleCode": "en-us"
+    },
+    "postDateInGMT": "2026-10-10T07:33:03.074089858Z",
+    "transformedPostingTitle": "in-business-expert",
+    "reqId": "PIPE-200313970",
+    "managedPipelineRole": true,
+    "standardWeeklyHours": 40,
+    "team": {
+     "teamName": "Apple Retail",
+     "teamID": "teamsAndSubTeams-APPST",
+     "teamCode": "APPST"
+    },
+    "type": "PIPE",
+    "homeOffice": false,
+    "jobPositionId": "PIPE-200313970",
+    "isMultiLocation": false,
+    "postExternal": true
+   },
+   "detail": null
+  }
+ ]
+}

@@ -396,6 +396,9 @@ async function full(slug) {
   const json = JSON.stringify({ jobs });
   say(`OK in ${secs} s: ${raws.length} raw jobs, ${jobs.length} normalized; pages ${stats.pages}, details ${stats.details} (errors ${stats.detailErrors}), requests ${stats.requests}, statuses ${JSON.stringify(stats.statuses)}, retries ${stats.retries}`);
   say(`bytes downloaded ${stats.bytes} (${(stats.bytes / 1048576).toFixed(1)} MB); normalized JSON ${json.length} bytes (${(json.length / 1048576).toFixed(1)} MB)`);
+  const { fitSnapshot } = await import('./snapshot.js');
+  const fit = fitSnapshot(jobs, (list, t, cap) => ({ company: { slug }, mode: 'snapshot', fetchedAt: new Date().toISOString(), error: null, descriptionsTrimmedTo: t, jobsCapped: cap, jobs: list }));
+  say(`snapshot file as snapshot.js would write it: ${(fit.bytes / 1048576).toFixed(1)} MB${fit.trimmedTo ? `, descriptions trimmed to ${fit.trimmedTo} chars` : ', untrimmed'}${fit.capped ? `, capped to ${fit.capped.kept} of ${fit.capped.total} postings (${fit.jobs.filter((j) => j.salary).length} with pay)` : ''}`);
   for (const n of stats.notes) say(`note: ${n}`);
   const pct = (n) => (jobs.length ? `${((100 * n) / jobs.length).toFixed(1)}%` : '-');
   const textPay = jobs.filter((j) => j.salary || j.salaryRaw).length;

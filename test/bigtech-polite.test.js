@@ -62,6 +62,29 @@ test('fitSnapshot trims descriptions (keeping pay paragraphs) only when over the
   assert.equal(trimDescription('<p>short</p>', 100), '<p>short</p>');
 });
 
+test('fitSnapshot caps a board that is still too big: salaried postings first, then the newest, marked jobsCapped', () => {
+  const day = 864e5;
+  const jobs = Array.from({ length: 600 }, (_, i) => ({
+    id: `x:${i}`, salary: i % 3 ? { min: 100000, max: 150000 } : null,
+    postedAt: new Date(Date.UTC(2026, 0, 1) + i * day).toISOString(),
+    sections: { responsibilities: ['r'.repeat(1500)], fit: [] }, descriptionHtml: `<p>${'w '.repeat(3000)}</p>`,
+  }));
+  const payload = (list, t, capped) => ({ t, capped, jobs: list });
+  const r = fitSnapshot(jobs, payload, 1024 * 1024);
+  assert.ok(r.bytes <= 1024 * 1024);
+  assert.equal(r.trimmedTo, 800, 'descriptions trimmed to the shortest step first');
+  assert.ok(r.capped && r.capped.total === 600 && r.capped.kept === r.jobs.length && r.jobs.length < 600);
+  const salaried = jobs.filter((j) => j.salary).length;
+  const keptSalaried = r.jobs.filter((j) => j.salary).length;
+  assert.ok(keptSalaried === r.jobs.length || keptSalaried === salaried, 'no posting without pay is kept while a salaried one is dropped');
+  const small = fitSnapshot(jobs, payload, 300 * 1024);
+  assert.ok(small.jobs.length < salaried && small.jobs.every((j) => j.salary), 'a tight cap keeps salaried postings only');
+  const kept = new Set(small.jobs.map((j) => j.id));
+  assert.ok(kept.has('x:599') && !kept.has('x:1'), 'newest salaried first');
+  const order = small.jobs.map((j) => Number(j.id.slice(2)));
+  assert.deepEqual(order, [...order].sort((a, b) => a - b), 'original order kept');
+});
+
 test('robots.txt: RFC 9309 groups, longest match, Allow on ties, wildcards', () => {
   // The Eightfold tenants (Microsoft, NVIDIA, Netflix) as served on 2026-10-10.
   const eightfold = 'User-agent: *\nDisallow: /\nAllow: /careers\nAllow: /api/apply\nAllow: /api/pcsx\nAllow: /api/events\n';

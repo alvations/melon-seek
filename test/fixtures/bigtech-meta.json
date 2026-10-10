@@ -1,0 +1,323 @@
+{
+ "about": "Real meta records captured by scripts/probe-bigtech.js on GitHub Actions (runs 5-6, 2026-10-10), descriptions trimmed to their head plus the pay paragraphs. Used by test/bigtech-sources.test.js.",
+ "captured": "2026-10-10",
+ "source": "https://www.metacareers.com/profile/job_details/<id>/ pages, as extracted by extractMetaPage (JSON-LD + page data); the test rebuilds a minimal page from them",
+ "records": [
+  {
+   "id": "2486789151677735",
+   "title": "Software Engineer, Infrastructure",
+   "locations": [
+    "Sunnyvale, CA",
+    "Los Angeles, CA",
+    "Remote, US",
+    "Bellevue, WA",
+    "Redmond, WA",
+    "Menlo Park, CA",
+    "Seattle, WA",
+    "Burlingame, CA",
+    "Washington, DC",
+    "Boston, MA",
+    "New York, NY",
+    "San Francisco, CA"
+   ],
+   "departments": [
+    "Software Engineering"
+   ],
+   "internal_departments": [
+    "Engineering"
+   ],
+   "description_html": "<span>Meta is seeking talented experienced engineers to join our teams in building cutting-edge products that connect billions of people around the world. As a member of our team, you will have the opportunity to work on complex technical problems, build new features, and improve existing products across various platforms, including mobile devices and web applications. Our teams are constantly pushing the boundaries of user experience, and we&#039;re looking for passionate individuals who can help us advance the way people connect globally. If you&#039;re interested in joining a world-class team of engineers and researchers to work on exciting projects that have significant impact, we encourage you to apply.</span>",
+   "responsibilities": [
+    "Collaborate with cross-functional teams (product, design, operations, infrastructure) to build innovative application experiences",
+    "Implement custom user interfaces using latest programming techniques and technologies",
+    "Analyze and optimize code for quality, efficiency, and performance, and provide feedback to peers during code reviews",
+    "Set direction and goals for teams, lead major initiatives, provide technical guidance and mentorship to peers, and help onboard new team members",
+    "Architect efficient and scalable systems that drive complex applications",
+    "Identify and resolve performance and scalability issues, and drive large efforts to reduce technical debt",
+    "Work on a variety of coding languages and technologies",
+    "Establish ownership of components, features, or systems with expert end-to-end understanding"
+   ],
+   "minimum_qualifications": [
+    "Experience utilizing data and analysis to explain technical problems and provide detailed feedback and solutions",
+    "Bachelor's degree in Computer Science, Computer Engineering, relevant technical field, or equivalent practical experience",
+    "Demonstrated experience driving change within an organization and leading complex technical projects",
+    "8+ years of programming experience in a relevant language OR 4+ years experience with a PhD"
+   ],
+   "preferred_qualifications": [
+    "6+ years relevant experience building large-scale infrastructure applications or similar experience",
+    "Experience improving quality through thoughtful code reviews, appropriate testing, proper rollout, monitoring, and proactive changes",
+    "Experience in programming languages such as C, C++, or Java, and scripting languages such as Python, Javascript, or Hack",
+    "Demonstrated ability to integrate AI tools to optimize/redesign workflows and drive measurable impact (e.g., efficiency gains, quality improvements)",
+    "Experience adhering to and implementing responsible, ethical AI practices (e.g., risk assessment, bias mitigation, quality and accuracy reviews)",
+    "Demonstrated ongoing AI skill development (e.g., prompt/context engineering, agent orchestration) and staying current with emerging AI technologies"
+   ],
+   "public_compensation": [
+    {
+     "error_apology_note": "",
+     "has_bonus": true,
+     "has_equity": true,
+     "compensation_amount_minimum": "$183,997/year",
+     "compensation_amount_maximum": "$257,000/year",
+     "country_code": "US"
+    }
+   ],
+   "ld": {
+    "title": "Software Engineer, Infrastructure",
+    "description": "Meta is seeking talented experienced engineers to join our teams in building cutting-edge products that connect billions of people around the world. As a member of our team, you will have the opportunity to work on complex technical problems, build new features, and improve existing products across various platforms, including mobile devices and web applications. Our teams are constantly pushing the boundaries of user experience, and we're looking for passionate individuals who can help us advance the way people connect globally. If you're interested in joining a world-class team of engineers and researchers to work on exciting projects that have significant impact, we encourage you to apply.",
+    "datePosted": "2025-06-10T13:24:53-07:00",
+    "employmentType": "FULL_TIME",
+    "jobLocation": [
+     {
+      "name": "Sunnyvale, CA",
+      "address": {
+       "@type": "PostalAddress",
+       "addressLocality": "Sunnyvale",
+       "addressRegion": "California",
+       "addressCountry": "US"
+      }
+     },
+     {
+      "name": "Los Angeles, CA",
+      "address": {
+       "@type": "PostalAddress",
+       "addressLocality": "Los Angeles",
+       "addressRegion": "California",
+       "addressCountry": "US"
+      }
+     },
+     {
+      "name": "Remote, US",
+      "address": {
+       "@type": "PostalAddress",
+       "addressLocality": "Remote",
+       "addressCountry": "US"
+      }
+     },
+     {
+      "name": "Bellevue, WA",
+      "address": {
+       "@type": "PostalAddress",
+       "addressLocality": "Bellevue",
+       "addressRegion": "Washington",
+       "addressCountry": "US"
+      }
+     },
+     {
+      "name": "Redmond, WA",
+      "address": {
+       "@type": "PostalAddress",
+       "addressLocality": "Redmond",
+       "addressRegion": "Washington",
+       "addressCountry": "US"
+      }
+     },
+     {
+      "name": "Menlo Park, CA",
+      "address": {
+       "@type": "PostalAddress",
+       "addressLocality": "Menlo Park",
+       "addressRegion": "California",
+       "addressCountry": "US"
+      }
+     },
+     {
+      "name": "Seattle, WA",
+      "address": {
+       "@type": "PostalAddress",
+       "addressLocality": "Seattle",
+       "addressRegion": "Washington",
+       "addressCountry": "US"
+      }
+     },
+     {
+      "name": "Burlingame, CA",
+      "address": {
+       "@type": "PostalAddress",
+       "addressLocality": "Burlingame",
+       "addressRegion": "California",
+       "addressCountry": "US"
+      }
+     },
+     {
+      "name": "Washington, DC",
+      "address": {
+       "@type": "PostalAddress",
+       "addressLocality": "Washington",
+       "addressRegion": "District of Columbia",
+       "addressCountry": "US"
+      }
+     },
+     {
+      "name": "Boston, MA",
+      "address": {
+       "@type": "PostalAddress",
+       "addressLocality": "Boston",
+       "addressRegion": "Massachusetts",
+       "addressCountry": "US"
+      }
+     },
+     {
+      "name": "New York, NY",
+      "address": {
+       "@type": "PostalAddress",
+       "addressLocality": "New York",
+       "addressRegion": "New York",
+       "addressCountry": "US"
+      }
+     },
+     {
+      "name": "San Francisco, CA",
+      "address": {
+       "@type": "PostalAddress",
+       "addressLocality": "San Francisco",
+       "addressRegion": "California",
+       "addressCountry": "US"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "4669809629922768",
+   "title": "Security Engineer - Applied AI",
+   "locations": [
+    "London, UK"
+   ],
+   "departments": [
+    "Artificial Intelligence",
+    "AI Infrastructure",
+    "Security"
+   ],
+   "internal_departments": [
+    "Engineering",
+    "Artificial Intelligence"
+   ],
+   "description_html": "<span>Meta is seeking Security Engineers to join our Applied Artificial Intelligence (AAI) organization. As a Security Engineer in AAI, you will apply deep domain expertise to solve hard, real-world security problems, building novel security capabilities, prototyping AI-powered defenses, and advancing the frontier of what AI systems can do in Security, Trust, and Safety. Your work is AI-augmented from day one: you leverage AI tools and agents to accelerate your impact, and where the models fall short, your expertise directly drives their improvement.\n\n\nYou will blend hands-on security engineering with applied research: designing and executing novel approaches to security challenges that push both the state of Meta&#039;s security posture and the state of the art in AI-driven security. This includes building security products and tools, conducting original adversary research, developing detection and response capabilities, and translating security expertise into scalable, AI-native systems. Your domain knowledge — whether in detection engineering, threat intelligence and adversarial analysis, cloud security, adversary simulation, mobile and platform security, forensic investigation, or emerging areas like AI/ML security — becomes the foundation for capabilities no existing AI system can replicate.\n\nThis role is for experienced security practitioners who want to operate at the intersection of deep security expertise and frontier AI — not just using AI as a tool, but shaping what it becomes.</span>",
+   "responsibilities": [
+    "Identify and solve ambiguous problems within a Security, Trust, or Safety domain where the solution and requirements are initially unknown, driving solutions that affect multiple teams",
+    "Architect security systems and capabilities that set the standard across teams; drive platform-level decisions for AI-driven security solutions at Meta's scale",
+    "Lead the strategy and methodology for adversarial research, threat intelligence programs, detection systems, or investigation capabilities augmented by AI",
+    "Shape how security expertise translates into AI capability: define the methodologies that make model improvement systematic and scalable",
+    "Set and improve quality standards for security engineering practices and processes across teams; define processes and workflows that achieve scale and automation",
+    "Drive cross-organizational partnerships that define how security and AI intersect: influence technical direction beyond the immediate team",
+    "Break down problems into smaller, scoped workstreams, owning the most technically complex pieces while enabling others to execute against the overall solution",
+    "Mentor other engineers across the organization, build a community, and act as a role model for security engineering practices and Meta values",
+    "Drive team-wide adoption of practices and standards; proactively communicate updates to leadership audiences",
+    "Disseminate findings through internal publications, knowledge sharing, and contributions to the broader security community"
+   ],
+   "minimum_qualifications": [
+    "B.S. or M.S. in Computer Science, Cybersecurity, or a related field, or equivalent experience",
+    "8+ years of hands-on security engineering experience in one or more domains: detection engineering, threat intelligence, incident response, cloud security, adversary simulation, offensive security, mobile/platform security, digital forensics, trust and safety",
+    "Deep expertise in attacker tactics, techniques, and procedures with demonstrated ability to advance the state of the art",
+    "Proficiency in coding with experience in languages such as Python or Rust",
+    "Track record of architecting security systems or programs that operate at scale and influence how others build",
+    "Demonstrated ability to define and drive complex, ambiguous problem spaces with group-level impact",
+    "Experience in driving alignment and resolution across multiple teams and cross-functional partners"
+   ],
+   "preferred_qualifications": [
+    "Experience adhering to and implementing responsible, ethical AI practices (e.g., risk assessment, bias mitigation, quality and accuracy reviews)",
+    "Contributions to the security community (original research, tools, conference presentations, publications)",
+    "Experience improving AI model performance through expert feedback, red teaming, or evaluation design",
+    "Experience with cloud security operations, cloud detection and response, or cloud-native defense",
+    "Experience in hands on investigations across the Trust & Safety domain",
+    "Experience with forensic investigation — reconstructing attack timelines from evidence across multiple sources",
+    "Demonstrated ability to integrate AI tools to optimize/redesign workflows and drive measurable impact (e.g., efficiency gains, quality improvements)",
+    "Demonstrated ongoing AI skill development (e.g., prompt/context engineering, agent orchestration) and staying current with emerging AI technologies",
+    "Experience in planning and executing adversary simulation campaigns or purple team exercises at scale",
+    "Experience leveraging AI tools to accelerate security workflows and enhance operational capability",
+    "Experience in creating structured methodologies that scale security expertise across teams",
+    "Background in supply chain security, mobile platform security, network protocol security, or AI/ML security"
+   ],
+   "public_compensation": [],
+   "ld": {
+    "title": "Security Engineer - Applied AI",
+    "description": "Meta is seeking Security Engineers to join our Applied Artificial Intelligence (AAI) organization. As a Security Engineer in AAI, you will apply deep domain expertise to solve hard, real-world security problems, building novel security capabilities, prototyping AI-powered defenses, and advancing the frontier of what AI systems can do in Security, Trust, and Safety. Your work is AI-augmented from day one: you leverage AI tools and agents to accelerate your impact, and where the models fall short, your expertise directly drives their improvement.\n\n\nYou will blend hands-on security engineering with applied research: designing and executing novel approaches to security challenges that push both the state of Meta's security posture and the state of the art in AI-driven security. This includes building security products and tools, conducting original adversary research, developing detection and response capabilities, and translating security expertise into scalable, AI-native systems. Your domain knowledge — whether in detection engineering, threat intelligence and adversarial analysis, cloud security, adversary simulation, mobile and platform security, forensic investigation, or emerging areas like AI/ML security — becomes the foundation for capabilities no existing AI system can replicate.\n\nThis role is for experienced security practitioners who want to operate at the intersection of deep security expertise and frontier AI — not just using AI as a tool, but shaping what it becomes.\n",
+    "datePosted": "2026-10-05T10:53:03-07:00",
+    "employmentType": "FULL_TIME",
+    "jobLocation": [
+     {
+      "name": "London, UK",
+      "address": {
+       "@type": "PostalAddress",
+       "addressLocality": "London",
+       "addressCountry": "GB"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "1796691991338568",
+   "title": "Research Scientist Intern, Optical System Design (PhD)",
+   "locations": [
+    "Redmond, WA",
+    "Menlo Park, CA"
+   ],
+   "departments": [
+    "Internship - PhD"
+   ],
+   "internal_departments": [
+    "Research"
+   ],
+   "description_html": "<span>Meta Reality Labs brings together a team of researchers, developers, and engineers to create the future of virtual and augmented reality, which together will become as universal and essential as smartphones and personal computers are today. And just as personal computers have done over the past 45 years, AR and VR will ultimately change everything about how we work, play, and connect. We are developing all the technologies needed to enable breakthrough AR glasses and VR headsets, including optics and displays, computer vision, audio, graphics, brain-computer interface, haptic interaction, eye/hand/face/body tracking, perception science, and true telepresence. Some of those will advance much faster than others, but they all need to happen to enable AR and VR that are so compelling that they become an integral part of our lives.\nOur internships are twelve to twenty-four weeks long and we have various start dates throughout the year.</span>",
+   "responsibilities": [
+    "Collaborate with researchers and cross-functional partners, including communicating research plans, progress, and results",
+    "Publish research results and contribute to research that can be applied to Meta product development",
+    "Develop next-generation AR/VR displays with an emphasis on advanced simulations and prototyping to prove new concepts and understand the perceptual impact of those concepts",
+    "Collaborate with larger Meta Reality Labs Research team to explore novel solution space for AR/VR devices",
+    "Explore the application of at least one of the following: geometrical optics, diffraction optics, polarization optics, illumination, optical system design",
+    "This position will have an emphasis on advanced simulations and prototyping to prove new concepts and the perceptual impact of those concepts"
+   ],
+   "minimum_qualifications": [
+    "Currently has or is in the process of obtaining a Ph.D. degree in Optical Science, Optical Engineering, Opto-Mechanics, Electrical Engineering, Physics, Computational Imaging or relevant technical field",
+    "Must obtain work authorization in the country of employment at the time of hire and maintain ongoing work authorization during employment",
+    "2+ years of experience in at least one of the following areas of optical research: physical optics, geometric optics, aberration theory, optical system prototyping",
+    "2+ years of experience with optical design programs such as Zemax OpticStudio, Code V, LightTools, FRED, or similar",
+    "2+ years of experience with scientific programming languages (e.g., MATLAB, Python, and Mathematica)"
+   ],
+   "preferred_qualifications": [
+    "Proven track record of achieving significant results as demonstrated by grants, fellowships, patents, as well as first-authored publications at leading workshops or conferences",
+    "Intent to return to the degree program after the completion of the internship/co-op",
+    "2+ years of experience in system-level prototyping work, including hands-on prototyping of benchtop optical components",
+    "Experience working and communicating cross-functionally in a team environment",
+    "Proven track record of achieving significant results as demonstrated by grants, fellowships, patents, as well as first-authored publications at leading workshops or conferences such as JOSA, SPIE, OSA, IEEE, CLEO, or similar"
+   ],
+   "public_compensation": [
+    {
+     "error_apology_note": "",
+     "has_bonus": false,
+     "has_equity": false,
+     "compensation_amount_minimum": "$7,313/month",
+     "compensation_amount_maximum": "$12,667/month",
+     "country_code": "US"
+    }
+   ],
+   "ld": {
+    "title": "Research Scientist Intern, Optical System Design (PhD)",
+    "description": "Meta Reality Labs brings together a team of researchers, developers, and engineers to create the future of virtual and augmented reality, which together will become as universal and essential as smartphones and personal computers are today. And just as personal computers have done over the past 45 years, AR and VR will ultimately change everything about how we work, play, and connect. We are developing all the technologies needed to enable breakthrough AR glasses and VR headsets, including optics and displays, computer vision, audio, graphics, brain-computer interface, haptic interaction, eye/hand/face/body tracking, perception science, and true telepresence. Some of those will advance much faster than others, but they all need to happen to enable AR and VR that are so compelling that they become an integral part of our lives.\nOur internships are twelve to twenty-four weeks long and we have various start dates throughout the year.",
+    "datePosted": "2026-08-19T18:59:17-07:00",
+    "employmentType": "INTERN",
+    "jobLocation": [
+     {
+      "name": "Redmond, WA",
+      "address": {
+       "@type": "PostalAddress",
+       "addressLocality": "Redmond",
+       "addressRegion": "Washington",
+       "addressCountry": "US"
+      }
+     },
+     {
+      "name": "Menlo Park, CA",
+      "address": {
+       "@type": "PostalAddress",
+       "addressLocality": "Menlo Park",
+       "addressRegion": "California",
+       "addressCountry": "US"
+      }
+     }
+    ]
+   }
+  }
+ ]
+}

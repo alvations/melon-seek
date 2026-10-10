@@ -124,8 +124,8 @@ export function pickCurrency(offered, countries) {
 }
 
 const CODES = 'USD|CAD|GBP|EUR|AUD|NZD|CHF|JPY|KRW|INR|SGD|ILS|AED|SAR|QAR|PLN|SEK|NOK|DKK|CZK|HKD|TWD|CNY|BRL|MXN|ZAR';
-const SYMS = String.raw`US\$|CA\$|C\$|AU\$|A\$|SG\$|S\$|NZ\$|HK\$|R\$|\$|£|€|¥|₩|₹|₪`;
-const SYM_CUR = { 'US$': 'USD', 'CA$': 'CAD', C$: 'CAD', 'AU$': 'AUD', A$: 'AUD', 'SG$': 'SGD', S$: 'SGD', 'NZ$': 'NZD', 'HK$': 'HKD', R$: 'BRL', $: 'USD', '£': 'GBP', '€': 'EUR', '¥': 'JPY', '₩': 'KRW', '₹': 'INR', '₪': 'ILS' };
+const SYMS = String.raw`US\$|CA\$|C\$|AU\$|A\$|SG\$|S\$|NZ\$|HK\$|R\$|\$|£|€|¥|₩|₹|₪|Kč`;
+const SYM_CUR = { 'US$': 'USD', 'CA$': 'CAD', C$: 'CAD', 'AU$': 'AUD', A$: 'AUD', 'SG$': 'SGD', S$: 'SGD', 'NZ$': 'NZD', 'HK$': 'HKD', R$: 'BRL', $: 'USD', '£': 'GBP', '€': 'EUR', '¥': 'JPY', '₩': 'KRW', '₹': 'INR', '₪': 'ILS', 'Kč': 'CZK', 'KČ': 'CZK' };
 
 function currencyOf(token) {
   if (!token) return null;
@@ -248,7 +248,16 @@ function totalCompBefore(before) {
 // $333000 (USD) + 25% bonus target + equity + benefits": a base range with the
 // extras named after it. This is pay context, and the bonus is not the amount.
 const PLUS_EXTRAS_AFTER_RE = /^\s*(?:\(?(?:USD|CAD|GBP|EUR|AUD|SGD|CHF|INR|JPY|ILS)\)?\s*)?(?:per\s+(?:year|annum|hour)\s*)?(?:\+|plus\b)\s*(?:an?\s+)?(?:\d{1,2}(?:\.\d)?%\s+)?(?:annual\s+|target\s+)?(?:bonus|equity|benefits|commission|stock|rsus?)\b/i;
-const NATIONAL_RE = /\btypical\s+base\s+pay\s+range\s+for\s+this\s+role\s+across\s+(?:the\s+)?[A-Z][\w.]*(?:\s+[A-Z][\w.]*)?\s+is\b[^$£€¥\d]{0,12}$/;
+const NATIONAL_RE = /\btypical\s+base\s+pay\s+range\s+for\s+this\s+role\s+across\s+(?:the\s+)?([A-Z][\w.]*(?:\s+[A-Z][\w.]*){0,2})\s+is\b[^$£€¥\d]{0,12}$/;
+const NATION_CODE = Object.freeze({
+  'u.s': 'US', us: 'US', usa: 'US', 'united states': 'US', canada: 'CA', 'united kingdom': 'GB', uk: 'GB', 'u.k': 'GB',
+  ireland: 'IE', germany: 'DE', france: 'FR', netherlands: 'NL', 'the netherlands': 'NL', spain: 'ES', portugal: 'PT', italy: 'IT',
+  greece: 'GR', croatia: 'HR', czechia: 'CZ', 'czech republic': 'CZ', poland: 'PL', sweden: 'SE', norway: 'NO', denmark: 'DK',
+  finland: 'FI', austria: 'AT', switzerland: 'CH', belgium: 'BE', luxembourg: 'LU', israel: 'IL', india: 'IN', japan: 'JP',
+  singapore: 'SG', australia: 'AU', 'new zealand': 'NZ', brazil: 'BR', mexico: 'MX', china: 'CN', korea: 'KR', 'south korea': 'KR',
+  taiwan: 'TW', romania: 'RO', hungary: 'HU', slovakia: 'SK', slovenia: 'SI', bulgaria: 'BG', serbia: 'RS', estonia: 'EE',
+  latvia: 'LV', lithuania: 'LT', 'united arab emirates': 'AE', 'saudi arabia': 'SA', 'south africa': 'ZA', egypt: 'EG', turkey: 'TR',
+});
 const PAY_STIPEND_AFTER_RE = /^\W{0,3}(?:(?:weekly|monthly|bi-?weekly|living|base|research)\s+)stipend\b/i;
 const FILLER_RE = new RegExp(String.raw`\b(?:${CODES}|per|an?|hour|hours|year|annum|month|week|day|hourly|annually|yearly|monthly|weekly|base|gross|brutto|net|ote|range|up|to|from|between|starting|at|approx|approximately|about|plus|offers|equity|multiple|ranges|and|usd)\b|[^A-Za-z]+`, 'gi');
 
@@ -385,8 +394,12 @@ function evaluate(text, u, countries) {
   // the U.S. is USD $X - $Y per year." One such national sentence per level; the
   // city ranges that follow ("…in those locations is…") are not national.
   const nat = NATIONAL_RE.exec(before);
-  const national = !!nat;
+  const national = nat ? nat[1].replace(/\s+/g, ' ').toLowerCase() : null;
   const level = national ? (/^\s*(.{2,60}?)\s+[-–—]\s+the typical\b/i.exec(before) || [])[1] || null : null;
+  // One posting may list a national range per country ("across Ireland", "across
+  // Germany"): the one for the job's own country scores highest.
+  const natCode = national ? NATION_CODE[national.replace(/\.$/, '')] || null : null;
+  if (natCode && (countries || []).map((c) => String(c).toUpperCase()).includes(natCode)) score += 3;
   return {
     // For "3,850 USD / 2,310 GBP / 4,300 CAD per week" the text is the whole statement.
     score, start: gs, end: ge, lo, hi, currency: u.currency, interval, kind, national, level,
@@ -421,8 +434,9 @@ export function parseSalary(text, { countries = [] } = {}) {
   const same = (c) => c.currency === best.currency && c.interval === best.interval && c.kind === best.kind;
   let i0 = cands.indexOf(best);
   let i1 = i0;
-  while (i0 > 0 && same(cands[i0 - 1]) && best.start - cands[i0 - 1].end <= TIER_GAP && cands[i0].start - cands[i0 - 1].end <= TIER_GAP) i0--;
-  while (i1 + 1 < cands.length && same(cands[i1 + 1]) && cands[i1 + 1].start - cands[i1].end <= TIER_GAP) i1++;
+  // National ranges (Microsoft) are grouped by country and level below, never as adjacent tiers.
+  if (!best.national) while (i0 > 0 && same(cands[i0 - 1]) && best.start - cands[i0 - 1].end <= TIER_GAP && cands[i0].start - cands[i0 - 1].end <= TIER_GAP) i0--;
+  if (!best.national) while (i1 + 1 < cands.length && same(cands[i1 + 1]) && cands[i1 + 1].start - cands[i1].end <= TIER_GAP) i1++;
   let lo = best.lo;
   let hi = best.hi;
   let start = best.start;
@@ -438,7 +452,7 @@ export function parseSalary(text, { countries = [] } = {}) {
   // and name the levels in the text. City ranges are never part of the span.
   let levelText = null;
   if (best.national) {
-    const group = cands.filter((c) => c.national && same(c));
+    const group = cands.filter((c) => c.national === best.national && same(c));
     const glo = Math.min(...group.map((c) => c.lo));
     const ghi = Math.max(...group.map((c) => c.hi));
     if (group.length > 1 && glo > 0 && ghi / glo <= 4) {

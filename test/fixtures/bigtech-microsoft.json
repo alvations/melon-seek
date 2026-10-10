@@ -1,0 +1,183 @@
+{
+ "about": "Real microsoft records captured by scripts/probe-bigtech.js on GitHub Actions (runs 5-6, 2026-10-10), descriptions trimmed to their head plus the pay paragraphs. Used by test/bigtech-sources.test.js.",
+ "captured": "2026-10-10",
+ "source": "GET https://apply.careers.microsoft.com/api/pcsx/search + /api/pcsx/position_details (Eightfold PCSX); each record is the search row merged with its detail data",
+ "records": [
+  {
+   "id": 1970393557037774,
+   "displayJobId": "200061216",
+   "name": "Software Engineer",
+   "locations": [
+    "United States, Washington, Redmond"
+   ],
+   "standardizedLocations": [
+    "Redmond, WA, US"
+   ],
+   "postedTs": 1791597585,
+   "solrScore": null,
+   "stars": 0,
+   "department": "Software Engineering",
+   "creationTs": 1791573750,
+   "isHot": 0,
+   "workLocationOption": "onsite",
+   "locationFlexibility": null,
+   "atsJobId": "200061216",
+   "positionUrl": "/careers/job/1970393557037774",
+   "jobDescription": "<b>Overview</b><br><p>Imagine making it faster and easier for tens of thousands of Microsoft engineers to build great products — that's what you'll do on the Engineering Thrive Insights team. You'll join the team behind the data platform, metrics, and developer-facing tools that measure and improve the engineering experience at Microsoft, spanning developer satisfaction, change velocity, build quality, and AI tool impact. You'll help shape data products like ThriveIQ, our new service that puts engineering metrics at developers’ fingertips through natural language interfaces, and Data Flywheel, […] <p>Software Engineering IC2 - The typical base pay range for this role across the U.S. is USD $85,400 - $168,100 per year. There is a different range applicable to specific work locations, within the San Francisco Bay area and New York City metropolitan area, and the base pay range for this role in those locations is USD $111,100 - $183,700 per year. </p><p>Certain roles may be eligible for benefits and other compensation. Find additional benefits and pay information here:",
+   "location": "United States, Washington, Redmond",
+   "publicUrl": "https://apply.careers.microsoft.com/careers/job/1970393557037774",
+   "efcustomTextWorkSite": [
+    "3 days / week in-office"
+   ],
+   "efcustomTextRequiredTravel": [
+    "Less than 25%"
+   ],
+   "efcustomTextCurrentProfession": [
+    "Software Engineering"
+   ],
+   "efcustomTextTaDisciplineName": [
+    "Software Engineering"
+   ],
+   "efcustomTextRoletype": [
+    "Individual Contributor"
+   ],
+   "efcustomTextEmploymentType": [
+    "Full-Time"
+   ]
+  },
+  {
+   "id": 1970393557007337,
+   "displayJobId": "200057704",
+   "name": "Software Engineer II - Core AI",
+   "locations": [
+    "China, Beijing, Beijing"
+   ],
+   "standardizedLocations": [
+    "Beijing, Beijing, CN"
+   ],
+   "postedTs": 1791613604,
+   "solrScore": null,
+   "stars": 0,
+   "department": "Software Engineering",
+   "creationTs": 1790181519,
+   "isHot": 0,
+   "workLocationOption": "onsite",
+   "locationFlexibility": null,
+   "atsJobId": "200057704",
+   "positionUrl": "/careers/job/1970393557007337",
+   "jobDescription": "<b>Overview</b><br><div><p>Are you a software engineer who loves code, moves fast, and enjoys solving problems at scale? Are you excited about AI and want to build the platform that makes AI reliable, resilient, and effortless to operate at global scale? </p></div><div><p>Do you want to work with cutting-edge open-source and cloud technologies and build systems that are fault-tolerant, self-managing, self-healing, and highly scalable across public and private datacenters around the world? Do AI, Big Data, cloud infrastructure, Docker, Kubernetes, and distributed systems excite you? </p></div>< […] ",
+   "location": "China, Beijing, Beijing",
+   "publicUrl": "https://apply.careers.microsoft.com/careers/job/1970393557007337",
+   "efcustomTextWorkSite": [
+    "Fully on-site"
+   ],
+   "efcustomTextRequiredTravel": [
+    "Less than 25%"
+   ],
+   "efcustomTextCurrentProfession": [
+    "Software Engineering"
+   ],
+   "efcustomTextTaDisciplineName": [
+    "Software Engineering"
+   ],
+   "efcustomTextRoletype": [
+    "Individual Contributor"
+   ],
+   "efcustomTextEmploymentType": [
+    "Full-Time"
+   ]
+  },
+  {
+   "id": 1970393557027442,
+   "displayJobId": "200060994",
+   "name": "Physical Design Engineer",
+   "locations": [
+    "United States, Oregon, Hillsboro",
+    "United States, North Carolina, Raleigh",
+    "United States, Washington, Redmond",
+    "United States, California, Mountain View",
+    "United States, Texas, Austin"
+   ],
+   "standardizedLocations": [
+    "Hillsboro, OR, US",
+    "Raleigh, NC, US",
+    "Redmond, WA, US",
+    "Mountain View, CA, US",
+    "Austin, TX, US"
+   ],
+   "postedTs": 1791566078,
+   "solrScore": null,
+   "stars": 0,
+   "department": "Silicon Engineering",
+   "creationTs": 1791490349,
+   "isHot": 0,
+   "workLocationOption": "onsite",
+   "locationFlexibility": null,
+   "atsJobId": "200060994",
+   "positionUrl": "/careers/job/1970393557027442",
+   "jobDescription": "<b>Overview</b><br><p>Microsoft Silicon, Cloud Hardware, and Infrastructure Engineering (SCHIE) is the team behind Microsoft’s expanding Cloud Infrastructure and responsible for powering Microsoft’s “Intelligent Cloud” mission. SCHIE delivers the core infrastructure and foundational technologies for Microsoft's over 200 online businesses including Bing, MSN, Office 365, Xbox Live, Teams, OneDrive, and the Microsoft Azure platform globally with our server and data center infrastructure, security and compliance, operations, globalization, and manageability solutions. Our focus is on smart growth […] <p>Silicon Engineering IC3 - The typical base pay range for this role across the U.S. is USD $102,100 - $202,200 per year. There is a different range applicable to specific work locations, within the San Francisco Bay area and New York City metropolitan area, and the base pay range for this role in those locations is USD $133,800 - $219,200 per year. </p><p>Certain roles may be eligible for benefits and other compensation. Find additional benefits and pay information here:",
+   "location": "United States, Oregon, Hillsboro",
+   "publicUrl": "https://apply.careers.microsoft.com/careers/job/1970393557027442",
+   "efcustomTextWorkSite": [
+    "3 days / week in-office"
+   ],
+   "efcustomTextRequiredTravel": [
+    "Less than 25%"
+   ],
+   "efcustomTextCurrentProfession": [
+    "Hardware Engineering"
+   ],
+   "efcustomTextTaDisciplineName": [
+    "Silicon Engineering"
+   ],
+   "efcustomTextRoletype": [
+    "Individual Contributor"
+   ],
+   "efcustomTextEmploymentType": [
+    "Full-Time"
+   ]
+  },
+  {
+   "id": 1970393556985260,
+   "displayJobId": "200053204",
+   "name": "Senior Security Researcher",
+   "locations": [
+    "United States, Washington, Redmond"
+   ],
+   "standardizedLocations": [
+    "Redmond, WA, US"
+   ],
+   "postedTs": 1791579083,
+   "solrScore": null,
+   "stars": 0,
+   "department": "Security Research",
+   "creationTs": 1788309113,
+   "isHot": 0,
+   "workLocationOption": "onsite",
+   "locationFlexibility": null,
+   "atsJobId": "200053204",
+   "positionUrl": "/careers/job/1970393556985260",
+   "jobDescription": "<b>Overview</b><br><div>As AI reshapes how software is built and defended, Microsoft Security is standing up a new Engineering Excellence organization that will define what world-class security engineering looks like in the agentic AI era. Engineering teams that lead in the AI era are organized around outcomes, built on shared platforms any team can draw from, and augmented by agents that are part of the daily workflow. Governance runs at the speed of development. This organization will build that foundation for Microsoft Security, and in doing so, help define what engineering excellence looks […] <p>Security Research IC4 - The typical base pay range for this role across the U.S. is USD $119,800 - $234,700 per year. There is a different range applicable to specific work locations, within the San Francisco Bay area and New York City metropolitan area, and the base pay range for this role in those locations is USD $160,200 - $261,000 per year. </p><p>Certain roles may be eligible for benefits and other compensation. Find additional benefits and pay information here:",
+   "location": "United States, Washington, Redmond",
+   "publicUrl": "https://apply.careers.microsoft.com/careers/job/1970393556985260",
+   "efcustomTextWorkSite": [
+    "3 days / week in-office"
+   ],
+   "efcustomTextRequiredTravel": [
+    "Less than 25%"
+   ],
+   "efcustomTextCurrentProfession": [
+    "Security Engineering"
+   ],
+   "efcustomTextTaDisciplineName": [
+    "Security Research"
+   ],
+   "efcustomTextRoletype": [
+    "Individual Contributor"
+   ],
+   "efcustomTextEmploymentType": [
+    "Full-Time"
+   ]
+  }
+ ]
+}

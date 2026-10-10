@@ -1,0 +1,143 @@
+{
+ "about": "Real nvidia records captured by scripts/probe-bigtech.js on GitHub Actions (runs 5-6, 2026-10-10), descriptions trimmed to their head plus the pay paragraphs. Used by test/bigtech-sources.test.js.",
+ "captured": "2026-10-10",
+ "source": "GET https://jobs.nvidia.com/api/pcsx/search + /api/pcsx/position_details (Eightfold PCSX); search row merged with detail data",
+ "records": [
+  {
+   "id": 893395037856,
+   "displayJobId": "JR2017261",
+   "name": "Cloud Security Architecture Lead",
+   "locations": [
+    "US, CA, Remote",
+    "US, TX, Remote",
+    "US, NC, Remote"
+   ],
+   "standardizedLocations": [
+    "CA,US",
+    "TX,US",
+    "NC,US"
+   ],
+   "postedTs": 1791504000,
+   "solrScore": null,
+   "stars": 0,
+   "department": "Engineer, Sys SW",
+   "creationTs": 1777939200,
+   "isHot": 0,
+   "workLocationOption": "remote_local",
+   "locationFlexibility": null,
+   "atsJobId": "JR2017261",
+   "positionUrl": "/careers/job/893395037856",
+   "jobDescription": "<p>NVIDIA has been transforming computer graphics, PC gaming, and accelerated computing for more than 25 years. It’s a unique legacy of innovation that’s fueled by great technology—and amazing people. At NVIDIA, we are at the forefront of innovation, transforming computer graphics, PC gaming, and accelerated computing for over 25 years. Our legacy is built on groundbreaking technology and outstanding people. As we venture into the limitless potential of AI, our GPUs are driving advancements in computers, robots, and self-driving cars that understand the world. Joining our team means crafting t […] <p style=\"text-align:inherit\"></p>Your base salary will be determined based on your location, experience, and the pay of employees in similar positions. The base salary range is 272,000 USD - 431,250 USD.",
+   "location": "US, CA, Remote",
+   "publicUrl": "https://jobs.nvidia.com/careers/job/893395037856",
+   "efcustomTextJobFmailyGroup": [
+    "Engineering"
+   ],
+   "efcustomTextTimeType": [
+    "Full time"
+   ]
+  },
+  {
+   "id": 893398025428,
+   "displayJobId": "JR2026839",
+   "name": "Research Intern, World Models and Synthetic Data for Autonomous Driving - Summer 2027",
+   "locations": [
+    "US, CA, Santa Clara"
+   ],
+   "standardizedLocations": [
+    "Santa Clara, CA, US"
+   ],
+   "postedTs": 1791504000,
+   "solrScore": null,
+   "stars": 0,
+   "department": "Intern",
+   "creationTs": 1790640000,
+   "isHot": 0,
+   "workLocationOption": "onsite",
+   "locationFlexibility": null,
+   "atsJobId": "JR2026839",
+   "positionUrl": "/careers/job/893398025428",
+   "jobDescription": "<p>Be part of the Autonomous Vehicle (AV) Applied Research team and help advance safe autonomy through generative world models and synthetic data. This internship is an opportunity to work alongside a team of researchers and engineers developing the next generation of models that can understand, simulate, and reason about complex driving environments.</p><br><p>We are looking for a passionate and highly motivated Research Intern with a strong background in machine learning and an interest in autonomous driving, generative world models, multimodal foundation models, and synthetic data generatio […] <p style=\"text-align:inherit\"></p>Our internship hourly rates are a standard pay based on the position, your location, year in school, degree, and experience. The hourly rate for our interns is 20 USD - 71 USD.&amp;#xa;",
+   "location": "US, CA, Santa Clara",
+   "publicUrl": "https://jobs.nvidia.com/careers/job/893398025428",
+   "efcustomTextJobFmailyGroup": [
+    "Univ Employment"
+   ],
+   "efcustomTextTimeType": [
+    "Full time"
+   ]
+  },
+  {
+   "id": 893382249378,
+   "displayJobId": "JR1997214",
+   "name": "Senior System Software Engineer - GPU Performance",
+   "locations": [
+    "US, CA, Santa Clara",
+    "Remote - US"
+   ],
+   "standardizedLocations": [
+    "Santa Clara, CA, US",
+    "US"
+   ],
+   "postedTs": 1791504000,
+   "solrScore": null,
+   "stars": 0,
+   "department": "Engineer, Sys SW",
+   "creationTs": 1746403200,
+   "isHot": 0,
+   "workLocationOption": "remote_local",
+   "locationFlexibility": null,
+   "atsJobId": "JR1997214",
+   "positionUrl": "/careers/job/893382249378",
+   "jobDescription": "<p>NVIDIA is leading the way in groundbreaking developments in Artificial Intelligence, High Performance Computing and Visualization. The GPU, our invention, serves as the visual cortex of modern computers and is at the heart of our products and services. Our work opens up new universes to explore, enables amazing creativity and discovery, and powers what were once science fiction inventions from artificial intelligence to autonomous cars.</p><p></p><p>We are the GPU Communications Libraries and Networking team at NVIDIA. We deliver libraries like NCCL, NVSHMEM, UCX for Deep Learning and HPC.  […] <p style=\"text-align:inherit\"></p>Your base salary will be determined based on your location, experience, and the pay of employees in similar positions. The base salary range is 152,000 USD - 241,500 USD for Level 3, and 184,000 USD - 287,500 USD for Level 4.",
+   "location": "US, CA, Santa Clara",
+   "publicUrl": "https://jobs.nvidia.com/careers/job/893382249378",
+   "efcustomTextJobFmailyGroup": [
+    "Engineering"
+   ],
+   "efcustomTextTimeType": [
+    "Full time"
+   ]
+  },
+  {
+   "id": 893397487444,
+   "displayJobId": "JR2024825",
+   "name": "Senior Software Engineer - Distributed Systems Engineer, EDA Infrastructure",
+   "locations": [
+    "US, WA, Remote",
+    "US, TX, Austin",
+    "US, MA, Westford",
+    "Remote - US",
+    "US, NC, Durham",
+    "US, CA, Remote"
+   ],
+   "standardizedLocations": [
+    "WA,US",
+    "Austin, TX, US",
+    "Westford, MA, US",
+    "US",
+    "Durham, NC, US",
+    "CA,US"
+   ],
+   "postedTs": 1791504000,
+   "solrScore": null,
+   "stars": 0,
+   "department": "Engineer, Sys SW",
+   "creationTs": 1788048000,
+   "isHot": 0,
+   "workLocationOption": "remote_local",
+   "locationFlexibility": null,
+   "atsJobId": "JR2024825",
+   "positionUrl": "/careers/job/893397487444",
+   "jobDescription": "<p><span>Sr Software Engineer - Distributed Systems Engineer, EDA Infrastructure</span></p><p><span>NVIDIA is hiring engineers to build and scale the infrastructure that supports our Electronic Design Automation (EDA) workloads. We are looking for engineers with strong programming skills, a deep understanding of distributed systems, experience operating large-scale production infrastructure, and excellent communication and planning abilities. You will help design reliable automation and platform services that manage large fleets of GPU-based and CPU-based compute systems used by engineering te […] <p style=\"text-align:inherit\"></p>Your base salary will be determined based on your location, experience, and the pay of employees in similar positions. The base salary range is 152,000 USD - 241,500 USD for Level 3, and 184,000 USD - 287,500 USD for Level 4.",
+   "location": "US, WA, Remote",
+   "publicUrl": "https://jobs.nvidia.com/careers/job/893397487444",
+   "efcustomTextJobFmailyGroup": [
+    "Engineering"
+   ],
+   "efcustomTextTimeType": [
+    "Full time"
+   ]
+  }
+ ]
+}

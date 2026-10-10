@@ -42,19 +42,41 @@ export function trimDescription(html, n) {
 }
 
 /**
- * Keep a beta snapshot under maxBytes: trim descriptionHtml step by step
- * (TRIM_STEPS characters + pay paragraphs). Returns { jobs, trimmedTo|null, bytes }.
+ * Keep a beta snapshot under maxBytes (docs/process/bigtech-data.md, "Size"):
+ *   1. trim descriptionHtml step by step (TRIM_STEPS characters + pay paragraphs;
+ *      sections and keywords were derived from the full text already);
+ *   2. if the board is still too big at the shortest trim (Amazon: 22k postings),
+ *      cap the number of postings: postings with a plotted salary first, then the
+ *      most recently posted, as many as fit. The payload says so (jobsCapped).
+ * `payloadOf(jobs, trimmedTo, capped)` builds the file body. Returns
+ * { jobs, trimmedTo|null, capped: { kept, total }|null, bytes }.
  */
 export function fitSnapshot(jobs, payloadOf, maxBytes = MAX_BETA_SNAPSHOT_BYTES) {
-  let bytes = Buffer.byteLength(JSON.stringify(payloadOf(jobs, null), null, 1));
-  if (bytes <= maxBytes) return { jobs, trimmedTo: null, bytes };
+  const size = (list, n, cap) => Buffer.byteLength(JSON.stringify(payloadOf(list, n, cap), null, 1));
+  let bytes = size(jobs, null, null);
+  if (bytes <= maxBytes) return { jobs, trimmedTo: null, capped: null, bytes };
   let out = jobs;
-  for (const n of TRIM_STEPS) {
+  let n = null;
+  for (n of TRIM_STEPS) {
     out = jobs.map((j) => (j && typeof j.descriptionHtml === 'string' && j.descriptionHtml.length > n ? { ...j, descriptionHtml: trimDescription(j.descriptionHtml, n) } : j));
-    bytes = Buffer.byteLength(JSON.stringify(payloadOf(out, n), null, 1));
-    if (bytes <= maxBytes) return { jobs: out, trimmedTo: n, bytes };
+    bytes = size(out, n, null);
+    if (bytes <= maxBytes) return { jobs: out, trimmedTo: n, capped: null, bytes };
   }
-  return { jobs: out, trimmedTo: TRIM_STEPS[TRIM_STEPS.length - 1], bytes };
+  // 2. Cap: rank (salaried first, newest first), keep the longest prefix that fits.
+  const t = (j) => Date.parse((j && (j.postedAt || j.updatedAt)) || '') || 0;
+  const ranked = out.map((j, i) => ({ j, i })).sort((a, b) => (!!b.j.salary - !!a.j.salary) || (t(b.j) - t(a.j)) || (a.i - b.i));
+  const per = ranked.map(({ j }) => Buffer.byteLength(JSON.stringify(j, null, 1)) + 4);
+  const overhead = size([], n, { kept: 0, total: jobs.length }) + 64;
+  let keep = 0;
+  for (let acc = overhead; keep < per.length && acc + per[keep] <= maxBytes; keep++) acc += per[keep];
+  // Nested indentation makes the estimate a little low: shave until it fits.
+  for (;;) {
+    const kept = ranked.slice(0, keep).sort((a, b) => a.i - b.i).map(({ j }) => j);
+    const capped = { kept: kept.length, total: jobs.length };
+    const b = size(kept, n, capped);
+    if (b <= maxBytes || keep === 0) return { jobs: kept, trimmedTo: n, capped, bytes: b };
+    keep = Math.floor(keep * Math.min(0.995, maxBytes / b));
+  }
 }
 
 /** Targets for the CLI: explicit slugs, or a channel's companies (stable by default). */
@@ -111,25 +133,27 @@ export async function runSnapshot(targets, opts = {}) {
       const { name, source, board, color } = company;
       const pub = { slug, name, source, board, color, ...(beta ? { channel: 'beta', live: false } : {}) };
       // normalizerVersion lets the server use these jobs as they are (PERF-1).
-      const payloadOf = (list, trimmedTo) => ({
+      const payloadOf = (list, trimmedTo, capped) => ({
         company: pub, mode: 'snapshot', fetchedAt, normalizerVersion: NORMALIZER_VERSION, error: null,
-        ...(trimmedTo ? { descriptionsTrimmedTo: trimmedTo } : {}), jobs: list,
+        ...(trimmedTo ? { descriptionsTrimmedTo: trimmedTo } : {}), ...(capped ? { jobsCapped: capped } : {}), jobs: list,
       });
       let out = jobs;
       let trimmedTo = null;
-      if (beta) ({ jobs: out, trimmedTo } = fitSnapshot(jobs, payloadOf));
-      const text = JSON.stringify(payloadOf(out, trimmedTo), null, 1) + '\n';
+      let capped = null;
+      if (beta) ({ jobs: out, trimmedTo, capped } = fitSnapshot(jobs, payloadOf));
+      const text = JSON.stringify(payloadOf(out, trimmedTo, capped), null, 1) + '\n';
       const file = path.join(outDir, `${slug}.json`);
       await fs.writeFile(file, text);
       const withSalary = jobs.filter((j) => j.salary).length;
       const secs = ((Date.now() - t0) / 1000).toFixed(0);
       const size = `${(Buffer.byteLength(text) / 1048576).toFixed(1)} MB`;
-      const extra = beta ? `; ${stats.requests} requests, ${stats.pages} list pages, ${stats.details} details, ${(stats.bytes / 1048576).toFixed(0)} MB downloaded${trimmedTo ? `; descriptions trimmed to ${trimmedTo} chars (+ pay)` : ''}` : '';
+      const extra = beta ? `; ${stats.requests} requests, ${stats.pages} list pages, ${stats.details} details, ${(stats.bytes / 1048576).toFixed(0)} MB downloaded${trimmedTo ? `; descriptions trimmed to ${trimmedTo} chars (+ pay)` : ''}${capped ? `; capped to ${capped.kept} of ${capped.total} postings (salaried, then newest)` : ''}` : '';
       log(`✓ ${slug}: ${jobs.length} jobs (${withSalary} with salary) -> ${path.relative(ROOT, file)} ${size} [${beta ? `${secs}s` : `${Date.now() - t0}ms`}]${extra}`);
       for (const n of stats.notes) log(`  [${slug}] note: ${n}`);
-      const result = { slug, ok: true, jobs: jobs.length, file, ...(beta ? { bytes: Buffer.byteLength(text), trimmedTo, requests: stats.requests } : {}) };
+      const result = { slug, ok: true, jobs: out.length, file, ...(beta ? { fetched: jobs.length, bytes: Buffer.byteLength(text), trimmedTo, capped, requests: stats.requests } : {}) };
       try {
-        const h = await recordRun(slug, jobs, fetchedAt, { dir: hDir });
+        // The ledger records what is published (a capped board's dropped postings are not "closed").
+        const h = await recordRun(slug, out, fetchedAt, { dir: hDir });
         result.history = h.stats;
         if (h.changed) log(`  history ${slug}: ${h.stats.open} open, +${h.stats.added} new, ${h.stats.closed} closed, ${h.stats.reopened} reopened, ${h.stats.reposts} reposts -> ${path.relative(ROOT, h.file)}`);
       } catch (err) {

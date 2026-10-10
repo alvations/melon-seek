@@ -1,0 +1,243 @@
+{
+ "about": "Real google records captured by scripts/probe-bigtech.js on GitHub Actions (runs 5-6, 2026-10-10), descriptions trimmed to their head plus the pay paragraphs. Used by test/bigtech-sources.test.js.",
+ "captured": "2026-10-10",
+ "source": "POST https://www.google.com/about/careers/applications/_/HiringCportalFrontendUi/data/batchexecute (sf9Qmf) posting records (positional arrays); sitemap = an excerpt in the format of /about/careers/applications/jobs/sitemap.xml",
+ "records": [
+  [
+   "96818331136205510",
+   "Open Career Opportunities, Verily Life Sciences",
+   null,
+   [
+    null,
+    ""
+   ],
+   [
+    null,
+    ""
+   ],
+   "projects/gweb-careers-proto/tenants/60107626-8e00-0000-0000-0071646e0806/companies/02f54ba2-2fcc-40df-8c3d-41f5170a8d11",
+   null,
+   "Verily Life Sciences",
+   "en-US",
+   [
+    [
+     "South San Francisco, CA, USA",
+     [
+      "US-SSF-EGA2, 269 E Grand Ave., South San Francisco, CA 94080, USA"
+     ],
+     "South San Francisco",
+     "94080",
+     "CA",
+     "US"
+    ],
+    [
+     "Mountain View, CA, USA",
+     [
+      "Mountain View, CA, USA"
+     ],
+     "Mountain View",
+     null,
+     "CA",
+     "US"
+    ],
+    [
+     "Boston, MA, USA",
+     [
+      "Boston, MA, USA"
+     ],
+     "Boston",
+     null,
+     "MA",
+     "US"
+    ],
+    [
+     "Dallas, TX, USA",
+     [
+      "Dallas, TX, USA"
+     ],
+     "Dallas",
+     null,
+     "TX",
+     "US"
+    ]
+   ],
+   [
+    null,
+    "<p>Verily, an Alphabet company, lives at the intersection of technology, data science and healthcare. Our mission is to make the world’s health data useful so that people enjoy longer and healthier lives. We are developing tools and devices to collect, organize and activate health data, and creating interventions to prevent and manage disease.</p>\n\n<p>We are uniting different disciplines across life sciences and data technology because we believe it will take an expert cross-functional team to develop the next generation of health solutions. Our team pushes one another as well as our collaborators to think beyond today’s assumptions and operate from a shared vision of what healthcare should be. It’s amazing what’s possible when we put our heads together.</p>\n\n<p>Explore open roles on our <a href=\"https://verily.com/roles/#open-roles\" target=\"_blank\">careers page</a>.</p>"
+   ],
+   null,
+   [
+    1572560418,
+    115000000
+   ],
+   [
+    1765227677,
+    630000000
+   ],
+   [
+    1765227678,
+    671000000
+   ],
+   [
+    null,
+    "<p>Apply to this job on the Verily Life Sciences career site at <a href=\"https://verily.com/roles/#open-roles\">Verily Careers</a>.</p>"
+   ],
+   null,
+   null,
+   [
+    null,
+    "Note: By applying to this position you will have an opportunity to share your preferred working location from the following: <b>South San Francisco, CA, USA; Mountain View, CA, USA; Boston, MA, USA; Dallas, TX, USA</b>."
+   ],
+   [
+    null,
+    ""
+   ]
+  ],
+  [
+   "115686356679566022",
+   "Hardware System Technical Program Manager, Trackers and Home",
+   "https://www.google.com/about/careers/applications/signin?jobId=CiUAL2FckbdFO6G7JoZ1z4sr5rXtaZ8dnCUi-I8DAUAMHHeSrgQGEjsA9yzvgjgbaxjxLGRhIaXboqZV5ZTCz9aBbg4bcL5MU-hDcOEawhvYQQu0l8Qq-VIbAz4_rQr6TsolJA%3D%3D_V2&loc=TW&title=Hardware+System+Technical+Program+Manager",
+   [
+    null,
+    "<ul>\n<li>Manage development health and home hardware products and drive the overall execution and strategy of the team.</li>\n<li>Lead cross-functional teams to meet schedule, system build milestones, cost, quality and manufacturability.</li>\n<li>Drive product development processes and phase gate reviews with the cross-functional teams.</li>\n<li>Lead resolution on key technical issues and communication of project status to stakeholders and leadership.</li>\n<li>Interface between joint development partners and cross-functional Engineering and Operation teams.</li>\n</ul>"
+   ],
+   [
+    null,
+    "<h3>Minimum qualifications:</h3><ul>\n<li>Bachelor's degree in Mechanical Engineering, Materials Science, Industrial Engineering, specialized fields (e.g., Textile/Chemical Engineering) aligning with advanced wearable manufacturing, or equivalent practical experience.</li>\n<li>2 years of experience in combined EPM and EPS in wearables, including bridging upstream engineering strategy (e.g., driving cross-functional design trade-offs and schedules with technical judgments) with downstream factory execution (e.g., managing BOMs, CTB material readiness, critical allocations, and JDM builds).</li>\n<li>2 years of experience in full-lifecycle NPI programs for smart watches and mix accessory bands, driving Proto/EVT/DVT/PVT phase-gate transitions, sub-assembly integrations, and mass production.</li>\n</ul><br><h3>Preferred qualifications:</h3><ul>\n<li>Deep technical proficiency in textiles, silicone, and metals, driving strict cosmetic validation, exact color matching across substrates, and yield optimization.</li>\n<li>Ability to lead technical teams, cross-functional groups, and vendors.</li>\n<li>Ability to manage multiple tasks and drive them to completion.</li>\n<li>Ability to communicate in English and Mandarin fluently in order to interact with internal and external stakeholders.</li>\n<li>Ability to travel up to 30% of the time internationally.</li>\n</ul>"
+   ],
+   "projects/gweb-careers-proto/tenants/60107626-8e00-0000-0000-0071646e0806/companies/ebbbf0d1-8121-483c-8f99-ee92597591fc",
+   null,
+   "Google",
+   "en-US",
+   [
+    [
+     "New Taipei, Banqiao District, New Taipei City, Taiwan",
+     [
+      "Banqiao District, New Taipei City, Taiwan 220"
+     ],
+     null,
+     "220",
+     "New Taipei City",
+     "TW"
+    ]
+   ],
+   [
+    null,
+    "<p>A problem isn’t truly solved until it’s solved for all. That’s why Googlers build products that help create opportunities for everyone, whether down the street or across the globe. As a Technical Program Manager at Google, you’ll use your technical expertise to lead complex, multi-disciplinary projects from start to finish. You’ll work with stakeholders to plan requirements, identify risks, manage project schedules, and communicate clearly with cross-functional partners across the company. You're equally comfortable explaining your team's analyses and recommendations to executives as you are discussing the technical tradeoffs in product development with engineers. </p>\n<p>Google&#39;s mission is to organize the world&#39;s information and make it universally accessible and useful. Our Devices &amp; Services team combines the best of Google AI, Software, and Hardware to create radically helpful experiences for users. We research, design, and develop new technologies and hardware to make our user&#39;s interaction with computing faster, seamless, and more powerful. Whether finding new ways to capture and sense the world around us, advancing form factors, or improving interaction methods, the Devices &amp; Services team is making people&#39;s lives better through technology.</p>"
+   ],
+   [
+    2
+   ],
+   [
+    1790851189,
+    122000000
+   ],
+   [
+    1790851189,
+    122000000
+   ],
+   [
+    1790851189,
+    356000000
+   ],
+   [
+    null,
+    "<p>Google welcomes people with disabilities.</p>"
+   ],
+   null,
+   null,
+   [
+    null,
+    ""
+   ],
+   [
+    null,
+    "<ul>\n<li>Bachelor's degree in Mechanical Engineering, Materials Science, Industrial Engineering, specialized fields (e.g., Textile/Chemical Engineering) aligning with advanced wearable manufacturing, or equivalent practical experience.</li>\n<li>2 years of experience in combined EPM and EPS in wearables, including bridging upstream engineering strategy (e.g., driving cross-functional design trade-offs and schedules with technical judgments) with downstream factory execution (e.g., managing BOMs, CTB material readiness, critical allocations, and JDM builds).</li>\n<li>2 years of experience in full-lifecycle NPI programs for smart watches and mix accessory bands, driving Proto/EVT/DVT/PVT phase-gate transitions, sub-assembly integrations, and mass production.</li>\n</ul>"
+   ],
+   2
+  ],
+  [
+   "110831276256043718",
+   "Senior Staff Technical Program Manager for Safety and Privacy, GeminiApp, DeepMind",
+   "https://www.google.com/about/careers/applications/signin?jobId=CiUAL2FckWSotT32vEIo0tF3_nF6joc4sciMNqAfgiIjN48c1OBzEjsA9yzvgtpRHMlqos9ev1CKAzzKiKrqWvFn6fXJmEkDZe3XLpTmZv_tWLYzbIKv2afMlltuscEbtQthdQ%3D%3D_V2&loc=US&title=Senior+Staff+Technical+Program+Manager+for+Safety+and+Privacy",
+   [
+    null,
+    "<ul>\n<li>Lead the execution of a high-velocity virtual team to co-design safety mitigations directly with modeling teams, ensuring all features are responsible-by-design from the base model harness to the final App UI.</li>\n<li>Translate ambiguous, open-ended business priorities into structured and executable programs. Proactively identify and mitigate risks, implementing solutions to keep projects on velocity.</li>\n<li>Mechanize critical parts of the business to generate predictable outputs. Guide critical programs, driving progress from conception to delivery.</li>\n<li>Forge close partnerships with Product Manager, Engineering, Legal, Safety, Privacy, and other cross-functional leads on approach. Navigate and resolve complex dependencies across workstreams, functions, and organizations.</li>\n<li>Deliver clear, consistent updates on progress, risks, and plans to executive leadership. Guide cross-functional teams in identifying, prioritizing, and tracking tasks to meet key deadlines. Excel at managing multiple, time-sensitive projects concurrently.</li>\n</ul>"
+   ],
+   [
+    null,
+    "<h3>Minimum qualifications:</h3><ul>\n<li>Bachelor's degree in a technical field or equivalent practical experience.</li>\n<li>10 years of experience in technical program or project management.</li>\n<li>7 years of experience in leadership roles with/without direct reports.</li>\n</ul><br><h3>Preferred qualifications:</h3><ul>\n<li>Experience in evaluating or fine-tuning LLMs for specific product use cases.</li>\n<li>Track record in trust and safety, privacy, data governance, or cybersecurity within a high-scale consumer tech or enterprise SaaS environment.</li>\n<li>Deep understanding of modern data privacy frameworks (GDPR, CCPA) and complex data architecture.</li>\n<li>Understanding of Large Language Models (LLMs), Natural Language Processing (NLP), conversational AI principles, and model evaluation techniques.</li>\n<li>Strong ability to translate complex legal and ethical requirements into clear engineering specifications.</li>\n</ul>"
+   ],
+   "projects/gweb-careers-proto/tenants/60107626-8e00-0000-0000-0071646e0806/companies/5364d68d-d016-48b0-a6ec-0c6fe5032c6c",
+   null,
+   "DeepMind",
+   "en-US",
+   [
+    [
+     "Mountain View, CA, USA",
+     [
+      "Mountain View, CA, USA"
+     ],
+     "Mountain View",
+     null,
+     "CA",
+     "US"
+    ],
+    [
+     "New York, NY, USA",
+     [
+      "New York, NY, USA"
+     ],
+     "New York",
+     null,
+     "NY",
+     "US"
+    ],
+    [
+     "San Francisco, CA, USA",
+     [
+      "San Francisco, CA, USA"
+     ],
+     "San Francisco",
+     null,
+     "CA",
+     "US"
+    ]
+   ],
+   [
+    null,
+    "<p>Our team, GeminiApp, is on a mission to build a universal AI assistant that will empower billions of people. We are creating a personal, proactive, and powerful life assistant that will be used multiple times a day to increase productivity and creativity by 10 to 100-fold. Our work is shaping how humanity interacts with AI at scale. As a high-velocity, startup mindset organization, we are constantly shipping and iterating.</p><div>As the Senior Staff Technical Program Manager for Safety and Privacy, you will lead the cross-functional execution, alignment, and approach required for a product that is deeply trustworthy, compliant, and secure. This role requires a unique blend of deep technical understanding, regulatory awareness, and empathetic leadership. You will drive the effort to co-design safety mitigations directly with modeling teams, ensuring all features are responsible-by-design from the base model harness to the final App UI, while synthesizing safety, privacy, and security into a unified, multi-modal monitoring flywheel.</div><p>Artificial intelligence will be one of humanity’s most transformative inventions. At Google DeepMind, we are a pioneering AI lab with exceptional interdisciplinary teams focused on advancing AI development to solve complex global challenges and accelerate high-quality product innovation for billions of users. We use our technologies for widespread public benefit and scientific discovery, ensuring safety and ethics are always our highest priority.</p><div>We are pushing the boundaries across multiple domains. Our global teams offer diverse learning opportunities and varied career pathways for those driven to achieve exceptional results through collective effort.</div>Individual pay is determined by factors including job-related skills, experience, and relevant education or training.  <br><br>US: $300000 - $333000 (USD) + 25% bonus target + equity + benefits<br><br>Learn more about <a href=\"https://www.google.com/about/careers/applications/benefits/\" target=\"_blank\">benefits at Google</a>."
+   ],
+   [
+    2
+   ],
+   [
+    1790365233,
+    780000000
+   ],
+   [
+    1790584739,
+    166000000
+   ],
+   [
+    1790584739,
+    320000000
+   ],
+   [
+    null,
+    "Applicants in San Francisco: Qualified applications with arrest or conviction records will be considered for employment in accordance with the San Francisco Fair Chance Ordinance for Employers and the California Fair Chance Act."
+   ],
+   null,
+   null,
+   [
+    null,
+    "Note: By applying to this position you will have an opportunity to share your preferred working location from the following: <b>Mountain View, CA, USA; New York, NY, USA; San Francisco, CA, USA</b>."
+   ],
+   [
+    null,
+    "<ul>\n<li>Bachelor's degree in a technical field or equivalent practical experience.</li>\n<li>10 years of experience in technical program or project management.</li>\n<li>7 years of experience in leadership roles with/without direct reports.</li>\n</ul>"
+   ]
+  ]
+ ],
+ "sitemap": "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?><urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\"><url><loc>https://careers.google.com/jobs/results/96818331136205510-open-career-opportunities-verily-life-sciences/</loc><lastmod>2026-10-09T18:34:35.942Z</lastmod><changefreq>monthly</changefreq></url><url><loc>https://careers.google.com/jobs/results/115686356679566022-hardware-system-technical-program-manager-trackers-and-home/</loc><lastmod>2026-10-09T18:34:35.942Z</lastmod><changefreq>monthly</changefreq></url><url><loc>https://careers.google.com/jobs/results/110831276256043718-senior-staff-technical-program-manager-for-safety-and-privacy-geminiapp-deepmind/</loc><lastmod>2026-10-09T18:34:35.942Z</lastmod><changefreq>monthly</changefreq></url></urlset>"
+}
