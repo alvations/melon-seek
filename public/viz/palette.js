@@ -170,6 +170,17 @@ export function isForeign(currency) { return !!currency && currency.toUpperCase(
 /** Whether toUSD knows this currency. */
 export function hasFx(currency) { return FX_TO_USD[(currency || 'USD').toUpperCase()] != null; }
 
+/**
+ * Each country's currency (ISO codes). A browser copy of server/salary.js COUNTRY_CURRENCY;
+ * test/pay-locations.test.js fails if the two drift.
+ */
+export const COUNTRY_CURRENCY = Object.freeze({
+  US: 'USD', CA: 'CAD', GB: 'GBP', UK: 'GBP', CH: 'CHF', JP: 'JPY', KR: 'KRW', IN: 'INR', SG: 'SGD', AU: 'AUD',
+  NZ: 'NZD', IL: 'ILS', AE: 'AED', SA: 'SAR', QA: 'QAR', PL: 'PLN', SE: 'SEK', NO: 'NOK', DK: 'DKK', CZ: 'CZK',
+  HK: 'HKD', TW: 'TWD', CN: 'CNY', BR: 'BRL', MX: 'MXN', ZA: 'ZAR',
+  ...Object.fromEntries('IE DE FR NL ES IT BE AT FI PT LU GR EE LV LT SK SI HR MT CY BG'.split(' ').map((c) => [c, 'EUR'])),
+});
+
 // ---------- sequential salary scale (one hue: rind green, light -> dark) ----------
 
 // DES-1 (design audit wave 1): pay is the app's "rind green" (--ms-accent #0b7a5c, the green

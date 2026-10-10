@@ -748,3 +748,19 @@ screenshots in `docs/screenshots/`.
 - `test/cycle.test.js` checks the links and placeholders, local-data's observation choice, serve.mjs, and sync-shared.sh in a scratch repo.
 - `data/beta/` is now gitignored.
 - Next: run the cycle on beta once the first beta crawl (run 38044091555) is archived.
+
+### Persona review of the main site, 5 age groups × 5 levels (2026-10-10)
+- Request (verbatim): "emulate 5 different levels of 5 diff age groups of human job seeker looking at the site to look for jobs and review to see what we can improve, what is good, what is totally broken and should be fixed ASAP".
+- Five agents, one per age group (18–24, 25–34, 35–44, 45–54, 55 and over), each playing a student, early-career, mid-career, senior and executive seeker in at least 3 countries. 2 or 3 per group used a phone, one a 125% zoom. They used [the persona-review template](prompts/cycle/persona-review.md) on today's real data from the archive.
+- Outcome, tallied from the 5 reports: of 25 people, 6 reached their goal (2 of them only on paper, with a pay figure they could not trust), 9 partly and 10 not. Most of the misses are roles that list no pay outside the US, or no matching role at all.
+- Broken items found by several groups (consolidated as P-1 to P-18 in the fix-lane prompts):
+  - Anthropic sales on-target earnings (base plus commission) are shown and compared as base pay. All 5 groups found it.
+  - Compstimate names a city or level that none of its comparables have (US pay labelled "Sydney" or "London"; an intern estimate built from full-time roles), and prints "within ±8%" next to "low confidence". All 5 groups.
+  - "Mid" is shown as fact for every title that names no level (48%). 4 groups.
+  - Search for "intern" matches International/Internal; the salary box drops "£80,000", "80k" and "A$350k"; Juice and "Most juice" use the posting's best city, not the filtered one.
+  - The map's "San Francisco + 3 nearby" contains New York and DC; US pay is pinned on Sydney.
+  - Victoria, BC is filed under Australia; Compare companies mixes internships with full-time pay; "Same role elsewhere" compares the wrong families and falls back to all levels.
+  - Rent dates contradict each other; "(update due)" is on every footnote.
+- Improvements every group asked for: keep the search and filters when switching company; plain words instead of jargon; saved searches that are easy to find, with a return visit opening where you left off; a one-line explanation on arrival.
+- Good, keep: speed (first cards in about 1 s), the Juice breakdown with households, honest pay labels, "Same role elsewhere" when it matches, Apply and Copy link, the methodology page.
+- Decision (lead): the stored level stays 'Mid' (no data or archive change), and every surface shows it as "Level not stated" (`levelLabel` in public/features/roles.js). Three groups called the label broken, so the open question to the user is answered this way. A pay range applies to the locations in its currency's countries (`payLocations` in public/features/shared.js). Both helpers landed before the fix lanes started.

@@ -175,6 +175,22 @@ export function locationKey(loc) {
   return loc.city || loc.name || null;
 }
 
+/**
+ * The locations a posting's pay applies to: those in a country that uses the pay's currency.
+ * A USD range on a role listed in Costa Mesa, Seattle and Sydney is US pay, so it says nothing
+ * about Sydney (persona review 2026-10-10: a "Sydney median" built from US contractor pay).
+ * Locations without a country (remote) count. When no location uses the currency, or the job
+ * has no pay, every location is returned, since the posting does not say which one is meant.
+ */
+export function payLocations(job) {
+  const locs = job?.locations || [];
+  const cur = String(job?.salary?.currency || '').toUpperCase();
+  if (!cur || !locs.length) return locs;
+  const map = palette.COUNTRY_CURRENCY || {};
+  const hit = locs.filter((l) => !l?.country || map[String(l.country).toUpperCase()] === cur);
+  return hit.length ? hit : locs;
+}
+
 /** Unique location keys for a job (a job listed in SF and NYC counts in both). */
 export function jobLocationKeys(job) {
   const out = new Set();

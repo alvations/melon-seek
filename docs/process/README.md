@@ -49,6 +49,11 @@ interface every agent built against), [../ARCHITECTURE.md](../ARCHITECTURE.md),
 | Methodology copy | [prompts/methodology-copy.md](prompts/methodology-copy.md) | [methodology-copy.md](methodology-copy.md) | `docs/METHODOLOGY_GUIDE.md` |
 | Methodology UX + infographics | [prompts/methodology-ux.md](prompts/methodology-ux.md) | [methodology-ux.md](methodology-ux.md) | `scripts/methodology.js`, `scripts/methodology-figures.js`, `scripts/md.js` |
 | Improvement cycle (playbook) | [prompts/cycle/](prompts/cycle/) (templates) | [PLAYBOOK.md](PLAYBOOK.md) | `scripts/cycle/*`, `.claude/skills/improvement-cycle/`, `test/cycle.test.js` |
+| Persona review 18–24 (main site) | [prompts/persona-stable-18-24.md](prompts/persona-stable-18-24.md) | [persona-stable-18-24.md](persona-stable-18-24.md) | none (review only); screenshots in `docs/screenshots/persona-stable-18-24/` |
+| Persona review 25–34 (main site) | [prompts/persona-stable-25-34.md](prompts/persona-stable-25-34.md) | [persona-stable-25-34.md](persona-stable-25-34.md) | none (review only); screenshots in `docs/screenshots/persona-stable-25-34/` |
+| Persona review 35–44 (main site) | [prompts/persona-stable-35-44.md](prompts/persona-stable-35-44.md) | [persona-stable-35-44.md](persona-stable-35-44.md) | none (review only); screenshots in `docs/screenshots/persona-stable-35-44/` |
+| Persona review 45–54 (main site) | [prompts/persona-stable-45-54.md](prompts/persona-stable-45-54.md) | [persona-stable-45-54.md](persona-stable-45-54.md) | none (review only); screenshots in `docs/screenshots/persona-stable-45-54/` |
+| Persona review 55 and over (main site) | [prompts/persona-stable-55-plus.md](prompts/persona-stable-55-plus.md) | [persona-stable-55-plus.md](persona-stable-55-plus.md) | none (review only); screenshots in `docs/screenshots/persona-stable-55-plus/` |
 | Desktop / mobile QA, mobile perf, fixes | [prompts/qa-desktop.md](prompts/qa-desktop.md), [qa-mobile.md](prompts/qa-mobile.md), [perf-mobile.md](prompts/perf-mobile.md), [fix-frontend.md](prompts/fix-frontend.md) | [qa-desktop.md](qa-desktop.md), [qa-mobile.md](qa-mobile.md), [perf-mobile.md](perf-mobile.md), [fix-frontend.md](fix-frontend.md) | `docs/QA.md`, `test/e2e/*-qa.e2e.js`, `public/unpack-worker.js` |
 
 ## Replaying the build from scratch

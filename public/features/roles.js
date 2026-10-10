@@ -300,6 +300,16 @@ export function familySim(a, b) {
 
 export const SENIORITY_LADDER = Object.freeze(['Intern', 'Entry', 'Mid', 'Senior', 'Staff+', 'Manager', 'Director+']);
 
+/**
+ * "Mid" is never read from a title: server/keywords.js gives it to every title that names no
+ * level (about half of all postings). The stored value stays 'Mid'; job seekers see
+ * "Level not stated" (persona review 2026-10-10: "$500K research roles read Mid").
+ */
+export const LEVEL_NOT_STATED = 'Mid';
+export function levelLabel(level) {
+  return !level || level === LEVEL_NOT_STATED ? 'Level not stated' : level;
+}
+
 /** Seniority guessed from a free-text title (null when the title has no level words). */
 export function inferSeniority(title) {
   const s = expandTitle(title);
