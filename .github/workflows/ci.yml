@@ -112,5 +112,9 @@ jobs:
         continue-on-error: true
         run: node scripts/external-links.js --docs --summary "$GITHUB_STEP_SUMMARY"
 
-      - name: Site pages (required)
+      # Advisory here: CI starts on the same push as the Pages deploy, so it races it and can
+      # catch the old site, or the branch build's holding page (repo-root index.html), mid-deploy.
+      # The hard live-site gate is pages.yml's post-deploy check (check-site.sh) after the deploy.
+      - name: Site pages (advisory; pages.yml's post-deploy check is the gate)
+        continue-on-error: true
         run: node scripts/external-links.js --site --summary "$GITHUB_STEP_SUMMARY"

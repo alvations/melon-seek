@@ -624,3 +624,18 @@ screenshots in `docs/screenshots/`.
     - `archive.yml` ingests on `workflow_run`;
     - `scripts/archive/verify.js` checks integrity;
     - `scripts/archive/report.js` writes the monthly and annual reviews.
+
+### Pages: the README must never be served again (2026-10-10)
+- **User:** "Why is the https://alvations.github.io/melon-seek/ going to the github readme again?! Check the branches properly!" / "Never let that happen again!"
+- **Finding.**
+  - The repo has one branch, `claude/stoic-ride-54ddxp`, which is the default. Settings → Pages → Source is still "Deploy from a branch" (root).
+  - So every push runs GitHub's "pages build and deployment", which published README.md, alongside our pages.yml.
+  - pages.yml waited for that build and deployed the app last. That only shortened the window: from the branch deploy (about 40 s after a push) until the app deploy (about 1–2 min) the README was live.
+  - Today's frequent probe pushes by agents made the window recur. CI's live-site link check at 07:59:32 caught it: methodology, OG and share pages were 404.
+- **Fix, no settings change.**
+  - A repo-root `index.html` + `404.html` holding page ("melon·seek is updating", meta refresh 10 s, noindex, no scripts or links). GitHub's branch build can now only publish that page, never the README. Deep links also reload until the app lands.
+  - `check-site.sh` reports it as `result=holding`, so the existing post-deploy re-deploy path handles it.
+  - Guarded by `test/pages-holding.test.js`.
+  - CI's live-site link step is now advisory, because it races the deploy. The hard gate is pages.yml's post-deploy check.
+- **Process.** All agents were told to stop pushing; the lead batches pushes, so there are fewer branch builds.
+- **Permanent fix:** set Source to "GitHub Actions". Branch builds then stop entirely. It needs a repo admin, so it was offered to the user.
