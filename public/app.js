@@ -3,15 +3,16 @@
 // list, the job drawer and the company switcher. Rendering of the salary
 // chart and the map is delegated to ./viz/* (see docs/CONTRACT.md).
 
-import { colorFor, formatMoney, resetColors, assignColors, otherColor, toUSD, SLOT_COUNT } from './viz/palette.js';
+import { colorFor, formatMoney, resetColors, assignColors, otherColor, toUSD, SLOT_COUNT, hasFx, juiceNetForScore, JUICE_BREAKS } from './viz/palette.js';
 import { createChart, keyOf, VIEWS, DEFAULT_VIEW } from './viz/chart.js';
 import { createMap } from './viz/map.js';
 import * as api from './api.js';
-import { createCompstimateWidget, compstimateForJob, accuracyLine, isLowAccuracy, displayConfidence, basisLine, MIN_COMPARABLES } from './features/compstimate.js';
+import { createCompstimateWidget, compstimateForJob, accuracyLine, displayConfidence, basisLine, MIN_COMPARABLES } from './features/compstimate.js';
 import { compsForJob, createCompsCard } from './features/comps.js';
 import { loadFreshness, freshnessDoc, juiceAsOfText, juiceSpanText, marketAsOfText, compstimateAsOfText } from './features/freshness.js';
 import { createCompsChart } from './viz/comps.js';
-import { roleFamily, FAMILY_LABELS, readableTitle } from './features/roles.js';
+import { roleFamily, FAMILY_LABELS, readableTitle, levelLabel } from './features/roles.js';
+import { payLocations } from './features/shared.js';
 // ./features/insights.js is imported on first use (Insights mode), see renderInsights.
 // api.js: getCompanies, getJobs, getJobDetail (namespace import: tolerate a missing optional export)
 
@@ -66,7 +67,23 @@ const FAMILY_LABEL = {
   marketing: 'Marketing', support: 'Support', legal: 'Legal & policy', people: 'People & recruiting', finance: 'Finance',
   ...FAMILY_LABELS, // product's taxonomy (features/roles.js) wins
 };
+// The level ladder (kept identical to roles.js SENIORITY_LADDER and chart.js; scripts/refresh/jobs.js checks).
 const SENIORITY_ORDER = ['Intern', 'Entry', 'Mid', 'Senior', 'Staff+', 'Manager', 'Director+', 'Unspecified'];
+// P-3: the stored default 'Mid' is shown as "Level not stated" (levelLabel), and goes last in level lists.
+const SENIORITY_SHOWN = [...SENIORITY_ORDER.filter((k) => k !== 'Mid' && k !== 'Unspecified'), 'Mid', 'Unspecified'];
+const senLabel = (k) => (k === 'Unspecified' ? 'Level not stated' : levelLabel(k));
+const SEN_TIP = {
+  'Staff+': 'Staff, principal or distinguished level',
+  'Director+': 'Director, head of, vice president or chief',
+  Mid: 'The posting’s title names no level',
+  Unspecified: 'The posting’s title names no level',
+};
+const SEN_NOTE = 'Staff+ means staff, principal and above. Director+ means director, head of, vice president and above. “Level not stated”: the title names no level.';
+const SEN_OPTS = { labelOf: senLabel, tipOf: (k) => SEN_TIP[k] || null, note: SEN_NOTE };
+/** I-6: what a city pick finds. */
+const LOC_NOTE = 'A city also finds roles that list only its country or region, and remote-only roles in its country.';
+/** Employment types in plain words (I-3): "International EOR" -> "International (employer of record)". */
+const empLabel = (k) => (k === 'Unspecified' ? 'Not stated' : String(k).replace(/\s*\bEOR\b/g, ' (employer of record)').trim());
 // Hosts users may be sent to (mirrors ALLOWED_HOSTS in scripts/links-policy.js): ATS job pages, map attribution.
 const LINK_HOSTS = new Set(['job-boards.greenhouse.io', 'boards.greenhouse.io', 'jobs.ashbyhq.com', 'jobs.lever.co', 'www.openstreetmap.org', 'openstreetmap.org']);
 const SOURCE_LABEL = { greenhouse: 'Greenhouse', ashby: 'Ashby', lever: 'Lever' };
@@ -102,14 +119,49 @@ function money(n, currency = 'USD') {
 function salaryRange(s) {
   if (!s) return null;
   if (s.min === s.max || s.max == null) return money(s.min, s.currency);
-  return `${money(s.min, s.currency)}–${money(s.max, s.currency).replace(/^[^\d]+/, '')}`;
+  return moneyRange(s.min, s.max, s.currency);
 }
+const PER_UNIT = { hour: 'hour', day: 'day', week: 'week', month: 'month' };
+/** P-8: fixed-term pay (salary.termWeeks) keeps the posted interval: { amount: "$3,850", per: "week" }, or null. */
+function postedTerm(s) {
+  if (!s || !(s.termWeeks > 0)) return null;
+  const unit = PER_UNIT[s.originalInterval] || null;
+  const f = { hour: 2080, day: 260, week: 52, month: 12 }[unit] || 1;
+  const lo = s.min / f, hi = s.max / f;
+  const a = postedMoney(lo, s.currency), b = postedMoney(hi, s.currency);
+  return { amount: a === b ? a : `${a}–${b.replace(/^[^\d]+/, '')}`, per: unit, weeks: Math.round(s.termWeeks) };
+}
+/** "about 17 weeks" (P-8). */
+const termText = (weeks) => `about ${plural(weeks, 'week')}`;
+/** P-1: on-target earnings (base plus commission at target; salary.kind from server/salary.js). */
+const isOte = (j) => j?.salary?.kind === 'ote';
+/** P-8: pay for a fixed term (a fellowship or internship length), never a yearly salary. */
+const isTerm = (j) => j?.salary?.termWeeks > 0;
+const OTE_LABEL = 'On-target earnings (base plus commission at target)';
 
-/** "$137K"–"$338K" -> "$137–338K" when units match. */
+/** "$137K"–"$338K" -> "$137–338K" when units match; one figure when both ends show the same ("$44K", never "$44K–44K"). */
 function compactRange(a, b) {
   const x = money(a), y = money(b);
+  if (x === y) return x;
   const ux = x.slice(-1), uy = y.slice(-1);
   return ux === uy && /[KM]/.test(ux) ? `${x.slice(0, -1)}–${y.replace(/^[^\d]+/, '')}` : `${x}–${y.replace(/^[^\d]+/, '')}`;
+}
+/** "$59K–64K", or "$59K" when both ends round to the same figure (P-16). */
+function moneyRange(a, b, currency = 'USD') {
+  const x = money(a, currency), y = money(b, currency);
+  return x === y ? x : `${x}–${y.replace(/^[^\d]+/, '')}`;
+}
+/** Exact posted amount with thousands separators: 3850 -> "$3,850", 35.6 -> "$35.60" (P-8). */
+function postedMoney(n, currency = 'USD') {
+  if (n == null || !isFinite(n)) return '—';
+  const sym = !currency || currency === 'USD' ? '$' : CUR_SYM[currency] ?? `${currency} `;
+  const whole = Math.abs(n - Math.round(n)) < 0.005;
+  return sym + Math.abs(n).toLocaleString('en-US', whole ? { maximumFractionDigits: 0 } : { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+/** Juice amounts to the nearest `step` dollars with separators: (5432, 10) -> "$5,430" (P-18). */
+function stepMoney(n, step) {
+  const v = Math.round(Math.abs(n) / step) * step;
+  return `${n < 0 && v ? '−' : ''}$${v.toLocaleString('en-US')}`;
 }
 
 function quantile(sorted, q) {
@@ -145,13 +197,13 @@ function rafThrottle(fn) {
 }
 
 let toastTimer = 0;
-function toast(msg) {
+function toast(msg, ms = 2400) {
   const el = $('#toast');
   el.textContent = msg;
   el.hidden = false;
   el.classList.add('is-on');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.classList.remove('is-on'); setTimeout(() => (el.hidden = true), 200); }, 2400);
+  toastTimer = setTimeout(() => { el.classList.remove('is-on'); setTimeout(() => (el.hidden = true), 200); }, ms);
 }
 
 /* --------------------------------------------------------------- storage */
@@ -187,7 +239,7 @@ const ARRAYS = ['d', 'l', 's', 'e', 'kr', 'kf', 'ks', 'jg'];
 const DEFAULTS = {
   c: '', cn: '', m: 'chart', q: '', smin: null, smax: null, so: false,
   d: [], l: [], s: [], e: [], r: 'any', p: 0, ho: false, rf: '', kr: [], kf: [], ks: [], jg: [],
-  v: DEFAULT_VIEW, g: 'department', sort: 'salary-desc', mc: 'pay', job: null,
+  v: DEFAULT_VIEW, g: 'department', sort: 'best', mc: 'pay', job: null,
 };
 const FILTER_KEYS = ['q', 'smin', 'smax', 'so', 'd', 'l', 's', 'e', 'r', 'p', 'ho', 'rf', 'kr', 'kf', 'ks', 'jg'];
 const ORDER = ['c', 'cn', 'm', 'q', 'smin', 'smax', 'so', 'd', 'l', 's', 'e', 'r', 'p', 'ho', 'rf', 'kr', 'kf', 'ks', 'jg', 'v', 'g', 'sort', 'mc', 'job'];
@@ -223,7 +275,9 @@ function parseHash(hash = location.hash) {
 
 /** Clusters need a grouping (department); ranges read best ungrouped. */
 const groupDefault = (view) => (view === 'ranges' ? 'none' : 'department');
-const SORTS = ['salary-desc', 'salary-asc', 'newest', 'title', 'juice'];
+/* P-4: 'best' (Best match) is the default. With a search it lists title and team matches first, each
+   group by highest pay; without one it is Highest pay. Any sort the person picks is strict. */
+const SORTS = ['best', 'salary-desc', 'salary-asc', 'newest', 'title', 'juice'];
 /* D-11: "Newest" needs listing dates; with none loaded (every snapshot board today) it is hidden and
    a newest link sorts like the default, as the "Listed" filter hides itself. */
 let agesFor = null, agesKnown = false;
@@ -231,7 +285,11 @@ function hasListingDates() {
   if (agesFor !== data.jobs) { agesFor = data.jobs; agesKnown = data.jobs.some((j) => j._age != null); }
   return agesKnown;
 }
-const effectiveSort = () => (S.sort === 'newest' && data.status === 'ready' && !hasListingDates() ? DEFAULTS.sort : S.sort);
+const hasQuery = (st = S) => !!String(st.q || '').trim();
+function effectiveSort() {
+  const s = S.sort === 'newest' && data.status === 'ready' && !hasListingDates() ? DEFAULTS.sort : S.sort;
+  return s === 'best' && !hasQuery() ? 'salary-desc' : s;
+}
 
 function serialize(st = S) {
   const p = new URLSearchParams();
@@ -361,8 +419,30 @@ function disambiguateLocations(jobs) {
   }
 }
 const deptKey = (j) => keyOf(j, 'department'); // same keys the chart colors by
-/** Juice filter key: the best location's grade ("Rind" files under Dry), or null without juice. */
-const gradeKey = (j) => (j.juice ? (j.juice.best.grade === 'Rind' ? 'Dry' : j.juice.best.grade) : null);
+/** Juice filter key for a juice entry: its grade ("Rind" files under Dry), or null without one. */
+const gradeOf = (e) => (e ? (e.grade === 'Rind' ? 'Dry' : e.grade) : null);
+/** Juice filter key: the best location's grade, or null without juice. */
+const gradeKey = (j) => gradeOf(j.juice?.best);
+/**
+ * P-7: the Juice entry to show for a job. With a Location filter it is the best of the places the
+ * person picked (null when the posting has no Juice there); otherwise the posting's best place.
+ */
+function shownJuice(j, F = viewSpec) {
+  const jb = j?.juice;
+  if (!jb?.best) return null;
+  if (!F || !F.l.size) return jb.best;
+  if (j._jsFor === F) return j._js;
+  let best = null;
+  for (const e of jb.byLocation || []) {
+    const i = j.locations.findIndex((l) => l && l.name === e.locationName);
+    if (i < 0 || !(F.l.has(j._locKeys[i]) || (j._locAlt && F.l.has(j._locAlt[i])))) continue;
+    if (!best || e.score > best.score || (e.score === best.score && e.net > best.net)) best = e;
+  }
+  if (best && best.city === jb.best.city && best.locationName === jb.best.locationName) best = jb.best; // keeps its inputs
+  j._jsFor = F; j._js = best;
+  return best;
+}
+let viewSpec = null; // the filter spec of the last render (cards, sort and the drawer read Juice through it)
 const empKey = (j) => j.employmentType || 'Unspecified';
 
 function prepare(jobs, { source = null } = {}) {
@@ -408,11 +488,99 @@ function prepare(jobs, { source = null } = {}) {
   return jobs;
 }
 
-function filterSpec(st = S) {
+/* P-4: search words match whole words (with plural and -ing/-er/-ship endings), so "intern" finds
+   Intern, Interns and Internship but not International or Internal. A word that the board never uses
+   on its own (a half-typed "softw") still matches word starts. Words with symbols ("co-op", "c++")
+   match where they start. */
+const WORD_ENDINGS = ['s', 'es', 'ed', 'er', 'ers', 'ing', 'ings', 'ship', 'ships', 'ment', 'ments'];
+const ENDINGS_RE = `(?:${WORD_ENDINGS.join('|')})?`;
+const ALWAYS_WORDS = new Set(['intern', 'entry', 'junior', 'senior', 'staff', 'lead', 'head', 'principal', 'director', 'manager']);
+const WORD_SPLIT = /[^\p{L}\p{N}]+/u;
+const reEsc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const vocabs = new WeakMap(); // jobs array -> Set of the words its roles use
+function vocabOf(jobs) {
+  let v = vocabs.get(jobs);
+  if (!v) {
+    v = new Set();
+    for (const j of jobs) for (const w of String(j._hay || '').split(WORD_SPLIT)) if (w) v.add(w);
+    vocabs.set(jobs, v);
+  }
+  return v;
+}
+/** One RegExp per search word (lowercase), for the board `jobs`. */
+function queryMatchers(q, jobs = data.jobs) {
+  const words = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  const vocab = vocabOf(jobs);
+  return words.map((t) => {
+    const start = '(?:^|[^\\p{L}\\p{N}])';
+    if (WORD_SPLIT.test(t)) return new RegExp(start + reEsc(t), 'u');
+    const whole = ALWAYS_WORDS.has(t) || vocab.has(t) || WORD_ENDINGS.some((e) => vocab.has(t + e));
+    return new RegExp(start + reEsc(t) + (whole ? `${ENDINGS_RE}(?![\\p{L}\\p{N}])` : ''), 'u');
+  });
+}
+
+/* I-6: a city pick also catches postings that list only its country or region ("United Kingdom",
+   "Ontario, Canada") or remote work in that country ("Remote (Canada)"): the role can be done there.
+   placeIndex maps each city key on the board to its country and region. */
+const placeIndexes = new WeakMap();
+function placeIndex(jobs = data.jobs) {
+  let ix = placeIndexes.get(jobs);
+  if (!ix) {
+    ix = new Map();
+    for (const j of jobs) {
+      j.locations.forEach((l, i) => {
+        if (!l || l.remote || !l.city || !l.country) return;
+        for (const k of [j._locKeys?.[i], j._locAlt?.[i]]) if (k && !ix.has(k)) ix.set(k, { country: String(l.country).toUpperCase(), region: l.region ? String(l.region).toUpperCase() : '' });
+      });
+    }
+    placeIndexes.set(jobs, ix);
+  }
+  return ix;
+}
+/** The countries and regions a set of picked location keys covers (city picks only). */
+function placeCover(keys, jobs = data.jobs) {
+  const ix = placeIndex(jobs);
+  const countries = new Set(), regions = new Set();
+  for (const k of keys) {
+    const p = ix.get(k);
+    if (!p) continue;
+    countries.add(p.country);
+    if (p.region) regions.add(`${p.country}|${p.region}`);
+  }
+  return { countries, regions };
+}
+/** A location with no city ("United Kingdom", "Ontario, Canada", "Remote (Canada)") inside the cover. */
+function coveredBy(l, cover) {
+  // Remote work in a country counts only for a remote-only posting: "San Francisco | Remote (US)" is
+  // an SF role first, and counting it for every US city would read as "Austin 55" for 3 Austin roles.
+  if (!l || l.city || !l.country || !cover?.countries.size) return false;
+  const c = String(l.country).toUpperCase();
+  if (!cover.countries.has(c)) return false;
+  if (l.remote) return true;
+  return !l.region || cover.regions.has(`${c}|${String(l.region).toUpperCase()}`);
+}
+/** A job location that may stand in for its cities (I-6): no city, and remote only on a remote-only posting. */
+const coverLoc = (j, l) => !!l && !l.city && !!l.country && (!l.remote || !j.locations.some((x) => x && !x.remote && x.city));
+/** True if one of `locs` (default: all of the job's locations) matches the Location filter. */
+function locMatches(j, F, locs = null) {
+  if (!F.l.size) return true;
+  const list = locs || j.locations;
+  for (const l of list) {
+    const i = j.locations.indexOf(l);
+    if (i < 0) continue;
+    if (F.l.has(j._locKeys[i]) || (j._locAlt && F.l.has(j._locAlt[i]))) return true;
+    if (coverLoc(j, l) && coveredBy(l, F.lCover)) return true;
+  }
+  return false;
+}
+
+function filterSpec(st = S, jobs = data.jobs) {
+  const l = new Set(st.l);
   return {
-    q: st.q.toLowerCase().split(/\s+/).filter(Boolean),
+    q: queryMatchers(st.q, jobs),
     smin: st.smin, smax: st.smax, so: st.so,
-    d: new Set(st.d), l: new Set(st.l), s: new Set(st.s), e: new Set(st.e),
+    d: new Set(st.d), l, lCover: l.size ? placeCover(l, jobs) : null, s: new Set(st.s), e: new Set(st.e),
     r: st.r, p: st.p, ho: st.ho, rf: st.rf,
     kw: { responsibilities: st.kr, fit: st.kf, skills: st.ks },
     jg: new Set(st.jg),
@@ -422,18 +590,18 @@ function filterSpec(st = S) {
 /** Returns the list of facet names this job fails (empty = passes all). */
 function failures(j, F, now) {
   const out = [];
-  if (F.q.length && !F.q.every((t) => j._hay.includes(t))) out.push('q');
+  if (F.q.length && !F.q.every((re) => re.test(j._hay))) out.push('q');
   const salActive = F.so || F.smin != null || F.smax != null;
   if (salActive && (!j._usd || (F.smin != null && j._usd.max < F.smin) || (F.smax != null && j._usd.min > F.smax))) out.push('sal');
   if (F.d.size && !F.d.has(deptKey(j))) out.push('d');
-  if (F.l.size && !j._locKeys.some((k) => F.l.has(k)) && !j._locAlt?.some((k) => F.l.has(k))) out.push('l');
+  if (F.l.size && !locMatches(j, F)) out.push('l');
   if (F.s.size && !F.s.has(j.seniority || 'Unspecified')) out.push('s');
   if (F.e.size && !F.e.has(empKey(j))) out.push('e');
   if (F.r === 'remote' && !j.remote) out.push('r');
   if (F.r === 'onsite' && !j.locations.some((l) => !l.remote)) out.push('r');
   if ((F.p && !(j._age != null && j._age <= F.p)) || (F.ho && j._age != null && j._age >= 180)) out.push('p');
   if (F.rf && j._family !== F.rf) out.push('rf');
-  if (F.jg.size && !(j._grade && F.jg.has(j._grade))) out.push('jg');
+  if (F.jg.size) { const g = gradeOf(shownJuice(j, F)); if (!(g && F.jg.has(g))) out.push('jg'); }
   for (const cat of ['responsibilities', 'fit', 'skills']) {
     const sel = F.kw[cat];
     if (sel.length && !sel.every((k) => j.keywords[cat].includes(k))) { out.push('kw'); break; }
@@ -452,13 +620,19 @@ function derive() {
   const now = Date.now();
   const filtered = [];
   const bump = (m, k) => m.set(k, (m.get(k) || 0) + 1);
+  viewSpec = F;
   const fc = { d: new Map(), l: new Map(), lGroup: new Map(), s: new Map(), e: new Map(), r: { any: 0, remote: 0, onsite: 0 },
-    p: { 0: 0, 7: 0, 30: 0, 90: 0 }, jg: new Map(), kw: { responsibilities: new Map(), fit: new Map(), skills: new Map() }, salMids: [] };
+    p: { 0: 0, 7: 0, 30: 0, 90: 0 }, jg: new Map(), kw: { responsibilities: new Map(), fit: new Map(), skills: new Map() }, salMids: [],
+    noPayHidden: 0, only: {} };
+  const covers = coverIndex(jobs);
+  const covered = new Map(); // city key -> postings that list only its country or region
   for (const j of jobs) {
     const fails = failures(j, F, now);
     if (fails.length > 1) continue;
     const only = fails[0];
     if (!only) filtered.push(j); // the chart/map draw the whole filtered set; a cluster/map area narrows the list in render()
+    else fc.only[only] = (fc.only[only] || 0) + 1; // P-16: what an empty result is blocked by
+    if (only === 'sal' && !j._usd) fc.noPayHidden++; // P-5: postings with no pay that the pay filter hides
     // D-2: with a cluster or map area active, the facet counts describe the roles in that area (the list).
     if (area && !area.ids.has(j.id)) continue;
     const counts = (facet) => !only || only === facet;
@@ -467,12 +641,20 @@ function derive() {
     }
     if (counts('d')) bump(fc.d, deptKey(j));
     if (counts('l')) {
+      const seen = new Set();
       for (let i = 0; i < j.locations.length; i++) {
         const k = j._locKeys[i];
-        if (j._locKeys.indexOf(k) !== i) continue;
+        if (seen.has(k)) continue;
+        seen.add(k);
         bump(fc.l, k);
         const l = j.locations[i];
         if (!fc.lGroup.has(k)) fc.lGroup.set(k, l.remote ? '~remote' : l.country || 'ZZ');
+      }
+      // I-6: a posting that lists only a country or region counts for its cities too (as picking one
+      // finds it); added below to the cities that other roles list, so it adds no new places.
+      for (const l of j.locations) {
+        if (!coverLoc(j, l)) continue;
+        for (const k of covers(l)) if (!seen.has(k)) { seen.add(k); bump(covered, k); }
       }
     }
     if (counts('s')) bump(fc.s, j.seniority || 'Unspecified');
@@ -488,9 +670,31 @@ function derive() {
       if (j._age != null && j._age >= 180) fc.p.old = (fc.p.old || 0) + 1;
     }
     if (counts('sal') && j._usd) fc.salMids.push(j._mid);
-    if (counts('jg') && j._grade) bump(fc.jg, j._grade);
+    if (counts('jg')) { const g = gradeOf(shownJuice(j, F)); if (g) bump(fc.jg, g); }
   }
+  for (const [k, n] of covered) if (fc.l.has(k)) fc.l.set(k, fc.l.get(k) + n);
   return { filtered, fc };
+}
+
+/** I-6: (country-or-region location) -> the board's city keys it covers, cached per board. */
+const coverIndexes = new WeakMap();
+function coverIndex(jobs) {
+  let fn = coverIndexes.get(jobs);
+  if (!fn) {
+    const memo = new Map();
+    fn = (l) => {
+      const id = `${l.remote ? 'r' : ''}|${l.country}|${l.remote ? '' : l.region || ''}`;
+      let keys = memo.get(id);
+      if (!keys) {
+        keys = [];
+        for (const [k, p] of placeIndex(jobs)) if (coveredBy(l, { countries: new Set([p.country]), regions: new Set(p.region ? [`${p.country}|${p.region}`] : []) })) keys.push(k);
+        memo.set(id, keys);
+      }
+      return keys;
+    };
+    coverIndexes.set(jobs, fn);
+  }
+  return fn;
 }
 
 function salaryDomain() {
@@ -514,35 +718,61 @@ function salaryDomain() {
 function sortJobs(list) {
   const out = list.slice();
   const nullsLast = (a, b, f) => (a == null || b == null ? (a == null) - (b == null) : f());
-  switch (effectiveSort()) {
+  const eff = effectiveSort();
+  switch (eff) {
     case 'salary-asc': out.sort((a, b) => nullsLast(a._usd, b._usd, () => a._usd.mid - b._usd.mid || a.title.localeCompare(b.title))); break;
     case 'newest': out.sort((a, b) => nullsLast(a._age, b._age, () => a._age - b._age || a.title.localeCompare(b.title))); break;
     case 'title': out.sort((a, b) => a.title.localeCompare(b.title)); break;
-    case 'juice': out.sort((a, b) => nullsLast(a.juice, b.juice, () => b.juice.best.score - a.juice.best.score || b.juice.best.net - a.juice.best.net || a.title.localeCompare(b.title))); break;
+    case 'juice': {
+      // P-7: with a Location filter, a role's Juice is its best among the places picked.
+      const jv = new Map(out.map((j) => [j, shownJuice(j)]));
+      out.sort((a, b) => { const x = jv.get(a), y = jv.get(b); return nullsLast(x, y, () => y.score - x.score || y.net - x.net || a.title.localeCompare(b.title)); });
+      break;
+    }
     default: out.sort((a, b) => nullsLast(a._usd, b._usd, () => b._usd.mid - a._usd.mid || b._usd.max - a._usd.max || a.title.localeCompare(b.title)));
   }
-  // UX-2: with a search, roles whose title or team match come before keyword-tag-only matches.
-  const tokens = S.q.toLowerCase().split(/\s+/).filter(Boolean);
-  if (tokens.length) {
+  // P-4: only "Best match" (the default while searching) lists title and team matches first;
+  // any sort the person picks is strict.
+  if (eff === 'best') {
+    const m = queryMatchers(S.q);
     const strong = [], weak = [];
-    for (const j of out) (titleMatch(j, tokens) ? strong : weak).push(j);
-    return strong.concat(weak);
+    for (const j of out) (titleMatch(j, m) ? strong : weak).push(j);
+    out.splice(0, out.length, ...strong, ...weak);
+  }
+  // P-12: a saved search opened with new roles lists them first while the sort is the default.
+  if (S.sort === 'best' && savedView?.slug === S.c && savedView.ids.size) {
+    const fresh = [], rest = [];
+    for (const j of out) (savedView.ids.has(j.id) ? fresh : rest).push(j);
+    if (fresh.length) return fresh.concat(rest);
   }
   return out;
 }
-function titleMatch(j, tokens) {
+/** True when every search word is in the title or team (`m`: queryMatchers). */
+function titleMatch(j, m) {
   const t = `${j.title} ${j.team || ''}`.toLowerCase();
-  return tokens.every((x) => t.includes(x));
+  return m.every((re) => re.test(t));
 }
 
-function stats(list) {
-  const mids = list.filter((j) => j._usd).map((j) => j._mid).sort((a, b) => a - b);
+/**
+ * Stats line figures. P-6: with a Location filter, a posting's pay counts only when it applies to a
+ * picked place (payLocations: a US range listed in Seattle and Sydney says nothing about Sydney).
+ * P-1: on-target earnings are never pooled with base pay (they count only when nothing else is left).
+ */
+function stats(list, F = viewSpec) {
+  const base = [], ote = [];
+  for (const j of list) {
+    if (!j._usd) continue;
+    if (F?.l.size && !locMatches(j, F, payLocations(j))) continue;
+    (isOte(j) ? ote : base).push(j._mid);
+  }
+  const mids = (base.length ? base : ote).sort((a, b) => a - b);
   const depts = new Map();
   for (const j of list) depts.set(deptKey(j), (depts.get(deptKey(j)) || 0) + 1);
   const top = [...depts].sort((a, b) => b[1] - a[1])[0] || null;
   return {
-    n: list.length, withSalary: mids.length,
+    n: list.length, withSalary: base.length + ote.length,
     median: quantile(mids, 0.5), p25: quantile(mids, 0.25), p75: quantile(mids, 0.75), top,
+    oteOnly: !base.length && ote.length > 0, oteLeftOut: base.length ? ote.length : 0,
   };
 }
 
@@ -561,6 +791,7 @@ async function loadJobs({ refresh = false } = {}) {
   hoverId = null;
   resetColors();
   mapFitPending = true;
+  if (savedView && savedView.slug !== S.c) savedView = null; // P-12: a saved search's New marks stay with its company
   data = { status: 'loading', jobs: [], company: companyInfo(S.c), mode: null, fetchedAt: null, error: null };
   render();
   // Static mode shows the bundled list as soon as it lands, marked `pending` while the live board
@@ -579,7 +810,9 @@ async function loadJobs({ refresh = false } = {}) {
     data = { status: 'error', jobs: [], company: companyInfo(S.c), mode: null, fetchedAt: null, error: err?.message || String(err) };
   }
   settleCarry();
+  settleKeep();
   render();
+  settleSaved();
   if (S.job) openDrawer(S.job, { fromHash: true });
   onScreen();
 }
@@ -701,6 +934,7 @@ function render() {
   renderResults();
   syncPopover();
   if (drawerJobId && data.status === 'ready') renderDrawerNav();
+  rememberView();
   scheduleViz(); // PERF-2: paint cards and stats first, the chart/map when idle
   // Off the startup path but ready before a tap: Insights' module and Leaflet load when the page is idle.
   if (data.status === 'ready' && !idlePrefetched) {
@@ -740,10 +974,10 @@ function renderTopbar() {
     menuBtn.dataset.sig = sig;
     menuBtn.replaceChildren(...nn(h('span', { class: 'dot', style: `--dot:${companyColor(active)}` }), h('span', { class: 'company-name' }, active?.name || 'Choose company'),
       data.status === 'ready' ? h('span', { class: 'company-count' }, data.jobs.length) : null, h('span', { class: 'chip-caret', html: ICON.chevron })));
-    menuBtn.setAttribute('aria-label', `Company: ${active?.name || 'none'}. Choose another company or add a board`);
+    menuBtn.setAttribute('aria-label', `Company: ${active?.name || 'none'}. Choose another company or open a saved search`);
     const recent = recents.filter((slug) => slug !== S.c).map((slug) => all.find((c) => c.slug === slug)).filter(Boolean).slice(0, 3);
     $('#companyPills').replaceChildren(...recent.map((c) => h('button', {
-      type: 'button', class: 'company-pill', title: `${c.name} · ${SOURCE_LABEL[c.source] || c.source || ''} / ${c.board}`,
+      type: 'button', class: 'company-pill', title: `Switch to ${c.name}, keeping your search and filters`,
       onclick: () => switchCompany(c),
     }, h('span', { class: 'dot', style: `--dot:${companyColor(c)}` }), h('span', { class: 'company-name' }, c.name))));
   }
@@ -888,9 +1122,51 @@ function allCompanies() {
   return all;
 }
 
+/** I-1: switching company keeps the search, the pay bounds and every filter that exists there (settleKeep). */
 function switchCompany(c) {
   if (!c || c.slug === S.c) return;
-  set({ c: c.slug, cn: c.custom ? c.name : '', job: null, ...resetFiltersPatch() });
+  pendingKeep = activeFilterCount() ? { name: c.name } : null;
+  set({ c: c.slug, cn: c.custom ? c.name : '', job: null });
+}
+let pendingKeep = null;
+/** After a company switch loads: drop the filter values the new board doesn't have, and say what was kept and dropped. */
+function settleKeep() {
+  const k = pendingKeep;
+  pendingKeep = null;
+  if (!k || data.status !== 'ready') return;
+  const jobs = data.jobs;
+  const kept = [], dropped = [];
+  if (S.q) kept.push(`“${S.q}”`);
+  if (S.smin != null || S.smax != null || S.so) kept.push(quickLabel('salary'));
+  const keepArr = (key, exists, label = (x) => x) => {
+    if (!S[key].length) return;
+    const yes = S[key].filter(exists), no = S[key].filter((x) => !exists(x));
+    kept.push(...yes.map(label));
+    dropped.push(...no.map(label));
+    S[key] = yes;
+  };
+  const any = (fn) => (x) => jobs.some((j) => fn(j, x));
+  keepArr('d', any((j, x) => deptKey(j) === x));
+  keepArr('l', (x) => { const F = { l: new Set([x]), lCover: placeCover([x], jobs) }; return jobs.some((j) => locMatches(j, F)); });
+  keepArr('s', any((j, x) => (j.seniority || 'Unspecified') === x), senLabel);
+  keepArr('e', any((j, x) => empKey(j) === x), empLabel);
+  for (const { key, cat } of KW_CATS) keepArr(key, any((j, x) => j.keywords[cat].includes(x)));
+  keepArr('jg', any((j, x) => gradeKey(j) === x), (x) => `Juice: ${x}`);
+  if (S.rf) {
+    const label = FAMILY_LABEL[S.rf] || S.rf;
+    if (jobs.some((j) => j._family === S.rf)) kept.push(label); else { dropped.push(label); S.rf = ''; }
+  }
+  if (S.r !== 'any') {
+    const label = S.r === 'remote' ? 'Remote' : 'On-site';
+    if (jobs.some((j) => (S.r === 'remote' ? j.remote : j.locations.some((l) => !l.remote)))) kept.push(label); else { dropped.push(label); S.r = 'any'; }
+  }
+  if (S.p || S.ho) {
+    if (hasListingDates()) kept.push('listing date'); else { dropped.push('listing date'); S.p = 0; S.ho = false; }
+  }
+  commit({ replace: true });
+  const list = (a) => (a.length > 3 ? `${a.slice(0, 3).join(', ')} +${a.length - 3}` : a.join(', '));
+  if (dropped.length) toast(`${kept.length ? `Kept ${list(kept)} · d` : 'D'}ropped ${list(dropped)} (not at ${k.name})`, 4500);
+  else if (kept.length) toast(`Kept ${list(kept)}`, 3000);
 }
 
 const RECENT_KEY = 'melon-seek.recent.v1';
@@ -900,12 +1176,12 @@ function rememberCompany(slug) {
   try { localStorage.setItem(RECENT_KEY, JSON.stringify(recents)); } catch { /* ignore */ }
 }
 
-/** Searchable company list grouped by ATS, plus the user's boards and "Add a board". */
+/** I-3/I-4: saved searches first, then the companies by name (no job-board system headings or slugs), the user's boards, and "Add a board". */
 function makeCompanyMenu() {
   const input = h('input', { type: 'search', class: 'fsearch', placeholder: 'Search companies…', 'aria-label': 'Search companies', autocomplete: 'off' });
   const list = h('div', { class: 'company-list' });
-  const add = h('button', { type: 'button', class: 'btn btn--ghost btn--sm btn--block', onclick: () => togglePopover('board', $('#addBoardBtn')) },
-    h('span', { html: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>' }), 'Add a board…');
+  const add = h('button', { type: 'button', class: 'btn btn--ghost btn--sm btn--block', title: 'Add another company’s job board (Greenhouse, Ashby or Lever)', onclick: () => togglePopover('board', $('#addBoardBtn')) },
+    h('span', { html: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>' }), 'Add another company’s board…');
   const el = h('div', { class: 'company-menu' }, h('div', { class: 'fsearch-wrap' }, h('span', { html: ICON.search }), input), list, add);
   input.addEventListener('input', sync);
   input.addEventListener('keydown', (e) => { if (e.key === 'ArrowDown') { e.preventDefault(); list.querySelector('button')?.focus(); } if (e.key === 'Enter') { e.preventDefault(); list.querySelector('button')?.click(); } });
@@ -919,9 +1195,8 @@ function makeCompanyMenu() {
     const q = input.value.trim().toLowerCase();
     const all = allCompanies().filter((c) => !q || `${c.name} ${c.board} ${c.source}`.toLowerCase().includes(q));
     const groups = [
+      ['Companies', all.filter((c) => !c.custom)],
       ['Your boards', all.filter((c) => c.custom)],
-      ...SOURCES.map((src) => [SOURCE_LABEL[src], all.filter((c) => !c.custom && c.source === src)]),
-      ['Other', all.filter((c) => !c.custom && !SOURCES.includes(c.source))],
     ].filter(([, items]) => items.length);
     const group = (label, kids) => {
       const id = `cm-${label.replace(/\W+/g, '-').toLowerCase()}`;
@@ -929,10 +1204,11 @@ function makeCompanyMenu() {
     };
     list.replaceChildren(...groups.map(([label, items]) => group(label, items.map((c) => h('button', {
       type: 'button', class: 'company-item', 'aria-current': c.slug === S.c ? 'true' : null,
+      title: c.slug === S.c ? `${c.name} (open now)` : `Switch to ${c.name}, keeping your search and filters`,
       onclick: () => { closePopover(false); switchCompany(c); $('#companyMenuBtn').focus({ preventScroll: true }); },
     }, h('span', { class: 'dot', style: `--dot:${companyColor(c)}` }), h('span', { class: 'company-item-name' }, c.name),
-    h('span', { class: 'company-item-board' }, c.board), c.slug === S.c ? h('span', { class: 'company-item-check', 'aria-hidden': 'true' }, '✓') : null)))));
-    if (!groups.length) list.append(h('p', { class: 'fnote' }, 'No matching company — add it as a board below.'));
+    c.slug === S.c ? h('span', { class: 'company-item-check', 'aria-hidden': 'true' }, '✓') : null)))));
+    if (!groups.length) list.append(h('p', { class: 'fnote' }, 'No matching company — add its job board below.'));
     const saved = loadSaved().filter((x) => !q || x.name.toLowerCase().includes(q));
     if (saved.length) {
       list.prepend(group('Saved searches', saved.map((x) => {
@@ -974,7 +1250,28 @@ function isNewSince(job, since, seenIds) {
   if (job.firstSeenAt) return Date.parse(job.firstSeenAt) > Date.parse(since);
   return seenIds ? !seenIds.has(job.id) : false;
 }
-const isNewJob = (job) => visit.slug === S.c && isNewSince(job, visit.since, visit.seenIds);
+/* P-12: a saved search's "N new" counts against its own last opening, the cards against the last
+   visit to the company. Opening the saved search marks exactly the roles it counted, so the two agree. */
+let savedView = null; // { slug, hash, since, seen, ids: Set|null (null until that company's roles load), told }
+function savedViewIds() {
+  const v = savedView;
+  if (!v || v.slug !== S.c) return null;
+  if (!v.ids && data.status === 'ready' && data.company?.slug === v.slug) {
+    v.ids = new Set(savedNewIds({ hash: v.hash, lastSeenAt: v.since, seen: v.seen }, data.jobs));
+    const list = loadSaved(), entry = list.find((y) => y.id === v.id);
+    if (entry) { entry.seen = matchingIds(v.hash, data.jobs).slice(0, 2000); storeSaved(list); }
+  }
+  return v.ids;
+}
+const isNewJob = (job) => (visit.slug === S.c && isNewSince(job, visit.since, visit.seenIds)) || !!savedViewIds()?.has(job.id);
+/** After a saved search's company loads: say how many new roles it has and where they are. */
+function settleSaved() {
+  const v = savedView;
+  if (!v || v.told || v.slug !== S.c || data.status !== 'ready') return;
+  v.told = true;
+  const n = savedViewIds()?.size || 0;
+  if (n) toast(`${plural(n, 'new role')} since you last opened this search${S.sort === 'best' ? ' — listed first,' : ','} marked New`, 4500);
+}
 
 function loadSaved() {
   const v = lsGet(SAVED_KEY, []);
@@ -992,15 +1289,16 @@ function searchName(st = S) {
   if (st.q) parts.push(`“${st.q}”`);
   const sal = quickLabel('salary'); if (sal) parts.push(sal);
   if (st.rf) parts.push(FAMILY_LABEL[st.rf] || st.rf);
-  for (const k of ['s', 'd', 'l', 'ks', 'kr', 'kf', 'jg', 'e']) for (const v of st[k]) parts.push(v);
+  const shown = { s: senLabel, e: empLabel };
+  for (const k of ['s', 'd', 'l', 'ks', 'kr', 'kf', 'jg', 'e']) for (const v of st[k]) parts.push(shown[k] ? shown[k](v) : v);
   if (st.r !== 'any') parts.push(st.r === 'remote' ? 'Remote' : 'On-site');
-  if (st.p) parts.push(`listed ≤${st.p}d`);
+  if (st.p) parts.push(`listed in the past ${plural(st.p, 'day')}`);
   const name = companyInfo(st.c)?.name || st.c;
   return `${name} · ${parts.slice(0, 3).join(' · ')}${parts.length > 3 ? ` +${parts.length - 3}` : ''}`;
 }
 const currentSaved = () => { const hsh = searchHash(); return loadSaved().find((x) => x.hash === hsh) || null; };
 function matchingIds(hash, jobs) {
-  const F = filterSpec(parseHash(`#${hash}`)), now = Date.now();
+  const F = filterSpec(parseHash(`#${hash}`), jobs), now = Date.now();
   return jobs.filter((j) => !failures(j, F, now).length).map((j) => j.id);
 }
 function toggleSave() {
@@ -1010,18 +1308,22 @@ function toggleSave() {
   const hash = searchHash();
   const entry = { id: Math.random().toString(36).slice(2, 10), name: searchName(), hash, createdAt: now, lastSeenAt: now, seen: matchingIds(hash, data.jobs).slice(0, 2000) };
   storeSaved([entry, ...loadSaved()].slice(0, 50));
-  toast('Saved — find it in the company menu');
+  toast('Saved in this browser. Find it in the company menu, with its new roles', 4000); // I-4: say once where saves live
   renderQuickbar();
 }
 function removeSaved(id) { storeSaved(loadSaved().filter((x) => x.id !== id)); }
+/** The ids a saved search counts as new: its matches first seen after its last opening. */
+function savedNewIds(x, jobs) {
+  const seen = Array.isArray(x.seen) ? new Set(x.seen) : x.seen instanceof Set ? x.seen : null;
+  const ids = new Set(matchingIds(x.hash, jobs));
+  return jobs.filter((j) => ids.has(j.id) && isNewSince(j, x.lastSeenAt, seen)).map((j) => j.id);
+}
 /** "N new" for a saved search, when that company's jobs are loaded this session. */
 function savedNewCount(x) {
   const slug = parseHash(`#${x.hash}`).c;
   const jobs = jobCache.get(slug);
   if (!jobs) return 0;
-  const seen = Array.isArray(x.seen) ? new Set(x.seen) : null;
-  const ids = new Set(matchingIds(x.hash, jobs));
-  return jobs.filter((j) => ids.has(j.id) && isNewSince(j, x.lastSeenAt, seen)).length;
+  return savedNewIds(x, jobs).length;
 }
 /* D-10: "N new" needs the saved company's roles. The menu fetches the boards of saved searches
    that haven't loaded this session (one request each, at most once), then re-counts in place. */
@@ -1046,15 +1348,22 @@ function prefetchSaved() {
 function openSaved(x) {
   closePopover(false);
   const list = loadSaved();
-  const slug = parseHash(`#${x.hash}`).c;
-  const jobs = jobCache.get(slug);
-  const entry = list.find((y) => y.id === x.id);
-  if (entry) { entry.lastSeenAt = new Date().toISOString(); if (jobs) entry.seen = matchingIds(x.hash, jobs).slice(0, 2000); storeSaved(list); }
-  // Through set(), not pushState + onHashChange: the menu's history entry may still be popping (M-3).
   const next = parseHash(`#${x.hash}`);
   if (!next.c) next.c = S.c;
+  const slug = next.c;
+  const jobs = jobCache.get(slug);
+  const entry = list.find((y) => y.id === x.id);
+  // P-12: remember what the menu counted as new before this opening resets the count.
+  const before = entry || x;
+  savedView = { id: x.id, slug, hash: x.hash, since: before.lastSeenAt, seen: Array.isArray(before.seen) ? [...before.seen] : null,
+    ids: jobs ? new Set(savedNewIds(before, jobs)) : null, told: false };
+  if (entry) { entry.lastSeenAt = new Date().toISOString(); if (jobs) entry.seen = matchingIds(x.hash, jobs).slice(0, 2000); storeSaved(list); }
+  // Through set(), not pushState + onHashChange: the menu's history entry may still be popping (M-3).
   if (drawerJobId) closeDrawer();
+  pendingKeep = null;
+  const same = slug === S.c;
   set({ ...next, job: null });
+  if (same) settleSaved();
 }
 
 function resetFiltersPatch() {
@@ -1089,7 +1398,7 @@ function quickLabel(id) {
       return S.so ? 'Has salary' : null;
     case 'dept': return summarize(S.d, 'Departments');
     case 'loc': return summarize(S.l, 'Locations');
-    case 'sen': return summarize(S.s, 'Seniority');
+    case 'sen': return summarize(S.s.map(senLabel), 'Seniority');
     case 'remote': return S.r === 'remote' ? 'Remote only' : S.r === 'onsite' ? 'On-site' : null;
     case 'more': {
       const n = S.e.length + (S.p ? 1 : 0) + (S.ho ? 1 : 0) + S.kr.length + S.kf.length + S.ks.length + S.jg.length;
@@ -1108,18 +1417,24 @@ function renderQuickbar() {
       h('span', { class: 'chip-label' }, q.label), h('span', { class: 'chip-caret', html: ICON.chevron })));
     }
   }
+  let activeSig = '';
   for (const btn of wrap.children) {
     const q = QUICK.find((x) => x.id === btn.dataset.pop);
     const lbl = quickLabel(q.id);
     btn.classList.toggle('is-active', !!lbl);
     btn.querySelector('.chip-label').textContent = lbl || q.label;
     btn.disabled = data.status !== 'ready';
+    if (lbl) activeSig += `${q.id}:${lbl}|`;
   }
+  // I-5: phones list the active chips first (styles.css); bring them back into view when they change.
+  if (wrap.dataset.active !== activeSig) { wrap.dataset.active = activeSig; if (isMobile()) wrap.scrollLeft = 0; }
   syncChipsExpanded();
   const n = activeFilterCount();
   const cnt = $('#filtersCount');
   cnt.hidden = !n;
   cnt.textContent = n;
+  // I-5: phones show the Filters chip as its icon and count while filters are on (styles.css), so the active chips fit.
+  $('#filtersToggle').setAttribute('aria-label', n ? `Filters, ${n} on` : 'Filters');
   $('#clearAll').hidden = !n && !area;
   // F5: the one new main-view control — only when a filter is active.
   const save = $('#saveSearch');
@@ -1129,7 +1444,7 @@ function renderQuickbar() {
     save.classList.toggle('is-saved', on); // V9: one pattern — the label changes (Save/Saved), no aria-pressed
     save.querySelector('span:last-child').textContent = on ? 'Saved' : 'Save';
     save.setAttribute('aria-label', on ? 'Saved search — remove it' : 'Save this search');
-    save.title = on ? 'Saved — click to remove. Saved searches are in the company menu.' : 'Save this search; the company menu will show new matches next time';
+    save.title = on ? 'Saved in this browser — click to remove. Saved searches are in the company menu.' : 'Save this search in this browser; the company menu shows it, with its new roles, next time';
   }
 
   for (const slot of [$('#areaChipTop'), $('#areaChipList')]) {
@@ -1160,29 +1475,84 @@ function section(title, body, { open = true, badge = null } = {}) {
   return { el: det, sync: body.sync, badge };
 }
 
+/* P-5: the Min/Max boxes take "£80,000", "80k", "A$350k", "AUD 350000", "60000", "400" ($400K) or
+   "$1.2M": a currency symbol or code is converted to approx USD with the app's FX table (palette.js),
+   and the box says what it understood ("£80,000 ≈ $108K a year"). Values below the lowest pay on the
+   board are kept (they still hide postings with no pay, which the note says). */
+const CUR_CODES = [
+  [/^(?:us\$|usd)/, 'USD'], [/^(?:a\$|au\$|aud)/, 'AUD'], [/^(?:c\$|ca\$|cad)/, 'CAD'], [/^(?:nz\$|nzd)/, 'NZD'], [/^(?:s\$|sgd)/, 'SGD'],
+  [/^(?:hk\$|hkd)/, 'HKD'], [/^(?:£|gbp)/, 'GBP'], [/^(?:€|eur)/, 'EUR'], [/^(?:¥|jpy)/, 'JPY'], [/^(?:₹|inr)/, 'INR'], [/^chf/, 'CHF'],
+  [/^(?:₩|krw)/, 'KRW'], [/^(?:₪|ils)/, 'ILS'], [/^(?:sek|nok|dkk|pln|czk|aed|sar|brl|mxn|twd)/, null], [/^\$/, 'USD'],
+];
+const CUR_TAILS = CUR_CODES.map(([re, cur]) => [new RegExp(`(?:${re.source.slice(1)})$`), cur]);
+/** "£80,000" -> { usd: 108000, value: 80000, currency: 'GBP', read: true }; "" / "any" -> null; not understood -> undefined. */
+function parsePay(txt) {
+  let t = String(txt).trim().toLowerCase().replace(/\s+/g, '').replace(/(?:\/|per|a)?(?:yr|year|annum)$/, '');
+  if (!t || t === 'any') return null;
+  let currency = null;
+  for (const [re, cur] of CUR_CODES) {
+    const m = t.match(re);
+    if (m) { currency = cur || m[0].toUpperCase(); t = t.slice(m[0].length); break; }
+  }
+  if (!currency) { // a trailing code or symbol: "350000aud", "80k£", "80.000€"
+    for (const [re, cur] of CUR_TAILS) {
+      const m = t.match(re);
+      if (m) { currency = cur || m[0].toUpperCase(); t = t.slice(0, -m[0].length); break; }
+    }
+  }
+  if (currency && !hasFx(currency)) return undefined;
+  const m = t.match(/^(\d+(?:[.,]\d+)*)(k|m)?$/);
+  if (!m) return undefined;
+  let num = m[1];
+  if (/^\d{1,3}(?:[.,]\d{3})+$/.test(num)) num = num.replace(/[.,]/g, ''); // thousands separators: 80,000 / 80.000
+  else num = num.replace(/,(\d{1,2})$/, '.$1').replace(/,/g, '');
+  let value = Number(num);
+  if (!Number.isFinite(value)) return undefined;
+  let read = false;
+  if (m[2] === 'm') value *= 1e6;
+  else if (m[2] === 'k') value *= 1e3;
+  else if (value > 0 && value < 1000) { value *= 1e3; read = true; } // "400" reads as $400K (the box is yearly pay)
+  value = Math.round(value);
+  const cur = currency || 'USD';
+  const usd = cur === 'USD' ? value : Math.round(toUSD(value, cur) / 1000) * 1000;
+  return { usd, value, currency: cur, read: read || cur !== 'USD' };
+}
+/** The last typed bounds and how they were read, shown under the boxes while they stay in force. */
+const typedPay = { lo: null, hi: null };
+
 function makeSalary({ compact = false } = {}) {
   const hist = h('div', { class: 'hist', 'aria-hidden': 'true' });
   const lo = h('input', { type: 'range', class: 'range range--lo', 'aria-label': 'Minimum salary', step: 5000 });
   const hi = h('input', { type: 'range', class: 'range range--hi', 'aria-label': 'Maximum salary', step: 5000 });
   const fill = h('div', { class: 'range-fill' });
   const track = h('div', { class: 'range-wrap' }, h('div', { class: 'range-track' }), fill, lo, hi);
-  // D-13: the Min/Max boxes take a typed bound ("250k", "$300,000", "any"), committed on change/Enter.
-  const valInput = (label) => h('input', { type: 'text', class: 'range-val', inputmode: 'numeric', autocomplete: 'off', spellcheck: 'false', 'aria-label': label });
-  const minOut = valInput('Minimum salary, approx USD per year');
-  const maxOut = valInput('Maximum salary, approx USD per year');
-  const vals = h('div', { class: 'range-vals' }, h('label', null, h('span', null, 'Min'), minOut), h('span', { class: 'range-dash' }, '–'), h('label', null, h('span', null, 'Max'), maxOut));
+  // D-13: the Min/Max boxes take a typed bound ("250k", "$300,000", "£80,000", "any"), committed on change/Enter.
+  const valInput = (label) => h('input', { type: 'text', class: 'range-val', inputmode: 'text', autocomplete: 'off', spellcheck: 'false', 'aria-label': label,
+    title: 'Yearly pay in US dollars. You can type another currency, e.g. £80,000 or A$350k' });
+  const minOut = valInput('Min $/yr: minimum yearly pay in US dollars (another currency is converted)');
+  const maxOut = valInput('Max $/yr: maximum yearly pay in US dollars (another currency is converted)');
+  const vals = h('div', { class: 'range-vals' }, h('label', null, h('span', null, 'Min $/yr'), minOut), h('span', { class: 'range-dash' }, '–'), h('label', null, h('span', null, 'Max $/yr'), maxOut));
+  const understood = h('p', { class: 'fnote salary-read', role: 'status', hidden: true });
   const toggle = h('input', { type: 'checkbox', role: 'switch', class: 'switch' });
   const toggleRow = h('label', { class: 'switch-row' }, h('span', null, 'Only show jobs with salary'), toggle);
+  const noPay = h('p', { class: 'fnote salary-nopay', hidden: true });
   const note = h('p', { class: 'fnote' });
   const empty = h('p', { class: 'fnote' }, 'No salary information on this board.');
-  const el = h('div', { class: `salary-ctl${compact ? ' salary-ctl--compact' : ''}` }, hist, track, vals, toggleRow, note, empty);
+  const el = h('div', { class: `salary-ctl${compact ? ' salary-ctl--compact' : ''}` }, hist, track, vals, understood, toggleRow, noPay, note, empty);
   let dom = null;
   let bins = [];
+  let junk = ''; // the last text the box could not read
 
   const onInput = (which) => () => {
     let a = Number(lo.value), b = Number(hi.value);
     if (a > b) { if (which === 'lo') { a = b; lo.value = a; } else { b = a; hi.value = b; } }
-    set({ smin: a <= dom.lo ? null : a, smax: b >= dom.hi ? null : b }, { replace: true });
+    typedPay[which] = null;
+    junk = '';
+    // The other bound stays as it is: a typed value beyond the slider's ends is kept.
+    let smin = S.smin, smax = S.smax;
+    if (which === 'lo') smin = a <= dom.lo ? null : a;
+    else { smax = b >= dom.hi ? null : b; if (smin != null && smax != null && smin > smax) smin = smax; }
+    set({ smin, smax }, { replace: true });
     paint(true);
   };
   lo.addEventListener('input', onInput('lo'));
@@ -1191,22 +1561,17 @@ function makeSalary({ compact = false } = {}) {
   const settle = () => { lastHash = '__dirty'; commit(); };
   lo.addEventListener('change', settle);
   hi.addEventListener('change', settle);
-  /** "250k" / "$1.2M" / "300,000" -> 250000 / 1200000 / 300000; "" or "any" -> null; junk -> undefined. */
-  const parseBound = (txt) => {
-    const t = String(txt).trim().toLowerCase().replace(/[$,\s]|usd/g, '');
-    if (!t || t === 'any') return null;
-    const m = t.match(/^(\d+(?:\.\d+)?)(k|m)?$/);
-    if (!m) return undefined;
-    return Math.round(Number(m[1]) * (m[2] === 'm' ? 1e6 : m[2] === 'k' ? 1e3 : 1));
-  };
   const typed = (which) => () => {
     if (!dom) return;
-    const v = parseBound((which === 'lo' ? minOut : maxOut).value);
-    if (v === undefined) { paint(true); return; } // not a number: show the current bound again
+    const raw = (which === 'lo' ? minOut : maxOut).value.trim();
+    const v = parsePay(raw);
+    if (v === undefined) { junk = raw; paint(true); return; } // not understood: say so, keep the bound in force
+    junk = '';
     let a = S.smin, b = S.smax;
-    const c = v == null ? null : Math.min(dom.hi, Math.max(dom.lo, v)); // clamped to the slider's domain
-    if (which === 'lo') { a = c == null || c <= dom.lo ? null : c; if (a != null && b != null && a > b) b = a; }
-    else { b = c == null || c >= dom.hi ? null : c; if (a != null && b != null && b < a) a = b; }
+    const x = v == null || !(v.usd > 0) ? null : v.usd;
+    if (which === 'lo') { a = x; if (a != null && b != null && a > b) b = a; }
+    else { b = x; if (a != null && b != null && b < a) a = b; }
+    typedPay[which] = x != null && (v.read || x < dom.lo || x > dom.hi) ? { usd: x, raw, v } : null;
     lo.value = a ?? dom.lo; hi.value = b ?? dom.hi;
     set({ smin: a, smax: b });
     paint(true);
@@ -1217,6 +1582,22 @@ function makeSalary({ compact = false } = {}) {
     inp.addEventListener('focus', () => inp.select());
   }
   toggle.addEventListener('change', () => set({ so: toggle.checked }));
+
+  /** "Min: £80,000 ≈ $108K a year", "Min: “400” read as $400K a year", "…, below the lowest pay listed here ($100K)". */
+  function readText() {
+    if (junk) return `“${junk}” isn’t a pay figure. Try 80k, $120,000 or £80,000.`;
+    const out = [];
+    for (const [which, cur, name] of [['lo', S.smin, 'Min'], ['hi', S.smax, 'Max']]) {
+      const t = typedPay[which];
+      if (!t || cur !== t.usd) continue;
+      const usd = money(t.usd);
+      const how = t.v.currency !== 'USD' ? `${postedMoney(t.v.value, t.v.currency)} ≈ ${usd} a year` : t.v.read ? `“${t.raw}” read as ${usd} a year` : `${usd} a year`;
+      const edge = which === 'lo' && t.usd < dom.lo ? `, below the lowest pay listed here (${money(dom.lo)})`
+        : which === 'hi' && t.usd > dom.hi ? `, above the highest pay listed here (${money(dom.hi)})` : '';
+      out.push(`${name}: ${how}${edge}`);
+    }
+    return out.join('. ');
+  }
 
   function paint(force = false) {
     if (!dom) return;
@@ -1234,6 +1615,9 @@ function makeSalary({ compact = false } = {}) {
     if (force || document.activeElement !== maxOut) maxOut.value = maxShow;
     lo.setAttribute('aria-valuetext', minShow);
     hi.setAttribute('aria-valuetext', maxShow);
+    const read = readText();
+    if (understood.textContent !== read) understood.textContent = read;
+    understood.hidden = !read;
     bins.forEach((bar, i) => {
       const x0 = dom.lo + (i / bins.length) * (dom.hi - dom.lo);
       const x1 = dom.lo + ((i + 1) / bins.length) * (dom.hi - dom.lo);
@@ -1247,7 +1631,11 @@ function makeSalary({ compact = false } = {}) {
     for (const n of [hist, track, vals, note]) n.hidden = !has;
     empty.hidden = has;
     toggle.checked = S.so;
-    if (!has) return;
+    // P-5: say when the pay filter hides postings that list no pay.
+    const hidden = derived.fc?.noPayHidden || 0;
+    noPay.textContent = hidden ? `${plural(hidden, 'role')} that ${hidden === 1 ? 'lists' : 'list'} no pay ${hidden === 1 ? 'is' : 'are'} hidden while a pay filter is on.` : '';
+    noPay.hidden = !hidden;
+    if (!has) { understood.hidden = true; return; }
     for (const r of [lo, hi]) { r.min = dom.lo; r.max = dom.hi; }
     if (document.activeElement !== lo) lo.value = S.smin ?? dom.lo;
     if (document.activeElement !== hi) hi.value = S.smax ?? dom.hi;
@@ -1258,23 +1646,22 @@ function makeSalary({ compact = false } = {}) {
     const max = Math.max(1, ...counts);
     if (bins.length !== N) { bins = counts.map(() => h('span', { class: 'hist-bar' })); hist.replaceChildren(...bins); }
     counts.forEach((c, i) => { bins[i].style.height = `${c ? Math.max(6, (c / max) * 100) : 0}%`; });
-    const withSal = data.jobs.filter((j) => j._usd).length;
     const foreign = data.jobs.filter((j) => j._usd && j.salary.currency && j.salary.currency !== 'USD').length;
     const unclear = data.jobs.filter((j) => j.salaryFlag).length;
-    note.textContent = `A role matches if its range overlaps yours${foreign ? `; non-USD ranges are compared in approx USD` : ''}${unclear ? `. ${unclear} with unclear pay are left out` : ''}.`;
+    note.textContent = `A role matches if its range overlaps yours. You can type another currency (£80,000, A$350k)${foreign ? '; all pay is compared in approx US dollars' : ''}.${unclear ? ` ${unclear} with unclear pay ${unclear === 1 ? 'is' : 'are'} left out.` : ''}`;
     paint();
   }
   return { el, sync };
 }
 
-function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8, order = null, colorDim = null } = {}) {
+function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8, order = null, colorDim = null, labelOf = (k) => k, tipOf = null, note = null } = {}) {
   let query = '';
   let expanded = false;
   const input = h('input', { type: 'search', class: 'fsearch', placeholder: 'Search…', 'aria-label': 'Search options' });
   const searchWrap = h('div', { class: 'fsearch-wrap' }, h('span', { html: ICON.search }), input);
   const list = h('div', { class: 'checklist', role: 'group' });
   const more = h('button', { type: 'button', class: 'link-btn more-btn' });
-  const el = h('div', { class: 'checklist-wrap' }, searchWrap, list, more);
+  const el = h('div', { class: 'checklist-wrap' }, searchWrap, list, more, note ? h('p', { class: 'fnote' }, note) : null);
   input.addEventListener('input', () => { query = input.value.trim().toLowerCase(); sync(); });
   more.addEventListener('click', () => { expanded = !expanded; sync(); });
   list.addEventListener('change', (e) => {
@@ -1292,37 +1679,44 @@ function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8,
     else items.sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
     const showSearch = searchable === true || (searchable === 'auto' && items.length > 8);
     searchWrap.hidden = !showSearch;
-    if (query) items = items.filter((it) => it.key.toLowerCase().includes(query));
+    if (query) items = items.filter((it) => it.key.toLowerCase().includes(query) || String(labelOf(it.key)).toLowerCase().includes(query));
     const hadFocus = list.contains(document.activeElement) ? document.activeElement.value : focusKey;
     focusKey = null;
 
     const row = (it) => {
       const id = `f-${facet}-${btoa(unescape(encodeURIComponent(it.key))).replace(/[^a-z0-9]/gi, '')}-${uid}`;
-      return h('label', { class: `check${it.count === 0 ? ' is-zero' : ''}`, for: id },
+      return h('label', { class: `check${it.count === 0 ? ' is-zero' : ''}`, for: id, title: tipOf?.(it.key) || null },
         h('input', { type: 'checkbox', id, value: it.key, checked: selected.has(it.key) }),
         h('span', { class: 'check-box', 'aria-hidden': 'true' }),
         colorDim && colorBy() === colorDim && it.key !== 'Remote' && !/^Remote/.test(it.key) ? h('span', { class: 'dot dot--sm', style: `--dot:${vizColor(it.key)}`, 'aria-hidden': 'true' }) : null,
-        h('span', { class: 'check-label' }, it.key), h('span', { class: 'check-count' }, it.count));
+        h('span', { class: 'check-label' }, labelOf(it.key)), h('span', { class: 'check-count' }, it.count));
     };
 
     const nodes = [];
     let shown = 0;
     const cap = expanded || query ? Infinity : limit;
     if (grouped) {
+      // I-6: the collapsed list shows the places with the most roles (London 47 before Austin 3),
+      // still grouped by country; "Show all" lists every place.
+      let pick = items;
+      if (cap !== Infinity) {
+        const top = new Set(items.filter((x) => !selected.has(x.key)).slice(0, cap));
+        pick = items.filter((it) => selected.has(it.key) || top.has(it));
+      }
       const groups = new Map();
       for (const it of items) {
         const g = derived.fc?.lGroup.get(it.key) || 'ZZ';
         if (!groups.has(g)) groups.set(g, { items: [], total: 0 });
-        const grp = groups.get(g);
-        grp.items.push(it);
-        grp.total += it.count;
+        groups.get(g).total += it.count;
       }
+      for (const it of pick) groups.get(derived.fc?.lGroup.get(it.key) || 'ZZ').items.push(it);
       const ordered = [...groups].sort((a, b) => (a[0] === '~remote' ? -1 : b[0] === '~remote' ? 1 : b[1].total - a[1].total));
       for (const [g, grp] of ordered) {
-        if (shown >= cap) break;
+        if (!grp.items.length) continue;
         nodes.push(h('div', { class: 'check-group' }, g === '~remote' ? 'Remote' : countryName(g)));
-        for (const it of grp.items) { if (shown >= cap && !selected.has(it.key)) continue; nodes.push(row(it)); shown++; }
+        for (const it of grp.items) { nodes.push(row(it)); if (!selected.has(it.key)) shown++; }
       }
+      shown += pick.filter((it) => selected.has(it.key)).length;
     } else {
       for (const it of items) { if (shown >= cap && !selected.has(it.key)) continue; nodes.push(row(it)); shown++; }
     }
@@ -1471,11 +1865,11 @@ function renderFilterPanel() {
     panel = [
       section('Salary', makeSalary(), { badge: sel('sal') }),
       section('Department', makeChecklist('d', { colorDim: 'department' }), { badge: sel('d') }),
-      section('Location', makeChecklist('l', { grouped: true, limit: 10, searchable: 'auto', colorDim: 'location' }), { badge: sel('l') }),
-      section('Seniority', makeChecklist('s', { order: SENIORITY_ORDER, limit: 10, colorDim: 'seniority' }), { badge: sel('s') }),
+      section('Location', makeChecklist('l', { grouped: true, limit: 10, searchable: 'auto', colorDim: 'location', note: LOC_NOTE }), { badge: sel('l') }),
+      section('Seniority', makeChecklist('s', { order: SENIORITY_SHOWN, limit: 10, colorDim: 'seniority', ...SEN_OPTS }), { badge: sel('s') }),
       section('Remote', makeRemote(), { badge: sel('r') }),
       ...KW_CATS.map((k) => section(k.title, makeCloud(k), { badge: sel(k.key) })),
-      section('Employment type', makeChecklist('e', { limit: 6 }), { open: false, badge: sel('e') }),
+      section('Employment type', makeChecklist('e', { limit: 6, labelOf: empLabel }), { open: false, badge: sel('e') }),
       section('Listed', makePosted(), { open: false, badge: sel('p') }),
     ];
     body.replaceChildren(...panel.map((s) => s.el));
@@ -1498,13 +1892,13 @@ function popoverParts(id) {
   switch (id) {
     case 'salary': return [makeSalary({ compact: true })];
     case 'dept': return [makeChecklist('d', { limit: 12, colorDim: 'department' })];
-    case 'loc': return [makeChecklist('l', { grouped: true, limit: 14 })];
-    case 'sen': return [makeChecklist('s', { order: SENIORITY_ORDER, limit: 10 })];
+    case 'loc': return [makeChecklist('l', { grouped: true, limit: 14, note: LOC_NOTE })];
+    case 'sen': return [makeChecklist('s', { order: SENIORITY_SHOWN, limit: 10, ...SEN_OPTS })];
     case 'remote': return [makeRemote()];
     case 'more': return [
       titled('Pay', makeSwitch('Only show jobs with salary', 'so')),
       titled('Juice', makeJuiceChips(), 'What’s left after tax, rent and living'),
-      titled('Employment type', makeChecklist('e', { limit: 6 })),
+      titled('Employment type', makeChecklist('e', { limit: 6, labelOf: empLabel })),
       titled('Listed', makePosted()),
       ...KW_CATS.map((k) => titled(k.title, makeCloud(k, { limit: 10 }), k.hint)),
     ];
@@ -1526,7 +1920,7 @@ function togglePopover(id, anchor) {
   popover.id = id;
   popover.anchor = anchor;
   popover.parts = popoverParts(id);
-  const title = { board: 'Add a job board', badge: 'Where this data comes from', company: 'Job boards' }[id] || QUICK.find((q) => q.id === id)?.label;
+  const title = { board: 'Add a company’s job board', badge: 'Where this data comes from', company: 'Choose a company or a saved search' }[id] || QUICK.find((q) => q.id === id)?.label;
   const head = h('div', { class: 'pop-head' }, h('h2', { id: 'popTitle' }, title),
     h('button', { type: 'button', class: 'icon-btn icon-btn--sm', 'aria-label': 'Close', html: ICON.close, onclick: () => closePopover() }));
   const foot = ['board', 'badge', 'company'].includes(id) ? null : h('div', { class: 'pop-foot' },
@@ -1585,20 +1979,23 @@ function closePopover(restoreFocus = true, { keepHist = false } = {}) {
 /* ------------------------------------------------------- add-board form */
 
 function makeBoardForm() {
+  // I-3: plain words. The source is the job-board service the company's careers page uses, and the
+  // "board slug" is the company's name in that board's web address.
   const source = h('select', { id: 'abSource', required: true },
-    h('option', { value: 'greenhouse' }, 'Greenhouse'), h('option', { value: 'ashby' }, 'Ashby'), h('option', { value: 'lever' }, 'Lever'));
-  const board = h('input', { id: 'abBoard', required: true, placeholder: 'e.g. stripe', pattern: '[A-Za-z0-9][A-Za-z0-9._\\-]*', autocomplete: 'off', spellcheck: 'false' });
+    h('option', { value: 'greenhouse' }, 'Greenhouse (boards.greenhouse.io)'), h('option', { value: 'ashby' }, 'Ashby (jobs.ashbyhq.com)'), h('option', { value: 'lever' }, 'Lever (jobs.lever.co)'));
+  const board = h('input', { id: 'abBoard', required: true, placeholder: 'e.g. stripe', pattern: '[A-Za-z0-9][A-Za-z0-9._\\-]*', autocomplete: 'off', spellcheck: 'false', 'aria-describedby': 'abBoardHint' });
   const name = h('input', { id: 'abName', placeholder: 'e.g. Stripe', autocomplete: 'off' });
-  const hint = h('p', { class: 'fnote' });
+  const hint = h('p', { class: 'fnote', id: 'abBoardHint' });
   const updateHint = () => {
-    const slug = board.value.trim() || '<slug>';
-    hint.textContent = { greenhouse: `boards.greenhouse.io/${slug}`, ashby: `jobs.ashbyhq.com/${slug}`, lever: `jobs.lever.co/${slug}` }[source.value];
+    const slug = board.value.trim() || 'name';
+    hint.textContent = `The company’s name in its job-board address: ${{ greenhouse: `boards.greenhouse.io/${slug}`, ashby: `jobs.ashbyhq.com/${slug}`, lever: `jobs.lever.co/${slug}` }[source.value]}`;
   };
   source.addEventListener('change', updateHint);
   board.addEventListener('input', updateHint);
   updateHint();
   const saved = h('div', { class: 'saved-boards' });
   const form = h('form', { class: 'board-form', novalidate: true },
+    h('p', { class: 'fnote board-intro' }, 'Add any company whose careers page runs on Greenhouse, Ashby or Lever. You can paste its job-board link.'),
     h('div', { class: 'field' }, h('label', { for: 'abSource' }, 'Source'), source),
     h('div', { class: 'field' }, h('label', { for: 'abBoard' }, 'Board slug'), board, hint),
     h('div', { class: 'field' }, h('label', { for: 'abName' }, 'Display name ', h('span', { class: 'muted' }, '(optional)')), name),
@@ -1606,8 +2003,12 @@ function makeBoardForm() {
     saved);
   form.addEventListener('submit', (e) => {
     e.preventDefault();
-    const slug = board.value.trim().replace(/^https?:\/\/[^/]+\//, '').replace(/\/.*$/, '');
-    if (!slug || !SLUG_RE.test(slug) || /^\.+$/.test(slug)) { board.setAttribute('aria-invalid', 'true'); board.focus(); hint.textContent = 'Enter the board\u2019s slug (letters, numbers, dashes).'; return; }
+    // A pasted job-board link picks its own source ("jobs.lever.co/acme" -> Lever, acme).
+    const typedIn = board.value.trim();
+    const host = typedIn.match(/^(?:https?:\/\/)?((?:job-)?boards\.greenhouse\.io|jobs\.ashbyhq\.com|jobs\.lever\.co)\/+/i);
+    if (host) source.value = /greenhouse/i.test(host[1]) ? 'greenhouse' : /ashby/i.test(host[1]) ? 'ashby' : 'lever';
+    const slug = (host ? typedIn.slice(host[0].length) : typedIn.replace(/^https?:\/\/[^/]+\//, '')).replace(/[/?#].*$/, '');
+    if (!slug || !SLUG_RE.test(slug) || /^\.+$/.test(slug)) { board.setAttribute('aria-invalid', 'true'); board.focus(); hint.textContent = 'Enter the company’s name as it appears in its job-board address (letters, numbers, dashes).'; return; }
     const entry = { source: SOURCES.includes(source.value) ? source.value : 'greenhouse', board: slug, name: (name.value.trim() || slug.charAt(0).toUpperCase() + slug.slice(1)).slice(0, 80) };
     boards = [...boards.filter((b) => !(b.source === entry.source && b.board === entry.board)), entry];
     saveBoards(boards);
@@ -1622,7 +2023,7 @@ function makeBoardForm() {
     for (const b of boards) {
       saved.append(h('div', { class: 'saved-board' },
         h('span', { class: 'dot', style: `--dot:${colorFor(b.board)}` }),
-        h('span', { class: 'saved-name' }, b.name, h('span', { class: 'muted' }, ` · ${SOURCE_LABEL[b.source]}/${b.board}`)),
+        h('span', { class: 'saved-name', title: `${SOURCE_LABEL[b.source]} board “${b.board}”` }, b.name),
         h('button', { type: 'button', class: 'icon-btn icon-btn--sm', 'aria-label': `Remove ${b.name}`, html: ICON.trash, onclick: () => {
           boards = boards.filter((x) => x !== b);
           saveBoards(boards);
@@ -1637,8 +2038,9 @@ function makeBoardForm() {
 /* ------------------------------------------------------------------ KPIs */
 
 function renderKpis() {
-  // One slim inline stats row: "111 roles · 86% list pay · median $341K · middle 50% $277–405K · mostly Engineering"
+  // One slim inline stats row: "111 roles · 86% show pay · $341K median · half between $277K and $405K"
   const el = $('#statsLine');
+  renderTagline();
   if (data.status === 'loading' || data.status === 'idle') {
     el.replaceChildren(h('span', { class: 'sk sk-line', style: 'width:340px;display:inline-block' }));
     return;
@@ -1648,15 +2050,37 @@ function renderKpis() {
   const st = stats(listed);
   const total = data.jobs.length;
   const pct = st.n ? Math.round((st.withSalary / st.n) * 100) : 0;
+  const here = viewSpec?.l.size ? ' for the places you picked' : '';
   const item = (strong, rest, title) => h('span', { class: 'stat', title }, h('strong', null, strong), rest ? ` ${rest}` : null);
+  const ote = st.oteOnly ? 'on-target earnings, ' : '';
+  const left = st.oteLeftOut ? `; ${plural(st.oteLeftOut, 'posting')} with on-target earnings (base plus commission) left out` : '';
+  const share = st.top && st.n > 1 ? st.top[1] / st.n : 0;
   const parts = [
     item(st.n.toLocaleString(), st.n === total ? plural(st.n, 'role').replace(/^[\d,]+ /, '') : `of ${total.toLocaleString()} roles`),
-    st.n ? item(`${pct}%`, 'list pay', `${st.withSalary} of ${st.n} postings include a salary range`) : null,
-    st.median != null ? item(money(st.median), 'median', 'Median of range midpoints (approx USD)') : null,
-    st.p25 != null ? h('span', { class: 'stat', title: '25th – 75th percentile of range midpoints' }, 'middle 50% ', h('strong', null, compactRange(st.p25, st.p75))) : null,
-    st.top && st.n > 1 ? h('span', { class: 'stat stat--top', title: `${st.top[1]} roles (${Math.round((st.top[1] / st.n) * 100)}%)` }, 'mostly ', h('strong', null, st.top[0])) : null,
+    // P-6: with a Location filter, the share counts pay that applies there ("22% show pay for London").
+    st.n ? item(`${pct}%`, viewSpec?.l.size ? `show pay for ${viewSpec.l.size === 1 ? [...viewSpec.l][0] : 'these places'}` : 'show pay',
+      `${st.withSalary} of ${st.n} postings include a pay range${here}${here ? ' (a pay range in another country’s currency is not counted)' : ''}`) : null,
+    st.median != null ? item(money(st.median), st.oteOnly ? 'median on-target earnings' : 'median',
+      `Half of these roles pay more than this and half less (the middle of each posted range, ${ote}approx US dollars${here}${left})`) : null,
+    st.p25 != null && st.p75 != null && money(st.p25) !== money(st.p75)
+      ? h('span', { class: 'stat', title: `Half of these roles have a pay midpoint between ${money(st.p25)} and ${money(st.p75)}${here}` }, 'half between ', h('strong', null, money(st.p25)), ' and ', h('strong', null, money(st.p75))) : null,
+    // P-6: "mostly" only for a real majority (it read "mostly Sales" at 19%).
+    share > 0.5 ? h('span', { class: 'stat stat--top', title: `${st.top[1]} of ${st.n} roles (${Math.round(share * 100)}%)` }, 'mostly ', h('strong', null, st.top[0])) : null,
   ].filter(Boolean);
   el.replaceChildren(...parts.flatMap((p, i) => (i ? [h('span', { class: 'stat-sep', 'aria-hidden': 'true' }, '·'), p] : [p])));
+}
+
+/** I-2: one line on what the site is ("Pay, and what's left after tax and rent, for 8 tech companies' open roles"). */
+function renderTagline() {
+  const el = $('#tagline');
+  if (!el) return;
+  const n = companies.filter((c) => !c.custom).length;
+  const text = `Pay, and what’s left after tax and rent, for ${n ? `${n} companies’` : 'tech companies’'} open roles`;
+  if (el.dataset.text !== text) {
+    el.dataset.text = text;
+    el.replaceChildren(h('strong', { class: 'tagline-brand' }, 'melon·seek'), h('span', { class: 'tagline-sep', 'aria-hidden': 'true' }, ' · '), text);
+  }
+  document.body.classList.toggle('is-filtered', activeFilterCount() > 0 || !!area);
 }
 
 /* ------------------------------------------------------------------- viz */
@@ -1813,8 +2237,10 @@ function renderViz() {
     return;
   }
   if (!jobs.length) {
+    // P-16: one opaque message that names the real cause (the chart's own empty note stays covered).
     overlay.hidden = false;
-    overlay.replaceChildren(stateCard({ title: 'No roles match', body: 'Try widening the salary range or removing a filter.', action: ['Clear filters', clearFilters] }));
+    overlay.classList.add('is-empty');
+    overlay.replaceChildren(stateCard(emptyState()));
   }
 
   ensureViz();
@@ -1895,6 +2321,54 @@ function hoverFromViz(job) {
   if (hoverId) $(`.card[data-id="${cssId(hoverId)}"]`)?.classList.add('is-hot');
 }
 
+/* P-16: what an empty result is blocked by. Each facet: [label, patch]. */
+const FACET_OFF = {
+  q: () => [`the search “${S.q}”`, { q: '' }],
+  sal: () => ['the pay filter', { smin: null, smax: null, so: false }],
+  d: () => ['the department filter', { d: [] }],
+  l: () => ['the location filter', { l: [] }],
+  s: () => ['the level filter', { s: [] }],
+  e: () => ['the employment type filter', { e: [] }],
+  r: () => [`the ${S.r === 'remote' ? 'Remote' : 'On-site'} filter`, { r: 'any' }],
+  p: () => ['the listing date filter', { p: 0, ho: false }],
+  rf: () => [`the role filter (${FAMILY_LABEL[S.rf] || S.rf})`, { rf: '' }],
+  jg: () => ['the Juice filter', { jg: [] }],
+  kw: () => ['the keyword filters', { kr: [], kf: [], ks: [] }],
+};
+function activeFacets(st = S) {
+  const on = [];
+  if (st.q) on.push('q');
+  if (st.smin != null || st.smax != null || st.so) on.push('sal');
+  for (const k of ['d', 'l', 's', 'e']) if (st[k].length) on.push(k);
+  if (st.r !== 'any') on.push('r');
+  if (st.p || st.ho) on.push('p');
+  if (st.rf) on.push('rf');
+  if (st.jg.length) on.push('jg');
+  if (st.kr.length || st.kf.length || st.ks.length) on.push('kw');
+  return on;
+}
+const dropFacet = (f) => () => { const [, patch] = FACET_OFF[f](); if ('q' in patch) $('#search').value = ''; set(patch); };
+/** { title, body, action } for an empty result: the one filter to blame, or the one whose removal helps most. */
+function emptyState() {
+  const on = activeFacets();
+  const only = derived.fc?.only || {};
+  const noPay = derived.fc?.noPayHidden || 0;
+  const payNote = noPay ? ` ${plural(noPay, 'role')} that ${noPay === 1 ? 'lists' : 'list'} no pay ${noPay === 1 ? 'is' : 'are'} hidden by it.` : '';
+  if (on.length === 1) {
+    const f = on[0];
+    const [label] = FACET_OFF[f]();
+    if (f === 'q') return { title: `No roles match “${S.q}”`, body: 'Check the spelling, or try a shorter or different word.', action: ['Clear the search', dropFacet('q')] };
+    if (f === 'sal') return { title: 'No roles in this pay range', body: `Try a wider range.${payNote}`, action: ['Remove the pay filter', dropFacet('sal')] };
+    return { title: 'No roles match', body: `Nothing here fits ${label}.`, action: [`Remove ${label}`, dropFacet(f)] };
+  }
+  const best = on.filter((f) => only[f] > 0).sort((a, b) => only[b] - only[a])[0];
+  if (best) {
+    const [label] = FACET_OFF[best]();
+    return { title: 'No roles match every filter', body: `Without ${label} there would be ${plural(only[best], 'role')}.${best === 'sal' ? payNote : ''}`, action: [`Remove ${label}`, dropFacet(best)] };
+  }
+  return { title: 'No roles match', body: 'Nothing fits every filter you’ve set.', action: ['Clear filters', clearFilters] };
+}
+
 function stateCard({ icon = null, title, body, action = null, tone = '' }) {
   return h('div', { class: `state-card ${tone ? `state-card--${tone}` : ''}` },
     icon ? h('div', { class: 'state-ico', html: icon }) : h('div', { class: 'state-ico state-ico--melon' }, h('img', { src: 'favicon.svg', alt: '' })),
@@ -1904,7 +2378,7 @@ function stateCard({ icon = null, title, body, action = null, tone = '' }) {
 
 /* --------------------------------------------------------------- results */
 
-let newestOpt = null;
+let newestOpt = null, bestOpt = null;
 function renderResults() {
   const list = $('#resultsList');
   const title = $('#resultsTitle');
@@ -1915,6 +2389,10 @@ function renderResults() {
   const dated = data.status !== 'ready' || hasListingDates();
   if (dated && !newestOpt.isConnected) sortSel.querySelector('option[value="title"]').before(newestOpt);
   else if (!dated && newestOpt.isConnected) newestOpt.remove();
+  // P-4: "Best match" is offered (and is the default) only while searching.
+  bestOpt ??= h('option', { value: 'best' }, 'Best match');
+  if (hasQuery() && !bestOpt.isConnected) sortSel.prepend(bestOpt);
+  else if (!hasQuery() && bestOpt.isConnected) bestOpt.remove();
   sortSel.value = effectiveSort();
   if (data.status === 'loading' || data.status === 'idle') {
     title.textContent = 'Loading roles…';
@@ -1927,20 +2405,22 @@ function renderResults() {
     list.replaceChildren(h('li', { class: 'list-empty' }, stateCard({ icon: ICON.alert, title: 'Board unavailable', body: 'We couldn\u2019t reach the API.', action: ['Retry', () => loadJobs()], tone: 'error' })));
     return;
   }
-  const st = stats(visible);
-  const tokens = S.q.toLowerCase().split(/\s+/).filter(Boolean);
+  const n = visible.length;
+  const m = queryMatchers(S.q);
   // M-18: the "· N in title" suffix only when it says something (no "0 roles · 0 in title").
-  const inTitle = tokens.length && visible.length ? visible.filter((j) => titleMatch(j, tokens)).length || null : null;
-  title.replaceChildren(...nn(h('strong', null, plural(st.n, 'role')), inTitle != null ? h('span', { class: 'muted', title: 'Roles whose title or team matches come first; the rest match on skills or keywords' }, ` · ${inTitle.toLocaleString()} in title`) : null));
+  const inTitle = m.length && n ? visible.filter((j) => titleMatch(j, m)).length || null : null;
+  const why = effectiveSort() === 'best' ? 'Best match lists roles whose title or team has your words first; the rest match on skills or keywords'
+    : 'Roles whose title or team has your words; the rest match on skills or keywords';
+  title.replaceChildren(...nn(h('strong', null, plural(n, 'role')), inTitle != null ? h('span', { class: 'muted', title: why }, ` · ${inTitle.toLocaleString()} in title`) : null));
   if (!visible.length) {
-    list.replaceChildren(h('li', { class: 'list-empty' }, stateCard({
-      title: data.jobs.length ? 'No roles match' : 'No open roles',
-      body: data.jobs.length ? 'Nothing fits every filter you\u2019ve set.' : 'This board has no postings right now.',
-      action: data.jobs.length ? ['Clear filters', clearFilters] : null,
-    })));
+    list.replaceChildren(h('li', { class: 'list-empty' }, stateCard(data.jobs.length ? emptyState()
+      : { title: 'No open roles', body: 'This board has no postings right now.' })));
     return;
   }
+  measureCardFit();
   const items = visible.slice(0, resultsLimit).map(card);
+  const scale = juiceScaleNote(items);
+  if (scale) items.unshift(scale);
   listIO?.disconnect();
   if (visible.length > resultsLimit) {
     const label = () => `Show ${Math.min(PAGE * 2, visible.length - resultsLimit)} more of ${visible.length - resultsLimit}`;
@@ -1969,17 +2449,51 @@ function renderResults() {
 }
 let listIO = null;
 
-const JUICE_TIP = 'Juice Score: livability $, what’s left after tax, rent and living costs';
-function juiceBadge(job) {
-  const b = job.juice?.best;
-  if (!b) return null;
-  const est = b.estimated ? '≈' : '';
-  return h('span', { class: `juice-badge juice--${String(b.grade).toLowerCase()}`, title: `${JUICE_TIP}${b.estimated ? ' (estimated)' : ''}. Best in ${b.locationName || b.cityName}: ${money(b.net)}/yr left.`,
-    'aria-label': `Juice Score ${est ? 'about ' : ''}${b.score}, ${b.grade}` }, `🍉 ${est}${b.score} · ${b.grade}`);
+/* I-3: the Juice grades in dollars, once: above the cards the first time they show Juice in this
+   browser (kept for that visit). The same scale is in every badge's and the drawer's tooltip. */
+const JUICE_SCALE_KEY = 'melon-seek.juiceScale.v1';
+let juiceScaleShown = null;
+function juiceScaleNote(items) {
+  if (!items.some((li) => li.querySelector?.('.juice-badge'))) return null;
+  if (juiceScaleShown === null) {
+    try {
+      juiceScaleShown = sessionStorage.getItem(JUICE_SCALE_KEY) === '1' || !localStorage.getItem(JUICE_SCALE_KEY);
+      if (juiceScaleShown) { localStorage.setItem(JUICE_SCALE_KEY, new Date().toISOString()); sessionStorage.setItem(JUICE_SCALE_KEY, '1'); }
+    } catch { juiceScaleShown = true; }
+  }
+  if (!juiceScaleShown) return null;
+  return h('li', { class: 'juice-scale' }, h('strong', null, '🍉 Juice'), ` is the money left a year after tax, rent and living costs, ${hhFor(juiceHousehold)}. ${juiceScaleText()}.`);
 }
 
+const JUICE_TIP = 'Juice: money left a year after tax, rent and living costs';
+/** "for one person", "for a couple", "for a family of four" (the household the Juice figures are for). */
+const HH_FOR = { single: 'for one person', couple: 'for a couple', family: 'for a family of four' };
+const hhFor = (key) => HH_FOR[key] || HH_FOR.single;
+/** I-3: the grade scale in dollars, from the same score curve the map legend uses (palette.js). */
+function juiceScaleText() {
+  const [ripe, juicy] = JUICE_BREAKS;
+  const r = money(juiceNetForScore(ripe)), j = money(juiceNetForScore(juicy));
+  return `Juicy: ${j} or more a year · Ripe: ${r}–${j.replace(/^\$/, '')} · Dry: under ${r} · Rind: nothing left`;
+}
+function juiceBadge(job) {
+  const b = shownJuice(job);
+  if (!b) return null;
+  const place = b.locationName || b.cityName;
+  // I-3: no bare "≈" before the score; "estimated" is said in words in the tooltip.
+  return h('span', { class: `juice-badge juice--${String(b.grade).toLowerCase()}`,
+    title: `${JUICE_TIP}${isTerm(job) ? ' (while the fixed-term pay lasts)' : ''}. ${b.grade} ${hhFor(job.juice.household)} in ${place}: ${stepMoney(b.net, 100)} a year left${b.estimated ? ' (some costs estimated)' : ''}. ${juiceScaleText()}.`,
+    'aria-label': `Juice Score ${b.score}, ${b.grade}, ${hhFor(job.juice.household)} in ${place}` }, `🍉 ${b.score} · ${b.grade}`);
+}
+
+/** Card location: with a Location filter, a matching place comes first (P-7, "a DC list led with Huntsville"). */
 function locSummary(job, max = 1) {
-  const names = job.locations.map((l) => (l.remote ? l.name || 'Remote' : l.city && l.region ? `${l.city}, ${l.region}` : l.name));
+  const named = (l) => (l.remote ? l.name || 'Remote' : l.city && l.region ? `${l.city}, ${l.region}` : l.name);
+  let locs = job.locations;
+  if (viewSpec?.l.size && locs.length > 1) {
+    const hit = locs.filter((l) => locMatches(job, viewSpec, [l]));
+    if (hit.length) locs = [...hit, ...locs.filter((l) => !hit.includes(l))];
+  }
+  const names = locs.map(named);
   if (!names.length) return 'Location not listed';
   return names.slice(0, max).join(' · ') + (names.length > max ? ` +${names.length - max}` : '');
 }
@@ -1988,17 +2502,44 @@ function topTags(job, n = 3) {
   const tags = [...job.keywords.skills, ...job.keywords.responsibilities, ...job.keywords.fit];
   return [...new Set(tags)].slice(0, n);
 }
+/* The card's keyword tags: up to `slots`, and only while the foot stays one line (the level and age
+   are in words now: "Level not stated", "Listed 16 months ago"). Widths are estimated in characters
+   at the cards' 12px text (about 6.3px each; a tag costs its length + 2.5): 52 fit the 1440px results
+   column. cardFit() measures the column once per list render. In the narrow tablet column the age
+   sits under the pay pill instead (styles.css), so it costs the foot nothing there. */
+const cardFit = { chars: 52, ageInFoot: true };
+function measureCardFit() {
+  const w = $('#resultsList')?.clientWidth || 0;
+  if (w > 0) cardFit.chars = Math.max(30, Math.floor((w - 54) / 6.3));
+  cardFit.ageInFoot = !matchMedia('(min-width: 861px) and (max-width: 1299px)').matches;
+}
+function footTags(job, { level, juice, status, ote, age, slots }) {
+  const cost = (t) => (t ? String(t).length + 2.5 : 0);
+  let used = cost(level) + cost(juice) + cost(status) + (ote ? cost('On-target earnings') : 0) + (age && cardFit.ageInFoot ? String(age).length : 0);
+  const out = [];
+  for (const t of topTags(job, slots)) {
+    if (used + cost(t) > cardFit.chars) break;
+    used += cost(t);
+    out.push(t);
+  }
+  return out;
+}
 
-/** Card age slot (F4): "12d", "8mo", "2y+", "30d+" when the age is a lower bound; nothing when unknown. */
+/* I-3: card age in words: "Listed 12 days ago", "Listed 16 months ago", and "Always-open posting"
+   for one listed two years ago or more (the "13y+" ones); nothing when unknown. */
+const ALWAYS_OPEN_DAYS = 730;
 function ageText(job) {
   const d = job._age;
   if (d == null) return '';
-  const t = d < 60 ? `${d}d` : d < 730 ? `${Math.round(d / 30.44)}mo` : `${Math.floor(d / 365)}y`;
-  return job.ageIsMinimum || d >= 730 ? `${t}+` : t;
+  if (d >= ALWAYS_OPEN_DAYS) return 'Always-open posting';
+  const t = d === 0 ? 'today' : d < 60 ? `${plural(d, 'day')} ago` : `${plural(Math.round(d / 30.44), 'month')} ago`;
+  return job.ageIsMinimum && d > 0 ? `Listed at least ${t}` : `Listed ${t}`;
 }
 function ageTitle(job) {
   if (job._age == null) return '';
-  return `${job.ageIsMinimum ? 'Open at least' : 'Listed'} ${plural(job._age, 'day')}${job.ageIsMinimum ? '' : ' ago'}`;
+  const since = job.postedAt ? ` (${new Date(job.postedAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })})` : '';
+  if (job._age >= ALWAYS_OPEN_DAYS) return `Listed ${plural(Math.floor(job._age / 365), 'year')} ago${since}. Some companies keep a posting open to collect applicants for a recurring role.`;
+  return `${job.ageIsMinimum ? 'Open at least' : 'Listed'} ${plural(job._age, 'day')}${job.ageIsMinimum ? '' : ' ago'}${since}`;
 }
 
 /** The card's single status tag, by priority: Pay changed > New > Reposted. */
@@ -2009,28 +2550,46 @@ function statusTag(job) {
   return null;
 }
 
+/** P-1/P-8: the card's pay pill: as posted for fixed-term pay ("$3,850/week"), the range otherwise. */
+function payPill(job) {
+  const term = postedTerm(job.salary);
+  if (term) return { text: term.per ? `${term.amount}/${term.per}` : term.amount, tip: `${term.amount}${term.per ? ` a ${term.per}` : ''} for ${termText(term.weeks)} (fixed-term pay, not a yearly salary)` };
+  const range = salaryRange(job.salary);
+  if (!range) return null;
+  if (isOte(job)) return { text: range, tip: OTE_LABEL };
+  return { text: range, tip: null };
+}
+
 function card(job) {
   const status = statusTag(job);
   const color = vizColor(keyOf(job, colorBy()));
-  const range = salaryRange(job.salary);
+  const pay = payPill(job);
   const isOpen = job.id === drawerJobId;
+  const ote = isOte(job);
+  const juice = juiceBadge(job);
+  const sen = job.seniority || 'Mid';
   const el = h('li', null, h('article', {
     class: `card${isOpen ? ' is-open' : ''}`, dataset: { id: job.id }, tabindex: '0', role: 'button',
-    'aria-label': `${job.title}, ${range || (job.salaryFlag ? 'pay unclear, see posting' : 'salary not listed')}, ${locSummary(job, 3)}`, style: `--stripe:${color}`,
+    'aria-label': `${job.title}, ${pay ? `${pay.text}${pay.tip ? ` (${pay.tip})` : ''}` : job.salaryFlag ? 'pay unclear, see posting' : 'salary not listed'}, ${locSummary(job, 3)}`, style: `--stripe:${color}`,
   },
   h('div', { class: 'card-top' },
     h('h3', { class: 'card-title' }, job.title),
-    range ? h('span', { class: 'sal-pill' }, range)
-      : job.salaryFlag ? h('span', { class: 'sal-pill sal-pill--unclear', title: job.salaryFlag.reason || 'Pay unclear' }, 'Pay unclear')
-        : h('span', { class: 'sal-pill sal-pill--none' }, 'No salary')),
+    h('div', { class: 'card-pay' },
+      pay ? h('span', { class: 'sal-pill', title: pay.tip }, pay.text)
+        : job.salaryFlag ? h('span', { class: 'sal-pill sal-pill--unclear', title: job.salaryFlag.reason || 'Pay unclear' }, 'Pay unclear')
+          : h('span', { class: 'sal-pill sal-pill--none' }, 'No salary'),
+      // The tablet column puts the age here, beside the title's second line (styles.css).
+      ageText(job) ? h('span', { class: 'card-age-top', 'aria-hidden': 'true', title: ageTitle(job) }, ageText(job).replace(/^Listed (?!today)/, '')) : null)),
   h('div', { class: 'card-meta' },
     h('span', { class: 'card-dot', style: `--dot:${color}`, 'aria-hidden': 'true' }),
     h('span', { class: 'card-dept' }, deptKey(job)), h('span', { class: 'sep', 'aria-hidden': 'true' }, '·'),
     h('span', { class: 'card-loc' }, locSummary(job, 1)), job.remote ? h('span', { class: 'tag tag--remote' }, 'Remote') : null),
   h('div', { class: 'card-foot' },
-    h('span', { class: `sen sen--${(job.seniority || 'mid').toLowerCase().replace(/\W/g, '')}` }, job.seniority || '—'),
-    juiceBadge(job),
-    ...topTags(job, Math.max(0, 2 - (job.juice ? 1 : 0) - (status ? 1 : 0))).map((t) => h('span', { class: 'tag' }, t)),
+    h('span', { class: `sen sen--${sen.toLowerCase().replace(/\W/g, '')}`, title: SEN_TIP[sen] || null }, senLabel(sen)),
+    juice,
+    // P-1: on-target pay takes the first keyword slot (a plain-words label, not a status).
+    ote ? h('span', { class: 'tag tag--pay', title: OTE_LABEL }, 'On-target earnings') : null,
+    ...footTags(job, { level: senLabel(sen), juice: juice?.textContent || '', status: status?.textContent || '', ote, age: ageText(job), slots: Math.max(0, 2 - (juice ? 1 : 0) - (status ? 1 : 0) - (ote ? 1 : 0)) }).map((t) => h('span', { class: 'tag' }, t)),
     status, // at most one status tag, in the second keyword slot (ROADMAP §8)
     ageText(job) ? h('span', { class: 'card-age', title: ageTitle(job) }, ageText(job)) : null)));
   return el;
@@ -2108,12 +2667,23 @@ function stepDrawer(d) {
   if (nxt) openDrawer(nxt.id, { step: true });
 }
 
+/**
+ * The roles a posting's pay is compared with (P-1, P-16): on-target earnings only with on-target
+ * earnings and base pay only with base pay; an internship with internships; never fixed-term pay or
+ * stipends (a weekly stipend annualized is not a yearly salary). null when there is no fair pool.
+ */
+function payPool(job) {
+  if (!job?._usd || isTerm(job) || job.salary.kind === 'stipend') return null;
+  const ote = isOte(job), intern = job.seniority === 'Intern';
+  const pool = data.jobs.filter((j) => j._usd && j.id !== job.id && !isTerm(j) && j.salary.kind !== 'stipend' && isOte(j) === ote && (j.seniority === 'Intern') === intern);
+  return pool.length >= 5 ? pool : null;
+}
+/** What the pool is called in "Pays more than 37% of <noun> at Anthropic". */
+const poolNoun = (job) => (job.seniority === 'Intern' ? 'internships' : isOte(job) ? 'roles with on-target earnings' : 'roles');
 function percentile(job) {
-  if (!job.salary) return null;
-  if (!job._usd) return null;
-  const mids = data.jobs.filter((j) => j._usd && j.id !== job.id).map((j) => j._mid);
-  if (!mids.length) return null;
-  return Math.round((mids.filter((m) => m < job._mid).length / mids.length) * 100);
+  const pool = payPool(job);
+  if (!pool) return null;
+  return Math.round((pool.filter((j) => j._mid < job._mid).length / pool.length) * 100);
 }
 
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -2125,10 +2695,13 @@ function svgEl(tag, attrs) {
 
 /** Company pay distribution (midpoints, approx USD) with this job's range marked. DOM-built, no HTML strings. */
 function salaryDistribution(job) {
+  const pool = payPool(job);
   const base = salaryDomain();
   const dom = base && job._usd ? { lo: Math.min(base.lo, job._usd.min), hi: Math.max(base.hi, job._usd.max) } : base;
-  const mids = data.jobs.filter((j) => j._usd).map((j) => j._mid).sort((a, b) => a - b);
-  if (!dom || !mids.length || !job._usd) return null;
+  const mids = (pool || []).map((j) => j._mid).concat(job._usd ? [job._mid] : []).sort((a, b) => a - b);
+  const foreign = job.salary.currency && job.salary.currency !== 'USD';
+  const approx = foreign ? h('p', { class: 'fnote' }, `≈ ${moneyRange(job._usd.min, job._usd.max)} in approx US dollars for comparison`) : null;
+  if (!pool || !dom || !job._usd) return approx ? h('div', { class: 'd-dist' }, approx) : null;
   const W = 100, H = 40, N = 32;
   const counts = new Array(N).fill(0);
   for (const m of mids) counts[Math.min(N - 1, Math.max(0, Math.floor(((m - dom.lo) / (dom.hi - dom.lo)) * N)))]++;
@@ -2137,7 +2710,7 @@ function salaryDistribution(job) {
   const bw = W / N;
   const median = quantile(mids, 0.5);
   const svg = svgEl('svg', { class: 'dist', viewBox: `0 0 ${W} ${H + 12}`, preserveAspectRatio: 'none', role: 'img',
-    'aria-label': `Pay distribution of ${mids.length} roles; this role spans ${money(job._usd.min)} to ${money(job._usd.max)}, median ${money(median)}` });
+    'aria-label': `Pay of ${mids.length} ${poolNoun(job)}; this role spans ${money(job._usd.min)} to ${money(job._usd.max)}, median ${money(median)}` });
   counts.forEach((c, i) => {
     if (!c) return;
     const hgt = (c / max) * (H - 6);
@@ -2149,15 +2722,14 @@ function salaryDistribution(job) {
   svg.append(svgEl('line', { x1: mx, x2: mx, y1: 0, y2: H, class: 'dist-med', 'vector-effect': 'non-scaling-stroke' }));
   const medLabel = h('span', { class: 'dist-med-label' }, `median ${money(median)}`);
   medLabel.style.left = `${Math.min(80, Math.max(20, x(median))).toFixed(1)}%`;
-  const foreign = job.salary.currency && job.salary.currency !== 'USD';
   return h('div', { class: 'd-dist' }, svg,
     h('div', { class: 'dist-axis' }, h('span', null, money(dom.lo)), medLabel, h('span', null, money(dom.hi))),
-    foreign ? h('p', { class: 'fnote' }, `≈ ${money(job._usd.min)}–${money(job._usd.max).replace(/^\$/, '')} in approx USD for comparison`) : null);
+    approx);
 }
 
 const INTERVAL_ADJ = { hour: 'hourly', day: 'daily', week: 'weekly', month: 'monthly', year: 'annual' };
 
-let juicePeriod = 'year'; // drawer waterfall: per year or per month (kept for the session)
+let juicePeriod = 'year'; // drawer waterfall: per year or per month (kept for the session); 'term' for fixed-term pay
 const JUICE_DOC = 'methodology/#1-the-formula'; // site page rendered from docs/LIVABILITY.md (scripts/methodology.js); never off-site
 
 /* Household for the Juice Score (docs/LIVABILITY.md §1): who the rent and living costs are for.
@@ -2168,8 +2740,8 @@ const HOUSEHOLD_KEY = 'melon-seek.household.v1';
 const HOUSEHOLDS = [
   // [key, button label, tooltip, bedrooms, people (living-cost row)]
   ['single', 'Just me', 'One adult in a 1-bedroom home', 1, 'one person'],
-  ['couple', 'Couple', 'Two adults in a 2-bedroom home', 2, 'two adults'],
-  ['family', 'Family', 'Two adults and two children in a 3-bedroom home', 3, 'two adults and two children'],
+  ['couple', 'Couple', 'Two adults, one earner (married, filing jointly), in a 2-bedroom home', 2, 'two adults'],
+  ['family', 'Family', 'Two adults and two children, one earner (married, filing jointly), in a 3-bedroom home', 3, 'two adults and two children'],
 ];
 const householdInfo = (key) => HOUSEHOLDS.find(([k]) => k === key) || HOUSEHOLDS[0];
 let juiceHousehold = householdInfo(lsGet(HOUSEHOLD_KEY, 'single'))[0];
@@ -2235,51 +2807,87 @@ function asOfNote(cls, text) {
   return p;
 }
 
-/** Drawer: Juice Score waterfall for the best location, plus the other locations in a disclosure. */
+/** P-15: how a couple or family was taxed, in plain words (households are always one earner, server/juice.js). */
+function taxHowText(hhKey, basis, note) {
+  if (hhKey === 'single') return null;
+  const who = hhKey === 'couple' ? 'Couple' : 'Family';
+  if (basis === 'joint') return `${who} here means one earner, married and filing jointly${hhKey === 'family' ? ', with two children' : ''}. Joint tax rates are why a couple can keep more than one person.`;
+  if (basis === 'single') return `${who} here means one earner, taxed as a single filer (household tax rules aren’t modeled here).`;
+  if (basis === 'individual') return `${who} here means one earner; each person is taxed separately here.`;
+  if (basis === 'partial') return `${who} here means one earner. ${note || ''}`.trim();
+  return `${who} here means one earner.`;
+}
+
+/**
+ * Drawer: Juice Score waterfall, plus the other locations in a disclosure.
+ * P-7: with a Location filter it is for the best of the places picked, and the headline says which
+ * place and household it is for. P-18: monthly amounts to the nearest $10 and yearly to the nearest
+ * $100, and the rows add up exactly. P-8: fixed-term pay shows Monthly and Whole term, never a year.
+ */
 function juiceBlock(job) {
   const jb = job.juice;
   if (!jb?.best) return null;
-  const b = jb.best;
+  const filtered = !!viewSpec?.l.size;
+  const picked = filtered ? shownJuice(job) : jb.best;
+  const b = picked || jb.best;
+  const noneHere = filtered && !picked ? [...viewSpec.l].join(', ') : null;
   const grade = String(b.grade).toLowerCase();
-  const others = jb.byLocation.filter((l) => l !== b && !(l.locationName === b.locationName && l.city === b.city));
+  const others = jb.byLocation.filter((l) => !(l.locationName === b.locationName && l.city === b.city));
   // Labels follow the household the numbers were computed for (it is the chosen one unless juice.js failed to load).
   const [hhKey, , , beds, people] = householdInfo(jb.household || b.household || 'single');
+  const term = postedTerm(job.salary);
+  const place = b.cityName || b.locationName;
+  const headNet = h('span', { class: 'juice-head-net' });
   const body = h('div', { class: 'juice-body' });
+  const where = [
+    'Juice: what’s left after tax, rent and living costs (approx US dollars).',
+    term ? `This pay lasts ${termText(term.weeks)}, so Juice covers only that term. Tax is worked out as if the pay lasted a year, so it may be lower.` : null,
+    isOte(job) ? 'The pay is on-target earnings, so this assumes commission at target.' : null,
+    b.estimated ? 'Some costs here are estimates.' : null,
+    noneHere ? `No Juice figure for ${noneHere}; this is the best place the posting lists.` : null,
+  ].filter(Boolean).join(' ');
   // UX-5: one headline line; the waterfall sits in a disclosure so "Same role elsewhere" stays near the top.
   const sec = h('section', { class: 'd-juice', 'aria-labelledby': 'juiceTitle' },
     h('details', { class: 'juice-details' },
       h('summary', null,
         h('span', { id: 'juiceTitle', class: 'juice-title' }, '🍉 Juice'),
-        h('span', { class: `juice-score juice--${grade}`, title: JUICE_TIP }, `${b.estimated ? '≈' : ''}${b.score} · ${b.grade}`),
-        h('span', { class: 'juice-head-net' }, `${b.net < 0 ? '−' : ''}${money(Math.abs(b.net))}/yr left in ${b.cityName || b.locationName}`),
+        h('span', { class: `juice-score juice--${grade}`, title: `${JUICE_TIP}. ${juiceScaleText()}` }, `${b.score} · ${b.grade}`),
+        headNet,
         h('span', { class: 'fsec-caret', html: ICON.chevron })),
-      h('p', { class: 'juice-where' }, 'Juice: what’s left after tax, rent and living costs (approx USD).'),
+      h('p', { class: 'juice-where' }, where),
       body));
   const render = (focusPeriod) => {
-    const div = juicePeriod === 'month' ? 12 : 1;
-    const per = juicePeriod === 'month' ? '/mo' : '/yr';
-    const amt = (n, sign = '') => `${sign}${money(Math.abs(n) / div)}${per}`;
+    const period = term ? (juicePeriod === 'term' ? 'term' : 'month') : juicePeriod === 'month' ? 'month' : 'year';
+    const div = period === 'month' ? 12 : period === 'term' ? 52 / term.weeks : 1;
+    const per = period === 'month' ? '/mo' : period === 'term' ? ' total' : '/yr';
+    const step = period === 'year' ? 100 : 10;
+    const r = (n) => Math.round(n / div / step) * step; // the shown amount, so the rows add up
+    const fmt = (n) => stepMoney(n, 1);
+    const gv = r(b.gross), tv = r(b.tax), rv = r(b.rent), lv = r(b.living);
+    const nv = gv - tv - rv - lv;
+    const amt = (n, sign = '') => `${sign}${fmt(Math.abs(n))}${per}`;
+    headNet.textContent = `${nv < 0 ? '−' : ''}${fmt(Math.abs(nv))}${per} left ${hhFor(hhKey)} in ${place}${term && period === 'month' ? ' while it lasts' : ''}`;
     const g = Math.max(1, b.gross);
     const seg = (lo, hi) => { const x = Math.max(0, Math.min(g, lo)), z = Math.max(0, Math.min(g, hi)); return `left:${(x / g) * 100}%;width:${Math.max(0, ((z - x) / g) * 100)}%`; };
     const afterTax = b.gross - b.tax, afterRent = afterTax - b.rent;
     const tp = b.taxParts;
     const rentWhere = b.rentBasis === 'override' ? 'your rent' : `${beds}-bedroom, ${b.rentBasis === 'outside' ? 'outside the centre' : 'city centre'}`;
-    // How the tax model treated a couple or family here (server/juice.js TAX_HOUSEHOLD); nothing when it applied household rules.
+    // How the tax model treated a couple or family here (server/juice.js TAX_HOUSEHOLD).
     const taxBasis = b.inputs?.tax?.basis || b.taxBasis, taxNote = b.inputs?.tax?.note || null;
-    const taxHow = hhKey === 'single' || !(b.tax > 0) ? null
-      : taxBasis === 'single' ? 'Taxed as a single filer here (household rules not modeled)'
-      : taxBasis === 'individual' ? 'Each person is taxed separately here'
-      : taxBasis === 'partial' ? taxNote : null;
+    const taxHow = !(b.tax > 0) ? null : taxHowText(hhKey, taxBasis, taxNote);
+    const taxParts = tp ? [['income tax', tp.income], ['state or local tax', tp.regional], ['social security', tp.social]]
+      .filter(([, v]) => v > 0).map(([label, v]) => `${label} ${fmt(r(v))}`).join(' · ') : null;
     const rows = [
-      ['Gross pay', amt(b.gross), seg(0, b.gross), 'gross', null],
-      ['Tax', amt(b.tax, '−'), seg(afterTax, b.gross), 'tax', tp ? `income ${money(tp.income / div)} · regional ${money(tp.regional / div)} · social ${money(tp.social / div)}` : null, taxHow],
-      ['Rent', amt(b.rent, '−'), seg(afterRent, afterTax), 'rent', rentWhere],
-      ['Living costs', amt(b.living, '−'), seg(b.net, afterRent), 'living', `everyday costs for ${people}, excluding rent`],
-      ['Juice left', `${b.net < 0 ? '−' : ''}${money(Math.abs(b.net) / div)}${per}`, seg(0, b.net), 'net', null],
+      ['Gross pay', amt(gv), seg(0, b.gross), 'gross', isOte(job) ? 'on-target earnings: assumes commission at target' : null],
+      ['Tax', amt(tv, '−'), seg(afterTax, b.gross), 'tax', taxParts || null, taxHow],
+      ['Rent', amt(rv, '−'), seg(afterRent, afterTax), 'rent', rentWhere],
+      ['Living costs', amt(lv, '−'), seg(b.net, afterRent), 'living', `everyday costs for ${people}, excluding rent`],
+      ['Juice left', `${nv < 0 ? '−' : ''}${fmt(Math.abs(nv))}${per}`, seg(0, b.net), nv < 0 ? 'net is-neg' : 'net', null],
     ];
+    const periods = term ? [['month', 'Monthly'], ['term', 'Whole term']] : [['month', 'Monthly'], ['year', 'Yearly']];
     const toggle = h('div', { class: 'seg seg--sm', role: 'group', 'aria-label': 'Show amounts per' },
-      ...[['month', 'Monthly'], ['year', 'Yearly']].map(([v, label]) => h('button', {
-        type: 'button', 'aria-pressed': String(juicePeriod === v), dataset: { period: v },
+      ...periods.map(([v, label]) => h('button', {
+        type: 'button', 'aria-pressed': String(period === v), dataset: { period: v },
         onclick: () => { juicePeriod = v; render(v); }, // V5: re-render this block only and keep focus here
       }, label)));
     const household = h('div', { class: 'seg seg--sm juice-household', role: 'group', 'aria-label': 'Household: who the rent and living costs are for' },
@@ -2290,7 +2898,7 @@ function juiceBlock(job) {
     body.replaceChildren(...nn(
       h('div', { class: 'juice-controls' }, household, toggle),
       h('div', { class: 'waterfall', role: 'table', 'aria-label': 'Juice breakdown' },
-        ...rows.map(([label, value, style, kind, detail, extra]) => h('div', { class: `wf-row wf--${kind}`, role: 'row' },
+        ...rows.map(([label, value, style, kind, detail, extra]) => h('div', { class: `wf-row ${kind.split(' ').map((k, i) => (i ? k : `wf--${k}`)).join(' ')}`, role: 'row' },
           h('span', { class: 'wf-label', role: 'rowheader' }, label),
           h('span', { class: 'wf-track', role: 'cell', 'aria-hidden': 'true' }, h('span', { class: 'wf-bar', style })),
           h('span', { class: 'wf-value', role: 'cell' }, value),
@@ -2300,14 +2908,28 @@ function juiceBlock(job) {
       b.currencyMismatch ? h('p', { class: 'fnote' }, 'The posted salary currency differs from the local one, so it is applied as posted.') : null,
       others.length ? h('details', { class: 'juice-compare' }, h('summary', null, `Compare locations (${others.length + 1})`),
         h('ul', null, ...[b, ...others].map((l) => h('li', null,
-          h('span', { class: 'jc-name' }, l.locationName || l.cityName, l === b ? h('span', { class: 'muted' }, ' · best') : null),
-          h('span', { class: `juice-grade juice--${String(l.grade).toLowerCase()}` }, `${l.estimated ? '≈' : ''}${l.score} ${l.grade}`),
-          h('span', { class: 'jc-net' }, `${l.net < 0 ? '−' : ''}${money(Math.abs(l.net) / div)}${per}`))))) : null,
-      asOfNote('juice-asof', () => juiceAsOfText(b)), // rent, living costs, FX and each tax line
+          h('span', { class: 'jc-name' }, l.locationName || l.cityName, l === b ? h('span', { class: 'muted' }, filtered && b !== jb.best ? ' · shown above' : ' · best') : null),
+          h('span', { class: `juice-grade juice--${String(l.grade).toLowerCase()}` }, `${l.score} ${l.grade}`),
+          h('span', { class: 'jc-net' }, `${l.net < 0 ? '−' : ''}${fmt(Math.abs(r(l.net)))}${per}`))))) : null,
+      asOfNote('juice-asof', () => juiceAsOfText(asOfSrc || {})), // rent, living costs, FX and each tax line
       h('p', { class: 'juice-disclaimer' }, 'Estimate, not financial advice. ', h('a', { href: JUICE_DOC, target: '_blank', rel: 'noopener noreferrer' }, 'How it’s calculated')),
     ));
     if (focusPeriod) body.querySelector(`[data-period="${focusPeriod}"]`)?.focus({ preventScroll: true });
   };
+  // A place other than the posting's best keeps no `inputs` (api.js payload guard), so its data dates
+  // are worked out again for this one posting, with the same juice.js.
+  let asOfSrc = b.inputs ? b : null;
+  if (!asOfSrc) {
+    juiceLib().then((lib) => {
+      if (!lib || !sec.isConnected) return;
+      const copy = { ...job, juice: null };
+      try { lib.mod.attachJuice(copy, lib.cities, { household: hhKey, inputs: 'all' }); } catch { return; }
+      asOfSrc = copy.juice?.byLocation.find((e) => e.city === b.city && e.inputs) || null;
+      const el = sec.querySelector('.juice-asof');
+      const t = asOfSrc ? juiceAsOfText(asOfSrc) : '';
+      if (el && t) { el.textContent = t; el.hidden = false; }
+    });
+  }
   render();
   return sec;
 }
@@ -2336,7 +2958,8 @@ function payLabels(job) {
     spread != null && spread >= 2 ? [`Wide range (${spread.toFixed(1)}×)`, 'The top of the range is at least twice the bottom'] : null,
     s.min === s.max ? ['Single figure', 'The posting gives one number, not a range'] : null,
     job.extras?.equity ? ['+ equity mentioned', 'The description mentions equity; it isn\u2019t in this figure'] : null,
-    job.extras?.bonus ? ['+ bonus mentioned', 'The description mentions a bonus; it isn\u2019t in this figure'] : null,
+    // P-1: on-target earnings already include the commission at target, so a "bonus" note would be wrong.
+    job.extras?.bonus && !isOte(job) ? ['+ bonus mentioned', 'The description mentions a bonus; it isn\u2019t in this figure'] : null,
   ].filter(Boolean).slice(0, 2);
   return labels.length ? h('div', { class: 'pay-labels' }, ...labels.map(([t, tip]) => h('span', { class: 'pay-label', title: tip }, t))) : null;
 }
@@ -2381,24 +3004,47 @@ function compstimateBlock(job) {
   let est = null;
   try { est = compstimateForJob(data.jobs, job); } catch (err) { console.warn('compstimate failed', err); }
   if (!est || est.mid == null || !isFinite(est.mid) || !(est.n >= MIN_COMPARABLES)) return null;
-  const parts = [est.query?.seniority, est.query?.location].filter(Boolean);
+  const conf = displayConfidence(est, data.meta) || 'Low';
+  // P-2: the basis line is the one the estimate returns (it names the comparables' own level and
+  // place); this block builds no level or location text of its own.
+  const basis = typeof est.basis === 'string' && est.basis ? est.basis
+    : typeof est.basisLine === 'string' && est.basisLine ? est.basisLine
+      : basisLine(est.n, data.company?.name || 'this company');
+  // P-2: no accuracy claim ("Typically within ±8%") next to a low-confidence figure.
+  const accuracy = conf !== 'Low' ? accuracyLine(data.meta) : null;
   return h('div', { class: 'd-comp', role: 'note' },
     h('div', { class: 'd-comp-top' },
-      h('span', { class: 'd-comp-label', title: 'Compstimate: estimated pay from similar roles' }, 'Compstimate'),
+      h('span', { class: 'd-comp-label', title: 'An estimate of the pay, from similar roles that list pay' }, 'Pay estimate'),
       h('span', { class: 'd-comp-amt' }, `≈ ${money(est.mid)}`),
-      h('span', { class: 'muted' }, `(${money(est.low)}–${money(est.high).replace(/^\$/, '')}, ${String(displayConfidence(est, data.meta) || '').toLowerCase()} confidence)`)),
-    h('p', { class: 'd-comp-note' }, `${basisLine(est.n, data.company?.name || 'this company', parts)}. An estimate, not a figure from the posting (approx USD / year).`),
-    accuracyLine(data.meta) ? h('p', { class: 'd-comp-note' }, isLowAccuracy(data.meta) ? h('strong', null, 'Low confidence. ') : null, `${accuracyLine(data.meta)}.`) : null,
+      h('span', { class: 'muted' }, `(${money(est.low)}–${money(est.high).replace(/^\$/, '')}, ${conf.toLowerCase()} confidence)`)),
+    h('p', { class: 'd-comp-note' }, `${basis.replace(/\.$/, '')}. An estimate, not a figure from the posting (approx USD / year).`),
+    accuracy ? h('p', { class: 'd-comp-note' }, `${accuracy}.`) : null,
     asOfNote('d-comp-note d-comp-asof', () => compstimateAsOfText({ fetchedAt: data.fetchedAt, meta: data.meta })));
 }
 
 function annualNote(sal) {
+  // P-8: fixed-term pay is shown as posted, so it gets no "annualized" note, just the posted text.
+  if (sal.termWeeks > 0) return h('div', { class: 'd-annual' }, `Fixed-term pay, not a yearly salary${sal.text ? ` (as posted: ${sal.text})` : ''}`);
   const orig = sal.originalInterval || (sal.interval && sal.interval !== 'year' ? sal.interval : null);
   return orig ? h('div', { class: 'd-annual' }, `Annualized from ${INTERVAL_ADJ[orig] || orig} pay${sal.text ? ` (${sal.text})` : ''}`) : null;
 }
 
+/** P-16: "Revenue · Revenue" and "Internships · Internships · Intern [Intern]" once each. */
+function metaParts(job) {
+  const seen = new Set([String(senLabel(job.seniority || 'Mid')).toLowerCase()]);
+  const out = [];
+  for (const t of [deptKey(job), job.team, job.employmentType ? empLabel(job.employmentType) : null]) {
+    const k = String(t || '').trim().toLowerCase();
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    out.push(t);
+  }
+  return out;
+}
+
 function drawerContent(job) {
   const company = data.company || {};
+  const coName = company.name || job.companyName;
   const pct = percentile(job);
   const kwCat = KW_CATS.map(({ cat, key, title }) => (job.keywords[cat].length ? h('div', { class: 'kw-group' },
     h('h4', null, title),
@@ -2410,7 +3056,7 @@ function drawerContent(job) {
   const bulletsHost = h('div', { class: 'd-bullets' });
   const bulletsFold = fold('d-about', 'About the role', bulletsHost);
   const renderBullets = () => {
-    bulletsHost.replaceChildren(...[bullets('What you\u2019ll do', job.sections.responsibilities), bullets('What they look for', job.sections.fit)].filter(Boolean));
+    bulletsHost.replaceChildren(...[bullets('What you’ll do', job.sections.responsibilities), bullets('What they look for', job.sections.fit)].filter(Boolean));
     bulletsFold.hidden = !bulletsHost.childElementCount;
     applyDrawerBudget();
   };
@@ -2429,41 +3075,56 @@ function drawerContent(job) {
       h('button', { type: 'button', class: 'icon-btn icon-btn--sm', id: 'drawerPrev', 'aria-label': 'Previous role', html: ICON.prev, onclick: () => stepDrawer(-1) }),
       h('span', { class: 'drawer-pos', id: 'drawerPos' }),
       h('button', { type: 'button', class: 'icon-btn icon-btn--sm', id: 'drawerNext', 'aria-label': 'Next role', html: ICON.next, onclick: () => stepDrawer(1) })),
-    // Phones show this as a "Back" arrow at the left of a full-screen page (styles.css).
-    h('button', { type: 'button', class: 'icon-btn', id: 'drawerClose', 'aria-label': 'Close details (Esc)', html: `<span class="ico-close">${ICON.close}</span><span class="ico-back">${ICON.prev}</span>`, onclick: () => closeDrawer() }));
+    // Phones show this as "‹ Back" at the left of a full-screen page (styles.css); P-16: the word
+    // keeps it apart from the "Previous role" arrow next to it.
+    h('button', { type: 'button', class: 'icon-btn', id: 'drawerClose', 'aria-label': 'Close details, back to the list (Esc)', html: `<span class="ico-close">${ICON.close}</span><span class="ico-back">${ICON.prev}<span class="back-label">Back</span></span>`, onclick: () => closeDrawer() }));
 
   const sal = job.salary;
+  const term = postedTerm(sal);
+  const noun = poolNoun(job);
+  // P-16: no "0% percentile" in big green type; one plain sentence, and none for fixed-term pay.
+  const of = `${coName}’s ${noun}${isOte(job) ? '' : ' that show pay'}`;
+  const pctText = pct == null ? null : pct >= 100 ? `The top pay of ${of}` : pct <= 0 ? `The lowest pay of ${of}` : `Pays more than ${pct}% of ${of}`;
+  const caption = !sal ? null : isOte(job) ? `${OTE_LABEL}. Equity isn’t included.`
+    : term ? 'Fixed-term pay as posted. Equity and bonus aren’t included.' : 'Posted base pay. Equity and bonus aren’t included.';
   const salaryBlock = h('section', { class: 'd-salary' },
     sal ? h('div', { class: 'd-sal-top' },
-      h('div', null, h('div', { class: 'd-sal-amt' }, salaryRange(sal)), h('div', { class: 'muted' }, `${sal.currency || 'USD'} · per year`), annualNote(sal)),
-      pct != null ? h('div', { class: 'd-pct' }, h('div', { class: 'd-pct-num' }, pct >= 100 ? 'Top' : `${pct}%`), h('div', { class: 'muted' }, pct >= 100 ? 'paid here' : 'percentile')) : null)
+      h('div', null,
+        h('div', { class: 'd-sal-amt' }, term ? `${term.amount}${term.per ? ` a ${term.per}` : ''}` : salaryRange(sal)),
+        h('div', { class: 'muted' }, term ? `${sal.currency || 'USD'} · for ${termText(term.weeks)}` : `${sal.currency || 'USD'} · per year`),
+        annualNote(sal)))
       : job.salaryFlag ? payUnclearBlock(job)
-        : h('div', { class: 'd-sal-none' }, h('strong', null, 'Salary not listed'), h('span', { class: 'muted' }, ' — this posting doesn\u2019t include a pay range.'), compstimateBlock(job)),
+        : h('div', { class: 'd-sal-none' }, h('strong', null, 'Salary not listed'), h('span', { class: 'muted' }, ' — this posting doesn’t include a pay range.'), compstimateBlock(job)),
     sal ? salaryDistribution(job) : null,
     sal ? payLabels(job) : null,
-    sal ? h('p', { class: 'd-pay-caption' }, 'Posted base pay. Equity and bonus aren\u2019t included.') : null,
-    sal && pct != null ? h('p', { class: 'd-pct-text' }, pct >= 100 ? `Top-paid role at ${company.name || job.companyName}` : `Pays more than ${pct}% of roles at ${company.name || job.companyName}`) : null);
+    caption ? h('p', { class: 'd-pay-caption' }, caption) : null,
+    sal && pctText ? h('p', { class: 'd-pct-text' }, pctText) : null);
 
   const locs = fold('d-locs', job.locations.length > 1 ? `Locations (${job.locations.length})` : 'Location',
-    h('ul', { class: 'loc-list' }, ...(job.locations.length ? job.locations.map((l) => h('li', null,
-      h('span', { class: 'loc-ico', html: l.remote ? ICON.globe : ICON.pin }),
-      h('span', null, l.name || [l.city, l.region].filter(Boolean).join(', ')),
-      l.country && !l.remote ? h('span', { class: 'muted' }, ` · ${countryName(l.country)}`) : null)) : [h('li', { class: 'muted' }, 'Not listed')])));
+    h('ul', { class: 'loc-list' }, ...(job.locations.length ? job.locations.map((l) => {
+      const name = l.name || [l.city, l.region].filter(Boolean).join(', ');
+      const country = l.country && !l.remote ? countryName(l.country) : '';
+      return h('li', null,
+        h('span', { class: 'loc-ico', html: l.remote ? ICON.globe : ICON.pin }),
+        h('span', null, name),
+        // P-16: "Canada · Canada" once.
+        country && !String(name).toLowerCase().includes(country.toLowerCase()) ? h('span', { class: 'muted' }, ` · ${country}`) : null);
+    }) : [h('li', { class: 'muted' }, 'Not listed')])));
 
-  const source = SOURCE_LABEL[company.source] || 'job board';
   const foot = h('div', { class: 'drawer-foot' },
     h('a', { class: 'btn btn--primary btn--lg apply', href: job.url, target: '_blank', rel: 'noopener noreferrer', title: `Opens ${applyHost(job.url) || 'the posting'} in a new tab` },
-      // Demo jobs link to the real board index, not to a real posting — say so.
-      h('span', { class: 'apply-label' }, data.mode === 'demo' && !MOCK ? `Open the real ${source} board` : `Apply on ${source}`, applyHost(job.url) ? h('span', { class: 'apply-host' }, applyHost(job.url)) : null), h('span', { html: ICON.ext })),
+      // Demo jobs link to the real board index, not to a real posting — say so. I-3: name the company, not the job-board system.
+      h('span', { class: 'apply-label' }, data.mode === 'demo' && !MOCK ? `Open ${coName}’s real job board` : `Apply on ${coName}’s careers site`, applyHost(job.url) ? h('span', { class: 'apply-host' }, applyHost(job.url)) : null), h('span', { html: ICON.ext })),
     h('button', { type: 'button', class: 'btn btn--ghost btn--lg', 'aria-label': 'Copy link to this role', html: ICON.link, onclick: copyLink }));
 
+  const sen = job.seniority || 'Mid';
   return [head, h('div', { class: 'drawer-scroll', tabindex: '0', 'aria-label': 'Role details' },
-    h('div', { class: 'd-company' }, h('span', { class: 'dot', style: `--dot:${companyColor(company)}` }), company.name || job.companyName,
+    h('div', { class: 'd-company' }, h('span', { class: 'dot', style: `--dot:${companyColor(company)}` }), coName,
       data.mode === 'demo' ? h('span', { class: 'tag tag--demo' }, 'Demo') : null),
     h('h2', { class: 'd-title', id: 'drawerTitle' }, job.title),
     job._postedTitle && job._postedTitle.replace(/^\s*\[[^\]]{1,16}\]\s*/, '') !== job.title ? h('div', { class: 'd-posted muted' }, `Posted as “${job._postedTitle}”`) : null,
-    h('div', { class: 'd-meta' }, ...[deptKey(job), job.team, job.employmentType].filter(Boolean).map((t, i) => [i ? h('span', { class: 'sep' }, '·') : null, h('span', null, t)]),
-      h('span', { class: `sen sen--${(job.seniority || 'mid').toLowerCase().replace(/\W/g, '')}` }, job.seniority || '—'),
+    h('div', { class: 'd-meta' }, ...metaParts(job).map((t, i) => [i ? h('span', { class: 'sep' }, '·') : null, h('span', null, t)]),
+      h('span', { class: `sen sen--${sen.toLowerCase().replace(/\W/g, '')}`, title: SEN_TIP[sen] || null }, senLabel(sen)),
       job._titleTag ? h('span', { class: 'tag', title: `The posting's title starts with “[${job._titleTag}]”, a tag the company adds (often a team or office code)` }, `Tag: ${job._titleTag}`) : null),
     job._ts ? h('div', { class: 'd-updated muted' }, `Updated ${ago(job._ts)}`) : null,
     // Fixed order (ROADMAP §8): pay block → Same role elsewhere → (Juice headline) → Listing → Locations → Keywords → Bullets → Description.
@@ -2497,9 +3158,13 @@ function listingSection(job) {
   const lines = [];
   const posted = job.postedAt ? Date.parse(job.postedAt) : null;
   if (job._age != null && 'ageDays' in job) {
+    const d = job._age;
+    // I-3: months and years in words; "Always-open posting" for one listed two years ago or more.
+    const ago = d === 0 ? 'today' : d < 60 ? `${plural(d, 'day')} ago` : d < ALWAYS_OPEN_DAYS ? `${plural(Math.round(d / 30.44), 'month')} ago` : `${plural(Math.floor(d / 365), 'year')} ago`;
+    const on = posted ? ` (${new Date(posted).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })})` : '';
     lines.push(job.ageIsMinimum
-      ? `Open at least ${plural(job._age, 'day')} (it was already listed when melon-seek started tracking this board)`
-      : `Listed ${job._age === 0 ? 'today' : `${plural(job._age, 'day')} ago`}${posted ? ` (${new Date(posted).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })})` : ''}`);
+      ? `Open at least ${ago.replace(/ ago$/, '')} (it was already listed when melon-seek started tracking this board)`
+      : d >= ALWAYS_OPEN_DAYS ? `Always-open posting: listed ${ago}${on}` : `Listed ${ago}${on}`);
   }
   if (job.firstSeenAt) lines.push(`First seen by melon-seek on ${new Date(job.firstSeenAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`);
   if (job.repost?.count > 0) lines.push(`Reposted ${job.repost.count}×${job.repost.firstSeenAt ? ` since ${new Date(job.repost.firstSeenAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}` : ''}`);
@@ -2562,9 +3227,10 @@ function sameRoleSection(job) {
     const filters = { family: res.family, seniority: bySen ? res.seniority : null };
     const chartHost = h('div', { class: 'comps-chart' });
     body.replaceChildren(
+      // P-3: "Level not stated" is never presented as a level ("Mid level").
       h('p', { class: 'comps-note muted' }, bySen
-        ? `${family} roles at ${res.seniority} level: median and middle 50% of posted base pay (approx USD).`
-        : `No other company lists this level, so this compares all ${family} roles.`),
+        ? `${family} roles ${res.seniority === 'Mid' ? 'whose title names no level' : `at ${levelLabel(res.seniority)} level`}: median and middle half of posted base pay (approx US dollars).`
+        : `Too few postings at this level elsewhere, so this compares all ${family} roles.`),
       chartHost,
       asOfNote('comps-asof', () => marketAsOfText(market, rows.map((r) => r.slug))));
     try {
@@ -3029,6 +3695,12 @@ async function boot() {
   bindEvents();
   setSheet('peek');
   S = parseHash();
+  // I-4: a return visit with no link reopens the last company and view (not always the first company).
+  let restored = false;
+  if (!String(location.hash).replace(/^#/, '')) {
+    const last = lsGet(LAST_KEY, null);
+    if (typeof last === 'string' && last) { S = parseHash(`#${last}`); S.job = null; restored = true; }
+  }
   render();
   try {
     const list = await dataApi.getCompanies();
@@ -3037,10 +3709,25 @@ async function boot() {
     console.warn('companies failed', err);
     companies = FALLBACK_COMPANIES;
   }
+  if (S.c && restored && !companies.some((c) => c.slug === S.c) && !isCustomKey(S.c)) { S = parseHash(''); restored = false; } // a company no longer listed
   if (!S.c) S.c = companies[0].slug;
   lastHash = serialize();
   history.replaceState(null, '', location.pathname + location.search + (lastHash ? `#${lastHash}` : ''));
   await loadJobs();
+  if (restored && data.status === 'ready' && (activeFilterCount() || S.c !== companies[0]?.slug)) {
+    toast(activeFilterCount() ? `Reopened where you left off: ${searchName()}` : `Reopened ${data.company?.name || 'your last company'}, where you left off`, 4000);
+  }
+}
+
+/** I-4: remember the last view (company, filters, sort, mode; not the open role) for the next visit. */
+const LAST_KEY = 'melon-seek.last.v1';
+let lastSaved = null;
+function rememberView() {
+  if (data.status !== 'ready' || MOCK) return;
+  const str = serialize({ ...S, job: null });
+  if (str === lastSaved) return;
+  lastSaved = str;
+  lsSet(LAST_KEY, str);
 }
 
 boot();

@@ -51,7 +51,7 @@
     <div class="company-bar">
       <button class="company-menu-btn" id="companyMenuBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Choose company"></button>
       <div class="company-pills" id="companyPills" role="group" aria-label="Recent companies"></div>
-      <button class="btn btn--ghost btn--sm add-board-btn" id="addBoardBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Add board">
+      <button class="btn btn--ghost btn--sm add-board-btn" id="addBoardBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Add board" title="Add another company’s job board (Greenhouse, Ashby or Lever)">
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg><span>Add board</span>
       </button>
     </div>
@@ -91,7 +91,7 @@
     <div class="quick-chips" id="quickChips"></div>
     <div class="quickbar-end">
       <div id="areaChipTop"></div>
-      <button class="chip chip--save" id="saveSearch" type="button" hidden>
+      <button class="chip chip--save" id="saveSearch" type="button" title="Save this search in this browser" hidden>
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 3.5h8v13l-4-3-4 3z"/></svg><span>Save</span>
       </button>
       <button class="link-btn" id="clearAll" type="button" hidden>Clear all</button>
@@ -120,8 +120,8 @@
         <p class="stats-line" id="statsLine" aria-label="Summary"></p>
         <div class="viz-controls" id="vizControls">
           <div class="seg seg--sm" role="group" aria-label="Chart view">
-            <button type="button" data-view="clusters" aria-pressed="true">Clusters</button>
-            <button type="button" data-view="ranges" aria-pressed="false">Ranges</button>
+            <button type="button" data-view="clusters" aria-pressed="true" title="Clusters: roles grouped into bubbles by pay; the number is how many roles a bubble holds">Clusters</button>
+            <button type="button" data-view="ranges" aria-pressed="false" title="Ranges: one bar per role, from the lowest to the highest pay it lists">Ranges</button>
           </div>
           <label class="quiet-select"><span>Group:</span>
             <select id="groupBy" aria-label="Group roles by">
@@ -132,6 +132,7 @@
             </select>
           </label>
         </div>
+        <p class="tagline" id="tagline"><strong class="tagline-brand">melon·seek</strong><span class="tagline-sep" aria-hidden="true"> · </span>Pay, and what’s left after tax and rent, for tech companies’ open roles</p>
       </div>
       <div class="viz" id="vizArea" tabindex="-1" aria-label="Chart or map of roles">
         <div class="viz-host" id="chartHost"></div>
