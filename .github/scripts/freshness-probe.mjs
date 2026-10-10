@@ -19,6 +19,9 @@ import zlib from 'node:zlib';
 import crypto from 'node:crypto';
 
 const CHUNK = 3000;
+// Synchronous writes: with stdout on a pipe (Actions), console.log is async and process.exit()
+// would drop the pending CHUNK lines of a large document.
+const out = (line) => fs.writeSync(1, `${line}\n`);
 const UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 const safe = (s) => String(s || 'doc').replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 80);
 
@@ -45,11 +48,11 @@ async function capture(n, r) {
       etag: res.headers.get('etag') || null, bytes: full, kept: buf.length, truncated,
       sha256: crypto.createHash('sha256').update(buf).digest('hex'), fetchedAt: new Date().toISOString(),
     };
-    console.log(`META ${JSON.stringify(meta)}`);
+    out(`META ${JSON.stringify(meta)}`);
     const b64 = zlib.gzipSync(buf, { level: 9 }).toString('base64');
     const total = Math.ceil(b64.length / CHUNK) || 1;
-    for (let i = 0; i < total; i++) console.log(`CHUNK ${meta.name} ${i + 1}/${total} ${b64.slice(i * CHUNK, (i + 1) * CHUNK)}`);
-    console.log(`END ${meta.name}`);
+    for (let i = 0; i < total; i++) out(`CHUNK ${meta.name} ${i + 1}/${total} ${b64.slice(i * CHUNK, (i + 1) * CHUNK)}`);
+    out(`END ${meta.name}`);
   } finally {
     clearTimeout(timer);
   }
@@ -81,8 +84,8 @@ if (process.argv[2] === '--decode') {
 } else {
   const reqs = JSON.parse(process.env.REQUESTS || '[]');
   for (const [n, r] of reqs.entries()) {
-    console.log(`\n===== [${n}] ${r.name || ''} ${r.url}`);
-    try { await capture(n, r); } catch (e) { console.log(`ERROR ${safe(r.name || `doc${n}`)} ${e.name}: ${e.message}`); }
+    out(`\n===== [${n}] ${r.name || ''} ${r.url}`);
+    try { await capture(n, r); } catch (e) { out(`ERROR ${safe(r.name || `doc${n}`)} ${e.name}: ${e.message}`); }
   }
-  process.exit(0);
+  process.exitCode = 0;
 }

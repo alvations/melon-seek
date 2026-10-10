@@ -6,6 +6,8 @@ name: Site watchdog
 # re-runs pages.yml and reports the problem in the job summary.
 # Root cause it guards against: Settings -> Pages -> Source = "Deploy from a
 # branch" (fix: Source = "GitHub Actions"; needs an admin, so this can't do it).
+# It also checks the beta copy at <site>/beta/ (docs/process/beta-deploy.md):
+# a beta problem is a warning annotation only (no re-deploy, no failed run).
 on:
   schedule:
     - cron: "11,41 * * * *" # every 30 min, off the hour
@@ -51,6 +53,19 @@ jobs:
         env:
           CHECK_TIMEOUT: "60"
         run: bash .github/scripts/check-site.sh "$SITE" "${{ steps.expect.outputs.sha }}"
+
+      - name: Check the beta site (warning only)
+        if: steps.expect.outputs.busy == '0'
+        continue-on-error: true
+        env:
+          CHECK_TIMEOUT: "60"
+          EXPECT_CHANNEL: beta
+          CHECK_LEVEL: warning
+          EXPECTED: ${{ steps.expect.outputs.sha }}
+        run: |
+          if ! bash .github/scripts/check-site.sh "${SITE%/}/beta/" "$EXPECTED"; then
+            { echo "### Beta site check (warning)"; echo ""; echo "- URL: ${SITE%/}/beta/"; echo "- The main site is checked separately; a beta outage never re-deploys or fails this run."; echo ""; } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Deploy in progress
         if: steps.expect.outputs.busy != '0'

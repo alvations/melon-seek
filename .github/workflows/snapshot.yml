@@ -5,14 +5,35 @@ name: Snapshot job boards
 # ARTIFACT. It does not commit them: real snapshots are tens of MB per day
 # (anduril alone is ~38 MB), which would bloat the git history. pages.yml
 # restores the latest artifact as its fallback before fetching fresh data.
+#
+# Beta channel (docs/process/beta-deploy.md): the big-tech boards are crawled
+# here, never in pages.yml (a full crawl takes over an hour: about 1 request/s per
+# host, and Amazon alone has ~22k postings). Every 6 hours:
+#   beta-companies  the beta slugs from server/companies.js (the matrix)
+#   beta-crawl      one job per company, in parallel (each a different host, so the
+#                   per-host politeness holds), capped; its snapshot is vetted (the
+#                   per-company beta gate) and only a passing one is handed on
+#   beta-merge      the previous job-board-snapshots-beta artifact + this run's
+#                   results: a company whose crawl failed keeps its previous file;
+#                   the beta ledger is updated; one artifact uploaded
+#   beta-deploy     dispatches pages.yml, so fresh posts go live without a push (a
+#                   dispatched deploy makes no branch build, so no holding page)
+# The stable job (daily) is unchanged and never waits on or depends on these.
 on:
   schedule:
-    - cron: "17 6 * * *" # daily, 06:17 UTC
+    - cron: "17 6 * * *" # stable boards, daily, 06:17 UTC
+    - cron: "47 0,6,12,18 * * *" # beta (big-tech) boards, every 6 hours at :47 UTC
   workflow_dispatch:
+    inputs:
+      channel:
+        description: Which boards to fetch
+        type: choice
+        options: [both, stable, beta]
+        default: both
 
 permissions:
   contents: read
-  actions: read # find the newest history-ledger artifact
+  actions: read # find the newest history-ledger / beta snapshots artifact
 
 # Ledger artifacts are only restored from trusted runs (REVIEW.md V2).
 env:
@@ -24,6 +45,7 @@ concurrency:
 
 jobs:
   snapshot:
+    if: ${{ github.event.schedule == '17 6 * * *' || (github.event_name == 'workflow_dispatch' && inputs.channel != 'beta') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -77,15 +99,15 @@ jobs:
         with:
           name: job-board-snapshots
           path: data/snapshots/*.json
-          retention-days: 14
+          retention-days: 90 # GitHub maximum; the permanent copy is the data-archive branch (docs/DATA_ARCHIVE.md)
           if-no-files-found: error
 
   # Branch store only (HISTORY_STORE=branch): commit the ledger to the orphan
   # data-history branch. The only job with contents: write, and it is skipped
-  # entirely in the default artifact store.
+  # entirely in the default artifact store (and on beta-only runs).
   persist-ledger:
     needs: snapshot
-    if: ${{ vars.HISTORY_STORE == 'branch' && !cancelled() }}
+    if: ${{ vars.HISTORY_STORE == 'branch' && !cancelled() && needs.snapshot.result != 'skipped' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -100,3 +122,150 @@ jobs:
           path: data/history
       - name: Commit ledger to the data-history branch
         run: bash .github/scripts/ledger.sh commit-branch
+
+  # ---------------------------------------------------------------- beta channel
+
+  beta-companies:
+    if: ${{ github.event.schedule == '47 0,6,12,18 * * *' || (github.event_name == 'workflow_dispatch' && inputs.channel != 'stable') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      slugs: ${{ steps.list.outputs.slugs }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Beta companies (server/companies.js)
+        id: list
+        run: |
+          slugs=$(node .github/scripts/beta-snapshots.mjs slugs)
+          echo "slugs=$slugs" >> "$GITHUB_OUTPUT"
+          echo "Beta companies to crawl: $slugs" >> "$GITHUB_STEP_SUMMARY"
+
+  # One crawl per company, in parallel. A failed or timed-out crawl, or one the beta
+  # gate rejects, uploads nothing, so the merge keeps that company's previous file.
+  beta-crawl:
+    name: beta crawl (${{ matrix.slug }})
+    needs: beta-companies
+    if: ${{ needs.beta-companies.outputs.slugs != '' && needs.beta-companies.outputs.slugs != '[]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        slug: ${{ fromJSON(needs.beta-companies.outputs.slugs) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # The ledger is recorded by beta-merge, against the previous one; this run's copy is scratch.
+      - name: Crawl (polite, about 1 request/s; capped at 140 min)
+        id: crawl
+        continue-on-error: true
+        env:
+          SLUG: ${{ matrix.slug }}
+          MELON_SNAPSHOT_DIR: data/beta-fresh
+          MELON_HISTORY_DIR: ${{ runner.temp }}/ledger-scratch
+        run: timeout --kill-after=60s 140m node scripts/snapshot.js "$SLUG"
+
+      - name: Crawl did not finish (the previous snapshot stays on /beta/)
+        if: ${{ steps.crawl.outcome != 'success' }}
+        env:
+          SLUG: ${{ matrix.slug }}
+        run: echo "::warning::beta crawl of $SLUG failed or timed out; the beta site keeps its previous $SLUG snapshot"
+
+      # Beta gate (per company): a snapshot with an unquarantined critical salary is moved aside.
+      - name: Beta salary vetting gate
+        env:
+          BETA_GATE_TIMEOUT: "300"
+        run: bash .github/scripts/beta-gate.sh data/beta-fresh "$RUNNER_TEMP/beta-rejected"
+
+      - name: Hand the snapshot to the merge
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: beta-crawl-${{ matrix.slug }}
+          path: data/beta-fresh/*.json
+          retention-days: 90 # GitHub maximum; the permanent copy is the data-archive branch (docs/DATA_ARCHIVE.md)
+          if-no-files-found: ignore
+
+  beta-merge:
+    needs: [beta-companies, beta-crawl]
+    if: ${{ !cancelled() && needs.beta-companies.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      fresh: ${{ steps.merge.outputs.fresh }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # data/beta/snapshots/ + data/beta/history/ as the last run left them (trusted runs only).
+      - name: Restore last beta snapshots artifact (trusted runs only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LEDGER_ARTIFACT: job-board-snapshots-beta
+          LEDGER_DIR: data/beta
+        run: bash .github/scripts/ledger.sh restore-artifact
+
+      - name: Download this run's crawls
+        continue-on-error: true # no company produced a snapshot
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: beta-crawl-*
+          merge-multiple: true
+          path: data/beta-fresh
+
+      - name: Merge (fresh replaces previous; a failed company keeps its previous file)
+        id: merge
+        run: node .github/scripts/beta-snapshots.mjs merge data/beta-fresh data/beta
+
+      - name: Upload beta snapshots artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: job-board-snapshots-beta
+          path: data/beta/
+          retention-days: 90 # GitHub maximum; the permanent copy is the data-archive branch (docs/DATA_ARCHIVE.md)
+          if-no-files-found: warn
+
+  # Fresh beta posts go live: dispatch pages.yml (it restores the artifact above). Dispatched
+  # runs make no branch-based Pages build, so the holding page never shows.
+  beta-deploy:
+    needs: beta-merge
+    if: ${{ needs.beta-merge.result == 'success' && fromJSON(needs.beta-merge.outputs.fresh || '0') > 0 }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write # dispatch pages.yml; read its runs to find the deployed branch
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Dispatch pages.yml on the deployed branch
+        run: |
+          set -euo pipefail
+          default=$(gh api "repos/$GITHUB_REPOSITORY" --jq .default_branch)
+          branch=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow pages.yml --status success --limit 1 \
+                     --json headBranch --jq '.[0].headBranch // ""' 2>/dev/null || true)
+          # Only a trusted branch (the default or TRUSTED_BRANCHES) is ever deployed.
+          case " $default $TRUSTED_BRANCHES " in
+            *" $branch "*) [ -n "$branch" ] || branch="$default" ;;
+            *) branch="$default" ;;
+          esac
+          gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref "$branch"
+          echo "Dispatched pages.yml on \`$branch\`: the fresh beta snapshots go live at /beta/ when it finishes." >> "$GITHUB_STEP_SUMMARY"

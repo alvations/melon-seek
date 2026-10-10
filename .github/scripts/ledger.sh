@@ -17,7 +17,8 @@
 # Usage:
 #   ledger.sh restore           restore into data/history/ (missing store = start fresh)
 #   ledger.sh restore-artifact  restore LEDGER_ARTIFACT into LEDGER_DIR from a TRUSTED run
-#                               (pages.yml also uses it for job-board-snapshots)
+#                               (pages.yml also uses it for job-board-snapshots, and both
+#                               workflows for job-board-snapshots-beta into data/beta/)
 #   ledger.sh commit-branch     commit data/history/*.json to the data-history branch
 #
 # Artifact trust (REVIEW.md V2): only artifacts from runs that (a) ran on this
@@ -40,7 +41,8 @@ ARTIFACT="${LEDGER_ARTIFACT:-history-ledger}"
 REMOTE="${LEDGER_REMOTE:-origin}"
 
 log() { echo "ledger: $*"; }
-count() { find "$DIR" -maxdepth 1 -name '*.json' 2>/dev/null | wc -l | tr -d ' '; }
+# Recursive: the job-board-snapshots-beta artifact (pages.yml) holds snapshots/ and history/.
+count() { find "$DIR" -name '*.json' 2>/dev/null | wc -l | tr -d ' '; }
 
 # "trusted" if run $1 may supply data, else a reason (stdout).
 run_trust() {

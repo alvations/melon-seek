@@ -639,3 +639,14 @@ screenshots in `docs/screenshots/`.
   - CI's live-site link step is now advisory, because it races the deploy. The hard gate is pages.yml's post-deploy check.
 - **Process.** All agents were told to stop pushing; the lead batches pushes, so there are fewer branch builds.
 - **Permanent fix:** set Source to "GitHub Actions". Branch builds then stop entirely. It needs a repo admin, so it was offered to the user.
+
+### Batch push: archive rescue + beta site + retention (2026-10-10)
+- **User:** "what retention limits?! Keep them Forever and put them into the repo!"
+  - Workflow artifacts can't be kept forever: 90 days is GitHub's maximum for a public repo. Every artifact is now set to 90 as a safety net.
+  - The permanent store is the orphan `data-archive` branch in this repo (archive agent, docs/DATA_ARCHIVE.md). `archive-backfill.yml` rescues every artifact that still exists; the first expires 2026-10-16T12:48Z. `archive.yml` ingests after every snapshot and deploy run.
+- **Archive commits:** d894b23 and bef4cd0, the archive agent's own files. The lead renamed its write jobs from `persist-ledger`, a name chosen only to pass the security test, to `archive-ingest`, and listed them explicitly in test/workflows.test.js. The test also checks that branch.sh refuses code and deploy branches and never force-pushes.
+- **Beta site,** from the deploy engineer, revision 2:
+  - `dist/beta/` is built from the restored `job-board-snapshots-beta` artifact; pages.yml never crawls.
+  - snapshot.yml crawls the big-tech boards every 6 h, one matrix job per company. It gates each one, merges them into the previous artifact (a failed company keeps its last file), then dispatches a deploy. Dispatched deploys make no branch build, so the holding page never shows.
+  - Also in this batch: api.js `live:false`, the Beta pill CSS hunk only (the `.juice-controls` hunk waits for the Juice batch), the server's `MELON_CHANNEL`, links-policy hosts, and beta-build tests.
+- **Verified** on a clean worktree from HEAD plus exactly these files: `npm test` 381/381, build OK with real snapshots (stable unchanged; beta 0/7 until the first crawl), e2e 86/86, and all workflow YAML parses.

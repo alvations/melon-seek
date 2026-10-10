@@ -8,8 +8,10 @@
 //        `.href = '…'`, `href="…"` in templates), window.open('…'),
 //        location.assign/replace/href = '…'.
 // Rules:
-//   1. Absolute http(s) links: host must be in ALLOWED_HOSTS or be the site
-//      itself (SITE_URL prefix).
+//   1. Absolute http(s) links: host must be in ALLOWED_HOSTS, or the URL must
+//      start with an ALLOWED_PREFIXES entry (a careers section of a shared
+//      host, such as www.google.com/about/careers/), or be the site itself
+//      (SITE_URL prefix).
 //   2. github.com, raw.githubusercontent.com and the repo URL are banned in any
 //      link; the repo URL is banned anywhere in shipped code.
 //   3. dist only: every relative link (HTML attributes, and directory-style
@@ -18,13 +20,35 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+// Big-tech career sites (beta channel only, docs/CONTRACT.md "v3 additions"): the
+// posting pages ("Apply" links) of the beta companies, as the adapters in
+// server/sources/ build them (docs/DATA_SOURCES.md §7). Hosts that only serve careers
+// are allowed whole; a shared host only under its careers path (BETA_POSTING_PREFIXES).
+// Tesla is not listed: its site blocks plain requests, so it is not on the beta site.
+// The stable site never links to any of them (scripts/build-static.js#betaLeaks).
+export const BETA_POSTING_HOSTS = Object.freeze([
+  'careers.google.com', // Google's former careers host (postings: BETA_POSTING_PREFIXES)
+  'apply.careers.microsoft.com', 'jobs.careers.microsoft.com', 'careers.microsoft.com', // Microsoft (Eightfold)
+  'www.metacareers.com', // Meta
+  'jobs.apple.com', // Apple
+  'explore.jobs.netflix.net', 'jobs.netflix.com', // Netflix (Eightfold)
+  'www.amazon.jobs', // Amazon
+  'jobs.nvidia.com', 'nvidia.wd5.myworkdayjobs.com', // NVIDIA (Eightfold; applications on Workday)
+]);
+export const BETA_POSTING_PREFIXES = Object.freeze([
+  'https://www.google.com/about/careers/', // Google: www.google.com/about/careers/applications/jobs/results/<id>
+]);
+
 export const ALLOWED_HOSTS = Object.freeze([
   // ATS job pages (each posting's url, "Apply" links)
   'job-boards.greenhouse.io', 'boards.greenhouse.io', 'jobs.ashbyhq.com', 'jobs.lever.co',
+  ...BETA_POSTING_HOSTS,
   // Map attribution
   'www.openstreetmap.org', 'openstreetmap.org',
   // No font hosts: Inter is self-hosted (public/fonts/).
 ]);
+/** URL prefixes allowed on hosts that are not allowed whole (https only, path-scoped). */
+export const ALLOWED_PREFIXES = Object.freeze([...BETA_POSTING_PREFIXES]);
 // IANA-reserved example domains (RFC 2606): used by dev mocks/demo data; they
 // can never be a real third-party site.
 export const RESERVED_HOSTS = Object.freeze(['example.com', 'www.example.com', 'example.org', 'example.net']);
@@ -60,6 +84,21 @@ function hostOf(url) {
   try { return new URL(url.startsWith('//') ? `https:${url}` : url).host.toLowerCase(); } catch { return null; }
 }
 
+/** Under an ALLOWED_PREFIXES entry? Compared on the parsed URL, so "…/careers/../x" or "careers.evil" can't pass. */
+function underAllowedPrefix(url) {
+  let u;
+  try { u = new URL(url.startsWith('//') ? `https:${url}` : url); } catch { return false; }
+  return ALLOWED_PREFIXES.some((p) => `${u.protocol}//${u.host.toLowerCase()}${u.pathname}`.startsWith(p));
+}
+
+/** True when an absolute link may leave the site (rule 1; GitHub is never allowed). */
+export function isAllowedLink(url, { siteUrl = 'https://alvations.github.io/melon-seek/' } = {}) {
+  const host = hostOf(url);
+  if (!host || BANNED_HOSTS.includes(host)) return false;
+  if (siteUrl && url.startsWith(siteUrl)) return true;
+  return ALLOWED_HOSTS.includes(host) || RESERVED_HOSTS.includes(host) || underAllowedPrefix(url);
+}
+
 /** Policy violations for one file's text (rules 1-2). */
 export function checkText(file, text, { siteUrl = 'https://alvations.github.io/melon-seek/' } = {}) {
   const v = [];
@@ -72,7 +111,7 @@ export function checkText(file, text, { siteUrl = 'https://alvations.github.io/m
     if (!host) { v.push(`${where}: unparseable link ${l.url}`); continue; }
     if (BANNED_HOSTS.includes(host)) { v.push(`${where}: link to ${host} (${l.url})`); continue; }
     if (siteUrl && l.url.startsWith(siteUrl)) continue;
-    if (!ALLOWED_HOSTS.includes(host) && !RESERVED_HOSTS.includes(host) && !/\$\{/.test(l.url)) v.push(`${where}: link to non-allowlisted host ${host} (${l.url})`);
+    if (!ALLOWED_HOSTS.includes(host) && !RESERVED_HOSTS.includes(host) && !underAllowedPrefix(l.url) && !/\$\{/.test(l.url)) v.push(`${where}: link to non-allowlisted host ${host} (${l.url})`);
   }
   return v;
 }
@@ -81,7 +120,8 @@ function walk(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]));
 }
 
-const SKIP_DIST = /^(vendor|api\/desc)\//;
+// Third-party Leaflet and the job-description data; also inside the beta copy (dist/beta/).
+const SKIP_DIST = /^(beta\/)?(vendor|api\/desc)\//;
 
 /** Files the policy covers under a root (public/ or dist/). */
 export function policyFiles(root) {

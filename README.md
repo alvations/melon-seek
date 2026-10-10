@@ -168,7 +168,7 @@ npm run build          # -> dist/
 | --- | --- |
 | `dist/` | A copy of `public/`. Absolute `/x` URLs in the HTML become relative, so the site works under the `/melon-seek/` sub-path. |
 | `dist/config.js` | Sets `window.MELON_STATIC = true`. It's loaded before `app.js`. |
-| `dist/lib/` | Browser copies of the modules allowlisted in `server/lib-modules.js` (the same list the server serves at `/lib/`): `normalize`, `salary`, `vet`, `geo`, `keywords`, `demo`, `juice`, `history`, `companies` and `sources/*`. |
+| `dist/lib/` | Browser copies of the modules allowlisted in `server/lib-modules.js` (the same list the server serves at `/lib/`) that the browser can load: `normalize`, `salary`, `vet`, `geo`, `keywords`, `demo`, `juice`, `history`, `export`, `companies`, and the adapters of the boards it fetches live (`sources/greenhouse`, `ashby`, `lever`, `util`). The main site's `companies.js` lists the stable companies only. |
 | `dist/vendor/leaflet/` | Leaflet. |
 | `dist/api/companies.json` | The built-in companies. |
 | `dist/api/jobs/<slug>.json` | The company's job list: its snapshot (`mode: "snapshot"`), or demo data if the build had no snapshot. Descriptions are left out and the list is packed (see below). Each list is kept under 1.5 MB. |
@@ -180,6 +180,7 @@ npm run build          # -> dist/
 | `dist/api/market.json` | Market comps ("same role elsewhere"), from `scripts/build-market.js`. Vetted base-pay ranges only, ≤ 150 kB. |
 | `dist/data/<slug>.csv`, `dist/data/README.txt` | **Open data**: one CSV per company (no descriptions), plus a README covering the columns and attribution. Both come from `server/export.js`, the same code as the server's `GET /api/export`. Every row has a `data_mode` column, so demo companies' rows are marked `demo` (synthetic). |
 | `dist/.nojekyll` | Turns off Jekyll processing. |
+| `dist/beta/` | The [beta site](#beta-site): the same app again, with the big-tech boards added. |
 
 Each list also carries `meta`:
 - `meta.compstimate` is the seeded leave-one-out backtest of Compstimate
@@ -361,6 +362,96 @@ Wait about 10 minutes after a deploy before re-scraping, because Pages' CDN
 caches HTML. Details, verification commands and other platforms are in
 [docs/process/social.md](docs/process/social.md).
 
+### Beta site
+
+<https://alvations.github.io/melon-seek/beta/> is a full second copy of the
+app: the stable companies plus the big-tech career sites (Google, Microsoft,
+Meta, Apple, Netflix, Amazon and NVIDIA; Tesla is left out because its site
+blocks plain requests, see [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) §7).
+The main site at `/melon-seek/` doesn't change and doesn't link to it.
+Contract: [docs/CONTRACT.md](docs/CONTRACT.md) "v3 additions"; build log:
+[docs/process/beta-deploy.md](docs/process/beta-deploy.md).
+
+- **What looks different:** only a small "Beta" pill by the logo (on phones, at
+  the start of the top row). It's one CSS rule keyed on
+  `<html data-channel="beta">`; there's no JavaScript and no new control.
+- **What's different underneath:** every beta page has
+  `<meta name="robots" content="noindex">`, and `index.html` also carries
+  `<meta name="melon-channel" content="beta">` next to the build marker. Market
+  comps ("Same role elsewhere", Insights), share pages `c/<slug>/`, CSV and the
+  methodology page all cover the beta companies.
+- **Data:** `node scripts/snapshot.js --channel beta` (or one slug, e.g.
+  `node scripts/snapshot.js amazon`) fetches the big-tech boards. The workflows
+  keep them in `data/beta/snapshots/` (and their ledger in `data/beta/history/`),
+  never in `data/snapshots/`, so the stable vetting gate never sees them. These
+  companies are `live: false` in `server/companies.js`: their career sites send
+  no CORS headers, so the browser can't fetch them live, and the badge reads
+  "Snapshot · <date>". A beta company with no snapshot, or one that fails its
+  vetting gate, is left out of the beta site and listed in the run summary.
+  Beta companies never get demo data.
+- **How fresh:** the big-tech boards are re-crawled **every 6 hours**
+  (`snapshot.yml`, 00:47, 06:47, 12:47 and 18:47 UTC), and each crawl is
+  deployed as soon as it finishes. A full crawl takes over an hour, because the
+  crawl is polite (about 1 request/s per host) and Amazon alone has about 22k
+  postings. So a post on `/beta/` is usually under 6 hours old, plus the crawl
+  time. The stable boards keep their own cadence (daily snapshot, plus a fresh
+  fetch on every deploy).
+- **Build:** `npm run build` writes `dist/` and then `dist/beta/`. The stable
+  companies' files in the copy are the main site's files, copied. A beta
+  failure never fails the main build: the copy is removed with a warning.
+
+  | Option / env | Meaning |
+  | --- | --- |
+  | `--no-beta` | Stable site only. |
+  | `--beta-only` | Only `dist/beta/` (exit code 1 on failure). `pages.yml` builds the copy in its own step, after the main site; the stable companies' files are then copied from `dist/`. |
+  | `--beta-summary <file>` | Append a Markdown table of the beta companies (included / left out, and why). |
+  | `MELON_BETA_SNAPSHOT_DIR`, `MELON_BETA_HISTORY_DIR` | Beta inputs (default `data/beta/snapshots`, `data/beta/history`; a snapshot is also looked for in `MELON_SNAPSHOT_DIR`). |
+  | `MELON_BETA_COMPANIES` | Test-only registry override: a JSON file with extra beta companies (`[{ slug, name, source, board, color, live: false }]`), so tests need no change to `server/companies.js`. |
+  | `MELON_BUILT_AT` | Pin the build time (reproducible builds; the tests compare bytes). |
+
+- **The crawl (`snapshot.yml`, every 6 hours):**
+  1. A job lists the beta companies
+     (`.github/scripts/beta-snapshots.mjs slugs`).
+  2. A matrix runs one job per company, in parallel. Each company is a
+     different host, so the per-host politeness holds. Each crawl is capped at
+     140 minutes, and its snapshot goes through the beta vetting gate
+     (`.github/scripts/beta-gate.sh`).
+  3. A merge job restores the previous `job-board-snapshots-beta` artifact
+     (trusted runs only, same rules as the stable one). It puts each company's
+     fresh snapshot on top and records it in that company's ledger. A company
+     whose crawl failed, timed out or was rejected keeps its previous file.
+     Then it uploads the artifact.
+  4. A last job dispatches `pages.yml`, so the new posts go live without a
+     push.
+
+  The stable daily job is unchanged and separate.
+- **The deploy (`pages.yml`, on push, daily, and when the crawl dispatches
+  it):** it never crawls a big-tech board.
+  1. It restores the latest beta artifact.
+  2. It runs the stable vetting gate (unchanged, hard), then the per-company
+     beta gate on the restored data.
+  3. It builds the stable site, then the beta copy (`--beta-only`, which
+     copies the stable companies' files instead of rebuilding them).
+
+  A push deploy takes what it did before, plus about 1–2 minutes for `/beta/`.
+  Each beta step has `continue-on-error` and a short `timeout-minutes` cap (20
+  minutes in total, only if something hangs), so it never blocks the main
+  site. Dispatched and scheduled deploys make no branch-based Pages build, so
+  they never show the holding page.
+- **Checks:** after each deploy, and every 30 minutes in `site-watchdog.yml`,
+  `/beta/` is checked for this build's marker and the beta channel meta. A
+  problem there is a warning annotation, not a failure.
+- **Server mode:** `/api/companies` lists the stable companies unless the server
+  runs with `MELON_CHANNEL=beta` (`MELON_CHANNEL=beta npm start`).
+  `/api/jobs?company=<beta slug>` works either way.
+- **Try it locally:**
+
+  ```sh
+  MELON_SNAPSHOT_DIR=data/beta/snapshots MELON_HISTORY_DIR=data/beta/history node scripts/snapshot.js --channel beta  # over an hour
+  npm run build
+  # serve dist/ under /melon-seek/ (e.g. docs/process/scripts/qa-audit-static-server.mjs), then open /melon-seek/beta/
+  ```
+
 ## API reference
 
 ### `GET /api/companies`
@@ -370,7 +461,9 @@ caches HTML. Details, verification commands and other platforms are in
 ```
 
 Built-ins: `anthropic` (greenhouse/`anthropic`), `anduril`
-(greenhouse/`andurilindustries`), `openai` (ashby/`openai`).
+(greenhouse/`andurilindustries`), `openai` (ashby/`openai`). Stable companies
+only; with `MELON_CHANNEL=beta` the beta-channel companies follow them (see
+[Beta site](#beta-site)).
 
 ### `GET /api/jobs`
 

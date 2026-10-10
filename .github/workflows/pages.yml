@@ -7,13 +7,24 @@ name: Deploy to GitHub Pages
 # board that fails during this run keeps its last good data instead of
 # falling back to demo.
 #
+# Beta site (docs/CONTRACT.md "v3 additions", docs/process/beta-deploy.md): the
+# same deploy also publishes https://alvations.github.io/melon-seek/beta/, a full
+# copy of the app with the stable companies plus the big-tech boards. This
+# workflow never crawls the big-tech boards (a full crawl takes over an hour):
+# it restores the latest trusted job-board-snapshots-beta artifact, which
+# snapshot.yml crawls every 6 hours and then deploys by dispatching this
+# workflow. So a push deploy costs what it did before plus a few beta minutes
+# (restore, per-company gate, beta copy), each step best effort and time-capped;
+# a beta failure only removes that company, or the whole /beta/ copy, with a
+# warning. It never fails or changes the stable site.
+#
 # One-time repo setup: Settings -> Pages -> Source: "GitHub Actions".
 # To deploy from a non-default branch, also allow it under
 # Settings -> Environments -> github-pages -> Deployment branches and tags.
 on:
   push:
     branches: [main, claude/stoic-ride-54ddxp]
-  workflow_dispatch:
+  workflow_dispatch: # also sent by snapshot.yml after each beta crawl (and by site-watchdog.yml)
   schedule:
     - cron: "41 7 * * *" # daily, 07:41 UTC (after snapshot.yml's 06:17 run)
 
@@ -55,6 +66,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           LEDGER_ARTIFACT: job-board-snapshots
           LEDGER_DIR: data/snapshots
+        run: bash .github/scripts/ledger.sh restore-artifact
+
+      # Beta: data/beta/snapshots/ + data/beta/history/ (never data/snapshots/, so the
+      # stable gate and the stable artifact never see beta data), as snapshot.yml's beta
+      # crawl left them. Same trust rules. Nothing here crawls a big-tech board.
+      - name: Restore last beta snapshots artifact (trusted runs only; best effort)
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LEDGER_ARTIFACT: job-board-snapshots-beta
+          LEDGER_DIR: data/beta
         run: bash .github/scripts/ledger.sh restore-artifact
 
       # F4 history ledger (data/history/*.json): restore it before the snapshot
@@ -108,7 +131,19 @@ jobs:
         with:
           name: salary-vetting
           path: ${{ runner.temp }}/vetting
-          retention-days: 30
+          retention-days: 90 # GitHub maximum; the permanent copy is the data-archive branch (docs/DATA_ARCHIVE.md)
+
+      # Beta gate (docs/process/beta-deploy.md): the same vetting scan, per beta company, each
+      # with a time limit (snapshot.yml already gated each snapshot when it was crawled; this
+      # re-checks the restored copy with today's rules, about 3 s per 40 MB). A failing company
+      # is moved to data/beta/rejected/ (left out of /beta/, listed in the summary); the step
+      # itself always passes. The stable gate above is unchanged.
+      - name: Beta salary vetting gate (per company; a failure only drops that company from /beta/)
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          BETA_GATE_TIMEOUT: "120"
+        run: bash .github/scripts/beta-gate.sh data/beta/snapshots data/beta/rejected
 
       - name: Build static site
         env:
@@ -116,7 +151,30 @@ jobs:
           # tags (docs/process/social.md). Set the SITE_URL repo variable to
           # override it (fork, custom domain).
           SITE_URL: ${{ vars.SITE_URL || 'https://alvations.github.io/melon-seek/' }}
-        run: npm run build
+        run: npm run build -- --no-beta # the stable site; the beta copy is the next step
+
+      # dist/beta/ (served at SITE_URL/beta/): stable companies (the main site's files, copied)
+      # + the beta companies that passed. Its own step, capped and best effort, so it can't fail
+      # or hold up the stable deploy.
+      - name: Build beta site (best effort; dist/beta/)
+        id: beta_build
+        continue-on-error: true
+        timeout-minutes: 10
+        env:
+          SITE_URL: ${{ vars.SITE_URL || 'https://alvations.github.io/melon-seek/' }}
+          MELON_BETA_SNAPSHOT_DIR: data/beta/snapshots
+          MELON_BETA_HISTORY_DIR: data/beta/history
+        run: node scripts/build-static.js --beta-only --beta-summary "$GITHUB_STEP_SUMMARY"
+
+      - name: Beta site not built (this deploy has no /beta/; the main site is unaffected)
+        if: ${{ steps.beta_build.outcome != 'success' }}
+        env:
+          OUTCOME: ${{ steps.beta_build.outcome }}
+        run: |
+          rm -rf dist/beta
+          msg="The beta site could not be built (step outcome: $OUTCOME), so this deploy has no /beta/. The main site is unaffected."
+          echo "::warning::$msg"
+          { echo "### Beta site NOT built"; echo ""; echo "$msg"; echo ""; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Check link-preview tags (absolute og:url / og:image, image bundled)
         env:
@@ -160,6 +218,10 @@ jobs:
             done
             echo ""
             echo "Site total: $(( $(du -sb dist | cut -f1) / 1000000 )) MB (GitHub Pages limit: 1 GB)"
+            if [ -d dist/beta ]; then
+              echo ""
+              echo "Beta copy (dist/beta/, included in the total): $(( $(du -sb dist/beta | cut -f1) / 1000000 )) MB, $(jq length dist/beta/api/companies.json) companies"
+            fi
             echo ""
             echo "### Compstimate backtest (meta.compstimate; seeded leave-one-out, percent values)"
             echo ""
@@ -277,3 +339,16 @@ jobs:
           done
           echo "::warning::Live link preview check failed: og:image='$img' content-type='$type' (docs/process/social.md)"
           exit 1
+
+      # Warn-only: /beta/ is this build's beta copy (marker + <meta name="melon-channel"
+      # content="beta">). A beta outage is a warning annotation, never a failed deploy.
+      - name: Verify the beta site (warning only)
+        continue-on-error: true
+        env:
+          EXPECT_CHANNEL: beta
+          CHECK_LEVEL: warning
+          CHECK_TIMEOUT: "120"
+        run: |
+          if ! bash .github/scripts/check-site.sh "${SITE%/}/beta/" "$GITHUB_SHA"; then
+            { echo "### Beta site check (warning)"; echo ""; echo "${SITE%/}/beta/ is not this build's beta site (see the build job's \"Beta site\" summary). The main site is unaffected."; } >> "$GITHUB_STEP_SUMMARY"
+          fi

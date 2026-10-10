@@ -66,3 +66,17 @@ test('the policy catches violations (negative cases)', () => {
   const v = policy.checkDist(bad);
   assert.equal(v.length, 3, v.join('\n'));
 });
+
+test('big-tech posting pages (beta channel): career hosts allowed whole, shared hosts only under their careers path', () => {
+  const t = (url) => policy.checkText('a.html', `<a href="${url}">apply</a>`).length;
+  for (const ok of ['https://www.amazon.jobs/en/jobs/123/x', 'https://jobs.apple.com/en-us/details/200', 'https://www.metacareers.com/jobs/1/',
+    'https://explore.jobs.netflix.net/careers/job/7', 'https://jobs.careers.microsoft.com/global/en/job/1', 'https://apply.careers.microsoft.com/careers/job/2',
+    'https://jobs.nvidia.com/careers/job/893', 'https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite/job/x',
+    'https://www.google.com/about/careers/applications/jobs/results/1-swe']) assert.equal(t(ok), 0, ok);
+  for (const bad of ['https://www.google.com/search?q=x', 'https://www.google.com/about/careersx/', 'https://www.google.com/about/careers/../../maps',
+    'http://www.google.com/about/careers/x', 'https://www.tesla.com/careers/search/job/1', 'https://careers.google.com.evil.example.org/', 'https://www.amazon.com/dp/x']) assert.equal(t(bad), 1, bad);
+  assert.equal(policy.isAllowedLink('https://jobs.apple.com/x'), true);
+  assert.equal(policy.isAllowedLink('https://github.com/x'), false, 'GitHub stays banned');
+  for (const h of policy.BETA_POSTING_HOSTS) assert.ok(policy.ALLOWED_HOSTS.includes(h), `${h} allowed`);
+  for (const p of policy.BETA_POSTING_PREFIXES) assert.ok(p.startsWith('https://') && p.endsWith('/'), `${p}: https, path-scoped`);
+});

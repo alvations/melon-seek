@@ -43,7 +43,12 @@ test('pages.yml: pages/id-token only on the deploy job; build is read-only', () 
   assert.match(deploy, /permissions:\s*\n\s+pages: write\s*\n\s+id-token: write/, 'deploy job grants pages + id-token');
 });
 
-test('contents: write only where needed (gated ledger job, col-refresh branch)', () => {
+// Jobs allowed contents: write, by workflow. persist-ledger pushes the history ledger branch;
+// archive-ingest pushes only the orphan data-archive branch (scripts/archive/branch.sh refuses
+// main and claude/*, and never force-pushes).
+const WRITE_JOBS = { 'archive.yml': ['archive-ingest'], 'archive-backfill.yml': ['archive-ingest'] };
+
+test('contents: write only where needed (gated ledger job, archive job, col-refresh branch)', () => {
   for (const f of files) {
     const t = read(f);
     if (f === 'col-refresh.yml') {
@@ -57,9 +62,18 @@ test('contents: write only where needed (gated ledger job, col-refresh branch)',
     for (const line of t.split('\n')) {
       const j = /^  ([a-z][a-z0-9-]*):\s*$/.exec(line);
       if (j) job = j[1];
-      if (/^\s+contents:\s*write/.test(line)) assert.equal(job, 'persist-ledger', `${f}: contents: write outside persist-ledger (job ${job})`);
+      if (/^\s+contents:\s*write/.test(line)) {
+        const allowed = ['persist-ledger', ...(WRITE_JOBS[f] || [])];
+        assert.ok(allowed.includes(job), `${f}: contents: write outside ${allowed.join('/')} (job ${job})`);
+      }
     }
   }
+});
+
+test('the archive branch helper refuses code and deploy branches and never force-pushes', () => {
+  const sh = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'scripts', 'archive', 'branch.sh'), 'utf8');
+  assert.match(sh, /claude\/\*\|main\|master\|gh-pages\) .*refusing/);
+  assert.doesNotMatch(sh.split('\n').filter((l) => !/^\s*#/.test(l)).join('\n'), /push[^\n]*(--force|-f\b|\+refs\/heads)/);
 });
 
 test('workflows that publish or persist data never run on pull_request', () => {

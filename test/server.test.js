@@ -785,3 +785,37 @@ test('share pages /c/<slug>/ work in server mode (D-15)', { skip: skipReason }, 
   assert.equal(bare.headers.get('location'), '/c/anthropic/');
   assert.equal((await get('/c/not-a-company/')).status, 404);
 });
+
+test('v3 channel: /api/companies is stable-only unless MELON_CHANNEL=beta; /api/jobs serves beta slugs either way', { skip: skipReason }, async () => {
+  const { listCompanies, getCompany } = await import('../server/companies.js');
+  const pub = (list) => list.map(({ slug, name, source, board, color }) => ({ slug, name, source, board, color }));
+  const stable = listCompanies().filter((c) => !c.channel || c.channel === 'stable');
+  let all;
+  try { all = listCompanies({ channel: 'beta' }); } catch { all = stable; }
+  const beta = all.filter((c) => c.channel === 'beta'); // none until the registry carries beta entries
+  const saved = process.env.MELON_CHANNEL;
+  try {
+    delete process.env.MELON_CHANNEL;
+    assert.equal(mod.serverChannel(), 'stable');
+    assert.deepEqual(await (await get('/api/companies')).json(), pub(stable), 'default: stable companies only');
+    process.env.MELON_CHANNEL = 'beta';
+    assert.equal(mod.serverChannel(), 'beta');
+    const list = await (await get('/api/companies')).json();
+    assert.deepEqual(list, pub(all), 'MELON_CHANNEL=beta: stable + beta companies');
+    assert.deepEqual(list.slice(0, stable.length), pub(stable), 'stable companies first, unchanged');
+    process.env.MELON_CHANNEL = 'nonsense';
+    assert.equal(mod.serverChannel(), 'stable', 'anything else is stable');
+    for (const c of beta.slice(0, 1)) {
+      // Share pages follow the listed channel; /api/jobs resolves any built-in on either channel.
+      delete process.env.MELON_CHANNEL;
+      assert.equal((await get(`/c/${c.slug}/`)).status, 404, `stable server: no share page for ${c.slug}`);
+      const res = await realFetch(`${base}/api/jobs?company=${c.slug}`, { method: 'HEAD' }); // HEAD: never upstream
+      assert.equal(res.status, 200, `stable server: /api/jobs?company=${c.slug}`);
+      process.env.MELON_CHANNEL = 'beta';
+      assert.equal((await get(`/c/${c.slug}/`)).status, 200, `beta server: share page for ${c.slug}`);
+      assert.ok(getCompany(c.slug), `${c.slug} resolves`);
+    }
+  } finally {
+    if (saved === undefined) delete process.env.MELON_CHANNEL; else process.env.MELON_CHANNEL = saved;
+  }
+});

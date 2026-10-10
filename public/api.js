@@ -57,6 +57,12 @@
 // expected: when the bundled snapshot is served, it is returned with
 // `error: null`, so the UI shows no error banner. Demo fallbacks always keep
 // their error, so demo data is never shown without an explanation.
+//
+// Bundle-only companies (docs/CONTRACT.md "v3 additions"): a built-in whose
+// api/companies.json entry says `live: false` (the big-tech career sites on the
+// beta site send no CORS headers) is never fetched from the browser. Its bundled
+// snapshot is served quietly: `error: null`, so the badge reads "Snapshot · <date>"
+// with no "Live fetch skipped" message.
 
 const FRESH_TTL_MS = 30 * 60 * 1000; // same as the server cache (responsible use)
 const LIVE_TIMEOUT_MS = 12000;
@@ -508,7 +514,12 @@ async function staticJobs(p, { refresh = false, signal, onUpgrade = null } = {})
   const allowed = liveSources().includes(company.source);
   if (refresh) blockedSources.delete(company.source);
   let livePending = null;
-  if (!allowed) {
+  if (builtin && company.live === false) {
+    // Bundle-only (see the header): no browser fetch; the snapshot is served without an error.
+    // The note only shows if there is no bundled snapshot at all (demo fallbacks keep an error).
+    error = `Live fetch skipped: ${company.name || slug} is served from the bundled snapshot only (its career site can't be fetched from the browser)`;
+    quiet = true;
+  } else if (!allowed) {
     error = `Live fetch skipped: ${company.source} does not allow cross-origin requests from this site (static deploy)`;
   } else if (blockedSources.has(company.source)) {
     error = `Live fetch skipped: ${company.source} was unreachable from this browser earlier in this session (blocked by CORS or the network); use refresh to retry`;

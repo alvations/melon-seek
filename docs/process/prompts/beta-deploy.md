@@ -64,3 +64,22 @@ VERIFY
 GIT: do NOT commit, push, stash, pull or checkout. The lead commits your work, and the data engineer pushes its own files from this same checkout. Don't touch its files or run any git command that changes the index or working tree beyond your own edits.
 
 FINAL REPORT: what you changed (file:line), test and e2e results, what the lead must check once the data engineer's registry lands, and open risks.
+
+## Mid-task messages from the coordinator (verbatim)
+
+LEAD: one change before I commit your work, which is verified in a clean worktree: unit tests 355/355, e2e 86/86, build OK.
+
+PROBLEM 1. pages.yml runs on every push, and GitHub's branch-based Pages build publishes a page the moment a push lands. I've just committed a repo-root holding page (index.html + 404.html, test/pages-holding.test.js, and a check-site.sh `result=holding` branch on top of your check-site.sh changes) so it publishes that page instead of the README. Until our deploy lands, visitors see "melon·seek is updating". Your beta steps can delay the stable deploy by up to about 60 min, and a full big-tech crawl takes about 90 min (Amazon has 22k postings at 1 req/s). So a push could leave the holding page up for an hour. Not acceptable.
+
+PROBLEM 2. The user wants big-tech posts kept as fresh as possible ("everytime the user gets to melon-seek the posts are updated live like how we did it for the startups"). The career sites send no CORS headers, so browser-live is impossible; the refresh has to be scheduled and frequent.
+
+Please change it:
+(a) On `push`, pages.yml must NOT crawl beta boards. It restores the latest trusted `job-board-snapshots-beta` artifact and builds /beta/ from it, so a push deploy is as fast as before your change: stable fetch plus build.
+(b) The beta crawl runs in snapshot.yml, as a matrix with one job per beta company in parallel. Different hosts keep the per-host politeness; give each job a timeout. Merge the results into one `job-board-snapshots-beta` artifact; a failed company keeps its previous file from the restored artifact.
+   - Schedule: every 6 hours for beta, plus the existing daily stable run. Choose crons on odd minutes.
+   - When the crawl finishes, trigger a deploy (workflow_dispatch of pages.yml with an input such as `beta_fetch: false`, or a workflow_run trigger) so new posts go live without a push.
+   - Scheduled and dispatched deploys don't create branch builds, so they never show the holding page.
+(c) Keep the stable vetting gate hard and the beta gate per company, as you built them.
+(d) Re-verify: npm test, YAML parse and bash -n. Update your log (docs/process/beta-deploy.md) and the README "Beta site" section with the refresh cadence.
+
+Rules: do NOT commit or push. Work in the main checkout as before. Rebase your edits onto the newly committed check-site.sh: keep my holding branch in it. Then report the changed files.

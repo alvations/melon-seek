@@ -8,8 +8,8 @@
 # (injected by scripts/build-static.js; equal to expected-build when given), is
 # the expected channel, and shows no README/Jekyll markers. Retries for
 # CHECK_TIMEOUT seconds (default 180, for the CDN) every CHECK_INTERVAL (default
-# 15). Writes `result=` to $GITHUB_OUTPUT when set: ok | readme | wrong-build |
-# wrong-channel | no-marker | unreachable.
+# 15). Writes `result=` to $GITHUB_OUTPUT when set: ok | readme | holding |
+# wrong-build | wrong-channel | no-marker | unreachable.
 #
 # Channel (docs/process/beta-deploy.md): the beta copy at <site>/beta/ carries
 # <meta name="melon-channel" content="beta">; the main site carries none. Set

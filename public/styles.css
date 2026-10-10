@@ -1241,3 +1241,10 @@ html[data-mode="insights"] .viz-controls { display: none; }
 @media (max-width: 860px) and (max-height: 500px) {
   .ms-map { min-height: 0; }
 }
+
+/* Beta site (the dist/beta/ copy of the app, docs/process/beta-deploy.md): scripts/build-static.js
+   writes <html data-channel="beta"> into dist/beta/index.html only. A monochrome "Beta" pill by the logo is the
+   one visible difference (no JS, no control). Phones hide the logo, so there it leads the company menu. */
+html[data-channel="beta"] .brand::after,
+html[data-channel="beta"] .company-bar::before { content: "Beta"; flex: none; align-self: center; padding: 1px 7px; border: 1px solid var(--ms-border-strong); border-radius: 99px; color: var(--ms-muted); font-size: 12px; font-weight: 650; line-height: 1.4; letter-spacing: .02em; white-space: nowrap; }
+@media (min-width: 861px) { html[data-channel="beta"] .company-bar::before { content: none; } }

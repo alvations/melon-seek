@@ -39,9 +39,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Job id kept as persist-ledger: test/workflows.test.js allows contents: write only in
-  # a job of that name (it also persists the F4 ledger mirror, history/<slug>.json).
-  persist-ledger:
+  # contents: write is allowed for this job by name in test/workflows.test.js (it pushes only
+  # the orphan data-archive branch; scripts/archive/branch.sh refuses main and claude/*).
+  archive-ingest:
     name: Backfill the data-archive branch
     runs-on: ubuntu-latest
     timeout-minutes: 150
@@ -65,8 +65,10 @@ jobs:
           echo "ARCHIVE=$RUNNER_TEMP/archive" >> "$GITHUB_ENV"
           bash scripts/archive/branch.sh open "$RUNNER_TEMP/archive"
 
-      - name: Verify the archive before ingesting
-        run: node scripts/archive/verify.js --archive "$ARCHIVE"
+      - name: Migrate the schema if the code is newer, then verify before ingesting
+        run: |
+          node scripts/archive/migrate.js --archive "$ARCHIVE"
+          node scripts/archive/verify.js --archive "$ARCHIVE"
 
       - name: Dry run (list only)
         if: ${{ inputs.dry_run }}

@@ -30,6 +30,29 @@ export const CITIES_FILE = process.env.MELON_CITIES_FILE || path.join(ROOT, 'dat
 // build: server/lib-modules.js). Node-only modules (index.js, cache.js) never match.
 export { LIB_MODULES, isLibModule } from './lib-modules.js';
 
+/**
+ * The company channel this server lists (docs/CONTRACT.md "v3 additions"): "stable"
+ * unless MELON_CHANNEL=beta, which adds the beta-channel companies to /api/companies
+ * (and to the market comps, the warm-up and the /c/<slug>/ share pages). Read per call,
+ * so tests can switch it. /api/jobs?company=<any built-in> works on either channel.
+ */
+export function serverChannel() {
+  return String(process.env.MELON_CHANNEL || '').trim().toLowerCase() === 'beta' ? 'beta' : 'stable';
+}
+
+/**
+ * Built-ins on this server's channel. Stable drops any entry marked for another channel
+ * (belt and braces); a registry that ignores the argument gives the stable list on both.
+ */
+export function channelCompanies(channel = serverChannel()) {
+  if (channel !== 'beta') return listCompanies().filter((c) => !c.channel || c.channel === 'stable');
+  try {
+    return listCompanies({ channel: 'beta' });
+  } catch {
+    return listCompanies().filter((c) => !c.channel || c.channel === 'stable');
+  }
+}
+
 /** At most one live upstream attempt per slug per this window (review H1). */
 export const MIN_REFRESH_MS = Number(process.env.MELON_MIN_REFRESH_MS) || 60_000;
 /** Custom boards that fell back to demo are answered from memory for this long. */
@@ -521,7 +544,7 @@ export async function getMarket() {
   if (!marketModule) marketModule = await import('../scripts/build-market.js');
   const parts = [];
   const arrays = [];
-  for (const c of listCompanies()) {
+  for (const c of channelCompanies()) {
     const p = await getJobsBase(c, { offline: true });
     arrays.push(p.jobs);
     let part = marketParts.get(p.jobs);
@@ -766,7 +789,7 @@ export async function handle(req, res) {
 
   if (p.startsWith('/api/')) {
     if (req.method !== 'GET' && req.method !== 'HEAD') return sendJson(req, res, 405, { error: 'Method not allowed' });
-    if (p === '/api/companies') return sendJson(req, res, 200, listCompanies().map(({ slug, name, source, board, color }) => ({ slug, name, source, board, color })));
+    if (p === '/api/companies') return sendJson(req, res, 200, channelCompanies().map(({ slug, name, source, board, color }) => ({ slug, name, source, board, color })));
     if (p === '/api/jobs') {
       let company;
       try {
@@ -840,7 +863,7 @@ export async function handle(req, res) {
   if (p === '/c/share-redirect.js') return send(req, res, 200, SHARE_REDIRECT_JS, 'text/javascript; charset=utf-8');
   {
     const m = p.match(/^\/c\/([a-z0-9][a-z0-9_-]{0,63})(\/?)$/i);
-    const company = m && getCompany(m[1]);
+    const company = m && channelCompanies().some((c) => c.slug === m[1].toLowerCase()) ? getCompany(m[1]) : null;
     if (company) {
       if (!m[2]) { res.writeHead(301, { Location: `/c/${encodeURIComponent(company.slug)}/` }); return res.end(); }
       return send(req, res, 200, sharePage(company), 'text/html; charset=utf-8');
@@ -893,11 +916,12 @@ export function createServer({ log = true } = {}) {
  */
 export async function warmBuiltins({ log = true } = {}) {
   const t0 = Date.now();
-  for (const c of listCompanies()) {
+  const list = channelCompanies();
+  for (const c of list) {
     try { await getJobsList(c, { offline: true }); } catch (err) { console.warn(`[warm] ${c.slug}: ${err.message}`); }
   }
   try { await getMarket(); } catch (err) { console.warn(`[warm] market: ${err.message}`); }
-  if (log) console.log(`[warm] ${listCompanies().length} companies + market ready in ${Date.now() - t0} ms`);
+  if (log) console.log(`[warm] ${list.length} ${serverChannel()} companies + market ready in ${Date.now() - t0} ms`);
 }
 
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;

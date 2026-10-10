@@ -5,7 +5,8 @@
 //                             config.js injected before the first script)
 //   dist/config.js            window.MELON_STATIC = true (+ build info, live sources)
 //   dist/vendor/leaflet/      node_modules/leaflet/dist
-//   dist/lib/                 browser copies of server modules used by public/api.js
+//   dist/lib/                 browser copies of server modules used by public/api.js (LIB_MODULES +
+//                             the live-source adapters; the stable site's companies.js has no beta entries)
 //   dist/api/companies.json   built-in companies
 //   dist/api/jobs/<slug>.json data/snapshots/<slug>.json if present (mode "snapshot"),
 //                             else build-time demo (mode "demo"). Jobs are written
@@ -53,21 +54,58 @@
 // is still over LIST_BUDGET, that company's sections move into the desc files
 // too (getJobDetail returns them) and the build says so.
 //
-// Options: --out <dir> (default dist), --strict (fail on warnings).
+// Beta site (docs/CONTRACT.md "v3 additions"; docs/process/beta-deploy.md): after the
+// stable site, the same steps write a full second copy of the app to <out>/beta/
+// (served at SITE_URL + "beta/"), built from the stable companies plus the beta-channel
+// ones (server/companies.js#listCompanies({ channel: 'beta' }); a registry that ignores
+// the argument means "no beta companies"). The stable site never contains a beta company
+// (betaLeaks() fails the build if it would). In the beta copy:
+//   - stable companies carry exactly the stable site's data (files copied, not rebuilt);
+//   - a beta company is bundled from its snapshot only (MELON_BETA_SNAPSHOT_DIR, default
+//     data/beta/snapshots/, then MELON_SNAPSHOT_DIR), never demo data, and only if it
+//     passes betaGate() (the scripts/vet-salaries.js blocking rule). Otherwise it is
+//     dropped from the beta site and listed in the summary;
+//   - api/companies.json carries `live: false` for bundle-only companies (public/api.js);
+//   - market comps, share pages, CSV and the methodology page cover the beta companies;
+//   - every page gets <meta name="robots" content="noindex">; index.html also gets
+//     <html data-channel="beta"> (the CSS "Beta" pill by the logo) and
+//     <meta name="melon-channel" content="beta"> next to the melon-seek-build marker.
+// A beta failure never fails the stable build: the beta copy is removed with a warning
+// (with --beta-only, the exit code is 1 and the caller removes it).
+//
+// Options: --out <dir> (default dist), --strict (fail on warnings),
+//   --no-beta (stable site only), --beta-only (only <out>/beta/; pages.yml builds the beta
+//   copy in its own best-effort step, after the main site: the stable companies' files are
+//   then copied from <out>/ instead of rebuilt), --beta-summary <file> (append a Markdown
+//   table of the beta companies, e.g. "$GITHUB_STEP_SUMMARY").
+// Env: MELON_SNAPSHOT_DIR, MELON_HISTORY_DIR (stable inputs), MELON_BETA_SNAPSHOT_DIR,
+//   MELON_BETA_HISTORY_DIR (beta inputs, default data/beta/{snapshots,history}),
+//   SITE_URL, GITHUB_SHA (build marker), MELON_BUILT_AT (pin the build time, for
+//   reproducible builds), MELON_BETA_COMPANIES (test-only registry override: a JSON
+//   file with an array of extra beta companies { slug, name, source, board, color,
+//   live }; server/companies.js is left alone).
 import fs from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 // The browser-safe module allowlist is shared with the server's /lib/ route.
-import { LIB_MODULES, LIB_SOURCES_DIR } from '../server/lib-modules.js';
+import { LIB_MODULES, LIB_SOURCES_DIR, isLibModule } from '../server/lib-modules.js';
+import { BETA_POSTING_HOSTS, BETA_POSTING_PREFIXES } from './links-policy.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
-const outArg = args.indexOf('--out');
-const OUT = path.resolve(ROOT, outArg >= 0 ? args[outArg + 1] : 'dist');
+const argValue = (k) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : null; };
+const OUT = path.resolve(ROOT, argValue('--out') || 'dist');
 const STRICT = args.includes('--strict');
+const NO_BETA = args.includes('--no-beta');
+const BETA_ONLY = args.includes('--beta-only');
+const BETA_SUMMARY = argValue('--beta-summary');
 const SNAPSHOT_DIR = process.env.MELON_SNAPSHOT_DIR || path.join(ROOT, 'data', 'snapshots');
 const HISTORY_DIR = process.env.MELON_HISTORY_DIR || path.join(ROOT, 'data', 'history');
+const BETA_SNAPSHOT_DIR = process.env.MELON_BETA_SNAPSHOT_DIR || path.join(ROOT, 'data', 'beta', 'snapshots');
+const BETA_HISTORY_DIR = process.env.MELON_BETA_HISTORY_DIR || path.join(ROOT, 'data', 'beta', 'history');
+/** The beta copy's directory under the site (and its path under SITE_URL). */
+export const BETA_DIR = 'beta';
 
 // Server modules the browser needs: LIB_MODULES (+ server/<LIB_SOURCES_DIR>/*.js)
 // from server/lib-modules.js. These are optional: without them the browser
@@ -88,7 +126,8 @@ const QUIET_CORS_SOURCES = ['lever'];
 const LIST_BUDGET = 1_500_000;
 
 const warnings = [];
-const warn = (msg) => { warnings.push(msg); console.warn(`! ${msg}`); };
+let warnPrefix = ''; // "beta: " while the beta copy is built
+const warn = (msg) => { warnings.push(`${warnPrefix}${msg}`); console.warn(`! ${warnPrefix}${msg}`); };
 const rel = (p) => path.relative(ROOT, p) || '.';
 
 async function writeJson(file, obj) {
@@ -242,11 +281,11 @@ function splitPayload(payload, api) {
   return out;
 }
 
-async function writeSplit(payload, file, api, slug) {
+async function writeSplit(out, payload, file, api, slug) {
   const { list, details, sectionsMoved } = splitPayload(payload, api);
   const listBytes = await writeJson(file, list);
   let descBytes = 0;
-  for (const [p, rec] of details) descBytes += await writeJson(path.join(OUT, p), rec);
+  for (const [p, rec] of details) descBytes += await writeJson(path.join(out, p), rec);
   if (listBytes > LIST_BUDGET) warn(`${slug}: list is ${size(listBytes)} even without descriptions/sections (budget ${size(LIST_BUDGET)})`);
   return { listBytes, descBytes, descFiles: details.size, sectionsMoved };
 }
@@ -256,14 +295,14 @@ async function writeSplit(payload, file, api, slug) {
 // Static imports/re-exports with a relative specifier (dynamic import() is lazy on purpose).
 const STATIC_IMPORT_RE = /(?:^|[;\n}])\s*(?:import|export)\s*(?:[\w*{}\s,$]+?\sfrom\s*)?['"](\.{1,2}\/[^'"]+)['"]/g;
 
-/** Files (relative to OUT, "/"-separated) reachable from `entries` through static imports, entries first. */
-async function staticGraph(entries) {
+/** Files (relative to `out`, "/"-separated) reachable from `entries` through static imports, entries first. */
+async function staticGraph(out, entries) {
   const seen = new Set();
   const queue = [...entries];
   while (queue.length) {
     const rel = queue.shift();
     if (seen.has(rel)) continue;
-    const file = path.join(OUT, ...rel.split('/'));
+    const file = path.join(out, ...rel.split('/'));
     if (!existsSync(file)) continue;
     seen.add(rel);
     // Whole-line // comments first (they may contain "/*", e.g. "viz/*"), then block comments.
@@ -275,16 +314,16 @@ async function staticGraph(entries) {
   return [...seen];
 }
 
-/** The <link> hints for dist/index.html (see the header). */
-async function loadHints(html, { staticLib, boardOrigins }) {
+/** The <link> hints for <out>/index.html (see the header). */
+async function loadHints(out, html, { staticLib, boardOrigins }) {
   const attr = (tag, name) => { const m = tag.match(new RegExp(`\\s${name}\\s*=\\s*(["'])(.*?)\\1`, 'i')); return m ? m[2] : null; };
   const head = html.slice(0, html.search(/<\/head>/i));
   const scripts = [...head.matchAll(/<script\b[^>]*>/gi)].map((m) => m[0]);
   const classic = scripts.filter((t) => attr(t, 'src') && !/type\s*=\s*["']module/i.test(t) && !/\s(async|defer)\b/i.test(t)).map((t) => attr(t, 'src'));
   const entries = scripts.filter((t) => /type\s*=\s*["']module/i.test(t) && attr(t, 'src')).map((t) => attr(t, 'src').replace(/^\.\//, ''));
   const styles = [...head.matchAll(/<link\b[^>]*>/gi)].map((m) => m[0]).filter((t) => /\srel\s*=\s*["']stylesheet["']/i.test(t)).map((t) => attr(t, 'href'));
-  const modules = await staticGraph([...entries, ...staticLib.map((f) => `lib/${f}`)]);
-  const json = ['api/companies.json', 'api/cities.json'].filter((f) => existsSync(path.join(OUT, f)));
+  const modules = await staticGraph(out, [...entries, ...staticLib.map((f) => `lib/${f}`)]);
+  const json = ['api/companies.json', 'api/cities.json'].filter((f) => existsSync(path.join(out, f)));
   const lines = [
     ...boardOrigins.map((o) => `<link rel="preconnect" href="${escAttr(o)}" crossorigin>`),
     ...classic.map((s) => `<link rel="preload" href="${escAttr(s)}" as="script">`),
@@ -306,10 +345,10 @@ function injectHints(html, lines) {
 // CSV text, columns and README come from server/export.js (shared with the
 // server's GET /api/export). The static path stays data/<slug>.csv (contract).
 
-/** Ledger for a company: data/history/<slug>.json, or null (missing, corrupt or another format). */
-async function readLedgerFile(slug, history) {
-  const file = path.join(HISTORY_DIR, `${slug}.json`);
-  if (!existsSync(file)) return null;
+/** Ledger for a company: <dir>/<slug>.json from the first of `dirs` that has one, or null (missing, corrupt or another format). */
+async function readLedgerFile(slug, history, dirs = [HISTORY_DIR]) {
+  const file = dirs.map((d) => path.join(d, `${slug}.json`)).find((f) => existsSync(f));
+  if (!file) return null;
   try {
     const doc = JSON.parse(await fs.readFile(file, 'utf8'));
     if (history && doc && doc.format !== history.HISTORY_FORMAT) { warn(`${rel(file)}: format ${doc && doc.format}, expected ${history.HISTORY_FORMAT}; ignored`); return null; }
@@ -453,12 +492,11 @@ const SHARE_REDIRECT_JS = `// Share pages (c/<slug>/index.html): send people on 
 })();
 `;
 
-/** Write the share pages, then make social URLs absolute in every page. */
-async function writeSocial(shares) {
-  const site = siteUrl();
-  await fs.mkdir(path.join(OUT, 'c'), { recursive: true });
-  await fs.writeFile(path.join(OUT, 'c', 'share-redirect.js'), SHARE_REDIRECT_JS);
-  const index = await fs.readFile(path.join(OUT, 'index.html'), 'utf8');
+/** Write the share pages, then make social URLs absolute (against `site`) in every page under `out`. */
+async function writeSocial(out, site, shares) {
+  await fs.mkdir(path.join(out, 'c'), { recursive: true });
+  await fs.writeFile(path.join(out, 'c', 'share-redirect.js'), SHARE_REDIRECT_JS);
+  const index = await fs.readFile(path.join(out, 'index.html'), 'utf8');
   const image = metaContent(index, 'og:image');
   if (!image) warn('public/index.html has no og:image; link previews will have no picture');
   for (const k of ['og:title', 'og:description', 'og:url', 'og:image:width', 'og:image:height', 'og:image:alt', 'twitter:card']) {
@@ -471,27 +509,27 @@ async function writeSocial(shares) {
     height: metaContent(index, 'og:image:height'), alt: metaContent(index, 'og:image:alt'),
   };
   for (const st of shares) {
-    const file = path.join(OUT, 'c', st.slug, 'index.html');
+    const file = path.join(out, 'c', st.slug, 'index.html');
     await fs.mkdir(path.dirname(file), { recursive: true });
     await fs.writeFile(file, sharePage(st, img));
   }
   const images = new Set();
-  for (const file of (await walk(OUT)).filter((f) => f.endsWith('.html'))) {
-    const pageUrl = new URL(path.relative(OUT, file).split(path.sep).join('/'), site).href;
+  for (const file of (await walk(out)).filter((f) => f.endsWith('.html'))) {
+    const pageUrl = new URL(path.relative(out, file).split(path.sep).join('/'), site).href;
     const html = await fs.readFile(file, 'utf8');
-    const out = absolutizeSocial(html, pageUrl, site);
-    if (out !== html) await fs.writeFile(file, out);
-    for (const k of ['og:image', 'twitter:image']) { const v = metaContent(out, k); if (v) images.add(v); }
+    const abs = absolutizeSocial(html, pageUrl, site);
+    if (abs !== html) await fs.writeFile(file, abs);
+    for (const k of ['og:image', 'twitter:image']) { const v = metaContent(abs, k); if (v) images.add(v); }
   }
   // Every share image on this site must be in the bundle and under 5 MB.
   for (const u of images) {
     if (!u.startsWith(site)) continue;
-    const f = path.join(OUT, ...decodeURIComponent(u.slice(site.length)).split('/'));
-    if (!existsSync(f)) { warn(`share image ${u} is not in ${rel(OUT)}/`); continue; }
+    const f = path.join(out, ...decodeURIComponent(u.slice(site.length)).split('/'));
+    if (!existsSync(f)) { warn(`share image ${u} is not in ${rel(out)}/`); continue; }
     const bytes = (await fs.stat(f)).size;
     if (bytes > OG_IMAGE_MAX_BYTES) warn(`share image ${u} is ${size(bytes)}; LinkedIn ignores images over 5 MB`);
   }
-  return { site, image: metaContent(await fs.readFile(path.join(OUT, 'index.html'), 'utf8'), 'og:image'), pages: shares.length };
+  return { site, image: metaContent(await fs.readFile(path.join(out, 'index.html'), 'utf8'), 'og:image'), pages: shares.length };
 }
 
 /* ------------------------------------------------- security headers (V3) */
@@ -535,47 +573,227 @@ function inlineHazards(html) {
   return [...new Set(out)];
 }
 
-async function main() {
-  const t0 = Date.now();
-  await fs.rm(OUT, { recursive: true, force: true });
-  await fs.mkdir(OUT, { recursive: true });
+/* ------------------------------------------------------------ beta channel */
 
-  // 1. public/ -> dist/
-  await fs.cp(path.join(ROOT, 'public'), OUT, { recursive: true });
-  await fs.rm(path.join(OUT, 'og', 'card.html'), { force: true }); // share-card source (scripts/build-og.mjs), not a page
-  for (const page of DEV_PAGES) await fs.rm(path.join(OUT, page), { force: true });
-  for (const file of await walk(OUT)) {
-    if (!file.endsWith('.html')) continue;
-    const depth = path.relative(OUT, path.dirname(file)).split(path.sep).filter(Boolean).length;
-    let html = relativizeHtml(await fs.readFile(file, 'utf8'), depth);
-    if (file === path.join(OUT, 'index.html')) {
-      const tag = '<script src="config.js"></script>';
-      html = /<script\b/i.test(html) ? html.replace(/<script\b/i, `${tag}\n  <script`) : html.replace(/<\/head>/i, `  ${tag}\n</head>`);
+const COMPANY_SLUG_RE = /^[a-z0-9](?:[a-z0-9_-]{0,62}[a-z0-9])?$/;
+const pubCompany = ({ slug, name, source, board, color }) => ({ slug, name, source, board, color });
+
+/**
+ * Built-in companies per channel (docs/CONTRACT.md v3).
+ *  - stable: listCompanies(), minus any entry marked for another channel (belt and braces:
+ *    a registry bug must not put a beta company on the main site);
+ *  - beta: the `channel: 'beta'` entries of listCompanies({ channel: 'beta' }) whose slug is
+ *    not a stable one, then `extra` (MELON_BETA_COMPANIES, tests). A registry that ignores
+ *    the argument returns the stable list again, which means "no beta companies".
+ * Returns { stable, beta, skipped: [reason] }.
+ */
+export function channelCompanies(listCompanies, extra = []) {
+  const stable = listCompanies().filter((c) => c && (!c.channel || c.channel === 'stable'));
+  const taken = new Set(stable.map((c) => c.slug));
+  let all = [];
+  try { all = listCompanies({ channel: 'beta' }) || []; } catch { all = []; }
+  const beta = [];
+  const skipped = [];
+  for (const c of [...all.filter((x) => x && x.channel === 'beta'), ...extra.map((x) => ({ ...x, channel: 'beta' }))]) {
+    if (!c || typeof c.slug !== 'string' || !COMPANY_SLUG_RE.test(c.slug) || !c.name || !c.source) { skipped.push(`${c && c.slug}: not a valid company entry`); continue; }
+    if (taken.has(c.slug)) { skipped.push(`${c.slug}: slug already in use`); continue; }
+    taken.add(c.slug);
+    beta.push(c);
+  }
+  return { stable, beta, skipped };
+}
+
+/**
+ * The beta vetting gate for one company's vetted jobs: the blocking rule of
+ * scripts/vet-salaries.js (a job that would be published with a critical salary flag:
+ * an implausible amount the vetting gate did not quarantine). pages.yml runs the same
+ * rule per beta snapshot first (.github/scripts/beta-gate.sh); this is the build's own
+ * check, so implausible pay can't reach the beta site even when that step is skipped.
+ * Returns { ok, blocking: ["<id> <title>: <salary text>"] }.
+ */
+export function betaGate(jobs, scanCompany) {
+  const blocking = [];
+  for (const r of scanCompany(jobs)) if (r.critical && r.job && r.job.salary) blocking.push(`${r.job.id} ${r.job.title}: ${r.job.salary.text}`);
+  return { ok: blocking.length === 0, blocking };
+}
+
+/** Per-company paths (relative to a site root) that the build writes for `slug`. */
+function companyFiles(api, slug) {
+  const desc = path.posix.dirname(api.descPath({ company: slug, id: `${slug}:x` }));
+  return [`api/jobs/${slug}.json`, `api/demo/${slug}.json`, `api/history/${slug}.json`, `api/meta/${slug}.json`, `data/${slug}.csv`, desc];
+}
+
+/**
+ * Beta data in a built STABLE site (requirement: none, anywhere): a beta slug in
+ * api/companies.json or api/market.json, per-company files for a beta slug
+ * (api/jobs|demo|meta|history/<slug>.json, api/desc/<slug>/, c/<slug>/, data/<slug>.csv),
+ * or a job list with a beta company or a posting URL on a beta posting host
+ * (scripts/links-policy.js BETA_POSTING_HOSTS / _PREFIXES). <out>/beta/ is not looked at.
+ * Returns violations (empty = clean).
+ */
+export function betaLeaks(out, betaSlugs, { hosts = BETA_POSTING_HOSTS, prefixes = BETA_POSTING_PREFIXES } = {}) {
+  const v = [];
+  const slugs = new Set(betaSlugs);
+  const json = (f) => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch { return null; } };
+  for (const c of json(path.join(out, 'api', 'companies.json')) || []) if (c && slugs.has(c.slug)) v.push(`api/companies.json lists ${c.slug}`);
+  for (const s of slugs) {
+    for (const f of [`api/jobs/${s}.json`, `api/demo/${s}.json`, `api/meta/${s}.json`, `api/history/${s}.json`, `api/desc/${s}`, `c/${s}`, `data/${s}.csv`]) {
+      if (existsSync(path.join(out, f))) v.push(`${f} exists`);
     }
-    await fs.writeFile(file, html);
   }
-  // Sub-path hazards in JS that the build can't fix (owned by app code).
-  for (const file of (await walk(OUT)).filter((f) => f.endsWith('.js') && !/(^|\/)(mock-api|api)\.js$/.test(f))) {
-    const src = await fs.readFile(file, 'utf8');
-    if (/['"`]\/api\//.test(src) && !/from\s+['"]\.\/api\.js['"]/.test(src)) warn(`${path.relative(OUT, file)} uses absolute "/api/..." URLs; route them through api.js (apiFetch/getJobs) or the static site can't load data`);
-    const abs = src.match(/['"`]\/(favicon\.svg|vendor\/|viz\/|styles\.css|app\.js)/);
-    if (abs) warn(`${path.relative(OUT, file)} references absolute "/${abs[1]}"; use a relative URL for sub-path hosting`);
+  const market = json(path.join(out, 'api', 'market.json'));
+  if (market) {
+    for (const c of market.companies || []) if (c && slugs.has(c.slug)) v.push(`api/market.json companies[] has ${c.slug}`);
+    const cell = (market.cells || []).find((x) => Array.isArray(x) && slugs.has(x[0]));
+    if (cell) v.push(`api/market.json has cells for ${cell[0]}`);
+  }
+  const onBetaHost = (u) => {
+    try { return hosts.includes(new URL(u).host.toLowerCase()) || prefixes.some((p) => u.startsWith(p)); } catch { return false; }
+  };
+  for (const dir of ['jobs', 'demo']) {
+    const d = path.join(out, 'api', dir);
+    if (!existsSync(d)) continue;
+    for (const f of readdirSync(d)) {
+      const body = json(path.join(d, f));
+      if (!body) continue;
+      const slug = (body.shared && body.shared.company) || (body.company && body.company.slug);
+      if (slugs.has(slug)) v.push(`api/${dir}/${f} holds ${slug} jobs`);
+      const prefix = (body.shared && body.shared.urlPrefix) || '';
+      const bad = (body.jobs || []).find((j) => j && typeof j.url === 'string' && onBetaHost(prefix + j.url));
+      if (bad) v.push(`api/${dir}/${f}: posting URL on a beta host (${prefix + bad.url})`);
+    }
+  }
+  return v;
+}
+
+/** MELON_BETA_COMPANIES (test-only registry override): a JSON file with an array of companies. */
+function readBetaExtra() {
+  const f = process.env.MELON_BETA_COMPANIES;
+  if (!f) return [];
+  const list = JSON.parse(readFileSync(path.resolve(ROOT, f), 'utf8'));
+  if (!Array.isArray(list)) throw new Error('MELON_BETA_COMPANIES must name a JSON file holding an array of companies');
+  return list;
+}
+
+/** The build time (MELON_BUILT_AT pins it, for reproducible builds). */
+function buildTime() {
+  const raw = process.env.MELON_BUILT_AT;
+  if (!raw) return new Date().toISOString();
+  const t = Date.parse(raw);
+  if (Number.isNaN(t)) throw new Error(`MELON_BUILT_AT must be an ISO date, got "${raw}"`);
+  return new Date(t).toISOString();
+}
+
+/** Without descriptionHtml: what the market comps keep in memory (buildMarket never reads it). */
+const lean = (jobs) => jobs.map((j) => {
+  if (!j || typeof j !== 'object' || !('descriptionHtml' in j)) return j;
+  const { descriptionHtml, ...rest } = j;
+  return rest;
+});
+
+/* ------------------------------------------------------------------ build */
+
+/** Everything both sites share: modules, options, inputs, and the per-company cache. */
+async function loadContext() {
+  const imp = (...p) => import(pathToFileURL(path.join(ROOT, ...p)).href);
+  const ctx = { builtAt: buildTime(), cache: new Map(), jsChecked: false };
+  const { listCompanies, COMPANIES } = await imp('server', 'companies.js');
+  ctx.registry = COMPANIES;
+  Object.assign(ctx, channelCompanies(listCompanies, readBetaExtra()));
+  for (const s of ctx.skipped) warn(`beta registry entry ${s}; left out`);
+  ({ normalizeJobs: ctx.normalizeJobs, relocateJobs: ctx.relocateJobs, NORMALIZER_VERSION: ctx.NORMALIZER_VERSION } = await imp('server', 'normalize.js'));
+  ({ vetSalaries: ctx.vetSalaries } = await imp('server', 'vet.js'));
+  ({ rekeyBoardJobs: ctx.rekeyBoardJobs } = await imp('server', 'keywords.js'));
+  ctx.demoJobs = existsSync(path.join(ROOT, 'server', 'demo.js')) ? (await imp('server', 'demo.js')).demoJobs : null;
+  // Shared with the browser: desc file paths and the packed list format.
+  ctx.api = await imp('public', 'api.js');
+  ctx.leaflet = path.join(ROOT, 'node_modules', 'leaflet', 'dist');
+  if (!existsSync(ctx.leaflet)) throw new Error('node_modules/leaflet/dist not found — run `npm ci` first');
+  ctx.lib = await libModules();
+  // The stable site ships a stable-channel registry (no beta entries); the beta copy, the original.
+  ctx.libStable = [];
+  for (const m of ctx.lib) ctx.libStable.push(m.name === 'companies.js' ? { ...m, code: await stableRegistry(m.code, ctx.stable, ctx.registry) } : m);
+
+  // Juice Score inputs (read by api.js#getCities). Re-serialized compactly.
+  ctx.cities = null;
+  if (existsSync(CITIES_FILE)) {
+    try {
+      const doc = JSON.parse(await fs.readFile(CITIES_FILE, 'utf8'));
+      ctx.cityCount = Array.isArray(doc) ? doc.length : Array.isArray(doc && doc.cities) ? doc.cities.length : 0;
+      if (!ctx.cityCount) warn('data/cities.json has no cities; Juice Score will be null');
+      ctx.cities = doc;
+    } catch (err) {
+      warn(`data/cities.json unreadable (${err.message}); Juice Score will be null`);
+    }
+  } else {
+    warn('data/cities.json missing; Juice Score will be null');
   }
 
-  // 2. Leaflet
-  const leaflet = path.join(ROOT, 'node_modules', 'leaflet', 'dist');
-  if (!existsSync(leaflet)) throw new Error('node_modules/leaflet/dist not found — run `npm ci` first');
-  await fs.cp(leaflet, path.join(OUT, 'vendor', 'leaflet'), { recursive: true });
+  // v2 (ROADMAP §7), each feature-detected so the build works before its owner lands it.
+  const historyFile = path.join(ROOT, 'server', 'history.js');
+  ctx.history = existsSync(historyFile) ? await import(pathToFileURL(historyFile).href) : null;
+  if (!ctx.history) warn('server/history.js missing; no F4 listing ages, api/history files are empty');
+  ctx.backtest = await optionalExport(path.join(ROOT, 'public', 'features', 'compstimate.js'), 'backtest');
+  if (!ctx.backtest) console.log('  note: public/features/compstimate.js has no backtest() yet; meta.compstimate = null');
+  ctx.BACKTEST = BACKTEST_FALLBACK;
+  try {
+    const srv = await imp('server', 'index.js');
+    if (srv.BACKTEST_OPTS) ctx.BACKTEST = srv.BACKTEST_OPTS;
+    else warn('server/index.js has no BACKTEST_OPTS; using the built-in fallback');
+    ctx.CSP = srv.CSP;
+  } catch (err) {
+    warn(`server/index.js failed to load (${err.message}); backtest uses the built-in fallback options`);
+  }
+  ctx.jobsToCsv = await optionalExport(path.join(ROOT, 'server', 'export.js'), 'jobsToCsv');
+  ctx.csvReadme = await optionalExport(path.join(ROOT, 'server', 'export.js'), 'csvReadme');
+  if (!ctx.jobsToCsv || !ctx.csvReadme) warn('server/export.js#jobsToCsv/csvReadme missing; no data/*.csv');
+  ctx.buildMarket = await optionalExport(path.join(ROOT, 'scripts', 'build-market.js'), 'buildMarket');
+  if (!ctx.buildMarket) console.log('  note: scripts/build-market.js#buildMarket not found yet; no api/market.json');
+  /** F4 + F3 for one payload: annotated jobs and the response `meta`. */
+  ctx.enrich = (payload, ledger) => {
+    const { history, backtest, BACKTEST, builtAt } = ctx;
+    const jobs = history ? history.annotate(payload.jobs, ledger, builtAt) : payload.jobs;
+    let compstimate = null;
+    if (backtest && payload.mode !== 'demo' && jobs.length) {
+      try {
+        const bt = backtest(jobs, { ...BACKTEST });
+        compstimate = bt ? { ...bt, seed: bt.seed ?? BACKTEST.seed, computedAt: builtAt } : null;
+      } catch (err) { warn(`${payload.company.slug}: backtest failed (${err.message}); meta.compstimate = null`); }
+    }
+    const meta = { compstimate, history: history && ledger ? history.ledgerMeta(ledger) : { since: null, runs: 0 } };
+    return { ...payload, jobs, meta };
+  };
+  // Per-company share pages need each payload's numbers.
+  const salaryMod = await imp('server', 'salary.js');
+  const vetMod = await imp('server', 'vet.js');
+  if (typeof salaryMod.annualize !== 'function' || typeof vetMod.toUSD !== 'function') warn('share pages: salary.js#annualize or vet.js#toUSD missing; medians use annual USD salaries only');
+  ctx.shareFx = {
+    annualize: typeof salaryMod.annualize === 'function' ? salaryMod.annualize : (v, interval) => (/year|annual/i.test(interval || 'year') ? v : null),
+    toUSD: typeof vetMod.toUSD === 'function' ? vetMod.toUSD : (v, cur) => (String(cur).toUpperCase() === 'USD' ? v : null),
+  };
+  // The beta gate's scan (scripts/vet-salaries.js), loaded only when a beta company is built.
+  let scan = null;
+  ctx.scanCompany = async () => (scan ||= (await imp('scripts', 'vet-salaries.js')).scanCompany);
+  return ctx;
+}
 
-  // 3. Browser-safe server modules -> dist/lib/
-  const libFiles = [
-    ...LIB_MODULES.map((f) => path.join(ROOT, 'server', f)),
-    ...(await fs.readdir(path.join(ROOT, 'server', LIB_SOURCES_DIR))).filter((f) => f.endsWith('.js')).map((f) => path.join(ROOT, 'server', LIB_SOURCES_DIR, f)),
-  ];
+/**
+ * Browser-safe server modules for lib/: [{ name, code }] (checked once, written per site).
+ * Only what the browser can import: LIB_MODULES plus the adapters of the sources it fetches
+ * live (LIVE_SOURCES), and their relative imports. Built-in-only adapters (the big-tech
+ * beta sources) are never fetched from a browser, so they are not shipped: no beta posting
+ * host in the stable site, and a Node-only beta adapter can't break the build.
+ */
+async function libModules() {
+  const queue = [...LIB_MODULES, ...LIVE_SOURCES.map((s) => `${LIB_SOURCES_DIR}/${s}.js`)];
+  const seen = new Set();
   const nodeOnly = [];
-  let libCount = 0;
-  for (const src of libFiles) {
-    const name = path.relative(path.join(ROOT, 'server'), src);
+  const out = [];
+  while (queue.length) {
+    const name = queue.shift();
+    if (seen.has(name)) continue;
+    seen.add(name);
+    const src = path.join(ROOT, 'server', ...name.split('/'));
     if (!existsSync(src)) {
       if (OPTIONAL_LIB.has(name)) { warn(`server/${name} missing; ${{ 'juice.js': 'Juice Score disabled (jobs get juice: null)', 'history.js': 'no F4 listing ages in the browser' }[name] || 'in-browser demo fallback disabled'}`); continue; }
       throw new Error(`server/${name} missing`);
@@ -588,160 +806,289 @@ async function main() {
     // `process\.` must be followed by an identifier: prose in string literals
     // ("…acquisition process. Our…" in demo.js) is not a Node global.
     if (/\b(process\.[A-Za-z_$]|Buffer\b|__dirname)/.test(codeOnly)) warn(`server/${name} references a Node global (process/Buffer/__dirname); api.js stubs process.env, check anything else`);
-    const dest = path.join(OUT, 'lib', name);
-    await fs.mkdir(path.dirname(dest), { recursive: true });
-    await fs.writeFile(dest, code);
-    libCount++;
+    out.push({ name, code });
+    for (const m of codeOnly.matchAll(/(?:\bfrom\s*|\bimport\s*\(\s*|^\s*import\s*)['"](\.{1,2}\/[^'"]+)['"]/gm)) {
+      const target = path.posix.normalize(path.posix.join(path.posix.dirname(name), m[1]));
+      if (isLibModule(target)) queue.push(target);
+    }
   }
   if (nodeOnly.length) throw new Error(`Node-only imports in browser modules (fix in the owning module, not here): ${nodeOnly.join(', ')}`);
+  return out;
+}
+
+/**
+ * The stable site's lib/companies.js: server/companies.js with its COMPANIES literal
+ * rewritten to the stable entries only (from the module itself; the beta entries and
+ * the comments around them go), so no beta company or career host ships on the main
+ * site. Unchanged when the registry has no beta entries. The result is imported and
+ * checked (same stable list and lookups, no beta entry); if the registry's layout
+ * doesn't allow that, the original is kept with a warning (test/beta-build.test.js
+ * then fails loudly).
+ */
+async function stableRegistry(code, stable, all) {
+  const isStable = (c) => !c.channel || c.channel === 'stable';
+  const entries = Array.isArray(all) ? all : stable;
+  if (entries.every(isStable)) return code;
+  const literal = `export const COMPANIES = [\n${entries.filter(isStable).map((c) => `  ${JSON.stringify(c)},`).join('\n')}\n];`;
+  const out = code.replace(/export const COMPANIES = \[[\s\S]*?\n\];/, () => literal);
+  if (out === code) { warn('lib/companies.js: no COMPANIES array literal found; shipping server/companies.js unchanged'); return code; }
+  try {
+    const m = await import(`data:text/javascript;base64,${Buffer.from(out).toString('base64')}`);
+    const pub = (list) => JSON.stringify(list.map(pubCompany));
+    const any = (() => { try { return m.listCompanies({ channel: 'beta' }); } catch { return m.listCompanies(); } })();
+    const ok = pub(m.listCompanies()) === pub(stable) && pub(any) === pub(stable)
+      && m.COMPANIES.every(isStable) && stable.every((c) => m.getCompany(c.slug) && m.getCompany(c.slug).slug === c.slug)
+      && entries.filter((c) => !isStable(c)).every((c) => !m.getCompany(c.slug));
+    if (ok) return out;
+    warn('lib/companies.js: the stable copy does not match the stable registry; shipping server/companies.js unchanged');
+  } catch (err) {
+    warn(`lib/companies.js: the stable copy failed to load (${err.message}); shipping server/companies.js unchanged`);
+  }
+  return code;
+}
+
+/** A snapshot file as a vetted payload, or { problem } ("has no jobs", "unreadable (...)"). */
+async function readSnapshot(ctx, file, c) {
+  try {
+    const parsed = JSON.parse(await fs.readFile(file, 'utf8'));
+    const jobs = Array.isArray(parsed) ? parsed : parsed && parsed.jobs;
+    // Same upgrade as server mode (server/pipeline.js#runTask 'snapshot', then the response's
+    // salary gate): snapshots from an older normalizer get sections/keywords re-derived
+    // (QA BUG-5) and locations re-geocoded to canonical names (UX-3; QA M-2), then vetting.
+    const current = parsed && parsed.normalizerVersion === ctx.NORMALIZER_VERSION;
+    if (Array.isArray(jobs) && jobs.length) return { payload: { company: c, mode: 'snapshot', fetchedAt: parsed.fetchedAt || null, error: null, jobs: ctx.vetSalaries(current ? jobs : ctx.relocateJobs(ctx.rekeyBoardJobs(jobs).jobs)) } };
+    return { problem: 'has no jobs' };
+  } catch (err) {
+    return { problem: `unreadable (${err.message})` };
+  }
+}
+
+/** A stable company: its snapshot, else build-time demo data (bundled as the fallback too). */
+async function stableCompany(ctx, out, c) {
+  let demo = null;
+  if (ctx.demoJobs) {
+    // Vetted like every other path (buildMarket, CSV and the UI expect vetted salaries).
+    const jobs = ctx.vetSalaries(ctx.normalizeJobs(ctx.demoJobs(c.slug, c.name), c));
+    demo = ctx.enrich({ company: c, mode: 'demo', fetchedAt: ctx.builtAt, error: 'Synthetic demo data (no real snapshot was bundled for this company).', jobs }, null);
+  }
+  const ledger = await readLedgerFile(c.slug, ctx.history);
+  let payload = null;
+  const snapFile = path.join(SNAPSHOT_DIR, `${c.slug}.json`);
+  if (existsSync(snapFile)) {
+    const s = await readSnapshot(ctx, snapFile, c);
+    if (s.payload) payload = s.payload;
+    else warn(`${rel(snapFile)} ${s.problem}; using demo`);
+  }
+  if (payload) payload = ctx.enrich(payload, ledger);
+  if (!payload && demo) payload = demo;
+  if (!payload) {
+    warn(`${c.slug}: no snapshot and no demo generator; bundling an empty demo`);
+    payload = ctx.enrich({ company: c, mode: 'demo', fetchedAt: ctx.builtAt, error: 'No data bundled.', jobs: [] }, null);
+  }
+  return writeCompany(ctx, out, c, payload, demo, ledger);
+}
+
+/**
+ * A beta company: bundled from its snapshot (never demo data) when it passes betaGate;
+ * otherwise { dropped: reason } and nothing is written.
+ */
+async function betaCompany(ctx, out, c, live) {
+  const file = [BETA_SNAPSHOT_DIR, SNAPSHOT_DIR].map((d) => path.join(d, `${c.slug}.json`)).find((f) => existsSync(f));
+  if (!file) return { dropped: 'no snapshot' };
+  const s = await readSnapshot(ctx, file, c);
+  if (!s.payload) return { dropped: `snapshot ${rel(file)} ${s.problem}`, warn: true };
+  let gate;
+  try { gate = betaGate(s.payload.jobs, await ctx.scanCompany()); } catch (err) { return { dropped: `vetting gate error (${err.message})`, warn: true }; }
+  if (!gate.ok) return { dropped: `vetting gate: ${gate.blocking.length} job(s) with a critical salary anomaly, e.g. ${gate.blocking.slice(0, 3).join('; ')}`, warn: true };
+  const ledger = await readLedgerFile(c.slug, ctx.history, [BETA_HISTORY_DIR, HISTORY_DIR]);
+  try {
+    return await writeCompany(ctx, out, c, ctx.enrich(s.payload, ledger), null, ledger, { live });
+  } catch (err) {
+    for (const f of companyFiles(ctx.api, c.slug)) await fs.rm(path.join(out, f), { recursive: true, force: true });
+    return { dropped: `build error (${err.message})`, warn: true };
+  }
+}
+
+/** Write one company's files under `out`; returns what the site-level steps need. */
+async function writeCompany(ctx, out, c, payload, demo, ledger, { live } = {}) {
+  const { api, history } = ctx;
+  const r = await writeSplit(out, payload, path.join(out, 'api', 'jobs', `${c.slug}.json`), api, c.slug);
+  // F4: compact ledger for live browser fetches ({} keeps the request a 200).
+  const compact = history && ledger && typeof history.compactLedger === 'function' ? history.compactLedger(ledger) : {};
+  const histBytes = await writeJson(path.join(out, 'api', 'history', `${c.slug}.json`), compact);
+  await writeJson(path.join(out, 'api', 'meta', `${c.slug}.json`), payload.meta);
+  // F7: every company, like GET /api/export; the data_mode column (and the
+  // README) marks demo rows as synthetic.
+  let csvNote = '';
+  let csvRow = null;
+  if (ctx.jobsToCsv && payload.jobs.length) {
+    const csv = ctx.jobsToCsv(payload.jobs, { mode: payload.mode });
+    await fs.mkdir(path.join(out, 'data'), { recursive: true });
+    await fs.writeFile(path.join(out, 'data', `${c.slug}.csv`), csv);
+    csvRow = { slug: c.slug, name: c.name, rows: payload.jobs.length, mode: payload.mode };
+    csvNote = `  csv ${size(Buffer.byteLength(csv))}`;
+  }
+  let line = `${c.slug.padEnd(10)} ${payload.mode.padEnd(8)} ${String(payload.jobs.length).padStart(4)} jobs  list ${size(r.listBytes).padStart(9)}  desc ${String(r.descFiles).padStart(4)} files ${size(r.descBytes).padStart(9)}`;
+  if (r.sectionsMoved) line += '  (sections moved to desc: list was over budget)';
+  line += `  history ${Object.keys(compact).length} open (${size(histBytes)}), runs ${payload.meta.history.runs}`;
+  const bt = payload.meta.compstimate;
+  // backtest() returns PERCENT numbers (14.2 means 14.2%).
+  line += bt ? `  backtest n=${bt.n} MdAPE ${bt.medianAbsPctError ?? '-'}% within10 ${bt.within10Pct ?? '-'}%` : '  backtest -';
+  line += csvNote;
+  if (payload.fetchedAt) line += `  fetchedAt ${payload.fetchedAt}`;
+  // The bundled demo is only a separate fallback when the main list is real.
+  if (payload.mode === 'snapshot' && demo) {
+    const d = await writeSplit(out, demo, path.join(out, 'api', 'demo', `${c.slug}.json`), api, `${c.slug} (demo)`);
+    line += `  + demo list ${size(d.listBytes)}`;
+  }
+  return {
+    // api/companies.json entry; `live: false` (bundle-only, public/api.js) only when set.
+    entry: live === false ? { ...c, live: false } : { ...c },
+    line,
+    share: shareStats(c, payload, ctx.shareFx),
+    // buildMarket uses demo payloads only when no company has real data (doc mode "demo").
+    market: { company: payload.company, mode: payload.mode, fetchedAt: payload.fetchedAt, jobs: lean(payload.jobs) },
+    csvRow,
+    stats: { mode: payload.mode, jobs: payload.jobs.length, withPay: payload.jobs.filter((j) => j && j.salary).length, fetchedAt: payload.fetchedAt },
+  };
+}
+
+/**
+ * --beta-only: a stable company's result taken from the main site already built at `from`
+ * (pages.yml builds it in the step before, from the same inputs), so the beta copy doesn't
+ * rebuild it. Same result as the one-process build: the market comps and share numbers come
+ * from the packed list (lossless; descriptions aren't used), the files are copied. Null when
+ * that site has no list for the company (then it is built as usual).
+ */
+async function reuseStable(ctx, from, c) {
+  const file = path.join(from, 'api', 'jobs', `${c.slug}.json`);
+  if (!existsSync(file)) return null;
+  let raw;
+  try { raw = JSON.parse(await fs.readFile(file, 'utf8')); } catch { return null; }
+  if (!raw || !Array.isArray(raw.jobs) || !raw.mode) return null;
+  const jobs = ctx.api.unpackJobs(raw);
+  const payload = { company: raw.company || c, mode: raw.mode, fetchedAt: raw.fetchedAt ?? null, jobs };
+  const csv = !!ctx.jobsToCsv && jobs.length > 0 && existsSync(path.join(from, 'data', `${c.slug}.csv`));
+  return {
+    out: from,
+    entry: { ...c },
+    line: `${c.slug.padEnd(10)} ${String(raw.mode).padEnd(8)} ${String(jobs.length).padStart(4)} jobs  (the main site's files, copied from ${rel(from)}/)`,
+    share: shareStats(c, payload, ctx.shareFx),
+    market: { company: payload.company, mode: payload.mode, fetchedAt: payload.fetchedAt, jobs },
+    csvRow: csv ? { slug: c.slug, name: c.name, rows: jobs.length, mode: raw.mode } : null,
+    stats: { mode: raw.mode, jobs: jobs.length, withPay: jobs.filter((j) => j && j.salary).length, fetchedAt: payload.fetchedAt },
+  };
+}
+
+/** One company's files in a site: built once per process, then copied (the beta copy reuses the stable data). */
+async function companyData(ctx, out, c) {
+  let hit = ctx.cache.get(c.slug);
+  if (!hit && ctx.reuse && c.channel !== 'beta') {
+    hit = await reuseStable(ctx, ctx.reuse, pubCompany(c));
+    if (hit) ctx.cache.set(c.slug, hit);
+  }
+  if (hit) {
+    for (const f of companyFiles(ctx.api, c.slug)) {
+      const src = path.join(hit.out, f);
+      if (existsSync(src)) await fs.cp(src, path.join(out, f), { recursive: true });
+    }
+    return hit;
+  }
+  const pub = pubCompany(c);
+  const r = c.channel === 'beta' ? await betaCompany(ctx, out, pub, c.live) : await stableCompany(ctx, out, pub);
+  if (!r.dropped) ctx.cache.set(c.slug, { ...r, out });
+  return r;
+}
+
+/** Beta-only markup: noindex on every page; the channel tag + meta on index.html (the CSS Beta pill). */
+function markBeta(html, isIndex) {
+  let out = html.replace(/(<meta name="referrer"[^>]*>)/, '$1\n  <meta name="robots" content="noindex">');
+  if (isIndex) {
+    out = out.replace(/<html\b([^>]*)>/i, (m, a) => (/\sdata-channel\s*=/.test(a) ? m : `<html${a} data-channel="beta">`));
+    out = out.replace(/(<meta name="melon-seek-build"[^>]*>)/, '$1\n  <meta name="melon-channel" content="beta">');
+  }
+  return out;
+}
+
+/**
+ * Build one site into site.out: the stable site (channel "stable", at OUT) or the beta
+ * copy (channel "beta", at OUT/beta). Same steps, same code, for both.
+ */
+async function buildSite(ctx, site) {
+  const { out } = site;
+  const beta = site.channel === 'beta';
+  warnPrefix = beta ? 'beta: ' : '';
+  await fs.rm(out, { recursive: true, force: true });
+  await fs.mkdir(out, { recursive: true });
+
+  // 1. public/ -> out
+  await fs.cp(path.join(ROOT, 'public'), out, { recursive: true });
+  await fs.rm(path.join(out, 'og', 'card.html'), { force: true }); // share-card source (scripts/build-og.mjs), not a page
+  for (const page of DEV_PAGES) await fs.rm(path.join(out, page), { force: true });
+  for (const file of await walk(out)) {
+    if (!file.endsWith('.html')) continue;
+    const depth = path.relative(out, path.dirname(file)).split(path.sep).filter(Boolean).length;
+    let html = relativizeHtml(await fs.readFile(file, 'utf8'), depth);
+    if (file === path.join(out, 'index.html')) {
+      const tag = '<script src="config.js"></script>';
+      html = /<script\b/i.test(html) ? html.replace(/<script\b/i, `${tag}\n  <script`) : html.replace(/<\/head>/i, `  ${tag}\n</head>`);
+    }
+    await fs.writeFile(file, html);
+  }
+  // Sub-path hazards in JS that the build can't fix (owned by app code). Same files in both sites: checked once.
+  if (!ctx.jsChecked) {
+    ctx.jsChecked = true;
+    for (const file of (await walk(out)).filter((f) => f.endsWith('.js') && !/(^|\/)(mock-api|api)\.js$/.test(f))) {
+      const src = await fs.readFile(file, 'utf8');
+      if (/['"`]\/api\//.test(src) && !/from\s+['"]\.\/api\.js['"]/.test(src)) warn(`${path.relative(out, file)} uses absolute "/api/..." URLs; route them through api.js (apiFetch/getJobs) or the static site can't load data`);
+      const abs = src.match(/['"`]\/(favicon\.svg|vendor\/|viz\/|styles\.css|app\.js)/);
+      if (abs) warn(`${path.relative(out, file)} references absolute "/${abs[1]}"; use a relative URL for sub-path hosting`);
+    }
+  }
+
+  // 2. Leaflet
+  await fs.cp(ctx.leaflet, path.join(out, 'vendor', 'leaflet'), { recursive: true });
+
+  // 3. Browser-safe server modules -> lib/
+  for (const { name, code } of beta ? ctx.lib : ctx.libStable) {
+    const dest = path.join(out, 'lib', name);
+    await fs.mkdir(path.dirname(dest), { recursive: true });
+    await fs.writeFile(dest, code);
+  }
 
   // 4. API data
-  const { listCompanies } = await import(pathToFileURL(path.join(ROOT, 'server', 'companies.js')).href);
-  const { normalizeJobs, relocateJobs, NORMALIZER_VERSION } = await import(pathToFileURL(path.join(ROOT, 'server', 'normalize.js')).href);
-  const { vetSalaries } = await import(pathToFileURL(path.join(ROOT, 'server', 'vet.js')).href);
-  const { rekeyBoardJobs } = await import(pathToFileURL(path.join(ROOT, 'server', 'keywords.js')).href);
-  let demoJobs = null;
-  if (existsSync(path.join(ROOT, 'server', 'demo.js'))) {
-    ({ demoJobs } = await import(pathToFileURL(path.join(ROOT, 'server', 'demo.js')).href));
-  }
-  // Shared with the browser: desc file paths and the packed list format.
-  const api = await import(pathToFileURL(path.join(ROOT, 'public', 'api.js')).href);
-  const companies = listCompanies().map(({ slug, name, source, board, color }) => ({ slug, name, source, board, color }));
-  await writeJson(path.join(OUT, 'api', 'companies.json'), companies);
-
-  // Juice Score inputs (read by api.js#getCities). Re-serialized compactly.
   let citiesNote = 'no cities.json (juice: null)';
-  if (existsSync(CITIES_FILE)) {
-    try {
-      const doc = JSON.parse(await fs.readFile(CITIES_FILE, 'utf8'));
-      const n = Array.isArray(doc) ? doc.length : Array.isArray(doc && doc.cities) ? doc.cities.length : 0;
-      if (!n) warn('data/cities.json has no cities; Juice Score will be null');
-      const bytes = await writeJson(path.join(OUT, 'api', 'cities.json'), doc);
-      citiesNote = `${n} cities (${size(bytes)})`;
-    } catch (err) {
-      warn(`data/cities.json unreadable (${err.message}); Juice Score will be null`);
-    }
-  } else {
-    warn('data/cities.json missing; Juice Score will be null');
-  }
-
-  const builtAt = new Date().toISOString();
+  if (ctx.cities) citiesNote = `${ctx.cityCount} cities (${size(await writeJson(path.join(out, 'api', 'cities.json'), ctx.cities))})`;
+  const companies = [];
   const summary = [];
-  // v2 (ROADMAP §7), each feature-detected so the build works before its owner lands it.
-  const historyFile = path.join(ROOT, 'server', 'history.js');
-  const history = existsSync(historyFile) ? await import(pathToFileURL(historyFile).href) : null;
-  if (!history) warn('server/history.js missing; no F4 listing ages, api/history files are empty');
-  const backtest = await optionalExport(path.join(ROOT, 'public', 'features', 'compstimate.js'), 'backtest');
-  if (!backtest) console.log('  note: public/features/compstimate.js has no backtest() yet; meta.compstimate = null');
-  let BACKTEST = BACKTEST_FALLBACK;
-  try {
-    const srv = await import(pathToFileURL(path.join(ROOT, 'server', 'index.js')).href);
-    if (srv.BACKTEST_OPTS) BACKTEST = srv.BACKTEST_OPTS;
-    else warn('server/index.js has no BACKTEST_OPTS; using the built-in fallback');
-  } catch (err) {
-    warn(`server/index.js failed to load (${err.message}); backtest uses the built-in fallback options`);
-  }
-  const jobsToCsv = await optionalExport(path.join(ROOT, 'server', 'export.js'), 'jobsToCsv');
-  const csvReadme = await optionalExport(path.join(ROOT, 'server', 'export.js'), 'csvReadme');
-  if (!jobsToCsv || !csvReadme) warn('server/export.js#jobsToCsv/csvReadme missing; no data/*.csv');
-  const buildMarket = await optionalExport(path.join(ROOT, 'scripts', 'build-market.js'), 'buildMarket');
-  if (!buildMarket) console.log('  note: scripts/build-market.js#buildMarket not found yet; no api/market.json');
+  const shares = [];
   const marketPayloads = [];
   const csvRows = [];
-  /** F4 + F3 for one payload: annotated jobs and the response `meta`. */
-  const enrich = (payload, ledger) => {
-    const jobs = history ? history.annotate(payload.jobs, ledger, builtAt) : payload.jobs;
-    let compstimate = null;
-    if (backtest && payload.mode !== 'demo' && jobs.length) {
-      try {
-        const bt = backtest(jobs, { ...BACKTEST });
-        compstimate = bt ? { ...bt, seed: bt.seed ?? BACKTEST.seed, computedAt: builtAt } : null;
-      } catch (err) { warn(`${payload.company.slug}: backtest failed (${err.message}); meta.compstimate = null`); }
+  const included = [];
+  const dropped = [];
+  for (const c of site.companies) {
+    const r = await companyData(ctx, out, c);
+    if (r.dropped) {
+      dropped.push({ slug: c.slug, name: c.name, reason: r.dropped });
+      if (r.warn) warn(`${c.slug} left out of the beta site: ${r.dropped}`);
+      continue;
     }
-    const meta = { compstimate, history: history && ledger ? history.ledgerMeta(ledger) : { since: null, runs: 0 } };
-    return { ...payload, jobs, meta };
-  };
-  // Per-company share pages (section 6) need each payload's numbers.
-  const shares = [];
-  const salaryMod = await import(pathToFileURL(path.join(ROOT, 'server', 'salary.js')).href);
-  const vetMod = await import(pathToFileURL(path.join(ROOT, 'server', 'vet.js')).href);
-  if (typeof salaryMod.annualize !== 'function' || typeof vetMod.toUSD !== 'function') warn('share pages: salary.js#annualize or vet.js#toUSD missing; medians use annual USD salaries only');
-  const shareFx = {
-    annualize: typeof salaryMod.annualize === 'function' ? salaryMod.annualize : (v, interval) => (/year|annual/i.test(interval || 'year') ? v : null),
-    toUSD: typeof vetMod.toUSD === 'function' ? vetMod.toUSD : (v, cur) => (String(cur).toUpperCase() === 'USD' ? v : null),
-  };
-  for (const c of companies) {
-    let demo = null;
-    if (demoJobs) {
-      // Vetted like every other path (buildMarket, CSV and the UI expect vetted salaries).
-      const jobs = vetSalaries(normalizeJobs(demoJobs(c.slug, c.name), c));
-      demo = enrich({ company: c, mode: 'demo', fetchedAt: builtAt, error: 'Synthetic demo data (no real snapshot was bundled for this company).', jobs }, null);
-    }
-    const ledger = await readLedgerFile(c.slug, history);
-
-    let payload = null;
-    const snapFile = path.join(SNAPSHOT_DIR, `${c.slug}.json`);
-    if (existsSync(snapFile)) {
-      try {
-        const parsed = JSON.parse(await fs.readFile(snapFile, 'utf8'));
-        const jobs = Array.isArray(parsed) ? parsed : parsed && parsed.jobs;
-        // Same upgrade as server mode (server/pipeline.js#runTask 'snapshot', then the response's
-        // salary gate): snapshots from an older normalizer get sections/keywords re-derived
-        // (QA BUG-5) and locations re-geocoded to canonical names (UX-3; QA M-2), then vetting.
-        const current = parsed && parsed.normalizerVersion === NORMALIZER_VERSION;
-        if (Array.isArray(jobs) && jobs.length) payload = { company: c, mode: 'snapshot', fetchedAt: parsed.fetchedAt || null, error: null, jobs: vetSalaries(current ? jobs : relocateJobs(rekeyBoardJobs(jobs).jobs)) };
-        else warn(`${rel(snapFile)} has no jobs; using demo`);
-      } catch (err) {
-        warn(`${rel(snapFile)} unreadable (${err.message}); using demo`);
-      }
-    }
-    if (payload) payload = enrich(payload, ledger);
-    if (!payload && demo) payload = demo;
-    if (!payload) {
-      warn(`${c.slug}: no snapshot and no demo generator; bundling an empty demo`);
-      payload = enrich({ company: c, mode: 'demo', fetchedAt: builtAt, error: 'No data bundled.', jobs: [] }, null);
-    }
-    const r = await writeSplit(payload, path.join(OUT, 'api', 'jobs', `${c.slug}.json`), api, c.slug);
-    // F4: compact ledger for live browser fetches ({} keeps the request a 200).
-    const compact = history && ledger && typeof history.compactLedger === 'function' ? history.compactLedger(ledger) : {};
-    const histBytes = await writeJson(path.join(OUT, 'api', 'history', `${c.slug}.json`), compact);
-    await writeJson(path.join(OUT, 'api', 'meta', `${c.slug}.json`), payload.meta);
-    // F7: every company, like GET /api/export; the data_mode column (and the
-    // README) marks demo rows as synthetic.
-    let csvNote = '';
-    if (jobsToCsv && payload.jobs.length) {
-      const csv = jobsToCsv(payload.jobs, { mode: payload.mode });
-      await fs.mkdir(path.join(OUT, 'data'), { recursive: true });
-      await fs.writeFile(path.join(OUT, 'data', `${c.slug}.csv`), csv);
-      csvRows.push({ slug: c.slug, name: c.name, rows: payload.jobs.length, mode: payload.mode });
-      csvNote = `  csv ${size(Buffer.byteLength(csv))}`;
-    }
-    // buildMarket uses demo payloads only when no company has real data (doc mode "demo").
-    marketPayloads.push({ company: payload.company, mode: payload.mode, fetchedAt: payload.fetchedAt, jobs: payload.jobs });
-    let line = `${c.slug.padEnd(10)} ${payload.mode.padEnd(8)} ${String(payload.jobs.length).padStart(4)} jobs  list ${size(r.listBytes).padStart(9)}  desc ${String(r.descFiles).padStart(4)} files ${size(r.descBytes).padStart(9)}`;
-    if (r.sectionsMoved) line += '  (sections moved to desc: list was over budget)';
-    line += `  history ${Object.keys(compact).length} open (${size(histBytes)}), runs ${payload.meta.history.runs}`;
-    const bt = payload.meta.compstimate;
-    // backtest() returns PERCENT numbers (14.2 means 14.2%).
-    line += bt ? `  backtest n=${bt.n} MdAPE ${bt.medianAbsPctError ?? '-'}% within10 ${bt.within10Pct ?? '-'}%` : '  backtest -';
-    line += csvNote;
-    if (payload.fetchedAt) line += `  fetchedAt ${payload.fetchedAt}`;
-    // The bundled demo is only a separate fallback when the main list is real.
-    if (payload.mode === 'snapshot' && demo) {
-      const d = await writeSplit(demo, path.join(OUT, 'api', 'demo', `${c.slug}.json`), api, `${c.slug} (demo)`);
-      line += `  + demo list ${size(d.listBytes)}`;
-    }
-    summary.push(line);
-    shares.push(shareStats(c, payload, shareFx));
+    companies.push(r.entry);
+    summary.push(r.line);
+    shares.push(r.share);
+    marketPayloads.push(r.market);
+    if (r.csvRow) csvRows.push(r.csvRow);
+    if (c.channel === 'beta') included.push({ slug: c.slug, name: c.name, ...r.stats });
   }
+  await writeJson(path.join(out, 'api', 'companies.json'), companies);
 
   // F1 market comps (vetted, real snapshots only) and the F7 README.
   let marketNote = 'no buildMarket yet';
-  if (buildMarket) {
+  if (ctx.buildMarket) {
     try {
-      const doc = await buildMarket(marketPayloads, { generatedAt: builtAt });
+      const doc = await ctx.buildMarket(marketPayloads, { generatedAt: ctx.builtAt });
       if (doc) {
-        const bytes = await writeJson(path.join(OUT, 'api', 'market.json'), doc);
+        const bytes = await writeJson(path.join(out, 'api', 'market.json'), doc);
         if (bytes > MARKET_MAX_BYTES) warn(`api/market.json is ${size(bytes)} (cap ${size(MARKET_MAX_BYTES)}, docs/CONTRACT.md)`);
         marketNote = `api/market.json ${size(bytes)} (${doc.mode || '?'}, ${Array.isArray(doc.cells) ? doc.cells.length : '?'} cells, ${marketPayloads.filter((x) => x.mode === 'snapshot').length} real companies)`;
       } else marketNote = 'buildMarket returned nothing';
@@ -750,25 +1097,25 @@ async function main() {
       marketNote = 'buildMarket failed';
     }
   }
-  if (csvRows.length && csvReadme) await fs.writeFile(path.join(OUT, 'data', 'README.txt'), csvReadme({ generatedAt: builtAt, companies: csvRows }));
+  if (csvRows.length && ctx.csvReadme) await fs.writeFile(path.join(out, 'data', 'README.txt'), ctx.csvReadme({ generatedAt: ctx.builtAt, companies: csvRows }));
 
-  // 5. config.js + .nojekyll
-  const build = { builtAt, commit: process.env.GITHUB_SHA || null, ref: process.env.GITHUB_REF_NAME || null };
-  await fs.writeFile(path.join(OUT, 'config.js'),
+  // 5. config.js + .nojekyll (site root only; the beta copy is a sub-folder of it)
+  const build = { builtAt: ctx.builtAt, commit: process.env.GITHUB_SHA || null, ref: process.env.GITHUB_REF_NAME || null };
+  await fs.writeFile(path.join(out, 'config.js'),
     '// Generated by scripts/build-static.js — marks this as the static (server-less) build.\n' +
     'window.MELON_STATIC = true;\n' +
     `window.MELON_LIVE_SOURCES = ${JSON.stringify(LIVE_SOURCES)};\n` +
     `window.MELON_QUIET_CORS_SOURCES = ${JSON.stringify(QUIET_CORS_SOURCES)};\n` +
     `window.MELON_BUILD = ${JSON.stringify(build)};\n`);
-  await fs.writeFile(path.join(OUT, '.nojekyll'), '');
+  if (!beta) await fs.writeFile(path.join(out, '.nojekyll'), '');
 
   // 5a. Load hints in index.html (after the data files exist; the CSP goes in front in step 7).
-  const indexFile = path.join(OUT, 'index.html');
+  const indexFile = path.join(out, 'index.html');
   // No preconnect to the live board APIs: scripts/links-policy.js allows no off-site link
   // to them (see docs/process/perf-mobile.md, follow-ups).
   const boardOrigins = [];
-  if (!Array.isArray(api.STATIC_PRELOAD)) warn('public/api.js has no STATIC_PRELOAD; lib modules are not preloaded');
-  const hints = await loadHints(await fs.readFile(indexFile, 'utf8'), { staticLib: api.STATIC_PRELOAD || [], boardOrigins });
+  if (!Array.isArray(ctx.api.STATIC_PRELOAD)) warn('public/api.js has no STATIC_PRELOAD; lib modules are not preloaded');
+  const hints = await loadHints(out, await fs.readFile(indexFile, 'utf8'), { staticLib: ctx.api.STATIC_PRELOAD || [], boardOrigins });
   await fs.writeFile(indexFile, injectHints(await fs.readFile(indexFile, 'utf8'), hints.lines));
   const hintNote = `${hints.modules.length} modulepreload, ${hints.json.length} fetch preload, ${boardOrigins.length} preconnect`;
 
@@ -776,29 +1123,29 @@ async function main() {
   const livability = path.join(ROOT, 'docs', 'LIVABILITY.md');
   if (existsSync(livability)) {
     const { renderMethodologyPage, METHODOLOGY_CSS } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'methodology.js')).href);
-    await fs.mkdir(path.join(OUT, 'methodology'), { recursive: true });
-    await fs.writeFile(path.join(OUT, 'methodology', 'index.html'), renderMethodologyPage({ md: await fs.readFile(livability, 'utf8'), sha: BUILD_SHA }));
-    await fs.writeFile(path.join(OUT, 'methodology', 'methodology.css'), METHODOLOGY_CSS);
+    await fs.mkdir(path.join(out, 'methodology'), { recursive: true });
+    await fs.writeFile(path.join(out, 'methodology', 'index.html'), renderMethodologyPage({ md: await fs.readFile(livability, 'utf8'), sha: BUILD_SHA }));
+    await fs.writeFile(path.join(out, 'methodology', 'methodology.css'), METHODOLOGY_CSS);
   } else {
     warn('docs/LIVABILITY.md missing; no methodology page (the Juice link would break; the link check will fail)');
   }
 
-  // 6. Social previews: c/<slug>/ share pages, absolute og:url / og:image (SITE_URL)
-  const social = await writeSocial(shares);
+  // 6. Social previews: c/<slug>/ share pages, absolute og:url / og:image (against this site's URL)
+  const social = await writeSocial(out, site.url, shares);
 
   // 7. CSP + referrer policy in every page (V3), from the server's policy.
-  const { CSP } = await import(pathToFileURL(path.join(ROOT, 'server', 'index.js')).href);
-  if (!CSP) throw new Error('server/index.js has no CSP export; refusing to ship pages without a CSP');
-  const csp = metaCsp(CSP);
+  if (!ctx.CSP) throw new Error('server/index.js has no CSP export; refusing to ship pages without a CSP');
+  const csp = metaCsp(ctx.CSP);
   const hazards = [];
   let pages = 0;
-  for (const file of (await walk(OUT)).filter((f) => f.endsWith('.html'))) {
+  for (const file of (await walk(out)).filter((f) => f.endsWith('.html'))) {
     let html = injectSecurityMeta(await fs.readFile(file, 'utf8'), csp);
     // Deploy marker: proves the live site is this build of the app, not GitHub's README page.
-    if (file === path.join(OUT, 'index.html')) {
+    if (file === indexFile) {
       html = html.replace(/\s*<meta name="melon-seek-build"[^>]*>/g, '').replace(/(<meta name="referrer"[^>]*>)/, `$1\n  <meta name="melon-seek-build" content="${escAttr(BUILD_SHA)}">`);
     }
-    for (const h of inlineHazards(html)) hazards.push(`${path.relative(OUT, file)}: ${h}`);
+    if (beta) html = markBeta(html, file === indexFile);
+    for (const h of inlineHazards(html)) hazards.push(`${path.relative(out, file)}: ${h}`);
     await fs.writeFile(file, html);
     pages++;
   }
@@ -807,23 +1154,82 @@ async function main() {
   // 8. Link policy (scripts/links-policy.js): never off-site except allowlisted
   // hosts, never GitHub, every relative link and #anchor resolves.
   const { checkDist } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'links-policy.js')).href);
-  const linkViolations = checkDist(OUT, { siteUrl: siteUrl() });
+  const linkViolations = checkDist(out, { siteUrl: site.url });
   if (linkViolations.length) throw new Error(`link policy: ${linkViolations.length} violation(s):\n  ${linkViolations.slice(0, 30).join('\n  ')}`);
 
-  console.log(`Built ${rel(OUT)}/ in ${Date.now() - t0}ms: ${libCount} lib modules, leaflet, ${companies.length} companies`);
-  for (const line of summary) console.log(`  ${line}`);
-  console.log(`  social: og:image ${social.image || '(none)'}; ${social.pages} share pages at ${social.site}c/<slug>/`);
-  console.log(`  security: CSP + referrer <meta> in ${pages} pages; no inline scripts/styles/handlers; links OK; build marker ${BUILD_SHA}`);
-  console.log(`  load hints: ${hintNote}`);
-  console.log(`  juice: api/cities.json ${citiesNote}, lib/juice.js ${existsSync(path.join(OUT, 'lib', 'juice.js')) ? 'bundled' : 'missing'}`);
-  console.log(`  market: ${marketNote}; csv: ${csvRows.length ? `data/*.csv for ${csvRows.length} companies (${csvRows.filter((r) => r.mode === 'demo').length} demo) + data/README.txt` : 'none'}`);
+  warnPrefix = '';
+  return { companies, summary, included, dropped, social, pages, hintNote, citiesNote, marketNote, csvRows, libCount: ctx.lib.length };
+}
+
+function printSite(out, s, t0) {
+  console.log(`Built ${rel(out)}/ in ${Date.now() - t0}ms: ${s.libCount} lib modules, leaflet, ${s.companies.length} companies`);
+  for (const line of s.summary) console.log(`  ${line}`);
+  console.log(`  social: og:image ${s.social.image || '(none)'}; ${s.social.pages} share pages at ${s.social.site}c/<slug>/`);
+  console.log(`  security: CSP + referrer <meta> in ${s.pages} pages; no inline scripts/styles/handlers; links OK; build marker ${BUILD_SHA}`);
+  console.log(`  load hints: ${s.hintNote}`);
+  console.log(`  juice: api/cities.json ${s.citiesNote}, lib/juice.js ${existsSync(path.join(out, 'lib', 'juice.js')) ? 'bundled' : 'missing'}`);
+  console.log(`  market: ${s.marketNote}; csv: ${s.csvRows.length ? `data/*.csv for ${s.csvRows.length} companies (${s.csvRows.filter((r) => r.mode === 'demo').length} demo) + data/README.txt` : 'none'}`);
+}
+
+/** Markdown table of the beta companies (included / left out), for --beta-summary. */
+function betaMarkdown(ctx, s, url) {
+  const pct = (a, b) => (b ? `${Math.round((100 * a) / b)}%` : '-');
+  const rows = [
+    ...s.included.map((c) => `| ${c.slug} | included | ${c.jobs} | ${pct(c.withPay, c.jobs)} | ${c.fetchedAt || '-'} | |`),
+    ...s.dropped.map((c) => `| ${c.slug} | **left out** | - | - | - | ${String(c.reason).replace(/\|/g, '\\|').slice(0, 300)} |`),
+  ];
+  return ['### Beta site', '',
+    `${url} (noindex): ${ctx.stable.length} stable companies with the main site's data, plus ${s.included.length} of ${ctx.beta.length} beta companies.`, '',
+    ...(rows.length ? ['| company | status | jobs | with pay | snapshot | why left out |', '| --- | --- | ---: | ---: | --- | --- |', ...rows] : ['_No beta companies in the registry yet._']),
+    '', ''].join('\n');
+}
+
+async function main() {
+  const t0 = Date.now();
+  if (NO_BETA && BETA_ONLY) throw new Error('--no-beta and --beta-only cannot be combined');
+  const ctx = await loadContext();
+  const stableUrl = siteUrl();
+  const betaUrl = new URL(`${BETA_DIR}/`, stableUrl).href;
+  if (!BETA_ONLY) {
+    const s = await buildSite(ctx, { out: OUT, channel: 'stable', url: stableUrl, companies: ctx.stable });
+    // Requirement: the main site never carries a beta company (registry slugs and test extras).
+    const leaks = betaLeaks(OUT, ctx.beta.map((c) => c.slug));
+    if (leaks.length) throw new Error(`the stable site contains beta data: ${leaks.join('; ')}`);
+    printSite(OUT, s, t0);
+  }
+  if (!NO_BETA) {
+    const t1 = Date.now();
+    const out = path.join(OUT, BETA_DIR);
+    // --beta-only on top of a main site built from the same inputs (pages.yml: the step before):
+    // reuse its stable companies instead of rebuilding them. Only when it lists exactly them.
+    if (BETA_ONLY) {
+      let listed = null;
+      try { listed = JSON.parse(readFileSync(path.join(OUT, 'api', 'companies.json'), 'utf8')).map((c) => c.slug); } catch { listed = null; }
+      if (listed && listed.join() === ctx.stable.map((c) => c.slug).join()) ctx.reuse = OUT;
+      else console.log(`  note: ${rel(OUT)}/ has no main site with the same companies; the beta copy builds the stable companies itself`);
+    }
+    try {
+      const b = await buildSite(ctx, { out, channel: 'beta', url: betaUrl, companies: [...ctx.stable, ...ctx.beta] });
+      printSite(out, b, t1);
+      console.log(`  beta: ${b.included.length}/${ctx.beta.length} beta companies included${b.dropped.length ? `; left out: ${b.dropped.map((d) => `${d.slug} (${d.reason})`).join(', ')}` : ''}; noindex on every page; <html data-channel="beta">`);
+      if (BETA_SUMMARY) await fs.appendFile(BETA_SUMMARY, betaMarkdown(ctx, b, betaUrl));
+    } catch (err) {
+      warnPrefix = '';
+      await fs.rm(out, { recursive: true, force: true });
+      if (BETA_ONLY) throw err;
+      warn(`beta site not built (${err.message}); ${rel(out)}/ removed, the main site is unaffected`);
+    }
+  }
   if (warnings.length) {
     console.warn(`${warnings.length} warning(s)`);
     if (STRICT) process.exit(1);
   }
 }
 
-main().catch((err) => {
-  console.error(`build failed: ${err.message}`);
-  process.exit(1);
-});
+const isMain = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+if (isMain) {
+  main().catch((err) => {
+    console.error(`build failed: ${process.env.MELON_DEBUG ? err.stack : err.message}`);
+    process.exit(1);
+  });
+}
