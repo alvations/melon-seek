@@ -29,6 +29,10 @@ test('archive workflows: pinned actions, no PR triggers, trusted branches, share
     assert.doesNotMatch(t, /pages: write|id-token: write|pull-requests: write|issues: write/, `${f}: nothing else`);
     assert.doesNotMatch(t, /git push/, `${f}: pushes only through scripts/archive/branch.sh`);
     assert.match(t, /verify\.js --archive "\$ARCHIVE" --prev-rev HEAD/, `${f}: verifies against the previous commit before each commit`);
+    // GitHub runs `run:` steps with bash -e: a sweep's exit 10 ("more batches") must be caught, not end the step.
+    for (const line of t.split('\n').filter((l) => /node scripts\/archive\/sweep\.js/.test(l) && !/--dry-run/.test(l))) {
+      assert.match(line, /\|\| rc=\$\?\s*$/, `${f}: sweep exit code captured with || rc=$? (bash -e): ${line.trim()}`);
+    }
     assert.doesNotMatch(t, /\$\{\{\s*github\.event\.(workflow_run|head_commit|pull_request)/, `${f}: no untrusted event fields in scripts`);
   }
   const daily = read('archive.yml');
