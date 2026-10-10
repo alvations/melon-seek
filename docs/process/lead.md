@@ -728,3 +728,23 @@ screenshots in `docs/screenshots/`.
 - Lead: README beta list is now the 5 crawled companies; Amazon and Meta are paused for their terms.
 - Verified on a clean worktree from 3361c90 plus exactly these files and patches: npm test 584/584 (7 skipped), build OK, YAML OK, e2e 103/104 (1 opt-in skip).
 - Registry: 133 entries.
+
+### The improvement cycle, written down (2026-10-10)
+- Request (verbatim): "After the beta page with big tech jobs is ready, make sure we run the optimization on the beta page with the big tech jobs afterwards like how we did it for the original site, go through the same flow and make sure we remember those flows / steps so that we can replicate and continue to improve them while we do the same for the beta page."
+- [PLAYBOOK.md](PLAYBOOK.md) is the flow used on the main site on 2026-10-03 and 2026-10-10, stage by stage:
+  0. data readiness;
+  1. find problems: desktop QA, mobile QA, mobile perf, data check, persona review;
+  2. fix lanes;
+  3. integrate and ship;
+  4. record and repeat.
+
+  Stage 3 lists the lessons from 2026-10-10: the README on the live site, the untested workflow push, and the snapshot symlink.
+- Prompt templates in [prompts/cycle/](prompts/cycle/), parameterized by target (`stable` or `beta`), with every placeholder documented.
+- Helpers:
+  - `scripts/cycle/local-data.js` rebuilds each company's latest snapshot from data-archive (the sandbox can't reach the boards);
+  - `serve.mjs` serves dist under /melon-seek/ with a pid file;
+  - `sync-shared.sh` is the 3-way checkout sync that used to be typed by hand.
+- `.claude/skills/improvement-cycle/` is the short version, so a future session finds it.
+- `test/cycle.test.js` checks the links and placeholders, local-data's observation choice, serve.mjs, and sync-shared.sh in a scratch repo.
+- `data/beta/` is now gitignored.
+- Next: run the cycle on beta once the first beta crawl (run 38044091555) is archived.

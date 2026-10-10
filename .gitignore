@@ -13,3 +13,7 @@ data/history/
 tmp/
 # Never commit a snapshots symlink either (a lead worktree link leaked into a2e7f32)
 data/snapshots
+# Beta snapshots and ledgers: restored from the job-board-snapshots-beta artifact in CI, or
+# rebuilt from the archive with scripts/cycle/local-data.js. Never committed.
+data/beta/
+data/beta-fresh/

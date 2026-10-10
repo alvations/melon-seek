@@ -48,6 +48,7 @@ interface every agent built against), [../ARCHITECTURE.md](../ARCHITECTURE.md),
 | Data badge (Live / Snapshot) | [prompts/badge-ux.md](prompts/badge-ux.md) | [badge-ux.md](badge-ux.md) | badge code in `public/app.js`, `pending` in `public/api.js`, `test/e2e/badge.e2e.js` |
 | Methodology copy | [prompts/methodology-copy.md](prompts/methodology-copy.md) | [methodology-copy.md](methodology-copy.md) | `docs/METHODOLOGY_GUIDE.md` |
 | Methodology UX + infographics | [prompts/methodology-ux.md](prompts/methodology-ux.md) | [methodology-ux.md](methodology-ux.md) | `scripts/methodology.js`, `scripts/methodology-figures.js`, `scripts/md.js` |
+| Improvement cycle (playbook) | [prompts/cycle/](prompts/cycle/) (templates) | [PLAYBOOK.md](PLAYBOOK.md) | `scripts/cycle/*`, `.claude/skills/improvement-cycle/`, `test/cycle.test.js` |
 | Desktop / mobile QA, mobile perf, fixes | [prompts/qa-desktop.md](prompts/qa-desktop.md), [qa-mobile.md](prompts/qa-mobile.md), [perf-mobile.md](prompts/perf-mobile.md), [fix-frontend.md](prompts/fix-frontend.md) | [qa-desktop.md](qa-desktop.md), [qa-mobile.md](qa-mobile.md), [perf-mobile.md](perf-mobile.md), [fix-frontend.md](fix-frontend.md) | `docs/QA.md`, `test/e2e/*-qa.e2e.js`, `public/unpack-worker.js` |
 
 ## Replaying the build from scratch
