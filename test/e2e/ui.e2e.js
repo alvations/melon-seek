@@ -119,11 +119,16 @@ const PINNED_NO_SALARY = 'anthropic:5391376008';
 async function noSalaryJob(ctx) {
   const jobs = (await apiJobs(ctx, 'anthropic')).jobs || [];
   const london = (j) => (j.locations || []).some((l) => /london/i.test(`${l.name || ''} ${l.city || ''}`));
-  const pinned = jobs.find((j) => j.id === PINNED_NO_SALARY);
-  const noPay = jobs.filter((j) => !j.salary);
-  const pick = pinned || noPay.find((j) => j.seniority === 'Senior' && london(j));
+  // fix-estimates (P-2): a drawer estimate never uses another country's pay, so the pick must be a
+  // posting that has one (the pinned AE - DNB moved to Singapore, where no Anthropic role lists pay).
+  const { compstimateForJob, MIN_COMPARABLES } = await lib('features/compstimate.js');
+  const has = (j) => { const r = compstimateForJob(jobs, j); return r.mid != null && r.n >= MIN_COMPARABLES; };
+  const pinned = jobs.find((j) => j.id === PINNED_NO_SALARY && has(j));
+  const noPay = jobs.filter((j) => !j.salary && !j.salaryFlag);
+  const pick = pinned || noPay.find((j) => j.seniority === 'Senior' && london(j) && has(j));
   if (pick) return { id: pick.id, filters: { s: 'Senior', l: 'London' } };
-  return { id: noPay[0] ? noPay[0].id : PINNED_NO_SALARY, filters: {} };
+  const any = noPay.find(has);
+  return { id: any ? any.id : noPay[0] ? noPay[0].id : PINNED_NO_SALARY, filters: {} };
 }
 
 /**
@@ -1078,7 +1083,7 @@ async function readDrawerComp(page) {
   const block = page.locator('#drawer .d-comp');
   if (!(await block.count())) return null;
   const t = (await block.innerText()).replace(/\s+/g, ' ');
-  const mid = t.match(/≈\s*(\$[\d.,]+[KM]?)/);
+  const mid = t.match(/(?:≈|about)\s*(\$[\d.,]+[KM]?)/);
   const rng = t.match(/\((\$[\d.,]+[KM]?)\s*[–-]\s*\$?([\d.,]+[KM]?)/);
   const conf = t.match(/,\s*([A-Za-z]+) confidence\)/);
   const n = t.match(/Based on (\d[\d,]*)/) || t.match(/from (\d[\d,]*) (?:comparable|similar)/);
@@ -1360,9 +1365,9 @@ function registerCompstimateTests(suite) {
         await page.locator('#drawer').waitFor({ state: 'visible', timeout: 8000 });
         await page.waitForTimeout(600);
         const drawer = await readDrawerComp(page);
+        const none = drawer ? null : ((await page.locator('#drawer .d-comp-none').allInnerTexts())[0] || '').trim();
         const during = await readComp(page);
         if (JSON.stringify(numbers(during)) !== JSON.stringify(numbers(before)) || JSON.stringify(fields(during)) !== JSON.stringify(fields(before))) problems.push(`${id}: opening the drawer changed Insights (${before.title} -> ${during.title})`);
-        if (!drawer) { problems.push(`${id}: no drawer Compstimate`); continue; }
         await page.keyboard.press('Escape');
         await page.locator('#drawer').waitFor({ state: 'hidden', timeout: 3000 });
         const onsite = (job.locations || []).find((l) => !l.remote);
@@ -1370,7 +1375,14 @@ function registerCompstimateTests(suite) {
         await editTitle(page, job.title);
         await pickWidget(page, 'location', loc);
         await pickWidget(page, 'level', job.seniority);
-        try { sameNums(widgetNums(await readComp(page)), drawer, `${id} (${job.title} · ${loc} · ${job.seniority})`); } catch (e) { problems.push(e.message); }
+        const w = await readComp(page);
+        if (!drawer) {
+          // fix-estimates (P-2): no figure in the drawer means no figure in Insights, for the same reason.
+          if (!w.notEnough || w.hero) problems.push(`${id}: the drawer has no estimate but Insights shows ${w.hero} (${job.title} · ${loc} · ${job.seniority})`);
+          else if (none && !/^Too few/.test(none) && !w.text.replace(/\s+/g, ' ').includes(none)) problems.push(`${id}: drawer says "${none}", Insights does not`);
+          continue;
+        }
+        try { sameNums(widgetNums(w), drawer, `${id} (${job.title} · ${loc} · ${job.seniority})`); } catch (e) { problems.push(e.message); }
       } catch (e) { problems.push(`${id}: ${e.message}`); } finally { await close(); }
     }
     assert(problems.length === 0, problems.join('\n'));
@@ -1454,7 +1466,9 @@ function registerCompstimateTests(suite) {
         const r = await renders(page);
         if (r !== 1) problems.push(`${slug}: ${r} renders on switch`);
         if (!c.title || LEVEL_WORD.test(c.title)) problems.push(`${slug}: auto title "${c.title}"`);
-        if (meta?.n && !(c.accuracy || '').includes(String(meta.n))) problems.push(`${slug}: accuracy "${c.accuracy}" does not name backtest n=${meta.n}`);
+        // fix-estimates (P-2): no "within ±N%" next to "low confidence"; otherwise the line names the backtest.
+        if (/^low/i.test(c.conf || '')) { if (/±/.test(c.accuracy || '')) problems.push(`${slug}: accuracy figure "${c.accuracy}" at low confidence`); }
+        else if (meta?.n && !(c.accuracy || '').includes(String(meta.n))) problems.push(`${slug}: accuracy "${c.accuracy}" does not name backtest n=${meta.n}`);
       }
       await editTitle(page, 'Research Engineer');
       for (const slug of ['anthropic', 'openai']) {
@@ -1509,8 +1523,10 @@ function registerCompstimateTests(suite) {
       const first = await readComp(page);
       const t0 = Date.now();
       let c = first;
-      while (Date.now() - t0 < 10000 && !c.accuracy) { await page.waitForTimeout(500); c = await readComp(page); }
-      assert(c.accuracy, `no accuracy line ${Math.round((Date.now() - t0) / 1000)} s after the first estimate (first visit on a cold server)`);
+      // fix-estimates (P-2): at low confidence the line is a caution, never an accuracy figure.
+      const settled = (x) => !!x.accuracy && (/^low/i.test(x.conf || '') ? !/±/.test(x.accuracy) : /within ±\d+%/.test(x.accuracy));
+      while (Date.now() - t0 < 10000 && !settled(c)) { await page.waitForTimeout(500); c = await readComp(page); }
+      assert(settled(c), `no accuracy line (or low-confidence caution) ${Math.round((Date.now() - t0) / 1000)} s after the first estimate (first visit on a cold server)`);
       assertEq(JSON.stringify(fields(c)), JSON.stringify(fields(first)), 'other fields unchanged when the accuracy arrives');
     } finally { await close(); }
   });

@@ -11,9 +11,22 @@
 
 import {
   salaryUSD, percentile, median, formatMoney, formatDelta, formatPct, plural, niceTicks,
-  jobLocationKeys, h, createTooltip, preserveFocus, uid,
+  jobLocationKeys, payLocations, countryName, isOTE, h, createTooltip, preserveFocus, uid,
 } from './shared.js';
 import { formatAsOf } from './freshness.js';
+
+/**
+ * Smallest sample a Market insights statistic is shown for (persona review 2026-10-10, P-6):
+ * a median, box, share bar or pay difference needs at least this many roles behind it (salaried
+ * roles for pay, roles in view for shares). Below it the panel says "not enough roles".
+ */
+export const MIN_SAMPLE = 5;
+/**
+ * A pay difference (skill or requirement vs all roles in view) is "tied" when more than this share
+ * of its roles post the very same range: the figure then repeats one pay band, so eight skills
+ * read "+$38K" alike. Tied differences are left out, and the panel says so.
+ */
+export const TIE_SHARE = 0.5;
 
 /** ' · postings as of 9 Oct 2026' for the board's fetchedAt ('' without one). */
 const postedAsOf = (asOf) => { const d = formatAsOf(asOf, 'day'); return d ? ` · postings as of ${d}` : ''; };
@@ -24,14 +37,33 @@ export { percentile, median, salaryUSD, toUSD } from './shared.js';
 // Pure stats
 // ---------------------------------------------------------------------------
 
-/** "GB" -> "UK", "KR" -> "South Korea": a name, not a bare country code. */
-let regionNames = null;
-function countryName(code) {
-  if (code === 'US' || code === 'GB') return code === 'GB' ? 'UK' : 'US';
-  try { regionNames ??= new Intl.DisplayNames(['en'], { type: 'region' }); return regionNames.of(code) || code; } catch { return code; }
+/**
+ * A job's base pay midpoint in approx USD, or null. On-target earnings (base plus commission at
+ * target) are never pooled with base pay (shared decision 3), so they count as "no base pay" here.
+ */
+function midOf(job) { if (isOTE(job)) return null; const p = salaryUSD(job); return p ? p.mid : null; }
+
+const mean = (a) => (a.length ? a.reduce((s, v) => s + v, 0) / a.length : null);
+
+/** True when more than TIE_SHARE of the values are the same posted figure (to the dollar). */
+export function isTied(values, share = TIE_SHARE) {
+  const v = (values || []).filter((x) => Number.isFinite(x));
+  if (!v.length) return false;
+  const c = new Map();
+  let top = 0;
+  for (const x of v) { const k = Math.round(x); const n = (c.get(k) || 0) + 1; c.set(k, n); if (n > top) top = n; }
+  return top / v.length > share;
 }
 
-function midOf(job) { const p = salaryUSD(job); return p ? p.mid : null; }
+/** The app's location key (public/app.js locKey): city, else name; remote entries by their name. */
+const appKey = (l) => (l.remote ? l.name || 'Remote' : l.city || l.name);
+
+/** Keys (app style) of the places a posting's pay applies to (payLocations). */
+export function payPlaceKeys(job) {
+  const out = new Set();
+  for (const l of payLocations(job)) { const k = appKey(l); if (k) out.add(k); }
+  return [...out];
+}
 
 function kw(job, facet) {
   const list = job?.keywords?.[facet];
@@ -56,10 +88,13 @@ export function summaryStats(jobs = []) {
  * Pay premium per skill: median USD mid of salaried jobs listing the skill minus
  * the median of all salaried jobs given. The `limit` most frequent skills with
  * at least `minCount` salaried jobs are returned, sorted by premium (desc).
- *   -> { baseline, salaried, items: [{ skill, n, count, median, premium }] }
+ *   -> { baseline, salaried, items: [{ skill, n, count, median, premium }], average, dropped }
  * `n` = salaried jobs with the skill; `count` = all jobs with the skill.
+ * `stat: 'mean'` makes the premium the difference of averages (the panel's choice: medians of
+ * banded pay tie, so many skills showed the same figure); `dropTied` leaves out skills whose roles
+ * mostly post one identical range (isTied); `dropped` counts skills with enough roles left out as tied.
  */
-export function skillPremiums(jobs = [], { limit = 12, minCount = 3 } = {}) {
+export function skillPremiums(jobs = [], { limit = 12, minCount = 3, stat = 'median', dropTied = false } = {}) {
   const mids = [];
   const by = new Map();
   for (const j of jobs) {
@@ -73,16 +108,22 @@ export function skillPremiums(jobs = [], { limit = 12, minCount = 3 } = {}) {
     }
   }
   const baseline = median(mids);
-  const items = [...by.values()]
-    .filter((e) => e.mids.length >= minCount)
+  const average = mean(mids);
+  const ref = stat === 'mean' ? average : baseline;
+  const enough = [...by.values()].filter((e) => e.mids.length >= minCount);
+  const kept = enough.filter((e) => !(dropTied && isTied(e.mids)));
+  const items = kept
     .sort((a, b) => b.mids.length - a.mids.length || b.count - a.count || a.skill.localeCompare(b.skill))
     .slice(0, limit)
     .map((e) => {
       const med = median(e.mids);
-      return { skill: e.skill, n: e.mids.length, count: e.count, median: med, premium: baseline == null ? null : med - baseline };
+      const v = stat === 'mean' ? mean(e.mids) : med;
+      const it = { skill: e.skill, n: e.mids.length, count: e.count, median: med, premium: ref == null ? null : v - ref };
+      if (stat === 'mean') it.average = v;
+      return it;
     })
     .sort((a, b) => b.premium - a.premium || b.n - a.n);
-  return { baseline, salaried: mids.length, items };
+  return { baseline, salaried: mids.length, items, average, dropped: enough.length - kept.length };
 }
 
 /**
@@ -111,11 +152,15 @@ export function deptBoxes(jobs = [], { minCount = 1, includeOther = true } = {})
  * Roles per location key (a multi-location job counts once in each city),
  * with the median USD pay of those roles. Sorted by count (desc).
  *   -> [{ location, country, remote, count, salaried, median }]
+ * The pay of a role counts only in the places it applies to (payLocations, P-6): five US
+ * contractor roles that also list Sydney give Sydney a count, not a "Sydney median".
+ * `median` is null below `minSalaried` roles with pay there.
  */
-export function hotLocations(jobs = [], { limit = 8 } = {}) {
+export function hotLocations(jobs = [], { limit = 8, minSalaried = 1 } = {}) {
   const by = new Map();
   for (const j of jobs) {
     const m = midOf(j);
+    const paid = m == null ? null : new Set(payLocations(j).map((l) => (l.remote ? 'Remote' : l.city || l.name)));
     for (const key of jobLocationKeys(j)) {
       let e = by.get(key);
       if (!e) {
@@ -123,13 +168,13 @@ export function hotLocations(jobs = [], { limit = 8 } = {}) {
         by.set(key, (e = { location: key, country: loc?.country || null, remote: key === 'Remote', count: 0, mids: [] }));
       }
       e.count += 1;
-      if (m != null) e.mids.push(m);
+      if (m != null && (paid.has(key) || (key === 'Remote' && !paid.size))) e.mids.push(m);
     }
   }
   return [...by.values()]
     .sort((a, b) => b.count - a.count || a.location.localeCompare(b.location))
     .slice(0, limit)
-    .map(({ mids, ...e }) => ({ ...e, salaried: mids.length, median: median(mids) }));
+    .map(({ mids, ...e }) => ({ ...e, salaried: mids.length, median: mids.length >= minSalaried ? median(mids) : null }));
 }
 
 /**
@@ -137,8 +182,10 @@ export function hotLocations(jobs = [], { limit = 8 } = {}) {
  * median pay of those roles vs the overall median.
  *   -> { total, baseline, items: [{ label, count, pct, median, premium }] }
  * median/premium are null when fewer than `minPremiumN` of those roles list pay.
+ * Panel options (P-6): `minTotal` (pct is null with fewer roles in view), `stat: 'mean'` (premium
+ * as a difference of averages) and `dropTied` (no premium when most of the roles post one range).
  */
-export function fitRequirements(jobs = [], { limit = 8, facet = 'fit', minPremiumN = 3 } = {}) {
+export function fitRequirements(jobs = [], { limit = 8, facet = 'fit', minPremiumN = 3, minTotal = 0, stat = 'median', dropTied = false } = {}) {
   const by = new Map();
   const mids = [];
   for (const j of jobs) {
@@ -152,13 +199,18 @@ export function fitRequirements(jobs = [], { limit = 8, facet = 'fit', minPremiu
     }
   }
   const baseline = median(mids);
+  const ref = stat === 'mean' ? mean(mids) : baseline;
   const total = jobs.length;
   const items = [...by.values()]
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
     .slice(0, limit)
     .map((e) => {
-      const med = e.mids.length >= minPremiumN ? median(e.mids) : null;
-      return { label: e.label, count: e.count, pct: total ? e.count / total : 0, median: med, premium: med == null || baseline == null ? null : med - baseline };
+      const enough = e.mids.length >= minPremiumN && !(dropTied && isTied(e.mids));
+      const med = enough ? median(e.mids) : null;
+      const v = !enough ? null : stat === 'mean' ? mean(e.mids) : med;
+      const it = { label: e.label, count: e.count, pct: total && total >= minTotal ? e.count / total : null, median: med, premium: v == null || ref == null ? null : v - ref };
+      if (stat === 'mean') it.average = v;
+      return it;
     });
   return { total, baseline, items };
 }
@@ -209,12 +261,14 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
   }
 
   // (a) skill premium -------------------------------------------------------
+  // P-6: averages (medians of banded pay tie), at least MIN_SAMPLE roles with pay, no tied groups.
   function skillCard(jobs) {
-    const { baseline, items, salaried } = skillPremiums(jobs);
-    const sub = baseline == null ? 'Median pay of roles listing each skill vs. all roles in view.'
-      : `Median pay of roles listing each skill vs. the ${formatMoney(baseline)} median of roles in view.`;
-    if (!items.length) {
-      return card('Skill premium', sub, emptyNote(salaried ? 'Not enough salaried roles list skills to compare.' : 'None of these roles publish pay.'), { headTag: `h${hl + 1}` });
+    const { average, items, salaried, dropped } = skillPremiums(jobs, { minCount: MIN_SAMPLE, stat: 'mean', dropTied: true });
+    const sub = average == null || salaried < MIN_SAMPLE ? 'Average pay of roles listing each skill vs. all roles in view.'
+      : `Average pay of roles listing each skill vs. the ${formatMoney(average)} average of all roles in view.`;
+    if (!items.length || salaried < MIN_SAMPLE) {
+      return card('Skill premium', sub, emptyNote(!salaried ? 'None of these roles publish pay.'
+        : `Not enough roles to compare skills: each needs ${MIN_SAMPLE} or more roles with pay, and not mostly one posted range.`), { headTag: `h${hl + 1}` });
     }
     const maxAbs = Math.max(...items.map((i) => Math.abs(i.premium)), 1);
     const rows = items.map((it) => {
@@ -222,7 +276,7 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
       const pos = it.premium >= 0;
       const delta = formatDelta(it.premium);
       return row('skill', it.skill,
-        `${it.skill}: median ${formatMoney(it.median)}, ${delta.replace('−', 'minus ')} vs. median, ${plural(it.n, 'salaried role')}. Filter by this skill.`,
+        `${it.skill}: average ${formatMoney(it.average)}, ${delta.replace('−', 'minus ')} vs. all roles in view, ${plural(it.n, 'salaried role')}. Filter by this skill.`,
         [
           h('span', { class: 'msi-row__label' }, h('span', { class: 'msi-row__name' }, it.skill), h('span', { class: 'msi-row__n' }, String(it.n))),
           h('span', { class: 'msi-div', 'aria-hidden': 'true' },
@@ -230,24 +284,28 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
             h('span', { class: 'msi-div__zero' })),
           h('span', { class: `msi-row__value ${pos ? 'is-pos' : 'is-neg'}` }, delta),
         ],
-        () => ({ value: `${delta} · ${formatMoney(it.median)} median`, label: it.skill, rows: [['Salaried roles', String(it.n)], ['All roles listing it', String(it.count)], ['Baseline median', formatMoney(baseline)]] }));
+        () => ({ value: `${delta} · ${formatMoney(it.average)} average`, label: it.skill, rows: [['Salaried roles', String(it.n)], ['All roles listing it', String(it.count)], ['Average of all roles in view', formatMoney(average)]] }));
     });
     const legend = h('div', { class: 'msi-legend', 'aria-hidden': 'true' },
       h('span', null, h('i', { class: 'msi-key msi-key--neg' }), 'Pays less'),
       h('span', null, h('i', { class: 'msi-key msi-key--pos' }), 'Pays more'),
       h('span', { class: 'msi-legend__n' }, '# = salaried roles'));
-    return card('Skill premium', sub, h('div', { class: 'msi-rows msi-rows--div' }, rows, legend), { headTag: `h${hl + 1}` });
+    const foot = dropped > 0
+      ? h('p', { class: 'msi-foot' }, `${plural(dropped, 'skill')} left out: most of ${dropped === 1 ? 'its' : 'their'} roles post the same range, so the difference would only repeat one pay band. Skills need ${MIN_SAMPLE}+ roles with pay.`) : null;
+    return card('Skill premium', sub, [h('div', { class: 'msi-rows msi-rows--div' }, rows, legend), foot], { headTag: `h${hl + 1}` });
   }
 
   // (b) salary by department --------------------------------------------------
   function deptCard(jobs, allJobs) {
-    // A box needs a few points: prefer departments with 3+ salaried roles.
+    // P-6: a box needs MIN_SAMPLE salaried roles; smaller departments are counted, not drawn.
     const allBoxes = deptBoxes(jobs);
-    const solid = allBoxes.filter((b) => b.n >= 3);
-    const boxes = (solid.length ? solid : allBoxes).slice(0, 10);
+    const boxes = allBoxes.filter((b) => b.n >= MIN_SAMPLE).slice(0, 10);
     const hidden = allBoxes.length - boxes.length;
-    const sub = 'Middle 50% of pay (box), 10th–90th percentile (whiskers), median (tick).';
-    if (!boxes.length) return card('Pay by department', sub, emptyNote('None of these roles publish pay.'), { headTag: `h${hl + 1}` });
+    const sub = 'Box: the middle half of salaries. Whiskers: most salaries (all but the top and bottom tenth). Tick: the median.';
+    if (!boxes.length) {
+      return card('Pay by department', sub, emptyNote(allBoxes.length
+        ? `Not enough roles with pay to draw a department: each needs ${MIN_SAMPLE} or more.` : 'None of these roles publish pay.'), { headTag: `h${hl + 1}` });
+    }
     // Stable axis: domain from all jobs so filtering doesn't rescale the plot.
     const domainMids = (allJobs.length ? allJobs : jobs).map(midOf).filter((v) => v != null);
     let lo = Math.min(percentile(domainMids, 0.02), ...boxes.map((b) => b.p10));
@@ -258,7 +316,7 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
     const x = (v) => `${((v - lo) / (hi - lo || 1)) * 100}%`;
     const grid = () => ticks.map((t) => h('span', { class: 'msi-grid', style: { left: x(t) } }));
     const rows = boxes.map((b) => row('department', b.department,
-      `${b.department}: median ${formatMoney(b.median)}, middle 50% ${formatMoney(b.p25)} to ${formatMoney(b.p75)}, 10th to 90th percentile ${formatMoney(b.p10)} to ${formatMoney(b.p90)}, ${plural(b.n, 'role')}. Filter by this department.`,
+      `${b.department}: median ${formatMoney(b.median)}, middle half ${formatMoney(b.p25)} to ${formatMoney(b.p75)}, most roles ${formatMoney(b.p10)} to ${formatMoney(b.p90)}, ${plural(b.n, 'role')}. Filter by this department.`,
       [
         h('span', { class: 'msi-row__label' }, h('span', { class: 'msi-row__name' }, b.department), h('span', { class: 'msi-row__n' }, String(b.n))),
         h('span', { class: 'msi-row__value' }, formatMoney(b.median)),
@@ -267,51 +325,57 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
           h('span', { class: 'msi-box__iqr', style: { left: x(b.p25), width: `max(4px, calc(${x(b.p75)} - ${x(b.p25)}))` } }),
           h('span', { class: 'msi-box__med', style: { left: x(b.median) } })),
       ],
-      () => ({ value: `${formatMoney(b.median)} median`, label: b.department, rows: [['Most roles (10th–90th pct)', `${formatMoney(b.p10)} – ${formatMoney(b.p90)}`], ['Middle 50%', `${formatMoney(b.p25)} – ${formatMoney(b.p75)}`], ['Salaried roles', String(b.n)]] })));
+      () => ({ value: `${formatMoney(b.median)} median`, label: b.department, rows: [['Most roles', `${formatMoney(b.p10)} – ${formatMoney(b.p90)}`], ['Middle half', `${formatMoney(b.p25)} – ${formatMoney(b.p75)}`], ['Salaried roles', String(b.n)]] })));
     const axis = h('div', { class: 'msi-axis', 'aria-hidden': 'true' },
       h('span', { class: 'msi-axis__pad' }),
       h('span', { class: 'msi-axis__track' }, ticks.map((t) => h('span', { class: 'msi-axis__tick', style: { left: x(t) } }, formatMoney(t)))),
       h('span', { class: 'msi-axis__pad msi-axis__pad--end' }));
     const foot = hidden > 0
-      ? h('p', { class: 'msi-foot' }, `${plural(hidden, 'department')} with fewer than 3 salaried roles not shown.`) : null;
+      ? h('p', { class: 'msi-foot' }, `${plural(hidden, 'department')} with fewer than ${MIN_SAMPLE} salaried roles not shown.`) : null;
     return card('Pay by department', sub, [h('div', { class: 'msi-rows msi-rows--box' }, rows, axis), foot], { headTag: `h${hl + 1}` });
   }
 
   // (c) hot locations -------------------------------------------------------
+  // P-6: a place's median uses only roles whose pay is for that place (payLocations), from at
+  // least MIN_SAMPLE of them.
   function locCard(jobs) {
-    const locs = hotLocations(jobs, { limit: 8 });
-    const sub = 'Where the openings are. Multi-location roles count in each city.';
+    const locs = hotLocations(jobs, { limit: 8, minSalaried: MIN_SAMPLE });
+    const sub = `Where the openings are. Multi-location roles count in each city; a median uses only pay posted for that place, from ${MIN_SAMPLE} or more roles.`;
     if (!locs.length) return card('Hot locations', sub, emptyNote('No locations listed.'), { headTag: `h${hl + 1}` });
     const max = Math.max(...locs.map((l) => l.count));
+    const medianText = (l) => (l.median != null ? formatMoney(l.median) : l.salaried ? `too few with pay here (${l.salaried})` : 'no pay posted for this place');
     const head = h('div', { class: 'msi-cols', 'aria-hidden': 'true' }, h('span', null, 'Location'), h('span'), h('span', null, 'Roles'), h('span', null, 'Median'));
     const rows = locs.map((l) => row('location', l.location,
-      `${l.location}${l.country && !l.remote ? `, ${countryName(l.country)}` : ''}: ${plural(l.count, 'role')}, median pay ${l.median == null ? 'not published' : formatMoney(l.median)}. Filter by this location.`,
+      `${l.location}${l.country && !l.remote ? `, ${countryName(l.country)}` : ''}: ${plural(l.count, 'role')}, median pay ${medianText(l)}. Filter by this location.`,
       [
         h('span', { class: 'msi-row__label' }, h('span', { class: 'msi-row__name' }, l.location), l.country && !l.remote ? h('span', { class: 'msi-row__tag' }, countryName(l.country)) : null),
         h('span', { class: 'msi-bar', 'aria-hidden': 'true' }, h('span', { class: 'msi-bar__fill', style: { width: `${(l.count / max) * 100}%` } })),
         h('span', { class: 'msi-row__value msi-row__value--count' }, String(l.count)),
         h('span', { class: 'msi-row__value' }, l.median == null ? '—' : formatMoney(l.median)),
       ],
-      () => ({ value: `${plural(l.count, 'role')}`, label: l.location, rows: [['Median pay', l.median == null ? '—' : formatMoney(l.median)], ['With published pay', String(l.salaried)]] })));
+      () => ({ value: `${plural(l.count, 'role')}`, label: l.location, rows: [['Median pay', l.median == null ? '—' : formatMoney(l.median)], ['With pay posted for this place', String(l.salaried)]] })));
     return card('Hot locations', sub, h('div', { class: 'msi-rows msi-rows--loc' }, head, rows), { headTag: `h${hl + 1}` });
   }
 
   // (d) fit requirements + responsibilities ---------------------------------
   function fitCard(jobs) {
-    const { total, items } = fitRequirements(jobs, { limit: 8 });
+    // P-6: no share bars from fewer than MIN_SAMPLE roles; pay differences as in skillCard.
+    const { total, items } = fitRequirements(jobs, { limit: 8, minTotal: MIN_SAMPLE, minPremiumN: MIN_SAMPLE, stat: 'mean', dropTied: true });
     const resp = topResponsibilities(jobs, { limit: 10 });
-    const sub = `Share of the ${plural(total, 'role')} in view that ask for each.`;
+    const sub = `Share of the ${plural(total, 'role')} in view that ask for each; the difference is average pay vs. all roles in view.`;
     const parts = [];
-    if (items.length) {
+    if (total < MIN_SAMPLE && items.length) {
+      parts.push(emptyNote(`Not enough roles in view to show shares: ${plural(total, 'role')}, and shares need ${MIN_SAMPLE} or more.`));
+    } else if (items.length) {
       parts.push(h('div', { class: 'msi-rows msi-rows--fit' }, items.map((f) => row('fit', f.label,
-        `${f.label}: ${formatPct(f.pct)} of roles (${f.count} of ${total})${f.premium == null ? '' : `, median pay ${formatDelta(f.premium).replace('−', 'minus ')} vs. all roles`}. Filter by this requirement.`,
+        `${f.label}: ${formatPct(f.pct)} of roles (${f.count} of ${total})${f.premium == null ? '' : `, average pay ${formatDelta(f.premium).replace('−', 'minus ')} vs. all roles`}. Filter by this requirement.`,
         [
           h('span', { class: 'msi-row__label' }, h('span', { class: 'msi-row__name' }, f.label)),
           h('span', { class: 'msi-meter', 'aria-hidden': 'true' }, h('span', { class: 'msi-meter__fill', style: { width: `${f.pct * 100}%` } })),
           h('span', { class: 'msi-row__value' }, formatPct(f.pct)),
           h('span', { class: `msi-row__delta${f.premium == null ? '' : f.premium >= 0 ? ' is-pos' : ' is-neg'}` }, f.premium == null ? '' : formatDelta(f.premium)),
         ],
-        () => ({ value: `${formatPct(f.pct)} of roles`, label: f.label, rows: [['Roles', `${f.count} of ${total}`], ['Median pay', formatMoney(f.median)], ['vs. all roles', formatDelta(f.premium)]] })))));
+        () => ({ value: `${formatPct(f.pct)} of roles`, label: f.label, rows: [['Roles', `${f.count} of ${total}`], ['Average pay', f.average == null ? 'not enough roles with pay' : formatMoney(f.average)], ['vs. all roles', formatDelta(f.premium)]] })))));
     } else {
       parts.push(emptyNote('No requirements detected in these postings.'));
     }
@@ -327,41 +391,60 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
     return c;
   }
 
-  function stats(jobs, allJobs) {
+  function stats(jobs) {
     const s = summaryStats(jobs);
+    const enough = s.salaried >= MIN_SAMPLE;
     const tile = (label, value, note) => h('div', { class: 'msi-stat' },
       h('div', { class: 'msi-stat__label' }, label),
       h('div', { class: 'msi-stat__value' }, value),
       note ? h('div', { class: 'msi-stat__note' }, note) : null);
     return h('div', { class: 'msi-stats', role: 'list' },
-      [tile('Median base pay', formatMoney(s.median), s.median == null ? 'no pay published' : `of ${plural(s.salaried, 'salaried role')}`),
-        tile('Middle 50%', s.p25 == null ? '—' : `${formatMoney(s.p25)}–${formatMoney(s.p75)}`, 'of salaried roles'),
+      [tile('Median base pay', enough ? formatMoney(s.median) : '—', !s.salaried ? 'no pay published' : enough ? `of ${plural(s.salaried, 'salaried role')}` : `too few with pay (${s.salaried})`),
+        tile('Middle half', enough && s.p25 != null ? `${formatMoney(s.p25)}–${formatMoney(s.p75)}` : '—', 'of salaried roles'),
         tile('Pay published', formatPct(s.payShare), `${s.salaried} of ${s.total}`),
         tile('Remote-eligible', formatPct(s.remoteShare), plural(jobs.filter((j) => j.remote).length, 'role'))]
         .map((t) => { t.setAttribute('role', 'listitem'); return t; }));
   }
 
-  function update(filteredJobs = [], allJobs = filteredJobs, { asOf = null } = {}) {
-    const jobs = Array.isArray(filteredJobs) ? filteredJobs : [];
-    const all = Array.isArray(allJobs) ? allJobs : jobs;
+  /**
+   * @param {Job[]} filteredJobs  the roles in view
+   * @param {Job[]} allJobs  the whole board
+   * @param {{ asOf?: string|null, places?: string[]|null }} [opts]  places: the location filter's
+   *   keys (app.js S.l). With places, pay figures use only roles whose pay is posted for one of
+   *   them (payLocations, P-6); the others count as roles without pay for this view.
+   */
+  function update(filteredJobs = [], allJobs = filteredJobs, { asOf = null, places = null } = {}) {
+    const jobs0 = Array.isArray(filteredJobs) ? filteredJobs : [];
+    const all = Array.isArray(allJobs) ? allJobs : jobs0;
+    const where = Array.isArray(places) && places.length ? new Set(places) : null;
+    let elsewhere = 0;
+    const jobs = !where ? jobs0 : jobs0.map((j) => {
+      if (!j?.salary || payPlaceKeys(j).some((k) => where.has(k))) return j;
+      elsewhere += 1;
+      return { ...j, salary: null };
+    });
+    const ote = jobs.filter((j) => isOTE(j)).length;
+    const notes = [
+      ote ? `${plural(ote, 'role')} posting on-target earnings (base plus commission) left out of pay figures` : '',
+      elsewhere ? `${plural(elsewhere, 'role')} whose pay is for another country left out of pay figures` : '',
+    ].filter(Boolean).map((t) => ` · ${t}`).join('');
     tip.hide();
     preserveFocus(root, () => {
       header.replaceChildren(
         h(`h${hl}`, { id: headId, class: 'ms-insights__title' }, 'Market insights'),
         h('p', { class: 'ms-insights__sub' }, !all.length ? 'No roles loaded yet.'
           : jobs.length === all.length
-          ? `All ${plural(all.length, 'role')} on this board · pay in approx. USD${postedAsOf(asOf)}`
-          : `${jobs.length} of ${plural(all.length, 'role')} match your filters · pay in approx. USD${postedAsOf(asOf)}`));
+          ? `All ${plural(all.length, 'role')} on this board · pay in approx. USD${postedAsOf(asOf)}${notes}`
+          : `${jobs.length} of ${plural(all.length, 'role')} match your filters · pay in approx. USD${postedAsOf(asOf)}${notes}`));
       if (!jobs.length) {
         body.replaceChildren(emptyNote(all.length ? 'No roles match the current filters.' : 'Insights appear once a job board is loaded.'));
         return;
       }
-      body.replaceChildren(stats(jobs, all),
-        h('div', { class: 'msi-cards' }, skillCard(jobs), deptCard(jobs, all), locCard(jobs), fitCard(jobs)));
+      body.replaceChildren(stats(jobs),
+        h('div', { class: 'msi-cards' }, skillCard(jobs), deptCard(jobs, all), locCard(jobs0), fitCard(jobs)));
     });
     if (root.isConnected) fitAxes();
   }
-
   // Hide axis labels that would collide (greedy, first/last kept) and keep
   // edge labels inside their track. Re-run when the panel resizes.
   function fitAxes() {

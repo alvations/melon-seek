@@ -17,8 +17,12 @@
 
 import {
   salaryUSD, weightedPercentile, percentile, median, formatMoney, plural, h, uid, locationKey,
+  payLocations, isOTE, payKind, isInternLike, countryName, countryInSentence, OTE_LABEL,
 } from './shared.js';
-import { normalizeTitle, familySim, rolePart, roleFamily, FAMILY_LABELS, SENIORITY_LADDER } from './roles.js';
+import {
+  normalizeTitle, familySim, rolePart, roleFamily, FAMILY_LABELS, SENIORITY_LADDER,
+  levelLabel, levelStated, SENIORITY_DISPLAY_ORDER,
+} from './roles.js';
 import { compstimateAsOfText } from './freshness.js';
 
 export { percentile, weightedPercentile, salaryUSD, toUSD, FX_FALLBACK } from './shared.js';
@@ -85,10 +89,17 @@ export function resolveLocation(query, jobs = []) {
 
 function sameText(a, b) { return !!a && !!b && String(a).toLowerCase() === String(b).toLowerCase(); }
 
-/** Location similarity in [0,1] between a resolved query location and a job. */
+/**
+ * Location similarity in [0,1] between a resolved query location and a job. Only the locations
+ * the posting's pay applies to count (payLocations): a US range on a role also listed in Sydney
+ * says nothing about Sydney.
+ */
 export function locationSim(ql, job) {
+  return ql ? locSim(ql, payLocations(job), job) : 1;
+}
+
+function locSim(ql, locs, job) {
   if (!ql) return 1;
-  const locs = job.locations || [];
   if (!locs.length) return job.remote && ql.remote ? 1 : 0.5;
   let best = 0;
   for (const l of locs) {
@@ -129,7 +140,11 @@ function buildIndex(jobs) {
     if (!job) continue;
     const pay = salaryUSD(job);
     if (!pay) continue;
-    pool.push({ job, pay, norm: normalizeTitle(job.title, { department: job.department }) });
+    const locs = payLocations(job);
+    pool.push({
+      job, pay, norm: normalizeTitle(job.title, { department: job.department }), locs,
+      countries: new Set(locs.map((l) => String(l?.country || '').toUpperCase()).filter(Boolean)),
+    });
   }
   const idf = buildIdf(pool.map((p) => p.norm));
   for (const p of pool) {
@@ -167,6 +182,17 @@ const LOW_P = 0.15, HIGH_P = 0.85;
  * Similarity-weighted pay estimate. See docs/process/product.md for the formula.
  * Jobs without a usable salary (or with an unknown currency) are ignored.
  * Returns low/mid/high rounded to $1K (null when there is nothing to compare).
+ *
+ * Like with like (persona review 2026-10-10, docs/process/fix-estimates.md):
+ * - Place: a query location with a country uses only postings whose pay applies in that country
+ *   (payLocations). Pay from another country is never used; with none, there is no estimate
+ *   (reason 'no-local-pay').
+ * - Level: an Intern query (or `internLike: true`) uses only internships and fixed-term pay;
+ *   any other query leaves them out (reason 'no-intern-pay' when there are none). "Level not
+ *   stated" (the stored 'Mid' default) is never named as a level in the basis line.
+ * - Kind: on-target earnings and base pay are never pooled. The estimate uses whichever kind
+ *   carries more of the similarity weight, and says which (`kind`: 'base' | 'ote').
+ * `basis` describes the comparables actually used ({ level, place, fallback }); see basisParts().
  */
 export function estimateComp(allJobs, query = {}) {
   const q = {
@@ -183,36 +209,61 @@ export function estimateComp(allJobs, query = {}) {
   const within = query.within ? (query.within instanceof Set ? query.within : new Set(query.within)) : null;
   const qn = normalizeTitle(q.title, { department: q.department || null });
   const level = q.seniority || qn.seniority || '';
+  const asked = levelStated(level) ? level : ''; // 'Mid' = level not stated: never named as a level
+  const internQ = typeof query.internLike === 'boolean' ? query.internLike : level === 'Intern';
   const ix = indexFor(allJobs);
   const ql = resolveLocation(q.location, ix.jobs);
+  const country = ql && ql.country ? String(ql.country).toUpperCase() : null;
   const used = { ...q, seniority: level, family: qn.family, tokens: qn.tokens, location: ql?.key || '' };
 
-  const empty = (explanation) => ({
+  const empty = (explanation, reason) => ({
     low: null, mid: null, high: null, currency: 'USD', confidence: 'Low', n: 0,
-    comparables: [], scores: [], explanation, query: used,
+    comparables: [], scores: [], explanation, query: used, reason, kind: null, basis: null, country,
   });
   const hasTitle = qn.tokens.length > 0;
   const qSum = qn.tokens.reduce((a, t) => a + ix.idf(t), 0);
   const scored = [];
+  let candidates = 0, sameTerm = 0;
   for (const p of ix.pool) {
     if (q.excludeId != null && p.job.id === q.excludeId) continue;
     if (excl && excl.has(p.job.id)) continue;
     if (within && !within.has(p.job.id)) continue;
+    candidates += 1;
+    if (isInternLike(p.job) !== internQ) continue; // never across the intern / full-time line
+    sameTerm += 1;
+    if (country && !p.countries.has(country)) continue; // never another country's pay (payLocations)
     const ts = hasTitle ? 0.7 * tokenSim(qn.tokens, qSum, p, ix.idf) + 0.3 * familySim(qn.family, p.norm.family) : 1;
-    const w = ts * ts * senioritySim(level, p.job.seniority) * deptSim(q.department, p.job.department) * locationSim(ql, p.job);
+    // Weighting keeps "no level word" close to "no level word" (a title feature: the backtest error
+    // rises from 10.7% to 13.3% at Anduril without it); the basis line never calls it a level.
+    const w = ts * ts * senioritySim(level, p.job.seniority) * deptSim(q.department, p.job.department) * locSim(ql, p.locs, p.job);
     scored.push({ job: p.job, pay: p.pay, titleSim: ts, w });
   }
-  if (!scored.length) return empty('No roles on this board publish pay, so there is nothing to compare against yet.');
-  scored.sort((a, b) => b.w - a.w || String(b.job.updatedAt || '').localeCompare(String(a.job.updatedAt || '')) || String(a.job.id).localeCompare(String(b.job.id)));
-  const best = scored[0].w;
-  if (!(best >= MIN_WEIGHT)) {
+  if (!scored.length) {
+    if (!candidates) return empty('No roles on this board publish pay, so there is nothing to compare against yet.', 'no-pay');
+    if (!sameTerm) {
+      return empty(internQ
+        ? 'No internship or fixed-term role here lists pay, and full-time pay is not used for an internship.'
+        : 'No full-time role here lists pay, and internship pay is not used for a full-time role.', internQ ? 'no-intern-pay' : 'no-fulltime-pay');
+    }
+    return empty(`No similar role in ${countryInSentence(country)} lists pay here, and pay from other countries is not used.`, 'no-local-pay');
+  }
+  const order = (a, b) => b.w - a.w || String(b.job.updatedAt || '').localeCompare(String(a.job.updatedAt || '')) || String(a.job.id).localeCompare(String(b.job.id));
+  scored.sort(order);
+  if (!(scored[0].w >= MIN_WEIGHT)) {
     return empty(q.title
       ? `No roles with published pay look comparable to “${q.title}”. Try a broader title.`
-      : 'No comparable roles with published pay.');
+      : 'No comparable roles with published pay.', 'no-match');
   }
+  // One kind of pay: on-target earnings are never pooled with base pay.
+  const firstCut = Math.max(MIN_WEIGHT, REL_WEIGHT * scored[0].w);
+  let wOte = 0, wBase = 0;
+  for (const p of scored) { if (p.w < firstCut) break; if (isOTE(p.job)) wOte += p.w; else wBase += p.w; }
+  const kind = wOte > wBase ? 'ote' : 'base';
+  const sameKind = wOte > 0 ? scored.filter((p) => payKind(p.job) === kind) : scored;
+  const best = sameKind[0].w;
   const cut = Math.max(MIN_WEIGHT, REL_WEIGHT * best);
   const comps = [];
-  for (const p of scored) { if (p.w < cut || comps.length >= MAX_COMPARABLES) break; comps.push(p); }
+  for (const p of sameKind) { if (p.w < cut || comps.length >= MAX_COMPARABLES) break; comps.push(p); }
 
   const mids = comps.map((p) => [p.pay.mid, p.w]);
   const band = [];
@@ -239,13 +290,14 @@ export function estimateComp(allJobs, query = {}) {
   const converted = comps.filter((p) => p.pay.converted).length;
   const what = [
     hasTitle ? `“${q.title}”` : 'any role',
-    level ? `at ${level} level` : '',
+    asked ? `at ${asked} level` : '',
     ql ? (ql.remote ? 'for remote work' : `in or near ${ql.key}`) : '',
     q.department ? `in ${q.department}` : '',
   ].filter(Boolean).join(' ');
   const detail =
-    `Range is the ${LOW_P * 100}th–${HIGH_P * 100}th percentile of their posted pay bands` +
-    (converted ? `; ${converted} non-USD ${converted === 1 ? 'band' : 'bands'} converted at approximate rates.` : '.') +
+    `Low and High leave out the lowest and highest ${LOW_P * 100}% of their posted pay` +
+    (converted ? `; ${converted} ${converted === 1 ? 'range' : 'ranges'} in other currencies converted at approximate rates.` : '.') +
+    (kind === 'ote' ? ' These roles post on-target earnings (base plus commission at target), so this is too.' : '') +
     (!hasTitle ? ' Add a role title for a sharper estimate.'
       : confidence === 'Low' ? ' Few close matches, so treat this as a rough guide.' : '');
   const explanation =
@@ -257,7 +309,62 @@ export function estimateComp(allJobs, query = {}) {
     comparables: comps.slice(0, 5).map((p) => p.job),
     scores: comps.slice(0, 5).map((p) => Math.round(p.w * 100) / 100),
     explanation, detail, query: used,
+    reason: null, kind, country,
+    basis: describeComparables(comps, { asked, internQ, ql, country }),
   };
+}
+
+/** Does this pay location sit at the query's place (city / name / app key)? */
+function atPlace(l, ql) {
+  if (!l || l.remote) return false;
+  return sameText(l.city, ql.city) || sameText(l.name, ql.city) || sameText(locationKey(l), ql.key) || sameText(locKeyOf(l), ql.key);
+}
+
+/**
+ * What the comparables actually are, for the basis line (P-2): their level relative to the level
+ * asked for, and their place relative to the place asked for. Strings, or null for "not asked".
+ */
+function describeComparables(comps, { asked, internQ, ql, country }) {
+  const W = comps.reduce((s, p) => s + p.w, 0) || 1;
+  let lvl = null;
+  if (internQ) {
+    lvl = comps.every((p) => p.job.seniority === 'Intern') ? 'Intern' : 'internships and fixed-term roles';
+  } else if (asked) {
+    const share = comps.reduce((s, p) => s + (p.job.seniority === asked ? p.w : 0), 0) / W;
+    lvl = share > 0.999 ? asked : share >= 0.5 ? `mostly ${asked}` : 'mixed levels';
+  }
+  let place = null, fallback = null, missing = null;
+  if (ql) {
+    const name = country ? countryInSentence(country) : '';
+    const pl = (p) => payLocations(p.job);
+    if (ql.remote) {
+      const remote = comps.filter((p) => pl(p).some((l) => l.remote)).length;
+      place = remote === comps.length ? (country ? `remote in ${name}` : 'remote')
+        : country ? `remote and on-site in ${name}` : 'remote and on-site';
+    } else if (ql.city) {
+      const here = comps.filter((p) => pl(p).some((l) => atPlace(l, ql))).length;
+      if (here === comps.length) place = ql.key;
+      else if (here > 0) place = country ? `${ql.key} and elsewhere in ${name}` : `${ql.key} and other places`;
+      else {
+        fallback = 'city';
+        missing = ql.key;
+        place = country ? `elsewhere in ${name} (none in ${ql.key} lists pay)` : `other places (none in ${ql.key} lists pay)`;
+      }
+    } else if (ql.region) {
+      const here = comps.filter((p) => pl(p).some((l) => sameText(l.region, ql.region))).length;
+      place = here === comps.length ? ql.region : country ? `${ql.region} and elsewhere in ${name}` : ql.region;
+    } else if (country) {
+      place = countryName(country);
+    }
+  }
+  return { level: lvl, place, fallback, missing };
+}
+
+/** The basis parts of an estimate: [level, place] as far as the query asked for them. */
+export function basisParts(result) {
+  const b = result && result.basis;
+  if (!b) return [];
+  return [b.level, b.place].filter(Boolean);
 }
 
 /** The app's location key (public/app.js locKey): city, or the remote entry's own name ("Remote (US)"). */
@@ -266,9 +373,12 @@ export function locKeyOf(l) {
   return l.remote ? l.name || 'Remote' : l.city || l.name || 'Unknown';
 }
 
-/** The location a posting is estimated for: its first on-site key, else its first remote key. */
+/**
+ * The location a posting is estimated for: its first on-site key, else its first remote key,
+ * among the locations its pay applies to (all of them when it lists no pay).
+ */
 export function jobLocationQuery(job) {
-  const locs = job?.locations || [];
+  const locs = job ? payLocations(job) : [];
   const onsite = locs.find((l) => !l.remote);
   if (onsite) return locKeyOf(onsite);
   const remote = locs.find((l) => l.remote);
@@ -285,7 +395,7 @@ export function compstimateForJob(allJobs, job, opts = {}) {
   if (!job) return estimateComp(allJobs, {});
   return estimateComp(allJobs, {
     title: job.title, seniority: job.seniority || '', department: '', location: jobLocationQuery(job),
-    excludeId: job.id, excludeIds: opts.excludeIds || null,
+    excludeId: job.id, excludeIds: opts.excludeIds || null, internLike: isInternLike(job),
   });
 }
 
@@ -473,7 +583,9 @@ export const FAMILY_TITLES = Object.freeze({
 const arr = (v) => (Array.isArray(v) ? v.filter((x) => x != null && x !== '') : v ? [v] : []);
 const famOf = (j) => j._family ?? roleFamily(j.title || '', j);
 const deptOf = (j) => j.department || 'No department';
-const keysOf = (j) => (Array.isArray(j._locKeys) ? j._locKeys : (j.locations || []).map(locKeyOf));
+// Location keys of the places a posting's pay applies to (payLocations): a US range listed in
+// Sydney is not a Sydney comparable (shared decision 2, persona review 2026-10-10).
+const keysOf = (j) => payLocations(j).map(locKeyOf);
 
 /**
  * Pure: the Insights Compstimate's pool, query and copy for the current filters
@@ -516,14 +628,21 @@ export function compstimateInputs(state = {}, edits = {}, jobs = [], { visible =
   const seniority = levF ? (F.s.length === 1 && F.s[0] !== 'Unspecified' ? F.s[0] : '') : String(ed.seniority || '');
 
   const titleParts = titleF ? [...F.d, ...(F.rf ? [FAMILY_LABELS[F.rf] || F.rf] : [])] : [];
-  const levParts = levF ? F.s : seniority ? [seniority] : [];
+  const lvl = (s) => (s === 'Unspecified' ? s : levelLabel(s));
+  const levParts = (levF ? F.s : seniority ? [seniority] : []).map(lvl);
   const locParts = locF ? [...F.l, ...(F.r === 'remote' ? ['Remote'] : F.r === 'onsite' ? ['On-site'] : [])] : location ? [location] : [];
   const filtered = (titleF && titleParts.length > 0) || (levF && F.s.length > 0) || (locF && locParts.length > 0);
+  // Pool restrictions the estimate's own basis does not describe (P-2: the basis line names the
+  // comparables' level and place, not the filter's): a stated single level or a single place is
+  // described from the comparables; several levels, "level not stated", remote or on-site come
+  // from the filters, which every comparable passes.
+  const levPool = levF && F.s.length && !(F.s.length === 1 && levelStated(F.s[0]) && F.s[0] !== 'Unspecified') ? F.s.map(lvl) : [];
+  const locPool = locF && !(F.l.length === 1) ? locParts : [];
 
   const locLabel = locF && F.l.length > 1 ? `${F.l.join(' or ')} (filters)`
     : locF && !F.l.length && F.r === 'remote' ? 'Remote (filters)'
     : locF && F.l.length !== 1 && F.r === 'onsite' ? 'On-site (filters)' : 'Any location';
-  const levLabel = levF && (F.s.length > 1 || (F.s.length === 1 && F.s[0] === 'Unspecified')) ? `${F.s.join(' or ')} (filters)` : 'Any level';
+  const levLabel = levF && (F.s.length > 1 || (F.s.length === 1 && F.s[0] === 'Unspecified')) ? `${F.s.map(lvl).join(' or ')} (filters)` : 'Any level';
 
   return {
     pool,
@@ -532,6 +651,7 @@ export function compstimateInputs(state = {}, edits = {}, jobs = [], { visible =
     auto,
     filtered,
     basisParts: [...titleParts, ...levParts, ...locParts],
+    poolParts: [...titleParts, ...levPool, ...locPool],
     display: { location: locF ? (F.l.length === 1 ? F.l[0] : '') : location, seniority: levF ? seniority : String(ed.seniority || '') },
     labels: { location: locLabel, seniority: levLabel },
   };
@@ -547,9 +667,82 @@ export const MIN_COMPARABLES = 3;
 
 /** Insights estimate for compstimateInputs(): the board, restricted to the pool. */
 export function estimateForInputs(jobs, inputs) {
-  if (!inputs || inputs.pool.length < MIN_COMPARABLES) return null;
-  const r = estimateComp(jobs, { ...inputs.query, within: inputs.pool.map((j) => j.id) });
+  const r = estimateInputsResult(jobs, inputs);
   return r.mid == null || r.n < MIN_COMPARABLES ? null : r;
+}
+
+/**
+ * The Insights estimate with its reason kept: estimateComp() restricted to the pool. When the
+ * pool is too small and the company has no pay at all for the query's country (or for
+ * internships), the result carries that reason, the same one the drawer gives (P-2: one
+ * function gives the same answer to the drawer and to Insights).
+ */
+export function estimateInputsResult(jobs, inputs) {
+  if (!inputs) return estimateComp([], {});
+  if (inputs.pool.length >= MIN_COMPARABLES) {
+    const r = estimateComp(jobs, { ...inputs.query, within: inputs.pool.map((j) => j.id) });
+    if (r.mid != null) return r;
+  }
+  const whole = estimateComp(jobs, inputs.query);
+  if (['no-local-pay', 'no-intern-pay', 'no-fulltime-pay', 'no-pay'].includes(whole.reason)) return whole;
+  return { ...estimateComp([], {}), query: whole.query, reason: 'too-few', country: whole.country };
+}
+
+/** The basis line of an estimate: count, company, then what the comparables are (P-2). */
+export function estimateBasisLine(result, company, extra = []) {
+  return basisLine(result?.n || 0, company, [...extra, ...basisParts(result)]);
+}
+
+/** Why there is no figure, in plain words (drawer and Insights share it). */
+export function noEstimateText(result, company = 'this company') {
+  const where = result?.country ? countryInSentence(result.country) : 'this place';
+  switch (result?.reason) {
+    case 'no-local-pay': return `No similar role at ${company} in ${where} lists pay, so there is no pay estimate. Pay from other countries isn't used.`;
+    case 'no-intern-pay': return `No internship or fixed-term role at ${company} lists pay, so there is no pay estimate. Full-time pay isn't used for internships.`;
+    case 'no-fulltime-pay': return `No full-time role at ${company} lists pay, so there is no pay estimate. Internship pay isn't used for full-time roles.`;
+    case 'no-pay': return `No role at ${company} lists pay yet, so there is nothing to estimate from.`;
+    default: return `Too few similar roles at ${company} list pay for a pay estimate.`;
+  }
+}
+
+/**
+ * What a surface shows for an estimate (drawer and Insights): whether a figure may be shown,
+ * its label, confidence, basis line, and the accuracy line (never at low confidence, P-2).
+ * @returns {{ ok: boolean, reason: string|null, label?: string, kind?: string, confidence?: string,
+ *   basis?: string, accuracy?: string|null, caution?: string|null }}
+ */
+export function estimateView(result, { company = 'this company', meta = null, extra = [] } = {}) {
+  const ok = !!result && result.mid != null && Number.isFinite(result.mid) && result.n >= MIN_COMPARABLES;
+  if (!ok) return { ok: false, reason: noEstimateText(result, company) };
+  const confidence = displayConfidence(result, meta);
+  const low = confidence === 'Low';
+  return {
+    ok: true,
+    reason: null,
+    kind: result.kind || 'base',
+    label: result.kind === 'ote' ? `Estimated ${OTE_LABEL[0].toLowerCase()}${OTE_LABEL.slice(1)}` : 'Estimated base salary',
+    confidence,
+    basis: estimateBasisLine(result, company, extra),
+    accuracy: low ? null : accuracyLine(meta),
+    caution: !low ? null : isLowAccuracy(meta)
+      ? `Past estimates at ${company} missed by more than ${ACCURACY_LOW_THRESHOLD}%, so treat this as a rough guide.`
+      : 'Few close matches, so treat this as a rough guide.',
+  };
+}
+
+/**
+ * The Insights range bar's scale: its two ends are real values and the labels say them (P-2:
+ * "$78K … $279K" labelled a bar whose High of $381K sat inside it). Ends are the lowest and highest
+ * of the estimate's Low/High and the 5th/95th percentile of the pool's pay, rounded out to $10K.
+ * @returns {{ lo: number, hi: number, pos: (v: number) => number }}  pos in [0,100]
+ */
+export function rangeScale(low, high, mids = []) {
+  const p5 = percentile(mids, 0.05), p95 = percentile(mids, 0.95);
+  let lo = Math.min(low, p5 ?? low), hi = Math.max(high, p95 ?? high);
+  lo = Math.max(0, Math.floor(lo / 10000) * 10000);
+  hi = Math.ceil(hi / 10000) * 10000;
+  if (!(hi > lo)) hi = lo + 10000;
+  return { lo, hi, pos: (v) => Math.max(0, Math.min(100, ((v - lo) / (hi - lo)) * 100)) };
 }
 
 // ---------------------------------------------------------------------------
@@ -566,16 +759,16 @@ function signalIcon(level) {
   return h('svg:svg', { viewBox: '0 0 18 16', width: 18, height: 16, 'aria-hidden': 'true', class: 'ms-comp__sig' }, bars);
 }
 
-/** Comparable row meta: the location that matched the query (else the first), level, department. */
+/** Comparable row meta: the pay location that matched the query (else the first), level, department. */
 function jobMeta(job, locQuery) {
-  const locs = job.locations || [];
+  const locs = payLocations(job);
   const want = String(locQuery || '').toLowerCase();
   const hit = want ? locs.find((l) => [locKeyOf(l), l.city, l.name].some((x) => x && x.toLowerCase() === want))
     || (/remote/.test(want) ? locs.find((l) => l.remote) : null) : null;
   const loc = hit || locs[0];
   const where = loc ? locKeyOf(loc) : job.remote ? 'Remote' : '';
   const more = locs.length > 1 ? ` +${locs.length - 1}` : '';
-  return [where && where + more, job.seniority, job.department].filter(Boolean).join(' · ');
+  return [where && where + more, levelLabel(job.seniority), job.department].filter(Boolean).join(' · ');
 }
 
 function payRange(job) {
@@ -609,6 +802,7 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
   for (const k of ['title', 'location', 'seniority']) if (initial && initial[k] != null && String(initial[k]).trim() !== '') edits[k] = String(initial[k]);
   let inputs = null;
   let result = null;
+  let full = null; // the estimate with its reason, also when no figure is shown
   let lastSig = null;
   let renders = 0;
   let timer = 0;
@@ -629,9 +823,9 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
 
   const root = h('section', { class: 'ms-comp', 'aria-labelledby': id.head },
     h('header', { class: 'ms-comp__head' },
-      h(hTag, { id: id.head, class: 'ms-comp__title' }, 'Compstimate'),
+      h(hTag, { id: id.head, class: 'ms-comp__title' }, 'Pay estimate'),
       h('p', { id: `${id.head}-sub`, class: 'ms-comp__sub' }, 'Estimated pay from similar roles. Follows your filters until you change a field.')),
-    h('form', { class: 'ms-comp__form', role: 'search', 'aria-label': 'Compstimate role details', onsubmit: (e) => { e.preventDefault(); commitTitle(); } },
+    h('form', { class: 'ms-comp__form', role: 'search', 'aria-label': 'Pay estimate role details', onsubmit: (e) => { e.preventDefault(); commitTitle(); } },
       h('div', { class: 'msf-field msf-field--wide' }, h('label', { for: id.title }, 'Role title'), titleInput, datalist),
       h('div', { class: 'msf-field' }, h('label', { for: id.loc }, 'Location'), locSelect),
       h('div', { class: 'msf-field' }, h('label', { for: id.sen }, 'Level'), senSelect)),
@@ -680,8 +874,9 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
     const levels = new Map();
     for (const j of salaried) if (j.seniority) levels.set(j.seniority, (levels.get(j.seniority) || 0) + 1);
     const senVal = inputs.display.seniority;
+    // "Level not stated" (the stored 'Mid' default) is listed last (shared decision 1).
     senSelect.replaceChildren(h('option', { value: '' }, inputs.labels.seniority),
-      ...SENIORITY_LADDER.filter((s) => levels.has(s) || s === senVal).map((s) => h('option', { value: s }, `${s} (${levels.get(s) || 0})`)));
+      ...SENIORITY_DISPLAY_ORDER.filter((s) => levels.has(s) || s === senVal).map((s) => h('option', { value: s }, `${levelLabel(s)} (${levels.get(s) || 0})`)));
     senSelect.value = senVal;
     const edited = Object.keys(edits).length > 0;
     resetBtn.hidden = !edited;
@@ -699,7 +894,8 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
     if (sig === lastSig) return false;
     lastSig = sig;
     fillForm();
-    result = estimateForInputs(ctx.board, inputs);
+    full = estimateInputsResult(ctx.board, inputs);
+    result = full.mid == null || full.n < MIN_COMPARABLES ? null : full;
     render();
     return true;
   }
@@ -715,31 +911,29 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
       return;
     }
     const what = [inputs.query.title ? `“${inputs.query.title}”` : '', ...inputs.basisParts].filter(Boolean).join(' · ') || 'these filters';
-    if (!result) {
-      const msg = `Not enough comparable roles with posted pay at ${company} for ${what}. Remove a filter or try a broader title.`;
+    const view = estimateView(result, { company, meta, extra: inputs.poolParts });
+    if (!view.ok) {
+      // The drawer gives the same reason for the same role (P-2: one answer for both).
+      const why = full && full.reason && full.reason !== 'too-few' ? ` ${noEstimateText(full, company)}` : '';
+      const msg = `Not enough comparable roles with posted pay at ${company} for ${what}.${why} Remove a filter or try a broader title.`;
       resultEl.appendChild(h('div', { class: 'ms-comp__card ms-comp__card--empty' },
         h('p', { class: 'ms-comp__empty-title' }, 'Not enough comparable roles'),
         h('p', { class: 'ms-comp__empty' }, msg)));
       live.textContent = msg;
       return;
     }
-    const { low, mid, high, n } = result;
-    const confidence = displayConfidence(result, meta);
-    const accuracy = accuracyLine(meta);
-    const lowAccuracy = isLowAccuracy(meta);
-    const basis = basisLine(n, company, inputs.basisParts);
-    const market = inputs.pool.map((j) => salaryUSD(j).mid);
-    const p5 = percentile(market, 0.05), p95 = percentile(market, 0.95);
-    let lo = Math.min(p5, low), hi = Math.max(p95, high);
-    if (!(hi > lo)) { lo = low * 0.8; hi = high * 1.2 || 1; }
-    const pad = (hi - lo) * 0.04; lo -= pad; hi += pad;
-    const pos = (v) => `${((v - lo) / (hi - lo)) * 100}%`;
-    const scaleName = inputs.filtered ? 'typical range for these filters' : 'typical range on this board';
-    const level = inputs.query.seniority ? ` at ${inputs.query.seniority} level` : '';
+    const { low, mid, high } = result;
+    const { confidence, accuracy, caution, basis } = view;
+    // The bar's scale: real ends, labelled with their values (P-2), from pay of the same kind.
+    const market = inputs.pool.filter((j) => payKind(j) === (result.kind || 'base') && isInternLike(j) === (result.query.seniority === 'Intern')).map((j) => salaryUSD(j).mid);
+    const scale = rangeScale(low, high, market.length ? market : [low, high]);
+    const pos = (v) => `${scale.pos(v)}%`;
+    const scaleName = inputs.filtered ? 'pay of roles in these filters' : 'pay of roles at this company';
+    const level = levelStated(inputs.query.seniority) ? ` at ${inputs.query.seniority} level` : '';
     const place = inputs.query.location ? (/remote/i.test(inputs.query.location) ? ' for remote work' : ` in or near ${inputs.query.location}`) : '';
 
     const card = h('div', { class: 'ms-comp__card' },
-      h('div', { class: 'ms-comp__eyebrow' }, 'Estimated base salary'),
+      h('div', { class: 'ms-comp__eyebrow' }, view.label),
       h('div', { class: 'ms-comp__hero-row' },
         h('span', { class: 'ms-comp__hero' }, formatMoney(mid)),
         h('span', { class: 'ms-comp__per' }, 'USD / yr')),
@@ -747,17 +941,18 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
         signalIcon(CONF_LEVEL[confidence]),
         h('span', { class: 'ms-comp__conf-label' }, `${confidence} confidence`)),
       h('div', { class: 'ms-comp__conf-n ms-comp__basis' }, basis),
-      accuracy ? h('div', { class: `ms-comp__accuracy${lowAccuracy ? ' is-low' : ''}` }, accuracy,
-        lowAccuracy ? h('span', { class: 'ms-comp__accuracy-note' }, ` · past estimates at ${company} missed by more than ${ACCURACY_LOW_THRESHOLD}%`) : null) : null,
+      // No accuracy claim at low confidence (P-2: "low confidence" beside "within ±8%").
+      accuracy ? h('div', { class: 'ms-comp__accuracy' }, accuracy)
+        : caution ? h('div', { class: 'ms-comp__accuracy is-low' }, caution) : null,
       h('div', { class: 'ms-comp__range' },
         h('div', { class: 'ms-comp__range-ends' },
           h('span', null, h('span', { class: 'ms-comp__k' }, 'Low '), h('b', null, formatMoney(low))),
           h('span', null, h('span', { class: 'ms-comp__k' }, 'High '), h('b', null, formatMoney(high)))),
-        h('div', { class: 'ms-comp__track', role: 'img', 'aria-label': `Estimated range ${formatMoney(low)} to ${formatMoney(high)}, within the ${scaleName} of ${formatMoney(p5)} to ${formatMoney(p95)}` },
+        h('div', { class: 'ms-comp__track', role: 'img', 'aria-label': `Estimated range ${formatMoney(low)} to ${formatMoney(high)}, on a scale from ${formatMoney(scale.lo)} to ${formatMoney(scale.hi)} that covers most ${scaleName}` },
           h('span', { class: 'ms-comp__band', style: { left: pos(low), width: `calc(${pos(high)} - ${pos(low)})` } }),
           h('span', { class: 'ms-comp__dot', style: { left: pos(mid) } })),
         h('div', { class: 'ms-comp__scale', 'aria-hidden': 'true' },
-          h('span', null, formatMoney(p5)), h('span', null, scaleName), h('span', null, formatMoney(p95)))),
+          h('span', null, formatMoney(scale.lo)), h('span', null, scaleName), h('span', null, formatMoney(scale.hi)))),
       h('p', { class: 'ms-comp__explain' }, `Weighted by similarity to “${inputs.query.title}”${level}${place}. ${result.detail}`),
       compstimateAsOfText({ fetchedAt: ctx.asOf, meta }) ? h('p', { class: 'ms-comp__asof' }, compstimateAsOfText({ fetchedAt: ctx.asOf, meta })) : null);
 
@@ -779,7 +974,7 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
     const foot = result.comparables.some((j) => salaryUSD(j)?.converted)
       ? h('p', { class: 'ms-comp__foot' }, '* converted to USD at approximate rates') : null;
     resultEl.append(card, h('div', { class: 'ms-comp__comps' }, h(subTag, { class: 'ms-comp__comps-title' }, 'Most comparable roles'), list, foot));
-    live.textContent = `Compstimate ${formatMoney(mid)}, range ${formatMoney(low)} to ${formatMoney(high)}, ${confidence.toLowerCase()} confidence. ${basis}.${accuracy ? ` ${accuracy}.` : ''}`;
+    live.textContent = `Pay estimate ${formatMoney(mid)}, range ${formatMoney(low)} to ${formatMoney(high)}, ${confidence.toLowerCase()} confidence. ${basis}.${accuracy ? ` ${accuracy}.` : caution ? ` ${caution}` : ''}`;
   }
 
   /**

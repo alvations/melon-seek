@@ -4,6 +4,7 @@
 //   -> { update(rows, { current?, sort? }), destroy() }
 //
 // rows: [{ slug, name, color, n, p25, median, p75, current? }] in approx USD/yr.
+// update(rows, { kind: 'ote' }) labels them as on-target earnings (compsForJob().kind).
 // One compact 28px row per company: a P25–P75 range bar with a median tick on a
 // shared salary axis, styled like the chart's "ranges" view, plus the median as
 // text on the right. The current company (`current` option or `row.current`)
@@ -14,6 +15,9 @@ import { colorFor, formatMoney, niceTicks, onThemeChange } from './palette.js';
 import { robustBounds } from './chart.js';
 
 const ROW_H = 28;
+// Plain words (persona review 2026-10-10, I-9): no "middle 50%", no "percentile".
+const NOTE_BASE = 'Posted base pay in approx. US dollars a year. Bar: the middle half of salaries. Tick: the median.';
+const NOTE_OTE = 'On-target earnings (base plus commission at target) in approx. US dollars a year. Bar: the middle half. Tick: the median.';
 const ROW_H_TOUCH = 44; // phones: every row is a 44px tap target (docs/QA.md M-8)
 const rowHeight = () => (globalThis.matchMedia?.('(max-width: 860px)').matches ? ROW_H_TOUCH : ROW_H);
 const AXIS_H = 20;
@@ -35,10 +39,10 @@ export function createCompsChart(container, { onSelect } = {}) {
   const list = el('div', 'ms-comps__list');
   list.tabIndex = 0;
   list.setAttribute('role', 'listbox');
-  list.setAttribute('aria-label', 'Same role at other companies: median and middle 50% of posted pay. Arrow keys move, Enter opens');
+  list.setAttribute('aria-label', 'Same role at other companies: median and middle half of posted pay. Arrow keys move, Enter opens');
   const grid = el('div', 'ms-comps__grid');
   grid.setAttribute('aria-hidden', 'true');
-  const note = el('div', 'ms-comps__note', 'Posted base pay, approx USD/yr · bar = middle 50%, tick = median');
+  const note = el('div', 'ms-comps__note', NOTE_BASE);
   container.append(axis, list, note);
   const tip = el('div', 'ms-viz-tip');
   tip.setAttribute('role', 'tooltip');
@@ -129,7 +133,7 @@ export function createCompsChart(container, { onSelect } = {}) {
         const v = el('div', 'ms-comps__val', formatMoney(r.median));
         v.style.width = valW + 'px';
         row.append(v);
-        row.setAttribute('aria-label', `${r.name || r.slug}${r.current ? ' (this company)' : ''}: median ${formatMoney(r.median)}, middle 50% ${formatMoney(r.p25 ?? r.median)} to ${formatMoney(r.p75 ?? r.median)}, ${plural(r.n, 'posting')}`);
+        row.setAttribute('aria-label', `${r.name || r.slug}${r.current ? ' (this company)' : ''}: median ${formatMoney(r.median)}, middle half ${formatMoney(r.p25 ?? r.median)} to ${formatMoney(r.p75 ?? r.median)}, ${plural(r.n, 'posting')}`);
       } else {
         const v = el('div', 'ms-comps__nodata', 'no posted range');
         v.style.left = plotL + 'px';
@@ -149,7 +153,7 @@ export function createCompsChart(container, { onSelect } = {}) {
     tip.replaceChildren();
     if (ok(r.median) && r.n > 0) {
       tip.append(el('div', 'ms-tip__value', `${formatMoney(r.median)} median`));
-      tip.append(el('div', 'ms-tip__sub', `middle 50%: ${formatMoney(r.p25 ?? r.median)}–${formatMoney(r.p75 ?? r.median)} · approx USD`));
+      tip.append(el('div', 'ms-tip__sub', `middle half: ${formatMoney(r.p25 ?? r.median)}–${formatMoney(r.p75 ?? r.median)} · approx USD`));
     } else {
       tip.append(el('div', 'ms-tip__value', 'No posted range'));
     }
@@ -221,10 +225,11 @@ export function createCompsChart(container, { onSelect } = {}) {
   const offTheme = onThemeChange(schedule);
 
   return {
-    /** rows: [{ slug, name, color, n, p25, median, p75, current? }]; options: { current: slug, sort: true }. */
+    /** rows: [{ slug, name, color, n, p25, median, p75, current? }]; options: { current: slug, sort: true, kind: 'base'|'ote' }. */
     update(next, o = {}) {
       rows = Array.isArray(next) ? next.filter(Boolean) : [];
       opts = o || {};
+      note.textContent = opts.kind === 'ote' ? NOTE_OTE : NOTE_BASE;
       if (raf) { cancelAnimationFrame(raf); raf = 0; }
       render();
     },

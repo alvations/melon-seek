@@ -65,6 +65,39 @@ function num(v) {
 }
 
 // ---------------------------------------------------------------------------
+// Kinds of pay (shared decisions 3 and 4 of the 2026-10-10 fix lanes)
+// ---------------------------------------------------------------------------
+
+/** How on-target earnings are named to people (never "base pay"). */
+export const OTE_LABEL = 'On-target earnings (base plus commission at target)';
+
+/**
+ * On-target earnings: the posting says its range is base plus commission at target (Anthropic
+ * sales postings say "On Target Earnings"). server/salary.js sets salary.kind = 'ote'. It is
+ * compared only with other on-target earnings, never pooled with base pay.
+ */
+export function isOTE(job) { return job?.salary?.kind === 'ote'; }
+
+/** 'ote' for on-target earnings, else 'base'. */
+export function payKind(job) { return isOTE(job) ? 'ote' : 'base'; }
+
+/**
+ * Pay for a fixed term (a 12-week internship, a 4-month fellowship): salary.termWeeks when the
+ * posting states the length, or a stipend. Never a plain yearly salary.
+ */
+export function isFixedTerm(job) {
+  const s = job?.salary;
+  return !!s && (Number(s.termWeeks) > 0 || s.kind === 'stipend');
+}
+
+/**
+ * Internships and fixed-term programmes. Their pay is compared only with each other, and
+ * full-time comparisons leave them out (persona review 2026-10-10: an intern estimate built from
+ * full-time pay; "xAI · Business operations · $52K" from two hourly internships).
+ */
+export function isInternLike(job) { return job?.seniority === 'Intern' || isFixedTerm(job); }
+
+// ---------------------------------------------------------------------------
 // Stats
 // ---------------------------------------------------------------------------
 
@@ -189,6 +222,36 @@ export function payLocations(job) {
   const map = palette.COUNTRY_CURRENCY || {};
   const hit = locs.filter((l) => !l?.country || map[String(l.country).toUpperCase()] === cur);
   return hit.length ? hit : locs;
+}
+
+/** True when the posting's pay applies in `country` (a two-letter code): see payLocations. */
+export function payAppliesIn(job, country) {
+  const c = String(country || '').toUpperCase();
+  return !!c && payLocations(job).some((l) => String(l?.country || '').toUpperCase() === c);
+}
+
+/** Location keys (locationKey) the posting's pay applies to. */
+export function payLocationKeys(job) {
+  const out = new Set();
+  for (const l of payLocations(job)) { const k = locationKey(l); if (k) out.add(k); }
+  if (!out.size && job?.remote) out.add('Remote');
+  return [...out];
+}
+
+let regionNames = null;
+/** "GB" -> "UK", "KR" -> "South Korea": a name, not a bare country code. */
+export function countryName(code) {
+  const c = String(code || '').toUpperCase();
+  if (!c) return '';
+  if (c === 'US' || c === 'GB') return c === 'GB' ? 'UK' : 'US';
+  if (c === 'AE') return 'UAE';
+  try { regionNames ??= new Intl.DisplayNames(['en'], { type: 'region' }); return regionNames.of(c) || c; } catch { return c; }
+}
+
+/** The country as it reads inside a sentence: "the US", "the UK", "Australia". */
+export function countryInSentence(code) {
+  const n = countryName(code);
+  return ['US', 'UK', 'UAE', 'Netherlands', 'Philippines'].includes(n) ? `the ${n}` : n;
 }
 
 /** Unique location keys for a job (a job listed in SF and NYC counts in both). */

@@ -178,8 +178,8 @@ const FAMILIES = [
   ['people', /\b(recruit\w*|talent|people|human resources|sourcer|compensation|benefits|payroll partner|learning and development|hr business partner|hr)\b/],
   ['admin', /\b(executive assistant|administrative|office manager|receptionist|executive business partner|executive operations|front desk)\b/],
   ['finance', /\b(financ\w*\b(?! (services|systems))|accountant|accounting|accounts (payable|receivable)|tax|treasury|(?<!flight )controller|payroll|fpanda|audit\w*|billing|order to cash|revenue manager|investor relations|pricing)\b/],
-  ['support', /\b(support|customer success|customer (experience|service|learning|education)|technical account manager|user operations|technical (training|education))\b/],
-  ['solutions', /\b(solutions? (architect\w*|engineer\w*|consultant|lead|specialist|principal)|sales engineer|forward deployed|deployment (strategist|lead)|applied ai (engineer\w*|architect)|customer engineer|field (application|solutions) engineer|implementation (engineer|manager|consultant|lead)|technical success|ai advisory|engagement manager|delivery (lead|manager)|(field|executive|enterprise|principal|customer) architect|field engineer|technical deployment)\b/],
+  ['support', /\b(support|customer success|customer (experience|service|learning|education)|technical account manager|user operations|technical (training|education|instructor))\b/],
+  ['solutions', /\b(solutions? (architect\w*|engineer\w*|consultant|lead|specialist|principal)|sales engineer|forward deployed|deployment (strategist|lead)|ai deployment specialist|(?<!(cloud|itav|it) )deployment engineer|applied ai (engineer\w*|architect)|customer engineer|field (application|solutions) engineer|implementation (engineer|manager|consultant|lead)|technical success|ai advisory|engagement manager|delivery (lead|manager)|(field|executive|enterprise|principal|customer) architect|field engineer|technical deployment)\b/],
   ['supply-chain', /\b(supply (chain|planner|planning)|demand (and supply|planner|planning)|sourcing|procurement|buyer|purchasing|materials? (planner|associate|handler|manager|management|coordinator|specialist)|capacity (planner|planning)|logistics|warehous\w*|inventory|shipping|receiving|sales and operations planning|master scheduler|subcontracts?|supplier (development|management)|vendor manager|commodity|expediter|cost value engineer)\b/],
   ['legal', /\b(counsel|legal|attorney|lawyer|paralegal|compliance|regulatory|export control|trade control|patent|contracts? (manager|administrator|specialist|lead|director|negotiator|management|operations))\b/],
   ['trust-safety', /\b(trust and safety|safeguards?|enforcement|integrity|content moderation|moderator|user safety|abuse|harms?|safety operations|child safety|fraud|anti money laundering|aml|bsa|investigator)\b/],
@@ -192,7 +192,10 @@ const FAMILIES = [
   ['data', /\b(data (scientist|science|engineer\w*|analyst|analytics|governance|platform|strategy)|analytics|business intelligence|enterprise data|data (acquisition|strategist|operations))\b/],
   ['it', /\b(it|information technology|help ?desk|service desk|systems? administrator|sysadmin|enterprise (applications|systems)|business systems|corporate network|endpoint|netsuite|workday|asset management|audio visual|network operations|financ\w* systems)\b/],
   ['manufacturing', /\b(technician|assembler|assembly|machinist|cnc|fabricat\w*|welder|welding|inspector|inspection|production (associate|coordinator|supervisor|manager|lead|operator|planner|control|technician|worker|operations)|((vp|head|director|deputy head|manager) (of )?production)|manufacturing (associate|technician|operator|supervisor|lead|manager|specialist)|factory|maintenance (lead|technician|supervisor|manager)|quality\b(?! (assurance )?engineer)|metrology|machine operator|sheet metal|wire harness|solder\w*|line lead|shift lead)\b/],
-  ['field-ops', /\b(operator|mission operations|field (service|services|operations|support)|deployment(s)? (and training|specialist|engineer|manager)|mission readiness|training (lead|coordinator|specialist|instructor)|instructor|trainer|range (safety|operations)|sustainment\b(?! engineer))/],
+  // "Operator" only for vehicles, flight test and ranges (persona review 2026-10-10: a bare
+  // "operator" put Anthropic's Life Sciences Operator beside drone operators). Plain deployment
+  // engineers are software or IT; only deployment-and-training and in-country deployment are field work.
+  ['field-ops', /\b((air vehicle|vehicle|uas|uav|drone|flight( test)?|test|range|mission|sensor|payload|radar|robot) operator|mission operations|field (service|services|operations|support)|deployments? and training|international deployment|mission readiness|training (lead|coordinator|specialist|instructor)|instructor|trainer|range (safety|operations)|sustainment\b(?! engineer))/],
   ['program', /\b(program (manager|management|director|lead|assistant|coordinator|analyst|specialist)|programs\b|project (manager|management|coordinator|lead)|technical program|pmo|configuration (manager|management|analyst)|change control|mission (manager|director)|product operations)\b/],
   ['bizops', /\b(business (operations|affairs)|strategy|strategic (operations|initiatives|execution|planning|projects)|chief of staff|corporate development|mergers and acquisitions|operations (analyst|manager|lead|associate|specialist|director)|revenue operations|deal operations|transformation|operations\b(?! (engineer|analysis)))/],
   ['ml', /\b(machinelearning|research (engineer|scientist)|scientist|research\w*|ai|deep learning|nlp|computer vision|perception|interpretability|alignment|pretraining|post training|reinforcement learning|llm|multimodal)\b/],
@@ -241,6 +244,15 @@ function firstFamily(text) {
   return null;
 }
 
+// "National security" names the customer or the field, not security work: "Head of National
+// Security Sales" is sales, and a "National Security Partnerships Lead" in Public Policy is policy
+// (persona review 2026-10-10, P-11). The phrase is masked before the family rules run.
+const NATSEC = /\b(national|international|homeland) security\b/g;
+const POLICY_DEPT = /\b(public policy|global affairs|government affairs|government and public policy)\b/;
+// Research fellowships ("Anthropic Fellows Program, AI Safety & Security") are research, whatever the topic.
+const FELLOWSHIP = /\b(fellows program|fellowship program|research fellowship)\b/;
+const RESEARCH_DEPT = /\b(research|ai research)\b/;
+
 /**
  * Role family id for a title (null when nothing matches). Tries the role
  * segment, then the whole title, then the department (if given), then a bare
@@ -251,13 +263,16 @@ function firstFamily(text) {
  */
 export function roleFamily(title, ctx) {
   const dept = typeof ctx === 'string' ? ctx : ctx && typeof ctx === 'object' ? ctx.department : null;
-  const full = expandTitle(title);
+  const full = expandTitle(title).replace(NATSEC, 'natsec');
   if (!full) return null;
-  const role = expandTitle(rolePart(title));
-  const deptText = dept ? expandTitle(dept) : '';
+  const role = expandTitle(rolePart(title)).replace(NATSEC, 'natsec');
+  const deptText = dept ? expandTitle(dept).replace(NATSEC, 'natsec') : '';
   if (TECH_STAFF.test(full)) return ML_HINT.test(`${full} ${deptText}`) ? 'ml' : 'swe';
   for (const [id, re] of PRIORITY) if (re.test(full)) return id;
+  if (FELLOWSHIP.test(full) && (RESEARCH_DEPT.test(deptText) || /\b(ai|research|machinelearning|safety)\b/.test(full))) return 'ml';
   let fam = firstFamily(role) || firstFamily(full);
+  // A sales, security or solutions title in a public-policy department is government-affairs work.
+  if (['sales', 'security', 'solutions'].includes(fam) && POLICY_DEPT.test(deptText)) fam = 'policy';
   // Context overrides: building-systems engineers, and policy work inside Trust & Safety.
   if (fam === 'manufacturing' && /\bengineer\b/.test(full)) fam = 'hardware'; // "Staff Engineer, Quality"
   if (fam === 'hardware' && (/\b(facilit\w*|construction)\b/.test(full) ||
@@ -309,6 +324,12 @@ export const LEVEL_NOT_STATED = 'Mid';
 export function levelLabel(level) {
   return !level || level === LEVEL_NOT_STATED ? 'Level not stated' : level;
 }
+/** True for a level the posting itself states (anything but the 'Mid' default). */
+export function levelStated(level) {
+  return !!level && level !== LEVEL_NOT_STATED;
+}
+/** The ladder in the order people see it: "Level not stated" ('Mid') goes last. */
+export const SENIORITY_DISPLAY_ORDER = Object.freeze([...SENIORITY_LADDER.filter((l) => l !== LEVEL_NOT_STATED), LEVEL_NOT_STATED]);
 
 /** Seniority guessed from a free-text title (null when the title has no level words). */
 export function inferSeniority(title) {

@@ -15,12 +15,24 @@
 //     companies: [{ slug, name, color, mode, fetchedAt, jobs, salaried, used }],
 //     families: ["ml", "swe", ...],
 //     columns: ["company", "family", "seniority", "n", "p25", "median", "p75"],
-//     cells: [["anthropic", "ml", "Senior", 41, 320000, 365000, 405000], ...]
+//     cells: [["anthropic", "ml", "Senior", 41, 320000, 365000, 405000], ...],
+//     oteCells: [...same columns, on-target earnings only...],
+//     counts: [["xai", "design", "Senior", 2], ...]   // groups below minN: count only, no pay
 //   }
 // A cell is one company x role family x seniority bucket with n >= minN; a
 // family-only roll-up uses seniority "*" (the drawer's fallback). Amounts are
 // rounded to $100. Demo payloads are only used when no company has real data,
 // and the doc then says mode: "demo".
+//
+// Like with like (persona review 2026-10-10, docs/process/fix-estimates.md, P-1 and P-10):
+// - On-target earnings (salary.kind 'ote': base plus commission at target) never enter `cells`;
+//   they get their own `oteCells`, compared only with each other.
+// - Internships and fixed-term programmes (isInternLike) count only in the "Intern" bucket, never
+//   in the "*" roll-up, which is therefore "all full-time levels".
+// - "Mid" is the stored default for titles that state no level; its cells stay (no data change),
+//   and readers never treat them as a level match (public/features/comps.js).
+// - `counts` lists the groups below minN (company, family, level, n) with no pay figures, so a
+//   reader can say "fewer than 3 salaried postings" instead of leaving a company out silently.
 //
 // CLI: node scripts/build-market.js [--out file] [--snapshots dir]
 //      (default: data/snapshots/*.json -> stdout)
@@ -28,11 +40,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { roleFamily } from '../public/features/compstimate.js';
+import { isOTE, isInternLike } from '../public/features/shared.js';
 import { toUSD, FX_AS_OF, hasFx } from '../public/viz/palette.js';
 
 export const MARKET_FORMAT = 'melon-market-1';
 export const MIN_N = 3;
 export const BASIS = 'posted base pay ranges';
+export const OTE_BASIS = 'posted on-target earnings ranges (base plus commission at target)';
 export const COLUMNS = Object.freeze(['company', 'family', 'seniority', 'n', 'p25', 'median', 'p75']);
 const REAL_MODES = new Set(['live', 'cache', 'snapshot']);
 
@@ -65,14 +79,16 @@ export function buildMarket(payloads, { minN = MIN_N, generatedAt = new Date().t
   const docMode = real.length ? 'real' : 'demo';
 
   const companies = [];
-  const groups = new Map(); // "slug|family|seniority" -> number[]
-  const add = (key, v) => { let a = groups.get(key); if (!a) groups.set(key, (a = [])); a.push(v); };
+  const groups = new Map(); // "slug|family|seniority" -> number[] (base pay)
+  const oteGroups = new Map(); // the same for on-target earnings
+  const add = (map, key, v) => { let a = map.get(key); if (!a) map.set(key, (a = [])); a.push(v); };
   const families = new Set();
 
   for (const p of use) {
     const slug = p.company.slug;
     let salaried = 0;
     let used = 0;
+    let ote = 0, internLike = 0, fullTime = 0, levelled = 0;
     for (const job of p.jobs) {
       if (!job || !job.salary) continue; // quarantined or no pay: excluded
       salaried++;
@@ -81,28 +97,41 @@ export function buildMarket(payloads, { minN = MIN_N, generatedAt = new Date().t
       let family = null;
       try { family = roleFamily(job.title || '', job); } catch { family = null; } // job as ctx: department hints
       if (!family) continue;
-      const seniority = job.seniority || 'Mid';
-      add(`${slug}|${family}|${seniority}`, usd);
-      add(`${slug}|${family}|*`, usd);
+      const intern = isInternLike(job);
+      const target = isOTE(job) ? oteGroups : groups;
+      // Interns and fixed-term pay only in "Intern"; "*" = every full-time level.
+      const seniority = intern ? 'Intern' : job.seniority || 'Mid';
+      add(target, `${slug}|${family}|${seniority}`, usd);
+      if (!intern) add(target, `${slug}|${family}|*`, usd);
       families.add(family);
       used++;
+      if (target === oteGroups) ote++;
+      else if (intern) internLike++;
+      else { fullTime++; if (seniority !== 'Mid') levelled++; }
     }
     companies.push({
       slug, name: p.company.name || slug, color: p.company.color || null,
       mode: p.mode || null, fetchedAt: p.fetchedAt || null,
       jobs: p.jobs.length, salaried, used,
+      // used = ote + internLike + fullTime; levelled = full-time base postings that state a level
+      ote, internLike, fullTime, levelled,
     });
   }
 
-  const cells = [];
-  for (const [key, values] of groups) {
-    if (values.length < minN) continue;
-    const [company, family, seniority] = key.split('|');
-    values.sort((a, b) => a - b);
-    cells.push([company, family, seniority, values.length,
-      round100(percentileSorted(values, 0.25)), round100(percentileSorted(values, 0.5)), round100(percentileSorted(values, 0.75))]);
-  }
-  cells.sort((a, b) => (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0) || (a[2] < b[2] ? -1 : a[2] > b[2] ? 1 : 0) || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  const toCells = (map) => {
+    const out = [];
+    for (const [key, values] of map) {
+      if (values.length < minN) continue;
+      const [company, family, seniority] = key.split('|');
+      values.sort((a, b) => a - b);
+      out.push([company, family, seniority, values.length,
+        round100(percentileSorted(values, 0.25)), round100(percentileSorted(values, 0.5)), round100(percentileSorted(values, 0.75))]);
+    }
+    return out.sort(cellOrder);
+  };
+  const cells = toCells(groups);
+  const oteCells = toCells(oteGroups);
+  const counts = [...groups].filter(([, v]) => v.length < minN).map(([key, v]) => [...key.split('|'), v.length]).sort(cellOrder);
 
   return {
     format: MARKET_FORMAT,
@@ -117,7 +146,15 @@ export function buildMarket(payloads, { minN = MIN_N, generatedAt = new Date().t
     families: [...new Set(cells.map((c) => c[1]))].sort(),
     columns: [...COLUMNS],
     cells,
+    oteBasis: OTE_BASIS,
+    oteCells,
+    counts,
   };
+}
+
+/** Cell order: family, then seniority, then company (deterministic output). */
+function cellOrder(a, b) {
+  return (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0) || (a[2] < b[2] ? -1 : a[2] > b[2] ? 1 : 0) || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
 }
 
 /**
@@ -129,8 +166,9 @@ export function mergeMarkets(docs, { minN = MIN_N, generatedAt = new Date().toIS
   const list = (docs || []).filter((d) => d && d.format === MARKET_FORMAT);
   const real = list.filter((d) => d.mode === 'real');
   const use = real.length ? real : list;
-  const cells = use.flatMap((d) => d.cells);
-  cells.sort((a, b) => (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0) || (a[2] < b[2] ? -1 : a[2] > b[2] ? 1 : 0) || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  const cells = use.flatMap((d) => d.cells).sort(cellOrder);
+  const oteCells = use.flatMap((d) => d.oteCells || []).sort(cellOrder);
+  const counts = use.flatMap((d) => d.counts || []).sort(cellOrder);
   return {
     format: MARKET_FORMAT, basis: BASIS, currency: 'USD',
     stat: 'midpoint of each posted range, annualized, in USD',
@@ -140,6 +178,9 @@ export function mergeMarkets(docs, { minN = MIN_N, generatedAt = new Date().toIS
     families: [...new Set(cells.map((c) => c[1]))].sort(),
     columns: [...COLUMNS],
     cells,
+    oteBasis: OTE_BASIS,
+    oteCells,
+    counts,
   };
 }
 
