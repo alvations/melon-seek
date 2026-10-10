@@ -585,3 +585,17 @@ screenshots in `docs/screenshots/`.
   - `viz/map.js` uses the canonical name outside the US ("Tokyo, Japan").
   - `features/insights.js` shows country names via `Intl.DisplayNames`.
 - **Results.** `npm test` 306/306 and `node scripts/e2e.js` 86/86. The desktop QA search test now compares against the displayed titles. A browser re-scan of server and static modes found no RE/RS, SWE, TPM, GTM, MLE or FDE, and no bare country codes.
+
+### Big-tech boards on /beta/ and Juice household + tax verification (2026-10-10)
+- **Requests.**
+  1. "Take a look at the big tech companies, Google, Microsoft, Meta, Apple, Netflix, Amazon, Nvidia, Tesla … pull the job posts … put them under https://alvations.github.io/melon-seek/beta", not on the main page.
+  2. Juice: rent "seems kind of fix and a bit on the low side". Add 2-bedroom and 3-bedroom city-centre options for a small family, "make sure the taxes paid are correctly pulled", and "Don't just assume, verify with some data".
+- **Lead checks before launching.**
+  - The sandbox reaches no careers site; curl returns 000 for amazon.jobs, Netflix/Microsoft Eightfold, Nvidia Workday, jobs.apple.com, metacareers, Google, Tesla and even Greenhouse. Real data therefore comes from GitHub Actions runs, read through job logs (artifact download is blocked).
+  - pages.yml deploys `dist/` on every push to this branch. So /beta/ is `dist/beta/`, a second copy of the app inside the same Pages deployment. Beta work must never change stable output or block the stable deploy.
+- **Contract:** docs/CONTRACT.md "v3 additions". Beta entries carry `channel: 'beta'` and `live: false`. `listCompanies()` stays stable-only by default; `snapshot.js --channel beta`; and the stable vetting gate stays hard.
+- **Agents.** Each one's prompt is saved verbatim in prompts/.
+  - Data engineer, [bigtech-data.md](bigtech-data.md). Owns: adapters, the registry, snapshot.js and a probe workflow. May push its own files only.
+  - Deploy engineer, [beta-deploy.md](beta-deploy.md). Owns: build-static.js, the workflows, api.js, server/index.js, the links policy and the Beta pill. Does not push.
+  - Juice household, [juice-household.md](juice-household.md). Owns: cities.json, and the rent, living and household parts of juice.js plus their UI. Its job is to verify rents against official data, without adding new Numbeo inputs (§4.1). Does not push product code.
+  - Juice tax, [juice-tax.md](juice-tax.md). Owns: the tax section of juice.js and golden vectors from official schedules, starting with the user's SF $675K case. Adds a household filing status where it can be verified. Does not push product code.
