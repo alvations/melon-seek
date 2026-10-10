@@ -365,33 +365,41 @@ Tests: `test/archive.test.js` covers these failure cases:
 
 ## 14. Size
 
-**Measured** on the real 2026-10-02 stable snapshots, the first ingest: 8 companies, 5,413 postings, 74 MB of snapshot JSON.
+**Measured after the rescue backfill.** This is `data-archive` at 41f4645: 2026-10-02 to 2026-10-10, 8 stable boards, 80 observations from 10 snapshot artifacts, plus 95 ledgers, 89 vetting reports and 3 refresh reports.
 
-| Part | Raw on disk | gzip -6 |
+| Part | Raw on disk |
+| --- | ---: |
+| blobs (10,587 distinct values: descriptions, sections, whole report files) | 82.2 MB |
+| job versions (14,532: 5,482 open, 9,050 closed) | 31.8 MB |
+| ledger entries (14,629) and mirror | 6.2 MB |
+| reference (129 versions) | 4.5 MB |
+| audit (1,249 flags, 681 verdicts, 89 runs, 266 refresh results) | 3.0 MB |
+| everything else (state, daily, observations, ingests, reports) | 1.7 MB |
+| **total** (176 files) | **129 MB** |
+
+In git, that full history (6 commits) is 30.4 MiB packed as served, and 14.2 MiB after `git repack -adf --window=250`.
+
+**What drives growth.** In those 9 days:
+- the first load of 5,413 postings took about 72 MB raw, roughly 8 MB compressed;
+- on 2026-10-03 one normalizer change (snapshots from no version to norm-4) re-versioned about 5,300 postings, adding 25 MB raw of rows; blobs were reused;
+- after that, the stable boards grew about **3.7 MB a day raw**.
+
+About **75% of the new versions were `touched`**: only `updatedAt` changed. On 2026-10-06, Anduril re-stamped 2,326 postings at once. Next came new postings (about 80 a day) and real edits (about 50 a day).
+
+**Projection per year**, from those rates:
+
+| | Raw tree | In git (packed) |
 | --- | ---: | ---: |
-| job versions (`jobs/`) | 13 MB | |
-| blobs (9,161: descriptions, sections) | 58 MB | |
-| everything (25 files) | 72 MB | 8.7 MB |
+| stable boards (measured rate) | ~1.4 GB | ~0.3 GB |
+| beta boards (about 10x the postings, if the churn is similar; not measured yet) | ~13 GB | ~2.5 to 3.5 GB |
+| normalizer changes (one re-version of every posting each; about 25 MB stable, about 250 MB beta) | ~0.5 to 1.5 GB | ~0.1 to 0.2 GB |
 
-A full first load costs about 13 KB raw per posting, about 1.6 KB compressed. Git stores objects
-zlib-compressed and delta-packed, so repository growth is close to the compressed figure.
-After the first load, growth comes only from **new versions**: new postings, edits and pay
-changes. A version that keeps its text adds about 2.4 KB raw, a row only, since the blobs are reused.
+The **stable** archive stays under the 2 GB a year line, both raw and in git. With **beta**, both would pass it.
 
-**Projection per year.** Assumed: 3% of postings get a new version per day, half of them with new text. A normalizer bump re-versions every posting once, adding rows and changed sections.
-
-| Channel | Postings | First load raw | Per year raw | Per year in git (≈ compressed) |
-| --- | ---: | ---: | ---: | ---: |
-| stable (today's 8 boards) | ~5,400 | 72 MB | ~0.6 GB | ~80 MB |
-| beta (8 big-tech boards, ≤ 40 MB each, descriptions trimmed to 0.8 to 6 KB) | ~55,000 | ~350 MB | ~3 GB | ~0.4 GB |
-| normalizer bumps (about 6 a year, all boards) | | | ~1 GB | ~0.1 GB |
-| tables, monthly, reference, audit, ledger | | | ~0.2 GB | ~30 MB |
-| **total** | | | **~5 GB** | **~0.6 GB** |
-
-The git (repository) growth stays well under 2 GB a year. The **raw working tree** would pass 2 GB a year once beta is in. That size matters for checkout time and runner disk, not for GitHub storage.
-
-**Proposed plan** (not implemented; it needs the lead's OK; nothing is dropped either way):
-1. **Measure first.** The first 7 days of beta ingest give the real churn. `status.js` reports bytes per table.
-2. **Gzipped blob partitions.** Blobs are opaque storage, not tables, so the plain-text diff argument does not apply. New blob partitions become append-only multi-member gzip (`blobs/YYYY-MM.jsonl.gz`): each ingest appends one gzip member, so verify's prefix rule still holds. This cuts the raw tree about 6x. Closed plain partitions stay as they are. The change is additive (schema v2: the writer changes, readers already accept `.gz`).
-3. **Partial checkout in the workflows.** `git fetch --filter=blob:none` plus a sparse checkout of state, open versions, indexes and the current month. The full verify moves to a weekly run.
-4. **Long term (past ~4 GB in git, years out).** Mirror-push `data-archive` to a dedicated repository (nothing rewritten) and leave a pointer here. Git LFS is not recommended: its bandwidth is charged on every CI checkout.
+**Plan.** Agreed with the lead: measure 7 days of beta first, then decide. Nothing is dropped meanwhile, and nothing below is implemented yet.
+1. **Touch rows** (the biggest lever, about -70% of daily rows). A change to `updatedAt` alone becomes a compact row in `jobs/<slug>/touches/YYYY-MM.jsonl` (`{ id, seq, at, updatedAt }`, about 120 bytes) instead of a full 2.4 KB version.
+   - `reconstruct.js` applies the latest touch at or before the requested time, so the archive stays lossless.
+   - This needs schema v2 with a migration that recomputes `key` without `updatedAt` for the open rows.
+2. **Gzipped blob partitions.** New blob partitions become append-only multi-member gzip (`blobs/YYYY-MM.jsonl.gz`), about 6x less raw tree. Closed plain partitions stay as they are, and readers already accept `.gz`.
+3. **Partial checkout in the workflows.** `git fetch --filter=blob:none` plus a sparse checkout of state, open versions and the current month. The full verify moves to a weekly run.
+4. **Long term**, past about 4 GB in git: mirror-push `data-archive` to a dedicated repository, rewriting nothing, and leave a pointer here. Git LFS is not recommended: its bandwidth is charged on every CI checkout.

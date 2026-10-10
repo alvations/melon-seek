@@ -106,11 +106,20 @@ npm test
 - **Tests:** test/archive*.test.js, 40 tests across archive, archive-sweep, archive-workflows, archive-reference, archive-lossless and archive-report. All pass.
 - **Full suite:** in an isolated worktree with HEAD plus only my files, `npm test` gives 409 tests, 402 pass, 0 fail, 7 skipped. In the shared working tree, other agents' uncommitted build-static/api.js changes and concurrent dist/ builds fail unrelated tests.
 - **Patches:** the three apply to HEAD. test/workflows.test.js passes with them. The ledger.sh mirror fallback was simulated against a local bare remote.
-- **Actions:** dry run 38038097817 failed at `migrate.js`. ed7d127 had picked up my working-tree workflow edits before migrate.js was committed. That is harmless: it failed before writing. Commit 2 fixes it.
+- **Actions:**
+  - dry run 38038097817 failed at `migrate.js`, before writing: ed7d127 had picked up my working-tree workflow edits before migrate.js was committed;
+  - archive.yml run 38040950012 (a2e7f32) ingested 119 artifacts with 24/24 reconstruct checks passing, then stopped on the sweep's exit 10 under `bash -e` and committed nothing. Fixed in 8c20896 (`|| rc=$?`, plus a test).
+- **The rescue: archive-backfill run 38041319866, success.**
+  - Data branch `data-archive`: commits 63f24ff..41f4645 (5 batches, then reference + reports).
+  - 10 snapshot artifacts (job-board-snapshots 2026-10-02..10-09, job-board-snapshots-pages 2026-10-10 x2) became **80 observations, every one rebuilt deep-equal at ingest**.
+  - Also ingested: 95 history-ledger, 89 salary-vetting and 3 monthly-refresh-report artifacts.
+  - Rows: job versions 14,532 (5,482 open + 9,050 closed); blobs 10,587; observations 80; daily 72; ledger entries 14,629; audit flags 1,249, verdicts 681 (from the repo's reviewed set), runs 89, refresh results 266; reference versions 129 (15 `repo.*` + 114 from the freshness export).
+  - Size: 129 MB raw, 30.4 MiB packed.
+- **Local re-check of the branch:** verify OK; `--history 10` checked all 6 commits against their parents; `reconstruct.js --check-all` 80/80.
 
 ## 6. Known gaps and follow-ups
-- The real backfill runs after commit 2 is pushed. Results go in §7 and the final report.
-- Beta size is a projection until the first beta artifacts exist. Measure 7 days, then decide on the §14 plan.
+- Beta size is a projection until the first beta artifacts exist. The lead agreed: measure 7 days, then decide on the DATA_ARCHIVE.md §14 plan (touch rows first).
+- `updatedAt`-only versions are 75% of daily rows on the stable boards. The touch-row compaction needs schema v2 and a migration (§14).
 - `github-pages` (the built site) is not archived. It is derived and reproducible from the archive plus the code commit.
 - If archive.yml ever stops for longer than 90 days, artifacts from that window are lost. The daily schedule plus workflow_run make this unlikely. A raw-mode dispatch is the manual fallback.
 - verify reads every partition, which is fine for years at this scale. Partial checkout is part of the size plan.
@@ -119,4 +128,6 @@ npm test
 - 2026-10-10 08:00Z: prompt saved; read inputs; listed artifacts through the API.
 - 2026-10-10 08:10Z: commit d894b23 (stage 1: lib, jobs, ingest, sweep, verify, branch.sh, workflows, tests). The lead pushed it with bef4cd0 (level-only cells, yearly partitions) and ed7d127 (job renamed to archive-ingest).
 - 2026-10-10 08:30Z: lead message: retention-days 90 everywhere; keep everything forever; lossless with the full description; reconstruct.js with deep-equal; never delete; size report; ingest monthly-refresh-report. I held the real backfill until v1 was lossless, and the lead agreed, on two conditions: a raw-rescue mode, run by 2026-10-14T00:00Z if v1 was not on the branch; and the real backfill run immediately after the push.
-- 2026-10-10 09:30Z: commit 2: lossless v1 (blobs, src rows, reconstruct.js, raw.js, late/ copies, gap versions, every ledger entry, whole-file blobs); reference.js/record.js; monthly.js; report.js; restore.js; migrate.js; docs; patches.
+- 2026-10-10 09:30Z: commit 2 (171ac96, pushed by the lead as a2e7f32): lossless v1 (blobs, src rows, reconstruct.js, raw.js, late/ copies, gap versions, every ledger entry, whole-file blobs); reference.js/record.js; monthly.js; report.js; restore.js; migrate.js; docs; patches. The lead applied the three patches as 94f9dd6.
+- 2026-10-10 09:24Z: 8c20896 fixes the batch loop under `bash -e`.
+- 2026-10-10 09:31Z: rescue backfill run 38041319866 succeeded (above). The 2026 year-to-date review is at data-archive:reports/annual/2026.md.
