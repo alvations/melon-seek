@@ -609,3 +609,18 @@ screenshots in `docs/screenshots/`.
   - `test/freshness.test.js` as a staleness gate (warn-only on deploy);
   - a finding on whether scheduled workflows fire from the default branch.
 - **Coordination.** It reads, but doesn't edit, the files of the 4 running agents (big-tech data, beta deploy, Juice household, Juice tax). Changes it needs in their files go to `docs/process/patches/freshness-*.diff`, which the lead applies after those agents finish.
+
+### Historical archive: never lose data, annual reviews (2026-10-10)
+- **Request:** "ALSO include all the company and job related numbers esp. when we compare them across the levels … make sure we dont lose ANY of the old data … historical data analysis … annual review … per job / per company and also the non-job / non-company numbers … backend database … automatically updated and kept in the repo!"
+- **Lead findings.**
+  - `origin/HEAD` is claude/stoic-ride-54ddxp, the only remote branch, so schedules and `workflow_run` fire from it.
+  - Raw snapshots exist only as artifacts with 14-day retention, and the ledger as a 90-day artifact. The first real data (about 2026-10-02) expires around 2026-10-16, so the rescue backfill is priority 1.
+- **Freshness lead:** scope extended by message. Its inventory now also covers per-job pay, per-company stats, market cells across levels, Compstimate levels and backtest, Juice per job, ledger fields and share-page counts. Its monthly refresh records each reference version through the archive CLI.
+- **New agent: archive engineer,** [archive.md](archive.md); its prompt is in prompts/.
+  - It owns an orphan data branch, append-only plain-text partitions and a manifest. The data branch keeps bot commits from racing pushes on the deploy branch and keeps code history small.
+  - Job versions are slowly-changing rows. It keeps daily company aggregates and monthly cross-company × level cells, plus dated reference-data versions and vetting audit records.
+  - Pipeline:
+    - `archive-backfill.yml` rescues the existing artifacts;
+    - `archive.yml` ingests on `workflow_run`;
+    - `scripts/archive/verify.js` checks integrity;
+    - `scripts/archive/report.js` writes the monthly and annual reviews.
