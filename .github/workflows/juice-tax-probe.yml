@@ -1,0 +1,40 @@
+name: Juice tax probe
+
+# Manual only (workflow_dispatch). Downloads official tax documents (IRS, state revenue
+# departments, HMRC, CRA, ATO, NTA, ESTV, ...) that the agent sandbox cannot reach and
+# prints the matching lines to the job log, so the Juice Score tax rules in server/juice.js
+# can be verified against primary sources (docs/LIVABILITY.md §3, docs/process/juice-tax.md).
+# Read-only: nothing is committed, uploaded or deployed.
+on:
+  workflow_dispatch:
+    inputs:
+      requests:
+        description: 'JSON list of {"url": "...", "grep": "regex", "ctx": 1, "max": 150} (see .github/scripts/juice-tax-probe.mjs)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: juice-tax-probe-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Install pdftotext
+        run: command -v pdftotext || (sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils > /dev/null)
+
+      - name: Probe
+        env:
+          REQUESTS: ${{ inputs.requests }}
+        run: node .github/scripts/juice-tax-probe.mjs
