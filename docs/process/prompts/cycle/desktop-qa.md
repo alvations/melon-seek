@@ -9,7 +9,7 @@ Other QA agents append to docs/QA.md at the same time. Write only your own secti
 
 **Setup:**
 - The lead has already put the latest data in `<DATA>` (scripts/cycle/local-data.js).
-- Run `npm run build`, then `node scripts/cycle/serve.mjs --pid <SCRATCH>/<ROLE>/serve.pid`. It prints the port. Server mode: `PORT=<free port> node server/index.js`, with its own pid file.
+- Build into your own folder, `node scripts/build-static.js --out <SCRATCH>/<ROLE>/dist`, then `node scripts/cycle/serve.mjs --dist <SCRATCH>/<ROLE>/dist --pid <SCRATCH>/<ROLE>/serve.pid`; it prints the port. Never write the shared dist/: the lead built it for the e2e suite, and other agents run at the same time. Server mode: `PORT=<free port> node server/index.js`, with its own pid file.
 - Playwright: NODE_PATH=<SCRATCH>/pw/node_modules. Chromium is /opt/pw-browsers/chromium-1194/chrome-linux/chrome. Never run `playwright install`.
 - Viewports: 1440x900, 1280x800 and 1024x768, in light and dark.
 - Start every server with a pid file and stop it at the end. Never `pkill -f` or `pgrep -f`.

@@ -13,6 +13,7 @@ placeholders, and send it as the agent's prompt. The agent saves the filled-in p
 | `<DATE>` | today, YYYY-MM-DD | | |
 | `<ROLE>` | the agent's file name, e.g. `qa-desktop-beta` | | |
 | `<SCRATCH>` | the lead's scratchpad folder | | |
+| `<DIST>` | persona review only: the build the lead made for the reviewers (`node scripts/build-static.js --out <DIST>`) | | |
 | `<AGE_GROUP>` | persona review only: one agent per group, `18–24`, `25–34`, `35–44`, `45–54` and `55 and over` | | |
 | `<LANE>`, `<FINDING_IDS>`, `<FINDINGS>`, `<OWNED_FILES>`, `<NOT_OWNED_FILES>` | fix lanes only: the lane name, its findings pasted in full, and the file ownership the lead decided | | |
 | `<PREVIOUS>` | the last cycle's sections to compare against | e.g. "Full QA pass (desktop) 2026-10-03" in docs/QA.md | the same, plus the stable cycle of `<DATE>` if it ran |
@@ -25,7 +26,9 @@ placeholders, and send it as the agent's prompt. The agent saves the filled-in p
 Facts every template relies on. Update them here and in PLAYBOOK.md when they change:
 - Playwright is in `<SCRATCH>/pw/node_modules` (`NODE_PATH`), and Chromium is
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`. Never run `playwright install`.
-- `node scripts/cycle/serve.mjs --pid <file>` serves `dist/` under `/melon-seek/`. Stop it with
+- Each agent builds into its own folder (`node scripts/build-static.js --out <dir>`) and serves it with
+  `node scripts/cycle/serve.mjs --dist <dir> --pid <file>` under `/melon-seek/`; the shared `dist/` is
+  the lead's, for the e2e suite. Stop it with
   `kill "$(cat <file>)"`; never use `pkill -f` or `pgrep -f`.
 - `node scripts/e2e.js` (with `NODE_PATH`) is the full e2e suite. Register a new file the way
   the existing ones are registered.

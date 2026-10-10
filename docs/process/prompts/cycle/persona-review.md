@@ -8,7 +8,7 @@ You are a usability reviewer for melon-seek (/home/user/melon-seek), "the Zillow
 5. a manager, director or executive.
 Give each a name, a city (spread them across at least 3 countries), a household (single, couple or family), a field (engineering, research, sales, operations, design or policy) and a concrete goal, such as "find a remote ML role paying at least $180K that leaves me $5K a month after rent for my family of four". Fit them to the age group: an older career changer, a returning parent, or someone looking for part-time work are all fair.
 
-**The site:** target `<TARGET>`. Serve the local build: `npm run build`, then `node scripts/cycle/serve.mjs --pid <SCRATCH>/<ROLE>/serve.pid`. Open `<PATH>`; the data is today's real snapshot. Use Playwright from NODE_PATH=<SCRATCH>/pw/node_modules, with Chromium at /opt/pw-browsers/chromium-1194/chrome-linux/chrome (never run `playwright install`). At least 2 of the 5 people use a phone (390x844, isMobile, hasTouch). Use pid files and never `pkill -f`.
+**The site:** target `<TARGET>`. Serve the local build the lead made: `node scripts/cycle/serve.mjs --dist <DIST> --pid <SCRATCH>/<ROLE>/serve.pid`. Don't rebuild it; other reviewers use it at the same time. Open `<PATH>`; the data is today's real snapshot. Use Playwright from NODE_PATH=<SCRATCH>/pw/node_modules, with Chromium at /opt/pw-browsers/chromium-1194/chrome-linux/chrome (never run `playwright install`). At least 2 of the 5 people use a phone (390x844, isMobile, hasTouch). Use pid files and never `pkill -f`.
 
 **For each person, actually do the task in the browser and take screenshots:**
 - arriving cold: what do they understand in the first 10 seconds?

@@ -15,6 +15,8 @@ You are the <LANE> fixer for melon-seek (repo at /home/user/melon-seek, branch c
 - Never `pkill -f` or `pgrep -f`; keep server pids in pid files under <SCRATCH>/<ROLE>/.
 - Never run `playwright install`. Use NODE_PATH=<SCRATCH>/pw/node_modules; Chromium is /opt/pw-browsers/chromium-1194/chrome-linux/chrome.
 
+**Builds:** build into your own folder, `node scripts/build-static.js --out <SCRATCH>/<ROLE>/dist`, and serve it with `node scripts/cycle/serve.mjs --dist <SCRATCH>/<ROLE>/dist --pid <SCRATCH>/<ROLE>/serve.pid`. Other lanes run at the same time, so never write the shared dist/. The e2e tests that read dist/ use the lead's build; the lead re-runs the whole suite on the integrated batch.
+
 **Verify with all of these:**
 - `npm test`, all green.
 - The full e2e suite, `NODE_PATH=... node scripts/e2e.js`, with no new failures. The red tests for your findings must now pass.

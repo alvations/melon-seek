@@ -8,7 +8,7 @@ You are the mobile performance engineer for melon-seek (/home/user/melon-seek), 
 If a change is needed in public/app.js, public/viz/*, public/features/* or public/styles.css, write it as a patch to docs/process/patches/<ROLE>-<name>.diff instead of editing those files: QA agents are testing them right now. Don't commit and never push.
 
 **Measure first.**
-- **Serving:** the data is in `<DATA>`. Run `npm run build`, then `node scripts/cycle/serve.mjs --pid <SCRATCH>/<ROLE>/serve.pid`.
+- **Serving:** the data is in `<DATA>`. Build into your own folder, `node scripts/build-static.js --out <SCRATCH>/<ROLE>/dist`, then `node scripts/cycle/serve.mjs --dist <SCRATCH>/<ROLE>/dist --pid <SCRATCH>/<ROLE>/serve.pid`. Rebuild there after each change. Never write the shared dist/.
 - **Browser:** Playwright from NODE_PATH=<SCRATCH>/pw/node_modules; Chromium is /opt/pw-browsers/chromium-1194/chrome-linux/chrome. Never run `playwright install`.
 - **Device:** emulate a mid-range phone: 390x844, isMobile, 4x CPU throttle, and "Fast 4G" and "Slow 4G" through CDP Network.emulateNetworkConditions.
 - **Loads:** <COMPANIES>, cold and warm, plus a switch between companies.

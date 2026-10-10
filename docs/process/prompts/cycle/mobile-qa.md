@@ -9,7 +9,7 @@ A desktop QA agent writes to docs/QA.md at the same time. Append only your own s
 
 **Setup:**
 - The data is already in `<DATA>`.
-- Run `npm run build`, then `node scripts/cycle/serve.mjs --pid <SCRATCH>/<ROLE>/serve.pid`.
+- Build into your own folder, `node scripts/build-static.js --out <SCRATCH>/<ROLE>/dist`, then `node scripts/cycle/serve.mjs --dist <SCRATCH>/<ROLE>/dist --pid <SCRATCH>/<ROLE>/serve.pid`. Never write the shared dist/; the lead built it for the e2e suite.
 - Playwright: NODE_PATH=<SCRATCH>/pw/node_modules. Chromium is /opt/pw-browsers/chromium-1194/chrome-linux/chrome. Never run `playwright install`.
 - Emulation:
   - isMobile, hasTouch and deviceScaleFactor 3;

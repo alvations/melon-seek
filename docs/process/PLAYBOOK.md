@@ -30,8 +30,10 @@ beta page."
    `--archive DIR` to reuse an archive worktree, `--date` for an earlier day, and `--channel` for
    one site. A board crawled only after the archive's last ingest is listed as missing; wait for
    archive.yml, which runs after every snapshot run.
-2. `npm run build`, then `node scripts/cycle/serve.mjs --pid <file>` serves `dist/` under
-   `/melon-seek/` on a free port (or `PORT`). Stop it with `kill "$(cat <file>)"`.
+2. `npm run build` makes the shared `dist/`, which the e2e suite reads. Agents never write it:
+   each builds into its own folder with `node scripts/build-static.js --out <dir>`, or serves a
+   build the lead made for them. `node scripts/cycle/serve.mjs --dist <dir> --pid <file>` serves a
+   build under `/melon-seek/` on a free port (or `PORT`); stop it with `kill "$(cat <file>)"`.
 3. Gate: the build log's `beta:` line lists the expected companies, and `npm test` is green.
 
 ## Stage 1. Find problems (agents in parallel; none of them edits product code)
