@@ -174,3 +174,49 @@ control across all of these features: the conditional "Save" button. Modes
 stay Chart, Map and Insights. New drawer sections go in the fixed order.
 
 **Location (2026-10-02, UX-3):** `name` is now a canonical display name (`Remote (US)`, `City, ST`, `City, Country`); the source string is kept in `rawName`. Use `rawName` for identity (e.g. history fingerprints) and `name` for display.
+
+## v3 additions (2026-10-10): big-tech boards on a beta channel
+
+User request: pull job posts from Google, Microsoft, Meta, Apple, Netflix, Amazon, Nvidia and Tesla.
+They appear only at `https://alvations.github.io/melon-seek/beta/`. The main site
+(`/melon-seek/`) stays exactly as it is.
+
+**Company registry (`server/companies.js`, data engineer).**
+- Each new entry carries `channel: 'beta'`. Existing entries have no `channel`, which means stable.
+- Big-tech entries also carry `live: false`. These career sites send no CORS headers, so the browser
+  never fetches them live. Static mode serves the bundled snapshot.
+- `listCompanies({ channel = 'stable' } = {})`:
+  - `'stable'` returns only the stable companies. Every existing caller keeps today's list.
+  - `'beta'` returns the stable companies plus the beta ones.
+  - `'all'` is the same as `'beta'`, for `scripts/snapshot.js`.
+- `getCompany(slug)` resolves any built-in on any channel, and the result includes `channel`.
+- `SOURCES`, the list of sources a user may add as a custom board, stays `greenhouse | ashby | lever`.
+  A new source is built-in only.
+
+**Adapters (`server/sources/<source>.js`, data engineer).**
+- Same shape as the existing adapters. Each exports `fetchX(company, { signal, maxBytes })`, which
+  returns `{ jobs: RawJob[] }`, plus a pure `mapXJob(raw)`.
+- Each is registered in `server/pipeline.js` `ADAPTERS`.
+- RawJob is exactly the shape in "Raw job" above. The pay range comes from structured fields when the
+  source has them, otherwise from `server/salary.js` parsing the posting text.
+- Every result goes through the existing vet gate (`server/vet.js`, `scripts/vet-salaries.js`). Pay
+  that is not plausible is never published.
+
+**Static build (`scripts/build-static.js`, deploy engineer).**
+- `npm run build` writes the stable site to `dist/` as today, with no beta company anywhere in it:
+  companies list, jobs, market comps, share pages, history and descriptions.
+- It also writes a full second copy of the app to `dist/beta/`, built from `listCompanies({ channel: 'beta' })`.
+  Its market comps include the beta companies.
+- `dist/beta/index.html` carries `<meta name="melon-channel" content="beta">`. The page shows a small
+  "Beta" tag by the logo and nothing else new.
+- The stable site does not link to the beta site.
+- A failed fetch, or a vet-gate failure, for a beta company drops that company from `dist/beta/` and is
+  reported in the step summary. It never blocks or changes the stable deploy.
+
+**Client (`public/api.js`, deploy engineer).**
+- A company with `live: false` is served from its bundle with `error: null`. The badge reads
+  "Snapshot · <date>" and shows no "Live fetch skipped" message.
+
+**Server mode (`server/index.js`, deploy engineer).**
+- `/api/companies` lists stable companies only, unless the env var `MELON_CHANNEL=beta` is set.
+- `/api/jobs?company=<beta slug>` works either way.
