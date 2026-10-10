@@ -360,6 +360,8 @@ function disambiguateLocations(jobs) {
   }
 }
 const deptKey = (j) => keyOf(j, 'department'); // same keys the chart colors by
+/** Juice filter key: the best location's grade ("Rind" files under Dry), or null without juice. */
+const gradeKey = (j) => (j.juice ? (j.juice.best.grade === 'Rind' ? 'Dry' : j.juice.best.grade) : null);
 const empKey = (j) => j.employmentType || 'Unspecified';
 
 function prepare(jobs, { source = null } = {}) {
@@ -396,7 +398,7 @@ function prepare(jobs, { source = null } = {}) {
       : j._ts ? Math.max(0, Math.floor((Date.now() - j._ts) / 864e5)) : null;
     j._family = j._family ?? roleFamily(j.title, j); // same ctx comps.js uses, so rf filters match its rows
     j.juice = j.juice && j.juice.best ? j.juice : null;
-    j._grade = j.juice ? (j.juice.best.grade === 'Rind' ? 'Dry' : j.juice.best.grade) : null;
+    j._grade = gradeKey(j);
     j._locKeys = j.locations.map(locKey);
     j._hay = [j.title, j._postedTitle !== j.title ? j._postedTitle : null, j.department, j.team, j.employmentType, j.seniority,
       ...j.locations.map((l) => l.name), ...j.keywords.responsibilities, ...j.keywords.fit, ...j.keywords.skills]
@@ -589,6 +591,10 @@ async function applyJobs(res, seq, { upgrade = false } = {}) {
     if (seq !== loadSeq) return false;
   }
   if (upgrade && (data.status !== 'ready' || data.mode === 'live')) return false;
+  // api.js attaches juice for one person; another household is re-attached here (juice.js).
+  if (needsRejuice(jobs, juiceHousehold) && !(await rejuice(jobs, juiceHousehold, () => seq !== loadSeq))) {
+    if (seq !== loadSeq) return false;
+  }
   disambiguateLocations(jobs);
   dataSeq++;
   rememberCompany(S.c);
@@ -928,6 +934,7 @@ function prefetchSaved() {
       const jobs = Array.isArray(res?.jobs) ? res.jobs : [];
       const source = res?.company?.source || companyInfo(slug)?.source || null;
       for (let i = 0; i < jobs.length; i += PREPARE_CHUNK) { prepare(jobs.slice(i, i + PREPARE_CHUNK), { source }); await yieldTask(); }
+      if (needsRejuice(jobs, juiceHousehold)) await rejuice(jobs, juiceHousehold);
       disambiguateLocations(jobs);
       if (!jobCache.has(slug)) jobCache.set(slug, jobs);
       if (popover.id === 'company') syncPopover();
@@ -1722,7 +1729,7 @@ function renderViz() {
     return;
   }
   if (S.m === 'map' && wasHidden) { try { map.invalidateSize(); } catch { /* ignore */ } }
-  const sig = jobs.map((j) => j.id).join(',') + (S.m === 'chart' ? `|${S.v}|${S.g}` : `|${S.mc}`);
+  const sig = jobs.map((j) => j.id).join(',') + (S.m === 'chart' ? `|${S.v}|${S.g}` : `|${S.mc}|${juiceHousehold}`);
   if (vizSig[S.m] !== sig) {
     vizSig[S.m] = sig;
     try {
@@ -2050,6 +2057,70 @@ const INTERVAL_ADJ = { hour: 'hourly', day: 'daily', week: 'weekly', month: 'mon
 let juicePeriod = 'year'; // drawer waterfall: per year or per month (kept for the session)
 const JUICE_DOC = 'methodology/#1-the-formula'; // site page rendered from docs/LIVABILITY.md (scripts/methodology.js); never off-site
 
+/* Household for the Juice Score (docs/LIVABILITY.md §1): who the rent and living costs are for.
+   It applies everywhere juice is used (cards, sort, the Juice filter, the map's Juice colouring,
+   the drawer and its location comparison) and is remembered in this browser. api.js attaches
+   juice for one person; other households are re-attached here with the same juice.js. */
+const HOUSEHOLD_KEY = 'melon-seek.household.v1';
+const HOUSEHOLDS = [
+  // [key, button label, tooltip, bedrooms, people (living-cost row)]
+  ['single', 'Just me', 'One adult in a 1-bedroom home', 1, 'one person'],
+  ['couple', 'Couple', 'Two adults in a 2-bedroom home', 2, 'two adults'],
+  ['family', 'Family', 'Two adults and two children in a 3-bedroom home', 3, 'two adults and two children'],
+];
+const householdInfo = (key) => HOUSEHOLDS.find(([k]) => k === key) || HOUSEHOLDS[0];
+let juiceHousehold = householdInfo(lsGet(HOUSEHOLD_KEY, 'single'))[0];
+
+let juiceLibPromise = null;
+/** juice.js plus the cities document (both already loaded by api.js, so this is cached), or null. */
+function juiceLib() {
+  if (!juiceLibPromise) {
+    juiceLibPromise = Promise.all([api.getCities ? api.getCities() : null, import('./lib/juice.js')])
+      .then(([cities, mod]) => (cities && typeof mod?.attachJuiceAll === 'function' ? { cities, mod } : null))
+      .catch(() => null)
+      .then((lib) => { if (!lib) juiceLibPromise = null; return lib; }); // retry next time
+  }
+  return juiceLibPromise;
+}
+/** True when some job's juice was computed for another household (no household field = one person). */
+const needsRejuice = (jobs, hh) => jobs.some((j) => j && j.juice && (j.juice.household || 'single') !== hh);
+/** Re-attach juice for household `hh` (mutates jobs, in chunks). false if juice.js is unavailable or `stale()`. */
+async function rejuice(jobs, hh, stale = () => false) {
+  const lib = await juiceLib();
+  if (!lib || stale()) return false;
+  for (let i = 0; i < jobs.length; i += PREPARE_CHUNK) {
+    const slice = jobs.slice(i, i + PREPARE_CHUNK);
+    try { lib.mod.attachJuiceAll(slice, lib.cities, { household: hh }); } catch { return false; }
+    for (const j of slice) { j.juice = j.juice && j.juice.best ? j.juice : null; j._grade = gradeKey(j); }
+    await yieldTask();
+    if (stale()) return false;
+  }
+  return true;
+}
+let householdSeq = 0;
+/** Switch the household: re-score every loaded job, then re-render (the drawer keeps focus on the control). */
+async function setHousehold(hh) {
+  if (hh === juiceHousehold) return;
+  juiceHousehold = hh;
+  lsSet(HOUSEHOLD_KEY, hh);
+  const seq = ++householdSeq, load = loadSeq;
+  const stale = () => seq !== householdSeq || load !== loadSeq;
+  if (data.status === 'ready' && needsRejuice(data.jobs, hh)) await rejuice(data.jobs, hh, stale);
+  if (stale()) return;
+  for (const c of jobCache.values()) if (c !== data.jobs && needsRejuice(c, hh)) rejuice(c, hh); // saved-search counts
+  render();
+  const old = $('#drawer .d-juice');
+  const job = drawerJobId ? findJob(drawerJobId) : null;
+  if (old && job) {
+    const next = juiceBlock(job);
+    if (next) {
+      next.querySelector('details.juice-details').open = old.querySelector('details.juice-details')?.open ?? true;
+      old.replaceWith(next);
+      next.querySelector(`[data-household="${hh}"]`)?.focus({ preventScroll: true });
+    }
+  }
+}
+
 /** Drawer: Juice Score waterfall for the best location, plus the other locations in a disclosure. */
 function juiceBlock(job) {
   const jb = job.juice;
@@ -2057,6 +2128,8 @@ function juiceBlock(job) {
   const b = jb.best;
   const grade = String(b.grade).toLowerCase();
   const others = jb.byLocation.filter((l) => l !== b && !(l.locationName === b.locationName && l.city === b.city));
+  // Labels follow the household the numbers were computed for (it is the chosen one unless juice.js failed to load).
+  const [hhKey, , , beds, people] = householdInfo(jb.household || b.household || 'single');
   const body = h('div', { class: 'juice-body' });
   // UX-5: one headline line; the waterfall sits in a disclosure so "Same role elsewhere" stays near the top.
   const sec = h('section', { class: 'd-juice', 'aria-labelledby': 'juiceTitle' },
@@ -2076,11 +2149,18 @@ function juiceBlock(job) {
     const seg = (lo, hi) => { const x = Math.max(0, Math.min(g, lo)), z = Math.max(0, Math.min(g, hi)); return `left:${(x / g) * 100}%;width:${Math.max(0, ((z - x) / g) * 100)}%`; };
     const afterTax = b.gross - b.tax, afterRent = afterTax - b.rent;
     const tp = b.taxParts;
+    const rentWhere = b.rentBasis === 'override' ? 'your rent' : `${beds}-bedroom, ${b.rentBasis === 'outside' ? 'outside the centre' : 'city centre'}`;
+    // How the tax model treated a couple or family here (server/juice.js TAX_HOUSEHOLD); nothing when it applied household rules.
+    const taxBasis = b.inputs?.tax?.basis || b.taxBasis, taxNote = b.inputs?.tax?.note || null;
+    const taxHow = hhKey === 'single' || !(b.tax > 0) ? null
+      : taxBasis === 'single' ? 'Taxed as a single filer here (household rules not modeled)'
+      : taxBasis === 'individual' ? 'Each person is taxed separately here'
+      : taxBasis === 'partial' ? taxNote : null;
     const rows = [
       ['Gross pay', amt(b.gross), seg(0, b.gross), 'gross', null],
-      ['Tax', amt(b.tax, '−'), seg(afterTax, b.gross), 'tax', tp ? `income ${money(tp.income / div)} · regional ${money(tp.regional / div)} · social ${money(tp.social / div)}` : null],
-      ['Rent', amt(b.rent, '−'), seg(afterRent, afterTax), 'rent', '1-bedroom, city centre'],
-      ['Living costs', amt(b.living, '−'), seg(b.net, afterRent), 'living', 'everyday costs excluding rent'],
+      ['Tax', amt(b.tax, '−'), seg(afterTax, b.gross), 'tax', tp ? `income ${money(tp.income / div)} · regional ${money(tp.regional / div)} · social ${money(tp.social / div)}` : null, taxHow],
+      ['Rent', amt(b.rent, '−'), seg(afterRent, afterTax), 'rent', rentWhere],
+      ['Living costs', amt(b.living, '−'), seg(b.net, afterRent), 'living', `everyday costs for ${people}, excluding rent`],
       ['Juice left', `${b.net < 0 ? '−' : ''}${money(Math.abs(b.net) / div)}${per}`, seg(0, b.net), 'net', null],
     ];
     const toggle = h('div', { class: 'seg seg--sm', role: 'group', 'aria-label': 'Show amounts per' },
@@ -2088,14 +2168,20 @@ function juiceBlock(job) {
         type: 'button', 'aria-pressed': String(juicePeriod === v), dataset: { period: v },
         onclick: () => { juicePeriod = v; render(v); }, // V5: re-render this block only and keep focus here
       }, label)));
+    const household = h('div', { class: 'seg seg--sm juice-household', role: 'group', 'aria-label': 'Household: who the rent and living costs are for' },
+      ...HOUSEHOLDS.map(([k, label, tip]) => h('button', {
+        type: 'button', 'aria-pressed': String(hhKey === k), dataset: { household: k }, title: tip,
+        onclick: () => { setHousehold(k); },
+      }, label)));
     body.replaceChildren(...nn(
-      toggle,
+      h('div', { class: 'juice-controls' }, household, toggle),
       h('div', { class: 'waterfall', role: 'table', 'aria-label': 'Juice breakdown' },
-        ...rows.map(([label, value, style, kind, detail]) => h('div', { class: `wf-row wf--${kind}`, role: 'row' },
+        ...rows.map(([label, value, style, kind, detail, extra]) => h('div', { class: `wf-row wf--${kind}`, role: 'row' },
           h('span', { class: 'wf-label', role: 'rowheader' }, label),
           h('span', { class: 'wf-track', role: 'cell', 'aria-hidden': 'true' }, h('span', { class: 'wf-bar', style })),
           h('span', { class: 'wf-value', role: 'cell' }, value),
-          detail ? h('span', { class: 'wf-detail' }, detail) : null))),
+          detail ? h('span', { class: 'wf-detail' }, detail) : null,
+          extra ? h('span', { class: 'wf-detail wf-tax-basis', title: taxNote && extra !== taxNote ? taxNote : null }, extra) : null))),
       b.rentBurden != null ? h('p', { class: 'juice-facts' }, 'Rent takes ', h('strong', null, `${Math.round(b.rentBurden * 100)}%`), ' of take-home pay.') : null,
       b.currencyMismatch ? h('p', { class: 'fnote' }, 'The posted salary currency differs from the local one, so it is applied as posted.') : null,
       others.length ? h('details', { class: 'juice-compare' }, h('summary', null, `Compare locations (${others.length + 1})`),

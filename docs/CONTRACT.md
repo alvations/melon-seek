@@ -146,7 +146,7 @@ repost: { count, firstSeenAt } | null,                // F4
 salary: { ...existing, spread, zones, kind, source } | null, // F2 (+ vetting)
 salaryRaw?, salaryFlag?: { codes, reason },           // vetting quarantine (salary is then null)
 extras: { equity: boolean, bonus: boolean },          // F2
-juice: { best, byLocation } | null,                   // livability, attached in public/api.js
+juice: { best, byLocation, household } | null,        // livability, attached in public/api.js; household = 'single'|'couple'|'family' (default single; app.js re-attaches for the chosen household). best.taxBasis = 'single'|'joint'|'individual'|'partial' (server/juice.js taxFor)
 ```
 
 **`/api/jobs` response** adds `meta: { compstimate: { medianAbsPctError,

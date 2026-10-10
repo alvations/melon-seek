@@ -650,3 +650,25 @@ screenshots in `docs/screenshots/`.
   - snapshot.yml crawls the big-tech boards every 6 h, one matrix job per company. It gates each one, merges them into the previous artifact (a failed company keeps its last file), then dispatches a deploy. Dispatched deploys make no branch build, so the holding page never shows.
   - Also in this batch: api.js `live:false`, the Beta pill CSS hunk only (the `.juice-controls` hunk waits for the Juice batch), the server's `MELON_CHANNEL`, links-policy hosts, and beta-build tests.
 - **Verified** on a clean worktree from HEAD plus exactly these files: `npm test` 381/381, build OK with real snapshots (stable unchanged; beta 0/7 until the first crawl), e2e 86/86, and all workflow YAML parses.
+
+### Juice batch: household choice, verified rents and verified tax (2026-10-10)
+- **Agents:** juice-household ([juice-household.md](juice-household.md)) and juice-tax ([juice-tax.md](juice-tax.md)). Both are finished.
+- **Household.** Just me, Couple and Family (1, 2 and 3 bedrooms, city centre). Living costs use the UK DWP after-housing-costs equivalence scale (×1, ×1.72, ×2.41), checked against BLS CE 2024 and MIT Living Wage.
+  - 2- and 3-bedroom rents come from official bedroom ratios: HUD FY2026, ONS, RTB, Stadt Zürich, OLAP, StatCan and HDB.
+  - Sydney uses official NSW bond data for all three sizes. No new Numbeo inputs were added.
+- **Rent audit.** SF's 1-bedroom rent ($3,679 a month) is 22% above HUD's central-ZIP small-area rent but 16% below listings (Zumper). It was kept and flagged for the Numbeo decision.
+- **Tax.** Every rule was checked against official schedules, with 390 golden vectors. Fixes include:
+  - California: it used the 2024 brackets labelled 2025;
+  - New York State recapture;
+  - Washington and Massachusetts paid-leave premiums;
+  - Zurich's statutory tariff;
+  - France's AGIRC-ARRCO second tranche;
+  - Spain split into the state scale plus regional scales.
+- **Household tax rules** where they can be verified: US joint filing, the Child Tax Credit, German splitting, the French family quotient and others. Elsewhere the drawer says "Taxed as a single filer here".
+- **SF $675K:** Just me $314,748 left (98); Couple $339,270 (99); Family $311,902 (98).
+- **Process fix (lead).** ed7d127 committed newer working-tree copies of archive.yml and archive-backfill.yml, edited by the archive agent between the lead's test and `git add`. CI went red: test/archive-workflows.test.js in HEAD expects the tested versions.
+  - The pushed archive.yml run 38038140781 failed before any write (no migrate.js), so no data was written.
+  - This batch restores the tested versions of both workflows.
+  - From now on the lead commits INSIDE the tested worktree, pushes from it, then runs `git reset <sha>` (mixed) in the shared checkout, which leaves the working tree untouched. A file can no longer change between test and commit.
+- **Verified** on a clean worktree from HEAD plus exactly these files: `npm test` 397/397 and build OK.
+  - e2e 85/86. The one failure, Compstimate T21 "cold server accuracy within 10 s", also fails on the pre-batch baseline worktree at load average 8 (about ten agents running), so it's a timing failure, not a regression. It passed 86/86 at 08:20.

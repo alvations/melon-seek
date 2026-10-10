@@ -985,6 +985,8 @@ html[data-mode="insights"] .viz-controls { display: none; }
 .juice-details > .juice-where { margin: 0 14px 8px; }
 .juice-body { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 8px; }
 .juice-body > .seg { align-self: flex-start; }
+/* Household (Just me / Couple / Family) and Monthly / Yearly side by side; they wrap on narrow phones. */
+.juice-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
 
 /* UX-11: on desktop/tablet the role/area chip shows once (quickbar); the list slot is for phones. */
 @media (min-width: 861px) { #areaChipList { display: none; } }

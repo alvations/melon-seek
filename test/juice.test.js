@@ -44,11 +44,16 @@ test('progressive(): flat, multi-bracket and linear (German) zones', () => {
 
 test('US 2026 federal + FICA + California for $300K in San Francisco', () => {
   const t = taxFor(300000, { country: 'US', region: 'CA' });
-  // Federal: taxable 283,900 on the 2026 single schedule (Rev. Proc. 2025-32).
-  near(t.income, 1240 + 4560 + 12166 + 23058 + 17424 + 9686.25, 0.01, 'federal');
+  // California (FTB 2025 schedule X): taxable 300,000 - 5,706 = 294,294
+  //   = 110.79 + 303.70 + 607.52 + 965.40 + 1,214.56 + 9.3% × 221,570 (20,606.01) = 23,807.98,
+  //   less the $153 exemption credit cut $6 × ceil((300,000 - 252,203) / 2,500) = 20 steps -> $33.
+  near(t.regional, 23807.98 - 33, 0.01, 'CA');
+  // Federal (Rev. Proc. 2025-32): itemizing CA tax + SDI ($27,674.98, under the $40,400 SALT cap)
+  // beats the $16,100 standard deduction, so taxable income is 272,325.02 (was 283,900 when the
+  // model always took the standard deduction).
+  near(t.income, 1240 + 4560 + 12166 + 23058 + 17424 + 0.35 * (300000 - 27674.98 - 256225), 0.01, 'federal');
   // FICA: 6.2% to $184,500 + 1.45% + 0.9% over $200K, plus CA SDI 1.3%.
   near(t.social, 11439 + 4350 + 900 + 3900, 0.01, 'social');
-  assert.ok(t.regional > 23000 && t.regional < 24500, `CA ${t.regional}`);
   const j = computeJuice(300000, city('san-francisco-ca-us'));
   assert.equal(j.gross, 300000);
   assert.equal(j.tax, Math.round(t.total));
@@ -62,9 +67,13 @@ test('no-income-tax state, NYC local tax, Columbus city tax', () => {
   assert.equal(tx.regional, 0);
   const ny = taxFor(150000, { country: 'US', region: 'NY' });
   const nyc = taxFor(150000, { country: 'US', region: 'NY', local: 'NYC' });
-  near(nyc.regional - ny.regional, 0.03078 * 12000 + 0.03762 * 13000 + 0.03819 * 25000 + 0.03876 * 92000, 0.01, 'NYC');
+  // NYC on NYS taxable income (150,000 - 8,000), less the school tax credit: $63 fixed (income up to
+  // $250K) and the rate reduction $21 + 0.228% over $12,000 (IT-2105-I 2026).
+  near(nyc.regional - ny.regional, 0.03078 * 12000 + 0.03762 * 13000 + 0.03819 * 25000 + 0.03876 * 92000 - 63 - (21 + 0.00228 * 130000), 0.01, 'NYC');
+  // Ohio 2026 (ORC 5747.02(A)(3)(c)): $332 + 2.75% over $26,050, after the $1,900 personal exemption
+  // for income over $80,000 (ORC 5747.025); Columbus 2.5% of wages.
   const col = taxFor(100000, { country: 'US', region: 'OH', local: 'COLUMBUS' });
-  near(col.regional, 0.0275 * (100000 - 26050) + 2500, 0.01, 'Ohio + Columbus');
+  near(col.regional, 332 + 0.0275 * (100000 - 1900 - 26050) + 2500, 0.01, 'Ohio + Columbus');
 });
 
 test('UK 2026/27: tapered allowance, 40% band, NICs; GBP salary round-trips through FX', () => {
@@ -154,7 +163,10 @@ test('computeJuice: shape, rentBurden, bigMacs, outside-centre option, estimates
   assert.ok(out.rent < j.rent && out.net > j.net);
   assert.equal(j.estimated, undefined);
   assert.equal(computeJuice(150000, city('costa-mesa-ca-us')).estimated, true, 'proxy cost index is an estimate');
-  assert.equal(computeJuice(150000, city('zurich-ch')).estimated, true, 'approximate Swiss tax schedule');
+  // Zurich is now computed from the federal and cantonal tariffs (not an estimate); Geneva still
+  // uses the calibrated combined schedule.
+  assert.equal(computeJuice(150000, city('zurich-ch')).estimated, undefined, 'Zurich: statutory tariffs');
+  assert.equal(computeJuice(150000, city('geneva-ch')).estimated, true, 'approximate Geneva tax schedule');
 });
 
 test('FX: palette table copied verbatim; other currencies use the Big Mac FX', () => {
@@ -292,7 +304,8 @@ test('guardrails: confidence rules (non-US low unless official/open; estimates l
   assert.equal(computeJuice(150000, official).confidence, 'high');
   official.sources.costIndex.class = 'aggregator';
   assert.equal(computeJuice(150000, official).confidence, 'low', 'one non-official input keeps non-US low');
-  assert.equal(computeJuice(150000, city('zurich-ch')).inputs.tax.confidence, 'low', 'estimated Swiss schedule');
+  assert.equal(computeJuice(150000, city('geneva-ch')).inputs.tax.confidence, 'low', 'estimated Geneva schedule');
+  assert.equal(computeJuice(150000, city('zurich-ch')).inputs.tax.confidence, 'medium', 'Zurich: tariffs verified, city Steuerfuss not');
   assert.equal(sourceClass({ url: 'https://www.numbeo.com/x' }), 'aggregator');
   assert.equal(sourceClass({ url: 'https://x', estimated: true, class: 'official' }), 'estimate');
   assert.equal(sourceClass(undefined), 'estimate');
@@ -335,7 +348,7 @@ test('guardrails: attachJuice payload keeps full inputs on best only (opts.input
 // ---------------------------------------------------------------- data integrity
 
 const DATE_RE = /^\d{4}(-\d{2}(-\d{2})?)?$/;
-const NUMERIC_FIELDS = ['rent1brCenterLocal', 'rent1brOutsideLocal', 'rent1brCenterUSD', 'rent1brOutsideUSD', 'costIndex', 'bigMacUSD', 'fxPerUSD'];
+const NUMERIC_FIELDS = ['rent1brCenterLocal', 'rent1brOutsideLocal', 'rent1brCenterUSD', 'rent1brOutsideUSD', 'rent2brCenterLocal', 'rent3brCenterLocal', 'rent2brCenterUSD', 'rent3brCenterUSD', 'costIndex', 'bigMacUSD', 'fxPerUSD'];
 
 test('cities.json: every numeric field has a source with name, https url and as-of date', () => {
   assert.ok(CITIES.length >= 60, `${CITIES.length} cities`);

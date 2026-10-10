@@ -65,10 +65,8 @@ jobs:
           echo "ARCHIVE=$RUNNER_TEMP/archive" >> "$GITHUB_ENV"
           bash scripts/archive/branch.sh open "$RUNNER_TEMP/archive"
 
-      - name: Migrate the schema if the code is newer, then verify before ingesting
-        run: |
-          node scripts/archive/migrate.js --archive "$ARCHIVE"
-          node scripts/archive/verify.js --archive "$ARCHIVE"
+      - name: Verify the archive before ingesting
+        run: node scripts/archive/verify.js --archive "$ARCHIVE"
 
       - name: Dry run (list only)
         if: ${{ inputs.dry_run }}

@@ -12,9 +12,13 @@
 //     - doc.bigMac.byCountry[ISO2]  local price, currency, dollar_ex, dollar price
 //     - doc.fx.perUSD[currency]     local currency units per USD (Big Mac "dollar_ex")
 //     - city.bigMacUSD, city.fxPerUSD
-//     - city.rent1brCenterUSD / rent1brOutsideUSD, re-converted from the quoted local-currency
-//       rents at the refreshed FX (the local quotes themselves are NOT touched)
+//     - city.rent1brCenterUSD / rent1brOutsideUSD / rent2brCenterUSD / rent3brCenterUSD,
+//       re-converted from the quoted local-currency rents at the refreshed FX (the local
+//       quotes themselves are NOT touched)
 //   and the matching `sources.*.asOf` dates.
+//
+// Before writing, validateDoc() checks every city's rents (1 < 2 < 3 bedrooms, each with a
+// dated, classed source, USD = local ÷ FX); the script refuses to write a document that fails.
 //
 // What it does NOT touch: quoted rents (local), costIndex, tax rules. Those come from sources
 // without an open machine-readable feed; see docs/LIVABILITY.md "Refreshing" for the manual steps.
@@ -23,6 +27,14 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+/** Quoted monthly rents (local currency) and their USD conversions, re-derived on every refresh. */
+export const RENT_PAIRS = Object.freeze([
+  ['rent1brCenterUSD', 'rent1brCenterLocal'],
+  ['rent1brOutsideUSD', 'rent1brOutsideLocal'],
+  ['rent2brCenterUSD', 'rent2brCenterLocal'],
+  ['rent3brCenterUSD', 'rent3brCenterLocal'],
+]);
+const SOURCE_CLASSES = ['official', 'open', 'user', 'aggregator', 'estimate']; // server/juice.js SOURCE_CLASSES
 export const CITIES_FILE = path.join(ROOT, 'data', 'cities.json');
 export const BIG_MAC_CSV_URL = 'https://raw.githubusercontent.com/TheEconomist/big-mac-data/master/source-data/big-mac-source-data-v2.csv';
 export const BIG_MAC_REPO_URL = 'https://github.com/TheEconomist/big-mac-data';
@@ -166,7 +178,7 @@ export function applyBigMac(doc, bm, { minCountries = 20 } = {}) {
       if (city.fxPerUSD !== fx) changes.push(`${city.key}: fxPerUSD ${city.fxPerUSD} -> ${fx}`);
       city.fxPerUSD = fx;
       city.sources.fxPerUSD = { name: `Big Mac data dollar_ex (${city.currency} per USD)`, url: src.url, asOf: bm.date, class: 'open', note: 'big-mac' };
-      for (const [usdField, localField] of [['rent1brCenterUSD', 'rent1brCenterLocal'], ['rent1brOutsideUSD', 'rent1brOutsideLocal']]) {
+      for (const [usdField, localField] of RENT_PAIRS) {
         if (city[localField] == null) continue;
         const usd = toUsdAt(city[localField], fx);
         if (city[usdField] !== usd) changes.push(`${city.key}: ${usdField} ${city[usdField]} -> ${usd}`);
@@ -185,6 +197,45 @@ export function applyBigMac(doc, bm, { minCountries = 20 } = {}) {
     }
   }
   return { doc: out, changes };
+}
+
+/**
+ * Validate a cities document. Returns a list of problems (empty when valid):
+ * every city has 1-, 2- and 3-bedroom city-centre rents (all three, or none: a city without
+ * an open rent source scores only with the user's own rent), rising with the bedroom count;
+ * each quoted rent has a source with name, https url, as-of date and class (estimates with a
+ * method); every USD rent equals local ÷ fxPerUSD.
+ */
+export function validateDoc(doc) {
+  const problems = [];
+  const DATE = /^\d{4}(-\d{2}(-\d{2})?)?$/;
+  for (const c of doc?.cities || []) {
+    const k = c.key || '(no key)';
+    const beds = [c.rent1brCenterLocal, c.rent2brCenterLocal, c.rent3brCenterLocal];
+    const present = beds.filter((v) => v != null).length;
+    if (present !== 0 && present !== 3) {
+      for (const f of ['rent1brCenterLocal', 'rent2brCenterLocal', 'rent3brCenterLocal']) if (c[f] == null) problems.push(`${k}: ${f} missing (1-, 2- and 3-bedroom rents go together)`);
+    }
+    if (present === 3) {
+      if (!beds.every((v) => Number.isFinite(v) && v > 0)) problems.push(`${k}: rents must be positive numbers (${beds.join(', ')})`);
+      else {
+        if (!(beds[1] > beds[0])) problems.push(`${k}: 2-bedroom rent ${beds[1]} is not above the 1-bedroom ${beds[0]}`);
+        if (!(beds[2] > beds[1])) problems.push(`${k}: 3-bedroom rent ${beds[2]} is not above the 2-bedroom ${beds[1]}`);
+      }
+    }
+    for (const [usdField, localField] of RENT_PAIRS) {
+      if (c[localField] == null) continue;
+      const s = c.sources?.[localField];
+      if (!s) { problems.push(`${k}: no source for ${localField}`); continue; }
+      if (!(typeof s.name === 'string' && s.name.length > 5)) problems.push(`${k}: ${localField} source has no name`);
+      if (!/^https:\/\//.test(s.url || '')) problems.push(`${k}: ${localField} source url must be https`);
+      if (!DATE.test(String(s.asOf || ''))) problems.push(`${k}: ${localField} source asOf ${s.asOf}`);
+      if (!SOURCE_CLASSES.includes(s.class)) problems.push(`${k}: ${localField} source class ${s.class}`);
+      if ((s.estimated || s.class === 'estimate') && !s.method) problems.push(`${k}: ${localField} is an estimate without a method`);
+      if (c.fxPerUSD > 0 && c[usdField] !== toUsdAt(c[localField], c.fxPerUSD)) problems.push(`${k}: ${usdField} ${c[usdField]} != ${localField} ÷ fxPerUSD (${toUsdAt(c[localField], c.fxPerUSD)})`);
+    }
+  }
+  return problems;
 }
 
 /** Stable JSON text for data/cities.json (2-space indent, trailing newline). */
@@ -211,6 +262,11 @@ async function main(argv) {
   if (before === after) {
     console.log(`cities.json already up to date (Big Mac release ${bm.date}).`);
     return;
+  }
+  const problems = validateDoc(next);
+  if (problems.length) {
+    for (const p of problems.slice(0, 40)) console.error(`  invalid: ${p}`);
+    throw new Error(`${problems.length} validation problem(s); nothing written`);
   }
   next.updated = new Date().toISOString().slice(0, 10);
   console.log(`Big Mac release ${bm.date}: ${changes.length} change(s)`);
