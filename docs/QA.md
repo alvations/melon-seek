@@ -984,3 +984,464 @@ All runs used `NODE_PATH=<scratchpad>/pw/node_modules PLAYWRIGHT_BROWSERS_PATH=/
 
 On the final tree, D-13…D-16, which have no e2e test, were re-checked with a quick script in server mode. All four
 still reproduce.
+
+## Full QA pass (desktop, beta) 2026-10-10
+
+A functional pass of the desktop beta site (`/melon-seek/beta/`) by the beta desktop QA agent. The process log, with
+every replayable command, is in [`docs/process/qa-desktop-beta.md`](process/qa-desktop-beta.md). No product code was
+changed.
+
+**Setup**
+- **Code under test:** HEAD `91fb7ae`, built with `node scripts/build-static.js --out <scratch>/qa-desktop-beta/dist`
+  (`beta: 5/5 beta companies included`; the expected warning that Apple's list is 2.55 MB, budget 1.50 MB). It was
+  served under `/melon-seek/` by `scripts/cycle/serve.mjs`, with gzip like Pages.
+- **Server mode:** `MELON_CHANNEL=beta node server/index.js`, its own pid file.
+- **Data:** today's first full big-tech crawl (snapshot.yml run 38044091555) in `data/beta/snapshots/`, plus the stable
+  boards from 11:42 UTC. All boards are `mode: "snapshot"`:
+  - Apple 6,105, Google 3,417, NVIDIA 2,664, Microsoft 2,320, Netflix 456;
+  - Anduril 2,491 for comparison, and the other 7 stable boards.
+- **Browser:** Playwright 1.63, Chromium 141. External hosts were blocked, so grey tiles and the stable boards' failed
+  live fetch are expected and not reported.
+- **Viewports and themes:** 1440x900, 1280x800 and 1024x768, each in light and dark.
+- **Method:** counts and order were checked against the app's own data (`public/api.js` `getJobs()`, `palette.toUSD`).
+  Raw snapshots were read only to find causes.
+- **Overlap:** the beta data check ([`docs/process/data-check-beta.md`](process/data-check-beta.md)) ran at the same
+  time. D-17, D-21 and part of D-23 have the same causes as its DQ-1, DQ-8 and DQ-10. They are kept here for their
+  desktop symptoms and because the e2e tests check the built site; fix each once.
+
+**New e2e tests:** [`test/e2e/beta-desktop-qa.e2e.js`](../test/e2e/beta-desktop-qa.e2e.js), registered in
+`scripts/e2e.js`. Run them with `node scripts/e2e.js --grep='^Beta desktop QA'`. They serve the shared `dist/`
+(`npm run build`) under `/melon-seek/` and skip when `dist/beta/` is missing.
+- **5/19 pass.** The 5 guards pass. The 14 failures are exactly the tests tagged `[D-17]`…`[D-30]`, which encode the
+  bugs below and should pass once those are fixed.
+
+### What works on desktop, beta (all six boards unless noted)
+
+- **Beta only:**
+  - The five big-tech boards load from the bundle only. Each makes one request, `api/jobs/<slug>.json`, and none
+    to another host, also on Refresh. The badge reads "Snapshot · Oct 10" (no "checking live…", no demo banner). Its
+    popover says "This board is collected by the site's crawler; your browser can't fetch it live", gives the
+    source ("Apple careers site"), the fetch time and the count, and hides its own Refresh button.
+  - Paused and absent companies are nowhere: Meta, Amazon and Tesla aren't in the menu or `api/companies.json`, and
+    have no list, CSV or share page (404). The main site's `companies.json` has no beta company, and
+    `/melon-seek/c/apple/` is 404.
+  - Every beta page has `<meta name="robots" content="noindex">`, `<html data-channel="beta">` and the channel meta.
+    The "Beta" pill is visible at all three widths in both themes (see D-27 for what it doesn't do).
+  - Apple stays usable. Every filter, sort, search and chart change landed in 0.2 to 0.35 s, with long tasks of
+    80 to 145 ms, close to Anduril, which has 2.5 times fewer roles (table below). The slow spots:
+    - Insights takes 0.8 s to open (a 0.7 s task);
+    - a salary-slider step costs up to 230 ms (10 arrow presses took 2.3 s), so a drag feels heavy;
+    - the household switch re-scores all 6,105 roles in about 1 s, with a 0.44 s task (Anduril 0.1 s).
+  - Big-tech pay text is shown faithfully:
+    - hourly: "Annualized from hourly pay ($43.07 and $76.64/hr)";
+    - CZK: "CZK 738K–1.2M", with "≈ $35K–59K in approx USD";
+    - EUR and CAD;
+    - wide ranges get "Wide range (2.1×)".
+
+    D-21, D-22 and D-30 are the exceptions.
+- **Company and boards:**
+  - The menu lists 13 boards, focuses its search, and "nvid" + Enter opens NVIDIA (2,664). "eightfold" finds
+    Microsoft, Netflix and NVIDIA, and Esc closes.
+  - Recent pills switch boards.
+  - Add board: an invalid slug is flagged; `lever:qa-fake-board` gives labelled demo data, survives a reload and
+    can be removed.
+- **Search:** title and team matches rank first on all five boards ("engineer", "software engineer", "manager",
+  "data"), and "· N in title" is right. Apple "engineer" gives 4,087, with 4,057 in title.
+- **Filters**, checked against the data on the six boards (150 checks):
+  - Seniority and Department facets sum to the total, and a pick gives exactly its facet count. A facet's counts
+    don't change with its own pick.
+  - Location picks are exact, but see D-17 and D-23 for the names.
+  - Remote and On-site counts are exact.
+  - The Responsibilities, Fit and Skills chips are exact and AND together.
+  - "Only show jobs with salary" is exact, and typed bounds (200k, 300000) give the expected overlap.
+  - More is exact on all six: Employment type, Juicy/Ripe/Dry, and Listed ("Past week" 959 on Google, matching the
+    data; the big-tech boards have real listing dates).
+  - Clear all restores the board, and the cluster chip narrows the facets (D-2 fixed).
+- **Sorting:** Highest pay, Lowest pay (approx-USD midpoint), Newest (0d, 0d, 1d…), Title A–Z and Most juice are
+  correct on all five boards, and Show more pages 120 at a time ("Show 120 more of 6045").
+- **Chart:**
+  - Clusters is the default. Tooltips work ("11 roles · $200K–$225K midpoint · Design"), and a cluster click gives a
+    chip with the list, the stats line and the facets following it. Dismissing the chip restores everything.
+  - Overflow markers have their own tooltip and chip ("Machine Learning and AI · above $350K (5)").
+  - The arrow keys move `aria-activedescendant`, and Enter selects.
+  - Group by Location, Seniority (in ladder order, D-9 fixed) and None work, and so does Ranges, where End reaches
+    the last of 6,105.
+- **Map:**
+  - All pins are inside the initial view, with tooltips inside the map.
+  - A pin click gives an area chip whose count equals the list.
+  - The Remote control equals the Remote filter (D-4 fixed: NVIDIA 585, Microsoft 313).
+  - Pay|Juice switches the pins, the legend shows, and `mc=juice` is kept (D-14 fixed).
+  - The zoom buttons and the wheel work, and the map keeps its size when the window shrinks to 1280 with the drawer open.
+- **Insights:**
+  - Compstimate prefills from Seniority ("Software Engineer · Senior", "$242K, high confidence, 264 similar roles at
+    Apple"). Editing the title shows "Reset to filters", and Reset restores it. The accuracy line shows on every board
+    ("Typically within ±12% (tested on 500 listed salaries, Oct 2026)").
+  - A Market insights row click adds its filter, and a second click removes it.
+  - Compare companies covers the beta companies, up to 13 per family ("Software engineering (13 companies)"). A row
+    click switches company with `rf=` and stays in Insights, and Back returns.
+- **Job drawer** (11 chosen postings: multi-level, wide, hourly, CZK, CAD, Pay unclear, no pay):
+  - The pay block has at most two labels and the caption.
+  - "Pay unclear" (Netflix L4, "$71K–$464K spans 6.5×") gives the reason under "Why?" and a labelled Compstimate.
+  - The Juice waterfall adds up within $2K in all six. Monthly is Yearly / 12 and keeps focus. Just me, Couple and
+    Family re-score, with the right bedrooms and the tax-basis notes. "How it's calculated" opens the beta's own
+    `methodology/#1-the-formula` in a new tab, and the anchor exists.
+  - Same role elsewhere lists the beta companies. A click (NVIDIA → Apple) switches with `s=Manager&rf=eng-manager`,
+    Back reopens the NVIDIA drawer, and Forward works. Esc from the comps list closes the drawer (D-8 fixed).
+  - The Listing block ("Listed 968 days ago (Feb 15, 2024)", "Open 180+ days…"), the locations, the keywords and the
+    lazy description all work. The description loads one `api/desc/<slug>/<id>.json` and is sanitised, with offsite
+    links as text.
+  - Apply opens the right careers host in a new tab with `rel=noopener`: jobs.apple.com, google.com,
+    jobs.nvidia.com, apply.careers.microsoft.com and explore.jobs.netflix.net. The wording is D-25.
+  - Copy link copies the `/beta/` URL with `job=`. j right after opening steps (D-6 fixed), Prev is disabled at 1,
+    and Esc closes with focus back on the card.
+- **Other:**
+  - Save and Saved toggle, and the toast says where saved searches are. "N new" is D-18.
+  - Download CSV gives 6,105 rows for Apple with the documented header.
+  - The theme persists across a reload.
+  - A full hash (`q`, `smin`, `d`, `s`, `r`, `ks`, `v`, `g`, `sort`) round-trips, a deep link to the last Apple job
+    opens it, and an unknown `job=` is dropped. Back and Forward walk the mode and the sort.
+  - The share pages `/beta/c/<slug>/` have their own titles ("Apple jobs by salary · 6,105 roles · median $214K"),
+    beta OG URLs and noindex, and pass extra state through to `/beta/#c=netflix&m=map&ks=Python`.
+  - Shortcuts don't fire while typing, and `/` focuses the search.
+  - The as-of dates show in the badge ("Snapshot · Oct 10", the fetch time in the popover), in Market insights
+    ("postings as of 10 Oct 2026"), and in the Juice, Compstimate and comps footnotes.
+- **Layout and errors:**
+  - Both themes at 1440x900, 1280x800 and 1024x768 (92 checks):
+    - no horizontal scroll, no top-bar overlap and no clipped control;
+    - the company menu, badge, Add board, Salary, Location and More popovers, the 1024 filter sheet and the drawer
+      all stay inside the viewport;
+    - axe color-contrast finds 0 violations in Chart, Map, Insights, More and the drawer.
+  - No console or page errors in any flow.
+
+### Timings on Apple vs Anduril and Google (1440x900, no throttling)
+Wall clock from the action until the DOM changed (polled every 50 to 100 ms), and the longest task in it. The 4-CPU
+machine was shared (load average 10.7 during this run), so these are upper bounds. Each cell is one run; an earlier
+run at load 7 gave the same picture.
+
+| Action | Apple (6,105) | Anduril (2,491) | Google (3,417) |
+|---|---|---|---|
+| First cards / chart on load | 2181 / 2345 ms | 1614 / 1885 ms | 1339 / 1375 ms |
+| Tick a department | 339 ms, longest task 115 ms | 435 ms, longest task 117 ms | n/a (one department, D-24) |
+| Seniority Senior | 290 ms, longest task 142 ms | 200 ms, longest task 84 ms | 191 ms, longest task 75 ms |
+| Sort Lowest pay | 232 ms, longest task 123 ms | 145 ms, longest task 83 ms | 188 ms, longest task 130 ms |
+| Sort Most juice | 168 ms, longest task 113 ms | 251 ms, longest task 108 ms | 146 ms, longest task 102 ms |
+| Search "engineer" | 334 ms, longest task 140 ms | 597 ms, longest task 197 ms | 284 ms, longest task 82 ms |
+| Group by Location | 219 ms, longest task 83 ms | 260 ms, longest task 91 ms | 270 ms, longest task 134 ms |
+| Ranges view | 288 ms, longest task 113 ms | 349 ms, longest task 109 ms | 208 ms, longest task 84 ms |
+| 10 arrow steps on the salary slider | 2277 ms, longest task 230 ms | 1731 ms, longest task 168 ms | 1460 ms, longest task 149 ms |
+| Open Map | 858 ms, longest task 344 ms | 506 ms, longest task 369 ms | 562 ms, longest task 418 ms |
+| Open Insights | 793 ms, longest task 695 ms | 931 ms, longest task 791 ms | 594 ms, longest task 450 ms |
+| Open a role | 375 ms, longest task 143 ms | 584 ms, longest task 165 ms | 267 ms, longest task 98 ms |
+| Household Family (re-scores every role) | 989 ms, longest task 436 ms | 538 ms, longest task 99 ms | 920 ms, longest task 91 ms |
+
+**What Apple's 2.55 MB list costs:** 356 kB gzip over the wire (2.49 MB decoded), unpacked on the main thread, then vetted,
+juiced and prepared in chunks that yield. The first cards came about 0.8 s after Google's here (2.2 s against 1.3 s). The JS heap stayed at about 31 MB. The mobile
+perf agent should measure it on a throttled phone.
+
+### Bugs (ordered by severity)
+
+Repro steps assume a fresh 1440x900 light window on the static beta build unless stated.
+
+#### D-17 (High): NVIDIA and Microsoft cities in India, Israel, Germany and Indonesia are filed in US states
+- **Same cause as DQ-1** in the data check, which has the per-country counts and unit tests: NVIDIA 720 postings
+  (27%) and Microsoft 318 are filed in the US. It is filed here for what the desktop shows, with a test on the built
+  site.
+- **Viewport:** 1440x900, light.
+- **Repro:**
+  1. Open `/melon-seek/beta/#c=nvidia`.
+  2. In the Filters column, open Location > "Show all 120" and scroll to "United States".
+  3. Switch to Map and click the "Santa Clara, CA + 46 nearby" pin, which zooms to the US.
+- **Expected:** Yokne'am Illit, Tel Aviv-Yafo and Ra'anana under Israel; Bengaluru, Pune and Hyderabad under India;
+  Munich under Germany. The map has pins there.
+- **Actual:**
+  - Under "United States" in the Location filter:
+    - NVIDIA: Yokne'am Illit 313, Tel Aviv-Yafo 234, Bengaluru 196, Ra'anana 103, Pune 65, Hyderabad 38, Munich 33,
+      Gurugram 13 and Mumbai 13.
+    - Microsoft: Bengaluru 119, Hyderabad 106, Noida 51, Mumbai 20, Herzliya 16, Jakarta 16 and Gurugram 15.
+    - The bare codes "DE", "IN" and "CA" become "Delaware, US" (43), "Indiana, US" (16) and "California, US".
+  - Map at the US zoom: a pin "Tel Aviv-Yafo, IL + 7 nearby · 705 postings · median $270K" sits in central Illinois,
+    and Bengaluru sits on Indiana's centroid. At the default world view there is no pin in Israel or India at all;
+    they are inside "Santa Clara, CA + 46 nearby (2,127)".
+  - The drawer says "Tel Aviv-Yafo, IL · United States". Compstimate gives "Senior · Tel Aviv-Yafo" from US pay; that
+    is the known P-2 symptom, made worse here.
+  - Compstimate's Location select lists "California, US (240)", "Texas, US (98)" and "Delaware, US".
+- **Screenshots:** `docs/screenshots/qa-desktop-beta/D-17-nvidia-location-filter.png`,
+  `D-17-nvidia-map-israel-in-illinois.png`.
+- **Owner:**
+  - `server/geo.js`:
+    - `regionInfo()` tries a two-letter capital token as a US state before a country code;
+    - `resolvePlace()`: `pickCity()` then rejects the known city, and `fromRegion()` falls back to the state centroid.
+  - The input comes from `server/sources/eightfold.js` `mapEightfoldJob`, which passes the PCSX
+    `standardizedLocations` ("City, Region, CC").
+  - The static build must re-geocode the stored snapshots (`relocateJobs()` in `scripts/build-static.js`, as for D-1).
+
+#### D-18 (Medium): a search saved on a big board shows thousands of "new" roles at once
+- **Viewport:** 1440x900, light.
+- **Repro:**
+  1. Open `/melon-seek/beta/#c=apple&r=onsite` (6,105 roles).
+  2. Click **Save**.
+  3. Open the company menu.
+- **Expected:** "Apple · On-site", with no "new" count. Nothing is new a second after saving.
+- **Actual:** "Apple · On-site · 4105 new". Opening it marks no card "New".
+  - Any saved search with more than 2,000 matches does this: Google, NVIDIA and Microsoft, and Anduril (2,491) on
+    the main site too.
+- **Cause:**
+  - `toggleSave()` stores `seen: matchingIds(…).slice(0, 2000)`.
+  - With no ledger (`firstSeenAt` is null), `savedNewCount()` counts every match that isn't in `seen` as new.
+  - `openSaved()` truncates the same way.
+- **Related:** known P-12 (the menu's "N new" against the cards' "New") has a different cause.
+- **Screenshot:** `D-18-apple-saved-search-4105-new.png`.
+- **Owner:** `public/app.js` `toggleSave()` (around line 1011), `openSaved()` (around line 1052) and `savedNewCount()`.
+
+#### D-19 (Medium): beta saved searches show up on the main site and open into an error
+- **Viewport:** 1440x900, light.
+- **Repro:**
+  1. On `/melon-seek/beta/#c=apple&s=Senior`, click **Save**.
+  2. In the same browser, open the main site at `/melon-seek/#c=anthropic`. On Pages both are alvations.github.io,
+     one origin, so they share localStorage.
+  3. Open the company menu and click "Apple · Senior".
+- **Expected:** the main site lists only the searches it can open, or sends the user to `/beta/`.
+- **Actual:**
+  - The main site's menu lists "Apple · Senior" and every other beta search.
+  - Clicking one shows "No data" and "Couldn't load this board · Unknown company "apple" · Retry", with the badge
+    "Offline".
+  - The recents are shared too, but the main site filters those out.
+  - The same "Offline … Retry" state shows for a beta link opened on the main site, and for `/beta/#c=meta` (a paused
+    company). There, "Offline" and "Retry" are wrong.
+- **Screenshots:** `D-19-main-site-lists-beta-searches.png`, `D-19-main-site-opens-apple-no-data.png`.
+- **Owner:** `public/app.js`:
+  - `SAVED_KEY` / `loadSaved()` (not per channel);
+  - the saved group in `makeCompanyMenu()`, and `openSaved()`;
+  - `badgeInfo()` and the error state for an unknown company.
+
+#### D-20 (Medium): server mode with `MELON_CHANNEL=beta` shows demo data for every big-tech board
+- **Repro:**
+  1. Run `MELON_CHANNEL=beta PORT=<free> node server/index.js`, with the data in `data/beta/snapshots/`, where the
+     README's local steps leave it.
+  2. Open `http://127.0.0.1:<port>/#c=apple`.
+- **Expected:** Apple's 6,105 roles from the snapshot, with the badge "Snapshot". The README says "Beta companies never
+  get demo data".
+- **Actual:**
+  - 80 generated roles, the banner "Demo data — the Apple board couldn't be reached", and "Try the live board again".
+  - `/api/jobs?company=apple` returns mode "demo" with the error "Live fetch failed: upstream error". Google gets 76
+    demo roles and NVIDIA 64.
+- **Cause:**
+  - The server reads snapshots only from `MELON_SNAPSHOT_DIR` (default `data/snapshots/`). It has no beta snapshot
+    folder like the build's `MELON_BETA_SNAPSHOT_DIR`.
+  - The pipeline's `live_disabled` error is reported as "upstream error".
+- **Related:** DQ-7 (a failed list load in static mode shows generated postings) breaks the same "never demo" rule
+  on another path.
+- **Screenshot:** `D-20-server-mode-apple-demo.png`.
+- **Owner:** `server/index.js` `SNAPSHOT_DIR` (line 25), `readSnapshot()` (line 184) and `publicError()` (line 130).
+
+#### D-21 (Medium): one range for two levels, labelled only "Multiple pay zones"
+- **Same cause as DQ-8** in the data check.
+- **Viewport:** 1440x900, light.
+- **Repro:** open `/melon-seek/beta/#c=nvidia&job=nvidia%3A893375056870`, "Software Engineering Manager - GPU
+  Communications Libraries". The posting says "184,000 USD - 287,500 USD for Level 2, and 224,000 USD - 356,500 USD
+  for Level 3".
+- **Expected:** the pay block says the range covers two levels and shows each one ("Level 2: $184K–288K · Level 3:
+  $224K–357K"), or it uses the posting's own level.
+- **Actual:**
+  - The pay block reads "$184K–356K · USD · per year · 62% percentile · Multiple pay zones · + equity mentioned ·
+    Posted base pay".
+  - The label's explanation ("different ranges for different locations or levels") is only a hover title.
+  - The card, the chart, the percentile, the stats line, Same role elsewhere and Compare all use the merged
+    midpoint ($270K).
+  - **Scale:**
+    - 840 NVIDIA postings, 60% of its paid ones.
+    - Microsoft's "IC5: …; IC6: …" sentences: 169 have two levels, per DQ-8. Example: microsoft:1970393556627435,
+      "$143K–296K", which is also labelled "Wide range (2.1×)".
+- **Screenshot:** `D-21-nvidia-two-levels-one-range.png`.
+- **Owner:**
+  - `server/salary.js` `parseSalary`, which merges the level tiers into one min and max;
+  - `public/app.js` `payLabels()` (line 2330).
+
+#### D-22 (Medium): Google's pay for roles in Canada is shown in US dollars
+- **Viewport:** 1280x800, dark.
+- **Repro:** open `/melon-seek/beta/#c=google&job=google%3A104405499448828614`, "Student Researcher, BS/MS,
+  Winter-Summer 2027" in Montreal. Its pay line is "$99000 (CAD) + 0% bonus target [Master's degree] Canada: $102000".
+- **Expected:** "CA$99K–102K · CAD", with "≈ $70K–73K in approx USD".
+- **Actual:** "$99K–102K · USD · per year", the 7th percentile, and Juice "40 · Dry · $40K/yr left in Montreal" from
+  $100K gross. The pay is overstated by about 40%.
+- **Scale:**
+  - 53 of the 55 Google postings with pay and only Canadian locations are in USD, and only 2 in CAD. Example:
+    "Software Developer III, Site Reliability Engineering" in Waterloo, "$150000 - $153000".
+  - Google's record gives no currency, and the "(CAD)" in the text is ignored.
+- **Related, not the same:** DQ-14 (Netflix's 3 Canada-only "$" ranges) and DQ-15 (Google's 4 multi-currency postings).
+- **Screenshot:** `D-22-google-cad-shown-as-usd-1280-dark.png`.
+- **Owner:**
+  - `server/sources/google.js` `mapGoogleJob`, which passes pay without a currency;
+  - the currency inference in `server/salary.js`: a posting located only in Canada should default to CAD.
+
+#### D-23 (Medium): the Location filter shows raw codes, fragments and local-script names
+- **Partly the same as DQ-1** (its "Unresolved" codes) and **DQ-10** ("Republic of").
+- **Viewport:** 1280x800, light.
+- **Repro:**
+  1. Open `/melon-seek/beta/#c=microsoft`, click **Location** > "Show all" and scroll to the end.
+  2. Open `#c=netflix`, click **Location** and search "rep".
+- **Expected:** canonical names, per CONTRACT "Location (2026-10-02, UX-3)": "Spain", "Norway", "Seoul, South Korea",
+  "Helsinki, Finland", "Bangkok, Thailand".
+- **Actual:**
+  - Bare ISO codes:
+    - Microsoft: "ES" 22, "NO" 4, "KW" 3, "BE" 2, "LT" 2, "LV" 2, "PT" 2, "BR", "HR" and "MX";
+    - NVIDIA: "ES" 12, "MX" 4, "IT" 3, "AM" 3, "NO" and "BR";
+    - also "SP, BR" 5, "Brasília, DF, BR" and "Jeddah, Makkah Province, SA".
+
+    "ES" reads like a word, and "NO" like "no".
+  - "Republic of" is listed as a place: Apple 24 and Netflix 18, from "Seoul, Korea, Republic of".
+  - Local abbreviations are kept as the city name:
+    - "ב"ש" (Be'er Sheva) 28 + 3, and "ק"א" 13;
+    - "HKI" (Helsinki) 10 + 1, "กทม" (Bangkok) 12, and "BKC" (Mumbai).
+  - These names are grouped under the heading "Unknown Region" on Microsoft, NVIDIA, Netflix and Apple.
+- **Screenshots:** `D-23-microsoft-location-codes-unknown-region.png`, `D-23-netflix-republic-of.png`.
+- **Owner:**
+  - `server/geo.js`:
+    - `regionInfo()` and `COUNTRIES`: no lookup by ISO-2 code for ES, NO and the others;
+    - `splitCommaGroups()` cuts off "Republic of";
+    - the gazetteer aliases.
+  - `public/app.js`: `derive()` groups a location with no country under 'ZZ', and `countryName('ZZ')` gives "Unknown
+    Region". `countryName()` only turns a missing code into "Other".
+
+#### D-24 (Low): Google has no departments, so its default chart is a single row
+- **Viewport:** 1440x900, light.
+- **Repro:** open `/melon-seek/beta/#c=google`.
+- **Expected:** the default Clusters view splits the roles into several rows, as on the other boards, and the
+  Department filter narrows the list.
+- **Actual:**
+  - Every role is "No department". The chart has one row, "No department · 3,417 roles".
+  - The Department filter has one option (3,417). Ticking it changes nothing.
+  - The stats line says "mostly No department", and so does every card.
+- **What's available:** the adapter keeps Google's brand in `team` (Google 3,174, YouTube 144, DeepMind 95), and each
+  role has a role family.
+- **Screenshot:** `D-24-google-no-department.png`.
+- **Owner:**
+  - `server/sources/google.js` `mapGoogleJob`, which sets `department: null`;
+  - the default grouping in `public/app.js` (`DEFAULTS.g`, `groupDefault`) for a board with one department.
+
+#### D-25 (Low): the big-tech boards have no source name: "Apply on job board" and "Other"
+- **Viewport:** 1440x900, light.
+- **Repro:** on `/melon-seek/beta/#c=apple`, open any role and look at the Apply button. Then open the company menu.
+- **Expected:**
+  - The button reads "Apply on Apple careers". The host line under it already says jobs.apple.com.
+  - The five beta companies, the reason for the beta, are under a heading like "Careers sites", visible without
+    scrolling.
+- **Actual:**
+  - The button reads "Apply on job board" for Apple, Google, NVIDIA, Microsoft and Netflix.
+  - The menu puts them under "OTHER", after the 8 ATS boards. At 1440x900 that heading is cut off at the bottom of
+    the list, and the five need a scroll.
+- **Screenshots:** `D-25-apply-on-job-board.png`, `D-25-company-menu-other-group.png`.
+- **Owner:** `public/app.js`:
+  - `SOURCE_LABEL` (line 72);
+  - the Apply button in `drawerContent()` (around line 2453);
+  - the groups in `makeCompanyMenu()` (around line 921).
+
+  `sourceText()` already says "Apple careers site".
+
+#### D-26 (Low): the top-bar Refresh offers a live refresh on boards that have none
+- **Viewport:** 1440x900, light.
+- **Repro:** on `/melon-seek/beta/#c=apple`, hover the ↻ button, then click it.
+- **Expected:** no live refresh is offered. The badge popover already hides its "Refresh from the live board" for
+  snapshot-only boards.
+- **Actual:** the tooltip says "Refresh from the live board". Clicking reloads the bundled 2.55 MB list (no external
+  request) and shows the toast "This board is only available as a saved snapshot".
+- **Screenshot:** `D-26-refresh-on-snapshot-only-board.png`.
+- **Owner:** `public/app.js`: `#refreshBtn` in `renderTopbar()` (line 798), against `bundleOnly` in
+  `makeBadgeDetails()` (line 877).
+
+#### D-27 (Low): "Beta" is only a CSS pill: not in the tab title and not read by screen readers
+- **Repro:** open `/melon-seek/beta/` with a screen reader on, or look at the browser tab.
+- **Expected:** the page tells every user that it is the beta.
+- **Actual:**
+  - The tab title is the main site's, "melon·seek — job boards, plotted by salary".
+  - The pill is `.brand::after` content on a link whose aria-label, "melon·seek home", replaces it, so screen readers
+    don't announce it.
+  - Nothing says what the beta adds (the big-tech boards, crawled every 6 hours).
+- **Decision needed:** CONTRACT v3 allows "a small Beta tag by the logo and nothing else new". A title suffix and an
+  aria-label add no control.
+- **Screenshot:** `D-27-D-28-beta-topbar.png`.
+- **Owner:**
+  - `public/styles.css`, the `html[data-channel="beta"] .brand::after` rule (line 1260);
+  - the beta `index.html` title in `scripts/build-static.js`;
+  - `#pageTitle` in `public/app.js` `renderTopbar()`.
+
+#### D-28 (Low): the beta site has no link back to the main site
+- **Repro:** on `/melon-seek/beta/`, look for a way to `/melon-seek/`.
+- **Expected (per the QA brief):** a working link back to the main site.
+- **Actual:** there is none.
+  - The logo resets the filters inside `/beta/`.
+  - The methodology page's "melon·seek" link and the share pages lead back to `/beta/`.
+  - The page's only links are the two skip links and the logo.
+- **Decision needed:** the same as D-27. The pill could be that link.
+- **Screenshot:** `D-27-D-28-beta-topbar.png`.
+- **Owner:** `.brand` in `public/index.html`, the beta rule in `public/styles.css`, and the beta copy in
+  `scripts/build-static.js`.
+
+#### D-29 (Low): the Ranges tooltip repeats a code-only currency: "PLN 345K – PLN 702K PLN"
+- **Viewport:** 1024x768, light.
+- **Repro:** open `/melon-seek/beta/#c=nvidia&v=ranges&l=Warsaw` and hover a row.
+- **Expected:** "PLN 345K – 702K" or "PLN 345K – PLN 702K", reading as "€X – €Y EUR" does for currencies with a
+  symbol.
+- **Actual:** "PLN 345K – PLN 702K PLN". CHF and CZK do the same (Microsoft: "CHF 232K – CHF 470K CHF").
+- **Screenshot:** `D-29-pln-twice-in-ranges-tooltip-1024.png`.
+- **Owner:** `public/viz/chart.js` `showJobTip()`. Line 981 appends `` ` ${cur}` `` after `palette.js`
+  `formatCurrency()` has already written "PLN ".
+
+#### D-30 (Low): Apple's "most new hires start at $X" is labelled "Multiple pay zones"
+- **Viewport:** 1440x900, light.
+- **Repro:** open `/melon-seek/beta/#c=apple&job=apple%3A200639036-3253`, "US-Operations Specialist". Its pay text is
+  "$23.00 and $30.59/hr, and most new hires start at $23.00".
+- **Expected:** no zone label. This is one range plus a starting figure.
+- **Actual:** "Multiple pay zones", with the tooltip "The posting lists different ranges for different locations or
+  levels". All 44 Apple postings with that sentence have `salary.zones: 2`.
+- **Screenshot:** `D-30-apple-new-hire-figure-as-pay-zones.png`.
+- **Owner:** the zones count in `server/salary.js` `parseSalary` (around line 472), which counts every distinct
+  candidate as a zone, including a single figure.
+
+### Notes
+- **Seen on beta, already known, not re-filed:**
+  - known (P-2): Compstimate "Senior · Tel Aviv-Yafo" or "Mid · Japan" from US pay;
+  - known (P-3): "Mid" defaults;
+  - known (P-6): US pay on a non-US pin ("Bengaluru, India + 30 nearby · median $217K" on Google's world view);
+  - known (P-8): hourly intern pay annualized ("$83K–229K" for a Netflix intern);
+  - known (P-14): "(update due)" on every footnote;
+  - known (P-16): "0% percentile" and "Pays more than 0% of roles" on an Apple retail role;
+  - known (P-18): the red "Juice left" bar and the $1K monthly rounding.
+- **Data-check items that also show on the desktop:**
+  - DQ-2: Apple's per-location copies, e.g. "Community Specialist, Channel Retail" three times in Lowest pay;
+  - DQ-3: Netflix's Mid median $473K is above Senior's $310K, because "(L5)" isn't read;
+  - DQ-9: Apple store names pinned at the US centroid ("Fairfax Corner, US") and double-encoded Apply links;
+  - DQ-12: 60 NVIDIA "#LI-Hybrid" roles carry the Remote tag.
+- **Suggestion:** Market insights' "Skill premium" on Apple shows "+$17K" for five skills in a row (Microsoft "+$9K"
+  ×5), because big-tech pay comes in shared bands. A note, or a bigger minimum difference, would read more honestly.
+- **Not testable here:** live fetches, map tiles, and opening the careers hosts behind the Apply links.
+
+### Suite results
+| Suite | Tree | Result |
+|---|---|---|
+| `npm test` | shared checkout, HEAD `125bf64` plus the other agents' uncommitted files | **601/627** pass. The 26 failures are all the data check's new `DQ-1`…`DQ-17` tests in `test/beta-data-check.test.js`, which fail by design until those bugs are fixed. |
+| `node scripts/e2e.js --grep='^Beta desktop QA'` | same, against the lead's `dist/` (build `local-20261010T123230`) | **5/19**: the 5 guards pass; `[D-17]`…`[D-30]` fail by design. |
+| `node scripts/e2e.js` | same, with the beta mobile group registered too | **112/140** pass, 2 skipped. |
+
+The skips are Desktop QA `[D-11]` (these boards have listing dates) and the methodology screenshots (they need
+`E2E_SHOTS=1`).
+
+The 26 failures:
+- the 14 `[D-17]`…`[D-30]` above;
+- the beta mobile group's 11 `[M-19]`…`[M-29]`;
+- that group's guard "every big-tech board loads from its snapshot…". It fails on its own check: it expects the CSV
+  link `data/google.csv` but reads the resolved URL. The beta mobile agent owns it.
+
+Every 2026-10-03 desktop and mobile test now passes. That includes `[D-2]`…`[D-12]`, which are fixed, except
+`[D-11]`, which skips on this data.
+
+All runs used `NODE_PATH=<scratchpad>/pw/node_modules PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`. The full run
+rewrites `docs/screenshots/*.png` and `qa-mobile/e2e-landscape-map.png` (the UI and mobile suites' own shots); those
+were restored afterwards, so this pass leaves them unchanged.
+
+The beta mobile QA found some of the same bugs on phones:
+- `[M-20]` is D-18;
+- `[M-21]` is D-24;
+- `[M-24]` is part of D-23;
+- `[M-25]` is the paused-company message in D-19;
+- `[M-23]` is the menu scroll in D-25.
