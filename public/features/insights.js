@@ -13,7 +13,13 @@ import {
   salaryUSD, percentile, median, formatMoney, formatDelta, formatPct, plural, fmtCount, niceTicks,
   jobLocationKeys, payLocations, countryName, isOTE, h, createTooltip, preserveFocus, uid,
 } from './shared.js';
-import { formatAsOf } from './freshness.js';
+import { formatAsOf, asOf as registryAsOf } from './freshness.js';
+import { FX_AS_OF } from '../viz/palette.js';
+
+/** MR-2: the date of the exchange rates every "approx. USD" figure here uses (registry, else the table's own). */
+const fxAsOf = () => ` at exchange rates as of ${formatAsOf(registryAsOf('fx-per-usd') || FX_AS_OF)}`;
+/** MR-3: how the posted pay behind these figures is read (the site's methodology guide). */
+const PAY_DOC = 'methodology/#how-is-the-posted-pay-read';
 
 /**
  * Smallest sample a Market insights statistic is shown for (persona review 2026-10-10, P-6):
@@ -434,8 +440,9 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
         h(`h${hl}`, { id: headId, class: 'ms-insights__title' }, 'Market insights'),
         h('p', { class: 'ms-insights__sub' }, !all.length ? 'No roles loaded yet.'
           : jobs.length === all.length
-          ? `All ${plural(all.length, 'role')} on this board · pay in approx. USD${postedAsOf(asOf)}${notes}`
-          : `${fmtCount(jobs.length)} of ${plural(all.length, 'role')} match your filters · pay in approx. USD${postedAsOf(asOf)}${notes}`));
+          ? `All ${plural(all.length, 'role')} on this board · pay in approx. USD${fxAsOf()}${postedAsOf(asOf)}${notes} · `
+          : `${fmtCount(jobs.length)} of ${plural(all.length, 'role')} match your filters · pay in approx. USD${fxAsOf()}${postedAsOf(asOf)}${notes} · `,
+        all.length ? h('a', { href: PAY_DOC, target: '_blank', rel: 'noopener noreferrer' }, 'How pay is read') : null));
       if (!jobs.length) {
         body.replaceChildren(emptyNote(all.length ? 'No roles match the current filters.' : 'Insights appear once a job board is loaded.'));
         return;

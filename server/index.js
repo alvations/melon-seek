@@ -937,18 +937,17 @@ export async function handle(req, res) {
   // The Juice methodology pages, rendered like the static build does (scripts/methodology.js),
   // so the in-app "How it's calculated" link works in server mode too: the guide
   // (docs/METHODOLOGY_GUIDE.md with build-time charts) at /methodology/ and the technical
-  // reference (docs/LIVABILITY.md) at /methodology/reference/. Rendered per request from the
-  // repo files, so doc and data edits show up on reload.
+  // reference (docs/LIVABILITY.md) at /methodology/reference/. S-6: rendered once and kept until
+  // one of the input files changes (their mtimes), so doc and data edits still show up on reload
+  // but a request no longer costs ~80 ms of main-thread work.
   {
     const METHODOLOGY = { '/methodology/': 'index.html', '/methodology/reference/': 'reference/index.html', '/methodology/methodology.css': 'methodology.css' };
     if (p === '/methodology' || p === '/methodology/reference') { res.writeHead(301, { Location: `${p}/` }); return res.end(); }
     if (METHODOLOGY[p]) {
       const m = await import('../scripts/methodology.js');
       if (p.endsWith('.css')) return send(req, res, 200, m.METHODOLOGY_CSS, 'text/css; charset=utf-8');
-      const html = p === '/methodology/reference/'
-        ? m.renderReferencePage({ md: await fs.readFile(path.join(ROOT, 'docs', 'LIVABILITY.md'), 'utf8') })
-        : (await m.methodologyPages({ root: ROOT, citiesFile: CITIES_FILE })).files[METHODOLOGY[p]];
-      return send(req, res, 200, html, 'text/html; charset=utf-8');
+      const files = await methodologyFiles(m);
+      return send(req, res, 200, files[METHODOLOGY[p]], 'text/html; charset=utf-8');
     }
   }
   if (p.startsWith('/vendor/leaflet/')) {
@@ -959,6 +958,25 @@ export async function handle(req, res) {
   const file = safeJoin(PUBLIC_DIR, p === '/' ? 'index.html' : p.slice(1));
   if (!file) return sendJson(req, res, 403, { error: 'Forbidden' });
   return serveFile(req, res, file);
+}
+
+/**
+ * S-6 (docs/REVIEW.md "beta review 2026-10-11"): the methodology pages, memoized by the mtimes of the
+ * files they are built from (the guide, the reference, the cities data, the guide override) and the
+ * channel. One render at a time: concurrent first requests share it.
+ */
+let methodologyMemo = null; // { key, files: Promise<{ [path]: html }> }
+async function methodologyFiles(m) {
+  const channel = serverChannel();
+  const guide = process.env.MELON_METHODOLOGY_GUIDE || path.join(ROOT, 'docs', 'METHODOLOGY_GUIDE.md');
+  const inputs = [guide, path.join(ROOT, 'docs', 'LIVABILITY.md'), CITIES_FILE];
+  const key = `${channel}|${(await Promise.all(inputs.map((f) => fs.stat(f).then((s) => `${f}@${s.mtimeMs}`, () => `${f}@-`)))).join('|')}`;
+  if (!methodologyMemo || methodologyMemo.key !== key) {
+    const files = m.methodologyPages({ root: ROOT, citiesFile: CITIES_FILE, channel }).then((r) => r.files);
+    methodologyMemo = { key, files };
+    files.catch(() => { if (methodologyMemo?.files === files) methodologyMemo = null; }); // a failed render is retried next time
+  }
+  return methodologyMemo.files;
 }
 
 export function createServer({ log = true } = {}) {

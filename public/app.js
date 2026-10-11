@@ -1031,6 +1031,7 @@ async function loadJobs({ refresh = false } = {}) {
     // not an outage: no "Offline" badge and no Retry, just a plain message (status 'unknown').
     const unknown = !isCustomKey(S.c) && err?.status === 404 && /unknown company/i.test(err?.message || '');
     data = { status: unknown ? 'unknown' : 'error', jobs: [], company: companyInfo(S.c), mode: null, fetchedAt: null, error: err?.message || String(err) };
+    if (unknown) findOnBeta(S.c, seq);
   }
   settleCarry();
   settleKeep();
@@ -1272,7 +1273,8 @@ function renderTopbar() {
  */
 function badgeInfo() {
   if (data.status === 'loading') return { label: 'Loading', cls: 'is-loading', sr: 'loading', tip: 'Fetching roles…' };
-  if (data.status === 'error') return { label: 'Offline', cls: 'is-error', tip: `Couldn’t load this board: ${data.error}` };
+  // UX-26: the person may well be online; say what happened.
+  if (data.status === 'error') return { label: 'Couldn’t load', cls: 'is-error', sr: 'the roles couldn’t be loaded', tip: `Couldn’t load this board: ${data.error}` };
   if (data.status === 'unknown') return null; // D-19: not an outage, so no badge
   if (data.status !== 'ready') return null;
   const src = sourceText(data.company);
@@ -1291,7 +1293,8 @@ function badgeInfo() {
       if (data.pending) return { label: `Snapshot${day ? ` · ${day}` : ''} · checking live…`, short: 'Snapshot · checking live…', tiny: 'Checking live…', micro: 'Checking…', cls: 'is-snapshot is-pending', sr: `${sr}, checking the live board`, tip: `${tip}. ${checking}` };
       const only = bundleOnly(data.company) ? ' This board is collected by the site’s crawler; your browser can’t fetch it live.' : '';
       const cap = cappedNote();
-      return { label: day ? `Snapshot · ${day}` : 'Snapshot', micro: day || 'Saved', cls: 'is-snapshot', sr, tip: `${tip}${failed ? `. ${failed}` : ''}.${only}${cap ? ` ${cap.tip}` : ''}` };
+      // UX-23: the shortest label keeps a noun ("Saved Oct 11", never a bare date).
+      return { label: day ? `Snapshot · ${day}` : 'Snapshot', micro: day ? `Saved ${day}` : 'Saved', cls: 'is-snapshot', sr, tip: `${tip}${failed ? `. ${failed}` : ''}.${only}${cap ? ` ${cap.tip}` : ''}` };
     }
     case 'demo':
       if (data.pending) return { label: 'Demo data · checking live…', short: 'Demo · checking live…', tiny: 'Checking live…', micro: 'Checking…', cls: 'is-demo is-pending', sr: 'demo data, checking the live board', tip: `Generated sample data, not real postings. ${checking}` };
@@ -1308,13 +1311,37 @@ function cappedNote() {
   const c = data.status === 'ready' && data.meta && data.meta.jobsCapped;
   if (!c || !(c.total > c.kept)) return null;
   const which = /salaried/.test(c.rule || '') ? 'the ones with a published pay range first, newest first' : 'the newest';
-  return { total: c.total, tip: `Showing ${Number(c.kept).toLocaleString()} of the ${Number(c.total).toLocaleString()} roles posted: ${which}. The rest are on ${data.company?.name || 'the company'}’s careers site.` };
+  // MR-14: the kept postings are salaried first, so their pay share is not the board's; the whole board's
+  // share when the snapshot records it (jobsCapped.salaried, scripts/snapshot.js#fitSnapshot).
+  const whole = Number.isFinite(Number(c.salaried)) && c.salaried != null && c.total > 0 ? Math.round((Number(c.salaried) / c.total) * 100) : null;
+  const share = whole != null ? ` ${whole}% of all ${Number(c.total).toLocaleString()} postings show pay.` : '';
+  return { total: c.total, kept: c.kept, whole, salariedFirst: /salaried/.test(c.rule || ''),
+    tip: `Showing ${Number(c.kept).toLocaleString()} of the ${Number(c.total).toLocaleString()} roles posted: ${which}.${share} The rest are on ${data.company?.name || 'the company'}’s careers site.` };
 }
-/** "Greenhouse / anthropic", or "<Name> careers site" for a built-in-only source (big-tech beta). */
+/** "Greenhouse / anthropic", or "<Name>’s careers site" for a built-in-only source (big-tech beta; UX-31). */
 function sourceText(c) {
   if (!c?.source) return '';
-  return SOURCE_LABEL[c.source] ? `${SOURCE_LABEL[c.source]} / ${c.board}` : `${c.name || c.board} careers site`;
+  return SOURCE_LABEL[c.source] ? `${SOURCE_LABEL[c.source]} / ${c.board}` : `${c.name || c.board}’s careers site`;
 }
+/** MR-10: the careers site a built-in big-tech board is read from (the adapters' hosts, scripts/links-policy.js). */
+const CAREERS_URL = {
+  apple: 'https://jobs.apple.com/', google: 'https://www.google.com/about/careers/applications/jobs/results',
+  microsoft: 'https://apply.careers.microsoft.com/careers', nvidia: 'https://jobs.nvidia.com/careers',
+  netflix: 'https://explore.jobs.netflix.net/careers', amazon: 'https://www.amazon.jobs/', meta: 'https://www.metacareers.com/jobs',
+};
+const BOARD_URL = { greenhouse: (b) => `https://job-boards.greenhouse.io/${b}`, ashby: (b) => `https://jobs.ashbyhq.com/${b}`, lever: (b) => `https://jobs.lever.co/${b}` };
+function sourceUrl(c) {
+  if (!c?.source) return null;
+  if (BOARD_URL[c.source] && c.board && /^[a-z0-9][a-z0-9_.-]*$/i.test(c.board)) return BOARD_URL[c.source](encodeURIComponent(c.board));
+  return CAREERS_URL[c.slug] || null;
+}
+/** UX-27: one date format: "Oct 11, 2026, 07:59 UTC". */
+const UTC_TIME = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'UTC' });
+const utcTime = (ts) => `${UTC_TIME.format(new Date(ts))} UTC`;
+/** MR-11: why a board's count differs from its careers site's own count. */
+const COUNT_NOTE = {
+  apple: 'Apple’s site lists a role once for each place it is open in; here each role is one, with all its places, so the count is lower than Apple’s.',
+};
 /** Static build, `live: false` company (docs/CONTRACT.md v3): served from its snapshot only. */
 function bundleOnly(c) { return !!(api.isStatic?.() && c?.live === false); }
 
@@ -1339,11 +1366,19 @@ function makeBadgeDetails() {
   function sync() {
     const info = badgeInfo();
     const c = data.company || {};
+    const url = sourceUrl(c);
+    const cap = cappedNote();
+    // MR-10: the source is a link, the time has its time zone, and the popover says how often the board is read.
+    const cadence = bundleOnly(c) ? 'Read by the site’s crawler about every 6 hours (GitHub often starts it hours late)'
+      : data.mode === 'live' ? 'Read live by your browser when you open the board' : 'Saved copy rebuilt every day; Refresh reads the live board';
     const rows = [
       ['Status', info?.label || '—'],
-      ['Source', sourceText(c) || '—'],
-      ['Fetched', data.fetchedAt ? `${new Date(data.fetchedAt).toLocaleString()} (${ago(data.fetchedAt)})` : '—'],
-      ['Roles', cappedNote() ? `${data.jobs.length.toLocaleString()} of ${cappedNote().total.toLocaleString()} posted` : data.jobs.length.toLocaleString()],
+      ['Source', url ? h('a', { href: url, target: '_blank', rel: 'noopener noreferrer' }, sourceText(c)) : sourceText(c) || '—'],
+      ['Fetched', data.fetchedAt ? `${utcTime(data.fetchedAt)} (${ago(data.fetchedAt)})` : '—'],
+      ['Updates', h('span', null, `${cadence}. `, docLink(UPDATED_DOC, 'How we collect this'))],
+      ['Roles', h('span', null, cap ? `${data.jobs.length.toLocaleString()} of ${cap.total.toLocaleString()} posted` : data.jobs.length.toLocaleString(),
+        COUNT_NOTE[c.slug] ? h('span', { class: 'muted' }, ` · ${COUNT_NOTE[c.slug]}`) : null,
+        cap ? h('span', { class: 'muted' }, ` · ${cap.tip}`) : null)],
     ];
     tip.textContent = info?.tip || '';
     dl.replaceChildren(...rows.flatMap(([k, v]) => [h('dt', null, k), h('dd', null, v)]));
@@ -1855,7 +1890,8 @@ function renderQuickbar() {
   $('#clearAll').hidden = !n && !area;
   // F5: the one new main-view control — only when a filter is active.
   const save = $('#saveSearch');
-  save.hidden = !n || data.status !== 'ready';
+  // UX-34: no Save for a search with no results (a saved one keeps its button, so it can be removed).
+  save.hidden = !n || data.status !== 'ready' || (!visible.length && !currentSaved());
   if (!save.hidden) {
     const on = !!currentSaved();
     save.classList.toggle('is-saved', on); // V9: one pattern — the label changes (Save/Saved), no aria-pressed
@@ -2284,6 +2320,11 @@ function renderFilterPanel() {
     body.replaceChildren(h('p', { class: 'fnote' }, 'No filters: this board isn’t on this site.'));
     return;
   }
+  if (data.status === 'error') { // UX-26: nothing is loading any more, so no skeleton
+    panel = null;
+    body.replaceChildren(h('p', { class: 'fnote' }, 'Filters appear when the roles load.'));
+    return;
+  }
   if (data.status !== 'ready') {
     if (!body.querySelector('.skeleton-stack')) {
       panel = null;
@@ -2498,11 +2539,17 @@ function renderKpis() {
   const ote = st.oteOnly ? 'on-target earnings, ' : '';
   const left = st.oteLeftOut ? `; ${plural(st.oteLeftOut, 'posting')} with on-target earnings (base plus commission) left out` : '';
   const share = st.top && st.n > 1 ? st.top[1] / st.n : 0;
+  // MR-14: a board kept to a budget (salaried first) says its share is of the kept postings, with the whole board's.
+  const capNote = cappedNote();
+  const capShare = capNote && capNote.salariedFirst ? {
+    text: ` of the ${capNote.kept.toLocaleString()} kept${capNote.whole != null ? ` (${capNote.whole}% of all ${capNote.total.toLocaleString()})` : ''}`,
+    tip: capNote.tip,
+  } : null;
   const parts = [
     item(st.n.toLocaleString(), st.n === total ? plural(st.n, 'role').replace(/^[\d,]+ /, '') : `of ${total.toLocaleString()} roles`),
     // P-6: with a Location filter, the share counts pay that applies there ("22% show pay for London").
-    st.n ? item(`${pct}%`, viewSpec?.l.size ? `show pay for ${viewSpec.l.size === 1 ? [...viewSpec.l][0] : 'these places'}` : 'show pay',
-      `${st.withSalary} of ${st.n} postings include a pay range${here}${here ? ' (a pay range in another country’s currency is not counted)' : ''}`) : null,
+    st.n ? item(`${pct}%`, (viewSpec?.l.size ? `show pay for ${viewSpec.l.size === 1 ? [...viewSpec.l][0] : 'these places'}` : 'show pay') + (capShare ? capShare.text : ''),
+      `${st.withSalary.toLocaleString()} of ${st.n.toLocaleString()} postings include a pay range${here}${here ? ' (a pay range in another country’s currency is not counted)' : ''}${capShare ? `. ${capShare.tip}` : ''}`) : null,
     // BP-13: it says which pay the median is of; the chart's median uses the same set.
     st.median != null ? item(money(st.median), st.oteOnly ? 'median on-target earnings' : 'base pay median',
       `Half of these roles pay more than this and half less (the middle of each posted range, ${ote || 'base pay, '}approx US dollars${here}${left})`) : null,
@@ -2832,9 +2879,31 @@ function emptyState() {
   return { title: 'No roles match', body: 'Nothing fits every filter you’ve set.', action: ['Clear filters', clearFilters] };
 }
 
+/**
+ * D-35: a beta board opened on the main site (a link with /beta/ dropped, an old bookmark). The main site's
+ * own files never name a beta company (scripts/build-static.js#betaLeaks), so the beta copy's company list
+ * is read on demand; when it lists the board, the message links to it there, keeping the rest of the link.
+ */
+function findOnBeta(slug, seq) {
+  if (CHANNEL !== 'stable' || !api.isStatic?.() || !slug || isCustomKey(slug)) return;
+  fetch('beta/api/companies.json').then((r) => (r.ok ? r.json() : null)).then((list) => {
+    const c = Array.isArray(list) ? list.find((x) => x && x.slug === slug) : null;
+    if (!c || seq !== loadSeq || data.status !== 'unknown') return;
+    data = { ...data, onBeta: { name: c.name || slug, href: `beta/${location.hash || `#c=${encodeURIComponent(slug)}`}` } };
+    render();
+  }).catch(() => { /* no beta copy here: the plain message stays */ });
+}
+
 /** D-19 / M-22: the plain message for a company this site doesn't list (no Offline, no Retry). */
 function notHereState() {
   const name = data.company?.name || S.c;
+  if (data.onBeta) {
+    return {
+      title: `${data.onBeta.name} is on the beta site`,
+      body: `melon·seek lists ${data.onBeta.name}’s jobs on its beta site, which adds big-tech companies’ own careers sites.`,
+      link: [`Open ${data.onBeta.name} on the beta site`, data.onBeta.href],
+    };
+  }
   return {
     title: 'This board isn\u2019t on this site',
     body: `melon\u00b7seek doesn\u2019t list ${name}\u2019s jobs here. Choose a company from the menu.`,
@@ -2842,11 +2911,12 @@ function notHereState() {
   };
 }
 
-function stateCard({ icon = null, title, body, action = null, tone = '' }) {
+function stateCard({ icon = null, title, body, action = null, link = null, tone = '' }) {
   return h('div', { class: `state-card ${tone ? `state-card--${tone}` : ''}` },
     icon ? h('div', { class: 'state-ico', html: icon }) : h('div', { class: 'state-ico state-ico--melon' }, h('img', { src: 'favicon.svg', alt: '' })),
     h('h3', null, title), body ? h('p', null, body) : null,
-    action ? h('button', { type: 'button', class: 'btn btn--primary btn--sm', onclick: action[1] }, action[0]) : null);
+    action ? h('button', { type: 'button', class: 'btn btn--primary btn--sm', onclick: action[1] }, action[0]) : null,
+    link ? h('a', { class: 'btn btn--primary btn--sm', href: link[1] }, link[0]) : null);
 }
 
 /* --------------------------------------------------------------- results */
@@ -2874,9 +2944,10 @@ function renderResults() {
       h('div', { class: 'sk sk-line', style: 'width:72%' }), h('div', { class: 'sk sk-line', style: 'width:48%' }), h('div', { class: 'sk sk-line', style: 'width:30%' }))));
     return;
   }
+  // UX-26: one message, by the chart (with its Retry); the list only says it has nothing to show.
   if (data.status === 'error') {
-    title.textContent = 'No data';
-    list.replaceChildren(h('li', { class: 'list-empty' }, stateCard({ icon: ICON.alert, title: 'Board unavailable', body: 'We couldn\u2019t reach the API.', action: ['Retry', () => loadJobs()], tone: 'error' })));
+    title.textContent = 'No roles';
+    list.replaceChildren(h('li', { class: 'list-empty' }, h('p', { class: 'fnote' }, 'No roles to show.')));
     return;
   }
   if (data.status === 'unknown') {
@@ -2896,8 +2967,11 @@ function renderResults() {
   title.replaceChildren(...nn(h('strong', null, plural(n, 'role')), inTitle != null ? h('span', { class: 'muted', title: why }, ` · ${inTitle.toLocaleString()} in title`) : null,
     cap ? h('span', { class: 'muted', title: cap.tip }, ` · of ${cap.total.toLocaleString()} posted`) : null));
   if (!visible.length) {
-    list.replaceChildren(h('li', { class: 'list-empty' }, stateCard(data.jobs.length ? emptyState()
-      : { title: 'No open roles', body: 'This board has no postings right now.' })));
+    // UX-34: the chart carries the one empty-state message and its button; the list just says 0 roles.
+    // On a phone the chart sits under the sheet, so the list keeps the full message there.
+    const chartSays = !isMobile() && S.m !== 'insights';
+    list.replaceChildren(h('li', { class: 'list-empty' }, chartSays ? h('p', { class: 'fnote' }, data.jobs.length ? 'No roles match. See the message by the chart.' : 'This board has no postings right now.')
+      : stateCard(data.jobs.length ? emptyState() : { title: 'No open roles', body: 'This board has no postings right now.' })));
     return;
   }
   // M-19: a new result set (another sort, filter, area or board) starts at the top of the list; the same
@@ -3338,6 +3412,8 @@ function openDrawer(id, { fromHash = false, step = false } = {}) {
   }
   drawerJobId = id;
   setBackgroundInert(true);
+  // UX-35: the Juice explainer above the list has done its job once a role is opened; it stays away for this visit.
+  if (juiceScaleShown) { juiceScaleShown = false; try { sessionStorage.removeItem(JUICE_SCALE_KEY); } catch { /* storage blocked */ } }
   // M-9: paging next/prev rewrites the job page's entry, so one Back always leaves the job page.
   if (S.job !== id) { S.job = id; commit({ replace: fromHash || step }); }
   const drawer = $('#drawer');
@@ -3855,7 +3931,9 @@ function compstimateBlock(job) {
       h('span', { class: 'd-comp-amt' }, `about ${money(est.mid)}`),
       h('span', { class: 'muted' }, `(${money(est.low)}–${money(est.high).replace(/^\$/, '')}, ${v.confidence.toLowerCase()} confidence)`)),
     h('p', { class: 'd-comp-note' }, `${v.basis}. ${v.kind === 'ote' ? 'On-target earnings (base plus commission at target), like the roles it is based on. ' : ''}An estimate, not a figure from the posting (approx USD / year).`),
-    v.accuracy || v.caution ? h('p', { class: 'd-comp-note' }, v.accuracy ? `${v.accuracy}.` : v.caution) : null,
+    // MR-17 / MR-3: what "Typically within ±N%" means, and one tap to how the estimate is made.
+    v.accuracy || v.caution ? h('p', { class: 'd-comp-note' }, v.accuracy ? `${v.accuracy}: in half of the tests the estimate was at least this close to the posted pay. ` : `${v.caution} `,
+      docLink(ESTIMATE_DOC, 'How estimates work')) : h('p', { class: 'd-comp-note' }, docLink(ESTIMATE_DOC, 'How estimates work')),
     asOfNote('d-comp-note d-comp-asof', () => compstimateAsOfText({ fetchedAt: data.fetchedAt, meta: data.meta })));
 }
 
@@ -4132,7 +4210,10 @@ function sameRoleSection(job) {
     const chartHost = h('div', { class: 'comps-chart' });
     body.replaceChildren(
       // P-11: the note says what is really compared (compsNote reads res.fallback).
-      h('p', { class: 'comps-note muted' }, compsNote(res)),
+      h('p', { class: 'comps-note muted' }, compsNote(res),
+        // MR-18: a level match counts only postings that state a level, so a company that rarely states one may be missing.
+        bySen ? ' Only postings that state a level count, so companies whose postings rarely state one may be missing.' : null,
+        ' ', docLink(PAY_DOC, 'How pay is read')), // MR-3
       chartHost,
       asOfNote('comps-asof', () => marketAsOfText(market, rows.map((r) => r.slug))));
     try {

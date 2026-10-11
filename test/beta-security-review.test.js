@@ -202,7 +202,7 @@ test('S-5: stable and beta snapshot runs do not share one concurrency group (a q
 
 /* ------------------------------------------------------------------ S-6 */
 
-test('S-6: /methodology/ is not re-rendered on every request in server mode', OPEN, async () => {
+test('S-6: /methodology/ is not re-rendered on every request in server mode', async () => {
   process.env.MELON_CACHE_DIR = process.env.MELON_CACHE_DIR || tmpDir();
   const mod = await imp('server', 'index.js');
   const server = mod.createServer({ log: false });

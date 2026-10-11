@@ -50,14 +50,19 @@ function linkPolicy(depth, { guide = false } = {}) {
 
 const DEFAULT_DESCRIPTION = "How melon·seek's Juice Score is calculated: the formula, tax model, data sources and limitations.";
 
-/** The shared <head> and site bar. `up` is the path to the site root ("../" or "../../"). */
-function head({ title, description, up, css }) {
+/**
+ * The shared <head> and site bar. `up` is the path to the site root ("../" or "../../").
+ * D-37: the beta copy (channel 'beta') says so like the app does: <html data-channel="beta">, "melon·seek
+ * beta" in the title and the brand, and a link to the main site (one folder above the beta site).
+ */
+const isBeta = (channel) => channel === 'beta';
+function head({ title, description, up, css, channel = 'stable' }) {
   return `<!doctype html>
-<html lang="en">
+<html lang="en"${isBeta(channel) ? ' data-channel="beta"' : ''}>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${esc(title)} — melon·seek</title>
+  <title>${esc(title)} — melon·seek${isBeta(channel) ? ' beta' : ''}</title>
   <meta name="description" content="${esc(description)}">
   <meta name="color-scheme" content="light dark">
   <link rel="icon" href="${up}favicon.svg" type="image/svg+xml">
@@ -66,10 +71,11 @@ function head({ title, description, up, css }) {
   <script src="${up}theme-init.js"></script>
 </head>`;
 }
-function siteBar(up, extra = '') {
+function siteBar(up, extra = '', channel = 'stable') {
+  const beta = isBeta(channel);
   return `<nav class="doc-top" aria-label="Site">
-    <a class="doc-brand" href="${up}"><img src="${up}favicon.svg" alt="" width="22" height="22"> melon·seek</a>
-    <span class="doc-top-links">${extra}<a href="${up}">← Back to the jobs</a></span>
+    <a class="doc-brand" href="${up}"><img src="${up}favicon.svg" alt="" width="22" height="22"> melon·seek${beta ? ' beta' : ''}</a>
+    <span class="doc-top-links">${extra}${beta ? `<a href="${up}../">Main site</a>` : ''}<a href="${up}">← Back to the jobs</a></span>
   </nav>`;
 }
 
@@ -80,16 +86,16 @@ function siteBar(up, extra = '') {
  * methodology/ itself (depth 1) when there is no guide.
  * @param {{ md: string, sha?: string|null, depth?: 1|2 }} opts
  */
-export function renderReferencePage({ md, sha = null, depth = 2 } = {}) {
+export function renderReferencePage({ md, sha = null, depth = 2, channel = 'stable' } = {}) {
   const up = '../'.repeat(depth);
   const guide = depth === 2 ? '../' : null;
   const { html, headings } = mdToHtml(md, { link: linkPolicy(depth) });
   const title = (headings.find((h) => h.level === 1) || { text: 'Juice Score methodology' }).text;
   const toc = headings.filter((h) => h.level === 2)
     .map((h) => `<li><a href="#${esc(h.id)}">${esc(h.text)}</a></li>`).join('');
-  return `${head({ title: guide ? `${title} (technical reference)` : title, description: DEFAULT_DESCRIPTION, up, css: guide ? '../methodology.css' : 'methodology.css' })}
+  return `${head({ title: guide ? `${title} (technical reference)` : title, description: DEFAULT_DESCRIPTION, up, css: guide ? '../methodology.css' : 'methodology.css', channel })}
 <body class="doc-body">
-  ${siteBar(up, guide ? `<a href="${guide}">How it works</a>` : '')}
+  ${siteBar(up, guide ? `<a href="${guide}">How it works</a>` : '', channel)}
   <main class="doc-page" id="main">
     <p class="doc-note">The full technical reference behind the Juice Score shown in each job's drawer, kept in step with the code.${guide ? ` New here? <a href="${guide}">Read the plain-language guide with charts</a>.` : ''} An estimate, not financial advice.</p>
     ${toc ? `<nav class="doc-toc" aria-label="Contents"><strong>Contents</strong><ol>${toc}</ol></nav>` : ''}
@@ -216,7 +222,7 @@ function referenceIndex(reference, indexIds) {
  * @param {{ md: string, figures: object, referenceMd?: string|null, sha?: string|null }} opts
  *   figures: scripts/methodology-figures.js figureContext(...) for this build's data
  */
-export function renderGuidePage({ md, figures, referenceMd = null, sha = null } = {}) {
+export function renderGuidePage({ md, figures, referenceMd = null, sha = null, channel = 'stable' } = {}) {
   if (!figures) throw new Error('renderGuidePage: figures (figureContext) are required');
   const description = commentField(md, 'description') || DEFAULT_DESCRIPTION;
   const { blocks, headings } = mdToHtml(md, {
@@ -261,10 +267,10 @@ export function renderGuidePage({ md, figures, referenceMd = null, sha = null } 
   }).join('\n');
   const orphanIndex = !lastRefSection && indexHtml ? `<section class="g-sec" aria-label="Technical reference">${indexHtml}</section>` : '';
 
-  return `${head({ title: title ? title.text : 'Juice Score methodology', description, up: '../', css: 'methodology.css' })}
+  return `${head({ title: title ? title.text : 'Juice Score methodology', description, up: '../', css: 'methodology.css', channel })}
 <body class="doc-body guide-body">
   <a class="skip-link" href="#main">Skip to content</a>
-  ${siteBar('../', '<a class="doc-top-ref" href="reference/">Technical reference</a>')}
+  ${siteBar('../', '<a class="doc-top-ref" href="reference/">Technical reference</a>', channel)}
   <div class="g-wrap">
     <nav class="g-toc g-toc--side" aria-label="On this page"><p class="g-toc-title">On this page</p><ol>${tocItems}</ol><p class="g-toc-more"><a href="reference/">Technical reference →</a></p></nav>
     <main class="g-main" id="main">
@@ -286,20 +292,20 @@ export function renderGuidePage({ md, figures, referenceMd = null, sha = null } 
  * methodology/: content }, warnings }. Throws (err.code 'NO_REFERENCE') without docs/LIVABILITY.md,
  * and on any guide error (unknown placeholder, missing #1-the-formula): the build must fail loudly.
  */
-export async function methodologyPages({ root, sha = null, guidePath = null, citiesFile = null } = {}) {
+export async function methodologyPages({ root, sha = null, guidePath = null, citiesFile = null, channel = 'stable' } = {}) {
   const [{ readFile }, { existsSync }, path] = await Promise.all([import('node:fs/promises'), import('node:fs'), import('node:path')]);
   const refFile = path.join(root, 'docs', 'LIVABILITY.md');
   if (!existsSync(refFile)) throw Object.assign(new Error('docs/LIVABILITY.md missing'), { code: 'NO_REFERENCE' });
   const referenceMd = await readFile(refFile, 'utf8');
   const guideFile = guidePath || (typeof process !== 'undefined' && process.env.MELON_METHODOLOGY_GUIDE) || path.join(root, 'docs', 'METHODOLOGY_GUIDE.md');
   const warnings = [];
-  const files = { 'reference/index.html': renderReferencePage({ md: referenceMd, sha }), 'methodology.css': METHODOLOGY_CSS };
+  const files = { 'reference/index.html': renderReferencePage({ md: referenceMd, sha, channel }), 'methodology.css': METHODOLOGY_CSS };
   if (existsSync(guideFile)) {
     const figures = figureContext(await loadFigureInputs(root, { citiesFile }));
-    files['index.html'] = renderGuidePage({ md: await readFile(guideFile, 'utf8'), figures, referenceMd, sha });
+    files['index.html'] = renderGuidePage({ md: await readFile(guideFile, 'utf8'), figures, referenceMd, sha, channel });
   } else {
     warnings.push(`${path.relative(root, guideFile)} missing; methodology/ shows the technical reference instead of the guide`);
-    files['index.html'] = renderReferencePage({ md: referenceMd, sha, depth: 1 });
+    files['index.html'] = renderReferencePage({ md: referenceMd, sha, depth: 1, channel });
   }
   return { files, warnings };
 }

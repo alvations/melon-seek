@@ -44,7 +44,7 @@ test('MR-1 RON: the shared FX table (chart, Juice, comps) has a Romanian leu rat
   assert.ok(juice.FX_PER_USD && juice.FX_PER_USD.RON > 0, 'server/juice.js FX_PER_USD has no RON');
   assert.match(JSON.stringify(entryOf('fx-per-usd')), /RON/, 'registry fx-per-usd does not list RON');
 });
-test('MR-1 RON: until a rate exists, the drawer says pay is posted in a currency it cannot convert, not "Salary not listed"', todo('MR-1'), () => {
+test('MR-1 RON: until a rate exists, the drawer says pay is posted in a currency it cannot convert, not "Salary not listed"', () => {
   const app = read('public/app.js');
   assert.ok(/can[’']t convert|cannot convert|no exchange rate/i.test(app),
     'public/app.js has no wording for pay posted in an unconvertible currency');
@@ -63,7 +63,7 @@ function lineWith(file, needle) {
   return { at: `${file}:${i + 1}`, text: lines[i] };
 }
 const NAMES_FX_DATE = /fx-per-usd|FX_AS_OF|fxAsOf|exchange rates? (?:as of|from)|rates as of/;
-test('MR-2 drawer: the "approx US dollars" line names the exchange-rate date', todo('MR-2'), () => {
+test('MR-2 drawer: the "approx US dollars" line names the exchange-rate date', () => {
   const { at, text } = lineWith('public/app.js', 'in approx US dollars for comparison');
   assert.match(text, NAMES_FX_DATE, `${at} prints the converted range without the rate's date`);
 });
@@ -71,7 +71,7 @@ test('MR-2 chart: the footnote text (not only its hover title) gives the exchang
   const { at, text } = lineWith('public/viz/chart.js', 'converted from another currency');
   assert.match(text, NAMES_FX_DATE, `${at}: the date is only in foot.title, which a phone cannot show`);
 });
-test('MR-2 Market insights: the header that says "pay in approx. USD" gives the exchange-rate date', todo('MR-2'), () => {
+test('MR-2 Market insights: the header that says "pay in approx. USD" gives the exchange-rate date', () => {
   const { at, text } = lineWith('public/features/insights.js', 'on this board · pay in approx. USD');
   assert.match(text, NAMES_FX_DATE, `${at} names the postings date but not the exchange rates'`);
 });
@@ -81,12 +81,12 @@ test('MR-2 Market insights: the header that says "pay in approx. USD" gives the 
 // The pay block, "Pay by level", the part-time and fixed-term captions, Compstimate, "Same role
 // elsewhere", Market insights, Compare companies and the data badge link to no explanation, and
 // the methodology pages explain Juice only.
-test('MR-3 the app links to an explanation of pay, levels and estimates, not only of Juice', todo('MR-3'), () => {
+test('MR-3 the app links to an explanation of pay, levels and estimates, not only of Juice', () => {
   const files = ['public/app.js', 'public/features/compstimate.js', 'public/features/comps.js', 'public/features/insights.js'];
   const links = files.flatMap((f) => [...read(f).matchAll(/['"`](?:\.\.\/)?methodology\/[^'"`]*['"`]/g)].map((m) => `${f}: ${m[0]}`));
   assert.ok(links.length >= 2, `only ${links.length} methodology link(s): ${links.join('; ')}`);
 });
-test('MR-3 the methodology guide has a section on posted pay (ranges, levels, part-time, fixed-term, estimates)', todo('MR-3'), () => {
+test('MR-3 the methodology guide has a section on posted pay (ranges, levels, part-time, fixed-term, estimates)', () => {
   const guide = read('docs/METHODOLOGY_GUIDE.md');
   assert.match(guide, /^#{2,3} .*\bposted pay\b/im, 'docs/METHODOLOGY_GUIDE.md has no heading about how posted pay is read');
   assert.match(guide, /Compstimate|pay estimate/i, 'the guide never explains the pay estimate ("Typically within ±12%")');
