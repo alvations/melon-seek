@@ -190,3 +190,21 @@ test('external-links and betaLeaks read melon-packed-3 urls', async () => {
   assert.ok(betaLeaks(d, ['other']).some((x) => /posting URL on a beta host \(https:\/\/www\.amazon\.jobs\//.test(x)), 'a templated Amazon url is found');
 });
 
+test('the 1.5 MB list budget is still measured in melon-packed-2 bytes: the same lists move their sections out', async () => {
+  const api = await siteApi();
+  const { splitPayload } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'build-static.js')).href);
+  const base = (await anthropicPlain()).jobs;
+  const make = (n) => ({
+    company: { slug: 'zz' }, mode: 'snapshot',
+    jobs: Array.from({ length: n }, (_, i) => ({ ...base[i % base.length], id: `zz:${i}`, company: 'zz', companyName: 'Zz', url: `https://x.example/jobs/${i}`, descriptionHtml: '<p>x</p>', sections: { responsibilities: [`Do thing ${i % 50}`, 'Lead the team'], fit: ['Five years'] } })),
+  });
+  const bytes = (p, v3) => JSON.stringify(packList({ ...p, jobs: p.jobs.map(({ descriptionHtml, ...r }) => r) }, api, { v3 })).length;
+  let n = 500;
+  while (bytes(make(n), false) <= 1_500_000) n += 250;
+  const payload = make(n);
+  assert.ok(bytes(payload, true) < 1_500_000, 'precondition: melon-packed-3 alone would fit with its sections');
+  const out = splitPayload(payload, api);
+  assert.equal(out.sectionsMoved, true, 'sections move out, as melon-packed-2 decided');
+  assert.ok(api.unpackJobs(rt(out.list)).every((j) => !j.sections.responsibilities.length));
+});
+
