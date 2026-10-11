@@ -19,7 +19,8 @@
 // The list carries no description, so each posting costs one detail request;
 // at about 1 request/s per host a 2,500-posting board takes ~45 minutes.
 import { UpstreamError, htmlToText, str, isoOrNull } from './util.js';
-import { politeJson, checkRobots, mapLimit, cookieJar, newStats } from './polite.js';
+import { politeJson, checkRobots, cookieJar, newStats } from './polite.js';
+import { deltaPlan, runDetails, conditionalGet, rowKey, pick, crawlOptions, probeAbsent, probeRequest, planNote, planSummary } from './incremental.js';
 
 /** Fixed tenants (board key -> host, Eightfold group id, API flavour). */
 export const EIGHTFOLD_BOARDS = Object.freeze({
@@ -173,9 +174,26 @@ export function mapEightfoldJob(p, t = EIGHTFOLD_BOARDS.microsoft) {
   };
 }
 
+/** Crawl-state version (server/sources/incremental.js): bump when the detail request changes. */
+export const EIGHTFOLD_CRAWL_VERSION = 'eightfold-1';
+const PCSX_SIGNAL = ['name', 'postedTs', 'creationTs', 'locations', 'standardizedLocations', 'department', 'workLocationOption', 'displayJobId'];
+const CLASSIC_SIGNAL = ['name', 'posting_name', 't_update', 't_create', 'location', 'locations', 'department', 'business_unit', 'display_job_id'];
+
+/**
+ * A search row's change signal: the fields an edit or repost moves (title, places, department,
+ * work mode, and the dates: PCSX postedTs and classic t_update move on edits and reposts).
+ */
+export function eightfoldRowKey(p, t = EIGHTFOLD_BOARDS.microsoft) {
+  return rowKey(pick(p, t.api === 'pcsx' ? PCSX_SIGNAL : CLASSIC_SIGNAL));
+}
+
 /**
  * Fetch every posting of an Eightfold tenant: the search pages, then one
  * detail request per posting (descriptions, and so pay, are only there).
+ * Incremental (server/sources/incremental.js): with `previous` (the last crawl state) a
+ * detail is fetched only for new postings, rows whose change signal moved, and details past
+ * their refresh age; the rest reuse the previous raw detail. Options also: full, refreshDays,
+ * now, probeLimit. Returns { jobs, stats, listing, state }.
  * Options: maxJobs (probe), stats (polite.newStats()), log, keepRaw, signal,
  * concurrency (detail requests in flight; the 1 request/s spacing still applies).
  * Returns { jobs: RawJob[], stats }.
@@ -185,6 +203,7 @@ export async function fetchEightfold(board, opts = {}) {
   const t = EIGHTFOLD_BOARDS[key];
   if (!t) throw new UpstreamError(`eightfold: unknown board "${key}"`, { code: 'bad_board' });
   const { maxJobs = 0, stats = newStats(), log = () => {}, keepRaw = false, signal, concurrency = 2, timeoutMs } = opts;
+  const co = crawlOptions(opts);
   const label = `eightfold/${key}`;
   const jar = cookieJar(); // the site's own session cookies (_vs, _vscid): cookieless clients share a tiny bucket
   const common = { label, jar, stats, signal, timeoutMs };
@@ -193,6 +212,7 @@ export async function fetchEightfold(board, opts = {}) {
   const rows = [];
   const seen = new Set();
   let total = null;
+  let stoppedEarly = false; // a page of repeats: the list is not known to be whole
   for (let page = 0, start = 0; page < MAX_PAGES; page++, start += PAGE) {
     const body = await politeJson(eightfoldSearchUrl(t, start), common);
     stats.pages++;
@@ -209,30 +229,43 @@ export async function fetchEightfold(board, opts = {}) {
     }
     if (page % 25 === 0) log(`search page ${page + 1}: ${rows.length}/${total ?? '?'} postings`);
     if (!positions.length || (total != null && start + PAGE >= total) || (maxJobs && rows.length >= maxJobs)) break;
-    if (!added && page > 0) { stats.notes.push(`search page ${page + 1} repeated earlier postings; stopped`); break; }
+    if (!added && page > 0) { stoppedEarly = true; stats.notes.push(`search page ${page + 1} repeated earlier postings; stopped`); break; }
   }
   if (total != null && rows.length < total && !maxJobs) stats.notes.push(`search listed ${rows.length} of ${total} postings`);
   const list = maxJobs ? rows.slice(0, maxJobs) : rows;
+  const complete = !maxJobs && !stoppedEarly && total != null && rows.length >= total;
 
-  const t0 = Date.now();
-  const { results, errors } = await mapLimit(list, concurrency, async (p, i) => {
-    const d = await politeJson(eightfoldDetailUrl(t, p.id), { ...common, retries: 3 });
-    stats.details++;
-    if ((i + 1) % 200 === 0) log(`details ${i + 1}/${list.length} (${Math.round((Date.now() - t0) / 1000)} s)`);
-    return t.api === 'pcsx' ? d && d.data : d;
-  }, { shouldStop: () => signal && signal.aborted });
-  stats.detailErrors += errors.length;
-  if (errors.length) stats.notes.push(`${errors.length} detail request(s) failed, first: ${errors[0].error.message}`);
-  // A board where most details fail is broken, not partially available.
-  if (list.length && errors.length > Math.max(5, list.length * 0.2)) {
-    throw new UpstreamError(`${label}: ${errors.length}/${list.length} detail requests failed (first: ${errors[0].error.message})`, { code: 'details_failed' });
-  }
-  const jobs = list.map((p, i) => {
-    const merged = { ...p, ...(results[i] || {}) };
+  // Delta (server/sources/incremental.js): a detail only for new, changed and aged postings.
+  // A probe run with maxJobs is always full and saves no state.
+  const plan = deltaPlan(maxJobs ? null : opts.previous, { version: EIGHTFOLD_CRAWL_VERSION, ...co, full: co.full || !!maxJobs });
+  const items = list.map((p) => ({ p, id: String(p.id), key: eightfoldRowKey(p, t) }));
+  const { details } = await runDetails(plan, items, {
+    ...co, concurrency, signal, stats, log, label,
+    request: async (x, cached) => {
+      const r = await conditionalGet(eightfoldDetailUrl(t, x.p.id), cached, { ...common, retries: 3 });
+      if (r.notModified) return r;
+      return { detail: t.api === 'pcsx' ? r.body && r.body.data : r.body, headers: r.headers };
+    },
+  });
+  // A failed detail with nothing cached maps from the search row alone, as before.
+  const jobs = items.map((x) => {
+    const merged = { ...x.p, ...(details.get(x.id) || {}) };
     const job = mapEightfoldJob(merged, t);
     if (keepRaw) job._raw = merged;
     return job;
   });
+  stats.notes.push(planNote(plan, list.length));
+
+  // Closures: absent from a short list -> one detail request each, closed only on 404/410/redirect.
+  const gone = maxJobs ? [] : await probeAbsent(plan, {
+    complete, probeLimit: co.probeLimit, signal, stats,
+    probe: (id) => probeRequest(eightfoldDetailUrl(t, id), common, (r) => {
+      const b = r.json();
+      const d = t.api === 'pcsx' ? b && b.data : b;
+      return d && (d.id != null || d.jobDescription || d.job_description || d.name);
+    }),
+  });
   log(`done: ${jobs.length} postings, ${stats.requests} requests`);
-  return { jobs, stats };
+  const listing = { complete, listed: rows.length, expected: total, gone, summary: planSummary(plan, list.length) };
+  return { jobs, stats, listing, state: maxJobs ? null : plan.state() };
 }

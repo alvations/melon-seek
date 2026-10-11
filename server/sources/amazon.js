@@ -17,6 +17,7 @@
 // A paused registry entry (server/companies.js PAUSING) is never requested.
 import { UpstreamError, htmlToText, str } from './util.js';
 import { politeJson, checkRobots, cookieJar, newStats } from './polite.js';
+import { deltaPlan, crawlOptions, probeAbsent, probeRequest, LIST_ONLY } from './incremental.js';
 import { crawlBlock } from '../companies.js';
 
 export const AMAZON_ORIGIN = 'https://www.amazon.jobs';
@@ -291,5 +292,22 @@ export async function fetchAmazon(board = 'amazon', opts = {}) {
     if (keepRaw) job._raw = j;
     return job;
   });
-  return { jobs, stats };
+  // List-only board (server/sources/incremental.js LIST_ONLY): every row is the whole posting,
+  // so nothing is skipped. The state keeps the listed ids, so that postings absent from a list
+  // between 95% and 100% of the facet total are probed (their job page: 404/410/redirect =
+  // closed), never closed for being absent.
+  const co = crawlOptions(opts);
+  const plan = deltaPlan(maxJobs ? null : opts.previous, { version: AMAZON_CRAWL_VERSION, ...co, full: co.full || !!maxJobs });
+  for (const j of list) plan.listed(String(j.id_icims ?? j.id ?? ''));
+  const complete = !maxJobs && !!expected && rows.size >= expected;
+  const gone = maxJobs ? [] : await probeAbsent(plan, {
+    complete, probeLimit: co.probeLimit, signal, stats,
+    // robots.txt (cached for the run) must allow the job pages too, or the probe is "unknown".
+    probe: async (id) => (await checkRobots(AMAZON_ORIGIN, ['/en/jobs/1'], { label, stats, signal })) && probeRequest(`${AMAZON_ORIGIN}/en/jobs/${encodeURIComponent(id)}`, common, null, { method: 'HEAD', accept: 'text/html' }),
+  });
+  const listing = { complete, listed: rows.size, expected: expected || null, gone, summary: { mode: 'list-only', why: LIST_ONLY, listed: list.length } };
+  return { jobs, stats, listing, state: maxJobs ? null : plan.state() };
 }
+
+/** Crawl-state version (server/sources/incremental.js). */
+export const AMAZON_CRAWL_VERSION = 'amazon-1';

@@ -14,7 +14,8 @@
 // Pay is text in the "about the job" HTML: "The US base salary range for this
 // full-time position is $X-$Y + bonus + equity + benefits."
 import { UpstreamError, htmlToText, str, decodeEntitiesOnce } from './util.js';
-import { politeRequest, checkRobots, mapLimit, cookieJar, newStats, spreadSample } from './polite.js';
+import { politeRequest, checkRobots, cookieJar, newStats, spreadSample } from './polite.js';
+import { deltaPlan, runDetails, conditionalList, rowKey, crawlOptions, planNote, planSummary } from './incremental.js';
 
 export const GOOGLE_ORIGIN = 'https://www.google.com';
 export const GOOGLE_BASE = '/about/careers/applications';
@@ -129,45 +130,59 @@ export function mapGoogleJob(rec, entry = {}) {
   };
 }
 
-/** Fetch the sitemap, then each posting. Options as fetchEightfold. Returns { jobs, stats }. */
+/** Crawl-state version (server/sources/incremental.js): bump when the detail request changes. */
+export const GOOGLE_CRAWL_VERSION = 'google-1';
+
+/** A sitemap entry's change signal: its slug (the title) and <lastmod>. */
+export function googleRowKey(e) {
+  return rowKey({ slug: e && e.slug, lastmod: (e && e.lastmod) || null });
+}
+
+/**
+ * Fetch the sitemap, then each posting. Options as fetchEightfold, including the incremental
+ * ones (previous, full, refreshDays, now, probeLimit): the sitemap is a conditional request,
+ * and a posting's record is fetched only when it is new, its <lastmod> or slug moved, or its
+ * cached record is past its refresh age. The sitemap is the whole board (complete); a record
+ * that comes back empty is a posting closed since the sitemap was built (`listing.gone`), and
+ * one whose request failed is listed but unpublished (`listing.unpublished`: kept open).
+ * Returns { jobs, stats, listing, state }.
+ */
 export async function fetchGoogle(board = 'google', opts = {}) {
   const { maxJobs = 0, stats = newStats(), log = () => {}, keepRaw = false, signal, concurrency = 2, timeoutMs } = opts;
+  const co = crawlOptions(opts);
   const label = 'google';
   const jar = cookieJar();
   const common = { label, jar, stats, signal, timeoutMs };
   await checkRobots(GOOGLE_ORIGIN, [`${GOOGLE_BASE}/jobs/sitemap.xml`, `${GOOGLE_BASE}/_/HiringCportalFrontendUi/data/batchexecute`], { label, stats, signal });
-  const sm = await politeRequest(GOOGLE_SITEMAP, { ...common, accept: 'application/xml,text/xml' });
+  const plan = deltaPlan(maxJobs ? null : opts.previous, { version: GOOGLE_CRAWL_VERSION, ...co, full: co.full || !!maxJobs });
+  const sm = await conditionalList(GOOGLE_SITEMAP, plan, common, parseGoogleSitemap, { accept: 'application/xml,text/xml' });
   stats.pages++;
-  let entries = parseGoogleSitemap(sm.text);
+  let entries = sm.entries;
   if (!entries.length) throw new UpstreamError(`${label}: the jobs sitemap lists no postings`, { code: 'bad_shape' });
   log(`sitemap: ${entries.length} postings`);
   if (maxJobs) entries = spreadSample(entries, maxJobs); // probe: a spread, not the oldest evergreen posts
-  const t0 = Date.now();
-  let missing = 0;
-  const { results, errors } = await mapLimit(entries, concurrency, async (e, i) => {
-    const r = await politeRequest(GOOGLE_RPC, {
-      ...common, method: 'POST', body: googleDetailBody(e.id), retries: 3,
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-    });
-    stats.details++;
-    if ((i + 1) % 200 === 0) log(`details ${i + 1}/${entries.length} (${Math.round((Date.now() - t0) / 1000)} s)`);
-    const rec = parseGoogleDetail(r.text);
-    if (!rec) missing++;
-    return rec;
-  }, { shouldStop: () => signal && signal.aborted });
-  stats.detailErrors += errors.length;
-  if (missing) stats.notes.push(`${missing} sitemap posting(s) returned no record (closed since the sitemap was built)`);
-  if (errors.length) stats.notes.push(`${errors.length} detail request(s) failed, first: ${errors[0].error.message}`);
-  if (entries.length && errors.length > Math.max(5, entries.length * 0.2)) {
-    throw new UpstreamError(`${label}: ${errors.length}/${entries.length} detail requests failed (first: ${errors[0].error.message})`, { code: 'details_failed' });
-  }
+  const items = entries.map((e) => ({ e, id: String(e.id), key: googleRowKey(e) }));
+  const { details, gone, failed } = await runDetails(plan, items, {
+    ...co, concurrency, signal, stats, log, label,
+    request: async (x) => {
+      const r = await politeRequest(GOOGLE_RPC, {
+        ...common, method: 'POST', body: googleDetailBody(x.e.id), retries: 3,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      });
+      const rec = parseGoogleDetail(r.text);
+      return rec ? { detail: rec } : { gone: true };
+    },
+  });
+  if (gone.length) stats.notes.push(`${gone.length} sitemap posting(s) returned no record (closed since the sitemap was built)`);
+  stats.notes.push(planNote(plan, entries.length));
   const jobs = [];
-  entries.forEach((e, i) => {
-    const rec = results[i];
-    if (!rec) return;
-    const job = mapGoogleJob(rec, e);
+  for (const x of items) {
+    const rec = details.get(x.id);
+    if (!rec) continue;
+    const job = mapGoogleJob(rec, x.e);
     if (keepRaw) job._raw = rec;
     jobs.push(job);
-  });
-  return { jobs, stats };
+  }
+  const listing = { complete: !maxJobs, listed: entries.length, expected: entries.length, gone, unpublished: failed, summary: planSummary(plan, entries.length) };
+  return { jobs, stats, listing, state: maxJobs ? null : plan.state({ list: sm.list }) };
 }

@@ -23,7 +23,8 @@
 // copy, which lists only the place its pay is for. upgradeAppleJobs does the same for
 // stored snapshots crawled before 2026-10-10 (server/sources/upgrade.js).
 import { UpstreamError, htmlToText, str, isoOrNull } from './util.js';
-import { politeJson, checkRobots, mapLimit, cookieJar, newStats } from './polite.js';
+import { politeJson, checkRobots, cookieJar, newStats } from './polite.js';
+import { deltaPlan, runDetails, conditionalGet, rowKey, pick, crawlOptions, probeAbsent, probeRequest, planNote, planSummary } from './incremental.js';
 import { geocode, countryCode, locationPrecision } from '../geo.js';
 import { parseSalary, annualize } from '../salary.js';
 
@@ -404,9 +405,29 @@ export function upgradeAppleJobs(jobs) {
 
 /* -------------------------------------------------------------- fetch */
 
-/** Fetch the search pages, then details for US postings. Options as fetchEightfold (+ detailsFor: 'us'|'all'). */
+/** Crawl-state version (server/sources/incremental.js): bump when the detail request changes. */
+export const APPLE_CRAWL_VERSION = 'apple-1';
+const APPLE_SIGNAL = ['postingTitle', 'transformedPostingTitle', 'positionId', 'postingDate', 'locations', 'team', 'homeOffice', 'standardWeeklyHours', 'jobSummary'];
+
+/**
+ * A search row's change signal: title, places, team, hours, summary and posting date. A
+ * managed-pipeline (retail) row is re-stamped on every request, so its date is left out.
+ */
+export function appleRowKey(r) {
+  const sig = pick(r, APPLE_SIGNAL);
+  if (r && r.managedPipelineRole === true) delete sig.postingDate;
+  return rowKey(sig);
+}
+
+/**
+ * Fetch the search pages, then details for US postings. Options as fetchEightfold (+ detailsFor:
+ * 'us'|'all'), including the incremental ones (previous, full, refreshDays, now, probeLimit):
+ * a detail is fetched only for new postings, rows whose change signal moved and details past
+ * their refresh age. Returns { jobs, stats, listing, state }.
+ */
 export async function fetchApple(board = 'apple', opts = {}) {
   const { maxJobs = 0, stats = newStats(), log = () => {}, keepRaw = false, signal, concurrency = 2, timeoutMs, detailsFor = 'us' } = opts;
+  const co = crawlOptions(opts);
   const label = 'apple';
   const jar = cookieJar();
   const common = { label, jar, stats, signal, timeoutMs };
@@ -432,27 +453,26 @@ export async function fetchApple(board = 'apple', opts = {}) {
     if (!res.searchResults.length || rows.size >= total || page * PAGE >= total || (maxJobs && rows.size >= Math.max(maxJobs * 4, 200))) break;
   }
   if (total != null && rows.size < total && !maxJobs) stats.notes.push(`search listed ${rows.size} of ${total} postings`);
+  const complete = !maxJobs && total != null && rows.size >= total;
   let list = [...rows.values()];
   // Probe runs: US postings first, so pay parsing is exercised.
   if (maxJobs) list = [...list.filter(isUS), ...list.filter((r) => !isUS(r))].slice(0, maxJobs);
 
-  const want = list.filter((r) => detailsFor === 'all' || isUS(r));
-  log(`details for ${want.length} of ${list.length} postings (${detailsFor})`);
-  const t0 = Date.now();
-  const { results, errors } = await mapLimit(want, concurrency, async (r, i) => {
-    const body = await politeJson(`${APPLE_ORIGIN}/api/v1/jobDetails/${encodeURIComponent(r.id)}?locale=en-us`, { ...common, retries: 3 });
-    stats.details++;
-    if ((i + 1) % 200 === 0) log(`details ${i + 1}/${want.length} (${Math.round((Date.now() - t0) / 1000)} s)`);
-    return body && (body.res || body);
-  }, { shouldStop: () => signal && signal.aborted });
-  stats.detailErrors += errors.length;
-  if (errors.length) stats.notes.push(`${errors.length} detail request(s) failed, first: ${errors[0].error.message}`);
-  if (want.length && errors.length > Math.max(5, want.length * 0.2)) {
-    throw new UpstreamError(`${label}: ${errors.length}/${want.length} detail requests failed (first: ${errors[0].error.message})`, { code: 'details_failed' });
-  }
-  const detail = new Map(want.map((r, i) => [String(r.id), results[i] || null]));
+  // Delta (server/sources/incremental.js); a probe run with maxJobs is always full.
+  const plan = deltaPlan(maxJobs ? null : opts.previous, { version: APPLE_CRAWL_VERSION, ...co, full: co.full || !!maxJobs });
+  const items = list.map((r) => ({ r, id: String(r.id), key: appleRowKey(r), want: detailsFor === 'all' || isUS(r) }));
+  log(`details for ${items.filter((x) => x.want).length} of ${list.length} postings (${detailsFor}${plan.incremental ? ', incremental' : ''})`);
+  const { details } = await runDetails(plan, items, {
+    ...co, concurrency, signal, stats, log, label,
+    request: async (x, cached) => {
+      const r = await conditionalGet(`${APPLE_ORIGIN}/api/v1/jobDetails/${encodeURIComponent(x.r.id)}?locale=en-us`, cached, { ...common, retries: 3 });
+      if (r.notModified) return r;
+      return { detail: r.body && (r.body.res || r.body), headers: r.headers };
+    },
+  });
+  stats.notes.push(planNote(plan, list.length));
   // DQ-2: one posting per requisition, not one per listed location.
-  const groups = groupAppleCopies(list.map((r) => ({ row: r, detail: detail.get(String(r.id)) || null })));
+  const groups = groupAppleCopies(list.map((r) => ({ row: r, detail: details.get(String(r.id)) || null })));
   if (groups.length < list.length) stats.notes.push(`${list.length} listings are ${groups.length} requisitions (one posting each)`);
   const jobs = groups.map((copies) => {
     const job = mapAppleRequisition(copies);
@@ -462,5 +482,16 @@ export async function fetchApple(board = 'apple', opts = {}) {
     }
     return job;
   });
-  return { jobs, stats };
+
+  // Closures: absent from a short list -> one jobDetails request each, closed only on 404/410/redirect.
+  const gone = maxJobs ? [] : await probeAbsent(plan, {
+    complete, probeLimit: co.probeLimit, signal, stats, what: 'listing(s)',
+    probe: (id) => probeRequest(`${APPLE_ORIGIN}/api/v1/jobDetails/${encodeURIComponent(id)}?locale=en-us`, common, (r) => {
+      const b = r.json();
+      const d = b && (b.res || b);
+      return d && (d.jobNumber || d.postingTitle);
+    }),
+  });
+  const listing = { complete, listed: rows.size, expected: total, gone, summary: planSummary(plan, list.length) };
+  return { jobs, stats, listing, state: maxJobs ? null : plan.state() };
 }

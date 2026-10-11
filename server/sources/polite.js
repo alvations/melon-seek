@@ -121,13 +121,14 @@ function retryAfterMs(res) {
  * object -> JSON), accept, timeoutMs, maxBytes, label, jar (cookieJar()),
  * interval (ms between requests to this host), retries (default 4),
  * throwOnHttpError (default true), stats ({ requests, bytes, retries, statuses }),
- * signal (caller abort).
+ * signal (caller abort), allowNotModified (a 304 to a conditional request is returned,
+ * not thrown: server/sources/incremental.js).
  */
 export async function politeRequest(url, opts = {}) {
   const {
     method = 'GET', headers = {}, body, accept = 'application/json', timeoutMs = DEFAULT_TIMEOUT_MS,
     maxBytes = DEFAULT_MAX_BYTES, label = 'source', jar = null, interval, retries = BACKOFF_MS.length,
-    throwOnHttpError = true, stats = null, signal = null,
+    throwOnHttpError = true, stats = null, signal = null, allowNotModified = false,
   } = opts;
   const host = new URL(url).host;
   const h = { ...headers, 'User-Agent': BOT_USER_AGENT, Accept: accept };
@@ -164,7 +165,7 @@ export async function politeRequest(url, opts = {}) {
             try { return JSON.parse(text); } catch (err) { throw new UpstreamError(`${label}: invalid JSON from ${url}: ${err.message}`, { code: 'invalid_json' }); }
           },
         };
-        if (!out.ok && throwOnHttpError) {
+        if (!out.ok && throwOnHttpError && !(allowNotModified && res.status === 304)) {
           const where = res.status >= 300 && res.status < 400 ? ` (redirect to ${res.headers.get('location') || '?'})` : '';
           const hint = res.status === 403 ? ' (blocked: the site refuses this client; not retried)' : '';
           throw new UpstreamError(`${label}: HTTP ${res.status}${where}${hint} from ${url}: ${text.slice(0, 160).replace(/\s+/g, ' ')}`, { code: 'http', status: res.status });

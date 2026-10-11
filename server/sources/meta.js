@@ -13,7 +13,8 @@
 //     posted base range (the page says bonus and equity are extra).
 // No GraphQL, token or doc_id is used: the sitemap is the list, the page is the record.
 import { UpstreamError, htmlToText, str, isoOrNull, decodeEntitiesOnce } from './util.js';
-import { politeRequest, checkRobots, mapLimit, cookieJar, newStats, spreadSample } from './polite.js';
+import { checkRobots, cookieJar, newStats, spreadSample } from './polite.js';
+import { deltaPlan, runDetails, conditionalGet, conditionalList, rowKey, crawlOptions, planNote, planSummary } from './incremental.js';
 import { crawlBlock } from '../companies.js';
 import { countryCode } from '../geo.js';
 
@@ -222,9 +223,26 @@ export function mapMetaJob(p, entry = {}) {
   };
 }
 
-/** Fetch the sitemap, then each job page. Options as fetchEightfold. Returns { jobs, stats }. */
+/** Crawl-state version (server/sources/incremental.js): bump when the page extraction changes. */
+export const META_CRAWL_VERSION = 'meta-1';
+
+/**
+ * A sitemap entry's change signal: its <lastmod> where the sitemap has one. Without it the
+ * signal is constant, so only new postings and pages past their refresh age are fetched
+ * (the URL set is the list).
+ */
+export function metaRowKey(e) {
+  return rowKey({ lastmod: (e && e.lastmod) || null });
+}
+
+/**
+ * Fetch the sitemap, then each job page. Options as fetchEightfold, including the incremental
+ * ones (previous, full, refreshDays, now, probeLimit). The cached detail is the extracted page
+ * (extractMetaPage), not the ~480 KB HTML. Returns { jobs, stats, listing, state }.
+ */
 export async function fetchMeta(board = 'meta', opts = {}) {
   const { maxJobs = 0, stats = newStats(), log = () => {}, keepRaw = false, signal, concurrency = 1, timeoutMs } = opts;
+  const co = crawlOptions(opts);
   const label = 'meta';
   // A paused company (server/companies.js PAUSING) is never requested, whoever calls this.
   const blocked = crawlBlock('meta', board);
@@ -232,53 +250,52 @@ export async function fetchMeta(board = 'meta', opts = {}) {
   const jar = cookieJar();
   const common = { label, jar, stats, signal, timeoutMs, maxBytes: 8 * 1024 * 1024 };
   await checkRobots(META_ORIGIN, ['/jobsearch/sitemap.xml', '/profile/job_details/1/'], { label, stats, signal });
-  const sm = await politeRequest(META_SITEMAP, { ...common, accept: 'application/xml,text/xml' });
+  const plan = deltaPlan(maxJobs ? null : opts.previous, { version: META_CRAWL_VERSION, ...co, full: co.full || !!maxJobs });
+  const sm = await conditionalList(META_SITEMAP, plan, common, parseMetaSitemap, { accept: 'application/xml,text/xml' });
   stats.pages++;
-  let entries = parseMetaSitemap(sm.text);
+  let entries = sm.entries;
   if (!entries.length) throw new UpstreamError(`${label}: the jobs sitemap lists no postings`, { code: 'bad_shape' });
   log(`sitemap: ${entries.length} postings`);
   if (maxJobs) entries = spreadSample(entries, maxJobs);
-  const t0 = Date.now();
-  let empty = 0;
   let ldOnly = 0;
   let streak = 0; // consecutive failed pages: a site that has started refusing us is not asked 1,000 more times
-  const { results, errors } = await mapLimit(entries, concurrency, async (e, i) => {
-    try {
-      const r = await politeRequest(e.url, { ...common, accept: 'text/html', retries: 3, throwOnHttpError: false });
-      stats.details++;
-      if ((i + 1) % 200 === 0) log(`pages ${i + 1}/${entries.length} (${Math.round((Date.now() - t0) / 1000)} s)`);
-      if (r.status === 404 || r.status === 410) { empty++; streak = 0; return null; }
-      if (!r.ok) throw new UpstreamError(`${label}: HTTP ${r.status} from ${e.url}`, { code: 'http', status: r.status });
-      const p = extractMetaPage(r.text, e.id);
-      streak = 0;
-      if (!p.title) { empty++; return null; }
-      if (!p.description_html && !p.locations) ldOnly++;
-      return p;
-    } catch (err) {
-      streak++;
-      throw err;
-    }
-  }, { shouldStop: () => (signal && signal.aborted) || streak >= MAX_FAILED_IN_A_ROW });
-  stats.detailErrors += errors.length;
-  if (empty) stats.notes.push(`${empty} sitemap posting(s) had no job data (closed since the sitemap was built)`);
+  const items = entries.map((e) => ({ e, id: String(e.id), key: metaRowKey(e) }));
+  // A failed page is a posting in an unknown state. Over 5% failed (or a stop after
+  // MAX_FAILED_IN_A_ROW), the crawl fails and the previous snapshot stays.
+  const { details, gone, failed } = await runDetails(plan, items, {
+    ...co, concurrency, signal, stats, log, label, failShare: MAX_FAILED_SHARE, failMin: 5, noun: 'page',
+    shouldStop: () => streak >= MAX_FAILED_IN_A_ROW,
+    beforeFailCheck: (errors) => {
+      if (streak >= MAX_FAILED_IN_A_ROW) throw new UpstreamError(`${label}: stopped after ${streak} failed pages in a row (first: ${errors[0].error.message})`, { code: 'details_failed' });
+    },
+    request: async (x, cached) => {
+      try {
+        const r = await conditionalGet(x.e.url, cached, { ...common, accept: 'text/html', retries: 3, throwOnHttpError: false }, { json: false });
+        if (r.notModified) { streak = 0; return r; }
+        if (r.status === 404 || r.status === 410) { streak = 0; return { gone: true }; }
+        if (!r.ok) throw new UpstreamError(`${label}: HTTP ${r.status} from ${x.e.url}`, { code: 'http', status: r.status });
+        const p = extractMetaPage(r.body, x.e.id);
+        streak = 0;
+        if (!p.title) return { gone: true };
+        if (!p.description_html && !p.locations) ldOnly++;
+        return { detail: p, headers: r.headers };
+      } catch (err) {
+        streak++;
+        throw err;
+      }
+    },
+  });
+  if (gone.length) stats.notes.push(`${gone.length} sitemap posting(s) had no job data (closed since the sitemap was built)`);
   if (ldOnly) stats.notes.push(`${ldOnly} page(s) had no page data after "apply_for_this_job_section"; read from their JSON-LD only`);
-  if (errors.length) stats.notes.push(`${errors.length} page request(s) failed, first: ${errors[0].error.message}`);
-  // A failed page is a posting in an unknown state: publishing without it would close it in the
-  // history ledger. Over 5% failed (or a stop after MAX_FAILED_IN_A_ROW), the crawl fails and the
-  // previous snapshot stays.
-  if (streak >= MAX_FAILED_IN_A_ROW) {
-    throw new UpstreamError(`${label}: stopped after ${streak} failed pages in a row (first: ${errors[0].error.message})`, { code: 'details_failed' });
-  }
-  if (entries.length && errors.length > Math.max(5, entries.length * MAX_FAILED_SHARE)) {
-    throw new UpstreamError(`${label}: ${errors.length}/${entries.length} page requests failed (first: ${errors[0].error.message})`, { code: 'details_failed' });
-  }
+  stats.notes.push(planNote(plan, entries.length));
   const jobs = [];
-  entries.forEach((e, i) => {
-    const p = results[i];
-    if (!p) return;
-    const job = mapMetaJob(p, e);
+  for (const x of items) {
+    const p = details.get(x.id);
+    if (!p) continue;
+    const job = mapMetaJob(p, x.e);
     if (keepRaw) job._raw = p;
     jobs.push(job);
-  });
-  return { jobs, stats };
+  }
+  const listing = { complete: !maxJobs, listed: entries.length, expected: entries.length, gone, unpublished: failed, summary: planSummary(plan, entries.length) };
+  return { jobs, stats, listing, state: maxJobs ? null : plan.state({ list: sm.list }) };
 }
