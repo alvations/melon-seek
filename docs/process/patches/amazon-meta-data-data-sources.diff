@@ -1,0 +1,53 @@
+diff --git a/docs/DATA_SOURCES.md b/docs/DATA_SOURCES.md
+index 6b29475..8da3d61 100644
+--- a/docs/DATA_SOURCES.md
++++ b/docs/DATA_SOURCES.md
+@@ -173,17 +173,30 @@ hosts sends CORS headers (`access-control-allow-origin` absent on every response
+ so the browser never fetches them.
+ 
+ 
+-**Terms of use: Amazon and Meta are paused (2026-10-10).** The adapters work, but two sites'
++**Terms of use: Amazon and Meta are paused (2026-10-10).** The adapters work (probe run
++38035822525 crawled both whole boards: Amazon 22,415 postings, Meta 1,143), but both sites'
+ terms bar automated collection, so both are `paused: 'terms'` in `server/companies.js` and are
+ not crawled, built or listed. `listCompanies()` skips them unless `includePaused: true`.
+-- Amazon's Conditions of Use exclude "data mining, robots, or similar data gathering and
+-  extraction tools".
+-- Meta's Automated Data Collection Terms bar automated collection "without … express written
+-  permission", even though robots.txt and the sitemap expose the job pages.
+-These quotes come from search results and the live pages are being re-checked (probe run
+-38036154904). Resuming either needs the user's decision, or the company's permission. The other
+-boards' terms were not found to bar this kind of polite, robots.txt-respecting collection; that
+-check is also part of the probe run.
++Re-checked on the live pages on 2026-10-11 (freshness-probe runs 38136448486 and 38136777427;
++quotes, URLs and hashes in [data/alt/terms-2026-10-11.json](../data/alt/terms-2026-10-11.json),
++the decision brief in [AMAZON_META.md](AMAZON_META.md)):
++- amazon.jobs has no terms of its own; its footer's "Conditions of use" link goes to amazon.com's
++  Conditions of Use (last updated August 14, 2026), whose licence "does not include [...] any
++  use of data mining, robots, or similar data gathering and extraction tools". Its robots.txt
++  allows the job pages and the search the adapter uses.
++- metacareers.com's robots.txt opens with "Collection of data on Facebook through automated
++  means is prohibited unless you have express written permission from Facebook", linking to
++  Meta's Automated Data Collection Terms (effective October 7, 2024): "You will not engage in
++  Automated Data Collection without first obtaining Meta's express written permission". Meta's
++  Terms of Service (effective January 1, 2025) add, in 3.2, "regardless of whether such
++  automated access or collection is undertaken while logged-in".
++Resuming either needs the user's decision, or the company's permission. The same kind of clause
++is in Apple's site terms ("You may not use any [...] "robot", "spider" or other automatic
++device [...] to access, acquire, copy or monitor any portion of the Site") and in Netflix's
++consumer terms of use (for "the Netflix service"; the careers site is an Eightfold tenant):
++probe run 38036154904. Google's terms tie automated access to robots.txt, and Microsoft's to
++information "intentionally made available". Pay that Amazon and Meta file with the US
++Department of Labor (public domain) is a separate route: `scripts/alt-data/dol-disclosure.js`.
+ 
+ **How every adapter collects** (`server/sources/polite.js`):
+ - It uses only the JSON or HTML endpoints that the careers site's own front end
+@@ -318,7 +331,7 @@ Parser changes made for these formats (`server/salary.js`):
+ 
+ | Fact | Value |
+ |---|---|
+-| robots.txt | `User-agent: *` disallows `/ajax/`, `/tealium/`, `/intern/`, `/internal/`, `/login/`, `/oidc/callback/`, `/signup/`, `/resume/`, …; job pages are allowed. Lists `Sitemap: https://www.metacareers.com/jobsearch/sitemap.xml` |
++| robots.txt | Opens with a notice: "Collection of data on Facebook through automated means is prohibited unless you have express written permission from Facebook and may only be conducted for the limited purpose contained in said permission" (its link redirects to the Automated Data Collection Terms; re-read 2026-10-11). `User-agent: *` disallows `/*cursor=`, `/*fb_comment_id=`, `/ajax/`, `/tealium/`, `/intern/`, `/internal/`, `/login/`, `/oidc/callback/`, `/*.php`, `/signup/`, `/resume/`; job pages are allowed. Lists `Sitemap: https://www.metacareers.com/jobsearch/sitemap.xml` |
+ | List | `GET https://www.metacareers.com/jobsearch/sitemap.xml` (~150 KB): `<loc>https://www.metacareers.com/profile/job_details/<id>/</loc>` per open posting (1,143 in run 6). `/jobs` 301s to `/jobsearch/` |
+ | Detail | The public job page (~480 KB HTML) carries a schema.org `JobPosting` (`title`, `description`, `datePosted`, `jobLocation[]`, `employmentType`) and the page's own data after `"apply_for_this_job_section"`: `title`, `locations[]`, `departments[]`, `internal_departments[]`, `description` (`{"__html": …}`), `responsibilities[]`, `minimum_qualifications[]`, `preferred_qualifications[]`, `public_compensation[]`. The GraphQL search (`/graphql` with an `LSD` token and a rotating persisted `doc_id`) is **not** used |
+ | Mapping | title = JSON-LD title; department = internal_departments[0]; team = departments[0]; locations = page locations ("Sunnyvale, CA", "Remote, US"); url = the sitemap URL; postedAt = datePosted |

@@ -1,0 +1,12 @@
+diff --git a/docs/process/README.md b/docs/process/README.md
+index 384d9ec..3c46384 100644
+--- a/docs/process/README.md
++++ b/docs/process/README.md
+@@ -71,6 +71,7 @@ interface every agent built against), [../ARCHITECTURE.md](../ARCHITECTURE.md),
+ | Persona review 35–44 (beta) | [prompts/persona-beta-35-44.md](prompts/persona-beta-35-44.md) | [persona-beta-35-44.md](persona-beta-35-44.md) | none (review only); screenshots in `docs/screenshots/persona-beta-35-44/` |
+ | Persona review 45–54 (beta) | [prompts/persona-beta-45-54.md](prompts/persona-beta-45-54.md) | [persona-beta-45-54.md](persona-beta-45-54.md) | none (review only); screenshots in `docs/screenshots/persona-beta-45-54/` |
+ | Persona review 55 and over (beta) | [prompts/persona-beta-55-plus.md](prompts/persona-beta-55-plus.md) | [persona-beta-55-plus.md](persona-beta-55-plus.md) | none (review only); screenshots in `docs/screenshots/persona-beta-55-plus/` |
++| Amazon and Meta: terms, data routes, DOL pay (data) | [prompts/amazon-meta-data.md](prompts/amazon-meta-data.md) | [amazon-meta-data.md](amazon-meta-data.md) | `docs/AMAZON_META.md`, `scripts/alt-data/*`, `data/alt/*`, `test/alt-data-*.test.js` |
+ | Desktop / mobile QA, mobile perf, fixes | [prompts/qa-desktop.md](prompts/qa-desktop.md), [qa-mobile.md](prompts/qa-mobile.md), [perf-mobile.md](prompts/perf-mobile.md), [fix-frontend.md](prompts/fix-frontend.md) | [qa-desktop.md](qa-desktop.md), [qa-mobile.md](qa-mobile.md), [perf-mobile.md](perf-mobile.md), [fix-frontend.md](fix-frontend.md) | `docs/QA.md`, `test/e2e/*-qa.e2e.js`, `public/unpack-worker.js` |
+ 
+ ## Replaying the build from scratch
