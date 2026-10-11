@@ -592,12 +592,12 @@
 /* V-16 / MR-13: the Pay legend: five fixed dollar steps and what the pin's figures are. */
 .ms-modes__pay { display: none; padding: 2px 6px 4px; }
 .ms-modes--pay .ms-modes__pay { display: grid; gap: 4px; }
-.ms-modes__scale { display: flex; gap: 2px; }
-.ms-modes__step { flex: 1; display: grid; gap: 2px; min-width: 40px; }
+.ms-modes__scale { position: relative; display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; min-width: 240px; padding-bottom: 16px; }
 .ms-modes__chip { height: 10px; border-radius: 2px; }
-.ms-modes__step:first-child .ms-modes__chip { border-radius: 5px 2px 2px 5px; }
-.ms-modes__step:last-child .ms-modes__chip { border-radius: 2px 5px 5px 2px; }
-.ms-modes__stepv { color: var(--_muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ms-modes__chip:first-child { border-radius: 5px 2px 2px 5px; }
+.ms-modes__chip:nth-child(5) { border-radius: 2px 5px 5px 2px; }
+.ms-modes__marks { position: absolute; left: 0; right: 0; top: 12px; height: 14px; }
+.ms-modes__mark { position: absolute; top: 0; transform: translateX(-50%); color: var(--_muted); font-variant-numeric: tabular-nums; white-space: nowrap; line-height: 14px; }
 .ms-modes__paywhat { max-width: 300px; line-height: 1.35; }
 .ms-modes__fx { color: inherit; text-decoration: underline; text-decoration-color: var(--_axis); text-underline-offset: 2px; }
 .ms-pin--juice .ms-pin__price { letter-spacing: .01em; }
@@ -738,9 +738,12 @@
   .ms-map .ms-modes__btn { height: 44px; min-width: 56px; }
   .ms-map .ms-remote { height: 44px; border-radius: 22px; padding: 0 14px; }
   /* The Pay legend on a phone: the five steps and a one-line note (full text in its title). */
-  .ms-modes--pay .ms-modes__pay { padding: 0 4px 2px; gap: 2px; }
-  .ms-modes__step { min-width: 34px; }
-  .ms-modes__paywhat { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: min(260px, calc(100vw - 96px)); }
+  /* Beside the Pay|Juice switch, so the box stays one control tall and the map keeps its top. */
+  .ms-map .ms-modes.ms-modes--pay { flex-direction: row; align-items: center; }
+  .ms-modes--pay .ms-modes__pay { padding: 0 4px; gap: 0; min-width: 0; }
+  .ms-modes__scale { min-width: 168px; }
+  .ms-modes__cur { display: none; }
+  .ms-modes__paywhat { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: min(176px, calc(100vw - 200px)); }
 
   /* Same role elsewhere: 44px rows (comps.js sets --ms-comps-row). */
   .ms-comps__over, .ms-comps__nodata { line-height: var(--ms-comps-row, 28px); }

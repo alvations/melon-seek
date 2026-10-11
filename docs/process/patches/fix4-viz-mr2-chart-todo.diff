@@ -1,0 +1,16 @@
+fix4-viz: the chart's notes line now gives the exchange-rate date in its text (public/viz/chart.js
+renderNotes: "417 converted from another currency at Jul 2026 exchange rates", the date linked to
+methodology/#7-how-often-its-updated), so the MR-2 chart to-do passes and can become a plain test.
+test/beta-methodology.test.js is not this lane's file; apply when integrating.
+
+--- a/test/beta-methodology.test.js
++++ b/test/beta-methodology.test.js
+@@ -67,7 +67,7 @@ test('MR-2 drawer: the "approx US dollars" line names the exchange-rate date', todo('MR-2'), () => {
+   const { at, text } = lineWith('public/app.js', 'in approx US dollars for comparison');
+   assert.match(text, NAMES_FX_DATE, `${at} prints the converted range without the rate's date`);
+ });
+-test('MR-2 chart: the footnote text (not only its hover title) gives the exchange-rate date', todo('MR-2'), () => {
++test('MR-2 chart: the footnote text (not only its hover title) gives the exchange-rate date', () => {
+   const { at, text } = lineWith('public/viz/chart.js', 'converted from another currency');
+   assert.match(text, NAMES_FX_DATE, `${at}: the date is only in foot.title, which a phone cannot show`);
+ });

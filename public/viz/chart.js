@@ -951,8 +951,9 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         bin.style.height = Math.max(hit, 2 * rad + 6) + 'px';
         const dot = el('span', 'ms-bin__dot');
         dot.style.width = dot.style.height = (2 * rad) + 'px';
-        if (n >= 2 && rad >= 8) {
-          dot.textContent = shortCount(n); // M-23: "4.5K"; the exact count is in the aria-label
+        // A count only when it fits inside its (solid, V-22) circle; the exact count is in the aria-label.
+        if (n >= 2 && rad >= 8 && textWidth(shortCount(n), chipFont.replace('700', '600')) + 3 <= 2 * rad) {
+          dot.textContent = shortCount(n); // M-23: "4.5K"
           if (rad < 11) dot.classList.add('ms-bin__dot--sm');
         }
         bin.append(dot);

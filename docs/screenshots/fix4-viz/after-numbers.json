@@ -1,0 +1,110 @@
+{
+ "light apple clusters circles": [
+  "3.17",
+  "7.18",
+  40
+ ],
+ "light apple clusters median tick": [
+  "9.40",
+  "9.40",
+  8
+ ],
+ "light apple clusters strip bins": [
+  "3.26",
+  "3.26",
+  38
+ ],
+ "light nvidia ranges bars": [
+  "3.17",
+  "6.28",
+  50
+ ],
+ "light nvidia ranges midpoint dots": [
+  "3.17",
+  "6.28",
+  50
+ ],
+ "light nvidia ranges strip bins": [
+  "3.26",
+  "3.26",
+  29
+ ],
+ "light netflix map pay pins": [
+  "13.63",
+  "13.63",
+  1
+ ],
+ "light google map juice no-data pins": [
+  "1.73",
+  "1.73",
+  5
+ ],
+ "dark apple clusters circles": [
+  "3.60",
+  "8.70",
+  40
+ ],
+ "dark apple clusters median tick": [
+  "9.77",
+  "9.77",
+  8
+ ],
+ "dark apple clusters strip bins": [
+  "6.05",
+  "6.05",
+  38
+ ],
+ "dark nvidia ranges bars": [
+  "3.60",
+  "8.70",
+  50
+ ],
+ "dark nvidia ranges midpoint dots": [
+  "3.60",
+  "8.70",
+  50
+ ],
+ "dark nvidia ranges strip bins": [
+  "6.05",
+  "6.05",
+  29
+ ],
+ "dark netflix map pay pins": [
+  "13.61",
+  "13.61",
+  1
+ ],
+ "dark google map juice no-data pins": [
+  "2.43",
+  "2.43",
+  5
+ ],
+ "dark comps bars": [
+  "3.06",
+  "6.78",
+  10
+ ],
+ "dark comps median ticks": [
+  "3.06",
+  "6.78",
+  10
+ ],
+ "apple regroup ms": [
+  194,
+  215,
+  141,
+  91,
+  101,
+  113,
+  101,
+  99
+ ],
+ "apple view switch ms": [
+  140,
+  105,
+  106,
+  98,
+  100,
+  83
+ ]
+}

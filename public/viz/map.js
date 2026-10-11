@@ -524,16 +524,26 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     const box = modeBox.querySelector('.ms-modes__pay');
     if (!box) return;
     box.replaceChildren();
+    // Five equal chips; the dollar breaks sit under the edges between them.
+    const steps = paySteps();
     const scale = el('div', 'ms-modes__scale');
-    for (const st of paySteps()) {
-      const k = el('span', 'ms-modes__step');
+    const marks = el('div', 'ms-modes__marks');
+    marks.setAttribute('aria-hidden', 'true');
+    steps.forEach((st, i) => {
       const sw = el('span', 'ms-modes__chip');
       sw.style.background = st.color;
-      const txt = st.lo == null ? `< ${formatMoney(st.hi)}` : st.hi == null ? `${formatMoney(st.lo)}+` : `${formatMoney(st.lo)}`;
-      k.title = st.lo == null ? `Median under ${formatMoney(st.hi)}` : st.hi == null ? `Median ${formatMoney(st.lo)} or more` : `Median ${formatMoney(st.lo)} to ${formatMoney(st.hi)}`;
-      k.append(sw, el('span', 'ms-modes__stepv', txt));
-      scale.append(k);
-    }
+      sw.title = st.lo == null ? `Median under ${formatMoney(st.hi)}` : st.hi == null ? `Median ${formatMoney(st.lo)} or more` : `Median ${formatMoney(st.lo)} to ${formatMoney(st.hi)}`;
+      sw.setAttribute('role', 'img');
+      sw.setAttribute('aria-label', sw.title);
+      scale.append(sw);
+      if (st.hi != null) { // "$100K"; phones drop the "$" so the four breaks fit (viz.css)
+        const m = el('span', 'ms-modes__mark');
+        m.append(el('span', 'ms-modes__cur', '$'), formatMoney(st.hi).replace(/^\$/, ''));
+        m.style.left = `${((i + 1) / steps.length) * 100}%`;
+        marks.append(m);
+      }
+    });
+    scale.append(marks);
     const what = el('div', 'ms-modes__none ms-modes__paywhat');
     const a = el('a', 'ms-modes__fx', `${fxMonth(FX_AS_OF)} exchange rates`);
     a.href = FX_DOC;
