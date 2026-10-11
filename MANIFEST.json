@@ -1,7 +1,7 @@
 {
  "format": "melon-archive",
  "schemaVersion": 1,
- "updatedAt": "2026-10-11T23:29:29.161Z",
+ "updatedAt": "2026-10-11T23:30:10.483Z",
  "generator": "scripts/archive@e48fd3248a90b157b0d59626c6e7aeedc3c250fe",
  "tables": {
   "audit/flags": 1283,
@@ -10,12 +10,12 @@
   "audit/verdicts": 681,
   "blobs": 71959,
   "daily": 92,
-  "ingests": 399,
+  "ingests": 400,
   "jobs.closed": 58446,
   "jobs.open": 42655,
   "jobs.versions": 101101,
   "ledger/entries": 62684,
-  "observations": 536,
+  "observations": 537,
   "reference.files": 268,
   "reference/index": 268
  },
@@ -169,9 +169,9 @@
   },
   "ingests/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 519531,
-   "sha256": "820ff19a4ce6ee80d735c37ced657653cd1bbf2e8db5918956236ed4641685f6",
-   "rows": 399
+   "bytes": 520033,
+   "sha256": "0e8399ea07330d87e9fedbf54589322109ef5ea78e30974644f1d1361fb41e52",
+   "rows": 400
   },
   "jobs/amazon/2026-10.jsonl": {
    "kind": "append",
@@ -436,9 +436,9 @@
   },
   "observations/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 453906,
-   "sha256": "61fecc1962eae50e4b9bf2e783115693edb0cffa30a2b6c79f61a7119dd0f8f2",
-   "rows": 536
+   "bytes": 455004,
+   "sha256": "b95af96b03d1376a1f9f7949d53d242c0ce4c042a6be21d25946f360fc9f3113",
+   "rows": 537
   },
   "reference/archive-policy/2026-10-10.json": {
    "kind": "immutable",
@@ -1804,7 +1804,7 @@
   "state/companies.json": {
    "kind": "mutable",
    "bytes": 8435,
-   "sha256": "4d15acb0f3ae80d233684f909e693753deef4caf48b4646b2b81e506ea771cd5"
+   "sha256": "a873d85d582df351f9328c3c430f3f958724df6ac21c435138aa7c00607b1e6c"
   }
  }
 }

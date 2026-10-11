@@ -209,9 +209,9 @@
  },
  "netflix": {
   "slug": "netflix",
-  "lastObservedAt": "2026-10-11T22:09:21.963Z",
+  "lastObservedAt": "2026-10-11T23:28:04.671Z",
   "firstObservedAt": "2026-10-10T10:21:03.942Z",
-  "observations": 7,
+  "observations": 8,
   "name": "Netflix",
   "channel": "beta",
   "source": "eightfold",
@@ -228,7 +228,7 @@
    "changed": 140,
    "payChanged": 2,
    "sourceChanged": 2,
-   "observations": 3
+   "observations": 4
   },
   "lastDailyDate": "2026-10-11",
   "lastDailyAt": "2026-10-11T06:38:35.550Z"
