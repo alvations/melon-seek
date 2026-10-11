@@ -336,3 +336,90 @@ export function excelDate(serial) {
   if (!Number.isFinite(n) || n < 18264 || n > 73051) return null;
   return new Date(Math.round((n - 25569) * 86400000)).toISOString().slice(0, 10);
 }
+
+/** 'YYYY-MM-DD' -> Excel serial date (1900 system). */
+export function toExcelDate(iso) {
+  return Math.round(Date.parse(`${iso}T00:00:00Z`) / 86400000 + 25569);
+}
+
+/* --------------------------------------------------------------- writer */
+// For tests and samples: a workbook laid out like the DOL files (one sheet, every text
+// cell a shared string, sharedStrings.xml stored last, dates as serial numbers).
+
+let CRC_TABLE = null;
+function crc32(buf) {
+  if (typeof zlib.crc32 === 'function') return zlib.crc32(buf) >>> 0;
+  if (!CRC_TABLE) {
+    CRC_TABLE = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      CRC_TABLE[n] = c >>> 0;
+    }
+  }
+  let c = 0xffffffff;
+  for (const b of buf) c = CRC_TABLE[(c ^ b) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+/** A zip archive (deflated entries) from [{ name, data }]. */
+export function zipBuffer(files) {
+  const locals = [];
+  const central = [];
+  let offset = 0;
+  for (const f of files) {
+    const data = Buffer.isBuffer(f.data) ? f.data : Buffer.from(String(f.data), 'utf8');
+    const comp = zlib.deflateRawSync(data);
+    const name = Buffer.from(f.name, 'utf8');
+    const crc = crc32(data);
+    const lfh = Buffer.alloc(30);
+    lfh.writeUInt32LE(LFH_SIG, 0); lfh.writeUInt16LE(20, 4); lfh.writeUInt16LE(0, 6); lfh.writeUInt16LE(8, 8);
+    lfh.writeUInt32LE(crc, 14); lfh.writeUInt32LE(comp.length, 18); lfh.writeUInt32LE(data.length, 22);
+    lfh.writeUInt16LE(name.length, 26); lfh.writeUInt16LE(0, 28);
+    locals.push(lfh, name, comp);
+    const cdh = Buffer.alloc(46);
+    cdh.writeUInt32LE(CDH_SIG, 0); cdh.writeUInt16LE(20, 4); cdh.writeUInt16LE(20, 6); cdh.writeUInt16LE(0, 8); cdh.writeUInt16LE(8, 10);
+    cdh.writeUInt32LE(crc, 16); cdh.writeUInt32LE(comp.length, 20); cdh.writeUInt32LE(data.length, 24);
+    cdh.writeUInt16LE(name.length, 28); cdh.writeUInt32LE(offset, 42);
+    central.push(cdh, name);
+    offset += 30 + name.length + comp.length;
+  }
+  const cd = Buffer.concat(central);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(EOCD_SIG, 0); eocd.writeUInt16LE(files.length, 8); eocd.writeUInt16LE(files.length, 10);
+  eocd.writeUInt32LE(cd.length, 12); eocd.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, cd, eocd]);
+}
+
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/**
+ * An .xlsx buffer from rows (arrays; row 0 is the header). Strings become shared strings,
+ * numbers numeric cells, null/undefined/'' empty cells. `{ inline: true }` writes strings as
+ * inline strings instead (some writers do).
+ */
+export function xlsxBuffer(rows, { inline = false } = {}) {
+  const sst = new Map();
+  const sid = (s) => { if (!sst.has(s)) sst.set(s, sst.size); return sst.get(s); };
+  const rowXml = rows.map((row, r) => {
+    const cells = row.map((v, c) => {
+      if (v == null || v === '') return '';
+      const ref = `${colLetters(c)}${r + 1}`;
+      if (typeof v === 'number') return `<c r="${ref}"><v>${v}</v></c>`;
+      if (inline) return `<c r="${ref}" t="inlineStr"><is><t>${esc(v)}</t></is></c>`;
+      return `<c r="${ref}" t="s"><v>${sid(String(v))}</v></c>`;
+    }).join('');
+    return `<row r="${r + 1}">${cells}</row>`;
+  }).join('');
+  const ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+  const rel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+  const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="${ns}"><sheetData>${rowXml}</sheetData></worksheet>`;
+  const strings = [...sst.keys()].map((s) => `<si><t xml:space="preserve">${esc(s)}</t></si>`).join('');
+  return zipBuffer([
+    { name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>' },
+    { name: 'xl/workbook.xml', data: `<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="${ns}" xmlns:r="${rel}"><sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets></workbook>` },
+    { name: 'xl/_rels/workbook.xml.rels', data: `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId4" Type="${rel}/sharedStrings" Target="sharedStrings.xml"/><Relationship Id="rId1" Type="${rel}/worksheet" Target="worksheets/sheet1.xml"/></Relationships>` },
+    { name: 'xl/worksheets/sheet1.xml', data: sheet },
+    { name: 'xl/sharedStrings.xml', data: `<?xml version="1.0" encoding="UTF-8"?><sst xmlns="${ns}" count="${sst.size}" uniqueCount="${sst.size}">${strings}</sst>` },
+  ]);
+}
