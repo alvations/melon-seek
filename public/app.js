@@ -3,13 +3,13 @@
 // list, the job drawer and the company switcher. Rendering of the salary
 // chart and the map is delegated to ./viz/* (see docs/CONTRACT.md).
 
-import { colorFor, formatMoney, resetColors, assignColors, otherColor, toUSD, SLOT_COUNT, hasFx, juiceNetForScore, JUICE_BREAKS } from './viz/palette.js';
+import { colorFor, formatMoney, resetColors, assignColors, otherColor, toUSD, SLOT_COUNT, hasFx, juiceNetForScore, JUICE_BREAKS, FX_AS_OF, FX_SOURCE } from './viz/palette.js';
 import { createChart, keyOf, VIEWS, DEFAULT_VIEW } from './viz/chart.js';
 import { createMap } from './viz/map.js';
 import * as api from './api.js';
 import { createCompstimateWidget, compstimateForJob, estimateView } from './features/compstimate.js';
 import { compsForJob, compsNote, createCompsCard } from './features/comps.js';
-import { loadFreshness, freshnessDoc, juiceAsOfText, juiceSpanText, marketAsOfText, compstimateAsOfText } from './features/freshness.js';
+import { loadFreshness, freshnessDoc, juiceAsOfText, juiceSpanText, marketAsOfText, compstimateAsOfText, asOf, formatAsOf } from './features/freshness.js';
 import { createCompsChart } from './viz/comps.js';
 import { roleFamily, FAMILY_LABELS, readableTitle, levelLabel, displayLevel, NOT_STATED, DISPLAY_LEVEL_ORDER, levelKey, levelFromKey } from './features/roles.js';
 import { payLocations, payRank, samePayCountry, countryInSentence } from './features/shared.js';
@@ -3237,6 +3237,15 @@ function payPill(job) {
   const range = salaryRange(s);
   if (!range) return null;
   if (isOte(job)) return { text: range, tip: OTE_LABEL };
+  // UX-22: a posting that gives each place its own range. Under a Location filter the card shows the
+  // range of the place picked; otherwise the span says it covers several places ("$166K–325K · 3 places").
+  const rs = payRanges(s);
+  if (rs) {
+    const byPlace = `Pay by place: ${rs.map((r) => `${rangeLabel(r)} ${rangeText(r, s.currency)}`).join(' · ')}`;
+    const picked = pickedRange(job);
+    if (picked) return { text: picked.range, tip: `The range posted for ${picked.label}. ${byPlace}` };
+    return { text: `${range} · ${rs.length} places`, tip: `${range} runs from the lowest to the highest of ${rs.length} ranges posted for different places. ${byPlace}` };
+  }
   return { text: range, tip: null };
 }
 /** UX-29: the term of a fixed-term role for the card's first keyword slot: { text: "13-week internship", tip }, or null. */
@@ -3425,7 +3434,9 @@ function salaryDistribution(job) {
   const mids = (pool || []).map((j) => j._mid).concat(job._usd ? [job._mid] : []).sort((a, b) => a - b);
   const foreign = job.salary.currency && job.salary.currency !== 'USD';
   const fullTime = isPartTimeHourly(job) ? ' a year if full-time' : ''; // shared decision 4
-  const approx = foreign ? h('p', { class: 'fnote' }, `≈ ${moneyRange(job._usd.min, job._usd.max)}${fullTime} in approx US dollars for comparison`) : null;
+  const approx = foreign && job._usd ? h('p', { class: 'fnote', title: `Rates: ${FX_SOURCE}` }, `≈ ${moneyRange(job._usd.min, job._usd.max)}${fullTime} in approx US dollars for comparison, at ${fxAsOf()} `, docLink(UPDATED_DOC, 'Sources'))
+    // MR-1: a currency with no rate in the table is shown as posted, and says why it is left out of comparisons.
+    : foreign ? h('p', { class: 'fnote' }, `We can’t convert ${job.salary.currency} to US dollars yet (no exchange rate), so this pay is left out of charts and comparisons.`) : null;
   if (!pool || !dom || !job._usd) return approx ? h('div', { class: 'd-dist' }, approx) : null;
   const W = 100, H = 40, N = 32;
   const counts = new Array(N).fill(0);
@@ -3447,7 +3458,10 @@ function salaryDistribution(job) {
   svg.append(svgEl('line', { x1: mx, x2: mx, y1: 0, y2: H, class: 'dist-med', 'vector-effect': 'non-scaling-stroke' }));
   const medLabel = h('span', { class: 'dist-med-label' }, `median ${money(median)}`);
   medLabel.style.left = `${Math.min(80, Math.max(20, x(median))).toFixed(1)}%`;
-  return h('div', { class: 'd-dist' }, svg,
+  // MR-17: the strip says what it shows (which roles, and which number of each).
+  return h('div', { class: 'd-dist' },
+    h('p', { class: 'fnote dist-caption' }, `Pay of ${mids.length.toLocaleString()} ${poolNoun(job)} at ${data.company?.name || 'this company'} (the middle of each posted range); this one is marked`),
+    svg,
     h('div', { class: 'dist-axis' }, h('span', null, money(dom.lo)), medLabel, h('span', null, money(dom.hi))),
     approx);
 }
@@ -3456,6 +3470,14 @@ const INTERVAL_ADJ = { hour: 'hourly', day: 'daily', week: 'weekly', month: 'mon
 
 let juicePeriod = 'year'; // drawer waterfall: per year or per month (kept for the session); 'term' for fixed-term pay
 const JUICE_DOC = 'methodology/#1-the-formula'; // site page rendered from docs/LIVABILITY.md (scripts/methodology.js); never off-site
+// MR-3: the same guide explains posted pay (ranges, levels, part-time and fixed-term pay), the pay estimate,
+// the grades and how often the data is read (docs/METHODOLOGY_GUIDE.md §2, §7 and §8).
+const PAY_DOC = 'methodology/#how-is-the-posted-pay-read';
+const ESTIMATE_DOC = 'methodology/#where-does-a-pay-estimate-come-from';
+const UPDATED_DOC = 'methodology/#7-how-often-its-updated';
+const docLink = (href, text) => h('a', { class: 'doc-link', href, target: '_blank', rel: 'noopener noreferrer' }, text);
+/** MR-2: "exchange rates as of Jul 2026" for every pay figure converted to US dollars (registry date, else the table's own). */
+const fxAsOf = () => `exchange rates as of ${formatAsOf(asOf('fx-per-usd') || FX_AS_OF)}`;
 
 /* Household for the Juice Score (docs/LIVABILITY.md §1): who the rent and living costs are for.
    It applies everywhere juice is used (cards, sort, the Juice filter, the map's Juice colouring,
@@ -3562,6 +3584,10 @@ function juiceBlock(job) {
   const [hhKey, , , beds, people] = householdInfo(jb.household || b.household || 'single');
   const term = postedTerm(job.salary);
   const place = b.cityName || b.locationName;
+  // MR-12 / UX-30: when the costs come from another city than the job's own, the headline says so.
+  const own = String(b.locationName || '').split(',')[0].trim();
+  const headPlace = b.cityName && own && own.toLowerCase() !== String(b.cityName).toLowerCase()
+    ? `${own} (using ${b.cityName}’s rent and living costs, the nearest city with cost data)` : place;
   const headNet = h('span', { class: 'juice-head-net' });
   const body = h('div', { class: 'juice-body' });
   // BP-1: the length is said the way the pay block says it (a yearly rate for a 13-week internship, or
@@ -3597,7 +3623,7 @@ function juiceBlock(job) {
     const gv = r(b.gross), tv = r(b.tax), rv = r(b.rent), lv = r(b.living);
     const nv = gv - tv - rv - lv;
     const amt = (n, sign = '') => `${sign}${fmt(Math.abs(n))}${per}`;
-    headNet.textContent = `${nv < 0 ? '−' : ''}${fmt(Math.abs(nv))}${per} left ${hhFor(hhKey)} in ${place}${term && period === 'month' ? ' while it lasts' : ''}`;
+    headNet.textContent = `${nv < 0 ? '−' : ''}${fmt(Math.abs(nv))}${per} left ${hhFor(hhKey)} in ${headPlace}${term && period === 'month' ? ' while it lasts' : ''}`;
     const g = Math.max(1, b.gross);
     const seg = (lo, hi) => { const x = Math.max(0, Math.min(g, lo)), z = Math.max(0, Math.min(g, hi)); return `left:${(x / g) * 100}%;width:${Math.max(0, ((z - x) / g) * 100)}%`; };
     const afterTax = b.gross - b.tax, afterRent = afterTax - b.rent;
@@ -3630,17 +3656,19 @@ function juiceBlock(job) {
       h('div', { class: 'juice-controls' }, household, toggle),
       h('div', { class: 'waterfall', role: 'table', 'aria-label': 'Juice breakdown' },
         ...rows.map(([label, value, style, kind, detail, extra]) => h('div', { class: `wf-row ${kind.split(' ').map((k, i) => (i ? k : `wf--${k}`)).join(' ')}`, role: 'row' },
-          h('span', { class: 'wf-label', role: 'rowheader' }, label),
+          // A-6: a row owns only cells, so the details (tax split, rent basis) sit in the row header.
+          h('span', { class: 'wf-label', role: 'rowheader' }, label,
+            detail ? h('span', { class: 'wf-detail' }, detail) : null,
+            extra ? h('span', { class: 'wf-detail wf-tax-basis', title: taxNote && extra !== taxNote ? taxNote : null }, extra) : null),
           h('span', { class: 'wf-track', role: 'cell', 'aria-hidden': 'true' }, h('span', { class: 'wf-bar', style })),
-          h('span', { class: 'wf-value', role: 'cell' }, value),
-          detail ? h('span', { class: 'wf-detail' }, detail) : null,
-          extra ? h('span', { class: 'wf-detail wf-tax-basis', title: taxNote && extra !== taxNote ? taxNote : null }, extra) : null))),
+          h('span', { class: 'wf-value', role: 'cell' }, value)))),
       b.rentBurden != null ? h('p', { class: 'juice-facts' }, 'Rent takes ', h('strong', null, `${Math.round(b.rentBurden * 100)}%`), ' of take-home pay.') : null,
       others.length ? h('details', { class: 'juice-compare' }, h('summary', null, `Compare locations (${others.length + 1})`),
         h('ul', null, ...[b, ...others].map((l) => h('li', null,
           h('span', { class: 'jc-name' }, l.locationName || l.cityName, l === b ? h('span', { class: 'muted' }, filtered && b !== jb.best ? ' · shown above' : ' · best') : null),
           h('span', { class: `juice-grade juice--${String(l.grade).toLowerCase()}` }, `${l.score} ${l.grade}`),
-          h('span', { class: 'jc-net' }, `${l.net < 0 ? '−' : ''}${fmt(Math.abs(r(l.net)))}${per}`))))) : null,
+          // V-30: the place shown above reads the headline's figure (rows rounded, then subtracted), not its own rounding.
+          h('span', { class: 'jc-net' }, l === b ? `${nv < 0 ? '−' : ''}${fmt(Math.abs(nv))}${per}` : `${l.net < 0 ? '−' : ''}${fmt(Math.abs(r(l.net)))}${per}`))))) : null,
       asOfNote('juice-asof', () => juiceAsOfText(asOfSrc || {})), // rent, living costs, FX and each tax line
       h('p', { class: 'juice-disclaimer' }, 'Estimate, not financial advice. ', h('a', { href: JUICE_DOC, target: '_blank', rel: 'noopener noreferrer' }, 'How it’s calculated')),
     ));
@@ -3711,12 +3739,50 @@ function levelMoney(n, currency) {
   return `${n < 0 ? '-' : ''}${sym}${(Math.round(a / 100) / 10).toFixed(1)}K`;
 }
 /** "Pay by level: Level 2: $184K–287.5K · Level 3: $224K–356.5K" under the range in the pay block. */
-function payLevelsLine(s) {
+function payLevelsLine(s, job = null) {
   const lv = payLevels(s);
   if (!lv) return null;
-  const range = (a, b) => { const x = levelMoney(a, s.currency), y = levelMoney(b, s.currency); return x === y ? x : `${x}–${y.replace(/^[^\d]+/, '')}`; };
+  // UX-28: the levels round like the headline range (to the nearest thousand), so "$356.5K" never sits under "$356K".
+  const labels = lv.map((l) => String(l.label).trim());
+  const co = data.company?.name || job?.companyName || 'the company';
+  // MR-17: the level names are the company's own; "IC" is spelled out where it appears.
+  const what = labels.some((l) => /^IC\s?\d/i.test(l)) ? ` (IC: individual contributor; ${co}’s own level names)`
+    : labels.some((l) => /^M\s?\d/.test(l)) ? ` (${co}’s own level names; M is a manager level)` : ` (${co}’s own level names)`;
   return h('p', { class: 'd-sal-levels' }, h('span', { class: 'muted' }, 'Pay by level: '),
-    lv.map((l) => `${String(l.label).trim()}: ${range(l.min, l.max ?? l.min)}`).join(' · '));
+    lv.map((l) => `${String(l.label).trim()}: ${moneyRange(l.min, l.max ?? l.min, s.currency)}`).join(' · '),
+    h('span', { class: 'muted' }, what));
+}
+/**
+ * UX-22: salary.ranges, when a posting gives its own range for different places (Apple: "$165,800–292,400
+ * (Waltham); …"): [{ label, min, max, locations }], yearly, in the salary's currency. Two or more, else null.
+ */
+function payRanges(s) {
+  const cur = String(s?.currency || '').toUpperCase();
+  const rs = Array.isArray(s?.ranges) ? s.ranges.filter((r) => r && Number.isFinite(Number(r.min)) && (r.label || (Array.isArray(r.locations) && r.locations.length))
+    && String(r.currency || cur).toUpperCase() === cur) : [];
+  return rs.length > 1 ? rs : null;
+}
+const rangeLabel = (r) => String(r.label || [...new Set(r.locations.map((x) => String(x).split(',')[0].trim()))].join(', ')).trim();
+const rangeText = (r, cur) => moneyRange(Number(r.min), Number(r.max ?? r.min), cur);
+/** "Pay by place: Waltham $166K–292K · Los Angeles, San Diego $175K–309K" under the range in the pay block (UX-22). */
+function payPlacesLine(s) {
+  const rs = payRanges(s);
+  if (!rs) return null;
+  return h('p', { class: 'd-sal-levels d-sal-places' }, h('span', { class: 'muted' }, 'Pay by place: '),
+    rs.map((r) => `${rangeLabel(r)} ${rangeText(r, s.currency)}`).join(' · '));
+}
+/**
+ * UX-22: the range posted for the places a Location filter picked, when the posting gives each place its own
+ * range: { range, label, n } in the salary's currency, or null (no filter, no ranges, or no picked place in one).
+ * Reads `ranges[].locations` defensively: a range without places matches nothing.
+ */
+function pickedRange(job, F = viewSpec) {
+  const rs = F?.l.size ? payRanges(job.salary) : null;
+  if (!rs) return null;
+  const hit = rs.filter((r) => Array.isArray(r.locations) && job.locations.some((l) => l && r.locations.includes(l.rawName || l.name) && locMatches(job, F, [l])));
+  if (!hit.length) return null;
+  const min = Math.min(...hit.map((r) => Number(r.min))), max = Math.max(...hit.map((r) => Number(r.max ?? r.min)));
+  return { range: moneyRange(min, max, job.salary.currency), label: hit.map(rangeLabel).join('; '), n: rs.length };
 }
 
 /** At most two muted honest-number labels (ROADMAP F2), in the roadmap's priority order. */
@@ -3726,9 +3792,11 @@ function payLabels(job) {
   const spread = s.spread ?? (s.min > 0 ? s.max / s.min : null);
   const labels = [
     // D-21: a range that covers several levels lists them (payLevelsLine) instead of a bare "Multiple pay zones".
-    s.zones > 1 && !payLevels(s) ? ['Multiple pay zones', 'The posting lists different ranges for different locations or levels'] : null,
-    spread != null && spread >= 2 ? [`Wide range (${spread.toFixed(1)}×)`, 'The top of the range is at least twice the bottom'] : null,
-    s.min === s.max ? ['Single figure', 'The posting gives one number, not a range'] : null,
+    // UX-22: a range per place lists them (payPlacesLine) too; UX-31: the chip says what it means.
+    s.zones > 1 && !payLevels(s) && !payRanges(s) ? ['Several pay ranges', 'The posting lists different ranges for different locations or levels; this is the span of all of them'] : null,
+    spread != null && spread >= 2 ? [`Top is ${spread.toFixed(1).replace(/\.0$/, '')}× the bottom${payLevels(s) ? ' (across levels)' : payRanges(s) ? ' (across places)' : ''}`,
+      payLevels(s) || payRanges(s) ? 'The span runs from the lowest to the highest range the posting gives, so it is wider than any one of them' : 'The top of the range is at least twice the bottom'] : null,
+    s.min === s.max ? ['One number, not a range', 'The posting gives one number, not a range'] : null,
     job.extras?.equity ? ['+ equity mentioned', 'The description mentions equity; it isn\u2019t in this figure'] : null,
     // P-1: on-target earnings already include the commission at target, so a "bonus" note would be wrong.
     job.extras?.bonus && !isOte(job) ? ['+ bonus mentioned', 'The description mentions a bonus; it isn\u2019t in this figure'] : null,
@@ -3880,13 +3948,16 @@ function drawerContent(job) {
   const of = `${coName}’s ${noun}${place}${isOte(job) ? '' : ' that show pay'}`;
   // BP-3: ranked only among roles paid for the same country; with too few of them, say so.
   const pctText = pct == null ? (rank?.others && place ? `Too few of ${coName}’s ${noun}${place} show pay to rank this one. Pay for other countries isn’t used.` : null)
-    : pct >= 100 ? `The top pay of ${of}` : pct <= 0 ? `The lowest pay of ${of}` : `Pays more than ${pct}% of ${of}`;
+    : pct >= 100 ? `The highest pay of ${of}`
+      : pct <= 0 ? `The lowest pay of ${of}` : `Pays more than ${pct}% of ${of}`;
   const partHourly = isPartTimeHourly(job);
   // Shared decision 1: under a Location filter, the pay block says when its pay isn't for the places picked.
   const elsewhere = sal && viewSpec?.l.size && job._usd && !payHere(job) ? ` This pay is posted for ${payPlaceText(job)}, not for ${placesPicked()}.` : '';
   const caption = !sal ? null : (isOte(job) ? `${OTE_LABEL}. Equity isn’t included.`
     : partHourly ? 'Posted hourly pay for a part-time role. Equity and bonus aren’t included.'
       : term?.fixed ? 'Fixed-term pay as posted. Equity and bonus aren’t included.' : 'Posted base pay. Equity and bonus aren’t included.') + elsewhere;
+  // UX-22: under a Location filter, the range posted for the place picked.
+  const picked = sal ? pickedRange(job) : null;
   // Shared decisions 3 and 4: the amount as it was stated. Fixed-term pay: "$3,850 a week · for about 17
   // weeks"; a rate for a programme: "€72,000 a year · 13-week internship"; part-time: "$22.00–28.88 an hour".
   const cur = sal?.currency || 'USD';
@@ -3900,12 +3971,15 @@ function drawerContent(job) {
         h('div', { class: 'd-sal-amt' }, amountText),
         h('div', { class: 'muted' }, subText),
         annualNote(sal, job),
-        term || partHourly ? null : payLevelsLine(sal)))
+        term || partHourly ? null : payLevelsLine(sal, job),
+        term || partHourly ? null : payPlacesLine(sal),
+        picked ? h('p', { class: 'd-sal-levels' }, h('span', { class: 'muted' }, `For ${placesPicked()}: `), `${picked.range} (${picked.label})`) : null))
       : job.salaryFlag ? payUnclearBlock(job)
-        : h('div', { class: 'd-sal-none' }, h('strong', null, 'Salary not listed'), h('span', { class: 'muted' }, ' — this posting doesn’t include a pay range.'), compstimateBlock(job)),
+        : h('div', { class: 'd-sal-none' }, h('strong', null, 'No pay listed'), h('span', { class: 'muted' }, ': this posting has no pay range.'), compstimateBlock(job)),
     sal ? salaryDistribution(job) : null,
     sal ? payLabels(job) : null,
-    caption ? h('p', { class: 'd-pay-caption' }, caption) : null,
+    // MR-3: one tap from the pay to how it is read (ranges, levels, part-time and fixed-term pay).
+    caption ? h('p', { class: 'd-pay-caption' }, `${caption} `, docLink(PAY_DOC, 'How pay is read')) : null,
     sal && pctText ? h('p', { class: 'd-pct-text' }, pctText) : null);
 
   const locs = fold('d-locs', job.locations.length > 1 ? `Locations (${job.locations.length})` : 'Location',
@@ -3935,7 +4009,7 @@ function drawerContent(job) {
     h('div', { class: 'd-meta' }, ...metaParts(job).map((t, i) => [i ? h('span', { class: 'sep' }, '·') : null, h('span', null, t)]),
       h('span', { class: `sen sen--${sen.toLowerCase().replace(/\W/g, '')}`, title: SEN_TIP[sen] || null }, senLabel(sen)),
       job._titleTag ? h('span', { class: 'tag', title: `The posting's title starts with “[${job._titleTag}]”, a tag the company adds (often a team or office code)` }, `Tag: ${job._titleTag}`) : null),
-    job._ts ? h('div', { class: 'd-updated muted' }, `Updated ${ago(job._ts)}`) : null,
+    job._ts ? h('div', { class: 'd-updated muted' }, updatedText(job)) : null,
     // Fixed order (ROADMAP §8): pay block → Same role elsewhere → (Juice headline) → Listing → Locations → Keywords → Bullets → Description.
     salaryBlock,
     sameRoleSection(job), // UX-5: directly under the pay block
@@ -3945,6 +4019,20 @@ function drawerContent(job) {
     kwCat.some(Boolean) ? fold('d-kw', ['Keywords ', h('span', { class: 'muted small' }, 'click to filter')], ...kwCat) : null,
     bulletsFold,
     descWrap), foot];
+}
+
+/**
+ * D-33: "Updated …" for the drawer. A posting updated on the day it was listed counts its days on the
+ * Listing block's clock (ageDays, at the crawl), so one drawer never says "Updated 30 days ago" over
+ * "Listed 31 days ago" for the same day.
+ */
+function updatedText(job) {
+  const listed = Date.parse(job.postedAt || job.firstSeenAt || '');
+  const day = (t) => new Date(t).toISOString().slice(0, 10);
+  if (job._age != null && 'ageDays' in job && !job.ageIsMinimum && Number.isFinite(listed) && job._ts && day(listed) === day(job._ts) && job._age >= 1 && job._age < 45) {
+    return `Updated ${plural(job._age, 'day')} ago`;
+  }
+  return `Updated ${ago(job._ts)}`;
 }
 
 /** A drawer section that can collapse (details/summary). */
