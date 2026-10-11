@@ -629,7 +629,7 @@ export function registerUiTests(suite) {
         await page.locator('#drawer').waitFor({ state: 'visible', timeout: 5000 });
         const sec = page.locator('#drawer .d-comps');
         if (await sec.count()) {
-          await page.waitForFunction(() => { const s = document.querySelector('#drawer .d-comps'); return !s || s.hidden || s.querySelector('.ms-comps__row'); }, null, { timeout: 8000 });
+          await page.waitForFunction(() => { const s = document.querySelector('#drawer .d-comps'); return !s || s.hidden || s.querySelector('.ms-comps__row') || (s.querySelector('.comps-note') && !s.querySelector('.comps-chart')); }, null, { timeout: 8000 });
           if (await sec.isVisible() && await sec.locator('.ms-comps__row:not(.is-current)').count()) { rows = sec.locator('.ms-comps__row'); break; }
         }
         await page.keyboard.press('Escape');

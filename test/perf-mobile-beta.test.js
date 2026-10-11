@@ -20,7 +20,7 @@ import vm from 'node:vm';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const { listPreloadJs, LAST_VIEW_KEY } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'build-static.js')).href);
+const { listPreloadJs, LAST_VIEW_KEY, firstCompany } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'build-static.js')).href);
 const realFetch = globalThis.fetch;
 let TMP, DIST;
 
@@ -115,6 +115,22 @@ test('config.js fetches early the list of the company app.js opens first, and no
   assert.equal(preloaded(code, { stored: 42 }), list('anthropic'));
   // Errors never escape (config.js must not stop the page).
   assert.equal(preloaded(code.replace('var res = fetch(', 'null.x; var res = fetch('), { hash: '#c=apple' }), null);
+});
+
+test('fix3-app beta landing: with no link and no last view, config.js fetches the company app.js#defaultCompany opens', () => {
+  const code = listPreloadJs(['anthropic', 'apple', 'google'], LAST_VIEW_KEY.beta, 'google');
+  const list = (s) => `api/jobs/${s}.json`;
+  assert.equal(preloaded(code, {}), list('google'), 'the first Big tech board');
+  assert.equal(preloaded(code, { hash: '#m=map' }), list('google'), 'a link without c=');
+  assert.equal(preloaded(code, { stored: 'c=amazon' }), list('google'), 'a stored company no longer listed');
+  assert.equal(preloaded(code, { stored: 'c=apple' }), list('apple'), 'the last view still wins');
+  assert.equal(preloaded(code, { hash: '#c=anthropic' }), list('anthropic'), 'and a link');
+  const companies = [{ slug: 'anthropic' }, { slug: 'openai' }, { slug: 'google', live: false }, { slug: 'apple', live: false }];
+  assert.equal(firstCompany(companies, true), 'google', 'beta: the first Big tech board');
+  assert.equal(firstCompany(companies, false), 'anthropic', 'the main site: its first company');
+  assert.equal(firstCompany(companies.slice(0, 2), true), 'anthropic', 'beta without big tech: the first company');
+  const app = fs.readFileSync(path.join(ROOT, 'public', 'app.js'), 'utf8');
+  assert.match(app, /const big = CHANNEL === 'beta' \? companies\.find\(\(c\) => c\.live === false && !c\.custom\) : null;/, 'app.js#defaultCompany is the same rule');
 });
 
 test('config.js last-view keys are app.js#LAST_KEY on each site', () => {

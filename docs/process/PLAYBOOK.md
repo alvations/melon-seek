@@ -101,7 +101,10 @@ These are the rules learned the hard way on 2026-10-10.
    - copy only the lane's files, apply its patches in order, and run
      `node scripts/refresh/registry.js --lines --write && node scripts/refresh/registry.js --docs --write`;
    - run `npm test`, `npm run build` (symlink the snapshot folders only for this local check), the
-     full e2e suite and a YAML parse of the workflows.
+     full e2e suite and a YAML parse of the workflows. Remove the snapshot links again before the
+     last `npm test`: with local data present, the data-dependent timing tests (PERF-1, V15) also
+     run, and they can fail under load although CI never runs them (2026-10-11: 171 and 182 ms of
+     event-loop lag at load 4, then 3 of 3 passes alone).
    - Timing tests (PERF-1, V15, Compstimate T21) can fail under load. Re-run them alone before
      calling them failures, and compare against an unchanged baseline worktree.
 4. **Shrink finished screenshot folders** with `bash scripts/cycle/shrink-screenshots.sh docs/screenshots/<role>`

@@ -363,11 +363,12 @@ export const LAST_VIEW_KEY = Object.freeze({ stable: 'melon-seek.last.v1', beta:
  * Chromium decodes a preloaded 2 MB body as text twice more on the main thread (+0.2 s at 4x CPU).
  * The company is the one app.js#boot opens: the link's c= (lower-cased, as api.js looks it up),
  * else, without a link, this site's last view (its c= as stored, when listed; a custom board has
- * no list), else the first company.
+ * no list), else `first`: app.js#defaultCompany, the first company, or on the beta site the first Big
+ * tech board (`live: false`; docs/process/fix3-app.md, beta landing).
  */
-export function listPreloadJs(slugs, lastKey) {
+export function listPreloadJs(slugs, lastKey, first = slugs[0]) {
   return `// Preload the first job list (scripts/build-static.js#listPreloadJs; docs/process/perf-mobile-beta.md).
-(function (slugs, lastKey) {
+(function (slugs, lastKey, first) {
   try {
     var hash = location.hash.replace(/^#/, '');
     var c = new URLSearchParams(hash).get('c') || '';
@@ -378,7 +379,7 @@ export function listPreloadJs(slugs, lastKey) {
       c = typeof last === 'string' && last ? new URLSearchParams(last).get('c') || '' : '';
       if (c && slugs.indexOf(c) < 0 && c.indexOf(':') < 0) c = '';
     }
-    if (!c) c = slugs[0] || '';
+    if (!c) c = first || '';
     if (slugs.indexOf(c) < 0) return;
     var path = ['api', 'jobs', encodeURIComponent(c) + '.json'].join('/'); // api.js#staticJobs listPath
     // Read into a Blob as it arrives (an unread body would stall the download); api.js parses it.
@@ -388,8 +389,14 @@ export function listPreloadJs(slugs, lastKey) {
     res.catch(function () { /* api.js sees the same failure */ });
     window.MELON_FIRST_LIST = { path: path, response: res };
   } catch (e) { /* none: api.js fetches the list itself */ }
-})(${JSON.stringify(slugs)}, ${JSON.stringify(lastKey)});
+})(${JSON.stringify(slugs)}, ${JSON.stringify(lastKey)}, ${JSON.stringify(first || '')});
 `;
+}
+
+/** The company a visit with no link and no last view opens (app.js#defaultCompany): on beta, the first Big tech board. */
+export function firstCompany(companies, beta) {
+  const big = beta ? companies.find((c) => c.live === false) : null;
+  return (big || companies[0])?.slug || '';
 }
 
 /** Insert the hints right after <meta charset> (the CSP <meta>, added later, goes in front of them). */
@@ -1184,7 +1191,7 @@ async function buildSite(ctx, site) {
     `window.MELON_LIVE_SOURCES = ${JSON.stringify(LIVE_SOURCES)};\n` +
     `window.MELON_QUIET_CORS_SOURCES = ${JSON.stringify(QUIET_CORS_SOURCES)};\n` +
     `window.MELON_BUILD = ${JSON.stringify(build)};\n` +
-    listPreloadJs(companies.map((c) => c.slug), LAST_VIEW_KEY[beta ? 'beta' : 'stable']));
+    listPreloadJs(companies.map((c) => c.slug), LAST_VIEW_KEY[beta ? 'beta' : 'stable'], firstCompany(companies, beta)));
   if (!beta) await fs.writeFile(path.join(out, '.nojekyll'), '');
 
   // 5a. Load hints in index.html (after the data files exist; the CSP goes in front in step 7).

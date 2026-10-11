@@ -200,25 +200,29 @@ check is also part of the probe run.
 - **robots.txt is fetched and checked at the start of every crawl**: a disallowed
   path aborts that company (`code: 'robots'`).
 
-| Company | Slug | Status | Endpoint (front-end's own) | Postings (run 38044091555) | With pay | Snapshot | Posting URL host |
+| Company | Slug | Status | Endpoint (front-end's own) | Postings (run 38118242488) | With pay | Snapshot | Posting URL host |
 |---|---|---|---|---:|---:|---:|---|
-| Google | `google` | works | jobs sitemap + `batchexecute` `sf9Qmf` | 3,417 | 2,032 (59.5%) | 23.5 MB | `www.google.com` |
-| Microsoft | `microsoft` | works | Eightfold PCSX `apply.careers.microsoft.com/api/pcsx/*` | 2,320 | 1,482 (63.9%) | 30.1 MB | `apply.careers.microsoft.com` |
+| Google | `google` | works | jobs sitemap + `batchexecute` `sf9Qmf` | 3,417 | 2,217 (64.9%) | 23.6 MB | `www.google.com` |
+| Microsoft | `microsoft` | works | Eightfold PCSX `apply.careers.microsoft.com/api/pcsx/*` | 2,279 | 1,490 (65.4%) | 29.7 MB | `apply.careers.microsoft.com` |
 | Meta | `meta` | **paused (terms)** | jobs sitemap + job pages (`public_compensation`) | — (not crawled) | — | — | `www.metacareers.com` |
-| Apple | `apple` | works | `jobs.apple.com/api/v1/search` + `jobDetails` | 6,105 | 3,848 (63.0%) | 32.0 MB | `jobs.apple.com` |
-| Netflix | `netflix` | works | Eightfold classic `explore.jobs.netflix.net/api/apply/v2/jobs` | 456 | 294 (64.5%) | 4.7 MB | `explore.jobs.netflix.net` |
+| Apple | `apple` | works | `jobs.apple.com/api/v1/search` + `jobDetails` | 4,875 | 2,818 (57.8%) | 25.4 MB | `jobs.apple.com` |
+| Netflix | `netflix` | works | Eightfold classic `explore.jobs.netflix.net/api/apply/v2/jobs` | 457 | 290 (63.5%) | 4.7 MB | `explore.jobs.netflix.net` |
 | Amazon | `amazon` | **paused (terms)** | `www.amazon.jobs/en/search.json` | — (not crawled) | — | — | `www.amazon.jobs` |
-| NVIDIA | `nvidia` | works | Eightfold PCSX `jobs.nvidia.com/api/pcsx/*` | 2,664 | 1,394 (52.3%) | 18.2 MB | `jobs.nvidia.com` |
+| NVIDIA | `nvidia` | works | Eightfold PCSX `jobs.nvidia.com/api/pcsx/*` | 2,663 | 1,396 (52.4%) | 18.4 MB | `jobs.nvidia.com` |
 | Tesla | — | **blocked, left out** | `www.tesla.com/cua-api/apps/careers/state` | — | — | — | — |
 
-Counts are from the first full big-tech crawl, `snapshot.yml` run 38044091555 (2026-10-10; job logs and
-`data/beta/snapshots/<slug>.json` agree exactly). "With pay" is postings with a published base range after the
-vetting gate (Netflix: 1 more quarantined). "Snapshot" is the crawl's JSON file. Crawl cost per board: Netflix 504 s
-(503 requests), Microsoft 2,572 s (2,553), NVIDIA 2,939 s (2,932), Google 3,432 s (3,424), Apple 7,625 s (4,716
-requests, 4,401 detail pages). Apple's 6,105 postings are 4,882 requisitions: Apple lists one posting per location
-(`<req>-<location id>`), see docs/process/data-check-beta.md DQ-2. Since the beta fix wave the adapter returns one
-posting per requisition (7f), and stored snapshots are merged the same way when read (`server/sources/upgrade.js`), so
-the site shows 4,882 Apple postings for this crawl.
+Counts are from `snapshot.yml` run 38118242488 (2026-10-11, crawls 06:30-07:59 UTC; the job logs, the
+beta gate lines and `data/beta/snapshots/<slug>.json` agree exactly; docs/process/data-check-beta-2.md). "With pay" is
+postings with a published base range after the vetting gate (Netflix: 2 more quarantined, "Pay unclear"). "Snapshot"
+is the crawl's JSON file. Crawl cost per board: Netflix 505 s (504 requests), Microsoft 2,533 s (2,510), NVIDIA
+2,940 s (2,931), Google 3,430 s (3,421), Apple 5,343 s (4,704 requests, 4,396 detail pages). Apple's search listed
+6,094 of the 6,098 postings it counts, and those 6,094 listings are 4,875 requisitions: Apple lists one posting per
+location (`<req>-<location id>`, docs/process/data-check-beta.md DQ-2), and the adapter returns one posting per
+requisition (7f). Microsoft's search listed 2,279 of the 2,285 postings its count reports. The first full crawl,
+run 38044091555 (2026-10-10), read Google 3,417 (2,032 with pay), Microsoft 2,320 (1,482), Apple 6,105 listings
+(3,848; 4,882 requisitions), Netflix 456 (294) and NVIDIA 2,664 (1,394). Google's rise from 2,032 to 2,217
+postings with pay is the norm-7 parser ("zł", "kr", "kr." and "+ 42.86% bonus target" lines), not new postings;
+its 4 Romanian "lei" ranges, and Microsoft's 12, are still not shown (RON has no exchange rate).
 
 ### 7a. Pay rules (all companies)
 

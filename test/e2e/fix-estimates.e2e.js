@@ -198,7 +198,7 @@ export function registerFixEstimatesTests(suite) {
     await shot(page, 'after-p10-compare-bizops');
     await fam.selectOption('swe');
     const levels = await lvl.locator('option').allInnerTexts();
-    assert(!levels.some((t) => /^Mid|Level not stated/.test(t)), `level choice offers "Level not stated": ${levels.join(' | ')}`);
+    assert(!levels.some((t) => /Level not stated/.test(t)) && !(await lvl.locator('option[value="Mid"]').count()), `level choice offers "Level not stated": ${levels.join(' | ')}`);
     const staff = levels.find((t) => /^Staff\+/.test(t));
     if (staff) {
       await lvl.selectOption('Staff+');

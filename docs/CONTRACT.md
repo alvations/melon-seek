@@ -165,7 +165,7 @@ within10Pct, n, seed, computedAt } | null, history: { since, runs } }`.
 | Feature | Server | Static (Pages) |
 |---|---|---|
 | Cities (Juice) | `GET /api/cities` | `api/cities.json` |
-| Market comps (F1) | `GET /api/market` | `api/market.json` (≤150 KB, vetted salaries only, n ≥ 3 per cell, USD, `basis: "posted base pay ranges"`) |
+| Market comps (F1) | `GET /api/market` | `api/market.json` (≤150 KB, vetted salaries only, n ≥ 3 per cell, USD, `basis: "posted base pay ranges"`; one pay country per cell since fix wave 3, below) |
 | History (F4) | merged on the server | `api/history/<slug>.json`: `id → [firstSeenAt, postedAt, repostCount]` |
 | CSV (F7) | `GET /api/export?company=` | `data/<slug>.csv` plus `data/README.txt` |
 | Browser lib | `GET /lib/<allowlisted>.js` | `lib/*.js` (allowlist in `server/lib-modules.js`) |
@@ -494,3 +494,82 @@ of their city: Piazza Liberty (Milan), Via del Corso (Rome), Shinsaibashi and Um
 (Vancouver), Place Ste-Foy (Québec City), The Dubai Mall, Morumbi (São Paulo), Jungfernstieg (Hamburg),
 Eldon Square (Newcastle upon Tyne), Akasya (Istanbul), "Emporia, Sweden" (Malmö), Dublinas (Dublin).
 New gazetteer cities: Naples, Malmö, Newcastle upon Tyne. `rawName` keeps the posting's words.
+
+## Fix wave 3 additions (2026-10-11): comparisons within one country (fix3-compare lane)
+
+Findings BP-3, BP-4, BP-7 and "Compare companies says why a level is missing" ([lead.md](process/lead.md)
+"Beta, stage 1c"). Log: [docs/process/fix3-compare.md](process/fix3-compare.md). Shared decision 2: a
+comparison uses only pay for the posting's own country, and with too few such roles it says so instead
+of falling back to another country. Every addition is optional for readers; no export changed its
+signature or return shape, and `NORMALIZER_VERSION` is unchanged (no stored field changed).
+
+**`payCountry(job) -> ISO2 | null`** (`public/features/shared.js`): the country of the first of
+`payLocations(job)` that names one (a remote entry without a country, which Anthropic and Anduril list
+first, is skipped); with no located place, the currency's only country (USD -> US, CAD -> CA, GBP -> GB;
+a missing currency reads as USD); else `null` (a euro range on a remote-only posting). Also
+`samePayCountry(job, jobs)` and `payRank(job, pool, { mid, minN = 5 }) -> { pct, n, country, others } | null`,
+the rank behind "Pays more than N% of <company>'s roles in <country> that show pay".
+
+**Market doc** (`scripts/build-market.js`, format still `melon-market-1`, columns unchanged):
+- `cells`, `oteCells` and `counts` hold each company's **home country** (`companies[].country`, where
+  most of its salaried postings are paid; Cohere: CA). `byCountry: { <ISO2>: { cells, oteCells, counts } }`
+  holds every other country where the company has `countryMinN` (10) or more salaried postings. A
+  (company, country) pair appears once; nothing pools two countries. `companies[].countries` counts the
+  postings used per kept country and `countries: [{ code, companies, n }]` sums them, most first.
+- Seniority bucket `"Mid-level"` (`MID_STATED`, `levelKey('Mid')`): full-time postings whose
+  `displayLevel()` is `'Mid'` (a stated mid level, `seniorityBasis` `'title'` or `'pay'`). The stored
+  `'Mid'` bucket is unchanged (defaults plus stated mid levels).
+- Size on 2026-10-11 data: beta 77 KiB (was 57), main site 31 KiB (was 29).
+
+**Readers** (`public/features/comps.js`): `marketComps`, `familyOptions`, `levelOptions` and
+`missingCompanies` take `country` (default: the doc's main country); `compsForJob(market, job, { country })`
+compares within `payCountry(job)` and adds `country` and `bucket` to its result (`level` reads `'Mid'`
+for a stated mid level, the value the app's Seniority filter takes; `bucket` is `'Mid-level'`).
+`compsNote` names the country and, with no rows, says there is nothing to compare (it returned `''`).
+New: `compareCountry`, `marketCountries`, `defaultCountry`, `hasCountries`, `missingLevels`,
+`missingLevelsNote`. A document without countries is read as before. Compare companies shows one
+country (the open job's, else the location filter's, else that of most roles in view), names it in
+its subtitle and footnote, and says in one line which levels are missing and why. No new control.
+
+**Role families** (`public/features/roles.js`): new `chip` ("Chip design & silicon engineering":
+verification, physical design, DFT, RTL, analog and mixed-signal IC, layout and mask design, timing,
+EDA; NVIDIA's ASIC, Verification, Phys Design and Mask Design departments) and `dc-tech` ("Data
+center technicians": a technician title on a data-center floor or in a data-center department).
+"Distributed systems" is software before hardware's "systems engineer"; design managers and directors
+are design (chip ones are chip); economists are data science; signal and power integrity are
+hardware; NVIDIA developer relations are sales and partnerships; Canadian French titles ("Représentant
+aux ventes", "Développeur de logiciels", "Étudiant-chercheur", "Responsable de compte") are read.
+
+## Fix wave 3 additions (2026-10-11): the chart and map under a Location filter (fix3-viz lane)
+
+Findings BP-2 (chart side), BP-13 (chart side) and the map's pin names ([docs/process/lead.md](process/lead.md)
+"Beta, stage 1c"). Log: [docs/process/fix3-viz.md](process/fix3-viz.md). Every addition is optional;
+no export changed its signature or return shape.
+
+**Chart (`public/viz/chart.js`).** `update(jobs, { …, places, placeTest })`:
+- `places` is the Location filter's keys (app.js `S.l`), `placeTest(job, location)` the host's own
+  match (app.js passes `locMatches(job, viewSpec, [location])`; without it a location matches by its
+  key or name). With `places`, a posting is plotted only when its pay applies to one of them
+  (`payLocations`); the notes line counts the rest ("12 with pay for another country only, left
+  out"), and with nothing left the chart says "No pay posted for <place>".
+- Every median (the caption, each row's median, quartiles and band, each Ranges group) is base pay:
+  `salary.kind: 'ote'` ranges are plotted but left out, as in the stats line, unless nothing else is
+  left (then the caption reads "Median on-target earnings"). The caption reads "Median base pay".
+- New pure exports: `chartPay(jobs, { places, placeTest }) -> { plotted, noSalary, elsewhere,
+  elsewhereIds, fxCount, unknownFx, ote }`, `basePayStats(items) -> { median, p25, p75, n, oteOnly,
+  oteLeftOut }`, `placeMatcher(places, placeTest)`, `placesPhrase(places)`.
+
+**Map (`public/viz/map.js`).** `update(jobs, { fit, colorMode, places, placeTest })`:
+- With `places`, only the filtered places are pinned. A location with no city that the filter takes
+  in ("United States", "Ohio, US") counts at the filtered cities it covers (its own pin only when
+  the filter names it); the Remote button holds only roles whose remote location the filter takes
+  in. The tooltip counts the roles also listed elsewhere and the country- or state-wide ones. The
+  map refits when the filtered places change.
+- Offline (no basemap), every pin keeps its place name: below, above, a short form ("Shanghai and 52
+  more") below or above, then beside the pin; with no room anywhere the pin is merged into its
+  nearest neighbour. A no-pay pin reads "1.1K jobs" (`shortCount`).
+- `aggregate(jobs, { places, placeTest })` adds `also` and `wide` (job id sets) per place. New pure
+  exports: `shortLabel(members)`, `layoutLabels(items, host)`, `jobsText(n)`.
+
+**App (`public/app.js`, patch `docs/process/patches/fix3-viz-app-places.diff`).** `renderViz` passes
+`places` and `placeTest` to both and adds `S.l` to the viz signature.

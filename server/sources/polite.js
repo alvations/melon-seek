@@ -29,20 +29,31 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /* ------------------------------------------------------------ rate limit */
 
 const nextSlot = new Map(); // host -> epoch ms of the next allowed request start
+const lastStart = new Map(); // host -> epoch ms the last request actually started
 let intervalOverride = null;
 
 /** Tests: set the per-host spacing (ms); null restores MIN_INTERVAL_MS. */
 export function setMinInterval(ms) { intervalOverride = ms == null ? null : Math.max(0, Number(ms) || 0); }
 /** Tests: forget host slots. */
-export function resetRateLimits() { nextSlot.clear(); }
+export function resetRateLimits() { nextSlot.clear(); lastStart.clear(); }
 
-/** Reserve the next request slot for `host` and wait for it. */
+/**
+ * Reserve the next request slot for `host` and wait for it. The slot orders parallel callers;
+ * the gap is then checked against the previous request's actual start, because a timer that
+ * fires late (a busy machine) would otherwise let the next caller go right after it.
+ */
 async function takeTurn(host, interval) {
   const gap = intervalOverride ?? interval ?? MIN_INTERVAL_MS;
   const now = Date.now();
   const at = Math.max(now, nextSlot.get(host) || 0);
   nextSlot.set(host, at + gap);
   if (at > now) await sleep(at - now);
+  for (let wait = (lastStart.get(host) ?? -Infinity) + gap - Date.now(); wait > 0; wait = lastStart.get(host) + gap - Date.now()) {
+    await sleep(wait);
+  }
+  const started = Date.now();
+  lastStart.set(host, started);
+  if ((nextSlot.get(host) || 0) < started + gap) nextSlot.set(host, started + gap);
 }
 
 /** Push a host's next slot out (after a 429 / 5xx), so parallel callers wait too. */

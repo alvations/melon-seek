@@ -1,0 +1,116 @@
+diff --git a/docs/VETTING.md b/docs/VETTING.md
+index a187a7d..2c97cec 100644
+--- a/docs/VETTING.md
++++ b/docs/VETTING.md
+@@ -183,7 +183,14 @@ such as a $1M posting at a company whose median is $250K (tested synthetically).
+ Human Frontier Collective" postings state $300/hr for a part-time expert
+ contract. The reviewer verdict is `correct`, but the any-role $250/hr bound
+ (lead decision) quarantines them. An annualized $624K for 10–20 hours a week
+-would mislead the chart anyway.
++would mislead the chart anyway. Netflix's L7 range "$737,000.00 - $1,430,000.00" (all cash) is the
++`above_max` false positive on the beta boards (2026-10-11 review, VT-10): raising `MAX_ANNUAL` to
++$1.5M would publish it and still catch every real error that set the bound ($1.56M, $4.6M, $5M).
++
++**Big-tech margins (2026-10-11 beta review):** highest hourly rate $116.83 (Microsoft), highest intern
++mid $156K (Netflix), lowest director maximum $128K, widest stated range 3.55x (NVIDIA's intern rate
++"20 USD - 71 USD"; a 3.5x quarantine would hide 18 correct postings). The statistical layer flags
++nothing there: Netflix's σ is 0.52 around a $427K median.
+ 
+ ### Aggregates read vetted salaries only
+ 
+@@ -248,6 +255,21 @@ Multi-currency statements use the location currency. Structured wins unless
+ it is implausible. `kind` is salary, stipend or hourly. `evidence` quotes the
+ source words verbatim and then says why.
+ 
++Big-tech conventions (2026-10-11 beta review, `data/vetting/2026-10-11-beta/summary.md` §7):
++
++- An Apple requisition's per-place ranges (`salary.ranges`) spanned into one salary is `correct`
++  (the places' own ranges, at most about 2.3x); where that span is shown is a separate finding.
++- On a multi-country posting the job's own country line is `correct` (the US one when the job has
++  a US location). Another country's line on a job with none of its own ("across the U.S. is USD …"
++  on a São Paulo job) is `parser_bug` with `corrected: null`.
++- A posted range in a currency the site has no rate for (RON) is `parser_bug`, corrected to the
++  posted range: the posting is clear and nothing is shown.
++- A band for all roles of a kind ("The overall market range for Netflix Internships …") or a range
++  the posting calls total compensation is `parser_bug`, corrected null (base pay only).
++
++Each verdict also carries `quote`, the exact substring of the excerpt or pay snippets that its
++`evidence` starts with, so it can be checked by machine (as `llm-vet.js` does).
++
+ The Fellows decision: **show the stipend** (3,850 USD/week, about $200K/yr
+ annualized, `kind: "stipend"`), not "no salary". The posting states it plainly as
+ the role's pay ("The expected base stipend for this role is 3,850 USD / 2,310
+@@ -283,8 +305,21 @@ ANTHROPIC_API_KEY=... node scripts/llm-vet.js --flags data/vetting/<date>/flags.
+ #   --only-blocking, --skip-reviewed, --limit N, --concurrency N
+ 
+ npm test   # includes every real case in test/fixtures/real-salary-cases.json
++
++# Beta boards (first run 2026-10-11): the scan takes the files, and the review folder is <date>-beta.
++node scripts/vet-salaries.js data/beta/snapshots/*.json data/snapshots/anduril.json \
++  --date 2026-10-11-beta --sample 25 --seed 20261011
++# What the beta site publishes (build-static's readSnapshot steps), and the same with every
++# quarantine undone for a no-gate view; then the threshold study on a copy of the gate.
++node data/vetting/2026-10-11-beta/published-view.mjs /tmp/pv data/beta/snapshots/*.json data/snapshots/*.json --ungated
++node data/vetting/2026-10-11-beta/gate-study.mjs /tmp/pv/ungated
+ ```
+ 
++A stored snapshot keeps the crawl's quarantines (`salaryFlag`), so `--no-gate` on it shows the same
++counts as the gate; scan `published-view.mjs --ungated` output for the raw view. The scan reads the
++stored salaries; the build re-derives a snapshot from an older normalizer first. On 2026-10-11 the
++two agreed for all 16,182 beta and Anduril postings.
++
+ A scan never overwrites a `flags.jsonl` or `sample.jsonl` that has a
+ `verdicts.jsonl` next to it (they are review inputs). Use `--out` or `--force`.
+ 
+@@ -326,6 +361,41 @@ resumes.
+           retention-days: 90 # GitHub maximum; the permanent copy is the data-archive branch
+ ```
+ 
++The beta boards are gated three times: `snapshot.yml` "Beta salary vetting gate" at crawl time,
++`pages.yml` "Beta salary vetting gate (per company; …)" (`.github/scripts/beta-gate.sh`, the scan
++per snapshot with `--no-write-flags`), and `build-static.js --beta-only` (`betaGate()` on the
++published lists). None of them keeps a flags report or runs the LLM review; this advisory step after
++the beta gate does both (2026-10-11 review, VT-11):
++
++```yaml
++      - name: Beta salary vetting report (advisory; flags + LLM review)
++        if: always()
++        continue-on-error: true
++        timeout-minutes: 10
++        env:
++          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
++          VET_LLM_MODEL: ${{ vars.VET_LLM_MODEL || 'claude-sonnet-5-5' }}
++        run: |
++          shopt -s nullglob
++          files=(data/beta/snapshots/*.json)
++          [ "${#files[@]}" -gt 0 ] || { echo "no beta snapshots to report on"; exit 0; }
++          mkdir -p "$RUNNER_TEMP/vetting-beta"
++          node scripts/vet-salaries.js "${files[@]}" --no-fixtures --out "$RUNNER_TEMP/vetting-beta/flags.jsonl" --summary "$GITHUB_STEP_SUMMARY" || true
++          node scripts/llm-vet.js --flags "$RUNNER_TEMP/vetting-beta/flags.jsonl" --out "$RUNNER_TEMP/vetting-beta/llm-verdicts.jsonl" --skip-reviewed --limit 100
++
++      - name: Upload beta salary vetting report
++        if: always()
++        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
++        with:
++          name: salary-vetting-beta
++          path: ${{ runner.temp }}/vetting-beta
++          retention-days: 90
++          if-no-files-found: ignore
++```
++
++`--skip-reviewed` sees `data/vetting/<date>-beta/` reviews only once `llm-vet.js#reviewedFiles`
++accepts that folder name (VT-9).
++
+ The gate step fails the deploy when a job would be published with a critical
+ salary, or when a regression fixture fails. With no snapshot files it scans
+ nothing and exits 0 (the build then bundles demo data). `--skip-reviewed` only
+@@ -343,6 +413,9 @@ pays for flagged jobs whose parsed salary has no verdict yet in a committed
+ | `flags.renormalized.jsonl`, `.counts.json` | The scan after re-deriving salaries with the fixed parser + gate |
+ | `llm-verdicts.jsonl` | Automated reviews (same schema; `reviewer` is the model id; adds `llm.usage`) |
+ | `summary.md` | Before/after counts, bug classes, false-positive analysis, decisions |
++| `published-view.mjs`, `gate-study.mjs`, `flags.ungated.counts.json` | (beta, 2026-10-11) the published lists as the build makes them, the threshold study on a copy of the gate, and the no-gate scan counts |
++
++A review of the beta boards lives in `data/vetting/<date>-beta/` (first: `2026-10-11-beta`).
+ 
+ `parser_version` identifies the code that produced `parsed` (git sha plus the
+ sha256 of `salary.js`). To check a verdict, open `url`, find the `evidence`
