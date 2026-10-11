@@ -54,7 +54,7 @@ test('VT-1 reference: the same sentence still gives a U.S. job its U.S. range', 
 // Bucharest, https://www.google.com/about/careers/applications/jobs/results/121961208335999686.
 // Owner: public/viz/palette.js FX_PER_USD and its copies (server/salary.js, server/juice.js).
 
-test('VT-2 a Google "Romania: lei…" line is read as RON pay', TODO, () => {
+test('VT-2 a Google "Romania: lei…" line is read as RON pay', () => {
   const p = parseSalary('Individual pay is determined by factors including job-related skills, experience, and relevant education or training. Romania: lei400000 - lei410000 (RON) + 15% bonus target + equity + benefits', { countries: ['RO'] });
   assert.ok(p, 'the posted lei range is read');
   assert.deepEqual([p.min, p.max, p.currency, p.interval], [400000, 410000, 'RON', 'year']);

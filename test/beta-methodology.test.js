@@ -36,10 +36,10 @@ const todo = (id) => ({ todo: `${id}: docs/process/methodology-review-beta.md` }
 // this posting doesn't include a pay range." The parser reads lei (server/salary.js:147) but drops
 // it because no table has a RON rate (server/salary.js:735); the ECB, which the monthly FX refresh
 // reads, publishes RON.
-test('MR-1 RON: the monthly FX refresh asks the ECB for the Romanian leu', todo('MR-1'), () => {
+test('MR-1 RON: the monthly FX refresh asks the ECB for the Romanian leu', () => {
   assert.ok(ECB_CURRENCIES.includes('RON'), `scripts/refresh/fx.js ECB_CURRENCIES has no RON: ${ECB_CURRENCIES.join(',')}`);
 });
-test('MR-1 RON: the shared FX table (chart, Juice, comps) has a Romanian leu rate', todo('MR-1'), () => {
+test('MR-1 RON: the shared FX table (chart, Juice, comps) has a Romanian leu rate', () => {
   assert.ok(PALETTE_FX.RON > 0, 'public/viz/palette.js FX_PER_USD has no RON, so lei pay is shown as "Salary not listed"');
   assert.ok(juice.FX_PER_USD && juice.FX_PER_USD.RON > 0, 'server/juice.js FX_PER_USD has no RON');
   assert.match(JSON.stringify(entryOf('fx-per-usd')), /RON/, 'registry fx-per-usd does not list RON');

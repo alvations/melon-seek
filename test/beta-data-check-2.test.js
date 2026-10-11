@@ -190,7 +190,7 @@ test('DQ-3 residue: Netflix "(L5)" after "Support Solutions Engineer" and "(L5+L
 // missed_salary. microsoft:1970393557006510 "Process Program Manager" (Bucharest),
 // https://apply.careers.microsoft.com/careers/job/1970393557006510.
 // Owner: public/viz/palette.js FX_PER_USD and its copies (server/salary.js, server/juice.js).
-test('DQ-6 residue: a Microsoft Romania "lei" range is shown as RON pay', TODO, () => {
+test('DQ-6 residue: a Microsoft Romania "lei" range is shown as RON pay', () => {
   const position = {
     id: 1970393557006510, displayJobId: '200060190', name: 'Process Program Manager',
     standardizedLocations: ['Bucharest, B, RO'], workLocationOption: 'onsite', creationTs: 1759190400, postedTs: 1759190400,

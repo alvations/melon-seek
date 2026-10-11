@@ -30,7 +30,7 @@ import { formatDoc, RENT_PAIRS, toUsdAt } from '../update-col.js';
 export const MODULE = Object.freeze({ name: 'fx', ids: ['fx-per-usd'] });
 
 /** ECB currencies we need (everything in the tables except the pegs, TWD, EUR and USD). */
-export const ECB_CURRENCIES = Object.freeze(['AUD', 'BRL', 'CAD', 'CHF', 'CNY', 'CZK', 'DKK', 'GBP', 'HKD', 'ILS', 'INR', 'JPY', 'KRW', 'MXN', 'NOK', 'NZD', 'PLN', 'SEK', 'SGD', 'USD', 'ZAR']);
+export const ECB_CURRENCIES = Object.freeze(['AUD', 'BRL', 'CAD', 'CHF', 'CNY', 'CZK', 'DKK', 'GBP', 'HKD', 'ILS', 'INR', 'JPY', 'KRW', 'MXN', 'NOK', 'NZD', 'PLN', 'RON', 'SEK', 'SGD', 'USD', 'ZAR']);
 export const ECB_MONTHLY_URL = `https://data-api.ecb.europa.eu/service/data/EXR/M.${ECB_CURRENCIES.join('+')}.EUR.SP00.A?lastNObservations=3&format=csvdata`;
 export const ECB_DAILY_URL = 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml';
 export const ECB_INFO_URL = 'https://data.ecb.europa.eu/data/datasets/EXR';

@@ -64,6 +64,7 @@ export const FX_PER_USD = Object.freeze({
   NOK: 9.68565,
   NZD: 1.71335560695622,
   PLN: 3.77915,
+  RON: 4.58165,
   SAR: 3.755,
   SEK: 9.63495,
   SGD: 1.29005,

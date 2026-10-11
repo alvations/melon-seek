@@ -91,6 +91,7 @@ export const FX_PER_USD = Object.freeze({
   NOK: 9.68565,
   NZD: 1.71335560695622,
   PLN: 3.77915,
+  RON: 4.58165,
   SAR: 3.755,
   SEK: 9.63495,
   SGD: 1.29005,
@@ -114,7 +115,7 @@ const usdOr = (n, cur) => toUSD(n, cur) ?? n;
 export const COUNTRY_CURRENCY = Object.freeze({
   US: 'USD', CA: 'CAD', GB: 'GBP', UK: 'GBP', CH: 'CHF', JP: 'JPY', KR: 'KRW', IN: 'INR', SG: 'SGD', AU: 'AUD',
   NZ: 'NZD', IL: 'ILS', AE: 'AED', SA: 'SAR', QA: 'QAR', PL: 'PLN', SE: 'SEK', NO: 'NOK', DK: 'DKK', CZ: 'CZK',
-  HK: 'HKD', TW: 'TWD', CN: 'CNY', BR: 'BRL', MX: 'MXN', ZA: 'ZAR',
+  HK: 'HKD', TW: 'TWD', CN: 'CNY', BR: 'BRL', MX: 'MXN', ZA: 'ZAR', RO: 'RON',
   ...Object.fromEntries('IE DE FR NL ES IT BE AT FI PT LU GR EE LV LT SK SI HR MT CY BG'.split(' ').map((c) => [c, 'EUR'])),
 });
 
@@ -787,8 +788,9 @@ function evaluate(text, u, countries) {
   if (b && a.mult && !b.mult && b.base < 1000) hi = b.base * multFactor(a.mult);
   if (!u.currency) return null;
   // Pay in a currency the site has no exchange rate for (FX_PER_USD, shared with the
-  // browser's palette.js) cannot be plotted or compared, so it is not read: Romanian "lei"
-  // (RON) today. The vetting scan still sees it and flags the posting missed_salary.
+  // browser's palette.js) cannot be plotted or compared, so it is not read. Romanian "lei"
+  // (RON) has a rate since fix wave 4 (MR-1). The vetting scan still sees such pay and flags
+  // the posting missed_salary.
   if (!FX_PER_USD[u.currency]) return null;
   if (!b && !u.explicit) return null;
   // S-3: an amount below a year's pay floor even at an hourly rate ("$1") needs no context.
