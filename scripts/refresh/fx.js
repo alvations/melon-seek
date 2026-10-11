@@ -41,6 +41,8 @@ export const PEGS = Object.freeze({
   SAR: Object.freeze({ perUSD: 3.75, name: 'Saudi Central Bank (SAMA): riyal pegged at 3.75 per US dollar (since 1986)', url: 'https://www.sama.gov.sa/en-US/Pages/default.aspx' }),
   QAR: Object.freeze({ perUSD: 3.64, name: 'Qatar Central Bank: riyal pegged at 3.64 per US dollar (since 2001)', url: 'https://www.qcb.gov.qa/en/' }),
 });
+/** Currencies that may be missing from the ECB monthly response (then read from the daily rates). */
+export const MONTHLY_GAP_MAX = 2;
 export const MAX_MOVE = 0.2;
 export const WARN_MOVE = 0.1;
 /** Code copies of the table: file, the table constant, and an optional as-of constant. */
@@ -143,6 +145,15 @@ export function buildTable(parts, needed) {
     asOf = lastDayOfMonth(period);
     perUSD = crossToUsd(parts.ecb.perEUR, needed);
     basis = 'monthly';
+    // Currencies the monthly response lacked: the daily reference rate, crossed through the
+    // same day's USD rate, and said so.
+    const absent = (parts.ecb.absent || []).filter((c) => needed.includes(c));
+    if (absent.length && parts.ecbDaily) {
+      const day = crossToUsd(parts.ecbDaily.perEUR, absent);
+      const got = absent.filter((c) => day[c] > 0);
+      for (const c of got) perUSD[c] = day[c];
+      if (got.length) notes.push(`${got.join(', ')} from the ECB daily reference rates of ${parts.ecbDaily.date} (not in the monthly averages response)`);
+    }
   } else if (parts.ecbDaily) {
     asOf = parts.ecbDaily.date;
     period = asOf.slice(0, 7);
@@ -292,15 +303,25 @@ async function fetchParts(ctx) {
     const latest = parseEcbMonthlyCsv(r.text);
     const periods = ECB_CURRENCIES.map((c) => latest[c] && latest[c].period).filter(Boolean);
     const period = periods.sort()[0]; // the latest month every currency has
-    if (!latest.USD || periods.length < ECB_CURRENCIES.length) throw new Error(`ECB monthly: ${periods.length}/${ECB_CURRENCIES.length} currencies`);
+    // At most MONTHLY_GAP_MAX currencies may be absent from the monthly response; they are
+    // taken from the daily reference rates (fix wave 4: RON, added to the request in 2026-10).
+    const absent = ECB_CURRENCIES.filter((c) => !latest[c]);
+    if (!latest.USD || absent.length > MONTHLY_GAP_MAX) throw new Error(`ECB monthly: ${periods.length}/${ECB_CURRENCIES.length} currencies`);
     const perEUR = {};
     // re-read at the common period when a currency is ahead of the others
     const all = String(r.text).split(/\r?\n/);
-    for (const c of ECB_CURRENCIES) {
+    for (const c of ECB_CURRENCIES.filter((x) => latest[x])) {
       const line = all.find((l) => l.startsWith(`EXR.M.${c}.EUR.SP00.A,`) && l.includes(`,${period},`));
       perEUR[c] = line ? Number(line.split(',')[7]) : latest[c].perEUR;
     }
-    parts.ecb = { period, perEUR };
+    parts.ecb = { period, perEUR, absent };
+    if (absent.length) {
+      try {
+        const d = await ctx.fetchText(ECB_DAILY_URL);
+        parts.ecbDaily = parseEcbDailyXml(d.text);
+        evidence.push({ url: ECB_DAILY_URL, fetchedAt: d.fetchedAt, excerpt: excerpt(absent.map((c) => `${c} ${parts.ecbDaily.perEUR[c] ?? '?'} per EUR`).join(' / ')) });
+      } catch (err) { errors.push(`ECB daily (for ${absent.join(', ')}): ${err.message}`); }
+    }
     evidence.push({ url: ECB_MONTHLY_URL, fetchedAt: r.fetchedAt, excerpt: excerpt(all.filter((l) => /EXR\.M\.(USD|GBP|JPY)\./.test(l) && l.includes(period)).map((l) => l.split(',').slice(2, 3).concat(l.split(',').slice(6, 8)).join(' ')).join(' / ')) });
   } catch (err) {
     if (err.code === 'FIXTURE_MISSING') throw err;

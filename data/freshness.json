@@ -14039,7 +14039,7 @@
       "owners": [
         "server/normalize.js:91 deriveSalary (structured vs text, ranges.slice(0,12), tier span <= 3x)",
         "server/salary.js:931 parseSalary",
-        "server/salary.js:1088 toJobSalary (mid = round((min+max)/2), spread = max/min)",
+        "server/salary.js:1092 toJobSalary (mid = round((min+max)/2), spread = max/min)",
         "server/sources/greenhouse.js:50 payRanges (cents / ZERO_DECIMAL)",
         "server/sources/amazon.js:37 Amazon PAY_LINE_RE",
         "server/sources/ashby.js:1 Ashby compensation",

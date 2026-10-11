@@ -138,13 +138,14 @@ test('DQ-6: zł, kr, kr. with Microsoft and Google spacing; kr follows the job c
   assert.deepEqual(triple(parseSalary('Le salaire de base canadien pour ce poste à temps plein est de 99,000 CAD, déterminé par le rôle, le niveau et l\'emplacement.', { countries: ['CA'] })), [99000, 99000, 'CAD']);
 });
 
-test('DQ-6: Romanian lei are read but not used (no exchange rate on the site), and never replaced by another country\'s range', () => {
+// Fix wave 4 (MR-1, docs/process/fix4-data.md): RON has a rate, so lei pay is used.
+test('DQ-6: Romanian lei are read and used (RON rate since fix wave 4), and never replaced by another country\'s range', () => {
   const ro = g(['[Bachelor\'s degree] Romania: lei162000 (RON) + 0% bonus target', '[Master\'s degree] Romania: lei168000 (RON) + 0% bonus target']);
-  assert.equal(parseSalary(ro, { countries: ['RO'] }), null);
+  assert.deepEqual(triple(parseSalary(ro, { countries: ['RO'] })), [162000, 168000, 'RON']);
   assert.ok(findMoneyTokens('lei162000 (RON)').some((t) => t.currency === 'RON' && t.value === 162000));
   // microsoft:1970393556950504 (Bucharest only): its Romania range is in lei; the Poland one is not its pay.
   const ms = 'Customer Success Account Mgmt IC1 - The typical base pay range for this role across Romania is lei 83,000.00 - lei 107,800.00 per year.\nCustomer Success Account Mgmt IC1 - The typical base pay range for this role across Poland is zł 84,200.00 - zł 116,000.00 per year.';
-  assert.equal(parseSalary(ms, { countries: ['RO'] }), null);
+  assert.deepEqual(triple(parseSalary(ms, { countries: ['RO'] })), [83000, 107800, 'RON']);
   assert.deepEqual(triple(parseSalary(ms, { countries: ['PL'] })), [84200, 116000, 'PLN']);
 });
 
@@ -263,8 +264,10 @@ test('DQ-17: the scan flags a posted range the parser did not read (missed_salar
   assert.ok(scan(google, ['US'], null).flags.includes('missed_salary'), 'the same text with no salary is a miss');
   const ms = `<p>${MS_CITY('Software Engineering IC5', '$142,800 - $274,800', '$188,000 - $304,200')}</p>`;
   assert.ok(scan(ms, ['US'], null).flags.includes('missed_salary'));
-  // Romanian lei: not read (no exchange rate), so a reviewer sees it.
-  assert.ok(scan('<p>Technical Support Engineering IC1 - The typical base pay range for this role across Romania is lei 90,500.00 - lei 135,700.00 per year.</p>', ['RO']).flags.includes('missed_salary'));
+  // Romanian lei: read since fix wave 4 (MR-1); a lei range with no salary is still a miss.
+  const lei = '<p>Technical Support Engineering IC1 - The typical base pay range for this role across Romania is lei 90,500.00 - lei 135,700.00 per year.</p>';
+  assert.ok(!scan(lei, ['RO']).flags.includes('missed_salary'));
+  assert.ok(scan(lei, ['RO'], null).flags.includes('missed_salary'));
   // A broader pay word in the parser's own clause still counts ("the annual range for our interns").
   assert.ok(scan('<p>For Poland: the annual range for our interns is 117,750 PLN - 204,100 PLN.</p>', ['PL'], null).flags.includes('missed_salary'));
 });

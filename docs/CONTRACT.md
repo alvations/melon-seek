@@ -573,3 +573,66 @@ no export changed its signature or return shape.
 
 **App (`public/app.js`, patch `docs/process/patches/fix3-viz-app-places.diff`).** `renderViz` passes
 `places` and `placeTest` to both and adds `S.l` to the viz signature.
+
+## Fix wave 4 additions (2026-10-11): data, pay places and parser limits (fix4-data lane)
+
+Findings DQ-27 to DQ-32, the DQ-3, DQ-6 and DQ-11 residues
+([docs/process/data-check-beta-2.md](process/data-check-beta-2.md)), VT-1, VT-2, VT-3, VT-5, VT-6,
+VT-9, VT-12 and VT-13 ([data/vetting/2026-10-11-beta/summary.md](../data/vetting/2026-10-11-beta/summary.md)),
+D-32, D-34 and D-36 (docs/QA.md "Full QA pass (desktop, beta) 2026-10-11"), S-3 and S-4
+(docs/REVIEW.md "beta review 2026-10-11") and MR-1 ([docs/process/methodology-review-beta.md](process/methodology-review-beta.md)).
+Log: [docs/process/fix4-data.md](process/fix4-data.md). Every addition is optional for readers; no
+export changed its signature or return shape. `NORMALIZER_VERSION` is `norm-9`: stored older snapshots
+are re-derived once, as before.
+
+**Job `salary`:**
+
+| Field | Meaning |
+|---|---|
+| `places` | The location strings (`Location.rawName`) the pay was posted for, when that is only some of the posting's places. Absent means every place in the pay's country. Set by Apple: a requisition's range posted on its California listing only, none for Texas (DQ-27). Fresh crawls know each footer's place (RawJob `payPlaces`); stored snapshots get it from `server/sources/apple.js#applePayPlaces` (US places outside `APPLE_PAY_STATES` are left out). Kept when a stored text salary is re-derived |
+| `ranges[].locations` | Unchanged shape (Apple's per-place ranges, since the beta fix wave), now read: a place listed in a range is that range's place; a place in no range has no posted pay |
+| `country` | Also set from a "<Country>: The base salary range is …" sentence (NVIDIA "Italy:", "For Poland:", VT-6). A pay line for a country none of the job's places is in is not the job's pay: `salary: null` (VT-1) |
+| `levels` | A level paragraph stated twice is one level; a level priced twice keeps its widest range, so the breakdown is kept (VT-12, D-34) |
+| `currency: 'RON'` | Romanian lei are used: RON has a rate in every FX table (4.58165 per USD, Big Mac source data v2 `dollar_ex`, release 2026-07-01, the source of every other rate; `scripts/refresh/fx.js` requests RON from the ECB monthly). MR-1, DQ-6 residue, VT-2 |
+
+**`payLocations(job)` (`public/features/shared.js`):** before the currency test, narrowed to the posted
+places (`salary.places`, else the places of `salary.ranges` when every range has some), then to
+`salary.country`'s places (VT-5: Ireland's euro range is not Spain's). Each step is skipped when it
+would leave no place. `payCountry`, `payAppliesIn` and `payLocationKeys` follow it.
+
+**Juice (`server/juice.js#attachJuice`):** only the posted places are scored (DQ-27), and a place with
+its own range in `salary.ranges` is scored on that range's midpoint, not the span's (DQ-28: Cupertino
+on $214,000, not $198,700). `juice.salaryUSD` stays the span's midpoint.
+
+**Levels (`server/keywords.js#jobSeniority`):** Google numbered manager titles (DQ-29): "Product
+Manager I/II" one rung up (II is Mid), "Leadership … Manager I/II" Senior (III+ Staff+), other "…
+Manager <numeral>" families Manager; Program, Technical Program and Account Manager titles keep the
+ladder. Netflix "(L5)" after a support word and "(L5+L6)" are levels (DQ-3 residue).
+
+**Talent pools (`server/sources/pool.js`):** "Expression of Interests" (plural) is a pool (DQ-11 residue).
+
+**Apple (`server/sources/apple.js`):** `reqId` is the requisition ("200578781"), for fresh and stored
+postings (DQ-30). New exports `APPLE_PAY_STATES`, `applePayPlaces(job)`.
+
+**Locations (`server/geo.js`):** a US state with a ZIP code ("SC 29461") is the state (DQ-31); new
+gazetteer cities Moncks Corner SC, Pryor Creek OK ("Pryor" alias), Leicester, Solihull, Bordeaux,
+Fukuoka; store aliases Champs Élysées, "Opéra, France", Parly 2 (Paris), "Sainte-Catherine, France"
+(Bordeaux), Highcross, Touchwood Centre, Richmond Centre (Vancouver), Southgate Centre (Edmonton),
+Grosse Bockenheimer Strasse (Frankfurt), Fukuoka Tenjin, "Antara, Mexico" (Mexico City), VillageMall
+(Rio de Janeiro) (D-32, D-36).
+
+**Eightfold (`server/sources/eightfold.js`):** twice-escaped numeric character references are decoded
+(`undoubleCharRefs`, VT-13); posting links are https on the tenant host, else the canonical
+`https://<host>/careers/job/<id>` (S-4). **`normalizeJob`** keeps a posting `url` only when it is an
+absolute http(s) URL, else `null` (`postingUrl`, S-4).
+
+**Parser limits (S-3):** `parseSalary` reads at most `MAX_PAY_TEXT` (40,000) characters and
+`MAX_PAY_AMOUNTS` (1,000) amounts, finds clause ends once per text and reads at most 600 characters each
+side of an amount; both `htmlToText`s, `geocode` and the block tokenizer never scan past the next
+opening bracket. 1 MB of hostile text takes 40–110 ms in each (was quadratic: about an hour).
+Pipeline tasks stop after `MELON_TASK_TIMEOUT_MS` (default 5 minutes; 0 turns the limit off) and their
+worker is replaced.
+
+**Vetting (`scripts/vet-salaries.js#scanJob`, `scripts/llm-vet.js`):** a merged Apple requisition is not
+`structured_text_disagree` when its text states one of its ranges (DQ-32). `reviewedFiles` reads
+`<date>-beta` folders; `latestFlags(channel, dir)` is exported and the CLI takes `--channel beta` (VT-9).

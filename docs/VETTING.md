@@ -74,8 +74,25 @@ source interval, or `null`.
   `lei` is RON, and a code in parentheses after the amount wins ("$99000 (CAD)", Google). A bare
   "$" in a posting whose locations are all in Canada is CAD unless the amount's own sentence,
   its heading or a "US:" line says USD (Google's Canada-only roles, Netflix Toronto and
-  Vancouver). Pay in a currency with no rate in `FX_PER_USD` is not used (RON today: the site
-  would plot lei as dollars), and the job then gets no other country's range either.
+  Vancouver). Pay in a currency with no rate in `FX_PER_USD` is not used (the site would plot it
+  as dollars), and the job then gets no other country's range either. RON has a rate since fix
+  wave 4 (MR-1), so lei pay is read: "across Romania is lei 199,400.00 - lei 347,800.00 per year"
+  (Microsoft), "Romania: lei400000 - lei410000 (RON)" (Google).
+- **Fix wave 4 (norm-9, [fix4-data log](process/fix4-data.md)):**
+  - a pay line for another country than every one the job is in is not the job's pay ("across
+    the U.S. is USD …" on a São Paulo job is `null`, VT-1);
+  - "<Country>: The base salary range is …" (NVIDIA "Italy:", "For Poland:") names the pay's
+    `salary.country` (VT-6);
+  - "The overall market range for Netflix Internships …" is a band for every internship, and a
+    range the next sentence calls total compensation ("This market range is based on total
+    compensation") is not base pay: `null` (VT-3);
+  - a repeated level paragraph is one level, and a level priced twice keeps its widest range,
+    so `salary.levels` survives (VT-12, D-34);
+  - the parser reads at most `MAX_PAY_TEXT` (40,000) characters (the first 20,000, then 600
+    characters each side of later pay words) and `MAX_PAY_AMOUNTS` (1,000) amounts, clause ends
+    are found once per text, and the pay-context patterns read at most 600 characters each side
+    of the amount (S-3). The longest real description is 26,628 characters and the most amounts
+    in one is 65: the S-3 limits alone change none of the 19,173 stored postings' re-derived salaries.
 - **One line per country** ("US: $171000 - $247000 (USD) + 20% bonus target …", "Ireland:
   €142000 - €145000 (EUR) …"): the line for the job's country (the US one when the job has a US
   location, else its first location's country). Lines for different countries are never
@@ -223,7 +240,7 @@ is **blocking** and makes the scan exit 1.
 | `interval_corrected` | the parser or derivation already read the stated interval as annual |
 | `multiple_ranges` | more distinct money ranges in pay context than the salary's `zones` (the parser's own count: level tiers and national + city ranges it read by rule are not flagged); with no salary, two or more. Prose ranges over $5M excluded |
 | `multi_currency` | a pay clause lists more than one currency (a bare "$" next to "$… CAD" counts once) |
-| `structured_text_disagree` | structured salary and the text parse differ by > 10% in min or max, or in currency |
+| `structured_text_disagree` | structured salary and the text parse differ by > 10% in min or max, or in currency. A merged Apple requisition (per-place `salary.ranges` with their places) agrees when the text states any one of its ranges (fix wave 4, DQ-32: 63 false flags on 2026-10-11, 0 after) |
 | `missed_salary` | no salary, but an amount with a currency is in the parser's pay context, or has a pay word (salary, compensation, pay, base, range, OTE, annual, hourly, stipend, wage, contract/pay rate) in the parser's clause, and no parser rule rejects it (total or cash compensation, a pay floor, an area band, funding or bonus words). Amounts are read with the parser's tokens (`findMoneyTokens`: "zł280000", "kr 577,000.00", "$99000 (CAD)") |
 | `title_junior_high`, `title_senior_low` | the gate's title checks |
 | `stat_outlier` | the gate's statistical test |
@@ -262,8 +279,8 @@ Big-tech conventions (2026-10-11 beta review, `data/vetting/2026-10-11-beta/summ
 - On a multi-country posting the job's own country line is `correct` (the US one when the job has
   a US location). Another country's line on a job with none of its own ("across the U.S. is USD …"
   on a São Paulo job) is `parser_bug` with `corrected: null`.
-- A posted range in a currency the site has no rate for (RON) is `parser_bug`, corrected to the
-  posted range: the posting is clear and nothing is shown.
+- A posted range in a currency the site has no rate for is `parser_bug`, corrected to the
+  posted range: the posting is clear and nothing is shown. (RON was the case until fix wave 4.)
 - A band for all roles of a kind ("The overall market range for Netflix Internships …") or a range
   the posting calls total compensation is `parser_bug`, corrected null (base pay only).
 
@@ -393,8 +410,9 @@ the beta gate does both (2026-10-11 review, VT-11):
           if-no-files-found: ignore
 ```
 
-`--skip-reviewed` sees `data/vetting/<date>-beta/` reviews only once `llm-vet.js#reviewedFiles`
-accepts that folder name (VT-9).
+`--skip-reviewed` sees `data/vetting/<date>/` and `data/vetting/<date>-beta/` reviews
+(`llm-vet.js#reviewedFiles`, fix wave 4, VT-9). Without `--flags`, `--channel beta` picks the latest
+`<date>-beta/flags.jsonl` (the default stays the latest dated main-site folder).
 
 The gate step fails the deploy when a job would be published with a critical
 salary, or when a regression fixture fails. With no snapshot files it scans

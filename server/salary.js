@@ -1000,6 +1000,7 @@ export function parseSalary(text, { countries = [], areas = [] } = {}) {
     // level and range is one member, and a level named twice keeps its widest range, so the
     // posting keeps its pay by level instead of a bare "Multiple pay zones".
     const seen = new Set();
+    const listed = group.length;
     group = group.filter((c) => { const k = `${c.level ? levelName(c.level) : ''}|${c.lo}|${c.hi}`; if (seen.has(k)) return false; seen.add(k); return true; });
     const glo = Math.min(...group.map((c) => c.lo));
     const ghi = Math.max(...group.map((c) => c.hi));
@@ -1016,6 +1017,9 @@ export function parseSalary(text, { countries = [], areas = [] } = {}) {
         });
         if (by.size > 1) levels = [...by.values()];
       }
+    } else if (listed > 1 && group.length === 1 && group[0].level) {
+      // One level and range, stated twice: named once, with its level.
+      groupText = `${group[0].level.replace(/\s+/g, ' ')}: ${flat(s.slice(group[0].start, group[0].end))}`;
     }
   } else {
     // Tiered list around the best candidate: same currency/interval/kind, adjacent, and

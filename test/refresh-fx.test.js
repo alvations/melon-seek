@@ -48,13 +48,16 @@ function ctxOn(files, extra) {
 
 test('fx parsers read the real ECB, FRED and Fed G.5 responses', () => {
   const ecb = fx.parseEcbMonthlyCsv(fs.readFileSync(path.join(FIX, 'fx', 'ecb-monthly-2026-09.csv'), 'utf8'));
-  for (const c of fx.ECB_CURRENCIES) assert.ok(ecb[c] && ecb[c].perEUR > 0, c);
+  // The capture (2026-10-10) predates RON in the request (fix wave 4, MR-1); RON comes from the
+  // daily rates when the monthly response lacks it (fx.js MONTHLY_GAP_MAX).
+  for (const c of fx.ECB_CURRENCIES.filter((x) => x !== 'RON')) assert.ok(ecb[c] && ecb[c].perEUR > 0, c);
   assert.equal(ecb.USD.period, '2026-09');
   assert.ok(Math.abs(ecb.USD.perEUR - 1.1513227272727276) < 1e-12, 'September 2026 USD per EUR, as published');
   const daily = fx.parseEcbDailyXml(fs.readFileSync(path.join(FIX, 'fx', 'ecb-daily-2026-10-09.xml'), 'utf8'));
   assert.equal(daily.date, '2026-10-09');
   assert.equal(daily.perEUR.USD, 1.1206);
   assert.equal(daily.perEUR.GBP, 0.84763);
+  assert.equal(daily.perEUR.RON, 5.3406, 'the ECB publishes the Romanian leu');
   assert.deepEqual(fx.parseFredCsv(fs.readFileSync(path.join(FIX, 'fx', 'fred-extaus.csv'), 'utf8')), { period: '2026-09', value: 31.7381 });
   assert.deepEqual(fx.parseFedG5(htmlToLines(fs.readFileSync(path.join(FIX, 'fx', 'fed-g5-2026-09.html'), 'utf8'))), { period: '2026-09', value: 31.7381 }, 'G.5 fallback agrees with FRED');
 });
