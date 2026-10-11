@@ -4,6 +4,13 @@
 quotes below come from the live pages, fetched on 2026-10-11. Their URLs, times and hashes are in
 [data/alt/terms-2026-10-11.json](../data/alt/terms-2026-10-11.json). This is not legal advice.*
 
+> [!NOTE]
+> **Superseded by the [Decision](#decision-2026-10-11) below (2026-10-11).** The user chose to
+> resume both; `paused` is gone from `server/companies.js`, and each board appears on `/beta/`
+> after its first crawl. Amazon keeps a 5,000-posting budget (`maxPostings`), not the 8,485 that
+> the file-size limit alone would have kept. The brief below is kept as it was written, before
+> the decision.
+
 **In one paragraph.** Amazon and Meta are missing for one reason only. On 2026-10-10 they were set
 to "paused for terms of use", because both sites' terms forbid automated collection. Nothing is
 broken. Both adapters crawled the whole boards cleanly that same day: Amazon gave 22,415

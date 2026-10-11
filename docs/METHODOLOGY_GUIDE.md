@@ -19,7 +19,7 @@ For example, one person on {{value:example.gross}} a year in {{value:example.cit
 
 Every amount is for a full year (the drawer can also show it per month), in US dollars, so jobs in different countries sit on the same scale.
 
-- **Gross pay** is the middle of the job's posted base-pay range. Pay quoted by the hour or the month is turned into a yearly figure first, then converted to US dollars.
+- **Gross pay** is the middle of the job's posted base-pay range. Pay quoted by the hour or the month is turned into a yearly figure first, then converted to US dollars. When one posting gives a range for each of several places or levels, the middle is taken across all of them, from the lowest to the highest (the drawer lists each one). Part-time hourly pay is counted on the hours a week the posting states; with no hours stated there is no score. Pay for an internship or another fixed-term programme counts for that term only, so the drawer shows it per month and for the whole term. Pay posted for one country is never used for an office in another country.
 - **Tax** is income tax at every level that has one (national, state or province, and city), plus the compulsory social insurance an employee pays, such as Social Security and Medicare in the US. It comes from each country's official tax rules and is worked out in the local currency, so a salary of £100,000 in London is taxed as £100,000.
 - **Rent** is twelve months of rent for a home in the city centre, sized for your household. Most one-bedroom rents come from Numbeo, a crowd-sourced cost-of-living website. Two- and three-bedroom rents are usually estimated from the one-bedroom rent, using official data on how much rents rise with each extra bedroom in that city or country. So they carry two dates: the one-bedroom rents are from {{value:rent.asOf}}, and the bedroom data is from {{value:rent.bedrooms.us}} in US cities and {{value:rent.bedrooms.other}} elsewhere.
 - **Living costs** are everyday spending other than rent: groceries, transport, utilities, eating out and leisure. They come from Numbeo's estimate of monthly costs for one person in that city, scaled up for couples and families.
@@ -99,7 +99,8 @@ The Juice Score leaves some things out to stay simple and comparable. Keep them 
 - **Tax** uses standard allowances. It ignores the deductions and credits you might claim, special schemes for people moving from abroad, and church tax. For typical salaries it is usually within a few percentage points of your real tax rate; it is less accurate for very high or very low pay, or a move partway through the year.
 - **Rent** is for a city-centre home sized by household. Sharing, owning, living further out or a bigger family can change it a lot. Rents for small cities rest on few reports. Two- and three-bedroom rents are mostly estimates, and for some countries the bedroom data is borrowed from other countries.
 - **Living costs** are a lean everyday basket, scaled up for bigger households. Some suburbs use the nearest big city's figure.
-- **Exchange rates** are a dated snapshot, so a big currency move takes a while to show.
+- **Pay ranges for several places or levels** are scored on their middle across all of them, not on the range for one place or one level.
+- **Exchange rates** are a dated snapshot, so a big currency move takes a while to show. Pay in a currency we have no rate for (Romanian lei, for example) can't be converted, so it gets no score.
 - **Coverage**: {{value:cities.count}} cities in {{value:countries.count}} countries. Remote-only jobs and locations outside the list get no score.
 
 More detail: [limitations](reference/#5-limitations).
@@ -119,7 +120,7 @@ More detail: [confidence rules](reference/#guardrails-inputs-confidence-rent-ove
 
 {{figure:sources}}
 
-Job postings and this page are rebuilt every day, so the examples and charts here always use the current numbers. Exchange rates are fetched automatically; the Numbeo figures are re-read by hand. Tax rules change when a country publishes a new tax year's rules: January in most countries, April or July where the tax year starts then.
+Job postings and this page are rebuilt every day, so the examples and charts here always use the current numbers. On the beta site, the big-tech careers sites are re-read every 6 hours, and each job's drawer and the data badge say when its board was last read. Exchange rates are meant to be refreshed automatically each month; the table above gives their date and says when an update is due. The Numbeo figures are re-read by hand. Tax rules change when a country publishes a new tax year's rules: January in most countries, April or July where the tax year starts then.
 
 More detail: [data sources](reference/#sources) and [refreshing](reference/#6-refreshing).
 
@@ -144,6 +145,14 @@ The salary stays the same, but now it pays for a bigger home and more people's e
 ### My rent will be different. How much does that matter?
 
 Every $100 a month less than our figure adds $1,200 a year to Juice left, and every $100 more takes $1,200 off. The drawer shows the rent we used and the home it is for, so you can compare it with your own.
+
+### How is the posted pay read?
+
+From the posting itself, or from the careers site's own pay field where there is one. Only base pay counts: a range that includes bonus, commission or equity is shown as such or left out. When a posting gives a range per level (Microsoft's "IC4" and "IC5", NVIDIA's "Level 4" and "Level 5", the company's own level names), the drawer lists each level's range under **Pay by level**, and the headline range runs from the lowest to the highest. Part-time hourly pay is also shown as a full-time year of 2,080 hours, for comparison only.
+
+### Where does a pay estimate come from?
+
+A pay estimate (on jobs with no posted pay, and in Insights) is worked out from the posted pay of the most similar roles at the same company and in the same country, weighted by how close each title and level is. "Typically within ±N%" is how far, in the middle case, the estimate was from the real posted pay when we tested it on postings whose pay we hid. It is an estimate, not a figure from the posting.
 
 ### Why do some jobs have no Juice Score?
 

@@ -1028,3 +1028,9 @@ screenshots in `docs/screenshots/`.
 - High, UX-22: a requisition with several pay ranges by place shows one span next to places where no pay is posted, with only a tooltip caveat. This is the screen side of DQ-27/DQ-28/VT-4; fix wave 4's data lane fixes the data, and the app lane adds a "Pay by place" line.
 - Medium: the stats line clipped mid-number (UX-15); card places truncated behind long department names (UX-16); no readable beta notice (UX-23); chart rows led by one-role departments (UX-24); one thing under many names (UX-25); three disagreeing error messages (UX-26); four date formats (UX-27); a term internship's yearly rate shown without "/yr" (UX-29).
 - Within the simplicity budget. To keep: pay caveats next to the number, plain explanations at each filter, and one calm system at Apple's scale.
+
+### Beta methodology and sources review (2026-10-11)
+- [methodology-review-beta.md](methodology-review-beta.md): 22 findings, 2 High, 14 Medium, 6 Low, encoded as 43 to-do tests in `test/beta-methodology.test.js`.
+- High: MR-1, 16 Romanian lei ranges show "Salary not listed" because no table has a RON rate, although the ECB (already our source) publishes one; MR-2, converted pay shows no rate date or source where it appears.
+- The lead applied its five doc and registry patches (DATA_SOURCES, README, METHODOLOGY_GUIDE, AMAZON_META, the registry: 17 constants and Amazon's budget added; job-postings, company-registry and role-family entries corrected). Per the review, these clear 29 of the 43 to-dos; the rest need product code (fix wave 4).
+- Exchange rates are 57 days past their monthly cadence (MR-4); the FX refresh is dispatched.

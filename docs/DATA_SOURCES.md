@@ -168,17 +168,22 @@ sandbox has no route to these hosts). Run numbers refer to that workflow's runs;
 the log is in [process/bigtech-data.md](process/bigtech-data.md). These boards are
 on the **beta channel only** (`channel: 'beta'`, `live: false` in
 `server/companies.js`): `node scripts/snapshot.js --channel beta` writes
-`data/snapshots/<slug>.json`, and only the `/beta/` site shows them. None of the
+`<MELON_SNAPSHOT_DIR>/<slug>.json` (the workflows set it to `data/beta/snapshots/`), and only
+the `/beta/` site shows them. They are re-crawled every 6 hours; only new or changed postings'
+detail pages are read (§8). None of the
 hosts sends CORS headers (`access-control-allow-origin` absent on every response),
 so the browser never fetches them.
 
 
-**Terms of use: Amazon and Meta were paused (2026-10-10) and were resumed on 2026-10-11 by the
-user's decision ([AMAZON_META.md](AMAZON_META.md), "Decision").** Both were `paused: 'terms'` in `server/companies.js`,
-so they were not crawled, built or listed; deleting that field resumed them. Why they were paused:
-Re-checked on the live pages on 2026-10-11 (freshness-probe runs 38136448486 and 38136777427;
-quotes, URLs and hashes in [data/alt/terms-2026-10-11.json](../data/alt/terms-2026-10-11.json),
-the decision brief in [AMAZON_META.md](AMAZON_META.md)):
+**Terms of use: Amazon and Meta were paused on 2026-10-10 and resumed on 2026-10-11 by the
+user's decision ([AMAZON_META.md](AMAZON_META.md), "Decision").** Both were `paused: 'terms'` in
+`server/companies.js`; deleting that field resumed them, and each appears on `/beta/` after its
+first crawl. Amazon keeps a 5,000-posting budget (`maxPostings`: postings with a published pay
+range first, then the newest), and the page says "of 22,415 posted".
+
+Why they were paused (re-checked on the live pages on 2026-10-11, freshness-probe runs
+38136448486 and 38136777427; quotes, URLs and hashes in
+[data/alt/terms-2026-10-11.json](../data/alt/terms-2026-10-11.json)):
 - amazon.jobs has no terms of its own; its footer's "Conditions of use" link goes to amazon.com's
   Conditions of Use (last updated August 14, 2026), whose licence "does not include [...] any
   use of data mining, robots, or similar data gathering and extraction tools". Its robots.txt
@@ -189,20 +194,19 @@ the decision brief in [AMAZON_META.md](AMAZON_META.md)):
   Automated Data Collection without first obtaining Meta's express written permission". Meta's
   Terms of Service (effective January 1, 2025) add, in 3.2, "regardless of whether such
   automated access or collection is undertaken while logged-in".
-The same kind of clause
-is in Apple's site terms ("You may not use any [...] "robot", "spider" or other automatic
-device [...] to access, acquire, copy or monitor any portion of the Site") and in Netflix's
-consumer terms of use (for "the Netflix service"; the careers site is an Eightfold tenant):
-probe run 38036154904. Google's terms tie automated access to robots.txt, and Microsoft's to
-information "intentionally made available". Pay that Amazon and Meta file with the US
-Department of Labor (public domain) is a separate route: `scripts/alt-data/dol-disclosure.js`.
-The user was shown these and chose to resume both, accepting the risk; Apple stays as it is.
-While
-`paused` is set, neither site is requested by anything: the adapter refuses to start before its
-first request (`crawlBlock`, code `paused`), whoever calls it, and `scripts/probe-bigtech.js` skips
-both and refuses their career hosts. Resuming is one switch, deleting the field; the crawl, merge,
-archive, build and list follow on the next 6-hourly run
-([process/amazon-meta-backend.md](process/amazon-meta-backend.md), "The resume switch").
+- The same kind of clause is in Apple's site terms ("You may not use any [...] "robot", "spider"
+  or other automatic device [...] to access, acquire, copy or monitor any portion of the Site")
+  and in Netflix's consumer terms of use (for "the Netflix service"; the careers site is an
+  Eightfold tenant): probe run 38036154904. Google's terms tie automated access to robots.txt,
+  and Microsoft's to information "intentionally made available".
+
+The user was shown these and chose to resume both, accepting the risk; Apple stays as it is. Pay
+that Amazon and Meta file with the US Department of Labor (public domain) is a separate route:
+`scripts/alt-data/dol-disclosure.js`. Should `paused` be set again, neither site is requested by
+anything: the adapter refuses to start before its first request (`crawlBlock`, code `paused`),
+whoever calls it, and `scripts/probe-bigtech.js` skips both and refuses their career hosts. The
+switch is that one field; the crawl, merge, archive, build and list follow on the next 6-hourly
+run ([process/amazon-meta-backend.md](process/amazon-meta-backend.md), "The resume switch").
 
 **How every adapter collects** (`server/sources/polite.js`):
 - It uses only the JSON or HTML endpoints that the careers site's own front end

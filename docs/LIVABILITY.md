@@ -258,10 +258,16 @@ or `null` when:
 Rules:
 
 - **Salary:** `salary.mid` (annualized by `server/salary.js`; hourly × 2080). `salary.kind`
-  is not used to filter; interns and hourly roles get a score like anyone else.
+  is not used to filter; interns and hourly roles get a score like anyone else. A range spanned
+  over several places (`salary.ranges`, Apple requisitions) or levels (`salary.levels`, NVIDIA and
+  Microsoft) is scored on the span's midpoint.
+- **Fixed-term pay:** with `salary.termWeeks` (an internship or programme length), the drawer shows
+  Juice per month and for the whole term only ("Juice covers only that term"), and tax is worked
+  out as if the pay lasted a year, so it may be lower (`public/app.js` `postedTerm`).
 - **FX:** `FX_TO_USD` is copied verbatim from `public/viz/palette.js`, so juice is in the same
-  "approx USD" unit the salary chart plots. Currencies the palette lacks (INR, SEK, ILS, ...)
-  use the city's `fxPerUSD` (Big Mac data, refreshed monthly). Tax is computed in the
+  "approx USD" unit the salary chart plots. A currency the palette lacks would use the city's
+  `fxPerUSD`; today the palette has every city currency. RON (Romanian lei) has no rate anywhere, so
+  lei pay is not read (`server/salary.js`). Tax is computed in the
   city's currency at the same rate, so a £100K salary in London is taxed on exactly £100K.
 - **Currency scoping:** only matched locations that use the salary's currency are scored (a USD
   range posted for "San Francisco | London" is not applied to London), and when the pay line names

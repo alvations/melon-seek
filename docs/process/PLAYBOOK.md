@@ -178,7 +178,7 @@ These are the rules learned the hard way on 2026-10-10.
 - The Long Tasks API misses work after `fetch()` resolves. Read long tasks from a Chrome trace.
 - Beta-specific: a company with `paused` in server/companies.js is never crawled or tested (its adapter
   refuses to start). Amazon is capped at 5,000 postings on /beta/ (`maxPostings`). Apple's full
-  crawl takes about 2 h 10 min.
+  crawl took 89 minutes on 2026-10-11 (4,704 requests); an incremental run takes about 13.
 
 ## Adding a board to the incremental crawl
 

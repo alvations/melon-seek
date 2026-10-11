@@ -369,23 +369,26 @@ caches HTML. Details, verification commands and other platforms are in
 ### Beta site
 
 <https://alvations.github.io/melon-seek/beta/> is a full second copy of the
-app: the stable companies plus the big-tech career sites (Google, Microsoft,
-Meta, Apple, Netflix, Amazon and NVIDIA; Amazon shows 5,000 of its roughly 22,000
-postings, those with a published pay range first and then the newest, and says so).
+app: the stable companies plus the big-tech career sites (Google, Microsoft, Apple,
+Netflix and NVIDIA; Amazon and Meta were resumed on 2026-10-11 and appear after their first
+crawl. Amazon will show 5,000 of its roughly 22,000 postings, those with a published pay range
+first and then the newest, and says so).
 Tesla is left out because its site blocks plain requests; see
 [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) §7.
 The main site at `/melon-seek/` doesn't change and doesn't link to it.
 Contract: [docs/CONTRACT.md](docs/CONTRACT.md) "v3 additions"; build log:
 [docs/process/beta-deploy.md](docs/process/beta-deploy.md).
 
-- **What looks different:** only a small "Beta" pill by the logo (on phones, at
-  the start of the top row). It's one CSS rule keyed on
-  `<html data-channel="beta">`; there's no JavaScript and no new control.
+- **What looks different:** a small "Beta" pill by the logo (on phones, at
+  the start of the top row), shown by one CSS rule keyed on
+  `<html data-channel="beta">`; `public/app.js` makes it a link back to the main site
+  and adds "beta" to the tab title (D-27, D-28). The site opens on a big-tech board (Google).
 - **What's different underneath:** every beta page has
   `<meta name="robots" content="noindex">`, and `index.html` also carries
   `<meta name="melon-channel" content="beta">` next to the build marker. Market
-  comps ("Same role elsewhere", Insights), share pages `c/<slug>/`, CSV and the
-  methodology page all cover the beta companies.
+  comps ("Same role elsewhere", Insights), share pages `c/<slug>/` and CSV cover the beta
+  companies. The methodology page is the same as the main site's: it explains the Juice Score,
+  not how the big-tech pay is read (that is in [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) §7a).
 - **Data:** `node scripts/snapshot.js --channel beta` (or one slug, e.g.
   `node scripts/snapshot.js amazon`) fetches the big-tech boards. The workflows
   keep them in `data/beta/snapshots/` (and their ledger in `data/beta/history/`),
@@ -396,11 +399,13 @@ Contract: [docs/CONTRACT.md](docs/CONTRACT.md) "v3 additions"; build log:
   vetting gate, is left out of the beta site and listed in the run summary.
   Beta companies never get demo data.
 - **How fresh:** the big-tech boards are re-crawled **every 6 hours**
-  (`snapshot.yml`, 00:47, 06:47, 12:47 and 18:47 UTC), and each crawl is
-  deployed as soon as it finishes. A full crawl takes over an hour, because the
-  crawl is polite (about 1 request/s per host); Apple alone takes about 2 hours
-  for about 6,100 postings. So a post on `/beta/` is usually under 6 hours old, plus the crawl
-  time. The stable boards keep their own cadence (daily snapshot, plus a fresh
+  (`snapshot.yml`, scheduled 00:47, 06:47, 12:47 and 18:47 UTC; GitHub often starts
+  scheduled runs hours late), and each crawl is deployed as soon as it finishes. The crawl is
+  polite (about 1 request/s per host), so a full crawl takes over an hour: Apple took 89 minutes
+  on 2026-10-11 for 6,094 listings (4,875 requisitions, the roles the site shows). Since
+  2026-10-11 a run reads only new, changed or 2-4-day-old detail pages (about 13 minutes for
+  Apple; docs/DATA_SOURCES.md §8). So a post on `/beta/` is usually under 6 hours old, plus the
+  crawl time and any delay in starting it. The stable boards keep their own cadence (daily snapshot, plus a fresh
   fetch on every deploy).
 - **Build:** `npm run build` writes `dist/` and then `dist/beta/`. The stable
   companies' files in the copy are the main site's files, copied. A beta

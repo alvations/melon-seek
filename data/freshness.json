@@ -253,7 +253,7 @@
           "as": "salary.EXTRA_FX_PER_USD"
         }
       ],
-      "notes": "The first monthly run moves the table from Big Mac dollar_ex (2026-07-01) to ECB monthly averages (fixture: Sep 2026, KRW -8.6%, JPY -3.5%). Every USD-converted number on the site shifts with it; the review PR lists each move. All copies equal today (checked 2026-10-10: palette, juice, salary, cities.json fx.perUSD, 89 city fxPerUSD, 33 bigMac dollarEx). Gaps: (1) no test ties data/cities.json fx.perUSD to the code tables (fx-consistency only compares palette/juice/salary), so a col-refresh PR alone would split them; (2) EXTRA_FX_PER_USD (QAR, CNY, ZAR) has no source or as-of; (3) server/demo.js:697 has its own FX {USD 1, GBP 0.78, EUR 0.9} that fx.js does not touch (GBP 0.78 vs 0.74187 = +5.1%, EUR 0.9 vs 0.87439 = +2.9%), listed under demo-data; (4) every derived job number in USD changes when this table changes (job-salary-usd, market-comps, company-aggregates, Juice), so the refresh PR should regenerate them. UI shows no FX date except the Compare footer. FX_AS_OF is exported by palette.js but no UI module imports it (grep public/: only the definition). Copies NOT rewritten by fx.js: public/mock-api.js FX {GBP 1.27, EUR 1.09} and public/features/demo-data.js FX {GBP 1.27, EUR 1.09, CHF 1.13} (listed under demo-data), public/viz/demo.html:133 FXD (USD per unit, hand-rounded copy of today's palette: GBP 1.348, EUR 1.144, CHF 1.239, JPY 0.006168, SGD 0.7752, CAD 0.7117, AUD 0.6999; dev page, not in dist: build-static DEV_PAGES), and the chart footnote currency list. Fix: chart.js footnote should list Object.keys(FX_PER_USD) or say \"22 currencies\" and append \"as of <FX_AS_OF>\". Verified 2026-10-10: palette = juice = cities.json perUSD for all 23 codes; salary.js USD_PER adds CNY/QAR/ZAR.",
+      "notes": "The first monthly run moves the table from Big Mac dollar_ex (2026-07-01) to ECB monthly averages (fixture: Sep 2026, KRW -8.6%, JPY -3.5%). Every USD-converted number on the site shifts with it; the review PR lists each move. All copies equal today (checked 2026-10-10: palette, juice, salary, cities.json fx.perUSD, 89 city fxPerUSD, 33 bigMac dollarEx). Gaps: (1) no test ties data/cities.json fx.perUSD to the code tables (fx-consistency only compares palette/juice/salary), so a col-refresh PR alone would split them; (2) EXTRA_FX_PER_USD (QAR, CNY, ZAR) has no source or as-of; (3) server/demo.js:697 has its own FX {USD 1, GBP 0.78, EUR 0.9} that fx.js does not touch (GBP 0.78 vs 0.74187 = +5.1%, EUR 0.9 vs 0.87439 = +2.9%), listed under demo-data; (4) every derived job number in USD changes when this table changes (job-salary-usd, market-comps, company-aggregates, Juice), so the refresh PR should regenerate them. UI shows no FX date except the Compare footer. FX_AS_OF is exported by palette.js but no UI module imports it (grep public/: only the definition). Copies NOT rewritten by fx.js: public/mock-api.js FX {GBP 1.27, EUR 1.09} and public/features/demo-data.js FX {GBP 1.27, EUR 1.09, CHF 1.13} (listed under demo-data), public/viz/demo.html:133 FXD (USD per unit, hand-rounded copy of today's palette: GBP 1.348, EUR 1.144, CHF 1.239, JPY 0.006168, SGD 0.7752, CAD 0.7117, AUD 0.6999; dev page, not in dist: build-static DEV_PAGES), and the chart footnote currency list. Fix: chart.js footnote should list Object.keys(FX_PER_USD) or say \"22 currencies\" and append \"as of <FX_AS_OF>\". Verified 2026-10-10: palette = juice = cities.json perUSD for all 23 codes; salary.js USD_PER adds CNY/QAR/ZAR. Methodology review beta (2026-10-11, MR-1): RON (Romanian leu) has no rate, so 16 Romania-only postings (Microsoft 12, Google 4) that post pay in lei show \"Salary not listed\". The ECB publishes RON: add it to scripts/refresh/fx.js ECB_CURRENCIES and the code copies.",
       "checklist": [
         "If the auto refresh flags a move > 20%: confirm against https://data.ecb.europa.eu/data/datasets/EXR before merging the PR."
       ]
@@ -923,9 +923,14 @@
         "server/cache.js:17 FRESH_TTL_MS (30 min live cache)",
         "data/snapshots/<slug>.json (daily, artifact) [jobs]",
         "data/snapshots/<slug>.json (gitignored; artifact job-board-snapshots)",
-        "data/beta/snapshots/<slug>.json (artifact job-board-snapshots-beta)"
+        "data/beta/snapshots/<slug>.json (artifact job-board-snapshots-beta)",
+        "server/sources/incremental.js:44 CRAWL_STATE_FORMAT melon-crawl-1",
+        "server/sources/incremental.js:46 DETAIL_REFRESH_DAYS (4: a cached detail is re-read after 2-4 days; MELON_DETAIL_REFRESH_DAYS)",
+        "server/companies.js:41 maxPostings (Amazon 5,000 on /beta/)",
+        "scripts/snapshot.js:64 CAP_RULE ('salaried, then newest')",
+        "server/sources/meta.js:24 MAX_FAILED_IN_A_ROW / :26 MAX_FAILED_SHARE (Meta crawl stop and fail rules)"
       ],
-      "values": "stable snapshots 2026-10-02T05:54Z: anduril 2,418, anthropic 638, openai 833, shieldai 581, palantir 320, xai 297, scaleai 194, cohere 132 (total 5,413)",
+      "values": "stable snapshots 2026-10-02T05:54Z: anduril 2,418, anthropic 638, openai 833, shieldai 581, palantir 320, xai 297, scaleai 194, cohere 132 (total 5,413). Beta crawl 2026-10-11 (snapshot.yml run 38118242488, 06:38-07:59 UTC): apple 4,875 requisitions (6,094 listings), google 3,417, nvidia 2,663, microsoft 2,279, netflix 457; amazon (budget 5,000 of about 22,415) and meta resumed 2026-10-11, counts after their first crawl. Beta boards are re-crawled every 6 hours (detail pages incremental since 2026-10-11)",
       "consumers": [
         {
           "at": "public/app.js",
@@ -1011,7 +1016,7 @@
         "url": "https://alvations.github.io/melon-seek/",
         "licence": "public job postings; facts only, links to the original postings"
       },
-      "asOf": "2026-10-02",
+      "asOf": "2026-10-11",
       "cadence": "daily",
       "graceDays": 2,
       "mode": "detect",
@@ -1020,7 +1025,7 @@
       "before": "daily job-board pipeline (snapshot.yml, pages.yml); no age or drop check",
       "lastChecked": "2026-10-10",
       "archive": true,
-      "notes": "Monthly aggregate per company archived as jobs-aggregates. sourceAsOf = newest snapshot fetchedAt. | Versioned forever by the archive agent (docs/DATA_ARCHIVE.md), not by the monthly refresh. DATA LOSS RISK: job snapshots older than 14 days exist nowhere (artifact retention 14; data/snapshots gitignored) until the archive (scripts/archive/jobs.js) records versions. Local snapshots predate normalizerVersion (server re-derives them). Beta boards over 40 MB are trimmed or capped (jobsCapped), which changes per-company counts.",
+      "notes": "Monthly aggregate per company archived as jobs-aggregates. sourceAsOf = newest snapshot fetchedAt. | Versioned forever by the archive agent (docs/DATA_ARCHIVE.md), not by the monthly refresh. DATA LOSS RISK: job snapshots older than 14 days exist nowhere (artifact retention 14; data/snapshots gitignored) until the archive (scripts/archive/jobs.js) records versions. Local snapshots predate normalizerVersion (server re-derives them). Beta boards over 40 MB are trimmed or capped (jobsCapped), which changes per-company counts. Methodology review beta (2026-10-11, MR-6): values covered the stable boards only. The per-board crawl date the UI shows is each snapshot's fetchedAt (data badge 'Snapshot · Oct 11').",
       "checklist": [
         "If stale: check the latest snapshot.yml / pages.yml runs and the vetting gate.",
         "Monthly (jobs.js job-postings): every board has a snapshot no older than 3 days, a non-zero job count, and did not lose more than half its postings since last month.",
@@ -14040,7 +14045,8 @@
         "server/sources/ashby.js:1 Ashby compensation",
         "server/sources/lever.js:1 Lever salaryRange",
         "server/sources/meta.js:1 Meta currency map",
-        "server/salary.js + adapters [jobs/core]"
+        "server/salary.js + adapters [jobs/core]",
+        "server/salary.js:372 PAY_AREAS (SF Bay Area 75 km, New York City 60 km: Microsoft's second range; norm-7, DQ-13)"
       ],
       "values": "salary { min, max, mid (annualized), currency, interval: \"year\", text, originalInterval, kind, source, spread, zones, ranges? }; 4,551 of 5,413 postings salaried after the gate on 2026-10-02",
       "consumers": [
@@ -14510,9 +14516,11 @@
         "scripts/probe-bigtech.js:3 probe SLUGS",
         "server/companies.js [core]",
         "public/app.js:98 FALLBACK_COMPANIES (3 of 8 stable: anthropic, anduril, openai with colours)",
-        "public/mock-api.js:1 mock COMPANIES (same 3)"
+        "public/mock-api.js:1 mock COMPANIES (same 3)",
+        "server/companies.js:41 maxPostings (Amazon 5,000)",
+        "server/companies.js:86 PAUSE_REASONS"
       ],
-      "values": "8 stable (anthropic, anduril, openai, scaleai, xai, cohere, palantir, shieldai) + 7 beta (google, microsoft, meta, apple, netflix, amazon, nvidia)",
+      "values": "8 stable (anthropic, anduril, openai, scaleai, xai, cohere, palantir, shieldai) + 7 beta (google, microsoft, meta, apple, netflix, amazon, nvidia). Amazon and Meta were paused for terms of use on 2026-10-10 and resumed by the user's decision on 2026-10-11 (docs/AMAZON_META.md \"Decision\"); each appears on /beta/ after its first crawl. Amazon keeps 5,000 postings (maxPostings; salaried first, then newest)",
       "consumers": [
         {
           "at": "server/index.js:792",
@@ -14668,9 +14676,12 @@
         "scripts/build-static.js:126 MARKET_MAX_BYTES",
         "scripts/build-market.js MIN_N 3, round100 [jobs]",
         "public/features/comps.js:176 compsForJob: family+seniority, falls back to the family across levels",
-        "public/features/comps.js:331 defaultFamily: families covered by ≥ 2 companies"
+        "public/features/comps.js:331 defaultFamily: families covered by ≥ 2 companies",
+        "scripts/build-market.js:70 COUNTRY_MIN_N (10 salaried postings for cells outside a company's home country; market.json byCountry, BP-3)",
+        "scripts/build-market.js:72 MID_STATED (a stated mid level)",
+        "scripts/build-market.js:74 OTE_BASIS (on-target earnings cells)"
       ],
-      "values": "company x family x seniority cells with n >= 3 (plus \"*\" family roll-ups): n, p25, median, p75 of USD midpoints rounded to $100; 391 cells over 8 companies and 26 families on 2026-10-02 (live site 2026-10-10: 379 cells)",
+      "values": "company x family x seniority cells with n >= 3 (plus \"*\" family roll-ups), and byCountry cells (n >= 10 outside the home country): n, p25, median, p75 of USD midpoints rounded to $100; 391 cells over 8 companies and 26 families on 2026-10-02; beta build 2026-10-11: 781 cells over 13 companies (beta/api/market.json, 79 kB)",
       "consumers": [
         {
           "at": "server/index.js:823",
@@ -15005,9 +15016,16 @@
         "public/app.js:75 SENIORITY_ORDER",
         "public/viz/chart.js:60 SENIORITY_ORDER",
         "public/features/roles.js inferSeniority (query side; null without a level word)",
-        "scripts/archive/report.js:33 LADDER (archive reports; jobs.js seniority-ladder compares it with roles.js)"
+        "scripts/archive/report.js:33 LADDER (archive reports; jobs.js seniority-ladder compares it with roles.js)",
+        "server/keywords.js:1086 GENERIC_RUNG (numbered titles: I Entry, II-III Mid, IV Senior, V+ Staff+)",
+        "server/keywords.js:1087 GOOGLE_RUNG (Google numerals: I-II Entry, III Mid, IV Senior, V+ Staff+)",
+        "server/keywords.js:1088 L_LADDER (L-levels: L1-L3 Entry, L4 Mid, L5 Senior, L6+ Staff+)",
+        "server/keywords.js:1137 MICROSOFT_IC (IC1-2 Entry, IC3 Mid, IC4 Senior, IC5+ Staff+)",
+        "server/keywords.js:1138 MICROSOFT_M (M1-M5 Manager, M6+ Director+)",
+        "server/keywords.js:1144 NVIDIA_LEVEL (Level 1 Entry, 2 Mid, 3-5 Senior, 6+ Staff+; the lower of two levels decides)",
+        "public/features/roles.js:377 LEVEL_NOT_STATED (stored 'Mid', shown 'Level not stated')"
       ],
-      "values": "buckets Intern, Entry, Mid, Senior, Staff+, Manager, Director+ (server/keywords.js inferSeniority; \"Mid\" is the default when the title has no level word); display order SENIORITY_LADDER = app.js / chart.js SENIORITY_ORDER; 2026-10-02: 48.8% of postings Mid by default (xAI 73%, OpenAI 69%, Shield AI 18%)",
+      "values": "buckets Intern, Entry, Mid, Senior, Staff+, Manager, Director+ (server/keywords.js inferSeniority). A title with no level word is stored as 'Mid' (LEVEL_NOT_STATED) and shown as \"Level not stated\" (fix wave 3, BP-7); a stated mid level reads \"Mid\". Company ladders (beta): Microsoft IC/M, NVIDIA \"Level N\", Google numerals, L-levels, generic numerals (server/keywords.js:1086-1144). Display order SENIORITY_LADDER = app.js / chart.js SENIORITY_ORDER. 2026-10-02: 48.8% of stable postings unlevelled; 2026-10-11 beta: Apple 686 of 2,695 used salaried postings levelled (market.json companies[].levelled)",
       "consumers": [
         {
           "at": "server/normalize.js:132",
@@ -15069,7 +15087,7 @@
       "validator": "scripts/refresh/jobs.js seniority-ladder; test/keywords.test.js inferSeniority; patch docs/process/patches/freshness-jobs-seniority-default.diff adds seniorityBasis()",
       "before": "none",
       "lastChecked": "2026-10-10",
-      "notes": "USER DECISION PENDING (seniority default): ~half the postings are \"Mid\" only because the title has no level word, so market-comps Mid cells and Compstimate's Mid weighting are mostly defaults. Options in docs/process/freshness-jobs.md §3: (A) keep, watched monthly (current); (B) expose seniorityBasis on each Job and label default levels \"Mid (no level in title)\"; (C) infer the level from the years-of-experience ask (CORPORATE_LADDER_PLAN). The patch only adds seniorityBasis() (no behaviour change). The ladder plan's \"41% Mid by default\" uses a broader level-word list than inferSeniority; jobs.js uses inferSeniority's own fallback. | Three orderings exist (keywords buckets, roles.js SENIORITY_LADDER, compstimate LEVEL_INDEX with Manager 3.5) plus vet.js junior/senior regexes; demo multipliers have no source. Three hand-kept copies of the order (roles.js, chart.js, app.js) with no test tying them together. server/keywords.js inferSeniority defaults unlevelled titles to \"Mid\" while roles.js returns null: cross-level comparisons (market \"Mid\" cells, Compstimate seniority weight) treat unlevelled roles as Mid. Cross-level caveat (review, 2026-10-10): big-tech postings often state several ranges (\"Level 4 ... Level 5\", per-location tables, tiers); server/salary.js keeps one lowest-min..highest-max envelope (zones > 1) and the posting enters one seniority bucket from its title, so a cell can mix two levels' pay. jobs.js market-comps reports each company whose salaried postings with several ranges exceed 20% (drift on a rise of 10+ points). No beta (big-tech) snapshot has been checked yet: re-dispatch monthly-refresh.yml with dry_run=true after the first beta snapshot.yml run.",
+      "notes": "USER DECISION PENDING (seniority default): ~half the postings are \"Mid\" only because the title has no level word, so market-comps Mid cells and Compstimate's Mid weighting are mostly defaults. Options in docs/process/freshness-jobs.md §3: (A) keep, watched monthly (current); (B) expose seniorityBasis on each Job and label default levels \"Mid (no level in title)\"; (C) infer the level from the years-of-experience ask (CORPORATE_LADDER_PLAN). The patch only adds seniorityBasis() (no behaviour change). The ladder plan's \"41% Mid by default\" uses a broader level-word list than inferSeniority; jobs.js uses inferSeniority's own fallback. | Three orderings exist (keywords buckets, roles.js SENIORITY_LADDER, compstimate LEVEL_INDEX with Manager 3.5) plus vet.js junior/senior regexes; demo multipliers have no source. Three hand-kept copies of the order (roles.js, chart.js, app.js) with no test tying them together. server/keywords.js inferSeniority defaults unlevelled titles to \"Mid\" while roles.js returns null: cross-level comparisons (market \"Mid\" cells, Compstimate seniority weight) treat unlevelled roles as Mid. Cross-level caveat (review, 2026-10-10): big-tech postings often state several ranges (\"Level 4 ... Level 5\", per-location tables, tiers); server/salary.js keeps one lowest-min..highest-max envelope (zones > 1) and the posting enters one seniority bucket from its title, so a cell can mix two levels' pay. jobs.js market-comps reports each company whose salaried postings with several ranges exceed 20% (drift on a rise of 10+ points). No beta (big-tech) snapshot has been checked yet: re-dispatch monthly-refresh.yml with dry_run=true after the first beta snapshot.yml run. Methodology review beta (2026-10-11, MR-5/MR-7): the company level ladders added for the beta boards had no registry reference; the default is now shown as \"Level not stated\".",
       "lastReviewed": "2026-10-02",
       "reviewCadence": "yearly",
       "extract": [
@@ -15103,9 +15121,11 @@
         "public/features/roles.js:217 FAMILIES regex lexicon",
         "public/features/roles.js:252 DEPT_HINTS",
         "public/features/roles.js:21 ABBREV / SYNONYM / LEVEL_WORDS / STOPWORDS",
-        "public/app.js:1 app FAMILY_LABEL (15 older labels, overridden by FAMILY_LABELS)"
+        "public/app.js:1 app FAMILY_LABEL (15 older labels, overridden by FAMILY_LABELS)",
+        "public/features/roles.js:201 CHIP (chip-design family)",
+        "public/features/roles.js:209 TECHNICIAN / :208 DC_CONTEXT (data-center technician family)"
       ],
-      "values": "26 families (public/features/roles.js FAMILY_LABELS), FAMILIES / DEPT_HINTS / PRIORITY lexicons, FAMILY_AFFINITY partial credits; 2026-10-02: 6 of 5,413 postings without a family (0.1%)",
+      "values": "28 families (public/features/roles.js FAMILY_LABELS; BP-4 added chip (chip design) and dc-tech (data-center technician), 2026-10-11), FAMILIES / DEPT_HINTS / PRIORITY lexicons, FAMILY_AFFINITY partial credits; 2026-10-02: 6 of 5,413 postings without a family (0.1%); 2026-10-11: 1,668 beta postings (965 with pay) changed family with BP-4",
       "consumers": [
         {
           "at": "server/vet.js:205",
@@ -15375,7 +15395,9 @@
         "server/history.js:233 compactLedger (api/history/<slug>.json)",
         "scripts/history.js:73 recordRun",
         ".github/scripts/ledger.sh:2 ledger.sh store (artifact | branch)",
-        "server/history.js, scripts/history.js, .github/scripts/ledger.sh [core]"
+        "server/history.js, scripts/history.js, .github/scripts/ledger.sh [core]",
+        "server/history.js:54 UNSEEN_OPEN_DAYS (14: a posting missing from a partial or capped list stays open this long, then closes as 'unseen')",
+        "server/sources/incremental.js:48 CLOSE_PROBE_LIMIT (50 closure probes per board per run; a 404/410/redirect closes as 'gone')"
       ],
       "values": "per company ledger { since, lastRunAt, runs, jobs: { id: { f, l, p, k, r?, c?, n?, o?, s? } } }; REPOST_WINDOW_DAYS 30, PRUNE_CLOSED_DAYS 400; live 2026-10-10: since 2026-10-02, 90 runs",
       "consumers": [
@@ -16780,7 +16802,9 @@
         "public/app.js:121 \"just now\" < 90 s, minutes < 1 h, hours < 1 d, days < 45 d, then a date (badge \"Cached · N min ago\")",
         "public/app.js:3 salary-filter histogram 26/30 bins",
         "public/app.js:374 keyword clouds show 14 (10 in popovers); checklists 10–14",
-        "public/features/comps.js:1 Compare default family needs ≥ 2 companies"
+        "public/features/comps.js:1 Compare default family needs ≥ 2 companies",
+        "public/features/insights.js:23 MIN_SAMPLE (5: \"Skills need 5+ roles with pay\", medians, boxes, shares)",
+        "public/features/insights.js:29 TIE_SHARE (0.5: \"N skills left out: most of their roles post the same range\")"
       ],
       "values": "see owners",
       "consumers": [
