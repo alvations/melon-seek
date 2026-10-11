@@ -200,18 +200,23 @@ inline. The build makes three changes:
    fetched once per job you open and then cached. Server mode works the same
    way: `/api/jobs` lists are lazy too (`meta.lazy`), and `getJobDetail` fetches
    `/api/job?id=<job.id>`.
-2. Lists use a lossless packed format (`melon-packed-2`):
+2. Lists use a lossless packed format (`melon-packed-3`):
    - company fields, the id prefix and the shared URL prefix are stored once;
    - repeated locations, keyword labels and departments become indexes into a
      shared dictionary;
    - fields that every job carries (`postedAt`, `firstSeenAt`, `ageDays`,
      `freshness`, `repost`, `extras`, …) are stored once per list as columns;
    - exact ISO timestamps become epoch milliseconds;
-   - salary and keywords become value tuples.
+   - salary and keywords become value tuples;
+   - `melon-packed-3` (2026-10-11, for Amazon's whole board): jobs with the
+     usual keys are value arrays, pay ranges are tuples, and a URL that a
+     list's template (`…/{id}/{slug}`) gives is stored as `0`. About a third
+     smaller (Amazon's 5,000: 470 → 314 kB gzip).
 
    `public/api.js` unpacks them back into normal Job objects, and still reads
-   the older `melon-packed-1`. The build checks that every job round-trips
-   exactly, including every v2 field, and fails if one doesn't.
+   the older `melon-packed-1` and `-2`. The build checks that every job
+   round-trips exactly, including every v2 field, and that it unpacks exactly
+   as `melon-packed-2` did (key order too), and fails if one doesn't.
 3. If a list is still over 1.5 MB, that company's `sections` (the
    responsibilities/fit bullets) also move into the desc files. Keywords stay in
    the list, so filters work immediately.

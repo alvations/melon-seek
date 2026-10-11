@@ -171,7 +171,10 @@ within10Pct, n, seed, computedAt } | null, history: { since, runs } }`.
 | Browser lib | `GET /lib/<allowlisted>.js` | `lib/*.js` (allowlist in `server/lib-modules.js`) |
 
 **Packed list format:** `melon-packed-1` becomes `melon-packed-2` with the
-fields above, and the build's round-trip check covers them.
+fields above, and the build's round-trip check covers them. Since 2026-10-11 the build writes
+`melon-packed-3` (row arrays, range tuples, url templates; `public/api.js#unpackJobs` header), which
+unpacks to exactly the `melon-packed-2` result, key order included (checked at build time and in
+`test/perf-mobile-beta-2.test.js`). Readers of list files use `unpackJobs`.
 
 **Shared FX:** `public/viz/palette.js` `FX_PER_USD` is the single source.
 Copies in `server/juice.js` and `server/salary.js` are guarded by

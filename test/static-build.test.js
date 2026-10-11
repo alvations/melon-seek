@@ -199,10 +199,10 @@ test('server mode: juice attached client-side from api/cities', async () => {
 const readJson = (...p) => JSON.parse(fs.readFileSync(path.join(...p), 'utf8'));
 const withoutHtml = (j) => { const { descriptionHtml, ...rest } = j; return rest; };
 
-test('v2: melon-packed-2 list round-trips every v2 field exactly', async () => {
+test('v2: the packed list (melon-packed-3 since perf-mobile-beta-2) round-trips every v2 field exactly', async () => {
   const api = await freshApi();
   const raw = readJson(DIST2, 'api', 'jobs', 'anthropic.json');
-  assert.equal(raw.format, 'melon-packed-2');
+  assert.equal(raw.format, 'melon-packed-3');
   assert.ok(Array.isArray(raw.columns) && raw.columns.some((c) => c.key === 'postedAt'), 'v2 fields stored as columns');
   // Independent of the build's own check: recompute what it should have shipped.
   const { vetSalaries } = await import(pathToFileURL(path.join(ROOT, 'server', 'vet.js')).href);

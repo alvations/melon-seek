@@ -22,6 +22,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { unpackJobs, PACKED_FORMAT } from '../public/api.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const UA = 'melon-seek-link-check/1 (+https://alvations.github.io/melon-seek/)';
@@ -54,8 +55,10 @@ export function sample(items, n, seed) {
   return a.slice(0, k);
 }
 
-/** Apply URL of every job in a list body (packed melon-packed-1/2 or plain). */
+/** Apply URL of every job in a list body (packed melon-packed-1/2/3 or plain). */
 export function jobUrls(body) {
+  // melon-packed-3 (row arrays, url templates; docs/process/perf-mobile-beta-2.md) needs the decoder.
+  if (body && body.format === PACKED_FORMAT) return unpackJobs(body).map((j) => (typeof j.url === 'string' && j.url ? j.url : null)).filter(Boolean);
   const prefix = (body && body.shared && body.shared.urlPrefix) || '';
   return ((body && body.jobs) || []).map((j) => (typeof j.url === 'string' && j.url ? prefix + j.url : null)).filter(Boolean);
 }

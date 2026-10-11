@@ -99,6 +99,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 // The browser-safe module allowlist is shared with the server's /lib/ route.
 import { LIB_MODULES, LIB_SOURCES_DIR, isLibModule } from '../server/lib-modules.js';
 import { BETA_POSTING_HOSTS, BETA_POSTING_PREFIXES } from './links-policy.js';
+import { unpackJobs, PACKED_FORMAT } from '../public/api.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -172,7 +173,8 @@ function commonPrefix(strs) {
   return p;
 }
 
-// melon-packed-2: top-level fields that EVERY job carries are stored once per
+// melon-packed-2 (melon-packed-3 adds the encodings in public/api.js#unpackJobs's header, only where
+// reversible): top-level fields that EVERY job carries are stored once per
 // list as columns (the key is written once, not per job); all-boolean columns
 // as 0/1; low-cardinality ones as dict indexes (firstSeenAt has one value per
 // ledger run). String enums inside salary are dict indexes too. A field missing
@@ -191,8 +193,27 @@ const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 const sameKeys = (o, keys) => { const k = Object.keys(o); return k.length === keys.length && keys.every((x) => has(o, x)); };
 const exactIso = (v) => typeof v === 'string' && !Number.isNaN(Date.parse(v)) && new Date(Date.parse(v)).toISOString() === v;
 
-/** Pack a plain list payload as PACKED_FORMAT (decoded by public/api.js#unpackJobs). */
-function packList(list, PACKED_FORMAT) {
+/** [most common non-null key(x) over xs, its count] (the first to reach the top count wins), or null. */
+function mostCommon(xs, key) {
+  const n = new Map();
+  let best = null;
+  for (const x of xs) {
+    const k = key(x);
+    if (k == null) continue;
+    const c = (n.get(k) || 0) + 1;
+    n.set(k, c);
+    if (!best || c > best[1]) best = [k, c];
+  }
+  return best;
+}
+const KEY_SEP = '\u0000';
+const plainKeys = (keys) => !keys.includes('__proto__');
+
+/**
+ * Pack a plain list payload (decoded by public/api.js#unpackJobs). `v3` (the default) writes
+ * melon-packed-3; `v3: false` writes melon-packed-2 exactly as before (the build compares the two).
+ */
+export function packList(list, api, { v3 = true } = {}) {
   const index = new Map();
   const dict = [];
   const ref = (v) => {
@@ -221,16 +242,42 @@ function packList(list, PACKED_FORMAT) {
   }
   const firstSalary = jobs.find((j) => j.salary && typeof j.salary === 'object' && !Array.isArray(j.salary));
   const salaryKeys = firstSalary ? Object.keys(firstSalary.salary) : [];
-  const packed = jobs.map((j) => {
+  const salaryRefs = v3 ? api.SALARY_REFS_3 : SALARY_REFS;
+  // melon-packed-3: the list's most common salary.ranges[] key order, and its url template.
+  const allRanges = v3 ? jobs.flatMap((j) => (j.salary && typeof j.salary === 'object' && Array.isArray(j.salary.ranges) ? j.salary.ranges : [])) : [];
+  const rangeTop = mostCommon(allRanges, (r) => (r && typeof r === 'object' && !Array.isArray(r) && plainKeys(Object.keys(r)) ? Object.keys(r).join(KEY_SEP) : null));
+  const rangeKeys = rangeTop ? rangeTop[0].split(KEY_SEP) : null;
+  const localId = (j) => String(j.id).slice(idPrefix.length);
+  const templateOf = (j) => {
+    if (typeof j.url !== 'string') return null;
+    const id = localId(j);
+    let t = id ? j.url.split(id).join('{id}') : j.url;
+    const slug = api.urlSlug(j.title);
+    if (slug && slug.length >= 3) t = t.split(slug).join('{slug}');
+    return t !== j.url && api.fillUrlTemplate(t, id, j.title) === j.url ? t : null;
+  };
+  const urlTop = v3 ? mostCommon(jobs, templateOf) : null;
+  const urlTemplate = urlTop && urlTop[1] >= 2 && urlTop[1] * 2 >= jobs.length ? urlTop[0] : null;
+  const packRange = (r) => {
+    if (!rangeKeys || !r || typeof r !== 'object' || Array.isArray(r) || Object.keys(r).join(KEY_SEP) !== rangeTop[0]) return r;
+    if (!api.RANGE_REFS.every((k) => r[k] == null || typeof r[k] === 'string')) return r;
+    return rangeKeys.map((k) => (api.RANGE_REFS.includes(k) && typeof r[k] === 'string' ? ref(r[k]) : r[k]));
+  };
+  let packed = jobs.map((j) => {
     const { company, companyName, sections, ...r } = j;
     for (const c of columns) delete r[c.key];
     if (r.salary && typeof r.salary === 'object') {
       const sal = { ...r.salary };
-      for (const k of SALARY_REFS) if (typeof sal[k] === 'string') sal[k] = ref(sal[k]);
-      r.salary = salaryKeys.length && sameKeys(sal, salaryKeys) ? salaryKeys.map((k) => sal[k]) : sal;
+      for (const k of salaryRefs) if (typeof sal[k] === 'string') sal[k] = ref(sal[k]);
+      if (rangeKeys && Array.isArray(sal.ranges)) sal.ranges = sal.ranges.map(packRange);
+      const keys = Object.keys(sal);
+      if (salaryKeys.length && sameKeys(sal, salaryKeys)) r.salary = salaryKeys.map((k) => sal[k]);
+      else if (v3 && salaryKeys.length && keys.length > salaryKeys.length && salaryKeys.every((k, n) => keys[n] === k) && plainKeys(keys)) {
+        r.salary = [...salaryKeys.map((k) => sal[k]), Object.fromEntries(keys.slice(salaryKeys.length).map((k) => [k, sal[k]]))];
+      } else r.salary = sal;
     }
-    r.id = String(j.id).slice(idPrefix.length);
-    r.url = j.url == null ? null : j.url.slice(urlPrefix.length);
+    r.id = localId(j);
+    r.url = j.url == null ? null : urlTemplate && api.fillUrlTemplate(urlTemplate, r.id, j.title) === j.url ? 0 : j.url.slice(urlPrefix.length);
     for (const k of ['department', 'team', 'employmentType', 'seniority']) r[k] = ref(j[k]);
     r.locations = (j.locations || []).map(ref);
     const kw = j.keywords || {};
@@ -239,7 +286,18 @@ function packList(list, PACKED_FORMAT) {
     if (hasSections(sections)) r.sections = sections;
     return r;
   });
-  return { ...list, format: PACKED_FORMAT, shared: { company: first.company, companyName: first.companyName, idPrefix, urlPrefix, salaryKeys }, dict, columns, jobs: packed };
+  const shared = { company: first.company, companyName: first.companyName, idPrefix, urlPrefix, salaryKeys };
+  if (v3) {
+    // Rows with the most common key order become value arrays (shared.rowKeys).
+    const rowTop = mostCommon(packed, (r) => (plainKeys(Object.keys(r)) ? Object.keys(r).join(KEY_SEP) : null));
+    if (rowTop) {
+      shared.rowKeys = rowTop[0].split(KEY_SEP);
+      packed = packed.map((r) => (Object.keys(r).join(KEY_SEP) === rowTop[0] ? shared.rowKeys.map((k) => r[k]) : r));
+    }
+    if (rangeKeys) shared.rangeKeys = rangeKeys;
+    if (urlTemplate) shared.urlTemplate = urlTemplate;
+  }
+  return { ...list, format: v3 ? api.PACKED_FORMAT : 'melon-packed-2', shared, dict, columns, jobs: packed };
 }
 
 /** Key-order-insensitive deep equality (for the pack round-trip check). */
@@ -260,7 +318,7 @@ const hasSections = (s) => !!s && ((s.responsibilities || []).length > 0 || (s.f
  * Returns { list, details: Map(descPath -> record), sectionsMoved }. With `vet` (vetSalaries),
  * a list it leaves unchanged is marked `shared.vetted`.
  */
-function splitPayload(payload, api, vet = null) {
+export function splitPayload(payload, api, vet = null) {
   const { descPath } = api;
   const build = (moveSections) => {
     const details = new Map();
@@ -279,11 +337,14 @@ function splitPayload(payload, api, vet = null) {
       return rest; // no descriptionHtml key -> api.js#getJobDetail fetches it
     });
     const plain = { ...payload, jobs };
-    const packed = packList(plain, api.PACKED_FORMAT);
+    const packed = packList(plain, api);
     // Round-trip guard: what the browser unpacks must equal what we meant to ship.
     const back = api.unpackJobs(JSON.parse(JSON.stringify(packed)));
     const bad = back.findIndex((j, i) => !sameValue(j, jobs[i]));
     if (back.length !== jobs.length || bad >= 0) throw new Error(`${payload.company && payload.company.slug}: packed list doesn't round-trip (job ${bad})`);
+    // And it must be exactly what melon-packed-2 unpacked to, key order included (perf-mobile-beta-2).
+    const back2 = api.unpackJobs(JSON.parse(JSON.stringify(packList(plain, api, { v3: false }))));
+    if (JSON.stringify(back) !== JSON.stringify(back2)) throw new Error(`${payload.company && payload.company.slug}: melon-packed-3 list unpacks differently from melon-packed-2`);
     return { list: packed, details, sectionsMoved: moveSections, back };
   };
   let out = build(false);
@@ -727,8 +788,11 @@ export function betaLeaks(out, betaSlugs, { hosts = BETA_POSTING_HOSTS, prefixes
       const slug = (body.shared && body.shared.company) || (body.company && body.company.slug);
       if (slugs.has(slug)) v.push(`api/${dir}/${f} holds ${slug} jobs`);
       const prefix = (body.shared && body.shared.urlPrefix) || '';
-      const bad = (body.jobs || []).find((j) => j && typeof j.url === 'string' && onBetaHost(prefix + j.url));
-      if (bad) v.push(`api/${dir}/${f}: posting URL on a beta host (${prefix + bad.url})`);
+      // melon-packed-3 rows and url templates need the decoder; older bodies are read as before.
+      const urls = body.format === PACKED_FORMAT ? unpackJobs(body).map((j) => j.url)
+        : (body.jobs || []).map((j) => (j && typeof j.url === 'string' ? prefix + j.url : null));
+      const bad = urls.find((u) => typeof u === 'string' && onBetaHost(u));
+      if (bad) v.push(`api/${dir}/${f}: posting URL on a beta host (${bad})`);
     }
   }
   return v;
