@@ -20,6 +20,7 @@ import { registerFixPayDataTests } from '../test/e2e/fix-pay-data.e2e.js';
 import { registerFixBetaAppTests } from '../test/e2e/fix-beta-app.e2e.js';
 import { registerFix3AppTests } from '../test/e2e/fix3-app.e2e.js';
 import { registerFix3CompareTests } from '../test/e2e/fix3-compare.e2e.js';
+import { registerFix3DataTests } from '../test/e2e/fix3-data.e2e.js';
 
 const args = new Set(process.argv.slice(2));
 const apiOnly = args.has('--api-only');
@@ -65,6 +66,7 @@ if (!apiOnly) {
   registerFixBetaAppTests(suite);
   registerFix3AppTests(suite);
   registerFix3CompareTests(suite);
+  registerFix3DataTests(suite);
 }
 
 let results;

@@ -116,6 +116,9 @@ test('BP-5: "CAD" is never the skill in any currency-code format', () => {
     'The typical base pay range for this role across Canada is CAD $112,000 - CAD $165,000 per year.', // Microsoft
     "La fourchette salariale de base typique pour ce rôle dans l'ensemble du Canada est de 112,000 $ CAD à 165,000 $ CAD par année.", // Microsoft, French
     'Salary paid in Canadian dollars (CAD).',
+    'For candidates in Canada, the Compensation Range is: $160,000 – $245,000 [CAD]', // Cohere
+    'Le salaire de base canadien pour ce poste est de Canada: $99000 (CAD) + 0% bonus target CAD, déterminé par le rôle', // Google, French
+    'Canada: $138000 - $141000 (CAD) + 40% bonus target + équité + avantages sociaux CAD, déterminé par le rôle',
     '4,300 CAD per week', 'CAD$95,000', 'USD/CAD',
   ];
   for (const t of pay) assert.ok(!skills('Mechanical Engineer', t).includes('CAD'), t);
@@ -322,6 +325,7 @@ test('tags: "Transformers" is the model, not data-centre power equipment; "GCP" 
   assert.ok(!skills('Sourcing Manager, Power and Cooling', 'Source medium voltage transformers and switchgear for data centers.').includes('Transformers'));
   for (const t of ['Experience with transformers and LLMs.', 'Train transformer models at scale.', 'Vision transformers for perception.']) assert.ok(skills('ML Engineer', t).includes('Transformers'), t);
   assert.ok(!skills('Account Executive', 'Help Google Cloud customers grow.').includes('GCP'));
+  assert.ok(!skills('Data Center Technician III', 'Lead the deployment, maintenance, and support of Google Cloud region (e.g., cloud data center) infrastructure.').includes('GCP'));
   assert.ok(skills('Platform Engineer', 'Experience with AWS, Azure or Google Cloud.').includes('GCP'));
   assert.ok(skills('Platform Engineer', 'Experience with GCP.').includes('GCP'));
 });

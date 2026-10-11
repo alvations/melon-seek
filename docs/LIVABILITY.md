@@ -263,9 +263,14 @@ Rules:
   "approx USD" unit the salary chart plots. Currencies the palette lacks (INR, SEK, ILS, ...)
   use the city's `fxPerUSD` (Big Mac data, refreshed monthly). Tax is computed in the
   city's currency at the same rate, so a £100K salary in London is taxed on exactly £100K.
-- **Currency scoping:** if some matched locations use the salary's currency, only those are
-  scored (a USD range posted for "San Francisco | London" is not applied to London). If none
-  do (a USD salary for a London-only role), all are scored and marked `currencyMismatch: true`.
+- **Currency scoping:** only matched locations that use the salary's currency are scored (a USD
+  range posted for "San Francisco | London" is not applied to London), and when the pay line names
+  its country (`salary.country`, Google "Ireland: €72000") only that country's. If none is (a USD
+  salary for a London-only role), there is no Juice: `job.juice` is `null` and `job.juiceMissing =
+  { code: 'pay-other-country', text }` says why. Juice is never worked out from another country's
+  pay (fix wave 3, shared decision 1; the `currencyMismatch` fallback that scored them anyway is
+  retired). Part-time hourly pay (`salary.partTime`) is scored on the weekly hours the posting
+  states; with none stated, `job.juiceMissing` is `{ code: 'part-time-hours', text }`.
 - **Household:** `opts.household` (`'single'` by default) goes to every `computeJuice` call and is
   recorded as `job.juice.household`. `public/api.js` attaches one-person juice; when the viewer picks
   Couple or Family, `public/app.js` re-attaches juice for every loaded job with the same `juice.js`

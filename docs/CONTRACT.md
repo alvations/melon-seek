@@ -435,14 +435,15 @@ snapshots are re-derived once by `relocateJobs(rekeyBoardJobs(jobs).jobs)`, then
 |---|---|
 | `originalInterval` | Now also `'year'`, on a salary with `termWeeks` whose pay was stated per year or with no interval (Google "Ireland: €72000 (EUR)" for a 13-week internship, Microsoft "CAD $43,800 - CAD $50,000 per year" for a 6-month one). A salary with `termWeeks` always carries `originalInterval`: `'year'` reads as a yearly rate ("€72,000 a year (13-week internship)"); only `'week'`, `'month'`, `'term'` (or `kind: 'stipend'`) is pay for the term. A salary without `termWeeks` still omits it for yearly pay. `termWeeks` is the programme's length, for information only |
 | `partTime` | `true` when the role is part-time (`employmentType` says part-time and not also full-time, or else the title does: `salary.js#isPartTimeRole`) and the pay was posted per hour (`originalInterval: 'hour'`). `min`/`max`/`mid` stay the 2,080-hour (full-time) equivalent, so any yearly figure must say "if full-time (2,080 hours)". Absent otherwise |
+| `country` | The ISO code of the country the posting's pay line names (Google "Ireland: €72000 (EUR)", Microsoft "… across the U.S. is USD …", "… across Germany is € …"). Absent when the pay names no country (most postings, and every structured range). Juice applies the pay only in that country |
 | `hoursPerWeek`, `hoursPerWeekMax` | With `partTime` only: the weekly hours the posting states ("work 16 hours per week", "28 hrs pw", "20-25 hours a week"; 1–34, a range's upper end up to 40; `salary.js#statedWeeklyHours`). Absent when the posting states none |
 
 New pure exports in `server/salary.js`: `isPartTimeRole({ title, employmentType })`,
 `statedWeeklyHours(text) -> { hours, hoursMax? } | null`. `payTerms` sets the three fields above.
 
 **Juice (`server/juice.js#attachJuice`)** (shared decisions 1 and 4):
-- Only matched locations whose city uses the salary's currency are scored. When none does, the pay is
-  another country's: `job.juice` is `null` and `job.juiceMissing = { code: 'pay-other-country', text }`
+- Only matched locations whose city uses the salary's currency are scored, and, with `salary.country`,
+  only that country's. When none is, the pay is another country's: `job.juice` is `null` and `job.juiceMissing = { code: 'pay-other-country', text }`
   ("No Juice figure: the pay is posted in Canadian dollars (for Canada), and London, UK uses another
   currency. Juice is never worked out from another country’s pay."). The `currencyMismatch` flag on
   `byLocation` entries is retired (never set).

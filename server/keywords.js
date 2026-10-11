@@ -610,7 +610,7 @@ export const SKILL_LEXICON = [
   ['AWS', /\bAWS\b/, 'amazon web services'],
   // Fix wave 3: "Google Cloud" the platform, not the organization ("Google Cloud customers",
   // "Google Cloud accelerates every organization’s ability…").
-  ['GCP', /\bGCP\b/, 'google cloud platform', 'google cloud(?!(?:[’\']s\\b| (?:customers?|partners?|teams?|organi[sz]ations?|sales|accelerates|is|as)\\b))'],
+  ['GCP', /\bGCP\b/, 'google cloud platform', 'google cloud(?!(?:[’\']s\\b| (?:customers?|partners?|teams?|organi[sz]ations?|sales|accelerates|is|as|regions?)\\b))'],
   ['Azure', 'azure'],
   ['Spark', /\bSpark\b/, /\bPySpark\b/i],
   ['Kafka', 'kafka'],
@@ -675,9 +675,11 @@ export const SKILL_LEXICON = [
   ['Mechanical design', 'mechanical design', new RegExp(String.raw`(?<!\b(?:${DISCIPLINES})(?: engineering)?\s*(?:,|\/|\bor\b|\band\b)\s*)\bmechanical engineering\b(?!\s*(?:,|\/|\bor\b|\band\b)\s*(?:${DISCIPLINES})\b|\s+teams\b)`, 'i')],
   // P-17: not the currency ("4,300 CAD per week", "$495,000 CAD", "CAD 150,000", "30 CAD/hour").
   // BP-5 (fix wave 3): in any currency-code format: after an amount or a "$" ("$120000 (CAD)",
-  // Microsoft's French "112 000 $ CAD à 165 000 $ CAD", "Canadian dollars (CAD)"), before one
+  // "$160,000 – $245,000 [CAD]", Microsoft's French "112 000 $ CAD à 165 000 $ CAD", Google's
+  // French "+ 0% bonus target CAD" and "+ équité + avantages sociaux CAD", "Canadian dollars
+  // (CAD)"), before one
   // ("CAD $43,800", "CAD$", "CAD 150,000"), or in a currency list ("USD/CAD").
-  ['CAD', /(?<![\d$€£¥](?:[\d,.  ]*\d)?\s?[kKmM]?\s?\$?\s?\(?\s?|\b(?:USD|GBP|EUR|AUD)\s?\/\s?|\bdollars?\s?\(\s?)\bCAD\b(?!\s?\)?\s?(?:\$|\d|\/\s?(?:hour|hr|h|year|yr|annum|month|mo|week|wk|day)\b|per\s|par\s|an?\s+(?:hour|year|week|month)\b|annually|hourly|weekly|monthly))/],
+  ['CAD', /(?<![\d$€£¥](?:[\d,.  ]*\d)?\s?[kKmM]?\s?\$?\s?[([]?\s?|\b(?:USD|GBP|EUR|AUD)\s?\/\s?|\bdollars?\s?\(\s?|%\s?(?:bonus\s+)?(?:target\s+)?|\b(?:avantages\s+sociaux|benefits|équité|equity)\s)\bCAD\b(?!\s?[)\]]?\s?(?:\$|\d|\/\s?(?:hour|hr|h|year|yr|annum|month|mo|week|wk|day)\b|per\s|par\s|an?\s+(?:hour|year|week|month)\b|annually|hourly|weekly|monthly))/],
   ['SolidWorks', 'solidworks'],
   ['Siemens NX', /\bSiemens NX\b/i, /\bNX\b/],
   ['GD&T', /\bGD&T\b/i, 'geometric dimensioning'],
