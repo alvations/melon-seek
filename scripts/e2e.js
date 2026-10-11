@@ -25,6 +25,7 @@ import { registerFix3DataTests } from '../test/e2e/fix3-data.e2e.js';
 import { registerFixViz3Tests } from '../test/e2e/fix3-viz.e2e.js';
 import { registerBetaA11yTests } from '../test/e2e/beta-a11y.e2e.js';
 import { registerFixCompanyScrollTests } from '../test/e2e/fix-company-scroll.e2e.js';
+import { registerBetaDesktopQa2Tests } from '../test/e2e/beta-desktop-qa-2.e2e.js';
 
 const args = new Set(process.argv.slice(2));
 const apiOnly = args.has('--api-only');
@@ -75,6 +76,7 @@ if (!apiOnly) {
   registerFixViz3Tests(suite);
   registerBetaA11yTests(suite);
   registerFixCompanyScrollTests(suite);
+  registerBetaDesktopQa2Tests(suite);
 }
 
 let results;
