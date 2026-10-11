@@ -78,3 +78,14 @@
      const bySen = res.matchedOn === 'family+seniority';
      const filters = { family: res.family, seniority: bySen ? res.level : null };
      const chartHost = h('div', { class: 'comps-chart' });
+--- a/test/e2e/ui.e2e.js
++++ b/test/e2e/ui.e2e.js
+@@ -629,7 +629,7 @@
+         await page.locator('#drawer').waitFor({ state: 'visible', timeout: 5000 });
+         const sec = page.locator('#drawer .d-comps');
+         if (await sec.count()) {
+-          await page.waitForFunction(() => { const s = document.querySelector('#drawer .d-comps'); return !s || s.hidden || s.querySelector('.ms-comps__row'); }, null, { timeout: 8000 });
++          await page.waitForFunction(() => { const s = document.querySelector('#drawer .d-comps'); return !s || s.hidden || s.querySelector('.ms-comps__row') || (s.querySelector('.comps-note') && !s.querySelector('.comps-chart')); }, null, { timeout: 8000 });
+           if (await sec.isVisible() && await sec.locator('.ms-comps__row:not(.is-current)').count()) { rows = sec.locator('.ms-comps__row'); break; }
+         }
+         await page.keyboard.press('Escape');

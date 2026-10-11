@@ -118,6 +118,12 @@ describe('BP-3 market cells have one country each', () => {
     assert.equal(r.fallback, 'no-peers');
     assert.equal(compsNote(r), "No other company lists pay for Data science & analytics roles in Ireland, so there is nothing to compare yet. Pay for other countries isn't used.");
   });
+  test('an internship with no same-country internship elsewhere: no rows, never full-time pay', () => {
+    const intern = job({ title: 'Software Engineering Intern', seniority: 'Intern', company: 'google', locations: [L.WAW], mid: 120000, termWeeks: 12 });
+    const r = compsForJob(market, intern, { includeSelf: true });
+    assert.deepEqual([r.rows.length, r.level, r.fallback, r.country], [0, 'Intern', 'intern-too-few', 'PL']);
+    assert.equal(compsNote(r), "No other company lists pay for Software engineering internships or fixed-term roles in Poland, so there is nothing to compare yet. Pay for other countries isn't used.");
+  });
   test('a US role is compared with US pay, named in the note', () => {
     const r = compsForJob(market, usEntry);
     assert.deepEqual(r.rows.map((x) => [x.slug, x.country]), [['nvidia', 'US']]);

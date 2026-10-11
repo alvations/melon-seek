@@ -214,7 +214,7 @@ export function compsNote(res) {
   const where = res.country ? ` in ${countryInSentence(res.country)}` : '';
   const elsewhere = res.country ? " Pay for other countries isn't used." : '';
   if (!res.rows || !res.rows.length) {
-    if (res.level === 'Intern') return `No other company lists internship or fixed-term pay for ${fam} roles${where}, so there is nothing to compare yet.${elsewhere}`;
+    if (res.level === 'Intern') return `No other company lists pay for ${fam} internships or fixed-term roles${where}, so there is nothing to compare yet.${elsewhere}`;
     return `No other company lists ${res.kind === 'ote' ? 'on-target earnings' : 'pay'} for ${fam} roles${where}, so there is nothing to compare yet.${elsewhere}`;
   }
   if (res.level === 'Intern') return `${fam} internships and fixed-term roles${where}: median and middle half of ${pay} as a yearly rate (approx USD).`;

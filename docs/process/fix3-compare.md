@@ -12,9 +12,15 @@ code base). Findings from the beta persona review ([lead.md](lead.md) "Beta, sta
 - **Compare companies says why a level is missing** (no Mid for Design, no Director+ for Policy).
 
 Files owned: `public/features/{comps,roles,insights,compstimate,shared}.js`, `public/viz/comps.js`,
-`scripts/build-market.js`, new tests. `public/app.js` changes are a patch
-([patches/fix3-compare-same-country.diff](patches/fix3-compare-same-country.diff)), and so is the contract
-section ([patches/fix3-compare-contract.diff](patches/fix3-compare-contract.diff)).
+`scripts/build-market.js`, new tests. Patches, to apply in this order:
+1. [patches/fix3-compare-same-country.diff](patches/fix3-compare-same-country.diff): `public/app.js` (the
+   same-country "Pays more than N%" line and histogram, and the drawer's "nothing to compare" note) and
+   the one wait in `test/e2e/ui.e2e.js` that assumed "Same role elsewhere" is either hidden or has rows;
+2. [patches/fix3-compare-e2e-mid-level.diff](patches/fix3-compare-e2e-mid-level.diff):
+   `test/e2e/fix-estimates.e2e.js` read any level option starting "Mid" as "Level not stated"; since
+   shared decision 1 "Mid" is a stated level (BP-7), so it now checks for "Level not stated" and the
+   stored value `Mid`;
+3. [patches/fix3-compare-contract.diff](patches/fix3-compare-contract.diff): the `docs/CONTRACT.md` section.
 
 ## 2. Inputs and sources
 - `docs/CONTRACT.md` (v2 market comps, v5 levels and `seniorityBasis`), ROADMAP §8 (UI budget: no new
@@ -163,7 +169,21 @@ git checkout public/app.js                                  # back to the commit
   Verification Test Engineer" (product test, not chip verification), fixed with `design verification(?! test)`.
 - **Unit tests**: `node --test test/fix3-compare.test.js` 64/64. `test/fix-estimates.test.js`,
   `test/features.test.js`, `test/market.test.js`, `test/refresh-jobs.test.js`, `test/static-build.test.js`,
-  `test/beta-build.test.js` pass unchanged. Whole `npm test` and full e2e: §7.
+  `test/beta-build.test.js` pass unchanged.
+- **Whole `npm test`** (`MELON_BETA_SNAPSHOT_DIR` = an empty folder, as CI):
+  - final, with all three patches applied: **830/830 passed**;
+  - committed state (no patches): 829/830; the one failure is the V15 timing test ("event loop blocked
+    for 161 ms" at load average 5), which passes 3 of 3 runs alone;
+  - an earlier patched run at load 6–7 had 4 timing failures (PERF-1, V15, "LLM second opinion",
+    `politeRequest … per-host spacing`); all pass alone, and `politeRequest` also fails 1 run in 5 on
+    the base tree.
+- **Full e2e** (`NODE_PATH=… node scripts/e2e.js`):
+  - base tree (790fa13 with its own build): **192/195 passed, 0 failed, 3 skipped**;
+  - this lane (commits plus the three patches, `npm run build`): **201/204 passed, 0 failed, 3 skipped**
+    (the same 3 skips; the 9 new `Fix3 compare` tests pass);
+  - before the two e2e patches and the intern wording: 197/204, with `UI: "Same role elsewhere" rows`,
+    `fix-estimates: [P-10, I-8]` and `[P-11]` failing (see §6), and one `Fix3 compare` test reading a
+    build older than the wording change.
 - **Screenshots** (`docs/screenshots/fix3-compare/`, each `-before`/`-after`, desktop 1440×900 and phone
   390×844): `bp3-warsaw-drawer-*`, `bp3-dublin-drawer-*`, `bp3-compare-google(-dublin)`,
   `bp4-compare-hardware-staff`, `bp4-compare-chip`, `bp4-formal-verification-drawer-*`,
@@ -173,6 +193,10 @@ git checkout public/app.js                                  # back to the commit
   line's country, the drawer's "nothing to compare" sentence and the one-line levels note.
 
 ## 6. Known gaps and follow-ups
+- Without the e2e patches, three existing e2e tests fail on the integrated build: `UI: "Same role
+  elsewhere" rows …` (waits 8 s for rows or a hidden section; a note-only section is now possible) and
+  `fix-estimates: [P-10, I-8]` (any option starting "Mid"), both fixed by the patches above; and
+  `fix-estimates: [P-11]` passed once the intern note says "internships" (comps.js wording).
 - The app.js patch is needed for the "Pays more than N%" country and the drawer's "nothing to compare"
   sentence; without it the drawer still compares within one country (comps.js), but hides the section
   when no same-country peer exists, and the percentile still pools countries.
@@ -192,4 +216,8 @@ git checkout public/app.js                                  # back to the commit
 - 2026-10-11 04:05 Worktree at 790fa13, base build into the scratchpad, data analysis.
 - 2026-10-11 04:30 Families, `payCountry`/`payRank`, the market's country dimension and the readers
   (commit 92101db).
-- 2026-10-11 04:45 Unit tests, e2e file, app.js and contract patches, screenshots, affinity tuning.
+- 2026-10-11 04:45 Unit tests, e2e file, app.js and contract patches, screenshots, affinity tuning
+  (commit d459871).
+- 2026-10-11 05:20 Full e2e on the patched build: three older e2e tests assumed the old behaviour; the
+  intern note now says "internships", and two e2e patches (ui.e2e.js wait, fix-estimates.e2e.js "Mid")
+  were written. Rebuilt; full e2e 201/204, 0 failed; npm test 830/830.
