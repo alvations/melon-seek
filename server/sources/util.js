@@ -49,7 +49,7 @@ async function readCapped(res, maxBytes, ctrl, label) {
  * GET JSON with a timeout (covers headers and body), a User-Agent, no
  * redirects (review L2: the host stays the fixed vendor host) and a body cap.
  */
-export async function fetchJson(url, { timeoutMs, label = 'source', maxBytes } = {}) {
+export async function fetchJson(url, { timeoutMs, label = 'source', maxBytes, onResponse } = {}) {
   if (!(maxBytes > 0)) maxBytes = MAX_BYTES;
   if (!(timeoutMs > 0)) timeoutMs = TIMEOUT_MS;
   const ctrl = new AbortController();
@@ -78,6 +78,8 @@ export async function fetchJson(url, { timeoutMs, label = 'source', maxBytes } =
         { code: 'http', status: res.status },
       );
     }
+    // The response headers (validators: server/sources/incremental.js), for the crawl summary.
+    if (typeof onResponse === 'function') { try { onResponse(res.headers, res.status); } catch {} }
     let raw;
     try {
       raw = await readCapped(res, maxBytes, ctrl, label);

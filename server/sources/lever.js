@@ -6,8 +6,8 @@ export function leverUrl(board) {
   return `https://api.lever.co/v0/postings/${encodeURIComponent(board)}?mode=json`;
 }
 
-export async function fetchLever(board, { maxBytes, timeoutMs } = {}) {
-  const data = await fetchJson(leverUrl(board), { label: `lever/${board}`, maxBytes, timeoutMs });
+export async function fetchLever(board, { maxBytes, timeoutMs, onResponse } = {}) {
+  const data = await fetchJson(leverUrl(board), { label: `lever/${board}`, maxBytes, timeoutMs, onResponse });
   if (!Array.isArray(data)) throw new UpstreamError(`lever/${board}: unexpected response (expected an array of postings)`, { code: 'bad_shape' });
   return data.map(mapLeverJob);
 }

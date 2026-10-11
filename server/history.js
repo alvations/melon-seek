@@ -17,7 +17,10 @@
 //         "p": ISO|null,  // postedAt from the source (Greenhouse first_published, ...)
 //         "k": "1x9z3a",  // fingerprint hash: normalized title + department + primary location
 //         "r": "4001",    // Greenhouse internal_job_id (omitted when null)
-//         "c": ISO,       // closedAt: first run where the id was missing (omitted while open)
+//         "c": ISO,       // closedAt: the run that closed it (omitted while open)
+//         "x": "absent",  // why it closed (with c): "absent" (missing from a complete list),
+//                         // "gone" (a probe got 404/410/a redirect, or the board returned no
+//                         // record), "unseen" (missing from partial lists for UNSEEN_OPEN_DAYS)
 //         "n": 2,         // repost count (omitted when 0)
 //         "o": ISO,       // firstSeenAt of the first posting in the repost chain (with n)
 //         "s": "<id>"     // successor id, once a repost consumed this closed entry
@@ -28,6 +31,13 @@
 // Rules:
 // - A failed or empty fetch never reaches updateLedger (scripts/history.js),
 //   and updateLedger itself returns `prev` unchanged for an empty job list.
+// - Closures (docs/DATA_ARCHIVE.md §9, server/sources/incremental.js): a posting is closed
+//   only when it is absent from a COMPLETE list (opts.complete, the default). A partial
+//   list (a capped board, a list shorter than the board's own count) closes nothing for
+//   being absent: such an entry stays open while last seen within UNSEEN_OPEN_DAYS, then
+//   closes as "unseen". opts.listed: ids on the board but not in `jobs` (left out by a
+//   cap, a detail that failed): seen, kept open. opts.gone: ids confirmed closed (a probe's
+//   404/410/redirect): closed now as "gone", complete list or not.
 // - An id that comes back after closing is "reopened": firstSeenAt is kept, the
 //   close is cleared. Same id, so it is not a repost.
 // - A repost is a NEW id that matches a CLOSED, not yet consumed entry by
@@ -40,6 +50,8 @@
 export const HISTORY_FORMAT = 'melon-history-1';
 export const REPOST_WINDOW_DAYS = 30;
 export const PRUNE_CLOSED_DAYS = 400;
+/** An entry missing from partial lists stays open while it was seen this recently. */
+export const UNSEEN_OPEN_DAYS = 14;
 export const FRESHNESS = Object.freeze({ NEW_MAX: 7, ACTIVE_MAX: 59, STALE_MAX: 179 }); // evergreen >= 180
 
 const DAY = 86400000;
@@ -95,9 +107,12 @@ function validLedger(prev) {
  * @param {object|null} prev    previous ledger (or null for a new one)
  * @param {Job[]} jobs          normalized jobs of the run (needs id, title, department, locations, postedAt, reqId)
  * @param {string} fetchedAt    ISO time of the run
+ * @param {object} [opts]       { complete = true, listed = [], gone = [], unseenDays } (see Rules)
  * @returns {object} ledger (=== prev when jobs is empty or the run is not newer)
  */
-export function updateLedger(prev, jobs, fetchedAt) {
+export function updateLedger(prev, jobs, fetchedAt, opts = {}) {
+  const { complete = true, listed = [], gone = [], unseenDays = UNSEEN_OPEN_DAYS } = opts || {};
+  const goneSet = new Set(gone || []);
   const base = validLedger(prev) ? prev : emptyLedger();
   if (!Array.isArray(jobs) || !jobs.length) return prev || base;
   const now = isoOf(fetchedAt);
@@ -123,7 +138,7 @@ export function updateLedger(prev, jobs, fetchedAt) {
     e.k = k;
     if (p) e.p = p;
     if (r) e.r = r;
-    if (e.c) delete e.c; // reopened: same id, keep firstSeenAt
+    if (e.c) { delete e.c; delete e.x; } // reopened: same id, keep firstSeenAt
   }
 
   // Repost candidates: closed before this run, not reopened, not yet consumed.
@@ -158,14 +173,40 @@ export function updateLedger(prev, jobs, fetchedAt) {
     out[job.id] = entry;
   }
 
-  // Close what disappeared; prune long-closed entries.
+  // On the board but not published (left out by a cap, a failed detail): seen, kept open.
+  for (const id of listed || []) {
+    const e = out[id];
+    if (!e || seen.has(id)) continue;
+    seen.add(id);
+    e.l = now;
+    if (e.c && !e.s) { delete e.c; delete e.x; }
+  }
+
+  // Close what disappeared (only from a complete list, or when confirmed gone); prune long-closed entries.
+  const horizon = nowMs - unseenDays * DAY;
   for (const [id, e] of Object.entries(out)) {
     if (seen.has(id)) continue;
-    if (!e.c) e.c = now;
-    else if (nowMs - toMs(e.c) > PRUNE_CLOSED_DAYS * DAY) delete out[id];
+    if (!e.c) {
+      if (goneSet.has(id)) { e.c = now; e.x = 'gone'; }
+      else if (complete) { e.c = now; e.x = 'absent'; }
+      else if (!(toMs(e.l || e.f) >= horizon)) { e.c = now; e.x = 'unseen'; }
+      // else: missing from a partial list, seen recently: stays open
+    } else if (nowMs - toMs(e.c) > PRUNE_CLOSED_DAYS * DAY) delete out[id];
   }
 
   return { format: HISTORY_FORMAT, since: base.since || now, lastRunAt: now, runs: (base.runs || 0) + 1, jobs: out };
+}
+
+/**
+ * updateLedger's closure options for a snapshot: `capped` (its jobsCapped), `crawl` (its crawl
+ * field: list.complete, gone, unpublished; scripts/snapshot.js#crawlSummary) and `listed` (the
+ * crawl state's listed ids, when at hand). A capped board or a short list is partial.
+ */
+export function closureOptions({ capped = null, crawl = null, listed = null } = {}) {
+  const c = crawl && typeof crawl === 'object' ? crawl : {};
+  const complete = !capped && !(c.list && c.list.complete === false);
+  const on = new Set([...(Array.isArray(c.unpublished) ? c.unpublished : []), ...(Array.isArray(listed) ? listed : [])]);
+  return { complete, listed: [...on], gone: Array.isArray(c.gone) ? c.gone : [] };
 }
 
 /** Run statistics between two ledgers (for logs). */

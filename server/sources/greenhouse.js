@@ -9,8 +9,8 @@ export function greenhouseUrl(board) {
   return `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(board)}/jobs?content=true&pay_transparency=true`;
 }
 
-export async function fetchGreenhouse(board, { maxBytes, timeoutMs } = {}) {
-  const data = await fetchJson(greenhouseUrl(board), { label: `greenhouse/${board}`, maxBytes, timeoutMs });
+export async function fetchGreenhouse(board, { maxBytes, timeoutMs, onResponse } = {}) {
+  const data = await fetchJson(greenhouseUrl(board), { label: `greenhouse/${board}`, maxBytes, timeoutMs, onResponse });
   if (!data || !Array.isArray(data.jobs)) throw new UpstreamError(`greenhouse/${board}: unexpected response (no jobs array)`, { code: 'bad_shape' });
   return data.jobs.map(mapGreenhouseJob);
 }

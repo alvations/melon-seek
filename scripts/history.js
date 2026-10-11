@@ -15,7 +15,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { updateLedger, diffLedger, HISTORY_FORMAT } from '../server/history.js';
+import { updateLedger, diffLedger, closureOptions, HISTORY_FORMAT } from '../server/history.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -67,13 +67,14 @@ export async function writeLedger(slug, ledger, { dir = historyDir() } = {}) {
 
 /**
  * Record one successful run into data/history/<slug>.json.
- * Empty `jobs` (failed or empty fetch) leaves the file untouched.
+ * Empty `jobs` (failed or empty fetch) leaves the file untouched. `ledgerOpts`: updateLedger's
+ * closure options ({ complete, listed, gone }; server/history.js "Rules").
  */
-export async function recordRun(slug, jobs, fetchedAt, { dir = historyDir() } = {}) {
+export async function recordRun(slug, jobs, fetchedAt, { dir = historyDir(), ledgerOpts = {} } = {}) {
   const file = fileFor(slug, dir);
   if (!Array.isArray(jobs) || !jobs.length) return { file, changed: false, stats: null, ledger: null };
   const prev = await readLedger(slug, { dir });
-  const next = updateLedger(prev, jobs, fetchedAt);
+  const next = updateLedger(prev, jobs, fetchedAt, ledgerOpts);
   if (next === prev) return { file, changed: false, stats: null, ledger: prev };
   await writeLedger(slug, next, { dir });
   return { file, changed: true, stats: diffLedger(prev, next), ledger: next };
@@ -97,7 +98,9 @@ async function main(argv) {
       try {
         const snap = JSON.parse(await fs.readFile(path.join(snapDir, `${slug}.json`), 'utf8'));
         const jobs = Array.isArray(snap) ? snap : snap.jobs;
-        const r = await recordRun(slug, jobs, snap.fetchedAt, { dir });
+        // The snapshot's own closure facts: a capped or partial list closes nothing for being absent.
+        const ledgerOpts = closureOptions({ capped: snap.jobsCapped || null, crawl: snap.crawl || null });
+        const r = await recordRun(slug, jobs, snap.fetchedAt, { dir, ledgerOpts });
         console.log(r.changed ? `✓ ${slug}: ${JSON.stringify(r.stats)}` : `- ${slug}: unchanged (empty or not newer than the ledger)`);
       } catch (err) {
         failed++;
