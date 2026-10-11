@@ -7,6 +7,7 @@
 //   - the job list's transfer size per company, and the leak check cycles the four big boards.
 // usage: NODE_PATH=<dir>/node_modules node perf-mobile-beta.mjs <baseUrl ending in /beta/> <label>
 //          [--co=apple,google,...] [--net=fast4g,slow4g] [--no-extras] [--no-leak] [--leak-only]
+//          [--cold-only] [--runs=N] [--timeline]   (--cold-only --runs=3: medians of cold loads)
 // Device: 390x844, isMobile, touch, DPR 3, Android UA, 4x CPU, CDP Network.emulateNetworkConditions.
 // Off-site hosts are routed through CDP Fetch (Playwright's route() disables the HTTP cache):
 // map tiles get a 1x1 PNG, Google Fonts and the live board APIs are failed (Anduril: the
@@ -26,6 +27,8 @@ const EXTRAS = !process.argv.includes('--no-extras');
 const LEAK = !process.argv.includes('--no-leak');
 const LEAK_ONLY = process.argv.includes('--leak-only');
 const TIMELINE = process.argv.includes('--timeline'); // every cold main-thread task >= 10 ms, attributed
+const COLD_ONLY = process.argv.includes('--cold-only'); // only the cold load (for repeated runs)
+const RUNS = Number(arg('runs', '1')); // cold loads per company and network
 
 // Chrome DevTools presets (Slow 4G is the preset formerly called "Fast 3G").
 const NET = {
@@ -281,6 +284,7 @@ async function loadRun(company, net) {
     res.cold.req = nl.summary();
     res.cold.api = nl.api();
     res.cold.waterfall = nl.waterfall();
+    if (COLD_ONLY) throw Object.assign(new Error('cold only'), { coldOnly: true });
     // ---- idle 10 s
     const a = await metrics(cdp); const raf0 = await page.evaluate(() => window.__raf); nl.reset();
     await sleep(10000);
@@ -384,7 +388,7 @@ async function loadRun(company, net) {
       o.cpu = attribute(ws, tr.navStart + t0 * 1000, tr.navStart + t1 * 1000, 6);
     }
     res.heapEndMB = await heapMB(cdp, true);
-  } catch (e) { res.fail = String(e).slice(0, 300); }
+  } catch (e) { if (!e.coldOnly) res.fail = String(e).slice(0, 300); }
   res.errors = errors.slice(0, 4);
   await context.close();
   return res;
@@ -415,8 +419,9 @@ async function leakRun(net) {
 const report = { label, base, at: new Date().toISOString(), loadavgStart: loadavg(), runs: [], leak: [] };
 const outFile = path.join(process.env.OUT_DIR || process.cwd(), `perf-${label}.json`);
 for (const net of nets) {
-  if (!LEAK_ONLY) for (const co of companies) {
+  if (!LEAK_ONLY) for (const co of companies) for (let run = 0; run < RUNS; run++) {
     const x = await loadRun(co, net);
+    x.run = run + 1;
     report.runs.push(x);
     fs.writeFileSync(outFile, JSON.stringify(report, null, 2));
     process.stderr.write(`${label} ${net} ${co} [load ${x.loadavg}]: cold fcp ${x.cold?.fcp} cards ${x.cold?.cards} chart ${x.cold?.chart} tti ${x.cold?.tti} max ${x.cold?.maxTask} tbt ${x.cold?.tbt} heap ${x.cold?.heapMB} | warm chart ${x.warm?.chart} max ${x.warm?.maxTask} | drawer ${x.drawer?.ms}/${x.drawer?.maxTask} filter ${x.filter?.ms}/${x.filter?.maxTask} sort ${x['sort-salary-asc']?.ms}/${x['sort-salary-asc']?.maxTask} insights ${x.insights?.ms}/${x.insights?.maxTask} map ${x.map?.ms}/${x.map?.maxTask} | switch ${x.switch?.ms}/${x.switch?.maxTask} back ${x.switchBack?.ms}/${x.switchBack?.maxTask} ${x.fail || ''} ${x.errors?.length ? 'ERR ' + x.errors[0] : ''}\n`);
