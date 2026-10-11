@@ -207,7 +207,10 @@ export async function ingestSnapshot(ctx, { slug, payload, fileSha, bytes, chann
   const state = loadCompany(ctx.dir, slug);
   const capped = payload.jobsCapped && typeof payload.jobsCapped === 'object' ? payload.jobsCapped : null;
   const suspect = !capped && suspectDrop([...state.open.values()].filter((r) => r.validTo == null).length, rows.length);
-  const partial = !!capped || suspect;
+  // A crawl whose list came back short (crawl.list.complete === false, scripts/snapshot.js)
+  // is partial like a capped one: what it did not list is not closed (docs/DATA_ARCHIVE.md §9).
+  const shortList = !!(payload.crawl && payload.crawl.list && payload.crawl.list.complete === false);
+  const partial = !!capped || suspect || shortList;
   const { status, closedRows, stats } = foldObservation(state, meta, { observedAt, rows, partial }, { company: slug });
   if (status !== 'folded') return null;
 

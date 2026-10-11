@@ -535,10 +535,10 @@
         "server/juice.js:147 GRADES",
         "server/juice.js:152 RIND",
         "public/viz/palette.js:244 JUICE_BREAKS (copy)",
-        "public/app.js:2227 JUICE_GRADES (UI copy \"70+\", \"45–69\", \"under 45\")",
+        "public/app.js:2246 JUICE_GRADES (UI copy \"70+\", \"45–69\", \"under 45\")",
         "public/viz/palette.js:244 JUICE_BREAKS [45, 70] (copy)",
         "public/viz/palette.js:244 JUICE_BREAKS [45, 70]",
-        "public/app.js:2227 JUICE_GRADES chip tooltips \"(score 70+)\", \"(45–69)\", \"(under 45)\" (hard-coded copy)",
+        "public/app.js:2246 JUICE_GRADES chip tooltips \"(score 70+)\", \"(45–69)\", \"(under 45)\" (hard-coded copy)",
         "public/app.js:490 gradeKey: Rind is filtered as Dry"
       ],
       "values": "breaks 45 / 70; labels Dry, Ripe, Juicy, Rind",
@@ -750,10 +750,10 @@
       "type": "product-policy",
       "owners": [
         "server/juice.js:106 HOUSEHOLDS",
-        "public/app.js:3419 HOUSEHOLDS (UI labels)",
+        "public/app.js:3444 HOUSEHOLDS (UI labels)",
         "server/juice.js:112 DEFAULT_HOUSEHOLD",
-        "public/app.js:3419 HOUSEHOLDS (UI copy: labels, tooltips, bedrooms)",
-        "public/app.js:3419 HOUSEHOLDS labels/bedrooms/people (UI copy of server/juice.js HOUSEHOLDS)"
+        "public/app.js:3444 HOUSEHOLDS (UI copy: labels, tooltips, bedrooms)",
+        "public/app.js:3444 HOUSEHOLDS labels/bedrooms/people (UI copy of server/juice.js HOUSEHOLDS)"
       ],
       "values": "single 1 bedroom / couple 2 / family 3; \"two adults and two children\"",
       "consumers": [
@@ -917,7 +917,7 @@
         "server/companies.js COMPANIES",
         "server/normalize.js:212 normalizeJob",
         "server/normalize.js:31 NORMALIZER_VERSION",
-        "scripts/snapshot.js:29 MAX_BETA_SNAPSHOT_BYTES (beta cap)",
+        "scripts/snapshot.js:34 MAX_BETA_SNAPSHOT_BYTES (beta cap)",
         "data/snapshots/<slug>.json { company, mode, fetchedAt, error, normalizerVersion, jobs[], jobsCapped? } (gitignored)",
         "data/cache/store/*.list.json + *.desc.ndjson (melon-store-1, gitignored)",
         "server/cache.js:17 FRESH_TTL_MS (30 min live cache)",
@@ -14147,7 +14147,7 @@
         "server/export.js:62 csvReadme text",
         "public/features/shared.js:45 salaryUSD defensive annualization (2080 h if mid < 1000, ×12 if mid < 30000): duplicate of server/salary.js annualize",
         "public/viz/chart.js:63 INTERVAL_ADJ labels",
-        "public/app.js:3409 INTERVAL_ADJ labels"
+        "public/app.js:3434 INTERVAL_ADJ labels"
       ],
       "values": "2080 hours/yr, 12 months, 52 weeks",
       "consumers": [
@@ -14506,7 +14506,7 @@
         "server/companies.js:8 COMPANIES",
         "server/companies.js:3 SOURCES",
         "server/companies.js:51 CHANNELS",
-        "server/sources/eightfold.js:25 EIGHTFOLD_BOARDS",
+        "server/sources/eightfold.js:26 EIGHTFOLD_BOARDS",
         "scripts/probe-bigtech.js:3 probe SLUGS",
         "server/companies.js [core]",
         "public/app.js:98 FALLBACK_COMPANIES (3 of 8 stable: anthropic, anduril, openai with colours)",
@@ -14584,7 +14584,7 @@
         "scripts/build-static.js:498 shareStats {roles, withPay, median}",
         "server/export.js:62 csvReadme rows",
         "data/vetting/2026-10-02/flags.counts.json {jobs, salaried, quarantined, flagged, critical, blocking}",
-        "server/history.js:279 ledgerMeta {since, runs}",
+        "server/history.js:320 ledgerMeta {since, runs}",
         "public/app.js:537",
         "public/features/insights.js:38",
         "public/viz/chart.js:10 cluster rows",
@@ -15278,13 +15278,13 @@
       "description": "Listing-age buckets and copy in the UI (filter options, card age, 180+ day notes).",
       "type": "product-policy",
       "owners": [
-        "server/history.js:43 FRESHNESS",
-        "server/history.js:41 REPOST_WINDOW_DAYS",
+        "server/history.js:55 FRESHNESS",
+        "server/history.js:51 REPOST_WINDOW_DAYS",
         "server/demo.js:1 demo AGE_BUCKETS (copy)",
         "public/app.js:1 app.js 180 (copy)",
         "public/app.js:227 Listed filter 7 / 30 / 90 days",
         "public/app.js:1268 hide roles open ≥ 180 days",
-        "public/app.js:3232 card age: < 60 → \"Nd\", < 730 → months (÷30.44), else years; \"+\" when a lower bound"
+        "public/app.js:3257 card age: < 60 → \"Nd\", < 730 → months (÷30.44), else years; \"+\" when a lower bound"
       ],
       "values": "filter 7/30/90; 180+ days; contract freshness new ≤ 7, active 8–59, stale 60–179, evergreen ≥ 180 (server/history.js FRESHNESS)",
       "consumers": [
@@ -15369,11 +15369,11 @@
       "description": "Ledger-derived job fields as shown in the UI (listed date, first seen, reposts, \"New since your last visit\", \"Pay ↑/↓\").",
       "type": "fetched",
       "owners": [
-        "server/history.js:40 HISTORY_FORMAT",
-        "server/history.js:42 PRUNE_CLOSED_DAYS",
-        "server/history.js:100 updateLedger",
-        "server/history.js:192 compactLedger (api/history/<slug>.json)",
-        "scripts/history.js:72 recordRun",
+        "server/history.js:50 HISTORY_FORMAT",
+        "server/history.js:52 PRUNE_CLOSED_DAYS",
+        "server/history.js:113 updateLedger",
+        "server/history.js:233 compactLedger (api/history/<slug>.json)",
+        "scripts/history.js:73 recordRun",
         ".github/scripts/ledger.sh:2 ledger.sh store (artifact | branch)",
         "server/history.js, scripts/history.js, .github/scripts/ledger.sh [core]"
       ],
@@ -15741,7 +15741,7 @@
         "server/sources/amazon.js:37 Amazon PAGE 100 / CAP 10000",
         "server/sources/apple.js:14 Apple PAGE 20 / MAX_PAGES 800 / EMPTY_RETRIES 3",
         "server/sources/eightfold.js:1 Eightfold PAGE 10 / MAX_PAGES 1500",
-        "scripts/snapshot.js:30 TRIM_STEPS",
+        "scripts/snapshot.js:35 TRIM_STEPS",
         "scripts/build-static.js:134 LIST_BUDGET 1.5 MB",
         "scripts/build-static.js:441 OG_IMAGE_MAX_BYTES 5 MB",
         "scripts/build-og.mjs:31 OG 1200x630",
