@@ -993,3 +993,14 @@ screenshots in `docs/screenshots/`.
 - Fixed at once by the lead, because the beta crawl started for Amazon and Meta depends on it: **S-1**, the merge's `beta-crawl-*` download also matched `beta-crawl-rejected-<slug>`, so a snapshot the vetting gate refused could replace the last good one. Each artifact now downloads into its own folder and rejected ones are skipped (the archive still receives them).
 - **S-2** (the pause could be bypassed by `snapshot.js amazon` and the probe's default list) was closed by the Amazon and Meta batch (3f47ddc) before the review reported.
 - Open for the next fix wave: S-3 (quadratic time in `parseSalary`, `htmlToText` and `geocode` on large input; reachable from server-mode custom boards), A-1 (card names omit team, level, Remote, Juice and age), A-2 (badge popover doesn't take focus), A-3 (company name 9 px wide at 200% zoom), S-4 to S-7 and A-4 to A-7. Its 16 unit tests are to-dos; its 8 e2e tests are red until fixed.
+
+### Beta mobile QA, second pass: the user's company-list report (2026-10-11)
+- The user: "I'm seeing that the list of companies don't scroll properly when we're in the beta mode. Don't just fix it adhoc. Do the QA and QC of the sites properly", then "I'm still not able to scroll down from the list of company drop down!!"
+- The lead's first check (390x844 portrait, real touch) scrolled fine, and that was the trap: emulated phones have no browser toolbars, so a "390x844" phone shows 844 px where Safari shows about 664. The QA pass ([qa-mobile-beta-2.md](qa-mobile-beta-2.md)) tested 16 viewports with real touch and judged by how much of the last company is visible, not by scroll offsets. Findings:
+  - **M-28 (High):** the company list is a 340 px scroll box inside the sheet body, which also scrolls, both with `overscroll-behavior: contain`. Where the sheet body is shorter than 340 px (landscape, an iPhone SE in Safari, any phone with the keyboard up), the inner list reaches its end with the last companies below the screen. Fix verified by injection: on phones the list stops being its own scroller.
+  - **M-29:** the menu focuses its search box on open, which opens the keyboard on Android and leads into M-28.
+  - **M-30:** loading saved searches rebuilds the whole list under the finger (iOS drops the tap).
+  - **M-31:** the chart's empty message sits under the half sheet.
+- All 14 first-pass mobile tests pass (M-19 to M-27 fixed); every other scroll area passed the audit; fix wave 3 works on the phone.
+- The fix goes through a dedicated lane, fix-company-scroll, gated on these tests. Its WebKit workflow (Playwright WebKit plus Safari in the iOS Simulator with real swipes) is the QA's patch.
+- Lesson for the playbook: phone emulation must include short visible heights (browser toolbars, keyboard, landscape), and scroll tests must check what is visible, not the scroll offset.

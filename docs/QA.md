@@ -1865,3 +1865,326 @@ Severity: **High** blocks or hides a core task; **Medium** is friction, wrong ou
 | `npm test` (`node --test test/*.test.js`) | HEAD `be5691c` plus this pass's files | **664/690 pass, 0 fail, 26 todo** (the data-check agent's `DQ-n` tests, todo until the beta fix wave). An earlier run during the integration, at load average 9–10, had 1–3 timing failures (PERF-1), which pass alone. |
 
 All browser runs used `NODE_PATH=<scratchpad>/pw/node_modules PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`.
+
+## Full QA pass (mobile, beta) 2026-10-11
+
+The second functional pass of the phone beta site (`/melon-seek/beta/`), after fix wave 3, by the second beta mobile QA
+agent. The process log, with every replayable command, is in
+[`docs/process/qa-mobile-beta-2.md`](process/qa-mobile-beta-2.md). No product code was changed.
+
+**Setup**
+- **Build:** the lead's reviewer build of HEAD `3cf226e` (fix wave 3) with today's crawl (`<scratch>/cycle-beta4/dist`,
+  built 12:09 UTC): Apple 4,875 postings, Google 3,417, NVIDIA 2,663, Microsoft 2,279, Netflix 457, Anduril 2,491.
+  Served under `/melon-seek/` by `scripts/cycle/serve.mjs` with a pid file.
+- **Browser:** Playwright 1.63, Chromium 141, `isMobile`, `hasTouch`, DPR 3; iPhone UA (Android UA at 360 px). Every
+  request to another host aborted.
+- **Viewports:** 390x844, 360x740, 430x932 and 844x390, light and dark; plus the sizes a real phone browser shows,
+  which emulation hides because it has no toolbars: 390x664 (Safari on an iPhone 14, bottom tab bar), 375x548 (Safari
+  on an iPhone SE), 375x635, 414x715, 430x740, 360x640, 320x568, 844x340 and 568x320.
+- **Gestures:** real touch, `touchscreen.tap` and CDP `Input.dispatchTouchEvent` (start, 4–12 moves, end) for swipes,
+  flings and pinch. `Input.synthesizeScrollGesture` was not used (it scrolls nothing in this headless setup).
+- **Keyboard:** simulated as in the first pass: `visualViewport.height = innerHeight − kb` while a text field has focus
+  (kb 336 at 390x844, 300 at 360x640, 260 at 320x568, 190 in landscape).
+- **Load:** other agents ran at the same time (load average 1–20). Three smoke runs crashed the renderer at load 8–20
+  and passed when re-run alone; timings in this section are not a record.
+
+**New e2e tests:** [`test/e2e/beta-mobile-qa-2.e2e.js`](../test/e2e/beta-mobile-qa-2.e2e.js), registered in
+`scripts/e2e.js`. Run them with `node scripts/e2e.js --grep='^Beta mobile QA 2'`; `BETA_QA2_DIST=<dir>` points them
+at another build (else `BETA_QA_DIST`, else `dist/`).
+- They run under WebKit too: `BETA_QA2_ENGINE=webkit` launches Playwright's WebKit with the same phone profile. No test
+  needs CDP. In WebKit a swipe becomes `mouse.wheel` at the same point (Playwright has no touch drag outside
+  Chromium); the scroll-chaining rules are the same, and `BETA_QA2_WHEEL=1` runs that fallback in Chromium, where it
+  gives the same results as touch.
+- **On the lead's build: 2/6 pass.** The 2 guards pass; the 4 failures are exactly `[M-28]` to `[M-31]`.
+- **WebKit workflow** for the lead: [`docs/process/patches/qa-mobile-beta-2-webkit.diff`](process/patches/qa-mobile-beta-2-webkit.diff)
+  adds `.github/workflows/webkit-phone.yml` (manual):
+  - a build job with the archived crawl (`scripts/cycle/local-data.js`);
+  - a Playwright WebKit job (this file under WebKit, then under Chromium for comparison; screenshots uploaded);
+  - a macOS job: Safari in the iOS Simulator (iPhone 16 and iPhone SE) driven by `idb ui tap|swipe` with real touch
+    and the real keyboard (`test/e2e/webkit/ios-sim-menu.mjs`, plus an in-page probe the job's server adds to
+    `beta/index.html` only). It saves screenshots before and after each swipe set and fails when the last company
+    isn't fully visible.
+  - It has not run: this sandbox has no WebKit and no macOS. `git apply --check` passes and the YAML parses.
+
+### The user's report: "the list of companies don't scroll properly when we're in the beta mode"
+
+**Reproduced in Chromium, as M-28, with two contributing bugs (M-29, M-30).** The lead's first check (390x844
+portrait, one swipe scrolls 265 of 275 px) is right for that size; the failure is on the sizes real phones have.
+
+- **How the menu is built.** On phones the company menu is a bottom sheet (`#popover`, `max-height: 82dvh`). Its body
+  (`.pop-body`) scrolls, and inside it the list (`.company-list`) is a second scroll box with `max-height: 340px`
+  (public/styles.css:841). Both have `overscroll-behavior: contain` (styles.css:1190, per docs/process/mobile.md:62,
+  "every scroller gets contain"). The beta list holds 13 companies under two headings: 615 px of rows in the 340 px
+  box. The main site's 8 rows are 373 px, so there the list barely scrolls.
+- **The failure.** Where the sheet body is shorter than the 340 px box, the box's lower part is below the sheet's
+  edge. A swipe on the rows scrolls only the inner list (contain stops the hand-off), so the inner list reaches its
+  end while its last rows are still off screen, and the sheet body never moves. The only way to move the sheet body
+  is to start a swipe on the search box, or on the 10 px strips beside the list.
+
+Every case tested (swipe up on the rows from 85% to 15% of their visible part, 6 times; "last" = how much of Shield
+AI, the last company, is visible afterwards):
+
+| Case | Sheet body (visible) | List box | Result |
+|---|---|---|---|
+| 390x844, 360x740, 430x932, 414x715, 430x740, 390x664 (iPhone 14 Safari), 375x635 | 459–472 px | 340 | Pass: list scrolls 275 of 275 px, last 100% |
+| 360x640 portrait | 463 (body scrolls 9 px) | 340 | Pass: last 100% |
+| 320x568 portrait | 404 (body scrolls 68 px) | 340 | Pass for the companies; "Add another company's board" needs a swipe on the search box |
+| **375x548 (iPhone SE Safari)** | 387 (body scrolls 85 px) | 340 | **Fail: Shield AI 65% visible**, cut by the sheet's edge |
+| **844x390 landscape** | 258 | 340 | **Fail: last 0%**: Palantir and Shield AI never appear; 3 rows fully visible |
+| **568x320 and 844x340 landscape** | 200, 217 | 340 | **Fail: last 0%** |
+| Landscape, swipe on the search box after the rows | body scrolls 140 of 214 px | | Partial: then the search box is off screen and the next swipe starts on the rows again; Shield AI 91% at 844x390, 0% at 568x320 |
+| Landscape, swipe on the "Big tech" heading / on the sheet title | | | Heading: scrolls the list (the heading is inside it). Title: nothing moves |
+| Landscape, 3 fast flings on the rows | | | List to its end in 3 flings; last 0% |
+| **5 saved searches**, 390x844 / 360x640 | | 340, 856 px of rows | Pass in portrait (list 516 of 516 px, last 100%); the current board (Apple ✓) opens in view |
+| **5 saved searches, 844x390** | 258 | 340 | **Fail: last 0%** |
+| **Keyboard up**, 390x844 (kb 336) | sheet 8–500, body 430 | 340 | Pass: last 100% |
+| **Keyboard up, 360x640 (kb 300)** | sheet 8–332, body 262 | 340 | **Fail: last 0%**, 3 rows fully visible |
+| **Keyboard up, 320x568 (kb 260)** | sheet 8–300 | 340 | **Fail: last 0%**, 3 rows |
+| **Keyboard up, 844x390 (kb 190)** | sheet 8–192, body 123 | 340 | **Fail: no company row fully visible**; typing "n" leaves 1 |
+| Search typed ("n", 8 rows), 390x844 keyboard | | 395 px of rows | Pass |
+| Pull down at the top of the list, 390x844 | | | Nothing moves (no rubber band, the sheet doesn't drag, the page stays at 0,0) |
+| Page or chart behind the sheet, every case | | | Never moved (page 0,0; chart scroll 0) |
+| Main site (Anduril), 390x844 / 375x548 / 844x390 | | 340, 373 px of rows | Pass / Shield AI 66% / last 0%: the same trap, smaller |
+
+- **Why the user may see it in portrait too:**
+  - M-29: opening the menu focuses its search box. On Android Chrome a `focus()` during the tap's user activation
+    opens the on-screen keyboard. The sheet then jumps to the top with `max-height: --vvh − 16px` and, on most
+    phones, falls into the keyboard rows of the table above.
+  - Safari's own viewport is about 180 px shorter than the emulated 844, and Safari's page zoom (aA, 115–125%) or
+    Android's display size shrink it further: an iPhone 14 at 125% is about 312x531 CSS px, the iPhone SE row.
+  - M-30: the list is rebuilt under the finger while saved searches load.
+- **Verified fix (not applied):** one scroll box on phones. With
+  `@media (max-width: 860px) { .company-list { max-height: none; overflow: visible } }` injected through the CSSOM,
+  every failing case passes: Shield AI 100% visible and "Add another company's board" reachable at 844x390, 568x320,
+  375x548, 360x640 with the keyboard, and 390x844.
+
+### Scroll audit: every scrolling area on the phone
+
+Method: `p4-audit.mjs` lists every visible element with scrollable overflow and more content than room, in each
+state, swipes each to its end with real touch, and reports what moved (itself, any other scroll box, the page, the
+sheet) and how much of its box stays below a clipping ancestor. Runs: beta Apple at 390x844, 375x548 and 844x390,
+and main-site Anduril at 390x844.
+
+| Area | How it scrolls | Tested | Result |
+|---|---|---|---|
+| Company menu (`#popover .pop-body` > `.company-list`) | **Two nested scroll boxes**, both `overscroll-behavior: contain`; list `max-height: 340px` | Above | **M-28** (also on the main site); M-29, M-30 |
+| Data badge sheet (`.pop-body`) | One box; fits at every size tested (338 px tall; 400 px on Anduril with a live-fetch error) | Open, swipe, outside tap | Pass: nothing to scroll; an outside tap closes it |
+| More sheet (`.pop-body`) | One box, contain | Swipe to end at 390x844, 375x548 and 844x390 | Pass: 1,373, 1,616 and 1,176 px scrolled to the end; page still |
+| Filter sheet (`#filterBody`) | One box, contain; the sheet is a modal with the page inert | Swipe to end at all three sizes | Pass: 3,081 px at 390x844; page and sheet behind still |
+| Results sheet at peek | `.results` and `.cards` `touch-action: none`; a drag moves the sheet | Swipe on the peek row | Pass: the sheet drags (first pass's guard) |
+| Results sheet at half | `.cards` `touch-action: none`; a swipe on the list drags the sheet to full, then the list scrolls | Swipes on the cards | Pass: half → full on the first swipe, then the list scrolls 2,066 px |
+| Results sheet at full | `.cards` `touch-action: pan-y`, contain; windowed list (M-20) | 8–12 swipes; sort and filter while scrolled | Pass: 2,750 px, page still. A pull-down at the top of the list does not collapse the sheet: by design (mobile.md:42, drag the handle or header) |
+| Job page (`.drawer-scroll`) | One box, contain | Swipe to end at all three sizes | Pass: 876 / 1,209 / 1,223 px to the end |
+| Drawer comps chart ("Same role elsewhere") | No scroll box of its own (in the drawer's flow) | Scan | Pass: nothing nested |
+| Insights (`#insightsHost`), with Compstimate | One box, contain; Compstimate is in its flow | 12 swipes at all three sizes | Pass: 4,094 of 4,585 px in 12 swipes (long page), page still |
+| Chart rows (`.ms-chart__scroll`), Clusters and Ranges | One box, contain, behind the sheet | Swipes at peek | Pass; Ranges on Apple is a 123,764 px virtual box that scrolls smoothly |
+| Quick chips (`#quickChips`) | Horizontal, `overscroll-behavior-x: contain` | Sideways swipes | Pass: 439 px; the page stays at 0,0 |
+| Map (`#mapHost`) | `touch-action: none`; Leaflet pans and pinches | First pass's guard re-run | Pass: page 0,0, scale 1 |
+| The page itself | `body { overflow: hidden }`, `html { overscroll-behavior: none }` on phones | Every swipe above | Never moved in Chromium. On iOS see the WebKit review |
+
+### WebKit (iPhone Safari): review against known behaviours
+
+Not run here (no WebKit in the sandbox). The workflow in the patch runs these checks.
+
+| Behaviour | What the code does | Risk on iOS Safari |
+|---|---|---|
+| Nested scroll boxes in a fixed sheet | `.company-list` inside `.pop-body`, both contain (styles.css:841, 1190) | **High: M-28.** iOS doesn't hand a pan from an inner scroller at its edge to the outer one in the same gesture; with contain (iOS 16+) it rubber-bands the inner list. Same trap as Chromium. |
+| `overscroll-behavior` by iOS version | contain on every scroller, none on `html` (styles.css:1059) | Supported from Safari 16 (iOS 16). On iOS 15 and earlier, a swipe at the list's end chains to the sheet body, which helps M-28, then to the page, which rubber-bands, fixed sheet and all. `html { overscroll-behavior: none }` doesn't stop that bounce before iOS 16. |
+| `body { overflow: hidden }` as the scroll lock | The page is exactly 100dvh, so there is nothing to scroll | iOS ignores `overflow: hidden` for touch: when the keyboard opens, Safari can still scroll the layout viewport. The app never undoes that (no `scrollTo(0, 0)` on focusout), so the page can stay shifted after the keyboard closes. Watch for it in the simulator job's "4-keyboard" screenshot. |
+| dvh and `--vvh` with the keyboard | `body.kb-open .popover { top: 8px; max-height: --vvh − 16px }` (styles.css:1188); `--vvh` = `visualViewport.height` (app.js `bindKeyboardInsets`) | iOS pans the visual viewport to show the focused field (`visualViewport.offsetTop > 0`); `top: 8px` is on the layout viewport, so the sheet can start above the visible area. `offsetTop` is never used. The simulator job checks the sheet against `offsetTop`. |
+| Programmatic focus and the keyboard | `togglePopover()` focuses the menu's search box in a `requestAnimationFrame` after the tap (app.js:2352) | iOS opens the keyboard only for a focus inside the touch handler, so it shows a focused field with no keyboard; a later tap on it opens the keyboard without a `focusin`, so `revealField()` doesn't run (`kb-open` still follows the resize). Android Chrome opens the keyboard at once: **M-29**. |
+| A tap whose node leaves the page | `sync()` replaces every row on each `render()` and on each saved board that loads (app.js:1535, 1741) | iOS commits a tap to the node found at touchstart; a detached node cancels the tap. **M-30** (Chromium re-targets the tap, so there it works). |
+| `-webkit-overflow-scrolling: touch` | Set on every scroller | No effect since iOS 13; harmless. |
+| `touch-action` on the results sheet | none on `.results`, pan-y on `.cards` at full | WebKit computes touch-action up to the nearest scroll container, as Chromium does, so `.cards` gets pan-y. Low risk; the WebKit job's guard covers it. |
+
+### Earlier mobile bugs (first beta pass, M-19 to M-27)
+
+All 14 of `test/e2e/beta-mobile-qa.e2e.js` pass on the lead's build (5 guards and `[M-19]`…`[M-27]`), and each was
+checked by hand on the phone:
+
+| ID | Status |
+|---|---|
+| M-19 sort/filter while scrolled | **Fixed** (the list starts at the new top) |
+| M-20 the list never recycles cards | **Fixed** (windowed list) |
+| M-21 company menu: current board out of view | **Fixed** in portrait: "Big tech" first and the current board revealed. In landscape the reveal centres it in the 340 px box, of which 196 px show, so it lands at the sheet's lower edge: part of M-28 |
+| M-22 paused board shows Offline and Retry | **Fixed** |
+| M-23 "999+" pins, "1 of 6105" | **Fixed** ("3.4K", "1.1K jobs", "1 of 4,875") |
+| M-24 keyboard covers filter-sheet search matches | **Fixed** |
+| M-25 touch targets under 44 px | **Fixed** for the three listed. The first pass's open M-8 items remain: map zoom 30x30, Pay\|Juice 52x26, Remote badge 32 px tall (public/viz/viz.css) |
+| M-26 Filters button focus | **Fixed** |
+| M-27 Beta pill and the company name at 360 px | **Fixed**: "Microsoft" whole at 360; the pill is 43x21 with a 47x45 hit area, the logo 26x26 with a 34x44 hit area (`::before`, styles.css:1352–1356); hidden at ≤379 px |
+
+### Fix wave 3 on the phone
+
+| Change | On the phone (360x740 Android UA unless noted) |
+|---|---|
+| /beta/ opens on Google | Pass: Google, 3,417 roles |
+| BP-1 yearly-rate internship labels | Pass: intern cards show plain ranges, and no pill is cut |
+| BP-2 pay per place | Pass: Zurich on Google gives 58 roles, cards "No salary" / "Pay posted for the US only" (a 2-line pill, fits), the chart's "No pay posted for Zurich · 58 postings match; 10 list pay for another country only…", and the drawer's "Pay from other countries isn't used". At half sheet the chart message is under the sheet: **M-31** |
+| BP-3 "Same role elsewhere" in one country | Pass on all six boards ("…roles at Staff+ level in the US…") |
+| BP-6 country search in Location | Pass: "Ireland" finds Dublin 138 |
+| BP-10 a place across a company switch | Pass: Austin on Apple → Google gives the toast "Dropped Austin, TX (not at Google) for now" |
+| BP-12 British spellings | Pass: "data centre" on Microsoft gives 125 roles |
+| BP-13 base pay median | Pass: "$214K base pay median · half between $188K and $255K" fits the stats line at 390 |
+| BP-14 Required / Nice to have | Pass: both headings in a Google drawer, no horizontal scroll |
+| BP-16 one age rule | Pass: "Updated 18 days ago" and "Listed 3 months ago (Jul 24, 2026)" are two facts, both in words |
+| BP-17 On-site counts | Pass: Microsoft Any 2,279, Remote 310, On-site 1,969; each segment 44 px tall |
+| Map: pin names, short counts ("1.1K jobs", "3.4K") | Pass on all six boards (the filtered-pins case was not re-run on the phone) |
+
+### What works on phones (beta, today's crawl)
+
+- **All six boards** (Apple, Google, Microsoft, NVIDIA, Netflix, and Anduril on the main site), at 390x844 light,
+  Microsoft 360x740 dark and 844x390 dark, NVIDIA 430x932 dark, Netflix 390x844 dark, Apple 844x390:
+  - no horizontal scroll and no page error anywhere; the big-tech boards make no request to another host;
+  - theme cycles Light > Dark > System and the body background follows;
+  - badge: "Snapshot · Oct 11", "your browser can't fetch it live", and a 44 px CSV link;
+  - chips: all 44 px;
+  - chart: a row-label tap gives a chip ("Machine Learning and AI (357)", "DeepMind (95)", "Distinguished
+    Engineer (15)"); Ranges draws 16–30 rows;
+  - map: a pin tap gives its area chip, Juice recolours the pins (`mc=juice`), and Remote gives "Remote (310)" on
+    Microsoft;
+  - Insights: every field 16 px and 44 px tall, no zoom on focus (scale 1);
+  - job page: next and prev ("2 of 4,875" and back), Apply goes to the board's own careers site, and Juice →
+    "Family" recomputes (Apple San Jose $198,500 → $185,400, Microsoft $125,400 → $103,400). "Same role elsewhere"
+    and the methodology link (`/melon-seek/beta/methodology/`) work, and hardware Back closes the page with focus
+    on the card;
+  - Save: 44 px, with a toast.
+- **Big boards:** the first pass's guards pass on today's data. Apple filter taps and sorts answer within a second,
+  the sheet drags, the list lazy-loads, and the heap stays bounded across 3 rounds of the big boards.
+- **Text:** nothing under 12 px on any screen scanned. (The only hit is the badge label's `font-size: 0`, which shows
+  its text through `::before` at 13 px.)
+
+### Bugs (ordered by severity)
+
+Screenshots are in `docs/screenshots/qa-mobile-beta-2/`.
+
+| ID | Sev | Device / orientation | Summary |
+|---|---|---|---|
+| M-28 | High | Landscape (844x390, 568x320), iPhone SE Safari (375x548), any phone with the keyboard up below about 400 px of visible height; main site too | The company list is a 340 px scroll box nested in a shorter sheet: a swipe on the rows never reveals the last companies |
+| M-29 | Medium | Android phones (Chrome); a screen reader on any phone | Opening the company menu puts focus in its search box, so the keyboard opens over the list each time |
+| M-30 | Low (iOS: Medium) | All phones with saved searches; the effect is WebKit only | The open company list is rebuilt each time a saved search's board loads (17 of 17 rows replaced); on iOS a tap that began on an old row is lost |
+| M-31 | Low | All phones, results sheet at half | The chart's empty message ("No pay posted for Zurich") is centred in the whole chart area, under the half sheet: the visible chart is blank |
+
+#### M-28 (High): the company list's last rows can't be reached where the sheet is shorter than the list
+- **Device:** 844x390 and 568x320 landscape (iPhone UA); 375x548 (an iPhone SE's Safari viewport); 360x640 and 320x568
+  with the keyboard up (Android UA). Light and dark are the same. The main site has the same trap with a 373 px list.
+- **Repro (landscape):**
+  1. Open `/melon-seek/beta/#c=apple` at 844x390.
+  2. Tap the company menu.
+  3. Swipe up on the company rows until they stop.
+- **Expected:** every company can be brought fully into view by swiping the list, and so can "Add another company's
+  board".
+- **Actual:**
+  - The rows scroll inside their 340 px box (list 275 of 275 px), but that box runs from 193 to 533 px under a sheet
+    body that ends at 389 px. The sheet body never scrolls (0 of 214 px).
+  - Palantir and Shield AI never appear, and "Add another company's board" is at 405–449 px, off the 390 px screen.
+  - At 375x548 Shield AI stops 65% visible. With the keyboard up at 360x640, 3 rows show and Shield AI is never
+    visible. At 844x390 with the keyboard, no row is fully visible.
+  - The only escape is a swipe that starts on the search box. It scrolls the sheet body, but then the search box is
+    off screen.
+- **Screenshots:** `e2e-M-28-landscape-844x390.png`, `e2e-M-28-iPhone-SE-Safari-375x548.png`,
+  `e2e-M-28-360x640-with-the-keyboard-up-300-px-.png` (grey box = the keyboard),
+  `e2e-M-28-landscape-844x390-with-5-saved-searches.png`, `menu-landscape-end-844x390.png`, `menu-keyboard-844x390.png`.
+- **Cause:**
+  - `public/styles.css:841`: `.company-list { max-height: 340px; overflow-y: auto }` makes a second scroll box inside
+    `.pop-body` (styles.css:510), which is itself capped by the sheet's `max-height: 82dvh` (styles.css:1186) or, with
+    the keyboard, `--vvh − 16px` (styles.css:1188).
+  - `styles.css:1190`: `.pop-body, .company-list { overscroll-behavior: contain }` stops the inner list from handing
+    the swipe to the sheet body.
+- **Recommended fix:** on phones, one scroll box. In the phone block, `.company-list { max-height: none; overflow:
+  visible }`, so `.pop-body` is the only scroller and fills the sheet. Desktop keeps the 340 px list in its dropdown.
+  Verified by injecting exactly that rule: every case above passes (Shield AI 100%, the add button reachable).
+  `reveal()` (app.js:1555) then has to scroll `.pop-body` instead of the list.
+- **Test:** `Beta mobile QA 2: [M-28] …` (4 cases, all fail today), plus the passing portrait guard. In the WebKit
+  workflow the same test runs on WebKit, and the simulator job swipes the list for real.
+
+#### M-29 (Medium): opening the company menu focuses its search box
+- **Device:** all phones. The keyboard effect is Android Chrome; on iOS the field is focused with no keyboard.
+- **Repro:** at 390x844 (Android UA), tap the company menu.
+- **Expected:** on a phone the menu opens with the list in view and no keyboard. Focus goes to the current company
+  (Apple ✓) or the sheet's title, and the search box opens the keyboard when tapped.
+- **Actual:**
+  - `document.activeElement` is `input.fsearch` ("Search companies").
+  - Chromium opens the virtual keyboard for a `focus()` that runs within the tap's user activation. So on Android
+    every open brings up the keyboard, the sheet jumps to the top (`body.kb-open`), and on phones under about 400 px of
+    visible height the list falls into M-28.
+  - A screen reader starts in the search box instead of at the current company.
+  - The data badge and More sheets don't do this: they focus a button and a switch.
+- **Screenshot:** `e2e-M-29-company-menu-focus.png`.
+- **Cause:** `public/app.js:2352`, `togglePopover()`: after opening any popover, it focuses the first
+  `input:not([type=range])` in `.pop-body`. For the company menu that is the search box.
+- **Recommended fix:** when `isMobile()` and `id === 'company'`, focus the `aria-current` company item (with
+  `preventScroll`), or the sheet's heading. Keep the search focus on desktop, where "micro" + Enter is the keyboard
+  path.
+- **Test:** `Beta mobile QA 2: [M-29] …` (fails today).
+
+#### M-30 (Low; Medium on iOS): the open company list is rebuilt under the finger
+- **Device:** all phones with saved searches. The tap loss is WebKit only.
+- **Repro:**
+  1. Have 4 saved searches on other boards (Google, NVIDIA, Microsoft, Netflix).
+  2. Open `/melon-seek/beta/#c=apple` and open the company menu while those boards are still loading. On a phone's
+     4G that takes seconds; the test delays their lists by 1.5 s.
+- **Expected:** the rows stay the same nodes. Only the saved searches' "N new" counts update.
+- **Actual:**
+  - Each board that finishes loading calls `syncPopover()`, which rebuilds the whole list with `replaceChildren`.
+    That is 4 rebuilds in 6 s, and all 17 rows replaced. `p3-rebuild.mjs` saw the same with no delay: 4 rebuilds
+    0.3–1.3 s after the open, during a swipe.
+  - In Chromium the scroll offset survives and a tap is re-targeted to the new row, so nothing visible happens.
+  - iOS Safari commits a tap to the node it found at touchstart, and a node that left the page cancels the tap. So
+    on an iPhone, a tap during a rebuild does nothing.
+  - Every `render()` while the menu is open does the same (app.js:1162).
+- **Screenshot:** `e2e-M-30-saved-searches-loaded.png`.
+- **Cause:** `public/app.js:1741` (`prefetchSaved()` → `syncPopover()`), `app.js:1162` (`render()` →
+  `syncPopover()`), and `makeCompanyMenu().sync()` at `app.js:1535`, which rebuilds every row.
+- **Recommended fix:** make `sync()` idempotent. Rebuild only when the query, the current company or the list of
+  companies changed, and otherwise update the `.saved-new` counts in place.
+- **Test:** `Beta mobile QA 2: [M-30] …` (fails today). The tap loss itself needs real iOS input: the simulator job.
+
+#### M-31 (Low): with the results sheet at half, the chart's empty message is under the sheet
+- **Device:** all phones (390x844 tested; 360x740 in the screenshot).
+- **Repro:**
+  1. Open `/melon-seek/beta/#c=google&l=Zurich`. Or pick Zurich in Location: no role there lists pay.
+  2. Tap the sheet handle once (half).
+- **Expected:** the visible part of the chart says why it is empty.
+- **Actual:**
+  - "No pay posted for Zurich · 58 postings match…" is centred in the whole chart area: its title ends at 472 px,
+    under the half sheet's top at 422 px.
+  - The visible 260 px of chart are blank. At peek the message shows.
+- **Screenshots:** `e2e-M-31-empty-message-half-sheet.png`, `w3-bp2-zurich-cards-360.png` (half) vs
+  `w3-bp2-zurich-google-360.png` (peek).
+- **Cause:**
+  - `public/viz/viz.css:263`: `.ms-chart__empty { flex: 1; justify-content: center }` centres it in `#chartHost`;
+  - the phone `.main` padding (styles.css, phone block, `padding: 0 0 calc(var(--sheet-peek) …)`) reserves only the
+    peek height.
+- **Recommended fix:** on phones, put the empty message at the top of the chart (`justify-content: flex-start`, with
+  some top padding), or reserve the half-sheet height under `body[data-sheet="half"]`.
+- **Test:** `Beta mobile QA 2: [M-31] …` (fails today).
+
+### Coverage notes
+- **Not testable here:**
+  - real WebKit or iOS Safari: the workflow patch covers it;
+  - a real on-screen keyboard;
+  - Android Chrome's keyboard on programmatic focus (M-29 is from Chromium's documented behaviour, not observed);
+  - map tiles;
+  - live boards.
+- **Not re-checked on the phone:**
+  - the safe-area insets (the first pass verified them, and no CSS there changed in fix wave 3);
+  - Slow 4G timings (the performance pass);
+  - pay parsing (the data check and the vetting).
+- **Not filed:**
+  - the logo's 34x44 hit area (width under 44, height 44, 8 px from the Beta link);
+  - the full sheet not collapsing on a pull-down at the list's top (by design, mobile.md:42).
+- **Housekeeping for the lead:** running the first pass's `^Beta mobile QA` group rewrites its committed evidence
+  screenshots. Five files in `docs/screenshots/qa-mobile-beta/` (`e2e-M-19…`, `M-21`, `M-22`, `M-24`, `M-27`) are now
+  modified in the working tree. Restore them with
+  `git checkout -- docs/screenshots/qa-mobile-beta/`; this agent's attempt was refused by the sandbox's permission check.
+
+### Suite results
+| Suite | Tree | Result |
+|---|---|---|
+| `BETA_QA2_DIST=<lead build> node scripts/e2e.js --grep='^Beta mobile QA 2'` | HEAD `3cf226e` + this pass's files | **2/6 pass**: the 2 guards; the 4 failures are exactly `[M-28]`…`[M-31]` |
+| the same with `BETA_QA2_WHEEL=1` (the WebKit gesture path in Chromium) | same | portrait guard passes and `[M-28]` fails with the same numbers as touch |
+| `BETA_QA_DIST=<lead build> node scripts/e2e.js --grep='^Beta mobile QA'` (first pass's group) | same | **14/14 pass** (M-19…M-27 fixed) |
+| `npm test` | same | **941 tests: 904 pass, 2 fail, 35 todo** (the second data check's and the vetting's to-dos). The 2 failures are the load-sensitive timing tests PERF-1 (639 ms of event-loop lag) and V15 (408 ms), which run only with local data present; re-run alone at load average 13–14 they still fail (172 and 208 ms). The lead saw the same at load 4, and CI never runs them (PLAYBOOK stage 3). Nothing this pass touched is on those paths. |
+
+All browser runs used `NODE_PATH=<scratchpad>/pw/node_modules PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`.

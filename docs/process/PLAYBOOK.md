@@ -168,6 +168,11 @@ These are the rules learned the hard way on 2026-10-10.
 - The disk fills up. Each lane's scratch build is 0.6 to 1.4 GB, and on 2026-10-11 a full `npm test`
   failed 59 tests with ENOSPC when the disk reached 100%. Delete a lane's scratch folder and remove its
   worktree once it is integrated, and check `df -h /` before a long run.
+- Emulated phones have no browser toolbars. A "390x844" Chromium phone shows 844 px, where Safari on the
+  same phone shows about 664 and an iPhone SE about 548. Test short heights (Safari toolbars, the
+  keyboard, landscape), and judge scrolling by how much of the last item is visible, never by the
+  scroll offset alone. On 2026-10-11 a portrait-only check passed while the user could not reach the
+  last companies (M-28).
 - Never run `playwright install`. Chromium is at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`,
   with Playwright in `<scratchpad>/pw/node_modules`.
 - The Long Tasks API misses work after `fetch()` resolves. Read long tasks from a Chrome trace.
