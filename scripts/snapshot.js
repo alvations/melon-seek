@@ -37,7 +37,14 @@ export const MAX_BETA_SNAPSHOT_BYTES = 40 * 1024 * 1024;
 const TRIM_STEPS = [6000, 4000, 2500, 1500, 800];
 const PAY_HINT_RE = /salary|base pay|pay range|range for this role|compensation|\$\s?\d|\d\s?(?:USD|CAD|GBP|EUR)\b/i;
 
-/** First `n` characters of an HTML description (cut at a tag boundary) plus its pay paragraphs. */
+// VT-22 (fix wave 5, fix5-data): one row of a per-place pay table ("USA, TX, Wink - 30.91 - 54.18 USD
+// hourly", server/sources/amazon.js PAY_LINE_RE). Every row is kept, so the stored text still holds the
+// pay the site shows for each place; the sentence above the table (a minimum, a shift differential) is
+// one of the pay paragraphs.
+const PAY_ROW_RE = /\s-\s+\d[\d,]*(?:\.\d+)?(?:\s*-\s*\d[\d,]*(?:\.\d+)?)?\s+[A-Z]{3}\s+(?:annually|hourly|monthly|weekly|per year|per hour|per month)\s*(?:<|$)/i;
+const PAY_SENTENCE_RE = /\bminimum\s+(?:gross\s+)?(?:basic\s+|base\s+)?(?:pay\s+)?salary\b|\bshift\s+differential\b|\bpay\s+starts\s+at\b|\bstarting\s+pay\b|\bgross\s+annually\b/i;
+
+/** First `n` characters of an HTML description (cut at a tag boundary) plus its pay paragraphs and every pay-table row. */
 export function trimDescription(html, n) {
   const s = String(html || '');
   if (s.length <= n) return s;
@@ -45,7 +52,13 @@ export function trimDescription(html, n) {
   if (cut < n * 0.6) cut = n;
   const head = s.slice(0, cut);
   const chunks = s.slice(cut).split(/(?=<(?:p|li|div|h[1-6]|br)\b)/i);
-  const pay = chunks.filter((c) => PAY_HINT_RE.test(c) && c.length < 3000).slice(0, 4).join('');
+  // In page order: every table row, every sentence that says what the figures are, and up to 4 other pay paragraphs.
+  let others = 0;
+  const pay = chunks.filter((c) => {
+    if (c.length >= 3000) return false;
+    if (PAY_ROW_RE.test(c) || PAY_SENTENCE_RE.test(c)) return true;
+    return PAY_HINT_RE.test(c) && others++ < 4;
+  }).join('');
   return `${head}<p>[…] Full description on the posting page.</p>${pay}`;
 }
 

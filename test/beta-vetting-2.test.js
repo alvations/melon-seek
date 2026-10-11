@@ -164,7 +164,7 @@ test('VT-21 a team name with "CEO" or a "Chief Engineer" facilities role is not 
 // text, so the drawer's description does not contain the pay it shows and a re-derivation or a
 // reviewer cannot find it (amazon:10566737 "Data Center Technician": "USA, TX, Wink - 30.91 - 54.18
 // USD hourly" is cut after the three Mississippi rows). Owner: scripts/snapshot.js trimDescription.
-test('VT-22 trimming a description keeps every row of its pay table', TODO, () => {
+test('VT-22 trimming a description keeps every row of its pay table', () => {
   const rows = ['USA, MS, Canton - 27.83 - 48.75 USD hourly', 'USA, MS, Vickburg - 27.83 - 48.75 USD hourly', 'USA, MS, Vicksburg - 27.83 - 48.75 USD hourly', 'USA, TX, Wink - 30.91 - 54.18 USD hourly'];
   const html = `<p>${'Data center work. '.repeat(300)}</p><p>The base salary range for this position is listed below.</p>${rows.map((r) => `<p>${r}</p>`).join('')}`;
   const cut = trimDescription(html, 4000);
