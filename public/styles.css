@@ -1185,9 +1185,26 @@ html[data-mode="insights"] .viz-controls { display: none; }
   .popover, .popover--more, .popover--board, .popover--badge, .popover--company {
     width: 100%; max-height: 82vh; max-height: 82dvh; padding-bottom: env(safe-area-inset-bottom);
   }
-  body.kb-open .popover { top: calc(8px + env(safe-area-inset-top)) !important; bottom: auto; max-height: calc(var(--vvh, 60vh) - 16px); border-radius: 16px; }
+  /* --vvt: how far iOS has panned the visual viewport down (keyboard up); the sheet follows it, so it is never above the screen. */
+  body.kb-open .popover { top: calc(var(--vvt, 0px) + 8px + env(safe-area-inset-top)) !important; bottom: auto; max-height: calc(var(--vvh, 60vh) - 16px); border-radius: 16px; }
   .pop-head .icon-btn { width: var(--m-row); height: var(--m-row); }
-  .pop-body, .company-list { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+  /* fix-company-scroll: every bottom sheet has ONE scroll box. Nested scroll boxes (the company list's
+     340px box inside the scrolling .pop-body, both overscroll-contained) left the list's end below the
+     sheet's visible area whenever the sheet was short: a swipe on the list never reached .pop-body, so
+     the last companies could not be reached (iOS Safari's toolbars and keyboard make that the common case).
+     `pinch-zoom` is unknown to Safari, which then keeps the default (auto); others get pan-y + zoom. */
+  .popover { overscroll-behavior: contain; }
+  .pop-body { min-height: 0; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+  .pop-head { flex: none; }
+  /* The company sheet: the search is pinned at the top, the list fills the rest and is the only scroller. */
+  .popover--company .pop-body { flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden; padding-bottom: 10px; }
+  .popover--company .company-menu { flex: 1 1 auto; min-height: 0; }
+  .popover--company .fsearch-wrap, .popover--company .company-menu > .btn { flex: none; }
+  .popover--company .company-list {
+    flex: 1 1 auto; min-height: 0; max-height: none; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding-bottom: 6px;
+    touch-action: pan-y pinch-zoom;
+  }
+  body.kb-open .popover--company .company-menu > .btn { display: none; }   /* typing: the list gets the room; back when the keyboard closes */
   .company-item { min-height: var(--m-row); font-size: 15px; }
   .company-item-board { font-size: 12px; }
   .popover input, .popover select, .board-form input, .board-form select { font-size: 16px; min-height: var(--m-row); }
@@ -1229,6 +1246,9 @@ html[data-mode="insights"] .viz-controls { display: none; }
   .ms-chart__hist, .ms-chart__foot { display: none; }   /* landscape: rows matter more than the strip and notes */
   .results-head { min-height: 40px; }
   .sheet-handle { height: 20px; }
+  /* fix-company-scroll: a landscape keyboard leaves ~150px; the company list keeps it (the title returns when it closes). */
+  body.kb-open .popover--company .pop-head { display: none; }
+  body.kb-open .popover--company .pop-body { padding-top: 10px; }
 }
 
 /* Touch screens: no sticky hover looks after a tap; press feedback instead. */

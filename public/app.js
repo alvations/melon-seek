@@ -1517,9 +1517,17 @@ function makeCompanyMenu() {
     if (e.key === 'ArrowDown') { e.preventDefault(); items[Math.min(items.length - 1, i + 1)]?.focus(); }
     if (e.key === 'ArrowUp') { e.preventDefault(); if (i <= 0) input.focus(); else items[i - 1].focus(); }
   });
+  let painted = null;
   function sync() {
     const q = input.value.trim().toLowerCase();
     const all = allCompanies().filter((c) => !q || `${c.name} ${c.board} ${c.source}`.toLowerCase().includes(q));
+    const saved = listSaved().filter((x) => !q || x.name.toLowerCase().includes(q));
+    // fix-company-scroll: syncPopover runs on every render (a beta board's live check settling, a saved
+    // board loading); rebuilding identical rows under a finger can cut a touch scroll short, so only a
+    // change repaints.
+    const key = JSON.stringify([S.c, all.map((c) => [c.slug, c.name, c.custom, c.live, companyColor(c)]), saved.map((x) => [x.id, x.name, savedNewCount(x)])]);
+    if (key === painted && list.childElementCount) return;
+    painted = key;
     // D-25 / M-21: the beta site's big-tech boards (static `live: false`: their own careers sites) come
     // first, under their own heading, instead of last below the fold; the main site keeps one list.
     const builtins = all.filter((c) => !c.custom);
@@ -1539,7 +1547,6 @@ function makeCompanyMenu() {
     }, h('span', { class: 'dot', style: `--dot:${companyColor(c)}` }), h('span', { class: 'company-item-name' }, c.name),
     c.slug === S.c ? h('span', { class: 'company-item-check', 'aria-hidden': 'true' }, '✓') : null)))));
     if (!groups.length) list.append(h('p', { class: 'fnote' }, 'No matching company — add its job board below.'));
-    const saved = listSaved().filter((x) => !q || x.name.toLowerCase().includes(q));
     if (saved.length) {
       list.prepend(group('Saved searches', saved.map((x) => {
         const n = savedNewCount(x);
@@ -4217,8 +4224,10 @@ function bindKeyboardInsets() {
     document.body.classList.toggle('kb-open', open);
     document.body.classList.toggle('kb-search', open && document.activeElement?.id === 'search'); // M-12: lift the peek row
     document.documentElement.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
+    document.documentElement.style.setProperty('--vvt', `${Math.max(0, Math.round(vv.offsetTop || 0))}px`); // fix-company-scroll: iOS pans the visual viewport
   });
   vv.addEventListener('resize', sync);
+  vv.addEventListener('scroll', sync);
   document.addEventListener('focusin', (e) => {
     sync();
     if (isMobile() && e.target.matches?.('#filters input, #popover input')) setTimeout(() => revealField(e.target), 300);

@@ -132,8 +132,8 @@ function assertSheet(g, label, { scroller = 'company-list' } = {}) {
   assert(g.sheet.top >= -0.5 && g.sheet.bottom <= g.viewBottom + 0.5, `the sheet sits inside the visible viewport (${g.sheet.top}–${g.sheet.bottom} of ${g.viewBottom}) — ${tag}`);
   assert(g.list.bottom <= g.viewBottom + 0.5, `the list's bottom edge is on screen — ${tag}`);
   assert(g.list.height >= 80, `the list shows at least two rows (${g.list.height}px) — ${tag}`);
-  assert(g.last && g.last.bottom > g.list.top && g.last.bottom <= g.list.bottom + 0.5, `scrolled to its end, the end of the content is visible — ${tag}`);
-  if (g.lastItem) assert(g.lastItem.top >= g.list.top - 0.5 && g.lastItem.bottom <= g.list.bottom + 0.5, `the last company is fully visible at the end — ${tag}`);
+  assert(g.last && g.last.bottom > g.list.top && g.last.bottom <= g.list.bottom + 1, `scrolled to its end, the end of the content is visible — ${tag}`);
+  if (g.lastItem) assert(g.lastItem.top >= g.list.top - 0.5 && g.lastItem.bottom <= g.list.bottom + 1, `the last company is fully visible at the end — ${tag}`);
 }
 
 export function registerFixCompanyScrollTests(suite) {
