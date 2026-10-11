@@ -37,6 +37,7 @@ A desktop QA agent writes to docs/QA.md at the same time. Append only your own s
   - the Juice breakdown with the household choice;
   - "Same role elsewhere"; the methodology link.
 - **Other features:** Save and "N new"; the CSV link.
+- **Text density:** every note, caption, footer and stats line fits one line on the phone and states at most two facts; anything longer is a bug (see ux-review.md, check 6).
 - **Device behaviour:**
   - landscape; the safe area; the keyboard covering inputs;
   - text ≥12px; tap targets ≥44px (or an equivalent hit area);

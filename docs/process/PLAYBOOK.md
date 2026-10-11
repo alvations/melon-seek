@@ -173,6 +173,10 @@ These are the rules learned the hard way on 2026-10-10.
   keyboard, landscape), and judge scrolling by how much of the last item is visible, never by the
   scroll offset alone. On 2026-10-11 a portrait-only check passed while the user could not reach the
   last companies (M-28).
+- A review that only lists findings can still miss what a user sees first. On 2026-10-11 the UX, viz and
+  mobile reviews all passed a chart notes line of six facts that wrapped to four lines on a phone; the
+  user caught it. The UX and mobile templates now make text density a measured check (words and wrapped
+  lines per secondary line, per board and viewport), and fix-density added tests that fail on any such line.
 - Never run `playwright install`. Chromium is at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`,
   with Playwright in `<scratchpad>/pw/node_modules`.
 - The Long Tasks API misses work after `fetch()` resolves. Read long tasks from a Chrome trace.
