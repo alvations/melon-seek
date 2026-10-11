@@ -11,8 +11,8 @@
 // is emphasized. Keyboard: the chart is a listbox (arrows, Home/End, Enter).
 // Rows are sorted by median (high first) unless `sort: false`.
 
-import { colorFor, formatMoney, niceTicks, onThemeChange } from './palette.js';
-import { robustBounds } from './chart.js';
+import { colorFor, formatMoney, niceTicks, onThemeChange, readableOn, isDark } from './palette.js';
+import { robustBounds, formatTick } from './chart.js';
 
 const ROW_H = 28;
 // Plain words (persona review 2026-10-10, I-9): no "middle 50%", no "percentile".
@@ -30,6 +30,18 @@ function el(tag, cls, text) {
 }
 const plural = (n, one, many = one + 's') => `${Number(n).toLocaleString()} ${n === 1 ? one : many}`;
 const ok = v => v != null && Number.isFinite(+v);
+
+/**
+ * V-23: the colour behind the chart (the first opaque background up the tree, e.g. the drawer), as
+ * #rrggbb, so a company colour can be lifted to 3:1 on it (Anduril's #1f2a37 was 1.09:1 in dark mode).
+ */
+function backdropHex(node) {
+  for (let n = node; n && n.nodeType === 1; n = n.parentElement) {
+    const m = /rgba?\(\s*([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)(?:[ ,/]+([\d.]+))?/.exec(getComputedStyle(n).backgroundColor || '');
+    if (m && (m[4] == null || +m[4] > 0.99)) return '#' + [m[1], m[2], m[3]].map((v) => Math.round(+v).toString(16).padStart(2, '0')).join('');
+  }
+  return isDark() ? '#161a21' : '#ffffff';
+}
 
 export function createCompsChart(container, { onSelect } = {}) {
   container.classList.add('ms-comps');
@@ -76,6 +88,7 @@ export function createCompsChart(container, { onSelect } = {}) {
     const labelW = Math.round(Math.max(88, Math.min(180, width * (narrow ? 0.34 : 0.32))));
     const valW = narrow ? 46 : 52;
     const plotL = labelW + 8, plotW = Math.max(60, width - plotL - valW - 8);
+    const backdrop = backdropHex(container);
     const vals = items.filter(has).flatMap(r => [r.p25 ?? r.median, r.p75 ?? r.median, r.median].map(Number));
     list.replaceChildren(grid);
     axis.replaceChildren();
@@ -96,7 +109,7 @@ export function createCompsChart(container, { onSelect } = {}) {
     for (const t of nt.ticks) {
       if (t < d0 || t > d1) continue;
       if (x(t) - lastX >= 42) { // skip labels that would collide; gridlines stay
-        const tk = el('div', 'ms-comps__tick', formatMoney(t));
+        const tk = el('div', 'ms-comps__tick', formatTick(t)); // V-27: the gridline's own value
         tk.style.left = x(t) + 'px';
         axis.append(tk);
         lastX = x(t);
@@ -113,7 +126,7 @@ export function createCompsChart(container, { onSelect } = {}) {
       row.dataset.i = i;
       row.setAttribute('role', 'option');
       row.setAttribute('aria-selected', 'false');
-      const color = r.color || colorFor(r.slug || r.name);
+      const color = readableOn(r.color || colorFor(r.slug || r.name), backdrop, 3); // V-23: a mark of 3:1 in either theme
       row.style.setProperty('--c', color);
       const name = el('div', 'ms-comps__name');
       name.style.width = labelW + 'px';

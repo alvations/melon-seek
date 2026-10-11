@@ -1,14 +1,18 @@
 // melon-seek viz palette: categorical identity colors, sequential salary scale,
 // money formatting and a static approximate FX table.
 //
-// Categorical hues are the validated 8-slot reference palette (dataviz skill,
-// run through validate_palette.js in light + dark). A 9th+ key is never given a
-// generated hue: it folds into OTHER (neutral gray).
-
-const CAT_LIGHT = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'];
-const CAT_DARK  = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767'];
-const OTHER_LIGHT = '#a8a69f';
-const OTHER_DARK = '#6b6a65';
+// Categorical hues: 8 slots plus the neutral OTHER (fix4-viz, V-22 and V-25). Every slot, Other
+// included, is a mark of at least 3:1 on its surface (light #ffffff; dark #161a21, and #1b2028 in
+// the drawer), and every pair of the nine (not only neighbours: a legend shows them all at once)
+// stays apart under deuteranopia, protanopia and tritanopia (Machado 2009 simulation, CIELAB
+// delta E >= 12.6 light / 12.7 dark; >= 24.7 with normal vision). Found by a search over OKLCH
+// around the old hue order (blue, orange, aqua, yellow, magenta, green, violet, red); the numbers
+// and the script are in docs/process/fix4-viz.md. A 9th+ key is never given a generated hue: it
+// folds into OTHER.
+const CAT_LIGHT = ['#4a7de8', '#a33806', '#17a478', '#ba7f14', '#903081', '#296f16', '#7d44b2', '#e45d58'];
+const CAT_DARK  = ['#698dfd', '#ef7926', '#00d097', '#efa30f', '#d765b6', '#47ab4f', '#9654c1', '#c44323'];
+const OTHER_LIGHT = '#706f6c';
+const OTHER_DARK = '#807f7c';
 
 export const OTHER_KEY = 'Other';
 export const SLOT_COUNT = CAT_LIGHT.length;
@@ -182,27 +186,58 @@ export const COUNTRY_CURRENCY = Object.freeze({
   ...Object.fromEntries('IE DE FR NL ES IT BE AT FI PT LU GR EE LV LT SK SI HR MT CY BG'.split(' ').map((c) => [c, 'EUR'])),
 });
 
-// ---------- sequential salary scale (one hue: rind green, light -> dark) ----------
+// ---------- pay scale for the map (one hue: rind green, stepped, fixed dollars) ----------
 
-// DES-1 (design audit wave 1): pay is the app's "rind green" (--ms-accent #0b7a5c, the green
-// salary pills on cards), so map pins, cards and the chart tell one money story; Juice keeps
-// the melon ramp. Validated with validate_palette.js --ordinal: light end 2.06:1 on #fcfcfb,
-// dark end 2.14:1 on the app's dark surface #161a21; one hue (spread 2–5°), monotone L.
-const SEQ_LIGHT = ['#77c1a2', '#4fae8a', '#2a956f', '#13805b', '#0b6b4c', '#064d37'];
-// Dark mode: same ramp, stepped so the low end still clears the dark surface.
-const SEQ_DARK  = ['#145a43', '#1b7a5a', '#25996f', '#3ccf9a', '#7fe0bd', '#b5efd8'];
+// V-16 (fix4-viz): one colour means one pay level everywhere. The map's Pay pins were coloured
+// relative to the pins on screen (a lone $473K pin and a lone $75K pin were the same green); now
+// a pin takes the step of its median on these fixed approx-USD breaks, and the map shows them in a
+// Pay legend. V-22: every step is >= 3:1 on the map background (light #f8fafc: 3.33 to 13.6;
+// dark #121820: 3.06 to 13.4) and its price text (inkOn) >= 5.5:1. Light runs light -> dark,
+// dark runs dark -> light (more pay = more contrast with the map in both).
+export const PAY_BREAKS = Object.freeze([100000, 150000, 200000, 300000]);
+const PAY_LIGHT = ['#209c69', '#00784d', '#005c3a', '#00462a', '#00321d'];
+const PAY_DARK  = ['#05744b', '#209c69', '#4abc87', '#69d9a2', '#86f5bd'];
 
 function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
-function rgbToHex([r, g, b]) { return '#' + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, '0')).join(''); }
+function rgbToHex([r, g, b]) { return '#' + [r, g, b].map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join(''); }
 
-/** Sequential salary color for t in [0,1] (0 = lowest median, 1 = highest). */
+/** The pay step (0 .. PAY_BREAKS.length) of a yearly approx-USD amount. */
+export function payStep(usd) {
+  let i = 0;
+  while (i < PAY_BREAKS.length && usd >= PAY_BREAKS[i]) i++;
+  return i;
+}
+/** The fixed-scale fill for a yearly approx-USD pay (V-16). */
+export function payColor(usd) { return (isDark() ? PAY_DARK : PAY_LIGHT)[payStep(+usd || 0)]; }
+/** The steps for a legend: [{ color, lo, hi }] (lo/hi in USD, null at the open ends). */
+export function paySteps() {
+  const ramp = isDark() ? PAY_DARK : PAY_LIGHT;
+  return ramp.map((color, i) => ({ color, lo: i ? PAY_BREAKS[i - 1] : null, hi: i < PAY_BREAKS.length ? PAY_BREAKS[i] : null }));
+}
+/** Sequential pay colour for t in [0,1] (kept for callers that scale by rank): the nearest step. */
 export function salaryColor(t) {
-  const ramp = isDark() ? SEQ_DARK : SEQ_LIGHT;
-  const x = Math.max(0, Math.min(1, +t || 0)) * (ramp.length - 1);
-  const i = Math.min(ramp.length - 2, Math.floor(x));
-  const f = x - i;
-  const a = hexToRgb(ramp[i]), b = hexToRgb(ramp[i + 1]);
-  return rgbToHex(a.map((v, k) => v + (b[k] - v) * f));
+  const ramp = isDark() ? PAY_DARK : PAY_LIGHT;
+  return ramp[Math.round(Math.max(0, Math.min(1, +t || 0)) * (ramp.length - 1))];
+}
+
+const relLum = (hex) => { const [r, g, b] = hexToRgb(hex).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+/** WCAG contrast of two hex colours. */
+export function contrast(a, b) { const x = relLum(a), y = relLum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
+/**
+ * V-23: `hex` moved toward white (on a dark background) or black (on a light one) just far enough
+ * to be a mark of `min`:1 on `bg`; unchanged when it already is. For colours the viz does not pick
+ * (companies.json brand colours: Anduril #1f2a37 on the dark drawer was 1.09:1).
+ */
+export function readableOn(hex, bg, min = 3) {
+  if (!/^#[0-9a-f]{6}$/i.test(hex || '') || !/^#[0-9a-f]{6}$/i.test(bg || '')) return hex;
+  if (contrast(hex, bg) >= min) return hex;
+  const toward = relLum(bg) < 0.18 ? [255, 255, 255] : [0, 0, 0];
+  const c = hexToRgb(hex);
+  for (let f = 0.05; f <= 1.0001; f += 0.05) {
+    const out = rgbToHex(c.map((v, k) => v + (toward[k] - v) * f));
+    if (contrast(out, bg) >= min) return out;
+  }
+  return rgbToHex(toward);
 }
 
 /** Ink (near-black or white) that clears contrast on the given hex fill. */

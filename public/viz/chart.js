@@ -39,6 +39,7 @@
 import {
   colorFor, assignColors, otherColor, slotColor, inkOn, OTHER_KEY, SLOT_COUNT, formatMoney,
   formatCurrency, toUSD, isForeign, hasFx, niceTicks, median, onThemeChange, prefersReducedMotion, isDark, FX_AS_OF,
+  FX_SOURCE, COUNTRY_CURRENCY,
 } from './palette.js';
 import { levelLabel, displayLevel, DISPLAY_LEVEL_ORDER } from '../features/roles.js';
 import { payLocations, OTE_LABEL } from '../features/shared.js';
@@ -99,6 +100,123 @@ export function shortCount(n) {
   const fmt = (v, unit) => `${v < 10 ? Math.round(v * 10) / 10 : Math.round(v)}${unit}`;
   return a < 999500 ? fmt(a / 1000, 'K') : fmt(a / 1e6, 'M');
 }
+
+/**
+ * V-27: an axis tick's label names the gridline's own value. formatMoney keeps one decimal of
+ * millions (1.25M read "$1.3M", $50K off its gridline); a tick keeps up to two, without trailing
+ * zeros: $1.25M, $1.5M, $2M, $12.5K, $250K.
+ */
+export function formatTick(v) {
+  if (v == null || !isFinite(v)) return '—';
+  const a = Math.abs(v), sign = v < 0 ? '-' : '';
+  const trim = (n) => String(+n.toFixed(2));
+  if (a >= 1e6) return `${sign}$${trim(a / 1e6)}M`;
+  if (a >= 1000) return `${sign}$${trim(a / 1000)}K`;
+  return `${sign}$${Math.round(a)}`;
+}
+
+/** "Jul 2026": the month of the fixed exchange rates (FX_AS_OF), for words next to converted pay (MR-2). */
+export const FX_MONTH = (() => { const m = /^(\d{4})-(\d{2})/.exec(String(FX_AS_OF || '')); return m ? `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][+m[2] - 1]} ${m[1]}` : String(FX_AS_OF || ''); })();
+/** Where the app explains its exchange rates (the methodology page, relative to the app's page). */
+export const FX_DOC = 'methodology/#7-how-often-its-updated';
+/** The rates' source in a few words ("The Economist Big Mac index source data v2"), for titles. */
+export const FX_SOURCE_SHORT = String(FX_SOURCE || '').split(',')[0];
+
+/**
+ * V-19, shared decision 4 (app.js): part-time pay posted by the hour. salary.min/max are a full-time
+ * year (2,080 hours), so every yearly figure for it says "a year if full-time".
+ */
+export const isPartTimeHourly = (job) => job?.salary?.partTime === true && job.salary.originalInterval === 'hour';
+
+/**
+ * V-20: a range that is not one posted range: several levels priced in one posting (salary.levels,
+ * NVIDIA "Level 4" and "Level 5") or one requisition's ranges for several places (salary.ranges,
+ * Apple). -> { kind: 'levels'|'places', tiers: [{ label, min, max }] } or null.
+ */
+export function spanTiers(job) {
+  const s = job?.salary;
+  if (!s) return null;
+  if (Array.isArray(s.levels) && s.levels.length >= 2) return { kind: 'levels', tiers: s.levels };
+  if (Array.isArray(s.ranges) && s.ranges.length >= 2) return { kind: 'places', tiers: s.ranges };
+  return null;
+}
+
+/**
+ * V-21: the pay basis of a posting: its currency (pay in one currency is for one country or the
+ * euro area, so rows compare like with like), USD when none is given. (public/features/shared.js
+ * payCountry would name the country, but it inherits payLocations' fallback to every location.)
+ */
+export const payBasis = (job) => String(job?.salary?.currency || 'USD').toUpperCase();
+const BASIS_HOME = (() => {
+  const by = {};
+  for (const [cc, cur] of Object.entries(COUNTRY_CURRENCY || {})) if (cc !== 'UK') (by[cur] ||= []).push(cc);
+  return by;
+})();
+const COUNTRY_WORD = { US: 'the US', GB: 'the UK', CA: 'Canada', CH: 'Switzerland', JP: 'Japan', KR: 'South Korea', IN: 'India', SG: 'Singapore', AU: 'Australia', NZ: 'New Zealand', IL: 'Israel', AE: 'the UAE', PL: 'Poland', SE: 'Sweden', NO: 'Norway', DK: 'Denmark', CZ: 'Czechia', HK: 'Hong Kong', TW: 'Taiwan', CN: 'China', BR: 'Brazil', MX: 'Mexico', ZA: 'South Africa', SA: 'Saudi Arabia', QA: 'Qatar' };
+/** "in the US", "in the euro area", "in Poland": where the pay a row compares is for ("median $127K in the US"). */
+export function payBasisPlace(cur) {
+  const c = String(cur || 'USD').toUpperCase();
+  if (c === 'EUR') return 'in the euro area';
+  const home = BASIS_HOME[c];
+  return home && home.length === 1 ? `in ${COUNTRY_WORD[home[0]] || home[0]}` : `paid in ${c}`;
+}
+/** The short form for a narrow label: "US", "UK", "EUR", "PLN". */
+const basisShort = (cur) => ({ USD: 'US', GBP: 'UK' }[cur] || cur);
+
+/**
+ * V-18: the Location row a posting belongs to: its first on-site place (the first one the Location
+ * filter takes in, under a filter: NVIDIA's Munich-paid role is a Munich row, not "Italy"), else
+ * Remote, else Unknown.
+ */
+export function locationRowKey(job, test = null) {
+  const locs = job?.locations || [];
+  const onsite = locs.find((l) => l && !l.remote && (!test || test(job, l)));
+  if (onsite) return onsite.city || onsite.name || 'Unknown';
+  if (test && locs.some((l) => l?.remote && test(job, l))) return 'Remote';
+  return primaryLocation(job);
+}
+const rowKeyOfLoc = (l) => (l.remote ? 'Remote' : l.city || l.name || 'Unknown');
+/**
+ * V-18: true when the posting's pay is posted for the place its Location row is named for: one of
+ * its payLocations is that place, and the pay is in that place's currency (payLocations falls back
+ * to every location when none matches the currency; a US range on a London-only posting is not
+ * London pay).
+ */
+export function payCoversRow(job, key) {
+  const locs = job?.locations || [];
+  if (key === 'Unknown' && !locs.some((l) => l && !l.remote)) return true;
+  if (key === 'Remote' && !locs.length) return true;
+  const cur = payBasis(job);
+  return payLocations(job).some((l) => {
+    if (!l || rowKeyOfLoc(l) !== key) return false;
+    const home = l.country ? COUNTRY_CURRENCY[String(l.country).toUpperCase()] : null;
+    return !home || home === cur;
+  });
+}
+
+/**
+ * V-21: medians that compare like with like. When the plotted pay is in more than one currency,
+ * each row's median, band and tick use the board's main currency (the most postings), or the row's
+ * one currency when it has none of the main one; a row of several other currencies says so.
+ * -> { stats (basePayStats), basis: currency|null, left: items not in the median }
+ */
+function basisStats(items, main) {
+  if (!main) return { stats: basePayStats(items), basis: null, left: 0 };
+  const own = items.filter((p) => payBasis(p.job) === main);
+  if (own.length) return { stats: basePayStats(own), basis: main, left: items.length - own.length };
+  const bases = new Set(items.map((p) => payBasis(p.job)));
+  return { stats: basePayStats(items), basis: bases.size === 1 ? [...bases][0] : (items.length ? 'mixed' : null), left: 0 };
+}
+/** The most common pay currency of the plotted postings when there is more than one, else null. */
+function mainBasis(items) {
+  const n = new Map();
+  for (const p of items) { const b = payBasis(p.job); n.set(b, (n.get(b) || 0) + 1); }
+  if (n.size < 2) return null;
+  return [...n].sort((a, b) => b[1] - a[1] || (a[0] === 'USD' ? -1 : 1))[0][0];
+}
+/** " in the US" after a median, "" when the row has no basis; "mixed" names its currencies. */
+const basisWords = (r) => (r.basis === 'mixed' ? ', several countries’ pay' : r.basis ? ` ${payBasisPlace(r.basis)}` : '');
+const basisWordsShort = (r) => (r.basis === 'mixed' ? ' mixed' : r.basis ? ` ${basisShort(r.basis)}` : '');
 
 /**
  * Where a ranges row's pay label goes (P-16): right of the bar, else left of it, else on the bar
@@ -253,6 +371,8 @@ function textWidth(text, font) {
     return Math.ceil(measureCtx.measureText(String(text)).width);
   } catch { return String(text).length * 7; }
 } // pad the robust span by 4% on each side before snapping to ticks
+/** UX-17: the width of an axis-edge chip ("›19": its text plus 5px padding a side, at least 18px). */
+const chipWidth = (n, font) => Math.max(18, textWidth(n > 1 ? `›${n}` : '›', font) + 10);
 
 export function createChart(container, { onSelect, onHover, onClusterSelect } = {}) {
   container.classList.add('ms-chart');
@@ -310,6 +430,9 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
   let cActive = null;        // { r, i } (i = -1: the row label)
   let cHover = null;         // bin element
   let selectedKey = null;    // "rowKey\0binStart" or "rowKey\0*"
+  let chipFont = '700 12px system-ui, sans-serif'; // the edge chips' font (renderClusters)
+  let foldOpen = false;      // UX-24: the "N more departments" row is opened
+  let rowNotes = { offRow: 0, basis: null, basisLeft: 0, spans: 0, partTime: 0 }; // notes-line counts from the rows (V-18 to V-21)
 
   // ---------- data prep ----------
   function prepare() {
@@ -400,6 +523,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     activeIdx = -1; cActive = null; hoverIdx = -1; cHover = null;
     body.removeAttribute('aria-activedescendant');
     idxByJob = new Map(); rowY = []; itemByRow = []; binByJob = new Map(); cRows = []; outCount = 0;
+    rowNotes = { offRow: 0, basis: null, basisLeft: 0, spans: 0, partTime: 0 };
     vReset();
     hideTip();
 
@@ -453,22 +577,40 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     // BP-2: with a Location filter, the plotted pay is for those places, and the rest is counted.
     if (plotted.length) parts.push(`${plural(plotted.length, 'posting')} with ${where ? `pay for ${where}` : 'salary'}`);
     if (elsewhere && plotted.length) parts.push(`${elsewhere.toLocaleString()} with pay for another country only, left out`);
+    // V-18: Group by Location rows hold only the pay posted for their place.
+    if (rowNotes.offRow) parts.push(`${rowNotes.offRow.toLocaleString()} with pay for another place than their row's, not in the rows`);
+    // V-21: rows compare one country's pay when the board mixes currencies.
+    if (rowNotes.basis && rowNotes.basisLeft) parts.push(`row medians: pay ${payBasisPlace(rowNotes.basis)} (${rowNotes.basisLeft.toLocaleString()} paid elsewhere ${narrow ? 'left out' : 'are in the circles, not the medians'})`);
     // BP-13: on-target earnings are plotted but not in the medians (the stats line's rule).
     // Phones keep the line short (the tooltip and the ranges' own tips say what on-target means).
     if (pay?.oteLeftOut) parts.push(`${pay.oteLeftOut.toLocaleString()} ${narrow ? 'on-target earnings' : 'with on-target earnings (base plus commission)'}, not in the medians`);
     else if (pay?.oteOnly) parts.push(narrow ? 'all on-target earnings' : 'all on-target earnings (base plus commission at target)');
+    // V-20 / V-19: what the Ranges bars that are not one posted yearly range look like.
+    if (rowNotes.spans) parts.push(`${rowNotes.spans.toLocaleString()} striped: one posting’s range over several levels or places`);
+    if (rowNotes.partTime) parts.push(`${rowNotes.partTime.toLocaleString()} part-time hourly, shown as a year if full-time`);
     if (noSalary) parts.push(`${noSalary.toLocaleString()} with no salary posted`);
-    if (fxCount) parts.push(`${fxCount.toLocaleString()} converted from another currency`);
     if (unknownFx.length) parts.push(`${unknownFx.join(', ')} pay shown unconverted`);
     if (outCount) parts.push(`${plural(outCount, 'posting')} past the edge of the chart (›)`);
     if (narrow && plotted.length) parts.push('yearly pay');
     foot.textContent = parts.join(' · ');
+    // MR-2: the exchange rates' date in the text itself (a hover title is out of reach on a phone),
+    // linked to the methodology section that names their source.
+    if (fxCount) { foot.append(parts.length ? ' · ' : '', `${fxCount.toLocaleString()} converted from another currency at `, fxLink(FX_AS_OF)); parts.push('fx'); }
     foot.title = [
-      fxCount ? `Pay in other currencies is converted to US dollars with fixed exchange rates (as of ${formatMonth(FX_AS_OF)}), so it is approximate.` : '',
+      fxCount ? `Pay in other currencies is converted to US dollars with fixed exchange rates (as of ${FX_MONTH}; ${FX_SOURCE_SHORT}), so it is approximate.` : '',
       pay?.oteLeftOut || pay?.oteOnly ? `${OTE_LABEL}: shown on the chart, but the medians are base pay${pay?.oteOnly ? ' unless nothing else is left' : ''}.` : '',
       elsewhere && where ? `Pay posted for another country says nothing about pay in ${where}, so it is left out.` : '',
     ].filter(Boolean).join(' ');
     foot.hidden = !parts.length;
+  }
+
+  /** MR-2: "Jul 2026 exchange rates" for the rates of `asOf`, a link to the section that names their source. */
+  function fxLink(asOf) {
+    const month = formatMonth(asOf);
+    const a = el('a', 'ms-chart__fx', `${month} exchange rates`);
+    a.href = FX_DOC;
+    a.title = `Fixed rates as of ${month}: ${FX_SOURCE_SHORT}`;
+    return a;
   }
 
   /** BP-13: what the median caption says ("Median base pay", or on-target earnings when that is all). */
@@ -534,7 +676,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       const px = x(t);
       if (px - lastX < minGap) return;
       lastX = px;
-      const tk = el('div', 'ms-axis__tick', formatMoney(t));
+      const tk = el('div', 'ms-axis__tick', formatTick(t));
       tk.style.left = px + 'px';
       // DES-6: keep edge labels inside the chart (they were clipped at phone width).
       if (px < 24) tk.classList.add('ms-axis__tick--start');
@@ -556,22 +698,54 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     // Rows first (names, counts, medians), so the label column can be sized to fit them.
     const dim = opts.groupBy;
     const m = new Map();
-    const rowOf = k => { if (!m.has(k)) m.set(k, { key: k, name: groupName(dim, k), all: [], items: [] }); return m.get(k); };
-    for (const job of jobs) rowOf(dim === 'none' ? ALL_ROLES : keyOf(job, dim)).all.push(job);
-    for (const p of plotted) rowOf(dim === 'none' ? ALL_ROLES : keyOf(p.job, dim)).items.push(p);
+    const rowOf = k => { if (!m.has(k)) m.set(k, { key: k, name: groupName(dim, k), all: [], items: [], offPay: 0 }); return m.get(k); };
+    // V-18: a Location row holds the roles listed there first, but only the pay posted for there.
+    const locTest = dim === 'location' ? placeMatcher(opts.places, opts.placeTest) : null;
+    const rowKey = (job) => (dim === 'none' ? ALL_ROLES : dim === 'location' ? locationRowKey(job, locTest) : keyOf(job, dim));
+    const keyById = new Map();
+    for (const job of jobs) { const k = rowKey(job); keyById.set(job.id, k); rowOf(k).all.push(job); }
+    let offRow = 0;
+    for (const p of plotted) {
+      const k = keyById.get(p.job.id) ?? rowKey(p.job);
+      if (dim === 'location' && !payCoversRow(p.job, k)) { rowOf(k).offPay++; offRow++; continue; }
+      rowOf(k).items.push(p);
+    }
     cRows = [...m.values()];
+    // UX-24: more departments than colours: the 7 with the most postings with pay keep their rows
+    // (and colours); the rest fold into one "N more departments" row, which opens on a click.
+    let foldRow = null, folded = [];
+    if (dim === 'department' && cRows.length > SLOT_COUNT) {
+      const rank = cRows.slice().sort((a, b) => b.items.length - a.items.length || b.all.length - a.all.length || String(a.key).localeCompare(String(b.key)));
+      const keep = new Set(rank.slice(0, SLOT_COUNT - 1));
+      folded = cRows.filter((r) => !keep.has(r));
+      foldRow = { key: '\u0001more', name: `${folded.length.toLocaleString()} more departments`, all: folded.flatMap((r) => r.all), items: folded.flatMap((r) => r.items), offPay: 0, fold: true };
+      cRows = [...cRows.filter((r) => keep.has(r)), foldRow, ...(foldOpen ? folded : [])];
+      for (const r of folded) r.inFold = true;
+    } else if (dim !== 'department') foldOpen = false;
+    // V-21: rows grouped by department or seniority compare one country's pay when the board mixes currencies.
+    const main = dim === 'department' || dim === 'seniority' ? mainBasis(plotted) : null;
+    let basisLeft = 0;
     for (const r of cRows) {
       // BP-13: the row's median, quartiles and band are base pay (on-target earnings only when
       // that is all the row has, and then it says so).
-      const ps = basePayStats(r.items);
+      const b = basisStats(r.items, main);
+      const ps = b.stats;
+      r.basis = main ? b.basis : null; r.basisLeft = b.left;
+      if (!r.inFold) basisLeft += b.left;
       r.median = ps.median; r.p25 = ps.p25; r.p75 = ps.p75;
       const onTarget = ps.oteOnly && !stats.pay?.oteOnly ? 'on-target ' : '';
       // BP-2: a row whose ranges are all for another country has no salary posted for here.
-      const none = stats.elsewhere && r.all.some((j) => stats.elsewhereIds.has(j.id)) ? ['no salary posted for here', 'no salary here'] : ['no published salary', 'no salary'];
+      const none = r.offPay || (stats.elsewhere && r.all.some((j) => stats.elsewhereIds.has(j.id))) ? ['no salary posted for here', 'no salary here'] : ['no published salary', 'no salary'];
       r.noneText = r.items.length ? '' : none[0];
-      r.subFull = r.items.length ? `${plural(r.all.length, 'role')} · ${onTarget}median ${formatMoney(r.median)}` : `${plural(r.all.length, 'role')} · ${none[0]}`;
-      r.subShort = r.items.length ? `${r.all.length.toLocaleString()} · ${onTarget}${formatMoney(r.median)}` : `${r.all.length.toLocaleString()} · ${none[1]}`;
+      r.subFull = r.items.length ? `${plural(r.all.length, 'role')} · ${onTarget}median ${formatMoney(r.median)}${basisWords(r)}` : `${plural(r.all.length, 'role')} · ${none[0]}`;
+      r.subShort = r.items.length ? `${r.all.length.toLocaleString()} · ${onTarget}${formatMoney(r.median)}${basisWordsShort(r)}` : `${r.all.length.toLocaleString()} · ${none[1]}`;
+      const why = [];
+      if (r.basisLeft) why.push(`The median is pay ${payBasisPlace(r.basis)} only: ${plural(r.basisLeft, 'posting')} with pay for other countries ${r.basisLeft === 1 ? 'is' : 'are'} in the circles, not in the median.`);
+      else if (r.basis === 'mixed') why.push('This row has pay for several countries only, converted to US dollars: its median mixes them.');
+      if (r.offPay) why.push(`${plural(r.offPay, 'posting')} here ${r.offPay === 1 ? 'lists' : 'list'} pay for another place only, so ${r.offPay === 1 ? 'it is' : 'they are'} not in this row's pay.`);
+      r.why = why.join(' ');
     }
+    rowNotes = { ...rowNotes, offRow, basis: main, basisLeft };
 
     // Label column: wide enough that "N roles · median $XK" always shows in full and the
     // group name fits on at most two lines; capped at 36% of the width (then the subtitle
@@ -593,9 +767,6 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     } else {
       for (const r of cRows) r.useShort = true; // stacked label line: the short form never truncates
     }
-    const plotL = narrow ? 16 : labelW + 16;
-    const padR = narrow ? 16 : 32;
-    const plotW = Math.max(80, width - plotL - padR);
     // Robust domain: P1..P99 of midpoints, padded, snapped to $50K/$100K/$250K ticks.
     const [lo, hi] = robustBounds(plotted.map(p => p.mid));
     const span = Math.max(1, hi - lo);
@@ -604,6 +775,28 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const d0 = Math.max(0, Math.floor((lo - pad) / step) * step);
     let d1 = Math.ceil((hi + pad) / step) * step;
     if (d1 <= d0) d1 = d0 + step;
+    // UX-17: the "‹12" / "›19" chips sit in their own gutters outside the plot, sized to the widest
+    // chip, so they never run off a phone screen or into the row labels.
+    const CHIP_FONT = chipFont = `700 12px ${fam}`;
+    let chipLo = 0, chipHi = 0;
+    for (const r of cRows) {
+      let nb = 0, na = 0;
+      for (const p of r.items) { if (p.mid < d0) nb++; else if (p.mid > d1) na++; }
+      if (nb) chipLo = Math.max(chipLo, chipWidth(nb, CHIP_FONT));
+      if (na) chipHi = Math.max(chipHi, chipWidth(na, CHIP_FONT));
+    }
+    const plotL = (narrow ? 16 : labelW + 16) + (chipLo ? chipLo + 6 : 0);
+    const padR = Math.max(narrow ? 16 : 32, chipHi ? chipHi + 6 + (narrow ? 8 : 10) : 0);
+    const plotW = Math.max(80, width - plotL - padR);
+    // A lone row ("All roles", or a single group) gets more height and bigger circles.
+    const solo = cRows.length === 1;
+    // Bin width: the smallest standard step that leaves room for a readable circle. V-29: bins are
+    // aligned to the axis (a whole number of bins from its start, and the axis ends on a bin edge),
+    // so no circle is centred on the axis end, past the last gridline.
+    const minBinPx = solo ? 46 : MIN_BIN_PX;
+    const steps = BIN_STEPS.filter(b => step % b === 0 || b % step === 0);
+    const binW = steps.find(b => b * (plotW / (d1 - d0)) >= minBinPx) || steps[steps.length - 1];
+    if ((d1 - d0) % binW) d1 = d0 + Math.ceil((d1 - d0) / binW) * binW;
     const x = v => plotL + ((v - d0) / (d1 - d0)) * plotW;
     const xc = v => x(Math.min(d1, Math.max(d0, v)));
     const ticks = [];
@@ -614,12 +807,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     renderHist(x, d0, d1, plotL, plotW, labelW, stats.pay);
     renderAxis(ticks, x, stats.fxCount > 0, labelW, narrow);
 
-    // A lone row ("All roles", or a single group) gets more height and bigger circles.
-    const solo = cRows.length === 1;
-    // Bin width: the smallest standard step that leaves room for a readable circle.
     const pxPer = plotW / (d1 - d0);
-    const minBinPx = solo ? 46 : MIN_BIN_PX;
-    const binW = BIN_STEPS.find(b => b * pxPer >= minBinPx) || BIN_STEPS[BIN_STEPS.length - 1];
     const binPx = binW * pxPer;
     container.style.setProperty('--ms-bin-slop', Math.round(Math.min(44, binPx)) + 'px'); // touch slop never reaches a neighbour (M-8)
     for (const r of cRows) {
@@ -628,7 +816,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       for (const p of r.items) {
         if (p.mid < d0) { below.push(p); continue; }
         if (p.mid > d1) { above.push(p); continue; }
-        const start = Math.floor(p.mid / binW) * binW;
+        const start = d0 + Math.min(Math.floor((p.mid - d0) / binW), Math.round((d1 - d0) / binW) - 1) * binW;
         if (!bm.has(start)) bm.set(start, []);
         bm.get(start).push(p);
       }
@@ -640,29 +828,34 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       outCount += below.length + above.length;
     }
     // D-9 / P-3: grouped by seniority, rows follow the ladder, "Level not stated" last.
-    cRows.sort((a, b) => (dim === 'seniority' ? senRank(a.key) - senRank(b.key) : 0)
+    // UX-24: the "N more departments" row comes after the kept rows, its departments (when open) after it.
+    const tier = (r) => (r.fold ? 1 : r.inFold ? 2 : 0);
+    cRows.sort((a, b) => tier(a) - tier(b) || (dim === 'seniority' ? senRank(a.key) - senRank(b.key) : 0)
       || (b.items.length ? 1 : 0) - (a.items.length ? 1 : 0)
       || (b.median ?? 0) - (a.median ?? 0) || b.all.length - a.all.length);
 
     // Color: the row's category color (identity is named by the row label).
     if (dim === 'none') {
       for (const r of cRows) r.color = slotColor(0);
+    } else if (foldRow) {
+      const top = cRows.filter((r) => tier(r) === 0).map((r) => r.key);
+      assignColors(top);
+      for (const r of cRows) { r.other = tier(r) > 0; r.color = r.other ? otherColor() : colorFor(r.key); }
     } else {
       // DES-2: rank by salaried (plotted) count, the same rule as the ranges legend and the
       // app's filter/card dots (app.js computeColorKeys), so a department has one color everywhere.
       const byCount = cRows.filter(r => r.items.length).sort((a, b) => b.items.length - a.items.length || String(a.key).localeCompare(String(b.key))).map(r => r.key);
       const top = new Set(byCount.length > SLOT_COUNT ? byCount.slice(0, SLOT_COUNT - 1) : byCount);
       assignColors([...top]);
-      for (const r of cRows) { r.other = !top.has(r.key); r.color = r.other ? (isDark() ? '#8d8c86' : otherColor()) : colorFor(r.key); }
+      for (const r of cRows) { r.other = !top.has(r.key); r.color = r.other ? otherColor() : colorFor(r.key); }
     }
     for (const r of cRows) r.ink = inkOn(r.color);
     // A11Y-1: count labels sit on the row color mixed into the surface (viz.css --_bin-mix);
     // pick their ink from that actual mix so they always clear 4.5:1 (dark "Other" rows were 3.43:1).
     {
       const surf = parseColor(getComputedStyle(container).backgroundColor) || (isDark() ? [22, 26, 33] : [252, 252, 251]);
-      const dark = isDark();
       for (const r of cRows) {
-        const pct = r.other ? (dark ? 0.6 : 0.42) : (dark ? 0.52 : 0.30); // = viz.css --_bin-mix
+        const pct = 1; // = viz.css --_bin-mix: V-22, circles are the row colour itself (>= 3:1 on the surface)
         const c = parseColor(r.color) || surf;
         r.restInk = inkOn(toHex(c.map((v, k) => v * pct + surf[k] * (1 - pct))));
       }
@@ -701,9 +894,14 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       if (!narrow) lab.style.width = labelW + 'px';
       const sw = el('span', 'ms-crow__swatch');
       const txt = el('span', 'ms-crow__text');
-      txt.append(el('span', 'ms-crow__name', r.name), el('span', 'ms-crow__sub', sub));
+      const nameEl = el('span', 'ms-crow__name', r.name);
+      if (r.fold) nameEl.append(el('span', 'ms-crow__fold', foldOpen ? ' \u25B4' : ' \u25BE')); // UX-24: ▾ opens, ▴ folds
+      txt.append(nameEl, el('span', 'ms-crow__sub', sub));
       lab.append(sw, txt);
-      lab.title = `${r.name}: ${r.subFull}. Click to show all ${plural(r.all.length, 'role')}`;
+      lab.title = r.fold
+        ? `${r.name}: ${r.subFull}. Click to ${foldOpen ? 'fold them into one row again' : 'show each department'}${r.why ? `. ${r.why}` : ''}`
+        : `${r.name}: ${r.subFull}.${r.why ? ` ${r.why}` : ''} Click to show all ${plural(r.all.length, 'role')}`;
+      if (r.fold) lab.setAttribute('aria-expanded', foldOpen ? 'true' : 'false');
       r.labelEl = lab;
       row.append(lab);
 
@@ -794,11 +992,12 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     bin.setAttribute('aria-label', `${plural(n, 'role')} ${hi ? 'above' : 'below'} ${formatMoney(b.end)}: ${vals}, ${b.row.name}`);
     bin.id = `${uid}-${ri}-${bi}`;
     bin.dataset.r = ri; bin.dataset.i = bi;
-    const w = 24;
-    const cx = hi ? plotL + plotW + (narrow ? 8 : 14) : plotL - (narrow ? 8 : 12);
-    bin.style.left = (cx - w / 2) + 'px';
+    // UX-17: the chip sits in its gutter, 6px outside the plot, never centred on the edge.
+    const w = chipWidth(n, chipFont);
+    const left = hi ? plotL + plotW + 6 : plotL - 6 - w;
+    bin.style.left = left + 'px';
     bin.style.width = w + 'px';
-    bin.style.height = w + 'px';
+    bin.style.height = '24px';
     const chip = el('span', 'ms-bin__dot ms-bin__chip', (hi ? '›' : '‹') + (n > 1 ? n : ''));
     bin.append(chip);
     b.el = bin;
@@ -831,6 +1030,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
   function activateCluster(r, i) {
     const row = cRows[r];
     if (!row) return;
+    // UX-24: the "N more departments" label opens (and folds) the row instead of selecting 600 roles.
+    if (i < 0 && row.fold) { foldOpen = !foldOpen; selectedKey = null; render(); setCActive(cRows.findIndex((x) => x.fold), -1, true); return; }
     rowsEl.querySelectorAll('.is-selected').forEach(n => n.classList.remove('is-selected'));
     selectedKey = cKeyOf(r, i);
     const list = i < 0 ? row.all : row.bins[i].items.map(p => p.job);
@@ -955,11 +1156,16 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       if (!m.has(k)) m.set(k, []);
       m.get(k).push(p);
     }
-    // BP-13: a group's median is base pay, like the stats line's.
+    // BP-13: a group's median is base pay, like the stats line's. V-21: by department or seniority
+    // it compares one country's pay when the board mixes currencies (as the Clusters rows do).
+    const main = opts.groupBy === 'department' || opts.groupBy === 'seniority' ? mainBasis(plotted) : null;
+    let left = 0;
     const out = [...m].map(([key, items]) => {
-      const ps = basePayStats(items);
-      return { key, name: groupName(opts.groupBy, key), items: items.sort((a, b) => b.mid - a.mid), median: ps.median, onTarget: ps.oteOnly };
+      const b = basisStats(items, main);
+      left += b.left;
+      return { key, name: groupName(opts.groupBy, key), items: items.sort((a, b) => b.mid - a.mid), median: b.stats.median, onTarget: b.stats.oteOnly, basis: b.basis, basisLeft: b.left };
     });
+    rowNotes = { ...rowNotes, basis: main, basisLeft: left };
     if (opts.groupBy === 'seniority') {
       out.sort((a, b) => senRank(a.key) - senRank(b.key) || b.median - a.median);
     } else {
@@ -972,7 +1178,11 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const { top, counts, ordered } = colorKeys();
     const topSet = new Set(top);
     const colorOf = p => opts.colorBy === 'none' ? null : (topSet.has(p.key) ? colorFor(p.key) : otherColor());
-    renderLegend(top, counts, ordered);
+    // V-20 / V-19: bars that are not one posted yearly range, counted for the legend and the notes.
+    let spans = 0, partTime = 0;
+    for (const p of plotted) { p.span = spanTiers(p.job); if (p.span) spans++; p.partTime = isPartTimeHourly(p.job); if (p.partTime) partTime++; }
+    rowNotes = { ...rowNotes, spans, partTime };
+    renderLegend(top, counts, ordered, spans);
     head.hidden = legend.hidden;
 
     // Narrow (phones): the full-width title sits above its bar, so titles stay readable (M-17).
@@ -1041,9 +1251,11 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         name.title = `${g.name} · ${plural(g.items.length, 'posting')}`;
         h.append(name);
         const mx = xc(g.median);
-        const ml = el('div', 'ms-group__median', `${g.onTarget && !stats.pay?.oteOnly ? 'on-target ' : ''}median ${formatMoney(g.median)}`);
+        const mtext = `${g.onTarget && !stats.pay?.oteOnly ? 'on-target ' : ''}median ${formatMoney(g.median)}${narrow ? basisWordsShort(g) : basisWords(g)}`;
+        const ml = el('div', 'ms-group__median', mtext);
+        if (g.basisLeft) ml.title = `Pay ${payBasisPlace(g.basis)} only: ${plural(g.basisLeft, 'posting')} with pay for other countries ${g.basisLeft === 1 ? 'is' : 'are'} not in this median`;
         ml.style.left = mx + 'px';
-        if (mx > width - 110) ml.classList.add('ms-group__median--left');
+        if (mx > width - textWidth(mtext, `12px ${(typeof getComputedStyle === 'function' && getComputedStyle(container).fontFamily) || 'system-ui, sans-serif'}`) - 16) ml.classList.add('ms-group__median--left');
         h.append(ml);
         return h;
       }
@@ -1060,7 +1272,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         const lab = el('div', 'ms-row__label', p.job.title || 'Untitled');
         if (!narrow) lab.style.width = labelW + 'px';
         const bx0 = xc(p.lo), bx1 = xc(p.hi);
-        const bar = el('div', 'ms-row__bar');
+        // V-20: a range over several levels or places is striped, on-target earnings dashed.
+        const bar = el('div', p.span ? 'ms-row__bar ms-row__bar--span' : p.ote ? 'ms-row__bar ms-row__bar--ote' : 'ms-row__bar');
         bar.style.left = bx0 + 'px';
         bar.style.width = Math.max(0, bx1 - bx0) + 'px';
         const dot = el('div', 'ms-row__dot');
@@ -1069,7 +1282,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         if (p.lo >= d1) bar.hidden = true;  // entirely beyond: the marker alone shows it
         if (p.hi <= d0) bar.hidden = true;
         const c = colorOf(p);
-        if (c) { bar.style.background = c; dot.style.background = c; }
+        if (c) { bar.style.backgroundColor = c; dot.style.backgroundColor = c; }
         const text = rangeText(p);
         const val = el('div', 'ms-row__val', text);
         // P-16: never over the title column (it ran into "…Discove$350K–$850K").
@@ -1097,7 +1310,10 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const range = Math.round(p.lo / 1000) === Math.round(p.hi / 1000)
       ? formatMoney(p.lo) : `${formatMoney(p.lo)} to ${formatMoney(p.hi)}`;
     const where = [p.job.department, primaryLocation(p.job)].filter(Boolean).join(', ');
-    return `${p.job.title || 'Untitled'}, ${range}${approx ? ' in US dollars, converted' : ''}${p.ote ? ', on-target earnings' : ''}${where ? ', ' + where : ''}`;
+    const sp = spanTiers(p.job);
+    const kind = sp ? `, spans ${sp.tiers.length} ${sp.kind === 'levels' ? 'levels' : 'places\u2019 ranges'}` : '';
+    const pt = isPartTimeHourly(p.job) ? ', part-time hourly pay shown as a year if full-time' : '';
+    return `${p.job.title || 'Untitled'}, ${range}${approx ? ' in US dollars, converted' : ''}${p.ote ? ', on-target earnings' : ''}${kind}${pt}${where ? ', ' + where : ''}`;
   }
 
   function rangeText(p) {
@@ -1106,11 +1322,12 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     return pre + moneyRange(p.lo, p.hi);
   }
 
-  function renderLegend(top, counts, ordered) {
+  function renderLegend(top, counts, ordered, spans = 0) {
     legend.replaceChildren();
     legend.hidden = opts.colorBy === 'none';
     if (legend.hidden) return;
-    legend.append(el('span', 'ms-legend__title', `By ${DIM_LABEL[opts.colorBy] || opts.colorBy}`));
+    // UX-36: with Group "None" the bars are still coloured by department; the legend says it is colour.
+    legend.append(el('span', 'ms-legend__title', `Colour: ${DIM_LABEL[opts.colorBy] || opts.colorBy}`));
     const add = (key, n, color) => {
       const item = el('span', 'ms-legend__item');
       const sw = el('span', 'ms-legend__swatch');
@@ -1122,6 +1339,13 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     for (const k of top) add(groupName(opts.colorBy, k), counts.get(k), colorFor(k));
     const rest = ordered.slice(top.length);
     if (rest.length) add(`${OTHER_KEY} (${rest.length})`, rest.reduce((s, k) => s + counts.get(k), 0), otherColor());
+    // V-20: the striped bar's key, beside the colours (only when there are such bars).
+    if (spans) {
+      const item = el('span', 'ms-legend__span');
+      item.append(el('span', 'ms-legend__spansw'), el('span', 'ms-legend__spankey', 'Striped: several levels or places'), el('span', 'ms-legend__n', spans.toLocaleString()));
+      item.title = `${plural(spans, 'posting')} whose range runs over several levels (NVIDIA "Level 4" and "Level 5") or several places' ranges: hover a bar for each`;
+      legend.append(item);
+    }
   }
 
   function setHover(i, evt) {
@@ -1144,10 +1368,24 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const native = s.min === s.max || s.max == null || s.min == null
       ? formatCurrency(s.min ?? s.max, cur)
       : `${formatCurrency(s.min, cur)} – ${formatCurrency(s.max, cur)}`;
-    tip.append(el('div', 'ms-tip__value', withCurrencyCode(native, cur)));
-    if (isForeign(cur) && hasFx(cur)) tip.append(el('div', 'ms-tip__sub', `about ${formatMoney(p.lo)} – ${formatMoney(p.hi)} in US dollars`));
+    const pt = isPartTimeHourly(j);
+    // V-19 (shared decision 4): part-time hourly pay shows the hourly rate it was posted at; the bar
+    // is a year if full-time.
+    if (pt) {
+      const hourly = (v) => `${cur === 'USD' ? '$' : ''}${(v / 2080).toFixed(2)}`;
+      tip.append(el('div', 'ms-tip__value', withCurrencyCode(`${hourly(s.min ?? s.max)}${s.max != null && s.max !== s.min ? ` – ${hourly(s.max)}` : ''} an hour`, cur)));
+      tip.append(el('div', 'ms-tip__sub', `Part-time. The bar is ${withCurrencyCode(native, cur)} a year if full-time (2,080 hours)`));
+    } else tip.append(el('div', 'ms-tip__value', withCurrencyCode(native, cur)));
+    // V-20: a range over several levels or places lists each.
+    const sp = spanTiers(j);
+    if (sp) {
+      tip.append(el('div', 'ms-tip__sub', sp.kind === 'levels' ? `One range over ${sp.tiers.length} levels:` : `One range over ${sp.tiers.length} places' ranges:`));
+      for (const t of sp.tiers.slice(0, 4)) tip.append(el('div', 'ms-tip__sub', `${t.label || 'Range'}: ${formatCurrency(t.min, t.currency || cur)} – ${formatCurrency(t.max, t.currency || cur)}`));
+      if (sp.tiers.length > 4) tip.append(el('div', 'ms-tip__sub', `+${sp.tiers.length - 4} more`));
+    }
+    if (isForeign(cur) && hasFx(cur)) tip.append(el('div', 'ms-tip__sub', `about ${formatMoney(p.lo)} – ${formatMoney(p.hi)} in US dollars (${FX_MONTH} rates)`));
     const orig = s.originalInterval || (s.interval && s.interval !== 'year' ? s.interval : null);
-    if (orig && orig !== 'year') tip.append(el('div', 'ms-tip__sub', `A yearly figure worked out from ${INTERVAL_ADJ[orig] || orig} pay`));
+    if (orig && orig !== 'year' && !pt) tip.append(el('div', 'ms-tip__sub', `A yearly figure worked out from ${INTERVAL_ADJ[orig] || orig} pay`));
     if (p.ote) tip.append(el('div', 'ms-tip__sub', `${OTE_LABEL}, not in the medians`)); // BP-13
     if (p.clipped) tip.append(el('div', 'ms-tip__sub', 'Runs past the edge of the chart (›)'));
     tip.append(el('div', 'ms-tip__title', j.title || 'Untitled'));
@@ -1293,6 +1531,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       jobs = Array.isArray(nextJobs) ? nextJobs : [];
       const view = VIEWS.includes(o.view) ? o.view : DEFAULT_VIEW;
       if (view !== opts.view) { selectedKey = null; activeIdx = -1; cActive = null; }
+      if ((o.groupBy || (view === 'clusters' ? 'department' : 'none')) !== opts.groupBy) foldOpen = false; // UX-24
       opts = {
         view,
         groupBy: o.groupBy || (view === 'clusters' ? 'department' : 'none'),

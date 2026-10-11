@@ -36,12 +36,12 @@
 // keeps a styled background, a graticule and labelled pins.
 
 import {
-  formatMoney, toUSD, median, salaryColor, inkOn, onThemeChange, isDark, prefersReducedMotion,
-  juiceColor, juiceGrade, juiceNetForScore, JUICE_BREAKS,
+  formatMoney, toUSD, median, payColor, paySteps, inkOn, onThemeChange, isDark, prefersReducedMotion,
+  juiceColor, juiceGrade, juiceNetForScore, JUICE_BREAKS, isForeign, hasFx, FX_AS_OF,
 } from './palette.js';
 import { payLocations } from '../features/shared.js';
 // M-23: pin counts as "4.5K", like the chart's circles; the exact count is in pinName().
-import { shortCount, placeMatcher } from './chart.js';
+import { shortCount, placeMatcher, FX_DOC, FX_SOURCE_SHORT } from './chart.js';
 
 export const COLOR_MODES = Object.freeze(['pay', 'juice']);
 /** I-10: how full a Juice pin (and its legend swatch) is drawn, by grade. */
@@ -59,6 +59,14 @@ const CLUSTER_W = 76;  // px: pill width + gap
 const CLUSTER_H = 34;  // px: pill height + gap (labels add more when offline)
 const LABEL_GAP = 5;   // px between a pin and a place name moved above it (viz.css .ms-pin__label--above)
 const MERGE_PASSES = 6; // draw(): at most this many merges of pins whose names find no room
+/**
+ * V-17: a pin shows a pay median only when at least this many of its postings post pay for its
+ * places; with fewer it reads "48 jobs" and its tooltip gives the one or two figures. Any pin whose
+ * median rests on part of its postings says how many ("median $101K from 28 with pay for here").
+ */
+export const MIN_PIN_PAY = 3;
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const fxMonth = (iso) => { const m = /^(\d{4})-(\d{2})/.exec(String(iso || '')); return m ? `${MONTHS[+m[2] - 1]} ${m[1]}` : String(iso || ''); };
 
 let measureCtx = null;
 /** Text width in px for a CSS font (canvas, no layout). */
@@ -134,7 +142,7 @@ export function aggregate(jobs, { places: filter = null, placeTest = null } = {}
   const at = (job, l, payAt, key, seen) => {
     let p = places.get(key);
     if (!p) {
-      p = { key, lat: +l.lat, lng: +l.lng, label: locLabel(l), city: l.city || null, country: up(l.country), region: up(l.region),
+      p = { key, lat: +l.lat, lng: +l.lng, label: locLabel(l), city: l.city || null, country: up(l.country), region: up(l.region), loc: l,
         jobs: [], locNames: new Map(), paid: new Set(), also: new Set(), wide: new Set() };
       places.set(key, p);
     }
@@ -187,14 +195,20 @@ const up = (s) => (s ? String(s).toUpperCase() : '');
  * another country. Without `paid` every salary counts.
  */
 export function summarize(jobs, paid = null) {
-  const mids = [];
-  let elsewhere = 0;
+  const base = [], ote = [];
+  let elsewhere = 0, fx = 0;
   for (const j of jobs) {
     const v = midUSD(j);
     if (v == null) continue;
-    if (!paid || paid.has(j.id)) mids.push(v); else elsewhere++;
+    if (paid && !paid.has(j.id)) { elsewhere++; continue; }
+    (j.salary.kind === 'ote' ? ote : base).push(v); // BP-13: base pay, as the stats line and the chart
+    if (isForeign(j.salary.currency) && hasFx(j.salary.currency)) fx++;
   }
-  return { n: jobs.length, salaried: mids.length, elsewhere, median: median(mids) };
+  const mids = base.length ? base : ote;
+  const salaried = base.length + ote.length;
+  // V-17: `few` when too few postings post pay here for the pin to show a price (pinPrice).
+  const few = mids.length > 0 && mids.length < MIN_PIN_PAY;
+  return { n: jobs.length, salaried, elsewhere, fx, few, only: few ? mids.slice().sort((x, y) => x - y) : null, median: median(mids) };
 }
 
 const shortPlace = (p) => p.city || String(p.label || '').split(',')[0].trim() || 'Unknown';
@@ -458,6 +472,10 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       }
       const legend = L.DomUtil.create('div', 'ms-modes__legend', box);
       legend.setAttribute('aria-label', 'Juice Score legend');
+      // V-16 / MR-13: the Pay legend (one fixed dollar scale), shown in Pay mode.
+      const payLegend = L.DomUtil.create('div', 'ms-modes__pay', box);
+      payLegend.setAttribute('role', 'group');
+      payLegend.setAttribute('aria-label', 'Pay legend');
       return box;
     },
   });
@@ -488,12 +506,41 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       const net = L.DomUtil.create('span', 'ms-modes__net', row);
       net.append(range, el('span', 'ms-modes__unit', ' left a year')); // phones: the dollars only
     }
-    L.DomUtil.create('div', 'ms-modes__none', legend).textContent = 'Gray: no Juice data';
+    // V-28: the no-data pins are gray (viz.css), as this line and its swatch say.
+    const none = L.DomUtil.create('div', 'ms-modes__none ms-modes__none--sw', legend);
+    none.append(el('span', 'ms-modes__sw ms-modes__sw--none'), 'Gray: no Juice data');
     if (juiceNote) {
       const n = L.DomUtil.create('div', 'ms-modes__none ms-modes__asof', legend);
       n.textContent = juiceNote;
       n.title = juiceNote; // phones show it on one line
     }
+  }
+  /**
+   * V-16 / MR-13: what a Pay pin's colour and figures are. Five fixed steps of approx US dollars
+   * (palette.js PAY_BREAKS), then one line: median posted base pay, the exchange rates' month
+   * (linked to the methodology, MR-2) and what the small number is.
+   */
+  function renderPayLegend() {
+    const box = modeBox.querySelector('.ms-modes__pay');
+    if (!box) return;
+    box.replaceChildren();
+    const scale = el('div', 'ms-modes__scale');
+    for (const st of paySteps()) {
+      const k = el('span', 'ms-modes__step');
+      const sw = el('span', 'ms-modes__chip');
+      sw.style.background = st.color;
+      const txt = st.lo == null ? `< ${formatMoney(st.hi)}` : st.hi == null ? `${formatMoney(st.lo)}+` : `${formatMoney(st.lo)}`;
+      k.title = st.lo == null ? `Median under ${formatMoney(st.hi)}` : st.hi == null ? `Median ${formatMoney(st.lo)} or more` : `Median ${formatMoney(st.lo)} to ${formatMoney(st.hi)}`;
+      k.append(sw, el('span', 'ms-modes__stepv', txt));
+      scale.append(k);
+    }
+    const what = el('div', 'ms-modes__none ms-modes__paywhat');
+    const a = el('a', 'ms-modes__fx', `${fxMonth(FX_AS_OF)} exchange rates`);
+    a.href = FX_DOC;
+    a.title = `Fixed rates as of ${fxMonth(FX_AS_OF)}: ${FX_SOURCE_SHORT}`;
+    what.append('Median posted base pay a year, approx US dollars (', a, ') · small number: postings');
+    what.title = `${what.textContent}. A pin shows a median only when ${MIN_PIN_PAY} or more of its postings post pay for its places.`;
+    box.append(scale, what);
   }
   function setJuiceScale(src) {
     const sc = toJuiceScale(src);
@@ -510,6 +557,17 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       .catch(() => { /* no juice.js here (e.g. the viz demo): keep the palette mirror */ });
   }
   let destroyed = false;
+  // V-26: which places the gazetteer only knows by their state or country (server/geo.js
+  // locationPrecision 'centroid', served as lib/geo.js): their pins say they are approximate.
+  let precisionOf = null;
+  import(new URL('../lib/geo.js', import.meta.url).href)
+    .then(mod => { if (!destroyed && typeof mod.locationPrecision === 'function') { precisionOf = mod.locationPrecision; if (places.length) draw(); } })
+    .catch(() => { /* no geo.js here (the viz demo): no approximate marks */ });
+  const isApprox = (m) => {
+    if (!precisionOf || !m.loc) return false;
+    if (m.approx == null) { try { m.approx = precisionOf(m.loc) === 'centroid'; } catch { m.approx = false; } }
+    return m.approx;
+  };
 
   function paintModeControl() {
     for (const b of modeBox.querySelectorAll('.ms-modes__btn')) {
@@ -519,6 +577,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       b.classList.toggle('is-on', on);
     }
     modeBox.classList.toggle('ms-modes--juice', colorMode === 'juice');
+    modeBox.classList.toggle('ms-modes--pay', colorMode === 'pay');
     for (const sw of modeBox.querySelectorAll('.ms-modes__sw')) sw.style.setProperty('--pin-hue', juiceHue());
   }
   function setColorMode(mode, fromUser) {
@@ -531,6 +590,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
   }
   container.classList.toggle('ms-map--juice', colorMode === 'juice');
   renderJuiceLegend();
+  renderPayLegend();
   paintModeControl();
 
   // Offline note control
@@ -600,6 +660,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       const label = clusterLabel(c.members);
       const res = {
         lat: c.lead.lat, lng: c.lead.lng, pt: c.pt, members: c.members, jobs, ids, label, short: shortLabel(c.members), also: also.size, wide: wide.size,
+        approx: c.members.filter(isApprox),
         ...summarize(jobs, paid), juice: summarizeJuice(jobs, c.members, jScale),
       };
       cache?.set(sig, res);
@@ -630,14 +691,23 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       root.append(el('div', 'ms-tip__meta', `${plural(c.n, 'posting')} · ${(J?.n || 0).toLocaleString()} with Juice${c.median != null ? ` · pay median ${formatMoney(c.median)}` : ''}`));
       for (const t of filterLines(c)) root.append(el('div', 'ms-tip__meta', t));
     } else {
-      root.append(el('div', 'ms-tip__value', c.median != null ? `${formatMoney(c.median)} median` : jobsText(c.n)));
+      const priced = hasPrice(c);
+      root.append(el('div', 'ms-tip__value', priced ? `${formatMoney(c.median)} median` : jobsText(c.n)));
       root.append(el('div', 'ms-tip__title', c.label));
-      root.append(el('div', 'ms-tip__meta', c.median != null
+      root.append(el('div', 'ms-tip__meta', priced
         ? `${plural(c.n, 'posting')} · ${c.salaried.toLocaleString()} with salary for here`
-        : `${plural(c.n, 'posting')} · ${c.elsewhere ? 'no salary posted for here' : 'no published salary'}`));
+        : c.few
+          ? `${plural(c.n, 'posting')} · ${c.salaried.toLocaleString()} with salary for here (${c.only.map((v) => formatMoney(v)).join(', ')}), too few for a median`
+          : `${plural(c.n, 'posting')} · ${c.elsewhere ? 'no salary posted for here' : 'no published salary'}`));
+      if (priced && c.salaried < c.n) root.append(el('div', 'ms-tip__meta', `The median is of those ${c.salaried.toLocaleString()}, not of all ${c.n.toLocaleString()}`));
       if (c.elsewhere) root.append(el('div', 'ms-tip__meta', `${plural(c.elsewhere, 'posting')} ${c.elsewhere === 1 ? 'lists' : 'list'} pay for another country only, so not in the median`));
+      if (c.fx && (priced || c.few)) root.append(el('div', 'ms-tip__meta', `Pay in other currencies converted at ${fxMonth(FX_AS_OF)} exchange rates`)); // MR-2
       for (const t of filterLines(c)) root.append(el('div', 'ms-tip__meta', t));
     }
+    // V-26: a place the gazetteer only knows by its state or country is pinned at that centre.
+    if (c.approx?.length) root.append(el('div', 'ms-tip__meta', c.members.length === 1
+      ? `Approximate: pinned at the centre of ${c.approx[0].region ? 'its state or region' : 'its country'}, not at the town itself`
+      : `${c.approx.length === 1 ? '1 of these places is' : `${c.approx.length} of these places are`} approximate: pinned at the centre of ${c.approx.length === 1 ? 'its' : 'their'} state or country`));
     const counts = new Map();
     for (const j of c.jobs) counts.set(j.title, (counts.get(j.title) || 0) + 1);
     const top = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
@@ -655,7 +725,9 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
   /** One melon hue for every grade (the Juicy step); the fill level tells the grades apart. */
   function juiceHue() { return juiceColor(jScale.breaks[1], jScale.breaks); }
 
-  function pinElement(c, t) {
+  /** V-17: the pin shows a price only when its median rests on MIN_PIN_PAY or more postings. */
+  const hasPrice = (c) => c.median != null && !c.few;
+  function pinElement(c) {
     const pin = el('div', 'ms-pin');
     if (colorMode === 'juice') {
       const J = c.juice;
@@ -677,8 +749,8 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       pin.append(el('span', 'ms-pin__label', c.label));
       return pin;
     }
-    if (c.median != null) {
-      const bg = salaryColor(t);
+    if (hasPrice(c)) {
+      const bg = payColor(c.median); // V-16: one fixed dollar scale (palette.js PAY_BREAKS), not the pins on screen
       pin.style.setProperty('--pin-bg', bg);
       pin.style.setProperty('--pin-fg', inkOn(bg));
       pin.append(el('span', 'ms-pin__price', formatMoney(c.median)));
@@ -696,7 +768,11 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       const J = c.juice;
       return `${c.label}: ${plural(c.n, 'posting')}, ${J ? `Juice ${J.score}, ${J.grade}, median ${formatMoney(J.net)} a year left` : 'no Juice data'}`;
     }
-    return `${c.label}: ${plural(c.n, 'posting')}${c.median != null ? `, median ${formatMoney(c.median)}` : c.elsewhere ? ', no salary posted for here' : ', no published salary'}`;
+    const approx = c.approx?.length ? (c.members.length === 1 ? ', approximate place' : `, ${c.approx.length} approximate ${c.approx.length === 1 ? 'place' : 'places'}`) : '';
+    const pay = hasPrice(c)
+      ? `, median ${formatMoney(c.median)}${c.salaried < c.n ? ` from ${c.salaried.toLocaleString()} with pay for here` : ''}`
+      : c.few ? `, ${c.salaried.toLocaleString()} with pay for here, too few for a median` : c.elsewhere ? ', no salary posted for here' : ', no published salary';
+    return `${c.label}: ${plural(c.n, 'posting')}${pay}${approx}`;
   }
 
   function draw() {
@@ -730,7 +806,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       let best = null, bd = Infinity;
       for (const t of clusters) {
         const tk = t.members[0].key;
-        if (t === h || gone.has(tk)) continue;
+        if (t === h || gone.has(tk) || t.off) continue; // D-31: never into a pin off the map
         const d = (t.pt.x - h.pt.x) ** 2 + (t.pt.y - h.pt.y) ** 2;
         if (d < bd) { bd = d; best = t; }
       }
@@ -740,14 +816,11 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
 
   /** One marker per cluster; returns the pin to refocus (see draw). */
   function drawMarkers(focusedKeys, focusedLead) {
-    const meds = clusters.map(c => c.median).filter(v => v != null);
-    const lo = Math.min(...meds), hi = Math.max(...meds);
     let refocus = null;
     // Draw small clusters first so big ones sit on top.
     const order = clusters.slice().sort((a, b) => a.n - b.n);
     order.forEach((c, i) => {
-      const t = c.median == null ? 0 : (hi > lo ? (c.median - lo) / (hi - lo) : 0.6);
-      const pinEl = pinElement(c, t);
+      const pinEl = pinElement(c);
       pinEl.setAttribute('aria-hidden', 'true'); // name comes from the button's aria-label
       c.pinEl = pinEl;
       const icon = L.divIcon({ className: 'ms-pin-icon', html: pinEl, iconSize: [0, 0], iconAnchor: [0, 0] });
@@ -821,13 +894,17 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     for (const it of items) {
       it.pin = it.c.pinEl.getBoundingClientRect();
       it.box = it.lab.getBoundingClientRect();
+      // V-24 / D-31: a pin off the map has no name on it, and is never merged for want of room.
+      it.off = it.pin.right <= host.left || it.pin.left >= host.right || it.pin.bottom <= host.top || it.pin.top >= host.bottom;
       // The short form's width: its text width plus the name's own padding (measured on the full form).
       const extra = (it.box.right - it.box.left) - textWidth(it.c.label, font);
       it.short = it.c.short && it.c.short !== it.c.label ? textWidth(it.c.short, font) + extra : it.box.right - it.box.left;
     }
-    const spots = layoutLabels(items, host);
+    for (const it of items) { it.c.off = it.off; if (it.off) it.lab.classList.add('ms-pin__label--hidden'); }
+    const on = items.filter((it) => !it.off);
+    const spots = layoutLabels(on, host);
     const hidden = [];
-    items.forEach((it, i) => {
+    on.forEach((it, i) => {
       const s = spots[i];
       if (s.where === 'hidden') { it.lab.classList.add('ms-pin__label--hidden'); hidden.push(it.c); return; }
       if (s.short) it.lab.textContent = it.c.short;
@@ -887,6 +964,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
   ro.observe(container);
   const offTheme = onThemeChange(dark => {
     applyDark(dark);
+    renderPayLegend(); // the steps have their own dark colours
     paintModeControl();
     if (darkUrl) tiles.setUrl(urlFor(dark));
     draw();

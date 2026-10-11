@@ -23,12 +23,14 @@
   --_tip-bg: var(--ms-raised, var(--ms-surface, light-dark(#ffffff, #242423)));
   --_shadow: var(--ms-shadow-lg, 0 1px 2px light-dark(rgba(11, 11, 11, .06), rgba(0, 0, 0, .4)), 0 6px 22px light-dark(rgba(11, 11, 11, .10), rgba(0, 0, 0, .45)));
   --_map-bg: color-mix(in srgb, var(--_bg) calc(88% - 3% * var(--_d)), light-dark(#c9d6e3, #22303d));
+  --_nodata: color-mix(in srgb, var(--_muted) 40%, var(--_surface)); /* V-28: gray no-Juice pins and their legend swatch */
   --_map-line: color-mix(in srgb, var(--_border) calc(80% - 10% * var(--_d)), light-dark(#9fb2c6, #3a4b5c));
-  /* non-color dark tweaks: translucent fills go muddy on dark, so lift them */
-  --_bar-o: calc(.5 + .22 * var(--_d));
-  --_hist-o: calc(.42 + .2 * var(--_d));
-  --_hist-o-c: calc(.26 + .16 * var(--_d));
-  --_bin-mix: calc(30% + 22% * var(--_d));
+  /* V-22 (fix4-viz): data marks are their colour itself, at least 3:1 on the surface (palette.js
+     picks every category colour for that); the strip's bins and the median ticks likewise. */
+  --_bar-o: 1;
+  --_hist-o: calc(.74 + .06 * var(--_d));
+  --_hist-o-c: calc(.74 + .06 * var(--_d));
+  --_bin-mix: 100%;
   --_band-mix: calc(9% + 7% * var(--_d));
   --_font: var(--ms-font, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
 }
@@ -124,7 +126,7 @@
   cursor: default;
   transition: opacity .12s;
 }
-.ms-hist__bin.is-hover { opacity: .9; }
+.ms-hist__bin.is-hover { opacity: 1; }
 .ms-hist__bin::after { content: ""; position: absolute; inset: -12px -1px 0; } /* bigger hit target */
 .ms-hist__median {
   position: absolute; top: 4px; bottom: 0; width: 0;
@@ -233,7 +235,16 @@
   background: var(--_accent);
   box-shadow: 0 0 0 2px var(--_surface);
 }
-.ms-row.is-hover .ms-row__bar, .ms-row.is-highlighted .ms-row__bar { opacity: .95; }
+.ms-row.is-hover .ms-row__bar, .ms-row.is-highlighted .ms-row__bar { box-shadow: 0 0 0 1.5px var(--_surface), 0 0 0 3px var(--_text); }
+/* V-20: one posting's range over several levels or places is striped; on-target earnings are dashed.
+   The colour stays the row's (3:1); the surface stripes say "not one posted range" without colour. */
+.ms-row__bar--span { background-image: repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in srgb, var(--_surface) 70%, transparent) 3px 5px); }
+.ms-row__bar--ote { background-image: repeating-linear-gradient(90deg, transparent 0 7px, var(--_surface) 7px 9px); }
+.ms-legend__span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--_text); }
+.ms-legend__spansw { flex: none; width: 18px; height: 8px; border-radius: 4px; background-color: var(--_muted); background-image: repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in srgb, var(--_surface) 70%, transparent) 3px 5px); }
+/* MR-2: the exchange-rate date in the notes line links to where its source is named. */
+.ms-chart__fx { color: inherit; text-decoration: underline; text-decoration-color: var(--_axis); text-underline-offset: 2px; }
+.ms-chart__fx:hover { color: var(--_text); }
 .ms-row__val {
   position: absolute; top: 0; line-height: 22px;
   font-weight: 600;
@@ -273,7 +284,7 @@
 /* ---------- clusters view ---------- */
 .ms-chart--clusters .ms-chart__sticky { border-bottom-color: var(--_grid); }
 .ms-chart--clusters .ms-hist__bin { opacity: var(--_hist-o-c, .26); }
-.ms-chart--clusters .ms-hist__bin.is-hover { opacity: .7; }
+.ms-chart--clusters .ms-hist__bin.is-hover { opacity: 1; }
 .ms-chart--clusters .ms-chart__body { padding-bottom: 4px; }
 
 .ms-crow {
@@ -283,8 +294,9 @@
   border-bottom: 1px solid var(--_grid);
 }
 .ms-crow--last { border-bottom: 0; }
-/* Rows beyond the 8 palette slots are neutral; lift their tint so circles never read as holes. */
-.ms-crow--other { --_bin-mix: calc(42% + 18% * var(--_d)); --_band-mix: calc(7% + 4% * var(--_d)); }
+/* Rows beyond the 8 palette slots are neutral (palette.js OTHER, 3:1 like the slots). */
+.ms-crow--other { --_band-mix: calc(9% + 5% * var(--_d)); }
+.ms-crow__fold { color: var(--_muted); font-weight: 600; } /* UX-24: the "N more departments" row's ▾ / ▴ */
 .ms-crow.is-selected { background: color-mix(in srgb, var(--c) 6%, transparent); }
 
 .ms-crow__label {
@@ -339,7 +351,8 @@
   width: 2px; margin-left: -1px;
   border-radius: 1px;
   background: var(--_text);
-  opacity: .38;
+  opacity: .8; /* V-22: 3:1 or better over the band */
+  box-shadow: 0 0 0 1px var(--_surface);
   pointer-events: none;
 }
 .ms-crow__none {
@@ -386,7 +399,7 @@
 .ms-bin.is-hover .ms-bin__dot,
 .ms-bin.is-selected .ms-bin__dot,
 .ms-bin.is-highlighted .ms-bin__dot { background: var(--c); color: var(--c-ink); }
-.ms-bin.is-hover .ms-bin__dot { transform: scale(1.06); }
+.ms-bin.is-hover .ms-bin__dot { transform: scale(1.06); box-shadow: 0 0 0 2px var(--ring), 0 0 0 3.5px var(--_text); }
 .ms-bin.is-selected .ms-bin__dot { box-shadow: 0 0 0 2px var(--ring), 0 0 0 3.5px var(--c); }
 .ms-bin.is-highlighted .ms-bin__dot { box-shadow: 0 0 0 2px var(--ring), 0 0 0 4px var(--_text); }
 .ms-bin.is-active .ms-bin__dot { box-shadow: 0 0 0 2px var(--ring), 0 0 0 4px var(--_accent); }
@@ -574,6 +587,19 @@
 .ms-modes__grade { font-weight: 600; white-space: nowrap; }
 .ms-modes__net { color: var(--_muted); font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
 .ms-modes__none { color: var(--_muted); font-size: 12px; }
+.ms-modes__none--sw { display: flex; align-items: center; gap: 6px; }
+.ms-modes__sw--none { flex: none; background: var(--_nodata); box-shadow: inset 0 0 0 1px var(--_axis); }
+/* V-16 / MR-13: the Pay legend: five fixed dollar steps and what the pin's figures are. */
+.ms-modes__pay { display: none; padding: 2px 6px 4px; }
+.ms-modes--pay .ms-modes__pay { display: grid; gap: 4px; }
+.ms-modes__scale { display: flex; gap: 2px; }
+.ms-modes__step { flex: 1; display: grid; gap: 2px; min-width: 40px; }
+.ms-modes__chip { height: 10px; border-radius: 2px; }
+.ms-modes__step:first-child .ms-modes__chip { border-radius: 5px 2px 2px 5px; }
+.ms-modes__step:last-child .ms-modes__chip { border-radius: 2px 5px 5px 2px; }
+.ms-modes__stepv { color: var(--_muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ms-modes__paywhat { max-width: 300px; line-height: 1.35; }
+.ms-modes__fx { color: inherit; text-decoration: underline; text-decoration-color: var(--_axis); text-underline-offset: 2px; }
 .ms-pin--juice .ms-pin__price { letter-spacing: .01em; }
 
 /* I-10: Juice grades without colour (ROADMAP §8: no new colours). One melon hue (--pin-hue, the
@@ -584,6 +610,7 @@
 .ms-pin[data-fill="half"] { --pin-bg: color-mix(in srgb, var(--pin-hue) 24%, var(--_surface)); --pin-fg: var(--_text); }
 .ms-pin[data-fill="none"] { --pin-bg: var(--_surface); --pin-fg: var(--_text); border-style: dashed; }
 .ms-pin[data-grade="Rind"] { border-style: dotted; }
+.ms-pin--juice.ms-pin--nosalary { --pin-bg: var(--_nodata); --pin-fg: var(--_text); } /* V-28: "Gray: no Juice data" */
 .ms-pin[data-fill="half"] .ms-pin__count, .ms-pin[data-fill="none"] .ms-pin__count { background: color-mix(in srgb, var(--_text) 9%, var(--_surface)); }
 .ms-modes__sw[data-fill] { border: 2px solid var(--pin-hue); }
 .ms-modes__sw[data-fill="full"] { background: var(--pin-hue); }
@@ -706,19 +733,14 @@
   /* Cluster circles: a 44px-tall slop, as wide as the bin spacing allows (--ms-bin-slop, chart.js). */
   .ms-bin::before { content: ""; position: absolute; left: 50%; top: 50%; width: max(100%, var(--ms-bin-slop, 34px)); height: max(100%, 44px); transform: translate(-50%, -50%); }
 
-  /* Map controls: zoom ± 30px and Pay|Juice 26px tall look the same, but take a 44px tap. */
-  .ms-map .leaflet-bar { overflow: visible; }
-  .ms-map .leaflet-bar a { position: relative; }
-  .ms-map .leaflet-bar a:first-child { border-radius: var(--_radius-sm) var(--_radius-sm) 0 0; }
-  .ms-map .leaflet-bar a:last-child { border-radius: 0 0 var(--_radius-sm) var(--_radius-sm); }
-  .ms-map .leaflet-bar a::after { content: ""; position: absolute; inset: 0 -7px; }
-  .ms-map .leaflet-bar a:first-child::after { top: -14px; }
-  .ms-map .leaflet-bar a:last-child::after { bottom: -14px; }
-  .ms-map .leaflet-top .leaflet-control-zoom { margin-top: 14px; }
-  .ms-map .ms-modes__btn { position: relative; }
-  .ms-map .ms-modes__btn::after { content: ""; position: absolute; inset: -9px 0; }
-  .ms-map .ms-remote { position: relative; }
-  .ms-map .ms-remote::after { content: ""; position: absolute; inset: -7px -1px; }   /* from the padding box: 30 + 14 */
+  /* UX-19 / M-8: map controls are 44px tap targets themselves (zoom ±, Pay|Juice, Remote). */
+  .ms-map .leaflet-bar a { width: 44px; height: 44px; line-height: 44px; font-size: 20px; }
+  .ms-map .ms-modes__btn { height: 44px; min-width: 56px; }
+  .ms-map .ms-remote { height: 44px; border-radius: 22px; padding: 0 14px; }
+  /* The Pay legend on a phone: the five steps and a one-line note (full text in its title). */
+  .ms-modes--pay .ms-modes__pay { padding: 0 4px 2px; gap: 2px; }
+  .ms-modes__step { min-width: 34px; }
+  .ms-modes__paywhat { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: min(260px, calc(100vw - 96px)); }
 
   /* Same role elsewhere: 44px rows (comps.js sets --ms-comps-row). */
   .ms-comps__over, .ms-comps__nodata { line-height: var(--ms-comps-row, 28px); }
@@ -738,6 +760,7 @@
   .ms-modes__net { grid-column: 1 / -1; text-align: left; }
   .ms-modes__key .ms-modes__net { padding-left: 0; }
   .ms-modes__none, .ms-modes__unit { display: none; }
+  .ms-modes__none.ms-modes__paywhat { display: block; }
   .ms-modes__none.ms-modes__asof { display: block; grid-column: 1 / -1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   /* M-10: landscape notch: Leaflet controls stay inside the safe area (the map itself stays full-bleed). */
