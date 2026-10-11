@@ -63,7 +63,7 @@ async function merge(freshDir, dataDir, stateDir = null) {
         const state = stateDir ? await readCrawlState(stateDir, c.slug) : null;
         const listed = state && state.fetchedAt === fetchedAt && Array.isArray(state.listed) ? state.listed : null;
         const h = await recordPublished(c.slug, jobs, fetchedAt, { dir: hist, capped, crawl, listed });
-        ledger = h && h.stats ? `ledger: ${h.stats.open} open, +${h.stats.added} new, ${h.stats.closed} closed${Object.keys(h.stats.closedBy || {}).length ? ` (${Object.entries(h.stats.closedBy).map(([k, v]) => `${v} ${k}`).join(', ')})` : ''}${h.stats.unseen ? `, ${h.stats.unseen} missing from a partial list kept open` : ''}${crawl ? `; crawl ${crawl.mode}, list ${crawl.list && crawl.list.complete === false ? 'partial' : 'complete'}` : ''}` : '';
+        ledger = h && h.stats ? `ledger: ${h.stats.open} open, +${h.stats.added} new, ${h.stats.closed} closed${Object.keys(h.stats.closedBy || {}).length ? ` (${Object.entries(h.stats.closedBy).map(([k, v]) => `${v} ${k}`).join(', ')})` : ''}${h.stats.unseen ? `, ${h.stats.unseen} ${capped ? "left out by the cap" : "missing from a partial list"} kept open` : ''}${crawl ? `; crawl ${crawl.mode}, list ${crawl.list && crawl.list.complete === false ? 'partial' : 'complete'}` : ''}` : '';
       } catch (err) {
         ledger = `ledger unchanged (${err.message})`;
       }
