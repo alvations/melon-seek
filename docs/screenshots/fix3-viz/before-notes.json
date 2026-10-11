@@ -1,0 +1,641 @@
+{
+  "bp2-google-zurich-chart": {
+    "stats": "58 of 3,417 roles · 0% show pay for Zurich · mostly Google",
+    "cap": "Median $160K",
+    "foot": "10 postings with salary · 48 with no salary posted · 8 converted from another currency",
+    "empty": null,
+    "rows": [
+      "DeepMind: all 3 roles, median $227K",
+      "Google: all 46 roles, median $135K",
+      "YouTube: all 9 roles, no published salary"
+    ],
+    "groups": []
+  },
+  "bp2-google-zurich-research-chart": {
+    "stats": "20 of 3,417 roles · 0% show pay for Zurich · mostly Google",
+    "cap": "Median $122K",
+    "foot": "5 postings with salary · 15 with no salary posted · 3 converted from another currency",
+    "empty": null,
+    "rows": [
+      "DeepMind: all 3 roles, median $227K",
+      "Google: all 15 roles, median $88K",
+      "YouTube: all 2 roles, no published salary"
+    ],
+    "groups": []
+  },
+  "bp2-nvidia-munich-chart": {
+    "stats": "13 of 2,665 roles · 8% show pay for Munich · $123K median",
+    "cap": "Median $125K",
+    "foot": "13 postings with salary · 13 converted from another currency",
+    "empty": null,
+    "rows": [
+      "Engineer, Sys SW: all 6 roles, median $125K",
+      "Architect: all 1 role, median $125K",
+      "Architect, Professional Services: all 1 role, median $123K",
+      "Engineer, Tech SW: all 2 roles, median $115K",
+      "Architect, Solutions: all 1 role, median $96K",
+      "Engineer, SW: all 2 roles, median $95K"
+    ],
+    "groups": []
+  },
+  "bp2-nvidia-munich-all-chart": {
+    "stats": "55 of 2,665 roles · 2% show pay for Munich · $123K median",
+    "cap": "Median $125K",
+    "foot": "13 postings with salary · 42 with no salary posted · 13 converted from another currency",
+    "empty": null,
+    "rows": [
+      "Engineer, Sys SW: all 11 roles, median $125K",
+      "Architect: all 2 roles, median $125K",
+      "Architect, Professional Services: all 1 role, median $123K",
+      "Engineer, Tech SW: all 4 roles, median $115K",
+      "Architect, Solutions: all 9 roles, median $96K",
+      "Engineer, SW: all 2 roles, median $95K",
+      "Account Manager: all 8 roles, no published salary",
+      "Account Mgr, Dev Relations: all 5 roles, no published salary",
+      "Intern: all 4 roles, no published salary",
+      "Program Mgr, Technical: all 2 roles, no published salary",
+      "Program Mgr, Non-Technical: all 2 roles, no published salary",
+      "Accountant: all 1 role, no published salary",
+      "Engineer, Dev Ops: all 1 role, no published salary",
+      "Analyst, Sales: all 1 role, no published salary",
+      "Mgmt, Sales (Sales): all 1 role, no published salary",
+      "Mgmt, Marketing Events: all 1 role, no published salary"
+    ],
+    "groups": []
+  },
+  "bp2-google-zurich-ranges": {
+    "stats": "58 of 3,417 roles · 0% show pay for Zurich · mostly Google",
+    "cap": "Median $160K",
+    "foot": "10 postings with salary · 48 with no salary posted · 8 converted from another currency",
+    "empty": null,
+    "rows": [],
+    "groups": [],
+    "tip": "$232K – $252K\nSenior Data Scientist, GeminiApp, DeepMind\nDeepMind · San Francisco, CA · Mountain View, CA · New York, NY +1\nSenior"
+  },
+  "bp13-anthropic-chart": {
+    "stats": "645 roles · 87% show pay · $347K median · half between $287K and $402K",
+    "cap": "Median $352K",
+    "foot": "564 postings with salary · 81 with no salary posted · 55 converted from another currency",
+    "empty": null,
+    "rows": [
+      "AI Research & Engineering: all 67 roles, median $565K",
+      "Engineering & Design - Product: all 47 roles, median $445K",
+      "Software Engineering - Infrastructure: all 46 roles, median $445K",
+      "Hardware: all 2 roles, median $402K",
+      "Safeguards (Trust & Safety): all 41 roles, median $362K",
+      "Compute: all 26 roles, median $362K",
+      "Technical Program Management: all 24 roles, median $362K",
+      "Public Benefit: all 4 roles, median $362K",
+      "Technical Education: all 4 roles, median $357K",
+      "Security: all 51 roles, median $352K",
+      "Product Management, Support, & Operations: all 24 roles, median $345K",
+      "Data Science & Analytics: all 8 roles, median $332K",
+      "Sales: all 123 roles, median $327K",
+      "Marketing & Brand: all 19 roles, median $320K",
+      "Applied AI: all 54 roles, median $300K",
+      "Legal: all 20 roles, median $300K",
+      "Communications: all 4 roles, median $300K",
+      "People: all 16 roles, median $267K",
+      "Finance: all 55 roles, median $265K",
+      "Public Policy: all 10 roles, median $247K"
+    ],
+    "groups": []
+  },
+  "bp13-anthropic-ranges": {
+    "stats": "645 roles · 87% show pay · $347K median · half between $287K and $402K",
+    "cap": "Median $352K",
+    "foot": "564 postings with salary · 81 with no salary posted · 55 converted from another currency",
+    "empty": null,
+    "rows": [],
+    "groups": [
+      "AI Research & Engineering 66 median $565K"
+    ],
+    "tip": "£375K – £640K GBP\nabout $505K – $863K in US dollars\nResearch Engineer, RL Scaling Science\nAI Research & Engineering · London, UK\nLevel not stated"
+  },
+  "pins-apple-map-phone-de": {
+    "stats": "$214K median · half between $188K and $255K",
+    "pins": [
+      {
+        "name": "La Serena and Santiago: 2 postings, no published salary",
+        "text": "2 jobs ",
+        "label": null
+      },
+      {
+        "name": "Auckland, Melbourne and 3 more: 8 postings, no published salary",
+        "text": "8 jobs ",
+        "label": "Auckland, Melbourne and 3 more"
+      },
+      {
+        "name": "London, Munich and 26 more: 361 postings, no published salary",
+        "text": "361 jobs ",
+        "label": "London, Munich and 26 more"
+      },
+      {
+        "name": "Shanghai, Singapore and 51 more: 1.117 postings, no published salary",
+        "text": "1.117 jobs ",
+        "label": null
+      },
+      {
+        "name": "Cupertino, Austin and 117 more: 3.392 postings, median $214K",
+        "text": "$214K 3.4K",
+        "label": "Cupertino, Austin and 117 more"
+      }
+    ],
+    "remote": "12 remote postings · median $214K — show list"
+  },
+  "pins-google-columbus-juice-phone": {
+    "stats": "$169K median · half between $136K and $184K",
+    "pins": [
+      {
+        "name": "Seattle, WA: 1 posting, Juice 72, Juicy, median $102K a year left",
+        "text": "🍉 72 ",
+        "label": "Seattle, WA"
+      },
+      {
+        "name": "Sunnyvale, The Dalles and 2 more: 3 postings, Juice 62, Ripe, median $76K a year left",
+        "text": "🍉 62 3",
+        "label": "Sunnyvale, The Dalles and 2 more"
+      },
+      {
+        "name": "New York, Sterling and 2 more: 4 postings, Juice 61, Ripe, median $76K a year left",
+        "text": "🍉 61 4",
+        "label": "New York, Sterling and 2 more"
+      },
+      {
+        "name": "Moncks Corner, Columbus and 27 more: 15 postings, Juice 62, Ripe, median $78K a year left",
+        "text": "🍉 62 15",
+        "label": null
+      }
+    ],
+    "remote": "10 remote postings · median $169K — show list",
+    "tip": "🍉 72 · Juicy\nmedian $102K/yr left after rent, tax and living costs\nSeattle, WA\n1 posting · 1 with Juice · pay median $205K\nPrincipal Incident Response Security Consultant, Mandiant, Google Cloud"
+  },
+  "pins-apple-austin-map": {
+    "stats": "646 of 4,879 roles · 49% show pay for Austin · $224K median · half between $204K and $250K · mostly Hardware",
+    "pins": [
+      {
+        "name": "Orlando, FL + 1 nearby: 9 postings, median $222K",
+        "text": "$222K 9",
+        "label": "Orlando, FL + 1 nearby"
+      },
+      {
+        "name": "Cary, Maiden and 1 more: 9 postings, median $197K",
+        "text": "$197K 9",
+        "label": "Cary, Maiden and 1 more"
+      },
+      {
+        "name": "Denver and 2 more: 27 postings, median $245K",
+        "text": "$245K 27",
+        "label": "Denver and 2 more"
+      },
+      {
+        "name": "Waltham, New York and 2 more: 30 postings, median $235K",
+        "text": "$235K 30",
+        "label": "Waltham, New York and 2 more"
+      },
+      {
+        "name": "Beaverton and Seattle: 58 postings, median $231K",
+        "text": "$231K 58",
+        "label": "Beaverton and Seattle"
+      },
+      {
+        "name": "Cupertino, San Diego and 8 more: 314 postings, median $224K",
+        "text": "$224K 314",
+        "label": "Cupertino, San Diego and 8 more"
+      },
+      {
+        "name": "Austin, TX: 622 postings, median $224K",
+        "text": "$224K 622",
+        "label": "Austin, TX"
+      }
+    ],
+    "remote": null,
+    "tip": "$222K median\nOrlando, FL + 1 nearby\n9 postings · 9 with salary for here\nGraphics (GPU) Performance Modeling Engineer\n×3\nAnalog Layout Automation Engineer\nGraphics (GPU) Architectural Modeling Engineer\nGraphics (GPU) Performance Analysis Architect\n+3 more roles"
+  },
+  "pins-google-dublin-map": {
+    "stats": "137 of 3,417 roles · 98% show pay for Dublin · $88K median · half between $88K and $129K · mostly Google",
+    "pins": [
+      {
+        "name": "New York and Chicago: 1 posting, median $209K",
+        "text": "$209K ",
+        "label": "New York and Chicago"
+      },
+      {
+        "name": "Mountain View, Los Angeles and 1 more: 1 posting, median $209K",
+        "text": "$209K ",
+        "label": null
+      },
+      {
+        "name": "Warsaw, Madrid and 1 more: 7 postings, median $97K",
+        "text": "$97K 7",
+        "label": null
+      },
+      {
+        "name": "Dublin, London and 9 more: 137 postings, median $88K",
+        "text": "$88K 137",
+        "label": "Dublin, London and 9 more"
+      }
+    ],
+    "remote": null,
+    "tip": "$209K median\nNew York and Chicago\n1 posting · 1 with salary for here\nPrincipal Lead, Global Product Learning Experiences, YouTube"
+  },
+  "pins-apple-map": {
+    "stats": "4,879 roles · 58% show pay · $214K median · half between $188K and $255K",
+    "pins": [
+      {
+        "name": "Anchorage, AK: 3 postings, no published salary",
+        "text": "3 jobs ",
+        "label": "Anchorage, AK"
+      },
+      {
+        "name": "Sao Paulo, Morumbi and 4 more: 14 postings, no published salary",
+        "text": "14 jobs ",
+        "label": "Sao Paulo, Morumbi and 4 more"
+      },
+      {
+        "name": "Dubai Mall, Dubai and 1 more: 20 postings, no published salary",
+        "text": "20 jobs ",
+        "label": "Dubai Mall, Dubai and 1 more"
+      },
+      {
+        "name": "Sydney, Booragoon and 9 more: 32 postings, no published salary",
+        "text": "32 jobs ",
+        "label": "Sydney, Booragoon and 9 more"
+      },
+      {
+        "name": "London, Herzliya and 39 more: 461 postings, no published salary",
+        "text": "461 jobs ",
+        "label": "London, Herzliya and 39 more"
+      },
+      {
+        "name": "Shanghai, Singapore and 29 more: 972 postings, no published salary",
+        "text": "972 jobs ",
+        "label": "Shanghai, Singapore and 29 more"
+      },
+      {
+        "name": "Cupertino, Austin and 112 more: 3,377 postings, median $214K",
+        "text": "$214K 3.4K",
+        "label": "Cupertino, Austin and 112 more"
+      }
+    ],
+    "remote": "12 remote postings · median $214K — show list"
+  },
+  "pins-anthropic-map-phone": {
+    "stats": "$347K median · half between $287K and $402K",
+    "pins": [
+      {
+        "name": "Sydney, Australia: 9 postings, no published salary",
+        "text": "9 jobs ",
+        "label": "Sydney, Australia"
+      },
+      {
+        "name": "Tokyo and Seoul: 33 postings, no published salary",
+        "text": "33 jobs ",
+        "label": "Tokyo and Seoul"
+      },
+      {
+        "name": "London, Singapore and 8 more: 92 postings, median $326K",
+        "text": "$326K 92",
+        "label": "London, Singapore and 8 more"
+      },
+      {
+        "name": "San Francisco, New York and 8 more: 503 postings, median $350K",
+        "text": "$350K 503",
+        "label": "San Francisco, New York and 8 more"
+      }
+    ],
+    "remote": "73 remote postings · median $362K — show list"
+  },
+  "chart-anthropic-phone": {
+    "stats": "$347K median · half between $287K and $402K",
+    "foot": "564 postings with salary · 81 with no salary posted · 55 converted from another currency · yearly pay",
+    "empty": null,
+    "rows": [
+      "AI Research & Engineering: all 67 roles, median $565K",
+      "Engineering & Design - Product: all 47 roles, median $445K",
+      "Software Engineering - Infrastructure: all 46 roles, median $445K",
+      "Hardware: all 2 roles, median $402K",
+      "Safeguards (Trust & Safety): all 41 roles, median $362K",
+      "Compute: all 26 roles, median $362K",
+      "Technical Program Management: all 24 roles, median $362K",
+      "Public Benefit: all 4 roles, median $362K",
+      "Technical Education: all 4 roles, median $357K",
+      "Security: all 51 roles, median $352K",
+      "Product Management, Support, & Operations: all 24 roles, median $345K",
+      "Data Science & Analytics: all 8 roles, median $332K",
+      "Sales: all 123 roles, median $327K",
+      "Marketing & Brand: all 19 roles, median $320K",
+      "Applied AI: all 54 roles, median $300K"
+    ],
+    "groups": []
+  },
+  "chart-google-zurich-phone": {
+    "stats": "",
+    "foot": "10 postings with salary · 48 with no salary posted · 8 converted from another currency · yearly pay",
+    "empty": null,
+    "rows": [
+      "DeepMind: all 3 roles, median $227K",
+      "Google: all 46 roles, median $135K",
+      "YouTube: all 9 roles, no published salary"
+    ],
+    "groups": []
+  },
+  "bp13-anthropic-sales-ranges": {
+    "stats": "123 of 645 roles · 75% show pay · $287K median · half between $232K and $322K · mostly Sales",
+    "cap": "Median $327K",
+    "foot": "92 postings with salary · 31 with no salary posted · 16 converted from another currency",
+    "empty": null,
+    "rows": [],
+    "groups": [
+      "Senior 13 median $326K",
+      "Staff+ 1 median $362K",
+      "Manager 9 median $292K",
+      "Director+ 6 median $564K",
+      "Level not stated 63 median $307K"
+    ],
+    "tip": "$380K – $450K\nResearch & Education Sales Lead, Beneficial Deployments\nSales · San Francisco, CA · New York, NY\nSenior"
+  },
+  "bp13-anthropic-ae-chart": {
+    "stats": "50 of 645 roles · 64% show pay · $411K median on-target earnings · half between $329K and $415K · mostly Sales",
+    "cap": "Median $411K",
+    "foot": "32 postings with salary · 18 with no salary posted · 8 converted from another currency",
+    "empty": null,
+    "rows": [
+      "Sales: all 50 roles, median $411K"
+    ],
+    "groups": []
+  },
+  "bp2-nvidia-munich-ranges": {
+    "stats": "55 of 2,665 roles · 2% show pay for Munich · $123K median",
+    "cap": "Median $125K",
+    "foot": "13 postings with salary · 42 with no salary posted · 13 converted from another currency",
+    "empty": null,
+    "rows": [],
+    "groups": [],
+    "tip": "PLN 375K – PLN 650K\nabout $99K – $172K in US dollars\nSenior Software Engineer - Image and Data Processing Libraries\nEngineer, Sys SW · Poland · Switzerland · Munich, Germany\nSenior"
+  },
+  "pins-google-dublin-map-dark": {
+    "stats": "137 of 3,417 roles · 98% show pay for Dublin · $88K median · half between $88K and $129K · mostly Google",
+    "pins": [
+      {
+        "name": "New York and Chicago: 1 posting, median $209K",
+        "text": "$209K ",
+        "label": "New York and Chicago"
+      },
+      {
+        "name": "Mountain View, Los Angeles and 1 more: 1 posting, median $209K",
+        "text": "$209K ",
+        "label": null
+      },
+      {
+        "name": "Warsaw, Madrid and 1 more: 7 postings, median $97K",
+        "text": "$97K 7",
+        "label": null
+      },
+      {
+        "name": "Dublin, London and 9 more: 137 postings, median $88K",
+        "text": "$88K 137",
+        "label": "Dublin, London and 9 more"
+      }
+    ],
+    "remote": null,
+    "tip": "$209K median\nNew York and Chicago\n1 posting · 1 with salary for here\nPrincipal Lead, Global Product Learning Experiences, YouTube"
+  },
+  "pins-nvidia-map-phone": {
+    "stats": "$239K median · half between $200K and $270K",
+    "pins": [
+      {
+        "name": "Yokneam, Bengaluru and 60 more: 1,247 postings, median $101K",
+        "text": "$101K 1.2K",
+        "label": "Yokneam, Bengaluru and 60 more"
+      },
+      {
+        "name": "Santa Clara, Austin and 47 more: 1,418 postings, median $239K",
+        "text": "$239K 1.4K",
+        "label": "Santa Clara, Austin and 47 more"
+      }
+    ],
+    "remote": "534 remote postings · median $266K — show list"
+  },
+  "pins-microsoft-map-phone": {
+    "stats": "$168K median · half between $143K and $197K",
+    "pins": [
+      {
+        "name": "Sao Paulo, Brasília and 3 more: 25 postings, median $122K",
+        "text": "$122K 25",
+        "label": "Sao Paulo, Brasília and 3 more"
+      },
+      {
+        "name": "Bengaluru, Tokyo and 109 more: 1,018 postings, median $113K",
+        "text": "$113K 1K",
+        "label": null
+      },
+      {
+        "name": "Redmond, Mountain View and 78 more: 1,272 postings, median $177K",
+        "text": "$177K 1.3K",
+        "label": "Redmond, Mountain View and 78 more"
+      }
+    ],
+    "remote": "312 remote postings · median $177K — show list"
+  },
+  "pins-google-map-phone": {
+    "stats": "$183K median · half between $140K and $231K",
+    "pins": [
+      {
+        "name": "Buenos Aires, Santiago and 1 more: 16 postings, no published salary",
+        "text": "16 jobs ",
+        "label": "Buenos Aires, Santiago and 1 more"
+      },
+      {
+        "name": "Bengaluru, Singapore and 78 more: 1,489 postings, median $98K",
+        "text": "$98K 1.5K",
+        "label": null
+      },
+      {
+        "name": "Mountain View, New York and 120 more: 1,940 postings, median $199K",
+        "text": "$199K 1.9K",
+        "label": "Mountain View, New York and 120 more"
+      }
+    ],
+    "remote": "61 remote postings · median $173K — show list"
+  },
+  "main-anduril-sydney-chart": {
+    "stats": "56 of 2,491 roles · 0% show pay for Sydney",
+    "cap": "Median $61K",
+    "foot": "5 postings with salary · 51 with no salary posted",
+    "empty": null,
+    "rows": [
+      "People : Talent Acquisition : Talent Operations: all 5 roles, median $61K",
+      "Maritime & Maneuver Dominance : Undersea Dominance - Engineering & Operations: all 10 roles, no published salary",
+      "Maritime & Maneuver Dominance : Maneuver Dominance Engineering : Mission Software Engineering: all 6 roles, no published salary",
+      "Manufacturing : Undersea Dominance - Production : Manufacturing Technicians: all 4 roles, no published salary",
+      "Maritime & Maneuver Dominance : Undersea Dominance - Engineering & Operations : Field Test Engineering: all 3 roles, no published salary",
+      "Manufacturing : Undersea Dominance - Production : Supply Chain: all 3 roles, no published salary",
+      "Manufacturing : Undersea Dominance - Production : Quality Engineering: all 3 roles, no published salary",
+      "Maritime & Maneuver Dominance : Undersea Dominance - Engineering & Operations : Systems Engineering: all 3 roles, no published salary",
+      "Manufacturing : Undersea Dominance - Production : Manufacturing Engineering: all 2 roles, no published salary",
+      "Maritime & Maneuver Dominance : Undersea Dominance - Engineering & Operations : Maintenance Technicians: all 2 roles, no published salary",
+      "Manufacturing : Undersea Dominance - Production : Production Operations: all 2 roles, no published salary",
+      "Legal and Business Affairs : Legal : Legal: all 2 roles, no published salary",
+      "Sales and Marketing : Business Development : APAC Capture: all 1 role, no published salary",
+      "Finance & Accounting : Accounting : Accounting: all 1 role, no published salary",
+      "Corporate Technology : ArsenalOS : Engineering Solutions: all 1 role, no published salary",
+      "Maritime & Maneuver Dominance : Maneuver Dominance Engineering : Robotics Software: all 1 role, no published salary",
+      "Maritime & Maneuver Dominance : Maritime International Engineering : International - Integration and Test: all 1 role, no published salary",
+      "Maritime & Maneuver Dominance : Undersea Dominance - Engineering & Operations : Mechanical Engineering: all 1 role, no published salary",
+      "Corporate Operations : Administration : Administration: all 1 role, no published salary",
+      "Maritime & Maneuver Dominance : Maritime International Engineering : Mission Software Engineering: all 1 role, no published salary",
+      "Maritime & Maneuver Dominance : Undersea Dominance - Engineering & Operations : Program & Product Management: all 1 role, no published salary",
+      "Corporate Technology : Corporate Technology International : Information Systems AUS: all 1 role, no published salary",
+      "Maritime & Maneuver Dominance : Undersea Dominance - Engineering & Operations : Electrical Engineering: all 1 role, no published salary"
+    ],
+    "groups": []
+  },
+  "main-anduril-sydney-map": {
+    "stats": "56 of 2,491 roles · 0% show pay for Sydney",
+    "pins": [
+      {
+        "name": "Abu Dhabi, United Arab Emirates: 1 posting, no published salary",
+        "text": "1 job ",
+        "label": "Abu Dhabi, United Arab Emirates"
+      },
+      {
+        "name": "Boston, Costa Mesa and 5 more: 5 postings, median $61K",
+        "text": "$61K 5",
+        "label": "Boston, Costa Mesa and 5 more"
+      },
+      {
+        "name": "Sydney, Melbourne and 2 more: 56 postings, no salary posted for here",
+        "text": "56 jobs ",
+        "label": "Sydney, Melbourne and 2 more"
+      }
+    ],
+    "remote": null,
+    "tip": "1 job\nAbu Dhabi, United Arab Emirates\n1 posting · no published salary\nSenior Robotics Software Engineer, Payload Integration"
+  },
+  "main-anthropic-london-chart": {
+    "stats": "47 of 645 roles · 83% show pay for London · $391K median · half between $313K and $484K",
+    "cap": "Median $391K",
+    "foot": "45 postings with salary · 2 with no salary posted · 39 converted from another currency",
+    "empty": null,
+    "rows": [
+      "AI Research & Engineering: all 9 roles, median $600K",
+      "Safeguards (Trust & Safety): all 1 role, median $485K",
+      "Software Engineering - Infrastructure: all 8 roles, median $482K",
+      "Engineering & Design - Product: all 2 roles, median $418K",
+      "Sales: all 7 roles, median $411K",
+      "Security: all 4 roles, median $391K",
+      "Technical Program Management: all 1 role, median $327K",
+      "Applied AI: all 10 roles, median $324K",
+      "Finance: all 1 role, median $324K",
+      "Public Benefit: all 1 role, median $297K",
+      "Legal: all 1 role, median $216K",
+      "Compute: all 2 roles, no published salary"
+    ],
+    "groups": []
+  },
+  "main-anthropic-chart": {
+    "stats": "645 roles · 87% show pay · $347K median · half between $287K and $402K",
+    "cap": "Median $352K",
+    "foot": "564 postings with salary · 81 with no salary posted · 55 converted from another currency",
+    "empty": null,
+    "rows": [
+      "AI Research & Engineering: all 67 roles, median $565K",
+      "Engineering & Design - Product: all 47 roles, median $445K",
+      "Software Engineering - Infrastructure: all 46 roles, median $445K",
+      "Hardware: all 2 roles, median $402K",
+      "Safeguards (Trust & Safety): all 41 roles, median $362K",
+      "Compute: all 26 roles, median $362K",
+      "Technical Program Management: all 24 roles, median $362K",
+      "Public Benefit: all 4 roles, median $362K",
+      "Technical Education: all 4 roles, median $357K",
+      "Security: all 51 roles, median $352K",
+      "Product Management, Support, & Operations: all 24 roles, median $345K",
+      "Data Science & Analytics: all 8 roles, median $332K",
+      "Sales: all 123 roles, median $327K",
+      "Marketing & Brand: all 19 roles, median $320K",
+      "Applied AI: all 54 roles, median $300K",
+      "Legal: all 20 roles, median $300K",
+      "Communications: all 4 roles, median $300K",
+      "People: all 16 roles, median $267K",
+      "Finance: all 55 roles, median $265K",
+      "Public Policy: all 10 roles, median $247K"
+    ],
+    "groups": []
+  },
+  "main-anthropic-map-phone": {
+    "stats": "$347K median · half between $287K and $402K",
+    "pins": [
+      {
+        "name": "Sydney, Australia: 9 postings, no published salary",
+        "text": "9 jobs ",
+        "label": "Sydney, Australia"
+      },
+      {
+        "name": "Tokyo and Seoul: 33 postings, no published salary",
+        "text": "33 jobs ",
+        "label": "Tokyo and Seoul"
+      },
+      {
+        "name": "London, Singapore and 8 more: 92 postings, median $326K",
+        "text": "$326K 92",
+        "label": "London, Singapore and 8 more"
+      },
+      {
+        "name": "San Francisco, New York and 8 more: 503 postings, median $350K",
+        "text": "$350K 503",
+        "label": "San Francisco, New York and 8 more"
+      }
+    ],
+    "remote": "73 remote postings · median $362K — show list"
+  },
+  "main-anduril-map-phone": {
+    "stats": "$170K median · half between $146K and $193K",
+    "pins": [
+      {
+        "name": "Tokyo, Japan: 1 posting, median $158K",
+        "text": "$158K ",
+        "label": "Tokyo, Japan"
+      },
+      {
+        "name": "London, Dublin and 2 more: 40 postings, median $198K",
+        "text": "$198K 40",
+        "label": "London, Dublin and 2 more"
+      },
+      {
+        "name": "Sydney, Abu Dhabi and 4 more: 78 postings, median $171K",
+        "text": "$171K 78",
+        "label": "Sydney, Abu Dhabi and 4 more"
+      },
+      {
+        "name": "Costa Mesa, Washington and 32 more: 2,383 postings, median $170K",
+        "text": "$170K 2.4K",
+        "label": "Costa Mesa, Washington and 32 more"
+      }
+    ],
+    "remote": "40 remote postings · median $170K — show list"
+  },
+  "main-anthropic-chart-phone": {
+    "stats": "$347K median · half between $287K and $402K",
+    "foot": "564 postings with salary · 81 with no salary posted · 55 converted from another currency · yearly pay",
+    "empty": null,
+    "rows": [
+      "AI Research & Engineering: all 67 roles, median $565K",
+      "Engineering & Design - Product: all 47 roles, median $445K",
+      "Software Engineering - Infrastructure: all 46 roles, median $445K",
+      "Hardware: all 2 roles, median $402K",
+      "Safeguards (Trust & Safety): all 41 roles, median $362K",
+      "Compute: all 26 roles, median $362K",
+      "Technical Program Management: all 24 roles, median $362K",
+      "Public Benefit: all 4 roles, median $362K",
+      "Technical Education: all 4 roles, median $357K",
+      "Security: all 51 roles, median $352K",
+      "Product Management, Support, & Operations: all 24 roles, median $345K",
+      "Data Science & Analytics: all 8 roles, median $332K",
+      "Sales: all 123 roles, median $327K",
+      "Marketing & Brand: all 19 roles, median $320K",
+      "Applied AI: all 54 roles, median $300K"
+    ],
+    "groups": []
+  }
+}

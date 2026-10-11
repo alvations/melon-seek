@@ -1,0 +1,42 @@
+diff --git a/docs/CONTRACT.md b/docs/CONTRACT.md
+index e742c01..03b69d8 100644
+--- a/docs/CONTRACT.md
++++ b/docs/CONTRACT.md
+@@ -419,3 +419,37 @@ so the archive ingest, which pairs jobs by index, does not use it.
+   Jose), San Bruno and South San Francisco (San Francisco), Culver City (Los Angeles), Waltham
+   (Boston), Beaverton and Hillsboro (Portland), Cary and Morrisville (Raleigh), Thornton (Denver),
+   Addison and Irving (Dallas), Springfield (Arlington, VA).
++
++## Fix wave 3 additions (2026-10-11): the chart and map under a Location filter (fix3-viz lane)
++
++Findings BP-2 (chart side), BP-13 (chart side) and the map's pin names ([docs/process/lead.md](process/lead.md)
++"Beta, stage 1c"). Log: [docs/process/fix3-viz.md](process/fix3-viz.md). Every addition is optional;
++no export changed its signature or return shape.
++
++**Chart (`public/viz/chart.js`).** `update(jobs, { …, places, placeTest })`:
++- `places` is the Location filter's keys (app.js `S.l`), `placeTest(job, location)` the host's own
++  match (app.js passes `locMatches(job, viewSpec, [location])`; without it a location matches by its
++  key or name). With `places`, a posting is plotted only when its pay applies to one of them
++  (`payLocations`); the notes line counts the rest ("12 with pay for another country only, left
++  out"), and with nothing left the chart says "No pay posted for <place>".
++- Every median (the caption, each row's median, quartiles and band, each Ranges group) is base pay:
++  `salary.kind: 'ote'` ranges are plotted but left out, as in the stats line, unless nothing else is
++  left (then the caption reads "Median on-target earnings"). The caption reads "Median base pay".
++- New pure exports: `chartPay(jobs, { places, placeTest }) -> { plotted, noSalary, elsewhere,
++  elsewhereIds, fxCount, unknownFx, ote }`, `basePayStats(items) -> { median, p25, p75, n, oteOnly,
++  oteLeftOut }`, `placeMatcher(places, placeTest)`, `placesPhrase(places)`.
++
++**Map (`public/viz/map.js`).** `update(jobs, { fit, colorMode, places, placeTest })`:
++- With `places`, only the filtered places are pinned. A location with no city that the filter takes
++  in ("United States", "Ohio, US") counts at the filtered cities it covers (its own pin only when
++  the filter names it); the Remote button holds only roles whose remote location the filter takes
++  in. The tooltip counts the roles also listed elsewhere and the country- or state-wide ones. The
++  map refits when the filtered places change.
++- Offline (no basemap), every pin keeps its place name: below, above, a short form ("Shanghai and 52
++  more") below or above, then beside the pin; with no room anywhere the pin is merged into its
++  nearest neighbour. A no-pay pin reads "1.1K jobs" (`shortCount`).
++- `aggregate(jobs, { places, placeTest })` adds `also` and `wide` (job id sets) per place. New pure
++  exports: `shortLabel(members)`, `layoutLabels(items, host)`, `jobsText(n)`.
++
++**App (`public/app.js`, patch `docs/process/patches/fix3-viz-app-places.diff`).** `renderViz` passes
++`places` and `placeTest` to both and adds `S.l` to the viz signature.

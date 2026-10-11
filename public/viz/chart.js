@@ -138,8 +138,8 @@ export function placesPhrase(places) {
  *   -> { plotted: [{ job, lo, hi, mid, cur, ote }], noSalary, elsewhere, elsewhereIds, fxCount, unknownFx, ote }
  * With `places` (and `placeTest`, see placeMatcher) a posting is plotted only when its pay applies
  * to one of the places (payLocations); `elsewhere` counts the salaried ones left out (their ids in
- * `elsewhereIds`). `ote` marks
- * on-target earnings (salary.kind 'ote'), which basePayStats leaves out of medians.
+ * `elsewhereIds`). `ote` marks on-target earnings (salary.kind 'ote'), which basePayStats leaves out
+ * of medians.
  */
 export function chartPay(jobs, { places = null, placeTest = null } = {}) {
   const test = placeMatcher(places, placeTest);

@@ -552,9 +552,10 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
 
   /**
    * Greedy screen-space clusters at the current zoom. `joins` (lead place key -> the lead place key
-   * of the cluster it joins) folds a cluster whose name found no room into its neighbour (draw).
+   * of the cluster it joins) folds a cluster whose name found no room into its neighbour (draw);
+   * `cache` (members -> summary) keeps the summaries of the clusters a merge pass did not change.
    */
-  function cluster(joins = null) {
+  function cluster(joins = null, cache = null) {
     const zoom = map.getZoom();
     const pts = places
       .map(p => ({ p, pt: map.project([p.lat, p.lng], zoom) }))
@@ -582,6 +583,10 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       out = [...groups.values()];
     }
     return out.map(c => {
+      // A merge pass (draw) re-summarizes only the clusters it changed: same members, same summary.
+      const sig = c.members.length === 1 ? c.lead.key : c.members.map(m => m.key).join(';');
+      const hit = cache?.get(sig);
+      if (hit) return { ...hit, pt: c.pt, marker: null, pinEl: null };
       const ids = new Set();
       const jobs = [];
       const paid = new Set();
@@ -593,10 +598,12 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
         for (const id of m.wide || []) wide.add(id);
       }
       const label = clusterLabel(c.members);
-      return {
+      const res = {
         lat: c.lead.lat, lng: c.lead.lng, pt: c.pt, members: c.members, jobs, ids, label, short: shortLabel(c.members), also: also.size, wide: wide.size,
         ...summarize(jobs, paid), juice: summarizeJuice(jobs, c.members, jScale),
       };
+      cache?.set(sig, res);
+      return res;
     });
   }
 
@@ -700,11 +707,11 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     const focusedLead = focused?.members[0]?.key; // members[0] is the cluster's lead place
     // Every pin keeps its place name: a pin whose name finds no room (placeLabels) is merged into
     // its nearest neighbour, and the clusters are drawn again (offline only; a few passes at most).
-    const joins = new Map();
+    const joins = new Map(), cache = new Map();
     let refocus = null;
     for (let pass = 0; ; pass++) {
       markerLayer.clearLayers();
-      clusters = cluster(joins);
+      clusters = cluster(joins, cache);
       refocus = drawMarkers(focusedKeys, focusedLead);
       const hidden = placeLabels();
       if (!hidden.length || pass >= MERGE_PASSES || clusters.length < 2) break;
