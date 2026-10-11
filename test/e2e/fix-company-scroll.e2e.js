@@ -10,7 +10,7 @@
 //
 // These tests serve the static build (BETA_QA_DIST or dist/) under /melon-seek/ and skip without a beta
 // build. Every case uses only standard Playwright APIs and runs under any engine, except the touch-swipe
-// test, which needs Chromium's CDP. Run alone under WebKit (the mobile-webkit workflow):
+// test, which needs Chromium's CDP. Run alone under WebKit (the webkit job of .github/workflows/webkit-phone.yml):
 //   node test/e2e/fix-company-scroll.e2e.js --browser=webkit
 import http from 'node:http';
 import fs from 'node:fs';

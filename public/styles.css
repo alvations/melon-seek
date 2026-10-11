@@ -1104,6 +1104,8 @@ html[data-mode="insights"] .viz-controls { display: none; }
   .quiet-select { font-size: 14px; }
   .quiet-select select { font-size: 16px; min-height: var(--m-row); padding: 0 22px 0 6px; }
   .viz { border: 0; border-radius: 0; border-top: 1px solid var(--ms-border); }
+  /* M-31: the results sheet covers the chart's lower half at "half"; an empty chart says so near its top. */
+  #chartHost .ms-chart__empty { justify-content: flex-start; padding-top: 28px; }
   #mapHost { touch-action: none; }                  /* one-finger pan and pinch belong to the map, never the page */
   .insights-host { padding: 12px var(--m-gutter-r) 16px var(--m-gutter-l); overscroll-behavior: contain; }
   html[data-mode="insights"] .viz-toolbar { display: none; }

@@ -1525,8 +1525,20 @@ function makeCompanyMenu() {
     // fix-company-scroll: syncPopover runs on every render (a beta board's live check settling, a saved
     // board loading); rebuilding identical rows under a finger can cut a touch scroll short, so only a
     // change repaints.
-    const key = JSON.stringify([S.c, all.map((c) => [c.slug, c.name, c.custom, c.live, companyColor(c)]), saved.map((x) => [x.id, x.name, savedNewCount(x)])]);
-    if (key === painted && list.childElementCount) return;
+    // M-30: a saved board loading changes only its "N new" badge, which is updated in place.
+    const key = JSON.stringify([S.c, all.map((c) => [c.slug, c.name, c.custom, c.live, companyColor(c)]), saved.map((x) => [x.id, x.name])]);
+    if (key === painted && list.childElementCount) {
+      for (const x of saved) {
+        const row = list.querySelector(`.saved-row[data-saved="${CSS.escape(String(x.id))}"] .company-item`);
+        if (!row) continue;
+        const n = savedNewCount(x);
+        let badge = row.querySelector('.saved-new');
+        if (!n) { badge?.remove(); continue; }
+        if (!badge) { badge = h('span', { class: 'saved-new' }); row.append(badge); }
+        if (badge.textContent !== `${n} new`) badge.textContent = `${n} new`;
+      }
+      return;
+    }
     painted = key;
     // D-25 / M-21: the beta site's big-tech boards (static `live: false`: their own careers sites) come
     // first, under their own heading, instead of last below the fold; the main site keeps one list.
@@ -1550,7 +1562,7 @@ function makeCompanyMenu() {
     if (saved.length) {
       list.prepend(group('Saved searches', saved.map((x) => {
         const n = savedNewCount(x);
-        return h('div', { class: 'saved-row' },
+        return h('div', { class: 'saved-row', dataset: { saved: String(x.id) } },
           h('button', { type: 'button', class: 'company-item', title: x.name, onclick: () => openSaved(x) },
             h('span', { class: 'saved-ico', html: ICON.bookmark }), h('span', { class: 'company-item-name' }, x.name),
             n ? h('span', { class: 'saved-new' }, `${n} new`) : null),
@@ -2356,6 +2368,12 @@ function togglePopover(id, anchor) {
   syncPopover();
   positionPopover();
   for (const p of popover.parts) p.reveal?.();
+  // M-29: on a phone, focusing the company search would open the keyboard over the list on every open
+  // (Android); the current company (else the first row) takes focus instead.
+  if (id === 'company' && isMobile()) {
+    requestAnimationFrame(() => (el.querySelector('.company-list .company-item[aria-current="true"]') || el.querySelector('.company-list .company-item'))?.focus({ preventScroll: true }));
+    return;
+  }
   requestAnimationFrame(() => [...el.querySelectorAll('.pop-body input:not([type=range]), .pop-body button.kw, .pop-body select, .pop-body .range, .pop-body button:not(.icon-btn), .pop-body label.check input')]
     .find((x) => x.getClientRects().length && !x.closest('[hidden]'))?.focus({ preventScroll: true }));
 }

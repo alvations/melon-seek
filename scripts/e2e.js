@@ -16,6 +16,7 @@ import { registerFixEstimatesTests } from '../test/e2e/fix-estimates.e2e.js';
 import { registerFixAppTests } from '../test/e2e/fix-app.e2e.js';
 import { registerBetaDesktopQaTests } from '../test/e2e/beta-desktop-qa.e2e.js';
 import { registerBetaMobileQaTests } from '../test/e2e/beta-mobile-qa.e2e.js';
+import { registerBetaMobileQa2Tests } from '../test/e2e/beta-mobile-qa-2.e2e.js';
 import { registerFixPayDataTests } from '../test/e2e/fix-pay-data.e2e.js';
 import { registerFixBetaAppTests } from '../test/e2e/fix-beta-app.e2e.js';
 import { registerFix3AppTests } from '../test/e2e/fix3-app.e2e.js';
@@ -66,6 +67,7 @@ if (!apiOnly) {
   registerFixAppTests(suite);
   registerBetaDesktopQaTests(suite);
   registerBetaMobileQaTests(suite);
+  registerBetaMobileQa2Tests(suite);
   registerFixPayDataTests(suite);
   registerFixBetaAppTests(suite);
   registerFix3AppTests(suite);

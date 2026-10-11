@@ -1,0 +1,139 @@
+name: WebKit phone checks
+
+# docs/process/qa-mobile-beta-2.md (the second mobile QA pass on beta, 2026-10-11). The sandbox the QA agents use
+# has only Chromium, so the phone checks of the company list (M-28 to M-30) and the other scroll areas are run here
+# on WebKit, where installing a browser is fine.
+#   - webkit: test/e2e/beta-mobile-qa-2.e2e.js on Playwright WebKit with an iPhone profile (BETA_QA2_ENGINE=webkit).
+#     Playwright has no touch-drag outside Chromium, so the swipes are wheel scrolls at the same point; the scroll
+#     chaining rules (overscroll-behavior, nested scroll boxes) are the same for both.
+#   - ios-simulator: Safari in the iOS Simulator. Real swipes on the company list with `idb ui swipe`, a real
+#     on-screen keyboard, screenshots before and after (test/e2e/webkit/ios-sim-menu.mjs).
+# Manual only: it needs the data-archive branch for real data, and the macOS job is slow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ios_devices:
+        description: 'Simulator devices, comma separated (names from `xcrun simctl list devicetypes`)'
+        default: 'iPhone 16,iPhone SE (3rd generation)'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: webkit-phone-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build the site with real data
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Latest archived crawl (data/snapshots, data/beta/snapshots)
+        run: node scripts/cycle/local-data.js
+      - name: Build
+        run: |
+          node scripts/build-static.js --out dist
+          test -f dist/beta/index.html && test -f dist/beta/api/jobs/apple.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: site-dist
+          path: dist
+          retention-days: 3
+
+  webkit:
+    name: Playwright WebKit, iPhone profile
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: site-dist
+          path: dist
+      - name: Playwright (not a repo dependency) and its browsers
+        run: |
+          npm i --no-save playwright@1.63.0
+          npx playwright install --with-deps webkit chromium
+      - name: Phone tests on WebKit
+        env:
+          BETA_QA2_ENGINE: webkit
+          BETA_QA2_DIST: dist
+        run: node scripts/e2e.js --grep='^Beta mobile QA 2' | tee webkit-e2e.log
+        continue-on-error: true # the [M-n] tests fail until the fix lane lands; the log and screenshots are the result
+      # The fix lane's geometry tests (docs/process/fix-company-scroll.md): one scroller in every phone sheet, the
+      # sheet inside the (keyboard-shortened) visual viewport, the last company fully visible. 320x568, 390x844,
+      # 430x932, 844x390 with an iPhone profile. The CDP touch-swipe case skips on WebKit.
+      - name: Company sheet geometry on WebKit (fix-company-scroll)
+        env:
+          BETA_QA_DIST: dist
+        run: |
+          set -o pipefail
+          node test/e2e/fix-company-scroll.e2e.js --browser=webkit | tee webkit-fix-company-scroll.log
+      - name: Same tests on Chromium, for comparison
+        env:
+          BETA_QA2_DIST: dist
+        run: node scripts/e2e.js --grep='^Beta mobile QA 2' | tee chromium-e2e.log
+        continue-on-error: true
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo '### Beta mobile QA 2 on WebKit'; echo '```'; grep -E '^\s+(✓|✗|-) |^e2e:' webkit-e2e.log || true; echo '```'
+            echo '### Company sheet geometry on WebKit (fix-company-scroll)'; echo '```'; grep -E '^\s+(✓|✗|-) |passed' webkit-fix-company-scroll.log || true; echo '```'
+            echo '### The same on Chromium'; echo '```'; grep -E '^\s+(✓|✗|-) |^e2e:' chromium-e2e.log || true; echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: webkit-phone-results
+          path: |
+            webkit-e2e.log
+            chromium-e2e.log
+            webkit-fix-company-scroll.log
+            docs/screenshots/qa-mobile-beta-2/e2e-*.png
+
+  ios-simulator:
+    name: Safari in the iOS Simulator (real swipes)
+    needs: build
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: site-dist
+          path: dist
+      - name: idb (Facebook's iOS Development Bridge) for touch input
+        run: |
+          brew tap facebook/fb
+          brew install facebook/fb/idb-companion
+          python3 -m pip install --break-system-packages fb-idb
+          idb --help > /dev/null
+      - name: Swipe the company list in Simulator Safari
+        env:
+          IOS_DEVICES: ${{ inputs.ios_devices }}
+        run: node test/e2e/webkit/ios-sim-menu.mjs --dist dist --out ios-sim
+      - name: Summary
+        if: always()
+        run: |
+          { echo '### iOS Simulator Safari: company menu'; echo '```'; cat ios-sim/result.txt 2>/dev/null || echo 'no result'; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: ios-simulator-results
+          path: ios-sim
