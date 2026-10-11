@@ -72,7 +72,8 @@ test('MR-2 chart: the footnote text (not only its hover title) gives the exchang
   assert.match(text, NAMES_FX_DATE, `${at}: the date is only in foot.title, which a phone cannot show`);
 });
 test('MR-2 Market insights: the header that says "pay in approx. USD" gives the exchange-rate date', () => {
-  const { at, text } = lineWith('public/features/insights.js', 'on this board · pay in approx. USD');
+  // fix-density: the header's Details list ("Pay in approx. US dollars at Jul 2026 exchange rates").
+  const { at, text } = lineWith('public/features/insights.js', 'Pay in approx. US dollars');
   assert.match(text, NAMES_FX_DATE, `${at} names the postings date but not the exchange rates'`);
 });
 

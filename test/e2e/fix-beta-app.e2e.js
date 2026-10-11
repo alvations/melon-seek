@@ -127,7 +127,9 @@ export function registerFixBetaAppTests(suite) {
     job.salary.zones = 2;
     const { page } = await open(ctx, st, { url: `${st.beta}/#c=nvidia&job=${encodeURIComponent(job.id)}`, lists: { 'beta/nvidia': body } });
     await page.waitForSelector('#drawer.is-open'); await sleep(500);
-    assertEq((await page.locator('#drawer .d-sal-levels').innerText()).trim(), 'Pay by level: Level 2: $184K–287.5K · Level 3: $224K–356.5K', 'pay by level');
+    // fix-density: one short row per level ("Level 2  $184K–287.5K") under "Pay by level".
+    const rows = await page.locator('#drawer .d-sal-levels .d-tiers li').evaluateAll((li) => li.map((e) => [...e.children].map((c) => c.textContent.trim()).join(': ')));
+    assertEq(`${(await page.locator('#drawer .d-sal-levels .d-tiers-title').innerText()).trim()}: ${rows.join(' · ')}`, 'Pay by level: Level 2: $184K–287.5K · Level 3: $224K–356.5K', 'pay by level');
     const labels = await page.locator('#drawer .pay-label').allInnerTexts();
     assert(!labels.includes('Multiple pay zones'), `labels ${labels.join(', ')}`);
   });

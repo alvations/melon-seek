@@ -90,7 +90,7 @@ async function chartSays(page) {
       empty: vis(empty) ? empty.textContent : '',
       cap: host.querySelector('.ms-hist__cap')?.textContent || '',
       rows: [...host.querySelectorAll('.ms-crow__label')].map((l) => l.getAttribute('aria-label') || ''),
-      plotted: (/^([\d,]+) postings? with (?:salary|pay)/.exec(vis(foot) ? foot.textContent : '') || [])[1] ?? null,
+      plotted: (/^([\d,]+) (?:postings? )?with (?:salary|pay)/.exec(vis(foot) ? foot.textContent : '') || [])[1] ?? null,
     };
   });
 }
