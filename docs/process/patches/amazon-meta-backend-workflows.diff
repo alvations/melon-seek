@@ -1,0 +1,18 @@
+--- a/.github/workflows/bigtech-probe.yml
++++ b/.github/workflows/bigtech-probe.yml
+@@ -9,12 +9,12 @@
+   workflow_dispatch:
+     inputs:
+       mode:
+-        description: "recon (robots.txt + one request per endpoint) or full (run the adapters)"
++        description: "recon (robots.txt + one request per endpoint), full (run the adapters) or none (raw requests only)"
+         type: choice
+-        options: [recon, full]
++        options: [recon, full, none]
+         default: recon
+       companies:
+-        description: "Comma-separated slugs (empty = all): amazon,netflix,microsoft,nvidia,apple,google,meta,tesla"
++        description: "Comma-separated slugs (empty = all; paused companies in server/companies.js are always skipped; with raw set and no slugs, raw only): amazon,netflix,microsoft,nvidia,apple,google,meta,tesla"
+         type: string
+         default: ""
+       max_jobs:

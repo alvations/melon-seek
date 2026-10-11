@@ -1,0 +1,79 @@
+--- a/scripts/build-static.js
++++ b/scripts/build-static.js
+@@ -840,6 +840,8 @@
+       } catch (err) { warn(`${payload.company.slug}: backtest failed (${err.message}); meta.compstimate = null`); }
+     }
+     const meta = { compstimate, history: history && ledger ? history.ledgerMeta(ledger) : { since: null, runs: 0 } };
++    // A capped beta board: public/api.js hands `meta` to the app as it is, so the cap reaches the page.
++    if (payload.jobsCapped) meta.jobsCapped = payload.jobsCapped;
+     return { ...payload, jobs, meta };
+   };
+   // Per-company share pages need each payload's numbers.
+@@ -941,7 +943,14 @@
+     // Then the big-tech adapter fixes on stored jobs (server/sources/upgrade.js: one Apple posting
+     // per requisition, talent pools, …), every time: a no-op for a snapshot crawled with them.
+     const current = parsed && parsed.normalizerVersion === ctx.NORMALIZER_VERSION;
+-    if (Array.isArray(jobs) && jobs.length) return { payload: { company: c, mode: 'snapshot', fetchedAt: parsed.fetchedAt || null, error: null, jobs: ctx.vetSalaries(ctx.upgradeStoredJobs(current ? jobs : ctx.relocateJobs(ctx.rekeyBoardJobs(jobs).jobs))) } };
++    // A beta snapshot fitted to its budget (scripts/snapshot.js#fitSnapshot) says so: jobsCapped
++    // { kept, total, by, rule } and descriptionsTrimmedTo travel with the list (jobsCapped also in
++    // its meta), so the page can say "5,000 of 22,415" (docs/process/amazon-meta-backend.md).
++    const fit = {
++      ...(parsed && parsed.jobsCapped && typeof parsed.jobsCapped === 'object' ? { jobsCapped: parsed.jobsCapped } : {}),
++      ...(parsed && Number(parsed.descriptionsTrimmedTo) > 0 ? { descriptionsTrimmedTo: Number(parsed.descriptionsTrimmedTo) } : {}),
++    };
++    if (Array.isArray(jobs) && jobs.length) return { payload: { company: c, mode: 'snapshot', fetchedAt: parsed.fetchedAt || null, error: null, ...fit, jobs: ctx.vetSalaries(ctx.upgradeStoredJobs(current ? jobs : ctx.relocateJobs(ctx.rekeyBoardJobs(jobs).jobs))) } };
+     return { problem: 'has no jobs' };
+   } catch (err) {
+     return { problem: `unreadable (${err.message})` };
+--- a/public/app.js
++++ b/public/app.js
+@@ -1290,7 +1290,8 @@
+       const sr = `saved snapshot${day ? ` from ${day}` : ''}`;
+       if (data.pending) return { label: `Snapshot${day ? ` · ${day}` : ''} · checking live…`, short: 'Snapshot · checking live…', tiny: 'Checking live…', micro: 'Checking…', cls: 'is-snapshot is-pending', sr: `${sr}, checking the live board`, tip: `${tip}. ${checking}` };
+       const only = bundleOnly(data.company) ? ' This board is collected by the site’s crawler; your browser can’t fetch it live.' : '';
+-      return { label: day ? `Snapshot · ${day}` : 'Snapshot', micro: day || 'Saved', cls: 'is-snapshot', sr, tip: `${tip}${failed ? `. ${failed}` : ''}.${only}` };
++      const cap = cappedNote();
++      return { label: day ? `Snapshot · ${day}` : 'Snapshot', micro: day || 'Saved', cls: 'is-snapshot', sr, tip: `${tip}${failed ? `. ${failed}` : ''}.${only}${cap ? ` ${cap.tip}` : ''}` };
+     }
+     case 'demo':
+       if (data.pending) return { label: 'Demo data · checking live…', short: 'Demo · checking live…', tiny: 'Checking live…', micro: 'Checking…', cls: 'is-demo is-pending', sr: 'demo data, checking the live board', tip: `Generated sample data, not real postings. ${checking}` };
+@@ -1298,6 +1299,17 @@
+     default: return { label: String(data.mode), cls: '', tip: src };
+   }
+ }
++/**
++ * A board the crawl fitted to its budget (meta.jobsCapped { kept, total, by, rule }): { total, tip }
++ * for the count line and the badge, or null. Amazon: "5,000 of 22,415 posted: the ones with a
++ * published pay range, newest first. The rest are on its careers site."
++ */
++function cappedNote() {
++  const c = data.status === 'ready' && data.meta && data.meta.jobsCapped;
++  if (!c || !(c.total > c.kept)) return null;
++  const which = /salaried/.test(c.rule || '') ? 'the ones with a published pay range first, newest first' : 'the newest';
++  return { total: c.total, tip: `Showing ${Number(c.kept).toLocaleString()} of the ${Number(c.total).toLocaleString()} roles posted: ${which}. The rest are on ${data.company?.name || 'the company'}’s careers site.` };
++}
+ /** "Greenhouse / anthropic", or "<Name> careers site" for a built-in-only source (big-tech beta). */
+ function sourceText(c) {
+   if (!c?.source) return '';
+@@ -1331,7 +1343,7 @@
+       ['Status', info?.label || '—'],
+       ['Source', sourceText(c) || '—'],
+       ['Fetched', data.fetchedAt ? `${new Date(data.fetchedAt).toLocaleString()} (${ago(data.fetchedAt)})` : '—'],
+-      ['Roles', data.jobs.length.toLocaleString()],
++      ['Roles', cappedNote() ? `${data.jobs.length.toLocaleString()} of ${cappedNote().total.toLocaleString()} posted` : data.jobs.length.toLocaleString()],
+     ];
+     tip.textContent = info?.tip || '';
+     dl.replaceChildren(...rows.flatMap(([k, v]) => [h('dt', null, k), h('dd', null, v)]));
+@@ -2851,7 +2863,11 @@
+   const inTitle = m.length && n ? visible.filter((j) => titleMatch(j, m)).length || null : null;
+   const why = effectiveSort() === 'best' ? 'Best match lists roles whose title or team has your words first; the rest match on skills or keywords'
+     : 'Roles whose title or team has your words; the rest match on skills or keywords';
+-  title.replaceChildren(...nn(h('strong', null, plural(n, 'role')), inTitle != null ? h('span', { class: 'muted', title: why }, ` · ${inTitle.toLocaleString()} in title`) : null));
++  // A beta board fitted to its budget (data.meta.jobsCapped, scripts/snapshot.js#fitSnapshot) says
++  // how much of the careers site it holds: "5,000 roles · of 22,415 posted".
++  const cap = n === data.jobs.length ? cappedNote() : null; // the whole list only, not a filtered one
++  title.replaceChildren(...nn(h('strong', null, plural(n, 'role')), inTitle != null ? h('span', { class: 'muted', title: why }, ` · ${inTitle.toLocaleString()} in title`) : null,
++    cap ? h('span', { class: 'muted', title: cap.tip }, ` · of ${cap.total.toLocaleString()} posted`) : null));
+   if (!visible.length) {
+     list.replaceChildren(h('li', { class: 'list-empty' }, stateCard(data.jobs.length ? emptyState()
+       : { title: 'No open roles', body: 'This board has no postings right now.' })));

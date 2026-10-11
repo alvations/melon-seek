@@ -115,8 +115,11 @@ test('paused: never requested, whoever asks (snapshot CLI with explicit slugs, f
     assert.match(p.out, /skipped meta: paused \(terms\)/);
   }
   const raw = JSON.stringify([{ url: 'https://www.amazon.jobs/en/search.json?offset=0&result_limit=1' }, { url: 'https://www.metacareers.com/jobsearch/sitemap.xml' }, { url: 'https://amazon.jobs/en/jobs/1/x' }]);
-  const pr = run(process.execPath, ['--import', pre, 'scripts/probe-bigtech.js'], { env: { ...env, PROBE_MODE: 'none', PROBE_RAW: raw } });
+  // As bigtech-probe.yml dispatches it with only `raw` set: the mode input defaults to recon.
+  const pr = run(process.execPath, ['--import', pre, 'scripts/probe-bigtech.js'], { env: { ...env, PROBE_MODE: 'recon', PROBE_COMPANIES: '', PROBE_RAW: raw } });
   assert.equal((pr.out.match(/paused in server\/companies\.js; skipped, no request made/g) || []).length, 3, pr.out);
+  assert.match(pr.out, /raw requests only \(no companies named\); mode recon not run/);
+  assert.doesNotMatch(pr.out, /RECON /, 'no recon section for any company');
   assert.deepEqual(calls(log), [], 'no child process made any request to either site');
 });
 

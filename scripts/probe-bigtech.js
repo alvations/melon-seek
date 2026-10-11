@@ -519,8 +519,11 @@ function trimHtml(html) {
 
 if (isMain) {
   console.log(`probe-bigtech mode=${MODE} companies=${ONLY.join(',') || 'all'} max-jobs=${MAX_JOBS || 'all'} UA="${BOT_USER_AGENT}" node=${process.version} at ${new Date().toISOString()}`);
-  const { run: slugs, skipped } = probeTargets(ONLY);
+  let { run: slugs, skipped } = probeTargets(ONLY);
   for (const s of skipped) console.log(`skipped ${s.slug}: paused (${s.paused}) in server/companies.js; no request made`);
+  // A raw-only dispatch (raw set, no companies named) makes only the raw requests: the workflow
+  // always passes a mode (recon by default), which used to start recon on every company too.
+  if (RAW && !ONLY.length) { slugs = []; console.log(`raw requests only (no companies named); mode ${MODE} not run`); }
   if (RAW) await section('RAW REQUESTS', () => rawRequests(RAW));
   if (MODE === 'recon') {
     await Promise.all(slugs.map((slug) => section(`RECON ${slug}`, async () => { await robots(slug); await RECON[slug](); })));

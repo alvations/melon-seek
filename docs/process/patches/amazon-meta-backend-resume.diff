@@ -1,0 +1,99 @@
+--- a/server/companies.js
++++ b/server/companies.js
+@@ -28,17 +28,17 @@
+   // PAUSED (2026-10-10, lead): Meta's Automated Data Collection Terms bar automated collection
+   // "without ... express written permission", even though robots.txt and the sitemap expose the
+   // job pages. Not crawled until the user decides (docs/DATA_SOURCES.md §7 "Terms of use").
+-  // To resume: delete `paused` below and write the decision here (date, who, link). See PAUSING.
+-  { slug: 'meta', name: 'Meta', source: 'meta', board: 'meta', color: '#0866ff', channel: 'beta', live: false, paused: 'terms' },
++  // RESUMED (FILL IN: date; the user's decision and its link, docs/AMAZON_META.md). See PAUSING.
++  { slug: 'meta', name: 'Meta', source: 'meta', board: 'meta', color: '#0866ff', channel: 'beta', live: false },
+   { slug: 'apple', name: 'Apple', source: 'apple', board: 'apple', color: '#6e6e73', channel: 'beta', live: false },
+   { slug: 'netflix', name: 'Netflix', source: 'eightfold', board: 'netflix', color: '#e50914', channel: 'beta', live: false },
+   // PAUSED (2026-10-10, lead): Amazon's Conditions of Use exclude "data mining, robots, or similar
+   // data gathering and extraction tools". Not crawled until the user decides (DATA_SOURCES §7).
+-  // To resume: delete `paused` below and write the decision here (date, who, link). See PAUSING.
++  // RESUMED (FILL IN: date; the user's decision and its link, docs/AMAZON_META.md). See PAUSING.
+   // maxPostings: 22,415 postings would be the slowest board on a phone (first card 10.5 s against
+   // Apple's 4.6 s at 4,879; 5,000: 4.9 s), so the crawl keeps 5,000 (salaried, then newest) and
+   // the page says "5,000 of 22,415" (scripts/snapshot.js#fitSnapshot; docs/process/amazon-meta-backend.md).
+-  { slug: 'amazon', name: 'Amazon', source: 'amazon', board: 'amazon', color: '#ff9900', channel: 'beta', live: false, maxPostings: 5000, paused: 'terms' },
++  { slug: 'amazon', name: 'Amazon', source: 'amazon', board: 'amazon', color: '#ff9900', channel: 'beta', live: false, maxPostings: 5000 },
+   // NVIDIA's own careers site (jobs.nvidia.com) is an Eightfold tenant; its Workday
+   // CXS API was in a maintenance redirect during the first probe.
+   { slug: 'nvidia', name: 'NVIDIA', source: 'eightfold', board: 'nvidia', color: '#76b900', channel: 'beta', live: false },
+--- a/README.md
++++ b/README.md
+@@ -370,9 +370,10 @@
+ 
+ <https://alvations.github.io/melon-seek/beta/> is a full second copy of the
+ app: the stable companies plus the big-tech career sites (Google, Microsoft,
+-Apple, Netflix and NVIDIA). Amazon and Meta are paused because their terms bar
+-automated collection, and Tesla is left out because its site blocks plain
+-requests; see [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) §7.
++Meta, Apple, Netflix, Amazon and NVIDIA; Amazon shows 5,000 of its roughly 22,000
++postings, those with a published pay range first and then the newest, and says so).
++Tesla is left out because its site blocks plain requests; see
++[docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) §7.
+ The main site at `/melon-seek/` doesn't change and doesn't link to it.
+ Contract: [docs/CONTRACT.md](docs/CONTRACT.md) "v3 additions"; build log:
+ [docs/process/beta-deploy.md](docs/process/beta-deploy.md).
+--- a/docs/DATA_SOURCES.md
++++ b/docs/DATA_SOURCES.md
+@@ -173,9 +173,9 @@
+ so the browser never fetches them.
+ 
+ 
+-**Terms of use: Amazon and Meta are paused (2026-10-10).** The adapters work, but two sites'
+-terms bar automated collection, so both are `paused: 'terms'` in `server/companies.js` and are
+-not crawled, built or listed. `listCompanies()` skips them unless `includePaused: true`.
++**Terms of use: Amazon and Meta were paused (2026-10-10) and are resumed (FILL IN: date, the
++user's decision, docs/AMAZON_META.md).** Both were `paused: 'terms'` in `server/companies.js`,
++so they were not crawled, built or listed; deleting that field resumed them. Why they were paused:
+ - Amazon's Conditions of Use exclude "data mining, robots, or similar data gathering and
+   extraction tools".
+ - Meta's Automated Data Collection Terms bar automated collection "without … express written
+@@ -209,10 +209,10 @@
+ |---|---|---|---|---:|---:|---:|---|
+ | Google | `google` | works | jobs sitemap + `batchexecute` `sf9Qmf` | 3,417 | 2,217 (64.9%) | 23.6 MB | `www.google.com` |
+ | Microsoft | `microsoft` | works | Eightfold PCSX `apply.careers.microsoft.com/api/pcsx/*` | 2,279 | 1,490 (65.4%) | 29.7 MB | `apply.careers.microsoft.com` |
+-| Meta | `meta` | **paused (terms)** | jobs sitemap + job pages (`public_compensation`) | — (not crawled) | — | — | `www.metacareers.com` |
++| Meta | `meta` | works (resumed; counts after the first crawl) | jobs sitemap + job pages (`public_compensation`) | — | — | — | `www.metacareers.com` |
+ | Apple | `apple` | works | `jobs.apple.com/api/v1/search` + `jobDetails` | 4,875 | 2,818 (57.8%) | 25.4 MB | `jobs.apple.com` |
+ | Netflix | `netflix` | works | Eightfold classic `explore.jobs.netflix.net/api/apply/v2/jobs` | 457 | 290 (63.5%) | 4.7 MB | `explore.jobs.netflix.net` |
+-| Amazon | `amazon` | **paused (terms)** | `www.amazon.jobs/en/search.json` | — (not crawled) | — | — | `www.amazon.jobs` |
++| Amazon | `amazon` | works (resumed; capped at 5,000 on /beta/; counts after the first crawl) | `www.amazon.jobs/en/search.json` | — | — | — | `www.amazon.jobs` |
+ | NVIDIA | `nvidia` | works | Eightfold PCSX `jobs.nvidia.com/api/pcsx/*` | 2,663 | 1,396 (52.4%) | 18.4 MB | `jobs.nvidia.com` |
+ | Tesla | — | **blocked, left out** | `www.tesla.com/cua-api/apps/careers/state` | — | — | — | — |
+ 
+--- a/docs/process/PLAYBOOK.md
++++ b/docs/process/PLAYBOOK.md
+@@ -168,5 +168,6 @@
+ - Never run `playwright install`. Chromium is at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`,
+   with Playwright in `<scratchpad>/pw/node_modules`.
+ - The Long Tasks API misses work after `fetch()` resolves. Read long tasks from a Chrome trace.
+-- Beta-specific: Amazon and Meta are `paused: 'terms'`, so don't test or crawl them. Apple's full
++- Beta-specific: a company with `paused` in server/companies.js is never crawled or tested (its adapter
++  refuses to start). Amazon is capped at 5,000 postings on /beta/ (`maxPostings`). Apple's full
+   crawl takes about 2 h 10 min.
+--- a/docs/process/prompts/cycle/README.md
++++ b/docs/process/prompts/cycle/README.md
+@@ -33,8 +33,8 @@
+ - `node scripts/e2e.js` (with `NODE_PATH`) is the full e2e suite. Register a new file the way
+   the existing ones are registered.
+ - Beta boards are `live: false`: the browser never calls them, and the bundled snapshot is all
+-  there is. Amazon and Meta are paused for their terms of use, and Tesla is blocked by its bot
+-  protection, so none of the three appears on /beta/.
++  there is. Tesla is blocked by its bot protection, so it does not appear on /beta/; Amazon shows
++  5,000 of its postings (`maxPostings`), and the page says so.
+ - Re-running a role on the same target: give it a new `<ROLE>` with a pass number (for example
+   `qa-desktop-beta-2`) and the same suffix on any test file whose name already exists
+   (`test/e2e/beta-desktop-qa-2.e2e.js`). A later pass never edits an earlier pass's tests, log or
+--- a/.claude/skills/improvement-cycle/SKILL.md
++++ b/.claude/skills/improvement-cycle/SKILL.md
+@@ -41,4 +41,4 @@
+ - Never `git add -A data`.
+ - Never `pkill -f`.
+ - Never `playwright install`.
+-- Never crawl Amazon or Meta (paused for their terms of use).
++- Never crawl a company marked `paused` in server/companies.js.

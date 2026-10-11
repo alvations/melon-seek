@@ -34,7 +34,8 @@ const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); }
 const append = (file, text) => { if (file) fs.appendFileSync(file, text); };
 
 async function merge(freshDir, dataDir) {
-  const { recordRun } = await imp('scripts', 'history.js');
+  // A capped snapshot (jobsCapped) records its left-out postings as unseen, not closed.
+  const { recordPublished } = await imp('scripts', 'snapshot.js');
   const snaps = path.join(dataDir, 'snapshots');
   const hist = path.join(dataDir, 'history');
   fs.mkdirSync(snaps, { recursive: true });
@@ -53,13 +54,15 @@ async function merge(freshDir, dataDir) {
       fs.copyFileSync(src, path.join(snaps, `${c.slug}.json`));
       let ledger = '';
       try {
-        const h = await recordRun(c.slug, jobs, fetchedAt, { dir: hist });
-        ledger = h && h.stats ? `ledger: ${h.stats.open} open, +${h.stats.added} new, ${h.stats.closed} closed` : '';
+        const capped = body && body.jobsCapped && typeof body.jobsCapped === 'object' ? body.jobsCapped : null;
+        const h = await recordPublished(c.slug, jobs, fetchedAt, { dir: hist, capped });
+        ledger = h && h.stats ? `ledger: ${h.stats.open} open, +${h.stats.added} new, ${h.stats.closed} closed${h.stats.unseen ? `, ${h.stats.unseen} left out by the cap kept open` : ''}` : '';
       } catch (err) {
         ledger = `ledger unchanged (${err.message})`;
       }
       fresh++;
-      rows.push(`| ${c.slug} | **fresh** | ${jobs.length} | ${fetchedAt} | ${ledger} |`);
+      const cap = body && body.jobsCapped ? ` (${body.jobsCapped.kept} of ${body.jobsCapped.total}: ${body.jobsCapped.rule || 'capped'})` : '';
+      rows.push(`| ${c.slug} | **fresh** | ${jobs.length}${cap} | ${fetchedAt} | ${ledger} |`);
       continue;
     }
     const prev = readJson(path.join(snaps, `${c.slug}.json`));

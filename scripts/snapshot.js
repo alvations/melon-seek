@@ -22,7 +22,8 @@ import { fetchLive as defaultFetchLive } from '../server/pipeline.js';
 import { NORMALIZER_VERSION } from '../server/normalize.js';
 import { ROOT } from '../server/cache.js';
 import { newStats } from '../server/sources/polite.js';
-import { recordRun, historyDir } from './history.js';
+import { recordRun, readLedger, writeLedger, historyDir } from './history.js';
+import { diffLedger } from '../server/history.js';
 
 /** About 40 MB: the static build and the snapshot artifact stay manageable (docs/process/bigtech-data.md). */
 export const MAX_BETA_SNAPSHOT_BYTES = 40 * 1024 * 1024;
@@ -48,35 +49,82 @@ export function trimDescription(html, n) {
  *   2. if the board is still too big at the shortest trim (Amazon: 22k postings),
  *      cap the number of postings: postings with a plotted salary first, then the
  *      most recently posted, as many as fit. The payload says so (jobsCapped).
+ *   0. a board over its posting budget (`maxPostings`, server/companies.js: Amazon's 22,415
+ *      postings would make the slowest board on a phone, docs/process/amazon-meta-backend.md) keeps
+ *      the first `maxPostings` by the same ranking, before any trimming.
  * `payloadOf(jobs, trimmedTo, capped)` builds the file body. Returns
- * { jobs, trimmedTo|null, capped: { kept, total }|null, bytes }.
+ * { jobs, trimmedTo|null, capped: { kept, total, by, rule, limit? }|null, bytes }; `by` is
+ * 'postings' (the budget) or 'bytes' (the file size), `total` always the whole board.
  */
-export function fitSnapshot(jobs, payloadOf, maxBytes = MAX_BETA_SNAPSHOT_BYTES) {
+export const CAP_RULE = 'salaried, then newest';
+const rank = (list) => {
+  const t = (j) => Date.parse((j && (j.postedAt || j.updatedAt)) || '') || 0;
+  return list.map((j, i) => ({ j, i })).sort((a, b) => (!!b.j.salary - !!a.j.salary) || (t(b.j) - t(a.j)) || (a.i - b.i));
+};
+const inOrder = (ranked, n) => ranked.slice(0, n).sort((a, b) => a.i - b.i).map(({ j }) => j);
+
+export function fitSnapshot(jobs, payloadOf, maxBytes = MAX_BETA_SNAPSHOT_BYTES, { maxPostings = 0 } = {}) {
+  const total = jobs.length;
+  let base = jobs;
+  let budget = null;
+  if (maxPostings > 0 && jobs.length > maxPostings) {
+    base = inOrder(rank(jobs), maxPostings);
+    budget = { kept: base.length, total, by: 'postings', rule: CAP_RULE, limit: maxPostings };
+  }
   const size = (list, n, cap) => Buffer.byteLength(JSON.stringify(payloadOf(list, n, cap), null, 1));
-  let bytes = size(jobs, null, null);
-  if (bytes <= maxBytes) return { jobs, trimmedTo: null, capped: null, bytes };
-  let out = jobs;
+  let bytes = size(base, null, budget);
+  if (bytes <= maxBytes) return { jobs: base, trimmedTo: null, capped: budget, bytes };
+  let out = base;
   let n = null;
   for (n of TRIM_STEPS) {
-    out = jobs.map((j) => (j && typeof j.descriptionHtml === 'string' && j.descriptionHtml.length > n ? { ...j, descriptionHtml: trimDescription(j.descriptionHtml, n) } : j));
-    bytes = size(out, n, null);
-    if (bytes <= maxBytes) return { jobs: out, trimmedTo: n, capped: null, bytes };
+    out = base.map((j) => (j && typeof j.descriptionHtml === 'string' && j.descriptionHtml.length > n ? { ...j, descriptionHtml: trimDescription(j.descriptionHtml, n) } : j));
+    bytes = size(out, n, budget);
+    if (bytes <= maxBytes) return { jobs: out, trimmedTo: n, capped: budget, bytes };
   }
   // 2. Cap: rank (salaried first, newest first), keep the longest prefix that fits.
-  const t = (j) => Date.parse((j && (j.postedAt || j.updatedAt)) || '') || 0;
-  const ranked = out.map((j, i) => ({ j, i })).sort((a, b) => (!!b.j.salary - !!a.j.salary) || (t(b.j) - t(a.j)) || (a.i - b.i));
+  const ranked = rank(out);
   const per = ranked.map(({ j }) => Buffer.byteLength(JSON.stringify(j, null, 1)) + 4);
-  const overhead = size([], n, { kept: 0, total: jobs.length }) + 64;
+  const overhead = size([], n, { kept: 0, total, by: 'bytes', rule: CAP_RULE }) + 64;
   let keep = 0;
   for (let acc = overhead; keep < per.length && acc + per[keep] <= maxBytes; keep++) acc += per[keep];
   // Nested indentation makes the estimate a little low: shave until it fits.
   for (;;) {
-    const kept = ranked.slice(0, keep).sort((a, b) => a.i - b.i).map(({ j }) => j);
-    const capped = { kept: kept.length, total: jobs.length };
+    const kept = inOrder(ranked, keep);
+    const capped = { kept: kept.length, total, by: 'bytes', rule: CAP_RULE };
     const b = size(kept, n, capped);
     if (b <= maxBytes || keep === 0) return { jobs: kept, trimmedTo: n, capped, bytes: b };
     keep = Math.floor(keep * Math.min(0.995, maxBytes / b));
   }
+}
+
+/** A posting a capped run left out stays open in the F4 ledger while it was seen this recently. */
+export const UNSEEN_OPEN_DAYS = 14;
+
+/**
+ * scripts/history.js#recordRun for what a run published. A capped run (jobsCapped) only shows
+ * part of the board, so a posting it left out is not "closed": updateLedger would close it, and
+ * a new posting with the same title and place would then be linked to it as a repost (Amazon
+ * repeats titles per site). Those entries are re-opened while last seen within
+ * UNSEEN_OPEN_DAYS; after that they close as usual. The archive treats such runs as partial too
+ * (scripts/archive/ingest.js). Returns recordRun's result, stats.unseen = entries kept open.
+ */
+export async function recordPublished(slug, jobs, fetchedAt, { dir, capped = null } = {}) {
+  if (!capped) return recordRun(slug, jobs, fetchedAt, { dir });
+  const prev = await readLedger(slug, { dir });
+  const r = await recordRun(slug, jobs, fetchedAt, { dir });
+  if (!r.changed || !r.ledger || !prev || !prev.jobs) return r;
+  const now = r.ledger.lastRunAt;
+  const horizon = Date.parse(now) - UNSEEN_OPEN_DAYS * 864e5;
+  let unseen = 0;
+  for (const [id, e] of Object.entries(r.ledger.jobs)) {
+    const was = prev.jobs[id];
+    if (e.c === now && was && !was.c && Date.parse(was.l || was.f || '') >= horizon) { delete e.c; unseen++; }
+  }
+  if (unseen) {
+    await writeLedger(slug, r.ledger, { dir });
+    r.stats = { ...diffLedger(prev, r.ledger), unseen };
+  }
+  return r;
 }
 
 /** Targets for the CLI: explicit slugs, or a channel's companies (stable by default). */
@@ -140,20 +188,20 @@ export async function runSnapshot(targets, opts = {}) {
       let out = jobs;
       let trimmedTo = null;
       let capped = null;
-      if (beta) ({ jobs: out, trimmedTo, capped } = fitSnapshot(jobs, payloadOf));
+      if (beta) ({ jobs: out, trimmedTo, capped } = fitSnapshot(jobs, payloadOf, MAX_BETA_SNAPSHOT_BYTES, { maxPostings: company.maxPostings }));
       const text = JSON.stringify(payloadOf(out, trimmedTo, capped), null, 1) + '\n';
       const file = path.join(outDir, `${slug}.json`);
       await fs.writeFile(file, text);
       const withSalary = jobs.filter((j) => j.salary).length;
       const secs = ((Date.now() - t0) / 1000).toFixed(0);
       const size = `${(Buffer.byteLength(text) / 1048576).toFixed(1)} MB`;
-      const extra = beta ? `; ${stats.requests} requests, ${stats.pages} list pages, ${stats.details} details, ${(stats.bytes / 1048576).toFixed(0)} MB downloaded${trimmedTo ? `; descriptions trimmed to ${trimmedTo} chars (+ pay)` : ''}${capped ? `; capped to ${capped.kept} of ${capped.total} postings (salaried, then newest)` : ''}` : '';
+      const extra = beta ? `; ${stats.requests} requests, ${stats.pages} list pages, ${stats.details} details, ${(stats.bytes / 1048576).toFixed(0)} MB downloaded${trimmedTo ? `; descriptions trimmed to ${trimmedTo} chars (+ pay)` : ''}${capped ? `; capped to ${capped.kept} of ${capped.total} postings (${capped.rule}; ${capped.by === 'postings' ? `posting budget ${capped.limit}` : 'file size'})` : ''}` : '';
       log(`✓ ${slug}: ${jobs.length} jobs (${withSalary} with salary) -> ${path.relative(ROOT, file)} ${size} [${beta ? `${secs}s` : `${Date.now() - t0}ms`}]${extra}`);
       for (const n of stats.notes) log(`  [${slug}] note: ${n}`);
       const result = { slug, ok: true, jobs: out.length, file, ...(beta ? { fetched: jobs.length, bytes: Buffer.byteLength(text), trimmedTo, capped, requests: stats.requests } : {}) };
       try {
-        // The ledger records what is published (a capped board's dropped postings are not "closed").
-        const h = await recordRun(slug, out, fetchedAt, { dir: hDir });
+        // The ledger records what is published; a capped board's left-out postings are not "closed".
+        const h = await recordPublished(slug, out, fetchedAt, { dir: hDir, capped });
         result.history = h.stats;
         if (h.changed) log(`  history ${slug}: ${h.stats.open} open, +${h.stats.added} new, ${h.stats.closed} closed, ${h.stats.reopened} reopened, ${h.stats.reposts} reposts -> ${path.relative(ROOT, h.file)}`);
       } catch (err) {
