@@ -6,6 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,7 +17,7 @@ import {
 import { normalizeEmployer, matchEmployer, nearMiss, employerCandidate } from '../scripts/alt-data/employers.js';
 import {
   findDisclosureLinks, reportingPeriod, fileQuarter, annualize, displayTitle, placeName, extractWorkbook, observe,
-  summarize, wageStats, quantile, toCsv, detectProgram, main,
+  summarize, wageStats, quantile, toCsv, detectProgram, emitChunks, main,
 } from '../scripts/alt-data/dol-disclosure.js';
 import { sampleLcaRows, samplePermRows, LCA_COLUMNS_FY2026, PERSONAL_MARKERS } from '../scripts/alt-data/sample.js';
 
@@ -257,6 +258,21 @@ test('the committed summary, when present, has the shape and only Amazon and Met
   const text = JSON.stringify(s);
   assert.ok(!/@[a-z0-9-]+\.[a-z]{2,}/i.test(text.replace(/https?:\/\/\S+/g, '')), 'no e-mail addresses');
   assert.ok(fs.statSync(f).size < 512 * 1024, 'commit-sized');
+});
+
+test('the summary travels through a job log: emitChunks output decodes with freshness-probe.mjs', () => {
+  const buf = Buffer.from(JSON.stringify({ hello: 'Amazon and Meta', n: [1, 2, 3] }, null, 2).repeat(200));
+  const lines = [];
+  emitChunks('dol-amazon-meta.json', buf, { out: (l) => lines.push(`2026-10-11T12:00:00.0000000Z ${l}`) });
+  assert.ok(lines.length >= 3);
+  const logFile = path.join(tmp, 'job.log');
+  fs.writeFileSync(logFile, `﻿${lines.join('\n')}\n`);
+  const outDir = path.join(tmp, 'decoded');
+  const decoder = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.github', 'scripts', 'freshness-probe.mjs');
+  const r = spawnSync(process.execPath, [decoder, '--decode', logFile, outDir], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /sha256 ok/);
+  assert.deepEqual(fs.readFileSync(path.join(outDir, 'dol-amazon-meta.json')), buf);
 });
 
 test('summarize with no rows still reports every program read', () => {

@@ -19,13 +19,17 @@
 //   node scripts/alt-data/dol-disclosure.js --download [--dir DIR]          # latest files from dol.gov
 //   node scripts/alt-data/dol-disclosure.js --lca LCA.xlsx [--perm PERM.xlsx] # files already on disk
 //   options: --out FILE (default data/alt/dol-amazon-meta.json), --rows FILE.csv (the kept rows,
-//            for a workflow artifact; never committed), --print (summary to stdout), --fy N --q N
+//            for a workflow artifact; never committed), --print (summary to stdout), --fy N --q N,
+//            --emit-chunks (the summary as gzip+base64 log chunks; --emit-rows adds the CSV), which
+//            `node .github/scripts/freshness-probe.mjs --decode <job log> <dir>` turns back into files
 //
 // These are wages employers filed for visa and green-card cases, not job postings: one row
 // is one filing (it can cover several workers), the "offered wage" is the employer's stated
 // range for that position, and only certified, full-time filings are used for pay.
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
+import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
@@ -408,6 +412,42 @@ export function toCsv(observations) {
   return `${CSV_COLS.join(',')}\n${observations.map((o) => CSV_COLS.map((c) => csvCell(o[c])).join(',')).join('\n')}\n`;
 }
 
+/* ------------------------------------------------------- log transport */
+
+/**
+ * Print a file to stdout as gzip+base64 chunks in the format of
+ * .github/scripts/freshness-probe.mjs, so `node .github/scripts/freshness-probe.mjs --decode
+ * <job log> <dir>` rebuilds the exact bytes where workflow artifacts cannot be downloaded.
+ */
+export function emitChunks(name, buf, { out = (line) => fs.writeSync(1, `${line}\n`) } = {}) {
+  const meta = {
+    name, url: `file:${name}`, final: `file:${name}`, status: 200, type: name.endsWith('.json') ? 'application/json' : 'text/csv',
+    bytes: buf.length, kept: buf.length, truncated: false, sha256: crypto.createHash('sha256').update(buf).digest('hex'), fetchedAt: new Date().toISOString(),
+  };
+  out(`META ${JSON.stringify(meta)}`);
+  const b64 = zlib.gzipSync(buf, { level: 9 }).toString('base64');
+  const total = Math.ceil(b64.length / 3000) || 1;
+  for (let i = 0; i < total; i++) out(`CHUNK ${name} ${i + 1}/${total} ${b64.slice(i * 3000, (i + 1) * 3000)}`);
+  out(`END ${name}`);
+}
+
+/** A short Markdown report of a summary (the workflow's step summary). */
+export function markdown(summary) {
+  const usd = (n) => (n == null ? '-' : `$${Math.round(n).toLocaleString('en-US')}`);
+  const lines = ['### Pay filed with the US Department of Labor: Amazon and Meta', ''];
+  for (const s of summary.sources) lines.push(`- ${s.program.toUpperCase()} FY${s.fiscalYear ?? '?'} Q${s.quarter ?? '?'} (${s.reportingPeriod ? `${s.reportingPeriod.from} to ${s.reportingPeriod.to}` : 'period unknown'}): ${s.rowsScanned} rows read, ${s.amazonMetaRows} Amazon or Meta`);
+  lines.push('', '| Company | Program | Filings | Priced | Median | 25th-75th percentile |', '|---|---|---:|---:|---:|---|');
+  for (const [c, block] of Object.entries(summary.companies)) {
+    for (const p of ['lca', 'perm']) {
+      const b = block[p];
+      if (b) lines.push(`| ${c === 'amazon' ? 'Amazon' : 'Meta'} | ${p.toUpperCase()} | ${b.filings} | ${b.priced} | ${usd(b.wage.median)} | ${usd(b.wage.p25)} - ${usd(b.wage.p75)} |`);
+    }
+  }
+  const misses = summary.nearMisses.slice(0, 15);
+  if (misses.length) lines.push('', `Near misses (not counted; check employers.js): ${misses.map((n) => `${n.name} (${n.filings})`).join('; ')}`);
+  return `${lines.join('\n')}\n`;
+}
+
 /* ----------------------------------------------------------------- cli */
 
 export async function main(argv = process.argv.slice(2)) {
@@ -451,6 +491,9 @@ export async function main(argv = process.argv.slice(2)) {
   const rows = opt('rows');
   if (rows) { fs.writeFileSync(rows, toCsv(observations)); log(`wrote ${rows} (${observations.length} rows)`); }
   if (has('print')) process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+  if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown(summary));
+  if (has('emit-chunks')) emitChunks(path.basename(out), fs.readFileSync(out));
+  if (has('emit-rows') && rows) emitChunks(path.basename(rows), fs.readFileSync(rows));
   for (const c of ['amazon', 'meta']) {
     for (const p of ['lca', 'perm']) {
       const b = summary.companies[c][p];

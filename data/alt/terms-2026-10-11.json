@@ -1,0 +1,134 @@
+{
+  "schema": 1,
+  "title": "Terms and robots.txt that govern www.amazon.jobs and www.metacareers.com, read from the live pages",
+  "notLegalAdvice": "A record of what the pages say, for the user's decision. It is not legal advice.",
+  "how": "Fetched on GitHub-hosted runners by .github/workflows/freshness-probe.yml (read-only capture: honest User-Agent 'melon-seek/0.2 (+https://alvations.github.io/melon-seek/; open-source job-postings salary chart; terms and robots.txt check)', one request per page, robots.txt and legal pages only, no job page, listing or search endpoint), decoded locally with node .github/scripts/freshness-probe.mjs --decode. The build sandbox and WebFetch cannot resolve these hosts. Earlier quotes in docs/DATA_SOURCES.md came from search results.",
+  "runs": {
+    "38036154904": "bigtech-probe.yml, 2026-10-10T10:02Z, mode=full companies=none (no crawl), raw requests for footers and terms pages",
+    "38136448486": "freshness-probe.yml round 1, 2026-10-11T11:41Z",
+    "38136777427": "freshness-probe.yml round 2, 2026-10-11T11:46Z (Meta pages again with Accept: text/html, which returns the server-rendered text)",
+    "38137141996": "freshness-probe.yml round 3, 2026-10-11T11:52Z (first 512 KB of each DOL workbook)"
+  },
+  "amazon": {
+    "robots": {
+      "url": "https://www.amazon.jobs/robots.txt",
+      "fetchedAt": "2026-10-11T11:41:05.608Z",
+      "status": 200,
+      "lastModified": "Thu, 01 Oct 2026 18:16:19 GMT",
+      "sha256": "23a665abcf5da6674c3d6ba3242dd651febd0d21ed7b50487f5060f53cdfb24e",
+      "text": "User-agent: AhrefsBot\nDisallow: /\n\nUser-agent: *\nDisallow: /internal\nDisallow: /en/internal\nDisallow: /en-gb/internal\nDisallow: /cs/internal\nDisallow: /de/internal\nDisallow: /es/internal\nDisallow: /fr/internal\nDisallow: /it/internal\nDisallow: /jp/internal\nDisallow: /pl/internal\nDisallow: /pt/internal\nDisallow: /zh/internal",
+      "reading": "No rule for job pages or /en/search.json; only AhrefsBot is shut out. robots.txt has no notice about terms."
+    },
+    "footer": {
+      "url": "https://www.amazon.jobs/content/en/legal-disclosures-and-notices",
+      "fetchedAt": "2026-10-11T11:41:07.208Z",
+      "status": 200,
+      "sha256": "07eaf3345829288419e46a2c7431adf019619b50a671849c21850ff31bad6aa3",
+      "links": ["Privacy", "Conditions of use => https://www.amazon.com/gp/help/customer/display.html?nodeId=508088", "Cookie preferences", "Legal disclosures and notices", "Translation disclaimer"],
+      "copyright": "© 1996-2026, Amazon.com, Inc. or its affiliates",
+      "legalPageLists": ["Privacy notice for candidate relationship management system", "Global notice regarding Amazon's use of AI tools in the recruitment process", "US lie detector disclosures", "EU background checks", "Amazon Japan Recruitment Harassment Prevention Policy"],
+      "reading": "amazon.jobs has no terms of its own. Its footer's 'Conditions of use' link goes to amazon.com's Conditions of Use (nodeId=508088, which redirects to nodeId=GLSBYFE9MGKKQXXM, run 38036154904)."
+    },
+    "conditionsOfUse": {
+      "url": "https://www.amazon.com/gp/help/customer/display.html?nodeId=GLSBYFE9MGKKQXXM",
+      "fetchedAt": "2026-10-11T11:41:08.780Z",
+      "status": 200,
+      "sha256": "ed22560a1dca838b14dd4cc977bb3e3fbdaf82f4049b3f7e1a741e3e4959dafd",
+      "lastUpdated": "August 14, 2026",
+      "quotes": {
+        "scope": "Welcome to Amazon.com. Amazon.com Services LLC and/or its affiliates (\"Amazon\") provide website features and other products and services to you when you visit or shop at Amazon.com, use Amazon products or services, use Amazon applications for mobile, or use software provided by Amazon in connection with any of the foregoing (collectively, \"Amazon Services\"). By using the Amazon Services, you agree, on behalf of yourself and all members of your household and others who use any Amazon Service under your account, to the following conditions.",
+        "licenseAndAccess": "Subject to your compliance with these Conditions of Use and any Service Terms, and your payment of any applicable fees, Amazon or its content providers grant you a limited, non-exclusive, non-transferable, non-sublicensable license to access and make personal and non-commercial use of the Amazon Services. This license does not include any resale or commercial use of any Amazon Service, or its contents; any collection and use of any product listings, descriptions, or prices; any derivative use of any Amazon Service or its contents; any downloading, copying, or other use of account information for the benefit of any third party; or any use of data mining, robots, or similar data gathering and extraction tools.",
+        "commercial": "No Amazon Service, nor any part of any Amazon Service or its contents, may be reproduced, duplicated, copied, sold, resold, visited, or otherwise exploited for any commercial purpose without express written consent of Amazon.",
+        "copyright": "All content included in or made available through any Amazon Service, such as text, graphics, logos, button icons, images, audio clips, digital downloads, data compilations, and software is the property of Amazon or its content suppliers and protected by United States and international copyright laws.",
+        "law": "By using any Amazon Service, you agree that applicable federal law, and the laws of the state of Washington, without regard to principles of conflict of laws, will govern these Conditions of Use and any dispute of any sort that might arise between you and Amazon",
+        "address": "Amazon.com, Inc. P.O. Box 81226 Seattle, WA 98108-1226"
+      }
+    }
+  },
+  "meta": {
+    "robots": {
+      "url": "https://www.metacareers.com/robots.txt",
+      "fetchedAt": "2026-10-11T11:41:10.234Z",
+      "status": 200,
+      "sha256": "6bdb31cf09e7863228e1f1a4de323c168abdef62786762492990386530a38c2d",
+      "text": "# Notice: Collection of data on Facebook through automated means is\n# prohibited unless you have express written permission from Facebook\n# and may only be conducted for the limited purpose contained in said\n# permission.\n# See: http://www.facebook.com/apps/site_scraping_tos_terms.php\n\nUser-agent: facebookexternalhit\nAllow: *\n\nUser-agent: meta-externalads\nAllow: *\n\nUser-agent: *\nDisallow: /*cursor=\nDisallow: /*fb_comment_id=\nDisallow: /ajax/\nDisallow: /tealium/\nDisallow: /intern/\nDisallow: /internal/\nDisallow: /login/\nDisallow: /oidc/callback/\nDisallow: /*.php\nDisallow: /signup/\nDisallow: /resume/\n\nSitemap: https://www.metacareers.com/sitemap/www_metacareers_com_sitemap.xml.gz\nSitemap: https://www.metacareers.com/jobsearch/sitemap.xml",
+      "reading": "The rules allow job pages and list the jobs sitemap, but the file opens with a notice that automated collection needs express written permission. The notice's link redirects to the Automated Data Collection Terms (run 38136777427). docs/DATA_SOURCES.md 7g leaves the notice out."
+    },
+    "automatedDataCollectionTerms": {
+      "url": "https://www.facebook.com/legal/automated_data_collection_terms",
+      "fetchedAt": "2026-10-11T11:46:22.784Z",
+      "status": 200,
+      "sha256": "45219fafabfb1db2df22638c802641fd128a7941d6f1d2bf8a3f2d99e5b63f4e",
+      "effective": "October 7, 2024",
+      "quotes": {
+        "1": "These Automated Data Collection Terms (“Terms”) between you and Meta Platforms, Inc. (“Meta” or “we”) govern your Use of data collected from Meta Company Products through Automated Data Collection (“Collected Data”).",
+        "2": "You will not engage in Automated Data Collection without first obtaining Meta’s express written permission or in any manner that is not explicitly authorized by Meta. The term of these Terms will begin on the date you accept them or otherwise engage in Automated Data Collection of Meta Company Products, and will continue until you certify to us that you have deleted and are no longer conducting Automated Data Collection or Using Collected Data, Meta revokes such permission, or these Terms are terminated as described below.",
+        "3": "Meta’s express written permission to engage in the Automated Data Collection is subject to your agreement to abide by these Terms, which incorporate by reference the Meta Terms and Policies. For avoidance of doubt, acceptance of these Terms alone does not constitute the required written permission to conduct Automated Data Collection; such permission must be obtained separately through Meta’s formal authorization process. Notwithstanding any such permission that Meta has granted, Meta reserves the right to implement measures to restrict your Automated Data Collection and Use of Collected Data at any time for any reason.",
+        "4": "The Collected Data shall only be Used for the purpose of (i) providing results for your Search Engine, or (ii) displaying previews of Meta URLs to your users, and (iii) for other purposes for which you have received Meta’s express written permission to Use Collected Data. All other Uses are prohibited, including, but not limited to, transferring, selling, licensing or sublicensing Collected Data and data derived from Collected Data to any third party, including your subsidiaries and affiliates.",
+        "robots": "You will comply with Meta’s robots.txt protocols, page header tags, and similar opt-out protocols that we implement.",
+        "identify": "You will only use IP addresses, user-agent strings, and other identifiers that identify your services.",
+        "definition": "“Automated Data Collection,” for purposes of these Terms, refers to the collection of data from Meta Company Products via the use of automated or programmatic tools capable of navigating or indexing the surface-layer of the World Wide Web. These tools may include but are not limited to web scrapers, bots, robots, spiders, crawlers, user-agents, and other automated or programmatic mechanisms designed to access, collect, or retrieve data or content directly from web pages or applications.",
+        "products": "“Meta Company Products” shall have the same definition as those applied in the Facebook Terms of Service"
+      },
+      "permissionRoute": "§3 names a 'formal authorization process' but the page links no form or address for it."
+    },
+    "termsOfService": {
+      "url": "https://www.facebook.com/legal/terms",
+      "fetchedAt": "2026-10-11T11:46:24.922Z",
+      "status": 200,
+      "sha256": "1f4b1db2657005848b1d4cf4534dea224877c5d22eee71f955af9597cf07729a",
+      "effective": "January 1, 2025",
+      "quotes": {
+        "scope": "These Terms of Service (the \"Terms\") govern your access and use of Facebook, Messenger, and the other products, websites, features, apps, services, technologies, and software we offer (the Meta Products or Products), except where we expressly state that separate terms (and not these) apply.",
+        "3.2": "You may not access or collect data from our Products using automated means (without our prior permission) or attempt to access data you do not have permission to access, regardless of whether such automated access or collection is undertaken while logged-in to a Facebook account.",
+        "3.2 data": "Except as provided in the Platform Terms , you may not sell, license, or purchase any data obtained from us or our services, regardless of whether such data was obtained while logged-in to a Facebook account.",
+        "4.4": "You and Meta each agree that any claim, cause of action, or dispute between us that arises out of or relates to these Terms or your access or use of the Meta Products shall be resolved exclusively in the U.S. District Court for the Northern District of California or a state court located in San"
+      }
+    },
+    "careersSiteTerms": {
+      "checked": ["https://www.metacareers.com/privacy/ (fetched 2026-10-11T11:46:31.306Z)", "https://www.metacareers.com/policy/cookies/ (fetched 2026-10-11T11:46:33.486Z)"],
+      "footerLinks": ["Jobs", "Teams", "Career Programs", "Working at Meta", "Blog", "Podcasts", "Candidate Privacy Statements", "Meta => https://www.facebook.com/help/111814505650678"],
+      "reading": "No careers-specific terms page was found in the server-rendered pages. Meta's Terms cover the 'websites ... we offer', and the careers site's own robots.txt points to the Automated Data Collection Terms."
+    }
+  },
+  "otherBoardsSameReading": {
+    "source": "bigtech-probe run 38036154904 (2026-10-10T10:02Z), raw requests",
+    "apple": { "url": "https://www.apple.com/legal/internet-services/terms/site.html", "quote": "You may not use any \"deep-link\", \"page-scrape\", \"robot\", \"spider\" or other automatic device, program, algorithm or methodology, or any similar or equivalent manual process, to access, acquire, copy or monitor any portion of the Site or any Content" },
+    "netflix": { "url": "https://help.netflix.com/legal/termsofuse", "quote": "(iv) use any robot, spider, scraper or other automated means to access the Netflix service;" },
+    "reading": "Apple's site terms (apple.com, which hosts jobs.apple.com) and Netflix's consumer terms (for 'the Netflix service'; the careers site is explore.jobs.netflix.net on Eightfold) carry anti-robot wording like Amazon's. docs/DATA_SOURCES.md says the other boards' terms were not found to bar this collection; that is not accurate for Apple."
+  },
+  "commonCrawl": {
+    "terms": {
+      "url": "https://commoncrawl.org/terms-of-use",
+      "fetchedAt": "2026-10-11T11:41:22.987Z",
+      "lastUpdated": "March 7, 2024",
+      "sha256": "486125aa6592d8d41b8541f7e8ec42cab199f5f2527dae38a0bb6ca91311cedf",
+      "quotes": {
+        "thirdParty": "You also acknowledge and agree that all information, data, text, scripts, web pages, web sites, software, html page links, open data APIs, metadata or other materials contained in, or otherwise made accessible to you in, the Service (collectively the \"Crawled Content\") may be subject to separate terms of use or terms of service from the owners of such Crawled Content.",
+        "rights": "BY USING THE CRAWLED CONTENT, YOU AGREE TO RESPECT THE COPYRIGHTS AND OTHER APPLICABLE RIGHTS OF THIRD PARTIES IN AND TO THE MATERIAL CONTAINED THEREIN."
+      }
+    },
+    "captures": {
+      "index": "CC-MAIN-2026-39 (September 2026), captures 2026-09-04 to 2026-09-15; counts of timestamp and status only, no URLs or pages read",
+      "amazonJobsJobPages": { "query": "www.amazon.jobs/en/jobs/*", "captures": 1614, "ok200": 634, "redirect302": 92, "notFound404": 888, "fetchedAt": "2026-10-11T11:46:47.389Z" },
+      "metaCareersJobPages": { "query": "www.metacareers.com/profile/job_details/*", "captures": 1093, "ok200": 730, "redirect": 363, "fetchedAt": "2026-10-11T11:46:53.256Z" }
+    }
+  },
+  "dol": {
+    "copyright": {
+      "url": "https://www.dol.gov/general/aboutdol/copyright",
+      "fetchedAt": "2026-10-11T11:46:35.166Z",
+      "quote": "Materials created by the federal government are generally part of the public domain and may be used, reproduced and distributed without permission. Therefore, content on this website which is in the public domain may be used without the prior permission of the U.S. Department of Labor (DOL). However, such materials may not be used in a manner that implies any affiliation or endorsement by the DOL of your company, website or publication."
+    },
+    "performancePage": {
+      "url": "https://www.dol.gov/agencies/eta/foreign-labor/performance",
+      "fetchedAt": "2026-10-11T11:41:17.903Z",
+      "quote": "Each data set is cumulative for the fiscal year, containing unique records identified by the applicable OFLC case number based on the most recent date a case determination decision was issued.",
+      "latest": "The following case disclosure files cover determinations issued between October 1, 2025 and June 30, 2026."
+    },
+    "files": {
+      "LCA_Disclosure_Data_FY2026_Q3.xlsx": { "url": "https://www.dol.gov/media/LCA_Disclosure_Data_FY2026_Q3.xlsx", "lastModified": "Fri, 07 Aug 2026 17:33:30 GMT", "sizeMB": 240.2, "sheetXmlMB": 1526, "sheetRange": "A1:CT1032736", "columns": 98 },
+      "PERM_Disclosure_Data_FY2026_Q3.xlsx": { "url": "https://www.dol.gov/media/PERM_Disclosure_Data_FY2026_Q3.xlsx", "lastModified": "Fri, 07 Aug 2026 18:50:17 GMT", "sizeMB": 149.0, "sheetXmlMB": 1132, "sheetRange": "A1:EG925431", "columns": 137 }
+    }
+  }
+}

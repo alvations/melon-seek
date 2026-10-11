@@ -1,0 +1,60 @@
+diff --git a/.github/workflows/alt-data-dol.yml b/.github/workflows/alt-data-dol.yml
+new file mode 100644
+index 0000000..3c3c5dd
+--- /dev/null
++++ b/.github/workflows/alt-data-dol.yml
+@@ -0,0 +1,54 @@
++name: Alt data (US DOL pay filings, Amazon and Meta)
++
++# Manual only (workflow_dispatch). Downloads the latest US Department of Labor (Office of
++# Foreign Labor Certification) LCA and PERM disclosure files, which are public domain
++# (https://www.dol.gov/general/aboutdol/copyright), keeps the Amazon and Meta employer rows,
++# and builds data/alt/dol-amazon-meta.json (scripts/alt-data/dol-disclosure.js,
++# docs/AMAZON_META.md). It makes 3 requests, all to www.dol.gov, and none to amazon.jobs or
++# metacareers.com. Read-only: nothing is committed or deployed. The summary (and the kept
++# rows) are uploaded as an artifact, and the summary is also printed to the job log as
++# gzip+base64 chunks, because artifacts cannot be downloaded from the agent sandbox:
++#   node .github/scripts/freshness-probe.mjs --decode <job log> <dir>
++# The lead reviews and commits data/alt/dol-amazon-meta.json. OFLC publishes each quarter
++# about 5-6 weeks after it ends (FY2026 Q3, to 2026-06-30, on 2026-08-07).
++on:
++  workflow_dispatch:
++    inputs:
++      rows:
++        description: "Also print the kept rows (CSV, no personal columns) to the log"
++        type: boolean
++        default: false
++
++permissions:
++  contents: read
++
++concurrency:
++  group: alt-data-dol
++  cancel-in-progress: false
++
++jobs:
++  dol:
++    runs-on: ubuntu-latest
++    timeout-minutes: 60
++    steps:
++      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
++
++      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
++        with:
++          node-version: 22
++
++      # Inputs reach the script through env, never interpolated into the shell.
++      - name: Download and summarize
++        env:
++          ROWS: ${{ inputs.rows }}
++        run: |
++          mkdir -p "$RUNNER_TEMP/dol" out
++          args=(--download --dir "$RUNNER_TEMP/dol" --out out/dol-amazon-meta.json --rows out/dol-amazon-meta-rows.csv --emit-chunks)
++          if [ "$ROWS" = "true" ]; then args+=(--emit-rows); fi
++          node --max-old-space-size=4096 scripts/alt-data/dol-disclosure.js "${args[@]}"
++
++      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
++        with:
++          name: dol-amazon-meta
++          path: out/
++          retention-days: 90
