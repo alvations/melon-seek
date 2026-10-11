@@ -198,7 +198,7 @@ export const FAMILY_LABELS = Object.freeze({
  * Engineer - Chip Design Tools" stays software, "SoC Firmware Engineer" stays hardware).
  * Tested after program, product, sales and business operations ("SoC Program Manager" is program).
  */
-const CHIP = /^(?!.*\b(software|firmware|fw|compiler|drivers?)\b).*\b(asic|rtl|vlsi|socs?|dft|dfx|atpg|sta|static timing|timing (analysis|closure|signoff|design|engineer\w*)|physical (design|synthesis|verification)|logic synthesis|place and route|pnr|formal verification|design verification(?! test)|dv (engineer|lead)|(cpu|gpu|npu|tpu|soc|ip|asic|chip|full chip|block|unit|subsystem|graphics|pcie|ddr|usb|serdes|ams|mixed signal|analog|digital|memory|cache) (design )?verification|chips?|chipsets?|full chip|silicon|(pre|post) (silicon|si)|(?<!printed )circuits?|mixed signal|ams|(ic|analog|digital|rfic|custom|memory|mask|cell|chip|full custom) layout|mask design|standard cell|cell (library|modeling|characterization)|serdes|sram|logic design|rtl design|micro ?architect\w*|(cpu|gpu|npu|tpu|soc|asic) (architect\w*|design\w*|core|rtl|physical|logic|integration)|ic (design\w*|layout|packaging|verification|engineer\w*)|rfic|photonics? ic|interposer|(fe|frontend) implementation|package design|eda|tape ?out|upf|signoff|clock (tree|distribution)|semiconductors?)\b/;
+const CHIP = /^(?!.*\b(software|firmware|fw|compiler|drivers?)\b).*\b(asic|rtl|vlsi|socs?|dft|dfx|atpg|sta|static timing|timing (analysis|closure|signoff|design|engineer\w*)|physical (design|synthesis|verification)|logic synthesis|place and route|pnr|formal verification|design verification(?! test)|dv (engineer|lead)|(cpu|gpu|npu|tpu|soc|ip|asic|chip|full chip|fc|block|unit|subsystem|graphics|pcie|ddr|usb|serdes|ams|mixed signal|analog|digital|memory|cache) (design )?verification|chips?|chipsets?|full chip|silicon|(pre|post) (silicon|si)|(?<!printed )circuits?|mixed signal|ams|(ic|analog|digital|rfic|custom|memory|mask|cell|chip|full custom) layout|mask design|standard cell|cell (library|modeling|characterization)|serdes|sram|logic design|rtl design|micro ?architect\w*|(cpu|gpu|npu|tpu|soc|asic) (architect\w*|design\w*|core|rtl|physical|logic|integration)|ic (design\w*|layout|packaging|verification|engineer\w*)|rfic|photonics? ic|interposer|(fe|frontend) implementation|package design|eda|tape ?out|upf|signoff|clock (tree|distribution)|semiconductors?)\b/;
 // Chip words that turn a "design manager" or "designer" into chip design ("CPU Cache Subsystem Senior Design Manager").
 const CHIP_CONTEXT = /\b(cpu|gpu|npu|tpu|socs?|asic|rtl|silicon|circuits?|mixed signal|vlsi|chips?|cache subsystem|memory subsystem|design verification|physical design|formal verification)\b/;
 // Technicians on a data-center floor (Google "Data Center Technician III", Microsoft "Critical
@@ -354,7 +354,7 @@ const FAMILY_AFFINITY = {
   'hardware|manufacturing': 0.35, 'manufacturing|supply-chain': 0.3, 'program|bizops': 0.4,
   'swe|it': 0.4, 'security|it': 0.35, 'hardware|field-ops': 0.35, 'policy|legal': 0.35,
   'policy|trust-safety': 0.4, 'facilities|manufacturing': 0.25, 'swe|ai-training': 0, 'ml|ai-training': 0,
-  'hardware|chip': 0.55, 'swe|chip': 0.3, 'dc-tech|facilities': 0.4, 'dc-tech|manufacturing': 0.35, 'dc-tech|it': 0.3,
+  'hardware|chip': 0.85, 'swe|chip': 0.5, 'dc-tech|facilities': 0.7, 'dc-tech|manufacturing': 0.5, 'dc-tech|it': 0.4, 'dc-tech|support': 0.3,
 };
 
 /** Similarity of two family ids in [0,1] (0.35 when either is unknown). */

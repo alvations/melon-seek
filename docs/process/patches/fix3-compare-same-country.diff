@@ -1,0 +1,80 @@
+--- a/public/app.js
++++ b/public/app.js
+@@ -12,7 +12,7 @@
+ import { loadFreshness, freshnessDoc, juiceAsOfText, juiceSpanText, marketAsOfText, compstimateAsOfText } from './features/freshness.js';
+ import { createCompsChart } from './viz/comps.js';
+ import { roleFamily, FAMILY_LABELS, readableTitle, levelLabel, displayLevel, NOT_STATED, DISPLAY_LEVEL_ORDER, levelKey, levelFromKey } from './features/roles.js';
+-import { payLocations } from './features/shared.js';
++import { payLocations, payRank, samePayCountry, countryInSentence } from './features/shared.js';
+ // ./features/insights.js is imported on first use (Insights mode), see renderInsights.
+ // api.js: getCompanies, getJobs, getJobDetail (namespace import: tolerate a missing optional export)
+ 
+@@ -3002,18 +3002,22 @@
+  * earnings and base pay only with base pay; an internship with internships; never fixed-term pay or
+  * stipends (a weekly stipend annualized is not a yearly salary). null when there is no fair pool.
+  */
+-function payPool(job) {
++function likePool(job) {
+   if (!job?._usd || isTerm(job) || job.salary.kind === 'stipend') return null;
+   const ote = isOte(job), intern = job.seniority === 'Intern';
+-  const pool = data.jobs.filter((j) => j._usd && j.id !== job.id && !isTerm(j) && j.salary.kind !== 'stipend' && isOte(j) === ote && (j.seniority === 'Intern') === intern);
+-  return pool.length >= 5 ? pool : null;
++  return data.jobs.filter((j) => j._usd && j.id !== job.id && !isTerm(j) && j.salary.kind !== 'stipend' && isOte(j) === ote && (j.seniority === 'Intern') === intern);
++}
++/** BP-3 (fix wave 3, shared decision 2): of those, only roles whose pay is for the same country (payCountry). */
++function payPool(job) {
++  const pool = likePool(job);
++  const same = pool ? samePayCountry(job, pool) : [];
++  return same.length >= 5 ? same : null;
+ }
+ /** What the pool is called in "Pays more than 37% of <noun> at Anthropic". */
+ const poolNoun = (job) => (job.seniority === 'Intern' ? 'internships' : isOte(job) ? 'roles with on-target earnings' : 'roles');
+ function percentile(job) {
+-  const pool = payPool(job);
+-  if (!pool) return null;
+-  return Math.round((pool.filter((j) => j._mid < job._mid).length / pool.length) * 100);
++  const pool = likePool(job);
++  return pool ? payRank(job, pool, { mid: (j) => j._mid }) : null;
+ }
+ 
+ const SVGNS = 'http://www.w3.org/2000/svg';
+@@ -3402,7 +3406,8 @@
+ function drawerContent(job) {
+   const company = data.company || {};
+   const coName = company.name || job.companyName;
+-  const pct = percentile(job);
++  const rank = percentile(job);
++  const pct = rank ? rank.pct : null;
+   const kwCat = KW_CATS.map(({ cat, key, title }) => (job.keywords[cat].length ? h('div', { class: 'kw-group' },
+     h('h4', null, title),
+     h('div', { class: 'cloud' }, ...job.keywords[cat].map((k) => h('button', {
+@@ -3440,8 +3445,11 @@
+   const term = postedTerm(sal);
+   const noun = poolNoun(job);
+   // P-16: no "0% percentile" in big green type; one plain sentence, and none for fixed-term pay.
+-  const of = `${coName}’s ${noun}${isOte(job) ? '' : ' that show pay'}`;
+-  const pctText = pct == null ? null : pct >= 100 ? `The top pay of ${of}` : pct <= 0 ? `The lowest pay of ${of}` : `Pays more than ${pct}% of ${of}`;
++  const place = rank?.country ? ` in ${countryInSentence(rank.country)}` : '';
++  const of = `${coName}’s ${noun}${place}${isOte(job) ? '' : ' that show pay'}`;
++  // BP-3: ranked only among roles paid for the same country; with too few of them, say so.
++  const pctText = pct == null ? (rank?.others && place ? `Too few of ${coName}’s ${noun}${place} show pay to rank this one. Pay for other countries isn’t used.` : null)
++    : pct >= 100 ? `The top pay of ${of}` : pct <= 0 ? `The lowest pay of ${of}` : `Pays more than ${pct}% of ${of}`;
+   const caption = !sal ? null : isOte(job) ? `${OTE_LABEL}. Equity isn’t included.`
+     : term ? 'Fixed-term pay as posted. Equity and bonus aren’t included.' : 'Posted base pay. Equity and bonus aren’t included.';
+   const salaryBlock = h('section', { class: 'd-salary' },
+@@ -3580,7 +3588,14 @@
+     let res = null;
+     try { res = market ? compsForJob(market, job, { includeSelf: true }) : null; } catch (err) { console.warn('compsForJob failed', err); }
+     const rows = res?.rows || [];
+-    if (!rows.some((r) => !r.current)) { sec.hidden = true; applyDrawerBudget(); return; }
++    if (!rows.some((r) => !r.current)) {
++      // BP-3: no other company lists pay for this role in its country; say so (compsNote), never
++      // fall back to another country. Without a country (an older market document) it stays hidden.
++      const none = res?.country ? compsNote(res) : '';
++      if (!none) { sec.hidden = true; applyDrawerBudget(); return; }
++      body.replaceChildren(h('p', { class: 'comps-note muted' }, none));
++      return;
++    }
+     const bySen = res.matchedOn === 'family+seniority';
+     const filters = { family: res.family, seniority: bySen ? res.level : null };
+     const chartHost = h('div', { class: 'comps-chart' });

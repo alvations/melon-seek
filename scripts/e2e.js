@@ -19,6 +19,7 @@ import { registerBetaMobileQaTests } from '../test/e2e/beta-mobile-qa.e2e.js';
 import { registerFixPayDataTests } from '../test/e2e/fix-pay-data.e2e.js';
 import { registerFixBetaAppTests } from '../test/e2e/fix-beta-app.e2e.js';
 import { registerFix3AppTests } from '../test/e2e/fix3-app.e2e.js';
+import { registerFix3CompareTests } from '../test/e2e/fix3-compare.e2e.js';
 
 const args = new Set(process.argv.slice(2));
 const apiOnly = args.has('--api-only');
@@ -63,6 +64,7 @@ if (!apiOnly) {
   registerFixPayDataTests(suite);
   registerFixBetaAppTests(suite);
   registerFix3AppTests(suite);
+  registerFix3CompareTests(suite);
 }
 
 let results;
