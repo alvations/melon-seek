@@ -243,9 +243,27 @@ test('fetchMeta: honest client, closed postings skipped, a wall of failures stop
   } finally { net.restore(); }
 });
 
-test('crawlBlock reads the registry at call time', () => {
-  assert.equal(crawlBlock('amazon', 'amazon')?.slug, 'amazon');
-  assert.equal(crawlBlock('meta', 'META')?.paused, 'terms');
+test('crawlBlock reads the registry at call time, paused or not', async () => {
+  const entries = ['amazon', 'meta'].map((s) => COMPANIES.find((x) => x.slug === s));
+  const saved = entries.map((c) => c.paused);
+  try {
+    for (const c of entries) c.paused = 'terms';
+    assert.equal(crawlBlock('amazon', 'amazon')?.slug, 'amazon');
+    assert.equal(crawlBlock('meta', 'META')?.paused, 'terms');
+    assert.match(crawlBlock('meta', 'meta').reason, /terms/);
+    // And the adapter refuses before any request while it is set.
+    const net = installFetch(amazonSite([]), metaSite([]));
+    try {
+      await assert.rejects(fetchAmazon('amazon'), (e) => e.code === 'paused');
+      await assert.rejects(fetchMeta('meta'), (e) => e.code === 'paused');
+      assert.deepEqual(net.calls, []);
+    } finally { net.restore(); }
+    for (const c of entries) delete c.paused;
+    assert.equal(crawlBlock('amazon', 'amazon'), null, 'resumed: may be crawled');
+    assert.equal(crawlBlock('meta', 'meta'), null);
+  } finally {
+    entries.forEach((c, i) => { if (saved[i] === undefined) delete c.paused; else c.paused = saved[i]; });
+  }
   assert.equal(crawlBlock('eightfold', 'microsoft'), null);
   assert.equal(crawlBlock('amazon', 'nope'), null);
 });
