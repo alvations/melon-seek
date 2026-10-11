@@ -3,7 +3,7 @@
 // createMap(container, { onSelect(job), onAreaSelect(jobs, label), onColorModeChange(mode),
 //                        colorMode?: 'pay' | 'juice',
 //                        tiles?: { url, attribution, maxZoom, subdomains, dark: 'filter' | url } })
-//   -> { update(jobs, { fit, colorMode }), highlight(jobId|null), invalidateSize(),
+//   -> { update(jobs, { fit, colorMode, places, placeTest }), highlight(jobId|null), invalidateSize(),
 //        setJuiceNote(text) (an "as of" line under the Juice legend), colorMode (getter), destroy(), leaflet }
 //
 // Jobs are aggregated per location (lat/lng rounded to 0.1°; a job with several
@@ -16,8 +16,14 @@
 // pay is never the median of a Sydney or London pin; the posting is still counted
 // there. A cluster is "<place> + N nearby" only when its places are within NEAR_KM
 // of each other; otherwise it names its two biggest places ("San Francisco, New
-// York and 2 more"). Offline, place names show under the pins; a name that would
-// run into another pin or name is hidden (the tooltip and the pin's name keep it).
+// York and 2 more"). Offline, place names show under the pins. Every pin keeps its name
+// (fix wave 3): a name that would run into another pin or name goes above its pin, then in a
+// shorter form ("Shanghai and 52 more"), then beside the pin; only when none of those fit is the
+// pin merged into its nearest neighbour, whose name then counts it.
+// Location filter (fix wave 3, BP-2): update(jobs, { places, placeTest }) pins only the filtered
+// places (placeMatcher in chart.js; app.js passes its own locMatches), so roles that also list
+// other cities no longer pin those cities; the tooltip counts them ("12 of these are also listed
+// in other places").
 // A "Pay | Juice" segmented control switches pin color to the Juice Score
 // (docs/LIVABILITY.md): the median score at that location on a stepped ramp with
 // breaks at 45 and 70 (Dry / Ripe / Juicy); pins without juice data are neutral.
@@ -35,7 +41,7 @@ import {
 } from './palette.js';
 import { payLocations } from '../features/shared.js';
 // M-23: pin counts as "4.5K", like the chart's circles; the exact count is in pinName().
-import { shortCount } from './chart.js';
+import { shortCount, placeMatcher } from './chart.js';
 
 export const COLOR_MODES = Object.freeze(['pay', 'juice']);
 /** I-10: how full a Juice pin (and its legend swatch) is drawn, by grade. */
@@ -52,6 +58,17 @@ const BASE_MIN_ZOOM = 2; // lowered per dataset by fitToData() when the pins nee
 const CLUSTER_W = 76;  // px: pill width + gap
 const CLUSTER_H = 34;  // px: pill height + gap (labels add more when offline)
 const LABEL_GAP = 5;   // px between a pin and a place name moved above it (viz.css .ms-pin__label--above)
+const MERGE_PASSES = 6; // draw(): at most this many merges of pins whose names find no room
+
+let measureCtx = null;
+/** Text width in px for a CSS font (canvas, no layout). */
+function textWidth(text, font) {
+  try {
+    measureCtx ||= document.createElement('canvas').getContext('2d');
+    measureCtx.font = font || '12px system-ui, sans-serif';
+    return measureCtx.measureText(String(text)).width;
+  } catch { return String(text).length * 7; }
+}
 
 function el(tag, cls, text) {
   const e = document.createElement(tag);
@@ -77,6 +94,9 @@ function locLabel(l) {
 
 const plural = (n, one, many = one + 's') => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 
+/** A no-pay pin's text: "361 jobs", "1.1K jobs" (M-23's short count, never "1.117" or "1,117"). */
+export function jobsText(n) { return `${shortCount(n)} ${n === 1 ? 'job' : 'jobs'}`; }
+
 /** Places closer than this to a cluster's biggest place are "nearby" (a metro area, not a coast). */
 export const NEAR_KM = 150;
 
@@ -89,45 +109,77 @@ export function distanceKm(a, b) {
 }
 
 /**
- * Aggregate jobs into { places: [{key,lat,lng,label,city,jobs,paid}], remote: jobs[], remotePaid }.
+ * Aggregate jobs into { places: [{key,lat,lng,label,city,jobs,paid,also,wide}], remote: jobs[], remotePaid }.
  * A job counts at every place it lists; `paid` (a Set of job ids) holds the jobs whose pay applies
  * there (payLocations), and `remotePaid` those whose pay applies to their remote location.
+ * With a Location filter (`places`, the filter's keys, and `placeTest(job, location)`, the host's
+ * own match; see chart.js placeMatcher) only the filtered places are pinned:
+ * - a location the filter leaves out gets no pin; `also` (job ids) marks the roles at a place
+ *   that also list such a location;
+ * - a location with no city that the filter takes in ("United States", "Ohio, US": app.js I-6, a
+ *   city pick also finds roles that list only its country or state) counts at the filtered cities
+ *   it covers, not at the country's centre; `wide` (job ids) marks those roles. It keeps a pin of
+ *   its own only when the filter names it, or covers no city on the map;
+ * - the Remote bucket holds only roles whose remote location the filter takes in.
  */
-export function aggregate(jobs) {
+export function aggregate(jobs, { places: filter = null, placeTest = null } = {}) {
+  const test = placeMatcher(filter, placeTest);
+  const named = new Set(filter == null ? [] : (typeof filter === 'string' ? [filter] : [...filter]));
   const places = new Map();
   const remote = [];
   const remotePaid = new Set();
+  const wide = []; // [{ job, l, payAt, at }] country- or state-wide locations to count at the filtered cities
+  const homes = new Map(); // job id -> Set of place keys (under a filter, for `also`)
+  const others = new Set(); // job ids that list a location outside the filter
+  const at = (job, l, payAt, key, seen) => {
+    let p = places.get(key);
+    if (!p) {
+      p = { key, lat: +l.lat, lng: +l.lng, label: locLabel(l), city: l.city || null, country: up(l.country), region: up(l.region),
+        jobs: [], locNames: new Map(), paid: new Set(), also: new Set(), wide: new Set() };
+      places.set(key, p);
+    }
+    if (!p.locNames.has(job.id)) { p.jobs.push(job); p.locNames.set(job.id, new Set()); }
+    p.locNames.get(job.id).add(norm(l.name || locLabel(l)));
+    if (payAt?.has(l)) p.paid.add(job.id);
+    seen?.add(key);
+    return p;
+  };
   for (const job of jobs) {
-    let placed = false, isRemote = false;
+    let isRemote = false;
     const seen = new Set();
     const hasPay = !!job.salary && (job.salary.min != null || job.salary.max != null);
     const payAt = hasPay ? new Set(payLocations(job)) : null;
     for (const l of job.locations || []) {
+      if (!l) continue;
+      if (test && !test(job, l)) { others.add(job.id); continue; } // a place outside the filter: not pinned
       if (l.remote) { isRemote = true; continue; }
+      if (test && !l.city && !named.has(l.name)) { wide.push({ job, l, payAt, seen }); continue; }
       if (l.lat == null || l.lng == null || !isFinite(l.lat) || !isFinite(l.lng)) continue;
-      const key = `${l.lat.toFixed(1)},${l.lng.toFixed(1)}`;
-      let p = places.get(key);
-      if (seen.has(key)) {
-        p?.locNames.get(job.id)?.add(norm(l.name || locLabel(l)));
-        if (payAt?.has(l)) p?.paid.add(job.id);
-        continue;
-      }
-      seen.add(key);
-      if (!p) { p = { key, lat: +l.lat, lng: +l.lng, label: locLabel(l), city: l.city || null, jobs: [], locNames: new Map(), paid: new Set() }; places.set(key, p); }
-      if (!p.locNames.has(job.id)) { p.jobs.push(job); p.locNames.set(job.id, new Set()); }
-      p.locNames.get(job.id).add(norm(l.name || locLabel(l)));
-      if (payAt?.has(l)) p.paid.add(job.id);
-      placed = true;
+      at(job, l, payAt, `${l.lat.toFixed(1)},${l.lng.toFixed(1)}`, seen);
     }
+    if (test) homes.set(job.id, seen);
     // D-4: the Remote bucket is exactly the Remote filter (job.remote), also for roles that have a pin.
-    if (isRemote || job.remote) {
+    // Under a Location filter it holds the roles whose remote location is one of the filtered places.
+    if (test ? isRemote : (isRemote || job.remote)) {
       remote.push(job);
       // Pay counts for Remote when it covers a remote location, or when the posting names none.
-      if (hasPay && ([...payAt].some((l) => l.remote) || !isRemote)) remotePaid.add(job.id);
+      const remoteHere = (l) => l.remote && (!test || test(job, l));
+      if (hasPay && ([...payAt].some(remoteHere) || (!isRemote && !test))) remotePaid.add(job.id);
     }
   }
+  if (wide.length) {
+    const cities = [...places.values()].filter((p) => p.city);
+    for (const { job, l, payAt, seen } of wide) {
+      const c = up(l.country), r = up(l.region);
+      const hit = cities.filter((p) => p.country === c && (!r || p.region === r));
+      if (hit.length) for (const p of hit) { at(job, l, payAt, p.key, seen).wide.add(job.id); }
+      else if (l.lat != null && l.lng != null && isFinite(l.lat) && isFinite(l.lng)) at(job, l, payAt, `${l.lat.toFixed(1)},${l.lng.toFixed(1)}`, seen);
+    }
+  }
+  for (const id of others) for (const key of homes.get(id) || []) places.get(key).also.add(id);
   return { places: [...places.values()], remote, remotePaid };
 }
+const up = (s) => (s ? String(s).toUpperCase() : '');
 
 /**
  * { n, salaried, elsewhere, median } for jobs at a place: the median (approx USD) is over the jobs
@@ -157,6 +209,14 @@ export function clusterLabel(members) {
   const lead = members[0];
   if (members.length === 1) return lead.label;
   if (members.every((m) => distanceKm(m, lead) <= NEAR_KM)) return `${lead.label} + ${members.length - 1} nearby`;
+  const names = areaNames(members);
+  if (!names.length) return `${lead.label} and ${members.length - 1} more`;
+  if (names.length === 1) return `${names[0]} and ${members.length - 1} more`;
+  return members.length === 2 ? `${names[0]} and ${names[1]}` : `${names[0]}, ${names[1]} and ${members.length - 2} more`;
+}
+
+/** A cluster's areas (places within NEAR_KM of each other), biggest first, named by their city. */
+function areaNames(members) {
   const areas = [];
   for (const m of members.slice().sort((a, b) => b.jobs.length - a.jobs.length)) {
     const a = areas.find((x) => distanceKm(x.lead, m) <= NEAR_KM);
@@ -164,10 +224,70 @@ export function clusterLabel(members) {
   }
   areas.sort((a, b) => b.n - a.n);
   // Name cities; a region or country-wide place ("United States") is counted in "more".
-  const names = [...new Set(areas.filter((a) => a.lead.city).map((a) => shortPlace(a.lead)))];
-  if (!names.length) return `${lead.label} and ${members.length - 1} more`;
-  if (names.length === 1) return `${names[0]} and ${members.length - 1} more`;
-  return members.length === 2 ? `${names[0]} and ${names[1]}` : `${names[0]}, ${names[1]} and ${members.length - 2} more`;
+  return [...new Set(areas.filter((a) => a.lead.city).map((a) => shortPlace(a.lead)))];
+}
+
+/**
+ * The short form of clusterLabel, for a pin whose full name has no room: one place name, no state
+ * or country ("Columbus", "Mountain View + 1 nearby", "Shanghai and 52 more"). Still honest: far
+ * places are never "nearby".
+ */
+export function shortLabel(members) {
+  if (!members?.length) return 'Unknown';
+  const lead = members[0];
+  if (members.length === 1) return shortPlace(lead);
+  if (members.every((m) => distanceKm(m, lead) <= NEAR_KM)) return `${shortPlace(lead)} + ${members.length - 1} nearby`;
+  return `${areaNames(members)[0] || shortPlace(lead)} and ${members.length - 1} more`;
+}
+
+/**
+ * Where each pin's place name goes (offline: no basemap names). `items`: [{ pin, box?, full, short,
+ * h, n }] with `pin` the pin's rect, `box` the name's measured rect below the pin (else made from
+ * `full` (width) and `h` (height)), `short` the width of the short form, `n` the pin's count.
+ * Biggest pin first, each name takes the first free spot: below, above, the short form below and
+ * above, then beside the pin (right, left; full, then short). Below and above slide inward at the
+ * map's edges. A spot is free when it is inside `host` and touches no pin but its own and no name
+ * placed before. Returns, in input order, [{ where: 'below'|'above'|'right'|'left'|'hidden',
+ * short, shift, box }]; a hidden name's pin is merged into its neighbour by the map.
+ */
+export function layoutLabels(items, host, { edge = 4, gapAbove = LABEL_GAP, gapBelow = 7, gapSide = 6 } = {}) {
+  const hit = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+  const out = new Array(items.length);
+  const placed = [];
+  const order = items.map((it, i) => i).sort((a, b) => (items[b].n || 0) - (items[a].n || 0) || a - b);
+  for (const i of order) {
+    const it = items[i];
+    const pin = it.pin;
+    const h = it.box ? it.box.bottom - it.box.top : it.h;
+    const cx = it.box ? (it.box.left + it.box.right) / 2 : (pin.left + pin.right) / 2;
+    const top0 = it.box ? it.box.top : pin.bottom + gapBelow;
+    const cy = (pin.top + pin.bottom) / 2;
+    const fullW = it.box ? it.box.right - it.box.left : it.full;
+    const shortW = Math.min(fullW, it.short ?? fullW);
+    const spots = [];
+    for (const short of shortW < fullW ? [false, true] : [false]) {
+      const w = short ? shortW : fullW;
+      let left = cx - w / 2, shift = 0;
+      if (left + w > host.right - edge) shift = host.right - edge - (left + w);
+      if (left + shift < host.left + edge) shift = host.left + edge - left;
+      left += shift;
+      spots.push({ where: 'below', short, shift, box: { left, right: left + w, top: top0, bottom: top0 + h } });
+      spots.push({ where: 'above', short, shift, box: { left, right: left + w, top: pin.top - gapAbove - h, bottom: pin.top - gapAbove } });
+    }
+    for (const short of shortW < fullW ? [false, true] : [false]) {
+      const w = short ? shortW : fullW;
+      const v = { top: cy - h / 2, bottom: cy + h / 2 };
+      spots.push({ where: 'right', short, shift: 0, box: { left: pin.right + gapSide, right: pin.right + gapSide + w, ...v } });
+      spots.push({ where: 'left', short, shift: 0, box: { left: pin.left - gapSide - w, right: pin.left - gapSide, ...v } });
+    }
+    // The hit test pads names by 2 px across and 1 px up and down, so names never touch.
+    const pad = (b) => ({ left: b.left - 2, right: b.right + 2, top: b.top - 1, bottom: b.bottom + 1 });
+    const inside = (b) => b.left >= host.left + edge - 0.5 && b.right <= host.right - edge + 0.5 && b.top >= host.top && b.bottom <= host.bottom;
+    const free = (b) => inside(b) && !placed.some((p) => hit(p, pad(b))) && !items.some((o) => o !== it && hit(o.pin, pad(b)));
+    const spot = spots.find((s) => free(s.box));
+    if (spot) { placed.push(pad(spot.box)); out[i] = spot; } else out[i] = { where: 'hidden', short: false, shift: 0, box: spots[0].box };
+  }
+  return out;
 }
 
 const norm = s => String(s || '').trim().toLowerCase();
@@ -430,13 +550,17 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
   let pendingFit = false;
   let first = true;
 
-  function cluster() {
+  /**
+   * Greedy screen-space clusters at the current zoom. `joins` (lead place key -> the lead place key
+   * of the cluster it joins) folds a cluster whose name found no room into its neighbour (draw).
+   */
+  function cluster(joins = null) {
     const zoom = map.getZoom();
     const pts = places
       .map(p => ({ p, pt: map.project([p.lat, p.lng], zoom) }))
       .sort((a, b) => b.p.jobs.length - a.p.jobs.length);
     const ch = container.classList.contains('ms-map--offline') ? CLUSTER_H + 16 : CLUSTER_H;
-    const out = [];
+    let out = [];
     for (const { p, pt } of pts) {
       let target = null;
       for (const c of out) {
@@ -445,17 +569,46 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       if (target) target.members.push(p);
       else out.push({ pt, members: [p], lead: p });
     }
+    if (joins?.size) {
+      const root = (k) => { for (let i = 0; i < 64 && joins.has(k); i++) k = joins.get(k); return k; };
+      const groups = new Map();
+      for (const c of out) if (root(c.lead.key) === c.lead.key) groups.set(c.lead.key, { ...c, members: [...c.members] });
+      for (const c of out) {
+        const r = root(c.lead.key);
+        if (r === c.lead.key) continue;
+        const g = groups.get(r);
+        if (g) g.members.push(...c.members); else groups.set(c.lead.key, { ...c, members: [...c.members] });
+      }
+      out = [...groups.values()];
+    }
     return out.map(c => {
       const ids = new Set();
       const jobs = [];
       const paid = new Set();
+      const also = new Set(), wide = new Set();
       for (const m of c.members) {
         for (const j of m.jobs) if (!ids.has(j.id)) { ids.add(j.id); jobs.push(j); }
         for (const id of m.paid || []) paid.add(id);
+        for (const id of m.also || []) also.add(id);
+        for (const id of m.wide || []) wide.add(id);
       }
       const label = clusterLabel(c.members);
-      return { lat: c.lead.lat, lng: c.lead.lng, members: c.members, jobs, ids, label, ...summarize(jobs, paid), juice: summarizeJuice(jobs, c.members, jScale) };
+      return {
+        lat: c.lead.lat, lng: c.lead.lng, pt: c.pt, members: c.members, jobs, ids, label, short: shortLabel(c.members), also: also.size, wide: wide.size,
+        ...summarize(jobs, paid), juice: summarizeJuice(jobs, c.members, jScale),
+      };
     });
+  }
+
+  /**
+   * Under a Location filter: how many of a pin's roles also list a place the filter leaves out, and
+   * how many list only a country or state that takes the place in (aggregate `also`, `wide`).
+   */
+  function filterLines(c) {
+    const out = [];
+    if (c.also) out.push(`${c.also.toLocaleString()} of these ${c.also === 1 ? 'is' : 'are'} also listed in other places, not shown with this location filter`);
+    if (c.wide) out.push(`${c.wide.toLocaleString()} ${c.wide === 1 ? 'lists' : 'list'} only a country or state, not a city`);
+    return out;
   }
 
   function tooltipContent(c) {
@@ -468,13 +621,15 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
         : 'Juice needs a published salary and a known city'));
       root.append(el('div', 'ms-tip__title', c.label));
       root.append(el('div', 'ms-tip__meta', `${plural(c.n, 'posting')} · ${(J?.n || 0).toLocaleString()} with Juice${c.median != null ? ` · pay median ${formatMoney(c.median)}` : ''}`));
+      for (const t of filterLines(c)) root.append(el('div', 'ms-tip__meta', t));
     } else {
-      root.append(el('div', 'ms-tip__value', c.median != null ? `${formatMoney(c.median)} median` : plural(c.n, 'job')));
+      root.append(el('div', 'ms-tip__value', c.median != null ? `${formatMoney(c.median)} median` : jobsText(c.n)));
       root.append(el('div', 'ms-tip__title', c.label));
       root.append(el('div', 'ms-tip__meta', c.median != null
         ? `${plural(c.n, 'posting')} · ${c.salaried.toLocaleString()} with salary for here`
         : `${plural(c.n, 'posting')} · ${c.elsewhere ? 'no salary posted for here' : 'no published salary'}`));
       if (c.elsewhere) root.append(el('div', 'ms-tip__meta', `${plural(c.elsewhere, 'posting')} ${c.elsewhere === 1 ? 'lists' : 'list'} pay for another country only, so not in the median`));
+      for (const t of filterLines(c)) root.append(el('div', 'ms-tip__meta', t));
     }
     const counts = new Map();
     for (const j of c.jobs) counts.set(j.title, (counts.get(j.title) || 0) + 1);
@@ -523,7 +678,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       if (c.n > 1) pin.append(el('span', 'ms-pin__count', shortCount(c.n)));
     } else {
       pin.classList.add('ms-pin--nosalary');
-      pin.append(el('span', 'ms-pin__price', plural(c.n, 'job')));
+      pin.append(el('span', 'ms-pin__price', jobsText(c.n))); // "1.1K jobs", like the "4.5K" counts
     }
     pin.append(el('span', 'ms-pin__label', c.label));
     return pin;
@@ -543,8 +698,41 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     const focused = clusters.find(c => c.marker?.getElement() && c.marker.getElement() === document.activeElement);
     const focusedKeys = focused ? new Set(focused.members.map(p => p.key)) : null;
     const focusedLead = focused?.members[0]?.key; // members[0] is the cluster's lead place
-    markerLayer.clearLayers();
-    clusters = cluster();
+    // Every pin keeps its place name: a pin whose name finds no room (placeLabels) is merged into
+    // its nearest neighbour, and the clusters are drawn again (offline only; a few passes at most).
+    const joins = new Map();
+    let refocus = null;
+    for (let pass = 0; ; pass++) {
+      markerLayer.clearLayers();
+      clusters = cluster(joins);
+      refocus = drawMarkers(focusedKeys, focusedLead);
+      const hidden = placeLabels();
+      if (!hidden.length || pass >= MERGE_PASSES || clusters.length < 2) break;
+      mergeInto(hidden, joins);
+    }
+    refocus?.focus({ preventScroll: true });
+    applyHighlight();
+  }
+
+  /** Fold each pin in `hidden` (smallest first) into its nearest pin on screen (cluster joins). */
+  function mergeInto(hidden, joins) {
+    const gone = new Set();
+    for (const h of hidden.slice().sort((a, b) => a.n - b.n)) {
+      const hk = h.members[0].key;
+      if (gone.has(hk)) continue;
+      let best = null, bd = Infinity;
+      for (const t of clusters) {
+        const tk = t.members[0].key;
+        if (t === h || gone.has(tk)) continue;
+        const d = (t.pt.x - h.pt.x) ** 2 + (t.pt.y - h.pt.y) ** 2;
+        if (d < bd) { bd = d; best = t; }
+      }
+      if (best) { joins.set(hk, best.members[0].key); gone.add(hk); }
+    }
+  }
+
+  /** One marker per cluster; returns the pin to refocus (see draw). */
+  function drawMarkers(focusedKeys, focusedLead) {
     const meds = clusters.map(c => c.median).filter(v => v != null);
     const lo = Math.min(...meds), hi = Math.max(...meds);
     let refocus = null;
@@ -598,53 +786,48 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
         else if (!refocus && c.members.some(p => focusedKeys.has(p.key))) refocus = iconEl;
       }
     });
-    refocus?.focus({ preventScroll: true });
-    applyHighlight();
-    placeLabels();
+    return refocus;
   }
 
   /**
-   * P-6: offline, place names show under the pins. Biggest cluster first, a name that would run
-   * into another pin or an earlier name moves above its pin, and is hidden when that collides too
-   * (its pin's tooltip and accessible name keep it). A name near the map's left or right edge
-   * slides inward instead of being cut off. One read of every box, then the writes, so it costs
-   * one layout per draw.
+   * P-6: offline, place names show under the pins. Biggest cluster first, each name takes the first
+   * free spot (layoutLabels): below its pin, above it, the short form ("Shanghai and 52 more")
+   * below or above, then beside the pin; a name near the map's left or right edge slides inward.
+   * Returns the clusters whose name found no room anywhere (draw merges them into a neighbour).
+   * One read of every box, then the writes, so it costs one layout per pass.
    */
   function placeLabels() {
-    if (!container.classList.contains('ms-map--offline')) return;
+    if (!container.classList.contains('ms-map--offline')) return [];
     const host = container.getBoundingClientRect();
-    if (!host.width || !host.height) return; // hidden: placed again when it gets a size
+    if (!host.width || !host.height) return []; // hidden: placed again when it gets a size
     const items = [];
     for (const c of clusters) {
       const lab = c.pinEl?.querySelector('.ms-pin__label');
       if (!lab || !c.pinEl.isConnected) continue;
-      lab.classList.remove('ms-pin__label--hidden', 'ms-pin__label--above');
+      lab.classList.remove('ms-pin__label--hidden', 'ms-pin__label--above', 'ms-pin__label--right', 'ms-pin__label--left');
       lab.style.marginLeft = '';
-      items.push({ c, lab });
+      if (lab.textContent !== c.label) lab.textContent = c.label;
+      items.push({ c, lab, n: c.n });
     }
-    for (const it of items) { it.pin = it.c.pinEl.getBoundingClientRect(); it.box = it.lab.getBoundingClientRect(); }
-    const EDGE = 4;
-    const hit = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
-    const placed = [];
-    items.sort((a, b) => b.c.n - a.c.n);
+    if (!items.length) return [];
+    const font = getComputedStyle(items[0].lab).font;
     for (const it of items) {
-      const b = it.box;
-      let shift = 0;
-      if (b.right > host.right - EDGE) shift = host.right - EDGE - b.right;
-      if (b.left + shift < host.left + EDGE) shift = host.left + EDGE - b.left;
-      it.shift = shift;
-      const below = { left: b.left + shift - 2, right: b.right + shift + 2, top: b.top - 1, bottom: b.bottom + 1 };
-      const h = b.bottom - b.top;
-      const above = { ...below, top: it.pin.top - LABEL_GAP - h - 1, bottom: it.pin.top - LABEL_GAP + 1 };
-      const free = (r) => r.top >= host.top && !placed.some((p) => hit(p, r)) && !items.some((o) => o !== it && hit(o.pin, r));
-      it.where = free(below) ? 'below' : free(above) ? 'above' : 'hidden';
-      if (it.where !== 'hidden') placed.push(it.where === 'below' ? below : above);
+      it.pin = it.c.pinEl.getBoundingClientRect();
+      it.box = it.lab.getBoundingClientRect();
+      // The short form's width: its text width plus the name's own padding (measured on the full form).
+      const extra = (it.box.right - it.box.left) - textWidth(it.c.label, font);
+      it.short = it.c.short && it.c.short !== it.c.label ? textWidth(it.c.short, font) + extra : it.box.right - it.box.left;
     }
-    for (const it of items) {
-      if (it.where === 'hidden') { it.lab.classList.add('ms-pin__label--hidden'); continue; }
-      if (it.where === 'above') it.lab.classList.add('ms-pin__label--above');
-      if (it.shift) it.lab.style.marginLeft = `${Math.round(it.shift)}px`;
-    }
+    const spots = layoutLabels(items, host);
+    const hidden = [];
+    items.forEach((it, i) => {
+      const s = spots[i];
+      if (s.where === 'hidden') { it.lab.classList.add('ms-pin__label--hidden'); hidden.push(it.c); return; }
+      if (s.short) it.lab.textContent = it.c.short;
+      if (s.where !== 'below') it.lab.classList.add(`ms-pin__label--${s.where}`);
+      if (s.shift) it.lab.style.marginLeft = `${Math.round(s.shift)}px`;
+    });
+    return hidden;
   }
 
   function drawRemote() {
@@ -692,7 +875,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
   const ro = new ResizeObserver(() => {
     map.invalidateSize({ pan: false });
     if (pendingFit && map.getSize().x && map.getSize().y) { fitToData(); draw(); }
-    else placeLabels(); // the map's edges moved
+    else if (placeLabels().length) draw(); // the map's edges moved; a name with no room merges its pin
   });
   ro.observe(container);
   const offTheme = onThemeChange(dark => {
@@ -703,12 +886,14 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
   });
 
   return {
-    update(jobs, { fit, colorMode: mode } = {}) {
+    update(jobs, { fit, colorMode: mode, places: filter = null, placeTest = null } = {}) {
       jobs = Array.isArray(jobs) ? jobs : [];
       if (mode != null) setColorMode(mode, false); // programmatic (e.g. from the URL hash): no callback
-      ({ places, remote: remoteJobs, remotePaid } = aggregate(jobs));
-      // Default: refit only when the dataset identity (set of companies) changes.
-      const sig = [...new Set(jobs.map(j => j.company))].sort().join('|');
+      // BP-2: with a Location filter only its places are pinned (placeTest: the host's own match).
+      const keys = filter == null ? [] : (typeof filter === 'string' ? [filter] : [...filter]).filter(Boolean);
+      ({ places, remote: remoteJobs, remotePaid } = aggregate(jobs, keys.length ? { places: keys, placeTest } : {}));
+      // Default: refit only when the dataset identity (set of companies) or the filtered places change.
+      const sig = [...new Set(jobs.map(j => j.company))].sort().join('|') + `\u0000${keys.slice().sort().join('|')}`;
       const doFit = fit ?? (first || sig !== lastSig);
       lastSig = sig;
       if (jobs.length) first = false;

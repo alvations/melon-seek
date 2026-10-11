@@ -1,7 +1,7 @@
 // melon-seek salary landscape chart.
 //
 // createChart(container, { onSelect(job), onHover(job|null), onClusterSelect(jobs, label) })
-//   -> { update(jobs, { view, groupBy, colorBy, empty? }), highlight(jobId|null),
+//   -> { update(jobs, { view, groupBy, colorBy, empty?, places?, placeTest? }), highlight(jobId|null),
 //        clearSelection(), destroy() }
 //
 // Empty states (P-16): postings that list no salary get the chart's own note ("N postings
@@ -12,6 +12,16 @@
 // Group by seniority shows displayLevel(job) through levelLabel (public/features/roles.js, shared
 // decision 1 of the beta fix wave): the default 'Mid' reads "Level not stated" and comes last (P-3);
 // a stated mid level (seniorityBasis 'title' or 'pay', e.g. Google "III") reads "Mid".
+//
+// Location filter (BP-2, fix wave 3 shared decision 1): pass `places` (the filter's location keys,
+// app.js S.l) and optionally `placeTest(job, location)` (the app's own test). A posting is then
+// plotted only when its pay applies to one of those places (payLocations in public/features/shared.js:
+// the locations in the pay currency's countries); the others stay out of the plot and every median,
+// and the notes line counts them ("12 with pay for another country only, left out").
+//
+// Medians are base pay (BP-13): ranges with salary.kind 'ote' (on-target earnings, base plus
+// commission at target) are plotted but left out of the medians, as in the app's stats line; only
+// when nothing else is left does a median use them, and then it says "on-target earnings".
 //
 // Two views share one approx-USD salary axis, a slim sticky midpoint
 // distribution strip, and a muted notes line under the chart:
@@ -31,6 +41,7 @@ import {
   formatCurrency, toUSD, isForeign, hasFx, niceTicks, median, onThemeChange, prefersReducedMotion, isDark, FX_AS_OF,
 } from './palette.js';
 import { levelLabel, displayLevel, DISPLAY_LEVEL_ORDER } from '../features/roles.js';
+import { payLocations, OTE_LABEL } from '../features/shared.js';
 
 export const VIEWS = Object.freeze(['clusters', 'ranges']);
 export const DEFAULT_VIEW = 'clusters';
@@ -98,6 +109,73 @@ export function rowValPlacement({ bx0, bx1, plotL, width, w, gap = 10, pad = 4 }
   if (bx1 + gap + w <= width - pad) return { side: 'right', x: bx1 + gap };
   if (bx0 - gap - w >= plotL) return { side: 'left', x: bx0 - gap - w };
   return { side: 'in', x: Math.max(plotL, Math.min(width - pad - w, Math.max(bx0, plotL) + 8)) };
+}
+
+/** A location's filter key, as app.js locKey makes it: the city, else the name; remote by its name. */
+const placeKeyOf = (l) => (l.remote ? l.name || 'Remote' : l.city || l.name || 'Unknown');
+const placeList = (places) => (places == null ? [] : typeof places === 'string' ? [places] : [...places].filter(Boolean));
+
+/**
+ * BP-2: the test "this location of the job is one of the filtered places". The host's own
+ * `placeTest(job, location)` when it has one (app.js locMatches, which also knows its disambiguated
+ * keys and country-wide postings); else a match on the location's key or name. Null with no filter.
+ */
+export function placeMatcher(places, placeTest = null) {
+  if (typeof placeTest === 'function') return placeTest;
+  const keys = new Set(placeList(places));
+  if (!keys.size) return null;
+  return (job, l) => !!l && (keys.has(placeKeyOf(l)) || (!!l.name && keys.has(l.name)));
+}
+
+/** How the notes name the filtered places: the one place, else "these places". */
+export function placesPhrase(places) {
+  const keys = placeList(places);
+  return keys.length === 1 ? String(keys[0]) : keys.length ? 'these places' : '';
+}
+
+/**
+ * BP-2 / BP-13: the postings the chart plots, in approx US dollars.
+ *   -> { plotted: [{ job, lo, hi, mid, cur, ote }], noSalary, elsewhere, elsewhereIds, fxCount, unknownFx, ote }
+ * With `places` (and `placeTest`, see placeMatcher) a posting is plotted only when its pay applies
+ * to one of the places (payLocations); `elsewhere` counts the salaried ones left out (their ids in
+ * `elsewhereIds`). `ote` marks
+ * on-target earnings (salary.kind 'ote'), which basePayStats leaves out of medians.
+ */
+export function chartPay(jobs, { places = null, placeTest = null } = {}) {
+  const test = placeMatcher(places, placeTest);
+  const plotted = [];
+  let noSalary = 0, fxCount = 0, ote = 0;
+  const unknownFx = new Set(), elsewhereIds = new Set();
+  for (const job of jobs || []) {
+    const s = job?.salary;
+    if (!s || (s.min == null && s.max == null)) { noSalary++; continue; }
+    const cur = (s.currency || 'USD').toUpperCase();
+    const min = s.min ?? s.max, max = s.max ?? s.min;
+    const lo = toUSD(Math.min(min, max), cur), hi = toUSD(Math.max(min, max), cur);
+    const mid = s.mid != null ? toUSD(s.mid, cur) : (lo + hi) / 2;
+    if (!isFinite(lo) || !isFinite(hi) || !isFinite(mid)) { noSalary++; continue; }
+    if (test && !payLocations(job).some((l) => test(job, l))) { elsewhereIds.add(job.id); continue; }
+    if (isForeign(cur)) { if (hasFx(cur)) fxCount++; else unknownFx.add(cur); }
+    const isOte = s.kind === 'ote';
+    if (isOte) ote++;
+    plotted.push({ job, lo, hi, mid, cur, ote: isOte });
+  }
+  return { plotted, noSalary, elsewhere: elsewhereIds.size, elsewhereIds, fxCount, unknownFx: [...unknownFx], ote };
+}
+
+/**
+ * BP-13: median and quartiles of base pay (the midpoints of the items that are not on-target
+ * earnings), the same set as the app's stats line. Only when every item is on-target earnings are
+ * they used, with `oteOnly` set. `oteLeftOut` counts the on-target items left out.
+ */
+export function basePayStats(items) {
+  const base = [], ote = [];
+  for (const p of items || []) if (p && p.mid != null && isFinite(p.mid)) (p.ote ? ote : base).push(p.mid);
+  const use = (base.length ? base : ote).sort((a, b) => a - b);
+  return {
+    median: quantile(use, 0.5), p25: quantile(use, 0.25), p75: quantile(use, 0.75), n: use.length,
+    oteOnly: !base.length && ote.length > 0, oteLeftOut: base.length ? ote.length : 0,
+  };
 }
 
 function primaryLocation(job) {
@@ -235,21 +313,11 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
 
   // ---------- data prep ----------
   function prepare() {
-    plotted = [];
-    let noSalary = 0, fxCount = 0;
-    const unknownFx = new Set();
-    for (const job of jobs) {
-      const s = job.salary;
-      if (!s || (s.min == null && s.max == null)) { noSalary++; continue; }
-      const cur = (s.currency || 'USD').toUpperCase();
-      const min = s.min ?? s.max, max = s.max ?? s.min;
-      if (isForeign(cur)) { if (hasFx(cur)) fxCount++; else unknownFx.add(cur); }
-      const lo = toUSD(Math.min(min, max), cur), hi = toUSD(Math.max(min, max), cur);
-      const mid = s.mid != null ? toUSD(s.mid, cur) : (lo + hi) / 2;
-      if (!isFinite(lo) || !isFinite(hi) || !isFinite(mid)) { noSalary++; continue; }
-      plotted.push({ job, lo, hi, mid, cur, key: keyOf(job, opts.colorBy) });
-    }
-    return { noSalary, fxCount, unknownFx: [...unknownFx] };
+    // BP-2: under a Location filter only pay posted for those places; BP-13: base-pay medians.
+    const r = chartPay(jobs, { places: opts.places, placeTest: opts.placeTest });
+    plotted = r.plotted;
+    for (const p of plotted) p.key = keyOf(p.job, opts.colorBy);
+    return { ...r, pay: basePayStats(plotted) };
   }
 
   // ---------- windowed rows (PERF-2) ----------
@@ -344,8 +412,12 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       // P-16: one message, with its real cause. No postings at all: the host says why (search or
       // filters), unless it handed the chart the words.
       const e = opts.empty;
+      // BP-2: under a Location filter, ranges posted for another country are not "no salary".
       const msg = jobs.length
-        ? ['No published salaries', `${plural(jobs.length, 'posting')} match, but none list a salary range.`]
+        ? (stats.elsewhere
+          ? [`No pay posted for ${placesPhrase(opts.places) || 'these places'}`,
+            `${plural(jobs.length, 'posting')} match; ${stats.elsewhere.toLocaleString()} ${stats.elsewhere === 1 ? 'lists' : 'list'} pay for another country only, so the chart leaves ${stats.elsewhere === 1 ? 'it' : 'them'} out.`]
+          : ['No published salaries', `${plural(jobs.length, 'posting')} match, but none list a salary range.`])
         : e ? (typeof e === 'string' ? [e, ''] : [e.title || '', e.sub || '']) : null;
       empty.hidden = !msg;
       empty.replaceChildren(...(msg ? [el('div', 'ms-chart__empty-title', msg[0]), msg[1] ? el('div', 'ms-chart__empty-sub', msg[1]) : ''].filter(Boolean) : []));
@@ -374,21 +446,43 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     if (highlighted) applyHighlight(highlighted, false);
   }
 
-  function renderNotes({ noSalary, fxCount, unknownFx }, narrow) {
+  function renderNotes({ noSalary, fxCount, unknownFx, elsewhere, pay }, narrow) {
     foot.replaceChildren();
     const parts = [];
-    if (plotted.length) parts.push(`${plural(plotted.length, 'posting')} with salary`);
+    const where = placesPhrase(opts.places);
+    // BP-2: with a Location filter, the plotted pay is for those places, and the rest is counted.
+    if (plotted.length) parts.push(`${plural(plotted.length, 'posting')} with ${where ? `pay for ${where}` : 'salary'}`);
+    if (elsewhere && plotted.length) parts.push(`${elsewhere.toLocaleString()} with pay for another country only, left out`);
+    // BP-13: on-target earnings are plotted but not in the medians (the stats line's rule).
+    // Phones keep the line short (the tooltip and the ranges' own tips say what on-target means).
+    if (pay?.oteLeftOut) parts.push(`${pay.oteLeftOut.toLocaleString()} ${narrow ? 'on-target earnings' : 'with on-target earnings (base plus commission)'}, not in the medians`);
+    else if (pay?.oteOnly) parts.push(narrow ? 'all on-target earnings' : 'all on-target earnings (base plus commission at target)');
     if (noSalary) parts.push(`${noSalary.toLocaleString()} with no salary posted`);
     if (fxCount) parts.push(`${fxCount.toLocaleString()} converted from another currency`);
     if (unknownFx.length) parts.push(`${unknownFx.join(', ')} pay shown unconverted`);
     if (outCount) parts.push(`${plural(outCount, 'posting')} past the edge of the chart (›)`);
     if (narrow && plotted.length) parts.push('yearly pay');
     foot.textContent = parts.join(' · ');
-    foot.title = fxCount ? `Pay in other currencies is converted to US dollars with fixed exchange rates (as of ${formatMonth(FX_AS_OF)}), so it is approximate.` : '';
+    foot.title = [
+      fxCount ? `Pay in other currencies is converted to US dollars with fixed exchange rates (as of ${formatMonth(FX_AS_OF)}), so it is approximate.` : '',
+      pay?.oteLeftOut || pay?.oteOnly ? `${OTE_LABEL}: shown on the chart, but the medians are base pay${pay?.oteOnly ? ' unless nothing else is left' : ''}.` : '',
+      elsewhere && where ? `Pay posted for another country says nothing about pay in ${where}, so it is left out.` : '',
+    ].filter(Boolean).join(' ');
     foot.hidden = !parts.length;
   }
 
-  function renderHist(x, d0, d1, plotL, plotW, labelW) {
+  /** BP-13: what the median caption says ("Median base pay", or on-target earnings when that is all). */
+  function medianCaption(pay) {
+    return pay?.oteOnly ? 'Median on-target earnings ' : 'Median base pay ';
+  }
+  function medianTitle(pay) {
+    const where = placesPhrase(opts.places);
+    const here = where ? ` posted for ${where}` : '';
+    if (pay?.oteOnly) return `The middle of the on-target earnings (base plus commission at target) ranges${here}: half are above and half below`;
+    return `The middle of the base pay ranges${here}: half are above and half below${pay?.oteLeftOut ? `. ${plural(pay.oteLeftOut, 'posting')} with on-target earnings (base plus commission) left out` : ''}`;
+  }
+
+  function renderHist(x, d0, d1, plotL, plotW, labelW, pay) {
     const nb = Math.max(16, Math.min(60, Math.round(plotW / 10)));
     const bw = (d1 - d0) / nb;
     const bins = new Array(nb).fill(0);
@@ -399,11 +493,12 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const maxB = Math.max(...bins);
     hist.replaceChildren();
     hist.style.height = HIST_H + 'px';
-    const med = median(plotted.map(p => p.mid));
+    const med = pay?.median ?? median(plotted.map(p => p.mid));
     if (labelW > 0) {
       const cap = el('div', 'ms-hist__cap');
       cap.style.width = labelW + 'px';
-      cap.append(el('span', 'ms-hist__title', 'Median '), el('span', 'ms-hist__sub', formatMoney(med)));
+      cap.append(el('span', 'ms-hist__title', medianCaption(pay)), el('span', 'ms-hist__sub', formatMoney(med)));
+      cap.title = medianTitle(pay);
       hist.append(cap);
     }
     const pxW = plotW / nb;
@@ -466,10 +561,16 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     for (const p of plotted) rowOf(dim === 'none' ? ALL_ROLES : keyOf(p.job, dim)).items.push(p);
     cRows = [...m.values()];
     for (const r of cRows) {
-      const s = r.items.map(p => p.mid).sort((a, b) => a - b);
-      r.median = quantile(s, 0.5); r.p25 = quantile(s, 0.25); r.p75 = quantile(s, 0.75);
-      r.subFull = r.items.length ? `${plural(r.all.length, 'role')} · median ${formatMoney(r.median)}` : `${plural(r.all.length, 'role')} · no published salary`;
-      r.subShort = r.items.length ? `${r.all.length.toLocaleString()} · ${formatMoney(r.median)}` : `${r.all.length.toLocaleString()} · no salary`;
+      // BP-13: the row's median, quartiles and band are base pay (on-target earnings only when
+      // that is all the row has, and then it says so).
+      const ps = basePayStats(r.items);
+      r.median = ps.median; r.p25 = ps.p25; r.p75 = ps.p75;
+      const onTarget = ps.oteOnly && !stats.pay?.oteOnly ? 'on-target ' : '';
+      // BP-2: a row whose ranges are all for another country has no salary posted for here.
+      const none = stats.elsewhere && r.all.some((j) => stats.elsewhereIds.has(j.id)) ? ['no salary posted for here', 'no salary here'] : ['no published salary', 'no salary'];
+      r.noneText = r.items.length ? '' : none[0];
+      r.subFull = r.items.length ? `${plural(r.all.length, 'role')} · ${onTarget}median ${formatMoney(r.median)}` : `${plural(r.all.length, 'role')} · ${none[0]}`;
+      r.subShort = r.items.length ? `${r.all.length.toLocaleString()} · ${onTarget}${formatMoney(r.median)}` : `${r.all.length.toLocaleString()} · ${none[1]}`;
     }
 
     // Label column: wide enough that "N roles · median $XK" always shows in full and the
@@ -485,6 +586,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         const nameW = textWidth(r.name, NAME_FONT);
         need = Math.max(need, textWidth(r.subFull, SUB_FONT), nameW > 150 ? Math.min(nameW, nameW / 2 + 24) : nameW);
       }
+      // BP-13: the median caption ("Median base pay $347K") shows in full too.
+      need = Math.max(need, textWidth(`${medianCaption(stats.pay)}${formatMoney(stats.pay?.median)}`, `600 ${SUB_FONT}`) - 8);
       labelW = Math.round(Math.max(150, Math.min(maxW, need + LABEL_PAD)));
       for (const r of cRows) r.useShort = textWidth(r.subFull, SUB_FONT) + LABEL_PAD > labelW;
     } else {
@@ -508,7 +611,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     container.style.setProperty('--ms-plot-l', plotL + 'px');
     container.style.setProperty('--ms-label-w', labelW + 'px');
     container.classList.remove('ms-chart--stack');
-    renderHist(x, d0, d1, plotL, plotW, labelW);
+    renderHist(x, d0, d1, plotL, plotW, labelW, stats.pay);
     renderAxis(ticks, x, stats.fxCount > 0, labelW, narrow);
 
     // A lone row ("All roles", or a single group) gets more height and bigger circles.
@@ -592,7 +695,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       const lab = el('div', 'ms-crow__label');
       lab.setAttribute('role', 'option');
       lab.setAttribute('aria-selected', 'false');
-      lab.setAttribute('aria-label', `${r.name}: all ${plural(r.all.length, 'role')}${r.items.length ? `, median ${formatMoney(r.median)}` : ', no published salary'}`);
+      lab.setAttribute('aria-label', `${r.name}: all ${plural(r.all.length, 'role')}${r.items.length ? `, ${r.subFull.split(' · ')[1]}` : `, ${r.noneText}`}`);
       lab.id = `${uid}-${ri}-L`;
       lab.dataset.r = ri; lab.dataset.i = -1;
       if (!narrow) lab.style.width = labelW + 'px';
@@ -628,7 +731,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         med.style.marginTop = (-(bandH + 10) / 2) + 'px';
         plot.append(med);
       } else {
-        const none = el('div', 'ms-crow__none', 'No published salaries');
+        const none = el('div', 'ms-crow__none', r.noneText === 'no salary posted for here' ? 'No salary posted for here' : 'No published salaries');
         none.style.left = plotL + 'px';
         plot.append(none);
       }
@@ -852,9 +955,11 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       if (!m.has(k)) m.set(k, []);
       m.get(k).push(p);
     }
-    const out = [...m].map(([key, items]) => ({
-      key, name: groupName(opts.groupBy, key), items: items.sort((a, b) => b.mid - a.mid), median: median(items.map(i => i.mid)),
-    }));
+    // BP-13: a group's median is base pay, like the stats line's.
+    const out = [...m].map(([key, items]) => {
+      const ps = basePayStats(items);
+      return { key, name: groupName(opts.groupBy, key), items: items.sort((a, b) => b.mid - a.mid), median: ps.median, onTarget: ps.oteOnly };
+    });
     if (opts.groupBy === 'seniority') {
       out.sort((a, b) => senRank(a.key) - senRank(b.key) || b.median - a.median);
     } else {
@@ -893,7 +998,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     container.style.setProperty('--ms-plot-l', plotL + 'px');
     container.style.setProperty('--ms-label-w', labelW + 'px');
 
-    renderHist(x, d0, d1, plotL, plotW, labelW);
+    renderHist(x, d0, d1, plotL, plotW, labelW, stats.pay);
     renderAxis(nt.ticks, x, stats.fxCount > 0, labelW, narrow);
 
     const gridFrag = document.createDocumentFragment();
@@ -936,7 +1041,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         name.title = `${g.name} · ${plural(g.items.length, 'posting')}`;
         h.append(name);
         const mx = xc(g.median);
-        const ml = el('div', 'ms-group__median', `median ${formatMoney(g.median)}`);
+        const ml = el('div', 'ms-group__median', `${g.onTarget && !stats.pay?.oteOnly ? 'on-target ' : ''}median ${formatMoney(g.median)}`);
         ml.style.left = mx + 'px';
         if (mx > width - 110) ml.classList.add('ms-group__median--left');
         h.append(ml);
@@ -992,7 +1097,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const range = Math.round(p.lo / 1000) === Math.round(p.hi / 1000)
       ? formatMoney(p.lo) : `${formatMoney(p.lo)} to ${formatMoney(p.hi)}`;
     const where = [p.job.department, primaryLocation(p.job)].filter(Boolean).join(', ');
-    return `${p.job.title || 'Untitled'}, ${range}${approx ? ' in US dollars, converted' : ''}${where ? ', ' + where : ''}`;
+    return `${p.job.title || 'Untitled'}, ${range}${approx ? ' in US dollars, converted' : ''}${p.ote ? ', on-target earnings' : ''}${where ? ', ' + where : ''}`;
   }
 
   function rangeText(p) {
@@ -1043,6 +1148,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     if (isForeign(cur) && hasFx(cur)) tip.append(el('div', 'ms-tip__sub', `about ${formatMoney(p.lo)} – ${formatMoney(p.hi)} in US dollars`));
     const orig = s.originalInterval || (s.interval && s.interval !== 'year' ? s.interval : null);
     if (orig && orig !== 'year') tip.append(el('div', 'ms-tip__sub', `A yearly figure worked out from ${INTERVAL_ADJ[orig] || orig} pay`));
+    if (p.ote) tip.append(el('div', 'ms-tip__sub', `${OTE_LABEL}, not in the medians`)); // BP-13
     if (p.clipped) tip.append(el('div', 'ms-tip__sub', 'Runs past the edge of the chart (›)'));
     tip.append(el('div', 'ms-tip__title', j.title || 'Untitled'));
     const meta = [j.department, locationText(j)].filter(Boolean).join(' · ');
@@ -1175,10 +1281,13 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     /**
      * @param {object[]} nextJobs
      * @param {{view?: 'clusters'|'ranges', groupBy?: 'none'|'department'|'location'|'seniority',
-     *          colorBy?: 'none'|'department'|'location'|'seniority'}} o
+     *          colorBy?: 'none'|'department'|'location'|'seniority',
+     *          places?: string[]|null, placeTest?: (job, location) => boolean}} o
      *   view defaults to "clusters". groupBy defaults to "department" in clusters and
      *   "none" in ranges. colorBy applies to the ranges view only; in clusters the
-     *   row's category color is named by the row label.
+     *   row's category color is named by the row label. places: the Location filter's keys
+     *   (app.js S.l), with placeTest the host's own match (BP-2): only pay posted for those
+     *   places is plotted (see chartPay).
      */
     update(nextJobs, o = {}) {
       jobs = Array.isArray(nextJobs) ? nextJobs : [];
@@ -1189,6 +1298,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         groupBy: o.groupBy || (view === 'clusters' ? 'department' : 'none'),
         colorBy: o.colorBy || 'none',
         empty: o.empty ?? null, // P-16: the host's words when there are no postings (else the chart stays blank)
+        places: placeList(o.places).length ? placeList(o.places) : null, // BP-2: the Location filter
+        placeTest: placeList(o.places).length && typeof o.placeTest === 'function' ? o.placeTest : null,
       };
       if (raf) { cancelAnimationFrame(raf); raf = 0; }
       render();

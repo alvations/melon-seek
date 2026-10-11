@@ -515,7 +515,11 @@
   pointer-events: none;
 }
 .ms-pin__label--above { top: auto; bottom: calc(100% + 5px); } /* below would run into another pin or name (map.js placeLabels) */
-.ms-map--offline .ms-pin__label.ms-pin__label--hidden { display: none; } /* above and below would */
+/* Fix wave 3: beside the pin when neither below nor above has room (map.js layoutLabels). */
+.ms-pin__label--right, .ms-pin__label--left { top: 50%; transform: translateY(-50%); }
+.ms-pin__label--right { left: calc(100% + 6px); }
+.ms-pin__label--left { left: auto; right: calc(100% + 6px); }
+.ms-map--offline .ms-pin__label.ms-pin__label--hidden { display: none; } /* no spot had room: map.js merges the pin */
 /* Offline: no basemap, so name the places under the pins. */
 .ms-map--offline .ms-pin__label { display: block; }
 .ms-map__offline-note {

@@ -52,7 +52,8 @@ test('[BP-2] chart: the host\'s own place test wins over key matching (app.js lo
   const placeTest = (job, loc) => loc.city === 'Austin';
   const r = chartPay(jobs, { places: ['Austin'], placeTest });
   assert.deepEqual(r.plotted.map((p) => p.job.id), ['a']);
-  assert.equal(r.elsewhere, 0, 'b lists no filtered place at all: it is not "pay for another country"');
+  assert.equal(r.elsewhere, 1, 'b\'s pay is not for a filtered place: left out, and counted');
+  assert.deepEqual([...r.elsewhereIds], ['b']);
   const t = placeMatcher(['Remote (US)'], null);
   assert.equal(t({}, REMOTE_US), true, 'a remote key matches its remote location');
   assert.equal(t({}, MV), false);
@@ -103,6 +104,30 @@ test('[map] under a Location filter only the filtered places get pins; other pla
   const r = aggregate(jobs, { places: ['Remote (US)'] });
   assert.deepEqual(r.places, [], 'a Remote (US) filter pins no city');
   assert.deepEqual(r.remote.map((j) => j.id), ['a3']);
+});
+
+test('[map] under a city filter, roles that list only its country or state count at that city, not at the country\'s centre', () => {
+  // Google, Location = Columbus: the app's filter also finds "United States" and "Ohio, US" roles (I-6).
+  const US = { name: 'United States', city: null, region: null, country: 'US', lat: 39.83, lng: -98.58, remote: false };
+  const OH = { name: 'Ohio, US', city: null, region: 'OH', country: 'US', lat: 40.39, lng: -82.76, remote: false };
+  const COL = at('Columbus', 'US', 39.96, -83.0, 'OH');
+  const jobs = [
+    { id: 'c1', salary: pay(170000), locations: [COL, CUP] },
+    { id: 'us', salary: pay(150000), locations: [US] },
+    { id: 'oh', salary: null, locations: [OH] },
+  ];
+  // The app's test: Columbus, plus city-less US locations its pick covers.
+  const placeTest = (job, l) => l.city === 'Columbus' || (!l.city && l.country === 'US' && (!l.region || l.region === 'OH'));
+  const f = aggregate(jobs, { places: ['Columbus'], placeTest });
+  assert.deepEqual(f.places.map((p) => p.city), ['Columbus'], 'one pin: no "United States" pin in Kansas');
+  const col = f.places[0];
+  assert.deepEqual(col.jobs.map((j) => j.id).sort(), ['c1', 'oh', 'us']);
+  assert.deepEqual([...col.wide].sort(), ['oh', 'us'], 'counted as country- or state-wide roles');
+  assert.deepEqual([...col.also], ['c1'], 'c1 also lists Cupertino');
+  assert.equal(summarize(col.jobs, col.paid).salaried, 2, 'US pay on a US-wide role applies in Columbus');
+  // A filter that names the country itself keeps its own pin.
+  const u = aggregate(jobs, { places: ['United States'], placeTest: (job, l) => l.name === 'United States' });
+  assert.deepEqual(u.places.map((p) => p.label), ['United States']);
 });
 
 test('[map] every pin has a name: a short form, then sideways, before a name is dropped', () => {

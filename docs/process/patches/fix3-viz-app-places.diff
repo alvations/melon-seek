@@ -1,0 +1,32 @@
+diff --git a/public/app.js b/public/app.js
+index 422d1a7..21e6d94 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -2393,15 +2393,22 @@ function renderViz() {
+     return;
+   }
+   if (S.m === 'map' && wasHidden) { try { map.invalidateSize(); } catch { /* ignore */ } }
+-  const sig = jobs.map((j) => j.id).join(',') + (S.m === 'chart' ? `|${S.v}|${S.g}` : `|${S.mc}|${juiceHousehold}`);
++  // BP-2 (fix wave 3): the chart plots, and the map pins, only pay and places that the Location
++  // filter picked (payLocations); placeTest is this file's own match, so disambiguated keys
++  // ("Cambridge, MA") and country-wide postings count as they do in the list.
++  const F = viewSpec;
++  const places = S.l.length ? S.l : null;
++  const placeTest = places && F ? (j, l) => locMatches(j, F, [l]) : null;
++  const sig = jobs.map((j) => j.id).join(',') + (S.m === 'chart' ? `|${S.v}|${S.g}` : `|${S.mc}|${juiceHousehold}`) + `|${S.l.join('|')}`;
+   if (vizSig[S.m] !== sig) {
+     vizSig[S.m] = sig;
+     try {
+-      if (S.m === 'chart') chart.update(jobs, { view: S.v, groupBy: S.g, colorBy: colorBy() });
++      if (S.m === 'chart') chart.update(jobs, { view: S.v, groupBy: S.g, colorBy: colorBy(), places, placeTest });
+       // Fit once per company load (map.js pads by half a pin, lowers minZoom as needed and
+-      // waits for a hidden container to be sized); plain updates keep the user's viewport.
+-      else if (mapFitPending) { mapFitPending = false; map.update(jobs, { fit: true, colorMode: S.mc }); }
+-      else map.update(jobs, { colorMode: S.mc });
++      // waits for a hidden container to be sized), and when the Location filter changes;
++      // other updates keep the user's viewport.
++      else if (mapFitPending) { mapFitPending = false; map.update(jobs, { fit: true, colorMode: S.mc, places, placeTest }); }
++      else map.update(jobs, { colorMode: S.mc, places, placeTest });
+       if (S.m === 'map') map.setJuiceNote?.(juiceSpanText(jobs.map((j) => j.juice && j.juice.best).filter(Boolean)));
+     } catch (err) { console.error('viz update failed', err); }
+   }
