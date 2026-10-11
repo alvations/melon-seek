@@ -79,7 +79,16 @@ for (const device of DEVICES) {
     const idb = (...a) => sh('idb', ['ui', ...a, '--udid', udid]);
     const snap = (step) => { try { sh('xcrun', ['simctl', 'io', udid, 'screenshot', path.join(OUT, `${tag}-${step}.png`)]); } catch (e) { console.log('screenshot failed', e.message); } };
     log = [];
-    sh('xcrun', ['simctl', 'openurl', udid, `${ORIGIN}/melon-seek/beta/#c=apple`]);
+    // A cold first boot can time out openurl (run 38170027791, iPhone 16: NSPOSIXErrorDomain 60) while Safari is
+    // still starting: launch Safari first and retry the open up to three times.
+    try { sh('xcrun', ['simctl', 'launch', udid, 'com.apple.mobilesafari']); } catch { /* opened below */ }
+    for (let tries = 1; ; tries++) {
+      try { sh('xcrun', ['simctl', 'openurl', udid, `${ORIGIN}/melon-seek/beta/#c=apple`]); break; } catch (e) {
+        if (tries >= 3) throw e;
+        console.log(`${device}: openurl failed (try ${tries}), retrying`);
+        await sleep(10000);
+      }
+    }
     const ready = await waitFor((e) => e.kind === 'ready', 120000);
     if (!ready) throw new Error('the page never showed a card (no "ready" from the probe)');
     measures.push(ready);
