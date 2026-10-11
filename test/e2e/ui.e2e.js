@@ -1082,7 +1082,8 @@ const resetBtn = (page) => page.locator('#compHost').getByRole('button', { name:
 async function readDrawerComp(page) {
   const block = page.locator('#drawer .d-comp');
   if (!(await block.count())) return null;
-  const t = (await block.innerText()).replace(/\s+/g, ' ');
+  // fix-density: the basis, accuracy and "approx USD" are in the block's Details list, so read every text node.
+  const t = (await block.evaluate((e) => { const w = document.createTreeWalker(e, NodeFilter.SHOW_TEXT); const out = []; while (w.nextNode()) out.push(w.currentNode.textContent); return out.join(' '); })).replace(/\s+/g, ' ');
   const mid = t.match(/(?:≈|about)\s*(\$[\d.,]+[KM]?)/);
   const rng = t.match(/\((\$[\d.,]+[KM]?)\s*[–-]\s*\$?([\d.,]+[KM]?)/);
   const conf = t.match(/,\s*([A-Za-z]+) confidence\)/);

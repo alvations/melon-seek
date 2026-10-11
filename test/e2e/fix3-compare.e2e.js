@@ -162,7 +162,7 @@ export function registerFix3CompareTests(suite) {
     const st = await setup(ctx);
     const { page, errors } = await open(ctx, st, { url: `${st.beta}/#c=google&m=insights` });
     let t = await cardText(await compareCard(page));
-    assert(/^Posted pay in the US\b/.test(t.sub) && /for the same kind of role/.test(t.sub), `subtitle: ${t.sub}`); // fix-density: the line, then its Details
+    assert(/^Posted pay in the US\b/.test(t.sub) && /for the same kind of role/i.test(t.sub), `subtitle: ${t.sub}`); // fix-density: the line, then its Details
     assert(/Only pay for roles in the US is compared\./.test(t.foot), `foot: ${t.foot}`);
     assert(!/every location each company lists/.test(t.foot), 'the old "every location" line is gone');
     await page.goto(`${st.beta}/#c=google&m=insights&l=Dublin`); await ready(page);
@@ -252,6 +252,8 @@ export function registerFix3CompareTests(suite) {
     const { page, errors } = await open(ctx, st, { url: `${st.beta}/#c=google&m=insights`, device: PHONE });
     const card = await compareCard(page);
     if (await card.locator('select').nth(0).locator('option[value="design"]').count()) { await card.locator('select').nth(0).selectOption('design'); await sleep(300); }
+    // fix-density: the level line is in the caption's Details list; open it.
+    if (await card.locator('.msi-card__sub > .ms-note__more').count()) { await card.locator('.msi-card__sub > .ms-note__more').click(); await sleep(200); }
     const m = await page.evaluate(() => {
       const c = document.querySelector('#compsCardHost .ms-compare');
       const l = c.querySelector('.msi-compare__levels');

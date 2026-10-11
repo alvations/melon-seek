@@ -142,8 +142,8 @@
 .ms-note__list p { margin: 0; font: inherit; color: inherit; }
 .ms-note__list a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 @media (max-width: 860px) {
-  /* A 44px-tall tap target that takes no room of its own: the line stays one line tall. */
-  .ms-note__more::before { content: ""; position: absolute; left: -8px; right: -8px; top: 50%; height: 44px; transform: translateY(-50%); }
+  /* A 44px-tall tap target that takes no room of its own (negative margins): the line stays one line tall. */
+  .ms-note__more { min-height: 44px; padding: 0 8px; margin: -14px -8px; display: inline-flex; align-items: center; align-self: center; }
 }
 
 .ms-chart__scroll {
