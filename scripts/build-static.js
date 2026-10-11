@@ -513,7 +513,7 @@ function shareStats(c, payload, { annualize, toUSD }) {
 
 /**
  * dist/c/<slug>/index.html: crawlers read its tags, people get sent on to the app.
- * D-37: the beta copy's pages say beta (the title a link preview shows, and <html data-channel="beta">).
+ * D-37: the beta copy's pages say beta in the title a link preview shows (the channel tag stays on the app page).
  */
 function sharePage(st, img, { channel = 'stable' } = {}) {
   const beta = channel === 'beta';
@@ -526,7 +526,7 @@ function sharePage(st, img, { channel = 'stable' } = {}) {
   if (day) desc += ` Data from ${st.name}'s public job board, ${day}.`;
   const target = `../../#c=${encodeURIComponent(st.slug)}`;
   const meta = (attr, key, value) => (value ? `  <meta ${attr}="${key}" content="${escAttr(value)}">\n` : '');
-  return `<!doctype html>\n<html lang="en"${beta ? ' data-channel="beta"' : ''}>\n<head>\n` +
+  return '<!doctype html>\n<html lang="en">\n<head>\n' +
     '  <meta charset="utf-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1">\n' +
     `  <title>${escAttr(title)} — melon·seek${beta ? ' beta' : ''}</title>\n` +
     meta('name', 'description', desc) +

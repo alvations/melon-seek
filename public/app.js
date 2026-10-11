@@ -1323,17 +1323,23 @@ function sourceText(c) {
   if (!c?.source) return '';
   return SOURCE_LABEL[c.source] ? `${SOURCE_LABEL[c.source]} / ${c.board}` : `${c.name || c.board}’s careers site`;
 }
-/** MR-10: the careers site a built-in big-tech board is read from (the adapters' hosts, scripts/links-policy.js). */
-const CAREERS_URL = {
-  apple: 'https://jobs.apple.com/', google: 'https://www.google.com/about/careers/applications/jobs/results',
-  microsoft: 'https://apply.careers.microsoft.com/careers', nvidia: 'https://jobs.nvidia.com/careers',
-  netflix: 'https://explore.jobs.netflix.net/careers', amazon: 'https://www.amazon.jobs/', meta: 'https://www.metacareers.com/jobs',
-};
+/**
+ * MR-10: the site a board is read from, as a link. An ATS board's public page; a big-tech board's careers
+ * site, from the board's own posting links (the main site's files never name a beta careers host,
+ * test/beta-build.test.js).
+ */
 const BOARD_URL = { greenhouse: (b) => `https://job-boards.greenhouse.io/${b}`, ashby: (b) => `https://jobs.ashbyhq.com/${b}`, lever: (b) => `https://jobs.lever.co/${b}` };
 function sourceUrl(c) {
   if (!c?.source) return null;
   if (BOARD_URL[c.source] && c.board && /^[a-z0-9][a-z0-9_.-]*$/i.test(c.board)) return BOARD_URL[c.source](encodeURIComponent(c.board));
-  return CAREERS_URL[c.slug] || null;
+  const posting = data.jobs.find((j) => /^https:\/\//.test(String(j?.url || '')))?.url;
+  if (!posting) return null;
+  try {
+    const u = new URL(posting);
+    // A shared host (Google's www) is linked at its careers path, never at the host's home page.
+    const m = u.pathname.match(/^\/(?:[a-z-]+\/)?careers\//i) || u.pathname.match(/^\/about\/careers\/applications\//i);
+    return `${u.origin}${m ? m[0] : '/'}`;
+  } catch { return null; }
 }
 /** UX-27: one date format: "Oct 11, 2026, 07:59 UTC". */
 const UTC_TIME = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'UTC' });
@@ -2891,12 +2897,14 @@ function emptyState() {
  * own files never name a beta company (scripts/build-static.js#betaLeaks), so the beta copy's company list
  * is read on demand; when it lists the board, the message links to it there, keeping the rest of the link.
  */
+const BETA_DIR = 'beta'; // the beta copy's folder under the main site (scripts/build-static.js)
 function findOnBeta(slug, seq) {
   if (CHANNEL !== 'stable' || !api.isStatic?.() || !slug || isCustomKey(slug)) return;
-  fetch('beta/api/companies.json').then((r) => (r.ok ? r.json() : null)).then((list) => {
+  // The link is made only after the beta copy has answered, so a build without one never shows it.
+  fetch(`${BETA_DIR}/api/companies.json`).then((r) => (r.ok ? r.json() : null)).then((list) => {
     const c = Array.isArray(list) ? list.find((x) => x && x.slug === slug) : null;
     if (!c || seq !== loadSeq || data.status !== 'unknown') return;
-    data = { ...data, onBeta: { name: c.name || slug, href: `beta/${location.hash || `#c=${encodeURIComponent(slug)}`}` } };
+    data = { ...data, onBeta: { name: c.name || slug, href: `${BETA_DIR}/${location.hash || `#c=${encodeURIComponent(slug)}`}` } };
     render();
   }).catch(() => { /* no beta copy here: the plain message stays */ });
 }

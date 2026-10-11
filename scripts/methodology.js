@@ -52,14 +52,14 @@ const DEFAULT_DESCRIPTION = "How melon·seek's Juice Score is calculated: the fo
 
 /**
  * The shared <head> and site bar. `up` is the path to the site root ("../" or "../../").
- * D-37: the beta copy (channel 'beta') says so like the app does: <html data-channel="beta">, "melon·seek
- * beta" in the title and the brand. (No link to the main site: each site's links must stay inside it,
+ * D-37: the beta copy (channel 'beta') says so like the app's tab title does: "melon·seek beta" in the title
+ * and the brand. (The channel tag stays on the app page only, test/beta-build.test.js.) (No link to the main site: each site's links must stay inside it,
  * scripts/links-policy.js; the app's Beta tag, one tap away, links there.)
  */
 const isBeta = (channel) => channel === 'beta';
 function head({ title, description, up, css, channel = 'stable' }) {
   return `<!doctype html>
-<html lang="en"${isBeta(channel) ? ' data-channel="beta"' : ''}>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
