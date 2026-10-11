@@ -1,0 +1,87 @@
+--- a/docs/VETTING.md	2026-10-11 21:33:34.475457607 +0000
++++ b/docs/VETTING.md	2026-10-11 21:33:34.502111495 +0000
+@@ -207,7 +207,17 @@
+ **Big-tech margins (2026-10-11 beta review):** highest hourly rate $116.83 (Microsoft), highest intern
+ mid $156K (Netflix), lowest director maximum $128K, widest stated range 3.55x (NVIDIA's intern rate
+ "20 USD - 71 USD"; a 3.5x quarantine would hide 18 correct postings). The statistical layer flags
+-nothing there: Netflix's σ is 0.52 around a $427K median.
++nothing there: Netflix's σ is 0.52 around a $427K median. Amazon and Meta (second beta review, the
++same day): highest hourly $85.86, intern mid $156K (Amazon), lowest director maximum $144K (Meta),
++widest range 2.0x (Amazon), highest annual maximum $527K (Meta).
++
++**Known false positives of the statistics (second beta review, VT-16):** the comparison groups
++(department, role family, pay kind) mix countries, so a correct Romanian range is a low outlier
++against U.S. pay: Microsoft "Cloud Solution Architecture IC1 … across Romania is lei 83,000.00 - lei
++107,800.00 per year" ($20.8K against a $166K median) and "Technical Support Engineering IC1 … lei
++90,500.00 - lei 135,700.00" are quarantined. A `cur:<currency>` comparison group (used, like every
++group, only with at least 8 members) keeps both and changes no other quarantine on the 15 boards
++(`data/vetting/2026-10-11-beta-2/gate-study.mjs`).
+ 
+ ### Aggregates read vetted salaries only
+ 
+@@ -284,6 +294,24 @@
+ - A band for all roles of a kind ("The overall market range for Netflix Internships …") or a range
+   the posting calls total compensation is `parser_bug`, corrected null (base pay only).
+ 
++Amazon and Meta conventions (second beta review, `data/vetting/2026-10-11-beta-2/summary.md` §7):
++
++- Amazon's per-location pay table: the primary location's row is `correct` (DATA_SOURCES §7a). Where
++  the other places are shown and Juiced on it is a separate finding (VT-15).
++- A single figure under "See below the minimum gross base salary for this position" (Amazon's EU and
++  Poland tables) is a floor, `parser_bug` with `corrected: null` by the floor rule (§2), unless the
++  posting also states that figure as the pay ("The base pay for this position is PLN 6000 monthly").
++- An Amazon hourly row "including the base pay rate plus the highest available shift differential" is
++  `correct`; when the text also states a lower starting rate ("Pay starts at $18.35 per hour") the
++  verdict is `source_ambiguous` with the structured row as corrected (structured wins).
++- A bare "$" on a posting whose places are all in Mexico is pesos (`parser_bug`, corrected MXN).
++- Meta's only pay source is the structured `public_compensation` field (the description states none),
++  so its quotes are that field's own strings ("$7,313/month to $12,667/month (US)").
++
++A verdict may carry `quote_source`: `excerpt`, `pay_snippets`, `posting_text` (the posting's
++flattened description, when the pay table or the sentence above it is outside the 300-character
++excerpt) or `structured_field`.
++
+ Each verdict also carries `quote`, the exact substring of the excerpt or pay snippets that its
+ `evidence` starts with, so it can be checked by machine (as `llm-vet.js` does).
+ 
+@@ -337,6 +365,20 @@
+ stored salaries; the build re-derives a snapshot from an older normalizer first. On 2026-10-11 the
+ two agreed for all 16,182 beta and Anduril postings.
+ 
++Second beta review, same day (Amazon and Meta first): scan the published view, so the review input is
++what the build serves (the snapshots were norm-8, the code norm-9; 19 salaries differ, all from fix
++wave 4), and keep the stored scan's counts beside it.
++
++```bash
++node data/vetting/2026-10-11-beta/published-view.mjs /tmp/pv data/beta/snapshots/*.json data/snapshots/anduril.json --ungated
++node scripts/vet-salaries.js /tmp/pv/{amazon,meta,apple,google,nvidia,microsoft,netflix,anduril}.json \
++  --date 2026-10-11-beta-2 --sample 25 --seed 2026101102
++node data/vetting/2026-10-11-beta-2/review-rules.mjs all --pv /tmp/pv
++node data/vetting/2026-10-11-beta-2/gate-study.mjs <ungated published lists of all 15 boards>
++```
++
++`scripts/llm-vet.js` does not see a `<date>-<channel>-2` folder yet (VT-25).
++
+ A scan never overwrites a `flags.jsonl` or `sample.jsonl` that has a
+ `verdicts.jsonl` next to it (they are review inputs). Use `--out` or `--force`.
+ 
+@@ -433,7 +475,9 @@
+ | `summary.md` | Before/after counts, bug classes, false-positive analysis, decisions |
+ | `published-view.mjs`, `gate-study.mjs`, `flags.ungated.counts.json` | (beta, 2026-10-11) the published lists as the build makes them, the threshold study on a copy of the gate, and the no-gate scan counts |
+ 
+-A review of the beta boards lives in `data/vetting/<date>-beta/` (first: `2026-10-11-beta`).
++A review of the beta boards lives in `data/vetting/<date>-beta/` (first: `2026-10-11-beta`; the
++second, the same day, with Amazon and Meta: `2026-10-11-beta-2`, whose `flags.stored.counts.json`
++is the scan of the stored snapshots and `flags.jsonl` the scan of the published view).
+ 
+ `parser_version` identifies the code that produced `parsed` (git sha plus the
+ sha256 of `salary.js`). To check a verdict, open `url`, find the `evidence`
+@@ -453,3 +497,8 @@
+   (`stat_outlier` count) before trusting it.
+ - FX is approximate (palette table). Bounds have wide margins, so a ±20% FX error
+   does not change any decision.
++- Beta snapshots over the 40 MB budget keep 4,000 characters of each description plus at most 4 pay
++  paragraphs (`scripts/snapshot.js#trimDescription`). An Amazon pay table with more rows loses the
++  rest: in 292 of 5,000 Amazon postings on 2026-10-11 the published row is not in the stored text
++  (VT-22). The structured salary is kept, so the published pay is unchanged, but a review must quote
++  the structured row.

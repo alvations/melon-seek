@@ -179,7 +179,7 @@ so the browser never fetches them.
 user's decision ([AMAZON_META.md](AMAZON_META.md), "Decision").** Both were `paused: 'terms'` in
 `server/companies.js`; deleting that field resumed them, and each appears on `/beta/` after its
 first crawl. Amazon keeps a 5,000-posting budget (`maxPostings`: postings with a published pay
-range first, then the newest), and the page says "of 22,415 posted".
+range first, then the newest), and the page says "of 22,352 posted" (run 38143991379; 22,415 in probe run 7).
 
 Why they were paused (re-checked on the live pages on 2026-10-11, freshness-probe runs
 38136448486 and 38136777427; quotes, URLs and hashes in
@@ -223,18 +223,18 @@ run ([process/amazon-meta-backend.md](process/amazon-meta-backend.md), "The resu
 - **robots.txt is fetched and checked at the start of every crawl**: a disallowed
   path aborts that company (`code: 'robots'`).
 
-| Company | Slug | Status | Endpoint (front-end's own) | Postings (run 38118242488) | With pay | Snapshot | Posting URL host |
+| Company | Slug | Status | Endpoint (front-end's own) | Postings (run 38143991379) | With pay | Snapshot | Posting URL host |
 |---|---|---|---|---:|---:|---:|---|
-| Google | `google` | works | jobs sitemap + `batchexecute` `sf9Qmf` | 3,417 | 2,217 (64.9%) | 23.6 MB | `www.google.com` |
-| Microsoft | `microsoft` | works | Eightfold PCSX `apply.careers.microsoft.com/api/pcsx/*` | 2,279 | 1,490 (65.4%) | 29.7 MB | `apply.careers.microsoft.com` |
-| Meta | `meta` | works (resumed; counts after the first crawl) | jobs sitemap + job pages (`public_compensation`) | — | — | — | `www.metacareers.com` |
-| Apple | `apple` | works | `jobs.apple.com/api/v1/search` + `jobDetails` | 4,875 | 2,818 (57.8%) | 25.4 MB | `jobs.apple.com` |
-| Netflix | `netflix` | works | Eightfold classic `explore.jobs.netflix.net/api/apply/v2/jobs` | 457 | 290 (63.5%) | 4.7 MB | `explore.jobs.netflix.net` |
-| Amazon | `amazon` | works (resumed; capped at 5,000 on /beta/; counts after the first crawl) | `www.amazon.jobs/en/search.json` | — | — | — | `www.amazon.jobs` |
-| NVIDIA | `nvidia` | works | Eightfold PCSX `jobs.nvidia.com/api/pcsx/*` | 2,663 | 1,396 (52.4%) | 18.4 MB | `jobs.nvidia.com` |
+| Google | `google` | works | jobs sitemap + `batchexecute` `sf9Qmf` | 3,415 | 2,221 (65.0%) | 23.7 MB | `www.google.com` |
+| Microsoft | `microsoft` | works | Eightfold PCSX `apply.careers.microsoft.com/api/pcsx/*` | 2,285 | 1,497 (65.5%) | 30.0 MB | `apply.careers.microsoft.com` |
+| Meta | `meta` | works (resumed 2026-10-11) | jobs sitemap + job pages (`public_compensation`) | 1,139 | 903 (79.3%) | 10.5 MB | `www.metacareers.com` |
+| Apple | `apple` | works | `jobs.apple.com/api/v1/search` + `jobDetails` | 4,874 | 2,818 (57.8%) | 29.9 MB | `jobs.apple.com` |
+| Netflix | `netflix` | works | Eightfold classic `explore.jobs.netflix.net/api/apply/v2/jobs` | 457 | 288 (63.0%) | 4.7 MB | `explore.jobs.netflix.net` |
+| Amazon | `amazon` | works (resumed 2026-10-11; capped at 5,000 on /beta/) | `www.amazon.jobs/en/search.json` | 22,352 listed, 5,000 kept | 14,092 of 22,352 (63.0%); 5,000 of 5,000 kept | 38.5 MB | `www.amazon.jobs` |
+| NVIDIA | `nvidia` | works | Eightfold PCSX `jobs.nvidia.com/api/pcsx/*` | 2,662 | 1,395 (52.4%) | 18.4 MB | `jobs.nvidia.com` |
 | Tesla | — | **blocked, left out** | `www.tesla.com/cua-api/apps/careers/state` | — | — | — | — |
 
-Counts are from `snapshot.yml` run 38118242488 (2026-10-11, crawls 06:30-07:59 UTC; the job logs, the
+Counts are from `snapshot.yml` run 38143991379 (2026-10-11, crawls 14:57-16:27 UTC, the first with Amazon and Meta; the job logs and `data/beta/snapshots/<slug>.json` agree; docs/process/data-check-beta-3.md). "With pay" is as the build serves it (norm-9): the crawl logs, written by norm-8, say Google 2,217, Microsoft 1,488 and Netflix 290; norm-9 reads Google's 4 lei ranges and Microsoft's 12 (2 of them quarantined as outliers, data-check-beta-3 DQ-6 residue), drops 1 Brazil-only U.S. range at Microsoft (VT-1) and Netflix's 2 internship bands (VT-3). Amazon keeps 5,000 of the 22,352 postings it lists (all salaried: the budget keeps priced postings first), so its /beta/ pay share is 100% against 63.0% for the whole board; the snapshot predates MR-14, so its `jobsCapped` has no `salaried` count yet. Crawl cost: Amazon 425 s (302 requests, 301 list pages), Netflix 505 s (504), Meta 1,220 s (1,141 requests, 520 MB of job pages), Microsoft 2,540 s (2,515), NVIDIA 2,938 s (2,930; search listed 2,662 of 2,664), Google 3,434 s (3,425), Apple 5,415 s (4,705 requests, 4,397 detail pages; 6,100 listings are 4,874 requisitions). The previous table (run 38118242488, 06:30-07:59 UTC) read Google 3,417 (2,217 with pay), Microsoft 2,279 (1,490), Apple 4,875 (2,818), Netflix 457 (290) and NVIDIA 2,663 (1,396). Before that, the run 38118242488 note: counts from `snapshot.yml` run 38118242488 (2026-10-11, crawls 06:30-07:59 UTC; the job logs, the
 beta gate lines and `data/beta/snapshots/<slug>.json` agree exactly; docs/process/data-check-beta-2.md). "With pay" is
 postings with a published base range after the vetting gate (Netflix: 2 more quarantined, "Pay unclear"). "Snapshot"
 is the crawl's JSON file. Crawl cost per board: Netflix 505 s (504 requests), Microsoft 2,533 s (2,510), NVIDIA

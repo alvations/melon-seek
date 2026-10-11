@@ -1,0 +1,107 @@
+{
+ "amazon": {
+  "jobs": 5000,
+  "salaried": 5000,
+  "quarantined": 0,
+  "flagged": 1089,
+  "critical": 0,
+  "blocking": 0,
+  "codes": {
+   "non_year_interval": 1055,
+   "interval_corrected": 33,
+   "structured_text_disagree": 19,
+   "currency_country_mismatch": 1
+  }
+ },
+ "meta": {
+  "jobs": 1139,
+  "salaried": 903,
+  "quarantined": 0,
+  "flagged": 25,
+  "critical": 0,
+  "blocking": 0,
+  "codes": {
+   "non_year_interval": 25
+  }
+ },
+ "apple": {
+  "jobs": 4874,
+  "salaried": 2818,
+  "quarantined": 0,
+  "flagged": 145,
+  "critical": 0,
+  "blocking": 0,
+  "codes": {
+   "non_year_interval": 145
+  }
+ },
+ "google": {
+  "jobs": 3415,
+  "salaried": 2217,
+  "quarantined": 0,
+  "flagged": 20,
+  "critical": 0,
+  "blocking": 0,
+  "codes": {
+   "multi_currency": 16,
+   "missed_salary": 4
+  }
+ },
+ "nvidia": {
+  "jobs": 2662,
+  "salaried": 1395,
+  "quarantined": 0,
+  "flagged": 44,
+  "critical": 0,
+  "blocking": 0,
+  "codes": {
+   "ratio_over_3": 21,
+   "non_year_interval": 44
+  }
+ },
+ "microsoft": {
+  "jobs": 2285,
+  "salaried": 1488,
+  "quarantined": 0,
+  "flagged": 95,
+  "critical": 0,
+  "blocking": 0,
+  "codes": {
+   "non_year_interval": 79,
+   "missed_salary": 12,
+   "multiple_ranges": 5,
+   "currency_country_mismatch": 1
+  }
+ },
+ "netflix": {
+  "jobs": 457,
+  "salaried": 290,
+  "quarantined": 2,
+  "flagged": 8,
+  "critical": 1,
+  "blocking": 0,
+  "codes": {
+   "ratio_over_3": 1,
+   "quarantined": 2,
+   "max_over_1_2m": 1,
+   "non_year_interval": 6,
+   "no_pay_context": 2
+  }
+ },
+ "anduril": {
+  "jobs": 2491,
+  "salaried": 2345,
+  "quarantined": 5,
+  "flagged": 203,
+  "critical": 3,
+  "blocking": 0,
+  "codes": {
+   "non_year_interval": 196,
+   "currency_country_mismatch": 2,
+   "min_under_15k_fulltime": 3,
+   "ratio_over_3": 5,
+   "quarantined": 5,
+   "interval_corrected": 1
+  }
+ }
+}
