@@ -44,6 +44,7 @@ import {
   payCountry, countryInSentence, locationKey,
 } from './shared.js';
 import { marketAsOfText } from './freshness.js';
+import { renderNote } from '../viz/note.js';
 
 const DEFAULT_COLUMNS = ['company', 'family', 'seniority', 'n', 'p25', 'median', 'p75'];
 const PARSED = new WeakMap();
@@ -436,7 +437,6 @@ export function createCompsCard(container, { onPickCompany, market: initialMarke
   let levelPicked = false;
   let followed = null; // the filters the picks were made under
 
-  const SUB = 'for the same kind of role at each tracked company. Bar: the middle half of salaries. Tick: the median.';
   const select = h('select', { id: ids.select, class: 'ms-comp__select msi-compare__select', 'aria-describedby': ids.sub });
   const levelSelect = h('select', { id: ids.level, class: 'ms-comp__select msi-compare__select' });
   const body = h('div', { class: 'msi-compare__body' });
@@ -444,7 +444,12 @@ export function createCompsCard(container, { onPickCompany, market: initialMarke
   const missingEl = h('p', { class: 'msi-foot msi-compare__missing', hidden: true });
   const foot = h('p', { class: 'msi-foot msi-compare__foot' });
   const live = h('p', { class: 'msf-sr', 'aria-live': 'polite', 'aria-atomic': 'true' });
-  const sub = h('p', { id: ids.sub, class: 'msi-card__sub' }, `Posted pay ${SUB}`);
+  // fix-density: the subtitle is one line; how to read the bars and the card's footnotes (levels missing,
+  // companies left out, what pay is compared, dates) are behind its "Details" (viz/note.js).
+  const sub = h('div', { id: ids.sub, class: 'msi-card__sub' });
+  let subWhere = '';
+  const renderSub = () => renderNote(sub, { line: `Posted pay${subWhere} for the same kind of role`, key: 'ins:compare',
+    details: ['For the same kind of role at each tracked company. Bar: the middle half of salaries. Tick: the median.', levelsEl, missingEl, foot] });
   // The level picker sits beside the family picker inside the card (no new main-view control).
   const fields = h('div', { class: 'msi-compare__fields', style: { display: 'flex', flexWrap: 'wrap', gap: '0 10px' } },
     h('div', { class: 'msf-field msi-compare__field', style: { flex: '2 1 220px' } }, h('label', { for: ids.select }, 'Role family'), select),
@@ -454,8 +459,9 @@ export function createCompsCard(container, { onPickCompany, market: initialMarke
       h('header', { class: 'msi-card__head' },
         h(`h${hl}`, { id: ids.head, class: 'msi-card__title' }, 'Compare companies'),
         sub),
-      fields, levelsEl, body, missingEl, foot, live));
+      fields, body, live));
   container.appendChild(root);
+  renderSub();
   const tip = createTooltip(root);
 
   select.addEventListener('change', () => { family = select.value || null; userPicked = true; fillLevels(); render(); });
@@ -493,7 +499,7 @@ export function createCompsCard(container, { onPickCompany, market: initialMarke
     preserveFocus(root, () => {
       body.replaceChildren();
       const where = country ? ` in ${countryInSentence(country)}` : '';
-      sub.textContent = `Posted pay${where} ${SUB}`;
+      subWhere = where;
       const rows = marketComps(market, { family, seniority: level || '*', country });
       const label = FAMILY_LABELS[family] || family || '';
       const levelName = level === 'Intern' ? 'internships and fixed-term roles' : level ? `${levelWord(level)} roles` : 'full-time roles';
@@ -562,6 +568,7 @@ export function createCompsCard(container, { onPickCompany, market: initialMarke
       foot.textContent = `${what}, midpoints in approx. US dollars; companies need ${market.minN || 3}+ salaried postings${country ? ' there' : ''}.${left} Equity and bonus aren't included.${only}${asOf}`;
       live.textContent = rows.length ? `${label}${level ? `, ${level === 'Intern' ? 'internships' : levelWord(level)}` : ''}${where}: ${plural(rows.length, 'company', 'companies')} compared.` : '';
     });
+    renderSub();
     fitAxes(root);
   }
 

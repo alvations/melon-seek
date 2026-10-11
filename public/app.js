@@ -5,6 +5,7 @@
 
 import { colorFor, formatMoney, resetColors, assignColors, otherColor, toUSD, SLOT_COUNT, hasFx, juiceNetForScore, JUICE_BREAKS, FX_AS_OF, FX_SOURCE } from './viz/palette.js';
 import { createChart, keyOf, VIEWS, DEFAULT_VIEW } from './viz/chart.js';
+import { renderNote, noteLine } from './viz/note.js';
 import { createMap } from './viz/map.js';
 import * as api from './api.js';
 import { createCompstimateWidget, compstimateForJob, estimateView } from './features/compstimate.js';
@@ -2545,30 +2546,37 @@ function renderKpis() {
   const total = data.jobs.length;
   const pct = st.n ? Math.round((st.withSalary / st.n) * 100) : 0;
   const here = viewSpec?.l.size ? ' for the places you picked' : '';
-  const item = (strong, rest, title) => h('span', { class: 'stat', title }, h('strong', null, strong), rest ? ` ${rest}` : null);
+  const item = (strong, rest, title, cls = '') => h('span', { class: `stat ${cls}`.trim(), title }, h('strong', null, strong), rest ? ` ${rest}` : null);
   const ote = st.oteOnly ? 'on-target earnings, ' : '';
   const left = st.oteLeftOut ? `; ${plural(st.oteLeftOut, 'posting')} with on-target earnings (base plus commission) left out` : '';
   const share = st.top && st.n > 1 ? st.top[1] / st.n : 0;
-  // MR-14: a board kept to a budget (salaried first) says its share is of the kept postings, with the whole board's.
+  // MR-14: a board kept to a budget (salaried first) gives the whole board's share, not the kept postings' 100%.
   const capNote = cappedNote();
-  const capShare = capNote && capNote.salariedFirst ? {
-    text: ` of the ${capNote.kept.toLocaleString()} kept${capNote.whole != null ? ` (${capNote.whole}% of all ${capNote.total.toLocaleString()})` : ''}`,
-    tip: capNote.tip,
-  } : null;
-  const parts = [
-    item(st.n.toLocaleString(), st.n === total ? plural(st.n, 'role').replace(/^[\d,]+ /, '') : `of ${total.toLocaleString()} roles`),
+  const capWhole = capNote && capNote.salariedFirst && capNote.whole != null ? capNote : null;
+  const onePlace = viewSpec?.l.size ? (viewSpec.l.size === 1 ? [...viewSpec.l][0] : 'these places') : '';
+  // fix-density: one line (roles · share with pay · median); the rest in the list behind "Details" (viz/note.js).
+  const line = [
+    item(st.n.toLocaleString(), st.n === total ? plural(st.n, 'role').replace(/^[\d,]+ /, '') : `of ${total.toLocaleString()} roles`, null, 'stat--count'),
     // P-6: with a Location filter, the share counts pay that applies there ("22% show pay for London").
-    st.n ? item(`${pct}%`, (viewSpec?.l.size ? `show pay for ${viewSpec.l.size === 1 ? [...viewSpec.l][0] : 'these places'}` : 'show pay') + (capShare ? capShare.text : ''),
-      `${st.withSalary.toLocaleString()} of ${st.n.toLocaleString()} postings include a pay range${here}${here ? ' (a pay range in another country’s currency is not counted)' : ''}${capShare ? `. ${capShare.tip}` : ''}`) : null,
+    st.n ? item(capWhole ? `${capWhole.whole}%` : `${pct}%`, capWhole ? `of all ${capWhole.total.toLocaleString()} show pay`
+      : capNote?.salariedFirst ? `of the ${capNote.kept.toLocaleString()} kept show pay` : onePlace ? `show pay for ${onePlace}` : 'show pay',
+      `${st.withSalary.toLocaleString()} of ${st.n.toLocaleString()} postings include a pay range${here}${here ? ' (a pay range in another country’s currency is not counted)' : ''}${capNote ? `. ${capNote.tip}` : ''}`, 'stat--share') : null,
     // BP-13: it says which pay the median is of; the chart's median uses the same set.
     st.median != null ? item(money(st.median), st.oteOnly ? 'median on-target earnings' : 'base pay median',
-      `Half of these roles pay more than this and half less (the middle of each posted range, ${ote || 'base pay, '}approx US dollars${here}${left})`) : null,
-    st.p25 != null && st.p75 != null && money(st.p25) !== money(st.p75)
-      ? h('span', { class: 'stat', title: `Half of these roles have a pay midpoint between ${money(st.p25)} and ${money(st.p75)}${here}` }, 'half between ', h('strong', null, money(st.p25)), ' and ', h('strong', null, money(st.p75))) : null,
-    // P-6: "mostly" only for a real majority (it read "mostly Sales" at 19%).
-    share > 0.5 ? h('span', { class: 'stat stat--top', title: `${st.top[1]} of ${st.n} roles (${Math.round(share * 100)}%)` }, 'mostly ', h('strong', null, st.top[0])) : null,
+      `Half of these roles pay more than this and half less (the middle of each posted range, ${ote || 'base pay, '}approx US dollars${here}${left})`, 'stat--median') : null,
   ].filter(Boolean);
-  el.replaceChildren(...parts.flatMap((p, i) => (i ? [h('span', { class: 'stat-sep', 'aria-hidden': 'true' }, '·'), p] : [p])));
+  const details = [
+    // Phones show the median only (the chart's notes line has the with/without counts), so the share is here too.
+    st.n ? `${st.withSalary.toLocaleString()} of ${st.n.toLocaleString()} roles show pay${onePlace ? ` for ${onePlace}` : ''} (${pct}%)` : '',
+    st.p25 != null && st.p75 != null && money(st.p25) !== money(st.p75) ? `Half of these roles pay between ${money(st.p25)} and ${money(st.p75)} (the middle of each posted range)` : '',
+    st.median != null ? `The median is ${st.oteOnly ? 'on-target earnings' : 'base pay'}, in approx US dollars${here}: half of these roles pay more, half less` : '',
+    st.oteLeftOut ? `${plural(st.oteLeftOut, 'posting')} with on-target earnings (base plus commission) left out of the median` : '',
+    here ? 'A pay range in another country’s currency is not counted for the places you picked' : '',
+    capNote ? capNote.tip : '',
+    // P-6: "mostly" only for a real majority (it read "mostly Sales" at 19%).
+    share > 0.5 ? `Mostly ${st.top[0]}: ${st.top[1].toLocaleString()} of ${st.n.toLocaleString()} roles (${Math.round(share * 100)}%)` : '',
+  ];
+  renderNote(el, { line: line.flatMap((p, i) => (i ? [h('span', { class: 'stat-sep', 'aria-hidden': 'true' }, '·'), p] : [p])), details, key: 'stats-line' });
 }
 
 /** I-2: one line on what the site is ("Pay, and what's left after tax and rent, for 8 tech companies' open roles"). */
@@ -2579,11 +2587,16 @@ function renderTagline() {
   // UX-23: on the beta site the line says what the beta adds (the Beta tag by the logo links to the main site).
   const big = CHANNEL === 'beta' ? companies.filter((c) => c.live === false && !c.custom).map((c) => c.name) : [];
   const list = big.length > 1 ? `${big.slice(0, -1).join(', ')} and ${big[big.length - 1]}` : big[0];
-  const text = big.length ? `Beta: adds ${list} from their own careers sites`
+  // fix-density: one line. The beta line names how many careers sites it adds (the names are in its title
+  // and the company menu); a phone shows a shorter line than the desktop.
+  const text = big.length ? `Beta: adds ${big.length > 1 ? `${big.length} big-tech companies’` : `${big[0]}’s`} own careers sites`
     : `Pay, and what’s left after tax and rent, for ${n ? `${n} companies’` : 'tech companies’'} open roles`;
+  const short = big.length ? `Beta: adds ${big.length > 1 ? `${big.length} big-tech careers sites` : `${big[0]}’s careers site`}` : 'Tech pay, and what’s left after tax and rent';
   if (el.dataset.text !== text) {
     el.dataset.text = text;
-    el.replaceChildren(h('strong', { class: 'tagline-brand' }, 'melon·seek'), h('span', { class: 'tagline-sep', 'aria-hidden': 'true' }, ' · '), text);
+    el.title = big.length ? `Beta: adds ${list} from their own careers sites` : text;
+    el.replaceChildren(h('strong', { class: 'tagline-brand' }, 'melon·seek'), h('span', { class: 'tagline-sep', 'aria-hidden': 'true' }, ' · '),
+      h('span', { class: 'tagline-long' }, text), h('span', { class: 'tagline-short', 'aria-hidden': 'true' }, short));
   }
   document.body.classList.toggle('is-filtered', activeFilterCount() > 0 || !!area);
 }
@@ -2749,7 +2762,7 @@ function renderViz() {
 
   if (!data.jobs.length) {
     overlay.hidden = false;
-    overlay.replaceChildren(stateCard({ title: 'No open roles on this board', body: 'The board returned zero postings. Check the slug or try another company.' }));
+    overlay.replaceChildren(stateCard({ title: 'No open roles on this board', body: 'Try another company from the menu.' }));
     return;
   }
   if (!jobs.length) {
@@ -2876,19 +2889,19 @@ function emptyState() {
   const on = activeFacets();
   const only = derived.fc?.only || {};
   const noPay = derived.fc?.noPayHidden || 0, elsewhere = derived.fc?.elsewhereHidden || 0;
-  const payNote = (noPay ? ` ${plural(noPay, 'role')} that ${noPay === 1 ? 'lists' : 'list'} no pay ${noPay === 1 ? 'is' : 'are'} hidden by it.` : '')
-    + (elsewhere ? ` ${plural(elsewhere, 'role')} whose pay is posted for another country ${elsewhere === 1 ? 'is' : 'are'} hidden by it.` : '');
+  const payNote = [noPay ? `${plural(noPay, 'role')} that ${noPay === 1 ? 'lists' : 'list'} no pay ${noPay === 1 ? 'is' : 'are'} hidden by the pay filter.` : '',
+    elsewhere ? `${plural(elsewhere, 'role')} whose pay is posted for another country ${elsewhere === 1 ? 'is' : 'are'} hidden by the pay filter.` : ''].filter(Boolean);
   if (on.length === 1) {
     const f = on[0];
     const [label] = FACET_OFF[f]();
-    if (f === 'q') return { title: `No roles match “${S.q}”`, body: 'Check the spelling, or try a shorter or different word.', action: ['Clear the search', dropFacet('q')] };
-    if (f === 'sal') return { title: 'No roles in this pay range', body: `Try a wider range.${payNote}`, action: ['Remove the pay filter', dropFacet('sal')] };
+    if (f === 'q') return { title: `No roles match “${S.q}”`, body: 'Check the spelling, or try another word.', action: ['Clear the search', dropFacet('q')] };
+    if (f === 'sal') return { title: 'No roles in this pay range', body: 'Try a wider range.', details: payNote, action: ['Remove the pay filter', dropFacet('sal')] };
     return { title: 'No roles match', body: `Nothing here fits ${label}.`, action: [`Remove ${label}`, dropFacet(f)] };
   }
   const best = on.filter((f) => only[f] > 0).sort((a, b) => only[b] - only[a])[0];
   if (best) {
     const [label] = FACET_OFF[best]();
-    return { title: 'No roles match every filter', body: `Without ${label} there would be ${plural(only[best], 'role')}.${best === 'sal' ? payNote : ''}`, action: [`Remove ${label}`, dropFacet(best)] };
+    return { title: 'No roles match every filter', body: `Without ${label}: ${plural(only[best], 'role')}.`, details: best === 'sal' ? payNote : null, action: [`Remove ${label}`, dropFacet(best)] };
   }
   return { title: 'No roles match', body: 'Nothing fits every filter you’ve set.', action: ['Clear filters', clearFilters] };
 }
@@ -2917,22 +2930,24 @@ function notHereState() {
     // D-35, keeping D-19's plain message and its way to the company menu.
     return {
       title: 'This board isn’t on this site',
-      body: `${data.onBeta.name} is on melon·seek’s beta site, which adds big-tech companies’ own careers sites.`,
+      body: `${data.onBeta.name} is on melon·seek’s beta site.`,
       link: [`Open ${data.onBeta.name} on the beta site`, data.onBeta.href],
       action: ['Choose a company', () => togglePopover('company', $('#companyMenuBtn'))],
     };
   }
   return {
     title: 'This board isn\u2019t on this site',
-    body: `melon\u00b7seek doesn\u2019t list ${name}\u2019s jobs here. Choose a company from the menu.`,
+    body: `${name} isn\u2019t listed here. Choose a company from the menu.`,
     action: ['Choose a company', () => togglePopover('company', $('#companyMenuBtn'))],
   };
 }
 
-function stateCard({ icon = null, title, body, action = null, link = null, tone = '' }) {
+function stateCard({ icon = null, title, body, details = null, action = null, link = null, tone = '' }) {
+  // fix-density: one short body line; a caveat (roles a pay filter hides) goes behind "Details" (viz/note.js).
+  const more = details && details.filter(Boolean).length ? noteLine({ cls: 'state-note', details, key: `state:${title}` }) : null;
   return h('div', { class: `state-card ${tone ? `state-card--${tone}` : ''}` },
     icon ? h('div', { class: 'state-ico', html: icon }) : h('div', { class: 'state-ico state-ico--melon' }, h('img', { src: 'favicon.svg', alt: '' })),
-    h('h3', null, title), body ? h('p', null, body) : null,
+    h('h3', null, title), body ? h('p', null, body) : null, more,
     action ? h('button', { type: 'button', class: 'btn btn--primary btn--sm', onclick: action[1] }, action[0]) : null,
     link ? h('a', { class: 'btn btn--primary btn--sm', href: link[1] }, link[0]) : null);
 }
@@ -3554,7 +3569,8 @@ function salaryDistribution(job) {
   medLabel.style.left = `${Math.min(80, Math.max(20, x(median))).toFixed(1)}%`;
   // MR-17: the strip says what it shows (which roles, and which number of each).
   return h('div', { class: 'd-dist' },
-    h('p', { class: 'fnote dist-caption' }, `Pay of ${mids.length.toLocaleString()} ${poolNoun(job)} at ${data.company?.name || 'this company'} (the middle of each posted range); this one is marked`),
+    // fix-density: one line; "the middle of each posted range" is in the pay block's Details.
+    h('p', { class: 'fnote dist-caption', title: 'Each posted range counts at its middle' }, `Pay of ${mids.length.toLocaleString()} ${poolNoun(job)} at ${data.company?.name || 'this company'}; this one is marked`),
     svg,
     h('div', { class: 'dist-axis' }, h('span', null, money(dom.lo)), medLabel, h('span', null, money(dom.hi))),
     approx);
@@ -3845,9 +3861,18 @@ function payLevelsLine(s, job = null) {
   // MR-17: the level names are the company's own; "IC" is spelled out where it appears.
   const what = labels.some((l) => /^IC\s?\d/i.test(l)) ? `IC means individual contributor; these are ${co}’s own level names.`
     : labels.some((l) => /^M\s?\d/.test(l)) ? `These are ${co}’s own level names; M is a manager level.` : `These are ${co}’s own level names.`;
-  return [h('p', { class: 'd-sal-levels' }, h('span', { class: 'muted' }, 'Pay by level: '),
-    lv.map((l) => `${String(l.label).trim()}: ${range(l.min, l.max ?? l.min)}`).join(' · ')),
-  h('p', { class: 'fnote d-sal-levels-note' }, what)];
+  return tierList('Pay by level', lv.map((l) => [String(l.label).trim(), range(l.min, l.max ?? l.min)]), what);
+}
+/**
+ * fix-density: "Pay by level" / "Pay by place" as short rows, one line each ("Level 2  $184K–287.5K"),
+ * instead of one paragraph that wrapped to four lines on a phone. `note` (the level names) goes in the
+ * pay block's Details (drawerContent).
+ */
+function tierList(title, rows, note = '') {
+  const el = h('div', { class: 'd-sal-levels' }, h('span', { class: 'muted d-tiers-title' }, title),
+    h('ul', { class: 'd-tiers' }, ...rows.map(([name, pay]) => h('li', null, h('span', { class: 'd-tier-name', title: name }, name), h('span', { class: 'd-tier-pay' }, pay)))));
+  el.dataset.note = note;
+  return el;
 }
 /**
  * UX-22: salary.ranges, when a posting gives its own range for different places (Apple: "$165,800–292,400
@@ -3865,8 +3890,9 @@ const rangeText = (r, cur) => moneyRange(Number(r.min), Number(r.max ?? r.min), 
 function payPlacesLine(s) {
   const rs = payRanges(s);
   if (!rs) return null;
-  return h('p', { class: 'd-sal-levels d-sal-places' }, h('span', { class: 'muted' }, 'Pay by place: '),
-    rs.map((r) => `${rangeLabel(r)} ${rangeText(r, s.currency)}`).join(' · '));
+  const el = tierList('Pay by place', rs.map((r) => [rangeLabel(r), rangeText(r, s.currency)]));
+  el.classList.add('d-sal-places');
+  return el;
 }
 /**
  * UX-22: the range posted for the places a Location filter picked, when the posting gives each place its own
@@ -3945,17 +3971,20 @@ function compstimateBlock(job) {
   try { est = compstimateForJob(data.jobs, job); } catch (err) { console.warn('compstimate failed', err); }
   if (!est) return null;
   const v = estimateView(est, { company: data.company?.name || 'this company', meta: data.meta });
-  if (!v.ok) return v.reason ? h('p', { class: 'd-comp-note d-comp-none' }, v.reason) : null;
+  // fix-density: "No pay estimate" and its reason behind "Details" (the reason ran to four lines on a phone).
+  if (!v.ok) return v.reason ? noteLine({ cls: 'd-comp-note', key: 'drawer-comp', line: 'No pay estimate either', details: [h('span', { class: 'd-comp-none' }, v.reason)] }) : null;
   return h('div', { class: 'd-comp', role: 'note' },
     h('div', { class: 'd-comp-top' },
       h('span', { class: 'd-comp-label', title: 'Estimated pay from similar roles at this company' }, 'Pay estimate'),
       h('span', { class: 'd-comp-amt' }, `about ${money(est.mid)}`),
       h('span', { class: 'muted' }, `(${money(est.low)}–${money(est.high).replace(/^\$/, '')}, ${v.confidence.toLowerCase()} confidence)`)),
-    h('p', { class: 'd-comp-note' }, `${v.basis}. ${v.kind === 'ote' ? 'On-target earnings (base plus commission at target), like the roles it is based on. ' : ''}An estimate, not a figure from the posting (approx USD / year).`),
-    // MR-17 / MR-3: what "Typically within ±N%" means, and one tap to how the estimate is made.
-    v.accuracy || v.caution ? h('p', { class: 'd-comp-note' }, v.accuracy ? `${v.accuracy}: in half of the tests the estimate was at least this close to the posted pay. ` : `${v.caution} `,
-      docLink(ESTIMATE_DOC, 'How estimates work')) : h('p', { class: 'd-comp-note' }, docLink(ESTIMATE_DOC, 'How estimates work')),
-    asOfNote('d-comp-note d-comp-asof', () => compstimateAsOfText({ fetchedAt: data.fetchedAt, meta: data.meta })));
+    // fix-density: one line, and the basis, accuracy (MR-17), dates and (MR-3) the method behind "Details".
+    noteLine({ cls: 'd-comp-note', key: 'drawer-comp', line: 'Not from the posting: an estimate', details: [
+      `${v.basis}. ${v.kind === 'ote' ? 'On-target earnings (base plus commission at target), like the roles it is based on. ' : ''}An estimate, not a figure from the posting (approx USD / year).`,
+      v.accuracy ? `${v.accuracy}: in half of the tests the estimate was at least this close to the posted pay.` : v.caution || '',
+      asOfNote('d-comp-asof', () => compstimateAsOfText({ fetchedAt: data.fetchedAt, meta: data.meta })),
+      docLink(ESTIMATE_DOC, 'How estimates work'),
+    ] }));
 }
 
 function annualNote(sal, job = null) {
@@ -4046,15 +4075,22 @@ function drawerContent(job) {
   const place = rank?.country ? ` in ${countryInSentence(rank.country)}` : '';
   const of = `${coName}’s ${noun}${place}${isOte(job) ? '' : ' that show pay'}`;
   // BP-3: ranked only among roles paid for the same country; with too few of them, say so.
-  const pctText = pct == null ? (rank?.others && place ? `Too few of ${coName}’s ${noun}${place} show pay to rank this one. Pay for other countries isn’t used.` : null)
-    : pct >= 100 ? `The highest pay of ${of}`
-      : pct <= 0 ? `The lowest pay of ${of}` : `Pays more than ${pct}% of ${of}`;
+  // fix-density: one line ("Pays more than 72% of Google’s roles in Poland"); what it ranks among is in Details.
+  const among = `${coName}’s ${noun}${place}`;
+  const pctText = pct == null ? (rank?.others && place ? `Too few roles${place} show pay to rank this one` : null)
+    : pct >= 100 ? `The highest pay of ${among}`
+      : pct <= 0 ? `The lowest pay of ${among}` : `Pays more than ${pct}% of ${among}`;
+  const pctNote = pct == null ? (rank?.others && place ? `Too few of ${coName}’s ${noun}${place} show pay to rank this one. Pay for other countries isn’t used.` : null)
+    : `Ranked among ${of}${place ? '; pay for other countries isn’t used' : ''}.`;
   const partHourly = isPartTimeHourly(job);
   // Shared decision 1: under a Location filter, the pay block says when its pay isn't for the places picked.
   const elsewhere = sal && viewSpec?.l.size && job._usd && !payHere(job) ? ` This pay is posted for ${payPlaceText(job)}, not for ${placesPicked()}.` : '';
   const caption = !sal ? null : (isOte(job) ? `${OTE_LABEL}. Equity isn’t included.`
     : partHourly ? 'Posted hourly pay for a part-time role. Equity and bonus aren’t included.'
       : term?.fixed ? 'Fixed-term pay as posted. Equity and bonus aren’t included.' : 'Posted base pay. Equity and bonus aren’t included.') + elsewhere;
+  // fix-density: the caption's one line: what the pay is, or, under a Location filter, where it is for.
+  const captionLine = !sal ? null : elsewhere ? `Posted for ${payPlaceText(job)}, not ${placesPicked()}`
+    : isOte(job) ? 'On-target earnings' : partHourly ? 'Posted hourly pay, part-time' : term?.fixed ? 'Fixed-term pay as posted' : 'Posted base pay';
   // UX-22: under a Location filter, the range posted for the place picked.
   const picked = sal ? pickedRange(job) : null;
   // Shared decisions 3 and 4: the amount as it was stated. Fixed-term pay: "$3,850 a week · for about 17
@@ -4064,23 +4100,29 @@ function drawerContent(job) {
     : term ? `${term.amount}${perText(term.per)}` : salaryRange(sal);
   const subText = !sal ? null : partHourly ? `${cur} · part-time, paid by the hour`
     : term?.fixed ? `${cur} · for ${termText(term.weeks)}` : term ? `${cur} · ${programText(job, term)}` : `${cur} · per year`;
+  let salaryNotes = null;
   const salaryBlock = h('section', { class: 'd-salary' },
     sal ? h('div', { class: 'd-sal-top' },
       h('div', null,
         h('div', { class: 'd-sal-amt' }, amountText),
         h('div', { class: 'muted' }, subText),
         annualNote(sal, job),
-        term || partHourly ? null : payLevelsLine(sal, job),
-        term || partHourly ? null : payPlacesLine(sal),
+        ...(salaryNotes = [term || partHourly ? null : payLevelsLine(sal, job), term || partHourly ? null : payPlacesLine(sal)]),
         picked ? h('p', { class: 'd-sal-levels' }, h('span', { class: 'muted' }, `For ${placesPicked()}: `), `${picked.range} (${picked.label})`) : null))
       : job.salaryFlag ? payUnclearBlock(job)
-        : h('div', { class: 'd-sal-none' }, h('strong', null, 'No pay listed'), h('span', { class: 'muted' }, ': this posting has no pay range.'), compstimateBlock(job)),
+        : h('div', { class: 'd-sal-none' }, h('strong', null, 'No pay listed'), compstimateBlock(job)),
     sal ? salaryDistribution(job) : null,
     sal ? payLabels(job) : null,
-    // MR-3: one tap from the pay to how it is read (ranges, levels, part-time and fixed-term pay).
-    caption ? h('p', { class: 'd-pay-caption' }, caption) : null,
-    sal ? h('p', { class: 'fnote d-pay-doc' }, docLink(PAY_DOC, 'How pay is read')) : null,
-    sal && pctText ? h('p', { class: 'd-pct-text' }, pctText) : null);
+    sal && pctText ? h('p', { class: 'd-pct-text' }, pctText) : null,
+    // fix-density: one line, then the caveats behind "Details" (viz/note.js): the full caption, the level
+    // names, what the percentile ranks among and (MR-3) one tap to how pay is read.
+    caption ? noteLine({ cls: 'd-pay-note', key: 'drawer-pay', line: captionLine, details: [
+      h('span', { class: 'd-pay-caption' }, caption),
+      [...(salaryNotes || [])].filter(Boolean).map((e) => e.dataset.note).find(Boolean) || '',
+      sal && pctNote ? pctNote : '',
+      sal && job._usd ? 'The strip counts each posted range at its middle.' : '',
+      h('span', { class: 'd-pay-doc' }, docLink(PAY_DOC, 'How pay is read')),
+    ] }) : null);
 
   const locs = fold('d-locs', job.locations.length > 1 ? `Locations (${job.locations.length})` : 'Location',
     h('ul', { class: 'loc-list' }, ...(job.locations.length ? job.locations.map((l) => {

@@ -68,6 +68,21 @@
   align-items: center;
   gap: 4px 14px;
 }
+/* fix-density: the legend is one row (it ran to 8 lines on a phone); the rest of the keys scroll sideways,
+   with a fade at the edge that says there is more. */
+.ms-chart__legend {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  white-space: nowrap;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  padding-right: 28px;
+}
+.ms-chart__legend::-webkit-scrollbar { display: none; }
+.ms-chart__legend:focus-visible { outline: 2px solid var(--_accent); outline-offset: 2px; }
+.ms-chart__legend > * { flex: none; }
 .ms-chart__legend[hidden] { display: none; }
 .ms-legend__title { color: var(--_muted); font-weight: 500; margin-right: 2px; }
 .ms-legend__item { display: inline-flex; align-items: center; gap: 6px; max-width: 220px; white-space: nowrap; }
@@ -84,10 +99,52 @@
   border-top: 1px solid var(--_border);
   color: var(--_muted);
   font-size: 12px;
-  line-height: 1.4;  /* wraps rather than truncating: every note carries a number */
+  line-height: 1.4;
 }
 .ms-chart__foot[hidden] { display: none; }
-.ms-chart--narrow .ms-chart__foot { white-space: normal; padding-left: 12px; padding-right: 12px; }
+.ms-chart--narrow .ms-chart__foot { padding-left: 12px; padding-right: 12px; }
+
+/* fix-density (public/viz/note.js): every secondary line is one line, then one "Details" text button
+   that opens a short list. Shared by the chart, the map, the stats line, Insights and the drawer. */
+.ms-note {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) 1fr;
+  align-items: baseline;
+  column-gap: 8px;
+  min-width: 0;
+}
+.ms-note__line { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ms-note__line:empty { display: none; }
+.ms-note__more {
+  position: relative; justify-self: start;
+  appearance: none; background: none; border: 0; margin: 0; padding: 0 2px;
+  font: inherit; font-weight: 600; line-height: inherit;
+  color: var(--ms-accent, #0b7a5c);
+  text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); text-underline-offset: 2px;
+  cursor: pointer; white-space: nowrap; border-radius: 4px;
+}
+.ms-note__more:hover { text-decoration-color: currentColor; }
+.ms-note__more:focus-visible { outline: 2px solid var(--ms-accent, #0b7a5c); outline-offset: 2px; }
+.ms-note__more::after { content: " ▾"; font-size: .85em; text-decoration: none; display: inline-block; }
+.ms-note__more[aria-expanded="true"]::after { content: " ▴"; }
+.ms-note__list {
+  grid-column: 1 / -1;
+  /* The list wraps to the note's width and never widens the one-line row above it. */
+  width: 0; min-width: 100%; contain: inline-size;
+  margin: 6px 0 0; padding: 0 0 0 16px;
+  white-space: normal; line-height: 1.45;
+  color: var(--ms-muted, #5f5e5a);
+  text-align: left;
+}
+.ms-note__list[hidden] { display: none; }
+.ms-note__list li + li { margin-top: 2px; }
+.ms-note__list li:has(> [hidden]:only-child), .ms-note__list li:has(> :only-child:empty) { display: none; }
+.ms-note__list p { margin: 0; font: inherit; color: inherit; }
+.ms-note__list a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+@media (max-width: 860px) {
+  /* A 44px-tall tap target that takes no room of its own: the line stays one line tall. */
+  .ms-note__more::before { content: ""; position: absolute; left: -8px; right: -8px; top: 50%; height: 44px; transform: translateY(-50%); }
+}
 
 .ms-chart__scroll {
   position: relative;
@@ -599,6 +656,9 @@
 .ms-modes__marks { position: absolute; left: 0; right: 0; top: 12px; height: 14px; }
 .ms-modes__mark { position: absolute; top: 0; transform: translateX(-50%); color: var(--_muted); font-variant-numeric: tabular-nums; white-space: nowrap; line-height: 14px; }
 .ms-modes__paywhat { max-width: 300px; line-height: 1.35; }
+.ms-modes__short { display: none; }
+.ms-modes__juicenote .ms-note__line { display: inline-flex; align-items: center; gap: 6px; }
+.ms-map .ms-note__list { max-width: 300px; font-size: 12px; }
 .ms-modes__fx { color: inherit; text-decoration: underline; text-decoration-color: var(--_axis); text-underline-offset: 2px; }
 .ms-pin--juice .ms-pin__price { letter-spacing: .01em; }
 
@@ -743,7 +803,13 @@
   .ms-modes--pay .ms-modes__pay { padding: 0 4px; gap: 0; min-width: 0; }
   .ms-modes__scale { min-width: 168px; }
   .ms-modes__cur { display: none; }
-  .ms-modes__paywhat { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: min(176px, calc(100vw - 200px)); }
+  .ms-modes__paywhat { white-space: nowrap; max-width: min(176px, calc(100vw - 200px)); }
+  .ms-modes__long { display: none; }
+  .ms-modes__short { display: inline; }
+  /* fix-density: the opened Details drop under the switch, as wide as the box. */
+  .ms-map .ms-modes.ms-modes--pay:has(.ms-note.is-open) { flex-wrap: wrap; }
+  .ms-modes--pay:has(.ms-note.is-open) .ms-modes__pay { flex: 1 1 100%; }
+  .ms-modes--pay .ms-modes__paywhat.is-open { max-width: none; }
 
   /* Same role elsewhere: 44px rows (comps.js sets --ms-comps-row). */
   .ms-comps__over, .ms-comps__nodata { line-height: var(--ms-comps-row, 28px); }
@@ -763,8 +829,8 @@
   .ms-modes__net { grid-column: 1 / -1; text-align: left; }
   .ms-modes__key .ms-modes__net { padding-left: 0; }
   .ms-modes__none, .ms-modes__unit { display: none; }
-  .ms-modes__none.ms-modes__paywhat { display: block; }
-  .ms-modes__none.ms-modes__asof { display: block; grid-column: 1 / -1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ms-modes__none.ms-modes__paywhat { display: grid; }
+  .ms-modes__none.ms-modes__juicenote { display: grid; grid-column: 1 / -1; }
 
   /* M-10: landscape notch: Leaflet controls stay inside the safe area (the map itself stays full-bleed). */
   .ms-map .leaflet-left { left: env(safe-area-inset-left, 0px); }

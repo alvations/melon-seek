@@ -15,6 +15,7 @@ import {
 } from './shared.js';
 import { formatAsOf, asOf as registryAsOf } from './freshness.js';
 import { FX_AS_OF } from '../viz/palette.js';
+import { noteLine } from '../viz/note.js';
 
 /** MR-2: " at Jul 2026 exchange rates", the rates every "approx. USD" figure here uses (registry, else the table's own). */
 const fxAsOf = () => ` at ${formatAsOf(registryAsOf('fx-per-usd') || FX_AS_OF)} exchange rates`;
@@ -231,11 +232,16 @@ export function topResponsibilities(jobs = [], { limit = 12 } = {}) {
 // Panel (browser)
 // ---------------------------------------------------------------------------
 
-function card(title, subtitle, body, { id = uid('ins'), headTag = 'h3', extra = null } = {}) {
+/**
+ * fix-density: a card's subtitle is one short line (`subtitle`); how to read the card (`more`) and its
+ * footnotes (`notes`) are behind one "Details" (viz/note.js).
+ */
+function card(title, subtitle, body, { id = uid('ins'), headTag = 'h3', extra = null, more = [], notes = [] } = {}) {
+  const details = [...[].concat(more), ...[].concat(notes)].filter(Boolean);
   return h('section', { class: 'msi-card', 'aria-labelledby': id },
     h('header', { class: 'msi-card__head' },
       h(headTag, { id, class: 'msi-card__title' }, title),
-      subtitle ? h('p', { class: 'msi-card__sub' }, subtitle) : null,
+      subtitle || details.length ? noteLine({ cls: 'msi-card__sub', line: subtitle, details, key: `ins:${title}` }) : null,
       extra),
     body);
 }
@@ -273,8 +279,8 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
     const sub = average == null || salaried < MIN_SAMPLE ? 'Average pay of roles listing each skill vs. all roles in view.'
       : `Average pay of roles listing each skill vs. the ${formatMoney(average)} average of all roles in view.`;
     if (!items.length || salaried < MIN_SAMPLE) {
-      return card('Skill premium', sub, emptyNote(!salaried ? 'None of these roles publish pay.'
-        : `Not enough roles to compare skills: each needs ${MIN_SAMPLE} or more roles with pay, and not mostly one posted range.`), { headTag: `h${hl + 1}` });
+      return card('Skill premium', 'Average pay by skill, vs. all roles', emptyNote(!salaried ? 'None of these roles publish pay.'
+        : `Not enough roles to compare skills: each needs ${MIN_SAMPLE} or more roles with pay, and not mostly one posted range.`), { headTag: `h${hl + 1}`, more: sub });
     }
     const maxAbs = Math.max(...items.map((i) => Math.abs(i.premium)), 1);
     const rows = items.map((it) => {
@@ -297,8 +303,8 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
       h('span', null, h('i', { class: 'msi-key msi-key--pos' }), 'Pays more'),
       h('span', { class: 'msi-legend__n' }, '# = salaried roles'));
     const foot = dropped > 0
-      ? h('p', { class: 'msi-foot' }, `${plural(dropped, 'skill')} left out: most of ${dropped === 1 ? 'its' : 'their'} roles post the same range, so the difference would only repeat one pay band. Skills need ${MIN_SAMPLE}+ roles with pay.`) : null;
-    return card('Skill premium', sub, [h('div', { class: 'msi-rows msi-rows--div' }, rows, legend), foot], { headTag: `h${hl + 1}` });
+      ? h('span', { class: 'msi-foot' }, `${plural(dropped, 'skill')} left out: most of ${dropped === 1 ? 'its' : 'their'} roles post the same range, so the difference would only repeat one pay band. Skills need ${MIN_SAMPLE}+ roles with pay.`) : null;
+    return card('Skill premium', 'Average pay by skill, vs. all roles', [h('div', { class: 'msi-rows msi-rows--div' }, rows, legend)], { headTag: `h${hl + 1}`, more: sub, notes: foot });
   }
 
   // (b) salary by department --------------------------------------------------
@@ -309,8 +315,8 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
     const hidden = allBoxes.length - boxes.length;
     const sub = 'Box: the middle half of salaries. Whiskers: most salaries (all but the top and bottom tenth). Tick: the median.';
     if (!boxes.length) {
-      return card('Pay by department', sub, emptyNote(allBoxes.length
-        ? `Not enough roles with pay to draw a department: each needs ${MIN_SAMPLE} or more.` : 'None of these roles publish pay.'), { headTag: `h${hl + 1}` });
+      return card('Pay by department', 'Middle half of pay, and the median', emptyNote(allBoxes.length
+        ? `Not enough roles with pay to draw a department: each needs ${MIN_SAMPLE} or more.` : 'None of these roles publish pay.'), { headTag: `h${hl + 1}`, more: sub });
     }
     // Stable axis: domain from all jobs so filtering doesn't rescale the plot.
     const domainMids = (allJobs.length ? allJobs : jobs).map(midOf).filter((v) => v != null);
@@ -337,8 +343,8 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
       h('span', { class: 'msi-axis__track' }, ticks.map((t) => h('span', { class: 'msi-axis__tick', style: { left: x(t) } }, formatMoney(t)))),
       h('span', { class: 'msi-axis__pad msi-axis__pad--end' }));
     const foot = hidden > 0
-      ? h('p', { class: 'msi-foot' }, `${plural(hidden, 'department')} with fewer than ${MIN_SAMPLE} salaried roles not shown.`) : null;
-    return card('Pay by department', sub, [h('div', { class: 'msi-rows msi-rows--box' }, rows, axis), foot], { headTag: `h${hl + 1}` });
+      ? h('span', { class: 'msi-foot' }, `${plural(hidden, 'department')} with fewer than ${MIN_SAMPLE} salaried roles not shown.`) : null;
+    return card('Pay by department', 'Middle half of pay, and the median', [h('div', { class: 'msi-rows msi-rows--box' }, rows, axis)], { headTag: `h${hl + 1}`, more: sub, notes: foot });
   }
 
   // (c) hot locations -------------------------------------------------------
@@ -347,7 +353,7 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
   function locCard(jobs) {
     const locs = hotLocations(jobs, { limit: 8, minSalaried: MIN_SAMPLE });
     const sub = `Where the openings are. Multi-location roles count in each city; a median uses only pay posted for that place, from ${MIN_SAMPLE} or more roles.`;
-    if (!locs.length) return card('Hot locations', sub, emptyNote('No locations listed.'), { headTag: `h${hl + 1}` });
+    if (!locs.length) return card('Hot locations', 'Where the openings are', emptyNote('No locations listed.'), { headTag: `h${hl + 1}`, more: sub });
     const max = Math.max(...locs.map((l) => l.count));
     const medianText = (l) => (l.median != null ? formatMoney(l.median) : l.salaried ? `too few with pay here (${l.salaried})` : 'no pay posted for this place');
     const head = h('div', { class: 'msi-cols', 'aria-hidden': 'true' }, h('span', null, 'Location'), h('span'), h('span', null, 'Roles'), h('span', null, 'Median'));
@@ -360,7 +366,7 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
         h('span', { class: 'msi-row__value' }, l.median == null ? '—' : formatMoney(l.median)),
       ],
       () => ({ value: `${plural(l.count, 'role')}`, label: l.location, rows: [['Median pay', l.median == null ? '—' : formatMoney(l.median)], ['With pay posted for this place', String(l.salaried)]] })));
-    return card('Hot locations', sub, h('div', { class: 'msi-rows msi-rows--loc' }, head, rows), { headTag: `h${hl + 1}` });
+    return card('Hot locations', 'Where the openings are', h('div', { class: 'msi-rows msi-rows--loc' }, head, rows), { headTag: `h${hl + 1}`, more: sub });
   }
 
   // (d) fit requirements + responsibilities ---------------------------------
@@ -392,7 +398,7 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
           `${r.label}: ${plural(r.count, 'role')} (${formatPct(r.pct)}). Filter by this responsibility.`,
           [h('span', null, r.label), h('span', { class: 'msi-chip__n' }, fmtCount(r.count))]))))));
     }
-    const c = card('What roles ask for', sub, parts, { headTag: `h${hl + 1}` });
+    const c = card('What roles ask for', `Share of the ${plural(total, 'role')} in view`, parts, { headTag: `h${hl + 1}`, more: sub });
     c.querySelectorAll('.msi-chips .msi-row').forEach((el) => el.classList.add('msi-chip'));
     return c;
   }
@@ -430,19 +436,24 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
       return { ...j, salary: null };
     });
     const ote = jobs.filter((j) => isOTE(j)).length;
+    // fix-density: the header's one line ("All 5,000 roles", "120 of 5,000 roles match"); the rates, dates,
+    // left-out counts and the pay guide behind "Details" (viz/note.js).
     const notes = [
       ote ? `${plural(ote, 'role')} posting on-target earnings (base plus commission) left out of pay figures` : '',
       elsewhere ? `${plural(elsewhere, 'role')} whose pay is for another country left out of pay figures` : '',
-    ].filter(Boolean).map((t) => ` · ${t}`).join('');
+    ].filter(Boolean);
     tip.hide();
     preserveFocus(root, () => {
       header.replaceChildren(
         h(`h${hl}`, { id: headId, class: 'ms-insights__title' }, 'Market insights'),
-        h('p', { class: 'ms-insights__sub' }, !all.length ? 'No roles loaded yet.'
-          : jobs.length === all.length
-          ? `All ${plural(all.length, 'role')} on this board · pay in approx. USD${fxAsOf()}${postedAsOf(asOf)}${notes} · `
-          : `${fmtCount(jobs.length)} of ${plural(all.length, 'role')} match your filters · pay in approx. USD${fxAsOf()}${postedAsOf(asOf)}${notes} · `,
-        all.length ? h('a', { href: PAY_DOC, target: '_blank', rel: 'noopener noreferrer' }, 'How pay is read') : null));
+        noteLine({ cls: 'ms-insights__sub', key: 'ins-head',
+          line: !all.length ? 'No roles loaded yet.' : jobs.length === all.length ? `All ${plural(all.length, 'role')} on this board` : `${fmtCount(jobs.length)} of ${plural(all.length, 'role')} match your filters`,
+          details: !all.length ? [] : [
+            `Pay in approx. US dollars${fxAsOf()}`,
+            postedAsOf(asOf).replace(/^ · p/, 'P'),
+            ...notes,
+            h('a', { href: PAY_DOC, target: '_blank', rel: 'noopener noreferrer' }, 'How pay is read'),
+          ] }));
       if (!jobs.length) {
         body.replaceChildren(emptyNote(all.length ? 'No roles match the current filters.' : 'Insights appear once a job board is loaded.'));
         return;

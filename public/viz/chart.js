@@ -43,6 +43,7 @@ import {
 } from './palette.js';
 import { levelLabel, displayLevel, DISPLAY_LEVEL_ORDER } from '../features/roles.js';
 import { payLocations, OTE_LABEL } from '../features/shared.js';
+import { renderNote } from './note.js';
 
 export const VIEWS = Object.freeze(['clusters', 'ranges']);
 export const DEFAULT_VIEW = 'clusters';
@@ -545,7 +546,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         : e ? (typeof e === 'string' ? [e, ''] : [e.title || '', e.sub || '']) : null;
       empty.hidden = !msg;
       empty.replaceChildren(...(msg ? [el('div', 'ms-chart__empty-title', msg[0]), msg[1] ? el('div', 'ms-chart__empty-sub', msg[1]) : ''].filter(Boolean) : []));
-      renderNotes(stats, narrow);
+      renderNotes(stats);
       return;
     }
     scroll.hidden = false;
@@ -559,7 +560,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       renderRanges(stats, narrow);
       if (activeJobId != null && idxByJob.has(activeJobId)) activeIdx = idxByJob.get(activeJobId); // applied when the row is built
     }
-    renderNotes(stats, narrow);
+    renderNotes(stats);
 
     // Scroll mode: scroll internally only when the container constrains height;
     // otherwise flow with the page so the sticky header sticks to the viewport.
@@ -570,38 +571,37 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     if (highlighted) applyHighlight(highlighted, false);
   }
 
-  function renderNotes({ noSalary, fxCount, unknownFx, elsewhere, pay }, narrow) {
-    foot.replaceChildren();
-    const parts = [];
+  function renderNotes({ noSalary, fxCount, unknownFx, elsewhere, pay }) {
     const where = placesPhrase(opts.places);
-    // BP-2: with a Location filter, the plotted pay is for those places, and the rest is counted.
-    if (plotted.length) parts.push(`${plural(plotted.length, 'posting')} with ${where ? `pay for ${where}` : 'salary'}`);
-    if (elsewhere && plotted.length) parts.push(`${elsewhere.toLocaleString()} with pay for another country only, left out`);
-    // V-18: Group by Location rows hold only the pay posted for their place.
-    if (rowNotes.offRow) parts.push(`${rowNotes.offRow.toLocaleString()} with pay for another place than their row's, not in the rows`);
-    // V-21: rows compare one country's pay when the board mixes currencies.
-    if (rowNotes.basis && rowNotes.basisLeft) parts.push(`row medians: pay ${payBasisPlace(rowNotes.basis)} (${rowNotes.basisLeft.toLocaleString()} paid elsewhere ${narrow ? 'left out' : 'are in the circles, not the medians'})`);
-    // BP-13: on-target earnings are plotted but not in the medians (the stats line's rule).
-    // Phones keep the line short (the tooltip and the ranges' own tips say what on-target means).
-    if (pay?.oteLeftOut) parts.push(`${pay.oteLeftOut.toLocaleString()} ${narrow ? 'on-target earnings' : 'with on-target earnings (base plus commission)'}, not in the medians`);
-    else if (pay?.oteOnly) parts.push(narrow ? 'all on-target earnings' : 'all on-target earnings (base plus commission at target)');
-    // V-20 / V-19: what the Ranges bars that are not one posted yearly range look like.
-    if (rowNotes.spans) parts.push(`${rowNotes.spans.toLocaleString()} striped: one posting’s range over several levels or places`);
-    if (rowNotes.partTime) parts.push(`${rowNotes.partTime.toLocaleString()} part-time hourly, shown as a year if full-time`);
-    if (noSalary) parts.push(`${noSalary.toLocaleString()} with no salary posted`);
-    if (unknownFx.length) parts.push(`${unknownFx.join(', ')} pay shown unconverted`);
-    if (outCount) parts.push(`${plural(outCount, 'posting')} past the edge of the chart (›)`);
-    if (narrow && plotted.length) parts.push('yearly pay');
-    foot.textContent = parts.join(' · ');
-    // MR-2: the exchange rates' date in the text itself (a hover title is out of reach on a phone),
-    // linked to the methodology section that names their source.
-    if (fxCount) { foot.append(parts.length ? ' · ' : '', `${fxCount.toLocaleString()} converted from another currency at `, fxLink(FX_AS_OF)); parts.push('fx'); }
-    foot.title = [
-      fxCount ? `Pay in other currencies is converted to US dollars with fixed exchange rates (as of ${FX_MONTH}; ${FX_SOURCE_SHORT}), so it is approximate.` : '',
-      pay?.oteLeftOut || pay?.oteOnly ? `${OTE_LABEL}: shown on the chart, but the medians are base pay${pay?.oteOnly ? ' unless nothing else is left' : ''}.` : '',
-      elsewhere && where ? `Pay posted for another country says nothing about pay in ${where}, so it is left out.` : '',
-    ].filter(Boolean).join(' ');
-    foot.hidden = !parts.length;
+    // fix-density: one line with the two counts a job seeker needs ("564 with pay · 81 without"); every
+    // other caveat in the short list behind "Details" (public/viz/note.js), in plain words.
+    const line = [];
+    if (plotted.length || noSalary) line.push(`${plotted.length.toLocaleString()} with pay${where && plotted.length ? ` for ${where}` : ''}`);
+    if (noSalary) line.push(`${noSalary.toLocaleString()} without`);
+    const isAre = (n) => (n === 1 ? 'is' : 'are');
+    const details = [
+      // BP-2: with a Location filter, the plotted pay is for those places, and the rest is counted.
+      elsewhere ? `${plural(elsewhere, 'posting')} with pay for another country only ${isAre(elsewhere)} left out${where ? `: that pay says nothing about pay in ${where}` : ''}` : '',
+      // V-18: Group by Location rows hold only the pay posted for their place.
+      rowNotes.offRow ? `${plural(rowNotes.offRow, 'posting')} with pay for another place than their row’s ${isAre(rowNotes.offRow)} not in the rows` : '',
+      // V-21: rows compare one country's pay when the board mixes currencies.
+      rowNotes.basis && rowNotes.basisLeft ? `Each row’s median is pay ${payBasisPlace(rowNotes.basis)} only: ${rowNotes.basisLeft.toLocaleString()} paid elsewhere ${isAre(rowNotes.basisLeft)} on the chart, not in the medians` : '',
+      // BP-13: on-target earnings are plotted but not in the medians (the stats line's rule).
+      pay?.oteLeftOut ? `${pay.oteLeftOut.toLocaleString()} with on-target earnings (base plus commission) ${isAre(pay.oteLeftOut)} on the chart, not in the medians`
+        : pay?.oteOnly ? 'All of this pay is on-target earnings (base plus commission at target)' : '',
+      // V-20 / V-19: what the Ranges bars that are not one posted yearly range look like.
+      rowNotes.spans ? `${rowNotes.spans.toLocaleString()} striped: one posting’s range over several levels or places` : '',
+      rowNotes.partTime ? `${rowNotes.partTime.toLocaleString()} part-time hourly, shown as a year if full-time` : '',
+      outCount ? `${plural(outCount, 'posting')} past the edge of the chart (›)` : '',
+      noSalary ? `${noSalary.toLocaleString()} with no salary posted, so not on the chart` : '',
+      unknownFx.length ? `${unknownFx.join(', ')} pay shown unconverted` : '',
+      // MR-2: the exchange rates' date in the text itself (a hover title is out of reach on a phone),
+      // linked to the methodology section that names their source.
+      fxCount ? [`${fxCount.toLocaleString()} converted from another currency at `, fxLink(FX_AS_OF), ', so approximate'] : '',
+      plotted.length ? 'Pay is yearly, in approx US dollars' : '',
+    ];
+    renderNote(foot, { line: line.join(' · '), details, key: 'chart-notes' });
+    foot.hidden = !line.length;
   }
 
   /** MR-2: "Jul 2026 exchange rates" for the rates of `asOf`, a link to the section that names their source. */
@@ -1347,6 +1347,10 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       item.title = `${plural(spans, 'posting')} whose range runs over several levels (NVIDIA "Level 4" and "Level 5") or several places' ranges: hover a bar for each`;
       legend.append(item);
     }
+    // fix-density: the legend is one row that scrolls sideways (viz.css); when it does, the keyboard can scroll it.
+    requestAnimationFrame(() => {
+      if (legend.scrollWidth > legend.clientWidth + 1) legend.tabIndex = 0; else legend.removeAttribute('tabindex');
+    });
   }
 
   function setHover(i, evt) {

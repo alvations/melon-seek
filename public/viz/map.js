@@ -42,6 +42,7 @@ import {
 import { payLocations } from '../features/shared.js';
 // M-23: pin counts as "4.5K", like the chart's circles; the exact count is in pinName().
 import { shortCount, placeMatcher, FX_DOC, FX_SOURCE_SHORT } from './chart.js';
+import { renderNote } from './note.js';
 
 export const COLOR_MODES = Object.freeze(['pay', 'juice']);
 /** I-10: how full a Juice pin (and its legend swatch) is drawn, by grade. */
@@ -507,13 +508,14 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       net.append(range, el('span', 'ms-modes__unit', ' left a year')); // phones: the dollars only
     }
     // V-28: the no-data pins are gray (viz.css), as this line and its swatch say.
-    const none = L.DomUtil.create('div', 'ms-modes__none ms-modes__none--sw', legend);
-    none.append(el('span', 'ms-modes__sw ms-modes__sw--none'), 'Gray: no Juice data');
-    if (juiceNote) {
-      const n = L.DomUtil.create('div', 'ms-modes__none ms-modes__asof', legend);
-      n.textContent = juiceNote;
-      n.title = juiceNote; // phones show it on one line
-    }
+    // fix-density: one line, and the data's dates ("As of: rent May–Sep 2026 · …") behind "Details".
+    const none = L.DomUtil.create('div', 'ms-modes__none ms-modes__juicenote', legend);
+    const asOf = String(juiceNote || '').replace(/^As of:\s*/i, '').split(/\s+·\s+/).filter(Boolean);
+    renderNote(none, {
+      line: [el('span', 'ms-modes__sw ms-modes__sw--none'), 'Gray: no Juice data'],
+      details: asOf.length ? [`Data as of: ${asOf.join(', ')}`] : [],
+      key: 'map-juice',
+    });
   }
   /**
    * V-16 / MR-13: what a Pay pin's colour and figures are. Five fixed steps of approx US dollars
@@ -544,12 +546,22 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       }
     });
     scale.append(marks);
+    // fix-density: the legend says what the colour is in a few words; what the small number is, the
+    // exchange rates' month (MR-2) and the pin's minimum are behind "Details".
     const what = el('div', 'ms-modes__none ms-modes__paywhat');
     const a = el('a', 'ms-modes__fx', `${fxMonth(FX_AS_OF)} exchange rates`);
     a.href = FX_DOC;
     a.title = `Fixed rates as of ${fxMonth(FX_AS_OF)}: ${FX_SOURCE_SHORT}`;
-    what.append('Median posted base pay a year, approx US dollars (', a, ') · small number: postings');
-    what.title = `${what.textContent}. A pin shows a median only when ${MIN_PIN_PAY} or more of its postings post pay for its places.`;
+    renderNote(what, {
+      line: [el('span', 'ms-modes__long', 'Median base pay a year'), el('span', 'ms-modes__short', 'Median pay')],
+      details: [
+        'Colour: the median posted base pay a year, in approx US dollars',
+        ['Other currencies converted at ', a],
+        'Small number: postings',
+        `A pin shows a median only when ${MIN_PIN_PAY} or more of its postings post pay for its places`,
+      ],
+      key: 'map-pay',
+    });
     box.append(scale, what);
   }
   function setJuiceScale(src) {

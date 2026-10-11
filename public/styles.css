@@ -761,11 +761,10 @@ html[data-mode="map"] .demo-banner { padding: 0; }
 
 /* stats row + chart controls */
 .viz-toolbar { gap: 12px 16px; min-height: 32px; }
-.stats-line { margin: 0 auto 0 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; font-size: 13.5px; color: var(--ms-muted); min-width: 0; }
+.stats-line { margin: 0 auto 0 0; font-size: 13.5px; color: var(--ms-muted); min-width: 0; }
 .stats-line strong { color: var(--ms-text); font-weight: 650; font-variant-numeric: tabular-nums; }
 .stat { white-space: nowrap; }
-.stat--top { overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
-.stat-sep { color: var(--ms-faint); }
+.stat-sep { color: var(--ms-faint); margin: 0 7px; }
 .viz-controls { align-items: center; gap: 12px; }
 .seg--sm { padding: 2px; border-radius: 8px; }
 .seg--sm button { height: 28px; padding: 0 11px; font-size: 12.5px; border-radius: 6px; }
@@ -802,16 +801,15 @@ html[data-mode="map"] .demo-banner { padding: 0; }
 .area-x:hover { background: color-mix(in srgb, var(--ms-accent) 15%, transparent); }
 .area-label { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .loc-ico svg { color: var(--ms-accent); }
-/* UX-15: the line wraps whole stats onto a second line; it never clips a number ("$270" for "$270K"). */
-.stats-line { flex: 1 1 100%; flex-wrap: wrap; overflow: visible; }
-.stat--top { min-width: 0; flex: 0 1 auto; max-width: none; overflow: visible; }
+/* fix-density: one line (roles · share with pay · median) and "Details" (viz/note.js); UX-15: three stats
+   that fit, so no number is clipped. */
+.stats-line { flex: 1 1 100%; }
 @media (max-width: 860px) {
-  .stats-line { font-size: 12.5px; gap: 2px 6px; }
-  .stat--top, .stat--top + .stat-sep { display: none; }
+  .stats-line { font-size: 12.5px; }
+  .stat-sep { margin: 0 5px; }
 }
 @media (max-width: 860px) {
   .main { padding: 10px 14px 132px; gap: 8px; }
-  .stats-line { flex-wrap: wrap; }
 }
 .desc-skeleton { display: flex; flex-direction: column; gap: 4px; padding: 4px 0; }
 
@@ -1098,11 +1096,10 @@ html[data-mode="insights"] .viz-controls { display: none; }
   .demo-banner { padding: 6px var(--m-gutter-r) 0 var(--m-gutter-l); }
   .demo-banner details > summary { min-height: 32px; }
   .viz-toolbar { padding: 6px var(--m-gutter-r) 6px var(--m-gutter-l); min-height: 0; }
-  /* One short stats line: "$352K median · middle 50% $287–411K" (the sheet's peek row has the count).
-     Drops the first two stats (count, list pay) with their separators, and "mostly …" with the
-     separator in front of it, so no "·" is left dangling. */
-  .stats-line { flex: 1 1 100%; flex-wrap: nowrap; white-space: nowrap; overflow: hidden; font-size: 13px; }
-  .stats-line > :nth-child(-n+4), .stats-line > .stat--top, .stats-line > .stat-sep:has(+ .stat--top) { display: none; }
+  /* One short stats line: "$352K base pay median" and Details (the sheet's peek row has the count, the
+     chart's notes line the with/without pay counts), so the count and share and their separators drop. */
+  .stats-line { flex: 1 1 100%; font-size: 13px; }
+  .stats-line .stat--count, .stats-line .stat--share, .stats-line .stat-sep { display: none; }
   .viz-controls { width: 100%; justify-content: space-between; }
   .seg--sm { padding: 0; border-radius: 10px; }
   .seg--sm button { height: var(--m-row); padding: 0 14px; font-size: 14px; border-radius: 10px; }
@@ -1319,8 +1316,8 @@ html[data-channel="beta"] .beta-tag[hidden] { display: inline-flex; }
 /* I-2: one line on what the site is. Desktop: muted, at the right of the chart controls (no extra row);
    phones: the first line above the chart, with the name, until a filter is set. */
 .tagline { margin: 0 0 0 auto; min-width: 0; flex: 1 1 0; text-align: right; font-size: 12px; line-height: 1.3; color: var(--ms-muted);
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; } /* two short lines fit the controls' 32px row */
-.tagline-brand, .tagline-sep { display: none; }
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* fix-density: one line */
+.tagline-brand, .tagline-sep, .tagline-short { display: none; }
 html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: none; }
 /* P-16: an empty result shows one message; the chart's own note under it stays covered. */
 .viz-overlay.is-empty { background: var(--ms-surface); }
@@ -1338,6 +1335,10 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
   .tagline { order: -1; flex: 1 1 100%; margin: 0; display: block; text-align: left; font-size: 13px; line-height: 1.35; color: var(--ms-text); }
   .tagline-brand { display: inline; font-weight: 700; }
   .tagline-sep { display: inline; color: var(--ms-faint); }
+  /* fix-density: one short line on a phone; the full line stays for screen readers. */
+  .tagline { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tagline-short { display: inline; }
+  .tagline-long { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   body.is-filtered .tagline { display: none; }
   /* I-5: active chips first, and fully in view; "Clear all" is the filter sheet's Reset on phones. */
   .quick-chips .chip.is-active { order: -1; }
@@ -1415,3 +1416,26 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
 .wf-details { grid-column: 2 / -1; display: flex; flex-direction: column; gap: 2px; margin-top: -2px; }
 .wf-details .wf-detail { margin-top: 0; }
 .d-pay-doc { margin: 2px 0 0; }
+
+/* ===================================================================
+   fix-density (docs/process/fix-density.md): every secondary line is one line, then one "Details" text
+   button (public/viz/note.js; the shared .ms-note rules are in viz/viz.css).
+   =================================================================== */
+/* The drawer's pay block: "Pay by level" / "Pay by place" as short rows, one line each. */
+.d-sal-levels { display: grid; gap: 1px; }
+.d-tiers-title { font-size: 12px; }
+.d-tiers { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.d-tiers li { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; align-items: baseline; max-width: 420px; }
+.d-tier-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ms-muted); }
+.d-tier-pay { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.d-pay-note { margin: 8px 0 0; font-size: 12px; color: var(--ms-muted); }
+.d-pct-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.d-sal-none .d-comp-note { margin-top: 6px; }
+.d-comp-note .ms-note__list .fnote { margin: 0; font-size: inherit; }
+/* Empty states: the Details button sits under the one body line. */
+.state-note.ms-note { display: flex; flex-direction: column; align-items: center; font-size: 12.5px; color: var(--ms-muted); margin: -4px 0 6px; }
+.state-note .ms-note__list { text-align: left; max-width: 320px; }
+/* Insights and Pay estimate: one-line captions. */
+.ms-insights__sub.ms-note, .msi-card__sub.ms-note, .ms-comp__sub.ms-note { margin: 2px 0 0; }
+.msi-card__sub .ms-note__list, .ms-insights__sub .ms-note__list, .ms-comp__sub .ms-note__list { font-size: 12px; }
+.msi-card__sub .msi-foot { margin: 0; padding: 0; border: 0; font-size: inherit; }

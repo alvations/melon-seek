@@ -24,6 +24,7 @@ import {
   levelLabel, levelStated, displayLevel, NOT_STATED, LEVEL_NOT_STATED, DISPLAY_LEVEL_ORDER, levelKey, levelFromKey,
 } from './roles.js';
 import { compstimateAsOfText } from './freshness.js';
+import { noteLine } from '../viz/note.js';
 
 export { percentile, weightedPercentile, salaryUSD, toUSD, FX_FALLBACK } from './shared.js';
 // Role taxonomy lives in roles.js (no imports, Node-safe); re-exported for callers.
@@ -831,7 +832,9 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
   const root = h('section', { class: 'ms-comp', 'aria-labelledby': id.head },
     h('header', { class: 'ms-comp__head' },
       h(hTag, { id: id.head, class: 'ms-comp__title' }, 'Pay estimate'),
-      h('p', { id: `${id.head}-sub`, class: 'ms-comp__sub' }, 'Estimated pay from similar roles. Follows your filters until you change a field.')),
+      // fix-density: one line; how the fields follow the filters is behind "Details" (viz/note.js).
+      noteLine({ cls: 'ms-comp__sub', key: 'comp-sub', line: 'Estimated pay from similar roles',
+        details: [h('span', { id: `${id.head}-sub` }, 'It follows your filters until you change a field.')] })),
     h('form', { class: 'ms-comp__form', role: 'search', 'aria-label': 'Pay estimate role details', onsubmit: (e) => { e.preventDefault(); commitTitle(); } },
       h('div', { class: 'msf-field msf-field--wide' }, h('label', { for: id.title }, 'Role title'), titleInput, datalist),
       h('div', { class: 'msf-field' }, h('label', { for: id.loc }, 'Location'), locSelect),
