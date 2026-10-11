@@ -11,8 +11,9 @@
 //   dist/api/jobs/<slug>.json data/snapshots/<slug>.json if present (mode "snapshot"),
 //                             else build-time demo (mode "demo"). Jobs are written
 //                             WITHOUT descriptionHtml (see "Lazy descriptions").
-//   dist/api/demo/<slug>.json build-time demo (mode "demo"), last bundled fallback;
-//                             only written when jobs/<slug>.json is a real snapshot
+//                             No second demo list is bundled next to a snapshot (DQ-7):
+//                             when this file fails to load, the browser shows an error
+//                             with Retry, never demo postings (public/api.js).
 //   dist/api/desc/<slug>/<id>.json  { id, descriptionHtml, sections? } per job
 //   dist/api/history/<slug>.json  F4 compact ledger { id: [firstSeenAt, postedAt,
 //                             repostCount, repostFirstSeenAt?] } (server/history.js
@@ -627,7 +628,7 @@ export function betaGate(jobs, scanCompany) {
 /** Per-company paths (relative to a site root) that the build writes for `slug`. */
 function companyFiles(api, slug) {
   const desc = path.posix.dirname(api.descPath({ company: slug, id: `${slug}:x` }));
-  return [`api/jobs/${slug}.json`, `api/demo/${slug}.json`, `api/history/${slug}.json`, `api/meta/${slug}.json`, `data/${slug}.csv`, desc];
+  return [`api/jobs/${slug}.json`, `api/history/${slug}.json`, `api/meta/${slug}.json`, `data/${slug}.csv`, desc];
 }
 
 /**
@@ -891,14 +892,13 @@ async function readSnapshot(ctx, file, c) {
   }
 }
 
-/** A stable company: its snapshot, else build-time demo data (bundled as the fallback too). */
+/**
+ * A stable company: its snapshot, else (a build with no snapshot for it: a fresh clone, tests)
+ * build-time demo data, labelled demo. DQ-7: the demo list is no longer bundled as a second
+ * fallback next to a real snapshot; a list that fails to load is an error with Retry in the
+ * browser (public/api.js), never demo postings.
+ */
 async function stableCompany(ctx, out, c) {
-  let demo = null;
-  if (ctx.demoJobs) {
-    // Vetted like every other path (buildMarket, CSV and the UI expect vetted salaries).
-    const jobs = ctx.vetSalaries(ctx.normalizeJobs(ctx.demoJobs(c.slug, c.name), c));
-    demo = ctx.enrich({ company: c, mode: 'demo', fetchedAt: ctx.builtAt, error: 'Synthetic demo data (no real snapshot was bundled for this company).', jobs }, null);
-  }
   const ledger = await readLedgerFile(c.slug, ctx.history);
   let payload = null;
   const snapFile = path.join(SNAPSHOT_DIR, `${c.slug}.json`);
@@ -908,12 +908,16 @@ async function stableCompany(ctx, out, c) {
     else warn(`${rel(snapFile)} ${s.problem}; using demo`);
   }
   if (payload) payload = ctx.enrich(payload, ledger);
-  if (!payload && demo) payload = demo;
+  if (!payload && ctx.demoJobs) {
+    // Vetted like every other path (buildMarket, CSV and the UI expect vetted salaries).
+    const jobs = ctx.vetSalaries(ctx.normalizeJobs(ctx.demoJobs(c.slug, c.name), c));
+    payload = ctx.enrich({ company: c, mode: 'demo', fetchedAt: ctx.builtAt, error: 'Synthetic demo data (no real snapshot was bundled for this company).', jobs }, null);
+  }
   if (!payload) {
     warn(`${c.slug}: no snapshot and no demo generator; bundling an empty demo`);
     payload = ctx.enrich({ company: c, mode: 'demo', fetchedAt: ctx.builtAt, error: 'No data bundled.', jobs: [] }, null);
   }
-  return writeCompany(ctx, out, c, payload, demo, ledger);
+  return writeCompany(ctx, out, c, payload, ledger);
 }
 
 /**
@@ -930,7 +934,7 @@ async function betaCompany(ctx, out, c, live) {
   if (!gate.ok) return { dropped: `vetting gate: ${gate.blocking.length} job(s) with a critical salary anomaly, e.g. ${gate.blocking.slice(0, 3).join('; ')}`, warn: true };
   const ledger = await readLedgerFile(c.slug, ctx.history, [BETA_HISTORY_DIR, HISTORY_DIR]);
   try {
-    return await writeCompany(ctx, out, c, ctx.enrich(s.payload, ledger), null, ledger, { live });
+    return await writeCompany(ctx, out, c, ctx.enrich(s.payload, ledger), ledger, { live });
   } catch (err) {
     for (const f of companyFiles(ctx.api, c.slug)) await fs.rm(path.join(out, f), { recursive: true, force: true });
     return { dropped: `build error (${err.message})`, warn: true };
@@ -938,7 +942,7 @@ async function betaCompany(ctx, out, c, live) {
 }
 
 /** Write one company's files under `out`; returns what the site-level steps need. */
-async function writeCompany(ctx, out, c, payload, demo, ledger, { live } = {}) {
+async function writeCompany(ctx, out, c, payload, ledger, { live } = {}) {
   const { api, history } = ctx;
   const r = await writeSplit(out, payload, path.join(out, 'api', 'jobs', `${c.slug}.json`), api, c.slug);
   // F4: compact ledger for live browser fetches ({} keeps the request a 200).
@@ -964,11 +968,6 @@ async function writeCompany(ctx, out, c, payload, demo, ledger, { live } = {}) {
   line += bt ? `  backtest n=${bt.n} MdAPE ${bt.medianAbsPctError ?? '-'}% within10 ${bt.within10Pct ?? '-'}%` : '  backtest -';
   line += csvNote;
   if (payload.fetchedAt) line += `  fetchedAt ${payload.fetchedAt}`;
-  // The bundled demo is only a separate fallback when the main list is real.
-  if (payload.mode === 'snapshot' && demo) {
-    const d = await writeSplit(out, demo, path.join(out, 'api', 'demo', `${c.slug}.json`), api, `${c.slug} (demo)`);
-    line += `  + demo list ${size(d.listBytes)}`;
-  }
   return {
     // api/companies.json entry; `live: false` (bundle-only, public/api.js) only when set.
     entry: live === false ? { ...c, live: false } : { ...c },

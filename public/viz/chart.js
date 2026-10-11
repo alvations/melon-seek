@@ -68,6 +68,28 @@ export function groupName(dim, key) {
 const senRank = (k) => { const i = SENIORITY_ORDER.indexOf(k); return i < 0 ? SENIORITY_ORDER.length - 1.5 : i; };
 
 /**
+ * D-29: a non-US pay range names its currency once. A symbol leaves the code ambiguous, so it is
+ * added ("€80K – €100K EUR", "CA$90K – CA$120K CAD"); a currency written with its code already
+ * ("PLN 345K – PLN 702K", "CHF 232K – CHF 470K") gets nothing more. US dollars stay "$X – $Y".
+ */
+export function withCurrencyCode(text, currency) {
+  const cur = String(currency || 'USD').toUpperCase().replace(/[^A-Z]/g, '');
+  if (!cur || cur === 'USD' || new RegExp(`(^|[^A-Z])${cur}([^A-Z]|$)`).test(text)) return text;
+  return `${text} ${cur}`;
+}
+
+/**
+ * M-23: a count short enough for a pin or a circle: 999, then "1K", "4.5K", "12K", "1.2M". The
+ * exact number goes in the accessible name and the tooltip.
+ */
+export function shortCount(n) {
+  const a = Math.round(Math.abs(Number(n) || 0));
+  if (a < 1000) return String(a);
+  const fmt = (v, unit) => `${v < 10 ? Math.round(v * 10) / 10 : Math.round(v)}${unit}`;
+  return a < 999500 ? fmt(a / 1000, 'K') : fmt(a / 1e6, 'M');
+}
+
+/**
  * Where a ranges row's pay label goes (P-16): right of the bar, else left of it, else on the bar
  * inside the plot, so it never runs into the title column. `w` is the label's width in px.
  * Returns { side: 'right'|'left'|'in', x } (x = the label's left edge).
@@ -629,7 +651,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         const dot = el('span', 'ms-bin__dot');
         dot.style.width = dot.style.height = (2 * rad) + 'px';
         if (n >= 2 && rad >= 8) {
-          dot.textContent = n > 999 ? '999+' : String(n);
+          dot.textContent = shortCount(n); // M-23: "4.5K"; the exact count is in the aria-label
           if (rad < 11) dot.classList.add('ms-bin__dot--sm');
         }
         bin.append(dot);
@@ -1017,7 +1039,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const native = s.min === s.max || s.max == null || s.min == null
       ? formatCurrency(s.min ?? s.max, cur)
       : `${formatCurrency(s.min, cur)} – ${formatCurrency(s.max, cur)}`;
-    tip.append(el('div', 'ms-tip__value', native + (cur !== 'USD' ? ` ${cur}` : '')));
+    tip.append(el('div', 'ms-tip__value', withCurrencyCode(native, cur)));
     if (isForeign(cur) && hasFx(cur)) tip.append(el('div', 'ms-tip__sub', `about ${formatMoney(p.lo)} – ${formatMoney(p.hi)} in US dollars`));
     const orig = s.originalInterval || (s.interval && s.interval !== 'year' ? s.interval : null);
     if (orig && orig !== 'year') tip.append(el('div', 'ms-tip__sub', `A yearly figure worked out from ${INTERVAL_ADJ[orig] || orig} pay`));

@@ -151,6 +151,12 @@ juice: { best, byLocation, household } | null,        // livability, attached in
 
 **Static-mode `getJobs(…, { onUpdate })`** (public/api.js): the result carries `pending: true` when a bundled list is returned while the live board is still loading (only when `onUpdate` is passed). `onUpdate` is then called exactly once, never after an abort: with the live result, or with the same list, `pending: false` and the failure reason in `error` (`null` for quiet sources). `live: false` companies are never pending. The data badge reads "Snapshot · checking live…" while pending (docs/process/badge-ux.md).
 
+**Nothing to show: `unavailable: true`** (2026-10-10, DQ-7 and D-20, fix-beta-platform lane). A real company's name never carries demo postings. When a built-in has nothing to show, `getJobs` resolves to `{ company, mode: "snapshot", fetchedAt: null, error: "<one plain sentence>", jobs: [], meta, unavailable: true }`:
+- static mode: its bundled list `api/jobs/<slug>.json` fails to load (404, 5xx, a dropped connection, truncated JSON) and there is no live or earlier result this session. `error` reads "The saved list of Apple roles didn't load. Check your connection and try again." (or "Scale AI's live board couldn't be reached and the saved list of its roles didn't load. …" after a failed live fetch). Nothing is cached, so the next call tries again;
+- server mode: a beta-channel or `live: false` company with no cache and no snapshot (`/api/jobs` answers 200, so the slug works on either channel). `error` reads "Netflix's roles are not available yet: there is no saved copy of its careers site. They appear after the next crawl." (a `paused` board: "… are paused: its careers site's terms don't allow automated collection."). `/api/export` answers 503 with that error, and the market comps leave the company out.
+
+The app shows it as an error with Retry (the "Couldn't load this board" card), never as an empty board. Every other result keeps exactly its old keys. The build no longer bundles `api/demo/<slug>.json` or a description file per demo posting next to a real snapshot (773 files per site on 2026-10-10). Demo data stays only where it is labelled and nothing real exists: a stable company built without a snapshot (fresh clones, tests: its `api/jobs/<slug>.json` is `mode: "demo"`), stable companies in server mode without a snapshot, and custom boards ("Add board") whose live fetch fails.
+
 **`/api/jobs` response** adds `meta: { compstimate: { medianAbsPctError,
 within10Pct, n, seed, computedAt } | null, history: { since, runs } }`.
 
@@ -222,6 +228,11 @@ They appear only at `https://alvations.github.io/melon-seek/beta/`. The main sit
 **Server mode (`server/index.js`, deploy engineer).**
 - `/api/companies` lists stable companies only, unless the env var `MELON_CHANNEL=beta` is set.
 - `/api/jobs?company=<beta slug>` works either way.
+- (D-20, 2026-10-10) A beta company's snapshot is read from `MELON_BETA_SNAPSHOT_DIR` (default
+  `data/beta/snapshots/`), then `MELON_SNAPSHOT_DIR`, and its ledger from `MELON_BETA_HISTORY_DIR`
+  (default `data/beta/history/`), then `MELON_HISTORY_DIR`, as the static build does. A `live: false`
+  company is never fetched live from a request and its snapshot is served with `error: null`. With no
+  snapshot it is `unavailable: true` (see "Nothing to show" in v2), never demo data.
 
 ## v4 additions (2026-10-10): pay data fixes (fix-pay-data lane, persona review P-1, P-3, P-8, P-9, P-17)
 

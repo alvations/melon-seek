@@ -1,0 +1,49 @@
+diff --git a/test/og.test.js b/test/og.test.js
+index 237009d..08e93c2 100644
+--- a/test/og.test.js
++++ b/test/og.test.js
+@@ -136,7 +136,10 @@ fs.writeFileSync(path.join(SNAP_DIR, 'anthropic.json'), JSON.stringify({
+ const run = promisify(execFile);
+ async function build(name, siteUrl) {
+   const out = path.join(tmp, name);
+-  const env = { ...process.env, MELON_SNAPSHOT_DIR: SNAP_DIR, MELON_HISTORY_DIR: path.join(SNAP_DIR, '..', 'og-history') };
++  // Empty beta inputs too: the local beta snapshots would make each build take minutes.
++  const noBeta = path.join(SNAP_DIR, '..', 'og-no-beta');
++  fs.mkdirSync(noBeta, { recursive: true });
++  const env = { ...process.env, MELON_SNAPSHOT_DIR: SNAP_DIR, MELON_HISTORY_DIR: path.join(SNAP_DIR, '..', 'og-history'), MELON_BETA_SNAPSHOT_DIR: noBeta, MELON_BETA_HISTORY_DIR: noBeta, MELON_BETA_COMPANIES: '' };
+   delete env.SITE_URL;
+   if (siteUrl !== undefined) env.SITE_URL = siteUrl;
+   await run(process.execPath, [path.join(ROOT, 'scripts', 'build-static.js'), '--out', out], { cwd: ROOT, env, maxBuffer: 16 * 1024 * 1024 });
+diff --git a/test/perf-mobile.test.js b/test/perf-mobile.test.js
+index faf8bc2..1c6a41c 100644
+--- a/test/perf-mobile.test.js
++++ b/test/perf-mobile.test.js
+@@ -55,7 +55,8 @@ before(async () => {
+     fs.writeFileSync(path.join(snaps, 'anthropic.json'), JSON.stringify({ mode: 'snapshot', fetchedAt: '2026-10-01T00:00:00.000Z', jobs: normalizeJobs(fx.jobs.map(mapGreenhouseJob), getCompany('anthropic')) }));
+   }
+   const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'build-static.js'), '--out', DIST], {
+-    cwd: ROOT, env: { ...process.env, MELON_SNAPSHOT_DIR: snaps, MELON_HISTORY_DIR: hist }, encoding: 'utf8', timeout: 180000,
++    // Empty beta inputs too: the local beta snapshots would make this build take minutes.
++    cwd: ROOT, env: { ...process.env, MELON_SNAPSHOT_DIR: snaps, MELON_HISTORY_DIR: hist, MELON_BETA_SNAPSHOT_DIR: hist, MELON_BETA_HISTORY_DIR: hist, MELON_BETA_COMPANIES: '' }, encoding: 'utf8', timeout: 180000,
+   });
+   assert.equal(r.status, 0, `build failed:\n${r.stdout}\n${r.stderr}`);
+   globalThis.MELON_STATIC = true;
+diff --git a/test/static-build.test.js b/test/static-build.test.js
+index f0640f7..877af32 100644
+--- a/test/static-build.test.js
++++ b/test/static-build.test.js
+@@ -38,9 +38,12 @@ const freshApi = () => import(`${pathToFileURL(path.join(DIST, 'api.js')).href}?
+ 
+ function build(out, env) {
+   // Every build gets its own out dir and its own snapshot/history dirs, so
+-  // parallel test files never share state (and local data/ is never read).
++  // parallel test files never share state (and local data/ is never read; the beta
++  // inputs too, or the local beta snapshots make each build take minutes).
++  const none = `${out}-no-beta`;
++  fs.mkdirSync(none, { recursive: true });
+   const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'build-static.js'), '--out', out], {
+-    cwd: ROOT, env: { ...process.env, ...env }, encoding: 'utf8', timeout: 120000,
++    cwd: ROOT, env: { ...process.env, MELON_BETA_SNAPSHOT_DIR: none, MELON_BETA_HISTORY_DIR: none, MELON_BETA_COMPANIES: '', ...env }, encoding: 'utf8', timeout: 120000,
+   });
+   assert.equal(r.status, 0, `build failed:\n${r.stdout}\n${r.stderr}`);
+   return r.stdout;

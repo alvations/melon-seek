@@ -34,6 +34,8 @@ import {
   juiceColor, juiceGrade, juiceNetForScore, JUICE_BREAKS,
 } from './palette.js';
 import { payLocations } from '../features/shared.js';
+// M-23: pin counts as "4.5K", like the chart's circles; the exact count is in pinName().
+import { shortCount } from './chart.js';
 
 export const COLOR_MODES = Object.freeze(['pay', 'juice']);
 /** I-10: how full a Juice pin (and its legend swatch) is drawn, by grade. */
@@ -500,7 +502,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
         pin.classList.add('ms-pin--nosalary', 'ms-pin--juice');
       }
       pin.append(el('span', 'ms-pin__price', J ? `🍉 ${J.score}` : '🍉 –'));
-      if (c.n > 1) pin.append(el('span', 'ms-pin__count', c.n > 999 ? '999+' : String(c.n)));
+      if (c.n > 1) pin.append(el('span', 'ms-pin__count', shortCount(c.n)));
       pin.append(el('span', 'ms-pin__label', c.label));
       return pin;
     }
@@ -509,7 +511,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       pin.style.setProperty('--pin-bg', bg);
       pin.style.setProperty('--pin-fg', inkOn(bg));
       pin.append(el('span', 'ms-pin__price', formatMoney(c.median)));
-      if (c.n > 1) pin.append(el('span', 'ms-pin__count', c.n > 999 ? '999+' : String(c.n)));
+      if (c.n > 1) pin.append(el('span', 'ms-pin__count', shortCount(c.n)));
     } else {
       pin.classList.add('ms-pin--nosalary');
       pin.append(el('span', 'ms-pin__price', plural(c.n, 'job')));

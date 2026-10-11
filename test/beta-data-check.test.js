@@ -279,7 +279,7 @@ after(() => {
   if (TMP) fs.rmSync(TMP, { recursive: true, force: true });
 });
 
-test('DQ-7 beta: a failed Apple list load never shows generated "Apple" postings', TODO, async () => {
+test('DQ-7 beta: a failed Apple list load never shows generated "Apple" postings', async () => {
   const root = path.join(DIST, 'beta');
   globalThis.fetch = siteFetch(root, ['api/jobs/apple.json']);
   const api = await import(`${pathToFileURL(path.join(root, 'api.js')).href}?dq9a`);
@@ -289,7 +289,7 @@ test('DQ-7 beta: a failed Apple list load never shows generated "Apple" postings
   assert.equal(demo.length, 0);
 });
 
-test('DQ-7 stable: the demo fallback never says no snapshot was bundled when one was', TODO, async () => {
+test('DQ-7 stable: the demo fallback never says no snapshot was bundled when one was', async () => {
   assert.ok(fs.existsSync(path.join(DIST, 'api', 'jobs', 'scaleai.json')), 'a real Scale AI list was bundled');
   globalThis.fetch = siteFetch(DIST, ['api/jobs/scaleai.json']);
   const api = await import(`${pathToFileURL(path.join(DIST, 'api.js')).href}?dq9b`);

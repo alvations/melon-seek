@@ -10,9 +10,14 @@
 //       live browser fetch (adapters + normalize from ./lib/)
 //         → bundled api/jobs/<slug>.json   (mode "snapshot", or "demo" if the
 //                                           build had no snapshot)
-//         → bundled api/demo/<slug>.json   (mode "demo")
-//         → demo generated in-browser      (mode "demo")
-//     Custom boards: live, else in-browser demo.
+//         → nothing to show: `unavailable: true` (DQ-7, below)
+//     Custom boards ("Add board"): live, else demo generated in-browser (mode "demo").
+//
+// DQ-7: a built-in company never gets demo postings in the browser. When its bundled
+// list fails to load (404, 5xx, a dropped connection, truncated JSON) and there is no
+// live or earlier result, getJobs resolves to { company, mode: "snapshot", fetchedAt: null,
+// error: <a plain sentence>, jobs: [], meta, unavailable: true }, which the app shows as an
+// error with Retry. The server answers the same way for a beta company with no snapshot (D-20).
 //
 // v2 (docs/CONTRACT.md "v2 additions"): results carry `meta` ({ compstimate,
 // history }). In static mode, live-fetched and in-browser demo jobs get the F4
@@ -55,8 +60,9 @@
 // of the session unless the user asks for a refresh. For sources in
 // `window.MELON_QUIET_CORS_SOURCES` (default: lever), that kind of failure is
 // expected: when the bundled snapshot is served, it is returned with
-// `error: null`, so the UI shows no error banner. Demo fallbacks always keep
-// their error, so demo data is never shown without an explanation.
+// `error: null`, so the UI shows no error banner. Demo data (a build with no
+// snapshot, a custom board) always keeps its error, so it is never shown without
+// an explanation.
 //
 // Bundle-only companies (docs/CONTRACT.md "v3 additions"): a built-in whose
 // api/companies.json entry says `live: false` (the big-tech career sites on the
@@ -297,7 +303,7 @@ function liveWorker() {
 }
 
 let demoPromise = null;
-/** demo.js#demoJobs (last-resort fallback only), or null. */
+/** demo.js#demoJobs (custom boards' last-resort fallback only), or null. */
 function loadDemo() {
   if (!demoPromise) demoPromise = import('./lib/demo.js').then((m) => m.demoJobs || null).catch(() => null);
   return demoPromise;
@@ -558,16 +564,10 @@ async function staticJobs(p, { refresh = false, signal, onLive = null } = {}) {
     })();
   }
 
-  // 3. (fetched now, used below) Bundled snapshot (or build-time demo) and bundled demo, built-ins only.
-  const bundlePending = builtin && !cached && (!livePending || !refresh)
-    ? (async () => {
-      for (const path of [`api/jobs/${encodeURIComponent(slug)}.json`, `api/demo/${encodeURIComponent(slug)}.json`]) {
-        const body = await bundled(path, signal, refresh);
-        if (body) return body;
-      }
-      return null;
-    })()
-    : null;
+  // 3. (fetched now, used below) The bundled list (a snapshot, or build-time demo when the
+  //    build had none), built-ins only.
+  const listPath = `api/jobs/${encodeURIComponent(slug)}.json`;
+  const bundlePending = builtin && !cached && (!livePending || !refresh) ? bundled(listPath, signal, refresh) : null;
   if (bundlePending) bundlePending.catch(() => {}); // an abort is rethrown where it is awaited
   const fromBundle = (body) => {
     const mode = body.mode === 'snapshot' ? 'snapshot' : 'demo';
@@ -605,17 +605,16 @@ async function staticJobs(p, { refresh = false, signal, onLive = null } = {}) {
   if (cached) return { company: pub, mode: 'cache', fetchedAt: cached.fetchedAt, error, jobs: cached.jobs, meta: cached.meta };
 
   // 3. The bundled list.
-  if (bundlePending) {
-    const body = await bundlePending;
+  if (builtin) {
+    const body = await (bundlePending || bundled(listPath, signal, refresh));
     if (body) return fromBundle(body);
-  } else if (builtin) {
-    for (const path of [`api/jobs/${encodeURIComponent(slug)}.json`, `api/demo/${encodeURIComponent(slug)}.json`]) {
-      const body = await bundled(path, signal, refresh);
-      if (body) return fromBundle(body);
-    }
+    // DQ-7: never demo postings under a built-in's name. Nothing loaded: an error the app shows with Retry.
+    const name = company.name || slug;
+    const tried = livePending && !quiet ? `${name}’s live board couldn’t be reached and the saved list of its roles didn’t load.` : `The saved list of ${name} roles didn’t load.`;
+    return { company: pub, mode: 'snapshot', fetchedAt: null, error: `${tried} Check your connection and try again.`, jobs: [], meta: noMeta(), unavailable: true };
   }
 
-  // 4. Demo generated in the browser.
+  // 4. Custom boards: demo generated in the browser.
   let jobs = [];
   const demoAt = new Date().toISOString();
   const demoJobs = await loadDemo();

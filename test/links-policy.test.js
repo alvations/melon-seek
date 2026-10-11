@@ -12,14 +12,35 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const policy = await import(pathToFileURL(path.join(ROOT, 'scripts', 'links-policy.js')).href);
 let TMP, DIST;
+let FIXTURE = null; // the beta company bundled from the one-posting fixture
 
-before(() => {
+before(async () => {
   TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'melon-links-'));
   DIST = path.join(TMP, 'dist');
-  for (const d of ['snaps', 'hist']) fs.mkdirSync(path.join(TMP, d));
+  // Input folders of its own for both sites, so the build never reads the local data/ (with the
+  // beta snapshots present it took over a minute and timed out under load): the stable companies
+  // are demo, and the beta copy carries one big-tech company from a one-posting fixture (its list,
+  // share page and posting link on a career host), the other beta companies are left out.
+  const dirs = Object.fromEntries(['snaps', 'hist', 'beta-snaps', 'beta-hist'].map((d) => [d, path.join(TMP, d)]));
+  for (const d of Object.values(dirs)) fs.mkdirSync(d);
+  const { normalizeJobs } = await import(pathToFileURL(path.join(ROOT, 'server', 'normalize.js')).href);
+  const { getCompany } = await import(pathToFileURL(path.join(ROOT, 'server', 'companies.js')).href);
+  const apple = getCompany('apple');
+  if (apple) {
+    FIXTURE = apple.slug;
+    const jobs = normalizeJobs([{
+      sourceId: '200000001', title: 'Software Engineer, Maps', locationText: 'Cupertino, CA', extraLocations: [],
+      html: '<p>Build maps.</p>', text: 'Build maps.', url: 'https://jobs.apple.com/en-us/details/200000001/software-engineer-maps', salary: null,
+    }], apple);
+    const { slug, name, source, board, color } = apple;
+    fs.writeFileSync(path.join(dirs['beta-snaps'], 'apple.json'), JSON.stringify({ company: { slug, name, source, board, color }, mode: 'snapshot', fetchedAt: '2026-10-10T12:00:00.000Z', error: null, jobs }));
+  }
   const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'build-static.js'), '--out', DIST], {
     cwd: ROOT, encoding: 'utf8', timeout: 120000,
-    env: { ...process.env, MELON_SNAPSHOT_DIR: path.join(TMP, 'snaps'), MELON_HISTORY_DIR: path.join(TMP, 'hist') },
+    env: {
+      ...process.env, MELON_SNAPSHOT_DIR: dirs.snaps, MELON_HISTORY_DIR: dirs.hist,
+      MELON_BETA_SNAPSHOT_DIR: dirs['beta-snaps'], MELON_BETA_HISTORY_DIR: dirs['beta-hist'], MELON_BETA_COMPANIES: '',
+    },
   });
   assert.equal(r.status, 0, `build failed (it enforces the link policy):\n${r.stdout}\n${r.stderr}`);
 });
@@ -32,6 +53,7 @@ test('public/**/*.{js,html}: no GitHub links, only allowlisted hosts', () => {
 });
 
 test('built dist: no GitHub links, only allowlisted hosts, every relative link and #anchor resolves', () => {
+  if (FIXTURE) assert.ok(fs.existsSync(path.join(DIST, 'beta', 'c', FIXTURE, 'index.html')), `the beta copy carries ${FIXTURE} from the fixture`);
   assert.deepEqual(policy.checkDist(DIST), []);
 });
 

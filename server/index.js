@@ -23,6 +23,9 @@ const gzip = promisify(zlib.gzip);
 const PUBLIC_DIR = path.join(ROOT, 'public');
 const LEAFLET_DIR = path.join(ROOT, 'node_modules', 'leaflet', 'dist');
 const SNAPSHOT_DIR = process.env.MELON_SNAPSHOT_DIR || path.join(ROOT, 'data', 'snapshots');
+// D-20: beta snapshots live in their own folder, as in scripts/build-static.js (MELON_BETA_SNAPSHOT_DIR,
+// default data/beta/snapshots/, then MELON_SNAPSHOT_DIR); the same goes for their history ledgers.
+const BETA_SNAPSHOT_DIR = process.env.MELON_BETA_SNAPSHOT_DIR || path.join(ROOT, 'data', 'beta', 'snapshots');
 const SERVER_DIR = path.join(ROOT, 'server');
 export const CITIES_FILE = process.env.MELON_CITIES_FILE || path.join(ROOT, 'data', 'cities.json');
 /** The data-freshness registry (docs/DATA_FRESHNESS.md); GET /api/freshness serves its client-safe subset. */
@@ -137,7 +140,31 @@ export function publicError(err) {
   if (code === 'network') return 'Live fetch failed: upstream unreachable';
   if (code === 'too_large') return 'Live fetch failed: upstream response too large';
   if (code === 'invalid_json' || code === 'bad_shape') return 'Live fetch failed: unexpected upstream response';
+  if (code === 'live_disabled') return 'Live fetch skipped: this board is collected by the site’s crawler only';
   return 'Live fetch failed: upstream error';
+}
+
+/** A built-in served from its snapshot only (docs/CONTRACT.md v3 `live: false`): never fetched live. */
+const snapshotOnly = (company) => !!company && !company.custom && company.live === false;
+/** Built-ins that never get demo data (beta channel and snapshot-only boards, D-20 / DQ-7). */
+const neverDemo = (company) => !!company && !company.custom && (company.channel === 'beta' || company.live === false);
+/** Where a built-in's snapshot (and history ledger) is looked for, in order: a beta company's own folder first. */
+function dataDirs(slug, stableDir, betaDir) {
+  const c = getCompany(slug);
+  return c && c.channel === 'beta' ? [betaDir, stableDir] : [stableDir];
+}
+
+/**
+ * The /api/jobs payload when a built-in has nothing to show and must not get demo data (D-20):
+ * `unavailable: true`, no jobs and a plain sentence in `error`. The app shows it as an error
+ * with Retry. `mode` stays one of the contract's four ("snapshot": the source it would come from).
+ */
+function unavailablePayload(pub, company) {
+  const name = pub.name || pub.slug;
+  const error = company && company.paused
+    ? `${name}’s roles are paused: its careers site’s terms don’t allow automated collection.`
+    : `${name}’s roles are not available yet: there is no saved copy of its careers site. They appear after the next crawl.`;
+  return { company: pub, mode: 'snapshot', fetchedAt: null, error, jobs: [], store: null, unavailable: true };
 }
 
 const vetMemo = new WeakMap(); // jobs array -> vetted array (stable identity for downstream memos)
@@ -179,13 +206,18 @@ const snapshotLoads = new Map(); // slug -> in-flight promise
 /**
  * Snapshot data for a built-in company. The pipeline worker parses the snapshot
  * (and upgrades it when its normalizerVersion is old) once per file version and
- * writes a store under data/cache/store/; restarts reuse that store.
+ * writes a store under data/cache/store/; restarts reuse that store. A beta company's snapshot
+ * is read from MELON_BETA_SNAPSHOT_DIR first, then MELON_SNAPSHOT_DIR (D-20, as the build does).
  */
 async function readSnapshot(slug) {
-  const file = path.join(SNAPSHOT_DIR, `${slug}.json`);
-  let st;
-  try { st = await fs.stat(file); } catch { snapshots.delete(slug); return null; }
-  const key = `${st.mtimeMs}:${st.size}`;
+  let file = null;
+  let st = null;
+  for (const dir of dataDirs(slug, SNAPSHOT_DIR, BETA_SNAPSHOT_DIR)) {
+    const f = path.join(dir, `${slug}.json`);
+    try { st = await fs.stat(f); file = f; break; } catch { /* try the next folder */ }
+  }
+  if (!file) { snapshots.delete(slug); return null; }
+  const key = `${file}:${st.mtimeMs}:${st.size}`;
   const hit = snapshots.get(slug);
   if (hit && hit.key === key) return hit.value;
   let p = snapshotLoads.get(slug);
@@ -254,15 +286,21 @@ async function demoFor(canonical) {
 /* ------------------------------------------------------------ history (F4) */
 
 export const HISTORY_DIR = process.env.MELON_HISTORY_DIR || path.join(ROOT, 'data', 'history');
+/** Beta companies' ledgers (scripts/build-static.js reads the same: MELON_BETA_HISTORY_DIR, then MELON_HISTORY_DIR). */
+export const BETA_HISTORY_DIR = process.env.MELON_BETA_HISTORY_DIR || path.join(ROOT, 'data', 'beta', 'history');
 const ledgers = new Map();      // slug -> { key, ledger } (bounded)
 const annotated = new WeakMap(); // jobs array -> { key, jobs }
 
 /** Ledger written by scripts/history.js, reloaded when the file changes; null when missing or invalid. */
 export async function loadLedger(slug) {
-  const file = path.join(HISTORY_DIR, `${String(slug).replace(/[^a-z0-9-_.]/gi, '_')}.json`);
-  let st;
-  try { st = await fs.stat(file); } catch { ledgers.delete(slug); return null; }
-  const key = `${st.mtimeMs}:${st.size}`;
+  const base = `${String(slug).replace(/[^a-z0-9-_.]/gi, '_')}.json`;
+  let file = null;
+  let st = null;
+  for (const dir of dataDirs(slug, HISTORY_DIR, BETA_HISTORY_DIR)) {
+    try { st = await fs.stat(path.join(dir, base)); file = path.join(dir, base); break; } catch { /* next folder */ }
+  }
+  if (!file) { ledgers.delete(slug); return null; }
+  const key = `${file}:${st.mtimeMs}:${st.size}`;
   const hit = ledgers.get(slug);
   if (hit && hit.key === key) return hit.ledger;
   let ledger = null;
@@ -548,6 +586,7 @@ export async function getMarket() {
   const arrays = [];
   for (const c of channelCompanies()) {
     const p = await getJobsBase(c, { offline: true });
+    if (p.unavailable) continue; // a beta board with no snapshot yet adds nothing (D-20)
     arrays.push(p.jobs);
     let part = marketParts.get(p.jobs);
     const key = `${p.mode}|${p.fetchedAt}`;
@@ -569,6 +608,9 @@ export async function getMarket() {
  * Jobs for a company with fallbacks: fresh cache -> live -> stale cache ->
  * snapshot -> demo. Heavy work happens in pipeline workers; this function only
  * awaits it. Payloads carry `store` ({ name, custom }) for /api/job details.
+ * Beta and `live: false` built-ins (D-20): no live attempt (snapshot only, served with
+ * `error: null`), the snapshot from the beta folder first, and never demo data: with nothing
+ * on hand the payload is unavailablePayload() (`unavailable: true`, no jobs).
  * - offline: never fetch upstream (HEAD, /api/job, /api/market).
  * - noBuild: for custom boards, return null instead of building demo data that
  *   /api/jobs has not built yet (review V1: /api/job and /api/export must not
@@ -608,7 +650,10 @@ async function getJobsBase(company, { refresh = false, offline = false, noBuild 
   }
 
   let error = null;
-  if (throttled) {
+  if (snapshotOnly(company)) {
+    // D-20: a `live: false` board is never fetched from a request (its crawl takes up to hours);
+    // its snapshot is served quietly, as in static mode (no "Live fetch failed" note).
+  } else if (throttled) {
     error = offline ? null : last.error;
   } else {
     try {
@@ -637,6 +682,8 @@ async function getJobsBase(company, { refresh = false, offline = false, noBuild 
   if (!custom) {
     const snap = await readSnapshot(company.slug);
     if (snap) { await yieldNow(); return { company: pub, mode: 'snapshot', fetchedAt: snap.fetchedAt, error, jobs: stamp(snap.jobs), store: snap.store }; }
+    // D-20 / DQ-7: a beta (or snapshot-only) company with no data is "not available yet", never demo data.
+    if (neverDemo(company)) return unavailablePayload(pub, company);
   }
 
   if (custom && noBuild && !demoMemo.has(canonical.slug)) return null;
@@ -855,6 +902,7 @@ export async function handle(req, res) {
       // Custom boards: only what /api/jobs already loaded (review V10/V1: no fetch, no build).
       const data = await getJobs(company, company.custom ? { offline: true, noBuild: true } : { offline: req.method === 'HEAD' });
       if (!data) return sendJson(req, res, 404, { error: 'Board not loaded yet; open it first' });
+      if (data.unavailable) return sendJson(req, res, 503, { error: data.error });
       const csv = jobsToCsv(data.jobs, { mode: data.mode });
       return send(req, res, 200, csv, 'text/csv; charset=utf-8', {
         'Content-Disposition': `attachment; filename="${csvFileName(company.slug, { mode: data.mode, date: data.fetchedAt || undefined })}"`,
