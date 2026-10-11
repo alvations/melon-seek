@@ -280,7 +280,29 @@ npm test
 
 ## 5. Verification
 
-TESTS
+- **My tests** (`node --test test/bigtech-*.test.js test/amazon-meta-*.test.js`): 54/54 on 3cf226e.
+  - `amazon-meta-resume` (4): the paused half and the resumed half of 3.2 (25 s, builds two sites).
+  - `amazon-meta-adapters` (10): the 3.3 cases.
+  - `amazon-meta-fit` (4): the budget, `jobsCapped`, `recordPublished`, and the merge with a capped snapshot.
+  - `bigtech-sources` and `bigtech-polite`: the fetch tests run with the pause lifted in-process, the
+    Amazon partition test runs on a consistent synthetic site (the old mock's facets said 10,650
+    postings and served 400, which the new completeness rule refuses), and the paused list is read
+    from the registry.
+- **`npm test`** (12:56-12:59, load 3.8-4.9): 909 tests, 889 pass, 19 TODO (other lanes' open items:
+  data-check-beta-2, vetting-beta), **1 fail**: `bigtech-polite` "politeRequest: … per-host spacing"
+  measured gaps of 14 and 40 ms at a 40 ms interval. It passes 3/3 when run alone (load 3). It is
+  polite.js timing under load (the lead's file, changed in 3cf226e); reported, not changed.
+- **Production path with the budget**: `node test/amazon-meta-synth.js --out $S/synth3 --meta 0`:
+  22,415 listed, 5,000 kept with full descriptions, 38.3 MB, no trimming, 146 s, peak RSS 1.8 GB.
+- **Cap on screen** (patch applied to a scratch copy of the tree, built with that snapshot, phone
+  390×844): the count line reads "5,000 roles · of 22,415 posted"; the badge tip and details say
+  "Showing 5,000 of the 22,415 roles posted: the ones with a published pay range first, newest first.
+  The rest are on Amazon’s careers site."; the list and its `meta` carry `jobsCapped`; 0 page errors.
+  Screenshot: scratchpad `amb/cap-amazon-390.png` (not committed).
+- **Patches**: all five apply in order on 3cf226e (`patch -p1` on a scratch copy; `git apply --check`
+  for the first two); bigtech-probe.yml with the workflow patch parses (PyYAML).
+- **No request to either site**: every crawl here ran against the synthetic stand-ins
+  (`installFetch` throws for any other URL), and the probe checks ran with `fetch()` trapped.
 
 ## 6. Known gaps and follow-ups
 
@@ -312,4 +334,5 @@ Patches for the lead (docs/process/patches/), in this order:
 - 12:09 Resume test (both halves) and adapter edge-case tests. Commit 10d7d2b (now 49ba34a).
 - 12:15-12:36 Synthetic crawl, variants, three builds, Fast 4G full runs.
 - 12:38 Container restart; resumed, rebased onto 3cf226e. Interleaved cold passes; posting budget,
-  ledger rule, patches, this log.
+  ledger rule, patches, this log. Commit 2e4892c.
+- 12:52-13:00 Budgeted synthetic crawl, cap-on-screen check in the browser, `npm test`.
