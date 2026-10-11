@@ -52,8 +52,7 @@
 //    browser's second vetting pass.
 // Amazon's whole board (docs/process/perf-mobile-beta-2.md), also behaviour-identical:
 //  - lists are melon-packed-3 (unpackJobs): about a third smaller, and faster to parse and unpack;
-//  - Juice is worked out once per distinct (salary, locations) of a bundled list and copied to the
-//    repeats (attachJuiceOnce), in time slices instead of fixed 400-job chunks.
+//  - Juice runs in time slices (JUICE_SLICE_MS) instead of fixed 400-job chunks (up to 290 ms each).
 //
 // Every function resolves to the HTTP API shapes in docs/CONTRACT.md, with one
 // exception: to keep bundles small, jobs from the static build's bundled lists
@@ -812,48 +811,19 @@ const juiceInputs = ({ refresh = false } = {}) => Promise.all([getCities({ refre
 const JUICE_SLICE_MS = 40;
 const now = () => (g.performance && typeof g.performance.now === 'function' ? g.performance.now() : Date.now());
 
-/**
- * attachJuice for one job, worked out once per distinct (salary, locations) of a bundled list
- * (docs/process/perf-mobile-beta-2.md). juice.js#attachJuice reads only job.salary and job.locations
- * (with the same cities and no options), so a job with the same two values as an earlier one gets a
- * structured copy of that job's result: the same `juice` and `juiceMissing`, set in the same order
- * (attachJuice sets `juice` to null and deletes `juiceMissing` first). Repeats are common: one
- * requisition posted in many places, one pay range for a family of roles (Amazon: many postings
- * share an exact pay and place). The key is the JSON of the two values, exact for a list read from
- * JSON (bundled lists only; `memo` is null otherwise). test/perf-mobile-beta-2.test.js checks the
- * result equals attachJuiceAll on every bundled list.
- */
-function attachJuiceOnce(juice, job, cities, memo) {
-  const key = memo && job && typeof job === 'object' ? JSON.stringify([job.salary, job.locations]) : null;
-  const done = key == null ? undefined : memo.get(key);
-  if (!done) {
-    juice.attachJuice(job, cities);
-    if (key != null) memo.set(key, job);
-    return;
-  }
-  job.juice = null;
-  delete job.juiceMissing;
-  job.juice = done.juice == null ? done.juice : structuredClone(done.juice);
-  if (Object.prototype.hasOwnProperty.call(done, 'juiceMissing')) job.juiceMissing = structuredClone(done.juiceMissing);
-}
-
-/**
- * Attach juice to every job of a getJobs result (mutates it); true when juice was computed.
- * `bundledList`: the jobs were read from a bundled JSON list (exact keys for attachJuiceOnce).
- */
-async function withJuice(res, inputs, { bundledList = false } = {}) {
+/** Attach juice to every job of a getJobs result (mutates it); true when juice was computed. */
+async function withJuice(res, inputs) {
   if (!res || !Array.isArray(res.jobs)) return false;
   const [cities, juice] = await inputs;
   let ok = false;
   if (cities && juice) {
     try {
       const jobs = res.jobs;
-      const memo = bundledList && typeof structuredClone === 'function' ? new Map() : null;
       // attachJuice (attachJuiceAll's step) is per job, so slices give exactly the same result.
       for (let i = 0; i < jobs.length;) {
         await yieldToMain();
         const t0 = now();
-        do attachJuiceOnce(juice, jobs[i++], cities, memo); while (i < jobs.length && now() - t0 < JUICE_SLICE_MS);
+        do juice.attachJuice(jobs[i++], cities); while (i < jobs.length && now() - t0 < JUICE_SLICE_MS);
       }
       ok = true;
     } catch { ok = false; }
@@ -889,7 +859,7 @@ export async function getJobs(params, { refresh = false, signal, onUpdate = null
         await yieldToMain();
         out = { ...out, jobs: lib.vetSalaries(out.jobs) };
       }
-      if (await withJuice(out, inputs, { bundledList: bundleOrigin.has(raw) })) rememberBundle(raw, out.jobs);
+      if (await withJuice(out, inputs)) rememberBundle(raw, out.jobs);
       return out;
     };
     // The live fetch behind a `pending` bundle ended (staticJobs step 1): a live board is

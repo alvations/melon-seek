@@ -4,8 +4,7 @@
 //    extras and ranges as tuples, salary.text by reference, url templates) unpacks to exactly what the
 //    31ad25b melon-packed-2 code unpacked, key order included. The reference is a verbatim copy of that
 //    code (test/fixtures/packed-2-reference.js);
-//  - getJobs works Juice out once per distinct (salary, locations) of a bundled list and copies it to
-//    the repeats; the result equals unpack -> vetSalaries -> attachJuiceAll, key order included.
+//  - getJobs (Juice now in time slices) equals unpack -> vetSalaries -> attachJuiceAll, key order included.
 // Builds a temp site (the real Anthropic snapshot when present, else the Greenhouse fixture) for the
 // built lib/ modules and cities, and runs the BUILT api.js.
 // Owner: perf-mobile-beta-2 (public/api.js, scripts/build-static.js).
@@ -157,7 +156,7 @@ test('the built site writes melon-packed-3 lists that unpack like melon-packed-2
   assert.equal(JSON.stringify(api.unpackJobs(raw)), JSON.stringify(ref.unpackJobs(rt(ref.packList(plain, 'melon-packed-2')))));
 });
 
-test('getJobs: Juice worked out once per distinct pay and places equals attachJuiceAll on every job', async () => {
+test('getJobs on a melon-packed-3 Amazon-like list (Juice in time slices) equals unpack -> vetSalaries -> attachJuiceAll', async () => {
   const api0 = await siteApi();
   const list = rt(packList(amazonLike(await anthropicPlain()), api0));
   const companies = [...readJson(DIST, 'api', 'companies.json'), { slug: 'zz', name: 'Zz', source: 'amazon', board: 'zz', color: '#ff9900', live: false }];
@@ -169,14 +168,9 @@ test('getJobs: Juice worked out once per distinct pay and places equals attachJu
   const res = await api.getJobs('zz');
   assert.deepStrictEqual(res.jobs, expected);
   assert.equal(JSON.stringify(res.jobs), JSON.stringify(expected), 'same key order');
-  // Not vacuous: repeats, scored jobs and both kinds of "no Juice" reasons.
-  const keys = new Set(expected.map((j) => JSON.stringify([j.salary, j.locations])));
-  assert.ok(expected.length - keys.size >= 100, `${expected.length - keys.size} repeats (${keys.size} distinct of ${expected.length})`);
+  // Not vacuous: scored jobs and a "no Juice" reason.
   assert.ok(res.jobs.filter((j) => j.juice).length > 50, 'scored');
   assert.ok(res.jobs.some((j) => j.juiceMissing && j.juiceMissing.code === 'part-time-hours'));
-  // Copies, never shared objects.
-  const scored = res.jobs.filter((j) => j.juice);
-  assert.ok(scored.every((j, i) => i === 0 || j.juice !== scored[0].juice));
   // And Anthropic, the real list.
   const real = vetSalaries(api.unpackJobs(readJson(DIST, 'api', 'jobs', 'anthropic.json')));
   juice.attachJuiceAll(real, readJson(DIST, 'api', 'cities.json'));
@@ -195,3 +189,4 @@ test('external-links and betaLeaks read melon-packed-3 urls', async () => {
   fs.writeFileSync(path.join(d, 'api', 'jobs', 'zz.json'), JSON.stringify(v3));
   assert.ok(betaLeaks(d, ['other']).some((x) => /posting URL on a beta host \(https:\/\/www\.amazon\.jobs\//.test(x)), 'a templated Amazon url is found');
 });
+

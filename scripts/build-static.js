@@ -343,12 +343,15 @@ export function splitPayload(payload, api, vet = null) {
     const bad = back.findIndex((j, i) => !sameValue(j, jobs[i]));
     if (back.length !== jobs.length || bad >= 0) throw new Error(`${payload.company && payload.company.slug}: packed list doesn't round-trip (job ${bad})`);
     // And it must be exactly what melon-packed-2 unpacked to, key order included (perf-mobile-beta-2).
-    const back2 = api.unpackJobs(JSON.parse(JSON.stringify(packList(plain, api, { v3: false }))));
+    const v2 = JSON.stringify(packList(plain, api, { v3: false }));
+    const back2 = api.unpackJobs(JSON.parse(v2));
     if (JSON.stringify(back) !== JSON.stringify(back2)) throw new Error(`${payload.company && payload.company.slug}: melon-packed-3 list unpacks differently from melon-packed-2`);
-    return { list: packed, details, sectionsMoved: moveSections, back };
+    return { list: packed, details, sectionsMoved: moveSections, back, v2Bytes: Buffer.byteLength(v2) };
   };
   let out = build(false);
-  if (Buffer.byteLength(JSON.stringify(out.list)) > LIST_BUDGET) out = build(true);
+  // The budget is measured in melon-packed-2 bytes, as before melon-packed-3, so the same lists move
+  // their sections out (what getJobs returns stays the same; docs/process/perf-mobile-beta-2.md).
+  if (out.v2Bytes > LIST_BUDGET) out = build(true);
   // shared.vetted (docs/process/perf-mobile-beta.md): the browser's salary gate (api.js#getJobs, the
   // same server/vet.js code as lib/vet.js) would return the very list it unpacks, flagging nothing,
   // so api.js skips it. Checked here on exactly what the browser unpacks.
