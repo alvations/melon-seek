@@ -183,6 +183,15 @@ NZ|New Zealand|-40.90|174.89|NZ
 
 // ---------------------------------------------------------------------------
 // Cities: name | region | country | lat | lng | aliases (;-separated)
+// BP-15 (fix wave 3): Apple names some stores instead of their city ("Piazza Liberty, Italy" is
+// Apple Piazza Liberty in Milan, "Via del Corso" Rome, "Shinsaibashi" and "Umeda" Osaka, "Rosny 2"
+// Rosny-sous-Bois by Paris, "Campania" the Centro Campania mall in Marcianise by Naples, "Polo
+// Park" Winnipeg, "Coquitlam Centre" and "Guildford Town Centre" Metro Vancouver, "Place
+// Ste-Foy" Québec City, "The Dubai Mall", "Morumbi" São Paulo, "Jungfernstieg" Hamburg, "Eldon
+// Square" Newcastle, "Akasya" Istanbul, "Emporia" Malmö), and Google writes Dublin in Lithuanian
+// ("Dublinas"). Each is an alias of its city; a name that is also a place elsewhere is aliased
+// only with its country ("Campania, Italy", "Emporia, Sweden"), so "Salerno, Campania" and
+// "Emporia, KS" are not moved.
 // A name prefixed with "!" becomes the default for an ambiguous name.
 // ---------------------------------------------------------------------------
 
@@ -372,19 +381,20 @@ London|England|GB|51.5074|-0.1278|Greater London;London UK;City of London
 !Cambridge|England|GB|52.2053|0.1218|
 Oxford|England|GB|51.7520|-1.2577|
 Manchester|England|GB|53.4808|-2.2426|
+Newcastle upon Tyne|England|GB|54.9783|-1.6178|Eldon Square
 Bristol|England|GB|51.4545|-2.5879|
 Reading|England|GB|51.4543|-0.9781|
 Edinburgh|Scotland|GB|55.9533|-3.1883|
 Belfast|Northern Ireland|GB|54.5973|-5.9301|
-Dublin||IE|53.3498|-6.2603|
+Dublin||IE|53.3498|-6.2603|Dublinas
 Cork||IE|51.8985|-8.4756|
 Zurich||CH|47.3769|8.5417|Zürich;Zuerich
 Geneva||CH|46.2044|6.1432|Genève;Geneve
 Lausanne||CH|46.5197|6.6323|
-Paris|Ile-de-France|FR|48.8566|2.3522|Courbevoie;La Défense;La Defense
+Paris|Ile-de-France|FR|48.8566|2.3522|Courbevoie;La Défense;La Defense;Rosny 2;Rosny-sous-Bois
 Berlin||DE|52.5200|13.4050|
 Munich|Bavaria|DE|48.1351|11.5820|München;Muenchen
-Hamburg||DE|53.5511|9.9937|
+Hamburg||DE|53.5511|9.9937|Jungfernstieg
 Frankfurt||DE|50.1109|8.6821|Frankfurt am Main
 Cologne||DE|50.9375|6.9603|Köln;Koeln
 Stuttgart||DE|48.7758|9.1829|
@@ -396,14 +406,16 @@ Madrid||ES|40.4168|-3.7038|
 Barcelona||ES|41.3874|2.1686|
 Zaragoza||ES|41.6488|-0.8891|
 Lisbon||PT|38.7223|-9.1393|Lisboa
-Milan||IT|45.4642|9.1900|Milano
-!Rome||IT|41.9028|12.4964|Roma
+Milan||IT|45.4642|9.1900|Milano;Piazza Liberty
+!Rome||IT|41.9028|12.4964|Roma;Via del Corso
+Naples||IT|40.8518|14.2681|Napoli;Marcianise;Campania, Italy
 Vienna||AT|48.2082|16.3738|Wien
 Linz||AT|48.3069|14.2858|
 Prague||CZ|50.0755|14.4378|Praha
 Warsaw||PL|52.2297|21.0122|Warszawa
 Krakow||PL|50.0647|19.9450|Kraków
 Stockholm||SE|59.3293|18.0686|
+Malmö||SE|55.6050|13.0038|Malmo;Emporia, Sweden
 Gävle||SE|60.6749|17.1413|Gavle
 Copenhagen||DK|55.6761|12.5683|København
 Oslo||NO|59.9139|10.7522|
@@ -416,7 +428,7 @@ Hamina||FI|60.5697|27.1981|
 Tallinn||EE|59.4370|24.7536|
 Bucharest||RO|44.4268|26.1025|
 Athens||GR|37.9838|23.7275|
-Istanbul||TR|41.0082|28.9784|
+Istanbul||TR|41.0082|28.9784|Akasya
 Kyiv||UA|50.4501|30.5234|Kiev
 Lviv||UA|49.8397|24.0297|Lvov;Lwów
 The Hague||NL|52.0705|4.3007|Den Haag
@@ -428,7 +440,7 @@ Beersheba||IL|31.2518|34.7913|Be'er Sheva;Beer Sheva
 Haifa||IL|32.7940|34.9896|
 Jerusalem||IL|31.7683|35.2137|
 Rawabi||PS|32.0094|35.1886|
-Dubai||AE|25.2048|55.2708|
+Dubai||AE|25.2048|55.2708|Dubai Mall;The Dubai Mall
 Abu Dhabi||AE|24.4539|54.3773|
 Riyadh||SA|24.7136|46.6753|
 Jeddah||SA|21.4858|39.1925|Jiddah
@@ -437,7 +449,7 @@ Kuwait City||KW|29.3759|47.9774|
 Yerevan||AM|40.1792|44.4991|
 Doha||QA|25.2854|51.5310|
 Tokyo||JP|35.6762|139.6503|Minato;Minato City;Minato-ku;Shibuya;Chiyoda
-Osaka||JP|34.6937|135.5023|
+Osaka||JP|34.6937|135.5023|Shinsaibashi;Umeda
 Yokohama||JP|35.4437|139.6380|
 Seoul||KR|37.5665|126.9780|
 Beijing||CN|39.9042|116.4074|
@@ -481,19 +493,19 @@ Toronto|ON|CA|43.6532|-79.3832|
 Waterloo|ON|CA|43.4643|-80.5204|
 Ottawa|ON|CA|45.4215|-75.6972|
 Montreal|QC|CA|45.5017|-73.5673|Montréal
-Vancouver|BC|CA|49.2827|-123.1207|
+Vancouver|BC|CA|49.2827|-123.1207|Coquitlam;Coquitlam Centre;Guildford Town Centre
 Victoria|BC|CA|48.4284|-123.3656|
 Calgary|AB|CA|51.0447|-114.0719|
 Edmonton|AB|CA|53.5461|-113.4938|
-Winnipeg|MB|CA|49.8951|-97.1384|
+Winnipeg|MB|CA|49.8951|-97.1384|Polo Park
 Halifax|NS|CA|44.6488|-63.5752|
-Quebec City|QC|CA|46.8139|-71.2080|Québec City;Ville de Québec
+Quebec City|QC|CA|46.8139|-71.2080|Québec City;Ville de Québec;Place Ste-Foy;Sainte-Foy
 Kitchener|ON|CA|43.4516|-80.4925|Kitchener-Waterloo
 Saskatoon|SK|CA|52.1332|-106.6700|
 Regina|SK|CA|50.4452|-104.6189|
 Mexico City||MX|19.4326|-99.1332|CDMX;Ciudad de México
 Guadalajara||MX|20.6597|-103.3496|
-Sao Paulo||BR|-23.5505|-46.6333|São Paulo
+Sao Paulo||BR|-23.5505|-46.6333|São Paulo;Morumbi
 Rio de Janeiro||BR|-22.9068|-43.1729|
 Brasília||BR|-15.7939|-47.8828|Brasilia
 Belo Horizonte||BR|-19.9167|-43.9345|

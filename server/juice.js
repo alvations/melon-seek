@@ -1429,23 +1429,65 @@ export function findCity(location, cities) {
 // attachJuice
 // ---------------------------------------------------------------------------
 
+// Fix wave 3 (BP-2, BP-9; shared decisions 1 and 4): why a salaried posting has no Juice.
+const CURRENCY_WORDS = Object.freeze({
+  USD: ['US dollars', 'the US'], CAD: ['Canadian dollars', 'Canada'], GBP: ['pounds', 'the UK'], EUR: ['euros', null],
+  PLN: ['złoty', 'Poland'], CHF: ['Swiss francs', 'Switzerland'], JPY: ['yen', 'Japan'], INR: ['rupees', 'India'],
+  ILS: ['shekels', 'Israel'], AUD: ['Australian dollars', 'Australia'], NZD: ['New Zealand dollars', 'New Zealand'],
+  SGD: ['Singapore dollars', 'Singapore'], SEK: ['Swedish kronor', 'Sweden'], NOK: ['Norwegian kroner', 'Norway'],
+  DKK: ['Danish kroner', 'Denmark'], CZK: ['Czech koruna', 'Czechia'], KRW: ['won', 'South Korea'],
+  TWD: ['Taiwan dollars', 'Taiwan'], HKD: ['Hong Kong dollars', 'Hong Kong'], MXN: ['Mexican pesos', 'Mexico'],
+  BRL: ['reais', 'Brazil'], AED: ['dirhams', 'the UAE'], SAR: ['riyals', 'Saudi Arabia'], RON: ['lei', 'Romania'],
+});
+const placeList = (names) => (names.length <= 2 ? names.join(' and ') : `${names.slice(0, 2).join(', ')} and ${names.length - 2} more`);
+
+/**
+ * The reason a posting with pay gets no Juice, or null: { code, text }.
+ *   'pay-other-country': none of the places Juice knows uses the pay's currency, so the pay is
+ *     another country's (BP-2: London Juice from Cohere's CA$ range, Munich Juice from NVIDIA's
+ *     Polish range). Juice is never worked out from another country's pay.
+ *   'part-time-hours': part-time hourly pay (salary.partTime) and the posting states no weekly
+ *     hours, so a year's pay is unknown (BP-9).
+ */
+function noJuiceReason(code, { currency, places = [] } = {}) {
+  if (code === 'part-time-hours') {
+    return { code, text: 'No Juice figure: this is part-time hourly pay, and the posting doesn’t say how many hours a week.' };
+  }
+  const [money, country] = CURRENCY_WORDS[currency] || [currency, null];
+  const where = placeList(places);
+  return {
+    code,
+    text: `No Juice figure: the pay is posted in ${money}${country ? ` (for ${country})` : ''}, and ${where || 'the role’s places'} ${places.length === 1 ? 'uses' : 'use'} another currency. Juice is never worked out from another country’s pay.`,
+  };
+}
+
 /**
  * Sets job.juice = { best: { city, ...computeJuice }, byLocation: [{ locationName, city, ...computeJuice }],
  * salaryUSD } or null (no salary, quarantined salary, unknown currency, or no matching city).
- * Uses salary.mid (annualized). When some matched locations use the salary's currency, only
- * those are scored (a USD range posted for "SF | London" is not applied to London); otherwise
- * all matches are scored and flagged currencyMismatch. Locations whose city has no rent are
- * skipped unless opts.rentOverrides[cityKey] (monthly USD) supplies one. opts.household
- * ('single' | 'couple' | 'family') is passed to computeJuice and recorded as job.juice.household.
- * Returns the job.
+ * Uses salary.mid (annualized). Only matched locations that use the salary's currency are
+ * scored (a USD range posted for "SF | London" is not applied to London). When none does, the
+ * pay is another country's: job.juice is null and job.juiceMissing = { code: 'pay-other-country',
+ * text } says why (fix wave 3, shared decision 1; the old currencyMismatch fallback scored them
+ * anyway). Part-time hourly pay (salary.partTime) is scored on the weekly hours the posting
+ * states (salary.hoursPerWeek × 52 hours a year instead of 2,080), and with no stated hours
+ * job.juiceMissing is { code: 'part-time-hours', text }. job.juiceMissing is absent otherwise.
+ * Locations whose city has no rent are skipped unless opts.rentOverrides[cityKey] (monthly USD)
+ * supplies one. opts.household ('single' | 'couple' | 'family') is passed to computeJuice and
+ * recorded as job.juice.household. Returns the job.
  */
 export function attachJuice(job, cities, opts = {}) {
   if (!job || typeof job !== 'object') return job;
   job.juice = null;
+  delete job.juiceMissing;
   const s = job.salary;
   if (!s || !Number.isFinite(Number(s.mid))) return job;
   const cur = String(s.currency || 'USD').toUpperCase();
-  const salaryUSD = toUSD(Number(s.mid), cur, cities);
+  // BP-9: part-time hourly pay covers the hours the posting states, not 2,080 a year.
+  const hours = Number(s.hoursPerWeek);
+  const partTime = s.partTime === true;
+  if (partTime && !(hours > 0)) { job.juiceMissing = noJuiceReason('part-time-hours'); return job; }
+  const annual = partTime ? (Number(s.mid) / 2080) * hours * 52 : Number(s.mid);
+  const salaryUSD = toUSD(annual, cur, cities);
   if (salaryUSD == null || !(salaryUSD > 0)) return job;
 
   const seen = new Set();
@@ -1458,8 +1500,11 @@ export function attachJuice(job, cities, opts = {}) {
     matches.push(m);
   }
   if (!matches.length) return job;
-  const same = matches.filter((m) => m.city.currency === cur);
-  const use = same.length ? same : matches;
+  const use = matches.filter((m) => m.city.currency === cur);
+  if (!use.length) {
+    job.juiceMissing = noJuiceReason('pay-other-country', { currency: cur, places: matches.map((m) => m.location.name || m.city.name) });
+    return job;
+  }
   const doc = cities && !Array.isArray(cities) ? cities : null;
   const o = { ...opts };
   if (!(o.baselineUSD > 0) && doc?.baseline?.nycBasketUSD > 0) o.baselineUSD = doc.baseline.nycBasketUSD;
@@ -1472,7 +1517,6 @@ export function attachJuice(job, cities, opts = {}) {
     try { j = computeJuice(salaryUSD, m.city, ov != null ? { ...o, rentOverrideUSD: ov } : o); } catch { continue; }
     const entry = { locationName: m.location.name || m.city.name, city: m.city.key, cityName: m.city.name, ...j };
     if (m.via === 'nearby') entry.proxy = true;
-    if (!same.length) entry.currencyMismatch = true;
     byLocation.push(entry);
   }
   if (!byLocation.length) return job;

@@ -59,16 +59,66 @@ export function officeTag(html) {
   return OFFICE_TAG_RE.test(String(html || ''));
 }
 
+// BP-8 (fix wave 3): NVIDIA's job-family names ("Mgmt, Sys SW", "Program Mgr, Technical",
+// "Engineer, SW QA Test Dev"; 69 of its 146 departments) and five Microsoft ones ("Customer
+// Success Account Mgmt", "Critical Environment Ops") are internal abbreviations. In plain words:
+// phrases first (their meaning comes from the titles filed under them: "Dev Tech SW" holds
+// "Developer Technology Engineer" roles, "Prod Planner" "Production Planner"), then single words.
+// The board's own wording is kept wherever it is not an abbreviation; ASIC, CAD, IT, HR and UX
+// are the fields' own names and stay.
+const DEPARTMENT_PHRASES = [
+  [/\bDev Relations\b/g, 'Developer Relations'], [/\bDev Ops\b/g, 'DevOps'], [/\bDev Tech\b/g, 'Developer Technology'],
+  [/\bTech SW\b/g, 'Technology Software'], [/\bBus Dev\b/g, 'Business Development'], [/\bDoc Ctrl\b/g, 'Document Control'],
+  [/\bSys Admin\b/g, 'Systems Administrator'], [/\bMarComm\b/g, 'Marketing Communications'], [/\(Tech\)/g, '(Technical)'],
+  [/\bHRBP\b/g, 'HR Business Partner'], [/\(IC\)/g, '(Individual Contributor)'], [/\bRMA\b/g, 'Returns (RMA)'],
+  [/\bSMB\b/g, 'Small and Medium Business'],
+];
+const DEPARTMENT_WORDS = Object.freeze({
+  Mgmt: 'Management', Mgr: 'Manager', Mgrs: 'Managers', SW: 'Software', HW: 'Hardware', Sys: 'Systems',
+  Eng: 'Engineering', Engng: 'Engineering', Engr: 'Engineer', Bus: 'Business', Dev: 'Development', Ops: 'Operations',
+  Apps: 'Applications', Comp: 'Compensation', Mfg: 'Manufacturing', Phys: 'Physical', Prod: 'Production',
+  Mktg: 'Marketing', Admin: 'Administrator', Corp: 'Corporate', Rep: 'Representative', QA: 'Quality Assurance',
+  PR: 'Public Relations',
+});
+const DEPARTMENT_WORD_RE = new RegExp(String.raw`(?<![\w(])(${Object.keys(DEPARTMENT_WORDS).join('|')})(?![\w)])`, 'g');
+
+/**
+ * An Eightfold department or discipline name in plain words: "Mgmt, Sys SW" -> "Management,
+ * Systems Software", "Program Mgr, Technical" -> "Program Manager, Technical", "Customer Success
+ * Account Mgmt" -> "Customer Success Account Management", "Mgmt, Sales (Sales)" -> "Management,
+ * Sales" (a bracket that repeats the name is dropped). Other names pass through unchanged. Pure.
+ */
+export function departmentName(name) {
+  const s = str(name);
+  if (!s) return s;
+  let t = s.replace(/\s+/g, ' ').trim();
+  for (const [re, rep] of DEPARTMENT_PHRASES) t = t.replace(re, rep);
+  t = t.replace(DEPARTMENT_WORD_RE, (w) => DEPARTMENT_WORDS[w]);
+  // "Management, Business Development (Business Development)", "Management, IT (IT - Information Technology)".
+  t = t.replace(/\s*\(([^()]+)\)/g, (m, inner) => {
+    const head = t.slice(0, t.indexOf(m)).toLowerCase();
+    const words = inner.split(/\s+-\s+/)[0].toLowerCase().split(/[^a-z]+/).filter(Boolean);
+    return words.length && words.every((w) => new RegExp(`\\b${w}\\b`).test(head)) ? '' : m;
+  });
+  return t;
+}
+
 /**
  * Stored Eightfold Jobs (crawled before 2026-10-10) -> the DQ-12 rule of mapEightfoldJob: a
  * posting flagged remote only by workLocationOption, whose description carries NVIDIA's own
- * hybrid or on-site tag and none of whose locations is remote, is not remote. Pure.
+ * hybrid or on-site tag and none of whose locations is remote, is not remote. Since fix wave 3
+ * also the plain-words department and team names (BP-8, departmentName). Pure.
  */
 export function upgradeEightfoldJobs(jobs) {
   return (jobs || []).map((j) => {
-    if (!j || j.remote !== true || !['nvidia', 'microsoft'].includes(j.company)) return j;
-    if ((j.locations || []).some((l) => l && l.remote) || !officeTag(j.descriptionHtml)) return j;
-    return { ...j, remote: false };
+    if (!j || !['nvidia', 'microsoft', 'netflix'].includes(j.company)) return j;
+    let out = j;
+    const department = j.department ? departmentName(j.department) : j.department;
+    const team = j.team ? departmentName(j.team) : j.team;
+    if (department !== j.department || team !== j.team) out = { ...out, department, team };
+    if (j.remote !== true || j.company === 'netflix') return out;
+    if ((j.locations || []).some((l) => l && l.remote) || !officeTag(j.descriptionHtml)) return out;
+    return { ...out, remote: false };
   });
 }
 
@@ -106,8 +156,8 @@ export function mapEightfoldJob(p, t = EIGHTFOLD_BOARDS.microsoft) {
   return {
     sourceId: String(p.id ?? ''),
     title: str(p.posting_name) || str(p.name) || 'Untitled role',
-    department: str(p.department),
-    team: str(p.business_unit) || (Array.isArray(p.efcustomTextTaDisciplineName) ? str(p.efcustomTextTaDisciplineName[0]) : null),
+    department: departmentName(str(p.department)),
+    team: departmentName(str(p.business_unit) || (Array.isArray(p.efcustomTextTaDisciplineName) ? str(p.efcustomTextTaDisciplineName[0]) : null)),
     employmentType: emp ? emp.replace(/^Full-Time$/i, 'Full-time').replace(/^Part-Time$/i, 'Part-time') : null,
     locationText: locs[0] || '',
     extraLocations: locs.slice(1),

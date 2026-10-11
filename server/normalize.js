@@ -21,11 +21,14 @@ import { vetSalaries, salaryChecks } from './vet.js';
  * order, Canadian cities and location context); norm-7 = beta fix wave pay and levels
  * (docs/process/fix-beta-pay.md: board ladders and job.seniorityBasis, salary.levels,
  * zł/kr/lei and "(CAD)" codes, Google country lines, bonus-target %, Canadian "$", the
- * SF Bay Area / NYC range, union floors, single figures that are not zones). Stored
+ * SF Bay Area / NYC range, union floors, single figures that are not zones); norm-8 = fix
+ * wave 3 (docs/process/fix3-data.md: salary.originalInterval 'year' on fixed-term yearly
+ * rates, salary.partTime / hoursPerWeek, sections.preferred, "CAD" and other tag fixes, team
+ * paragraphs left out of skills, creative and technical directors, Apple store names). Stored
  * snapshots are upgraded with relocateJobs (which also re-derives text-sourced pay, the
  * pay labels and the level, then re-runs the vetting gate) and rekeyBoardJobs.
  */
-export const NORMALIZER_VERSION = 'norm-7';
+export const NORMALIZER_VERSION = 'norm-8';
 
 const NO_EXTRAS = Object.freeze({ equity: false, bonus: false });
 
@@ -206,7 +209,7 @@ export function relabelJobs(jobs) {
   return changed ? vetSalaries(out) : out;
 }
 
-export function normalizeJob(raw, company, { boilerplate = null } = {}) {
+export function normalizeJob(raw, company, { boilerplate = null, team = null } = {}) {
   const html = raw.html || '';
   const text = raw.text || htmlToText(html);
   // BUG-5: board boilerplate (About us, scam notice, EEO/visa policy) is left
@@ -215,6 +218,11 @@ export function normalizeJob(raw, company, { boilerplate = null } = {}) {
   const kwText = skip && typeof keywordsModule.descriptionText === 'function'
     ? safe(() => keywordsModule.descriptionText(html, { skip }), text)
     : text;
+  // Fix wave 3: team and company paragraphs (keywords.js#teamParagraphs) are left out of the
+  // skills of a posting with bullet lists.
+  const skillText = team && team.size && html && typeof keywordsModule.descriptionText === 'function'
+    ? safe(() => keywordsModule.descriptionText(html, { skip: team }), null)
+    : null;
   const title = raw.title || 'Untitled role';
   const locations = normalizeLocations(raw);
   const remote = raw.remote === true || locations.some((l) => l && l.remote === true);
@@ -224,7 +232,7 @@ export function normalizeJob(raw, company, { boilerplate = null } = {}) {
   const emptySections = { responsibilities: [], fit: [] };
   const sections = safe(() => extractSections(html, skip ? { skip } : undefined), emptySections);
   const keywords = safe(
-    () => extractKeywords({ title, department: raw.department || null, sections, text: kwText }),
+    () => extractKeywords({ title, department: raw.department || null, sections, text: kwText, ...(skillText != null ? { skillText } : {}) }),
     { responsibilities: [], fit: [], skills: [] },
   );
   // DQ-3: the title's level on the board's ladder, else the level the pay sentence names.
@@ -281,10 +289,14 @@ export function normalizeJobs(raws, company) {
   // BUG-5 layer 1: paragraphs shared by >= 50% of this board's postings.
   const bp = keywordsModule.boilerplateParagraphs;
   const boilerplate = typeof bp === 'function' ? safe(() => bp(list.map((r) => r.html || '')), null) : null;
+  // Fix wave 3: paragraphs repeated across a board's different roles describe a team, not the role.
+  const tp = keywordsModule.teamParagraphs;
+  const teamOnly = typeof tp === 'function' ? safe(() => tp(list.map((r) => ({ html: r.html || '', title: r.title }))), null) : null;
+  const team = teamOnly && teamOnly.size ? new Set([...(boilerplate || []), ...teamOnly]) : boilerplate;
   let out = [];
   const ids = new Set();
   for (const raw of list) {
-    const job = normalizeJob(raw, company, { boilerplate });
+    const job = normalizeJob(raw, company, { boilerplate, team });
     if (ids.has(job.id)) continue;
     ids.add(job.id);
     out.push(job);

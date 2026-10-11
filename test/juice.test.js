@@ -253,8 +253,11 @@ test('attachJuice: salary currency scopes locations; GBP salaries use the palett
   assert.deepEqual(multi.juice.byLocation.map((x) => x.city), ['san-francisco-ca-us'], 'USD range not applied to London');
   const gbp = attachJuice(job({ mid: 100000, currency: 'GBP' }, [loc('London, UK')]), DOC);
   assert.equal(gbp.juice.salaryUSD, Math.round(100000 * FX_TO_USD.GBP));
+  // Fix wave 3 (shared decision 1): another country's pay gets no Juice, and the reason says so
+  // (the currencyMismatch fallback is retired; docs/process/fix3-data.md BP-2).
   const mismatch = attachJuice(job({ mid: 200000, currency: 'USD' }, [loc('London, UK')]), DOC);
-  assert.equal(mismatch.juice.byLocation[0].currencyMismatch, true);
+  assert.equal(mismatch.juice, null);
+  assert.equal(mismatch.juiceMissing.code, 'pay-other-country');
   const proxy = attachJuice(job({ mid: 200000, currency: 'USD' }, [loc('Brooklyn, NY')]), DOC);
   assert.equal(proxy.juice.best.proxy, true);
   assert.equal(proxy.juice.best.city, 'new-york-ny-us');

@@ -552,12 +552,42 @@ export function programTerm(text) {
   return null;
 }
 
+// BP-9 (fix wave 3, shared decision 4): a part-time role, from its employment type or title.
+// "Full-time or part-time" (Apple's seasonal Specialist postings) states no single type.
+const PART_TIME_WORD_RE = /\bpart[- ]?time\b/i;
+const FULL_TIME_WORD_RE = /\bfull[- ]?time\b/i;
+/** True when the employment type, or else the title, says part-time and not also full-time. */
+export function isPartTimeRole({ title = '', employmentType = '' } = {}) {
+  const e = String(employmentType || '');
+  if (PART_TIME_WORD_RE.test(e)) return !FULL_TIME_WORD_RE.test(e);
+  const t = String(title || '');
+  return PART_TIME_WORD_RE.test(t) && !FULL_TIME_WORD_RE.test(t) && !FULL_TIME_WORD_RE.test(e);
+}
+
+// Weekly hours a posting states for the role: "work 16 hours per week (8 hours per day)", "a
+// part-time opportunity (20 hours per week)", "28 hrs pw", "20-25 hours a week". Never "8 hours
+// per day" alone; 35 hours or more is full-time, so it is not read as part-time hours.
+const WEEKLY_HOURS_RE = /\b(\d{1,2})(?:\s*(?:-|–|—|to)\s*(\d{1,2}))?\s*(?:hrs?|hours)\s*(?:pw|p\/w|per\s+week|a\s+week|\/\s*(?:wk|week)|weekly|each\s+week|every\s+week)\b/i;
+/** { hours, hoursMax? } a posting states per week (1–34; a range's upper end up to 40), or null. */
+export function statedWeeklyHours(text) {
+  const m = WEEKLY_HOURS_RE.exec(String(text || '').replace(/\s+/g, ' '));
+  if (!m) return null;
+  const hours = Number(m[1]);
+  const hoursMax = m[2] ? Number(m[2]) : null;
+  if (!(hours >= 1 && hours <= 34)) return null;
+  return hoursMax && hoursMax > hours && hoursMax <= 40 ? { hours, hoursMax } : { hours };
+}
+
 /**
  * Pay basis and programme length for a Job salary (P-1, P-8), from the posting text:
  * kind 'ote' when the posting says the range is on-target earnings (in the salary's own
  * text, e.g. a Greenhouse pay range titled "OTE", or in a sentence about the range), and
  * termWeeks (+ termWeeksMax) for a fixed-term role that states its length. Returns a new
  * salary object; the numbers are never changed.
+ * Fix wave 3: a salary with termWeeks always says how the pay was stated (originalInterval
+ * 'year' for a yearly rate, BP-1, shared decision 3: termWeeks is the programme's length for
+ * information only), and part-time hourly pay is marked partTime, with the weekly hours the
+ * posting states as hoursPerWeek (+ hoursPerWeekMax) (BP-9, shared decision 4).
  */
 export function payTerms(salary, { text = '', title = '', employmentType = '', salesRole = false } = {}) {
   if (!salary || typeof salary !== 'object') return salary;
@@ -572,6 +602,22 @@ export function payTerms(salary, { text = '', title = '', employmentType = '', s
     if (t) {
       out.termWeeks = t.weeks;
       if (t.weeksMax) out.termWeeksMax = t.weeksMax;
+    }
+  }
+  // BP-1: a yearly rate for a 13-week internship ("Ireland: €72000 (EUR)", "CAD $43,800 - CAD
+  // $50,000 per year") is a yearly rate; only week, month or term pay is pay for the term.
+  if (out.termWeeks > 0 && !out.originalInterval) out.originalInterval = 'year';
+  // BP-9: part-time hourly pay is never a full-time salary; min/max stay the 2,080-hour
+  // equivalent (the shape is unchanged) and the flag says so.
+  delete out.partTime;
+  delete out.hoursPerWeek;
+  delete out.hoursPerWeekMax;
+  if (out.originalInterval === 'hour' && isPartTimeRole({ title, employmentType })) {
+    out.partTime = true;
+    const h = statedWeeklyHours(text);
+    if (h) {
+      out.hoursPerWeek = h.hours;
+      if (h.hoursMax) out.hoursPerWeekMax = h.hoursMax;
     }
   }
   return out;

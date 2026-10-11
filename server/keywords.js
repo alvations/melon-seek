@@ -86,16 +86,19 @@ function tokenizeBlocks(html) {
   let headingDepth = 0;
   let boldDepth = 0;
 
-  const flush = () => {
+  // A paragraph block next to a <br> is one line of a line-broken list (Apple writes its
+  // "Responsibilities" and "Minimum Qualifications" as <p>line<br>line</p>): `line: true`.
+  let afterBr = false;
+  const flush = (byBr = false) => {
     const text = cleanText(buf);
     if (text) {
       const nonSpace = text.replace(/\s|[:：]/g, '').length || 1;
-      blocks.push({
-        type: headingDepth > 0 ? 'h' : liDepth > 0 ? 'li' : 'p',
-        text,
-        bold: boldChars / nonSpace >= 0.8,
-      });
-    }
+      const type = headingDepth > 0 ? 'h' : liDepth > 0 ? 'li' : 'p';
+      const b = { type, text, bold: boldChars / nonSpace >= 0.8 };
+      if (type === 'p' && (byBr || afterBr)) b.line = true;
+      blocks.push(b);
+      afterBr = byBr;
+    } else if (!byBr) afterBr = false;
     buf = '';
     boldChars = 0;
   };
@@ -123,7 +126,7 @@ function tokenizeBlocks(html) {
       buf += ' ';
       continue;
     }
-    flush();
+    flush(tag === 'br');
     if (/^h[1-6]$/.test(tag)) headingDepth = Math.max(0, headingDepth + (closing ? -1 : 1));
     else if (tag === 'li') liDepth = Math.max(0, liDepth + (closing ? -1 : 1));
   }
@@ -186,32 +189,88 @@ function sentences(text) {
     .filter(Boolean);
 }
 
+// BP-14 (fix wave 3): which list a "fit" heading starts. Checked in this order:
+//   preferred: "Preferred qualifications", "Additional or preferred qualifications", "Nice to
+//     have(s)", "Bonus points", "It's a bonus if you have", "Strong candidates may also have",
+//     "Desired qualifications", "Qualifications souhaitées";
+//   required: "Minimum qualifications", "Required/Minimum Qualifications", "Basic
+//     qualifications", "Must haves", "Requirements", "Other requirements", "What you'll need",
+//     and a plain "Qualifications" (Netflix "Qualifications" + "Nice to have");
+//   soft: "You may be a good fit if you", "You might thrive in this role if you", "About you",
+//     "Who you are", "What we're looking for": the posting does not say these are required, so a
+//     posting with one of these lists is not split;
+//   neutral: anything else ("Skills", "Experience", "Education"): the kind of the list before it.
+const PREFERRED_HEADING_RE = /\b(?:preferred|prefer|nice[- ]to[- ]haves?|bonus(?:\s+points?)?|pluses|(?:a|big)\s+plus|desired|desirable|ideally|(?:may|might)\s+(?:also\s+)?have|also\s+(?:great|nice|good)|would\s+be\s+(?:great|nice|a\s+plus)|(?:great|good)\s+to\s+have|extra\s+credit|souhait[ée]e?s?)\b/i;
+const REQUIRED_HEADING_RE = /\b(?:minimum|minimales?|basic|required|requirements?|must[- ]haves?|must\s+have|essential|qualifications?|what\s+you(?:'|’)?ll\s+need|you\s+will\s+need|you(?:'|’)?ll\s+need|what\s+we\s+need)\b/i;
+const SOFT_HEADING_RE = /\b(?:good\s+fit|great\s+fit|strong\s+fit|thrive|about\s+you|who\s+you\s+are|you\s+might|you\s+may|looking\s+for|look\s+for|ideal\s+candidate|you\s+have|you\s+bring|you(?:'|’)?ll\s+bring|you\s+will\s+bring|you\s+are|you(?:'|’)?re|need\s+not)\b/i;
+// A heading that names a list outright: Apple writes these lists as line-broken paragraphs
+// (<h3>Minimum Qualifications</h3><p>line<br>line</p>), so each line under one is an item.
+const LIST_HEADING_RE = /^(?:(?:key|basic|minimum|preferred|required|additional|desired)\s+)?(?:responsibilities|qualifications|requirements)\s*:?$/i;
+// A wrapped line: the line before it ends mid-phrase ("… to<br>create design prototypes").
+const LINE_CONTINUES_RE = /(?:\b(?:the|a|an|and|or|of|to|with|for|in|on|at|by|from|as|our|your|their|its|into|across|including|such|via|per|than|that|which|who|is|are|be|both|either|between)|[,;(/&–-])$/i;
+/** 'preferred' | 'required' | 'soft' | 'neutral' for a heading that classifyHeading calls 'fit'. */
+export function fitHeadingKind(text) {
+  const t = String(text || '');
+  if (/\bneed\s+not\b/i.test(t)) return 'soft';
+  if (PREFERRED_HEADING_RE.test(t)) return 'preferred';
+  if (REQUIRED_HEADING_RE.test(t)) return 'required';
+  if (SOFT_HEADING_RE.test(t)) return 'soft';
+  return 'neutral';
+}
+
 /**
  * Parse job description HTML into bullet lists grouped under headings.
- * Returns { responsibilities: string[], fit: string[] }.
+ * Returns { responsibilities: string[], fit: string[], preferred?: string[] }. BP-14: when the
+ * posting itself separates its required list from its preferred one ("Minimum qualifications" /
+ * "Preferred qualifications": Google, Apple, Microsoft, Anduril, xAI), `fit` holds the required
+ * items and `preferred` the preferred ones; otherwise `fit` holds every item and `preferred` is
+ * absent (fitHeadingKind).
  */
 export function extractSections(html, { skip = null } = {}) {
   const out = { responsibilities: [], fit: [] };
   if (!html) return out;
   const blocks = htmlToBlocks(html);
   let current = null;
+  let listHeading = false;
+  let fitKind = null;
+  const respItems = [];
+  const fitItems = [];
+  let lastLine = null; // the item the previous line of a line-broken list went into
   for (const b of blocks) {
     const bulletPara = b.type === 'p' && BULLET_P_RE.test(b.text);
     if (!bulletPara && isHeadingBlock(b)) {
       current = classifyHeading(b.text);
+      listHeading = LIST_HEADING_RE.test(b.text.trim());
+      lastLine = null;
+      if (current === 'fit') {
+        const k = fitHeadingKind(b.text);
+        fitKind = k === 'neutral' ? fitKind || 'required' : k;
+      }
       continue;
     }
     // Bullets under a responsibilities/fit heading are role content and are
     // never treated as boilerplate (the facet guard handles ubiquitous ones).
-    if (b.type === 'li' || bulletPara) {
-      if (current) {
-        const t = cleanBullet(b.text);
-        if (t.length >= 3) out[current].push(t);
-      }
-    }
+    const lineItem = !!b.line && listHeading && current;
+    if (!(b.type === 'li' || bulletPara || lineItem)) { lastLine = null; continue; }
+    if (!current) continue;
+    const t = cleanBullet(b.text);
+    // BP-14: a wrapped line of Apple's line-broken lists continues the item before it.
+    if (lineItem && lastLine && (/^[a-z(]/.test(t) || LINE_CONTINUES_RE.test(lastLine.t))) { lastLine.t = `${lastLine.t} ${t}`; continue; }
+    if (t.length < 3) continue;
+    const item = { t, kind: fitKind };
+    (current === 'fit' ? fitItems : respItems).push(item);
+    lastLine = lineItem ? item : null;
   }
-  out.responsibilities = dedupeList(out.responsibilities);
-  out.fit = dedupeList(out.fit);
+  out.responsibilities = dedupeList(respItems.map((x) => x.t));
+  const kinds = new Set(fitItems.map((x) => x.kind));
+  if (kinds.has('preferred') && kinds.has('required') && !kinds.has('soft')) {
+    out.fit = dedupeList(fitItems.filter((x) => x.kind !== 'preferred').map((x) => x.t));
+    const req = new Set(out.fit.map((x) => x.toLowerCase()));
+    const pref = dedupeList(fitItems.filter((x) => x.kind === 'preferred').map((x) => x.t)).filter((x) => !req.has(x.toLowerCase()));
+    if (pref.length) out.preferred = pref;
+  } else {
+    out.fit = dedupeList(fitItems.map((x) => x.t));
+  }
 
   if (!out.responsibilities.length && !out.fit.length) {
     // Fallback: prose descriptions — sentences starting "You will"/"You'll".
@@ -291,19 +350,69 @@ export function boilerplateParagraphs(htmlList, { minShare = 0.5, minJobs = 5 } 
   return out;
 }
 
+/**
+ * Fix wave 3 (beta persona review, keyword-tag noise): hashes of prose paragraphs that describe a
+ * team or the company, not the role. A paragraph outside the responsibilities and fit lists (at
+ * least `minChars` long) that a board repeats word for word on `minPostings` or more postings
+ * with `minTitles` or more different titles: Google's "Google's software engineers develop the
+ * next-generation technologies… information retrieval… natural language processing…" (536
+ * postings), "Google Cloud accelerates every organization's ability…" (565), the ML, Systems &
+ * Cloud AI team's "…development of our TPUs, Vertex AI for Google Cloud…" (341), and Chrome's
+ * "Chrome is available across all major platforms — iOS, Android…" (10). One posting copied per
+ * country has one title, so its own prose is never counted. Pure; items: [{ html, title }].
+ */
+export function teamParagraphs(items, { minPostings = 3, minTitles = 3, minChars = 60 } = {}) {
+  const list = (Array.isArray(items) ? items : []).filter((x) => x && typeof x.html === 'string' && x.html);
+  const out = new Set();
+  if (list.length < minPostings) return out;
+  const posts = new Map();
+  const titles = new Map();
+  for (const { html, title } of list) {
+    const tk = String(title || '').toLowerCase().replace(/[^a-z]+/g, ' ').trim();
+    const seen = new Set();
+    let current = null;
+    let listHeading = false;
+    for (const b of htmlToBlocks(html)) {
+      const bulletPara = b.type === 'p' && BULLET_P_RE.test(b.text);
+      if (!bulletPara && isHeadingBlock(b)) { current = classifyHeading(b.text); listHeading = LIST_HEADING_RE.test(b.text.trim()); continue; }
+      if (current && (b.type === 'li' || bulletPara || (b.line && listHeading))) continue; // the role's own bullets
+      const key = boilerplateKey(b.text);
+      if (key.length < minChars) continue;
+      const h = cyrb53(key);
+      if (seen.has(h)) continue;
+      seen.add(h);
+      posts.set(h, (posts.get(h) || 0) + 1);
+      let t = titles.get(h);
+      if (!t) titles.set(h, (t = new Set()));
+      if (t.size < minTitles) t.add(tk);
+    }
+  }
+  for (const [h, c] of posts) if (c >= minPostings && titles.get(h).size >= minTitles) out.add(h);
+  return out;
+}
+
+/** The union of two hash sets (either may be null). */
+export function unionSets(a, b) {
+  if (!a || !a.size) return b || new Set();
+  if (!b || !b.size) return a;
+  return new Set([...a, ...b]);
+}
+
 /** Plain text of a description without the blocks in `skip` (boilerplate hashes). */
 export function descriptionText(html, { skip = null } = {}) {
   if (!skip || !skip.size) return htmlToText(html);
   const out = [];
   let current = null;
+  let listHeading = false;
   for (const b of htmlToBlocks(html)) {
     const bulletPara = b.type === 'p' && BULLET_P_RE.test(b.text);
     if (!bulletPara && isHeadingBlock(b)) {
       current = classifyHeading(b.text);
+      listHeading = LIST_HEADING_RE.test(b.text.trim());
       out.push(b.text);
       continue;
     }
-    const inSection = current && (b.type === 'li' || bulletPara);
+    const inSection = current && (b.type === 'li' || bulletPara || (b.line && listHeading));
     if (inSection || !skip.has(blockHash(b.text))) out.push(b.text);
   }
   return out.join('\n');
@@ -348,11 +457,16 @@ export function dropUbiquitousKeywords(jobs, { maxShare = 0.9, minJobs = 20 } = 
 export function rekeyBoardJobs(jobs, opts = {}) {
   const list = Array.isArray(jobs) ? jobs : [];
   const skip = boilerplateParagraphs(list.map((j) => (j && j.descriptionHtml) || ''), opts);
+  // Fix wave 3: team and company paragraphs are left out of the skills of a posting with lists.
+  const team = unionSets(skip, teamParagraphs(list.map((j) => ({ html: (j && j.descriptionHtml) || '', title: j && j.title })), opts.team || {}));
   const rekeyed = list.map((j) => {
     // sections never depend on the boilerplate set (in-section bullets are protected)
     if (!j || typeof j.descriptionHtml !== 'string' || !j.descriptionHtml) return j;
     const sections = extractSections(j.descriptionHtml);
-    const keywords = extractKeywords({ title: j.title || '', department: j.department || '', sections, text: descriptionText(j.descriptionHtml, { skip }) });
+    const keywords = extractKeywords({
+      title: j.title || '', department: j.department || '', sections,
+      text: descriptionText(j.descriptionHtml, { skip }), skillText: descriptionText(j.descriptionHtml, { skip: team }),
+    });
     return { ...j, sections, keywords };
   });
   return dropUbiquitousKeywords(rekeyed, opts.guard || {});
@@ -382,6 +496,15 @@ const EMBEDDED_NOUNS = 'systems?|software|firmware|linux|c\\+\\+|c|rust|developm
 const AUTONOMY_AFTER = 'software|stacks?|systems?|engineer(?:s|ing)?|algorithms?|capabilit(?:y|ies)|behaviou?rs?|pipelines?|development|research|architectures?|applications?|products?|platforms?|frameworks?|integration|solutions?|features?|modules?|simulations?|testing|code|engines?|kits?|services|missions?|c2|middleware|teams?|programs?|computers?|researchers?';
 const DISCIPLINES = 'aerospace|aeronautical|electrical|electronics|computer|software|systems|manufacturing|industrial|civil|chemical|materials|physics|robotics|mechatronics|controls?|mathematics|math|computer science|engineering physics|related|biomedical|nuclear|ocean|marine';
 const AUTONOMY_BEFORE = 'mission|vehicle|robot(?:ic)?|robotics|drone|aircraft|air|airborne|maritime|undersea|subsea|ground|edge|flight|uas|uav|hivemind|lattice|multi-?agent|multi-?vehicle|collaborative|full[- ]stack|onboard|end-to-end|swarm|weapons?|multi-asset|multi-domain|unsupervised|layered';
+// Fix wave 3 (beta persona review, keyword-tag noise): data-centre power equipment, the context of
+// an electrical "transformer" (Google's technician postings: "Feeders, Transformers, Generators,
+// Switchgear, UPS systems, ATS/STS units, PDU/PMM").
+const POWER_WORDS = String.raw`feeders?|generators?|switchgears?|switchboards?|breakers?|substations?|ups|ats|sts|pdus?|pmms?|rpps?|busways?|panelboards?|voltage|kv|mva|kva|electrical|power (?:distribution|systems?|equipment|generation)|motors?|cables?|chillers?|crahs?|cracs?|step-?(?:up|down)|pad-?mount\w*|dry-?type|oil-?filled|utility|utilities`;
+// Kinds of agent that are not AI agents ("commissioning agents", "change agents", "select agents",
+// "routing agents", "frontline agents").
+const NON_AI_AGENTS = String.raw`commissioning|change|select|collection|routing|frontline|front-line|support|service|customer|call cent(?:er|re)|contact cent(?:er|re)|travel|real estate|leasing|insurance|booking|shipping|freight|customs|forwarding|purchasing|registered|patent|transfer|sports|secret|federal|special|chemical|biological|cleaning|bonding|curing|contrast|therapeutic|execution|monitoring|human|live|field|claims|escrow|listing|runners\s?\/`;
+// A posting about AI at all: bare "agents" is an AI skill only there.
+const AI_CONTEXT_RE = /\b(?:AI|GenAI|LLMs?|large language models?|generative|machine learning|ML|agentic|Copilot|GPT|ChatGPT|Claude|Gemini|Codex|foundation models?|language models?)\b/;
 
 export const SKILL_LEXICON = [
   // Languages
@@ -437,7 +560,10 @@ export const SKILL_LEXICON = [
   ['Machine learning', 'machine learning', /(?<!\bAI\s?\/\s?)\bML\b(?!\s?\/\s?AI\b)/],
   ['Deep learning', 'deep learning', 'neural networks?'],
   ['LLMs', 'llms?', 'large language models?', 'language models?', 'foundation models?', 'frontier models?'],
-  ['Transformers', 'transformers?(?: models?| architectures?)?'],
+  // Fix wave 3: not an electrical transformer ("Feeders, Transformers, Generators, Switchgear, UPS
+  // systems" on data-centre technician cards): no power-equipment word in the same sentence.
+  ['Transformers', 'transformer[- ](?:models?|architectures?|based|networks?|blocks?|layers?|encoders?|decoders?)', 'vision transformers?',
+    new RegExp(String.raw`(?<!\b(?:${POWER_WORDS})\b[^.\n]{0,80})\btransformers?\b(?![^.\n]{0,80}\b(?:${POWER_WORDS})\b)`, 'i')],
   ['RL', 'reinforcement learning', /\bRL\b/],
   ['RLHF', 'rlhf', 'rlaif', 'reinforcement learning from human feedback'],
   ['NLP', 'nlp', 'natural language processing'],
@@ -446,14 +572,19 @@ export const SKILL_LEXICON = [
   ['Pretraining', 'pre-?training'],
   ['Fine-tuning', 'fine-?tun(?:e|es|ed|ing)', 'post-?training'],
   ['Inference', '(?<!causal |statistical |bayesian )inference', 'model serving'], // §6a A4
-  ['Evals', 'evals?', 'model evaluations?', 'benchmarks?'],
+  // Fix wave 3: a benchmark of models, not "Benchmark industry best practices" (a field-repair
+  // programme manager), "common performance benchmarks" (CPU verification) or pay benchmarks.
+  ['Evals', 'evals?', 'model evaluations?', '(?:model|llm|ai|ml|agentic|agent|reasoning|coding|evaluation|eval) benchmarks?', 'benchmark(?:s|ing)? (?:of |for )?(?:the |our )?(?:models?|llms?)', 'benchmark (?:design|leakage|contamination)'],
   ['Interpretability', 'interpretability', 'mechanistic'],
   ['Alignment', 'alignment research', 'ai alignment', 'alignment science', 'superalignment'], // §6a A1: bare 'alignment' was business language
   ['Multimodal', 'multi-?modal', 'vision-language'],
   ['Speech / audio', 'speech recognition', 'text-to-speech', 'speech models?', 'audio models?'], // §6a A5: not 'free speech'
   ['Recommender systems', 'recommend(?:er|ation) systems?', 'ranking systems?'],
   ['Information retrieval', 'information retrieval', 'search ranking', 'retrieval', 'rag', 'retrieval-augmented'],
-  ['Agents', 'ai agents?', 'agentic', 'agents', 'tool use'],
+  // Fix wave 3: bare "agents" is AI agents only after no other kind of agent ("commissioning
+  // agents", "change agents", "support agents", "routing agents") and only in a posting about AI
+  // (AI_GATED_SKILLS); "tool use" not after "power" or "hand".
+  ['Agents', 'ai agents?', 'agentic', '(?<!\\b(?:power|hand|safe)\\s)tool use'],
   ['Prompt engineering', 'prompt(?:ing| engineering)'],
   ['MLOps', 'mlops', 'ml ops', 'ml infrastructure'],
   // §6a A3: 'accelerators' only with hardware context (not startup/delivery accelerators)
@@ -469,7 +600,9 @@ export const SKILL_LEXICON = [
   ['Docker', 'docker', 'containeriz\\w*', 'container (?:orchestration|images?|runtime|security|hardening)'], // §6a A2: not shipping containers
   ['Terraform', 'terraform', 'infrastructure as code', 'pulumi'],
   ['AWS', /\bAWS\b/, 'amazon web services'],
-  ['GCP', /\bGCP\b/, 'google cloud'],
+  // Fix wave 3: "Google Cloud" the platform, not the organization ("Google Cloud customers",
+  // "Google Cloud accelerates every organization’s ability…").
+  ['GCP', /\bGCP\b/, 'google cloud platform', 'google cloud(?!(?:[’\']s\\b| (?:customers?|partners?|teams?|organi[sz]ations?|sales|accelerates|is|as)\\b))'],
   ['Azure', 'azure'],
   ['Spark', /\bSpark\b/, /\bPySpark\b/i],
   ['Kafka', 'kafka'],
@@ -532,8 +665,11 @@ export const SKILL_LEXICON = [
   // discipline in a degree list ("BS in Computer Science, Electrical Engineering, Mechanical
   // Engineering, or a related field") or "mechanical engineering teams"
   ['Mechanical design', 'mechanical design', new RegExp(String.raw`(?<!\b(?:${DISCIPLINES})(?: engineering)?\s*(?:,|\/|\bor\b|\band\b)\s*)\bmechanical engineering\b(?!\s*(?:,|\/|\bor\b|\band\b)\s*(?:${DISCIPLINES})\b|\s+teams\b)`, 'i')],
-  // P-17: not the currency ("4,300 CAD per week", "$495,000 CAD", "CAD 150,000", "30 CAD/hour")
-  ['CAD', /(?<!\d[\d,.]*\s?[kKmM]?\s?|\b(?:USD|GBP|EUR|AUD)\s?\/\s?)\bCAD\b(?!\s?(?:\$|\d|\/\s?(?:hour|hr|h|year|yr|annum|month|mo|week|wk|day)\b|per\s|an?\s+(?:hour|year|week|month)\b|annually|hourly|weekly|monthly))/],
+  // P-17: not the currency ("4,300 CAD per week", "$495,000 CAD", "CAD 150,000", "30 CAD/hour").
+  // BP-5 (fix wave 3): in any currency-code format: after an amount or a "$" ("$120000 (CAD)",
+  // Microsoft's French "112 000 $ CAD à 165 000 $ CAD", "Canadian dollars (CAD)"), before one
+  // ("CAD $43,800", "CAD$", "CAD 150,000"), or in a currency list ("USD/CAD").
+  ['CAD', /(?<![\d$€£¥](?:[\d,.  ]*\d)?\s?[kKmM]?\s?\$?\s?\(?\s?|\b(?:USD|GBP|EUR|AUD)\s?\/\s?|\bdollars?\s?\(\s?)\bCAD\b(?!\s?\)?\s?(?:\$|\d|\/\s?(?:hour|hr|h|year|yr|annum|month|mo|week|wk|day)\b|per\s|par\s|an?\s+(?:hour|year|week|month)\b|annually|hourly|weekly|monthly))/],
   ['SolidWorks', 'solidworks'],
   ['Siemens NX', /\bSiemens NX\b/i, /\bNX\b/],
   ['GD&T', /\bGD&T\b/i, 'geometric dimensioning'],
@@ -624,7 +760,10 @@ export const RESPONSIBILITY_LEXICON = [
   ['Field testing', 'field (?:test\\w*|operations|deploy\\w*|work)', 'flight test\\w*', 'test ranges?', 'in the field', 'test events?'],
   ['Manufacturing', 'manufactur\\w*', 'production lines?', 'assembly', 'factory', 'factories', 'production (?:ramp|scale|floor)'],
   ['Supply chain', 'supply chain', 'suppliers?', 'vendors?', 'procure\\w*', 'sourcing'],
-  ['Mission / defense', 'mission', 'warfighters?', 'defen[cs]e', 'military', /\bDoD\b/, 'national security', 'armed forces'],
+  // Fix wave 3: a military mission or defence, not a company's mission ("Anthropic's mission is
+  // to create reliable…" on a nonprofit sales manager) or "fraud defense", "defense in depth".
+  ['Mission / defense', '(?:defen[cs]e|military|national[- ]security|combat|warfight(?:ing|er)|tactical|isr|strike) missions?', 'mission (?:systems?|planning|autonomy|payloads?|computers?)',
+    'warfighters?', '(?<!\\b(?:cyber|network|fraud|abuse|spam|malware|endpoint|threat|legal|litigation|patent|thesis|dissertation|tax|audit|security|ddos|bot|account|email|data|self)[- ])defen[cs]e(?![- ]in[- ]depth)', 'military', /\bDoD\b/, 'national security', 'armed forces'],
 ];
 
 export const FIT_LEXICON = [
@@ -706,6 +845,11 @@ const GATED_SKILLS = compileLexicon([
   ['Machine learning', new RegExp(String.raw`(?<!\b[Ii]nterest(?:ed)?\s+in\s+|\b[Pp]assion(?:ate)?\s+(?:for|about)\s+)\b(?:AI\s?\/\s?ML|ML\s?\/\s?AI)\b(?![\s-]+(?:${AIML_NOT_SKILL})\b)`)],
   ['Autonomy', `(?:${AUTONOMY_LIST_TERMS})\\s*(?:,|and|or|&)\\s*(?:the\\s+)?autonomy`, `autonomy\\s*(?:,|and|or|&)\\s*(?:${AUTONOMY_LIST_TERMS})`],
 ]);
+// Fix wave 3: bare "agents" counts only in a posting about AI (AI_CONTEXT_RE), and not after
+// another kind of agent (NON_AI_AGENTS).
+const AI_GATED_SKILLS = compileLexicon([
+  ['Agents', new RegExp(String.raw`(?<!\b(?:${NON_AI_AGENTS})\s?)(?<![A-Za-z0-9])agents(?![A-Za-z0-9])`, 'i')],
+]);
 // The title alone names the skill ("Senior Mechanical Engineer: Mechanisms, Space").
 const TITLE_SKILLS = compileLexicon([
   ['Mechanical design', /\b(?:mechanical|electro-?mechanical|mechatronics?|mechanisms?)\b/i],
@@ -715,19 +859,25 @@ const TITLE_SKILLS = compileLexicon([
 const LEXICON_ORDER = new Map(SKILL_LEXICON.map(([label], i) => [label, i]));
 
 const SKILL_RES = new Map(SKILLS.map(({ label, res }) => [label, res]));
-for (const { label, res } of [...TITLE_SKILLS, ...GATED_SKILLS]) SKILL_RES.set(label, [...(SKILL_RES.get(label) || []), ...res]);
+for (const { label, res } of [...TITLE_SKILLS, ...GATED_SKILLS, ...AI_GATED_SKILLS]) SKILL_RES.set(label, [...(SKILL_RES.get(label) || []), ...res]);
 
-/** Skill labels for a job: the lexicon, plus the title-only and technical-role-only patterns (P-17), in lexicon order. */
-function matchSkills(title, all) {
+/**
+ * Skill labels for a job: the lexicon, plus the title-only and technical-role-only patterns
+ * (P-17) and the AI-posting-only ones (fix wave 3; `context` is the whole posting), in lexicon order.
+ */
+function matchSkills(title, all, context = all) {
   const out = new Set(matchLexicon(SKILLS, all));
   for (const { label, res } of TITLE_SKILLS) if (!out.has(label) && res.some((re) => re.test(title))) out.add(label);
   if (isTechnicalTitle(title)) for (const { label, res } of GATED_SKILLS) if (!out.has(label) && res.some((re) => re.test(all))) out.add(label);
+  if (AI_CONTEXT_RE.test(context)) for (const { label, res } of AI_GATED_SKILLS) if (!out.has(label) && res.some((re) => re.test(all))) out.add(label);
   return [...out].sort((a, b) => LEXICON_ORDER.get(a) - LEXICON_ORDER.get(b));
 }
 // "Familiarity with HTML, CSS, Javascript, and Typescript is appreciated" (Palantir designers),
 // "Experience with Rust is a plus": the skill is real but not what the role is about.
 const NICE_TO_HAVE_RE = /\b(?:a (?:big |huge |strong |nice )?plus|nice[- ]to[- ]haves?|(?:is|are|would be) (?:also |very |highly )?(?:appreciated|a bonus|helpful|desirable|welcome|beneficial)|bonus points?|(?:is |are )?not (?:required|necessary)|don['’]t need to be an expert)\b/i;
 const splitSentences = (s) => String(s || '').split(/\n+|(?<=[.!?])\s+(?=[A-Z(“"])/);
+/** A bullet or sentence compared loosely: lower case, single spaces, no bullet mark or end punctuation. */
+const bulletKey = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').replace(/^[\s•·▪●◦‣∙*\-–—]+|[\s.;,:!?]+$/g, '').trim();
 
 /**
  * Skills in lexicon order, except that skills the posting names only in nice-to-have
@@ -735,13 +885,16 @@ const splitSentences = (s) => String(s || '').split(/\n+|(?<=[.!?])\s+(?=[A-Z(�
  * last (P-17: a card shows the first two, and a designer's card should not lead with
  * TypeScript). The set is unchanged; only the order moves.
  */
-function orderSkills(skills, { title, resp, fit, body }) {
+function orderSkills(skills, { title, resp, fit, body, preferred = [] }) {
   if (skills.length < 2) return skills;
   const core = [String(title || '')];
-  let nice = false;
+  // BP-14: a "Preferred qualifications" list is nice-to-have too, wherever its bullets appear.
+  const pref = preferred.length ? `\n${preferred.map(bulletKey).join('\n')}\n` : '';
+  const inPreferred = (s) => { const k = bulletKey(s); return k.length >= 12 && pref.includes(k); };
+  let nice = !!pref;
   for (const p of [...resp, ...fit, body]) {
     for (const s of splitSentences(p)) {
-      if (NICE_TO_HAVE_RE.test(s)) nice = true;
+      if (NICE_TO_HAVE_RE.test(s) || (pref && inPreferred(s))) nice = true;
       else core.push(s);
     }
   }
@@ -798,20 +951,32 @@ export function yearsBucket(n) {
  * deduped; responsibilities and fit in lexicon order, skills in salience order,
  * see orderSkills).
  */
-export function extractKeywords({ title = '', department = '', sections = null, text = '' } = {}) {
+export function extractKeywords({ title = '', department = '', sections = null, text = '', skillText = null } = {}) {
   const resp = (sections && sections.responsibilities) || [];
   const fit = (sections && sections.fit) || [];
+  const preferred = (sections && sections.preferred) || [];
+  const fitAll = preferred.length ? [...fit, ...preferred] : fit;
   const body = String(text || '');
-  const all = [title, ...resp, ...fit, body].filter(Boolean).join('\n');
+  const all = [title, ...resp, ...fitAll, body].filter(Boolean).join('\n');
+  // Fix wave 3: with both bullet lists, skills come from the title, the lists and the prose that
+  // is the posting's own (skillText: the text without paragraphs repeated across a board's
+  // different roles, teamParagraphs), not from team or company descriptions ("Chrome is
+  // available across all major platforms — iOS, Android…", "development of our TPUs, Vertex AI
+  // for Google Cloud" on a data-centre technician).
+  const sectioned = resp.length > 0 && fitAll.length > 0 && typeof skillText === 'string';
+  const skillBody = sectioned ? skillText : body;
+  const skillHay = sectioned ? [title, ...resp, ...fitAll, skillBody].filter(Boolean).join('\n') : all;
 
-  const skills = orderSkills(matchSkills(String(title || ''), all), { title, resp, fit, body });
+  const skills = orderSkills(matchSkills(String(title || ''), skillHay, all), { title, resp, fit, body: skillBody, preferred });
 
   const respHay = [title, ...(resp.length ? resp : [body, department])].filter(Boolean).join('\n');
   const responsibilities = matchLexicon(RESP, respHay);
 
-  const fitHay = (fit.length ? fit : [body]).join('\n');
+  const fitHay = (fitAll.length ? fitAll : [body]).join('\n');
   const fitOut = [];
-  const bucket = yearsBucket(yearsOfExperience(fitHay));
+  // BP-14: the years a posting requires, not its preferred ones ("3 years…" minimum, "5 years…"
+  // preferred is "3+ yrs").
+  const bucket = yearsBucket(yearsOfExperience(preferred.length ? fit.join('\n') : fitHay));
   if (bucket) fitOut.push(bucket);
   fitOut.push(...matchLexicon(FIT, fitHay));
   fitOut.push(...matchLexicon(FIT_GLOBAL, [fitHay, all].join('\n')));
@@ -996,6 +1161,14 @@ export function seniorityFromPay(text, { company = null } = {}) {
 // executive, so these phrases never make a title Director+.
 // ("People Business Partner Director" is an HR director, so "business partner" is left out.)
 const NON_EXEC_DIRECTOR_RE = /\b(?:accounts?|(?<!\bbusiness\s)partner|client|test)\s+director\b/gi;
+// BP-11 (fix wave 3): "Art Director", "Creative Director" and "Technical Director" are senior
+// individual-contributor titles in design, animation and engineering, not executives. Evidence
+// (2026-10-11 beta crawl, docs/process/fix3-data.md): Apple's 14 pay a median of $222K, against
+// $404K for Apple's other Director titles and $255K for its senior designers; Netflix Animation's
+// pipeline, lighting and effects TDs pay CA$120K–180K; the postings ask for 5 to 10+ years,
+// like Senior roles, and 0 of Apple's and Netflix's mention managing a team. They are 'Senior'
+// (a "Principal" or "Staff" one is Staff+); an "Executive Creative Director" stays Director+.
+const IC_DIRECTOR_RE = /\b(?<!\bexecutive\s)(?:(?:associate|assoc\.?|senior|sr\.?|group|lead)\s+)?(?:art|creative|technical)\s+director\b/gi;
 // A distinguished-type fellow is a senior individual-contributor rank. Any other "Fellow"
 // ("Conceptual Reasoning Fellow", "SWE Fellow - Human Frontier Collective") is a
 // fixed-term fellowship, filed with internships like "Anthropic Fellows Program".
@@ -1012,7 +1185,9 @@ const ASSOCIATE_COUNSEL_RE = /\bassociate\s+(?:[\w&-]+\s+){0,3}?counsel\b/gi;
 function seniorityOf(title, company = null) {
   const t = stripGenericStaff(String(title || ''));
   if (!t.trim()) return BY_DEFAULT;
-  const exec = t.replace(NON_EXEC_DIRECTOR_RE, ' ');
+  const icDirector = IC_DIRECTOR_RE.test(t);
+  IC_DIRECTOR_RE.lastIndex = 0;
+  const exec = t.replace(NON_EXEC_DIRECTOR_RE, ' ').replace(IC_DIRECTOR_RE, ' ');
   if (/\b(?:director|vp|svp|evp|vice[- ]president|head of|chief|cto|cfo|ceo|coo|ciso|cmo|cpo|president|general manager|partner,)\b/i.test(exec)
     || /^head\b/i.test(t)) return byTitle('Director+');
   if (/\b(?:intern(?:ship)?s?|fellowships?|fellows program|co-?op|apprentice(?:ship)?|summer (?:analyst|associate|student)|residency|resident)\b/i.test(t)
@@ -1021,7 +1196,7 @@ function seniorityOf(title, company = null) {
   const isManager = /\bmanager\b/i.test(t) && !NON_PEOPLE_MANAGER.test(t);
   if (isManager || /\b(?:team lead|people lead|supervisor|engineering lead|lead,? (?:people|team))\b/i.test(t)
     || /\bmanager,\s/i.test(t) && !NON_PEOPLE_MANAGER.test(t)) return byTitle('Manager');
-  if (/\b(?:senior|sr\.?|lead)\b/i.test(t)) return byTitle('Senior');
+  if (/\b(?:senior|sr\.?|lead)\b/i.test(t) || icDirector) return byTitle('Senior');
   if (/\b(?:junior|jr\.?|associate|new (?:college |university )?grad(?:uate)?|(?:college|university) grad(?:uate)?|graduate|entry[- ]level|early careers?)\b/i.test(t.replace(ASSOCIATE_COUNSEL_RE, ' counsel'))) return byTitle('Entry');
   // A numbered rung on the board's ladder (Google "III", Netflix "(L5)", "Engineer II").
   const rung = ladderRung(t, company);
