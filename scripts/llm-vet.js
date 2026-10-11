@@ -2,11 +2,13 @@
 // Optional automated LLM review of the salary anomaly scan (docs/VETTING.md).
 //
 //   ANTHROPIC_API_KEY=... node scripts/llm-vet.js [--flags <flags.jsonl>] [--out <file>]
-//       [--limit N] [--concurrency N] [--only-blocking] [--skip-reviewed]
+//       [--limit N] [--concurrency N] [--only-blocking] [--skip-reviewed] [--channel beta]
 //
+//   --channel beta   without --flags, the latest data/vetting/<date>-beta/flags.jsonl
 //   --only-blocking  only jobs whose critical flag survived the gate (would be published)
 //   --skip-reviewed  skip jobs whose same parsed salary already has a verdict in any
-//                    data/vetting/<date>/verdicts.jsonl or llm-verdicts.jsonl (CI cost control)
+//                    data/vetting/<date>/ or <date>-beta/ verdicts.jsonl or llm-verdicts.jsonl
+//                    (CI cost control)
 //
 // Reads flags.jsonl (scripts/vet-salaries.js), asks the Claude Messages API for
 // a structured verdict per flagged job, and appends one line per job to
@@ -218,11 +220,16 @@ export function parserVersion() {
   return `${git ? `git ${git}` : 'git ?'} / salary.js sha256:${hash || '?'}`;
 }
 
-/** Latest data/vetting/<date>/flags.jsonl. */
-function latestFlags() {
-  const dir = path.join(ROOT, 'data', 'vetting');
+// A review folder: "<date>" (the main site) or "<date>-<channel>" ("2026-10-11-beta", VT-9).
+const REVIEW_DIR_RE = /^(\d{4}-\d{2}-\d{2})(?:-([a-z][a-z0-9]*))?$/;
+
+/** Latest data/vetting/<date>/flags.jsonl, or <date>-<channel>/ with `channel` ("beta"). */
+export function latestFlags(channel = null, dir = path.join(ROOT, 'data', 'vetting')) {
   if (!fs.existsSync(dir)) return null;
-  const dates = fs.readdirSync(dir).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && fs.existsSync(path.join(dir, d, 'flags.jsonl'))).sort();
+  const dates = fs.readdirSync(dir).filter((d) => {
+    const m = REVIEW_DIR_RE.exec(d);
+    return m && (m[2] || null) === (channel || null) && fs.existsSync(path.join(dir, d, 'flags.jsonl'));
+  }).sort();
   return dates.length ? path.join(dir, dates[dates.length - 1], 'flags.jsonl') : null;
 }
 
@@ -236,10 +243,10 @@ export function reviewKey(l) {
   return `${l.id}|${p ? `${p.min}|${p.max}|${p.currency}` : 'none'}`;
 }
 
-/** Every committed verdicts.jsonl / llm-verdicts.jsonl under data/vetting/. */
+/** Every committed verdicts.jsonl / llm-verdicts.jsonl under data/vetting/ (dated and "<date>-beta" folders, VT-9). */
 export function reviewedFiles(dir = path.join(ROOT, 'data', 'vetting')) {
   if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).flatMap((d) => ['verdicts.jsonl', 'llm-verdicts.jsonl'].map((f) => path.join(dir, d, f))).filter((f) => fs.existsSync(f));
+  return fs.readdirSync(dir).filter((d) => REVIEW_DIR_RE.test(d)).sort().flatMap((d) => ['verdicts.jsonl', 'llm-verdicts.jsonl'].map((f) => path.join(dir, d, f))).filter((f) => fs.existsSync(f));
 }
 
 export async function run({ flagsFile, outFile, apiKey, env = process.env, fetchImpl = fetch, limit = Infinity, concurrency = 4, onlyBlocking = false, skipReviewed = [], log = console.log, sleepImpl } = {}) {
@@ -298,7 +305,7 @@ async function main() {
     console.log('llm-vet: ANTHROPIC_API_KEY is not set; skipping the automated LLM review (nothing to do).');
     return;
   }
-  const flagsFile = path.resolve(opt('--flags') || latestFlags() || '');
+  const flagsFile = path.resolve(opt('--flags') || latestFlags(opt('--channel') || null) || '');
   if (!fs.existsSync(flagsFile)) { console.log(`llm-vet: no flags file (${opt('--flags') || 'data/vetting/<date>/flags.jsonl'}); run scripts/vet-salaries.js first.`); return; }
   const outFile = path.resolve(opt('--out') || path.join(path.dirname(flagsFile), 'llm-verdicts.jsonl'));
   const r = await run({

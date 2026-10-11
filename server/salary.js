@@ -366,10 +366,26 @@ function unitCountry(text, u) {
 function lineLabel(text, start) {
   const from0 = Math.max(0, start - 120);
   const from = from0 + text.slice(from0, start).lastIndexOf('\n') + 1; // S-3: never past 120 characters back
-
   const m = LINE_LABEL_RE.exec(text.slice(from, start));
   const code = m ? NATION_CODE[m[1].toLowerCase().replace(/\.$/, '')] || null : null;
   return code ? { code, at: from + m.index + m[0].indexOf(m[1]) } : null;
+}
+// VT-6 (fix wave 4): NVIDIA names the country before its pay sentence, not right before the
+// amount: "We are considering the following: Italy: The base salary range is 66,000 EUR – …",
+// "For Poland: The base salary range is …". The country of a "<Country>: The base salary …"
+// label earlier in the amount's clause.
+const SENTENCE_LABEL_RE = /([A-Z][A-Za-z.]*(?:\s+[A-Z][A-Za-z.]*){0,3})\s*:\s+(?:[Tt]he\s+)?(?:(?:base|annual|hourly)\s+)?(?:salary|pay|compensation|wage)\b/g;
+function sentenceCountry(before) {
+  let code = null;
+  for (const m of before.matchAll(SENTENCE_LABEL_RE)) {
+    const words = m[1].split(/\s+/);
+    // "For Poland" -> "Poland"; "United Kingdom" stays whole.
+    for (let i = 0; i < words.length; i++) {
+      const c = NATION_CODE[words.slice(i).join(' ').toLowerCase().replace(/\.$/, '')];
+      if (c) { code = c; break; }
+    }
+  }
+  return code;
 }
 /** ISO code of the country that labels the amount's line, or null. */
 function lineCountry(text, start) {
@@ -393,7 +409,12 @@ function cityAreasOf(before) {
 // DQ-14: a single amount stated as a floor ("pay ... will be no less than $62.74 an hour",
 // Netflix's union-covered roles) is a minimum, not the role's posted pay.
 const FLOOR_BEFORE_RE = /\b(?:(?:no|not)\s+less\s+than|at\s+least|a\s+minimum\s+of|minimum\s+(?:of|rate\s+of|wage\s+of))\s*$/i;
-const AREA_BAND_RE = /\brange\s+for\s+roles\s+in\s+this\s+area\b/i;
+// VT-3 (fix wave 4): "The overall market range for Netflix Internships is typically $40/hour -
+// $110/hour" is one band for every internship, like the area band.
+const AREA_BAND_RE = /\brange\s+for\s+roles\s+in\s+this\s+area\b|\bmarket\s+range\s+for\s+(?:[\w&.-]+\s+){0,3}internships?\b/i;
+// ... and the next sentence says the range is total compensation ("This market range is based
+// on total compensation (vs. only base salary)"): not base pay (DATA_SOURCES §7a).
+const TOTAL_COMP_AFTER_RE = /^[^.\n]{0,40}\.\s+(?:This|The|That)\s+(?:[\w-]+\s+){0,2}range\s+(?:is\s+)?(?:based\s+on|reflects|includes)\s+total\s+comp(?:ensation)?\b/i;
 // DQ-8: "184,000 USD - 287,500 USD for Level 4, and ...": the level label after a tier.
 const LEVEL_AFTER_RE = /^\s*,?\s*(?:for|at)\s+(level|grade|band)\s*([\w.-]{1,4})\b/i;
 
@@ -716,7 +737,6 @@ function contextOf(text, gs, ge, { unit = null, single = false } = {}) {
   const kwInHeading = PAY_RE.test(kwHeading);
   const standalone = !kwInClause && cl.end - cl.start <= 90
     && (clause.slice(0, gs - cl.start) + clause.slice(ge - cl.start)).replace(FILLER_RE, '').length <= 3;
-
   const payStipendAfter = PAY_STIPEND_AFTER_RE.test(after);
   // "$141,000-$202,000 + bonus + equity + benefits": base pay, extras on top.
   const plusExtras = PLUS_EXTRAS_AFTER_RE.test(after);
@@ -726,7 +746,7 @@ function contextOf(text, gs, ge, { unit = null, single = false } = {}) {
   // DQ-14: "will be no less than $62.74 an hour" is a floor, not the posted pay.
   else if (single && FLOOR_BEFORE_RE.test(before)) reject = 'pay_floor';
   // Base pay only: a total-compensation range includes bonus/equity/sign-on.
-  else if (totalCompBefore(before)) reject = 'total_compensation';
+  else if (totalCompBefore(before) || TOTAL_COMP_AFTER_RE.test(text.slice(ge, ge + 160))) reject = 'total_compensation';
   // Netflix sales: "The overall market range for roles in this area of Netflix is typically
   // $X - $Y. A portion of this compensation is variable." A band for an area, not this role
   // (docs/DATA_SOURCES.md §7a).
@@ -775,7 +795,6 @@ function evaluate(text, u, countries) {
   if (!(usdOr(Math.max(lo, hi) * FACTORS.hour, u.currency) >= MIN_ANNUAL)) return null;
 
   const gs = u.groupStart ?? u.start;
-
   const ge = u.groupEnd ?? u.end;
   const unitIv = (b && b.unit) || a.unit || u.groupUnit || null;
   const ctx = contextOf(text, gs, ge, { unit: unitIv, single: !b });
@@ -847,6 +866,8 @@ function evaluate(text, u, countries) {
   // country, and lines for different countries are never spanned together.
   const area = natCode || lineCountry(text, gs);
   if (!natCode) score += own(area);
+  // VT-6: a "<Country>: The base salary range is …" sentence names the pay's country.
+  const labelCountry = area ? null : sentenceCountry(before);
   // DQ-13: the SF Bay Area / NYC range ("... in those locations is USD $X - $Y").
   const cityAreas = cityAreasOf(before);
   // DQ-8: "... for Level 4": the level a tier is for.
@@ -857,7 +878,7 @@ function evaluate(text, u, countries) {
     // For "3,850 USD / 2,310 GBP / 4,300 CAD per week" the text is the whole statement;
     // a term amount keeps its "for the four-month fellowship".
     score, start: gs, end: term ? ge + termAmount[0].length : ge, lo, hi, currency: u.currency, interval, kind, national, level,
-    area, cityAreas, levelLabel, single: !b, over,
+    area, cityAreas, levelLabel, single: !b, over, ...(labelCountry ? { labelCountry } : {}),
     ...(term ? { termWeeks: term.weeks, termFactor: Math.round((52 / term.exact) * 10000) / 10000 } : {}),
     ...(intervalCorrected ? { intervalCorrected, statedInterval } : {}),
   };
@@ -868,7 +889,6 @@ function evaluate(text, u, countries) {
 // spent. Every real posting fits whole: the longest description text on the 2026-10-11 boards
 // is 26,628 characters (microsoft:1970393556868750). A hostile 1 MB description costs no more
 // than a 40 KB one.
-
 export const MAX_PAY_TEXT = 40_000;
 // ... and at most MAX_PAY_AMOUNTS amounts in it are read: the most in a real posting on the
 // 2026-10-11 boards is 65 (xai:5017529007).
@@ -895,7 +915,6 @@ function boundPayText(s) {
 }
 
 function round2(n) { return Math.round(n * 100) / 100; }
-
 const flat = (s) => s.replace(/\s+/g, ' ').trim();
 
 /**
@@ -937,6 +956,11 @@ export function parseSalary(text, { countries = [], areas = [] } = {}) {
   let best = cands[0];
   for (const c of cands) if (c.score > best.score) best = c;
   if (unreadableOwn && best.area && !cs.includes(best.area)) return null;
+  // VT-1 (fix wave 4): a pay line that names another country than every one the job is in
+  // ("across the U.S. is USD $75,400 - $167,900" on a São Paulo job) is not the job's pay;
+  // countries are never mixed (docs/DATA_SOURCES.md §7a). A job with no known country keeps it.
+  const bestCountry = best.area || best.labelCountry || null;
+  if (bestCountry && cs.length && !cs.includes(bestCountry)) return null;
 
   // A job whose US locations are all in the areas a city range names uses the city ranges
   // of the chosen country (Microsoft SF Bay Area / NYC, DQ-13).
@@ -969,6 +993,12 @@ export function parseSalary(text, { countries = [], areas = [] } = {}) {
   else if (best.national) group = cands.filter((c) => c.national === best.national && !c.cityOf && same(c));
   else if (best.area) group = cands.filter((c) => !c.national && !c.cityOf && c.area === best.area && same(c));
   if (group) {
+    // VT-12 / D-34 (fix wave 4): Microsoft repeats a pay paragraph ("IC5 …; IC6 …; IC5 …; IC6 …")
+    // or prices one level twice ("IC3: $100,600 - $199,000; IC3: $102,100 - $202,200"). The same
+    // level and range is one member, and a level named twice keeps its widest range, so the
+    // posting keeps its pay by level instead of a bare "Multiple pay zones".
+    const seen = new Set();
+    group = group.filter((c) => { const k = `${c.level ? levelName(c.level) : ''}|${c.lo}|${c.hi}`; if (seen.has(k)) return false; seen.add(k); return true; });
     const glo = Math.min(...group.map((c) => c.lo));
     const ghi = Math.max(...group.map((c) => c.hi));
     const bound = best.national || city ? 4 : TIER_MAX_RATIO;
@@ -976,7 +1006,14 @@ export function parseSalary(text, { countries = [], areas = [] } = {}) {
       lo = glo; hi = ghi;
       groupText = group.map((c) => `${c.level ? `${c.level.replace(/\s+/g, ' ')}: ` : ''}${flat(s.slice(c.start, c.end))}`).join('; ');
       const names = group.map((c) => (c.level ? levelName(c.level) : null));
-      if (names.every(Boolean) && new Set(names).size === names.length) levels = group.map((c, i) => ({ label: names[i], min: c.lo, max: c.hi }));
+      if (names.every(Boolean)) {
+        const by = new Map();
+        group.forEach((c, i) => {
+          const l = by.get(names[i]);
+          if (l) { l.min = Math.min(l.min, c.lo); l.max = Math.max(l.max, c.hi); } else by.set(names[i], { label: names[i], min: c.lo, max: c.hi });
+        });
+        if (by.size > 1) levels = [...by.values()];
+      }
     }
   } else {
     // Tiered list around the best candidate: same currency/interval/kind, adjacent, and
@@ -1018,7 +1055,7 @@ export function parseSalary(text, { countries = [], areas = [] } = {}) {
   if (best.intervalCorrected) Object.assign(out, { intervalCorrected: true, statedInterval: best.statedInterval });
   // Fix wave 3 (BP-2, shared decision 1): the country the pay line names ("Ireland: €72000",
   // "across the U.S. is USD $X"), so Juice never applies it to another country's office.
-  const country = (city ? nationalPick : best).area;
+  const country = city ? nationalPick.area : bestCountry;
   if (country) out.country = country;
   return out;
 }

@@ -115,27 +115,27 @@ function timedInWorker(body, limitMs) {
 const url = (...p) => JSON.stringify(pathToFileURL(path.join(ROOT, ...p)).href);
 const LIMIT = 2000; // linear code does these in tens of ms; today they take 6-17 s
 
-test('S-3: parseSalary is not quadratic in the number of amounts (64 KB of "$1 " under 2 s)', OPEN, async () => {
+test('S-3: parseSalary is not quadratic in the number of amounts (64 KB of "$1 " under 2 s)', async () => {
   const ms = await timedInWorker(`async () => { const m = await import(${url('server', 'salary.js')}); m.parseSalary('$1 '.repeat(21846), { countries: ['US'] }); }`, LIMIT);
   assert.ok(ms < LIMIT, `${Math.round(ms)} ms`);
 });
 
-test('S-3: parseSalary on 64 KB of "€1 " and "kr 1 " (norm-7 currency symbols) stays under 2 s', OPEN, async () => {
+test('S-3: parseSalary on 64 KB of "€1 " and "kr 1 " (norm-7 currency symbols) stays under 2 s', async () => {
   const ms = await timedInWorker(`async () => { const m = await import(${url('server', 'salary.js')}); m.parseSalary('€1 '.repeat(21846), { countries: ['DE'] }); m.parseSalary('kr 1 '.repeat(13107), { countries: ['SE'] }); }`, LIMIT);
   assert.ok(ms < LIMIT, `${Math.round(ms)} ms`);
 });
 
-test('S-3: htmlToText (adapters and keywords) is linear on an unterminated "<" run (64 KB under 2 s)', OPEN, async () => {
+test('S-3: htmlToText (adapters and keywords) is linear on an unterminated "<" run (64 KB under 2 s)', async () => {
   const ms = await timedInWorker(`async () => { const u = await import(${url('server', 'sources', 'util.js')}); const k = await import(${url('server', 'keywords.js')}); const s = '<'.repeat(65536); u.htmlToText(s); k.htmlToText(s); }`, LIMIT);
   assert.ok(ms < LIMIT, `${Math.round(ms)} ms`);
 });
 
-test('S-3: geocode on a location string of 32 KB of "(" stays under 2 s', OPEN, async () => {
+test('S-3: geocode on a location string of 32 KB of "(" stays under 2 s', async () => {
   const ms = await timedInWorker(`async () => { const g = await import(${url('server', 'geo.js')}); g.geocode('('.repeat(32768)); }`, LIMIT);
   assert.ok(ms < LIMIT, `${Math.round(ms)} ms`);
 });
 
-test('S-3: one hostile 256 KB posting normalizes in under 2 s (custom boards reach normalizeJob in server mode)', OPEN, async () => {
+test('S-3: one hostile 256 KB posting normalizes in under 2 s (custom boards reach normalizeJob in server mode)', async () => {
   const ms = await timedInWorker(`async () => {
     const n = await import(${url('server', 'normalize.js')});
     const html = '<p>' + '$1 '.repeat(87381) + '</p>';
@@ -145,9 +145,30 @@ test('S-3: one hostile 256 KB posting normalizes in under 2 s (custom boards rea
   assert.ok(ms < LIMIT, `${Math.round(ms)} ms`);
 });
 
+// Fix wave 4 (docs/process/fix4-data.md): 1 MB of each hostile input finishes well under a second
+// (40-110 ms each on the lane's machine; the limit leaves room for a loaded CI runner).
+test('S-3: 1 MB of hostile text: parseSalary, both htmlToTexts and geocode each finish in under 1 s', async () => {
+  const cases = {
+    'parseSalary "$1 "': `m.parseSalary('$1 '.repeat(349525), { countries: ['US'] })`,
+    'parseSalary "pay $50 "': `m.parseSalary('pay $50 '.repeat(131072), { countries: ['US'] })`,
+    'parseSalary "kr 1 "': `m.parseSalary('kr 1 '.repeat(209715), { countries: ['SE'] })`,
+    'htmlToText "<"': `u.htmlToText('<'.repeat(1048576)); k.htmlToText('<'.repeat(1048576))`,
+    'htmlToText "<script" and "<!--"': `u.htmlToText('<script'.repeat(149796)); k.htmlToText('<!--'.repeat(262144))`,
+    'geocode "("': `g.geocode('('.repeat(1048576))`,
+  };
+  for (const [name, call] of Object.entries(cases)) {
+    const ms = await timedInWorker(`async () => {
+      const m = await import(${url('server', 'salary.js')}); const u = await import(${url('server', 'sources', 'util.js')});
+      const k = await import(${url('server', 'keywords.js')}); const g = await import(${url('server', 'geo.js')});
+      const t0 = performance.now(); ${call}; if (performance.now() - t0 > 1000) throw new Error(String(Math.round(performance.now() - t0)) + ' ms');
+    }`, 10000);
+    assert.ok(ms < 10000, `${name}: ${Math.round(ms)} ms`);
+  }
+});
+
 /* ------------------------------------------------------------------ S-4 */
 
-test('S-4: Eightfold posting links are https and on the tenant host, whatever the API sends', OPEN, async () => {
+test('S-4: Eightfold posting links are https and on the tenant host, whatever the API sends', async () => {
   const { mapEightfoldJob, EIGHTFOLD_BOARDS } = await imp('server', 'sources', 'eightfold.js');
   const cases = [
     [EIGHTFOLD_BOARDS.netflix, { id: 1, name: 'x', canonicalPositionUrl: "javascript:alert('x')" }],
@@ -162,7 +183,7 @@ test('S-4: Eightfold posting links are https and on the tenant host, whatever th
   }
 });
 
-test('S-4: the normalizer never keeps a non-http(s) posting URL (it reaches the CSV and the JSON)', OPEN, async () => {
+test('S-4: the normalizer never keeps a non-http(s) posting URL (it reaches the CSV and the JSON)', async () => {
   const { normalizeJob } = await imp('server', 'normalize.js');
   const job = normalizeJob({ sourceId: '9', title: 'Engineer', department: 'Eng', locationText: 'Los Gatos, CA', extraLocations: [], html: '<p>x</p>', text: 'x', url: "javascript:window.__x='u'", salary: null },
     { slug: 'netflix', name: 'Netflix', source: 'eightfold', board: 'netflix', channel: 'beta', live: false });

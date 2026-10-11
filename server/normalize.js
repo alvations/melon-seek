@@ -24,11 +24,15 @@ import { vetSalaries, salaryChecks } from './vet.js';
  * SF Bay Area / NYC range, union floors, single figures that are not zones); norm-8 = fix
  * wave 3 (docs/process/fix3-data.md: salary.originalInterval 'year' on fixed-term yearly
  * rates, salary.partTime / hoursPerWeek, sections.preferred, "CAD" and other tag fixes, team
- * paragraphs left out of skills, creative and technical directors, Apple store names). Stored
+ * paragraphs left out of skills, creative and technical directors, Apple store names); norm-9 =
+ * fix wave 4 (docs/process/fix4-data.md: salary.places and per-place Juice, the Google manager
+ * ladder, Netflix "(L5)" support titles, ZIP-code states, store and data-centre town aliases,
+ * another country's pay line is not the job's, NVIDIA "Italy:" sentences, the Netflix internship
+ * band, repeated Microsoft level paragraphs, twice-escaped NVIDIA references, http(s) links). Stored
  * snapshots are upgraded with relocateJobs (which also re-derives text-sourced pay, the
  * pay labels and the level, then re-runs the vetting gate) and rekeyBoardJobs.
  */
-export const NORMALIZER_VERSION = 'norm-8';
+export const NORMALIZER_VERSION = 'norm-9';
 
 const NO_EXTRAS = Object.freeze({ equity: false, bonus: false });
 
@@ -223,6 +227,15 @@ export function relabelJobs(jobs) {
   return changed ? vetSalaries(out) : out;
 }
 
+/** S-4 (fix wave 4): a posting link is an absolute http(s) URL, or null ("javascript:…" never reaches the CSV or the JSON). */
+export function postingUrl(u) {
+  if (typeof u !== 'string' || !u.trim()) return null;
+  try {
+    const x = new URL(u.trim());
+    return x.protocol === 'https:' || x.protocol === 'http:' ? u.trim() : null;
+  } catch { return null; }
+}
+
 export function normalizeJob(raw, company, { boilerplate = null, team = null } = {}) {
   const html = raw.html || '';
   const text = raw.text || htmlToText(html);
@@ -266,7 +279,7 @@ export function normalizeJob(raw, company, { boilerplate = null, team = null } =
     locations,
     remote,
     salary,
-    url: raw.url || null,
+    url: postingUrl(raw.url),                                            // S-4: http(s) only
     updatedAt: raw.updatedAt || null,
     postedAt: isoOrNull(raw.postedAt),                                    // F4
     reqId: raw.reqId != null && raw.reqId !== '' ? String(raw.reqId) : null, // F4 (Greenhouse internal_job_id)

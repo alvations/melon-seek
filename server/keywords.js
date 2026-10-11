@@ -127,7 +127,6 @@ function tokenizeBlocks(html) {
   };
 
   const re = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)\b[^<>]*?(\/?)>|([^<]+)|(<)/g;
-
   let m;
   while ((m = re.exec(src))) {
     if (m[4] !== undefined || m[5] !== undefined) {

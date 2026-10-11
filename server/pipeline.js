@@ -157,6 +157,13 @@ async function spawn() {
   return slot;
 }
 
+/** Pipeline task time limit: MELON_TASK_TIMEOUT_MS, default 5 minutes (0 turns it off). */
+function taskTimeoutMs() {
+  const raw = process.env.MELON_TASK_TIMEOUT_MS;
+  const v = raw == null || raw === '' ? NaN : Number(raw);
+  return Number.isFinite(v) && v >= 0 ? v : 300_000;
+}
+
 let spawning = 0;
 async function drain() {
   while (queue.length) {
@@ -173,7 +180,18 @@ async function drain() {
     const id = ++seq;
     pending.set(id, { resolve: job.resolve, reject: job.reject, slot });
     slot.worker.ref(); // keep alive while a task runs
-    const done = () => { if (!pool.some((s) => s.busy)) for (const s of pool) s.worker.unref(); };
+    // S-3 (fix wave 4): a task that runs past the limit is stopped and its worker replaced (the
+    // 'exit' handler respawns), so one hostile posting cannot hold a worker for hours.
+    const limit = taskTimeoutMs();
+    const timer = limit > 0 ? setTimeout(() => {
+      const p = pending.get(id);
+      if (!p) return;
+      pending.delete(id);
+      p.reject(Object.assign(new Error(`pipeline task ${job.task.type} stopped after ${limit} ms`), { code: 'task_timeout' }));
+      slot.worker.terminate();
+    }, limit) : null;
+    if (timer && timer.unref) timer.unref();
+    const done = () => { if (timer) clearTimeout(timer); if (!pool.some((s) => s.busy)) for (const s of pool) s.worker.unref(); };
     job.promise.then(done, done);
     slot.worker.postMessage({ id, task: job.task });
   }

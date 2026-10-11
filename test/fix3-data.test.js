@@ -388,6 +388,6 @@ test('tags: labelled sample from the 13 snapshots (test/fixtures/keyword-labels-
 
 /* --------------------------------------------------------- delivery */
 
-test('delivery: NORMALIZER_VERSION is norm-8, so stored snapshots are re-derived once', () => {
-  assert.equal(NORMALIZER_VERSION, 'norm-8');
+test('delivery: NORMALIZER_VERSION is norm-8 or later, so stored snapshots are re-derived once', () => {
+  assert.ok(Number(NORMALIZER_VERSION.replace(/^norm-/, '')) >= 8, NORMALIZER_VERSION); // norm-9: fix wave 4
 });

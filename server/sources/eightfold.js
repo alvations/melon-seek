@@ -117,10 +117,32 @@ export function upgradeEightfoldJobs(jobs) {
     const department = j.department ? departmentName(j.department) : j.department;
     const team = j.team ? departmentName(j.team) : j.team;
     if (department !== j.department || team !== j.team) out = { ...out, department, team };
+    if (typeof j.descriptionHtml === 'string' && /&amp;#/i.test(j.descriptionHtml)) {
+      const html = undoubleCharRefs(j.descriptionHtml);
+      if (html !== j.descriptionHtml) out = { ...out, descriptionHtml: html };
+    }
     if (j.remote !== true || j.company === 'netflix') return out;
     if ((j.locations || []).some((l) => l && l.remote) || !officeTag(j.descriptionHtml)) return out;
     return { ...out, remote: false };
   });
+}
+
+/** `u` as an absolute https URL on the tenant's host (S-4), or null. */
+function onHost(u, t) {
+  if (!u) return null;
+  try {
+    const x = new URL(u);
+    return x.protocol === 'https:' && x.host === t.host && !x.username && !x.password ? x.href : null;
+  } catch { return null; }
+}
+
+/**
+ * VT-13 (fix wave 4): NVIDIA's descriptions escape some character references twice
+ * ("20 USD - 71 USD.&amp;#xa;" shows as a literal "&#xa;" after the pay sentence, 44 postings on
+ * 2026-10-11). A twice-escaped numeric reference is the character it names.
+ */
+export function undoubleCharRefs(html) {
+  return String(html).replace(/&amp;(#(?:x[0-9a-f]{1,6}|\d{1,7});)/gi, '&$1');
 }
 
 /**
@@ -129,7 +151,7 @@ export function upgradeEightfoldJobs(jobs) {
  */
 export function mapEightfoldJob(p, t = EIGHTFOLD_BOARDS.microsoft) {
   const pcsx = t.api === 'pcsx';
-  const html = String((pcsx ? p.jobDescription : p.job_description) || '');
+  const html = undoubleCharRefs(String((pcsx ? p.jobDescription : p.job_description) || ''));
   // PCSX standardizedLocations ("Redmond, WA, US") geocode better than locations ("United States, Washington, Redmond").
   const raw = pcsx
     ? (Array.isArray(p.standardizedLocations) && p.standardizedLocations.length ? p.standardizedLocations : p.locations)
@@ -151,9 +173,12 @@ export function mapEightfoldJob(p, t = EIGHTFOLD_BOARDS.microsoft) {
   const site = Array.isArray(p.efcustomTextWorkSite) ? p.efcustomTextWorkSite[0] : null;
   if (pcsx && /remote|100% work from home/i.test(site || '')) remote = true;
   const emp = Array.isArray(p.efcustomTextEmploymentType) ? str(p.efcustomTextEmploymentType[0]) : null;
-  let url = str(p.publicUrl) || (p.positionUrl ? `https://${t.host}${p.positionUrl}` : null) || str(p.canonicalPositionUrl);
+  // S-4: the posting link is https and on the tenant's own host, whatever the API sends
+  // ("javascript:…", "@evil.example/…" as a path, another host); otherwise the posting's
+  // canonical page on the tenant.
+  let url = onHost(str(p.publicUrl), t) || (p.positionUrl ? onHost(`https://${t.host}${String(p.positionUrl).startsWith('/') ? '' : '/'}${p.positionUrl}`, t) : null) || onHost(str(p.canonicalPositionUrl), t);
   if (url) url = url.replace(/[?&]microsite=[^&]*$/, '');
-  if (!url) url = `https://${t.host}/careers/job/${p.id}`;
+  if (!url) url = `https://${t.host}/careers/job/${encodeURIComponent(String(p.id ?? ''))}`;
   return {
     sourceId: String(p.id ?? ''),
     title: str(p.posting_name) || str(p.name) || 'Untitled role',

@@ -18,7 +18,8 @@ import { parseSalary } from '../server/salary.js';
 import { vetSalaries } from '../server/vet.js';
 import { jobSeniority } from '../server/keywords.js';
 import { payLocations } from '../public/features/shared.js';
-import { reviewedFiles } from '../scripts/llm-vet.js';
+import { reviewedFiles, latestFlags } from '../scripts/llm-vet.js';
+import { mapEightfoldJob, EIGHTFOLD_BOARDS, upgradeEightfoldJobs } from '../server/sources/eightfold.js';
 
 const TODO = { todo: 'salary vetting beta 2026-10-11: docs/process/vetting-beta.md' };
 
@@ -32,7 +33,7 @@ const TODO = { todo: 'salary vetting beta 2026-10-11: docs/process/vetting-beta.
 // pay line names a country none of the job's known countries is, like `unreadableOwn`).
 const MS_BRAZIL = 'Critical Environment Ops M3 - The typical base pay range for this role across the U.S. is USD $75,400 - $167,900 per year. There is a different range applicable to specific work locations, within the San Francisco Bay area and New York City metropolitan area, and the base pay range for this role in those locations is USD $105,800 - $185,300 per year.';
 
-test('VT-1 a Brazil-only job does not take the U.S. national range as its pay', TODO, () => {
+test('VT-1 a Brazil-only job does not take the U.S. national range as its pay', () => {
   const sal = deriveSalary(
     { title: 'Data Center Critical Environment Technician Manager', employmentType: 'Full-time', text: MS_BRAZIL, html: '' },
     [{ name: 'São Paulo State, Brazil', rawName: 'SP, BR', country: 'BR', lat: -22.19, lng: -48.79 }],
@@ -70,7 +71,7 @@ test('VT-2 a Google "Romania: lei…" line is read as RON pay', TODO, () => {
 // statement about the range in the next sentence).
 const NETFLIX_INTERN = 'At Netflix, we carefully consider a wide range of compensation factors to determine the Intern top of market. We rely on market indicators to determine compensation and consider your specific job, skills, and experience to get it right. These considerations can cause your compensation to vary and will also be dependent on your location. The overall market range for Netflix Internships is typically $40/hour - $110/hour. This market range is based on total compensation (vs. only base salary), which is in line with our compensation philosophy.';
 
-test('VT-3 Netflix\'s internship market band (total compensation) is not published as base pay', TODO, () => {
+test('VT-3 Netflix\'s internship market band (total compensation) is not published as base pay', () => {
   const sal = deriveSalary(
     { title: 'Video Algorithms Intern, Video Coding (Gaussian Splatting), Fall 2026', text: NETFLIX_INTERN, html: '' },
     [{ name: 'Los Gatos, CA', country: 'US', lat: 37.2358, lng: -121.9624 }],
@@ -108,7 +109,7 @@ test('VT-5 Ireland\'s range is not applied to the posting\'s places in Spain', (
 // Engineer" (Italy, Germany, Switzerland, France), https://jobs.nvidia.com/careers/job/893395799578.
 // Owner: server/salary.js lineLabel / unitCountry.
 
-test('VT-6 NVIDIA\'s "Italy: The base salary range is …" names the pay line\'s country', TODO, () => {
+test('VT-6 NVIDIA\'s "Italy: The base salary range is …" names the pay line\'s country', () => {
   const p = parseSalary('Your base salary will be determined based on your location, experience, and the pay of employees in similar positions. We are considering the following: Italy: The base salary range is 66,000 EUR – 114,000 EUR for level 4, and 86,250 EUR – 149,500 EUR for level 5.', { countries: ['IT', 'DE', 'CH', 'FR'] });
   assert.deepEqual([p.min, p.max, p.currency], [66000, 149500, 'EUR'], 'both levels are read (correct today)');
   assert.equal(p.country, 'IT');
@@ -140,7 +141,7 @@ test('VT-8 a "Senior Finance Manager" at IC4 is an individual contributor (Senio
 // CI review of the beta flags would pay for all of them again. Owner: scripts/llm-vet.js
 // reviewedFiles (and latestFlags).
 
-test('VT-9 llm-vet --skip-reviewed sees a "<date>-beta" review folder', TODO, () => {
+test('VT-9 llm-vet --skip-reviewed sees a "<date>-beta" review folder', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vet-beta-'));
   try {
     for (const d of ['2026-10-02', '2026-10-11-beta']) {
@@ -153,6 +154,55 @@ test('VT-9 llm-vet --skip-reviewed sees a "<date>-beta" review folder', TODO, ()
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('VT-9 latestFlags reads a "<date>-beta" folder only for the beta channel', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vet-beta-'));
+  try {
+    for (const d of ['2026-10-02', '2026-10-11-beta']) {
+      fs.mkdirSync(path.join(dir, d));
+      fs.writeFileSync(path.join(dir, d, 'flags.jsonl'), '');
+    }
+    assert.equal(path.basename(path.dirname(latestFlags(null, dir))), '2026-10-02');
+    assert.equal(path.basename(path.dirname(latestFlags('beta', dir))), '2026-10-11-beta');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+/* ------------------------------------------------------------------ VT-12 */
+// Fix wave 4. microsoft:1970393556657727 "Senior Construction Project Manager" (Vaasa, Helsinki)
+// repeats its whole pay paragraph (IC5, IC6, IC5, IC6); microsoft:1970393556637088 "Software
+// Engineer II -CTJ - Poly" prices IC3 twice. Both lost their pay by level (D-34: "Multiple pay
+// zones" only), and the repeated range was named twice in salary.text.
+const FI = (lvl, lo, hi) => `Construction Project Management ${lvl} - The typical base pay range for this role across Finland is € ${lo} - € ${hi} per year. Certain roles may be eligible for benefits and other compensation. Find additional benefits and pay information here: https://careers.microsoft.com/v2/global/en/corporate-pay/finland-corporate-pay.html\n`;
+const US = (lvl, lo, hi, clo, chi) => `Software Engineering ${lvl} - The typical base pay range for this role across the U.S. is USD $${lo} - $${hi} per year. There is a different range applicable to specific work locations, within the San Francisco Bay area and New York City metropolitan area, and the base pay range for this role in those locations is USD $${clo} - $${chi} per year. Certain roles may be eligible for benefits and other compensation.\n`;
+
+test('VT-12 a repeated Microsoft pay paragraph keeps one range per level, with the levels', () => {
+  const text = FI('IC5', '87,000.00', '143,200.00') + FI('IC6', '105,700.00', '201,500.00') + FI('IC5', '87,000.00', '143,200.00') + FI('IC6', '105,700.00', '201,500.00');
+  const s = deriveSalary({ title: 'Senior Construction Project Manager', text, html: '' }, [{ country: 'FI', lat: 63.096, lng: 21.6158 }, { country: 'FI', lat: 60.1699, lng: 24.9384 }]);
+  assert.deepEqual([s.min, s.max, s.currency, s.country], [87000, 201500, 'EUR', 'FI']);
+  assert.deepEqual(s.levels.map((l) => `${l.label} ${l.min}-${l.max}`), ['IC5 87000-143200', 'IC6 105700-201500']);
+  assert.equal((s.text.match(/IC5/g) || []).length, 1, s.text);
+});
+
+test('VT-12 / D-34 a level priced twice keeps its widest range, and the posting keeps its pay by level', () => {
+  const text = US('IC3', '100,600', '199,000', '131,400', '215,400') + 'Pay depends on where you work.\n' + US('IC3', '102,100', '202,200', '133,800', '219,200') + US('IC4', '119,800', '234,700', '160,200', '261,000');
+  const s = deriveSalary({ title: 'Software Engineer II -CTJ - Poly', text, html: '' }, [{ country: 'US', lat: 38.9586, lng: -77.357 }, { country: 'US', lat: 47.674, lng: -122.1215 }]);
+  assert.deepEqual([s.min, s.max], [100600, 234700]);
+  assert.deepEqual(s.levels.map((l) => `${l.label} ${l.min}-${l.max}`), ['IC3 100600-202200', 'IC4 119800-234700']);
+});
+
+/* ------------------------------------------------------------------ VT-13 */
+// Fix wave 4. 44 NVIDIA postings escape a newline twice ("20 USD - 71 USD.&amp;#xa;"), shown as a
+// literal "&#xa;" after the pay sentence (an NVIDIA intern posting, shortened).
+
+test('VT-13 a twice-escaped character reference in an NVIDIA description is the character, crawled or stored', () => {
+  const html = '<p>The hourly rate for our interns is 20 USD - 71 USD.&amp;#xa;You will also be eligible for Intern benefits.</p>';
+  const raw = mapEightfoldJob({ id: 893396069540, name: 'Applied Research Intern', standardizedLocations: ['Santa Clara, CA, US'], jobDescription: html, positionUrl: '/careers/job/893396069540' }, EIGHTFOLD_BOARDS.nvidia);
+  assert.ok(!/&amp;#xa;/.test(raw.html) && !/&#xa;/.test(raw.text), raw.text);
+  const [stored] = upgradeEightfoldJobs([{ id: 'nvidia:893396069540', company: 'nvidia', remote: false, locations: [], descriptionHtml: html }]);
+  assert.ok(!/&amp;#xa;/.test(stored.descriptionHtml), stored.descriptionHtml);
 });
 
 /* ------------------------------------------------------- pinned (green) */

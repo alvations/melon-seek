@@ -210,3 +210,30 @@ test('DQ-11 residue: "Expression of Interests | ..." is a talent pool', () => {
   assert.equal(isTalentPool({ title: 'Expression of Interest - CFX - Netflix Animation Studios' }), true, 'reference');
   assert.equal(isTalentPool({ title: 'Expression of Interests | Career Fair Events Internship' }), true);
 });
+
+/* --------------------------------------------- fix wave 4: places (D-32, D-36) */
+// docs/QA.md "Full QA pass (desktop, beta) 2026-10-11". The e2e tests [D-32] and [D-36] check the
+// Location filter of a build; these check the geocoder those labels come from (docs/process/fix4-data.md).
+
+// D-32: 12 Apple store and mall names were still places, pinned at country centroids (11 retail
+// postings). Each is filed under its city.
+test('D-32 Apple store and mall names are filed under their city', () => {
+  for (const [raw, city] of [
+    ['Champs Élysées, France', 'Paris'], ['Opéra, France', 'Paris'], ['Parly 2, France', 'Paris'], ['Sainte-Catherine, France', 'Bordeaux'],
+    ['Highcross, United Kingdom', 'Leicester'], ['Touchwood Centre, United Kingdom', 'Solihull'], ['Richmond Centre, Canada', 'Vancouver'],
+    ['Southgate Centre, Canada', 'Edmonton'], ['Grosse Bockenheimer Strasse, Germany', 'Frankfurt'], ['Fukuoka Tenjin, Japan', 'Fukuoka'],
+    ['Antara, Mexico', 'Mexico City'], ['VillageMall, Brazil', 'Rio de Janeiro'],
+  ]) {
+    const [loc] = geocode(raw);
+    assert.equal(loc.city, city, `${raw} -> ${loc.name}`);
+  }
+  assert.equal(geocode('Richmond, VA')[0].name, 'Richmond, VA', 'the same names elsewhere are not moved');
+});
+
+// D-36: Google lists one data-centre town under several labels ("Pryor, OK", "Pryor Creek, OK",
+// "Pryor Creek, US", "Pryor, US"; "Moncks Corner, US" next to "Moncks Corner, SC").
+test('D-36 Google: one place, one label (Pryor is Pryor Creek, OK; a ZIP keeps Moncks Corner in SC)', () => {
+  const names = (list) => [...new Set(list.map((s) => geocode(s)[0].name))];
+  assert.deepEqual(names(['Pryor, OK, USA', 'Pryor Creek, OK, USA', 'Pryor Creek, OK 74361, USA', 'Pryor, OK 74361, USA']), ['Pryor Creek, OK']);
+  assert.deepEqual(names(['Moncks Corner, SC, USA', 'Moncks Corner, SC 29461, USA']), ['Moncks Corner, SC']);
+});

@@ -1,5 +1,5 @@
 {
- "normalizerVersion": "norm-8",
+ "normalizerVersion": "norm-9",
  "history": [
   {
    "normalizerVersion": "norm-2",
@@ -40,6 +40,11 @@
    "normalizerVersion": "norm-8",
    "reason": "norm-8 fix wave 3 (docs/process/fix3-data.md): sections.preferred, keyword-tag rules and team paragraphs, salary.originalInterval year on fixed-term pay, salary.partTime, salary.country, creative/technical directors, Apple store names",
    "at": "2026-10-11T05:07:22.791Z"
+  },
+  {
+   "normalizerVersion": "norm-9",
+   "reason": "norm-9 fix wave 4 (fix4-data): 0 of 300 stable-board hashes changed; version only",
+   "at": "2026-10-11T15:04:04.335Z"
   }
  ],
  "hashes": {

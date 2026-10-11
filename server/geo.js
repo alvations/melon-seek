@@ -878,7 +878,6 @@ function finalCountry(token, cands, tokens) {
 const US_ZIP_RE = /^([A-Z]{2})\s+\d{5}(?:-\d{4})?$/;
 
 /** "City, Region" / "City, Country" / "Region" / unknown-city fallbacks of resolvePlaceIn. */
-
 function resolvePlaceTokens(name, cleaned, extra) {
   let tokens = cleaned.split(/\s*,\s*/).filter(Boolean);
   // "Seoul, Korea, Republic of": the tail adds nothing to the country before it (DQ-10).
