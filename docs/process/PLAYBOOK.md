@@ -165,6 +165,9 @@ These are the rules learned the hard way on 2026-10-10.
   evaluated each constant with a 50 ms vm limit, so a full `npm test` on a loaded machine sometimes
   reported real constants as "not found" (MIN_BIN_PX in the registry test, the Juice anchors in the
   policy test). The limit is 2 s since 2026-10-11. Look for such limits before calling a failure a flake.
+- The disk fills up. Each lane's scratch build is 0.6 to 1.4 GB, and on 2026-10-11 a full `npm test`
+  failed 59 tests with ENOSPC when the disk reached 100%. Delete a lane's scratch folder and remove its
+  worktree once it is integrated, and check `df -h /` before a long run.
 - Never run `playwright install`. Chromium is at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`,
   with Playwright in `<scratchpad>/pw/node_modules`.
 - The Long Tasks API misses work after `fetch()` resolves. Read long tasks from a Chrome trace.
