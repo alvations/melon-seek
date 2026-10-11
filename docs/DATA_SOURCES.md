@@ -364,3 +364,54 @@ that would mean impersonating a browser or evading bot protection, which this
 project does not do. Tesla is therefore not in `server/companies.js`, has no
 adapter, and is not on the beta site. `scripts/probe-bigtech.js --mode recon
 --companies tesla` re-checks it.
+
+## 8. How each board updates (incremental crawl)
+
+The mechanism, the crawl state and the closure rules are in
+[ARCHITECTURE.md](ARCHITECTURE.md) "Incremental crawl and closures"; measurements and decisions in
+[process/incremental-crawl.md](process/incremental-crawl.md). Every run lists the whole board;
+only detail requests are skipped. The request rate is unchanged (1 request/s per host).
+
+| Board | List (every run) | Change signal (list row) | Detail when | Complete list when | Closure probe |
+| --- | --- | --- | --- | --- | --- |
+| Apple | search pages (20 rows) | `postingTitle`, `transformedPostingTitle`, `positionId`, `postingDate` (not for managed-pipeline rows, re-stamped on every request), `locations`, `team`, `homeOffice`, `standardWeeklyHours`, `jobSummary` | US listings only: new, signal moved, or past the refresh age | listed >= `totalRecords` | `GET /api/v1/jobDetails/<id>` |
+| Microsoft, NVIDIA | PCSX search (10 rows) | `name`, `postedTs` (moves on edits and reposts), `creationTs`, `locations`, `standardizedLocations`, `department`, `workLocationOption`, `displayJobId` | new, signal moved, past the refresh age | listed >= `count` and no repeated page | `GET /api/pcsx/position_details` |
+| Netflix | classic search (10 rows) | `name`, `posting_name`, `t_update`, `t_create`, `location(s)`, `department`, `business_unit`, `display_job_id` | as above | listed >= `count` | `GET /api/apply/v2/jobs/<id>` |
+| Google | jobs sitemap (conditional GET) | the sitemap entry's slug (the title) and `<lastmod>` | as above | always (the sitemap is the board); a record that comes back empty is `gone` | not needed |
+| Meta | jobs sitemap (conditional GET) | `<lastmod>` where the sitemap has one; otherwise none, so only new postings and pages past the refresh age are read (the URL set is the list). §7g did not record whether Meta's sitemap has `<lastmod>`: the crawl summary's `changed` count shows it | as above; the cached detail is the extracted page, not the ~480 KB HTML | always; a 404/410 page is `gone` | not needed |
+| Amazon | search pages by country and category | list-only: the row is the whole posting | never (no detail requests) | listed >= the facet total (95% is still published, as before, but is partial) | `HEAD /en/jobs/<id>` (robots.txt checked) |
+| Greenhouse, Ashby, Lever | one request | list-only | never | always (one response is the board) | not needed |
+
+**Conditional requests.** No recorded response in this repository shows the headers (§7's
+fixtures keep bodies only), so support is not known for any host. The adapters therefore send
+`If-None-Match` / `If-Modified-Since` only when the previous response carried an `ETag` /
+`Last-Modified`, and a 304 reuses the cached detail or sitemap; a host that ignores them answers
+200 as before. The stable adapters report whether their single response carries validators
+(`crawl.validators` in the snapshot), so the next daily run shows it.
+
+**Stable boards (Greenhouse, Ashby, Lever): no updated-since filter exists.** Greenhouse's list
+documents only `content` (§1), Lever's only `mode, skip, limit, location, commitment, team,
+department, level, group` (§4), Ashby's only `includeCompensation` (§3b). Each board is one
+request a day, so a 304 could save bandwidth (Anduril's list is ~38 MB) but not requests or
+time; it is not used, because a 304 would have to be answered from a stored raw response the
+stable job does not keep, and normalization depends on the whole board. Greenhouse's
+`updated_at` moved on 43 of the 45 Anduril edits the archive recorded on 2026-10-10, so the
+list already shows its changes.
+
+**Expected crawl time per run** (6-hourly beta crawl; "before" = run 38118242488, 2026-10-11;
+"after" = the steady state from the archive's churn, with a 4-day refresh age, i.e. about 1/12
+of each board's details per run, plus the new and visibly changed postings; at about 1.0-1.1 s
+per request):
+
+| Board | Before: requests, time | After: requests per run | After: time | Saving |
+| --- | --- | --- | --- | --- |
+| Apple | 4,704 (305 search pages, 4,396 details), 89 min | ~305 + ~366 refresh + ~20 new/changed + ≤ 50 probes ≈ 700 | ~13 min | ~85% |
+| NVIDIA | 2,931 (267 + 2,663), 49 min | ~267 + ~222 + ~10 ≈ 500 | ~9 min | ~83% |
+| Microsoft | 2,510 (229 + 2,279), 42 min | ~229 + ~190 + ~10 + ≤ 6 probes ≈ 435 | ~8 min | ~83% |
+| Google | 3,421 (1 + 3,417), 57 min | ~1 + ~285 + ~5 ≈ 290 | ~5 min | ~92% |
+| Netflix | 504 (46 + 457), 8.4 min | ~46 + ~38 + ~2 ≈ 86 | ~1.5 min | ~83% |
+| Meta | 1,145 (1 + 1,143 pages, ~550 MB), ~20 min | ~1 + ~95 + ~10 ≈ 106 (~50 MB) | ~2 min | ~90% |
+| Amazon | ~301 list pages, ~5 min | the same (list-only) + ≤ 50 probes when the list is short | ~5 min | 0 |
+| Greenhouse, Ashby, Lever | 1 each | 1 each | seconds | 0 |
+
+The first run after a deploy, after an adapter-version bump, or with `full_crawl` is a full crawl.

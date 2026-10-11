@@ -179,3 +179,26 @@ These are the rules learned the hard way on 2026-10-10.
 - Beta-specific: a company with `paused` in server/companies.js is never crawled or tested (its adapter
   refuses to start). Amazon is capped at 5,000 postings on /beta/ (`maxPostings`). Apple's full
   crawl takes about 2 h 10 min.
+
+## Adding a board to the incremental crawl
+
+Every board goes through `server/sources/incremental.js` (docs/ARCHITECTURE.md "Incremental crawl
+and closures"). A new adapter in `server/sources/` plugs in like this:
+
+1. **List-only board** (the list returns whole postings, like Greenhouse or Amazon): return the
+   RawJob array, or `{ jobs, listing: { complete, listed, expected } }` when the list is paged
+   and can come back short. Nothing else: `scripts/snapshot.js` accounts for every posting and
+   the crawl summary says `list-only`.
+2. **Detail board** (a request per posting): write a change-signal function,
+   `rowKey(pick(row, [the fields an edit moves: title, places, dates, lastmod]))`, and a
+   `*_CRAWL_VERSION` constant. In the fetch function: `const plan = deltaPlan(opts.previous,
+   { version, ...crawlOptions(opts) })`, then `runDetails(plan, items, { request })` with one
+   polite request per item (`conditionalGet` for a GET, so 304s work), map each row with
+   `details.get(id)`, and return `{ jobs, stats, listing, state: plan.state() }`. A sitemap is
+   `conditionalList`.
+3. **Completeness.** Set `listing.complete` only when the list is provably the whole board
+   (rows >= the board's own count; a sitemap). A short list closes nothing. If the board has a
+   cheap per-posting URL, add `probeAbsent` with a probe that tells a 404/410/redirect.
+4. **Test it**: add the board to `test/incremental-boards.js` (`BOARDS`); the equivalence test
+   then checks it against a full crawl. Keep the mapping functions unchanged, and do not change
+   the request rate (`server/sources/polite.js`).

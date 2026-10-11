@@ -190,7 +190,11 @@ archived inputs and the code commit, and its retention is 1 day.
 - **Late snapshots.** A snapshot older than the company's latest observation that was never seen is stored whole in `late/`. It is reconstructable but not folded.
 - **Partial observations.** The following never close what they did not see:
   - a capped board (`jobsCapped`);
-  - a "full" observation with under half the open postings (≥ 40 open; a likely truncated fetch).
+  - a "full" observation with under half the open postings (≥ 40 open; a likely truncated fetch);
+  - a crawl whose list came back short (`crawl.list.complete: false`, docs/ARCHITECTURE.md
+    "Incremental crawl and closures"), once patch §13 `incremental-crawl-archive-partial.diff` is
+    applied. Until then such an observation closes the few postings it did not list (as `closed`);
+    they resume as a new version when listed again.
 
   Missing postings keep their last-seen time. They resume as a new version (`gap` / `resumed`) or close as `unseen` after 30 days.
 - **Vetting.** Every snapshot goes through the site's own upgrade and gate (`relocateJobs`, `rekeyBoardJobs`, `vetSalaries`, as in `scripts/build-static.js`). Implausible pay is archived as `quarantined` with its codes and reason, never as valid pay.
@@ -296,6 +300,18 @@ node scripts/archive/record.js --list [--dataset <id>]
 - **`ledger.sh` (patch §13).** When no trusted `history-ledger` artifact exists, `restore` falls back to the archive mirror (read-only), instead of starting fresh. Setting `HISTORY_STORE=branch` with `LEDGER_BRANCH=data-archive` also works for reads.
   - Do **not** enable `persist-ledger` against `data-archive`: `ledger.sh commit-branch` writes a tree of `history/` only. `archive.yml` already persists the ledger.
 - **No change to server/history.js or scripts/history.js is needed.** The prune is a cache policy of the working ledger. The archive is the record.
+- **Closures in the ledger (2026-10-11).** An entry's `c` (closedAt) now comes with `x`, the reason:
+  `absent` (missing from a complete list), `gone` (a closure probe got 404/410/a redirect away, or
+  the board returned no record for a listed posting), `unseen` (missing from partial lists for
+  `UNSEEN_OPEN_DAYS` = 14). A partial list (capped, or shorter than the board's own count) closes
+  nothing for being absent, and a posting the run listed but did not publish (the cap, a failed
+  detail) stays open; a failed crawl records nothing. `ledger/entries` keeps `x` with the entry.
+  Rules: docs/ARCHITECTURE.md "Incremental crawl and closures".
+- **Incremental crawls do not change what is archived.** Snapshots from an incremental crawl are
+  identical to a full crawl's except for the top-level `crawl` summary (kept in the observation's
+  `payload` like `jobsCapped`), so job versions, `validFrom`/`validTo` and closures are the same
+  (`test/incremental-equivalence.test.js` ingests both and compares `jobs/<slug>/`). The crawl
+  state (`job-board-crawl-state[-beta]`, `crawl-state-<slug>`) is a cache and is never ingested.
 
 ## 10. Integrity (`scripts/archive/verify.js`)
 
@@ -361,6 +377,7 @@ Tests: `test/archive.test.js` covers these failure cases:
 | --- | --- | --- |
 | `docs/process/patches/archive-ledger.diff` | `.github/scripts/ledger.sh` | `restore` falls back to the archive's ledger mirror (read-only) when no trusted artifact exists, so the F4 ledger never restarts from zero. `restore-artifact` behaves as before |
 | `docs/process/patches/archive-pages.diff` | `.github/workflows/pages.yml` | upload what each deploy fetched as `job-board-snapshots-pages` (14 days; transport only), so a day whose snapshot.yml run failed is still archived. Today those fetches exist nowhere |
+| `docs/process/patches/incremental-crawl-archive-partial.diff` | `scripts/archive/ingest.js` | a snapshot whose `crawl.list.complete` is false (a list shorter than the board's own count) is a partial observation, like a capped one, so the archive does not close what it did not list (the ledger already does not) |
 | `docs/process/patches/archive-snapshot.diff` | `.github/workflows/snapshot.yml` | upload a beta snapshot the gate rejected as `beta-crawl-rejected-<slug>`. It is never published, but today it is lost |
 
 ## 14. Size
