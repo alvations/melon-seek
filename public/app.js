@@ -106,14 +106,10 @@ const SLUG_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
 // Phones render a shorter first page (the sheet shows ~4 cards); more load as the list scrolls.
 const PAGE = matchMedia('(max-width: 860px)').matches ? 24 : 60;
 
-// Made on first use: building it costs about 0.1 s at 4x CPU, and nothing at first paint needs it.
-let regionNames;
+let regionNames = null;
+try { regionNames = new Intl.DisplayNames(['en'], { type: 'region' }); } catch { /* old browser */ }
 const countryName = (cc) => {
   if (!cc) return 'Other';
-  if (regionNames === undefined) {
-    regionNames = null;
-    try { regionNames = new Intl.DisplayNames(['en'], { type: 'region' }); } catch { /* old browser */ }
-  }
   try { return regionNames?.of(cc) || cc; } catch { return cc; }
 };
 
@@ -490,6 +486,8 @@ function prepare(jobs, { source = null } = {}) {
     j._age = 'ageDays' in j ? (Number.isFinite(j.ageDays) ? j.ageDays : null)
       : j._ts ? Math.max(0, Math.floor((Date.now() - j._ts) / 864e5)) : null;
     // _family (role family) is filled in after the first paint (fillFamilies), or on first use (famOf).
+    // The slot is made here, where it always was, so every job keeps the same shape and key order.
+    if (j._family == null) j._family = undefined;
     j.juice = j.juice && j.juice.best ? j.juice : null;
     j._grade = gradeKey(j);
     j._locKeys = j.locations.map(locKey);
@@ -2852,9 +2850,10 @@ function ageText(job) {
 }
 // One formatter for every card: toLocaleDateString(undefined, opts) builds a new one per call (about
 // 1 ms each at 4x CPU, twice per card). Same output; an invalid date keeps toLocaleDateString's text.
+// Made at load, while the job list downloads, not during the first render.
 const MONTH_YEAR_OPTS = { month: 'short', year: 'numeric' };
-let monthYearFmt = null;
-const monthYear = (d) => (Number.isNaN(d.getTime()) ? d.toLocaleDateString(undefined, MONTH_YEAR_OPTS) : (monthYearFmt ||= new Intl.DateTimeFormat(undefined, MONTH_YEAR_OPTS)).format(d));
+const MONTH_YEAR = new Intl.DateTimeFormat(undefined, MONTH_YEAR_OPTS);
+const monthYear = (d) => (Number.isNaN(d.getTime()) ? d.toLocaleDateString(undefined, MONTH_YEAR_OPTS) : MONTH_YEAR.format(d));
 function ageTitle(job) {
   if (job._age == null) return '';
   const since = job.postedAt ? ` (${monthYear(new Date(job.postedAt))})` : '';
