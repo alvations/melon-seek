@@ -1449,15 +1449,23 @@ const placeList = (names) => (names.length <= 2 ? names.join(' and ') : `${names
  *   'part-time-hours': part-time hourly pay (salary.partTime) and the posting states no weekly
  *     hours, so a year's pay is unknown (BP-9).
  */
-function noJuiceReason(code, { currency, places = [] } = {}) {
+const COUNTRY_WORDS = Object.freeze({ US: 'the US', GB: 'the UK', AE: 'the UAE', NL: 'the Netherlands', CZ: 'Czechia' });
+function countryWords(code) {
+  if (COUNTRY_WORDS[code]) return COUNTRY_WORDS[code];
+  try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(code) || code; } catch { return code; }
+}
+function noJuiceReason(code, { currency, country = null, places = [] } = {}) {
   if (code === 'part-time-hours') {
     return { code, text: 'No Juice figure: this is part-time hourly pay, and the posting doesn’t say how many hours a week.' };
   }
-  const [money, country] = CURRENCY_WORDS[currency] || [currency, null];
-  const where = placeList(places);
+  const where = placeList(places) || 'the role’s places';
+  if (country) {
+    return { code, text: `No Juice figure: the pay is posted for ${countryWords(country)} only, and ${where} ${places.length === 1 ? 'is' : 'are'} in another country. Juice is never worked out from another country’s pay.` };
+  }
+  const [money, home] = CURRENCY_WORDS[currency] || [currency, null];
   return {
     code,
-    text: `No Juice figure: the pay is posted in ${money}${country ? ` (for ${country})` : ''}, and ${where || 'the role’s places'} ${places.length === 1 ? 'uses' : 'use'} another currency. Juice is never worked out from another country’s pay.`,
+    text: `No Juice figure: the pay is posted in ${money}${home ? ` (for ${home})` : ''}, and ${where} ${places.length === 1 ? 'uses' : 'use'} another currency. Juice is never worked out from another country’s pay.`,
   };
 }
 
@@ -1500,9 +1508,13 @@ export function attachJuice(job, cities, opts = {}) {
     matches.push(m);
   }
   if (!matches.length) return job;
-  const use = matches.filter((m) => m.city.currency === cur);
+  // The pay's own country: the one its pay line names (salary.country, "Ireland: €72000"),
+  // else any country that uses its currency.
+  const payCountry = typeof s.country === 'string' && /^[A-Z]{2}$/.test(s.country) ? s.country : null;
+  const use = matches.filter((m) => m.city.currency === cur && (!payCountry || m.city.country === payCountry));
   if (!use.length) {
-    job.juiceMissing = noJuiceReason('pay-other-country', { currency: cur, places: matches.map((m) => m.location.name || m.city.name) });
+    const places = matches.map((m) => m.location.name || m.city.name);
+    job.juiceMissing = noJuiceReason('pay-other-country', { currency: cur, country: matches.some((m) => m.city.currency === cur) ? payCountry : null, places });
     return job;
   }
   const doc = cities && !Array.isArray(cities) ? cities : null;

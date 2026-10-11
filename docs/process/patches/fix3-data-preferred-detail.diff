@@ -1,0 +1,12 @@
+--- a/public/app.js	2026-10-11 04:45:23.676749967 +0000
++++ b/public/app.js	2026-10-11 04:45:28.843276638 +0000
+@@ -3620,7 +3620,8 @@
+     const html = detail?.descriptionHtml || '';
+     job.descriptionHtml = html;
+     let gotSections = false;
+-    if (detail?.sections) for (const k of ['responsibilities', 'fit']) if (!job.sections[k]?.length && detail.sections[k]?.length) { job.sections[k] = detail.sections[k]; gotSections = true; }
++    // fix3-data BP-14: sections.preferred (the posting's "Preferred qualifications") arrives with the others.
++    if (detail?.sections) for (const k of ['responsibilities', 'fit', 'preferred']) if (!job.sections[k]?.length && detail.sections[k]?.length) { job.sections[k] = detail.sections[k]; gotSections = true; }
+     if (!desc.isConnected) return;
+     if (gotSections) onSections(); // lazily-arrived bullets re-render in place
+     wrap.classList.add('is-collapsed');

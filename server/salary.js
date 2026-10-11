@@ -946,6 +946,10 @@ export function parseSalary(text, { countries = [], areas = [] } = {}) {
   if (levels && levels.length > 1) out.levels = levels.map((l) => ({ label: l.label, min: round2(l.min), max: round2(l.max) }));
   if (best.termWeeks) Object.assign(out, { termWeeks: best.termWeeks, termFactor: best.termFactor });
   if (best.intervalCorrected) Object.assign(out, { intervalCorrected: true, statedInterval: best.statedInterval });
+  // Fix wave 3 (BP-2, shared decision 1): the country the pay line names ("Ireland: €72000",
+  // "across the U.S. is USD $X"), so Juice never applies it to another country's office.
+  const country = (city ? nationalPick : best).area;
+  if (country) out.country = country;
   return out;
 }
 
@@ -961,7 +965,8 @@ function levelName(level) {
  * Convert a raw/structured or parsed salary into the Job salary shape:
  * { min, max, mid (annualized), currency, interval: "year", text, kind,
  *   spread (max ÷ min), zones (>= 1), source?, originalInterval?,
- *   termWeeks?, termWeeksMax?, intervalCorrected?, statedInterval?, ranges? }.
+ *   termWeeks?, termWeeksMax?, intervalCorrected?, statedInterval?, country?, ranges? }.
+ * country (fix wave 3) is the ISO code of the country the posting's pay line names.
  * kind is 'salary' | 'hourly' | 'stipend' | 'ote' and is kept as given. A 'term'
  * interval (pay for the whole programme) is annualized with termFactor (or 52 ÷
  * termWeeks) and kept as originalInterval 'term'.
@@ -1016,6 +1021,7 @@ export function toJobSalary(sal, { source } = {}) {
     if (twMax > tw && twMax <= 104) out.termWeeksMax = twMax;
   }
   if (intervalCorrected) { out.intervalCorrected = true; out.statedInterval = statedInterval; }
+  if (typeof sal.country === 'string' && /^[A-Z]{2}$/.test(sal.country)) out.country = sal.country;
   if (Array.isArray(sal.ranges) && sal.ranges.length > 1) out.ranges = sal.ranges;
   // DQ-8: pay by level, annualized like min/max, in the salary's currency.
   const toAnnual = (v) => (termFactor ? Math.round(v * termFactor) : annualize(v, interval));

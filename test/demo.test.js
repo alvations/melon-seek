@@ -183,7 +183,9 @@ test('BUG-5: demo boilerplate is on every posting but never becomes a board-wide
     assert.ok(jobs.some((j) => j.extras.equity), 'extras still read the full text');
   }
   // Anduril's per-role intro says "autonomous systems" on every posting (not exact
-  // boilerplate), so the 90% guard catches it.
+  // boilerplate): the 90% guard caught it; since fix wave 3 the intros repeated across roles
+  // are team paragraphs (keywords.js#teamParagraphs) and never reach the skills at all.
   const anduril = normalizeJobs(demoJobs('anduril', 'Anduril'), { slug: 'anduril', name: 'Anduril' });
-  assert.ok(anduril.droppedKeywords.skills.some((d) => d.label === 'Autonomy'));
+  const autonomy = anduril.filter((j) => j.keywords.skills.includes('Autonomy')).length;
+  assert.ok(anduril.droppedKeywords.skills.some((d) => d.label === 'Autonomy') || autonomy / anduril.length <= 0.9, `Autonomy on ${autonomy}/${anduril.length}`);
 });

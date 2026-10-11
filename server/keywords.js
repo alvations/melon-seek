@@ -257,7 +257,7 @@ export function extractSections(html, { skip = null } = {}) {
     // BP-14: a wrapped line of Apple's line-broken lists continues the item before it.
     if (lineItem && lastLine && (/^[a-z(]/.test(t) || LINE_CONTINUES_RE.test(lastLine.t))) { lastLine.t = `${lastLine.t} ${t}`; continue; }
     if (t.length < 3) continue;
-    const item = { t, kind: fitKind };
+    const item = { t, kind: fitKind, line: lineItem };
     (current === 'fit' ? fitItems : respItems).push(item);
     lastLine = lineItem ? item : null;
   }
@@ -272,13 +272,16 @@ export function extractSections(html, { skip = null } = {}) {
     out.fit = dedupeList(fitItems.map((x) => x.t));
   }
 
-  if (!out.responsibilities.length && !out.fit.length) {
+  // An Apple posting whose duties are prose under "Description" and whose qualifications are
+  // line-broken lists keeps its "You will …" sentences as responsibilities, as before BP-14.
+  const respFromProse = !out.responsibilities.length && fitItems.length > 0 && fitItems.every((x) => x.line);
+  if ((!out.responsibilities.length && !out.fit.length) || respFromProse) {
     // Fallback: prose descriptions — sentences starting "You will"/"You'll".
     const text = skip && skip.size ? descriptionText(html, { skip }) : htmlToText(html);
     for (const s of sentences(text)) {
       if (/^you(?:'|’)?ll\b|^you will\b/i.test(s) && !/^you will (?:need|have)\b/i.test(s)) {
         out.responsibilities.push(cleanBullet(s));
-      } else if (/^(?:you have|you are|you bring|you(?:'|’)?re|you will (?:need|have))\b/i.test(s)) {
+      } else if (!respFromProse && /^(?:you have|you are|you bring|you(?:'|’)?re|you will (?:need|have))\b/i.test(s)) {
         out.fit.push(cleanBullet(s));
       }
     }
@@ -359,35 +362,39 @@ export function boilerplateParagraphs(htmlList, { minShare = 0.5, minJobs = 5 } 
  * postings), "Google Cloud accelerates every organization's ability…" (565), the ML, Systems &
  * Cloud AI team's "…development of our TPUs, Vertex AI for Google Cloud…" (341), and Chrome's
  * "Chrome is available across all major platforms — iOS, Android…" (10). One posting copied per
- * country has one title, so its own prose is never counted. Pure; items: [{ html, title }].
+ * country or city is one role, so its own prose is never counted. Pure; items: [{ html, title }].
  */
 export function teamParagraphs(items, { minPostings = 3, minTitles = 3, minChars = 60 } = {}) {
   const list = (Array.isArray(items) ? items : []).filter((x) => x && typeof x.html === 'string' && x.html);
   const out = new Set();
   if (list.length < minPostings) return out;
   const posts = new Map();
-  const titles = new Map();
+  const roles = new Map();
   for (const { html, title } of list) {
-    const tk = String(title || '').toLowerCase().replace(/[^a-z]+/g, ' ').trim();
     const seen = new Set();
+    const bullets = [];
     let current = null;
     let listHeading = false;
     for (const b of htmlToBlocks(html)) {
       const bulletPara = b.type === 'p' && BULLET_P_RE.test(b.text);
       if (!bulletPara && isHeadingBlock(b)) { current = classifyHeading(b.text); listHeading = LIST_HEADING_RE.test(b.text.trim()); continue; }
-      if (current && (b.type === 'li' || bulletPara || (b.line && listHeading))) continue; // the role's own bullets
+      if (current && (b.type === 'li' || bulletPara || (b.line && listHeading))) { bullets.push(boilerplateKey(b.text)); continue; } // the role's own bullets
       const key = boilerplateKey(b.text);
       if (key.length < minChars) continue;
       const h = cyrb53(key);
-      if (seen.has(h)) continue;
-      seen.add(h);
+      if (!seen.has(h)) seen.add(h);
+    }
+    // One role: its own lists, else its title. A posting copied per city ("Forward Deployed
+    // Engineer - Munich", "- Paris") has the same lists under different titles: still one role.
+    const role = bullets.length ? cyrb53(bullets.join('\n')) : String(title || '').toLowerCase().replace(/[^a-z]+/g, ' ').trim();
+    for (const h of seen) {
       posts.set(h, (posts.get(h) || 0) + 1);
-      let t = titles.get(h);
-      if (!t) titles.set(h, (t = new Set()));
-      if (t.size < minTitles) t.add(tk);
+      let r = roles.get(h);
+      if (!r) roles.set(h, (r = new Set()));
+      if (r.size < minTitles) r.add(role);
     }
   }
-  for (const [h, c] of posts) if (c >= minPostings && titles.get(h).size >= minTitles) out.add(h);
+  for (const [h, c] of posts) if (c >= minPostings && roles.get(h).size >= minTitles) out.add(h);
   return out;
 }
 
@@ -574,7 +581,8 @@ export const SKILL_LEXICON = [
   ['Inference', '(?<!causal |statistical |bayesian )inference', 'model serving'], // §6a A4
   // Fix wave 3: a benchmark of models, not "Benchmark industry best practices" (a field-repair
   // programme manager), "common performance benchmarks" (CPU verification) or pay benchmarks.
-  ['Evals', 'evals?', 'model evaluations?', '(?:model|llm|ai|ml|agentic|agent|reasoning|coding|evaluation|eval) benchmarks?', 'benchmark(?:s|ing)? (?:of |for )?(?:the |our )?(?:models?|llms?)', 'benchmark (?:design|leakage|contamination)'],
+  ['Evals', 'evals?', '(?<!\\b(?:business|financial|risk|credit|pricing|cost) )model evaluations?', 'evaluation (?:suites?|harness(?:es)?)',
+    '(?:model|llm|ai|ml|agentic|agent|reasoning|coding|evaluation|eval|public|offline|academic) benchmarks?', 'benchmark(?:s|ing)? (?:of |for )?(?:the |our )?(?:models?|llms?)', 'benchmark (?:design|leakage|contamination)'],
   ['Interpretability', 'interpretability', 'mechanistic'],
   ['Alignment', 'alignment research', 'ai alignment', 'alignment science', 'superalignment'], // §6a A1: bare 'alignment' was business language
   ['Multimodal', 'multi-?modal', 'vision-language'],
@@ -762,7 +770,7 @@ export const RESPONSIBILITY_LEXICON = [
   ['Supply chain', 'supply chain', 'suppliers?', 'vendors?', 'procure\\w*', 'sourcing'],
   // Fix wave 3: a military mission or defence, not a company's mission ("Anthropic's mission is
   // to create reliable…" on a nonprofit sales manager) or "fraud defense", "defense in depth".
-  ['Mission / defense', '(?:defen[cs]e|military|national[- ]security|combat|warfight(?:ing|er)|tactical|isr|strike) missions?', 'mission (?:systems?|planning|autonomy|payloads?|computers?)',
+  ['Mission / defense', '(?:defen[cs]e|military|national[- ]security|combat|warfight(?:ing|er)|tactical|isr|strike) missions?', 'mission (?:systems?|planning|autonomy|payloads?|computers?|software|operations)',
     'warfighters?', '(?<!\\b(?:cyber|network|fraud|abuse|spam|malware|endpoint|threat|legal|litigation|patent|thesis|dissertation|tax|audit|security|ddos|bot|account|email|data|self)[- ])defen[cs]e(?![- ]in[- ]depth)', 'military', /\bDoD\b/, 'national security', 'armed forces'],
 ];
 
@@ -844,6 +852,13 @@ const AIML_NOT_SKILL = 'compan(?:y|ies)|industr(?:y|ies)|space|sectors?|markets?
 const GATED_SKILLS = compileLexicon([
   ['Machine learning', new RegExp(String.raw`(?<!\b[Ii]nterest(?:ed)?\s+in\s+|\b[Pp]assion(?:ate)?\s+(?:for|about)\s+)\b(?:AI\s?\/\s?ML|ML\s?\/\s?AI)\b(?![\s-]+(?:${AIML_NOT_SKILL})\b)`)],
   ['Autonomy', `(?:${AUTONOMY_LIST_TERMS})\\s*(?:,|and|or|&)\\s*(?:the\\s+)?autonomy`, `autonomy\\s*(?:,|and|or|&)\\s*(?:${AUTONOMY_LIST_TERMS})`],
+]);
+// Fix wave 3: in a defence posting (DEFENSE_CONTEXT_RE: Anduril, Shield AI, a cleared government
+// role) a bare "mission" is the military mission, as before; elsewhere it is the company's
+// ("Anthropic's mission is to…", "Microsoft's mission is to empower…"). Never "mission-critical".
+const DEFENSE_CONTEXT_RE = /\b(?:defen[cs]e[- ](?:technology|tech|company|industry|sector|programs?|systems|customers|contractors?|agencies)|military|warfight\w*|DoD|DoW|national security|armed forces|Department of (?:Defen[cs]e|War)|intelligence community|security clearances?|clearance|ITAR)\b/i;
+const DEFENSE_GATED_RESP = compileLexicon([
+  ['Mission / defense', 'missions?(?![- ](?:critical|driven|statement))'],
 ]);
 // Fix wave 3: bare "agents" counts only in a posting about AI (AI_CONTEXT_RE), and not after
 // another kind of agent (NON_AI_AGENTS).
@@ -971,6 +986,8 @@ export function extractKeywords({ title = '', department = '', sections = null, 
 
   const respHay = [title, ...(resp.length ? resp : [body, department])].filter(Boolean).join('\n');
   const responsibilities = matchLexicon(RESP, respHay);
+  if (!responsibilities.includes('Mission / defense') && DEFENSE_CONTEXT_RE.test(all)
+    && DEFENSE_GATED_RESP[0].res.some((re) => re.test(respHay))) responsibilities.push('Mission / defense'); // the lexicon's last label
 
   const fitHay = (fitAll.length ? fitAll : [body]).join('\n');
   const fitOut = [];

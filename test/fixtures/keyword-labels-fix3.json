@@ -1,0 +1,2376 @@
+{
+ "about": "Fix wave 3 labelled sample (fix3-data, 2026-10-11), the method of P-17 (keyword-labels.json). For each label: the postings in the 13 snapshots (8 stable, 5 beta) that carried it with the norm-7 rules, split into \"removed\" (the norm-8 rules drop it) and \"kept\"; a deterministic spread sample of each, judged by hand from the matched contexts: truth \"tp\" when the role itself involves the skill (or, for \"Mission / defense\", military or defence work), \"fp\" when the word was used in another sense (a currency, \"benchmark industry practices\", \"commissioning agents\", an electrical transformer, a company mission) or came from a team or company paragraph. text = title + up to three matched contexts. snippetDiffers: the snippet alone does not reproduce the stratum, because the removal needs the board (a team paragraph, keywords.js#teamParagraphs) or the posting's lists. test/fix3-data.test.js re-runs extractKeywords on the rest. Precision is estimated per stratum and weighted by stratum size; the side-effect labels of the team-paragraph rule (Security, Networking, NLP, Information retrieval) have a removed sample only.",
+ "labels": {
+  "Evals": {
+   "facet": "skills",
+   "before": 980,
+   "removed": 458,
+   "kept": 522,
+   "added": 45,
+   "precisionBefore": 60,
+   "precisionAfter": 100,
+   "truePositivesRemoved": 69,
+   "items": [
+    {
+     "id": "anduril:4934345007",
+     "title": "Senior Finance Manager, Corporate FP&A",
+     "text": "Own SG&A management reporting for the C-suite, including monthly performance, trends, and benchmarks Design and maintain the SG&A allocation methodology, ensuring it is s … feeds into M&A diligence and long-range planning exercises Define the SG&A narrative and benchmark Anduril's cost structure against company scale and industry peers Dev … inance, Accounting, or a related field Familiarity with cost allocation methodologies and benchmarking practices Experience supporting M&A financial diligence or integratio",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5240357007",
+     "title": "Strategic Global Operations, US East",
+     "text": "y and quarterly business reviews Assess readiness of new regions/countries for expansion, benchmark performance across regions, identify gaps and improvement opportuniti",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5358146008",
+     "title": "Corporate Development Integration Lead",
+     "text": "ship, including retention rates, product milestone achievement, and operational readiness benchmarks Minimum qualifications Possess strong technical fluency — either thro",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "apple:200628829-0157",
+     "title": "CPU Performance Engineer",
+     "text": "ting languages including Perl and Python Knowledge and experience with common performance benchmarks and workloads Knowledge of OS internals and compiler technology a plu",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "apple:200661915-0836",
+     "title": "AIML - Manager, Applied AI Science - LLM/VLM-as-judge",
+     "text": "luation systems. 5+ years of hands-on experience in machine learning, model alignment, or benchmark creation. Track record of managing teams of 3+ machine learning engin",
+     "stratum": "removed",
+     "truth": "tp"
+    },
+    {
+     "id": "apple:200677133-3956",
+     "title": "AI Engineer – Algorithm Evaluation & Agentic Systems",
+     "text": "nd elevate advanced visual technologies. As a key member of this group, you will lead the benchmarking and integration of state-of-the-art models for image and video unders … tion with production, we’d love to hear from you. Responsibilities Algorithm Evaluation & Benchmarking: Design, build, and scale comprehensive evaluation pipelines. You wil … ation: Lead the strategy for curating high-quality, schematized datasets and ground-truth benchmarks specifically tailored for evaluating multi-modal capabilities. Cross-",
+     "stratum": "removed",
+     "truth": "tp"
+    },
+    {
+     "id": "apple:200687383-3760",
+     "title": "CPU Performance & Workload Analysis Engineer, Platform Architecture",
+     "text": "S in Electrical or Computer Engineering, or related field Knowledge of common performance benchmarks Experience working multi-functionally with people of very diverse bac",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:116765659412472518",
+     "title": "ATE Test Engineer, Google Cloud",
+     "text": "ill integrate these components into machinery and guide industrial assessment to validate benchmark metrics while filtering out defective units. Finally, you will partne",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:79747859200516806",
+     "title": "Technical Program Manager III, AI Transformation, Google Cloud",
+     "text": "that meet stringent performance standards. Establish deterministic evaluation metrics to benchmark and assess tool quality, analyze results, and resolve performance iss",
+     "stratum": "removed",
+     "truth": "tp"
+    },
+    {
+     "id": "microsoft:1970393556941712",
+     "title": "Senior Software Engineer",
+     "text": "ate how these services ship change (binaries, configuration, feature flags, and secrets), benchmark the real deployment mechanics against SDP policy, and surface the gap … al boundaries. Raise the SDP bar broadly by codifying patterns, sharpening the compliance benchmark, and improving the methodology other engineers reuse. Qualifications",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "microsoft:1970393556999212",
+     "title": "Senior and/or Principal Software Engineer- AI Frameworks",
+     "text": "del architectures, frameworks, compilers, algorithms, runtimes, libraries, observability, benchmarking, and hardware platforms—including NVIDIA and AMD GPUs and Microsoft s … oftware Engineer, you will own significant components and projects across AI performance, benchmarking, automation, and developer tooling. You will independently translate … rection and lead high-impact initiatives spanning AI frameworks, performance engineering, benchmarking, and tooling. You will identify systemic opportunities, align teams a",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "netflix:790315886169",
+     "title": "Senior Manager, Change Management & Technology Enablement - Finance PMO",
+     "text": "organization so that change management becomes a core competency, not a one-off activity. Benchmark against industry frameworks (e.g., Prosci/ADKAR, Kotter, McKinsey Inf",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "nvidia:893393728459",
+     "title": "Senior GPU Memory Architect",
+     "text": "and power simulation of features to analyze, define, and improve energy per byte. Analyze benchmarks, application workloads, and performance/power simulation and emulatio",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "nvidia:893395031205",
+     "title": "Senior Performance Modeling Architect, CPU Fabric and LLC",
+     "text": ", CHI, ACE, or proprietary) and snooping filters. Running and analyzing industry-standard benchmarks (SPEC, MLPerf, Automotive-specific suites) to drive architectural tra",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "nvidia:893396342803",
+     "title": "Senior Architect, Camera ISP",
+     "text": "ng-based ISP technologies in real-time camera systems Knowledge of industry standards and benchmarks for consumer, automotive, and medical imaging systems Track record in",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "nvidia:893396920878",
+     "title": "Senior System Software Engineer, Automotive Performance",
+     "text": "ware Architecture, DriveOS, Power, and Test teams to track key boot & runtime performance benchmarks. Ensure the software and hardware meet projected targets by closely s … rks. Ensure the software and hardware meet projected targets by closely supervising micro benchmarks and industry-standard benchmarks across IPs. Contribute to developing … ware meet projected targets by closely supervising micro benchmarks and industry-standard benchmarks across IPs. Contribute to developing innovative features in automotiv",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "nvidia:893397397256",
+     "title": "Senior Solution Architect - OEM",
+     "text": "team that values innovation and collaboration while advancing performance and scalability benchmarks. What you’ll be doing: As an expert on our data center CPU portfolio, … erformance Tuning & Issue Resolution: We will implement rigorous performance analysis and benchmarking of key enterprise and data center workloads, partnering closely with … itectures and the interaction between CPUs, GPUs, and networking. Hand-on experience with benchmark suites (SPEC CPU, MLPerf, custom traces) to characterize customer wor",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "nvidia:893397739746",
+     "title": "Senior System Software Integration and Debug Engineer",
+     "text": "are into the NVIDIA software stack to ensure compliance, stability, and power/performance benchmarks for production platforms. Work closely with multi-functional teams to",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "openai:4cbbf0b1-7c0b-4c42-bf38-48377f847e91",
+     "title": "Technical Lead Manager - Training Runtime, Data(set) Movement",
+     "text": "direction for how training jobs read data: the APIs, storage contracts, versioning model, benchmarks, debugging tools, and reliability guarantees that make data access co",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "scaleai:4732365005",
+     "title": "Engineering Manager, Frontier AI Infrastructure - Public Sector",
+     "text": "ience with federal compliance frameworks and requirements (e.g., Cloud SRG, FedRAMP, STIG Benchmarks). Experience delivering software and technical solutions that meet st",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5171942007",
+     "title": "AI Solutions Engineer, Talent Acquisition",
+     "text": "equire strong applied AI engineering chops (LLMs, agentic workflows, tool use, retrieval, evals), real software engineering rigor (Python, APIs, integrations, versio … Establish lightweight engineering practices for the function — version control, testing, evals, deployment, monitoring — so AI work is durable rather than throwaway",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anthropic:5427938008",
+     "title": "GTM Strategy & Operations, FDE",
+     "text": "gh technical fluency to talk with engineers about how LLM applications are built (agents, evals, MCP) Experience with Salesforce and professional services automation",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "apple:200679685-3337",
+     "title": "Machine Learning Engineer, Human Centered AI - Evaluations & Insights",
+     "text": "s are reliable, safe, and aligned with human expectations. Responsibilities Lead Rigorous Model Evaluations: Architect and execute comprehensive evaluation suites for LLMs and m … ble, distributed inference and processing pipelines (e.g., Ray, vLLM) for high-throughput model evaluation, automated annotation, and output analysis at scale. Human-Centric Me … ers across Apple to translate product requirements into scalable, reliable, and efficient model evaluation infrastructure. Minimum Qualifications 5+ years of relevant industry",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "google:105458081579573958",
+     "title": "Software Engineer III, AI/ML, DSP/HTP Optimisation",
+     "text": "an advanced degree. 1 year of experience with ML infrastructure (e.g., model deployment, model evaluation, data processing, debugging). Preferred qualifications: Master's degr",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "google:123236883416130246",
+     "title": "Staff Research Engineer, Generative AI, Cloud AI Research, Co-Scientist",
+     "text": "are products. 3 years of experience optimizing ML infrastructure (e.g., model deployment, model evaluation, data processing, debugging, fine tuning). 2 years of experience with",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "google:77999052670542534",
+     "title": "Senior Staff Tech Lead, YouTube Shorts Discovery",
+     "text": "gy, ML design, and working with industry-scale ML infrastructure (e.g., model deployment, model evaluation, data processing, debugging, fine tuning). 5 years of experience with",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "microsoft:1970393556943525",
+     "title": "Consultant",
+     "text": "livery from architecture through implementation: define build/test specifications, create eval and quality gates for GenAI outputs, and produce operational guides/r … , and reusable patterns. Drive delivery plans across the full lifecycle—discovery, build, eval, deployment, and operations—accounting for dependencies across data,",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "nvidia:893397232038",
+     "title": "Senior Product Architect, K8s-Based AI Infrastructure",
+     "text": "gentic & RAG-based workflows, inference at scale, large scale training & fine-tuning, and model evaluation Exceptional communication skills, with the ability to translate compl",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "openai:5a682b9f-ef1a-4e47-813a-72b23414d43e",
+     "title": "People Research Scientist",
+     "text": "tems, and human-AI decision processes in operational contexts, including familiarity with model evaluation methods. Advanced degree in Industrial-Organizational Psychology, Org",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "openai:f3ddd41c-541f-485e-90d6-86c26e018e9f",
+     "title": "Software Engineer, GPT Infrastructure",
+     "text": "artner-side execution and evaluation software that can compile, run, verify, profile, and benchmark candidate artifacts on accelerator hardware. Integrate model workload … se problems across software and hardware boundaries. Experience using profiling, tracing, benchmarking, and measurement to guide engineering decisions. Strong ownership and",
+     "stratum": "kept",
+     "truth": "tp",
+     "snippetDiffers": true
+    }
+   ]
+  },
+  "Agents": {
+   "facet": "skills",
+   "before": 2476,
+   "removed": 111,
+   "kept": 2365,
+   "added": 0,
+   "precisionBefore": 97,
+   "precisionAfter": 100,
+   "truePositivesRemoved": 33,
+   "items": [
+    {
+     "id": "anduril:4927598007",
+     "title": "Senior Robotics Software Engineer, Sentry Tower",
+     "text": "ate, and implement software that supports operation by both human and autonomous planning agents. Be responsible for service ownership, ensuring functionality, reliab",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "apple:200618377-0836",
+     "title": "AIML - Machine Learning Engineer, Foundation Models",
+     "text": "blems in reward modeling to resist reward hacking, handling sparse and delayed rewards in agentic settings, and aligning models reliably across the spectrum from open-",
+     "stratum": "removed",
+     "truth": "tp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "apple:200674135-1902",
+     "title": "Data Center Construction Project Manager",
+     "text": "re and present comparative cost analysis. Prior management and oversight of commissioning agents with experience in reviewing sequence of operations and test scripts.",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "apple:200686143-1292",
+     "title": "Retail Facilities Manager",
+     "text": "vation, Standards, Merchandising, Direct Sourcing, Security, IS&T); oversee commissioning agents and contractors supporting store acceptance and turnover. Budget & Fi",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "cohere:e88931c0-d3fa-4e81-accc-45db823ea616",
+     "title": "Forward Deployed Engineer, Infrastructure Specialist (Singapore)",
+     "text": "integrates seamlessly with existing workflows, providing a trusted platform that connects AI agents with workplace tools and applications. Why This Role? This role offer … seeking engineers who deeply care about customers and want to work at the cutting edge of Agentic AI. Note: between 20 - 40% travel anticipated In this role, you will:",
+     "stratum": "removed",
+     "truth": "tp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:121497780291019462",
+     "title": "Area Program Manager, Environmental, Health and Safety Construction",
+     "text": "ical/mechanical trades and organizations, key integrators, fabricators, and commissioning agents to improve the EHS programs and performance on our projects. You will",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:141005755825169094",
+     "title": "Biologist, DeepMind",
+     "text": "model assistance in the acquisition, development and dissemination of harmful biological agents and other dual use entities. Artificial intelligence will be one of h",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:91829476576371398",
+     "title": "Application Engineer, ServiceNow, Google Cloud Business Platforms",
+     "text": "s, and high-performance API design. Experience tailoring user experiences for operational agents (Configurable Workspaces, Advanced Work Assignment), alongside a back",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "microsoft:1970393556928404",
+     "title": "Software Engineer II",
+     "text": "xperience. We are engineers, technology leaders and adepts, digital transformation change agents, and customer advocates. Our teams are seeking a knowledgeable and pa",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "microsoft:1970393556950320",
+     "title": "Senior Technical Program Manager",
+     "text": "or, detect, troubleshoot, and mitigate issues with their services through an increasingly agentic experience. Azure Monitor includes Log Analytics, Application Insight",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "microsoft:1970393556971290",
+     "title": "Sr. Site Procurement Manager",
+     "text": "groups as needed. External: Equipment Suppliers, Architectural Engineering, Commissioning Agents, consultants, and industry groups. Management of Original Equipment M",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "microsoft:1970393556988227",
+     "title": "Security Engineer II",
+     "text": "f inclusion where everyone can thrive at work and beyond. Responsibilities Build reusable agents and tools to expedite and improve the consistency and quality of secu … urity reviews. Review features and code for security defects and architectural risk using agents and automated tools built by you and others. Be the security contact",
+     "stratum": "removed",
+     "truth": "tp"
+    },
+    {
+     "id": "microsoft:1970393557022490",
+     "title": "Sr. Retrofit Construction Program Manager",
+     "text": "The role oversees general contractors, subcontractors, equipment suppliers, commissioning agents, architects, engineers, and consultants, and works closely with Site",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "nvidia:893392069435",
+     "title": "AI Developer Technology Engineer",
+     "text": "dustry. Soon, self-driving cars will reduce congestion and improve road safety. AI travel agents will know your preferences and arrange every detail of your family va",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "nvidia:893397139827",
+     "title": "Senior Software Engineer, Attestation Services - DGX Cloud",
+     "text": "systems, resilience testing, or incident response. Experience developing SDKs, verifiers, agents, proxies, customer-hosted software, offline systems, distributed cach",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "nvidia:893398059620",
+     "title": "AI Developer Technology Intern - 2027",
+     "text": "dustry. Soon, self-driving cars will reduce congestion and improve road safety. AI travel agents will know your preferences and arrange every detail of your family va",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "openai:278990f1-59be-41ee-aad2-a9c69c5c7064",
+     "title": "AI Support Engineer - Singapore",
+     "text": "e systems, reduce bugs, and elevate the customer experience, while leveraging automation, agents, and our own AI technology to transform how support operates at scale",
+     "stratum": "removed",
+     "truth": "tp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "openai:99f823a1-66ec-44bd-ba30-d3645aa49d74",
+     "title": "AI Support Engineer - San Francisco (Weekend Shift)",
+     "text": "e systems, reduce bugs, and elevate the customer experience, while leveraging automation, agents, and our own AI technology to transform how support operates at scale",
+     "stratum": "removed",
+     "truth": "tp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "openai:c8270289-d73d-4ad6-8cae-2b537f8d9062",
+     "title": "AI Support Engineer - Singapore (Korean Speaking)",
+     "text": "e systems, reduce bugs, and elevate the customer experience, while leveraging automation, agents, and our own AI technology to transform how support operates at scale",
+     "stratum": "removed",
+     "truth": "tp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "palantir:24060586-7ba8-47c0-bfc1-f1dd5b82d8bd",
+     "title": "Sales",
+     "text": "sonal and organizational intuition, with a talent for identifying key partners and change agents within companies Demonstrated ability to build high-trust relationshi",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:4768437007",
+     "title": "Analytics Engineer, Hardware Test",
+     "text": "git repos in languages other than Python (e.g. Go, Nix, Terraform, etc.) Experience using agentic coding tools as part of your daily workflow Must be able to obtain an",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "apple:200666777-0157",
+     "title": "Senior QA Automation Architect, Apple Store Online",
+     "text": "experience working with multiple stakeholders Preferred Qualifications Deep knowledge of Agentic AI and LLM driven test frameworks Solid understanding of automated so",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "apple:200687628-0836",
+     "title": "Sr. Tools & Automation Engineer",
+     "text": "or setting technical direction for an automation codebase. Experience integrating LLMs or agentic workflows into developer and QA tooling, such as automated failure tr",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "google:131376213661754054",
+     "title": "Engineering Manager, Google Cloud",
+     "text": "re goal into concrete projects for yourself and the team. Operationalize the potential of Agentic Fleet Management. Lead the transition to artifact-motivated software … opment, ensuring that user intent is captured as structured artifacts to guide autonomous agents. Manage high-impact challenges at the intersection of large-scale dis",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "google:93130024885854918",
+     "title": "Engineering Analyst, Trust and Safety Account Security",
+     "text": "better detection and automation. Identify opportunities to integrate LLM capabilities and agentic tools to automate tasks. Partner with the broader team, Product Manag",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "microsoft:1970393556980893",
+     "title": "Principal Product Manager, Dataverse",
+     "text": "s, ecosystem strategy, or partner programs for data or platform products. Experience with AI agents or comparable intelligent application patterns, including the product",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "microsoft:1970393557019307",
+     "title": "Principal Cloud Solution Architect, Cloud and Agentic AI Solutions - New York",
+     "text": "al, or human-centered. We are looking for a Principal Cloud Solution Architect, Cloud and Agentic AI Solutions to help customers move AI applications and agents from e … tion Architect, Cloud and Agentic AI Solutions to help customers move AI applications and agents from experimentation to production on Azure in the New York and great … a services. As part of the Cloud and AI Apps team, you will use repeatable IP, templates, agents, Factory, Unified VAS, and Acceleration Programs to deliver scalable",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "nvidia:893395264703",
+     "title": "Senior AI Security Researcher",
+     "text": "and effective mitigation strategies. In-depth understanding of LLM, MLLM, Generative AI, Agents and RAG workflows. Proven Python programming expertise Self-starter w",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "nvidia:893397606447",
+     "title": "Senior AI Solutions Engineer",
+     "text": "ate cutting-edge AI based solutions. Our team develops advanced AI applications including agentic workflows, Retrieval-Augmented Generation (RAG) systems, Large Langua … Retrieval-Augmented Generation (RAG) systems, Large Language Model (LLM) based solutions, AI agents, MCPs, and more. You will play a key role in ensuring these technolog … elop and customize AI solutions (e.g., RAG pipelines, LLM-based applications, evaluation, agents, etc.) based on customer use cases while ensuing high reliability Tro",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "openai:7be58f3a-6005-42ed-86fa-77773ebfb294",
+     "title": "Applied AI Engineer, Digital Natives",
+     "text": "integrations, and production accelerators. Make sound technical decisions across models, agents, retrieval, tools, data, reliability, observability, latency, cost, s",
+     "stratum": "kept",
+     "truth": "tp"
+    }
+   ]
+  },
+  "iOS": {
+   "facet": "skills",
+   "before": 459,
+   "removed": 25,
+   "kept": 434,
+   "added": 0,
+   "precisionBefore": 95,
+   "precisionAfter": 100,
+   "truePositivesRemoved": 0,
+   "items": [
+    {
+     "id": "apple:200641206-0836",
+     "title": "Sr. Machine Learning Engineer, Siri Speech",
+     "text": "rivacy from the ground up. Your work will have direct, meaningful impact for users across iOS, iPadOS, macOS, watchOS, and visionOS. This is a rare opportunity to",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "apple:200646880-0836",
+     "title": "Machine Learning Manager, Siri Speech",
+     "text": "rivacy from the ground up. Your work will have direct, meaningful impact for users across iOS, iPadOS, macOS, watchOS, and visionOS. This is a rare opportunity to",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "apple:200648466-0836",
+     "title": "Sr. Machine Learning Research Engineer, Siri Speech",
+     "text": "rivacy from the ground up. Your work will have direct, meaningful impact for users across iOS, iPadOS, macOS, watchOS, and visionOS. This is a rare opportunity to",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "apple:200653966-0836",
+     "title": "Machine Learning Architect - Conversational Speech",
+     "text": "rivacy from the ground up. Your work will have direct, meaningful impact for users across iOS, iPadOS, macOS, watchOS, and visionOS. This is a rare opportunity to",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "apple:200661101-6205",
+     "title": "Baseband Hardware Design Engineer",
+     "text": "uires heavy cross-functional collaboration with other teams (Apple SoC, battery, sensors, iOS, etc) and therefore, you will also maintain a firm grasp of the entir",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "apple:200661102-6205",
+     "title": "Baseband Hardware Design Engineer",
+     "text": "uires heavy cross-functional collaboration with other teams (Apple SoC, battery, sensors, iOS, etc) and therefore, you will also maintain a firm grasp of the entir",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "apple:200664946-0836",
+     "title": "Staff AI Software Engineer, Siri User Experiences",
+     "text": "rivacy from the ground up. Your work will have direct, meaningful impact for users across iOS, iPadOS, macOS, watchOS, and visionOS. This is a rare opportunity to",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "apple:200665852-0836",
+     "title": "Evaluation Reliability SRE",
+     "text": "rivacy from the ground up. Your work will have direct, meaningful impact for users across iOS, iPadOS, macOS, watchOS, and visionOS. This is a rare opportunity to",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "apple:200667547-0836",
+     "title": "Sr. Software Engineer, Siri Speech",
+     "text": "rivacy from the ground up. Your work will have direct, meaningful impact for users across iOS, iPadOS, macOS, watchOS, and visionOS. This is a rare opportunity to",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "apple:200669222-0836",
+     "title": "Sr. ML Production Model Automation Engineer, Siri Speech",
+     "text": "rivacy from the ground up. Your work will have direct, meaningful impact for users across iOS, iPadOS, macOS, watchOS, and visionOS. This is a rare opportunity to",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "apple:200682418-0836",
+     "title": "Sr. Machine Learning Engineer, Speech LLM Evaluation",
+     "text": "rivacy from the ground up. Your work will have direct, meaningful impact for users across iOS, iPadOS, macOS, watchOS, and visionOS. Our Speech Evaluation team sit",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "apple:200683055-0836",
+     "title": "Sr. Machine Learning Engineer, ML Systems Evaluation Engineering",
+     "text": "rivacy from the ground up. Your work will have direct, meaningful impact for users across iOS, iPadOS, macOS, watchOS, and visionOS. This is a rare opportunity to",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "apple:200683390-0157",
+     "title": "Apple Pay eCommerce Merchant Specialist (LATAM)",
+     "text": "gh Apps. We inspire merchants to transform their eCommerce experiences leveraging Apple’s iOS platform and payment features. Description This is a highly cross fun",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:107043647676916422",
+     "title": "Senior Software Engineer, Chrome Test Infrastructure",
+     "text": "eb has to offer in a safe and secure way.Chrome is available across all major platforms — iOS, Android, Windows, Mac, Linux and Chrome OS. We also built Chrome as",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:118958236995855046",
+     "title": "Graphics Software Developer, Chrome",
+     "text": "eb has to offer in a safe and secure way.Chrome is available across all major platforms — iOS, Android, Windows, Mac, Linux and Chrome OS. We also built Chrome as",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:121015869928022726",
+     "title": "Senior UX Designer, Chrome",
+     "text": "eb has to offer in a safe and secure way.Chrome is available across all major platforms — iOS, Android, Windows, Mac, Linux and Chrome OS. We also built Chrome as",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:75087059475145414",
+     "title": "Software Developer III, Chrome Desktop Growth",
+     "text": "eb has to offer in a safe and secure way.Chrome is available across all major platforms — iOS, Android, Windows, Mac, Linux and Chrome OS. We also built Chrome as",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:77691201225925318",
+     "title": "Staff Software Engineer, Chrome Enterprise",
+     "text": "eb has to offer in a safe and secure way.Chrome is available across all major platforms — iOS, Android, Windows, Mac, Linux and Chrome OS. We also built Chrome as",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:79858471788257990",
+     "title": "Product Manager II, Chrome Open Media Team",
+     "text": "eb has to offer in a safe and secure way.Chrome is available across all major platforms — iOS, Android, Windows, Mac, Linux and Chrome OS. We also built Chrome as",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:88210291245884102",
+     "title": "Product Manager I, Chrome Web Store",
+     "text": "eb has to offer in a safe and secure way.Chrome is available across all major platforms — iOS, Android, Windows, Mac, Linux and Chrome OS. We also built Chrome as",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "anduril:5089044007",
+     "title": "Full Stack Software Engineer",
+     "text": "PC) and big data technologies (e.g., Apache Spark, Hadoop). Mobile app development (e.g., iOS or Android). Embedded software development experience. Willingness to",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "apple:200641083-0157",
+     "title": "Systems Software Engineer, Information Security",
+     "text": "re development. Experience with developing and shipping high quality software products on iOS/macOS/tvOS. Ability to comprehend hardware specs and schematics. Prog",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "apple:200659973-0836",
+     "title": "Offensive Security Researcher, SEAR",
+     "text": "iency in one or more: Python, C/C++, Swift, Objective-C Familiarity with Apple platforms (iOS, macOS) and their security architecture Pay & Benefits At Apple, base",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "apple:200667941-0836",
+     "title": "Software Prototyping Engineer",
+     "text": "Computer Architecture, performance analysis, or hardware modeling Experience with macOS, iOS, and/or iPadOS Experience with PnP (Power and Performance) analysis a",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "apple:200674165-0836",
+     "title": "iOS/tvOS FaceTime Engineer",
+     "text": "ion The tvOS Communications Experiences team works on code in FaceTime, Camera, tvOS, and iOS to bring FaceTime and other camera experiences to the big screen usin … will be working on the Apple TV, iPhone, and iPad FaceTime app as well as the underlying iOS and tvOS systems. You will work with ML models and remain at the fore … ogether. Responsibilities Develop Core Apps: Build FaceTime and camera experiences across iOS, and tvOS Drive Feature Lifecycle: Propose, implement, and present ne",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "apple:200678849-0836",
+     "title": "Software Development Engineer in Test - CoreOS Quality Engineer",
+     "text": "foundational Darwin runtimes and system services that every Apple operating system, from iOS and macOS to watchOS, tvOS, and visionOS, is built upon. Apple's Core",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "apple:200682345-0865",
+     "title": "iOS Software Engineer- Location Technologies",
+     "text": "",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "apple:200685812-0836",
+     "title": "Core OS Software Engineer - USB4/Thunderbolt",
+     "text": "cross- disciplinary collaboration will help develop groundbreaking technologies, such as iOS, macOS. By crafting these distinct, holistic user experiences, you'll … levant industry experience in software development. Development experience in IOKit/macOS/iOS, or equivalent OS driver environment. Experience debugging and contri",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "google:105605735575888582",
+     "title": "Senior Software Engineer, Mobile (iOS), Health Platform",
+     "text": "ith software development in one or more programming languages. 3 years of experience with iOS application development. 3 years of experience testing, maintaining, … e. Knowledge of AI systems and tools. Deep expertise in mobile application development on iOS platforms using Swift and SwiftUI.",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "google:77342128832684742",
+     "title": "Staff Software Engineer, Messages",
+     "text": "timize seamless, high-definition video experiences that flow effortlessly across Android, iOS, and device ecosystems. Power high-res image sharing, live typing ind",
+     "stratum": "kept",
+     "truth": "tp"
+    }
+   ]
+  },
+  "TPUs": {
+   "facet": "skills",
+   "before": 582,
+   "removed": 401,
+   "kept": 181,
+   "added": 0,
+   "precisionBefore": 35,
+   "precisionAfter": 100,
+   "truePositivesRemoved": 20,
+   "items": [
+    {
+     "id": "google:100183773156385478",
+     "title": "Senior DDR Design Verification Engineer, Google Cloud",
+     "text": "e of world-leading hyperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center op",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:104345695250457286",
+     "title": "Data Center Facilities Technician III, Electrical",
+     "text": "e of world-leading hyperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center op",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:107457688966701766",
+     "title": "Senior Security Software Engineer, Emerging On-prem AI infrastructure",
+     "text": "e of world-leading hyperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center op",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:109924847030543046",
+     "title": "Senior Software Engineer, Infrastructure, Google Cloud Compute Infrastructure",
+     "text": "e of world-leading hyperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center op",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:114158829012165318",
+     "title": "Data Center Technician II, AI Infrastructure",
+     "text": "e of world-leading hyperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center op",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:117548156282905286",
+     "title": "Technical Operations Manager, Third Party Data Center Facilities (English)",
+     "text": "e of world-leading hyperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center op",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:119353554375713478",
+     "title": "Global Commodity Manager, Rack Power, Infrastructure Supply Chain and Manufacturing Operations",
+     "text": "e of world-leading hyperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center op",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:123868492716745414",
+     "title": "Data Center Technician, Google Server Operations",
+     "text": "e of world-leading hyperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center op",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:127233685492507334",
+     "title": "Software Engineer III, AI/ML, Google Cloud Platforms",
+     "text": "e of world-leading hyperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center op",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:131538306801246918",
+     "title": "Mechanical Product Design Engineer, Platforms",
+     "text": "e of world-leading hyperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center op",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:134901421886579398",
+     "title": "Regional Program Manager, Global Network Acquisition",
+     "text": "e of world-leading hyperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center op",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:139635349872616134",
+     "title": "Design Engineer, Google Cloud, Networking",
+     "text": "e of world-leading hyperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center op",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:142927601218790086",
+     "title": "Land Development Manager II, Data Centers",
+     "text": "e of world-leading hyperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center op",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:73906684350603974",
+     "title": "ASIC Technology Librarian",
+     "text": "future of AI/ML hardware acceleration. You will have an opportunity to drive cutting-edge TPU (Tensor Processing Unit) technology that powers Google's most demandi … pushes boundaries, developing custom silicon solutions that power the future of Google's TPU. You'll contribute to the innovation behind products loved by million … gn and verification expertise to verify complex digital designs, with a specific focus on TPU architecture and its integration within AI/ML-driven systems. In this",
+     "stratum": "removed",
+     "truth": "tp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:77985711428379334",
+     "title": "Senior Operations Engineer, Third Party Data Center Facilities",
+     "text": "e of world-leading hyperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center op",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:82246480047284934",
+     "title": "Public Affairs Manager, Regional Data Centers",
+     "text": "e of world-leading hyperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center op",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:87217077911200454",
+     "title": "Technical Program Manager, Silicon Design Services and Strategic Extended Workforce",
+     "text": "e of world-leading hyperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center op",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:90617165148758726",
+     "title": "Data Center Operations Manager, Third-Party Data Centers",
+     "text": "e of world-leading hyperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center op",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:93791455218148038",
+     "title": "Data Center Facilities Technician II, Controls",
+     "text": "e of world-leading hyperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center op",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:97021408063693510",
+     "title": "Software Engineering Manager II, Google Cloud",
+     "text": "e of world-leading hyperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center op",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "anduril:5212860007",
+     "title": "Staff AI Infrastructure Engineer",
+     "text": "Hands-on experience with next-generation AI accelerators beyond standard GPUs (e.g., AWS Trainium, Google TPUs, or custom ASICs) for training and inference workloads. … nce with next-generation AI accelerators beyond standard GPUs (e.g., AWS Trainium, Google TPUs, or custom ASICs) for training and inference workloads. Experience bu",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anthropic:5211498008",
+     "title": "Staff Software Engineer, Node Infra",
+     "text": "pute fleets, and build the health, diagnostics and repair automation that keep every GPU, TPU and Trainium node in the fleet usable and ready to power Anthropic's … ets, and build the health, diagnostics and repair automation that keep every GPU, TPU and Trainium node in the fleet usable and ready to power Anthropic's frontier AI r … proficiency with Terraform. Hands-on experience with machine learning accelerators (GPUs, TPUs, or Trainium) Track record of leading complex, multi-quarter technica",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "apple:200673231-0836",
+     "title": "Staff/Sr. ML Infrastructure Engineer, Foundation Model Compute Infra",
+     "text": "Go, C++, or similar systems languages Experience with accelerator infrastructure such as TPU, GPU Experience with Kubernetes, container orchestration, or large-sc",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "cohere:5806a521-8584-4bbe-b60a-49031b919251",
+     "title": "Lead Member of Technical Staff, Inference Infrastructure",
+     "text": "e day to day Strong expertise in the computational characteristics of accelerators (GPUs, TPUs, and/or custom accelerators), and how to leverage them to drive laten",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "google:108862892744286918",
+     "title": "ASIC Power Manager, ML Accelerators",
+     "text": "future of AI/ML hardware acceleration. You will have an opportunity to drive cutting-edge TPU (Tensor Processing Unit) technology that powers Google's most demandi … pushes boundaries, developing custom silicon solutions that power the future of Google's TPU. You'll contribute to the innovation behind products loved by million … gn and verification expertise to verify complex digital designs, with a specific focus on TPU architecture and its integration within AI/ML-driven systems. As a Po",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "google:118858525035111110",
+     "title": "Cloud Infrastructure and Operations Lead, Google Cloud",
+     "text": "esign and implement capacity allocations forums for Compute (CPU), Storage, and AI Chips (TPU/GPU), automating and scaling global signaling processes. Partner with",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "google:130170340289454790",
+     "title": "Software Engineer, TPU Compiler, PhD, Early Careers",
+     "text": "to take on new problems across the full-stack as we continue to push technology forward. TPU team develops the Accelerated Linear Algebra (XLA) TPU parallelizing … ntinue to push technology forward. TPU team develops the Accelerated Linear Algebra (XLA) TPU parallelizing compiler used to partition, optimize, and run large-sca … used to partition, optimize, and run large-scale machine learning models across multiple TPU accelerators for internal (e.g. Google DeepMind) and external custome",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "google:138336296211751622",
+     "title": "Staff Software Engineer, Inference Performance Optimization, GenAI, DeepMind",
+     "text": "ce with observability and reliability for large distributed systems. Familiarity with GPU/TPU/accelerator performance concepts (e.g. memory bandwidth, quantization",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "google:77229889526080198",
+     "title": "Technical Solutions Engineer II, Infrastructure, Compute, Google Cloud",
+     "text": "asic). Preferred qualifications: Experience with Cloud accelerators troubleshooting (GPU, TPU, etc.). Experience with cloud computing (i.e., certifications, intern",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "google:89612211520971462",
+     "title": "Staff Software Engineer, Data Center and AI Infrastructure",
+     "text": "e of world-leading hyperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center op … networking infrastructure, enabling high performing fabrics for Tensor Processing Units (TPUs) and Graphics Processing Units (GPUs). Qualifications Minimum qualifi",
+     "stratum": "kept",
+     "truth": "tp"
+    }
+   ]
+  },
+  "GCP": {
+   "facet": "skills",
+   "before": 1904,
+   "removed": 526,
+   "kept": 1378,
+   "added": 0,
+   "precisionBefore": 53,
+   "precisionAfter": 70,
+   "truePositivesRemoved": 53,
+   "items": [
+    {
+     "id": "google:100297383631299270",
+     "title": "Community Development Manager, Strategic Partnerships Office",
+     "text": "unparalleled scale, efficiency, reliability and velocity. Our customers include Googlers, Google Cloud customers, and billions of Google users worldwide. We're the driving … yperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center operations, systems research,",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:104027410256536262",
+     "title": "Energy Partnerships Lead",
+     "text": "ing the broader global transition to a smarter, carbon-free electricity grid for everyone.Google Cloud accelerates every organization’s ability to digitally transform its b … pers build more sustainably. Customers in more than 200 countries and territories turn to Google Cloud as their trusted partner to enable growth and solve their most critic",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:107462970702734022",
+     "title": "Data Center Server Operations Manager",
+     "text": "unparalleled scale, efficiency, reliability and velocity. Our customers include Googlers, Google Cloud customers, and billions of Google users worldwide. We're the driving … yperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center operations, systems research,",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:110302780530270918",
+     "title": "Customer Engineering Manager, SLED, Google Public Sector, Central",
+     "text": "de leadership related to cloud, transformation and relevant industry trends. Partner with Google Cloud Sales leadership to define technical go-to-market strategies and exec",
+     "stratum": "removed",
+     "truth": "tp"
+    },
+    {
+     "id": "google:115863979347059398",
+     "title": "Data Center Technician II (English)",
+     "text": "unparalleled scale, efficiency, reliability and velocity. Our customers include Googlers, Google Cloud customers, and billions of Google users worldwide. We're the driving … yperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center operations, systems research,",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:118500840158700230",
+     "title": "Data Center Technician III, Hardware Operations",
+     "text": "unparalleled scale, efficiency, reliability and velocity. Our customers include Googlers, Google Cloud customers, and billions of Google users worldwide. We're the driving … yperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center operations, systems research,",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:121826728614994630",
+     "title": "Engineering Manager, Site Reliability Engineering",
+     "text": "uild and run large-scale, massively distributed, fault-tolerant systems. SRE ensures that Google Cloud's services—both our internally critical and our externally-visible sy … you’ll have the opportunity to manage the complex challenges of scale which are unique to Google Cloud, while using your expertise in coding, algorithms, complexity analysi",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:125665225713033926",
+     "title": "Data Center Operations Manager",
+     "text": "unparalleled scale, efficiency, reliability and velocity. Our customers include Googlers, Google Cloud customers, and billions of Google users worldwide. We're the driving … yperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center operations, systems research,",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:129378231382876870",
+     "title": "Data Center Technician Intern, 2027",
+     "text": "rtunity to build a solid foundation in data center operations and network infrastructure. Google Cloud accelerates every organization’s ability to digitally transform its b … pers build more sustainably. Customers in more than 200 countries and territories turn to Google Cloud as their trusted partner to enable growth and solve their most critic",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:131820736334439110",
+     "title": "Principal Engineer, Nexus Capacity Engineer",
+     "text": "oyed capacity in the fleet. This is a truly exciting time to be part of the organization. Google Cloud accelerates every organization’s ability to digitally transform its b … pers build more sustainably. Customers in more than 200 countries and territories turn to Google Cloud as their trusted partner to enable growth and solve their most critic",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:135963132433441478",
+     "title": "Senior Quantitative UX Researcher, AI Enablement",
+     "text": "asure and optimize frictionless, high-velocity developer workflows across the AI pipeline.Google Cloud accelerates every organization’s ability to digitally transform its b … pers build more sustainably. Customers in more than 200 countries and territories turn to Google Cloud as their trusted partner to enable growth and solve their most critic",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:139925986014569158",
+     "title": "Construction EHS Program Manager",
+     "text": "ongoing execution of the Global EHS electrical safety program, ensuring conformance with Google Cloud's EHS expectations and ensuring compliance with EHS regulations, mini … unparalleled scale, efficiency, reliability and velocity. Our customers include Googlers, Google Cloud customers, and billions of Google users worldwide. We're the driving … yperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center operations, systems research,",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:143890335318057670",
+     "title": "Director, Product Management, Workspace Intelligence",
+     "text": "Google Workspace from Google Cloud is a smart, simple and secure family of productivity apps – Gmail, Do … tand customers' use cases, and translate them into technical designs and implementations. Google Cloud accelerates every organization’s ability to digitally transform its b … pers build more sustainably. Customers in more than 200 countries and territories turn to Google Cloud as their trusted partner to enable growth and solve their most critic",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:75143963496850118",
+     "title": "Senior Silicon Security Engineer",
+     "text": "resolution of complex security incidents, policy questions and technical security issues. Google Cloud accelerates every organization’s ability to digitally transform its b … pers build more sustainably. Customers in more than 200 countries and territories turn to Google Cloud as their trusted partner to enable growth and solve their most critic",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:79518589551289030",
+     "title": "Data Center Facilities Technician II, Mechanical",
+     "text": "unparalleled scale, efficiency, reliability and velocity. Our customers include Googlers, Google Cloud customers, and billions of Google users worldwide. We're the driving … yperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center operations, systems research,",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:83385434507223750",
+     "title": "AI Outcome Customer Engineer II, Forward Deployed Engineering",
+     "text": "(connectors, identity, data residency, legal constraints). It's an exciting time to join Google Cloud’s Go-To-Market team, leading the AI revolution for businesses worldwi",
+     "stratum": "removed",
+     "truth": "tp"
+    },
+    {
+     "id": "google:86844691361735366",
+     "title": "Strategic Negotiator",
+     "text": "rnal partners, and for interfacing with the internal teams in order to deliver solutions. Google Cloud accelerates every organization’s ability to digitally transform its b … pers build more sustainably. Customers in more than 200 countries and territories turn to Google Cloud as their trusted partner to enable growth and solve their most critic",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:90445587647734470",
+     "title": "Data Center Facilities Technician, Controls",
+     "text": "unparalleled scale, efficiency, reliability and velocity. Our customers include Googlers, Google Cloud customers, and billions of Google users worldwide. We're the driving … yperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center operations, systems research,",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:93102782982038214",
+     "title": "Senior Network Engineer, Infrastructure Control Network",
+     "text": "unparalleled scale, efficiency, reliability and velocity. Our customers include Googlers, Google Cloud customers, and billions of Google users worldwide. We're the driving … yperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center operations, systems research,",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:96507163039408838",
+     "title": "Data Center Facilities Technician II, Mechanical",
+     "text": "unparalleled scale, efficiency, reliability and velocity. Our customers include Googlers, Google Cloud customers, and billions of Google users worldwide. We're the driving … yperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center operations, systems research,",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "anduril:4754841007",
+     "title": "Lead Software Engineer, API/SDK",
+     "text": "ture as code, and DevOps practices. Hands-on experience with cloud platforms (AWS, Azure, GCP) and containerization technologies (Docker, Kubernetes). Proven track",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "apple:200641234-0836",
+     "title": "Senior Research Engineer, Training Data Infrastructure in Foundation Models",
+     "text": "ibuted data processing workflows using advanced frameworks on cloud infrastructure (e.g., GCP, AWS). Algorithmic Data Curation: Implement sophisticated data filter … ecture: Extensive experience architecting solutions on major public cloud platforms (e.g. GCP) to build scalable data systems (e.g. with Apache Beam, GCS) Performa",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "google:100255484614714054",
+     "title": "Design Verification Engineer, TPU, Silicon, Google Cloud",
+     "text": "unparalleled scale, efficiency, reliability and velocity. Our customers include Googlers, Google Cloud customers, and billions of Google users worldwide. We're the driving … yperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center operations, systems research,",
+     "stratum": "kept",
+     "truth": "fp"
+    },
+    {
+     "id": "google:112072232559092422",
+     "title": "Staff Software Engineer, Google Cloud",
+     "text": "ing to Google infrastructure, from software to hardware (including building Vertex AI for Google Cloud). We work on complex technologies at a global scale with key players",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "google:121840168641405638",
+     "title": "Senior Software Engineering Manager, Google Cloud Storage Semantic Search",
+     "text": "",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "google:132950478089528006",
+     "title": "Solutions Acceleration Architect, Google Cloud",
+     "text": "When leading companies choose Google Cloud, it's a huge win for spreading the power of cloud computing globally. … . Once educational institutions, government agencies, and other businesses sign on to use Google Cloud products, you come in to facilitate making their work more productive … gement and engineering teams to stay on top of industry trends and devise enhancements to Google Cloud products. The APAC Google Forge Team partners with customers to bring",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "google:73604880219939526",
+     "title": "イノベーション・トランスフォーメーション・リード、Google Cloud（英語、日本語）",
+     "text": "Google Cloud コンサルティング プロフェッショナル サービス チームは、お客様のビジネスの成功を目標としたクラウド移行において、その成否を分ける重要な局 … チームの役割です。急成長するこの業界で、革新的なチームの一員として、あらゆる規模の企業がテクノロジーを活用し、顧客、従業員、パートナーと連携を深められるようサポートしてください。 Google Cloud コンサルティング プロフェッショナル サービス チームは、優れたインフラストラクチャ、プラットフォーム、業界ソリューション、専門知識を活用 … リューションの可能性を最大限に活用して、イノベーションと変革のイニシアチブを主導します。Google のビジネス顧客と直接連携し、経営幹部、ステークホルダー、実務担当者と協力して、Google Cloud を活用した組織のビジネス変革を加速させます。お客様の短期および長期的な方向性と成果を管理し、スケールさせ、導くことが求められます。 Goo",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "google:85203455508914886",
+     "title": "Regional Lead, Market Development and Government Affairs, Google Cloud",
+     "text": "equity + benefits Learn more about benefits at Google . Responsibilities Develop and lead Google Cloud's policy and government affairs strategy for assigned regional states … ers, ensuring a unified approach regarding economic, social and environmental benefits of Google Cloud investments in new and existing markets. Qualifications Minimum quali",
+     "stratum": "kept",
+     "truth": "fp"
+    },
+    {
+     "id": "google:96442238166278854",
+     "title": "Design Verification SoC Lead, Google Cloud",
+     "text": "",
+     "stratum": "kept",
+     "truth": "fp"
+    },
+    {
+     "id": "nvidia:893393815186",
+     "title": "Senior Software Engineer, Attestation Services - DGX Cloud",
+     "text": "infrastructure as code, observability tools, and at least one major cloud provider (AWS, GCP, Azure, or OCI). Knowledge of distributed systems practices such as r",
+     "stratum": "kept",
+     "truth": "tp"
+    }
+   ]
+  },
+  "Transformers": {
+   "facet": "skills",
+   "before": 284,
+   "removed": 64,
+   "kept": 220,
+   "added": 0,
+   "precisionBefore": 70,
+   "precisionAfter": 90,
+   "truePositivesRemoved": 0,
+   "items": [
+    {
+     "id": "anduril:5156615007",
+     "title": "Principal Power & Energy Infrastructure Lead",
+     "text": "erconnection strategy: service voltage and configuration, primary vs. secondary metering, transformer and switchgear sizing, and the staging plan that lets us occupy early",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5234595007",
+     "title": "Senior Electrical Engineer, Rocket Motor Systems",
+     "text": ", branch circuits, grounding, and equipment hookup Specify electrical equipment including transformers, disconnects, breakers, VFD feeds, and control power for new and modi … A 70E electrical safety practices Experience with industrial power distribution including transformers, panelboards, circuit protection, and grounding Proficient with elect",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anthropic:5416016008",
+     "title": "Head of Compute Supply Chain",
+     "text": "nd networking are allocated to the customers suppliers consider strategic, and so are the transformers, chillers and turbines that power and cool our data centers. We are h",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:104163176320246470",
+     "title": "Data Center Facilities Technician II, Electrical",
+     "text": "plants. Knowledge of electrical systems used in a data center environment (e.g., Feeders, Transformers, Generators, Switchgear, UPS systems, ATS/STS units, PDU/PMM units).",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:106608658120352454",
+     "title": "Data Center Facilities Technician, Electrical",
+     "text": "plants. Knowledge of electrical systems used in a data center environment (e.g., Feeders, Transformers, Generators, Switchgear, UPS systems, ATS/STS units, PDU/PMM units).",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:122461356203877062",
+     "title": "Data Center Facilities Technician, Electrical",
+     "text": "ipment. Knowledge of electrical systems used in a data center environment (e.g., feeders, transformers, generators, switchgear, UPS systems, Automatic Transfer Switch (ATS)",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:136217193707643590",
+     "title": "Data Center Facilities Technician Intern, 2027",
+     "text": "nce of electrical or mechanical systems used in a data center environment (e.g., Feeders, Transformers, Generators, Switchgear, UPS systems, ATS/STS units, PDU/PMM units).",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:76697779585327814",
+     "title": "Data Center Engineer, Electrical Engineering",
+     "text": ". Experience working with data center equipment and environments (switchgear, generators, transformers, controls, security monitoring systems, fire safety systems), with an",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:82104950137463494",
+     "title": "Data Center Plant Engineer",
+     "text": "l and mechanical systems used in an industrial or data center environment (e.g., feeders, transformers, generators, switchgear, UPS systems, ATS/STS units, PDU/power manage",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:93230412230206150",
+     "title": "Data Center Facilities Technician Intern, 2027",
+     "text": "nce of electrical or mechanical systems used in a data center environment (e.g., Feeders, Transformers, Generators, Switchgear, UPS systems, ATS/STS units, PDU/PMM units).",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:99330502741107398",
+     "title": "Data Center Facilities Technician Intern, 2027",
+     "text": "nce of electrical or mechanical systems used in a data center environment (e.g., Feeders, Transformers, Generators, Switchgear, UPS systems, ATS/STS units, PDU/PMM units).",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "microsoft:1970393557023054",
+     "title": "Principal Strategic Supplier Quality Engineer",
+     "text": "ess improvement or related experience in electrical system equipment such as LV/MV, PDUs, Transformers, UPS, etc. Technical knowledge, ideally with experience in multiple s",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "openai:f0d51f11-0f35-4e10-b8bb-d24191ba26f3",
+     "title": "Technical Program Manager, Infrastructure Strategy & Delivery Operations",
+     "text": "and cooling equipment commonly deployed within hyperscale data centers (e.g., switchgear, transformers, generators, UPS systems, cooling systems, and related infrastructure",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "xai:5124647007",
+     "title": "Construction Superintendent, Electrical (Night Shift) - Memphis",
+     "text": "ions including underground duct banks, conduits, cable pulling, terminations, switchgear, transformers, generators, UPS systems, PDUs, and grounding for SpaceXAI Data Cente",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "xai:5142936007",
+     "title": "Civil Engineer",
+     "text": "ering for hyperscale data center campuses, power generation sites, turbine support areas, transformer yards, and industrial infrastructure — delivering complete site gradi",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "xai:5214350007",
+     "title": "Design Engineer - Memphis",
+     "text": "ting, conduit fill, and pull-tension analysis including long underground runs. Size MV/LV transformers, switchgear, busway, and feeders; specify impedance, BIL, temperature … atings. Write equipment specifications and technical bid evaluations for ring-main units, transformers, switchgear, busway, and PDUs. Supply model inputs to protection and",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "xai:5214372007",
+     "title": "Electrician, Operations - Memphis",
+     "text": "in, and repair in-service substation and campus electrical equipment, including breakers, transformers, switches, relays, buswork, control systems, and station batteries. P … ice equipment (voltmeters, ohmmeters, ammeters, insulation megger) and assist with relay, transformer, and circuit breaker tests. Read and interpret one-lines, schematics, … o 161 kV (substation, industrial, or utility). Experience with medium-voltage switchgear, transformers, and distribution in substations, industrial plants, or data centers.",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "xai:5214959007",
+     "title": "Lead Engineer, Battery Storage - Memphis",
+     "text": "hrough compute step loads and generation contingencies. Own BESS architecture: pack-to-MV-transformer grouping, string composition, medium-voltage collection topology, str",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "xai:5218222007",
+     "title": "Sr. Construction Project Manager, Electrical Infrastructure - Memphis",
+     "text": "wn full lifecycle delivery of electrical construction projects (high-voltage substations, transformers, switchgear, BESS, data-center power distribution, UPS, generators, a … s reporting Lead coordination with electrical contractors, fabricators, OEMs (switchgear, transformers, BESS, UPS), utilities, and internal stakeholders Resolve constructio … d inspection processes Working knowledge of electrical systems: high-voltage substations, transformers, switchgear, BESS, UPS, generators, and low-voltage data-center distr",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "xai:5246016007",
+     "title": "Electrical Technician (Power Generation) - Memphis",
+     "text": "ES: Perform operations and maintenance on plant electrical systems, including generators, transformers, switchgear, motor control centers, motors, VFDs, UPS units, automati … maintaining medium-voltage electrical systems (4.16 kV to 34.8 kV), including switchgear, transformers, and breakers. Experience in a power plant, generating station, or ot",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5216230007",
+     "title": "Staff Gen AI Research Scientist",
+     "text": "or Speech) with 2+ years of dedicated experience focusing on generative models and modern transformer architectures. Experience using modern model training, alignment, and",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anthropic:5419869008",
+     "title": "Staff+ Software Engineer, ML Inference Path",
+     "text": "ion, content moderation, or risk assessment Working with large language models and modern transformer architectures Developing monitoring and alerting systems for ML model",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "apple:200665279-3543",
+     "title": "RF Passive Design Engineer",
+     "text": "hat will be used in Apple mobile devices. You will be responsible for on chip inductors / transformers/ caps/ transmission lines designs, as well as on chip filters, phase",
+     "stratum": "kept",
+     "truth": "fp"
+    },
+    {
+     "id": "apple:200677759-0836",
+     "title": "Applied AI & Data Engineer - Business & Education",
+     "text": "ulative decoding). A foundation in machine learning and deep learning. You understand how transformers and LLMs are trained, fine-tuned, and evaluated, you reason about emb",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "cohere:d42f5fd4-1ffc-45b9-957c-f09862db6af6",
+     "title": "Member of Technical Staff, Training Performance Engineer",
+     "text": "distributed training strategies. Familiarity with autoregressive sequence models, such as Transformers. Bonus : paper at top-tier venues (such as NeurIPS, ICML, ICLR, AISta",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "google:94448098809389766",
+     "title": "Software Engineer, Generative AI, Shopping Quality",
+     "text": "or utilizing LLM-powered auto-evaluation and optimization systems. Background in sequence/transformer modeling in other domains like speech, or experience with end-to-end",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "nvidia:893392104124",
+     "title": "Engineering Manager - AI for RAN and 6G Wireless Systems",
+     "text": "core focus). Guide the development of deep learning models and architectures (e.g., CNNs, Transformers) for real-world integration and/or deployment. Collaborate with globa … ence. Proven experience developing or deploying neural network architectures (e.g., CNNs, Transformers) in real-world applications. Strong fundamentals in machine learning",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "nvidia:893395524910",
+     "title": "Senior Software Engineer, Mapping - Autonomous Vehicles",
+     "text": "sign and integrate algorithmic solutions into the core of NVIDIA AV Research, and develop transformer based models tailored for graphs Implement evaluation frameworks to m",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "nvidia:893397390458",
+     "title": "Deep Learning Solution Architect - Agentic Performance",
+     "text": "instream LLM architectures and proficiency in LLM customization via PyTorch, Hugging Face Transformers. Solid knowledge of GPU computing, cluster architecture, and distribu",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "nvidia:893398023282",
+     "title": "Senior Machine Learning Engineer, Perception - Autonomous Driving",
+     "text": "environment. Advanced Model Knowledge: Familiarity with modern network architectures like Transformers and their application to visual recognition tasks. AV Production Expe",
+     "stratum": "kept",
+     "truth": "tp"
+    }
+   ]
+  },
+  "CAD": {
+   "facet": "skills",
+   "before": 1078,
+   "removed": 115,
+   "kept": 963,
+   "added": 0,
+   "precisionBefore": 81,
+   "precisionAfter": 90,
+   "truePositivesRemoved": 12,
+   "items": [
+    {
+     "id": "apple:200616613-3337",
+     "title": "PCB Designer",
+     "text": "t of complex, detailed layouts of rigid and flexible printed circuit boards using CAE and CAD applications and tools is a key aspect of this position. You would wo … igns. Under mentorship of seasoned Designers, being able to perform complex and difficult CAD and CAE tasks requiring extensive skill and knowledge of equipment ca",
+     "stratum": "removed",
+     "truth": "tp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "apple:200664421-3810",
+     "title": "Hardware PhD Internships",
+     "text": "Implementation, Verification, Integration, Validation, Emulation, Power/Tech & Circuits, CAD, STA, Physical Design, Low Power Design, Signal Integrity, Analog/Mix",
+     "stratum": "removed",
+     "truth": "tp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:100620917075256006",
+     "title": "Senior Product Account Executive, Automotive",
+     "text": "elated skills, experience, and relevant education or training. Canada: $198000 - $202000 (CAD) + 75% bonus target + equity + benefits Learn more about benefits at",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:104405499448828614",
+     "title": "Student Researcher, BS/MS, Winter-Summer 2027",
+     "text": "ills, experience, and relevant education or training. [Bachelor's degree] Canada: $99000 (CAD) + 0% bonus target [Master's degree] Canada: $102000 (CAD) + 0% bonus … helor's degree] Canada: $99000 (CAD) + 0% bonus target [Master's degree] Canada: $102000 (CAD) + 0% bonus target Learn more about benefits at Google . Responsibili",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:108614349429318342",
+     "title": "Senior Software Developer, Mobile (iOS), Platforms and Devices",
+     "text": "$174000 - $252000 (USD) + 15% bonus target + equity + benefits Canada: $182000 - $186000 (CAD) + 15% bonus target + equity + benefits Learn more about benefits at",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:114416552819729094",
+     "title": "Student Researcher, BS/MS, Winter-Summer 2027",
+     "text": "uding job-related skills, experience, and relevant education or training. Canada: $99000 (CAD) + 0% bonus target Canada: $102000 (CAD) + 0% bonus target Learn more … d relevant education or training. Canada: $99000 (CAD) + 0% bonus target Canada: $102000 (CAD) + 0% bonus target Learn more about benefits at Google . Responsibili",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:119708604289688262",
+     "title": "Senior Forward Deployed Detection and Response Consultant, Cyber Defence, National Security, Mandiant",
+     "text": "elated skills, experience, and relevant education or training. Canada: $166000 - $170000 (CAD) + 15% bonus target + equity + benefits Learn more about benefits at",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:127551954380300998",
+     "title": "Platform Solution Architect III, Google Cloud",
+     "text": "elated skills, experience, and relevant education or training. Canada: $194000 - $198000 (CAD) + 42.86% bonus target + equity + benefits Learn more about benefits",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:134922654057407174",
+     "title": "Product Account Executive, Large Customer Sales",
+     "text": "elated skills, experience, and relevant education or training. Canada: $172000 - $176000 (CAD) + 60% bonus target + equity + benefits Learn more about benefits at",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:141525012002546374",
+     "title": "Student Researcher, PhD, Winter-Summer 2027",
+     "text": "ding job-related skills, experience, and relevant education or training. Canada: $120000 (CAD) + 0% bonus target Learn more about benefits at Google . Responsibili",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:74861449138053830",
+     "title": "Account Executive, Financial Services",
+     "text": "elated skills, experience, and relevant education or training. Canada: $172000 - $176000 (CAD) + 60% bonus target + equity + benefits Learn more about benefits at",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:84304868893696710",
+     "title": "Staff Software Developer, Client Stack, Front End and Web Development, Google Cloud",
+     "text": "$207000 - $300000 (USD) + 20% bonus target + equity + benefits Canada: $216000 - $221000 (CAD) + 20% bonus target + equity + benefits Learn more about benefits at",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:97271091692479174",
+     "title": "Senior Account Manager, LCS Auto",
+     "text": "elated skills, experience, and relevant education or training. Canada: $138000 - $141000 (CAD) + 40% bonus target + equity + benefits Learn more about benefits at",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "microsoft:1970393556914390",
+     "title": "Software Engineer - Front End",
+     "text": "lity Software Engineering IC3 - The typical base pay range for this role across Canada is CAD $85,800 - CAD $169,300 per year. Find additional pay information here … Engineering IC3 - The typical base pay range for this role across Canada is CAD $85,800 - CAD $169,300 per year. Find additional pay information here: https://care … 'échelle salariale de base typique pour ce rôle dans l'ensemble du Canada est de 85,800 $ CAD à 169,300 $ CAD par année. Pour plus d'information au sujet de la rém",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "microsoft:1970393556972507",
+     "title": "Customer Success Account Manager",
+     "text": "omer Success Account Mgmt IC1 - The typical base pay range for this role across Canada is CAD $52,400 - CAD $87,600 per year. Find additional pay information here: … ccount Mgmt IC1 - The typical base pay range for this role across Canada is CAD $52,400 - CAD $87,600 per year. Find additional pay information here: https://caree … 'échelle salariale de base typique pour ce rôle dans l'ensemble du Canada est de 52,400 $ CAD à 87,600 $ CAD par année. Pour plus d'information au sujet de la rému",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "microsoft:1970393556984764",
+     "title": "AI Business Process Specialist, Multi Industry",
+     "text": "Solution Area Specialists IC4 - The typical base pay range for this role across Canada is CAD $103,500 - CAD $170,700 per year. Find additional pay information her … pecialists IC4 - The typical base pay range for this role across Canada is CAD $103,500 - CAD $170,700 per year. Find additional pay information here: https://care … échelle salariale de base typique pour ce rôle dans l'ensemble du Canada est de 103,500 $ CAD à 170,700 $ CAD par année. Pour plus d'information au sujet de la rém",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "microsoft:1970393556998411",
+     "title": "Expert(e) en solutions de sécurité/ Security Solutions Expert",
+     "text": "ital Solution Engineering IC4 - The typical base pay range for this role across Canada is CAD $96,000 - CAD $177,600 per year. Find additional pay information here … Engineering IC4 - The typical base pay range for this role across Canada is CAD $96,000 - CAD $177,600 per year. Find additional pay information here: https://care … 'échelle salariale de base typique pour ce rôle dans l'ensemble du Canada est de 96,000 $ CAD à 177,600 $ CAD par année. Pour plus d'information au sujet de la rém",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "microsoft:1970393557004589",
+     "title": "Gestionnaire de compte de réussite client / Customer Success Account Manager",
+     "text": "omer Success Account Mgmt IC4 - The typical base pay range for this role across Canada is CAD $96,000 - CAD $177,600 per year. Find additional pay information here … ccount Mgmt IC4 - The typical base pay range for this role across Canada is CAD $96,000 - CAD $177,600 per year. Find additional pay information here: https://care … 'échelle salariale de base typique pour ce rôle dans l'ensemble du Canada est de 96,000 $ CAD à 177,600 $ CAD par année. Pour plus d'information au sujet de la rém",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "microsoft:1970393557007830",
+     "title": "Cloud Solution Architect - Data & AI",
+     "text": "oud Solution Architecture IC4 - The typical base pay range for this role across Canada is CAD $96,000 - CAD $177,600 per year. Find additional pay information here … rchitecture IC4 - The typical base pay range for this role across Canada is CAD $96,000 - CAD $177,600 per year. Find additional pay information here: https://care … 'échelle salariale de base typique pour ce rôle dans l'ensemble du Canada est de 96,000 $ CAD à 177,600 $ CAD par année. Pour plus d'information au sujet de la rém",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "microsoft:1970393557021778",
+     "title": "Critical Environment Field Service Engineer - Data Centers",
+     "text": "ter Operations Management IC3 - The typical base pay range for this role across Canada is CAD $69,200 - CAD $129,600 per year. Find additional pay information here … Management IC3 - The typical base pay range for this role across Canada is CAD $69,200 - CAD $129,600 per year. Find additional pay information here: https://care … 'échelle salariale de base typique pour ce rôle dans l'ensemble du Canada est de 69,200 $ CAD à 129,600 $ CAD par année. Pour plus d'information au sujet de la rém",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:4244791007",
+     "title": "Systems Integration Engineer, Air Vehicles",
+     "text": "eamless integration of avionics and mission systems within aircraft. Create and modify 3D CAD models and 2D drawings for secondary structures and system components",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5147014007",
+     "title": "Staff Fuel Systems Engineer, Omen",
+     "text": "hnical project (collegiate project teams or professional settings). Strong proficiency in CAD software (any platform, but NX preferred), with specific emphasis on",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5219103007",
+     "title": "MSOC Manager",
+     "text": "iew of incident intake records (phone calls, alarm data, emails, etc.) and response data (CAD reports, radio traffic, CCTV, etc.) to ensure the team’s execution al … n systems as well as dispatch communication technologies such as Computer Aided Dispatch (CAD), radio consoles, and mass notification systems. Demonstrated experie",
+     "stratum": "kept",
+     "truth": "fp"
+    },
+    {
+     "id": "anduril:5239598007",
+     "title": "(Pipeline) Structural Analyst, Space Emerging Talent",
+     "text": "h hand calculations to frame problems before reaching for detailed tools. Experience with CAD tools (NX, Solidworks, or similar). Proficiency in MATLAB or Python f",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "apple:200573848-0836",
+     "title": "Interconnect Product Design Engineer",
+     "text": "Analytical and problem solving skills as applied to mechanical engineering Fluency in 3D CAD software Ability to design cosmetic and structural plastic and metal",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "apple:200657948-3760",
+     "title": "CPU Physical Design Methodology and Optimization Engineer",
+     "text": "ing machine learning techniques in the silicon design space. Description • Work with CPU, CAD, and design teams to engineer new flows/algorithms to improve PPA • D",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "apple:200676408-0157",
+     "title": "EMC Design Technologist",
+     "text": "and challenging problems through innovative solutions. Responsibilities Simplify complex CAD geometries from various sources and make them ready for integration i",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "google:120268476899041990",
+     "title": "Senior Engineer, PCBA DFM",
+     "text": "ping and execution of the OK2FAB layout approval workflow, conducting critical, high-risk CAD layout reviews to mitigate manufacturing risks before fabrication. Se … bility (DFM). Experience in Surface Mount Technology (SMT) process integration, high-risk CAD layout reviews, and conducting component-level failure analysis. Pref",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "nvidia:893395733008",
+     "title": "Mechanical Product Engineer",
+     "text": "read, interpret, and review mechanical drawings and assembly drawings. Proficiency in 3D CAD tools (Creo Parametric / SolidWorks / similar) Knowledge of maintenan",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "shieldai:34d71878-2793-427c-ac43-e83cff4a5fee",
+     "title": "Supplier Development Engineer (R4621)",
+     "text": "nt and/or manufacturing engineering role Depending on commodity expertise: Proficiency in CAD software (e.g., SolidWorks, CATIA) and ability to analyze and explain … lidWorks, CATIA) and ability to analyze and explain 2D drawings Proficiency in electrical CAD tools and interpretation of schematics and PCB drawings M.S. degree i",
+     "stratum": "kept",
+     "truth": "tp"
+    }
+   ]
+  },
+  "Mission / defense": {
+   "facet": "responsibilities",
+   "before": 1938,
+   "removed": 716,
+   "kept": 1222,
+   "added": 19,
+   "precisionBefore": 54,
+   "precisionAfter": 80,
+   "truePositivesRemoved": 72,
+   "items": [
+    {
+     "id": "anduril:4754841007",
+     "title": "Lead Software Engineer, API/SDK",
+     "text": "Anduril Industries is a defense technology company with a mission to transform U.S. and allied milita … Anduril Industries is a defense technology company with a mission to transform U.S. and allied military capabilities with advanced tech … il Industries is a defense technology company with a mission to transform U.S. and allied military capabilities with advanced technology. By bringing the expertise, tec",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "anduril:5231644007",
+     "title": "Senior Leadership Recruiter, Hardware",
+     "text": "Anduril Industries is a defense technology company with a mission to transform U.S. and allied milita … Anduril Industries is a defense technology company with a mission to transform U.S. and allied military capabilities with advanced tech … il Industries is a defense technology company with a mission to transform U.S. and allied military capabilities with advanced technology. By bringing the expertise, tec",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "anduril:5248617007",
+     "title": "Test Engineer, Maritime",
+     "text": "Anduril Industries is a defense technology company with a mission to transform U.S. and allied milita … Anduril Industries is a defense technology company with a mission to transform U.S. and allied military capabilities with advanced tech … il Industries is a defense technology company with a mission to transform U.S. and allied military capabilities with advanced technology. By bringing the expertise, tec",
+     "stratum": "removed",
+     "truth": "tp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "anthropic:5416026008",
+     "title": "Customer Success Manager, Beneficial Deployments - Life Sciences",
+     "text": "About Anthropic Anthropic’s mission is to create reliable, interpretable, and steerable AI systems. We wa … ounts, such as research institutes, academic medical centers, scientific foundations, and mission-driven biotech, where you'll build genuine partnerships grounded in a … here you'll build genuine partnerships grounded in a deep understanding of their research mission, scientific objectives, programmatic goals, and technical capacity. Y",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "apple:200674305-3715",
+     "title": "DCM Production Manager (APAC)",
+     "text": "he Apple Store Online and the Apple Store App, Tmall Flagship Store and Douyin Store. Our mission is to deliver an engaging and flawless shopping experience by continu",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "cohere:a10a96b5-f772-466d-9297-f021f78ca9c0",
+     "title": "Software Engineer, Security",
+     "text": "? Cohere's North team is seeking a Software Engineer with a focus on security to join our mission and make a significant impact. This isn't a review-and-advise role, y",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "google:77031606992151238",
+     "title": "Photos Mission Tech Lead, Applied AI, Full Stack",
+     "text": "",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "microsoft:1970393556917596",
+     "title": "Senior Manager Data Center GTM",
+     "text": "er are aligned with customers mid-long term onboarding and services adoption. Microsoft’s mission is to empower every person and every organization on the planet to ac … to accelerate deployment to respond to critical needs and provide business continuity for mission critical applications. In partnership with Corp marketing, define Pub … tional origin, physical or mental disability, political affiliation, protected veteran or military status, race, ethnicity, religion, sex (including pregnancy), sexual",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "microsoft:1970393556953825",
+     "title": "Principal Product Manager - Developer Tools & Engineering Systems",
+     "text": "velocity, developer productivity, and the safety and reliability of every deployment are mission-critical. Within IC3, we're looking for a Principal Product Manager t … n and requires the employee to be in the office a minimum of 3 days per week. Microsoft's mission is to empower every person and every organization on the planet to ac … tional origin, physical or mental disability, political affiliation, protected veteran or military status, race, ethnicity, religion, sex (including pregnancy), sexual",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "microsoft:1970393556971484",
+     "title": "Azure Advanced Cloud Engineer 2 - Customer Focused",
+     "text": "Overview Microsoft’s mission is to empower every person and every organization on the planet to ac … sed on Microsoft’s strategic Azure customers. We are customer-obsessed engineers who lead mission-critical engagements across incident management, problem management, … r Azure services. 4+ years of experience supporting and troubleshooting enterprise-scale, mission-critical applications or infrastructure, including resolving complex",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "microsoft:1970393556984773",
+     "title": "Legal Service Delivery Specialist, Global Frontline",
+     "text": "bled capabilities to increase the speed, quality, and reach of legal support. Microsoft’s mission is to empower every person and every organization on the planet to ac … tional origin, physical or mental disability, political affiliation, protected veteran or military status, race, ethnicity, religion, sex (including pregnancy), sexual",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "microsoft:1970393556994707",
+     "title": "Business Manager, Financial Planning & Operations (Copilot, Apps, and Platform, CTO Exec Office)",
+     "text": "ss priorities, collaboration needs, customer engagements, and key milestones. Microsoft’s mission is to empower every person and every organization on the planet to ac … tional origin, physical or mental disability, political affiliation, protected veteran or military status, race, ethnicity, religion, sex (including pregnancy), sexual",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "microsoft:1970393557000754",
+     "title": "Senior Solution Sales Specialist Cloud and AI Platform Entreprise",
+     "text": "become a recognized leader in one of the fastest-growing technology markets. Microsoft's mission is to empower every person and every organization on the planet to ac … tional origin, physical or mental disability, political affiliation, protected veteran or military status, race, ethnicity, religion, sex (including pregnancy), sexual",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "microsoft:1970393557006510",
+     "title": "Process Program Manager",
+     "text": "tive communication and collaboration among the program team and stakeholders. Microsoft’s mission is to empower every person and every organization on the planet to ac … tional origin, physical or mental disability, political affiliation, protected veteran or military status, race, ethnicity, religion, sex (including pregnancy), sexual",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "microsoft:1970393557016518",
+     "title": "Solution Sales Advisory - Cowork and Agents",
+     "text": "ing the future of work for millions of people around the world. We are united by a shared mission: turning the promise of AI into real value for customers, partners, a … gible consumption revenue, rather than by licence volume or activity metrics. Microsoft’s mission is to empower every person and every organization on the planet to ac … tional origin, physical or mental disability, political affiliation, protected veteran or military status, race, ethnicity, religion, sex (including pregnancy), sexual",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "microsoft:1970393557023102",
+     "title": "Global Land Development Cost Functional Lead",
+     "text": "e world's most advanced cloud services. This role offers the opportunity to contribute to mission‑critical infrastructure by driving integrated cost, schedule, and ris … with teams across CO+I to deliver safely, efficiently, and with excellence. “Microsoft’s mission is to empower every person and every organization on the planet to ac … tional origin, physical or mental disability, political affiliation, protected veteran or military status, race, ethnicity, religion, sex (including pregnancy), sexual",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "netflix:790303283925",
+     "title": "Software Engineer 6 - Ads Identity & Privacy",
+     "text": "At Netflix, our mission is to entertain the world. Together, we are writing the next episode … iding a relevant and engaging advertising experience that prioritizes member privacy. Our mission is to maintain accurate member identities, ensuring that ads are both … ession, age, disability, medical condition, pregnancy, genetic makeup, marital status, or military service.",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "nvidia:893397632800",
+     "title": "Senior Infrastructure Engineer - Infrastructure Security and Core Services",
+     "text": "urity, compliance, and reliability standards for all infrastructure components supporting mission critical manufacturing, R&D workloads, NPI designs in a secure way. C",
+     "stratum": "removed",
+     "truth": "fp"
+    },
+    {
+     "id": "palantir:b72abc17-293d-47e0-a094-c1ab0016b794",
+     "title": "Incident Management Engineer",
+     "text": "Take part in a 24/7 on-call rotation responsible for coordinating Palantir’s response to mission-critical incidents, ensuring efficient resolution with minimal custom … throughout the calendar year • Supportive leave of absence program including time off for military service and medical events • Paid leave for new parents and subsidize",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "shieldai:1aa1c3ee-577a-419a-89fd-1f9815691858",
+     "title": "Sr. Staff Mechanical Engineer - BlueSky (R5825)",
+     "text": "Shield AI is a venture-backed defense-tech company with the mission of protecting service members and civil … Shield AI is a venture-backed defense-tech company with the mission of protecting service members and civilians with intelligent systems. … , you’ll turn complex challenges into practical solutions and play a key role in bringing mission-ready technology to life. Directly contribute to the design, analysis",
+     "stratum": "removed",
+     "truth": "tp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "anduril:4159543007",
+     "title": "Mission Operations Engineer, Connected Warfare (Active Clearance)",
+     "text": "Anduril Industries is a defense technology company with a mission to transform U.S. and allied milita … Anduril Industries is a defense technology company with a mission to transform U.S. and allied military capabilities with advanced tech … il Industries is a defense technology company with a mission to transform U.S. and allied military capabilities with advanced technology. By bringing the expertise, tec",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5048073007",
+     "title": "Technical Writer, Warfighter Systems",
+     "text": "Anduril Industries is a defense technology company with a mission to transform U.S. and allied milita … Anduril Industries is a defense technology company with a mission to transform U.S. and allied military capabilities with advanced tech … il Industries is a defense technology company with a mission to transform U.S. and allied military capabilities with advanced technology. By bringing the expertise, tec",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5161108007",
+     "title": "Mission Software Engineer, EW",
+     "text": "Anduril Industries is a defense technology company with a mission to transform U.S. and allied milita … Anduril Industries is a defense technology company with a mission to transform U.S. and allied military capabilities with advanced tech … il Industries is a defense technology company with a mission to transform U.S. and allied military capabilities with advanced technology. By bringing the expertise, tec",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5201088007",
+     "title": "Deputy Logistics Program Manager",
+     "text": "Anduril Industries is a defense technology company with a mission to transform U.S. and allied milita … Anduril Industries is a defense technology company with a mission to transform U.S. and allied military capabilities with advanced tech … il Industries is a defense technology company with a mission to transform U.S. and allied military capabilities with advanced technology. By bringing the expertise, tec",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5228454007",
+     "title": "Deployment Lead, Counter Intrusion",
+     "text": "Anduril Industries is a defense technology company with a mission to transform U.S. and allied milita … Anduril Industries is a defense technology company with a mission to transform U.S. and allied military capabilities with advanced tech … il Industries is a defense technology company with a mission to transform U.S. and allied military capabilities with advanced technology. By bringing the expertise, tec",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "anduril:5247355007",
+     "title": "Technical Program Manager, Mission Systems - Active Clearance",
+     "text": "Anduril Industries is a defense technology company with a mission to transform U.S. and allied milita … Anduril Industries is a defense technology company with a mission to transform U.S. and allied military capabilities with advanced tech … il Industries is a defense technology company with a mission to transform U.S. and allied military capabilities with advanced technology. By bringing the expertise, tec",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "apple:200669536-0865",
+     "title": "Senior Security Researcher – Red Team",
+     "text": "hich people trust to store their personal and professional data. We believe that the best defense is a good offense, and that means finding vulnerabilities before atta",
+     "stratum": "kept",
+     "truth": "fp"
+    },
+    {
+     "id": "openai:12d722f9-79da-4d92-a34b-52619146f5da",
+     "title": "Legal Contract Manager, Public Sector",
+     "text": "About the team OpenAI’s Legal team plays a crucial role in advancing our mission by tackling innovative and fundamental legal issues in AI. The team i … ful tool that must be created with safety and human needs at its core, and to achieve our mission, we must encompass and value the many different perspectives, voices,",
+     "stratum": "kept",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "shieldai:104a9e83-0848-49c7-9d82-64618bbb39cb",
+     "title": "Staff Software Engineer, Perception (R5421)",
+     "text": "Shield AI is a venture-backed defense-tech company with the mission of protecting service members and civil … Shield AI is a venture-backed defense-tech company with the mission of protecting service members and civilians with intelligent systems. … tackle core perception challenges such as object understanding, scene interpretation, and mission-relevant environmental awareness. Working at the intersection of rese",
+     "stratum": "kept",
+     "truth": "tp"
+    },
+    {
+     "id": "shieldai:7c8aaf63-ab92-4c0f-8a54-9cf1ce07ca69",
+     "title": "Engineer I, Software Integration (R6214)",
+     "text": "Shield AI is a venture-backed defense-tech company with the mission of protecting service members and civil … Shield AI is a venture-backed defense-tech company with the mission of protecting service members and civilians with intelligent systems. … ational platforms across Shield AI’s Expeditionary and Emerging Operations portfolio. Our mission is to rapidly enable new platform adoption by developing the software",
+     "stratum": "kept",
+     "truth": "tp"
+    }
+   ]
+  },
+  "Security": {
+   "facet": "skills",
+   "before": 5277,
+   "removed": 1024,
+   "kept": 4253,
+   "added": 0,
+   "removedFalsePositiveShare": 93,
+   "items": [
+    {
+     "id": "anduril:4591133007",
+     "title": "Senior FPGA Engineer, Intelligence Systems",
+     "text": "deploy critically needed capabilities that address our customers’ most pressing national security requirements. ABOUT THE JOB We are looking for a Senior FPGA Engineer … ly on ARM-based systems Currently possesses and is able to maintain an active U.S. Secret security clearance PREFERRED QUALIFICATIONS Working knowledge of designing for … duril is committed to maintaining the integrity of our Talent acquisition process and the security of our candidates. We've observed a rise in sophisticated phishing an",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "anduril:5239246007",
+     "title": "Quality Specialist- Clearance",
+     "text": "deploy critically needed capabilities that address our customers’ most pressing national security requirements. ABOUT THE JOB We are looking for a Quality Specialist t … cross functional teams Currently possesses and is able to maintain an active U.S. Secret security clearance PREFERRED QUALIFICATIONS: Technical or Associates degree in … duril is committed to maintaining the integrity of our Talent acquisition process and the security of our candidates. We've observed a rise in sophisticated phishing an",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:102595088055444166",
+     "title": "Senior Software Engineer, Device Architecture, Google Home",
+     "text": "retrieval, distributed computing, large-scale system design, networking and data storage, security, artificial intelligence, natural language processing, UI design and",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:111984209760789190",
+     "title": "Senior Software Engineer, Ask Maps, Geo",
+     "text": "retrieval, distributed computing, large-scale system design, networking and data storage, security, artificial intelligence, natural language processing, UI design and",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:119152741032305350",
+     "title": "Senior Software Engineer Manager, YouTube Main App, Mobile",
+     "text": "atural language processing, distributed computing, large-scale system design, networking, security, data compression, user interface design; the list goes on and is gro",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:125103774703198918",
+     "title": "Senior Software Engineer, Android Pixel Photos",
+     "text": "retrieval, distributed computing, large-scale system design, networking and data storage, security, artificial intelligence, natural language processing, UI design and",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:132764512984933062",
+     "title": "Senior Field Sales Representative, Telecom, Google Cloud (Japanese)",
+     "text": "r their business — all with technology built in the cloud. Our products are developed for security, reliability and scalability, running the full stack from infrastruct",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:140161394245804742",
+     "title": "Field Sales Representative, Enterprise Greenfield, Energy, Google Cloud, East and South Region",
+     "text": "r their business — all with technology built in the cloud. Our products are developed for security, reliability and scalability, running the full stack from infrastruct",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:76179974033154758",
+     "title": "Software Engineer II, Mobile iOS",
+     "text": "retrieval, distributed computing, large-scale system design, networking and data storage, security, artificial intelligence, natural language processing, UI design and",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:82717142964675270",
+     "title": "Staff Software Engineer, Customer Services Edge, Google Global Infrastructure",
+     "text": "retrieval, distributed computing, large-scale system design, networking and data storage, security, artificial intelligence, natural language processing, UI design and",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:90694450937766598",
+     "title": "Software Engineering Manager, Payments Platform Consumer",
+     "text": "atural language processing, distributed computing, large-scale system design, networking, security, data compression, user interface design; the list goes on and is gro",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:96710280632771270",
+     "title": "Software Engineer II, Infrastructure",
+     "text": "retrieval, distributed computing, large-scale system design, networking and data storage, security, artificial intelligence, natural language processing, UI design and",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "microsoft:1970393556929252",
+     "title": "Commissioning Manager - Vaasa",
+     "text": "lish Background Check Requirements: Ability to meet Microsoft, customer and/or government security screening requirements are required for this role. These requirements … r this role. These requirements include, but are not limited to the following specialized security screenings: Microsoft Cloud Background Check: This position will be r … eers Background Check Requirements: Ability to meet Microsoft, customer and/or government security screening requirements are required for this role. These requirements",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "microsoft:1970393556979216",
+     "title": "Digital Enterprise Solution Sales Specialist - AI Workforce- Hebrew speaking",
+     "text": "arter to achieve Microsoft and Customer business outcomes with a focus on AI, Copilot and Security. As a Modern Work Digital Specialist, you will be a solution sales ex",
+     "stratum": "removed",
+     "truth": "tp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "microsoft:1970393557001942",
+     "title": "Senior Network HW System Engineer",
+     "text": "and the Microsoft Azure platform globally with our server and data center infrastructure, security and compliance, operations, globalization, and manageability solution … re deployments. Other Requirements: Ability to meet Microsoft, customer and/or government security screening requirements are required for this role. These requirements … or this role. These requirements include but are not limited to the following specialized security screenings: Microsoft Cloud Background Check: This position will be r",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    }
+   ]
+  },
+  "Networking": {
+   "facet": "skills",
+   "before": 3306,
+   "removed": 839,
+   "kept": 2467,
+   "added": 0,
+   "removedFalsePositiveShare": 100,
+   "items": [
+    {
+     "id": "anduril:4672892007",
+     "title": "Robotics Software Engineer, Vehicle Software",
+     "text": "l is committed to bringing cutting-edge autonomy, AI, computer vision, sensor fusion, and networking technology to the military in months, not years. ABOUT THE TEAM Air D … s collaborate with other engineering disciplines to develop software for vehicle control, networking, sensor integration, and telemetry. We are looking for engineers exci",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:102064172115600070",
+     "title": "Staff Software Engineer, Shopping Graph",
+     "text": "areas, including information retrieval, distributed computing, large-scale system design, networking and data storage, security, artificial intelligence, natural language",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:106771249476051654",
+     "title": "Staff Software Engineer, AI/ML GenAI, Google Cloud AI",
+     "text": "areas, including information retrieval, distributed computing, large-scale system design, networking and data storage, security, artificial intelligence, natural language",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:111560884362322630",
+     "title": "Senior Software Engineer, Infrastructure, Google Cloud Platforms",
+     "text": "areas, including information retrieval, distributed computing, large-scale system design, networking and data storage, security, artificial intelligence, natural language",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:117279545806987974",
+     "title": "Senior Software Engineer, AI/ML GenAI, Search",
+     "text": "areas, including information retrieval, distributed computing, large-scale system design, networking and data storage, security, artificial intelligence, natural language",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:120977768199398086",
+     "title": "Senior Staff Software Engineer, Production PKIS",
+     "text": "areas, including information retrieval, distributed computing, large-scale system design, networking and data storage, security, artificial intelligence, natural language",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:125818302642430662",
+     "title": "Software Engineering Manager, GenAI, Computer Vision, Google Maps Immersive Navigation",
+     "text": "elligence, natural language processing, distributed computing, large-scale system design, networking, security, data compression, user interface design; the list goes on",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:131242196723475142",
+     "title": "Senior Software Engineer, Embedded Systems, Firmware, Android XR",
+     "text": "areas, including information retrieval, distributed computing, large-scale system design, networking and data storage, security, artificial intelligence, natural language",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:136022004623909574",
+     "title": "Software Engineering Manager, Google Cloud TPU",
+     "text": "elligence, natural language processing, distributed computing, large-scale system design, networking, security, data compression, user interface design; the list goes on",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:141760115291103942",
+     "title": "Community Development Manager, Strategic Partnership Office",
+     "text": "y teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center operations, systems research, and much more. Individual",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:74095070206141126",
+     "title": "Senior Robotics Automation Engineer, Platforms Infrastructure",
+     "text": "y teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center operations, systems research, and much more.Individual p",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:79322813130777286",
+     "title": "Staff Software Engineer, Quantum Error Correction Decoding, Quantum AI",
+     "text": "areas, including information retrieval, distributed computing, large-scale system design, networking and data storage, security, artificial intelligence, natural language",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:85356947439526598",
+     "title": "Software Engineer, Payments Security",
+     "text": "areas, including information retrieval, distributed computing, large-scale system design, networking and data storage, security, artificial intelligence, natural language",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:91291537291256518",
+     "title": "Business Program Manager, Third Party Data Center Operations",
+     "text": "y teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center operations, systems research, and much more. Responsibil",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:95347034390700742",
+     "title": "Engineering Manager, Technical Lead, Google Photos Web",
+     "text": "elligence, natural language processing, distributed computing, large-scale system design, networking, security, data compression, user interface design; the list goes on",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    }
+   ]
+  },
+  "NLP": {
+   "facet": "skills",
+   "before": 949,
+   "removed": 652,
+   "kept": 297,
+   "added": 0,
+   "removedFalsePositiveShare": 93,
+   "items": [
+    {
+     "id": "cohere:82ec1512-5bc3-49dd-b995-b6abc2a958d7",
+     "title": "Senior Member of Technical Staff, Web Data",
+     "text": "nt and reliable language understanding and generation capabilities, driving innovation in natural language processing. If you are passionate about transforming data into the foundation of",
+     "stratum": "removed",
+     "truth": "tp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:105605735575888582",
+     "title": "Senior Software Engineer, Mobile (iOS), Health Platform",
+     "text": "arge-scale system design, networking and data storage, security, artificial intelligence, natural language processing, UI design and mobile; the list goes on and is growing every day. As",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:110496342526042822",
+     "title": "Software Engineer III, AI/ML Recommendations, Rankings, Predictions, YouTube",
+     "text": "arge-scale system design, networking and data storage, security, artificial intelligence, natural language processing, UI design and mobile; the list goes on and is growing every day. As",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:116324069564916422",
+     "title": "Software Engineer III, Mobile (iOS), YouTube",
+     "text": "arge-scale system design, networking and data storage, security, artificial intelligence, natural language processing, UI design and mobile; the list goes on and is growing every day. As",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:120152746857767622",
+     "title": "Staff Software Engineer, ML Performance, GPU",
+     "text": "arge-scale system design, networking and data storage, security, artificial intelligence, natural language processing, UI design and mobile; the list goes on and is growing every day. As",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:123765359814550214",
+     "title": "Senior Software Engineer, Infrastructure, Capacity and Demand",
+     "text": "arge-scale system design, networking and data storage, security, artificial intelligence, natural language processing, UI design and mobile; the list goes on and is growing every day. As",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:129286946147967686",
+     "title": "Senior Software Engineer, Gemini Enterprise Mobile",
+     "text": "arge-scale system design, networking and data storage, security, artificial intelligence, natural language processing, UI design and mobile; the list goes on and is growing every day. As",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:134528373375279814",
+     "title": "Staff Software Engineer, Infrastructure, Core",
+     "text": "arge-scale system design, networking and data storage, security, artificial intelligence, natural language processing, UI design and mobile; the list goes on and is growing every day. As",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:139070114996593350",
+     "title": "Senior Software Engineer, Google Pay",
+     "text": "arge-scale system design, networking and data storage, security, artificial intelligence, natural language processing, UI design and mobile; the list goes on and is growing every day. As",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:143570916452770502",
+     "title": "Research Scientist, Neutral Atoms, Quantum AI",
+     "text": "t span the breadth of computer science, such as machine (and deep) learning, data mining, natural language processing, hardware and software performance analysis, improving compilers for",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:76881473189094086",
+     "title": "Software Engineer III, Backend Development, Google Health Labs",
+     "text": "arge-scale system design, networking and data storage, security, artificial intelligence, natural language processing, UI design and mobile; the list goes on and is growing every day. As",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:80472847532597958",
+     "title": "Staff Research Scientist, Android Pixel Audio",
+     "text": "t span the breadth of computer science, such as machine (and deep) learning, data mining, natural language processing, hardware and software performance analysis, improving compilers for",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:85858506741031622",
+     "title": "Senior Embedded Software Engineer, Android OS",
+     "text": "arge-scale system design, networking and data storage, security, artificial intelligence, natural language processing, UI design and mobile; the list goes on and is growing every day. As",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:90694450937766598",
+     "title": "Software Engineering Manager, Payments Platform Consumer",
+     "text": "all across the company, in areas such as information retrieval, artificial intelligence, natural language processing, distributed computing, large-scale system design, networking, securi",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:94967548260295366",
+     "title": "Staff AI/ML Software Engineer, YouTube Ads Creative Foundations",
+     "text": "arge-scale system design, networking and data storage, security, artificial intelligence, natural language processing, UI design and mobile; the list goes on and is growing every day. As",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    }
+   ]
+  },
+  "Information retrieval": {
+   "facet": "skills",
+   "before": 1373,
+   "removed": 600,
+   "kept": 773,
+   "added": 0,
+   "removedFalsePositiveShare": 100,
+   "items": [
+    {
+     "id": "google:100039037053477574",
+     "title": "Software Engineer III, AI and Data Protection, Google Cloud",
+     "text": "d web search. We're looking for engineers who bring fresh ideas from all areas, including information retrieval, distributed computing, large-scale system design, networking and dat",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:105605735575888582",
+     "title": "Senior Software Engineer, Mobile (iOS), Health Platform",
+     "text": "d web search. We're looking for engineers who bring fresh ideas from all areas, including information retrieval, distributed computing, large-scale system design, networking and dat",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:110335006743634630",
+     "title": "Silicon Software Engineering Manager, Embedded Systems",
+     "text": "strategy and help develop your team. Teams work all across the company, in areas such as information retrieval, artificial intelligence, natural language processing, distributed co",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:116372578636833478",
+     "title": "Software Engineering Manager, Google Payments",
+     "text": "strategy and help develop your team. Teams work all across the company, in areas such as information retrieval, artificial intelligence, natural language processing, distributed co",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:120221285945877190",
+     "title": "Staff Software Engineer, Lustre AI/ML, Google Cloud Storage",
+     "text": "d web search. We're looking for engineers who bring fresh ideas from all areas, including information retrieval, distributed computing, large-scale system design, networking and dat",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:124069763474170566",
+     "title": "Senior Engineering Manager, Play Games",
+     "text": "strategy and help develop your team. Teams work all across the company, in areas such as information retrieval, artificial intelligence, natural language processing, distributed co",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:130314946469601990",
+     "title": "Staff Software Engineer, AI/ML GenAI, Google Workspace",
+     "text": "d web search. We're looking for engineers who bring fresh ideas from all areas, including information retrieval, distributed computing, large-scale system design, networking and dat",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:134896932572013254",
+     "title": "Software Engineer III, Pixel Audio",
+     "text": "d web search. We're looking for engineers who bring fresh ideas from all areas, including information retrieval, distributed computing, large-scale system design, networking and dat",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:139659234185749190",
+     "title": "Staff Software Engineer, DevAI, Self-Maintaining Codebase",
+     "text": "d web search. We're looking for engineers who bring fresh ideas from all areas, including information retrieval, distributed computing, large-scale system design, networking and dat",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:72115599236309702",
+     "title": "Senior Software Engineer, Mobile (Android)",
+     "text": "d web search. We're looking for engineers who bring fresh ideas from all areas, including information retrieval, distributed computing, large-scale system design, networking and dat",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:77247651363332806",
+     "title": "Software Engineer, Android",
+     "text": "d web search. We're looking for engineers who bring fresh ideas from all areas, including information retrieval, distributed computing, large-scale system design, networking and dat",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:81190749168640710",
+     "title": "Senior Software Engineer, Embedded, Pixel Graphics",
+     "text": "d web search. We're looking for engineers who bring fresh ideas from all areas, including information retrieval, distributed computing, large-scale system design, networking and dat",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:86191709230113478",
+     "title": "Software Engineer III, Generative AI, Core",
+     "text": "d web search. We're looking for engineers who bring fresh ideas from all areas, including information retrieval, distributed computing, large-scale system design, networking and dat",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:90811770116940486",
+     "title": "Senior Staff Tech Lead Manager, TPU Workload Onboarding and Optimization",
+     "text": "strategy and help develop your team. Teams work all across the company, in areas such as information retrieval, artificial intelligence, natural language processing, distributed co",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    },
+    {
+     "id": "google:94746337043456710",
+     "title": "Staff Software Engineer, Raxium Display Test",
+     "text": "d web search. We're looking for engineers who bring fresh ideas from all areas, including information retrieval, distributed computing, large-scale system design, networking and dat",
+     "stratum": "removed",
+     "truth": "fp",
+     "snippetDiffers": true
+    }
+   ]
+  }
+ }
+}

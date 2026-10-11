@@ -419,3 +419,77 @@ so the archive ingest, which pairs jobs by index, does not use it.
   Jose), San Bruno and South San Francisco (San Francisco), Culver City (Los Angeles), Waltham
   (Boston), Beaverton and Hillsboro (Portland), Cary and Morrisville (Raleigh), Thornton (Denver),
   Addison and Irving (Dallas), Springfield (Arlington, VA).
+
+## Fix wave 3 additions (2026-10-11): pay and data parsing (fix3-data lane)
+
+Findings BP-1, BP-2 (Juice side), BP-5, BP-8, BP-9 (data), BP-11, BP-14, BP-15 and keyword-tag noise
+from the persona review of the beta site ([docs/process/lead.md](process/lead.md) "Beta, stage 1c").
+Log: [docs/process/fix3-data.md](process/fix3-data.md). Every addition is optional for readers; no
+export changed its signature or return shape. `NORMALIZER_VERSION` is `norm-8`: stored older
+snapshots are re-derived once by `relocateJobs(rekeyBoardJobs(jobs).jobs)`, then
+`upgradeStoredJobs`, as before.
+
+**Job `salary`** (shared decisions 3 and 4):
+
+| Field | Meaning |
+|---|---|
+| `originalInterval` | Now also `'year'`, on a salary with `termWeeks` whose pay was stated per year or with no interval (Google "Ireland: €72000 (EUR)" for a 13-week internship, Microsoft "CAD $43,800 - CAD $50,000 per year" for a 6-month one). A salary with `termWeeks` always carries `originalInterval`: `'year'` reads as a yearly rate ("€72,000 a year (13-week internship)"); only `'week'`, `'month'`, `'term'` (or `kind: 'stipend'`) is pay for the term. A salary without `termWeeks` still omits it for yearly pay. `termWeeks` is the programme's length, for information only |
+| `partTime` | `true` when the role is part-time (`employmentType` says part-time and not also full-time, or else the title does: `salary.js#isPartTimeRole`) and the pay was posted per hour (`originalInterval: 'hour'`). `min`/`max`/`mid` stay the 2,080-hour (full-time) equivalent, so any yearly figure must say "if full-time (2,080 hours)". Absent otherwise |
+| `hoursPerWeek`, `hoursPerWeekMax` | With `partTime` only: the weekly hours the posting states ("work 16 hours per week", "28 hrs pw", "20-25 hours a week"; 1–34, a range's upper end up to 40; `salary.js#statedWeeklyHours`). Absent when the posting states none |
+
+New pure exports in `server/salary.js`: `isPartTimeRole({ title, employmentType })`,
+`statedWeeklyHours(text) -> { hours, hoursMax? } | null`. `payTerms` sets the three fields above.
+
+**Juice (`server/juice.js#attachJuice`)** (shared decisions 1 and 4):
+- Only matched locations whose city uses the salary's currency are scored. When none does, the pay is
+  another country's: `job.juice` is `null` and `job.juiceMissing = { code: 'pay-other-country', text }`
+  ("No Juice figure: the pay is posted in Canadian dollars (for Canada), and London, UK uses another
+  currency. Juice is never worked out from another country’s pay."). The `currencyMismatch` flag on
+  `byLocation` entries is retired (never set).
+- Part-time hourly pay (`salary.partTime`) is scored on `mid ÷ 2080 × hoursPerWeek × 52`; with no stated
+  hours `job.juice` is `null` and `job.juiceMissing = { code: 'part-time-hours', text }`.
+- `job.juiceMissing` is absent whenever Juice is computed, and for the other no-Juice cases (no salary,
+  unknown currency, no city record). Every `attachJuice` call resets it.
+
+**Job `sections`** (BP-14): adds `preferred: string[]`, present only when the posting itself separates
+a required list from a preferred one ("Minimum qualifications" / "Preferred qualifications": Google,
+Apple, Microsoft, Anduril, Shield AI, xAI, Scale "Must haves" / "Nice to haves"). `fit` then holds the
+required items only. A posting whose list is introduced softly ("You may be a good fit if you", "You
+might thrive in this role if you", "About you") is not split: `fit` holds every item and `preferred` is
+absent. Rules: `keywords.js#fitHeadingKind(text) -> 'preferred' | 'required' | 'soft' | 'neutral'`. Apple's
+line-broken lists (`<h3>Minimum Qualifications</h3><p>line<br>line</p>`) are read as items, a wrapped
+line joining the item before it. The "N+ yrs" fit tag is the required minimum when `preferred` exists;
+skills named only in `preferred` sort last. A list that moves `sections` into the description files
+(over `LIST_BUDGET`) moves `preferred` with them.
+
+**Keywords (`server/keywords.js`):**
+- `extractKeywords({ …, skillText })` (optional): for a posting with both responsibilities and fit
+  lists, skills come from the title, the lists and `skillText`, the description without the board's
+  team paragraphs. New export `teamParagraphs(items: [{ html, title }], { minPostings = 3, minTitles = 3,
+  minChars = 60 }) -> Set<hash>`: a paragraph outside the lists that a board repeats on 3 or more
+  postings with 3 or more different titles (Google's "Google's software engineers develop the
+  next-generation technologies…", "Google Cloud accelerates…", Chrome's "available across all major
+  platforms — iOS, Android…"). `rekeyBoardJobs` and `normalizeJobs` pass it; `normalizeJob` alone
+  does not, and is unchanged. Also exported: `unionSets(a, b)`, `fitHeadingKind`.
+- Lexicon: "CAD" is never the currency, in any format ("$120000 (CAD)", "112 000 $ CAD", "Canadian dollars
+  (CAD)", "CAD $43,800"); "Evals" needs a model benchmark ("model benchmarks", "benchmark the models"), not
+  "benchmark industry practices"; bare "agents" counts only in a posting about AI and not after another
+  kind of agent (commissioning, change, support, routing…); "Transformers" not in a sentence about power
+  equipment; "Google Cloud" not as the organization ("Google Cloud customers"); responsibility "Mission /
+  defense" needs a military sense (no "Anthropic's mission is…", no "fraud defense").
+- Levels: "Art Director", "Creative Director", "Technical Director" (also Associate, Senior, Group, Lead)
+  are `'Senior'` with basis `'title'`, never Director+; "Principal …" is Staff+, "Executive Creative
+  Director" stays Director+.
+
+**Departments (`server/sources/eightfold.js#departmentName`, BP-8):** NVIDIA's and Microsoft's
+department and team names are written in plain words ("Mgmt, Sys SW" → "Management, Systems Software",
+"Program Mgr, Technical" → "Program Manager, Technical", "Customer Success Account Mgmt" → "… Management",
+a bracket that repeats the name is dropped). Applied by `mapEightfoldJob` and, for stored jobs, by
+`upgradeEightfoldJobs`. ASIC, CAD, IT, HR and UX stay.
+
+**Locations (`server/geo.js`, BP-15):** Apple store names and Google's Lithuanian "Dublinas" are aliases
+of their city: Piazza Liberty (Milan), Via del Corso (Rome), Shinsaibashi and Umeda (Osaka), Rosny 2
+(Paris), "Campania, Italy" (Naples), Polo Park (Winnipeg), Coquitlam Centre and Guildford Town Centre
+(Vancouver), Place Ste-Foy (Québec City), The Dubai Mall, Morumbi (São Paulo), Jungfernstieg (Hamburg),
+Eldon Square (Newcastle upon Tyne), Akasya (Istanbul), "Emporia, Sweden" (Malmö), Dublinas (Dublin).
+New gazetteer cities: Naples, Malmö, Newcastle upon Tyne. `rawName` keeps the posting's words.

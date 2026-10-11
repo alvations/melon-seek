@@ -94,6 +94,20 @@ test('BP-2: Juice is never worked out from another country\'s pay; the reason is
   assert.equal(london.juiceMissing, undefined);
 });
 
+test('BP-2: a pay line that names its country is that country\'s pay only (salary.country)', () => {
+  // Google lists one line per country; a Dublin and Munich role with only the Ireland line.
+  const sal = deriveSalary({ title: 'Program Manager', text: 'Individual pay is determined by factors including job-related skills.\nIreland: €124000 - €127000 (EUR) + 15% bonus target' }, [...geocode('Dublin, Ireland'), ...geocode('Munich, Germany')]);
+  assert.equal(sal.country, 'IE');
+  const both = attachJuice({ id: 'google:1', title: 'Program Manager', salary: sal, locations: [...geocode('Dublin, Ireland'), ...geocode('Munich, Germany')] }, CITIES);
+  assert.deepEqual(both.juice.byLocation.map((e) => e.city), ['dublin-ie']);
+  const munich = attachJuice({ id: 'google:2', title: 'Program Manager', salary: sal, locations: geocode('Munich, Germany') }, CITIES);
+  assert.equal(munich.juice, null);
+  assert.match(munich.juiceMissing.text, /posted for Ireland only.*Munich/);
+  // A national range ("across the U.S.") is the US; an unlabelled range names no country.
+  assert.equal(parseSalary('The typical base pay range for this role across the U.S. is USD $119,800 - $234,700 per year.', { countries: ['US'] }).country, 'US');
+  assert.equal(parseSalary('Salary: $150,000 - $200,000', { countries: ['US'] }).country, undefined);
+});
+
 /* ------------------------------------------------------------- BP-5 */
 
 test('BP-5: "CAD" is never the skill in any currency-code format', () => {
@@ -346,6 +360,26 @@ test('tags: a team paragraph repeated across a board\'s roles does not give its 
   assert.ok(fresh['Software Engineer, Chrome iOS'].includes('iOS'));
   // normalizeJob alone (no board context) is unchanged.
   assert.ok(normalizeJob(raws[0], { slug: 'google', name: 'Google' }).keywords.skills.includes('iOS'));
+});
+
+test('tags: labelled sample from the 13 snapshots (test/fixtures/keyword-labels-fix3.json), as P-17', () => {
+  const fx = JSON.parse(fs.readFileSync(new URL('./fixtures/keyword-labels-fix3.json', import.meta.url), 'utf8'));
+  for (const [label, v] of Object.entries(fx.labels)) {
+    let fpBefore = 0;
+    let fpAfter = 0;
+    for (const it of v.items) {
+      const has = extractKeywords({ title: it.title, text: it.text })[v.facet].includes(label);
+      if (!it.snippetDiffers) {
+        assert.equal(has, it.stratum === 'kept', `${label} ${it.id} ${it.title}: ${it.stratum}`);
+        if (it.truth === 'fp' && it.stratum === 'removed') assert.ok(!has, `${label} ${it.id}: a false positive the fix removes`);
+        if (it.truth === 'tp' && it.stratum === 'kept') assert.ok(has, `${label} ${it.id}: a true positive that stays`);
+      }
+      if (it.truth === 'fp') { fpBefore++; if (it.stratum === 'kept') fpAfter++; }
+    }
+    assert.ok(fpAfter < fpBefore, `${label}: fewer false positives in the sample (${fpBefore} -> ${fpAfter})`);
+    if (v.precisionAfter != null) assert.ok(v.precisionAfter > v.precisionBefore, `${label}: estimated precision ${v.precisionBefore}% -> ${v.precisionAfter}%`);
+    else assert.ok(v.removedFalsePositiveShare >= 90, `${label}: the team-paragraph rule removes mostly false positives (${v.removedFalsePositiveShare}%)`);
+  }
 });
 
 /* --------------------------------------------------------- delivery */
