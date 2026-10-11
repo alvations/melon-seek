@@ -109,7 +109,11 @@ MELON_BETA_SNAPSHOT_DIR=<empty dir> npm test
   short list probe.
 - `test/incremental-unit.test.js` (6): politeness constants unchanged, signals, spread, fallback
   limit, accounting, 304 for details and the sitemap.
-- Full `npm test` (MELON_BETA_SNAPSHOT_DIR empty): see §7 for the final count.
+- Full `npm test` (MELON_BETA_SNAPSHOT_DIR empty), final: 972 tests, 936 pass, 35 todo (open
+  review findings), 1 fail: `perf.test.js` "review V15: cold /api/market does not block the event
+  loop", a timing goal (< 100 ms) under full-suite load on 4 CPUs; `node --test test/perf.test.js`
+  alone passes 3/3, and it does not touch any file changed here. An earlier full run had the same
+  flake on the PERF-1 event-loop test, which also passes alone.
 
 ## 6. Known gaps and follow-ups
 
