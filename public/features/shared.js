@@ -226,6 +226,59 @@ export function payLocations(job) {
   return hit.length ? hit : locs;
 }
 
+// A currency's home country when exactly one country uses it (USD -> US, CAD -> CA, PLN -> PL;
+// not EUR). "UK" is palette.js's alias for GB.
+const CURRENCY_HOME = (() => {
+  const by = {};
+  for (const [cc, cur] of Object.entries(palette.COUNTRY_CURRENCY || { US: 'USD' })) if (cc !== 'UK') (by[cur] ||= []).push(cc);
+  return Object.freeze(Object.fromEntries(Object.entries(by).filter(([, v]) => v.length === 1).map(([cur, [cc]]) => [cur, cc])));
+})();
+const iso = (c) => { const u = String(c || '').toUpperCase(); return u === 'UK' ? 'GB' : u; };
+
+/**
+ * The country a posting's pay is for (shared decision 2 of fix wave 3, BP-3: comparisons stay
+ * within one country): the ISO code of the first of payLocations(job) that names a country.
+ * payLocations keeps remote entries without a country, which Anthropic and Anduril list first, so
+ * the first such entry is skipped. With no located place, the currency's home country when only
+ * one country uses it ("$" with no place is US pay; a missing currency reads as USD, as everywhere
+ * else in the app); else null (a euro range on a remote-only posting is for no one country).
+ *   payCountry({ salary: { currency: 'PLN' }, locations: [{ country: 'US' }, { country: 'PL' }] }) -> 'PL'
+ *   payCountry({ salary: { currency: 'USD' }, locations: [{ name: 'Remote', remote: true }] })  -> 'US'
+ * @returns {string|null}
+ */
+export function payCountry(job) {
+  const loc = payLocations(job).find((l) => l && l.country);
+  if (loc) return iso(loc.country);
+  const cur = String(job?.salary?.currency || (job?.salary ? 'USD' : '')).toUpperCase();
+  return CURRENCY_HOME[cur] || null;
+}
+
+/** The roles in `jobs` whose pay is for the same country as `job`'s (payCountry). */
+export function samePayCountry(job, jobs) {
+  const c = payCountry(job);
+  return (jobs || []).filter((j) => j && payCountry(j) === c);
+}
+
+/**
+ * Where a posting's pay ranks among a pool of comparable roles, counting only roles paid in the
+ * same country (BP-3: "Pays more than 1% of Google's roles" for a Warsaw role ranked against US
+ * pay). `pool` is the caller's like-for-like pool (app.js payPool: same kind of pay, interns with
+ * interns); `mid(j)` is a role's comparable pay. The posting itself is never in its own pool.
+ * @returns {{ pct: number|null, n: number, country: string|null, others: number }|null}
+ *   pct: the share of same-country roles paid less (0..100), null with fewer than minN of them;
+ *   n: how many same-country roles; others: pool roles left out because their pay is for another
+ *   country. null when the posting has no comparable pay.
+ */
+export function payRank(job, pool, { mid = (j) => j?._mid, minN = 5 } = {}) {
+  const v = mid(job);
+  if (!Number.isFinite(v)) return null;
+  const country = payCountry(job);
+  const usable = (pool || []).filter((j) => j && j !== job && (job?.id == null || j.id !== job.id) && Number.isFinite(mid(j)));
+  const same = usable.filter((j) => payCountry(j) === country);
+  const pct = same.length >= minN ? Math.round((same.filter((j) => mid(j) < v).length / same.length) * 100) : null;
+  return { pct, n: same.length, country, others: usable.length - same.length };
+}
+
 /** True when the posting's pay applies in `country` (a two-letter code): see payLocations. */
 export function payAppliesIn(job, country) {
   const c = String(country || '').toUpperCase();

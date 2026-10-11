@@ -12,25 +12,45 @@
 //     format, basis: "posted base pay ranges", currency: "USD",
 //     stat: "midpoint of each posted range, annualized, in USD",
 //     fx: { asOf, source }, generatedAt, minN: 3, mode: "real"|"demo",
-//     companies: [{ slug, name, color, mode, fetchedAt, jobs, salaried, used }],
+//     companies: [{ slug, name, color, mode, fetchedAt, jobs, salaried, used, ...,
+//                   country: "US", countries: { US: 1180, IE: 52 } }],
 //     families: ["ml", "swe", ...],
 //     columns: ["company", "family", "seniority", "n", "p25", "median", "p75"],
 //     cells: [["anthropic", "ml", "Senior", 41, 320000, 365000, 405000], ...],
 //     oteCells: [...same columns, on-target earnings only...],
-//     counts: [["xai", "design", "Senior", 2], ...]   // groups below minN: count only, no pay
+//     counts: [["xai", "design", "Senior", 2], ...],   // groups below minN: count only, no pay
+//     countryMinN: 10,
+//     countries: [{ code: "US", companies: 13, n: 11841 }, ...],          // most postings first
+//     byCountry: { IE: { cells: [...], oteCells: [...], counts: [...] }, ... }
 //   }
 // A cell is one company x role family x seniority bucket with n >= minN; a
 // family-only roll-up uses seniority "*" (the drawer's fallback). Amounts are
 // rounded to $100. Demo payloads are only used when no company has real data,
 // and the doc then says mode: "demo".
 //
+// One country per cell (fix wave 3, BP-3, shared decision 2: comparisons stay within one country).
+// Every posting counts in the country its pay is for, payCountry(job) (public/features/shared.js).
+// - `cells`, `oteCells` and `counts` hold each company's home country: companies[].country, the
+//   country with most of its salaried postings (Cohere: Canada). Their columns are unchanged.
+// - `byCountry[code]` holds the same three arrays for every other country where the company has
+//   countryMinN (10) or more salaried postings (Google: Ireland, Canada, Poland, Germany, ...).
+//   Fewer postings in a country add nothing: too few to compare, and market.json keeps its cap.
+// - companies[].countries counts the salaried postings used per country it keeps; `countries`
+//   sums them. A (company, country) pair's cells appear exactly once, so nothing is duplicated.
+// Before this, a cell pooled every country a company posts in (Google's entry software median of
+// $89K was mostly Warsaw and Malaga pay); readers now filter by country (public/features/comps.js).
+//
 // Like with like (persona review 2026-10-10, docs/process/fix-estimates.md, P-1 and P-10):
 // - On-target earnings (salary.kind 'ote': base plus commission at target) never enter `cells`;
 //   they get their own `oteCells`, compared only with each other.
 // - Internships and fixed-term programmes (isInternLike) count only in the "Intern" bucket, never
 //   in the "*" roll-up, which is therefore "all full-time levels".
-// - "Mid" is the stored default for titles that state no level; its cells stay (no data change),
-//   and readers never treat them as a level match (public/features/comps.js).
+// - "Mid" is the stored level: mostly the default for titles that state no level, plus the rungs
+//   that mean mid level (Google "III", Netflix "L4"). Its cells stay (no data change), and readers
+//   never treat them as a level match (public/features/comps.js).
+// - "Mid-level" (MID_STATED, roles.js levelKey) is the stated mid level only: a full-time posting
+//   whose displayLevel() is 'Mid' (seniorityBasis 'title' or 'pay'). It is a level match (fix wave 3,
+//   BP-7: 554 postings with a "Mid" badge were told they "don't state a level").
 // - `counts` lists the groups below minN (company, family, level, n) with no pay figures, so a
 //   reader can say "fewer than 3 salaried postings" instead of leaving a company out silently.
 //
@@ -40,11 +60,16 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { roleFamily } from '../public/features/compstimate.js';
-import { isOTE, isInternLike } from '../public/features/shared.js';
+import { displayLevel, levelKey } from '../public/features/roles.js';
+import { isOTE, isInternLike, payCountry } from '../public/features/shared.js';
 import { toUSD, FX_AS_OF, hasFx } from '../public/viz/palette.js';
 
 export const MARKET_FORMAT = 'melon-market-1';
 export const MIN_N = 3;
+/** Salaried postings a company needs in a country, other than its home country, for cells there. */
+export const COUNTRY_MIN_N = 10;
+/** The seniority bucket of a stated mid level (levelKey('Mid')); 'Mid' stays the stored level. */
+export const MID_STATED = levelKey('Mid');
 export const BASIS = 'posted base pay ranges';
 export const OTE_BASIS = 'posted on-target earnings ranges (base plus commission at target)';
 export const COLUMNS = Object.freeze(['company', 'family', 'seniority', 'n', 'p25', 'median', 'p75']);
@@ -72,67 +97,101 @@ export function usdMid(salary) {
   return Number.isFinite(usd) && usd > 0 ? usd : null;
 }
 
-export function buildMarket(payloads, { minN = MIN_N, generatedAt = new Date().toISOString() } = {}) {
-  const list = (payloads || []).filter((p) => p && p.company && p.company.slug && Array.isArray(p.jobs));
-  const real = list.filter((p) => REAL_MODES.has(p.mode));
-  const use = real.length ? real : list;
-  const docMode = real.length ? 'real' : 'demo';
+/** The home country: most salaried postings, then the US, then the alphabet. */
+function homeCountry(byCountry) {
+  return [...byCountry].sort((a, b) => b[1] - a[1] || (a[0] === 'US' ? -1 : b[0] === 'US' ? 1 : 0) || (a[0] < b[0] ? -1 : 1))[0]?.[0] || null;
+}
 
-  const companies = [];
-  const groups = new Map(); // "slug|family|seniority" -> number[] (base pay)
+/**
+ * One company's part of the market doc: its companies[] entry, its home-country arrays and its
+ * other countries' arrays. buildMarket and mergeMarkets both assemble these, so building the
+ * companies one at a time (the server, PERF-1) gives the same doc as building them together.
+ */
+function companyPart(p, minN) {
+  const slug = p.company.slug;
+  let salaried = 0;
+  let used = 0;
+  let ote = 0, internLike = 0, fullTime = 0, levelled = 0;
+  const groups = new Map(); // "country|family|seniority" -> number[] (base pay)
   const oteGroups = new Map(); // the same for on-target earnings
+  const perCountry = new Map(); // country -> salaried postings used
   const add = (map, key, v) => { let a = map.get(key); if (!a) map.set(key, (a = [])); a.push(v); };
-  const families = new Set();
-
-  for (const p of use) {
-    const slug = p.company.slug;
-    let salaried = 0;
-    let used = 0;
-    let ote = 0, internLike = 0, fullTime = 0, levelled = 0;
-    for (const job of p.jobs) {
-      if (!job || !job.salary) continue; // quarantined or no pay: excluded
-      salaried++;
-      const usd = usdMid(job.salary);
-      if (usd == null) continue;
-      let family = null;
-      try { family = roleFamily(job.title || '', job); } catch { family = null; } // job as ctx: department hints
-      if (!family) continue;
-      const intern = isInternLike(job);
-      const target = isOTE(job) ? oteGroups : groups;
-      // Interns and fixed-term pay only in "Intern"; "*" = every full-time level.
-      const seniority = intern ? 'Intern' : job.seniority || 'Mid';
-      add(target, `${slug}|${family}|${seniority}`, usd);
-      if (!intern) add(target, `${slug}|${family}|*`, usd);
-      families.add(family);
-      used++;
-      if (target === oteGroups) ote++;
-      else if (intern) internLike++;
-      else { fullTime++; if (seniority !== 'Mid') levelled++; }
+  for (const job of p.jobs) {
+    if (!job || !job.salary) continue; // quarantined or no pay: excluded
+    salaried++;
+    const usd = usdMid(job.salary);
+    if (usd == null) continue;
+    let family = null;
+    try { family = roleFamily(job.title || '', job); } catch { family = null; } // job as ctx: department hints
+    if (!family) continue;
+    const country = payCountry(job);
+    if (!country) continue; // pay for no known country is compared with nothing
+    const intern = isInternLike(job);
+    const target = isOTE(job) ? oteGroups : groups;
+    // Interns and fixed-term pay only in "Intern"; "*" = every full-time level.
+    const seniority = intern ? 'Intern' : job.seniority || 'Mid';
+    add(target, `${country}|${family}|${seniority}`, usd);
+    if (!intern && displayLevel(job) === 'Mid') add(target, `${country}|${family}|${MID_STATED}`, usd);
+    if (!intern) add(target, `${country}|${family}|*`, usd);
+    perCountry.set(country, (perCountry.get(country) || 0) + 1);
+    used++;
+    if (target === oteGroups) ote++;
+    else if (intern) internLike++;
+    else { fullTime++; if (seniority !== 'Mid') levelled++; }
+  }
+  const home = homeCountry(perCountry);
+  const kept = new Set([...perCountry].filter(([c, n]) => c === home || n >= COUNTRY_MIN_N).map(([c]) => c));
+  const empty = () => ({ cells: [], oteCells: [], counts: [] });
+  const byCountry = new Map();
+  const at = (c) => { let o = byCountry.get(c); if (!o) byCountry.set(c, (o = empty())); return o; };
+  const emit = (map, arr, withCounts) => {
+    for (const [key, values] of map) {
+      const [country, family, seniority] = key.split('|');
+      if (!kept.has(country)) continue;
+      if (values.length < minN) { if (withCounts) at(country).counts.push([slug, family, seniority, values.length]); continue; }
+      values.sort((a, b) => a - b);
+      at(country)[arr].push([slug, family, seniority, values.length,
+        round100(percentileSorted(values, 0.25)), round100(percentileSorted(values, 0.5)), round100(percentileSorted(values, 0.75))]);
     }
-    companies.push({
+  };
+  emit(groups, 'cells', true);
+  emit(oteGroups, 'oteCells', false);
+  const countries = Object.fromEntries([...perCountry].filter(([c]) => kept.has(c)).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)));
+  return {
+    company: {
       slug, name: p.company.name || slug, color: p.company.color || null,
       mode: p.mode || null, fetchedAt: p.fetchedAt || null,
       jobs: p.jobs.length, salaried, used,
       // used = ote + internLike + fullTime; levelled = full-time base postings that state a level
       ote, internLike, fullTime, levelled,
-    });
-  }
-
-  const toCells = (map) => {
-    const out = [];
-    for (const [key, values] of map) {
-      if (values.length < minN) continue;
-      const [company, family, seniority] = key.split('|');
-      values.sort((a, b) => a - b);
-      out.push([company, family, seniority, values.length,
-        round100(percentileSorted(values, 0.25)), round100(percentileSorted(values, 0.5)), round100(percentileSorted(values, 0.75))]);
-    }
-    return out.sort(cellOrder);
+      country: home, countries,
+    },
+    home: byCountry.get(home) || empty(),
+    others: [...byCountry].filter(([c]) => c !== home),
   };
-  const cells = toCells(groups);
-  const oteCells = toCells(oteGroups);
-  const counts = [...groups].filter(([, v]) => v.length < minN).map(([key, v]) => [...key.split('|'), v.length]).sort(cellOrder);
+}
 
+/** The market doc from company parts (both buildMarket and mergeMarkets end here). */
+function assemble(parts, { minN, generatedAt, mode }) {
+  const cells = [], oteCells = [], counts = [];
+  const by = new Map();
+  for (const part of parts) {
+    cells.push(...part.home.cells); oteCells.push(...part.home.oteCells); counts.push(...part.home.counts);
+    for (const [c, arrs] of part.others) {
+      let o = by.get(c);
+      if (!o) by.set(c, (o = { cells: [], oteCells: [], counts: [] }));
+      o.cells.push(...arrs.cells); o.oteCells.push(...arrs.oteCells); o.counts.push(...arrs.counts);
+    }
+  }
+  for (const a of [cells, oteCells, counts]) a.sort(cellOrder);
+  const byCountry = {};
+  for (const c of [...by.keys()].sort()) { const o = by.get(c); for (const a of Object.values(o)) a.sort(cellOrder); byCountry[c] = o; }
+  const companies = parts.map((p) => p.company);
+  const tally = new Map();
+  for (const co of companies) {
+    for (const [c, n] of Object.entries(co.countries || {})) { const t = tally.get(c) || { code: c, companies: 0, n: 0 }; t.companies++; t.n += n; tally.set(c, t); }
+  }
+  const allCells = [...cells, ...Object.values(byCountry).flatMap((o) => o.cells)];
   return {
     format: MARKET_FORMAT,
     basis: BASIS,
@@ -141,15 +200,25 @@ export function buildMarket(payloads, { minN = MIN_N, generatedAt = new Date().t
     fx: { asOf: FX_AS_OF, source: 'public/viz/palette.js FX_PER_USD' },
     generatedAt,
     minN,
-    mode: docMode,
+    mode,
     companies,
-    families: [...new Set(cells.map((c) => c[1]))].sort(),
+    families: [...new Set(allCells.map((c) => c[1]))].sort(),
     columns: [...COLUMNS],
     cells,
     oteBasis: OTE_BASIS,
     oteCells,
     counts,
+    countryMinN: COUNTRY_MIN_N,
+    countries: [...tally.values()].sort((a, b) => b.n - a.n || (a.code < b.code ? -1 : 1)),
+    byCountry,
   };
+}
+
+export function buildMarket(payloads, { minN = MIN_N, generatedAt = new Date().toISOString() } = {}) {
+  const list = (payloads || []).filter((p) => p && p.company && p.company.slug && Array.isArray(p.jobs));
+  const real = list.filter((p) => REAL_MODES.has(p.mode));
+  const use = real.length ? real : list;
+  return assemble(use.map((p) => companyPart(p, minN)), { minN, generatedAt, mode: real.length ? 'real' : 'demo' });
 }
 
 /** Cell order: family, then seniority, then company (deterministic output). */
@@ -166,22 +235,18 @@ export function mergeMarkets(docs, { minN = MIN_N, generatedAt = new Date().toIS
   const list = (docs || []).filter((d) => d && d.format === MARKET_FORMAT);
   const real = list.filter((d) => d.mode === 'real');
   const use = real.length ? real : list;
-  const cells = use.flatMap((d) => d.cells).sort(cellOrder);
-  const oteCells = use.flatMap((d) => d.oteCells || []).sort(cellOrder);
-  const counts = use.flatMap((d) => d.counts || []).sort(cellOrder);
-  return {
-    format: MARKET_FORMAT, basis: BASIS, currency: 'USD',
-    stat: 'midpoint of each posted range, annualized, in USD',
-    fx: { asOf: FX_AS_OF, source: 'public/viz/palette.js FX_PER_USD' },
-    generatedAt, minN, mode: real.length ? 'real' : 'demo',
-    companies: use.flatMap((d) => d.companies),
-    families: [...new Set(cells.map((c) => c[1]))].sort(),
-    columns: [...COLUMNS],
-    cells,
-    oteBasis: OTE_BASIS,
-    oteCells,
-    counts,
-  };
+  // Each doc's companies are parts again: its home arrays by company, its byCountry by country.
+  const parts = [];
+  for (const d of use) {
+    for (const co of d.companies || []) {
+      const mine = (a) => (a || []).filter((c) => c[0] === co.slug);
+      const others = Object.entries(d.byCountry || {})
+        .map(([c, o]) => [c, { cells: mine(o.cells), oteCells: mine(o.oteCells), counts: mine(o.counts) }])
+        .filter(([, o]) => o.cells.length || o.oteCells.length || o.counts.length);
+      parts.push({ company: co, home: { cells: mine(d.cells), oteCells: mine(d.oteCells), counts: mine(d.counts) }, others });
+    }
+  }
+  return assemble(parts, { minN, generatedAt, mode: real.length ? 'real' : 'demo' });
 }
 
 /* ---------------------------------------------------------------- CLI */
@@ -211,7 +276,8 @@ async function main(argv) {
   if (out) {
     await fs.mkdir(path.dirname(path.resolve(out)), { recursive: true });
     await fs.writeFile(out, json + '\n');
-    console.error(`market: ${doc.cells.length} cells, ${doc.companies.length} companies, ${(json.length / 1024).toFixed(1)} KB -> ${out}`);
+    const other = Object.values(doc.byCountry || {}).reduce((n, o) => n + o.cells.length, 0);
+    console.error(`market: ${doc.cells.length} home-country cells + ${other} in ${Object.keys(doc.byCountry || {}).join(' ') || 'no other countries'}, ${doc.companies.length} companies, ${(json.length / 1024).toFixed(1)} KB -> ${out}`);
   } else {
     process.stdout.write(json + '\n');
   }

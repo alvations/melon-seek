@@ -31,6 +31,12 @@ const ABBREV = {
   fde: 'forward deployed engineer', qa: 'quality assurance', vp: 'vp', mts: 'member of technical staff',
   mse: 'mission software engineer', gnc: 'guidance navigation and control', revops: 'revenue operations',
   bizops: 'business operations', av: 'audio visual', hrbp: 'hr business partner', ehs: 'environmental health and safety', npi: 'new product introduction',
+  // French words in Google's and Microsoft's Canadian titles (fix wave 3, BP-4: "Représentant aux
+  // ventes sur le terrain II" was software engineering, "Étudiant-chercheur" had no family).
+  logiciel: 'software', logiciels: 'software', developpeur: 'developer', developpeuse: 'developer',
+  ingenieur: 'engineer', ingenieure: 'engineer', chercheur: 'researcher', chercheuse: 'researcher',
+  recherche: 'research', ventes: 'sales', vente: 'sales', representant: 'representative', representante: 'representative',
+  stagiaire: 'intern', etudiant: 'student', etudiante: 'student',
 };
 
 /** Token synonyms applied after stemming. */
@@ -81,6 +87,7 @@ function expand(title) {
     .replace(/\bfront[\s-]?end\b/g, 'frontend').replace(/\bback[\s-]?end\b/g, 'backend')
     .replace(/\bfull[\s-]?stack\b/g, 'fullstack').replace(/\bdev[\s-]?ops\b/g, 'devops')
     .replace(/\bon[\s-]?site\b/g, 'onsite')
+    .replace(/\b(responsable|gestionnaire) de compte\b/g, ' account manager ')
     .replace(/[^a-z0-9+]+/g, ' ');
   s = s.split(' ').filter(Boolean).map((w) => ABBREV[w] || w).join(' ');
   return s.replace(/\bsite reliability\b/g, 'sitereliability').replace(/\bmachine learning\b/g, 'machinelearning');
@@ -158,9 +165,11 @@ export const FAMILY_LABELS = Object.freeze({
   security: 'Security',
   'eng-manager': 'Engineering management',
   hardware: 'Hardware & systems engineering',
+  chip: 'Chip design & silicon engineering',
   manufacturing: 'Manufacturing, production & technicians',
   'supply-chain': 'Supply chain & procurement',
   facilities: 'Facilities, construction & data centers',
+  'dc-tech': 'Data center technicians',
   'field-ops': 'Field operations & test',
   product: 'Product management',
   design: 'Design',
@@ -181,6 +190,25 @@ export const FAMILY_LABELS = Object.freeze({
 });
 
 /**
+ * Chip design and silicon engineering (fix wave 3, BP-4): verification, physical design, DFT,
+ * RTL, mixed-signal and analog IC, layout and mask design, timing, EDA. 193 NVIDIA postings fell
+ * through to software engineering and Apple's ~600 silicon roles sat in hardware, so a design
+ * verification engineer was compared with software or mechanical engineers. A title that names
+ * software, firmware, a compiler or a driver is left to those families ("Senior C++ Software
+ * Engineer - Chip Design Tools" stays software, "SoC Firmware Engineer" stays hardware).
+ * Tested after program, product, sales and business operations ("SoC Program Manager" is program).
+ */
+const CHIP = /^(?!.*\b(software|firmware|fw|compiler|drivers?)\b).*\b(asic|rtl|vlsi|socs?|dft|dfx|atpg|sta|static timing|timing (analysis|closure|signoff|design|engineer\w*)|physical (design|synthesis|verification)|logic synthesis|place and route|pnr|formal verification|design verification(?! test)|dv (engineer|lead)|(cpu|gpu|npu|tpu|soc|ip|asic|chip|full chip|block|unit|subsystem|graphics|pcie|ddr|usb|serdes|ams|mixed signal|analog|digital|memory|cache) (design )?verification|chips?|chipsets?|full chip|silicon|(pre|post) (silicon|si)|(?<!printed )circuits?|mixed signal|ams|(ic|analog|digital|rfic|custom|memory|mask|cell|chip|full custom) layout|mask design|standard cell|cell (library|modeling|characterization)|serdes|sram|logic design|rtl design|micro ?architect\w*|(cpu|gpu|npu|tpu|soc|asic) (architect\w*|design\w*|core|rtl|physical|logic|integration)|ic (design\w*|layout|packaging|verification|engineer\w*)|rfic|photonics? ic|interposer|(fe|frontend) implementation|package design|eda|tape ?out|upf|signoff|clock (tree|distribution)|semiconductors?)\b/;
+// Chip words that turn a "design manager" or "designer" into chip design ("CPU Cache Subsystem Senior Design Manager").
+const CHIP_CONTEXT = /\b(cpu|gpu|npu|tpu|socs?|asic|rtl|silicon|circuits?|mixed signal|vlsi|chips?|cache subsystem|memory subsystem|design verification|physical design|formal verification)\b/;
+// Technicians on a data-center floor (Google "Data Center Technician III", Microsoft "Critical
+// Environment Technician"): their own family, not the data-center engineers and real-estate
+// managers in facilities (fix wave 3, BP-4: a Google technician compared with Anthropic's $362K
+// data-center engineers).
+const DC_CONTEXT = /\b(data ?centers?|datacenters?|critical environment)\b/;
+const TECHNICIAN = /\btechnicians?\b/;
+
+/**
  * Specific families, tested in order against the expanded text. Order matters:
  * earlier, narrower families win ("Product Sourcing Engineer" -> supply-chain,
  * "Facilities Maintenance Technician" -> facilities before manufacturing).
@@ -192,19 +220,19 @@ const FAMILIES = [
   ['product', /\b(product (manager|management|lead|owner|director)|(head|director|vp) (of )?product\b|assistant product owner)/],
   ['people', /\b(recruit\w*|talent|people|human resources|sourcer|compensation|benefits|payroll partner|learning and development|hr business partner|hr)\b/],
   ['admin', /\b(executive assistant|administrative|office manager|receptionist|executive business partner|executive operations|front desk)\b/],
-  ['finance', /\b(financ\w*\b(?! (services|systems))|accountant|accounting|accounts (payable|receivable)|tax|treasury|(?<!flight )controller|payroll|fpanda|audit\w*|billing|order to cash|revenue manager|investor relations|pricing)\b/],
+  ['finance', /\b(financ\w*\b(?! (services|systems))|accountant|accounting|accounts (payable|receivable)|tax|treasury|(?<!(flight|memory|cache|display|dma|interrupt|motor|storage|ddr|dram|pcie|usb|management|embedded|io) )controller|payroll|fpanda|audit\w*|billing|order to cash|revenue manager|investor relations|pricing)\b/],
   ['support', /\b(support|customer success|customer (experience|service|learning|education)|technical account manager|user operations|technical (training|education|instructor))\b/],
-  ['solutions', /\b(solutions? (architect\w*|engineer\w*|consultant|lead|specialist|principal)|sales engineer|forward deployed|deployment (strategist|lead)|ai deployment specialist|(?<!(cloud|itav|it) )deployment engineer|applied ai (engineer\w*|architect)|customer engineer|field (application|solutions) engineer|implementation (engineer|manager|consultant|lead)|technical success|ai advisory|engagement manager|delivery (lead|manager)|(field|executive|enterprise|principal|customer) architect|field engineer|technical deployment)\b/],
+  ['solutions', /\b(solutions? (architect\w*|engineer\w*|consultant|lead|specialist|principal)|sales engineer|forward deployed|deployment (strategist|lead)|ai deployment specialist|(?<!(cloud|itav|it) )deployment engineer|applied ai (engineer\w*|architect)|customer engineer|field (application|solutions) engineer|(?<!(fe|frontend|physical|soc|rtl|design) )implementation (engineer|manager|consultant|lead)|technical success|ai advisory|engagement manager|delivery (lead|manager)|(field|executive|enterprise|principal|customer) architect|field engineer|technical deployment)\b/],
   ['supply-chain', /\b(supply (chain|planner|planning)|demand (and supply|planner|planning)|sourcing|procurement|buyer|purchasing|materials? (planner|associate|handler|manager|management|coordinator|specialist)|capacity (planner|planning)|logistics|warehous\w*|inventory|shipping|receiving|sales and operations planning|master scheduler|subcontracts?|supplier (development|management)|vendor manager|commodity|expediter|cost value engineer)\b/],
   ['legal', /\b(counsel|legal|attorney|lawyer|paralegal|compliance|regulatory|export control|trade control|patent|contracts? (manager|administrator|specialist|lead|director|negotiator|management|operations))\b/],
-  ['trust-safety', /\b(trust and safety|safeguards?|enforcement|integrity|content moderation|moderator|user safety|abuse|harms?|safety operations|child safety|fraud|anti money laundering|aml|bsa|investigator)\b/],
+  ['trust-safety', /\b(trust and safety|safeguards?|enforcement|(?<!(signal|power|software) )integrity|content moderation|moderator|user safety|abuse|harms?|safety operations|child safety|fraud|anti money laundering|aml|bsa|investigator)\b/],
   ['policy', /\b(public policy|policy|global affairs|external affairs|government (affairs|relations)|economic development|public affairs)\b/],
   ['security', /\b(security|offensive|red team|threat|detection and response|customer trust|insider risk|nnpi|information assurance|cyber)\b/],
   ['facilities', /\b(facilit\w*|construction|electrician|hvac|plumb\w*|iron worker|carpenter|millwright|data ?center|real estate|workplace|environmental,? health|health and safety|environmental safety|janitor\w*|custodian|cook|chef|culinary|food|land develop\w*|site (acquisition|selection|operations)|fiber|industrial compute|development planner|barista|commissioning)\b/],
-  ['design', /\b((?<!(structural|mechanical|electrical|pcb|hardware|rf|cad|layout|circuit) )designer|design lead|ux|ui|user experience|user research\w*|creative director)\b/],
+  ['design', /\b((?<!(structural|mechanical|electrical|pcb|hardware|rf|cad|layout|circuit|ic|asic|analog|digital|logic|rtl|mask|chip|silicon|soc|board) )designer|(?<!(physical|chip|asic|soc|rtl|logic|circuit|ic|silicon|analog|digital|integration|cpu|gpu|board|mask|layout|co) )design (lead|manager|director)|(head|director|vp) (of )?design\b(?! (verification|engineer\w*))|ux|ui|user experience|user research\w*|creative director)\b/],
   ['marketing', /\b(marketing|communications|comms|content|brand|community|events|public relations|writer|editor|documentation|producer|social media|growth (marketing|lead|manager)|lifecycle|campaigns?|copywriter)\b/],
-  ['sales', /\b(account (executive|manager|director|associate|lead|strategist)|sales|business development|capture|partnerships?|partner (manager|director|lead|enablement|development|success)|partner\b|channel|alliances?|reseller|renewals|go to market|deal team|district manager|agency development|strategic pursuits|commercial lead|proposals?|(sales|revenue|partner|reseller|go to market|business development representative|leader|customer) enablement)\b/],
-  ['data', /\b(data (scientist|science|engineer\w*|analyst|analytics|governance|platform|strategy)|analytics|business intelligence|enterprise data|data (acquisition|strategist|operations))\b/],
+  ['sales', /\b(account (executive|manager|director|associate|lead|strategist)|sales|business development|capture|partnerships?|partner (manager|director|lead|enablement|development|success)|partner\b|channel|alliances?|reseller|renewals|go to market|deal team|district manager|agency development|strategic pursuits|commercial lead|proposals?|developer relations|(sales|revenue|partner|reseller|go to market|business development representative|leader|customer) enablement)\b/],
+  ['data', /\b(data (scientist|science|engineer\w*|analyst|analytics|governance|platform|strategy)|analytics|business intelligence|enterprise data|data (acquisition|strategist|operations)|economists?|econometric\w*)\b/],
   ['it', /\b(it|information technology|help ?desk|service desk|systems? administrator|sysadmin|enterprise (applications|systems)|business systems|corporate network|endpoint|netsuite|workday|asset management|audio visual|network operations|financ\w* systems)\b/],
   ['manufacturing', /\b(technician|assembler|assembly|machinist|cnc|fabricat\w*|welder|welding|inspector|inspection|production (associate|coordinator|supervisor|manager|lead|operator|planner|control|technician|worker|operations)|((vp|head|director|deputy head|manager) (of )?production)|manufacturing (associate|technician|operator|supervisor|lead|manager|specialist)|factory|maintenance (lead|technician|supervisor|manager)|quality\b(?! (assurance )?engineer)|metrology|machine operator|sheet metal|wire harness|solder\w*|line lead|shift lead)\b/],
   // "Operator" only for vehicles, flight test and ranges (persona review 2026-10-10: a bare
@@ -213,9 +241,10 @@ const FAMILIES = [
   ['field-ops', /\b((air vehicle|vehicle|uas|uav|drone|flight( test)?|test|range|mission|sensor|payload|radar|robot) operator|mission operations|field (service|services|operations|support)|deployments? and training|international deployment|mission readiness|training (lead|coordinator|specialist|instructor)|instructor|trainer|range (safety|operations)|sustainment\b(?! engineer))/],
   ['program', /\b(program (manager|management|director|lead|assistant|coordinator|analyst|specialist)|programs\b|project (manager|management|coordinator|lead)|technical program|pmo|configuration (manager|management|analyst)|change control|mission (manager|director)|product operations)\b/],
   ['bizops', /\b(business (operations|affairs)|strategy|strategic (operations|initiatives|execution|planning|projects)|chief of staff|corporate development|mergers and acquisitions|operations (analyst|manager|lead|associate|specialist|director)|revenue operations|deal operations|transformation|operations\b(?! (engineer|analysis)))/],
+  ['chip', CHIP],
   ['ml', /\b(machinelearning|research (engineer|scientist)|scientist|research\w*|ai|deep learning|nlp|computer vision|perception|interpretability|alignment|pretraining|post training|reinforcement learning|llm|multimodal)\b/],
-  ['swe', /\bsoftware\b/], // an explicit "software" role beats hardware words ("GNC Software Engineer")
-  ['hardware', /\b(electrical|mechanical|electromechanical|hardware|firmware|embedded|fpga|asic|silicon|pcba?|rf|antenna|avionics|aero\w*|propulsion|structures?|structural|thermal|mechanisms?|fluid systems|landing gear|flight (controls?|controllers?|sciences|test)|guidance navigation and control|controls engineer|scada|power (electronics|systems)|battery|energy storage|actuators?|optic\w*|sensors?|payloads?|weapons|munitions|energetics|rocket|space systems|satellite|systems (engineer|engineering|architect|integration)|mission (systems|engineer)|seit|integration and test|test (and evaluation|engineer|operations|conductor|infrastructure|instrumentation)|reliability (engineer|test)|hardware test|dev(elopment)? test|hil|human factors|emc|emi|new product introduction|quality engineer|manufacturing (engineer\w*|process|test)|materials engineer|chief engineer|sustainment engineer|cad|drafter|modell?ing and simulation|simulation (engineer|analyst)|operations analysis|robotics hardware|air vehicles?)\b/],
+  ['swe', /\b(software|distributed systems)\b/], // an explicit software role beats hardware words ("GNC Software Engineer", Netflix "Distributed Systems Engineer")
+  ['hardware', /\b(electrical|mechanical|electromechanical|hardware|firmware|embedded|fpga|asic|silicon|pcba?|rf|antenna|avionics|aero\w*|propulsion|structures?|structural|thermal|mechanisms?|fluid systems|landing gear|flight (controls?|controllers?|sciences|test)|guidance navigation and control|controls engineer|scada|power (electronics|systems)|battery|energy storage|actuators?|optic\w*|sensors?|payloads?|weapons|munitions|energetics|rocket|space systems|satellite|systems (engineer|engineering|architect|integration)|mission (systems|engineer)|seit|integration and test|test (and evaluation|engineer|operations|conductor|infrastructure|instrumentation)|reliability (engineer|test)|hardware test|dev(elopment)? test|hil|human factors|emc|emi|new product introduction|quality engineer|manufacturing (engineer\w*|process|test)|materials engineer|chief engineer|sustainment engineer|cad|drafter|modell?ing and simulation|simulation (engineer|analyst)|operations analysis|robotics hardware|air vehicles?|(signal|power) integrity|board (design|product|bring up|level|layout|engineer\w*))\b/],
   ['swe', /\b(software|sitereliability|devops|infrastructure|platform|backend|frontend|fullstack|mobile|ios|android|web|cloud|distributed systems|compiler|kernel|product engineer|test automation|sdet|network engineer|performance (engineer|modeling)|inference engineer|security engineer|autonomy)\b/],
 ];
 
@@ -237,6 +266,7 @@ const DEPT_HINTS = [
   ['product', /\bproduct management\b/],
   ['ml', /\b(research|modeling|model|ai research)\b/],
   ['it', /\b(it|corporate technology|business systems)\b/],
+  ['chip', /\b(asic|phys design|physical design|mask design|mixed signal|silicon|vlsi|soc)\b|^engineer verification$/],
   ['hardware', /\b(hardware|mechanical|electrical|propulsion|aircraft|x bat|v bat|space|test operations|quality|reliability|systems engineering|flight|avionics|engineering services)\b/],
   ['swe', /\b(software|infrastructure|platform|applications)\b/],
   ['program', /\b(program management|programs)\b/],
@@ -263,6 +293,8 @@ function firstFamily(text) {
 // Security Sales" is sales, and a "National Security Partnerships Lead" in Public Policy is policy
 // (persona review 2026-10-10, P-11). The phrase is masked before the family rules run.
 const NATSEC = /\b(national|international|homeland) security\b/g;
+// "Silicon Valley" is a place, not chip work.
+const SILICON_VALLEY = /\bsilicon valley\b/g;
 const POLICY_DEPT = /\b(public policy|global affairs|government affairs|government and public policy)\b/;
 // Research fellowships ("Anthropic Fellows Program, AI Safety & Security") are research, whatever the topic.
 const FELLOWSHIP = /\b(fellows program|fellowship program|research fellowship)\b/;
@@ -278,10 +310,13 @@ const RESEARCH_DEPT = /\b(research|ai research)\b/;
  */
 export function roleFamily(title, ctx) {
   const dept = typeof ctx === 'string' ? ctx : ctx && typeof ctx === 'object' ? ctx.department : null;
-  const full = expandTitle(title).replace(NATSEC, 'natsec');
+  const mask = (s) => s.replace(NATSEC, 'natsec').replace(SILICON_VALLEY, 'siliconvalley');
+  const full = mask(expandTitle(title));
   if (!full) return null;
-  const role = expandTitle(rolePart(title)).replace(NATSEC, 'natsec');
-  const deptText = dept ? expandTitle(dept).replace(NATSEC, 'natsec') : '';
+  const role = mask(expandTitle(rolePart(title)));
+  const deptText = dept ? mask(expandTitle(dept)) : '';
+  // Data-center technicians, whatever else the title names ("SR. Data Center Technician IT Support").
+  if (TECHNICIAN.test(full) && DC_CONTEXT.test(`${full} ${deptText}`)) return 'dc-tech';
   if (TECH_STAFF.test(full)) return ML_HINT.test(`${full} ${deptText}`) ? 'ml' : 'swe';
   for (const [id, re] of PRIORITY) if (re.test(full)) return id;
   if (FELLOWSHIP.test(full) && (RESEARCH_DEPT.test(deptText) || /\b(ai|research|machinelearning|safety)\b/.test(full))) return 'ml';
@@ -296,6 +331,10 @@ export function roleFamily(title, ctx) {
   // Technicians, operators and ops staff on a data-center campus are facilities work.
   if (['manufacturing', 'bizops', 'field-ops'].includes(fam) && /\bdata ?center\b/.test(`${full} ${deptText}`)) fam = 'facilities';
   if (fam === 'policy' && /\b(safeguards|trust and safety|integrity)\b/.test(deptText)) fam = 'trust-safety';
+  // A design manager or designer of chips is chip design ("CPU Cache Subsystem Senior Design Manager").
+  if (fam === 'design' && CHIP_CONTEXT.test(full)) fam = 'chip';
+  // Microsoft's design managers in Technical Program Management run data-center design, not UX.
+  if (fam === 'design' && /\bprogram manage\w*\b/.test(deptText) && !/\b(ux|ui|product design|user experience|visual|graphic|interaction|brand)\b/.test(full)) fam = 'program';
   if (fam) return fam;
   if (deptText) {
     for (const [id, re] of DEPT_HINTS) {
@@ -315,6 +354,7 @@ const FAMILY_AFFINITY = {
   'hardware|manufacturing': 0.35, 'manufacturing|supply-chain': 0.3, 'program|bizops': 0.4,
   'swe|it': 0.4, 'security|it': 0.35, 'hardware|field-ops': 0.35, 'policy|legal': 0.35,
   'policy|trust-safety': 0.4, 'facilities|manufacturing': 0.25, 'swe|ai-training': 0, 'ml|ai-training': 0,
+  'hardware|chip': 0.55, 'swe|chip': 0.3, 'dc-tech|facilities': 0.4, 'dc-tech|manufacturing': 0.35, 'dc-tech|it': 0.3,
 };
 
 /** Similarity of two family ids in [0,1] (0.35 when either is unknown). */
