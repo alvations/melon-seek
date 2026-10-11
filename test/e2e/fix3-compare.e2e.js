@@ -161,12 +161,12 @@ export function registerFix3CompareTests(suite) {
     const st = await setup(ctx);
     const { page, errors } = await open(ctx, st, { url: `${st.beta}/#c=google&m=insights` });
     let t = await cardText(await compareCard(page));
-    assert(/^Posted pay in the US for the same kind of role/.test(t.sub), `subtitle: ${t.sub}`);
+    assert(/^Posted pay in the US\b/.test(t.sub) && /for the same kind of role/.test(t.sub), `subtitle: ${t.sub}`); // fix-density: the line, then its Details
     assert(/Only pay for roles in the US is compared\./.test(t.foot), `foot: ${t.foot}`);
     assert(!/every location each company lists/.test(t.foot), 'the old "every location" line is gone');
     await page.goto(`${st.beta}/#c=google&m=insights&l=Dublin`); await ready(page);
     t = await cardText(await compareCard(page));
-    assert(/^Posted pay in Ireland for the same kind of role/.test(t.sub), `subtitle under a Dublin filter: ${t.sub}`);
+    assert(/^Posted pay in Ireland\b/.test(t.sub), `subtitle under a Dublin filter: ${t.sub}`);
     assert(!t.rows.includes('Netflix') && !t.rows.includes('OpenAI'), `no US-only company in the Irish comparison: ${t.rows.join(', ')}`);
     if (!t.rows.length) assert(/Ireland/.test(t.empty), `empty state names Ireland: ${t.empty}`);
     assert(!errors.length, errors.join(' | '));

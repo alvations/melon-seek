@@ -448,7 +448,7 @@ export function createCompsCard(container, { onPickCompany, market: initialMarke
   // companies left out, what pay is compared, dates) are behind its "Details" (viz/note.js).
   const sub = h('div', { id: ids.sub, class: 'msi-card__sub' });
   let subWhere = '';
-  const renderSub = () => renderNote(sub, { line: `Posted pay${subWhere} for the same kind of role`, key: 'ins:compare',
+  const renderSub = () => renderNote(sub, { line: `Posted pay${subWhere}, by company`, key: 'ins:compare',
     details: ['For the same kind of role at each tracked company. Bar: the middle half of salaries. Tick: the median.', levelsEl, missingEl, foot] });
   // The level picker sits beside the family picker inside the card (no new main-view control).
   const fields = h('div', { class: 'msi-compare__fields', style: { display: 'flex', flexWrap: 'wrap', gap: '0 10px' } },

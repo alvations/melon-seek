@@ -1335,10 +1335,10 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
   .tagline { order: -1; flex: 1 1 100%; margin: 0; display: block; text-align: left; font-size: 13px; line-height: 1.35; color: var(--ms-text); }
   .tagline-brand { display: inline; font-weight: 700; }
   .tagline-sep { display: inline; color: var(--ms-faint); }
-  /* fix-density: one short line on a phone; the full line stays for screen readers. */
+  /* fix-density: one short line on a phone (the full line is the tagline's title). */
   .tagline { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tagline-short { display: inline; }
-  .tagline-long { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .tagline-long { display: none; }
   body.is-filtered .tagline { display: none; }
   /* I-5: active chips first, and fully in view; "Clear all" is the filter sheet's Reset on phones. */
   .quick-chips .chip.is-active { order: -1; }

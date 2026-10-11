@@ -2591,12 +2591,12 @@ function renderTagline() {
   // and the company menu); a phone shows a shorter line than the desktop.
   const text = big.length ? `Beta: adds ${big.length > 1 ? `${big.length} big-tech companies’` : `${big[0]}’s`} own careers sites`
     : `Pay, and what’s left after tax and rent, for ${n ? `${n} companies’` : 'tech companies’'} open roles`;
-  const short = big.length ? `Beta: adds ${big.length > 1 ? `${big.length} big-tech careers sites` : `${big[0]}’s careers site`}` : 'Tech pay, and what’s left after tax and rent';
+  const short = big.length ? `Beta: adds ${big.length > 1 ? `${big.length} big-tech careers sites` : `${big[0]}’s careers site`}` : 'Tech pay, after tax and rent';
   if (el.dataset.text !== text) {
     el.dataset.text = text;
     el.title = big.length ? `Beta: adds ${list} from their own careers sites` : text;
     el.replaceChildren(h('strong', { class: 'tagline-brand' }, 'melon·seek'), h('span', { class: 'tagline-sep', 'aria-hidden': 'true' }, ' · '),
-      h('span', { class: 'tagline-long' }, text), h('span', { class: 'tagline-short', 'aria-hidden': 'true' }, short));
+      h('span', { class: 'tagline-long' }, text), h('span', { class: 'tagline-short' }, short));
   }
   document.body.classList.toggle('is-filtered', activeFilterCount() > 0 || !!area);
 }
@@ -3570,7 +3570,7 @@ function salaryDistribution(job) {
   // MR-17: the strip says what it shows (which roles, and which number of each).
   return h('div', { class: 'd-dist' },
     // fix-density: one line; "the middle of each posted range" is in the pay block's Details.
-    h('p', { class: 'fnote dist-caption', title: 'Each posted range counts at its middle' }, `Pay of ${mids.length.toLocaleString()} ${poolNoun(job)} at ${data.company?.name || 'this company'}; this one is marked`),
+    h('p', { class: 'fnote dist-caption', title: 'The pay of each role, at the middle of its posted range; this one is marked' }, `This one among ${mids.length.toLocaleString()} ${poolNoun(job)} at ${data.company?.name || 'this company'}`),
     svg,
     h('div', { class: 'dist-axis' }, h('span', null, money(dom.lo)), medLabel, h('span', null, money(dom.hi))),
     approx);
