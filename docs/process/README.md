@@ -61,6 +61,9 @@ interface every agent built against), [../ARCHITECTURE.md](../ARCHITECTURE.md),
 | Data check (beta) | [prompts/data-check-beta.md](prompts/data-check-beta.md) | [data-check-beta.md](data-check-beta.md) | none (review only); `test/beta-data-check.test.js` holds its findings as to-do tests |
 | Desktop QA (beta) | [prompts/qa-desktop-beta.md](prompts/qa-desktop-beta.md) | [qa-desktop-beta.md](qa-desktop-beta.md) | none (review only); `test/e2e/beta-desktop-qa.e2e.js` holds D-17 to D-30 |
 | Mobile QA (beta) | [prompts/qa-mobile-beta.md](prompts/qa-mobile-beta.md) | [qa-mobile-beta.md](qa-mobile-beta.md) | none (review only); `test/e2e/beta-mobile-qa.e2e.js` holds M-19 to M-27 |
+| Beta fix lane: sources and locations | [prompts/fix-beta-sources.md](prompts/fix-beta-sources.md) | [fix-beta-sources.md](fix-beta-sources.md) | `server/sources/{apple,google,eightfold,pool,upgrade}.js`, `server/geo.js`, `data/cities.json` |
+| Beta fix lane: pay and levels | [prompts/fix-beta-pay.md](prompts/fix-beta-pay.md) | [fix-beta-pay.md](fix-beta-pay.md) | `server/{salary,keywords,normalize}.js`, `scripts/vet-salaries.js` |
+| Beta fix lane: app shell | [prompts/fix-beta-app.md](prompts/fix-beta-app.md) | [fix-beta-app.md](fix-beta-app.md) | `public/app.js`, `index.html`, `styles.css`, `public/features/**` |
 | Desktop / mobile QA, mobile perf, fixes | [prompts/qa-desktop.md](prompts/qa-desktop.md), [qa-mobile.md](prompts/qa-mobile.md), [perf-mobile.md](prompts/perf-mobile.md), [fix-frontend.md](prompts/fix-frontend.md) | [qa-desktop.md](qa-desktop.md), [qa-mobile.md](qa-mobile.md), [perf-mobile.md](perf-mobile.md), [fix-frontend.md](fix-frontend.md) | `docs/QA.md`, `test/e2e/*-qa.e2e.js`, `public/unpack-worker.js` |
 
 ## Replaying the build from scratch

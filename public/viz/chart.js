@@ -9,8 +9,9 @@
 // the host knows why (a search word, a filter) and says it once; pass `empty` ("text" or
 // { title, sub }) to have the chart say it instead.
 //
-// Group by seniority shows the stored levels through levelLabel (public/features/roles.js):
-// the default 'Mid' reads "Level not stated" and comes last (P-3).
+// Group by seniority shows displayLevel(job) through levelLabel (public/features/roles.js, shared
+// decision 1 of the beta fix wave): the default 'Mid' reads "Level not stated" and comes last (P-3);
+// a stated mid level (seniorityBasis 'title' or 'pay', e.g. Google "III") reads "Mid".
 //
 // Two views share one approx-USD salary axis, a slim sticky midpoint
 // distribution strip, and a muted notes line under the chart:
@@ -29,7 +30,7 @@ import {
   colorFor, assignColors, otherColor, slotColor, inkOn, OTHER_KEY, SLOT_COUNT, formatMoney,
   formatCurrency, toUSD, isForeign, hasFx, niceTicks, median, onThemeChange, prefersReducedMotion, isDark, FX_AS_OF,
 } from './palette.js';
-import { levelLabel, LEVEL_NOT_STATED } from '../features/roles.js';
+import { levelLabel, displayLevel, DISPLAY_LEVEL_ORDER } from '../features/roles.js';
 
 export const VIEWS = Object.freeze(['clusters', 'ranges']);
 export const DEFAULT_VIEW = 'clusters';
@@ -43,19 +44,18 @@ const CROW_LABEL_H = 22;   // clusters, narrow: label line above the plot
 const CROW_PLOT_H = 44;    // clusters, narrow: plot height
 const BIN_STEPS = [10000, 20000, 25000, 50000, 100000, 200000, 250000, 500000];
 const MIN_BIN_PX = 34;     // a bin must be wide enough for a readable, countable circle
-// D-9 / P-3: the seniority ladder for Clusters and Ranges, by stored level. The default level
-// (LEVEL_NOT_STATED, 'Mid', given to every title that names no level) reads "Level not stated" and
-// goes last (lead decision, 2026-10-10).
-export const SENIORITY_ORDER = Object.freeze(['Intern', 'Entry', 'Senior', 'Staff+', 'Manager', 'Director+', LEVEL_NOT_STATED]);
+// D-9 / P-3: the seniority ladder for Clusters and Ranges, by displayLevel(): the ladder, then the
+// default level (NOT_STATED, "Level not stated") last (lead decisions, 2026-10-10).
+export const SENIORITY_ORDER = DISPLAY_LEVEL_ORDER;
 const ALL_ROLES = 'All roles';
 
 const INTERVAL_ADJ = { hour: 'hourly', day: 'daily', week: 'weekly', month: 'monthly', term: 'fixed-term' };
 const DIM_LABEL = { department: 'department', location: 'location', seniority: 'seniority' };
 
-/** Category key for a job along a dimension (seniority: the stored level; none counts as not stated). */
+/** Category key for a job along a dimension (seniority: displayLevel(job), the level people see). */
 export function keyOf(job, dim) {
   if (dim === 'department') return job.department || 'No department';
-  if (dim === 'seniority') return job.seniority || LEVEL_NOT_STATED;
+  if (dim === 'seniority') return displayLevel(job);
   if (dim === 'location') return primaryLocation(job);
   return 'All';
 }
@@ -1025,7 +1025,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     tip.append(el('div', 'ms-tip__title', j.title || 'Untitled'));
     const meta = [j.department, locationText(j)].filter(Boolean).join(' · ');
     if (meta) tip.append(el('div', 'ms-tip__meta', meta));
-    const meta2 = [levelLabel(j.seniority), j.employmentType].filter(Boolean).join(' · ');
+    const meta2 = [levelLabel(displayLevel(j)), j.employmentType].filter(Boolean).join(' · ');
     if (meta2) tip.append(el('div', 'ms-tip__meta', meta2));
     tip.hidden = false;
   }

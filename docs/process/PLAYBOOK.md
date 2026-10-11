@@ -132,6 +132,13 @@ These are the rules learned the hard way on 2026-10-10.
   scripts/refresh/jobs.js flags a hand-written accuracy figure ("Typically within ±12% …") in
   docs/QA.md unless it reads as an example ("e.g."). be5691c, a QA-docs commit checked with the
   markdown tests only, turned CI red that way.
+- GitHub fires our scheduled crawls hours late. On 2026-10-10 the 06:17 stable crawl ran at
+  12:41, and the 12:47 and 18:47 beta slots ran at 17:28 and 22:00. Don't promise users fixed
+  times; check the snapshot.yml runs before saying a crawl was missed.
+- A container restart stops every running agent and loses its unreported work. The files survive
+  (the shared checkout, `.claude/worktrees/`, the scratchpad). On 2026-10-10 the beta platform
+  lane was cut off after editing 9 files without committing. The lead saved them as a WIP commit
+  and a new agent resumed from it. Ask long lanes to commit locally at milestones.
 - Never run `playwright install`. Chromium is at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`,
   with Playwright in `<scratchpad>/pw/node_modules`.
 - The Long Tasks API misses work after `fetch()` resolves. Read long tasks from a Chrome trace.

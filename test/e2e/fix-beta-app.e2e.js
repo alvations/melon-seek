@@ -88,9 +88,14 @@ export function registerFixBetaAppTests(suite) {
     const body = await plainList(st, 'netflix');
     if (!body) skip('no Netflix list in dist/beta');
     const mids = body.jobs.filter((j) => j.seniority === 'Mid');
-    if (mids.length < 2) skip('fewer than 2 "Mid" roles on Netflix');
-    const stated = mids[0];
+    // Since the pay lane's ladders, some Netflix "L4" roles already state a mid level; inject one
+    // more on a default role, and expect exactly the stated set under "Mid".
+    const isStated = (j) => j.seniorityBasis === 'title' || j.seniorityBasis === 'pay';
+    const defaults = mids.filter((j) => !isStated(j));
+    if (defaults.length < 2) skip('fewer than 2 default "Mid" roles on Netflix');
+    const stated = defaults[0];
     stated.seniorityBasis = 'title'; // what the pay lane stores for a ladder rung that means mid level
+    const statedIds = mids.filter(isStated).map((j) => j.id).sort().join();
     const { page, errors } = await open(ctx, st, { url: `${st.beta}/#c=netflix&q=${encodeURIComponent(stated.title)}&sort=title`, lists: { 'beta/netflix': body } });
     const card = page.locator(`#resultsList .card[data-id="${stated.id}"]`);
     assertEq((await card.locator('.card-foot .sen').innerText()).trim(), 'Mid', 'a stated mid level reads "Mid" on its card');
@@ -106,7 +111,7 @@ export function registerFixBetaAppTests(suite) {
     await section(page, 'Seniority').locator('label.check', { hasText: 'Level not stated' }).click(); await sleep(300);
     await section(page, 'Seniority').locator('label.check', { hasText: /^\s*Mid\s*\d/ }).click(); await sleep(500);
     assertEq(new URLSearchParams(await page.evaluate(() => location.hash.slice(1))).getAll('s').join(), 'Mid-level', 'a stated mid level is s=Mid-level');
-    assertEq(await page.$$eval('#resultsList .card[data-id]', (e) => e.map((x) => x.dataset.id).join()), stated.id, 'the "Mid" filter finds the stated role only');
+    assertEq(await page.$$eval('#resultsList .card[data-id]', (e) => e.map((x) => x.dataset.id).sort().join()), statedIds, 'the "Mid" filter finds exactly the roles that state a mid level');
     await page.click('#saveSearch'); await sleep(300);
     const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('melon.saved') || '[]'));
     assert(/· Mid$/.test(saved[0]?.name || ''), `saved-search name "${saved[0]?.name}"`);

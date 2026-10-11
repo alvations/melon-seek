@@ -84,10 +84,13 @@ test('[P-6] map: "+ N nearby" only for places near each other; far places are na
 test('[P-3] chart: the default level reads "Level not stated" and sorts last', () => {
   assert.equal(groupName('seniority', keyOf({ seniority: 'Mid' }, 'seniority')), 'Level not stated');
   assert.equal(groupName('seniority', keyOf({ seniority: null }, 'seniority')), 'Level not stated', 'no level at all is the same row');
+  // Shared decision 1 (beta fix wave): rows are displayLevel(job); a mid level the posting states reads "Mid".
+  assert.equal(groupName('seniority', keyOf({ seniority: 'Mid', seniorityBasis: 'default' }, 'seniority')), 'Level not stated');
+  assert.equal(groupName('seniority', keyOf({ seniority: 'Mid', seniorityBasis: 'title' }, 'seniority')), 'Mid');
   assert.equal(groupName('seniority', 'Senior'), 'Senior');
   assert.equal(groupName('department', 'Mid'), 'Mid', 'only the seniority dimension is relabelled');
   assert.equal(SENIORITY_ORDER[SENIORITY_ORDER.length - 1], keyOf({ seniority: 'Mid' }, 'seniority'));
-  assert.deepEqual(SENIORITY_ORDER.slice(0, -1), ['Intern', 'Entry', 'Senior', 'Staff+', 'Manager', 'Director+']);
+  assert.deepEqual(SENIORITY_ORDER.slice(0, -1), ['Intern', 'Entry', 'Mid', 'Senior', 'Staff+', 'Manager', 'Director+']);
 });
 
 /* ------------------------------------------------------------------ P-16 chart */

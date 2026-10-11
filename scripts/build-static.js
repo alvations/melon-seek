@@ -179,8 +179,9 @@ function commonPrefix(strs) {
 // ISO timestamps that equal their own toISOString() become epoch ms ('ts');
 // salary objects with the list's common key set become value tuples in
 // `shared.salaryKeys` order; keywords become [responsibilities, fit, skills].
-const COLUMN_KEYS = ['postedAt', 'firstSeenAt', 'ageDays', 'ageIsMinimum', 'freshness', 'repost', 'extras', 'reqId', 'remote', 'updatedAt'];
-const DICT_COLUMNS = new Set(['firstSeenAt', 'freshness', 'repost', 'extras']);
+const COLUMN_KEYS = ['postedAt', 'firstSeenAt', 'ageDays', 'ageIsMinimum', 'freshness', 'repost', 'extras', 'reqId', 'remote', 'updatedAt', 'seniorityBasis'];
+// seniorityBasis (norm-7, fix-beta-pay): 'title' | 'pay' | 'default' on every job, one dict index each.
+const DICT_COLUMNS = new Set(['firstSeenAt', 'freshness', 'repost', 'extras', 'seniorityBasis']);
 const TS_COLUMNS = new Set(['postedAt', 'updatedAt']);
 const SALARY_REFS = ['currency', 'interval', 'kind', 'source'];
 const KEYWORD_KEYS = ['responsibilities', 'fit', 'skills'];
@@ -710,6 +711,7 @@ async function loadContext() {
   ({ normalizeJobs: ctx.normalizeJobs, relocateJobs: ctx.relocateJobs, NORMALIZER_VERSION: ctx.NORMALIZER_VERSION } = await imp('server', 'normalize.js'));
   ({ vetSalaries: ctx.vetSalaries } = await imp('server', 'vet.js'));
   ({ rekeyBoardJobs: ctx.rekeyBoardJobs } = await imp('server', 'keywords.js'));
+  ({ upgradeStoredJobs: ctx.upgradeStoredJobs } = await imp('server', 'sources', 'upgrade.js'));
   ctx.demoJobs = existsSync(path.join(ROOT, 'server', 'demo.js')) ? (await imp('server', 'demo.js')).demoJobs : null;
   // Shared with the browser: desc file paths and the packed list format.
   ctx.api = await imp('public', 'api.js');
@@ -879,8 +881,10 @@ async function readSnapshot(ctx, file, c) {
     // posting (normalize.js#relabelJobs: salary.kind 'ote', salary.termWeeks, term pay,
     // seniority), so a bundle built from older snapshots shows those fixes before the next
     // crawl writes norm-6 snapshots (whose stored values are already current).
+    // Then the big-tech adapter fixes on stored jobs (server/sources/upgrade.js: one Apple posting
+    // per requisition, talent pools, …), every time: a no-op for a snapshot crawled with them.
     const current = parsed && parsed.normalizerVersion === ctx.NORMALIZER_VERSION;
-    if (Array.isArray(jobs) && jobs.length) return { payload: { company: c, mode: 'snapshot', fetchedAt: parsed.fetchedAt || null, error: null, jobs: ctx.vetSalaries(current ? jobs : ctx.relocateJobs(ctx.rekeyBoardJobs(jobs).jobs)) } };
+    if (Array.isArray(jobs) && jobs.length) return { payload: { company: c, mode: 'snapshot', fetchedAt: parsed.fetchedAt || null, error: null, jobs: ctx.vetSalaries(ctx.upgradeStoredJobs(current ? jobs : ctx.relocateJobs(ctx.rekeyBoardJobs(jobs).jobs))) } };
     return { problem: 'has no jobs' };
   } catch (err) {
     return { problem: `unreadable (${err.message})` };

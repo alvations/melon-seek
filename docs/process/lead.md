@@ -824,3 +824,58 @@ screenshots in `docs/screenshots/`.
 - An open question, answered conservatively: 46 more paid postings in Anthropic's Sales department (Customer Success, Partnerships) are not marked on-target. The "for sales roles" sentence applies only to sales titles, and Anthropic puts it on 565 postings.
 - CI: be5691c (beta desktop QA docs) turned CI red for about 25 minutes. docs/QA.md quoted a hand-written accuracy figure, which scripts/refresh/jobs.js reports as drift, and I had run only the markdown tests. af368e9 fixed it; the lesson is in PLAYBOOK known traps: run the whole npm test before every push.
 - Verified on the integrated tree (af368e9 plus the lane): npm test 676 passed with 1 failure, the refresh-jobs drift fixed by af368e9 before the final run. Build OK, beta 5/5. Full e2e 156/170: all 11 failures are the beta desktop [D-n] bug tests awaiting the beta fix wave, and D-17, D-19 and D-25 now pass.
+
+### Beta, stage 1: data check, desktop QA and mobile QA (2026-10-10)
+- Request (verbatim): "After the beta page with big tech jobs is ready, make sure we run the optimization on the beta page with the big tech jobs afterwards like how we did it for the original site, go through the same flow".
+- Stage 0. The first full big-tech crawl (snapshot.yml run 38044091555) gave Apple 6,105 postings, Google 3,417, NVIDIA 2,664, Microsoft 2,320 and Netflix 456. It was archived at 12:21 UTC and rebuilt locally with `scripts/cycle/local-data.js`. The build gate passed with beta 5/5.
+- Staggered for the 4-CPU sandbox: the data check, desktop QA and mobile QA ran alongside the persona fix lanes. Mobile perf and the persona review wait for the fixed build ([PLAYBOOK](PLAYBOOK.md) known traps).
+- **Data check** ([data-check-beta.md](data-check-beta.md)): 17 findings with 26 tests, committed as to-dos.
+  - DQ-1, Eightfold country codes read as US states: 735 NVIDIA and 365 Microsoft postings in the wrong country. Fixed in batch 2 by the pay-data lane.
+  - Verdicts: NVIDIA and Microsoft "not ready" until DQ-1; Apple, Google and Netflix usable with caveats.
+  - Juice was checked by hand on 20 cases in 7 countries, all matching to the dollar.
+- **Desktop QA** (docs/QA.md, D-17 to D-30): 1 High (= DQ-1), 6 Medium and 7 Low. Every live: false board made no live request, and Apple filters and sorts in 0.2–0.35 s.
+- **Mobile QA** (docs/QA.md, M-19 to M-27): 3 Medium, including M-20, a list of 30,585 DOM nodes after 2,000 cards, and M-27, batch 1's phone logo squeezing the company name; plus 6 Low. 14 of the 18 earlier mobile bugs were confirmed fixed.
+- Lead decisions:
+  - DQ-13: a Microsoft posting that is only in the SF Bay Area or NYC uses that area's range.
+  - D-27/D-28: within CONTRACT v3's "small Beta tag" rule, the tag becomes the link back to the main site, and the title says beta.
+  - Stated mid levels (Google "III", Netflix "L4") show as "Mid" through `displayLevel(job)` and `job.seniorityBasis`, while the default stays "Level not stated".
+
+### Beta fix wave, batch 1: sources, pay and levels, app shell (2026-10-10)
+- Four lanes ran in worktrees from 8c598c2. Three land here; the platform lane (server mode, demo data, chart and map) was cut off by a container restart, resumed from a WIP commit, and lands next.
+  - **fix-beta-sources** (ab36a75):
+    - Apple has one posting per requisition (6,105 → 4,882, and no city shows two ranges);
+    - bad Location labels on the five boards went from 135 to 0;
+    - store-name pins went from 118 to 0, and double-encoded links from 19 to 0;
+    - `job.pool` marks 62 talent pools;
+    - 52 hybrid NVIDIA postings are no longer remote;
+    - Google brands become departments;
+    - 195 more paid postings get Juice through nearby-city proxies.
+  - **fix-beta-pay** (3ec8c7d):
+    - company ladders, with `job.seniorityBasis`; Netflix's Mid < Senior < Staff+ order is restored;
+    - bonus-target percentages, and the zł, kr and kr. currencies (Google gains 185 ranges);
+    - `salary.levels` (866 NVIDIA, 160 Microsoft);
+    - Canada-only "$" read as CAD;
+    - one pay line per country;
+    - false vetting flags down from 4,643 to 565. The vetting scan now shares salary.js's rules and flags the 189 missed Google ranges.
+    - NORMALIZER_VERSION is norm-7.
+    - Open: the Romanian lei have no exchange rate (15 postings), so the RON rate needs adding to the FX source.
+  - **fix-beta-app** (08e39cc):
+    - `displayLevel`;
+    - pay by level in the drawer;
+    - correct "N new" on boards of any size;
+    - saved searches and the last view per site;
+    - a plain "This board isn't on this site";
+    - the Big tech menu group, with the current board in view;
+    - no Refresh on snapshot boards;
+    - the Beta tag links back, and the title says beta;
+    - a windowed results list (about 3,500 DOM nodes instead of 30,585);
+    - scroll to the top on a new result set;
+    - keyboard and touch-target fixes;
+    - fits at 360 px.
+- Integration:
+  - CONTRACT.md: both lanes appended a section, and both were kept.
+  - Patches applied: the app lane's chart.js `displayLevel` grouping; build-static.js running the sources lane's `upgradeStoredJobs` and packing the pay lane's `seniorityBasis` (Google's list is 1.44 MB, under its budget); server/pipeline.js running the upgrade in server mode; the refresh jobs.js default-level share.
+  - Registry lines were re-resolved.
+- Verified on the integrated tree: npm test 735/735 with 2 to-dos (the platform lane's DQ-7); build OK (beta 5/5, Apple 4,882 postings, list 2.19 MB).
+- Full e2e 188/195 passed, 3 skipped by design. Of the 4 failures, 3 are the platform lane's red tests (D-20, D-29, M-23). The 4th was the app lane's shared-decision-1 test: written before the pay lane's ladders, it assumed one stated-mid Netflix role, and 21 now state "L4". The test now injects onto a default role and expects exactly the stated set, which is stricter; the group passes 11/11.
+- QA red tests that now pass: D-17 to D-19, D-21 to D-28 and D-30; M-19 to M-22 and M-24 to M-27; DQ-1 to DQ-6, DQ-8 to DQ-10, DQ-13 and DQ-15 to DQ-17.
