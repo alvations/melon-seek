@@ -7,7 +7,7 @@ import {
   politeRequest, politeJson, robotsRules, robotsAllows, checkRobots, resetRobots, setMinInterval, resetRateLimits,
   cookieJar, mapLimit, newStats, BOT_USER_AGENT,
 } from '../server/sources/polite.js';
-import { listCompanies, getCompany, resolveCompany, SOURCES } from '../server/companies.js';
+import { listCompanies, getCompany, resolveCompany, SOURCES, COMPANIES } from '../server/companies.js';
 import { targetsFor, fitSnapshot, trimDescription } from '../scripts/snapshot.js';
 
 const realFetch = globalThis.fetch;
@@ -16,7 +16,8 @@ afterEach(() => { globalThis.fetch = realFetch; setMinInterval(null); resetRateL
 const STABLE = ['anthropic', 'anduril', 'openai', 'scaleai', 'xai', 'cohere', 'palantir', 'shieldai'];
 const BETA_ALL = ['google', 'microsoft', 'meta', 'apple', 'netflix', 'amazon', 'nvidia'];
 // Paused for terms of use (server/companies.js `paused: 'terms'`): never crawled or listed by default.
-const PAUSED = ['meta', 'amazon'];
+// Read from the registry, so resuming a company (deleting its `paused`) needs no edit here.
+const PAUSED = COMPANIES.filter((c) => c.paused).map((c) => c.slug);
 const BETA = BETA_ALL.filter((s) => !PAUSED.includes(s));
 
 test('registry: listCompanies() default is exactly the stable list; beta adds the big-tech boards', () => {
@@ -30,7 +31,7 @@ test('registry: listCompanies() default is exactly the stable list; beta adds th
     assert.match(c.color, /^#[0-9a-f]{6}$/i);
   }
   assert.deepEqual(listCompanies({ channel: 'beta', includePaused: true }).map((c) => c.slug), [...STABLE, ...BETA_ALL]);
-  for (const slug of PAUSED) assert.equal(getCompany(slug)?.paused, 'terms', `${slug} is paused for terms of use but still resolves`);
+  for (const slug of PAUSED) assert.ok(getCompany(slug)?.paused, `${slug} is paused but still resolves`);
   assert.throws(() => listCompanies({ channel: 'nightly' }), /Unknown channel/);
   // getCompany resolves any channel and names it.
   assert.equal(getCompany('microsoft').channel, 'beta');

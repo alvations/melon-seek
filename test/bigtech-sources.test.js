@@ -15,7 +15,8 @@ import { mapGoogleJob, fetchGoogle, parseGoogleSitemap, parseGoogleDetail, googl
 import { mapMetaJob, fetchMeta, extractMetaPage, parseMetaSitemap, metaPayRanges, parseMetaAmount } from '../server/sources/meta.js';
 import { setMinInterval, resetRateLimits, resetRobots, newStats } from '../server/sources/polite.js';
 import { normalizeJob, normalizeJobs } from '../server/normalize.js';
-import { getCompany } from '../server/companies.js';
+import { getCompany, COMPANIES } from '../server/companies.js';
+import { amazonRows, amazonSite, installFetch } from './amazon-meta-synth.js';
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const fixture = (slug) => JSON.parse(fs.readFileSync(path.join(FIX, `bigtech-${slug}.json`), 'utf8'));
@@ -28,6 +29,13 @@ const text = (s, status = 200, type = 'text/plain') => new Response(s, { status,
 const EIGHTFOLD_ROBOTS = 'User-agent: *\nDisallow: /\nAllow: /careers\nAllow: /api/apply\nAllow: /api/pcsx\n';
 const norm = (raw, slug) => normalizeJob(raw, getCompany(slug));
 const sal = (j) => (j.salary ? [j.salary.min, j.salary.max, j.salary.currency] : null);
+/** Run `fn` as if `slug` were resumed (its `paused` field removed in this process only), then restore it. */
+async function resumed(slug, fn) {
+  const c = COMPANIES.find((x) => x.slug === slug);
+  const was = c.paused;
+  delete c.paused;
+  try { return await fn(); } finally { if (was !== undefined) c.paused = was; }
+}
 
 /* ------------------------------------------------------------- Eightfold */
 
@@ -164,35 +172,29 @@ test('Amazon: real search rows -> RawJob; pay table row of the primary location'
 
 test('fetchAmazon: under the cap pages straight through; at the cap partitions by country, then category', async () => {
   setMinInterval(0);
-  const { records } = fixture('amazon');
-  const row = (i, cc) => ({ ...records[0], id_icims: String(5000 + i), country_code: cc });
-  const pages = [];
-  globalThis.fetch = async (url) => {
-    const u = new URL(url);
-    if (u.pathname === '/robots.txt') return text('User-agent: AhrefsBot\nDisallow: /\nUser-agent: *\nDisallow: /internal\n');
-    pages.push(u.search);
-    const off = Number(u.searchParams.get('offset'));
-    const cc = u.searchParams.get('normalized_country_code[]');
-    const bc = u.searchParams.get('business_category[]');
-    const facets = u.searchParams.getAll('facets[]').length
-      ? { normalized_country_code_facet: [{ USA: 10500 }, { CAN: 150 }], business_category_facet: cc ? [{ aws: 120 }, { retail: 30 }] : [{ aws: 9000 }] }
-      : {};
-    let pool;
-    if (!cc) pool = Array.from({ length: 10000 }, (_, i) => row(i, 'USA'));
-    else if (cc === 'CAN') pool = Array.from({ length: 150 }, (_, i) => row(20000 + i, 'CAN'));
-    else if (cc === 'USA' && !bc) pool = Array.from({ length: 10000 }, (_, i) => row(i, 'USA'));
-    else pool = Array.from({ length: bc === 'aws' ? 120 : 30 }, (_, i) => row((bc === 'aws' ? 30000 : 40000) + i, 'USA'));
-    return json({ error: null, hits: Math.min(10000, pool.length), facets, jobs: pool.slice(off, off + Number(u.searchParams.get('result_limit'))) });
-  };
-  const stats = newStats();
-  const { jobs } = await fetchAmazon('amazon', { stats });
-  const ids = new Set(jobs.map((j) => j.sourceId));
-  assert.equal(ids.size, jobs.length, 'deduped');
-  // 100 from the first facet page (the USA facet page repeats them), 120 aws + 30 retail, 150 Canada.
-  assert.equal(jobs.length, 400);
-  assert.ok(jobs.some((j) => j.sourceId === '35119') && jobs.some((j) => j.sourceId === '45029') && jobs.some((j) => j.sourceId === '25149'));
-  assert.ok(pages.some((p) => p.includes('business_category%5B%5D=aws')));
-  assert.ok(stats.notes.some((n) => /board size from country facets: 10650/.test(n)));
+  // A synthetic amazon.jobs (test/amazon-meta-synth.js) with the hit cap scaled down to 150, so
+  // 600 postings behave like 22,415 under the real 10,000: the US is over the cap, each US
+  // business category under it.
+  const rows = amazonRows({ total: 600, seed: 7 });
+  const searches = [];
+  const net = installFetch(amazonSite(rows, { cap: 150, onSearch: (q) => searches.push(q) }));
+  try {
+    const small = rows.filter((r) => r.country_code !== 'USA').slice(0, 120);
+    const one = installFetch(amazonSite(small, { cap: 150 }));
+    const flat = await resumed('amazon', () => fetchAmazon('amazon', { cap: 150 }));
+    one.restore();
+    assert.equal(flat.jobs.length, 120, 'under the cap: one partition, paged straight through');
+    const stats = newStats();
+    const { jobs } = await resumed('amazon', () => fetchAmazon('amazon', { stats, cap: 150 }));
+    assert.equal(new Set(jobs.map((j) => j.sourceId)).size, jobs.length, 'deduped on id_icims');
+    assert.equal(jobs.length, rows.length, 'every posting, through the partitions');
+    assert.ok(searches.some((q) => q.cc === 'USA' && q.bc === 'aws'), 'the US is split by business category');
+    assert.ok(!searches.some((q) => q.cc === 'USA' && !q.bc && q.offset > 0), 'the capped US partition is never paged whole');
+    assert.ok(searches.some((q) => q.cc === 'IND' && !q.bc), 'a country under the cap is read whole');
+    assert.ok(stats.notes.some((n) => new RegExp(`board size from country facets: ${rows.length} postings in 58 countries`).test(n)), stats.notes.join(' | '));
+  } finally {
+    net.restore();
+  }
 });
 
 /* ----------------------------------------------------------------- Apple */
@@ -346,7 +348,7 @@ test('fetchMeta: sitemap then one page per posting; closed postings skipped', as
     return p ? text(metaPage(p), 200, 'text/html') : text('gone', 404, 'text/html');
   };
   const stats = newStats();
-  const { jobs } = await fetchMeta('meta', { stats });
+  const { jobs } = await resumed('meta', () => fetchMeta('meta', { stats }));
   assert.equal(jobs.length, records.length);
   assert.ok(stats.notes.some((n) => /1 sitemap posting/.test(n)));
 });

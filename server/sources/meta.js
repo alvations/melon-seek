@@ -14,19 +14,32 @@
 // No GraphQL, token or doc_id is used: the sitemap is the list, the page is the record.
 import { UpstreamError, htmlToText, str, isoOrNull, decodeEntitiesOnce } from './util.js';
 import { politeRequest, checkRobots, mapLimit, cookieJar, newStats, spreadSample } from './polite.js';
+import { crawlBlock } from '../companies.js';
+import { countryCode } from '../geo.js';
 
 export const META_ORIGIN = 'https://www.metacareers.com';
 export const META_SITEMAP = `${META_ORIGIN}/jobsearch/sitemap.xml`;
+/** The crawl stops after this many failed page requests in a row (a 403 wall, an outage). */
+export const MAX_FAILED_IN_A_ROW = 10;
+/** More failed pages than this share (and more than 5) fails the crawl: the previous snapshot stays. */
+export const MAX_FAILED_SHARE = 0.05;
 
-/** Sitemap -> [{ id, url }] (deduped, in order). */
+/**
+ * Sitemap -> [{ id, url, lastmod? }] (deduped, in order). `lastmod` is kept when the entry has
+ * one (§7g does not record whether Meta's does); an incremental crawl would key on it.
+ */
 export function parseMetaSitemap(xml) {
   const out = [];
   const seen = new Set();
-  for (const m of String(xml || '').matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/g)) {
-    const u = /\/(?:profile\/job_details|jobs)\/(\d{6,})/.exec(m[1]);
+  const text = String(xml || '');
+  const blocks = /<url>/.test(text) ? text.split(/<url>/).slice(1) : [...text.matchAll(/<loc>[\s\S]*?<\/loc>/g)].map((m) => m[0]);
+  for (const b of blocks) {
+    const loc = /<loc>\s*([^<\s]+)\s*<\/loc>/.exec(b);
+    const u = loc && /\/(?:profile\/job_details|jobs)\/(\d{6,})/.exec(loc[1]);
     if (!u || seen.has(u[1])) continue;
     seen.add(u[1]);
-    out.push({ id: u[1], url: `${META_ORIGIN}/profile/job_details/${u[1]}/` });
+    const lm = /<lastmod>\s*([^<\s]+)\s*<\/lastmod>/.exec(b);
+    out.push({ id: u[1], url: `${META_ORIGIN}/profile/job_details/${u[1]}/`, ...(lm ? { lastmod: lm[1] } : {}) });
   }
   return out;
 }
@@ -83,9 +96,11 @@ export function extractMetaPage(html, id) {
   // description, public_compensation …) follow the "apply_for_this_job_section"
   // object, which has a title and description of its own, so start after it.
   const section = jsonSpanAfter(page, 'apply_for_this_job_section');
-  let from = section ? section.end : page.indexOf(`"requisition_id":"${id}"`);
-  if (from < 0) from = 0;
-  const get = (k) => jsonValueAfter(page, k, from);
+  const from = section ? section.end : page.indexOf(`"requisition_id":"${id}"`);
+  // No anchor: the page's own data can't be told apart from the rest of the page (a "locations"
+  // or "title" key elsewhere would be read as the job's), so only the JSON-LD block is used,
+  // plus public_compensation, a key nothing else on the page carries.
+  const get = from >= 0 ? (k) => jsonValueAfter(page, k, from) : (k) => (k === 'public_compensation' ? jsonValueAfter(page, k, 0) : undefined);
   let descHtml = get('description');
   if (typeof descHtml === 'string' && descHtml.startsWith('{')) {
     try { descHtml = JSON.parse(descHtml).__html; } catch { descHtml = null; }
@@ -141,6 +156,14 @@ export function metaPayRanges(comp) {
 
 const EMPLOYMENT = { FULL_TIME: 'Full-time', PART_TIME: 'Part-time', INTERN: 'Intern', CONTRACTOR: 'Contract', TEMPORARY: 'Temporary' };
 
+/** A schema.org addressCountry (code, name or Country object) -> ISO 3166 alpha-2, or null. */
+export function metaCountry(v) {
+  const s = str(v && typeof v === 'object' ? v.name || v.identifier : v);
+  if (!s) return null;
+  if (/^[A-Za-z]{2}$/.test(s)) return s.toUpperCase();
+  return countryCode(s);
+}
+
 /** Extracted page (extractMetaPage) -> RawJob. */
 export function mapMetaJob(p, entry = {}) {
   const ld = p.ld || {};
@@ -155,9 +178,14 @@ export function mapMetaJob(p, entry = {}) {
   if (p.responsibilities && p.responsibilities.length) html += `<h3>Responsibilities</h3>${li(p.responsibilities)}`;
   if (p.minimum_qualifications && p.minimum_qualifications.length) html += `<h3>Minimum Qualifications</h3>${li(p.minimum_qualifications)}`;
   if (p.preferred_qualifications && p.preferred_qualifications.length) html += `<h3>Preferred Qualifications</h3>${li(p.preferred_qualifications)}`;
-  if (!html && ld.description) html = `<p>${decodeEntitiesOnce(String(ld.description)).replace(/\n+/g, '</p><p>')}</p>`;
+  if (!html && ld.description) {
+    // JSON-LD fallback (no page data): schema.org allows HTML or plain text here.
+    const d = decodeEntitiesOnce(String(ld.description)).trim();
+    html = /<(?:p|ul|ol|li|br|div|h[1-6])\b[^>]*>/i.test(d) ? d : `<p>${d.replace(/\n\s*\n+/g, '</p><p>').replace(/\n/g, '<br>')}</p>`;
+  }
   const ranges = metaPayRanges(p.public_compensation);
-  const firstCountry = (ld.jobLocation || []).map((l) => l && l.address && l.address.addressCountry).find(Boolean);
+  // addressCountry is "US", "United States" or { "@type": "Country", "name": "US" }.
+  const firstCountry = (ld.jobLocation || []).map((l) => metaCountry(l && l.address && l.address.addressCountry)).find(Boolean);
   const pick = ranges.find((r) => r.country && r.country === firstCountry) || ranges.find((r) => r.country === 'US') || ranges[0] || null;
   let salary = null;
   if (pick) {
@@ -198,6 +226,9 @@ export function mapMetaJob(p, entry = {}) {
 export async function fetchMeta(board = 'meta', opts = {}) {
   const { maxJobs = 0, stats = newStats(), log = () => {}, keepRaw = false, signal, concurrency = 1, timeoutMs } = opts;
   const label = 'meta';
+  // A paused company (server/companies.js PAUSING) is never requested, whoever calls this.
+  const blocked = crawlBlock('meta', board);
+  if (blocked) throw new UpstreamError(`${label}: paused (${blocked.paused}): ${blocked.reason}; not crawling (server/companies.js)`, { code: 'paused' });
   const jar = cookieJar();
   const common = { label, jar, stats, signal, timeoutMs, maxBytes: 8 * 1024 * 1024 };
   await checkRobots(META_ORIGIN, ['/jobsearch/sitemap.xml', '/profile/job_details/1/'], { label, stats, signal });
@@ -209,20 +240,36 @@ export async function fetchMeta(board = 'meta', opts = {}) {
   if (maxJobs) entries = spreadSample(entries, maxJobs);
   const t0 = Date.now();
   let empty = 0;
+  let ldOnly = 0;
+  let streak = 0; // consecutive failed pages: a site that has started refusing us is not asked 1,000 more times
   const { results, errors } = await mapLimit(entries, concurrency, async (e, i) => {
-    const r = await politeRequest(e.url, { ...common, accept: 'text/html', retries: 3, throwOnHttpError: false });
-    stats.details++;
-    if ((i + 1) % 200 === 0) log(`pages ${i + 1}/${entries.length} (${Math.round((Date.now() - t0) / 1000)} s)`);
-    if (r.status === 404 || r.status === 410) { empty++; return null; }
-    if (!r.ok) throw new UpstreamError(`${label}: HTTP ${r.status} from ${e.url}`, { code: 'http', status: r.status });
-    const p = extractMetaPage(r.text, e.id);
-    if (!p.title) { empty++; return null; }
-    return p;
-  }, { shouldStop: () => signal && signal.aborted });
+    try {
+      const r = await politeRequest(e.url, { ...common, accept: 'text/html', retries: 3, throwOnHttpError: false });
+      stats.details++;
+      if ((i + 1) % 200 === 0) log(`pages ${i + 1}/${entries.length} (${Math.round((Date.now() - t0) / 1000)} s)`);
+      if (r.status === 404 || r.status === 410) { empty++; streak = 0; return null; }
+      if (!r.ok) throw new UpstreamError(`${label}: HTTP ${r.status} from ${e.url}`, { code: 'http', status: r.status });
+      const p = extractMetaPage(r.text, e.id);
+      streak = 0;
+      if (!p.title) { empty++; return null; }
+      if (!p.description_html && !p.locations) ldOnly++;
+      return p;
+    } catch (err) {
+      streak++;
+      throw err;
+    }
+  }, { shouldStop: () => (signal && signal.aborted) || streak >= MAX_FAILED_IN_A_ROW });
   stats.detailErrors += errors.length;
   if (empty) stats.notes.push(`${empty} sitemap posting(s) had no job data (closed since the sitemap was built)`);
+  if (ldOnly) stats.notes.push(`${ldOnly} page(s) had no page data after "apply_for_this_job_section"; read from their JSON-LD only`);
   if (errors.length) stats.notes.push(`${errors.length} page request(s) failed, first: ${errors[0].error.message}`);
-  if (entries.length && errors.length > Math.max(5, entries.length * 0.2)) {
+  // A failed page is a posting in an unknown state: publishing without it would close it in the
+  // history ledger. Over 5% failed (or a stop after MAX_FAILED_IN_A_ROW), the crawl fails and the
+  // previous snapshot stays.
+  if (streak >= MAX_FAILED_IN_A_ROW) {
+    throw new UpstreamError(`${label}: stopped after ${streak} failed pages in a row (first: ${errors[0].error.message})`, { code: 'details_failed' });
+  }
+  if (entries.length && errors.length > Math.max(5, entries.length * MAX_FAILED_SHARE)) {
     throw new UpstreamError(`${label}: ${errors.length}/${entries.length} page requests failed (first: ${errors[0].error.message})`, { code: 'details_failed' });
   }
   const jobs = [];

@@ -19,11 +19,19 @@
 //
 // All requests go through server/sources/polite.js: honest User-Agent, about
 // 1 request/s per host, backoff on 429/5xx, no retries on 403.
+//
+// Paused companies (`paused` in server/companies.js, e.g. Amazon and Meta for their terms of
+// use) are never requested: recon and full skip them, and raw refuses their career hosts.
+// Their terms-of-use pages (www.amazon.com, www.facebook.com, www.meta.com) stay readable.
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { pathToFileURL } from 'node:url';
+import path from 'node:path';
 import { politeRequest, robotsRules, robotsAllows, newStats, BOT_USER_AGENT } from '../server/sources/polite.js';
 import { htmlToText } from '../server/sources/util.js';
+import { COMPANIES } from '../server/companies.js';
 
-const args = process.argv.slice(2);
+const isMain = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+const args = isMain ? process.argv.slice(2) : [];
 const opt = (name, env, dflt) => {
   const i = args.indexOf(`--${name}`);
   if (i >= 0 && args[i + 1] != null) return args[i + 1];
@@ -34,7 +42,34 @@ const ONLY = opt('companies', 'PROBE_COMPANIES', '').split(/[\s,]+/).filter(Bool
 const MAX_JOBS = Number(opt('max-jobs', 'PROBE_MAX_JOBS', '0')) || 0;
 const RAW = opt('raw', 'PROBE_RAW', '');
 
-const SLUGS = ['amazon', 'netflix', 'microsoft', 'nvidia', 'apple', 'google', 'meta', 'tesla'];
+export const SLUGS = ['amazon', 'netflix', 'microsoft', 'nvidia', 'apple', 'google', 'meta', 'tesla'];
+/** Each slug's career-site hosts (raw requests to a paused company's hosts are refused). */
+export const CAREER_HOSTS = Object.freeze({
+  amazon: ['www.amazon.jobs', 'amazon.jobs'],
+  netflix: ['explore.jobs.netflix.net', 'jobs.netflix.com'],
+  microsoft: ['apply.careers.microsoft.com', 'careers.microsoft.com', 'jobs.careers.microsoft.com'],
+  nvidia: ['nvidia.wd5.myworkdayjobs.com', 'jobs.nvidia.com'],
+  apple: ['jobs.apple.com'],
+  google: ['careers.google.com'],
+  meta: ['www.metacareers.com', 'metacareers.com'],
+  tesla: [],
+});
+/** Slugs paused in the registry right now (read at call time). */
+export const pausedSlugs = (registry = COMPANIES) => registry.filter((c) => c && c.paused).map((c) => c.slug);
+/**
+ * Which companies a recon/full run may touch: the requested ones (all when none), minus the
+ * paused ones. Returns { run, skipped: [{ slug, paused }] }.
+ */
+export function probeTargets(only = [], registry = COMPANIES) {
+  const paused = new Map(registry.filter((c) => c && c.paused).map((c) => [c.slug, c.paused]));
+  const want = only.length ? SLUGS.filter((s) => only.includes(s)) : SLUGS;
+  return { run: want.filter((s) => !paused.has(s)), skipped: want.filter((s) => paused.has(s)).map((slug) => ({ slug, paused: paused.get(slug) })) };
+}
+/** The paused company whose career site `host` is, or null (raw mode refuses those). */
+export function pausedHost(host, registry = COMPANIES) {
+  const h = String(host || '').toLowerCase();
+  return pausedSlugs(registry).find((slug) => (CAREER_HOSTS[slug] || []).includes(h)) || null;
+}
 const HOSTS = new Set([
   'www.amazon.jobs', 'amazon.jobs', 'explore.jobs.netflix.net', 'jobs.netflix.com', 'apply.careers.microsoft.com', 'careers.microsoft.com',
   'jobs.careers.microsoft.com', 'nvidia.wd5.myworkdayjobs.com', 'jobs.nvidia.com', 'www.nvidia.com', 'jobs.apple.com', 'www.apple.com',
@@ -348,6 +383,8 @@ async function rawRequests(spec) {
     let u;
     try { u = new URL(x.url); } catch { say(`raw: bad url ${x.url}`); continue; }
     if (u.protocol !== 'https:' || !HOSTS.has(u.host)) { say(`raw: host ${u.host} is not one of the career sites; skipped`); continue; }
+    const paused = pausedHost(u.host);
+    if (paused) { say(`raw: ${u.host} is ${paused}'s careers site, which is paused in server/companies.js; skipped, no request made`); continue; }
     const r = await req(u.href, { method: x.method || 'GET', body: x.body, accept: x.accept || '*/*', headers: x.headers || {} });
     if (!r) continue;
     const j = asJson(r);
@@ -480,12 +517,15 @@ function trimHtml(html) {
 
 /* ------------------------------------------------------------------ main */
 
-console.log(`probe-bigtech mode=${MODE} companies=${ONLY.join(',') || 'all'} max-jobs=${MAX_JOBS || 'all'} UA="${BOT_USER_AGENT}" node=${process.version} at ${new Date().toISOString()}`);
-const slugs = ONLY.length ? SLUGS.filter((s) => ONLY.includes(s)) : SLUGS;
-if (RAW) await section('RAW REQUESTS', () => rawRequests(RAW));
-if (MODE === 'recon') {
-  await Promise.all(slugs.map((slug) => section(`RECON ${slug}`, async () => { await robots(slug); await RECON[slug](); })));
-} else if (MODE === 'full') {
-  await Promise.all(slugs.map((slug) => section(`FULL ${slug}`, () => full(slug))));
+if (isMain) {
+  console.log(`probe-bigtech mode=${MODE} companies=${ONLY.join(',') || 'all'} max-jobs=${MAX_JOBS || 'all'} UA="${BOT_USER_AGENT}" node=${process.version} at ${new Date().toISOString()}`);
+  const { run: slugs, skipped } = probeTargets(ONLY);
+  for (const s of skipped) console.log(`skipped ${s.slug}: paused (${s.paused}) in server/companies.js; no request made`);
+  if (RAW) await section('RAW REQUESTS', () => rawRequests(RAW));
+  if (MODE === 'recon') {
+    await Promise.all(slugs.map((slug) => section(`RECON ${slug}`, async () => { await robots(slug); await RECON[slug](); })));
+  } else if (MODE === 'full') {
+    await Promise.all(slugs.map((slug) => section(`FULL ${slug}`, () => full(slug))));
+  }
+  console.log(`\nprobe-bigtech done at ${new Date().toISOString()}`);
 }
-console.log(`\nprobe-bigtech done at ${new Date().toISOString()}`);

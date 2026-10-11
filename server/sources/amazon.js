@@ -8,15 +8,22 @@
 // One query returns at most 10,000 hits (`hits` is capped at 10000), so the
 // board is read in partitions: by country (`normalized_country_code[]`), and a
 // country at the cap by `business_category[]` as well. Postings are deduped on
-// id_icims. Pay is text at the tail of preferred_qualifications: "The base pay
-// for this position ranges from $129,300/year in our lowest geographic market
-// up to $223,600/year in our highest geographic market."
+// id_icims, and a crawl that lists under 95% of the facet total is refused (COMPLETE).
+// Pay: the per-location table after "The base salary range for this position is listed
+// below." ("USA, CA, East Palo Alto - 165,200.00 - 223,600.00 USD annually"), read here as a
+// structured salary (amazonPayTable, amazonSalary); older postings' national sentence ("The base
+// pay for this position ranges from $129,300/year in our lowest geographic market up to
+// $223,600/year in our highest geographic market.") is left to the text parser (normalize).
+// A paused registry entry (server/companies.js PAUSING) is never requested.
 import { UpstreamError, htmlToText, str } from './util.js';
 import { politeJson, checkRobots, cookieJar, newStats } from './polite.js';
+import { crawlBlock } from '../companies.js';
 
 export const AMAZON_ORIGIN = 'https://www.amazon.jobs';
 const PAGE = 100;
 const CAP = 10000;
+/** A crawl that lists less than this share of the facet total is incomplete and is not written. */
+export const COMPLETE = 0.95;
 
 /** Search URL. `filters`: { normalized_country_code: 'USA', business_category: 'aws', ... } (one value each). */
 export function amazonSearchUrl(offset, filters = {}, { limit = PAGE, facets = false } = {}) {
@@ -107,23 +114,49 @@ export function amazonPayTable(...blocks) {
 }
 
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const ISO3 = /^[A-Z]{3}$/;
 /**
- * Pay rule (docs/DATA_SOURCES.md §7): the row for the posting's primary
- * location (the job's own city/state), else the first row. Every row is kept
- * as payRanges (salary.ranges), and their count is the zone count.
+ * A pay-table row's place: "USA, CA, East Palo Alto" (country first), "Seattle, WA, USA" (country
+ * last), "GBR, London", "JPN, 13, Tokyo" -> { country: 'USA', state: 'ca', city: 'east palo alto' }
+ * (country an ISO 3166 alpha-3 code like the row's country_code; state and city normalised).
+ */
+export function amazonPlace(label) {
+  const parts = String(label || '').split(',').map((x) => x.trim()).filter(Boolean);
+  let country = null;
+  if (parts.length > 1 && ISO3.test(parts[0])) country = parts.shift();
+  else if (parts.length > 1 && ISO3.test(parts[parts.length - 1])) { country = parts.pop(); parts.reverse(); }
+  const state = parts.length > 1 ? norm(parts[0]) : null;
+  const city = norm(parts.length > 1 ? parts.slice(1).join(' ') : parts[0]);
+  return { country, state: state || null, city: city || null };
+}
+
+/**
+ * Pay rule (docs/DATA_SOURCES.md §7a, §7e): the row for the posting's primary location (the
+ * row's own city, with the same state when both name one), else the first row in the posting's
+ * country, else the first row. Cities and states are compared whole ("York, PA" is not
+ * "New York, NY"; "Arlington, TX" is not "Arlington, VA"). Every row is kept as payRanges
+ * (salary.ranges); their distinct ranges are the zone count.
  */
 export function amazonSalary(j, table = amazonPayTable(j.description, j.basic_qualifications, j.preferred_qualifications)) {
   if (!table.length) return { salary: null, payRanges: [] };
   const city = norm(j.city);
   const state = norm(j.state);
-  const pick = (city && table.find((r) => { const t = norm(r.location).split(' '); const l = norm(r.location); return l.includes(city) && (!state || t.includes(state) || l.includes(state)); }))
-    || (city && table.find((r) => norm(r.location).includes(city)))
+  const country = ISO3.test(String(j.country_code || '')) ? String(j.country_code) : null;
+  const places = table.map((r) => amazonPlace(r.location));
+  const sameCountry = (p) => !country || !p.country || p.country === country;
+  const row = (test) => { const i = places.findIndex(test); return i >= 0 ? table[i] : null; };
+  const pick = (city && (row((p) => p.city === city && sameCountry(p) && !!state && p.state === state)
+    || row((p) => p.city === city && sameCountry(p) && (!state || !p.state))))
+    || (country && row((p) => p.country === country))
     || table[0];
   const distinct = new Set(table.map((r) => `${r.min}|${r.max}|${r.currency}|${r.interval}`)).size;
   const salary = { min: pick.min, max: pick.max, currency: pick.currency, interval: pick.interval, text: pick.line, zones: distinct };
   const payRanges = table.slice(0, 12).map((r) => ({ min: r.min, max: r.max, currency: r.currency, interval: r.interval, label: r.location.slice(0, 60) }));
   return { salary, payRanges };
 }
+
+/** job_schedule_type values -> employmentType (anything else is kept as written). */
+const SCHEDULE = { 'full-time': 'Full-time', 'part-time': 'Part-time' };
 
 /** One search.json row -> RawJob. */
 export function mapAmazonJob(j) {
@@ -142,7 +175,7 @@ export function mapAmazonJob(j) {
     title: (str(j.title) || 'Untitled role').trim(),
     department: dept,
     team: family && family !== dept ? family : null,
-    employmentType: sched ? sched.replace(/^full-time$/i, 'Full-time').replace(/^part-time$/i, 'Part-time') : null,
+    employmentType: sched ? SCHEDULE[sched.toLowerCase()] || sched : null,
     locationText: locs[0] || '',
     extraLocations: locs.slice(1),
     remote,
@@ -158,12 +191,16 @@ export function mapAmazonJob(j) {
 
 /**
  * Fetch the whole board in partitions under the 10,000-hit cap. Options:
- * maxJobs (probe), stats, log, keepRaw, signal, partitions (override, tests).
+ * maxJobs (probe), stats, log, keepRaw, signal, partitions and cap (overrides, tests).
  * Returns { jobs, stats }.
  */
 export async function fetchAmazon(board = 'amazon', opts = {}) {
   const { maxJobs = 0, stats = newStats(), log = () => {}, keepRaw = false, signal, timeoutMs } = opts;
+  const cap = opts.cap > 0 ? opts.cap : CAP;
   const label = 'amazon';
+  // A paused company (server/companies.js PAUSING) is never requested, whoever calls this.
+  const blocked = crawlBlock('amazon', board);
+  if (blocked) throw new UpstreamError(`${label}: paused (${blocked.paused}): ${blocked.reason}; not crawling (server/companies.js)`, { code: 'paused' });
   const jar = cookieJar();
   const common = { label, jar, stats, signal, timeoutMs, maxBytes: 20 * 1024 * 1024 };
   await checkRobots(AMAZON_ORIGIN, ['/en/search.json'], { label, stats, signal });
@@ -172,18 +209,24 @@ export async function fetchAmazon(board = 'amazon', opts = {}) {
   const add = (list) => { let n = 0; for (const j of list || []) { const k = String(j && (j.id_icims ?? j.id)); if (j && !rows.has(k)) { rows.set(k, j); n++; } } return n; };
   const full = () => maxJobs && rows.size >= maxJobs;
 
-  /** Page one partition to the end (or the cap). */
+  const page = (body) => {
+    if (body && body.error) throw new UpstreamError(`${label}: search error ${JSON.stringify(body.error).slice(0, 160)}`, { code: 'upstream' });
+    if (!body || !Array.isArray(body.jobs)) throw new UpstreamError(`${label}: unexpected response (no jobs array)`, { code: 'bad_shape' });
+    return body;
+  };
+  /**
+   * Page one partition to the end (or the cap). The partition's own `hits` (first page) decides
+   * when to stop; the facet count is only the fallback. Returns that hits value.
+   */
   const crawl = async (filters, hitsHint) => {
     let hits = hitsHint;
-    for (let offset = 0; offset < CAP; offset += PAGE) {
+    for (let offset = 0; offset < cap; offset += PAGE) {
       if (full()) return hits;
-      const body = await politeJson(amazonSearchUrl(offset, filters), common);
+      const body = page(await politeJson(amazonSearchUrl(offset, filters), common));
       stats.pages++;
-      if (!body || !Array.isArray(body.jobs)) throw new UpstreamError(`${label}: unexpected response (no jobs array)`, { code: 'bad_shape' });
-      if (body.error) throw new UpstreamError(`${label}: search error ${JSON.stringify(body.error).slice(0, 160)}`, { code: 'upstream' });
-      if (hits == null) hits = Number(body.hits) || 0;
+      if (offset === 0 && Number.isFinite(Number(body.hits)) && body.hits !== null && body.hits !== '') hits = Number(body.hits);
       add(body.jobs);
-      if (body.jobs.length < PAGE || offset + PAGE >= hits) break;
+      if (body.jobs.length < PAGE || offset + PAGE >= Math.min(hits ?? cap, cap)) break;
     }
     return hits;
   };
@@ -198,36 +241,49 @@ export async function fetchAmazon(board = 'amazon', opts = {}) {
       return null;
     }).filter((x) => x && x.value).sort((a, b) => b.count - a.count);
   };
-  const first = await politeJson(amazonSearchUrl(0, {}, { facets: true }), common);
+  const first = page(await politeJson(amazonSearchUrl(0, {}, { facets: true }), common));
   stats.pages++;
-  if (!first || !Array.isArray(first.jobs)) throw new UpstreamError(`${label}: unexpected response (no jobs array)`, { code: 'bad_shape' });
   add(first.jobs);
   const total = Number(first.hits) || 0;
   const countries = opts.partitions ? opts.partitions.countries : facet(first, 'normalized_country_code');
   const sum = countries.reduce((n, c) => n + c.count, 0);
-  log(`hits ${total}${total >= CAP ? ' (capped)' : ''}; ${countries.length} countries totalling ${sum} postings`);
+  log(`hits ${total}${total >= cap ? ' (capped)' : ''}; ${countries.length} countries totalling ${sum} postings`);
   stats.notes.push(`board size from country facets: ${sum} postings in ${countries.length} countries`);
-  if (total < CAP || !countries.length) {
-    if (total >= CAP) stats.notes.push('no country facets returned; read only up to the 10,000-hit cap');
+  const short = []; // partitions that could not be read whole
+  if (total < cap || !countries.length) {
+    if (total >= cap) short.push(`no country facets returned, so only the first ${cap} hits are readable`);
     await crawl({}, total);
   } else {
     for (const c of countries) {
       if (full()) break;
-      if (c.count < CAP) { await crawl({ normalized_country_code: c.value }, c.count); continue; }
+      if (c.count < cap) { await crawl({ normalized_country_code: c.value }, c.count); continue; }
       // A country at the cap (the US): split by business category.
-      const sub = await politeJson(amazonSearchUrl(0, { normalized_country_code: c.value }, { facets: true }), common);
+      const sub = page(await politeJson(amazonSearchUrl(0, { normalized_country_code: c.value }, { facets: true }), common));
       stats.pages++;
-      add(sub && sub.jobs);
+      add(sub.jobs);
       const cats = opts.partitions && opts.partitions.categories ? opts.partitions.categories : facet(sub, 'business_category');
-      if (!cats.length) { stats.notes.push(`${c.value}: no category facets; first 10,000 only`); await crawl({ normalized_country_code: c.value }, c.count); continue; }
+      if (!cats.length) { short.push(`${c.value}: no category facets, first 10,000 only`); await crawl({ normalized_country_code: c.value }, c.count); continue; }
       for (const b of cats) {
         if (full()) break;
         const h = await crawl({ normalized_country_code: c.value, business_category: b.value }, b.count);
-        if (h >= CAP) stats.notes.push(`${c.value}/${b.value} still at the cap; first 10,000 only`);
+        if (h >= cap) short.push(`${c.value}/${b.value} still at the cap, first ${cap} only`);
       }
+      // Postings with no category, or one the facet does not name, are not reachable this way.
+      const got = [...rows.values()].filter((r) => r && r.country_code === c.value).length;
+      if (got < c.count) stats.notes.push(`${c.value}: ${got} of ${c.count} postings listed through ${cats.length} business categories`);
     }
   }
+  for (const s of short) stats.notes.push(s);
   log(`listed ${rows.size} postings in ${stats.pages} pages`);
+  // Never publish a partial board as the whole one: the history ledger would mark every posting it
+  // missed as closed. Under 95% of the facet total (postings come and go during the ~5-minute
+  // crawl; run 7 listed exactly the facet total), or a capped board with no partitions, the crawl
+  // fails and the previous snapshot stays (snapshot.yml keeps it; docs/process/amazon-meta-backend.md).
+  const expected = Math.max(sum, total);
+  if (!maxJobs && expected && (rows.size < COMPLETE * expected || (short.length && total >= cap && !countries.length))) {
+    throw new UpstreamError(`${label}: listed ${rows.size} of ${expected} postings (${short.join('; ') || 'partitions came back short'}); not writing a partial board`, { code: 'incomplete' });
+  }
+  if (!maxJobs && sum && rows.size < sum) stats.notes.push(`listed ${rows.size} of the ${sum} postings the country facets count (${((100 * rows.size) / sum).toFixed(1)}%)`);
   let list = [...rows.values()];
   if (maxJobs) list = list.slice(0, maxJobs);
   const jobs = list.map((j) => {
