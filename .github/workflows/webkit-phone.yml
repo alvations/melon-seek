@@ -120,6 +120,12 @@ jobs:
           path: dist
       - name: idb (Facebook's iOS Development Bridge) for touch input
         run: |
+          # idb-companion builds against a full Xcode, not the Command Line Tools the image
+          # selects by default: pick the newest installed Xcode first (run 38147604789 failed here).
+          XCODE=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
           brew tap facebook/fb
           brew install facebook/fb/idb-companion
           python3 -m pip install --break-system-packages fb-idb
