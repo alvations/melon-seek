@@ -1514,6 +1514,9 @@ export function attachJuice(job, cities, opts = {}) {
   const posted = postedPlaceSet(s);
   if (posted) {
     const own = matches.filter((m) => posted.has(m.location.rawName || m.location.name));
+    // None of the posted places has a city record (Sacramento): no Juice, as for any place
+    // without one, never Juice at a place the pay was not posted for.
+    if (!own.length && job.locations.some((l) => l && posted.has(l.rawName || l.name))) return job;
     if (own.length) matches.splice(0, matches.length, ...own);
   }
   // The pay's own country: the one its pay line names (salary.country, "Ireland: €72000"),
