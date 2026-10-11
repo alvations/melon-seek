@@ -213,9 +213,19 @@
 - Red first: test/fix3-data.test.js on the base commit: 18 of its 19 first tests failed (the 19th guards
   week/month/term pay, which already worked); test/e2e/fix3-data.e2e.js on the before build: 0 of 4 passed.
   After: 22 of 22 unit tests and 4 of 4 e2e tests pass.
-- `npm test` (MELON_BETA_SNAPSHOT_DIR empty, as CI): 786 tests, 785 pass in the full run; the one failure was
-  V15 (timing, load 6 from other lanes), which passes alone.
-- Full e2e: see the report (section 7).
+- `npm test` (MELON_BETA_SNAPSHOT_DIR empty, as CI): 786 tests. The last full run passed 785; the failure
+  was the timing test PERF-1 at load 4.7 (lag 160 ms), which passes alone 3 of 3 (lag 68–96 ms; the base
+  commit gives 84–92 ms). An earlier full run failed only V15, which passes alone. The cold first load of
+  a stale snapshot (rekey in the pipeline worker, off the main thread) is about 0.3 s slower (Cohere
+  1.4–1.6 s vs 1.1–1.2 s): the team-paragraph pass and Apple's line-broken lists.
+- Full e2e (`npm run build`, then `node scripts/e2e.js`): **196 of 199 pass, 0 fail, 3 skipped by design**
+  (D-11 has listing dates, methodology shots need E2E_SHOTS=1, P-2 has no estimate). The e2e run rewrites
+  some README and QA screenshots; those were restored, not committed.
+- Shared field names, confirmed with the lead after the app lane finished: `salary.partTime`,
+  `salary.hoursPerWeek` (a number), `sections.preferred`. Term pay is unchanged: the Conceptual Reasoning
+  Fellow keeps `originalInterval: 'term'`, `termWeeks: 17`, `min`/`max` 300,000–501,000 (the posted
+  $100,000–$167,000 annualized ×3) and `text` "$100,000–$167,000 USD for the four-month fellowship"; the
+  Fellows stipend keeps `'week'`; yearly-rate internships read `'year'` (checked in both bundles).
 - Re-baselined: test/fixtures/golden-normalize.json (norm-8), test/fixtures/refresh/jobs/snapshots (norm-8
   version), and the version assertions in test/fix-beta-pay.test.js and test/fix-pay-data.test.js;
   test/juice.test.js now expects no Juice for a USD London-only role; test/demo.test.js accepts that the
@@ -232,6 +242,9 @@
   where Juice is missing, `originalInterval: 'year'` as a yearly rate, and `salary.partTime`.
 - Compare lane: `salary.country` is a better pay country than the currency for Google and Microsoft lines
   (`payCountry` could prefer it).
+- Term amounts: `min × termWeeks ÷ 52` gives the posted term amount only approximately, because
+  `termWeeks` is rounded (17 for "four months", 17.33 weeks): $98,077 for the posted $100,000. Show
+  `salary.text` for the exact words, or divide by the term's own factor (52 ÷ 17.33 = 3).
 - Recall: Evals loses about 12% of its true positives ("benchmarking and integration of state-of-the-art
   models", "benchmark creation"), Mission / defense about 7% (defence roles at non-defence companies whose
   only cue is a bare "mission"), and the team rule some team-specific skills (Anthropic's Applied AI
@@ -250,3 +263,5 @@
 - 04:50 Apple line-broken lists; first labelled sample; team-paragraph roles by bullet lists; Evals
   patterns; defence-gated mission; `salary.country`; golden re-baselined. Commit 15ae8e2.
 - 05:30 last CAD formats ("[CAD]", French "bonus target CAD"), GCP "region"; e2e file; docs; screenshots.
+  Commit 2b41267.
+- 06:20 full e2e 196/199 (0 failed); final npm test; field names confirmed with the lead; log finished.
