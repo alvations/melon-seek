@@ -127,7 +127,7 @@ test('DQ-37 Meta: a "(Technical Leadership)" title is not the "Level not stated"
 // so on the first uncapped crawl (the whole board, about 22,400) about 17,350 postings get firstSeenAt =
 // that crawl, and a returning visitor sees them all marked "New since your last visit".
 // Owners: server/history.js updateLedger (listed ids), scripts/snapshot.js recordPublished.
-test('DQ-38 ledger: a posting the cap left out keeps the date it was first listed when it is published later', TODO, () => {
+test('DQ-38 ledger: a posting the cap left out keeps the date it was first listed when it is published later', () => {
   const t1 = '2026-10-11T15:04:28.012Z', t2 = '2026-10-12T15:04:28.012Z';
   const a = { id: 'amazon:10497338', title: 'Area Manager II', postedAt: '2026-09-28T00:00:00.000Z', reqId: '10497338', locations: [] };
   const b = { id: 'amazon:10400001', title: 'Area Manager', postedAt: '2026-08-01T00:00:00.000Z', reqId: '10400001', locations: [] };
@@ -135,6 +135,81 @@ test('DQ-38 ledger: a posting the cap left out keeps the date it was first liste
   const l2 = updateLedger(l1, [a, b], t2, { complete: true });
   const [, bOut] = annotate([a, b], l2, t2);
   assert.equal(bOut.firstSeenAt, t1, `first seen ${bOut.firstSeenAt}`);
+});
+
+// Fix wave 5 (fix5-data): the ledgers written before the fix know only the published 5,000, so the
+// first uncapped crawl must also not flood "New": a posting first published by the run after a
+// partial (capped) one, and posted before that run, takes its postedAt (clamped to the ledger's
+// first run) as firstSeenAt. A posting posted after the capped run is still new.
+test('DQ-38 ledger: when a capped board\'s coverage grows, the postings the old cap hid are not "New"', () => {
+  const t1 = '2026-10-11T15:04:28.012Z', t2 = '2026-10-12T15:04:28.012Z';
+  const visit = '2026-10-11T18:00:00.000Z'; // a visitor opened Amazon after the capped run
+  const isNew = (j) => Date.parse(j.firstSeenAt) > Date.parse(visit);
+  const kept = { id: 'amazon:1', title: 'Area Manager II', postedAt: '2026-10-10T00:00:00.000Z', reqId: '1', locations: [] };
+  const hidden = Array.from({ length: 50 }, (_, i) => ({ id: `amazon:h${i}`, title: `Role ${i}`, postedAt: `2026-09-${String(10 + (i % 18)).padStart(2, '0')}T00:00:00.000Z`, reqId: `h${i}`, locations: [] }));
+  const brandNew = { id: 'amazon:n1', title: 'Posted after the capped run', postedAt: '2026-10-12T00:00:00.000Z', reqId: 'n1', locations: [] };
+  const noDate = { id: 'amazon:n2', title: 'No posted date', postedAt: null, reqId: 'n2', locations: [] };
+  const all = [kept, ...hidden, brandNew, noDate];
+  // A ledger written before the fix: a capped run, no listed ids, no `partial` flag. The caller
+  // (beta-snapshots.mjs merge) knows the snapshot it replaces was capped: previousPartial.
+  const legacy = updateLedger(null, [kept], t1, { complete: false });
+  delete legacy.partial;
+  const out = annotate(all, updateLedger(legacy, all, t2, { complete: true, previousPartial: true }), t2);
+  const h = out.filter((j) => j.id.startsWith('amazon:h'));
+  assert.equal(h.filter(isNew).length, 0, 'hidden postings marked New');
+  assert.ok(h.every((j) => Date.parse(j.firstSeenAt) >= Date.parse(t1)), 'never before the ledger\'s first run');
+  assert.equal(isNew(out.find((j) => j.id === brandNew.id)), true, 'a posting posted after the capped run is new');
+  assert.equal(out.find((j) => j.id === noDate.id).firstSeenAt, t2, 'no postedAt: first seen now');
+  // Without the hint, the legacy ledger floods (the bug this guards against).
+  assert.equal(annotate(hidden, updateLedger(legacy, all, t2, { complete: true }), t2).filter(isNew).length, 50);
+  // A ledger written by the fixed code records `partial` itself, so no caller hint is needed.
+  const own = updateLedger(null, [kept], t1, { complete: false });
+  assert.equal(own.partial, true);
+  const l3 = updateLedger(own, all, t2, { complete: true });
+  assert.equal(l3.partial, undefined, 'a complete run clears the flag');
+  assert.equal(annotate(hidden, l3, t2).filter(isNew).length, 0);
+  // After a COMPLETE run nothing changes: a new id is first seen now.
+  const full = updateLedger(null, [kept], t1, { complete: true });
+  assert.equal(annotate([hidden[0]], updateLedger(full, [kept, hidden[0]], t2), t2)[0].firstSeenAt, t2);
+});
+
+test('DQ-38 beta merge: the first uncapped crawl after a capped one does not mark the old postings "New"', async () => {
+  const os = await import('node:os');
+  const { execFileSync } = await import('node:child_process');
+  const { serializeLedger } = await import('../scripts/history.js');
+  const t1 = '2026-10-11T15:04:28.012Z', t2 = '2026-10-12T15:04:28.012Z';
+  const job = (id, postedAt) => ({ id: `amazon:${id}`, title: `Role ${id}`, postedAt, reqId: String(id), locations: [] });
+  const kept = job(1, '2026-10-10T00:00:00.000Z');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dq38-'));
+  try {
+    const data = path.join(dir, 'beta'), fresh = path.join(dir, 'fresh');
+    for (const d of [path.join(data, 'snapshots'), path.join(data, 'history'), fresh]) fs.mkdirSync(d, { recursive: true });
+    // As the artifact holds them today: a capped snapshot and a ledger of the published postings only.
+    fs.writeFileSync(path.join(data, 'snapshots', 'amazon.json'), JSON.stringify({ fetchedAt: t1, jobsCapped: { kept: 1, total: 3, rule: 'salaried, then newest' }, jobs: [kept] }));
+    const legacy = updateLedger(null, [kept], t1, { complete: false });
+    delete legacy.partial;
+    fs.writeFileSync(path.join(data, 'history', 'amazon.json'), serializeLedger(legacy));
+    const all = [kept, job(2, '2026-09-20T00:00:00.000Z'), job(3, '2026-10-12T08:00:00.000Z')];
+    fs.writeFileSync(path.join(fresh, 'amazon.json'), JSON.stringify({ fetchedAt: t2, crawl: { mode: 'full', list: { complete: true }, gone: [] }, jobs: all }));
+    const out = execFileSync(process.execPath, [path.join(ROOT, '.github/scripts/beta-snapshots.mjs'), 'merge', fresh, data], { encoding: 'utf8', env: { ...process.env, GITHUB_STEP_SUMMARY: '', GITHUB_OUTPUT: '' } });
+    assert.match(out, /1 dated by postedAt/);
+    const l = JSON.parse(fs.readFileSync(path.join(data, 'history', 'amazon.json'), 'utf8'));
+    assert.equal(l.jobs['amazon:2'].f, t1, 'posted before the capped run: first seen at that run');
+    assert.equal(l.jobs['amazon:3'].f, t2, 'posted after it: new');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('DQ-38 ledger: listed-only entries stay out of the compact history the build serves', async () => {
+  const { compactLedger, closureOptions, previousRunOf } = await import('../server/history.js');
+  const t1 = '2026-10-11T15:04:28.012Z';
+  const a = { id: 'amazon:1', title: 'A', postedAt: '2026-10-10T00:00:00.000Z', locations: [] };
+  const l1 = updateLedger(null, [a], t1, { complete: false, listed: ['amazon:1', 'amazon:2'] });
+  assert.deepEqual(Object.keys(compactLedger(l1)), ['amazon:1']);
+  assert.equal(l1.jobs['amazon:2'].u, 1);
+  assert.deepEqual(previousRunOf({ fetchedAt: t1, jobsCapped: { kept: 5000, total: 22352 }, jobs: [] }), { partial: true, fetchedAt: t1 });
+  assert.deepEqual(previousRunOf({ fetchedAt: t1, crawl: { list: { complete: true } }, jobs: [] }), { partial: false, fetchedAt: t1 });
+  assert.equal(closureOptions({ crawl: { previous: { partial: true } } }).previousPartial, true);
+  assert.equal('previousPartial' in closureOptions({}), false);
 });
 
 /* ------------------------------------------------------------------ DQ-40 */

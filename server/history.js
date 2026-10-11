@@ -10,6 +10,7 @@
 //     "since": ISO,      // first recorded run
 //     "lastRunAt": ISO,  // latest recorded run
 //     "runs": 3,         // number of recorded runs
+//     "partial": true,   // the latest run was partial (capped or a short list); omitted otherwise
 //     "jobs": {
 //       "<job id>": {
 //         "f": ISO,       // firstSeenAt: first run that saw this id
@@ -24,6 +25,10 @@
 //         "n": 2,         // repost count (omitted when 0)
 //         "o": ISO,       // firstSeenAt of the first posting in the repost chain (with n)
 //         "s": "<id>"     // successor id, once a repost consumed this closed entry
+//         "u": 1,         // listed on the board but never published yet (a cap left it out);
+//                         // dropped once it is published. Not in the compact form.
+//         "b": 1          // firstSeenAt inferred (DQ-38): first published by the run after a
+//                         // partial one, posted before that run, so it was on the board then
 //       }
 //     }
 //   }
@@ -46,6 +51,12 @@
 //   open postings that share an internal_job_id (one requisition posted in
 //   several places) are NOT reposts.
 // - Closed entries older than PRUNE_CLOSED_DAYS are dropped to keep the file small.
+// - Coverage growth (DQ-38): a listed id the ledger has never seen gets an entry ("u") on
+//   the run that lists it, so it keeps that first-seen date when a later run publishes it.
+//   When the previous run was partial (ledger.partial, or opts.previousPartial for a ledger
+//   written before that flag existed), a new id whose postedAt is not after that run was on
+//   the board then, unseen only because of the cap: its firstSeenAt is its postedAt, clamped
+//   to [since, previous run] ("b"), so a board whose coverage grows does not flood "New".
 
 export const HISTORY_FORMAT = 'melon-history-1';
 export const REPOST_WINDOW_DAYS = 30;
@@ -107,11 +118,11 @@ function validLedger(prev) {
  * @param {object|null} prev    previous ledger (or null for a new one)
  * @param {Job[]} jobs          normalized jobs of the run (needs id, title, department, locations, postedAt, reqId)
  * @param {string} fetchedAt    ISO time of the run
- * @param {object} [opts]       { complete = true, listed = [], gone = [], unseenDays } (see Rules)
+ * @param {object} [opts]       { complete = true, listed = [], gone = [], unseenDays, previousPartial } (see Rules)
  * @returns {object} ledger (=== prev when jobs is empty or the run is not newer)
  */
 export function updateLedger(prev, jobs, fetchedAt, opts = {}) {
-  const { complete = true, listed = [], gone = [], unseenDays = UNSEEN_OPEN_DAYS } = opts || {};
+  const { complete = true, listed = [], gone = [], unseenDays = UNSEEN_OPEN_DAYS, previousPartial = null } = opts || {};
   const goneSet = new Set(gone || []);
   const base = validLedger(prev) ? prev : emptyLedger();
   if (!Array.isArray(jobs) || !jobs.length) return prev || base;
@@ -136,6 +147,7 @@ export function updateLedger(prev, jobs, fetchedAt, opts = {}) {
     if (!e) { fresh.push({ job, k, p, r }); continue; }
     e.l = now;
     e.k = k;
+    delete e.u; // published now
     if (p) e.p = p;
     if (r) e.r = r;
     if (e.c) { delete e.c; delete e.x; } // reopened: same id, keep firstSeenAt
@@ -159,9 +171,20 @@ export function updateLedger(prev, jobs, fetchedAt, opts = {}) {
     return null;
   };
 
+  // DQ-38: after a partial run, a new id posted before that run was on the board then.
+  const prevPartial = previousPartial == null ? base.partial === true : !!previousPartial;
+  const lastMs = toMs(base.lastRunAt);
+  const sinceMs = Number.isFinite(toMs(base.since)) ? toMs(base.since) : lastMs;
+  const inferredFirstSeen = (p) => {
+    if (!prevPartial || !p || !Number.isFinite(lastMs) || !(toMs(p) <= lastMs)) return null;
+    return new Date(Math.min(lastMs, Math.max(sinceMs, toMs(p)))).toISOString();
+  };
+
   // Pass 2: new ids, linked to an earlier posting when they are reposts.
   for (const { job, k, p, r } of fresh) {
-    const entry = { f: now, l: now, p: p || null, k };
+    const inferred = inferredFirstSeen(p);
+    const entry = { f: inferred || now, l: now, p: p || null, k };
+    if (inferred) entry.b = 1;
     if (r) entry.r = r;
     const prevId = (r && take(byReq, r)) || take(byKey, k);
     if (prevId) {
@@ -173,11 +196,14 @@ export function updateLedger(prev, jobs, fetchedAt, opts = {}) {
     out[job.id] = entry;
   }
 
-  // On the board but not published (left out by a cap, a failed detail): seen, kept open.
+  // On the board but not published (left out by a cap, a failed detail): seen, kept open. An id
+  // the ledger has never seen is recorded now (DQ-38), so a later run that publishes it keeps
+  // this first-seen date instead of calling it new.
   for (const id of listed || []) {
+    if (!id || seen.has(id)) continue;
     const e = out[id];
-    if (!e || seen.has(id)) continue;
     seen.add(id);
+    if (!e) { out[id] = { f: now, l: now, p: null, k: null, u: 1 }; continue; }
     e.l = now;
     if (e.c && !e.s) { delete e.c; delete e.x; }
   }
@@ -194,7 +220,10 @@ export function updateLedger(prev, jobs, fetchedAt, opts = {}) {
     } else if (nowMs - toMs(e.c) > PRUNE_CLOSED_DAYS * DAY) delete out[id];
   }
 
-  return { format: HISTORY_FORMAT, since: base.since || now, lastRunAt: now, runs: (base.runs || 0) + 1, jobs: out };
+  const next = { format: HISTORY_FORMAT, since: base.since || now, lastRunAt: now, runs: (base.runs || 0) + 1 };
+  if (!complete) next.partial = true;
+  next.jobs = out;
+  return next;
 }
 
 /**
@@ -202,26 +231,44 @@ export function updateLedger(prev, jobs, fetchedAt, opts = {}) {
  * field: list.complete, gone, unpublished; scripts/snapshot.js#crawlSummary) and `listed` (the
  * crawl state's listed ids, when at hand). A capped board or a short list is partial.
  */
-export function closureOptions({ capped = null, crawl = null, listed = null } = {}) {
+export function closureOptions({ capped = null, crawl = null, listed = null, previous = null } = {}) {
   const c = crawl && typeof crawl === 'object' ? crawl : {};
   const complete = !capped && !(c.list && c.list.complete === false);
   const on = new Set([...(Array.isArray(c.unpublished) ? c.unpublished : []), ...(Array.isArray(listed) ? listed : [])]);
-  return { complete, listed: [...on], gone: Array.isArray(c.gone) ? c.gone : [] };
+  const out = { complete, listed: [...on], gone: Array.isArray(c.gone) ? c.gone : [] };
+  // DQ-38: whether the PREVIOUS run was partial, for a ledger written before it recorded that
+  // itself. `previous` (or crawl.previous, which callers that only forward `crawl` can set) is
+  // { partial } from the snapshot this run replaces (previousRunOf).
+  const prev = previous || (c.previous && typeof c.previous === 'object' ? c.previous : null);
+  if (prev && typeof prev.partial === 'boolean') out.previousPartial = prev.partial;
+  return out;
+}
+
+/** { partial, fetchedAt } of the snapshot a run replaces: partial when it was capped or its list was short. */
+export function previousRunOf(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return null;
+  const cr = snapshot.crawl && typeof snapshot.crawl === 'object' ? snapshot.crawl : {};
+  const partial = !!(snapshot.jobsCapped && typeof snapshot.jobsCapped === 'object') || !!(cr.list && cr.list.complete === false);
+  return { partial, fetchedAt: snapshot.fetchedAt || null };
 }
 
 /** Run statistics between two ledgers (for logs). */
 export function diffLedger(prev, next) {
   const a = validLedger(prev) ? prev.jobs : {};
   const b = next.jobs;
-  let added = 0, closed = 0, reopened = 0, reposts = 0, open = 0;
+  let added = 0, closed = 0, reopened = 0, reposts = 0, open = 0, inferred = 0, unpublished = 0;
   for (const [id, e] of Object.entries(b)) {
     if (!e.c) open++;
+    if (!e.c && e.u) unpublished++;
     const was = a[id];
-    if (!was) { added++; if (e.n) reposts++; continue; }
+    if (!was) { added++; if (e.n) reposts++; if (e.b) inferred++; continue; }
     if (e.c && !was.c) closed++;
     if (!e.c && was.c) reopened++;
   }
-  return { open, added, closed, reopened, reposts, total: Object.keys(b).length };
+  // inferred: new entries whose firstSeenAt is their postedAt after a partial run (DQ-38);
+  // unpublished: open entries listed on the board but never published (a cap left them out).
+  // Both only when non-zero, so the stats of a board that was never capped are unchanged.
+  return { open, added, closed, reopened, reposts, total: Object.keys(b).length, ...(inferred ? { inferred } : {}), ...(unpublished ? { unpublished } : {}) };
 }
 
 /**
@@ -235,7 +282,7 @@ export function compactLedger(ledger) {
   if (validLedger(ledger)) {
     for (const id of Object.keys(ledger.jobs).sort()) {
       const e = ledger.jobs[id];
-      if (e.c) continue;
+      if (e.c || e.u) continue; // closed, or never published (DQ-38)
       out[id] = e.n ? [e.f, e.p || null, e.n, e.o || null] : [e.f, e.p || null, 0];
     }
   }

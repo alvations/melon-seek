@@ -14,7 +14,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { runSnapshot } from '../scripts/snapshot.js';
-import { updateLedger, closureOptions, UNSEEN_OPEN_DAYS } from '../server/history.js';
+import { updateLedger, closureOptions, compactLedger, UNSEEN_OPEN_DAYS } from '../server/history.js';
 import { classifyProbe } from '../server/sources/incremental.js';
 import { setMinInterval, resetRateLimits, resetRobots } from '../server/sources/polite.js';
 import { BOARDS, serve, crawlOnce } from './incremental-boards.js';
@@ -149,6 +149,9 @@ test('Amazon uncapped: every listed posting is published and in the ledger, thro
     assert.equal(late.snap.jobs.length, 40);
     const open = Object.entries(late.ledger.jobs).filter(([, e]) => !e.c).map(([id]) => id);
     assert.equal(open.length, 40, 'every posting has an open entry');
+    // DQ-38 (fix wave 5): only published postings are served; with no cap, that is all of them.
+    assert.equal(Object.values(late.ledger.jobs).filter((e) => e.u).length, 0, 'none marked unpublished');
+    // The beta merge reads the same crawl's listed ids from the crawl state.
     const data = path.join(dir, 'beta');
     const fresh = path.join(dir, 'snap');
     fs.mkdirSync(path.join(data, 'history'), { recursive: true });
@@ -157,6 +160,7 @@ test('Amazon uncapped: every listed posting is published and in the ledger, thro
     assert.match(out, /amazon \| \*\*fresh\*\* \| 40 \|/);
     const merged = read(path.join(data, 'history', 'amazon.json'));
     assert.equal(Object.values(merged.jobs).filter((e) => !e.c).length, 40);
+    assert.equal(Object.keys(compactLedger(merged)).length, 40);
   } finally { net.restore(); }
 });
 

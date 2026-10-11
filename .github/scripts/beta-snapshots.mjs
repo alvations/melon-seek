@@ -17,6 +17,10 @@
 //       list closes nothing for being absent; probe-confirmed `gone` ids close) and, from
 //       <crawl-state-dir>/<slug>.json.gz of the SAME crawl (same fetchedAt), every id the crawl
 //       listed, so postings a cap left out stay open while they are on the board.
+//       Coverage growth (DQ-38): the snapshot this run replaces tells the ledger whether the
+//       previous run was partial (crawl.previous, server/history.js#previousRunOf), so the
+//       first uncapped crawl dates the postings the old cap hid by their postedAt instead of
+//       marking them all "New".
 //
 // Env: MELON_BETA_COMPANIES (test-only extra beta companies, as for scripts/build-static.js).
 import fs from 'node:fs';
@@ -40,6 +44,7 @@ const append = (file, text) => { if (file) fs.appendFileSync(file, text); };
 async function merge(freshDir, dataDir, stateDir = null) {
   // A capped or partial snapshot records its left-out postings as unseen, not closed.
   const { recordPublished, readCrawlState } = await imp('scripts', 'snapshot.js');
+  const { previousRunOf } = await imp('server', 'history.js');
   const snaps = path.join(dataDir, 'snapshots');
   const hist = path.join(dataDir, 'history');
   fs.mkdirSync(snaps, { recursive: true });
@@ -55,15 +60,19 @@ async function merge(freshDir, dataDir, stateDir = null) {
     const jobs = body && (Array.isArray(body) ? body : body.jobs);
     if (Array.isArray(jobs) && jobs.length) {
       const fetchedAt = (body && body.fetchedAt) || new Date().toISOString();
+      // Read before it is replaced: was the previous run partial (capped, a short list)?
+      const previous = previousRunOf(readJson(path.join(snaps, `${c.slug}.json`)));
       fs.copyFileSync(src, path.join(snaps, `${c.slug}.json`));
       let ledger = '';
       try {
         const capped = body && body.jobsCapped && typeof body.jobsCapped === 'object' ? body.jobsCapped : null;
-        const crawl = body && body.crawl && typeof body.crawl === 'object' ? body.crawl : null;
+        const own = body && body.crawl && typeof body.crawl === 'object' ? body.crawl : null;
+        // recordPublished forwards `crawl` to closureOptions, which reads crawl.previous (DQ-38).
+        const crawl = previous ? { ...(own || {}), previous } : own;
         const state = stateDir ? await readCrawlState(stateDir, c.slug) : null;
         const listed = state && state.fetchedAt === fetchedAt && Array.isArray(state.listed) ? state.listed : null;
         const h = await recordPublished(c.slug, jobs, fetchedAt, { dir: hist, capped, crawl, listed });
-        ledger = h && h.stats ? `ledger: ${h.stats.open} open, +${h.stats.added} new, ${h.stats.closed} closed${Object.keys(h.stats.closedBy || {}).length ? ` (${Object.entries(h.stats.closedBy).map(([k, v]) => `${v} ${k}`).join(', ')})` : ''}${h.stats.unseen ? `, ${h.stats.unseen} ${capped ? "left out by the cap" : "missing from a partial list"} kept open` : ''}${crawl ? `; crawl ${crawl.mode}, list ${crawl.list && crawl.list.complete === false ? 'partial' : 'complete'}` : ''}` : '';
+        ledger = h && h.stats ? `ledger: ${h.stats.open} open, +${h.stats.added} new, ${h.stats.closed} closed${Object.keys(h.stats.closedBy || {}).length ? ` (${Object.entries(h.stats.closedBy).map(([k, v]) => `${v} ${k}`).join(', ')})` : ''}${h.stats.unseen ? `, ${h.stats.unseen} ${capped ? "left out by the cap" : "missing from a partial list"} kept open` : ''}${h.stats.inferred ? `, ${h.stats.inferred} dated by postedAt (coverage grew after a partial run)` : ''}${own ? `; crawl ${own.mode}, list ${own.list && own.list.complete === false ? 'partial' : 'complete'}` : ''}` : '';
       } catch (err) {
         ledger = `ledger unchanged (${err.message})`;
       }
