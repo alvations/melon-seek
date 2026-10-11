@@ -371,8 +371,7 @@ caches HTML. Details, verification commands and other platforms are in
 <https://alvations.github.io/melon-seek/beta/> is a full second copy of the
 app: the stable companies plus the big-tech career sites (Google, Microsoft, Apple,
 Netflix and NVIDIA; Amazon and Meta were resumed on 2026-10-11 and appear after their first
-crawl. Amazon will show 5,000 of its roughly 22,000 postings, those with a published pay range
-first and then the newest, and says so).
+crawl. Amazon shows all of its roughly 22,000 postings: no board is cut to a posting budget).
 Tesla is left out because its site blocks plain requests; see
 [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) §7.
 The main site at `/melon-seek/` doesn't change and doesn't link to it.

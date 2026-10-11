@@ -7,8 +7,8 @@ quotes below come from the live pages, fetched on 2026-10-11. Their URLs, times 
 > [!NOTE]
 > **Superseded by the [Decision](#decision-2026-10-11) below (2026-10-11).** The user chose to
 > resume both; `paused` is gone from `server/companies.js`, and each board appears on `/beta/`
-> after its first crawl. Amazon keeps a 5,000-posting budget (`maxPostings`), not the 8,485 that
-> the file-size limit alone would have kept. The brief below is kept as it was written, before
+> after its first crawl. Since 2026-10-11 every Amazon posting is published, the whole board: the
+> 5,000-posting budget (`maxPostings`) was removed when the user asked: "Why are you capping the no of posting we must present them as they are and not cut anything". The brief below is kept as it was written, before
 > the decision.
 
 **In one paragraph.** Amazon and Meta are missing for one reason only. On 2026-10-10 they were set
@@ -310,7 +310,7 @@ whose site terms have a similar clause, the user chose **"Keep as is"**.
 What resuming means here: the `paused` field is gone from both entries in `server/companies.js`, so
 the 6-hourly beta crawl collects both with the same rules as every board: an honest User-Agent that
 names the project, about one request per second, robots.txt checked first (Amazon's and Meta's both
-allow the job pages), no login, no browser impersonation. Amazon keeps a 5,000-posting budget
-(postings with pay first, then the newest), and the page says how many it left out. The permission
+allow the job pages), no login, no browser impersonation. Every Amazon posting is published (the
+5,000-posting budget was removed on 2026-10-11 at the user's word: "Why are you capping the no of posting we must present them as they are and not cut anything"). The permission
 emails above are still drafted, should the user want to send them; if either company objects, set
 `paused: 'terms'` again and the crawl, build and list drop it on the next run.

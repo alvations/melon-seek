@@ -198,6 +198,12 @@ They appear only at `https://alvations.github.io/melon-seek/beta/`. The main sit
   - `'beta'` returns the stable companies plus the beta ones.
   - `'all'` is the same as `'beta'`, for `scripts/snapshot.js`.
 - `getCompany(slug)` resolves any built-in on any channel, and the result includes `channel`.
+- **No posting is ever dropped (2026-10-11).** No entry has a posting budget (Amazon's `maxPostings: 5000`
+  was removed; the user: "Why are you capping the no of posting we must present them as they are and not
+  cut anything"). `scripts/snapshot.js#fitSnapshot` may trim descriptions toward the 40 MB target and the
+  static build may move descriptions and sections into the lazy per-posting files, but every posting stays
+  in the snapshot and in the list. A snapshot's `jobsCapped` record exists only in snapshots from before
+  that day; readers keep treating such a run as partial.
 - `SOURCES`, the list of sources a user may add as a custom board, stays `greenhouse | ashby | lever`.
   A new source is built-in only.
 

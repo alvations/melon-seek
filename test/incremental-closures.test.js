@@ -17,7 +17,6 @@ import { runSnapshot } from '../scripts/snapshot.js';
 import { updateLedger, closureOptions, UNSEEN_OPEN_DAYS } from '../server/history.js';
 import { classifyProbe } from '../server/sources/incremental.js';
 import { setMinInterval, resetRateLimits, resetRobots } from '../server/sources/polite.js';
-import { COMPANIES } from '../server/companies.js';
 import { BOARDS, serve, crawlOnce } from './incremental-boards.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -135,34 +134,30 @@ test('Google: a record request that fails is listed but unpublished, and stays o
   } finally { net.restore(); }
 });
 
-test('Amazon capped: postings the cap leaves out stay open while listed (beyond UNSEEN_OPEN_DAYS), through the beta merge too', async () => {
+test('Amazon uncapped: every listed posting is published and in the ledger, through the beta merge too', async () => {
+  // 2026-10-11, the user: "Why are you capping the no of posting we must present them as they are and not cut anything".
   setMinInterval(0);
-  const c = COMPANIES.find((x) => x.slug === 'amazon');
-  const was = c.maxPostings;
-  c.maxPostings = 10;
   const board = BOARDS.amazon(40);
   const net = serve(board);
   try {
     const dir = tmp();
     const state = path.join(dir, 'state');
     const one = await crawlOnce('amazon', { dir, stateDir: state, when: day(0) });
-    assert.equal(one.snap.jobs.length, 10);
-    assert.equal(one.snap.jobsCapped.total, 40);
-    const published = new Set(one.snap.jobs.map((j) => j.id));
+    assert.equal(one.snap.jobs.length, 40, 'the whole board');
+    assert.equal(one.snap.jobsCapped, undefined, 'no cap record');
     const late = await crawlOnce('amazon', { dir, stateDir: state, when: day(UNSEEN_OPEN_DAYS + 6) });
+    assert.equal(late.snap.jobs.length, 40);
     const open = Object.entries(late.ledger.jobs).filter(([, e]) => !e.c).map(([id]) => id);
-    assert.equal(open.length, 10, 'only published postings get entries');
-    for (const id of published) assert.ok(late.ledger.jobs[id] && !late.ledger.jobs[id].c, `${id} open`);
-    // The beta merge reads the same crawl's listed ids from the crawl state.
+    assert.equal(open.length, 40, 'every posting has an open entry');
     const data = path.join(dir, 'beta');
     const fresh = path.join(dir, 'snap');
     fs.mkdirSync(path.join(data, 'history'), { recursive: true });
     fs.copyFileSync(path.join(dir, 'hist', 'amazon.json'), path.join(data, 'history', 'amazon.json'));
     const out = execFileSync(process.execPath, [path.join(ROOT, '.github/scripts/beta-snapshots.mjs'), 'merge', fresh, data, state], { encoding: 'utf8', env: { ...process.env, GITHUB_STEP_SUMMARY: '', GITHUB_OUTPUT: '' } });
-    assert.match(out, /amazon \| \*\*fresh\*\*/);
+    assert.match(out, /amazon \| \*\*fresh\*\* \| 40 \|/);
     const merged = read(path.join(data, 'history', 'amazon.json'));
-    assert.equal(Object.values(merged.jobs).filter((e) => !e.c).length, 10);
-  } finally { net.restore(); c.maxPostings = was; }
+    assert.equal(Object.values(merged.jobs).filter((e) => !e.c).length, 40);
+  } finally { net.restore(); }
 });
 
 test('Apple: a listing absent from a short search is probed through jobDetails; a 404 closes it', async () => {

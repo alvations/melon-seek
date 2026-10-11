@@ -54,7 +54,7 @@ test('snapshot targets: no args = stable only; --channel beta = the beta boards 
   assert.throws(() => targetsFor(['--nope']), /unknown option/);
 });
 
-test('fitSnapshot trims descriptions (keeping pay paragraphs) only when over the cap', () => {
+test('fitSnapshot trims descriptions (keeping pay paragraphs) only when over the size target', () => {
   const pay = '<p>The base pay range for this role is between $150,400 and $277,600.</p>';
   const jobs = Array.from({ length: 50 }, (_, i) => ({ id: `x:${i}`, descriptionHtml: `<p>${'word '.repeat(4000)}</p>${pay}` }));
   const payload = (list, t) => ({ t, jobs: list });
@@ -68,7 +68,8 @@ test('fitSnapshot trims descriptions (keeping pay paragraphs) only when over the
   assert.equal(trimDescription('<p>short</p>', 100), '<p>short</p>');
 });
 
-test('fitSnapshot caps a board that is still too big: salaried postings first, then the newest, marked jobsCapped', () => {
+test('fitSnapshot never drops a posting from a board that is still too big: all kept, shortest trim, no jobsCapped', () => {
+  // The user, 2026-10-11: "Why are you capping the no of posting we must present them as they are and not cut anything".
   const day = 864e5;
   const jobs = Array.from({ length: 600 }, (_, i) => ({
     id: `x:${i}`, salary: i % 3 ? { min: 100000, max: 150000 } : null,
@@ -76,19 +77,14 @@ test('fitSnapshot caps a board that is still too big: salaried postings first, t
     sections: { responsibilities: ['r'.repeat(1500)], fit: [] }, descriptionHtml: `<p>${'w '.repeat(3000)}</p>`,
   }));
   const payload = (list, t, capped) => ({ t, capped, jobs: list });
-  const r = fitSnapshot(jobs, payload, 1024 * 1024);
-  assert.ok(r.bytes <= 1024 * 1024);
-  assert.equal(r.trimmedTo, 800, 'descriptions trimmed to the shortest step first');
-  assert.ok(r.capped && r.capped.total === 600 && r.capped.kept === r.jobs.length && r.jobs.length < 600);
-  const salaried = jobs.filter((j) => j.salary).length;
-  const keptSalaried = r.jobs.filter((j) => j.salary).length;
-  assert.ok(keptSalaried === r.jobs.length || keptSalaried === salaried, 'no posting without pay is kept while a salaried one is dropped');
-  const small = fitSnapshot(jobs, payload, 300 * 1024);
-  assert.ok(small.jobs.length < salaried && small.jobs.every((j) => j.salary), 'a tight cap keeps salaried postings only');
-  const kept = new Set(small.jobs.map((j) => j.id));
-  assert.ok(kept.has('x:599') && !kept.has('x:1'), 'newest salaried first');
-  const order = small.jobs.map((j) => Number(j.id.slice(2)));
-  assert.deepEqual(order, [...order].sort((a, b) => a - b), 'original order kept');
+  for (const budget of [1024 * 1024, 300 * 1024]) {
+    const r = fitSnapshot(jobs, payload, budget);
+    assert.equal(r.trimmedTo, 800, 'descriptions trimmed to the shortest step');
+    assert.equal(r.capped, null);
+    assert.equal(r.overBudget, true);
+    assert.deepEqual(r.jobs.map((j) => j.id), jobs.map((j) => j.id), 'every posting, in board order');
+    assert.ok(r.jobs.every((j, i) => j.sections === jobs[i].sections && j.salary === jobs[i].salary), 'only descriptions are trimmed');
+  }
 });
 
 test('robots.txt: RFC 9309 groups, longest match, Allow on ties, wildcards', () => {

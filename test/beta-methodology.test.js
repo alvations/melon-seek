@@ -120,7 +120,6 @@ const MISSING = [
   ['server/sources/incremental.js', 'DETAIL_REFRESH_DAYS', 'how old a posting\'s details can be (2-4 days)'],
   ['server/sources/incremental.js', 'CLOSE_PROBE_LIMIT', 'closure probes per board per run (50)'],
   ['server/history.js', 'UNSEEN_OPEN_DAYS', 'a posting missing from a partial list stays open 14 days'],
-  ['scripts/snapshot.js', 'CAP_RULE', 'which 5,000 Amazon postings are kept'],
   ['server/sources/meta.js', 'MAX_FAILED_IN_A_ROW', 'Meta crawl stop rule'],
   ['server/sources/meta.js', 'MAX_FAILED_SHARE', 'Meta crawl failure rule'],
   ['public/features/roles.js', 'LEVEL_NOT_STATED', '"Level not stated"'],
@@ -133,10 +132,9 @@ for (const [file, name, what] of MISSING) {
     assert.ok(new RegExp(`\\b${name}\\b`).test(REG_TEXT), `${file}:${i + 1} ${name} has no data/freshness.json entry`);
   });
 }
-test('MR-5 registry names the Amazon 5,000-posting budget (server/companies.js maxPostings)', todo('MR-5'), () => {
-  const amazon = COMPANIES.find((c) => c.slug === 'amazon');
-  assert.equal(amazon && amazon.maxPostings, 5000, 'server/companies.js: Amazon maxPostings is no longer 5000 (update this test)');
-  assert.match(REG_TEXT, /maxPostings/, 'no registry entry names maxPostings, the budget the page states as "5,000 roles · of 22,415 posted"');
+test('MR-5 no posting budget is left for the registry to name (server/companies.js has no maxPostings)', () => {
+  // 2026-10-11, the user: "Why are you capping the no of posting we must present them as they are and not cut anything".
+  for (const c of COMPANIES) assert.equal(c.maxPostings, undefined, `${c.slug}: a posting budget is back (update this test and the registry)`);
 });
 
 /* --------------------------------------------------------- MR-6 (Medium) */
@@ -195,17 +193,14 @@ test('MR-9 the app\'s grade cut-offs in dollars equal the methodology page\'s', 
 });
 
 /* -------------------------------------------------------- MR-14 (Medium) */
-// Amazon's budget keeps postings with pay first: 14,123 of 22,415 have pay, so all 5,000 kept do,
-// and the page's "X% show pay" and Insights' "Pay published" would read 100% (the board: 63%).
-// The capped record carries no whole-board pay count the UI could show instead.
-test('MR-14 a budgeted board records how many of the whole board post pay', () => {
+// Amazon's budget kept postings with pay first, so the page's "X% show pay" read 100%. Since 2026-10-11
+// no board is budgeted: every posting is published, so the share the page shows is the board's own.
+test('MR-14 the snapshot publishes the whole board, so its pay share is the board\'s', () => {
   const jobs = Array.from({ length: 2000 }, (_, i) => ({ id: `a:${i}`, postedAt: `2026-10-${String(1 + (i % 10)).padStart(2, '0')}`, salary: i % 100 < 63 ? { min: 1, max: 2 } : null }));
   const out = fitSnapshot(jobs, (list, n, capped) => ({ jobs: list, capped }), 1e12, { maxPostings: 450 });
-  const kept = out.jobs.filter((j) => j.salary).length / out.jobs.length;
-  assert.equal(kept, 1, 'precondition: the budget keeps salaried postings first');
-  const c = out.capped || {};
-  const whole = c.salaried ?? c.withPay ?? c.salariedTotal ?? null;
-  assert.equal(whole, 1260, `jobsCapped ${JSON.stringify(c)} has no whole-board pay count, so the page would say 100% show pay`);
+  assert.equal(out.jobs.length, 2000, 'nothing left out, even when a caller still passes maxPostings');
+  assert.equal(out.capped, null);
+  assert.equal(out.jobs.filter((j) => j.salary).length, 1260);
 });
 
 /* -------------------------------------------------------- MR-15 (Medium) */

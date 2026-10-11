@@ -12,7 +12,8 @@
 // Beta boards are crawled politely (about 1 request/s per host) and can take up
 // to ~1.5 hours; they run in parallel (one host each) and log their progress.
 // A beta snapshot over MAX_BETA_SNAPSHOT_BYTES has its descriptions trimmed
-// (sections and keywords are derived from the full text first; see fitSnapshot).
+// (sections and keywords are derived from the full text first; see fitSnapshot). No posting is
+// ever left out: a board still over the target at the shortest trim is written over it.
 // Env: MELON_SNAPSHOT_DIR (default data/snapshots), MELON_HISTORY_DIR (default data/history),
 // MELON_CRAWL_STATE_DIR (incremental crawl state, <slug>.json.gz; unset = full crawls),
 // MELON_FULL_CRAWL=1 (ignore the state once), MELON_DETAIL_REFRESH_DAYS (default 4),
@@ -30,7 +31,8 @@ import { CRAWL_STATE_FORMAT, accountPostings, LIST_ONLY } from '../server/source
 import { recordRun, readLedger, historyDir } from './history.js';
 import { closureOptions, UNSEEN_OPEN_DAYS } from '../server/history.js';
 
-/** About 40 MB: the static build and the snapshot artifact stay manageable (docs/process/bigtech-data.md). */
+/** About 40 MB: the size descriptions are trimmed toward, so the static build and the snapshot artifact stay
+ * manageable (docs/process/bigtech-data.md). A target only: no posting is dropped to meet it (fitSnapshot). */
 export const MAX_BETA_SNAPSHOT_BYTES = 40 * 1024 * 1024;
 const TRIM_STEPS = [6000, 4000, 2500, 1500, 800];
 const PAY_HINT_RE = /salary|base pay|pay range|range for this role|compensation|\$\s?\d|\d\s?(?:USD|CAD|GBP|EUR)\b/i;
@@ -48,70 +50,42 @@ export function trimDescription(html, n) {
 }
 
 /**
- * Keep a beta snapshot under maxBytes (docs/process/bigtech-data.md, "Size"):
- *   1. trim descriptionHtml step by step (TRIM_STEPS characters + pay paragraphs;
- *      sections and keywords were derived from the full text already);
- *   2. if the board is still too big at the shortest trim (Amazon: 22k postings),
- *      cap the number of postings: postings with a plotted salary first, then the
- *      most recently posted, as many as fit. The payload says so (jobsCapped).
- *   0. a board over its posting budget (`maxPostings`, server/companies.js: Amazon's 22,415
- *      postings would make the slowest board on a phone, docs/process/amazon-meta-backend.md) keeps
- *      the first `maxPostings` by the same ranking, before any trimming.
- * `payloadOf(jobs, trimmedTo, capped)` builds the file body. Returns
- * { jobs, trimmedTo|null, capped: { kept, total, salaried, by, rule, limit? }|null, bytes }; `by` is
- * 'postings' (the budget) or 'bytes' (the file size), `total` always the whole board and `salaried`
- * how many of the whole board post pay (MR-14: the kept ones are salaried first, so their share
- * would read 100%; the page shows the whole board's share instead).
+ * Fit a beta snapshot toward maxBytes (docs/process/bigtech-data.md, "Size") WITHOUT DROPPING ANY
+ * POSTING. The user (2026-10-11): "Why are you capping the no of posting we must present them as
+ * they are and not cut anything" (docs/process/perf-mobile-beta-2.md). So:
+ *   1. descriptionHtml is trimmed step by step (TRIM_STEPS characters + pay paragraphs; sections
+ *      and keywords were derived from the full text already; the posting page has the rest);
+ *   2. if the board is still over maxBytes at the shortest trim (Amazon: 22,415 postings, about
+ *      80 MB at 800 characters), the file is written over the budget, every posting kept:
+ *      maxBytes is a target for trimming, never a reason to leave a posting out.
+ * There is no per-company posting budget any more (server/companies.js has no maxPostings; the
+ * option is ignored if a caller still passes it). `payloadOf(jobs, trimmedTo, capped)` builds the
+ * file body; `capped` is always null now (kept in the signature so callers and older snapshots
+ * with a jobsCapped record keep working). Returns
+ * { jobs, trimmedTo|null, capped: null, bytes, overBudget: boolean }; `jobs` always has every posting.
  */
-export const CAP_RULE = 'salaried, then newest';
-const rank = (list) => {
-  const t = (j) => Date.parse((j && (j.postedAt || j.updatedAt)) || '') || 0;
-  return list.map((j, i) => ({ j, i })).sort((a, b) => (!!b.j.salary - !!a.j.salary) || (t(b.j) - t(a.j)) || (a.i - b.i));
-};
-const inOrder = (ranked, n) => ranked.slice(0, n).sort((a, b) => a.i - b.i).map(({ j }) => j);
-
-export function fitSnapshot(jobs, payloadOf, maxBytes = MAX_BETA_SNAPSHOT_BYTES, { maxPostings = 0 } = {}) {
-  const total = jobs.length;
-  const salaried = jobs.filter((j) => j && j.salary).length;
-  let base = jobs;
-  let budget = null;
-  if (maxPostings > 0 && jobs.length > maxPostings) {
-    base = inOrder(rank(jobs), maxPostings);
-    budget = { kept: base.length, total, salaried, by: 'postings', rule: CAP_RULE, limit: maxPostings };
-  }
-  const size = (list, n, cap) => Buffer.byteLength(JSON.stringify(payloadOf(list, n, cap), null, 1));
-  let bytes = size(base, null, budget);
-  if (bytes <= maxBytes) return { jobs: base, trimmedTo: null, capped: budget, bytes };
-  let out = base;
+export function fitSnapshot(jobs, payloadOf, maxBytes = MAX_BETA_SNAPSHOT_BYTES) {
+  const size = (list, n) => Buffer.byteLength(JSON.stringify(payloadOf(list, n, null), null, 1));
+  let bytes = size(jobs, null);
+  if (bytes <= maxBytes) return { jobs, trimmedTo: null, capped: null, bytes, overBudget: false };
+  let out = jobs;
   let n = null;
   for (n of TRIM_STEPS) {
-    out = base.map((j) => (j && typeof j.descriptionHtml === 'string' && j.descriptionHtml.length > n ? { ...j, descriptionHtml: trimDescription(j.descriptionHtml, n) } : j));
-    bytes = size(out, n, budget);
-    if (bytes <= maxBytes) return { jobs: out, trimmedTo: n, capped: budget, bytes };
+    out = jobs.map((j) => (j && typeof j.descriptionHtml === 'string' && j.descriptionHtml.length > n ? { ...j, descriptionHtml: trimDescription(j.descriptionHtml, n) } : j));
+    bytes = size(out, n);
+    if (bytes <= maxBytes) return { jobs: out, trimmedTo: n, capped: null, bytes, overBudget: false };
   }
-  // 2. Cap: rank (salaried first, newest first), keep the longest prefix that fits.
-  const ranked = rank(out);
-  const per = ranked.map(({ j }) => Buffer.byteLength(JSON.stringify(j, null, 1)) + 4);
-  const overhead = size([], n, { kept: 0, total, salaried, by: 'bytes', rule: CAP_RULE }) + 64;
-  let keep = 0;
-  for (let acc = overhead; keep < per.length && acc + per[keep] <= maxBytes; keep++) acc += per[keep];
-  // Nested indentation makes the estimate a little low: shave until it fits.
-  for (;;) {
-    const kept = inOrder(ranked, keep);
-    const capped = { kept: kept.length, total, salaried, by: 'bytes', rule: CAP_RULE };
-    const b = size(kept, n, capped);
-    if (b <= maxBytes || keep === 0) return { jobs: kept, trimmedTo: n, capped, bytes: b };
-    keep = Math.floor(keep * Math.min(0.995, maxBytes / b));
-  }
+  return { jobs: out, trimmedTo: n, capped: null, bytes, overBudget: true };
 }
 
-/** A posting a partial run (capped, or a short list) left out stays open in the F4 ledger while it was seen this recently. */
+/** A posting a partial run (a short list; or a capped run, from before 2026-10-11) left out stays open in the F4 ledger while it was seen this recently. */
 export { UNSEEN_OPEN_DAYS };
 
 /**
  * scripts/history.js#recordRun for what a run published, with the closure rules of
  * server/history.js (closureOptions): a posting is closed only when absent from a COMPLETE
- * list. A capped run (jobsCapped) or a short list (crawl.list.complete false) closes nothing for
+ * list. A short list (crawl.list.complete false), or a capped run (jobsCapped: only snapshots from before
+ * 2026-10-11; runs no longer cap) closes nothing for
  * being absent: such entries stay open while last seen within UNSEEN_OPEN_DAYS, then close as
  * "unseen". `listed` (the crawl state's ids: on the board, maybe left out by the cap) and
  * crawl.unpublished are seen and kept open; crawl.gone (a probe's 404/410/redirect) closes now.
@@ -293,11 +267,12 @@ export async function runSnapshot(targets, opts = {}) {
       let out = jobs;
       let trimmedTo = null;
       let capped = null;
-      if (beta) ({ jobs: out, trimmedTo, capped } = fitSnapshot(jobs, payloadOf, MAX_BETA_SNAPSHOT_BYTES, { maxPostings: company.maxPostings }));
+      let overBudget = false;
+      if (beta) ({ jobs: out, trimmedTo, capped, overBudget } = fitSnapshot(jobs, payloadOf, MAX_BETA_SNAPSHOT_BYTES));
       const text = JSON.stringify(payloadOf(out, trimmedTo, capped), null, 1) + '\n';
       const file = path.join(outDir, `${slug}.json`);
       await fs.writeFile(file, text);
-      // Every listed posting (published or left out by the cap, or listed with a failed detail).
+      // Every listed posting (published, or listed with a failed detail).
       const listedIds = [...new Set([...jobs.map((j) => j.id), ...crawlInfo.unpublished])];
       if (stateDir) {
         try {
@@ -310,7 +285,7 @@ export async function runSnapshot(targets, opts = {}) {
       const withSalary = jobs.filter((j) => j.salary).length;
       const secs = ((Date.now() - t0) / 1000).toFixed(0);
       const size = `${(Buffer.byteLength(text) / 1048576).toFixed(1)} MB`;
-      const extra = beta ? `; ${stats.requests} requests, ${stats.pages} list pages, ${stats.details} details, ${(stats.bytes / 1048576).toFixed(0)} MB downloaded${trimmedTo ? `; descriptions trimmed to ${trimmedTo} chars (+ pay)` : ''}${capped ? `; capped to ${capped.kept} of ${capped.total} postings (${capped.rule}; ${capped.by === 'postings' ? `posting budget ${capped.limit}` : 'file size'})` : ''}` : '';
+      const extra = beta ? `; ${stats.requests} requests, ${stats.pages} list pages, ${stats.details} details, ${(stats.bytes / 1048576).toFixed(0)} MB downloaded${trimmedTo ? `; descriptions trimmed to ${trimmedTo} chars (+ pay)` : ''}${overBudget ? `; over the ${(MAX_BETA_SNAPSHOT_BYTES / 1048576).toFixed(0)} MB target, every posting kept` : ''}` : '';
       log(`✓ ${slug}: ${jobs.length} jobs (${withSalary} with salary) -> ${path.relative(ROOT, file)} ${size} [${beta ? `${secs}s` : `${Date.now() - t0}ms`}]${extra}`);
       const pc = crawlInfo.postings;
       log(`  [${slug}] crawl: ${crawlInfo.mode}${crawlInfo.why ? ` (${crawlInfo.why})` : ''}; list ${crawlInfo.list.complete ? 'complete' : 'PARTIAL (closes nothing for being absent)'}, ${crawlInfo.list.listed}${crawlInfo.list.expected != null ? ` of ${crawlInfo.list.expected}` : ''} listed; postings ${pc.new} new, ${pc.changed} changed, ${pc.unchanged} unchanged, ${pc.absent} absent; ${crawlInfo.gone.length} confirmed gone`);

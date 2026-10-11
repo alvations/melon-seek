@@ -1,6 +1,8 @@
-// Fitting Amazon to the beta budget (docs/process/amazon-meta-backend.md "Amazon at scale"):
-// the per-company posting budget (server/companies.js maxPostings), the jobsCapped record the page
-// shows, and the F4 ledger of a capped board (left-out postings are unseen, not closed).
+// Fitting Amazon to the beta site (docs/process/amazon-meta-backend.md "Amazon at scale";
+// docs/process/perf-mobile-beta-2.md): since 2026-10-11 no board has a posting budget and the
+// snapshot never drops a posting (the user: "Why are you capping the no of posting we must present
+// them as they are and not cut anything"). The F4 ledger keeps its partial-list rule (a short list
+// closes nothing for being absent).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -9,9 +11,9 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { fitSnapshot, recordPublished, CAP_RULE, UNSEEN_OPEN_DAYS } from '../scripts/snapshot.js';
+import { fitSnapshot, recordPublished, UNSEEN_OPEN_DAYS } from '../scripts/snapshot.js';
 import { readLedger } from '../scripts/history.js';
-import { getCompany } from '../server/companies.js';
+import { COMPANIES } from '../server/companies.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const day = 864e5;
@@ -23,58 +25,49 @@ const mk = (i, salaried = true) => ({
 });
 const payload = (list, t, cap) => ({ t, ...(cap ? { jobsCapped: cap } : {}), jobs: list });
 
-test('Amazon has a 5,000-posting budget; the other boards have none', () => {
-  assert.equal(getCompany('amazon').maxPostings, 5000);
-  for (const s of ['meta', 'apple', 'google', 'microsoft', 'netflix', 'nvidia']) assert.equal(getCompany(s).maxPostings, undefined, s);
+test('no board has a posting budget (Amazon included)', () => {
+  for (const c of COMPANIES) assert.equal(c.maxPostings, undefined, c.slug);
 });
 
-test('fitSnapshot: the posting budget keeps salaried then newest, in board order, and says so', () => {
+test('fitSnapshot never drops a posting: under, over and far over the file budget, a maxPostings option ignored', () => {
   const jobs = Array.from({ length: 300 }, (_, i) => mk(i, i % 3 !== 0));
-  const r = fitSnapshot(jobs, payload, 50 * 1024 * 1024, { maxPostings: 120 });
-  assert.equal(r.jobs.length, 120);
-  // salaried: how many of the whole board post pay (2 in 3 here), so the page can show the board's share (MR-14).
-  assert.deepEqual(r.capped, { kept: 120, total: 300, by: 'postings', rule: CAP_RULE, limit: 120, salaried: 200 });
-  assert.equal(r.trimmedTo, null, 'under the file budget: descriptions kept whole');
-  assert.ok(r.jobs.every((j) => j.salary), 'salaried first');
-  const ids = r.jobs.map((j) => Number(j.id.split(':')[1]));
-  assert.deepEqual(ids, [...ids].sort((a, b) => a - b), 'board order kept');
-  const ageOf = (j) => T0 - Date.parse(j.postedAt);
-  const oldestKept = Math.max(...r.jobs.map(ageOf));
-  assert.ok(jobs.filter((j) => j.salary && !r.jobs.includes(j)).every((j) => ageOf(j) >= oldestKept), 'newest salaried kept');
-  // Under the budget: untouched.
-  const small = fitSnapshot(jobs.slice(0, 100), payload, 50 * 1024 * 1024, { maxPostings: 120 });
-  assert.equal(small.capped, null);
-  assert.equal(small.jobs.length, 100);
-  // Budget, then the file size binds: the record names the binding limit and keeps the whole board's total.
-  const tight = fitSnapshot(jobs, payload, 60 * 1024, { maxPostings: 120 });
-  assert.ok(tight.jobs.length < 120 && tight.capped.total === 300 && tight.capped.by === 'bytes', JSON.stringify(tight.capped));
+  const roomy = fitSnapshot(jobs, payload, 50 * 1024 * 1024, { maxPostings: 120 });
+  assert.equal(roomy.jobs, jobs, 'under the budget: the same list, untouched');
+  assert.equal(roomy.trimmedTo, null);
+  assert.equal(roomy.capped, null);
+  assert.equal(roomy.overBudget, false);
+  // Over the budget at every trim: every posting kept, in board order, at the shortest trim.
+  const tight = fitSnapshot(jobs, payload, 60 * 1024);
+  assert.equal(tight.jobs.length, 300);
+  assert.deepEqual(tight.jobs.map((j) => j.id), jobs.map((j) => j.id), 'board order, nothing left out');
   assert.equal(tight.trimmedTo, 800);
-  const bytesOnly = fitSnapshot(jobs, payload, 60 * 1024);
-  assert.equal(bytesOnly.capped.by, 'bytes');
-  assert.equal(bytesOnly.capped.total, 300);
+  assert.equal(tight.capped, null);
+  assert.equal(tight.overBudget, true);
+  assert.ok(tight.bytes > 60 * 1024, 'written over the budget rather than cut');
+  assert.equal(JSON.stringify(payload(tight.jobs, tight.trimmedTo, tight.capped)).includes('jobsCapped'), false, 'no jobsCapped record');
 });
 
-test('recordPublished: a capped run keeps its left-out postings open (unseen), for UNSEEN_OPEN_DAYS', async () => {
+test('recordPublished: a short (partial) list keeps the postings it did not list open (unseen), for UNSEEN_OPEN_DAYS', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'melon-fit-ledger-'));
   try {
     const all = Array.from({ length: 10 }, (_, i) => mk(i));
     const at = (d) => new Date(T0 + d * day).toISOString();
     await recordPublished('amazon', all, at(0), { dir });
-    // Run 2: the cap shows 6 of 10 (and one new posting with the same title and place as a left-out one).
+    // Run 2: a short list shows 6 of 10 (and one new posting with the same title and place as a missing one).
     const twin = { ...mk(9), id: 'amazon:5000' };
-    const r = await recordPublished('amazon', [...all.slice(0, 6), twin], at(1), { dir, capped: { kept: 7, total: 11, by: 'postings' } });
+    const r = await recordPublished('amazon', [...all.slice(0, 6), twin], at(1), { dir, crawl: { list: { complete: false } } });
     assert.equal(r.stats.unseen, 4);
     let led = await readLedger('amazon', { dir });
     for (const j of all.slice(6)) assert.ok(!led.jobs[j.id].c, `${j.id} still open`);
     assert.ok(!led.jobs['amazon:5000'].n, 'the new posting is not taken for a repost of a left-out one');
-    // An uncapped run closes what is gone, as before.
+    // A complete list closes what is gone, as before.
     await recordPublished('amazon', all.slice(0, 6), at(2), { dir });
     led = await readLedger('amazon', { dir });
     assert.ok(led.jobs['amazon:1009'].c, 'closed by a full run');
-    // Capped runs long after a posting was last seen: it closes.
+    // Short lists long after a posting was last seen: it closes.
     const keep = all.slice(0, 3);
-    await recordPublished('amazon', keep, at(3), { dir, capped: { kept: 3, total: 10 } });
-    await recordPublished('amazon', keep, at(3 + UNSEEN_OPEN_DAYS + 1), { dir, capped: { kept: 3, total: 10 } });
+    await recordPublished('amazon', keep, at(3), { dir, crawl: { list: { complete: false } } });
+    await recordPublished('amazon', keep, at(3 + UNSEEN_OPEN_DAYS + 1), { dir, crawl: { list: { complete: false } } });
     led = await readLedger('amazon', { dir });
     assert.ok(led.jobs['amazon:1004'].c, 'unseen for over UNSEEN_OPEN_DAYS: closed');
   } finally {
@@ -82,7 +75,7 @@ test('recordPublished: a capped run keeps its left-out postings open (unseen), f
   }
 });
 
-test('the beta merge records a capped snapshot with the same rule and reports the cap', () => {
+test('the beta merge records a partial snapshot with the same rule: what it did not list stays open', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'melon-fit-merge-'));
   try {
     // A beta company the registry does not have (MELON_BETA_COMPANIES, the test-only override).
@@ -92,16 +85,16 @@ test('the beta merge records a capped snapshot with the same rule and reports th
     const data = path.join(tmp, 'data');
     const fresh = path.join(tmp, 'fresh');
     fs.mkdirSync(fresh, { recursive: true });
-    const run = (jobs, fetchedAt, cap) => {
-      fs.writeFileSync(path.join(fresh, 'zzcap.json'), JSON.stringify({ company: { slug: 'zzcap' }, mode: 'snapshot', fetchedAt, ...(cap ? { jobsCapped: cap } : {}), jobs }));
+    const run = (jobs, fetchedAt, crawl) => {
+      fs.writeFileSync(path.join(fresh, 'zzcap.json'), JSON.stringify({ company: { slug: 'zzcap' }, mode: 'snapshot', fetchedAt, ...(crawl ? { crawl } : {}), jobs }));
       const r = spawnSync(process.execPath, ['.github/scripts/beta-snapshots.mjs', 'merge', fresh, data], { cwd: ROOT, encoding: 'utf8', env: { ...process.env, MELON_BETA_COMPANIES: extra, GITHUB_STEP_SUMMARY: '', GITHUB_OUTPUT: '' } });
       assert.equal(r.status, 0, r.stderr);
       return r.stdout;
     };
     run(Array.from({ length: 8 }, (_, i) => job(i)), '2026-10-01T00:00:00.000Z');
-    const out = run(Array.from({ length: 5 }, (_, i) => job(i)), '2026-10-01T06:00:00.000Z', { kept: 5, total: 8, by: 'postings', rule: CAP_RULE, limit: 5 });
-    assert.match(out, /\| zzcap \| \*\*fresh\*\* \| 5 \(5 of 8: salaried, then newest\)/);
-    assert.match(out, /3 left out by the cap kept open/);
+    const out = run(Array.from({ length: 5 }, (_, i) => job(i)), '2026-10-01T06:00:00.000Z', { mode: 'full', list: { complete: false, listed: 5, expected: 8 }, unpublished: [], gone: [] });
+    assert.match(out, /\| zzcap \| \*\*fresh\*\* \| 5 \|/);
+    assert.match(out, /3 missing from a partial list kept open/);
     const led = JSON.parse(fs.readFileSync(path.join(data, 'history', 'zzcap.json'), 'utf8'));
     assert.equal(Object.values(led.jobs).filter((e) => !e.c).length, 8);
   } finally {

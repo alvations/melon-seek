@@ -140,7 +140,7 @@ cheap and is the only way to know what is still open. What follows depends on th
 | The posting is | The ledger |
 | --- | --- |
 | absent from a **complete** list | closed now, `x: "absent"` |
-| absent from a **partial** list (shorter than the board's own count; capped) | stays open while last seen within `UNSEEN_OPEN_DAYS` = 14, then `x: "unseen"` |
+| absent from a **partial** list (shorter than the board's own count; or capped, in snapshots from before 2026-10-11) | stays open while last seen within `UNSEEN_OPEN_DAYS` = 14, then `x: "unseen"` |
 | confirmed gone: a probe got 404/410/a redirect away, or the board returned no record | closed now, `x: "gone"` |
 | listed but not published (left out by the cap, a failed detail) | seen, open |
 | in a failed crawl (a refused list, too many failed details) | nothing is written: snapshot, ledger and state stay as they were |

@@ -917,7 +917,7 @@
         "server/companies.js COMPANIES",
         "server/normalize.js:239 normalizeJob",
         "server/normalize.js:35 NORMALIZER_VERSION",
-        "scripts/snapshot.js:34 MAX_BETA_SNAPSHOT_BYTES (beta cap)",
+        "scripts/snapshot.js:36 MAX_BETA_SNAPSHOT_BYTES (beta description-trim target; never drops a posting)",
         "data/snapshots/<slug>.json { company, mode, fetchedAt, error, normalizerVersion, jobs[], jobsCapped? } (gitignored)",
         "data/cache/store/*.list.json + *.desc.ndjson (melon-store-1, gitignored)",
         "server/cache.js:17 FRESH_TTL_MS (30 min live cache)",
@@ -926,11 +926,9 @@
         "data/beta/snapshots/<slug>.json (artifact job-board-snapshots-beta)",
         "server/sources/incremental.js:44 CRAWL_STATE_FORMAT melon-crawl-1",
         "server/sources/incremental.js:46 DETAIL_REFRESH_DAYS (4: a cached detail is re-read after 2-4 days; MELON_DETAIL_REFRESH_DAYS)",
-        "server/companies.js:41 maxPostings (Amazon 5,000 on /beta/)",
-        "scripts/snapshot.js:66 CAP_RULE ('salaried, then newest')",
         "server/sources/meta.js:24 MAX_FAILED_IN_A_ROW / :26 MAX_FAILED_SHARE (Meta crawl stop and fail rules)"
       ],
-      "values": "stable snapshots 2026-10-02T05:54Z: anduril 2,418, anthropic 638, openai 833, shieldai 581, palantir 320, xai 297, scaleai 194, cohere 132 (total 5,413). Beta crawl 2026-10-11 (snapshot.yml run 38118242488, 06:38-07:59 UTC): apple 4,875 requisitions (6,094 listings), google 3,417, nvidia 2,663, microsoft 2,279, netflix 457; amazon (budget 5,000 of about 22,415) and meta resumed 2026-10-11, counts after their first crawl. Beta boards are re-crawled every 6 hours (detail pages incremental since 2026-10-11)",
+      "values": "stable snapshots 2026-10-02T05:54Z: anduril 2,418, anthropic 638, openai 833, shieldai 581, palantir 320, xai 297, scaleai 194, cohere 132 (total 5,413). Beta crawl 2026-10-11 (snapshot.yml run 38118242488, 06:38-07:59 UTC): apple 4,875 requisitions (6,094 listings), google 3,417, nvidia 2,663, microsoft 2,279, netflix 457; amazon (the whole board, about 22,415, no posting budget since 2026-10-11) and meta resumed 2026-10-11, counts after their first crawl. Beta boards are re-crawled every 6 hours (detail pages incremental since 2026-10-11)",
       "consumers": [
         {
           "at": "public/app.js",
@@ -14511,16 +14509,15 @@
       "owners": [
         "server/companies.js:8 COMPANIES",
         "server/companies.js:3 SOURCES",
-        "server/companies.js:51 CHANNELS",
+        "server/companies.js:52 CHANNELS",
         "server/sources/eightfold.js:26 EIGHTFOLD_BOARDS",
         "scripts/probe-bigtech.js:3 probe SLUGS",
         "server/companies.js [core]",
         "public/app.js:98 FALLBACK_COMPANIES (3 of 8 stable: anthropic, anduril, openai with colours)",
         "public/mock-api.js:1 mock COMPANIES (same 3)",
-        "server/companies.js:41 maxPostings (Amazon 5,000)",
-        "server/companies.js:86 PAUSE_REASONS"
+        "server/companies.js:87 PAUSE_REASONS"
       ],
-      "values": "8 stable (anthropic, anduril, openai, scaleai, xai, cohere, palantir, shieldai) + 7 beta (google, microsoft, meta, apple, netflix, amazon, nvidia). Amazon and Meta were paused for terms of use on 2026-10-10 and resumed by the user's decision on 2026-10-11 (docs/AMAZON_META.md \"Decision\"); each appears on /beta/ after its first crawl. Amazon keeps 5,000 postings (maxPostings; salaried first, then newest)",
+      "values": "8 stable (anthropic, anduril, openai, scaleai, xai, cohere, palantir, shieldai) + 7 beta (google, microsoft, meta, apple, netflix, amazon, nvidia). Amazon and Meta were paused for terms of use on 2026-10-10 and resumed by the user's decision on 2026-10-11 (docs/AMAZON_META.md \"Decision\"); each appears on /beta/ after its first crawl. Every posting of every board is published: Amazon's 5,000-posting budget (maxPostings) was removed on 2026-10-11 at the user's word (\"we must present them as they are and not cut anything\")",
       "consumers": [
         {
           "at": "server/index.js:792",
@@ -15763,7 +15760,7 @@
         "server/sources/amazon.js:37 Amazon PAGE 100 / CAP 10000",
         "server/sources/apple.js:14 Apple PAGE 20 / MAX_PAGES 800 / EMPTY_RETRIES 3",
         "server/sources/eightfold.js:1 Eightfold PAGE 10 / MAX_PAGES 1500",
-        "scripts/snapshot.js:35 TRIM_STEPS",
+        "scripts/snapshot.js:37 TRIM_STEPS",
         "scripts/build-static.js:134 LIST_BUDGET 1.5 MB",
         "scripts/build-static.js:441 OG_IMAGE_MAX_BYTES 5 MB",
         "scripts/build-og.mjs:31 OG 1200x630",
@@ -15813,7 +15810,7 @@
       "validator": "test/perf*.test.js",
       "before": "none",
       "lastChecked": null,
-      "notes": "Two user agents with different versions (melon-seek/0.1 in util.js, 0.2 in polite.js; package.json 0.1.0). Size caps interact with data growth (Amazon is capped by MAX_BETA_SNAPSHOT_BYTES).",
+      "notes": "Two user agents with different versions (melon-seek/0.1 in util.js, 0.2 in polite.js; package.json 0.1.0). Size targets interact with data growth (MAX_BETA_SNAPSHOT_BYTES trims beta descriptions; no posting is ever dropped, so Amazon's snapshot can exceed it).",
       "extract": [
         {
           "file": "server/cache.js",
