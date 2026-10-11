@@ -2914,10 +2914,12 @@ function findOnBeta(slug, seq) {
 function notHereState() {
   const name = data.company?.name || S.c;
   if (data.onBeta) {
+    // D-35, keeping D-19's plain message and its way to the company menu.
     return {
-      title: `${data.onBeta.name} is on the beta site`,
-      body: `melon·seek lists ${data.onBeta.name}’s jobs on its beta site, which adds big-tech companies’ own careers sites.`,
+      title: 'This board isn’t on this site',
+      body: `${data.onBeta.name} is on melon·seek’s beta site, which adds big-tech companies’ own careers sites.`,
       link: [`Open ${data.onBeta.name} on the beta site`, data.onBeta.href],
+      action: ['Choose a company', () => togglePopover('company', $('#companyMenuBtn'))],
     };
   }
   return {
@@ -3748,12 +3750,13 @@ function juiceBlock(job) {
       h('div', { class: 'juice-controls' }, household, toggle),
       h('div', { class: 'waterfall', role: 'table', 'aria-label': 'Juice breakdown' },
         ...rows.map(([label, value, style, kind, detail, extra]) => h('div', { class: `wf-row ${kind.split(' ').map((k, i) => (i ? k : `wf--${k}`)).join(' ')}`, role: 'row' },
-          // A-6: a row owns only cells, so the details (tax split, rent basis) sit in the row header.
-          h('span', { class: 'wf-label', role: 'rowheader' }, label,
-            detail ? h('span', { class: 'wf-detail' }, detail) : null,
-            extra ? h('span', { class: 'wf-detail wf-tax-basis', title: taxNote && extra !== taxNote ? taxNote : null }, extra) : null),
+          h('span', { class: 'wf-label', role: 'rowheader' }, label),
           h('span', { class: 'wf-track', role: 'cell', 'aria-hidden': 'true' }, h('span', { class: 'wf-bar', style })),
-          h('span', { class: 'wf-value', role: 'cell' }, value)))),
+          h('span', { class: 'wf-value', role: 'cell' }, value),
+          // A-6: a row owns only cells, so the details (tax split, rent basis) are a cell of their own.
+          detail || extra ? h('span', { class: 'wf-details', role: 'cell' },
+            detail ? h('span', { class: 'wf-detail' }, detail) : null,
+            extra ? h('span', { class: 'wf-detail wf-tax-basis', title: taxNote && extra !== taxNote ? taxNote : null }, extra) : null) : null))),
       b.rentBurden != null ? h('p', { class: 'juice-facts' }, 'Rent takes ', h('strong', null, `${Math.round(b.rentBurden * 100)}%`), ' of take-home pay.') : null,
       others.length ? h('details', { class: 'juice-compare' }, h('summary', null, `Compare locations (${others.length + 1})`),
         h('ul', null, ...[b, ...others].map((l) => h('li', null,
@@ -3834,15 +3837,17 @@ function levelMoney(n, currency) {
 function payLevelsLine(s, job = null) {
   const lv = payLevels(s);
   if (!lv) return null;
-  // UX-28: the levels round like the headline range (to the nearest thousand), so "$356.5K" never sits under "$356K".
+  // D-21 (its test pins the text): the levels keep the hundreds the posting states ("$287.5K"). UX-28 asked
+  // for the headline's rounding here; see docs/process/fix4-app.md.
+  const range = (a, b) => { const x = levelMoney(a, s.currency), y = levelMoney(b, s.currency); return x === y ? x : `${x}–${y.replace(/^[^\d]+/, '')}`; };
   const labels = lv.map((l) => String(l.label).trim());
   const co = data.company?.name || job?.companyName || 'the company';
   // MR-17: the level names are the company's own; "IC" is spelled out where it appears.
-  const what = labels.some((l) => /^IC\s?\d/i.test(l)) ? ` (IC: individual contributor; ${co}’s own level names)`
-    : labels.some((l) => /^M\s?\d/.test(l)) ? ` (${co}’s own level names; M is a manager level)` : ` (${co}’s own level names)`;
-  return h('p', { class: 'd-sal-levels' }, h('span', { class: 'muted' }, 'Pay by level: '),
-    lv.map((l) => `${String(l.label).trim()}: ${moneyRange(l.min, l.max ?? l.min, s.currency)}`).join(' · '),
-    h('span', { class: 'muted' }, what));
+  const what = labels.some((l) => /^IC\s?\d/i.test(l)) ? `IC means individual contributor; these are ${co}’s own level names.`
+    : labels.some((l) => /^M\s?\d/.test(l)) ? `These are ${co}’s own level names; M is a manager level.` : `These are ${co}’s own level names.`;
+  return [h('p', { class: 'd-sal-levels' }, h('span', { class: 'muted' }, 'Pay by level: '),
+    lv.map((l) => `${String(l.label).trim()}: ${range(l.min, l.max ?? l.min)}`).join(' · ')),
+  h('p', { class: 'fnote d-sal-levels-note' }, what)];
 }
 /**
  * UX-22: salary.ranges, when a posting gives its own range for different places (Apple: "$165,800–292,400
@@ -4073,7 +4078,8 @@ function drawerContent(job) {
     sal ? salaryDistribution(job) : null,
     sal ? payLabels(job) : null,
     // MR-3: one tap from the pay to how it is read (ranges, levels, part-time and fixed-term pay).
-    caption ? h('p', { class: 'd-pay-caption' }, `${caption} `, docLink(PAY_DOC, 'How pay is read')) : null,
+    caption ? h('p', { class: 'd-pay-caption' }, caption) : null,
+    sal ? h('p', { class: 'fnote d-pay-doc' }, docLink(PAY_DOC, 'How pay is read')) : null,
     sal && pctText ? h('p', { class: 'd-pct-text' }, pctText) : null);
 
   const locs = fold('d-locs', job.locations.length > 1 ? `Locations (${job.locations.length})` : 'Location',
@@ -4226,10 +4232,10 @@ function sameRoleSection(job) {
     const chartHost = h('div', { class: 'comps-chart' });
     body.replaceChildren(
       // P-11: the note says what is really compared (compsNote reads res.fallback).
-      h('p', { class: 'comps-note muted' }, compsNote(res),
-        // MR-18: a level match counts only postings that state a level, so a company that rarely states one may be missing.
-        bySen ? ' Only postings that state a level count, so companies whose postings rarely state one may be missing.' : null,
-        ' ', docLink(PAY_DOC, 'How pay is read')), // MR-3
+      h('p', { class: 'comps-note muted' }, compsNote(res)),
+      // MR-18: a level match counts only postings that state a level, so a company that rarely states one may be missing. MR-3: the link.
+      h('p', { class: 'fnote comps-caveat' }, bySen ? 'Only postings that state a level count, so companies whose postings rarely state one may be missing. ' : null,
+        docLink(PAY_DOC, 'How pay is read')),
       chartHost,
       asOfNote('comps-asof', () => marketAsOfText(market, rows.map((r) => r.slug))));
     try {

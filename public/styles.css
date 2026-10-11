@@ -1406,10 +1406,12 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
   html[data-channel="beta"] .company-bar { flex: 0 0 auto; max-width: 240px; } /* the search box gives way first */
   html[data-channel="beta"] .topbar .seg button { padding: 0 6px; } /* the labels stay (QA UX-13); a little less padding */
 }
-/* UX-19: on phones the Beta tag and the logo link are 44 x 44px boxes themselves (not only a ::before hit area);
-   negative margins keep the row's layout as it was. */
+/* UX-19: on phones the logo's ::before hit area (M-27) is 44px wide as well as tall (it was 34 x 44); the Beta tag's
+   is 47 x 45. Hit areas, not bigger boxes, so a tap just above either still lands on it (M-27). */
 @media (max-width: 860px) {
-  .beta-tag { min-width: 44px; min-height: 44px; margin: -12px 0; }
-  .brand { min-width: 44px; min-height: 44px; justify-content: center; margin: -9px -9px; }
-  .beta-tag::before, .brand::before { content: none; }
+  .brand::before { inset: -9px -9px; }
 }
+/* A-6: the waterfall row's details are one cell under the bar and the value (each detail on its own line, as before). */
+.wf-details { grid-column: 2 / -1; display: flex; flex-direction: column; gap: 2px; margin-top: -2px; }
+.wf-details .wf-detail { margin-top: 0; }
+.d-pay-doc { margin: 2px 0 0; }

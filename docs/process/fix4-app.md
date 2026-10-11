@@ -37,9 +37,11 @@ Owned: `public/app.js`, `public/index.html`, `public/styles.css`, `public/featur
    → "Only show roles with pay"; "Apple careers site" → "Apple’s careers site"; card "No salary" →
    "No pay listed"; "Offline" → "Couldn’t load". Levels say whose names they are ("IC: individual
    contributor; Microsoft’s own level names").
-4. **UX-28:** level ranges round like the headline (`moneyRange`), so "$356.5K" no longer sits under
-   "$356K". Filter counts keep no separators: ten e2e tests in other lanes' files read them with
-   `Number(text)`; the Juice note gets separators.
+4. **UX-28, not done for levels and filter counts:** "Pay by level" keeps "$287.5K" because
+   test/e2e/fix-beta-app.e2e.js [D-21] pins that exact text, and filter counts keep no separators because ten
+   e2e tests in other lanes' files read them with `Number(text)`. The Juice note gets separators. The lead
+   should decide whether D-21's text or UX-28's rounding wins. MR-17's level explanation is a separate line
+   under "Pay by level", for the same reason.
 5. **D-33:** a posting updated on the day it was listed shows "Updated N days ago" on the Listing block's
    clock (`ageDays`), so the two ages agree; anything else keeps `ago()`.
 6. **D-35:** the main site's files must never name a beta company (test/beta-build.test.js), so the main
@@ -83,11 +85,17 @@ Owned: `public/app.js`, `public/index.html`, `public/styles.css`, `public/featur
     `documentElement.clientHeight`), with a 120px margin, and measured again 120, 350 and 700 ms after the
     last viewport event (one animation frame each). The existing `body.kb-open .popover` rule then puts
     the sheet at `--vvt` and caps it at `--vvh`.
-18. **UX-19** test split by owner (top bar here; map controls are viz.css), the reviewer's checks unchanged.
-19. **Tests changed outside my files** (wording only, intent kept): test/e2e/fix3-app.e2e.js accepts
+18. **UX-19** test split by owner (top bar here; map controls are viz.css), and it now counts a mark's
+    `::before` hit area, as the reviewer's own fix allowed ("a `::before` hit box") and as M-27's test does.
+    A 44px box was tried first: it broke M-27's check that a tap 7px above the Beta tag and the logo still
+    lands on them (test/e2e/fix-beta-app.e2e.js). The logo's hit area is now 44px wide too (was 34).
+19. **Wording moved out of pinned lines:** the "How pay is read" link and MR-18's level caveat sit in their
+    own lines, because test/e2e/ui.e2e.js and fix3-compare.e2e.js compare the pay caption and the comps
+    note exactly; D-35 keeps D-19's title "This board isn’t on this site" and its "Choose a company" button.
+20. **Tests changed outside my files** (wording only, intent kept): test/e2e/fix3-app.e2e.js accepts
     "No pay listed" beside "No salary"; test/e2e/fix3-compare.e2e.js accepts "The highest pay of". New:
     test/e2e/fix4-app.e2e.js (M-32), registered in scripts/e2e.js.
-20. **Not changed because other lanes' tests pin the exact words:** `formatAsOf` day style ("11 Oct
+21. **Not changed because other lanes' tests pin the exact words:** `formatAsOf` day style ("11 Oct
     2026", test/refresh-derived.test.js), `accuracyLine` and `compstimateAsOfText` ("accuracy tested",
     test/features.test.js), "Pay from/for other countries isn't used" and its straight apostrophe
     (test/fix-estimates.test.js, test/fix3-compare.test.js). The accuracy line is explained next to it in

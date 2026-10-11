@@ -181,9 +181,13 @@ export function registerBetaUxReviewTests(suite) {
   // ------------------------------------------------------------------ UX-19
   // fix4-app (docs/process/fix4-app.md): UX-19 is split by owner, the reviewer's checks unchanged. The top bar
   // (Beta tag, logo) is public/styles.css; the map's Pay/Juice and zoom controls are public/viz/viz.css (fix4-viz).
+  // The tap area is the box plus its ::before hit area (negative insets), the fix the reviewer allowed ("a ::before
+  // hit box") and the one M-27 measures (test/e2e/fix-beta-app.e2e.js); a pseudo-element with no content adds nothing.
   const tapSizes = (page) => async (sel) => page.$$eval(sel, (els) => els.filter((e) => e.getBoundingClientRect().width).map((e) => {
     const r = e.getBoundingClientRect();
-    return { name: (e.innerText || e.getAttribute('aria-label') || '').trim().replace(/\s+/g, ' ').slice(0, 24), w: Math.round(r.width), h: Math.round(r.height) };
+    const a = getComputedStyle(e, '::before');
+    const out = (v) => (a.content && a.content !== 'none' && a.position === 'absolute' ? Math.max(0, -parseFloat(v) || 0) : 0);
+    return { name: (e.innerText || e.getAttribute('aria-label') || '').trim().replace(/\s+/g, ' ').slice(0, 24), w: Math.round(r.width + out(a.left) + out(a.right)), h: Math.round(r.height + out(a.top) + out(a.bottom)) };
   }));
   suite.test('Beta UX review: [UX-19] phone tap targets are at least 44 px (Beta tag, logo)', async (ctx) => {
     const s = await session(ctx);
