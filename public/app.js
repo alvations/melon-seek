@@ -1293,8 +1293,9 @@ function badgeInfo() {
       if (data.pending) return { label: `Snapshot${day ? ` · ${day}` : ''} · checking live…`, short: 'Snapshot · checking live…', tiny: 'Checking live…', micro: 'Checking…', cls: 'is-snapshot is-pending', sr: `${sr}, checking the live board`, tip: `${tip}. ${checking}` };
       const only = bundleOnly(data.company) ? ' This board is collected by the site’s crawler; your browser can’t fetch it live.' : '';
       const cap = cappedNote();
-      // UX-23: the shortest label keeps a noun ("Saved Oct 11", never a bare date).
-      return { label: day ? `Snapshot · ${day}` : 'Snapshot', micro: day ? `Saved ${day}` : 'Saved', cls: 'is-snapshot', sr, tip: `${tip}${failed ? `. ${failed}` : ''}.${only}${cap ? ` ${cap.tip}` : ''}` };
+      // UX-23 asked for a noun in the shortest label ("Saved Oct 11"), but on a 390px phone it leaves the company
+      // name "A…" (M-27, A-3): the shortest label stays the date, and the badge's spoken name says "saved snapshot".
+      return { label: day ? `Snapshot · ${day}` : 'Snapshot', micro: day || 'Saved', cls: 'is-snapshot', sr, tip: `${tip}${failed ? `. ${failed}` : ''}.${only}${cap ? ` ${cap.tip}` : ''}` };
     }
     case 'demo':
       if (data.pending) return { label: 'Demo data · checking live…', short: 'Demo · checking live…', tiny: 'Checking live…', micro: 'Checking…', cls: 'is-demo is-pending', sr: 'demo data, checking the live board', tip: `Generated sample data, not real postings. ${checking}` };
@@ -2578,7 +2579,7 @@ function renderTagline() {
   // UX-23: on the beta site the line says what the beta adds (the Beta tag by the logo links to the main site).
   const big = CHANNEL === 'beta' ? companies.filter((c) => c.live === false && !c.custom).map((c) => c.name) : [];
   const list = big.length > 1 ? `${big.slice(0, -1).join(', ')} and ${big[big.length - 1]}` : big[0];
-  const text = big.length ? `Beta: adds ${list} from their own careers sites, with pay and what’s left after tax and rent`
+  const text = big.length ? `Beta: adds ${list} from their own careers sites`
     : `Pay, and what’s left after tax and rent, for ${n ? `${n} companies’` : 'tech companies’'} open roles`;
   if (el.dataset.text !== text) {
     el.dataset.text = text;
