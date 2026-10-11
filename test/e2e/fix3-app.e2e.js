@@ -242,6 +242,7 @@ export function registerFix3AppTests(suite) {
     await openDrawerFor(page, pln.id);
     const txt = await page.locator('#drawer .drawer-scroll').innerText();
     assert(!/applied as posted/.test(txt), 'no "applied as posted" fallback');
+    assert(/This pay is posted for Poland, not for Munich\./.test(await page.locator('#drawer .d-pay-caption').innerText()), 'the pay block says where its pay is for');
     assert(/No Juice/.test(txt) && /Poland/.test(txt), `the drawer says why there is no Juice: ${(txt.match(/No Juice[^\n]*/) || [''])[0]}`);
     noErrors(errors);
   });

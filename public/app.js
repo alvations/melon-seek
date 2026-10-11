@@ -637,7 +637,7 @@ function queryMatchers(q, jobs = data.jobs) {
 /** Lower case without accents: "Zürich" -> "zurich", "Straße" -> "strasse", "Łódź" -> "lodz". */
 function foldText(s) {
   return String(s ?? '').toLowerCase().replace(/ß/g, 'ss').replace(/ø/g, 'o').replace(/æ/g, 'ae').replace(/œ/g, 'oe').replace(/ł/g, 'l').replace(/đ/g, 'd')
-    .normalize('NFD').replace(/[̀-ͯ]/g, '');
+    .normalize('NFD').replace(/\p{M}+/gu, '');
 }
 /* BP-12: British and American spellings (shared decision 5). Word pairs, then patterns with word lists. */
 const SPELLING_PAIRS = new Map();
@@ -1409,7 +1409,9 @@ function settleKeep() {
   };
   const has = (fn) => (x) => (jobs.some((j) => fn(j, x)) ? x : null);
   keepArr('d', has((j, x) => deptKey(j) === x));
-  keepArr('l', (x, p) => (p && keyOnBoard(p, jobs)) || (locOnBoard(x, jobs) ? x : null), (x) => x, (x) => k.places?.get(x) || null);
+  // A known place keeps to that place ("Cambridge" in Massachusetts never becomes Cambridge, England); a label
+  // with no place behind it (an old link) is kept where it still matches.
+  keepArr('l', (x, p) => (p ? keyOnBoard(p, jobs) : locOnBoard(x, jobs) ? x : null), (x) => x, (x) => k.places?.get(x) || null);
   keepArr('s', has((j, x) => senKey(j) === x), senLabel);
   keepArr('e', has((j, x) => empKey(j) === x), empLabel);
   for (const { key, cat } of KW_CATS) keepArr(key, has((j, x) => j.keywords[cat].includes(x)));
@@ -3728,8 +3730,7 @@ function annualNote(sal, job = null) {
   if (sal.termWeeks > 0) {
     if (isFixedPay(sal)) return h('div', { class: 'd-annual' }, `Fixed-term pay, not a yearly salary${sal.text ? ` (as posted: ${sal.text})` : ''}`);
     const unit = PER_UNIT[sal.originalInterval];
-    if (unit) return h('div', { class: 'd-annual' }, `Paid by the ${unit}${sal.text ? ` (as posted: ${sal.text})` : ''}`);
-    return sal.text ? h('div', { class: 'd-annual' }, `A yearly rate, as posted: ${sal.text}`) : null;
+    return unit ? h('div', { class: 'd-annual' }, `Paid by the ${unit}${sal.text ? ` (as posted: ${sal.text})` : ''}`) : null; // a yearly rate needs no note
   }
   const orig = sal.originalInterval || (sal.interval && sal.interval !== 'year' ? sal.interval : null);
   if (!orig) return null;
@@ -3804,9 +3805,11 @@ function drawerContent(job) {
   const of = `${coName}’s ${noun}${isOte(job) ? '' : ' that show pay'}`;
   const pctText = pct == null ? null : pct >= 100 ? `The top pay of ${of}` : pct <= 0 ? `The lowest pay of ${of}` : `Pays more than ${pct}% of ${of}`;
   const partHourly = isPartTimeHourly(job);
-  const caption = !sal ? null : isOte(job) ? `${OTE_LABEL}. Equity isn’t included.`
+  // Shared decision 1: under a Location filter, the pay block says when its pay isn't for the places picked.
+  const elsewhere = sal && viewSpec?.l.size && job._usd && !payHere(job) ? ` This pay is posted for ${payPlaceText(job)}, not for ${placesPicked()}.` : '';
+  const caption = !sal ? null : (isOte(job) ? `${OTE_LABEL}. Equity isn’t included.`
     : partHourly ? 'Posted hourly pay for a part-time role. Equity and bonus aren’t included.'
-      : term?.fixed ? 'Fixed-term pay as posted. Equity and bonus aren’t included.' : 'Posted base pay. Equity and bonus aren’t included.';
+      : term?.fixed ? 'Fixed-term pay as posted. Equity and bonus aren’t included.' : 'Posted base pay. Equity and bonus aren’t included.') + elsewhere;
   // Shared decisions 3 and 4: the amount as it was stated. Fixed-term pay: "$3,850 a week · for about 17
   // weeks"; a rate for a programme: "€72,000 a year · 13-week internship"; part-time: "$22.00–28.88 an hour".
   const cur = sal?.currency || 'USD';

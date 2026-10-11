@@ -236,7 +236,8 @@ svg:not(.ms-chart svg, .ms-map svg, .ms-viz-tip svg, .leaflet-container svg, .di
 .seg button[aria-pressed="true"] { background: var(--ms-surface); color: var(--ms-text); box-shadow: var(--ms-shadow-sm), 0 0 0 1px var(--ms-border); }
 .seg button svg { width: 16px; height: 16px; }
 .seg--block { display: flex; width: 100%; }
-.seg--block button { flex: 1; justify-content: center; white-space: nowrap; padding: 0 8px; font-size: 13px; gap: 5px; }
+/* BP-17: the Remote filter's three counts fit the filter column with four-digit counts (Any 2,298, On-site 1,986). */
+.seg--block button { flex: 1; justify-content: center; white-space: nowrap; padding: 0 5px; font-size: 13px; gap: 4px; }
 .seg-count { font-size: 12px; color: var(--ms-faint); font-weight: 500; }
 
 .data-badge {

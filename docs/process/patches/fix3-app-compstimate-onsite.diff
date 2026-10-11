@@ -1,0 +1,13 @@
+--- a/public/features/compstimate.js	2026-10-11 04:40:11.416522626 +0000
++++ b/public/features/compstimate.js	2026-10-11 04:40:15.959286889 +0000
+@@ -615,8 +615,9 @@
+   const ed = edits || {};
+   const titleF = !('title' in ed), locF = !('location' in ed), levF = !('seniority' in ed);
+   const passTitle = (j) => (!F.d.length || F.d.includes(deptOf(j))) && (!F.rf || famOf(j) === F.rf);
++  // BP-17 (fix3-app): the app's On-site filter is a role that isn't open to remote work, so Any = Remote + On-site.
+   const passLoc = (j) => (!F.l.length || keysOf(j).some((k) => F.l.includes(k)))
+-    && (F.r !== 'remote' || j.remote) && (F.r !== 'onsite' || (j.locations || []).some((l) => !l.remote));
++    && (F.r !== 'remote' || j.remote) && (F.r !== 'onsite' || !j.remote);
+   const passLev = (j) => !F.s.length || F.s.includes(displayLevel(j));
+   const salaried = (jobs || []).filter((j) => j && salaryUSD(j));
+   const pool = salaried.filter((j) => (!titleF || passTitle(j)) && (!locF || passLoc(j)) && (!levF || passLev(j)));
