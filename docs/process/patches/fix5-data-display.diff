@@ -1,0 +1,68 @@
+diff --git a/public/app.js b/public/app.js
+index d7cdb6d..a3504fb 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -197,6 +197,16 @@ const isOte = (j) => j?.salary?.kind === 'ote';
+ /** P-8: pay for a fixed term (a fellowship or internship length), never a yearly salary. */
+ const isTerm = (j) => j?.salary?.termWeeks > 0;
+ const OTE_LABEL = 'On-target earnings (base plus commission at target)';
++/* Fix wave 5 (fix5-data, VT-17/VT-18): what the posting says its figure is. One short label on the card
++   and in the pay block; the detail is in the label's tip and the pay block's caption. */
++const isMinimum = (j) => j?.salary?.kind === 'minimum';
++const MINIMUM_TIP = 'The posting states this as the minimum base pay; the offer can be higher';
++const hourlyText = (s, v) => `${money(v / 2080, s.currency)}/hour`;
++/** VT-18: "Includes the highest shift differential. Base pay starts at $18.35/hour." */
++function shiftTip(s) {
++  const base = s?.statedBase ? ` Base pay starts at ${s.statedBase.originalInterval === 'hour' ? hourlyText(s.statedBase, s.statedBase.min) : money(s.statedBase.min, s.statedBase.currency)}.` : '';
++  return `The posted rate includes the highest shift differential.${base}`;
++}
+ 
+ /** "$137K"–"$338K" -> "$137–338K" when units match; one figure when both ends show the same ("$44K", never "$44K–44K"). */
+ function compactRange(a, b) {
+@@ -3329,6 +3339,8 @@ function payPill(job) {
+   const range = salaryRange(s);
+   if (!range) return null;
+   if (isOte(job)) return { text: range, tip: OTE_LABEL };
++  // VT-17: a stated minimum reads "from €20.1K", never as the pay.
++  if (isMinimum(job)) return { text: `from ${money(s.min, s.currency)}`, tip: MINIMUM_TIP };
+   // UX-22: a posting that gives each place its own range. Under a Location filter the card shows the
+   // range of the place picked; otherwise the span says it covers several places ("$166K–325K · 3 places").
+   const rs = payRanges(s);
+@@ -3336,7 +3348,8 @@ function payPill(job) {
+     const byPlace = `Pay by place: ${rs.map((r) => `${rangeLabel(r)} ${rangeText(r, s.currency)}`).join(' · ')}`;
+     const picked = pickedRange(job);
+     if (picked) return { text: picked.range, tip: `The range posted for ${picked.label}. ${byPlace}` };
+-    return { text: `${range} · ${rs.length} places`, tip: `${range} runs from the lowest to the highest of ${rs.length} ranges posted for different places. ${byPlace}` };
++    const span = moneyRange(Math.min(s.min, ...rs.map((r) => Number(r.min))), Math.max(s.max, ...rs.map((r) => Number(r.max ?? r.min))), s.currency);
++    return { text: `${span} · ${rs.length} places`, tip: `${span} runs from the lowest to the highest of ${rs.length} ranges posted for different places. ${byPlace}` };
+   }
+   return { text: range, tip: null };
+ }
+@@ -3888,6 +3901,9 @@ function payLabels(job) {
+   if (!s) return null;
+   const spread = s.spread ?? (s.min > 0 ? s.max / s.min : null);
+   const labels = [
++    // Fix wave 5 (VT-17, VT-18): what the figure is comes first.
++    isMinimum(job) ? ['Minimum', MINIMUM_TIP] : null,
++    s.includesShiftDifferential ? ['Incl. top shift pay', shiftTip(s)] : null,
+     // D-21: a range that covers several levels lists them (payLevelsLine) instead of a bare "Multiple pay zones".
+     // UX-22: a range per place lists them (payPlacesLine) too; UX-31: the chip says what it means.
+     s.zones > 1 && !payLevels(s) && !payRanges(s) ? ['Several pay ranges', 'The posting lists different ranges for different locations or levels; this is the span of all of them'] : null,
+@@ -4053,6 +4069,8 @@ function drawerContent(job) {
+   // Shared decision 1: under a Location filter, the pay block says when its pay isn't for the places picked.
+   const elsewhere = sal && viewSpec?.l.size && job._usd && !payHere(job) ? ` This pay is posted for ${payPlaceText(job)}, not for ${placesPicked()}.` : '';
+   const caption = !sal ? null : (isOte(job) ? `${OTE_LABEL}. Equity isn’t included.`
++    : isMinimum(job) ? 'Posted minimum base pay; the offer can be higher. Equity and bonus aren’t included.'
++    : sal.includesShiftDifferential ? `Posted pay, including the highest shift differential.${sal.statedBase ? shiftTip(sal).replace(/^[^.]*\./, '') : ''} Equity and bonus aren’t included.`
+     : partHourly ? 'Posted hourly pay for a part-time role. Equity and bonus aren’t included.'
+       : term?.fixed ? 'Fixed-term pay as posted. Equity and bonus aren’t included.' : 'Posted base pay. Equity and bonus aren’t included.') + elsewhere;
+   // UX-22: under a Location filter, the range posted for the place picked.
+@@ -4061,7 +4079,7 @@ function drawerContent(job) {
+   // weeks"; a rate for a programme: "€72,000 a year · 13-week internship"; part-time: "$22.00–28.88 an hour".
+   const cur = sal?.currency || 'USD';
+   const amountText = !sal ? null : partHourly ? `${postedPair(sal.min / 2080, sal.max / 2080, sal.currency)} an hour`
+-    : term ? `${term.amount}${perText(term.per)}` : salaryRange(sal);
++    : term ? `${term.amount}${perText(term.per)}` : isMinimum(job) ? `from ${money(sal.min, sal.currency)}` : salaryRange(sal);
+   const subText = !sal ? null : partHourly ? `${cur} · part-time, paid by the hour`
+     : term?.fixed ? `${cur} · for ${termText(term.weeks)}` : term ? `${cur} · ${programText(job, term)}` : `${cur} · per year`;
+   const salaryBlock = h('section', { class: 'd-salary' },

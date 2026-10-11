@@ -294,8 +294,10 @@ test('vetting gate: legit low-paid and hourly roles are not statistical outliers
 test('salaryChecks: thresholds', () => {
   const codes = (title, s, extra) => salaryChecks(job('x', title, s, extra)).map((c) => c.code);
   assert.deepEqual(codes('Engineer', sal(150000, 200000)), []);
-  assert.deepEqual(codes('Engineer', sal(1250000, 1300000)), ['above_max']);
-  assert.deepEqual(codes('Engineer', sal(150000, 1300000)), ['above_max', 'range_ratio']);
+  // Fix wave 5 (VT-10): the bound is $1.5M; Netflix's real L7 $737K–$1.43M passes.
+  assert.deepEqual(codes('Engineer', sal(737000, 1430000)), []);
+  assert.deepEqual(codes('Engineer', sal(1550000, 1600000)), ['above_max']);
+  assert.deepEqual(codes('Engineer', sal(150000, 1600000)), ['above_max', 'range_ratio']);
   assert.deepEqual(codes('Engineer', sal(280000, 850000)), [], '3.04x real range is allowed');
   assert.ok(codes('Technical Fellow', sal(500000, 600000)).length === 0, 'Technical Fellow is senior');
   assert.deepEqual(codes('Engineer', sal(20000, 30000), { employmentType: 'Part-time' }), []);

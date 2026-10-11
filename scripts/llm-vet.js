@@ -221,7 +221,10 @@ export function parserVersion() {
 }
 
 // A review folder: "<date>" (the main site) or "<date>-<channel>" ("2026-10-11-beta", VT-9).
-const REVIEW_DIR_RE = /^(\d{4}-\d{2}-\d{2})(?:-([a-z][a-z0-9]*))?$/;
+// VT-25 (fix wave 5): a same-day second review of a channel is <date>-<channel>-<n>
+// (data/vetting/2026-10-11-beta-2); it belongs to that channel and sorts after <date>-<channel>.
+const REVIEW_DIR_RE = /^(\d{4}-\d{2}-\d{2})(?:-([a-z][a-z0-9]*))?(?:-(\d{1,3}))?$/;
+const byReview = (a, b) => a.localeCompare(b, 'en', { numeric: true });
 
 /** Latest data/vetting/<date>/flags.jsonl, or <date>-<channel>/ with `channel` ("beta"). */
 export function latestFlags(channel = null, dir = path.join(ROOT, 'data', 'vetting')) {
@@ -229,7 +232,7 @@ export function latestFlags(channel = null, dir = path.join(ROOT, 'data', 'vetti
   const dates = fs.readdirSync(dir).filter((d) => {
     const m = REVIEW_DIR_RE.exec(d);
     return m && (m[2] || null) === (channel || null) && fs.existsSync(path.join(dir, d, 'flags.jsonl'));
-  }).sort();
+  }).sort(byReview);
   return dates.length ? path.join(dir, dates[dates.length - 1], 'flags.jsonl') : null;
 }
 
@@ -246,7 +249,7 @@ export function reviewKey(l) {
 /** Every committed verdicts.jsonl / llm-verdicts.jsonl under data/vetting/ (dated and "<date>-beta" folders, VT-9). */
 export function reviewedFiles(dir = path.join(ROOT, 'data', 'vetting')) {
   if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir).filter((d) => REVIEW_DIR_RE.test(d)).sort().flatMap((d) => ['verdicts.jsonl', 'llm-verdicts.jsonl'].map((f) => path.join(dir, d, f))).filter((f) => fs.existsSync(f));
+  return fs.readdirSync(dir).filter((d) => REVIEW_DIR_RE.test(d)).sort(byReview).flatMap((d) => ['verdicts.jsonl', 'llm-verdicts.jsonl'].map((f) => path.join(dir, d, f))).filter((f) => fs.existsSync(f));
 }
 
 export async function run({ flagsFile, outFile, apiKey, env = process.env, fetchImpl = fetch, limit = Infinity, concurrency = 4, onlyBlocking = false, skipReviewed = [], log = console.log, sleepImpl } = {}) {

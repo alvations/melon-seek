@@ -327,7 +327,8 @@
       "aliases": [],
       "nearby": [
         "San Bruno",
-        "South San Francisco"
+        "South San Francisco",
+        "Burlingame"
       ],
       "tax": {
         "country": "US",
@@ -811,7 +812,8 @@
       "currency": "USD",
       "aliases": [],
       "nearby": [
-        "Waltham"
+        "Waltham",
+        "North Reading"
       ],
       "tax": {
         "country": "US",
@@ -1277,7 +1279,9 @@
         "Hawthorne",
         "Torrance",
         "Long Beach",
-        "Culver City"
+        "Culver City",
+        "Northridge",
+        "Pasadena"
       ],
       "tax": {
         "country": "US",
@@ -1406,7 +1410,9 @@
       "country": "US",
       "currency": "USD",
       "aliases": [],
-      "nearby": [],
+      "nearby": [
+        "Aurora"
+      ],
       "tax": {
         "country": "US",
         "region": "IL",
@@ -1665,7 +1671,10 @@
       "country": "US",
       "currency": "USD",
       "aliases": [],
-      "nearby": [],
+      "nearby": [
+        "Lithia Springs",
+        "Hampton"
+      ],
       "tax": {
         "country": "US",
         "region": "GA",
@@ -1793,7 +1802,11 @@
       "country": "US",
       "currency": "USD",
       "aliases": [],
-      "nearby": [],
+      "nearby": [
+        "New Albany",
+        "Hilliard",
+        "Plain City"
+      ],
       "tax": {
         "country": "US",
         "region": "OH",
@@ -2183,7 +2196,10 @@
         "Sterling",
         "McLean",
         "Tysons",
-        "Fairfax"
+        "Fairfax",
+        "Manassas",
+        "Ashburn",
+        "Aldie"
       ],
       "tax": {
         "country": "US",
@@ -2441,7 +2457,9 @@
       "country": "US",
       "currency": "USD",
       "aliases": [],
-      "nearby": [],
+      "nearby": [
+        "East Palo Alto"
+      ],
       "tax": {
         "country": "US",
         "region": "CA",
@@ -2572,7 +2590,8 @@
         "Santa Clara",
         "Cupertino",
         "Los Gatos",
-        "Fremont"
+        "Fremont",
+        "Gilroy"
       ],
       "tax": {
         "country": "US",
@@ -3603,7 +3622,8 @@
       "nearby": [
         "Plano",
         "Addison",
-        "Irving"
+        "Irving",
+        "Garland"
       ],
       "tax": {
         "country": "US",
@@ -4508,7 +4528,8 @@
       "currency": "USD",
       "aliases": [],
       "nearby": [
-        "Lehi"
+        "Lehi",
+        "Eagle Mountain"
       ],
       "tax": {
         "country": "US",
@@ -4641,7 +4662,8 @@
         "Tempe",
         "Scottsdale",
         "Chandler",
-        "Mesa"
+        "Mesa",
+        "Goodyear"
       ],
       "tax": {
         "country": "US",
@@ -4901,7 +4923,8 @@
       "nearby": [
         "Columbia",
         "Fort Meade",
-        "Annapolis Junction"
+        "Annapolis Junction",
+        "Jessup"
       ],
       "tax": {
         "country": "US",

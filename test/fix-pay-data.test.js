@@ -298,7 +298,7 @@ const stored = (over) => ({
 });
 
 test('delivery: relocateJobs (the snapshot upgrade the server and the static build run) re-derives pay labels, level and locations', () => {
-  assert.equal(NORMALIZER_VERSION, 'norm-9', 'stored older snapshots are upgraded once (norm-9: fix wave 4, docs/process/fix4-data.md)');
+  assert.equal(NORMALIZER_VERSION, 'norm-10', 'stored older snapshots are upgraded once (norm-10: fix wave 5, docs/process/fix5-data.md)');
   const jobs = [
     stored({ id: 'anthropic:ae', title: 'Strategic Account Executive, Banking', seniority: 'Mid', descriptionHtml: `<p>${ANTHROPIC_OTE}</p>`, salary: { ...toJobSalary(structured(380000, 450000), { source: 'structured' }), zones: 1 } }),
     stored({ id: 'anthropic:re', title: 'Research Engineer', seniority: 'Mid', descriptionHtml: `<p>${ANTHROPIC_OTE}</p>`, salary: { ...toJobSalary(structured(350000, 850000), { source: 'structured' }), zones: 1 } }),

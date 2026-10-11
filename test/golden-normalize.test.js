@@ -7,7 +7,7 @@
 // NORMALIZER_VERSION in server/normalize.js (stored snapshots are then upgraded
 // once by the server), then regenerate with:
 //   UPDATE_GOLDEN=1 GOLDEN_REASON="what changed" node --test test/golden-normalize.test.js
-// Re-baselines: 2026-10-02 initial; norm-3 "UX-3 canonical locations" (geo.js name/rawName); norm-7 job.seniorityBasis (fix-beta-pay); norm-8 fix wave 3 (fix3-data: sections.preferred, tag rules, team paragraphs, salary.originalInterval/partTime); norm-9 fix wave 4 (fix4-data: 0 of the 300 hashes changed, version only).
+// Re-baselines: 2026-10-02 initial; norm-3 "UX-3 canonical locations" (geo.js name/rawName); norm-7 job.seniorityBasis (fix-beta-pay); norm-8 fix wave 3 (fix3-data: sections.preferred, tag rules, team paragraphs, salary.originalInterval/partTime); norm-9 fix wave 4 (fix4-data: 0 of the 300 hashes changed, version only); norm-10 fix wave 5 (fix5-data: 0 of the 300 hashes changed, version only).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

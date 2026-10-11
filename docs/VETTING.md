@@ -110,7 +110,7 @@ source interval, or `null`.
   at most 130 characters apart, are spanned to overall min–max when the span is
   at most 3× ("Level 1: $25 - $33/hour … Level 3: $33 - $43/hour" → 25–43).
 - **Implausible interval labels**: when the stated interval puts annual pay
-  above $1.2M but the numbers are $15K–$1.2M, they are read as annual, with
+  above $1.5M but the numbers are $15K–$1.5M, they are read as annual, with
   `intervalCorrected`.
 - **On-target earnings** (norm-6, persona review P-1). `kind: "ote"` when the posting's
   own words say the range includes commission at target: "OTE", "On Target Earnings",
@@ -136,15 +136,45 @@ source interval, or `null`.
   or "for N months" in the pay sentence. Stored as `termWeeks` (and `termWeeksMax` for a
   range). The annualized figure stays the full-time-equivalent rate; surfaces show the pay
   as posted and say the term ("$3,850 a week for about 17 weeks").
-- **Above the bound**: a posted range above $1.2M, written out in full with a pay word in its
-  own clause ("The range for this role is $737,000.00 - $1,430,000.00", Netflix L7), is read and
-  then quarantined by the gate (`above_max`), so the posting shows "Pay unclear, see posting"
-  rather than nothing. Netflix pays all cash, so the figure may be real, but one posting does not
-  justify loosening a bound that caught three real errors. It never beats a plausible amount.
+- **Above the bound**: a posted range above $1.5M, written out in full with a pay word in its
+  own clause, is read and then quarantined by the gate (`above_max`), so the posting shows "Pay
+  unclear, see posting" rather than nothing. It never beats a plausible amount. Fix wave 5 (VT-10,
+  the lead's decision under the user's rule "we must present them as they are and not cut
+  anything"): the bound was $1.2M until 2026-10-11; Netflix's real L7 range "$737,000.00 -
+  $1,430,000.00" (Netflix pays all cash) is now shown. The gate study
+  (`data/vetting/2026-10-11-beta-2/gate-study.mjs`) shows $1.5M still catches the three real
+  errors ($4.6M, $5M, $1.56M).
 - **Bounds** are checked in rough USD (`USD_PER`, derived from
-  `public/viz/palette.js` `FX_PER_USD`): a text candidate must be $10K–$1.2M per
-  year. `toJobSalary` refuses values outside $10K–$5M. Values between $1.2M and $5M are
-  kept so that the gate quarantines them visibly.
+  `public/viz/palette.js` `FX_PER_USD`): a text candidate must be $10K–$1.5M per
+  year. `toJobSalary` refuses values outside $10K–$5M. Values between $1.5M and $5M are
+  kept so that the gate quarantines them visibly. **Legal minimum** (fix wave 5, VT-14): a
+  currency whose national minimum wage is under $10K a year has its own floor
+  (`salary.js#LEGAL_MIN_ANNUAL`, in local currency): Mexico MXN 114,990 (2026 general-zone minimum
+  wage MXN 315.04 a day × 365, CONASAMI resolution of 2025-12-03). The gate's `below_min` uses it
+  too, so a real Mexican salary ("Monthly Salary: $12,569", MXN) is shown, not quarantined.
+- **A bare "$"** takes the job's currency when every location is in one dollar or peso country
+  (`salary.js#DOLLAR_COUNTRY`): Canada CAD (D-22, DQ-14) and, since fix wave 5 (DQ-35, VT-14),
+  Mexico MXN, Australia AUD, New Zealand NZD, Singapore SGD and Hong Kong HKD, unless the text
+  says USD. Elsewhere it stays USD (xAI's "$" in Dublin was reviewed as USD).
+- **Cash compensation split into base and variable** (fix wave 5, VT-7, lead decision): NVIDIA's
+  sales postings ("… with 85% paid through base salary and 15% variable compensation. The cash
+  compensation range is 200,000 USD - 300,000 USD") are read as on-target earnings
+  (`kind: "ote"`), shown and labelled, no longer null. A "total compensation" range (bonus,
+  equity) is still not pay.
+- **Amazon's pay table** (fix wave 5, `server/sources/amazon.js#amazonSalary`): each row is tied
+  to the posting's location strings it names (`salary.ranges[].locations`, yearly), identical
+  rows are one range (one zone), and a "Virtual Location" row for a state the posting lists no
+  place in is dropped. The sentence above the table decides what the figure is:
+  - "The minimum gross base pay salary for this position is listed below" / "See below the
+    minimum gross base salary" (EU, Poland): `kind: "minimum"`, shown as "from €X", never hidden
+    (VT-17). A posting that also says "The base pay for this position is PLN 6000 monthly" states
+    the pay itself and keeps `"salary"`.
+  - "including the base pay rate plus the highest available shift differential" (US hourly):
+    the posted figure stays, with `includesShiftDifferential: true`, and `statedBase` when the
+    posting states a lower base ("Pay starts at $18.35 per hour") (VT-18).
+  - "The minimum basic salary for this position is EUR 47'000 gross annually" (Austria, 14
+    payments a year): that annual figure is the salary (`statedAnnual`), not 12 × the monthly
+    row (VT-19).
 
 Adapters: Greenhouse divides `*_cents` by 100 except for zero-decimal currencies
 (JPY, KRW, ...). A real JPY range had been shrunk 100×. Greenhouse refuses to merge tiers whose
@@ -162,9 +192,9 @@ is pure and browser-safe, and it is idempotent. It returns a new array.
 
 | Code | Rule | Why this threshold |
 |---|---|---|
-| `above_max` (critical) | annual max > **$1.2M** (USD) | The highest real posted base in the data is $850K (Anthropic); $4.6M, $5M and $1.56M were all errors |
-| `below_min` (critical) | annual min < **$15K** on a full-time role | Below US federal minimum wage × 2080. All 4 real hits were source typos (12,600 for 126,000) or the JPY ÷100 bug |
-| `hourly_high` (critical) | hourly rate > **$250/hr** on any role, or > **$200/hr** on a role the source marks Full-time | Catches "$500 home office stipend" read as $500/hr ($1.04M/yr, 39 postings). That cluster is under the $1.2M cap and too common for the statistics to see |
+| `above_max` (critical) | annual max > **$1.5M** (USD) | $4.6M, $5M and $1.56M were all errors; the highest real posted range is Netflix L7 ($737K–$1.43M, all cash), shown since fix wave 5 (VT-10; $1.2M until then) |
+| `below_min` (critical) | annual min < **$15K** on a full-time role, unless at or above the country's legal minimum (`LEGAL_MIN_ANNUAL`: Mexico MXN 114,990) | Below US federal minimum wage × 2080. All 4 real hits were source typos (12,600 for 126,000) or the JPY ÷100 bug |
+| `hourly_high` (critical) | hourly rate > **$250/hr** on any role, or > **$200/hr** on a role the source marks Full-time | Catches "$500 home office stipend" read as $500/hr ($1.04M/yr, 39 postings). That cluster is under the $1.5M cap and too common for the statistics to see |
 | `range_ratio` | max/min > **4×** | Real stated ranges reach 3.4× (Anthropic $280K–$850K, xAI $180K–$600K, OpenAI $125K–$400K). A 3× cutoff would hide 10 legitimate postings. The Anduril typos are 13.3× |
 | `min_gt_max` | min > max | |
 | `junior_high` | Intern/Fellow/Resident/Apprentice/Co-op title with mid > **$300K/yr** ("Technical/Distinguished/Senior Fellow" excluded; not term pay, `originalInterval: "term"`) | The Fellows stipend is $200K annualized. Term pay is the posting's own amount for a stated term: Anthropic's Conceptual Reasoning Fellow states "$100,000–$167,000 USD for the four-month fellowship (equivalent to $300,000–$500,000 USD annualized)" |
@@ -175,8 +205,12 @@ is pure and browser-safe, and it is idempotent. It returns a new array.
 For each salaried job not caught by a hard check, the gate computes
 `x = ln(mid in USD)` and compares it with the company and with every
 comparison group that has **at least 8** members: department, role family
-(from the title) and pay kind. A job is a `stat_outlier` only if it is an
-outlier company-wide **and** in each such group, in the same direction:
+(from the title), pay kind and, since fix wave 5 (VT-16), the pay's currency (`cur:<code>`).
+A job is a `stat_outlier` only if it is an outlier company-wide **and** in each such group, in
+the same direction. A low-side flag on pay in another currency than the company's main one
+needs its own `cur:<code>` group of 8 or more: Microsoft's correct lei IC1 ranges in Romania
+(lei 83,000–107,800) are not low against US pay (DQ-6 residue; 2 quarantined before, 0 now).
+Pay kind `"minimum"` (a stated minimum, VT-17) is never flagged on the low side.
 
 - robust z = (x − median) / σ, with σ = max(1.4826 · MAD, **0.4**);
 - Tukey fences on log pay: Q1 − 3·IQR and Q3 + 3·IQR (IQR floored at 0.4);
@@ -193,7 +227,7 @@ low side for all roles) quarantined legitimate low-paid roles: a $59K–$78K
 maintenance engineer, CA$30/hr contract annotators, a $99K–$110K security
 operator, a €2,400–€5,600/month Lithuanian role and a $68K–$85K BDR. The shipped
 settings quarantine none of them. On today's data the statistical layer adds no
-quarantines beyond the hard checks. It is there for errors under the $1.2M cap,
+quarantines beyond the hard checks. It is there for errors under the $1.5M cap,
 such as a $1M posting at a company whose median is $250K (tested synthetically).
 
 **Known false positives (deliberate):** the two Scale AI "Research Advisor,
@@ -238,7 +272,7 @@ is **blocking** and makes the scan exit 1.
 
 | Flag | Definition |
 |---|---|
-| `max_over_1_2m` **critical** | annual max > $1.2M (USD) |
+| `max_over_1_2m` **critical** | annual max > $1.5M (USD; the gate's `above_max`, $1.2M until fix wave 5: the code keeps its name so earlier verdicts still match) |
 | `min_under_15k_fulltime` **critical** | annual min < $15K on a full-time role (employment type and title not part-time/intern/contract) |
 | `hourly_over_cap` **critical** | the gate's `hourly_high` |
 | `ratio_over_3` | max/min > 3 (review flag; the gate quarantines above 4) |
@@ -246,7 +280,7 @@ is **blocking** and makes the scan exit 1.
 | `magnitude_suffix` | the matched text has an M/B/million/billion suffix |
 | `currency_country_mismatch` | currency is none of the location countries' currencies (only when countries are known) |
 | `non_year_interval` | source interval is hour/day/week/month |
-| `interval_suspect` | non-year interval whose annualized pay is over $1.2M while the raw numbers are plausible as annual |
+| `interval_suspect` | non-year interval whose annualized pay is over $1.5M while the raw numbers are plausible as annual |
 | `interval_corrected` | the parser or derivation already read the stated interval as annual |
 | `multiple_ranges` | more distinct money ranges in pay context than the salary's `zones` (the parser's own count: level tiers and national + city ranges it read by rule are not flagged); with no salary, two or more. Prose ranges over $5M excluded |
 | `multi_currency` | a pay clause lists more than one currency (a bare "$" next to "$… CAD" counts once) |

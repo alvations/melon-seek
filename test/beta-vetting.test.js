@@ -125,12 +125,12 @@ test('VT-6 NVIDIA\'s "Italy: The base salary range is …" names the pay line\'s
 // microsoft:1970393556874976, https://apply.careers.microsoft.com/careers/job/1970393556874976.
 // Owner: server/keywords.js jobSeniority.
 
-test('VT-8 an individual-contributor level (IC5) is not Director+, whatever the title says', TODO, () => {
+test('VT-8 an individual-contributor level (IC5) is not Director+, whatever the title says', () => {
   const s = jobSeniority({ title: 'Director, MAVS Technology & Product', text: 'Technical Program Management IC5 - The typical base pay range for this role across the U.S. is USD $142,800 - $274,800 per year.', company: 'microsoft' });
   assert.equal(s.level, 'Staff+', `${s.level} (${s.basis})`);
 });
 
-test('VT-8 a "Senior Finance Manager" at IC4 is an individual contributor (Senior), not a people manager', TODO, () => {
+test('VT-8 a "Senior Finance Manager" at IC4 is an individual contributor (Senior), not a people manager', () => {
   const s = jobSeniority({ title: 'Senior Finance Manager, Cloud Accounting', text: 'Financial Analysis IC4 - The typical base pay range for this role across the U.S. is USD $97,600 - $188,400 per year.', company: 'microsoft' });
   assert.equal(s.level, 'Senior', `${s.level} (${s.basis})`);
 });
@@ -216,11 +216,15 @@ test('pinned: Netflix L4 "$71,040.00 - $464,000.00" (6.5x) is quarantined (range
   assert.deepEqual(j.salaryFlag.codes, ['range_ratio']);
 });
 
-test('pinned: Netflix L7 "$737,000.00 - $1,430,000.00" is read and quarantined above $1.2M (policy; see VT-10)', () => {
+// Fix wave 5 (VT-10, lead decision under "present them as they are"): the bound is $1.5M, so this
+// real posted range is shown; a range above $1.5M is still quarantined.
+test('pinned: Netflix L7 "$737,000.00 - $1,430,000.00" is read and shown (VT-10: the bound is $1.5M)', () => {
   const [j] = vetSalaries([job('Software Engineer (L7) - Application Networking', 'The range for this role is $737,000.00 - $1,430,000.00. This compensation range will vary based on location.')], { stats: false });
-  assert.equal(j.salary, null);
-  assert.deepEqual([j.salaryRaw.min, j.salaryRaw.max], [737000, 1430000]);
-  assert.deepEqual(j.salaryFlag.codes, ['above_max']);
+  assert.ok(j.salary, j.salaryFlag && j.salaryFlag.reason);
+  assert.deepEqual([j.salary.min, j.salary.max], [737000, 1430000]);
+  const [k] = vetSalaries([job('Software Engineer (L8)', 'The range for this role is $900,000.00 - $1,600,000.00. This compensation range will vary based on location.')], { stats: false });
+  assert.equal(k.salary, null);
+  assert.deepEqual(k.salaryFlag.codes, ['above_max']);
 });
 
 test('pinned: NVIDIA\'s intern rate "20 USD - 71 USD" (3.55x) is published (under the 4x bound)', () => {

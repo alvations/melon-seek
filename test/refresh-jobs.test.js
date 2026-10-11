@@ -277,7 +277,7 @@ test('policy: offline check returns one valid manual Result per id with a checkl
 test('policy: a copy that disagrees with the code is flagged (docs, palette, workflow, vet-salaries)', async () => {
   const edits = {
     'docs/LIVABILITY.md': (t) => t.replace('**K = $80,000**', '**K = $90,000**'),
-    'docs/VETTING.md': (t) => t.replace('annual max > **$1.2M**', 'annual max > **$1.5M**'),
+    'docs/VETTING.md': (t) => t.replace('annual max > **$1.5M**', 'annual max > **$1.2M**'),
     '.github/workflows/pages.yml': (t) => t.replace("vars.VET_LLM_MODEL || 'claude-sonnet-5-5'", "vars.VET_LLM_MODEL || 'claude-old-model'"),
     'public/viz/palette.js': (t) => t.replace('JUICE_BREAKS = Object.freeze([45, 70])', 'JUICE_BREAKS = Object.freeze([40, 70])'),
     'scripts/vet-salaries.js': (t) => t.replace('const FACT = { hour: 2080', 'const FACT = { hour: 2000'),
@@ -287,7 +287,7 @@ test('policy: a copy that disagrees with the code is flagged (docs, palette, wor
   assert.equal(r['juice-score-anchors'].status, 'flag');
   assert.match(keys(r['juice-score-anchors']), /LIVABILITY K \(curve section\)/);
   assert.equal(r['salary-vetting-bounds'].status, 'flag');
-  assert.ok(r['salary-vetting-bounds'].findings.some((f) => f.key === 'docs/VETTING.md above_max' && f.official === 1_500_000));
+  assert.ok(r['salary-vetting-bounds'].findings.some((f) => f.key === 'docs/VETTING.md above_max' && f.official === 1_200_000));
   assert.equal(r['llm-vet-config'].status, 'flag');
   assert.equal(r['juice-grades'].status, 'flag');
   assert.equal(r['salary-interval-factors'].status, 'flag');

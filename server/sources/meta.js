@@ -198,6 +198,9 @@ export function mapMetaJob(p, entry = {}) {
       text: `${pick.text}${extras.length ? ` + ${extras.join(' + ')}` : ''}${pick.country ? ` (${pick.country})` : ''}`,
     };
     if (ranges.length > 1) salary.zones = ranges.length;
+    // DQ-42 / VT-20 (fix wave 5): the range's own country, so Juice and payLocations use it only
+    // there (Italy's €89K–114K is not Madrid or Paris pay), as NVIDIA's lines do since VT-6.
+    if (/^[A-Z]{2}$/.test(String(pick.country || ''))) salary.country = pick.country === 'UK' ? 'GB' : pick.country;
   }
   const posted = isoOrNull(ld.datePosted);
   const dept = (p.internal_departments && str(p.internal_departments[0])) || null;

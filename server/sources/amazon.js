@@ -122,11 +122,16 @@ const ISO3_ISO2 = Object.freeze({ USA: 'US', CAN: 'CA', MEX: 'MX', GBR: 'GB', IR
 const VIRTUAL_RE = /^virtual location\b/;
 /**
  * A pay-table row's place: "USA, CA, East Palo Alto" (country first), "Seattle, WA, USA" (country
- * last), "GBR, London", "JPN, 13, Tokyo" -> { country: 'USA', state: 'ca', city: 'east palo alto',
- * cityText: 'East Palo Alto', virtual } (country an ISO 3166 alpha-3 code like the row's
- * country_code; state and city normalised; virtual for "Virtual Location - S Carolina" rows).
+ * last), "GBR, London", "JPN, 13, Tokyo" -> { country: 'USA', state: 'ca', city: 'east palo alto' }
+ * (country an ISO 3166 alpha-3 code like the row's country_code; state and city normalised).
  */
 export function amazonPlace(label) {
+  const { country, state, city } = rowPlace(label);
+  return { country, state, city };
+}
+
+/** amazonPlace plus the city as written (cityText) and whether it is a "Virtual Location - S Carolina" row. */
+function rowPlace(label) {
   const parts = String(label || '').split(',').map((x) => x.trim()).filter(Boolean);
   let country = null;
   if (parts.length > 1 && ISO3.test(parts[0])) country = parts.shift();
@@ -218,7 +223,7 @@ export function amazonSalary(j, table = amazonPayTable(j.description, j.basic_qu
   const posting = (Array.isArray(given) ? given : parseLocations(j).locs).map(placeOf).filter(Boolean);
   const listedStates = new Set(posting.filter((q) => !q.remote && q.region).map((q) => q.region));
   const remoteKeys = posting.filter((q) => q.remote).map((q) => q.key);
-  let rows = table.map((r) => ({ ...r, place: amazonPlace(r.location) }));
+  let rows = table.map((r) => ({ ...r, place: rowPlace(r.location) }));
   // DQ-41: a virtual row for a state the posting lists no place in (only when it lists states).
   if (listedStates.size) {
     const kept = rows.filter((r) => !r.place.virtual || !r.place.state || listedStates.has(r.place.state));

@@ -5,9 +5,11 @@
 //     --date YYYY-MM-DD   output folder data/vetting/<date>/ (default: today, UTC)
 //     --out <file>        flags file (default <dir>/flags.jsonl, or
 //                         <dir>/flags.renormalized.jsonl with --renormalize)
-//     (default)           the vetting gate (server/vet.js) is applied to the
-//                         loaded jobs first, exactly as build-static and the
-//                         server do, so "blocking" means "would be published"
+//     (default)           the jobs as the build serves them (DQ-43, fix wave 5:
+//                         loadServedJobs = scripts/build-static.js#readSnapshot:
+//                         an older snapshot is re-derived with relocateJobs, the
+//                         big-tech adapter fixes are applied, then the vetting
+//                         gate), so "blocking" means "would be published"
 //     --no-gate           scan the snapshot salaries as stored (raw view)
 //     --renormalize       re-derive every salary from descriptionHtml (+ the
 //                         structured salary the snapshot kept) with the current
@@ -324,6 +326,22 @@ export async function renormalizeJobs(jobs) {
   return vetSalaries(out);
 }
 
+/**
+ * DQ-43 (fix wave 5): a snapshot's jobs as the build serves them, the steps of
+ * scripts/build-static.js#readSnapshot and server/pipeline.js: a snapshot written by an older
+ * normalizer is upgraded (rekeyBoardJobs, relocateJobs: pay, labels and levels re-derived), the
+ * big-tech adapter fixes are applied to the stored jobs (upgradeStoredJobs), and the vetting gate
+ * runs. `parsed` is the snapshot document ({ normalizerVersion, jobs }) or a bare job array.
+ */
+export async function loadServedJobs(parsed) {
+  const jobs = Array.isArray(parsed) ? parsed : parsed && parsed.jobs;
+  if (!Array.isArray(jobs)) return null;
+  const [{ relocateJobs, NORMALIZER_VERSION }, { rekeyBoardJobs }, { upgradeStoredJobs }] = await Promise.all([
+    import('../server/normalize.js'), import('../server/keywords.js'), import('../server/sources/upgrade.js')]);
+  const current = !Array.isArray(parsed) && parsed.normalizerVersion === NORMALIZER_VERSION;
+  return vetSalaries(upgradeStoredJobs(current ? jobs : relocateJobs(rekeyBoardJobs(jobs).jobs)));
+}
+
 /* --------------------------------------------------------------- fixtures */
 
 /** Run one regression case; returns null when it passes, else a message. */
@@ -528,7 +546,7 @@ async function main() {
     try { parsed = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (err) { console.error(`! ${file}: ${err.message}`); continue; }
     let jobs = Array.isArray(parsed) ? parsed : parsed && parsed.jobs;
     if (!Array.isArray(jobs)) { console.error(`! ${file}: no jobs array`); continue; }
-    if (!o.renormalize && o.gate) jobs = vetSalaries(jobs); // what build-static / the server serve
+    if (!o.renormalize && o.gate) jobs = await loadServedJobs(parsed); // what build-static / the server serve (DQ-43)
     if (o.renormalize) {
       jobs = await renormalizeJobs(jobs);
       if (o.write) {

@@ -60,9 +60,13 @@ test('NVIDIA: one range, or levels spanned with the level labels kept', () => {
   assert.deepEqual(got(intern), [20, 71, 'USD', 'hour']);
 });
 
-test('NVIDIA sales: a "cash compensation range" (85% base + 15% variable) is not base pay -> null', () => {
+// Fix wave 5 (VT-7, lead decision under "present them as they are"): the cash compensation range is
+// base plus variable pay at target, shown as on-target earnings (kind 'ote'), no longer null.
+test('NVIDIA sales: a "cash compensation range" (85% base + 15% variable) is on-target earnings (VT-7)', async () => {
+  const { deriveSalary } = await import('../server/normalize.js');
   const t = 'Your base salary will be determined based on your location, experience, and the pay of employees in similar positions with 85% paid through base salary and 15% variable compensation. For Poland: The cash compensation range is 435,000 PLN - 754,000 PLN for Level 4, and 547,500 PLN - 949,000 PLN for Level 5.';
-  assert.equal(parseSalary(t, { countries: ['PL'] }), null);
+  const s = deriveSalary({ title: 'Enterprise Account Manager', employmentType: 'Full-time', text: t, html: '' }, [{ country: 'PL' }]);
+  assert.deepEqual([s.min, s.currency, s.kind], [435000, 'PLN', 'ote']);
 });
 
 test('Apple: "between $X and $Y" annual and hourly; a footer without a range is null', () => {

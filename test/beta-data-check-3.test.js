@@ -62,7 +62,7 @@ const ANNAPURNA = amazonRow({
   table: ['Austin, TX, USA - 116,100.00 USD Annually', 'Cupertino, CA, USA - 133,600.00 USD Annually'],
 });
 
-test('DQ-33 Amazon: each place is scored on the range Amazon posted for it (Cupertino on 133,600, not Austin\'s 116,100)', TODO, () => {
+test('DQ-33 Amazon: each place is scored on the range Amazon posted for it (Cupertino on 133,600, not Austin\'s 116,100)', () => {
   const job = amazonJob(ANNAPURNA);
   assert.equal(job.salary.min, 116100, 'reference: the primary city (Austin) is the card salary');
   const cup = job.juice && job.juice.byLocation.find((b) => /Cupertino/.test(b.locationName));
@@ -72,7 +72,7 @@ test('DQ-33 Amazon: each place is scored on the range Amazon posted for it (Cupe
 
 // amazon:10534302 "Sr. Energy Strategy Manager, AWS Energy Team", https://www.amazon.jobs/en/jobs/10534302 :
 // three identical rows. Served today: zones 3, the card reads "$155K–210K · 3 places".
-test('DQ-33 Amazon: three identical location rows are one pay range, not three zones', TODO, () => {
+test('DQ-33 Amazon: three identical location rows are one pay range, not three zones', () => {
   const row = amazonRow({
     id: '10534302', title: 'Sr. Energy Strategy Manager, AWS Energy Team', city: 'Seattle', state: 'WA',
     places: ['Austin, Texas, USA', 'Seattle, Washington, USA', 'Arlington, Virginia, USA'],
@@ -88,7 +88,7 @@ test('DQ-33 Amazon: three identical location rows are one pay range, not three z
 // https://www.amazon.jobs/en/jobs/SF260124856 : "Monthly Salary: $12,569" is pesos. Served today as
 // USD 150,828 a year (about 18 times the real pay). Owner: server/salary.js (a bare "$" in a posting
 // whose places are all in Mexico, as the Canada rule does for CAD).
-test('DQ-35 Amazon: a bare "$" in a Mexico-only posting is not US dollars', TODO, () => {
+test('DQ-35 Amazon: a bare "$" in a Mexico-only posting is not US dollars', () => {
   const row = amazonRow({
     id: 'SF260124856', title: 'Asociado de Servicio al Cliente Bilingüe Español-Inglés Remoto', city: '', state: '', country: 'MEX',
     places: [['Remote, Mexico', 'REMOTE', { normalizedCountryName: 'Mexico', normalizedCountryCode: 'MEX' }]],
@@ -104,7 +104,7 @@ test('DQ-35 Amazon: a bare "$" in a Mexico-only posting is not US dollars', TODO
 // $198K; Program Manager III $175K = Sr. Program Manager $175K; Scientist III $216K vs Sr. $197K),
 // while "II" is L5 (SDE II $169K = unlevelled SDE $169K). 79 "III" postings are Mid today.
 // Owner: server/keywords.js ladderRung (no Amazon ladder; GENERIC_RUNG files III as Mid).
-test('DQ-36 Amazon: a "III" title is Senior on Amazon\'s ladder (SDE III, Program Manager III)', TODO, () => {
+test('DQ-36 Amazon: a "III" title is Senior on Amazon\'s ladder (SDE III, Program Manager III)', () => {
   assert.equal(jobSeniority({ title: 'Software Dev Engineer II, AFT Outbound & Flow', text: '', company: 'amazon' }).level, 'Mid', 'reference: II is Mid');
   for (const title of ['Software Dev Engineer III, Prime Air', 'SDE III, AWS Field Experience', 'Program Manager III, Amazon Leo Government']) {
     assert.equal(jobSeniority({ title, text: '', company: 'amazon' }).level, 'Senior', title);
@@ -115,7 +115,7 @@ test('DQ-36 Amazon: a "III" title is Senior on Amazon\'s ladder (SDE III, Progra
 // Meta's "(Technical Leadership)" and "(Leadership)" titles are its senior-most hiring bands: 43
 // postings, median US base $260K, above Meta's Senior ($206K) and Staff+ ($238K) medians. All 43 are the
 // "Level not stated" default. Owner: server/keywords.js seniorityOf.
-test('DQ-37 Meta: a "(Technical Leadership)" title is not the "Level not stated" default', TODO, () => {
+test('DQ-37 Meta: a "(Technical Leadership)" title is not the "Level not stated" default', () => {
   for (const title of ['Software Engineer (Technical Leadership) - Machine Learning', 'Data Scientist (Technical Leadership)', 'Product Manager (Leadership)']) {
     const s = jobSeniority({ title, text: '', company: 'meta' });
     assert.notEqual(s.basis, 'default', `${title}: ${s.level}/${s.basis}`);
@@ -217,7 +217,7 @@ test('DQ-38 ledger: listed-only entries stay out of the compact history the buil
 // (8 entries), "Enns, Upper Austria, AUT" (4), "Großebersdorf, Lower Austria, AUT", "Premstätten,
 // Styria, AUT", "Sereď, Trnavský kraj, SVK": 16 entries in 15 postings with no country (no map pin, no
 // country filter, no Juice). Owner: server/geo.js geocode.
-test('DQ-40 Amazon: "City, Region, SVK" and "City, Region, AUT" resolve to Slovakia and Austria', TODO, () => {
+test('DQ-40 Amazon: "City, Region, SVK" and "City, Region, AUT" resolve to Slovakia and Austria', () => {
   assert.equal(geocode('Bratislava, Bratislavský kraj, SVK')[0].country, 'SK');
   assert.equal(geocode('Enns, Upper Austria, AUT')[0].country, 'AT');
 });
@@ -227,7 +227,7 @@ test('DQ-40 Amazon: "City, Region, SVK" and "City, Region, AUT" resolve to Slova
 // places Bellevue, Arlington and Remote (US). With no primary city the first US row is used, here a
 // "Virtual Location - S Carolina" row ($118,200–$160,000) that is none of the posting's places; its
 // offices pay $131,300–$177,600. 24 postings (0.5%). Owner: server/sources/amazon.js amazonSalary.
-test('DQ-41 Amazon: the card range is a row for one of the posting\'s own places, not another state\'s virtual row', TODO, () => {
+test('DQ-41 Amazon: the card range is a row for one of the posting\'s own places, not another state\'s virtual row', () => {
   const row = amazonRow({
     id: '10537027', title: 'Technical Account Manager - Enterprise, Amazon Leo', city: '', state: '',
     places: ['Bellevue, Washington, USA', 'Arlington, Virginia, USA', ['Remote, United States', 'REMOTE', { normalizedCountryName: 'United States' }]],
@@ -242,7 +242,7 @@ test('DQ-41 Amazon: the card range is a row for one of the posting\'s own places
 // Madrid, Paris, Milan and London, with one range, for Italy (€89,000–€114,000). The adapter knows the
 // range's country but does not set salary.country, so Juice scores Madrid (44) and Paris (40) on
 // Italian pay. Owner: server/sources/meta.js mapMetaJob.
-test('DQ-42 Meta: an Italy range is not scored in Madrid or Paris', TODO, () => {
+test('DQ-42 Meta: an Italy range is not scored in Madrid or Paris', () => {
   const page = {
     id: '902109179409028', title: 'Privacy and Data Policy Manager',
     locations: ['Madrid, Spain', 'Paris, France', 'Milan, Italy', 'London, UK'],

@@ -103,10 +103,12 @@ test('DQ-3: the pay sentence names the level (basis "pay"): Microsoft IC/M and N
   assert.deepEqual([nv(1, 2), nv(2, 3), nv(3, 4), nv(4, 5), nv(5, 6), nv(6, 7)].map((x) => x.level), ['Entry', 'Mid', 'Senior', 'Senior', 'Senior', 'Staff+']);
   // Only the boards whose pay text names their own ladder.
   assert.equal(seniorityFromPay(MS_PAY('Software Engineering IC6', '1', '2'), { company: 'google' }), null);
-  // The title wins when it states a level; otherwise the pay sentence; otherwise the default.
+  // The title wins when it states a level; otherwise the pay sentence; otherwise the default. Fix wave 5
+  // (VT-8, lead decision): on Microsoft, the board's own IC/M level in the pay sentence beats the title.
   const text = MS_PAY('Software Engineering IC6', '165,600', '296,400');
   assert.deepEqual(jobSeniority({ title: 'Member of Technical Staff, Microsoft Robotics', text, company: 'microsoft' }), { level: 'Staff+', basis: 'pay' });
-  assert.deepEqual(jobSeniority({ title: 'Software Engineer II', text, company: 'microsoft' }), { level: 'Mid', basis: 'title' });
+  assert.deepEqual(jobSeniority({ title: 'Software Engineer II', text, company: 'microsoft' }), { level: 'Staff+', basis: 'pay' });
+  assert.deepEqual(jobSeniority({ title: 'Software Engineer II', text: '', company: 'microsoft' }), { level: 'Mid', basis: 'title' });
   assert.deepEqual(jobSeniority({ title: 'Software Engineer', text: '', company: 'microsoft' }), { level: 'Mid', basis: 'default' });
 });
 
@@ -222,20 +224,24 @@ test('DQ-13: a Microsoft job located only in the SF Bay Area or NYC uses that ra
 
 /* ----------------------------------------------------------- DQ-14 */
 
-test('DQ-14: a union pay floor is not pay; a range above $1.2M is read and quarantined visibly', () => {
+test('DQ-14: a union pay floor is not pay; a range above the bound is read and quarantined visibly', () => {
   // netflix:790315702145 "CG Experimental Artist - Ink"
   const floor = 'This job may be covered by a collective bargaining agreement. If so, pay for the position is governed by the currently effective applicable collective bargaining agreement and thus will be no less than $62.74 an hour and up to any better conditions and terms negotiated and obtained as expressly provided therein.';
   assert.equal(parseSalary(floor, { countries: ['US'] }), null);
   assert.equal(payContextAt(floor, floor.indexOf('$62.74'), floor.indexOf('$62.74') + 14, { unit: 'hour', single: true }).reason, 'pay_floor');
-  // netflix:790312403200 "Software Engineer (L7)": Netflix pays cash only, but the gate's $1.2M bound holds.
+  // netflix:790312403200 "Software Engineer (L7)": shown since fix wave 5 (VT-10, the bound is $1.5M);
+  // a range above $1.5M is still read and quarantined visibly.
   const l7 = deriveSalary({ title: 'Software Engineer (L7) - Application Networking', html: '<p>The range for this role is $737,000.00 - $1,430,000.00.</p>' }, at('US'));
   assert.deepEqual([l7.min, l7.max], [737000, 1430000]);
-  const [vetted] = vetSalaries([{ id: 'netflix:790312403200', title: 'Software Engineer (L7)', employmentType: 'Full-time', salary: l7 }], { stats: false });
+  const [shown] = vetSalaries([{ id: 'netflix:790312403200', title: 'Software Engineer (L7)', employmentType: 'Full-time', salary: l7 }], { stats: false });
+  assert.ok(shown.salary);
+  const l8 = deriveSalary({ title: 'Software Engineer (L8)', html: '<p>The range for this role is $900,000.00 - $1,600,000.00.</p>' }, at('US'));
+  const [vetted] = vetSalaries([{ id: 'netflix:l8', title: 'Software Engineer (L8)', employmentType: 'Full-time', salary: l8 }], { stats: false });
   assert.equal(vetted.salary, null);
   assert.deepEqual(vetted.salaryFlag.codes, ['above_max']);
   // It never beats a plausible amount in the same posting, and prose millions are still not pay.
-  assert.deepEqual(triple(parseSalary('Salary: $200,000 - $250,000.\nThe range for this role is $1,300,000 - $1,500,000.', { countries: ['US'] })), [200000, 250000, 'USD']);
-  assert.equal(parseSalary('The range for this role is $1.3M - $1.5M.', { countries: ['US'] }), null);
+  assert.deepEqual(triple(parseSalary('Salary: $200,000 - $250,000.\nThe range for this role is $1,600,000 - $1,800,000.', { countries: ['US'] })), [200000, 250000, 'USD']);
+  assert.equal(parseSalary('The range for this role is $1.6M - $1.8M.', { countries: ['US'] }), null);
   // Netflix's sales "market range for roles in this area" stays null (DATA_SOURCES §7a).
   assert.equal(parseSalary('The overall market range for roles in this area of Netflix is typically $150,000 - $300,000. A portion of this compensation is variable.', { countries: ['US'] }), null);
 });
@@ -273,9 +279,12 @@ test('DQ-17: the scan flags a posted range the parser did not read (missed_salar
 });
 
 test('DQ-17: ranges that are null by rule are not misses, and rules the parser applies are not flags', () => {
-  // NVIDIA sales "cash compensation range" (base + variable), Netflix union floor and area band.
+  // Netflix union floor and area band. (NVIDIA's sales "cash compensation range" is read since fix
+  // wave 5 as on-target earnings, VT-7, and the scan agrees: no flag.)
+  const cash = '<p>Your cash compensation will be determined based on your location, experience and the pay of employees in similar positions with 85% paid through base salary and 15% variable compensation. The cash compensation range is 200,000 USD - 300,000 USD.</p>';
+  assert.equal(deriveSalary({ html: cash, title: 'Enterprise Account Manager' }, at('US')).kind, 'ote');
+  assert.deepEqual(scan(cash, ['US']).flags, []);
   for (const [html, countries] of [
-    ['<p>Your cash compensation will be determined based on your location, experience and the pay of employees in similar positions with 85% paid through base salary and 15% variable compensation. The cash compensation range is 200,000 USD - 300,000 USD.</p>', ['US']],
     ['<p>If so, pay for the position is governed by the currently effective applicable collective bargaining agreement and thus will be no less than $62.74 an hour and up to any better conditions.</p>', ['US']],
     ['<p>The overall market range for roles in this area of Netflix is typically $150,000 - $300,000. A portion of this compensation is variable.</p>', ['US']],
   ]) assert.deepEqual(scan(html, countries).flags, [], html.slice(0, 60));
@@ -300,7 +309,7 @@ const stored = (over) => ({
 const loc = (name, rawName, city, region, country, lat, lng) => ({ name, rawName, city, region, country, lat, lng, remote: false });
 
 test('delivery: relocateJobs re-derives text pay, levels and seniorityBasis on stored norm-5 jobs, then re-vets', () => {
-  assert.equal(NORMALIZER_VERSION, 'norm-9'); // fix wave 4 (docs/process/fix4-data.md) bumped norm-8
+  assert.equal(NORMALIZER_VERSION, 'norm-10'); // fix wave 5 (docs/process/fix5-data.md) bumped norm-9
   const krakow = loc('Krakow, Poland', 'Kraków, Poland', 'Krakow', null, 'PL', 50.06, 19.94);
   const waterloo = loc('Waterloo, Canada', 'Waterloo, ON, Canada', 'Waterloo', 'ON', 'CA', 43.46, -80.52);
   const jobs = [

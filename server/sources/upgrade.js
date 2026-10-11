@@ -7,7 +7,12 @@
 //     places, links encoded once, Part-time only when the posting backs it (DQ-9);
 //   - NVIDIA: hybrid- or on-site-tagged postings are not remote (DQ-12);
 //   - Google: decoded titles (DQ-16), the brand as the department (D-24);
-//   - every board: talent pools and general applications get `pool: true` (DQ-11).
+//   - every board: talent pools and general applications get `pool: true` (DQ-11);
+//   - Amazon (fix wave 5): the pay table read again from the stored description, so each row
+//     carries its places (DQ-33), virtual rows for unlisted states are dropped (DQ-41), identical
+//     rows are one zone, and a stated minimum, shift differential, lower base or annual figure is
+//     labelled (VT-17, VT-18, VT-19). The stored primary row (salary.text) stays the salary;
+//   - Meta (fix wave 5, DQ-42 / VT-20): salary.country from the range's "(IT)" tag.
 // Location fixes (DQ-4, DQ-10, D-23) need nothing here: relocateJobs re-geocodes stored
 // locations with server/geo.js. Pure and idempotent: a snapshot crawled with the fixed
 // adapters passes through unchanged. Unlike relocateJobs it may return FEWER jobs (Apple
@@ -17,9 +22,76 @@ import { upgradeAppleJobs } from './apple.js';
 import { upgradeEightfoldJobs } from './eightfold.js';
 import { upgradeGoogleJobs } from './google.js';
 import { markTalentPools } from './pool.js';
+import { amazonPayTable, amazonSalary } from './amazon.js';
+import { deriveSalary, withPayPlaces } from '../normalize.js';
+import { vetSalaries } from '../vet.js';
+import { htmlToText } from './util.js';
+
+/** One stored Amazon Job with its pay re-read from the stored table, or the same object. */
+function upgradeAmazonJob(j) {
+  if (!j || typeof j.id !== 'string' || !j.id.startsWith('amazon:')) return j;
+  const sal = j.salary || j.salaryRaw;
+  if (!sal || sal.source !== 'structured' || typeof sal.text !== 'string' || !j.descriptionHtml) return j;
+  // The stored salary is one table row (its line); a salary written by the current adapter (an
+  // annual figure, VT-19; rows with places) is not, and stays as it is.
+  if (amazonPayTable(`<p>${sal.text}</p>`).length !== 1) return j;
+  if (Array.isArray(sal.ranges) && sal.ranges.some((r) => r && Array.isArray(r.locations))) return j;
+  let table = amazonPayTable(j.descriptionHtml);
+  if (!table.some((r) => r.line === sal.text)) {
+    // VT-22: the stored description was trimmed and lost rows. The adapter kept every row in
+    // salary.ranges (label = the row's place, numbers as posted), so the table is rebuilt from them.
+    const own = amazonPayTable(`<p>${sal.text}</p>`)[0];
+    const rs = Array.isArray(sal.ranges) ? sal.ranges.filter((r) => r && r.label && Number.isFinite(r.min) && Number.isFinite(r.max)) : [];
+    table = rs.length > 1
+      ? rs.map((r) => {
+        const row = { location: String(r.label), min: r.min, max: r.max, currency: r.currency, interval: r.interval || 'year', line: `${r.label} - ${r.min} - ${r.max} ${r.currency} ${r.interval}` };
+        if (own && own.location.startsWith(row.location) && own.min === r.min && own.max === r.max && own.currency === r.currency && own.interval === row.interval) row.line = sal.text;
+        return row;
+      })
+      : [own];
+    if (!table.some((r) => r.line === sal.text)) table = [own, ...table];
+  }
+  const text = htmlToText(j.descriptionHtml);
+  const res = amazonSalary({}, table, { places: j.locations || [], primary: sal.text, text });
+  if (!res.salary) return j;
+  const fresh = withPayPlaces(deriveSalary({ title: j.title || '', employmentType: j.employmentType || '', text, html: '', salary: res.salary, payRanges: res.payRanges }, j.locations || []), res.payPlaces, j.locations || []);
+  if (!fresh) return j;
+  const out = { ...j, salary: fresh };
+  delete out.salaryRaw;
+  delete out.salaryFlag;
+  return out;
+}
+
+/** Stored Amazon Jobs -> as the current adapter reads their pay (fix wave 5), re-vetted. */
+export function upgradeAmazonJobs(jobs) {
+  if (!Array.isArray(jobs) || !jobs.some((j) => j && typeof j.id === 'string' && j.id.startsWith('amazon:'))) return jobs;
+  let changed = false;
+  const out = jobs.map((j) => { const u = upgradeAmazonJob(j); if (u !== j) changed = true; return u; });
+  return changed ? vetSalaries(out) : jobs;
+}
+
+/** Stored Meta Jobs: salary.country from the range's own tag ("€89,000/year to €114,000/year + bonus + equity (IT)"). */
+export function upgradeMetaJobs(jobs) {
+  if (!Array.isArray(jobs)) return jobs;
+  let changed = false;
+  const fix = (s) => {
+    if (!s || s.country || s.source !== 'structured') return s;
+    const m = /\(([A-Z]{2})\)\s*$/.exec(String(s.text || ''));
+    if (!m) return s;
+    changed = true;
+    return { ...s, country: m[1] === 'UK' ? 'GB' : m[1] };
+  };
+  const out = jobs.map((j) => {
+    if (!j || typeof j.id !== 'string' || !j.id.startsWith('meta:')) return j;
+    const s = fix(j.salary);
+    const r = fix(j.salaryRaw);
+    return s === j.salary && r === j.salaryRaw ? j : { ...j, ...(j.salary ? { salary: s } : {}), ...(j.salaryRaw ? { salaryRaw: r } : {}) };
+  });
+  return changed ? out : jobs;
+}
 
 /** Stored Jobs of one board -> the same Jobs as the current adapters would have produced. */
 export function upgradeStoredJobs(jobs) {
   if (!Array.isArray(jobs)) return jobs;
-  return markTalentPools(upgradeGoogleJobs(upgradeEightfoldJobs(upgradeAppleJobs(jobs))));
+  return markTalentPools(upgradeMetaJobs(upgradeAmazonJobs(upgradeGoogleJobs(upgradeEightfoldJobs(upgradeAppleJobs(jobs))))));
 }

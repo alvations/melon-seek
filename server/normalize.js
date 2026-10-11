@@ -28,11 +28,16 @@ import { vetSalaries, salaryChecks } from './vet.js';
  * fix wave 4 (docs/process/fix4-data.md: salary.places and per-place Juice, the Google manager
  * ladder, Netflix "(L5)" support titles, ZIP-code states, store and data-centre town aliases,
  * another country's pay line is not the job's, NVIDIA "Italy:" sentences, the Netflix internship
- * band, repeated Microsoft level paragraphs, twice-escaped NVIDIA references, http(s) links). Stored
+ * band, repeated Microsoft level paragraphs, twice-escaped NVIDIA references, http(s) links); norm-10 =
+ * fix wave 5 (docs/process/fix5-data.md: Amazon pay rows tied to their places and identical rows one
+ * zone, virtual-location rows, salary.kind 'minimum', includesShiftDifferential, statedBase, stated
+ * annual figures, "$" in Mexico / Australia / New Zealand / Singapore / Hong Kong, NVIDIA cash
+ * compensation as 'ote', Meta salary.country, Amazon "III", Meta leadership and Microsoft IC/M
+ * levels, ISO-3 country codes, "20h per week"). Stored
  * snapshots are upgraded with relocateJobs (which also re-derives text-sourced pay, the
  * pay labels and the level, then re-runs the vetting gate) and rekeyBoardJobs.
  */
-export const NORMALIZER_VERSION = 'norm-9';
+export const NORMALIZER_VERSION = 'norm-10';
 
 const NO_EXTRAS = Object.freeze({ equity: false, bonus: false });
 
@@ -108,8 +113,10 @@ export function deriveSalary(raw, locations = []) {
   // DQ-13: a job whose US locations are all in the SF Bay Area / NYC uses that range.
   const areas = payAreas(locations);
   const parsed = parseSalary(text, { countries, areas }) || (raw.text && html ? parseSalary(htmlToText(html), { countries, areas }) : null);
-  // zones (F2): the text's distinct pay ranges merged with the adapter's tier count.
-  const adapterZones = Math.max(Number(raw.salary && raw.salary.zones) || 0, ranges.length);
+  // zones (F2): the text's distinct pay ranges merged with the adapter's tier count. Fix wave 5
+  // (DQ-33): identical ranges are one zone (three equal Amazon rows are one range, not "3 places").
+  const distinctRanges = new Set(ranges.map((r) => `${r.min}|${r.max}|${String(r.currency || '').toUpperCase()}|${r.interval || 'year'}`)).size;
+  const adapterZones = Math.max(Number(raw.salary && raw.salary.zones) || 0, distinctRanges);
   const zonesOf = (s) => Math.max(1, s.zones || 1, adapterZones, (parsed && parsed.zones) || 0);
   // P-1 / P-8: on-target earnings and the programme length, from the posting's own words.
   const terms = (s) => payTerms(s, { text, title: raw.title || '', employmentType: raw.employmentType || '', salesRole: isSalesTitle(raw.title) });
@@ -121,7 +128,8 @@ export function deriveSalary(raw, locations = []) {
     const fromText = toJobSalary(parsed, { source: 'text' });
     if (fromText && !salaryChecks(who, fromText).length) return terms({ ...fromText, zones: zonesOf(fromText), structuredRejected: hard.map((c) => c.code) });
   }
-  if (salary && ranges.length > 1) salary.ranges = ranges.slice(0, 12).map(({ min, max, currency, interval, label }) => ({ min, max, currency, interval, ...(label ? { label } : {}) }));
+  // DQ-33 / VT-15: each range keeps the places it was posted for (ranges[].locations, as Apple's).
+  if (salary && ranges.length > 1) salary.ranges = ranges.slice(0, 12).map(({ min, max, currency, interval, label, locations }) => ({ min, max, currency, interval, ...(label ? { label } : {}), ...(Array.isArray(locations) && locations.length ? { locations: [...locations] } : {}) }));
   if (!salary) salary = toJobSalary(parsed, { source: 'text' });
   if (salary) salary.zones = zonesOf(salary);
   return salary ? terms(salary) : salary;

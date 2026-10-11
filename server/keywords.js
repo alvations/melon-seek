@@ -1087,6 +1087,14 @@ export function seniorityBasis(title, { company = null } = {}) {
  */
 export function jobSeniority({ title = '', text = '', company = null } = {}) {
   const byTitleLevel = seniorityOf(title, company);
+  // VT-8 (fix wave 5, lead decision): Microsoft's own level in the pay sentence ("Technical
+  // Program Management IC5 - The typical base pay range …") beats the title: a "Director, …" at
+  // IC5 is an individual contributor (Staff+), a "Senior Finance Manager" at IC4 is Senior. On
+  // the 2026-10-11 crawl 155 of 998 postings that state both disagree.
+  if (String(company || '').toLowerCase() === 'microsoft' && byTitleLevel.level !== 'Intern') {
+    const own = seniorityFromPay(text, { company });
+    if (own) return { level: own.level, basis: 'pay' };
+  }
   if (byTitleLevel.basis !== 'default') return byTitleLevel;
   const pay = seniorityFromPay(text, { company });
   return pay ? { level: pay.level, basis: 'pay' } : byTitleLevel;
@@ -1108,6 +1116,11 @@ const BY_DEFAULT = Object.freeze({ level: 'Mid', basis: 'default' });
 //            level (4/5 postings post the L5 band, $466K-$750K), so it takes that one.
 const GENERIC_RUNG = [null, 'Entry', 'Mid', 'Mid', 'Senior', 'Staff+', 'Staff+', 'Staff+', 'Staff+', 'Staff+'];
 const GOOGLE_RUNG = [null, 'Entry', 'Entry', 'Mid', 'Senior', 'Staff+', 'Staff+', 'Staff+', 'Staff+', 'Staff+'];
+//   amazon   (fix wave 5, DQ-36 / VT-21) I = L4 Entry, II = L5 Mid, III = L6 Senior, IV+ Senior:
+//            US base medians on 2026-10-11, SDE III $198K = "Sr." SDE $198K, Program Manager III
+//            $175K = Sr. Program Manager $175K, Scientist III $216K vs Sr. $197K; II $169K =
+//            unlevelled SDE $169K.
+const AMAZON_RUNG = [null, 'Entry', 'Mid', 'Senior', 'Senior', 'Staff+', 'Staff+', 'Staff+', 'Staff+', 'Staff+'];
 const L_LADDER = [null, 'Entry', 'Entry', 'Entry', 'Mid', 'Senior', 'Staff+', 'Staff+', 'Staff+', 'Staff+', 'Staff+'];
 const ROMAN = Object.freeze({ I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6 });
 const ROLE_NOUN = String.raw`(?:engineer(?:ing)?|scientist|developer|researcher|analyst|designer|architect|manager|technician|specialist|consultant|administrator|accountant|planner|inspector|representative|executive|programmer|writer|artist|producer|editor|recruiter|coordinator|advisor|partner|lead)`;
@@ -1150,7 +1163,7 @@ function ladderRung(t, company) {
     if (lv) return lv;
   }
   const r = ROMAN_RE.exec(t);
-  if (r) return rungLevel(ROMAN[r[1] || r[2]], slug === 'google' ? GOOGLE_RUNG : GENERIC_RUNG);
+  if (r) return rungLevel(ROMAN[r[1] || r[2]], slug === 'google' ? GOOGLE_RUNG : slug === 'amazon' ? AMAZON_RUNG : GENERIC_RUNG);
   return null;
 }
 
@@ -1206,6 +1219,23 @@ export function seniorityFromPay(text, { company = null } = {}) {
 // executive, so these phrases never make a title Director+.
 // ("People Business Partner Director" is an HR director, so "business partner" is left out.)
 const NON_EXEC_DIRECTOR_RE = /\b(?:accounts?|(?<!\bbusiness\s)partner|client|test)\s+director\b/gi;
+// VT-21 (fix wave 5): Amazon's "Data Center Chief Engineer" is a facilities rung ($131K median, 9
+// postings), not an executive.
+const NON_EXEC_CHIEF_RE = /\b(?:data\s+cent(?:er|re)|facilit(?:y|ies)|site|plant|building)\s+chief\s+engineers?\b/gi;
+// VT-21: an executive word inside the team name after the role ("Communications Specialist, CEO &
+// Financial Comms") describes the team, not the job: the role before the comma decides when it
+// names its own role noun and no executive word.
+const EXEC_WORD_RE = /\b(?:director|vp|svp|evp|vice[- ]president|head of|chief|cto|cfo|ceo|coo|ciso|cmo|cpo|president|general manager|partner,)\b/i;
+const ROLE_HEAD_RE = /\b(?:specialist|engineer|analyst|associate|coordinator|manager|scientist|developer|designer|technician|writer|representative|consultant|accountant|recruiter|partner|advisor|administrator|architect|planner|strategist|counsel|attorney|lead)s?\b/i;
+function execTail(t) {
+  const i = t.search(/,|\s[-–—|]\s/);
+  if (i <= 0) return false;
+  const head = t.slice(0, i);
+  return ROLE_HEAD_RE.test(head) && !EXEC_WORD_RE.test(head) && !/^head\b/i.test(head);
+}
+// DQ-37 (fix wave 5): Meta's "(Technical Leadership)" and "(Leadership)" titles are its senior-most
+// hiring bands: 43 postings, median US base $260K, above Meta's Senior ($206K) and Staff+ ($238K).
+const META_LEADERSHIP_RE = /\((?:technical\s+)?leadership\)/i;
 // BP-11 (fix wave 3): "Art Director", "Creative Director" and "Technical Director" are senior
 // individual-contributor titles in design, animation and engineering, not executives. Evidence
 // (2026-10-11 beta crawl, docs/process/fix3-data.md): Apple's 14 pay a median of $222K, against
@@ -1256,9 +1286,9 @@ function seniorityOf(title, company = null) {
   if (!t.trim()) return BY_DEFAULT;
   const icDirector = IC_DIRECTOR_RE.test(t);
   IC_DIRECTOR_RE.lastIndex = 0;
-  const exec = t.replace(NON_EXEC_DIRECTOR_RE, ' ').replace(IC_DIRECTOR_RE, ' ');
-  if (/\b(?:director|vp|svp|evp|vice[- ]president|head of|chief|cto|cfo|ceo|coo|ciso|cmo|cpo|president|general manager|partner,)\b/i.test(exec)
-    || /^head\b/i.test(t)) return byTitle('Director+');
+  const exec = t.replace(NON_EXEC_DIRECTOR_RE, ' ').replace(IC_DIRECTOR_RE, ' ').replace(NON_EXEC_CHIEF_RE, ' engineer ');
+  if ((EXEC_WORD_RE.test(exec) && !execTail(exec)) || /^head\b/i.test(t)) return byTitle('Director+');
+  if (String(company || '').toLowerCase() === 'meta' && META_LEADERSHIP_RE.test(t)) return byTitle('Staff+');
   if (/\b(?:intern(?:ship)?s?|fellowships?|fellows program|co-?op|apprentice(?:ship)?|summer (?:analyst|associate|student)|residency|resident)\b/i.test(t)
     || (FELLOW_RE.test(t) && !SENIOR_FELLOW_RE.test(t)) || STUDENT_RE.test(t)) return byTitle('Intern');
   if (/\b(?:staff|principal|distinguished)\b/i.test(t) || SENIOR_FELLOW_RE.test(t)) return byTitle('Staff+');
