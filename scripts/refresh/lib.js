@@ -251,16 +251,20 @@ export function constInitializer(src, name) {
  * (e.g. `const US_SS_BASE_2026 = 184500;`, `const GB_RUK = [[37700, 0.20], [INF, 0.45]]`).
  * Identifiers it references (INF, other top-level constants) are resolved from the
  * same source, recursively; `Object.freeze(x)` and `Infinity` are supported. The
- * code runs in an empty vm context with a 50 ms timeout. Returns undefined when the
- * constant is missing or not a plain literal (functions, imports).
+ * code runs in an empty vm context with a time limit (EXTRACT_TIMEOUT_MS). Returns
+ * undefined when the constant is missing or not a plain literal (functions, imports).
  */
+// The limit only guards against a runaway initializer in our own source files. It is wall-clock
+// time, so a busy machine can stretch even a one-number literal: at 50 ms, full `npm test` runs
+// under load sometimes reported real constants (MIN_BIN_PX, JUICE_ANCHORS) as "not found".
+export const EXTRACT_TIMEOUT_MS = 2000;
 export function extractConst(src, name, _depth = 0) {
   const init = constInitializer(src, name);
   if (init == null || _depth > 25) return undefined;
   const sandbox = { INF: Infinity, Infinity, NaN, Object: { freeze: (x) => x, fromEntries: Object.fromEntries, keys: Object.keys, entries: Object.entries }, Math };
   for (let tries = 0; tries < 40; tries++) {
     try {
-      const v = vm.runInNewContext(`(${init})`, sandbox, { timeout: 50 });
+      const v = vm.runInNewContext(`(${init})`, sandbox, { timeout: EXTRACT_TIMEOUT_MS });
       try { return structuredClone(v); } catch { return v; } // plain objects of this realm (functions stay as-is)
     } catch (err) {
       const m = err && /(\w+) is not defined/.exec(err.message);

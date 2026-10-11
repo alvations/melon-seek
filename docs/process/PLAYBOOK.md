@@ -158,6 +158,10 @@ These are the rules learned the hard way on 2026-10-10.
   (the shared checkout, `.claude/worktrees/`, the scratchpad). On 2026-10-10 the beta platform
   lane was cut off after editing 9 files without committing. The lead saved them as a WIP commit
   and a new agent resumed from it. Ask long lanes to commit locally at milestones.
+- A wall-clock time limit inside a helper is a timing test too. `extractConst` (scripts/refresh/lib.js)
+  evaluated each constant with a 50 ms vm limit, so a full `npm test` on a loaded machine sometimes
+  reported real constants as "not found" (MIN_BIN_PX in the registry test, the Juice anchors in the
+  policy test). The limit is 2 s since 2026-10-11. Look for such limits before calling a failure a flake.
 - Never run `playwright install`. Chromium is at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`,
   with Playwright in `<scratchpad>/pw/node_modules`.
 - The Long Tasks API misses work after `fetch()` resolves. Read long tasks from a Chrome trace.

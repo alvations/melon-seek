@@ -142,3 +142,13 @@ test('staleness gate agrees with the refresh: every id the offline dry run repor
     fs.rmSync(empty, { recursive: true, force: true });
   }
 });
+
+test('extractConst: an initializer slower than 50 ms still resolves (load-proof time limit)', async () => {
+  // Root cause of the intermittent "constant MIN_BIN_PX not found" registry failure: the vm
+  // time limit was 50 ms of wall-clock time, which a loaded machine can exceed. This literal
+  // takes well over 50 ms on any machine, and must still be read.
+  const { extractConst, EXTRACT_TIMEOUT_MS } = await import('../scripts/refresh/lib.js');
+  assert.ok(EXTRACT_TIMEOUT_MS >= 1000);
+  const src = 'const SLOW = (() => { const t = Date.now(); while (Date.now() - t < 120) {} return 34; })();';
+  assert.equal(extractConst(src, 'SLOW'), 34);
+});
