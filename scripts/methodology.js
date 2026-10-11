@@ -53,7 +53,8 @@ const DEFAULT_DESCRIPTION = "How melon·seek's Juice Score is calculated: the fo
 /**
  * The shared <head> and site bar. `up` is the path to the site root ("../" or "../../").
  * D-37: the beta copy (channel 'beta') says so like the app does: <html data-channel="beta">, "melon·seek
- * beta" in the title and the brand, and a link to the main site (one folder above the beta site).
+ * beta" in the title and the brand. (No link to the main site: each site's links must stay inside it,
+ * scripts/links-policy.js; the app's Beta tag, one tap away, links there.)
  */
 const isBeta = (channel) => channel === 'beta';
 function head({ title, description, up, css, channel = 'stable' }) {
@@ -75,7 +76,7 @@ function siteBar(up, extra = '', channel = 'stable') {
   const beta = isBeta(channel);
   return `<nav class="doc-top" aria-label="Site">
     <a class="doc-brand" href="${up}"><img src="${up}favicon.svg" alt="" width="22" height="22"> melon·seek${beta ? ' beta' : ''}</a>
-    <span class="doc-top-links">${extra}${beta ? `<a href="${up}../">Main site</a>` : ''}<a href="${up}">← Back to the jobs</a></span>
+    <span class="doc-top-links">${extra}<a href="${up}">← Back to the jobs</a></span>
   </nav>`;
 }
 

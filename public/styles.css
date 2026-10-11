@@ -1403,7 +1403,8 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
 @media (max-width: 860px) and (max-height: 500px) {
   html[data-channel="beta"] .data-badge .badge-label::before { content: attr(data-micro); }
   html[data-channel="beta"] .brand { display: none; }
-  html[data-channel="beta"] .company-bar { flex: 0 1 240px; }
+  html[data-channel="beta"] .company-bar { flex: 0 0 auto; max-width: 240px; } /* the search box gives way first */
+  html[data-channel="beta"] .topbar .seg button { padding: 0 6px; } /* the labels stay (QA UX-13); a little less padding */
 }
 /* UX-19: on phones the Beta tag and the logo link are 44 x 44px boxes themselves (not only a ::before hit area);
    negative margins keep the row's layout as it was. */
