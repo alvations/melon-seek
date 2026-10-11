@@ -64,6 +64,7 @@ interface every agent built against), [../ARCHITECTURE.md](../ARCHITECTURE.md),
 | Beta fix lane: sources and locations | [prompts/fix-beta-sources.md](prompts/fix-beta-sources.md) | [fix-beta-sources.md](fix-beta-sources.md) | `server/sources/{apple,google,eightfold,pool,upgrade}.js`, `server/geo.js`, `data/cities.json` |
 | Beta fix lane: pay and levels | [prompts/fix-beta-pay.md](prompts/fix-beta-pay.md) | [fix-beta-pay.md](fix-beta-pay.md) | `server/{salary,keywords,normalize}.js`, `scripts/vet-salaries.js` |
 | Beta fix lane: app shell | [prompts/fix-beta-app.md](prompts/fix-beta-app.md) | [fix-beta-app.md](fix-beta-app.md) | `public/app.js`, `index.html`, `styles.css`, `public/features/**` |
+| Beta fix lane: loading, server, chart and map | [prompts/fix-beta-platform.md](prompts/fix-beta-platform.md) | [fix-beta-platform.md](fix-beta-platform.md) | `public/api.js`, `scripts/build-static.js`, `server/index.js`, `public/viz/{chart,map}.js` |
 | Desktop / mobile QA, mobile perf, fixes | [prompts/qa-desktop.md](prompts/qa-desktop.md), [qa-mobile.md](prompts/qa-mobile.md), [perf-mobile.md](prompts/perf-mobile.md), [fix-frontend.md](prompts/fix-frontend.md) | [qa-desktop.md](qa-desktop.md), [qa-mobile.md](qa-mobile.md), [perf-mobile.md](perf-mobile.md), [fix-frontend.md](fix-frontend.md) | `docs/QA.md`, `test/e2e/*-qa.e2e.js`, `public/unpack-worker.js` |
 
 ## Replaying the build from scratch

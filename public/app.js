@@ -811,6 +811,9 @@ async function loadJobs({ refresh = false } = {}) {
   try {
     const res = await dataApi.getJobs(jobsQuery(S.c), { refresh, signal: abortCtl.signal, onUpdate });
     if (seq !== loadSeq) return;
+    // DQ-7 / D-20 (docs/CONTRACT.md): nothing to show for this company (its saved list didn't load,
+    // or a beta board has no snapshot yet). An error with Retry, never an empty board or demo data.
+    if (res?.unavailable) throw new Error(res.error || 'This board isn’t available right now.');
     if (!(await applyJobs(res, seq))) return;
     if (refresh) toast(data.mode === 'live' ? 'Fetched fresh from the live board' : bundleOnly(data.company) ? 'This board is only available as a saved snapshot' : 'Live board unreachable — showing fallback data');
   } catch (err) {
@@ -1424,6 +1427,7 @@ function prefetchSaved() {
     savedFetches.add(slug);
     (async () => {
       const res = await dataApi.getJobs(jobsQuery(slug));
+      if (res?.unavailable) { savedFetches.delete(slug); return; } // nothing loaded (DQ-7): no count; asked again later
       const jobs = Array.isArray(res?.jobs) ? res.jobs : [];
       const source = res?.company?.source || companyInfo(slug)?.source || null;
       for (let i = 0; i < jobs.length; i += PREPARE_CHUNK) { prepare(jobs.slice(i, i + PREPARE_CHUNK), { source }); await yieldTask(); }
@@ -2552,12 +2556,35 @@ function renderResults() {
   buildWindow(list);
 }
 
-/** Scroll the list to its top, also mid-fling: a fling still running would carry on from the top (M-19). */
+/**
+ * Scroll the list to its top, also mid-fling: a fling still running would carry on from the top (M-19).
+ * One frame of overflow: hidden is not always enough (Chromium's fling can outlive it and land a card
+ * or two down), so the top is held for up to HOLD_TOP_MS, and handed back at once if the person
+ * touches or scrolls the list again.
+ */
+const HOLD_TOP_MS = 600;
 function toTop(list) {
   if (!list.scrollTop) return;
   list.style.overflowY = 'hidden'; // ends a touch fling (iOS and Chrome stop momentum on a non-scrolling box)
   list.scrollTop = 0;
-  requestAnimationFrame(() => { list.style.overflowY = ''; });
+  let handedBack = false;
+  const release = () => {
+    if (handedBack) return;
+    handedBack = true;
+    list.style.overflowY = '';
+    list.removeEventListener('touchstart', release);
+    list.removeEventListener('wheel', release);
+  };
+  list.addEventListener('touchstart', release, { passive: true });
+  list.addEventListener('wheel', release, { passive: true });
+  const until = performance.now() + HOLD_TOP_MS;
+  const hold = () => {
+    if (handedBack) return;
+    if (list.scrollTop) list.scrollTop = 0;
+    if (performance.now() < until) requestAnimationFrame(hold);
+    else release();
+  };
+  requestAnimationFrame(hold);
 }
 
 /* M-20: the results list keeps only the cards near its viewport in the page: a window of cards between

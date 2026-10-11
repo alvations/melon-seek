@@ -176,7 +176,6 @@ npm run build          # -> dist/
 | `dist/api/jobs/<slug>.json` | The company's job list: its snapshot (`mode: "snapshot"`), or demo data if the build had no snapshot. Descriptions are left out and the list is packed (see below). Each list is kept under 1.5 MB. |
 | `dist/api/cities.json` | `data/cities.json`, the Juice Score inputs (89 cities). |
 | `dist/api/desc/<slug>/<id>.json` | One job's `descriptionHtml` (plus its `sections`, if they were moved out of the list), loaded when the job is opened. |
-| `dist/api/demo/<slug>.json` | Demo data (`mode: "demo"`). Only written when the main list is a real snapshot. |
 | `dist/api/history/<slug>.json` | The compact ledger, `{ id: [firstSeenAt, postedAt, repostCount, repostFirstSeenAt?] }` (open postings; `server/history.js#compactLedger`). It's `{}` when there's no ledger. `api.js` merges it into jobs fetched live in the browser. |
 | `dist/api/meta/<slug>.json` | The list's `meta`: `{ compstimate, history }`. Live browser fetches reuse it. |
 | `dist/api/market.json` | Market comps ("same role elsewhere"), from `scripts/build-market.js`. Vetted base-pay ranges only, ≤ 150 kB. |
@@ -233,10 +232,11 @@ In static mode, `public/api.js` runs the fallback chain in the browser:
 1. A live fetch from the board, using the same adapters and normalizer as the
    server.
 2. The bundled snapshot.
-3. The bundled demo data.
-4. Demo data generated in the browser.
 
-Custom boards try the live fetch and otherwise show demo data. Browsers only
+If neither loads, the page says the saved list didn't load and offers Retry. It
+never shows demo postings under a real company's name (docs/CONTRACT.md,
+"Nothing to show"). Custom boards ("Add board") try the live fetch and otherwise
+show demo data, labelled as demo. Browsers only
 allow cross-origin requests when the board API permits them:
 
 - **Greenhouse** is built for client-side use, so live fetches are attempted.
@@ -448,7 +448,10 @@ Contract: [docs/CONTRACT.md](docs/CONTRACT.md) "v3 additions"; build log:
   problem there is a warning annotation, not a failure.
 - **Server mode:** `/api/companies` lists the stable companies unless the server
   runs with `MELON_CHANNEL=beta` (`MELON_CHANNEL=beta npm start`).
-  `/api/jobs?company=<beta slug>` works either way.
+  `/api/jobs?company=<beta slug>` works either way. The server reads the beta
+  snapshots from `data/beta/snapshots/` (`MELON_BETA_SNAPSHOT_DIR`, then
+  `MELON_SNAPSHOT_DIR`) and never fetches a beta board live. A beta company with
+  no snapshot reads "not available yet", never demo data.
 - **Try it locally:**
 
   ```sh

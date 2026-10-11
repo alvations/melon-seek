@@ -879,3 +879,24 @@ screenshots in `docs/screenshots/`.
 - Verified on the integrated tree: npm test 735/735 with 2 to-dos (the platform lane's DQ-7); build OK (beta 5/5, Apple 4,882 postings, list 2.19 MB).
 - Full e2e 188/195 passed, 3 skipped by design. Of the 4 failures, 3 are the platform lane's red tests (D-20, D-29, M-23). The 4th was the app lane's shared-decision-1 test: written before the pay lane's ladders, it assumed one stated-mid Netflix role, and 21 now state "L4". The test now injects onto a default role and expects exactly the stated set, which is stricter; the group passes 11/11.
 - QA red tests that now pass: D-17 to D-19, D-21 to D-28 and D-30; M-19 to M-22 and M-24 to M-27; DQ-1 to DQ-6, DQ-8 to DQ-10, DQ-13 and DQ-15 to DQ-17.
+
+### Beta fix wave, batch 2: loading, server, chart and map (2026-10-11)
+- **fix-beta-platform** (e4a97ea, rebased by the lane itself onto 0d3bbde).
+  - A container restart cut the first run off after it had edited 9 files without committing. The lead saved them as a WIP commit (f3db92c), and a new agent resumed from it, checked each change and finished the lane. The log says so at the top.
+  - D-20: server mode reads the beta snapshots (`MELON_BETA_SNAPSHOT_DIR`, then `MELON_SNAPSHOT_DIR`) and never fetches a live: false board live. A beta board without a snapshot is "not available yet", never demo data.
+  - DQ-7: a built-in company whose saved list fails to load is `unavailable` with a plain sentence and Retry, never demo postings. The build no longer ships `api/demo/<slug>.json` or demo description files (773 files per site). "Add board" keeps its labelled demo.
+  - D-29: the Ranges tooltip names a currency once.
+  - M-23: map pins and clusters say "4.5K", not "999+".
+  - The chart groups by `displayLevel`.
+  - test/links-policy.test.js uses its own empty inputs plus a one-posting fixture (about 5 s; it used to time out on local beta data). The same isolation was added to og, perf-mobile and static-build.
+- Integration:
+  - the lane's patches: app.js shows `unavailable` as "Couldn't load this board" with Retry; the README no longer mentions api/demo and describes the server's beta folder; the test-isolation patch;
+  - registry lines re-resolved.
+- One regression, found and fixed by the lead:
+  - M-19 failed 1 in 3 even on a quiet machine. `toTop()` hid overflow for one frame to stop a fling, but Chromium's fling outlived it and the list landed about 271 px (two cards) down after a sort.
+  - The top is now held for up to 600 ms and handed back at once on a touch or wheel. M-19 then passed 6 of 6, and the phone and app groups 54 of 55 (1 skipped by design).
+- Verified on the integrated tree: npm test 748/748 with 0 to-dos (every beta data-check test is now a plain passing test); build OK (beta 5/5, no demo files); full e2e 191/195 before the M-19 fix (the 1 failure was M-19; 3 skipped by design).
+- Beta fix wave totals:
+  - all 30 of the beta QA bug tests pass: D-17 to D-30 and M-19 to M-27, one test for each of the 14 desktop and 9 mobile bugs, and a few cover two IDs;
+  - all 26 data-check tests pass;
+  - not fixed: DQ-4's remaining 370 postings in cities with no Juice record, Romanian lei pay (no RON rate), and hybrid work, which isn't modelled.

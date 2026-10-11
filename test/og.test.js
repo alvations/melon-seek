@@ -136,7 +136,10 @@ fs.writeFileSync(path.join(SNAP_DIR, 'anthropic.json'), JSON.stringify({
 const run = promisify(execFile);
 async function build(name, siteUrl) {
   const out = path.join(tmp, name);
-  const env = { ...process.env, MELON_SNAPSHOT_DIR: SNAP_DIR, MELON_HISTORY_DIR: path.join(SNAP_DIR, '..', 'og-history') };
+  // Empty beta inputs too: the local beta snapshots would make each build take minutes.
+  const noBeta = path.join(SNAP_DIR, '..', 'og-no-beta');
+  fs.mkdirSync(noBeta, { recursive: true });
+  const env = { ...process.env, MELON_SNAPSHOT_DIR: SNAP_DIR, MELON_HISTORY_DIR: path.join(SNAP_DIR, '..', 'og-history'), MELON_BETA_SNAPSHOT_DIR: noBeta, MELON_BETA_HISTORY_DIR: noBeta, MELON_BETA_COMPANIES: '' };
   delete env.SITE_URL;
   if (siteUrl !== undefined) env.SITE_URL = siteUrl;
   await run(process.execPath, [path.join(ROOT, 'scripts', 'build-static.js'), '--out', out], { cwd: ROOT, env, maxBuffer: 16 * 1024 * 1024 });

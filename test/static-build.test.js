@@ -38,9 +38,12 @@ const freshApi = () => import(`${pathToFileURL(path.join(DIST, 'api.js')).href}?
 
 function build(out, env) {
   // Every build gets its own out dir and its own snapshot/history dirs, so
-  // parallel test files never share state (and local data/ is never read).
+  // parallel test files never share state (and local data/ is never read; the beta
+  // inputs too, or the local beta snapshots make each build take minutes).
+  const none = `${out}-no-beta`;
+  fs.mkdirSync(none, { recursive: true });
   const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'build-static.js'), '--out', out], {
-    cwd: ROOT, env: { ...process.env, ...env }, encoding: 'utf8', timeout: 120000,
+    cwd: ROOT, env: { ...process.env, MELON_BETA_SNAPSHOT_DIR: none, MELON_BETA_HISTORY_DIR: none, MELON_BETA_COMPANIES: '', ...env }, encoding: 'utf8', timeout: 120000,
   });
   assert.equal(r.status, 0, `build failed:\n${r.stdout}\n${r.stderr}`);
   return r.stdout;

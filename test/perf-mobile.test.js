@@ -55,7 +55,8 @@ before(async () => {
     fs.writeFileSync(path.join(snaps, 'anthropic.json'), JSON.stringify({ mode: 'snapshot', fetchedAt: '2026-10-01T00:00:00.000Z', jobs: normalizeJobs(fx.jobs.map(mapGreenhouseJob), getCompany('anthropic')) }));
   }
   const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'build-static.js'), '--out', DIST], {
-    cwd: ROOT, env: { ...process.env, MELON_SNAPSHOT_DIR: snaps, MELON_HISTORY_DIR: hist }, encoding: 'utf8', timeout: 180000,
+    // Empty beta inputs too: the local beta snapshots would make this build take minutes.
+    cwd: ROOT, env: { ...process.env, MELON_SNAPSHOT_DIR: snaps, MELON_HISTORY_DIR: hist, MELON_BETA_SNAPSHOT_DIR: hist, MELON_BETA_HISTORY_DIR: hist, MELON_BETA_COMPANIES: '' }, encoding: 'utf8', timeout: 180000,
   });
   assert.equal(r.status, 0, `build failed:\n${r.stdout}\n${r.stderr}`);
   globalThis.MELON_STATIC = true;
