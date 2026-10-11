@@ -32,7 +32,8 @@ test('fitSnapshot: the posting budget keeps salaried then newest, in board order
   const jobs = Array.from({ length: 300 }, (_, i) => mk(i, i % 3 !== 0));
   const r = fitSnapshot(jobs, payload, 50 * 1024 * 1024, { maxPostings: 120 });
   assert.equal(r.jobs.length, 120);
-  assert.deepEqual(r.capped, { kept: 120, total: 300, by: 'postings', rule: CAP_RULE, limit: 120 });
+  // salaried: how many of the whole board post pay (2 in 3 here), so the page can show the board's share (MR-14).
+  assert.deepEqual(r.capped, { kept: 120, total: 300, by: 'postings', rule: CAP_RULE, limit: 120, salaried: 200 });
   assert.equal(r.trimmedTo, null, 'under the file budget: descriptions kept whole');
   assert.ok(r.jobs.every((j) => j.salary), 'salaried first');
   const ids = r.jobs.map((j) => Number(j.id.split(':')[1]));
