@@ -1405,3 +1405,10 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
   html[data-channel="beta"] .brand { display: none; }
   html[data-channel="beta"] .company-bar { flex: 0 1 240px; }
 }
+/* UX-19: on phones the Beta tag and the logo link are 44 x 44px boxes themselves (not only a ::before hit area);
+   negative margins keep the row's layout as it was. */
+@media (max-width: 860px) {
+  .beta-tag { min-width: 44px; min-height: 44px; margin: -12px 0; }
+  .brand { min-width: 44px; min-height: 44px; justify-content: center; margin: -9px -9px; }
+  .beta-tag::before, .brand::before { content: none; }
+}

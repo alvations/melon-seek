@@ -131,7 +131,9 @@ const initials = (words) => words.split(/[\s-]+/).filter(Boolean).map((w) => w[0
  * @returns {string}
  */
 export function readableTitle(title) {
-  let t = String(title || '');
+  // UX-32: a list number left at the front of a posted title ("8. Mixed Signal Design Engineer") is not part
+  // of the role's name; the drawer still shows the posted title ("Posted as …").
+  let t = String(title || '').replace(/^\s*\d{1,2}[.)]\s+(?=[A-Za-z])/, '');
   // "Forward Deployed Engineer (FDE)" / "Go-To-Market (GTM)" -> drop the repeat: the
   // parenthesis spells the initials of words earlier in the title.
   t = t.replace(/\s*\(([A-Z]{2,5})\)/g, (m, ab, at) => {

@@ -1362,7 +1362,10 @@ function makeBadgeDetails() {
   const err = h('pre', { class: 'badge-error', hidden: true });
   const refresh = MOCK ? null : h('button', { type: 'button', class: 'btn btn--ghost btn--sm btn--block', onclick: () => { closePopover(false); loadJobs({ refresh: true }); } }, 'Refresh from the live board');
   const csv = h('div');
-  const el = h('div', { class: 'badge-details' }, ...nn(tip, dl, err, refresh, csv));
+  // UX-23: what the beta site is, in words a touch screen can read (the Beta tag's hover title).
+  const betaNote = CHANNEL === 'beta' ? h('p', { class: 'muted badge-beta' }, 'You’re on the beta site, which adds big-tech companies’ own careers sites. ',
+    h('a', { href: new URL('../', location.href).href }, 'Go to the main site')) : null;
+  const el = h('div', { class: 'badge-details' }, ...nn(tip, dl, err, refresh, csv, betaNote));
   function sync() {
     const info = badgeInfo();
     const c = data.company || {};
@@ -1987,10 +1990,10 @@ function makeSalary({ compact = false } = {}) {
   const vals = h('div', { class: 'range-vals' }, h('label', null, h('span', null, 'Min $/yr'), minOut), h('span', { class: 'range-dash' }, '–'), h('label', null, h('span', null, 'Max $/yr'), maxOut));
   const understood = h('p', { class: 'fnote salary-read', role: 'status', hidden: true });
   const toggle = h('input', { type: 'checkbox', role: 'switch', class: 'switch' });
-  const toggleRow = h('label', { class: 'switch-row' }, h('span', null, 'Only show jobs with salary'), toggle);
+  const toggleRow = h('label', { class: 'switch-row' }, h('span', null, 'Only show roles with pay'), toggle);
   const noPay = h('p', { class: 'fnote salary-nopay', hidden: true });
   const note = h('p', { class: 'fnote' });
-  const empty = h('p', { class: 'fnote' }, 'No salary information on this board.');
+  const empty = h('p', { class: 'fnote' }, 'No pay information on this board.');
   const el = h('div', { class: `salary-ctl${compact ? ' salary-ctl--compact' : ''}` }, hist, track, vals, understood, toggleRow, noPay, note, empty);
   let dom = null;
   let bins = [];
@@ -2302,7 +2305,7 @@ function makeJuiceChips() {
         b.querySelector('.kw-count').textContent = derived.fc?.jg.get(g) || 0;
       }
       const scored = data.jobs.filter((j) => j.juice).length;
-      note.textContent = scored ? `${scored} of ${data.jobs.length} roles have a Juice Score (needs a salary and a known city).` : 'No Juice Scores for this board yet.';
+      note.textContent = scored ? `${scored.toLocaleString()} of ${data.jobs.length.toLocaleString()} roles have a Juice Score (needs a salary and a known city).` : 'No Juice Scores for this board yet.';
     },
   };
 }
@@ -2369,7 +2372,7 @@ function popoverParts(id) {
     case 'sen': return [makeChecklist('s', { order: SENIORITY_SHOWN, limit: 10, ...SEN_OPTS })];
     case 'remote': return [makeRemote()];
     case 'more': return [
-      titled('Pay', makeSwitch('Only show jobs with salary', 'so')),
+      titled('Pay', makeSwitch('Only show roles with pay', 'so')),
       titled('Juice', makeJuiceChips(), 'What’s left after tax, rent and living'),
       titled('Employment type', makeChecklist('e', { limit: 6, labelOf: empLabel })),
       titled('Listed', makePosted()),
@@ -2566,7 +2569,11 @@ function renderTagline() {
   const el = $('#tagline');
   if (!el) return;
   const n = companies.filter((c) => !c.custom).length;
-  const text = `Pay, and what’s left after tax and rent, for ${n ? `${n} companies’` : 'tech companies’'} open roles`;
+  // UX-23: on the beta site the line says what the beta adds (the Beta tag by the logo links to the main site).
+  const big = CHANNEL === 'beta' ? companies.filter((c) => c.live === false && !c.custom).map((c) => c.name) : [];
+  const list = big.length > 1 ? `${big.slice(0, -1).join(', ')} and ${big[big.length - 1]}` : big[0];
+  const text = big.length ? `Beta: adds ${list} from their own careers sites, with pay and what’s left after tax and rent`
+    : `Pay, and what’s left after tax and rent, for ${n ? `${n} companies’` : 'tech companies’'} open roles`;
   if (el.dataset.text !== text) {
     el.dataset.text = text;
     el.replaceChildren(h('strong', { class: 'tagline-brand' }, 'melon·seek'), h('span', { class: 'tagline-sep', 'aria-hidden': 'true' }, ' · '), text);
@@ -4558,8 +4565,27 @@ const cycleTheme = () => setTheme(THEMES[(THEMES.indexOf(currentTheme()) + 1) % 
 
 /* ---------------------------------------------------------------- events */
 
+/** UX-21: the search box's placeholder fits the box: the long hint where there is room, else "Search roles" (its label). */
+const SEARCH_HINT = 'Search titles, teams, skills…';
+let hintCanvas = null;
+function fitSearchHint() {
+  const inp = $('#search');
+  if (!inp) return;
+  const cs = getComputedStyle(inp);
+  const have = inp.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  if (!(have > 0)) return;
+  hintCanvas ??= document.createElement('canvas').getContext('2d');
+  hintCanvas.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  const next = hintCanvas.measureText(SEARCH_HINT).width <= have - 2 ? SEARCH_HINT : 'Search roles';
+  if (inp.placeholder !== next) inp.placeholder = next;
+}
+
 function bindEvents() {
   const search = $('#search');
+  fitSearchHint();
+  // The box's width follows the top bar (the company name, the badge), not only the window.
+  if ('ResizeObserver' in window) new ResizeObserver(rafThrottle(fitSearchHint)).observe(search);
+  document.fonts?.ready?.then(fitSearchHint).catch(() => {});
   let searchTimer = 0;
   search.addEventListener('input', () => {
     clearTimeout(searchTimer);

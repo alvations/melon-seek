@@ -466,3 +466,7 @@
   .msi-stat__note, .msi-foot, .msi-row__n, .msi-row__tag, .msi-row__delta, .msi-legend, .msi-axis__tick,
   .msi-cols, .msi-chip__n, .ms-comp__scale, .ms-comp__item-meta, .ms-comp__match, .ms-comp__foot { font-size: 12px; }
 }
+
+/* UX-20 (docs/process/fix4-app.md): the 12px text floor of the phone rule above, at every width. */
+.msi-stat__note, .msi-foot, .msi-row__n, .msi-row__tag, .msi-row__delta, .msi-legend, .msi-axis__tick,
+.msi-cols, .msi-chip__n, .ms-comp__scale, .ms-comp__item-meta, .ms-comp__match, .ms-comp__foot { font-size: 12px; }

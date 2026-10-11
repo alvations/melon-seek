@@ -179,19 +179,31 @@ export function registerBetaUxReviewTests(suite) {
   });
 
   // ------------------------------------------------------------------ UX-19
-  suite.test('Beta UX review: [UX-19] phone tap targets are at least 44 px (Beta tag, logo, map Pay/Juice and zoom)', async (ctx) => {
+  // fix4-app (docs/process/fix4-app.md): UX-19 is split by owner, the reviewer's checks unchanged. The top bar
+  // (Beta tag, logo) is public/styles.css; the map's Pay/Juice and zoom controls are public/viz/viz.css (fix4-viz).
+  const tapSizes = (page) => async (sel) => page.$$eval(sel, (els) => els.filter((e) => e.getBoundingClientRect().width).map((e) => {
+    const r = e.getBoundingClientRect();
+    return { name: (e.innerText || e.getAttribute('aria-label') || '').trim().replace(/\s+/g, ' ').slice(0, 24), w: Math.round(r.width), h: Math.round(r.height) };
+  }));
+  suite.test('Beta UX review: [UX-19] phone tap targets are at least 44 px (Beta tag, logo)', async (ctx) => {
     const s = await session(ctx);
     const { page } = await s.visit('p390', 'light', 'c=apple');
-    const sizes = async (sel) => page.$$eval(sel, (els) => els.filter((e) => e.getBoundingClientRect().width).map((e) => {
-      const r = e.getBoundingClientRect();
-      return { name: (e.innerText || e.getAttribute('aria-label') || '').trim().replace(/\s+/g, ' ').slice(0, 24), w: Math.round(r.width), h: Math.round(r.height) };
-    }));
+    const sizes = tapSizes(page);
     const found = [...await sizes('.beta-tag'), ...await sizes('a.brand')];
+    assert(found.length >= 2, `found the Beta tag and the logo (${found.length})`);
+    const small = found.filter((t) => t.w < 44 || t.h < 44);
+    assert(!small.length, `tap targets under 44x44 px at 390x844: ${small.map((t) => `"${t.name}" ${t.w}x${t.h}`).join(', ')}`);
+  });
+
+  suite.test('Beta UX review: [UX-19 map] phone tap targets are at least 44 px (map Pay/Juice and zoom)', async (ctx) => {
+    const s = await session(ctx);
+    const { page } = await s.visit('p390', 'light', 'c=apple');
+    const sizes = tapSizes(page);
     await page.locator('button[data-mode=map]').tap();
     await page.waitForSelector('#mapHost .ms-modes__btn', { timeout: 20000 });
     await sleep(800);
-    found.push(...await sizes('#mapHost .ms-modes__btn'), ...await sizes('#mapHost .leaflet-control-zoom a'));
-    assert(found.length >= 5, `found the Beta tag, logo, Pay/Juice and zoom controls (${found.length})`);
+    const found = [...await sizes('#mapHost .ms-modes__btn'), ...await sizes('#mapHost .leaflet-control-zoom a')];
+    assert(found.length >= 3, `found the Pay/Juice and zoom controls (${found.length})`);
     const small = found.filter((t) => t.w < 44 || t.h < 44);
     assert(!small.length, `tap targets under 44x44 px at 390x844: ${small.map((t) => `"${t.name}" ${t.w}x${t.h}`).join(', ')}`);
   });

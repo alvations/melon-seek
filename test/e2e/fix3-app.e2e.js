@@ -195,8 +195,8 @@ export function registerFix3AppTests(suite) {
       if (want && !want.includes('null')) assertEq(c.pill, want, `${j.id} names the pay's country`);
     }
     // "Highest pay" sorts them with the roles that list no pay here: after every role with pay for Zurich.
-    const firstForeign = pills.findIndex((p) => /^Pay posted for/.test(p.pill) || /^No salary$/.test(p.pill));
-    const lastPaid = pills.map((p) => !/^Pay posted for|^No salary$|^Pay unclear$/.test(p.pill)).lastIndexOf(true);
+    const firstForeign = pills.findIndex((p) => /^Pay posted for/.test(p.pill) || /^(No salary|No pay listed)$/.test(p.pill));
+    const lastPaid = pills.map((p) => !/^Pay posted for|^No salary$|^No pay listed$|^Pay unclear$/.test(p.pill)).lastIndexOf(true);
     assert(firstForeign < 0 || lastPaid < firstForeign, `paid-for-Zurich roles come first (last paid #${lastPaid}, first not #${firstForeign} of ${n})`);
     // The stats line agrees: no share of pay posted for Zurich from US pay.
     assert(/show pay for Zurich/.test(await page.locator('#statsLine').innerText()), 'stats line names Zurich');

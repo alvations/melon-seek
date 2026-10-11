@@ -131,7 +131,7 @@ export function registerFix3CompareTests(suite) {
     const { page, errors } = await open(ctx, st);
     await drawerComps(page, st.beta, 'google', pl[0].id);
     const text = (await page.locator('#drawer .d-pct-text').textContent()).trim();
-    assert(/^(Pays more than \d+% of|The top pay of|The lowest pay of) Google’s roles in Poland that show pay$/.test(text), `Warsaw role: "${text}"`);
+    assert(/^(Pays more than \d+% of|The top pay of|The highest pay of|The lowest pay of) Google’s roles in Poland that show pay$/.test(text), `Warsaw role: "${text}"`);
     await drawerComps(page, st.beta, 'google', us.id);
     const usText = (await page.locator('#drawer .d-pct-text').textContent()).trim();
     assert(/Google’s roles in the US that show pay$/.test(usText), `US role: "${usText}"`);
