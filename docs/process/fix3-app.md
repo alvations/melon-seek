@@ -157,7 +157,7 @@ and 5, and the beta landing.
     every role has one, it equalled "Any" (Microsoft 2,298 of 2,298). On-site is now a role that isn't open to
     remote work, so Any = Remote + On-site (Microsoft 312 + 1,986, Google 61 + 3,356, NVIDIA 534 + 2,131), in the
     filter, its counts, `settleKeep` and the button's tooltip. The Pay estimate filters On-site the same way only
-    with the compstimate patch (§6). The segmented control's padding is 5 px, so four-digit counts no longer run
+    with the compstimate patch (§6). The segmented control's buttons have 3 px side padding and may shrink, so four-digit counts no longer run
     past the filter column (they did before, at 1440 px).
 11. **Beta landing** (`defaultCompany`, `app.js:4499`). A visit with no link and no last view opens the first Big
     tech board on /beta/ (the company menu's first group, `live: false`: Google today), and the first company on
@@ -191,7 +191,31 @@ and 5, and the beta landing.
    `bash scripts/cycle/shrink-screenshots.sh docs/screenshots/fix3-app`.
 
 ## 5. Verification
-- Filled in at the end of the run (see §7).
+- **Red first.** On the 790fa13 build, `--grep="Fix3 app"`: 15 of 16 failed (the 16th, BP-14, skipped on a board
+  whose sections live in description files; rewritten), e.g. `card pay tooltip: expected "€47,000 a year (13-week
+  internship)", got "€47,000 for about 13 weeks (fixed-term pay, not a yearly salary)"`, `"Ireland" lists Dublin:`
+  (empty), `google: "data centre" and "data center" find the same roles: expected 281, got 0`, `On-site is every
+  role that is not remote: expected 1986, got 2298`, `beta opens on the first Big tech board: expected "google",
+  got "anthropic"`.
+- **Green after.** `test/e2e/fix3-app.e2e.js` 16 of 16 on the final build; `test/fix3-app.test.js` 5 of 5.
+- **`npm test`** (`MELON_BETA_SNAPSHOT_DIR` empty, as CI): 770 of 770 with this lane's files alone; 771 of 771
+  with both patches applied (the build-static patch adds one test).
+- **Full e2e** (`npm run build`, then `node scripts/e2e.js`, both patches applied): 208 of 211 passed, 0 failed, 3
+  skipped, twice (the second on the final build). The skips are data-dependent and skip on the baseline too
+  (D-11 needs a board without listing dates, the methodology screenshots need `E2E_SHOTS=1`, P-2 needs a role
+  with an estimate). No timing test failed, so none needed a re-run. The suite rewrites some committed
+  screenshots (`docs/screenshots/*.png`, `qa-mobile*/`); those were restored, not committed.
+- **Screenshots**, before (790fa13) and after, in `docs/screenshots/fix3-app/` (shrunk, 13.2 MB → 3.4 MB):
+  `01`–`03` landings (beta desktop and phone, main site unchanged); `04` yearly-rate internship; `05` whole-term
+  fellowship; `06`, `07` Google under Zurich (desktop, phone list); `08` NVIDIA, Munich, $126K+; `09` a card led by
+  its pay's place; `10` no Juice from Polish pay; `11`–`13` Location search (Ireland, München, Israel on the
+  phone); `14`, `15` part-time hourly (fixture); `16`–`18` Columbus carried, Munich set aside and put back; `19`
+  "data centre"; `20` base pay median; `21` Remote counts; `22` Required / Nice to have (fixture); `23` "Updated 1
+  day ago" (fixture); `24-regress-*` desktop 1440×900 and phone 390×844 on both sites (main site and London,
+  phone drawer, Dublin drawer, phone Remote filter): no page errors and no horizontal scroll, and the main site
+  differs only in "base pay median".
+- **Layout check** (`<scratch>/fix3-app/scripts/segfit.mjs`): the Remote control's buttons don't overflow at 1440
+  and 1280 px on Microsoft, Apple and Anthropic, or on a 390 px phone.
 
 ## 6. Known gaps and follow-ups
 - **Patches for the lead** (other lanes own these files):
@@ -218,4 +242,8 @@ and 5, and the beta landing.
 - 2026-10-11 04:00 UTC: worktree set up; docs, findings and code read; baseline build and data survey.
 - 2026-10-11 04:20 UTC: red tests written and run (15 red, 1 skipped); fixes; 16/16 green; `npm test` 770/770;
   commit `bd9e621`.
-- 2026-10-11 04:40 UTC: patches written and tested; full build; full e2e started; before/after screenshots.
+- 2026-10-11 04:40 UTC: patches written and tested; full build; full e2e 208/211 (0 failed); before/after
+  screenshots; commit `54d5e18`.
+- 2026-10-11 05:05 UTC: the yearly-rate note dropped (the amount line already says "a year"); the pay caption says
+  when pay is for another country; the Remote control fits four-digit counts; final build, full e2e 208/211 (0
+  failed), `npm test` 770/770 (771/771 with the patches); screenshots retaken and shrunk; this log.
