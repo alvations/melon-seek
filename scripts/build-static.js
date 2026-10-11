@@ -840,6 +840,8 @@ async function loadContext() {
       } catch (err) { warn(`${payload.company.slug}: backtest failed (${err.message}); meta.compstimate = null`); }
     }
     const meta = { compstimate, history: history && ledger ? history.ledgerMeta(ledger) : { since: null, runs: 0 } };
+    // A capped beta board: public/api.js hands `meta` to the app as it is, so the cap reaches the page.
+    if (payload.jobsCapped) meta.jobsCapped = payload.jobsCapped;
     return { ...payload, jobs, meta };
   };
   // Per-company share pages need each payload's numbers.
@@ -941,7 +943,14 @@ async function readSnapshot(ctx, file, c) {
     // Then the big-tech adapter fixes on stored jobs (server/sources/upgrade.js: one Apple posting
     // per requisition, talent pools, …), every time: a no-op for a snapshot crawled with them.
     const current = parsed && parsed.normalizerVersion === ctx.NORMALIZER_VERSION;
-    if (Array.isArray(jobs) && jobs.length) return { payload: { company: c, mode: 'snapshot', fetchedAt: parsed.fetchedAt || null, error: null, jobs: ctx.vetSalaries(ctx.upgradeStoredJobs(current ? jobs : ctx.relocateJobs(ctx.rekeyBoardJobs(jobs).jobs))) } };
+    // A beta snapshot fitted to its budget (scripts/snapshot.js#fitSnapshot) says so: jobsCapped
+    // { kept, total, by, rule } and descriptionsTrimmedTo travel with the list (jobsCapped also in
+    // its meta), so the page can say "5,000 of 22,415" (docs/process/amazon-meta-backend.md).
+    const fit = {
+      ...(parsed && parsed.jobsCapped && typeof parsed.jobsCapped === 'object' ? { jobsCapped: parsed.jobsCapped } : {}),
+      ...(parsed && Number(parsed.descriptionsTrimmedTo) > 0 ? { descriptionsTrimmedTo: Number(parsed.descriptionsTrimmedTo) } : {}),
+    };
+    if (Array.isArray(jobs) && jobs.length) return { payload: { company: c, mode: 'snapshot', fetchedAt: parsed.fetchedAt || null, error: null, ...fit, jobs: ctx.vetSalaries(ctx.upgradeStoredJobs(current ? jobs : ctx.relocateJobs(ctx.rekeyBoardJobs(jobs).jobs))) } };
     return { problem: 'has no jobs' };
   } catch (err) {
     return { problem: `unreadable (${err.message})` };

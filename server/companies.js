@@ -28,17 +28,17 @@ export const COMPANIES = [
   // PAUSED (2026-10-10, lead): Meta's Automated Data Collection Terms bar automated collection
   // "without ... express written permission", even though robots.txt and the sitemap expose the
   // job pages. Not crawled until the user decides (docs/DATA_SOURCES.md §7 "Terms of use").
-  // To resume: delete `paused` below and write the decision here (date, who, link). See PAUSING.
-  { slug: 'meta', name: 'Meta', source: 'meta', board: 'meta', color: '#0866ff', channel: 'beta', live: false, paused: 'terms' },
+  // RESUMED (2026-10-11, by the user: "Resume both now", choosing to accept the legal risk after the verified terms were put to them (docs/AMAZON_META.md, "Decision")). See PAUSING.
+  { slug: 'meta', name: 'Meta', source: 'meta', board: 'meta', color: '#0866ff', channel: 'beta', live: false },
   { slug: 'apple', name: 'Apple', source: 'apple', board: 'apple', color: '#6e6e73', channel: 'beta', live: false },
   { slug: 'netflix', name: 'Netflix', source: 'eightfold', board: 'netflix', color: '#e50914', channel: 'beta', live: false },
   // PAUSED (2026-10-10, lead): Amazon's Conditions of Use exclude "data mining, robots, or similar
   // data gathering and extraction tools". Not crawled until the user decides (DATA_SOURCES §7).
-  // To resume: delete `paused` below and write the decision here (date, who, link). See PAUSING.
+  // RESUMED (2026-10-11, by the user: "Resume both now", choosing to accept the legal risk after the verified terms were put to them (docs/AMAZON_META.md, "Decision")). See PAUSING.
   // maxPostings: 22,415 postings would be the slowest board on a phone (first card 10.5 s against
   // Apple's 4.6 s at 4,879; 5,000: 4.9 s), so the crawl keeps 5,000 (salaried, then newest) and
   // the page says "5,000 of 22,415" (scripts/snapshot.js#fitSnapshot; docs/process/amazon-meta-backend.md).
-  { slug: 'amazon', name: 'Amazon', source: 'amazon', board: 'amazon', color: '#ff9900', channel: 'beta', live: false, maxPostings: 5000, paused: 'terms' },
+  { slug: 'amazon', name: 'Amazon', source: 'amazon', board: 'amazon', color: '#ff9900', channel: 'beta', live: false, maxPostings: 5000 },
   // NVIDIA's own careers site (jobs.nvidia.com) is an Eightfold tenant; its Workday
   // CXS API was in a maintenance redirect during the first probe.
   { slug: 'nvidia', name: 'NVIDIA', source: 'eightfold', board: 'nvidia', color: '#76b900', channel: 'beta', live: false },

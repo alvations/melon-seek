@@ -205,7 +205,7 @@ test('observations: family, level, place, annual wage and which filings are pric
   assert.equal(observe({ ...base, title: 'Sr. Software Development Engineer', wageFrom: 190000 }).level, 'Senior');
   assert.equal(observe({ ...base, title: 'Software Engineer', wageFrom: 190000 }).level, 'Not stated', 'no level word: not stated, as on the site');
   assert.equal(observe({ ...base, title: 'Applied Scientist II', wageFrom: 190000 }).family, 'ml');
-  assert.equal(observe({ ...base, title: 'Economist', wageFrom: 190000 }).family, 'other');
+  assert.equal(observe({ ...base, title: 'Economist', wageFrom: 190000 }).family, 'data', 'fix wave 3 files economists under data science and analytics');
   assert.equal(observe({ ...base, title: 'Data Engineer', wageFrom: 64.9, wageTo: 85, wageUnit: 'Hour' }).wage, 155896);
   assert.equal(observe({ ...base, title: 'X', status: 'Withdrawn', wageFrom: 150000 }).priced, false);
   assert.equal(observe({ ...base, title: 'X', fullTime: 'N', wageFrom: 150000 }).priced, false);

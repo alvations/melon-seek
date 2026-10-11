@@ -33,8 +33,8 @@ Facts every template relies on. Update them here and in PLAYBOOK.md when they ch
 - `node scripts/e2e.js` (with `NODE_PATH`) is the full e2e suite. Register a new file the way
   the existing ones are registered.
 - Beta boards are `live: false`: the browser never calls them, and the bundled snapshot is all
-  there is. Amazon and Meta are paused for their terms of use, and Tesla is blocked by its bot
-  protection, so none of the three appears on /beta/.
+  there is. Tesla is blocked by its bot protection, so it does not appear on /beta/; Amazon shows
+  5,000 of its postings (`maxPostings`), and the page says so.
 - Re-running a role on the same target: give it a new `<ROLE>` with a pass number (for example
   `qa-desktop-beta-2`) and the same suffix on any test file whose name already exists
   (`test/e2e/beta-desktop-qa-2.e2e.js`). A later pass never edits an earlier pass's tests, log or

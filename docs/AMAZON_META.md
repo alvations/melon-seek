@@ -292,3 +292,18 @@ Terms: metacareers.com job postings
 > Thank you,
 > [your name], melon-seek
 > [your e-mail address]
+
+## Decision (2026-10-11)
+
+The lead put the verified terms and the options above to the user, with the recommendation to ask
+permission first. The user's answer, verbatim: **"Resume both now"** (the option "Accept the legal
+risk for both companies. Not recommended for Meta, which has sued scrapers before."). For Apple,
+whose site terms have a similar clause, the user chose **"Keep as is"**.
+
+What resuming means here: the `paused` field is gone from both entries in `server/companies.js`, so
+the 6-hourly beta crawl collects both with the same rules as every board: an honest User-Agent that
+names the project, about one request per second, robots.txt checked first (Amazon's and Meta's both
+allow the job pages), no login, no browser impersonation. Amazon keeps a 5,000-posting budget
+(postings with pay first, then the newest), and the page says how many it left out. The permission
+emails above are still drafted, should the user want to send them; if either company objects, set
+`paused: 'terms'` again and the crawl, build and list drop it on the next run.

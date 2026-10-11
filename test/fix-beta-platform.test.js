@@ -30,7 +30,7 @@ process.env.MELON_BETA_HISTORY_DIR = DIRS['beta-hist'];
 delete process.env.MELON_CHANNEL;
 
 const { normalizeJobs } = await import('../server/normalize.js');
-const { getCompany } = await import('../server/companies.js');
+const { getCompany, COMPANIES } = await import('../server/companies.js');
 const { recordRun } = await import('../scripts/history.js');
 const chart = await import('../public/viz/chart.js');
 
@@ -97,9 +97,13 @@ test('[D-20] server: a beta company with no snapshot is "not available yet", nev
   assert.equal(body.fetchedAt, null);
   assert.match(body.error, /^Netflix’s roles are not available yet/);
   assert.equal((await get('/api/jobs?company=netflix', { method: 'HEAD' })).status, 200);
-  const meta = await (await get('/api/jobs?company=meta')).json();
-  assert.equal(meta.unavailable, true, 'a paused board is never demo either');
-  assert.match(meta.error, /paused/);
+  // A paused board (server/companies.js `paused`), while there is one: never demo either.
+  const paused = COMPANIES.find((c) => c.paused);
+  if (paused) {
+    const p = await (await get(`/api/jobs?company=${paused.slug}`)).json();
+    assert.equal(p.unavailable, true, 'a paused board is never demo either');
+    assert.match(p.error, /paused/);
+  }
   const csv = await get('/api/export?company=netflix');
   assert.equal(csv.status, 503, 'no empty CSV for a board with nothing to show');
   assert.match((await csv.json()).error, /not available yet/);

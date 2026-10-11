@@ -41,4 +41,4 @@ Hard rules:
 - Never `git add -A data`.
 - Never `pkill -f`.
 - Never `playwright install`.
-- Never crawl Amazon or Meta (paused for their terms of use).
+- Never crawl a company marked `paused` in server/companies.js.

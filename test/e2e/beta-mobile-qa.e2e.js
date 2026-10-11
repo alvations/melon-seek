@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { ROOT, assert, assertEq, skip } from './harness.js';
+import { COMPANIES } from '../../server/companies.js';
 
 const SHOTS = path.join(ROOT, 'docs', 'screenshots', 'qa-mobile-beta');
 const IOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
@@ -322,7 +323,10 @@ export function registerBetaMobileQaTests(suite) {
   });
 
   suite.test('Beta mobile QA: [M-22] a link to a paused board (#c=amazon) explains it instead of "Offline" and Retry', async (ctx) => {
-    const { page } = await openBeta(ctx, { hash: 'c=amazon', wait: false });
+    // A paused board while the registry has one (server/companies.js `paused`), else one the site
+    // never lists (Tesla): both get the same plain message, so resuming Amazon needs no edit here.
+    const slug = (COMPANIES.find((c) => c.paused) || { slug: 'tesla' }).slug;
+    const { page } = await openBeta(ctx, { hash: `c=${slug}`, wait: false });
     await page.waitForFunction(() => /No data|role/.test(document.querySelector('#resultsTitle')?.textContent || ''), null, { timeout: 30000 });
     await sleep(800);
     const s = await page.evaluate(() => ({

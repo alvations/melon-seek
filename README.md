@@ -370,9 +370,10 @@ caches HTML. Details, verification commands and other platforms are in
 
 <https://alvations.github.io/melon-seek/beta/> is a full second copy of the
 app: the stable companies plus the big-tech career sites (Google, Microsoft,
-Apple, Netflix and NVIDIA). Amazon and Meta are paused because their terms bar
-automated collection, and Tesla is left out because its site blocks plain
-requests; see [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) §7.
+Meta, Apple, Netflix, Amazon and NVIDIA; Amazon shows 5,000 of its roughly 22,000
+postings, those with a published pay range first and then the newest, and says so).
+Tesla is left out because its site blocks plain requests; see
+[docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) §7.
 The main site at `/melon-seek/` doesn't change and doesn't link to it.
 Contract: [docs/CONTRACT.md](docs/CONTRACT.md) "v3 additions"; build log:
 [docs/process/beta-deploy.md](docs/process/beta-deploy.md).

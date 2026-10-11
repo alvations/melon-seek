@@ -535,10 +535,10 @@
         "server/juice.js:147 GRADES",
         "server/juice.js:152 RIND",
         "public/viz/palette.js:244 JUICE_BREAKS (copy)",
-        "public/app.js:2215 JUICE_GRADES (UI copy \"70+\", \"45–69\", \"under 45\")",
+        "public/app.js:2227 JUICE_GRADES (UI copy \"70+\", \"45–69\", \"under 45\")",
         "public/viz/palette.js:244 JUICE_BREAKS [45, 70] (copy)",
         "public/viz/palette.js:244 JUICE_BREAKS [45, 70]",
-        "public/app.js:2215 JUICE_GRADES chip tooltips \"(score 70+)\", \"(45–69)\", \"(under 45)\" (hard-coded copy)",
+        "public/app.js:2227 JUICE_GRADES chip tooltips \"(score 70+)\", \"(45–69)\", \"(under 45)\" (hard-coded copy)",
         "public/app.js:490 gradeKey: Rind is filtered as Dry"
       ],
       "values": "breaks 45 / 70; labels Dry, Ripe, Juicy, Rind",
@@ -750,10 +750,10 @@
       "type": "product-policy",
       "owners": [
         "server/juice.js:106 HOUSEHOLDS",
-        "public/app.js:3403 HOUSEHOLDS (UI labels)",
+        "public/app.js:3419 HOUSEHOLDS (UI labels)",
         "server/juice.js:112 DEFAULT_HOUSEHOLD",
-        "public/app.js:3403 HOUSEHOLDS (UI copy: labels, tooltips, bedrooms)",
-        "public/app.js:3403 HOUSEHOLDS labels/bedrooms/people (UI copy of server/juice.js HOUSEHOLDS)"
+        "public/app.js:3419 HOUSEHOLDS (UI copy: labels, tooltips, bedrooms)",
+        "public/app.js:3419 HOUSEHOLDS labels/bedrooms/people (UI copy of server/juice.js HOUSEHOLDS)"
       ],
       "values": "single 1 bedroom / couple 2 / family 3; \"two adults and two children\"",
       "consumers": [
@@ -917,7 +917,7 @@
         "server/companies.js COMPANIES",
         "server/normalize.js:212 normalizeJob",
         "server/normalize.js:31 NORMALIZER_VERSION",
-        "scripts/snapshot.js:28 MAX_BETA_SNAPSHOT_BYTES (beta cap)",
+        "scripts/snapshot.js:29 MAX_BETA_SNAPSHOT_BYTES (beta cap)",
         "data/snapshots/<slug>.json { company, mode, fetchedAt, error, normalizerVersion, jobs[], jobsCapped? } (gitignored)",
         "data/cache/store/*.list.json + *.desc.ndjson (melon-store-1, gitignored)",
         "server/cache.js:17 FRESH_TTL_MS (30 min live cache)",
@@ -14147,7 +14147,7 @@
         "server/export.js:62 csvReadme text",
         "public/features/shared.js:45 salaryUSD defensive annualization (2080 h if mid < 1000, ×12 if mid < 30000): duplicate of server/salary.js annualize",
         "public/viz/chart.js:63 INTERVAL_ADJ labels",
-        "public/app.js:3393 INTERVAL_ADJ labels"
+        "public/app.js:3409 INTERVAL_ADJ labels"
       ],
       "values": "2080 hours/yr, 12 months, 52 weeks",
       "consumers": [
@@ -14505,7 +14505,7 @@
       "owners": [
         "server/companies.js:8 COMPANIES",
         "server/companies.js:3 SOURCES",
-        "server/companies.js:46 CHANNELS",
+        "server/companies.js:51 CHANNELS",
         "server/sources/eightfold.js:25 EIGHTFOLD_BOARDS",
         "scripts/probe-bigtech.js:3 probe SLUGS",
         "server/companies.js [core]",
@@ -15284,7 +15284,7 @@
         "public/app.js:1 app.js 180 (copy)",
         "public/app.js:227 Listed filter 7 / 30 / 90 days",
         "public/app.js:1268 hide roles open ≥ 180 days",
-        "public/app.js:3216 card age: < 60 → \"Nd\", < 730 → months (÷30.44), else years; \"+\" when a lower bound"
+        "public/app.js:3232 card age: < 60 → \"Nd\", < 730 → months (÷30.44), else years; \"+\" when a lower bound"
       ],
       "values": "filter 7/30/90; 180+ days; contract freshness new ≤ 7, active 8–59, stale 60–179, evergreen ≥ 180 (server/history.js FRESHNESS)",
       "consumers": [
@@ -15741,7 +15741,7 @@
         "server/sources/amazon.js:37 Amazon PAGE 100 / CAP 10000",
         "server/sources/apple.js:14 Apple PAGE 20 / MAX_PAGES 800 / EMPTY_RETRIES 3",
         "server/sources/eightfold.js:1 Eightfold PAGE 10 / MAX_PAGES 1500",
-        "scripts/snapshot.js:29 TRIM_STEPS",
+        "scripts/snapshot.js:30 TRIM_STEPS",
         "scripts/build-static.js:134 LIST_BUDGET 1.5 MB",
         "scripts/build-static.js:441 OG_IMAGE_MAX_BYTES 5 MB",
         "scripts/build-og.mjs:31 OG 1200x630",

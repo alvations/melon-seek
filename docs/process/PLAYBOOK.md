@@ -168,5 +168,6 @@ These are the rules learned the hard way on 2026-10-10.
 - Never run `playwright install`. Chromium is at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`,
   with Playwright in `<scratchpad>/pw/node_modules`.
 - The Long Tasks API misses work after `fetch()` resolves. Read long tasks from a Chrome trace.
-- Beta-specific: Amazon and Meta are `paused: 'terms'`, so don't test or crawl them. Apple's full
+- Beta-specific: a company with `paused` in server/companies.js is never crawled or tested (its adapter
+  refuses to start). Amazon is capped at 5,000 postings on /beta/ (`maxPostings`). Apple's full
   crawl takes about 2 h 10 min.

@@ -9,6 +9,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ROOT, assert, assertEq, skip, startServer } from './harness.js';
+import { COMPANIES } from '../../server/companies.js';
 
 const DESKTOP = { width: 1440, height: 900 };
 const BIG_TECH = { apple: 'jobs.apple.com', google: 'google.com', nvidia: 'jobs.nvidia.com', microsoft: 'apply.careers.microsoft.com', netflix: 'explore.jobs.netflix.net' };
@@ -134,8 +135,10 @@ export function registerBetaDesktopQaTests(suite) {
     await page.click('#companyMenuBtn'); await sleep(300);
     const names = await page.$$eval('#popover .company-item-name', (e) => e.map((x) => x.textContent));
     for (const n of ['Google', 'Microsoft', 'Apple', 'Netflix', 'NVIDIA']) assert(names.includes(n), `company menu lacks ${n}`);
-    for (const n of ['Meta', 'Amazon', 'Tesla']) assert(!names.includes(n), `company menu lists ${n}`);
-    for (const p of ['beta/api/jobs/meta.json', 'beta/api/jobs/amazon.json', 'beta/c/meta/', 'beta/c/amazon/', 'beta/data/meta.csv', 'c/apple/', 'api/jobs/apple.json']) {
+    // Paused companies come from the registry (server/companies.js `paused`), so resuming one needs no edit here.
+    const paused = COMPANIES.filter((c) => c.paused);
+    for (const n of [...paused.map((c) => c.name), 'Tesla']) assert(!names.includes(n), `company menu lists ${n}`);
+    for (const p of [...paused.flatMap((c) => [`beta/api/jobs/${c.slug}.json`, `beta/c/${c.slug}/`, `beta/data/${c.slug}.csv`]), 'c/apple/', 'api/jobs/apple.json']) {
       assertEq((await fetch(`${st.main}/${p}`)).status, 404, `/${p}`);
     }
     const main = await (await fetch(`${st.main}/api/companies.json`)).json();
