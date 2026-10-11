@@ -3,7 +3,8 @@
 //
 //   dist/                     copy of public/ (absolute "/x" URLs in HTML made relative,
 //                             config.js injected before the first script)
-//   dist/config.js            window.MELON_STATIC = true (+ build info, live sources)
+//   dist/config.js            window.MELON_STATIC = true (+ build info, live sources), and the early
+//                             fetch of the first job list (listPreloadJs, window.MELON_FIRST_LIST)
 //   dist/vendor/leaflet/      node_modules/leaflet/dist
 //   dist/lib/                 browser copies of server modules used by public/api.js (LIB_MODULES +
 //                             the live-source adapters; the stable site's companies.js has no beta entries)
@@ -256,9 +257,10 @@ const hasSections = (s) => !!s && ((s.responsibilities || []).length > 0 || (s.f
 
 /**
  * Split a payload into a small list and per-job detail records.
- * Returns { list, details: Map(descPath -> record), sectionsMoved }.
+ * Returns { list, details: Map(descPath -> record), sectionsMoved }. With `vet` (vetSalaries),
+ * a list it leaves unchanged is marked `shared.vetted`.
  */
-function splitPayload(payload, api) {
+function splitPayload(payload, api, vet = null) {
   const { descPath } = api;
   const build = (moveSections) => {
     const details = new Map();
@@ -282,15 +284,19 @@ function splitPayload(payload, api) {
     const back = api.unpackJobs(JSON.parse(JSON.stringify(packed)));
     const bad = back.findIndex((j, i) => !sameValue(j, jobs[i]));
     if (back.length !== jobs.length || bad >= 0) throw new Error(`${payload.company && payload.company.slug}: packed list doesn't round-trip (job ${bad})`);
-    return { list: packed, details, sectionsMoved: moveSections };
+    return { list: packed, details, sectionsMoved: moveSections, back };
   };
   let out = build(false);
   if (Buffer.byteLength(JSON.stringify(out.list)) > LIST_BUDGET) out = build(true);
+  // shared.vetted (docs/process/perf-mobile-beta.md): the browser's salary gate (api.js#getJobs, the
+  // same server/vet.js code as lib/vet.js) would return the very list it unpacks, flagging nothing,
+  // so api.js skips it. Checked here on exactly what the browser unpacks.
+  if (vet && vet(out.back) === out.back) out.list.shared.vetted = true;
   return out;
 }
 
-async function writeSplit(out, payload, file, api, slug) {
-  const { list, details, sectionsMoved } = splitPayload(payload, api);
+async function writeSplit(out, payload, file, api, slug, vet = null) {
+  const { list, details, sectionsMoved } = splitPayload(payload, api, vet);
   const listBytes = await writeJson(file, list);
   let descBytes = 0;
   for (const [p, rec] of details) descBytes += await writeJson(path.join(out, p), rec);
@@ -341,6 +347,49 @@ async function loadHints(out, html, { staticLib, boardOrigins }) {
     ...json.map((f) => `<link rel="preload" href="${escAttr(f)}" as="fetch" crossorigin>`),
   ];
   return { lines, modules, json };
+}
+
+// public/app.js#LAST_KEY on each site: the last view that a visit without a link reopens
+// (test/perf-mobile-beta.test.js keeps the two in step).
+export const LAST_VIEW_KEY = Object.freeze({ stable: 'melon-seek.last.v1', beta: 'melon-seek.last.beta.v1' });
+
+/**
+ * config.js's early list fetch (docs/process/perf-mobile-beta.md): the job list the app opens
+ * first starts downloading while the head is parsed, alongside the app's modules instead of after
+ * them (it started about 1.4 s after navigation on Fast 4G and 3.4 s on Slow 4G).
+ * `window.MELON_FIRST_LIST = { path, response }`; api.js#bundled takes that response, once, for
+ * that path, in place of its own fetch() (same URL and headers; the body is read into a Blob, so
+ * api.js decodes and parses it once, as before). A <link rel=preload as=fetch> was tried first:
+ * Chromium decodes a preloaded 2 MB body as text twice more on the main thread (+0.2 s at 4x CPU).
+ * The company is the one app.js#boot opens: the link's c= (lower-cased, as api.js looks it up),
+ * else, without a link, this site's last view (its c= as stored, when listed; a custom board has
+ * no list), else the first company.
+ */
+export function listPreloadJs(slugs, lastKey) {
+  return `// Preload the first job list (scripts/build-static.js#listPreloadJs; docs/process/perf-mobile-beta.md).
+(function (slugs, lastKey) {
+  try {
+    var hash = location.hash.replace(/^#/, '');
+    var c = new URLSearchParams(hash).get('c') || '';
+    if (hash) c = c.toLowerCase();
+    else {
+      var last = null;
+      try { last = JSON.parse(localStorage.getItem(lastKey)); } catch (e) { last = null; }
+      c = typeof last === 'string' && last ? new URLSearchParams(last).get('c') || '' : '';
+      if (c && slugs.indexOf(c) < 0 && c.indexOf(':') < 0) c = '';
+    }
+    if (!c) c = slugs[0] || '';
+    if (slugs.indexOf(c) < 0) return;
+    var path = ['api', 'jobs', encodeURIComponent(c) + '.json'].join('/'); // api.js#staticJobs listPath
+    // Read into a Blob as it arrives (an unread body would stall the download); api.js parses it.
+    var res = fetch(path, { headers: { accept: 'application/json' } }).then(function (r) {
+      return r.blob().then(function (b) { return new Response(b, { status: r.status, statusText: r.statusText, headers: r.headers }); });
+    });
+    res.catch(function () { /* api.js sees the same failure */ });
+    window.MELON_FIRST_LIST = { path: path, response: res };
+  } catch (e) { /* none: api.js fetches the list itself */ }
+})(${JSON.stringify(slugs)}, ${JSON.stringify(lastKey)});
+`;
 }
 
 /** Insert the hints right after <meta charset> (the CSP <meta>, added later, goes in front of them). */
@@ -944,7 +993,7 @@ async function betaCompany(ctx, out, c, live) {
 /** Write one company's files under `out`; returns what the site-level steps need. */
 async function writeCompany(ctx, out, c, payload, ledger, { live } = {}) {
   const { api, history } = ctx;
-  const r = await writeSplit(out, payload, path.join(out, 'api', 'jobs', `${c.slug}.json`), api, c.slug);
+  const r = await writeSplit(out, payload, path.join(out, 'api', 'jobs', `${c.slug}.json`), api, c.slug, ctx.vetSalaries);
   // F4: compact ledger for live browser fetches ({} keeps the request a 200).
   const compact = history && ledger && typeof history.compactLedger === 'function' ? history.compactLedger(ledger) : {};
   const histBytes = await writeJson(path.join(out, 'api', 'history', `${c.slug}.json`), compact);
@@ -1134,7 +1183,8 @@ async function buildSite(ctx, site) {
     'window.MELON_STATIC = true;\n' +
     `window.MELON_LIVE_SOURCES = ${JSON.stringify(LIVE_SOURCES)};\n` +
     `window.MELON_QUIET_CORS_SOURCES = ${JSON.stringify(QUIET_CORS_SOURCES)};\n` +
-    `window.MELON_BUILD = ${JSON.stringify(build)};\n`);
+    `window.MELON_BUILD = ${JSON.stringify(build)};\n` +
+    listPreloadJs(companies.map((c) => c.slug), LAST_VIEW_KEY[beta ? 'beta' : 'stable']));
   if (!beta) await fs.writeFile(path.join(out, '.nojekyll'), '');
 
   // 5a. Load hints in index.html (after the data files exist; the CSP goes in front in step 7).

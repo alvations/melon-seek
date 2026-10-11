@@ -45,6 +45,11 @@
 //  - the last BUNDLE_CACHE_MAX bundled lists stay in memory, already vetted and
 //    juiced, so switching back to a company doesn't redo that work (same job
 //    objects, like the live memCache; refresh bypasses it).
+// Beta site's big boards (docs/process/perf-mobile-beta.md), also behaviour-identical:
+//  - the first list's response may already be on its way: config.js fetched it while the
+//    page's modules loaded (window.MELON_FIRST_LIST); bundled() takes it once, for its path;
+//  - a list the build marked `shared.vetted` (vetSalaries hands it back unchanged) skips the
+//    browser's second vetting pass.
 //
 // Every function resolves to the HTTP API shapes in docs/CONTRACT.md, with one
 // exception: to keep bundles small, jobs from the static build's bundled lists
@@ -101,10 +106,22 @@ function abortError() {
   return new DOMException('Aborted', 'AbortError');
 }
 
-async function getJson(url, { signal } = {}) {
-  const res = await fetch(url, { signal, headers: { accept: 'application/json' } });
+/** `p`, or an AbortError once `signal` aborts (what fetch() with that signal would do). */
+function unlessAborted(p, signal) {
+  if (!signal) return p;
+  if (signal.aborted) return Promise.reject(abortError());
+  return new Promise((resolve, reject) => {
+    const onAbort = () => reject(abortError());
+    signal.addEventListener('abort', onAbort, { once: true });
+    p.then((v) => { signal.removeEventListener('abort', onAbort); resolve(v); }, (e) => { signal.removeEventListener('abort', onAbort); reject(e); });
+  });
+}
+
+/** `early`: a Response promise already under way for `url` (config.js's first list), used in place of fetch(). */
+async function getJson(url, { signal, early = null } = {}) {
+  const res = await (early ? unlessAborted(early, signal) : fetch(url, { signal, headers: { accept: 'application/json' } }));
   let body = null;
-  try { body = await res.json(); } catch { /* non-JSON */ }
+  try { body = await (early ? unlessAborted(res.json(), signal) : res.json()); } catch { /* non-JSON */ }
   if (!res.ok) {
     const err = new Error((body && body.error) || `HTTP ${res.status} ${res.statusText || ''}`.trim());
     err.status = res.status;
@@ -458,6 +475,9 @@ const BUNDLE_CACHE_MAX = 3;
 const bundleCache = new Map(); // path -> body
 const bundleOrigin = new WeakMap(); // freshly unpacked body.jobs -> { path, body }
 const finished = new WeakSet(); // job arrays that are vetted and juiced already
+// Unpacked lists the build marked `shared.vetted`: vetSalaries would return them unchanged (the build
+// ran the same lib/vet.js code on exactly this list), so getJobs skips that pass (perf-mobile-beta).
+const vettedLists = new WeakSet();
 
 /** getJobs: remember a fresh bundled list once it is vetted and juiced. */
 function rememberBundle(rawJobs, jobs) {
@@ -469,6 +489,17 @@ function rememberBundle(rawJobs, jobs) {
   finished.add(jobs);
 }
 
+/**
+ * The first job list's response, which the static build's config.js started fetching before this
+ * module loaded (scripts/build-static.js#listPreloadJs): for `path` only, and only once.
+ */
+function firstList(path) {
+  const e = g.MELON_FIRST_LIST;
+  if (!e || e.path !== path || !e.response) return null;
+  g.MELON_FIRST_LIST = null;
+  return e.response;
+}
+
 async function bundled(path, signal, refresh = false) {
   const hit = refresh ? null : bundleCache.get(path);
   if (hit) {
@@ -477,10 +508,11 @@ async function bundled(path, signal, refresh = false) {
     return { ...hit };
   }
   try {
-    const raw = await getJson(path, { signal });
+    const raw = await getJson(path, { signal, early: refresh ? null : firstList(path) });
     if (!raw || !Array.isArray(raw.jobs)) return null;
     const { format, shared, dict, columns, ...body } = raw;
     body.jobs = unpackJobs(raw);
+    if (shared && shared.vetted === true) vettedLists.add(body.jobs);
     if (body.jobs.length) bundleOrigin.set(body.jobs, { path, body });
     return body.jobs.length ? body : null;
   } catch (err) {
@@ -738,10 +770,10 @@ export async function getJobs(params, { refresh = false, signal, onUpdate = null
     const finish = async (out) => {
       if (finished.has(out.jobs)) return out;
       const raw = out.jobs;
-      // Salary gate first (bundled lists were vetted at build time; it is
-      // idempotent, and live/in-browser-demo jobs need it).
+      // Salary gate first (bundled lists were vetted at build time, and one the build found
+      // unchanged by a second pass is skipped; live/in-browser-demo jobs need it).
       const lib = await loadLib();
-      if (lib.vetSalaries && Array.isArray(out.jobs)) {
+      if (lib.vetSalaries && Array.isArray(out.jobs) && !vettedLists.has(out.jobs)) {
         await yieldToMain();
         out = { ...out, jobs: lib.vetSalaries(out.jobs) };
       }
