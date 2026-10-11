@@ -19,6 +19,8 @@ import { UpstreamError, htmlToText, str } from './util.js';
 import { politeJson, checkRobots, cookieJar, newStats } from './polite.js';
 import { deltaPlan, crawlOptions, probeAbsent, probeRequest, LIST_ONLY } from './incremental.js';
 import { crawlBlock } from '../companies.js';
+import { geocode } from '../geo.js';
+import { annualize } from '../salary.js';
 
 export const AMAZON_ORIGIN = 'https://www.amazon.jobs';
 const PAGE = 100;
@@ -116,10 +118,13 @@ export function amazonPayTable(...blocks) {
 
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 const ISO3 = /^[A-Z]{3}$/;
+const ISO3_ISO2 = Object.freeze({ USA: 'US', CAN: 'CA', MEX: 'MX', GBR: 'GB', IRL: 'IE', DEU: 'DE', FRA: 'FR', ITA: 'IT', ESP: 'ES', NLD: 'NL', POL: 'PL', AUT: 'AT', SVK: 'SK', CZE: 'CZ', LUX: 'LU', BEL: 'BE', SWE: 'SE', AUS: 'AU', NZL: 'NZ', JPN: 'JP', IND: 'IN', SGP: 'SG', BRA: 'BR', CRI: 'CR', ROU: 'RO', ISR: 'IL', ARE: 'AE', SAU: 'SA', ZAF: 'ZA', CHN: 'CN', KOR: 'KR', CHE: 'CH', DNK: 'DK', NOR: 'NO', FIN: 'FI', PRT: 'PT', GRC: 'GR', HUN: 'HU', TUR: 'TR', EGY: 'EG' });
+const VIRTUAL_RE = /^virtual location\b/;
 /**
  * A pay-table row's place: "USA, CA, East Palo Alto" (country first), "Seattle, WA, USA" (country
- * last), "GBR, London", "JPN, 13, Tokyo" -> { country: 'USA', state: 'ca', city: 'east palo alto' }
- * (country an ISO 3166 alpha-3 code like the row's country_code; state and city normalised).
+ * last), "GBR, London", "JPN, 13, Tokyo" -> { country: 'USA', state: 'ca', city: 'east palo alto',
+ * cityText: 'East Palo Alto', virtual } (country an ISO 3166 alpha-3 code like the row's
+ * country_code; state and city normalised; virtual for "Virtual Location - S Carolina" rows).
  */
 export function amazonPlace(label) {
   const parts = String(label || '').split(',').map((x) => x.trim()).filter(Boolean);
@@ -127,33 +132,150 @@ export function amazonPlace(label) {
   if (parts.length > 1 && ISO3.test(parts[0])) country = parts.shift();
   else if (parts.length > 1 && ISO3.test(parts[parts.length - 1])) { country = parts.pop(); parts.reverse(); }
   const state = parts.length > 1 ? norm(parts[0]) : null;
-  const city = norm(parts.length > 1 ? parts.slice(1).join(' ') : parts[0]);
-  return { country, state: state || null, city: city || null };
+  const cityText = parts.length > 1 ? parts.slice(1).join(', ') : parts[0] || '';
+  const city = norm(cityText);
+  return { country, state: state || null, city: city || null, cityText, virtual: VIRTUAL_RE.test(city || '') };
 }
+
+/** A posting place for row matching: { key (the location string), city, region, country, remote }, normalised. */
+function placeOf(l) {
+  if (!l) return null;
+  if (typeof l === 'string') {
+    const g = (geocode(l) || [])[0] || {};
+    const first = norm(l.split(',')[0]);
+    return { key: l, city: norm(g.city) || first, region: norm(g.region) || null, country: g.country || null, remote: g.remote === true || /^remote\b/i.test(l) };
+  }
+  const key = l.rawName || l.name;
+  if (!key) return null;
+  return { key, city: norm(l.city) || norm(String(key).split(',')[0]), region: norm(l.region) || null, country: l.country || null, remote: l.remote === true };
+}
+
+/** Does pay-table row place p name the posting place q? Cities and states compared whole. */
+function rowNames(p, q) {
+  if (!p || !q || q.remote || p.virtual || !p.city || p.city !== q.city) return false;
+  if (p.country && q.country && ISO3_ISO2[p.country] && ISO3_ISO2[p.country] !== q.country) return false;
+  return !p.state || !q.region || p.state === q.region;
+}
+
+// The sentence above an Amazon pay table (fix wave 5): what the figures are.
+// VT-17: "The minimum gross base pay salary for this position is listed below", "See below the
+// minimum gross base salary for this position:", Austria's "The minimum basic salary for this
+// position is EUR 47'000 gross annually". A stated minimum is kept and labelled (kind 'minimum',
+// "from €X"), never hidden (lead decision, "Beta round 3"). Polish internships that ALSO say
+// "The base pay for this position is PLN 6000 monthly" state the pay itself (vetting: correct).
+const MINIMUM_RE = /\bminimum\s+(?:gross\s+)?(?:basic\s+|base\s+)?(?:pay\s+)?salary\b/i;
+const STATED_PAY_RE = /\bThe\s+base\s+pay\s+for\s+this\s+position\s+is\s+(?:[A-Z]{3}\s*)?[\d$€£]/i;
+// VT-18: "The starting pay for this position is listed below, including the base pay rate plus
+// the highest available shift differential".
+const SHIFT_RE = /\bhighest\s+(?:available\s+)?shift\s+differential\b/i;
+// VT-18: a lower base the posting states in words: "Pay starts at $18.35 per hour", "The starting
+// pay for this role in Washington State is up to $32/hour".
+const STATED_BASE_RE = /\b(?:Pay\s+starts\s+at|starting\s+pay\s+for\s+this\s+(?:role|position)(?:\s+in\s+[A-Z][A-Za-z ]{1,30})?\s+is\s+(?:up\s+to\s+)?)\s*\$\s?(\d{1,3}(?:\.\d{1,2})?)\s*(?:\/\s*|per\s+)(?:hour|hr)\b/i;
+// VT-19: "The minimum basic salary for this position is EUR 47'000 gross annually" (Austria pays
+// 14 monthly salaries, so 12 x the monthly row understates the year by 14%).
+const STATED_ANNUAL_RE = /\b(?:salary|pay)\s+for\s+this\s+position\s+is\s+(?:(EUR|PLN|CZK|GBP|USD|CAD|€)\s*)?(\d{1,3}(?:['’.,\s]\d{3})+|\d{4,7})(?:\s*(EUR|PLN|CZK|GBP|€))?\s+(?:gross\s+)?(?:annually|per\s+year|a\s+year|yearly)\b/i;
+
+/** What the posting says about its table: { minimum, shift, statedBase: { rate, text } | null, statedAnnual: { amount, currency, text } | null }. */
+export function amazonPayWords(text) {
+  const t = String(text || '').replace(/\s+/g, ' ');
+  const sentence = (re) => { const m = re.exec(t); if (!m) return null; const a = t.lastIndexOf('. ', m.index) + 1; const b = t.indexOf('.', m.index + m[0].length); return t.slice(a, b < 0 ? undefined : b + 1).trim().slice(0, 240); };
+  const minimum = MINIMUM_RE.test(t) && !STATED_PAY_RE.test(t);
+  const b = STATED_BASE_RE.exec(t);
+  const a = STATED_ANNUAL_RE.exec(t);
+  let statedAnnual = null;
+  if (a) {
+    const amount = Number(a[2].replace(/['’.,\s]/g, ''));
+    const cur = (a[1] || a[3] || '').replace('€', 'EUR').toUpperCase() || null;
+    if (amount > 0) statedAnnual = { amount, currency: cur, text: sentence(STATED_ANNUAL_RE) };
+  }
+  return { minimum, shift: SHIFT_RE.test(t), statedBase: b ? { rate: Number(b[1]), text: sentence(STATED_BASE_RE) } : null, statedAnnual };
+}
+
+const short = (s, n = 60) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 /**
  * Pay rule (docs/DATA_SOURCES.md §7a, §7e): the row for the posting's primary location (the
- * row's own city, with the same state when both name one), else the first row in the posting's
- * country, else the first row. Cities and states are compared whole ("York, PA" is not
- * "New York, NY"; "Arlington, TX" is not "Arlington, VA"). Every row is kept as payRanges
- * (salary.ranges); their distinct ranges are the zone count.
+ * row's own city, with the same state when both name one), else the first row for one of the
+ * posting's own places, else the first row in the posting's country, else the first row.
+ * Cities and states are compared whole ("York, PA" is not "New York, NY"; "Arlington, TX" is not
+ * "Arlington, VA"). Fix wave 5:
+ *   - DQ-33 / VT-15: each row is tied to the posting's location strings it names, as Apple's
+ *     mapCopies does (payRanges[].locations, yearly like the salary), so Juice, payLocations and
+ *     the Location filter use each place's own range;
+ *   - DQ-41: a "Virtual Location - S Carolina" row for a state the posting does not list is
+ *     dropped when the posting lists places with a state (a remote-only posting keeps them all);
+ *   - identical rows are one range with all their places, and zones counts the distinct ranges;
+ *   - VT-17 kind 'minimum', VT-18 includesShiftDifferential and statedBase, VT-19 the annual
+ *     figure the posting states (amazonPayWords).
+ * `places`: the posting's location strings (or stored Locations); `primary`: the row line a stored
+ * salary was read from (upgradeAmazonJobs), which stands in for the search row's own city.
  */
-export function amazonSalary(j, table = amazonPayTable(j.description, j.basic_qualifications, j.preferred_qualifications)) {
+export function amazonSalary(j, table = amazonPayTable(j.description, j.basic_qualifications, j.preferred_qualifications), { places: given = null, primary = null, text = null } = {}) {
   if (!table.length) return { salary: null, payRanges: [] };
   const city = norm(j.city);
   const state = norm(j.state);
   const country = ISO3.test(String(j.country_code || '')) ? String(j.country_code) : null;
-  const places = table.map((r) => amazonPlace(r.location));
+  const posting = (Array.isArray(given) ? given : parseLocations(j).locs).map(placeOf).filter(Boolean);
+  const listedStates = new Set(posting.filter((q) => !q.remote && q.region).map((q) => q.region));
+  const remoteKeys = posting.filter((q) => q.remote).map((q) => q.key);
+  let rows = table.map((r) => ({ ...r, place: amazonPlace(r.location) }));
+  // DQ-41: a virtual row for a state the posting lists no place in (only when it lists states).
+  if (listedStates.size) {
+    const kept = rows.filter((r) => !r.place.virtual || !r.place.state || listedStates.has(r.place.state));
+    if (kept.length) rows = kept;
+  }
+  for (const r of rows) {
+    r.locations = r.place.virtual ? (r.place.state && listedStates.has(r.place.state) ? [] : remoteKeys) : posting.filter((q) => rowNames(r.place, q)).map((q) => q.key);
+  }
   const sameCountry = (p) => !country || !p.country || p.country === country;
-  const row = (test) => { const i = places.findIndex(test); return i >= 0 ? table[i] : null; };
-  const pick = (city && (row((p) => p.city === city && sameCountry(p) && !!state && p.state === state)
+  const row = (test) => rows.find((r) => test(r.place, r)) || null;
+  const pick = (primary && rows.find((r) => r.line === primary && (!r.place.virtual || r.locations.length)))
+    || (city && (row((p) => p.city === city && sameCountry(p) && !!state && p.state === state)
     || row((p) => p.city === city && sameCountry(p) && (!state || !p.state))))
-    || (country && row((p) => p.country === country))
-    || table[0];
-  const distinct = new Set(table.map((r) => `${r.min}|${r.max}|${r.currency}|${r.interval}`)).size;
-  const salary = { min: pick.min, max: pick.max, currency: pick.currency, interval: pick.interval, text: pick.line, zones: distinct };
-  const payRanges = table.slice(0, 12).map((r) => ({ min: r.min, max: r.max, currency: r.currency, interval: r.interval, label: r.location.slice(0, 60) }));
-  return { salary, payRanges };
+    || row((p, r) => r.locations.length > 0 && !p.virtual)
+    || (country && (row((p) => p.country === country && !p.virtual) || row((p) => p.country === country)))
+    || rows[0];
+  // Identical rows are one range with all their places (DQ-33).
+  const groups = [];
+  for (const r of rows) {
+    const k = `${r.min}|${r.max}|${r.currency}|${r.interval}`;
+    const g = groups.find((x) => x.k === k);
+    if (g) { g.rows.push(r); for (const l of r.locations) if (!g.locations.includes(l)) g.locations.push(l); } else groups.push({ k, rows: [r], locations: [...r.locations], min: r.min, max: r.max, currency: r.currency, interval: r.interval });
+  }
+  const words = amazonPayWords(text != null ? text : htmlToText(String(j.description || '')));
+  let salary = { min: pick.min, max: pick.max, currency: pick.currency, interval: pick.interval, text: pick.line, zones: groups.length };
+  // VT-19: the annual figure the posting states wins over 12 x a monthly row (Austria pays 14).
+  let factor = null;
+  if (words.statedAnnual && pick.interval === 'month' && (!words.statedAnnual.currency || words.statedAnnual.currency === pick.currency)) {
+    const f = words.statedAnnual.amount / pick.min;
+    if (f >= 11.5 && f <= 14.5) {
+      factor = f;
+      salary = { ...salary, min: words.statedAnnual.amount, max: Math.round(pick.max * f), interval: 'year', text: `${words.statedAnnual.text} (${pick.line})`, statedAnnual: { amount: words.statedAnnual.amount, currency: pick.currency, monthly: pick.min, paymentsPerYear: Math.round(f * 100) / 100 } };
+    }
+  }
+  if (words.minimum) salary.kind = 'minimum';
+  if (words.shift && pick.interval === 'hour') {
+    salary.includesShiftDifferential = true;
+    const b = words.statedBase;
+    if (b && b.rate > 0 && b.rate < pick.max && pick.currency === 'USD') salary.statedBase = { min: b.rate, max: b.rate, currency: 'USD', interval: 'hour', text: b.text };
+  }
+  const yearly = (v, iv) => (factor && iv === 'month' ? Math.round(v * factor) : annualize(v, iv));
+  const label = (g) => {
+    if (g.locations.length) return short([...new Set(g.locations.map((l) => (/^remote\b/i.test(l) ? 'Remote' : String(l).split(',')[0].trim())))].join(', '));
+    return short([...new Set(g.rows.map((r) => (r.place.virtual ? `Remote${r.place.state ? ` (${r.place.state.toUpperCase()})` : ''}` : r.place.cityText || r.location)))].join(', '));
+  };
+  const payRanges = groups.length > 1 ? groups.slice(0, 12).map((g) => ({
+    min: yearly(g.min, g.interval), max: yearly(g.max, g.interval), currency: g.currency, interval: 'year', label: label(g),
+    ...(g.locations.length ? { locations: g.locations } : {}),
+  })) : [];
+  // One range for some of the posting's places only (every other place has no row): those places.
+  let payPlaces = null;
+  if (groups.length === 1 && groups[0].locations.length) {
+    const own = new Set(groups[0].locations);
+    if (posting.some((q) => !q.remote && !own.has(q.key))) payPlaces = groups[0].locations.filter((l) => !remoteKeys.includes(l));
+    if (payPlaces && !payPlaces.length) payPlaces = null;
+  }
+  return { salary, payRanges, ...(payPlaces ? { payPlaces } : {}) };
 }
 
 /** job_schedule_type values -> employmentType (anything else is kept as written). */

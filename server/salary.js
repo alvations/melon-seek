@@ -42,7 +42,24 @@
 export const SALES_CONDITIONAL_RE = /\b(?:for|in|on)\s+(?:sales|commissioned|quota[- ]carrying|commission[- ]eligible)\s+roles\b/i;
 
 export const MIN_ANNUAL = 10000;            // annualized floor for any salary
-export const MAX_ANNUAL = 1_200_000;        // text candidates above this are not pay (= vet.js bound)
+// Fix wave 5 (VT-10, lead decision under "present them as they are"): real posted ranges such as
+// Netflix's L7 "$737,000.00 - $1,430,000.00" are shown; the gate study (data/vetting/2026-10-11-beta-2,
+// gate-study.mjs) still catches the $4.6M, $5M and $1.56M misreads at $1.5M.
+export const MAX_ANNUAL = 1_500_000;        // text candidates above this are not pay (= vet.js bound)
+/**
+ * VT-14 (fix wave 5): the legal full-time minimum, per year in the local currency, for a currency
+ * whose national minimum wage is below MIN_ANNUAL (US$10,000). A salary at or above it is real pay
+ * even though it is under MIN_ANNUAL in dollars. Mexico: the 2026 general-zone minimum wage,
+ * MXN 315.04 a day (CONASAMI resolution of 2025-12-03, in force 2026-01-01; EY Law Flash
+ * "Incremento salarios mínimos 2026"), x 365 = MXN 114,990 (about US$6,600).
+ */
+export const LEGAL_MIN_ANNUAL = Object.freeze({ MXN: 114_990 });
+/** True when an annual amount in `cur` is at or above the parser's floor (MIN_ANNUAL in USD, or the legal minimum). */
+export function meetsAnnualFloor(annual, cur) {
+  const c = String(cur || 'USD').toUpperCase();
+  if (usdOr(annual, c) >= MIN_ANNUAL) return true;
+  return LEGAL_MIN_ANNUAL[c] > 0 && Number(annual) >= LEGAL_MIN_ANNUAL[c];
+}
 export const HARD_MAX_ANNUAL = 5_000_000;   // toJobSalary refuses above this; between the two the vetting gate quarantines
 const PLAUSIBLE_ANNUAL_MIN = 15000;
 const TIER_GAP = 130;                       // max chars between tiers of one list
@@ -110,7 +127,7 @@ export function toUSD(amount, currency) {
   const r = USD_PER[String(currency || 'USD').toUpperCase()];
   return r && Number.isFinite(amount) ? amount * r : null;
 }
-const usdOr = (n, cur) => toUSD(n, cur) ?? n;
+function usdOr(n, cur) { return toUSD(n, cur) ?? n; }
 
 export const COUNTRY_CURRENCY = Object.freeze({
   US: 'USD', CA: 'CAD', GB: 'GBP', UK: 'GBP', CH: 'CHF', JP: 'JPY', KR: 'KRW', IN: 'INR', SG: 'SGD', AU: 'AUD',
@@ -234,22 +251,27 @@ const US_RANGE_RE = /\b(?:US|U\.S\.)\s+(?:base\s+)?(?:salary|pay|compensation|wa
  * A symbol several currencies share, with no code next to it, takes the job's currency:
  *   - "$" in a posting whose locations are all in Canada is CAD unless the text says USD
  *     (D-22, DQ-14: Google "$150000 - $153000" in Waterloo, Netflix "$135,000.00 -
- *     185,000.00" in Toronto). Everywhere else a bare "$" stays USD.
+ *     185,000.00" in Toronto). Fix wave 5 (DQ-35, VT-14): the same for the other dollar and
+ *     peso countries, DOLLAR_COUNTRY (Mexico MXN: Amazon's "Monthly Salary: $12,569" in a
+ *     Remote, Mexico posting; Australia, New Zealand, Singapore, Hong Kong). Everywhere else a
+ *     bare "$" stays USD (xAI's "$" in Dublin is USD, as the vetting reviewed it).
  *   - "kr" / "kr." is SEK, NOK or DKK by the job's country ("kr" SEK and "kr." DKK when
  *     no Nordic country is listed).
  */
+export const DOLLAR_COUNTRY = Object.freeze({ CA: 'CAD', MX: 'MXN', AU: 'AUD', NZ: 'NZD', SG: 'SGD', HK: 'HKD' });
 function resolveWeakCurrencies(toks, text, countries) {
   const cs = (countries || []).map((c) => String(c || '').toUpperCase()).filter(Boolean);
-  const canadaOnly = cs.length > 0 && cs.every((c) => c === 'CA');
+  // The one dollar (or peso) country every location is in, or null.
+  const only = cs.length > 0 && cs.every((c) => c === cs[0]) ? DOLLAR_COUNTRY[cs[0]] || null : null;
   for (const t of toks) {
     if (!t.sym) continue;
     if (t.sym === '$') {
       // "The text says USD" in the amount's own sentence or heading, or on a "US:" line
       // (a posting's "USD technology" or "Pixar's USD" elsewhere is not about pay).
-      if (canadaOnly) {
+      if (only) {
         const cl = clauseSpan(text, t.start, t.end);
         const near = `${cl.heading}\n${text.slice(Math.max(cl.start, t.start - CLAUSE_REACH), Math.min(cl.end, t.end + CLAUSE_REACH))}`;
-        if (!USD_MENTION_RE.test(near) && !US_RANGE_RE.test(near) && lineCountry(text, t.start) !== 'US') t.currency = 'CAD';
+        if (!USD_MENTION_RE.test(near) && !US_RANGE_RE.test(near) && lineCountry(text, t.start) !== 'US') t.currency = only;
       }
       continue;
     }
@@ -336,6 +358,22 @@ const TOTAL_COMP_RE = /\b(?:total\s+(?:(?:target|annual|cash|expected)\s+)*comp(
 function totalCompBefore(before) {
   const i = before.search(TOTAL_COMP_RE);
   return i >= 0 && !/\bbase\s+(?:pay|salary)\b/i.test(before.slice(i));
+}
+/**
+ * VT-7 (fix wave 5, lead decision): NVIDIA's sales postings say "Your cash compensation will be
+ * determined … with 85% paid through base salary and 15% variable compensation. The cash
+ * compensation range is 200,000 USD - 300,000 USD." That range is base plus variable pay at
+ * target: on-target earnings (kind 'ote'), shown and labelled, no longer hidden. A "total
+ * compensation" range (bonus, equity) is still not pay.
+ */
+export const CASH_COMP_SPLIT_RE = /\b\d{1,3}\s?%\s+paid\s+through\s+base\s+salary\s+and\s+\d{1,3}\s?%\s+variable\s+comp(?:ensation)?\b/i;
+const CASH_COMP_ONLY_RE = /\b(?:target\s+)?cash\s+comp(?:ensation)?\b/i;
+/** The phrase before the amount is a cash compensation range that the posting splits into base and variable (VT-7). */
+function cashCompOteBefore(before, text) {
+  const i = before.search(TOTAL_COMP_RE);
+  if (i < 0) return false;
+  const phrase = TOTAL_COMP_RE.exec(before.slice(i));
+  return !!phrase && CASH_COMP_ONLY_RE.test(phrase[0]) && !/\btotal\b/i.test(phrase[0]) && CASH_COMP_SPLIT_RE.test(text);
 }
 // "$141,000-$202,000 + bonus + equity + benefits" (Google, Meta), "US: $300000 -
 // $333000 (USD) + 25% bonus target + equity + benefits": a base range with the
@@ -622,7 +660,8 @@ export function isPartTimeRole({ title = '', employmentType = '' } = {}) {
 // Weekly hours a posting states for the role: "work 16 hours per week (8 hours per day)", "a
 // part-time opportunity (20 hours per week)", "28 hrs pw", "20-25 hours a week". Never "8 hours
 // per day" alone; 35 hours or more is full-time, so it is not read as part-time hours.
-const WEEKLY_HOURS_RE = /\b(\d{1,2})(?:\s*(?:-|–|—|to)\s*(\d{1,2}))?\s*(?:hrs?|hours)\s*(?:pw|p\/w|per\s+week|a\s+week|\/\s*(?:wk|week)|weekly|each\s+week|every\s+week)\b/i;
+// Fix wave 5 (VT-23): "Student position for 20h per week" (Amazon) is the same statement.
+const WEEKLY_HOURS_RE = /\b(\d{1,2})(?:\s*(?:-|–|—|to)\s*(\d{1,2}))?\s*(?:hrs?|hours|h)\s*(?:pw|p\/w|per\s+week|a\s+week|\/\s*(?:wk|week)|weekly|each\s+week|every\s+week)\b/i;
 /** { hours, hoursMax? } a posting states per week (1–34; a range's upper end up to 40), or null. */
 export function statedWeeklyHours(text) {
   const m = WEEKLY_HOURS_RE.exec(String(text || '').replace(/\s+/g, ' '));
@@ -650,8 +689,8 @@ export function payTerms(salary, { text = '', title = '', employmentType = '', s
   const fixedTerm = isFixedTermRole({ title, employmentType });
   // A stipend is never commission pay; an hourly sales range can be OTE (originalInterval
   // still says it was posted per hour).
-  if (out.kind !== 'ote' && out.kind !== 'stipend'
-    && (hasOte(out.text) || oteStatement(text, { salesRole: salesRole && !fixedTerm }))) out.kind = 'ote';
+  if (out.kind !== 'ote' && out.kind !== 'stipend' && out.kind !== 'minimum'
+    && (hasOte(out.text) || oteStatement(text, { salesRole: salesRole && !fixedTerm }) || cashCompOte(out, text))) out.kind = 'ote';
   if (fixedTerm && !out.termWeeks) {
     const t = programTerm(text);
     if (t) {
@@ -676,6 +715,12 @@ export function payTerms(salary, { text = '', title = '', employmentType = '', s
     }
   }
   return out;
+}
+
+/** VT-7: the salary is a text range read after "cash compensation range", in a posting that splits it into base and variable pay. */
+function cashCompOte(salary, text) {
+  if (!salary || salary.source === 'structured' || !CASH_COMP_SPLIT_RE.test(text)) return false;
+  return /\bcash\s+compensation\s+range\b/i.test(text);
 }
 
 /* ------------------------------------------------------------ candidates */
@@ -747,7 +792,7 @@ function contextOf(text, gs, ge, { unit = null, single = false } = {}) {
   // DQ-14: "will be no less than $62.74 an hour" is a floor, not the posted pay.
   else if (single && FLOOR_BEFORE_RE.test(before)) reject = 'pay_floor';
   // Base pay only: a total-compensation range includes bonus/equity/sign-on.
-  else if (totalCompBefore(before) || TOTAL_COMP_AFTER_RE.test(text.slice(ge, ge + 160))) reject = 'total_compensation';
+  else if ((totalCompBefore(before) && !cashCompOteBefore(before, text)) || TOTAL_COMP_AFTER_RE.test(text.slice(ge, ge + 160))) reject = 'total_compensation';
   // Netflix sales: "The overall market range for roles in this area of Netflix is typically
   // $X - $Y. A portion of this compensation is variable." A band for an area, not this role
   // (docs/DATA_SOURCES.md §7a).
@@ -794,7 +839,7 @@ function evaluate(text, u, countries) {
   if (!FX_PER_USD[u.currency]) return null;
   if (!b && !u.explicit) return null;
   // S-3: an amount below a year's pay floor even at an hourly rate ("$1") needs no context.
-  if (!(usdOr(Math.max(lo, hi) * FACTORS.hour, u.currency) >= MIN_ANNUAL)) return null;
+  if (!meetsAnnualFloor(Math.max(lo, hi) * FACTORS.hour, u.currency)) return null;
 
   const gs = u.groupStart ?? u.start;
   const ge = u.groupEnd ?? u.end;
@@ -833,7 +878,7 @@ function evaluate(text, u, countries) {
   // is read so that the vetting gate quarantines it visibly ("Pay unclear, see posting")
   // instead of the posting silently showing no pay. It never beats a plausible amount.
   const over = !(annHi <= MAX_ANNUAL) && !!b && u.explicit && kwInClause && !a.mult && !b.mult && annHi <= HARD_MAX_ANNUAL;
-  if (!(annLo >= MIN_ANNUAL && (annHi <= MAX_ANNUAL || over))) return null;
+  if (!(meetsAnnualFloor(lo * factor, cur) && (annHi <= MAX_ANNUAL || over))) return null;
 
   const stipend = /\bstipend/i.test(kwClause) || /\bstipend/i.test(kwHeading) || payStipendAfter;
   // P-1: "OTE: $X–$Y", "$X–$Y OTE" (no other amount in between).
@@ -1113,7 +1158,7 @@ export function toJobSalary(sal, { source } = {}) {
   }
   const aMin = termFactor ? Math.round(min * termFactor) : annualize(min, interval);
   const aMax = termFactor ? Math.round(max * termFactor) : annualize(max, interval);
-  if (!(usdOr(aMin, cur) >= MIN_ANNUAL && usdOr(aMax, cur) <= HARD_MAX_ANNUAL)) return null;
+  if (!(meetsAnnualFloor(aMin, cur) && usdOr(aMax, cur) <= HARD_MAX_ANNUAL)) return null;
   const kind = sal.kind || (interval === 'hour' ? 'hourly' : 'salary');
   const out = {
     min: aMin, max: aMax, mid: Math.round((aMin + aMax) / 2),
@@ -1136,6 +1181,13 @@ export function toJobSalary(sal, { source } = {}) {
   if (intervalCorrected) { out.intervalCorrected = true; out.statedInterval = statedInterval; }
   if (typeof sal.country === 'string' && /^[A-Z]{2}$/.test(sal.country)) out.country = sal.country;
   if (Array.isArray(sal.ranges) && sal.ranges.length > 1) out.ranges = sal.ranges;
+  // Fix wave 5 (VT-18, VT-19): what the posting says about the figure, kept beside it.
+  if (sal.includesShiftDifferential === true) out.includesShiftDifferential = true;
+  if (sal.statedBase && typeof sal.statedBase === 'object') {
+    const b = toJobSalary({ ...sal.statedBase, statedBase: null, ranges: null, levels: null }, {});
+    if (b) out.statedBase = { min: b.min, max: b.max, currency: b.currency, ...(b.originalInterval ? { originalInterval: b.originalInterval } : {}), text: sal.statedBase.text || null };
+  }
+  if (sal.statedAnnual && typeof sal.statedAnnual === 'object') out.statedAnnual = { ...sal.statedAnnual };
   // DQ-8: pay by level, annualized like min/max, in the salary's currency.
   const toAnnual = (v) => (termFactor ? Math.round(v * termFactor) : annualize(v, interval));
   const levels = Array.isArray(sal.levels)

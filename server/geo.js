@@ -147,6 +147,8 @@ RO|Romania|45.94|24.97|RO
 BG|Bulgaria|42.73|25.49|BG
 RS|Serbia|44.02|21.01|RS
 HR|Croatia|45.10|15.20|
+SK|Slovakia|48.67|19.70|Slovak Republic
+SI|Slovenia|46.15|14.99|
 GR|Greece|39.07|21.82|GR
 TR|Turkey|38.96|35.24|Türkiye;Turkiye;TR
 UA|Ukraine|48.38|31.17|UA
@@ -423,6 +425,7 @@ Naples||IT|40.8518|14.2681|Napoli;Marcianise;Campania, Italy
 Vienna||AT|48.2082|16.3738|Wien
 Linz||AT|48.3069|14.2858|
 Prague||CZ|50.0755|14.4378|Praha
+Bratislava||SK|48.1486|17.1077|
 Warsaw||PL|52.2297|21.0122|Warszawa
 Krakow||PL|50.0647|19.9450|Kraków
 Stockholm||SE|59.3293|18.0686|
@@ -562,6 +565,10 @@ for (const line of OTHER_REGIONS_RAW.trim().split('\n')) {
 
 const COUNTRIES = new Map(); // key -> country
 const COUNTRY_BY_CODE = new Map();
+// DQ-40 (fix wave 5): ISO 3166 alpha-3 codes as Amazon writes them at the end of a place
+// ("Bratislava, Bratislavský kraj, SVK", "Enns, Upper Austria, AUT"). Read only when written in
+// capitals (a lower-case "can" or "per" is a word, not a country).
+const ISO3_TO_ISO2 = Object.freeze(Object.fromEntries(`USA US|CAN CA|MEX MX|CRI CR|BRA BR|ARG AR|CHL CL|COL CO|PER PE|URY UY|GBR GB|IRL IE|FRA FR|DEU DE|NLD NL|BEL BE|LUX LU|CHE CH|AUT AT|ITA IT|ESP ES|PRT PT|SWE SE|NOR NO|DNK DK|FIN FI|ISL IS|EST EE|LVA LV|LTU LT|POL PL|CZE CZ|HUN HU|ROU RO|BGR BG|SRB RS|HRV HR|SVK SK|SVN SI|GRC GR|TUR TR|UKR UA|ARM AM|ISR IL|KWT KW|ARE AE|SAU SA|QAT QA|EGY EG|NGA NG|GHA GH|KEN KE|ZAF ZA|IND IN|PAK PK|JPN JP|KOR KR|CHN CN|HKG HK|MAC MO|TWN TW|SGP SG|MYS MY|IDN ID|PHL PH|THA TH|VNM VN|AUS AU|NZL NZ`.split('|').map((x) => x.split(' '))));
 for (const line of COUNTRIES_RAW.trim().split('\n')) {
   const [code, name, lat, lng, aliases] = line.split('|');
   const c = { code, name, lat: +lat, lng: +lng };
@@ -618,6 +625,10 @@ function regionInfo(token) {
   if (STATES.has(key)) {
     const s = STATES.get(key);
     return { kind: 'state', region: s.abbr, country: 'US', lat: s.lat, lng: s.lng };
+  }
+  if (/^[A-Z]{3}$/.test(compact) && ISO3_TO_ISO2[compact] && COUNTRY_BY_CODE.has(ISO3_TO_ISO2[compact])) {
+    const c = COUNTRY_BY_CODE.get(ISO3_TO_ISO2[compact]);
+    return { kind: 'country', region: null, country: c.code, lat: c.lat, lng: c.lng };
   }
   if (COUNTRIES.has(key)) {
     // A bare 2-letter alias like "us" only counts when written in caps.

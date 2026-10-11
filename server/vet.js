@@ -9,7 +9,7 @@
 //   job.salaryFlag =  { codes: [...], reason: "human readable" }
 //
 // Checks (thresholds in VET; their justification is in docs/VETTING.md):
-//   above_max         annual max > $1.2M (critical)
+//   above_max         annual max > $1.5M (critical; $1.2M until fix wave 5, VT-10)
 //   below_min         annual min < $15K on a full-time role (critical)
 //   min_gt_max        min > max
 //   range_ratio       max/min > VET.RATIO_QUARANTINE
@@ -20,15 +20,18 @@
 //   stat_outlier      log(mid) is an outlier company-wide (robust z on median/MAD:
 //                     z > 3.5 or above the Tukey fence (k = 3); low side
 //                     z < -4.5 and below the fence) AND within
-//                     every comparison group (department, role family, pay kind)
-//                     that has at least VET.MIN_GROUP members. Low-side
+//                     every comparison group (department, role family, pay kind,
+//                     and since fix wave 5 the pay's currency, VT-16) that has at
+//                     least VET.MIN_GROUP members. A low-side flag needs a currency
+//                     group that large when the pay is not in the company's main
+//                     currency: lei pay is not compared with US pay (DQ-6 residue). Low-side
 //                     statistical flags only apply to full-time salaried roles
 //                     (hourly/stipend/contract/intern pay is legitimately low).
 // Amounts are compared in USD with rough FX (USD_PER) so a GBP role is not an
 // outlier against USD ones; FX only has to be right to within ~20%.
 
 export const VET = Object.freeze({
-  MAX_ANNUAL: 1_200_000,
+  MAX_ANNUAL: 1_500_000,  // fix wave 5 (VT-10): Netflix L7 $737K–$1.43M is a real posted range
   MIN_ANNUAL_FULLTIME: 15_000,
   RATIO_FLAG: 3,          // scan flag (human/LLM review), not a quarantine
   RATIO_QUARANTINE: 4,    // gate; legit real ranges reach 3.4x (docs/VETTING.md)
@@ -51,7 +54,7 @@ export const VET = Object.freeze({
 export const CRITICAL_CODES = Object.freeze(['above_max', 'below_min', 'hourly_high']);
 
 // Rough FX lives in salary.js (one table for parser bounds and this gate).
-import { USD_PER, toUSD } from './salary.js';
+import { USD_PER, toUSD, LEGAL_MIN_ANNUAL } from './salary.js';
 export { USD_PER, toUSD };
 
 const PART_TIME_RE = /part[- ]?time|intern|co-?op|contract|temporary|seasonal|casual|per diem/i;
@@ -95,7 +98,7 @@ export function roleFamily(title) {
   return 'other';
 }
 
-/** Pay kind of a Job salary ('salary' | 'hourly' | 'stipend' | 'ote'): explicit kind, else hourly when the source interval was hourly. */
+/** Pay kind of a Job salary ('salary' | 'hourly' | 'stipend' | 'ote' | 'minimum'): explicit kind, else hourly when the source interval was hourly. */
 export function payKind(salary) {
   if (!salary) return null;
   if (salary.kind) return salary.kind;
@@ -128,7 +131,9 @@ export function salaryChecks(job, salary = job && job.salary) {
     return out;
   }
   if (usd(max) > VET.MAX_ANNUAL) out.push({ code: 'above_max', reason: `annual max ${fmt(usd(max))}${tag} is above the ${fmt(VET.MAX_ANNUAL)} plausibility bound` });
-  if (usd(min) < VET.MIN_ANNUAL_FULLTIME && isFullTime(job)) out.push({ code: 'below_min', reason: `annual min ${fmt(usd(min))} is below ${fmt(VET.MIN_ANNUAL_FULLTIME)} for a full-time role` });
+  // VT-14: at or above the country's legal full-time minimum (Mexico) is real pay, not a misread.
+  const legal = LEGAL_MIN_ANNUAL[cur] > 0 && min >= LEGAL_MIN_ANNUAL[cur];
+  if (usd(min) < VET.MIN_ANNUAL_FULLTIME && isFullTime(job) && !legal) out.push({ code: 'below_min', reason: `annual min ${fmt(usd(min))} is below ${fmt(VET.MIN_ANNUAL_FULLTIME)} for a full-time role` });
   if (min > max) out.push({ code: 'min_gt_max', reason: 'min is greater than max' });
   else if (min > 0 && max / min > VET.RATIO_QUARANTINE) out.push({ code: 'range_ratio', reason: `range ${fmt(min)}–${fmt(max)} spans ${(max / min).toFixed(1)}x (more than ${VET.RATIO_QUARANTINE}x)` });
   // Hourly rates (Job salary keeps the source interval in originalInterval).
@@ -205,7 +210,8 @@ export function statOutliers(jobs, { exclude = new Set() } = {}) {
     if (!j || !j.salary || exclude.has(i)) return;
     const x = logMidUSD(j.salary);
     if (!Number.isFinite(x)) return;
-    pts.push({ i, x, groups: [`dept:${j.department || '-'}`, `family:${roleFamily(j.title)}`, `kind:${payKind(j.salary)}`] });
+    const cur = String(j.salary.currency || 'USD').toUpperCase();
+    pts.push({ i, x, cur, groups: [`dept:${j.department || '-'}`, `family:${roleFamily(j.title)}`, `kind:${payKind(j.salary)}`, `cur:${cur}`] });
   });
   const result = new Map();
   if (pts.length < VET.MIN_GROUP) return result;
@@ -214,6 +220,9 @@ export function statOutliers(jobs, { exclude = new Set() } = {}) {
   for (const p of pts) for (const g of p.groups) { if (!byGroup.has(g)) byGroup.set(g, []); byGroup.get(g).push(p.x); }
   const groupStats = new Map();
   for (const [g, xs] of byGroup) if (xs.length >= VET.MIN_GROUP) groupStats.set(g, robustStats(xs));
+  // The company's main currency (most salaries).
+  let mainCur = null;
+  for (const [g, xs] of byGroup) if (g.startsWith('cur:') && (!mainCur || xs.length > byGroup.get(`cur:${mainCur}`).length)) mainCur = g.slice(4);
   for (const p of pts) {
     const c = outlierScore(p.x, all);
     if (!c.outlier) continue;
@@ -221,6 +230,10 @@ export function statOutliers(jobs, { exclude = new Set() } = {}) {
     // on-target earnings (kind 'ote', P-1) are full-time pay too.
     const pk = payKind(jobs[p.i].salary);
     if (c.z < 0 && (!isFullTime(jobs[p.i]) || (pk !== 'salary' && pk !== 'ote'))) continue;
+    // VT-16 / DQ-6 residue: low pay in another currency than the company's main one is only
+    // judged among salaries in that currency (a cur:<code> group of MIN_GROUP or more); a lei
+    // range is not low against US pay, it is Romanian pay.
+    if (c.z < 0 && p.cur !== mainCur && !groupStats.has(`cur:${p.cur}`)) continue;
     let agree = true;
     const detail = [`company z=${c.z.toFixed(1)}${c.fence ? `, ${c.fence} fence` : ''}`];
     for (const g of p.groups) {
