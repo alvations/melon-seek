@@ -297,12 +297,14 @@ export function juiceColor(score, breaks = JUICE_BREAKS) {
 }
 
 /**
- * Annual net juice (USD) needed for a score. Fallback mirror of server/juice.js
- * netForScore (A = $10K, B = $250K); map.js prefers the live juice.js module so the
+ * Annual net juice (USD) at which the SHOWN (rounded) score reaches `score`. Fallback mirror of
+ * server/juice.js netForScore (A = $10K, B = $250K); map.js prefers the live juice.js module so the
  * legend follows re-tuned anchors automatically.
+ * MR-9 (docs/process/methodology-review-beta.md): grades use the rounded score, so Juicy (70) starts
+ * where the raw score reaches 69.5 ($95K, the methodology page's $94,996), not at 70 ($96K).
  */
 export function juiceNetForScore(score) {
-  const s = Number(score);
+  const s = Number(score) - 0.5;
   if (!(s > 0)) return 0;
   if (s >= 99.5) return JUICE_ANCHORS.fullGlassUSD;
   return -JUICE_ANCHORS.K * Math.log1p(-s / 100);

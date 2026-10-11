@@ -58,8 +58,10 @@ export function trimDescription(html, n) {
  *      postings would make the slowest board on a phone, docs/process/amazon-meta-backend.md) keeps
  *      the first `maxPostings` by the same ranking, before any trimming.
  * `payloadOf(jobs, trimmedTo, capped)` builds the file body. Returns
- * { jobs, trimmedTo|null, capped: { kept, total, by, rule, limit? }|null, bytes }; `by` is
- * 'postings' (the budget) or 'bytes' (the file size), `total` always the whole board.
+ * { jobs, trimmedTo|null, capped: { kept, total, salaried, by, rule, limit? }|null, bytes }; `by` is
+ * 'postings' (the budget) or 'bytes' (the file size), `total` always the whole board and `salaried`
+ * how many of the whole board post pay (MR-14: the kept ones are salaried first, so their share
+ * would read 100%; the page shows the whole board's share instead).
  */
 export const CAP_RULE = 'salaried, then newest';
 const rank = (list) => {
@@ -70,11 +72,12 @@ const inOrder = (ranked, n) => ranked.slice(0, n).sort((a, b) => a.i - b.i).map(
 
 export function fitSnapshot(jobs, payloadOf, maxBytes = MAX_BETA_SNAPSHOT_BYTES, { maxPostings = 0 } = {}) {
   const total = jobs.length;
+  const salaried = jobs.filter((j) => j && j.salary).length;
   let base = jobs;
   let budget = null;
   if (maxPostings > 0 && jobs.length > maxPostings) {
     base = inOrder(rank(jobs), maxPostings);
-    budget = { kept: base.length, total, by: 'postings', rule: CAP_RULE, limit: maxPostings };
+    budget = { kept: base.length, total, salaried, by: 'postings', rule: CAP_RULE, limit: maxPostings };
   }
   const size = (list, n, cap) => Buffer.byteLength(JSON.stringify(payloadOf(list, n, cap), null, 1));
   let bytes = size(base, null, budget);
@@ -89,13 +92,13 @@ export function fitSnapshot(jobs, payloadOf, maxBytes = MAX_BETA_SNAPSHOT_BYTES,
   // 2. Cap: rank (salaried first, newest first), keep the longest prefix that fits.
   const ranked = rank(out);
   const per = ranked.map(({ j }) => Buffer.byteLength(JSON.stringify(j, null, 1)) + 4);
-  const overhead = size([], n, { kept: 0, total, by: 'bytes', rule: CAP_RULE }) + 64;
+  const overhead = size([], n, { kept: 0, total, salaried, by: 'bytes', rule: CAP_RULE }) + 64;
   let keep = 0;
   for (let acc = overhead; keep < per.length && acc + per[keep] <= maxBytes; keep++) acc += per[keep];
   // Nested indentation makes the estimate a little low: shave until it fits.
   for (;;) {
     const kept = inOrder(ranked, keep);
-    const capped = { kept: kept.length, total, by: 'bytes', rule: CAP_RULE };
+    const capped = { kept: kept.length, total, salaried, by: 'bytes', rule: CAP_RULE };
     const b = size(kept, n, capped);
     if (b <= maxBytes || keep === 0) return { jobs: kept, trimmedTo: n, capped, bytes: b };
     keep = Math.floor(keep * Math.min(0.995, maxBytes / b));

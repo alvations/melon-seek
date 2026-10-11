@@ -363,7 +363,7 @@ function annotateHistory(live, jobs, compact, fetchedAt) {
   }
 }
 const blockedSources = new Set(); // sources that failed at the network/CORS level this session
-const NETWORK_REASON = 'the browser could not reach the board (blocked by CORS or the network)';
+const NETWORK_REASON = 'the browser could not reach the board (the board doesn’t let other sites read it, a browser rule called CORS, or the network failed)';
 
 /** Live board fetch -> { jobs (normalized), live: { history } }. */
 async function fetchLiveInBrowser(lib, company, signal) {
@@ -569,7 +569,7 @@ async function staticJobs(p, { refresh = false, signal, onLive = null } = {}) {
   } else if (!allowed) {
     error = `Live fetch skipped: ${company.source} does not allow cross-origin requests from this site (static deploy)`;
   } else if (blockedSources.has(company.source)) {
-    error = `Live fetch skipped: ${company.source} was unreachable from this browser earlier in this session (blocked by CORS or the network); use refresh to retry`;
+    error = `Live fetch skipped: ${company.source} was unreachable from this browser earlier in this session (the board doesn’t let other sites read it, a browser rule called CORS, or the network failed); use refresh to retry`;
     quiet = quietCorsSources().includes(company.source);
   } else {
     // Resolves { ok } or { error, quiet }; rejects only on abort.

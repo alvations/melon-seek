@@ -186,7 +186,7 @@ test('MR-8 the guide says a range posted for several places or levels is spanned
 /* --------------------------------------------------------- MR-9 (Medium) */
 // The list header, card and drawer tooltips say "Juicy: $96K or more a year · Ripe: $48K–96K";
 // the methodology page says Ripe starts at $47,103 and Juicy at $94,996 (the rounded score).
-test('MR-9 the app\'s grade cut-offs in dollars equal the methodology page\'s', todo('MR-9'), () => {
+test('MR-9 the app\'s grade cut-offs in dollars equal the methodology page\'s', () => {
   const k = (x) => Math.round(x / 1000);
   for (const min of [45, 70]) {
     assert.equal(k(juiceNetForScore(min)), k(netForShownScore(juice, min)),
@@ -198,7 +198,7 @@ test('MR-9 the app\'s grade cut-offs in dollars equal the methodology page\'s', 
 // Amazon's budget keeps postings with pay first: 14,123 of 22,415 have pay, so all 5,000 kept do,
 // and the page's "X% show pay" and Insights' "Pay published" would read 100% (the board: 63%).
 // The capped record carries no whole-board pay count the UI could show instead.
-test('MR-14 a budgeted board records how many of the whole board post pay', todo('MR-14'), () => {
+test('MR-14 a budgeted board records how many of the whole board post pay', () => {
   const jobs = Array.from({ length: 2000 }, (_, i) => ({ id: `a:${i}`, postedAt: `2026-10-${String(1 + (i % 10)).padStart(2, '0')}`, salary: i % 100 < 63 ? { min: 1, max: 2 } : null }));
   const out = fitSnapshot(jobs, (list, n, capped) => ({ jobs: list, capped }), 1e12, { maxPostings: 450 });
   const kept = out.jobs.filter((j) => j.salary).length / out.jobs.length;

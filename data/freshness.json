@@ -409,7 +409,7 @@
         "public/viz/palette.js:285 JUICE_ANCHORS (copy)",
         "public/viz/palette.js:285 JUICE_ANCHORS (fallback copy)",
         "public/viz/palette.js:285 JUICE_ANCHORS {K: 80000, fullGlassUSD: 423866} (fallback copy of server/juice.js SCORE_ANCHORS)",
-        "public/viz/palette.js:304 juiceNetForScore (fallback mirror of netForScore)"
+        "public/viz/palette.js:306 juiceNetForScore (fallback mirror of netForScore)"
       ],
       "values": "K = 80000, fullGlassUSD = 423866; legend points 25=$23,015, 45=$47,827, 70=$96,318, 80=$128,755, 90=$184,207, 95=$239,659, 99=$368,414, 100=$423,866 (all re-verified against server/juice.js netForScore 2026-10-10)",
       "consumers": [
@@ -535,10 +535,10 @@
         "server/juice.js:148 GRADES",
         "server/juice.js:153 RIND",
         "public/viz/palette.js:280 JUICE_BREAKS (copy)",
-        "public/app.js:2246 JUICE_GRADES (UI copy \"70+\", \"45–69\", \"under 45\")",
+        "public/app.js:2292 JUICE_GRADES (UI copy \"70+\", \"45–69\", \"under 45\")",
         "public/viz/palette.js:280 JUICE_BREAKS [45, 70] (copy)",
         "public/viz/palette.js:280 JUICE_BREAKS [45, 70]",
-        "public/app.js:2246 JUICE_GRADES chip tooltips \"(score 70+)\", \"(45–69)\", \"(under 45)\" (hard-coded copy)",
+        "public/app.js:2292 JUICE_GRADES chip tooltips \"(score 70+)\", \"(45–69)\", \"(under 45)\" (hard-coded copy)",
         "public/app.js:490 gradeKey: Rind is filtered as Dry"
       ],
       "values": "breaks 45 / 70; labels Dry, Ripe, Juicy, Rind",
@@ -750,10 +750,10 @@
       "type": "product-policy",
       "owners": [
         "server/juice.js:107 HOUSEHOLDS",
-        "public/app.js:3444 HOUSEHOLDS (UI labels)",
+        "public/app.js:3581 HOUSEHOLDS (UI labels)",
         "server/juice.js:113 DEFAULT_HOUSEHOLD",
-        "public/app.js:3444 HOUSEHOLDS (UI copy: labels, tooltips, bedrooms)",
-        "public/app.js:3444 HOUSEHOLDS labels/bedrooms/people (UI copy of server/juice.js HOUSEHOLDS)"
+        "public/app.js:3581 HOUSEHOLDS (UI copy: labels, tooltips, bedrooms)",
+        "public/app.js:3581 HOUSEHOLDS labels/bedrooms/people (UI copy of server/juice.js HOUSEHOLDS)"
       ],
       "values": "single 1 bedroom / couple 2 / family 3; \"two adults and two children\"",
       "consumers": [
@@ -927,7 +927,7 @@
         "server/sources/incremental.js:44 CRAWL_STATE_FORMAT melon-crawl-1",
         "server/sources/incremental.js:46 DETAIL_REFRESH_DAYS (4: a cached detail is re-read after 2-4 days; MELON_DETAIL_REFRESH_DAYS)",
         "server/companies.js:41 maxPostings (Amazon 5,000 on /beta/)",
-        "scripts/snapshot.js:64 CAP_RULE ('salaried, then newest')",
+        "scripts/snapshot.js:66 CAP_RULE ('salaried, then newest')",
         "server/sources/meta.js:24 MAX_FAILED_IN_A_ROW / :26 MAX_FAILED_SHARE (Meta crawl stop and fail rules)"
       ],
       "values": "stable snapshots 2026-10-02T05:54Z: anduril 2,418, anthropic 638, openai 833, shieldai 581, palantir 320, xai 297, scaleai 194, cohere 132 (total 5,413). Beta crawl 2026-10-11 (snapshot.yml run 38118242488, 06:38-07:59 UTC): apple 4,875 requisitions (6,094 listings), google 3,417, nvidia 2,663, microsoft 2,279, netflix 457; amazon (budget 5,000 of about 22,415) and meta resumed 2026-10-11, counts after their first crawl. Beta boards are re-crawled every 6 hours (detail pages incremental since 2026-10-11)",
@@ -14153,7 +14153,7 @@
         "server/export.js:62 csvReadme text",
         "public/features/shared.js:45 salaryUSD defensive annualization (2080 h if mid < 1000, ×12 if mid < 30000): duplicate of server/salary.js annualize",
         "public/viz/chart.js:64 INTERVAL_ADJ labels",
-        "public/app.js:3434 INTERVAL_ADJ labels"
+        "public/app.js:3563 INTERVAL_ADJ labels"
       ],
       "values": "2080 hours/yr, 12 months, 52 weeks",
       "consumers": [
@@ -14879,7 +14879,7 @@
         "public/features/compstimate.js:233 confidence High (nEff ≥ 5, topSim ≥ 0.5, spread ≤ 0.6) / Medium (≥ 2, ≥ 0.25, ≤ 1)",
         "public/features/compstimate.js:673 MIN_COMPARABLES 3",
         "public/features/compstimate.js:568 FAMILY_TITLES (26 representative titles)",
-        "public/features/roles.js:350 FAMILY_AFFINITY (24 pairs, unknown family 0.35)",
+        "public/features/roles.js:352 FAMILY_AFFINITY (24 pairs, unknown family 0.35)",
         "public/features/compstimate.js:46 senioritySim",
         "public/features/compstimate.js:176 MIN_WEIGHT / REL_WEIGHT / LOW_P / HIGH_P",
         "public/features/compstimate.js:409 ACCURACY_LOW_THRESHOLD"
@@ -15007,8 +15007,8 @@
         "server/keywords.js:687 years range 1..30",
         "server/vet.js:1 vet.js titleClass (junior/senior, separate ladder)",
         "server/demo.js:1 demo IC_LEVELS",
-        "public/features/roles.js:371 SENIORITY_LADDER (UI order)",
-        "public/features/roles.js:371 SENIORITY_LADDER",
+        "public/features/roles.js:373 SENIORITY_LADDER (UI order)",
+        "public/features/roles.js:373 SENIORITY_LADDER",
         "public/viz/chart.js:1 chart SENIORITY_ORDER (+ Unspecified)",
         "public/app.js:1 app SENIORITY_ORDER (+ Unspecified)",
         "public/features/roles.js:65 roles.js inferSeniority (null when no level word)",
@@ -15023,7 +15023,7 @@
         "server/keywords.js:1163 MICROSOFT_IC (IC1-2 Entry, IC3 Mid, IC4 Senior, IC5+ Staff+)",
         "server/keywords.js:1164 MICROSOFT_M (M1-M5 Manager, M6+ Director+)",
         "server/keywords.js:1170 NVIDIA_LEVEL (Level 1 Entry, 2 Mid, 3-5 Senior, 6+ Staff+; the lower of two levels decides)",
-        "public/features/roles.js:377 LEVEL_NOT_STATED (stored 'Mid', shown 'Level not stated')"
+        "public/features/roles.js:379 LEVEL_NOT_STATED (stored 'Mid', shown 'Level not stated')"
       ],
       "values": "buckets Intern, Entry, Mid, Senior, Staff+, Manager, Director+ (server/keywords.js inferSeniority). A title with no level word is stored as 'Mid' (LEVEL_NOT_STATED) and shown as \"Level not stated\" (fix wave 3, BP-7); a stated mid level reads \"Mid\". Company ladders (beta): Microsoft IC/M, NVIDIA \"Level N\", Google numerals, L-levels, generic numerals (server/keywords.js:1086-1144). Display order SENIORITY_LADDER = app.js / chart.js SENIORITY_ORDER. 2026-10-02: 48.8% of stable postings unlevelled; 2026-10-11 beta: Apple 686 of 2,695 used salaried postings levelled (market.json companies[].levelled)",
       "consumers": [
@@ -15116,14 +15116,14 @@
         "server/vet.js:1 vet.js FAMILIES (10 + other)",
         "server/vet.js:1 vet.js roleFamily",
         "public/features/roles.js:65 roles.js FAMILIES",
-        "public/features/roles.js:161 FAMILY_LABELS",
-        "public/features/roles.js:161 FAMILY_LABELS (26)",
-        "public/features/roles.js:217 FAMILIES regex lexicon",
-        "public/features/roles.js:252 DEPT_HINTS",
+        "public/features/roles.js:163 FAMILY_LABELS",
+        "public/features/roles.js:163 FAMILY_LABELS (26)",
+        "public/features/roles.js:219 FAMILIES regex lexicon",
+        "public/features/roles.js:254 DEPT_HINTS",
         "public/features/roles.js:21 ABBREV / SYNONYM / LEVEL_WORDS / STOPWORDS",
         "public/app.js:1 app FAMILY_LABEL (15 older labels, overridden by FAMILY_LABELS)",
-        "public/features/roles.js:201 CHIP (chip-design family)",
-        "public/features/roles.js:209 TECHNICIAN / :208 DC_CONTEXT (data-center technician family)"
+        "public/features/roles.js:203 CHIP (chip-design family)",
+        "public/features/roles.js:211 TECHNICIAN / :208 DC_CONTEXT (data-center technician family)"
       ],
       "values": "28 families (public/features/roles.js FAMILY_LABELS; BP-4 added chip (chip design) and dc-tech (data-center technician), 2026-10-11), FAMILIES / DEPT_HINTS / PRIORITY lexicons, FAMILY_AFFINITY partial credits; 2026-10-02: 6 of 5,413 postings without a family (0.1%); 2026-10-11: 1,668 beta postings (965 with pay) changed family with BP-4",
       "consumers": [
@@ -15304,7 +15304,7 @@
         "public/app.js:1 app.js 180 (copy)",
         "public/app.js:227 Listed filter 7 / 30 / 90 days",
         "public/app.js:1268 hide roles open ≥ 180 days",
-        "public/app.js:3257 card age: < 60 → \"Nd\", < 730 → months (÷30.44), else years; \"+\" when a lower bound"
+        "public/app.js:3369 card age: < 60 → \"Nd\", < 730 → months (÷30.44), else years; \"+\" when a lower bound"
       ],
       "values": "filter 7/30/90; 180+ days; contract freshness new ≤ 7, active 8–59, stale 60–179, evergreen ≥ 180 (server/history.js FRESHNESS)",
       "consumers": [
@@ -15980,7 +15980,7 @@
       "type": "derived-at-build",
       "owners": [
         "scripts/build-static.js:498 shareStats",
-        "scripts/build-static.js:515 sharePage",
+        "scripts/build-static.js:518 sharePage",
         "scripts/build-static.js:488 money (K/M formatting)",
         "server/index.js:1 server sharePage (no counts)",
         "scripts/build-static.js:434-447",
@@ -16124,9 +16124,9 @@
         "docs/METHODOLOGY_GUIDE.md ({{figure:…}} / {{value:…}} placeholders, new)",
         "scripts/build-static.js step 5b",
         "server/index.js /methodology/",
-        "scripts/methodology.js:83 renderReferencePage",
-        "scripts/methodology.js:219 renderGuidePage",
-        "scripts/methodology.js:289 methodologyPages",
+        "scripts/methodology.js:90 renderReferencePage",
+        "scripts/methodology.js:226 renderGuidePage",
+        "scripts/methodology.js:296 methodologyPages",
         "scripts/methodology-figures.js:26 EXAMPLE (salaryUSD 200000, described as \"about the median posted salary\": a data claim, unchecked)",
         "scripts/methodology-figures.js:28 TAX_SPLIT_CITIES",
         "scripts/methodology-figures.js:99 CADENCE_DEFAULTS (fallback copy of registry cadences)"
@@ -16803,8 +16803,8 @@
         "public/app.js:3 salary-filter histogram 26/30 bins",
         "public/app.js:374 keyword clouds show 14 (10 in popovers); checklists 10–14",
         "public/features/comps.js:1 Compare default family needs ≥ 2 companies",
-        "public/features/insights.js:23 MIN_SAMPLE (5: \"Skills need 5+ roles with pay\", medians, boxes, shares)",
-        "public/features/insights.js:29 TIE_SHARE (0.5: \"N skills left out: most of their roles post the same range\")"
+        "public/features/insights.js:29 MIN_SAMPLE (5: \"Skills need 5+ roles with pay\", medians, boxes, shares)",
+        "public/features/insights.js:35 TIE_SHARE (0.5: \"N skills left out: most of their roles post the same range\")"
       ],
       "values": "see owners",
       "consumers": [
@@ -17828,12 +17828,12 @@
       "description": "Insights panel statistics computed in the browser for the jobs in view: headline tiles (roles, % with pay, median, middle 50%, remote share), skill premiums, pay by department, hot locations, what roles ask for.",
       "type": "derived-at-build",
       "owners": [
-        "public/features/insights.js:74 summaryStats",
-        "public/features/insights.js:97 skillPremiums (limit 12, minCount 3)",
-        "public/features/insights.js:134 deptBoxes",
-        "public/features/insights.js:159 hotLocations (limit 8)",
-        "public/features/insights.js:188 fitRequirements (limit 8, minPremiumN 3)",
-        "public/features/insights.js:219 topResponsibilities (limit 12)"
+        "public/features/insights.js:80 summaryStats",
+        "public/features/insights.js:103 skillPremiums (limit 12, minCount 3)",
+        "public/features/insights.js:140 deptBoxes",
+        "public/features/insights.js:165 hotLocations (limit 8)",
+        "public/features/insights.js:194 fitRequirements (limit 8, minPremiumN 3)",
+        "public/features/insights.js:225 topResponsibilities (limit 12)"
       ],
       "values": "skill premium: 12 most frequent skills with >= 3 salaried postings, premium = skill median - all median; departments: boxes p10/p25/median/p75/p90, departments with < 3 salaried hidden; hot locations top 8; fit requirements top 8 (premium needs >= 3); responsibilities top 10-12",
       "consumers": [
