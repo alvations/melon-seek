@@ -923,3 +923,36 @@ screenshots in `docs/screenshots/`.
   - Slow 4G is bandwidth-bound (making map, comps and Compstimate load lazily would save about 40 kB);
   - a Juice memo in server/juice.js (3,852 cases, 773 distinct).
 - Build time about 100 s, 55 s of it re-deriving the norm-6 beta snapshots. It is not cached: the next crawl writes norm-7, and the build drops to about 45 s.
+
+### Beta, stage 1c: persona review on the fixed beta site, 5 age groups × 5 levels (2026-10-11)
+- Five reviewers, one per age group, on build 83023f5: both beta fix batches plus the performance pass, with the 22:00 beta crawl as data.
+  - At least 3 of each group's 5 people had a reason to use the big-tech boards. Cities included Dublin, Toronto, Zurich, Munich, Warsaw, Tel Aviv, Brussels, London, Austin, Chicago, Columbus, Seattle, San Jose and Los Angeles.
+  - Each group also re-checked what the first review ([persona-stable-*.md](persona-stable-18-24.md)) called broken.
+- Outcome: of 25 people, 9 reached their goal, 13 partly and 3 not (first review: 6, 9 and 10).
+  - Nearly every first-review broken item is confirmed fixed: on-target earnings, foreign-pay estimates, "Level not stated", the "intern" search, the salary box, filtered-city Juice, map "nearby", Victoria BC, "N new", rent dates, and the drawer text bugs.
+  - Speed was not an issue: the first card in 0.5–0.9 s on desktop and 2.5–3.5 s on a throttled phone, at load 1–3.
+- Broken items several groups found (BP-n, for the next fix wave):
+  - BP-1 (all 5): yearly-rate internship pay is labelled as whole-term pay ("€72,000 · for about 13 weeks"), 27 postings. `payTerms` sets termWeeks whatever the interval.
+  - BP-2 (4): with a location filter, the chart, cards, pay filter, pay sort and Juice still use another country's pay ("0% show pay for Zurich", but US and Munich ranges are shown; Munich Juice from Polish pay).
+  - BP-3 (3): "Same role elsewhere", Compare companies and the percentile mix countries (a Dublin role ranked against US pay; Google's entry software median of $89K is mostly Warsaw and Málaga).
+  - BP-4 (3): role families: 193 NVIDIA chip-design roles as software; Netflix "Distributed Systems Engineer" as hardware; design managers; data-centre technicians.
+  - BP-5 (2): the "CAD" skill tag on Canadian-dollar postings (109; Google "(CAD)" and Microsoft formats).
+  - BP-6 (3): a Location search for a country or a local name ("Ireland", "Israel", "Germany", "München") hides its cities.
+  - BP-7 (2): a stated mid level is told it "doesn't state a level" (554 postings).
+  - BP-8 (3): NVIDIA and Microsoft department abbreviations ("Mgmt, Sys SW").
+  - BP-9: part-time hourly pay is annualised as full-time (52 Apple postings).
+  - BP-10: a company switch drops "Columbus, OH" because the boards key places differently, and a dropped filter is never restored.
+  - BP-11: Art, Creative and Technical Director are filed as Director+ (26).
+  - BP-12: British spellings ("data centre", "defence", "programme") return nothing.
+  - BP-13: two medians on one screen ($347K vs $352K: the stats line leaves out on-target earnings, the chart doesn't).
+  - BP-14: minimum and preferred qualifications are merged (Google 3,282 postings).
+  - BP-15: Apple store names and "Dublinas" as places.
+  - BP-16: two ages in one drawer.
+  - BP-17: the Remote filter's "On-site" count equals "Any".
+- Improvements every group asked for:
+  - search across all companies, or say where the matches are;
+  - Juice in the person's terms: the posting's currency, their own rent, a second earner, a single parent;
+  - plain words for the remaining board jargon;
+  - big-tech roles grouped by role family rather than raw departments;
+  - /beta/ opening on big tech instead of Anthropic.
+- Good, keep: filters kept across company switches with a toast; honest no-pay handling; the Juice breakdown; Save, the return visit and "N new"; the salary box; Compare companies' Level choice; plain labels; Apply.
