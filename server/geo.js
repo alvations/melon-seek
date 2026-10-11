@@ -192,6 +192,12 @@ NZ|New Zealand|-40.90|174.89|NZ
 // ("Dublinas"). Each is an alias of its city; a name that is also a place elsewhere is aliased
 // only with its country ("Campania, Italy", "Emporia, Sweden"), so "Salerno, Campania" and
 // "Emporia, KS" are not moved.
+// Fix wave 4 (D-32) adds the 12 store names still listed on 2026-10-11: "Champs Élysées",
+// "Opéra" and "Parly 2" (Le Chesnay) Paris, "Sainte-Catherine" Bordeaux, "Highcross" Leicester,
+// "Touchwood Centre" Solihull, "Richmond Centre" Metro Vancouver, "Southgate Centre" Edmonton,
+// "Grosse Bockenheimer Strasse" Frankfurt, "Fukuoka Tenjin" Fukuoka, "Antara" Mexico City and
+// "VillageMall" Rio de Janeiro. D-36 adds two Google data-centre towns: Moncks Corner, SC and
+// Pryor Creek, OK, which Google also writes "Pryor, OK".
 // A name prefixed with "!" becomes the default for an ambiguous name.
 // ---------------------------------------------------------------------------
 
@@ -353,6 +359,7 @@ Maiden|NC|US|35.5757|-81.2118|
 Durham|NC|US|35.9940|-78.8986|
 Charlotte|NC|US|35.2271|-80.8431|
 Charleston|SC|US|32.7765|-79.9311|
+Moncks Corner|SC|US|33.1960|-80.0131|
 Nashville|TN|US|36.1627|-86.7816|
 Memphis|TN|US|35.1495|-90.0490|
 Clarksville|TN|US|36.5298|-87.3595|
@@ -375,6 +382,7 @@ Fargo|ND|US|46.8772|-96.7898|
 Cheyenne|WY|US|41.1400|-104.8202|
 Wichita|KS|US|37.6872|-97.3301|
 Oklahoma City|OK|US|35.4676|-97.5164|
+Pryor Creek|OK|US|36.3084|-95.3169|Pryor
 Honolulu|HI|US|21.3069|-157.8583|
 Anchorage|AK|US|61.2181|-149.9003|
 London|England|GB|51.5074|-0.1278|Greater London;London UK;City of London
@@ -382,6 +390,9 @@ London|England|GB|51.5074|-0.1278|Greater London;London UK;City of London
 Oxford|England|GB|51.7520|-1.2577|
 Manchester|England|GB|53.4808|-2.2426|
 Newcastle upon Tyne|England|GB|54.9783|-1.6178|Eldon Square
+Leicester|England|GB|52.6369|-1.1398|Highcross
+Solihull|England|GB|52.4118|-1.7776|Touchwood Centre;Touchwood
+Bordeaux||FR|44.8378|-0.5792|Sainte-Catherine, France
 Bristol|England|GB|51.4545|-2.5879|
 Reading|England|GB|51.4543|-0.9781|
 Edinburgh|Scotland|GB|55.9533|-3.1883|
@@ -391,11 +402,11 @@ Cork||IE|51.8985|-8.4756|
 Zurich||CH|47.3769|8.5417|Zürich;Zuerich
 Geneva||CH|46.2044|6.1432|Genève;Geneve
 Lausanne||CH|46.5197|6.6323|
-Paris|Ile-de-France|FR|48.8566|2.3522|Courbevoie;La Défense;La Defense;Rosny 2;Rosny-sous-Bois
+Paris|Ile-de-France|FR|48.8566|2.3522|Courbevoie;La Défense;La Defense;Rosny 2;Rosny-sous-Bois;Champs Élysées;Champs-Élysées;Opéra, France;Parly 2;Le Chesnay
 Berlin||DE|52.5200|13.4050|
 Munich|Bavaria|DE|48.1351|11.5820|München;Muenchen
 Hamburg||DE|53.5511|9.9937|Jungfernstieg
-Frankfurt||DE|50.1109|8.6821|Frankfurt am Main
+Frankfurt||DE|50.1109|8.6821|Frankfurt am Main;Grosse Bockenheimer Strasse;Große Bockenheimer Straße
 Cologne||DE|50.9375|6.9603|Köln;Koeln
 Stuttgart||DE|48.7758|9.1829|
 Amsterdam||NL|52.3676|4.9041|Schiphol
@@ -450,6 +461,7 @@ Yerevan||AM|40.1792|44.4991|
 Doha||QA|25.2854|51.5310|
 Tokyo||JP|35.6762|139.6503|Minato;Minato City;Minato-ku;Shibuya;Chiyoda
 Osaka||JP|34.6937|135.5023|Shinsaibashi;Umeda
+Fukuoka||JP|33.5902|130.4017|Fukuoka Tenjin;Tenjin, Japan
 Yokohama||JP|35.4437|139.6380|
 Seoul||KR|37.5665|126.9780|
 Beijing||CN|39.9042|116.4074|
@@ -493,20 +505,20 @@ Toronto|ON|CA|43.6532|-79.3832|
 Waterloo|ON|CA|43.4643|-80.5204|
 Ottawa|ON|CA|45.4215|-75.6972|
 Montreal|QC|CA|45.5017|-73.5673|Montréal
-Vancouver|BC|CA|49.2827|-123.1207|Coquitlam;Coquitlam Centre;Guildford Town Centre
+Vancouver|BC|CA|49.2827|-123.1207|Coquitlam;Coquitlam Centre;Guildford Town Centre;Richmond Centre
 Victoria|BC|CA|48.4284|-123.3656|
 Calgary|AB|CA|51.0447|-114.0719|
-Edmonton|AB|CA|53.5461|-113.4938|
+Edmonton|AB|CA|53.5461|-113.4938|Southgate Centre
 Winnipeg|MB|CA|49.8951|-97.1384|Polo Park
 Halifax|NS|CA|44.6488|-63.5752|
 Quebec City|QC|CA|46.8139|-71.2080|Québec City;Ville de Québec;Place Ste-Foy;Sainte-Foy
 Kitchener|ON|CA|43.4516|-80.4925|Kitchener-Waterloo
 Saskatoon|SK|CA|52.1332|-106.6700|
 Regina|SK|CA|50.4452|-104.6189|
-Mexico City||MX|19.4326|-99.1332|CDMX;Ciudad de México
+Mexico City||MX|19.4326|-99.1332|CDMX;Ciudad de México;Antara, Mexico;Antara Polanco
 Guadalajara||MX|20.6597|-103.3496|
 Sao Paulo||BR|-23.5505|-46.6333|São Paulo;Morumbi
-Rio de Janeiro||BR|-22.9068|-43.1729|
+Rio de Janeiro||BR|-22.9068|-43.1729|VillageMall;Village Mall
 Brasília||BR|-15.7939|-47.8828|Brasilia
 Belo Horizonte||BR|-19.9167|-43.9345|
 Buenos Aires||AR|-34.6037|-58.3816|
@@ -756,8 +768,8 @@ const NOISE_RE = /\b(prefecture|metropolis|province|hybrid|on-?site|in-?office|o
 
 function cleanPlace(s) {
   return s
-    .replace(/\([^)]*\)/g, ' ')
-    .replace(/\[[^\]]*\]/g, ' ')
+    .replace(/\([^()]*\)/g, ' ')
+    .replace(/\[[^[\]]*\]/g, ' ')
     .replace(NOISE_RE, ' ')
     .replace(/\s+[-–—]\s+/g, ', ')
     .replace(/\s+/g, ' ')
@@ -766,7 +778,7 @@ function cleanPlace(s) {
 }
 
 function parens(s) {
-  return [...s.matchAll(/\(([^)]*)\)/g)].flatMap((m) => m[1].split(/\s*[,/]\s*/)).filter(Boolean);
+  return [...s.matchAll(/\(([^()]*)\)/g)].flatMap((m) => m[1].split(/\s*[,/]\s*/)).filter(Boolean);
 }
 
 function pickCity(cands, ctx) {
@@ -821,7 +833,7 @@ function resolvePlaceIn(name, countries = []) {
   if (!cleaned) return { loc: extra.length ? fromRegion(name, extra[0]) : unknown(name), ambiguous: false };
 
   // Whole-string alias ("Washington, D.C.", "New York City", "Bay Area").
-  const whole = CITY_INDEX.get(normKey(name.replace(/\([^)]*\)/g, ' '))) || CITY_INDEX.get(normKey(cleaned));
+  const whole = CITY_INDEX.get(normKey(name.replace(/\([^()]*\)/g, ' '))) || CITY_INDEX.get(normKey(cleaned));
   if (whole) {
     if (!extra.length && !cleaned.includes(',')) {
       const readings = bareReadings(cleaned, whole);
@@ -863,7 +875,10 @@ function finalCountry(token, cands, tokens) {
   return null;
 }
 
+const US_ZIP_RE = /^([A-Z]{2})\s+\d{5}(?:-\d{4})?$/;
+
 /** "City, Region" / "City, Country" / "Region" / unknown-city fallbacks of resolvePlaceIn. */
+
 function resolvePlaceTokens(name, cleaned, extra) {
   let tokens = cleaned.split(/\s*,\s*/).filter(Boolean);
   // "Seoul, Korea, Republic of": the tail adds nothing to the country before it (DQ-10).
@@ -877,6 +892,8 @@ function resolvePlaceTokens(name, cleaned, extra) {
   }
   // A local-script name or abbreviation with a known English name ("ב"ש" is Be'er Sheva).
   tokens = tokens.map((t) => localName(t) || t);
+  // DQ-31: a US state with its ZIP code ("Moncks Corner, SC 29461, USA") is the state.
+  tokens = tokens.map((t) => { const z = US_ZIP_RE.exec(t); return z && STATE_BY_ABBR.has(z[1]) ? z[1] : t; });
   // A bare ISO code is a country, even one that is also a US state's code: Eightfold lists
   // "DE", "IN", "IL", "CA" for postings in Germany, India, Israel and Canada (DQ-1). No other
   // board in the 13 snapshots writes a bare two-letter location.

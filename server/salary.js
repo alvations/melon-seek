@@ -247,7 +247,7 @@ function resolveWeakCurrencies(toks, text, countries) {
       // (a posting's "USD technology" or "Pixar's USD" elsewhere is not about pay).
       if (canadaOnly) {
         const cl = clauseSpan(text, t.start, t.end);
-        const near = `${cl.heading}\n${text.slice(cl.start, cl.end)}`;
+        const near = `${cl.heading}\n${text.slice(Math.max(cl.start, t.start - CLAUSE_REACH), Math.min(cl.end, t.end + CLAUSE_REACH))}`;
         if (!USD_MENTION_RE.test(near) && !US_RANGE_RE.test(near) && lineCountry(text, t.start) !== 'US') t.currency = 'CAD';
       }
       continue;
@@ -272,23 +272,55 @@ function isBoundary(text, i) {
 }
 const ABBREV_END_RE = /(?:^|[^A-Za-z.])(?:[A-Z]\.[A-Z]|e\.g|i\.e)$/;
 
+// S-3 (docs/REVIEW.md "beta review 2026-10-11"): the clause ends of a text are found once, not
+// walked from every amount, so a clause with k amounts costs k binary searches instead of
+// k × its length. One text at a time (parseSalary and the vetting scan read one posting).
+let boundsText = null;
+let boundsAt = null;
+function boundaries(text) {
+  if (text === boundsText) return boundsAt;
+  const at = [];
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if ((ch === '\n' || ch === '•' || ch === ';' || ch === '.' || ch === '!' || ch === '?') && isBoundary(text, i)) at.push(i);
+  }
+  boundsText = text;
+  boundsAt = at;
+  return at;
+}
+/** Index in `at` (sorted) of the first entry >= x. */
+function lowerBound(at, x) {
+  let lo = 0;
+  let hi = at.length;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (at[mid] < x) lo = mid + 1; else hi = mid; }
+  return lo;
+}
+const HEADING_MAX = 80;
+
 /** { start, end, heading } of the sentence/clause around [s, e). */
 function clauseSpan(text, s, e) {
-  let a = s;
-  while (a > 0 && !isBoundary(text, a - 1)) a--;
-  let b = e;
-  while (b < text.length && !isBoundary(text, b)) b++;
+  const at = boundaries(text);
+  const i = lowerBound(at, s) - 1; // the last boundary before s
+  const a = i >= 0 ? at[i] + 1 : 0;
+  const j = lowerBound(at, e);
+  const b = j < at.length ? at[j] : text.length;
   let heading = '';
   if (a > 0 && text[a - 1] === '\n') {
+    // The line before: at most HEADING_MAX characters once trimmed (a longer one is no heading).
     let pe = a - 1;
-    while (pe > 0 && /\s/.test(text[pe - 1])) pe--;
+    const stop = Math.max(0, pe - 4 * HEADING_MAX);
+    while (pe > stop && /\s/.test(text[pe - 1])) pe--;
     let p = pe;
-    while (p > 0 && text[p - 1] !== '\n') p--;
-    const prev = text.slice(p, pe).trim();
-    if (prev && prev.length <= 80) heading = prev;
+    const top = Math.max(0, pe - HEADING_MAX - 1);
+    while (p > top && text[p - 1] !== '\n') p--;
+    const prev = (p > 0 && text[p - 1] !== '\n') || /\s/.test(text[pe - 1] || '') ? '' : text.slice(p, pe).trim();
+    if (prev && prev.length <= HEADING_MAX) heading = prev;
   }
   return { start: a, end: b, heading };
 }
+// The part of a clause the pay-context patterns read: at most CLAUSE_REACH characters each side
+// of the amount (S-3). A pay word further away in one unbroken sentence is not this amount's.
+const CLAUSE_REACH = 600;
 
 const PAY_RE = /\b(salary|salaries|salaire|r[ée]mun[ée]ration|compensation|pay|paid|wages?|ote|on[- ]target[- ](?:earnings|compensation|comp|pay|income|cash)|commissions?\s+(?:at|on)\s+target|remuneration|stipends?|(?:hourly|contract|day|daily|pay|base) rate|rate of pay|hourly (?:range|wage|pay)|brutto|gross|range for (?:this|the|our) (?:role|position|job|interns?|internships?))\b/i;
 // "$500 home office stipend", "learning & development stipend": benefits, not pay.
@@ -326,14 +358,15 @@ const LINE_LABEL_RE = /(?:^|[\]\s.])([A-Z][A-Za-z.]*(?:\s+[A-Z][A-Za-z.]*){0,2})
 function unitCountry(text, u) {
   const gs = u.groupStart ?? u.start;
   const cl = clauseSpan(text, gs, u.groupEnd ?? u.end);
-  const nat = NATIONAL_RE.exec(text.slice(cl.start, gs));
+  const nat = NATIONAL_RE.exec(text.slice(Math.max(cl.start, gs - CLAUSE_REACH), gs));
   if (nat) return NATION_CODE[nat[1].replace(/\s+/g, ' ').toLowerCase().replace(/\.$/, '')] || null;
   return lineCountry(text, gs);
 }
 /** { code, at } of the country label right before the amount on its line ("US: $X"), or null. */
 function lineLabel(text, start) {
-  const ls = text.lastIndexOf('\n', start - 1) + 1;
-  const from = Math.max(ls, start - 120);
+  const from0 = Math.max(0, start - 120);
+  const from = from0 + text.slice(from0, start).lastIndexOf('\n') + 1; // S-3: never past 120 characters back
+
   const m = LINE_LABEL_RE.exec(text.slice(from, start));
   const code = m ? NATION_CODE[m[1].toLowerCase().replace(/\.$/, '')] || null : null;
   return code ? { code, at: from + m.index + m[0].indexOf(m[1]) } : null;
@@ -673,15 +706,17 @@ function contextOf(text, gs, ge, { unit = null, single = false } = {}) {
   // benefits US: $147000 - $210000 (USD)", some Google pages): the words before it belong
   // to the previous line's range, not to this amount.
   const label = lineLabel(text, gs);
-  const before = text.slice(label && label.at > cl.start ? label.at : cl.start, gs);
+  const from = Math.max(label && label.at > cl.start ? label.at : cl.start, gs - CLAUSE_REACH);
+  const before = text.slice(from, gs);
   const after = text.slice(ge, Math.min(text.length, ge + 60));
-  const clause = text.slice(cl.start, cl.end);
+  const clause = text.slice(Math.max(cl.start, gs - CLAUSE_REACH), Math.min(cl.end, ge + CLAUSE_REACH));
   const kwClause = clause.replace(BENEFIT_STIPEND_RE, ' ');
   const kwHeading = cl.heading.replace(BENEFIT_STIPEND_RE, ' ');
   const kwInClause = PAY_RE.test(kwClause);
   const kwInHeading = PAY_RE.test(kwHeading);
-  const standalone = !kwInClause && clause.length <= 90
+  const standalone = !kwInClause && cl.end - cl.start <= 90
     && (clause.slice(0, gs - cl.start) + clause.slice(ge - cl.start)).replace(FILLER_RE, '').length <= 3;
+
   const payStipendAfter = PAY_STIPEND_AFTER_RE.test(after);
   // "$141,000-$202,000 + bonus + equity + benefits": base pay, extras on top.
   const plusExtras = PLUS_EXTRAS_AFTER_RE.test(after);
@@ -736,8 +771,11 @@ function evaluate(text, u, countries) {
   // (RON) today. The vetting scan still sees it and flags the posting missed_salary.
   if (!FX_PER_USD[u.currency]) return null;
   if (!b && !u.explicit) return null;
+  // S-3: an amount below a year's pay floor even at an hourly rate ("$1") needs no context.
+  if (!(usdOr(Math.max(lo, hi) * FACTORS.hour, u.currency) >= MIN_ANNUAL)) return null;
 
   const gs = u.groupStart ?? u.start;
+
   const ge = u.groupEnd ?? u.end;
   const unitIv = (b && b.unit) || a.unit || u.groupUnit || null;
   const ctx = contextOf(text, gs, ge, { unit: unitIv, single: !b });
@@ -825,7 +863,39 @@ function evaluate(text, u, countries) {
   };
 }
 
+// S-3: the text parseSalary reads is at most MAX_PAY_TEXT characters: the first PAY_HEAD_CHARS,
+// then windows of PAY_WINDOW characters each side of every later pay word, until the budget is
+// spent. Every real posting fits whole: the longest description text on the 2026-10-11 boards
+// is 26,628 characters (microsoft:1970393556868750). A hostile 1 MB description costs no more
+// than a 40 KB one.
+
+export const MAX_PAY_TEXT = 40_000;
+// ... and at most MAX_PAY_AMOUNTS amounts in it are read: the most in a real posting on the
+// 2026-10-11 boards is 65 (xai:5017529007).
+export const MAX_PAY_AMOUNTS = 1000;
+const PAY_HEAD_CHARS = 20_000;
+const PAY_WINDOW = 600;
+const PAY_WORD_G = new RegExp(PAY_RE.source, 'gi');
+function boundPayText(s) {
+  if (s.length <= MAX_PAY_TEXT) return s;
+  const parts = [[0, PAY_HEAD_CHARS]];
+  let budget = MAX_PAY_TEXT - PAY_HEAD_CHARS;
+  PAY_WORD_G.lastIndex = PAY_HEAD_CHARS;
+  let m;
+  while (budget > 0 && (m = PAY_WORD_G.exec(s))) {
+    const last = parts[parts.length - 1];
+    const a = Math.max(m.index - PAY_WINDOW, last[1]);
+    const b = Math.min(s.length, m.index + m[0].length + PAY_WINDOW, a + budget);
+    if (a === last[1]) last[1] = b; else parts.push([a, b]);
+    budget -= b - a;
+    PAY_WORD_G.lastIndex = Math.max(PAY_WORD_G.lastIndex, b);
+  }
+  PAY_WORD_G.lastIndex = 0;
+  return parts.map(([a, b]) => s.slice(a, b)).join('\n');
+}
+
 function round2(n) { return Math.round(n * 100) / 100; }
+
 const flat = (s) => s.replace(/\s+/g, ' ').trim();
 
 /**
@@ -839,9 +909,9 @@ const flat = (s) => s.replace(/\s+/g, ' ').trim();
  */
 export function parseSalary(text, { countries = [], areas = [] } = {}) {
   if (text == null) return null;
-  const s = String(text).replace(/&nbsp;| /g, ' ');
+  const s = boundPayText(String(text)).replaceAll('&nbsp;', ' ');
   if (!/\d/.test(s)) return null;
-  const toks = resolveWeakCurrencies(findTokens(s), s, countries);
+  const toks = resolveWeakCurrencies(findTokens(s).slice(0, MAX_PAY_AMOUNTS), s, countries);
   if (!toks.length) return null;
   const cands = [];
   const cs = (countries || []).map((c) => String(c || '').toUpperCase());

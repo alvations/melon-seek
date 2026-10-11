@@ -124,6 +124,19 @@ export function deriveSalary(raw, locations = []) {
 }
 
 /**
+ * Fix wave 4 (DQ-27): `salary.places`, the location strings (Location.rawName) a posting's pay
+ * was posted for, when the adapter knows it is only some of the posting's places (Apple posts a
+ * requisition's range for its California listing and none for its Texas one). Absent means every
+ * place in the pay's country. Only places the job lists are kept; none kept means absent.
+ */
+export function withPayPlaces(salary, payPlaces, locations = []) {
+  if (!salary || !Array.isArray(payPlaces) || !payPlaces.length) return salary;
+  const have = new Set((locations || []).map((l) => l && (l.rawName || l.name)).filter(Boolean));
+  const places = [...new Set(payPlaces.filter((p) => typeof p === 'string' && have.has(p)))];
+  return places.length && places.length < have.size ? { ...salary, places } : salary;
+}
+
+/**
  * Re-derive the pay labels of a STORED Job salary (P-1, P-8; snapshots written before
  * norm-6) from the stored posting: kind 'ote', termWeeks and term pay ("$100,000–$167,000
  * USD for the four-month fellowship", which older parsers read as a yearly salary). The
@@ -164,8 +177,9 @@ function rederiveTextSalary(j, text) {
   // text no longer supports (a union pay floor) is dropped.
   if (!fresh && sal && salaryChecks({ title: j.title, employmentType: j.employmentType }, sal).length) return undefined;
   // A text salary that replaced a rejected structured one keeps that record and its zones.
-  if (fresh && sal && sal.structuredRejected) return { ...fresh, zones: Math.max(fresh.zones || 1, sal.zones || 1), structuredRejected: sal.structuredRejected };
-  return fresh;
+  if (fresh && sal && sal.structuredRejected) return withPayPlaces({ ...fresh, zones: Math.max(fresh.zones || 1, sal.zones || 1), structuredRejected: sal.structuredRejected }, sal.places, j.locations);
+  // The places the stored pay was posted for (DQ-27) are the adapter's knowledge, not the text's.
+  return sal ? withPayPlaces(fresh, sal.places, j.locations) : fresh;
 }
 
 /**
@@ -227,7 +241,7 @@ export function normalizeJob(raw, company, { boilerplate = null, team = null } =
   const locations = normalizeLocations(raw);
   const remote = raw.remote === true || locations.some((l) => l && l.remote === true);
 
-  const salary = deriveSalary(raw, locations);
+  const salary = withPayPlaces(deriveSalary(raw, locations), raw.payPlaces, locations);
 
   const emptySections = { responsibilities: [], fit: [] };
   const sections = safe(() => extractSections(html, skip ? { skip } : undefined), emptySections);

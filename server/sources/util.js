@@ -133,15 +133,40 @@ export function decodeHtmlContent(s) {
   return out;
 }
 
-/** HTML -> readable plain text. */
+/**
+ * `html` without its <script> and <style> blocks, in one pass (S-3, docs/REVIEW.md "beta review
+ * 2026-10-11"): an opening tag with no closing one keeps the rest of the text, where
+ * /<(script|style)[\s\S]*?<\/\1>/ scanned to the end of the string from every such tag.
+ */
+export function dropScriptBlocks(html) {
+  const s = String(html);
+  const open = /<(script|style)/gi;
+  let out = '';
+  let at = 0;
+  let m;
+  const ended = new Set(); // no closing tag of that kind after here: later openings are kept
+  while ((m = open.exec(s))) {
+    const kind = m[1].toLowerCase();
+    if (ended.has(kind)) continue;
+    const close = new RegExp(`</${kind}>`, 'gi');
+    close.lastIndex = open.lastIndex;
+    const c = close.exec(s);
+    if (!c) { ended.add(kind); continue; }
+    out += `${s.slice(at, m.index)} `;
+    at = close.lastIndex;
+    open.lastIndex = at;
+  }
+  return at ? out + s.slice(at) : s;
+}
+
+/** HTML -> readable plain text. Linear in the input (S-3): no pattern scans past the next "<". */
 export function htmlToText(html) {
   if (!html) return '';
-  let s = String(html)
-    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
+  let s = dropScriptBlocks(html)
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(p|div|li|h[1-6]|ul|ol|tr|section)>/gi, '\n')
-    .replace(/<li[^>]*>/gi, '\n• ')
-    .replace(/<[^>]+>/g, ' ');
+    .replace(/<li[^<>]*>/gi, '\n• ')
+    .replace(/<[^<>]+>/g, ' ');
   s = decodeEntitiesOnce(s).replace(/ /g, ' ');
   return s.replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }

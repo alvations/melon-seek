@@ -6,14 +6,15 @@
 //   - the title: "Expression of Interest - Rigging" (Netflix, Anthropic), "Open Career
 //     Opportunities, Waymo" and "Open Sales Career Opportunities, CapitalG Portfolio Companies"
 //     (Google), "Client Partner (Leisure Vertical) - Join Our Talent Network" (Apple),
-//     "COLM 2026 - General Interest" (Scale AI);
+//     "COLM 2026 - General Interest" (Scale AI) and
+//     "Expression of Interests | Career Fair Events Internship" (Apple, DQ-11 residue);
 //   - the description: "This posting is not for a specific job opening and by submitting your
 //     resume you are expressing interest in being contacted about this type of role" (Apple).
 // Checked against all 13 snapshots of 2026-10-10 (log: docs/process/fix-beta-sources.md): no
 // other title or description matches, and "Talent Acquisition Partner", "Talent Sourcer",
 // "Internship Opportunities" and a description that mentions a "talent pool" do not.
 
-const TITLE_RE = /\bexpressions? of interest\b|^open\b.{0,60}\bcareer opportunities\b|\bjoin our talent (?:network|community|pool)\b|\bgeneral (?:interest|application)$/i;
+const TITLE_RE = /\bexpressions? of interests?\b|^open\b.{0,60}\bcareer opportunities\b|\bjoin our talent (?:network|community|pool)\b|\bgeneral (?:interest|application)$/i;
 const PREFILTER_RE = /\bnot\s+for\b/i;
 const TEXT_RE = /\b(?:this|the) (?:posting|position|role|listing|requisition) is not for (?:a |an )?(?:specific|particular|current) (?:job )?(?:opening|vacancy|position|role)\b/i;
 
@@ -27,7 +28,7 @@ export function isTalentPool(job) {
   if (TITLE_RE.test(title)) return true;
   const raw = typeof job.text === 'string' && job.text ? job.text : String(job.descriptionHtml || job.html || '');
   if (!PREFILTER_RE.test(raw)) return false; // cheap: most descriptions never say "not for a"
-  return TEXT_RE.test(raw.replace(/<[^>]+>/g, ' ').replace(/&nbsp;|&#160;/g, ' ').replace(/\s+/g, ' '));
+  return TEXT_RE.test(raw.replace(/<[^<>]*>/g, ' ').replace(/&nbsp;|&#160;/g, ' ').replace(/\s+/g, ' '));
 }
 
 /** Jobs with `pool: true` set on talent pools (new objects for those; the rest unchanged). */

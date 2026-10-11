@@ -77,14 +77,14 @@ function emergencySpecialist() {
 // (a single footer group drops the places it is for), server/juice.js attachJuice,
 // public/features/shared.js payLocations.
 
-test('DQ-27 Apple: Juice is not worked out for a place whose pay Apple did not post', TODO, () => {
+test('DQ-27 Apple: Juice is not worked out for a place whose pay Apple did not post', () => {
   const { job } = thermalEngineer();
   assert.ok(job.salary && job.salary.min === 150400, 'the Cupertino range parses');
   const places = (job.juice ? job.juice.byLocation : []).map((b) => b.locationName);
   assert.ok(!places.some((p) => /Austin/.test(p)), `Juice is scored in ${places.join(', ')}; the range is Cupertino's, Apple posts none for Austin`);
 });
 
-test('DQ-27 Apple: the pay\'s places are the places it was posted for (an Austin filter does not read Cupertino pay)', TODO, () => {
+test('DQ-27 Apple: the pay\'s places are the places it was posted for (an Austin filter does not read Cupertino pay)', () => {
   const { job } = thermalEngineer();
   const where = payLocations(job).map((l) => l.name);
   assert.ok(!where.some((n) => /Austin/.test(n)), `pay is treated as posted for ${where.join(', ')}`);
@@ -98,7 +98,7 @@ test('DQ-27 Apple: the pay\'s places are the places it was posted for (an Austin
 // (up to 16.3%); 24 postings get a "Wide range (2x)" chip no single range has. Owners:
 // server/juice.js attachJuice, public/app.js payPill/payHere, scripts/build-market.js usdMid.
 
-test('DQ-28 Apple: a place with its own posted range is scored on that range, not the span', TODO, () => {
+test('DQ-28 Apple: a place with its own posted range is scored on that range, not the span', () => {
   const { job } = emergencySpecialist();
   assert.ok(job.salary && Array.isArray(job.salary.ranges) && job.salary.ranges.length === 2, 'the merged posting keeps both ranges');
   const cup = job.juice && job.juice.byLocation.find((b) => /Cupertino/.test(b.locationName));
@@ -114,7 +114,7 @@ test('DQ-28 Apple: a place with its own posted range is scored on that range, no
 // Entry postings pay at or above the Software Engineer III median ($178.5K); Compare companies shows
 // "Google · Product · Entry $200K (n17)". Owner: server/keywords.js jobSeniority (Google ladder).
 
-test('DQ-29 Google: "Product Manager II" and "Leadership Technical Program Manager I" are not entry level', TODO, () => {
+test('DQ-29 Google: "Product Manager II" and "Leadership Technical Program Manager I" are not entry level', () => {
   for (const [title, id] of [
     ['Product Manager II, Android XR Platform Hardware', 'google:117492478474363590 $163,000-$236,000'],
     ['Leadership Technical Program Manager I, Data Center Security, Cloud', 'google:72585552410354374 $192,000-$278,000'],
@@ -124,7 +124,7 @@ test('DQ-29 Google: "Product Manager II" and "Leadership Technical Program Manag
   }
 });
 
-test('DQ-29 Google: a numbered manager title is a manager ("Facilities Manager II", like "Software Engineer Manager II")', TODO, () => {
+test('DQ-29 Google: a numbered manager title is a manager ("Facilities Manager II", like "Software Engineer Manager II")', () => {
   // google:117549066815972038 "Facilities Manager II, Data Center Operations" $164,000-$237,000;
   // google:81838623510405830 "Facilities Manager I, Data Center Operations" $138,000-$200,000.
   assert.equal(jobSeniority({ title: 'Software Engineer Manager II, Android', text: '', company: 'google' }).level, 'Manager', 'reference');
@@ -140,7 +140,7 @@ test('DQ-29 Google: a numbered manager title is a manager ("Facilities Manager I
 // listing changes the posting gets a new id and a different reqId: no repost link, and a "New"
 // badge on an old requisition. Owner: server/sources/apple.js mapCopies (reqId).
 
-test('DQ-30 Apple: a requisition\'s reqId is the requisition number, without a location suffix', TODO, () => {
+test('DQ-30 Apple: a requisition\'s reqId is the requisition number, without a location suffix', () => {
   const { raw } = thermalEngineer();
   assert.equal(raw.reqId, '200578781', `reqId ${raw.reqId}`);
 });
@@ -151,7 +151,7 @@ test('DQ-30 Apple: a requisition\'s reqId is the requisition number, without a l
 // Operations", whose only place it is). geo.js loses the state: the place is named "Moncks Corner"
 // with no region and pinned at the US centroid (39.83, -98.58), in Kansas. Owner: server/geo.js.
 
-test('DQ-31 Google: a location with a ZIP code keeps its state', TODO, () => {
+test('DQ-31 Google: a location with a ZIP code keeps its state', () => {
   for (const [raw, region] of [['Moncks Corner, SC 29461, USA', 'SC'], ['Pryor Creek, OK 74361, USA', 'OK']]) {
     const [loc] = geocode(raw);
     assert.equal(loc.region, region, `${raw} -> ${loc.name} [${loc.region}] (${loc.lat}, ${loc.lng})`);
@@ -163,7 +163,7 @@ test('DQ-31 Google: a location with a ZIP code keeps its state', TODO, () => {
 // spans the listings' ranges by design (DQ-2 fix), and the scan compares it with one footer's text.
 // All 63 are false alarms (5 of the 10 sampled Apple flags). Owner: scripts/vet-salaries.js scanJob.
 
-test('DQ-32 vet scan: a merged Apple requisition with per-place ranges is not structured_text_disagree', TODO, () => {
+test('DQ-32 vet scan: a merged Apple requisition with per-place ranges is not structured_text_disagree', () => {
   const { job } = emergencySpecialist();
   const r = scanJob(job);
   assert.ok(!r.flags.includes('structured_text_disagree'), `flags: ${r.flags.join(', ')}`);
@@ -174,7 +174,7 @@ test('DQ-32 vet scan: a merged Apple requisition with per-place ranges is not st
 // DQ-3 residue: Netflix titles that state a level after a support role word, or as "L5+L6", are still
 // the "Mid" default (3 postings): netflix:790317701711, netflix:790317630105 ($270,000-$410,000) and
 // netflix:790318143742 ($499,000-$900,000). Owner: server/keywords.js jobSeniority.
-test('DQ-3 residue: Netflix "(L5)" after "Support Solutions Engineer" and "(L5+L6)" state a level', TODO, () => {
+test('DQ-3 residue: Netflix "(L5)" after "Support Solutions Engineer" and "(L5+L6)" state a level', () => {
   for (const title of [
     'Support Solutions Engineer (L5) - Security, Privacy and Assurance',
     'Solutions Support Engineer (L5) - Eng Productivity',
@@ -206,7 +206,7 @@ test('DQ-6 residue: a Microsoft Romania "lei" range is shown as RON pay', TODO, 
 // DQ-11 residue: "Expression of Interests" (plural) is not recognized as a talent pool (1 posting:
 // apple:200617354-4265, https://jobs.apple.com/en-us/details/200617354-4265/expression-of-interests-career-fair-events-internship).
 // Owner: server/sources/pool.js isTalentPool.
-test('DQ-11 residue: "Expression of Interests | ..." is a talent pool', TODO, () => {
+test('DQ-11 residue: "Expression of Interests | ..." is a talent pool', () => {
   assert.equal(isTalentPool({ title: 'Expression of Interest - CFX - Netflix Animation Studios' }), true, 'reference');
   assert.equal(isTalentPool({ title: 'Expression of Interests | Career Fair Events Internship' }), true);
 });

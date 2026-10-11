@@ -39,14 +39,39 @@ function cleanBullet(s) {
     .trim();
 }
 
-/** Plain text from HTML (block tags become newlines). */
+/**
+ * `html` without <script>/<style> blocks and comments, in one pass (S-3, docs/REVIEW.md "beta
+ * review 2026-10-11"). An opening "<script" or "<!--" with no end keeps the rest of the text,
+ * where the lazy patterns rescanned to the end of the string from every such opening.
+ */
+function dropHidden(html) {
+  const s = String(html || '');
+  if (!/<(?:script|style|!--)/i.test(s)) return s;
+  const open = /<(?:(script|style)[^<>]*>|!--)/gi;
+  let out = '';
+  let at = 0;
+  let m;
+  const ended = new Set(); // kinds with no closing tag left: later openings of that kind are text
+  while ((m = open.exec(s))) {
+    const kind = m[1] ? m[1].toLowerCase() : '!--';
+    if (ended.has(kind)) continue;
+    const close = m[1] ? new RegExp(`</${kind}>`, 'gi') : /-->/g;
+    close.lastIndex = open.lastIndex;
+    const c = close.exec(s);
+    if (!c) { ended.add(kind); continue; }
+    out += `${s.slice(at, m.index)} `;
+    at = close.lastIndex;
+    open.lastIndex = at;
+  }
+  return at ? out + s.slice(at) : s;
+}
+
+/** Plain text from HTML (block tags become newlines). Linear in the input (S-3). */
 export function htmlToText(html) {
   return decodeEntities(
-    String(html || '')
-      .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, ' ')
-      .replace(/<!--[\s\S]*?-->/g, ' ')
-      .replace(/<\/?(p|div|li|ul|ol|h[1-6]|br|tr|section|article|header|blockquote|table)\b[^>]*>/gi, '\n')
-      .replace(/<[^>]+>/g, ' '),
+    dropHidden(html)
+      .replace(/<\/?(p|div|li|ul|ol|h[1-6]|br|tr|section|article|header|blockquote|table)\b[^<>]*>/gi, '\n')
+      .replace(/<[^<>]+>/g, ' '),
   )
     .replace(/[ \t ]+/g, ' ')
     .replace(/\s*\n\s*/g, '\n')
@@ -76,9 +101,7 @@ function htmlToBlocks(html) {
 }
 
 function tokenizeBlocks(html) {
-  const src = String(html || '')
-    .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, ' ')
-    .replace(/<!--[\s\S]*?-->/g, ' ');
+  const src = dropHidden(html);
   const blocks = [];
   let buf = '';
   let boldChars = 0;
@@ -103,7 +126,8 @@ function tokenizeBlocks(html) {
     boldChars = 0;
   };
 
-  const re = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)\b[^>]*?(\/?)>|([^<]+)|(<)/g;
+  const re = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)\b[^<>]*?(\/?)>|([^<]+)|(<)/g;
+
   let m;
   while ((m = re.exec(src))) {
     if (m[4] !== undefined || m[5] !== undefined) {
@@ -1094,7 +1118,8 @@ const ROMAN_RE = /(?<![-/&\w.])(II|III|IV|VI|V)(?![-/&'’\w])|\s(I)(?=\s*(?:[,(
 // "(L5)", "Software Engineer L4/5", "Product Manager L6, Data Platform", "Software Engineer
 // L5/L6"; not "Senior Software Engineer, L4 - Autonomous Vehicles" (autonomy level 4) or a
 // support tier ("Support Engineer L2").
-const L_LEVEL_RE = new RegExp(String.raw`\(L(\d{1,2})(?:\s*\/\s*L?(\d{1,2}))?\)|\b${ROLE_NOUN}\s+L(\d{1,2})(?:\s*\/\s*L?(\d{1,2}))?\b`, 'i');
+// Fix wave 4 (DQ-3 residue): "(L5+L6)" names two levels like "(L5/L6)".
+const L_LEVEL_RE = new RegExp(String.raw`\(L(\d{1,2})(?:\s*[\/+]\s*L?(\d{1,2}))?\)|\b${ROLE_NOUN}\s+L(\d{1,2})(?:\s*\/\s*L?(\d{1,2}))?\b`, 'i');
 const L_TIER_RE = /\b(?:support|tier|soc|helpdesk|help desk|service desk)\b/i;
 // "Software Engineer 6 - Ads", "Data Scientist 4- Interactive", "Software Engineer 4/5 –
 // Model Serving", "Site Reliability Engineer 2", "Technician 3, Quality".
@@ -1109,7 +1134,9 @@ function rungLevel(n, table) {
 function ladderRung(t, company) {
   const slug = String(company || '').toLowerCase();
   const pick = (a, b) => (b && Number.isFinite(b) ? (slug === 'netflix' ? Math.max(a, b) : Math.min(a, b)) : a);
-  const l = L_TIER_RE.test(t) ? null : L_LEVEL_RE.exec(t);
+  // A support tier ("Support Engineer L2") is not a level, except on Netflix's L-ladder, whose
+  // support roles state their level too ("Support Solutions Engineer (L5)", DQ-3 residue).
+  const l = L_TIER_RE.test(t) && slug !== 'netflix' ? null : L_LEVEL_RE.exec(t);
   if (l) {
     const a = Number(l[1] || l[3]);
     const b = Number(l[2] || l[4]);
@@ -1201,6 +1228,30 @@ const STUDENT_RE = /\bstudents?\b(?!\s+(?:success|affairs|loans?|services?|exper
 // "Associate General Counsel", "Associate Product Counsel": a lawyer's title, not entry level.
 const ASSOCIATE_COUNSEL_RE = /\bassociate\s+(?:[\w&-]+\s+){0,3}?counsel\b/gi;
 
+// Fix wave 4 (DQ-29): Google numbers each job family on its own band, so one numeral ladder
+// does not fit every "… Manager <numeral>" title (2026-10-11 crawl, US base medians):
+//   - Product Manager I $168K (7) and II $200K (16) sit one rung above Technical Program
+//     Manager I $141K, II $168K and III $200K, so a Product Manager rung reads one step up
+//     (II is Mid, like TPM III);
+//   - Leadership Technical Program Manager I and II are $235K, between Senior ($213K) and
+//     Staff+ ($254K): Senior, never Entry;
+//   - every other numbered manager family is a people manager, as "Software Engineering Manager
+//     II" ($254K) already is: Facilities Manager I $169K and II $201K, Land Development Manager
+//     II and III, Customer Engineering Manager II, Government Affairs and Public Policy Manager II;
+//   - Program, Technical Program and Account Manager titles keep the ladder (TPM II $168K is
+//     the university-graduate band).
+const GOOGLE_NUMBERED_MANAGER_RE = /\bmanager\s+(VI|IV|V|I{1,3})(?=\s*(?:[,()\-–—:|]|$))/i;
+function googleNumberedManager(t, company) {
+  if (String(company || '').toLowerCase() !== 'google') return null;
+  const m = GOOGLE_NUMBERED_MANAGER_RE.exec(t);
+  if (!m) return null;
+  const n = ROMAN[m[1].toUpperCase()];
+  if (/\bleadership\b/i.test(t)) return n >= 3 ? 'Staff+' : 'Senior';
+  if (/\bproduct manager\s+[IVX]/i.test(t)) return rungLevel(n + 1, GOOGLE_RUNG);
+  if (/\b(?:program|account|accounts)\s+manager\s+[IVX]/i.test(t)) return null;
+  return 'Manager';
+}
+
 function seniorityOf(title, company = null) {
   const t = stripGenericStaff(String(title || ''));
   if (!t.trim()) return BY_DEFAULT;
@@ -1212,6 +1263,8 @@ function seniorityOf(title, company = null) {
   if (/\b(?:intern(?:ship)?s?|fellowships?|fellows program|co-?op|apprentice(?:ship)?|summer (?:analyst|associate|student)|residency|resident)\b/i.test(t)
     || (FELLOW_RE.test(t) && !SENIOR_FELLOW_RE.test(t)) || STUDENT_RE.test(t)) return byTitle('Intern');
   if (/\b(?:staff|principal|distinguished)\b/i.test(t) || SENIOR_FELLOW_RE.test(t)) return byTitle('Staff+');
+  const google = googleNumberedManager(t, company);
+  if (google) return byTitle(google);
   const isManager = /\bmanager\b/i.test(t) && !NON_PEOPLE_MANAGER.test(t);
   if (isManager || /\b(?:team lead|people lead|supervisor|engineering lead|lead,? (?:people|team))\b/i.test(t)
     || /\bmanager,\s/i.test(t) && !NON_PEOPLE_MANAGER.test(t)) return byTitle('Manager');

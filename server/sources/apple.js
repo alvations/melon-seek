@@ -226,11 +226,20 @@ function mapCopies(copies, { listing = false } = {}) {
 
   let payHtml = footers.length ? footers[0].html : null;
   let salary = null;
+  let payPlaces = null;
   if (listing) {
     const own = footers[0] && footers[0].pay ? groups.find((g) => payKey(g.pay) === payKey(footers[0].pay)) : null;
     if (own && own.places.length) places = own.places;
   } else if (groups.length === 1) {
     payHtml = groups[0].html;
+    // DQ-27: one range, posted for some of the requisition's places only (Apple posts no
+    // footer for Texas, Oregon, Florida ...). Every footer names its place, so the pay's
+    // places are known exactly; the others show no posted pay.
+    const g = groups[0];
+    if (g.places.length && footers.every((f) => !f.pay || f.place) && places.some((p) => !g.places.includes(p))) {
+      payPlaces = places.filter((p) => g.places.includes(p));
+      if (!payPlaces.length) payPlaces = null;
+    }
   } else if (groups.length > 1) {
     payHtml = null;
     salary = spanPay(groups);
@@ -268,8 +277,10 @@ function mapCopies(copies, { listing = false } = {}) {
     url: `${APPLE_ORIGIN}/en-us/details/${encodeOnce(pathId)}/${encodeOnce(slug)}`,
     updatedAt: dates.length ? dates[dates.length - 1] : null,
     postedAt: date,
-    reqId: str(x.jobNumber) || str(row.positionId),
+    // DQ-30: the requisition ("200578781"), never one listing's location suffix ("-0157").
+    reqId: appleRequisition(x.jobNumber) || str(row.positionId) || appleRequisition(id) || str(x.jobNumber),
     salary,
+    ...(payPlaces ? { payPlaces } : {}),
   };
 }
 
@@ -319,6 +330,8 @@ function repairAppleJob(j) {
   const keep = locs.filter((l) => !isAppleStoreLocation(l, locs));
   if (keep.length !== locs.length) out = { ...out, locations: keep };
   if (typeof j.url === 'string' && j.url.startsWith(APPLE_ORIGIN) && /%25[0-9A-Fa-f]{2}/.test(j.url)) out = { ...out, url: j.url.replace(/%25([0-9A-Fa-f]{2})/g, '%$1') };
+  // DQ-30: the requisition, not one listing's location suffix ("200578781-0157" -> "200578781").
+  if (typeof j.reqId === 'string' && /^\d{6,}-\d{2,6}$/.test(j.reqId)) out = { ...out, reqId: appleRequisition(j.reqId) };
   if (j.employmentType === 'Part-time') {
     const s = j.salary || j.salaryRaw;
     const backed = applePartTimeBacked({
@@ -328,6 +341,33 @@ function repairAppleJob(j) {
     if (!backed) out = { ...out, employmentType: null };
   }
   return out;
+}
+
+/**
+ * US states where Apple posts a "Pay & Benefits" footer (DQ-27). Counted on the 2026-10-11 crawl
+ * (snapshot.yml run 38118242488), single-place US postings with pay out of all: CA 1,858/1,870,
+ * WA 136/136, MA 38/38, NY 38/38, VA 18/18, OH 11/11, MD 5/5, MN 5/5, DC 4/4, IL 4/4, CT 3/3,
+ * NJ 3/3, CO 3/3, ME 2/2. Every other state with such postings has none: TX 0/299, OR 0/53,
+ * FL 0/21, NC 0/17, PA 0/15, TN 0/9, NV 0/5, AZ 0/5, and 17 more with 1 to 3 postings each.
+ */
+export const APPLE_PAY_STATES = Object.freeze(new Set(['CA', 'CO', 'CT', 'DC', 'IL', 'MA', 'MD', 'ME', 'MN', 'NJ', 'NY', 'OH', 'VA', 'WA']));
+
+/**
+ * The places a STORED Apple posting's single range was posted for (DQ-27), or null when that is
+ * every place. Snapshots keep normalized Jobs, not the listings' footers, so a requisition crawled
+ * before fix wave 4 does not say which listing carried the footer. Apple posts pay only in
+ * APPLE_PAY_STATES, so a US place in another state (Austin, TX next to Cupertino, CA) shows no
+ * posted pay. Places outside the US or without a state (remote, country-wide) are kept. A
+ * fresh crawl knows each footer's place (mapCopies `payPlaces`) and does not need this.
+ */
+export function applePayPlaces(job) {
+  const s = job && (job.salary || job.salaryRaw);
+  if (!s || Array.isArray(s.places) || (Array.isArray(s.ranges) && s.ranges.some((r) => r && Array.isArray(r.locations)))) return null;
+  const locs = (Array.isArray(job.locations) ? job.locations : []).filter(Boolean);
+  const unposted = (l) => !l.remote && l.country === 'US' && l.region && !APPLE_PAY_STATES.has(l.region);
+  const keep = locs.filter((l) => !unposted(l));
+  if (keep.length === locs.length || !keep.some((l) => !l.remote && l.country === 'US' && l.region)) return null;
+  return keep.map((l) => l.rawName || l.name);
 }
 
 /** Stored copies of one requisition (sorted by id) -> one Job, as mapAppleRequisition would make it. */
@@ -374,6 +414,10 @@ function mergeStored(copies) {
     delete out.salaryRaw;
     delete out.salaryFlag;
   }
+  // DQ-27: one range, from some copies only: the pay is for those copies' places.
+  if (groups.length === 1 && out.salary && !out.salary.ranges && groups[0].places.length && locations.some((l) => !groups[0].places.includes(l.rawName || l.name))) {
+    out.salary = { ...out.salary, places: groups[0].places };
+  }
   return out;
 }
 
@@ -400,7 +444,14 @@ export function mergeAppleCopies(jobs) {
  * requisition (DQ-2). Pure and idempotent; other companies' jobs pass through unchanged.
  */
 export function upgradeAppleJobs(jobs) {
-  return mergeAppleCopies((jobs || []).map((j) => (j && j.company === 'apple' ? repairAppleJob(j) : j)));
+  return mergeAppleCopies((jobs || []).map((j) => (j && j.company === 'apple' ? repairAppleJob(j) : j))).map((j) => {
+    const places = j && j.company === 'apple' ? applePayPlaces(j) : null;
+    if (!places) return j;
+    const out = { ...j };
+    if (j.salary) out.salary = { ...j.salary, places };
+    if (j.salaryRaw) out.salaryRaw = { ...j.salaryRaw, places };
+    return out;
+  });
 }
 
 /* -------------------------------------------------------------- fetch */

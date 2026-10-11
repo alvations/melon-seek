@@ -88,7 +88,7 @@ test('VT-3 Netflix\'s internship market band (total compensation) is not publish
 // 35 postings (Google 12, Microsoft 22, NVIDIA 1 via VT-6). Owner: public/features/shared.js payLocations.
 const MS_IE_ES = 'Digital Solution Area Specialists IC3 - The typical base pay range for this role across Ireland is € 49,200.00 - € 71,400.00 per year. Certain roles may be eligible for benefits and other compensation. Find additional benefits and pay information here: https://careers.microsoft.com/v2/global/en/corporate-pay/ireland-corporate-pay.html Digital Solution Area Specialists IC3 - The typical base pay range for this role across Spain is € 38,000.00 - € 59,700.00 per year.';
 
-test('VT-5 Ireland\'s range is not applied to the posting\'s places in Spain', TODO, () => {
+test('VT-5 Ireland\'s range is not applied to the posting\'s places in Spain', () => {
   const locations = [
     { name: 'Dublin, Ireland', rawName: 'Dublin, D, IE', country: 'IE', lat: 53.3498, lng: -6.2603 },
     { name: 'Barcelona, Spain', rawName: 'Barcelona, CT', country: 'ES', lat: 41.3874, lng: 2.1686 },

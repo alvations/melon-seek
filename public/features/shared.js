@@ -216,14 +216,41 @@ export function locationKey(loc) {
  * about Sydney (persona review 2026-10-10: a "Sydney median" built from US contractor pay).
  * Locations without a country (remote) count. When no location uses the currency, or the job
  * has no pay, every location is returned, since the posting does not say which one is meant.
+ * Fix wave 4 narrows it twice, before the currency test:
+ *   - DQ-27/DQ-28: when the adapter knows which places the pay was posted for (salary.places, or
+ *     the places of salary.ranges), only those: Apple's Cupertino range says nothing about the
+ *     requisition's Austin listing, for which Apple posts no pay;
+ *   - VT-5: when the pay line names its country (salary.country, "across Ireland is €…"), only
+ *     places in that country: Ireland's euro range is not Spain's.
+ * Each narrowing is skipped when it would leave no place.
  */
 export function payLocations(job) {
   const locs = job?.locations || [];
-  const cur = String(job?.salary?.currency || '').toUpperCase();
+  const sal = job?.salary;
+  const cur = String(sal?.currency || '').toUpperCase();
   if (!cur || !locs.length) return locs;
+  let pool = locs;
+  const posted = postedPlaces(sal);
+  if (posted) {
+    const own = locs.filter((l) => l && posted.has(l.rawName || l.name));
+    if (own.length) pool = own;
+  }
   const map = palette.COUNTRY_CURRENCY || {};
-  const hit = locs.filter((l) => !l?.country || map[String(l.country).toUpperCase()] === cur);
-  return hit.length ? hit : locs;
+  let hit = pool.filter((l) => !l?.country || map[String(l.country).toUpperCase()] === cur);
+  const cc = typeof sal?.country === 'string' && /^[A-Z]{2}$/i.test(sal.country) ? iso(sal.country) : null;
+  if (cc && hit.length) {
+    const inCountry = hit.filter((l) => !l?.country || iso(l.country) === cc);
+    if (inCountry.some((l) => l?.country)) hit = inCountry;
+  }
+  return hit.length ? hit : pool;
+}
+
+/** The location strings a salary was posted for (salary.places, else every range's places), or null. */
+function postedPlaces(sal) {
+  if (Array.isArray(sal?.places) && sal.places.length) return new Set(sal.places);
+  const rs = Array.isArray(sal?.ranges) ? sal.ranges : [];
+  if (rs.length && rs.every((r) => Array.isArray(r?.locations) && r.locations.length)) return new Set(rs.flatMap((r) => r.locations));
+  return null;
 }
 
 // A currency's home country when exactly one country uses it (USD -> US, CAD -> CA, PLN -> PL;

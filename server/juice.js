@@ -1508,6 +1508,13 @@ export function attachJuice(job, cities, opts = {}) {
     matches.push(m);
   }
   if (!matches.length) return job;
+  // Fix wave 4 (DQ-27): only the places the pay was posted for, when the adapter knows them
+  // (salary.places, or the places of salary.ranges): Apple's Cupertino range is not Austin pay.
+  const posted = postedPlaceSet(s);
+  if (posted) {
+    const own = matches.filter((m) => posted.has(m.location.rawName || m.location.name));
+    if (own.length) matches.splice(0, matches.length, ...own);
+  }
   // The pay's own country: the one its pay line names (salary.country, "Ireland: €72000"),
   // else any country that uses its currency.
   const payCountry = typeof s.country === 'string' && /^[A-Z]{2}$/.test(s.country) ? s.country : null;
@@ -1523,10 +1530,20 @@ export function attachJuice(job, cities, opts = {}) {
 
   const overrides = opts.rentOverrides || null; // { [cityKey]: monthly USD } from the user
   const byLocation = [];
+  // DQ-28: a place with its own posted range (salary.ranges[].locations) is scored on that range's
+  // midpoint, not the span's.
+  const placeUSD = (m) => {
+    const key = m.location.rawName || m.location.name;
+    const r = Array.isArray(s.ranges) ? s.ranges.find((x) => x && Array.isArray(x.locations) && x.locations.includes(key) && Number.isFinite(Number(x.min)) && Number.isFinite(Number(x.max))) : null;
+    if (!r || String(r.currency || cur).toUpperCase() !== cur) return salaryUSD;
+    const mid = (Number(r.min) + Number(r.max)) / 2;
+    const v = toUSD(partTime ? (mid / 2080) * hours * 52 : mid, cur, cities);
+    return v != null && v > 0 ? v : salaryUSD;
+  };
   for (const m of use) {
     let j;
     const ov = overrides && overrides[m.city.key];
-    try { j = computeJuice(salaryUSD, m.city, ov != null ? { ...o, rentOverrideUSD: ov } : o); } catch { continue; }
+    try { j = computeJuice(placeUSD(m), m.city, ov != null ? { ...o, rentOverrideUSD: ov } : o); } catch { continue; }
     const entry = { locationName: m.location.name || m.city.name, city: m.city.key, cityName: m.city.name, ...j };
     if (m.via === 'nearby') entry.proxy = true;
     byLocation.push(entry);
@@ -1546,6 +1563,14 @@ export function attachJuice(job, cities, opts = {}) {
     household: householdOf(opts.household).key, // which household the scores are for
   };
   return job;
+}
+
+/** The location strings a salary was posted for (salary.places, else every range's places), or null. */
+function postedPlaceSet(s) {
+  if (Array.isArray(s.places) && s.places.length) return new Set(s.places);
+  const rs = Array.isArray(s.ranges) ? s.ranges : [];
+  if (rs.length && rs.every((r) => r && Array.isArray(r.locations) && r.locations.length)) return new Set(rs.flatMap((r) => r.locations));
+  return null;
 }
 
 /** attachJuice over an array (mutates and returns it). */

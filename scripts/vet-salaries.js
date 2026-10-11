@@ -228,7 +228,12 @@ export function scanJob(job, { stat = null } = {}) {
     if (text && source === 'structured' && typeof salaryLib.parseSalary === 'function') {
       const p = salaryLib.parseSalary(text, { countries });
       const pj = p && salaryLib.toJobSalary(p);
-      if (pj && (pj.currency !== String(sal.currency).toUpperCase() || relDiff(pj.min, sal.min) > 0.1 || relDiff(pj.max, sal.max) > 0.1)) flags.add('structured_text_disagree');
+      // DQ-32: a merged Apple requisition spans its places' ranges (salary.ranges with their
+      // places) by design; the text agrees when it states one of those ranges.
+      const placed = Array.isArray(sal.ranges) ? sal.ranges.filter((r) => r && Array.isArray(r.locations) && r.locations.length) : [];
+      const targets = placed.length ? placed : [sal];
+      const differs = (r) => pj.currency !== String(r.currency || sal.currency).toUpperCase() || relDiff(pj.min, r.min) > 0.1 || relDiff(pj.max, r.max) > 0.1;
+      if (pj && targets.every(differs)) flags.add('structured_text_disagree');
     }
   } else if (clauses.length) {
     flags.add('missed_salary');
