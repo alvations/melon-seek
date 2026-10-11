@@ -13,14 +13,14 @@ placeholders, and send it as the agent's prompt. The agent saves the filled-in p
 | `<DATE>` | today, YYYY-MM-DD | | |
 | `<ROLE>` | the agent's file name, e.g. `qa-desktop-beta` | | |
 | `<SCRATCH>` | the lead's scratchpad folder | | |
-| `<DIST>` | persona review only: the build the lead made for the reviewers (`node scripts/build-static.js --out <DIST>`) | | |
+| `<DIST>` | persona, UX, viz, methodology and security/accessibility reviews: the build the lead made for the reviewers (`node scripts/build-static.js --out <DIST>`) | | |
 | `<AGE_GROUP>` | persona review only: one agent per group, `18–24`, `25–34`, `35–44`, `45–54` and `55 and over` | | |
 | `<LANE>`, `<FINDING_IDS>`, `<FINDINGS>`, `<OWNED_FILES>`, `<NOT_OWNED_FILES>` | fix lanes only: the lane name, its findings pasted in full, and the file ownership the lead decided | | |
 | `<PREVIOUS>` | the last cycle's sections to compare against | e.g. "Full QA pass (desktop) 2026-10-03" in docs/QA.md | the same, plus the stable cycle of `<DATE>` if it ran |
 
 | Stage | Template |
 |---|---|
-| 1 | [desktop-qa.md](desktop-qa.md), [mobile-qa.md](mobile-qa.md), [mobile-perf.md](mobile-perf.md), [data-check.md](data-check.md), [persona-review.md](persona-review.md) |
+| 1 | [desktop-qa.md](desktop-qa.md), [mobile-qa.md](mobile-qa.md), [mobile-perf.md](mobile-perf.md), [data-check.md](data-check.md), [persona-review.md](persona-review.md), [ux-review.md](ux-review.md), [viz-review.md](viz-review.md), [security-a11y-review.md](security-a11y-review.md), [vetting-qc.md](vetting-qc.md), [qa-suite.md](qa-suite.md), [methodology-review.md](methodology-review.md) |
 | 2 | [fix-lane.md](fix-lane.md) |
 
 Facts every template relies on. Update them here and in PLAYBOOK.md when they change:
@@ -35,3 +35,7 @@ Facts every template relies on. Update them here and in PLAYBOOK.md when they ch
 - Beta boards are `live: false`: the browser never calls them, and the bundled snapshot is all
   there is. Amazon and Meta are paused for their terms of use, and Tesla is blocked by its bot
   protection, so none of the three appears on /beta/.
+- Re-running a role on the same target: give it a new `<ROLE>` with a pass number (for example
+  `qa-desktop-beta-2`) and the same suffix on any test file whose name already exists
+  (`test/e2e/beta-desktop-qa-2.e2e.js`). A later pass never edits an earlier pass's tests, log or
+  prompt; it lists the earlier IDs that are now fixed and numbers its new findings after them.

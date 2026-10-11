@@ -45,6 +45,20 @@ beta page."
 | Mobile performance and resources | [cycle/mobile-perf.md](prompts/cycle/mobile-perf.md) | timings table before and after (4x CPU, Fast and Slow 4G), heap, long tasks from a Chrome trace; may fix its own files |
 | Data quality (beta, or after any new source) | [cycle/data-check.md](prompts/cycle/data-check.md) | pay parsing, levels, locations, comps cells, vetting flags per company |
 | Persona review: 5 age groups × 5 career levels | [cycle/persona-review.md](prompts/cycle/persona-review.md) | one agent per age group (18–24, 25–34, 35–44, 45–54, 55 and over). Each plays 5 levels, from student to executive: what is good, what to improve, what is broken and must be fixed now |
+| UX and frontend design review | [cycle/ux-review.md](prompts/cycle/ux-review.md) | findings UX-n: hierarchy, consistency, words, states, the simplicity budget, responsive and themes; `test/e2e/<target>-ux-review.e2e.js` for objective layout and contrast bugs |
+| Data-visualisation review | [cycle/viz-review.md](prompts/cycle/viz-review.md) | findings V-n: chart, map, Juice waterfall, comps and Insights charts checked against the data, colour-blind safety, drawing speed; `test/e2e/<target>-viz-review.e2e.js` |
+| Security and accessibility review | [cycle/security-a11y-review.md](prompts/cycle/security-a11y-review.md) | a "<target> review <date>" section in `docs/REVIEW.md` (S-n, A-n), re-check of open findings; `test/<target>-security-review.test.js`, `test/e2e/<target>-a11y.e2e.js` |
+| Salary vetting | [cycle/vetting-qc.md](prompts/cycle/vetting-qc.md) | `data/vetting/<date>-<target>/` (flags, seeded sample, verdicts, summary), the gate's error rates, findings VT-n; `test/<target>-vetting.test.js` |
+| Test-suite QA | [cycle/qa-suite.md](prompts/cycle/qa-suite.md) | coverage map, gaps, flakes from 3 runs of each suite, slowest tests, CI parity (T-n); `test/e2e/<target>-coverage.e2e.js`, `test/<target>-coverage.test.js` |
+| Methodology and sources review | [cycle/methodology-review.md](prompts/cycle/methodology-review.md) | findings MR-n: a source and as-of for every number on screen, freshness registry coverage, docs drift; `test/<target>-methodology.test.js` |
+
+These are the check roles the main site was built and reviewed with (docs/process/README.md lists
+the original agents: qa, ux, viz, review, vetting, methodology and freshness), turned into
+repeatable templates on 2026-10-11 when the user asked: "Did the big tech jobs run through the QA
+and QC and UI/UX front end agents? Deploy all the agents that we use in the original melon seek
+checks and then run through the rigorous checks and tests and revisions." A full cycle runs all
+eleven. The reviewers that only read a build (UX, viz, persona, methodology, security and
+accessibility) serve one build the lead makes for them (`<DIST>`) instead of each building their own.
 
 Rules for every stage 1 agent:
 - Save its prompt verbatim to `docs/process/prompts/<role>.md` and write its log
@@ -128,6 +142,11 @@ These are the rules learned the hard way on 2026-10-10.
   on a quiet machine (its timings are the deliverable). Run the persona review on the fixed
   build, so it finds new problems instead of known ones. Beta on 2026-10-10: desktop QA, mobile
   QA and the data check first; perf and personas after the main-site fixes were integrated.
+  The full roster on 4 CPUs (beta, 2026-10-11) runs in three batches: (1) desktop QA, mobile QA,
+  the data check, salary vetting and the security and accessibility review; (2) UX, viz and
+  methodology reviews; (3) mobile perf, the optimisation pass, alone, on the fixed build (the user,
+  2026-10-11: "Make sure we run the optimizations improvements too!"); (4) test-suite QA, which
+  runs both suites three times, alone.
 - Run the whole `npm test` before every push, docs-only commits included. Tests read the docs:
   scripts/refresh/jobs.js flags a hand-written accuracy figure ("Typically within ±12% …") in
   docs/QA.md unless it reads as an example ("e.g."). be5691c, a QA-docs commit checked with the

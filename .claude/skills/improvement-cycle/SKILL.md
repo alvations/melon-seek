@@ -1,6 +1,6 @@
 ---
 name: improvement-cycle
-description: Run melon-seek's QA, performance and usability improvement cycle on the main site or the beta site. Covers desktop and mobile QA, mobile performance, a data-quality check, and a persona review by 5 age groups × 5 career levels, then fix lanes, integration and recording. Use when asked to QA, optimize or review the site, or to repeat "the same flow" on /beta/.
+description: Run melon-seek's QA, performance and usability improvement cycle on the main site or the beta site. Covers desktop and mobile QA, mobile performance, a data-quality check, a persona review by 5 age groups × 5 career levels, and the original check roles (UX design, data-viz, security and accessibility, salary vetting, test-suite QA, methodology and sources), then fix lanes, integration and recording. Use when asked to QA, optimize or review the site, or to repeat "the same flow" on /beta/.
 ---
 
 # melon-seek improvement cycle
@@ -17,7 +17,11 @@ stage. This skill is the short version.
 3. **Stage 1, find problems.** Launch these agents in parallel, each from its template in
    `docs/process/prompts/cycle/`:
    - desktop QA, mobile QA, mobile perf and the data check;
-   - 5 persona reviewers, one per age group.
+   - 5 persona reviewers, one per age group;
+   - the UX, viz, security and accessibility, salary vetting, test-suite QA and methodology
+     reviewers.
+
+   On 4 CPUs, run them in batches (PLAYBOOK "Known traps"): mobile perf and test-suite QA alone.
 
    They encode bugs as failing tests and never push.
 4. **Stage 2, fix.** Triage the findings into lanes by owning file and use `fix-lane.md`, one

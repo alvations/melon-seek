@@ -12,7 +12,19 @@ import { latestObservations } from '../scripts/cycle/local-data.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
-const TEMPLATES = ['desktop-qa', 'mobile-qa', 'mobile-perf', 'data-check', 'persona-review', 'fix-lane'];
+// Every template in the folder, so a new role is checked as soon as its file exists.
+const TEMPLATES = fs.readdirSync(path.join(ROOT, 'docs/process/prompts/cycle'))
+  .filter((f) => f.endsWith('.md') && f !== 'README.md').map((f) => f.slice(0, -3)).sort();
+
+test('the cycle has the original check roles as templates', () => {
+  // User, 2026-10-11: "Deploy all the agents that we use in the original melon seek checks".
+  for (const t of ['desktop-qa', 'mobile-qa', 'mobile-perf', 'data-check', 'persona-review', 'fix-lane',
+    'ux-review', 'viz-review', 'security-a11y-review', 'vetting-qc', 'qa-suite', 'methodology-review']) {
+    assert.ok(TEMPLATES.includes(t), `prompts/cycle/${t}.md exists`);
+  }
+  const readme = read('docs/process/prompts/cycle/README.md');
+  for (const t of TEMPLATES) assert.ok(readme.includes(`(${t}.md)`), `the templates README links ${t}.md`);
+});
 
 test('the playbook links every template, script and the skill, and each exists', () => {
   const book = read('docs/process/PLAYBOOK.md');
