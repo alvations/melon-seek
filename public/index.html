@@ -40,9 +40,9 @@
 <body>
   <a class="skip-link" href="#resultsList">Skip to results</a>
   <a class="skip-link" href="#vizArea">Skip to chart</a>
-  <h1 class="sr-only" id="pageTitle">melon·seek: job boards by salary</h1>
-
   <header class="topbar">
+    <!-- A-7: the page's heading sits inside a landmark (the banner), not loose in the body. -->
+    <h1 class="sr-only" id="pageTitle">melon·seek: job boards by salary</h1>
     <a class="brand" href="#" aria-label="melon·seek home">
       <img src="favicon.svg" alt="" width="28" height="28">
       <span class="brand-word">melon<span class="brand-dot">·</span>seek</span>
@@ -143,9 +143,10 @@
         <div class="viz-overlay" id="vizOverlay" hidden></div>
       </div>
       <div class="insights-host" id="insightsHost" hidden>
-        <section class="insights-card" id="compHost" aria-label="Compstimate"></section>
-        <section class="insights-card" id="insightsPanel" aria-label="Market insights"></section>
-        <section class="insights-card" id="compsCardHost" aria-label="Compare companies" hidden></section>
+        <!-- A-7: plain hosts; the sections inside them (with their own headings) are the regions. -->
+        <div class="insights-card" id="compHost"></div>
+        <div class="insights-card" id="insightsPanel"></div>
+        <div class="insights-card" id="compsCardHost" hidden></div>
       </div>
     </main>
 

@@ -43,7 +43,7 @@
   --ms-danger: #c4323f;
   --ms-danger-bg: #fdecee;
   --ms-live: #16a34a;
-  --ms-blue: #2563eb;
+  --ms-blue: #1d4ed8;            /* A-4 / UX-18: 5.8:1 on --ms-blue-bg (#2563eb was 4.48:1) */
   --ms-blue-bg: #e8effe;
   --ms-shadow-sm: 0 1px 2px rgb(16 24 40 / .06);
   --ms-shadow: 0 1px 3px rgb(16 24 40 / .08), 0 4px 12px rgb(16 24 40 / .06);
@@ -326,21 +326,22 @@ body.filters-collapsed .filters { visibility: hidden; }
 .hist { display: flex; align-items: flex-end; gap: 2px; height: 54px; padding: 0 9px; }
 .hist-bar { flex: 1; background: var(--ms-surface-3); border-radius: 2px 2px 0 0; transition: height .2s, background .15s; min-width: 0; }
 .hist-bar.is-in { background: color-mix(in srgb, var(--ms-accent) 55%, var(--ms-surface)); }
-.range-wrap { position: relative; height: 22px; margin: 0 0 6px; }
-.range-track, .range-fill { position: absolute; top: 9px; height: 4px; border-radius: 4px; }
+.range-wrap { position: relative; height: 24px; margin: 0 0 6px; } /* V8: 24 px targets (WCAG 2.5.8) */
+.range-track, .range-fill { position: absolute; top: 10px; height: 4px; border-radius: 4px; }
 .range-track { left: 9px; right: 9px; background: var(--ms-surface-3); }
 .range-fill { background: var(--ms-accent); margin: 0 9px; }
-.range { position: absolute; inset: 0; width: 100%; height: 22px; margin: 0; background: none; pointer-events: none; -webkit-appearance: none; appearance: none; }
+.range { position: absolute; inset: 0; width: 100%; height: 24px; margin: 0; background: none; pointer-events: none; -webkit-appearance: none; appearance: none; }
 .range:focus { outline: none; }
-.range::-webkit-slider-runnable-track { background: none; height: 22px; }
+.range::-webkit-slider-runnable-track { background: none; height: 24px; }
 .range::-moz-range-track { background: none; }
 .range::-webkit-slider-thumb {
-  -webkit-appearance: none; pointer-events: auto; width: 20px; height: 20px; margin-top: 1px; border-radius: 50%;
+  -webkit-appearance: none; pointer-events: auto; width: 20px; height: 20px; margin-top: 2px; border-radius: 50%;
   background: var(--ms-surface); border: 2px solid var(--ms-accent); box-shadow: var(--ms-shadow); cursor: grab;
 }
 .range::-moz-range-thumb { pointer-events: auto; width: 16px; height: 16px; border-radius: 50%; background: var(--ms-surface); border: 2px solid var(--ms-accent); box-shadow: var(--ms-shadow); cursor: grab; }
-.range:focus-visible::-webkit-slider-thumb { box-shadow: var(--ms-focus); }
-.range:focus-visible::-moz-range-thumb { box-shadow: var(--ms-focus); }
+/* V8: the focused thumb gets a solid ring in the accent (3:1 and more against the page), not only the 35% halo. */
+.range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--ms-surface), 0 0 0 4px var(--ms-accent); }
+.range:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 2px var(--ms-surface), 0 0 0 4px var(--ms-accent); }
 .range-vals { display: flex; align-items: center; gap: 8px; }
 .range-vals > label { flex: 1; display: flex; flex-direction: column; padding: 6px 10px; border: 1px solid var(--ms-border-strong); border-radius: 8px; }
 .range-vals > label > span { font-size: 12px; color: var(--ms-muted); font-weight: 500; }
@@ -481,8 +482,10 @@ html[data-mode="map"] .demo-banner > code { order: 0; flex: 0 1 auto; margin-lef
 .sal-pill { flex: none; font-size: 12.5px; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: var(--ms-accent-soft); color: var(--ms-accent-strong); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .sal-pill--none { background: var(--ms-surface-2); color: var(--ms-faint); font-weight: 600; }
 .card-meta { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 12.5px; color: var(--ms-muted); min-width: 0; }
-.card-dept { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
-.card-loc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.card-dept { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 4ch; flex: 0 1 auto; }
+/* UX-16: the place is what a seeker scans for, so a long department name gives way first (it is in the
+   chart and the drawer); the place is cut only past three quarters of the row. */
+.card-loc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 0 auto; max-width: 75%; }
 .sep { color: var(--ms-faint); }
 .card-foot { display: flex; align-items: center; gap: 5px; margin-top: 8px; flex-wrap: wrap; }
 .card-age { margin-left: auto; font-size: 12px; color: var(--ms-faint); white-space: nowrap; }
@@ -799,8 +802,9 @@ html[data-mode="map"] .demo-banner { padding: 0; }
 .area-x:hover { background: color-mix(in srgb, var(--ms-accent) 15%, transparent); }
 .area-label { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .loc-ico svg { color: var(--ms-accent); }
-.stats-line { flex: 1 1 100%; flex-wrap: nowrap; overflow: hidden; }
-.stat--top { min-width: 0; flex: 0 1 auto; max-width: none; }
+/* UX-15: the line wraps whole stats onto a second line; it never clips a number ("$270" for "$270K"). */
+.stats-line { flex: 1 1 100%; flex-wrap: wrap; overflow: visible; }
+.stat--top { min-width: 0; flex: 0 1 auto; max-width: none; overflow: visible; }
 @media (max-width: 860px) {
   .stats-line { font-size: 12.5px; gap: 2px 6px; }
   .stat--top, .stat--top + .stat-sep { display: none; }
@@ -997,7 +1001,8 @@ html[data-mode="insights"] .viz-controls { display: none; }
 
 /* DES-8: one neutral for costs; gross muted; juice left in the Juicy melon step. */
 .wf--gross .wf-bar { background: color-mix(in srgb, var(--ms-muted) 55%, transparent); }
-.wf--tax .wf-bar, .wf--rent .wf-bar, .wf--living .wf-bar { background: var(--ms-surface-3); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ms-faint) 35%, transparent); }
+/* V-32: the cost bars were 1.08:1 against their track; the faint neutral is 4.3:1 light and 4.9:1 dark (one neutral, DES-8). */
+.wf--tax .wf-bar, .wf--rent .wf-bar, .wf--living .wf-bar { background: var(--ms-faint); box-shadow: none; }
 .wf--net .wf-bar { background: var(--ms-accent); }
 .wf--net.is-neg .wf-value, .wf--net.is-neg .wf-label { color: var(--ms-danger); }
 .wf-row { grid-template-columns: 88px 1fr 92px; }
@@ -1388,4 +1393,15 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
 }
 @media (max-width: 379px) {
   html[data-channel="beta"] .brand { display: none; }
+}
+
+/* ===================================================================
+   Fix wave 4 (docs/process/fix4-app.md, 2026-10-11)
+   =================================================================== */
+/* A-3: at 200% zoom (640 x 450 CSS px) the one-row top bar keeps the company name whole on the beta site:
+   the badge takes its shortest label and the logo gives its room (the Beta tag and the menu carry identity). */
+@media (max-width: 860px) and (max-height: 500px) {
+  html[data-channel="beta"] .data-badge .badge-label::before { content: attr(data-micro); }
+  html[data-channel="beta"] .brand { display: none; }
+  html[data-channel="beta"] .company-bar { flex: 0 1 240px; }
 }

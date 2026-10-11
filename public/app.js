@@ -2374,8 +2374,10 @@ function togglePopover(id, anchor) {
     requestAnimationFrame(() => (el.querySelector('.company-list .company-item[aria-current="true"]') || el.querySelector('.company-list .company-item'))?.focus({ preventScroll: true }));
     return;
   }
-  requestAnimationFrame(() => [...el.querySelectorAll('.pop-body input:not([type=range]), .pop-body button.kw, .pop-body select, .pop-body .range, .pop-body button:not(.icon-btn), .pop-body label.check input')]
-    .find((x) => x.getClientRects().length && !x.closest('[hidden]'))?.focus({ preventScroll: true }));
+  // A-2: a popover with no field or button in its body (the data badge: a link and a hidden Refresh) takes
+  // focus on its first link, else on its Close button, so it never leaves focus behind on the opener.
+  requestAnimationFrame(() => ([...el.querySelectorAll('.pop-body input:not([type=range]), .pop-body button.kw, .pop-body select, .pop-body .range, .pop-body button:not(.icon-btn), .pop-body label.check input, .pop-body a[href]')]
+    .find((x) => x.getClientRects().length && !x.closest('[hidden]')) || el.querySelector('.pop-head .icon-btn'))?.focus({ preventScroll: true }));
 }
 
 function clearPopoverFacet(id) {
@@ -2959,14 +2961,15 @@ function buildWindow(list) {
   listIO = null;
   const cs = getComputedStyle(list);
   win.gap = parseFloat(cs.rowGap) || 0;
+  // A-5: every child of the <ol> is a list item (no role=none): the spacers are hidden, the note and
+  // "Show more" are real items.
   const note = juiceScaleNote(visible.slice(0, PAGE));
-  if (note) note.setAttribute('role', 'none');
-  const spacer = () => h('li', { class: 'list-spacer', 'aria-hidden': 'true', role: 'none' });
+  const spacer = () => h('li', { class: 'list-spacer', 'aria-hidden': 'true' });
   win.top = spacer();
   win.bottom = spacer();
   win.els = new Map();
   win.btn = h('button', { type: 'button', class: 'btn btn--ghost btn--block', onclick: () => loadMore() });
-  win.more = h('li', { class: 'list-more', role: 'none' }, win.btn);
+  win.more = h('li', { class: 'list-more' }, win.btn);
   const focusId = document.activeElement?.closest?.('#resultsList .card[data-id]')?.dataset.id;
   // No layout is read until the cards and spacers are back, so the browser never clamps the scroll position.
   const keepTop = list.scrollTop;
@@ -3228,12 +3231,20 @@ function payPill(job) {
   }
   if (term) {
     const tip = `${term.amount}${perText(term.per)} (${programText(job, term)})`;
-    return { text: term.per === 'year' ? salaryRange(s) : `${term.amount}/${term.per}`, tip };
+    // UX-29: a yearly rate for a fixed term says it is a yearly rate ("€47K/year"), as an hourly one says "/hour".
+    return { text: term.per === 'year' ? `${salaryRange(s)}/year` : `${term.amount}/${term.per}`, tip };
   }
   const range = salaryRange(s);
   if (!range) return null;
   if (isOte(job)) return { text: range, tip: OTE_LABEL };
   return { text: range, tip: null };
+}
+/** UX-29: the term of a fixed-term role for the card's first keyword slot: { text: "13-week internship", tip }, or null. */
+function cardTerm(job) {
+  const t = postedTerm(job.salary);
+  if (!t || isPartTimeHourly(job)) return null;
+  const text = programText(job, t);
+  return { text, tip: t.fixed ? `${t.amount}${perText(t.per)}: fixed-term pay for a ${text}, not a yearly salary` : `${t.amount}${perText(t.per)} for a ${text}` };
 }
 /** The pay's own country, in a sentence: "the US", "Germany and Ireland", "other countries" (shared decision 1). */
 function payPlaceText(job) {
@@ -3265,29 +3276,39 @@ function card(job, pos = null, size = null) {
   const pool = isPool(job);
   // DQ-11: a talent pool's label takes the keyword slots, and "Level not stated" adds nothing to it.
   const level = pool && sen === NOT_STATED ? null : sen;
+  // A-1: a role=button's content is presentational, so the meta row (team, place, Remote) and the foot
+  // (level, Juice, tags, status, age) are its description; the name stays short.
+  const did = `cd-${String(job.id).replace(/[^A-Za-z0-9_-]/g, '_')}`;
+  const loc = locSummary(job, 1);
+  // UX-33: no "Remote" tag after a place that already says "Remote (US)".
+  const remoteTag = job.remote && !/^remote\b/i.test(loc);
+  const term = cardTerm(job);
   const el = h('li', { 'aria-posinset': pos, 'aria-setsize': size }, h('article', {
     class: `card${isOpen ? ' is-open' : ''}`, dataset: { id: job.id }, tabindex: '0', role: 'button',
-    'aria-label': `${job.title}${pool ? `, ${POOL_LABEL}` : ''}, ${pay ? `${pay.text}${pay.tip ? ` (${pay.tip})` : ''}` : job.salaryFlag ? 'pay unclear, see posting' : 'salary not listed'}, ${locSummary(job, 3)}`, style: `--stripe:${color}`,
+    'aria-label': `${job.title}${pool ? `, ${POOL_LABEL}` : ''}, ${pay ? `${pay.text}${pay.tip ? ` (${pay.tip})` : ''}` : job.salaryFlag ? 'pay unclear, see posting' : 'no pay listed'}, ${locSummary(job, 3)}`, style: `--stripe:${color}`,
+    'aria-describedby': `${did}-m ${did}-f`,
   },
   h('div', { class: 'card-top' },
     h('h3', { class: 'card-title' }, job.title),
     h('div', { class: 'card-pay' },
       pay ? h('span', { class: `sal-pill${pay.elsewhere ? ' sal-pill--elsewhere' : ''}`, title: pay.tip }, pay.text)
         : job.salaryFlag ? h('span', { class: 'sal-pill sal-pill--unclear', title: job.salaryFlag.reason || 'Pay unclear' }, 'Pay unclear')
-          : h('span', { class: 'sal-pill sal-pill--none' }, 'No salary'),
-      // The tablet column puts the age here, beside the title's second line (styles.css).
-      ageText(job) ? h('span', { class: 'card-age-top', 'aria-hidden': 'true', title: ageTitle(job) }, ageText(job).replace(/^Listed (?!today)/, '')) : null)),
-  h('div', { class: 'card-meta' },
+          : h('span', { class: 'sal-pill sal-pill--none' }, 'No pay listed'),
+      // The tablet column puts the age here, beside the title's second line (styles.css). UX-33: the same words at every width.
+      ageText(job) ? h('span', { class: 'card-age-top', 'aria-hidden': 'true', title: ageTitle(job) }, ageText(job)) : null)),
+  h('div', { class: 'card-meta', id: `${did}-m` },
     h('span', { class: 'card-dot', style: `--dot:${color}`, 'aria-hidden': 'true' }),
     h('span', { class: 'card-dept' }, deptKey(job)), h('span', { class: 'sep', 'aria-hidden': 'true' }, '·'),
-    h('span', { class: 'card-loc' }, locSummary(job, 1)), job.remote ? h('span', { class: 'tag tag--remote' }, 'Remote') : null),
-  h('div', { class: 'card-foot' },
+    h('span', { class: 'card-loc' }, loc), remoteTag ? h('span', { class: 'tag tag--remote' }, 'Remote') : null),
+  h('div', { class: 'card-foot', id: `${did}-f` },
     level ? h('span', { class: `sen sen--${level.toLowerCase().replace(/\W/g, '')}`, title: SEN_TIP[level] || null }, senLabel(level)) : null,
     pool ? h('span', { class: 'tag tag--pool', title: POOL_TIP }, POOL_LABEL) : null,
     juice,
     // P-1: on-target pay takes the first keyword slot (a plain-words label, not a status).
     ote ? h('span', { class: 'tag tag--pay', title: OTE_LABEL }, 'On-target earnings') : null,
-    ...footTags(job, { level: level ? senLabel(level) : '', juice: juice?.textContent || '', status: status?.textContent || '', ote, age: ageText(job), slots: pool ? 0 : Math.max(0, 2 - (juice ? 1 : 0) - (status ? 1 : 0) - (ote ? 1 : 0)) }).map((t) => h('span', { class: 'tag' }, t)),
+    // UX-29: a fixed-term role says its term ("13-week internship") in the first keyword slot.
+    term ? h('span', { class: 'tag tag--pay', title: term.tip }, term.text) : null,
+    ...footTags(job, { level: level ? senLabel(level) : '', juice: juice?.textContent || '', status: status?.textContent || '', ote: ote || !!term, age: ageText(job), slots: pool ? 0 : Math.max(0, 2 - (juice ? 1 : 0) - (status ? 1 : 0) - (ote ? 1 : 0) - (term ? 1 : 0)) }).map((t) => h('span', { class: 'tag' }, t)),
     status, // at most one status tag, in the second keyword slot (ROADMAP §8)
     ageText(job) ? h('span', { class: 'card-age', title: ageTitle(job) }, ageText(job)) : null)));
   return el;
@@ -4463,6 +4484,8 @@ function bindEvents() {
       stepDrawer(e.key === 'ArrowRight' || e.key === 'j' ? 1 : -1);
     }
     if (drawerJobId && e.key === 'Tab') trapFocus(e, $('#drawer'));
+    // A-2: the data badge's popover sits at the end of the page, so Tab stays inside it while it is open.
+    else if (popover.id === 'badge' && e.key === 'Tab') trapFocus(e, $('#popover'));
     else if (filtersModal && !popover.id && e.key === 'Tab') trapFocus(e, $('#filters'));
   });
 
