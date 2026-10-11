@@ -6,7 +6,7 @@
 //   - a closure probe (one request to the posting's own detail) closes on 404/410/redirect
 //     only (x: gone); a 200 keeps it open;
 //   - a posting listed but not published (a failed detail, the cap) stays open.
-import { test, afterEach } from 'node:test';
+import { test, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -25,7 +25,9 @@ afterEach(() => { setMinInterval(null); resetRateLimits(); resetRobots(); });
 const T0 = Date.parse('2026-10-11T06:00:00Z');
 const at = (h) => new Date(T0 + h * 3600e3).toISOString();
 const day = (d) => at(d * 24);
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'melon-close-'));
+const made = [];
+const tmp = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'melon-close-')); made.push(d); return d; };
+after(() => { for (const d of made) fs.rmSync(d, { recursive: true, force: true }); });
 const read = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
 const job = (id) => ({ id: `acme:${id}`, title: `Role ${id}`, department: 'Eng', locations: [{ name: 'Paris' }], postedAt: null, reqId: null });
 

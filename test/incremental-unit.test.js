@@ -1,7 +1,7 @@
 // The shared incremental module (server/sources/incremental.js): change signals, the delta
 // plan, conditional requests (ETag / Last-Modified, 304), the failed-detail fallback limit,
 // per-posting accounting, and that the politeness settings are untouched.
-import { test, afterEach } from 'node:test';
+import { test, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -17,7 +17,9 @@ import { BOARDS, serve, crawlOnce } from './incremental-boards.js';
 afterEach(() => { setMinInterval(null); resetRateLimits(); resetRobots(); });
 const T0 = Date.parse('2026-10-11T06:00:00Z');
 const at = (h) => new Date(T0 + h * 3600e3).toISOString();
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'melon-unit-'));
+const made = [];
+const tmp = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'melon-unit-')); made.push(d); return d; };
+after(() => { for (const d of made) fs.rmSync(d, { recursive: true, force: true }); });
 
 test('politeness is unchanged: 1 request/s per host, the same honest User-Agent', () => {
   assert.equal(MIN_INTERVAL_MS, 1000);

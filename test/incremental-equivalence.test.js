@@ -6,7 +6,7 @@
 //   run 3  a full crawl of the same board with no state.
 // Run 2's snapshot equals run 3's (every field but fetchedAt and the crawl summary), the
 // ledgers agree, every posting is accounted for, and run 2 makes fewer detail requests.
-import { test, afterEach } from 'node:test';
+import { test, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -18,7 +18,9 @@ afterEach(() => { setMinInterval(null); resetRateLimits(); resetRobots(); });
 
 const T0 = Date.parse('2026-10-11T06:00:00Z');
 const at = (h) => new Date(T0 + h * 3600e3).toISOString();
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'melon-incr-'));
+const made = [];
+const tmp = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'melon-incr-')); made.push(d); return d; };
+after(() => { for (const d of made) fs.rmSync(d, { recursive: true, force: true }); });
 
 const strip = ({ fetchedAt, crawl, ...rest }) => rest;
 const N = 24;
@@ -111,6 +113,47 @@ for (const slug of DETAIL_BOARDS) {
     } finally { net.restore(); }
   });
 }
+
+test('the archive records the same job versions from incremental and full crawls, and rebuilds each snapshot losslessly', async () => {
+  setMinInterval(0);
+  const { openArchive, closeArchive, ingestArtifact } = await import('../scripts/archive/ingest.js');
+  const { reconstruct, compareSnapshots } = await import('../scripts/archive/reconstruct.js');
+  const board = BOARDS.nvidia(16);
+  const net = serve(board);
+  try {
+    const inc = tmp();
+    const full = tmp();
+    const state = path.join(inc, 'state');
+    const runs = { inc: [], full: [] };
+    const step = async (h) => {
+      runs.inc.push((await crawlOnce('nvidia', { dir: inc, stateDir: state, when: at(h) })).snap);
+      runs.full.push((await crawlOnce('nvidia', { dir: full, stateDir: null, when: at(h) })).snap);
+    };
+    await step(0);
+    const ids = board.ids();
+    board.editVisible(ids[0]); board.close(ids[2]); board.add();
+    await step(6);
+    board.editVisible(ids[4]); board.add();
+    await step(12);
+    const archives = {};
+    for (const kind of ['inc', 'full']) {
+      const archive = path.join(tmp(), 'archive');
+      for (const [i, snap] of runs[kind].entries()) {
+        const d = path.join(tmp(), `art${i}`);
+        fs.mkdirSync(d, { recursive: true });
+        fs.writeFileSync(path.join(d, 'nvidia.json'), JSON.stringify(snap));
+        const ctx = await openArchive(archive, { now: at(i * 6 + 1) });
+        await ingestArtifact(ctx, { name: 'beta-crawl-nvidia', dir: d, artifact: { id: i + 1, runId: (i + 1) * 10, createdAt: at(i * 6 + 1) } });
+        closeArchive(ctx);
+        const { payload } = reconstruct(archive, { company: 'nvidia', at: snap.fetchedAt });
+        assert.deepEqual(compareSnapshots(snap, payload), [], `${kind} run ${i}: rebuilt losslessly (crawl field included)`);
+      }
+      const jobsDir = path.join(archive, 'jobs', 'nvidia');
+      archives[kind] = fs.readdirSync(jobsDir).sort().map((f) => [f, fs.readFileSync(path.join(jobsDir, f), 'utf8')]);
+    }
+    assert.deepEqual(archives.inc, archives.full, 'the same job versions, opened, changed and closed at the same times');
+  } finally { net.restore(); }
+});
 
 test('full_crawl (MELON_FULL_CRAWL) ignores the state once; a state from another adapter version means a full crawl', async () => {
   setMinInterval(0);
