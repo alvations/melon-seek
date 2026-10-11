@@ -191,11 +191,20 @@ export function juiceAt(job, names) {
 
 /** Median juice over a cluster: { score, net, n (jobs with juice), grade } or null. */
 function summarizeJuice(jobs, members, scale) {
+  // Each job's place names in the cluster, in one pass over the members' entries (the same sets as
+  // looking every job up in every member, which took 0.5 s at 4x CPU for Apple's world view).
+  const namesOf = new Map();
+  for (const m of members) {
+    for (const [id, nms] of m.locNames) {
+      let s = namesOf.get(id);
+      if (!s) namesOf.set(id, (s = new Set()));
+      for (const nm of nms) s.add(nm);
+    }
+  }
+  const none = new Set();
   const scores = [], nets = [];
   for (const job of jobs) {
-    const names = new Set();
-    for (const m of members) for (const nm of m.locNames.get(job.id) || []) names.add(nm);
-    const e = juiceAt(job, names);
+    const e = juiceAt(job, namesOf.get(job.id) || none);
     if (!e) continue;
     scores.push(e.score);
     if (Number.isFinite(e.net)) nets.push(e.net);

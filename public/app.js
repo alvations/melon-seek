@@ -106,10 +106,14 @@ const SLUG_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
 // Phones render a shorter first page (the sheet shows ~4 cards); more load as the list scrolls.
 const PAGE = matchMedia('(max-width: 860px)').matches ? 24 : 60;
 
-let regionNames = null;
-try { regionNames = new Intl.DisplayNames(['en'], { type: 'region' }); } catch { /* old browser */ }
+// Made on first use: building it costs about 0.1 s at 4x CPU, and nothing at first paint needs it.
+let regionNames;
 const countryName = (cc) => {
   if (!cc) return 'Other';
+  if (regionNames === undefined) {
+    regionNames = null;
+    try { regionNames = new Intl.DisplayNames(['en'], { type: 'region' }); } catch { /* old browser */ }
+  }
   try { return regionNames?.of(cc) || cc; } catch { return cc; }
 };
 
@@ -485,7 +489,7 @@ function prepare(jobs, { source = null } = {}) {
     }
     j._age = 'ageDays' in j ? (Number.isFinite(j.ageDays) ? j.ageDays : null)
       : j._ts ? Math.max(0, Math.floor((Date.now() - j._ts) / 864e5)) : null;
-    j._family = j._family ?? roleFamily(j.title, j); // same ctx comps.js uses, so rf filters match its rows
+    // _family (role family) is filled in after the first paint (fillFamilies), or on first use (famOf).
     j.juice = j.juice && j.juice.best ? j.juice : null;
     j._grade = gradeKey(j);
     j._locKeys = j.locations.map(locKey);
@@ -494,6 +498,26 @@ function prepare(jobs, { source = null } = {}) {
       .filter(Boolean).join(' \u0001 ').toLowerCase();
   }
   return jobs;
+}
+
+/* Role families (the role-family filter, "Same role elsewhere", Insights) are not needed for the
+   first cards and chart, and roleFamily is the biggest part of prepare() on a big board (about
+   1.2 s at 4x CPU for Apple's 4,879 roles; docs/process/perf-mobile-beta.md). So a job's family is
+   computed on first use (famOf), and fillFamilies fills in the rest in idle time after the first
+   paint. Same value as before: roleFamily of the prepared title, with the same ctx comps.js uses,
+   so rf filters match its rows (comps.js and compstimate.js compute it the same way when unset). */
+const famOf = (j) => (j._family !== undefined ? j._family : (j._family = roleFamily(j.title, j)));
+function fillFamilies(jobs) {
+  let i = 0;
+  const idle = (fn) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 2000 }) : setTimeout(fn, 50));
+  const step = (deadline) => {
+    if (data.jobs !== jobs) return; // another board took over (its own fill runs)
+    do {
+      for (const end = Math.min(jobs.length, i + 25); i < end; i++) famOf(jobs[i]); // about 25 ms at 4x CPU
+    } while (i < jobs.length && deadline && !deadline.didTimeout && deadline.timeRemaining() > 20);
+    if (i < jobs.length) idle(step);
+  };
+  idle(step);
 }
 
 /* P-4: search words match whole words (with plural and -ing/-er/-ship endings), so "intern" finds
@@ -608,7 +632,7 @@ function failures(j, F, now) {
   if (F.r === 'remote' && !j.remote) out.push('r');
   if (F.r === 'onsite' && !j.locations.some((l) => !l.remote)) out.push('r');
   if ((F.p && !(j._age != null && j._age <= F.p)) || (F.ho && j._age != null && j._age >= 180)) out.push('p');
-  if (F.rf && j._family !== F.rf) out.push('rf');
+  if (F.rf && famOf(j) !== F.rf) out.push('rf');
   if (F.jg.size) { const g = gradeOf(shownJuice(j, F)); if (!(g && F.jg.has(g))) out.push('jg'); }
   for (const cat of ['responsibilities', 'fit', 'skills']) {
     const sel = F.kw[cat];
@@ -826,6 +850,7 @@ async function loadJobs({ refresh = false } = {}) {
   settleCarry();
   settleKeep();
   render();
+  if (data.status === 'ready') fillFamilies(data.jobs);
   settleSaved();
   if (S.job) openDrawer(S.job, { fromHash: true });
   onScreen();
@@ -890,6 +915,7 @@ async function applyJobs(res, seq, { upgrade = false } = {}) {
     settleCarry();
     win.keep = true; // M-19: the same roles, refreshed: the list keeps its place
     quietly($('#resultsTitle'), render);
+    fillFamilies(data.jobs);
     if (focusId && !document.activeElement?.closest?.('#resultsList .card')) $(`#resultsList .card[data-id="${cssId(focusId)}"]`)?.focus({ preventScroll: true });
     if (list && Math.abs(list.scrollTop - top) > 1) list.scrollTop = top;
     announce(`Updated from the live board: ${plural(data.jobs.length, 'role')}.`);
@@ -1176,7 +1202,7 @@ function settleKeep() {
   keepArr('jg', any((j, x) => gradeKey(j) === x), (x) => `Juice: ${x}`);
   if (S.rf) {
     const label = FAMILY_LABEL[S.rf] || S.rf;
-    if (jobs.some((j) => j._family === S.rf)) kept.push(label); else { dropped.push(label); S.rf = ''; }
+    if (jobs.some((j) => famOf(j) === S.rf)) kept.push(label); else { dropped.push(label); S.rf = ''; }
   }
   if (S.r !== 'any') {
     const label = S.r === 'remote' ? 'Remote' : 'On-site';
@@ -2260,6 +2286,7 @@ function renderInsights() {
   const host = $('#insightsHost');
   host.hidden = S.m !== 'insights' || data.status !== 'ready';
   if (host.hidden) return;
+  for (const j of data.jobs) famOf(j); // Compstimate and the comps card read every family (fillFamilies may not be done)
   const ids = derived.filtered.map((j) => j.id).join(',');
   try {
     if (!comp) comp = createCompstimateWidget($('#compHost'), { onSelect: (job) => job && openDrawer(job.id) });
@@ -2823,9 +2850,14 @@ function ageText(job) {
   const t = d === 0 ? 'today' : d < 60 ? `${plural(d, 'day')} ago` : `${plural(Math.round(d / 30.44), 'month')} ago`;
   return job.ageIsMinimum && d > 0 ? `Listed at least ${t}` : `Listed ${t}`;
 }
+// One formatter for every card: toLocaleDateString(undefined, opts) builds a new one per call (about
+// 1 ms each at 4x CPU, twice per card). Same output; an invalid date keeps toLocaleDateString's text.
+const MONTH_YEAR_OPTS = { month: 'short', year: 'numeric' };
+let monthYearFmt = null;
+const monthYear = (d) => (Number.isNaN(d.getTime()) ? d.toLocaleDateString(undefined, MONTH_YEAR_OPTS) : (monthYearFmt ||= new Intl.DateTimeFormat(undefined, MONTH_YEAR_OPTS)).format(d));
 function ageTitle(job) {
   if (job._age == null) return '';
-  const since = job.postedAt ? ` (${new Date(job.postedAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })})` : '';
+  const since = job.postedAt ? ` (${monthYear(new Date(job.postedAt))})` : '';
   if (job._age >= ALWAYS_OPEN_DAYS) return `Listed ${plural(Math.floor(job._age / 365), 'year')} ago${since}. Some companies keep a posting open to collect applicants for a recurring role.`;
   return `${job.ageIsMinimum ? 'Open at least' : 'Listed'} ${plural(job._age, 'day')}${job.ageIsMinimum ? '' : ' ago'}${since}`;
 }
@@ -3541,7 +3573,7 @@ let drawerComps = null; // V13: one live comps chart at a time (tooltip, ResizeO
 function destroyDrawerComps() { try { drawerComps?.destroy?.(); } catch { /* ignore */ } drawerComps = null; }
 function sameRoleSection(job) {
   destroyDrawerComps();
-  if (!job._usd || !job._family) return null;
+  if (!job._usd || !famOf(job)) return null;
   const body = h('div', { class: 'comps-body' }, h('div', { class: 'sk sk-line', style: 'width:80%' }), h('div', { class: 'sk sk-line', style: 'width:60%' }));
   const sec = fold('d-comps', 'Same role elsewhere', body);
   loadMarket().then((market) => {
