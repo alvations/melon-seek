@@ -18,7 +18,8 @@
 #   ledger.sh restore           restore into data/history/ (missing store = start fresh)
 #   ledger.sh restore-artifact  restore LEDGER_ARTIFACT into LEDGER_DIR from a TRUSTED run
 #                               (pages.yml also uses it for job-board-snapshots, and both
-#                               workflows for job-board-snapshots-beta into data/beta/)
+#                               workflows for job-board-snapshots-beta into data/beta/; snapshot.yml
+#                               for the crawl states job-board-crawl-state[-beta] into data/crawl-state/)
 #   ledger.sh commit-branch     commit data/history/*.json to the data-history branch
 #
 # Last resort for `restore`: when the store has no ledger (no trusted artifact in 90 days, or
@@ -49,7 +50,7 @@ ARCHIVE_SUBDIR="${ARCHIVE_SUBDIR:-history}"
 
 log() { echo "ledger: $*"; }
 # Recursive: the job-board-snapshots-beta artifact (pages.yml) holds snapshots/ and history/.
-count() { find "$DIR" -name '*.json' 2>/dev/null | wc -l | tr -d ' '; }
+count() { find "$DIR" \( -name '*.json' -o -name '*.json.gz' \) 2>/dev/null | wc -l | tr -d ' '; }
 
 # "trusted" if run $1 may supply data, else a reason (stdout).
 run_trust() {

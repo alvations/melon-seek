@@ -30,6 +30,10 @@ on:
         type: choice
         options: [both, stable, beta]
         default: both
+      full_crawl:
+        description: Ignore the crawl state once (every detail re-fetched; docs/ARCHITECTURE.md "Incremental crawl")
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -69,9 +73,33 @@ jobs:
           HISTORY_STORE: ${{ vars.HISTORY_STORE || 'artifact' }}
         run: bash .github/scripts/ledger.sh restore
 
+      # Crawl state (scripts/snapshot.js, server/sources/incremental.js): each board's posting
+      # signatures from the last run, so every posting is accounted for (new, changed, unchanged,
+      # absent). Trusted runs only; none = every posting counts as new. Never archived.
+      - name: Restore the crawl state (trusted runs only)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LEDGER_ARTIFACT: job-board-crawl-state
+          LEDGER_DIR: data/crawl-state
+        run: bash .github/scripts/ledger.sh restore-artifact
+
       - name: Fetch snapshots
         id: fetch
+        env:
+          MELON_CRAWL_STATE_DIR: data/crawl-state
+          MELON_FULL_CRAWL: ${{ inputs.full_crawl && '1' || '' }}
         run: npm run snapshot # no args = every built-in in server/companies.js; also updates data/history/
+
+      - name: Upload the crawl state
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: job-board-crawl-state
+          path: data/crawl-state/*.json.gz
+          retention-days: 30
+          if-no-files-found: ignore
 
       # Always upload the updated ledger (also the hand-off to persist-ledger in
       # branch mode), even if a later step such as the vetting gate fails.
@@ -168,6 +196,17 @@ jobs:
       - name: Install
         run: npm ci
 
+      # Incremental crawl (docs/ARCHITECTURE.md "Incremental crawl"): the last merged crawl state
+      # (raw details, list signals, validators) from a trusted run. None, or an unreadable one,
+      # means a full crawl. A separate artifact the archive never ingests (it is a cache).
+      - name: Restore the crawl state (trusted runs only)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LEDGER_ARTIFACT: job-board-crawl-state-beta
+          LEDGER_DIR: data/crawl-state
+        run: bash .github/scripts/ledger.sh restore-artifact
+
       # The ledger is recorded by beta-merge, against the previous one; this run's copy is scratch.
       - name: Crawl (polite, about 1 request/s; capped at 140 min)
         id: crawl
@@ -176,7 +215,20 @@ jobs:
           SLUG: ${{ matrix.slug }}
           MELON_SNAPSHOT_DIR: data/beta-fresh
           MELON_HISTORY_DIR: ${{ runner.temp }}/ledger-scratch
+          MELON_CRAWL_STATE_DIR: data/crawl-state
+          MELON_FULL_CRAWL: ${{ inputs.full_crawl && '1' || '' }}
         run: timeout --kill-after=60s 140m node scripts/snapshot.js "$SLUG"
+
+      # Only a finished crawl hands on its state (a timed-out one keeps the previous state).
+      - name: Hand the crawl state to the merge
+        if: ${{ steps.crawl.outcome == 'success' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: crawl-state-${{ matrix.slug }}
+          path: data/crawl-state/${{ matrix.slug }}.json.gz
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Crawl did not finish (the previous snapshot stays on /beta/)
         if: ${{ steps.crawl.outcome != 'success' }}
@@ -256,9 +308,37 @@ jobs:
           done
           ls -la data/beta-fresh
 
+      # Crawl states: the last merged one, then this run's (a company whose crawl did not
+      # finish keeps its previous state). Only this run's crawl-state-<slug> artifacts.
+      - name: Restore the crawl state (trusted runs only)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LEDGER_ARTIFACT: job-board-crawl-state-beta
+          LEDGER_DIR: data/crawl-state
+        run: bash .github/scripts/ledger.sh restore-artifact
+
+      - name: Download this run's crawl states
+        continue-on-error: true # no crawl finished
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: crawl-state-*
+          merge-multiple: true
+          path: data/crawl-state
+
       - name: Merge (fresh replaces previous; a failed company keeps its previous file)
         id: merge
-        run: node .github/scripts/beta-snapshots.mjs merge data/beta-fresh data/beta
+        run: node .github/scripts/beta-snapshots.mjs merge data/beta-fresh data/beta data/crawl-state
+
+      # A cache, not data: never ingested by the archive (scripts/archive/sweep.js lists names).
+      - name: Upload the crawl state
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: job-board-crawl-state-beta
+          path: data/crawl-state/*.json.gz
+          retention-days: 30
+          if-no-files-found: ignore
 
       - name: Upload beta snapshots artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
