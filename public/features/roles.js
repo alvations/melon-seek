@@ -55,9 +55,24 @@ const STOPWORDS = new Set([
 ]);
 // 'site' is a stopword only outside "site reliability" (collapsed to "sitereliability").
 
+// expandTitle is pure and runs several times per title (roleFamily: the title, its role part and
+// the department; normalizeTitle and inferSeniority again), on boards of thousands of roles: about
+// 0.5 s at 4x CPU for Apple's Insights (docs/process/perf-mobile-beta.md). Results are memoized.
+const EXPANDED = new Map();
+const EXPANDED_MAX = 20000;
+
 /** Lowercase, strip accents/punctuation, expand abbreviations, collapse a few compounds. */
 export function expandTitle(title) {
-  let s = String(title || '').toLowerCase()
+  const key = String(title || '');
+  let s = EXPANDED.get(key);
+  if (s === undefined) {
+    if (EXPANDED.size >= EXPANDED_MAX) EXPANDED.clear();
+    EXPANDED.set(key, (s = expand(key)));
+  }
+  return s;
+}
+function expand(title) {
+  let s = title.toLowerCase()
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/c\+\+/g, ' cplusplus ').replace(/c#/g, ' csharp ')
     .replace(/\bi\s*&\s*t\b/g, ' integration and test ').replace(/\bv\s*&\s*v\b/g, ' verification and validation ')

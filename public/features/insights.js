@@ -447,15 +447,20 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
   }
   // Hide axis labels that would collide (greedy, first/last kept) and keep
   // edge labels inside their track. Re-run when the panel resizes.
+  // Reads and writes in phases (tracks, resets, ticks, then the writes): two layouts instead of one
+  // per tick. Transforms and visibility move no other box, so every rect is the same as before.
   function fitAxes() {
+    const axes = [];
     for (const track of root.querySelectorAll('.msi-axis__track')) {
       const ticks = [...track.querySelectorAll('.msi-axis__tick')];
-      if (!ticks.length) continue;
-      const tr = track.getBoundingClientRect();
-      if (!tr.width) continue;
-      for (const t of ticks) { t.style.visibility = ''; t.style.transform = ''; }
-      const rects = ticks.map((t) => {
-        let r = t.getBoundingClientRect();
+      if (ticks.length) axes.push({ track, ticks, tr: track.getBoundingClientRect() });
+    }
+    const shown = axes.filter((a) => a.tr.width);
+    for (const { ticks } of shown) for (const t of ticks) { t.style.visibility = ''; t.style.transform = ''; }
+    for (const a of shown) a.boxes = a.ticks.map((t) => t.getBoundingClientRect());
+    for (const { tr, ticks, boxes } of shown) {
+      const rects = ticks.map((t, i) => {
+        let r = boxes[i];
         const dl = tr.left - r.left, dr = r.right - tr.right;
         if (dl > 0 || dr > 0) {
           const dx = dl > 0 ? dl : -dr;

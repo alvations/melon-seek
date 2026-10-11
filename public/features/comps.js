@@ -412,14 +412,20 @@ function capitalize(s) { return s ? s[0].toUpperCase() + s.slice(1) : s; }
 /** Keep axis labels inside the track and drop interior ticks that would collide. */
 function fitAxes(root) {
   if (!root.isConnected) return;
+  // Reads and writes in phases (tracks, resets, ticks, then the writes): two layouts instead of one
+  // per tick. Transforms and visibility move no other box, so every rect is the same as before.
+  const axes = [];
   for (const track of root.querySelectorAll('.msi-axis__track')) {
     const ticks = [...track.querySelectorAll('.msi-axis__tick')];
     const tr = track.getBoundingClientRect();
-    if (!ticks.length || !tr.width) continue;
+    if (ticks.length && tr.width) axes.push({ ticks, tr });
+  }
+  for (const { ticks } of axes) for (const t of ticks) { t.style.visibility = ''; t.style.transform = ''; }
+  for (const a of axes) a.boxes = a.ticks.map((t) => t.getBoundingClientRect());
+  for (const { ticks, tr, boxes } of axes) {
     let prevRight = -Infinity;
-    for (const t of ticks) {
-      t.style.visibility = ''; t.style.transform = '';
-      let r = t.getBoundingClientRect();
+    for (const [i, t] of ticks.entries()) {
+      let r = boxes[i];
       const dl = tr.left - r.left, dr = r.right - tr.right;
       if (dl > 0 || dr > 0) { const dx = dl > 0 ? dl : -dr; t.style.transform = `translateX(calc(-50% + ${dx}px))`; r = { left: r.left + dx, right: r.right + dx }; }
       if (r.left < prevRight + 8) t.style.visibility = 'hidden'; else prevRight = r.right;

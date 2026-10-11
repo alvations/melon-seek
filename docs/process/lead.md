@@ -900,3 +900,26 @@ screenshots in `docs/screenshots/`.
   - all 30 of the beta QA bug tests pass: D-17 to D-30 and M-19 to M-27, one test for each of the 14 desktop and 9 mobile bugs, and a few cover two IDs;
   - all 26 data-check tests pass;
   - not fixed: DQ-4's remaining 370 postings in cities with no Juice record, Romanian lei pay (no RON rate), and hybrid work, which isn't modelled.
+
+### Beta, stage 1b: mobile performance on a quiet machine (2026-10-11)
+- Run alone, after the beta fix wave (0ce5280), on the 22:00 beta crawl. The load average was 0.9–2.0, which makes these timings the record. Median of 3 cold loads at 4x CPU on a 390x844 phone ([perf-mobile-beta.md](perf-mobile-beta.md)):
+  - first card on Fast 4G: Apple 6.2 → 4.1 s, Google 5.4 → 3.9, NVIDIA 5.0 → 3.6, Microsoft 4.8 → 3.5, Netflix 3.8 → 2.6, Anduril 5.0 → 3.5;
+  - on Slow 4G: Apple 10.7 → 8.8 s;
+  - total blocking time is down about a third everywhere (Apple 2.9 → 1.8 s);
+  - board switches are 0.7–1.8 s faster;
+  - heap is unchanged at 18–25 MB, flat at 31 MB after 10 switches (no leak);
+  - payload is unchanged.
+- Changes (output proven identical: `getJobs` deep-equal on all 13 boards, and 24,880 of 24,903 built files byte-identical; the other 23 are the 21 lists, carrying `shared.vetted`, and the two config.js files):
+  - the first job list is fetched from config.js at about 0.4 s instead of after the app's imports; `<link rel=preload>` was tried and dropped, because Chromium decoded the body twice more;
+  - the browser skips the second vetting pass when the build proves it changes nothing;
+  - role families are computed after the first paint, in idle slices;
+  - one date formatter for all cards;
+  - map Juice in one pass (Apple 469 → 84 ms);
+  - its two feature patches, applied by the lead: an `expandTitle` memo (identical on all 24,680 jobs) and layout reads in phases. Insights' longest task went from 2.75 to 2.08 s on Apple.
+- Not changed, with the reasons in the log:
+  - list sections under budget (moving them is a product call: Netflix 310 → 32 kB gzip, but "About the role" would come later);
+  - Insights' remaining 1.9 s task;
+  - the first render's facet counting;
+  - Slow 4G is bandwidth-bound (making map, comps and Compstimate load lazily would save about 40 kB);
+  - a Juice memo in server/juice.js (3,852 cases, 773 distinct).
+- Build time about 100 s, 55 s of it re-deriving the norm-6 beta snapshots. It is not cached: the next crawl writes norm-7, and the build drops to about 45 s.
