@@ -1,0 +1,56 @@
+# Phone checks under real WebKit (the engine of iPhone Safari), on demand.
+# The dev sandbox has only Chromium, so the company-sheet scroll fix (docs/process/fix-company-scroll.md)
+# runs here under Playwright WebKit with an iPhone profile (isMobile, hasTouch, iPhone user agent;
+# 320x568, 390x844, 430x932 and 844x390). The Chromium-only touch-swipe case skips under WebKit.
+name: Mobile WebKit
+
+on:
+  workflow_dispatch:
+    inputs:
+      grep:
+        description: Only run tests whose name matches this regex (empty = all)
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  webkit:
+    name: Company sheet under WebKit (iPhone)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Playwright is not a repo dependency (scripts/e2e.js): install it without touching package.json.
+      - name: Install Playwright WebKit
+        run: |
+          npm i playwright --no-save
+          npx playwright install --with-deps webkit
+
+      # A CI build has no snapshots, so its lists are demo data; the beta copy is built alongside
+      # (dist/beta/). The tests only need the app shell and the company list.
+      - name: Static build
+        run: |
+          npm run build
+          test -f dist/beta/index.html
+
+      - name: Company sheet tests (WebKit, iPhone profile)
+        env:
+          BETA_QA_DIST: dist
+          GREP: ${{ inputs.grep }}
+        run: |
+          if [ -n "$GREP" ]; then
+            node test/e2e/fix-company-scroll.e2e.js --browser=webkit "--grep=$GREP"
+          else
+            node test/e2e/fix-company-scroll.e2e.js --browser=webkit
+          fi
