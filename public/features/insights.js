@@ -16,8 +16,8 @@ import {
 import { formatAsOf, asOf as registryAsOf } from './freshness.js';
 import { FX_AS_OF } from '../viz/palette.js';
 
-/** MR-2: the date of the exchange rates every "approx. USD" figure here uses (registry, else the table's own). */
-const fxAsOf = () => ` at exchange rates as of ${formatAsOf(registryAsOf('fx-per-usd') || FX_AS_OF)}`;
+/** MR-2: " at Jul 2026 exchange rates", the rates every "approx. USD" figure here uses (registry, else the table's own). */
+const fxAsOf = () => ` at ${formatAsOf(registryAsOf('fx-per-usd') || FX_AS_OF)} exchange rates`;
 /** MR-3: how the posted pay behind these figures is read (the site's methodology guide). */
 const PAY_DOC = 'methodology/#how-is-the-posted-pay-read';
 

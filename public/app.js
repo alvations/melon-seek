@@ -3525,7 +3525,7 @@ function salaryDistribution(job) {
   const mids = (pool || []).map((j) => j._mid).concat(job._usd ? [job._mid] : []).sort((a, b) => a - b);
   const foreign = job.salary.currency && job.salary.currency !== 'USD';
   const fullTime = isPartTimeHourly(job) ? ' a year if full-time' : ''; // shared decision 4
-  const approx = foreign && job._usd ? h('p', { class: 'fnote', title: `Rates: ${FX_SOURCE}` }, `≈ ${moneyRange(job._usd.min, job._usd.max)}${fullTime} in approx US dollars for comparison, at ${fxAsOf()} `, docLink(UPDATED_DOC, 'Sources'))
+  const approx = foreign && job._usd ? h('p', { class: 'fnote', title: `Rates: ${FX_SOURCE}` }, `≈ ${moneyRange(job._usd.min, job._usd.max)}${fullTime} in approx US dollars for comparison, at `, docLink(UPDATED_DOC, `${fxAsOf()} exchange rates`))
     // MR-1: a currency with no rate in the table is shown as posted, and says why it is left out of comparisons.
     : foreign ? h('p', { class: 'fnote' }, `We can’t convert ${job.salary.currency} to US dollars yet (no exchange rate), so this pay is left out of charts and comparisons.`) : null;
   if (!pool || !dom || !job._usd) return approx ? h('div', { class: 'd-dist' }, approx) : null;
@@ -3567,8 +3567,8 @@ const PAY_DOC = 'methodology/#how-is-the-posted-pay-read';
 const ESTIMATE_DOC = 'methodology/#where-does-a-pay-estimate-come-from';
 const UPDATED_DOC = 'methodology/#7-how-often-its-updated';
 const docLink = (href, text) => h('a', { class: 'doc-link', href, target: '_blank', rel: 'noopener noreferrer' }, text);
-/** MR-2: "exchange rates as of Jul 2026" for every pay figure converted to US dollars (registry date, else the table's own). */
-const fxAsOf = () => `exchange rates as of ${formatAsOf(asOf('fx-per-usd') || FX_AS_OF)}`;
+/** MR-2: "Jul 2026", the month of the exchange rates every converted pay figure uses (registry date, else the table's own). */
+const fxAsOf = () => formatAsOf(asOf('fx-per-usd') || FX_AS_OF);
 
 /* Household for the Juice Score (docs/LIVABILITY.md §1): who the rent and living costs are for.
    It applies everywhere juice is used (cards, sort, the Juice filter, the map's Juice colouring,
@@ -4442,20 +4442,36 @@ function openFiltersAt(id, opener = null) {
 function bindKeyboardInsets() {
   const vv = window.visualViewport;
   if (!vv) return;
-  const sync = rafThrottle(() => {
-    const open = isMobile() && vv.height < innerHeight * 0.78 && !!document.activeElement?.matches?.('input, textarea, select');
+  // M-32: the keyboard is judged against the tallest view seen with no field focused (the layout viewport),
+  // never against innerHeight alone: Mobile Safari on the iPhone SE shrinks innerHeight with the keyboard, so
+  // "visual viewport under 78% of innerHeight" never held there and the sheet stayed 449px tall under it.
+  let full = Math.max(document.documentElement.clientHeight || 0, innerHeight || 0, vv.height || 0);
+  const typing = () => !!document.activeElement?.matches?.('input, textarea, select');
+  const measure = () => {
+    if (!typing()) full = Math.max(document.documentElement.clientHeight || 0, innerHeight || 0, vv.height || 0);
+    else full = Math.max(full, document.documentElement.clientHeight || 0);
+    const short = vv.height < full - 120; // any on-screen keyboard takes well over 120px
+    const open = isMobile() && short && (typing() || (vv.offsetTop || 0) > 0);
     document.body.classList.toggle('kb-open', open);
     document.body.classList.toggle('kb-search', open && document.activeElement?.id === 'search'); // M-12: lift the peek row
     document.documentElement.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
     document.documentElement.style.setProperty('--vvt', `${Math.max(0, Math.round(vv.offsetTop || 0))}px`); // fix-company-scroll: iOS pans the visual viewport
-  });
-  vv.addEventListener('resize', sync);
-  vv.addEventListener('scroll', sync);
-  document.addEventListener('focusin', (e) => {
+  };
+  const sync = rafThrottle(measure);
+  // M-32: iOS can send its last resize before the keyboard animation ends, so measure again once it has settled.
+  let settle = [];
+  const resync = () => {
     sync();
+    for (const t of settle) clearTimeout(t);
+    settle = [120, 350, 700].map((ms) => setTimeout(() => requestAnimationFrame(measure), ms));
+  };
+  vv.addEventListener('resize', resync);
+  vv.addEventListener('scroll', resync);
+  document.addEventListener('focusin', (e) => {
+    resync();
     if (isMobile() && e.target.matches?.('#filters input, #popover input')) setTimeout(() => revealField(e.target), 300);
   });
-  document.addEventListener('focusout', () => setTimeout(sync, 50));
+  document.addEventListener('focusout', () => setTimeout(resync, 50));
 }
 
 /* M-24: a search or text field in the filter sheet or a popover moves near the top of its scrolling panel,
