@@ -131,9 +131,9 @@
  },
  "google": {
   "slug": "google",
-  "lastObservedAt": "2026-10-11T14:31:12.807Z",
+  "lastObservedAt": "2026-10-11T15:54:33.954Z",
   "firstObservedAt": "2026-10-10T11:09:51.834Z",
-  "observations": 5,
+  "observations": 6,
   "name": "Google",
   "channel": "beta",
   "source": "google",
@@ -150,7 +150,7 @@
    "changed": 3298,
    "payChanged": 2207,
    "sourceChanged": 0,
-   "observations": 1
+   "observations": 2
   },
   "lastDailyDate": "2026-10-11",
   "lastDailyAt": "2026-10-11T07:27:28.132Z"
@@ -183,9 +183,9 @@
  },
  "microsoft": {
   "slug": "microsoft",
-  "lastObservedAt": "2026-10-11T14:16:10.370Z",
+  "lastObservedAt": "2026-10-11T15:39:43.962Z",
   "firstObservedAt": "2026-10-10T10:55:39.033Z",
-  "observations": 5,
+  "observations": 6,
   "name": "Microsoft",
   "channel": "beta",
   "source": "eightfold",
@@ -195,14 +195,14 @@
   "ids": 2329,
   "pending": {
    "opened": 6,
-   "reopened": 6,
+   "reopened": 7,
    "resumed": 0,
-   "closed": 6,
+   "closed": 7,
    "unseen": 0,
-   "changed": 2058,
+   "changed": 2059,
    "payChanged": 1464,
-   "sourceChanged": 121,
-   "observations": 1
+   "sourceChanged": 122,
+   "observations": 2
   },
   "lastDailyDate": "2026-10-11",
   "lastDailyAt": "2026-10-11T07:12:22.785Z"
@@ -235,26 +235,26 @@
  },
  "nvidia": {
   "slug": "nvidia",
-  "lastObservedAt": "2026-10-11T14:22:59.124Z",
+  "lastObservedAt": "2026-10-11T15:46:23.900Z",
   "firstObservedAt": "2026-10-10T11:01:40.411Z",
-  "observations": 5,
+  "observations": 6,
   "name": "NVIDIA",
   "channel": "beta",
   "source": "eightfold",
   "board": "nvidia",
   "color": "#76b900",
-  "open": 2664,
+  "open": 2662,
   "ids": 2667,
   "pending": {
    "opened": 2,
    "reopened": 0,
    "resumed": 0,
-   "closed": 1,
+   "closed": 3,
    "unseen": 0,
-   "changed": 1361,
+   "changed": 1362,
    "payChanged": 0,
-   "sourceChanged": 1285,
-   "observations": 1
+   "sourceChanged": 1286,
+   "observations": 2
   },
   "lastDailyDate": "2026-10-11",
   "lastDailyAt": "2026-10-11T07:19:09.943Z"
