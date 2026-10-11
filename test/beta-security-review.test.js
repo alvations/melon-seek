@@ -171,7 +171,7 @@ test('S-4: the normalizer never keeps a non-http(s) posting URL (it reaches the 
 
 /* ------------------------------------------------------------------ S-5 */
 
-test('S-5: stable and beta snapshot runs do not share one concurrency group (a queued run cancels the pending one)', OPEN, () => {
+test('S-5: stable and beta snapshot runs do not share one concurrency group (a queued run cancels the pending one)', () => {
   const wf = readWf('snapshot.yml');
   const groups = [...wf.matchAll(/^\s*concurrency:\s*\n\s+group:\s*(.+)$/gm)].map((m) => m[1].trim());
   const top = /^concurrency:\s*\n\s+group:\s*(.+)$/m.exec(wf);
@@ -207,7 +207,7 @@ test('S-6: /methodology/ is not re-rendered on every request in server mode', OP
 
 /* ------------------------------------------------------------------ S-7 */
 
-test('S-7: scripts/cycle/serve.mjs survives a request with bad percent-encoding', OPEN, async () => {
+test('S-7: scripts/cycle/serve.mjs survives a request with bad percent-encoding', async () => {
   const dir = tmpDir();
   fs.writeFileSync(path.join(dir, 'index.html'), '<!doctype html><title>x</title>');
   const pid = path.join(dir, 'serve.pid');

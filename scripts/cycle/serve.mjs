@@ -28,7 +28,9 @@ const MIME = {
 const server = http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
   if (!u.pathname.startsWith(BASE)) { res.writeHead(302, { location: BASE }); return res.end(); }
-  let p = path.join(DIST, decodeURIComponent(u.pathname.slice(BASE.length)));
+  let rel;
+  try { rel = decodeURIComponent(u.pathname.slice(BASE.length)); } catch { res.writeHead(400); return res.end(); } // bad percent-encoding (S-7)
+  let p = path.join(DIST, rel);
   if (p !== DIST && !p.startsWith(DIST + path.sep)) { res.writeHead(403); return res.end(); }
   if (fs.existsSync(p) && fs.statSync(p).isDirectory()) p = path.join(p, 'index.html');
   if (!fs.existsSync(p)) {

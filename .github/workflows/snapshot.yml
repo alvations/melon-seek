@@ -43,8 +43,11 @@ permissions:
 env:
   TRUSTED_BRANCHES: claude/stoic-ride-54ddxp
 
+# One queue per channel (security review S-5): with a single "snapshot" group, a queued
+# 6-hourly beta run could replace the pending daily stable run, and a manual beta crawl waited
+# behind a scheduled one. Each channel writes its own snapshots, ledger and crawl state.
 concurrency:
-  group: snapshot
+  group: snapshot-${{ github.event_name == 'schedule' && (github.event.schedule == '17 6 * * *' && 'stable' || 'beta') || inputs.channel || 'both' }}
   cancel-in-progress: false
 
 jobs:
