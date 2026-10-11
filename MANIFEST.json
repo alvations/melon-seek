@@ -1,21 +1,21 @@
 {
  "format": "melon-archive",
  "schemaVersion": 1,
- "updatedAt": "2026-10-11T23:49:38.897Z",
+ "updatedAt": "2026-10-11T23:50:31.339Z",
  "generator": "scripts/archive@e48fd3248a90b157b0d59626c6e7aeedc3c250fe",
  "tables": {
   "audit/flags": 1283,
   "audit/refresh": 267,
-  "audit/runs": 139,
+  "audit/runs": 140,
   "audit/verdicts": 681,
   "blobs": 71987,
   "daily": 92,
-  "ingests": 407,
+  "ingests": 409,
   "jobs.closed": 58476,
   "jobs.open": 42660,
   "jobs.versions": 101136,
   "ledger/entries": 62723,
-  "observations": 542,
+  "observations": 550,
   "reference.files": 268,
   "reference/index": 268
  },
@@ -34,9 +34,9 @@
   },
   "audit/runs/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 1162701,
-   "sha256": "bd59b639dae5b624983e732fb3cb8c7e1ec980bbf5ddd636d6f15b1f418b4108",
-   "rows": 139
+   "bytes": 1171041,
+   "sha256": "3697bb48d1500a10a91d07b73a6e2b83d9239fe5c956b807afd063f425019005",
+   "rows": 140
   },
   "audit/verdicts/2026-10.jsonl": {
    "kind": "append",
@@ -169,9 +169,9 @@
   },
   "ingests/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 526362,
-   "sha256": "b7d1e8099fb9dd94ce753c4bf811ec4f542c9d41ab71631c7fc3c541f690a695",
-   "rows": 407
+   "bytes": 528556,
+   "sha256": "765dbe197bb58ee38af0e77babf6900e5881d9054fe79df3260195e275d568c6",
+   "rows": 409
   },
   "jobs/amazon/2026-10.jsonl": {
    "kind": "append",
@@ -436,9 +436,9 @@
   },
   "observations/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 460979,
-   "sha256": "15ccdf65ba2f0475485cd3911dd145500957ef9b6f3c8cf28abb05a52554e0dd",
-   "rows": 542
+   "bytes": 469777,
+   "sha256": "4d13891ad48adf691ea77099d90ee9092ad98a5a8aaad6be93b804b7ef8583e7",
+   "rows": 550
   },
   "reference/archive-policy/2026-10-10.json": {
    "kind": "immutable",
@@ -1804,7 +1804,7 @@
   "state/companies.json": {
    "kind": "mutable",
    "bytes": 8436,
-   "sha256": "7b396061f3b04d6764b609c94386b2020da95e9fb4f107eea8caf10d0d7ba4cf"
+   "sha256": "97cea8dbfd7016ab68c0e0f10db029b4c56fe7ae7cab8f5905f3f46388d22050"
   }
  }
 }
