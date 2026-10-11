@@ -118,10 +118,21 @@ bash scripts/cycle/shrink-screenshots.sh docs/screenshots/fix4-app
 ```
 
 ## 5. Verification
-See the report's numbers (filled in at the end of the run, section 7). Screenshots: docs/screenshots/fix4-app/
-(`before-*` from the 4ba65ba build, `after-*` from this lane's build; apple list, Apple ESD Engineer
-drawer, NVIDIA list, Microsoft Juice drawer, badge popover, Insights, main site with a beta link; each at
-1440x900 and 390x844).
+- **`npm test`**, no data links, `MELON_BETA_SNAPSHOT_DIR` an empty folder: before (c5f783b) 1,016 tests,
+  960 pass, 0 fail, 7 skipped, 49 to-dos; after 1,016 tests, **966 pass, 0 fail**, 7 skipped, 43 to-dos (six
+  to-dos now plain passing tests: MR-1 wording, MR-2 drawer, MR-2 Insights, MR-3 app links, MR-3 guide, S-6).
+  With the MR-9 patch applied the whole suite also had 0 failures and MR-9 passes; with the MR-14 patch
+  applied MR-14 passes. Their to-dos stay until the patches land.
+- **Full e2e** (`scripts/e2e.js`, static build of this lane at `dist/` and `BETA_QA_DIST`): before (4ba65ba
+  build) 261/301 passed, 36 failed, 4 skipped; the lead's run on c5f783b left only this lane's findings
+  failing. After (this lane on c5f783b): **300/304 passed, 0 failed, 4 skipped** (304 = 301 + the two M-32
+  tests + the UX-19 split). Every named test passes: A-1…A-7, V8, D-33, D-35, D-37, V-30, V-32, UX-15,
+  UX-16, UX-18, UX-19 (both halves), UX-20, UX-21, M-32 (beta and main).
+- M-32: red on the 4ba65ba build ("sheet 120-667 in a visual viewport 28-349, kb-open false"), green after.
+  The iOS Simulator job (webkit-phone.yml) is the real gate and needs a push.
+- Screenshots: docs/screenshots/fix4-app/ (`before-*` from the 4ba65ba build, `after-*` from this lane's
+  build; Apple list, Apple "ESD Engineer" drawer, NVIDIA list, Microsoft Juice drawer, badge popover,
+  Insights, the main site opened on Apple; each at 1440x900 and 390x844), shrunk 4,296 KB → 1,136 KB.
 
 ## 6. Known gaps and follow-ups
 - MR-9 and MR-14 need the two patches (their to-dos stay `todo` until the lead applies them).
@@ -138,3 +149,4 @@ drawer, NVIDIA list, Microsoft Juice drawer, badge popover, Insights, main site 
 - 15:40 rebased onto 4ba65ba (data lane); UX-22 card side added.
 - 16:30 rebased onto c5f783b (chart and map lane); MR-2 wording follows the chart's ("Jul 2026 exchange rates", linked).
 - 16:40 M-32 fix and test.
+- 17:00–19:30 full e2e: pinned texts kept (D-21, pay caption, comps note, D-19), UX-19 by hit area, badge label kept short; final run 300/304, 0 failed.
