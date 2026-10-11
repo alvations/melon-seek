@@ -79,9 +79,9 @@
  },
  "apple": {
   "slug": "apple",
-  "lastObservedAt": "2026-10-11T14:56:26.074Z",
+  "lastObservedAt": "2026-10-11T16:27:38.496Z",
   "firstObservedAt": "2026-10-10T12:19:51.916Z",
-  "observations": 5,
+  "observations": 6,
   "name": "Apple",
   "channel": "beta",
   "source": "apple",
@@ -91,14 +91,14 @@
   "ids": 6113,
   "pending": {
    "opened": 6,
-   "reopened": 3,
+   "reopened": 4,
    "resumed": 0,
-   "closed": 1237,
+   "closed": 1238,
    "unseen": 0,
-   "changed": 8113,
+   "changed": 8122,
    "payChanged": 491,
-   "sourceChanged": 705,
-   "observations": 2
+   "sourceChanged": 714,
+   "observations": 3
   },
   "lastDailyDate": "2026-10-11",
   "lastDailyAt": "2026-10-11T00:02:44.937Z"
