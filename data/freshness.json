@@ -20,16 +20,16 @@
         "data/cities.json fx.perUSD + cities[].fxPerUSD",
         "server/juice.js:44 FX_AS_OF",
         "server/juice.js:48 FX_PER_USD",
-        "public/viz/palette.js:128 FX_AS_OF",
-        "public/viz/palette.js:130 FX_PER_USD",
+        "public/viz/palette.js:132 FX_AS_OF",
+        "public/viz/palette.js:134 FX_PER_USD",
         "server/salary.js:75 FX_PER_USD",
         "server/salary.js:102 EXTRA_FX_PER_USD",
         "public/features/shared.js:18 FX_FALLBACK.CNY",
         "data/cities.json fx.perUSD (+ fx.asOf, fx.source)",
         "data/cities.json cities[].fxPerUSD (89) + sources.fxPerUSD.asOf",
-        "public/viz/palette.js:128 FX_AS_OF '2026-07-01'",
-        "public/viz/palette.js:130 FX_PER_USD (24 currencies, RON since fix wave 4)",
-        "public/viz/palette.js:158 FX_TO_USD = 1/FX_PER_USD",
+        "public/viz/palette.js:132 FX_AS_OF '2026-07-01'",
+        "public/viz/palette.js:134 FX_PER_USD (24 currencies, RON since fix wave 4)",
+        "public/viz/palette.js:162 FX_TO_USD = 1/FX_PER_USD",
         "public/features/shared.js:18 FX_FALLBACK = palette FX_TO_USD + CNY 0.14 (4th copy; CNY not in the palette)",
         "server/juice.js FX_SOURCE (with freshness-lead-fx-source.diff; fx.js rewrites it)",
         "public/viz/palette.js FX_SOURCE (with freshness-lead-fx-source.diff; fx.js rewrites it)"
@@ -406,10 +406,10 @@
       "owners": [
         "server/juice.js:140 K_USD",
         "server/juice.js:141 SCORE_ANCHORS",
-        "public/viz/palette.js:250 JUICE_ANCHORS (copy)",
-        "public/viz/palette.js:250 JUICE_ANCHORS (fallback copy)",
-        "public/viz/palette.js:250 JUICE_ANCHORS {K: 80000, fullGlassUSD: 423866} (fallback copy of server/juice.js SCORE_ANCHORS)",
-        "public/viz/palette.js:269 juiceNetForScore (fallback mirror of netForScore)"
+        "public/viz/palette.js:285 JUICE_ANCHORS (copy)",
+        "public/viz/palette.js:285 JUICE_ANCHORS (fallback copy)",
+        "public/viz/palette.js:285 JUICE_ANCHORS {K: 80000, fullGlassUSD: 423866} (fallback copy of server/juice.js SCORE_ANCHORS)",
+        "public/viz/palette.js:304 juiceNetForScore (fallback mirror of netForScore)"
       ],
       "values": "K = 80000, fullGlassUSD = 423866; legend points 25=$23,015, 45=$47,827, 70=$96,318, 80=$128,755, 90=$184,207, 95=$239,659, 99=$368,414, 100=$423,866 (all re-verified against server/juice.js netForScore 2026-10-10)",
       "consumers": [
@@ -534,10 +534,10 @@
       "owners": [
         "server/juice.js:148 GRADES",
         "server/juice.js:153 RIND",
-        "public/viz/palette.js:245 JUICE_BREAKS (copy)",
+        "public/viz/palette.js:280 JUICE_BREAKS (copy)",
         "public/app.js:2246 JUICE_GRADES (UI copy \"70+\", \"45–69\", \"under 45\")",
-        "public/viz/palette.js:245 JUICE_BREAKS [45, 70] (copy)",
-        "public/viz/palette.js:245 JUICE_BREAKS [45, 70]",
+        "public/viz/palette.js:280 JUICE_BREAKS [45, 70] (copy)",
+        "public/viz/palette.js:280 JUICE_BREAKS [45, 70]",
         "public/app.js:2246 JUICE_GRADES chip tooltips \"(score 70+)\", \"(45–69)\", \"(under 45)\" (hard-coded copy)",
         "public/app.js:490 gradeKey: Rind is filtered as Dry"
       ],
@@ -14152,7 +14152,7 @@
         "data/vetting/2026-10-02/review-rules.mjs:18 F (copy, audit trail)",
         "server/export.js:62 csvReadme text",
         "public/features/shared.js:45 salaryUSD defensive annualization (2080 h if mid < 1000, ×12 if mid < 30000): duplicate of server/salary.js annualize",
-        "public/viz/chart.js:63 INTERVAL_ADJ labels",
+        "public/viz/chart.js:64 INTERVAL_ADJ labels",
         "public/app.js:3434 INTERVAL_ADJ labels"
       ],
       "values": "2080 hours/yr, 12 months, 52 weeks",
@@ -15014,7 +15014,7 @@
         "public/features/roles.js:65 roles.js inferSeniority (null when no level word)",
         "public/features/compstimate.js:39 LEVEL_INDEX",
         "public/app.js:75 SENIORITY_ORDER",
-        "public/viz/chart.js:60 SENIORITY_ORDER",
+        "public/viz/chart.js:61 SENIORITY_ORDER",
         "public/features/roles.js inferSeniority (query side; null without a level word)",
         "scripts/archive/report.js:33 LADDER (archive reports; jobs.js seniority-ladder compares it with roles.js)",
         "server/keywords.js:1109 GENERIC_RUNG (numbered titles: I Entry, II-III Mid, IV Senior, V+ Staff+)",
@@ -15584,7 +15584,7 @@
         "server/sources/greenhouse.js:36 ZERO_DECIMAL",
         "scripts/update-col.js:53 ISO3_TO_ISO2",
         "data/cities.json cities[].currency",
-        "public/viz/palette.js:111 SYMBOLS (13 currencies)",
+        "public/viz/palette.js:115 SYMBOLS (13 currencies)",
         "public/app.js:116 CUR_SYM (9, a subset copy)"
       ],
       "values": "USD $, GBP £, EUR €, CAD CA$, AUD A$, NZD NZ$, JPY ¥, SGD S$, HKD HK$, CHF, INR ₹, KRW ₩, ILS ₪",

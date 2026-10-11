@@ -67,7 +67,7 @@ test('MR-2 drawer: the "approx US dollars" line names the exchange-rate date', t
   const { at, text } = lineWith('public/app.js', 'in approx US dollars for comparison');
   assert.match(text, NAMES_FX_DATE, `${at} prints the converted range without the rate's date`);
 });
-test('MR-2 chart: the footnote text (not only its hover title) gives the exchange-rate date', todo('MR-2'), () => {
+test('MR-2 chart: the footnote text (not only its hover title) gives the exchange-rate date', () => {
   const { at, text } = lineWith('public/viz/chart.js', 'converted from another currency');
   assert.match(text, NAMES_FX_DATE, `${at}: the date is only in foot.title, which a phone cannot show`);
 });

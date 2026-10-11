@@ -1049,3 +1049,9 @@ screenshots in `docs/screenshots/`.
 - Of 19,173 stored postings re-derived, 60 salaries change, each explained by a finding. Vetting: 0 blocking, 527 of 527 fixtures pass.
 - The leu rate is July's like every other rate (the Big Mac data's dollar_ex); the ECB monthly refresh now requests RON and updates all rates together.
 - Still open, waiting on the user: VT-7, VT-8, VT-10.
+
+### Fix wave 4, chart and map lane (2026-10-11)
+- **fix4-viz** ([log](fix4-viz.md)): every finding in its brief fixed; its gate tests 0/19 → 16/19 (the other 3 belong to fix4-app); full e2e 220 → 238 passing, no new failures; Apple drawing no slower (regroup 118 → 107 ms).
+- Map: Pay pins on five fixed approx-USD steps with a Pay legend (V-16, MR-13); a median only from 3 or more postings with pay for that place, and the count is named (V-17); base pay as on the chart; approximate places say so (V-26); off-screen pins never named or merged (V-24, D-31); grey no-data pins match the legend (V-28); 44 px phone controls (UX-19, M-8).
+- Chart: Location rows use only pay posted for that place (V-18); part-time hourly shown as hourly, the bar "a year if full-time (2,080 hours)" (V-19); multi-level and multi-place ranges striped, on-target earnings dashed, with legend keys (V-20); rows on a mixed-currency board use the main currency and say so (V-21); marks 3:1 or better (V-22); a colour-blind-safe palette, smallest pair ΔE 12.6 (V-25); ticks read $1.25M (V-27); bins and edge chips aligned (V-29, UX-17); departments past the 7 with the most pay fold into one row (UX-24); "Colour: department" (UX-36); converted pay names the rates' month next to the number (MR-2).
+- Comps: company colours lifted to 3:1 on the real background (V-23).
