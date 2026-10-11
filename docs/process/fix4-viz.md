@@ -226,4 +226,4 @@ under load, the same range as the review's 177–346 ms department filter; the c
 
 ## 7. Change log
 
-- 2026-10-11: findings fixed in 192d8fa (first milestone) and LATER; log, screenshots and patch.
+- 2026-10-11: findings fixed in 192d8fa; phone Pay legend beside the switch (decision 19), counts only when they fit, log, screenshots and patch in 03489bf; this line in the last commit. Scratch builds deleted; df -h / after: 17 GB free.
