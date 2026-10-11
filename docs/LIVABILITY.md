@@ -284,7 +284,26 @@ Rules:
   remembers the choice in `localStorage` (`melon-seek.household.v1`).
 - **Best:** the location with the highest score (ties: higher net).
 - **Proxies:** some suburbs use their metro's record (`nearby` in cities.json, e.g. Brooklyn
-  uses New York, Herndon uses Reston). Those entries carry `proxy: true`.
+  uses New York, Herndon uses Reston). Those entries carry `proxy: true`. A proxy is only ever in
+  the same state or province as its record (the tax model is per state, and `findCity` requires the
+  region), and only for a town in the record's metro area: its rent, living cost and taxes are the
+  metro record's, which is an approximation the drawer marks as a proxy.
+  - Fix wave 5 (DQ-34, 2026-10-11; [docs/process/fix5-data.md](process/fix5-data.md)): Burlingame →
+    San Francisco; East Palo Alto → Palo Alto; Gilroy → San Jose; Northridge, Pasadena → Los Angeles;
+    North Reading → Boston; Manassas, Ashburn, Aldie → Reston; Jessup → Baltimore; New Albany, Hilliard,
+    Plain City → Columbus (the Columbus record's city income tax is applied; each suburb levies its own
+    municipal rate, which is not modelled: a known approximation); Lithia Springs, Hampton → Atlanta; Garland → Dallas;
+    Aurora, IL → Chicago (Aurora, CO still uses Denver: the region decides); Eagle Mountain → Salt Lake
+    City; Goodyear → Phoenix.
+  - No proxy where no record of the same state is in the town's metro area, and no new record without
+    sourced figures. Still without Juice: Jersey City and Newark NJ (no New Jersey record; New York's
+    would apply New York and NYC taxes), Frederick MD (outside the Baltimore area), the warehouse and
+    data-centre towns (Canton MS, Sparks NV, New Carlisle IN, Boardman, Umatilla and Hermiston OR,
+    Westboro WI, Jeffersonville OH, Hamlet NC, Rayville LA, Bowling Green OH, Lebanon IN, Temple TX,
+    Beaver Dam WI, Papillion NE, Wink TX, New Florence MO, Los Lunas NM, Prineville OR, Cheyenne WY,
+    Altoona IA) and cities with no record yet (El Paso, Montgomery, Oklahoma City, Cedar Rapids,
+    Memphis, Charlotte, Kansas City, Tulsa, Tampa, Las Vegas, San Antonio, Sacramento, Baton Rouge,
+    Shreveport, Bratislava). Each needs a sourced record (§4) before it shows Juice.
 - **Payload:** full `inputs` (~1.5 KB) are kept on `best` only; `byLocation` entries keep
   `confidence` but drop `inputs` (`opts.inputs: 'all'` keeps them, `'none'` drops them
   everywhere). The drawer can recompute any location with `computeJuice` in the browser.

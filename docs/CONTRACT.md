@@ -364,7 +364,7 @@ numbers (labels only), re-derives the level, and runs the vetting gate again
 - Any bonus-target percentage after a range ("+ 42.86% bonus target") keeps it base pay.
 - A single figure stated as a floor ("no less than $62.74 an hour") is not pay; Netflix's sales
   "range for roles in this area" is not pay (unchanged rule, now explicit).
-- A posted range above $1.2M written out in full with a pay word in its clause is read, so the
+- A posted range above the bound ($1.2M; $1.5M since fix wave 5) written out in full with a pay word in its clause is read, so the
   gate quarantines it visibly; it never beats a plausible amount.
 - `zones` does not count a single figure that lies inside another range ("… and most new hires
   start at $23.00").
@@ -642,3 +642,62 @@ worker is replaced.
 **Vetting (`scripts/vet-salaries.js#scanJob`, `scripts/llm-vet.js`):** a merged Apple requisition is not
 `structured_text_disagree` when its text states one of its ranges (DQ-32). `reviewedFiles` reads
 `<date>-beta` folders; `latestFlags(channel, dir)` is exported and the CLI takes `--channel beta` (VT-9).
+
+## Fix wave 5 additions (2026-10-11): Amazon pay places, stated minimums, the gate and the ledger (fix5-data lane)
+
+Findings DQ-33 to DQ-43 and the DQ-6 residue ([docs/process/data-check-beta-3.md](process/data-check-beta-3.md)),
+VT-7, VT-8, VT-10 and VT-14 to VT-25 ([data/vetting/2026-10-11-beta-2/summary.md](../data/vetting/2026-10-11-beta-2/summary.md)),
+under the user's rule "we must present them as they are and not cut anything" and the lead's decisions in
+[docs/process/lead.md](process/lead.md) "Beta round 3". Log: [docs/process/fix5-data.md](process/fix5-data.md).
+Every addition is optional for readers; no export changed its signature or return shape.
+`NORMALIZER_VERSION` is `norm-10`: stored older snapshots are re-derived once, and stored Amazon and Meta
+jobs are upgraded at read time (`server/sources/upgrade.js`).
+
+**Job `salary`:**
+
+| Field | Meaning |
+|---|---|
+| `kind: 'minimum'` | The posting states the figure as the minimum base pay (Amazon EU and Poland: "See below the minimum gross base salary for this position"; Austria's "minimum basic salary … gross annually"). Shown as "from €X", never hidden (VT-17). Never a low-side statistical outlier |
+| `includesShiftDifferential` | `true` when the posted hourly figure includes the highest shift differential (Amazon: "including the base pay rate plus the highest available shift differential"). The figure is the posted one (VT-18) |
+| `statedBase` | `{ min, max, currency, originalInterval?, text }`, annualized like `min`/`max`: a lower base the posting states in words ("Pay starts at $18.35 per hour"), beside the posted figure (VT-18) |
+| `statedAnnual` | `{ amount, currency, monthly, paymentsPerYear }`: the salary is the annual figure the posting states ("EUR 47'000 gross annually"), not 12 × its monthly row (Austria pays 14; VT-19) |
+| `ranges[].locations` | Now set for Amazon too: each pay-table row carries the posting's location strings it names (DQ-33, VT-15); identical rows are one range with all their places; `min`/`max` are yearly like the salary; `label` is the places' city names |
+| `zones` | Counts distinct ranges: three identical rows are one zone (DQ-33) |
+| `places` | Also set for Amazon when one range is posted for some of the posting's places only |
+| `country` | Also set for Meta, from the range's `country_code` (DQ-42, VT-20) |
+| `kind: 'ote'` | Also NVIDIA's sales "cash compensation range" split into base and variable pay (VT-7) |
+| `currency` | A bare "$" in a posting whose places are all in Mexico is MXN; also AUD, NZD, SGD, HKD (`salary.js#DOLLAR_COUNTRY`; DQ-35, VT-14) |
+
+**Amazon (`server/sources/amazon.js`):** `amazonSalary(j, table, { places, primary, text })` takes the
+posting's places (strings or stored Locations), the row a stored salary was read from, and the text; a
+"Virtual Location" row for a state the posting lists no place in is dropped (DQ-41); RawJob `payPlaces`
+when one range covers some places only. New export `amazonPayWords(text)`. `amazonPlace` is unchanged.
+**Upgrades (`server/sources/upgrade.js`):** `upgradeAmazonJobs`, `upgradeMetaJobs` (in `upgradeStoredJobs`).
+
+**Salary bounds (`server/salary.js`, `server/vet.js`):** `MAX_ANNUAL` and `VET.MAX_ANNUAL` are $1.5M (VT-10).
+New exports `LEGAL_MIN_ANNUAL` (`{ MXN: 114990 }`), `meetsAnnualFloor(annual, cur)`, `DOLLAR_COUNTRY`,
+`CASH_COMP_SPLIT_RE`. The gate's statistics add a `cur:<code>` comparison group, used when it has at least
+`MIN_GROUP` members; low pay in a minority currency without such a group is not a statistical outlier
+(VT-16, DQ-6 residue). "20h per week" is weekly hours (VT-23).
+
+**Levels (`server/keywords.js#jobSeniority`):** Amazon "III" is Senior (DQ-36, VT-21); Meta "(Technical
+Leadership)" and "(Leadership)" are Staff+ (DQ-37); an executive word in the team name after the role
+("Communications Specialist, CEO & Financial Comms") and a "Data Center Chief Engineer" are not Director+
+(VT-21); on Microsoft the pay sentence's IC/M level beats the title (VT-8).
+
+**Locations (`server/geo.js`):** ISO 3166 alpha-3 codes written in capitals are countries ("…, SVK",
+"…, AUT"; DQ-40); new countries Slovakia, Slovenia; new gazetteer city Bratislava.
+
+**History ledger (`server/history.js`, DQ-38):** `updateLedger` records a listed id it has never seen
+(`u: 1`, left out of `compactLedger`), records `partial: true` on a partial run, and after a partial run
+(or `opts.previousPartial`) dates a new id posted before that run by its `postedAt`, clamped to
+`[since, previous run]` (`b: 1`). `closureOptions` takes `previous` (or `crawl.previous`) and returns
+`previousPartial`; new export `previousRunOf(snapshot)`. `diffLedger` adds `inferred` and `unpublished`
+when non-zero. `.github/scripts/beta-snapshots.mjs merge` passes the replaced snapshot's `previousRunOf`.
+
+**Vetting (`scripts/vet-salaries.js`, `scripts/llm-vet.js`):** the default scan reads what the build
+serves (`loadServedJobs(parsed)`, exported; DQ-43); `max_over_1_2m` keeps its name and means the $1.5M
+bound. `REVIEW_DIR_RE` accepts `<date>-<channel>-<n>` folders (`2026-10-11-beta-2`, VT-25), sorted
+numerically.
+
+**Cities (`data/cities.json`, DQ-34):** same-state `nearby` proxies only (docs/LIVABILITY.md "Proxies").
