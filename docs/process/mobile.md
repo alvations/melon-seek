@@ -59,7 +59,7 @@ Files owned (mobile paths only):
    - `body` is `100vh` with a `100dvh` fallback chain. The sheet is `top/bottom`-anchored, so it needs no vh.
    - The half snap and popovers use dvh with a vh fallback.
    - `env(safe-area-inset-*)` applies to the top bar, the left and right gutters (landscape notch), the sheet, the filters footer and the drawer footer.
-   - `html { overscroll-behavior: none }` stops pull-to-refresh and bounce while dragging. Every scroller (cards, filters, popovers, drawer, Insights) gets `overscroll-behavior: contain` plus `-webkit-overflow-scrolling: touch`.
+   - `html { overscroll-behavior: none }` stops pull-to-refresh and bounce while dragging. Every scroller (cards, filters, popovers, drawer, Insights) gets `overscroll-behavior: contain` plus `-webkit-overflow-scrolling: touch`, so a sheet must have exactly ONE scroll box: a contained inner box never hands a swipe to its scrolling parent, and its end is lost below a short sheet (fix-company-scroll: the company list fills the sheet under its pinned search; no inner `max-height` box on phones).
 10. **Keyboard.** iOS keeps the layout viewport when the keyboard opens, so fixed footers and bottom sheets end up under it. `visualViewport` sets `body.kb-open` and `--vvh`:
     - bottom-sheet popovers move to the top and are capped at `--vvh`;
     - the filters footer hides;
