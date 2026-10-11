@@ -1034,3 +1034,7 @@ screenshots in `docs/screenshots/`.
 - High: MR-1, 16 Romanian lei ranges show "Salary not listed" because no table has a RON rate, although the ECB (already our source) publishes one; MR-2, converted pay shows no rate date or source where it appears.
 - The lead applied its five doc and registry patches (DATA_SOURCES, README, METHODOLOGY_GUIDE, AMAZON_META, the registry: 17 constants and Amazon's budget added; job-postings, company-registry and role-family entries corrected). Per the review, these clear 29 of the 43 to-dos; the rest need product code (fix wave 4).
 - Exchange rates are 57 days past their monthly cadence (MR-4); the FX refresh is dispatched.
+
+### Beta data-visualisation review (2026-10-11)
+- [viz-review-beta.md](viz-review-beta.md): 17 findings (V-16 to V-32), 16 as red e2e tests. High: V-17, a map pin priced from one posting out of dozens; V-18, Group by Location shows other countries' pay; V-19, part-time hourly pay plotted as a full-time year. Medium: map Pay colours rescale to what is on screen, with no legend (V-16); most marks under 3:1 contrast (V-22); two-level spans drawn as one bar (V-20); level rows mixing countries (V-21); colour-blind collisions (V-25); 537 postings at a state or country centre named as exact (V-26); floating names without a basemap (V-24); and four more.
+- Works: 84 range bars match their postings to the pixel; every median matches a hand calculation; 530 market cells match a rebuild; Compstimate never falls with level and never uses another country's pay.
