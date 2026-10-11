@@ -9,7 +9,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import assert from 'node:assert/strict';
 import { amazonRows, amazonSite, metaRecords, metaPageHtml } from './amazon-meta-synth.js';
+import { runSnapshot } from '../scripts/snapshot.js';
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const fixture = (name) => JSON.parse(fs.readFileSync(path.join(FIX, name), 'utf8'));
@@ -262,3 +264,17 @@ export function serve(...boards) {
   };
   return { restore: () => { globalThis.fetch = real; } };
 }
+
+const read = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
+
+/** One crawl of `slug` into its own folders; returns { snap, ledger, result }. */
+export async function crawlOnce(slug, { dir, stateDir, when, full = false, refreshDays, probeLimit }) {
+  const outDir = path.join(dir, 'snap');
+  const historyDir = path.join(dir, 'hist');
+  const errors = [];
+  const crawl = { ...(full ? { full } : {}), ...(refreshDays != null ? { refreshDays } : {}), ...(probeLimit != null ? { probeLimit } : {}) };
+  const r = await runSnapshot([slug], { outDir, historyDir, crawlStateDir: stateDir, crawl, now: () => when, log: () => {}, error: (m) => errors.push(m), parallelBeta: false });
+  assert.equal(r.failed, 0, `${slug}: ${errors.join('; ')} ${JSON.stringify(r.results)}`);
+  return { snap: read(path.join(outDir, `${slug}.json`)), ledger: read(path.join(historyDir, `${slug}.json`)), result: r.results[0] };
+}
+

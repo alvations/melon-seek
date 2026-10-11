@@ -11,27 +11,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { runSnapshot } from '../scripts/snapshot.js';
 import { setMinInterval, resetRateLimits, resetRobots } from '../server/sources/polite.js';
-import { BOARDS, DETAIL_BOARDS, serve } from './incremental-boards.js';
+import { BOARDS, DETAIL_BOARDS, serve, crawlOnce } from './incremental-boards.js';
 
 afterEach(() => { setMinInterval(null); resetRateLimits(); resetRobots(); });
 
 const T0 = Date.parse('2026-10-11T06:00:00Z');
 const at = (h) => new Date(T0 + h * 3600e3).toISOString();
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'melon-incr-'));
-const read = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
-
-/** One crawl of `slug` into its own folders; returns { snap, ledger, result }. */
-export async function crawlOnce(slug, { dir, stateDir, when, full = false, refreshDays, probeLimit }) {
-  const outDir = path.join(dir, 'snap');
-  const historyDir = path.join(dir, 'hist');
-  const errors = [];
-  const crawl = { ...(full ? { full } : {}), ...(refreshDays != null ? { refreshDays } : {}), ...(probeLimit != null ? { probeLimit } : {}) };
-  const r = await runSnapshot([slug], { outDir, historyDir, crawlStateDir: stateDir, crawl, now: () => when, log: () => {}, error: (m) => errors.push(m), parallelBeta: false });
-  assert.equal(r.failed, 0, `${slug}: ${errors.join('; ')} ${JSON.stringify(r.results)}`);
-  return { snap: read(path.join(outDir, `${slug}.json`)), ledger: read(path.join(historyDir, `${slug}.json`)), result: r.results[0] };
-}
 
 const strip = ({ fetchedAt, crawl, ...rest }) => rest;
 const N = 24;
