@@ -241,8 +241,20 @@ jobs:
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: beta-crawl-*
-          merge-multiple: true
-          path: data/beta-fresh
+          path: data/beta-downloads
+
+      # beta-crawl-* also matches beta-crawl-rejected-<slug>, a snapshot the beta gate refused
+      # (kept for the archive only). Each artifact has its own folder here, so only the
+      # accepted ones become fresh snapshots (security review S-1, 2026-10-11).
+      - name: Keep only the accepted crawls
+        run: |
+          mkdir -p data/beta-fresh
+          for d in data/beta-downloads/beta-crawl-*; do
+            [ -d "$d" ] || continue
+            case "$(basename "$d")" in beta-crawl-rejected-*) echo "skipping rejected: $(basename "$d")"; continue ;; esac
+            cp "$d"/*.json data/beta-fresh/ 2>/dev/null || true
+          done
+          ls -la data/beta-fresh
 
       - name: Merge (fresh replaces previous; a failed company keeps its previous file)
         id: merge

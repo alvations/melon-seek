@@ -456,7 +456,11 @@ test('snapshot.yml: the beta crawl runs every 6 hours, one capped job per compan
   assert.match(jobIf('beta-merge'), /!cancelled\(\) && needs\.beta-companies\.result == 'success'/, 'merges even when some crawls failed');
   const merge = steps('snapshot.yml', 'beta-merge');
   assert.match(step(merge, /^Restore last beta snapshots artifact/), /LEDGER_ARTIFACT: job-board-snapshots-beta[\s\S]*ledger\.sh restore-artifact/);
-  assert.match(step(merge, /^Download this run's crawls/), /actions\/download-artifact@[0-9a-f]{40}[\s\S]*pattern: beta-crawl-\*[\s\S]*merge-multiple: true/);
+  assert.match(step(merge, /^Download this run's crawls/), /actions\/download-artifact@[0-9a-f]{40}[\s\S]*pattern: beta-crawl-\*/);
+  // S-1 (security review 2026-10-11): beta-crawl-* also matches beta-crawl-rejected-<slug>, so each
+  // artifact gets its own folder and only the accepted ones become fresh snapshots.
+  assert.doesNotMatch(step(merge, /^Download this run's crawls/), /merge-multiple: true/);
+  assert.match(step(merge, /^Keep only the accepted crawls/), /beta-crawl-rejected-\*\)[^\n]*continue/);
   assert.match(step(merge, /^Merge/), /beta-snapshots\.mjs merge data\/beta-fresh data\/beta/);
   assert.match(step(merge, /^Upload beta snapshots artifact/), /name: job-board-snapshots-beta\n[\s\S]*path: data\/beta\//);
   const deployJob = /\n {2}beta-deploy:\n([\s\S]*)$/.exec(text)[1];

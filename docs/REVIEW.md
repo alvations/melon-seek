@@ -732,3 +732,282 @@ Related: the comps listbox handles Escape (`comps.js:200`) without `stopPropagat
 **Repro**: start a fresh server and request `/api/market`: it takes **24.5 s**, and `/api/health` polled during it took 9.1 s, 2.3 s, 2.2 s, 1.2 s, 2.1 s and 4.3 s. Once warm, `/api/market` takes 7-13 ms, and a recompute after one company refreshes takes about 100 ms (`market-bench.mjs`, `docs/process/review.md` §4).
 
 **Patch**: warm the snapshots at startup, before `listen()` or in a worker, or move `readSnapshot`'s parse and rekey into the existing worker pattern. At minimum, call `getMarket()` once after `listen()` and let `/api/health` report `{ ok: true, warm: false }` until it finishes, so load balancers do not route traffic to a cold instance.
+
+---
+
+## beta review 2026-10-11
+
+Scope: everything added or changed for target `beta` since the v2 review (commits `3b1e242..3cf226e`, 134 commits; line numbers refer to `3cf226e`, fix wave 3). Security: `server/sources/{polite,eightfold,google,apple,amazon,meta,pool,upgrade}.js`, `server/companies.js`, `server/pipeline.js`, the beta paths of `server/index.js`, the new and changed parsers in `server/salary.js`, `server/keywords.js`, `server/geo.js`, `server/normalize.js`, `scripts/snapshot.js`, `scripts/probe-bigtech.js`, the beta parts of `scripts/build-static.js`, `scripts/cycle/serve.mjs`, `.github/workflows/{snapshot,pages,archive,bigtech-probe,site-watchdog,monthly-refresh}.yml`, `.github/scripts/{beta-gate.sh,beta-snapshots.mjs,ledger.sh,check-site.sh}`, the client's new DOM sinks, hash keys and storage keys (`public/app.js`, `public/api.js`, `public/viz/{chart,map}.js`, `public/features/*`). Accessibility: the beta site (`dist/beta/` of the lead's build of today's crawl) in Chromium 141, axe-core 4.13.0, light and dark, 1440×900, 390×844, 320 px and 640×450 (200% zoom of 1280×900). Method, commands and results: [process/review-beta.md](process/review-beta.md). Tests that fail until each finding is fixed: `test/beta-security-review.test.js` (S-1…S-7, V12, V14; marked `todo`, so `npm test` stays green) and `test/e2e/beta-a11y.e2e.js` (A-1…A-7, V8; red in the e2e suite). No product code was changed.
+
+### Summary (beta)
+
+| # | Severity | Area | Finding |
+|---|----------|------|---------|
+| S-1 | Medium | CI / data integrity | The beta merge downloads `beta-crawl-*`, which also matches `beta-crawl-rejected-<slug>`, so a snapshot the beta vetting gate rejected replaces the last good one in `job-board-snapshots-beta` and in the beta ledger |
+| S-2 | Medium | Crawler policy | The terms-of-use pause (`paused: 'terms'`, Amazon and Meta) is not enforced where crawling happens: `node scripts/snapshot.js amazon`, `fetchLive()` and the probe's default company list all crawl a paused site |
+| S-3 | Medium | DoS / parsers | The pay parser, both `htmlToText`s and `geocode` are quadratic: 64 KB of `$1 ` takes 17 s in `parseSalary`, 1 MB about an hour. A custom board's posting reaches them in server mode, and the 2 pipeline workers have no time limit |
+| A-1 | Medium | A11y | A result card's accessible name is only title, pay and place. Team, level ("Staff+", "Level not stated"), Remote, Juice and listing age are visible but hidden from screen readers (`role=button` makes the content presentational) |
+| A-2 | Medium | A11y | The Snapshot badge's popover (`role=dialog`) opens without taking focus. The next Tab goes to the theme button, so its Close button and "Download CSV" link are reached only after the whole page |
+| A-3 | Medium | A11y | At 200% zoom (1280×900 window, 640×450 CSS px) the beta header leaves the company name 9 px: "Microsoft" reads "M". The main site keeps 39 px at the same size |
+| S-4 | Low | Integrity | Big-tech posting URLs are not checked: a `javascript:` or off-host URL from an adapter is stored, published in `data/<slug>.csv` and the JSON, and labelled "Apply on Netflix’s careers site" |
+| S-5 | Low | CI | The daily stable crawl and the 6-hourly beta crawl share one concurrency group, so a queued run cancels the pending one and a day's stable crawl can be lost |
+| S-6 | Low | DoS | Server mode renders `/methodology/` (guide plus charts) on every request: about 80 ms of main-thread CPU each, uncached |
+| S-7 | Low | Dev tooling | `scripts/cycle/serve.mjs` dies on a path with bad percent-encoding (uncaught `URIError`), taking down the build every reviewer shares |
+| A-4 | Low | A11y | The Snapshot badge text is 4.48:1 in the light theme (12.5 px semibold). axe misses it because the text is CSS generated content |
+| A-5 | Low | A11y | `#resultsList` (`<ol>`) has `li role=none` children (spacers, "Show more", the Juice scale note): axe `list` (serious) on every list |
+| A-6 | Low | A11y | Juice breakdown rows (`role=row`) hold the tax split, rent basis and living-cost basis outside any cell, so table navigation skips them |
+| A-7 | Low | A11y | Insights nests regions with the same name ("Market insights" in "Market insights", "Compare companies" in "Compare companies"): axe `landmark-unique` |
+
+Still open from earlier reviews (partially fixed, see "Re-check (beta)"): V8 (range slider focus halo 1.67:1, 22 px targets), V12 (`persist-credentials` in read-only jobs), V14 (a custom board can still take a built-in's name, now also Apple, Google, …).
+
+### S-1. Rejected beta crawls are merged and published (Medium)
+
+**Where**: `.github/workflows/snapshot.yml:195-203` uploads a rejected snapshot as artifact `beta-crawl-rejected-${{ matrix.slug }}`. `:239-245` (beta-merge) downloads `pattern: beta-crawl-*` with `merge-multiple: true` into `data/beta-fresh`. The glob also matches the rejected artifact, whose file is `<slug>.json`. `.github/scripts/beta-snapshots.mjs:47-63` copies every `data/beta-fresh/<slug>.json` over the previous snapshot and records it in the ledger.
+
+**Repro (reasoned from the workflow, needs GitHub)**: a crawl whose snapshot has an unquarantined critical salary is moved to `$RUNNER_TEMP/beta-rejected/apple.json` by `beta-gate.sh` and uploaded as `beta-crawl-rejected-apple`. The passing artifact `beta-crawl-apple` is empty, so `if-no-files-found: ignore` uploads nothing. beta-merge then downloads `beta-crawl-rejected-apple` (it matches `beta-crawl-*`), and the summary says "apple **fresh**". The rejected file becomes `job-board-snapshots-beta`. pages.yml re-runs the gate on it (`pages.yml:154-159`), so on a normal day Apple disappears from /beta/ instead of keeping yesterday's good copy. The gate fails open, though: the step has `continue-on-error: true` and `timeout-minutes: 5` for 5 companies × 120 s each, so a slow gate leaves the rejected file in place and `build-static.js --beta-only` publishes it. `test/beta-security-review.test.js` "S-1" checks the glob against the artifact names.
+
+**Patch**: give the rejected artifact a prefix the merge glob cannot match, and teach the archive the new name.
+```yaml
+# snapshot.yml beta-crawl
+      - name: Keep a rejected snapshot for the archive (never published)
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: beta-rejected-${{ matrix.slug }}      # was beta-crawl-rejected-<slug>
+```
+```js
+// scripts/archive/ingest.js
+export const BETA_REJECTED_PREFIX = 'beta-rejected-';
+export const isKnownArtifact = (name) => KNOWN_ARTIFACTS.includes(name)
+  || [BETA_CRAWL_PREFIX, BETA_REJECTED_PREFIX].some((p) => name.startsWith(p) && SLUG_RE.test(name.slice(p.length)));
+```
+Belt and braces in `beta-snapshots.mjs merge`: re-run the gate's blocking rule (`scripts/build-static.js#betaGate`) on each fresh file before copying it. In pages.yml, give the beta gate step `timeout-minutes: 12` (≥ 5 × 120 s + start-up), and make the beta build drop any company that the gate did not report as passed.
+
+### S-2. The terms-of-use pause can be bypassed (Medium)
+
+**Where**
+- `scripts/snapshot.js:93` returns any explicit slug, `:123` resolves it with `resolveCompany({ company })` (which returns paused built-ins), and `:130` calls `fetchLive`. Nothing checks `company.paused`.
+- `server/pipeline.js:51-58` (`fetchLive`) calls the adapter for any company.
+- `scripts/probe-bigtech.js:37` `SLUGS` includes `amazon` and `meta`, and `:484` uses all of them when `--companies` / the `companies` input of `bigtech-probe.yml` is empty (the default). Recon mode requests `www.amazon.jobs/en/search.json` and the Meta pages. Full mode (`:374-385`) runs `fetchAmazon` / `fetchMeta` with `getCompany()`. Raw mode (`:38-44,351`) allows the Amazon and Meta careers hosts and caller-chosen headers (Referer, Origin, Cookie).
+
+**Repro**: `node scripts/snapshot.js amazon` starts a full Amazon crawl (robots.txt, then `search.json` pages). In the test, `fetchLive(getCompany('amazon'))` with a stubbed `fetch` requested `www.amazon.jobs/robots.txt` and `/en/search.json?offset=0&result_limit=100…` before failing on the stub's 403. A workflow_dispatch of "Big-tech probe" with default inputs probes both paused sites. DATA_SOURCES §7 says a paused board is "not crawled until the user decides".
+
+**Patch**: one guard where every crawl passes, and no paused site in the probe's defaults.
+```js
+// server/pipeline.js fetchLive(), first line
+if (company && company.paused) {
+  const err = new Error(`${company.slug} is paused (${company.paused}): not crawled (docs/DATA_SOURCES.md §7)`);
+  err.code = 'paused';
+  throw err;
+}
+// scripts/snapshot.js one(): after resolveCompany
+if (company.paused) throw new Error(`${company.slug} is paused (${company.paused}); not crawled`);
+// scripts/probe-bigtech.js
+const { getCompany } = await import('../server/companies.js');
+const SLUGS = ['netflix', 'microsoft', 'nvidia', 'apple', 'google', 'tesla'].filter((s) => !getCompany(s)?.paused);
+// HOSTS: drop 'www.amazon.jobs', 'amazon.jobs', 'www.metacareers.com', 'metacareers.com' (keep the terms pages);
+// rawRequests(): headers = only Accept / Content-Type from x.headers; check robots.txt for the path before the request.
+```
+
+### S-3. Quadratic parsers on hostile text (Medium)
+
+**Where**
+- `server/salary.js:276-280` (`clauseSpan`) walks to both ends of the clause for every money token, and `:670-680` (`contextOf`) runs `PAY_RE`, `BENEFIT_STIPEND_RE` and the reject regexes over the whole clause, again per token. A long clause with *k* amounts costs O(*k* × clause length).
+- `server/sources/util.js:138,142` and `server/keywords.js:46,49` (`htmlToText`): `/<[^>]+>/g` and `/<(script|style)…[\s\S]*?<\/\1>/gi` rescan to the end of the string from every unclosed `<`.
+- `server/geo.js:759,824`: `/\([^)]*\)/g` on unbalanced `(`.
+- `server/pipeline.js:118,137`: at most 2 pipeline workers, with no time limit on a task.
+
+**Measured** (`docs/process/review-beta.md` §4, step 6; growth exponent ≈ 2 in every case):
+
+| Input | 4 KB | 16 KB | 64 KB | 1 MB (projected) |
+|---|---:|---:|---:|---:|
+| `parseSalary('$1 ' × n)` | 98 ms | 1.1 s | 17.4 s | ~70 min |
+| `parseSalary('kr 1 ' × n)` (norm-7 symbol) | 89 ms | 1.0 s | 18.2 s | ~100 min |
+| `normalizeJob` with that description | 167 ms | 2.6 s | — | ~2.6 h |
+| `htmlToText('<' × n)` (both) | 23 ms | 345 ms | 6.0 s | ~30 min |
+| `geocode('(' × n)` | 75 ms | 970 ms | 17.1 s | ~90 min |
+
+The same inputs took the same time at `6a42334`, so the earlier reviews missed this. The beta work runs these parsers more often (the vetting scan's `findMoneyTokens` / `payContextAt`, more currency symbols), and in more places (crawler, gate, archive).
+
+**Impact**: in server mode, `GET /api/jobs?source=greenhouse&board=<a board you control>` is unauthenticated. One posting with 1 MB of `$1 $1 …` (the custom-board cap is 25 MB) holds a pipeline worker for hours, and two such boards block both. Every snapshot, demo or live task for every company then queues behind them. In the static site, a link to such a board pins the visitor's normalizer worker. In CI, one oversized upstream description stalls a crawl and times out the beta gate.
+
+**Patch**: bound the input, find clause ends once per text, make the tag regexes linear, and time-limit pipeline tasks.
+```js
+// server/salary.js parseSalary() / findMoneyTokens(): pay is near the top or in a pay paragraph
+const MAX_PAY_TEXT = 40_000;
+if (text.length > MAX_PAY_TEXT) text = payWindows(text, MAX_PAY_TEXT); // first 20k chars + ±600 chars around each PAY_RE hit
+// clauseSpan(): precompute boundaries once per text
+const bounds = new WeakMap(); // or a Map keyed by the text string, cleared per parseSalary call
+function boundaryIndex(text) { /* one pass: positions where isBoundary(text, i) */ }
+function clauseSpan(text, s, e) { const b = boundaryIndex(text); /* binary search the boundary before s and after e */ }
+// and cap the clause the regexes see: clause.length > 600 ? clause.slice(Math.max(0, gs - cl.start - 300), ge - cl.start + 300) : clause
+```
+```js
+// server/sources/util.js and server/keywords.js htmlToText()
+.replace(/<(script|style)\b[^>]{0,500}>[\s\S]{0,200000}?<\/\1\s*>/gi, ' ')
+.replace(/<[^<>]{0,2000}>/g, ' ')     // an unclosed "<" no longer scans to the end
+.replace(/</g, ' ')                    // whatever is left is text
+// server/geo.js
+.replace(/\([^()]{0,200}\)/g, ' ')
+```
+```js
+// server/pipeline.js drain(): kill a task that runs too long
+const timer = setTimeout(() => { slot.worker.terminate(); }, Number(process.env.MELON_TASK_TIMEOUT_MS) || 60_000);
+// ... clearTimeout(timer) in the 'message' handler; the existing 'exit' handler rejects the pending task and respawns
+```
+
+### A-1. Result cards hide most of what they show (Medium)
+
+**Where**: `public/app.js:3227-3229`. The card is `role="button"` with `aria-label="<title>, <pay> (<tip>), <places>"`. Children of a button are presentational, so the name is all a screen reader gets. The visible card also shows the team, the level ("Staff+", "Level not stated"), Remote, the Juice score ("🍉 76 · Juicy"), keyword tags, a New or Reposted status and the listing age (`:3240-3251`).
+
+**Repro** (`docs/process/review-beta.md` §4, step 8): `#c=microsoft&q=compiler`. The name is "Principal Software Engineer- Compute Graph Compiler Team, $166K–296K, Redmond, WA · United States". The visible text is "… Software Engineering · Redmond, WA +1 Remote Staff+ 🍉 76 · Juicy Python Listed 2 months ago". On the beta boards the level is the main new signal (BP and DQ work on ladders), and it is never announced in the list.
+
+**Patch**: keep the short name and describe the rest.
+```js
+// card(): ids for the meta and foot rows
+const did = `cd-${String(job.id).replace(/[^A-Za-z0-9_-]/g, '_')}`;
+h('article', { ..., role: 'button', 'aria-label': /* unchanged */, 'aria-describedby': `${did}-m ${did}-f` }, …,
+  h('div', { class: 'card-meta', id: `${did}-m` }, …),
+  h('div', { class: 'card-foot', id: `${did}-f` }, …));
+```
+The `sep` dots and `aria-hidden` parts stay out of the description. `#resultsList` already gives position and size (M-20).
+
+### A-2. The badge popover does not take focus (Medium)
+
+**Where**: `public/app.js:2340-2341`. After opening, focus goes to the first `.pop-body` input, `button.kw`, select, range, non-icon button or checkbox. The badge popover has only a hidden "Refresh" button and an `<a>` "Download CSV", so nothing matches and focus stays on `#dataBadge`. `#popover` comes after `#drawer` at the end of the document, and Esc and pointer-down are its only exits.
+
+**Repro**: focus "Data source: saved snapshot from Oct 11", press Enter. `aria-expanded` turns `true`, focus stays on the badge, and Tab moves to `#themeBtn`. The dialog's Close button and "Download CSV" come after every filter, card and drawer control. On the beta site every big-tech board is a snapshot, so this popover is the one that explains the data.
+
+**Patch**:
+```js
+requestAnimationFrame(() => {
+  const f = [...el.querySelectorAll('.pop-body input:not([type=range]), .pop-body button.kw, .pop-body select, .pop-body .range, .pop-body button:not(.icon-btn), .pop-body label.check input, .pop-body a[href]')]
+    .find((x) => x.getClientRects().length && !x.closest('[hidden]')) || el.querySelector('.pop-head .icon-btn');
+  f?.focus({ preventScroll: true });
+});
+// and keep Tab inside while open: in the keydown handler, `if (popover.id && e.key === 'Tab') trapFocus(e, $('#popover'));`
+```
+
+### A-3. Beta header hides the company name at 200% zoom (Medium)
+
+**Where**: `public/styles.css:1217-1225` (short screens ≤ 860×500: one-row top bar, `.company-bar { flex: 0 1 220px }`) together with the beta tag (`:1284-1286`) and the "Snapshot · Oct 11" badge label. `.company-menu-btn .company-name` (`:836`) shrinks to make room.
+
+**Repro** (`docs/process/review-beta.md` §4, step 10): a 1280×900 window at 200% zoom is a 640×450 CSS px viewport. `#companyMenuBtn .company-name` is 9 of 74 px for "Microsoft", 9 of 51 px for "Netflix" and 9 of 57 px for "Anduril" on the beta site. The main site at the same size shows 39 of 57 px for "Anduril". At 720 px Microsoft still gets 56 of 74 px. The name of the company being shown is the page's main context (WCAG 1.4.4, 1.4.10).
+
+**Patch** (checked in Chromium: Microsoft 74/74, Netflix 51/51, Anduril 57/57 px at 640×450):
+```css
+@media (max-width: 860px) and (max-height: 500px) {
+  html[data-channel="beta"] .data-badge .badge-label::before { content: attr(data-micro); }
+  html[data-channel="beta"] .brand { display: none; }
+  html[data-channel="beta"] .company-bar { flex: 0 1 240px; }
+}
+```
+
+### S-4. Posting URLs are not validated (Low)
+
+**Where**: `server/sources/eightfold.js:153-155` takes `publicUrl`, `https://${t.host}${p.positionUrl}` or `canonicalPositionUrl` as given. A `positionUrl` of `@evil.example/x` gives host `evil.example`. `server/normalize.js` stores `raw.url` unchanged for every adapter. `server/export.js` publishes it in `data/<slug>.csv`. The drawer's button says "Apply on Netflix’s careers site" whatever the host (`public/app.js` apply section; `safeUrl` turns `javascript:` into `#`).
+
+**Repro**: a Netflix row with `canonicalPositionUrl: "javascript:window.__xss='url'"`, run through `mapEightfoldJob` + `normalizeJobs` + `build-static.js`, gives that exact string in the CSV `url` column and in `api/jobs/netflix.json`. The drawer shows a dead "Apply on Netflix’s careers site" link.
+
+**Patch**:
+```js
+// server/sources/eightfold.js mapEightfoldJob()
+const onHost = (u) => { try { const x = new URL(u, `https://${t.host}`); return x.protocol === 'https:' && x.host === t.host ? x.href : null; } catch { return null; } };
+let url = onHost(str(p.publicUrl)) || (p.positionUrl ? onHost(p.positionUrl) : null) || onHost(str(p.canonicalPositionUrl)) || `https://${t.host}/careers/job/${encodeURIComponent(p.id)}`;
+// server/normalize.js normalizeJob(): url: /^https?:\/\//i.test(String(raw.url || '')) ? raw.url : null
+// beta built-ins: also require scripts/links-policy.js BETA_POSTING_HOSTS for that company, else null
+```
+
+### S-5. Stable and beta crawls share one concurrency group (Low)
+
+**Where**: `.github/workflows/snapshot.yml:42-44` (`group: snapshot`, `cancel-in-progress: false`) covers both the daily stable schedule (`:24`) and the 6-hourly beta schedule (`:25`). A beta run takes up to 150 min per crawl job.
+
+**Repro (reasoned; GitHub semantics)**: a concurrency group keeps one running and one pending run, and a newly queued run cancels the pending one. GitHub fires these schedules hours late (PLAYBOOK "Known traps": the 06:17 stable run started at 12:41). So the daily stable crawl and ledger update can be cancelled by a beta run queued behind it, or the reverse, with no failure shown.
+
+**Patch**:
+```yaml
+concurrency:
+  group: snapshot-${{ github.event.schedule == '17 6 * * *' && 'stable' || github.event.schedule && 'beta' || inputs.channel }}
+  cancel-in-progress: false
+```
+(The two channels write different artifacts. A dispatched `both` run gets its own group.)
+
+### S-6. `/methodology/` is rendered on every request (Low)
+
+**Where**: `server/index.js:942-951` imports `scripts/methodology.js` and runs `methodologyPages()` (Markdown plus build-time charts over `data/cities.json`) for each GET.
+
+**Repro**: in-process server, 5 warm requests: median 82 ms each (`methodologyPages` alone: 196 ms cold, 81 ms warm). It is synchronous main-thread work on an unauthenticated route. A dozen requests a second keeps the event loop busy, the same class as V15.
+
+**Patch**: memoize the rendered files by the input files' mtimes.
+```js
+let methodologyMemo = null; // { key, files, reference }
+const key = (await Promise.all(['docs/METHODOLOGY_GUIDE.md', 'docs/LIVABILITY.md', path.relative(ROOT, CITIES_FILE)].map((f) => fs.stat(path.join(ROOT, f)).then((s) => s.mtimeMs, () => 0)))).join('|');
+if (!methodologyMemo || methodologyMemo.key !== key) methodologyMemo = { key, files: (await m.methodologyPages({ root: ROOT, citiesFile: CITIES_FILE })).files, reference: m.renderReferencePage({ md: await fs.readFile(path.join(ROOT, 'docs', 'LIVABILITY.md'), 'utf8') }) };
+```
+
+### S-7. The shared review server crashes on bad percent-encoding (Low)
+
+**Where**: `scripts/cycle/serve.mjs:31`. `decodeURIComponent()` runs inside the request handler with no try/catch. `GET /melon-seek/%E0%A4%A` throws `URIError`, which is uncaught and ends the process. Every cycle agent serves the lead's build through this script, so one stray request (a crawler, a fuzzing reviewer) stops all of them.
+
+**Patch**: `let rel; try { rel = decodeURIComponent(u.pathname.slice(BASE.length)); } catch { res.writeHead(400); return res.end(); }`, and wrap the handler body in try/catch with a 500.
+
+### A-4. Snapshot badge contrast (Low)
+
+**Where**: `public/styles.css:46-47` (`--ms-blue: #2563eb`, `--ms-blue-bg: #e8effe`), `:257` (`.data-badge.is-snapshot`), `:709-710` (the label is `font-size: 0` with the text in `::before` at 12.5 px). That is **4.48:1** in the light theme; dark is 7.50:1. axe skips it because the visible text is generated content.
+
+**Patch**: `--ms-blue: #1d4ed8;` (5.81:1 on `#e8effe`, 6.70:1 on white) in the light theme.
+
+### A-5. List semantics of the results (Low)
+
+**Where**: `public/app.js:2922-2928`. `buildWindow()` puts `li role="none"` items (top and bottom spacers, the "Show more" item, the Juice scale note) straight into `<ol id="resultsList">`. axe reports `list` (serious) on every view with a list, in both themes and on the phone.
+
+**Patch**: drop `role: 'none'` from the three `li`s. The spacers keep `aria-hidden="true"`, and the "Show more" and Juice note items are real list items. If they must not count, keep them outside the `<ol>` (a sibling `div` after it).
+
+### A-6. Juice breakdown rows have text outside their cells (Low)
+
+**Where**: `public/app.js:3569-3576`. Each `role="row"` holds a `rowheader`, an `aria-hidden` bar, a value `cell` and then bare `span.wf-detail`s ("income tax $100,300 · state or local tax $35,000 · …", "1-bedroom, city centre", the couple or family tax basis). A row may own only cells, so in table navigation these details (the V5 fix) are skipped.
+
+**Patch**: put the details inside the row header cell.
+```js
+h('span', { class: 'wf-label', role: 'rowheader' }, label,
+  detail ? h('span', { class: 'wf-detail' }, detail) : null,
+  extra ? h('span', { class: 'wf-detail wf-tax-basis' }, extra) : null)
+```
+(or wrap them in their own `role: 'cell'`).
+
+### A-7. Duplicate region names in Insights (Low)
+
+**Where**: `public/index.html:146-148` labels the host sections "Compstimate", "Market insights" and "Compare companies". `public/features/insights.js:246` and `public/features/comps.js:452` render a second `section` with the same heading text inside each (axe `landmark-unique`). The screen-reader landmark list shows "Market insights" twice and "Compare companies" twice. `#pageTitle` (`index.html:43`) also sits outside every landmark (axe `region`).
+
+**Patch**: make the three hosts plain `div`s (or drop their `aria-label`), so the inner sections, which have headings, are the regions. Move the `sr-only` `<h1>` into `<header>` or `<main>`.
+
+### Re-check (beta)
+
+| # | Status | Evidence (at `3cf226e`) |
+|---|--------|-------------------------|
+| V1 | Fixed | `getJobDetail` passes `noBuild` (`server/index.js`, review V1 comment). `test/server.test.js` "review V1" passes |
+| V2 | Fixed | `ledger.sh:55-83` checks event, head repository and branch for every artifact. pages.yml, snapshot.yml and archive use it, and the archive's `sweep.js` uses the same rules. `test/workflows.test.js` "(V2)" passes |
+| V3 | Fixed | Every built page has the CSP meta and the referrer meta. `dist/beta/index.html` also has `noindex`. `test/static-build.test.js` "V3" passes |
+| V4 | Fixed | Per-board memos are bounded at `MELON_CACHE_MAX + 16`, backtests run one at a time with `resourceLimits` and a 60 s timeout (`server/index.js` "Review V4"). Test passes. The bound is still in entries, not bytes, which is acceptable at 66 |
+| V5 | Fixed | The Monthly/Yearly and household buttons keep focus after Enter (probe: focus stays on "Monthly" and "Couple"), and the tax split and bases are visible text. Their table semantics are A-6 |
+| V6 | Fixed | axe on the open company menu: 0 violations |
+| V7 | Fixed | `t` and `/` fire only from the body, a card or the drawer (`public/app.js:4407`). `t` with focus on a button leaves `data-theme` unchanged, and typing `t` in the search box types it |
+| V8 | **Partially fixed** | `--ms-faint` is `#6b7280` (4.83:1 on white, but 4.31:1 on `#f0f2f5`). `.apply-host` has full opacity. Still open: the range sliders' only focus indicator is the 35% accent halo, **1.67:1** (2.76:1 dark), and they are **22 px** tall (axe `target-size`, serious). `test/e2e/beta-a11y.e2e.js` "[V8]" |
+| V9 | Fixed | The Save chip has no `aria-pressed`, and only its label changes ("Save this search" → "Saved search — remove it") |
+| V10 | Fixed | `test/export.test.js` "review V10" passes. The crafted `=HYPERLINK(…)` title is exported as `'=HYPERLINK(…)`, quoted |
+| V11 | Fixed | Per lead.md 2026-10-02 (untrusted-data fence, quote and number checks, https-only base URL). Residual accepted by the lead |
+| V12 | **Partially fixed** | Permissions are per job and every action is SHA-pinned (`test/workflows.test.js`). Still open: `actions/checkout` in `ci.yml`, the pages.yml `build` job, every snapshot.yml job and `bigtech-probe.yml` keeps the token in `.git/config` (no `persist-credentials: false`). `test/beta-security-review.test.js` "V12 residual" |
+| V13 | Fixed | Five drawer steps leave `body > .ms-viz-tip` at 2 (was 3 → 8) |
+| V14 | **Partially fixed** | `?name=` no longer renames a built-in (test passes). Still open: a custom board can take any built-in's name. `/api/jobs?source=lever&board=zzexample&name=Apple` returns `company.name: "Apple"`, and `source=greenhouse&board=google` defaults to "Google", now including the beta big-tech names. Patch as in V14: refuse or suffix a name equal to a built-in's ("Apple (lever board zzexample)"). "V14 residual" test |
+| V15 | Fixed | `test/perf.test.js` passes on its own (cold `/api/market` 2.4 s, max lag 106 ms). It failed in the full run at load ~6 (552 ms), the known load effect (PLAYBOOK). With `MELON_CHANNEL=beta` and today's data, a cold `/api/market` took 130 s while `/api/health` stayed at 1-74 ms |
+
+### Checked and fine (beta)
+
+- **Untrusted text into the page.** Three crafted Netflix postings (`<img onerror>`, `"><svg onload>`, `</title><script>` and `{{constructor…}}` in title, department, team, location, level label, salary text and description; `javascript:` and `"><script>` URLs; `__proto__` / `constructor` as department, team and location) went through `mapEightfoldJob` → `normalizeJobs` → `build-static.js` and were opened in Chromium with `bypassCSP` (so an injected handler would run). Covered: chart (clusters and ranges), map pins and tooltips, Insights, group by location, search, drawer with every section open, filters, company menu and the share page. No element or `on*` attribute was injected, and `window.__xss` was never set. Titles render as text, the description sanitizer dropped `script`, `iframe`, `img` and handlers, and off-site links became text. `Object.prototype` was unchanged. The client's only `innerHTML` writes are still the static icons (`public/app.js:38,4309`). Leaflet gets Elements for `divIcon` and the tooltip function (`public/viz/map.js:753,756`).
+- **Parsers.** No exponential backtracking was found in 41 functions × 63 adversarial 1 MB inputs. The quadratic cases are S-3. The rest finished 1 MB in ≤ 3.7 s, linearly. JSON from the boards is only spread (`{ ...p, ...detail }`), never deep-merged.
+- **Crawlers.** Hosts are literals (`EIGHTFOLD_BOARDS` frozen, `GOOGLE_ORIGIN`, `APPLE_ORIGIN`), and ids are `encodeURIComponent`-ed or matched to `\d{6,}`. An id of `..` moves the path on the same host only (like L1). `politeRequest` uses `redirect: 'manual'` and throws on any non-2xx, so no redirect is followed. Only robots.txt follows ≤ 5 hops, GET only. Limits are 30 MB and 30 s per request, 1 s spacing per host with ≤ 2 in flight, `Retry-After` capped at 60 s, and no retry on 403. The User-Agent is honest, robots.txt is checked before each crawl, and the cookie jar is per crawl and per host.
+- **Paused and blocked companies, outside S-2.** `listCompanies()` hides them. The server answers `unavailable` without fetching (`/api/jobs?company=meta&refresh=1`, `/api/export?company=amazon` 503). `/c/amazon/` is 404, `?source=amazon|eightfold` is 400, the build and the beta matrix leave them out, and Tesla has no adapter.
+- **Build.** Lists carry no `descriptionHtml`, `_raw` or crawl stats. Descriptions are one file per job, and nothing in `dist/` matched a key or token pattern. `listPreloadJs` fetches only listed slugs. The beta copy has the CSP, referrer and `noindex` metas and no inline script. The holding page is static.
+- **Server mode.** `/c/<slug>/` is regex-checked and limited to the channel, the methodology paths are a fixed map, and `/lib/sources/*` serves only public adapter code.
+- **Workflows.** No `${{ github.event.* }}` or `inputs.*` appears in a `run:` (bigtech-probe passes inputs through `env`). The step outputs interpolated at `pages.yml:335,338` and `site-watchdog.yml:55` come from our own scripts. Hygiene: pass them through `env` too. `beta-deploy` has `actions: write` only and deploys only a trusted branch. The archive's `contents: write` is limited to the data branch by `branch.sh`. Supply chain: no new npm dependency, every action pinned by SHA, Inter self-hosted (OFL), `openpyxl==3.1.5` in a manual probe only.
+- **Client state.** New keys: `melon-seek.last.beta.v1` (restored through `parseHash`'s whitelist), `melon-seek.household.v1` (`householdInfo` whitelist) and `melon-seek.juiceScale.v1` (try/catch). The new hash key `mc` is allow-listed. Hash values have no length cap. A shared link with 3,000 search words settled in 715 ms and 200 KB location keys in 3.3 s, so this is not reported.
+- **Accessibility, positive.** axe found 0 violations on the company menu and the map, and no contrast violations in either theme. The drawer takes focus on open (`#drawerClose`), traps it (80 Tabs, 0 outside) and returns it to the card. Reduced motion sets transitions to `1e-05s` and `scroll-behavior: auto`. There is no horizontal scroll at 320, 390 and 640 px. The phone sheet handle announces its state ("Expand results list", `aria-expanded` false → true). Map pins and the Remote button have names ("Johannesburg, Cape Town and 2 more: 6 postings, no salary posted for here", "310 remote postings · median $177K — show list"). The Beta tag is "Beta site. Go to the main melon·seek site" (5.95:1 light, 7.90:1 dark) with a 44 px tap area on the phone. Big-tech pay reads correctly in the accessible tree: "Pay by level: IC5: $142.8K–274.8K · IC6: $165.6K–296.4K", the part-time card "$24.50–31.83/hour (Part-time, paid by the hour: … $50,960–66,206 a year if full-time, 2,080 hours)", "PLN 345K–702K … ≈ $91K–186K in approx US dollars", and "€47,000 a year EUR · 13-week internship". `#resultsTitle` is `aria-live="polite"`.
