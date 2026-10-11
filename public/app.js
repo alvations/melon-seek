@@ -12,7 +12,7 @@ import { compsForJob, compsNote, createCompsCard } from './features/comps.js';
 import { loadFreshness, freshnessDoc, juiceAsOfText, juiceSpanText, marketAsOfText, compstimateAsOfText } from './features/freshness.js';
 import { createCompsChart } from './viz/comps.js';
 import { roleFamily, FAMILY_LABELS, readableTitle, levelLabel, displayLevel, NOT_STATED, DISPLAY_LEVEL_ORDER, levelKey, levelFromKey } from './features/roles.js';
-import { payLocations } from './features/shared.js';
+import { payLocations, countryInSentence } from './features/shared.js';
 // ./features/insights.js is imported on first use (Insights mode), see renderInsights.
 // api.js: getCompanies, getJobs, getJobDetail (namespace import: tolerate a missing optional export)
 
@@ -130,17 +130,68 @@ function salaryRange(s) {
   return moneyRange(s.min, s.max, s.currency);
 }
 const PER_UNIT = { hour: 'hour', day: 'day', week: 'week', month: 'month' };
-/** P-8: fixed-term pay (salary.termWeeks) keeps the posted interval: { amount: "$3,850", per: "week" }, or null. */
+const PER_YEAR = { hour: 2080, day: 260, week: 52, month: 12, year: 1 };
+/** Shared decision 3: pay stated per week, per month or for the whole term (or a stipend) is fixed-term pay, never a yearly salary. */
+const isFixedPay = (s) => !!s && (s.originalInterval === 'week' || s.originalInterval === 'month' || s.originalInterval === 'term' || s.kind === 'stipend');
+/**
+ * Pay for the whole term (originalInterval 'term') is annualized over the term's exact weeks: "for the
+ * four-month fellowship" is × 3 (52 ÷ 17.33), while termWeeks is rounded (17). A length that is a whole
+ * number of months uses the months, so the posted $100,000 reads back as $100,000, not $98,077.
+ */
+function termFactor(s) {
+  const w = Number(s.termWeeks);
+  const m = Math.round((w * 12) / 52);
+  return m > 0 && Math.abs((m * 52) / 12 - w) < 0.5 ? 12 / m : 52 / w;
+}
+/** Two posted amounts, both with cents when either has them: "$22.00–28.88", "$40–55", "$3,850". */
+function postedPair(lo, hi, currency) {
+  const cents = (v) => Math.abs(v - Math.round(v)) >= 0.005;
+  const both = cents(lo) || cents(hi);
+  const fmt = (v) => (both ? `${!currency || currency === 'USD' ? '$' : CUR_SYM[currency] ?? `${currency} `}${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : postedMoney(Math.round(v), currency));
+  const a = fmt(lo), b = fmt(hi);
+  return a === b ? a : `${a}–${b.replace(/^[^\d]+/, '')}`;
+}
+/**
+ * P-8 and shared decision 3: pay tied to a programme length (salary.termWeeks), as it was stated.
+ * { amount, per, weeks, weeksMax, fixed, toTerm } or null:
+ * - fixed (per week, per month, for the whole term, or a stipend): fixed-term pay ("$3,850 a week for about
+ *   17 weeks"); per is 'week' | 'month' | 'term';
+ * - otherwise a rate for a programme of `weeks` ("€72,000 a year (13-week internship)"); per is 'year',
+ *   'hour' or 'day'. termWeeks is the programme's length, for information only.
+ * toTerm: what divides the yearly figures (salary.min, Juice) to give the whole term's amount.
+ */
 function postedTerm(s) {
   if (!s || !(s.termWeeks > 0)) return null;
-  const unit = PER_UNIT[s.originalInterval] || null;
-  const f = { hour: 2080, day: 260, week: 52, month: 12 }[unit] || 1;
+  const unit = s.originalInterval === 'term' ? 'term' : PER_UNIT[s.originalInterval] || 'year';
+  const f = unit === 'term' ? termFactor(s) : PER_YEAR[unit];
   const lo = s.min / f, hi = s.max / f;
-  const a = postedMoney(lo, s.currency), b = postedMoney(hi, s.currency);
-  return { amount: a === b ? a : `${a}–${b.replace(/^[^\d]+/, '')}`, per: unit, weeks: Math.round(s.termWeeks) };
+  const amount = unit === 'term' ? postedPair(Math.round(lo), Math.round(hi), s.currency) : postedPair(lo, hi, s.currency);
+  const weeks = Math.round(s.termWeeks), weeksMax = s.termWeeksMax > s.termWeeks ? Math.round(s.termWeeksMax) : null;
+  return { amount, per: unit, weeks, weeksMax, fixed: isFixedPay(s), toTerm: unit === 'term' ? f : 52 / s.termWeeks };
 }
 /** "about 17 weeks" (P-8). */
 const termText = (weeks) => `about ${plural(weeks, 'week')}`;
+/** What a fixed-term programme is called: "internship", "fellowship", … ("programme" when the title doesn't say). */
+function programNoun(job) {
+  const t = `${job?.title || ''} ${job?.employmentType || ''}`;
+  return /\bintern/i.test(t) ? 'internship' : /\bfellow/i.test(t) ? 'fellowship' : /\bco-?op\b/i.test(t) ? 'co-op'
+    : /\bresiden/i.test(t) ? 'residency' : /\bapprentic/i.test(t) ? 'apprenticeship' : 'programme';
+}
+/** "13-week internship", "16–24-week internship". */
+const programText = (job, t) => `${t.weeksMax ? `${t.weeks}–${t.weeksMax}` : t.weeks}-week ${programNoun(job)}`;
+/** " a year", " an hour", " a week", " for the whole term": how the posted amount was stated. */
+const perText = (per) => (per === 'term' ? ' for the whole term' : per === 'hour' ? ' an hour' : ` a ${per}`);
+/**
+ * Shared decision 4: part-time hourly pay (salary.partTime, from the data lane) is shown as the hourly rate
+ * it was posted at. salary.min/max stay a full-time year (2,080 hours), so any yearly figure says so.
+ * statedHours: the hours a week the posting gives (salary.hoursPerWeek), or null.
+ */
+const isPartTime = (j) => j?.salary?.partTime === true;
+const isPartTimeHourly = (j) => isPartTime(j) && j.salary.originalInterval === 'hour';
+function statedHours(j) {
+  const v = Number(j?.salary?.hoursPerWeek ?? j?.salary?.weeklyHours);
+  return v > 0 && v <= 80 ? v : null;
+}
 /** P-1: on-target earnings (base plus commission at target; salary.kind from server/salary.js). */
 const isOte = (j) => j?.salary?.kind === 'ote';
 /** P-8: pay for a fixed term (a fellowship or internship length), never a yearly salary. */
@@ -179,13 +230,18 @@ function quantile(sorted, q) {
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
 }
 
+/**
+ * "5 minutes ago", "3 hours ago", "1 day ago". BP-16: whole units elapsed (floor), the rule the listing
+ * age (ageDays, server/history.js) uses, so a drawer never says "Updated 2 d ago" over "Listed 1 day ago"
+ * for the same day; and in words, not "h" and "d".
+ */
 function ago(ts) {
   if (!ts) return null;
   const d = (Date.now() - ts) / 1000;
   if (d < 90) return 'just now';
-  if (d < 3600) return `${Math.round(d / 60)} min ago`;
-  if (d < 86400) return `${Math.round(d / 3600)} h ago`;
-  if (d < 86400 * 45) return `${Math.round(d / 86400)} d ago`;
+  if (d < 3600) return `${plural(Math.floor(d / 60), 'minute')} ago`;
+  if (d < 86400) return `${plural(Math.floor(d / 3600), 'hour')} ago`;
+  if (d < 86400 * 45) return `${plural(Math.floor(d / 86400), 'day')} ago`;
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 const shortDate = (ts) => new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -386,6 +442,7 @@ function clearFilters() {
   const patch = {};
   for (const k of FILTER_KEYS) patch[k] = structuredClone(DEFAULTS[k]);
   clearArea();
+  dropHeld(); // BP-10: nothing set aside comes back after Clear all
   $('#search').value = '';
   set(patch);
 }
@@ -444,6 +501,7 @@ function shownJuice(j, F = viewSpec) {
   for (const e of jb.byLocation || []) {
     const i = j.locations.findIndex((l) => l && l.name === e.locationName);
     if (i < 0 || !(F.l.has(j._locKeys[i]) || (j._locAlt && F.l.has(j._locAlt[i])))) continue;
+    if (j._payLocs && !j._payLocs.includes(j.locations[i])) continue; // shared decision 1: never from another country's pay
     if (!best || e.score > best.score || (e.score === best.score && e.net > best.net)) best = e;
   }
   if (best && best.city === jb.best.city && best.locationName === jb.best.locationName) best = jb.best; // keeps its inputs
@@ -452,6 +510,20 @@ function shownJuice(j, F = viewSpec) {
 }
 let viewSpec = null; // the filter spec of the last render (cards, sort and the drawer read Juice through it)
 const empKey = (j) => j.employmentType || 'Unspecified';
+/**
+ * The Juice a posting may show (null for none). Shared decision 1: never computed for a place from another
+ * country's pay (juice.js's retired `currencyMismatch` fallback applied a Polish range to Munich "as
+ * posted"). Shared decision 4: never from a full-time year of part-time hourly pay, unless the posting
+ * states its hours. juiceMissing() says why in the drawer.
+ */
+function usableJuice(j) {
+  const jb = j?.juice;
+  if (!jb?.best || jb.best.currencyMismatch) return null;
+  if (isPartTime(j) && !statedHours(j)) return null;
+  return jb;
+}
+/** Shared decision 1: true when the posting's pay applies to a place of the Location filter (always, without one). */
+const payHere = (j, F = viewSpec) => !!j?._usd && (!F?.l.size || locMatches(j, F, j._payLocs || payLocations(j)));
 
 function prepare(jobs, { source = null } = {}) {
   for (const j of jobs) {
@@ -472,6 +544,9 @@ function prepare(jobs, { source = null } = {}) {
     j._usd = j.salary ? { min: toUSD(j.salary.min, j.salary.currency), max: toUSD(j.salary.max, j.salary.currency), mid: toUSD(j.salary.mid, j.salary.currency) } : null;
     if (j._usd && !(isFinite(j._usd.min) && isFinite(j._usd.max))) j._usd = null;
     j._mid = j._usd ? j._usd.mid : null;
+    // Shared decision 1: the places the pay is for (payLocations, features/shared.js); under a Location
+    // filter, pay counts only where it applies (filter, sort, stats, Juice), and the card says so.
+    j._payLocs = payLocations(j);
     j._ts = j.updatedAt ? Date.parse(j.updatedAt) || null : null;
     // Listing age (F4). v2 jobs carry ageDays (null = unknown: show no age). Pre-v2 data
     // falls back to updatedAt so the age slot and "Listed" filter still work.
@@ -488,7 +563,7 @@ function prepare(jobs, { source = null } = {}) {
     // _family (role family) is filled in after the first paint (fillFamilies), or on first use (famOf).
     // The slot is made here, where it always was, so every job keeps the same shape and key order.
     if (j._family == null) j._family = undefined;
-    j.juice = j.juice && j.juice.best ? j.juice : null;
+    j.juice = usableJuice(j);
     j._grade = gradeKey(j);
     j._locKeys = j.locations.map(locKey);
     j._hay = [j.title, j._postedTitle !== j.title ? j._postedTitle : null, j.department, j.team, j.employmentType, senKey(j) === NOT_STATED ? null : j.seniority,
@@ -537,7 +612,12 @@ function vocabOf(jobs) {
   }
   return v;
 }
-/** One RegExp per search word (lowercase), for the board `jobs`. */
+/**
+ * One RegExp per search word (lowercase), for the board `jobs`. BP-12 (shared decision 5): a word also
+ * matches its other spelling, British or American ("centre" finds "center", "defense" finds "defence").
+ * The other spelling matches only as a whole word with its endings, never as a word start, so "labour"
+ * never finds "laboratory".
+ */
 function queryMatchers(q, jobs = data.jobs) {
   const words = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) return [];
@@ -546,9 +626,112 @@ function queryMatchers(q, jobs = data.jobs) {
     const start = '(?:^|[^\\p{L}\\p{N}])';
     if (WORD_SPLIT.test(t)) return new RegExp(start + reEsc(t), 'u');
     const whole = ALWAYS_WORDS.has(t) || vocab.has(t) || WORD_ENDINGS.some((e) => vocab.has(t + e));
-    return new RegExp(start + reEsc(t) + (whole ? `${ENDINGS_RE}(?![\\p{L}\\p{N}])` : ''), 'u');
+    const end = `${ENDINGS_RE}(?![\\p{L}\\p{N}])`;
+    const alts = spellingVariants(t).filter((v) => v !== t).map((v) => reEsc(v) + end);
+    const own = reEsc(t) + (whole ? end : '');
+    return new RegExp(start + (alts.length ? `(?:${[own, ...alts].join('|')})` : own), 'u');
   });
 }
+
+/* ---- pure: search words and place names (test/fix3-app.test.js runs this block on its own) ---- */
+/** Lower case without accents: "Zürich" -> "zurich", "Straße" -> "strasse", "Łódź" -> "lodz". */
+function foldText(s) {
+  return String(s ?? '').toLowerCase().replace(/ß/g, 'ss').replace(/ø/g, 'o').replace(/æ/g, 'ae').replace(/œ/g, 'oe').replace(/ł/g, 'l').replace(/đ/g, 'd')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+/* BP-12: British and American spellings (shared decision 5). Word pairs, then patterns with word lists. */
+const SPELLING_PAIRS = new Map();
+for (const [uk, us] of [
+  ['programme', 'program'], ['defence', 'defense'], ['offence', 'offense'], ['licence', 'license'], ['pretence', 'pretense'], ['practise', 'practice'],
+  ['catalogue', 'catalog'], ['dialogue', 'dialog'], ['analogue', 'analog'], ['grey', 'gray'], ['aluminium', 'aluminum'], ['jewellery', 'jewelry'],
+  ['mould', 'mold'], ['plough', 'plow'], ['ageing', 'aging'], ['judgement', 'judgment'], ['acknowledgement', 'acknowledgment'], ['enrol', 'enroll'],
+  ['enrolment', 'enrollment'], ['fulfil', 'fulfill'], ['fulfilment', 'fulfillment'], ['instalment', 'installment'], ['skilful', 'skillful'],
+  ['wilful', 'willful'], ['paediatric', 'pediatric'], ['paediatrics', 'pediatrics'], ['orthopaedic', 'orthopedic'], ['anaesthesia', 'anesthesia'],
+  ['anaesthesiology', 'anesthesiology'], ['haematology', 'hematology'], ['gynaecology', 'gynecology'], ['oestrogen', 'estrogen'], ['oesophageal', 'esophageal'],
+  ['leukaemia', 'leukemia'], ['encyclopaedia', 'encyclopedia'], ['manoeuvre', 'maneuver'], ['aeroplane', 'airplane'], ['speciality', 'specialty'], ['maths', 'math'],
+]) { SPELLING_PAIRS.set(uk, us); SPELLING_PAIRS.set(us, uk); }
+const RE_STEMS = ['cent', 'theat', 'met', 'lit', 'fib', 'calib', 'sab', 'spect', 'lust', 'meag', 'somb', 'kilomet', 'centimet', 'millimet', 'micromet', 'nanomet'];
+const OUR_STEMS = ['behavi', 'col', 'fav', 'hon', 'lab', 'neighb', 'flav', 'harb', 'hum', 'rum', 'sav', 'savi', 'vap', 'endeav', 'val', 'arm', 'od', 'parl', 'rig', 'splend', 'tum', 'vig', 'clam'];
+const OUR_ENDS = ['', 's', 'ed', 'ing', 'al', 'ally', 'ite', 'ites', 'able', 'ful', 'er', 'ers', 'ism', 'ist', 'ists', 'less', 'y', 'hood', 'hoods'];
+const LL_STEMS = ['model', 'travel', 'label', 'cancel', 'fuel', 'counsel', 'signal', 'channel', 'level', 'tunnel', 'marshal', 'dial', 'jewel', 'equal',
+  'trial', 'total', 'barrel', 'pedal', 'rival', 'panel', 'funnel', 'initial', 'libel', 'marvel', 'parcel', 'spiral', 'stencil', 'towel', 'unravel', 'enamel', 'shovel'];
+const LL_ENDS = ['ed', 'ing', 'er', 'ers', 'or', 'ors', 'ous'];
+const IZE_ENDS = 'e|es|ed|er|ers|ing|ings|ation|ations|ational|able';
+const RE_IZE = new RegExp(`^(\\p{L}{3,})i([sz])(${IZE_ENDS})$`, 'u');
+const RE_YZE = /^(\p{L}{2,})y([sz])(e|es|ed|er|ers|ing)$/u;
+/** Every spelling of one lower-case word: itself, then its British or American forms. */
+function spellingVariants(word) {
+  const w = String(word || '').toLowerCase();
+  const out = new Set([w]);
+  if (w.length < 3 || !/^\p{L}+$/u.test(w)) return [...out];
+  for (const [end, add] of [['', ''], ['s', 's'], ['es', 'es']]) {
+    if (!w.endsWith(end) || w.length - end.length < 3) continue;
+    const alt = SPELLING_PAIRS.get(end ? w.slice(0, -end.length) : w);
+    if (alt) out.add(alt + add);
+  }
+  let m;
+  if ((m = /^(\p{L}+?)(re|res|er|ers)$/u.exec(w)) && RE_STEMS.includes(m[1])) out.add(m[1] + { re: 'er', res: 'ers', er: 're', ers: 'res' }[m[2]]);
+  for (const stem of OUR_STEMS) {
+    for (const [a, b] of [['our', 'or'], ['or', 'our']]) {
+      if (w.startsWith(stem + a) && OUR_ENDS.includes(w.slice(stem.length + a.length))) out.add(stem + b + w.slice(stem.length + a.length));
+    }
+  }
+  for (const stem of LL_STEMS) {
+    for (const end of LL_ENDS) {
+      if (w === `${stem}l${end}`) out.add(stem + end);
+      else if (w === stem + end) out.add(`${stem}l${end}`);
+    }
+  }
+  if (w.length >= 6 && (m = RE_IZE.exec(w))) out.add(`${m[1]}i${m[2] === 's' ? 'z' : 's'}${m[3]}`);
+  if (w.length >= 6 && (m = RE_YZE.exec(w))) out.add(`${m[1]}y${m[2] === 's' ? 'z' : 's'}${m[3]}`);
+  return [...out];
+}
+/* BP-6: a Location search also finds a country's places, and a city by its local name. Each row is one
+   place's names (folded), English first; each country lists the names people type that Intl doesn't give. */
+const PLACE_NAMES = [
+  ['munich', 'munchen', 'muenchen'], ['cologne', 'koln', 'koeln'], ['vienna', 'wien'], ['zurich', 'zuerich'], ['geneva', 'geneve', 'genf'],
+  ['nuremberg', 'nurnberg', 'nuernberg'], ['hanover', 'hannover'], ['frankfurt', 'frankfurt am main'], ['dusseldorf', 'duesseldorf'],
+  ['prague', 'praha'], ['warsaw', 'warszawa'], ['krakow', 'cracow'], ['wroclaw', 'breslau'], ['gdansk', 'danzig'], ['lisbon', 'lisboa'],
+  ['rome', 'roma'], ['milan', 'milano'], ['naples', 'napoli'], ['turin', 'torino'], ['florence', 'firenze'], ['venice', 'venezia'],
+  ['brussels', 'bruxelles', 'brussel'], ['antwerp', 'antwerpen', 'anvers'], ['ghent', 'gent'], ['the hague', 'den haag'], ['copenhagen', 'kobenhavn'],
+  ['gothenburg', 'goteborg'], ['moscow', 'moskva'], ['bucharest', 'bucuresti'], ['belgrade', 'beograd'], ['athens', 'athina'], ['seville', 'sevilla'],
+  ['bangalore', 'bengaluru'], ['mumbai', 'bombay'], ['gurgaon', 'gurugram'], ['chennai', 'madras'], ['kolkata', 'calcutta'], ['kyiv', 'kiev'],
+  ['mexico city', 'ciudad de mexico', 'cdmx'], ['tel aviv', 'tel aviv-yafo', 'tel-aviv', 'jaffa'], ['beijing', 'peking'], ['guangzhou', 'canton'],
+  ['ho chi minh city', 'saigon'], ['new york', 'new york city', 'nyc'], ['san francisco', 'sf'], ['washington', 'washington dc'],
+];
+const COUNTRY_NAMES = {
+  US: ['us', 'usa', 'u.s.', 'u.s.a.', 'america', 'united states of america'], GB: ['uk', 'britain', 'great britain', 'england', 'scotland', 'wales', 'northern ireland'],
+  NL: ['holland', 'nederland', 'the netherlands'], DE: ['deutschland'], AT: ['osterreich', 'oesterreich'], CH: ['schweiz', 'suisse', 'svizzera', 'swiss'],
+  ES: ['espana'], IT: ['italia'], BE: ['belgique', 'belgie'], PL: ['polska'], SE: ['sverige'], NO: ['norge'], DK: ['danmark'], FI: ['suomi'], IE: ['eire'],
+  CZ: ['cesko', 'czech republic'], HU: ['magyarorszag'], BR: ['brasil'], KR: ['korea'], AE: ['uae', 'emirates'], TR: ['turkiye', 'turkey'],
+  JP: ['nihon', 'nippon'], IN: ['bharat'], CN: ['zhongguo'], GR: ['hellas', 'ellada'], PT: ['portugal'], MX: ['mexico'],
+};
+/**
+ * A Location search: `(label, country) -> boolean` for query `q`. It matches a place's name (accents and
+ * local names folded: "Zürich", "München"), and every place in a country the query names ("Ireland",
+ * "Deutschland", "UK"). `nameOf(code)` gives a country's English name.
+ */
+function placeMatcher(q, nameOf = (c) => c) {
+  const f = foldText(q).trim();
+  const words = new Set([f]);
+  const named = (list) => list.some((n) => n === f || (f.length >= 3 && n.startsWith(f)));
+  for (const names of PLACE_NAMES) if (named(names)) for (const n of names) words.add(n);
+  const codes = new Set();
+  if (f.length === 2) codes.add(f.toUpperCase());
+  for (const [code, names] of Object.entries(COUNTRY_NAMES)) if (named(names)) codes.add(code);
+  const countryNames = new Map();
+  return (label, country) => {
+    const t = foldText(label);
+    for (const w of words) if (t.includes(w)) return true;
+    if (!country || country.length !== 2) return false;
+    if (codes.has(country)) return true;
+    if (f.length < 3) return false;
+    if (!countryNames.has(country)) countryNames.set(country, foldText(nameOf(country)));
+    const cn = countryNames.get(country);
+    return cn.startsWith(f) || cn.includes(` ${f}`);
+  };
+}
+/* ---- end pure ---- */
 
 /* I-6: a city pick also catches postings that list only its country or region ("United Kingdom",
    "Ontario, Canada") or remote work in that country ("Remote (Canada)"): the role can be done there.
@@ -622,13 +805,14 @@ function failures(j, F, now) {
   const out = [];
   if (F.q.length && !F.q.every((re) => re.test(j._hay))) out.push('q');
   const salActive = F.so || F.smin != null || F.smax != null;
-  if (salActive && (!j._usd || (F.smin != null && j._usd.max < F.smin) || (F.smax != null && j._usd.min > F.smax))) out.push('sal');
+  // Shared decision 1: under a Location filter, pay posted for another country doesn't pass a pay filter.
+  if (salActive && (!payHere(j, F) || (F.smin != null && j._usd.max < F.smin) || (F.smax != null && j._usd.min > F.smax))) out.push('sal');
   if (F.d.size && !F.d.has(deptKey(j))) out.push('d');
   if (F.l.size && !locMatches(j, F)) out.push('l');
   if (F.s.size && !F.s.has(senKey(j))) out.push('s');
   if (F.e.size && !F.e.has(empKey(j))) out.push('e');
   if (F.r === 'remote' && !j.remote) out.push('r');
-  if (F.r === 'onsite' && !j.locations.some((l) => !l.remote)) out.push('r');
+  if (F.r === 'onsite' && j.remote) out.push('r'); // BP-17: On-site is a role that isn't open to remote work
   if ((F.p && !(j._age != null && j._age <= F.p)) || (F.ho && j._age != null && j._age >= 180)) out.push('p');
   if (F.rf && famOf(j) !== F.rf) out.push('rf');
   if (F.jg.size) { const g = gradeOf(shownJuice(j, F)); if (!(g && F.jg.has(g))) out.push('jg'); }
@@ -653,7 +837,7 @@ function derive() {
   viewSpec = F;
   const fc = { d: new Map(), l: new Map(), lGroup: new Map(), s: new Map(), e: new Map(), r: { any: 0, remote: 0, onsite: 0 },
     p: { 0: 0, 7: 0, 30: 0, 90: 0 }, jg: new Map(), kw: { responsibilities: new Map(), fit: new Map(), skills: new Map() }, salMids: [],
-    noPayHidden: 0, only: {} };
+    noPayHidden: 0, elsewhereHidden: 0, only: {} };
   const covers = coverIndex(jobs);
   const covered = new Map(); // city key -> postings that list only its country or region
   for (const j of jobs) {
@@ -663,6 +847,7 @@ function derive() {
     if (!only) filtered.push(j); // the chart/map draw the whole filtered set; a cluster/map area narrows the list in render()
     else fc.only[only] = (fc.only[only] || 0) + 1; // P-16: what an empty result is blocked by
     if (only === 'sal' && !j._usd) fc.noPayHidden++; // P-5: postings with no pay that the pay filter hides
+    else if (only === 'sal' && !payHere(j, F)) fc.elsewhereHidden++; // shared decision 1: pay posted for another country
     // D-2: with a cluster or map area active, the facet counts describe the roles in that area (the list).
     if (area && !area.ids.has(j.id)) continue;
     const counts = (facet) => !only || only === facet;
@@ -691,15 +876,14 @@ function derive() {
     if (counts('e')) bump(fc.e, empKey(j));
     if (counts('r')) {
       fc.r.any++;
-      if (j.remote) fc.r.remote++;
-      if (j.locations.some((l) => !l.remote)) fc.r.onsite++;
+      if (j.remote) fc.r.remote++; else fc.r.onsite++; // BP-17: Any = Remote + On-site
     }
     if (counts('p')) {
       fc.p[0]++;
       for (const d of [7, 30, 90]) if (j._age != null && j._age <= d) fc.p[d]++;
       if (j._age != null && j._age >= 180) fc.p.old = (fc.p.old || 0) + 1;
     }
-    if (counts('sal') && j._usd) fc.salMids.push(j._mid);
+    if (counts('sal') && payHere(j, F)) fc.salMids.push(j._mid);
     if (counts('jg')) { const g = gradeOf(shownJuice(j, F)); if (g) bump(fc.jg, g); }
   }
   for (const [k, n] of covered) if (fc.l.has(k)) fc.l.set(k, fc.l.get(k) + n);
@@ -749,8 +933,11 @@ function sortJobs(list) {
   const out = list.slice();
   const nullsLast = (a, b, f) => (a == null || b == null ? (a == null) - (b == null) : f());
   const eff = effectiveSort();
+  // Shared decision 1: under a Location filter, pay posted for another country sorts like no pay.
+  const pv = viewSpec?.l.size ? new Map(out.map((j) => [j, payHere(j) ? j._usd : null])) : null;
+  const P = pv ? (j) => pv.get(j) : (j) => j._usd;
   switch (eff) {
-    case 'salary-asc': out.sort((a, b) => nullsLast(a._usd, b._usd, () => a._usd.mid - b._usd.mid || a.title.localeCompare(b.title))); break;
+    case 'salary-asc': out.sort((a, b) => nullsLast(P(a), P(b), () => a._usd.mid - b._usd.mid || a.title.localeCompare(b.title))); break;
     case 'newest': out.sort((a, b) => nullsLast(a._age, b._age, () => a._age - b._age || a.title.localeCompare(b.title))); break;
     case 'title': out.sort((a, b) => a.title.localeCompare(b.title)); break;
     case 'juice': {
@@ -759,7 +946,7 @@ function sortJobs(list) {
       out.sort((a, b) => { const x = jv.get(a), y = jv.get(b); return nullsLast(x, y, () => y.score - x.score || y.net - x.net || a.title.localeCompare(b.title)); });
       break;
     }
-    default: out.sort((a, b) => nullsLast(a._usd, b._usd, () => b._usd.mid - a._usd.mid || b._usd.max - a._usd.max || a.title.localeCompare(b.title)));
+    default: out.sort((a, b) => nullsLast(P(a), P(b), () => b._usd.mid - a._usd.mid || b._usd.max - a._usd.max || a.title.localeCompare(b.title)));
   }
   // P-4: only "Best match" (the default while searching) lists title and team matches first;
   // any sort the person picks is strict.
@@ -786,13 +973,13 @@ function titleMatch(j, m) {
 /**
  * Stats line figures. P-6: with a Location filter, a posting's pay counts only when it applies to a
  * picked place (payLocations: a US range listed in Seattle and Sydney says nothing about Sydney).
- * P-1: on-target earnings are never pooled with base pay (they count only when nothing else is left).
+ * P-1, BP-13: on-target earnings are never pooled with base pay (they count only when nothing else is
+ * left), so the median is the base pay median, the same set the chart's median uses (kind !== 'ote').
  */
 function stats(list, F = viewSpec) {
   const base = [], ote = [];
   for (const j of list) {
-    if (!j._usd) continue;
-    if (F?.l.size && !locMatches(j, F, payLocations(j))) continue;
+    if (!payHere(j, F)) continue;
     (isOte(j) ? ote : base).push(j._mid);
   }
   const mids = (base.length ? base : ote).sort((a, b) => a - b);
@@ -1171,48 +1358,127 @@ function allCompanies() {
 /** I-1: switching company keeps the search, the pay bounds and every filter that exists there (settleKeep). */
 function switchCompany(c) {
   if (!c || c.slug === S.c) return;
-  pendingKeep = activeFilterCount() ? { name: c.name } : null;
+  // BP-10: the places picked here, by what they are (placeOf), so the next board can find its own label for them.
+  pendingKeep = activeFilterCount() || Object.keys(held).length
+    ? { name: c.name, places: new Map(S.l.map((x) => [x, data.status === 'ready' ? placeOf(x, data.jobs) : null])) } : null;
   set({ c: c.slug, cn: c.custom ? c.name : '', job: null });
 }
 let pendingKeep = null;
-/** After a company switch loads: drop the filter values the new board doesn't have, and say what was kept and dropped. */
+/**
+ * BP-10: filter values a board didn't have, set aside until a board that has them: facet key ->
+ * { items: [{ value, place }], after } (`after`: the facet's value when they were set aside; once the
+ * person changes that filter, what they set aside is dropped). Clearing filters or opening a saved search
+ * clears it (dropHeld).
+ */
+let held = {};
+const facetSnap = (key) => JSON.stringify(key === 'p' ? [S.p, S.ho] : S[key]);
+function dropHeld(keys = null) { if (!keys) held = {}; else for (const k of keys) delete held[k]; }
+/** Popover "Reset" keys -> the facets it clears. */
+const HELD_OF = { salary: [], dept: ['d'], loc: ['l'], sen: ['s'], remote: ['r'], more: ['e', 'p', 'kr', 'kf', 'ks', 'jg'] };
+/**
+ * After a company switch loads: keep the filter values the new board has (a place under the new board's own
+ * label), set aside the ones it doesn't, put back ones set aside at an earlier board that this one has, and
+ * say what was kept, put back and set aside.
+ */
 function settleKeep() {
   const k = pendingKeep;
   pendingKeep = null;
   if (!k || data.status !== 'ready') return;
   const jobs = data.jobs;
-  const kept = [], dropped = [];
+  const kept = [], dropped = [], back = [];
+  for (const key of Object.keys(held)) if (facetSnap(key) !== held[key].after) delete held[key];
   if (S.q) kept.push(`“${S.q}”`);
   if (S.smin != null || S.smax != null || S.so) kept.push(quickLabel('salary'));
-  const keepArr = (key, exists, label = (x) => x) => {
-    if (!S[key].length) return;
-    const yes = S[key].filter(exists), no = S[key].filter((x) => !exists(x));
-    kept.push(...yes.map(label));
-    dropped.push(...no.map(label));
-    S[key] = yes;
+  /* `here(x, place)`: the value to use on this board, or null when it has none. Values in force are kept
+     or set aside; values set aside earlier come back where they exist. */
+  const keepArr = (key, here, label = (x) => x, placeFor = () => null) => {
+    const now = [], aside = [];
+    const add = (y, to) => { if (!now.includes(y)) { now.push(y); to.push(label(y)); } };
+    for (const x of S[key]) {
+      const y = here(x, placeFor(x));
+      if (y != null) add(y, kept);
+      else { aside.push({ value: x, place: placeFor(x) }); dropped.push(label(x)); }
+    }
+    const hf = held[key];
+    if (hf) hf.items = hf.items.filter((it) => { const y = here(it.value, it.place); if (y == null) return true; add(y, back); return false; });
+    if (aside.length) {
+      const into = (held[key] ||= { items: [], after: '' });
+      for (const it of aside) if (!into.items.some((z) => z.value === it.value)) into.items.push(it);
+    }
+    S[key] = now;
   };
-  const any = (fn) => (x) => jobs.some((j) => fn(j, x));
-  keepArr('d', any((j, x) => deptKey(j) === x));
-  keepArr('l', (x) => { const F = { l: new Set([x]), lCover: placeCover([x], jobs) }; return jobs.some((j) => locMatches(j, F)); });
-  keepArr('s', any((j, x) => senKey(j) === x), senLabel);
-  keepArr('e', any((j, x) => empKey(j) === x), empLabel);
-  for (const { key, cat } of KW_CATS) keepArr(key, any((j, x) => j.keywords[cat].includes(x)));
-  keepArr('jg', any((j, x) => gradeKey(j) === x), (x) => `Juice: ${x}`);
-  if (S.rf) {
-    const label = FAMILY_LABEL[S.rf] || S.rf;
-    if (jobs.some((j) => famOf(j) === S.rf)) kept.push(label); else { dropped.push(label); S.rf = ''; }
-  }
-  if (S.r !== 'any') {
-    const label = S.r === 'remote' ? 'Remote' : 'On-site';
-    if (jobs.some((j) => (S.r === 'remote' ? j.remote : j.locations.some((l) => !l.remote)))) kept.push(label); else { dropped.push(label); S.r = 'any'; }
-  }
-  if (S.p || S.ho) {
-    if (hasListingDates()) kept.push('listing date'); else { dropped.push('listing date'); S.p = 0; S.ho = false; }
-  }
+  const has = (fn) => (x) => (jobs.some((j) => fn(j, x)) ? x : null);
+  keepArr('d', has((j, x) => deptKey(j) === x));
+  keepArr('l', (x, p) => (p && keyOnBoard(p, jobs)) || (locOnBoard(x, jobs) ? x : null), (x) => x, (x) => k.places?.get(x) || null);
+  keepArr('s', has((j, x) => senKey(j) === x), senLabel);
+  keepArr('e', has((j, x) => empKey(j) === x), empLabel);
+  for (const { key, cat } of KW_CATS) keepArr(key, has((j, x) => j.keywords[cat].includes(x)));
+  keepArr('jg', has((j, x) => gradeKey(j) === x), (x) => `Juice: ${x}`);
+  /* One-value filters: the family, Remote or On-site, and the listing date. */
+  const keepOne = (key, on, value, here, label, off) => {
+    if (on) {
+      if (here(value)) kept.push(label(value));
+      else { dropped.push(label(value)); held[key] = { items: [{ value }], after: '' }; off(); }
+    } else if (held[key] && here(held[key].items[0].value)) {
+      const v = held[key].items[0].value;
+      delete held[key];
+      back.push(label(v));
+      return v;
+    }
+    return null;
+  };
+  const rf = keepOne('rf', !!S.rf, S.rf, (v) => jobs.some((j) => famOf(j) === v), (v) => FAMILY_LABEL[v] || v, () => { S.rf = ''; });
+  if (rf) S.rf = rf;
+  const r = keepOne('r', S.r !== 'any', S.r, (v) => jobs.some((j) => (v === 'remote' ? j.remote : !j.remote)), (v) => (v === 'remote' ? 'Remote' : 'On-site'), () => { S.r = 'any'; });
+  if (r) S.r = r;
+  const p = keepOne('p', !!(S.p || S.ho), [S.p, S.ho], () => hasListingDates(), () => 'listing date', () => { S.p = 0; S.ho = false; });
+  if (p) [S.p, S.ho] = p;
+  for (const key of Object.keys(held)) { if (held[key].items.length) held[key].after = facetSnap(key); else delete held[key]; }
   commit({ replace: true });
   const list = (a) => (a.length > 3 ? `${a.slice(0, 3).join(', ')} +${a.length - 3}` : a.join(', '));
-  if (dropped.length) toast(`${kept.length ? `Kept ${list(kept)} · d` : 'D'}ropped ${list(dropped)} (not at ${k.name})`, 4500);
-  else if (kept.length) toast(`Kept ${list(kept)}`, 3000);
+  const parts = [kept.length ? `Kept ${list(kept)}` : '', back.length ? `put back ${list(back)}` : '',
+    dropped.length ? `dropped ${list(dropped)} (not at ${k.name}) for now` : ''].filter(Boolean);
+  if (parts.length) { const t = parts.join(' · '); toast(t[0].toUpperCase() + t.slice(1), dropped.length || back.length ? 4500 : 3000); }
+}
+/** True when a location key matches a role on `jobs` (its own label, an old bare one, or a country-only posting). */
+function locOnBoard(x, jobs) {
+  const F = { l: new Set([x]), lCover: placeCover([x], jobs) };
+  return jobs.some((j) => locMatches(j, F));
+}
+/* BP-10: a place by what it is, not by a board's label. Apple keys Columbus, OH as "Columbus, OH" (it also
+   lists Columbus, GA) and Google as "Columbus" (disambiguateLocations), so a carried label never matched. */
+const placeIndexesByKey = new WeakMap();
+function placeKeys(jobs) {
+  let ix = placeIndexesByKey.get(jobs);
+  if (!ix) {
+    ix = { byKey: new Map(), byId: new Map(), byCity: new Map() };
+    for (const j of jobs) j.locations.forEach((l, i) => {
+      const k = j._locKeys?.[i];
+      if (!l || !k || ix.byKey.has(k)) return;
+      const p = placeOfLoc(l);
+      ix.byKey.set(k, p);
+      if (!ix.byId.has(p.id)) ix.byId.set(p.id, k);
+      if (p.city) { const list = ix.byCity.get(p.city) || []; if (!list.some((x) => x.key === k)) list.push({ key: k, region: p.region }); ix.byCity.set(p.city, list); }
+    });
+    placeIndexesByKey.set(jobs, ix);
+  }
+  return ix;
+}
+/** { id, city, region } for a location: "c|columbus|OH|US", city "columbus|US"; remote and country-only places by name. */
+function placeOfLoc(l) {
+  const country = String(l.country || '').toUpperCase(), region = String(l.region || '').toUpperCase();
+  if (!l.remote && l.city) { const c = foldText(l.city); return { id: `c|${c}|${region}|${country}`, city: `${c}|${country}`, region }; }
+  return { id: `${l.remote ? 'r' : 'n'}|${foldText(l.name || '')}|${country}`, city: null, region };
+}
+/** The place behind a location key on `jobs`, or null (a key no role there uses as its own label). */
+const placeOf = (key, jobs) => placeKeys(jobs).byKey.get(key) || null;
+/** This board's label for a place: the same place, or the same city and country when the regions don't disagree. */
+function keyOnBoard(p, jobs) {
+  const ix = placeKeys(jobs);
+  const exact = ix.byId.get(p.id);
+  if (exact || !p.city) return exact || null;
+  const cands = (ix.byCity.get(p.city) || []).filter((c) => !p.region || !c.region || c.region === p.region);
+  return cands.length === 1 ? cands[0].key : null;
 }
 
 const RECENT_KEY = 'melon-seek.recent.v1';
@@ -1478,6 +1744,7 @@ function openSaved(x) {
   // Through set(), not pushState + onHashChange: the menu's history entry may still be popping (M-3).
   if (drawerJobId) closeDrawer();
   pendingKeep = null;
+  dropHeld(); // BP-10: a saved search is exactly what it saved
   const same = slug === S.c;
   set({ ...next, job: null });
   if (same) settleSaved();
@@ -1750,8 +2017,10 @@ function makeSalary({ compact = false } = {}) {
     toggle.checked = S.so;
     // P-5: say when the pay filter hides postings that list no pay.
     const hidden = derived.fc?.noPayHidden || 0;
-    noPay.textContent = hidden ? `${plural(hidden, 'role')} that ${hidden === 1 ? 'lists' : 'list'} no pay ${hidden === 1 ? 'is' : 'are'} hidden while a pay filter is on.` : '';
-    noPay.hidden = !hidden;
+    const elsewhere = derived.fc?.elsewhereHidden || 0; // shared decision 1
+    noPay.textContent = [hidden ? `${plural(hidden, 'role')} that ${hidden === 1 ? 'lists' : 'list'} no pay ${hidden === 1 ? 'is' : 'are'} hidden while a pay filter is on.` : '',
+      elsewhere ? `${plural(elsewhere, 'role')} whose pay is posted for another country ${elsewhere === 1 ? 'is' : 'are'} hidden${hidden ? ' too' : ' while a pay filter is on'}: that pay isn’t for ${placesPicked()}.` : ''].filter(Boolean).join(' ');
+    noPay.hidden = !hidden && !elsewhere;
     if (!has) { understood.hidden = true; return; }
     for (const r of [lo, hi]) { r.min = dom.lo; r.max = dom.hi; }
     if (document.activeElement !== lo) lo.value = S.smin ?? dom.lo;
@@ -1796,7 +2065,12 @@ function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8,
     else items.sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
     const showSearch = searchable === true || (searchable === 'auto' && items.length > 8);
     searchWrap.hidden = !showSearch;
-    if (query) items = items.filter((it) => it.key.toLowerCase().includes(query) || String(labelOf(it.key)).toLowerCase().includes(query));
+    if (query && grouped) {
+      // BP-6: a country ("Ireland", "Deutschland") lists its places; a local name ("München", "Zürich") its city.
+      const m = placeMatcher(query, countryName);
+      const country = (k) => { const g = derived.fc?.lGroup.get(k); return g && g !== 'ZZ' && g !== '~remote' ? g : null; };
+      items = items.filter((it) => m(it.key, country(it.key)) || m(String(labelOf(it.key)), null));
+    } else if (query) items = items.filter((it) => it.key.toLowerCase().includes(query) || String(labelOf(it.key)).toLowerCase().includes(query));
     const hadFocus = list.contains(document.activeElement) ? document.activeElement.value : focusKey;
     focusKey = null;
 
@@ -1851,10 +2125,11 @@ function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8,
 }
 
 function makeRemote() {
-  const opts = [['any', 'Any'], ['remote', 'Remote'], ['onsite', 'On-site']];
+  // BP-17: On-site is a role that isn't open to remote work, so Any = Remote + On-site.
+  const opts = [['any', 'Any', null], ['remote', 'Remote', 'Roles open to remote work'], ['onsite', 'On-site', 'Roles not open to remote work']];
   const el = h('div', { class: 'seg seg--block', role: 'group', 'aria-label': 'Remote' });
-  const btns = opts.map(([v, label]) => {
-    const b = h('button', { type: 'button', 'aria-pressed': 'false', onclick: () => set({ r: v }) }, h('span', null, label), h('span', { class: 'seg-count' }));
+  const btns = opts.map(([v, label, tip]) => {
+    const b = h('button', { type: 'button', 'aria-pressed': 'false', title: tip, onclick: () => set({ r: v }) }, h('span', null, label), h('span', { class: 'seg-count' }));
     el.append(b);
     return [v, b];
   });
@@ -2069,6 +2344,7 @@ function clearPopoverFacet(id) {
     salary: { smin: null, smax: null, so: false }, dept: { d: [] }, loc: { l: [] }, sen: { s: [] }, remote: { r: 'any' },
     more: { so: false, e: [], p: 0, ho: false, kr: [], kf: [], ks: [], jg: [] },
   };
+  dropHeld(HELD_OF[id] || []);
   set(patches[id] || {});
 }
 
@@ -2138,6 +2414,7 @@ function makeBoardForm() {
     boards = [...boards.filter((b) => !(b.source === entry.source && b.board === entry.board)), entry];
     saveBoards(boards);
     closePopover(false);
+    dropHeld();
     set({ c: `${entry.source}:${entry.board}`, cn: entry.name, job: null, ...resetFiltersPatch() });
     toast(`Added ${entry.name}`);
   });
@@ -2152,7 +2429,7 @@ function makeBoardForm() {
         h('button', { type: 'button', class: 'icon-btn icon-btn--sm', 'aria-label': `Remove ${b.name}`, html: ICON.trash, onclick: () => {
           boards = boards.filter((x) => x !== b);
           saveBoards(boards);
-          if (S.c === `${b.source}:${b.board}`) set({ c: companies[0]?.slug || 'anthropic', cn: '', job: null });
+          if (S.c === `${b.source}:${b.board}`) set({ c: defaultCompany(), cn: '', job: null });
           else render();
         } })));
     }
@@ -2185,8 +2462,9 @@ function renderKpis() {
     // P-6: with a Location filter, the share counts pay that applies there ("22% show pay for London").
     st.n ? item(`${pct}%`, viewSpec?.l.size ? `show pay for ${viewSpec.l.size === 1 ? [...viewSpec.l][0] : 'these places'}` : 'show pay',
       `${st.withSalary} of ${st.n} postings include a pay range${here}${here ? ' (a pay range in another country’s currency is not counted)' : ''}`) : null,
-    st.median != null ? item(money(st.median), st.oteOnly ? 'median on-target earnings' : 'median',
-      `Half of these roles pay more than this and half less (the middle of each posted range, ${ote}approx US dollars${here}${left})`) : null,
+    // BP-13: it says which pay the median is of; the chart's median uses the same set.
+    st.median != null ? item(money(st.median), st.oteOnly ? 'median on-target earnings' : 'base pay median',
+      `Half of these roles pay more than this and half less (the middle of each posted range, ${ote || 'base pay, '}approx US dollars${here}${left})`) : null,
     st.p25 != null && st.p75 != null && money(st.p25) !== money(st.p75)
       ? h('span', { class: 'stat', title: `Half of these roles have a pay midpoint between ${money(st.p25)} and ${money(st.p75)}${here}` }, 'half between ', h('strong', null, money(st.p25)), ' and ', h('strong', null, money(st.p75))) : null,
     // P-6: "mostly" only for a real majority (it read "mostly Sales" at 19%).
@@ -2488,8 +2766,9 @@ const dropFacet = (f) => () => { const [, patch] = FACET_OFF[f](); if ('q' in pa
 function emptyState() {
   const on = activeFacets();
   const only = derived.fc?.only || {};
-  const noPay = derived.fc?.noPayHidden || 0;
-  const payNote = noPay ? ` ${plural(noPay, 'role')} that ${noPay === 1 ? 'lists' : 'list'} no pay ${noPay === 1 ? 'is' : 'are'} hidden by it.` : '';
+  const noPay = derived.fc?.noPayHidden || 0, elsewhere = derived.fc?.elsewhereHidden || 0;
+  const payNote = (noPay ? ` ${plural(noPay, 'role')} that ${noPay === 1 ? 'lists' : 'list'} no pay ${noPay === 1 ? 'is' : 'are'} hidden by it.` : '')
+    + (elsewhere ? ` ${plural(elsewhere, 'role')} whose pay is posted for another country ${elsewhere === 1 ? 'is' : 'are'} hidden by it.` : '');
   if (on.length === 1) {
     const f = on[0];
     const [label] = FACET_OFF[f]();
@@ -2794,17 +3073,22 @@ function juiceBadge(job) {
   const place = b.locationName || b.cityName;
   // I-3: no bare "≈" before the score; "estimated" is said in words in the tooltip.
   return h('span', { class: `juice-badge juice--${String(b.grade).toLowerCase()}`,
-    title: `${JUICE_TIP}${isTerm(job) ? ' (while the fixed-term pay lasts)' : ''}. ${b.grade} ${hhFor(job.juice.household)} in ${place}: ${stepMoney(b.net, 100)} a year left${b.estimated ? ' (some costs estimated)' : ''}. ${juiceScaleText()}.`,
+    title: `${JUICE_TIP}${isTerm(job) ? ` (while the ${isFixedPay(job.salary) ? 'fixed-term pay' : programNoun(job)} lasts)` : ''}. ${b.grade} ${hhFor(job.juice.household)} in ${place}: ${stepMoney(b.net, 100)} a year left${b.estimated ? ' (some costs estimated)' : ''}. ${juiceScaleText()}.`,
     'aria-label': `Juice Score ${b.score}, ${b.grade}, ${hhFor(job.juice.household)} in ${place}` }, `🍉 ${b.score} · ${b.grade}`);
 }
 
-/** Card location: with a Location filter, a matching place comes first (P-7, "a DC list led with Huntsville"). */
+/**
+ * Card location: with a Location filter, a matching place comes first (P-7, "a DC list led with
+ * Huntsville"). BP-2: otherwise a place the pay is for comes first, so "€148K–151K · Dublin +3" names
+ * the place of the pay, never "London +3" for Dublin pay.
+ */
 function locSummary(job, max = 1) {
   const named = (l) => (l.remote ? l.name || 'Remote' : l.city && l.region ? `${l.city}, ${l.region}` : l.name);
   let locs = job.locations;
-  if (viewSpec?.l.size && locs.length > 1) {
-    const hit = locs.filter((l) => locMatches(job, viewSpec, [l]));
-    if (hit.length) locs = [...hit, ...locs.filter((l) => !hit.includes(l))];
+  if (locs.length > 1) {
+    const pay = job._usd && job._payLocs && job._payLocs.length < locs.length ? job._payLocs : null;
+    const rank = (l) => (viewSpec?.l.size && locMatches(job, viewSpec, [l]) ? 0 : 2) + (pay && !pay.includes(l) ? 1 : 0);
+    if (pay || viewSpec?.l.size) locs = locs.map((l, i) => [rank(l), i, l]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map((x) => x[2]);
   }
   const names = locs.map(named);
   if (!names.length) return 'Location not listed';
@@ -2869,14 +3153,49 @@ function statusTag(job) {
   return null;
 }
 
-/** P-1/P-8: the card's pay pill: as posted for fixed-term pay ("$3,850/week"), the range otherwise. */
+/**
+ * P-1/P-8: the card's pay pill: as posted for fixed-term pay ("$3,850/week"), the range otherwise.
+ * Shared decision 3: a rate for an internship reads as that rate ("€47K", "€47,000 a year (13-week
+ * internship)"). Shared decision 4: part-time hourly pay shows the hourly rate. Shared decision 1: under a
+ * Location filter, pay that isn't for the picked places reads "Pay posted for the US only" (`elsewhere`).
+ */
 function payPill(job) {
-  const term = postedTerm(job.salary);
-  if (term) return { text: term.per ? `${term.amount}/${term.per}` : term.amount, tip: `${term.amount}${term.per ? ` a ${term.per}` : ''} for ${termText(term.weeks)} (fixed-term pay, not a yearly salary)` };
-  const range = salaryRange(job.salary);
+  const s = job.salary;
+  if (!s) return null;
+  if (viewSpec?.l.size && job._usd && !payHere(job)) {
+    const where = payPlaceText(job);
+    const range = payPill({ ...job, _usd: null })?.text || salaryRange(s);
+    return { text: `Pay posted for ${where} only`, tip: `${range} is the pay posted for ${where}, not for ${placesPicked()}`, elsewhere: true };
+  }
+  if (isPartTimeHourly(job)) {
+    const hr = postedPair(s.min / 2080, s.max / 2080, s.currency);
+    return { text: `${hr}/hour`, tip: `Part-time, paid by the hour: ${hr} an hour (${postedPair(Math.round(s.min), Math.round(s.max), s.currency)} a year if full-time, 2,080 hours)` };
+  }
+  const term = postedTerm(s);
+  if (term?.fixed) {
+    const text = term.per === 'term' ? `${moneyRange(s.min / term.toTerm, s.max / term.toTerm, s.currency)} total` : `${term.amount}/${term.per}`;
+    return { text, tip: `${term.amount}${perText(term.per)} for ${termText(term.weeks)} (fixed-term pay, not a yearly salary)` };
+  }
+  if (term) {
+    const tip = `${term.amount}${perText(term.per)} (${programText(job, term)})`;
+    return { text: term.per === 'year' ? salaryRange(s) : `${term.amount}/${term.per}`, tip };
+  }
+  const range = salaryRange(s);
   if (!range) return null;
   if (isOte(job)) return { text: range, tip: OTE_LABEL };
   return { text: range, tip: null };
+}
+/** The pay's own country, in a sentence: "the US", "Germany and Ireland", "other countries" (shared decision 1). */
+function payPlaceText(job) {
+  const cs = [...new Set((job._payLocs || payLocations(job)).map((l) => l?.country && String(l.country).toUpperCase()).filter(Boolean))];
+  if (!cs.length) return 'other places';
+  if (cs.length > 2) return 'other countries';
+  return cs.map(countryInSentence).join(' and ');
+}
+/** The places of the Location filter, in a sentence: "Zurich", "Zurich and Geneva", "the places you picked". */
+function placesPicked(F = viewSpec) {
+  const l = F ? [...F.l] : [];
+  return l.length === 1 ? l[0] : l.length === 2 ? `${l[0]} and ${l[1]}` : 'the places you picked';
 }
 
 /** DQ-11: a talent pool (job.pool, from the sources lane) collects applications for roles that may open later. */
@@ -2903,7 +3222,7 @@ function card(job, pos = null, size = null) {
   h('div', { class: 'card-top' },
     h('h3', { class: 'card-title' }, job.title),
     h('div', { class: 'card-pay' },
-      pay ? h('span', { class: 'sal-pill', title: pay.tip }, pay.text)
+      pay ? h('span', { class: `sal-pill${pay.elsewhere ? ' sal-pill--elsewhere' : ''}`, title: pay.tip }, pay.text)
         : job.salaryFlag ? h('span', { class: 'sal-pill sal-pill--unclear', title: job.salaryFlag.reason || 'Pay unclear' }, 'Pay unclear')
           : h('span', { class: 'sal-pill sal-pill--none' }, 'No salary'),
       // The tablet column puts the age here, beside the title's second line (styles.css).
@@ -3030,7 +3349,8 @@ function salaryDistribution(job) {
   const dom = base && job._usd ? { lo: Math.min(base.lo, job._usd.min), hi: Math.max(base.hi, job._usd.max) } : base;
   const mids = (pool || []).map((j) => j._mid).concat(job._usd ? [job._mid] : []).sort((a, b) => a - b);
   const foreign = job.salary.currency && job.salary.currency !== 'USD';
-  const approx = foreign ? h('p', { class: 'fnote' }, `≈ ${moneyRange(job._usd.min, job._usd.max)} in approx US dollars for comparison`) : null;
+  const fullTime = isPartTimeHourly(job) ? ' a year if full-time' : ''; // shared decision 4
+  const approx = foreign ? h('p', { class: 'fnote' }, `≈ ${moneyRange(job._usd.min, job._usd.max)}${fullTime} in approx US dollars for comparison`) : null;
   if (!pool || !dom || !job._usd) return approx ? h('div', { class: 'd-dist' }, approx) : null;
   const W = 100, H = 40, N = 32;
   const counts = new Array(N).fill(0);
@@ -3040,7 +3360,7 @@ function salaryDistribution(job) {
   const bw = W / N;
   const median = quantile(mids, 0.5);
   const svg = svgEl('svg', { class: 'dist', viewBox: `0 0 ${W} ${H + 12}`, preserveAspectRatio: 'none', role: 'img',
-    'aria-label': `Pay of ${mids.length} ${poolNoun(job)}; this role spans ${money(job._usd.min)} to ${money(job._usd.max)}, median ${money(median)}` });
+    'aria-label': `Pay of ${mids.length} ${poolNoun(job)}; this role spans ${money(job._usd.min)} to ${money(job._usd.max)}${fullTime}, median ${money(median)}` });
   counts.forEach((c, i) => {
     if (!c) return;
     const hgt = (c / max) * (H - 6);
@@ -3096,7 +3416,7 @@ async function rejuice(jobs, hh, stale = () => false) {
   for (let i = 0; i < jobs.length; i += PREPARE_CHUNK) {
     const slice = jobs.slice(i, i + PREPARE_CHUNK);
     try { lib.mod.attachJuiceAll(slice, lib.cities, { household: hh }); } catch { return false; }
-    for (const j of slice) { j.juice = j.juice && j.juice.best ? j.juice : null; j._grade = gradeKey(j); }
+    for (const j of slice) { j.juice = usableJuice(j); j._grade = gradeKey(j); }
     await yieldTask();
     if (stale()) return false;
   }
@@ -3169,12 +3489,18 @@ function juiceBlock(job) {
   const place = b.cityName || b.locationName;
   const headNet = h('span', { class: 'juice-head-net' });
   const body = h('div', { class: 'juice-body' });
+  // BP-1: the length is said the way the pay block says it (a yearly rate for a 13-week internship, or
+  // fixed-term pay for 17 weeks); the whole term divides the yearly figures as the pay block does.
+  const lasts = !term ? null : term.fixed ? `This pay lasts ${termText(term.weeks)}` : `The ${programNoun(job)} lasts ${termText(term.weeks)}`;
+  // I15 + shared decision 1: say why the filtered place has no Juice, in the posting's terms.
+  const elsewhere = noneHere && !payHere(job) ? payPlaceText(job) : null;
   const where = [
     'Juice: what’s left after tax, rent and living costs (approx US dollars).',
-    term ? `This pay lasts ${termText(term.weeks)}, so Juice covers only that term. Tax is worked out as if the pay lasted a year, so it may be lower.` : null,
+    term ? `${lasts}, so Juice covers only that term. Tax is worked out as if the pay lasted a year, so it may be lower.` : null,
     isOte(job) ? 'The pay is on-target earnings, so this assumes commission at target.' : null,
     b.estimated ? 'Some costs here are estimates.' : null,
-    noneHere ? `No Juice figure for ${noneHere}; this is the best place the posting lists.` : null,
+    noneHere ? (elsewhere ? `This posting’s pay is for ${elsewhere} only, so there is no Juice for ${noneHere}. This is ${place}, the best place its pay covers.`
+      : `There is no rent and living-cost data for ${noneHere} yet. This is ${place}, the best other place the posting lists.`) : null,
   ].filter(Boolean).join(' ');
   // UX-5: one headline line; the waterfall sits in a disclosure so "Same role elsewhere" stays near the top.
   const sec = h('section', { class: 'd-juice', 'aria-labelledby': 'juiceTitle' },
@@ -3188,7 +3514,7 @@ function juiceBlock(job) {
       body));
   const render = (focusPeriod) => {
     const period = term ? (juicePeriod === 'term' ? 'term' : 'month') : juicePeriod === 'month' ? 'month' : 'year';
-    const div = period === 'month' ? 12 : period === 'term' ? 52 / term.weeks : 1;
+    const div = period === 'month' ? 12 : period === 'term' ? term.toTerm : 1;
     const per = period === 'month' ? '/mo' : period === 'term' ? ' total' : '/yr';
     const step = period === 'year' ? 100 : 10;
     const r = (n) => Math.round(n / div / step) * step; // the shown amount, so the rows add up
@@ -3235,7 +3561,6 @@ function juiceBlock(job) {
           detail ? h('span', { class: 'wf-detail' }, detail) : null,
           extra ? h('span', { class: 'wf-detail wf-tax-basis', title: taxNote && extra !== taxNote ? taxNote : null }, extra) : null))),
       b.rentBurden != null ? h('p', { class: 'juice-facts' }, 'Rent takes ', h('strong', null, `${Math.round(b.rentBurden * 100)}%`), ' of take-home pay.') : null,
-      b.currencyMismatch ? h('p', { class: 'fnote' }, 'The posted salary currency differs from the local one, so it is applied as posted.') : null,
       others.length ? h('details', { class: 'juice-compare' }, h('summary', null, `Compare locations (${others.length + 1})`),
         h('ul', null, ...[b, ...others].map((l) => h('li', null,
           h('span', { class: 'jc-name' }, l.locationName || l.cityName, l === b ? h('span', { class: 'muted' }, filtered && b !== jb.best ? ' · shown above' : ' · best') : null),
@@ -3262,6 +3587,22 @@ function juiceBlock(job) {
   }
   render();
   return sec;
+}
+
+/**
+ * Shared decisions 1 and 4: when a posting with pay has no Juice, one plain line says why, where the Juice
+ * section would be. Nothing when the board has no Juice at all (its cost data didn't load).
+ */
+function juiceMissing(job) {
+  if (job.juice || !job._usd || !data.jobs.some((j) => j.juice)) return null;
+  const say = (text) => h('section', { class: 'd-juice d-juice--none' }, h('p', { class: 'juice-none' }, h('strong', null, '🍉 No Juice:'), ` ${text}`));
+  if (isPartTime(job) && !statedHours(job)) return say('this part-time posting gives an hourly rate but not the hours a week, so a year’s take-home pay can’t be worked out.');
+  if (!job.locations.some((l) => l && l.city && !l.remote)) return say('the posting names no city, so rent and living costs can’t be worked out.');
+  const pay = (job._payLocs || []).filter(Boolean);
+  const names = [...new Set(pay.map((l) => l.city || l.name).filter(Boolean))];
+  const where = names.length === 1 ? names[0] : names.length === 2 ? `${names[0]} or ${names[1]}` : 'the places this pay is for';
+  const others = job.locations.some((l) => l && !pay.includes(l));
+  return say(`there is no rent and living-cost data yet for ${where}${others && names.length <= 2 ? ', where this pay is posted' : ''}.${others ? ' Pay posted for one country isn’t used for another.' : ''}`);
 }
 
 /** Salary quarantined by the server's vetting gate (salary null + salaryFlag): say so, keep the reason one click away. */
@@ -3375,9 +3716,21 @@ function compstimateBlock(job) {
     asOfNote('d-comp-note d-comp-asof', () => compstimateAsOfText({ fetchedAt: data.fetchedAt, meta: data.meta })));
 }
 
-function annualNote(sal) {
-  // P-8: fixed-term pay is shown as posted, so it gets no "annualized" note, just the posted text.
-  if (sal.termWeeks > 0) return h('div', { class: 'd-annual' }, `Fixed-term pay, not a yearly salary${sal.text ? ` (as posted: ${sal.text})` : ''}`);
+function annualNote(sal, job = null) {
+  // Shared decision 4: part-time hourly pay is shown as the hourly rate; a yearly figure says it is full time.
+  if (job && isPartTimeHourly(job)) {
+    const hrs = statedHours(job);
+    const atHours = hrs ? ` At the posted ${hrs} hours a week: about ${postedPair(Math.round((sal.min / 2080) * hrs * 52), Math.round((sal.max / 2080) * hrs * 52), sal.currency)} a year.` : '';
+    return h('div', { class: 'd-annual' }, `If full-time (2,080 hours): ${postedPair(Math.round(sal.min), Math.round(sal.max), sal.currency)} a year.${atHours}${sal.text ? ` As posted: ${sal.text}` : ''}`);
+  }
+  // P-8, shared decision 3: pay stated per week, per month or for the whole term is shown as posted and is
+  // fixed-term pay. A rate (a year, an hour) for a programme is shown as that rate: no fixed-term label.
+  if (sal.termWeeks > 0) {
+    if (isFixedPay(sal)) return h('div', { class: 'd-annual' }, `Fixed-term pay, not a yearly salary${sal.text ? ` (as posted: ${sal.text})` : ''}`);
+    const unit = PER_UNIT[sal.originalInterval];
+    if (unit) return h('div', { class: 'd-annual' }, `Paid by the ${unit}${sal.text ? ` (as posted: ${sal.text})` : ''}`);
+    return sal.text ? h('div', { class: 'd-annual' }, `A yearly rate, as posted: ${sal.text}`) : null;
+  }
   const orig = sal.originalInterval || (sal.interval && sal.interval !== 'year' ? sal.interval : null);
   if (!orig) return null;
   // CONTRACT v4 (fix-pay-data P-8): 'term' is pay for the whole programme; termWeeks is its length.
@@ -3409,11 +3762,19 @@ function drawerContent(job) {
       type: 'button', class: 'kw', 'aria-pressed': String(S[key].includes(k)), title: S[key].includes(k) ? 'Remove filter' : 'Filter roles by this keyword',
       onclick: (e) => { toggleIn(key, k); e.currentTarget.setAttribute('aria-pressed', String(S[key].includes(k))); toast(S[key].includes(k) ? `Filtering by “${k}”` : `Removed “${k}”`); },
     }, k)))) : null));
-  const bullets = (title, arr) => (arr?.length ? h('div', { class: 'd-bullet-group' }, h('h4', null, title), h('ul', { class: 'bullets' }, ...arr.map((b) => h('li', null, b)))) : null);
+  const list = (arr) => h('ul', { class: 'bullets' }, ...arr.map((b) => h('li', null, b)));
+  const bullets = (title, arr) => (arr?.length ? h('div', { class: 'd-bullet-group' }, h('h4', null, title), list(arr)) : null);
+  // BP-14: a posting's minimum and preferred qualifications (sections.preferred, from the data lane) stay apart.
+  const lookFor = () => {
+    const req = job.sections.fit || [], pref = job.sections.preferred || [];
+    if (!pref.length) return bullets('What they look for', req);
+    return h('div', { class: 'd-bullet-group' }, h('h4', null, 'What they look for'),
+      req.length ? [h('h5', null, 'Required'), list(req)] : null, h('h5', null, 'Nice to have'), list(pref));
+  };
   const bulletsHost = h('div', { class: 'd-bullets' });
   const bulletsFold = fold('d-about', 'About the role', bulletsHost);
   const renderBullets = () => {
-    bulletsHost.replaceChildren(...[bullets('What you’ll do', job.sections.responsibilities), bullets('What they look for', job.sections.fit)].filter(Boolean));
+    bulletsHost.replaceChildren(...[bullets('What you’ll do', job.sections.responsibilities), lookFor()].filter(Boolean));
     bulletsFold.hidden = !bulletsHost.childElementCount;
     applyDrawerBudget();
   };
@@ -3442,15 +3803,24 @@ function drawerContent(job) {
   // P-16: no "0% percentile" in big green type; one plain sentence, and none for fixed-term pay.
   const of = `${coName}’s ${noun}${isOte(job) ? '' : ' that show pay'}`;
   const pctText = pct == null ? null : pct >= 100 ? `The top pay of ${of}` : pct <= 0 ? `The lowest pay of ${of}` : `Pays more than ${pct}% of ${of}`;
+  const partHourly = isPartTimeHourly(job);
   const caption = !sal ? null : isOte(job) ? `${OTE_LABEL}. Equity isn’t included.`
-    : term ? 'Fixed-term pay as posted. Equity and bonus aren’t included.' : 'Posted base pay. Equity and bonus aren’t included.';
+    : partHourly ? 'Posted hourly pay for a part-time role. Equity and bonus aren’t included.'
+      : term?.fixed ? 'Fixed-term pay as posted. Equity and bonus aren’t included.' : 'Posted base pay. Equity and bonus aren’t included.';
+  // Shared decisions 3 and 4: the amount as it was stated. Fixed-term pay: "$3,850 a week · for about 17
+  // weeks"; a rate for a programme: "€72,000 a year · 13-week internship"; part-time: "$22.00–28.88 an hour".
+  const cur = sal?.currency || 'USD';
+  const amountText = !sal ? null : partHourly ? `${postedPair(sal.min / 2080, sal.max / 2080, sal.currency)} an hour`
+    : term ? `${term.amount}${perText(term.per)}` : salaryRange(sal);
+  const subText = !sal ? null : partHourly ? `${cur} · part-time, paid by the hour`
+    : term?.fixed ? `${cur} · for ${termText(term.weeks)}` : term ? `${cur} · ${programText(job, term)}` : `${cur} · per year`;
   const salaryBlock = h('section', { class: 'd-salary' },
     sal ? h('div', { class: 'd-sal-top' },
       h('div', null,
-        h('div', { class: 'd-sal-amt' }, term ? `${term.amount}${term.per ? ` a ${term.per}` : ''}` : salaryRange(sal)),
-        h('div', { class: 'muted' }, term ? `${sal.currency || 'USD'} · for ${termText(term.weeks)}` : `${sal.currency || 'USD'} · per year`),
-        annualNote(sal),
-        term ? null : payLevelsLine(sal)))
+        h('div', { class: 'd-sal-amt' }, amountText),
+        h('div', { class: 'muted' }, subText),
+        annualNote(sal, job),
+        term || partHourly ? null : payLevelsLine(sal)))
       : job.salaryFlag ? payUnclearBlock(job)
         : h('div', { class: 'd-sal-none' }, h('strong', null, 'Salary not listed'), h('span', { class: 'muted' }, ' — this posting doesn’t include a pay range.'), compstimateBlock(job)),
     sal ? salaryDistribution(job) : null,
@@ -3489,7 +3859,7 @@ function drawerContent(job) {
     // Fixed order (ROADMAP §8): pay block → Same role elsewhere → (Juice headline) → Listing → Locations → Keywords → Bullets → Description.
     salaryBlock,
     sameRoleSection(job), // UX-5: directly under the pay block
-    juiceBlock(job), // compact headline; the waterfall is in a disclosure
+    juiceBlock(job) || juiceMissing(job), // compact headline; the waterfall is in a disclosure
     listingSection(job),
     locs,
     kwCat.some(Boolean) ? fold('d-kw', ['Keywords ', h('span', { class: 'muted small' }, 'click to filter')], ...kwCat) : null,
@@ -3548,6 +3918,7 @@ function pickCompany(slug, filters = {}) {
   if (drawerJobId) closeDrawer({ fromHash: true });
   // UX-4: keep the user's context (location, remote, search) so the comparison stays like-for-like.
   pendingCarry = { name: known?.name || slug, l: S.l.slice(), r: S.r, q: S.q };
+  dropHeld(); // BP-10: Compare companies sets its own filters
   set({ ...resetFiltersPatch(), c: slug, cn: known?.custom ? known.name : '', job: null,
     rf: filters.family || '', s: filters.seniority ? [filters.seniority] : [], l: S.l.slice(), r: S.r, q: S.q });
 }
@@ -3620,7 +3991,7 @@ function fillDescription(job, desc, wrap, onSections = () => {}) {
     const html = detail?.descriptionHtml || '';
     job.descriptionHtml = html;
     let gotSections = false;
-    if (detail?.sections) for (const k of ['responsibilities', 'fit']) if (!job.sections[k]?.length && detail.sections[k]?.length) { job.sections[k] = detail.sections[k]; gotSections = true; }
+    if (detail?.sections) for (const k of ['responsibilities', 'fit', 'preferred']) if (!job.sections[k]?.length && detail.sections[k]?.length) { job.sections[k] = detail.sections[k]; gotSections = true; }
     if (!desc.isConnected) return;
     if (gotSections) onSections(); // lazily-arrived bullets re-render in place
     wrap.classList.add('is-collapsed');
@@ -3972,7 +4343,7 @@ function bindEvents() {
   bindSheetDrag();
   bindKeyboardInsets();
   $('.results-head').addEventListener('click', (e) => { if (isMobile() && !e.target.closest('select, label')) setSheet(!document.body.classList.contains('sheet-open')); });
-  $('.brand').addEventListener('click', (e) => { e.preventDefault(); set({ ...resetFiltersPatch(), job: null, m: 'chart' }); closeDrawer(); });
+  $('.brand').addEventListener('click', (e) => { e.preventDefault(); dropHeld(); set({ ...resetFiltersPatch(), job: null, m: 'chart' }); closeDrawer(); });
 
   const list = $('#resultsList');
   list.addEventListener('click', (e) => { const c = e.target.closest('.card[data-id]'); if (c) openDrawer(c.dataset.id); });
@@ -4108,13 +4479,23 @@ async function boot() {
     companies = FALLBACK_COMPANIES;
   }
   if (S.c && restored && !companies.some((c) => c.slug === S.c) && !isCustomKey(S.c)) { S = parseHash(''); restored = false; } // a company no longer listed
-  if (!S.c) S.c = companies[0].slug;
+  if (!S.c) S.c = defaultCompany();
   lastHash = serialize();
   history.replaceState(null, '', location.pathname + location.search + (lastHash ? `#${lastHash}` : ''));
   await loadJobs();
-  if (restored && data.status === 'ready' && (activeFilterCount() || S.c !== companies[0]?.slug)) {
+  if (restored && data.status === 'ready' && (activeFilterCount() || S.c !== defaultCompany())) {
     toast(activeFilterCount() ? `Reopened where you left off: ${searchName()}` : `Reopened ${data.company?.name || 'your last company'}, where you left off`, 4000);
   }
+}
+
+/**
+ * The company a visit without a link opens (and without a last view). Beta landing: the beta site is about
+ * the big-tech boards, so it opens on the first Big tech board (the company menu's first group, static
+ * `live: false`); the main site opens on its first company, as before.
+ */
+function defaultCompany() {
+  const big = CHANNEL === 'beta' ? companies.find((c) => c.live === false && !c.custom) : null;
+  return (big || companies[0])?.slug || 'anthropic';
 }
 
 /** I-4: remember the last view (company, filters, sort, mode; not the open role) for the next visit. */

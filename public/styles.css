@@ -866,6 +866,13 @@ html[data-mode="insights"] .viz-controls { display: none; }
 
 /* Salary quarantined by the vetting gate */
 .sal-pill--unclear { background: var(--ms-amber-bg); color: var(--ms-amber); font-weight: 600; cursor: help; }
+/* Shared decision 1 (fix3-app BP-2): under a Location filter, pay posted for another country. Muted and
+   outlined (no new colour); it may wrap to two lines beside a long title. */
+.sal-pill--elsewhere { background: transparent; color: var(--ms-muted); font-weight: 600; box-shadow: inset 0 0 0 1px var(--ms-border); white-space: normal; text-align: right; max-width: 10.5em; line-height: 1.3; border-radius: 10px; cursor: help; }
+/* Shared decisions 1 and 4: one line on why a posting with pay has no Juice. */
+.d-juice--none { padding: 10px 14px; }
+.juice-none { margin: 0; font-size: 13px; color: var(--ms-muted); }
+.juice-none strong { color: var(--ms-text); font-weight: 650; }
 .d-unclear { margin-top: 8px; font-size: 12.5px; }
 .d-unclear > summary { cursor: pointer; color: var(--ms-accent); font-weight: 600; width: fit-content; border-radius: 4px; }
 .d-unclear p { margin: 6px 0; }
@@ -920,6 +927,9 @@ html[data-mode="insights"] .viz-controls { display: none; }
 .d-fold .fsec-caret svg { width: 16px; height: 16px; color: var(--ms-faint); transition: transform .15s; }
 .d-bullet-group + .d-bullet-group { margin-top: 12px; }
 .d-bullet-group h4 { margin: 2px 0 6px; font-size: 12px; color: var(--ms-muted); text-transform: uppercase; letter-spacing: .05em; }
+/* BP-14: "Required" and "Nice to have" under "What they look for". */
+.d-bullet-group h5 { margin: 10px 0 4px; font-size: 13px; font-weight: 650; }
+.d-bullet-group h4 + h5 { margin-top: 0; }
 .listing-lines { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; }
 .listing-lines li::marker { color: var(--ms-faint); }
 .comps-note { margin: 0 0 8px; font-size: 12.5px; }
