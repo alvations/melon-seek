@@ -3988,7 +3988,7 @@ Each dataset is listed under every surface that shows it or computes from it.
 - **Values:** job.juice { best { net, score, grade, confidence, ... }, byLocation, salaryUSD, household }; 2026-10-02: 4,034 of 4,551 salaried postings scored (median score 67; Anthropic 87, Palantir 38); coverage 69% (xAI) to 98% (Scale AI)
 - **As of:** 2026-10-02 · last checked 2026-10-10
 - **Source:** [derived: vetted pay x data/cities.json (rents, cost index, …](https://alvations.github.io/melon-seek/api/cities.json) (derived)
-- **Defined in:** `server/juice.js:1487 attachJuice`, `server/juice.js:1578 attachJuiceAll`, `server/juice.js:1220 computeJuice`, `data/cities.json (registry cities-dataset)`
+- **Defined in:** `server/juice.js:1487 attachJuice`, `server/juice.js:1581 attachJuiceAll`, `server/juice.js:1220 computeJuice`, `data/cities.json (registry cities-dataset)`
 - **Used in:** `public/api.js:697` (API); `public/app.js:2125` (drawer Juice block); `public/app.js:364` (badge); `public/app.js:1345` (badge); `public/viz/map.js` (map)
 - **Validator:** scripts/refresh/jobs.js job-juice; test/juice.test.js; test/juice-household.test.js
 - **Before:** computed per page load; no coverage check
