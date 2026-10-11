@@ -1,0 +1,28 @@
+{
+ "dataset": "tax-br",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "Receita Federal 2026 monthly IRPF table 0%-27.5%, R$189.59 per dependent; INSS 2026 7.5%-14% to R$8,475.55; x12 (13th salary not modeled)",
+  "url": "https://www.gov.br/receitafederal/pt-br/assuntos/meu-imposto-de-renda/tabelas/2026",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Receita Federal 2026 monthly IRPF table 0%-27.5%, R$189.59 per dependent; INSS 2026 7.5%-14% to R$8,475.55; x12 (13th salary not modeled)",
+   "url": "https://www.gov.br/receitafederal/pt-br/assuntos/meu-imposto-de-renda/tabelas/2026",
+   "checkedVia": [
+    "https://www.gov.br/inss/pt-br/direitos-e-deveres/inscricao-e-contribuicao/tabela-de-contribuicao-mensal"
+   ],
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": true,
+   "approximate": true
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "joint",
+   "note": "Brazil: spouse and children as dependants."
+  }
+ }
+}

@@ -1,0 +1,33 @@
+{
+ "dataset": "tax-jp",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "NTA 2026: income tax 5%-45% x 1.021, employment income deduction (min ¥740,000, max ¥1.95M), basic deduction ¥620,000 (tapering above ¥23.5M); resident tax 10% + ¥5,000 (Tokyo, basic deduction ¥430,000); health ~4.96%, pension 9.15% (capped), employment insurance 0.55%",
+  "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/2260.htm",
+  "licence": "National Tax Agency (Japan) public information"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "NTA 2026: income tax 5%-45% x 1.021, employment income deduction (min ¥740,000, max ¥1.95M), basic deduction ¥620,000 (tapering above ¥23.5M); resident tax 10% + ¥5,000 (Tokyo, basic deduction ¥430,000); health ~4.96%, pension 9.15% (capped), employment insurance 0.55%",
+   "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/2260.htm",
+   "checkedVia": [
+    "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1410.htm",
+    "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1199.htm",
+    "https://www.tax.metro.tokyo.lg.jp/kazei/life/kojin_ju"
+   ],
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "approximate": true,
+   "unverified": [
+    "social insurance rates and caps"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "individual",
+   "note": "Japan taxes each person separately; the spouse deduction ends at ¥10M of earnings and children under 16 have no deduction."
+  }
+ }
+}

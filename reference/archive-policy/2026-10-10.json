@@ -1,0 +1,27 @@
+{
+ "dataset": "archive-policy",
+ "asOf": "2026-10-10",
+ "taxYear": null,
+ "source": {
+  "name": "melon-seek (our own choice)",
+  "url": "https://github.com/alvations/melon-seek",
+  "licence": "no licence file; owner decision pending (the repo has no LICENSE and package.json no \"license\" field, so the code and our own data are all rights reserved by default)"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "scripts/archive/jobs.js#UNSEEN_CLOSE_DAYS": 30,
+  "scripts/archive/jobs.js#SUSPECT_DROP_SHARE": 0.5,
+  "scripts/archive/jobs.js#SUSPECT_DROP_MIN_OPEN": 40,
+  "scripts/archive/jobs.js#CELL_COLUMNS": [
+   "family",
+   "level",
+   "n",
+   "p10",
+   "p25",
+   "p50",
+   "p75",
+   "p90"
+  ],
+  "report.MIN_N": 3
+ }
+}

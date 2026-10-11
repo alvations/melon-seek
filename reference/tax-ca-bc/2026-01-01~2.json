@@ -1,0 +1,26 @@
+{
+ "dataset": "tax-ca-bc",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "British Columbia 2026: 5.60/7.70/10.50/12.29/14.70/16.80/20.50% ($50,363 / $100,728 / $115,648 / $140,430 / $190,405 / $265,545; lowest rate raised by Budget 2026), basic personal amount $13,216",
+  "url": "https://www2.gov.bc.ca/gov/content/taxes/income-taxes/personal/tax-rates",
+  "licence": "Province of British Columbia (Crown copyright)"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "British Columbia 2026: 5.60/7.70/10.50/12.29/14.70/16.80/20.50% ($50,363 / $100,728 / $115,648 / $140,430 / $190,405 / $265,545; lowest rate raised by Budget 2026), basic personal amount $13,216",
+   "url": "https://www2.gov.bc.ca/gov/content/taxes/income-taxes/personal/tax-rates",
+   "checkedVia": [
+    "https://www2.gov.bc.ca/gov/content/taxes/income-taxes/personal/credits/basic"
+   ],
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": true
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "individual"
+  }
+ }
+}

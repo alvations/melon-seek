@@ -1,0 +1,26 @@
+{
+ "dataset": "tax-us-nc",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "North Carolina 3.99% (2026), standard deduction $12,750 / $25,500, child deduction table (D-401)",
+  "url": "https://www.ncdor.gov/taxes-forms/individual-income-tax",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "North Carolina 3.99% (2026), standard deduction $12,750 / $25,500, child deduction table (D-401)",
+   "url": "https://www.ncdor.gov/taxes-forms/individual-income-tax",
+   "checkedVia": [
+    "https://www.ncdor.gov/2025-d-401-individual-income-tax-instructions/open"
+   ],
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": true
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "joint"
+  }
+ }
+}

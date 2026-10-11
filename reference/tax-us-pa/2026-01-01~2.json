@@ -1,0 +1,26 @@
+{
+ "dataset": "tax-us-pa",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "Pennsylvania 3.07% of compensation; unemployment compensation employee withholding 0.07%",
+  "url": "https://www.pa.gov/agencies/revenue/resources/tax-types-and-information/personal-income-tax",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Pennsylvania 3.07% of compensation; unemployment compensation employee withholding 0.07%",
+   "url": "https://www.pa.gov/agencies/revenue/resources/tax-types-and-information/personal-income-tax",
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "unverified": [
+    "UC employee rate 0.07%"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "neutral"
+  }
+ }
+}

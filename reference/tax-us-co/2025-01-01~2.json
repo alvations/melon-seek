@@ -1,0 +1,31 @@
+{
+ "dataset": "tax-us-co",
+ "asOf": "2025-01-01",
+ "taxYear": "2025 (rate) / 2026 (addback)",
+ "source": {
+  "name": "Colorado 4.4% of federal taxable income (2025 rate); state income tax addback (an itemizer keeps the standard deduction); deduction capped at $1,000 / $2,000 above $300,000 AGI from 2026",
+  "url": "https://tax.colorado.gov/individual-income-tax-guide",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Colorado 4.4% of federal taxable income (2025 rate); state income tax addback (an itemizer keeps the standard deduction); deduction capped at $1,000 / $2,000 above $300,000 AGI from 2026",
+   "url": "https://tax.colorado.gov/individual-income-tax-guide",
+   "checkedVia": [
+    "https://tax.colorado.gov/sites/tax/files/documents/ITT_State_Income_Tax_Addback_Nov_2025.pdf",
+    "https://tax.colorado.gov/sites/tax/files/documents/DR0104_2025.pdf"
+   ],
+   "asOf": "2025 (rate) / 2026 (addback)",
+   "reviewed": "2026-10-10",
+   "verified": true,
+   "notModeled": [
+    "FAMLI paid-leave premium (0.45% employee, page blocked)",
+    "Denver occupational privilege tax"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "joint"
+  }
+ }
+}

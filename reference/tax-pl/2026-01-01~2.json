@@ -1,0 +1,30 @@
+{
+ "dataset": "tax-pl",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "PIT 12%/32% (PLN 120,000), PLN 3,600 tax-reducing amount, PLN 3,000 costs; ZUS 11.26% to 30x cap + sickness 2.45%; health 9%",
+  "url": "https://www.podatki.gov.pl/",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "PIT 12%/32% (PLN 120,000), PLN 3,600 tax-reducing amount, PLN 3,000 costs; ZUS 11.26% to 30x cap + sickness 2.45%; health 9%",
+   "url": "https://www.podatki.gov.pl/",
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "unverified": [
+    "all values"
+   ],
+   "notModeled": [
+    "solidarity levy 4% on income over PLN 1M"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "single",
+   "note": "Poland: joint filing with a spouse and the child relief not modeled."
+  }
+ }
+}

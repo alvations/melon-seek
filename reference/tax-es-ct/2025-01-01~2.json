@@ -1,0 +1,26 @@
+{
+ "dataset": "tax-es-ct",
+ "asOf": "2025-01-01",
+ "taxYear": "2025",
+ "source": {
+  "name": "Catalonia regional scale 9.5%-25.5% (to €12,500 / 22,000 / 33,000 / 53,000 / 90,000 / 120,000 / 175,000)",
+  "url": "https://www.hacienda.gob.es/sgfal/financiacionterritorial/autonomica/capitulo-ii-tributacion-autonomica-2025.pdf",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Catalonia regional scale 9.5%-25.5% (to €12,500 / 22,000 / 33,000 / 53,000 / 90,000 / 120,000 / 175,000)",
+   "url": "https://www.hacienda.gob.es/sgfal/financiacionterritorial/autonomica/capitulo-ii-tributacion-autonomica-2025.pdf",
+   "asOf": "2025",
+   "reviewed": "2026-10-10",
+   "verified": true,
+   "notModeled": [
+    "Catalonia's own personal minimum"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "single"
+  }
+ }
+}

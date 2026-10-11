@@ -1,0 +1,30 @@
+{
+ "dataset": "tax-us-oh",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "Ohio ORC 5747.02(A)(3)(c): $332 + 2.75% over $26,050 (2026 on); ORC 5747.025 personal exemptions, none from $500,000 MAGI in 2026",
+  "url": "https://codes.ohio.gov/ohio-revised-code/section-5747.02",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Ohio ORC 5747.02(A)(3)(c): $332 + 2.75% over $26,050 (2026 on); ORC 5747.025 personal exemptions, none from $500,000 MAGI in 2026",
+   "url": "https://codes.ohio.gov/ohio-revised-code/section-5747.02",
+   "checkedVia": [
+    "https://codes.ohio.gov/ohio-revised-code/section-5747.025",
+    "https://tax.ohio.gov/static/forms/ohio_individual/individual/2025/it1040-booklet.pdf"
+   ],
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "unverified": [
+    "2026 indexed exemption amounts (2025 values $2,400 / $2,150 / $1,900 used)"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "joint"
+  }
+ }
+}

@@ -1,0 +1,23 @@
+{
+ "dataset": "tax-gb-sct",
+ "asOf": "2026-04-06",
+ "taxYear": "2026/27",
+ "source": {
+  "name": "Scottish income tax 2026/27: 19% / 20% / 21% / 42% / 45% / 48% (bands to £16,537 / £29,526 / £43,662 / £75,000 / £125,140)",
+  "url": "https://www.gov.uk/scottish-income-tax",
+  "licence": "Crown copyright, Open Government Licence v3.0"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Scottish income tax 2026/27: 19% / 20% / 21% / 42% / 45% / 48% (bands to £16,537 / £29,526 / £43,662 / £75,000 / £125,140)",
+   "url": "https://www.gov.uk/scottish-income-tax",
+   "asOf": "2026/27",
+   "reviewed": "2026-10-10",
+   "verified": true
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "individual"
+  }
+ }
+}

@@ -1,0 +1,19 @@
+{
+ "dataset": "salary-parser-bounds",
+ "asOf": "2026-10-02",
+ "taxYear": null,
+ "source": {
+  "name": "melon-seek (our own choice)",
+  "url": "https://github.com/alvations/melon-seek",
+  "licence": "no licence file; owner decision pending (the repo has no LICENSE and package.json no \"license\" field, so the code and our own data are all rights reserved by default)"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "server/salary.js#MIN_ANNUAL": 10000,
+  "server/salary.js#MAX_ANNUAL": 1200000,
+  "server/salary.js#HARD_MAX_ANNUAL": 5000000,
+  "server/salary.js#PLAUSIBLE_ANNUAL_MIN": 15000,
+  "server/salary.js#TIER_GAP": 130,
+  "server/salary.js#TIER_MAX_RATIO": 3
+ }
+}

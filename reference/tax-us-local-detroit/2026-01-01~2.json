@@ -1,0 +1,29 @@
+{
+ "dataset": "tax-us-local-detroit",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "Detroit resident city income tax 2.4%, $600 exemption per person",
+  "url": "https://detroitmi.gov/departments/office-chief-financial-officer/ocfo-divisions/office-treasury/income-tax",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Detroit resident city income tax 2.4%, $600 exemption per person",
+   "url": "https://detroitmi.gov/departments/office-chief-financial-officer/ocfo-divisions/office-treasury/income-tax",
+   "checkedVia": [
+    "https://finance.umich.edu/sites/default/files/2026-01/2026%20Figuring%20Your%20Taxes.pdf"
+   ],
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "unverified": [
+    "rate and exemption from a university payroll guide (detroitmi.gov blocked)"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "joint"
+  }
+ }
+}

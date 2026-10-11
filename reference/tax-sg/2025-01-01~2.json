@@ -1,0 +1,27 @@
+{
+ "dataset": "tax-sg",
+ "asOf": "2025-01-01",
+ "taxYear": "YA2026",
+ "source": {
+  "name": "IRAS resident rates YA2024 onward 0%-24%, earned income relief S$1,000 (below 55); CPF not applied (Employment Pass holders do not contribute)",
+  "url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/individual-income-tax-rates",
+  "licence": "IRAS (Singapore Government) public information"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "IRAS resident rates YA2024 onward 0%-24%, earned income relief S$1,000 (below 55); CPF not applied (Employment Pass holders do not contribute)",
+   "url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/individual-income-tax-rates",
+   "checkedVia": [
+    "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-reliefs-rebates-and-deductions/tax-reliefs/earned-income-relief"
+   ],
+   "asOf": "YA2026",
+   "reviewed": "2026-10-10",
+   "verified": true
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "individual",
+   "note": "Singapore: spouse and qualifying-child reliefs not modeled."
+  }
+ }
+}

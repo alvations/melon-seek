@@ -1,0 +1,29 @@
+{
+ "dataset": "tax-ch-zh",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "Canton of Zurich 2026 (Kantonsblatt ZH): Grundtarif / Verheiratetentarif 0%-13%, insurance deduction CHF 2,900 / 5,800 + 1,300 per child, child deduction CHF 9,400; cantonal Steuerfuss 95% (Kantonsrat, 15 Dec 2025) + City of Zurich 119%",
+  "url": "https://www.estv2.admin.ch/stp/kb/zh-de.pdf",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Canton of Zurich 2026 (Kantonsblatt ZH): Grundtarif / Verheiratetentarif 0%-13%, insurance deduction CHF 2,900 / 5,800 + 1,300 per child, child deduction CHF 9,400; cantonal Steuerfuss 95% (Kantonsrat, 15 Dec 2025) + City of Zurich 119%",
+   "url": "https://www.estv2.admin.ch/stp/kb/zh-de.pdf",
+   "checkedVia": [
+    "https://www.notes.zh.ch/appl/zhlex_r.nsf/WebView/BA3B8CC78A88D4DEC1258D88003B2E23/$File/631.21_15.12.25_132.pdf"
+   ],
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "unverified": [
+    "City of Zurich Steuerfuss 119% (city pages not reachable)"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "joint"
+  }
+ }
+}

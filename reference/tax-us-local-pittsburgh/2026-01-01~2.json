@@ -1,0 +1,23 @@
+{
+ "dataset": "tax-us-local-pittsburgh",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "Pittsburgh earned income tax 3% (city 1% + school district 2%) and $52 Local Services Tax",
+  "url": "https://www.pittsburghpa.gov/finance/tax-descriptions",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Pittsburgh earned income tax 3% (city 1% + school district 2%) and $52 Local Services Tax",
+   "url": "https://www.pittsburghpa.gov/finance/tax-descriptions",
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": true
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "neutral"
+  }
+ }
+}

@@ -1,0 +1,26 @@
+{
+ "dataset": "tax-us-ut",
+ "asOf": "2025-01-01",
+ "taxYear": "2025",
+ "source": {
+  "name": "Utah TC-40 (2025): 4.5% less the taxpayer tax credit (6% of the federal standard deduction + $2,111 per dependent, cut 1.3% over $18,213 / $36,426)",
+  "url": "https://tax.utah.gov/forms/current/tc-40inst.pdf",
+  "licence": "State of Utah public information"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Utah TC-40 (2025): 4.5% less the taxpayer tax credit (6% of the federal standard deduction + $2,111 per dependent, cut 1.3% over $18,213 / $36,426)",
+   "url": "https://tax.utah.gov/forms/current/tc-40inst.pdf",
+   "asOf": "2025",
+   "reviewed": "2026-10-10",
+   "verified": true,
+   "notModeled": [
+    "any 2026 rate change"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "joint"
+  }
+ }
+}

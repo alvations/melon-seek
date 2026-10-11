@@ -1,0 +1,23 @@
+{
+ "dataset": "tax-ca-on",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "Ontario 2026 (T4127 Table 8.1): 5.05/9.15/11.16/12.16/13.16% ($53,891 / $107,785 / $150,000 / $220,000), basic personal amount $12,989, surtax 20% over $5,818 + 36% over $7,446, Ontario Health Premium",
+  "url": "https://www.canada.ca/en/revenue-agency/services/forms-publications/payroll/t4127-payroll-deductions-formulas/t4127-jan/t4127-jan-payroll-deductions-formulas-computer-programs.html",
+  "licence": "Government of Canada (Crown copyright; reproduction for non-commercial use permitted)"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Ontario 2026 (T4127 Table 8.1): 5.05/9.15/11.16/12.16/13.16% ($53,891 / $107,785 / $150,000 / $220,000), basic personal amount $12,989, surtax 20% over $5,818 + 36% over $7,446, Ontario Health Premium",
+   "url": "https://www.canada.ca/en/revenue-agency/services/forms-publications/payroll/t4127-payroll-deductions-formulas/t4127-jan/t4127-jan-payroll-deductions-formulas-computer-programs.html",
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": true
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "individual"
+  }
+ }
+}

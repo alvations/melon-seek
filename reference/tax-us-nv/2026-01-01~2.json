@@ -1,0 +1,23 @@
+{
+ "dataset": "tax-us-nv",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "No state income tax on wages (Nevada Constitution art. 10 §1(9))",
+  "url": "https://www.leg.state.nv.us/const/nvconst.html",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "No state income tax on wages (Nevada Constitution art. 10 §1(9))",
+   "url": "https://www.leg.state.nv.us/const/nvconst.html",
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": true
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "neutral"
+  }
+ }
+}

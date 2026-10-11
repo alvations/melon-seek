@@ -1,0 +1,28 @@
+{
+ "dataset": "tax-au",
+ "asOf": "2026-07-01",
+ "taxYear": "2026-27",
+ "source": {
+  "name": "Resident rates 2026-27: 0/15/30/37/45% ($18,200 / $45,000 / $135,000 / $190,000), LITO, Medicare levy 2%. Super is employer-paid on top, excluded",
+  "url": "https://treasury.gov.au/tax-cuts",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Resident rates 2026-27: 0/15/30/37/45% ($18,200 / $45,000 / $135,000 / $190,000), LITO, Medicare levy 2%. Super is employer-paid on top, excluded",
+   "url": "https://treasury.gov.au/tax-cuts",
+   "asOf": "2026-27",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "unverified": [
+    "15% rate from 1 July 2026",
+    "LITO and Medicare levy (ATO blocks the probe)"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "individual",
+   "note": "Australia taxes each person separately."
+  }
+ }
+}

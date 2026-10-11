@@ -1,0 +1,229 @@
+{
+ "dataset": "role-families",
+ "asOf": "2026-10-02",
+ "taxYear": null,
+ "source": {
+  "name": "melon-seek (our own choice)",
+  "url": "https://github.com/alvations/melon-seek",
+  "licence": "no licence file; owner decision pending (the repo has no LICENSE and package.json no \"license\" field, so the code and our own data are all rights reserved by default)"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "public/features/roles.js#FAMILY_LABELS": {
+   "swe": "Software engineering",
+   "ml": "AI research & ML engineering",
+   "data": "Data science & analytics",
+   "security": "Security",
+   "eng-manager": "Engineering management",
+   "hardware": "Hardware & systems engineering",
+   "chip": "Chip design & silicon engineering",
+   "manufacturing": "Manufacturing, production & technicians",
+   "supply-chain": "Supply chain & procurement",
+   "facilities": "Facilities, construction & data centers",
+   "dc-tech": "Data center technicians",
+   "field-ops": "Field operations & test",
+   "product": "Product management",
+   "design": "Design",
+   "program": "Program & project management",
+   "bizops": "Business operations & strategy",
+   "solutions": "Solutions & forward-deployed engineering",
+   "sales": "Sales & partnerships",
+   "support": "Customer support & success",
+   "marketing": "Marketing, comms & content",
+   "legal": "Legal & contracts",
+   "policy": "Policy & government affairs",
+   "trust-safety": "Trust & safety",
+   "people": "People & recruiting",
+   "finance": "Finance & accounting",
+   "it": "IT & enterprise systems",
+   "admin": "Executive & administrative support",
+   "ai-training": "AI tutors & expert contributors"
+  },
+  "public/features/roles.js#FAMILIES": [
+   [
+    "ai-training",
+    "/\\b(ai tutor|tutor|subject matter expert|human frontier collective|annotat\\w+|data labeler|rater)\\b/"
+   ],
+   [
+    "eng-manager",
+    "/\\b(engineer(ing)? manager|manager (of )?(software )?engineer(ing)?|(director|head|vp) (of )?(software )?engineer(ing)?|tech(nical)? lead manager|manager (\\w+ ){0,3}engineering)\\b/"
+   ],
+   [
+    "product",
+    "/\\b(product (manager|management|lead|owner|director)|(head|director|vp) (of )?product\\b|assistant product owner)/"
+   ],
+   [
+    "people",
+    "/\\b(recruit\\w*|talent|people|human resources|sourcer|compensation|benefits|payroll partner|learning and development|hr business partner|hr)\\b/"
+   ],
+   [
+    "admin",
+    "/\\b(executive assistant|administrative|office manager|receptionist|executive business partner|executive operations|front desk)\\b/"
+   ],
+   [
+    "finance",
+    "/\\b(financ\\w*\\b(?! (services|systems))|accountant|accounting|accounts (payable|receivable)|tax|treasury|(?<!(flight|memory|cache|display|dma|interrupt|motor|storage|ddr|dram|pcie|usb|management|embedded|io) )controller|payroll|fpanda|audit\\w*|billing|order to cash|revenue manager|investor relations|pricing)\\b/"
+   ],
+   [
+    "support",
+    "/\\b(support|customer success|customer (experience|service|learning|education)|technical account manager|user operations|technical (training|education|instructor))\\b/"
+   ],
+   [
+    "solutions",
+    "/\\b(solutions? (architect\\w*|engineer\\w*|consultant|lead|specialist|principal)|sales engineer|forward deployed|deployment (strategist|lead)|ai deployment specialist|(?<!(cloud|itav|it) )deployment engineer|applied ai (engineer\\w*|architect)|customer engineer|field (application|solutions) engineer|(?<!(fe|frontend|physical|soc|rtl|design) )implementation (engineer|manager|consultant|lead)|technical success|ai advisory|engagement manager|delivery (lead|manager)|(field|executive|enterprise|principal|customer) architect|field engineer|technical deployment)\\b/"
+   ],
+   [
+    "supply-chain",
+    "/\\b(supply (chain|planner|planning)|demand (and supply|planner|planning)|sourcing|procurement|buyer|purchasing|materials? (planner|associate|handler|manager|management|coordinator|specialist)|capacity (planner|planning)|logistics|warehous\\w*|inventory|shipping|receiving|sales and operations planning|master scheduler|subcontracts?|supplier (development|management)|vendor manager|commodity|expediter|cost value engineer)\\b/"
+   ],
+   [
+    "legal",
+    "/\\b(counsel|legal|attorney|lawyer|paralegal|compliance|regulatory|export control|trade control|patent|contracts? (manager|administrator|specialist|lead|director|negotiator|management|operations))\\b/"
+   ],
+   [
+    "trust-safety",
+    "/\\b(trust and safety|safeguards?|enforcement|(?<!(signal|power|software) )integrity|content moderation|moderator|user safety|abuse|harms?|safety operations|child safety|fraud|anti money laundering|aml|bsa|investigator)\\b/"
+   ],
+   [
+    "policy",
+    "/\\b(public policy|policy|global affairs|external affairs|government (affairs|relations)|economic development|public affairs)\\b/"
+   ],
+   [
+    "security",
+    "/\\b(security|offensive|red team|threat|detection and response|customer trust|insider risk|nnpi|information assurance|cyber)\\b/"
+   ],
+   [
+    "facilities",
+    "/\\b(facilit\\w*|construction|electrician|hvac|plumb\\w*|iron worker|carpenter|millwright|data ?center|real estate|workplace|environmental,? health|health and safety|environmental safety|janitor\\w*|custodian|cook|chef|culinary|food|land develop\\w*|site (acquisition|selection|operations)|fiber|industrial compute|development planner|barista|commissioning)\\b/"
+   ],
+   [
+    "design",
+    "/\\b((?<!(structural|mechanical|electrical|pcb|hardware|rf|cad|layout|circuit|ic|asic|analog|digital|logic|rtl|mask|chip|silicon|soc|board) )designer|(?<!(physical|chip|asic|soc|rtl|logic|circuit|ic|silicon|analog|digital|integration|cpu|gpu|board|mask|layout|co) )design (lead|manager|director)|(head|director|vp) (of )?design\\b(?! (verification|engineer\\w*))|ux|ui|user experience|user research\\w*|creative director)\\b/"
+   ],
+   [
+    "marketing",
+    "/\\b(marketing|communications|comms|content|brand|community|events|public relations|writer|editor|documentation|producer|social media|growth (marketing|lead|manager)|lifecycle|campaigns?|copywriter)\\b/"
+   ],
+   [
+    "sales",
+    "/\\b(account (executive|manager|director|associate|lead|strategist)|sales|business development|capture|partnerships?|partner (manager|director|lead|enablement|development|success)|partner\\b|channel|alliances?|reseller|renewals|go to market|deal team|district manager|agency development|strategic pursuits|commercial lead|proposals?|developer relations|(sales|revenue|partner|reseller|go to market|business development representative|leader|customer) enablement)\\b/"
+   ],
+   [
+    "data",
+    "/\\b(data (scientist|science|engineer\\w*|analyst|analytics|governance|platform|strategy)|analytics|business intelligence|enterprise data|data (acquisition|strategist|operations)|economists?|econometric\\w*)\\b/"
+   ],
+   [
+    "it",
+    "/\\b(it|information technology|help ?desk|service desk|systems? administrator|sysadmin|enterprise (applications|systems)|business systems|corporate network|endpoint|netsuite|workday|asset management|audio visual|network operations|financ\\w* systems)\\b/"
+   ],
+   [
+    "manufacturing",
+    "/\\b(technician|assembler|assembly|machinist|cnc|fabricat\\w*|welder|welding|inspector|inspection|production (associate|coordinator|supervisor|manager|lead|operator|planner|control|technician|worker|operations)|((vp|head|director|deputy head|manager) (of )?production)|manufacturing (associate|technician|operator|supervisor|lead|manager|specialist)|factory|maintenance (lead|technician|supervisor|manager)|quality\\b(?! (assurance )?engineer)|metrology|machine operator|sheet metal|wire harness|solder\\w*|line lead|shift lead)\\b/"
+   ],
+   [
+    "field-ops",
+    "/\\b((air vehicle|vehicle|uas|uav|drone|flight( test)?|test|range|mission|sensor|payload|radar|robot) operator|mission operations|field (service|services|operations|support)|deployments? and training|international deployment|mission readiness|training (lead|coordinator|specialist|instructor)|instructor|trainer|range (safety|operations)|sustainment\\b(?! engineer))/"
+   ],
+   [
+    "program",
+    "/\\b(program (manager|management|director|lead|assistant|coordinator|analyst|specialist)|programs\\b|project (manager|management|coordinator|lead)|technical program|pmo|configuration (manager|management|analyst)|change control|mission (manager|director)|product operations)\\b/"
+   ],
+   [
+    "bizops",
+    "/\\b(business (operations|affairs)|strategy|strategic (operations|initiatives|execution|planning|projects)|chief of staff|corporate development|mergers and acquisitions|operations (analyst|manager|lead|associate|specialist|director)|revenue operations|deal operations|transformation|operations\\b(?! (engineer|analysis)))/"
+   ],
+   [
+    "chip",
+    "/^(?!.*\\b(software|firmware|fw|compiler|drivers?)\\b).*\\b(asic|rtl|vlsi|socs?|dft|dfx|atpg|sta|static timing|timing (analysis|closure|signoff|design|engineer\\w*)|physical (design|synthesis|verification)|logic synthesis|place and route|pnr|formal verification|design verification(?! test)|dv (engineer|lead)|(cpu|gpu|npu|tpu|soc|ip|asic|chip|full chip|fc|block|unit|subsystem|graphics|pcie|ddr|usb|serdes|ams|mixed signal|analog|digital|memory|cache) (design )?verification|chips?|chipsets?|full chip|silicon|(pre|post) (silicon|si)|(?<!printed )circuits?|mixed signal|ams|(ic|analog|digital|rfic|custom|memory|mask|cell|chip|full custom) layout|mask design|standard cell|cell (library|modeling|characterization)|serdes|sram|logic design|rtl design|micro ?architect\\w*|(cpu|gpu|npu|tpu|soc|asic) (architect\\w*|design\\w*|core|rtl|physical|logic|integration)|ic (design\\w*|layout|packaging|verification|engineer\\w*)|rfic|photonics? ic|interposer|(fe|frontend) implementation|package design|eda|tape ?out|upf|signoff|clock (tree|distribution)|semiconductors?)\\b/"
+   ],
+   [
+    "ml",
+    "/\\b(machinelearning|research (engineer|scientist)|scientist|research\\w*|ai|deep learning|nlp|computer vision|perception|interpretability|alignment|pretraining|post training|reinforcement learning|llm|multimodal)\\b/"
+   ],
+   [
+    "swe",
+    "/\\b(software|distributed systems)\\b/"
+   ],
+   [
+    "hardware",
+    "/\\b(electrical|mechanical|electromechanical|hardware|firmware|embedded|fpga|asic|silicon|pcba?|rf|antenna|avionics|aero\\w*|propulsion|structures?|structural|thermal|mechanisms?|fluid systems|landing gear|flight (controls?|controllers?|sciences|test)|guidance navigation and control|controls engineer|scada|power (electronics|systems)|battery|energy storage|actuators?|optic\\w*|sensors?|payloads?|weapons|munitions|energetics|rocket|space systems|satellite|systems (engineer|engineering|architect|integration)|mission (systems|engineer)|seit|integration and test|test (and evaluation|engineer|operations|conductor|infrastructure|instrumentation)|reliability (engineer|test)|hardware test|dev(elopment)? test|hil|human factors|emc|emi|new product introduction|quality engineer|manufacturing (engineer\\w*|process|test)|materials engineer|chief engineer|sustainment engineer|cad|drafter|modell?ing and simulation|simulation (engineer|analyst)|operations analysis|robotics hardware|air vehicles?|(signal|power) integrity|board (design|product|bring up|level|layout|engineer\\w*))\\b/"
+   ],
+   [
+    "swe",
+    "/\\b(software|sitereliability|devops|infrastructure|platform|backend|frontend|fullstack|mobile|ios|android|web|cloud|distributed systems|compiler|kernel|product engineer|test automation|sdet|network engineer|performance (engineer|modeling)|inference engineer|security engineer|autonomy)\\b/"
+   ]
+  ],
+  "public/features/compstimate.js#FAMILY_TITLES": {
+   "swe": "Software Engineer",
+   "ml": "Research Engineer",
+   "data": "Data Scientist",
+   "security": "Security Engineer",
+   "eng-manager": "Engineering Manager",
+   "hardware": "Hardware Engineer",
+   "manufacturing": "Manufacturing Technician",
+   "supply-chain": "Supply Chain Manager",
+   "facilities": "Facilities Manager",
+   "field-ops": "Field Operations",
+   "product": "Product Manager",
+   "design": "Product Designer",
+   "program": "Technical Program Manager",
+   "bizops": "Business Operations",
+   "solutions": "Solutions Architect",
+   "sales": "Account Executive",
+   "support": "Customer Success Manager",
+   "marketing": "Marketing Manager",
+   "legal": "Counsel",
+   "policy": "Policy Manager",
+   "trust-safety": "Trust and Safety Analyst",
+   "people": "Recruiter",
+   "finance": "Finance Manager",
+   "it": "IT Systems Engineer",
+   "admin": "Executive Assistant",
+   "ai-training": "AI Tutor",
+   "chip": "Design Verification Engineer",
+   "dc-tech": "Data Center Technician"
+  },
+  "vet.FAMILIES": [
+   [
+    "intern",
+    "/\\b(intern(ship)?|co-?op|fellow(ship)?|resident|residency|apprentice)\\b/i"
+   ],
+   [
+    "hourly-ops",
+    "/\\b(technician|operator|assembler|associate, (warehouse|supply|shipping|materials)|warehouse|forklift|machinist|welder|barista|cook|porter|custodian|janitor|food|driver|security officer|receiving)\\b/i"
+   ],
+   [
+    "annotation",
+    "/\\b(annotat\\w*|tutor|labeler|rater|data specialist)\\b/i"
+   ],
+   [
+    "executive",
+    "/\\b(director|vp|vice president|head of|chief|president)\\b/i"
+   ],
+   [
+    "manager",
+    "/\\bmanager\\b/i"
+   ],
+   [
+    "research",
+    "/\\b(research(er)?|scientist)\\b/i"
+   ],
+   [
+    "engineering",
+    "/\\b(engineer(ing)?|developer|architect|sre|devops|programmer|member of technical staff|mts)\\b/i"
+   ],
+   [
+    "sales",
+    "/\\b(account|sales|business development|bdr|sdr|solutions|customer success|partner)\\b/i"
+   ],
+   [
+    "recruiting",
+    "/\\b(recruit\\w*|sourc\\w*|talent|people|hr|human resources)\\b/i"
+   ],
+   [
+    "ops",
+    "/\\b(operations|program|project|coordinator|specialist|analyst|strategist)\\b/i"
+   ]
+  ]
+ }
+}

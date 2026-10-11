@@ -1,0 +1,27 @@
+{
+ "dataset": "tax-nz",
+ "asOf": "2026-04-01",
+ "taxYear": "2026/27",
+ "source": {
+  "name": "IRD rates from 1 Apr 2025: 10.5/17.5/30/33/39% ($15,600 / $53,500 / $78,100 / $180,000); ACC earners levy 1.67% (capped)",
+  "url": "https://www.ird.govt.nz/income-tax/income-tax-for-individuals/tax-codes-and-tax-rates-for-individuals/tax-rates-for-individuals",
+  "licence": "Inland Revenue (NZ) public information (licence not reviewed)"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "IRD rates from 1 Apr 2025: 10.5/17.5/30/33/39% ($15,600 / $53,500 / $78,100 / $180,000); ACC earners levy 1.67% (capped)",
+   "url": "https://www.ird.govt.nz/income-tax/income-tax-for-individuals/tax-codes-and-tax-rates-for-individuals/tax-rates-for-individuals",
+   "asOf": "2026/27",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "unverified": [
+    "ACC earners levy 1.67% to $152,790 (2025/26 values)"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "individual",
+   "note": "New Zealand taxes each person separately."
+  }
+ }
+}

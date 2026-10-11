@@ -1,0 +1,23 @@
+{
+ "dataset": "tax-sa",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "No personal income tax on employment income; GOSI annuities apply to Saudi nationals only",
+  "url": "https://zatca.gov.sa/",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "No personal income tax on employment income; GOSI annuities apply to Saudi nationals only",
+   "url": "https://zatca.gov.sa/",
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": false
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "neutral"
+  }
+ }
+}

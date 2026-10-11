@@ -1,0 +1,36 @@
+{
+ "dataset": "tax-us",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "IRS Rev. Proc. 2025-32 (2026 brackets, standard deduction $16,100 / $32,200, child tax credit $2,200); IRC §164(b)(7) SALT cap $40,400 phased down over $505,000 MAGI (floor $10,000); Pub. 15 (2026) Social Security 6.2% to $184,500, Medicare 1.45% + 0.9% over $200,000 / $250,000",
+  "url": "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+  "licence": "US federal government work (public domain)"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "IRS Rev. Proc. 2025-32 (2026 brackets, standard deduction $16,100 / $32,200, child tax credit $2,200); IRC §164(b)(7) SALT cap $40,400 phased down over $505,000 MAGI (floor $10,000); Pub. 15 (2026) Social Security 6.2% to $184,500, Medicare 1.45% + 0.9% over $200,000 / $250,000",
+   "url": "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+   "checkedVia": [
+    "https://www.irs.gov/pub/irs-pdf/p15.pdf",
+    "https://www.irs.gov/taxtopics/tc560",
+    "https://www.law.cornell.edu/uscode/text/26/164",
+    "https://www.irs.gov/pub/irs-pdf/i1040sca.pdf",
+    "https://www.irs.gov/pub/irs-pdf/i1040s8.pdf"
+   ],
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": true,
+   "notModeled": [
+    "refundable part of the child tax credit",
+    "itemized deductions other than state and local income taxes",
+    "alternative minimum tax"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "joint",
+   "note": "Federal: married filing jointly, $2,200 child tax credit per child (refundable part not modeled)."
+  }
+ }
+}

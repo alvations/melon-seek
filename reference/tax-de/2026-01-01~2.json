@@ -1,0 +1,36 @@
+{
+ "dataset": "tax-de",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "§ 32a EStG 2026 tariff (Grundfreibetrag €12,348) with splitting for married couples; Soli 5.5% with Freigrenze €20,350 / €40,700; children: Kinderfreibetrag €6,828 + €2,928 or Kindergeld €259/month; social: pension 9.3% + unemployment 1.3% to €101,400, health 7.3% + 1.45% (half the 2.9% average Zusatzbeitrag) + care 1.8% (+0.6% childless) to €69,750",
+  "url": "https://dejure.org/gesetze/EStG/32a.html",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "§ 32a EStG 2026 tariff (Grundfreibetrag €12,348) with splitting for married couples; Soli 5.5% with Freigrenze €20,350 / €40,700; children: Kinderfreibetrag €6,828 + €2,928 or Kindergeld €259/month; social: pension 9.3% + unemployment 1.3% to €101,400, health 7.3% + 1.45% (half the 2.9% average Zusatzbeitrag) + care 1.8% (+0.6% childless) to €69,750",
+   "url": "https://dejure.org/gesetze/EStG/32a.html",
+   "checkedVia": [
+    "https://dejure.org/gesetze/SolZG/3.html",
+    "https://www.finanzamt.nrw.de/en/node/31",
+    "https://www.bmas.de/DE/Service/Presse/Pressemitteilungen/2025/sozialversicherungsrechengroessen-2026.html",
+    "https://dejure.org/gesetze/SGB_XI/55.html"
+   ],
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "unverified": [
+    "contribution rates 9.3% / 1.3% / 7.3% / care 1.8% (statutory rates not re-read)"
+   ],
+   "notModeled": [
+    "care-insurance reduction of 0.25 points from the second child"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "joint",
+   "note": "Germany: splitting; Kinderfreibetrag or Kindergeld, whichever is worth more, counted net of Kindergeld."
+  }
+ }
+}

@@ -1,0 +1,28 @@
+{
+ "dataset": "tax-kr",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "Income tax 6%-45% + 10% local income tax, employment income deduction, ₩500,000 wage-earner credit (approx); NPS 4.75% (capped), NHI 3.595% + LTC, EI 0.9%",
+  "url": "https://www.nts.go.kr/english/",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Income tax 6%-45% + 10% local income tax, employment income deduction, ₩500,000 wage-earner credit (approx); NPS 4.75% (capped), NHI 3.595% + LTC, EI 0.9%",
+   "url": "https://www.nts.go.kr/english/",
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "approximate": true,
+   "unverified": [
+    "all values"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "individual",
+   "note": "Korea: dependant deductions and the child tax credit not modeled."
+  }
+ }
+}

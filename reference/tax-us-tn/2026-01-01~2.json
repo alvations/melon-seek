@@ -1,0 +1,26 @@
+{
+ "dataset": "tax-us-tn",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "No state income tax on wages (Hall tax repealed from 2021; Tennessee Constitution art. II §28)",
+  "url": "https://www.capitol.tn.gov/about/docs/TN-Constitution.pdf",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "No state income tax on wages (Hall tax repealed from 2021; Tennessee Constitution art. II §28)",
+   "url": "https://www.capitol.tn.gov/about/docs/TN-Constitution.pdf",
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "unverified": [
+    "tn.gov and the constitution PDF were not readable from the probe"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "neutral"
+  }
+ }
+}

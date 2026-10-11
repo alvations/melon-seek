@@ -1,0 +1,32 @@
+{
+ "dataset": "tax-us-mn",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "Minnesota 2026: 5.35%-9.85%, standard deduction $15,300 / $30,600, dependent exemption $5,300; Paid Leave 0.88% (half from the employee)",
+  "url": "https://www.revenue.state.mn.us/mndor-pp/21641",
+  "licence": "State of Minnesota public information"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Minnesota 2026: 5.35%-9.85%, standard deduction $15,300 / $30,600, dependent exemption $5,300; Paid Leave 0.88% (half from the employee)",
+   "url": "https://www.revenue.state.mn.us/mndor-pp/21641",
+   "checkedVia": [
+    "https://paidleave.mn.gov/employers/premiums"
+   ],
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "unverified": [
+    "Paid Leave employee share 0.44%"
+   ],
+   "notModeled": [
+    "standard deduction phase-out at high income"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "joint"
+  }
+ }
+}

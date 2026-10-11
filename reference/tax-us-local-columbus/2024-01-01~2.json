@@ -1,0 +1,23 @@
+{
+ "dataset": "tax-us-local-columbus",
+ "asOf": "2024-01-01",
+ "taxYear": "2024",
+ "source": {
+  "name": "Columbus, OH city income tax 2.5% (IR-25 instructions)",
+  "url": "https://www.columbus.gov/files/sharedassets/city/v/4/city-auditor/tax-forms/individuals/2024-ir-25-instructions.pdf",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Columbus, OH city income tax 2.5% (IR-25 instructions)",
+   "url": "https://www.columbus.gov/files/sharedassets/city/v/4/city-auditor/tax-forms/individuals/2024-ir-25-instructions.pdf",
+   "asOf": "2024",
+   "reviewed": "2026-10-10",
+   "verified": true
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "neutral"
+  }
+ }
+}

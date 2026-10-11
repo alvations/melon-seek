@@ -1,23 +1,23 @@
 {
  "format": "melon-archive",
  "schemaVersion": 1,
- "updatedAt": "2026-10-11T15:04:56.746Z",
- "generator": "scripts/archive@271ab46cfcf0a0ae28836067c1edd4df1f98bb4e",
+ "updatedAt": "2026-10-11T15:08:56.234Z",
+ "generator": "scripts/archive@7990c182072fa602a3025298e937813530897750",
  "tables": {
   "audit/flags": 1282,
-  "audit/refresh": 266,
-  "audit/runs": 126,
+  "audit/refresh": 267,
+  "audit/runs": 127,
   "audit/verdicts": 681,
-  "blobs": 47070,
+  "blobs": 47186,
   "daily": 91,
-  "ingests": 343,
-  "jobs.closed": 49913,
+  "ingests": 348,
+  "jobs.closed": 49930,
   "jobs.open": 24177,
-  "jobs.versions": 74090,
+  "jobs.versions": 74107,
   "ledger/entries": 35858,
-  "observations": 418,
-  "reference.files": 158,
-  "reference/index": 158
+  "observations": 427,
+  "reference.files": 254,
+  "reference/index": 254
  },
  "files": {
   "audit/flags/2026-10.jsonl": {
@@ -28,15 +28,15 @@
   },
   "audit/refresh/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 362970,
-   "sha256": "b526acc5a7a4216b77e8620872f5014520af4ceb5a241a4da46559b8d84098d9",
-   "rows": 266
+   "bytes": 366208,
+   "sha256": "b345aea3ef08e622c629b471db5048aa6842921eb0357e989c1f87b115388c5d",
+   "rows": 267
   },
   "audit/runs/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 1054414,
-   "sha256": "1ec96a1564d2dfd374b1c527bb9d6e1cde9351f888edfffafbd6ab18b01420c8",
-   "rows": 126
+   "bytes": 1062735,
+   "sha256": "34fc44773b62a49625f07d295eca31340ce2135bc5ce17e4c4774d78c190f6cc",
+   "rows": 127
   },
   "audit/verdicts/2026-10.jsonl": {
    "kind": "append",
@@ -95,9 +95,9 @@
   },
   "blobs/2026-10.6.jsonl": {
    "kind": "append",
-   "bytes": 7533813,
-   "sha256": "a4e16c0d75009f6c879285bbcd86aa55edf45f2ab9d573f21460eaba8b4664ec",
-   "rows": 1838
+   "bytes": 8562559,
+   "sha256": "9d04765507ff9929523c2b49302cdea8223dbab7fdec81b0d942365d1142173c",
+   "rows": 1954
   },
   "blobs/2026-10.jsonl": {
    "kind": "append",
@@ -114,48 +114,48 @@
   "history/anduril.json": {
    "kind": "mutable",
    "bytes": 416698,
-   "sha256": "0278239de278e0ea6413b6a348c6204d13b9a8a202a618def24b48e6c61ba24a"
+   "sha256": "2b49a2b3dff1e118d89f7cb95d9f4e56c3f72a836700b7df87062dfb49c9c5ba"
   },
   "history/anthropic.json": {
    "kind": "mutable",
    "bytes": 110581,
-   "sha256": "5139144b9d6f57c11c4f7fe67c42b5a269189b28c9e4c29bc4cc39ac0f13adac"
+   "sha256": "e933a28c5b86c783a02c7550c79d1bc3ecbf9f91bc84e70f9e5a00130a140416"
   },
   "history/cohere.json": {
    "kind": "mutable",
    "bytes": 23152,
-   "sha256": "4e13f079ce11d6ecb97aa34942c3e8dc6b416030c51e223a878620376cb063c6"
+   "sha256": "70eff5b81168a8b65d180b624b247a80a5d653b9fce3f4588df74a667706d655"
   },
   "history/openai.json": {
    "kind": "mutable",
    "bytes": 143873,
-   "sha256": "e40f49ead7869a9852301648ceceafb20da7045c76a511dc27df85e563e5d0d8"
+   "sha256": "dd7550763f50f48f5242fa14b21f4109f59faff5b4696e118056ce9ea9ca4ad3"
   },
   "history/palantir.json": {
    "kind": "mutable",
    "bytes": 52415,
-   "sha256": "47d352a6a2da219f2c84ce823edc802975987ae26f827580147e0fdf5b462c55"
+   "sha256": "f06e17cd7bc23ef852b71daa5b832f6fbb79e47bd2818dfa4bd75091c61c1d0e"
   },
   "history/scaleai.json": {
    "kind": "mutable",
    "bytes": 31683,
-   "sha256": "4ebf9647316945dd6682ef925d9ba9554c3e62755e10960faf056cd54097811a"
+   "sha256": "f676e9c86bb852e7a1f7203b157bbaf5f831d2d8cdd98ce1c8c9147fe1cebe0b"
   },
   "history/shieldai.json": {
    "kind": "mutable",
    "bytes": 106830,
-   "sha256": "7aa0ee92acaeed260d8a04e1710f9a9e7a78052a034d5f26669822d7c99bd652"
+   "sha256": "fda490c268475baac67c75e57d9bda7166122e5688f2a31bc9bcb0022b2de5cb"
   },
   "history/xai.json": {
    "kind": "mutable",
    "bytes": 49268,
-   "sha256": "5d933f30945f6986b2d77cd3fd6abd31c675c2915345786e1010a0f0f0fbd78a"
+   "sha256": "f3e165d43e971bb2d5abb253de52f651497c20382d9b4132c3a4eda4078ca2bc"
   },
   "ingests/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 439087,
-   "sha256": "f9a1436b0dd78eb90559a2daf5d655a6e4c2063efc8d76140b76839fc65324e6",
-   "rows": 343
+   "bytes": 464966,
+   "sha256": "3100ebbb9cfb2a8be9c0a97111ab311b5986003259706aa65dc771907c1b1405",
+   "rows": 348
   },
   "jobs/amazon/ids.json": {
    "kind": "mutable",
@@ -272,19 +272,19 @@
   },
   "jobs/netflix/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 1458949,
-   "sha256": "7a49199ff5db527f8496bb4ae976fa61a5fbec93acf8975859b93e1319cfd323",
-   "rows": 773
+   "bytes": 1491410,
+   "sha256": "ac640c5bfb0612b3284df4bb63cf0b5ab07459df31866ae88818bed762682cbc",
+   "rows": 790
   },
   "jobs/netflix/ids.json": {
    "kind": "mutable",
    "bytes": 11885,
-   "sha256": "21c7f126922cd0f234ca745834b89ba024de0349e8a1ae8865c61def618e19d8"
+   "sha256": "f0115f2e507818f5d726bdf522ef145e32a23056ae2cfe8a871cb337589e39e8"
   },
   "jobs/netflix/open.jsonl": {
    "kind": "mutable",
-   "bytes": 827904,
-   "sha256": "4e213a63c22fd0dbf6219680ba4701cf68fc8766c8cd27602aa87ca41972ef05",
+   "bytes": 827838,
+   "sha256": "cc779e05a83fa8782607937fa6cf13a7c576e48dd43ed57d80587975700a9b12",
    "rows": 457
   },
   "jobs/nvidia/2026-10.jsonl": {
@@ -397,9 +397,14 @@
   },
   "observations/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 325846,
-   "sha256": "6c132c643c9e00b62383b811ecc6cbbadc1acde9a68cd946e264a8c492f32a0e",
-   "rows": 418
+   "bytes": 335426,
+   "sha256": "486ff8f8238c363b40e89a7e490fed980bbc9ad5200037d569068419ec3d52d9",
+   "rows": 427
+  },
+  "reference/archive-policy/2026-10-10.json": {
+   "kind": "immutable",
+   "bytes": 724,
+   "sha256": "b03709a7bbc46dd44c9fdb19955e8bca8cd90f8fe1e9a7b049aea6bdda044867"
   },
   "reference/bigmac-prices/2026-07-01.json": {
    "kind": "immutable",
@@ -411,15 +416,30 @@
    "bytes": 25269,
    "sha256": "d3f803fa3bb115e829162ed0af8073a7f65885367ed1aba7dc80b34274d0b519"
   },
+  "reference/cities-dataset/2026-10-02~2.json": {
+   "kind": "immutable",
+   "bytes": 25534,
+   "sha256": "bf4b77f4f2858245d3f6d47ae3942e8ee860e64a03945c37fdd4684a69660138"
+  },
   "reference/company-registry/2026-10-10.json": {
    "kind": "immutable",
    "bytes": 2590,
    "sha256": "dd29ee9c960c52068ca2b93192b54969d7b0d5cb3b8fd1afcbbc1071669b0771"
   },
+  "reference/company-registry/2026-10-10~2.json": {
+   "kind": "immutable",
+   "bytes": 2765,
+   "sha256": "181afddf1f4aa8ea1672b35a6e1b40028a9f576b8caff9f8c5a1bdbd87c9d84a"
+  },
   "reference/compstimate-model/2026-10-02.json": {
    "kind": "immutable",
    "bytes": 971,
    "sha256": "64587e455dc6e62b7bd07e149611944a8f1f230a9000e2d0d6150a900437e22f"
+  },
+  "reference/compstimate-model/2026-10-02~2.json": {
+   "kind": "immutable",
+   "bytes": 1121,
+   "sha256": "8f1e57f371c69d4b3bf35b8b4f775bdd2448e5c64573b8ca9f19befeb7a33d2c"
   },
   "reference/cost-index/2026-06-01.json": {
    "kind": "immutable",
@@ -431,10 +451,20 @@
    "bytes": 1046,
    "sha256": "73137355b26f0457d25465589cc10317a766650a346b7c40f521c4e6af0cb6c6"
   },
+  "reference/country-currency/2026-10-02~2.json": {
+   "kind": "immutable",
+   "bytes": 1212,
+   "sha256": "e4314999ad626ecdc3faca3a4635076eba265bdb1a8703a44df00c55a621f58c"
+  },
   "reference/demo-data/2026-09-30.json": {
    "kind": "immutable",
    "bytes": 1422,
    "sha256": "df1cee0ebe51a070fe24a932db9c9d7d6ace4352aa5cd89f1ad032944dcf7ec8"
+  },
+  "reference/demo-data/2026-09-30~2.json": {
+   "kind": "immutable",
+   "bytes": 1572,
+   "sha256": "7d64d272d46b004237b2bb030c3582f6383feb77ef820191f6c69e2b73d1f124"
   },
   "reference/fx-per-usd/2026-07-01.json": {
    "kind": "immutable",
@@ -446,21 +476,36 @@
    "bytes": 838,
    "sha256": "77b1eecaac4b9d9265522c3fc1d20b2aa58e6603b4f982328ba017fa2528b18a"
   },
+  "reference/fx-usd-pegs/2026-10-10~2.json": {
+   "kind": "immutable",
+   "bytes": 976,
+   "sha256": "6f611aff1605bf6fceb44e149e7138697c64f5c66fe79b5c888d87a7222ab740"
+  },
   "reference/geo-gazetteer/2026-10-02.json": {
    "kind": "immutable",
    "bytes": 13302,
    "sha256": "e4501dc55f686cb9b55c41034c2a1912e3eea05621f964a5ec877dc51c3c5cdb"
+  },
+  "reference/geo-gazetteer/2026-10-02~2.json": {
+   "kind": "immutable",
+   "bytes": 17509,
+   "sha256": "4a20ce3810dcb91ec82da92861c8f34dc95e3154e3fa30374e7f0ee4622f0f6f"
   },
   "reference/households/2026-10-10.json": {
    "kind": "immutable",
    "bytes": 655,
    "sha256": "95cfe461f626402186f5122f87ccc217b08f96e3646941e22e3a0002970c31ae"
   },
+  "reference/households/2026-10-10~2.json": {
+   "kind": "immutable",
+   "bytes": 805,
+   "sha256": "853bff4939a2b6f2489fa2270e658e48176620a0910078adbc79ff4a27a918cf"
+  },
   "reference/index/2026.jsonl": {
    "kind": "append",
-   "bytes": 72523,
-   "sha256": "1cbcfacb9de0bda35d4de5c085cc0de8f359ba9395efeadd6f1b45c37c07c19e",
-   "rows": 158
+   "bytes": 118480,
+   "sha256": "2605e123b6e47bf9e49ea4c4b2490485d5bebd10e36e1dedd71d9fdcca86cd5e",
+   "rows": 254
   },
   "reference/jobs-aggregates/2026-10-09.json": {
    "kind": "immutable",
@@ -477,15 +522,30 @@
    "bytes": 536,
    "sha256": "ed24536c0213aeab38b24bc8fda9736f61eb858b2c74970015f699c8235d50f4"
   },
+  "reference/juice-confidence-rules/2026-10-10~2.json": {
+   "kind": "immutable",
+   "bytes": 686,
+   "sha256": "533e006f99f74d70bfd73539c26238815cb3dcf8439d4a7a8b35f37fabf13ed5"
+  },
   "reference/juice-grades/2026-10-02.json": {
    "kind": "immutable",
    "bytes": 613,
    "sha256": "188b25b57e8abdf95bdf7ede2099096f163172a016f510c129c116858be0b725"
   },
+  "reference/juice-grades/2026-10-02~2.json": {
+   "kind": "immutable",
+   "bytes": 763,
+   "sha256": "813554f6dd9a45ba629c2930daa849e44bc7fcc1a7feecf1396610dbc1059e3c"
+  },
   "reference/juice-score-anchors/2026-10-02.json": {
    "kind": "immutable",
    "bytes": 467,
    "sha256": "99c1a1723268a599959e1417402fdfedb0e5fe1194bb3e1327d8c4c9499d14ba"
+  },
+  "reference/juice-score-anchors/2026-10-02~2.json": {
+   "kind": "immutable",
+   "bytes": 617,
+   "sha256": "fe4dfed3a3378db086d5e601d84d3bbba8d2be9501ee562365f9911785f8a913"
   },
   "reference/juice-worked-examples/2026-10-10.json": {
    "kind": "immutable",
@@ -497,10 +557,25 @@
    "bytes": 25082,
    "sha256": "8f086618f9b108b3879abb9f110283077e3fdf813f708e49ae2814f7d5905aac"
   },
+  "reference/keyword-lexicons/2026-10-02~2.json": {
+   "kind": "immutable",
+   "bytes": 29111,
+   "sha256": "d97b059fbc9ecfbe5e8bd38c95c4733623c32167ab3c0a8824d79419ea3bfc8e"
+  },
   "reference/listing-freshness-buckets/2026-10-02.json": {
    "kind": "immutable",
    "bytes": 464,
    "sha256": "7ef9352f5b4001c8e8ba92905381cd97099ac4e6af16905ff177db20252583bf"
+  },
+  "reference/listing-freshness-buckets/2026-10-02~2.json": {
+   "kind": "immutable",
+   "bytes": 614,
+   "sha256": "ca1386671468fdc59167a0b27ec55576e64969167f3bb022e470e4205c522836"
+  },
+  "reference/living-scale/2024-01-01.json": {
+   "kind": "immutable",
+   "bytes": 886,
+   "sha256": "42611d51393f5a3cecbdd904aeb944725263bd46dc7ff0183b6972b37cbb3e02"
   },
   "reference/living-scale/2026-10-10.json": {
    "kind": "immutable",
@@ -512,6 +587,11 @@
    "bytes": 431,
    "sha256": "06efab18fddc652c11474f0ee313e7a7b60f5d2561191dc334456537decbabd8"
   },
+  "reference/market-comps-policy/2026-10-02.json": {
+   "kind": "immutable",
+   "bytes": 478,
+   "sha256": "69e389bbe9443f9a32838eab3de619076331351102af11cb882b92116f1bbed2"
+  },
   "reference/nyc-basket/2026-09-01.json": {
    "kind": "immutable",
    "bytes": 1534,
@@ -521,6 +601,11 @@
    "kind": "immutable",
    "bytes": 433,
    "sha256": "776eb41d4f7c1bad8e5d149cea7a56ce5615d20aa032aa7acb76923a6da5e00c"
+  },
+  "reference/ops-constants/2026-10-10~2.json": {
+   "kind": "immutable",
+   "bytes": 583,
+   "sha256": "022fa9dc9ecafcb7ebcb675079a9c4fd2980d7508407a5a6898eae6f466a97d9"
   },
   "reference/rents-1br-quoted/2026-05-01.json": {
    "kind": "immutable",
@@ -561,6 +646,11 @@
    "kind": "immutable",
    "bytes": 1559,
    "sha256": "b758b8b784e031fd64fb132cadff1499cd30b071302844376a66527bbf083163"
+  },
+  "reference/rents-nsw-official/2026-06-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1605,
+   "sha256": "fd27fc6f43b5cf2a8735bd9f79305d789106b23837c45adc345132b2c186c5b5"
   },
   "reference/rents-sg-hdb/2026-06-01.json": {
    "kind": "immutable",
@@ -797,6 +887,11 @@
    "bytes": 11613,
    "sha256": "e41a0d306a1a29f3250c43013f4417eb24e54be31ef189583cd5d9cf15daca9f"
   },
+  "reference/role-families/2026-10-02~2.json": {
+   "kind": "immutable",
+   "bytes": 13778,
+   "sha256": "ecbfca0d3e3a9fe784663d4e5c0b847506c999c69591f0a2290a0b10a035bf8f"
+  },
   "reference/runtime-versions/2026-10-10.json": {
    "kind": "immutable",
    "bytes": 343,
@@ -807,380 +902,760 @@
    "bytes": 385,
    "sha256": "5b069a8601d5f760de82c0676bb0d6e700f98a9e19ec634a048ecfd14311aa45"
   },
+  "reference/salary-interval-factors/2026-10-02~2.json": {
+   "kind": "immutable",
+   "bytes": 535,
+   "sha256": "732a41201f73d6087df39f1a0d8fba0f0be45a305db2a489a4bb0c4942875811"
+  },
   "reference/salary-parser-bounds/2026-10-02.json": {
    "kind": "immutable",
    "bytes": 524,
    "sha256": "0614f2ca3c26ef6cb10969b0e3697862170549a596f5b5e0268d6e8c856752dc"
+  },
+  "reference/salary-parser-bounds/2026-10-02~2.json": {
+   "kind": "immutable",
+   "bytes": 674,
+   "sha256": "115fa676001dfe1053947967fc74f347deceb728e590d5c780395d42b35e549f"
   },
   "reference/salary-vetting-bounds/2026-10-02.json": {
    "kind": "immutable",
    "bytes": 695,
    "sha256": "e8c2bb4e129fc4a91c0ac84de7b81a7587cdc587b37f44a510ab40f7d158f1a2"
   },
+  "reference/salary-vetting-bounds/2026-10-02~2.json": {
+   "kind": "immutable",
+   "bytes": 845,
+   "sha256": "efef8ccc98f0d2129b072c67e5acae873c036978c24b74bf1a6f35c993d46e46"
+  },
   "reference/seniority-ladder/2026-10-02.json": {
    "kind": "immutable",
    "bytes": 565,
    "sha256": "65a1422721e4dfdcdfd6548424e512d08f7cd5cb6fcd02801c1585f655d4b451"
+  },
+  "reference/seniority-ladder/2026-10-02~2.json": {
+   "kind": "immutable",
+   "bytes": 831,
+   "sha256": "9abae2f75aa614f41d2bfeb671cdbf71fa7cf77a204793bec2db731a4823f072"
   },
   "reference/tax-ae/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35681,
    "sha256": "0c75ed7b32ed28c70307ac0116401ce4b443f57c4b100ad95457c6821d5ea401"
   },
+  "reference/tax-ae/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 563,
+   "sha256": "301f022104aa9d00073216e20ed8e3e504d5a03b9583ae71349603b20abc905a"
+  },
   "reference/tax-at/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35876,
    "sha256": "adbb525772b7265d295b01b77d53b4815ed612bc6a41669c9adc3ea4fe2d6bcc"
+  },
+  "reference/tax-at/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1271,
+   "sha256": "871fa36e58d02da902612d195e00182e73ff213ba57bc9562747f25f6a8fed59"
   },
   "reference/tax-au/2026-07-01.json": {
    "kind": "immutable",
    "bytes": 35784,
    "sha256": "5d6a3cffee93faa1f9558be96968ce61960fe17e34ac594238ef723fec2d74f2"
   },
+  "reference/tax-au/2026-07-01~2.json": {
+   "kind": "immutable",
+   "bytes": 936,
+   "sha256": "596aadd952b7fa9aefbf9f48126025b701aed7dec130ea09d8721ca846fc437f"
+  },
   "reference/tax-be/2025-01-01.json": {
    "kind": "immutable",
    "bytes": 35810,
    "sha256": "0bf8dcfaba30315216a8a344391646ee80d646b2de8c9f9834579dc10d3e3560"
+  },
+  "reference/tax-be/2025-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 988,
+   "sha256": "f1772ead47821366b7dfc31e7a3c9e2af0dc3d7af4ce930a8b1cb336b2b113b7"
   },
   "reference/tax-br/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35823,
    "sha256": "e858eb6d066a642fda94a17ce01cc6d920ddf523dc1102fb87818d8846d11126"
   },
+  "reference/tax-br/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1060,
+   "sha256": "c13d6a84800616483b19415c0d6b1248f55b2f7c434a5ecfd667d75a297d4cdd"
+  },
   "reference/tax-ca-bc/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35853,
    "sha256": "6d76e542249e95d2a7b4448ef77ff370897329c61824ba8448850988809237d3"
+  },
+  "reference/tax-ca-bc/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1034,
+   "sha256": "0be9fedd4912abc8508b2aaa21926b74014be755f7da19cb730e64f166cf1f5d"
   },
   "reference/tax-ca-on/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 36006,
    "sha256": "81ffe8f83d9111a9f5f066725c851d97141f1d0e2331ddfce26d4fb3d4fe4ffb"
   },
+  "reference/tax-ca-on/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1193,
+   "sha256": "534a10aa3389a53e0941752a3441b8610f8305560e1f28e0fe09cdafa4dc7a94"
+  },
   "reference/tax-ca-qc/2025-01-01.json": {
    "kind": "immutable",
    "bytes": 35758,
    "sha256": "faa9c2a09ecaf5ca832415dba817c5e1df153914f6e44a6ca2c1b817c22705d5"
+  },
+  "reference/tax-ca-qc/2025-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 892,
+   "sha256": "29c3bfe9cc4786fd6a1ee13f9766dda7a0bd0870e17e80df322d26e50497af80"
   },
   "reference/tax-ca/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 891,
    "sha256": "f22cf776d34c522a815b0ca44a0da6d606ff86c43c81c644e7f630cafb2e5790"
   },
+  "reference/tax-ca/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1942,
+   "sha256": "9d7da492ddcf7531461535a8d872234b7c9dfda9a6a7553410eb1b7e2e3a984e"
+  },
   "reference/tax-ch-ge/2025-01-01.json": {
    "kind": "immutable",
    "bytes": 746,
    "sha256": "403817b4b877e9210de21663eb01aa6142b23541dbed747cc2e4c543d7d6024f"
+  },
+  "reference/tax-ch-ge/2025-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 902,
+   "sha256": "bd6d71cfdbced562cd1fadf82307cbf0e4b6064d992aa0942d141de05aaad6d9"
   },
   "reference/tax-ch-zh/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 1009,
    "sha256": "9be6c1f369685d3ff42a57a2b04ba9a6171f044ccbf4d78b4d7a65f813602161"
   },
+  "reference/tax-ch-zh/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1200,
+   "sha256": "aa5dcc2d3e261fd6c389d5f56806efebebc38a2a086f71a730890778f62863da"
+  },
   "reference/tax-ch/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 1164,
    "sha256": "68f5f27509b1644f936e0e5cb0b4e08533af0dfcbaee93f24186999857de088d"
+  },
+  "reference/tax-ch/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1530,
+   "sha256": "d0a5c255eca0883f833e3fb792c9827762e3eb1276dbde0708687b2231662d2d"
   },
   "reference/tax-cz/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35757,
    "sha256": "77f724242f29ab46a721a870caf011f21214572f90eec4bdf951b2ce95b84b00"
   },
+  "reference/tax-cz/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 838,
+   "sha256": "88dd418b70587c5bc85f9eda83a247783c9f7ab652c0695503ede5a0cac5f93b"
+  },
   "reference/tax-de/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 848,
    "sha256": "09604701b5a5083705256ce858df68c9b8f57c566d97bad6536ed0b4ec6245ba"
+  },
+  "reference/tax-de/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1825,
+   "sha256": "5b79c1fd59f01cb6558ac44f658bc9db834e87a5e078687aa07c72161df41aeb"
   },
   "reference/tax-dk/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35788,
    "sha256": "847361d5aff0cec7f4c6ae9cbaec912064744be855aab51868845871bd6c0167"
   },
+  "reference/tax-dk/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 959,
+   "sha256": "d7269764dd02dda27714f10afb58b4ac168f8412749cf94d9a015bbff30fb33d"
+  },
   "reference/tax-ee/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35761,
    "sha256": "3bd155bc967f950d7e6424f763eee342819a3097980225ba6f551822d5426443"
+  },
+  "reference/tax-ee/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 856,
+   "sha256": "0b23814b9862e569054b3fdaa61350d2aaaea2b3534fced8cbeea9a6b1f015da"
   },
   "reference/tax-es-ct/2025-01-01.json": {
    "kind": "immutable",
    "bytes": 1004,
    "sha256": "7479ad8de5bef78c4ef00608232403f14e6b17b46e84be39bc901795260ce02c"
   },
+  "reference/tax-es-ct/2025-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 910,
+   "sha256": "1ce2ecf4e9517c27accfa9c3a2e112861b23a68e149f1af4446ea83ace9f80aa"
+  },
   "reference/tax-es-md/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 1023,
    "sha256": "fca16b0104995ee8e77f4027f0d248f231eaf68987cc5d4c1403bd5e50797fe7"
+  },
+  "reference/tax-es-md/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1063,
+   "sha256": "76dfca04af4595905e0768d31d10c29347bf5530cc2f912309fb2e0af4de5b47"
   },
   "reference/tax-es/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 755,
    "sha256": "515898719b1145a40d979958aaa4411c324373c654d23b30b06490e348e53fd5"
   },
+  "reference/tax-es/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1313,
+   "sha256": "91f0cfe25e406246c4f217f0f5da6bdea2b07225a552392bc578d0a2374e6594"
+  },
   "reference/tax-fi/2025-01-01.json": {
    "kind": "immutable",
    "bytes": 35846,
    "sha256": "bcb6602300f1c7e3b3bb83ad232412d7dc74a469400f1f505497e394dea55bdc"
+  },
+  "reference/tax-fi/2025-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 994,
+   "sha256": "6e5edfbd895e1601867e3d5bfac360c2a8e26b4719cc4040f3b398af3e208ddc"
   },
   "reference/tax-fr/2025-01-01.json": {
    "kind": "immutable",
    "bytes": 883,
    "sha256": "ff373b9dc0b25957c554f3f313df223e200b77f0a445b0e28fbecbda8c095c4d"
   },
+  "reference/tax-fr/2025-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 2156,
+   "sha256": "18af0c0e08307d993a067fffe83cbd5bcb00704d71eef3c99af4028a34195f3b"
+  },
   "reference/tax-gb-sct/2026-04-06.json": {
    "kind": "immutable",
    "bytes": 598,
    "sha256": "51a54a3e0712d3365205922c6ebebbb7862825e5bda3a631a0db1a66cf823ec8"
+  },
+  "reference/tax-gb-sct/2026-04-06~2.json": {
+   "kind": "immutable",
+   "bytes": 730,
+   "sha256": "a3869e95fecb3e08a5f3de6500679c0499f94de3693599b3a7f5385f49922e39"
   },
   "reference/tax-gb/2026-04-06.json": {
    "kind": "immutable",
    "bytes": 627,
    "sha256": "911529b05a8658d0999f84258ebb740541309af604b6d2b8cc4b8023d2c346ea"
   },
+  "reference/tax-gb/2026-04-06~2.json": {
+   "kind": "immutable",
+   "bytes": 1192,
+   "sha256": "ef87c29f2c08f30ea0ec355e4c506cbb154a6021cccac31c44822cf441c1f391"
+  },
   "reference/tax-hk/2026-04-01.json": {
    "kind": "immutable",
    "bytes": 35916,
    "sha256": "7a373fda8e1fe3bc37f0ac03006eb8879a7404246c80062282a4238e4ce73595"
+  },
+  "reference/tax-hk/2026-04-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1186,
+   "sha256": "ecf6526908ed748b04312e3485e85c6f76c8d5e53caacf4e216cc5a2cfc83089"
   },
   "reference/tax-ie/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35900,
    "sha256": "5d87da7906e3815fd84f633ec4f71eed83e7f04fe6c29c73f7b7e5e907aa00bf"
   },
+  "reference/tax-ie/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1357,
+   "sha256": "05631f73b62ef9a05fb2b15feb1cb3e3962b4dbf48c22bcaaf04ebb172f0c2bb"
+  },
   "reference/tax-il/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35876,
    "sha256": "7a2b0acd91a63acec89209d1b593cb689846c0489c8a44e16c3f2440ac13989e"
+  },
+  "reference/tax-il/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1092,
+   "sha256": "bccf2f59289611bbfd3d3807e43dec19580465f77276dd215890be18f474038a"
   },
   "reference/tax-in/2026-04-01.json": {
    "kind": "immutable",
    "bytes": 35838,
    "sha256": "692a121c704b4c55e2f8ae92139d4183e69faf6a016243c4be7abae2b9c1d73a"
   },
+  "reference/tax-in/2026-04-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1041,
+   "sha256": "b91e5dfe5eaabc36fd6dd61101ad10c1dd212b16c9109e387c1200f5fe562f23"
+  },
   "reference/tax-it/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35748,
    "sha256": "e4ff2d8e0435f4d63ea0ece61ec28f4b450869def34b5279af03976b22118e19"
+  },
+  "reference/tax-it/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 936,
+   "sha256": "4e2465817994ed90ffcafb6343e410508a35ce3cb1a6deb43fa8fade98b461ee"
   },
   "reference/tax-jp/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35923,
    "sha256": "a874a79b6b7a41b968478e3fb4ac2ab85f492994635855fe468766c29314857c"
   },
+  "reference/tax-jp/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1524,
+   "sha256": "4be138a90b56625680a88b2eade7c88ca8e23d8cf46382c31202c125706ee34a"
+  },
   "reference/tax-kr/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35790,
    "sha256": "035921c1a4bbf5eab9fc02dc606f60ae3460c447e237fe5589517a16e2017be3"
+  },
+  "reference/tax-kr/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 930,
+   "sha256": "01a23234a8c17ce998b3813591da24c10a147c148f7ea63e8504b3ee865a2793"
   },
   "reference/tax-mx/2025-01-01.json": {
    "kind": "immutable",
    "bytes": 35724,
    "sha256": "01d4357c7d6c5da4b7f5acea3bdc7f8af7b068f250e18893e71fdec55389fac9"
   },
+  "reference/tax-mx/2025-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 798,
+   "sha256": "8de5b8b1303b99ec7716064d3831521e4f276142767b43e42ed915627ad79b6c"
+  },
   "reference/tax-nl/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35925,
    "sha256": "8d271394a68c3d2e556103a4c1acd4d406b835c8791d80ed4b5422d9013c64dc"
+  },
+  "reference/tax-nl/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1113,
+   "sha256": "769662565727272c183e9433b193684e7cc73cd47d013f750a02548fe8566cfe"
   },
   "reference/tax-no/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35899,
    "sha256": "391f45496d87a9e092f58e6f3228287eb5a963a9c52fd3b05fac4cfa5513f8fe"
   },
+  "reference/tax-no/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1362,
+   "sha256": "7724167b3b07ec2d097c1572911eb83a30fdce7a6f654832352cc164d93a65fa"
+  },
   "reference/tax-nz/2026-04-01.json": {
    "kind": "immutable",
    "bytes": 35849,
    "sha256": "3926ec45495878b319d2dc834b9a22c3b3ef0ba9d6cd5af47cd924d75aae5ef2"
+  },
+  "reference/tax-nz/2026-04-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1046,
+   "sha256": "91cb5d94e0766c3d0c9db2c7eade0db610848ad400184eb1a10aa57bdd471f23"
   },
   "reference/tax-pl/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35755,
    "sha256": "008fc3f3328c036bec97d95d28baf82d2512ba2767bf7e76e775c1301f209462"
   },
+  "reference/tax-pl/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 907,
+   "sha256": "b7faf45cf60b541398b711bf9ba6dd8dfb16416969b296ed265505b944d3ba5c"
+  },
   "reference/tax-pt/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35918,
    "sha256": "509916a34af300dba87ca1cd3f9213dfe11c14f2bcf2df7f0e99809c356e62b0"
+  },
+  "reference/tax-pt/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1368,
+   "sha256": "01a2289b0da4cc38121a1b5ead9ab1436a8c15d9c575d8fe3089c5d61270d93c"
   },
   "reference/tax-sa/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35714,
    "sha256": "627224f947b822019a817315a378ab2342ce80f5e4f91c4c1d49bdb69c19a7dd"
   },
+  "reference/tax-sa/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 629,
+   "sha256": "dc4355ef0d6a278020597e04b99e4967c8f4a92c367379ebed1a9a8c08cada4c"
+  },
   "reference/tax-se/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35860,
    "sha256": "d6f669b7135c5a3431f42e34152fa0989c0dd004d102c048c5c68619b6c026c6"
+  },
+  "reference/tax-se/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1092,
+   "sha256": "9d06232b794eb27fa737a025632318ba3c5362fca7c35414e441f543d7539c19"
   },
   "reference/tax-sg/2025-01-01.json": {
    "kind": "immutable",
    "bytes": 35867,
    "sha256": "a78af773497bd2a0a0d0912ce9f7677ab08eb0393575c5fa5aa5884cd2a4d341"
   },
+  "reference/tax-sg/2025-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1214,
+   "sha256": "7b5c9fa1c69eedf02f93d9e5e304239ef4d640b8cfb6adcc43470a053ba32a1b"
+  },
   "reference/tax-tw/2025-01-01.json": {
    "kind": "immutable",
    "bytes": 35740,
    "sha256": "ba52dde17cc88c6956aa16fde5452c4704c84a23eb1913f4655511893f7978ec"
+  },
+  "reference/tax-tw/2025-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 835,
+   "sha256": "eacab901f1e3e5747a117c96e22cf2b520587e70c4e52ca1db664ddda5c6e034"
   },
   "reference/tax-us-al/2025-01-01.json": {
    "kind": "immutable",
    "bytes": 813,
    "sha256": "1089de6bfc940f73b40365f59c98109bc577622fb853a76027f383ee0bfbeed1"
   },
+  "reference/tax-us-al/2025-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1113,
+   "sha256": "0af1adee66c054a86595cdd24f6c1ea84d9f3537c22b55b808fcfb3c83b85892"
+  },
   "reference/tax-us-az/2025-01-01.json": {
    "kind": "immutable",
    "bytes": 35774,
    "sha256": "acfc13c285dcace9e38990c1aad0ac8742bff38a60d2d71515a3270228359a1d"
+  },
+  "reference/tax-us-az/2025-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 743,
+   "sha256": "38bcdad59e9d75dfaa88532cd1ba0cbe01a6fad7433bc491d2ab8699e4589e54"
   },
   "reference/tax-us-ca/2025-01-01.json": {
    "kind": "immutable",
    "bytes": 1219,
    "sha256": "0f0dfdea0096ecb4a6c4355da106d8b98f86bae1fe2fa4d6675243eef248675e"
   },
+  "reference/tax-us-ca/2025-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1649,
+   "sha256": "6f177e5a96110f023a0d2b2d48f37b1647831877e55e9d0d54799c267f3a49cb"
+  },
   "reference/tax-us-co/2025-01-01.json": {
    "kind": "immutable",
    "bytes": 35869,
    "sha256": "e5e55e797effca76677ed5044f1cacd3d61e772e8b9b36c71a86e657ef4777a2"
+  },
+  "reference/tax-us-co/2025-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1259,
+   "sha256": "deb442079db0af8d2e8a209770c1b2502ceca346383f75cfea8823e54c5c9001"
   },
   "reference/tax-us-dc/2025-01-01.json": {
    "kind": "immutable",
    "bytes": 35764,
    "sha256": "c88a92133b96db0f003a58fd875cac282a741ae439dab2de4afabdee2526216a"
   },
+  "reference/tax-us-dc/2025-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 838,
+   "sha256": "947a3c489781db87b9430e589b6b33a22cf7f18defd13f3ae276fabdf8eb6a8e"
+  },
   "reference/tax-us-fl/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35730,
    "sha256": "a39d9f6c1e3965c7934130e6408a1eee8b674398255c78eb1b3e904a874688a7"
+  },
+  "reference/tax-us-fl/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 657,
+   "sha256": "1ab578258a782df6e25845cb5cba89f497e8bf345546a572867f6c1b4bc47276"
   },
   "reference/tax-us-ga/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35762,
    "sha256": "7f813617c1f109436d340a6d89a5c3f005425347d41375a0b1160d559b59ed05"
   },
+  "reference/tax-us-ga/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 719,
+   "sha256": "7fdc5ebe1224ea2cc363276fc4063d5c4dab9d62836196aa6109e6008b776c40"
+  },
   "reference/tax-us-il/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35810,
    "sha256": "5c52932a69ad1e5ef82898217082d771565eeee47490f46e0844fa88c93e6496"
+  },
+  "reference/tax-us-il/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 965,
+   "sha256": "a06b0f987ec13accfc94ea5bc3c629a4b276adc5ca922aa46162272d397164ae"
   },
   "reference/tax-us-local-columbus/2024-01-01.json": {
    "kind": "immutable",
    "bytes": 35788,
    "sha256": "b2cab33497c99e0682ec9934601c51db49230a1ecc810b022c00107cb7dbd99c"
   },
+  "reference/tax-us-local-columbus/2024-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 761,
+   "sha256": "6bf21208a7550d9ca9fbca618d0a1b3e5c72113f3791b708ad9ebb8f8da32805"
+  },
   "reference/tax-us-local-detroit/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35788,
    "sha256": "9acdb42e39dc986f29994d785eae25fa661d90adf1a57796a4faf091ab7b1a57"
+  },
+  "reference/tax-us-local-detroit/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 987,
+   "sha256": "59beb90da0d7b502799b805ed548851fb884bd7b8fef39f3f744588154b8d22a"
   },
   "reference/tax-us-local-md-county/2025-01-01.json": {
    "kind": "immutable",
    "bytes": 35763,
    "sha256": "9d8e31b8c64f8b58e834571dc3d46f2c0aebf7ad102fa5d4d6ac32ebabf34bb5"
   },
+  "reference/tax-us-local-md-county/2025-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 805,
+   "sha256": "08ee955578f0470c027851130cb6ace40e2682adb9a88c9ee0080f37c1ac5154"
+  },
   "reference/tax-us-local-nyc/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 744,
    "sha256": "0fea83995de379c4de5dd9553bdc9d65f3cd70ce10f77f0476681cc86779008a"
+  },
+  "reference/tax-us-local-nyc/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 697,
+   "sha256": "acd02d68b04d461aa5b29e06374748049a0587a94e4eb92654201482fa95b520"
   },
   "reference/tax-us-local-philadelphia/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35815,
    "sha256": "70b00ca98264fc485e288776d9229f4a347f3d69c8d783b1ba8e26b14485106e"
   },
+  "reference/tax-us-local-philadelphia/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 811,
+   "sha256": "62b27bb99620ff7eabc953a61c242fa8d67cc8ee41910f57aec835ff92b914b7"
+  },
   "reference/tax-us-local-pittsburgh/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35763,
    "sha256": "185884b4086c0a439e59ffaa9b9b0e75171a6aa98c46cda8ad415b09b49c1909"
+  },
+  "reference/tax-us-local-pittsburgh/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 709,
+   "sha256": "4686c7bb6bd69e86d157ba390d24bf1f2d02bbbae5694a41c3888f26dce0db38"
   },
   "reference/tax-us-local-portland/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35826,
    "sha256": "46653820182eab35d2eeca29ec9a511766479c91135a7b4bb7f418bcc1f59b85"
   },
+  "reference/tax-us-local-portland/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 939,
+   "sha256": "e5b90ef7386460ac2dedc32d4e178ee19e47f93cc9a959e2dfefa7ba0a65bfff"
+  },
   "reference/tax-us-ma/2025-01-01.json": {
    "kind": "immutable",
    "bytes": 35884,
    "sha256": "8e0afbec1db08cff8f9760c72e2bfe52c15a5b3c3a5822658fa1332207b24048"
+  },
+  "reference/tax-us-ma/2025-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1225,
+   "sha256": "9b9d4f1295a0e4a215328dfcca2cb30ffb111c7bdae943ae435c5c54f279fa8f"
   },
   "reference/tax-us-md/2025-01-01.json": {
    "kind": "immutable",
    "bytes": 1242,
    "sha256": "687ebc9902254abbbacb86855a8ef2ae871262745ca9c778438a3f2df6f3b933"
   },
+  "reference/tax-us-md/2025-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1064,
+   "sha256": "ecf6bb133a0a7c4fdf6dc90860beef304d61cd18e5e7c57ff10538758bb842d6"
+  },
   "reference/tax-us-mi/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35800,
    "sha256": "90ca2d11398877c3f7dda5e55c28fc760dd149d0cdf542a4ddf2b982c76da459"
+  },
+  "reference/tax-us-mi/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 795,
+   "sha256": "11b2dbbcdb8ef99f441740852f2151a97129416118e66ced13872825b2b20839"
   },
   "reference/tax-us-mn/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35760,
    "sha256": "51d621d9ffca8b7c921412f926923d45ab37e6aa8092856e9515162e8b30a2e3"
   },
+  "reference/tax-us-mn/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 958,
+   "sha256": "3660889651427dad401ff0132c5f4443645ffccc5954d1572da9a65c1a112e29"
+  },
   "reference/tax-us-nc/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35758,
    "sha256": "c5b43ea78028812da3546658fbbd9686cf34696b6f1fb5e78c2ea1506c704727"
+  },
+  "reference/tax-us-nc/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 815,
+   "sha256": "6dca68ffc8274211b97a5b061689b9a033dd8d8aee59c1606444263c1b1c748d"
   },
   "reference/tax-us-nv/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35718,
    "sha256": "27f941c261524b7d188bcee44d0c0b7826b71eb554cedd8a981fb09e4085fd42"
   },
+  "reference/tax-us-nv/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 633,
+   "sha256": "4af1ec9ba36834e9d532d9d3fce6cd7079529022348bae0c8f824f08a1080787"
+  },
   "reference/tax-us-ny/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 1203,
    "sha256": "8d634636843b6d4c6b7666c9cbcdf1a24ab3a56cb6c34fd1148a41e51f027276"
+  },
+  "reference/tax-us-ny/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1185,
+   "sha256": "f11af84dc01791edd5c7d77e431e85c5ad2d0a537814defbd7dd5f3cbcf49fe2"
   },
   "reference/tax-us-oh/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35792,
    "sha256": "a8d4e4af92d427b6abae2557680956e9950f7c84447d140b32cce94b18f86633"
   },
+  "reference/tax-us-oh/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1067,
+   "sha256": "81ff1e7761f467cf459c416f41f189fa4aae7353070e2134d10ac5489734ddbe"
+  },
   "reference/tax-us-or/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 929,
    "sha256": "54d20e2dd62d2ada7197393685339dbc30e61fd7ebbd6834ae2f9984c5d8e37d"
+  },
+  "reference/tax-us-or/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1302,
+   "sha256": "d99a657278d01eaff946ae698f9b1cdb1efe00482d23eb908b0b091a948aef9c"
   },
   "reference/tax-us-pa/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35786,
    "sha256": "eae3024f4072802b5f40c80977cc136f310e7ea78627ed5de34c1eaba62ba290"
   },
+  "reference/tax-us-pa/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 824,
+   "sha256": "5a6b555c3f2749ff8ba420472121018af8924e1e1176938137f7b93fd6222043"
+  },
   "reference/tax-us-tn/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35759,
    "sha256": "e1579fc68e52a96ae77d4c5d42afb5e916db4b31816c182b7a944458dba48c13"
+  },
+  "reference/tax-us-tn/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 812,
+   "sha256": "93c979079f50aa396abddaad34bde5b3de6b4aa95352bce886ed78f2fabae490"
   },
   "reference/tax-us-tx/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35725,
    "sha256": "df204c7dc7e976eab662f553b4f70edbd2ce11434d9c648bb42f04e8c6730aca"
   },
+  "reference/tax-us-tx/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 726,
+   "sha256": "90bbf478ed3563dea75b39e5c9c3c11259a6315aa89adbe6d5f9a51a7a5ce87c"
+  },
   "reference/tax-us-ut/2025-01-01.json": {
    "kind": "immutable",
    "bytes": 35768,
    "sha256": "b3347c99531f7b4e0104772b114d3246c5f3becde683e550c4061e46f2df5ddf"
+  },
+  "reference/tax-us-ut/2025-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 817,
+   "sha256": "be72d752e4b8cf4d692b97403aa894eb8a12ca6b4f60b0821dde0253d69b518f"
   },
   "reference/tax-us-va/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35798,
    "sha256": "6627e54383caf43246bc8c970f010d05202274d5b5c9ac9830a134eb2905d3c7"
   },
+  "reference/tax-us-va/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 791,
+   "sha256": "dea166475f330861b35d87c6cf277eb89d7c83eb97736e9be598c1ea6ff92bec"
+  },
   "reference/tax-us-wa/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 35750,
    "sha256": "fc9516e035201441500303d434b5264659e5ff41ce806c9c1a311cbdac4129da"
+  },
+  "reference/tax-us-wa/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 885,
+   "sha256": "651bcaf56f03504d9a80545bd0cf21aeb8ed625a38843f2e0b7b062b7407cf1c"
   },
   "reference/tax-us/2026-01-01.json": {
    "kind": "immutable",
    "bytes": 1285,
    "sha256": "f1a0e809960a46f428c5d90ffc0c1013bbe435bf145aeb3f3773ada13c83e9c2"
   },
+  "reference/tax-us/2026-01-01~2.json": {
+   "kind": "immutable",
+   "bytes": 1582,
+   "sha256": "213fae5c5a6e44d444df6d68c30a58f14f1b803ab1694e2e17d45bab58a60204"
+  },
   "reference/ui-stat-thresholds/2026-10-02.json": {
    "kind": "immutable",
    "bytes": 432,
    "sha256": "a1643a1f32fe4dbd65b52c9a8f2cfaa8dd1845f162726bbf1702762870988cdb"
+  },
+  "reference/ui-stat-thresholds/2026-10-02~2.json": {
+   "kind": "immutable",
+   "bytes": 582,
+   "sha256": "f626a625a5219efe9914bfd981ab0f40634fed38efd49b9dbb33520ffd6394ce"
   },
   "reference/workflow-schedules/2026-10-10.json": {
    "kind": "immutable",
@@ -1197,6 +1672,11 @@
    "bytes": 61043,
    "sha256": "87e5b57930bc1b9e873eb7bbe5b9a874a815731f05b5229c4cca8754e7e0bff7"
   },
+  "reference/workflow-schedules/2026-10-10~4.json": {
+   "kind": "immutable",
+   "bytes": 72449,
+   "sha256": "4866d54ffbcd7868289c0ea1e78c866de571a863cc46e7481f9f3dcf529bf6ca"
+  },
   "reports/annual/2026.json": {
    "kind": "derived",
    "bytes": 253548,
@@ -1209,13 +1689,13 @@
   },
   "state/blob-index.json": {
    "kind": "mutable",
-   "bytes": 2812619,
-   "sha256": "1f00339f93c8d2d3f3d6f05cb121d786023a2ebccd11bebe10f5d94a09ee9e27"
+   "bytes": 2819579,
+   "sha256": "a7d01dc47a711d07efdbd4c24d0f31a6b4d3da0b2693a1f3966bacdcba651f3b"
   },
   "state/companies.json": {
    "kind": "mutable",
    "bytes": 7876,
-   "sha256": "5a72bd9a133f2d63d335d57c522cebf04d39903a89ce1edea400269f07136530"
+   "sha256": "16ad9bb09811282b36d14b091300b5ed5312c001c644b9862d225b10984f756c"
   }
  }
 }

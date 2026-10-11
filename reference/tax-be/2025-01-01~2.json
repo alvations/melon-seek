@@ -1,0 +1,28 @@
+{
+ "dataset": "tax-be",
+ "asOf": "2025-01-01",
+ "taxYear": "2025",
+ "source": {
+  "name": "Federal rates 25/40/45/50%, basic allowance €10,910, flat professional expenses (30%, cap €5,930), communal surcharge ~7%; social 13.07%",
+  "url": "https://finance.belgium.be/en/private-individuals/tax-return/rates",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Federal rates 25/40/45/50%, basic allowance €10,910, flat professional expenses (30%, cap €5,930), communal surcharge ~7%; social 13.07%",
+   "url": "https://finance.belgium.be/en/private-individuals/tax-return/rates",
+   "asOf": "2025",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "approximate": true,
+   "unverified": [
+    "all values (FPS Finance pages blocked)"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "single",
+   "note": "Belgium: marital quotient and child allowances not modeled."
+  }
+ }
+}

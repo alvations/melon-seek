@@ -1,0 +1,28 @@
+{
+ "dataset": "tax-ie",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "Revenue 2026: 20% to €44,000 (married, one income: €53,000) then 40%, personal credit €2,000 (married €4,000) + employee credit €2,000; USC 0.5% / 2% / 3% / 8%; PRSI Class A 4.2% to 30 Sep 2026, 4.35% from 1 Oct",
+  "url": "https://www.revenue.ie/en/personal-tax-credits-reliefs-and-exemptions/tax-relief-charts/index.aspx",
+  "licence": "Revenue (Ireland) public sector information"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Revenue 2026: 20% to €44,000 (married, one income: €53,000) then 40%, personal credit €2,000 (married €4,000) + employee credit €2,000; USC 0.5% / 2% / 3% / 8%; PRSI Class A 4.2% to 30 Sep 2026, 4.35% from 1 Oct",
+   "url": "https://www.revenue.ie/en/personal-tax-credits-reliefs-and-exemptions/tax-relief-charts/index.aspx",
+   "checkedVia": [
+    "https://www.revenue.ie/en/jobs-and-pensions/usc/standard-rates-thresholds.aspx",
+    "https://www.citizensinformation.ie/en/social-welfare/irish-social-welfare-system/social-insurance-prsi/paying-social-insurance/"
+   ],
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": true
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "joint",
+   "note": "Ireland: married one-income band and credits; Home Carer Credit not modeled."
+  }
+ }
+}

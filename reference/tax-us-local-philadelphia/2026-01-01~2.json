@@ -1,0 +1,23 @@
+{
+ "dataset": "tax-us-local-philadelphia",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "Philadelphia resident wage tax 3.74% to 30 June 2026, 3.735% from 1 July 2026 (calendar-year average)",
+  "url": "https://www.phila.gov/services/payments-assistance-taxes/business-taxes/wage-tax-employers/",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Philadelphia resident wage tax 3.74% to 30 June 2026, 3.735% from 1 July 2026 (calendar-year average)",
+   "url": "https://www.phila.gov/services/payments-assistance-taxes/business-taxes/wage-tax-employers/",
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": true
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "neutral"
+  }
+ }
+}

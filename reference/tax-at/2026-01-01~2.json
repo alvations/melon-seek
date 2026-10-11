@@ -1,0 +1,29 @@
+{
+ "dataset": "tax-at",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "Einkommensteuertarif 2026 0%-55% (€13,539 / 21,992 / 36,458 / 70,365 / 104,859 / 1M) on 12 regular salaries, 13th/14th at 6%; social insurance 18.07% to €90,300",
+  "url": "https://www.usp.gv.at/steuern-finanzen/einkommensteuer-ueberblick/weitere-informationen-est/tarifstufen.html",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Einkommensteuertarif 2026 0%-55% (€13,539 / 21,992 / 36,458 / 70,365 / 104,859 / 1M) on 12 regular salaries, 13th/14th at 6%; social insurance 18.07% to €90,300",
+   "url": "https://www.usp.gv.at/steuern-finanzen/einkommensteuer-ueberblick/weitere-informationen-est/tarifstufen.html",
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "approximate": true,
+   "unverified": [
+    "social insurance 18.07% and the 2025 cap €90,300 (2026 cap not read)",
+    "flat 6% on all special payments (higher rates above €25,000 not modeled)"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "individual",
+   "note": "Austria taxes each person separately; Familienbonus Plus and sole-earner credit not modeled."
+  }
+ }
+}

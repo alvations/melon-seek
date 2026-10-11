@@ -1,0 +1,36 @@
+{
+ "dataset": "households",
+ "asOf": "2026-10-10",
+ "taxYear": null,
+ "source": {
+  "name": "melon-seek (our own choice)",
+  "url": "https://github.com/alvations/melon-seek",
+  "licence": "no licence file; owner decision pending (the repo has no LICENSE and package.json no \"license\" field, so the code and our own data are all rights reserved by default)"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "server/juice.js#HOUSEHOLDS": {
+   "single": {
+    "key": "single",
+    "label": "Just me",
+    "adults": 1,
+    "children": 0,
+    "bedrooms": 1
+   },
+   "couple": {
+    "key": "couple",
+    "label": "Couple",
+    "adults": 2,
+    "children": 0,
+    "bedrooms": 2
+   },
+   "family": {
+    "key": "family",
+    "label": "Family",
+    "adults": 2,
+    "children": 2,
+    "bedrooms": 3
+   }
+  }
+ }
+}

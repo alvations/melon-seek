@@ -1,0 +1,26 @@
+{
+ "dataset": "tax-fi",
+ "asOf": "2025-01-01",
+ "taxYear": "2025",
+ "source": {
+  "name": "Approximation: state progressive tax + Helsinki municipal 5.3% as one schedule; employee contributions ~9% (pension, unemployment, health)",
+  "url": "https://vero.fi/en/individuals/tax-cards-and-tax-returns/tax_card/tax-rate-and-income-ceiling/tax-bases/",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Approximation: state progressive tax + Helsinki municipal 5.3% as one schedule; employee contributions ~9% (pension, unemployment, health)",
+   "url": "https://vero.fi/en/individuals/tax-cards-and-tax-returns/tax_card/tax-rate-and-income-ceiling/tax-bases/",
+   "asOf": "2025",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "approximate": true,
+   "estimated": true
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "individual",
+   "note": "Finland taxes each person separately."
+  }
+ }
+}

@@ -1,0 +1,30 @@
+{
+ "dataset": "tax-no",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "Skatteetaten 2026: tax on general income 22%, bracket tax 1.7% / 4.0% / 13.7% / 16.8% / 17.8% from NOK 226,100 / 318,300 / 725,050 / 980,100 / 1,467,200, minimum standard deduction 46% (max NOK 92,000), personal allowance NOK 108,550; national insurance 7.6%",
+  "url": "https://www.skatteetaten.no/en/rates/bracket-tax/",
+  "licence": "Skatteetaten public information (licence not reviewed)"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Skatteetaten 2026: tax on general income 22%, bracket tax 1.7% / 4.0% / 13.7% / 16.8% / 17.8% from NOK 226,100 / 318,300 / 725,050 / 980,100 / 1,467,200, minimum standard deduction 46% (max NOK 92,000), personal allowance NOK 108,550; national insurance 7.6%",
+   "url": "https://www.skatteetaten.no/en/rates/bracket-tax/",
+   "checkedVia": [
+    "https://www.skatteetaten.no/en/rates/national-insurance-contributions/",
+    "https://www.skatteetaten.no/en/rates/minimum-standard-deduction/",
+    "https://www.skatteetaten.no/en/rates/personal-allowance/",
+    "https://www.skatteetaten.no/en/rates/general-income/"
+   ],
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": true
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "individual",
+   "note": "Norway taxes each person separately."
+  }
+ }
+}

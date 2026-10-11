@@ -1,0 +1,33 @@
+{
+ "dataset": "tax-us-ny",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "New York State 2026 (IT-2105-I): rates, tax-benefit recapture worksheets, standard deduction $8,000 / $16,050, $1,000 per dependent; Paid Family Leave 0.432% to $411.91; disability benefits $0.60 a week",
+  "url": "https://www.tax.ny.gov/pdf/current_forms/it/it2105i.pdf",
+  "licence": "New York State public information"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "New York State 2026 (IT-2105-I): rates, tax-benefit recapture worksheets, standard deduction $8,000 / $16,050, $1,000 per dependent; Paid Family Leave 0.432% to $411.91; disability benefits $0.60 a week",
+   "url": "https://www.tax.ny.gov/pdf/current_forms/it/it2105i.pdf",
+   "checkedVia": [
+    "https://www.tax.ny.gov/pdf/2025/inc/it201i_2025.pdf"
+   ],
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "unverified": [
+    "Paid Family Leave 0.432% / $411.91 (secondary source; DFS page blocked)",
+    "disability benefits 0.5% up to $0.60 a week"
+   ],
+   "notModeled": [
+    "Empire State child credit"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "joint"
+  }
+ }
+}

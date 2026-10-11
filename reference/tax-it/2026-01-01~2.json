@@ -1,0 +1,28 @@
+{
+ "dataset": "tax-it",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "IRPEF 2026 23/33/43%; Lombardy regional surcharge up to 1.73% + Milan municipal 0.8%; INPS 9.19% to €120,607",
+  "url": "https://www.agenziaentrate.gov.it/",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "IRPEF 2026 23/33/43%; Lombardy regional surcharge up to 1.73% + Milan municipal 0.8%; INPS 9.19% to €120,607",
+   "url": "https://www.agenziaentrate.gov.it/",
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "approximate": true,
+   "unverified": [
+    "all values (agenziaentrate page did not list the scale)"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "individual",
+   "note": "Italy taxes each person separately; dependant deductions (tapering to zero near €80,000-95,000) not modeled."
+  }
+ }
+}

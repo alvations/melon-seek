@@ -1,0 +1,31 @@
+{
+ "dataset": "tax-pt",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "IRS 2026 scale 12.5%-48% (Lei 73-A/2025, CIRS art. 68), solidarity surcharge 2.5% / 5% over €80,000 / €250,000; specific deduction €4,462.15 or contributions; social security 11%. IFICI regime not modeled",
+  "url": "https://info.portaldasfinancas.gov.pt/pt/informacao_fiscal/codigos_tributarios/cirs_rep/Pages/irs68.aspx",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "IRS 2026 scale 12.5%-48% (Lei 73-A/2025, CIRS art. 68), solidarity surcharge 2.5% / 5% over €80,000 / €250,000; specific deduction €4,462.15 or contributions; social security 11%. IFICI regime not modeled",
+   "url": "https://info.portaldasfinancas.gov.pt/pt/informacao_fiscal/codigos_tributarios/cirs_rep/Pages/irs68.aspx",
+   "checkedVia": [
+    "https://info.portaldasfinancas.gov.pt/pt/informacao_fiscal/codigos_tributarios/cirs_rep/Pages/irs68a.aspx"
+   ],
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "unverified": [
+    "specific deduction €4,462.15 (2026 IAS not read)",
+    "employee social security 11%"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "single",
+   "note": "Portugal: joint taxation and dependant deductions not modeled."
+  }
+ }
+}

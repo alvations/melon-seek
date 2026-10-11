@@ -1,0 +1,26 @@
+{
+ "dataset": "tax-us-dc",
+ "asOf": "2025-01-01",
+ "taxYear": "2025",
+ "source": {
+  "name": "District of Columbia 4%-10.75% (tax years after 2021, all filing statuses); standard deduction $15,000 / $30,000",
+  "url": "https://otr.cfo.dc.gov/page/dc-individual-and-fiduciary-income-tax-rates",
+  "licence": "District of Columbia public information"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "District of Columbia 4%-10.75% (tax years after 2021, all filing statuses); standard deduction $15,000 / $30,000",
+   "url": "https://otr.cfo.dc.gov/page/dc-individual-and-fiduciary-income-tax-rates",
+   "asOf": "2025",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "unverified": [
+    "standard deduction $15,000 / $30,000 (secondary source)"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "joint"
+  }
+ }
+}

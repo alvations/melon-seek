@@ -1,0 +1,29 @@
+{
+ "dataset": "tax-se",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "State tax 20% above SEK 643,000 taxable (brytpunkt 660,400), basic allowance SEK 17,400 at high income; Stockholm municipal tax 30.55%; job tax credit approximated",
+  "url": "https://www.skatteverket.se/privat/skatter/beloppochprocent/2026.4.1522bf3f19aea8075ba21.html",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "State tax 20% above SEK 643,000 taxable (brytpunkt 660,400), basic allowance SEK 17,400 at high income; Stockholm municipal tax 30.55%; job tax credit approximated",
+   "url": "https://www.skatteverket.se/privat/skatter/beloppochprocent/2026.4.1522bf3f19aea8075ba21.html",
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "approximate": true,
+   "unverified": [
+    "Stockholm municipal rate 30.55%",
+    "job tax credit formula"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "individual",
+   "note": "Sweden taxes each person separately."
+  }
+ }
+}

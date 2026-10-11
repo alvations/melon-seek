@@ -1,0 +1,23 @@
+{
+ "dataset": "tax-us-az",
+ "asOf": "2025-01-01",
+ "taxYear": "2025",
+ "source": {
+  "name": "Arizona Form 140 (2025): 2.5%, standard deduction $15,750 / $31,500, $100 dependent credit",
+  "url": "https://azdor.gov/sites/default/files/document/FORMS_INDIVIDUAL_2025_140i.pdf",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Arizona Form 140 (2025): 2.5%, standard deduction $15,750 / $31,500, $100 dependent credit",
+   "url": "https://azdor.gov/sites/default/files/document/FORMS_INDIVIDUAL_2025_140i.pdf",
+   "asOf": "2025",
+   "reviewed": "2026-10-10",
+   "verified": true
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "joint"
+  }
+ }
+}

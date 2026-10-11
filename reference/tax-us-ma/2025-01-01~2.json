@@ -1,0 +1,29 @@
+{
+ "dataset": "tax-us-ma",
+ "asOf": "2025-01-01",
+ "taxYear": "2025 / 2026 (surtax)",
+ "source": {
+  "name": "Massachusetts Form 1 (2025): 5% after the personal exemption $4,400 / $8,800, $1,000 per dependent and up to $2,000 of FICA; 4% surtax over $1,107,750 (2026 Form 1-ES); PFML employee 0.46% to the Social Security wage base",
+  "url": "https://www.mass.gov/doc/2025-form-1-instructions/download",
+  "licence": "Commonwealth of Massachusetts public information"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Massachusetts Form 1 (2025): 5% after the personal exemption $4,400 / $8,800, $1,000 per dependent and up to $2,000 of FICA; 4% surtax over $1,107,750 (2026 Form 1-ES); PFML employee 0.46% to the Social Security wage base",
+   "url": "https://www.mass.gov/doc/2025-form-1-instructions/download",
+   "checkedVia": [
+    "https://www.mass.gov/doc/2026-form-1-es-estimated-tax-payment-vouchers-instructions-and-worksheets/download"
+   ],
+   "asOf": "2025 / 2026 (surtax)",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "unverified": [
+    "PFML employee share 0.46% (secondary source; mass.gov rate page blocked)"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "joint"
+  }
+ }
+}

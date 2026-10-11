@@ -1,0 +1,23 @@
+{
+ "dataset": "tax-us-mi",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "Michigan 4.25%, personal exemption $5,900 per person (2026 withholding data)",
+  "url": "https://www.michigan.gov/taxes/-/media/Project/Websites/taxes/Tax-Interest-Calculator/2026WithholdingtaxinfoJson.json",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Michigan 4.25%, personal exemption $5,900 per person (2026 withholding data)",
+   "url": "https://www.michigan.gov/taxes/-/media/Project/Websites/taxes/Tax-Interest-Calculator/2026WithholdingtaxinfoJson.json",
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": true
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "joint"
+  }
+ }
+}

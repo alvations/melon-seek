@@ -1,0 +1,26 @@
+{
+ "dataset": "tax-us-tx",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "No state income tax on wages (Texas Constitution art. 8 §24-a)",
+  "url": "https://statutes.capitol.texas.gov/Docs/CN/htm/CN.8.htm",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "No state income tax on wages (Texas Constitution art. 8 §24-a)",
+   "url": "https://statutes.capitol.texas.gov/Docs/CN/htm/CN.8.htm",
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "unverified": [
+    "constitution text did not render for the probe"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "neutral"
+  }
+ }
+}

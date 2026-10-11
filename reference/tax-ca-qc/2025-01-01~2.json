@@ -1,0 +1,27 @@
+{
+ "dataset": "tax-ca-qc",
+ "asOf": "2025-01-01",
+ "taxYear": "2025",
+ "source": {
+  "name": "Quebec 2025 brackets 14/19/24/25.75%, federal abatement 16.5%; QPP 6.3%, QPIP 0.43%, EI 1.30%",
+  "url": "https://www.revenuquebec.ca/en/citizens/income-tax-return/",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Quebec 2025 brackets 14/19/24/25.75%, federal abatement 16.5%; QPP 6.3%, QPIP 0.43%, EI 1.30%",
+   "url": "https://www.revenuquebec.ca/en/citizens/income-tax-return/",
+   "asOf": "2025",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "approximate": true,
+   "unverified": [
+    "Quebec brackets, basic amount and QPP/QPIP (Revenu Québec blocks the probe); abatement 16.5% and EI 1.30% are from CRA"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "individual"
+  }
+ }
+}

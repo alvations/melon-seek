@@ -1,0 +1,28 @@
+{
+ "dataset": "tax-tw",
+ "asOf": "2025-01-01",
+ "taxYear": "2025",
+ "source": {
+  "name": "Income tax 5%-40%, exemption + standard + salary deductions NT$446,000; labour and health insurance (capped)",
+  "url": "https://www.etax.nat.gov.tw/",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Income tax 5%-40%, exemption + standard + salary deductions NT$446,000; labour and health insurance (capped)",
+   "url": "https://www.etax.nat.gov.tw/",
+   "asOf": "2025",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "approximate": true,
+   "unverified": [
+    "all values"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "single",
+   "note": "Taiwan: household filing exemptions for a spouse and children not modeled."
+  }
+ }
+}

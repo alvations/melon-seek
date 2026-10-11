@@ -1,0 +1,32 @@
+{
+ "dataset": "tax-ca",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "CRA T4127 (January 2026): federal 14/20.5/26/29/33% ($58,523 / $117,045 / $181,440 / $258,482), basic personal amount $16,452 falling to $14,829, Canada employment amount $1,501; CPP 5.95% to $74,600 (enhanced part deducted) + CPP2 4% to $85,000; EI 1.63% to $68,900",
+  "url": "https://www.canada.ca/en/revenue-agency/services/forms-publications/payroll/t4127-payroll-deductions-formulas/t4127-jan/t4127-jan-payroll-deductions-formulas-computer-programs.html",
+  "licence": "Government of Canada (Crown copyright; reproduction for non-commercial use permitted)"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "CRA T4127 (January 2026): federal 14/20.5/26/29/33% ($58,523 / $117,045 / $181,440 / $258,482), basic personal amount $16,452 falling to $14,829, Canada employment amount $1,501; CPP 5.95% to $74,600 (enhanced part deducted) + CPP2 4% to $85,000; EI 1.63% to $68,900",
+   "url": "https://www.canada.ca/en/revenue-agency/services/forms-publications/payroll/t4127-payroll-deductions-formulas/t4127-jan/t4127-jan-payroll-deductions-formulas-computer-programs.html",
+   "checkedVia": [
+    "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/payroll/payroll-deductions-contributions/canada-pension-plan-cpp/cpp-contribution-rates-maximums-exemptions.html",
+    "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/payroll/payroll-deductions-contributions/employment-insurance-ei/ei-premium-rates-maximums.html"
+   ],
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "unverified": [
+    "CPP2 ceiling $85,000",
+    "deduction of the enhanced CPP contributions from income (not re-read in T4127)"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "individual",
+   "note": "Canada taxes each person separately; the spouse amount credit is not modeled."
+  }
+ }
+}

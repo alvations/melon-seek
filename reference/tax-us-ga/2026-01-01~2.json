@@ -1,0 +1,23 @@
+{
+ "dataset": "tax-us-ga",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "Georgia HB 463: 4.99% for 2026, standard deduction $15,000 / $30,000, $5,000 per dependent",
+  "url": "https://www.legis.ga.gov/api/legislation/document/20252026/249080",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Georgia HB 463: 4.99% for 2026, standard deduction $15,000 / $30,000, $5,000 per dependent",
+   "url": "https://www.legis.ga.gov/api/legislation/document/20252026/249080",
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": true
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "joint"
+  }
+ }
+}

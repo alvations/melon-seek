@@ -1,0 +1,28 @@
+{
+ "dataset": "tax-cz",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "PIT 15%/23% (36x average wage), CZK 30,840 credit; social 7.1% (capped), health 4.5%",
+  "url": "https://www.financnisprava.cz/cs/dane/dane/dan-z-prijmu/fyzicke-osoby",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "PIT 15%/23% (36x average wage), CZK 30,840 credit; social 7.1% (capped), health 4.5%",
+   "url": "https://www.financnisprava.cz/cs/dane/dane/dan-z-prijmu/fyzicke-osoby",
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "approximate": true,
+   "unverified": [
+    "all values"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "individual",
+   "note": "Czechia: child tax credits not modeled."
+  }
+ }
+}

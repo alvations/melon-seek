@@ -1,0 +1,24 @@
+{
+ "dataset": "rents-nsw-official",
+ "asOf": "2026-06-01",
+ "taxYear": null,
+ "source": {
+  "name": "NSW Department of Communities and Justice, Rent and Sales Report, rent tables xlsx (sheet LGA; Postcode 2000 cross-check)",
+  "url": "https://dcj.nsw.gov.au/about-us/families-and-communities-statistics/housing-rent-and-sales/rent-and-sales-report.html",
+  "licence": "CC BY 4.0 per the data.nsw.gov.au listing (unverified: the DCJ report PDFs say © Crown Copyright with LPI-licensed sales data)"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "bedroomRatios.AU-sydney": {
+   "label": "NSW new bonds, Sydney local government area, June quarter 2026",
+   "name": "NSW Department of Communities and Justice, Rent and Sales Report, June quarter 2026: median weekly rent for new bonds, Sydney local government area (City of Sydney), flats and units",
+   "url": "https://dcj.nsw.gov.au/about-us/families-and-communities-statistics/housing-rent-and-sales/rent-and-sales-report.html",
+   "asOf": "2026-06",
+   "file": "https://dcj.nsw.gov.au/content/dam/dcj/dcj-website/documents/about-us/families-and-communities-statistics/housing-and-rent-sales/rent-tables-june-2026-quarter.xlsx",
+   "license": "NSW Government open data (CC BY 4.0 per docs/LIVABILITY.md §7; licence line not re-read on the page)",
+   "note": "New bonds lodged in the quarter, i.e. new leases. Flats and units: 1 bedroom $819, 2 bedrooms $1,150, 3 bedrooms $1,550 a week (2,862 / 1,737 / 277 new bonds). Monthly = weekly × 52 ÷ 12. Cross-check, postcode 2000 (the CBD): $915 / $1,400 / $2,300.",
+   "r2": 1.404,
+   "r3": 1.893
+  }
+ }
+}

@@ -1,0 +1,40 @@
+{
+ "dataset": "tax-fr",
+ "asOf": "2025-01-01",
+ "taxYear": "2025 income (barème) / 2026 (contributions)",
+ "source": {
+  "name": "Barème on 2025 income (latest enacted): 0/11/30/41/45%, quotient familial with the €1,807 cap per half-part, 10% deduction (cap €14,555), CEHR 3% / 4%; employee contributions 2026: old age 6.90% to the PASS (€48,060) + 0.40%, AGIRC-ARRCO 3.15% / 8.64%, CEG 0.86% / 1.08%, CET 0.14%, APEC 0.024%, CSG 9.2% + CRDS 0.5% on 98.25% to 4 PASS",
+  "url": "https://www.service-public.fr/particuliers/vosdroits/F1419",
+  "licence": "Service-Public.fr (DILA) public information (licence not reviewed)"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Barème on 2025 income (latest enacted): 0/11/30/41/45%, quotient familial with the €1,807 cap per half-part, 10% deduction (cap €14,555), CEHR 3% / 4%; employee contributions 2026: old age 6.90% to the PASS (€48,060) + 0.40%, AGIRC-ARRCO 3.15% / 8.64%, CEG 0.86% / 1.08%, CET 0.14%, APEC 0.024%, CSG 9.2% + CRDS 0.5% on 98.25% to 4 PASS",
+   "url": "https://www.service-public.fr/particuliers/vosdroits/F1419",
+   "checkedVia": [
+    "https://www.impots.gouv.fr/www2/fichiers/documentation/brochure/ir_2026/pdf_som/21-calcul_impot_369a382.pdf",
+    "https://www.service-public.fr/particuliers/vosdroits/F31130",
+    "https://www.service-public.fr/particuliers/vosdroits/F1989",
+    "https://www.urssaf.fr/accueil/outils-documentation/taux-baremes/taux-cotisations-secteur-prive.html",
+    "https://www.urssaf.fr/accueil/outils-documentation/taux-baremes/plafonds-securite-sociale.html",
+    "https://www.agirc-arrco.fr/storage/chiffrAA_2026_VF.pdf"
+   ],
+   "asOf": "2025 income (barème) / 2026 (contributions)",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "unverified": [
+    "AGIRC-ARRCO employee shares 3.15% / 8.64% (derived from the contractual rates)",
+    "APEC 0.024%"
+   ],
+   "notModeled": [
+    "décote (low incomes only)",
+    "company health and provident plans"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "joint",
+   "note": "France: quotient familial (2 parts, +½ per child, €1,807 cap per half-part)."
+  }
+ }
+}

@@ -1,0 +1,26 @@
+{
+ "dataset": "tax-us-local-md-county",
+ "asOf": "2025-01-01",
+ "taxYear": "2025",
+ "source": {
+  "name": "Maryland local income tax, Baltimore City 3.2% of Maryland taxable income",
+  "url": "https://www.marylandtaxes.gov/individual/income/tax-info/tax-rates.php",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Maryland local income tax, Baltimore City 3.2% of Maryland taxable income",
+   "url": "https://www.marylandtaxes.gov/individual/income/tax-info/tax-rates.php",
+   "asOf": "2025",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "unverified": [
+    "Baltimore City rate 3.20% (Comptroller page renders client-side)"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "joint"
+  }
+ }
+}

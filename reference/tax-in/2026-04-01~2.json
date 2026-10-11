@@ -1,0 +1,27 @@
+{
+ "dataset": "tax-in",
+ "asOf": "2026-04-01",
+ "taxYear": "FY2026-27",
+ "source": {
+  "name": "New regime FY2026-27: 0/5/10/15/20/25/30% slabs, ₹75,000 standard deduction, section 87A rebate to ₹12 lakh, surcharge to 25%, 4% cess; professional tax ₹2,500 (KA/MH/TS). EPF (funded) excluded",
+  "url": "https://incometaxindia.gov.in/",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "New regime FY2026-27: 0/5/10/15/20/25/30% slabs, ₹75,000 standard deduction, section 87A rebate to ₹12 lakh, surcharge to 25%, 4% cess; professional tax ₹2,500 (KA/MH/TS). EPF (funded) excluded",
+   "url": "https://incometaxindia.gov.in/",
+   "asOf": "FY2026-27",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "unverified": [
+    "all values (secondary sources only)"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "individual",
+   "note": "India taxes each person separately (no dependant deductions in the new regime)."
+  }
+ }
+}

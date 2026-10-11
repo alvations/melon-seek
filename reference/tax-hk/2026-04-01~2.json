@@ -1,0 +1,27 @@
+{
+ "dataset": "tax-hk",
+ "asOf": "2026-04-01",
+ "taxYear": "2026/27",
+ "source": {
+  "name": "Salaries tax 2026/27: progressive 2%-17% after allowances (basic HK$145,000, married HK$290,000, HK$140,000 per child; derived from the gov.hk standard-rate zone table), capped at the standard rate 15% (16% over HK$5M); MPF 5% to HK$18,000 deducted (funded, not counted as tax)",
+  "url": "https://www.gov.hk/en/residents/taxes/taxfiling/taxrates/salariesrates.htm",
+  "licence": "GovHK public information"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Salaries tax 2026/27: progressive 2%-17% after allowances (basic HK$145,000, married HK$290,000, HK$140,000 per child; derived from the gov.hk standard-rate zone table), capped at the standard rate 15% (16% over HK$5M); MPF 5% to HK$18,000 deducted (funded, not counted as tax)",
+   "url": "https://www.gov.hk/en/residents/taxes/taxfiling/taxrates/salariesrates.htm",
+   "asOf": "2026/27",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "unverified": [
+    "MPF cap HK$18,000"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "joint",
+   "note": "Hong Kong: married person's and child allowances."
+  }
+ }
+}

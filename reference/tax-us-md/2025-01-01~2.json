@@ -1,0 +1,30 @@
+{
+ "dataset": "tax-us-md",
+ "asOf": "2025-01-01",
+ "taxYear": "2025",
+ "source": {
+  "name": "Maryland 2025 (Budget Reconciliation and Financing Act 2025): 2%-6.5% with 6.25% / 6.5% top brackets, standard deduction $3,350 / $6,700",
+  "url": "https://www.marylandtaxes.gov/individual/income/tax-info/tax-rates.php",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Maryland 2025 (Budget Reconciliation and Financing Act 2025): 2%-6.5% with 6.25% / 6.5% top brackets, standard deduction $3,350 / $6,700",
+   "url": "https://www.marylandtaxes.gov/individual/income/tax-info/tax-rates.php",
+   "asOf": "2025",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "unverified": [
+    "brackets below $500,000 / $600,000 (assumed unchanged)"
+   ],
+   "notModeled": [
+    "personal exemptions ($3,200 phased out above $100,000, not verified)"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "joint",
+   "note": "Maryland personal exemptions not modeled."
+  }
+ }
+}

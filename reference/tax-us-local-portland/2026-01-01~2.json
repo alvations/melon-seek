@@ -1,0 +1,26 @@
+{
+ "dataset": "tax-us-local-portland",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "Portland area 2026: Metro supportive housing 1% over $128,000 / $205,000, Multnomah preschool 1.5% over $125,000 / $200,000 + 1.5% over $250,000 / $400,000 (Oregon taxable income), arts tax $50",
+  "url": "https://www.portland.gov/revenue/personal-tax",
+  "licence": "City of Portland public information"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Portland area 2026: Metro supportive housing 1% over $128,000 / $205,000, Multnomah preschool 1.5% over $125,000 / $200,000 + 1.5% over $250,000 / $400,000 (Oregon taxable income), arts tax $50",
+   "url": "https://www.portland.gov/revenue/personal-tax",
+   "checkedVia": [
+    "https://www.portland.gov/revenue/arts-tax"
+   ],
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": true
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "joint"
+  }
+ }
+}

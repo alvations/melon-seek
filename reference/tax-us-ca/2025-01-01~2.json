@@ -1,0 +1,36 @@
+{
+ "dataset": "tax-us-ca",
+ "asOf": "2025-01-01",
+ "taxYear": "2025 (brackets) / 2026 (SDI)",
+ "source": {
+  "name": "California FTB 2025 tax rate schedules X / Y (latest published; EDD 2026 withholding uses the same brackets), standard deduction $5,706 / $11,412, exemption credit $153 cut $6 per $2,500 over $252,203 / $504,411 AGI, Behavioral Health Services Tax 1% over $1M; SDI 1.3% of all wages (2026)",
+  "url": "https://www.ftb.ca.gov/forms/2025/2025-540-tax-rate-schedules.pdf",
+  "licence": "State of California public information"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "California FTB 2025 tax rate schedules X / Y (latest published; EDD 2026 withholding uses the same brackets), standard deduction $5,706 / $11,412, exemption credit $153 cut $6 per $2,500 over $252,203 / $504,411 AGI, Behavioral Health Services Tax 1% over $1M; SDI 1.3% of all wages (2026)",
+   "url": "https://www.ftb.ca.gov/forms/2025/2025-540-tax-rate-schedules.pdf",
+   "checkedVia": [
+    "https://www.ftb.ca.gov/forms/2025/2025-540-booklet.pdf",
+    "https://edd.ca.gov/siteassets/files/pdf_pub_ctr/26methb.pdf",
+    "https://edd.ca.gov/en/payroll_taxes/rates_and_withholding/"
+   ],
+   "asOf": "2025 (brackets) / 2026 (SDI)",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "unverified": [
+    "personal exemption credit amount $153 (printed on Form 540, not in the booklet text)"
+   ],
+   "notModeled": [
+    "dependent exemption credit (amount not verified)",
+    "alternative minimum tax"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "joint",
+   "note": "California dependent exemption credit not modeled."
+  }
+ }
+}

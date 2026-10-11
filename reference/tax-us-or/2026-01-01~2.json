@@ -1,0 +1,30 @@
+{
+ "dataset": "tax-us-or",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "Oregon 2026 withholding formulas: 4.75%-9.9%, standard deduction $2,910 / $5,820, federal tax subtraction (max $8,750, phased out from $125,000 / $250,000), exemption credit $263; statewide transit tax 0.1%; Paid Leave Oregon 1% (employee 60%)",
+  "url": "https://www.oregon.gov/dor/forms/FormsPubs/withholding-tax-formulas_206-436_2026.pdf",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Oregon 2026 withholding formulas: 4.75%-9.9%, standard deduction $2,910 / $5,820, federal tax subtraction (max $8,750, phased out from $125,000 / $250,000), exemption credit $263; statewide transit tax 0.1%; Paid Leave Oregon 1% (employee 60%)",
+   "url": "https://www.oregon.gov/dor/forms/FormsPubs/withholding-tax-formulas_206-436_2026.pdf",
+   "checkedVia": [
+    "https://www.oregon.gov/dor/programs/businesses/Pages/Statewide-Transit-Tax.aspx",
+    "https://paidleave.oregon.gov/employers/"
+   ],
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "unverified": [
+    "Paid Leave employee share 60% (secondary source)"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "joint"
+  }
+ }
+}

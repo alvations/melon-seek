@@ -1,0 +1,28 @@
+{
+ "dataset": "tax-dk",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "AM contribution 8%, bottom tax 12.01%, Copenhagen municipal 23.39%, 2026 middle/top/top-top tax 7.5%/7.5%/5%, personal allowance DKK 54,100, employment deduction 12.75%",
+  "url": "https://skat.dk/",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "AM contribution 8%, bottom tax 12.01%, Copenhagen municipal 23.39%, 2026 middle/top/top-top tax 7.5%/7.5%/5%, personal allowance DKK 54,100, employment deduction 12.75%",
+   "url": "https://skat.dk/",
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "approximate": true,
+   "unverified": [
+    "all values (skat.dk not readable)"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "individual",
+   "note": "Denmark: transfer of a non-earning spouse's personal allowance not modeled."
+  }
+ }
+}

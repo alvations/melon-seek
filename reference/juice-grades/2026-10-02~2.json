@@ -1,0 +1,34 @@
+{
+ "dataset": "juice-grades",
+ "asOf": "2026-10-02",
+ "taxYear": null,
+ "source": {
+  "name": "melon-seek (our own choice)",
+  "url": "https://github.com/alvations/melon-seek",
+  "licence": "no licence file; owner decision pending (the repo has no LICENSE and package.json no \"license\" field, so the code and our own data are all rights reserved by default)"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "server/juice.js#GRADES": [
+   {
+    "min": 70,
+    "label": "Juicy",
+    "hint": "plenty left after rent, tax and living costs"
+   },
+   {
+    "min": 45,
+    "label": "Ripe",
+    "hint": "comfortable margin"
+   },
+   {
+    "min": 0,
+    "label": "Dry",
+    "hint": "thin margin"
+   }
+  ],
+  "public/viz/palette.js#JUICE_BREAKS": [
+   45,
+   70
+  ]
+ }
+}

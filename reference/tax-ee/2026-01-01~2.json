@@ -1,0 +1,27 @@
+{
+ "dataset": "tax-ee",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "Income tax 22%, basic exemption €8,400; unemployment insurance 1.6% (2nd pillar excluded)",
+  "url": "https://www.emta.ee/en/private-client/taxes-and-payment/income-tax",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "Income tax 22%, basic exemption €8,400; unemployment insurance 1.6% (2nd pillar excluded)",
+   "url": "https://www.emta.ee/en/private-client/taxes-and-payment/income-tax",
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "unverified": [
+    "all values (EMTA pages moved)"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "individual",
+   "note": "Estonia: using a spouse's basic exemption not modeled."
+  }
+ }
+}

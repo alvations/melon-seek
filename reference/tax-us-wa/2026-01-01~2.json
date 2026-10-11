@@ -1,0 +1,30 @@
+{
+ "dataset": "tax-us-wa",
+ "asOf": "2026-01-01",
+ "taxYear": "2026",
+ "source": {
+  "name": "No income tax on wages; WA Cares 0.58% of all wages; Paid Family and Medical Leave 1.13% (employee 71.43%)",
+  "url": "https://wacaresfund.wa.gov/employers/",
+  "licence": "official publication; tax rates and thresholds are statutory facts"
+ },
+ "exportedAt": "2026-10-11",
+ "values": {
+  "TAX_SOURCES": {
+   "name": "No income tax on wages; WA Cares 0.58% of all wages; Paid Family and Medical Leave 1.13% (employee 71.43%)",
+   "url": "https://wacaresfund.wa.gov/employers/",
+   "checkedVia": [
+    "https://esd.wa.gov/node/1109",
+    "https://paidleave.wa.gov/employers/"
+   ],
+   "asOf": "2026",
+   "reviewed": "2026-10-10",
+   "verified": false,
+   "unverified": [
+    "PFML wage cap taken as the Social Security wage base"
+   ]
+  },
+  "TAX_HOUSEHOLD": {
+   "basis": "neutral"
+  }
+ }
+}
