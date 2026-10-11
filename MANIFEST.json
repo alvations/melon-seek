@@ -1,7 +1,7 @@
 {
  "format": "melon-archive",
  "schemaVersion": 1,
- "updatedAt": "2026-10-11T19:59:28.432Z",
+ "updatedAt": "2026-10-11T19:59:59.461Z",
  "generator": "scripts/archive@31ad25b15abb0036dff6660e7ea83277b3eb6de4",
  "tables": {
   "audit/flags": 1283,
@@ -16,8 +16,8 @@
   "jobs.versions": 75260,
   "ledger/entries": 42004,
   "observations": 488,
-  "reference.files": 265,
-  "reference/index": 265
+  "reference.files": 266,
+  "reference/index": 266
  },
  "files": {
   "audit/flags/2026-10.jsonl": {
@@ -524,9 +524,9 @@
   },
   "reference/index/2026.jsonl": {
    "kind": "append",
-   "bytes": 122978,
-   "sha256": "3879de308effd61dcf13e08aadbeb5b34a2d99b1b184b1d6a26c18e80d5b49fe",
-   "rows": 265
+   "bytes": 123400,
+   "sha256": "4c5d13c7b257779aab5f2a91d67965056c398c7b3a905398ce31d1aa9fdb4ff6",
+   "rows": 266
   },
   "reference/jobs-aggregates/2026-10-09.json": {
    "kind": "immutable",
@@ -792,6 +792,11 @@
    "kind": "immutable",
    "bytes": 750253,
    "sha256": "c41a5942bd729e172bbdca23dc01bc06f74499a7189f16130f4e8508a101d2c6"
+  },
+  "reference/repo.freshness-registry/2026-10-11~9.json": {
+   "kind": "immutable",
+   "bytes": 750254,
+   "sha256": "cf3068b713a54c20e8c941f25445862d98fc898b8768bb6a2e08307eb9e33492"
   },
   "reference/repo.fx-juice/2026-07-01.json": {
    "kind": "immutable",
