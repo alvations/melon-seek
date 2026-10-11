@@ -1,26 +1,26 @@
 {
  "amazon": {
   "slug": "amazon",
-  "lastObservedAt": "2026-10-11T22:07:19.015Z",
+  "lastObservedAt": "2026-10-11T23:34:13.437Z",
   "firstObservedAt": "2026-10-11T15:04:28.012Z",
-  "observations": 2,
+  "observations": 3,
   "name": "Amazon",
   "channel": "beta",
   "source": "amazon",
   "board": "amazon",
   "color": "#ff9900",
-  "open": 22338,
+  "open": 22337,
   "ids": 22343,
   "pending": {
    "opened": 17343,
    "reopened": 0,
    "resumed": 0,
-   "closed": 5,
+   "closed": 6,
    "unseen": 0,
-   "changed": 4995,
+   "changed": 4996,
    "payChanged": 0,
-   "sourceChanged": 4995,
-   "observations": 1
+   "sourceChanged": 4996,
+   "observations": 2
   },
   "lastDailyDate": "2026-10-11",
   "lastDailyAt": "2026-10-11T15:04:28.012Z"
@@ -157,9 +157,9 @@
  },
  "meta": {
   "slug": "meta",
-  "lastObservedAt": "2026-10-11T22:21:00.210Z",
+  "lastObservedAt": "2026-10-11T23:46:42.183Z",
   "firstObservedAt": "2026-10-11T15:17:42.075Z",
-  "observations": 2,
+  "observations": 3,
   "name": "Meta",
   "channel": "beta",
   "source": "meta",
@@ -173,10 +173,10 @@
    "resumed": 0,
    "closed": 4,
    "unseen": 0,
-   "changed": 1,
+   "changed": 5,
    "payChanged": 0,
-   "sourceChanged": 1,
-   "observations": 1
+   "sourceChanged": 5,
+   "observations": 2
   },
   "lastDailyDate": "2026-10-11",
   "lastDailyAt": "2026-10-11T15:17:42.075Z"
