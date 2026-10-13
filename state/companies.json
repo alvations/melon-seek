@@ -1,29 +1,29 @@
 {
  "amazon": {
   "slug": "amazon",
-  "lastObservedAt": "2026-10-12T16:16:55.378Z",
+  "lastObservedAt": "2026-10-13T01:06:10.855Z",
   "firstObservedAt": "2026-10-11T15:04:28.012Z",
-  "observations": 5,
+  "observations": 6,
   "name": "Amazon",
   "channel": "beta",
   "source": "amazon",
   "board": "amazon",
   "color": "#ff9900",
-  "open": 22372,
-  "ids": 22596,
+  "open": 22472,
+  "ids": 22971,
   "pending": {
-   "opened": 222,
+   "opened": 0,
    "reopened": 0,
    "resumed": 0,
-   "closed": 174,
+   "closed": 0,
    "unseen": 0,
-   "changed": 78,
-   "payChanged": 3,
-   "sourceChanged": 76,
-   "observations": 1
+   "changed": 0,
+   "payChanged": 0,
+   "sourceChanged": 0,
+   "observations": 0
   },
-  "lastDailyDate": "2026-10-12",
-  "lastDailyAt": "2026-10-12T06:42:26.392Z"
+  "lastDailyDate": "2026-10-13",
+  "lastDailyAt": "2026-10-13T01:06:10.855Z"
  },
  "anduril": {
   "slug": "anduril",
@@ -79,29 +79,29 @@
  },
  "apple": {
   "slug": "apple",
-  "lastObservedAt": "2026-10-12T16:16:16.596Z",
+  "lastObservedAt": "2026-10-13T01:08:54.876Z",
   "firstObservedAt": "2026-10-10T12:19:51.916Z",
-  "observations": 10,
+  "observations": 11,
   "name": "Apple",
   "channel": "beta",
   "source": "apple",
   "board": "apple",
   "color": "#6e6e73",
-  "open": 4902,
-  "ids": 6140,
+  "open": 4949,
+  "ids": 6187,
   "pending": {
-   "opened": 19,
+   "opened": 0,
    "reopened": 0,
-   "resumed": 1,
+   "resumed": 0,
    "closed": 0,
    "unseen": 0,
-   "changed": 3,
+   "changed": 0,
    "payChanged": 0,
-   "sourceChanged": 3,
-   "observations": 1
+   "sourceChanged": 0,
+   "observations": 0
   },
-  "lastDailyDate": "2026-10-12",
-  "lastDailyAt": "2026-10-12T06:42:00.885Z"
+  "lastDailyDate": "2026-10-13",
+  "lastDailyAt": "2026-10-13T01:08:54.876Z"
  },
  "cohere": {
   "slug": "cohere",
@@ -183,29 +183,29 @@
  },
  "microsoft": {
   "slug": "microsoft",
-  "lastObservedAt": "2026-10-12T16:15:59.230Z",
+  "lastObservedAt": "2026-10-13T01:06:04.376Z",
   "firstObservedAt": "2026-10-10T10:55:39.033Z",
-  "observations": 10,
+  "observations": 11,
   "name": "Microsoft",
   "channel": "beta",
   "source": "eightfold",
   "board": "microsoft",
   "color": "#00a4ef",
-  "open": 2351,
-  "ids": 2395,
+  "open": 2310,
+  "ids": 2492,
   "pending": {
-   "opened": 44,
+   "opened": 0,
    "reopened": 0,
-   "resumed": 7,
+   "resumed": 0,
    "closed": 0,
    "unseen": 0,
-   "changed": 21,
-   "payChanged": 1,
-   "sourceChanged": 9,
-   "observations": 1
+   "changed": 0,
+   "payChanged": 0,
+   "sourceChanged": 0,
+   "observations": 0
   },
-  "lastDailyDate": "2026-10-12",
-  "lastDailyAt": "2026-10-12T06:40:48.444Z"
+  "lastDailyDate": "2026-10-13",
+  "lastDailyAt": "2026-10-13T01:06:04.376Z"
  },
  "netflix": {
   "slug": "netflix",
