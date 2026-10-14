@@ -131,29 +131,29 @@
  },
  "google": {
   "slug": "google",
-  "lastObservedAt": "2026-10-13T23:10:59.737Z",
+  "lastObservedAt": "2026-10-14T05:34:27.338Z",
   "firstObservedAt": "2026-10-10T11:09:51.834Z",
-  "observations": 13,
+  "observations": 14,
   "name": "Google",
   "channel": "beta",
   "source": "google",
   "board": "google",
   "color": "#4285f4",
-  "open": 3573,
-  "ids": 3814,
+  "open": 3574,
+  "ids": 3816,
   "pending": {
-   "opened": 205,
+   "opened": 0,
    "reopened": 0,
    "resumed": 0,
-   "closed": 31,
+   "closed": 0,
    "unseen": 0,
-   "changed": 26,
-   "payChanged": 1,
-   "sourceChanged": 16,
-   "observations": 2
+   "changed": 0,
+   "payChanged": 0,
+   "sourceChanged": 0,
+   "observations": 0
   },
-  "lastDailyDate": "2026-10-13",
-  "lastDailyAt": "2026-10-13T01:00:33.864Z"
+  "lastDailyDate": "2026-10-14",
+  "lastDailyAt": "2026-10-14T05:34:27.338Z"
  },
  "meta": {
   "slug": "meta",
@@ -209,9 +209,9 @@
  },
  "netflix": {
   "slug": "netflix",
-  "lastObservedAt": "2026-10-13T23:09:30.963Z",
+  "lastObservedAt": "2026-10-14T05:29:03.274Z",
   "firstObservedAt": "2026-10-10T10:21:03.942Z",
-  "observations": 13,
+  "observations": 14,
   "name": "Netflix",
   "channel": "beta",
   "source": "eightfold",
@@ -220,44 +220,44 @@
   "open": 442,
   "ids": 465,
   "pending": {
-   "opened": 4,
+   "opened": 0,
    "reopened": 0,
    "resumed": 0,
-   "closed": 12,
+   "closed": 0,
    "unseen": 0,
-   "changed": 31,
+   "changed": 0,
    "payChanged": 0,
-   "sourceChanged": 1,
-   "observations": 2
+   "sourceChanged": 0,
+   "observations": 0
   },
-  "lastDailyDate": "2026-10-13",
-  "lastDailyAt": "2026-10-13T01:00:22.045Z"
+  "lastDailyDate": "2026-10-14",
+  "lastDailyAt": "2026-10-14T05:29:03.274Z"
  },
  "nvidia": {
   "slug": "nvidia",
-  "lastObservedAt": "2026-10-13T23:14:28.669Z",
+  "lastObservedAt": "2026-10-14T05:32:43.803Z",
   "firstObservedAt": "2026-10-10T11:01:40.411Z",
-  "observations": 13,
+  "observations": 14,
   "name": "NVIDIA",
   "channel": "beta",
   "source": "eightfold",
   "board": "nvidia",
   "color": "#76b900",
-  "open": 2786,
-  "ids": 2815,
+  "open": 2686,
+  "ids": 2836,
   "pending": {
-   "opened": 67,
-   "reopened": 1,
-   "resumed": 2543,
+   "opened": 0,
+   "reopened": 0,
+   "resumed": 0,
    "closed": 0,
    "unseen": 0,
-   "changed": 86,
-   "payChanged": 3,
-   "sourceChanged": 38,
-   "observations": 2
+   "changed": 0,
+   "payChanged": 0,
+   "sourceChanged": 0,
+   "observations": 0
   },
-  "lastDailyDate": "2026-10-13",
-  "lastDailyAt": "2026-10-13T01:01:22.096Z"
+  "lastDailyDate": "2026-10-14",
+  "lastDailyAt": "2026-10-14T05:32:43.803Z"
  },
  "openai": {
   "slug": "openai",
