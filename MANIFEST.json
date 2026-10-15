@@ -1,30 +1,30 @@
 {
  "format": "melon-archive",
  "schemaVersion": 1,
- "updatedAt": "2026-10-15T05:41:21.026Z",
+ "updatedAt": "2026-10-15T05:42:11.785Z",
  "generator": "scripts/archive@e48fd3248a90b157b0d59626c6e7aeedc3c250fe",
  "tables": {
-  "audit/flags": 1300,
+  "audit/flags": 1301,
   "audit/refresh": 267,
-  "audit/runs": 152,
+  "audit/runs": 153,
   "audit/verdicts": 681,
-  "blobs": 78411,
-  "daily": 143,
-  "ingests": 529,
-  "jobs.closed": 67479,
-  "jobs.open": 43338,
-  "jobs.versions": 110817,
-  "ledger/entries": 69800,
-  "observations": 739,
+  "blobs": 78471,
+  "daily": 152,
+  "ingests": 534,
+  "jobs.closed": 67532,
+  "jobs.open": 43347,
+  "jobs.versions": 110879,
+  "ledger/entries": 70245,
+  "observations": 748,
   "reference.files": 268,
   "reference/index": 268
  },
  "files": {
   "audit/flags/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 1218843,
-   "sha256": "d3dc990676afef2891c44fe90e4629247926b96c31d388174f3eba539898f993",
-   "rows": 1300
+   "bytes": 1220035,
+   "sha256": "909753ec2030c1f9a781d45eadcae85b70e59e30b2bcf3d823873cbb98f792ed",
+   "rows": 1301
   },
   "audit/refresh/2026-10.jsonl": {
    "kind": "append",
@@ -34,9 +34,9 @@
   },
   "audit/runs/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 1270924,
-   "sha256": "23156905fb94a1b39e4f57f1a78a99306aea1542ee8c2c484919ff5b43be2cda",
-   "rows": 152
+   "bytes": 1279228,
+   "sha256": "56813787bc3482a3034bef0a2d08889e57bf67ac632ee014476dd4812ac9e956",
+   "rows": 153
   },
   "audit/verdicts/2026-10.jsonl": {
    "kind": "append",
@@ -46,38 +46,38 @@
   },
   "beta/history/amazon.json": {
    "kind": "mutable",
-   "bytes": 3678928,
-   "sha256": "01dd13bebeacb54b54e6625f18349d238d6b82b4054e8132d0f8014764d7f8b7"
+   "bytes": 3697519,
+   "sha256": "f6ab5d128ad1a626d76407ae5ff971886d35c325520fb88f38082cc09c208f4a"
   },
   "beta/history/apple.json": {
    "kind": "mutable",
-   "bytes": 1011019,
-   "sha256": "3c3957b7438390ce8c5d7e8a1a9d3076b867390f3ecf3ce1dcae14cf0bed1b94"
+   "bytes": 1015686,
+   "sha256": "2b398f2cb10c9b68e367cee3be6f04e6ce9f6559156a68af6218ea54452ce4c6"
   },
   "beta/history/google.json": {
    "kind": "mutable",
-   "bytes": 578455,
-   "sha256": "a17b8191bfdb7dbfc09008b2ba6a7cec7cb01de74bc28633431d361a56a10848"
+   "bytes": 578778,
+   "sha256": "9c809508360daf97e8a5d198f2f2ba30311d9a41dc33205f14990da3dd5f98f8"
   },
   "beta/history/meta.json": {
    "kind": "mutable",
-   "bytes": 173496,
-   "sha256": "98d30a11565ddc1b8043165c0f421e61672f4edbaa5d36c37d42fe0c3f4cf1d9"
+   "bytes": 174667,
+   "sha256": "f9a3b2236183c14925e9369d23cb1b9ebc47d20518c2cb4dcbe664ee10a50af9"
   },
   "beta/history/microsoft.json": {
    "kind": "mutable",
-   "bytes": 466527,
-   "sha256": "d9552da7eabfc62dd96d58004399f9099e80fd94c7a7f18f8598bbb90de20fa2"
+   "bytes": 473429,
+   "sha256": "4d0bba2856857e6d6c0cb8a24c660454ce2d40130f54cf938b6bbe10c585a466"
   },
   "beta/history/netflix.json": {
    "kind": "mutable",
-   "bytes": 70950,
-   "sha256": "6ae2e4a646c97cc9c76ab2f6723e9f73868bd47d2c49fea54b7a02212802307c"
+   "bytes": 71178,
+   "sha256": "c797dc85960840028540830576f933f1be2fdba09843f62ae5ae5d45aefc3aac"
   },
   "beta/history/nvidia.json": {
    "kind": "mutable",
-   "bytes": 439910,
-   "sha256": "433b53d7f1d97e025cea330673ae1770c8c70d55636805b521ed3977e721bc07"
+   "bytes": 441562,
+   "sha256": "e2f807096d331a15a1e0d975f66ec5c6fc6e82715bb3933428e360405e0e093b"
   },
   "blobs/2026-10.2.jsonl": {
    "kind": "append",
@@ -111,9 +111,9 @@
   },
   "blobs/2026-10.7.jsonl": {
    "kind": "append",
-   "bytes": 39789427,
-   "sha256": "e32deef7eab82d097a24178501a8469cbf059973795219a9d0c14aacb7f56c37",
-   "rows": 15759
+   "bytes": 40483863,
+   "sha256": "2ce0f54948f43fa2749a78bb7471f7166cf13f78565917617ec11c0e67d64b62",
+   "rows": 15819
   },
   "blobs/2026-10.jsonl": {
    "kind": "append",
@@ -123,55 +123,55 @@
   },
   "daily/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 825494,
-   "sha256": "593bc2cf0c7a5c78da61c6d0c86e5163a62a23a33a387ca9876c4a502dfc9080",
-   "rows": 143
+   "bytes": 872788,
+   "sha256": "b7e214fc48b22344ea78804809d89329825e002657af2f94c5967e623b3381e8",
+   "rows": 152
   },
   "history/anduril.json": {
    "kind": "mutable",
-   "bytes": 432392,
-   "sha256": "af35386d068c35a65d7e64cab05fe0d398f0e25717dc3b27f954571f12fc5e57"
+   "bytes": 436101,
+   "sha256": "1dd3c501180c594068b02b4ec60b595259b9fcdfdda713e253dccbe4c297dadf"
   },
   "history/anthropic.json": {
    "kind": "mutable",
-   "bytes": 114538,
-   "sha256": "56c5bfe014f06cc9efab793dd8b542bf6d4b3a91fe980f02f5b7937dc70be4da"
+   "bytes": 115064,
+   "sha256": "b1bde60c9beb3316d871f834b66c5d0dca12007b287b9756c8d7c850f254df66"
   },
   "history/cohere.json": {
    "kind": "mutable",
-   "bytes": 24498,
-   "sha256": "fda2f68a497f653154d62d1314b7efb25cb2d4548636aa150a4d2125e67fe7f4"
+   "bytes": 24497,
+   "sha256": "e29acfeb18ed8ee2ca1a521446a5db08d83cb50030ea07920b2317bedb623611"
   },
   "history/openai.json": {
    "kind": "mutable",
-   "bytes": 150256,
-   "sha256": "5eaad9982f04797485d09aac4e87fc9cc60ba58732a20b0fcd423aaa610320d3"
+   "bytes": 150857,
+   "sha256": "b5fb2ccfe729f4992b4ec4a7c959fd111fbb1cc8d9fa36ea0198f8d82aaf9849"
   },
   "history/palantir.json": {
    "kind": "mutable",
    "bytes": 53626,
-   "sha256": "dfa328e83176576731230de2cb73d5b747b7c3f2f449792dbd4106cfd4c2bbd4"
+   "sha256": "04feaa9913d68e0bfa88133f86fa5e6a19052f96b470a83fb9c6fc29c1952100"
   },
   "history/scaleai.json": {
    "kind": "mutable",
    "bytes": 32472,
-   "sha256": "a10065dd0d15e2b64e1be9f649d218299f619378b9b77bd439bf97461e88e885"
+   "sha256": "ca736db8fc338dab428312039760b1261195707a90a594b9e2e5ed3ce3b2fd3e"
   },
   "history/shieldai.json": {
    "kind": "mutable",
    "bytes": 108872,
-   "sha256": "00075a734e13e46206f601083d2fb07a7af1a580387f42dd6fe2c18ec1922cbd"
+   "sha256": "3a570bec0050ebcd788368a09e5fd4749964674a3d2a33e76ebafeea3f937e7f"
   },
   "history/xai.json": {
    "kind": "mutable",
-   "bytes": 50879,
-   "sha256": "c2b7c5f213c849f1aac626d6b11275d880cc5e6c2c0b9e6e7dce8faf63a7eaf1"
+   "bytes": 50923,
+   "sha256": "f5fe04448ca063e3dbdf7085f0bafd4eb4f3abb2e81b335a24e08f53d624880e"
   },
   "ingests/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 636735,
-   "sha256": "aa460193de404e3f5e40a3d59a1804a7021239602d88fb38ce047c7f86763af3",
-   "rows": 529
+   "bytes": 643251,
+   "sha256": "f8e16c530b2312955fa3160df91f742f56eb03f58b03000ee2ea4101f24b1db5",
+   "rows": 534
   },
   "jobs/amazon/2026-10.jsonl": {
    "kind": "append",
@@ -192,37 +192,37 @@
   },
   "jobs/anduril/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 23592320,
-   "sha256": "16d75b69e88d486643f8efc40b953ed946b492a1cb7e98d9ada62348e03b3f11",
-   "rows": 11198
+   "bytes": 23645649,
+   "sha256": "d0de90553858d85540a29231173502c3dfe79080d082e09791252d0d131395ee",
+   "rows": 11224
   },
   "jobs/anduril/ids.json": {
    "kind": "mutable",
-   "bytes": 67275,
-   "sha256": "e9066bd863331e87312a9e570b2157d85d32d775c5fdae39248da08309088080"
+   "bytes": 67755,
+   "sha256": "24c7b9a4182cbe98c6ee0ba4fd3467afcd1e5e6a3dbce66b0f110f77ca2734c7"
   },
   "jobs/anduril/open.jsonl": {
    "kind": "mutable",
-   "bytes": 4896220,
-   "sha256": "0e7eb51bfcba4beffee501cede32092e76f23bf194d187f8bf3793645e3fc80a",
-   "rows": 2517
+   "bytes": 4915434,
+   "sha256": "a366540bb9499a3eee7033d38c76c7bb52df0f080852ba501e5155f7b182f6aa",
+   "rows": 2527
   },
   "jobs/anthropic/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 4288462,
-   "sha256": "53cf0352deb48ff773c7c59626fe680fea4cad567b349961c2a08f26e7a095ad",
-   "rows": 1973
+   "bytes": 4299610,
+   "sha256": "9805f485c033089526e1bc8c8a765959a9ed9a2c87b2845a7da99bf088850e3f",
+   "rows": 1979
   },
   "jobs/anthropic/ids.json": {
    "kind": "mutable",
-   "bytes": 19035,
-   "sha256": "1fb8da4c2c8eb25d62f9d9f1de517db5b68d323cea9a4994cadd76239b606831"
+   "bytes": 19087,
+   "sha256": "ded6cbe8c529a9fe448c3bb347eb622274147dbf13fb1f8dbcc97a65cb9ec2f1"
   },
   "jobs/anthropic/open.jsonl": {
    "kind": "mutable",
-   "bytes": 1261402,
-   "sha256": "5070b54f0891063879fe42a7a1feca16f566199e8a17cc17ec7730068239b17e",
-   "rows": 650
+   "bytes": 1256550,
+   "sha256": "755be7e5cb5bd634aa5633bf91956cf810fdc06e08b4bf02ad7674948fed9280",
+   "rows": 647
   },
   "jobs/apple/2026-10.jsonl": {
    "kind": "append",
@@ -243,19 +243,19 @@
   },
   "jobs/cohere/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 933241,
-   "sha256": "d07bb2c51f840478e82be1f5cbfd5bdc760164d927a1990a70a382f1eea02499",
-   "rows": 354
+   "bytes": 936049,
+   "sha256": "661095d582a0a7711c73785e8eff09887a39fc5755d41aabcd14e3ebb1877198",
+   "rows": 355
   },
   "jobs/cohere/ids.json": {
    "kind": "mutable",
    "bytes": 7206,
-   "sha256": "88876bff7a248886c02d9221cab1e15b13e8e67a5bb1a5658475ab305bbf24e3"
+   "sha256": "5d1b2722e1a62e9d0fd6c66b0cd79ba226701a177e10f64b3a5bb309f5d46d0b"
   },
   "jobs/cohere/open.jsonl": {
    "kind": "mutable",
-   "bytes": 280523,
-   "sha256": "a3cfa16b9076f727665cf52cb8922ed15509e17e45df4124efbe3b9b65de337f",
+   "bytes": 280049,
+   "sha256": "cf179ea3fdfc400c7522798d62366c9ad4c96f58bde453fce6dd115658efc87e",
    "rows": 116
   },
   "jobs/google/2026-10.jsonl": {
@@ -277,20 +277,20 @@
   },
   "jobs/meta/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 392060,
-   "sha256": "40b6fdb22be97894c51d08a0b7827a9e9e098b6270e9d3acdbe5348eddbb9895",
-   "rows": 204
+   "bytes": 423732,
+   "sha256": "04a66bf75a262eef70ecf264281d8f88ebd993ce27d10d05da37496780ae34ae",
+   "rows": 221
   },
   "jobs/meta/ids.json": {
    "kind": "mutable",
-   "bytes": 33709,
-   "sha256": "172e45a5b6a69eeedaed48c7efb6bb8ecd1cfc8ad092afdcd6c77d15eb7a345e"
+   "bytes": 33871,
+   "sha256": "fdd81e1f07574b60e7a4f5e9a45f9b822a37c5c75739bdf1a36f28cc3fc6b94c"
   },
   "jobs/meta/open.jsonl": {
    "kind": "mutable",
-   "bytes": 2241865,
-   "sha256": "ea501f30ee49a0e7db8b4fb5b4c3db9fb7b64a4cfad176fb2593fe9093dfa12a",
-   "rows": 1191
+   "bytes": 2239871,
+   "sha256": "6a4dd002e7353f8e4a4df7bb3b84ba3b4f17de43a9f16f6f3eaf700d4e3f2591",
+   "rows": 1189
   },
   "jobs/microsoft/2026-10.jsonl": {
    "kind": "append",
@@ -345,20 +345,20 @@
   },
   "jobs/openai/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 4545323,
-   "sha256": "428397c80658885c1a4482291af15d4165f6ed0372a766b42978ed1e510b1495",
-   "rows": 2177
+   "bytes": 4549343,
+   "sha256": "21775e8482a5b051399750e5ee81ef4735584ce501fb8f02b8cabea4766ef13c",
+   "rows": 2179
   },
   "jobs/openai/ids.json": {
    "kind": "mutable",
-   "bytes": 45083,
-   "sha256": "6396c507eb837dd9e45ee0b8a8bcdca1508528146d288d01463a906056ad973f"
+   "bytes": 45279,
+   "sha256": "f3da28aa145df366c301449f1173b2044ab49ebba9a02d0c751d6ce3c0e6e4e6"
   },
   "jobs/openai/open.jsonl": {
    "kind": "mutable",
-   "bytes": 1498786,
-   "sha256": "5932f2f4bf8e7b192a936a5dcd6838c5df5aba4434fc740a1cee9752ade93c40",
-   "rows": 799
+   "bytes": 1507535,
+   "sha256": "1b326e7421904e364babd46623a2b3644a6f24edacbe61cdcdc73f584a1abcd9",
+   "rows": 804
   },
   "jobs/palantir/2026-10.jsonl": {
    "kind": "append",
@@ -413,9 +413,9 @@
   },
   "jobs/xai/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 4156594,
-   "sha256": "fa839d66af6594dcea3bb10c0aa2eef211b11dd021d80aa303204bc745fa83a8",
-   "rows": 2324
+   "bytes": 4159363,
+   "sha256": "ad4bb21867674a40a23cfbd81e73ab9ab6762697e9ec09d6c25546515494d11f",
+   "rows": 2325
   },
   "jobs/xai/ids.json": {
    "kind": "mutable",
@@ -424,21 +424,21 @@
   },
   "jobs/xai/open.jsonl": {
    "kind": "mutable",
-   "bytes": 512748,
-   "sha256": "33769f316b13b96d3daef97d39262cc130e1e5279b89698a418ed33a66de4d9e",
-   "rows": 303
+   "bytes": 510027,
+   "sha256": "a5d833383eabb65f074493950520039eb95d00cbecab7595b74732ed662632cf",
+   "rows": 302
   },
   "ledger/entries/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 25748922,
-   "sha256": "678a26959e3f1b9d977b4cde68d8f84a82d41922c84cfffdbdeb94beab0efa55",
-   "rows": 69800
+   "bytes": 25922762,
+   "sha256": "2878645b371cd6d6dffadab29320b47d9e4cb8f1079f81151ae180330826b23d",
+   "rows": 70245
   },
   "observations/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 690341,
-   "sha256": "5640e8915c4d4d43e47b6f6172750fdd995ac6732d8bd22871925a86a981b2e7",
-   "rows": 739
+   "bytes": 700228,
+   "sha256": "ad5a29468dbeb99ba31ba364c2549ea87d740dcb4382d9e6aa9a869120f89add",
+   "rows": 748
   },
   "reference/archive-policy/2026-10-10.json": {
    "kind": "immutable",
@@ -1798,13 +1798,13 @@
   },
   "state/blob-index.json": {
    "kind": "mutable",
-   "bytes": 4693079,
-   "sha256": "b57ded51bf0562dbfa82c6158c61dbac2b81d678794ba809d9b4fd5e71637ece"
+   "bytes": 4696679,
+   "sha256": "01b0c862eea6a7fc8933f9aad5a33f1d59b062d7e87aea0d5f83e0bf92c71deb"
   },
   "state/companies.json": {
    "kind": "mutable",
-   "bytes": 8385,
-   "sha256": "c98dd2615e8a7782a118d2fc84292e702ed52cea1b322994b2b0ce8da66ef9cd"
+   "bytes": 8373,
+   "sha256": "6cc21d09945b3c9d369cd55e5adfc1ad80be31b09ce720e1260940e7c12a76aa"
   }
  }
 }
