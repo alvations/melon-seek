@@ -52,7 +52,9 @@
 //    browser's second vetting pass.
 // Amazon's whole board (docs/process/perf-mobile-beta-2.md), also behaviour-identical:
 //  - lists are melon-packed-3 (unpackJobs): about a third smaller, and faster to parse and unpack;
-//  - Juice runs in time slices (JUICE_SLICE_MS) instead of fixed 400-job chunks (up to 290 ms each).
+//  - Juice runs in time slices (JUICE_SLICE_MS) instead of fixed 400-job chunks (up to 290 ms each);
+//  - getPreview(): a big board's first page (api/preview/<slug>.json, fetched early by config.js) for the
+//    app to show while getJobs loads the whole list; getJobs itself is unchanged.
 //
 // Every function resolves to the HTTP API shapes in docs/CONTRACT.md, with one
 // exception: to keep bundles small, jobs from the static build's bundled lists
@@ -880,6 +882,50 @@ export async function getJobs(params, { refresh = false, signal, onUpdate = null
   res = await getJson(`api/jobs?${jobsQuery(p, r)}`, { signal }); // vetted by the server
   await withJuice(res, inputs);
   return res;
+}
+
+/* ------------------------------------------------------------ first-page preview */
+
+/**
+ * The first company's preview, which the static build's config.js started fetching early
+ * (scripts/build-static.js#previewPreloadJs): for `path` only, and only once.
+ */
+function firstPreview(path) {
+  const e = g.MELON_FIRST_PREVIEW;
+  if (!e || e.path !== path || !e.response) return null;
+  g.MELON_FIRST_PREVIEW = null;
+  return e.response;
+}
+
+/**
+ * Static mode: a big board's first page while getJobs loads the whole list (docs/process/perf-mobile-beta-2.md):
+ * { total, colorCounts: [[department, postings with pay]], jobs } from api/preview/<slug>.json
+ * (scripts/build-static.js#previewList), the postings the default view lists first, with juice attached
+ * as getJobs attaches it; they equal the list's own postings. null when there is none (server mode, a
+ * custom board, a small board, a list already in memory) or it fails: the page then waits for getJobs as
+ * before. It never changes what getJobs returns.
+ */
+export async function getPreview(params, { signal } = {}) {
+  if (!isStatic()) return null;
+  const p = toParams(params);
+  if (!p.company || p.source || p.board) return null;
+  const slug = String(p.company).toLowerCase();
+  const listPath = `api/jobs/${encodeURIComponent(slug)}.json`;
+  if (bundleCache.has(listPath) || memCache.has(slug)) return null; // the list is in memory: no wait to cover
+  const path = `api/preview/${encodeURIComponent(slug)}.json`;
+  const early = firstPreview(path);
+  try {
+    const list = await staticCompanies(signal);
+    if (!list.some((c) => c.slug === slug)) return null;
+    const raw = await getJson(path, { signal, early });
+    if (!raw || !raw.preview || !Array.isArray(raw.jobs)) return null;
+    const res = { total: raw.preview.total, colorCounts: raw.preview.colorCounts || [], jobs: unpackJobs(raw) };
+    await withJuice(res, juiceInputs());
+    return res;
+  } catch (err) {
+    if (signal && signal.aborted) throw abortError();
+    return null;
+  }
 }
 
 /* -------------------------------------------------------- job details */

@@ -100,6 +100,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { LIB_MODULES, LIB_SOURCES_DIR, isLibModule } from '../server/lib-modules.js';
 import { BETA_POSTING_HOSTS, BETA_POSTING_PREFIXES } from './links-policy.js';
 import { unpackJobs, PACKED_FORMAT } from '../public/api.js';
+import { toUSD } from '../public/viz/palette.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -346,7 +347,7 @@ export function splitPayload(payload, api, vet = null) {
     const v2 = JSON.stringify(packList(plain, api, { v3: false }));
     const back2 = api.unpackJobs(JSON.parse(v2));
     if (JSON.stringify(back) !== JSON.stringify(back2)) throw new Error(`${payload.company && payload.company.slug}: melon-packed-3 list unpacks differently from melon-packed-2`);
-    return { list: packed, details, sectionsMoved: moveSections, back, v2Bytes: Buffer.byteLength(v2) };
+    return { list: packed, details, sectionsMoved: moveSections, back, plain, v2Bytes: Buffer.byteLength(v2) };
   };
   let out = build(false);
   // The budget is measured in melon-packed-2 bytes, as before melon-packed-3, so the same lists move
@@ -360,12 +361,78 @@ export function splitPayload(payload, api, vet = null) {
 }
 
 async function writeSplit(out, payload, file, api, slug, vet = null) {
-  const { list, details, sectionsMoved } = splitPayload(payload, api, vet);
+  const split = splitPayload(payload, api, vet);
+  const { list, details, sectionsMoved } = split;
   const listBytes = await writeJson(file, list);
   let descBytes = 0;
   for (const [p, rec] of details) descBytes += await writeJson(path.join(out, p), rec);
   if (listBytes > LIST_BUDGET) warn(`${slug}: list is ${size(listBytes)} even without descriptions/sections (budget ${size(LIST_BUDGET)})`);
-  return { listBytes, descBytes, descFiles: details.size, sectionsMoved };
+  const preview = previewList(split, api);
+  const previewBytes = preview ? await writeJson(path.join(out, previewPath(slug)), preview) : 0;
+  return { listBytes, descBytes, descFiles: details.size, sectionsMoved, previewBytes, previewJobs: preview ? preview.jobs.length : 0 };
+}
+
+/* ------------------------------------------------------------ first-page preview */
+
+// perf-mobile-beta-2: a big board's list takes seconds to arrive and to prepare on a phone (Amazon's
+// 22,179 postings: 1.14 MB gzip), so the build also writes api/preview/<slug>.json, the postings the
+// default view (Highest pay, no filter, no search) lists first, in the same packed format, and
+// public/app.js shows them as the first page while the whole list loads (then the whole list
+// replaces them; the page keeps its place when they agree, which they do). Nothing is left out: the
+// preview is an extra, early copy of the list's first postings; the list itself is unchanged.
+export const PREVIEW_MIN_JOBS = 1000; // smaller boards load fast enough without one
+export const PREVIEW_SIZE = 100;
+/** The preview file of a company, relative to the site root (public/api.js#getPreview reads it). */
+export const previewPath = (slug) => `api/preview/${slug}.json`;
+
+/**
+ * The pay the default sort reads, as public/app.js#prepare computes it: { mid, max } in USD, or null
+ * (no pay, or a range toUSD can't make finite). prepare drops a salary with neither min nor max and
+ * fills a missing min, max or mid from the others.
+ */
+export function previewPay(job) {
+  const s = job && job.salary;
+  if (!s || (s.min == null && s.max == null)) return null;
+  const min = s.min ?? s.max;
+  const max = s.max ?? s.min;
+  const mid = s.mid ?? (min + max) / 2;
+  const u = { min: toUSD(min, s.currency), max: toUSD(max, s.currency), mid: toUSD(mid, s.currency) };
+  return Number.isFinite(u.min) && Number.isFinite(u.max) ? { mid: u.mid, max: u.max } : null;
+}
+
+/**
+ * Indexes (board order) of the postings the default view lists first: every posting whose pay mid is at
+ * least the `n`th highest (ties at that mid included, so the set is exactly a prefix of the sorted list
+ * whatever the tie-breaks: app.js sorts by mid, then max, then title), or, on a board with fewer than `n`
+ * paid postings, all of those plus the first unpaid ones in board order (the sort keeps their order).
+ */
+export function previewSet(jobs, n = PREVIEW_SIZE) {
+  const pay = jobs.map(previewPay);
+  const paid = pay.map((p, i) => (p ? i : -1)).filter((i) => i >= 0);
+  if (paid.length > n) {
+    const t = paid.map((i) => pay[i].mid).sort((a, b) => b - a)[n - 1];
+    return paid.filter((i) => pay[i].mid >= t);
+  }
+  const unpaid = pay.map((p, i) => (p ? -1 : i)).filter((i) => i >= 0).slice(0, n - paid.length);
+  return [...paid, ...unpaid].sort((a, b) => a - b);
+}
+
+/**
+ * The preview body for a split list, or null (a small board, or a list the browser vets again: the
+ * preview must hold exactly the postings getJobs returns). `preview.colorCounts` are the postings with
+ * pay per department, what app.js#computeColorKeys counts, so the first cards get the chart's colours.
+ */
+function previewList({ list, back, plain }, api) {
+  if (!list.shared || list.shared.vetted !== true || back.length < PREVIEW_MIN_JOBS) return null;
+  const idx = previewSet(back);
+  const counts = new Map();
+  for (const j of back) if (previewPay(j)) { const k = j.department || 'No department'; counts.set(k, (counts.get(k) || 0) + 1); }
+  const packed = packList({ company: plain.company, jobs: idx.map((i) => plain.jobs[i]) }, api);
+  // Same round-trip guard as the list: the preview's postings are the list's, value for value.
+  const got = api.unpackJobs(JSON.parse(JSON.stringify(packed)));
+  if (JSON.stringify(got) !== JSON.stringify(idx.map((i) => back[i]))) throw new Error(`${list.shared.company}: preview does not unpack to the list's postings`);
+  packed.shared.vetted = true;
+  return { ...packed, preview: { total: back.length, colorCounts: [...counts] } };
 }
 
 /* ------------------------------------------------------------ load hints */
@@ -430,10 +497,9 @@ export const LAST_VIEW_KEY = Object.freeze({ stable: 'melon-seek.last.v1', beta:
  * no list), else `first`: app.js#defaultCompany, the first company, or on the beta site the first Big
  * tech board (`live: false`; docs/process/fix3-app.md, beta landing).
  */
-export function listPreloadJs(slugs, lastKey, first = slugs[0]) {
-  return `// Preload the first job list (scripts/build-static.js#listPreloadJs; docs/process/perf-mobile-beta.md).
-(function (slugs, lastKey, first) {
-  try {
+// The company app.js#boot opens: the link's c= (lower-cased, as api.js looks it up), else this site's last
+// view (app.js LAST_KEY), else the first company; '' for a custom board or an unknown slug.
+const OPENING_COMPANY_JS = `function openingCompany(slugs, lastKey, first) {
     var hash = location.hash.replace(/^#/, '');
     var c = new URLSearchParams(hash).get('c') || '';
     if (hash) c = c.toLowerCase();
@@ -444,16 +510,48 @@ export function listPreloadJs(slugs, lastKey, first = slugs[0]) {
       if (c && slugs.indexOf(c) < 0 && c.indexOf(':') < 0) c = '';
     }
     if (!c) c = first || '';
-    if (slugs.indexOf(c) < 0) return;
-    var path = ['api', 'jobs', encodeURIComponent(c) + '.json'].join('/'); // api.js#staticJobs listPath
-    // Read into a Blob as it arrives (an unread body would stall the download); api.js parses it.
+    return slugs.indexOf(c) < 0 ? '' : c;
+  }`;
+// Fetch `path` now and hand api.js a Response read into a Blob as it arrives (an unread body would
+// stall the download); api.js parses it. A failure is api.js's to see.
+const EARLY_FETCH_JS = `function earlyFetch(path) {
     var res = fetch(path, { headers: { accept: 'application/json' } }).then(function (r) {
       return r.blob().then(function (b) { return new Response(b, { status: r.status, statusText: r.statusText, headers: r.headers }); });
     });
     res.catch(function () { /* api.js sees the same failure */ });
-    window.MELON_FIRST_LIST = { path: path, response: res };
+    return { path: path, response: res };
+  }`;
+
+export function listPreloadJs(slugs, lastKey, first = slugs[0]) {
+  return `// Preload the first job list (scripts/build-static.js#listPreloadJs; docs/process/perf-mobile-beta.md).
+(function (slugs, lastKey, first) {
+  ${OPENING_COMPANY_JS}
+  ${EARLY_FETCH_JS}
+  try {
+    var c = openingCompany(slugs, lastKey, first);
+    if (!c) return;
+    window.MELON_FIRST_LIST = earlyFetch(['api', 'jobs', encodeURIComponent(c) + '.json'].join('/')); // api.js#staticJobs listPath
   } catch (e) { /* none: api.js fetches the list itself */ }
 })(${JSON.stringify(slugs)}, ${JSON.stringify(lastKey)}, ${JSON.stringify(first || '')});
+`;
+}
+
+/**
+ * The same for the first company's preview (previewList; perf-mobile-beta-2), when it has one: written
+ * before listPreloadJs in config.js, so the small preview is requested ahead of the big list.
+ * `previewSlugs`: the companies with an api/preview/<slug>.json.
+ */
+export function previewPreloadJs(previewSlugs, slugs, lastKey, first = slugs[0]) {
+  return `// Preload the first company's preview (scripts/build-static.js#previewPreloadJs; docs/process/perf-mobile-beta-2.md).
+(function (previewSlugs, slugs, lastKey, first) {
+  ${OPENING_COMPANY_JS}
+  ${EARLY_FETCH_JS}
+  try {
+    var c = openingCompany(slugs, lastKey, first);
+    if (!c || previewSlugs.indexOf(c) < 0) return;
+    window.MELON_FIRST_PREVIEW = earlyFetch(['api', 'preview', encodeURIComponent(c) + '.json'].join('/')); // api.js#getPreview
+  } catch (e) { /* none: api.js fetches the preview itself */ }
+})(${JSON.stringify(previewSlugs)}, ${JSON.stringify(slugs)}, ${JSON.stringify(lastKey)}, ${JSON.stringify(first || '')});
 `;
 }
 
@@ -752,7 +850,7 @@ export function betaGate(jobs, scanCompany) {
 /** Per-company paths (relative to a site root) that the build writes for `slug`. */
 function companyFiles(api, slug) {
   const desc = path.posix.dirname(api.descPath({ company: slug, id: `${slug}:x` }));
-  return [`api/jobs/${slug}.json`, `api/history/${slug}.json`, `api/meta/${slug}.json`, `data/${slug}.csv`, desc];
+  return [`api/jobs/${slug}.json`, previewPath(slug), `api/history/${slug}.json`, `api/meta/${slug}.json`, `data/${slug}.csv`, desc];
 }
 
 /**
@@ -769,7 +867,7 @@ export function betaLeaks(out, betaSlugs, { hosts = BETA_POSTING_HOSTS, prefixes
   const json = (f) => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch { return null; } };
   for (const c of json(path.join(out, 'api', 'companies.json')) || []) if (c && slugs.has(c.slug)) v.push(`api/companies.json lists ${c.slug}`);
   for (const s of slugs) {
-    for (const f of [`api/jobs/${s}.json`, `api/demo/${s}.json`, `api/meta/${s}.json`, `api/history/${s}.json`, `api/desc/${s}`, `c/${s}`, `data/${s}.csv`]) {
+    for (const f of [`api/jobs/${s}.json`, previewPath(s), `api/demo/${s}.json`, `api/meta/${s}.json`, `api/history/${s}.json`, `api/desc/${s}`, `c/${s}`, `data/${s}.csv`]) {
       if (existsSync(path.join(out, f))) v.push(`${f} exists`);
     }
   }
@@ -782,7 +880,7 @@ export function betaLeaks(out, betaSlugs, { hosts = BETA_POSTING_HOSTS, prefixes
   const onBetaHost = (u) => {
     try { return hosts.includes(new URL(u).host.toLowerCase()) || prefixes.some((p) => u.startsWith(p)); } catch { return false; }
   };
-  for (const dir of ['jobs', 'demo']) {
+  for (const dir of ['jobs', 'preview', 'demo']) {
     const d = path.join(out, 'api', dir);
     if (!existsSync(d)) continue;
     for (const f of readdirSync(d)) {
@@ -1098,6 +1196,7 @@ async function writeCompany(ctx, out, c, payload, ledger, { live } = {}) {
   }
   let line = `${c.slug.padEnd(10)} ${payload.mode.padEnd(8)} ${String(payload.jobs.length).padStart(4)} jobs  list ${size(r.listBytes).padStart(9)}  desc ${String(r.descFiles).padStart(4)} files ${size(r.descBytes).padStart(9)}`;
   if (r.sectionsMoved) line += '  (sections moved to desc: list was over budget)';
+  if (r.previewJobs) line += `  preview ${r.previewJobs} (${size(r.previewBytes)})`;
   line += `  history ${Object.keys(compact).length} open (${size(histBytes)}), runs ${payload.meta.history.runs}`;
   const bt = payload.meta.compstimate;
   // backtest() returns PERCENT numbers (14.2 means 14.2%).
@@ -1271,6 +1370,7 @@ async function buildSite(ctx, site) {
     `window.MELON_LIVE_SOURCES = ${JSON.stringify(LIVE_SOURCES)};\n` +
     `window.MELON_QUIET_CORS_SOURCES = ${JSON.stringify(QUIET_CORS_SOURCES)};\n` +
     `window.MELON_BUILD = ${JSON.stringify(build)};\n` +
+    previewPreloadJs(companies.map((c) => c.slug).filter((slug) => existsSync(path.join(out, previewPath(slug)))), companies.map((c) => c.slug), LAST_VIEW_KEY[beta ? 'beta' : 'stable'], firstCompany(companies, beta)) +
     listPreloadJs(companies.map((c) => c.slug), LAST_VIEW_KEY[beta ? 'beta' : 'stable'], firstCompany(companies, beta)));
   if (!beta) await fs.writeFile(path.join(out, '.nojekyll'), '');
 

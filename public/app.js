@@ -1054,7 +1054,10 @@ async function loadJobs({ refresh = false } = {}) {
   mapFitPending = true;
   if (savedView && savedView.slug !== S.c) savedView = null; // P-12: a saved search's New marks stay with its company
   data = { status: 'loading', jobs: [], company: companyInfo(S.c), mode: null, fetchedAt: null, error: null };
+  preview = null;
+  pendingOpenId = null;
   render();
+  if (previewable()) dataApi.getPreview?.(jobsQuery(S.c), { signal: abortCtl.signal }).then((p) => showPreview(p, seq)).catch(() => {});
   // Static mode shows the bundled list as soon as it lands, marked `pending` while the live board
   // loads (api.js staticJobs step 1); onUpdate then settles it once (settleLive). It waits until
   // the first list is on screen, so a quick live answer or failure is never dropped mid-prepare.
@@ -1083,7 +1086,38 @@ async function loadJobs({ refresh = false } = {}) {
   if (data.status === 'ready') fillFamilies(data.jobs);
   settleSaved();
   if (S.job) openDrawer(S.job, { fromHash: true });
+  else if (pendingOpenId && data.status === 'ready') openDrawer(pendingOpenId);
+  pendingOpenId = null;
+  preview = null;
   onScreen();
+}
+
+/* perf-mobile-beta-2: a big board's first page while its list loads. The static build writes the postings
+   the default view lists first (api/preview/<slug>.json; api.js#getPreview), so on a phone the first cards
+   show in about the time the app takes to start, not after the whole list (Amazon's 22,179 postings: a
+   1.14 MB download, then Juice, prepare and the first render). They are the same postings, prepared and
+   sorted by the same code, with the chart's colours (the build counts them on the whole board) and the
+   same "New" tags (the last visit, read but not yet recorded); only the default view gets one (Highest pay,
+   no filter, no search, no saved search). The list says it is still loading; a tapped card opens when the
+   list is in. Then the whole list replaces it, keeping the place when its first cards are the same. */
+let preview = null; // { slug, jobs, total, visit } while shown
+let pendingOpenId = null;
+const previewing = () => data.status === 'loading' && preview?.slug === S.c && previewable();
+function previewable() {
+  if (!api.isStatic?.() || !S.c || isCustomKey(S.c) || area || effectiveSort() !== 'salary-desc' || colorBy() !== 'department') return false;
+  if (savedView && savedView.slug === S.c) return false;
+  return FILTER_KEYS.every((k) => (Array.isArray(DEFAULTS[k]) ? !S[k].length : S[k] === DEFAULTS[k]));
+}
+async function showPreview(p, seq) {
+  if (!p || !p.jobs?.length || seq !== loadSeq || data.status !== 'loading') return;
+  const jobs = p.jobs;
+  prepare(jobs, { source: companyInfo(S.c)?.source || null });
+  if (needsRejuice(jobs, juiceHousehold) && !(await rejuice(jobs, juiceHousehold, () => seq !== loadSeq))) return;
+  if (seq !== loadSeq || data.status !== 'loading' || !previewable()) return;
+  viewSpec = filterSpec(S, jobs);
+  setColorKeys(new Map(p.colorCounts));
+  preview = { slug: S.c, jobs: sortJobs(jobs), total: p.total, visit: visit.slug === S.c ? visit : readVisit(S.c) };
+  renderResults();
 }
 
 /** The live fetch behind a `pending` list ended: swap the live board in, or keep the list quietly. */
@@ -1194,7 +1228,7 @@ let visible = []; // sorted list after map-area filter
 
 function render() {
   derived = data.status === 'ready' ? derive() : { filtered: [], fc: null };
-  computeColorKeys(derived.filtered);
+  if (!previewing()) computeColorKeys(derived.filtered); // a preview keeps the board's colours (showPreview)
   const listed = area ? derived.filtered.filter((j) => area.ids.has(j.id)) : derived.filtered;
   visible = sortJobs(listed);
 
@@ -1681,12 +1715,16 @@ const lsGet = (k, fallback) => { try { const v = localStorage.getItem(k); return
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage blocked: feature degrades */ } };
 
 /** Remember this visit; keep the previous one for the session so "New" stays stable across refreshes. */
+/** The last visit to `slug`, as markVisit reads it (nothing is recorded). */
+function readVisit(slug) {
+  const since = lsGet(seenKey(slug), null);
+  const ids = lsGet(seenIdsKey(slug), null);
+  return { slug, since: typeof since === 'string' ? since : null, seenIds: Array.isArray(ids) ? new Set(ids) : null };
+}
 function markVisit(slug, jobs) {
   jobCache.set(slug, jobs);
   if (visit.slug === slug) return;
-  const since = lsGet(seenKey(slug), null);
-  const ids = lsGet(seenIdsKey(slug), null);
-  visit = { slug, since: typeof since === 'string' ? since : null, seenIds: Array.isArray(ids) ? new Set(ids) : null };
+  visit = readVisit(slug);
   lsSet(seenKey(slug), new Date().toISOString());
   lsSet(seenIdsKey(slug), jobs.map((j) => j.id));
 }
@@ -1709,7 +1747,10 @@ function savedViewIds() {
   }
   return v.ids;
 }
-const isNewJob = (job) => (visit.slug === S.c && isNewSince(job, visit.since, visit.seenIds)) || !!savedViewIds()?.has(job.id);
+const isNewJob = (job) => {
+  const v = visit.slug === S.c ? visit : previewing() ? preview.visit : null; // the preview's: the same reads markVisit makes
+  return (!!v && isNewSince(job, v.since, v.seenIds)) || !!savedViewIds()?.has(job.id);
+};
 /** After a saved search's company loads: say how many new roles it has and where they are. */
 function settleSaved() {
   const v = savedView;
@@ -2897,10 +2938,14 @@ function syncGroupSelect() {
 }
 
 function computeColorKeys(jobs) {
-  colorKeys = new Set();
   const dim = colorBy();
   const counts = new Map();
   for (const j of jobs) if (j._usd) { const k = keyOf(j, dim); counts.set(k, (counts.get(k) || 0) + 1); }
+  setColorKeys(counts);
+}
+/** The colour keys for `counts` (key -> postings with pay): the most common get the chart's slots. */
+function setColorKeys(counts) {
+  colorKeys = new Set();
   const ordered = [...counts.keys()].sort((a, b) => counts.get(b) - counts.get(a) || String(a).localeCompare(String(b)));
   const top = ordered.length > SLOT_COUNT ? ordered.slice(0, SLOT_COUNT - 1) : ordered;
   assignColors(top); // same (sticky) slots the chart assigns, so list/filter dots match its legend
@@ -3056,7 +3101,18 @@ function renderResults() {
   if (hasQuery() && !bestOpt.isConnected) sortSel.prepend(bestOpt);
   else if (!hasQuery() && bestOpt.isConnected) bestOpt.remove();
   sortSel.value = effectiveSort();
-  if (data.status !== 'ready' || !visible.length) { win.sig = ''; win.more = null; listIO?.disconnect(); listIO = null; }
+  if ((data.status !== 'ready' && !previewing()) || !visible.length) { win.sig = ''; win.more = null; listIO?.disconnect(); listIO = null; win.previewIds = null; }
+  if (previewing()) {
+    title.textContent = `Loading ${plural(preview.total, 'role')}…`;
+    list.setAttribute('aria-busy', 'true');
+    visible = preview.jobs;
+    win.sig = `preview|${visible.length}`;
+    win.previewIds = visible.map((j) => j.id);
+    measureCardFit();
+    buildWindow(list);
+    return;
+  }
+  list.removeAttribute('aria-busy');
   if (data.status === 'loading' || data.status === 'idle') {
     title.textContent = 'Loading roles…';
     list.replaceChildren(...Array.from({ length: 7 }, () => h('li', { class: 'card card--sk', 'aria-hidden': 'true' },
@@ -3096,6 +3152,8 @@ function renderResults() {
   // M-19: a new result set (another sort, filter, area or board) starts at the top of the list; the same
   // set re-rendered (a view switch, the live board replacing the snapshot) keeps its place and its pages.
   const sig = `${visible.length}|${visible.map((j) => j.id).join(',')}`;
+  // perf-mobile-beta-2: the list that replaces the preview keeps its place when it starts with the same cards.
+  if (win.previewIds) { if (win.previewIds.every((id, i) => visible[i]?.id === id)) win.keep = true; win.previewIds = null; }
   const fresh = sig !== win.sig;
   win.sig = sig;
   if (fresh && !win.keep) { win.heights.clear(); toTop(list); }
@@ -3145,7 +3203,7 @@ function toTop(list) {
    carries aria-posinset/aria-setsize, so a screen reader hears "12 of 6,105" however few are in the page. */
 const WINDOW_ALL = 150;
 const WINDOW_MIN = 120;
-const win = { sig: '', keep: false, loaded: 0, heights: new Map(), width: 0, gap: 8, base: 0, els: new Map(), top: null, bottom: null, more: null, btn: null };
+const win = { sig: '', keep: false, loaded: 0, heights: new Map(), width: 0, gap: 8, base: 0, els: new Map(), top: null, bottom: null, more: null, btn: null, previewIds: null };
 let listIO = null;
 
 /** Rebuild the list's cards (state changed): the note, the window, the spacers and "Show more". */
@@ -3241,7 +3299,7 @@ function paintWindow(scrollTop = null) {
   for (let i = start; i < end; i++) {
     const job = visible[i];
     let li = win.els.get(job.id);
-    if (!li) { li = card(job, i + 1, visible.length); win.els.set(job.id, li); added.push(li); }
+    if (!li) { li = card(job, i + 1, previewing() ? preview.total : visible.length); win.els.set(job.id, li); added.push(li); }
     if (prev.nextSibling !== li) prev.after(li);
     prev = li;
   }
@@ -3253,14 +3311,14 @@ function paintWindow(scrollTop = null) {
   win.top.style.height = `${Math.max(0, above - gap)}px`;
   win.bottom.style.display = end < n ? '' : 'none';
   win.bottom.style.height = `${Math.max(0, below - gap)}px`;
-  const rest = visible.length - n;
+  const rest = visible.length - n; // in the preview, the cards it has (the rest come with the list)
   win.more.style.display = rest > 0 ? '' : 'none';
   if (rest > 0) win.btn.textContent = `Show ${Math.min(PAGE * 2, rest).toLocaleString()} more of ${rest.toLocaleString()}`;
   else { listIO?.disconnect(); listIO = null; }
   // Measure the new cards (every card after a resize); when that moves the window's edges, place it again.
   let changed = false;
   for (const li of resized ? [...win.els.values()] : added) {
-    const id = li.firstElementChild?.dataset.id;
+    const id = li.firstElementChild?.dataset.id ?? li.firstElementChild?.dataset.previewId;
     const hgt = li.getBoundingClientRect().height; // not offsetHeight: rounding would shift the content under a scroll
     if (id && hgt && Math.abs((win.heights.get(id) ?? avg) - hgt) > 1) changed = true;
     if (id && hgt) win.heights.set(id, hgt);
@@ -3497,7 +3555,7 @@ function card(job, pos = null, size = null) {
   const remoteTag = job.remote && !/^remote\b/i.test(loc);
   const term = cardTerm(job);
   const el = h('li', { 'aria-posinset': pos, 'aria-setsize': size }, h('article', {
-    class: `card${isOpen ? ' is-open' : ''}`, dataset: { id: job.id }, tabindex: '0', role: 'button',
+    class: `card${isOpen ? ' is-open' : ''}`, dataset: previewing() ? { previewId: job.id } : { id: job.id }, tabindex: '0', role: 'button',
     'aria-label': `${job.title}${pool ? `, ${POOL_LABEL}` : ''}, ${pay ? `${pay.text}${pay.tip ? ` (${pay.tip})` : ''}` : job.salaryFlag ? 'pay unclear, see posting' : 'no pay listed'}, ${locSummary(job, 3)}`, style: `--stripe:${color}`,
     'aria-describedby': `${did}-m ${did}-f`,
   },
@@ -4821,10 +4879,18 @@ function bindEvents() {
   $('.brand').addEventListener('click', (e) => { e.preventDefault(); dropHeld(); set({ ...resetFiltersPatch(), job: null, m: 'chart' }); closeDrawer(); });
 
   const list = $('#resultsList');
-  list.addEventListener('click', (e) => { const c = e.target.closest('.card[data-id]'); if (c) openDrawer(c.dataset.id); });
+  list.addEventListener('click', (e) => {
+    const c = e.target.closest('.card[data-id]');
+    if (c) openDrawer(c.dataset.id);
+    else if (previewing()) pendingOpenId = e.target.closest('.card[data-preview-id]')?.dataset.previewId || pendingOpenId;
+  });
   list.addEventListener('keydown', (e) => {
     const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
     const c = e.target.closest('.card[data-id]');
+    if (!c && previewing() && (e.key === 'Enter' || e.key === ' ')) {
+      const pc = e.target.closest('.card[data-preview-id]');
+      if (pc) { e.preventDefault(); pendingOpenId = pc.dataset.previewId; return; }
+    }
     if (!c) {
       // M-20: focus handed to the list (its card scrolled out of the page) goes on from the first card in view.
       if (e.target === list && step) {

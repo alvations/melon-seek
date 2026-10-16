@@ -59,6 +59,12 @@ const INIT = () => {
       window.__marks.viz = t;
       _raf(() => setTimeout(() => { window.__marks.vizPaint = performance.now(); }, 0)); // next frame after the chart DOM
     }
+    // perf-mobile-beta-2: the first-page preview's cards (data-preview-id) before the list's (data-id).
+    if (!window.__marks.preview && document.querySelector('#resultsList .card[data-preview-id]')) {
+      window.__marks.preview = t;
+      window.__marks.previewIds = [...document.querySelectorAll('#resultsList .card[data-preview-id]')].slice(0, 30).map((c) => c.dataset.previewId);
+      _raf(() => setTimeout(() => { window.__marks.previewPaint = performance.now(); }, 0));
+    }
     if (!window.__marks.cards && document.querySelector('#resultsList .card[data-id]')) {
       window.__marks.cards = t;
       _raf(() => setTimeout(() => { window.__marks.cardsPaint = performance.now(); }, 0));
@@ -71,6 +77,10 @@ const LOAD_METRICS = () => ({
   fcp: Math.round(performance.getEntriesByName('first-contentful-paint')[0]?.startTime ?? 0),
   chart: Math.round(window.__marks.vizPaint || window.__marks.viz || 0),
   cards: Math.round(window.__marks.cardsPaint || window.__marks.cards || 0),
+  preview: Math.round(window.__marks.previewPaint || window.__marks.preview || 0) || null,
+  // the preview's first cards are the list's first cards (same order)
+  previewMatch: window.__marks.previewIds ? window.__marks.previewIds.every((id, i) => [...document.querySelectorAll('#resultsList .card[data-id]')][i]?.dataset.id === id) : null,
+  firstCards: Math.round(Math.min(window.__marks.previewPaint || window.__marks.preview || Infinity, window.__marks.cardsPaint || window.__marks.cards || Infinity)) || 0,
   ready: Math.round(Math.max(window.__marks.vizPaint || window.__marks.viz || 0, window.__marks.cardsPaint || window.__marks.cards || 0)),
   dom: document.querySelectorAll('*').length,
 });
@@ -427,7 +437,7 @@ for (const net of nets) {
     x.run = run + 1;
     report.runs.push(x);
     fs.writeFileSync(outFile, JSON.stringify(report, null, 2));
-    process.stderr.write(`${label} ${net} ${co} [load ${x.loadavg}]: cold fcp ${x.cold?.fcp} cards ${x.cold?.cards} chart ${x.cold?.chart} tti ${x.cold?.tti} max ${x.cold?.maxTask} tbt ${x.cold?.tbt} heap ${x.cold?.heapMB} | warm chart ${x.warm?.chart} max ${x.warm?.maxTask} | drawer ${x.drawer?.ms}/${x.drawer?.maxTask} filter ${x.filter?.ms}/${x.filter?.maxTask} sort ${x['sort-salary-asc']?.ms}/${x['sort-salary-asc']?.maxTask} insights ${x.insights?.ms}/${x.insights?.maxTask} map ${x.map?.ms}/${x.map?.maxTask} | switch ${x.switch?.ms}/${x.switch?.maxTask} back ${x.switchBack?.ms}/${x.switchBack?.maxTask} ${x.fail || ''} ${x.errors?.length ? 'ERR ' + x.errors[0] : ''}\n`);
+    process.stderr.write(`${label} ${net} ${co} [load ${x.loadavg}]: cold fcp ${x.cold?.fcp} preview ${x.cold?.preview} cards ${x.cold?.cards} chart ${x.cold?.chart} tti ${x.cold?.tti} max ${x.cold?.maxTask} tbt ${x.cold?.tbt} heap ${x.cold?.heapMB} | warm chart ${x.warm?.chart} max ${x.warm?.maxTask} | drawer ${x.drawer?.ms}/${x.drawer?.maxTask} filter ${x.filter?.ms}/${x.filter?.maxTask} sort ${x['sort-salary-asc']?.ms}/${x['sort-salary-asc']?.maxTask} insights ${x.insights?.ms}/${x.insights?.maxTask} map ${x.map?.ms}/${x.map?.maxTask} | switch ${x.switch?.ms}/${x.switch?.maxTask} back ${x.switchBack?.ms}/${x.switchBack?.maxTask} ${x.fail || ''} ${x.errors?.length ? 'ERR ' + x.errors[0] : ''}\n`);
   }
   if (LEAK || LEAK_ONLY) { const l = await leakRun(net); report.leak.push(l); fs.writeFileSync(outFile, JSON.stringify(report, null, 2)); process.stderr.write(`leak ${net} [load ${l.loadavg}]: heap ${l.heap.join(' ')} | dom ${l.dom.join(' ')} | ms ${l.ms.join(' ')} ${l.fail || ''}\n`); }
 }
