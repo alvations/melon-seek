@@ -1127,3 +1127,27 @@ screenshots in `docs/screenshots/`.
   - perf-mobile-beta-2: 3 of its tests need data/snapshots, and CI has none.
   - google-grouping's data commit: one test needs its unfinished UI, and families.js is not on the /lib/ browser-safe allowlist.
   - Both are back with their lanes. The same check now applies to every lane: its commits must pass the full suite with no data links before they are taken.
+
+### Salary audit (the user: "Are you sure the salary range of the big tech are correct?!") (2026-10-16)
+- [salary-audit-data](salary-audit-data.md), on the 2026-10-16 crawl with Amazon uncapped:
+  - The numbers are the companies' own posted figures. The "even" look is real: each company posts fixed-ratio bands per level.
+    - Google: 66% of US ranges at top = 1.45 × bottom; its help page says the range is the band "across all US locations".
+    - Amazon: 51% at 1.35×. Meta: 49% at 1.40×.
+    - Microsoft: about 1.92×; IC4 $119,800–234,700 alone is on 247 postings, as on Microsoft's US pay page.
+    - Apple: 1.76× and 1.85×. Netflix: 1.64×.
+  - Every shown salary traces to posted text or a structured field; there are no estimates, defaults or ±x% bands.
+  - Live postings could not be checked: the proxy blocks the job boards from this session.
+- Verdicts:
+  - Apple, Google, Meta and Netflix: correct.
+  - Microsoft: correct per level; 10% shown as two-level spans.
+  - Amazon: right numbers, misleading presentation.
+  - NVIDIA: misleading. 61% of its paid postings show two posted levels as one range; e.g. "$184K–356K" is Level 4 at $184,000–287,500 and Level 5 at $224,000–356,500.
+- Integrated now:
+  - salary-audit-data's log, scripts, stats, sample and histograms (data/vetting/2026-10-11-salary-audit/, named for the brief, numbers from the 2026-10-16 crawl) and test/salary-audit.test.js;
+  - SA-1, card-levels patch: a two-level card reads "· 2 levels" and its tip lists each level;
+  - SA-5, chart patch: under a Location filter the chart plots the picked place's range, and Amazon's bar is "the range for one place".
+  - SA-2 and SA-6 were already fixed by fix-density.
+- With salary-audit-backend: SA-3 (Amazon pay rows capped at 12, against the no-cut rule), SA-4 (Google degree lines merged into one range) and SA-7 (a £ hourly salary erased by trimming).
+- Gate:
+  - `npm test` CI-like: 1,071 tests, 1,020 pass, 0 fail.
+  - Full e2e on the 2026-10-16 crawl: 346/355, the same 5 data-driven failures as the unchanged head, now with fix6-fresh-data.
