@@ -1,0 +1,28 @@
+--- a/server/salary.js
++++ b/server/salary.js
+@@ -426,6 +426,16 @@
+   }
+   return code;
+ }
++// SA-4 (salary audit): Google prices one country by degree on separate lines ("[Bachelor's degree] Canada:
++// $99000 (CAD)", "[Master's degree] Canada: $102000 (CAD)"). The bracket before the country label names the
++// line, so a span of the lines keeps each line as a level (salary.levels), as Microsoft's IC levels do.
++const LINE_BRACKET_RE = /^\s*\[([^\]\n]{2,40})\]\s*[A-Z][A-Za-z. ]{1,40}:\s*$/;
++function lineBracket(text, start) {
++  const from0 = Math.max(0, start - 120);
++  const from = from0 + text.slice(from0, start).lastIndexOf('\n') + 1;
++  const m = LINE_BRACKET_RE.exec(text.slice(from, start));
++  return m && lineLabel(text, start) ? m[1].trim() : null;
++}
+ /** ISO code of the country that labels the amount's line, or null. */
+ function lineCountry(text, start) {
+   const l = lineLabel(text, start);
+@@ -899,7 +909,7 @@
+   // city ranges that follow ("…in those locations is…") are not national.
+   const nat = NATIONAL_RE.exec(before);
+   const national = nat ? nat[1].replace(/\s+/g, ' ').toLowerCase() : null;
+-  const level = national ? (/^\s*(.{2,60}?)\s+[-–—]\s+the typical\b/i.exec(before) || [])[1] || null : null;
++  const level = national ? (/^\s*(.{2,60}?)\s+[-–—]\s+the typical\b/i.exec(before) || [])[1] || null : lineBracket(text, gs);
+   // One posting may list a national range per country ("across Ireland", "across
+   // Germany"): the one for the job's own country scores highest.
+   const natCode = national ? NATION_CODE[national.replace(/\.$/, '')] || null : null;

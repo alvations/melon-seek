@@ -1,0 +1,17 @@
+--- a/public/app.js
++++ b/public/app.js
+@@ -3351,6 +3351,14 @@
+     const span = moneyRange(Math.min(s.min, ...rs.map((r) => Number(r.min))), Math.max(s.max, ...rs.map((r) => Number(r.max ?? r.min))), s.currency);
+     return { text: `${span} · ${rs.length} places`, tip: `${span} runs from the lowest to the highest of ${rs.length} ranges posted for different places. ${byPlace}` };
+   }
++  // SA-1 (salary audit): a posting that prices several levels ("… for Level 4, and … for Level 5") shows
++  // the span of their ranges, which no single level is posted at. The card says so, as a range per place
++  // does ("$184K–357K · 2 levels"); the levels themselves are in the tip and the pay block.
++  const lv = payLevels(s);
++  if (lv) {
++    const byLevel = lv.map((l) => `${String(l.label).trim()} ${moneyRange(l.min, l.max ?? l.min, s.currency)}`).join(' · ');
++    return { text: `${range} · ${lv.length} levels`, tip: `${range} runs from the lowest to the highest of ${lv.length} ranges posted for different levels. Pay by level: ${byLevel}` };
++  }
+   return { text: range, tip: null };
+ }
+ /** UX-29: the term of a fixed-term role for the card's first keyword slot: { text: "13-week internship", tip }, or null. */

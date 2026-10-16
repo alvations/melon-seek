@@ -1,0 +1,24 @@
+--- a/server/sources/amazon.js
++++ b/server/sources/amazon.js
+@@ -269,7 +269,8 @@
+     if (g.locations.length) return short([...new Set(g.locations.map((l) => (/^remote\b/i.test(l) ? 'Remote' : String(l).split(',')[0].trim())))].join(', '));
+     return short([...new Set(g.rows.map((r) => (r.place.virtual ? `Remote${r.place.state ? ` (${r.place.state.toUpperCase()})` : ''}` : r.place.cityText || r.location)))].join(', '));
+   };
+-  const payRanges = groups.length > 1 ? groups.slice(0, 12).map((g) => ({
++  // SA-3 (salary audit): every distinct row, never the first 12 only ("present them as they are and not cut anything").
++  const payRanges = groups.length > 1 ? groups.map((g) => ({
+     min: yearly(g.min, g.interval), max: yearly(g.max, g.interval), currency: g.currency, interval: 'year', label: label(g),
+     ...(g.locations.length ? { locations: g.locations } : {}),
+   })) : [];
+--- a/server/normalize.js
++++ b/server/normalize.js
+@@ -129,7 +129,8 @@
+     if (fromText && !salaryChecks(who, fromText).length) return terms({ ...fromText, zones: zonesOf(fromText), structuredRejected: hard.map((c) => c.code) });
+   }
+   // DQ-33 / VT-15: each range keeps the places it was posted for (ranges[].locations, as Apple's).
+-  if (salary && ranges.length > 1) salary.ranges = ranges.slice(0, 12).map(({ min, max, currency, interval, label, locations }) => ({ min, max, currency, interval, ...(label ? { label } : {}), ...(Array.isArray(locations) && locations.length ? { locations: [...locations] } : {}) }));
++  // SA-3 (salary audit): every range the adapter read, never the first 12 only.
++  if (salary && ranges.length > 1) salary.ranges = ranges.map(({ min, max, currency, interval, label, locations }) => ({ min, max, currency, interval, ...(label ? { label } : {}), ...(Array.isArray(locations) && locations.length ? { locations: [...locations] } : {}) }));
+   if (!salary) salary = toJobSalary(parsed, { source: 'text' });
+   if (salary) salary.zones = zonesOf(salary);
+   return salary ? terms(salary) : salary;

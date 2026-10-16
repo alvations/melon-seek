@@ -1,0 +1,58 @@
+--- a/public/viz/chart.js
++++ b/public/viz/chart.js
+@@ -137,7 +137,11 @@
+   const s = job?.salary;
+   if (!s) return null;
+   if (Array.isArray(s.levels) && s.levels.length >= 2) return { kind: 'levels', tiers: s.levels };
+-  if (Array.isArray(s.ranges) && s.ranges.length >= 2) return { kind: 'places', tiers: s.ranges };
++  // SA-2 (salary audit): Amazon's bar is the row of the posting's own city, not the span of its rows.
++  if (Array.isArray(s.ranges) && s.ranges.length >= 2) {
++    const span = Math.min(...s.ranges.map((r) => Number(r.min))) === s.min && Math.max(...s.ranges.map((r) => Number(r.max ?? r.min))) === s.max;
++    return { kind: 'places', tiers: s.ranges, span };
++  }
+   return null;
+ }
+ 
+@@ -268,9 +272,22 @@
+     const s = job?.salary;
+     if (!s || (s.min == null && s.max == null)) { noSalary++; continue; }
+     const cur = (s.currency || 'USD').toUpperCase();
+-    const min = s.min ?? s.max, max = s.max ?? s.min;
++    let min = s.min ?? s.max, max = s.max ?? s.min;
++    // SA-5 (salary audit): under a Location filter, a posting that gives each place its own range
++    // (salary.ranges[].locations: Amazon's rows, Apple's footers) is plotted at the range posted for the
++    // places picked, the range its card shows (app.js pickedRange), not at the posting's headline range.
++    let midNative = s.mid;
++    if (test && Array.isArray(s.ranges) && s.ranges.length > 1) {
++      const here = s.ranges.filter((r) => r && Array.isArray(r.locations) && Number.isFinite(Number(r.min)) && String(r.currency || cur).toUpperCase() === cur
++        && (job.locations || []).some((l) => l && r.locations.includes(l.rawName || l.name) && test(job, l)));
++      if (here.length) {
++        min = Math.min(...here.map((r) => Number(r.min)));
++        max = Math.max(...here.map((r) => Number(r.max ?? r.min)));
++        midNative = (min + max) / 2;
++      }
++    }
+     const lo = toUSD(Math.min(min, max), cur), hi = toUSD(Math.max(min, max), cur);
+-    const mid = s.mid != null ? toUSD(s.mid, cur) : (lo + hi) / 2;
++    const mid = midNative != null ? toUSD(midNative, cur) : (lo + hi) / 2;
+     if (!isFinite(lo) || !isFinite(hi) || !isFinite(mid)) { noSalary++; continue; }
+     if (test && !payLocations(job).some((l) => test(job, l))) { elsewhereIds.add(job.id); continue; }
+     if (isForeign(cur)) { if (hasFx(cur)) fxCount++; else unknownFx.add(cur); }
+@@ -1312,7 +1329,7 @@
+       ? formatMoney(p.lo) : `${formatMoney(p.lo)} to ${formatMoney(p.hi)}`;
+     const where = [p.job.department, primaryLocation(p.job)].filter(Boolean).join(', ');
+     const sp = spanTiers(p.job);
+-    const kind = sp ? `, spans ${sp.tiers.length} ${sp.kind === 'levels' ? 'levels' : 'places\u2019 ranges'}` : '';
++    const kind = sp ? (sp.span === false ? `, one of ${sp.tiers.length} places\u2019 ranges` : `, spans ${sp.tiers.length} ${sp.kind === 'levels' ? 'levels' : 'places\u2019 ranges'}`) : '';
+     const pt = isPartTimeHourly(p.job) ? ', part-time hourly pay shown as a year if full-time' : '';
+     return `${p.job.title || 'Untitled'}, ${range}${approx ? ' in US dollars, converted' : ''}${p.ote ? ', on-target earnings' : ''}${kind}${pt}${where ? ', ' + where : ''}`;
+   }
+@@ -1380,7 +1397,7 @@
+     // V-20: a range over several levels or places lists each.
+     const sp = spanTiers(j);
+     if (sp) {
+-      tip.append(el('div', 'ms-tip__sub', sp.kind === 'levels' ? `One range over ${sp.tiers.length} levels:` : `One range over ${sp.tiers.length} places' ranges:`));
++      tip.append(el('div', 'ms-tip__sub', sp.kind === 'levels' ? `One range over ${sp.tiers.length} levels:` : sp.span === false ? `The range for one place; the posting lists ${sp.tiers.length} places' ranges:` : `One range over ${sp.tiers.length} places' ranges:`));
+       for (const t of sp.tiers.slice(0, 4)) tip.append(el('div', 'ms-tip__sub', `${t.label || 'Range'}: ${formatCurrency(t.min, t.currency || cur)} – ${formatCurrency(t.max, t.currency || cur)}`));
+       if (sp.tiers.length > 4) tip.append(el('div', 'ms-tip__sub', `+${sp.tiers.length - 4} more`));
+     }

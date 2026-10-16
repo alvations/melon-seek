@@ -47,6 +47,8 @@ function fnSource(name) {
   throw new Error(`unbalanced ${name}`);
 }
 const CARD = ['payPill', 'salaryRange', 'money', 'moneyRange', 'payRanges', 'rangeLabel', 'rangeText', 'pickedRange', 'payLevels'];
+// Defined only once docs/process/patches/fix5-data-display.diff is applied (SA-2, SA-6).
+const CARD_IF_PRESENT = ['isMinimum', 'MINIMUM_TIP'].filter((n) => new RegExp(`^const ${n} = `, 'm').test(APP));
 // eslint-disable-next-line no-new-func
 const { payPill } = new Function('formatMoney', `
   const CUR_SYM = { USD: '$', GBP: '£', EUR: '€', CAD: 'CA$', AUD: 'A$', JPY: '¥', INR: '₹', CHF: 'CHF ', SGD: 'S$' };
@@ -54,7 +56,7 @@ const { payPill } = new Function('formatMoney', `
   let viewSpec = null;
   const isPartTimeHourly = () => false, postedTerm = () => null, isOte = (j) => j?.salary?.kind === 'ote';
   const payHere = () => true, payPlaceText = () => '', placesPicked = () => '', locMatches = () => false;
-  ${CARD.map(fnSource).join('\n')}
+  ${[...CARD, ...CARD_IF_PRESENT].map(fnSource).join('\n')}
   return { payPill };`)(formatMoney);
 
 /* ------------------------------------------------------------ fixtures */
