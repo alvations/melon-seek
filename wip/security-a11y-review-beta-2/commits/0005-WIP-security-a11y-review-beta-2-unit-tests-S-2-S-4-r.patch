@@ -1,7 +1,7 @@
 From 939d93b685e4a240464b7648cdb0d92964f989b9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 22:03:46 +0000
-Subject: [PATCH 5/6] WIP security-a11y-review-beta-2: unit tests (S-2/S-4
+Subject: [PATCH 05/16] WIP security-a11y-review-beta-2: unit tests (S-2/S-4
  residuals, S-8/S-9 regression, S-10, S-11)
 
 ---

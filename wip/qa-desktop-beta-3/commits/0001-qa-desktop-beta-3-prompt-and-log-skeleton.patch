@@ -1,7 +1,7 @@
 From a32cfe3748c81bbcaa611939d9e779ff396c8ccd Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 21:31:07 +0000
-Subject: [PATCH 1/2] qa-desktop-beta-3: prompt and log skeleton
+Subject: [PATCH 1/4] qa-desktop-beta-3: prompt and log skeleton
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

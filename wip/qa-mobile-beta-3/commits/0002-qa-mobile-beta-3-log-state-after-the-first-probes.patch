@@ -1,7 +1,7 @@
 From 391778c872b4ee5dd0f156e9b5b1dcd9a2a9b08e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 21:53:52 +0000
-Subject: [PATCH 2/2] qa-mobile-beta-3: log state after the first probes
+Subject: [PATCH 2/3] qa-mobile-beta-3: log state after the first probes
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

@@ -1,7 +1,7 @@
 From 25e79af3c22bfab355155a72d9028df84afb56c5 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 22:07:41 +0000
-Subject: [PATCH 4/4] ux-review-beta-2: e2e group, 11 red tests (UX-35, UX-37
+Subject: [PATCH 04/10] ux-review-beta-2: e2e group, 11 red tests (UX-35, UX-37
  to UX-39, UX-42, UX-44 to UX-49, UX-53, UX-54)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

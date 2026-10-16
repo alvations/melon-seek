@@ -1,0 +1,59 @@
+From fdef774e63529b10a94914a88c61b011ee4ccc4b Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 22:35:38 +0000
+Subject: [PATCH 8/8] viz-review-beta-2: log V-46 to V-48
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/viz-review-beta-2.md | 34 +++++++++++++++++++++++++++++++
+ 1 file changed, 34 insertions(+)
+
+diff --git a/docs/process/viz-review-beta-2.md b/docs/process/viz-review-beta-2.md
+index 5e6c128..5517a6e 100644
+--- a/docs/process/viz-review-beta-2.md
++++ b/docs/process/viz-review-beta-2.md
+@@ -257,6 +257,40 @@ which is another place's. One shared `payAt(job, location)` in `public/features/
+   Luxembourg City, without the "approximate" mark, because `isApprox()` only flags 'centroid', not 'country'.
+ - Owner: `server/geo.js` (gazetteer: Cajamar), `map.js isApprox()`.
+ 
++### V-46 (Medium) Phone: nothing on the chart says the axis is US dollars a year
++- View: Chart, Clusters and Ranges, 390 px. Repro: `#c=amazon` on a phone.
++- Expected: the axis names its unit, as on desktop ("Yearly pay, US$ (converted)").
++- Actual: the axis reads "$0 $100K $200K $300K" with no caption, and neither "a year" nor "US$" is visible
++  anywhere in the chart; "Pay is yearly, in approx US dollars" is behind Details. On Amazon that axis holds 2,908
++  postings worked out from hourly pay and 803 converted from other currencies. `renderAxis()` has a narrow
++  caption ("US$ a year, converted"), but it is only drawn when the label column is wider than 0, and on a phone
++  that column is always 0, so the narrow caption is dead code. The median caption ("Median base pay $141K") is
++  missing on phones for the same reason.
++- Screenshots: `clusters-amazon-390-light.png`, `ranges-amazon-390-light.png`. Owner: `chart.js renderAxis()`,
++  `renderHist()` (`labelW > 0`).
++
++### V-48 (Medium) On-target earnings: the dashed bars have no legend key, and OTE level spans are drawn striped
++- View: Chart, Ranges. Repro: `#c=nvidia&v=ranges`; main site `#c=anthropic&v=ranges`.
++- Expected (V-20, fix wave 4): on-target earnings dashed, "with legend keys".
++- Actual: the 41 NVIDIA and 47 Anthropic on-target bars are dashed (`ms-row__bar--ote`), but the legend has only
++  the department colours and "Striped: several levels or places"; nothing says what a dashed bar is. 11 NVIDIA
++  on-target ranges over two levels ("6 roles with the same posted range, $224K to $397K, on-target earnings, spans
++  2 levels, Account Manager") are drawn striped, because a span wins over OTE in `buildRow()`, so they look like
++  base-pay spans.
++- Screenshots: `v-nvidia-ranges-ote.png`, `v-anthropic-ranges-ote.png`. Owner: `chart.js renderLegend()`,
++  `buildRow()`.
++
++### V-47 (Medium) Amazon: a filter, a sort, Group by and a zoom take 0.3–1.3 s on desktop
++- Measured on the reviewer build, 1440 px, 3 runs each, from the click to the last change, at load 12–16 on 4 CPUs
++  (other agents' test runs): department filter 358–560 ms; sort 291–651 ms; Group by seniority 546–783 ms (long
++  tasks 465–721 ms), by location 458–700 ms; Clusters → Ranges 407–1,306 ms; Ranges by department 315–699 ms; map
++  zoom 446–906 ms (Leaflet's 250 ms animation included; long tasks 117–435 ms). The chart's own `update()` on the
++  22,179 postings, timed alone in the page, takes 75–205 ms (median 80–149 ms per view); the rest is the app's
++  filtering, list and Juice. Everything is over the brief's 200 ms, but the load was 3–4× the CPU count, so the
++  numbers are high by an unknown factor.
++- No test, as with V-31: it passes or fails with the machine's load. Owner: `public/app.js` (filter, list render,
++  `scheduleViz()`), `chart.js renderClusters()` (up to four planning passes).
++
+ ## 5. What works (checked with numbers)
+ 
+ - **Ranges bars:** 80 rows (10 spread over each board's list, desktop) match their postings to the pixel. They
+-- 
+2.43.0
+

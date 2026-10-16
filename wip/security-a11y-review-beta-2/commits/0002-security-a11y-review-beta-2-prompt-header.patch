@@ -1,7 +1,7 @@
 From 675c488ec98aaf893f21b985aa661fbd69a38f4f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 21:30:41 +0000
-Subject: [PATCH 2/6] security-a11y-review-beta-2: prompt header
+Subject: [PATCH 02/16] security-a11y-review-beta-2: prompt header
 
 ---
  docs/process/prompts/security-a11y-review-beta-2.md | 6 ++++++

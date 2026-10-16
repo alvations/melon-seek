@@ -1,7 +1,7 @@
 From 93b9a79ce5e42ce55cd2100de59095f7b479938e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 21:53:45 +0000
-Subject: [PATCH 3/3] viz-review-beta-2: red e2e tests for V-33 to V-38,
+Subject: [PATCH 3/8] viz-review-beta-2: red e2e tests for V-33 to V-38,
  registered in scripts/e2e.js
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

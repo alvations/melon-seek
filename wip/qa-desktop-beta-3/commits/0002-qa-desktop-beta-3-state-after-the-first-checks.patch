@@ -1,7 +1,7 @@
 From f089deb3d0fd8b87acb0bb596a683eaeea8a7d84 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 21:58:05 +0000
-Subject: [PATCH 2/2] qa-desktop-beta-3: state after the first checks
+Subject: [PATCH 2/4] qa-desktop-beta-3: state after the first checks
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

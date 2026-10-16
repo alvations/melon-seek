@@ -1,8 +1,8 @@
 From 58b320b3c4c62a5e83083d1dd8df054dee4e8a1e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 22:04:59 +0000
-Subject: [PATCH 6/6] WIP security-a11y-review-beta-2: e2e a11y tests A-8..A-11
- (red), registered in scripts/e2e.js
+Subject: [PATCH 06/16] WIP security-a11y-review-beta-2: e2e a11y tests
+ A-8..A-11 (red), registered in scripts/e2e.js
 
 ---
  scripts/e2e.js              |   2 +

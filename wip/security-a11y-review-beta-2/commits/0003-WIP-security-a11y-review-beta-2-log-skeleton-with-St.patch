@@ -1,7 +1,8 @@
 From 4c9d19143441a3df74dca076e4b82dc3cf7054a4 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 21:31:45 +0000
-Subject: [PATCH 3/6] WIP security-a11y-review-beta-2: log skeleton with State
+Subject: [PATCH 03/16] WIP security-a11y-review-beta-2: log skeleton with
+ State
 
 ---
  docs/process/security-a11y-review-beta-2.md | 21 +++++++++++++++++++++

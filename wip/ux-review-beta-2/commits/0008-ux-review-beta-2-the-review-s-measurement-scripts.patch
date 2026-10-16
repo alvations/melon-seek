@@ -1,0 +1,1094 @@
+From e9bc4ed7e46e94db5d329f1709bbae19fe3c6d49 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 22:19:33 +0000
+Subject: [PATCH 08/10] ux-review-beta-2: the review's measurement scripts
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ .../scripts/ux-review-beta-2/analyze.py       | 28 +++++++
+ .../scripts/ux-review-beta-2/audit-fn.js      | 39 +++++++++
+ .../scripts/ux-review-beta-2/audit.mjs        | 29 +++++++
+ .../scripts/ux-review-beta-2/carddrawer.mjs   | 30 +++++++
+ .../scripts/ux-review-beta-2/cards.mjs        | 36 ++++++++
+ .../process/scripts/ux-review-beta-2/clip.mjs | 14 ++++
+ .../scripts/ux-review-beta-2/contrast-fn.js   | 12 +++
+ .../scripts/ux-review-beta-2/count.mjs        | 23 +++++
+ .../scripts/ux-review-beta-2/density.mjs      | 84 +++++++++++++++++++
+ .../process/scripts/ux-review-beta-2/dots.mjs | 52 ++++++++++++
+ .../process/scripts/ux-review-beta-2/dump.mjs | 17 ++++
+ .../scripts/ux-review-beta-2/feedback.mjs     | 50 +++++++++++
+ .../scripts/ux-review-beta-2/first.mjs        | 30 +++++++
+ .../scripts/ux-review-beta-2/google.mjs       | 37 ++++++++
+ .../scripts/ux-review-beta-2/insightswait.mjs | 18 ++++
+ .../scripts/ux-review-beta-2/kwclick.mjs      | 19 +++++
+ .../scripts/ux-review-beta-2/leafs-fn.js      | 34 ++++++++
+ docs/process/scripts/ux-review-beta-2/lib.mjs | 31 +++++++
+ .../scripts/ux-review-beta-2/motion.mjs       | 33 ++++++++
+ .../scripts/ux-review-beta-2/offcanvas.mjs    | 16 ++++
+ .../scripts/ux-review-beta-2/orphan.mjs       | 19 +++++
+ .../scripts/ux-review-beta-2/preview.mjs      | 42 ++++++++++
+ .../scripts/ux-review-beta-2/ranges.mjs       | 36 ++++++++
+ .../scripts/ux-review-beta-2/states.mjs       | 55 ++++++++++++
+ .../scripts/ux-review-beta-2/tiles.mjs        | 15 ++++
+ .../scripts/ux-review-beta-2/touch.mjs        | 74 ++++++++++++++++
+ 26 files changed, 873 insertions(+)
+ create mode 100644 docs/process/scripts/ux-review-beta-2/analyze.py
+ create mode 100644 docs/process/scripts/ux-review-beta-2/audit-fn.js
+ create mode 100644 docs/process/scripts/ux-review-beta-2/audit.mjs
+ create mode 100644 docs/process/scripts/ux-review-beta-2/carddrawer.mjs
+ create mode 100644 docs/process/scripts/ux-review-beta-2/cards.mjs
+ create mode 100644 docs/process/scripts/ux-review-beta-2/clip.mjs
+ create mode 100644 docs/process/scripts/ux-review-beta-2/contrast-fn.js
+ create mode 100644 docs/process/scripts/ux-review-beta-2/count.mjs
+ create mode 100644 docs/process/scripts/ux-review-beta-2/density.mjs
+ create mode 100644 docs/process/scripts/ux-review-beta-2/dots.mjs
+ create mode 100644 docs/process/scripts/ux-review-beta-2/dump.mjs
+ create mode 100644 docs/process/scripts/ux-review-beta-2/feedback.mjs
+ create mode 100644 docs/process/scripts/ux-review-beta-2/first.mjs
+ create mode 100644 docs/process/scripts/ux-review-beta-2/google.mjs
+ create mode 100644 docs/process/scripts/ux-review-beta-2/insightswait.mjs
+ create mode 100644 docs/process/scripts/ux-review-beta-2/kwclick.mjs
+ create mode 100644 docs/process/scripts/ux-review-beta-2/leafs-fn.js
+ create mode 100644 docs/process/scripts/ux-review-beta-2/lib.mjs
+ create mode 100644 docs/process/scripts/ux-review-beta-2/motion.mjs
+ create mode 100644 docs/process/scripts/ux-review-beta-2/offcanvas.mjs
+ create mode 100644 docs/process/scripts/ux-review-beta-2/orphan.mjs
+ create mode 100644 docs/process/scripts/ux-review-beta-2/preview.mjs
+ create mode 100644 docs/process/scripts/ux-review-beta-2/ranges.mjs
+ create mode 100644 docs/process/scripts/ux-review-beta-2/states.mjs
+ create mode 100644 docs/process/scripts/ux-review-beta-2/tiles.mjs
+ create mode 100644 docs/process/scripts/ux-review-beta-2/touch.mjs
+
+diff --git a/docs/process/scripts/ux-review-beta-2/analyze.py b/docs/process/scripts/ux-review-beta-2/analyze.py
+new file mode 100644
+index 0000000..33def02
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/analyze.py
+@@ -0,0 +1,28 @@
++"""Flag secondary lines over the density rule: >1 line on a phone, >12 words, or >2 facts.
++python3 analyze.py <vp> [boards] -> one row per distinct (view, path-tail, text) over the rule."""
++import json, glob, sys, re, collections
++vp = sys.argv[1]
++only = sys.argv[2].split(',') if len(sys.argv) > 2 else None
++SKIP = re.compile(r'card-title|ms-crow__name|ms-row__label|sr-only|ms-pin__label|kw-group|d-tier-name|d-tier-pay|card-loc|card-age|card-dept|sen sen|juice-badge|ms-comp__item|msi-row__name|msi-row__value|msi-row__n|ms-insights__title|leaflet-control-attribution|state-card h|ms-modes__key|ms-modes__net|d-company|drawer-pos|d-meta|apply|list-more|ms-hist|ms-axis|cloud')
++rows = collections.OrderedDict()
++for f in sorted(glob.glob(f'density-*-{vp}.json')):
++    d = json.load(open(f))
++    if only and d['slug'] not in only: continue
++    for view, items in d['views'].items():
++        for x in items:
++            if SKIP.search(x['path']): continue
++            phone = vp.startswith('p')
++            over = []
++            if phone and x['lines'] > 1: over.append(f"{x['lines']} lines")
++            if not phone and x['lines'] > 2: over.append(f"{x['lines']} lines")
++            if x['words'] > 12: over.append(f"{x['words']} words")
++            if x['facts'] > 2: over.append(f"{x['facts']} facts")
++            if x.get('cut'): over.append('cut off')
++            if not over: continue
++            tail = x['path'].split(' > ')[-1]
++            key = (view.split(':')[0], tail, re.sub(r'\d[\d,.]*', 'N', x['text'])[:90])
++            r = rows.setdefault(key, {'boards': [], 'ex': x, 'over': over, 'view': view})
++            r['boards'].append(d['slug'])
++for (view, tail, _), r in rows.items():
++    x = r['ex']
++    print(f"{view:10} | {tail[:48]:48} | {x['words']:3}w {x['lines']}l {x['facts']}f | {','.join(r['over'])} | {','.join(sorted(set(r['boards'])))} | {x['text'][:230]}")
+diff --git a/docs/process/scripts/ux-review-beta-2/audit-fn.js b/docs/process/scripts/ux-review-beta-2/audit-fn.js
+new file mode 100644
+index 0000000..17135b1
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/audit-fn.js
+@@ -0,0 +1,39 @@
++(function audit({ phone = false } = {}) {
++  const W = innerWidth, H = innerHeight;
++  const res = { hscroll: document.documentElement.scrollWidth - document.documentElement.clientWidth, contrast: [], small: [], tap: [], clipped: [], offscreen: [] };
++  const parse = (c) => { if (!c) return null; let m = c.match(/color\(srgb ([^)]+)\)/); if (m) { const p = m[1].split(/[ ,/]+/).filter(Boolean).map(Number); return { r: p[0] * 255, g: p[1] * 255, b: p[2] * 255, a: p.length > 3 ? p[3] : 1 }; } m = c.match(/rgba?\(([^)]+)\)/); if (!m) return null; const p = m[1].split(/[ ,/]+/).filter(Boolean).map(Number); return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 }; };
++  const lum = ({ r, g, b }) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
++  const blend = (fg, bg) => ({ r: fg.r * fg.a + bg.r * (1 - fg.a), g: fg.g * fg.a + bg.g * (1 - fg.a), b: fg.b * fg.a + bg.b * (1 - fg.a), a: 1 });
++  const bgOf = (el) => { const stack = []; for (let e = el; e; e = e.parentElement) { const cs = getComputedStyle(e); if (cs.backgroundImage !== 'none' && !/gradient/.test(cs.backgroundImage)) return null; const c = parse(cs.backgroundColor); if (c && c.a > 0) { stack.push(c); if (c.a >= 1) break; } } let bg = { r: 255, g: 255, b: 255, a: 1 }; if (!stack.length || stack[stack.length - 1].a < 1) bg = parse(getComputedStyle(document.body).backgroundColor) || bg; for (let i = stack.length - 1; i >= 0; i--) bg = blend(stack[i], bg); return bg; };
++  const vis = (el) => { const r = el.getBoundingClientRect(); if (!r.width || !r.height) return false; const cs = getComputedStyle(el); if (cs.visibility === 'hidden' || +cs.opacity === 0) return false; if (el.closest('[hidden],[inert] .x')) return false; return r.bottom > 0 && r.top < H && r.right > 0 && r.left < W; };
++  const desc = (el) => { const t = (el.innerText || el.value || el.getAttribute('aria-label') || '').trim().replace(/\s+/g, ' ').slice(0, 50); return `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).slice(0, 2).join('.') : ''} "${t}"`; };
++  const seen = new Set();
++  for (const el of document.querySelectorAll('body *')) {
++    if (!vis(el) || el.closest('svg') || el.closest('.leaflet-tile-pane')) continue;
++    const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
++    const cs = getComputedStyle(el);
++    if (own) {
++      const fs = parseFloat(cs.fontSize);
++      if (fs < 12) res.small.push(`${desc(el)} ${fs}px`);
++      const fg = parse(cs.color); const bg = bgOf(el);
++      if (fg && bg) {
++        const f = blend({ ...fg, a: fg.a * (+cs.opacity || 1) }, bg); const L1 = lum(f), L2 = lum(bg); const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
++        const large = fs >= 24 || (fs >= 18.66 && +cs.fontWeight >= 700);
++        if (ratio < (large ? 3 : 4.5)) { const k = desc(el) + ratio.toFixed(2); if (!seen.has(k)) { seen.add(k); res.contrast.push(`${desc(el)} ${ratio.toFixed(2)}:1 fg ${cs.color} ${fs}px`); } }
++      }
++      if ((cs.overflow === 'hidden' || cs.textOverflow === 'ellipsis') && el.scrollWidth > el.clientWidth + 1 && cs.whiteSpace !== 'normal') res.clipped.push(`${desc(el)} ${el.scrollWidth}>${el.clientWidth}`);
++    }
++    if (phone && el.matches('button,a[href],input,select,[role=button],summary,label.check,[tabindex="0"]') && !el.closest('.leaflet-control-attribution')) {
++      const r = el.getBoundingClientRect();
++      if ((r.height < 44 || r.width < 44) && r.height > 0) res.tap.push(`${desc(el)} ${Math.round(r.width)}x${Math.round(r.height)}`);
++    }
++  }
++  // elements partly off the viewport horizontally (inside non-scrolling ancestors)
++  for (const el of document.querySelectorAll('button, .sal-pill, .stat, .chip, [class*=edge], [class*=more]')) {
++    const r = el.getBoundingClientRect(); if (!r.width || el.closest('[hidden]')) continue;
++    if (r.top > H || r.bottom < 0) continue;
++    let sc = false; for (let e = el.parentElement; e; e = e.parentElement) { const o = getComputedStyle(e).overflowX; if (o === 'auto' || o === 'scroll') { sc = true; break; } }
++    if (!sc && (r.left < -0.5 || r.right > W + 0.5)) res.offscreen.push(`${desc(el)} [${Math.round(r.left)},${Math.round(r.right)}]`);
++  }
++  return res;
++})
+diff --git a/docs/process/scripts/ux-review-beta-2/audit.mjs b/docs/process/scripts/ux-review-beta-2/audit.mjs
+new file mode 100644
+index 0000000..c5be99a
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/audit.mjs
+@@ -0,0 +1,29 @@
++// Layout and contrast audit: horizontal scroll, contrast < 4.5:1, text < 12 px, clipped text, controls off screen,
++// and (phone) tap targets < 44 px. Views: chart, ranges, the top role's drawer, Insights.
++import fs from 'node:fs';
++import { launch, openPage, sleep, BASE, ready } from './lib.mjs';
++const fn = fs.readFileSync(new URL('./audit-fn.js', import.meta.url), 'utf8');
++const vps = (process.argv[2] || 'd1440,d1280,d1024,t768,p390').split(',');
++const boards = (process.argv[3] || 'amazon,google,meta').split(',');
++const views = (process.argv[4] || 'chart,ranges,drawer,insights').split(',');
++const themes = (process.argv[5] || 'light,dark').split(',');
++const b = await launch();
++const out = [];
++for (const vp of vps) for (const theme of themes) for (const c of boards) {
++  const { ctx, page } = await openPage(b, vp, theme, `/beta/#c=${c}`);
++  const phone = vp.startsWith('p');
++  const first = await page.evaluate(() => document.querySelector('#resultsList .card')?.dataset.id);
++  for (const v of views) {
++    const hash = v === 'chart' ? `c=${c}` : v === 'ranges' ? `c=${c}&v=ranges` : v === 'insights' ? `c=${c}&m=insights` : `c=${c}&job=${encodeURIComponent(first)}`;
++    if (v !== 'chart') { await page.goto('about:blank'); await page.goto(`${BASE}/beta/#${hash}`); await ready(page); await sleep(v === 'insights' ? 2500 : 900); }
++    const r = await page.evaluate(`(${fn})({ phone: ${phone} })`);
++    const rec = { vp, theme, c, v, ...r };
++    out.push(rec);
++    const n = (k) => r[k].length;
++    console.log(`### ${vp} ${theme} ${c} ${v} hscroll=${r.hscroll} contrast=${n('contrast')} small=${n('small')} clipped=${n('clipped')} offscreen=${n('offscreen')} tap=${n('tap')}`);
++    for (const k of ['contrast', 'small', 'clipped', 'offscreen', 'tap']) if (r[k].length) console.log(`  ${k}: ` + r[k].slice(0, 12).join(' | '));
++  }
++  await ctx.close();
++}
++fs.writeFileSync(new URL(`./audit-${process.argv[6] || 'run'}.json`, import.meta.url), JSON.stringify(out, null, 1));
++await b.close();
+diff --git a/docs/process/scripts/ux-review-beta-2/carddrawer.mjs b/docs/process/scripts/ux-review-beta-2/carddrawer.mjs
+new file mode 100644
+index 0000000..3c73f49
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/carddrawer.mjs
+@@ -0,0 +1,30 @@
++// A card (found by a search for its title) and its drawer, side by side; prints the card's pill and the drawer's headline.
++// node carddrawer.mjs <vp> <theme> <slug> <jobId> <search> <name>
++import { launch, openPage, SHOTS, sleep, BASE, ready } from './lib.mjs';
++const [vp, theme, slug, id, q, name] = process.argv.slice(2);
++const b = await launch();
++const { ctx, page } = await openPage(b, vp, theme, `/beta/#c=${slug}&q=${encodeURIComponent(q)}`);
++const card = page.locator(`#resultsList article.card[data-id="${id}"]`);
++if (vp.startsWith('p')) { await page.locator('#sheetHandle').tap().catch(() => {}); await sleep(700); }
++if (await card.count()) {
++  await card.scrollIntoViewIfNeeded();
++  const t = await card.evaluate((e) => ({ text: e.innerText.replace(/\s+/g, ' '), pill: e.querySelector('.sal-pill, .pay-pill, [class*=pill]')?.textContent, pillTitle: e.querySelector('.sal-pill, .pay-pill, [class*=pill]')?.title }));
++  console.log('card', JSON.stringify(t));
++  const box = await card.boundingBox();
++  await page.screenshot({ path: `${SHOTS}/${name}-card-${vp}-${theme}.png`, clip: { x: Math.max(0, box.x - 8), y: Math.max(0, box.y - 8), width: Math.min(box.width + 16, VPW(vp) - Math.max(0, box.x - 8)), height: box.height + 16 } }).catch((e) => console.log("card shot failed", e.message.slice(0, 60)));
++  await card.click();
++} else {
++  console.log('card not found; opening by hash');
++  await page.goto(`${BASE}/beta/#c=${slug}&job=${encodeURIComponent(id)}`); await ready(page);
++}
++await sleep(1200);
++const d = await page.evaluate(() => {
++  const dr = document.querySelector('#drawer');
++  const q = (s) => dr.querySelector(s)?.innerText.replace(/\s+/g, ' ').trim();
++  return { amt: q('.d-sal-amt'), top: q('.d-sal-top'), levels: q('.d-sal-levels'), tiers: q('.d-tiers'), labels: q('.pay-labels'), pct: q('.d-pct-text'), note: q('.d-pay-note'), juice: q('.d-juice')?.slice(0, 300) };
++});
++console.log('drawer', JSON.stringify(d));
++await page.screenshot({ path: `${SHOTS}/${name}-drawer-${vp}-${theme}.png` });
++function VPW(v) { return { d1440: 1440, d1280: 1280, d1024: 1024, t768: 768, p390: 390, p360: 360 }[v]; }
++await ctx.close();
++await b.close();
+diff --git a/docs/process/scripts/ux-review-beta-2/cards.mjs b/docs/process/scripts/ux-review-beta-2/cards.mjs
+new file mode 100644
+index 0000000..b5fbf14
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/cards.mjs
+@@ -0,0 +1,36 @@
++// Cards for chosen postings: visible text, pill width vs card, title lines, clipping. Screenshot each.
++import { launch, VP, BASE, SHOTS, sleep, ready } from './lib.mjs';
++import fs from 'node:fs';
++const picks = JSON.parse(fs.readFileSync(new URL('./picks.json', import.meta.url), 'utf8'));
++const jobs = {};
++const title = (slug, id) => { jobs[slug] ||= JSON.parse(fs.readFileSync(new URL(`./jobs-${slug}.json`, import.meta.url), 'utf8')).jobs; return jobs[slug].find((j) => j.id === id)?.title; };
++const vps = (process.argv[2] || 'd1440,p390').split(',');
++const kinds = (process.argv[3] || 'levels,places,minimum,shift,term,foreign,hourly,longtitle').split(',');
++const b = await launch();
++for (const vp of vps) {
++  const ctx = await b.newContext({ ...VP[vp], colorScheme: 'light' });
++  await ctx.route((u) => !u.href.startsWith(BASE.replace('/melon-seek', '')) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
++  const page = await ctx.newPage();
++  for (const [slug, P] of Object.entries(picks)) for (const k of kinds) {
++    const id = P[k]; if (!id) continue;
++    const t = title(slug, id); if (!t) continue;
++    const site = slug === 'anduril' ? '' : 'beta/';
++    await page.goto('about:blank'); await page.goto(`${BASE}/${site}#c=${slug}&q=${encodeURIComponent(t)}`); await ready(page); await sleep(400);
++    if (vp.startsWith('p')) { await page.evaluate(() => document.querySelector('#sheetHandle')?.click()); await sleep(800); }
++    const card = page.locator(`#resultsList article.card[data-id="${id}"]`);
++    if (!(await card.count())) { console.log(vp, slug, k, 'card not in list'); continue; }
++    await card.scrollIntoViewIfNeeded().catch(() => {});
++    const m = await card.evaluate((e) => {
++      const pill = e.querySelector('.sal-pill, .pay-pill, .pill, [class*=pill]');
++      const ttl = e.querySelector('.card-title, h3');
++      const lines = (el) => { if (!el) return 0; const r = document.createRange(); r.selectNodeContents(el); const mids = []; for (const x of r.getClientRects()) { if (x.width < .5) continue; const m = x.top + x.height / 2; if (!mids.some((t) => Math.abs(t - m) < 6)) mids.push(m); } return mids.length; };
++      const cut = [...e.querySelectorAll('*')].filter((x) => x.children.length === 0 && x.scrollWidth > x.clientWidth + 1 && /hidden|ellipsis/.test(getComputedStyle(x).overflow + getComputedStyle(x).textOverflow)).map((x) => `${x.className}: "${x.textContent.trim().slice(0, 50)}"`);
++      return { text: e.innerText.replace(/\s+/g, ' '), pill: pill?.textContent, pillW: pill ? Math.round(pill.getBoundingClientRect().width) : 0, pillLines: lines(pill), cardW: Math.round(e.getBoundingClientRect().width), titleLines: lines(ttl), cut, pillTitle: pill?.title?.slice(0, 200) };
++    });
++    console.log(vp, slug, k, JSON.stringify(m));
++    const box = await card.boundingBox();
++    if (box && box.y >= 0) await page.screenshot({ path: `${SHOTS}/card-${slug}-${k}-${vp}-light.png`, clip: { x: Math.max(0, box.x - 6), y: Math.max(0, box.y - 6), width: Math.min(box.width + 12, VP[vp].viewport.width - Math.max(0, box.x - 6)), height: box.height + 12 } }).catch(() => {});
++  }
++  await ctx.close();
++}
++await b.close();
+diff --git a/docs/process/scripts/ux-review-beta-2/clip.mjs b/docs/process/scripts/ux-review-beta-2/clip.mjs
+new file mode 100644
+index 0000000..5378b46
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/clip.mjs
+@@ -0,0 +1,14 @@
++// Clip a region at 2x: node clip.mjs <vp> <theme> <url> <x,y,w,h> <name> [js-before]
++import { chromium } from 'playwright';
++import { BASE, SHOTS, VP, sleep, ready } from './lib.mjs';
++const [vp, theme, url, box, name, js] = process.argv.slice(2);
++const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
++const ctx = await b.newContext({ ...VP[vp], deviceScaleFactor: 2, colorScheme: theme });
++await ctx.route((u) => !u.href.startsWith(BASE.replace('/melon-seek', '')) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
++const page = await ctx.newPage();
++await page.goto(BASE + url);
++await ready(page);
++if (js) { const r = await page.evaluate(js); if (r !== undefined) console.log(JSON.stringify(r)); await sleep(900); }
++const [x, y, w, h] = box.split(',').map(Number);
++await page.screenshot({ path: `${SHOTS}/${name}.png`, clip: { x, y, width: w, height: h } });
++await b.close();
+diff --git a/docs/process/scripts/ux-review-beta-2/contrast-fn.js b/docs/process/scripts/ux-review-beta-2/contrast-fn.js
+new file mode 100644
+index 0000000..142e1df
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/contrast-fn.js
+@@ -0,0 +1,12 @@
++((el) => {
++  const parse = (c) => { if (!c) return null; let m = c.match(/color\(srgb ([^)]+)\)/); if (m) { const p = m[1].split(/[ ,/]+/).filter(Boolean).map(Number); return { r: p[0] * 255, g: p[1] * 255, b: p[2] * 255, a: p.length > 3 ? p[3] : 1 }; } m = c.match(/rgba?\(([^)]+)\)/); if (!m) return null; const p = m[1].split(/[ ,/]+/).filter(Boolean).map(Number); return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 }; };
++  const lum = ({ r, g, b }) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
++  const blend = (fg, bg) => ({ r: fg.r * fg.a + bg.r * (1 - fg.a), g: fg.g * fg.a + bg.g * (1 - fg.a), b: fg.b * fg.a + bg.b * (1 - fg.a), a: 1 });
++  const stack = [];
++  for (let e = el; e; e = e.parentElement) { const c = parse(getComputedStyle(e).backgroundColor); if (c && c.a > 0) { stack.push(c); if (c.a >= 1) break; } }
++  let bg = parse(getComputedStyle(document.body).backgroundColor) || { r: 255, g: 255, b: 255, a: 1 };
++  for (let i = stack.length - 1; i >= 0; i--) bg = blend(stack[i], bg);
++  const fg = blend(parse(getComputedStyle(el).color), bg);
++  const a = lum(fg), b = lum(bg);
++  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
++})
+diff --git a/docs/process/scripts/ux-review-beta-2/count.mjs b/docs/process/scripts/ux-review-beta-2/count.mjs
+new file mode 100644
+index 0000000..65ce619
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/count.mjs
+@@ -0,0 +1,23 @@
++// Simplicity budget: visible controls on first load, per area and viewport; beta (Google, Amazon) vs main (Anduril).
++import { launch, openPage } from './lib.mjs';
++const b = await launch();
++const areas = { topbar: '.topbar', quickbar: '.quickbar', viz: '#vizToolbar', results: '#results > header, #results .results-head, #results .results-header' };
++for (const vp of ['d1440', 'd1280', 'd1024', 't768', 'p390']) {
++  for (const [label, url] of [['google', '/beta/#c=google'], ['amazon', '/beta/#c=amazon'], ['anduril(main)', '/#c=anduril']]) {
++    const { ctx, page } = await openPage(b, vp, 'light', url);
++    const r = await page.evaluate((areas) => {
++      const out = {};
++      const vis = (e) => { const r = e.getBoundingClientRect(); if (r.width < 2 || r.height < 2) return false; const cs = getComputedStyle(e); if (cs.visibility === 'hidden' || +cs.opacity < 0.05) return false; if (e.closest('[hidden]')) return false; return r.right > 0 && r.left < innerWidth && r.bottom > 0 && r.top < innerHeight; };
++      for (const [k, sel] of Object.entries(areas)) {
++        const root = document.querySelector(sel);
++        if (!root) { out[k] = null; continue; }
++        const ctrls = [...root.querySelectorAll('button, a[href], select, input:not([type=hidden]), [role=button], [tabindex="0"]')].filter(vis).filter((e) => !e.closest('.sr-only'));
++        out[k] = { n: ctrls.length, names: ctrls.map((e) => (e.getAttribute('aria-label') || e.innerText || e.value || e.placeholder || e.id || e.tagName).trim().replace(/\s+/g, ' ').slice(0, 22)) };
++      }
++      return out;
++    }, areas);
++    console.log(vp, label, Object.entries(r).map(([k, v]) => `${k}=${v ? v.n : '-'}`).join(' '), '|', Object.entries(r).map(([k, v]) => v ? `${k}: ${v.names.join(', ')}` : '').join(' || ').slice(0, 600));
++    await ctx.close();
++  }
++}
++await b.close();
+diff --git a/docs/process/scripts/ux-review-beta-2/density.mjs b/docs/process/scripts/ux-review-beta-2/density.mjs
+new file mode 100644
+index 0000000..4e0e07f
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/density.mjs
+@@ -0,0 +1,84 @@
++// Text-density inventory: every secondary line on every board at p390, p360 and d1440 (light).
++// node density.mjs <vps> <boards> -> density-<board>-<vp>.json, plus screenshots of the key views.
++import { launch, VP, BASE, SHOTS, sleep, ready, BOARDS } from './lib.mjs';
++import fs from 'node:fs';
++const LEAFS = fs.readFileSync(new URL('./leafs-fn.js', import.meta.url), 'utf8');
++const picks = JSON.parse(fs.readFileSync(new URL('./picks.json', import.meta.url), 'utf8'));
++const vps = (process.argv[2] || 'p390,p360,d1440').split(',');
++const only = process.argv[3] ? process.argv[3].split(',') : null;
++const shots = process.env.SHOTS !== '0';
++const b = await launch();
++async function leafs(page, root, opts) { return page.evaluate(({ fn, root, opts }) => eval(fn)(root, opts), { fn: LEAFS, root, opts }); }
++for (const vp of vps) for (const [slug, site] of BOARDS) {
++  if (only && !only.includes(slug)) continue;
++  const phone = vp.startsWith('p');
++  const ctx = await b.newContext({ ...VP[vp], colorScheme: 'light' });
++  await ctx.route((u) => !u.href.startsWith(BASE.replace('/melon-seek', '')) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
++  const page = await ctx.newPage();
++  page.setDefaultTimeout(30000);
++  const errs = [];
++  page.on('pageerror', (e) => errs.push(e.message));
++  const base = `${BASE}/${site ? site + '/' : ''}`;
++  const go = async (hash, settle = 800) => { await page.goto('about:blank'); await page.goto(`${base}#${hash}`); await ready(page); await sleep(settle); };
++  const out = { slug, vp, views: {} };
++  const rec = async (view, roots, opts = {}) => {
++    const all = [];
++    for (const r of roots) all.push(...await leafs(page, r, opts));
++    // de-duplicate by path+text
++    const seen = new Set();
++    out.views[view] = all.filter((x) => { const k = x.path + x.text; if (seen.has(k)) return false; seen.add(k); return true; });
++  };
++  const shot = async (view) => { if (shots && (vp === 'p390' || vp === 'd1440')) await page.screenshot({ path: `${SHOTS}/density-${slug}-${vp}-${view}.png` }); };
++  // 1. Chart (Clusters)
++  await go(`c=${slug}`);
++  await rec('chart', ['#vizToolbar', '#chartHost', '#results > header, #results .results-head, #resultsTitle', '#topbar, header.topbar, .topbar', '.juice-scale', '#tagline'], { minWords: 1, exclude: '.ms-crow__name, article.card' });
++  await shot('chart');
++  // phone: the sheet raised, to read the list's lines (juice scale) and the card meta rows
++  if (phone) {
++    await page.locator('#sheetHandle').tap().catch(() => {}); await sleep(700);
++    await rec('sheet', ['#results'], { minWords: 1, exclude: 'article.card .card-title' });
++    await shot('sheet');
++  } else {
++    await rec('list', ['#results'], { minWords: 1, exclude: 'article.card .card-title' });
++  }
++  // 2. Ranges
++  await go(`c=${slug}&v=ranges`);
++  await rec('ranges', ['#vizToolbar', '#chartHost'], { minWords: 1, exclude: '.ms-row__name, .ms-rrow__name' });
++  await shot('ranges');
++  // 3. Map
++  await go(`c=${slug}&m=map`, 2000);
++  await rec('map', ['#mapHost', '#vizToolbar'], { minWords: 1, exclude: '.leaflet-tile-pane' });
++  await shot('map');
++  // Juice mode of the map
++  const juiceBtn = page.locator('#mapHost button', { hasText: /^Juice$/ }).first();
++  if (await juiceBtn.count()) { await juiceBtn.click().catch(() => {}); await sleep(900); await rec('mapJuice', ['#mapHost'], { minWords: 1, exclude: '.leaflet-tile-pane' }); await shot('mapjuice'); }
++  // 4. Insights
++  await go(`c=${slug}&m=insights`, 1500);
++  await page.waitForFunction(() => /roles/.test(document.querySelector('#insightsPanel .ms-insights__sub')?.textContent || ''), null, { timeout: 60000 }).catch(() => {});
++  await sleep(800);
++  await rec('insights', ['#insightsHost', '#compHost', '#insightsPanel', '#compsCardHost'], { minWords: 1 });
++  await shot('insights');
++  // 5. Filters panel (the notes under each section)
++  await go(`c=${slug}`);
++  if (phone) { await page.locator('#filtersToggle').tap().catch(() => {}); await sleep(700); }
++  await rec('filters', ['#filters'], { minWords: 3, exclude: '.check, label' });
++  if (phone) await shot('filters');
++  // 6. Drawers
++  await go(`c=${slug}`);
++  const first = await page.evaluate(() => document.querySelector('#resultsList .card')?.dataset.id);
++  const P = { top: first, ...(picks[slug] || {}) };
++  for (const [k, id] of Object.entries(P)) {
++    if (!id) continue;
++    await go(`c=${slug}&job=${encodeURIComponent(id)}`, 1100);
++    await rec(`drawer:${k}`, ['#drawer'], { minWords: 1, exclude: '.desc, .d-desc, .d-bullets, .kw-group, .drawer-head, .d-title, .bullets' });
++    if (['top', 'nopay', 'levels', 'places', 'minimum', 'shift', 'term', 'foreign'].includes(k)) await shot(`drawer-${k}`);
++  }
++  // 7. Empty search
++  await go(`c=${slug}&q=zzqxnomatch`, 600);
++  await rec('empty', ['#vizOverlay', '#resultsList', '#vizToolbar'], { minWords: 1 });
++  out.errors = errs;
++  fs.writeFileSync(new URL(`./density-${slug}-${vp}.json`, import.meta.url), JSON.stringify(out, null, 1));
++  console.log(vp, slug, Object.fromEntries(Object.entries(out.views).map(([k, v]) => [k, v.length])), errs.length ? 'ERR ' + errs.join('|').slice(0, 200) : '');
++  await ctx.close();
++}
++await b.close();
+diff --git a/docs/process/scripts/ux-review-beta-2/dots.mjs b/docs/process/scripts/ux-review-beta-2/dots.mjs
+new file mode 100644
+index 0000000..e69bdd0
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/dots.mjs
+@@ -0,0 +1,52 @@
++// Circle labels on the clusters chart: text wider than its circle, ink contrast on the circle's fill,
++// overlapping circles, and whether the biggest circle in a row is the one labelled.
++import { launch, openPage, BOARDS, url } from './lib.mjs';
++import fs from 'node:fs';
++const CONTRAST = fs.readFileSync(new URL('./contrast-fn.js', import.meta.url), 'utf8');
++const b = await launch();
++const vps = (process.argv[2] || 'd1440,p390').split(',');
++const themes = (process.argv[3] || 'light,dark').split(',');
++const only = process.argv[4] ? process.argv[4].split(',') : null;
++for (const vp of vps) for (const theme of themes) for (const [slug, site] of BOARDS) {
++  if (only && !only.includes(slug)) continue;
++  const { ctx, page } = await openPage(b, vp, theme, url(slug, site));
++  if (vp.startsWith('p')) { await page.locator('#sheetHandle').tap().catch(() => {}); await page.waitForTimeout(200); await page.locator('#sheetHandle').tap().catch(() => {}); await page.waitForTimeout(500); }
++  const r = await page.evaluate((cfn) => {
++    const contrast = eval(cfn);
++    const out = { wide: [], ink: [], overlap: [], unlabelledBigger: [] };
++    const rows = [...document.querySelectorAll('.ms-row, .ms-crow, [class*="ms-row"]')];
++    const bins = [...document.querySelectorAll('.ms-bin:not(.ms-bin--overflow)')];
++    for (const bin of bins) {
++      const dot = bin.querySelector('.ms-bin__dot');
++      if (!dot) continue;
++      const t = dot.textContent.trim();
++      const dr = dot.getBoundingClientRect();
++      if (t) {
++        const range = document.createRange(); range.selectNodeContents(dot);
++        const tr = range.getBoundingClientRect();
++        if (tr.width > dr.width - 2) out.wide.push(`"${t}" text ${tr.width.toFixed(1)}px in a ${dr.width.toFixed(1)}px circle`);
++        const c = contrast(dot);
++        if (c < 4.5) out.ink.push(`"${t}" ${c.toFixed(2)}:1 (${getComputedStyle(dot).color} on ${getComputedStyle(dot).backgroundColor})`);
++      }
++    }
++    // overlap between neighbouring circles in the same row container
++    const byParent = new Map();
++    for (const bin of bins) { const p = bin.parentElement; if (!byParent.has(p)) byParent.set(p, []); byParent.get(p).push(bin); }
++    for (const [p, list] of byParent) {
++      const ds = list.map((bin) => ({ t: bin.querySelector('.ms-bin__dot')?.textContent.trim() || '', r: bin.querySelector('.ms-bin__dot').getBoundingClientRect(), label: bin.getAttribute('aria-label') || '' }));
++      ds.sort((a, b) => a.r.left - b.r.left);
++      for (let i = 1; i < ds.length; i++) {
++        const a = ds[i - 1], c = ds[i];
++        const gap = c.r.left - a.r.right;
++        if (gap < -0.5) out.overlap.push(`${gap.toFixed(1)}px: "${a.label.slice(0, 50)}" | "${c.label.slice(0, 50)}"`);
++      }
++      const labelled = ds.filter((d) => d.t);
++      const maxW = Math.max(...ds.map((d) => d.r.width));
++      for (const l of labelled) for (const d of ds) if (!d.t && d.r.width > l.r.width + 1) out.unlabelledBigger.push(`labelled "${l.t}" ${l.r.width.toFixed(0)}px < unlabelled ${d.r.width.toFixed(0)}px (${d.label.slice(0, 40)})`);
++    }
++    return out;
++  }, CONTRAST);
++  console.log(vp, theme, slug, JSON.stringify(r));
++  await ctx.close();
++}
++await b.close();
+diff --git a/docs/process/scripts/ux-review-beta-2/dump.mjs b/docs/process/scripts/ux-review-beta-2/dump.mjs
+new file mode 100644
+index 0000000..fb02cba
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/dump.mjs
+@@ -0,0 +1,17 @@
++// Dump each board's jobs (through the app's own api.js) to <scratch>/ux-review-beta-2/jobs-<slug>.json.
++import { launch, openPage, BASE, BOARDS } from './lib.mjs';
++import fs from 'node:fs';
++const b = await launch();
++const { ctx, page } = await openPage(b, 'd1440', 'light', '/beta/#c=netflix');
++for (const [slug, site] of BOARDS) {
++  const base = `${BASE}/${site ? site + '/' : ''}`.replace(/\/$/, '');
++  const jobs = await page.evaluate(async ({ base, slug }) => {
++    const api = await import(`${base}/api.js`);
++    const r = await api.getJobs({ company: slug });
++    return { mode: r.mode, meta: r.meta ? Object.keys(r.meta) : null, n: r.jobs.length, jobs: r.jobs.map((j) => ({ id: j.id, title: j.title, department: j.department, team: j.team, brand: j.brand, departmentBasis: j.departmentBasis, location: j.location, locations: j.locations, salary: j.salary, seniority: j.seniority, remote: j.remote, employmentType: j.employmentType, termWeeks: j.termWeeks })) };
++  }, { base, slug });
++  fs.writeFileSync(new URL(`./jobs-${slug}.json`, import.meta.url), JSON.stringify(jobs));
++  console.log(slug, jobs.mode, jobs.n, jobs.meta);
++}
++await ctx.close();
++await b.close();
+diff --git a/docs/process/scripts/ux-review-beta-2/feedback.mjs b/docs/process/scripts/ux-review-beta-2/feedback.mjs
+new file mode 100644
+index 0000000..eaf002c
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/feedback.mjs
+@@ -0,0 +1,50 @@
++// Feedback after a click on Amazon's whole board (22,179): time to the first visible change (and to the chart),
++// measured in the page with requestAnimationFrame after the input event. Desktop 1440, no throttling.
++import { launch, openPage, sleep } from './lib.mjs';
++import os from 'node:os';
++const b = await launch();
++const slug = process.argv[2] || 'amazon';
++const { ctx, page } = await openPage(b, 'd1440', 'light', `/beta/#c=${slug}`);
++await sleep(1500);
++console.log('load', os.loadavg().map((x) => x.toFixed(1)).join(' '));
++// a helper in the page: watch a selector's text and the chart host for the first change after a trigger
++await page.evaluate(() => {
++  window.__watch = (sels) => new Promise((res) => {
++    const t0 = performance.now();
++    const snap = () => sels.map((s) => document.querySelector(s)?.innerText || '').join('|');
++    const chart = () => document.querySelector('#chartHost')?.innerHTML.length || 0;
++    const a = snap(), c = chart();
++    let first = null, chartAt = null;
++    const tick = () => {
++      const now = performance.now();
++      if (first == null && snap() !== a) first = now - t0;
++      if (chartAt == null && chart() !== c) chartAt = now - t0;
++      if ((first != null && chartAt != null) || now - t0 > 8000) return res({ first: first && Math.round(first), chart: chartAt && Math.round(chartAt) });
++      requestAnimationFrame(tick);
++    };
++    requestAnimationFrame(tick);
++  });
++});
++const run = async (label, act, sels = ['#resultsTitle', '#statsLine']) => {
++  const p = page.evaluate((s) => window.__watch(s), sels);
++  await sleep(30);
++  const t = Date.now();
++  await act();
++  const r = await p;
++  console.log(label, JSON.stringify(r), 'act', Date.now() - t, 'ms');
++  await sleep(1200);
++};
++await run('department checkbox', () => page.locator('#filterBody .check-label', { hasText: 'Software Development' }).first().click());
++await run('department checkbox off', () => page.locator('#filterBody .check-label', { hasText: 'Software Development' }).first().click());
++await run('sort Lowest pay', () => page.selectOption('#sortBy', { label: 'Lowest pay' }), ['#resultsList']);
++await run('search "data"', () => page.fill('#search', 'data'));
++await run('clear search', () => page.fill('#search', ''));
++await run('Ranges view', () => page.locator('button', { hasText: /^Ranges$/ }).first().click(), ['#chartHost']);
++await run('Clusters view', () => page.locator('button', { hasText: /^Clusters$/ }).first().click(), ['#chartHost']);
++await run('open a card', () => page.locator('#resultsList article.card').nth(2).click(), ['#drawer']);
++await page.keyboard.press('Escape'); await sleep(800);
++await run('Insights', () => page.locator('button[data-mode=insights]').first().click(), ['#insightsHost', '#compHost']);
++await run('Map', () => page.locator('button[data-mode=map]').first().click(), ['#mapHost']);
++console.log('load', os.loadavg().map((x) => x.toFixed(1)).join(' '));
++await ctx.close();
++await b.close();
+diff --git a/docs/process/scripts/ux-review-beta-2/first.mjs b/docs/process/scripts/ux-review-beta-2/first.mjs
+new file mode 100644
+index 0000000..29239d1
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/first.mjs
+@@ -0,0 +1,30 @@
++// First impression: /beta/ with no hash, every viewport and theme. Times to first card and to ready.
++import { launch, openPage, SHOTS, sleep, BASE, VP } from './lib.mjs';
++const b = await launch();
++const vps = (process.argv[2] || 'd1440,d1280,d1024,t768,p390').split(',');
++const themes = (process.argv[3] || 'light,dark').split(',');
++const path = process.argv[4] || '/beta/';
++const tag = process.argv[5] || 'first';
++for (const vp of vps) for (const theme of themes) {
++  const t0 = Date.now();
++  const { ctx, page } = await openPage(b, vp, theme, path, { wait: false });
++  await page.waitForSelector('#resultsList article.card', { timeout: 90000 }).catch(() => {});
++  const tCard = Date.now() - t0;
++  await page.waitForFunction(() => { const t = document.querySelector('#resultsTitle'); return t && t.querySelector('strong') && !/Loading/.test(t.textContent); }, null, { timeout: 90000 });
++  const tReady = Date.now() - t0;
++  await sleep(900);
++  const info = await page.evaluate(() => {
++    const q = (s) => [...document.querySelectorAll(s)].filter((e) => e.getBoundingClientRect().width > 0).map((e) => e.innerText.replace(/\s+/g, ' ').trim());
++    return {
++      hash: location.hash, title: document.title,
++      company: q('#companyBtn, .company-btn')[0],
++      tagline: q('#tagline, .tagline'), stats: q('#statsLine'), results: q('#resultsTitle'), badge: q('#dataBadge, .data-badge'),
++      beta: q('.beta-tag, .beta-notice'), notes: q('.ms-note'), juice: q('.juice-scale, .juice-note, #juiceScale'),
++      hscroll: document.documentElement.scrollWidth - document.documentElement.clientWidth,
++    };
++  });
++  console.log(JSON.stringify({ vp, theme, tCard, tReady, ...info }));
++  await page.screenshot({ path: `${SHOTS}/${tag}-${vp}-${theme}.png` });
++  await ctx.close();
++}
++await b.close();
+diff --git a/docs/process/scripts/ux-review-beta-2/google.mjs b/docs/process/scripts/ux-review-beta-2/google.mjs
+new file mode 100644
+index 0000000..d7def67
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/google.mjs
+@@ -0,0 +1,37 @@
++// Google: job-family departments, the Company group-by and the Company filter.
++import { launch, openPage, SHOTS, sleep, BASE, ready } from './lib.mjs';
++const b = await launch();
++const vp = process.argv[2] || 'd1440';
++const theme = process.argv[3] || 'light';
++const phone = vp.startsWith('p');
++const { ctx, page } = await openPage(b, vp, theme, '/beta/#c=google');
++const go = async (h, settle = 800) => { await page.goto('about:blank'); await page.goto(`${BASE}/beta/#${h}`); await ready(page); await sleep(settle); };
++console.log('group options', JSON.stringify(await page.$$eval('#groupBy option', (o) => o.map((x) => ({ v: x.value, t: x.textContent, title: x.title })))));
++console.log('group title', await page.$eval('#groupBy', (e) => e.title));
++// Company grouping
++await go('c=google&g=brand');
++const rows = await page.$$eval('#chartHost .ms-crow__label', (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ')));
++console.log('brand rows', JSON.stringify(rows));
++await page.screenshot({ path: `${SHOTS}/google-company-group-${vp}-${theme}.png` });
++// Department chip popover
++await go('c=google');
++const chip = page.locator('#quickChips button', { hasText: 'Department' }).first();
++await chip.click(); await sleep(600);
++const pop = await page.evaluate(() => { const p = document.querySelector('#popover'); return p && !p.hidden ? p.innerText.replace(/\n+/g, ' | ').slice(0, 900) : null; });
++console.log('dept popover', pop);
++await page.screenshot({ path: `${SHOTS}/google-dept-popover-${vp}-${theme}.png` });
++// where is the "Grouped by job title" note, and is it on screen?
++const note = await page.evaluate(() => [...document.querySelectorAll('*')].filter((e) => e.children.length === 0 && /Grouped by job title/.test(e.textContent)).map((e) => { const r = e.getBoundingClientRect(); return { tag: e.tagName, cls: e.className, top: Math.round(r.top), h: Math.round(r.height), vis: r.width > 0, inView: r.top < innerHeight && r.bottom > 0 }; }));
++console.log('job-title note (popover open)', JSON.stringify(note));
++await page.keyboard.press('Escape');
++// Company filter: YouTube
++await go('c=google&b=YouTube');
++console.log('b=YouTube results', await page.$eval('#resultsTitle', (e) => e.innerText), '| quickbar', await page.$eval('#quickChips', (e) => e.innerText.replace(/\s+/g, ' ')));
++console.log('rows', JSON.stringify(await page.$$eval('#chartHost .ms-crow__label', (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ')))));
++await page.screenshot({ path: `${SHOTS}/google-youtube-filter-${vp}-${theme}.png` });
++// cards that say "No department"
++await go('c=google&q=YouTube');
++const nodept = await page.$$eval('#resultsList article.card', (els) => els.slice(0, 40).map((e) => e.querySelector('.card-dept')?.textContent).filter((t) => /No department/.test(t || '')).length);
++console.log('cards with "No department" in first 40 for q=YouTube', nodept);
++await ctx.close();
++await b.close();
+diff --git a/docs/process/scripts/ux-review-beta-2/insightswait.mjs b/docs/process/scripts/ux-review-beta-2/insightswait.mjs
+new file mode 100644
+index 0000000..8fdd625
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/insightswait.mjs
+@@ -0,0 +1,18 @@
++// What the screen shows in the first seconds after clicking Insights on Amazon (desktop, no throttling).
++import { launch, openPage, sleep, SHOTS } from './lib.mjs';
++import os from 'node:os';
++const b = await launch();
++const { ctx, page } = await openPage(b, 'd1440', 'light', '/beta/#c=amazon');
++await sleep(1500);
++console.log('load', os.loadavg()[0].toFixed(1));
++const t0 = Date.now();
++await page.locator('button[data-mode=insights]').first().click({ noWaitAfter: true });
++for (const at of [120, 600, 1500, 3000]) {
++  const wait = at - (Date.now() - t0);
++  if (wait > 0) await sleep(wait);
++  const s = await page.evaluate(() => ({ mode: document.querySelector('button[data-mode=insights]')?.getAttribute('aria-pressed') || document.querySelector('button[data-mode=insights]')?.className, host: (document.querySelector('#insightsHost')?.innerText || '').replace(/\s+/g, ' ').slice(0, 100), busy: !!document.querySelector('#insightsHost [aria-busy=true], #insightsPanel [aria-busy=true], .skeleton') }));
++  console.log(Date.now() - t0, 'ms', JSON.stringify(s));
++  await page.screenshot({ path: `${SHOTS}/insights-wait-${at}-d1440-light.png` });
++}
++await ctx.close();
++await b.close();
+diff --git a/docs/process/scripts/ux-review-beta-2/kwclick.mjs b/docs/process/scripts/ux-review-beta-2/kwclick.mjs
+new file mode 100644
+index 0000000..82fffe9
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/kwclick.mjs
+@@ -0,0 +1,19 @@
++// The drawer's "Keywords  click to filter" on a phone; the pay label chips' titles; the Ranges legend title.
++import { launch, openPage, SHOTS, sleep } from './lib.mjs';
++const b = await launch();
++const { ctx, page } = await openPage(b, 'p390', 'light', '/beta/#c=google&job=google%3A104405499448828614');
++await sleep(1200);
++const kw = page.locator('#drawer .d-kw').first();
++if (await kw.count()) {
++  await kw.scrollIntoViewIfNeeded();
++  await sleep(300);
++  console.log('kw text:', (await kw.innerText()).slice(0, 80).replace(/\s+/g, ' '));
++  const box = await kw.boundingBox();
++  await page.screenshot({ path: `${SHOTS}/touch-drawer-keywords-click-p390-light.png`, clip: { x: 0, y: Math.max(0, box.y - 60), width: 390, height: Math.min(260, 844 - Math.max(0, box.y - 60)) } });
++}
++const labels = await page.$$eval('#drawer .pay-label', (els) => els.map((e) => ({ text: e.textContent, title: e.title, tab: e.tabIndex })));
++console.log('pay labels', JSON.stringify(labels));
++const titles = await page.$$eval('#drawer [title]', (els) => els.map((e) => `${e.tagName.toLowerCase()}.${e.className}: "${e.textContent.trim().slice(0, 40)}" title="${e.title.slice(0, 160)}"`));
++console.log(titles.join('\n'));
++await ctx.close();
++await b.close();
+diff --git a/docs/process/scripts/ux-review-beta-2/leafs-fn.js b/docs/process/scripts/ux-review-beta-2/leafs-fn.js
+new file mode 100644
+index 0000000..8537c67
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/leafs-fn.js
+@@ -0,0 +1,34 @@
++// leafBlocks(rootSel, {minWords, exclude}) -> visible text "leaf blocks" under the root, with words and line count.
++((rootSel, opts = {}) => {
++  const minWords = opts.minWords ?? 1;
++  const exclude = opts.exclude || '';
++  const roots = [...document.querySelectorAll(rootSel)];
++  const out = [];
++  const inlineish = (d) => d === 'inline' || d === 'inline-block' || d === 'contents' || d === 'inline-flex';
++  const visible = (e) => { const b = e.getBoundingClientRect(); if (b.width < 1 || b.height < 1) return false; const cs = getComputedStyle(e); if (cs.visibility === 'hidden' || cs.display === 'none') return false; if (e.closest('[hidden]')) return false; return true; };
++  const path = (e) => { const p = []; for (let x = e; x && p.length < 3 && x !== document.body; x = x.parentElement) { p.unshift(x.tagName.toLowerCase() + (x.id ? '#' + x.id : '') + (typeof x.className === 'string' && x.className.trim() ? '.' + x.className.trim().split(/\s+/).slice(0, 2).join('.') : '')); } return p.join(' > '); };
++  for (const root of roots) {
++    for (const e of root.querySelectorAll('*')) {
++      if (!visible(e)) continue;
++      if (exclude && e.closest(exclude)) continue;
++      const cs = getComputedStyle(e);
++      if (inlineish(cs.display)) continue;
++      if (e.closest('svg') || e.tagName === 'SCRIPT' || e.tagName === 'STYLE' || e.tagName === 'BUTTON' || e.tagName === 'SELECT' || e.tagName === 'INPUT' || e.tagName === 'OPTION' || e.tagName === 'LABEL') continue;
++      // a leaf block: no visible non-inline descendant with text
++      let hasBlockChild = false;
++      for (const c of e.querySelectorAll('*')) { if (!visible(c)) continue; const d = getComputedStyle(c).display; if (!inlineish(d) && c.innerText && c.innerText.trim()) { hasBlockChild = true; break; } }
++      if (hasBlockChild) continue;
++      const text = (e.innerText || '').replace(/\s+/g, ' ').trim();
++      if (!text) continue;
++      const words = text.split(' ').filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
++      if (words < minWords) continue;
++      const range = document.createRange(); range.selectNodeContents(e);
++      const mids = [];
++      for (const x of range.getClientRects()) { if (x.width < 0.5 || x.height < 0.5) continue; const m = x.top + x.height / 2; if (!mids.some((t) => Math.abs(t - m) < 6)) mids.push(m); }
++      const b = e.getBoundingClientRect();
++      const facts = text.split(/ · |; |\. (?=[A-Z])/).filter((s) => s.trim()).length;
++      out.push({ path: path(e), text, words, lines: mids.length, facts, fs: parseFloat(cs.fontSize), top: Math.round(b.top), cut: e.scrollWidth > e.clientWidth + 1 && (cs.overflow === 'hidden' || cs.textOverflow === 'ellipsis' || cs.overflowX === 'hidden') });
++    }
++  }
++  return out;
++})
+diff --git a/docs/process/scripts/ux-review-beta-2/lib.mjs b/docs/process/scripts/ux-review-beta-2/lib.mjs
+new file mode 100644
+index 0000000..603b9eb
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/lib.mjs
+@@ -0,0 +1,31 @@
++import { chromium } from 'playwright';
++export const BASE = process.env.BASE || 'http://127.0.0.1:5482/melon-seek';
++export const SHOTS = process.env.SHOTS_DIR || '/home/user/melon-seek/.claude/worktrees/agent-af29c49e4f4fc6d19/docs/screenshots/ux-review-beta-2';
++export const VP = {
++  d1440: { viewport: { width: 1440, height: 900 } },
++  d1280: { viewport: { width: 1280, height: 800 } },
++  d1024: { viewport: { width: 1024, height: 768 } },
++  t768: { viewport: { width: 768, height: 1024 }, hasTouch: true },
++  p390: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
++  p360: { viewport: { width: 360, height: 740 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
++};
++export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++export async function launch() { return chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', timeout: 60000 }); }
++export async function openPage(browser, vp = 'd1440', theme = 'light', url = '/beta/#c=apple', { wait = true, timeout = 90000 } = {}) {
++  const ctx = await browser.newContext({ ...VP[vp], colorScheme: theme });
++  await ctx.route((u) => !u.href.startsWith(BASE.replace('/melon-seek', '')) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
++  const page = await ctx.newPage();
++  page.setDefaultTimeout(30000);
++  page.on('pageerror', (e) => console.log('PAGEERROR', e.message));
++  await page.goto(BASE + url);
++  if (wait) await ready(page, timeout);
++  return { ctx, page };
++}
++export async function ready(page, timeout = 90000) {
++  await page.waitForFunction(() => { const t = document.querySelector('#resultsTitle'); return t && t.querySelector('strong') && !/Loading/.test(t.textContent); }, null, { timeout });
++  await sleep(700);
++}
++export const BOARDS = [['amazon', 'beta'], ['apple', 'beta'], ['google', 'beta'], ['meta', 'beta'], ['microsoft', 'beta'], ['nvidia', 'beta'], ['netflix', 'beta'], ['anduril', '']];
++export function url(slug, site, extra = '') { return `/${site ? site + '/' : ''}#c=${slug}${extra}`; }
++// Hard stop so nothing hangs.
++setTimeout(() => { console.log('HARD TIMEOUT'); process.exit(3); }, +(process.env.HARD || 900000)).unref();
+diff --git a/docs/process/scripts/ux-review-beta-2/motion.mjs b/docs/process/scripts/ux-review-beta-2/motion.mjs
+new file mode 100644
+index 0000000..d5024c7
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/motion.mjs
+@@ -0,0 +1,33 @@
++// Reduced motion and focus rings on the new controls (Details buttons, stacked Ranges rows, Company filter).
++import { chromium } from 'playwright';
++import { BASE, VP, sleep, ready, SHOTS } from './lib.mjs';
++const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
++for (const rm of ['no-preference', 'reduce']) {
++  const ctx = await b.newContext({ ...VP.d1440, reducedMotion: rm });
++  await ctx.route((u) => !u.href.startsWith(BASE.replace('/melon-seek', '')) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
++  const page = await ctx.newPage();
++  await page.goto(`${BASE}/beta/#c=google`); await ready(page);
++  const t = await page.evaluate(() => {
++    const q = (s) => document.querySelector(s);
++    const d = (e) => e ? getComputedStyle(e).transitionDuration + ' / anim ' + getComputedStyle(e).animationDuration : null;
++    return { dot: d(q('.ms-bin__dot')), drawer: d(q('#drawer')), sheet: d(q('#results')), card: d(q('#resultsList article.card')), note: d(q('.ms-note__more')) };
++  });
++  console.log(rm, JSON.stringify(t));
++  await ctx.close();
++}
++// focus rings: Tab to the stats line's Details and the chart notes' Details
++const ctx = await b.newContext({ ...VP.d1440 });
++await ctx.route((u) => !u.href.startsWith(BASE.replace('/melon-seek', '')) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
++const page = await ctx.newPage();
++await page.goto(`${BASE}/beta/#c=google`); await ready(page);
++for (const sel of ['#statsLine .ms-note__more', '#chartHost .ms-chart__foot .ms-note__more', '#groupBy']) {
++  await page.locator(sel).first().focus();
++  await page.keyboard.press('Shift+Tab'); await page.keyboard.press('Tab');
++  await sleep(150);
++  const r = await page.evaluate((sel) => { const e = document.querySelector(sel); const cs = getComputedStyle(e); return { active: document.activeElement === e, outline: `${cs.outlineStyle} ${cs.outlineWidth} ${cs.outlineColor}`, shadow: cs.boxShadow.slice(0, 60) }; }, sel);
++  console.log('focus', sel, JSON.stringify(r));
++  const box = await page.locator(sel).first().boundingBox();
++  await page.screenshot({ path: `${SHOTS}/focus-${sel.replace(/[^a-z]+/gi, '-')}-d1440-light.png`, clip: { x: Math.max(0, box.x - 40), y: Math.max(0, box.y - 12), width: Math.min(300, box.width + 80), height: box.height + 24 } });
++}
++await ctx.close();
++await b.close();
+diff --git a/docs/process/scripts/ux-review-beta-2/offcanvas.mjs b/docs/process/scripts/ux-review-beta-2/offcanvas.mjs
+new file mode 100644
+index 0000000..7336ba7
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/offcanvas.mjs
+@@ -0,0 +1,16 @@
++// 1024: the filter panel's Reset / Close / "Show roles" sit off screen; can the keyboard reach them?
++import { launch, openPage, SHOTS, sleep } from './lib.mjs';
++const b = await launch();
++const { ctx, page } = await openPage(b, 'd1024', 'light', '/beta/#c=google');
++const info = await page.evaluate(() => ['#filters', '#filtersClear', '#filtersClose', '#filtersDone'].map((s) => { const e = document.querySelector(s); const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return { s, x: [Math.round(r.left), Math.round(r.right)], vis: cs.visibility, inert: !!e.closest('[inert]'), hidden: !!e.closest('[hidden]'), ariaHidden: e.closest('[aria-hidden=true]') ? true : false, disp: cs.display }; }));
++console.log(JSON.stringify(info));
++// Tab through the page and record focus that lands off screen
++const off = [];
++for (let i = 0; i < 40; i++) {
++  await page.keyboard.press('Tab');
++  const f = await page.evaluate(() => { const e = document.activeElement; const r = e.getBoundingClientRect(); return { id: e.id, cls: e.className, txt: (e.innerText || e.getAttribute('aria-label') || '').trim().slice(0, 30), x: Math.round(r.left), r: Math.round(r.right), y: Math.round(r.top) }; });
++  if (f.r <= 0 || f.x >= 1024 || f.y < -5) off.push(f);
++}
++console.log('focus off screen:', JSON.stringify(off));
++await ctx.close();
++await b.close();
+diff --git a/docs/process/scripts/ux-review-beta-2/orphan.mjs b/docs/process/scripts/ux-review-beta-2/orphan.mjs
+new file mode 100644
+index 0000000..f284910
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/orphan.mjs
+@@ -0,0 +1,19 @@
++// UX-44: the stats line when no role in view has pay. Find a filter with 0 paid roles, then read the line.
++import { launch, openPage, SHOTS, sleep, BASE, ready } from './lib.mjs';
++const b = await launch();
++for (const vp of ['d1440', 'p390']) {
++  const { ctx, page } = await openPage(b, vp, 'light', '/beta/#c=google&m=map');
++  await sleep(1500);
++  await page.locator('#mapHost .ms-pin').first().click({ force: true }).catch(() => {});
++  await sleep(1000);
++  const s = await page.evaluate(() => ({ hash: location.hash, stats: document.querySelector('#statsLine')?.innerText.replace(/\s+/g, ' '), line: document.querySelector('#statsLine .ms-note__line')?.innerText, results: document.querySelector('#resultsTitle')?.innerText }));
++  console.log(vp, JSON.stringify(s));
++  await page.screenshot({ path: `${SHOTS}/orphan-details-map-${vp}-light.png` });
++  // same filter in Chart mode
++  await page.goto('about:blank'); await page.goto(`${BASE}/beta/${s.hash.replace('m=map', 'm=chart')}`); await ready(page); await sleep(800);
++  const c = await page.evaluate(() => ({ hash: location.hash, stats: document.querySelector('#statsLine')?.innerText.replace(/\s+/g, ' '), notes: document.querySelector('#chartHost .ms-chart__foot')?.innerText.replace(/\s+/g, ' ') }));
++  console.log(vp, 'chart', JSON.stringify(c));
++  await page.screenshot({ path: `${SHOTS}/orphan-details-chart-${vp}-light.png` });
++  await ctx.close();
++}
++await b.close();
+diff --git a/docs/process/scripts/ux-review-beta-2/preview.mjs b/docs/process/scripts/ux-review-beta-2/preview.mjs
+new file mode 100644
+index 0000000..9b97ce8
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/preview.mjs
+@@ -0,0 +1,42 @@
++// Amazon's first-page preview: what the screen says while the big list loads, and what changes when it lands.
++// node preview.mjs <vp> <theme> <cpuRate> [slug]
++import { launch, VP, BASE, SHOTS, sleep } from './lib.mjs';
++const [vp = 'p390', theme = 'light', rate = '4', slug = 'amazon'] = process.argv.slice(2);
++const b = await launch();
++const ctx = await b.newContext({ ...VP[vp], colorScheme: theme });
++await ctx.route((u) => !u.href.startsWith(BASE.replace('/melon-seek', '')) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
++const page = await ctx.newPage();
++const cdp = await ctx.newCDPSession(page);
++await cdp.send('Emulation.setCPUThrottlingRate', { rate: +rate });
++// Fast 4G-ish: 9 Mbit/s down, 150 ms RTT (perf-mobile-beta-2's profile).
++await cdp.send('Network.enable');
++await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 150, downloadThroughput: 9e6 / 8, uploadThroughput: 1.5e6 / 8 });
++const t0 = Date.now();
++page.goto(`${BASE}/beta/#c=${slug}`).catch(() => {});
++const seen = [];
++let last = '';
++let shot = 0;
++for (let i = 0; i < 200; i++) {
++  await sleep(250);
++  const s = await page.evaluate(() => {
++    const q = (sel) => { const e = document.querySelector(sel); return e && e.getBoundingClientRect().width ? e.innerText.replace(/\s+/g, ' ').trim() : ''; };
++    const cards = [...document.querySelectorAll('#resultsList article.card')];
++    return {
++      results: q('#resultsTitle'), stats: q('#statsLine'), badge: q('#dataBadge .data-badge__label, #dataBadge'), notes: [...document.querySelectorAll('.ms-note')].map((e) => e.innerText.replace(/\s+/g, ' ').trim()).join(' | '),
++      cards: cards.length, first: cards[0]?.querySelector('.card-title, h3')?.textContent.trim().slice(0, 40) || '',
++      chart: document.querySelectorAll('.ms-bin').length, sheet: q('#sheetHandle, .sheet-peek'),
++      filters: document.querySelectorAll('#filterPanel input[type=checkbox]').length, busy: document.querySelector('[aria-busy="true"]')?.id || '',
++      skeleton: document.querySelectorAll('.skeleton, [class*=skel]').length,
++    };
++  }).catch(() => null);
++  if (!s) continue;
++  const key = JSON.stringify({ ...s });
++  if (key !== last) {
++    const t = Date.now() - t0;
++    console.log(t, key);
++    last = key;
++    if (shot < 8) { await page.screenshot({ path: `${SHOTS}/preview-${slug}-${vp}-${theme}-${shot}.png` }); shot++; }
++  }
++  if (s.results && !/Loading/.test(s.results) && s.chart > 0 && i > 8) { await sleep(1500); await page.screenshot({ path: `${SHOTS}/preview-${slug}-${vp}-${theme}-done.png` }); break; }
++}
++await b.close();
+diff --git a/docs/process/scripts/ux-review-beta-2/ranges.mjs b/docs/process/scripts/ux-review-beta-2/ranges.mjs
+new file mode 100644
+index 0000000..f0ce7ee
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/ranges.mjs
+@@ -0,0 +1,36 @@
++// Ranges view: stacked rows ("N roles", "×N"), the Group select, edge clipping; screenshot and row texts.
++import { launch, openPage, SHOTS, sleep } from './lib.mjs';
++const b = await launch();
++const vp = process.argv[2] || 'd1440';
++const theme = process.argv[3] || 'light';
++for (const slug of (process.argv[4] || 'amazon,microsoft,google,nvidia').split(',')) {
++  const { ctx, page } = await openPage(b, vp, theme, `/beta/#c=${slug}&v=ranges`);
++  await sleep(600);
++  const info = await page.evaluate(() => {
++    const sel = document.querySelector('#groupBy');
++    const rows = [...document.querySelectorAll('#chartHost .ms-row')].slice(0, 30).map((r) => {
++      const lab = r.querySelector('.ms-row__label');
++      const cnt = r.querySelector('.ms-row__count');
++      const bar = r.querySelector('.ms-row__bar');
++      const over = r.querySelector('.ms-row__over');
++      const lr = lab?.getBoundingClientRect();
++      return { label: lab?.textContent.trim(), labelCut: lab ? lab.scrollWidth > lab.clientWidth + 1 : null, count: cnt?.textContent.trim() || '', bar: bar ? Math.round(bar.getBoundingClientRect().width) : null, over: over?.textContent || '', aria: r.getAttribute('aria-label')?.slice(0, 140), title: r.title?.slice(0, 160) };
++    });
++    const groupLabel = document.querySelector('label[for=groupBy], .viz-group-label, #vizControls label')?.textContent.trim();
++    return { group: sel ? { value: sel.value, text: sel.selectedOptions[0]?.textContent, title: sel.title, label: groupLabel, opts: [...sel.options].map((o) => o.textContent) } : null, rows };
++  });
++  console.log(slug, JSON.stringify(info.group));
++  for (const r of info.rows) console.log('  ', JSON.stringify(r));
++  await page.screenshot({ path: `${SHOTS}/ranges-${slug}-${vp}-${theme}.png` });
++  // hover a stacked row to read its tip
++  const stacked = page.locator('#chartHost .ms-row', { has: page.locator('.ms-row__count') }).first();
++  if (await stacked.count() && !vp.startsWith('p')) {
++    const bar = stacked.locator('.ms-row__bar').first();
++    await bar.hover().catch(() => {}); await sleep(400);
++    const tip = await page.evaluate(() => [...document.querySelectorAll('.ms-tip')].filter((e) => !e.hidden).map((e) => e.innerText.replace(/\s+/g, ' ')).join(' | '));
++    console.log('  stacked tip:', tip.slice(0, 400));
++    await page.screenshot({ path: `${SHOTS}/ranges-${slug}-stacked-tip-${vp}-${theme}.png` });
++  }
++  await ctx.close();
++}
++await b.close();
+diff --git a/docs/process/scripts/ux-review-beta-2/states.mjs b/docs/process/scripts/ux-review-beta-2/states.mjs
+new file mode 100644
+index 0000000..f4acf18
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/states.mjs
+@@ -0,0 +1,55 @@
++// States: loading (delayed list), error (aborted list), empty search, the badge popover, the beta tag, a Pay unclear role.
++import { launch, VP, BASE, SHOTS, sleep, ready } from './lib.mjs';
++const b = await launch();
++const vps = (process.argv[2] || 'd1440,p390').split(',');
++const read = (page) => page.evaluate(() => {
++  const q = (s) => [...document.querySelectorAll(s)].filter((e) => e.getBoundingClientRect().width > 0).map((e) => e.innerText.replace(/\s+/g, ' ').trim()).filter(Boolean);
++  return { title: document.title, results: q('#resultsTitle'), stats: q('#statsLine'), badge: q('#dataBadge .badge-label'), overlay: q('#vizOverlay .state-card'), list: q('#resultsList .state-card'), chartNotes: q('#chartHost .ms-chart__foot'), filters: q('#filterBody').map((t) => t.slice(0, 160)), toast: q('#toast') };
++});
++for (const vp of vps) {
++  const mk = async () => { const ctx = await b.newContext({ ...VP[vp], colorScheme: 'light' }); await ctx.route((u) => !u.href.startsWith(BASE.replace('/melon-seek', '')) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient')); return ctx; };
++  // loading: hold the board's list for 6 s
++  {
++    const ctx = await mk();
++    await ctx.route(/\/api\/jobs\/apple\.json/, async (r) => { await sleep(6000); await r.continue(); });
++    const page = await ctx.newPage();
++    page.goto(`${BASE}/beta/#c=apple`).catch(() => {});
++    await sleep(2500);
++    console.log(vp, 'LOADING', JSON.stringify(await read(page)));
++    await page.screenshot({ path: `${SHOTS}/state-loading-${vp}-light.png` });
++    await ctx.close();
++  }
++  // error: abort the board's list
++  {
++    const ctx = await mk();
++    await ctx.route(/\/api\/jobs\/apple\.json/, (r) => r.abort('failed'));
++    const page = await ctx.newPage();
++    await page.goto(`${BASE}/beta/#c=apple`).catch(() => {});
++    await sleep(4000);
++    console.log(vp, 'ERROR', JSON.stringify(await read(page)));
++    await page.screenshot({ path: `${SHOTS}/state-error-${vp}-light.png` });
++    await ctx.close();
++  }
++  // empty search, and a filter combination with no result
++  {
++    const ctx = await mk();
++    const page = await ctx.newPage();
++    await page.goto(`${BASE}/beta/#c=meta&q=zzqxnomatch`); await ready(page); await sleep(500);
++    console.log(vp, 'EMPTY', JSON.stringify(await read(page)));
++    await page.screenshot({ path: `${SHOTS}/state-empty-${vp}-light.png` });
++    await page.goto('about:blank'); await page.goto(`${BASE}/beta/#c=netflix&smin=900000`); await ready(page); await sleep(500);
++    console.log(vp, 'EMPTY-PAY', JSON.stringify(await read(page)));
++    await page.screenshot({ path: `${SHOTS}/state-empty-pay-${vp}-light.png` });
++    // badge popover
++    await page.goto('about:blank'); await page.goto(`${BASE}/beta/#c=amazon`); await ready(page); await sleep(500);
++    await page.locator('#dataBadge').click(); await sleep(500);
++    console.log(vp, 'BADGE', JSON.stringify(await page.evaluate(() => { const p = document.querySelector('#popover'); return p && !p.hidden ? p.innerText.replace(/\s+/g, ' ') : null; })));
++    await page.screenshot({ path: `${SHOTS}/state-badge-${vp}-light.png` });
++    await page.keyboard.press('Escape');
++    // beta tag
++    const tag = await page.evaluate(() => { const t = document.querySelector('.beta-tag'); if (!t) return null; const r = t.getBoundingClientRect(); return { text: t.innerText, href: t.getAttribute('href'), title: t.title, aria: t.getAttribute('aria-label'), w: Math.round(r.width), h: Math.round(r.height) }; });
++    console.log(vp, 'BETA TAG', JSON.stringify(tag));
++    await ctx.close();
++  }
++}
++await b.close();
+diff --git a/docs/process/scripts/ux-review-beta-2/tiles.mjs b/docs/process/scripts/ux-review-beta-2/tiles.mjs
+new file mode 100644
+index 0000000..8a12e82
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/tiles.mjs
+@@ -0,0 +1,15 @@
++// The Market insights stat tiles at 1440: is "$188K–$252K" cut?
++import { launch, openPage, SHOTS, sleep } from './lib.mjs';
++const b = await launch();
++for (const [slug, site] of [['apple', 'beta'], ['anduril', '']]) {
++  const { ctx, page } = await openPage(b, 'd1440', 'light', `/${site ? site + '/' : ''}#c=${slug}&m=insights`);
++  await sleep(2500);
++  const t = page.locator('.msi-stat').nth(1);
++  await t.scrollIntoViewIfNeeded();
++  const info = await t.evaluate((e) => { const v = e.querySelector('.msi-stat__value'); const cs = getComputedStyle(v); return { text: v.textContent, sw: v.scrollWidth, cw: v.clientWidth, ov: cs.overflow, to: cs.textOverflow, ws: cs.whiteSpace }; });
++  console.log(slug, JSON.stringify(info));
++  const box = await page.locator('.msi-stat').first().boundingBox();
++  await page.screenshot({ path: `${SHOTS}/insights-tiles-${slug}-d1440-light.png`, clip: { x: box.x - 10, y: box.y - 10, width: 760, height: box.height + 20 } });
++  await ctx.close();
++}
++await b.close();
+diff --git a/docs/process/scripts/ux-review-beta-2/touch.mjs b/docs/process/scripts/ux-review-beta-2/touch.mjs
+new file mode 100644
+index 0000000..0b84ecd
+--- /dev/null
++++ b/docs/process/scripts/ux-review-beta-2/touch.mjs
+@@ -0,0 +1,74 @@
++// Touch: what a tap shows on a phone, and whether a floating tip goes away on a tap elsewhere or a scroll.
++import { launch, openPage, SHOTS, sleep } from './lib.mjs';
++const b = await launch();
++const slug = process.argv[2] || 'google';
++const theme = 'light';
++const tipState = (page) => page.evaluate(() => [...document.querySelectorAll('.ms-tip, [role=tooltip], .tooltip, .ms-insights__tip, .msi-tip')].filter((e) => { const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && +cs.opacity > 0.05 && !e.hidden; }).map((e) => ({ cls: e.className, text: e.innerText.replace(/\s+/g, ' ').slice(0, 160), box: [Math.round(e.getBoundingClientRect().left), Math.round(e.getBoundingClientRect().top), Math.round(e.getBoundingClientRect().width), Math.round(e.getBoundingClientRect().height)] })));
++const report = async (page, label) => { const t = await tipState(page); console.log(label, JSON.stringify(t)); return t; };
++const tapAt = async (page, sel, label, n = 0) => {
++  const loc = page.locator(sel).nth(n);
++  if (!(await loc.count())) { console.log(label, 'NOT FOUND', sel); return false; }
++  await loc.scrollIntoViewIfNeeded().catch(() => {});
++  await loc.tap({ timeout: 5000 }).catch((e) => console.log(label, 'tap failed', e.message.slice(0, 80)));
++  await sleep(500);
++  return true;
++};
++// 1. Chart circle
++{
++  const { ctx, page } = await openPage(b, 'p390', theme, `/beta/#c=${slug}`);
++  await tapAt(page, '#chartHost .ms-bin:not(.ms-bin--overflow)', 'circle', 3);
++  const t = await report(page, 'after circle tap');
++  await page.screenshot({ path: `${SHOTS}/touch-${slug}-circle-p390-${theme}.png` });
++  const drawerOpen = await page.evaluate(() => !!document.querySelector('#drawer.is-open, #drawer[aria-hidden=false]'));
++  const listTitle = await page.evaluate(() => document.querySelector('#resultsTitle')?.innerText);
++  console.log('  drawer?', drawerOpen, 'results', listTitle);
++  // tap empty space in the toolbar
++  await page.touchscreen.tap(200, 380); await sleep(400);
++  await report(page, '  after tap elsewhere');
++  await page.mouse.wheel(0, 300); await sleep(400);
++  await report(page, '  after scroll');
++  // row label
++  await tapAt(page, '#chartHost .ms-crow__label', 'row label', 1);
++  await report(page, 'after row label tap');
++  console.log('  results', await page.evaluate(() => document.querySelector('#resultsTitle')?.innerText));
++  await page.screenshot({ path: `${SHOTS}/touch-${slug}-rowlabel-p390-${theme}.png` });
++  // edge chip
++  await page.goto('about:blank'); await page.goto(`${(await import('./lib.mjs')).BASE}/beta/#c=${slug}`); await (await import('./lib.mjs')).ready(page);
++  await tapAt(page, '#chartHost .ms-bin--overflow', 'edge chip', 0);
++  await report(page, 'after edge chip tap');
++  await page.screenshot({ path: `${SHOTS}/touch-${slug}-edgechip-p390-${theme}.png` });
++  await ctx.close();
++}
++// 2. Ranges bar
++{
++  const { ctx, page } = await openPage(b, 'p390', theme, `/beta/#c=${slug}&v=ranges`);
++  await tapAt(page, '#chartHost .ms-row', 'ranges row', 2);
++  await report(page, 'after ranges bar tap');
++  console.log('  drawer?', await page.evaluate(() => document.querySelector('#drawer')?.className), 'hash', await page.evaluate(() => location.hash));
++  await page.screenshot({ path: `${SHOTS}/touch-${slug}-rangesbar-p390-${theme}.png` });
++  await page.touchscreen.tap(200, 380); await sleep(400);
++  await report(page, '  after tap elsewhere');
++  await ctx.close();
++}
++// 3. Map pin
++{
++  const { ctx, page } = await openPage(b, 'p390', theme, `/beta/#c=${slug}&m=map`);
++  await sleep(1500);
++  await tapAt(page, '#mapHost .ms-pin', 'pin', 0);
++  await report(page, 'after pin tap');
++  await page.screenshot({ path: `${SHOTS}/touch-${slug}-pin-p390-${theme}.png` });
++  await page.touchscreen.tap(30, 600); await sleep(400);
++  await report(page, '  after tap elsewhere');
++  await ctx.close();
++}
++// 4. Insights: tap a bar / row in the first cards
++{
++  const { ctx, page } = await openPage(b, 'p390', theme, `/beta/#c=${slug}&m=insights`);
++  await sleep(2500);
++  const sels = await page.evaluate(() => [...new Set([...document.querySelectorAll('#insightsHost [class*=bar], #insightsHost [class*=row], #insightsHost [class*=box]')].map((e) => '.' + [...e.classList][0]))].slice(0, 12));
++  console.log('insights candidates', sels);
++  for (const s of sels.slice(0, 6)) { if (await tapAt(page, `#insightsHost ${s}`, `insights ${s}`, 1)) { await report(page, `after insights ${s} tap`); await page.touchscreen.tap(20, 200); await sleep(300); await report(page, '  after tap elsewhere'); } }
++  await page.screenshot({ path: `${SHOTS}/touch-${slug}-insights-p390-${theme}.png` });
++  await ctx.close();
++}
++await b.close();
+-- 
+2.43.0
+
