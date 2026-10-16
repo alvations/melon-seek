@@ -1,0 +1,380 @@
+diff --git a/public/app.js b/public/app.js
+index 1c8e9cd..310a9ff 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -1068,7 +1068,6 @@ async function loadJobs({ refresh = false } = {}) {
+   if (savedView && savedView.slug !== S.c) savedView = null; // P-12: a saved search's New marks stay with its company
+   data = { status: 'loading', jobs: [], company: companyInfo(S.c), mode: null, fetchedAt: null, error: null };
+   preview = null;
+-  pendingOpenId = null;
+   render();
+   if (previewable()) dataApi.getPreview?.(jobsQuery(S.c), { signal: abortCtl.signal }).then((p) => showPreview(p, seq)).catch(() => {});
+   // Static mode shows the bundled list as soon as it lands, marked `pending` while the live board
+@@ -1099,9 +1098,8 @@ async function loadJobs({ refresh = false } = {}) {
+   if (seq !== loadSeq) return;
+   if (data.status === 'ready') fillFamilies(data.jobs);
+   settleSaved();
++  // M-43: a job page opened from a preview card (its own fields, the rest loading) becomes the whole page here.
+   if (S.job) openDrawer(S.job, { fromHash: true });
+-  else if (pendingOpenId && data.status === 'ready') openDrawer(pendingOpenId);
+-  pendingOpenId = null;
+   preview = null;
+   onScreen();
+ }
+@@ -1112,11 +1110,17 @@ async function loadJobs({ refresh = false } = {}) {
+    1.14 MB download, then Juice, prepare and the first render). They are the same postings, prepared and
+    sorted by the same code, with the chart's colours (the build counts them on the whole board) and the
+    same "New" tags (the last visit, read but not yet recorded); only the default view gets one (Highest pay,
+-   no filter, no search, no saved search). The list says it is still loading; a tapped card opens when the
+-   list is in. Then the whole list replaces it, keeping the place when its first cards are the same. */
++   no filter, no search, no saved search). The list says it is still loading; a tapped card opens its job page
++   at once with the card's own fields and the rest loading (M-43), and the whole page follows when the list is
++   in. Then the whole list replaces it, keeping the place when its first cards are the same, and the focus on
++   the same posting's card (A-11). */
+ let preview = null; // { slug, jobs, total, visit } while shown
+-let pendingOpenId = null;
+ const previewing = () => data.status === 'loading' && preview?.slug === S.c && previewable();
++/** A posting of the preview on screen (M-43), or null. */
++const previewJob = (id) => (previewing() ? preview.jobs.find((j) => j.id === id) || null : null);
++/** A result card, from the list or the preview; its posting's id. */
++const CARD_SEL = '.card[data-id], .card[data-preview-id]';
++const cardId = (c) => c?.dataset.id ?? c?.dataset.previewId;
+ function previewable() {
+   if (!api.isStatic?.() || !S.c || isCustomKey(S.c) || area || effectiveSort() !== 'salary-desc' || colorBy() !== 'department') return false;
+   if (savedView && savedView.slug === S.c) return false;
+@@ -2245,12 +2249,39 @@ function makeSalary({ compact = false } = {}) {
+   return { el, sync };
+ }
+ 
+-function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8, order = null, colorDim = null, labelOf = (k) => k, tipOf = null, note = null } = {}) {
++/**
++ * M-40: a long option name in two parts, its start and its end ("Project/Program/Product Management--" and
++ * "Technical"), split at its last separator (" : ", "--", " - ", "/", ", ") or else its last space. Each part
++ * keeps to one line (styles.css .check-part), so the end, which tells similar names apart, wraps under the start
++ * instead of being cut; only a start longer than a line is cut. The label's text is still the whole name (the
++ * checkbox's accessible name), and the row's title has it for a mouse. Short names stay one plain text.
++ */
++const SPLIT_MIN = 19;
++const LABEL_SEPS = [' : ', ' – ', ' — ', ' - ', '--', '/', ' | ', ', '];
++function labelParts(name) {
++  const s = String(name);
++  if (s.length < SPLIT_MIN) return [s];
++  let cut = -1;
++  for (const sep of LABEL_SEPS) {
++    const i = s.lastIndexOf(sep);
++    if (i > 0 && i + sep.length < s.length - 2) cut = Math.max(cut, i + sep.trimEnd().length);
++  }
++  if (cut < 0) cut = s.lastIndexOf(' ');
++  if (cut <= 0) return [s];
++  const head = s.slice(0, cut).trimEnd();
++  const rest = s.slice(head.length);
++  const tail = rest.trimStart();
++  if (!tail) return [s];
++  return [h('span', { class: 'check-part' }, head), rest.slice(0, rest.length - tail.length), h('span', { class: 'check-part' }, tail)];
++}
++
++function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8, order = null, colorDim = null, labelOf = (k) => k, tipOf = null, note = null, label = null, labelledBy = null } = {}) {
+   let query = '';
+   let expanded = false;
+   const input = h('input', { type: 'search', class: 'fsearch', placeholder: 'Search…', 'aria-label': 'Search options' });
+   const searchWrap = h('div', { class: 'fsearch-wrap' }, h('span', { html: ICON.search }), input);
+-  const list = h('div', { class: 'checklist', role: 'group' });
++  // A-10: every checklist is a named group ("Company", "Department", "Location", …).
++  const list = h('div', { class: 'checklist', role: 'group', 'aria-labelledby': labelledBy, 'aria-label': labelledBy ? null : label });
+   const more = h('button', { type: 'button', class: 'link-btn more-btn' });
+   const el = h('div', { class: 'checklist-wrap' }, searchWrap, list, more, note ? h('p', { class: 'fnote' }, note) : null);
+   input.addEventListener('input', () => { query = input.value.trim().toLowerCase(); sync(); });
+@@ -2281,11 +2312,13 @@ function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8,
+ 
+     const row = (it) => {
+       const id = `f-${facet}-${btoa(unescape(encodeURIComponent(it.key))).replace(/[^a-z0-9]/gi, '')}-${uid}`;
+-      return h('label', { class: `check${it.count === 0 ? ' is-zero' : ''}`, for: id, title: tipOf?.(it.key) || null },
++      const name = String(labelOf(it.key));
++      const parts = labelParts(name);
++      return h('label', { class: `check${it.count === 0 ? ' is-zero' : ''}`, for: id, title: tipOf?.(it.key) || (parts.length > 1 ? name : null) },
+         h('input', { type: 'checkbox', id, value: it.key, checked: selected.has(it.key) }),
+         h('span', { class: 'check-box', 'aria-hidden': 'true' }),
+         colorDim && colorBy() === colorDim && it.key !== 'Remote' && !/^Remote/.test(it.key) ? h('span', { class: 'dot dot--sm', style: `--dot:${vizColor(it.key)}`, 'aria-hidden': 'true' }) : null,
+-        h('span', { class: 'check-label' }, labelOf(it.key)), h('span', { class: 'check-count' }, it.count));
++        h('span', { class: `check-label${parts.length > 1 ? ' is-split' : ''}` }, ...parts), h('span', { class: 'check-count' }, it.count));
+     };
+ 
+     const nodes = [];
+@@ -2335,11 +2368,14 @@ function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8,
+  * subsidiary can be zoomed into without a new section (ROADMAP §8); departments read from job titles
+  * say so in one line.
+  */
++let deptFilterSeq = 0;
+ function makeDeptFilter({ limit = 8 } = {}) {
+-  const brands = makeChecklist('b', { limit: 6, searchable: false, colorDim: 'brand' });
+-  const brandHead = h('div', { class: 'check-group' }, 'Company');
+-  const deptHead = h('div', { class: 'check-group' }, 'Department');
+-  const depts = makeChecklist('d', { limit, colorDim: 'department' });
++  // A-10: the two lists are groups named by their headings (a hidden heading still names its list).
++  const n = ++deptFilterSeq;
++  const brandHead = h('div', { class: 'check-group', id: `dept-filter-${n}-b` }, 'Company');
++  const deptHead = h('div', { class: 'check-group', id: `dept-filter-${n}-d` }, 'Department');
++  const brands = makeChecklist('b', { limit: 6, searchable: false, colorDim: 'brand', labelledBy: brandHead.id });
++  const depts = makeChecklist('d', { limit, colorDim: 'department', labelledBy: deptHead.id });
+   const note = h('p', { class: 'fnote', dataset: { note: 'dept-basis' } });
+   return {
+     el: h('div', { class: 'dept-filter' }, brandHead, brands.el, deptHead, depts.el, note),
+@@ -2499,11 +2535,11 @@ function renderFilterPanel() {
+     panel = [
+       section('Salary', makeSalary(), { badge: sel('sal') }),
+       section('Department', makeDeptFilter(), { badge: sel('d') }),
+-      section('Location', makeChecklist('l', { grouped: true, limit: 10, searchable: 'auto', colorDim: 'location', note: LOC_NOTE }), { badge: sel('l') }),
+-      section('Seniority', makeChecklist('s', { order: SENIORITY_SHOWN, limit: 10, colorDim: 'seniority', ...SEN_OPTS }), { badge: sel('s') }),
++      section('Location', makeChecklist('l', { grouped: true, limit: 10, searchable: 'auto', colorDim: 'location', note: LOC_NOTE, label: 'Location' }), { badge: sel('l') }),
++      section('Seniority', makeChecklist('s', { order: SENIORITY_SHOWN, limit: 10, colorDim: 'seniority', ...SEN_OPTS, label: 'Seniority' }), { badge: sel('s') }),
+       section('Remote', makeRemote(), { badge: sel('r') }),
+       ...KW_CATS.map((k) => section(k.title, makeCloud(k), { badge: sel(k.key) })),
+-      section('Employment type', makeChecklist('e', { limit: 6, labelOf: empLabel }), { open: false, badge: sel('e') }),
++      section('Employment type', makeChecklist('e', { limit: 6, labelOf: empLabel, label: 'Employment type' }), { open: false, badge: sel('e') }),
+       section('Listed', makePosted(), { open: false, badge: sel('p') }),
+     ];
+     body.replaceChildren(...panel.map((s) => s.el));
+@@ -2526,13 +2562,13 @@ function popoverParts(id) {
+   switch (id) {
+     case 'salary': return [makeSalary({ compact: true })];
+     case 'dept': return [makeDeptFilter({ limit: 12 })];
+-    case 'loc': return [makeChecklist('l', { grouped: true, limit: 14, note: LOC_NOTE })];
+-    case 'sen': return [makeChecklist('s', { order: SENIORITY_SHOWN, limit: 10, ...SEN_OPTS })];
++    case 'loc': return [makeChecklist('l', { grouped: true, limit: 14, note: LOC_NOTE, label: 'Location' })];
++    case 'sen': return [makeChecklist('s', { order: SENIORITY_SHOWN, limit: 10, ...SEN_OPTS, label: 'Seniority' })];
+     case 'remote': return [makeRemote()];
+     case 'more': return [
+       titled('Pay', makeSwitch('Only show roles with pay', 'so')),
+       titled('Juice', makeJuiceChips(), 'What’s left after tax, rent and living'),
+-      titled('Employment type', makeChecklist('e', { limit: 6, labelOf: empLabel })),
++      titled('Employment type', makeChecklist('e', { limit: 6, labelOf: empLabel, label: 'Employment type' })),
+       titled('Listed', makePosted()),
+       ...KW_CATS.map((k) => titled(k.title, makeCloud(k, { limit: 10 }), k.hint)),
+     ];
+@@ -3261,7 +3297,8 @@ function buildWindow(list) {
+   win.els = new Map();
+   win.btn = h('button', { type: 'button', class: 'btn btn--ghost btn--block', onclick: () => loadMore() });
+   win.more = h('li', { class: 'list-more' }, win.btn);
+-  const focusId = document.activeElement?.closest?.('#resultsList .card[data-id]')?.dataset.id;
++  // A-11: a focused preview card hands its focus to the same posting's card when the whole list replaces it.
++  const focusId = cardId(document.activeElement?.closest?.('#resultsList .card'));
+   // No layout is read until the cards and spacers are back, so the browser never clamps the scroll position.
+   const keepTop = list.scrollTop;
+   list.replaceChildren(...nn(note, win.top, win.bottom, win.more));
+@@ -3633,8 +3670,15 @@ let drawerReturnFocus = null;
+ function findJob(id) { return data.jobs.find((j) => j.id === id); }
+ 
+ function openDrawer(id, { fromHash = false, step = false } = {}) {
+-  const job = findJob(id);
+-  if (!job) { if (fromHash && data.status === 'ready') set({ job: null }, { replace: true }); return; }
++  // M-43: while a big board's list loads, a preview card's job page opens at once with the card's own fields
++  // and the rest loading (drawerLoading); loadJobs opens the whole page for it when the list is in.
++  const job = findJob(id) || previewJob(id);
++  const loading = !!job && data.status !== 'ready';
++  if (!job) {
++    if (drawerJobId === id && drawerLoadingShown()) closeDrawer(); // its list never came, or does not have it
++    if (fromHash && data.status === 'ready') set({ job: null }, { replace: true });
++    return;
++  }
+   if (!drawerJobId || !drawerReturnFocus) {
+     drawerReturnFocus = document.activeElement && document.activeElement !== document.body && !$('#drawer').contains(document.activeElement) ? document.activeElement : null;
+   }
+@@ -3645,19 +3689,20 @@ function openDrawer(id, { fromHash = false, step = false } = {}) {
+   // M-9: paging next/prev rewrites the job page's entry, so one Back always leaves the job page.
+   if (S.job !== id) { S.job = id; commit({ replace: fromHash || step }); }
+   const drawer = $('#drawer');
+-  drawer.replaceChildren(...drawerContent(job));
+-  applyDrawerBudget();
++  if (loading) drawer.replaceChildren(...drawerLoading(job));
++  else { drawer.replaceChildren(...drawerContent(job)); applyDrawerBudget(); }
+   drawer.hidden = false;
+   $('#drawerBackdrop').hidden = false;
+   requestAnimationFrame(() => { drawer.classList.add('is-open'); $('#drawerBackdrop').classList.add('is-open'); });
+   drawer.scrollTop = 0;
+   drawer.querySelector('.drawer-scroll')?.scrollTo(0, 0);
+   for (const c of document.querySelectorAll('.card.is-open')) c.classList.remove('is-open');
+-  $(`.card[data-id="${cssId(id)}"]`)?.classList.add('is-open');
++  $(`.card[data-id="${cssId(id)}"], .card[data-preview-id="${cssId(id)}"]`)?.classList.add('is-open');
+   highlightViz();
+   renderDrawerNav();
+   $('#drawerClose')?.focus({ preventScroll: true }); // always — including deep links and Back/Forward
+ }
++const drawerLoadingShown = () => !!$('#drawer .d-loading');
+ 
+ // Everything behind the modal drawer becomes inert (not focusable, hidden from AT).
+ const behindDrawer = () => [$('.topbar'), $('.quickbar'), $('#layout'), $('.skip-link')];
+@@ -3680,7 +3725,7 @@ function closeDrawer({ fromHash = false } = {}) {
+   highlightViz();
+   // The original trigger may have been re-rendered away (e.g. a keyword toggled in the drawer), or
+   // left the page with the list's window (M-20): then its card is brought back if it is loaded.
+-  const target = drawerReturnFocus?.isConnected ? drawerReturnFocus : $(`.card[data-id="${cssId(closedId)}"]`);
++  const target = drawerReturnFocus?.isConnected ? drawerReturnFocus : $(`.card[data-id="${cssId(closedId)}"], .card[data-preview-id="${cssId(closedId)}"]`);
+   if (target) target.focus({ preventScroll: true });
+   else if (!focusResult(visible.findIndex((j) => j.id === closedId))) $('#resultsList')?.focus({ preventScroll: true });
+   drawerReturnFocus = null;
+@@ -3692,7 +3737,8 @@ function renderDrawerNav() {
+   if (!prev) return;
+   prev.disabled = idx <= 0;
+   next.disabled = idx < 0 || idx >= visible.length - 1;
+-  pos.textContent = idx >= 0 ? `${(idx + 1).toLocaleString()} of ${visible.length.toLocaleString()}` : ''; // M-23: "1 of 6,105"
++  const total = previewing() ? preview.total : visible.length; // M-43: the preview is the whole board's first page
++  pos.textContent = idx >= 0 ? `${(idx + 1).toLocaleString()} of ${total.toLocaleString()}` : ''; // M-23: "1 of 6,105"
+ }
+ function stepDrawer(d) {
+   const idx = visible.findIndex((j) => j.id === drawerJobId);
+@@ -4233,6 +4279,40 @@ function metaParts(job) {
+   return out;
+ }
+ 
++/** The drawer's top row: previous / position / next, and close ("‹ Back" on a phone). */
++function drawerHead() {
++  return h('div', { class: 'drawer-head' },
++    h('div', { class: 'drawer-nav' },
++      h('button', { type: 'button', class: 'icon-btn icon-btn--sm', id: 'drawerPrev', 'aria-label': 'Previous role', html: ICON.prev, onclick: () => stepDrawer(-1) }),
++      h('span', { class: 'drawer-pos', id: 'drawerPos' }),
++      h('button', { type: 'button', class: 'icon-btn icon-btn--sm', id: 'drawerNext', 'aria-label': 'Next role', html: ICON.next, onclick: () => stepDrawer(1) })),
++    // Phones show this as "‹ Back" at the left of a full-screen page (styles.css); P-16: the word
++    // keeps it apart from the "Previous role" arrow next to it.
++    h('button', { type: 'button', class: 'icon-btn', id: 'drawerClose', 'aria-label': 'Close details, back to the list (Esc)', html: `<span class="ico-close">${ICON.close}</span><span class="ico-back">${ICON.prev}<span class="back-label">Back</span></span>`, onclick: () => closeDrawer() }));
++}
++
++/**
++ * M-43: a preview card's job page while the board's whole list loads (Amazon's 22,179 postings take 5–10 s on
++ * 4G). It opens at the tap with what the card shows (title, pay, department, level) and says the rest is
++ * loading; the pay ranking, Juice and comparisons need the whole board, so they come with the whole page,
++ * which loadJobs opens for the same posting when the list is in. Back, Escape and close work as on any job page.
++ */
++function drawerLoading(job) {
++  const company = data.company || {};
++  const pay = payPill(job);
++  const sen = senKey(job);
++  return [drawerHead(), h('div', { class: 'drawer-scroll', tabindex: '0', 'aria-label': 'Role details' },
++    h('div', { class: 'd-company' }, h('span', { class: 'dot', style: `--dot:${companyColor(company)}` }), company.name || job.companyName),
++    h('h2', { class: 'd-title', id: 'drawerTitle' }, job.title),
++    h('div', { class: 'd-meta' }, ...metaParts(job).map((t, i) => [i ? h('span', { class: 'sep' }, '·') : null, h('span', null, t)]),
++      h('span', { class: `sen sen--${sen.toLowerCase().replace(/\W/g, '')}` }, senLabel(sen))),
++    h('div', { class: 'd-loading-pay' }, pay ? h('span', { class: `sal-pill${pay.elsewhere ? ' sal-pill--elsewhere' : ''}`, title: pay.tip }, pay.text)
++      : h('span', { class: 'sal-pill sal-pill--none' }, job.salaryFlag ? 'Pay unclear' : 'No pay listed')),
++    h('p', { class: 'd-loading', role: 'status' }, 'Loading this role’s details…'),
++    h('div', { class: 'd-loading-body', 'aria-busy': 'true', 'aria-hidden': 'true' },
++      ...[88, 64, 92, 48, 76].map((w) => h('div', { class: 'sk sk-line', style: `width:${w}%` }))))];
++}
++
+ function drawerContent(job) {
+   const company = data.company || {};
+   const coName = company.name || job.companyName;
+@@ -4270,14 +4350,7 @@ function drawerContent(job) {
+   } }, 'Read full description');
+   descWrap.append(descToggle);
+ 
+-  const head = h('div', { class: 'drawer-head' },
+-    h('div', { class: 'drawer-nav' },
+-      h('button', { type: 'button', class: 'icon-btn icon-btn--sm', id: 'drawerPrev', 'aria-label': 'Previous role', html: ICON.prev, onclick: () => stepDrawer(-1) }),
+-      h('span', { class: 'drawer-pos', id: 'drawerPos' }),
+-      h('button', { type: 'button', class: 'icon-btn icon-btn--sm', id: 'drawerNext', 'aria-label': 'Next role', html: ICON.next, onclick: () => stepDrawer(1) })),
+-    // Phones show this as "‹ Back" at the left of a full-screen page (styles.css); P-16: the word
+-    // keeps it apart from the "Previous role" arrow next to it.
+-    h('button', { type: 'button', class: 'icon-btn', id: 'drawerClose', 'aria-label': 'Close details, back to the list (Esc)', html: `<span class="ico-close">${ICON.close}</span><span class="ico-back">${ICON.prev}<span class="back-label">Back</span></span>`, onclick: () => closeDrawer() }));
++  const head = drawerHead();
+ 
+   const sal = job.salary;
+   const term = postedTerm(sal);
+@@ -4919,31 +4992,29 @@ function bindEvents() {
+   $('.brand').addEventListener('click', (e) => { e.preventDefault(); dropHeld(); set({ ...resetFiltersPatch(), job: null, m: 'chart' }); closeDrawer(); });
+ 
+   const list = $('#resultsList');
++  // M-43 / A-11: a preview card (the first page while a big board's list loads) is a card like the others:
++  // a tap or Enter opens its job page at once (openDrawer shows its own fields while the rest loads), and
++  // the arrow keys move between cards.
+   list.addEventListener('click', (e) => {
+-    const c = e.target.closest('.card[data-id]');
+-    if (c) openDrawer(c.dataset.id);
+-    else if (previewing()) pendingOpenId = e.target.closest('.card[data-preview-id]')?.dataset.previewId || pendingOpenId;
++    const c = e.target.closest(CARD_SEL);
++    if (c) openDrawer(cardId(c));
+   });
+   list.addEventListener('keydown', (e) => {
+     const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+-    const c = e.target.closest('.card[data-id]');
+-    if (!c && previewing() && (e.key === 'Enter' || e.key === ' ')) {
+-      const pc = e.target.closest('.card[data-preview-id]');
+-      if (pc) { e.preventDefault(); pendingOpenId = pc.dataset.previewId; return; }
+-    }
++    const c = e.target.closest(CARD_SEL);
+     if (!c) {
+       // M-20: focus handed to the list (its card scrolled out of the page) goes on from the first card in view.
+       if (e.target === list && step) {
+         e.preventDefault();
+         const top = list.getBoundingClientRect().top;
+-        [...list.querySelectorAll('.card[data-id]')].find((x) => x.getBoundingClientRect().bottom > top + 4)?.focus();
++        [...list.querySelectorAll(CARD_SEL)].find((x) => x.getBoundingClientRect().bottom > top + 4)?.focus();
+       }
+       return;
+     }
+-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrawer(c.dataset.id); }
++    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrawer(cardId(c)); }
+     if (step) {
+       e.preventDefault();
+-      focusResult(visible.findIndex((j) => j.id === c.dataset.id) + step); // M-20: by result, not by card in the page
++      focusResult(visible.findIndex((j) => j.id === cardId(c)) + step); // M-20: by result, not by card in the page
+     }
+   });
+   list.addEventListener('scroll', () => { if (win.loaded > WINDOW_ALL) scheduleWindow(); }, { passive: true });
+diff --git a/public/styles.css b/public/styles.css
+index 0653798..b3512cb 100644
+--- a/public/styles.css
++++ b/public/styles.css
+@@ -379,6 +379,12 @@ input.range-val { width: 100%; min-width: 0; padding: 0; border: 0; background:
+ .radio input:checked + .radio-dot { border-color: var(--ms-accent); }
+ .radio input:checked + .radio-dot::after { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--ms-accent); }
+ .check-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++/* M-40: a long name's start and end (app.js labelParts) each keep one line: the end wraps under the start, so
++   "…Management--Technical" and "…Management--Non-Tech" differ on screen; only a start longer than a line is cut.
++   A checked or keyboard-focused row shows its whole name. */
++.check-label.is-split { white-space: normal; text-overflow: clip; }
++.check-part { display: inline-block; max-width: 100%; vertical-align: top; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
++.check input:checked ~ .check-label .check-part, .check input:focus-visible ~ .check-label .check-part { white-space: normal; overflow-wrap: anywhere; }
+ .check-count { font-size: 12px; color: var(--ms-faint); font-variant-numeric: tabular-nums; }
+ .check.is-zero .check-label { color: var(--ms-faint); }
+ .more-btn { margin-top: 6px; }
+@@ -545,6 +551,10 @@ html[data-mode="map"] .demo-banner > code { order: 0; flex: 0 1 auto; margin-lef
+ .d-company { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--ms-muted); font-size: 13px; }
+ .d-title { margin: 6px 0 6px; font-size: 23px; line-height: 1.22; letter-spacing: -.02em; }
+ .d-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--ms-muted); font-size: 13.5px; }
++/* M-43: a preview card's job page while the whole list loads: the card's fields, then "Loading…" */
++.d-loading-pay { margin: 14px 0 0; }
++.d-loading { margin: 14px 0 10px; color: var(--ms-muted); font-size: 14px; }
++.d-loading-body { display: grid; gap: 10px; }
+ .d-meta .sen { margin-left: 4px; }
+ .d-updated, .d-posted { font-size: 12.5px; margin-top: 4px; }
+ .d-salary { margin: 18px 0 6px; padding: 16px; border-radius: 12px; background: var(--ms-surface-2); border: 1px solid var(--ms-border); }
+@@ -1158,6 +1168,9 @@ html[data-mode="insights"] .viz-controls { display: none; }
+   .filters-foot { padding: 10px var(--m-gutter-r) calc(10px + env(safe-area-inset-bottom)) var(--m-gutter-l); background: var(--ms-bg); }
+   .filters-foot .btn { height: 48px; font-size: 16px; }
+   body.kb-open .filters-foot { display: none; }   /* the keyboard would cover it anyway */
++  /* M-47: typing in Insights on a short screen (landscape, the keyboard up): the top bars step aside so the
++     field shows above the keyboard (app.js revealField); they come back when it loses focus. */
++  body.kb-lift .topbar, body.kb-lift .quickbar { display: none; }
+   body.filters-open .results { content-visibility: hidden; }   /* covered by the sheet; catches up on close */
+   .fsec > summary { min-height: 52px; padding: 0; font-size: 15px; }
+   .fsec-badge { min-width: 20px; height: 20px; font-size: 12px; }
+diff --git a/scripts/e2e.js b/scripts/e2e.js
+index cb72290..184f044 100644
+--- a/scripts/e2e.js
++++ b/scripts/e2e.js
+@@ -34,6 +34,7 @@ import { registerFixDensityTests } from '../test/e2e/fix-density.e2e.js';
+ import { registerGoogleGroupingTests } from '../test/e2e/google-grouping.e2e.js';
+ import { registerVizEvenTests } from '../test/e2e/viz-even.e2e.js';
+ import { registerBetaA11y2Tests } from '../test/e2e/beta-a11y-2.e2e.js';
++import { registerFixPhoneControlsTests } from '../test/e2e/fix-phone-controls.e2e.js';
+ 
+ const args = new Set(process.argv.slice(2));
+ const apiOnly = args.has('--api-only');
+@@ -93,6 +94,7 @@ if (!apiOnly) {
+   registerGoogleGroupingTests(suite);
+   registerVizEvenTests(suite);
+   registerBetaA11y2Tests(suite);
++  registerFixPhoneControlsTests(suite);
+ }
+ 
+ let results;

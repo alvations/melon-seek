@@ -1,3 +1,86 @@
+diff --git a/docs/process/ux-review-beta-2.md b/docs/process/ux-review-beta-2.md
+index 01301aa..a1bc46c 100644
+--- a/docs/process/ux-review-beta-2.md
++++ b/docs/process/ux-review-beta-2.md
+@@ -7,8 +7,8 @@
+   for fix-touch-tips); findings UX-37 to UX-62 (sent to the lead in three batches); the red e2e group
+   `test/e2e/beta-ux-review-2.e2e.js` (16 tests, all red), registered in `scripts/e2e.js`; the scripts in
+   `docs/process/scripts/ux-review-beta-2/`.
+-- **In progress:** `npm test` and the full e2e suite (section 5 gets the counts).
+-- **Next step:** shrink the screenshots, report to the lead.
++- **In progress:** nothing.
++- **Next step:** none for this lane; the lead integrates (the commits are listed in section 7).
+ 
+ ## 1. Brief
+ 
+@@ -107,7 +107,7 @@ Chromium at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`.
+ 
+ - **New e2e group** (`test/e2e/beta-ux-review-2.e2e.js`) on the lead's build: **0/16 pass, 16 fail**, each for
+   the reason in its name (`[UX-35]`, `[UX-37]`, `[UX-38]`, `[UX-39]`, `[UX-42]`, `[UX-44]` to `[UX-46]`,
+-  `[UX-47, UX-48]`, `[UX-49, UX-53]`, `[UX-54]` to `[UX-56]`, `[UX-58]`, `[UX-60]`).
++  `[UX-47, UX-48]`, `[UX-49, UX-53]`, `[UX-54]` to `[UX-56]`, `[UX-58]`, `[UX-60]`, `[UX-62]`).
+ - **`npm test`** and the **full e2e**: see "Suite results" at the end of this section.
+ - Screenshots: `docs/screenshots/ux-review-beta-2/`, named `<screen>-<viewport>-<theme>.png`. The density
+   inventory's shots are `density-<board>-<viewport>-<view>.png`.
+@@ -145,7 +145,7 @@ ones marked "sent" went to the lead by message as they were confirmed.
+ | UX-52 | Low | 390 (and 1440); both | cards with "· 2 levels" / "· N places" | [phone](../screenshots/ux-review-beta-2/card-microsoft-places-p390-light.png) | The pill takes 154–179 of 366 px on a phone, so titles wrap to 4–5 lines (Microsoft "Applied Scientist II / Senior Applied Scientist - Responsible AI (CoreAI)": 5 lines). The suffix is in pay green and reads as part of the money. | The range alone in the pill, with "2 places" as a muted line under it. | app.js `card`, `payPill`; styles.css `.sal-pill` | log |
+ | UX-57 | Low | all; both | "Details" links | [1440](../screenshots/ux-review-beta-2/first-d1440-light.png), [Insights](../screenshots/ux-review-beta-2/density-apple-d1440-insights.png) | The chart view has two Details (stats line and chart notes) holding board-level caveats; Insights shows six. The stats line's Details is a new always-visible control in the viz toolbar: count 3 → 4, against ROADMAP §8's one new main-view control (already used by Save). | Move the stats line's facts into the chart notes' Details, so the main view has one; on Insights one per card is fine. | app.js `renderKpis`, viz/note.js | log |
+ | UX-61 | Low | all | words | [badge](../screenshots/ux-review-beta-2/state-badge-d1440-light.png), [Insights](../screenshots/ux-review-beta-2/density-apple-d1440-insights.png) | Strings to rewrite: the badge "(**GitHub** often starts it hours late)" → "(sometimes a few hours late)"; "Download **CSV**" → "Download a spreadsheet (CSV)"; "Incl. top shift pay" → "Includes top shift pay"; "**Estimated base salary**" (Compstimate) → "Estimated base pay"; "of 2,781 **salaried** roles", "# = salaried roles", "tested on 497 **listed salaries**" → "with pay", "posted pay ranges"; "(approx **USD**)" / "**US$** (converted)" / "approx US dollars" → one name, "US dollars"; chart rows "no published salary" → "no pay listed" (UX-25); straight apostrophes in the Same role notes ("isn't", "doesn't") among curly ones (UX-31). | As quoted. | app.js `badgeInfo`, comps notes; compstimate.js; insights.js; chart.js row text | log |
+-| UX-62 | Low | 1440 to 1024; both | search box key cap | [1440](../screenshots/ux-review-beta-2/first-d1440-light.png) | The "/" shortcut key cap is 11 px, the only text under 12 px on the site in this audit. | 12 px. | styles.css `kbd` | log |
++| UX-62 | Low | 1440 to 1024; both | search box key cap | [1440](../screenshots/ux-review-beta-2/first-d1440-light.png) | The "/" shortcut key cap is 11 px, the only text under 12 px on the site in this audit. | 12 px. | styles.css `kbd` | `[UX-62]` |
+ 
+ **Still open from round 2** (evidence on this build):
+ - UX-36: Ranges still reads "Group: **None**" (phone: just "None") beside "Colour: department"
+@@ -160,7 +160,7 @@ ones marked "sent" went to the lead by message as they were confirmed.
+ - UX-23 (partly): the phone badge is still a bare "Oct 16".
+ - Fixed since round 2: UX-22 (Pay by place), UX-24 (folded rows), UX-26 (one error message, "Couldn't load",
+   "Filters appear when the roles load"), UX-29 ("€47K/year · 13-week internship"), UX-30 (now too long:
+-  UX-48), UX-31 (most strings), UX-15 to UX-21 (their tests: see the suite results).
++  UX-48), UX-31 (most strings), and UX-15 to UX-21, whose tests all pass (suite results).
+ 
+ ### Hover-only information and mouse wording (for fix-touch-tips; sent to the lead)
+ 
+@@ -238,8 +238,8 @@ Not affected: chart circles and edge chips filter the list on a tap and show no
+ 8. **Responsive and themes.** Amazon, Google and Meta in chart, Ranges, drawer and Insights, at 5 viewports in
+    both themes: no horizontal scroll; 0 contrast failures, except the decorative logo dot (3.61:1, light);
+    circle counts all clear 4.5:1 (A11Y-1 holds, measured with the `color(srgb …)` fix); text under 12 px only
+-   the "/" key cap (UX-62). Phone tap targets under 44 px: the logo (26x26) and the Beta tag (43x21), measured
+-   by their boxes (round 2's `[UX-19]` test reads their hit areas; see the suite results); the sheet handle
++   the "/" key cap (UX-62). Phone tap targets: the logo's and the Beta tag's boxes are 26x26 and 43x21, but their hit areas pass
++   round 2's `[UX-19]` (44 px); the sheet handle
+    is 28 px tall but shares an 84 px drag zone with the header row, by design. Clipping: UX-38, UX-46, UX-53,
+    UX-54, UX-55; long Ranges row titles are ellipsized with a tooltip, which is acceptable.
+ 9. **Motion and feedback.** Reduced motion is honoured (every transition and animation drops to 0.00001 s).
+@@ -341,7 +341,17 @@ fix-density's two headline lines, per board (words / lines: text):
+   1,115 pass, 1 fail, 52 to-dos.** The one failure is `S-6: /methodology/ is not re-rendered on every request
+   in server mode` (median 71 ms against its budget), the server-timing check the lead's log already records as
+   load-sensitive. Re-run alone at load 9.7: passes (1/1).
+-- **Full e2e:** running (see below).
++- **Full e2e** (`BETA_QA_DIST=<scratch>/cycle-beta6-dist`, 22:24–23:05 UTC, load 10 → 23 → 18):
++  **329/384 passed, 15 failed, 40 skipped.**
++  - The 15 failures are exactly this review's tests (all but `[UX-62]`, added during the run; alone it fails
++    as intended: `kbd "/" 11px`). No other test failed.
++  - 37 of the skips were tests that read `dist/` in the worktree only. Re-run with `dist` linked to the lead's
++    build (`run-skipped.sh`, 23:05–23:10): **36/37 passed, 0 failed, 1 skipped** (no NVIDIA role in Munich).
++  - Together: **365 pass, 15 fail (this review's), 4 skip**. The skips: D-11 (this data has listing dates),
++    the opt-in methodology screenshots, P-2 (no low-confidence estimate) and the NVIDIA Munich BP-2 case.
++  - Round 2's `[UX-15]` to `[UX-21]` and its no-horizontal-scroll guard all pass now. `[UX-19]` reads the
++    Beta tag's and the logo's hit areas, so it passes although their boxes are 43x21 and 26x26. fix-density
++    (51), google-grouping and viz-even pass on this build.
+ 
+ ## 6. Known gaps and follow-ups
+ 
+@@ -363,3 +373,10 @@ fix-density's two headline lines, per board (words / lines: text):
+   Google grouping; Ranges; drawer and card checks; UX-37 (sent), UX-38 to UX-50 (sent).
+ - 22:00–22:15: layout and contrast audit; states; the e2e group (11, then 16 red tests); UX-51 to UX-56 (sent).
+ - 22:15: feedback timing, control count, reduced motion and focus; UX-58, UX-60; scripts committed.
++- 22:17–23:10: `npm test` (1,168, 1 load-sensitive failure, passes alone); full e2e (329/384, the 15 failures
++  this review's) and the 37 `dist/`-only tests (36/37); UX-62's test; screenshots pruned to the 38 the log
++  links plus the first-impression, preview, state, touch and phone density sets, and shrunk.
++- Commits (detached at d98a9f0): 8dc2d36 prompt; 459a4c2, eff99d9, e2b76c5, 67e0c64 and the last one log and
++  screenshots; 25e79af, 7429f21, dcf1e33, 5ddcbed and the last one the e2e group; e9bc4ed scripts. eff99d9 and
++  7429f21 carried about 190 screenshots that 67e0c64 removed: squash on integration to keep them out of
++  history.
 diff --git a/docs/screenshots/chart.png b/docs/screenshots/chart.png
 index ea0059422ecb77953a7acebd752d3ff3477d7977..6bc5351816c9c462fbcc95bea1d74fba2cbdc862 100644
 GIT binary patch
@@ -140666,3 +140749,28 @@ z4lXVs1{|iVrbg4Aj^Ie4+>DQlrzf6O+BF(0_weSQ<JJCd3MC)r@$hi5XZ*<DZD;4^
 z&dr-)HCHof!NNTSP%LpjwBY9NG>*}3sg#m>$eOLV>j%Q+#f9>=|04LuwSN)HWr9qd
 W`a5%31I_<NQdvnQiQ<=U{`o%)d<f70
 
+diff --git a/test/e2e/beta-ux-review-2.e2e.js b/test/e2e/beta-ux-review-2.e2e.js
+index e9c1b61..33c96cc 100644
+--- a/test/e2e/beta-ux-review-2.e2e.js
++++ b/test/e2e/beta-ux-review-2.e2e.js
+@@ -435,6 +435,20 @@ export function registerBetaUxReview2Tests(suite) {
+     assert(!bad.length, `${bad.length} filter note(s) over the budget (one line, ${WORDS} words):\n  ${bad.join('\n  ')}`);
+   });
+ 
++  // ------------------------------------------------------------------ UX-62
++  suite.test('Beta UX review 2: [UX-62] no visible text under 12 px in the top bar (the search box\'s "/" key cap is 11 px)', async (ctx) => {
++    const s = await session(ctx, 'd1440', { boards: ['google'] });
++    await s.go('c=google');
++    const small = await s.page.evaluate(() => [...document.querySelectorAll('.topbar *')].filter((e) => {
++      const r = e.getBoundingClientRect();
++      if (r.width < 1 || r.height < 1 || e.closest('.sr-only, [hidden]')) return false;
++      const own = [...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
++      const fs = parseFloat(getComputedStyle(e).fontSize);
++      return own && fs > 0 && fs < 12;
++    }).map((e) => `${e.tagName.toLowerCase()}${e.className ? '.' + String(e.className).split(' ')[0] : ''} "${e.textContent.trim()}" ${getComputedStyle(e).fontSize}`));
++    assert(!small.length, `text under 12 px at 1440: ${small.join(', ')}`);
++  });
++
+   // ------------------------------------------------------------------ UX-54
+   suite.test('Beta UX review 2: [UX-54] the search box shows its whole placeholder at 360 px ("Search rol")', async (ctx) => {
+     const s = await session(ctx, 'p360', { boards: ['apple'] });

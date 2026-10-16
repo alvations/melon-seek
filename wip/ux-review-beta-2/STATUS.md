@@ -21,6 +21,7 @@ eff99d9 ux-review-beta-2: first findings (UX-37 to UX-50) and screenshots
 
 ## Uncommitted and new files
 ```
+ M docs/process/ux-review-beta-2.md
  M docs/screenshots/chart.png
  M docs/screenshots/dark-drawer.png
  M docs/screenshots/dark.png
@@ -43,7 +44,10 @@ eff99d9 ux-review-beta-2: first findings (UX-37 to UX-50) and screenshots
  M docs/screenshots/qa-mobile-beta/e2e-M-24-keyboard-location-search.png
  M docs/screenshots/qa-mobile-beta/e2e-M-27-topbar-360.png
  M docs/screenshots/qa-mobile/e2e-landscape-map.png
+ M test/e2e/beta-ux-review-2.e2e.js
+?? dist
 ```
 
 ## Left out (not in untracked.tgz)
+- dist (symlink)
 - node_modules (symlink)

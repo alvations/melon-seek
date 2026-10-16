@@ -1,15 +1,15 @@
-From 93b9a79ce5e42ce55cd2100de59095f7b479938e Mon Sep 17 00:00:00 2001
+From fcd893dac33fa07604b27296c448b62b435e8620 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
-Date: Fri, 16 Oct 2026 21:53:45 +0000
-Subject: [PATCH 3/8] viz-review-beta-2: red e2e tests for V-33 to V-38,
- registered in scripts/e2e.js
+Date: Fri, 16 Oct 2026 23:28:01 +0000
+Subject: [PATCH 2/3] viz-review-beta-2: 15 red e2e tests, one per finding
+ (V-33 to V-46, V-48), registered in scripts/e2e.js
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
 ---
  scripts/e2e.js                    |   2 +
- test/e2e/beta-viz-review-2.e2e.js | 253 ++++++++++++++++++++++++++++++
- 2 files changed, 255 insertions(+)
+ test/e2e/beta-viz-review-2.e2e.js | 417 ++++++++++++++++++++++++++++++
+ 2 files changed, 419 insertions(+)
  create mode 100644 test/e2e/beta-viz-review-2.e2e.js
 
 diff --git a/scripts/e2e.js b/scripts/e2e.js
@@ -34,10 +34,10 @@ index e8e51fc..7158ee0 100644
  let results;
 diff --git a/test/e2e/beta-viz-review-2.e2e.js b/test/e2e/beta-viz-review-2.e2e.js
 new file mode 100644
-index 0000000..bc849fd
+index 0000000..69bec59
 --- /dev/null
 +++ b/test/e2e/beta-viz-review-2.e2e.js
-@@ -0,0 +1,253 @@
+@@ -0,0 +1,417 @@
 +// Beta data-visualisation review, round 3, 2026-10-16 (docs/process/viz-review-beta-2.md). Chromium against
 +// the static build: BETA_QA_DIST (the lead's build), else dist/ from `npm run build`, served under /melon-seek/
 +// like GitHub Pages. Other hosts are aborted, so the map is in its offline look.
@@ -230,6 +230,23 @@ index 0000000..bc849fd
 +    assert(JSON.stringify(r.a) !== JSON.stringify(r.b), `"${r.label}" (${r.n} postings) is drawn exactly like a one-posting row (bar ${r.a.h} px high in a ${r.a.rowH} px row, opacity ${r.a.o}); only its "×${r.n}" text differs`);
 +  });
 +
++  suite.test('Beta viz review 2: [V-48] Ranges: on-target earnings have a legend key, and an OTE range over two levels is still drawn as OTE (NVIDIA)', async (ctx) => {
++    const { page, base } = await open(ctx, 'c=nvidia&v=ranges');
++    await page.waitForSelector('#chartHost .ms-row', { timeout: 60000 });
++    const n = await page.evaluate(async ({ base }) => {
++      const { chartPay, spanTiers } = await import(`${base}/viz/chart.js`);
++      const p = chartPay((await (await import(`${base}/api.js`)).getJobs({ company: 'nvidia' })).jobs || []).plotted.filter((x) => x.ote);
++      return { ote: p.length, spans: p.filter((x) => spanTiers(x.job)).length };
++    }, { base });
++    if (!n.ote) skip('no on-target earnings on NVIDIA');
++    const legend = await page.evaluate(() => document.querySelector('#chartHost .ms-chart__legend')?.textContent || '');
++    const row = n.spans ? await scrollFind(page, `(host) => { const r = [...host.querySelectorAll('.ms-row')].find((x) => /on-target earnings/.test(x.getAttribute('aria-label') || '') && /spans \\d+ levels/.test(x.getAttribute('aria-label') || '')); return r ? { label: r.getAttribute('aria-label').slice(0, 120), cls: r.querySelector('.ms-row__bar').className } : null; }`, 400) : null;
++    const bad = [];
++    if (!/on-target|dashed/i.test(legend)) bad.push(`${n.ote} on-target-earnings bars are dashed, but the legend has no key for them ("${legend.slice(-60)}")`);
++    if (row && !/--ote/.test(row.cls)) bad.push(`"${row.label}" is on-target earnings but is drawn striped like a base-pay span (${row.cls}; ${n.spans} such bars)`);
++    assert(!bad.length, bad.join('; '));
++  });
++
 +  /* --------------------------------------------------------- Group by Location */
 +
 +  suite.test('Beta viz review 2: [V-36] Group by Location: a city\'s row uses the range posted for that city (Amazon and Microsoft per-place ranges)', async (ctx) => {
@@ -266,6 +283,153 @@ index 0000000..bc849fd
 +      }
 +    }
 +    assert(!bad.length, bad.join('; '));
++  });
++
++  suite.test('Beta viz review 2: [V-39] one Location filter, one median: the chart caption, the stats line and the map pin agree (Microsoft, Mountain View)', async (ctx) => {
++    const { page } = await open(ctx, 'c=microsoft&l=Mountain%20View');
++    await page.waitForSelector('#chartHost .ms-hist__cap', { timeout: 60000 });
++    const chart = await page.evaluate(() => /\$[\d.]+[KM]?/.exec(document.querySelector('#chartHost .ms-hist__cap').textContent)?.[0]);
++    const stats = await page.evaluate(() => /(\$[\d.]+[KM]?) base pay median/.exec(document.body.innerText)?.[1] || null);
++    await page.evaluate(() => { location.hash = location.hash.replace(/(^#|&)m=[^&]*/, '') + '&m=map'; });
++    await page.locator('#mapHost .leaflet-marker-icon').first().waitFor({ state: 'attached', timeout: 60000 });
++    await sleep(1500);
++    const pin = await page.evaluate(() => [...document.querySelectorAll('#mapHost .leaflet-marker-icon')].map((m) => m.getAttribute('aria-label') || '').find((a) => /^Mountain View/.test(a)) || null);
++    const pinMed = /median (\$[\d.]+[KM]?)/.exec(pin || '')?.[1] || null;
++    if (!chart || !stats || !pinMed) skip(`a figure is missing (chart ${chart}, stats ${stats}, pin "${pin}")`);
++    assert(chart === stats && stats === pinMed, `Location = Mountain View: the chart caption says "Median base pay ${chart}" (each posting's Mountain View range), the stats line "${stats} base pay median" and the map pin "${pin}" (the postings' headline ranges, the Redmond band for most)`);
++  });
++
++  suite.test('Beta viz review 2: [V-40] Compstimate and Insights price a place at the range posted for it (Microsoft "Software Engineer" in New York)', async (ctx) => {
++    const { page, base } = await open(ctx, 'c=microsoft');
++    const r = await page.evaluate(async ({ base }) => {
++      const { estimateComp } = await import(`${base}/features/compstimate.js`);
++      const { hotLocations, MIN_SAMPLE } = await import(`${base}/features/insights.js`);
++      const jobs = (await (await import(`${base}/api.js`)).getJobs({ company: 'microsoft' })).jobs || [];
++      const city = 'New York';
++      // The same board with each posting's pay replaced by the range it posts for New York, when it posts one.
++      let changed = 0;
++      const here = jobs.map((j) => {
++        const s = j.salary, rs = (s?.ranges || []).filter((x) => Array.isArray(x.locations));
++        const loc = (j.locations || []).find((l) => l && !l.remote && l.city === city);
++        const mine = loc && rs.length > 1 && rs.find((x) => x.locations.includes(loc.rawName || loc.name));
++        if (!mine || (Number(mine.min) === s.min && Number(mine.max ?? mine.min) === s.max)) return j;
++        changed++;
++        const min = Number(mine.min), max = Number(mine.max ?? mine.min);
++        return { ...j, salary: { ...s, min, max, mid: (min + max) / 2 } };
++      });
++      const q = { title: 'Software Engineer', location: city };
++      const a = estimateComp(jobs, q), b = estimateComp(here, q);
++      const hot = (list) => hotLocations(list, { limit: 50, minSalaried: MIN_SAMPLE }).find((h) => h.location === city)?.median ?? null;
++      return { changed, est: [[a.low, a.mid, a.high], [b.low, b.mid, b.high]], hot: [hot(jobs), hot(here)] };
++    }, { base });
++    if (!r.changed) skip('no Microsoft posting lists its own New York range');
++    const k = (v) => (v == null ? '—' : `$${Math.round(v / 1000)}K`);
++    const est = (e) => `${k(e[0])}–${k(e[2])}, mid ${k(e[1])}`;
++    assert(JSON.stringify(r.est[0]) === JSON.stringify(r.est[1]) && r.hot[0] === r.hot[1], `${r.changed} postings post a New York range of their own, but Compstimate says ${est(r.est[0])} for "Software Engineer" in New York (${est(r.est[1])} with their New York ranges) and Insights' New York median is ${k(r.hot[0])} (${k(r.hot[1])} with them)`);
++  });
++
++  suite.test('Beta viz review 2: [V-41] Ranges: a posted minimum and pay that includes the top shift differential say so, as the cards do (Amazon)', async (ctx) => {
++    const bad = [];
++    for (const [q, want, what] of [['Area Manager, FC Operations', /minimum|from /i, 'a posted minimum ("from €46K" on the card)'], ['Retail Lead Associate (Reduced-Time)', /shift/i, 'pay that includes the highest shift differential ("Incl. top shift pay" on the card)']]) {
++      const { page, base } = await open(ctx, `c=amazon&v=ranges&q=${encodeURIComponent(q)}`);
++      const has = await page.evaluate(async ({ base, q }) => {
++        const jobs = (await (await import(`${base}/api.js`)).getJobs({ company: 'amazon' })).jobs || [];
++        return jobs.filter((j) => j.title?.startsWith(q) && j.salary && (j.salary.kind === 'minimum' || j.salary.includesShiftDifferential)).length;
++      }, { base, q });
++      if (!has) continue;
++      await page.waitForSelector('#chartHost .ms-row', { timeout: 60000 });
++      await page.locator('#chartHost .ms-row').first().hover({ force: true });
++      await sleep(200);
++      const tip = await page.evaluate(() => document.querySelector('.ms-viz-tip:not([hidden])')?.innerText.replace(/\n+/g, ' / ') || '');
++      const label = await page.evaluate(() => document.querySelector('#chartHost .ms-row')?.getAttribute('aria-label') || '');
++      if (!want.test(tip) && !want.test(label)) bad.push(`"${q}" is ${what}, but the bar's tooltip reads "${tip.slice(0, 140)}"`);
++    }
++    if (!bad.length) return;
++    assert(false, bad.join('; '));
++  });
++
++  suite.test('Beta viz review 2: [V-42] Clusters: the P25–P75 band clears 3:1 against the chart, or its values are written down (Amazon, light and dark)', async (ctx) => {
++    const bad = [];
++    for (const dark of [false, true]) {
++      const { page } = await open(ctx, 'c=amazon', { dark });
++      await page.waitForSelector('#chartHost .ms-crow__band', { timeout: 60000 });
++      const r = await page.evaluate(() => {
++        const cv = document.createElement('canvas').getContext('2d');
++        const solid = (s) => { const cm = String(s).match(/^color\(srgb ([\d.e-]+) ([\d.e-]+) ([\d.e-]+)(?: \/ ([\d.]+))?/); if (cm) return [cm[1] * 255, cm[2] * 255, cm[3] * 255, cm[4] == null ? 1 : +cm[4]]; cv.fillStyle = '#000'; cv.fillStyle = s; const h = cv.fillStyle; if (h.startsWith('#')) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255, 1]; } const m = h.match(/rgba?\(([\d.]+), ([\d.]+), ([\d.]+)(?:, ([\d.]+))?/); return m ? [+m[1], +m[2], +m[3], m[4] == null ? 1 : +m[4]] : [0, 0, 0, 0]; };
++        const L = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
++        const ratio = (a, b) => { const x = L(a), y = L(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
++        const bgOf = (e) => { for (let n = e.parentElement; n; n = n.parentElement) { const c = solid(getComputedStyle(n).backgroundColor); if (c[3] > 0.99) return c; } return [255, 255, 255, 1]; };
++        const out = [];
++        for (const row of document.querySelectorAll('#chartHost .ms-crow')) {
++          const band = row.querySelector('.ms-crow__band');
++          if (!band) continue;
++          const bg = bgOf(band), c = solid(getComputedStyle(band).backgroundColor);
++          const fill = c.slice(0, 3).map((v, i) => v * c[3] + bg[i] * (1 - c[3]));
++          const words = `${row.getAttribute('aria-label') || ''} ${row.querySelector('.ms-crow__label')?.title || ''} ${row.querySelector('.ms-crow__sub')?.textContent || ''}`;
++          out.push({ name: row.querySelector('.ms-crow__name').firstChild.textContent.trim(), r: ratio(fill, bg), said: /P25|P75|quartile|middle half|25th|75th/i.test(words) });
++        }
++        return out;
++      });
++      const low = r.filter((x) => x.r < 3 && !x.said);
++      if (low.length) bad.push(`${dark ? 'dark' : 'light'}: ${low.length} of ${r.length} rows' P25–P75 bands at ${Math.min(...low.map((x) => x.r)).toFixed(2)}–${Math.max(...low.map((x) => x.r)).toFixed(2)}:1, their values written nowhere (e.g. "${low[0].name}")`);
++    }
++    assert(!bad.length, bad.join('; '));
++  });
++
++  suite.test('Beta viz review 2: [V-46] phone: the chart says its axis is US dollars a year (Amazon, 390 px)', async (ctx) => {
++    const bad = [];
++    for (const hash of ['c=amazon', 'c=amazon&v=ranges']) {
++      const { page } = await open(ctx, hash, { phone: true });
++      await page.waitForSelector('#chartHost .ms-axis__tick', { timeout: 60000 });
++      const r = await page.evaluate(() => {
++        const host = document.querySelector('#chartHost');
++        const vis = (e) => { const s = getComputedStyle(e); const b = e.getBoundingClientRect(); return s.display !== 'none' && s.visibility !== 'hidden' && b.width > 0 && b.height > 0; };
++        const shown = [...host.querySelectorAll('*')].filter((e) => e.children.length === 0 && vis(e)).map((e) => e.textContent).join(' ');
++        return { year: /a year|yearly|\/yr|per year/i.test(shown), usd: /US\$|US dollars|USD/i.test(shown), ticks: [...host.querySelectorAll('.ms-axis__tick')].map((t) => t.textContent).join(' ') };
++      });
++      if (!r.year || !r.usd) bad.push(`${hash}: axis "${r.ticks}" with no visible "a year" or "US$" (chart.js renders its narrow caption "US$ a year, converted" only when the label column is wider than 0, and on a phone it is 0)`);
++    }
++    assert(!bad.length, bad.join('; '));
++  });
++
++  /* -------------------------------------------------------------------- map */
++
++  suite.test('Beta viz review 2: [V-43] map: a pin priced from under a tenth of its postings says so on the pin (Amazon "Sydney, Melbourne and 9 more": 5 of 434)', async (ctx) => {
++    const { page } = await open(ctx, 'c=amazon&m=map');
++    await page.locator('#mapHost .ms-pin').first().waitFor({ timeout: 60000 });
++    await sleep(4800);
++    const pins = await page.evaluate(() => [...document.querySelectorAll('#mapHost .leaflet-marker-icon')].map((m) => ({ a: m.getAttribute('aria-label') || '', t: m.querySelector('.ms-pin')?.innerText.replace(/\n+/g, ' ') || '' })));
++    const bad = [];
++    for (const { a, t } of pins) {
++      const m = /: ([\d,]+) postings?, median (\$[\d.]+[KM]?) from ([\d,]+) with pay/.exec(a);
++      if (!m) continue;
++      const n = +m[1].replace(/,/g, ''), k = +m[3].replace(/,/g, '');
++      if (k / n < 0.1 && !/of|with pay|paid/i.test(t)) bad.push(`pill "${t}" (${a}: ${(100 * k / n).toFixed(1)}% of its postings)`);
++    }
++    if (!pins.length) skip('no pins');
++    assert(!bad.length, `a pin's pill reads as the median of all its postings: ${bad.join('; ')}`);
++  });
++
++  suite.test('Beta viz review 2: [V-44] map: postings with no place are counted somewhere on the map (Meta)', async (ctx) => {
++    const { page, base } = await open(ctx, 'c=meta&m=map');
++    const n = await page.evaluate(async ({ base }) => ((await (await import(`${base}/api.js`)).getJobs({ company: 'meta' })).jobs || []).filter((j) => !(j.locations || []).length && !j.remote).length, { base });
++    if (!n) skip('every Meta posting lists a place');
++    await page.locator('#mapHost .ms-pin').first().waitFor({ timeout: 60000 });
++    await sleep(4800);
++    const text = await page.evaluate(() => document.querySelector('#mapHost').innerText.replace(/\s+/g, ' '));
++    assert(/no (location|place)|not on the map|without a (place|location)|unknown location/i.test(text), `${n} Meta postings list no place, are on no pin and not in Remote, and the map does not say so ("${text.slice(0, 160)}")`);
++  });
++
++  suite.test('Beta viz review 2: [V-45] map: a town is not pinned and named as another city 33 km away (Amazon "Cajamar, Sao Paulo, BRA" as "Sao Paulo, Brazil")', async (ctx) => {
++    const { page, base } = await open(ctx, 'c=amazon');
++    const r = await page.evaluate(async ({ base }) => {
++      const jobs = (await (await import(`${base}/api.js`)).getJobs({ company: 'amazon' })).jobs || [];
++      const hits = [];
++      for (const j of jobs) for (const l of j.locations || []) if (/^Cajamar\b/i.test(l.rawName || '')) hits.push(`${l.rawName} -> ${l.name} (${l.lat}, ${l.lng})`);
++      return { n: hits.length, ex: hits[0] };
++    }, { base });
++    if (!r.n) skip('no Cajamar posting');
++    assert(!/^Sao Paulo/i.test(r.ex.split(' -> ')[1]), `${r.n} postings in Cajamar are pinned and named as São Paulo city, 33 km away: ${r.ex}`);
 +  });
 +
 +  suite.test('Beta viz review 2: [V-37] Ranges grouped by Location: a place\'s group holds only pay posted for that place (Google London, NVIDIA Munich)', async (ctx) => {
