@@ -1151,3 +1151,20 @@ screenshots in `docs/screenshots/`.
 - Gate:
   - `npm test` CI-like: 1,071 tests, 1,020 pass, 0 fail.
   - Full e2e on the 2026-10-16 crawl: 346/355, the same 5 data-driven failures as the unchanged head, now with fix6-fresh-data.
+
+### fix-density finished; google-grouping integrated (2026-10-16)
+- **fix-density, final.**
+  - 3d3b461: the drawer's converted-pay line and the part-time annualized note are one line each.
+  - a72e1da: before/after on the 2026-10-16 crawl. Worst phone lines, words/lines: chart notes 48/6 → 5/1, Insights header 38/5 → 6/1, Compare footnote 61/8 → under Details. 155 screenshots, 2.9 MB.
+  - 316a56c: the final log.
+  - Left open for the round-3 UX check: the Juice scale explainer (UX-35) is still 3 lines on desktop, and the scrolling Ranges legend relies on an edge fade.
+- **google-grouping**, the user's "for Google … isn't consistent with the rest of the big tech … still allow users to just zoom into / group by Google subsidiary". Commits 8842826, 61234d8, fdc2357, 1d0c848, 5963f2a, 1c29cb0, 928c59a.
+  - Google publishes no department or category field that can be read, and its search can't be paged (robots.txt). So `server/families.js` sorts titles into 27 job families named after Google's careers categories, and returns "No department" rather than guess.
+    - Coverage: 3,700 of 3,821 (96.8%).
+    - Accuracy: 92/100 held out, 88/100 on titles new today; 95.7% when it answers.
+    - The Department option says "Grouped by job title: Google doesn't publish departments".
+  - Brand (Google, YouTube, DeepMind, Waymo, Wing) is its own field: a "Company" group-by and a Company list inside the existing Department filter, shown only on boards with more than one brand. URL state `b=` and `g=brand`. No new always-visible control.
+  - Google's rows went from DeepMind / YouTube / Google 3,546 / Wing / Waymo to Product Management, Software Engineering 946, Hardware Engineering, TPM, Technical Solutions, Sales, Data Center Operations + "20 more departments": the shape of Apple, Microsoft and Amazon. Those three boards are unchanged.
+  - Not applied: google-grouping-pack.diff. melon-packed-3 (perf-mobile-beta-2) already drops the per-job key names, and the patch would change key order.
+  - Known one-time effect: the ledger fingerprint hashes the department, so for 30 days a repost of a Google posting closed before today may not be linked as a repost. Nothing is hidden.
+- **Gate:** `npm test` CI-like 1,082 tests, 1,030 pass, 0 fail. Full e2e on the 2026-10-16 crawl 353/362, with the same 5 data-driven failures; fix6-fresh-data has fixed all 5 for the next batch.
