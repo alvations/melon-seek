@@ -1,7 +1,7 @@
 From 73853341bce814c5836c2dd97457540532c22f96 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 16:16:51 +0000
-Subject: [PATCH 14/15] perf-mobile-beta-2: tests for the first-page preview
+Subject: [PATCH 14/18] perf-mobile-beta-2: tests for the first-page preview
  (prefix set, same postings and juice as getJobs, config.js asks for it first)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
