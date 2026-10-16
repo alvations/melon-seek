@@ -47,7 +47,7 @@ function fnSource(name) {
   throw new Error(`unbalanced ${name}`);
 }
 const CARD = ['payPill', 'salaryRange', 'money', 'moneyRange', 'payRanges', 'rangeLabel', 'rangeText', 'pickedRange', 'payLevels'];
-// Defined only once docs/process/patches/fix5-data-display.diff is applied (SA-2, SA-6).
+// Defined once fix5-data-display.diff is in (fix-density e3c745a, 5f8b599): SA-2, SA-6.
 const CARD_IF_PRESENT = ['isMinimum', 'MINIMUM_TIP'].filter((n) => new RegExp(`^const ${n} = `, 'm').test(APP));
 // eslint-disable-next-line no-new-func
 const { payPill } = new Function('formatMoney', `
@@ -118,7 +118,8 @@ test('SA-1 NVIDIA: a card whose range spans two posted levels says so ("· 2 lev
 // read this way (15.3% of Amazon's 13,979 paid postings); Apple's 390 do not (its salary is the span). The "ranges" chart's tip says "One range over 4 places' ranges" for the same bar.
 // Owners: public/app.js payPill, public/viz/chart.js (ranges tip); or server/sources/amazon.js amazonSalary
 // if the lead decides an Amazon card shows the span, as Apple's does.
-test('SA-2 Amazon: "· N places" shows the span of the places\' ranges, or does not call the range a span', TODO, () => {
+// Fixed by fix-density e3c745a (fix5-data-display.diff folded in): passes from 5f8b599 on, fails on 2474fc4.
+test('SA-2 Amazon: "· N places" shows the span of the places\' ranges, or does not call the range a span', () => {
   const job = normalizeJob(mapAmazonJob(CAPEX), company('amazon'));
   assert.equal(job.salary.min, 82700, 'reference: the Bellevue row is the salary');
   const pill = payPill(job);
@@ -181,7 +182,8 @@ test('SA-5 chart: under a Location filter a posting is plotted at the range post
 // below", EU and Poland): salary.kind 'minimum' since fix wave 5 (VT-17), meant to read "from €X". The card
 // shows a bare "€40K" with the label "One number, not a range": 285 postings in the 2026-10-16 crawl.
 // Owner: public/app.js payPill (the fix-wave-5 display patch is not applied).
-test('SA-6 Amazon: a posted minimum reads "from €X" on the card', TODO, () => {
+// Fixed by fix-density e3c745a: passes from 5f8b599 on, fails on 2474fc4.
+test('SA-6 Amazon: a posted minimum reads "from €X" on the card', () => {
   const job = { salary: { min: 40300, max: 40300, mid: 40300, currency: 'EUR', interval: 'year', kind: 'minimum', text: 'Enns, AUT - 3,358.33 EUR Monthly', source: 'structured', zones: 1 } };
   assert.match(payPill(job).text, /^from /i, `card reads "${payPill(job).text}"`);
 });

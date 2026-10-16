@@ -1,6 +1,6 @@
 --- a/public/viz/chart.js
 +++ b/public/viz/chart.js
-@@ -137,7 +137,11 @@
+@@ -138,7 +138,11 @@
    const s = job?.salary;
    if (!s) return null;
    if (Array.isArray(s.levels) && s.levels.length >= 2) return { kind: 'levels', tiers: s.levels };
@@ -13,7 +13,7 @@
    return null;
  }
  
-@@ -268,9 +272,22 @@
+@@ -269,9 +273,22 @@
      const s = job?.salary;
      if (!s || (s.min == null && s.max == null)) { noSalary++; continue; }
      const cur = (s.currency || 'USD').toUpperCase();
@@ -47,7 +47,7 @@
      const pt = isPartTimeHourly(p.job) ? ', part-time hourly pay shown as a year if full-time' : '';
      return `${p.job.title || 'Untitled'}, ${range}${approx ? ' in US dollars, converted' : ''}${p.ote ? ', on-target earnings' : ''}${kind}${pt}${where ? ', ' + where : ''}`;
    }
-@@ -1380,7 +1397,7 @@
+@@ -1384,7 +1401,7 @@
      // V-20: a range over several levels or places lists each.
      const sp = spanTiers(j);
      if (sp) {
