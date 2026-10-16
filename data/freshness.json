@@ -750,10 +750,10 @@
       "type": "product-policy",
       "owners": [
         "server/juice.js:107 HOUSEHOLDS",
-        "public/app.js:3610 HOUSEHOLDS (UI labels)",
+        "public/app.js:3618 HOUSEHOLDS (UI labels)",
         "server/juice.js:113 DEFAULT_HOUSEHOLD",
-        "public/app.js:3610 HOUSEHOLDS (UI copy: labels, tooltips, bedrooms)",
-        "public/app.js:3610 HOUSEHOLDS labels/bedrooms/people (UI copy of server/juice.js HOUSEHOLDS)"
+        "public/app.js:3618 HOUSEHOLDS (UI copy: labels, tooltips, bedrooms)",
+        "public/app.js:3618 HOUSEHOLDS labels/bedrooms/people (UI copy of server/juice.js HOUSEHOLDS)"
       ],
       "values": "single 1 bedroom / couple 2 / family 3; \"two adults and two children\"",
       "consumers": [
@@ -14151,7 +14151,7 @@
         "server/export.js:62 csvReadme text",
         "public/features/shared.js:45 salaryUSD defensive annualization (2080 h if mid < 1000, ×12 if mid < 30000): duplicate of server/salary.js annualize",
         "public/viz/chart.js:65 INTERVAL_ADJ labels",
-        "public/app.js:3592 INTERVAL_ADJ labels"
+        "public/app.js:3600 INTERVAL_ADJ labels"
       ],
       "values": "2080 hours/yr, 12 months, 52 weeks",
       "consumers": [
@@ -15301,7 +15301,7 @@
         "public/app.js:1 app.js 180 (copy)",
         "public/app.js:227 Listed filter 7 / 30 / 90 days",
         "public/app.js:1268 hide roles open ≥ 180 days",
-        "public/app.js:3397 card age: < 60 → \"Nd\", < 730 → months (÷30.44), else years; \"+\" when a lower bound"
+        "public/app.js:3405 card age: < 60 → \"Nd\", < 730 → months (÷30.44), else years; \"+\" when a lower bound"
       ],
       "values": "filter 7/30/90; 180+ days; contract freshness new ≤ 7, active 8–59, stale 60–179, evergreen ≥ 180 (server/history.js FRESHNESS)",
       "consumers": [

@@ -1626,7 +1626,7 @@ Each dataset is listed under every surface that shows it or computes from it.
 - **Values:** single 1 bedroom / couple 2 / family 3; "two adults and two children"
 - **As of:** 2026-10-10 · last checked -
 - **Source:** [melon-seek (our own choice)](https://github.com/alvations/melon-seek) (no licence file; owner decision pending (the repo has no LICENSE and package.json no "license" field, so the code and o…)
-- **Defined in:** `server/juice.js:107 HOUSEHOLDS`, `public/app.js:3610 HOUSEHOLDS (UI labels)`, `server/juice.js:113 DEFAULT_HOUSEHOLD`, `public/app.js:3610 HOUSEHOLDS (UI copy: labels, tooltips, bedrooms)`, `public/app.js:3610 HOUSEHOLDS labels/bedrooms/people (UI copy of server/juice.js HOUSEHOLDS)`
+- **Defined in:** `server/juice.js:107 HOUSEHOLDS`, `public/app.js:3618 HOUSEHOLDS (UI labels)`, `server/juice.js:113 DEFAULT_HOUSEHOLD`, `public/app.js:3618 HOUSEHOLDS (UI copy: labels, tooltips, bedrooms)`, `public/app.js:3618 HOUSEHOLDS labels/bedrooms/people (UI copy of server/juice.js HOUSEHOLDS)`
 - **Used in:** `public/app.js:2125` (drawer Juice block household switch); `docs/LIVABILITY.md §1 Households` (methodology page); `server/juice.js:112` (drawer Juice block); `public/app.js:2172` (drawer Juice block); `public/app.js:2152` (drawer Juice block); `public/app.js:2163` (drawer Juice block); `docs/LIVABILITY.md:51-103` (methodology page); `test/juice-household.test.js:28` (tests)
 - **Validator:** test/juice-household.test.js (server presets); test/freshness-policy.test.js (public/app.js HOUSEHOLDS bedrooms and people equal server/juice.js HOUSEHOLDS)
 - **Before:** none
@@ -3292,7 +3292,7 @@ Each dataset is listed under every surface that shows it or computes from it.
 - **Values:** 2080 hours/yr, 12 months, 52 weeks
 - **As of:** 2026-10-02 · last checked -
 - **Source:** [melon-seek (our own choice)](https://github.com/alvations/melon-seek) (no licence file; owner decision pending (the repo has no LICENSE and package.json no "license" field, so the code and o…)
-- **Defined in:** `server/salary.js:68 FACTORS`, `server/vet.js:18 hourly rate /2080`, `scripts/vet-salaries.js:122 FACT (copy)`, `scripts/vet-salaries.js:301 UNFACT (copy)`, `data/vetting/2026-10-02/review-rules.mjs:18 F (copy, audit trail)`, `server/export.js:62 csvReadme text`, `public/features/shared.js:45 salaryUSD defensive annualization (2080 h if mid < 1000, ×12 if mid < 30000): duplicate of server/salary.js annualize`, `public/viz/chart.js:65 INTERVAL_ADJ labels`, `public/app.js:3592 INTERVAL_ADJ labels`
+- **Defined in:** `server/salary.js:68 FACTORS`, `server/vet.js:18 hourly rate /2080`, `scripts/vet-salaries.js:122 FACT (copy)`, `scripts/vet-salaries.js:301 UNFACT (copy)`, `data/vetting/2026-10-02/review-rules.mjs:18 F (copy, audit trail)`, `server/export.js:62 csvReadme text`, `public/features/shared.js:45 salaryUSD defensive annualization (2080 h if mid < 1000, ×12 if mid < 30000): duplicate of server/salary.js annualize`, `public/viz/chart.js:65 INTERVAL_ADJ labels`, `public/app.js:3600 INTERVAL_ADJ labels`
 - **Used in:** `server/salary.js:36` (chart); `README.md:501` (README); `docs/VETTING.md:199` (docs); `docs/LIVABILITY.md:249` (methodology page); `docs/VETTING.md:198` (docs); `test/features.test.js:104` (tests); `docs/LIVABILITY.md:236` (methodology page)
 - **Validator:** scripts/refresh/policy.js salary-interval-factors; test/salary.test.js
 - **Before:** none
@@ -3523,7 +3523,7 @@ Each dataset is listed under every surface that shows it or computes from it.
 - **Values:** filter 7/30/90; 180+ days; contract freshness new ≤ 7, active 8–59, stale 60–179, evergreen ≥ 180 (server/history.js FRESHNESS)
 - **As of:** 2026-10-02 · last checked -
 - **Source:** [melon-seek (our own choice)](https://github.com/alvations/melon-seek) (no licence file; owner decision pending (the repo has no LICENSE and package.json no "license" field, so the code and o…)
-- **Defined in:** `server/history.js:66 FRESHNESS`, `server/history.js:62 REPOST_WINDOW_DAYS`, `server/demo.js:1 demo AGE_BUCKETS (copy)`, `public/app.js:1 app.js 180 (copy)`, `public/app.js:227 Listed filter 7 / 30 / 90 days`, `public/app.js:1268 hide roles open ≥ 180 days`, `public/app.js:3397 card age: < 60 → "Nd", < 730 → months (÷30.44), else years; "+" when a lower bound`
+- **Defined in:** `server/history.js:66 FRESHNESS`, `server/history.js:62 REPOST_WINDOW_DAYS`, `server/demo.js:1 demo AGE_BUCKETS (copy)`, `public/app.js:1 app.js 180 (copy)`, `public/app.js:227 Listed filter 7 / 30 / 90 days`, `public/app.js:1268 hide roles open ≥ 180 days`, `public/app.js:3405 card age: < 60 → "Nd", < 730 → months (÷30.44), else years; "+" when a lower bound`
 - **Used in:** `server/history.js:255` (badge); `public/app.js:2379` (badge); `public/app.js:1270` (badge); `public/app.js:2391` (drawer Juice block); `public/mock-api.js:220` (API); `docs/CONTRACT.md:144` (docs); `test/e2e/ui.e2e.js:448` (tests); `public/app.js:2372` (badge); `public/app.js:2384` (drawer Juice block)
 - **Validator:** scripts/refresh/policy.js listing-freshness-buckets; test/history.test.js
 - **Before:** none
