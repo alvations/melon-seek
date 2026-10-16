@@ -1,0 +1,904 @@
+From fc084ee53ad7aa3617c519d32fe2ebe4fb34dd62 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 11 Oct 2026 20:32:28 +0000
+Subject: [PATCH 1/6] melon-packed-3 lists and Juice once per distinct pay and
+ places (behaviour-identical)
+
+Lists: row arrays, salary extras and range tuples, salary.text by reference,
+url templates; Amazon's 5,000 470 -> 314 kB gzip, parse+unpack 50 -> 37 ms
+(node). The build checks every list unpacks exactly as melon-packed-2 did;
+test/perf-mobile-beta-2.test.js compares with a verbatim copy of the 31ad25b
+code. getJobs copies Juice to postings that repeat a pay and places, in time
+slices. external-links and betaLeaks decode the new format.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ README.md                                     |  13 +-
+ docs/CONTRACT.md                              |   5 +-
+ .../perf-mobile-beta-2-equal-check.mjs        |  54 +++++
+ public/api.js                                 | 166 ++++++++++++---
+ scripts/build-static.js                       |  90 ++++++--
+ scripts/external-links.js                     |   5 +-
+ test/fixtures/packed-2-reference.js           | 122 +++++++++++
+ test/perf-mobile-beta-2.test.js               | 197 ++++++++++++++++++
+ test/static-build.test.js                     |   4 +-
+ 9 files changed, 608 insertions(+), 48 deletions(-)
+ create mode 100644 docs/process/scripts/perf-mobile-beta-2-equal-check.mjs
+ create mode 100644 test/fixtures/packed-2-reference.js
+ create mode 100644 test/perf-mobile-beta-2.test.js
+
+diff --git a/README.md b/README.md
+index 52cfd1e..a14a755 100644
+--- a/README.md
++++ b/README.md
+@@ -200,18 +200,23 @@ inline. The build makes three changes:
+    fetched once per job you open and then cached. Server mode works the same
+    way: `/api/jobs` lists are lazy too (`meta.lazy`), and `getJobDetail` fetches
+    `/api/job?id=<job.id>`.
+-2. Lists use a lossless packed format (`melon-packed-2`):
++2. Lists use a lossless packed format (`melon-packed-3`):
+    - company fields, the id prefix and the shared URL prefix are stored once;
+    - repeated locations, keyword labels and departments become indexes into a
+      shared dictionary;
+    - fields that every job carries (`postedAt`, `firstSeenAt`, `ageDays`,
+      `freshness`, `repost`, `extras`, …) are stored once per list as columns;
+    - exact ISO timestamps become epoch milliseconds;
+-   - salary and keywords become value tuples.
++   - salary and keywords become value tuples;
++   - `melon-packed-3` (2026-10-11, for Amazon's whole board): jobs with the
++     usual keys are value arrays, pay ranges are tuples, and a URL that a
++     list's template (`…/{id}/{slug}`) gives is stored as `0`. About a third
++     smaller (Amazon's 5,000: 470 → 314 kB gzip).
+ 
+    `public/api.js` unpacks them back into normal Job objects, and still reads
+-   the older `melon-packed-1`. The build checks that every job round-trips
+-   exactly, including every v2 field, and fails if one doesn't.
++   the older `melon-packed-1` and `-2`. The build checks that every job
++   round-trips exactly, including every v2 field, and that it unpacks exactly
++   as `melon-packed-2` did (key order too), and fails if one doesn't.
+ 3. If a list is still over 1.5 MB, that company's `sections` (the
+    responsibilities/fit bullets) also move into the desc files. Keywords stay in
+    the list, so filters work immediately.
+diff --git a/docs/CONTRACT.md b/docs/CONTRACT.md
+index 4d147c1..3984942 100644
+--- a/docs/CONTRACT.md
++++ b/docs/CONTRACT.md
+@@ -171,7 +171,10 @@ within10Pct, n, seed, computedAt } | null, history: { since, runs } }`.
+ | Browser lib | `GET /lib/<allowlisted>.js` | `lib/*.js` (allowlist in `server/lib-modules.js`) |
+ 
+ **Packed list format:** `melon-packed-1` becomes `melon-packed-2` with the
+-fields above, and the build's round-trip check covers them.
++fields above, and the build's round-trip check covers them. Since 2026-10-11 the build writes
++`melon-packed-3` (row arrays, range tuples, url templates; `public/api.js#unpackJobs` header), which
++unpacks to exactly the `melon-packed-2` result, key order included (checked at build time and in
++`test/perf-mobile-beta-2.test.js`). Readers of list files use `unpackJobs`.
+ 
+ **Shared FX:** `public/viz/palette.js` `FX_PER_USD` is the single source.
+ Copies in `server/juice.js` and `server/salary.js` are guarded by
+diff --git a/docs/process/scripts/perf-mobile-beta-2-equal-check.mjs b/docs/process/scripts/perf-mobile-beta-2-equal-check.mjs
+new file mode 100644
+index 0000000..167f09b
+--- /dev/null
++++ b/docs/process/scripts/perf-mobile-beta-2-equal-check.mjs
+@@ -0,0 +1,54 @@
++// Full-scale identity check for perf-mobile-beta-2 (docs/process/perf-mobile-beta-2.md): the OLD api.js
++// on the OLD build (melon-packed-2 lists, plain attachJuiceAll) against the NEW api.js on the NEW build
++// (melon-packed-3, Juice once per distinct pay and places), getJobs for every company of both sites,
++// first load and switch-back: deep-equal and identical JSON (key order). Also the unpacked list files.
++// Build both with the same MELON_BUILT_AT (listing ages follow it) and the same snapshots.
++// usage: node perf-mobile-beta-2-equal-check.mjs <old dist> <new dist> <old api.js (git show 31ad25b:public/api.js)>
++import fs from 'node:fs';
++import path from 'node:path';
++import assert from 'node:assert/strict';
++import { pathToFileURL } from 'node:url';
++const [before, after, oldApi] = process.argv.slice(2).map((p) => path.resolve(p));
++let n = 0;
++async function load(site, apiFile) {
++  globalThis.MELON_STATIC = true;
++  globalThis.MELON_LIVE_SOURCES = [];
++  globalThis.fetch = async (url) => {
++    const u = String(url);
++    if (/^[a-z]+:\/\//i.test(u)) throw new TypeError('Failed to fetch');
++    const file = path.join(site, decodeURIComponent(u.split(/[?#]/)[0]));
++    if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) return new Response('{"error":"Not found"}', { status: 404 });
++    return new Response(fs.readFileSync(file), { status: 200, headers: { 'content-type': 'application/json' } });
++  };
++  return import(`${pathToFileURL(apiFile).href}?eq=${++n}`);
++}
++const ms = (t) => `${Math.round(performance.now() - t)} ms`;
++for (const sub of ['', 'beta']) {
++  const B = path.join(before, sub), A = path.join(after, sub);
++  const slugs = JSON.parse(fs.readFileSync(path.join(A, 'api', 'companies.json'), 'utf8')).map((c) => c.slug);
++  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(B, 'api', 'companies.json'), 'utf8')).map((c) => c.slug), slugs);
++  const oldFile = path.join(B, 'api-old-check.js'); // the old api.js resolves ./lib/ against the OLD build
++  fs.copyFileSync(oldApi, oldFile);
++  const oldMod = await load(B, oldFile);
++  const results = {};
++  for (const s of slugs) { const t = performance.now(); results[s] = { old: JSON.stringify(await oldMod.getJobs(s)), tOld: ms(t) }; }
++  for (const s of slugs.slice(0, 2)) results[s].oldBack = JSON.stringify(await oldMod.getJobs(s));
++  const newMod = await load(A, path.join(A, 'api.js'));
++  for (const s of slugs) {
++    const t = performance.now();
++    const res = await newMod.getJobs(s);
++    const tNew = ms(t);
++    const o = JSON.parse(results[s].old);
++    assert.equal(JSON.stringify(res), results[s].old, `${sub || 'stable'} ${s}: key order and values`);
++    assert.deepStrictEqual(rtUndefined(res), o, `${sub || 'stable'} ${s}: getJobs result`);
++    const rawA = JSON.parse(fs.readFileSync(path.join(A, 'api', 'jobs', `${s}.json`), 'utf8'));
++    const rawB = JSON.parse(fs.readFileSync(path.join(B, 'api', 'jobs', `${s}.json`), 'utf8'));
++    assert.equal(JSON.stringify(newMod.unpackJobs(rawA)), JSON.stringify(oldMod.unpackJobs(rawB)), `${s}: same list file content`);
++    console.log(`${sub || 'stable'} ${s}: ${res.jobs.length} jobs identical (${rawB.format} -> ${rawA.format}; getJobs in node ${results[s].tOld} -> ${tNew})`);
++  }
++  for (const s of slugs.slice(0, 2)) assert.equal(JSON.stringify(await newMod.getJobs(s)), results[s].oldBack, `${s}: switch-back`);
++  fs.rmSync(oldFile);
++}
++/** JSON drops undefined values; the stored old result went through JSON, so compare the same way. */
++function rtUndefined(x) { return JSON.parse(JSON.stringify(x)); }
++console.log('all identical');
+diff --git a/public/api.js b/public/api.js
+index 1bb9b3e..88369f3 100644
+--- a/public/api.js
++++ b/public/api.js
+@@ -50,6 +50,10 @@
+ //    page's modules loaded (window.MELON_FIRST_LIST); bundled() takes it once, for its path;
+ //  - a list the build marked `shared.vetted` (vetSalaries hands it back unchanged) skips the
+ //    browser's second vetting pass.
++// Amazon's whole board (docs/process/perf-mobile-beta-2.md), also behaviour-identical:
++//  - lists are melon-packed-3 (unpackJobs): about a third smaller, and faster to parse and unpack;
++//  - Juice is worked out once per distinct (salary, locations) of a bundled list and copied to the
++//    repeats (attachJuiceOnce), in time slices instead of fixed 400-job chunks.
+ //
+ // Every function resolves to the HTTP API shapes in docs/CONTRACT.md, with one
+ // exception: to keep bundles small, jobs from the static build's bundled lists
+@@ -429,11 +433,59 @@ async function fetchLiveInBrowser(lib, company, signal) {
+  *  - salary.currency/interval/kind/source as `dict` indexes, and salary as a
+  *    value tuple in `shared.salaryKeys` order when it has exactly those keys;
+  *  - keywords as [responsibilities, fit, skills] (index arrays).
+- * Returns plain Job objects. Bodies that aren't packed are returned unchanged.
++ * "melon-packed-3" (docs/process/perf-mobile-beta-2.md: Amazon's whole board) adds, each only where
++ * the build checked it is exactly reversible (else the value is written as in melon-packed-2):
++ *  - rows: a job whose keys are exactly `shared.rowKeys`, in that order, is an array of its values;
++ *  - salary: one whose keys start with `shared.salaryKeys` (in order) and has more is that tuple plus
++ *    a last element, an object with the other keys in their order; salary.text is a `dict` index too;
++ *  - salary.ranges[]: a range whose keys are exactly `shared.rangeKeys`, in order, is a value tuple,
++ *    with its currency, interval and label strings as `dict` indexes;
++ *  - url: 0 means `shared.urlTemplate` filled in: "{id}" is the id without `shared.idPrefix`,
++ *    "{slug}" the ASCII title in lower case with each run of other characters as "-" (urlSlug).
++ * Returns plain Job objects: the same values and key order from every format.
++ * Bodies that aren't packed are returned unchanged.
+  */
+-export const PACKED_FORMAT = 'melon-packed-2';
+-const PACKED_FORMATS = new Set(['melon-packed-1', PACKED_FORMAT]);
++export const PACKED_FORMAT = 'melon-packed-3';
++const PACKED_FORMATS = new Set(['melon-packed-1', 'melon-packed-2', PACKED_FORMAT]);
+ const SALARY_REFS = ['currency', 'interval', 'kind', 'source'];
++export const SALARY_REFS_3 = [...SALARY_REFS, 'text'];
++export const RANGE_REFS = ['currency', 'interval', 'label'];
++const ASCII = /^[\x00-\x7f]*$/;
++/** "{slug}" of a melon-packed-3 url template; null for a title that is not ASCII (never templated). */
++export function urlSlug(title) {
++  if (typeof title !== 'string' || !ASCII.test(title)) return null;
++  const s = title.toLowerCase().replace(/[^a-z0-9]+/g, '-'); // runs are one "-" now: trim at most one each end
++  return s.slice(s[0] === '-' ? 1 : 0, s.length > 1 && s.endsWith('-') ? -1 : s.length);
++}
++/** A melon-packed-3 url template filled in for one job (`id` without the list's idPrefix), or null. */
++export function fillUrlTemplate(template, id, title) {
++  return urlFiller(template)(id, title);
++}
++/** fillUrlTemplate for one template, split once: (id, title) -> url or null. */
++function urlFiller(template) {
++  const parts = String(template).split('{id}').map((p) => p.split('{slug}'));
++  const slugged = parts.some((p) => p.length > 1);
++  return (id, title) => {
++    const slug = slugged ? urlSlug(title) : '';
++    if (slug == null) return null;
++    let url = '';
++    for (let n = 0; n < parts.length; n++) url += (n ? String(id) : '') + parts[n].join(slug);
++    return url;
++  };
++}
++/**
++ * values -> object with `keys` set to them, in that order. A copy of a blank object is filled in, so
++ * V8 gives every row one fixed layout. `more` are keys set later (in that order): the blank has them
++ * too, so adding them moves nothing (the caller always sets each one, so the key order is the same).
++ */
++const objectMaker = (keys, more = []) => {
++  const blank = Object.fromEntries([...keys, ...more.filter((k) => !keys.includes(k))].map((k) => [k, undefined]));
++  return (values) => {
++    const o = { ...blank };
++    for (let n = 0; n < keys.length; n++) o[keys[n]] = values[n];
++    return o;
++  };
++};
+ export function unpackJobs(body) {
+   if (!body || !PACKED_FORMATS.has(body.format)) return body && Array.isArray(body.jobs) ? body.jobs : [];
+   const { shared = {}, dict = [] } = body;
+@@ -441,31 +493,59 @@ export function unpackJobs(body) {
+   const kw = (k = {}) => (Array.isArray(k)
+     ? { responsibilities: (k[0] || []).map(at), fit: (k[1] || []).map(at), skills: (k[2] || []).map(at) }
+     : { responsibilities: (k.responsibilities || []).map(at), fit: (k.fit || []).map(at), skills: (k.skills || []).map(at) });
+-  const columns = body.format === PACKED_FORMAT && Array.isArray(body.columns) ? body.columns : [];
++  const v3 = body.format === PACKED_FORMAT;
++  const columnar = body.format !== 'melon-packed-1'; // columns, salary tuples and refs: melon-packed-2 on
++  const columns = columnar && Array.isArray(body.columns) ? body.columns : [];
+   const salaryKeys = Array.isArray(shared.salaryKeys) ? shared.salaryKeys : [];
++  const salaryRefs = v3 ? SALARY_REFS_3 : SALARY_REFS;
++  const rowKeys = v3 && Array.isArray(shared.rowKeys) ? shared.rowKeys : null;
++  const rangeKeys = v3 && Array.isArray(shared.rangeKeys) ? shared.rangeKeys : null;
++  const urlTemplate = v3 && typeof shared.urlTemplate === 'string' ? shared.urlTemplate : null;
++  const rangeOf = rangeKeys && objectMaker(rangeKeys);
++  // A row's later keys, in the order they are set below: columns, company, companyName, sections.
++  const rowOf = rowKeys && objectMaker(rowKeys, [...columns.map((c) => c.key), 'company', 'companyName', 'sections']);
++  const salaryOf = objectMaker(salaryKeys);
++  const fillUrl = urlTemplate && urlFiller(urlTemplate);
++  // ISO strings of 'ts' columns: listing dates repeat across a board, so each is made once.
++  const isoOf = new Map();
++  const iso = (v) => { let x = isoOf.get(v); if (x === undefined) { x = new Date(v).toISOString(); isoOf.set(v, x); } return x; };
++  const range = (r) => {
++    if (!Array.isArray(r)) return r;
++    const o = rangeOf(r);
++    for (const k of RANGE_REFS) if (typeof o[k] === 'number') o[k] = at(o[k]);
++    return o;
++  };
+   const decode = (c, v) => (c.enc === 'bool' ? (v === 1 ? true : v === 0 ? false : v)
+     : c.enc === 'dict' ? at(v)
+-    : c.enc === 'ts' ? (typeof v === 'number' ? new Date(v).toISOString() : v)
++    : c.enc === 'ts' ? (typeof v === 'number' ? iso(v) : v)
+     : v);
+   return body.jobs.map((j, i) => {
+-    const job = { ...j };
++    // A row array becomes a new object; a packed object is copied, as before.
++    const job = rowOf && Array.isArray(j) ? rowOf(j) : { ...j };
+     for (const c of columns) job[c.key] = decode(c, c.values[i]);
+-    if (columns.length || body.format === PACKED_FORMAT) {
+-      if (Array.isArray(job.salary)) job.salary = Object.fromEntries(salaryKeys.map((k, n) => [k, job.salary[n]]));
+-      if (job.salary && typeof job.salary === 'object') {
+-        const sal = { ...job.salary };
+-        for (const k of SALARY_REFS) if (typeof sal[k] === 'number') sal[k] = at(sal[k]);
++    if (columnar) {
++      let sal = null;
++      if (Array.isArray(job.salary)) {
++        const t = job.salary;
++        sal = salaryOf(t); // a new object, as the copy below makes for the object form
++        if (v3 && t.length > salaryKeys.length) Object.assign(sal, t[salaryKeys.length]);
++      } else if (job.salary && typeof job.salary === 'object') sal = { ...job.salary };
++      if (sal) {
++        for (const k of salaryRefs) if (typeof sal[k] === 'number') sal[k] = at(sal[k]);
++        if (rangeKeys && Array.isArray(sal.ranges)) sal.ranges = sal.ranges.map(range);
+         job.salary = sal;
+       }
+     }
+-    job.id = (shared.idPrefix || '') + j.id;
++    const localId = job.id;
++    job.id = (shared.idPrefix || '') + localId;
+     job.company = shared.company;
+     job.companyName = shared.companyName;
+-    job.url = j.url == null ? null : (shared.urlPrefix || '') + j.url;
+-    for (const k of ['department', 'team', 'employmentType', 'seniority']) job[k] = at(j[k]);
+-    job.locations = (j.locations || []).map(at);
+-    job.keywords = kw(j.keywords);
+-    job.sections = j.sections || { responsibilities: [], fit: [] };
++    job.url = fillUrl && job.url === 0 ? fillUrl(localId, job.title)
++      : job.url == null ? null : (shared.urlPrefix || '') + job.url;
++    for (const k of ['department', 'team', 'employmentType', 'seniority']) job[k] = at(job[k]);
++    job.locations = (job.locations || []).map(at);
++    job.keywords = kw(job.keywords);
++    job.sections = job.sections || { responsibilities: [], fit: [] };
+     return job;
+   });
+ }
+@@ -718,7 +798,7 @@ let juicePromise = null;
+ function loadJuice() {
+   if (!juicePromise) {
+     juicePromise = import('./lib/juice.js')
+-      .then((m) => (m && typeof m.attachJuiceAll === 'function' ? m : null))
++      .then((m) => (m && typeof m.attachJuiceAll === 'function' && typeof m.attachJuice === 'function' ? m : null))
+       .catch(() => null);
+   }
+   return juicePromise;
+@@ -727,21 +807,53 @@ function loadJuice() {
+ /** Cities + juice.js for withJuice; started early so they load alongside the job list. */
+ const juiceInputs = ({ refresh = false } = {}) => Promise.all([getCities({ refresh }), loadJuice()]);
+ 
+-// Jobs per juice chunk: about 10 ms on a phone (4x CPU throttle), so loading a
+-// big board never blocks input for long.
+-const JUICE_CHUNK = 400;
++// Juice runs in slices of about JUICE_SLICE_MS on a phone (4x CPU throttle) between yields, so loading a
++// big board never blocks input for long (a fixed 400 jobs took up to 290 ms for Amazon's).
++const JUICE_SLICE_MS = 40;
++const now = () => (g.performance && typeof g.performance.now === 'function' ? g.performance.now() : Date.now());
+ 
+-/** Attach juice to every job of a getJobs result (mutates it); true when juice was computed. */
+-async function withJuice(res, inputs) {
++/**
++ * attachJuice for one job, worked out once per distinct (salary, locations) of a bundled list
++ * (docs/process/perf-mobile-beta-2.md). juice.js#attachJuice reads only job.salary and job.locations
++ * (with the same cities and no options), so a job with the same two values as an earlier one gets a
++ * structured copy of that job's result: the same `juice` and `juiceMissing`, set in the same order
++ * (attachJuice sets `juice` to null and deletes `juiceMissing` first). Repeats are common: one
++ * requisition posted in many places, one pay range for a family of roles (Amazon: many postings
++ * share an exact pay and place). The key is the JSON of the two values, exact for a list read from
++ * JSON (bundled lists only; `memo` is null otherwise). test/perf-mobile-beta-2.test.js checks the
++ * result equals attachJuiceAll on every bundled list.
++ */
++function attachJuiceOnce(juice, job, cities, memo) {
++  const key = memo && job && typeof job === 'object' ? JSON.stringify([job.salary, job.locations]) : null;
++  const done = key == null ? undefined : memo.get(key);
++  if (!done) {
++    juice.attachJuice(job, cities);
++    if (key != null) memo.set(key, job);
++    return;
++  }
++  job.juice = null;
++  delete job.juiceMissing;
++  job.juice = done.juice == null ? done.juice : structuredClone(done.juice);
++  if (Object.prototype.hasOwnProperty.call(done, 'juiceMissing')) job.juiceMissing = structuredClone(done.juiceMissing);
++}
++
++/**
++ * Attach juice to every job of a getJobs result (mutates it); true when juice was computed.
++ * `bundledList`: the jobs were read from a bundled JSON list (exact keys for attachJuiceOnce).
++ */
++async function withJuice(res, inputs, { bundledList = false } = {}) {
+   if (!res || !Array.isArray(res.jobs)) return false;
+   const [cities, juice] = await inputs;
+   let ok = false;
+   if (cities && juice) {
+     try {
+-      // attachJuiceAll is per job, so slices give exactly the same result.
+-      for (let i = 0; i < res.jobs.length; i += JUICE_CHUNK) {
++      const jobs = res.jobs;
++      const memo = bundledList && typeof structuredClone === 'function' ? new Map() : null;
++      // attachJuice (attachJuiceAll's step) is per job, so slices give exactly the same result.
++      for (let i = 0; i < jobs.length;) {
+         await yieldToMain();
+-        juice.attachJuiceAll(res.jobs.slice(i, i + JUICE_CHUNK), cities);
++        const t0 = now();
++        do attachJuiceOnce(juice, jobs[i++], cities, memo); while (i < jobs.length && now() - t0 < JUICE_SLICE_MS);
+       }
+       ok = true;
+     } catch { ok = false; }
+@@ -777,7 +889,7 @@ export async function getJobs(params, { refresh = false, signal, onUpdate = null
+         await yieldToMain();
+         out = { ...out, jobs: lib.vetSalaries(out.jobs) };
+       }
+-      if (await withJuice(out, inputs)) rememberBundle(raw, out.jobs);
++      if (await withJuice(out, inputs, { bundledList: bundleOrigin.has(raw) })) rememberBundle(raw, out.jobs);
+       return out;
+     };
+     // The live fetch behind a `pending` bundle ended (staticJobs step 1): a live board is
+diff --git a/scripts/build-static.js b/scripts/build-static.js
+index 52627f4..f54607b 100644
+--- a/scripts/build-static.js
++++ b/scripts/build-static.js
+@@ -99,6 +99,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
+ // The browser-safe module allowlist is shared with the server's /lib/ route.
+ import { LIB_MODULES, LIB_SOURCES_DIR, isLibModule } from '../server/lib-modules.js';
+ import { BETA_POSTING_HOSTS, BETA_POSTING_PREFIXES } from './links-policy.js';
++import { unpackJobs, PACKED_FORMAT } from '../public/api.js';
+ 
+ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+ const args = process.argv.slice(2);
+@@ -172,7 +173,8 @@ function commonPrefix(strs) {
+   return p;
+ }
+ 
+-// melon-packed-2: top-level fields that EVERY job carries are stored once per
++// melon-packed-2 (melon-packed-3 adds the encodings in public/api.js#unpackJobs's header, only where
++// reversible): top-level fields that EVERY job carries are stored once per
+ // list as columns (the key is written once, not per job); all-boolean columns
+ // as 0/1; low-cardinality ones as dict indexes (firstSeenAt has one value per
+ // ledger run). String enums inside salary are dict indexes too. A field missing
+@@ -191,8 +193,27 @@ const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+ const sameKeys = (o, keys) => { const k = Object.keys(o); return k.length === keys.length && keys.every((x) => has(o, x)); };
+ const exactIso = (v) => typeof v === 'string' && !Number.isNaN(Date.parse(v)) && new Date(Date.parse(v)).toISOString() === v;
+ 
+-/** Pack a plain list payload as PACKED_FORMAT (decoded by public/api.js#unpackJobs). */
+-function packList(list, PACKED_FORMAT) {
++/** [most common non-null key(x) over xs, its count] (the first to reach the top count wins), or null. */
++function mostCommon(xs, key) {
++  const n = new Map();
++  let best = null;
++  for (const x of xs) {
++    const k = key(x);
++    if (k == null) continue;
++    const c = (n.get(k) || 0) + 1;
++    n.set(k, c);
++    if (!best || c > best[1]) best = [k, c];
++  }
++  return best;
++}
++const KEY_SEP = '\u0000';
++const plainKeys = (keys) => !keys.includes('__proto__');
++
++/**
++ * Pack a plain list payload (decoded by public/api.js#unpackJobs). `v3` (the default) writes
++ * melon-packed-3; `v3: false` writes melon-packed-2 exactly as before (the build compares the two).
++ */
++export function packList(list, api, { v3 = true } = {}) {
+   const index = new Map();
+   const dict = [];
+   const ref = (v) => {
+@@ -221,16 +242,42 @@ function packList(list, PACKED_FORMAT) {
+   }
+   const firstSalary = jobs.find((j) => j.salary && typeof j.salary === 'object' && !Array.isArray(j.salary));
+   const salaryKeys = firstSalary ? Object.keys(firstSalary.salary) : [];
+-  const packed = jobs.map((j) => {
++  const salaryRefs = v3 ? api.SALARY_REFS_3 : SALARY_REFS;
++  // melon-packed-3: the list's most common salary.ranges[] key order, and its url template.
++  const allRanges = v3 ? jobs.flatMap((j) => (j.salary && typeof j.salary === 'object' && Array.isArray(j.salary.ranges) ? j.salary.ranges : [])) : [];
++  const rangeTop = mostCommon(allRanges, (r) => (r && typeof r === 'object' && !Array.isArray(r) && plainKeys(Object.keys(r)) ? Object.keys(r).join(KEY_SEP) : null));
++  const rangeKeys = rangeTop ? rangeTop[0].split(KEY_SEP) : null;
++  const localId = (j) => String(j.id).slice(idPrefix.length);
++  const templateOf = (j) => {
++    if (typeof j.url !== 'string') return null;
++    const id = localId(j);
++    let t = id ? j.url.split(id).join('{id}') : j.url;
++    const slug = api.urlSlug(j.title);
++    if (slug && slug.length >= 3) t = t.split(slug).join('{slug}');
++    return t !== j.url && api.fillUrlTemplate(t, id, j.title) === j.url ? t : null;
++  };
++  const urlTop = v3 ? mostCommon(jobs, templateOf) : null;
++  const urlTemplate = urlTop && urlTop[1] >= 2 && urlTop[1] * 2 >= jobs.length ? urlTop[0] : null;
++  const packRange = (r) => {
++    if (!rangeKeys || !r || typeof r !== 'object' || Array.isArray(r) || Object.keys(r).join(KEY_SEP) !== rangeTop[0]) return r;
++    if (!api.RANGE_REFS.every((k) => r[k] == null || typeof r[k] === 'string')) return r;
++    return rangeKeys.map((k) => (api.RANGE_REFS.includes(k) && typeof r[k] === 'string' ? ref(r[k]) : r[k]));
++  };
++  let packed = jobs.map((j) => {
+     const { company, companyName, sections, ...r } = j;
+     for (const c of columns) delete r[c.key];
+     if (r.salary && typeof r.salary === 'object') {
+       const sal = { ...r.salary };
+-      for (const k of SALARY_REFS) if (typeof sal[k] === 'string') sal[k] = ref(sal[k]);
+-      r.salary = salaryKeys.length && sameKeys(sal, salaryKeys) ? salaryKeys.map((k) => sal[k]) : sal;
++      for (const k of salaryRefs) if (typeof sal[k] === 'string') sal[k] = ref(sal[k]);
++      if (rangeKeys && Array.isArray(sal.ranges)) sal.ranges = sal.ranges.map(packRange);
++      const keys = Object.keys(sal);
++      if (salaryKeys.length && sameKeys(sal, salaryKeys)) r.salary = salaryKeys.map((k) => sal[k]);
++      else if (v3 && salaryKeys.length && keys.length > salaryKeys.length && salaryKeys.every((k, n) => keys[n] === k) && plainKeys(keys)) {
++        r.salary = [...salaryKeys.map((k) => sal[k]), Object.fromEntries(keys.slice(salaryKeys.length).map((k) => [k, sal[k]]))];
++      } else r.salary = sal;
+     }
+-    r.id = String(j.id).slice(idPrefix.length);
+-    r.url = j.url == null ? null : j.url.slice(urlPrefix.length);
++    r.id = localId(j);
++    r.url = j.url == null ? null : urlTemplate && api.fillUrlTemplate(urlTemplate, r.id, j.title) === j.url ? 0 : j.url.slice(urlPrefix.length);
+     for (const k of ['department', 'team', 'employmentType', 'seniority']) r[k] = ref(j[k]);
+     r.locations = (j.locations || []).map(ref);
+     const kw = j.keywords || {};
+@@ -239,7 +286,18 @@ function packList(list, PACKED_FORMAT) {
+     if (hasSections(sections)) r.sections = sections;
+     return r;
+   });
+-  return { ...list, format: PACKED_FORMAT, shared: { company: first.company, companyName: first.companyName, idPrefix, urlPrefix, salaryKeys }, dict, columns, jobs: packed };
++  const shared = { company: first.company, companyName: first.companyName, idPrefix, urlPrefix, salaryKeys };
++  if (v3) {
++    // Rows with the most common key order become value arrays (shared.rowKeys).
++    const rowTop = mostCommon(packed, (r) => (plainKeys(Object.keys(r)) ? Object.keys(r).join(KEY_SEP) : null));
++    if (rowTop) {
++      shared.rowKeys = rowTop[0].split(KEY_SEP);
++      packed = packed.map((r) => (Object.keys(r).join(KEY_SEP) === rowTop[0] ? shared.rowKeys.map((k) => r[k]) : r));
++    }
++    if (rangeKeys) shared.rangeKeys = rangeKeys;
++    if (urlTemplate) shared.urlTemplate = urlTemplate;
++  }
++  return { ...list, format: v3 ? api.PACKED_FORMAT : 'melon-packed-2', shared, dict, columns, jobs: packed };
+ }
+ 
+ /** Key-order-insensitive deep equality (for the pack round-trip check). */
+@@ -260,7 +318,7 @@ const hasSections = (s) => !!s && ((s.responsibilities || []).length > 0 || (s.f
+  * Returns { list, details: Map(descPath -> record), sectionsMoved }. With `vet` (vetSalaries),
+  * a list it leaves unchanged is marked `shared.vetted`.
+  */
+-function splitPayload(payload, api, vet = null) {
++export function splitPayload(payload, api, vet = null) {
+   const { descPath } = api;
+   const build = (moveSections) => {
+     const details = new Map();
+@@ -279,11 +337,14 @@ function splitPayload(payload, api, vet = null) {
+       return rest; // no descriptionHtml key -> api.js#getJobDetail fetches it
+     });
+     const plain = { ...payload, jobs };
+-    const packed = packList(plain, api.PACKED_FORMAT);
++    const packed = packList(plain, api);
+     // Round-trip guard: what the browser unpacks must equal what we meant to ship.
+     const back = api.unpackJobs(JSON.parse(JSON.stringify(packed)));
+     const bad = back.findIndex((j, i) => !sameValue(j, jobs[i]));
+     if (back.length !== jobs.length || bad >= 0) throw new Error(`${payload.company && payload.company.slug}: packed list doesn't round-trip (job ${bad})`);
++    // And it must be exactly what melon-packed-2 unpacked to, key order included (perf-mobile-beta-2).
++    const back2 = api.unpackJobs(JSON.parse(JSON.stringify(packList(plain, api, { v3: false }))));
++    if (JSON.stringify(back) !== JSON.stringify(back2)) throw new Error(`${payload.company && payload.company.slug}: melon-packed-3 list unpacks differently from melon-packed-2`);
+     return { list: packed, details, sectionsMoved: moveSections, back };
+   };
+   let out = build(false);
+@@ -727,8 +788,11 @@ export function betaLeaks(out, betaSlugs, { hosts = BETA_POSTING_HOSTS, prefixes
+       const slug = (body.shared && body.shared.company) || (body.company && body.company.slug);
+       if (slugs.has(slug)) v.push(`api/${dir}/${f} holds ${slug} jobs`);
+       const prefix = (body.shared && body.shared.urlPrefix) || '';
+-      const bad = (body.jobs || []).find((j) => j && typeof j.url === 'string' && onBetaHost(prefix + j.url));
+-      if (bad) v.push(`api/${dir}/${f}: posting URL on a beta host (${prefix + bad.url})`);
++      // melon-packed-3 rows and url templates need the decoder; older bodies are read as before.
++      const urls = body.format === PACKED_FORMAT ? unpackJobs(body).map((j) => j.url)
++        : (body.jobs || []).map((j) => (j && typeof j.url === 'string' ? prefix + j.url : null));
++      const bad = urls.find((u) => typeof u === 'string' && onBetaHost(u));
++      if (bad) v.push(`api/${dir}/${f}: posting URL on a beta host (${bad})`);
+     }
+   }
+   return v;
+diff --git a/scripts/external-links.js b/scripts/external-links.js
+index 9bc3f6e..c2912c5 100644
+--- a/scripts/external-links.js
++++ b/scripts/external-links.js
+@@ -22,6 +22,7 @@
+ import fs from 'node:fs';
+ import path from 'node:path';
+ import { fileURLToPath, pathToFileURL } from 'node:url';
++import { unpackJobs, PACKED_FORMAT } from '../public/api.js';
+ 
+ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+ const UA = 'melon-seek-link-check/1 (+https://alvations.github.io/melon-seek/)';
+@@ -54,8 +55,10 @@ export function sample(items, n, seed) {
+   return a.slice(0, k);
+ }
+ 
+-/** Apply URL of every job in a list body (packed melon-packed-1/2 or plain). */
++/** Apply URL of every job in a list body (packed melon-packed-1/2/3 or plain). */
+ export function jobUrls(body) {
++  // melon-packed-3 (row arrays, url templates; docs/process/perf-mobile-beta-2.md) needs the decoder.
++  if (body && body.format === PACKED_FORMAT) return unpackJobs(body).map((j) => (typeof j.url === 'string' && j.url ? j.url : null)).filter(Boolean);
+   const prefix = (body && body.shared && body.shared.urlPrefix) || '';
+   return ((body && body.jobs) || []).map((j) => (typeof j.url === 'string' && j.url ? prefix + j.url : null)).filter(Boolean);
+ }
+diff --git a/test/fixtures/packed-2-reference.js b/test/fixtures/packed-2-reference.js
+new file mode 100644
+index 0000000..ada9698
+--- /dev/null
++++ b/test/fixtures/packed-2-reference.js
+@@ -0,0 +1,122 @@
++// melon-packed-2 as of 31ad25b, VERBATIM (scripts/build-static.js#packList and public/api.js#unpackJobs
++// before docs/process/perf-mobile-beta-2.md): the reference that test/perf-mobile-beta-2.test.js
++// compares melon-packed-3 against. Do not edit; it is the old output by definition.
++const hasSections = (s) => !!s && ((s.responsibilities || []).length > 0 || (s.fit || []).length > 0);
++function commonPrefix(strs) {
++  if (!strs.length) return '';
++  let p = strs[0];
++  for (const s of strs) { while (!s.startsWith(p)) p = p.slice(0, -1); if (!p) break; }
++  return p;
++}
++
++// melon-packed-2: top-level fields that EVERY job carries are stored once per
++// list as columns (the key is written once, not per job); all-boolean columns
++// as 0/1; low-cardinality ones as dict indexes (firstSeenAt has one value per
++// ledger run). String enums inside salary are dict indexes too. A field missing
++// on any job stays inline, so key presence round-trips exactly.
++// Also lossless, only where exactly reversible (else the value stays as is):
++// ISO timestamps that equal their own toISOString() become epoch ms ('ts');
++// salary objects with the list's common key set become value tuples in
++// `shared.salaryKeys` order; keywords become [responsibilities, fit, skills].
++const COLUMN_KEYS = ['postedAt', 'firstSeenAt', 'ageDays', 'ageIsMinimum', 'freshness', 'repost', 'extras', 'reqId', 'remote', 'updatedAt', 'seniorityBasis'];
++// seniorityBasis (norm-7, fix-beta-pay): 'title' | 'pay' | 'default' on every job, one dict index each.
++const DICT_COLUMNS = new Set(['firstSeenAt', 'freshness', 'repost', 'extras', 'seniorityBasis']);
++const TS_COLUMNS = new Set(['postedAt', 'updatedAt']);
++const SALARY_REFS = ['currency', 'interval', 'kind', 'source'];
++const KEYWORD_KEYS = ['responsibilities', 'fit', 'skills'];
++const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
++const sameKeys = (o, keys) => { const k = Object.keys(o); return k.length === keys.length && keys.every((x) => has(o, x)); };
++const exactIso = (v) => typeof v === 'string' && !Number.isNaN(Date.parse(v)) && new Date(Date.parse(v)).toISOString() === v;
++
++/** Pack a plain list payload as PACKED_FORMAT (decoded by public/api.js#unpackJobs). */
++function packList(list, PACKED_FORMAT) {
++  const index = new Map();
++  const dict = [];
++  const ref = (v) => {
++    if (v == null) return null;
++    const k = JSON.stringify(v);
++    if (!index.has(k)) { index.set(k, dict.length); dict.push(v); }
++    return index.get(k);
++  };
++  const jobs = list.jobs;
++  const first = jobs[0] || {};
++  const idPrefix = jobs.length && jobs.every((j) => String(j.id).startsWith(`${j.company}:`) && j.company === first.company) ? `${first.company}:` : '';
++  const urls = jobs.map((j) => j.url).filter((u) => typeof u === 'string');
++  const urlPrefix = urls.length === jobs.length ? commonPrefix(urls) : '';
++  const sameCompany = jobs.every((j) => j.company === first.company && j.companyName === first.companyName);
++  if (!sameCompany) throw new Error(`${list.company && list.company.slug}: jobs from more than one company, can't pack`);
++  const columns = [];
++  for (const key of COLUMN_KEYS) {
++    if (!jobs.length || !jobs.every((j) => has(j, key))) continue;
++    const vals = jobs.map((j) => j[key]);
++    const enc = vals.every((v) => typeof v === 'boolean') ? 'bool' : DICT_COLUMNS.has(key) ? 'dict' : TS_COLUMNS.has(key) ? 'ts' : 'raw';
++    const values = enc === 'bool' ? vals.map((v) => (v ? 1 : 0))
++      : enc === 'dict' ? vals.map(ref)
++      : enc === 'ts' ? vals.map((v) => (exactIso(v) ? Date.parse(v) : v))
++      : vals;
++    columns.push({ key, enc, values });
++  }
++  const firstSalary = jobs.find((j) => j.salary && typeof j.salary === 'object' && !Array.isArray(j.salary));
++  const salaryKeys = firstSalary ? Object.keys(firstSalary.salary) : [];
++  const packed = jobs.map((j) => {
++    const { company, companyName, sections, ...r } = j;
++    for (const c of columns) delete r[c.key];
++    if (r.salary && typeof r.salary === 'object') {
++      const sal = { ...r.salary };
++      for (const k of SALARY_REFS) if (typeof sal[k] === 'string') sal[k] = ref(sal[k]);
++      r.salary = salaryKeys.length && sameKeys(sal, salaryKeys) ? salaryKeys.map((k) => sal[k]) : sal;
++    }
++    r.id = String(j.id).slice(idPrefix.length);
++    r.url = j.url == null ? null : j.url.slice(urlPrefix.length);
++    for (const k of ['department', 'team', 'employmentType', 'seniority']) r[k] = ref(j[k]);
++    r.locations = (j.locations || []).map(ref);
++    const kw = j.keywords || {};
++    const kwRefs = { responsibilities: (kw.responsibilities || []).map(ref), fit: (kw.fit || []).map(ref), skills: (kw.skills || []).map(ref) };
++    r.keywords = j.keywords && sameKeys(j.keywords, KEYWORD_KEYS) && KEYWORD_KEYS.every((k) => Array.isArray(j.keywords[k])) ? KEYWORD_KEYS.map((k) => kwRefs[k]) : kwRefs;
++    if (hasSections(sections)) r.sections = sections;
++    return r;
++  });
++  return { ...list, format: PACKED_FORMAT, shared: { company: first.company, companyName: first.companyName, idPrefix, urlPrefix, salaryKeys }, dict, columns, jobs: packed };
++}
++
++
++export const PACKED_FORMAT = 'melon-packed-2';
++const PACKED_FORMATS = new Set(['melon-packed-1', PACKED_FORMAT]);
++// (SALARY_REFS: the same list as above, declared once here)
++export function unpackJobs(body) {
++  if (!body || !PACKED_FORMATS.has(body.format)) return body && Array.isArray(body.jobs) ? body.jobs : [];
++  const { shared = {}, dict = [] } = body;
++  const at = (i) => (i == null ? null : dict[i]);
++  const kw = (k = {}) => (Array.isArray(k)
++    ? { responsibilities: (k[0] || []).map(at), fit: (k[1] || []).map(at), skills: (k[2] || []).map(at) }
++    : { responsibilities: (k.responsibilities || []).map(at), fit: (k.fit || []).map(at), skills: (k.skills || []).map(at) });
++  const columns = body.format === PACKED_FORMAT && Array.isArray(body.columns) ? body.columns : [];
++  const salaryKeys = Array.isArray(shared.salaryKeys) ? shared.salaryKeys : [];
++  const decode = (c, v) => (c.enc === 'bool' ? (v === 1 ? true : v === 0 ? false : v)
++    : c.enc === 'dict' ? at(v)
++    : c.enc === 'ts' ? (typeof v === 'number' ? new Date(v).toISOString() : v)
++    : v);
++  return body.jobs.map((j, i) => {
++    const job = { ...j };
++    for (const c of columns) job[c.key] = decode(c, c.values[i]);
++    if (columns.length || body.format === PACKED_FORMAT) {
++      if (Array.isArray(job.salary)) job.salary = Object.fromEntries(salaryKeys.map((k, n) => [k, job.salary[n]]));
++      if (job.salary && typeof job.salary === 'object') {
++        const sal = { ...job.salary };
++        for (const k of SALARY_REFS) if (typeof sal[k] === 'number') sal[k] = at(sal[k]);
++        job.salary = sal;
++      }
++    }
++    job.id = (shared.idPrefix || '') + j.id;
++    job.company = shared.company;
++    job.companyName = shared.companyName;
++    job.url = j.url == null ? null : (shared.urlPrefix || '') + j.url;
++    for (const k of ['department', 'team', 'employmentType', 'seniority']) job[k] = at(j[k]);
++    job.locations = (j.locations || []).map(at);
++    job.keywords = kw(j.keywords);
++    job.sections = j.sections || { responsibilities: [], fit: [] };
++    return job;
++  });
++}
++
++export { packList };
+diff --git a/test/perf-mobile-beta-2.test.js b/test/perf-mobile-beta-2.test.js
+new file mode 100644
+index 0000000..3de4831
+--- /dev/null
++++ b/test/perf-mobile-beta-2.test.js
+@@ -0,0 +1,197 @@
++// Second beta performance pass (docs/process/perf-mobile-beta-2.md): Amazon's whole board. Two changes
++// must not change what the app gets:
++//  - melon-packed-3 (scripts/build-static.js#packList, public/api.js#unpackJobs: row arrays, salary
++//    extras and ranges as tuples, salary.text by reference, url templates) unpacks to exactly what the
++//    31ad25b melon-packed-2 code unpacked, key order included. The reference is a verbatim copy of that
++//    code (test/fixtures/packed-2-reference.js);
++//  - getJobs works Juice out once per distinct (salary, locations) of a bundled list and copies it to
++//    the repeats; the result equals unpack -> vetSalaries -> attachJuiceAll, key order included.
++// Builds a temp site (the real Anthropic snapshot when present, else the Greenhouse fixture) for the
++// built lib/ modules and cities, and runs the BUILT api.js.
++// Owner: perf-mobile-beta-2 (public/api.js, scripts/build-static.js).
++import { test, before, after } from 'node:test';
++import assert from 'node:assert/strict';
++import { spawnSync } from 'node:child_process';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import { fileURLToPath, pathToFileURL } from 'node:url';
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const ref = await import(pathToFileURL(path.join(ROOT, 'test', 'fixtures', 'packed-2-reference.js')).href);
++const { packList } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'build-static.js')).href);
++const realFetch = globalThis.fetch;
++let TMP, DIST;
++const readJson = (...p) => JSON.parse(fs.readFileSync(path.join(...p), 'utf8'));
++const rt = (x) => JSON.parse(JSON.stringify(x)); // what the browser gets: the file, parsed
++
++before(async () => {
++  TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'melon-perf-beta2-'));
++  DIST = path.join(TMP, 'dist');
++  const snaps = path.join(TMP, 'snapshots');
++  const empty = path.join(TMP, 'empty');
++  fs.mkdirSync(snaps); fs.mkdirSync(empty);
++  const real = path.join(ROOT, 'data', 'snapshots', 'anthropic.json');
++  if (fs.existsSync(real)) fs.copyFileSync(real, path.join(snaps, 'anthropic.json'));
++  else {
++    const { mapGreenhouseJob } = await import(pathToFileURL(path.join(ROOT, 'server', 'sources', 'greenhouse.js')).href);
++    const { normalizeJobs } = await import(pathToFileURL(path.join(ROOT, 'server', 'normalize.js')).href);
++    const { getCompany } = await import(pathToFileURL(path.join(ROOT, 'server', 'companies.js')).href);
++    const fx = readJson(ROOT, 'test', 'fixtures', 'greenhouse-jobs.json');
++    fs.writeFileSync(path.join(snaps, 'anthropic.json'), JSON.stringify({ mode: 'snapshot', fetchedAt: '2026-10-01T00:00:00.000Z', jobs: normalizeJobs(fx.jobs.map(mapGreenhouseJob), getCompany('anthropic')) }));
++  }
++  const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'build-static.js'), '--out', DIST, '--no-beta'], {
++    cwd: ROOT, env: { ...process.env, MELON_SNAPSHOT_DIR: snaps, MELON_HISTORY_DIR: empty, MELON_BETA_SNAPSHOT_DIR: empty, MELON_BETA_HISTORY_DIR: empty, MELON_BETA_COMPANIES: '' }, encoding: 'utf8', timeout: 180000,
++  });
++  assert.equal(r.status, 0, `build failed:\n${r.stdout}\n${r.stderr}`);
++});
++
++after(() => {
++  globalThis.fetch = realFetch;
++  delete globalThis.MELON_STATIC;
++  delete globalThis.MELON_LIVE_SOURCES;
++  if (TMP) fs.rmSync(TMP, { recursive: true, force: true });
++});
++
++let n = 0;
++/** The built api.js, with fetch() served from the site's files plus `extra` { path: body }. */
++async function siteApi(extra = {}) {
++  globalThis.MELON_STATIC = true;
++  globalThis.MELON_LIVE_SOURCES = [];
++  globalThis.fetch = async (url) => {
++    const u = String(url).split(/[?#]/)[0];
++    if (/^[a-z]+:\/\//i.test(u)) throw new TypeError('Failed to fetch');
++    if (u in extra) return new Response(JSON.stringify(extra[u]), { status: 200, headers: { 'content-type': 'application/json' } });
++    const file = path.join(DIST, decodeURIComponent(u));
++    if (!file.startsWith(DIST) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return new Response('{"error":"Not found"}', { status: 404 });
++    return new Response(fs.readFileSync(file), { status: 200, headers: { 'content-type': 'application/json' } });
++  };
++  return import(`${pathToFileURL(path.join(DIST, 'api.js')).href}?beta2=${++n}`);
++}
++
++/** The site's Anthropic jobs as the build meant to ship them (plain, unpacked). */
++async function anthropicPlain() {
++  const api = await siteApi();
++  const raw = readJson(DIST, 'api', 'jobs', 'anthropic.json');
++  const { format, shared, dict, columns, ...rest } = raw;
++  return { ...rest, jobs: api.unpackJobs(raw) };
++}
++
++/**
++ * A board like Amazon's, built from real jobs: every melon-packed-3 encoding and every fallback, and
++ * many postings that repeat a pay and places (as one requisition posted in many cities).
++ */
++function amazonLike(base) {
++  const src = base.jobs.filter((j) => j.salary && j.locations.length);
++  assert.ok(src.length >= 5, 'enough salaried jobs to build from');
++  const jobs = [];
++  for (let i = 0; i < 600; i++) {
++    const b = src[i % src.length];
++    const loc = b.locations[0];
++    const id = String(10000 + i);
++    const title = i % 41 === 0 ? `Spécialiste ${i % 3}` : i % 37 === 0 ? `Řidič ${i}` : `${b.title} ${i % 9}`;
++    const ascii = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
++    const url = i % 23 === 0 ? `https://www.amazon.jobs/en/jobs/${id}/something-else`
++      : i % 29 === 0 ? null
++        : /^[\x00-\x7f]*$/.test(title) ? `https://www.amazon.jobs/en/jobs/${id}/${ascii(title)}` : `https://www.amazon.jobs/en/jobs/${id}/${encodeURIComponent(title)}`;
++    const salary = { ...b.salary };
++    if (i % 3 === 0) {
++      salary.ranges = [
++        { min: salary.min, max: salary.max, currency: salary.currency || 'USD', interval: 'year', label: loc.rawName || loc.name },
++        { min: (salary.min || 0) + 1000, max: (salary.max || 0) + 1000, currency: 'USD', interval: 'year', label: `Other ${i % 4}` },
++      ];
++      if (i % 9 === 0) salary.ranges.push({ label: 'key order differs', min: 1, max: 2, currency: 'USD', interval: 'year' });
++      if (i % 27 === 0) salary.ranges.push({ min: 1, max: 2, currency: 'USD', interval: 'year', label: 7 });
++    }
++    if (i % 5 === 0) salary.originalInterval = 'hour';
++    if (i % 10 === 0) { salary.partTime = true; if (i % 20 === 0) salary.hoursPerWeek = 20; }
++    if (i % 7 === 0) salary.currency = 'CAD';
++    const job = { ...b, id: `zz:${id}`, company: 'zz', companyName: 'Zz', title, url, salary };
++    if (i % 31 === 0) job.salary = Object.fromEntries(Object.entries(salary).reverse()); // keys in another order
++    if (i % 43 === 0) job.salary = null;
++    if (i % 47 === 0) job.pool = true;
++    if (i % 53 === 0) job.descriptionHtml = '';
++    if (i % 59 === 0) job.sections = { responsibilities: ['Lead the team'], fit: [] };
++    jobs.push(job);
++  }
++  return { company: { slug: 'zz', name: 'Zz' }, mode: 'snapshot', fetchedAt: '2026-10-11T00:00:00.000Z', error: null, jobs };
++}
++
++test('melon-packed-3 unpacks to exactly the 31ad25b melon-packed-2 output, key order included', async () => {
++  const api = await siteApi();
++  const anth = await anthropicPlain();
++  const lists = [anth, amazonLike(anth)];
++  for (const list of lists) {
++    const v3 = rt(packList(list, api));
++    assert.equal(v3.format, 'melon-packed-3');
++    const got = api.unpackJobs(v3);
++    const old = ref.unpackJobs(rt(ref.packList(list, 'melon-packed-2')));
++    assert.deepStrictEqual(got, old, `${list.company.slug}: same jobs`);
++    assert.equal(JSON.stringify(got), JSON.stringify(old), `${list.company.slug}: same key order`);
++    // The new decoder still reads the old format the same way.
++    assert.equal(JSON.stringify(api.unpackJobs(rt(ref.packList(list, 'melon-packed-2')))), JSON.stringify(old), 'melon-packed-2 still decodes');
++    assert.ok(JSON.stringify(v3).length < JSON.stringify(rt(ref.packList(list, 'melon-packed-2'))).length, 'smaller');
++  }
++  // Not vacuous: the Amazon-like list uses each new encoding, and each fallback.
++  const v3 = rt(packList(lists[1], api));
++  const rows = v3.jobs.filter(Array.isArray);
++  assert.ok(rows.length > 500 && rows.length < 600, `${rows.length} row arrays, some objects`);
++  assert.equal(v3.shared.urlTemplate, 'https://www.amazon.jobs/en/jobs/{id}/{slug}');
++  const urlAt = v3.shared.rowKeys.indexOf('url');
++  assert.ok(rows.filter((r) => r[urlAt] === 0).length > 400, 'templated urls');
++  assert.ok(rows.some((r) => typeof r[urlAt] === 'string'), 'urls kept as written where the template does not give them');
++  assert.deepEqual(v3.shared.rangeKeys, ['min', 'max', 'currency', 'interval', 'label']);
++  const salAt = v3.shared.rowKeys.indexOf('salary');
++  const sals = v3.jobs.map((r) => (Array.isArray(r) ? r[salAt] : r.salary)).filter(Boolean);
++  const extras = sals.filter((s) => Array.isArray(s) && s.length === v3.shared.salaryKeys.length + 1);
++  assert.ok(extras.length > 100, 'salary tuples with extras');
++  assert.ok(extras.some((s) => s.at(-1).ranges.some(Array.isArray)) && extras.some((s) => s.at(-1).ranges && s.at(-1).ranges.some((r) => !Array.isArray(r))), 'range tuples and kept range objects');
++  assert.ok(sals.some((s) => !Array.isArray(s)), 'a salary in another key order stays an object');
++});
++
++test('the built site writes melon-packed-3 lists that unpack like melon-packed-2', async () => {
++  const api = await siteApi();
++  const raw = readJson(DIST, 'api', 'jobs', 'anthropic.json');
++  assert.equal(raw.format, 'melon-packed-3');
++  const plain = await anthropicPlain();
++  assert.equal(JSON.stringify(api.unpackJobs(raw)), JSON.stringify(ref.unpackJobs(rt(ref.packList(plain, 'melon-packed-2')))));
++});
++
++test('getJobs: Juice worked out once per distinct pay and places equals attachJuiceAll on every job', async () => {
++  const api0 = await siteApi();
++  const list = rt(packList(amazonLike(await anthropicPlain()), api0));
++  const companies = [...readJson(DIST, 'api', 'companies.json'), { slug: 'zz', name: 'Zz', source: 'amazon', board: 'zz', color: '#ff9900', live: false }];
++  const api = await siteApi({ 'api/companies.json': companies, 'api/jobs/zz.json': list });
++  const { vetSalaries } = await import(pathToFileURL(path.join(DIST, 'lib', 'vet.js')).href);
++  const juice = await import(pathToFileURL(path.join(DIST, 'lib', 'juice.js')).href);
++  const expected = vetSalaries(api.unpackJobs(rt(list)));
++  juice.attachJuiceAll(expected, readJson(DIST, 'api', 'cities.json'));
++  const res = await api.getJobs('zz');
++  assert.deepStrictEqual(res.jobs, expected);
++  assert.equal(JSON.stringify(res.jobs), JSON.stringify(expected), 'same key order');
++  // Not vacuous: repeats, scored jobs and both kinds of "no Juice" reasons.
++  const keys = new Set(expected.map((j) => JSON.stringify([j.salary, j.locations])));
++  assert.ok(expected.length - keys.size >= 100, `${expected.length - keys.size} repeats (${keys.size} distinct of ${expected.length})`);
++  assert.ok(res.jobs.filter((j) => j.juice).length > 50, 'scored');
++  assert.ok(res.jobs.some((j) => j.juiceMissing && j.juiceMissing.code === 'part-time-hours'));
++  // Copies, never shared objects.
++  const scored = res.jobs.filter((j) => j.juice);
++  assert.ok(scored.every((j, i) => i === 0 || j.juice !== scored[0].juice));
++  // And Anthropic, the real list.
++  const real = vetSalaries(api.unpackJobs(readJson(DIST, 'api', 'jobs', 'anthropic.json')));
++  juice.attachJuiceAll(real, readJson(DIST, 'api', 'cities.json'));
++  assert.equal(JSON.stringify((await api.getJobs('anthropic')).jobs), JSON.stringify(real));
++});
++
++test('external-links and betaLeaks read melon-packed-3 urls', async () => {
++  const api = await siteApi();
++  const { jobUrls } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'external-links.js')).href);
++  const { betaLeaks } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'build-static.js')).href);
++  const plain = amazonLike(await anthropicPlain());
++  const v3 = rt(packList(plain, api));
++  assert.deepEqual(jobUrls(v3), plain.jobs.map((j) => j.url).filter(Boolean));
++  const d = path.join(TMP, 'leak');
++  fs.mkdirSync(path.join(d, 'api', 'jobs'), { recursive: true });
++  fs.writeFileSync(path.join(d, 'api', 'jobs', 'zz.json'), JSON.stringify(v3));
++  assert.ok(betaLeaks(d, ['other']).some((x) => /posting URL on a beta host \(https:\/\/www\.amazon\.jobs\//.test(x)), 'a templated Amazon url is found');
++});
+diff --git a/test/static-build.test.js b/test/static-build.test.js
+index 877af32..28e8f36 100644
+--- a/test/static-build.test.js
++++ b/test/static-build.test.js
+@@ -199,10 +199,10 @@ test('server mode: juice attached client-side from api/cities', async () => {
+ const readJson = (...p) => JSON.parse(fs.readFileSync(path.join(...p), 'utf8'));
+ const withoutHtml = (j) => { const { descriptionHtml, ...rest } = j; return rest; };
+ 
+-test('v2: melon-packed-2 list round-trips every v2 field exactly', async () => {
++test('v2: the packed list (melon-packed-3 since perf-mobile-beta-2) round-trips every v2 field exactly', async () => {
+   const api = await freshApi();
+   const raw = readJson(DIST2, 'api', 'jobs', 'anthropic.json');
+-  assert.equal(raw.format, 'melon-packed-2');
++  assert.equal(raw.format, 'melon-packed-3');
+   assert.ok(Array.isArray(raw.columns) && raw.columns.some((c) => c.key === 'postedAt'), 'v2 fields stored as columns');
+   // Independent of the build's own check: recompute what it should have shipped.
+   const { vetSalaries } = await import(pathToFileURL(path.join(ROOT, 'server', 'vet.js')).href);
+-- 
+2.43.0
+

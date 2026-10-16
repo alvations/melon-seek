@@ -1,0 +1,226 @@
+From fdff79f0772ac26e1031ae9bf5f09c0977e34229 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 11 Oct 2026 20:51:10 +0000
+Subject: [PATCH 2/6] Juice in time slices (the per-pay memo measured no
+ faster: copying or keying cost as much); sections budget on melon-packed-2
+ bytes; readableTitle memo patch
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ ...erf-mobile-beta-2-readable-title-memo.diff | 30 ++++++++++++++
+ .../perf-mobile-beta-2-title-check.mjs        | 20 ++++++++++
+ public/api.js                                 | 40 +++----------------
+ scripts/build-static.js                       |  9 +++--
+ test/perf-mobile-beta-2.test.js               | 13 ++----
+ 5 files changed, 65 insertions(+), 47 deletions(-)
+ create mode 100644 docs/process/patches/perf-mobile-beta-2-readable-title-memo.diff
+ create mode 100644 docs/process/scripts/perf-mobile-beta-2-title-check.mjs
+
+diff --git a/docs/process/patches/perf-mobile-beta-2-readable-title-memo.diff b/docs/process/patches/perf-mobile-beta-2-readable-title-memo.diff
+new file mode 100644
+index 0000000..4fa4b3e
+--- /dev/null
++++ b/docs/process/patches/perf-mobile-beta-2-readable-title-memo.diff
+@@ -0,0 +1,30 @@
++--- a/public/features/roles.js
+++++ b/public/features/roles.js
++@@ -124,6 +124,11 @@
++ ];
++ const initials = (words) => words.split(/[\s-]+/).filter(Boolean).map((w) => w[0]).join('').toUpperCase();
++ 
+++// readableTitle is pure and runs once per posting in app.js#prepare, before the first card: about
+++// 0.3 s at 4x CPU for Amazon's 22,415 postings, whose titles repeat (docs/process/perf-mobile-beta-2.md).
+++// Results are memoized like expandTitle's.
+++const READABLE = new Map();
+++
++ /**
++  * Title for display: role abbreviations written out, and a "(FDE)" that only repeats the words
++  * before it ("Forward Deployed Engineer (FDE)") dropped. The posted title is kept by the caller.
++@@ -131,6 +136,15 @@
++  * @returns {string}
++  */
++ export function readableTitle(title) {
+++  const key = String(title || '');
+++  let t = READABLE.get(key);
+++  if (t === undefined) {
+++    if (READABLE.size >= EXPANDED_MAX) READABLE.clear();
+++    READABLE.set(key, (t = readable(key)));
+++  }
+++  return t;
+++}
+++function readable(title) {
++   // UX-32: a list number left at the front of a posted title ("8. Mixed Signal Design Engineer") is not part
++   // of the role's name; the drawer still shows the posted title ("Posted as …").
++   let t = String(title || '').replace(/^\s*\d{1,2}[.)]\s+(?=[A-Za-z])/, '');
+diff --git a/docs/process/scripts/perf-mobile-beta-2-title-check.mjs b/docs/process/scripts/perf-mobile-beta-2-title-check.mjs
+new file mode 100644
+index 0000000..0e4bae4
+--- /dev/null
++++ b/docs/process/scripts/perf-mobile-beta-2-title-check.mjs
+@@ -0,0 +1,20 @@
++// perf-mobile-beta-2-readable-title-memo.diff: the patched roles.js#readableTitle equals the unpatched one
++// for every title of every list of a build, twice (the second pass reads the memo).
++// usage: node perf-mobile-beta-2-title-check.mjs <roles.js> <patched roles.js> <dist>
++import fs from 'node:fs';
++import path from 'node:path';
++import assert from 'node:assert/strict';
++import { pathToFileURL } from 'node:url';
++const [a, b, dist] = process.argv.slice(2).map((p) => path.resolve(p));
++const A = await import(pathToFileURL(a).href);
++const B = await import(pathToFileURL(b).href);
++let n = 0;
++for (const site of [dist, path.join(dist, 'beta')]) {
++  const api = await import(pathToFileURL(path.join(site, 'api.js')).href);
++  for (const f of fs.readdirSync(path.join(site, 'api', 'jobs'))) {
++    const jobs = api.unpackJobs(JSON.parse(fs.readFileSync(path.join(site, 'api', 'jobs', f), 'utf8')));
++    for (let pass = 0; pass < 2; pass++) for (const j of jobs) { assert.equal(B.readableTitle(j.title), A.readableTitle(j.title), j.title); n++; }
++  }
++}
++for (const t of [undefined, null, '', 0, '8. Mixed Signal Design Engineer', 'Forward Deployed Engineer (FDE)']) assert.equal(B.readableTitle(t), A.readableTitle(t));
++console.log(`readableTitle identical on ${n} titles`);
+diff --git a/public/api.js b/public/api.js
+index 88369f3..3a0994e 100644
+--- a/public/api.js
++++ b/public/api.js
+@@ -52,8 +52,7 @@
+ //    browser's second vetting pass.
+ // Amazon's whole board (docs/process/perf-mobile-beta-2.md), also behaviour-identical:
+ //  - lists are melon-packed-3 (unpackJobs): about a third smaller, and faster to parse and unpack;
+-//  - Juice is worked out once per distinct (salary, locations) of a bundled list and copied to the
+-//    repeats (attachJuiceOnce), in time slices instead of fixed 400-job chunks.
++//  - Juice runs in time slices (JUICE_SLICE_MS) instead of fixed 400-job chunks (up to 290 ms each).
+ //
+ // Every function resolves to the HTTP API shapes in docs/CONTRACT.md, with one
+ // exception: to keep bundles small, jobs from the static build's bundled lists
+@@ -812,48 +811,19 @@ const juiceInputs = ({ refresh = false } = {}) => Promise.all([getCities({ refre
+ const JUICE_SLICE_MS = 40;
+ const now = () => (g.performance && typeof g.performance.now === 'function' ? g.performance.now() : Date.now());
+ 
+-/**
+- * attachJuice for one job, worked out once per distinct (salary, locations) of a bundled list
+- * (docs/process/perf-mobile-beta-2.md). juice.js#attachJuice reads only job.salary and job.locations
+- * (with the same cities and no options), so a job with the same two values as an earlier one gets a
+- * structured copy of that job's result: the same `juice` and `juiceMissing`, set in the same order
+- * (attachJuice sets `juice` to null and deletes `juiceMissing` first). Repeats are common: one
+- * requisition posted in many places, one pay range for a family of roles (Amazon: many postings
+- * share an exact pay and place). The key is the JSON of the two values, exact for a list read from
+- * JSON (bundled lists only; `memo` is null otherwise). test/perf-mobile-beta-2.test.js checks the
+- * result equals attachJuiceAll on every bundled list.
+- */
+-function attachJuiceOnce(juice, job, cities, memo) {
+-  const key = memo && job && typeof job === 'object' ? JSON.stringify([job.salary, job.locations]) : null;
+-  const done = key == null ? undefined : memo.get(key);
+-  if (!done) {
+-    juice.attachJuice(job, cities);
+-    if (key != null) memo.set(key, job);
+-    return;
+-  }
+-  job.juice = null;
+-  delete job.juiceMissing;
+-  job.juice = done.juice == null ? done.juice : structuredClone(done.juice);
+-  if (Object.prototype.hasOwnProperty.call(done, 'juiceMissing')) job.juiceMissing = structuredClone(done.juiceMissing);
+-}
+-
+-/**
+- * Attach juice to every job of a getJobs result (mutates it); true when juice was computed.
+- * `bundledList`: the jobs were read from a bundled JSON list (exact keys for attachJuiceOnce).
+- */
+-async function withJuice(res, inputs, { bundledList = false } = {}) {
++/** Attach juice to every job of a getJobs result (mutates it); true when juice was computed. */
++async function withJuice(res, inputs) {
+   if (!res || !Array.isArray(res.jobs)) return false;
+   const [cities, juice] = await inputs;
+   let ok = false;
+   if (cities && juice) {
+     try {
+       const jobs = res.jobs;
+-      const memo = bundledList && typeof structuredClone === 'function' ? new Map() : null;
+       // attachJuice (attachJuiceAll's step) is per job, so slices give exactly the same result.
+       for (let i = 0; i < jobs.length;) {
+         await yieldToMain();
+         const t0 = now();
+-        do attachJuiceOnce(juice, jobs[i++], cities, memo); while (i < jobs.length && now() - t0 < JUICE_SLICE_MS);
++        do juice.attachJuice(jobs[i++], cities); while (i < jobs.length && now() - t0 < JUICE_SLICE_MS);
+       }
+       ok = true;
+     } catch { ok = false; }
+@@ -889,7 +859,7 @@ export async function getJobs(params, { refresh = false, signal, onUpdate = null
+         await yieldToMain();
+         out = { ...out, jobs: lib.vetSalaries(out.jobs) };
+       }
+-      if (await withJuice(out, inputs, { bundledList: bundleOrigin.has(raw) })) rememberBundle(raw, out.jobs);
++      if (await withJuice(out, inputs)) rememberBundle(raw, out.jobs);
+       return out;
+     };
+     // The live fetch behind a `pending` bundle ended (staticJobs step 1): a live board is
+diff --git a/scripts/build-static.js b/scripts/build-static.js
+index f54607b..aac3d79 100644
+--- a/scripts/build-static.js
++++ b/scripts/build-static.js
+@@ -343,12 +343,15 @@ export function splitPayload(payload, api, vet = null) {
+     const bad = back.findIndex((j, i) => !sameValue(j, jobs[i]));
+     if (back.length !== jobs.length || bad >= 0) throw new Error(`${payload.company && payload.company.slug}: packed list doesn't round-trip (job ${bad})`);
+     // And it must be exactly what melon-packed-2 unpacked to, key order included (perf-mobile-beta-2).
+-    const back2 = api.unpackJobs(JSON.parse(JSON.stringify(packList(plain, api, { v3: false }))));
++    const v2 = JSON.stringify(packList(plain, api, { v3: false }));
++    const back2 = api.unpackJobs(JSON.parse(v2));
+     if (JSON.stringify(back) !== JSON.stringify(back2)) throw new Error(`${payload.company && payload.company.slug}: melon-packed-3 list unpacks differently from melon-packed-2`);
+-    return { list: packed, details, sectionsMoved: moveSections, back };
++    return { list: packed, details, sectionsMoved: moveSections, back, v2Bytes: Buffer.byteLength(v2) };
+   };
+   let out = build(false);
+-  if (Buffer.byteLength(JSON.stringify(out.list)) > LIST_BUDGET) out = build(true);
++  // The budget is measured in melon-packed-2 bytes, as before melon-packed-3, so the same lists move
++  // their sections out (what getJobs returns stays the same; docs/process/perf-mobile-beta-2.md).
++  if (out.v2Bytes > LIST_BUDGET) out = build(true);
+   // shared.vetted (docs/process/perf-mobile-beta.md): the browser's salary gate (api.js#getJobs, the
+   // same server/vet.js code as lib/vet.js) would return the very list it unpacks, flagging nothing,
+   // so api.js skips it. Checked here on exactly what the browser unpacks.
+diff --git a/test/perf-mobile-beta-2.test.js b/test/perf-mobile-beta-2.test.js
+index 3de4831..2619d27 100644
+--- a/test/perf-mobile-beta-2.test.js
++++ b/test/perf-mobile-beta-2.test.js
+@@ -4,8 +4,7 @@
+ //    extras and ranges as tuples, salary.text by reference, url templates) unpacks to exactly what the
+ //    31ad25b melon-packed-2 code unpacked, key order included. The reference is a verbatim copy of that
+ //    code (test/fixtures/packed-2-reference.js);
+-//  - getJobs works Juice out once per distinct (salary, locations) of a bundled list and copies it to
+-//    the repeats; the result equals unpack -> vetSalaries -> attachJuiceAll, key order included.
++//  - getJobs (Juice now in time slices) equals unpack -> vetSalaries -> attachJuiceAll, key order included.
+ // Builds a temp site (the real Anthropic snapshot when present, else the Greenhouse fixture) for the
+ // built lib/ modules and cities, and runs the BUILT api.js.
+ // Owner: perf-mobile-beta-2 (public/api.js, scripts/build-static.js).
+@@ -157,7 +156,7 @@ test('the built site writes melon-packed-3 lists that unpack like melon-packed-2
+   assert.equal(JSON.stringify(api.unpackJobs(raw)), JSON.stringify(ref.unpackJobs(rt(ref.packList(plain, 'melon-packed-2')))));
+ });
+ 
+-test('getJobs: Juice worked out once per distinct pay and places equals attachJuiceAll on every job', async () => {
++test('getJobs on a melon-packed-3 Amazon-like list (Juice in time slices) equals unpack -> vetSalaries -> attachJuiceAll', async () => {
+   const api0 = await siteApi();
+   const list = rt(packList(amazonLike(await anthropicPlain()), api0));
+   const companies = [...readJson(DIST, 'api', 'companies.json'), { slug: 'zz', name: 'Zz', source: 'amazon', board: 'zz', color: '#ff9900', live: false }];
+@@ -169,14 +168,9 @@ test('getJobs: Juice worked out once per distinct pay and places equals attachJu
+   const res = await api.getJobs('zz');
+   assert.deepStrictEqual(res.jobs, expected);
+   assert.equal(JSON.stringify(res.jobs), JSON.stringify(expected), 'same key order');
+-  // Not vacuous: repeats, scored jobs and both kinds of "no Juice" reasons.
+-  const keys = new Set(expected.map((j) => JSON.stringify([j.salary, j.locations])));
+-  assert.ok(expected.length - keys.size >= 100, `${expected.length - keys.size} repeats (${keys.size} distinct of ${expected.length})`);
++  // Not vacuous: scored jobs and a "no Juice" reason.
+   assert.ok(res.jobs.filter((j) => j.juice).length > 50, 'scored');
+   assert.ok(res.jobs.some((j) => j.juiceMissing && j.juiceMissing.code === 'part-time-hours'));
+-  // Copies, never shared objects.
+-  const scored = res.jobs.filter((j) => j.juice);
+-  assert.ok(scored.every((j, i) => i === 0 || j.juice !== scored[0].juice));
+   // And Anthropic, the real list.
+   const real = vetSalaries(api.unpackJobs(readJson(DIST, 'api', 'jobs', 'anthropic.json')));
+   juice.attachJuiceAll(real, readJson(DIST, 'api', 'cities.json'));
+@@ -195,3 +189,4 @@ test('external-links and betaLeaks read melon-packed-3 urls', async () => {
+   fs.writeFileSync(path.join(d, 'api', 'jobs', 'zz.json'), JSON.stringify(v3));
+   assert.ok(betaLeaks(d, ['other']).some((x) => /posting URL on a beta host \(https:\/\/www\.amazon\.jobs\//.test(x)), 'a templated Amazon url is found');
+ });
++
+-- 
+2.43.0
+

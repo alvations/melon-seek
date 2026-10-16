@@ -1,0 +1,78 @@
+From 8df4f2f7df6bef3fb3e1e405bebb2508ad155bce Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 11 Oct 2026 22:05:12 +0000
+Subject: [PATCH 3/6] fix-density: tests that pinned the old long lines read
+ the line and its Details (same facts)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ test/beta-methodology.test.js | 3 ++-
+ test/e2e/fix-beta-app.e2e.js  | 4 +++-
+ test/e2e/fix3-compare.e2e.js  | 5 +++--
+ test/e2e/fix3-viz.e2e.js      | 2 +-
+ 4 files changed, 9 insertions(+), 5 deletions(-)
+
+diff --git a/test/beta-methodology.test.js b/test/beta-methodology.test.js
+index 783eb9d..3e17353 100644
+--- a/test/beta-methodology.test.js
++++ b/test/beta-methodology.test.js
+@@ -72,7 +72,8 @@ test('MR-2 chart: the footnote text (not only its hover title) gives the exchang
+   assert.match(text, NAMES_FX_DATE, `${at}: the date is only in foot.title, which a phone cannot show`);
+ });
+ test('MR-2 Market insights: the header that says "pay in approx. USD" gives the exchange-rate date', () => {
+-  const { at, text } = lineWith('public/features/insights.js', 'on this board · pay in approx. USD');
++  // fix-density: the header's Details list ("Pay in approx. US dollars at Jul 2026 exchange rates").
++  const { at, text } = lineWith('public/features/insights.js', 'Pay in approx. US dollars');
+   assert.match(text, NAMES_FX_DATE, `${at} names the postings date but not the exchange rates'`);
+ });
+ 
+diff --git a/test/e2e/fix-beta-app.e2e.js b/test/e2e/fix-beta-app.e2e.js
+index a732936..7d514bf 100644
+--- a/test/e2e/fix-beta-app.e2e.js
++++ b/test/e2e/fix-beta-app.e2e.js
+@@ -127,7 +127,9 @@ export function registerFixBetaAppTests(suite) {
+     job.salary.zones = 2;
+     const { page } = await open(ctx, st, { url: `${st.beta}/#c=nvidia&job=${encodeURIComponent(job.id)}`, lists: { 'beta/nvidia': body } });
+     await page.waitForSelector('#drawer.is-open'); await sleep(500);
+-    assertEq((await page.locator('#drawer .d-sal-levels').innerText()).trim(), 'Pay by level: Level 2: $184K–287.5K · Level 3: $224K–356.5K', 'pay by level');
++    // fix-density: one short row per level ("Level 2  $184K–287.5K") under "Pay by level".
++    const rows = await page.locator('#drawer .d-sal-levels .d-tiers li').evaluateAll((li) => li.map((e) => [...e.children].map((c) => c.textContent.trim()).join(': ')));
++    assertEq(`${(await page.locator('#drawer .d-sal-levels .d-tiers-title').innerText()).trim()}: ${rows.join(' · ')}`, 'Pay by level: Level 2: $184K–287.5K · Level 3: $224K–356.5K', 'pay by level');
+     const labels = await page.locator('#drawer .pay-label').allInnerTexts();
+     assert(!labels.includes('Multiple pay zones'), `labels ${labels.join(', ')}`);
+   });
+diff --git a/test/e2e/fix3-compare.e2e.js b/test/e2e/fix3-compare.e2e.js
+index c1e1ced..19d57ba 100644
+--- a/test/e2e/fix3-compare.e2e.js
++++ b/test/e2e/fix3-compare.e2e.js
+@@ -131,10 +131,11 @@ export function registerFix3CompareTests(suite) {
+     const { page, errors } = await open(ctx, st);
+     await drawerComps(page, st.beta, 'google', pl[0].id);
+     const text = (await page.locator('#drawer .d-pct-text').textContent()).trim();
+-    assert(/^(Pays more than \d+% of|The top pay of|The highest pay of|The lowest pay of) Google’s roles in Poland that show pay$/.test(text), `Warsaw role: "${text}"`);
++    assert(/^(Pays more than \d+% of|The top pay of|The highest pay of|The lowest pay of) Google’s roles in Poland$/.test(text), `Warsaw role: "${text}"`); // fix-density: "that show pay" is in the pay block's Details
++    assert(/Ranked among Google’s roles in Poland that show pay/.test(await page.locator('#drawer .d-pay-note .ms-note__list').textContent()), 'the Details say what it ranks among');
+     await drawerComps(page, st.beta, 'google', us.id);
+     const usText = (await page.locator('#drawer .d-pct-text').textContent()).trim();
+-    assert(/Google’s roles in the US that show pay$/.test(usText), `US role: "${usText}"`);
++    assert(/Google’s roles in the US$/.test(usText), `US role: "${usText}"`);
+     assert(!errors.length, errors.join(' | '));
+   });
+ 
+diff --git a/test/e2e/fix3-viz.e2e.js b/test/e2e/fix3-viz.e2e.js
+index 6aa6c1d..02cfe78 100644
+--- a/test/e2e/fix3-viz.e2e.js
++++ b/test/e2e/fix3-viz.e2e.js
+@@ -90,7 +90,7 @@ async function chartSays(page) {
+       empty: vis(empty) ? empty.textContent : '',
+       cap: host.querySelector('.ms-hist__cap')?.textContent || '',
+       rows: [...host.querySelectorAll('.ms-crow__label')].map((l) => l.getAttribute('aria-label') || ''),
+-      plotted: (/^([\d,]+) postings? with (?:salary|pay)/.exec(vis(foot) ? foot.textContent : '') || [])[1] ?? null,
++      plotted: (/^([\d,]+) (?:postings? )?with (?:salary|pay)/.exec(vis(foot) ? foot.textContent : '') || [])[1] ?? null,
+     };
+   });
+ }
+-- 
+2.43.0
+
