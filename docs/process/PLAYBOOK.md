@@ -172,6 +172,11 @@ don't lose that much." So:
 
 ## Known traps
 
+- **A quoted accuracy line in a product doc is checked as a claim.** `scripts/refresh/jobs.js` reads every
+  "±N% (tested on N …)" in product docs (docs/*.md, not docs/process/) and calls it drift unless a company's
+  backtest matches it or the line marks it as an example ("e.g."). A QA section copied into docs/QA.md on
+  2026-10-16 quoted the Pay estimate card's line plainly, and test/refresh-jobs.test.js failed. Quote it with
+  "e.g." when copying a reviewer's section.
 - **ci.yml has checks that `npm test` does not run.** On 2026-10-16 a list-format change (melon-packed-3)
   passed the whole local gate and turned CI red: ci.yml's "Static build" step read `.jobs[]` with raw jq,
   and packed rows are arrays (run 38930131882). Those checks are now `.github/scripts/check-lists.mjs`

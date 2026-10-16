@@ -2723,7 +2723,7 @@ Screenshots are in `docs/screenshots/qa-mobile-beta-3/`.
   - `ms-comp__explain` is 5 lines / 30 words: "Weighted by similarity to … Low and High leave out the lowest and highest 15% of
     their posted pay; 45 ranges in other currencies converted at approximate rates."
   - `ms-comp__auto` is 2-3 lines / 14 words.
-  - `ms-comp__accuracy` is 2 lines ("Typically within ±10% (tested on 497 listed salaries, Oct 2026)").
+  - `ms-comp__accuracy` is 2 lines (e.g. "Typically within ±10% (tested on 497 listed salaries, Oct 2026)").
   - `ms-comp__asof` is 2 lines.
   - The "Most comparable roles" meta lines are cut ("New York +6 · Level not stated · Software Development").
 - **Screenshots:** `e2e-M-34-pay-estimate-{amazon,google}-{390,360}.png`.
