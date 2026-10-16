@@ -1,0 +1,17 @@
+diff --git a/scripts/build-static.js b/scripts/build-static.js
+index 52627f4..7d6dd19 100644
+--- a/scripts/build-static.js
++++ b/scripts/build-static.js
+@@ -181,9 +181,10 @@ function commonPrefix(strs) {
+ // ISO timestamps that equal their own toISOString() become epoch ms ('ts');
+ // salary objects with the list's common key set become value tuples in
+ // `shared.salaryKeys` order; keywords become [responsibilities, fit, skills].
+-const COLUMN_KEYS = ['postedAt', 'firstSeenAt', 'ageDays', 'ageIsMinimum', 'freshness', 'repost', 'extras', 'reqId', 'remote', 'updatedAt', 'seniorityBasis'];
++const COLUMN_KEYS = ['postedAt', 'firstSeenAt', 'ageDays', 'ageIsMinimum', 'freshness', 'repost', 'extras', 'reqId', 'remote', 'updatedAt', 'seniorityBasis', 'departmentBasis', 'brand'];
+ // seniorityBasis (norm-7, fix-beta-pay): 'title' | 'pay' | 'default' on every job, one dict index each.
+-const DICT_COLUMNS = new Set(['firstSeenAt', 'freshness', 'repost', 'extras', 'seniorityBasis']);
++// departmentBasis and brand (google-grouping): on every Google job, one dict index each.
++const DICT_COLUMNS = new Set(['firstSeenAt', 'freshness', 'repost', 'extras', 'seniorityBasis', 'departmentBasis', 'brand']);
+ const TS_COLUMNS = new Set(['postedAt', 'updatedAt']);
+ const SALARY_REFS = ['currency', 'interval', 'kind', 'source'];
+ const KEYWORD_KEYS = ['responsibilities', 'fit', 'skills'];

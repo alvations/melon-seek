@@ -1,0 +1,147 @@
+{
+ "google-desktop": [
+  "Product Management | 129 roles · median $235K in the US",
+  "Software Engineering | 946 roles · median $222K in the US",
+  "Hardware Engineering | 210 roles · median $199K in the US",
+  "Technical Program Management | 209 roles · median $199K in the US",
+  "Technical Solutions | 441 roles · median $186K in the US",
+  "Sales | 461 roles · median $148K in the US",
+  "Data Center Operations | 221 roles · median $135K in the US",
+  "20 more departments ▾ | 1,204 · $194K US"
+ ],
+ "google-phone": [
+  "Product Management | 129 · $235K US",
+  "Software Engineering | 946 · $222K US",
+  "Hardware Engineering | 210 · $199K US",
+  "Technical Program Management | 209 · $199K US",
+  "Technical Solutions | 441 · $186K US",
+  "Sales | 461 · $148K US",
+  "Data Center Operations | 221 · $135K US",
+  "20 more departments ▾ | 1,204 · $194K US"
+ ],
+ "apple-desktop": [
+  "Machine Learning and AI | 359 roles · median $250K",
+  "Marketing | 151 roles · median $215K",
+  "Hardware | 1,616 roles · median $214K",
+  "Software and Services | 1,365 roles · median $214K",
+  "Operations and Supply Chain | 348 roles · median $204K",
+  "Corporate Functions | 339 roles · median $199K",
+  "Apple Retail | 363 roles · median $71K",
+  "4 more departments ▾ | 310 roles · median $230K"
+ ],
+ "apple-phone": [
+  "Machine Learning and AI | 359 · $250K",
+  "Marketing | 151 · $215K",
+  "Hardware | 1,616 · $214K",
+  "Software and Services | 1,365 · $214K",
+  "Operations and Supply Chain | 348 · $204K",
+  "Corporate Functions | 339 · $199K",
+  "Apple Retail | 363 · $71K",
+  "4 more departments ▾ | 310 · $230K"
+ ],
+ "microsoft-desktop": [
+  "Technical Program Management | 83 roles · median $209K in the US",
+  "Product Management | 94 roles · median $197K in the US",
+  "Software Engineering | 492 roles · median $177K in the US",
+  "Silicon Engineering | 62 roles · median $177K in the US",
+  "Hardware Engineering | 43 roles · median $177K in the US",
+  "Construction Project Management | 57 roles · median $160K in the US",
+  "Cloud Solution Architecture | 113 roles · median $155K in the US",
+  "135 more departments ▾ | 1,491 · $160K US"
+ ],
+ "microsoft-phone": [
+  "Technical Program Management | 83 · $209K US",
+  "Product Management | 94 · $197K US",
+  "Software Engineering | 492 · $177K US",
+  "Silicon Engineering | 62 · $177K US",
+  "Hardware Engineering | 43 · $177K US",
+  "Construction Project Management | 57 · $160K US",
+  "Cloud Solution Architecture | 113 · $155K US",
+  "135 more departments ▾ | 1,491 · $160K US"
+ ],
+ "amazon-desktop": [
+  "Project/Program/Product Management--Technical | 1,215 · $178K US",
+  "Software Development | 2,661 · $169K US",
+  "Hardware Development | 759 roles · median $161K in the US",
+  "Systems, Quality, & Security Engineering | 792 roles · median $161K in the US",
+  "Project/Program/Product Management--Non-Tech | 1,174 roles · median $138K in the US",
+  "Operations, IT, & Support Engineering | 3,234 · $106K US",
+  "Fulfillment & Operations Management | 2,450 · $80K US",
+  "30 more departments ▾ | 9,894 · $138K US"
+ ],
+ "amazon-phone": [
+  "Project/Program/Product Management--Technical | 1,215 · $178K US",
+  "Software Development | 2,661 · $169K US",
+  "Hardware Development | 759 · $161K US",
+  "Systems, Quality, & Security Engineering | 792 · $161K US",
+  "Project/Program/Product Management--Non-Tech | 1,174 · $138K US",
+  "Operations, IT, & Support Engineering | 3,234 · $106K US",
+  "Fulfillment & Operations Management | 2,450 · $80K US",
+  "30 more departments ▾ | 9,894 · $138K US"
+ ],
+ "google-company-desktop": [
+  "DeepMind | 111 roles · median $229K in the US",
+  "YouTube | 162 roles · median $213K in the US",
+  "Google | 3,546 · $199K US",
+  "Wing | 1 role · no published salary",
+  "Waymo | 1 role · no published salary"
+ ],
+ "google-company-phone": [
+  "DeepMind | 111 · $229K US",
+  "YouTube | 162 · $213K US",
+  "Google | 3,546 · $199K US",
+  "Wing | 1 · no salary",
+  "Waymo | 1 · no salary"
+ ],
+ "google-youtube-desktop": [
+  "Software Engineering | 55 roles · median $253K in the US",
+  "User Experience and Design | 10 roles · median $231K in the US",
+  "Product Management | 13 roles · median $199K in the US",
+  "Business Strategy and Operations | 9 roles · median $183K in the US",
+  "Data Science and Analytics | 8 roles · median $173K in the US",
+  "Partnerships and Business Development | 11 roles · median $171K in the US",
+  "No department | 7 roles · median $169K in the US",
+  "11 more departments ▾ | 49 roles · median $173K in the US"
+ ],
+ "google-youtube-phone": [
+  "Software Engineering | 55 · $253K US",
+  "User Experience and Design | 10 · $231K US",
+  "Product Management | 13 · $199K US",
+  "Business Strategy and Operations | 9 · $183K US",
+  "Data Science and Analytics | 8 · $173K US",
+  "Partnerships and Business Development | 11 · $171K US",
+  "No department | 7 · $169K US",
+  "11 more departments ▾ | 49 · $173K US"
+ ],
+ "google-deepmind-company-desktop": [
+  "DeepMind | 111 roles · median $229K in the US"
+ ],
+ "google-deepmind-company-phone": [
+  "DeepMind | 111 · $229K US"
+ ],
+ "groupOptions": [
+  "department:Department (Grouped by job title: Google doesn’t publish departments)",
+  "brand:Company",
+  "location:Location",
+  "seniority:Seniority",
+  "none:None"
+ ],
+ "apple-groupOptions": [
+  "department",
+  "location",
+  "seniority",
+  "none"
+ ],
+ "microsoft-groupOptions": [
+  "department",
+  "location",
+  "seniority",
+  "none"
+ ],
+ "amazon-groupOptions": [
+  "department",
+  "location",
+  "seniority",
+  "none"
+ ]
+}
