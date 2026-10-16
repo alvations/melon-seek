@@ -1,0 +1,216 @@
+{
+ "amazon": {
+  "servedJobs": 22179,
+  "storedJobs": 22179,
+  "storedNormalizer": "norm-9",
+  "notInStored": 0,
+  "salaryAdded": 0,
+  "salaryRemoved": 1,
+  "minMaxChanged": 6,
+  "quarantined": 0,
+  "changedByKind": {
+   "structured->structured": 5,
+   "structured->structured ranges": 1
+  },
+  "examples": [
+   {
+    "id": "amazon:10514229",
+    "stored": [
+     80200,
+     92700,
+     "USD",
+     "USA, WA, Virtual Location - Washington - 80,200.00 - 92,700.00 USD annually"
+    ],
+    "served": [
+     68700,
+     92700,
+     "USD",
+     "USA, VA, Arlington - 68700 - 92700 USD year"
+    ]
+   },
+   {
+    "id": "amazon:10551812",
+    "stored": [
+     40300,
+     40300,
+     "EUR",
+     "Enns, AUT - 3,358.33 EUR Monthly"
+    ],
+    "served": [
+     47000,
+     47000,
+     "EUR",
+     "The minimum basic salary for this position is EUR 47'000 gross annually. (Enns, AUT - 3,358.33 EUR Monthly)"
+    ]
+   },
+   {
+    "id": "amazon:10557624",
+    "stored": [
+     41200,
+     41200,
+     "EUR",
+     "Enns, AUT - 3,433.33 EUR Monthly"
+    ],
+    "served": [
+     47000,
+     47000,
+     "EUR",
+     "The minimum basic salary for this position is EUR 47'000 gross annually. (Enns, AUT - 3,433.33 EUR Monthly)"
+    ]
+   },
+   {
+    "id": "amazon:10559069",
+    "stored": [
+     40300,
+     40300,
+     "EUR",
+     "Enns, AUT - 3,358.33 EUR Monthly"
+    ],
+    "served": [
+     47000,
+     47000,
+     "EUR",
+     "The minimum basic salary for this position is EUR 47'000 gross annually. (Enns, AUT - 3,358.33 EUR Monthly)"
+    ]
+   },
+   {
+    "id": "amazon:10559161",
+    "stored": [
+     77300,
+     135300,
+     "USD",
+     "USA, CA, Virtual Location - California - 77,300.00 - 135,300.00 USD annually"
+    ],
+    "served": [
+     80200,
+     135300,
+     "USD",
+     "USA, WA, Bellevue - 80,200.00 - 135,300.00 USD annually"
+    ]
+   },
+   {
+    "id": "amazon:3184313",
+    "stored": [
+     159200,
+     215300,
+     "USD",
+     "USA, WA, Virtual Location - Washington - 159,200.00 - 215,300.00 USD annually"
+    ],
+    "served": [
+     183000,
+     247600,
+     "USD",
+     "USA, CA, Cupertino - 183000 - 247600 USD year"
+    ]
+   }
+  ]
+ },
+ "apple": {
+  "servedJobs": 4851,
+  "storedJobs": 4851,
+  "storedNormalizer": "norm-9",
+  "notInStored": 0,
+  "salaryAdded": 0,
+  "salaryRemoved": 0,
+  "minMaxChanged": 0,
+  "quarantined": 0,
+  "changedByKind": {},
+  "examples": []
+ },
+ "google": {
+  "servedJobs": 3821,
+  "storedJobs": 3821,
+  "storedNormalizer": "norm-9",
+  "notInStored": 0,
+  "salaryAdded": 0,
+  "salaryRemoved": 0,
+  "minMaxChanged": 0,
+  "quarantined": 1,
+  "changedByKind": {},
+  "examples": []
+ },
+ "meta": {
+  "servedJobs": 1208,
+  "storedJobs": 1208,
+  "storedNormalizer": "norm-9",
+  "notInStored": 0,
+  "salaryAdded": 0,
+  "salaryRemoved": 0,
+  "minMaxChanged": 0,
+  "quarantined": 0,
+  "changedByKind": {},
+  "examples": []
+ },
+ "microsoft": {
+  "servedJobs": 2435,
+  "storedJobs": 2435,
+  "storedNormalizer": "norm-9",
+  "notInStored": 0,
+  "salaryAdded": 1,
+  "salaryRemoved": 0,
+  "minMaxChanged": 0,
+  "quarantined": 0,
+  "changedByKind": {},
+  "examples": []
+ },
+ "nvidia": {
+  "servedJobs": 2711,
+  "storedJobs": 2711,
+  "storedNormalizer": "norm-9",
+  "notInStored": 0,
+  "salaryAdded": 41,
+  "salaryRemoved": 0,
+  "minMaxChanged": 0,
+  "quarantined": 0,
+  "changedByKind": {},
+  "examples": []
+ },
+ "netflix": {
+  "servedJobs": 414,
+  "storedJobs": 414,
+  "storedNormalizer": "norm-9",
+  "notInStored": 0,
+  "salaryAdded": 0,
+  "salaryRemoved": 0,
+  "minMaxChanged": 0,
+  "quarantined": 1,
+  "changedByKind": {},
+  "examples": []
+ },
+ "anduril": {
+  "servedJobs": 2537,
+  "storedJobs": 2537,
+  "storedNormalizer": "norm-9",
+  "notInStored": 0,
+  "salaryAdded": 0,
+  "salaryRemoved": 0,
+  "minMaxChanged": 0,
+  "quarantined": 4,
+  "changedByKind": {},
+  "examples": []
+ },
+ "anthropic": {
+  "servedJobs": 654,
+  "storedJobs": 654,
+  "storedNormalizer": "norm-9",
+  "notInStored": 0,
+  "salaryAdded": 0,
+  "salaryRemoved": 0,
+  "minMaxChanged": 0,
+  "quarantined": 1,
+  "changedByKind": {},
+  "examples": []
+ },
+ "openai": {
+  "servedJobs": 801,
+  "storedJobs": 801,
+  "storedNormalizer": "norm-9",
+  "notInStored": 0,
+  "salaryAdded": 0,
+  "salaryRemoved": 0,
+  "minMaxChanged": 0,
+  "quarantined": 0,
+  "changedByKind": {},
+  "examples": []
+ }
+}

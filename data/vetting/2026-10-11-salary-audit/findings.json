@@ -1,0 +1,595 @@
+{
+ "totals": {
+  "amazon": {
+   "jobs": 22179,
+   "paid": 13979
+  },
+  "apple": {
+   "jobs": 4851,
+   "paid": 2781
+  },
+  "google": {
+   "jobs": 3821,
+   "paid": 2512
+  },
+  "meta": {
+   "jobs": 1208,
+   "paid": 948
+  },
+  "microsoft": {
+   "jobs": 2435,
+   "paid": 1566
+  },
+  "nvidia": {
+   "jobs": 2711,
+   "paid": 1462
+  },
+  "netflix": {
+   "jobs": 414,
+   "paid": 259
+  }
+ },
+ "findings": {
+  "ranges>1 (card reads \"· N places\")": {
+   "byBoard": {
+    "amazon": 2184,
+    "apple": 390
+   },
+   "examples": []
+  },
+  "SA-2": {
+   "byBoard": {
+    "amazon": 2134
+   },
+   "examples": [
+    {
+     "board": "amazon",
+     "id": "amazon:10371179",
+     "title": "Senior Financial Analyst, Engineering Capex Analytics & Planning",
+     "shown": [
+      82700,
+      117100
+     ],
+     "spanOfRanges": [
+      60200,
+      128800
+     ],
+     "ranges": [
+      "New York 73600-128800",
+      "Nashville 60200-105400",
+      "Irving, Arlington 66900-117100",
+      "Bellevue 82700-117100"
+     ],
+     "text": "USA, WA, Bellevue - 82,700.00 - 117,100.00 USD annually"
+    },
+    {
+     "board": "amazon",
+     "id": "amazon:10371388",
+     "title": "Senior Global Category Manager, Amazon Custom Modules",
+     "shown": [
+      147900,
+      200100
+     ],
+     "spanOfRanges": [
+      147900,
+      220200
+     ],
+     "ranges": [
+      "Cupertino 162700-220200",
+      "Austin, Seattle 147900-200100"
+     ],
+     "text": "USA, TX, Austin - 147,900.00 - 200,100.00 USD annually"
+    },
+    {
+     "board": "amazon",
+     "id": "amazon:10371434",
+     "title": "Principal Product Manager - Tech, Live Events Advertising",
+     "shown": [
+      179900,
+      243400
+     ],
+     "spanOfRanges": [
+      179900,
+      279900
+     ],
+     "ranges": [
+      "Palo Alto 206900-279900",
+      "New York 197900-267800",
+      "Austin 179900-243400"
+     ],
+     "text": "USA, TX, Austin - 179,900.00 - 243,400.00 USD annually"
+    },
+    {
+     "board": "amazon",
+     "id": "amazon:10371932",
+     "title": "Sr Hardware Dev Engineer, OEM Solid State Drives Team",
+     "shown": [
+      183000,
+      247600
+     ],
+     "spanOfRanges": [
+      159200,
+      247600
+     ],
+     "ranges": [
+      "Cupertino 183000-247600",
+      "Denver, Seattle 159200-215300"
+     ],
+     "text": "USA, CA, Cupertino - 183,000.00 - 247,600.00 USD annually"
+    },
+    {
+     "board": "amazon",
+     "id": "amazon:10372558",
+     "title": "Software Dev Engineer III, Amazon Interactive Video Service (IVS)",
+     "shown": [
+      193300,
+      261500
+     ],
+     "spanOfRanges": [
+      168100,
+      261500
+     ],
+     "ranges": [
+      "San Francisco, Santa Clara 193300-261500",
+      "Seattle 168100-227400"
+     ],
+     "text": "USA, CA, SAN FRANCISCO - 193,300.00 - 261,500.00 USD annually"
+    }
+   ]
+  },
+  "SA-5": {
+   "byBoard": {
+    "amazon": 2184,
+    "apple": 390
+   },
+   "examples": [
+    {
+     "board": "amazon",
+     "id": "amazon:10371179",
+     "chartMid": 99900,
+     "placeMids": [
+      101200,
+      82800,
+      92000,
+      99900
+     ]
+    },
+    {
+     "board": "amazon",
+     "id": "amazon:10371388",
+     "chartMid": 174000,
+     "placeMids": [
+      191450,
+      174000
+     ]
+    },
+    {
+     "board": "amazon",
+     "id": "amazon:10371434",
+     "chartMid": 211650,
+     "placeMids": [
+      243400,
+      232850,
+      211650
+     ]
+    },
+    {
+     "board": "amazon",
+     "id": "amazon:10371932",
+     "chartMid": 215300,
+     "placeMids": [
+      215300,
+      187250
+     ]
+    },
+    {
+     "board": "amazon",
+     "id": "amazon:10372558",
+     "chartMid": 227400,
+     "placeMids": [
+      227400,
+      197750
+     ]
+    },
+    {
+     "board": "apple",
+     "id": "apple:200462446-0836",
+     "chartMid": 209950,
+     "placeMids": [
+      202800,
+      214000
+     ]
+    },
+    {
+     "board": "apple",
+     "id": "apple:200555687-0836",
+     "chartMid": 209950,
+     "placeMids": [
+      202800,
+      214000
+     ]
+    },
+    {
+     "board": "apple",
+     "id": "apple:200584494-0365",
+     "chartMid": 245300,
+     "placeMids": [
+      229100,
+      254750
+     ]
+    },
+    {
+     "board": "apple",
+     "id": "apple:200591371-3337",
+     "chartMid": 209950,
+     "placeMids": [
+      202800,
+      214000
+     ]
+    },
+    {
+     "board": "apple",
+     "id": "apple:200592632-3337",
+     "chartMid": 265100,
+     "placeMids": [
+      256950,
+      270500
+     ]
+    }
+   ]
+  },
+  "SA-4": {
+   "byBoard": {
+    "amazon": 20,
+    "google": 7,
+    "microsoft": 1,
+    "nvidia": 1
+   },
+   "examples": [
+    {
+     "board": "amazon",
+     "id": "amazon:10422560",
+     "title": "Member of Technical Staff - Science, Frontier AI & Robotics (FAR)",
+     "shown": [
+      150000,
+      300000
+     ],
+     "text": "$150,000/year in our lowest geographic market up to $300,000/year",
+     "pairs": []
+    },
+    {
+     "board": "amazon",
+     "id": "amazon:10422776",
+     "title": "Member of Technical Staff - Hardware Science, Frontier AI & Robotics (FAR)",
+     "shown": [
+      150000,
+      300000
+     ],
+     "text": "$150,000/year in our lowest geographic market up to $300,000/year",
+     "pairs": []
+    },
+    {
+     "board": "amazon",
+     "id": "amazon:10424277",
+     "title": "Member Of Technical Staff - Hardware Science, Frontier AI & Robotics (FAR)",
+     "shown": [
+      150000,
+      300000
+     ],
+     "text": "$150,000/year in our lowest geographic market up to $300,000/year",
+     "pairs": []
+    },
+    {
+     "board": "amazon",
+     "id": "amazon:10426076",
+     "title": "Technical Lab Manager - Robotics R&D, Frontier AI & Robotics",
+     "shown": [
+      150000,
+      300000
+     ],
+     "text": "$150,000/year in our lowest geographic market up to $300,000/year",
+     "pairs": []
+    },
+    {
+     "board": "amazon",
+     "id": "amazon:10426079",
+     "title": "Member of Technical Staff - Robotics Electrical Engineer, Frontier AI & Robotics",
+     "shown": [
+      150000,
+      300000
+     ],
+     "text": "$150,000/year in our lowest geographic market up to $300,000/year",
+     "pairs": []
+    },
+    {
+     "board": "google",
+     "id": "google:104405499448828614",
+     "title": "Student Researcher, BS/MS, Winter-Summer 2027",
+     "shown": [
+      99000,
+      102000
+     ],
+     "text": "$99000 (CAD); $102000 (CAD)",
+     "pairs": []
+    },
+    {
+     "board": "google",
+     "id": "google:105318094099882694",
+     "title": "Étudiant-chercheur, baccalauréat ou maîtrise, hiver-été 2027",
+     "shown": [
+      99000,
+      102000
+     ],
+     "text": "$99000 (CAD); $102000 (CAD)",
+     "pairs": []
+    },
+    {
+     "board": "google",
+     "id": "google:114416552819729094",
+     "title": "Student Researcher, BS/MS, Winter-Summer 2027",
+     "shown": [
+      99000,
+      102000
+     ],
+     "text": "$99000 (CAD); $102000 (CAD)",
+     "pairs": []
+    },
+    {
+     "board": "google",
+     "id": "google:121543376737575622",
+     "title": "Software Engineering, Site Reliability Engineering BS/MS Intern, 2027",
+     "shown": [
+      156000,
+      159000
+     ],
+     "text": "zł156000 (PLN); zł159000 (PLN)",
+     "pairs": [
+      "13-17"
+     ]
+    },
+    {
+     "board": "google",
+     "id": "google:142747733357142726",
+     "title": "Software Engineering, Site Reliability Engineering BS/MS Intern, 2027",
+     "shown": [
+      68500,
+      71000
+     ],
+     "text": "€68500 (EUR); €71000 (EUR)",
+     "pairs": [
+      "13-17"
+     ]
+    },
+    {
+     "board": "microsoft",
+     "id": "microsoft:1970393556984110",
+     "title": "Senior Sales Specialist -Cloud & AI Platforms",
+     "shown": [
+      107600,
+      222700
+     ],
+     "text": "Solution Area Specialists IC4: USD $107,600 - $187,500 per year; USD $133,000 - $222,700 per year",
+     "pairs": [
+      "107600-187500",
+      "145600-205600",
+      "133000-222700",
+      "170300-239800"
+     ]
+    },
+    {
+     "board": "nvidia",
+     "id": "nvidia:893397830858",
+     "title": "8. Mixed Signal Design Engineer (MSD10), Sr. Mixed Signal Design Engineer (SMSD10) & Principal Mixed Signal Design Engineer (PMSD10)",
+     "shown": [
+      127234,
+      368000
+     ],
+     "text": "$127,234 to $189,750 $156,853 to $218,500 $187,408 to $264,500 $216,091 to $310,500 $232,000 to $368,000",
+     "pairs": [
+      "127234-189750",
+      "156853-218500",
+      "187408-264500",
+      "216091-310500",
+      "232000-368000",
+      "2701-2788"
+     ]
+    }
+   ]
+  },
+  "SA-1": {
+   "byBoard": {
+    "microsoft": 157,
+    "nvidia": 887
+   },
+   "examples": [
+    {
+     "board": "microsoft",
+     "id": "microsoft:1970393556627435",
+     "title": "Principal Software Engineer, CoreAI",
+     "level": "Staff+",
+     "shown": [
+      142800,
+      296400
+     ],
+     "mid": 219600,
+     "levels": [
+      "IC5 142800-274800",
+      "IC6 165600-296400"
+     ],
+     "shownIsAPostedLevelRange": false,
+     "juiceGross": 219600,
+     "text": "Software Engineering IC5: USD $142,800 - $274,800 per year; Software Engineering IC6: USD $165,600 - $296,400 per year"
+    },
+    {
+     "board": "microsoft",
+     "id": "microsoft:1970393556637088",
+     "title": "Software Engineer II -CTJ - Poly",
+     "level": "Mid",
+     "shown": [
+      100600,
+      234700
+     ],
+     "mid": 167650,
+     "levels": [
+      "IC3 100600-202200",
+      "IC4 119800-234700"
+     ],
+     "shownIsAPostedLevelRange": false,
+     "juiceGross": 167650,
+     "text": "Software Engineering IC3: USD $100,600 - $199,000 per year; Software Engineering IC3: USD $102,100 - $202,200 per year; Software Engineering IC4: USD $119,80..."
+    },
+    {
+     "board": "microsoft",
+     "id": "microsoft:1970393556650765",
+     "title": "Applied Scientist II / Senior Applied Scientist - Responsible AI (CoreAI)",
+     "level": "Mid",
+     "shown": [
+      102100,
+      234700
+     ],
+     "mid": 168400,
+     "levels": [
+      "IC3 102100-202200",
+      "IC4 119800-234700"
+     ],
+     "shownIsAPostedLevelRange": false,
+     "juiceGross": 168400,
+     "text": "Applied Sciences IC3: USD $102,100 - $202,200 per year; Applied Sciences IC4: USD $119,800 - $234,700 per year"
+    },
+    {
+     "board": "microsoft",
+     "id": "microsoft:1970393556650950",
+     "title": "Principal Applied Scientist - CoreAI",
+     "level": "Staff+",
+     "shown": [
+      142800,
+      296400
+     ],
+     "mid": 219600,
+     "levels": [
+      "IC5 142800-274800",
+      "IC6 165600-296400"
+     ],
+     "shownIsAPostedLevelRange": false,
+     "juiceGross": 219600,
+     "text": "Applied Sciences IC5: USD $142,800 - $274,800 per year; Applied Sciences IC6: USD $165,600 - $296,400 per year"
+    },
+    {
+     "board": "microsoft",
+     "id": "microsoft:1970393556657727",
+     "title": "Senior Construction Project Manager",
+     "level": "Staff+",
+     "shown": [
+      87000,
+      201500
+     ],
+     "mid": 144250,
+     "levels": [
+      "IC5 87000-143200",
+      "IC6 105700-201500"
+     ],
+     "shownIsAPostedLevelRange": false,
+     "juiceGross": 164972,
+     "text": "Construction Project Management IC5: € 87,000.00 - € 143,200.00 per year; Construction Project Management IC6: € 105,700.00 - € 201,500.00 per year"
+    },
+    {
+     "board": "nvidia",
+     "id": "nvidia:893375056870",
+     "title": "Software Engineering Manager - GPU Communications Libraries",
+     "level": "Manager",
+     "shown": [
+      184000,
+      356500
+     ],
+     "mid": 270250,
+     "levels": [
+      "Level 2 184000-287500",
+      "Level 3 224000-356500"
+     ],
+     "shownIsAPostedLevelRange": false,
+     "juiceGross": 270250,
+     "text": "184,000 USD - 287,500 USD for Level 2, and 224,000 USD - 356,500 USD for Level 3"
+    },
+    {
+     "board": "nvidia",
+     "id": "nvidia:893375058075",
+     "title": "Principal Firmware Engineer - Data Center Server Management",
+     "level": "Staff+",
+     "shown": [
+      272000,
+      488750
+     ],
+     "mid": 380375,
+     "levels": [
+      "Level 6 272000-431250",
+      "Level 7 320000-488750"
+     ],
+     "shownIsAPostedLevelRange": false,
+     "juiceGross": 380375,
+     "text": "272,000 USD - 431,250 USD for Level 6, and 320,000 USD - 488,750 USD for Level 7"
+    },
+    {
+     "board": "nvidia",
+     "id": "nvidia:893375062052",
+     "title": "Senior Software Architect - Data Center Systems",
+     "level": "Senior",
+     "shown": [
+      224000,
+      431250
+     ],
+     "mid": 327625,
+     "levels": [
+      "Level 5 224000-356500",
+      "Level 6 272000-431250"
+     ],
+     "shownIsAPostedLevelRange": false,
+     "juiceGross": 327625,
+     "text": "224,000 USD - 356,500 USD for Level 5, and 272,000 USD - 431,250 USD for Level 6"
+    },
+    {
+     "board": "nvidia",
+     "id": "nvidia:893375065418",
+     "title": "System Design Engineer",
+     "level": "Senior",
+     "shown": [
+      168000,
+      322000
+     ],
+     "mid": 245000,
+     "levels": [
+      "Level 4 168000-258750",
+      "Level 5 200000-322000"
+     ],
+     "shownIsAPostedLevelRange": false,
+     "juiceGross": 245000,
+     "text": "168,000 USD - 258,750 USD for Level 4, and 200,000 USD - 322,000 USD for Level 5"
+    },
+    {
+     "board": "nvidia",
+     "id": "nvidia:893375066677",
+     "title": "Senior Mixed Signal Design Engineer",
+     "level": "Senior",
+     "shown": [
+      136000,
+      264500
+     ],
+     "mid": 200250,
+     "levels": [
+      "Level 3 136000-218500",
+      "Level 4 168000-264500"
+     ],
+     "shownIsAPostedLevelRange": false,
+     "juiceGross": 200250,
+     "text": "136,000 USD - 218,500 USD for Level 3, and 168,000 USD - 264,500 USD for Level 4"
+    }
+   ]
+  },
+  "SA-1 shown pair is no single level range posted anywhere on the board": {
+   "byBoard": {
+    "microsoft": 157,
+    "nvidia": 887
+   },
+   "examples": []
+  }
+ }
+}
