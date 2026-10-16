@@ -1,7 +1,7 @@
 From a9cb19301b76e3ebb77d819a08ae1abce13d98bd Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 16:15:01 +0000
-Subject: [PATCH 01/12] WIP perf-mobile-beta-2: first-page preview (build
+Subject: [PATCH 01/13] WIP perf-mobile-beta-2: first-page preview (build
  writes api/preview/<slug>.json for big boards; config.js fetches it first;
  api.js#getPreview; app.js shows it while the list loads)
 

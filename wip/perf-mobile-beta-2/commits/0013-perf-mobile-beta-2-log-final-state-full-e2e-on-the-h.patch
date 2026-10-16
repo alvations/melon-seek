@@ -1,0 +1,76 @@
+From 37827711de08095557e4610c866a8790760bcbdc Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 18:53:05 +0000
+Subject: [PATCH 13/13] perf-mobile-beta-2 log: final state, full e2e on the
+ head's build (358/362, 0 failed), CI steps on the final head
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/perf-mobile-beta-2.md | 29 +++++++++++++++--------------
+ 1 file changed, 15 insertions(+), 14 deletions(-)
+
+diff --git a/docs/process/perf-mobile-beta-2.md b/docs/process/perf-mobile-beta-2.md
+index f9250b3..7032a66 100644
+--- a/docs/process/perf-mobile-beta-2.md
++++ b/docs/process/perf-mobile-beta-2.md
+@@ -2,8 +2,8 @@
+ 
+ ## State
+ 
+-Updated 2026-10-16 17:35. Worktree `.claude/worktrees/agent-a7425c5dcd4e39cbe`, detached, rebased on f254143
+-(the lead's head with part 1 integrated). Head 7bb9e5c.
++Updated 2026-10-16 19:00. Worktree `.claude/worktrees/agent-a7425c5dcd4e39cbe`, detached, rebased on f254143
++(the lead's head with part 1 integrated). **Finished.** Code head 7bb9e5c; log commits after it.
+ 
+ - **Part 1 (integrated by the lead):** no posting dropped; melon-packed-3; Juice slices; trim fixes (VT-22,
+   SA-7); tests; 22,179 record in 5.3.
+@@ -11,16 +11,12 @@ Updated 2026-10-16 17:35. Worktree `.claude/worktrees/agent-a7425c5dcd4e39cbe`,
+   (Amazon), config.js asks for it first, `getPreview`, app.js shows it; shorter tasks after the list
+   (sliced unpack, lazy keyword facets, first render in three tasks); check-lists.mjs reads previews.
+   Identity: getJobs on f254143 vs head identical for all 23 lists; the previews equal getJobs' postings.
+-  CI as CI has it (no data, MELON_BETA_SNAPSHOT_DIR=): build, check-lists 0 problems, npm test 1110 /
+-  1064 pass / 0 fail. Record so far (5.6, threshold 1,000): Amazon Fast 4G first cards 7.5 s → 2.0 s,
+-  Slow 4G 18.5 s → 5.0 s; the threshold went to 10,000 because the preview delayed smaller boards' list
+-  and chart by 0.3-0.5 s.
+-- **In progress:** `tools/timed5.sh` (interleaved part 1 `dist-B` vs head `dist-H` with the 10,000
+-  threshold; Amazon, Apple, Anduril beta + main; then a full run of dist-H): `timed5.log`,
+-  `perf-r-*`, `perf-s-*`, `perf-full-H.json` in `<scratch>/perf-mobile-beta-2/`.
+-- **Next:** merge (`perf-mobile-beta-2-merge.mjs . r-B r-H s-B s-H`), table
+-  (`perf-mobile-beta-2-table.mjs part1=perf-r-B.json head=perf-r-H.json`), full e2e on dist-H
+-  (`tools/e2e-subset.sh` for reruns), log 5.6, report.
++  CI's steps on a no-data build: 0 problems, npm test 1,110 / 1,064 pass / 0 fail; full e2e 358/362, 0
++  failed.
++- **Record (5.6):** Amazon's first cards 7.5 → **2.0 s** on Fast 4G and 18.5 → **5.0 s** on Slow 4G, longest
++  task 1.0-1.1 s → 0.49 s; Apple 3.0 → 2.9 s / 8.1 → 7.4 s; main site (Anduril) the same within noise
++  (paired +0.10 s over 10 swapped rounds) with TBT 1.29 → 0.94 s; Google 8.6 → 8.5 s Slow 4G.
++- Scratch builds deleted; nothing left running.
+ 
+ ## 1. Brief
+ 
+@@ -253,7 +249,11 @@ worker hand-off cost (`clonebench.mjs`).
+   tests (PERF-1, V15) at load 12; `test/perf.test.js` alone passes 3/3.
+ - Part 2, CI's own steps on a no-data build (data links out of `data/`, `MELON_BETA_SNAPSHOT_DIR=`), head
+   b63652f: `build-static.js` OK, `check-lists.mjs` 0 problems, `npm test` **1,110 tests, 1,064 pass, 0
+-  fail**, 8 skipped, 38 to-do. NPMTEST_FINAL_PLACEHOLDER
++  fail**, 8 skipped, 38 to-do. The same on the final head (9bda4c1, code as 7bb9e5c): no-data build OK,
++  16 lists 0 problems, npm test 1,110 / 1,064 pass / **0 fail**.
++- Full e2e on the head's build (`dist` → 7bb9e5c on the 2026-10-16 crawl, 18:23-18:51): **358/362
++  passed, 0 failed**, 4 skipped (D-11, methodology screenshots, P-2, BP-2: no such data). Screenshots the
++  run rewrote were reverted.
+ - `test/perf-mobile-beta-2.test.js` (new, 9 tests; builds a temp site; passes with and without data):
+   - melon-packed-3 unpacks to exactly what the **verbatim 31ad25b** packer and decoder
+     (`test/fixtures/packed-2-reference.js`) give, deep-equal and in key order, for the site's Anthropic
+@@ -440,7 +440,8 @@ list's own first cards.
+ 4. **Measurement**: the records ran at load 0.2-4.5 (other lanes), interleaved so the builds compared saw
+    the same load; on a quiet machine every column would be lower. Single runs move by about ±0.3 s and
+    main-site Anduril runs by up to ±0.5 s (5.6). Not measured: WebKit, a real phone.
+-5. E2E_PLACEHOLDER
++5. The full e2e ran on the head's build (5.1, 0 failed); the earlier 2026-10-11 run was on this lane's
++   build before the rebases.
+ 
+ Patches for other owners:
+ - `docs/process/patches/perf-mobile-beta-2-readable-title-memo.diff` (`public/features/roles.js`): identical,
+-- 
+2.43.0
+

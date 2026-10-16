@@ -1,7 +1,7 @@
 From 9bda4c1341f7ac9c7e6861f6a70f2e22053633fb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 18:22:49 +0000
-Subject: [PATCH 12/12] WIP perf-mobile-beta-2 log: every-board matrix (5.4),
+Subject: [PATCH 12/13] WIP perf-mobile-beta-2 log: every-board matrix (5.4),
  part 2 record and main-site checks (5.6), gaps
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
