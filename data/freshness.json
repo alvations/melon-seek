@@ -14157,7 +14157,7 @@
         "data/vetting/2026-10-02/review-rules.mjs:18 F (copy, audit trail)",
         "server/export.js:62 csvReadme text",
         "public/features/shared.js:45 salaryUSD defensive annualization (2080 h if mid < 1000, ×12 if mid < 30000): duplicate of server/salary.js annualize",
-        "public/viz/chart.js:65 INTERVAL_ADJ labels",
+        "public/viz/chart.js:68 INTERVAL_ADJ labels",
         "public/app.js:3777 INTERVAL_ADJ labels"
       ],
       "values": "2080 hours/yr, 12 months, 52 weeks",
@@ -15069,7 +15069,7 @@
         "public/features/roles.js:65 roles.js inferSeniority (null when no level word)",
         "public/features/compstimate.js:40 LEVEL_INDEX",
         "public/app.js:76 SENIORITY_ORDER",
-        "public/viz/chart.js:62 SENIORITY_ORDER",
+        "public/viz/chart.js:65 SENIORITY_ORDER",
         "public/features/roles.js inferSeniority (query side; null without a level word)",
         "scripts/archive/report.js:33 LADDER (archive reports; jobs.js seniority-ladder compares it with roles.js)",
         "server/keywords.js:1175 GENERIC_RUNG (numbered titles: I Entry, II-III Mid, IV Senior, V+ Staff+)",
