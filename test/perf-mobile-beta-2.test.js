@@ -54,6 +54,7 @@ after(() => {
 });
 
 let n = 0;
+const fetched = []; // every URL the stand-in fetch() was asked for
 /** The built api.js, with fetch() served from the site's files plus `extra` { path: body }. */
 async function siteApi(extra = {}) {
   globalThis.MELON_STATIC = true;
@@ -61,6 +62,7 @@ async function siteApi(extra = {}) {
   globalThis.fetch = async (url) => {
     const u = String(url).split(/[?#]/)[0];
     if (/^[a-z]+:\/\//i.test(u)) throw new TypeError('Failed to fetch');
+    fetched.push(u);
     if (u in extra) return new Response(JSON.stringify(extra[u]), { status: 200, headers: { 'content-type': 'application/json' } });
     const file = path.join(DIST, decodeURIComponent(u));
     if (!file.startsWith(DIST) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return new Response('{"error":"Not found"}', { status: 404 });
@@ -276,6 +278,7 @@ test('the preview holds the list\'s own postings, and getPreview gives them as g
   assert.deepEqual(prev.preview.colorCounts, [...counts]);
   const companies = [...readJson(DIST, 'api', 'companies.json'), { slug: 'zz', name: 'Zz', source: 'amazon', board: 'zz', color: '#ff9900', live: false }];
   const api = await siteApi({ 'api/companies.json': companies, 'api/jobs/zz.json': rt(split.list), 'api/preview/zz.json': rt(prev) });
+  globalThis.MELON_PREVIEWS = ['zz', 'anthropic']; // config.js lists the boards with a preview
   const p = await api.getPreview('zz');
   const res = await api.getJobs('zz');
   const byId = new Map(res.jobs.map((j) => [j.id, j]));
@@ -286,7 +289,12 @@ test('the preview holds the list\'s own postings, and getPreview gives them as g
   // No preview once the list is in memory, for an unknown slug, or when there is no file.
   assert.equal(await api.getPreview('zz'), null);
   assert.equal(await api.getPreview('nope'), null);
-  assert.equal(await api.getPreview('anthropic'), null);
+  assert.equal(await api.getPreview('anthropic'), null, 'listed but no file: null');
+  globalThis.MELON_PREVIEWS = [];
+  fetched.length = 0;
+  assert.equal(await api.getPreview('anduril'), null);
+  assert.ok(!fetched.some((u) => u.includes('api/preview/')), 'a board config.js does not list is never asked for (no 404s)');
+  delete globalThis.MELON_PREVIEWS;
   // A small board gets none.
   assert.equal(previewList(splitPayload({ ...board, jobs: board.jobs.slice(0, 300) }, api0, vetSalaries), api0), null);
 });

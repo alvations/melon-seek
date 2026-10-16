@@ -542,7 +542,9 @@ export function listPreloadJs(slugs, lastKey, first = slugs[0]) {
  * `previewSlugs`: the companies with an api/preview/<slug>.json.
  */
 export function previewPreloadJs(previewSlugs, slugs, lastKey, first = slugs[0]) {
-  return `// Preload the first company's preview (scripts/build-static.js#previewPreloadJs; docs/process/perf-mobile-beta-2.md).
+  return `// The companies with a first-page preview, and the first one's early fetch (scripts/build-static.js#previewPreloadJs;
+// docs/process/perf-mobile-beta-2.md). api.js#getPreview asks only for these.
+window.MELON_PREVIEWS = ${JSON.stringify(previewSlugs)};
 (function (previewSlugs, slugs, lastKey, first) {
   ${OPENING_COMPANY_JS}
   ${EARLY_FETCH_JS}

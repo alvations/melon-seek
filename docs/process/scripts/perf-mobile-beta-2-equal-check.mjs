@@ -14,6 +14,9 @@ let n = 0;
 async function load(site, apiFile) {
   globalThis.MELON_STATIC = true;
   globalThis.MELON_LIVE_SOURCES = [];
+  // config.js's list of boards with a first-page preview (build-static.js#previewPreloadJs)
+  const pdir = path.join(site, 'api', 'preview');
+  globalThis.MELON_PREVIEWS = fs.existsSync(pdir) ? fs.readdirSync(pdir).map((f) => f.replace(/\.json$/, '')) : [];
   globalThis.fetch = async (url) => {
     const u = String(url);
     if (/^[a-z]+:\/\//i.test(u)) throw new TypeError('Failed to fetch');

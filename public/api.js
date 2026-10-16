@@ -929,6 +929,7 @@ export async function getPreview(params, { signal } = {}) {
   const p = toParams(params);
   if (!p.company || p.source || p.board) return null;
   const slug = String(p.company).toLowerCase();
+  if (!Array.isArray(g.MELON_PREVIEWS) || !g.MELON_PREVIEWS.includes(slug)) return null; // config.js lists the boards that have one
   const listPath = `api/jobs/${encodeURIComponent(slug)}.json`;
   if (bundleCache.has(listPath) || memCache.has(slug)) return null; // the list is in memory: no wait to cover
   const path = `api/preview/${encodeURIComponent(slug)}.json`;
