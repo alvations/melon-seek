@@ -1036,6 +1036,8 @@ export function parseSalary(text, { countries = [], areas = [] } = {}) {
   //     degree] Poland: zł159000"), at most 3x. Lines for other countries are never part of
   //     the span (DQ-15).
   let group = null;
+  // SB-5: the national ranges the salary is read from (one, or the levels spanned below).
+  let usedNational = best.national && !city ? [best] : null;
   if (city) group = cands.filter((c) => local(c) && same(c));
   else if (best.national) group = cands.filter((c) => c.national === best.national && !c.cityOf && same(c));
   else if (best.area) group = cands.filter((c) => !c.national && !c.cityOf && c.area === best.area && same(c));
@@ -1052,6 +1054,7 @@ export function parseSalary(text, { countries = [], areas = [] } = {}) {
     const bound = best.national || city ? 4 : TIER_MAX_RATIO;
     if (group.length > 1 && glo > 0 && ghi / glo <= bound) {
       lo = glo; hi = ghi;
+      if (usedNational) usedNational = group;
       groupText = group.map((c) => `${c.level ? `${c.level.replace(/\s+/g, ' ')}: ` : ''}${flat(s.slice(c.start, c.end))}`).join('; ');
       const names = group.map((c) => (c.level ? levelName(c.level) : null));
       if (names.every(Boolean)) {
@@ -1108,6 +1111,21 @@ export function parseSalary(text, { countries = [], areas = [] } = {}) {
   // "across the U.S. is USD $X"), so Juice never applies it to another country's office.
   const country = city ? nationalPick.area : bestCountry;
   if (country) out.country = country;
+  // SB-5 (salary audit): the posting's own range for the SF Bay Area / NYC ("There is a different range
+  // applicable to specific work locations ... the base pay range for this role in those locations is
+  // USD $111,100 - $183,700 per year"), spanned over the same levels as the national salary. The salary
+  // stays the national range (DATA_SOURCES §7a); normalize.js#deriveSalary ties each range to the job's
+  // places when the job lists places both inside and outside those areas, so no posted range is dropped.
+  if (usedNational) {
+    const cityOwn = cands.filter((c) => c.cityOf && usedNational.includes(c.cityOf) && c.currency === best.currency && c.interval === best.interval && c.kind === best.kind);
+    if (cityOwn.length) {
+      out.cityRange = {
+        min: round2(Math.min(...cityOwn.map((c) => c.lo))),
+        max: round2(Math.max(...cityOwn.map((c) => c.hi))),
+        areas: [...new Set(cityOwn.flatMap((c) => c.cityAreas || []))],
+      };
+    }
+  }
   return out;
 }
 

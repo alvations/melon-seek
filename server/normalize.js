@@ -2,7 +2,7 @@
 import { geocodeMany } from './geo.js';
 import { extractSections, extractKeywords, jobSeniority, isSalesTitle } from './keywords.js';
 import * as keywordsModule from './keywords.js';
-import { parseSalary, toJobSalary, currenciesFor, payTerms, mayRelabelPay, payAreas } from './salary.js';
+import { parseSalary, toJobSalary, currenciesFor, payTerms, mayRelabelPay, payAreas, payAreaOf } from './salary.js';
 import { htmlToText, isoOrNull } from './sources/util.js';
 import { vetSalaries, salaryChecks } from './vet.js';
 
@@ -33,11 +33,13 @@ import { vetSalaries, salaryChecks } from './vet.js';
  * zone, virtual-location rows, salary.kind 'minimum', includesShiftDifferential, statedBase, stated
  * annual figures, "$" in Mexico / Australia / New Zealand / Singapore / Hong Kong, NVIDIA cash
  * compensation as 'ote', Meta salary.country, Amazon "III", Meta leadership and Microsoft IC/M
- * levels, ISO-3 country codes, "20h per week"). Stored
+ * levels, ISO-3 country codes, "20h per week"); norm-11 = the salary audit (docs/process/salary-audit-backend.md:
+ * every posted range kept (no cap at 12), Amazon "New York City" rows tied to New York, Microsoft's SF Bay
+ * Area / NYC range kept per place for jobs with places inside and outside those areas). Stored
  * snapshots are upgraded with relocateJobs (which also re-derives text-sourced pay, the
  * pay labels and the level, then re-runs the vetting gate) and rekeyBoardJobs.
  */
-export const NORMALIZER_VERSION = 'norm-10';
+export const NORMALIZER_VERSION = 'norm-11';
 
 const NO_EXTRAS = Object.freeze({ equity: false, bonus: false });
 
@@ -129,10 +131,51 @@ export function deriveSalary(raw, locations = []) {
     if (fromText && !salaryChecks(who, fromText).length) return terms({ ...fromText, zones: zonesOf(fromText), structuredRejected: hard.map((c) => c.code) });
   }
   // DQ-33 / VT-15: each range keeps the places it was posted for (ranges[].locations, as Apple's).
-  if (salary && ranges.length > 1) salary.ranges = ranges.slice(0, 12).map(({ min, max, currency, interval, label, locations }) => ({ min, max, currency, interval, ...(label ? { label } : {}), ...(Array.isArray(locations) && locations.length ? { locations: [...locations] } : {}) }));
-  if (!salary) salary = toJobSalary(parsed, { source: 'text' });
+  // SB-3 (salary audit): every posted range is kept. A cap at 12 dropped the rows after the twelfth,
+  // and with them those places' pay (a snapshot crawled before norm-11 can still lack them).
+  if (salary && ranges.length > 1) salary.ranges = ranges.map(({ min, max, currency, interval, label, locations }) => ({ min, max, currency, interval, ...(label ? { label } : {}), ...(Array.isArray(locations) && locations.length ? { locations: [...locations] } : {}) }));
+  if (!salary) {
+    salary = toJobSalary(parsed, { source: 'text' });
+    if (salary) salary = withAreaRanges(salary, parsed, locations);
+  }
   if (salary) salary.zones = zonesOf(salary);
   return salary ? terms(salary) : salary;
+}
+
+/** A Location's key in salary.ranges[].locations (as Apple's and Amazon's ranges): the source string. */
+const placeKey = (l) => l && (l.rawName || l.name);
+const placeWords = (locs) => {
+  const words = [...new Set(locs.map((l) => (l.remote ? 'Remote' : String(l.city || placeKey(l) || '').split(',')[0].trim())).filter(Boolean))];
+  return words.length > 4 ? `${words.slice(0, 3).join(', ')} and ${words.length - 3} more` : words.join(', ');
+};
+
+/**
+ * SB-5 (salary audit, norm-11): Microsoft posts a national range and a second range for the SF Bay
+ * Area and New York City ("... the base pay range for this role in those locations is USD $X - $Y").
+ * A job located only in those areas already uses the second range (DQ-13). A job with places both
+ * inside and outside them kept only the national range, so its San Francisco or New York place was
+ * scored, filtered and shown on the national range. Here both posted ranges are kept, each tied to
+ * the job's places it applies to (salary.ranges[].locations, like Apple's and Amazon's): the national
+ * range for the job's other places in the pay's country, the area range for its places in the areas.
+ * salary.min/max stay the national range (DATA_SOURCES §7a). Annualized like the salary.
+ */
+export function withAreaRanges(salary, parsed, locations = []) {
+  const cr = parsed && parsed.cityRange;
+  if (!salary || !cr || !Array.isArray(cr.areas) || !cr.areas.length || (Array.isArray(salary.ranges) && salary.ranges.length)) return salary;
+  const country = salary.country || 'US';
+  const inCountry = (locations || []).filter((l) => l && placeKey(l) && String(l.country || '').toUpperCase() === country);
+  const inArea = inCountry.filter((l) => cr.areas.includes(payAreaOf(l)));
+  const others = inCountry.filter((l) => !inArea.includes(l));
+  if (!inArea.length || !others.length) return salary;
+  const city = toJobSalary({ ...parsed, min: cr.min, max: cr.max, levels: null, zones: 1 }, {});
+  if (!city || city.currency !== salary.currency) return salary;
+  return {
+    ...salary,
+    ranges: [
+      { label: placeWords(others), min: salary.min, max: salary.max, currency: salary.currency, interval: 'year', locations: others.map(placeKey) },
+      { label: placeWords(inArea), min: city.min, max: city.max, currency: city.currency, interval: 'year', locations: inArea.map(placeKey) },
+    ],
+  };
 }
 
 /**

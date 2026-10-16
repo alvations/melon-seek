@@ -155,9 +155,15 @@ function placeOf(l) {
   return { key, city: norm(l.city) || norm(String(key).split(',')[0]), region: norm(l.region) || null, country: l.country || null, remote: l.remote === true };
 }
 
+// SB-4 (salary audit): a row's city as Amazon writes it in the pay table, and the same city as its
+// locations name it ("USA, NY, New York City" is the place "New York, New York, USA"). Whole names only.
+const ROW_CITY_ALIAS = Object.freeze({ 'new york city': 'new york' });
+const cityKey = (c) => (c ? ROW_CITY_ALIAS[c] || c : c);
+const sameCity = (a, b) => !!a && !!b && cityKey(a) === cityKey(b);
+
 /** Does pay-table row place p name the posting place q? Cities and states compared whole. */
 function rowNames(p, q) {
-  if (!p || !q || q.remote || p.virtual || !p.city || p.city !== q.city) return false;
+  if (!p || !q || q.remote || p.virtual || !p.city || !sameCity(p.city, q.city)) return false;
   if (p.country && q.country && ISO3_ISO2[p.country] && ISO3_ISO2[p.country] !== q.country) return false;
   return !p.state || !q.region || p.state === q.region;
 }
@@ -235,8 +241,8 @@ export function amazonSalary(j, table = amazonPayTable(j.description, j.basic_qu
   const sameCountry = (p) => !country || !p.country || p.country === country;
   const row = (test) => rows.find((r) => test(r.place, r)) || null;
   const pick = (primary && rows.find((r) => r.line === primary && (!r.place.virtual || r.locations.length)))
-    || (city && (row((p) => p.city === city && sameCountry(p) && !!state && p.state === state)
-    || row((p) => p.city === city && sameCountry(p) && (!state || !p.state))))
+    || (city && (row((p) => sameCity(p.city, city) && sameCountry(p) && !!state && p.state === state)
+    || row((p) => sameCity(p.city, city) && sameCountry(p) && (!state || !p.state))))
     || row((p, r) => r.locations.length > 0 && !p.virtual)
     || (country && (row((p) => p.country === country && !p.virtual) || row((p) => p.country === country)))
     || rows[0];
@@ -269,7 +275,8 @@ export function amazonSalary(j, table = amazonPayTable(j.description, j.basic_qu
     if (g.locations.length) return short([...new Set(g.locations.map((l) => (/^remote\b/i.test(l) ? 'Remote' : String(l).split(',')[0].trim())))].join(', '));
     return short([...new Set(g.rows.map((r) => (r.place.virtual ? `Remote${r.place.state ? ` (${r.place.state.toUpperCase()})` : ''}` : r.place.cityText || r.location)))].join(', '));
   };
-  const payRanges = groups.length > 1 ? groups.slice(0, 12).map((g) => ({
+  // SB-3 (salary audit): every distinct row is a range; none is cut (a cap at 12 dropped places' pay).
+  const payRanges = groups.length > 1 ? groups.map((g) => ({
     min: yearly(g.min, g.interval), max: yearly(g.max, g.interval), currency: g.currency, interval: 'year', label: label(g),
     ...(g.locations.length ? { locations: g.locations } : {}),
   })) : [];

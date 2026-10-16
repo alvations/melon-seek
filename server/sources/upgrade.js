@@ -22,7 +22,8 @@ import { upgradeAppleJobs } from './apple.js';
 import { upgradeEightfoldJobs } from './eightfold.js';
 import { upgradeGoogleJobs } from './google.js';
 import { markTalentPools } from './pool.js';
-import { amazonPayTable, amazonSalary } from './amazon.js';
+import { amazonPayTable, amazonSalary, amazonPlace } from './amazon.js';
+import { annualize } from '../salary.js';
 import { deriveSalary, withPayPlaces } from '../normalize.js';
 import { vetSalaries } from '../vet.js';
 import { htmlToText } from './util.js';
@@ -37,19 +38,28 @@ function upgradeAmazonJob(j) {
   if (amazonPayTable(`<p>${sal.text}</p>`).length !== 1) return j;
   if (Array.isArray(sal.ranges) && sal.ranges.some((r) => r && Array.isArray(r.locations))) return j;
   let table = amazonPayTable(j.descriptionHtml);
+  // The adapter kept every row in salary.ranges (label = the row's place, numbers as posted).
+  const own = amazonPayTable(`<p>${sal.text}</p>`)[0];
+  const rs = Array.isArray(sal.ranges) ? sal.ranges.filter((r) => r && r.label && Number.isFinite(r.min) && Number.isFinite(r.max)) : [];
+  const storedRows = rs.map((r) => {
+    const row = { location: String(r.label), min: r.min, max: r.max, currency: r.currency, interval: r.interval || 'year', line: `${r.label} - ${r.min} - ${r.max} ${r.currency} ${r.interval}` };
+    if (own && own.location.startsWith(row.location) && own.min === r.min && own.max === r.max && own.currency === r.currency && own.interval === row.interval) row.line = sal.text;
+    return row;
+  });
   if (!table.some((r) => r.line === sal.text)) {
-    // VT-22: the stored description was trimmed and lost rows. The adapter kept every row in
-    // salary.ranges (label = the row's place, numbers as posted), so the table is rebuilt from them.
-    const own = amazonPayTable(`<p>${sal.text}</p>`)[0];
-    const rs = Array.isArray(sal.ranges) ? sal.ranges.filter((r) => r && r.label && Number.isFinite(r.min) && Number.isFinite(r.max)) : [];
-    table = rs.length > 1
-      ? rs.map((r) => {
-        const row = { location: String(r.label), min: r.min, max: r.max, currency: r.currency, interval: r.interval || 'year', line: `${r.label} - ${r.min} - ${r.max} ${r.currency} ${r.interval}` };
-        if (own && own.location.startsWith(row.location) && own.min === r.min && own.max === r.max && own.currency === r.currency && own.interval === row.interval) row.line = sal.text;
-        return row;
-      })
-      : [own];
+    // VT-22: the stored description was trimmed and lost rows, the salary's own row among them: the
+    // table is rebuilt from the stored ranges.
+    table = storedRows.length > 1 ? storedRows : [own];
     if (!table.some((r) => r.line === sal.text)) table = [own, ...table];
+  } else if (storedRows.length > 1) {
+    // SB-1 (salary audit): a trimmed description can keep the salary's own row and lose others
+    // (scripts/snapshot.js#trimDescription kept 4 pay paragraphs). Every stored row the stored table
+    // no longer has is added back, so no place loses the range the posting gave it.
+    // Same place (the row's city) and the same yearly figures: a range stored yearly matches its hourly row.
+    const same = (a, b) => (amazonPlace(a.location).city || '') === (amazonPlace(b.location).city || '') && a.currency === b.currency
+      && annualize(a.min, a.interval) === annualize(b.min, b.interval) && annualize(a.max, a.interval) === annualize(b.max, b.interval);
+    const lost = storedRows.filter((r) => !table.some((t) => same(t, r)));
+    if (lost.length) table = [...table, ...lost];
   }
   const text = htmlToText(j.descriptionHtml);
   const res = amazonSalary({}, table, { places: j.locations || [], primary: sal.text, text });
