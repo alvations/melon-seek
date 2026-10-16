@@ -274,7 +274,9 @@ export function registerBetaDesktopQaTests(suite) {
     const { st, page } = await openBeta(ctx, 'c=microsoft');
     await needBeta(page, st, 'microsoft');
     const bad = [];
-    for (const c of ['microsoft', 'nvidia', 'netflix', 'apple']) {
+    // fix6-fresh-data: every big-tech board. Google, Meta and Amazon joined beta after D-23 was written,
+    // and on the 2026-10-16 crawl Amazon listed bare "PRI" and "Manama, BHR" (now Puerto Rico, Bahrain).
+    for (const c of ['microsoft', 'nvidia', 'netflix', 'apple', 'google', 'meta', 'amazon']) {
       if (c !== 'microsoft') { await page.goto(`${st.beta}/#c=${c}`); await ready(page); }
       const opts = await locationOptions(page);
       for (const o of opts) {
