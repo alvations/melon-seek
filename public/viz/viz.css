@@ -314,6 +314,18 @@
 .ms-row.is-hover .ms-row__val, .ms-row.is-highlighted .ms-row__val { visibility: visible; }
 /* P-16: no room either side of the bar: the pay sits on it, on a surface chip, never over the title. */
 .ms-row__val--in { top: 2px; line-height: 18px; padding: 0 5px; border-radius: 4px; background: var(--_surface); box-shadow: 0 0 0 1px var(--_border); }
+/* viz-even: a row of several postings with one posted range: its count by the bar ("×247"), muted; the pay
+   label takes its place on hover. On a phone the title line just above the bar says the count instead. */
+.ms-row__count {
+  position: absolute; top: 0; line-height: 22px;
+  color: var(--_muted);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.ms-row__count--in { top: 2px; line-height: 18px; padding: 0 5px; border-radius: 4px; background: var(--_surface); box-shadow: 0 0 0 1px var(--_border); }
+.ms-row.is-hover .ms-row__count, .ms-row.is-highlighted .ms-row__count, .ms-chart--stack .ms-row__count { visibility: hidden; }
 .ms-row__bar[hidden], .ms-row__dot[hidden] { display: none; }
 /* Axis-overflow chevrons (ranges): the bar continues beyond the domain. */
 .ms-row__over {
