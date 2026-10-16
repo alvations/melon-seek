@@ -156,8 +156,11 @@ function placeOf(l) {
 }
 
 // SB-4 (salary audit): a row's city as Amazon writes it in the pay table, and the same city as its
-// locations name it ("USA, NY, New York City" is the place "New York, New York, USA"). Whole names only.
-const ROW_CITY_ALIAS = Object.freeze({ 'new york city': 'new york' });
+// locations name it ("USA, NY, New York City" is the place "New York, New York, USA"). Whole names only;
+// each pair was seen on the 2026-10-16 board (a row tied to no place while the posting lists that town).
+const ROW_CITY_ALIAS = Object.freeze({
+  'new york city': 'new york', 'n reading': 'north reading', westboro: 'westborough', 'hazle township': 'hazle twp', 'san franscisco': 'san francisco',
+});
 const cityKey = (c) => (c ? ROW_CITY_ALIAS[c] || c : c);
 const sameCity = (a, b) => !!a && !!b && cityKey(a) === cityKey(b);
 

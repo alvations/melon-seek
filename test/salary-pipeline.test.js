@@ -121,6 +121,23 @@ test('SB-4 Amazon: the "New York City" row is New York\'s range', () => {
   assert.equal(nyc.gross, (199200 + 269500) / 2, `New York is scored on ${nyc.gross}`);
 });
 
+// SB-4, the other spellings on the 2026-10-16 board: amazon:10503210 "USA, MA, N.Reading" and "USA, MA,
+// Westboro" (places North Reading and Westborough, Massachusetts), amazon:3185036 "USA, PA, Hazle Township"
+// (place "Hazle Twp, Pennsylvania, USA").
+test('SB-4 Amazon: "N.Reading", "Westboro" and "Hazle Township" rows are those places\' ranges', () => {
+  const row = amazonRow({
+    id: '10503210', title: 'Robotics Engineer', city: 'Austin', state: 'TX',
+    places: ['Austin, Texas, USA', 'North Reading, Massachusetts, USA', 'Westborough, Massachusetts, USA', 'Hazle Twp, Pennsylvania, USA'],
+    table: ['USA, TX, Austin - 120,000.00 - 160,000.00 USD annually', 'USA, MA, N.Reading - 130,000.00 - 170,000.00 USD annually',
+      'USA, MA, Westboro - 131,000.00 - 171,000.00 USD annually', 'USA, PA, Hazle Township - 110,000.00 - 150,000.00 USD annually'],
+  });
+  const job = normalizeJob(mapAmazonJob(row), company('amazon'));
+  const tied = (min) => (job.salary.ranges.find((r) => r.min === min) || {}).locations;
+  assert.deepEqual(tied(130000), ['North Reading, Massachusetts, USA']);
+  assert.deepEqual(tied(131000), ['Westborough, Massachusetts, USA']);
+  assert.deepEqual(tied(110000), ['Hazle Twp, Pennsylvania, USA']);
+});
+
 /* ---------------------------------------------------------------- Microsoft */
 // SB-5. microsoft:1970393556746669 "Senior Software Engineer" (Redmond, WA; New York, NY),
 // https://apply.careers.microsoft.com/careers/job/1970393556746669 : "… across the U.S. is USD $119,800 -
