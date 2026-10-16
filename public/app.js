@@ -1095,7 +1095,8 @@ async function loadJobs({ refresh = false } = {}) {
   }
   settleCarry();
   settleKeep();
-  render();
+  if (data.status === 'ready') await renderInTwo(seq); else render();
+  if (seq !== loadSeq) return;
   if (data.status === 'ready') fillFamilies(data.jobs);
   settleSaved();
   if (S.job) openDrawer(S.job, { fromHash: true });
@@ -1168,6 +1169,8 @@ async function applyJobs(res, seq, { upgrade = false } = {}) {
     if (seq !== loadSeq) return false;
   }
   disambiguateLocations(jobs);
+  await yieldTask(); // perf-mobile-beta-2: a separate task from the first render (0.1 s on Amazon's whole board)
+  if (seq !== loadSeq || (upgrade && (data.status !== 'ready' || data.mode === 'live'))) return false;
   dataSeq++;
   rememberCompany(S.c);
   data = {
@@ -1239,11 +1242,35 @@ const scheduleRender = rafThrottle(render);
 let derived = { filtered: [], fc: null };
 let visible = []; // sorted list after map-area filter
 
-function render() {
-  derived = data.status === 'ready' ? derive() : { filtered: [], fc: null };
-  if (!previewing()) computeColorKeys(derived.filtered); // a preview keeps the board's colours (showPreview)
-  const listed = area ? derived.filtered.filter((j) => area.ids.has(j.id)) : derived.filtered;
-  visible = sortJobs(listed);
+let renders = 0;
+/** derive, colour keys and sort: the first half of render(). */
+function viewOf() {
+  const d = data.status === 'ready' ? derive() : { filtered: [], fc: null };
+  if (!previewing()) computeColorKeys(d.filtered); // a preview keeps the board's colours (showPreview)
+  const listed = area ? d.filtered.filter((j) => area.ids.has(j.id)) : d.filtered;
+  return { derived: d, visible: sortJobs(listed) };
+}
+/**
+ * perf-mobile-beta-2: after a load, the filter (derive), the sort and the page are three tasks, not one
+ * (Amazon's 22,179 at 4x CPU: 0.8 s in one). The same steps as render(); if anything rendered in
+ * between (a tap), that render stands.
+ */
+async function renderInTwo(seq) {
+  const n = renders;
+  const stale = () => seq !== loadSeq || renders !== n;
+  await yieldTask(); // after applyJobs' last step (markVisit and the rest of the load)
+  if (stale()) return;
+  const d = derive();
+  computeColorKeys(d.filtered);
+  await yieldTask();
+  if (stale()) return;
+  const v = { derived: d, visible: sortJobs(area ? d.filtered.filter((j) => area.ids.has(j.id)) : d.filtered) };
+  await yieldTask();
+  if (!stale()) render(v);
+}
+function render(view = null) {
+  renders++;
+  ({ derived, visible } = view || viewOf());
 
   document.documentElement.dataset.mode = S.m;
   renderTopbar();
