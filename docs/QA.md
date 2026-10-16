@@ -2530,3 +2530,395 @@ All runs used `NODE_PATH=<scratch>/pw/node_modules PLAYWRIGHT_BROWSERS_PATH=/opt
 screenshot rewrites landed in the mirror's copy of `docs/`, so this pass leaves the shared screenshots unchanged.
 
 ---
+
+
+## Full QA pass (mobile, beta) 2026-10-16
+
+The third functional pass of the phone beta site (`/melon-seek/beta/`), by the third beta mobile QA agent. It ran
+on the 2026-10-16 whole-board crawl, after fix-density, google-grouping, the salary audit, perf-mobile-beta-2,
+fix6-fresh-data and viz-even. The process log, with every replayable command, is
+[`docs/process/qa-mobile-beta-3.md`](process/qa-mobile-beta-3.md). No product code was changed.
+
+**Setup**
+- **Build:** the lead's reviewer build of `d98a9f0` (`<scratch>/cycle-beta6-dist`, built 21:29 UTC), with today's
+  crawl and every board whole: Amazon 22,179 postings, Apple 4,851, Google 3,821, NVIDIA 2,711, Microsoft 2,435,
+  Meta 1,208, Netflix 414, and Anduril 2,537 on the main site. Served under `/melon-seek/` by
+  `scripts/cycle/serve.mjs` with a pid file.
+- **Browser:** Playwright with Chromium 141 (`/opt/pw-browsers/chromium-1194`): `isMobile`, `hasTouch`, DPR 3, an
+  iPhone UA (Android UA at 360 px). Every request to another host was aborted.
+- **Viewports:** 390x844, 360x740, 430x932 and 844x390, light and dark; 380 to 430 px for the top bar.
+- **Gestures:** `touchscreen.tap`, and CDP `Input.dispatchTouchEvent` for swipes, drags and pinch. Flicks carry
+  explicit event timestamps, because at this machine's load an awaited CDP call takes 35-50 ms and turns a flick
+  into a slow drag.
+- **Throttling** (preview checks): 4x CPU with Fast 4G (165 ms, 1.01 MB/s) or Slow 4G (562.5 ms, 180 kB/s).
+- **Load:** other agents ran at the same time (load average 4 to 27 on 4 CPUs). Timings are noted with their load
+  and are not a record.
+
+**New e2e tests:** [`test/e2e/beta-mobile-qa-3.e2e.js`](../test/e2e/beta-mobile-qa-3.e2e.js), registered in
+`scripts/e2e.js`.
+- Run them with `node scripts/e2e.js --grep='^Beta mobile QA 3'`. `BETA_QA3_DIST=<dir>` points them at another
+  build, and `BETA_QA3_SHOTS=1` saves each failing case's screenshot.
+- **On the lead's build: 7/22 pass.** The 7 guards pass; the 15 failures are exactly `[M-33]` to `[M-47]`.
+
+### Earlier mobile bugs (M-19 to M-32)
+- **M-19 to M-31:** both earlier groups (`^Beta mobile QA`, 20 tests) pass on this build: still fixed.
+- **M-32:** verified in real Safari by the lead (fix wave 4).
+- **M-8:** the map's zoom, Pay|Juice and Remote controls are now 44 px; the Remote control is 184x44. Fixed.
+- **M-27:** still fixed at 360 px, where the Beta pill hides. At 380 to 392 px the pill shows and "Microsoft" is
+  cut: a new bug, **M-45**.
+
+### What changed since round 2, on the phone
+
+| Change | On the phone |
+|---|---|
+| Amazon's whole board (22,179) | Pass. It loads with no page error and no request to another host. At load 10: sort 189 ms, a filter tap 203 ms, "Show 5,133 roles" = 5,133, card → job page 154 ms. At 4x CPU (load 12-14): 585 / 645 / 383 / 1,014 ms. The list scrolls with frames at p50 17 ms and p95 17 ms (4x: p95 33 ms, 7 of 387 frames over 50 ms). |
+| First-page preview (Amazon) | Pass. Fast 4G at 4x CPU: skeletons at 1.1 s, 24 real cards under "Loading 22,179 roles…" at 1.6-1.8 s, the whole list at 6.0-6.6 s, the chart at 6.8-7.5 s. Slow 4G: cards at 4.4 s, list at 15.3 s. The list keeps the preview's first cards, ids and order. Quick chips are disabled during the preview. **A tap on a preview card gives no feedback: M-43.** |
+| Meta (1,208) | Pass on every feature. Its top-paid job ("VP Robotics") has no "Same role elsewhere"; others do. |
+| Google job families + Company | Pass. The rows are Product Management, Software Engineering 946, Hardware Engineering … "20 more departments". The Department chip opens the sheet with a Company list (Google 3546, YouTube 162, DeepMind 111, Waymo 1, Wing 1). YouTube gives "Show 162 roles" = 162, the chip reads "YouTube", and `b=YouTube` is in the hash. Group "Company" draws 5 rows; Apple has no Company option. The "Grouped by job title" note takes 2 lines at 360 (M-36). |
+| One-line notes with one Details (fix-density) | The lines fix-density covered pass on all boards: the stats line, chart notes, map Pay note and Insights header, each with a 44 px Details. **The lines it didn't cover fail: M-33 to M-39** (table below). The percentile line it did cover is cut off on real postings: M-38. |
+| "· 2 levels", "· N places", "from €X", shift pay | Pass on the card at 360: "$184K–356K · 2 levels" (NVIDIA), "$143K–296K · 2 levels" (Microsoft IC5/IC6), "CA$99K–102K · 2 levels" (Google degree lines), "$60K–129K · 4 places" (Amazon), "from €46K", "from PLN 230K". None is cut. The job pages show "Pay by level" / "Pay by place" rows and the "Minimum" and "Incl. top shift pay" chips. **A "· N places" card and its job page show different ranges: M-42.** |
+| Clusters at their median (viz-even) | Pass. Circles are unevenly spaced along each row. A circle tap gives a chip ("Technical Program Management · $177K (20)") and the list. Hit areas are 30-44 × 44 px. |
+| Ranges stacked rows ×N | Pass. A stacked row reads "2 roles" on the phone (×N is hidden by design). A tap on its bar or label gives "Software Engineering · $221K–$331K (2)" and lists both postings. |
+
+### Text density (hard check, 390x844 and 360x740, all 8 boards)
+
+Each line's text, word count and wrapped lines were measured on 15 surfaces per board (13,505 lines). These are
+over budget. The rule is one line, at most 12 words, nothing cut off. Each row shows the worst case.
+
+| Line | Boards | Worst on the phone | ID |
+|---|---|---|---|
+| Job page, "Same role elsewhere" caption (`comps-note`) | all 8 | 4 lines / 33 words (NVIDIA 360): "Too few Senior Sales & partnerships roles elsewhere list pay in the US, so this compares …" | M-33 |
+| …its caveat (`comps-caveat`) | 5 | 3 lines / 21 words: "Only postings that state a level count, so companies whose postings rarely state one may be missing. How pay is read" | M-33 |
+| …the chart note (`ms-comps__note`) | all 8 | 3 lines / 20 words: "On-target earnings (base plus commission at target) in approx. US dollars a year. Bar: the middle half. Tick: the median." | M-33 |
+| …the as-of line (`comps-asof`) | all 8 | 2 lines / 12 words: "Postings as of 16 Oct 2026 · exchange rates as of Jul 2026" | M-33 |
+| Insights, Pay estimate explainer (`ms-comp__explain`) | all 8 | 5 lines / 30 words: "Weighted by similarity to "Software Development Engineer". Low and High leave out …" | M-34 |
+| …auto line, accuracy, as-of | all 8 | 3 / 2 / 2 lines: "Showing the most common role on this board: …. Type any title." | M-34 |
+| Juice explainer above the list (`juice-scale`) | all 8 | 3 lines / 30 words: "🍉 Juice is the money left a year after tax, rent and living costs, for one person. Juicy: $95K or more …" | M-35 |
+| Filter sheet notes (`fnote`) | all 8 | salary 4 lines / 30 words; seniority 3 / 23; location 2 / 18; Google's "Grouped by job title…" 2 lines at 360 | M-36 |
+| Job page Juice line (`juice-head-net`) | 4 | 3 lines / 21 words: "$201,100/yr left for one person in Santa Clara (using San Jose's rent and living costs, the nearest city with cost data)" | M-37 |
+| …no-Juice line, Listing line, general application | 3-6 | 2 lines / 16 words ("🍉 No Juice: the posting names no city, …"); 3 / 16 ("Open 180+ days. Some companies keep a posting open …"); 3 / 22 (Netflix pool) | M-37 |
+| Job page percentile line (`d-pct-text`) | 6 | **cut off**: "Pays more than 72% of Amazon's roles in the …" (360), "…Google's internships in Canada" (390) | M-38 |
+| …strip caption (`dist-caption`) | NVIDIA | 2 lines: "This one among 39 roles with on-target earnings at NVIDIA" | M-38 |
+| Data badge popover (`p`, `dd`, `badge-beta`) | all 8 | 4 lines / 30 words (Apple's count note); 3 / 23; 2 / 17; 6 lines on the main site with a live-fetch error | M-39 |
+| More sheet Juice note | all 8 | 2 lines / 15 words: "9,819 of 22,179 roles have a Juice Score (needs a salary and a known city)." | M-39 |
+| Insights row names (`msi-row__name`), stat note | all 8 | cut: "Machine l…", "Network…", "Datacen…", "Mountain…"; "of 13,980 salaried roles" cut at 360 | M-41 |
+| Filter checklist labels (`check-label`) | 4 | cut to the same text: "Project/Program/Product Manageme…" ×2 (Amazon) | M-40 |
+
+Within budget on every board and both phones: the stats line ("$141K base pay median Details"), the chart notes
+("13,980 with pay · 8,199 without Details"), the results header, the map Pay legend ("Median pay Details"), the
+Juice legend, the Insights header and card captions, the tagline ("melon·seek · Beta: adds 7 big-tech careers
+sites"), the drawer pay caption ("Posted base pay Details"), the empty states, the company menu, and Google's
+Company rows. No text under 12 px anywhere (the badge label's `font-size: 0` shows its text through `::before`).
+
+### What works on phones (beta, today's crawl)
+- **All 8 boards**, at 390x844 light, 360x740 dark and light, 430x932 dark and 844x390 dark and light:
+  - no horizontal scroll and no page error; the big-tech boards make no request to another host;
+  - the theme cycles Light > Dark > System and the body follows;
+  - the badge: "Snapshot · Oct 16", and the CSV link is 44 px (Meta: 1,208 rows, text/csv);
+  - all quick chips are 44 px;
+  - a chart row-label tap gives a chip ("Machine Learning and AI (359)"); Ranges draws 20-31 rows;
+  - map: a pin tap gives its area chip; Juice recolours the pins (`mc=juice`); Remote gives "Remote (357)" on
+    Microsoft;
+  - Insights fields are 16 px and 44 px tall with no zoom on focus (scale 1); Compare companies rows go to that
+    company's roles;
+  - job page:
+    - the Back button (76x44) closes it and returns focus to the card, and hardware Back closes it too;
+    - next and previous work ("2 of 22,179" and back);
+    - Apply goes to the board's own site;
+    - Juice → "Family" recomputes (Seattle $160,100 → $141,000);
+    - "Same role elsewhere" and the methodology link (`/melon-seek/beta/methodology/`) work;
+  - Save is 44 px with its toast. "N new" shows on saved searches ("7 new", "3 new"; checked through the seen-list
+    path, since this build has no ledger).
+- **Results sheet:**
+  - drags peek → half → full, and the handle cycles;
+  - flicks with real timing go one snap further: 18 of 18, header and handle, up from peek and down from full;
+  - the list lazy-loads (24 → 80 cards over 12 swipes, 10,234 px), and the page never moves;
+  - switching to Map collapses it to peek.
+- **Filter sheet:**
+  - a salary thumb drag gives "$125K – Any" and "Show 1,387 roles", and typing "250k" works;
+  - "Only with pay" works;
+  - Remote gives "Show 298 roles" = 298 after Show, and the Filters count shows 3;
+  - Reset clears the hash;
+  - ✕ closes it with focus on Filters, and hardware Back closes it without leaving the page;
+  - keyword chips are 44 px.
+- **Memory:** 3 rounds over Amazon, Google, Microsoft, NVIDIA, Meta and Apple. The heap after GC goes 54 → 70 → 70
+  MB and stays flat. DOM nodes stay at about 1,800, listeners at 118.
+- **Safe area** (CDP override 47/34 portrait, 47/47/21 landscape): every control is clear of the insets.
+- **Keyboard** (simulated, 390x844 and 360x740): the Pay estimate field, the top search and the filter fields stay
+  above the keyboard. Landscape is the exception: **M-47**.
+- **Landscape 844x390:** the one-row top bar; 134 px of chart; half sheet shows one card; the job page has a 69 px
+  footer. The tagline row takes 40 of the 390 px (noted, not filed).
+
+### Bugs (ordered by severity)
+
+Screenshots are in `docs/screenshots/qa-mobile-beta-3/`.
+
+| ID | Sev | Device / orientation | Summary |
+|---|---|---|---|
+| M-42 | High | All phones (probably desktop too) | A "· N places" card and its job page show different pay: "$60K–129K · 4 places" on the card, "$83K–117K" (one place's row, not named) on the page. 2,201 Amazon and 255 Microsoft postings |
+| M-33 | Medium | All phones, all boards | The job page's "Same role elsewhere" has 4 caption lines of 2-4 lines each (up to 33 words) |
+| M-34 | Medium | All phones, all boards | Insights' Pay estimate card: explainer 5 lines / 30 words, plus 3 more lines of 2-3 lines each |
+| M-35 | Medium | All phones, all boards | The Juice explainer above the list is 3 lines / 30 words (UX-35, on the phone) |
+| M-36 | Medium | All phones, all boards | The filter sheet's notes run to 2-4 lines (salary 30 words, seniority 23, location 18, Google's grouping label) |
+| M-37 | Medium | All phones, 3-6 boards | The job page's Juice line (21 words, 3 lines), no-Juice line, Listing line and general-application line wrap to 2-3 lines |
+| M-38 | Medium | All phones, 6 boards | The job page's percentile line is cut off ("Pays more than 72% of Amazon's roles in the …"), against fix-density's own rule |
+| M-39 | Medium | All phones, all boards | The data badge popover's lines run to 3-4 lines (6 on the main site with a live-fetch error); the More sheet's note to 2 |
+| M-40 | Medium | 390 and 360 | Amazon's Department filter cuts "Project/Program/Product Management--Technical" and "--Non-Tech" to the same text |
+| M-41 | Medium | 390 and 360, all boards | Insights row names are cut to 6-9 letters ("Network…", "Datacen…", "Mountain…"); on touch the full name shows only by applying the filter |
+| M-43 | Medium | Phones on 4G (Amazon) | A tap on a preview card gives no feedback; the job opens 5-10 s later when the whole list lands |
+| M-44 | Medium | All phones | After a pin tap, the map tooltip stays, sits off screen (left −67 / −147 px, right 456 px on a 390 screen) and under the half sheet [fix-touch-tips] |
+| M-45 | Low | 380-392 px (iPhone 12-16 width) | "Microsoft" shows as "Micros…" in the beta top bar (74.4 px of text in a 74.2 px box) |
+| M-46 | Low | All phones | With no pay in view, the stats line is a lone "Details" button |
+| M-47 | Low | 844x390 landscape, keyboard up | The Pay estimate title field sits under the keyboard (226-270 px with 0-200 visible) |
+
+#### M-42 (High): a "· N places" card and its job page show different pay ranges
+- **Device:** all phones; 390x844 and 360x740 tested. The cause is not phone CSS, so desktop is probably the same.
+- **Repro:**
+  1. Open `/melon-seek/beta/#c=amazon&q=Senior%20Financial%20Analyst%2C%20Engineering%20Capex%20Analytics%20%26%20Planning`.
+  2. Note the card's pill: **"$60K–129K · 4 places"**.
+  3. Tap the card.
+- **Expected:** the job page's headline is the same range as the card, or it says whose range it is ("Bellevue
+  $83K–117K").
+- **Actual:**
+  - The headline is **"$83K–117K"**, Bellevue's row, with no place named. The posting's first location is
+    Nashville. "Pay by place" below lists all four rows.
+  - The same happens on Microsoft's per-place postings (SB-5): "$102K–261K · 2 places" on the card, "$102K–235K"
+    on the page.
+  - Counted over the whole lists: **2,201 of 2,260** multi-range Amazon postings and **255 of 255** Microsoft ones
+    show a card span different from the page's headline. Apple's 391 match.
+- **Screenshots:** `e2e-M-42-places-amazon.png`, `e2e-M-42-places-microsoft.png`,
+  `pay-drawer-places-amazon-360x740.png`.
+- **Cause:**
+  - `public/app.js` `drawerContent` (the `.d-sal-amt` headline, app.js:4321) prints `salary.min`–`salary.max`, which
+    for these postings is one pay-table row.
+  - `payPill` (app.js:3506) / `payPlaceText` (3561) print the span of `salary.ranges` with "· N places" (the
+    fix5-data display patch, SA-2/SA-6).
+- **Test:** `Beta mobile QA 3: [M-42] …` (fails today).
+
+#### M-33 (Medium): "Same role elsewhere" has four multi-line captions
+- **Device:** all phones, all 8 boards, 390x844 and 360x740.
+- **Repro:** open the top-paid job on Amazon (`#c=amazon&job=amazon%3A10573828`) and scroll to "Same role
+  elsewhere".
+- **Expected:** at most one caption line (one or two facts), with the rest behind one Details. This is
+  fix-density's rule.
+- **Actual:**
+  - "Hardware & systems engineering roles at Director+ level in the US: median and middle half of posted base pay
+    (approx USD)." (3 lines, 20 words)
+  - "Only postings that state a level count, so companies whose postings rarely state one may be missing. How pay is
+    read" (2-3 lines, 21 words)
+  - "Posted base pay in approx. US dollars a year. Bar: the middle half of salaries. Tick: the median." (2 lines, 18)
+  - "Postings as of 16 Oct 2026 · exchange rates as of Jul 2026" (2 lines)
+  - Apple's "Too few Director+ Legal & contracts roles elsewhere …" is 4 lines / 28 words at 360, and NVIDIA's is 4
+    lines / 33 words.
+  - The "How pay is read" link is 99x16 px, in the default link blue.
+- **Screenshots:** `e2e-M-33-same-role-elsewhere-{amazon,apple,google}-{390,360}.png`.
+- **Cause:** `public/app.js` `sameRoleSection` (4484-4497: `comps-note`, `comps-caveat`, `asOfNote('comps-asof')`)
+  and `public/viz/comps.js:57` (`NOTE_BASE`). Neither is on fix-density's list.
+- **Test:** `Beta mobile QA 3: [M-33] …` (22 lines over budget).
+
+#### M-34 (Medium): the Pay estimate card in Insights
+- **Device:** all phones, all boards.
+- **Repro:** open `#c=amazon&m=insights`.
+- **Actual:**
+  - `ms-comp__explain` is 5 lines / 30 words: "Weighted by similarity to … Low and High leave out the lowest and highest 15% of
+    their posted pay; 45 ranges in other currencies converted at approximate rates."
+  - `ms-comp__auto` is 2-3 lines / 14 words.
+  - `ms-comp__accuracy` is 2 lines ("Typically within ±10% (tested on 497 listed salaries, Oct 2026)").
+  - `ms-comp__asof` is 2 lines.
+  - The "Most comparable roles" meta lines are cut ("New York +6 · Level not stated · Software Development").
+- **Screenshots:** `e2e-M-34-pay-estimate-{amazon,google}-{390,360}.png`.
+- **Cause:** `public/features/compstimate.js:825` (auto line) and 955-967 (accuracy, explain, as-of). fix-density
+  shortened only the caption (`ms-comp__sub`).
+- **Test:** `Beta mobile QA 3: [M-34] …` (16 lines).
+
+#### M-35 (Medium): the Juice explainer above the results list
+- **Device:** all phones, all boards, on the first visit (until a role is opened).
+- **Repro:** open any board in a new browser and open the sheet to half.
+- **Actual:** "🍉 Juice is the money left a year after tax, rent and living costs, for one person. Juicy: $95K or more
+  a year · Ripe: $47K–95K · Dry: under $47K · Rind: nothing left." That is 3 lines and 30 words with six facts. At
+  half sheet it leaves room for one card.
+- **Screenshots:** `e2e-M-35-juice-explainer-{390,360}.png`, `preview-amazon-slow-tapped.png`.
+- **Cause:** `public/app.js` `juiceScaleNote` (3392-3401). UX-35, left open by fix-density on desktop, is the same
+  line on the phone.
+- **Test:** `Beta mobile QA 3: [M-35] …`.
+
+#### M-36 (Medium): the filter sheet's notes
+- **Device:** all phones, all boards.
+- **Repro:** tap Filters, then open Salary, Location and Seniority.
+- **Actual:**
+  - Salary: "A role matches if its range overlaps yours. You can type another currency (£80,000, A$350k); all pay is
+    compared in approx US dollars. 1 with unclear pay is left out." (3-4 lines, 23-30 words)
+  - Seniority: "Staff+ means staff, principal and above. Director+ means director, head of, vice president and above.
+    "Level not stated": the title names no level." (3 lines, 23)
+  - Location: "A city also finds roles that list only its country or region, and remote-only roles in its
+    country." (2 lines, 18)
+  - Google's "Grouped by job title: Google doesn't publish departments" (2 lines at 360).
+- **Screenshots:** `e2e-M-36-filter-notes-amazon-390.png`, `e2e-M-36-filter-notes-google-360.png`.
+- **Cause:** `public/app.js` salary note (2242), `SEN_NOTE` and `LOC_NOTE` (90-93), and google-grouping's label.
+- **Test:** `Beta mobile QA 3: [M-36] …` (7 notes).
+
+#### M-37 (Medium): the job page's Juice and Listing lines
+- **Device:** all phones.
+- **Repro:** open Apple's or NVIDIA's top-paid job, or an Amazon EUR minimum (`#c=amazon&job=amazon%3A10377152`).
+- **Actual:**
+  - "$198,500/yr left for one person in Cupertino (using San Jose's rent and living costs, the nearest city with cost
+    data)" (3 lines, 20 words);
+  - "🍉 No Juice: there is no rent and living-cost data yet for Casirate d'Adda." (2 lines);
+  - "Open 180+ days. Some companies keep a posting open to collect applicants for a recurring role." (2-3 lines, 16);
+  - Netflix's "General application (no specific opening). The company collects …" (3 lines, 22).
+- **Screenshots:** `e2e-M-37-juice-listing-{apple,nvidia,amazon}.png`.
+- **Cause:** `public/app.js` `juiceBlock` (`juice-head-net`, 3899), `juiceMissing` (4008-4010), `listingSection`
+  (4411-4429), and `drawerContent` (`d-pool`, 4365).
+- **Test:** `Beta mobile QA 3: [M-37] …`.
+
+#### M-38 (Medium): the job page's percentile line is cut off
+- **Device:** 360x740 and 390x844; 6 boards in the scan.
+- **Repro:** open `#c=amazon&job=amazon%3A10371179` at 360x740, or `#c=google&job=google%3A104405499448828614` at
+  390x844.
+- **Expected:** fix-density's rule, "nothing cut off".
+- **Actual:**
+  - "Pays more than 25% of Amazon's roles in the …" and "Pays more than 20% of Google's internships in …": the line
+    ends in an ellipsis.
+  - NVIDIA's strip caption "This one among 39 roles with on-target earnings at NVIDIA" wraps to 2 lines.
+  - fix-density's test opens only each board's top-paid posting, whose line is shorter.
+- **Screenshots:** `e2e-M-38-percentile-amazon-360.png`, `e2e-M-38-percentile-google-390.png`.
+- **Cause:** `public/app.js` `drawerContent` (`d-pct-text`, 4330) and `salaryDistribution` (`dist-caption`, 3771).
+- **Test:** `Beta mobile QA 3: [M-38] …`.
+
+#### M-39 (Medium): the data badge popover and the More sheet
+- **Device:** all phones, all boards.
+- **Repro:** tap the badge ("Oct 16"); separately, tap the More chip.
+- **Actual:**
+  - "Saved snapshot of Apple's careers site from Oct 16. This board is collected by the site's crawler; your browser
+    can't fetch it live." (3 lines, 23 words)
+  - "4,851 · Apple's site lists a role once for each place it is open in; here each role is one, with all its places,
+    so the count is lower than Apple's." (4 lines, 30)
+  - "Read by the site's crawler about every 6 hours (GitHub often starts it hours late). How we collect this" (3 lines)
+  - "You're on the beta site, which adds big-tech companies' own careers sites. Go to the main site" (2 lines)
+  - The main site with its live-fetch error: 6 lines / 36 words.
+  - More: "2,703 of 4,851 roles have a Juice Score (needs a salary and a known city)." (2 lines).
+- **Screenshots:** `e2e-M-39-badge-popover.png`, `e2e-M-39-more-sheet.png`, `badge-anduril-390x844-light.png`.
+- **Cause:** `public/app.js` `badgeInfo` (1392-1493) and the More sheet's note (2466). The badge is on check 6's
+  list; fix-density kept only its short label.
+- **Test:** `Beta mobile QA 3: [M-39] …`.
+
+#### M-40 (Medium): Amazon's departments can't be told apart in the filter sheet
+- **Device:** 390x844 and 360x740 (Amazon; Anduril's "Hardware Operations : Supply Chain : …" rows the same).
+- **Repro:** on `#c=amazon`, tap the Department chip.
+- **Expected:** each department readable, or at least the two that differ only at their end told apart.
+- **Actual:**
+  - "Project/Program/Product Management--Technical" (1,215) and "Project/Program/Product Management--Non-Tech"
+    (1,174) both show as **"Project/Program/Product Manageme…"**.
+  - There is no title, and on touch no way to see the end.
+  - "Sales, Advertising, & Account Manag…" is cut too.
+- **Screenshots:** `e2e-M-40-amazon-departments.png`, `filter-dept-amazon-390.png`.
+- **Cause:** `public/styles.css:381` (`.check-label { overflow: hidden; text-overflow: ellipsis; white-space:
+  nowrap }`) with `makeChecklist` (app.js:2288).
+- **Test:** `Beta mobile QA 3: [M-40] …`.
+
+#### M-41 (Medium): Insights row names are cut
+- **Device:** 390x844 and 360x740, all boards.
+- **Repro:** open `#c=amazon&m=insights` and scroll to "Skill premium".
+- **Actual:**
+  - The names are cut: "Machine l…", "Network…", "Cloud in…", "Datacen…", "Mechanic…", while the bar column next to
+    them has room.
+  - Google's "Hot locations": "Mountain…", "San Fran…". The stat tile note "of 13,980 salaried roles" is cut at 360.
+  - On touch there is no tooltip (createTooltip ignores touch), so the full name shows only by applying the filter
+    (`ks=…`).
+- **Screenshots:** `e2e-M-41-insights-names-{amazon,google}.png`, `insights-amazon-skills.png`.
+- **Cause:** `public/features/features.css:189-190` (`.msi-row__name` ellipsis in a narrow label column) with
+  `public/features/insights.js` 293/333/412.
+- **Test:** `Beta mobile QA 3: [M-41] …` (7 names).
+
+#### M-43 (Medium): a tap on an Amazon preview card gives no feedback
+- **Device:** phones on 4G; tested at 390x844 with 4x CPU, on Fast and Slow 4G.
+- **Repro:**
+  1. Open `#c=amazon` on Slow 4G.
+  2. When the cards show under "Loading 22,179 roles…", open the sheet and tap the second card.
+- **Expected:** the tap is answered at once: the job page opens with a loading state, or the card shows it is
+  opening.
+- **Actual:**
+  - Nothing changes: no pressed state, no busy card, no message.
+  - The job opens when the whole list lands: about 10 s later on Slow 4G (tap at about 5.5 s, job page at 15.9 s)
+    and 5 s later on Fast 4G. By then the user has tapped again or moved on.
+  - A later tap on another preview card silently replaces the pending one.
+- **Screenshots:** `e2e-M-43-preview-tap.png`, `preview-amazon-slow-tapped.png`, `preview-amazon-slow-tap-after.png`.
+- **Cause:** `public/app.js` list click handler (4921-4926): a preview card only sets `pendingOpenId`; `card()`
+  (3598) marks preview cards with `data-preview-id`.
+- **Test:** `Beta mobile QA 3: [M-43] …` (Slow 4G, 4x CPU).
+
+#### M-44 (Medium): the map pin tooltip stays, off screen and under the sheet [fix-touch-tips]
+- **Device:** all phones (390x844 tested), in Chromium. The lead's fix-touch-tips lane owns every floating box's touch
+  behaviour; this is evidence, not a fix proposal.
+- **Repro:** on `#c=google&m=map`, tap the Buenos Aires pin.
+- **Actual:**
+  - The pin's tooltip opens and stays until another tap on the map. It follows the pin through a pan.
+  - Google's Buenos Aires tooltip is at x = −67 px (−147 px after a pan) and 280 px wide. Apple's Cupertino tooltip
+    runs 204-456 px on a 390 px screen, and Apple's Shanghai one starts at −94 px.
+  - Every one of them reaches under the half sheet that the tap opens (bottoms at 478-637 px; the sheet's top is
+    at 422).
+- **The user's iPhone report** (the drawer comps tip that never goes away): comps.js:207 and chart.js:1716/1719 show
+  their tips on `pointermove` of any pointer type, so a resting finger that moves 2 px shows them over the rows,
+  with "Click to see these roles" on a phone. Chromium hides them on `pointerleave` after the lift, so the iOS
+  stickiness can't be reproduced here. Only features/shared.js `createTooltip` ignores touch (Insights rows,
+  Compare rows, the strip).
+- **Screenshots:** `e2e-M-44-map-tooltip-{google,apple}-*.png`, `tip-google-map-pin-finger-1-after-tap.png`,
+  `tip-apple-map-pin-then-pan-finger-3-after-swipe.png`, `touchtip-drawer-comps-finger-down.png`,
+  `touchtip-chart-bin-finger-down.png`, `touchtip-ranges-bar-finger-down.png`.
+- **Cause:** `public/viz/map.js:851` (`bindTooltip`; Leaflet opens a tooltip on tap on touch devices).
+- **Test:** `Beta mobile QA 3: [M-44] …` (6 pins).
+
+#### M-45 (Low): "Microsoft" is cut in the beta top bar at 380-392 px
+- **Device:** 380 and 390 px wide (iPhone 12 to 16). 360/375 hide the Beta pill and fit; 393 and up fit.
+- **Repro:** open `#c=microsoft` at 390x844.
+- **Actual:** the menu shows "Micros…". The name is 74.4 px of text in a 74.2 px box at 390, and in a 64.2 px box at
+  380. M-27's test compares integer `scrollWidth`/`clientWidth` and passes.
+- **Screenshots:** `e2e-M-45-microsoft-topbar-{380,390}.png`, `ranges-stack-microsoft.png`.
+- **Cause:** `public/styles.css:838` (`.company-menu-btn .company-name` ellipsis) and the phone top bar's widths with
+  the Beta pill shown.
+- **Test:** `Beta mobile QA 3: [M-45] …`.
+
+#### M-46 (Low): a lone "Details" as the stats line
+- **Device:** all phones.
+- **Repro:** open `#c=google&l=Buenos+Aires` (12 roles, none with pay). Picking a map pin whose roles have no pay
+  does the same.
+- **Expected:** a short line, such as "No pay posted", with Details.
+- **Actual:** the stats line is only the "Details" button.
+- **Screenshots:** `e2e-M-46-bare-details.png`, `tip-google-map-pin-finger-1-after-tap.png` (top).
+- **Cause:** `public/app.js` `renderKpis` (2685) writes an empty line when there is no median.
+- **Test:** `Beta mobile QA 3: [M-46] …`.
+
+#### M-47 (Low): in landscape the keyboard covers the Pay estimate field
+- **Device:** 844x390 with the earlier passes' simulated keyboard (190 px). Portrait is fine.
+- **Repro:** open `#c=amazon&m=insights` in landscape and tap the Pay estimate title field.
+- **Actual:** the field is at 226-270 px while 0-200 px is visible. Nothing scrolls it up: `revealField` covers the
+  filter sheet and popovers, not Insights.
+- **Screenshot:** `e2e-M-47-landscape-keyboard.png`, `kb-insights-844x390.png`.
+- **Cause:** `public/app.js` `bindKeyboardInsets` / `revealField` (4706, 4744).
+- **Test:** `Beta mobile QA 3: [M-47] …`.
+
+### Coverage notes
+- **Not testable here:**
+  - real WebKit / iOS Safari (the iPhone tooltip report; see M-44);
+  - a real keyboard;
+  - map tiles ("Basemap unavailable · pins still work");
+  - live boards;
+  - the history ledger's "N new" (this build has none; the seen-list path was checked).
+- **Noted, not filed:**
+  - Landscape: the tagline takes a 40 px row of 390, the Map button in the view switch is 42x44, and the sheet
+    handle spans the notch insets.
+  - Card department lines, chart row names and Ranges titles end in an ellipsis on long names. A tap gives the
+    full name.
+  - Amazon's Ranges first screen (highest pay first) is all overflow stubs at the $300K edge.
+  - `l=Seattle, WA` finds nothing: the fix6 "Columbus, OH" follow-up.
+- **Timings:** taken at load 4-27 with other agents running; not a record. The Insights task on Amazon (4.3 s) is
+  known (perf-mobile-beta-2) and was not re-measured.
+
+### Suite results
+| Suite | Tree | Result |
+|---|---|---|
+| `BETA_QA3_DIST=<lead build> node scripts/e2e.js --grep='^Beta mobile QA 3'` | `d98a9f0` + this pass's files | **7/22 pass**: the 7 guards; the 15 failures are exactly `[M-33]` to `[M-47]` |
+| `BETA_QA_DIST=<lead build> BETA_QA2_DIST=<lead build> node scripts/e2e.js --grep='^Beta mobile QA'` (earlier passes) | same | **20/20 pass** (M-19 to M-31 still fixed) |
+| `npm test` | same, data links present | **1,168 tests: 1,112 pass, 4 fail, 52 todo** (the to-dos are the open review findings, MR-23/26/28/29 among them). The 4 failures are the load-sensitive timing tests, run at load average 19-27: S-3 (2 s budget), S-6 (median ms per request), PERF-1 and V15 (event-loop lag; they run only with local data). Re-run alone at load 18, S-3 and V15 pass; S-6 (36 ms) and PERF-1 (295 ms) still fail. The lead saw S-6 pass 3 of 3 alone at load 6.4. Nothing this pass touched is on those paths (one new e2e file, two lines in scripts/e2e.js). |
+
+All browser runs used `NODE_PATH=<scratchpad>/pw/node_modules PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`.
