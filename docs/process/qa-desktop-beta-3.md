@@ -309,8 +309,9 @@ stated. Screenshots are in `docs/screenshots/qa-desktop-beta-3/`.
   individual-contributor level, not a fellowship.
 - **Actual:** "Intern" under the title; "Pay unclear, see posting — the listed figure didn't pass our sanity
   checks"; Why?: "$550K/yr is implausible for an intern/fellow/resident title"; then "PAY ESTIMATE about $138K
-  ($115K–152K, low confidence)". Google's highest posted salary is left out of the chart, the medians and the
-  "Highest pay" sort, and the one figure shown is a quarter of it. The Seniority filter counts it as an Intern.
+  ($115K–152K, low confidence)". One of Google's two highest posted salaries (with "Vice President, Strategic Alliances",
+  $550K) is left out of the chart, the medians and the "Highest pay" sort, and the one figure shown is a quarter of
+  it. The Seniority filter counts it as an Intern.
 - **Cause:** `server/vet.js`: `JUNIOR_RE` matches "fellow", and `NOT_JUNIOR_RE` only spares "technical /
   distinguished / senior / principal / research fellow", so a title that starts "Fellow, …" is `junior`, and
   `junior_high` (mid over $300K) quarantines it. The level comes from the same "fellow" word (the `intern` family
@@ -443,6 +444,8 @@ stated. Screenshots are in `docs/screenshots/qa-desktop-beta-3/`.
   - SA-1's open question: NVIDIA "Senior Software Architect - Data Center Systems" scores Juice on $327,600, the
     midpoint of its Level 5 and Level 6 span.
   - perf-mobile-beta-2's Amazon Insights task: 2.0 s on the desktop at load 20.
+  - MR-23 and MR-26: the beta methodology table marks exchange rates (1 July 2026), tax, rent and living costs
+    "update due".
 - **Not bugs, for the record:** the map's Remote control shows the remote roles as an area chip, like a pin; a
   second click keeps them (the chip's × clears it). The preview's list ends with "Show 40 more of 40" (the
   preview's own cards). 19 Microsoft cards read "· 2 places" where each place's range spans two levels; their drawer
