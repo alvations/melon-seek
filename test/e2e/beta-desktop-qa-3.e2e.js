@@ -259,6 +259,27 @@ export function registerBetaDesktopQa3Tests(suite) {
     assert(!tinyAbove.length, `the first rows are ${tinyAbove.length} place(s) with 1–2 roles (${tinyAbove.slice(0, 4).map((l) => `"${l}"`).join(', ')}), above "${rows[bigAt]}" (row ${bigAt + 1})`);
   });
 
+  suite.test('Beta desktop QA 3: [D-45] a posting with pay per place shows the same headline range on its card and in its drawer, or names the place', async (ctx) => {
+    const { st, page } = await open(ctx, 'c=amazon');
+    const { jobs } = await needBoard(page, st, 'amazon');
+    const span = (s) => [Math.min(s.min, ...s.ranges.map((r) => r.min)), Math.max(s.max, ...s.ranges.map((r) => r.max ?? r.min))];
+    const cands = jobs.filter((j) => j.salary && !j.salary.termWeeks && !j.salary.partTime && j.salary.kind !== 'minimum' && j.salary.ranges.length > 1
+      && new Set(j.salary.ranges.map((r) => r.label)).size === j.salary.ranges.length && (span(j.salary)[0] !== j.salary.min || span(j.salary)[1] !== j.salary.max));
+    if (!cands.length) return; // every such headline is the span
+    const j = cands.find((x) => x.salary.ranges.length >= 3) || cands[0];
+    await go(page, st, `c=amazon&q=${encodeURIComponent(j.title)}`);
+    const card = page.locator(`#resultsList .card[data-id="${j.id}"]`);
+    if (!(await card.count())) skip(`"${j.title}" is not in the first page of its own search`);
+    const pill = (await card.locator('.sal-pill').innerText()).trim();
+    await card.click();
+    await page.waitForSelector('#drawer.is-open', { timeout: 20000 }); await sleep(800);
+    const amt = (await page.locator('#drawer .d-sal-amt').innerText()).trim();
+    const top = (await page.locator('#drawer .d-sal-top').innerText()).split('Pay by place')[0];
+    const named = j.salary.ranges.some((r) => r.label && top.includes(r.label));
+    const range = pill.replace(/ · \d+ places$/, '');
+    assert(amt === range || named, `"${j.title}" (${j.id}): the card reads "${pill}", the drawer's headline "${amt}" names no place (${cands.length} Amazon postings with pay per place have a headline that is one place's range)`);
+  });
+
   suite.test('Beta desktop QA 3: [D-43] the chart names a range end in the millions as the card does ("$1.07M", not "$1.1M")', async (ctx) => {
     const { st, page } = await open(ctx, 'c=netflix&v=ranges');
     const { jobs } = await needBoard(page, st, 'netflix');
