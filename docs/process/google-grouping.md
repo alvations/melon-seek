@@ -19,7 +19,7 @@
   - the group-by and filter controls and their URL state in `public/app.js`;
   - `test/google-grouping.test.js`, `test/e2e/google-grouping.e2e.js` and `test/fixtures/google-families-sample.json`;
   - this log, its prompt, `docs/screenshots/google-grouping/`, and the CONTRACT section.
-- **Outside my files** (both necessary):
+- **Outside my files** (each one necessary):
   - one D-24 test in `test/fix-beta-sources.test.js`, which asserted the old mapping;
   - one line in `server/lib-modules.js`, which the lead asked for;
   - the e2e registration in `scripts/e2e.js`.
