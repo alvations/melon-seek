@@ -535,10 +535,10 @@
         "server/juice.js:148 GRADES",
         "server/juice.js:153 RIND",
         "public/viz/palette.js:280 JUICE_BREAKS (copy)",
-        "public/app.js:2362 JUICE_GRADES (UI copy \"70+\", \"45–69\", \"under 45\")",
+        "public/app.js:2443 JUICE_GRADES (UI copy \"70+\", \"45–69\", \"under 45\")",
         "public/viz/palette.js:280 JUICE_BREAKS [45, 70] (copy)",
         "public/viz/palette.js:280 JUICE_BREAKS [45, 70]",
-        "public/app.js:2362 JUICE_GRADES chip tooltips \"(score 70+)\", \"(45–69)\", \"(under 45)\" (hard-coded copy)",
+        "public/app.js:2443 JUICE_GRADES chip tooltips \"(score 70+)\", \"(45–69)\", \"(under 45)\" (hard-coded copy)",
         "public/app.js:532 gradeKey: Rind is filtered as Dry"
       ],
       "values": "breaks 45 / 70; labels Dry, Ripe, Juicy, Rind",
@@ -750,10 +750,10 @@
       "type": "product-policy",
       "owners": [
         "server/juice.js:107 HOUSEHOLDS",
-        "public/app.js:3697 HOUSEHOLDS (UI labels)",
+        "public/app.js:3795 HOUSEHOLDS (UI labels)",
         "server/juice.js:113 DEFAULT_HOUSEHOLD",
-        "public/app.js:3697 HOUSEHOLDS (UI copy: labels, tooltips, bedrooms)",
-        "public/app.js:3697 HOUSEHOLDS labels/bedrooms/people (UI copy of server/juice.js HOUSEHOLDS)"
+        "public/app.js:3795 HOUSEHOLDS (UI copy: labels, tooltips, bedrooms)",
+        "public/app.js:3795 HOUSEHOLDS labels/bedrooms/people (UI copy of server/juice.js HOUSEHOLDS)"
       ],
       "values": "single 1 bedroom / couple 2 / family 3; \"two adults and two children\"",
       "consumers": [
@@ -14151,7 +14151,7 @@
         "server/export.js:62 csvReadme text",
         "public/features/shared.js:45 salaryUSD defensive annualization (2080 h if mid < 1000, ×12 if mid < 30000): duplicate of server/salary.js annualize",
         "public/viz/chart.js:65 INTERVAL_ADJ labels",
-        "public/app.js:3679 INTERVAL_ADJ labels"
+        "public/app.js:3777 INTERVAL_ADJ labels"
       ],
       "values": "2080 hours/yr, 12 months, 52 weeks",
       "consumers": [
@@ -14586,7 +14586,7 @@
       "type": "derived-at-build",
       "owners": [
         "scripts/build-market.js:4 market companies[] {jobs, salaried, used}",
-        "scripts/build-static.js:562 shareStats {roles, withPay, median}",
+        "scripts/build-static.js:662 shareStats {roles, withPay, median}",
         "server/export.js:62 csvReadme rows",
         "data/vetting/2026-10-02/flags.counts.json {jobs, salaried, quarantined, flagged, critical, blocking}",
         "server/history.js:367 ledgerMeta {since, runs}",
@@ -14670,7 +14670,7 @@
         "scripts/build-market.js:87 round100",
         "scripts/build-market.js:79 percentileSorted (linear)",
         "scripts/build-market.js:217 buildMarket",
-        "scripts/build-static.js:127 MARKET_MAX_BYTES",
+        "scripts/build-static.js:128 MARKET_MAX_BYTES",
         "scripts/build-market.js MIN_N 3, round100 [jobs]",
         "public/features/comps.js:177 compsForJob: family+seniority, falls back to the family across levels",
         "public/features/comps.js:332 defaultFamily: families covered by ≥ 2 companies",
@@ -14775,7 +14775,7 @@
       "type": "derived-at-build",
       "owners": [
         "server/index.js:353 BACKTEST_OPTS",
-        "scripts/build-static.js:125 BACKTEST_FALLBACK",
+        "scripts/build-static.js:126 BACKTEST_FALLBACK",
         "server/index.js:383 BACKTEST_TIMEOUT_MS",
         "server/index.js:355 BACKTEST_WAIT_MS",
         "server/index.js:66 worker memory",
@@ -14785,7 +14785,7 @@
         "public/features/compstimate.js:410 ACCURACY_LOW_THRESHOLD 25%",
         "public/features/compstimate.js:8 maxN 500, dedupe 'title' default",
         "server/index.js:353 BACKTEST_OPTS {seed 20261002, maxN 500, dedupe \"role\"}",
-        "scripts/build-static.js:125 BACKTEST_FALLBACK {seed, maxN} (no dedupe → \"title\")",
+        "scripts/build-static.js:126 BACKTEST_FALLBACK {seed, maxN} (no dedupe → \"title\")",
         "public/features/compstimate.js:449 backtest"
       ],
       "values": "per company { medianAbsPctError, within10Pct, n, seed 20261002, maxN 500, dedupe \"role\" } shown as \"Typically within ±N% (tested on N listed salaries)\"; live 2026-10-10: Anduril 11.9% (499), Anthropic 14.2% (498), Cohere 8.1% (80), OpenAI 9.8% (499), Palantir 6.7% (232), Scale AI 11.1% (123), Shield AI 15.9% (485), xAI 20.5% (126)",
@@ -15301,7 +15301,7 @@
         "public/app.js:1 app.js 180 (copy)",
         "public/app.js:227 Listed filter 7 / 30 / 90 days",
         "public/app.js:1268 hide roles open ≥ 180 days",
-        "public/app.js:3481 card age: < 60 → \"Nd\", < 730 → months (÷30.44), else years; \"+\" when a lower bound"
+        "public/app.js:3579 card age: < 60 → \"Nd\", < 730 → months (÷30.44), else years; \"+\" when a lower bound"
       ],
       "values": "filter 7/30/90; 180+ days; contract freshness new ≤ 7, active 8–59, stale 60–179, evergreen ≥ 180 (server/history.js FRESHNESS)",
       "consumers": [
@@ -15761,8 +15761,8 @@
         "server/sources/apple.js:14 Apple PAGE 20 / MAX_PAGES 800 / EMPTY_RETRIES 3",
         "server/sources/eightfold.js:1 Eightfold PAGE 10 / MAX_PAGES 1500",
         "scripts/snapshot.js:37 TRIM_STEPS",
-        "scripts/build-static.js:135 LIST_BUDGET 1.5 MB",
-        "scripts/build-static.js:505 OG_IMAGE_MAX_BYTES 5 MB",
+        "scripts/build-static.js:136 LIST_BUDGET 1.5 MB",
+        "scripts/build-static.js:605 OG_IMAGE_MAX_BYTES 5 MB",
         "scripts/build-og.mjs:31 OG 1200x630",
         "scripts/external-links.js:1 link check timeout 15 s, concurrency 8, 20 per company",
         "scripts/links-policy.js:47 ALLOWED_HOSTS",
@@ -15770,11 +15770,11 @@
         ".github/scripts/beta-gate.sh:2 beta gate 300 s",
         ".github/scripts/check-site.sh:5 check-site 180 s / 15 s",
         ".github/scripts/wait-pages-build.sh:9 wait-pages 300 s",
-        "public/api.js:88 FRESH_TTL_MS 30 min",
-        "public/api.js:89 LIVE_TIMEOUT_MS 12 s",
+        "public/api.js:90 FRESH_TTL_MS 30 min",
+        "public/api.js:91 LIVE_TIMEOUT_MS 12 s",
         "public/api.js:274 WORKER_READY_MS 10 s",
         "public/api.js:732 JUICE_CHUNK 400",
-        "public/app.js:1042 PREPARE_CHUNK 300",
+        "public/app.js:1055 PREPARE_CHUNK 300",
         "public/app.js:108 PAGE 24/60",
         "public/app.js:10 compstimate meta retry 5 s",
         "public/viz/map.js:154 map offline 4 s"
@@ -15976,9 +15976,9 @@
       "description": "dist/c/<slug>/ share pages: og:title '<Company> jobs by salary · N roles · median $X' and og:description 'M of N roles list pay (median of range midpoints, approx USD). Data from <Company>'s public job board, <date>.'",
       "type": "derived-at-build",
       "owners": [
-        "scripts/build-static.js:562 shareStats",
-        "scripts/build-static.js:582 sharePage",
-        "scripts/build-static.js:552 money (K/M formatting)",
+        "scripts/build-static.js:662 shareStats",
+        "scripts/build-static.js:682 sharePage",
+        "scripts/build-static.js:652 money (K/M formatting)",
         "server/index.js:1 server sharePage (no counts)",
         "scripts/build-static.js:434-447",
         "scripts/build-static.js:451",
