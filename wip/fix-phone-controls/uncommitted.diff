@@ -1,5 +1,5 @@
 diff --git a/public/app.js b/public/app.js
-index 1c8e9cd..310a9ff 100644
+index 1c8e9cd..8d09d11 100644
 --- a/public/app.js
 +++ b/public/app.js
 @@ -1068,7 +1068,6 @@ async function loadJobs({ refresh = false } = {}) {
@@ -151,7 +151,32 @@ index 1c8e9cd..310a9ff 100644
        titled('Listed', makePosted()),
        ...KW_CATS.map((k) => titled(k.title, makeCloud(k, { limit: 10 }), k.hint)),
      ];
-@@ -3261,7 +3297,8 @@ function buildWindow(list) {
+@@ -2726,8 +2762,15 @@ function renderKpis() {
+     // P-6: "mostly" only for a real majority (it read "mostly Sales" at 19%).
+     share > 0.5 ? `Mostly ${st.top[0]}: ${st.top[1].toLocaleString()} of ${st.n.toLocaleString()} roles (${Math.round(share * 100)}%)` : '',
+   ];
+-  renderNote(el, { line: line.flatMap((p, i) => (i ? [h('span', { class: 'stat-sep', 'aria-hidden': 'true' }, '·'), p] : [p])), details, key: 'stats-line' });
++  // UX-57: in Chart view the stats line is its one line, and its facts are listed first in the chart notes'
++  // Details (chart.setNotes), so the main view has one Details (ROADMAP §8). The map has no chart notes, so its
++  // stats line keeps them; so does Insights.
++  const fold = S.m === 'chart' && (!chart || typeof chart.setNotes === 'function');
++  statsNotes = details;
++  chart?.setNotes?.(fold ? details : []);
++  renderNote(el, { line: line.flatMap((p, i) => (i ? [h('span', { class: 'stat-sep', 'aria-hidden': 'true' }, '·'), p] : [p])), details: fold ? [] : details, key: 'stats-line' });
+ }
++let statsNotes = []; // UX-57: the stats line's facts, for the chart notes
+ 
+ /** I-2: one line on what the site is ("Pay, and what's left after tax and rent, for 8 tech companies' open roles"). */
+ function renderTagline() {
+@@ -2772,6 +2815,7 @@ function ensureViz() {
+         onHover: (job) => hoverFromViz(job),
+         onClusterSelect: (jobs, label) => setArea('cluster', jobs, label),
+       });
++      chart.setNotes?.(statsNotes); // UX-57
+     }
+     if (S.m === 'map' && !map) {
+       // Leaflet (~150 KB) loads on first Map open, not at startup (PERF-3).
+@@ -3261,7 +3305,8 @@ function buildWindow(list) {
    win.els = new Map();
    win.btn = h('button', { type: 'button', class: 'btn btn--ghost btn--block', onclick: () => loadMore() });
    win.more = h('li', { class: 'list-more' }, win.btn);
@@ -161,7 +186,7 @@ index 1c8e9cd..310a9ff 100644
    // No layout is read until the cards and spacers are back, so the browser never clamps the scroll position.
    const keepTop = list.scrollTop;
    list.replaceChildren(...nn(note, win.top, win.bottom, win.more));
-@@ -3633,8 +3670,15 @@ let drawerReturnFocus = null;
+@@ -3633,8 +3678,15 @@ let drawerReturnFocus = null;
  function findJob(id) { return data.jobs.find((j) => j.id === id); }
  
  function openDrawer(id, { fromHash = false, step = false } = {}) {
@@ -179,7 +204,7 @@ index 1c8e9cd..310a9ff 100644
    if (!drawerJobId || !drawerReturnFocus) {
      drawerReturnFocus = document.activeElement && document.activeElement !== document.body && !$('#drawer').contains(document.activeElement) ? document.activeElement : null;
    }
-@@ -3645,19 +3689,20 @@ function openDrawer(id, { fromHash = false, step = false } = {}) {
+@@ -3645,19 +3697,20 @@ function openDrawer(id, { fromHash = false, step = false } = {}) {
    // M-9: paging next/prev rewrites the job page's entry, so one Back always leaves the job page.
    if (S.job !== id) { S.job = id; commit({ replace: fromHash || step }); }
    const drawer = $('#drawer');
@@ -203,7 +228,7 @@ index 1c8e9cd..310a9ff 100644
  
  // Everything behind the modal drawer becomes inert (not focusable, hidden from AT).
  const behindDrawer = () => [$('.topbar'), $('.quickbar'), $('#layout'), $('.skip-link')];
-@@ -3680,7 +3725,7 @@ function closeDrawer({ fromHash = false } = {}) {
+@@ -3680,7 +3733,7 @@ function closeDrawer({ fromHash = false } = {}) {
    highlightViz();
    // The original trigger may have been re-rendered away (e.g. a keyword toggled in the drawer), or
    // left the page with the list's window (M-20): then its card is brought back if it is loaded.
@@ -212,7 +237,7 @@ index 1c8e9cd..310a9ff 100644
    if (target) target.focus({ preventScroll: true });
    else if (!focusResult(visible.findIndex((j) => j.id === closedId))) $('#resultsList')?.focus({ preventScroll: true });
    drawerReturnFocus = null;
-@@ -3692,7 +3737,8 @@ function renderDrawerNav() {
+@@ -3692,7 +3745,8 @@ function renderDrawerNav() {
    if (!prev) return;
    prev.disabled = idx <= 0;
    next.disabled = idx < 0 || idx >= visible.length - 1;
@@ -222,7 +247,7 @@ index 1c8e9cd..310a9ff 100644
  }
  function stepDrawer(d) {
    const idx = visible.findIndex((j) => j.id === drawerJobId);
-@@ -4233,6 +4279,40 @@ function metaParts(job) {
+@@ -4233,6 +4287,40 @@ function metaParts(job) {
    return out;
  }
  
@@ -263,7 +288,7 @@ index 1c8e9cd..310a9ff 100644
  function drawerContent(job) {
    const company = data.company || {};
    const coName = company.name || job.companyName;
-@@ -4270,14 +4350,7 @@ function drawerContent(job) {
+@@ -4270,14 +4358,7 @@ function drawerContent(job) {
    } }, 'Read full description');
    descWrap.append(descToggle);
  
@@ -279,7 +304,67 @@ index 1c8e9cd..310a9ff 100644
  
    const sal = job.salary;
    const term = postedTerm(sal);
-@@ -4919,31 +4992,29 @@ function bindEvents() {
+@@ -4733,7 +4814,7 @@ function bindKeyboardInsets() {
+   vv.addEventListener('scroll', resync);
+   document.addEventListener('focusin', (e) => {
+     resync();
+-    if (isMobile() && e.target.matches?.('#filters input, #popover input')) setTimeout(() => revealField(e.target), 300);
++    if (isMobile() && e.target.matches?.('#filters input, #popover input, #insightsHost input:not([type=checkbox]):not([type=radio]):not([type=range])')) setTimeout(() => revealField(e.target), 300);
+   });
+   document.addEventListener('focusout', () => setTimeout(resync, 50));
+ }
+@@ -4750,9 +4831,21 @@ function revealField(el) {
+     box = box.parentElement;
+   }
+   if (!box || box === document.body) return;
+-  const top = el.closest('.fsearch-wrap, label, .field') || el;
+-  const delta = top.getBoundingClientRect().top - box.getBoundingClientRect().top - 8;
++  const top = el.closest('.fsearch-wrap, label, .field, .msf-field') || el;
++  // The top of what shows: the panel's, or the visual viewport's when iOS has panned it down past the panel's top.
++  const vv = window.visualViewport;
++  const viewTop = Math.max(box.getBoundingClientRect().top, vv?.offsetTop || 0);
++  const delta = top.getBoundingClientRect().top - viewTop - 8;
+   if (Math.abs(delta) > 4) box.scrollTop += delta;
++  // M-47: in Insights on a short screen (landscape with the keyboard up: 200 px or less to see) the field can
++  // still be under the keyboard, below the top bars: they step aside while it is typed in (styles.css
++  // body.kb-lift), and come back when it loses focus.
++  const below = vv && el.getBoundingClientRect().bottom > vv.offsetTop + vv.height;
++  if (below && el.closest('#insightsHost') && !document.body.classList.contains('kb-lift')) {
++    document.body.classList.add('kb-lift');
++    el.addEventListener('blur', () => document.body.classList.remove('kb-lift'), { once: true });
++    requestAnimationFrame(() => revealField(el));
++  }
+ }
+ 
+ let filtersOpener = null; // the chip or Filters button that opened the overlay sheet (M-4, M-15)
+@@ -4762,6 +4855,7 @@ function setFiltersOpen(open, { opener = null, focus = null } = {}) {
+     const was = document.body.classList.contains('filters-open');
+     document.body.classList.toggle('filters-open', open);
+     $('#filtersScrim').hidden = !open;
++    syncFiltersInert();
+     setFiltersModal(open && isMobile());
+     if (open) {
+       if (!was || opener) filtersOpener = opener || filtersOpener;
+@@ -4787,6 +4881,18 @@ function setFiltersOpen(open, { opener = null, focus = null } = {}) {
+   setTimeout(() => { try { map?.invalidateSize(); } catch { /* ignore */ } }, 260);
+ }
+ 
++/* UX-56: below 1200 px the filter panel is a sheet that a closed state only moves off screen (the phone's also
++   hides it), so while closed it is inert and hidden from screen readers: Tab never lands on its off-screen
++   "Reset" or "Show roles". The docked column (1200 px and up) is always live. */
++function syncFiltersInert() {
++  const f = $('#filters');
++  if (!f) return;
++  const off = isOverlayFilters() && !document.body.classList.contains('filters-open');
++  if (f.inert === off) return;
++  f.inert = off;
++  if (off) f.setAttribute('aria-hidden', 'true'); else f.removeAttribute('aria-hidden');
++}
++
+ /* M-7: on phones the filter sheet is full screen, so it is a modal dialog while open: dialog
+    semantics, everything behind it inert, and Tab kept inside (bindEvents). Wider screens keep
+    the plain labelled <aside> (a docked column, or a side sheet with its scrim). */
+@@ -4919,31 +5025,29 @@ function bindEvents() {
    $('.brand').addEventListener('click', (e) => { e.preventDefault(); dropHeld(); set({ ...resetFiltersPatch(), job: null, m: 'chart' }); closeDrawer(); });
  
    const list = $('#resultsList');
@@ -320,6 +405,22 @@ index 1c8e9cd..310a9ff 100644
      }
    });
    list.addEventListener('scroll', () => { if (win.loaded > WINDOW_ALL) scheduleWindow(); }, { passive: true });
+@@ -4989,6 +5093,7 @@ function bindEvents() {
+     positionPopover();
+     if (win.more?.isConnected) paintWindow(); // M-20: card heights follow the list's width
+     if (document.body.classList.contains('filters-open')) { setFiltersModal(isMobile()); syncChipsExpanded(); } // rotation / resize across 860px
++    syncFiltersInert(); // UX-56: across 1200px the panel turns from a docked column into a sheet, and back
+   }));
+   addEventListener('scroll', () => positionPopover(), true);
+ 
+@@ -5044,6 +5149,7 @@ async function boot() {
+     if (localStorage.getItem('melon-seek.filtersCollapsed') === '1') document.body.classList.add('filters-collapsed');
+   } catch { /* ignore */ }
+   if (isOverlayFilters()) $('#filtersToggle').setAttribute('aria-expanded', 'false');
++  syncFiltersInert();
+   bindEvents();
+   setSheet('peek');
+   S = parseHash();
 diff --git a/public/styles.css b/public/styles.css
 index 0653798..b3512cb 100644
 --- a/public/styles.css
@@ -358,6 +459,53 @@ index 0653798..b3512cb 100644
    body.filters-open .results { content-visibility: hidden; }   /* covered by the sheet; catches up on close */
    .fsec > summary { min-height: 52px; padding: 0; font-size: 15px; }
    .fsec-badge { min-width: 20px; height: 20px; font-size: 12px; }
+diff --git a/public/viz/chart.js b/public/viz/chart.js
+index 621dd03..3ef62cd 100644
+--- a/public/viz/chart.js
++++ b/public/viz/chart.js
+@@ -578,6 +578,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+   let chipFont = '700 12px system-ui, sans-serif'; // the edge chips' font (renderClusters)
+   let foldOpen = false;      // UX-24: the "N more departments" row is opened
+   let rowNotes = { offRow: 0, basis: null, basisLeft: 0, spans: 0, partTime: 0 }; // notes-line counts from the rows (V-18 to V-21)
++  let hostNotes = [];        // UX-57: the host's facts (app.js: the stats line's), listed first in the notes' Details
++  let noteStats = null;      // the last render's stats, so setNotes can redo the notes alone
+ 
+   // ---------- data prep ----------
+   function prepare() {
+@@ -715,7 +717,9 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+     if (highlighted) applyHighlight(highlighted, false);
+   }
+ 
+-  function renderNotes({ noSalary, fxCount, unknownFx, elsewhere, pay }) {
++  function renderNotes(stats) {
++    noteStats = stats;
++    const { noSalary, fxCount, unknownFx, elsewhere, pay } = stats;
+     const where = placesPhrase(opts.places);
+     // fix-density: one line with the two counts a job seeker needs ("564 with pay · 81 without"); every
+     // other caveat in the short list behind "Details" (public/viz/note.js), in plain words.
+@@ -724,6 +728,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+     if (noSalary) line.push(`${noSalary.toLocaleString()} without`);
+     const isAre = (n) => (n === 1 ? 'is' : 'are');
+     const details = [
++      ...hostNotes,
+       // BP-2: with a Location filter, the plotted pay is for those places, and the rest is counted.
+       elsewhere ? `${plural(elsewhere, 'posting')} with pay for another country only ${isAre(elsewhere)} left out${where ? `: that pay says nothing about pay in ${where}` : ''}` : '',
+       // V-18: Group by Location rows hold only the pay posted for their place.
+@@ -1783,6 +1788,14 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+       highlighted = jobId ?? null;
+       applyHighlight(highlighted, highlighted != null);
+     },
++    /**
++     * UX-57: the host's facts for the notes' Details (app.js: the stats line's, so the chart view has one
++     * Details), listed before the chart's own; only the notes are redone.
++     */
++    setNotes(items) {
++      hostNotes = Array.isArray(items) ? items : [];
++      if (noteStats) renderNotes(noteStats);
++    },
+     /** Clear the selected cluster/row state (visual only; no callback). */
+     clearSelection() {
+       selectedKey = null;
 diff --git a/scripts/e2e.js b/scripts/e2e.js
 index cb72290..184f044 100644
 --- a/scripts/e2e.js

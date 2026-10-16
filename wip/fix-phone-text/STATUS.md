@@ -14,7 +14,12 @@
 ## Uncommitted and new files
 ```
  M public/app.js
+ M public/features/features.css
+ M public/features/insights.js
+ M public/styles.css
+ M public/viz/chart.js
  M test/e2e/fix-beta-app.e2e.js
+ M test/e2e/ui.e2e.js
 ```
 
 ## Left out (not in untracked.tgz)

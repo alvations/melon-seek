@@ -13,6 +13,7 @@
 ```
  M public/app.js
  M public/styles.css
+ M public/viz/chart.js
  M scripts/e2e.js
 ?? docs/process/prompts/fix-phone-controls.md
 ?? test/e2e/fix-phone-controls.e2e.js
