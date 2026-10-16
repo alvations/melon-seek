@@ -1,7 +1,7 @@
 From e3c745a4814bef26609a04c4e3e957b7dc2f4076 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 11 Oct 2026 22:45:49 +0000
-Subject: [PATCH 5/6] fix-density: fold in fix5-data's display patch (VT-17
+Subject: [PATCH 5/8] fix-density: fold in fix5-data's display patch (VT-17
  minimum, VT-18 shift differential): one caption line, the detail in Details
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

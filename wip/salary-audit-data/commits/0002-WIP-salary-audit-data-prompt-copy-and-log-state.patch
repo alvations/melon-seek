@@ -1,0 +1,113 @@
+From b150c048cd16145893a68d84315257665f8a0617 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 13:43:44 +0000
+Subject: [PATCH 2/5] WIP salary-audit-data: prompt copy and log state
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/prompts/salary-audit-data.md | 76 +++++++++++++++++++++++
+ docs/process/salary-audit-data.md         |  8 +++
+ 2 files changed, 84 insertions(+)
+ create mode 100644 docs/process/prompts/salary-audit-data.md
+ create mode 100644 docs/process/salary-audit-data.md
+
+diff --git a/docs/process/prompts/salary-audit-data.md b/docs/process/prompts/salary-audit-data.md
+new file mode 100644
+index 0000000..0cf635e
+--- /dev/null
++++ b/docs/process/prompts/salary-audit-data.md
+@@ -0,0 +1,76 @@
++You are the DATA ENGINEER on a two-person squad (with a backend engineer working in parallel) for melon-seek (repo at /home/user/melon-seek; you are in your own git worktree). Run `git checkout d50d89b` first: that is the lead's latest integration (normalizer norm-10, fix wave 5 data lane); work on top of it. Your role name is `salary-audit-data`.
++
++**The user's complaint, verbatim (2026-10-11):** "Are you sure the salary range of the big tech are correct?! They don't look correct and kinda all span too evenly. Make sure you get the agents squad back end engineer and data engineer to look into this properly on the beta page!!"
++
++The beta page is /melon-seek/beta/ with the big-tech boards: Amazon, Apple, Google, Meta, Microsoft, NVIDIA and Netflix. Your job is to establish, with evidence, whether the salary ranges beta shows are what the companies actually posted, and if not, why not and how to fix it. Do not assume earlier vetting was right. Data check 3 and vetting round 2 checked parsing posting by posting. Check what they could have missed: the *shape* of the ranges across the whole board.
++
++**Read first:**
++- README.md, docs/CONTRACT.md, docs/DATA_SOURCES.md, docs/VETTING.md;
++- docs/process/PLAYBOOK.md, docs/process/TEMPLATE.md;
++- docs/process/data-check-beta-3.md, docs/process/vetting-beta-2.md, docs/process/fix5-data.md;
++- server/normalize.js (`deriveSalary`), server/salary.js, server/vet.js;
++- server/sources/{amazon,apple,google,meta,microsoft,nvidia,netflix}.js.
++
++Data: real snapshots are at /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-data/data/beta/snapshots/*.json (big tech) and .../wt-data/data/snapshots/*.json (the main site's companies, for comparison). Symlink them into your worktree as data/beta/snapshots and data/snapshots. Never commit data.
++
++**Questions to answer with numbers per board:**
++1. **Distribution of posted ranges:**
++   - min, max, midpoint, width (max − min) and width/midpoint;
++   - histograms per company and per level;
++   - how many distinct (min, max) pairs there are and how often the top pairs repeat.
++
++   Do the ranges "span too evenly"? For example, are widths a near-constant fraction of the midpoint? Are many postings sharing one identical range? Are ranges made up by our code (estimates, level bands, defaults, ±x% around a point, a currency conversion, rounding, ×12/×2080 basis conversion) rather than posted?
++2. **Provenance of every salary:**
++   - Is it parsed from the posting text, taken from a structured field, an estimate, or a level-band fill? Count each source per board.
++   - Check every code path that can set or widen `salary.min/max` or `ranges[]`.
++3. **Pick salaries against the live postings.** Draw at least 15 random salaries per board (seeded; record the seed) plus the 10 most common ranges per board. Compare each with the posting's own pay text in the stored description, and, for at most 3 per board, with the live posting page. Fetch politely: honest User-Agent, ≥1 s between requests to a host, respect robots.txt, at most ~25 fetches in total. Quote the exact posted sentence.
++4. **Multi-location and multi-level postings.**
++   - Is a posting that lists several US pay zones (Google, Apple, Meta and Amazon do this) collapsed into one min-of-mins to max-of-maxes span? That would make ranges wide and similar.
++   - Which range is shown on the card, which in the chart, and which Juice uses?
++   - Compare with the published per-zone ranges.
++5. **Compare with public references** you can cite (company pay-transparency pages, or levels.fyi style ranges where the license allows; quote and link them). Are the shown ranges plausible per level? Never copy a dataset with a restrictive license; cite only.
++6. **Compare beta's served view with the raw snapshot:**
++   - Build with `node scripts/build-static.js --out <scratch>/dist` with the data linked.
++   - Diff `dist/beta/api/jobs/<slug>.json` (and any packed or worker format) against the snapshot per posting.
++   - Find any place where served min/max differ from stored min/max.
++
++**Deliverables (you own these; do not edit product code outside them):**
++- `docs/process/salary-audit-data.md`, your log in the TEMPLATE.md structure: brief, inputs, decisions, replayable steps, verification, gaps, change log. Save this prompt verbatim to `docs/process/prompts/salary-audit-data.md`.
++- `data/vetting/2026-10-11-salary-audit/` with:
++  - your scripts (`*.mjs`);
++  - per-board stats as JSON;
++  - the sample with quotes;
++  - small SVG or PNG histograms.
++- A NEW test file, `test/salary-audit.test.js`. For every confirmed defect, write a test that fails now, named with its ID: SA-1, SA-2 and so on, numbered from 1. Use `test.todo`-style skipping only the way earlier audit tests do; read test/beta-data-check-3.test.js for the pattern. Also write pinned tests for behaviour that is correct.
++- Fixes. The backend engineer (`salary-audit-backend`) owns `server/normalize.js`, `server/salary.js`, `server/sources/*.js` except google.js, and `scripts/snapshot.js` / `scripts/build-static.js` for this work. Write your proposed fixes as patches in `docs/process/patches/salary-audit-data-*.diff`, and message them, by SendMessage to the agent doing `salary-audit-backend`, through the lead if you cannot reach them. server/sources/google.js belongs to a separate Google-grouping lane; for a Google salary bug, send a patch.
++
++**Rules:**
++- Don't commit and never push. Report with SHAs only if the lead asks; otherwise leave your changes uncommitted in your worktree and list the files.
++- No `pkill -f` / `pgrep -f`; use pid files.
++- Never `playwright install`; Chromium is at /opt/pw-browsers/chromium-1194/chrome-linux/chrome with NODE_PATH=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/pw/node_modules.
++- If the harness blocks you from writing a report-style Markdown file, return its full text in your final report, and the lead will write it. Never use a .txt workaround.
++- The user's standing rules: never cut or drop postings ("we must present them as they are and not cut anything"); don't change crawl request rates.
++
++**Report back:**
++- verdict per board (correct / wrong / misleading presentation), with the key numbers;
++- each SA finding with severity, evidence, cause (file:function) and fix;
++- what you could not verify.
++
++---
++
++Follow-ups from the lead, verbatim:
++
++(1) "Lead: your squad partner salary-audit-backend can be reached with SendMessage to a1023e2019ffffb89. The Google chart-grouping lane (owns server/sources/google.js) is a05870ef0d860271e."
++
++(2) "Lead: you stopped on an API usage limit (reset now). Resume salary-audit-data from where you left off ("the Google and Eightfold sources and the Apple span logic").
++Updates:
++1. Branch head is 2474fc4 = d50d89b plus two e2e test updates and lead docs. Rebase or merge onto it; nothing in your scope changed.
++2. FRESH DATA: run your audit on today's crawl (2026-10-16) at /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-data2/data/beta/snapshots and .../wt-data2/data/snapshots. Amazon is now uncapped at 22,179 postings. Re-point your links, and say which numbers come from which crawl.
++3. Your partner salary-audit-backend is a1023e2019ffffb89; google-grouping is a05870ef0d860271e.
++The user's question stands: are the big-tech ranges correct, or do they "all span too evenly"? Report per-board verdicts with numbers."
++
++(3) "Lead, a new standing rule from the user ("if we get stopped again due to limits, we must be able to resume without losing much progress"):
++1. Commit small and often in your worktree, at least every logical step ("WIP: …" is fine), with explicit paths. Your original brief said not to commit; that is replaced by this rule. Never commit the data links or any snapshot data.
++2. Keep a `## State` section at the top of your log (docs/process/salary-audit-data.md): done, in progress, the exact next step.
++3. Send me each confirmed finding as soon as it is ready, by SendMessage to "main" (SA-n, the evidence, the test, the patch), then keep working. That way the user hears early whether the ranges are right.
++The lead pushes your worktree to wip/<lane>/ every 15 minutes (scripts/cycle/checkpoint.sh). You still never push."
+diff --git a/docs/process/salary-audit-data.md b/docs/process/salary-audit-data.md
+new file mode 100644
+index 0000000..12d60fc
+--- /dev/null
++++ b/docs/process/salary-audit-data.md
+@@ -0,0 +1,8 @@
++# Process log: salary-audit-data
++
++## State
++- **Done:** audit scripts, stats, sample, histograms (2026-10-16 crawl); `test/salary-audit.test.js` (SA-1 to SA-6
++  as to-dos, 9 pinned); findings sent to the lead and to salary-audit-backend.
++- **In progress:** patches `docs/process/patches/salary-audit-data-*.diff`.
++- **Next step:** write the card, chart, Amazon-rows and degree-line patches; check them with `git apply --check`
++  and the SA tests; fill in sections 1 to 7 of this log.
+-- 
+2.43.0
+

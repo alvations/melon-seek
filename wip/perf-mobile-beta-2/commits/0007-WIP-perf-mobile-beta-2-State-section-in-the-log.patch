@@ -1,0 +1,42 @@
+From 68a0748e184f0b5384995b9c0d59d8c09ffe9ae4 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 13:42:25 +0000
+Subject: [PATCH 7/7] WIP perf-mobile-beta-2: State section in the log
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/perf-mobile-beta-2.md | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/docs/process/perf-mobile-beta-2.md b/docs/process/perf-mobile-beta-2.md
+index 80aabb1..e2b5af7 100644
+--- a/docs/process/perf-mobile-beta-2.md
++++ b/docs/process/perf-mobile-beta-2.md
+@@ -1,5 +1,23 @@
+ # Process log: perf-mobile-beta-2
+ 
++## State
++
++Updated 2026-10-16 13:45. Worktree `.claude/worktrees/agent-a7425c5dcd4e39cbe`, detached, on 2474fc4.
++
++- **Done, tested, committed:** no posting dropped (0b8413d, pushed by the lead); melon-packed-3 lists
++  (fc084ee); Juice in time slices, the sections budget measured in melon-packed-2 bytes, the
++  readableTitle memo patch (fdff79f); the budget test (abac18a); registry lines (b2e59c9); VT-22 trim
++  patch applied and its test un-todo'd (161a472). Full-scale identity: every list of both sites on the
++  2026-10-16 crawl (Amazon 22,179) unpacks and comes out of getJobs exactly as on 2474fc4.
++- **In progress:** the timed record on the 2026-10-16 crawl (`<scratch>/perf-mobile-beta-2/tools/timed2.sh`:
++  base `dist-b` = 2474fc4, head `dist-a`, `dist-p` = head + the roles.js patch; each step waits for a
++  1-minute load under 1.5). Results land in `<scratch>/perf-mobile-beta-2/perf-f-*.json`.
++- **Next step:** when `timed2.log` says "all done", fill sections 5.3-5.5 from the perf-f-*.json files
++  (`perf-mobile-beta-coldtable.mjs perf-f-base-cold3.json perf-f-head-cold3.json`,
++  `perf-mobile-beta-table.mjs perf-f-base.json perf-f-head.json`), commit, report to the lead.
++  If the container restarted: rebuild with `tools/build-fresh.sh`, then rerun `tools/timed2.sh`
++  (`STEPS="cold matrix patched"`, or only the missing ones).
++
+ ## 1. Brief
+ 
+ Prompt: [prompts/perf-mobile-beta-2.md](prompts/perf-mobile-beta-2.md), verbatim, with the lead's note of 2026-10-11.
+-- 
+2.43.0
+

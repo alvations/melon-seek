@@ -11,12 +11,11 @@
 
 ## Uncommitted and new files
 ```
- M public/app.js
- M public/viz/chart.js
- M server/sources/google.js
- M test/fix-beta-sources.test.js
-?? server/families.js
-?? test/fixtures/google-families-sample.json
+A  server/families.js
+ M server/lib-modules.js
+M  server/sources/google.js
+M  test/fix-beta-sources.test.js
+A  test/fixtures/google-families-sample.json
 ?? test/google-grouping.test.js
 ```
 

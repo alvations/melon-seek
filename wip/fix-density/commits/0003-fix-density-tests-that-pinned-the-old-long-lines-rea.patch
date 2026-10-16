@@ -1,7 +1,7 @@
 From 8df4f2f7df6bef3fb3e1e405bebb2508ad155bce Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 11 Oct 2026 22:05:12 +0000
-Subject: [PATCH 3/6] fix-density: tests that pinned the old long lines read
+Subject: [PATCH 3/8] fix-density: tests that pinned the old long lines read
  the line and its Details (same facts)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
