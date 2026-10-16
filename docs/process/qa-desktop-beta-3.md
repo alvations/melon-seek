@@ -3,14 +3,15 @@
 The third desktop QA pass of the beta site (`/melon-seek/beta/`), beta round 3 (2026-10-16).
 
 ## State
-- **Done (23:00 UTC):** every area of the brief on the 7 big-tech boards and Anduril; 7 bugs, D-38 to D-44, each
+- **Done (23:15 UTC):** every area of the brief on the 7 big-tech boards and Anduril; 8 bugs, D-38 to D-45, each
   with a red e2e test, a screenshot and an owner; `npm test`; the bug list sent to the lead twice by message.
 - **In progress:** the full e2e suite (`<scratch>/qa-desktop-beta-3/e2e-full.log`), run with the worktree's `dist`
   linked to the lead's build.
 - **Next step:** put the full e2e result into "Suite results" below, restore any screenshots the suite rewrote
   (`git checkout -- docs/screenshots/<their folders>`), remove the `dist` link, stop the server.
 - Commits in this worktree (local branch `qa-desktop-beta-3`, never pushed): a32cfe3 prompt and log, f089deb
-  state, 1f718d3 tests D-38 to D-43, 10ef395 screenshots, dcbafc5 D-44, then this log.
+  state, 1f718d3 tests D-38 to D-43, 10ef395 screenshots, dcbafc5 D-44, c823b94 and 9e13c38 this log, 3e9776f
+  D-45 (found while the full e2e ran, so that run has D-38 to D-44 only).
 
 ## 1. Brief
 - **Prompt:** [prompts/qa-desktop-beta-3.md](prompts/qa-desktop-beta-3.md), saved verbatim.
@@ -58,7 +59,8 @@ The third desktop QA pass of the beta site (`/melon-seek/beta/`), beta round 3 (
    is gone: `[D-38]` any Google "Fellow, …" title; `[D-39]` any Amazon posting whose rows share a place name;
    `[D-40]` any term or part-time posting with different pay per place; `[D-41]` any St./St/Saint label pair with
    no state; `[D-42]` any "X, US" label beside an "X" label; `[D-43]` any chart range end in the millions not
-   written as the card writes it; `[D-44]` any 1–2-role Location row above a 100-role row.
+   written as the card writes it; `[D-44]` any 1–2-role Location row above a 100-role row; `[D-45]` any Amazon
+   posting with pay per place whose drawer headline is not the card's range and names no place.
 4. **Severity.** High: wrong output on a core task for most users. Medium: wrong output a user acts on, in a
    supported state (D-38 hides Google's highest-paid posting behind a wrong estimate; D-39 hides which state each
    remote pay range is for). Low: labelling, consistency and ordering.
@@ -100,12 +102,12 @@ The third desktop QA pass of the beta site (`/melon-seek/beta/`), beta round 3 (
    afterwards `git checkout -- docs/screenshots/<folders the suite rewrote>` and `rm dist`.
 
 ## 5. Verification
-- This pass's tests on the lead's build: **3/10 pass**, the 3 guards; the 7 failures are exactly `[D-38]` …
-  `[D-44]`.
+- This pass's tests on the lead's build: **3/11 pass**, the 3 guards; the 8 failures are exactly `[D-38]` …
+  `[D-45]`.
 - Exploration: 1,281 facet checks, 40 sort checks (5 sorts × 8 boards, 120 cards each), 40 salary-filter checks,
   48 searches, 8 boards of chart, map and Insights checks, 44 drawers, 128 layout checks with axe colour contrast;
   0 console or page errors in any flow.
-- Screenshots: `docs/screenshots/qa-desktop-beta-3/D-38-*.png` … `D-44-*.png` (11 files).
+- Screenshots: `docs/screenshots/qa-desktop-beta-3/D-38-*.png` … `D-45-*.png` (13 files, 848 KB).
 - `npm test` and the full e2e: see "Suite results" in the section below.
 
 ## 6. Known gaps and follow-ups
@@ -123,6 +125,8 @@ The third desktop QA pass of the beta site (`/melon-seek/beta/`), beta round 3 (
 - 22:30–22:45: other features, layout and contrast, timings; tests D-38 to D-44 written and registered (7 red,
   3 green); screenshots taken and shrunk; bug IDs sent to the lead.
 - 22:40–22:54: `npm test`; then the full e2e.
+- 23:05–23:15: D-45 found from a dark-mode drawer screenshot (the drawer's headline is one place's range);
+  test and screenshots added.
 
 ## Section for docs/QA.md
 
@@ -154,8 +158,8 @@ agent. The process log, with every replayable command, is in
 `scripts/e2e.js`. Run them with `node scripts/e2e.js --grep='^Beta desktop QA 3'`. They serve `BETA_QA_DIST`, else
 the shared `dist/`, and skip without a beta build. Each `[D-n]` test finds its case in the build's own data, so it
 keeps working on a new crawl.
-- **3/10 pass:** the 3 guards (bundle-only boards with a Snapshot badge; the Amazon preview's cards equal the
-  list's; a ×N Ranges row lists N postings). The 7 failures are exactly `[D-38]` … `[D-44]`.
+- **3/11 pass:** the 3 guards (bundle-only boards with a Snapshot badge; the Amazon preview's cards equal the
+  list's; a ×N Ranges row lists N postings). The 8 failures are exactly `[D-38]` … `[D-45]`.
 
 ### Round 3 changes on the desktop
 | Change | Status | Checked |
@@ -165,7 +169,7 @@ keeps working on a new crawl.
 | Meta (1,208) | Works | Every check below; 45 departments, 948 postings with pay (78%) |
 | fix-density one-line notes | Works | The stats line, chart notes ("13,979 with pay · 8,200 without"), map legends and Insights captions are one line at 1440, 1280 and 1024 in both themes, each with one Details button; the Insights header is its heading plus one line |
 | google-grouping | Works | 27 job-family departments (Software Engineering 946 … plus "No department"), sum 3,821; the Company list (Google 3,546, YouTube 162, DeepMind 111, Waymo 1, Wing 1) only on Google; `b=YouTube` gives 162; Group by Company shows the brand rows; "Grouped by job title: Google doesn't publish departments" under the list; `b=` and `g=brand` round-trip |
-| Salary audit labels | **Partly** | "· 2 levels" on 876 NVIDIA, 139 Microsoft and 1 Google cards; "· N places" on 2,259 Amazon, 390 Apple, 255 Microsoft cards; "from €46K" on 283 Amazon minimums; the "Incl. top shift pay" chip and "Posted pay, including shift pay" on 636 Amazon postings. But "· N places" counts ranges, not places: D-39; a term posting drops its places: D-40 |
+| Salary audit labels | **Partly** | "· 2 levels" on 876 NVIDIA, 139 Microsoft and 1 Google cards; "· N places" on 2,259 Amazon, 390 Apple, 255 Microsoft cards; "from €46K" on 283 Amazon minimums; the "Incl. top shift pay" chip and "Posted pay, including shift pay" on 636 Amazon postings. But "· N places" counts ranges, not places: D-39; a term posting drops its places: D-40; the drawer's headline is one place's range: D-45 |
 | viz-even clusters | Works | On all 8 boards every circle sits within 0.7 px of the median its label names (65 Google, 70 Amazon circles); the one exception is Apple's "$349K" circle, drawn 9 px inside the axis end so it isn't clipped |
 | viz-even Ranges | Works | Rows of identical bands read "N roles" with ×N (Microsoft 35 stacked rows in the first 53, Google 28); a click lists exactly N ("Software Engineering · $364K–$505K (2)"); its tip lists the titles |
 | fix6-fresh-data | Works | No bare country codes in any Location list; Microsoft's Jordan posting is listed as "Jordan" |
@@ -298,6 +302,7 @@ stated. Screenshots are in `docs/screenshots/qa-desktop-beta-3/`.
 | D-42 | Low | All | US state-only places read like the city beside them: NVIDIA "New York, US" (the state) next to "New York", "Washington, US" (the state) next to "Washington, DC" |
 | D-43 | Low | All | The chart rounds range ends in the millions to one decimal ("$600K–$1.1M") where the card, since SB-7, says "$600K–1.07M" |
 | D-44 | Low | All | Group by Location opens with one- and two-role places ranked by their single posting's pay: 8 of Google's first 10 rows hold 1–2 roles, and Mountain View (500) is row 11 |
+| D-45 | Low | All | For 2,200 Amazon and 255 Microsoft postings with pay per place, the drawer's headline is one place's range with no place named, while the card shows the span ("$60K–129K · 4 places" opens as "$83K–117K") |
 
 #### D-38 (Medium): a Google Fellow is treated as an intern and its posted $550,000 is replaced by a $138K estimate
 - **Viewport:** 1440x900, light; the same at every width.
@@ -428,6 +433,25 @@ stated. Screenshots are in `docs/screenshots/qa-desktop-beta-3/`.
 - **Owner:** `public/viz/chart.js` `renderClusters` (`FOLD_NOUN` for location, or a minimum count to lead).
 - **Test:** `[D-44]`: no 1–2-role Location row is drawn above a row of 100 or more.
 
+#### D-45 (Low): the drawer's headline is one place's range, with no place named, where the card shows the span
+- **Viewport:** 1440x900, light; the same in dark and at every width.
+- **Repro:** open `/melon-seek/beta/#c=amazon&q=Senior%20Financial%20Analyst%2C%20Engineering%20Capex%20Analytics%20%26%20Planning`;
+  the card reads "$60K–129K · 4 places". Open it.
+- **Expected:** the headline the card promised ("$60K–129K", the span of the four places' ranges, as Apple's drawers
+  show), or the place the figure is for ("Bellevue: $83K–117K").
+- **Actual:** the headline is "$83K–117K · USD · per year", then "Pay by place: New York $74K–129K · Nashville
+  $60K–105K · Irving, Arlington $67K–117K · Bellevue $83K–117K". The big number is Bellevue's range (the posting's
+  own city row), but nothing says so, and it is not the range on the card. The same on 2,200 of Amazon's 2,259
+  "· N places" postings and on all 255 of Microsoft's ("$102K–261K · 2 places" opens as "$102K–235K"); Apple's 390
+  show the span on both.
+- **Cause:** Amazon's and Microsoft's `salary.min/max` is the row for the posting's primary place (the pay rule in
+  DATA_SOURCES §7a), Apple's is the span; `public/app.js` `drawerContent` shows `salaryRange(sal)` while `payPill`
+  shows the span of `payRanges`.
+- **Screenshots:** `D-45-amazon-card-span-60k-129k-4-places.png`, `D-45-amazon-drawer-headline-83k-117k-unnamed.png`.
+- **Owner:** `public/app.js` `drawerContent` (the pay block's headline: the span, as on the card, or the primary
+  place's name beside it).
+- **Test:** `[D-45]`.
+
 ### Notes
 - **Seen on the desktop, already filed, not re-filed (counts on this build):**
   - The lead's round-3 card leftovers: 11 NVIDIA on-target-earnings level spans without "· 2 levels" (e.g.
@@ -460,7 +484,7 @@ stated. Screenshots are in `docs/screenshots/qa-desktop-beta-3/`.
 | Suite | Tree | Result |
 |---|---|---|
 | `npm test` | this worktree (d98a9f0 plus this pass's test file), with the 2026-10-16 data linked | 1,168 tests: **1,113 pass, 3 fail, 52 to-dos**. The 3 failures are the load-sensitive timing tests S-6 (27 ms a request), PERF-1 (844 ms of event-loop lag) and V15, at load 20–23. Alone, S-6 passes; PERF-1 (227 ms) and V15 (306 ms) still fail at load 20. They run only with local data (CI skips them) and passed on the lead's quiet gate. The to-dos are the methodology and security reviews' open findings. |
-| `node scripts/e2e.js --grep='^Beta desktop QA 3'` | the lead's build | **3/10**: the 3 guards pass; `[D-38]` … `[D-44]` fail by design |
+| `node scripts/e2e.js --grep='^Beta desktop QA 3'` | the lead's build | **3/11**: the 3 guards pass; `[D-38]` … `[D-45]` fail by design |
 | `node scripts/e2e.js` (full) | this worktree, `dist` linked to the lead's build, `BETA_QA_DIST` set | RESULT PENDING |
 
 All runs used `NODE_PATH=<scratch>/pw/node_modules PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`.
