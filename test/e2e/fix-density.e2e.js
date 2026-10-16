@@ -196,7 +196,7 @@ export function registerFixDensityTests(suite) {
         const first = await p.evaluate(() => document.querySelector('#resultsList .card')?.dataset.id);
         if (first) {
           await go(p, `${base}#c=${slug}&job=${encodeURIComponent(first)}`, 900);
-          const lines = [...await measure(p, '#drawer .d-pay-note'), ...await measure(p, '#drawer .d-pct-text'), ...await measure(p, '#drawer .dist-caption')];
+          const lines = [...await measure(p, '#drawer .d-pay-note'), ...await measure(p, '#drawer .d-pct-text'), ...await measure(p, '#drawer .dist-caption'), ...await measure(p, '#drawer .dist-approx'), ...await measure(p, '#drawer .d-annual')];
           if (!lines.length) bad.push('drawer: no pay block lines');
           check(lines, bad, 'drawer');
           check(await measure(p, '#drawer .d-tiers li'), bad, 'drawer');
@@ -235,7 +235,7 @@ export function registerFixDensityTests(suite) {
       for (const [id, line, want] of [[ids.min, /^Posted minimum base pay$/, /the offer can be higher/], [ids.shift, /^Posted pay, including shift pay$/, /Base pay starts at/]]) {
         if (!id) continue;
         await go(p, `${base}#c=amazon&job=${encodeURIComponent(id)}`, 900);
-        const lines = [...await measure(p, '#drawer .d-pay-note'), ...await measure(p, '#drawer .d-pct-text'), ...await measure(p, '#drawer .dist-caption')];
+        const lines = [...await measure(p, '#drawer .d-pay-note'), ...await measure(p, '#drawer .d-pct-text'), ...await measure(p, '#drawer .dist-caption'), ...await measure(p, '#drawer .dist-approx'), ...await measure(p, '#drawer .d-annual')];
         check(lines, bad, `drawer ${id}`);
         const cap = lines.find((m) => m.sel === '#drawer .d-pay-note');
         if (!cap || !line.test(cap.text)) bad.push(`${id}: caption line "${cap?.text}"`);

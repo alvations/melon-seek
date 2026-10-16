@@ -3564,7 +3564,9 @@ function salaryDistribution(job) {
   const mids = (pool || []).map((j) => j._mid).concat(job._usd ? [job._mid] : []).sort((a, b) => a - b);
   const foreign = job.salary.currency && job.salary.currency !== 'USD';
   const fullTime = isPartTimeHourly(job) ? ' a year if full-time' : ''; // shared decision 4
-  const approx = foreign && job._usd ? h('p', { class: 'fnote', title: `Rates: ${FX_SOURCE}` }, `≈ ${moneyRange(job._usd.min, job._usd.max)}${fullTime} in approx US dollars for comparison, at `, docLink(UPDATED_DOC, `${fxAsOf()} exchange rates`))
+  // fix-density: one line ("≈ $53K in US dollars at Jul 2026 rates"; it was "… in approx US dollars for comparison, at
+  // Jul 2026 exchange rates", two lines on a phone). The rates' month stays in the line, linked to their source (MR-2).
+  const approx = foreign && job._usd ? h('p', { class: 'fnote dist-approx', title: `In approx US dollars, for comparison. Rates: ${FX_SOURCE}` }, `≈ ${moneyRange(job._usd.min, job._usd.max)}${fullTime} in US dollars at `, docLink(UPDATED_DOC, `${fxAsOf()} rates`))
     // MR-1: a currency with no rate in the table is shown as posted, and says why it is left out of comparisons.
     : foreign ? h('p', { class: 'fnote' }, `We can’t convert ${job.salary.currency} to US dollars yet (no exchange rate), so this pay is left out of charts and comparisons.`) : null;
   if (!pool || !dom || !job._usd) return approx ? h('div', { class: 'd-dist' }, approx) : null;
@@ -3587,7 +3589,8 @@ function salaryDistribution(job) {
   const mx = x(median).toFixed(2);
   svg.append(svgEl('line', { x1: mx, x2: mx, y1: 0, y2: H, class: 'dist-med', 'vector-effect': 'non-scaling-stroke' }));
   const medLabel = h('span', { class: 'dist-med-label' }, `median ${money(median)}`);
-  medLabel.style.left = `${Math.min(80, Math.max(20, x(median))).toFixed(1)}%`;
+  // fix-density: kept clear of the end labels on a narrow phone ("$10K" ran into "median $49K").
+  medLabel.style.left = `clamp(7em, ${Math.min(80, Math.max(20, x(median))).toFixed(1)}%, calc(100% - 7em))`;
   // MR-17: the strip says what it shows (which roles, and which number of each).
   return h('div', { class: 'd-dist' },
     // fix-density: one line; "the middle of each posted range" is in the pay block's Details.
@@ -4011,26 +4014,36 @@ function compstimateBlock(job) {
     ] }));
 }
 
+/**
+ * fix-density: one short line under the amount ("If full-time: $40,976 a year"); the full note (the 2,080 hours,
+ * the stated hours, the posted text) is the element's data-note, which drawerContent puts in the pay block's Details.
+ */
+function annualLine(line, note) {
+  const el = h('div', { class: 'd-annual' }, line);
+  el.dataset.note = note;
+  return el;
+}
 function annualNote(sal, job = null) {
   // Shared decision 4: part-time hourly pay is shown as the hourly rate; a yearly figure says it is full time.
   if (job && isPartTimeHourly(job)) {
     const hrs = statedHours(job);
+    const year = postedPair(Math.round(sal.min), Math.round(sal.max), sal.currency);
     const atHours = hrs ? ` At the posted ${hrs} hours a week: about ${postedPair(Math.round((sal.min / 2080) * hrs * 52), Math.round((sal.max / 2080) * hrs * 52), sal.currency)} a year.` : '';
-    return h('div', { class: 'd-annual' }, `If full-time (2,080 hours): ${postedPair(Math.round(sal.min), Math.round(sal.max), sal.currency)} a year.${atHours}${sal.text ? ` As posted: ${sal.text}` : ''}`);
+    return annualLine(`If full-time: ${year} a year`, `If full-time (2,080 hours): ${year} a year.${atHours}${sal.text ? ` As posted: ${sal.text}` : ''}`);
   }
   // P-8, shared decision 3: pay stated per week, per month or for the whole term is shown as posted and is
   // fixed-term pay. A rate (a year, an hour) for a programme is shown as that rate: no fixed-term label.
   if (sal.termWeeks > 0) {
-    if (isFixedPay(sal)) return h('div', { class: 'd-annual' }, `Fixed-term pay, not a yearly salary${sal.text ? ` (as posted: ${sal.text})` : ''}`);
+    if (isFixedPay(sal)) return annualLine('Fixed-term pay, not a yearly salary', sal.text ? `As posted: ${sal.text}` : '');
     const unit = PER_UNIT[sal.originalInterval];
-    return unit ? h('div', { class: 'd-annual' }, `Paid by the ${unit}${sal.text ? ` (as posted: ${sal.text})` : ''}`) : null; // a yearly rate needs no note
+    return unit ? annualLine(`Paid by the ${unit}`, sal.text ? `As posted: ${sal.text}` : '') : null; // a yearly rate needs no note
   }
   const orig = sal.originalInterval || (sal.interval && sal.interval !== 'year' ? sal.interval : null);
   if (!orig) return null;
   // CONTRACT v4 (fix-pay-data P-8): 'term' is pay for the whole programme; termWeeks is its length.
   const what = orig === 'term' && sal.termWeeks ? `pay for a ${sal.termWeeks}-week programme` : `${INTERVAL_ADJ[orig] || orig} pay`;
-  const lasts = orig !== 'term' && sal.termWeeks ? `; the programme lasts about ${sal.termWeeks} weeks` : '';
-  return h('div', { class: 'd-annual' }, `Annualized from ${what}${sal.text ? ` (${sal.text})` : ''}${lasts}`);
+  const lasts = orig !== 'term' && sal.termWeeks ? `The programme lasts about ${sal.termWeeks} weeks.` : '';
+  return annualLine(`Annualized from ${what}`, [sal.text ? `As posted: ${sal.text}.` : '', lasts].filter(Boolean).join(' '));
 }
 
 /** P-16: "Revenue · Revenue" and "Internships · Internships · Intern [Intern]" once each. */
@@ -4127,13 +4140,13 @@ function drawerContent(job) {
     : term ? `${term.amount}${perText(term.per)}` : isMinimum(job) ? `from ${money(sal.min, sal.currency)}` : salaryRange(sal);
   const subText = !sal ? null : partHourly ? `${cur} · part-time, paid by the hour`
     : term?.fixed ? `${cur} · for ${termText(term.weeks)}` : term ? `${cur} · ${programText(job, term)}` : `${cur} · per year`;
-  let salaryNotes = null;
+  let salaryNotes = null, annualEl = null;
   const salaryBlock = h('section', { class: 'd-salary' },
     sal ? h('div', { class: 'd-sal-top' },
       h('div', null,
         h('div', { class: 'd-sal-amt' }, amountText),
         h('div', { class: 'muted' }, subText),
-        annualNote(sal, job),
+        (annualEl = annualNote(sal, job)),
         ...(salaryNotes = [term || partHourly ? null : payLevelsLine(sal, job), term || partHourly ? null : payPlacesLine(sal)]),
         picked ? h('p', { class: 'd-sal-levels' }, h('span', { class: 'muted' }, `For ${placesPicked()}: `), `${picked.range} (${picked.label})`) : null))
       : job.salaryFlag ? payUnclearBlock(job)
@@ -4145,6 +4158,7 @@ function drawerContent(job) {
     // names, what the percentile ranks among and (MR-3) one tap to how pay is read.
     caption ? noteLine({ cls: 'd-pay-note', key: 'drawer-pay', line: captionLine, details: [
       h('span', { class: 'd-pay-caption' }, caption),
+      annualEl?.dataset.note || '',
       [...(salaryNotes || [])].filter(Boolean).map((e) => e.dataset.note).find(Boolean) || '',
       sal && pctNote ? pctNote : '',
       sal && job._usd ? 'The strip counts each posted range at its middle.' : '',

@@ -64,7 +64,8 @@ function lineWith(file, needle) {
 }
 const NAMES_FX_DATE = /fx-per-usd|FX_AS_OF|fxAsOf|exchange rates? (?:as of|from)|rates as of/;
 test('MR-2 drawer: the "approx US dollars" line names the exchange-rate date', () => {
-  const { at, text } = lineWith('public/app.js', 'in approx US dollars for comparison');
+  // fix-density: the line now reads "≈ $53K in US dollars at Jul 2026 rates" (one line on a phone).
+  const { at, text } = lineWith('public/app.js', 'in US dollars at `, docLink(UPDATED_DOC');
   assert.match(text, NAMES_FX_DATE, `${at} prints the converted range without the rate's date`);
 });
 test('MR-2 chart: the footnote text (not only its hover title) gives the exchange-rate date', () => {

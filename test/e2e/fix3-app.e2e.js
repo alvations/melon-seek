@@ -300,7 +300,9 @@ export function registerFix3AppTests(suite) {
     await openDrawerFor(page, job.id);
     assertEq((await page.locator('#drawer .d-sal-amt').innerText()).trim(), `${hourly} an hour`, 'drawer shows the hourly rate');
     const block = await page.locator('#drawer .d-salary').innerText();
-    assert(/If full-time \(2,080 hours\): \$[\d,]+–[\d,]+ a year/.test(block), `the yearly figure says "if full-time": ${block}`);
+    // fix-density: the line reads "If full-time: $X–Y a year"; the 2,080 hours are in the pay block's Details.
+    assert(/If full-time: \$[\d,]+–[\d,]+ a year/.test(block), `the yearly figure says "if full-time": ${block}`);
+    assert(/If full-time \(2,080 hours\): \$[\d,]+–[\d,]+ a year/.test(await page.locator('#drawer .d-pay-note .ms-note__list').textContent()), 'the Details give the 2,080 hours');
     assert(/part-time/i.test(block), 'says part-time');
     const txt = await page.locator('#drawer .drawer-scroll').innerText();
     assert(/No Juice/.test(txt) && /hours/.test(txt), `the drawer says why there is no Juice: ${(txt.match(/No Juice[^\n]*/) || [''])[0]}`);
