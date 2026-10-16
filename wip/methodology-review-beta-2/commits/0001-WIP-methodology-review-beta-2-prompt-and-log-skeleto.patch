@@ -1,0 +1,60 @@
+From 7457566070708a9ee5f1bbccf460af5bcb5f23dd Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 19:57:13 +0000
+Subject: [PATCH] WIP methodology-review-beta-2: prompt and log skeleton
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/methodology-review-beta-2.md     | 10 +++++++++
+ .../prompts/methodology-review-beta-2.md      | 21 +++++++++++++++++++
+ 2 files changed, 31 insertions(+)
+ create mode 100644 docs/process/methodology-review-beta-2.md
+ create mode 100644 docs/process/prompts/methodology-review-beta-2.md
+
+diff --git a/docs/process/methodology-review-beta-2.md b/docs/process/methodology-review-beta-2.md
+new file mode 100644
+index 0000000..fb493db
+--- /dev/null
++++ b/docs/process/methodology-review-beta-2.md
+@@ -0,0 +1,10 @@
++# Process log: methodology-review-beta-2 (methodology and sources reviewer, beta round 3)
++
++## State
++- 2026-10-16 19:58 UTC: started. Worktree detached at origin/claude/stoic-ride-54ddxp 6178be7; today's crawl symlinked (not committed). Prompt pasted. Next: read docs, serve the lead's build, registry checks.
++
++## 1. Brief
++- Prompt: [prompts/methodology-review-beta-2.md](prompts/methodology-review-beta-2.md) (verbatim, with the lead's note for beta round 3, 2026-10-16).
++
++## Findings
++(in progress)
+diff --git a/docs/process/prompts/methodology-review-beta-2.md b/docs/process/prompts/methodology-review-beta-2.md
+new file mode 100644
+index 0000000..be91297
+--- /dev/null
++++ b/docs/process/prompts/methodology-review-beta-2.md
+@@ -0,0 +1,21 @@
++**The lead's note for this run (beta round 3, 2026-10-16).** You run in your own git worktree. First run `git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp`. Symlink today's crawl into it: `ln -s /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-data2/data/snapshots data/snapshots; mkdir -p data/beta; ln -s /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-data2/data/beta/snapshots data/beta/snapshots` (never commit them). The data is the 2026-10-16 crawl with every board whole, no cap: Amazon 22,179 postings, Apple 4,851, Google 3,821, NVIDIA 2,711, Microsoft 2,435, Meta 1,208, Netflix 414; main site Anduril 2,537. The lead's reviewer build is /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/cycle-beta5-dist; serve it and don't rebuild it. What changed since the last review: one-line notes with a Details disclosure (fix-density), Google grouped by job family with a Company filter (google-grouping), the salary audit fixes ("· 2 levels", per-place pay, no cut rows), first-page preview and a faster first render (perf-mobile-beta-2), and fix6-fresh-data. Read those sections of docs/process/lead.md first. Resume safety (the user, 2026-10-16: "if we get stop again due to limits, we're able to resume without losing much progress"): commit your files small and often in your worktree with explicit paths, keep a `## State` section at the top of your log, and send the lead your findings as you confirm them by SendMessage to "main". The lead checkpoints your worktree every 15 minutes; never push. Where the template says "don't commit", commit in your worktree anyway; the lead integrates. Give every server, browser or test command a timeout, so nothing can hang for hours. Other agents may run at the same time on a 4-CPU machine: note `uptime` with any timing. This review's focus beyond the template: the Amazon and Meta numbers (pay rows per place, minimums, shift pay, Austria's annual figures, Mexico peso pay, MXN legal minimum), the norm-11 rules in DATA_SOURCES §7a, Google's job families (labelled as grouped by job title) and the freshness registry for every number added since 2026-10-11.
++
++You are the methodology and sources reviewer for melon-seek (/home/user/melon-seek), "the Zillow of job postings". Every number the site shows (pay, Juice, tax, rent, living costs, exchange rates, market medians, Compstimate estimates, levels, counts and dates) should say where it comes from and how fresh it is, in words a job seeker understands. Read docs/METHODOLOGY_GUIDE.md, docs/LIVABILITY.md, docs/DATA_SOURCES.md, docs/DATA_FRESHNESS.md, data/freshness.json, docs/process/methodology-ux.md, docs/process/methodology-copy.md, docs/process/freshness-review.md, docs/process/PLAYBOOK.md and docs/process/TEMPLATE.md.
++
++**Your job:** check that target `beta` (`/melon-seek/beta/`) explains and sources everything it shows for all seven big-tech boards (Amazon, Apple, Google, Meta, Microsoft, NVIDIA and Netflix), plus Anduril from the main site for comparison, and that the freshness registry covers every number the target added. Do not edit product code. You own:
++- docs/process/methodology-review-beta-2.md (your log and findings) and docs/process/prompts/methodology-review-beta-2.md (paste this prompt verbatim);
++- screenshots in docs/screenshots/methodology-review-beta-2/ (run `bash scripts/cycle/shrink-screenshots.sh docs/screenshots/methodology-review-beta-2` before you report);
++- a NEW unit test file, test/beta-methodology-2.test.js (the first pass owns test/beta-methodology.test.js; never edit it): each missing registry entry, stale as-of date or docs drift you can check in code becomes a failing test;
++- suggested doc and registry changes as patches in docs/process/patches/methodology-review-beta-2-<name>.diff (docs/DATA_SOURCES.md, docs/METHODOLOGY_GUIDE.md, data/freshness.json and the like).
++Don't commit and never push.
++
++**Setup:** serve the build the lead made: `node scripts/cycle/serve.mjs --dist /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/cycle-beta5-dist --pid /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/methodology-review-beta-2/serve.pid`; don't rebuild it. Playwright from NODE_PATH=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/pw/node_modules, Chromium at /opt/pw-browsers/chromium-1194/chrome-linux/chrome; never run `playwright install`. Use pid files; never `pkill -f`.
++
++**Check:**
++1. **Every number on screen.** Walk the top bar, data badge and popover, list cards, chart, map, drawer (pay block, Juice waterfall, comps, listing block), Compstimate, Market insights and Compare companies. For each kind of number: is there a source and an as-of a user can reach in one click or tap, and does the methodology link open the right on-site section?
++2. **The target's new data.** For each board in all seven big-tech boards (Amazon, Apple, Google, Meta, Microsoft, NVIDIA and Netflix), plus Anduril from the main site for comparison: the crawl date shown, the counts, how levels, pay ranges across levels, part-time and fixed-term pay, and multi-country pay are explained. Currencies the target added: is each exchange rate in data/freshness.json, with a source, as-of and refresh mechanism? Cities the target added: living-cost and rent coverage, and the fallback wording where it is missing.
++3. **Registry coverage.** Run `node scripts/refresh/registry.js --check` (and the other modes it lists) and the freshness tests. Every constant or dataset added since docs/process/freshness-review.md must have a registry entry; list each one missing, with file:line.
++4. **Docs drift.** docs/DATA_SOURCES.md (the big-tech section), docs/METHODOLOGY_GUIDE.md and README.md against the code and the build log: counts, boards, paused companies and why, crawl cadence, the beta notice. Quote each line that is wrong and give the corrected line.
++5. **Words.** The methodology text and every caption: plain English, every abbreviation explained where it appears, caveats next to the number they qualify.
++
++For each finding write an ID (MR-n), a severity (High: a number with a wrong or missing source; Medium: stale, unclear or hard to find; Low: wording), the screen or file:line, a screenshot where it is on screen, expected vs actual, and the fix. Run `npm test`. Report back with the findings ordered by severity, one line each.
+-- 
+2.43.0
+

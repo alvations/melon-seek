@@ -1,4 +1,4 @@
-From b0e02a0a09f33d621c67a3308d0d9968359911df Mon Sep 17 00:00:00 2001
+From 3a95e0c3426de4608d2a2b1765c7e1256722a914 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 16:15:32 +0000
 Subject: [PATCH 4/6] WIP: viz-even unit tests; Ranges rows stack by the colour

@@ -1,4 +1,4 @@
-From 64b127c13b1dbac21ad39f984d20d1935af03315 Mon Sep 17 00:00:00 2001
+From 40111d409b38ca6a824f5a80254015765c84f790 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 16:20:01 +0000
 Subject: [PATCH 6/6] viz-even: registry: the chart's circle-spacing constants
@@ -10,7 +10,7 @@ Subject: [PATCH 6/6] viz-even: registry: the chart's circle-spacing constants
  2 files changed, 4 insertions(+), 4 deletions(-)
 
 diff --git a/data/freshness.json b/data/freshness.json
-index e985894..5dc3f9a 100644
+index b2b48a0..7d38311 100644
 --- a/data/freshness.json
 +++ b/data/freshness.json
 @@ -16792,7 +16792,7 @@
@@ -37,7 +37,7 @@ index e985894..5dc3f9a 100644
        ],
        "group": "jobs"
 diff --git a/docs/DATA_FRESHNESS.md b/docs/DATA_FRESHNESS.md
-index 16541ce..c17f0d7 100644
+index 9752af3..ba5d503 100644
 --- a/docs/DATA_FRESHNESS.md
 +++ b/docs/DATA_FRESHNESS.md
 @@ -3857,7 +3857,7 @@ Each dataset is listed under every surface that shows it or computes from it.
