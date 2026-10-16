@@ -1168,3 +1168,34 @@ screenshots in `docs/screenshots/`.
   - Not applied: google-grouping-pack.diff. melon-packed-3 (perf-mobile-beta-2) already drops the per-job key names, and the patch would change key order.
   - Known one-time effect: the ledger fingerprint hashes the department, so for 30 days a repost of a Google posting closed before today may not be linked as a repost. Nothing is hidden.
 - **Gate:** `npm test` CI-like 1,082 tests, 1,030 pass, 0 fail. Full e2e on the 2026-10-16 crawl 353/362, with the same 5 data-driven failures; fix6-fresh-data has fixed all 5 for the next batch.
+
+### perf-mobile-beta-2 and salary-audit-backend integrated (2026-10-16)
+- **perf-mobile-beta-2** (fc084ee … 25efed6, log 8c97797):
+  - **melon-packed-3 lists.** Amazon's 22,179 postings went from 10.90 MB (1.68 MB gzip) to 6.74 MB (1.14 MB gzip), and every board is smaller. The build packs each list both ways and fails unless melon-packed-3 unpacks exactly as melon-packed-2.
+  - **Juice in 40 ms time slices.** The old 400-job chunks took up to 290 ms each.
+  - **VT-22 and SA-7 trimming in scripts/snapshot.js.** Every pay-table row and the sentence above it are kept, and £/€/zł pay paragraphs survive trimming.
+  - **Phone record** (390x844, 4x CPU, 2026-10-16 crawl, base and head interleaved):
+    - Amazon, first card: Fast 4G 7.8 → 6.7 s; Slow 4G 18.4 → 15.7 s.
+    - Apple, first card: Fast 4G 3.5 → 3.2 s.
+  - Amazon is still too slow on a phone. The lane continues with wider ownership (app.js prepare and first render, Juice), aiming for the first cards in about 3 s on Fast 4G.
+- **salary-audit-backend** (193205a … 594109d, log 8f41818) answers the user's salary-range question from the pipeline side. On the 2026-10-16 crawl it traced every paid beta posting from the posted text to the stored snapshot, the served list, the card, the chart and Juice.
+  - **Shown ends match posted figures:**
+    - Amazon: 13,977 of 13,980. The other 3 are Austria's stated annual figures (VT-19).
+    - Apple, Google, Meta, Microsoft and NVIDIA: all of them.
+    - Netflix: all 259 (the checker's regex had missed 2).
+  - **The chart and the salary field:** the chart plots the served figures exactly, and no estimate is ever in `salary`.
+  - **Fixes (norm-11):**
+    - SB-1: stored Amazon rows lost on serve are restored (156 rows in 145 postings).
+    - SB-3 (= SA-3): no 12-range cap.
+    - SB-4: rows named "New York City", "N.Reading", "Westboro", "Hazle Township" and "San Franscisco" are tied to their places.
+    - SB-5: Microsoft's SF Bay Area / NYC range is kept per place (236 postings).
+    - SB-6: Remote Amazon postings keep their virtual-location rows.
+    - SA-4: Google's degree lines become levels.
+    - SA-7: a stored salary is kept when trimming cut its pay sentence.
+    - SB-7: range ends in the millions keep two decimals ("$600K–1.07M").
+  - **Presentation cause behind "too even":** the clusters view bins midpoints into fixed $50K bins and draws each circle at the bin's centre, so the circles are always evenly spaced. A new lane, **viz-even**, draws them at their postings' pay and stacks identical posted bands with a count.
+- **Lead fix at integration:** test/salary-audit.test.js lifts payPill's helpers out of app.js by name. SB-7's new `rangeEnd` is now on that list; without it, SA-1, SA-2, SA-6 and the pinned Apple test threw.
+- **Gate:**
+  - `npm test` (CI-like): 1,098 tests, 1,052 pass, 0 fail.
+  - Full e2e on the 2026-10-16 crawl: 353/362, with only the same 5 data-driven failures. fix6-fresh-data has fixes for all 5.
+- **Checkpoints:** the 2-hour background limit stopped the loop at 15:41. A session cron job now runs `checkpoint.sh` every 15 minutes (PLAYBOOK, "Checkpoints").
