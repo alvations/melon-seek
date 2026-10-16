@@ -234,7 +234,9 @@ export function amazonSalary(j, table = amazonPayTable(j.description, j.basic_qu
   const remoteKeys = posting.filter((q) => q.remote).map((q) => q.key);
   let rows = table.map((r) => ({ ...r, place: rowPlace(r.location) }));
   // DQ-41: a virtual row for a state the posting lists no place in (only when it lists states).
-  if (listedStates.size) {
+  // SB-6 (salary audit): a posting that also lists a Remote place keeps its virtual rows: they are the
+  // pay of its remote hires in those states (amazon:10514229, "Remote, United States" and Arlington, VA).
+  if (listedStates.size && !remoteKeys.length) {
     const kept = rows.filter((r) => !r.place.virtual || !r.place.state || listedStates.has(r.place.state));
     if (kept.length) rows = kept;
   }

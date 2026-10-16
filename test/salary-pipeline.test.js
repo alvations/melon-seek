@@ -138,6 +138,24 @@ test('SB-4 Amazon: "N.Reading", "Westboro" and "Hazle Township" rows are those p
   assert.deepEqual(tied(110000), ['Hazle Twp, Pennsylvania, USA']);
 });
 
+// SB-6. DQ-41 drops a "Virtual Location - <state>" row for a state the posting lists no place in. A
+// posting that also lists "Remote, United States" lost them too, though they are its remote pay:
+// amazon:10514229 "Clinical Quality PM, One Medical Senior Health" (Remote, United States; Arlington, VA)
+// posts 10 virtual rows (Washington 80,200–92,700, California 70,400–92,700, …); the site showed only
+// Arlington's 68,700–92,700. 8 postings, 10 ranges on 2026-10-16. A remote-free posting still drops them.
+test('SB-6 Amazon: a posting with a Remote place keeps its virtual-location rows', () => {
+  const table = ['USA, CA, Virtual Location - California - 70,400.00 - 92,700.00 USD annually', 'USA, VA, Arlington - 68,700.00 - 92,700.00 USD annually',
+    'USA, WA, Virtual Location - Washington - 80,200.00 - 92,700.00 USD annually'];
+  const row = { ...amazonRow({ id: '10514229', title: 'Clinical Quality PM, One Medical Senior Health', city: 'Arlington', state: 'VA', places: ['Arlington, Virginia, USA'], table }) };
+  row.locations = [JSON.stringify({ normalizedLocation: 'Remote, United States', type: 'REMOTE' }), amazonLoc('Arlington, Virginia, USA')];
+  const job = normalizeJob(mapAmazonJob(row), company('amazon'));
+  const mins = [job.salary.min, ...(job.salary.ranges || []).map((r) => r.min)];
+  for (const m of [70400, 80200]) assert.ok(mins.includes(m), `the ${m} virtual row is kept: ${JSON.stringify(job.salary.ranges || null)}`);
+  // Without the Remote place, the DQ-41 rule still applies.
+  const onsite = normalizeJob(mapAmazonJob(amazonRow({ id: '2', title: 'Clinical Quality PM', city: 'Arlington', state: 'VA', places: ['Arlington, Virginia, USA'], table })), company('amazon'));
+  assert.deepEqual([onsite.salary.min, onsite.salary.ranges], [68700, undefined]);
+});
+
 /* ---------------------------------------------------------------- Microsoft */
 // SB-5. microsoft:1970393556746669 "Senior Software Engineer" (Redmond, WA; New York, NY),
 // https://apply.careers.microsoft.com/careers/job/1970393556746669 : "… across the U.S. is USD $119,800 -
