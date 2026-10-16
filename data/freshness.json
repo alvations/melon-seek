@@ -535,11 +535,11 @@
         "server/juice.js:148 GRADES",
         "server/juice.js:153 RIND",
         "public/viz/palette.js:280 JUICE_BREAKS (copy)",
-        "public/app.js:2303 JUICE_GRADES (UI copy \"70+\", \"45–69\", \"under 45\")",
+        "public/app.js:2351 JUICE_GRADES (UI copy \"70+\", \"45–69\", \"under 45\")",
         "public/viz/palette.js:280 JUICE_BREAKS [45, 70] (copy)",
         "public/viz/palette.js:280 JUICE_BREAKS [45, 70]",
-        "public/app.js:2303 JUICE_GRADES chip tooltips \"(score 70+)\", \"(45–69)\", \"(under 45)\" (hard-coded copy)",
-        "public/app.js:501 gradeKey: Rind is filtered as Dry"
+        "public/app.js:2351 JUICE_GRADES chip tooltips \"(score 70+)\", \"(45–69)\", \"(under 45)\" (hard-coded copy)",
+        "public/app.js:521 gradeKey: Rind is filtered as Dry"
       ],
       "values": "breaks 45 / 70; labels Dry, Ripe, Juicy, Rind",
       "consumers": [
@@ -750,10 +750,10 @@
       "type": "product-policy",
       "owners": [
         "server/juice.js:107 HOUSEHOLDS",
-        "public/app.js:3618 HOUSEHOLDS (UI labels)",
+        "public/app.js:3686 HOUSEHOLDS (UI labels)",
         "server/juice.js:113 DEFAULT_HOUSEHOLD",
-        "public/app.js:3618 HOUSEHOLDS (UI copy: labels, tooltips, bedrooms)",
-        "public/app.js:3618 HOUSEHOLDS labels/bedrooms/people (UI copy of server/juice.js HOUSEHOLDS)"
+        "public/app.js:3686 HOUSEHOLDS (UI copy: labels, tooltips, bedrooms)",
+        "public/app.js:3686 HOUSEHOLDS labels/bedrooms/people (UI copy of server/juice.js HOUSEHOLDS)"
       ],
       "values": "single 1 bedroom / couple 2 / family 3; \"two adults and two children\"",
       "consumers": [
@@ -1036,7 +1036,7 @@
       "description": "Per-job annual pay converted to approx USD (client side, palette FX) and every statistic derived from it in the UI.",
       "type": "derived-at-build",
       "owners": [
-        "public/app.js:537 _usd",
+        "public/app.js:557 _usd",
         "public/features/shared.js:25 toUSD",
         "public/viz/palette.js:1 palette toUSD (chart/map/comps)",
         "public/features/shared.js:1 shared toUSD (Compstimate/Insights: palette then FX_FALLBACK)",
@@ -14151,7 +14151,7 @@
         "server/export.js:62 csvReadme text",
         "public/features/shared.js:45 salaryUSD defensive annualization (2080 h if mid < 1000, ×12 if mid < 30000): duplicate of server/salary.js annualize",
         "public/viz/chart.js:65 INTERVAL_ADJ labels",
-        "public/app.js:3600 INTERVAL_ADJ labels"
+        "public/app.js:3668 INTERVAL_ADJ labels"
       ],
       "values": "2080 hours/yr, 12 months, 52 weeks",
       "consumers": [
@@ -15301,7 +15301,7 @@
         "public/app.js:1 app.js 180 (copy)",
         "public/app.js:227 Listed filter 7 / 30 / 90 days",
         "public/app.js:1268 hide roles open ≥ 180 days",
-        "public/app.js:3405 card age: < 60 → \"Nd\", < 730 → months (÷30.44), else years; \"+\" when a lower bound"
+        "public/app.js:3470 card age: < 60 → \"Nd\", < 730 → months (÷30.44), else years; \"+\" when a lower bound"
       ],
       "values": "filter 7/30/90; 180+ days; contract freshness new ≤ 7, active 8–59, stale 60–179, evergreen ≥ 180 (server/history.js FRESHNESS)",
       "consumers": [
@@ -15774,7 +15774,7 @@
         "public/api.js:86 LIVE_TIMEOUT_MS 12 s",
         "public/api.js:271 WORKER_READY_MS 10 s",
         "public/api.js:732 JUICE_CHUNK 400",
-        "public/app.js:1009 PREPARE_CHUNK 300",
+        "public/app.js:1031 PREPARE_CHUNK 300",
         "public/app.js:108 PAGE 24/60",
         "public/app.js:10 compstimate meta retry 5 s",
         "public/viz/map.js:154 map offline 4 s"
