@@ -56,7 +56,7 @@ No product code was changed. Commits are in the worktree only (never pushed), as
     `public/api.js#getPreview`, `public/viz/chart.js` (stacked Ranges rows, fold row), `public/viz/viz.css`,
     `public/styles.css`.
 - GitHub (read-only, MCP): workflow list and `pages-build-deployment` runs 112-211 with their jobs, to see whether
-  the branch build still deploys (it fails at "Build with Jekyll" on every push since 2026-10-10 09:30). `gh api
+  the branch build still deploys (none has succeeded since 2026-10-10 09:49 UTC: runs 132-211 are 77 failures and 3 cancelled). `gh api
   repos/…/pages` is blocked by the proxy, so the Pages source setting was not read directly.
 - Tools: Playwright 1.63.0 and axe-core **4.13.0** from `<S>/pw/node_modules`, Chromium 141.0.7390.37
   (`/opt/pw-browsers/chromium-1194`), Node 22, bash, git, tar.

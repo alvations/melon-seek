@@ -1185,7 +1185,7 @@ return t.replace(/[（(][^（(）)]{0,200}[）)]/g, ' ').replace(/\s+/g, ' ').tr
 
 **Repro**: `test/beta-security-review-2.test.js` "S-11" builds a scratch origin and a lane worktree holding `.env`, `deploy-key.pem`, `notes/api.key` and `.npmrc`, then runs `checkpoint.sh --ckpt`. All four are packed beside the lane's log.
 
-There is also a latent coupling. Settings → Pages is still "Deploy from a branch" (lead.md, 2026-10-10). The branch build has failed at "Build with Jekyll" on every push since 2026-10-10 09:30 (runs 132 to 211 of `pages-build-deployment`, including every checkpoint push), so today it deploys nothing. If that build ever succeeds again:
+There is also a latent coupling. Settings → Pages is still "Deploy from a branch" (lead.md, 2026-10-10). No branch build has succeeded since 2026-10-10 09:49 UTC: runs 132 to 211 of `pages-build-deployment` are 77 failures (at "Build with Jekyll", as in run 38963710040, a checkpoint push) and 3 cancelled. So today it deploys nothing. If that build ever succeeds again:
 - each checkpoint push would publish the holding page, or the repo root with `wip/`, over the app;
 - `paths-ignore` would keep pages.yml from redeploying;
 - only the 30-minute watchdog would restore the site.
