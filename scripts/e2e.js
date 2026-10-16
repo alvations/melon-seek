@@ -27,6 +27,7 @@ import { registerFixViz3Tests } from '../test/e2e/fix3-viz.e2e.js';
 import { registerBetaA11yTests } from '../test/e2e/beta-a11y.e2e.js';
 import { registerFixCompanyScrollTests } from '../test/e2e/fix-company-scroll.e2e.js';
 import { registerBetaDesktopQa2Tests } from '../test/e2e/beta-desktop-qa-2.e2e.js';
+import { registerBetaDesktopQa3Tests } from '../test/e2e/beta-desktop-qa-3.e2e.js';
 import { registerBetaVizReviewTests } from '../test/e2e/beta-viz-review.e2e.js';
 import { registerBetaUxReviewTests } from '../test/e2e/beta-ux-review.e2e.js';
 import { registerFix4AppTests } from '../test/e2e/fix4-app.e2e.js';
@@ -93,6 +94,7 @@ if (!apiOnly) {
   registerGoogleGroupingTests(suite);
   registerVizEvenTests(suite);
   registerBetaA11y2Tests(suite);
+  registerBetaDesktopQa3Tests(suite);
 }
 
 let results;
