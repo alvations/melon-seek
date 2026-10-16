@@ -1,0 +1,130 @@
+From 73853341bce814c5836c2dd97457540532c22f96 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 16:16:51 +0000
+Subject: [PATCH 14/15] perf-mobile-beta-2: tests for the first-page preview
+ (prefix set, same postings and juice as getJobs, config.js asks for it first)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ scripts/build-static.js         |  2 +-
+ test/perf-mobile-beta-2.test.js | 86 +++++++++++++++++++++++++++++++++
+ 2 files changed, 87 insertions(+), 1 deletion(-)
+
+diff --git a/scripts/build-static.js b/scripts/build-static.js
+index a6026f3..7231ab3 100644
+--- a/scripts/build-static.js
++++ b/scripts/build-static.js
+@@ -422,7 +422,7 @@ export function previewSet(jobs, n = PREVIEW_SIZE) {
+  * preview must hold exactly the postings getJobs returns). `preview.colorCounts` are the postings with
+  * pay per department, what app.js#computeColorKeys counts, so the first cards get the chart's colours.
+  */
+-function previewList({ list, back, plain }, api) {
++export function previewList({ list, back, plain }, api) {
+   if (!list.shared || list.shared.vetted !== true || back.length < PREVIEW_MIN_JOBS) return null;
+   const idx = previewSet(back);
+   const counts = new Map();
+diff --git a/test/perf-mobile-beta-2.test.js b/test/perf-mobile-beta-2.test.js
+index a653bf0..a945182 100644
+--- a/test/perf-mobile-beta-2.test.js
++++ b/test/perf-mobile-beta-2.test.js
+@@ -12,6 +12,7 @@ import { test, before, after } from 'node:test';
+ import assert from 'node:assert/strict';
+ import { spawnSync } from 'node:child_process';
+ import fs from 'node:fs';
++import vm from 'node:vm';
+ import os from 'node:os';
+ import path from 'node:path';
+ import { fileURLToPath, pathToFileURL } from 'node:url';
+@@ -222,3 +223,88 @@ test('the 1.5 MB list budget is still measured in melon-packed-2 bytes: the same
+   assert.ok(api.unpackJobs(rt(out.list)).every((j) => !j.sections.responsibilities.length));
+ });
+ 
++
++/* ------------------------------------------------------------ first-page preview */
++
++const vmRun = (code, sandbox) => vm.runInNewContext(code, sandbox);
++
++/** A big board the salary gate leaves alone: US pay in 16 levels (some ties), 8 US cities, some unpaid. */
++const bigBoard = async (n = 1300) => {
++  const base = (await anthropicPlain()).jobs;
++  const cities = readJson(ROOT, 'data', 'cities.json');
++  const us = (Array.isArray(cities) ? cities : cities.cities).filter((c) => c.country === 'US').slice(0, 8);
++  const jobs = Array.from({ length: n }, (_, i) => {
++    const b = base[i % base.length];
++    const c = us[i % 8];
++    const min = 100000 + (i % 16) * 7000, max = min + 50000;
++    const salary = i % 9 === 4 ? null : { min, max, mid: (min + max) / 2, currency: 'USD', interval: 'year', text: `$${min.toLocaleString('en-US')} - $${max.toLocaleString('en-US')} USD`, kind: 'base', spread: +(max / min).toFixed(2), zones: 1, source: 'posting' };
++    return { ...b, id: `zz:${20000 + i}`, company: 'zz', companyName: 'Zz', title: `${b.title} ${i % 13}`, department: ['Engineering', 'Sales', 'Operations', 'Finance', null][i % 5], url: `https://www.amazon.jobs/en/jobs/${20000 + i}/x`, locations: [{ name: `${c.city}, ${c.region}`, city: c.city, region: c.region, country: 'US', remote: false, rawName: `USA, ${c.region}, ${c.city}` }], salary };
++  });
++  return { company: { slug: 'zz', name: 'Zz' }, mode: 'snapshot', fetchedAt: '2026-10-16T00:00:00.000Z', error: null, jobs };
++};
++
++test('previewSet: the postings the default sort lists first, a prefix whatever the tie-breaks', async () => {
++  const { previewSet, previewPay, PREVIEW_SIZE } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'build-static.js')).href);
++  const api = await siteApi();
++  const jobs = api.unpackJobs(rt(packList(await bigBoard(), api)));
++  const set = previewSet(jobs);
++  assert.ok(set.length >= PREVIEW_SIZE, `${set.length} postings`);
++  assert.deepEqual(set, [...set].sort((a, b) => a - b), 'board order');
++  const inMid = Math.min(...set.map((i) => previewPay(jobs[i]).mid));
++  for (let i = 0; i < jobs.length; i++) if (!set.includes(i)) { const p = previewPay(jobs[i]); assert.ok(!p || p.mid < inMid, `${jobs[i].id} sorts after the preview`); }
++  // previewPay is app.js#prepare's pay: a salary with neither end is no pay; a missing end or mid is filled.
++  assert.equal(previewPay({ salary: { min: null, max: null, currency: 'USD' } }), null);
++  assert.deepEqual(previewPay({ salary: { min: 100, max: null, currency: 'USD' } }), { mid: 100, max: 100 });
++  // A board with few paid postings: all of them, then the first unpaid ones in board order.
++  const few = [{ salary: null }, { salary: { min: 1, max: 3 } }, { salary: null }, { salary: null }];
++  assert.deepEqual(previewSet(few, 3), [0, 1, 2]);
++});
++
++test('the preview holds the list\'s own postings, and getPreview gives them as getJobs does (juice included)', async () => {
++  const api0 = await siteApi();
++  const { splitPayload, previewList } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'build-static.js')).href);
++  const { vetSalaries } = await import(pathToFileURL(path.join(DIST, 'lib', 'vet.js')).href);
++  const board = await bigBoard();
++  const split = splitPayload(board, api0, vetSalaries);
++  assert.equal(split.list.shared.vetted, true, 'precondition: a vetted list');
++  const prev = previewList(split, api0);
++  assert.ok(prev && prev.preview.total === board.jobs.length);
++  // Colour counts: postings with pay per department, as app.js#computeColorKeys counts them.
++  const { previewPay } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'build-static.js')).href);
++  const counts = new Map();
++  for (const j of split.back) if (previewPay(j)) counts.set(j.department || 'No department', (counts.get(j.department || 'No department') || 0) + 1);
++  assert.deepEqual(prev.preview.colorCounts, [...counts]);
++  const companies = [...readJson(DIST, 'api', 'companies.json'), { slug: 'zz', name: 'Zz', source: 'amazon', board: 'zz', color: '#ff9900', live: false }];
++  const api = await siteApi({ 'api/companies.json': companies, 'api/jobs/zz.json': rt(split.list), 'api/preview/zz.json': rt(prev) });
++  const p = await api.getPreview('zz');
++  const res = await api.getJobs('zz');
++  const byId = new Map(res.jobs.map((j) => [j.id, j]));
++  assert.ok(p.jobs.length >= 100 && p.jobs.every((j) => byId.has(j.id)));
++  assert.deepStrictEqual(p.jobs, p.jobs.map((j) => byId.get(j.id)), 'the same postings, juice and all');
++  assert.equal(JSON.stringify(p.jobs), JSON.stringify(p.jobs.map((j) => byId.get(j.id))), 'key order');
++  assert.ok(p.jobs.some((j) => j.juice), 'juice attached');
++  // No preview once the list is in memory, for an unknown slug, or when there is no file.
++  assert.equal(await api.getPreview('zz'), null);
++  assert.equal(await api.getPreview('nope'), null);
++  assert.equal(await api.getPreview('anthropic'), null);
++  // A small board gets none.
++  assert.equal(previewList(splitPayload({ ...board, jobs: board.jobs.slice(0, 300) }, api0, vetSalaries), api0), null);
++});
++
++test('config.js asks for the first company\'s preview only when it has one, before the list', async () => {
++  const { previewPreloadJs, LAST_VIEW_KEY } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'build-static.js')).href);
++  const run = (code, hash) => {
++    const calls = [];
++    const sandbox = { location: { hash }, URLSearchParams, JSON, Response, localStorage: { getItem: () => null }, fetch: (url) => { calls.push(url); return Promise.resolve(new Response('{}')); } };
++    sandbox.window = sandbox;
++    vmRun(code, sandbox);
++    return { calls, early: sandbox.MELON_FIRST_PREVIEW };
++  };
++  const code = previewPreloadJs(['amazon'], ['anthropic', 'amazon', 'apple'], LAST_VIEW_KEY.beta, 'amazon');
++  assert.deepEqual(run(code, '').calls, ['api/preview/amazon.json']);
++  assert.equal(run(code, '').early.path, 'api/preview/amazon.json');
++  assert.deepEqual(run(code, '#c=apple').calls, [], 'no preview file for apple here');
++  assert.deepEqual(run(code, '#c=AMAZON').calls, ['api/preview/amazon.json']);
++  const cfg = fs.readFileSync(path.join(DIST, 'config.js'), 'utf8');
++  assert.ok(cfg.indexOf('MELON_FIRST_PREVIEW') < cfg.indexOf('MELON_FIRST_LIST'), 'the preview is requested first');
++});
+-- 
+2.43.0
+

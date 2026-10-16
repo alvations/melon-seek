@@ -1,7 +1,7 @@
 From d25d42cb58f2f9745dbaf7a323b4e617fb93e023 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 15:23:46 +0000
-Subject: [PATCH 09/12] perf-mobile-beta-2 test: brand and departmentBasis
+Subject: [PATCH 09/15] perf-mobile-beta-2 test: brand and departmentBasis
  (google-grouping) round-trip through melon-packed-3 exactly
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

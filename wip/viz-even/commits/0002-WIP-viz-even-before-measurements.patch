@@ -1,7 +1,7 @@
 From fb566fab6507717a64c4eb1f6da3f3f587d77bf9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 16:05:06 +0000
-Subject: [PATCH 2/2] WIP: viz-even before-measurements
+Subject: [PATCH 2/6] WIP: viz-even before-measurements
 
 ---
  docs/process/viz-even.md | 58 +++++++++++++++++++++++++++++++++++++---

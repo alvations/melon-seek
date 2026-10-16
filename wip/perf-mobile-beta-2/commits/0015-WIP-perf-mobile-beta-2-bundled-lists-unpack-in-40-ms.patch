@@ -1,0 +1,113 @@
+From 704dde146f60bbedfa64518e8072628a1599bdc9 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 16:18:13 +0000
+Subject: [PATCH 15/15] WIP perf-mobile-beta-2: bundled lists unpack in 40 ms
+ slices; derive counts keyword facets on first read
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ public/api.js | 25 ++++++++++++++++++++++---
+ public/app.js | 21 +++++++++++++++++----
+ 2 files changed, 39 insertions(+), 7 deletions(-)
+
+diff --git a/public/api.js b/public/api.js
+index 7033437..6b635d2 100644
+--- a/public/api.js
++++ b/public/api.js
+@@ -489,6 +489,25 @@ const objectMaker = (keys, more = []) => {
+ };
+ export function unpackJobs(body) {
+   if (!body || !PACKED_FORMATS.has(body.format)) return body && Array.isArray(body.jobs) ? body.jobs : [];
++  return body.jobs.map(unpacker(body));
++}
++/**
++ * unpackJobs in slices of about JUICE_SLICE_MS that yield to the main thread (bundled lists: Amazon's
++ * 22,179 postings were one 0.38 s task at 4x CPU). The same jobs: the same function per job, in order.
++ */
++async function unpackJobsSliced(body) {
++  if (!body || !PACKED_FORMATS.has(body.format)) return unpackJobs(body);
++  const one = unpacker(body);
++  const out = [];
++  for (let i = 0; i < body.jobs.length;) {
++    const t0 = now();
++    do { out.push(one(body.jobs[i], i)); i++; } while (i < body.jobs.length && now() - t0 < JUICE_SLICE_MS);
++    if (i < body.jobs.length) await yieldToMain();
++  }
++  return out;
++}
++/** The per-job decoder of a packed body: (packed job, index) -> Job. */
++function unpacker(body) {
+   const { shared = {}, dict = [] } = body;
+   const at = (i) => (i == null ? null : dict[i]);
+   const kw = (k = {}) => (Array.isArray(k)
+@@ -520,7 +539,7 @@ export function unpackJobs(body) {
+     : c.enc === 'dict' ? at(v)
+     : c.enc === 'ts' ? (typeof v === 'number' ? iso(v) : v)
+     : v);
+-  return body.jobs.map((j, i) => {
++  return (j, i) => {
+     // A row array becomes a new object; a packed object is copied, as before.
+     const job = rowOf && Array.isArray(j) ? rowOf(j) : { ...j };
+     for (const c of columns) job[c.key] = decode(c, c.values[i]);
+@@ -548,7 +567,7 @@ export function unpackJobs(body) {
+     job.keywords = kw(job.keywords);
+     job.sections = job.sections || { responsibilities: [], fit: [] };
+     return job;
+-  });
++  };
+ }
+ 
+ // Bundled lists already vetted and juiced, most recently used last (see the header).
+@@ -592,7 +611,7 @@ async function bundled(path, signal, refresh = false) {
+     const raw = await getJson(path, { signal, early: refresh ? null : firstList(path) });
+     if (!raw || !Array.isArray(raw.jobs)) return null;
+     const { format, shared, dict, columns, ...body } = raw;
+-    body.jobs = unpackJobs(raw);
++    body.jobs = await unpackJobsSliced(raw);
+     if (shared && shared.vetted === true) vettedLists.add(body.jobs);
+     if (body.jobs.length) bundleOrigin.set(body.jobs, { path, body });
+     return body.jobs.length ? body : null;
+diff --git a/public/app.js b/public/app.js
+index 3102a00..e84ce5e 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -836,8 +836,23 @@ function derive() {
+   const bump = (m, k) => m.set(k, (m.get(k) || 0) + 1);
+   viewSpec = F;
+   const fc = { d: new Map(), l: new Map(), lGroup: new Map(), s: new Map(), e: new Map(), r: { any: 0, remote: 0, onsite: 0 },
+-    p: { 0: 0, 7: 0, 30: 0, 90: 0 }, jg: new Map(), kw: { responsibilities: new Map(), fit: new Map(), skills: new Map() }, salMids: [],
++    p: { 0: 0, 7: 0, 30: 0, 90: 0 }, jg: new Map(), kw: null, salMids: [],
+     noPayHidden: 0, elsewhereHidden: 0, only: {} };
++  // perf-mobile-beta-2: the keyword counts are for the filter panel's keyword lists only, so they are
++  // counted when first read (the same jobs, in the same order: the same Maps). Counting them for every
++  // posting at each render was about 0.2 s of Amazon's first render at 4x CPU.
++  const kwJobs = [];
++  let kw = null;
++  Object.defineProperty(fc, 'kw', {
++    enumerable: true,
++    get() {
++      if (!kw) {
++        kw = { responsibilities: new Map(), fit: new Map(), skills: new Map() };
++        for (const j of kwJobs) for (const cat of ['responsibilities', 'fit', 'skills']) for (const k of j.keywords[cat]) bump(kw[cat], k);
++      }
++      return kw;
++    },
++  });
+   const covers = coverIndex(jobs);
+   const covered = new Map(); // city key -> postings that list only its country or region
+   for (const j of jobs) {
+@@ -851,9 +866,7 @@ function derive() {
+     // D-2: with a cluster or map area active, the facet counts describe the roles in that area (the list).
+     if (area && !area.ids.has(j.id)) continue;
+     const counts = (facet) => !only || only === facet;
+-    if (!only) {
+-      for (const cat of ['responsibilities', 'fit', 'skills']) for (const k of j.keywords[cat]) bump(fc.kw[cat], k);
+-    }
++    if (!only) kwJobs.push(j);
+     if (counts('d')) bump(fc.d, deptKey(j));
+     if (counts('l')) {
+       const seen = new Set();
+-- 
+2.43.0
+

@@ -2,11 +2,14 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a7425c5dcd4e39cbe`
 - Base (on claude/stoic-ride-54ddxp): `2474fc4fd41051bba264426562e3e0d37f24bc9c`
-- Head: `8c977977bedfb2a833a0cf3f26d68d93d3bb74df`
+- Head: `704dde146f60bbedfa64518e8072628a1599bdc9`
 - Restore: `bash scripts/cycle/restore-wip.sh perf-mobile-beta-2 <new worktree dir>`
 
 ## Commits since the base
 ```
+704dde1 WIP perf-mobile-beta-2: bundled lists unpack in 40 ms slices; derive counts keyword facets on first read
+7385334 perf-mobile-beta-2: tests for the first-page preview (prefix set, same postings and juice as getJobs, config.js asks for it first)
+4a3726d WIP perf-mobile-beta-2: first-page preview (build writes api/preview/<slug>.json for big boards; config.js fetches it first; api.js#getPreview; app.js shows it while the list loads)
 8c97797 WIP perf-mobile-beta-2 log: verification, 22K record, follow-ups
 25efed6 SA-7: trimming keeps pay paragraphs in pounds, euros and zloty and 'pay rate' / 'per hour' lines (salary-audit-data's snapshot.js hunk)
 de03075 WIP perf-mobile-beta-2: State; merge script for interleaved runs
