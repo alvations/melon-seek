@@ -30,6 +30,7 @@ import { registerBetaVizReviewTests } from '../test/e2e/beta-viz-review.e2e.js';
 import { registerBetaUxReviewTests } from '../test/e2e/beta-ux-review.e2e.js';
 import { registerFix4AppTests } from '../test/e2e/fix4-app.e2e.js';
 import { registerFixDensityTests } from '../test/e2e/fix-density.e2e.js';
+import { registerGoogleGroupingTests } from '../test/e2e/google-grouping.e2e.js';
 
 const args = new Set(process.argv.slice(2));
 const apiOnly = args.has('--api-only');
@@ -85,6 +86,7 @@ if (!apiOnly) {
   registerBetaUxReviewTests(suite);
   registerFix4AppTests(suite);
   registerFixDensityTests(suite);
+  registerGoogleGroupingTests(suite);
 }
 
 let results;
