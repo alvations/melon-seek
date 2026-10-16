@@ -48,7 +48,8 @@ function fnSource(name) {
 }
 const CARD = ['payPill', 'salaryRange', 'money', 'moneyRange', 'payRanges', 'rangeLabel', 'rangeText', 'pickedRange', 'payLevels'];
 // Defined once fix5-data-display.diff is in (fix-density e3c745a, 5f8b599): SA-2, SA-6.
-const CARD_IF_PRESENT = ['isMinimum', 'MINIMUM_TIP'].filter((n) => new RegExp(`^const ${n} = `, 'm').test(APP));
+// rangeEnd: SB-7 (salary-audit-backend's client patch), two decimals for range ends in the millions.
+const CARD_IF_PRESENT = ['isMinimum', 'MINIMUM_TIP', 'rangeEnd'].filter((n) => new RegExp(`^(?:const ${n} = |function ${n}\\()`, 'm').test(APP));
 // eslint-disable-next-line no-new-func
 const { payPill } = new Function('formatMoney', `
   const CUR_SYM = { USD: '$', GBP: '£', EUR: '€', CAD: 'CA$', AUD: 'A$', JPY: '¥', INR: '₹', CHF: 'CHF ', SGD: 'S$' };

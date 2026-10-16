@@ -221,7 +221,7 @@ function appFunctions(names) {
   }
   return parts.join('\n');
 }
-test('SB-7 card: a range end in the millions keeps two decimals ("$600K–1.07M", "SEK 1M–1.03M")', { todo: 'client patch docs/process/patches/salary-audit-backend-client.diff' }, async () => {
+test('SB-7 card: a range end in the millions keeps two decimals ("$600K–1.07M", "SEK 1M–1.03M")', async () => {
   const { formatMoney } = await import('../public/viz/palette.js');
   // The functions as public/app.js has them (a module with a DOM; these few are pure).
   const body = `${appFunctions(['CUR_SYM', 'money', 'rangeEnd', 'moneyRange', 'salaryRange'])}\nreturn { moneyRange, salaryRange };`;
