@@ -6,8 +6,8 @@
     which the lead has integrated.
   - The SB-7 client patch.
   - The before/after trace on the 2026-10-16 crawl.
-- **In progress:** the before/after screenshots in `docs/screenshots/salary-audit-backend/`, then this log's final commit.
-- **Next step:** none after the screenshots. The follow-ups in §6 belong to other lanes or need a lead decision.
+- **Done too:** the before/after screenshots in `docs/screenshots/salary-audit-backend/`: 42 files, shrunk to 756 KB.
+- **Next step:** none in this lane. The follow-ups in §6 belong to other lanes or need a lead decision.
 
 ## 1. Brief
 - **Prompt:** [prompts/salary-audit-backend.md](prompts/salary-audit-backend.md) (verbatim).
@@ -202,7 +202,10 @@ area) and `…-clusters-phone.png` (390×844).
   - "These are Google's own level names" reads oddly for degree lines.
 - **Viz lane:** the clusters view's evenly spaced circles make any board look even. A suggestion: show the distribution
   strip larger, or size the bins by the data. Also, in the ranges view a range past the axis end is cut at the edge,
-  with "›".
+  with "›" (after-amazon-ranges-desktop.png: "Director, HW Engineering" $287K–350K is drawn from $290K to the $300K
+  edge). The ranges view's stripes and notes line ("2,260 striped: one posting's range over several levels or places")
+  also count Amazon postings, whose bar is the posting's own row, not a span. salary-audit-data's chart patch fixes the
+  tip, not the stripe.
 - **Amazon:**
   - 7 postings still score a place on the primary row: the posting lists a place with no row while other rows match
     no place. The honest answer would be "no posted pay here", but that needs a rule for untied rows. Lead decision.
