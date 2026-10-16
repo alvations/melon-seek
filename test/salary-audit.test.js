@@ -210,8 +210,9 @@ test('SA-7 Amazon: a stored salary is not erased because trimming cut its pay se
   assert.ok(out.salary, 'the salary is kept');
   assert.equal(out.salary.min, 26416);
 });
-// Fix: docs/process/patches/salary-audit-data-pay-hint.diff (scripts/snapshot.js, on 161a472), sent to perf-mobile-beta-2.
-test('SA-7 snapshot trimming keeps a pay paragraph in pounds ("Pay rate: £12.70 per hour", synthetic sentence)', TODO, () => {
+// Fixed by perf-mobile-beta-2 25efed6 (the snapshot.js hunk of salary-audit-data-trimmed-pay.diff): passes there,
+// fails on 2474fc4 alone.
+test('SA-7 snapshot trimming keeps a pay paragraph in pounds ("Pay rate: £12.70 per hour", synthetic sentence)', () => {
   const html = `<p>${'Customer Service Delivery Station Liaison. '.repeat(30)}</p><p>Pay rate: £12.70 per hour</p>`;
   assert.match(trimDescription(html, 800), /£12\.70/);
 });

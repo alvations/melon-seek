@@ -19,8 +19,9 @@
       labels and shows the "Several pay ranges" chip;
     - SA-7's normalize.js half.
   - SA-3's trim test passes on perf-mobile-beta-2's 161a472 and is no longer a to-do either.
-  - SA-7's snapshot.js half is rebased on 161a472 as `salary-audit-data-pay-hint.diff` and sent to
-    perf-mobile-beta-2.
+  - SA-7's snapshot.js half is in perf-mobile-beta-2's 25efed6. That commit's PAY_HINT_RE is identical to
+    `salary-audit-data-pay-hint.diff`, which is now only a record. Its test passes there and is no longer a
+    to-do.
   - Combined tree, all 18 tests pass:
     - 50de7fe `server/`, 161a472 `scripts/snapshot.js`, 5f8b599 `public/`;
     - plus `salary-audit-data-card-levels.diff`, `salary-audit-data-chart.diff` and
@@ -28,9 +29,9 @@
 - **In progress:** none.
 - **Next step:** none for this lane.
   - The lead applies `salary-audit-data-card-levels.diff` and `salary-audit-data-chart.diff` on 5f8b599.
-  - perf-mobile-beta-2 applies `salary-audit-data-pay-hint.diff`.
-  - The three tests still marked to-do (SA-1, SA-5 and SA-7's trim test) lose that mark when their patches
-    land.
+  - SA-1 and SA-5 are the last two tests still marked to-do; each loses the mark when its patch lands.
+  - The un-todoed tests (SA-2 to SA-4, SA-6, SA-7) pass only once 5f8b599, 50de7fe, 161a472 and 25efed6 are
+    integrated.
   - `salary-audit-data-amazon-rows.diff` is superseded by salary-audit-backend's SB-3.
 
 ## 1. Brief
