@@ -37,7 +37,8 @@ import { fileURLToPath } from 'node:url';
 import { ROOT, assert, skip } from './harness.js';
 
 const IOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
-const PHONE = { width: 390, height: 844 };
+// FTT_PHONE=360x740 runs every 390x844 check at that size instead.
+const PHONE = (() => { const m = /^(\d+)x(\d+)$/.exec(process.env.FTT_PHONE || ''); return m ? { width: +m[1], height: +m[2] } : { width: 390, height: 844 }; })();
 const SMALL = { width: 360, height: 740 };
 const DESKTOP = { width: 1440, height: 900 };
 const COMPANY = 'google';
@@ -71,7 +72,7 @@ async function serveDist() {
 const engineOf = (ctx) => ctx.browser.browserType().name();
 
 /**
- * A page on the beta build at `hash`. phone: a touch phone (`size`, default 390x844) whose taps never move focus to a
+ * A page on the beta build at `hash`. phone: a touch phone (`size`, default PHONE: 390x844) whose taps never move focus to a
  * non-form element (iOS); otherwise a 1440x900 desktop with a mouse.
  */
 async function open(ctx, hash, { phone = true, size = PHONE, dark = DARK } = {}) {
@@ -223,7 +224,7 @@ async function openDrawer(g, id) {
 
 export function registerFixTouchTipsTests(suite) {
   // ---------------------------------------------------------------- Same role elsewhere (the user's report)
-  for (const size of [PHONE, SMALL]) {
+  for (const size of [PHONE, SMALL].filter((z, i, a) => a.findIndex((y) => y.width === z.width && y.height === z.height) === i)) {
     const at = `${size.width}x${size.height}`;
     suite.test(`Fix touch tips: Same role elsewhere, a tap on another company shows its tip and "Tap again"; the second tap opens it (${at})`, async (ctx) => {
       const g = await open(ctx, `c=${COMPANY}`, { size });
@@ -272,7 +273,7 @@ export function registerFixTouchTipsTests(suite) {
     });
   }
 
-  suite.test('Fix touch tips: Same role elsewhere, a scroll of the drawer never leaves the tip in viewport pixels (390x844)', async (ctx) => {
+  suite.test(`Fix touch tips: Same role elsewhere, a scroll of the drawer never leaves the tip in viewport pixels (${PHONE.width}x${PHONE.height})`, async (ctx) => {
     const g = await open(ctx, `c=${COMPANY}`);
     const job = await compsPosting(g);
     await openDrawer(g, job.id);
@@ -286,7 +287,7 @@ export function registerFixTouchTipsTests(suite) {
     await g.scroll(e.x, e.y + 4, 160);
     const after = await g.page.locator('#drawer .ms-comps__row.is-current').boundingBox();
     const t2 = await tips(g.page);
-    await shot(g.page, 'comps-scroll-p390');
+    await shot(g.page, `comps-scroll-p${PHONE.width}`);
     assert(Math.abs(after.y - before.y) > 40, `the drawer scrolled (row ${Math.round(before.y)} → ${Math.round(after.y)})`);
     const near = (t) => t.bottom >= after.y - 24 && t.top <= after.y + after.height + 24;
     assert(t2.every(near), `the tip closed or stayed by its row (row now ${Math.round(after.y)}–${Math.round(after.y + after.height)}): ${one(t2)}`);
@@ -357,13 +358,13 @@ export function registerFixTouchTipsTests(suite) {
   });
 
   // ---------------------------------------------------------------- the chart
-  suite.test('Fix touch tips: chart, a tap on a circle, a row name or a Ranges row acts at once and leaves no tip (390x844)', async (ctx) => {
+  suite.test(`Fix touch tips: chart, a tap on a circle, a row name or a Ranges row acts at once and leaves no tip (${PHONE.width}x${PHONE.height})`, async (ctx) => {
     const g = await open(ctx, `c=${COMPANY}`);
     const p = await g.center('#chartHost .ms-bin:not(.ms-bin--overflow)', 2);
     await g.iosTap(p.x, p.y);
     const t1 = await tips(g.page);
     const chip = await g.page.evaluate(() => [...document.querySelectorAll('.area-chip .area-label')].map((e) => e.textContent).join(' | '));
-    await shot(g.page, 'chart-circle-tap-p390');
+    await shot(g.page, `chart-circle-tap-p${PHONE.width}`);
     assert(chip, 'the tap selected the circle (an area chip)');
     assert(!t1.length, `no tip after the iPhone tap on a circle: ${one(t1)}`);
     const e = await g.center('#resultsTitle');
@@ -382,13 +383,13 @@ export function registerFixTouchTipsTests(suite) {
     assert(!t3.length, `no tip after the iPhone tap on a Ranges row: ${one(t3)}`);
   });
 
-  suite.test('Fix touch tips: chart pay strip, a tap shows the bar\'s tip; a tap elsewhere, the same bar again or a scroll closes it (390x844)', async (ctx) => {
+  suite.test(`Fix touch tips: chart pay strip, a tap shows the bar's tip; a tap elsewhere, the same bar again or a scroll closes it (${PHONE.width}x${PHONE.height})`, async (ctx) => {
     const g = await open(ctx, `c=${COMPANY}`);
     const p = await g.center('#chartHost .ms-hist__bin', 6);
     const bin = p.box;
     await g.iosTap(p.x, p.y);
     const t1 = await tips(g.page);
-    await shot(g.page, 'strip-tap-p390');
+    await shot(g.page, `strip-tap-p${PHONE.width}`);
     assert(t1.length === 1 && /posting/.test(t1[0].text), `a tap on a bar of the strip shows its tip: ${one(t1) || 'none'}`);
     assert(t1[0].left >= 0 && t1[0].right <= PHONE.width && t1[0].top >= 0, `the tip is on screen: ${one(t1)}`);
     assert(t1[0].bottom <= bin.y + 2 || t1[0].top >= bin.y + bin.height - 2, `the tip does not sit under the finger: ${one(t1)} vs bar ${Math.round(bin.y)}–${Math.round(bin.y + bin.height)}`);
@@ -429,7 +430,7 @@ export function registerFixTouchTipsTests(suite) {
   });
 
   // ---------------------------------------------------------------- Insights
-  suite.test('Fix touch tips: Compare companies, the first tap shows the tip and "Tap again", the second switches, no tip is left (390x844)', async (ctx) => {
+  suite.test(`Fix touch tips: Compare companies, the first tap shows the tip and "Tap again", the second switches, no tip is left (${PHONE.width}x${PHONE.height})`, async (ctx) => {
     const g = await open(ctx, `c=${COMPANY}&m=insights`);
     await g.page.waitForSelector('#compsCardHost .msi-row', { timeout: 30000 });
     await sleep(500);
@@ -438,7 +439,7 @@ export function registerFixTouchTipsTests(suite) {
     const h0 = await g.hash();
     await g.iosTap(p.x, p.y);
     const t1 = await tips(g.page);
-    await shot(g.page, 'compare-tap-p390');
+    await shot(g.page, `compare-tap-p${PHONE.width}`);
     assert(await g.hash() === h0, `the first tap switches nothing yet (${h0} → ${await g.hash()})`);
     assert(t1.length === 1 && /Tap again to see these roles/.test(t1[0].text) && !/click/i.test(t1[0].text), `the first tap shows the row's tip with "Tap again": ${one(t1) || 'none'}`);
     assert(t1[0].left >= 0 && t1[0].right <= PHONE.width && t1[0].top >= 0, `the tip is on screen: ${one(t1)}`);
@@ -455,7 +456,7 @@ export function registerFixTouchTipsTests(suite) {
     assert(!t2.length, `no tip is left after the switch: ${one(t2)}`);
   });
 
-  suite.test('Fix touch tips: Insights filters act on the first tap and leave no tip; a desktop mouse still gets the tip (390x844, 1440x900)', async (ctx) => {
+  suite.test(`Fix touch tips: Insights filters act on the first tap and leave no tip; a desktop mouse still gets the tip (${PHONE.width}x${PHONE.height}, 1440x900)`, async (ctx) => {
     const g = await open(ctx, `c=${COMPANY}&m=insights`);
     await g.page.waitForSelector('#insightsHost .msi-row', { timeout: 30000 });
     await sleep(500);
@@ -483,7 +484,7 @@ export function registerFixTouchTipsTests(suite) {
   });
 
   // ---------------------------------------------------------------- the map
-  suite.test('Fix touch tips: map, a tap on a pin selects its place and opens no tooltip; a focused pin\'s tooltip stays on screen (390x844)', async (ctx) => {
+  suite.test(`Fix touch tips: map, a tap on a pin selects its place and opens no tooltip; a focused pin's tooltip stays on screen (${PHONE.width}x${PHONE.height})`, async (ctx) => {
     const g = await open(ctx, `c=${COMPANY}&m=map`);
     await g.page.waitForSelector('#mapHost .ms-pin', { timeout: 30000 });
     await sleep(1500);
@@ -503,7 +504,7 @@ export function registerFixTouchTipsTests(suite) {
     await g.iosTap(pin.x, pin.y);
     const t1 = await tips(g.page);
     const chip = await g.page.evaluate(() => [...document.querySelectorAll('.area-chip .area-label')].map((e) => e.textContent).join(' | '));
-    await shot(g.page, 'map-pin-tap-p390');
+    await shot(g.page, `map-pin-tap-p${PHONE.width}`);
     assert(chip, 'the tap selected the pin\'s place (an area chip)');
     assert(!t1.length, `no tooltip after the iPhone tap on a pin: ${one(t1)}`);
     // Keyboard, on fresh phone pages (Google, Apple: the boards whose pins ran off): every pin's tooltip, on
@@ -532,6 +533,19 @@ export function registerFixTouchTipsTests(suite) {
         }
         return { n, bad };
       });
+      if (board === COMPANY && process.env.FTT_SHOTS) {
+        // The screenshot: Bengaluru's pin, whose tooltip ran 107 px off a 390 px phone.
+        await k.page.evaluate(async () => {
+          for (const icon of document.querySelectorAll('#mapHost .leaflet-marker-icon')) {
+            icon.focus({ preventScroll: true });
+            await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+            if ([...document.querySelectorAll('#mapHost .leaflet-tooltip')].pop()?.innerText.includes('Bengaluru')) return;
+            icon.blur();
+          }
+        });
+        await sleep(300);
+        await shot(k.page, `map-pin-keyboard-p${PHONE.width}`);
+      }
       assert(out.n > 0, `${board}: a focused pin opens its tooltip`);
       assert(!out.bad.length, `${board}: ${out.bad.length} of ${out.n} pin tooltips run off the map: ${out.bad.slice(0, 4).join('; ')}`);
     }
@@ -553,6 +567,9 @@ export function registerFixTouchTipsTests(suite) {
       return { kw: kw ? kw.querySelector('summary, h3, .fsec-head, button')?.textContent || kw.textContent.slice(0, 60) : null, labels, details };
     });
     if (d.kw && /click/i.test(d.kw)) bad.push(`the Keywords heading says "click": "${d.kw}"`);
+    const more = await g.center('#drawer .d-pay-note .ms-note__more');
+    await g.tap(more.x, more.y);
+    await shot(g.page, `drawer-pay-details-p${PHONE.width}`);
     for (const l of d.labels) if (l.title && !d.details.includes(l.title.replace(/\.$/, ''))) bad.push(`pay label "${l.text}": its meaning "${l.title}" is only in a hover title (Details: ${d.details.slice(0, 120)})`);
     // Juice household: the picked household's meaning in one line under its buttons.
     const juice = await g.page.$('#drawer .juice-details');
@@ -568,6 +585,25 @@ export function registerFixTouchTipsTests(suite) {
       });
       if (!hh.note) bad.push(`no line says who "${hh.on}" means (only a hover title)`);
       else if (hh.lines > 1) bad.push(`the household line wraps to ${hh.lines} lines: "${hh.note}"`);
+      await g.page.evaluate(() => document.querySelector('#drawer .juice-details').scrollIntoView({ block: 'start' }));
+      await sleep(300);
+      await shot(g.page, `drawer-juice-household-p${PHONE.width}`);
+      // Each household's line fits the phone in full (no ellipsis), after a tap on its button.
+      if (hh.note) {
+        for (const key of ['couple', 'family', 'single']) {
+          await g.page.evaluate(() => { const j = document.querySelector('#drawer .juice-details'); if (j) j.open = true; });
+          const b = await g.center(`#drawer .juice-household [data-household="${key}"]`);
+          await g.tap(b.x, b.y, 500);
+          const fit = await g.page.evaluate(() => {
+            const j = document.querySelector('#drawer .juice-details');
+            if (j) j.open = true;
+            const n = document.querySelector('#drawer .juice-hh-note');
+            return n && { text: n.textContent, cut: n.scrollWidth > n.clientWidth + 1 };
+          });
+          if (!fit) bad.push(`no household line after a tap on "${key}"`);
+          else if (fit.cut) bad.push(`the household line is cut off on a ${PHONE.width} px phone: "${fit.text}"`);
+        }
+      }
     } else ctx.notes.push('fix-touch-tips: the posting has no Juice; the household line was not checked');
     // The Ranges legend's striped key: no "hover".
     await g.page.evaluate(() => { location.hash = 'c=google&v=ranges'; });
