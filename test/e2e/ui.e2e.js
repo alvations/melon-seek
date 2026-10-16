@@ -1486,9 +1486,14 @@ function registerCompstimateTests(suite) {
 
   suite.test('Compstimate: T20 "Same role elsewhere" -> OpenAI sets rf=swe&s=Senior; Level Senior; basis at OpenAI; Back reopens the drawer', async (ctx) => {
     const { roleFamily } = await lib('features/roles.js');
+    const { payCountry } = await lib('features/shared.js');
     const api = await apiJobs(ctx, 'anthropic');
-    const job = api.jobs.find((j) => j.salary && j.seniority === 'Senior' && roleFamily(j.title, j) === 'swe');
-    assert(job, 'no salaried Senior software engineer at Anthropic');
+    // A US posting: "Same role elsewhere" compares pay within one country (fix3-compare, BP-3), and
+    // OpenAI's salaried Senior software engineers are in the US. On the 2026-10-16 crawl the first
+    // such Anthropic posting is "Senior Software Engineer, Inference" in Dublin (EUR pay); no other
+    // company lists software engineering pay in Ireland, so its drawer rightly shows no OpenAI row.
+    const job = api.jobs.find((j) => j.salary && j.seniority === 'Senior' && roleFamily(j.title, j) === 'swe' && payCountry(j) === 'US');
+    assert(job, 'no salaried Senior software engineer at Anthropic in the US');
     const { page, errors, close } = await openComp(ctx, `c=anthropic&m=insights&job=${encodeURIComponent(job.id)}`);
     try {
       await page.locator('#drawer').waitFor({ state: 'visible', timeout: 8000 });
