@@ -134,7 +134,7 @@ don't lose that much." So:
    per running agent in a lanes file, and runs
    `bash scripts/cycle/checkpoint-loop.sh <lanes file> 900` in the background. Each round runs
    `scripts/cycle/checkpoint.sh --push`, which writes `wip/<lane>/` on the deploy branch with
-   these files (data links and files over 5 MB are left out and listed):
+   these files (data links, new screenshots and files over 5 MB are left out and listed):
    - `commits/*.patch`
    - `uncommitted.diff`
    - `untracked.tgz`

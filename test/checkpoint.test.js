@@ -35,6 +35,8 @@ function setup() {
   fs.mkdirSync(path.join(wt, 'data'));
   fs.symlinkSync(dir, path.join(wt, 'data', 'snapshots'));
   fs.writeFileSync(path.join(wt, 'big.bin'), Buffer.alloc(6 * 1024 * 1024));
+  fs.mkdirSync(path.join(wt, 'docs', 'screenshots', 'lane-a'), { recursive: true });
+  fs.writeFileSync(path.join(wt, 'docs', 'screenshots', 'lane-a', 'shot.png'), 'png');
   return { dir, origin, repo, wt };
 }
 
@@ -49,6 +51,7 @@ test('checkpoint pushes a lane\'s commits, edits and new files to wip/<lane>/, a
   const status = git(origin, 'show', `${BRANCH}:wip/lane-a/STATUS.md`);
   assert.match(status, /data\/snapshots \(symlink\)/, 'the data link is left out and listed');
   assert.match(status, /big\.bin \(\d+ bytes\)/, 'a file over 5 MB is left out and listed');
+  assert.match(status, /docs\/screenshots\/lane-a\/shot\.png \(screenshot/, 'new screenshots are listed, not copied');
 
   // Unchanged work is not recommitted.
   assert.match(sh(repo, 'checkpoint.sh', ['--push', '--ckpt', ckpt, `lane-a=${wt}`]), /nothing changed/);
