@@ -1108,3 +1108,22 @@ screenshots in `docs/screenshots/`.
   - CI and Pages now ignore pushes of only `wip/**`, so checkpoints never redeploy the site.
   - `test/checkpoint.test.js` round-trips a commit, an uncommitted edit and a new file, and checks the symlink and big-file exclusions and the `paths-ignore`.
 - New process (PLAYBOOK "Checkpoints"; the cycle templates' shared facts): agents commit small and often, keep a `## State` section in their log, and hand finished, tested pieces to the lead as they go. The lead integrates and pushes them in increments with the full gate, rather than waiting for one big report.
+
+### fix-density integrated (2026-10-16)
+- The user's 2026-10-11 complaint about busy notes on the phone. Integrated [fix-density](fix-density.md): 417aa18, fddcdd3, 8df4f2f, 430f000, e3c745a, 5f8b599.
+  - Every secondary line (chart notes, stats line, map legend notes, Insights, Compare and estimate captions, the drawer pay block, empty states, the phone tagline) is now one line of at most 12 words, with one "Details" disclosure.
+  - fix5-data's display patch is folded in: "from €X" minimums, the shift-pay label, and Amazon's "· N places" showing the real span. These close SA-2 and SA-6 from the salary audit.
+  - test/e2e/fix-density.e2e.js: 51/51 on the 2026-10-16 crawl (0/49 on the old code).
+- Gate on today's crawl:
+  - `npm test` CI-like: 1,053 tests, 1,007 pass, 0 fail.
+  - Full e2e: 346/355 passed, 5 failed, 4 skipped.
+  - The same 5 also fail on the unchanged head 9aef3d4 with the same data, so none comes from this lane. They are new on the 2026-10-16 crawl and go to a fix lane:
+    - D-23: a bare "JO" location at Microsoft.
+    - BP-10: Google has no "Columbus, OH" key today.
+    - BP-14: 2 sub-headings with no preferred list.
+    - fix3-data: a Google data-centre technician tagged TPUs/GCP.
+    - T20: Compstimate "Same role elsewhere" finds no OpenAI row.
+- Held back until they pass CI on their own:
+  - perf-mobile-beta-2: 3 of its tests need data/snapshots, and CI has none.
+  - google-grouping's data commit: one test needs its unfinished UI, and families.js is not on the /lib/ browser-safe allowlist.
+  - Both are back with their lanes. The same check now applies to every lane: its commits must pass the full suite with no data links before they are taken.
