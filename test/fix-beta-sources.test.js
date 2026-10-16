@@ -248,13 +248,15 @@ test('DQ-12 an NVIDIA posting tagged #LI-Hybrid is not remote unless a location 
 
 /* --------------------------------------------------------- DQ-16 / D-24 */
 
-test('DQ-16 / D-24 Google titles are decoded and the brand is the department', () => {
+// google-grouping (2026-10-11) supersedes D-24's "brand as the department": the brand is `brand` (and the
+// team), the department the job family read from the title (test/google-grouping.test.js).
+test('DQ-16 / D-24 Google titles are decoded and the brand is kept (as brand and team)', () => {
   const raw = mapGoogleJob(['103168109170303686', 'Senior Product Manager, Databases &amp; Analytics, Google Cloud', null, null, null, null, null, 'Google']);
   assert.equal(raw.title, 'Senior Product Manager, Databases & Analytics, Google Cloud');
-  assert.equal(raw.department, 'Google');
+  assert.deepEqual([raw.brand, raw.team, raw.department], ['Google', 'Google', 'Product Management']);
   assert.equal(googleTitle('Ads Finance P&L'), 'Ads Finance P&L');
   const stored = { id: 'google:96934978289312454', company: 'google', title: 'Revenue Insights Analyst, Ads Finance P&amp;L', department: null, team: 'YouTube' };
-  assert.deepEqual(upgradeGoogleJobs([stored]).map((j) => [j.title, j.department]), [['Revenue Insights Analyst, Ads Finance P&L', 'YouTube']]);
+  assert.deepEqual(upgradeGoogleJobs([stored]).map((j) => [j.title, j.brand, j.department]), [['Revenue Insights Analyst, Ads Finance P&L', 'YouTube', 'Data Science and Analytics']]);
 });
 
 /* ------------------------------------------------------- the read-time hook */

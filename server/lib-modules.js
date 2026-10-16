@@ -9,6 +9,7 @@
 /** Top-level modules under server/. */
 export const LIB_MODULES = Object.freeze([
   'companies.js', 'normalize.js', 'salary.js', 'vet.js', 'geo.js', 'keywords.js', 'demo.js', 'juice.js', 'history.js', 'export.js',
+  'families.js', // google-grouping: job families from titles, imported by sources/google.js (no imports of its own)
 ]);
 
 /** Every *.js file directly in server/<LIB_SOURCES_DIR>/ is also browser-safe. */

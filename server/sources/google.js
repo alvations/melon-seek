@@ -16,6 +16,7 @@
 import { UpstreamError, htmlToText, str, decodeEntitiesOnce } from './util.js';
 import { politeRequest, checkRobots, cookieJar, newStats, spreadSample } from './polite.js';
 import { deltaPlan, runDetails, conditionalList, rowKey, crawlOptions, planNote, planSummary } from './incremental.js';
+import { familyOfTitle } from '../families.js';
 
 export const GOOGLE_ORIGIN = 'https://www.google.com';
 export const GOOGLE_BASE = '/about/careers/applications';
@@ -68,15 +69,24 @@ export function googleTitle(v) {
 }
 
 /**
- * Stored Google Jobs (crawled before 2026-10-10) -> the current mapping: titles decoded
- * (DQ-16) and the brand as the department (D-24). Pure; other companies pass through.
+ * Stored Google Jobs -> the current mapping. Pure and idempotent; other companies pass through.
+ *   - titles decoded (DQ-16);
+ *   - google-grouping (2026-10-11, supersedes D-24's "brand as the department"): `brand` is the
+ *     brand Google names on the posting (Google, YouTube, DeepMind, Waymo, …), which every crawl
+ *     stored as `team`; `department` is the job family read from the title (server/families.js)
+ *     with `departmentBasis: 'title'`, so the chart's department rows are job families like the
+ *     other big-tech boards'. A title the classifier cannot read has no department (null).
+ * server/normalize.js keeps only the RawJob fields it knows, so this read-time step is also what
+ * gives a fresh crawl its `brand` (from the team) when the snapshot is read.
  */
 export function upgradeGoogleJobs(jobs) {
   return (jobs || []).map((j) => {
     if (!j || j.company !== 'google') return j;
     const title = googleTitle(j.title) || j.title;
-    const department = j.department || j.team || null;
-    return title === j.title && department === j.department ? j : { ...j, title, department };
+    const brand = j.brand || j.team || null;
+    const department = familyOfTitle(title);
+    if (title === j.title && brand === j.brand && department === j.department && j.departmentBasis === 'title') return j;
+    return { ...j, title, department, departmentBasis: 'title', brand };
   });
 }
 const secs = (v) => (Array.isArray(v) && Number(v[0]) > 0 ? new Date(Number(v[0]) * 1000).toISOString() : null);
@@ -88,7 +98,8 @@ const secs = (v) => (Array.isArray(v) && Number(v[0]) > 0 ? new Date(Number(v[0]
  * 9 locations [[display, addresses, city, zip, state, country]…], 10 about the
  * job [_, html] (carries the pay sentence), 12 created [s, ns], 13 updated,
  * 16 1 on remote-eligible reqs. `entry` is the sitemap entry ({ id, slug }).
- * No slot holds a department or team (D-24): 5 is the brand's company resource name, 8 the
+ * No slot holds a department or team (D-24; the department is the title's job family, see
+ * server/families.js): 5 is the brand's company resource name, 8 the
  * language, 11 a list of small integers ([2] on both Technical Program Manager fixtures, null
  * on a general application; probably a job-category code, not mapped until a probe confirms
  * the codes), 14 a timestamp, 15 an apply note, 18 a location note, 19 the minimum
@@ -112,10 +123,14 @@ export function mapGoogleJob(rec, entry = {}) {
   return {
     sourceId: id,
     title: googleTitle(rec[1]) || 'Untitled role',
-    // D-24: the record has no department, team or category field (see the slot list above);
-    // the brand (Google, YouTube, DeepMind, Waymo, …) is the only grouping Google publishes.
-    department: brand,
+    // D-24: the record has no department, team or category field (see the slot list above). The
+    // brand (Google, YouTube, DeepMind, Waymo, …) is the only grouping Google publishes: it is the
+    // team and `brand`. google-grouping: the department is the job family the title names, like
+    // the other big-tech boards' departments (null when the title does not say).
+    department: familyOfTitle(googleTitle(rec[1])),
+    departmentBasis: 'title',
     team: brand,
+    brand,
     employmentType: /\b(fixed[- ]term|contract)\b/i.test(String(rec[1] || '')) ? 'Contract' : /\bintern(ship)?\b/i.test(String(rec[1] || '')) ? 'Intern' : null,
     locationText: locs[0] || '',
     extraLocations: locs.slice(1),
