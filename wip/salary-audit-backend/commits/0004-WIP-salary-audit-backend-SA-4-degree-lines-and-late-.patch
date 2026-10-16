@@ -1,7 +1,7 @@
 From 9b8ab7a2c834daa22d48b92cdb1fbfa2221c3c39 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 14:55:05 +0000
-Subject: [PATCH 4/7] WIP salary-audit-backend: SA-4 degree lines and late
+Subject: [PATCH 4/8] WIP salary-audit-backend: SA-4 degree lines and late
  Microsoft level paragraphs as salary.levels, SA-7 stored salary kept when
  trimming cut its pay sentence (salary-audit-data patches, normalize/salary
  hunks)

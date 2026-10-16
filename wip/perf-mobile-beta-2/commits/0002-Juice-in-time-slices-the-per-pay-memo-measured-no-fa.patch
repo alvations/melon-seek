@@ -1,7 +1,7 @@
 From fdff79f0772ac26e1031ae9bf5f09c0977e34229 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 11 Oct 2026 20:51:10 +0000
-Subject: [PATCH 02/11] Juice in time slices (the per-pay memo measured no
+Subject: [PATCH 02/12] Juice in time slices (the per-pay memo measured no
  faster: copying or keying cost as much); sections budget on melon-packed-2
  bytes; readableTitle memo patch
 

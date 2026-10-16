@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a7425c5dcd4e39cbe`
 - Base (on claude/stoic-ride-54ddxp): `2474fc4fd41051bba264426562e3e0d37f24bc9c`
-- Head: `25efed6b13fbd7e37131390fef630597f493e7ee`
+- Head: `8c977977bedfb2a833a0cf3f26d68d93d3bb74df`
 - Restore: `bash scripts/cycle/restore-wip.sh perf-mobile-beta-2 <new worktree dir>`
 
 ## Commits since the base
 ```
+8c97797 WIP perf-mobile-beta-2 log: verification, 22K record, follow-ups
 25efed6 SA-7: trimming keeps pay paragraphs in pounds, euros and zloty and 'pay rate' / 'per hour' lines (salary-audit-data's snapshot.js hunk)
 de03075 WIP perf-mobile-beta-2: State; merge script for interleaved runs
 d25d42c perf-mobile-beta-2 test: brand and departmentBasis (google-grouping) round-trip through melon-packed-3 exactly

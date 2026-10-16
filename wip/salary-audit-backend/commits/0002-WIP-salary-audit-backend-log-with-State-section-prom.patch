@@ -1,7 +1,7 @@
 From 09e65846279d1cddd8f20c07391541a4da412d58 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 14:51:37 +0000
-Subject: [PATCH 2/7] WIP salary-audit-backend: log with State section, prompt
+Subject: [PATCH 2/8] WIP salary-audit-backend: log with State section, prompt
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

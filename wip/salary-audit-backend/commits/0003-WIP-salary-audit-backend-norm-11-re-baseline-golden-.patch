@@ -1,7 +1,7 @@
 From 8262aa337c168346b80dd52070c0d222246b1da0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 14:52:57 +0000
-Subject: [PATCH 3/7] WIP salary-audit-backend: norm-11 re-baseline (golden: 0
+Subject: [PATCH 3/8] WIP salary-audit-backend: norm-11 re-baseline (golden: 0
  of 300 hashes changed, version only), version tests and refresh fixtures
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

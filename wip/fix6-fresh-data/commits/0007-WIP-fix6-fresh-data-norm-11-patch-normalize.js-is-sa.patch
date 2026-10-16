@@ -1,7 +1,7 @@
 From 72c4ef78e86ee7eabc44ed8b50d62840d4d7982b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 15:33:11 +0000
-Subject: [PATCH 7/8] WIP fix6-fresh-data: norm-11 patch (normalize.js is
+Subject: [PATCH 7/9] WIP fix6-fresh-data: norm-11 patch (normalize.js is
  salary-audit-backend's), log state
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

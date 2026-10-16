@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a1023e2019ffffb89`
 - Base (on claude/stoic-ride-54ddxp): `2474fc4fd41051bba264426562e3e0d37f24bc9c`
-- Head: `594109df85b6ac1d0f3e834663313ff220d6910c`
+- Head: `8f41818b948c3b12c09c660acdc8e2dfe2ac51c3`
 - Restore: `bash scripts/cycle/restore-wip.sh salary-audit-backend <new worktree dir>`
 
 ## Commits since the base
 ```
+8f41818 salary-audit-backend: process log (trace, findings, before/after counts)
 594109d WIP salary-audit-backend: SB-7 client patch (range ends in the millions keep two decimals) and its to-do test
 e80a63e WIP salary-audit-backend: SB-6 Amazon postings with a Remote place keep their virtual-location rows
 50de7fe WIP salary-audit-backend: SB-4 Amazon row spellings N.Reading, Westboro, Hazle Township, San Franscisco

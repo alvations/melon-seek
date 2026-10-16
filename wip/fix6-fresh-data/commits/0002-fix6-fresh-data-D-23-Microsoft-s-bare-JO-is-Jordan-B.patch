@@ -1,7 +1,7 @@
 From 210c34eb5f8581ce46d01e8a6afd21996e67ee83 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 14:40:07 +0000
-Subject: [PATCH 2/8] fix6-fresh-data: D-23 Microsoft's bare "JO" is Jordan;
+Subject: [PATCH 2/9] fix6-fresh-data: D-23 Microsoft's bare "JO" is Jordan;
  Bahrain, Puerto Rico's PRI, and any unknown bare country code named
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

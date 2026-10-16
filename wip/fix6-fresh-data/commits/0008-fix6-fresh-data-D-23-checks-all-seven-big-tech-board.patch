@@ -1,7 +1,7 @@
 From a36defd3f19c89587d17053b9aa047a0493365ba Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 15:35:03 +0000
-Subject: [PATCH 8/8] fix6-fresh-data: D-23 checks all seven big-tech boards
+Subject: [PATCH 8/9] fix6-fresh-data: D-23 checks all seven big-tech boards
  (Google, Meta and Amazon too)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

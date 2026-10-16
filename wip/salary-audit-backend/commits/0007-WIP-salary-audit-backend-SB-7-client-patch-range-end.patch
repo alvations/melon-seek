@@ -1,7 +1,7 @@
 From 594109df85b6ac1d0f3e834663313ff220d6910c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 15:27:14 +0000
-Subject: [PATCH 7/7] WIP salary-audit-backend: SB-7 client patch (range ends
+Subject: [PATCH 7/8] WIP salary-audit-backend: SB-7 client patch (range ends
  in the millions keep two decimals) and its to-do test
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

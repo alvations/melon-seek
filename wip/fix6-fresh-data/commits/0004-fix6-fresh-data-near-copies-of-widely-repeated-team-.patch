@@ -1,7 +1,7 @@
 From 2cbb9772b4383493fb49ef0f236f198dfc863da9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 15:29:48 +0000
-Subject: [PATCH 4/8] fix6-fresh-data: near copies of widely repeated team
+Subject: [PATCH 4/9] fix6-fresh-data: near copies of widely repeated team
  paragraphs leave the skills (Google technician no longer
  TPUs/GCP/Networking); golden re-baselined (1 of 300)
 

@@ -1,7 +1,7 @@
 From e80a63e0c6381b9ef2db4aff2e0ef5f039242020 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 15:25:40 +0000
-Subject: [PATCH 6/7] WIP salary-audit-backend: SB-6 Amazon postings with a
+Subject: [PATCH 6/8] WIP salary-audit-backend: SB-6 Amazon postings with a
  Remote place keep their virtual-location rows
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
