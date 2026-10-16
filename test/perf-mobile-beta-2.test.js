@@ -122,6 +122,8 @@ function amazonLike(base) {
     if (i % 47 === 0) job.pool = true;
     if (i % 53 === 0) job.descriptionHtml = '';
     if (i % 59 === 0) job.sections = { responsibilities: ['Lead the team'], fit: [] };
+    // google-grouping's fields (server/sources/google.js appends them last): on most jobs, not all.
+    if (i % 5 !== 4) { job.departmentBasis = 'title'; job.brand = i % 3 ? 'Google' : 'YouTube'; }
     jobs.push(job);
   }
   return { company: { slug: 'zz', name: 'Zz' }, mode: 'snapshot', fetchedAt: '2026-10-11T00:00:00.000Z', error: null, jobs };
