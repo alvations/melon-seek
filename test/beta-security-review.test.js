@@ -30,25 +30,11 @@ function jobBlock(text, name) {
   return out.join('\n');
 }
 /** actions/upload-artifact and download-artifact glob: * matches any run of characters. */
-const globRe = (g) => new RegExp(`^${g.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')}$`);
 
 /* ------------------------------------------------------------------ S-1 */
 
-test('S-1: the beta merge never downloads a snapshot the beta gate rejected (beta-crawl-rejected-<slug>)', OPEN, () => {
-  const wf = readWf('snapshot.yml');
-  const crawl = jobBlock(wf, 'beta-crawl');
-  const merge = jobBlock(wf, 'beta-merge');
-  const uploaded = [...crawl.matchAll(/^\s+name:\s*(beta-.+?)\s*$/gm)].map((m) => m[1].replace('${{ matrix.slug }}', 'apple'));
-  const rejected = uploaded.filter((n) => /reject/i.test(n));
-  const passing = uploaded.filter((n) => !/reject/i.test(n));
-  assert.ok(rejected.length && passing.length, `expected a passing and a rejected artifact in beta-crawl, got ${uploaded.join(', ')}`);
-  const patterns = [...merge.matchAll(/^\s+(?:pattern|name):\s*(\S+)\s*$/gm)].map((m) => m[1]).filter((p) => /beta/.test(p) && !/^job-board/.test(p));
-  assert.ok(patterns.length, 'beta-merge has no download pattern for the crawls');
-  for (const p of patterns) {
-    for (const r of rejected) assert.doesNotMatch(r, globRe(p), `beta-merge downloads "${p}", which also matches the rejected artifact "${r}" (merge-multiple puts its apple.json into data/beta-fresh)`);
-  }
-  assert.ok(passing.some((n) => patterns.some((p) => globRe(p).test(n))), 'beta-merge must still download the passing crawl');
-});
+// S-1 is fixed. The old static check here matched the download glob and could not see the fix (the merge's skip
+// step); test/beta-security-review-2.test.js "S-1 (re-check)" runs that step for real and replaces it.
 
 /* ------------------------------------------------------------------ S-2 */
 
