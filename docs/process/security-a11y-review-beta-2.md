@@ -175,6 +175,8 @@ No product code was changed. Commits are in the worktree only (never pushed), as
 - **monthly-refresh**: `test/monthly-refresh-commit.test.js` passes 7/7 on `9c548e2`.
 - **Drawer** (`a11y/drawer-trap.mjs`, Amazon minimum posting): focus goes to `#drawerClose` on open. 80 Tabs stay inside
   the drawer, 6 of them on its Details buttons. Escape returns focus to the card.
+- **Shortcuts while typing** (`a11y/typing-probe.mjs`): typing `t/` in the search box types it, with no theme change and
+  focus kept. `t` on a focused Details button leaves the theme alone (V7 holds).
 - **Parsers at 1 MB** (`redos/run-1mb.log`, the 2,752 pairs not in S-10, load 14, `nice 19`): none timed out at 15 s. The
   slowest was geocode "1,1,…" at 4.2 s, exponent 1.16 between 256 KB and 1 MB. geocode "Aa " took 1.9 s (exponent 1.44);
   normalizeJob "INC " 1.8 s (0.91).
