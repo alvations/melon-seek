@@ -11,10 +11,11 @@
 // never overlap at the current zoom. Each cluster is a Zillow-style price-tag
 // pill: median salary (approx USD) + count badge, filled on a one-hue
 // sequential scale by median. Remote-only postings live in a "Remote" control.
-// A posting's pay counts only at the places it applies to (payLocations in
-// public/features/shared.js: the locations in the pay currency's countries), so US
-// pay is never the median of a Sydney or London pin; the posting is still counted
-// there. A cluster is "<place> + N nearby" only when its places are within NEAR_KM
+// A posting's pay counts only at the places it was posted for, at the pay posted there
+// (payAt in public/features/shared.js: a place's own row of salary.ranges, else the posting's
+// one range in the pay currency's countries), so US pay is never the median of a Sydney or
+// London pin, and Microsoft's Mountain View pin is its SF Bay Area range (fix-pay-at-place,
+// V-39); the posting is still counted there. A cluster is "<place> + N nearby" only when its places are within NEAR_KM
 // of each other; otherwise it names its two biggest places ("San Francisco, New
 // York and 2 more"). Offline, place names show under the pins. Every pin keeps its name
 // (fix wave 3): a name that would run into another pin or name goes above its pin, then in a
@@ -39,7 +40,7 @@ import {
   formatMoney, toUSD, median, payColor, paySteps, inkOn, onThemeChange, isDark, prefersReducedMotion,
   juiceColor, juiceGrade, juiceNetForScore, JUICE_BREAKS, isForeign, hasFx, FX_AS_OF,
 } from './palette.js';
-import { payLocations } from '../features/shared.js';
+import { payAt } from '../features/shared.js';
 // M-23: pin counts as "4.5K", like the chart's circles; the exact count is in pinName().
 import { shortCount, placeMatcher, FX_DOC, FX_SOURCE_SHORT } from './chart.js';
 import { renderNote } from './note.js';
@@ -119,9 +120,13 @@ export function distanceKm(a, b) {
 }
 
 /**
- * Aggregate jobs into { places: [{key,lat,lng,label,city,jobs,paid,also,wide}], remote: jobs[], remotePaid }.
- * A job counts at every place it lists; `paid` (a Set of job ids) holds the jobs whose pay applies
- * there (payLocations), and `remotePaid` those whose pay applies to their remote location.
+ * Aggregate jobs into { places: [{key,lat,lng,label,city,jobs,paid,priceOf,also,wide}], remote: jobs[], remotePaid,
+ * remotePriceOf }.
+ * A job counts at every place it lists; `paid` (a Set of job ids) holds the jobs with pay posted there
+ * (payAt in public/features/shared.js: the place's own row of salary.ranges, or the posting's one range in
+ * that place's country), and `remotePaid` those with pay posted for their remote location. `priceOf(job)`
+ * is a paid job's pay at that place, in approx US dollars (V-39, fix-pay-at-place: Microsoft's Mountain View
+ * pin at its SF Bay Area range, not the U.S. headline; Amazon's Cupertino pin at Cupertino's row).
  * With a Location filter (`places`, the filter's keys, and `placeTest(job, location)`, the host's
  * own match; see chart.js placeMatcher) only the filtered places are pinned:
  * - a location the filter leaves out gets no pin; `also` (job ids) marks the roles at a place
@@ -138,19 +143,25 @@ export function aggregate(jobs, { places: filter = null, placeTest = null } = {}
   const places = new Map();
   const remote = [];
   const remotePaid = new Set();
-  const wide = []; // [{ job, l, payAt, at }] country- or state-wide locations to count at the filtered cities
+  const remoteAt = new Map(); // job id -> its remote Locations with posted pay
+  const wide = []; // [{ job, l, seen }] country- or state-wide locations to count at the filtered cities
   const homes = new Map(); // job id -> Set of place keys (under a filter, for `also`)
   const others = new Set(); // job ids that list a location outside the filter
-  const at = (job, l, payAt, key, seen) => {
+  const at = (job, l, hasPay, key, seen) => {
     let p = places.get(key);
     if (!p) {
+      const locsAt = new Map(); // job id -> its Locations here that have posted pay
       p = { key, lat: +l.lat, lng: +l.lng, label: locLabel(l), city: l.city || null, country: up(l.country), region: up(l.region), loc: l,
-        jobs: [], locNames: new Map(), paid: new Set(), also: new Set(), wide: new Set() };
+        jobs: [], locNames: new Map(), paid: new Set(), also: new Set(), wide: new Set(), locsAt, priceOf: (j) => priceAtUSD(j, locsAt.get(j.id)) };
       places.set(key, p);
     }
     if (!p.locNames.has(job.id)) { p.jobs.push(job); p.locNames.set(job.id, new Set()); }
     p.locNames.get(job.id).add(norm(l.name || locLabel(l)));
-    if (payAt?.has(l)) p.paid.add(job.id);
+    if (hasPay && payAt(job, l)) {
+      p.paid.add(job.id);
+      const ls = p.locsAt.get(job.id);
+      if (ls) { if (!ls.includes(l)) ls.push(l); } else p.locsAt.set(job.id, [l]);
+    }
     seen?.add(key);
     return p;
   };
@@ -158,51 +169,63 @@ export function aggregate(jobs, { places: filter = null, placeTest = null } = {}
     let isRemote = false;
     const seen = new Set();
     const hasPay = !!job.salary && (job.salary.min != null || job.salary.max != null);
-    const payAt = hasPay ? new Set(payLocations(job)) : null;
     for (const l of job.locations || []) {
       if (!l) continue;
       if (test && !test(job, l)) { others.add(job.id); continue; } // a place outside the filter: not pinned
       if (l.remote) { isRemote = true; continue; }
-      if (test && !l.city && !named.has(l.name)) { wide.push({ job, l, payAt, seen }); continue; }
+      if (test && !l.city && !named.has(l.name)) { wide.push({ job, l, hasPay, seen }); continue; }
       if (l.lat == null || l.lng == null || !isFinite(l.lat) || !isFinite(l.lng)) continue;
-      at(job, l, payAt, `${l.lat.toFixed(1)},${l.lng.toFixed(1)}`, seen);
+      at(job, l, hasPay, `${l.lat.toFixed(1)},${l.lng.toFixed(1)}`, seen);
     }
     if (test) homes.set(job.id, seen);
     // D-4: the Remote bucket is exactly the Remote filter (job.remote), also for roles that have a pin.
     // Under a Location filter it holds the roles whose remote location is one of the filtered places.
     if (test ? isRemote : (isRemote || job.remote)) {
       remote.push(job);
-      // Pay counts for Remote when it covers a remote location, or when the posting names none.
-      const remoteHere = (l) => l.remote && (!test || test(job, l));
-      if (hasPay && ([...payAt].some(remoteHere) || (!isRemote && !test))) remotePaid.add(job.id);
+      // Pay counts for Remote when it is posted for a remote location, or when the posting names none.
+      if (hasPay) {
+        const here = (job.locations || []).filter((l) => l && l.remote && (!test || test(job, l)) && payAt(job, l));
+        if (here.length) { remotePaid.add(job.id); remoteAt.set(job.id, here); } else if (!isRemote && !test) remotePaid.add(job.id);
+      }
     }
   }
   if (wide.length) {
     const cities = [...places.values()].filter((p) => p.city);
-    for (const { job, l, payAt, seen } of wide) {
+    for (const { job, l, hasPay, seen } of wide) {
       const c = up(l.country), r = up(l.region);
       const hit = cities.filter((p) => p.country === c && (!r || p.region === r));
-      if (hit.length) for (const p of hit) { at(job, l, payAt, p.key, seen).wide.add(job.id); }
-      else if (l.lat != null && l.lng != null && isFinite(l.lat) && isFinite(l.lng)) at(job, l, payAt, `${l.lat.toFixed(1)},${l.lng.toFixed(1)}`, seen);
+      if (hit.length) for (const p of hit) { at(job, l, hasPay, p.key, seen).wide.add(job.id); }
+      else if (l.lat != null && l.lng != null && isFinite(l.lat) && isFinite(l.lng)) at(job, l, hasPay, `${l.lat.toFixed(1)},${l.lng.toFixed(1)}`, seen);
     }
   }
   for (const id of others) for (const key of homes.get(id) || []) places.get(key).also.add(id);
-  return { places: [...places.values()], remote, remotePaid };
+  return { places: [...places.values()], remote, remotePaid, remotePriceOf: (j) => priceAtUSD(j, remoteAt.get(j.id)) };
 }
 const up = (s) => (s ? String(s).toUpperCase() : '');
 
 /**
- * { n, salaried, elsewhere, median } for jobs at a place: the median (approx USD) is over the jobs
- * in `paid` only (pay that applies here); `elsewhere` counts salaried jobs whose pay is for
- * another country. Without `paid` every salary counts.
+ * fix-pay-at-place: a job's pay at some of its Locations, approx USD midpoint (payAt: one place's own row, or
+ * the span of the places' rows), else its headline midpoint (`locs` empty: a remote posting that names no place).
  */
-export function summarize(jobs, paid = null) {
+function priceAtUSD(job, locs) {
+  const r = locs && locs.length ? payAt(job, locs.length === 1 ? locs[0] : locs) : null;
+  return r?.usd ? r.usd.mid : midUSD(job);
+}
+
+/**
+ * { n, salaried, elsewhere, median } for jobs at a place: the median (approx USD) is over the jobs
+ * in `paid` only (pay posted here); `elsewhere` counts salaried jobs whose pay is for
+ * another country or other places. Without `paid` every salary counts. `priceOf(job)` is a job's pay
+ * here (aggregate's place.priceOf, V-39); without it, the posting's headline midpoint.
+ */
+export function summarize(jobs, paid = null, priceOf = null) {
   const base = [], ote = [];
   let elsewhere = 0, fx = 0;
   for (const j of jobs) {
-    const v = midUSD(j);
-    if (v == null) continue;
+    const head = midUSD(j);
+    if (head == null) continue;
     if (paid && !paid.has(j.id)) { elsewhere++; continue; }
+    const v = (priceOf && priceOf(j)) ?? head;
     (j.salary.kind === 'ote' ? ote : base).push(v); // BP-13: base pay, as the stats line and the chart
     if (isForeign(j.salary.currency) && hasFx(j.salary.currency)) fx++;
   }
@@ -627,6 +650,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
   let places = [];
   let remoteJobs = [];
   let remotePaid = new Set();
+  let remotePriceOf = null;
   let clusters = [];
   let highlighted = null;
   let lastSig = null;
@@ -674,17 +698,22 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       const jobs = [];
       const paid = new Set();
       const also = new Set(), wide = new Set();
+      // V-39 (fix-pay-at-place): each posting at the pay posted for its places in this pin (payAt).
+      let priceOf = c.members.length === 1 ? c.members[0].priceOf : null;
+      const locsAt = priceOf ? null : new Map();
       for (const m of c.members) {
         for (const j of m.jobs) if (!ids.has(j.id)) { ids.add(j.id); jobs.push(j); }
         for (const id of m.paid || []) paid.add(id);
         for (const id of m.also || []) also.add(id);
         for (const id of m.wide || []) wide.add(id);
+        if (locsAt) for (const [id, ls] of m.locsAt || []) { const all = locsAt.get(id); if (all) { for (const l of ls) if (!all.includes(l)) all.push(l); } else locsAt.set(id, ls.slice()); }
       }
+      if (!priceOf) priceOf = (j) => priceAtUSD(j, locsAt.get(j.id));
       const label = clusterLabel(c.members);
       const res = {
         lat: c.lead.lat, lng: c.lead.lng, pt: c.pt, members: c.members, jobs, ids, label, short: shortLabel(c.members), also: also.size, wide: wide.size,
         approx: c.members.filter(isApprox),
-        ...summarize(jobs, paid), juice: summarizeJuice(jobs, c.members, jScale),
+        ...summarize(jobs, paid, priceOf), juice: summarizeJuice(jobs, c.members, jScale),
       };
       cache?.set(sig, res);
       return res;
@@ -983,7 +1012,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     remoteBtn.replaceChildren();
     remoteBtn.hidden = !remoteJobs.length;
     if (!remoteJobs.length) return;
-    const s = summarize(remoteJobs, remotePaid);
+    const s = summarize(remoteJobs, remotePaid, remotePriceOf);
     remoteBtn.append(el('span', 'ms-remote__icon', '🌐'), el('span', 'ms-remote__label', 'Remote'),
       el('span', 'ms-remote__n', s.n.toLocaleString()));
     if (s.median != null) remoteBtn.append(el('span', 'ms-remote__price', formatMoney(s.median)));
@@ -1041,7 +1070,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       if (mode != null) setColorMode(mode, false); // programmatic (e.g. from the URL hash): no callback
       // BP-2: with a Location filter only its places are pinned (placeTest: the host's own match).
       const keys = filter == null ? [] : (typeof filter === 'string' ? [filter] : [...filter]).filter(Boolean);
-      ({ places, remote: remoteJobs, remotePaid } = aggregate(jobs, keys.length ? { places: keys, placeTest } : {}));
+      ({ places, remote: remoteJobs, remotePaid, remotePriceOf } = aggregate(jobs, keys.length ? { places: keys, placeTest } : {}));
       // Default: refit only when the dataset identity (set of companies) or the filtered places change.
       const sig = [...new Set(jobs.map(j => j.company))].sort().join('|') + `\u0000${keys.slice().sort().join('|')}`;
       const doFit = fit ?? (first || sig !== lastSig);

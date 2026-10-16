@@ -44,7 +44,7 @@ import {
   FX_SOURCE, COUNTRY_CURRENCY,
 } from './palette.js';
 import { levelLabel, displayLevel, DISPLAY_LEVEL_ORDER } from '../features/roles.js';
-import { payLocations, OTE_LABEL } from '../features/shared.js';
+import { OTE_LABEL, payAt, payMissAt } from '../features/shared.js';
 import { renderNote } from './note.js';
 import { isTouchInput, tipCloser, inView, placeNearTap } from '../features/shared.js';
 
@@ -160,6 +160,62 @@ export function spanTiers(job) {
 }
 
 /**
+ * V-35 (fix-pay-at-place): what a Ranges bar is when it is not one posted range, so only those bars are
+ * striped: several levels priced in one posting (salary.levels), or the span of several places' ranges (Apple's
+ * headline; several places picked whose rows differ). One place's row is one posted range and is never striped,
+ * though the posting lists other places' ranges (2,201 Amazon and 236 Microsoft bars were). `p` is a plotted
+ * item; `p.at` is the place's pay when the bar was priced for a place (payAt).
+ * -> { kind: 'levels'|'places', tiers: [{ label, min, max }] } | null
+ */
+export function barSpan(p) {
+  const job = p?.job;
+  const s = job?.salary;
+  if (!s) return null;
+  if (Array.isArray(s.levels) && s.levels.length >= 2) return { kind: 'levels', tiers: s.levels };
+  if (!p.at && !(Array.isArray(s.ranges) && s.ranges.length >= 2)) return null; // one range: no place span (no payAt pass)
+  const at = p.at || payAt(job);
+  return at?.span ? { kind: 'places', tiers: at.ranges } : null;
+}
+
+/**
+ * fix-pay-at-place: which place a bar's range was posted for, in words ("Bellevue"), or '' when the posting has one
+ * range for all its places or the bar spans several places' ranges.
+ */
+export function barPlace(p) {
+  if (!p?.at && !(Array.isArray(p?.job?.salary?.ranges) && p.job.salary.ranges.length)) return '';
+  const at = p.at || payAt(p.job);
+  return at && at.basis === 'place' && !at.span ? at.label : '';
+}
+
+/**
+ * A plotted item priced at `at` (payAt): the same item when the numbers are the same, else a copy with the place's
+ * pay in approx US dollars. Null when there is no pay for the place.
+ */
+function pricedItem(p, at) {
+  if (!at || !at.usd) return null;
+  const { min: lo, max: hi, mid } = at.usd;
+  if (!isFinite(lo) || !isFinite(hi) || !isFinite(mid)) return null;
+  if (lo === p.lo && hi === p.hi && mid === p.mid && at.currency === p.cur) return p.at ? p : { ...p, at };
+  return { ...p, lo: Math.min(lo, hi), hi: Math.max(lo, hi), mid, cur: at.currency, at };
+}
+
+/**
+ * V-18, V-36, V-37 (fix-pay-at-place): a plotted item as its Location row shows it: priced at the pay posted for
+ * the row's place (payAt), never the posting's headline (another city's row). Null when the posting has no pay
+ * posted for that place: its one range is another country's pay, or it prices other places but not this one.
+ * `key` is the row (locationRowKey), `test` the Location filter's place test (placeMatcher) or null.
+ */
+export function locationRowItem(p, key, test = null) {
+  const job = p.job;
+  const locs = (job?.locations || []).filter(Boolean);
+  // A posting with no on-site place sits in "Unknown" (or "Remote" with no place at all): its own pay.
+  if (key === 'Unknown' && !locs.some((l) => !l.remote)) return p;
+  if (key === 'Remote' && !locs.length) return p;
+  const here = locs.filter((l) => rowKeyOfLoc(l) === key && (!test || test(job, l)));
+  return pricedItem(p, payAt(job, here.length ? here : locs.filter((l) => rowKeyOfLoc(l) === key)));
+}
+
+/**
  * V-21: the pay basis of a posting: its currency (pay in one currency is for one country or the
  * euro area, so rows compare like with like), USD when none is given. (public/features/shared.js
  * payCountry would name the country, but it inherits payLocations' fallback to every location.)
@@ -201,15 +257,11 @@ const rowKeyOfLoc = (l) => (l.remote ? 'Remote' : l.city || l.name || 'Unknown')
  * London pay).
  */
 export function payCoversRow(job, key) {
-  const locs = job?.locations || [];
-  if (key === 'Unknown' && !locs.some((l) => l && !l.remote)) return true;
+  const locs = (job?.locations || []).filter(Boolean);
+  if (key === 'Unknown' && !locs.some((l) => !l.remote)) return true;
   if (key === 'Remote' && !locs.length) return true;
-  const cur = payBasis(job);
-  return payLocations(job).some((l) => {
-    if (!l || rowKeyOfLoc(l) !== key) return false;
-    const home = l.country ? COUNTRY_CURRENCY[String(l.country).toUpperCase()] : null;
-    return !home || home === cur;
-  });
+  // fix-pay-at-place: the shared rule (payAt): a place's own row, or the posting's one range in that place's country.
+  return !!payAt(job, locs.filter((l) => rowKeyOfLoc(l) === key));
 }
 
 /**
@@ -271,45 +323,44 @@ export function placesPhrase(places) {
 
 /**
  * BP-2 / BP-13: the postings the chart plots, in approx US dollars.
- *   -> { plotted: [{ job, lo, hi, mid, cur, ote }], noSalary, elsewhere, elsewhereIds, fxCount, unknownFx, ote }
- * With `places` (and `placeTest`, see placeMatcher) a posting is plotted only when its pay applies
- * to one of the places (payLocations); `elsewhere` counts the salaried ones left out (their ids in
- * `elsewhereIds`). `ote` marks on-target earnings (salary.kind 'ote'), which basePayStats leaves out
- * of medians.
+ *   -> { plotted: [{ job, lo, hi, mid, cur, ote, at }], noSalary, elsewhere, elsewhereIds, otherPlaces, fxCount,
+ *        unknownFx, ote }
+ * With `places` (and `placeTest`, see placeMatcher) a posting is plotted only when it has pay posted for one
+ * of the places (payAt in public/features/shared.js), and at that pay (`at`): SA-5 and fix-pay-at-place, the
+ * range its card shows (app.js pickedRange) and the stats line and map count, not the posting's headline
+ * range (another city's row). `elsewhere` counts the salaried ones left out (their ids in `elsewhereIds`):
+ * pay for another country only, or (`otherPlaces`, the lead decision of 2026-10-16) a posting that prices
+ * other places in rows of their own but not these. `ote` marks on-target earnings (salary.kind 'ote'), which
+ * basePayStats leaves out of medians.
  */
 export function chartPay(jobs, { places = null, placeTest = null } = {}) {
   const test = placeMatcher(places, placeTest);
   const plotted = [];
-  let noSalary = 0, fxCount = 0, ote = 0;
+  let noSalary = 0, fxCount = 0, ote = 0, otherPlaces = 0;
   const unknownFx = new Set(), elsewhereIds = new Set();
   for (const job of jobs || []) {
     const s = job?.salary;
     if (!s || (s.min == null && s.max == null)) { noSalary++; continue; }
-    const cur = (s.currency || 'USD').toUpperCase();
-    let min = s.min ?? s.max, max = s.max ?? s.min;
-    // SA-5 (salary audit): under a Location filter, a posting that gives each place its own range
-    // (salary.ranges[].locations: Amazon's rows, Apple's footers) is plotted at the range posted for the
-    // places picked, the range its card shows (app.js pickedRange), not at the posting's headline range.
-    let midNative = s.mid;
-    if (test && Array.isArray(s.ranges) && s.ranges.length > 1) {
-      const here = s.ranges.filter((r) => r && Array.isArray(r.locations) && Number.isFinite(Number(r.min)) && String(r.currency || cur).toUpperCase() === cur
-        && (job.locations || []).some((l) => l && r.locations.includes(l.rawName || l.name) && test(job, l)));
-      if (here.length) {
-        min = Math.min(...here.map((r) => Number(r.min)));
-        max = Math.max(...here.map((r) => Number(r.max ?? r.min)));
-        midNative = (min + max) / 2;
-      }
+    let cur = (s.currency || 'USD').toUpperCase();
+    let lo, hi, mid, at = null;
+    if (test) {
+      const here = (l) => test(job, l);
+      at = payAt(job, here);
+      if (!at) { elsewhereIds.add(job.id); if (payMissAt(job, here) === 'place') otherPlaces++; continue; }
+      cur = at.currency;
+      ({ min: lo, max: hi, mid } = at.usd || { min: NaN, max: NaN, mid: NaN });
+    } else {
+      const min = s.min ?? s.max, max = s.max ?? s.min;
+      lo = toUSD(Math.min(min, max), cur); hi = toUSD(Math.max(min, max), cur);
+      mid = s.mid != null ? toUSD(s.mid, cur) : (lo + hi) / 2;
     }
-    const lo = toUSD(Math.min(min, max), cur), hi = toUSD(Math.max(min, max), cur);
-    const mid = midNative != null ? toUSD(midNative, cur) : (lo + hi) / 2;
     if (!isFinite(lo) || !isFinite(hi) || !isFinite(mid)) { noSalary++; continue; }
-    if (test && !payLocations(job).some((l) => test(job, l))) { elsewhereIds.add(job.id); continue; }
     if (isForeign(cur)) { if (hasFx(cur)) fxCount++; else unknownFx.add(cur); }
     const isOte = s.kind === 'ote';
     if (isOte) ote++;
-    plotted.push({ job, lo, hi, mid, cur, ote: isOte });
+    plotted.push({ job, lo, hi, mid, cur, ote: isOte, at });
   }
-  return { plotted, noSalary, elsewhere: elsewhereIds.size, elsewhereIds, fxCount, unknownFx: [...unknownFx], ote };
+  return { plotted, noSalary, elsewhere: elsewhereIds.size, elsewhereIds, otherPlaces, fxCount, unknownFx: [...unknownFx], ote };
 }
 
 /**
@@ -881,10 +932,14 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     let offRow = 0;
     for (const p of plotted) {
       const k = keyById.get(p.job.id) ?? rowKey(p.job);
-      if (dim === 'location' && !payCoversRow(p.job, k)) { rowOf(k).offPay++; offRow++; continue; }
-      rowOf(k).items.push(p);
+      // V-36 (fix-pay-at-place): a Location row prices each posting at the pay posted for the row's place
+      // (Nashville's own row, not the headline Bellevue row), or leaves it out of the row's pay.
+      const q = dim === 'location' ? locationRowItem(p, k, locTest) : p;
+      if (!q) { rowOf(k).offPay++; offRow++; continue; }
+      rowOf(k).items.push(q);
     }
     cRows = [...m.values()];
+    const drawnItems = dim === 'location' ? cRows.flatMap((r) => r.items) : plotted;
     // UX-24: more departments than colours: the 7 with the most postings with pay keep their rows
     // (and colours); the rest fold into one "N more departments" row, which opens on a click.
     let foldRow = null, folded = [];
@@ -942,7 +997,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       for (const r of cRows) r.useShort = true; // stacked label line: the short form never truncates
     }
     // Robust domain: P1..P99 of midpoints, padded, snapped to $50K/$100K/$250K ticks.
-    const [lo, hi] = robustBounds(plotted.map(p => p.mid));
+    const [lo, hi] = robustBounds((drawnItems.length ? drawnItems : plotted).map(p => p.mid));
     const span = Math.max(1, hi - lo);
     const step = span > 1500000 ? 250000 : span > 300000 ? 100000 : 50000;
     const pad = Math.max(span * AXIS_PAD, 1000);
@@ -1340,11 +1395,20 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
   function groups() {
     if (opts.groupBy === 'none') return [{ name: null, items: plotted.slice().sort((a, b) => b.mid - a.mid) }];
     const m = new Map();
+    // V-37 (fix-pay-at-place): grouped by Location, a posting sits in the row of its first place (the first one
+    // the Location filter takes in), as in Clusters (V-18), and its bar is the pay posted for that place
+    // (payAt), never another city's or another country's range; with none posted there it is not in the row.
+    const byLoc = opts.groupBy === 'location';
+    const locTest = byLoc ? placeMatcher(opts.places, opts.placeTest) : null;
+    let offRow = 0;
     for (const p of plotted) {
-      const k = keyOf(p.job, opts.groupBy);
+      const k = byLoc ? locationRowKey(p.job, locTest) : keyOf(p.job, opts.groupBy);
+      const q = byLoc ? locationRowItem(p, k, locTest) : p;
+      if (!q) { offRow++; continue; }
       if (!m.has(k)) m.set(k, []);
-      m.get(k).push(p);
+      m.get(k).push(q);
     }
+    if (byLoc) rowNotes = { ...rowNotes, offRow };
     // BP-13: a group's median is base pay, like the stats line's. V-21: by department or seniority
     // it compares one country's pay when the board mixes currencies (as the Clusters rows do).
     const main = BASIS_DIMS.has(opts.groupBy) ? mainBasis(plotted) : null;
@@ -1367,9 +1431,14 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const { top, counts, ordered } = colorKeys();
     const topSet = new Set(top);
     const colorOf = p => opts.colorBy === 'none' ? null : (topSet.has(p.key) ? colorFor(p.key) : otherColor());
-    // V-20 / V-19: bars that are not one posted yearly range, counted for the legend and the notes.
+    // The bars, by group (grouped by Location, each priced for its row's place: V-37).
+    const gs = groups();
+    const drawn = gs.flatMap((g) => g.items);
+    const bars = drawn.length ? drawn : plotted;
+    // V-20 / V-19: bars that are not one posted yearly range, counted for the legend and the notes. V-35: only a
+    // real span is striped (several levels, or several places' ranges), never one place's row.
     let spans = 0, partTime = 0;
-    for (const p of plotted) { p.span = spanTiers(p.job); if (p.span) spans++; p.partTime = isPartTimeHourly(p.job); if (p.partTime) partTime++; }
+    for (const p of drawn) { p.span = barSpan(p); if (p.span) spans++; p.partTime = isPartTimeHourly(p.job); if (p.partTime) partTime++; }
     rowNotes = { ...rowNotes, spans, partTime };
     renderLegend(top, counts, ordered, spans);
     head.hidden = legend.hidden;
@@ -1385,9 +1454,9 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     // Robust domain: P1..P99 of midpoints, widened to the robust ends of the bars
     // (P1 of minimums, P99 of maximums) so ordinary ranges are not clipped, then
     // padded and snapped to nice ticks. Anything beyond gets an edge marker.
-    const [mLo, mHi] = robustBounds(plotted.map(p => p.mid));
-    const lo = Math.min(mLo, robustBounds(plotted.map(p => p.lo))[0]);
-    const hi = Math.max(mHi, robustBounds(plotted.map(p => p.hi))[1]);
+    const [mLo, mHi] = robustBounds(bars.map(p => p.mid));
+    const lo = Math.min(mLo, robustBounds(bars.map(p => p.lo))[0]);
+    const hi = Math.max(mHi, robustBounds(bars.map(p => p.hi))[1]);
     const pad = Math.max((hi - lo) * AXIS_PAD, 1000);
     const nt = niceTicks(Math.max(0, lo - pad), hi + pad, Math.max(2, Math.floor(plotW / 90)));
     const d0 = Math.max(0, nt.start), d1 = nt.end > d0 ? nt.end : d0 + 1;
@@ -1404,7 +1473,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     let y = 0;
     let idx = 0;
     let gi = 0;
-    for (const g of groups()) {
+    for (const g of gs) {
       // viz-even: postings with the same bar are one row with their count (stackRanges); a row's first
       // posting stands for it (p.stack holds them all, p.n counts them).
       const stacks = stackRanges(g.items, (p) => rangeKey(p, opts.colorBy === 'none' ? null : topSet.has(p.key) ? p.key : OTHER_KEY));
@@ -1519,6 +1588,15 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     return (p.stack || [p]).every((q) => get(q.job) === v) ? v : null;
   }
 
+  /** fix-pay-at-place: the one place every posting of a row's bar was posted for ("Bellevue"), or ''. */
+  function stackPlace(p) {
+    const items = p.stack || [p];
+    const first = barPlace(items[0]);
+    return first && items.every((q) => barPlace(q) === first) ? first : '';
+  }
+  /** True when each posting of the row is one place's row, of a posting that lists several places' ranges. */
+  function stackPerPlace(p) { return (p.stack || [p]).every((q) => !!barPlace(q) && (q.at || payAt(q.job))?.rows > 1); }
+
   /** The title column: the posting's title, or for a row of several postings their count ("247 roles"). */
   function rowTitle(p) {
     if (!(p.n > 1)) return p.job.title || 'Untitled';
@@ -1530,16 +1608,21 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const approx = isForeign(p.cur) && hasFx(p.cur);
     const range = Math.round(p.lo / 1000) === Math.round(p.hi / 1000)
       ? formatMoney(p.lo) : `${formatMoney(p.lo)} to ${formatMoney(p.hi)}`;
-    const sp = spanTiers(p.job);
+    // V-35 (fix-pay-at-place): a striped bar is a real span (levels, or several places' ranges); a bar that is one
+    // place's row says which place.
+    const sp = p.span || null;
     const pt = isPartTimeHourly(p.job) ? ', part-time hourly pay shown as a year if full-time' : '';
     if (p.n > 1) {
       // viz-even: a row of several postings with the same posted range.
-      const kind = sp ? (sp.kind === 'levels' ? `, spans ${sp.tiers.length} levels` : sp.span === false ? ', each the range for one of its places' : ', each over several places\u2019 ranges') : '';
+      const one = stackPlace(p);
+      const kind = sp ? (sp.kind === 'levels' ? `, spans ${sp.tiers.length} levels` : ', each over several places\u2019 ranges')
+        : one ? `, the range posted for ${one}` : stackPerPlace(p) ? ', each the range posted for one of its places' : '';
       const dept = shared(p, (j) => j.department || null);
       return `${p.n.toLocaleString()} roles with the same posted range, ${range}${approx ? ' in US dollars, converted' : ''}${p.ote ? ', on-target earnings' : ''}${kind}${pt}${dept ? ', ' + dept : ''}`;
     }
     const where = [p.job.department, primaryLocation(p.job)].filter(Boolean).join(', ');
-    const kind = sp ? (sp.span === false ? `, one of ${sp.tiers.length} places\u2019 ranges` : `, spans ${sp.tiers.length} ${sp.kind === 'levels' ? 'levels' : 'places\u2019 ranges'}`) : '';
+    const at = barPlace(p);
+    const kind = sp ? `, spans ${sp.tiers.length} ${sp.kind === 'levels' ? 'levels' : 'places\u2019 ranges'}` : at ? `, the range posted for ${at}` : '';
     return `${p.job.title || 'Untitled'}, ${range}${approx ? ' in US dollars, converted' : ''}${p.ote ? ', on-target earnings' : ''}${kind}${pt}${where ? ', ' + where : ''}`;
   }
 
@@ -1610,7 +1693,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
   }
 
   function showJobTip(p) {
-    const j = p.job, s = j.salary;
+    // fix-pay-at-place: the bar's own posted range (the place's row when it was priced for a place).
+    const j = p.job, s = p.at || j.salary;
     tip.replaceChildren();
     const cur = (s.currency || 'USD').toUpperCase();
     const native = s.min === s.max || s.max == null || s.min == null
@@ -1628,17 +1712,26 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const many = p.n > 1;
     if (many) tip.append(el('div', 'ms-tip__sub', `${p.n.toLocaleString()} postings with this posted range`));
     // V-20: a range over several levels or places lists each (levels are the same on every posting of a
-    // row; places are each posting's own, so a row of several names none).
-    const sp = spanTiers(j);
+    // row; places are each posting's own, so a row of several names none). V-35 (fix-pay-at-place): a bar
+    // that is one place's row says which place it was posted for.
+    const sp = p.span || null;
+    const one = many ? stackPlace(p) : barPlace(p);
+    const rows = (p.at || payAt(j))?.rows || 0;
     if (sp && many && sp.kind !== 'levels') {
-      tip.append(el('div', 'ms-tip__sub', sp.span === false ? 'Each is the range for one place; the postings list several places\u2019 ranges' : 'Each runs over several places\u2019 ranges'));
+      tip.append(el('div', 'ms-tip__sub', 'Each runs over several places’ ranges'));
     } else if (sp) {
-      tip.append(el('div', 'ms-tip__sub', sp.kind === 'levels' ? `One range over ${sp.tiers.length} levels:` : sp.span === false ? `The range for one place; the posting lists ${sp.tiers.length} places' ranges:` : `One range over ${sp.tiers.length} places' ranges:`));
-      for (const t of sp.tiers.slice(0, 4)) tip.append(el('div', 'ms-tip__sub', `${t.label || 'Range'}: ${formatCurrency(t.min, t.currency || cur)} – ${formatCurrency(t.max, t.currency || cur)}`));
-      if (sp.tiers.length > 4) tip.append(el('div', 'ms-tip__sub', `+${sp.tiers.length - 4} more`));
+      tip.append(el('div', 'ms-tip__sub', sp.kind === 'levels' ? `One range over ${sp.tiers.length} levels${one ? `, posted for ${one}` : ''}:` : `One range over ${sp.tiers.length} places' ranges:`));
+      // A level span priced for another place than the headline (Microsoft's SF Bay Area / NYC range) has levels of its own, not listed.
+      const own = sp.kind !== 'levels' || !p.at || (p.at.min === j.salary.min && p.at.max === j.salary.max);
+      if (own) for (const t of sp.tiers.slice(0, 4)) tip.append(el('div', 'ms-tip__sub', `${t.label || 'Range'}: ${formatCurrency(t.min, t.currency || cur)} – ${formatCurrency(t.max, t.currency || cur)}`));
+      if (own && sp.tiers.length > 4) tip.append(el('div', 'ms-tip__sub', `+${sp.tiers.length - 4} more`));
+    } else if (one) {
+      tip.append(el('div', 'ms-tip__sub', `Posted for ${one}${rows > 1 ? `; the posting${many ? 's list' : ' lists'} other places’ ranges too` : ''}`));
+    } else if (many && stackPerPlace(p)) {
+      tip.append(el('div', 'ms-tip__sub', 'Each is the range posted for one of its places'));
     }
     if (isForeign(cur) && hasFx(cur)) tip.append(el('div', 'ms-tip__sub', `about ${formatMoney(p.lo)} – ${formatMoney(p.hi)} in US dollars (${FX_MONTH} rates)`));
-    const orig = s.originalInterval || (s.interval && s.interval !== 'year' ? s.interval : null);
+    const orig = j.salary.originalInterval || (j.salary.interval && j.salary.interval !== 'year' ? j.salary.interval : null);
     if (orig && orig !== 'year' && !pt) tip.append(el('div', 'ms-tip__sub', `A yearly figure worked out from ${INTERVAL_ADJ[orig] || orig} pay`));
     if (p.ote) tip.append(el('div', 'ms-tip__sub', `${OTE_LABEL}, not in the medians`)); // BP-13
     if (p.clipped) tip.append(el('div', 'ms-tip__sub', 'Runs past the edge of the chart (›)'));

@@ -13,7 +13,7 @@ import { compsForJob, compsNote, createCompsCard } from './features/comps.js';
 import { loadFreshness, freshnessDoc, juiceAsOfText, juiceSpanText, marketAsOfText, compstimateAsOfText, asOf, formatAsOf } from './features/freshness.js';
 import { createCompsChart } from './viz/comps.js';
 import { roleFamily, FAMILY_LABELS, readableTitle, levelLabel, displayLevel, NOT_STATED, DISPLAY_LEVEL_ORDER, levelKey, levelFromKey } from './features/roles.js';
-import { payLocations, payRank, samePayCountry, countryInSentence } from './features/shared.js';
+import { payLocations, payRank, samePayCountry, countryInSentence, payAt, pricedPlaces, placeLabel } from './features/shared.js';
 // ./features/insights.js is imported on first use (Insights mode), see renderInsights.
 // api.js: getCompanies, getJobs, getJobDetail (namespace import: tolerate a missing optional export)
 
@@ -627,8 +627,25 @@ function usableJuice(j) {
   if (isPartTime(j) && !statedHours(j)) return null;
   return jb;
 }
-/** Shared decision 1: true when the posting's pay applies to a place of the Location filter (always, without one). */
-const payHere = (j, F = viewSpec) => !!j?._usd && (!F?.l.size || locMatches(j, F, j._payLocs || payLocations(j)));
+/**
+ * fix-pay-at-place: the pay a posting posted for the places the Location filter picked (payAt in features/shared.js
+ * over the places locMatches takes in: a place's own row of salary.ranges, or the posting's one range in that place's
+ * country; the chart and the map price a place the same way). Cached per view; null with no filter, no pay, or none
+ * posted there (another country's pay, or a place the posting lists in no row: the lead decision of 2026-10-16).
+ */
+const placePayCache = new WeakMap();
+function placePay(j, F = viewSpec) {
+  if (!j?._usd || !F?.l.size) return null;
+  let m = placePayCache.get(F);
+  if (!m) { m = new Map(); placePayCache.set(F, m); }
+  let r = m.get(j);
+  if (r === undefined) { r = payAt(j, (l) => locMatches(j, F, [l])); m.set(j, r); }
+  return r;
+}
+/** Shared decision 1: true when the posting has pay posted for a place of the Location filter (always, without one). */
+const payHere = (j, F = viewSpec) => !!j?._usd && (!F?.l.size || !!placePay(j, F));
+/** The approx-USD pay that counts in the view: the places' own under a Location filter (placePay), else the posting's. */
+const usdHere = (j, F = viewSpec) => (!F?.l.size ? j._usd : placePay(j, F)?.usd || null);
 
 function prepare(jobs, { source = null } = {}) {
   for (const j of jobs) {
@@ -911,7 +928,7 @@ function failures(j, F, now) {
   if (F.q.length && !F.q.every((re) => re.test(j._hay))) out.push('q');
   const salActive = F.so || F.smin != null || F.smax != null;
   // Shared decision 1: under a Location filter, pay posted for another country doesn't pass a pay filter.
-  if (salActive && (!payHere(j, F) || (F.smin != null && j._usd.max < F.smin) || (F.smax != null && j._usd.min > F.smax))) out.push('sal');
+  if (salActive && (!payHere(j, F) || (F.smin != null && usdHere(j, F).max < F.smin) || (F.smax != null && usdHere(j, F).min > F.smax))) out.push('sal');
   if (F.d.size && !F.d.has(deptKey(j))) out.push('d');
   if (F.b.size && !F.b.has(brandKey(j))) out.push('b');
   if (F.l.size && !locMatches(j, F)) out.push('l');
@@ -1003,7 +1020,7 @@ function derive() {
       for (const d of [7, 30, 90]) if (j._age != null && j._age <= d) fc.p[d]++;
       if (j._age != null && j._age >= 180) fc.p.old = (fc.p.old || 0) + 1;
     }
-    if (counts('sal') && payHere(j, F)) fc.salMids.push(j._mid);
+    if (counts('sal') && payHere(j, F)) fc.salMids.push(usdHere(j, F).mid);
     if (counts('jg')) { const g = gradeOf(shownJuice(j, F)); if (g) bump(fc.jg, g); }
   }
   for (const [k, n] of covered) if (fc.l.has(k)) fc.l.set(k, fc.l.get(k) + n);
@@ -1053,11 +1070,12 @@ function sortJobs(list) {
   const out = list.slice();
   const nullsLast = (a, b, f) => (a == null || b == null ? (a == null) - (b == null) : f());
   const eff = effectiveSort();
-  // Shared decision 1: under a Location filter, pay posted for another country sorts like no pay.
-  const pv = viewSpec?.l.size ? new Map(out.map((j) => [j, payHere(j) ? j._usd : null])) : null;
+  // Shared decision 1: under a Location filter, pay posted for another country sorts like no pay, and the rest by
+  // the pay posted for the places picked (fix-pay-at-place, the range the card shows).
+  const pv = viewSpec?.l.size ? new Map(out.map((j) => [j, payHere(j) ? usdHere(j) : null])) : null;
   const P = pv ? (j) => pv.get(j) : (j) => j._usd;
   switch (eff) {
-    case 'salary-asc': out.sort((a, b) => nullsLast(P(a), P(b), () => a._usd.mid - b._usd.mid || a.title.localeCompare(b.title))); break;
+    case 'salary-asc': out.sort((a, b) => nullsLast(P(a), P(b), () => P(a).mid - P(b).mid || a.title.localeCompare(b.title))); break;
     case 'newest': out.sort((a, b) => nullsLast(a._age, b._age, () => a._age - b._age || a.title.localeCompare(b.title))); break;
     case 'title': out.sort((a, b) => a.title.localeCompare(b.title)); break;
     case 'juice': {
@@ -1066,7 +1084,7 @@ function sortJobs(list) {
       out.sort((a, b) => { const x = jv.get(a), y = jv.get(b); return nullsLast(x, y, () => y.score - x.score || y.net - x.net || a.title.localeCompare(b.title)); });
       break;
     }
-    default: out.sort((a, b) => nullsLast(P(a), P(b), () => b._usd.mid - a._usd.mid || b._usd.max - a._usd.max || a.title.localeCompare(b.title)));
+    default: out.sort((a, b) => nullsLast(P(a), P(b), () => P(b).mid - P(a).mid || P(b).max - P(a).max || a.title.localeCompare(b.title)));
   }
   // P-4: only "Best match" (the default while searching) lists title and team matches first;
   // any sort the person picks is strict.
@@ -1095,12 +1113,14 @@ function titleMatch(j, m) {
  * picked place (payLocations: a US range listed in Seattle and Sydney says nothing about Sydney).
  * P-1, BP-13: on-target earnings are never pooled with base pay (they count only when nothing else is
  * left), so the median is the base pay median, the same set the chart's median uses (kind !== 'ote').
+ * V-39 (fix-pay-at-place): under a Location filter each posting counts at the pay posted for the places picked
+ * (usdHere: Microsoft's Mountain View roles at their SF Bay Area range), as the chart caption and the map pin do.
  */
 function stats(list, F = viewSpec) {
   const base = [], ote = [];
   for (const j of list) {
     if (!payHere(j, F)) continue;
-    (isOte(j) ? ote : base).push(j._mid);
+    (isOte(j) ? ote : base).push(usdHere(j, F).mid);
   }
   const mids = (base.length ? base : ote).sort((a, b) => a - b);
   const depts = new Map();
@@ -2866,7 +2886,7 @@ function renderKpis() {
     // P-6: with a Location filter, the share counts pay that applies there ("22% show pay for London").
     st.n ? item(capWhole ? `${capWhole.whole}%` : `${pct}%`, capWhole ? `of all ${capWhole.total.toLocaleString()} show pay`
       : capNote?.salariedFirst ? `of the ${capNote.kept.toLocaleString()} kept show pay` : onePlace ? `show pay for ${onePlace}` : 'show pay',
-      `${st.withSalary.toLocaleString()} of ${st.n.toLocaleString()} postings include a pay range${here}${here ? ' (a pay range in another country’s currency is not counted)' : ''}${capNote ? `. ${capNote.tip}` : ''}`, 'stat--share') : null,
+      `${st.withSalary.toLocaleString()} of ${st.n.toLocaleString()} postings include a pay range${here}${here ? ' (pay posted only for other places or another country is not counted)' : ''}${capNote ? `. ${capNote.tip}` : ''}`, 'stat--share') : null,
     // BP-13: it says which pay the median is of; the chart's median uses the same set.
     st.median != null ? item(money(st.median), st.oteOnly ? 'median on-target earnings' : 'base pay median',
       `Half of these roles pay more than this and half less (the middle of each posted range, ${ote || 'base pay, '}in US dollars${here}${left})`, 'stat--median') : null,
@@ -2879,7 +2899,7 @@ function renderKpis() {
     st.p25 != null && st.p75 != null && money(st.p25) !== money(st.p75) ? `Half of these roles pay between ${money(st.p25)} and ${money(st.p75)} (the middle of each posted range)` : '',
     st.median != null ? `The median is ${st.oteOnly ? 'on-target earnings' : 'base pay'}, in approx US dollars${here}: half of these roles pay more, half less` : '',
     st.oteLeftOut ? `${plural(st.oteLeftOut, 'posting')} with on-target earnings (base plus commission) left out of the median` : '',
-    here ? 'A pay range in another country’s currency is not counted for the places you picked' : '',
+    here ? 'Each role counts at the range posted for the places you picked; pay posted only for other places or another country is not counted' : '',
     capNote ? capNote.tip : '',
     // P-6: "mostly" only for a real majority (it read "mostly Sales" at 19%).
     share > 0.5 ? `Mostly ${st.top[0]}: ${st.top[1].toLocaleString()} of ${st.n.toLocaleString()} roles (${Math.round(share * 100)}%)` : '',
@@ -3717,6 +3737,10 @@ function payPill(job) {
     const range = payPill({ ...job, _usd: null })?.text || salaryRange(s);
     return { text: `Pay posted for ${where} only`, tip: `${range} is the pay posted for ${where}, not for ${placesPicked()}`, elsewhere: true };
   }
+  // UX-22, QA round 3 (fix-pay-at-place): a posting that gives each place its own range, in the unit it was posted
+  // in (an internship's yearly rate, a part-time hourly rate): the places' span, or the range of the place picked.
+  const ph = isOte(job) || isMinimum(job) ? null : payHeadline(job);
+  if (ph) return { text: ph.text, tip: ph.tip };
   if (isPartTimeHourly(job)) {
     const hr = postedPair(s.min / 2080, s.max / 2080, s.currency);
     return { text: `${hr}/hour`, tip: `Part-time, paid by the hour: ${hr} an hour (${postedPair(Math.round(s.min), Math.round(s.max), s.currency)} a year if full-time, 2,080 hours)` };
@@ -3736,16 +3760,6 @@ function payPill(job) {
   if (isOte(job)) return { text: range, tip: OTE_LABEL };
   // VT-17: a stated minimum reads "from €20.1K", never as the pay.
   if (isMinimum(job)) return { text: `from ${money(s.min, s.currency)}`, tip: MINIMUM_TIP };
-  // UX-22: a posting that gives each place its own range. Under a Location filter the card shows the
-  // range of the place picked; otherwise the span says it covers several places ("$166K–325K · 3 places").
-  const rs = payRanges(s);
-  if (rs) {
-    const byPlace = `Pay by place: ${rs.map((r) => `${rangeLabel(r)} ${rangeText(r, s.currency)}`).join(' · ')}`;
-    const picked = pickedRange(job);
-    if (picked) return { text: picked.range, tip: `The range posted for ${picked.label}. ${byPlace}` };
-    const span = moneyRange(Math.min(s.min, ...rs.map((r) => Number(r.min))), Math.max(s.max, ...rs.map((r) => Number(r.max ?? r.min))), s.currency);
-    return { text: `${span} · ${rs.length} places`, tip: `${span} runs from the lowest to the highest of ${rs.length} ranges posted for different places. ${byPlace}` };
-  }
   // SA-1 (salary audit): a posting that prices several levels ("… for Level 4, and … for Level 5") shows
   // the span of their ranges, which no single level is posted at. The card says so, as a range per place
   // does ("$184K–357K · 2 levels"); the levels themselves are in the tip and the pay block.
@@ -3765,6 +3779,12 @@ function cardTerm(job) {
 }
 /** The pay's own country, in a sentence: "the US", "Germany and Ireland", "other countries" (shared decision 1). */
 function payPlaceText(job) {
+  // fix-pay-at-place: a posting that prices each place on a row of its own names those places ("Seattle and
+  // Bellevue"); one with no row for the place picked has no posted pay there (the lead decision of 2026-10-16).
+  if (Array.isArray(job.salary?.ranges) && job.salary.ranges.length) {
+    const own = pricedPlaces(job);
+    if (own.length) return placeLabel(own);
+  }
   const cs = [...new Set((job._payLocs || payLocations(job)).map((l) => l?.country && String(l.country).toUpperCase()).filter(Boolean))];
   if (!cs.length) return 'other places';
   if (cs.length > 2) return 'other countries';
@@ -3937,7 +3957,16 @@ const poolNoun = (job) => (job.seniority === 'Intern' ? 'internships' : isOte(jo
 const shortNoun = (job) => (job.seniority === 'Intern' ? 'internships' : 'roles');
 function percentile(job) {
   const pool = likePool(job);
-  return pool ? payRank(job, pool, { mid: (j) => j._mid }) : null;
+  const own = drawerUSD(job);
+  return pool ? payRank(job, pool, { mid: (j) => (j === job ? own?.mid : j._mid) }) : null;
+}
+/**
+ * UX-37 (fix-pay-at-place): the range the drawer's rank and strip use for this role: under a Location filter the range
+ * posted for the places picked (placePay), else the posting's headline range (Amazon's search city, Microsoft's U.S.
+ * range). The pay block's Details name it.
+ */
+function drawerUSD(job) {
+  return (viewSpec?.l.size && placePay(job)?.usd) || job._usd;
 }
 
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -3951,16 +3980,17 @@ function svgEl(tag, attrs) {
 function salaryDistribution(job) {
   const pool = payPool(job);
   const base = salaryDomain();
-  const dom = base && job._usd ? { lo: Math.min(base.lo, job._usd.min), hi: Math.max(base.hi, job._usd.max) } : base;
-  const mids = (pool || []).map((j) => j._mid).concat(job._usd ? [job._mid] : []).sort((a, b) => a - b);
+  const own = drawerUSD(job); // UX-37: the range the Details name
+  const dom = base && own ? { lo: Math.min(base.lo, own.min), hi: Math.max(base.hi, own.max) } : base;
+  const mids = (pool || []).map((j) => j._mid).concat(own ? [own.mid] : []).sort((a, b) => a - b);
   const foreign = job.salary.currency && job.salary.currency !== 'USD';
   const fullTime = isPartTimeHourly(job) ? ' a year if full-time' : ''; // shared decision 4
   // fix-density: one line ("≈ $53K in US dollars at Jul 2026 rates"; it was "… in approx US dollars for comparison, at
   // Jul 2026 exchange rates", two lines on a phone). The rates' month stays in the line, linked to their source (MR-2).
-  const approx = foreign && job._usd ? h('p', { class: 'fnote dist-approx', title: `In approx US dollars, for comparison. Rates: ${FX_SOURCE}` }, `≈ ${moneyRange(job._usd.min, job._usd.max)}${fullTime} in US dollars at `, docLink(UPDATED_DOC, `${fxAsOf()} rates`))
+  const approx = foreign && own ? h('p', { class: 'fnote dist-approx', title: `In approx US dollars, for comparison. Rates: ${FX_SOURCE}` }, `≈ ${moneyRange(own.min, own.max)}${fullTime} in US dollars at `, docLink(UPDATED_DOC, `${fxAsOf()} rates`))
     // MR-1: a currency with no rate in the table is shown as posted, and says why it is left out of comparisons.
     : foreign ? h('p', { class: 'fnote' }, `We can’t convert ${job.salary.currency} to US dollars yet (no exchange rate), so this pay is left out of charts and comparisons.`) : null;
-  if (!pool || !dom || !job._usd) return approx ? h('div', { class: 'd-dist' }, approx) : null;
+  if (!pool || !dom || !own) return approx ? h('div', { class: 'd-dist' }, approx) : null;
   const W = 100, H = 40, N = 32;
   const counts = new Array(N).fill(0);
   for (const m of mids) counts[Math.min(N - 1, Math.max(0, Math.floor(((m - dom.lo) / (dom.hi - dom.lo)) * N)))]++;
@@ -3969,14 +3999,14 @@ function salaryDistribution(job) {
   const bw = W / N;
   const median = quantile(mids, 0.5);
   const svg = svgEl('svg', { class: 'dist', viewBox: `0 0 ${W} ${H + 12}`, preserveAspectRatio: 'none', role: 'img',
-    'aria-label': `Pay of ${mids.length} ${poolNoun(job)}; this role spans ${money(job._usd.min)} to ${money(job._usd.max)}${fullTime}, median ${money(median)}` });
+    'aria-label': `Pay of ${mids.length} ${poolNoun(job)}; this role spans ${money(own.min)} to ${money(own.max)}${fullTime}, median ${money(median)}` });
   counts.forEach((c, i) => {
     if (!c) return;
     const hgt = (c / max) * (H - 6);
-    const inRange = (i + 1) * bw > x(job._usd.min) && i * bw < x(job._usd.max);
+    const inRange = (i + 1) * bw > x(own.min) && i * bw < x(own.max);
     svg.append(svgEl('rect', { x: (i * bw + 0.15).toFixed(2), y: (H - hgt).toFixed(2), width: (bw - 0.3).toFixed(2), height: hgt.toFixed(2), rx: 0.4, class: `dist-bar${inRange ? ' is-in' : ''}` }));
   });
-  svg.append(svgEl('rect', { x: x(job._usd.min).toFixed(2), y: H + 2, width: Math.max(0.8, x(job._usd.max) - x(job._usd.min)).toFixed(2), height: 4, rx: 2, class: 'dist-range' }));
+  svg.append(svgEl('rect', { x: x(own.min).toFixed(2), y: H + 2, width: Math.max(0.8, x(own.max) - x(own.min)).toFixed(2), height: 4, rx: 2, class: 'dist-range' }));
   const mx = x(median).toFixed(2);
   svg.append(svgEl('line', { x1: mx, x2: mx, y1: 0, y2: H, class: 'dist-med', 'vector-effect': 'non-scaling-stroke' }));
   const medLabel = h('span', { class: 'dist-med-label' }, `median ${money(median)}`);
@@ -4315,43 +4345,133 @@ function payRanges(s) {
 }
 const rangeLabel = (r) => String(r.label || [...new Set(r.locations.map((x) => String(x).split(',')[0].trim()))].join(', ')).trim();
 const rangeText = (r, cur) => moneyRange(Number(r.min), Number(r.max ?? r.min), cur);
-/** "Pay by place: Waltham $166K–292K · Los Angeles, San Diego $175K–309K" under the range in the pay block (UX-22). */
-function payPlacesLine(s) {
+/**
+ * "Pay by place: Waltham $166K–292K · Los Angeles, San Diego $175K–309K" under the range in the pay block (UX-22). QA
+ * round 3 (fix-pay-at-place): in the unit the pay was posted in (an internship's "$39.7K/year", "$18.50/hour").
+ */
+function payPlacesLine(s, job = null) {
   const rs = payRanges(s);
   if (!rs) return null;
-  const el = tierList('Pay by place', rs.map((r) => [rangeLabel(r), rangeText(r, s.currency)]));
+  const unit = job ? payUnit(job) : null;
+  const el = tierList('Pay by place', rs.map((r) => [rangeLabel(r), unit ? unit.fmt(Number(r.min), Number(r.max ?? r.min)) : rangeText(r, s.currency)]));
   el.classList.add('d-sal-places');
   return el;
 }
 /**
  * UX-22: the range posted for the places a Location filter picked, when the posting gives each place its own
- * range: { range, label, n } in the salary's currency, or null (no filter, no ranges, or no picked place in one).
- * Reads `ranges[].locations` defensively: a range without places matches nothing.
+ * range: { range, label, n, min, max, currency } (yearly), or null (no filter, no ranges, or no picked place in
+ * one). fix-pay-at-place: the shared rule (placePay, payAt), the pay the chart, the map and the stats line use.
  */
 function pickedRange(job, F = viewSpec) {
   const rs = F?.l.size ? payRanges(job.salary) : null;
   if (!rs) return null;
-  const hit = rs.filter((r) => Array.isArray(r.locations) && job.locations.some((l) => l && r.locations.includes(l.rawName || l.name) && locMatches(job, F, [l])));
-  if (!hit.length) return null;
-  const min = Math.min(...hit.map((r) => Number(r.min))), max = Math.max(...hit.map((r) => Number(r.max ?? r.min)));
-  return { range: moneyRange(min, max, job.salary.currency), label: hit.map(rangeLabel).join('; '), n: rs.length };
+  const at = placePay(job, F);
+  if (!at || at.basis !== 'place') return null;
+  return { range: moneyRange(at.min, at.max, at.currency), label: at.label, n: rs.length, min: at.min, max: at.max, currency: at.currency };
+}
+
+/**
+ * QA round 3 (fix-pay-at-place): the places a posting's ranges are for, one key each: its location strings, and the
+ * states of Amazon's virtual-location rows ("Remote (IL, NJ)" is two). A row with no place is its label.
+ */
+function rangePlaceKeys(r) {
+  const keys = [];
+  for (const l of r.locations || []) if (!/^remote\b/i.test(l)) keys.push(l);
+  const m = /\bRemote \(([^)]*)\)/.exec(r.label || '');
+  if (m) for (const st of m[1].split(/,\s*/)) keys.push(`Remote (${st.trim()})`);
+  else if ((r.locations || []).some((l) => /^remote\b/i.test(l)) || /^Remote\b/.test(r.label || '')) keys.push('Remote');
+  if (!keys.length) keys.push(`?${r.label || ''}|${r.min}|${r.max}`);
+  return keys;
+}
+/**
+ * How many places a posting's ranges are for, or 0 when that is not one range per place: two ranges for one place
+ * (amazon:10420739, Seattle twice) or rows that share a place (Remote rows whose state is not known).
+ */
+function placeCount(rs) {
+  const seen = new Set();
+  for (const r of rs) for (const k of rangePlaceKeys(r)) { if (seen.has(k)) return 0; seen.add(k); }
+  return seen.size > 1 ? seen.size : 0;
+}
+
+/**
+ * QA round 3 (fix-pay-at-place): yearly pay written in the unit it was posted in. { fmt(lo, hi), note }: part-time
+ * hourly pay as an hourly rate, fixed-term pay per week, month or for the whole term, a programme's yearly rate with
+ * "/year", any other pay as a yearly range. `note` says what the unit is, for tips.
+ */
+function payUnit(job) {
+  const s = job.salary, cur = s.currency;
+  if (isPartTimeHourly(job)) return { fmt: (a, b) => `${postedPair(a / 2080, b / 2080, cur)}/hour`, note: 'Part-time, paid by the hour' };
+  const term = postedTerm(s);
+  if (!term) return { fmt: (a, b) => moneyRange(a, b, cur), note: '' };
+  const prog = programText(job, term);
+  if (term.fixed && term.per === 'term') return { fmt: (a, b) => `${moneyRange(a / term.toTerm, b / term.toTerm, cur)} total`, note: `fixed-term pay for a ${prog}` };
+  if (term.per === 'year') return { fmt: (a, b) => `${moneyRange(a, b, cur)}/year`, note: prog };
+  const f = PER_YEAR[term.per] || 1;
+  return { fmt: (a, b) => `${postedPair(a / f, b / f, cur)}/${term.per}`, note: term.fixed ? `fixed-term pay for a ${prog}` : prog };
+}
+
+/**
+ * UX-22, UX-37, QA round 3 (fix-pay-at-place): what a posting with a range per place shows on its card and as its
+ * drawer heading, in the unit it was posted in: under a Location filter the range posted for the places picked,
+ * else the span of its ranges with how many places they are for ("$60K–129K · 5 places"; "· 2 ranges" when they
+ * are not one range per place). { text, tip, picked, rankPlace }: `rankPlace` names the place whose range the
+ * drawer's rank and strip use (the posting's headline row: Amazon's search city, Microsoft's U.S. range), '' when
+ * that is the span. null for a posting with one range.
+ */
+function payHeadline(job, F = viewSpec) {
+  const s = job.salary;
+  const rs = s ? payRanges(s) : null;
+  if (!rs) return null;
+  const unit = payUnit(job);
+  const byPlace = `Pay by place: ${rs.map((r) => `${rangeLabel(r)} ${unit.fmt(Number(r.min), Number(r.max ?? r.min))}`).join(' · ')}`;
+  const what = unit.note ? ` (${unit.note})` : '';
+  const picked = pickedRange(job, F);
+  if (picked) return { text: unit.fmt(picked.min, picked.max), tip: `The range posted for ${picked.label}${what}. ${byPlace}`, picked, rankPlace: picked.label, min: picked.min, max: picked.max, across: false };
+  const lo = Math.min(s.min, ...rs.map((r) => Number(r.min))), hi = Math.max(s.max, ...rs.map((r) => Number(r.max ?? r.min)));
+  const span = unit.fmt(lo, hi);
+  const n = placeCount(rs);
+  const head = payAt(job);
+  return {
+    text: `${span} · ${n ? `${n} places` : `${rs.length} ranges`}`,
+    tip: `${span} runs from the lowest to the highest of ${rs.length} ranges posted for ${n ? `${n} places` : 'its places'}${what}. ${byPlace}`,
+    picked: null, rankPlace: head && head.basis === 'place' && !head.span ? head.label : '', min: lo, max: hi, across: true,
+  };
+}
+
+/**
+ * MR-34 (fix-pay-at-place): what the "Several pay ranges" chip means for this figure. The posting states more than one
+ * range (salary.zones); the figure is one of them (Microsoft's U.S. range when the role has no SF Bay Area or New York
+ * place, Amazon's row for its city, Google's line for the role's country), or the span of them all (NVIDIA's five
+ * unlabelled lines, two degree lines, Amazon's "lowest geographic market up to … highest").
+ */
+function severalRangesTip(s) {
+  const t = String(s?.text || '');
+  const amounts = t.match(/\d[\d,.']*\d|\d/g) || [];
+  const span = /;/.test(t) || amounts.length > 2 || /lowest\b[^.]*\bmarket|highest\b[^.]*\bmarket/i.test(t);
+  return span ? 'The posting lists different ranges for different places or levels; this figure runs from the lowest to the highest of them'
+    : 'The posting lists different ranges for different places or levels; this figure is one of them, as posted';
 }
 
 /** At most two muted honest-number labels (ROADMAP F2), in the roadmap's priority order. */
 function payLabels(job) {
   const s = job.salary;
   if (!s) return null;
-  const spread = s.spread ?? (s.min > 0 ? s.max / s.min : null);
+  // fix-pay-at-place: the labels describe the figure shown (payHeadline: a range per place shows its span, or the
+  // range of the place picked), not the headline row behind it.
+  const ph = isOte(job) || isMinimum(job) ? null : payHeadline(job);
+  const lo = ph ? ph.min : s.min, hi = ph ? ph.max : s.max;
+  const spread = ph ? (lo > 0 ? hi / lo : null) : s.spread ?? (s.min > 0 ? s.max / s.min : null);
+  const across = ph ? (ph.across ? ' (across places)' : '') : payLevels(s) ? ' (across levels)' : '';
   const labels = [
     // Fix wave 5 (VT-17, VT-18): what the figure is comes first.
     isMinimum(job) ? ['Minimum', MINIMUM_TIP] : null,
     s.includesShiftDifferential ? ['Includes top shift pay', shiftTip(s)] : null, // UX-61: no abbreviation
     // D-21: a range that covers several levels lists them (payLevelsLine) instead of a bare "Multiple pay zones".
     // UX-22: a range per place lists them (payPlacesLine) too; UX-31: the chip says what it means.
-    s.zones > 1 && !payLevels(s) && !payRanges(s) ? ['Several pay ranges', 'The posting lists different ranges for different locations or levels; this is the span of all of them'] : null,
-    spread != null && spread >= 2 ? [`Top is ${spread.toFixed(1).replace(/\.0$/, '')}× the bottom${payLevels(s) ? ' (across levels)' : payRanges(s) ? ' (across places)' : ''}`,
-      payLevels(s) || payRanges(s) ? 'The span runs from the lowest to the highest range the posting gives, so it is wider than any one of them' : 'The top of the range is at least twice the bottom'] : null,
-    s.min === s.max ? ['One number, not a range', 'The posting gives one number, not a range'] : null,
+    s.zones > 1 && !payLevels(s) && !payRanges(s) ? ['Several pay ranges', severalRangesTip(s)] : null,
+    spread != null && spread >= 2 ? [`Top is ${spread.toFixed(1).replace(/\.0$/, '')}× the bottom${across}`,
+      across ? 'The span runs from the lowest to the highest range the posting gives, so it is wider than any one of them' : 'The top of the range is at least twice the bottom'] : null,
+    lo === hi ? ['One number, not a range', ph ? 'The posting gives one number, not a range, for this place' : 'The posting gives one number, not a range'] : null,
     job.extras?.equity ? ['+ equity mentioned', 'The description mentions equity; it isn\u2019t in this figure'] : null,
     // P-1: on-target earnings already include the commission at target, so a "bonus" note would be wrong.
     job.extras?.bonus && !isOte(job) ? ['+ bonus mentioned', 'The description mentions a bonus; it isn\u2019t in this figure'] : null,
@@ -4568,14 +4688,19 @@ function drawerContent(job) {
     : isOte(job) ? 'On-target earnings' : isMinimum(job) ? 'Posted minimum base pay' : sal.includesShiftDifferential ? 'Posted pay, including shift pay'
       : partHourly ? 'Posted hourly pay, part-time' : term?.fixed ? 'Fixed-term pay as posted' : 'Posted base pay';
   // UX-22: under a Location filter, the range posted for the place picked.
-  const picked = sal ? pickedRange(job) : null;
+  // UX-37 (fix-pay-at-place): a posting with a range per place is headed with its card's figure (payHeadline): the
+  // span of its ranges ("$60K–129K · 5 places"), or under a Location filter the range posted for the place picked,
+  // which the line under it names. The rank and the strip say in Details whose range they use.
+  const ph = sal && !isOte(job) && !isMinimum(job) ? payHeadline(job) : null;
   // Shared decisions 3 and 4: the amount as it was stated. Fixed-term pay: "$3,850 a week · for about 17
   // weeks"; a rate for a programme: "€72,000 a year · 13-week internship"; part-time: "$22.00–28.88 an hour".
   const cur = sal?.currency || 'USD';
-  const amountText = !sal ? null : partHourly ? `${postedPair(sal.min / 2080, sal.max / 2080, sal.currency)} an hour`
+  const amountText = !sal ? null : ph ? ph.text : partHourly ? `${postedPair(sal.min / 2080, sal.max / 2080, sal.currency)} an hour`
     : term ? `${term.amount}${perText(term.per)}` : isMinimum(job) ? `from ${money(sal.min, sal.currency)}` : salaryRange(sal);
-  const subText = !sal ? null : partHourly ? `${cur} · part-time, paid by the hour`
-    : term?.fixed ? `${cur} · for ${termText(term.weeks)}` : term ? `${cur} · ${programText(job, term)}` : `${cur} · per year`;
+  const subText = !sal ? null : (ph?.picked ? `Posted for ${ph.picked.label} · ` : '') + (partHourly ? `${cur} · part-time, paid by the hour`
+    : term?.fixed ? `${cur} · for ${termText(term.weeks)}` : term ? `${cur} · ${programText(job, term)}` : `${cur} · per year`);
+  // Whose range the rank and the strip use: the place picked, the posting's headline row (Bellevue), or its span.
+  const rankWhose = !ph ? '' : ph.rankPlace ? `the range posted for ${ph.rankPlace}` : 'the middle of its span';
   let salaryNotes = null, annualEl = null, labelsEl = null;
   const salaryBlock = h('section', { class: 'd-salary' },
     sal ? h('div', { class: 'd-sal-top' },
@@ -4583,8 +4708,8 @@ function drawerContent(job) {
         h('div', { class: 'd-sal-amt' }, amountText),
         h('div', { class: 'muted' }, subText),
         (annualEl = annualNote(sal, job)),
-        ...(salaryNotes = [term || partHourly ? null : payLevelsLine(sal, job), term || partHourly ? null : payPlacesLine(sal)]),
-        picked ? h('p', { class: 'd-sal-levels' }, h('span', { class: 'muted' }, `For ${placesPicked()}: `), `${picked.range} (${picked.label})`) : null))
+        // QA round 3: "Pay by place" for fixed-term and part-time pay too, in the unit it was posted in.
+        ...(salaryNotes = [term || partHourly ? null : payLevelsLine(sal, job), payPlacesLine(sal, job)])))
       : job.salaryFlag ? payUnclearBlock(job)
         : h('div', { class: 'd-sal-none' }, h('strong', null, 'No pay listed'), compstimateBlock(job)),
     sal ? salaryDistribution(job) : null,
@@ -4598,8 +4723,8 @@ function drawerContent(job) {
       h('span', { class: 'd-pay-caption' }, caption),
       annualEl?.dataset.note || '',
       [...(salaryNotes || [])].filter(Boolean).map((e) => e.dataset.note).find(Boolean) || '',
-      sal && pctNote ? pctNote : '',
-      sal && job._usd ? `The strip shows ${coName}’s ${noun} that show pay, each posted range at its middle.` : '',
+      sal && pctNote ? `${pctNote}${rankWhose ? ` This role is ranked at ${rankWhose}.` : ''}` : '',
+      sal && job._usd ? `The strip shows ${coName}’s ${noun} that show pay, each posted range at its middle${rankWhose ? `; this role's is ${rankWhose}` : ''}.` : '',
       // fix-touch-tips: each label's meaning (its hover title), so a tap or the keyboard can reach it.
       ...(labelsEl ? [...labelsEl.querySelectorAll('.pay-label')].filter((e) => e.title).map((e) => `${e.textContent}: ${e.title.replace(/\.$/, '')}.`) : []),
       h('span', { class: 'd-pay-doc' }, docLink(PAY_DOC, 'How pay is read')),

@@ -11,7 +11,7 @@
 
 import {
   salaryUSD, percentile, median, formatMoney, formatDelta, formatPct, plural, fmtCount, niceTicks,
-  jobLocationKeys, payLocations, countryName, isOTE, h, createTooltip, preserveFocus, uid,
+  jobLocationKeys, countryName, isOTE, h, createTooltip, preserveFocus, uid, payAt, pricedPlaces, toUSD,
 } from './shared.js';
 import { formatAsOf, asOf as registryAsOf } from './freshness.js';
 import { FX_AS_OF } from '../viz/palette.js';
@@ -65,10 +65,13 @@ export function isTied(values, share = TIE_SHARE) {
 /** The app's location key (public/app.js locKey): city, else name; remote entries by their name. */
 const appKey = (l) => (l.remote ? l.name || 'Remote' : l.city || l.name);
 
-/** Keys (app style) of the places a posting's pay applies to (payLocations). */
+/**
+ * Keys (app style) of the places a posting has pay posted for (payAt in shared.js: a place's own row of
+ * salary.ranges, or the posting's one range in that place's country; fix-pay-at-place).
+ */
 export function payPlaceKeys(job) {
   const out = new Set();
-  for (const l of payLocations(job)) { const k = appKey(l); if (k) out.add(k); }
+  for (const l of pricedPlaces(job)) { const k = appKey(l); if (k) out.add(k); }
   return [...out];
 }
 
@@ -159,15 +162,15 @@ export function deptBoxes(jobs = [], { minCount = 1, includeOther = true } = {})
  * Roles per location key (a multi-location job counts once in each city),
  * with the median USD pay of those roles. Sorted by count (desc).
  *   -> [{ location, country, remote, count, salaried, median }]
- * The pay of a role counts only in the places it applies to (payLocations, P-6): five US
- * contractor roles that also list Sydney give Sydney a count, not a "Sydney median".
+ * The pay of a role counts only in the places it was posted for, at the pay posted there (payAt, P-6 and
+ * V-40): five US contractor roles that also list Sydney give Sydney a count, not a "Sydney median", and
+ * Microsoft's New York roles count at their New York range, not the U.S. one.
  * `median` is null below `minSalaried` roles with pay there.
  */
 export function hotLocations(jobs = [], { limit = 8, minSalaried = 1 } = {}) {
   const by = new Map();
   for (const j of jobs) {
     const m = midOf(j);
-    const paid = m == null ? null : new Set(payLocations(j).map((l) => (l.remote ? 'Remote' : l.city || l.name)));
     for (const key of jobLocationKeys(j)) {
       let e = by.get(key);
       if (!e) {
@@ -175,7 +178,13 @@ export function hotLocations(jobs = [], { limit = 8, minSalaried = 1 } = {}) {
         by.set(key, (e = { location: key, country: loc?.country || null, remote: key === 'Remote', count: 0, mids: [] }));
       }
       e.count += 1;
-      if (m != null && (paid.has(key) || (key === 'Remote' && !paid.size))) e.mids.push(m);
+      if (m == null) continue;
+      // V-40 (fix-pay-at-place): a place's median takes each role's pay posted for that place (payAt: its own
+      // row, or the posting's one range in that country), never another city's row or another country's pay.
+      const here = (j.locations || []).filter((l) => l && (l.remote ? 'Remote' : l.city || l.name) === key);
+      const at = here.length ? payAt(j, here.length === 1 ? here[0] : here) : key === 'Remote' && !(j.locations || []).length ? payAt(j) : null;
+      const v = at ? toUSD(at.mid, at.currency) : null;
+      if (v != null) e.mids.push(v);
     }
   }
   return [...by.values()]
@@ -354,7 +363,7 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
   }
 
   // (c) hot locations -------------------------------------------------------
-  // P-6: a place's median uses only roles whose pay is for that place (payLocations), from at
+  // P-6: a place's median uses only roles whose pay is posted for that place (payAt), from at
   // least MIN_SAMPLE of them.
   function locCard(jobs) {
     const locs = hotLocations(jobs, { limit: 8, minSalaried: MIN_SAMPLE });
@@ -431,7 +440,8 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
    * @param {Job[]} allJobs  the whole board
    * @param {{ asOf?: string|null, places?: string[]|null }} [opts]  places: the location filter's
    *   keys (app.js S.l). With places, pay figures use only roles whose pay is posted for one of
-   *   them (payLocations, P-6); the others count as roles without pay for this view.
+   *   them, at the pay posted for those places (payAt, P-6 and fix-pay-at-place); the others count
+   *   as roles without pay for this view.
    */
   function update(filteredJobs = [], allJobs = filteredJobs, { asOf = null, places = null } = {}) {
     const jobs0 = Array.isArray(filteredJobs) ? filteredJobs : [];
@@ -439,16 +449,20 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
     const where = Array.isArray(places) && places.length ? new Set(places) : null;
     let elsewhere = 0;
     const jobs = !where ? jobs0 : jobs0.map((j) => {
-      if (!j?.salary || payPlaceKeys(j).some((k) => where.has(k))) return j;
-      elsewhere += 1;
-      return { ...j, salary: null };
+      if (!j?.salary) return j;
+      const at = payAt(j, (l) => where.has(appKey(l)));
+      if (!at) { elsewhere += 1; return { ...j, salary: null }; }
+      // The pay posted for the places picked (a place's own row), as the chart and the stats line price it.
+      const s = j.salary;
+      return at.min === s.min && at.max === s.max && at.currency === String(s.currency || 'USD').toUpperCase() ? j
+        : { ...j, salary: { ...s, min: at.min, max: at.max, mid: at.mid, currency: at.currency } };
     });
     const ote = jobs.filter((j) => isOTE(j)).length;
     // fix-density: the header's one line ("All 5,000 roles", "120 of 5,000 roles match"); the rates, dates,
     // left-out counts and the pay guide behind "Details" (viz/note.js).
     const notes = [
       ote ? `${plural(ote, 'role')} posting on-target earnings (base plus commission) left out of pay figures` : '',
-      elsewhere ? `${plural(elsewhere, 'role')} whose pay is for another country left out of pay figures` : '',
+      elsewhere ? `${plural(elsewhere, 'role')} whose pay is posted for other places or countries left out of pay figures` : '',
     ].filter(Boolean);
     tip.hide();
     preserveFocus(root, () => {

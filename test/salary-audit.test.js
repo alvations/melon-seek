@@ -24,6 +24,7 @@ import { trimDescription } from '../scripts/snapshot.js';
 import { attachJuice } from '../server/juice.js';
 import { chartPay } from '../public/viz/chart.js';
 import { formatMoney } from '../public/viz/palette.js';
+import { payAt } from '../public/features/shared.js';
 import { getCompany } from '../server/companies.js';
 
 const CITIES = JSON.parse(fs.readFileSync(new URL('../data/cities.json', import.meta.url), 'utf8'));
@@ -49,16 +50,17 @@ function fnSource(name) {
 const CARD = ['payPill', 'salaryRange', 'money', 'moneyRange', 'payRanges', 'rangeLabel', 'rangeText', 'pickedRange', 'payLevels'];
 // Defined once fix5-data-display.diff is in (fix-density e3c745a, 5f8b599): SA-2, SA-6.
 // rangeEnd: SB-7 (salary-audit-backend's client patch), two decimals for range ends in the millions.
-const CARD_IF_PRESENT = ['isMinimum', 'MINIMUM_TIP', 'rangeEnd'].filter((n) => new RegExp(`^(?:const ${n} = |function ${n}\\()`, 'm').test(APP));
+// fix-pay-at-place: payHeadline and its helpers (a range per place, counted by distinct places, in the posted unit).
+const CARD_IF_PRESENT = ['isMinimum', 'MINIMUM_TIP', 'rangeEnd', 'payHeadline', 'payUnit', 'placeCount', 'rangePlaceKeys'].filter((n) => new RegExp(`^(?:const ${n} = |function ${n}\\()`, 'm').test(APP));
 // eslint-disable-next-line no-new-func
-const { payPill } = new Function('formatMoney', `
+const { payPill } = new Function('formatMoney', 'payAt', `
   const CUR_SYM = { USD: '$', GBP: '£', EUR: '€', CAD: 'CA$', AUD: 'A$', JPY: '¥', INR: '₹', CHF: 'CHF ', SGD: 'S$' };
   const OTE_LABEL = 'On-target earnings (base plus commission at target)';
   let viewSpec = null;
   const isPartTimeHourly = () => false, postedTerm = () => null, isOte = (j) => j?.salary?.kind === 'ote';
-  const payHere = () => true, payPlaceText = () => '', placesPicked = () => '', locMatches = () => false;
+  const payHere = () => true, payPlaceText = () => '', placesPicked = () => '', locMatches = () => false, placePay = () => null;
   ${[...CARD, ...CARD_IF_PRESENT].map(fnSource).join('\n')}
-  return { payPill };`)(formatMoney);
+  return { payPill };`)(formatMoney, payAt);
 
 /* ------------------------------------------------------------ fixtures */
 // nvidia:893395255693 "Senior System Software Engineer - Performance",

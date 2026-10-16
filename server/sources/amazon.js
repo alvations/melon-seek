@@ -276,8 +276,14 @@ export function amazonSalary(j, table = amazonPayTable(j.description, j.basic_qu
     if (b && b.rate > 0 && b.rate < pick.max && pick.currency === 'USD') salary.statedBase = { min: b.rate, max: b.rate, currency: 'USD', interval: 'hour', text: b.text };
   }
   const yearly = (v, iv) => (factor && iv === 'month' ? Math.round(v * factor) : annualize(v, iv));
+  // QA round 3 (fix-pay-at-place): a virtual-location row keeps its state ("Remote (CA)", "Remote (IL, NJ)"); tied to
+  // the posting's Remote place, it read "Remote" and one Remote posting showed four "Remote" rows and "· 4 places".
+  const remoteName = (rs) => {
+    const states = [...new Set(rs.filter((r) => r.place.virtual && r.place.state).map((r) => r.place.state.toUpperCase()))];
+    return states.length ? `Remote (${states.join(', ')})` : 'Remote';
+  };
   const label = (g) => {
-    if (g.locations.length) return short([...new Set(g.locations.map((l) => (/^remote\b/i.test(l) ? 'Remote' : String(l).split(',')[0].trim())))].join(', '));
+    if (g.locations.length) return short([...new Set(g.locations.map((l) => (/^remote\b/i.test(l) ? remoteName(g.rows) : String(l).split(',')[0].trim())))].join(', '));
     return short([...new Set(g.rows.map((r) => (r.place.virtual ? `Remote${r.place.state ? ` (${r.place.state.toUpperCase()})` : ''}` : r.place.cityText || r.location)))].join(', '));
   };
   // SB-3 (salary audit): every distinct row is a range; none is cut (a cap at 12 dropped places' pay).

@@ -17,7 +17,7 @@
 
 import {
   salaryUSD, weightedPercentile, percentile, median, formatMoney, plural, h, uid, locationKey,
-  payLocations, isOTE, payKind, isInternLike, countryName, countryInSentence, OTE_LABEL,
+  payLocations, isOTE, payKind, isInternLike, countryName, countryInSentence, OTE_LABEL, payAt, toUSD,
 } from './shared.js';
 import {
   normalizeTitle, familySim, rolePart, roleFamily, FAMILY_LABELS, SENIORITY_LADDER,
@@ -141,9 +141,12 @@ function buildIndex(jobs) {
     if (!job) continue;
     const pay = salaryUSD(job);
     if (!pay) continue;
-    const locs = payLocations(job);
+    // fix-pay-at-place (lead decision 2026-10-16): a posting that prices its places in rows of their own has no
+    // posted pay at a place it lists in no row, so that place is not one of its pay places here.
+    const rows = Array.isArray(job.salary?.ranges) && job.salary.ranges.length > 0;
+    const locs = rows ? payLocations(job).filter((l) => payAt(job, l)) : payLocations(job);
     pool.push({
-      job, pay, norm: normalizeTitle(job.title, { department: job.department }), locs,
+      job, pay, norm: normalizeTitle(job.title, { department: job.department }), locs, rows,
       countries: new Set(locs.map((l) => String(l?.country || '').toUpperCase()).filter(Boolean)),
     });
   }
@@ -237,7 +240,7 @@ export function estimateComp(allJobs, query = {}) {
     // Weighting keeps "no level word" close to "no level word" (a title feature: the backtest error
     // rises from 10.7% to 13.3% at Anduril without it); the basis line never calls it a level.
     const w = ts * ts * senioritySim(level, p.job.seniority) * deptSim(q.department, p.job.department) * locSim(ql, p.locs, p.job);
-    scored.push({ job: p.job, pay: p.pay, titleSim: ts, w });
+    scored.push({ job: p.job, pay: ql && ql.city && p.rows ? payAtQuery(p, ql) : p.pay, titleSim: ts, w });
   }
   if (!scored.length) {
     if (!candidates) return empty('No roles on this board publish pay, so there is nothing to compare against yet.', 'no-pay');
@@ -313,6 +316,19 @@ export function estimateComp(allJobs, query = {}) {
     reason: null, kind, country,
     basis: describeComparables(comps, { asked, internQ, ql, country }),
   };
+}
+
+/**
+ * V-40 (fix-pay-at-place): a comparable's pay at the city asked for, when it posts a range per place: the
+ * range posted for its places there (payAt), not its headline (Microsoft's U.S. range for a New York role,
+ * Amazon's Bellevue row for its New York place). Elsewhere, or without a range of its own there, its posted pay.
+ */
+function payAtQuery(p, ql) {
+  const here = p.locs.filter((l) => atPlace(l, ql));
+  const at = here.length ? payAt(p.job, here.length === 1 ? here[0] : here) : null;
+  if (!at) return p.pay;
+  const min = toUSD(at.min, at.currency), mid = toUSD(at.mid, at.currency), max = toUSD(at.max, at.currency);
+  return min == null || mid == null || max == null ? p.pay : { min, mid, max, currency: at.currency, converted: at.currency !== 'USD' };
 }
 
 /** Does this pay location sit at the query's place (city / name / app key)? */
