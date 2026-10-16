@@ -1,6 +1,6 @@
 // Methodology and sources review of the beta site, round 3 (docs/process/methodology-review-beta-2.md).
-// Findings MR-23 to MR-42, on the lead's reviewer build of 6178be7 with the 2026-10-16 crawl (every board
-// whole: Amazon 22,179, Apple 4,851, Google 3,821, NVIDIA 2,711, Microsoft 2,435, Meta 1,208, Netflix 414;
+// Findings MR-23 to MR-42 (MR-39 and MR-42 have no code test), on the lead's reviewer build of 6178be7 with
+// the 2026-10-16 crawl (every board whole: Amazon 22,179, Apple 4,851, Google 3,821, NVIDIA 2,711, Microsoft 2,435, Meta 1,208, Netflix 414;
 // main-site Anduril 2,537). Each test encodes a missing registry entry, a stale as-of date or value, a number
 // shown without the caveat or source it needs, or a line of docs that no longer matches the code.
 // They run as to-dos, the project's convention (test/beta-methodology.test.js): a failing to-do is reported
