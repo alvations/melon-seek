@@ -180,7 +180,10 @@ export function registerFixDensityTests(suite) {
         const { page: p, errors } = await page(ctx, st, vp);
         const base = `${st.origin}/melon-seek/${site}`;
         const bad = [];
-        await go(p, `${base}#c=${slug}&m=insights`, 1200);
+        await go(p, `${base}#c=${slug}&m=insights`, 600);
+        // Amazon's 22,000 postings take a moment to sum up.
+        await p.waitForFunction(() => /roles/.test(document.querySelector('#insightsPanel .ms-insights__sub .ms-note__line')?.textContent || ''), null, { timeout: 45000 }).catch(() => {});
+        await sleep(400);
         const head = await measure(p, '#insightsPanel .ms-insights__sub');
         assert(head.length === 1, 'the Market insights header is on screen');
         check(head, bad, 'insights');
@@ -209,6 +212,39 @@ export function registerFixDensityTests(suite) {
         assert(!errors.length, errors.join(' | '));
       });
     }
+  }
+
+  // Fix wave 5 (fix5-data's display patch, folded in here): a stated minimum (VT-17) and pay that includes the
+  // top shift differential (VT-18) keep the one-line pay caption; the detail is in Details.
+  for (const vp of [VIEWPORTS[1], VIEWPORTS[2]]) {
+    suite.test(`fix-density: ${vp[0]}: Amazon's minimum and shift-pay roles keep one caption line; "the offer can be higher" and the starting base are under Details`, async (ctx) => {
+      const st = await serveDist();
+      if (!st) skip('no build with a beta copy (npm run build, or BETA_QA_DIST=<dir>)');
+      if (!boardList(st, 'beta/', 'amazon')) skip('no amazon snapshot in this build');
+      const { page: p, errors } = await page(ctx, st, vp);
+      const base = `${st.origin}/melon-seek/beta/`;
+      await go(p, `${base}#c=amazon`);
+      const ids = await p.evaluate(async () => {
+        const r = await (await import(new URL('api.js', location.href).href)).getJobs({ company: 'amazon' });
+        const min = r.jobs.find((j) => j.salary && j.salary.kind === 'minimum');
+        const shift = r.jobs.find((j) => j.salary && j.salary.includesShiftDifferential && j.salary.statedBase);
+        return { min: min?.id || null, shift: shift?.id || null };
+      });
+      if (!ids.min && !ids.shift) skip('no minimum or shift-pay Amazon role in this build (fix wave 5 data)');
+      const bad = [];
+      for (const [id, line, want] of [[ids.min, /^Posted minimum base pay$/, /the offer can be higher/], [ids.shift, /^Posted pay, including shift pay$/, /Base pay starts at/]]) {
+        if (!id) continue;
+        await go(p, `${base}#c=amazon&job=${encodeURIComponent(id)}`, 900);
+        const lines = [...await measure(p, '#drawer .d-pay-note'), ...await measure(p, '#drawer .d-pct-text'), ...await measure(p, '#drawer .dist-caption')];
+        check(lines, bad, `drawer ${id}`);
+        const cap = lines.find((m) => m.sel === '#drawer .d-pay-note');
+        if (!cap || !line.test(cap.text)) bad.push(`${id}: caption line "${cap?.text}"`);
+        const e = await details(p, '#drawer .d-pay-note', { want });
+        if (e) bad.push(`${id}: ${e}`);
+      }
+      assert(!bad.length, bad.join('\n  '));
+      assert(!errors.length, errors.join(' | '));
+    });
   }
 
   suite.test('fix-density: the chart notes\' Details opens and closes from the keyboard (Enter and Space), with aria-expanded, and keeps its caveats', async (ctx) => {
