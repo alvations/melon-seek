@@ -1011,3 +1011,352 @@ h('span', { class: 'wf-label', role: 'rowheader' }, label,
 - **Workflows.** No `${{ github.event.* }}` or `inputs.*` appears in a `run:` (bigtech-probe passes inputs through `env`). The step outputs interpolated at `pages.yml:335,338` and `site-watchdog.yml:55` come from our own scripts. Hygiene: pass them through `env` too. `beta-deploy` has `actions: write` only and deploys only a trusted branch. The archive's `contents: write` is limited to the data branch by `branch.sh`. Supply chain: no new npm dependency, every action pinned by SHA, Inter self-hosted (OFL), `openpyxl==3.1.5` in a manual probe only.
 - **Client state.** New keys: `melon-seek.last.beta.v1` (restored through `parseHash`'s whitelist), `melon-seek.household.v1` (`householdInfo` whitelist) and `melon-seek.juiceScale.v1` (try/catch). The new hash key `mc` is allow-listed. Hash values have no length cap. A shared link with 3,000 search words settled in 715 ms and 200 KB location keys in 3.3 s, so this is not reported.
 - **Accessibility, positive.** axe found 0 violations on the company menu and the map, and no contrast violations in either theme. The drawer takes focus on open (`#drawerClose`), traps it (80 Tabs, 0 outside) and returns it to the card. Reduced motion sets transitions to `1e-05s` and `scroll-behavior: auto`. There is no horizontal scroll at 320, 390 and 640 px. The phone sheet handle announces its state ("Expand results list", `aria-expanded` false → true). Map pins and the Remote button have names ("Johannesburg, Cape Town and 2 more: 6 postings, no salary posted for here", "310 remote postings · median $177K — show list"). The Beta tag is "Beta site. Go to the main melon·seek site" (5.95:1 light, 7.90:1 dark) with a 44 px tap area on the phone. Big-tech pay reads correctly in the accessible tree: "Pay by level: IC5: $142.8K–274.8K · IC6: $165.6K–296.4K", the part-time card "$24.50–31.83/hour (Part-time, paid by the hour: … $50,960–66,206 a year if full-time, 2,080 hours)", "PLN 345K–702K … ≈ $91K–186K in approx US dollars", and "€47,000 a year EUR · 13-week internship". `#resultsTitle` is `aria-live="polite"`.
+
+---
+
+## beta review 2026-10-16
+
+Scope: everything added or changed for target `beta` since the beta review of 2026-10-11 (`3cf226e..9c548e2`, 210 commits; line numbers refer to `9c548e2` unless a finding says otherwise). The lead asked for two extra items mid-review: the monthly refresh's new commit mode (`32f556f`) and its fix (`9c548e2`).
+
+Security covered:
+- the Amazon, Meta and Google adapters, the shared incremental-crawl module (`server/sources/incremental.js`) and `server/families.js`;
+- the norm-10 and norm-11 parsers in `server/salary.js`, `server/normalize.js`, `server/keywords.js` and `server/geo.js`, plus `scripts/snapshot.js` (trimming, crawl state);
+- `scripts/build-static.js` (melon-packed-3, first-page previews, `config.js`), `public/api.js#getPreview`;
+- the client's new DOM: `public/viz/note.js`, the Company filter and grouping, the stacked Ranges rows, the preview cards;
+- the DOL tools (`scripts/alt-data/*`);
+- `.github/scripts/check-lists.mjs`, `scripts/cycle/{checkpoint,checkpoint-loop,restore-wip}.sh`;
+- `.github/workflows/{snapshot,ci,pages,bigtech-probe,webkit-phone,monthly-refresh}.yml`.
+
+Accessibility covered: the lead's build of the 2026-10-16 crawl (`cycle-beta6-dist`: Amazon 22,179 postings, Apple 4,851, Google 3,821, NVIDIA 2,711, Microsoft 2,435, Meta 1,208, Netflix 414). Tools: Chromium 141, axe-core 4.13.0, light and dark, at 1440×900, 390×844, 320×640 and 640×450 (200% zoom).
+
+Method, commands and results are in [process/security-a11y-review-beta-2.md](process/security-a11y-review-beta-2.md). Tests that fail until each finding is fixed:
+- `test/beta-security-review-2.test.js`: S-2 and S-4 residuals, S-10, S-11. These are marked `todo`, so `npm test` stays green. S-1's re-check, S-8 and S-9 are plain passing regression tests.
+- `test/e2e/beta-a11y-2.e2e.js`: A-8 to A-11, red in the e2e suite, registered in `scripts/e2e.js`.
+
+No product code was changed.
+
+### Summary (beta round 3)
+
+| # | Severity | Area | Finding |
+|---|----------|------|---------|
+| S-8 | Medium | CI / data integrity | **Fixed during the review (`9c548e2`).** monthly-refresh.yml's new commit mode tested the refreshed files on `GITHUB_SHA`, then copied them whole over the branch's *current* tip. That silently reverted any newer commit to those files, which include `data/freshness.json`, changed in 10 commits that day. It also deployed a tree that had never been tested |
+| S-2 | Low | Crawler policy | **Residual.** The `paused` switch stops only the Amazon and Meta adapters. Paused Apple, Google, Microsoft, Netflix, NVIDIA or Greenhouse boards are still crawled by `snapshot.js <slug>` and `fetchLive` |
+| S-4 | Low | Integrity / phishing | **Residual.** Amazon's `job_path` is appended to the origin unchecked: `@evil.example/x` publishes `https://www.amazon.jobs@evil.example/x` as the Apply link. A dropped link still shows an Apply button naming the site's own host |
+| S-9 | Low | CI / least privilege | **Fixed during the review (`9c548e2`).** The privileged commit step's path filter was a deny-list. Any code path the less-trusted refresh job named (`server/`, `scripts/`, `public/`, `test/`) would have been committed to the deploy branch. Tags named like a branch passed the branch check |
+| S-10 | Low | DoS / parsers | New quadratic parsers on upstream text: `parseMetaAmount`, `familyOfTitle`, `parseMetaSitemap` and `extractMetaPage`, plus the local DOL tools. Projected times for 1 MB are 2 to 59 min |
+| S-11 | Low | Secrets / process | `checkpoint.sh` packs every untracked, non-ignored file of an agent worktree and pushes it to the public default branch every 15 minutes, with no secret filter. That only stays harmless while Pages' branch build keeps failing |
+| A-8 | Low | A11y | The chart's "N more departments" fold row is `role=option` with `aria-expanded` (axe `aria-allowed-attr`, critical). Its open or closed state and its action are not announced |
+| A-9 | Low | A11y | Every one-line note's disclosure is named "Details ▾". There are 8 in Insights and 2 on the first screen, none says what it details, and on a desktop they are 16.8 to 19.6 px tall |
+| A-10 | Low | A11y | The Company and Department checklists in the Department section are unnamed `role=group`s. Their headings are plain text |
+| A-11 | Low | A11y | When Amazon's full list replaces the first-page preview, a focused preview card loses focus to `<body>`. Arrow keys do nothing on preview cards |
+
+Still open from earlier reviews: V12 (no `persist-credentials: false` in read-only jobs, now also in `webkit-phone.yml` and the monthly refresh job; plus unpinned `brew tap facebook/fb` and `pip install fb-idb`) and V14 (a custom board can take a built-in's name). The rest of the 2026-10-11 findings are fixed; see "Re-check (beta round 3)".
+
+### S-8. Monthly refresh commit over a moved tip (Medium, fixed in `9c548e2`)
+
+**Where (at `32f556f`)**: `.github/workflows/monthly-refresh.yml:192-203`. The refresh job runs `npm test` on `GITHUB_SHA` plus the refreshed files. Then at `:312-316` the publish step loops `gitw fetch -q origin "$target"`, `git checkout -q --detach FETCH_HEAD` and `apply`. `apply` (`:293-303`) runs `cp -- "tmp/changes/$f" "$f"` for each whole file. At `:329-330` it dispatches CI and pages.yml together.
+
+**Impact**: the refresh job runs for up to 45 minutes. If anything lands on the branch in that time, or between push retries, two things go wrong:
+1. The committed tree is the new tip plus the refreshed files, and that combination was never tested. pages.yml deploys it without waiting for CI.
+2. Every reported file is replaced whole, so any change the tip made to it is reverted with no conflict and no message. The reported set includes `data/freshness.json` every month, plus `docs/DATA_FRESHNESS.md`, `data/cities.json`, `server/juice.js`, `server/salary.js`, `public/viz/palette.js`, `public/features/shared.js`, `README.md`, `docs/CONTRACT.md` and `test/juice.test.js`. `data/freshness.json` alone changed in 10 commits on 2026-10-16 ("Registry: line numbers after …").
+
+**Fix (applied by the lead in `9c548e2`, re-checked)**:
+- `:323-329`: the loop refuses when `git diff --quiet "$GITHUB_SHA" "$tip" -- <files>` fails, before `apply` runs.
+- `:349-353`: pages.yml is dispatched only when the tip equals the tested commit outside `wip/`. Otherwise only CI is dispatched.
+
+`test/monthly-refresh-commit.test.js` runs the step against scratch repos and passes 7/7. `test/beta-security-review-2.test.js` "S-8" pins the order: the guard comes before `apply`, and the deploy depends on it.
+
+### S-2 (residual). The pause stops only two adapters (Low)
+
+**Where**: `server/companies.js:93` (`crawlBlock`) is called only by `server/sources/amazon.js:342` and `server/sources/meta.js:251`. `server/pipeline.js:52` (`fetchLive`) and `scripts/snapshot.js:252` resolve any built-in, paused or not. The PAUSING comment (`server/companies.js:77-80`) says "its adapter refuses to start before its first request … whoever calls it", which is true only for those two.
+
+**Repro**: `probes/pause.mjs` (log §4) sets `paused: 'terms'` on each built-in in turn and calls `fetchLive` with a stubbed `fetch`. Results:
+- Apple: `jobs.apple.com/robots.txt` and `/api/v1/search`.
+- Google: `www.google.com/robots.txt` and the sitemap.
+- Microsoft, Netflix, NVIDIA: robots.txt and the search API.
+- Anthropic: the Greenhouse board.
+
+Each of those failed with code `http`, not `paused`. Amazon and Meta made 0 requests. Nothing is paused today (the user resumed Amazon and Meta on 2026-10-11), so this is latent. Apple, whose terms have a similar clause (lead.md 2026-10-11), is the likely next pause. The 2026-10-11 S-2 tests assume Amazon and Meta are paused, so they stay to-dos for a reason that no longer applies. The new test "S-2 residual" covers every other built-in.
+
+**Patch**: one guard where every crawl passes, as the 2026-10-11 patch proposed.
+```js
+// server/pipeline.js fetchLive(), first lines
+import { crawlBlock } from './companies.js';
+const blocked = company && (company.paused ? company : crawlBlock(company.source, company.board));
+if (blocked) { const e = new Error(`${blocked.slug}: paused (${blocked.paused}); not crawled (server/companies.js PAUSING)`); e.code = 'paused'; throw e; }
+// scripts/snapshot.js one(), after resolveCompany (line 252)
+if (company.paused) throw Object.assign(new Error(`${company.slug} is paused (${company.paused}); not crawled`), { code: 'paused' });
+```
+Also call `crawlBlock` at the top of `fetchApple`, `fetchGoogle` and `fetchEightfold`, as Amazon and Meta do, so the probe's full mode is covered too.
+
+### S-4 (residual). Amazon posting links are not host-checked (Low)
+
+**Where**:
+- `server/sources/amazon.js:324`: ``url: j.job_path ? `${AMAZON_ORIGIN}${j.job_path}` : …``. String concatenation, so `job_path` can move the host.
+- `server/normalize.js:291-297,342`: `postingUrl` checks the scheme only.
+- `public/app.js:4552-4556`: `applyHost(null)` resolves `null` against the page, so a dropped link reports the site's own host.
+- `public/app.js:4354-4356`: the Apply button is always rendered.
+
+**Repro** (crafted build, log §4 step 9):
+- An Amazon row with `job_path: "@evil.example/x"` is stored and published with `url: https://www.amazon.jobs@evil.example/x`, in `beta/data/amazon.csv` and `beta/api/jobs/amazon.json`. The drawer shows "Apply on Amazon’s careers site" with `evil.example` in small print, linking there.
+- With `job_path: "javascript:…"` the URL is dropped (good). The drawer still renders "Apply on Amazon’s careers site" with the host `127.0.0.1`, the page's own, and no `href`.
+
+Eightfold got its on-host check (S-4); Amazon did not.
+
+**Patch**:
+```js
+// server/sources/amazon.js mapAmazonJob()
+const onHost = (p) => { try { const u = new URL(String(p), AMAZON_ORIGIN); return u.origin === AMAZON_ORIGIN && !u.username && !u.password ? u.href : null; } catch { return null; } };
+url: (j.job_path && onHost(j.job_path)) || `${AMAZON_ORIGIN}/en/jobs/${encodeURIComponent(j.id_icims)}`,
+// server/normalize.js: for a beta built-in, keep only links on that company's posting hosts
+// (move BETA_POSTING_HOSTS / _PREFIXES from scripts/links-policy.js into server/companies.js, per company)
+// public/app.js
+function applyHost(u) { if (!u) return ''; … }
+// drawer foot: render the Apply link only when safeUrl(job.url) !== '#', else h('p', { class: 'muted' }, 'No link to the posting')
+```
+
+### S-9. Deny-list path filter in the privileged commit step (Low, fixed in `9c548e2`)
+
+**Where (at `32f556f`)**: `.github/workflows/monthly-refresh.yml:295-298`.
+- `case "$f" in ""|/*|*..*|.*|*/.*|node_modules/*|package.json|package-lock.json) refuse` is a deny-list. It refused `.github/` but accepted `server/index.js`, `scripts/archive/branch.sh`, `public/app.js`, `test/**`, `Dockerfile` and the holding page `index.html`.
+- The trust checks (`:93`, `:289`) matched `$GITHUB_REF_NAME`, so a dispatch on a tag named like a trusted branch passed. `git fetch origin "$target"` would also prefer that tag.
+
+The file list and contents come from the refresh job, which runs `npm ci` and parses remote pages and PDFs. The two-job split exists to contain that job, but the filter let it name code for the write-token step to commit. That code then runs in archive.yml (`contents: write`) and pages.yml.
+
+**Fix (applied in `9c548e2`, re-checked)**:
+- An exact allow-list of the 11 files the refresh writers write (`:305-306`). `test/monthly-refresh-commit.test.js` keeps it equal to the writers' `file:` targets.
+- `[ "$GITHUB_REF" = "refs/heads/$target" ]`, and a fetch of `refs/heads/$target`.
+
+`test/beta-security-review-2.test.js` "S-9" runs the step's `apply()` with seven disallowed paths, all refused, and three writer files, all applied.
+
+**Residual, for the lead to weigh**: the allow-list limits *which* files are committed, not *what is in them*. Four are executable code: `server/juice.js`, `server/salary.js`, `public/viz/palette.js` and `public/features/shared.js`. Two of them reach browsers. Hardening: after `apply`, run `git diff -U0 "$GITHUB_SHA" -- <those four>` and refuse unless every changed line has a shape the writers produce (`^[+-]\s*[A-Z]{3}: [0-9.e-]+,?$`, the `FX_AS_OF` / `FX_SOURCE` one-liners, the `FX_FALLBACK` CNY entry, the tax constants).
+
+`test/juice.test.js` is on the list, so the gated job rewrites part of its own gate (the pinned FX examples). The lead accepts this as a known limitation. A cleaner option: move the pinned examples to a data fixture the examples test reads, and keep every assertion in test code the refresh never writes.
+
+### S-10. New quadratic parsers on upstream text (Low)
+
+**Where**:
+- `server/sources/meta.js:134` (`parseMetaAmount`: `^\s*(…)?\s*` around an optional group).
+- `server/families.js:122` (`prep`: `/[（(][^）)]*[）)]/g`, and titles are not length-capped).
+- `server/sources/meta.js:36` (`parseMetaSitemap` without `<url>` blocks: `/<loc>[\s\S]*?<\/loc>/g`).
+- `server/sources/meta.js:83` (`jsonLd`: `/<script[^>]+type=…[^>]*>([\s\S]*?)<\/script>/g`).
+- The DOL tools: `scripts/alt-data/xlsx.js:157,220` (`richText`, `CELL_RE`) and `scripts/alt-data/employers.js:16,23` (`SUFFIX_RE` loop).
+
+**Measured** (`redos/scale.mjs`, worker with a watchdog, machine load 9 to 17; growth exponent fitted between 64 KB and 128 KB):
+
+| Input | 16 KB | 64 KB | 128 KB | 1 MB (projected) |
+|---|---:|---:|---:|---:|
+| `parseMetaAmount(' ' × n)` | 0.78 s | 12.3 s | 50.7 s | ~59 min (exp. 2.04) |
+| `familyOfTitle('(' × n)` | 0.57 s | 9.4 s | 31.2 s | ~19 min (1.74) |
+| `familyOfTitle('(L5' × n)` | 0.12 s | 2.8 s | 9.3 s | ~5 min (1.70) |
+| `parseMetaSitemap('<loc>' × n)` | 0.03 s | 0.66 s | 3.9 s | ~13 min (2.55) |
+| `extractMetaPage('<script ' × n)` | 0.14 s | 2.2 s | 6.1 s | ~2.3 min (1.50) |
+| `rowCells('<c' × n)` (DOL xlsx) | 0.16 s | 3.3 s | 10.0 s | ~5 min (1.61) |
+| `normalizeEmployer('INC ' × n)` (DOL) | 0.17 s | 2.7 s | 11.3 s | ~13 min (2.04) |
+
+**Impact**: only the big-tech crawlers and the local DOL tool reach these, so the input is the careers sites' own responses (and Google's titles, which `upgradeGoogleJobs` re-reads at every snapshot read and build). No server-mode custom board reaches them. The cost is a stalled crawl or build, not a public DoS. Every 2026-10-11 S-3 input now parses 1 MB in under 1 s. No other parser in the 70-function × 75-generator harness grew superlinearly at 1 MB (log §5).
+
+**Patch**:
+```js
+// server/sources/meta.js parseMetaAmount(): amounts are short
+const m = /^([A-Z]{3}\s?|[A-Z]{0,2}\$|£|€|¥|₹|₪)?\s*([\d,]{1,20}(?:\.\d{1,4})?)\s*([A-Z]{3})?\s*(?:\/|per\s+)?\s*(year|yr|hour|hr|month|week|day)?/i.exec(String(s || '').trim().slice(0, 100));
+// parseMetaSitemap(): a bounded <loc>
+: [...text.matchAll(/<loc>[^<]{0,2048}<\/loc>/g)].map((m) => m[0]);
+// jsonLd(): a forward-only scan instead of the regex
+for (let i = 0; (i = html.indexOf('<script', i)) >= 0;) {
+  const gt = html.indexOf('>', i); if (gt < 0) break;
+  const end = html.indexOf('</script>', gt); if (end < 0) break;
+  if (/type="application\/ld\+json"/.test(html.slice(i, gt))) { /* JSON.parse(html.slice(gt + 1, end)) as today */ }
+  i = end + 9;
+}
+// server/families.js prep()
+let t = String(title || '').slice(0, 500); // real titles are under 200 characters
+return t.replace(/[（(][^（(）)]{0,200}[）)]/g, ' ').replace(/\s+/g, ' ').trim();
+// scripts/alt-data: cap a row's XML (real rows are under 64 KB) and an employer name (300 characters)
+```
+
+### S-11. Checkpoints publish unfiltered worktree files to the public default branch (Low)
+
+**Where**:
+- `scripts/cycle/checkpoint.sh:54-60`: every `git ls-files --others --exclude-standard` file goes into `untracked.tgz`, except symlinks, `docs/screenshots/*` and files over 5 MB.
+- `:99`: `git push origin "HEAD:$BRANCH"` pushes to the deploy branch, which is the repository's default branch. The repository is public.
+- `scripts/cycle/checkpoint-loop.sh:55`: the push runs every 15 minutes, unattended.
+- `.github/workflows/pages.yml:28` and `ci.yml:6`: `paths-ignore: ['wip/**']`.
+
+**Repro**: `test/beta-security-review-2.test.js` "S-11" builds a scratch origin and a lane worktree holding `.env`, `deploy-key.pem`, `notes/api.key` and `.npmrc`, then runs `checkpoint.sh --ckpt`. All four are packed beside the lane's log.
+
+There is also a latent coupling. Settings → Pages is still "Deploy from a branch" (lead.md, 2026-10-10). The branch build has failed at "Build with Jekyll" on every push since 2026-10-10 09:30 (runs 132 to 211 of `pages-build-deployment`, including every checkpoint push), so today it deploys nothing. If that build ever succeeds again:
+- each checkpoint push would publish the holding page, or the repo root with `wip/`, over the app;
+- `paths-ignore` would keep pages.yml from redeploying;
+- only the 30-minute watchdog would restore the site.
+
+**Patch**:
+```bash
+# checkpoint.sh fill(), in the untracked loop, before the size check
+elif case "${f##*/}" in .env|.env.*|*.pem|*.key|*.p12|*.pfx|id_rsa*|id_ed25519*|.npmrc|.netrc|*credential*|*secret*|*.token) true ;; *) false ;; esac; then
+  echo "$f (looks like a secret; never checkpointed)" >> "$skipped"
+```
+Push checkpoints to a ref that is not the deploy branch, for example `git push -q origin "+HEAD:refs/heads/wip-checkpoints"`, with `restore-wip.sh --from origin/wip-checkpoints` by default. Then no branch build, CI or Pages run can see them, and `paths-ignore` is no longer load-bearing. The permanent Pages fix (Source: "GitHub Actions") still needs an admin.
+
+### A-8. Fold row: `aria-expanded` on an option (Low)
+
+**Where**: `public/viz/chart.js:1035-1050`. The "N more departments" (or companies) row is the `role=option` label of a group in the chart's listbox, and it carries `aria-expanded`. ARIA 1.2 does not support `aria-expanded` on `option`, so axe reports `aria-allowed-attr` (critical) on the first screen of Google and Amazon, in both themes and on the phone. Its name ("20 more departments: all 1,204 roles, median $194K in the US") does not say that Enter unfolds it. Only the `title` ("Click to show each department") does.
+
+**Repro**: `#c=google`. Focus the chart and ArrowDown to the fold row: it reads "option, 20 more departments: all 1,204 roles…". Press Enter: the departments unfold and `aria-expanded` becomes true, but nothing announces it.
+
+**Patch**:
+```js
+// chart.js: the state and the action in the name; no aria-expanded on the option
+lab.setAttribute('aria-label', `${r.name}: all ${plural(r.all.length, 'role')}${…}${r.fold ? (foldOpen ? '. Shown one by one: Enter folds them into one row' : `. Enter shows each ${dim === 'brand' ? 'company' : 'department'}`) : ''}`);
+// delete: if (r.fold) lab.setAttribute('aria-expanded', …)
+```
+
+### A-9. "Details" disclosures all have the same name (Low)
+
+**Where**:
+- `public/viz/note.js:55-59`: the button's name is its text, `label = 'Details'`, and no caller passes another.
+- `public/viz/viz.css:128-129`: the CSS `" ▾"` / `" ▴"` generated content becomes part of the name ("Details ▾").
+- `public/viz/viz.css:118-125,146`: the button is 44 px tall on phones, but only its line height on a desktop.
+
+**Repro**:
+- `#c=google&m=insights`: the accessibility tree has 8 buttons all named "Details ▾" (Pay estimate, Market insights, each card, Compare). None has an `aria-describedby`.
+- In a screen reader's button list they cannot be told apart, and in reading order the header's button comes before the "Pay estimate" heading.
+- At 1440×900 the buttons are 49 to 55 × 16.8 to 19.6 px. axe flags `target-size` (serious) on the stats line's button once its list is open (22.8 px of clear space).
+- Keyboard handling is good: Enter toggles `aria-expanded`, the list follows, the 2 px accent ring is 5.31:1 (light) and 9.46:1 (dark), and focus survives a re-render.
+
+**Patch**:
+```js
+// note.js: describe the button by the line it explains (or a caller's `about`)
+if (!empty(line)) { text.id = `${host.dataset.noteId ||= `ms-note-${++seq}`}-line`; }
+btn.setAttribute('aria-describedby', about ? `${listId}-about` : `${host.dataset.noteId}-line`); // or aria-label: `Details: ${about}`
+// insights.js / comps.js / compstimate.js: pass about: <the card's heading>
+```
+```css
+.ms-note__more::after { content: " ▾" / ""; }
+.ms-note__more[aria-expanded="true"]::after { content: " ▴" / ""; }
+@media (min-width: 861px) { .ms-note__more { min-height: 24px; display: inline-flex; align-items: center; margin-block: -4px; } }
+```
+
+### A-10. Company and Department lists are unnamed groups (Low)
+
+**Where**: `public/app.js:2253` (`h('div', { class: 'checklist', role: 'group' })`, no name) and `:2340-2342` (the "Company" and "Department" headings are plain `div.check-group`s, not tied to the lists).
+
+**Repro**: open Google's Department section. The tree is `text "Company"`, `group` (no name) with `checkbox "Google 3546"`, `checkbox "YouTube 162"`…, then `text "Department"`, `group` (no name) with `checkbox "Software Engineering 946"`…. A screen-reader user who tabs in hears "group, Google, 3546, checkbox" and is not told it is a company. A keyboard Space on YouTube works and keeps focus (`#c=google&b=YouTube`, 162 roles).
+
+**Patch**:
+```js
+function makeChecklist(facet, { …, groupLabel = null } = {}) {
+  const list = h('div', { class: 'checklist', role: 'group', 'aria-label': groupLabel });
+// makeDeptFilter()
+const brands = makeChecklist('b', { limit: 6, searchable: false, colorDim: 'brand', groupLabel: 'Company' });
+const depts = makeChecklist('d', { limit, colorDim: 'department', groupLabel: 'Department' });
+```
+The Location list's country headings have the same pattern and can take a label per country group.
+
+### A-11. Preview cards lose focus when the list lands (Low)
+
+**Where**:
+- `public/app.js:3195-3196`: the list that replaces the preview keeps its place (`win.previewIds`), but the cards are new elements (`data-id` instead of `data-preview-id`), and nothing restores focus.
+- `:4929-4933`: the list's keydown handler matches `.card[data-id]` only, so ArrowUp/Down (M-20) do nothing on a preview card.
+
+**Repro** (`a11y/preview-probe.mjs`): `#c=amazon` with the 6.7 MB list held back. The preview shows 60 real cards under "Loading 22,179 roles…", with `aria-busy="true"` on the list and good card names and descriptions. Tab to the third card, then release the list: `document.activeElement` is `<body>`. On a phone on Fast 4G the preview is on screen for about 5 s (perf-mobile-beta-2: first cards 2.0 s, full list 7.2 s), which is long enough to reach a card. Enter on a preview card works: the drawer opens on that posting once the list lands, with focus on its Close button. It gives no feedback while waiting.
+
+**Patch**:
+```js
+// renderResults(), where win.previewIds is checked (line 3196): carry the focused preview card over
+const pf = win.previewIds && document.activeElement?.closest?.('#resultsList .card[data-preview-id]')?.dataset.previewId;
+// … after buildWindow(list):
+if (pf) $(`#resultsList .card[data-id="${cssId(pf)}"]`)?.focus({ preventScroll: true });
+// keydown (line 4929): arrows on preview cards too
+const c = e.target.closest('.card[data-id], .card[data-preview-id]');
+// Enter on a preview card: toast('Opens when the list has loaded') (role=status)
+```
+
+### Re-check (beta round 3)
+
+| # | Status | Evidence (at `9c548e2`) |
+|---|--------|-------------------------|
+| S-1 | Fixed | snapshot.yml downloads each `beta-crawl-*` artifact into its own folder, and "Keep only the accepted crawls" skips `beta-crawl-rejected-*` (`snapshot.yml:296-312`). The new test runs that step: only the accepted `apple.json` is kept. The 2026-10-11 test still checks the glob, so it stays a to-do (replace it with the new one) |
+| S-2 | **Partially fixed** | `snapshot.js amazon` and the probe's defaults no longer crawl a paused company. The guard is in two adapters only; see "S-2 (residual)" |
+| S-3 | Fixed | `MAX_PAY_TEXT`/`MAX_PAY_AMOUNTS` (`server/salary.js:951-997`), a boundary index for `clauseSpan`, bounded tag regexes, and a 5-minute pipeline task limit. The six 2026-10-11 S-3 tests pass, including 1 MB in under 1 s |
+| S-4 | **Partially fixed** | Eightfold links are on-host and https, and the normalizer keeps http(s) only (tests pass). Amazon's `job_path` is not checked; see "S-4 (residual)" |
+| S-5 | Fixed | One concurrency queue per channel (`snapshot.yml:49-51`); the test passes |
+| S-6 | Fixed | `/methodology/` is memoized by input mtimes (`server/index.js:963-980`); the test passes |
+| S-7 | Fixed | serve.mjs answers 400 to bad percent-encoding; the test passes |
+| A-1 | Fixed | Cards have `aria-describedby` to the meta and foot rows. Chromium's computed description, for example: "Software Engineering Redmond, WA +1 Remote Staff+ Juice Score 76, Juicy, for one person in Redmond, WA Python Listed 2 months ago" |
+| A-2 | Fixed | The badge popover takes focus. The e2e test passes |
+| A-3 | Fixed | At 640×450 the company name shows whole (55/55 Google, 74/74 Microsoft, 64/64 Amazon px) |
+| A-4 | Fixed | Snapshot badge ≥ 4.5:1 (e2e passes) |
+| A-5 | Fixed | No axe `list` violations anywhere |
+| A-6 | Fixed | Juice rows hold only cells (e2e passes) |
+| A-7 | Fixed | No `landmark-unique` or `region` in Insights |
+| V8 | Fixed | The sliders are 24 px tall. The focused thumb has a 2 px surface gap and a 2 px accent ring (5.31:1 light, 9.46:1 dark). No axe `target-size` on the filters |
+| V12 | **Open** | `actions/checkout` without `persist-credentials: false` in ci.yml, pages.yml `build`, every snapshot.yml job, bigtech-probe.yml, `webkit-phone.yml:32,55,113` and monthly-refresh.yml's `refresh` job (`:98`, which runs `npm ci` and parses remote content). `webkit-phone.yml:129-131` installs `brew tap facebook/fb` (tap HEAD) and `pip install fb-idb` unpinned (manual dispatch only, `contents: read`) |
+| V14 | **Open** | The "V14 residual" test still fails: a custom board can be shown under a built-in's name |
+
+### Checked and fine (beta round 3)
+
+**Untrusted text into the page.** Hostile values (`<img onerror>`, `"><svg onload>`, `</title><script>`, `{{constructor…}}`, `=HYPERLINK(…)`, `__proto__` and `constructor`) were placed in:
+- Amazon: title, category, family, schedule, locations, the pay-table place label, description and job_path, through `mapAmazonJob`;
+- Google: title (so its job family), brand and locations, through `mapGoogleJob`;
+- Meta: title, locations, departments, description and the compensation country, through `mapMetaJob`;
+- the three postings that lead Amazon's default view, so they are in the first-page preview.
+
+Each went through `normalizeJobs`, then `build-static.js` (151 s; one preview of 100 postings), then Chromium with `bypassCSP`. Screens covered:
+- Amazon's preview (list held back) and full list, Ranges, map, Insights and group by location;
+- Google's chart, grouped by Company, Ranges by Company and Insights;
+- Meta's chart and Ranges;
+- a hostile `b=` and `q=` in the hash;
+- the filters with the hostile Company names, and the company menu;
+- five drawers with every section and Details open;
+- three share pages.
+
+Results:
+- 0 injected elements or handlers, `window.__xss` never set, `Object.prototype` clean.
+- The preview cards show the hostile titles as text.
+- The CSV prefixes `'=HYPERLINK(…)`.
+- `check-lists.mjs` reads the crafted build: 19 lists and 1 preview, 0 problems.
+- The only `innerHTML` writes in the client are still the static icons (`public/app.js:39,4837`). `note.js`, the stacked rows, the Company filter and the preview use text nodes and `setAttribute`.
+- No secret pattern (GitHub, Anthropic or AWS keys, private keys) appears in the lead's build.
+
+**Parsers.** 70 functions × 75 generators at 64 KB found the S-10 pairs. The other 2,752 pairs then ran at 1 MB with a 15 s watchdog, at load 14 and `nice 19`. None timed out. The slowest was `geocode` on `1,1,…` at 4.2 s (exponent 1.16 between 256 KB and 1 MB); `geocode` on `Aa Aa …` took 1.9 s (exponent 1.44). Covered: Amazon's pay table and pay words, the Google and Meta mappers, `jsonSpanAfter`, Apple's pay footers, `trimDescription`, `postingUrl`, the norm-11 salary paths (`SENTENCE_LABEL_RE` and `NATIONAL_LEVEL_RE` read 600 characters at most) and `nearCopyOf`. JSON from the boards is only spread or read by key into `Map`s. `packList` and the preview use `Map`s, so a `__proto__` department or brand is just a value.
+
+**Crawlers.**
+- `incremental.js`: probes and conditional requests use each adapter's literal origin plus an encoded id. An id of `..` moves the path on the same host only, as with L1.
+- `politeRequest` still uses `redirect: 'manual'`.
+- The crawl state comes only from trusted runs (`ledger.sh restore-artifact`), and in beta-merge from this run's `crawl-state-*` artifacts.
+- Amazon reads one `search.json` per partition. Google and Meta read their sitemaps (robots.txt first). The User-Agent is unchanged and honest.
+- The DOL downloader (`scripts/alt-data/dol-disclosure.js:108-140`) is manual only, with no workflow. It follows redirects, does not pin hosts for the file links found on the dol.gov page, and has no size cap. As hygiene, require `https://www.dol.gov/` for those links and cap the download at 1 GB.
+
+**Build and share pages.**
+- Lists carry no description HTML or stored Juice. Previews hold the list's own postings (check-lists).
+- `config.js` fetches a preview only for slugs in its own literal list, with `encodeURIComponent`.
+- Share pages escape every value. The CSP and referrer metas are on every page, with no inline script.
+
+**Workflows.**
+- No `${{ github.event.* }}` or `inputs.*` inside `run:` in the new steps: `full_crawl`, `ios_devices` and `only` reach `run:` through `env:`.
+- `check-lists.mjs` only reads `dist`.
+- monthly-refresh after `9c548e2`:
+  - the token goes only to the git calls, through `GIT_CONFIG_*`, with `persist-credentials: false` on the publish checkout and the base64 header masked;
+  - `steps.tests.outcome` is the right field under `continue-on-error`;
+  - missing or odd `problems`, `datafiles` and `tests` values fail safe;
+  - the target is never force-pushed.
+- `ci.yml`'s new `workflow_dispatch` has no inputs.
+
+**Client state.** One new hash key, `b` (Company filter, an array of strings rendered as text), and one new `g` value, `brand`, which is allow-listed. No new storage keys. The Details open state is kept in memory.
+
+**Supply chain.** No new npm dependency and no new file under `public/vendor`. Every action is pinned by SHA. `webkit-phone.yml` pins `playwright@1.63.0`; its brew and pip installs are under V12.
+
+**Accessibility, positive.**
+- axe 4.13.0 on 13 screens in both themes found only A-8, A-9's target size and the known `aria-allowed-role` (minor) on `article role=button` and `aside role=dialog`. The screens: first load, every Details open, company menu, filters, Google by Company, Microsoft Ranges, the drawer with everything open, the map, Amazon Insights with Compstimate and Compare, the Amazon chart, the Amazon preview, and on the phone the first load, sheet and filters.
+- No `color-contrast` violations. Measured ratios, light / dark: Details button 5.31 / 9.46, Details list 5.95 / 8.50, Company heading 4.83 / 6.07, the stacked rows' `×N` 5.95 / 7.90.
+- Stacked Ranges rows have full names ("2 roles with the same posted range, $221K to $331K, Software Engineering"), and the visible "2 roles" is in the name. Enter lists the postings and updates the polite results count.
+- The preview list is `aria-busy`. The results title "Loading 22,179 roles…" is a polite live region. Preview cards carry the same names and descriptions as list cards.
+- There is no horizontal scroll at 320, 390 or 640 px. Details lists stay on screen and hit-testable at 320 px. Reduced motion holds (`1e-05s`).
+- The beta notice, the Snapshot badge ("Data source: saved snapshot from Oct 16", with "your browser can’t fetch it live" in its description) and the big-tech pay forms read correctly in the accessibility tree. For example:
+  - "from €46K (The posting states this as the minimum base pay; the offer can be higher)";
+  - "$21.05/hour (Part-time, paid by the hour: … $43,784 a year if full-time, 2,080 hours)";
+  - "· 2 levels (… Pay by level: Level 2 $184K–287K · Level 3 $224K–356K)";
+  - "· 4 places (… Pay by place: New York $74K–129K · …)";
+  - the drawer's "Incl. top shift pay" and "Posted pay, including shift pay";
+  - "≈ $61K in US dollars at Jul 2026 rates" for PLN.
