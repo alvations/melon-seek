@@ -42,6 +42,7 @@ import { registerFixPhoneControlsTests } from '../test/e2e/fix-phone-controls.e2
 import { registerFixSec3Tests } from '../test/e2e/fix-sec-3.e2e.js';
 import { registerFixData3Tests } from '../test/e2e/fix-data-3.e2e.js';
 import { registerPhoneMatrixTests } from '../test/e2e/phone-matrix.e2e.js';
+import { registerFixPhoneTextTests } from '../test/e2e/fix-phone-text.e2e.js';
 
 const args = new Set(process.argv.slice(2));
 const apiOnly = args.has('--api-only');
@@ -109,6 +110,7 @@ if (!apiOnly) {
   registerFixSec3Tests(suite);
   registerFixData3Tests(suite);
   registerPhoneMatrixTests(suite);
+  registerFixPhoneTextTests(suite);
 }
 
 let results;
