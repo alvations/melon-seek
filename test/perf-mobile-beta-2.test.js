@@ -19,7 +19,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ref = await import(pathToFileURL(path.join(ROOT, 'test', 'fixtures', 'packed-2-reference.js')).href);
-const { packList } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'build-static.js')).href);
+const { packList, PREVIEW_MIN_JOBS } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'build-static.js')).href);
 const realFetch = globalThis.fetch;
 let TMP, DIST;
 const readJson = (...p) => JSON.parse(fs.readFileSync(path.join(...p), 'utf8'));
@@ -230,8 +230,8 @@ test('the 1.5 MB list budget is still measured in melon-packed-2 bytes: the same
 
 const vmRun = (code, sandbox) => vm.runInNewContext(code, sandbox);
 
-/** A big board the salary gate leaves alone: US pay in 16 levels (some ties), 8 US cities, some unpaid. */
-const bigBoard = async (n = 1300) => {
+/** A board big enough for a preview that the salary gate leaves alone: US pay in 16 levels (ties), 8 US cities, some unpaid. */
+const bigBoard = async (n = PREVIEW_MIN_JOBS + 300) => {
   const base = (await anthropicPlain()).jobs;
   const cities = readJson(ROOT, 'data', 'cities.json');
   const us = (Array.isArray(cities) ? cities : cities.cities).filter((c) => c.country === 'US').slice(0, 8);

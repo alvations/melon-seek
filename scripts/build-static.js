@@ -380,7 +380,11 @@ async function writeSplit(out, payload, file, api, slug, vet = null) {
 // public/app.js shows them as the first page while the whole list loads (then the whole list
 // replaces them; the page keeps its place when they agree, which they do). Nothing is left out: the
 // preview is an extra, early copy of the list's first postings; the list itself is unchanged.
-export const PREVIEW_MIN_JOBS = 1000; // smaller boards load fast enough without one
+// Only where the whole list takes long: on the 2026-10-16 crawl a preview brought the first cards to about
+// 2 s on every board measured, but drawing it delays the whole list and the chart by about 0.3-0.5 s
+// (Apple 4,851: chart 3.0 -> 3.3 s; Anduril 2,537 on the main site: 2.6 -> 3.1 s, Fast 4G at 4x CPU),
+// while those boards' first cards were at about 3 s anyway. Amazon's 22,179 waited 6.9 s for them.
+export const PREVIEW_MIN_JOBS = 10000;
 export const PREVIEW_SIZE = 100;
 /** The preview file of a company, relative to the site root (public/api.js#getPreview reads it). */
 export const previewPath = (slug) => `api/preview/${slug}.json`;
