@@ -203,6 +203,35 @@ test('SA-4 Microsoft: a level paragraph after a pay link keeps its level (IC4 an
   assert.deepEqual((p.levels || []).map((l) => [l.label, l.min, l.max]), [['IC4', 107600, 187500], ['IC5', 133000, 222700]]);
 });
 
+/* --------------------------------------------------------------------- card */
+// SB-7 (client, patch docs/process/patches/salary-audit-backend-client.diff for public/app.js). The card's
+// range ends in the millions had one decimal: netflix:790316208712 posts $600,000.00 - $1,066,000.00 and the
+// card read "$600K–1.1M"; google:127450315589853894 posts SEK 1,000,000–1,030,000 and the card read "SEK 1.0M",
+// one number. 27 cards on 2026-10-16 were off by more than 2% because of it (up to 3.9%). A to-do until the patch lands.
+function appFunctions(names) {
+  const src = fs.readFileSync(path.join(ROOT, 'public', 'app.js'), 'utf8').split('\n');
+  const parts = [];
+  for (const name of names) {
+    const re = new RegExp(`^(?:function\\s+${name}\\s*\\(|const\\s+${name}\\s*=)`);
+    const i = src.findIndex((l) => re.test(l));
+    if (i < 0) continue;
+    let j = i;
+    if (/^function/.test(src[i])) { while (j < src.length && src[j] !== '}') j++; } else if (!/;\s*$/.test(src[i])) { j = i + 1; while (j < src.length && !/^[}\])]/.test(src[j])) j++; }
+    parts.push(src.slice(i, j + 1).join('\n'));
+  }
+  return parts.join('\n');
+}
+test('SB-7 card: a range end in the millions keeps two decimals ("$600K–1.07M", "SEK 1M–1.03M")', { todo: 'client patch docs/process/patches/salary-audit-backend-client.diff' }, async () => {
+  const { formatMoney } = await import('../public/viz/palette.js');
+  // The functions as public/app.js has them (a module with a DOM; these few are pure).
+  const body = `${appFunctions(['CUR_SYM', 'money', 'rangeEnd', 'moneyRange', 'salaryRange'])}\nreturn { moneyRange, salaryRange };`;
+  const { moneyRange, salaryRange } = new Function('formatMoney', body)(formatMoney);
+  assert.equal(moneyRange(600000, 1066000), '$600K–1.07M');
+  assert.equal(moneyRange(1000000, 1030000, 'SEK'), 'SEK 1M–1.03M');
+  assert.equal(salaryRange({ min: 1430000, max: 1430000, currency: 'USD' }), '$1.43M');
+  assert.equal(moneyRange(141000, 202000), '$141K–202K', 'ranges under a million are unchanged');
+});
+
 /* -------------------------------------------------------------------- chart */
 // Reference (no defect): the chart plots each posting's own min, max and midpoint in approx USD,
 // exactly the served salary (the trace found 0 differences on 32,000+ postings).

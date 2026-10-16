@@ -1,0 +1,35 @@
+diff --git a/public/app.js b/public/app.js
+index d7cdb6d..1248007 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -126,7 +126,7 @@ function money(n, currency = 'USD') {
+ }
+ function salaryRange(s) {
+   if (!s) return null;
+-  if (s.min === s.max || s.max == null) return money(s.min, s.currency);
++  if (s.min === s.max || s.max == null) return rangeEnd(s.min, s.currency);
+   return moneyRange(s.min, s.max, s.currency);
+ }
+ const PER_UNIT = { hour: 'hour', day: 'day', week: 'week', month: 'month' };
+@@ -205,9 +205,20 @@ function compactRange(a, b) {
+   const ux = x.slice(-1), uy = y.slice(-1);
+   return ux === uy && /[KM]/.test(ux) ? `${x.slice(0, -1)}–${y.replace(/^[^\d]+/, '')}` : `${x}–${y.replace(/^[^\d]+/, '')}`;
+ }
++/**
++ * SB-7 (salary audit): a range end in the millions keeps two decimals ("$600K–1.07M", "SEK 1.04M–1.06M"). With
++ * one decimal, Netflix's posted $600,000–$1,066,000 read "$600K–1.1M" and Google's SEK 1,000,000–1,030,000 read
++ * "SEK 1.0M", one number for a posted range (off by up to 3.9%).
++ */
++function rangeEnd(n, currency) {
++  const a = Math.abs(n);
++  if (!(a >= 999500 && a < 1e7)) return money(n, currency);
++  const sym = !currency || currency === 'USD' ? '$' : CUR_SYM[currency] ?? `${currency} `;
++  return `${n < 0 ? '-' : ''}${sym}${+(a / 1e6).toFixed(2)}M`;
++}
+ /** "$59K–64K", or "$59K" when both ends round to the same figure (P-16). */
+ function moneyRange(a, b, currency = 'USD') {
+-  const x = money(a, currency), y = money(b, currency);
++  const x = rangeEnd(a, currency), y = rangeEnd(b, currency);
+   return x === y ? x : `${x}–${y.replace(/^[^\d]+/, '')}`;
+ }
+ /** Exact posted amount with thousands separators: 3850 -> "$3,850", 35.6 -> "$35.60" (P-8). */
