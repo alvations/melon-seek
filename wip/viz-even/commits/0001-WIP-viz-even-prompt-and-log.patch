@@ -1,7 +1,7 @@
 From 77515cd59b9994e1782bcd81c4918b659626ca71 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 15:46:16 +0000
-Subject: [PATCH] WIP: viz-even prompt and log
+Subject: [PATCH 1/2] WIP: viz-even prompt and log
 
 ---
  docs/process/prompts/viz-even.md | 57 ++++++++++++++++++++++++++++++++

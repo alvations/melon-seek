@@ -1,7 +1,7 @@
 From df1b6be37ccc4fd5a61ba3e77a769faa5434b830 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 15:32:12 +0000
-Subject: [PATCH 6/9] fix6-fresh-data: T20 picks a US Senior SWE at Anthropic
+Subject: [PATCH 06/10] fix6-fresh-data: T20 picks a US Senior SWE at Anthropic
  (the first is now a Dublin posting, compared only within Ireland)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

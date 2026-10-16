@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a162ae991ad707e77`
 - Base (on claude/stoic-ride-54ddxp): `53a03ec0cc2b4240df78b2766027f6a14dc60cad`
-- Head: `60624f1cbe0c6fae44a860b8ef62569eca20e17e`
+- Head: `40519099e7e58fa922f6e4e392123b7854e7242d`
 - Restore: `bash scripts/cycle/restore-wip.sh fix6-fresh-data <new worktree dir>`
 
 ## Commits since the base
 ```
+4051909 WIP fix6-fresh-data: log sections 1-7
 60624f1 fix6-fresh-data: drop the norm-11 patch (the lead takes salary-audit-backend's one bump, 193205a/8262aa3)
 a36defd fix6-fresh-data: D-23 checks all seven big-tech boards (Google, Meta and Amazon too)
 72c4ef7 WIP fix6-fresh-data: norm-11 patch (normalize.js is salary-audit-backend's), log state
@@ -29,6 +30,19 @@ a68e62d WIP: fix6-fresh-data prompt and log skeleton
  M docs/screenshots/map-juice.png
  M docs/screenshots/map.png
  M docs/screenshots/mobile.png
+ M docs/screenshots/qa-mobile-beta-2/e2e-M-28-360x640-with-the-keyboard-up-300-px-.png
+ M docs/screenshots/qa-mobile-beta-2/e2e-M-28-iPhone-SE-Safari-375x548.png
+ M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390-with-5-saved-searches.png
+ M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390.png
+ M docs/screenshots/qa-mobile-beta-2/e2e-M-29-company-menu-focus.png
+ M docs/screenshots/qa-mobile-beta-2/e2e-M-30-saved-searches-loaded.png
+ M docs/screenshots/qa-mobile-beta-2/e2e-M-31-empty-message-half-sheet.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-19-sort-while-scrolled.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-21-company-menu.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-22-paused-board.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-24-keyboard-location-search.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-27-topbar-360.png
+ M docs/screenshots/qa-mobile/e2e-landscape-map.png
 ```
 
 ## Left out (not in untracked.tgz)

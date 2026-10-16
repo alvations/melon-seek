@@ -1,7 +1,7 @@
 From 60624f1cbe0c6fae44a860b8ef62569eca20e17e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 15:52:43 +0000
-Subject: [PATCH 9/9] fix6-fresh-data: drop the norm-11 patch (the lead takes
+Subject: [PATCH 09/10] fix6-fresh-data: drop the norm-11 patch (the lead takes
  salary-audit-backend's one bump, 193205a/8262aa3)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

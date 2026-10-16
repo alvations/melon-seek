@@ -1,8 +1,8 @@
 From cda76cb5346919340b14ecb64fe139903466701e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 15:30:15 +0000
-Subject: [PATCH 5/9] fix6-fresh-data: golden fixture unchanged after all (0 of
- the 300 hashes move with the 10-role rule)
+Subject: [PATCH 05/10] fix6-fresh-data: golden fixture unchanged after all (0
+ of the 300 hashes move with the 10-role rule)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
