@@ -1,7 +1,7 @@
 From 1c3c45ba9ee7b9ae85a5d460be5c6e0c1cf05d64 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 20:14:37 +0000
-Subject: [PATCH 2/2] WIP methodology-review-beta-2: state after the first walk
+Subject: [PATCH 2/5] WIP methodology-review-beta-2: state after the first walk
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

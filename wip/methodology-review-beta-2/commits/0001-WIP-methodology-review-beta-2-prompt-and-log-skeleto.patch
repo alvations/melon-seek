@@ -1,7 +1,7 @@
 From 7457566070708a9ee5f1bbccf460af5bcb5f23dd Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 19:57:13 +0000
-Subject: [PATCH 1/2] WIP methodology-review-beta-2: prompt and log skeleton
+Subject: [PATCH 1/5] WIP methodology-review-beta-2: prompt and log skeleton
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

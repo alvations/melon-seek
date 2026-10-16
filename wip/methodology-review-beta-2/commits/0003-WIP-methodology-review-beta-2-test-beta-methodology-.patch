@@ -1,0 +1,336 @@
+From 32ede099b69ad54a73aeb0bbb80be87b547c9233 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 20:28:39 +0000
+Subject: [PATCH 3/5] WIP methodology-review-beta-2:
+ test/beta-methodology-2.test.js (45 to-dos, MR-23 to MR-41)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ test/beta-methodology-2.test.js | 314 ++++++++++++++++++++++++++++++++
+ 1 file changed, 314 insertions(+)
+ create mode 100644 test/beta-methodology-2.test.js
+
+diff --git a/test/beta-methodology-2.test.js b/test/beta-methodology-2.test.js
+new file mode 100644
+index 0000000..04ac7c3
+--- /dev/null
++++ b/test/beta-methodology-2.test.js
+@@ -0,0 +1,314 @@
++// Methodology and sources review of the beta site, round 3 (docs/process/methodology-review-beta-2.md).
++// Findings MR-23 to MR-42, on the lead's reviewer build of 6178be7 with the 2026-10-16 crawl (every board
++// whole: Amazon 22,179, Apple 4,851, Google 3,821, NVIDIA 2,711, Microsoft 2,435, Meta 1,208, Netflix 414;
++// main-site Anduril 2,537). Each test encodes a missing registry entry, a stale as-of date or value, a number
++// shown without the caveat or source it needs, or a line of docs that no longer matches the code.
++// They run as to-dos, the project's convention (test/beta-methodology.test.js): a failing to-do is reported
++// but does not turn CI red. The fix that makes one pass removes `todo` from it.
++// Every test reads only the repo (code, docs, data/freshness.json) or builds its own small input; none needs
++// the crawl data. Owner: the methodology-review-beta-2 agent. test/beta-methodology.test.js (round 2) is not
++// touched; its open to-dos (MR-4, MR-21, MR-22) are listed in the log.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import path from 'node:path';
++import { fileURLToPath } from 'node:url';
++
++import { staleness } from '../scripts/refresh/lib.js';
++import { loadFigureInputs, figureContext, renderFigure } from '../scripts/methodology-figures.js';
++import { buildMarket } from '../scripts/build-market.js';
++import { isFixedTerm } from '../public/features/shared.js';
++import { FX_PER_USD as PALETTE_FX } from '../public/viz/palette.js';
++import { MAX_ANNUAL, payAreaOf } from '../server/salary.js';
++import { geocode, GAZETTEER_SIZE } from '../server/geo.js';
++import { listCompanies } from '../server/companies.js';
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
++const REG = JSON.parse(read('data/freshness.json'));
++const entryOf = (id) => REG.entries.find((e) => e.id === id);
++const REG_TEXT = JSON.stringify(REG);
++const REVIEW_DAY = new Date('2026-10-16T19:55:00Z'); // the reviewer build's time (the crawl: 11:58-12:45 UTC)
++const todo = (id) => ({ todo: `${id}: docs/process/methodology-review-beta-2.md` });
++const section = (text, head) => {
++  const i = text.indexOf(head);
++  assert.ok(i >= 0, `no "${head}" heading (the doc moved; update this test)`);
++  const j = text.indexOf('\n## ', i + head.length);
++  return text.slice(i, j < 0 ? undefined : j);
++};
++/** file:line of the first line declaring `const NAME` (or containing `needle`); fails loudly if the code moved. */
++function lineOf(file, name) {
++  const lines = read(file).split('\n');
++  const i = lines.findIndex((l) => new RegExp(`\\bconst ${name}\\b`).test(l));
++  assert.ok(i >= 0, `${file}: no "const ${name}" (renamed or removed; update this test)`);
++  return `${file}:${i + 1}`;
++}
++
++/* -------------------------------------------------------- MR-23 (Medium) */
++// fx-per-usd is as of 2026-07-01 on a monthly cadence: 107 days old, 62 days past due on the review day
++// (run.js --staleness: STALE). Round 2's MR-4 asked for the FX refresh; it never landed. Every converted
++// figure (Amazon 803, Google 452, Microsoft 314, NVIDIA 39, Netflix 24, Meta 9 postings) and all non-US
++// Juice use these rates.
++test('MR-23 exchange rates are within their monthly cadence on the 2026-10-16 review day', todo('MR-23'), () => {
++  const e = entryOf('fx-per-usd');
++  const s = staleness(e, REVIEW_DAY);
++  assert.equal(s.overdue, false, `fx-per-usd as of ${e.asOf}: ${s.ageDays} days old, ${-s.dueInDays} days past due`);
++});
++
++/* -------------------------------------------------------- MR-24 (Medium) */
++// Constants added since 2026-10-11 that decide a number, label or count a user sees, with no registry entry.
++const MR24 = [
++  ['server/salary.js', 'LEGAL_MIN_ANNUAL', 'Mexico\'s legal minimum (CONASAMI MXN 315.04/day x 365) that exempts real peso pay from the floors; changes every 1 January'],
++  ['server/salary.js', 'DOLLAR_COUNTRY', 'a bare "$" in a Mexico-only posting is MXN (DQ-35), CAD in Canada, AUD, NZD, SGD, HKD'],
++  ['server/sources/apple.js', 'APPLE_PAY_STATES', 'the pay-transparency states Apple posts pay for (DQ-27): Juice and Location only there'],
++  ['server/families.js', 'FAMILIES', 'Google\'s 27 job families, read from titles (google-grouping)'],
++  ['server/keywords.js', 'AMAZON_RUNG', 'Amazon numerals: I Entry, II Mid, III-IV Senior, V+ Staff+ (DQ-36)'],
++  ['server/keywords.js', 'META_LEADERSHIP_RE', 'Meta "(Technical Leadership)" read as Staff+ (DQ-37)'],
++  ['server/keywords.js', 'GOOGLE_NUMBERED_MANAGER_RE', 'Google "Facilities Manager II" is a people manager (DQ-29)'],
++  ['server/keywords.js', 'NEAR_COPY_SHARE', 'team paragraphs repeated by many roles are not skills (fix6, 0.95)'],
++  ['server/keywords.js', 'NEAR_COPY_MIN_ROLES', 'the same rule\'s 10 roles'],
++  ['server/sources/amazon.js', 'MINIMUM_RE', 'a stated minimum is shown "from €X" (VT-17)'],
++  ['server/sources/amazon.js', 'SHIFT_RE', 'hourly pay that includes the highest shift differential (VT-18)'],
++  ['server/sources/amazon.js', 'STATED_BASE_RE', '"Pay starts at $18.05 per hour", the stated base beside it (VT-18)'],
++  ['server/sources/amazon.js', 'STATED_ANNUAL_RE', 'Austria\'s stated annual figure, 14 payments (VT-19)'],
++  ['scripts/build-static.js', 'PREVIEW_MIN_JOBS', 'boards of 10,000+ get the first-page preview ("Loading 22,179 roles…")'],
++  ['scripts/build-static.js', 'PREVIEW_SIZE', 'the ~100 postings the preview shows first'],
++  ['public/viz/palette.js', 'PAY_BREAKS', 'the map\'s Pay legend steps $100K / $150K / $200K / $300K'],
++  ['public/viz/map.js', 'MIN_PIN_PAY', 'a map pin shows a median only from 3+ postings with pay there (V-17)'],
++];
++for (const [file, name, what] of MR24) {
++  test(`MR-24 registry names ${name} (${file}; ${what})`, todo('MR-24'), () => {
++    const at = lineOf(file, name);
++    const named = name === 'FAMILIES' ? /server\/families\.js/.test(REG_TEXT) : new RegExp(`\\b${name}\\b`).test(REG_TEXT);
++    assert.ok(named, `${at} ${name} has no data/freshness.json entry`);
++  });
++}
++test('MR-24 the Mexican legal minimum has its own yearly entry with its official source (CONASAMI)', todo('MR-24'), () => {
++  const e = REG.entries.find((x) => /LEGAL_MIN_ANNUAL/.test(JSON.stringify(x.owners || [])));
++  assert.ok(e, 'no registry entry owns server/salary.js LEGAL_MIN_ANNUAL');
++  assert.match(JSON.stringify(e.source || ''), /CONASAMI|Comisi[oó]n Nacional de los Salarios M[ií]nimos|DOF/i, `${e.id}: source does not name CONASAMI or the Diario Oficial`);
++  assert.equal(e.cadence, 'yearly', `${e.id}: Mexico sets its minimum wage every January; cadence is ${e.cadence}`);
++  assert.equal(e.asOf, '2026-01-01', `${e.id}: the 2026 minimum is in force from 2026-01-01; asOf is ${e.asOf}`);
++});
++
++/* -------------------------------------------------------- MR-25 (Medium) */
++// Registry values the code has moved past.
++test('MR-25 salary-parser-bounds: MAX_ANNUAL in the registry equals the code (1,500,000 since VT-10)', todo('MR-25'), () => {
++  const v = String(entryOf('salary-parser-bounds').values);
++  const m = /MAX_ANNUAL\s+(\d[\d_]*(?:,\d{3})*)/.exec(v);
++  assert.ok(m, 'salary-parser-bounds values do not state MAX_ANNUAL');
++  assert.equal(Number(m[1].replace(/[,_]/g, '')), MAX_ANNUAL, `registry says MAX_ANNUAL ${m[1]}, server/salary.js has ${MAX_ANNUAL}`);
++});
++test('MR-25 job-salary-parsed: no 12-row cap is described (SB-3 removed it)', todo('MR-25'), () => {
++  const e = JSON.stringify(entryOf('job-salary-parsed'));
++  assert.doesNotMatch(e, /slice\(0, ?12\)/, 'job-salary-parsed still describes deriveSalary as ranges.slice(0,12)');
++});
++test('MR-25 geo-gazetteer: the registry\'s gazetteer size equals GAZETTEER_SIZE', todo('MR-25'), () => {
++  const v = String(entryOf('geo-gazetteer').values);
++  const m = /(\d+) cities, (\d+) states, (\d+) countries/.exec(v);
++  assert.ok(m, 'geo-gazetteer values do not state the gazetteer size');
++  assert.deepEqual([+m[1], +m[2], +m[3]], [GAZETTEER_SIZE.cities, GAZETTEER_SIZE.states, GAZETTEER_SIZE.countries],
++    `registry ${m[0]}; server/geo.js ${GAZETTEER_SIZE.cities} cities, ${GAZETTEER_SIZE.states} states, ${GAZETTEER_SIZE.countries} countries`);
++});
++test('MR-25 job-postings and company-registry: Amazon and Meta are no longer waiting for a first crawl', todo('MR-25'), () => {
++  const jp = String(entryOf('job-postings').values);
++  const cr = String(entryOf('company-registry').values);
++  assert.doesNotMatch(jp, /counts after their first crawl/, 'job-postings: "amazon … and meta … counts after their first crawl" (both crawled since 2026-10-11)');
++  assert.doesNotMatch(cr, /appears on \/beta\/ after its first crawl/, 'company-registry: "each appears on /beta/ after its first crawl"');
++  for (const slug of listCompanies({ channel: 'beta' }).map((c) => c.slug)) {
++    assert.match(jp, new RegExp(`\\b${slug} [\\d,]+`), `job-postings values give no count for ${slug}`);
++  }
++  assert.doesNotMatch(String(entryOf('job-postings').notes), /trimmed or capped \(jobsCapped\)/, 'job-postings notes: no board is capped since 2026-10-11');
++});
++test('MR-25 seniority-ladder: no "USER DECISION PENDING" note after BP-7 decided it ("Level not stated")', todo('MR-25'), () => {
++  assert.doesNotMatch(String(entryOf('seniority-ladder').notes), /USER DECISION PENDING/, 'seniority-ladder notes still say USER DECISION PENDING');
++});
++
++/* -------------------------------------------------------- MR-26 (Medium) */
++// The methodology page's sources table says Gross pay is "Daily · update due" on a page built hours after
++// the crawl. loadFigureInputs marks each entry stale from its hand-set asOf (job-postings 2026-10-11), while
++// run.js stalenessRows treats daily entries as 'pipeline' (refreshed by snapshot.yml / pages.yml).
++test('MR-26 the sources table does not call the job postings overdue on the build day', todo('MR-26'), async () => {
++  const before = process.env.MELON_BUILT_AT;
++  process.env.MELON_BUILT_AT = REVIEW_DAY.toISOString();
++  try {
++    const ctx = figureContext(await loadFigureInputs(ROOT));
++    const html = renderFigure('sources', ctx);
++    const row = /<tr><th scope="row"[^>]*>Gross pay<\/th>.*?<\/tr>/.exec(html);
++    assert.ok(row, 'the sources table has no Gross pay row (update this test)');
++    assert.doesNotMatch(row[0], /update due/, 'Gross pay reads "Daily · update due" though every board was read the same day');
++  } finally {
++    if (before == null) delete process.env.MELON_BUILT_AT; else process.env.MELON_BUILT_AT = before;
++  }
++});
++
++/* -------------------------------------------------------- MR-27 (Medium) */
++// The guide and the technical reference describe pay rules the code has replaced.
++const GUIDE = () => read('docs/METHODOLOGY_GUIDE.md');
++test('MR-27 guide §1: pay posted per place is scored on that place\'s own range, not the span (DQ-28, DQ-33)', todo('MR-27'), () => {
++  assert.match(read('server/juice.js'), /const placeUSD = /, 'server/juice.js no longer scores a place on its own range (update this test)');
++  const g = GUIDE();
++  assert.doesNotMatch(g, /range for each of several places or levels, the middle is taken across all of them/, 'METHODOLOGY_GUIDE.md §1 says a range per place is scored on the middle of the span');
++  assert.doesNotMatch(g, /\*\*Pay ranges for several places or levels\*\* are scored on their middle across all of them, not on the range for one place/, 'METHODOLOGY_GUIDE.md §5 says the same');
++});
++test('MR-27 guide §5: the example of a currency with no rate is not one the site converts (RON has a rate)', todo('MR-27'), () => {
++  assert.ok(PALETTE_FX.RON > 0, 'RON has no rate again (update this test)');
++  assert.doesNotMatch(GUIDE(), /no rate for \(Romanian lei, for example\)/, 'METHODOLOGY_GUIDE.md §5 names Romanian lei as unconvertible');
++});
++test('MR-27 guide: "How is the posted pay read?" covers minimums, shift pay, Austria\'s annual figure and levels/places spans', todo('MR-27'), () => {
++  const g = GUIDE();
++  const i = g.indexOf('### How is the posted pay read?');
++  const faq = g.slice(i, g.indexOf('\n### ', i + 5));
++  assert.match(faq, /minimum/i, 'the FAQ never says a stated minimum is shown as "from €X"');
++  assert.match(faq, /shift differential|shift pay/i, 'the FAQ never says some hourly figures include the highest shift differential');
++  assert.match(faq, /each place|per place|its own range/i, 'the FAQ never says a range posted per place is listed under "Pay by place"');
++});
++test('MR-27 LIVABILITY.md: no "RON has no rate anywhere", and per-place ranges are scored on their own range', todo('MR-27'), () => {
++  const l = read('docs/LIVABILITY.md');
++  assert.doesNotMatch(l, /RON \(Romanian lei\) has no rate anywhere/, 'LIVABILITY.md says RON has no rate; palette, juice and cities.json have 4.58165');
++  assert.doesNotMatch(l, /over several places \(`salary\.ranges`, Apple requisitions\) or levels \(`salary\.levels`, NVIDIA and\s+Microsoft\) is scored on the span's midpoint/,
++    'LIVABILITY.md attachJuice rules say a per-place range is scored on the span\'s midpoint (juice.js placeUSD scores each place on its own)');
++});
++
++/* -------------------------------------------------------- MR-28 (Medium) */
++// "Posted base pay" comparisons (Same role elsewhere, Compare companies, Compstimate's pool) pool Amazon's
++// stated minimums (285), figures that include the highest shift differential (636) and part-time hourly pay
++// at 2,080 hours (Amazon 83, Apple 40) with base-pay ranges of full-time roles. Only the drawer's pay block
++// says what each figure is. scripts/build-market.js companyPart leaves out interns, fixed-term pay and
++// on-target earnings only.
++test('MR-28 market comps: minimums, shift-inclusive and part-time hourly figures are not pooled as full-time base pay', todo('MR-28'), () => {
++  const loc = [{ name: 'Seattle, WA', city: 'Seattle', region: 'WA', country: 'US', lat: 47.6, lng: -122.33 }];
++  const job = (id, mid, extra = {}) => ({ id: `amazon:${id}`, title: 'Software Development Engineer', seniority: 'Mid', seniorityBasis: 'title', locations: loc,
++    salary: { min: mid, max: mid, mid, currency: 'USD', interval: 'year', ...extra } });
++  const jobs = [job(1, 200000), job(2, 200000), job(3, 200000),
++    job(4, 40000, { kind: 'minimum' }), job(5, 40000, { kind: 'minimum' }), job(6, 40000, { kind: 'minimum' }),
++    job(7, 50000, { kind: 'hourly', originalInterval: 'hour', includesShiftDifferential: true }), job(8, 50000, { kind: 'hourly', originalInterval: 'hour', includesShiftDifferential: true }),
++    job(9, 45000, { kind: 'hourly', originalInterval: 'hour', partTime: true, hoursPerWeek: 30 })];
++  const m = buildMarket([{ company: { slug: 'amazon', name: 'Amazon' }, mode: 'snapshot', jobs }], { generatedAt: '2026-10-16T00:00:00Z' });
++  const cells = m.cells.filter((c) => c[0] === 'amazon' && c[2] === 'Mid');
++  assert.ok(cells.length, 'no Amazon Mid cell (update this test)');
++  for (const c of cells) assert.equal(c[5], 200000, `cell ${c.slice(0, 3).join('/')}: median ${c[5]} from ${c[3]} postings mixes minimums, shift pay and part-time hourly pay into posted base pay`);
++});
++
++/* -------------------------------------------------------- MR-29 (Medium) */
++// Google's departments are job families read from titles (server/families.js; 92/100 held out). The site
++// says so only in the Department filter's list (below 28 rows) and a hover title on the Group select.
++test('MR-29 DATA_SOURCES §7b: Google\'s grouping is the title classifier, not "the brand is the only grouping"', todo('MR-29'), () => {
++  const d = read('docs/DATA_SOURCES.md');
++  assert.doesNotMatch(d, /department = team = brand \(slot 7\)/, 'DATA_SOURCES §7b says department = team = brand');
++  assert.doesNotMatch(d, /is the only grouping/, 'DATA_SOURCES §7b says the brand is the only grouping');
++  assert.match(d, /server\/families\.js/, 'DATA_SOURCES does not name server/families.js, where Google\'s departments come from');
++});
++test('MR-29 the methodology guide says how Google\'s departments are read, and how well', todo('MR-29'), () => {
++  const g = GUIDE();
++  assert.match(g, /job title/i, 'METHODOLOGY_GUIDE.md never says Google\'s departments are read from job titles');
++});
++test('MR-29 the chart or stats line, not only the filter and a hover title, says departments come from titles', todo('MR-29'), () => {
++  const uses = (read('public/app.js').match(/deptTitleNote\(\)/g) || []).length;
++  assert.ok(uses >= 3, `public/app.js shows deptTitleNote() in ${uses - 0} places: the Department filter and the Group select's title only`);
++});
++
++/* -------------------------------------------------------- MR-30 (Medium) */
++// DATA_SOURCES §7 still describes the 2026-10-11 crawl with Amazon at 5,000.
++test('MR-30 DATA_SOURCES §7: Amazon is the whole board, not "5,000 kept", and the uncapped crawl has happened', todo('MR-30'), () => {
++  const s7 = section(read('docs/DATA_SOURCES.md'), '## 7. Big-tech career sites (beta)');
++  assert.doesNotMatch(s7, /22,352 listed, 5,000 kept/, 'the §7 table says Amazon kept 5,000 of 22,352');
++  assert.doesNotMatch(s7, /the next crawl publishes the whole board/, '§7 still promises the whole board for "the next crawl" (it landed on 2026-10-16: 22,179)');
++  assert.doesNotMatch(s7, /whole board from the next crawl/, 'the §7 table\'s Amazon status says "whole board from the next crawl"');
++});
++
++/* -------------------------------------------------------- MR-31 (Low) */
++test('MR-31 README "Beta site": all seven boards are in the build, and the methodology page explains posted pay', todo('MR-31'), () => {
++  const r = read('README.md');
++  const i = r.indexOf('### Beta site');
++  const sec = r.slice(i, r.indexOf('\n### ', i + 5));
++  assert.doesNotMatch(sec, /appear after their first\s+crawl/, 'README says Amazon and Meta appear after their first crawl; both are on /beta/ since 2026-10-11');
++  assert.doesNotMatch(sec, /not how the big-tech pay is read/, 'README says the methodology page does not explain big-tech pay; it has "How is the posted pay read?"');
++});
++
++/* -------------------------------------------------------- MR-32 (Low) */
++test('MR-32 PLAYBOOK "Known traps": Amazon is not capped at 5,000', todo('MR-32'), () => {
++  assert.doesNotMatch(read('docs/process/PLAYBOOK.md'), /Amazon is capped at 5,000 postings on \/beta\//, 'PLAYBOOK says Amazon is capped at 5,000 (maxPostings was removed 2026-10-11)');
++});
++
++/* -------------------------------------------------------- MR-33 (Medium) */
++// "€5,233 a month · for about 10 weeks · Fixed-term pay, not a yearly salary" sits over "≈ $72K in US
++// dollars at Jul 2026 rates": the 12-month annualization, with no "a year" (amazon:10544548; Microsoft
++// "€800 a month · 26 weeks" over "≈ $11K"). public/app.js salaryDistribution prints job._usd (annual).
++test('MR-33 the drawer\'s converted line for fixed-term pay uses the posted interval, or says "a year"', todo('MR-33'), () => {
++  const lines = read('public/app.js').split('\n');
++  const i = lines.findIndex((l) => l.includes('in US dollars at `, docLink(UPDATED_DOC'));
++  assert.ok(i >= 0, 'public/app.js: the ≈ converted line moved (update this test)');
++  const block = lines.slice(Math.max(0, i - 4), i + 1).join('\n');
++  assert.match(block, /isTerm|postedTerm|termWeeks|a month|per month|a year`/, `public/app.js:${i + 1} prints the annualized USD figure next to monthly fixed-term pay without saying so`);
++});
++
++/* -------------------------------------------------------- MR-34 (Medium) */
++// The "Several pay ranges" chip says "this is the span of all of them" on 1,075 postings, but for Microsoft
++// (923: the national range, with the SF Bay Area / NYC range not used for these places), Google (36: the US
++// line of a US and Canada posting) and Amazon (77: a row plus "Pay starts at $18.05") the figure is one range.
++test('MR-34 the "Several pay ranges" chip does not claim the figure is the span when it is one of the ranges', todo('MR-34'), () => {
++  const line = read('public/app.js').split('\n').find((l) => l.includes("'Several pay ranges'"));
++  assert.ok(line, 'public/app.js: no "Several pay ranges" chip (update this test)');
++  assert.doesNotMatch(line, /this is the span of all of them/, 'the chip\'s explanation says "this is the span of all of them" whatever the figure is');
++});
++
++/* -------------------------------------------------------- MR-35 (Low) */
++// "Base pay starts at $18/hour" for "Pay starts at $18.05 per hour" (amazon:10409027): hourlyText rounds to
++// whole dollars, so $19.50 can read "$20/hour". The VT-18 comment's own example keeps cents ("$18.35/hour").
++test('MR-35 the shift-pay tip keeps the stated base pay\'s cents', todo('MR-35'), () => {
++  const line = read('public/app.js').split('\n').find((l) => /const hourlyText = /.test(l));
++  assert.ok(line, 'public/app.js: no hourlyText (update this test)');
++  assert.doesNotMatch(line, /money\(v \/ 2080, s\.currency\)/, 'hourlyText formats an hourly rate with money(), which rounds $18.05 to "$18"');
++});
++
++/* -------------------------------------------------------- MR-36 (Low) */
++// The badge popover's "How we collect this" opens methodology §7 "How often it's updated", which never says
++// how the boards are collected (the careers sites' own endpoints, robots.txt, about 1 request a second).
++test('MR-36 the section "How we collect this" opens says how the postings are collected', todo('MR-36'), () => {
++  const s7 = section(GUIDE(), '## 7. How often it\'s updated');
++  assert.match(s7, /collect|crawl|robots|request/i, 'METHODOLOGY_GUIDE.md §7 has no word on how the boards are read; the popover link promises "How we collect this"');
++});
++
++/* -------------------------------------------------------- MR-37 (Low) */
++// Austria: "from €47K" from "EUR 47'000 gross annually" (14 payments of €3,358.33). The drawer has no
++// "As posted" line for it (Poland's monthly minimum has one), so the 14 payments are never mentioned.
++test('MR-37 the drawer explains a stated annual figure (Austria, 14 payments)', todo('MR-37'), () => {
++  assert.match(read('public/app.js'), /statedAnnual/, 'public/app.js never reads salary.statedAnnual, so Austria\'s annual figure has no "as posted" line');
++});
++
++/* -------------------------------------------------------- MR-38 (Medium) */
++// 182 internships post monthly or hourly pay with no stated length (Amazon 93, Meta 35, NVIDIA 34, Microsoft
++// 14, Anduril 5, Apple 1). The drawer shows them as a yearly salary ("$80K–130K · per year · Annualized from
++// monthly pay", meta:1054006261009917) and 111 get a yearly Juice score, while the same pay with a stated
++// length is "Fixed-term pay, not a yearly salary" with Juice for the term only.
++test('MR-38 an internship paid by the month with no stated length is fixed-term pay, not a yearly salary', todo('MR-38'), () => {
++  const job = { seniority: 'Intern', title: 'Thermal Engineering Intern', salary: { min: 80256, max: 129600, mid: 104928, currency: 'USD', interval: 'year', originalInterval: 'month', kind: 'salary' } };
++  assert.equal(isFixedTerm(job), true, 'public/features/shared.js isFixedTerm: a monthly-paid internship without termWeeks is annualized and scored for 12 months');
++});
++
++/* -------------------------------------------------------- MR-40 (Low) */
++// Microsoft's SF Bay Area / NYC range (SB-5) is assigned by distance (PAY_AREAS, 60 km from Manhattan). Garden
++// City NY, Fort Lee NJ and Paramus NJ geocode to their state's centre, so 4 postings price them at the national
++// range, below the posted NYC-metro range (microsoft:1970393556650765 "Pay by place: Redmond, Garden City, Boston").
++test('MR-40 NYC-metro towns are placed in Microsoft\'s NYC pay area', todo('MR-40'), () => {
++  for (const s of ['Garden City, NY, US', 'Fort Lee, NJ, US', 'Paramus, NJ, US']) {
++    const [loc] = geocode(s);
++    assert.equal(payAreaOf(loc), 'nyc', `${s} geocodes to ${loc.lat},${loc.lng} (its state's centre), outside the 60 km NYC area`);
++  }
++});
++
++/* -------------------------------------------------------- MR-41 (Medium) */
++// Levels: every card, the Seniority filter, Same role elsewhere ("at Senior level") and Compstimate use seven
++// buckets, each company's ladder mapped differently (Amazon "III" Senior, Google "III" Mid, Microsoft IC4
++// Senior, NVIDIA Level 3-5 Senior, Meta "(Technical Leadership)" Staff+). Neither methodology page says how.
++test('MR-41 the methodology guide explains the level buckets and how company ladders map to them', todo('MR-41'), () => {
++  const g = GUIDE();
++  assert.match(g, /Staff\+/, 'METHODOLOGY_GUIDE.md never explains the level buckets (Entry, Mid, Senior, Staff+, Manager, Director+, Intern)');
++  assert.match(g, /Level not stated/, 'METHODOLOGY_GUIDE.md never says what "Level not stated" means');
++});
++test('MR-41 the "Mid" chip\'s example does not contradict Amazon\'s ladder ("III" is Senior at Amazon)', todo('MR-41'), () => {
++  const line = read('public/app.js').split('\n').find((l) => /^\s*Mid: 'A mid level the posting names/.test(l));
++  if (!line) return; // reworded
++  assert.doesNotMatch(line, /“III”/, 'SEN_TIP.Mid gives "III" as a mid level; server/keywords.js AMAZON_RUNG makes Amazon\'s III Senior');
++});
+-- 
+2.43.0
+
