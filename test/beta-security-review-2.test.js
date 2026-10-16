@@ -1,8 +1,9 @@
 // Security review of the beta channel, round 3, 2026-10-16 (docs/REVIEW.md "beta review 2026-10-16",
 // docs/process/security-a11y-review-beta-2.md). Each test encodes one finding (S-n) or the residual of an
 // earlier one and FAILS until that finding is fixed. Open findings carry `{ todo }`, so `npm test` stays green
-// (node:test reports them as "not ok … # TODO"); drop the option when the finding is fixed. S-8 and S-9 were
-// fixed by the lead during the review (9c548e2), so their tests are plain regression tests.
+// (node:test reports them as "not ok … # TODO"); drop the option when the finding is fixed. S-8 and S-9
+// (9c548e2) and S-11 (d8ce13c) were fixed by the lead during the review, so their tests are plain regression
+// tests, as is S-1's re-check.
 // No network: every fetch is stubbed, the slow-parser checks run in a worker with a hard limit, and the
 // shell checks run against scratch directories and git repos under the OS temp dir.
 import { test } from 'node:test';
@@ -176,10 +177,10 @@ test('S-10: Meta sitemap and page parsers are linear on unclosed tags (256 KB un
 /* ------------------------------------------------------------------ S-11 */
 
 // scripts/cycle/checkpoint.sh packs every untracked file git does not ignore into wip/<lane>/untracked.tgz
-// and pushes it to the deploy branch, the public default branch, every 15 minutes, unreviewed. Only
-// symlinks, screenshots and files over 5 MB are left out: a token file an agent wrote into its worktree
-// would be published.
-test('S-11: a checkpoint never packs secret-looking files (.env, *.pem, *.key, .npmrc)', OPEN, () => {
+// and pushes it to the deploy branch, the public default branch, every 15 minutes, unreviewed. Until
+// d8ce13c only symlinks, screenshots and files over 5 MB were left out, so a token file an agent wrote into
+// its worktree would have been published. Fixed in d8ce13c (secret_name()); this is now a regression test.
+test('S-11: a checkpoint never packs secret-looking files (.env, *.pem, *.key, .npmrc)', () => {
   const ID = { GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
   const env = { ...process.env, ...ID, MELON_BRANCH: 'main', TMPDIR: os.tmpdir() };
   const git = (cwd, ...a) => execFileSync('git', a, { cwd, encoding: 'utf8', env }).trim();
