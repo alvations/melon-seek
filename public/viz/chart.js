@@ -63,11 +63,20 @@ export const SENIORITY_ORDER = DISPLAY_LEVEL_ORDER;
 const ALL_ROLES = 'All roles';
 
 const INTERVAL_ADJ = { hour: 'hourly', day: 'daily', week: 'weekly', month: 'monthly', term: 'fixed-term' };
-const DIM_LABEL = { department: 'department', location: 'location', seniority: 'seniority' };
+const DIM_LABEL = { department: 'department', location: 'location', seniority: 'seniority', brand: 'company' };
+// UX-24 fold: groupings whose small rows fold into one "N more …" row, and the row's noun.
+const FOLD_NOUN = { department: 'departments', brand: 'companies' };
+// V-21: groupings whose rows compare one country's pay when the board mixes currencies.
+const BASIS_DIMS = new Set(['department', 'seniority', 'brand']);
 
-/** Category key for a job along a dimension (seniority: displayLevel(job), the level people see). */
+/**
+ * Category key for a job along a dimension (seniority: displayLevel(job), the level people see).
+ * google-grouping: 'brand' is the company or subsidiary the board names on the posting (Google,
+ * YouTube, DeepMind, …; CONTRACT.md "google-grouping"); a posting without one is the board's own.
+ */
 export function keyOf(job, dim) {
   if (dim === 'department') return job.department || 'No department';
+  if (dim === 'brand') return job.brand || job.companyName || 'No company';
   if (dim === 'seniority') return displayLevel(job);
   if (dim === 'location') return primaryLocation(job);
   return 'All';
@@ -731,16 +740,16 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     // UX-24: more departments than colours: the 7 with the most postings with pay keep their rows
     // (and colours); the rest fold into one "N more departments" row, which opens on a click.
     let foldRow = null, folded = [];
-    if (dim === 'department' && cRows.length > SLOT_COUNT) {
+    if (FOLD_NOUN[dim] && cRows.length > SLOT_COUNT) {
       const rank = cRows.slice().sort((a, b) => b.items.length - a.items.length || b.all.length - a.all.length || String(a.key).localeCompare(String(b.key)));
       const keep = new Set(rank.slice(0, SLOT_COUNT - 1));
       folded = cRows.filter((r) => !keep.has(r));
-      foldRow = { key: '\u0001more', name: `${folded.length.toLocaleString()} more departments`, all: folded.flatMap((r) => r.all), items: folded.flatMap((r) => r.items), offPay: 0, fold: true };
+      foldRow = { key: '\u0001more', name: `${folded.length.toLocaleString()} more ${FOLD_NOUN[dim]}`, all: folded.flatMap((r) => r.all), items: folded.flatMap((r) => r.items), offPay: 0, fold: true };
       cRows = [...cRows.filter((r) => keep.has(r)), foldRow, ...(foldOpen ? folded : [])];
       for (const r of folded) r.inFold = true;
-    } else if (dim !== 'department') foldOpen = false;
-    // V-21: rows grouped by department or seniority compare one country's pay when the board mixes currencies.
-    const main = dim === 'department' || dim === 'seniority' ? mainBasis(plotted) : null;
+    } else if (!FOLD_NOUN[dim]) foldOpen = false;
+    // V-21: rows grouped by department, company or seniority compare one country's pay when the board mixes currencies.
+    const main = BASIS_DIMS.has(dim) ? mainBasis(plotted) : null;
     let basisLeft = 0;
     for (const r of cRows) {
       // BP-13: the row's median, quartiles and band are base pay (on-target earnings only when
@@ -916,7 +925,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       txt.append(nameEl, el('span', 'ms-crow__sub', sub));
       lab.append(sw, txt);
       lab.title = r.fold
-        ? `${r.name}: ${r.subFull}. Click to ${foldOpen ? 'fold them into one row again' : 'show each department'}${r.why ? `. ${r.why}` : ''}`
+        ? `${r.name}: ${r.subFull}. Click to ${foldOpen ? 'fold them into one row again' : `show each ${dim === 'brand' ? 'company' : 'department'}`}${r.why ? `. ${r.why}` : ''}`
         : `${r.name}: ${r.subFull}.${r.why ? ` ${r.why}` : ''} Click to show all ${plural(r.all.length, 'role')}`;
       if (r.fold) lab.setAttribute('aria-expanded', foldOpen ? 'true' : 'false');
       r.labelEl = lab;
@@ -1176,7 +1185,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     }
     // BP-13: a group's median is base pay, like the stats line's. V-21: by department or seniority
     // it compares one country's pay when the board mixes currencies (as the Clusters rows do).
-    const main = opts.groupBy === 'department' || opts.groupBy === 'seniority' ? mainBasis(plotted) : null;
+    const main = BASIS_DIMS.has(opts.groupBy) ? mainBasis(plotted) : null;
     let left = 0;
     const out = [...m].map(([key, items]) => {
       const b = basisStats(items, main);
@@ -1540,8 +1549,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
   return {
     /**
      * @param {object[]} nextJobs
-     * @param {{view?: 'clusters'|'ranges', groupBy?: 'none'|'department'|'location'|'seniority',
-     *          colorBy?: 'none'|'department'|'location'|'seniority',
+     * @param {{view?: 'clusters'|'ranges', groupBy?: 'none'|'department'|'location'|'seniority'|'brand',
+     *          colorBy?: 'none'|'department'|'location'|'seniority'|'brand',
      *          places?: string[]|null, placeTest?: (job, location) => boolean}} o
      *   view defaults to "clusters". groupBy defaults to "department" in clusters and
      *   "none" in ranges. colorBy applies to the ranges view only; in clusters the

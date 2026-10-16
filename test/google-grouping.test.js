@@ -142,3 +142,43 @@ test('brand: a fresh crawl (adapter -> normalizeJobs -> stored) gets its brand b
   assert.deepEqual(read.map((j) => j.brand).sort(), GOOGLE_FIXTURE.records.map((r) => r[7]).sort());
   assert.ok(read.every((j) => j.departmentBasis === 'title'));
 });
+
+test('chart keys: Company groups by brand, a board without brands is one row of its own name', () => {
+  assert.equal(keyOf({ brand: 'DeepMind', companyName: 'Google' }, 'brand'), 'DeepMind');
+  assert.equal(keyOf({ companyName: 'Apple' }, 'brand'), 'Apple');
+  assert.equal(keyOf({ department: 'Research', brand: 'DeepMind' }, 'department'), 'Research');
+});
+
+/* ------------------------------------------------------------------- URL state */
+
+// public/app.js is a browser module; its state block (DEFAULTS, parseHash, serialize) is run here on its own.
+const APP = fs.readFileSync(path.join(ROOT, 'public/app.js'), 'utf8');
+const a = APP.indexOf('/* ----------------------------------------------------------------- state */');
+const b = APP.indexOf('const hashUrl =');
+assert.ok(a > 0 && b > a, 'the state block is in public/app.js');
+// eslint-disable-next-line no-new-func
+const state = new Function('location', `
+  const loadBoards = () => [], levelFromKey = (x) => x, levelKey = (x) => x, isCustomKey = () => false;
+  const VIEWS = ['clusters', 'ranges'], DEFAULT_VIEW = 'clusters', PAGE = 50;
+  ${APP.slice(a, b)}
+  return { parseHash, serialize, DEFAULTS, FILTER_KEYS, GROUPS };`)({ hash: '' });
+
+test('URL state: the Company filter (b=) and grouping (g=brand) round-trip like the other filters', () => {
+  const st = state.parseHash('#c=google&b=YouTube&b=DeepMind&d=Research&g=brand');
+  assert.deepEqual(st.b, ['YouTube', 'DeepMind']);
+  assert.deepEqual(st.d, ['Research']);
+  assert.equal(st.g, 'brand');
+  assert.equal(state.serialize(st), 'c=google&d=Research&b=YouTube&b=DeepMind&g=brand');
+  assert.deepEqual(state.parseHash(`#${state.serialize(st)}`), st);
+  assert.ok(state.FILTER_KEYS.includes('b'), 'Clear all and saved searches include the Company filter');
+  assert.deepEqual(state.DEFAULTS.b, []);
+  assert.equal(state.parseHash('#c=google&g=nonsense').g, 'department', 'an unknown grouping is the default');
+  assert.equal(state.serialize(state.parseHash('#c=apple')), 'c=apple', 'nothing new in a default link');
+});
+
+test('app: the Company option and filter show only on a board with more than one brand (source check)', () => {
+  assert.match(APP, /const multiBrand = \(\) => boardBrands\(\)\.size > 1;/);
+  assert.match(APP, /S\.g === 'brand' && !multiBrand\(\) \? groupDefault\(S\.v\) : S\.g/, 'an old g=brand link elsewhere falls back');
+  assert.match(APP, /if \(many && !opt\)/, 'the option is added only with many brands');
+  assert.match(APP, /section\('Department', makeDeptFilter\(\)/, 'the Company filter is inside the Department section (ROADMAP §8)');
+});

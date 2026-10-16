@@ -310,14 +310,14 @@ function jobsQuery(key) {
 
 /* ----------------------------------------------------------------- state */
 
-const ARRAYS = ['d', 'l', 's', 'e', 'kr', 'kf', 'ks', 'jg'];
+const ARRAYS = ['d', 'b', 'l', 's', 'e', 'kr', 'kf', 'ks', 'jg'];
 const DEFAULTS = {
   c: '', cn: '', m: 'chart', q: '', smin: null, smax: null, so: false,
-  d: [], l: [], s: [], e: [], r: 'any', p: 0, ho: false, rf: '', kr: [], kf: [], ks: [], jg: [],
+  d: [], b: [], l: [], s: [], e: [], r: 'any', p: 0, ho: false, rf: '', kr: [], kf: [], ks: [], jg: [],
   v: DEFAULT_VIEW, g: 'department', sort: 'best', mc: 'pay', job: null,
 };
-const FILTER_KEYS = ['q', 'smin', 'smax', 'so', 'd', 'l', 's', 'e', 'r', 'p', 'ho', 'rf', 'kr', 'kf', 'ks', 'jg'];
-const ORDER = ['c', 'cn', 'm', 'q', 'smin', 'smax', 'so', 'd', 'l', 's', 'e', 'r', 'p', 'ho', 'rf', 'kr', 'kf', 'ks', 'jg', 'v', 'g', 'sort', 'mc', 'job'];
+const FILTER_KEYS = ['q', 'smin', 'smax', 'so', 'd', 'b', 'l', 's', 'e', 'r', 'p', 'ho', 'rf', 'kr', 'kf', 'ks', 'jg'];
+const ORDER = ['c', 'cn', 'm', 'q', 'smin', 'smax', 'so', 'd', 'b', 'l', 's', 'e', 'r', 'p', 'ho', 'rf', 'kr', 'kf', 'ks', 'jg', 'v', 'g', 'sort', 'mc', 'job'];
 
 let S = structuredClone(DEFAULTS);
 let companies = [];
@@ -343,13 +343,16 @@ function parseHash(hash = location.hash) {
   if (!['pay', 'juice'].includes(st.mc)) st.mc = DEFAULTS.mc; // D-14: the map's Pay|Juice colouring
   if (!SORTS.includes(st.sort)) st.sort = DEFAULTS.sort; // D-12: an old or hand-edited sort= shows as Highest pay
   if (!VIEWS.includes(st.v)) st.v = DEFAULT_VIEW;
-  if (!p.has('g') || !['department', 'location', 'seniority', 'none'].includes(st.g)) st.g = groupDefault(st.v);
+  if (!p.has('g') || !GROUPS.includes(st.g)) st.g = groupDefault(st.v);
   if (st.p === 0) st.p = 0;
   return st;
 }
 
 /** Clusters need a grouping (department); ranges read best ungrouped. */
 const groupDefault = (view) => (view === 'ranges' ? 'none' : 'department');
+/* google-grouping: "brand" (shown as Company) groups by the company or subsidiary the board names on its
+   postings; the option shows only on a board that names more than one (groupBy() below). */
+const GROUPS = ['department', 'brand', 'location', 'seniority', 'none'];
 /* P-4: 'best' (Best match) is the default. With a search it lists title and team matches first, each
    group by highest pay; without one it is Highest pay. Any sort the person picks is strict. */
 const SORTS = ['best', 'salary-desc', 'salary-asc', 'newest', 'title', 'juice'];
@@ -460,7 +463,7 @@ function clearFilters() {
 
 function activeFilterCount(st = S) {
   return (st.q ? 1 : 0) + (st.smin != null || st.smax != null ? 1 : 0) + (st.so ? 1 : 0) + (st.ho ? 1 : 0) + (st.rf ? 1 : 0) +
-    st.d.length + st.l.length + st.s.length + st.e.length + (st.r !== 'any' ? 1 : 0) + (st.p ? 1 : 0) +
+    st.d.length + st.b.length + st.l.length + st.s.length + st.e.length + (st.r !== 'any' ? 1 : 0) + (st.p ? 1 : 0) +
     st.kr.length + st.kf.length + st.ks.length + st.jg.length;
 }
 
@@ -495,6 +498,23 @@ function disambiguateLocations(jobs) {
   }
 }
 const deptKey = (j) => keyOf(j, 'department'); // same keys the chart colors by
+/* google-grouping: the company or subsidiary a board names on its postings (Google's YouTube, DeepMind,
+   Waymo, …: Job.brand, CONTRACT.md "google-grouping"), the key of the Company grouping and filter. */
+const brandKey = (j) => keyOf(j, 'brand');
+let brandsFor = null, brandsSeen = new Map();
+/** The board's brands -> postings. */
+function boardBrands(jobs = data.jobs) {
+  if (brandsFor !== jobs) { brandsFor = jobs; brandsSeen = new Map(); for (const j of jobs) if (j.brand) brandsSeen.set(j.brand, (brandsSeen.get(j.brand) || 0) + 1); }
+  return brandsSeen;
+}
+/** The Company grouping and filter exist only on a board that names more than one company. */
+const multiBrand = () => boardBrands().size > 1;
+/** The grouping in force: Company only where the board has it (an old link elsewhere groups by the default). */
+const groupBy = () => (S.g === 'brand' && !multiBrand() ? groupDefault(S.v) : S.g);
+/** Departments the site read from job titles because the board publishes none (Google: departmentBasis 'title'). */
+const deptFromTitles = () => data.status === 'ready' && data.jobs.some((j) => j.departmentBasis === 'title');
+/** One short line for that (fix-density: secondary text is one line). */
+const deptTitleNote = () => `Grouped by job title: ${data.company?.name || 'this board'} doesn’t publish departments`;
 /** Juice filter key for a juice entry: its grade ("Rind" files under Dry), or null without one. */
 const gradeOf = (e) => (e ? (e.grade === 'Rind' ? 'Dry' : e.grade) : null);
 /** Juice filter key: the best location's grade, or null without juice. */
@@ -804,7 +824,7 @@ function filterSpec(st = S, jobs = data.jobs) {
   return {
     q: queryMatchers(st.q, jobs),
     smin: st.smin, smax: st.smax, so: st.so,
-    d: new Set(st.d), l, lCover: l.size ? placeCover(l, jobs) : null, s: new Set(st.s), e: new Set(st.e),
+    d: new Set(st.d), b: new Set(st.b), l, lCover: l.size ? placeCover(l, jobs) : null, s: new Set(st.s), e: new Set(st.e),
     r: st.r, p: st.p, ho: st.ho, rf: st.rf,
     kw: { responsibilities: st.kr, fit: st.kf, skills: st.ks },
     jg: new Set(st.jg),
@@ -819,6 +839,7 @@ function failures(j, F, now) {
   // Shared decision 1: under a Location filter, pay posted for another country doesn't pass a pay filter.
   if (salActive && (!payHere(j, F) || (F.smin != null && j._usd.max < F.smin) || (F.smax != null && j._usd.min > F.smax))) out.push('sal');
   if (F.d.size && !F.d.has(deptKey(j))) out.push('d');
+  if (F.b.size && !F.b.has(brandKey(j))) out.push('b');
   if (F.l.size && !locMatches(j, F)) out.push('l');
   if (F.s.size && !F.s.has(senKey(j))) out.push('s');
   if (F.e.size && !F.e.has(empKey(j))) out.push('e');
@@ -846,7 +867,7 @@ function derive() {
   const filtered = [];
   const bump = (m, k) => m.set(k, (m.get(k) || 0) + 1);
   viewSpec = F;
-  const fc = { d: new Map(), l: new Map(), lGroup: new Map(), s: new Map(), e: new Map(), r: { any: 0, remote: 0, onsite: 0 },
+  const fc = { d: new Map(), b: new Map(), l: new Map(), lGroup: new Map(), s: new Map(), e: new Map(), r: { any: 0, remote: 0, onsite: 0 },
     p: { 0: 0, 7: 0, 30: 0, 90: 0 }, jg: new Map(), kw: { responsibilities: new Map(), fit: new Map(), skills: new Map() }, salMids: [],
     noPayHidden: 0, elsewhereHidden: 0, only: {} };
   const covers = coverIndex(jobs);
@@ -866,6 +887,7 @@ function derive() {
       for (const cat of ['responsibilities', 'fit', 'skills']) for (const k of j.keywords[cat]) bump(fc.kw[cat], k);
     }
     if (counts('d')) bump(fc.d, deptKey(j));
+    if (counts('b')) bump(fc.b, brandKey(j));
     if (counts('l')) {
       const seen = new Set();
       for (let i = 0; i < j.locations.length; i++) {
@@ -1442,7 +1464,7 @@ let held = {};
 const facetSnap = (key) => JSON.stringify(key === 'p' ? [S.p, S.ho] : S[key]);
 function dropHeld(keys = null) { if (!keys) held = {}; else for (const k of keys) delete held[k]; }
 /** Popover "Reset" keys -> the facets it clears. */
-const HELD_OF = { salary: [], dept: ['d'], loc: ['l'], sen: ['s'], remote: ['r'], more: ['e', 'p', 'kr', 'kf', 'ks', 'jg'] };
+const HELD_OF = { salary: [], dept: ['d', 'b'], loc: ['l'], sen: ['s'], remote: ['r'], more: ['e', 'p', 'kr', 'kf', 'ks', 'jg'] };
 /**
  * After a company switch loads: keep the filter values the new board has (a place under the new board's own
  * label), set aside the ones it doesn't, put back ones set aside at an earlier board that this one has, and
@@ -1477,6 +1499,7 @@ function settleKeep() {
   };
   const has = (fn) => (x) => (jobs.some((j) => fn(j, x)) ? x : null);
   keepArr('d', has((j, x) => deptKey(j) === x));
+  keepArr('b', has((j, x) => j.brand && brandKey(j) === x));
   // A known place keeps to that place ("Cambridge" in Massachusetts never becomes Cambridge, England); a label
   // with no place behind it (an old link) is kept where it still matches.
   keepArr('l', (x, p) => (p ? keyOnBoard(p, jobs) : locOnBoard(x, jobs) ? x : null), (x) => x, (x) => k.places?.get(x) || null);
@@ -1760,7 +1783,7 @@ function searchName(st = S) {
   const sal = quickLabel('salary'); if (sal) parts.push(sal);
   if (st.rf) parts.push(FAMILY_LABEL[st.rf] || st.rf);
   const shown = { s: senLabel, e: empLabel };
-  for (const k of ['s', 'd', 'l', 'ks', 'kr', 'kf', 'jg', 'e']) for (const v of st[k]) parts.push(shown[k] ? shown[k](v) : v);
+  for (const k of ['s', 'b', 'd', 'l', 'ks', 'kr', 'kf', 'jg', 'e']) for (const v of st[k]) parts.push(shown[k] ? shown[k](v) : v);
   if (st.r !== 'any') parts.push(st.r === 'remote' ? 'Remote' : 'On-site');
   if (st.p) parts.push(`listed in the past ${plural(st.p, 'day')}`);
   const name = companyInfo(st.c)?.name || st.c;
@@ -1869,7 +1892,7 @@ function quickLabel(id) {
       if (S.smin != null) return `${money(S.smin)}+`;
       if (S.smax != null) return `Up to ${money(S.smax)}`;
       return S.so ? 'Has salary' : null;
-    case 'dept': return summarize(S.d, 'Departments');
+    case 'dept': return summarize([...S.b, ...S.d], S.d.length ? 'Departments' : 'Companies'); // google-grouping: Company is in this menu
     case 'loc': return summarize(S.l, 'Locations');
     case 'sen': return summarize(S.s.map(senLabel), 'Seniority');
     case 'remote': return S.r === 'remote' ? 'Remote only' : S.r === 'onsite' ? 'On-site' : null;
@@ -2214,6 +2237,31 @@ function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8,
   return { el, sync };
 }
 
+/**
+ * The Department section (filter panel and the Department chip's menu). google-grouping: on a board
+ * that names more than one company (Google: YouTube, DeepMind, …), its companies come first, so one
+ * subsidiary can be zoomed into without a new section (ROADMAP §8); departments read from job titles
+ * say so in one line.
+ */
+function makeDeptFilter({ limit = 8 } = {}) {
+  const brands = makeChecklist('b', { limit: 6, searchable: false, colorDim: 'brand' });
+  const brandHead = h('div', { class: 'check-group' }, 'Company');
+  const deptHead = h('div', { class: 'check-group' }, 'Department');
+  const depts = makeChecklist('d', { limit, colorDim: 'department' });
+  const note = h('p', { class: 'fnote', dataset: { note: 'dept-basis' } });
+  return {
+    el: h('div', { class: 'dept-filter' }, brandHead, brands.el, deptHead, depts.el, note),
+    sync() {
+      const many = multiBrand() || S.b.length > 0;
+      brandHead.hidden = deptHead.hidden = brands.el.hidden = !many;
+      if (many) brands.sync();
+      depts.sync();
+      note.hidden = !deptFromTitles();
+      note.textContent = note.hidden ? '' : deptTitleNote();
+    },
+  };
+}
+
 function makeRemote() {
   // BP-17: On-site is a role that isn't open to remote work, so Any = Remote + On-site.
   const opts = [['any', 'Any', null], ['remote', 'Remote', 'Roles open to remote work'], ['onsite', 'On-site', 'Roles not open to remote work']];
@@ -2358,7 +2406,7 @@ function renderFilterPanel() {
     const sel = (key) => h('span', { class: 'fsec-badge', dataset: { badge: key } });
     panel = [
       section('Salary', makeSalary(), { badge: sel('sal') }),
-      section('Department', makeChecklist('d', { colorDim: 'department' }), { badge: sel('d') }),
+      section('Department', makeDeptFilter(), { badge: sel('d') }),
       section('Location', makeChecklist('l', { grouped: true, limit: 10, searchable: 'auto', colorDim: 'location', note: LOC_NOTE }), { badge: sel('l') }),
       section('Seniority', makeChecklist('s', { order: SENIORITY_SHOWN, limit: 10, colorDim: 'seniority', ...SEN_OPTS }), { badge: sel('s') }),
       section('Remote', makeRemote(), { badge: sel('r') }),
@@ -2369,7 +2417,7 @@ function renderFilterPanel() {
     body.replaceChildren(...panel.map((s) => s.el));
   }
   for (const s of panel) s.sync();
-  const counts = { sal: (S.smin != null || S.smax != null ? 1 : 0) + (S.so ? 1 : 0), d: S.d.length, l: S.l.length, s: S.s.length, r: S.r !== 'any' ? 1 : 0, kr: S.kr.length, kf: S.kf.length, ks: S.ks.length, e: S.e.length, p: (S.p ? 1 : 0) + (S.ho ? 1 : 0) };
+  const counts = { sal: (S.smin != null || S.smax != null ? 1 : 0) + (S.so ? 1 : 0), d: S.d.length + S.b.length, l: S.l.length, s: S.s.length, r: S.r !== 'any' ? 1 : 0, kr: S.kr.length, kf: S.kf.length, ks: S.ks.length, e: S.e.length, p: (S.p ? 1 : 0) + (S.ho ? 1 : 0) };
   for (const b of body.querySelectorAll('[data-badge]')) {
     const n = counts[b.dataset.badge];
     b.textContent = n || '';
@@ -2385,7 +2433,7 @@ const popover = { id: null, anchor: null, parts: [] };
 function popoverParts(id) {
   switch (id) {
     case 'salary': return [makeSalary({ compact: true })];
-    case 'dept': return [makeChecklist('d', { limit: 12, colorDim: 'department' })];
+    case 'dept': return [makeDeptFilter({ limit: 12 })];
     case 'loc': return [makeChecklist('l', { grouped: true, limit: 14, note: LOC_NOTE })];
     case 'sen': return [makeChecklist('s', { order: SENIORITY_SHOWN, limit: 10, ...SEN_OPTS })];
     case 'remote': return [makeRemote()];
@@ -2444,7 +2492,7 @@ function togglePopover(id, anchor) {
 
 function clearPopoverFacet(id) {
   const patches = {
-    salary: { smin: null, smax: null, so: false }, dept: { d: [] }, loc: { l: [] }, sen: { s: [] }, remote: { r: 'any' },
+    salary: { smin: null, smax: null, so: false }, dept: { d: [], b: [] }, loc: { l: [] }, sen: { s: [] }, remote: { r: 'any' },
     more: { so: false, e: [], p: 0, ho: false, kr: [], kf: [], ks: [], jg: [] },
   };
   dropHeld(HELD_OF[id] || []);
@@ -2745,7 +2793,7 @@ function renderViz() {
   chartHost.hidden = S.m !== 'chart';
   mapHost.hidden = S.m !== 'map';
   $('#vizControls').hidden = S.m !== 'chart';
-  $('#groupBy').value = S.g;
+  syncGroupSelect();
   for (const b of document.querySelectorAll('[data-view]')) b.setAttribute('aria-pressed', String(b.dataset.view === S.v));
 
   overlay.hidden = true;
@@ -2802,11 +2850,11 @@ function renderViz() {
   const F = viewSpec;
   const places = S.l.length ? S.l : null;
   const placeTest = places && F ? (j, l) => locMatches(j, F, [l]) : null;
-  const sig = jobs.map((j) => j.id).join(',') + (S.m === 'chart' ? `|${S.v}|${S.g}` : `|${S.mc}|${juiceHousehold}`) + `|${S.l.join('|')}`;
+  const sig = jobs.map((j) => j.id).join(',') + (S.m === 'chart' ? `|${S.v}|${groupBy()}` : `|${S.mc}|${juiceHousehold}`) + `|${S.l.join('|')}`;
   if (vizSig[S.m] !== sig) {
     vizSig[S.m] = sig;
     try {
-      if (S.m === 'chart') chart.update(jobs, { view: S.v, groupBy: S.g, colorBy: colorBy(), places, placeTest });
+      if (S.m === 'chart') chart.update(jobs, { view: S.v, groupBy: groupBy(), colorBy: colorBy(), places, placeTest });
       // Fit once per company load (map.js pads by half a pin, lowers minZoom as needed and
       // waits for a hidden container to be sized), and when the Location filter changes;
       // other updates keep the user's viewport.
@@ -2819,7 +2867,23 @@ function renderViz() {
 }
 
 /** Colour follows the grouping (department when ungrouped), so the chart has a single colour story. */
-const colorBy = () => (S.g === 'none' ? 'department' : S.g);
+const colorBy = () => (groupBy() === 'none' ? 'department' : groupBy());
+
+/**
+ * google-grouping: the Group select offers Company only on a board that names more than one, and its
+ * Department option says when departments are read from job titles.
+ */
+function syncGroupSelect() {
+  const sel = $('#groupBy');
+  let opt = sel.querySelector('option[value="brand"]');
+  const many = data.status === 'ready' && multiBrand();
+  if (many && !opt) sel.querySelector('option[value="department"]').after(opt = h('option', { value: 'brand' }, 'Company'));
+  else if (!many && opt) opt.remove();
+  const tip = deptFromTitles() ? deptTitleNote() : '';
+  sel.querySelector('option[value="department"]').title = tip;
+  sel.title = groupBy() === 'department' ? tip : '';
+  sel.value = groupBy();
+}
 
 function computeColorKeys(jobs) {
   colorKeys = new Set();
@@ -2872,6 +2936,7 @@ const FACET_OFF = {
   q: () => [`the search “${S.q}”`, { q: '' }],
   sal: () => ['the pay filter', { smin: null, smax: null, so: false }],
   d: () => ['the department filter', { d: [] }],
+  b: () => ['the company filter', { b: [] }],
   l: () => ['the location filter', { l: [] }],
   s: () => ['the level filter', { s: [] }],
   e: () => ['the employment type filter', { e: [] }],
@@ -2885,7 +2950,7 @@ function activeFacets(st = S) {
   const on = [];
   if (st.q) on.push('q');
   if (st.smin != null || st.smax != null || st.so) on.push('sal');
-  for (const k of ['d', 'l', 's', 'e']) if (st[k].length) on.push(k);
+  for (const k of ['d', 'b', 'l', 's', 'e']) if (st[k].length) on.push(k);
   if (st.r !== 'any') on.push('r');
   if (st.p || st.ho) on.push('p');
   if (st.rf) on.push('rf');
