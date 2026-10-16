@@ -379,6 +379,8 @@ function cashCompOteBefore(before, text) {
 // $333000 (USD) + 25% bonus target + equity + benefits": a base range with the
 // extras named after it. This is pay context, and the bonus is not the amount.
 const PLUS_EXTRAS_AFTER_RE = /^\s*(?:\(?(?:USD|CAD|GBP|EUR|AUD|SGD|CHF|INR|JPY|ILS|PLN|SEK|DKK|NOK|RON|CZK)\)?\s*)?(?:per\s+(?:year|annum|hour)\s*)?(?:\+|plus\b)\s*(?:an?\s+)?(?:\d{1,3}(?:\.\d{1,2})?%\s+)?(?:annual\s+|target\s+)?(?:bonus|equity|benefits|commission|stock|rsus?)\b/i;
+// The last "<level code> - The typical base pay range …" before an amount (SA-4).
+const NATIONAL_LEVEL_RE = /\b((?:IC|M|L)\d{1,2}|ATR-?[A-Z0-9]{1,3})\s+[-–—]\s+the typical\b(?![\s\S]*\bthe typical\b)/i;
 const NATIONAL_RE = /\btypical\s+base\s+pay\s+range\s+for\s+this\s+role\s+across\s+(?:the\s+)?([A-Z][\w.]*(?:\s+[A-Z][\w.]*){0,2})\s+is\b[^$£€¥\d]{0,12}$/;
 const NATION_CODE = Object.freeze({
   'u.s': 'US', us: 'US', usa: 'US', 'united states': 'US', canada: 'CA', 'united kingdom': 'GB', uk: 'GB', 'u.k': 'GB',
@@ -425,6 +427,16 @@ function sentenceCountry(before) {
     }
   }
   return code;
+}
+// SA-4 (salary audit): Google prices one country by degree on separate lines ("[Bachelor's degree] Canada:
+// $99000 (CAD)", "[Master's degree] Canada: $102000 (CAD)"). The bracket before the country label names the
+// line, so a span of the lines keeps each line as a level (salary.levels), as Microsoft's IC levels do.
+const LINE_BRACKET_RE = /^\s*\[([^\]\n]{2,40})\]\s*[A-Z][A-Za-z. ]{1,40}:\s*$/;
+function lineBracket(text, start) {
+  const from0 = Math.max(0, start - 120);
+  const from = from0 + text.slice(from0, start).lastIndexOf('\n') + 1;
+  const m = LINE_BRACKET_RE.exec(text.slice(from, start));
+  return m && lineLabel(text, start) ? m[1].trim() : null;
 }
 /** ISO code of the country that labels the amount's line, or null. */
 function lineCountry(text, start) {
@@ -899,7 +911,12 @@ function evaluate(text, u, countries) {
   // city ranges that follow ("…in those locations is…") are not national.
   const nat = NATIONAL_RE.exec(before);
   const national = nat ? nat[1].replace(/\s+/g, ' ').toLowerCase() : null;
-  const level = national ? (/^\s*(.{2,60}?)\s+[-–—]\s+the typical\b/i.exec(before) || [])[1] || null : null;
+  // SA-4 (salary audit): when the clause starts earlier than the level's own line (Microsoft separates
+  // repeated pay paragraphs with escaped "<p></p>" tags and a pay link, so no sentence break precedes
+  // "Solution Area Specialists IC5 - The typical …"), the level code just before "- The typical" names it.
+  const level = national
+    ? (/^\s*(.{2,60}?)\s+[-–—]\s+the typical\b/i.exec(before) || [])[1] || (NATIONAL_LEVEL_RE.exec(before) || [])[1] || null
+    : lineBracket(text, gs);
   // One posting may list a national range per country ("across Ireland", "across
   // Germany"): the one for the job's own country scores highest.
   const natCode = national ? NATION_CODE[national.replace(/\.$/, '')] || null : null;

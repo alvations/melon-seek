@@ -157,6 +157,17 @@ test('SB-5 the national-only and area-only cases are unchanged', () => {
   assert.deepEqual(p.cityRange, { min: 160200, max: 261000, areas: ['sf-bay', 'nyc'] });
 });
 
+// SA-4 (salary-audit-data's finding, fixed here; its Google degree-line test is in test/salary-audit.test.js).
+// microsoft:1970393556984110 "Senior Sales Specialist -Cloud & AI Platforms": two level paragraphs, IC4 and
+// IC5, separated by escaped "<p></p>" tags and a pay link, so the IC5 clause starts far before its level.
+// The span IC4 min to IC5 max was shown with only IC4 named ("Solution Area Specialists IC4: …; USD …").
+test('SA-4 Microsoft: a level paragraph after a pay link keeps its level (IC4 and IC5 both named)', () => {
+  const text = "Solution Area Specialists IC4 - The typical base pay range for this role across the U.S. is USD $107,600 - $187,500 per year. <p></p> <p>Certain roles may be eligible for benefits and other compensation. Find additional benefits and pay information here:<br/><a href=' https://careers.microsoft.com/us/en/us-corporate-pay '> https://careers.microsoft.com/us/en/us-corporate-pay </a></p><p></p> <p>Solution Area Specialists IC5 - The typical base pay range for this role across the U.S. is USD $133,000 - $222,700 per year.";
+  const p = parseSalary(text, { countries: ['US'] });
+  assert.deepEqual([p.min, p.max], [107600, 222700], 'reference: the span of the two levels');
+  assert.deepEqual((p.levels || []).map((l) => [l.label, l.min, l.max]), [['IC4', 107600, 187500], ['IC5', 133000, 222700]]);
+});
+
 /* -------------------------------------------------------------------- chart */
 // Reference (no defect): the chart plots each posting's own min, max and midpoint in approx USD,
 // exactly the served salary (the trace found 0 differences on 32,000+ postings).

@@ -35,7 +35,9 @@ import { vetSalaries, salaryChecks } from './vet.js';
  * compensation as 'ote', Meta salary.country, Amazon "III", Meta leadership and Microsoft IC/M
  * levels, ISO-3 country codes, "20h per week"); norm-11 = the salary audit (docs/process/salary-audit-backend.md:
  * every posted range kept (no cap at 12), Amazon "New York City" rows tied to New York, Microsoft's SF Bay
- * Area / NYC range kept per place for jobs with places inside and outside those areas). Stored
+ * Area / NYC range kept per place for jobs with places inside and outside those areas, Google degree lines
+ * and late Microsoft level paragraphs kept as salary.levels, a stored salary kept when trimming cut its
+ * pay sentence). Stored
  * snapshots are upgraded with relocateJobs (which also re-derives text-sourced pay, the
  * pay labels and the level, then re-runs the vetting gate) and rekeyBoardJobs.
  */
@@ -214,6 +216,9 @@ function relabelSalary(sal, { text, title, employmentType, countries }) {
   return payTerms(s, { text, title, employmentType, salesRole: isSalesTitle(title) });
 }
 
+/** The marker scripts/snapshot.js#trimDescription leaves where it cut a description. */
+const TRIMMED_RE = /\[…\] Full description on the posting page\./;
+
 /**
  * The salary a STORED posting gets from the current parser (norm-7, the beta fix wave:
  * DQ-5, DQ-6, DQ-8 levels, DQ-13, DQ-14, DQ-15, D-22, D-30): its text-sourced salary, or
@@ -231,6 +236,10 @@ function rederiveTextSalary(j, text) {
   // unclear") instead of the upgrade erasing the record. A plausible stored figure that the
   // text no longer supports (a union pay floor) is dropped.
   if (!fresh && sal && salaryChecks({ title: j.title, employmentType: j.employmentType }, sal).length) return undefined;
+  // SA-7 (salary audit): a stored description trimmed to fit the snapshot (scripts/snapshot.js
+  // trimDescription) may have lost the pay sentence the stored salary was read from; the trimmed text
+  // then says nothing about pay, so the stored salary is kept, never erased.
+  if (!fresh && sal && TRIMMED_RE.test(text)) return undefined;
   // A text salary that replaced a rejected structured one keeps that record and its zones.
   if (fresh && sal && sal.structuredRejected) return withPayPlaces({ ...fresh, zones: Math.max(fresh.zones || 1, sal.zones || 1), structuredRejected: sal.structuredRejected }, sal.places, j.locations);
   // The places the stored pay was posted for (DQ-27) are the adapter's knowledge, not the text's.
