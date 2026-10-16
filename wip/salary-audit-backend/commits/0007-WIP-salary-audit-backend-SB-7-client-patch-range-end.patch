@@ -1,0 +1,98 @@
+From 594109df85b6ac1d0f3e834663313ff220d6910c Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 15:27:14 +0000
+Subject: [PATCH 7/7] WIP salary-audit-backend: SB-7 client patch (range ends
+ in the millions keep two decimals) and its to-do test
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ .../patches/salary-audit-backend-client.diff  | 35 +++++++++++++++++++
+ test/salary-pipeline.test.js                  | 29 +++++++++++++++
+ 2 files changed, 64 insertions(+)
+ create mode 100644 docs/process/patches/salary-audit-backend-client.diff
+
+diff --git a/docs/process/patches/salary-audit-backend-client.diff b/docs/process/patches/salary-audit-backend-client.diff
+new file mode 100644
+index 0000000..17ced58
+--- /dev/null
++++ b/docs/process/patches/salary-audit-backend-client.diff
+@@ -0,0 +1,35 @@
++diff --git a/public/app.js b/public/app.js
++index d7cdb6d..1248007 100644
++--- a/public/app.js
+++++ b/public/app.js
++@@ -126,7 +126,7 @@ function money(n, currency = 'USD') {
++ }
++ function salaryRange(s) {
++   if (!s) return null;
++-  if (s.min === s.max || s.max == null) return money(s.min, s.currency);
+++  if (s.min === s.max || s.max == null) return rangeEnd(s.min, s.currency);
++   return moneyRange(s.min, s.max, s.currency);
++ }
++ const PER_UNIT = { hour: 'hour', day: 'day', week: 'week', month: 'month' };
++@@ -205,9 +205,20 @@ function compactRange(a, b) {
++   const ux = x.slice(-1), uy = y.slice(-1);
++   return ux === uy && /[KM]/.test(ux) ? `${x.slice(0, -1)}–${y.replace(/^[^\d]+/, '')}` : `${x}–${y.replace(/^[^\d]+/, '')}`;
++ }
+++/**
+++ * SB-7 (salary audit): a range end in the millions keeps two decimals ("$600K–1.07M", "SEK 1.04M–1.06M"). With
+++ * one decimal, Netflix's posted $600,000–$1,066,000 read "$600K–1.1M" and Google's SEK 1,000,000–1,030,000 read
+++ * "SEK 1.0M", one number for a posted range (off by up to 3.9%).
+++ */
+++function rangeEnd(n, currency) {
+++  const a = Math.abs(n);
+++  if (!(a >= 999500 && a < 1e7)) return money(n, currency);
+++  const sym = !currency || currency === 'USD' ? '$' : CUR_SYM[currency] ?? `${currency} `;
+++  return `${n < 0 ? '-' : ''}${sym}${+(a / 1e6).toFixed(2)}M`;
+++}
++ /** "$59K–64K", or "$59K" when both ends round to the same figure (P-16). */
++ function moneyRange(a, b, currency = 'USD') {
++-  const x = money(a, currency), y = money(b, currency);
+++  const x = rangeEnd(a, currency), y = rangeEnd(b, currency);
++   return x === y ? x : `${x}–${y.replace(/^[^\d]+/, '')}`;
++ }
++ /** Exact posted amount with thousands separators: 3850 -> "$3,850", 35.6 -> "$35.60" (P-8). */
+diff --git a/test/salary-pipeline.test.js b/test/salary-pipeline.test.js
+index 6f39638..7bec446 100644
+--- a/test/salary-pipeline.test.js
++++ b/test/salary-pipeline.test.js
+@@ -203,6 +203,35 @@ test('SA-4 Microsoft: a level paragraph after a pay link keeps its level (IC4 an
+   assert.deepEqual((p.levels || []).map((l) => [l.label, l.min, l.max]), [['IC4', 107600, 187500], ['IC5', 133000, 222700]]);
+ });
+ 
++/* --------------------------------------------------------------------- card */
++// SB-7 (client, patch docs/process/patches/salary-audit-backend-client.diff for public/app.js). The card's
++// range ends in the millions had one decimal: netflix:790316208712 posts $600,000.00 - $1,066,000.00 and the
++// card read "$600K–1.1M"; google:127450315589853894 posts SEK 1,000,000–1,030,000 and the card read "SEK 1.0M",
++// one number. 27 cards on 2026-10-16 were off by more than 2% because of it (up to 3.9%). A to-do until the patch lands.
++function appFunctions(names) {
++  const src = fs.readFileSync(path.join(ROOT, 'public', 'app.js'), 'utf8').split('\n');
++  const parts = [];
++  for (const name of names) {
++    const re = new RegExp(`^(?:function\\s+${name}\\s*\\(|const\\s+${name}\\s*=)`);
++    const i = src.findIndex((l) => re.test(l));
++    if (i < 0) continue;
++    let j = i;
++    if (/^function/.test(src[i])) { while (j < src.length && src[j] !== '}') j++; } else if (!/;\s*$/.test(src[i])) { j = i + 1; while (j < src.length && !/^[}\])]/.test(src[j])) j++; }
++    parts.push(src.slice(i, j + 1).join('\n'));
++  }
++  return parts.join('\n');
++}
++test('SB-7 card: a range end in the millions keeps two decimals ("$600K–1.07M", "SEK 1M–1.03M")', { todo: 'client patch docs/process/patches/salary-audit-backend-client.diff' }, async () => {
++  const { formatMoney } = await import('../public/viz/palette.js');
++  // The functions as public/app.js has them (a module with a DOM; these few are pure).
++  const body = `${appFunctions(['CUR_SYM', 'money', 'rangeEnd', 'moneyRange', 'salaryRange'])}\nreturn { moneyRange, salaryRange };`;
++  const { moneyRange, salaryRange } = new Function('formatMoney', body)(formatMoney);
++  assert.equal(moneyRange(600000, 1066000), '$600K–1.07M');
++  assert.equal(moneyRange(1000000, 1030000, 'SEK'), 'SEK 1M–1.03M');
++  assert.equal(salaryRange({ min: 1430000, max: 1430000, currency: 'USD' }), '$1.43M');
++  assert.equal(moneyRange(141000, 202000), '$141K–202K', 'ranges under a million are unchanged');
++});
++
+ /* -------------------------------------------------------------------- chart */
+ // Reference (no defect): the chart plots each posting's own min, max and midpoint in approx USD,
+ // exactly the served salary (the trace found 0 differences on 32,000+ postings).
+-- 
+2.43.0
+

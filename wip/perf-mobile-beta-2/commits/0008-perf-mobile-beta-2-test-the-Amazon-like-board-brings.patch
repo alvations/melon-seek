@@ -1,9 +1,9 @@
 From c673b9c784d0ad38a939a4991a4862e8f3202658 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 14:50:14 +0000
-Subject: [PATCH 8/8] perf-mobile-beta-2 test: the Amazon-like board brings its
- own pay and places, so CI (no data links, 3-posting fixture) exercises every
- melon-packed-3 encoding
+Subject: [PATCH 08/11] perf-mobile-beta-2 test: the Amazon-like board brings
+ its own pay and places, so CI (no data links, 3-posting fixture) exercises
+ every melon-packed-3 encoding
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

@@ -1,7 +1,7 @@
 From 61234d863a96a6e4ca7227da6eb60f1861f54981 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 14:51:20 +0000
-Subject: [PATCH 2/5] google-grouping: Company grouping and filter in chart
+Subject: [PATCH 2/7] google-grouping: Company grouping and filter in chart
  mode, with URL state
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8

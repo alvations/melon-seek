@@ -1,8 +1,8 @@
 From fc084ee53ad7aa3617c519d32fe2ebe4fb34dd62 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 11 Oct 2026 20:32:28 +0000
-Subject: [PATCH 1/8] melon-packed-3 lists and Juice once per distinct pay and
- places (behaviour-identical)
+Subject: [PATCH 01/11] melon-packed-3 lists and Juice once per distinct pay
+ and places (behaviour-identical)
 
 Lists: row arrays, salary extras and range tuples, salary.text by reference,
 url templates; Amazon's 5,000 470 -> 314 kB gzip, parse+unpack 50 -> 37 ms

@@ -2,11 +2,14 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a7425c5dcd4e39cbe`
 - Base (on claude/stoic-ride-54ddxp): `2474fc4fd41051bba264426562e3e0d37f24bc9c`
-- Head: `c673b9c784d0ad38a939a4991a4862e8f3202658`
+- Head: `25efed6b13fbd7e37131390fef630597f493e7ee`
 - Restore: `bash scripts/cycle/restore-wip.sh perf-mobile-beta-2 <new worktree dir>`
 
 ## Commits since the base
 ```
+25efed6 SA-7: trimming keeps pay paragraphs in pounds, euros and zloty and 'pay rate' / 'per hour' lines (salary-audit-data's snapshot.js hunk)
+de03075 WIP perf-mobile-beta-2: State; merge script for interleaved runs
+d25d42c perf-mobile-beta-2 test: brand and departmentBasis (google-grouping) round-trip through melon-packed-3 exactly
 c673b9c perf-mobile-beta-2 test: the Amazon-like board brings its own pay and places, so CI (no data links, 3-posting fixture) exercises every melon-packed-3 encoding
 68a0748 WIP perf-mobile-beta-2: State section in the log
 161a472 VT-22: trimming keeps every pay-table row and the sentence above it (fix5-data's patch, applied); VT-22 test un-todo'd
@@ -19,9 +22,7 @@ fc084ee melon-packed-3 lists and Juice once per distinct pay and places (behavio
 
 ## Uncommitted and new files
 ```
-?? data/snapshots.off
 ```
 
 ## Left out (not in untracked.tgz)
-- data/snapshots.off (symlink)
 - node_modules (symlink)

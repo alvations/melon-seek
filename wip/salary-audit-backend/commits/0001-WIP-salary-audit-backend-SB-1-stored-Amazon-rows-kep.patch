@@ -1,7 +1,7 @@
 From 193205a43b594dab2c78d6ef5462e83deec742ef Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 14:50:57 +0000
-Subject: [PATCH 1/4] WIP salary-audit-backend: SB-1 stored Amazon rows kept,
+Subject: [PATCH 1/7] WIP salary-audit-backend: SB-1 stored Amazon rows kept,
  SB-3 no 12-range cap, SB-4 New York City row, SB-5 Microsoft area range per
  place, norm-11
 

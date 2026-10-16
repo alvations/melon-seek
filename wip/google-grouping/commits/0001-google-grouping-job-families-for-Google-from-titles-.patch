@@ -1,7 +1,7 @@
 From 8842826e5d6f2bd6ac3c7cf82862baa011f09970 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 14:48:19 +0000
-Subject: [PATCH 1/5] google-grouping: job families for Google from titles,
+Subject: [PATCH 1/7] google-grouping: job families for Google from titles,
  brand kept as its own field
 
 - server/families.js: deterministic title classifier into 27 job families modelled on

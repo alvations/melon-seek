@@ -1,7 +1,7 @@
 From 5963f2accbf44e77307f8382165a428df5fb7f20 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 14:51:44 +0000
-Subject: [PATCH 5/5] google-grouping: process log, prompt and CONTRACT section
+Subject: [PATCH 5/7] google-grouping: process log, prompt and CONTRACT section
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

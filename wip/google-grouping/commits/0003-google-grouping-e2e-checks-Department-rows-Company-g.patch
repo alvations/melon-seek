@@ -1,7 +1,7 @@
 From fdc23574a688b4f893ee4362d42111988c955b3b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 14:51:20 +0000
-Subject: [PATCH 3/5] google-grouping: e2e checks (Department rows, Company
+Subject: [PATCH 3/7] google-grouping: e2e checks (Department rows, Company
  grouping, Company filter, other boards unchanged)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -15,6 +15,7 @@ a68e62d WIP: fix6-fresh-data prompt and log skeleton
 ## Uncommitted and new files
 ```
  M server/keywords.js
+ M test/fix6-fresh-data.test.js
 ```
 
 ## Left out (not in untracked.tgz)

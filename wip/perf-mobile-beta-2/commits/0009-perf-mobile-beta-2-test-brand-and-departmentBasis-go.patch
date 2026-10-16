@@ -1,0 +1,28 @@
+From d25d42cb58f2f9745dbaf7a323b4e617fb93e023 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 15:23:46 +0000
+Subject: [PATCH 09/11] perf-mobile-beta-2 test: brand and departmentBasis
+ (google-grouping) round-trip through melon-packed-3 exactly
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ test/perf-mobile-beta-2.test.js | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/test/perf-mobile-beta-2.test.js b/test/perf-mobile-beta-2.test.js
+index 1a7fa22..a653bf0 100644
+--- a/test/perf-mobile-beta-2.test.js
++++ b/test/perf-mobile-beta-2.test.js
+@@ -122,6 +122,8 @@ function amazonLike(base) {
+     if (i % 47 === 0) job.pool = true;
+     if (i % 53 === 0) job.descriptionHtml = '';
+     if (i % 59 === 0) job.sections = { responsibilities: ['Lead the team'], fit: [] };
++    // google-grouping's fields (server/sources/google.js appends them last): on most jobs, not all.
++    if (i % 5 !== 4) { job.departmentBasis = 'title'; job.brand = i % 3 ? 'Google' : 'YouTube'; }
+     jobs.push(job);
+   }
+   return { company: { slug: 'zz', name: 'Zz' }, mode: 'snapshot', fetchedAt: '2026-10-11T00:00:00.000Z', error: null, jobs };
+-- 
+2.43.0
+

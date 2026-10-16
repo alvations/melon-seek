@@ -1,0 +1,33 @@
+From 25efed6b13fbd7e37131390fef630597f493e7ee Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 15:25:11 +0000
+Subject: [PATCH 11/11] SA-7: trimming keeps pay paragraphs in pounds, euros
+ and zloty and 'pay rate' / 'per hour' lines (salary-audit-data's snapshot.js
+ hunk)
+
+No trimming drops a posting or a pay paragraph (the user's no-cut rule).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ scripts/snapshot.js | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/scripts/snapshot.js b/scripts/snapshot.js
+index ac053a7..77de94b 100644
+--- a/scripts/snapshot.js
++++ b/scripts/snapshot.js
+@@ -35,7 +35,9 @@ import { closureOptions, UNSEEN_OPEN_DAYS } from '../server/history.js';
+  * manageable (docs/process/bigtech-data.md). A target only: no posting is dropped to meet it (fitSnapshot). */
+ export const MAX_BETA_SNAPSHOT_BYTES = 40 * 1024 * 1024;
+ const TRIM_STEPS = [6000, 4000, 2500, 1500, 800];
+-const PAY_HINT_RE = /salary|base pay|pay range|range for this role|compensation|\$\s?\d|\d\s?(?:USD|CAD|GBP|EUR)\b/i;
++// SA-7 (salary audit): pay in pounds, euros or zloty and "pay rate" / "per hour" lines are pay paragraphs too
++// (amazon:SF240111667 "£12.70" was trimmed away, and the build then re-read no pay from the trimmed text).
++const PAY_HINT_RE = /salary|base pay|pay range|pay rate|rate of pay|hourly rate|per hour|range for this role|compensation|[$£€]\s?\d|\d\s?(?:USD|CAD|GBP|EUR|PLN|zł)\b/i;
+ 
+ // VT-22 (fix wave 5, fix5-data): one row of a per-place pay table ("USA, TX, Wink - 30.91 - 54.18 USD
+ // hourly", server/sources/amazon.js PAY_LINE_RE). Every row is kept, so the stored text still holds the
+-- 
+2.43.0
+

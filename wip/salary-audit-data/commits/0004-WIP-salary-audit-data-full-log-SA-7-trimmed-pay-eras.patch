@@ -1,0 +1,556 @@
+From 5e86d41d3adf2f21496c99e54606a8fc7e8fecba Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 13:50:49 +0000
+Subject: [PATCH 4/6] WIP salary-audit-data: full log, SA-7 (trimmed pay
+ erased) test and patch
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ .../salary-audit-data-trimmed-pay.diff        |  36 ++
+ docs/process/salary-audit-data.md             | 436 +++++++++++++++++-
+ test/salary-audit.test.js                     |  27 +-
+ 3 files changed, 492 insertions(+), 7 deletions(-)
+ create mode 100644 docs/process/patches/salary-audit-data-trimmed-pay.diff
+
+diff --git a/docs/process/patches/salary-audit-data-trimmed-pay.diff b/docs/process/patches/salary-audit-data-trimmed-pay.diff
+new file mode 100644
+index 0000000..18064e6
+--- /dev/null
++++ b/docs/process/patches/salary-audit-data-trimmed-pay.diff
+@@ -0,0 +1,36 @@
++--- a/scripts/snapshot.js
+++++ b/scripts/snapshot.js
++@@ -35,7 +35,9 @@
++  * manageable (docs/process/bigtech-data.md). A target only: no posting is dropped to meet it (fitSnapshot). */
++ export const MAX_BETA_SNAPSHOT_BYTES = 40 * 1024 * 1024;
++ const TRIM_STEPS = [6000, 4000, 2500, 1500, 800];
++-const PAY_HINT_RE = /salary|base pay|pay range|range for this role|compensation|\$\s?\d|\d\s?(?:USD|CAD|GBP|EUR)\b/i;
+++// SA-7 (salary audit): pay in pounds, euros or zloty and "pay rate" / "per hour" lines are pay paragraphs too
+++// (amazon:SF240111667 "£12.70" was trimmed away, and the build then re-read no pay from the trimmed text).
+++const PAY_HINT_RE = /salary|base pay|pay range|pay rate|rate of pay|hourly rate|per hour|range for this role|compensation|[$£€]\s?\d|\d\s?(?:USD|CAD|GBP|EUR|PLN|zł)\b/i;
++ 
++ // VT-22 (fix wave 5, fix5-data): one row of a per-place pay table ("USA, TX, Wink - 30.91 - 54.18 USD
++ // hourly", server/sources/amazon.js PAY_LINE_RE). Every row is kept, so the stored text still holds the
++--- a/server/normalize.js
+++++ b/server/normalize.js
++@@ -172,6 +172,9 @@
++   return payTerms(s, { text, title, employmentType, salesRole: isSalesTitle(title) });
++ }
++ 
+++/** The marker scripts/snapshot.js#trimDescription leaves where it cut a description. */
+++const TRIMMED_RE = /\[…\] Full description on the posting page\./;
+++
++ /**
++  * The salary a STORED posting gets from the current parser (norm-7, the beta fix wave:
++  * DQ-5, DQ-6, DQ-8 levels, DQ-13, DQ-14, DQ-15, D-22, D-30): its text-sourced salary, or
++@@ -189,6 +192,10 @@
++   // unclear") instead of the upgrade erasing the record. A plausible stored figure that the
++   // text no longer supports (a union pay floor) is dropped.
++   if (!fresh && sal && salaryChecks({ title: j.title, employmentType: j.employmentType }, sal).length) return undefined;
+++  // SA-7 (salary audit): a stored description trimmed to fit the snapshot (scripts/snapshot.js
+++  // trimDescription) may have lost the pay sentence the stored salary was read from; the trimmed text
+++  // then says nothing about pay, so the stored salary is kept, never erased.
+++  if (!fresh && sal && TRIMMED_RE.test(text)) return undefined;
++   // A text salary that replaced a rejected structured one keeps that record and its zones.
++   if (fresh && sal && sal.structuredRejected) return withPayPlaces({ ...fresh, zones: Math.max(fresh.zones || 1, sal.zones || 1), structuredRejected: sal.structuredRejected }, sal.places, j.locations);
++   // The places the stored pay was posted for (DQ-27) are the adapter's knowledge, not the text's.
+diff --git a/docs/process/salary-audit-data.md b/docs/process/salary-audit-data.md
+index 12d60fc..2dea846 100644
+--- a/docs/process/salary-audit-data.md
++++ b/docs/process/salary-audit-data.md
+@@ -1,8 +1,434 @@
+ # Process log: salary-audit-data
+ 
+ ## State
+-- **Done:** audit scripts, stats, sample, histograms (2026-10-16 crawl); `test/salary-audit.test.js` (SA-1 to SA-6
+-  as to-dos, 9 pinned); findings sent to the lead and to salary-audit-backend.
+-- **In progress:** patches `docs/process/patches/salary-audit-data-*.diff`.
+-- **Next step:** write the card, chart, Amazon-rows and degree-line patches; check them with `git apply --check`
+-  and the SA tests; fill in sections 1 to 7 of this log.
++- **Done:**
++  - audit scripts, per-board stats, the seeded sample, histograms (2026-10-16 crawl);
++  - `test/salary-audit.test.js`: SA-1 to SA-7 as to-dos, 9 pinned tests;
++  - seven patches (two of them fix-wave-5 patches that were never applied, re-checked here);
++  - findings sent to the lead and to salary-audit-backend.
++- **In progress:** none.
++- **Next step:** none for this lane. The lead triages SA-1 to SA-7 and applies the patches in the order in §4,
++  step 8, or hands them to salary-audit-backend.
++
++## 1. Brief
++Prompt: [`prompts/salary-audit-data.md`](prompts/salary-audit-data.md), verbatim, with the lead's three
++follow-ups (new base 2474fc4, fresh data, commit often).
++
++The user asked on 2026-10-11: "Are you sure the salary range of the big tech are correct?! They don't look
++correct and kinda all span too evenly." This lane is the data half of a two-person squad. salary-audit-backend
++traces the pipeline. It checks the **shape** of the ranges across each whole board, which the earlier
++posting-by-posting checks (data check 3, vetting round 2) could not see. It asks whether those ranges are what
++the companies posted, and if not, why.
++
++**Answer.** The numbers beta shows are the companies' own posted figures. The "even" look is real: each of
++these companies publishes fixed-ratio bands per level, and the main site's boards do the same. Three things
++are ours:
++- **Level spans.** Our code shows a posting that prices two levels as one range, from the lower level's
++  minimum to the upper level's maximum, with no mark on the card. This applies to 61% of NVIDIA's paid
++  postings and 10% of Microsoft's (SA-1).
++- **False span claims on Amazon.** On 15% of Amazon's paid postings the card says its range is the span of
++  several places' ranges, but it shows one place's row (SA-2).
++- **Cut pay rows.** Some Amazon pay rows are cut (SA-3, SA-7), against the user's "present them as they are
++  and not cut anything".
++
++Files owned (all new):
++- this log, its prompt copy and `test/salary-audit.test.js`;
++- `data/vetting/2026-10-11-salary-audit/`: scripts, stats, sample, histograms;
++- `docs/process/patches/salary-audit-data-*.diff`.
++
++No product file is changed in the lane's commits.
++
++## 2. Inputs and sources
++- **Code.** Worktree branch `salary-audit-data`, from d50d89b, then 2474fc4 (norm-10).
++- **Data, two crawls.**
++  - **2026-10-11** (`scratchpad/wt-data`, norm-8; Amazon capped at 5,000): the first pass and the
++    exploration.
++  - **2026-10-16** (`scratchpad/wt-data2`, norm-9, fetched 11:58 to 12:16 UTC; Amazon uncapped at 22,179,
++    with descriptions trimmed to 800 characters): every number in this log, the JSON files and the tests
++    comes from this crawl, unless it says 2026-10-11.
++- **Docs read:**
++  - README, CONTRACT, DATA_SOURCES (§7, §7a), VETTING;
++  - PLAYBOOK and TEMPLATE;
++  - data-check-beta-3, vetting-beta-2 and fix5-data, with their tests;
++  - the patches folder: `fix5-data-display.diff` and `fix5-data-trim.diff` are written but not applied on
++    2474fc4.
++- **Code read:**
++  - `server/normalize.js` (`deriveSalary`, `relabelJobs`, `rederiveTextSalary`);
++  - `server/salary.js` (`parseSalary`, `evaluate`, `toJobSalary`);
++  - `server/vet.js`, `server/juice.js` (`attachJuice`), `server/sources/upgrade.js`;
++  - the adapters: `amazon.js` (`amazonSalary`), `apple.js` (`spanPay`, `mapCopies`), `meta.js`
++    (`metaPayRanges`, `mapMetaJob`), `google.js` and `eightfold.js` (Microsoft, NVIDIA, Netflix: pay is text
++    only);
++  - `scripts/build-static.js` (`readSnapshot`, `packList`), `scripts/snapshot.js` (`trimDescription`);
++  - `public/api.js` (`unpackJobs`), `public/app.js` (`payPill`, `payLabels`, `payLevelsLine`,
++    `pickedRange`), `public/viz/chart.js` (`chartPay`, `spanTiers`, the ranges tip).
++- **Skills:** dataviz, for the histogram palette (reference slots 1 and 2, light and dark).
++- **Public references**, from web search result pages only (no page could be fetched, see §6):
++  - Google: [Salary Ranges in US-Based Role Postings](https://support.google.com/googlecareers/answer/12943014).
++    The range is "the minimum and maximum target for new hire salaries for the position across all US
++    locations", so a Google range is one national band.
++  - Microsoft: [US corporate pay](https://careers.microsoft.com/us/en/us-corporate-pay). It describes the
++    national base pay range and the separate ranges for some work locations. The search summary quotes IC3
++    $100,600–199,000 (SF/NYC $131,400–215,400) and IC4 $119,800–234,700 (SF/NYC $158,400–258,000), the same
++    figures as beta's most common Microsoft ranges.
++  - NVIDIA mirrors of its postings show the same two-level sentence and the same per-level figures as our
++    data: [hitmarker](https://hitmarker.net/jobs/nvidia-system-level-test-engineer-1717042) ("132,000 USD -
++    207,000 USD for Level 3, and 152,000 USD - 253,000 USD for Level 4"),
++    [whatjobs](https://www.whatjobs.com/company/nvidia/jobs/senior-cuda-kernel-engineer-tensor-core-gemm)
++    ("$152,000 to $241,500 for Level 3 and $184,000 to $287,500 for Level 4"), and
++    [designgurus](https://www.designgurus.io/blog/nvidia-software-engineer-levels) (secondhand: "168,000 to
++    264,500 for Level 4, and 200,000 to 322,000 for Level 5").
++  - levels.fyi was not consulted: the search quota ran out, and nothing was copied from it.
++
++## 3. Decisions and rationale
++1. **Audit what is served, compare with what is stored.** Each board's list was read from a build's
++   `dist/beta/api/jobs/<slug>.json`, unpacked with `public/api.js#unpackJobs` exactly as the browser does.
++   The posting text came from the stored snapshot, matched by id. Every id matched: 0 served postings were
++   missing from their snapshot.
++2. **"Posted" is tested against the posting's own text, on every posting, not a sample.**
++   `lib.mjs#textProvenance` finds every amount pair joined by a range word ("-", "–", "to", "and") in the
++   stored text. It classifies the shown (min, max), converted back to the posted interval, as one of:
++   - one posted range;
++   - one posted figure;
++   - a span of two or more posted ranges (min from one, max from another);
++   - not in the text (structured fields, or text cut by trimming).
++
++   Amounts: "141,000", "$141000", "184,000.00", "47'000" and "153.6K". HTML entities are decoded twice,
++   because Greenhouse content is escaped HTML.
++3. **The shape measures:**
++   - width ÷ midpoint, (max − min) / ((max + min) / 2);
++   - top ÷ bottom, max / min, whose most common value is reported with the share within ±0.02;
++   - distinct (min, max) pairs and the top 10 pairs.
++
++   All three use USD ranges with min ≠ max. They are computed twice: for the shown ranges, and for the ranges
++   as posted, where each level's range (`salary.levels`) and each place's range (`salary.ranges`) count on
++   their own. The gap between the two is exactly what our code adds.
++4. **Sample.** Seed 20261011, mulberry32, with seed + board index per board. For each board: 15 random
++   paid postings, plus one posting for each of the 10 most common shown pairs, 25 per board. Each quote is
++   the whole sentence or line in the stored text, whitespace collapsed. The script refuses a quote it cannot
++   find again. "U.S.", "e.g." and "Sr." do not end a sentence.
++5. **Live checks.** `live-fetch.sh` makes one request per URL, with an honest User-Agent and 1.5 s between
++   requests, after robots.txt. It could not run: the sandbox proxy refuses CONNECT to amazon.jobs and
++   jobs.nvidia.com (403), and WebFetch cannot resolve amazon.jobs. That is 3 attempts and 0 pages, so no
++   live comparison exists (§6).
++6. **Defect or design.** A shown range counts as a defect only when what the card, chart or tip says
++   about it is untrue, or when a posted figure is lost. A span of posted ranges is the documented design
++   (DATA_SOURCES §7a "Several ranges by level"); the defect is that the card does not say it is a span (SA-1).
++   Amazon showing its primary city's row is documented too; the defect is that the card calls that row a span
++   (SA-2).
++7. **Severity:**
++   - High: a wrong statement about pay on a large share of a board;
++   - Medium: on a meaningful share, or pay that is lost;
++   - Low: a few postings, or a secondary view.
++8. **Tests.** They run as to-dos (`{ todo }`), as test/beta-data-check-3.test.js does. The card's text is
++   checked by running `payPill` and the helpers it needs, cut out of `public/app.js`, as
++   test/fix3-app.test.js does.
++9. **Patches.**
++   - My patches are written against 2474fc4 with the two fix-wave-5 patches applied first: they share
++     context with `fix5-data-display.diff` and `fix5-data-trim.diff`.
++   - SA-1 is fixed on the card, not in the data: the posting itself offers the role at either level.
++   - SA-2 and SA-6 are already fixed by `fix5-data-display.diff`.
++10. **Histograms.** SVG, one panel per board: bars for the shown ranges and a 2 px line for the posted
++    ranges. The reference palette's slots 1 and 2 are used, with a dark-mode block, and each bar has a
++    `<title>` tooltip.
++
++## 4. Replayable steps
++```bash
++WT=<worktree>; S=<scratchpad>; cd $WT
++git checkout 2474fc4                                  # base (the lane branch is salary-audit-data)
++mkdir -p data/beta
++ln -s $S/wt-data2/data/beta/snapshots data/beta/snapshots   # 2026-10-16 crawl; never committed
++ln -s $S/wt-data2/data/snapshots data/snapshots
++ln -s /home/user/melon-seek/node_modules node_modules
++node scripts/build-static.js --out $S/sa-data/dist2  # 3 min 21 s; beta: 7/7 companies
++A=data/vetting/2026-10-11-salary-audit
++node $A/stats.mjs $S/sa-data/dist2                     # stats.json, served-diff.json (10 s)
++node $A/sample.mjs $S/sa-data/dist2 --seed 20261011 --n 15   # sample.jsonl, 175 lines
++node $A/findings.mjs $S/sa-data/dist2                  # findings.json
++node $A/hist.mjs                                       # hist-boards.svg, hist-levels-<board>.svg
++node --test test/salary-audit.test.js                  # 9 pass, 7 to-do (fail as intended)
++# 8. the patches, in this order (each passes git apply --check on top of the ones before it):
++git apply docs/process/patches/fix5-data-display.diff docs/process/patches/fix5-data-trim.diff \
++  docs/process/patches/salary-audit-data-card-levels.diff docs/process/patches/salary-audit-data-chart.diff \
++  docs/process/patches/salary-audit-data-amazon-rows.diff docs/process/patches/salary-audit-data-degree-lines.diff \
++  docs/process/patches/salary-audit-data-trimmed-pay.diff
++node --test test/salary-audit.test.js                  # 16 pass, of which the 7 SA tests now pass
++```
++
++## 5. Findings and verification
++
++### 5.1 The shape of the ranges, per board (2026-10-16 crawl, served view)
++The table covers USD ranges with min ≠ max. In the last column, "spans" means the shown range is a span of
++several posted ranges.
++
++| Board | Postings | Paid | USD ranges | Median min | Median max | Median midpoint | Median width | Width ÷ midpoint p10 / p50 / p90 | Most common top ÷ bottom (share within ±0.02) | Distinct pairs | Top 10 pairs' share | Spans |
++|---|---:|---:|---:|---:|---:|---:|---:|---|---|---:|---:|---:|
++| Amazon | 22,179 | 13,979 | 12,792 | 127,100 | 174,800 | 149,500 | 50,700 | 0.26 / 0.30 / 0.55 | 1.35× (51.1%) | 1,127 | 25.7% | 70 |
++| Apple | 4,851 | 2,781 | 2,781 | 150,400 | 277,600 | 214,000 | 127,200 | 0.40 / 0.55 / 0.60 | 1.76× (28.9%) | 242 | 56.1% | 391 |
++| Google | 3,821 | 2,512 | 2,059 | 163,000 | 236,000 | 199,500 | 73,000 | 0.33 / 0.37 / 0.37 | 1.45× (66.4%) | 166 | 54.8% | 7 |
++| Meta | 1,208 | 948 | 939 | 162,000 | 227,000 | 194,500 | 63,000 | 0.29 / 0.34 / 0.39 | 1.40× (48.6%) | 209 | 32.7% | 0 |
++| Microsoft | 2,435 | 1,566 | 1,252 | 119,800 | 234,700 | 177,250 | 114,900 | 0.54 / 0.64 / 0.70 | 1.92× (36.3%) | 79 | 74.2% | 158 |
++| NVIDIA | 2,711 | 1,462 | 1,423 | 168,000 | 310,500 | 239,250 | 135,500 | 0.44 / 0.62 / 0.64 | 1.94× (28.5%) | 134 | 56.6% | 888 |
++| Netflix | 414 | 259 | 235 | 350,000 | 558,000 | 455,000 | 220,000 | 0.36 / 0.49 / 0.57 | 1.61× (20.4%) | 105 | 44.3% | 0 |
++| Anduril (main site) | 2,537 | 2,388 | 2,382 | 146,000 | 194,000 | 170,000 | 48,000 | 0.28 / 0.28 / 0.31 | 1.33× (83.5%) | 264 | 70.0% | 26 |
++| Anthropic (main site) | 654 | 575 | 502 | 305,000 | 397,500 | 352,500 | 80,000 | 0.15 / 0.23 / 0.41 | 1.27× (23.1%) | 105 | 46.0% | 0 |
++| OpenAI (main site) | 801 | 641 | 628 | 252,000 | 382,500 | 307,500 | 96,500 | 0.10 / 0.27 / 0.56 | 1.11× (25.5%) | 225 | 33.6% | 7 |
++
++Most common shown ranges (postings):
++- Amazon: $143,700–194,400 (875), $70,000–90,900 (391), $153,600–207,800 (327).
++- Apple: $184,700–324,800 (419), $150,400–277,600 (402), $129,300–225,300 (131).
++- Google: $207,000–300,000 (251), $174,000–252,000 (176), $147,000–210,000 (135).
++- Meta: $219,000–301,000 (49), $173,000–245,000 (46), $184,000–257,000 (39).
++- Microsoft: $119,800–234,700 (247), $142,800–274,800 (237), $102,100–202,200 (104).
++- NVIDIA: $184,000–356,500 (223), $152,000–287,500 (114), $168,000–310,500 (78). All three are level spans;
++  none is a range NVIDIA posts for one level.
++- Netflix: $388,000–558,000 (19), $466,000–750,000 (15), $499,000–900,000 (12).
++
++**Do they "span too evenly"? Yes, and on six boards that is how the companies post.** The posted ranges (each
++level's and each place's own) have a near-constant top ÷ bottom per board:
++
++| Board | Posted top ÷ bottom, p50 | Posted width ÷ midpoint, p50 | What the board posts |
++|---|---:|---:|---|
++| Google | 1.447 | 0.365 | One national US band per role ("across all US locations") |
++| Amazon | 1.353 | 0.30 | One row per US place (the "geographic market" table) |
++| Meta | 1.404 | 0.336 | One range per country |
++| Microsoft | 1.924 | 0.632 | One national band per IC/M level; a separate SF Bay Area / NYC band |
++| Apple | 1.759 | 0.55 | One footer per place |
++| NVIDIA | 1.585 | 0.453 | One band per level, often two levels per posting |
++| Netflix | 1.64 | 0.485 | One range per role |
++
++The main site is the same: 83.5% of Anduril's ranges are 1.33× (±0.02). The many identical ranges are one
++band per level, repeated over a level's postings (Microsoft IC4 $119,800–234,700 on 247 postings is the IC4
++band on Microsoft's own pay page). Histograms: `hist-boards.svg`, and per level `hist-levels-<board>.svg`.
++Google's and Microsoft's levels all sit at one width (0.33–0.37 and 0.54–0.70).
++
++The one board where our code changes the shape is NVIDIA. Its posted median width ÷ midpoint is 0.453, and
++the shown median is 0.617. Its most common shown top ÷ bottom, 1.94×, is entirely the level spans: NVIDIA's own
++bands are 1.56–1.59×.
++
++### 5.2 Provenance of every shown salary
++Counts are from `stats.json` `provenance`; "×hour" means annualized ×2080 and "×month" ×12.
++
++| Board | Source counts |
++|---|---|
++| Amazon | structured 13,630: one row 8,425, hourly rows 2,583, one place of several 2,134, single figures 344, monthly 98, span of places 50, stated annual 3. Text 349 (the older national sentence "ranges from $X/year in our lowest geographic market up to $Y/year", read as Amazon states it, 20) |
++| Apple | text 2,390: one footer; 136 hourly. Structured 391: span of a requisition's footers, `salary.ranges` with places |
++| Google | text 2,512: one line 2,467 (incl. 3 yearly fixed-term), single figures 35, degree-line spans 7 |
++| Meta | structured 948: public_compensation; 45 monthly (interns) |
++| Microsoft | text 1,566: one range 1,344 (+30 hourly, 23 monthly, 4 yearly fixed-term), level spans 157, single figures 7, one other span 1 |
++| NVIDIA | text 1,462: level spans 887, one range 526 (+48 hourly interns), one five-range span 1 |
++| Netflix | text 259: one range per role (3 hourly) |
++
++- **Made by our code:** 0 estimates, 0 defaults, 0 level-band fills and 0 "±x% around a point". `job.salary`
++  is only ever `source: 'text'` or `'structured'`. Compstimate's estimate is a separate "about $X" line and
++  never fills `job.salary`.
++- **Conversions:** hourly ×2080 (Amazon 2,705, Apple 138, NVIDIA 48, Microsoft 44, Netflix 3), monthly ×12
++  (Amazon 174, Meta 45, Microsoft 30), and Austria's stated 14-payment annual figure (3). The currency is
++  never converted on the card; the chart converts to USD for placement only. The card rounds to thousands
++  ("$144K"); the drawer keeps the posted figures.
++- **Code paths that set or widen min/max or ranges[]:**
++  - `normalize.js#deriveSalary`, the structured currency pick: the span of one currency's
++    `raw.payRanges`, used when the structured currency is not the job's country's.
++  - `salary.js#parseSalary`:
++    - the national or city level group, at most 4×;
++    - one country's lines, at most 3× (Google degrees);
++    - an adjacent tier list, at most 3× (NVIDIA's five ranges);
++    - the "for Level N" tiers.
++  - `apple.js#spanPay` and `upgradeAppleJobs`: the span of a requisition's footers.
++  - `amazon.js#amazonSalary`: one row, never widened; the statedAnnual case sets min to the stated annual
++    figure.
++  - `toJobSalary`: annualizing, and min = max for a single figure.
++  - `vet.js` only quarantines; it never changes numbers.
++  - `upgrade.js#upgradeAmazonJobs`: rebuilds the table from stored `salary.ranges` (VT-22); the
++    reconstructed row text reads "68700 - 92700 USD year", not Amazon's wording.
++
++### 5.3 The sample (`sample.jsonl`, seed 20261011, 175 postings)
++| Board | Shown = one posted range | One posted figure | Span of posted ranges | Structured field |
++|---|---:|---:|---:|---:|
++| Amazon | 24 | 0 | 0 | 1 |
++| Apple | 24 | 0 | 1 (two footers, "· 2 places") | 0 |
++| Google | 25 | 0 | 0 | 0 |
++| Meta | 0 | 0 | 0 | 25 |
++| Microsoft | 24 | 0 | 1 (IC levels) | 0 |
++| NVIDIA | 12 | 0 | 13 (two levels) | 0 |
++| Netflix | 25 | 0 | 0 | 0 |
++
++Every number in the sample is a posted number. Examples of exact quotes:
++- Google top 1: "US: $207000 - $300000 (USD) + 20% bonus target + equity + benefits".
++- Apple top 1: "The base pay range for this role is between $184,700 and $324,800, and your base pay will depend on
++  your skills, qualifications, experience, and location."
++- Microsoft top 1: "… across the U.S. is USD $119,800 - $234,700 per year."
++- NVIDIA top 1: "The base salary range is 184,000 USD - 287,500 USD for Level 4, and 224,000 USD - 356,500 USD
++  for Level 5."
++- Netflix top 1: "The range for this role is $388,000.00 - $558,000.00."
++- Amazon top 1: "USA, WA, Seattle - 143,700.00 - 194,400.00 USD annually".
++- Meta: the posting text holds no pay; the quote is the stored structured field ("$219,000/year to
++  $301,000/year + bonus + equity (US)"), so Meta is checked against its own field, not against text.
++
++### 5.4 Several places and several levels: which range each view uses
++| | Card | Chart (clusters and ranges) | Juice |
++|---|---|---|---|
++| One range | min–max | dot at the midpoint; bar min–max | midpoint, every place in the pay's country |
++| Levels (NVIDIA, Microsoft) | the span, unmarked (SA-1) | the span's bar and midpoint; the tip lists the levels | the span's midpoint |
++| Apple, a range per place | the span, "· N places" | the span's midpoint (SA-5 under a Location filter) | each place on its own range |
++| Amazon, a row per place | one place's row, called a span (SA-2) | that row's midpoint; the tip calls it a span (SA-2, SA-5) | each place on its own row (DQ-33 fixed) |
++| Google | the national band | its midpoint | its midpoint in every US city (the band covers every US location) |
++| Microsoft, SF/NYC | the national band, unless all US places are in those areas | the same | the same |
++
++- Several US pay zones are never collapsed into one min-of-mins to max-of-maxes range, except Apple's
++  footers (labelled, with each place's range kept) and the level spans.
++- Google, Meta and Microsoft publish one national band, not zones. Amazon's rows are kept per place.
++
++### 5.5 Served view against the raw snapshot (`served-diff.json`)
++- Every served posting has a stored twin.
++- Served min/max differ from stored min/max for 6 Amazon postings, all intended upgrades:
++  - 3 Austrian 14-payment stated annual figures, €47,000 against 12 × the monthly row;
++  - 3 "Virtual Location" rows replaced by a row for one of the posting's places (DQ-41).
++- Salary added at build time: NVIDIA 41 (sales "cash compensation" as kind 'ote', VT-7) and Microsoft 1 (a
++  Romanian lei range).
++- Salary removed: Amazon 1 (SA-7).
++- Quarantined: Google 1, Netflix 1.
++- The packed list round-trips; that is checked by the build itself.
++
++### 5.6 Findings
++Every test is in `test/salary-audit.test.js` and runs as a to-do.
++
++| ID | Sev. | Board | Postings (2026-10-16) | Cause (file, function) | Fix | Test |
++|---|---|---|---:|---|---|---|
++| SA-1 | High | NVIDIA, Microsoft | NVIDIA 887 of 1,462 paid (60.7%); Microsoft 157 of 1,566 (10.0%) | `public/app.js` `payPill`: the span of `salary.levels` gets no mark | `salary-audit-data-card-levels.diff` ("$184K–356K · 2 levels", levels in the tip) | 1 |
++| SA-2 | Medium-High | Amazon | 2,134 of 13,979 paid (15.3%) | `public/app.js` `payPill`; `public/viz/chart.js` (ranges tip, `spanTiers`) | `fix5-data-display.diff` (card shows the span); `salary-audit-data-chart.diff` (tip) | 1 |
++| SA-3 | Medium | Amazon | 57 stored postings with exactly 12 ranges, 19 missing their own row; 3 rows kept in every trimmed description | `server/sources/amazon.js` `amazonSalary` (`groups.slice(0, 12)`); `server/normalize.js` `deriveSalary` (`ranges.slice(0, 12)`); `scripts/snapshot.js` `trimDescription` (4 pay paragraphs) | `salary-audit-data-amazon-rows.diff`; `fix5-data-trim.diff` | 2 |
++| SA-4 | Low | Google, NVIDIA, Microsoft | Google 7, NVIDIA 1, Microsoft 1 | `server/salary.js` `parseSalary` / `evaluate` (a country-line group keeps no member labels) | `salary-audit-data-degree-lines.diff` | 1 |
++| SA-5 | Low-Medium | Amazon, Apple | 2,184 Amazon and 390 Apple postings with ranges per place | `public/viz/chart.js` `chartPay` (plots `salary.mid` under a Location filter) | `salary-audit-data-chart.diff` | 1 |
++| SA-6 | Low | Amazon | 285 posted minimums | `public/app.js` `payPill` | `fix5-data-display.diff` | 1 |
++| SA-7 | Low | Amazon | 1 (amazon:SF240111667, £12.70 an hour, Carlisle) | `scripts/snapshot.js` `PAY_HINT_RE` (no £ or "pay rate"); `server/normalize.js` `rederiveTextSalary` (drops a stored salary the trimmed text cannot support) | `salary-audit-data-trimmed-pay.diff` | 1 |
++
++**SA-1 (High): several posted levels are shown as one range, with no mark on the card.**
++- What NVIDIA posts: "The base salary range is 184,000 USD - 287,500 USD for Level 4, and 224,000 USD -
++  356,500 USD for Level 5." This is nvidia:893395255693 "Senior System Software Engineer - Performance",
++  https://jobs.nvidia.com/careers/job/893395255693, the board's most common shown range (223 postings).
++- What we show:
++  - the card: "$184K–356K" (`salary.min/max` is the span; `salary.levels` keeps both levels, pinned);
++  - the chart: the span's midpoint, $270,250;
++  - Juice: the same midpoint.
++- None of the 887 NVIDIA and 157 Microsoft shown ranges is a range posted for one level anywhere on the
++  board (`findings.json`). Example: microsoft:1970393556627435 "Principal Software Engineer, CoreAI" shows
++  $142,800–296,400 for IC5 $142,800–274,800 and IC6 $165,600–296,400.
++- The drawer's "Pay by level" line and the chart tip are right. The card, which people read first, is not;
++  a range per place gets "· N places".
++- Fix: the card says "· 2 levels" with the levels in its tip (patch). The span stays, because the posting
++  offers either level. Whether Juice and the chart should use the lower level, or the level the title
++  names, is a lead decision; this audit does not propose it.
++
++**SA-2 (Medium-High): Amazon's "· N places" range is one place's row.**
++- amazon:10371179 "Senior Financial Analyst, Engineering Capex Analytics & Planning",
++  https://www.amazon.jobs/en/jobs/10371179, posts five rows:
++  - New York $73,600–128,800;
++  - Nashville $60,200–105,400;
++  - Irving $66,900–117,100;
++  - Arlington $66,900–117,100;
++  - Bellevue $82,700–117,100.
++- The card reads "$83K–117K · 4 places", with the tip "$83K–117K runs from the lowest to the highest of 4
++  ranges posted for different places". The span is $60K–129K.
++- The chart's ranges view draws the Bellevue bar with the tip "One range over 4 places' ranges".
++- Apple, whose salary is the span, is right.
++- The card fix was written in fix wave 5 and never applied (`fix5-data-display.diff`, which passes
++  `git apply --check` on 2474fc4). The chart tip is in `salary-audit-data-chart.diff`.
++- Alternative for the lead: make Amazon's `salary.min/max` the span in `amazonSalary`, as Apple's is. Then
++  the card, the chart and the sort would all use one range.
++
++**SA-3 (Medium): Amazon pay rows are cut, against "not cut anything".**
++- amazon:10385593 "Operations Engineer", https://www.amazon.jobs/en/jobs/10385593:
++  - the salary is "USA, TX, AUSTIN - 60,700.00 - 85,000.00 USD annually";
++  - the stored `salary.ranges` holds 12 rows, from "USA, AZ, Mesa" to "USA, GA, ATLANTA";
++  - Austin's row, and every row after Georgia, are gone.
++- 57 stored postings have exactly 12 ranges; for 19 of them the posting's own row is not among them.
++- The stored description keeps 3 rows: `trimDescription` keeps 4 pay paragraphs, and the intro sentence is
++  one of them.
++- The served view regroups the stored rows, so no served posting has 12 or more, but the cut rows cannot be
++  recovered. Places without their row are scored, and filtered, on the primary row.
++- Fix: no cap in `amazonSalary` or `deriveSalary` (`salary-audit-data-amazon-rows.diff`), and
++  `fix5-data-trim.diff` (every table row kept). Both need the next crawl to restore the rows.
++
++**SA-4 (Low): a span of posted lines that keeps no breakdown.**
++- google:104405499448828614 "Student Researcher, BS/MS, Winter-Summer 2027" (Montreal) posts:
++  - "[Bachelor's degree] Canada: $99000 (CAD) + 0% bonus target";
++  - "[Master's degree] Canada: $102000 (CAD) + 0% bonus target".
++
++  Beta shows CA$99K–102K with no `salary.levels`, so nothing says the figures are per degree.
++- 7 Google postings, NVIDIA 893397830858, and Microsoft 1970393556984110:
++  - NVIDIA: five ranges for three titles shown as $127,234–368,000, "Top is 2.9× the bottom";
++  - Microsoft: an IC4 national range and an unlabelled one.
++- Fix: the "[…]" label before a country line becomes the member's level (`salary-audit-data-degree-lines.diff`).
++  It changes Google output, so the lead or salary-audit-backend decides on a NORMALIZER_VERSION bump and
++  the golden hashes. With SA-1's patch the card reads "· 2 levels", and "levels" is loose for degrees.
++
++**SA-5 (Low-Medium): under a Location filter, the card and the chart disagree.**
++- The card shows the picked place's range (`pickedRange`). `chartPay` plots `salary.mid`: the primary row
++  for Amazon, the span for Apple.
++- amazon:10371179 filtered to New York: the card shows $74K–129K, and the dot is at $99,900.
++- Fix: `chartPay` uses the picked places' ranges (`salary-audit-data-chart.diff`).
++
++**SA-6 (Low): a posted minimum reads as the pay.**
++- 285 Amazon figures stated as a minimum ("The minimum gross base pay salary for this position is listed
++  below"), with `kind: 'minimum'` since fix wave 5, show a bare "€40K" with the label "One number, not a
++  range".
++- Fix: `fix5-data-display.diff` ("from €40K", "Minimum").
++
++**SA-7 (Low): a posted salary erased by trimming.**
++- amazon:SF240111667 "Delivery Station Customer Service Associate" (Carlisle) was stored with "£12.70" an
++  hour.
++- Its description was trimmed to 800 characters, and the pay paragraph was not kept, because `PAY_HINT_RE`
++  has no "£" or "pay rate".
++- The build re-derives text pay from the trimmed text, finds none, and drops the salary. 1 posting today;
++  any UK or EU Amazon posting can follow.
++- Fix (`salary-audit-data-trimmed-pay.diff`):
++  - `PAY_HINT_RE` gains £, €, zł, "pay rate" and "per hour";
++  - `rederiveTextSalary` keeps a stored salary when the text carries the trim marker.
++
++### 5.7 Verdict per board
++| Board | Verdict | Key numbers |
++|---|---|---|
++| Amazon | numbers correct; **misleading presentation** | 13,979 paid. Every shown figure is a posted row, a posted figure or a stated annual figure. SA-2: 2,134 cards call one row a span. SA-3: rows cut on 57. SA-6: 285 minimums. SA-7: 1 lost |
++| Apple | **correct** | 2,781 paid; 2,390 one footer; 391 spans of footers labelled "· N places", with each place scored on its own range |
++| Google | **correct** | 2,512 paid; 66.4% at exactly 1.45× because Google posts one national band per role; 7 degree spans (SA-4) |
++| Meta | **correct** | 948 paid, all from public_compensation as posted; 1.40× typical |
++| Microsoft | **correct per level; misleading for 10%** | 1,344 single national ranges (IC4 $119,800–234,700 on 247); 157 level spans unmarked on the card (SA-1) |
++| NVIDIA | **misleading presentation** | 887 of 1,462 (60.7%) are two-level spans shown as one range. Shown median width ÷ midpoint 0.617 against 0.453 posted; posted bands 1.56–1.59× |
++| Netflix | **correct** | 259 paid, one range per role as posted |
++
++### 5.8 Tests run
++- `node --test test/salary-audit.test.js` on 2474fc4: 16 tests, 9 pass, 7 to-dos (SA-1 to SA-7) fail as
++  intended, 0 fail.
++- With the seven patches applied in the order of §4: all 16 pass, the SA to-dos included.
++- `npm test` with all the patches applied: see the change log.
++
++## 6. Known gaps and follow-ups
++- **No live check.** The sandbox cannot reach the boards: the proxy answers 403 to CONNECT, and WebFetch
++  cannot resolve the hosts; 3 attempts were made. A `workflow_dispatch` probe (PLAYBOOK "Known traps") could
++  fetch 3 postings per board. The ids to use are the top-1 entries in `sample.jsonl`.
++- **Public references are search-result summaries**, not fetched pages. The Google and Microsoft pay pages
++  and the NVIDIA mirrors agree with our figures. No levels.fyi comparison was made, so per-level plausibility
++  rests on the companies' own bands.
++- **Rows beyond 12.** The rows Amazon posts past the twelfth are unknown until a crawl with the SA-3 patch
++  runs.
++- **Display wording.** `fix5-data-display.diff` counts `rs.length` ranges as "places" (4 ranges for 5
++  places on amazon:10371179). SA-4 degrees will read "levels" on the card with SA-1's patch.
++- **Not examined:** the CSV export and the share pages' medians (`build-static.js` share pages).
++- **For the lead:**
++  - whether Amazon's salary should be the span (SA-2 alternative);
++  - whether Juice should score a level span on one level (SA-1).
++
++## 7. Change log
++- 2026-10-11 22:30 Worktree at d50d89b; snapshots (2026-10-11 crawl) linked; docs and code read.
++- 22:44 Build of the 2026-10-11 data. First shape pass: NVIDIA's 1.94× mode traced to level spans
++  (880 of 1,440 then), Apple's place spans 395, Microsoft's level spans 168.
++- 22:55 Sample, 2026-10-11: NVIDIA 16 of 25 spans; Meta structured. The live fetch was refused (403);
++  stopped on the usage limit during the public-reference search.
++- 2026-10-16 13:31 Resumed on 2474fc4 with the 2026-10-16 crawl; rebuilt (3 min 21 s); all numbers
++  recomputed.
++- 13:40 Found SA-2 (Amazon spans), SA-3 (12-row cut), SA-6, then SA-7 (the "£12.70" posting
++  removed at build time).
++- 13:50 Tests written. WIP commits 1769224 and b150c04 (the lead's new commit-often rule). Findings sent to
++  the lead and to salary-audit-backend.
++- 14:05 Patches for SA-1, SA-3, SA-4 and SA-5, then SA-7; checked together with the two fix-wave-5 patches.
+diff --git a/test/salary-audit.test.js b/test/salary-audit.test.js
+index bb0c935..b05e9e7 100644
+--- a/test/salary-audit.test.js
++++ b/test/salary-audit.test.js
+@@ -5,7 +5,7 @@
+ // posts fixed-ratio bands per level), but some ranges beta shows are spans our code makes, and some cards
+ // say something about a range that is not true.
+ //
+-// Findings are SA-1 to SA-6. Each SA test encodes a defect a job seeker sees today and runs as a to-do (the
++// Findings are SA-1 to SA-7. Each SA test encodes a defect a job seeker sees today and runs as a to-do (the
+ // project's convention, test/beta-data-check-3.test.js): a failing to-do is reported but does not turn CI
+ // red. The fix that makes one pass removes TODO from it. The "pinned" tests at the end encode what the audit
+ // found correct, and must pass. Fixtures are short excerpts copied from real postings in the 2026-10-16
+@@ -15,7 +15,7 @@ import { test } from 'node:test';
+ import assert from 'node:assert/strict';
+ import fs from 'node:fs';
+ 
+-import { normalizeJob } from '../server/normalize.js';
++import { normalizeJob, relabelJobs } from '../server/normalize.js';
+ import { parseSalary } from '../server/salary.js';
+ import { amazonSalary, mapAmazonJob } from '../server/sources/amazon.js';
+ import { mapMetaJob } from '../server/sources/meta.js';
+@@ -186,6 +186,29 @@ test('SA-6 Amazon: a posted minimum reads "from €X" on the card', TODO, () =>
+   assert.match(payPill(job).text, /^from /i, `card reads "${payPill(job).text}"`);
+ });
+ 
++/* ------------------------------------------------------------------ SA-7 */
++// amazon:SF240111667 "Delivery Station Customer Service Associate" (Carlisle), https://www.amazon.jobs/en/jobs/SF240111667 :
++// stored with "£12.70" an hour, but its description was trimmed to 800 characters (scripts/snapshot.js
++// trimDescription) and the pay paragraph was not kept (PAY_HINT_RE has no "£" or "pay rate"). The build
++// re-derives text pay from the trimmed text, finds none and erases the salary (served: no pay). Owners:
++// server/normalize.js rederiveTextSalary (keep a stored salary the trimmed text cannot speak to),
++// scripts/snapshot.js PAY_HINT_RE. The stored record below is the posting's, as stored (its trimmed text).
++const CARLISLE = {
++  id: 'amazon:SF240111667', company: 'amazon', title: 'Delivery Station Customer Service Associate', employmentType: 'Full-time', seniority: 'Entry',
++  salary: { min: 26416, max: 26416, mid: 26416, currency: 'GBP', interval: 'year', text: '£12.70', kind: 'hourly', spread: 1, zones: 1, source: 'text', originalInterval: 'hour' },
++  locations: [{ name: 'Carlisle, UK', city: 'Carlisle', region: 'England', country: 'GB', lat: 52.36, lng: -1.17, remote: false, rawName: 'Carlisle, England, GBR' }],
++  descriptionHtml: '<p><strong>Job title – </strong>Customer Service Delivery Station Liaison</p><p><strong>Location</strong> - DPN1 - <p>[…] Full description on the posting page.</p>',
++};
++test('SA-7 Amazon: a stored salary is not erased because trimming cut its pay sentence', TODO, () => {
++  const [out] = relabelJobs([structuredClone(CARLISLE)]);
++  assert.ok(out.salary, 'the salary is kept');
++  assert.equal(out.salary.min, 26416);
++});
++test('SA-7 snapshot trimming keeps a pay paragraph in pounds ("Pay rate: £12.70 per hour", synthetic sentence)', TODO, () => {
++  const html = `<p>${'Customer Service Delivery Station Liaison. '.repeat(30)}</p><p>Pay rate: £12.70 per hour</p>`;
++  assert.match(trimDescription(html, 800), /£12\.70/);
++});
++
+ /* ------------------------------------------------------------------ pinned: what is correct */
+ // Each board's numbers are its own posted figures (2026-10-16: every shown salary traced to a posted range,
+ // a posted figure, or a structured field; 0 estimates, 0 defaults, 0 percentage bands made by the code).
+-- 
+2.43.0
+

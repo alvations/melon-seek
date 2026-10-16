@@ -1,7 +1,7 @@
 From 1d0c8481309b454649b1892f5e77d4d2ead7b0fb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 14:51:20 +0000
-Subject: [PATCH 4/5] google-grouping: before/after screenshots, row lists and
+Subject: [PATCH 4/7] google-grouping: before/after screenshots, row lists and
  the list-packing patch
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
