@@ -1,7 +1,7 @@
 From fddcdd3d4ec2bb1e0ef1d16b77fd556bc8d7b48b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 11 Oct 2026 22:03:22 +0000
-Subject: [PATCH 2/8] fix-density: e2e test (one line, 12 words, Details with
+Subject: [PATCH 02/10] fix-density: e2e test (one line, 12 words, Details with
  aria-expanded on every board at 390, 360 and 1440); tagline and compare
  caption fit a phone
 

@@ -1,7 +1,7 @@
 From 8ea3179cfb1b51396aaf4941eef3afcd67c6c7c2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 13:53:03 +0000
-Subject: [PATCH 8/8] WIP fix-density: before/after inventory on the fresh
+Subject: [PATCH 08/10] WIP fix-density: before/after inventory on the fresh
  crawl in the log
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

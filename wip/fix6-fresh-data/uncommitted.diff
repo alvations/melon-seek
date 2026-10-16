@@ -1,0 +1,17 @@
+diff --git a/test/e2e/fix3-app.e2e.js b/test/e2e/fix3-app.e2e.js
+index aba3260..e1b134b 100644
+--- a/test/e2e/fix3-app.e2e.js
++++ b/test/e2e/fix3-app.e2e.js
+@@ -403,8 +403,10 @@ export function registerFix3AppTests(suite) {
+     assertEq(heads.join(' | '), 'Required | Nice to have', 'sub-headings');
+     const look = await about.textContent();
+     assert(look.includes('What they look for') && look.includes('A published paper') && look.includes(job.sections.fit[0]), 'both lists are shown');
+-    // Without preferred qualifications, the list is as before: no sub-headings.
+-    const plain = xai.jobs.find((j) => j !== job && j.sections?.fit?.length);
++    // Without preferred qualifications, the list is as before: no sub-headings. The posting must have
++    // no preferred list of its own: on the 2026-10-16 crawl 261 of xAI's 303 roles with fit bullets
++    // have one (the first, "Application Security Engineer", has 9), and those rightly show both.
++    const plain = xai.jobs.find((j) => j !== job && j.sections?.fit?.length && !j.sections?.preferred?.length);
+     if (plain) {
+       await page.keyboard.press('Escape'); await sleep(300);
+       await openDrawerFor(page, plain.id);

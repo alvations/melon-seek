@@ -1,0 +1,83 @@
+From a68e62dc82e9c89b1841b599a3a6849fb1104972 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 14:29:15 +0000
+Subject: [PATCH 1/2] WIP: fix6-fresh-data prompt and log skeleton
+
+---
+ docs/process/fix6-fresh-data.md         | 13 ++++++++
+ docs/process/prompts/fix6-fresh-data.md | 43 +++++++++++++++++++++++++
+ 2 files changed, 56 insertions(+)
+ create mode 100644 docs/process/fix6-fresh-data.md
+ create mode 100644 docs/process/prompts/fix6-fresh-data.md
+
+diff --git a/docs/process/fix6-fresh-data.md b/docs/process/fix6-fresh-data.md
+new file mode 100644
+index 0000000..db2a636
+--- /dev/null
++++ b/docs/process/fix6-fresh-data.md
+@@ -0,0 +1,13 @@
++# Process log: fix6-fresh-data
++
++## State
++- Done: worktree on 53a03ec (branch head), data linked, prompt saved.
++- In progress: building dist/ with today's crawl; reproducing the 5 red checks.
++- Next: investigate D-23 (Microsoft "JO"), BP-10, BP-14, fix3-data TPUs tag, T20.
++
++## 1. Brief
++Prompt: [prompts/fix6-fresh-data.md](prompts/fix6-fresh-data.md). Five e2e checks went red on the
++2026-10-16 crawl, and each is red on the unchanged head too. For each, decide from the data whether
++the product or the test's assumption is wrong, and fix that one without weakening the check.
++Files owned: server/keywords.js, server/geo.js, data/cities.json, public/features/comps.js, the
++five checks' code in their e2e files, test/fix6-fresh-data.test.js, this log and the prompt.
+diff --git a/docs/process/prompts/fix6-fresh-data.md b/docs/process/prompts/fix6-fresh-data.md
+new file mode 100644
+index 0000000..977b965
+--- /dev/null
++++ b/docs/process/prompts/fix6-fresh-data.md
+@@ -0,0 +1,43 @@
++You are the fix6-fresh-data fixer for melon-seek (repo at /home/user/melon-seek, branch claude/stoic-ride-54ddxp). It is a zero-build vanilla ES-module app. You are in your own git worktree: first run `git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp` (head 6713c84 or later). Read docs/CONTRACT.md, docs/strategy/ROADMAP.md §8 (the UI simplicity budget), docs/process/PLAYBOOK.md (including "Checkpoints"), docs/process/TEMPLATE.md, and the lead log's newest sections in docs/process/lead.md.
++
++**Fix these findings for targets `/melon-seek/` and `/melon-seek/beta/`.** Five e2e checks went red on the 2026-10-16 crawl. Each also fails on the unchanged head with the same data, so the cause is new data meeting old code or old test assumptions. For each one, first decide with evidence from the data whether the PRODUCT is wrong (fix the product) or the TEST's assumption about the data no longer holds (rewrite the test so it still checks the same intent on whatever data is present, without weakening it). Never skip or delete a check.
++1. `Beta desktop QA: [D-23] the Location filter lists no bare country codes, "Republic of" or "Unknown Region" on the big-tech boards` (test/e2e/beta-desktop-qa*.e2e.js). Today: `raw location names: microsoft: "JO" (1)`. A Microsoft posting's place reads as a bare "JO" (Jordan?). Find where Microsoft's places are normalized and why "JO" isn't resolved to a country name.
++2. `Fix3 app: [BP-10] a place carries across boards by the place, not by each board's label ("Columbus, OH" -> "Columbus")`. Today: `Google's own key for Columbus, OH: expected "Columbus", got ""`. Does Google list no Columbus posting today (then the test must choose a place that both boards list from the data), or is the place key broken?
++3. `Fix3 app: [BP-14] "What they look for" shows "Required" and "Nice to have" when the posting has preferred qualifications`. Today: `no sub-headings without a preferred list: expected 0, got 2`. Find the 2 postings and decide.
++4. `fix3-data: [static beta] pay labels, tags, levels, sections, departments and places in the bundle`. Today: `google: 1 data-centre technician postings tagged TPUs/GCP/Transformers, e.g. Data Center Facilities Technician, Mechanical: TPUs,GCP,Networking,Datacenters,Mechanical design`. This is a keyword-tagging rule in server/keywords.js.
++5. `Compstimate: T20 "Same role elsewhere" -> OpenAI sets rf=swe&s=Senior; Level Senior; basis at OpenAI; Back reopens the drawer`. Today: a timeout waiting for `#drawer .ms-comps__row` with "OpenAI". Find out whether today's OpenAI data has no Senior SWE comparison row (the data changed), or whether the comparison is broken. The fix-density lane just rewrote drawer captions and text into "Details" disclosures (commits 417aa18…5f8b599, now on the branch), so also check whether the row is now inside a closed Details.
++
++**Data:** today's crawl is at /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-data2/data/snapshots and .../wt-data2/data/beta/snapshots. Symlink them as data/snapshots and data/beta/snapshots in your worktree, and never commit them. Build: `node scripts/build-static.js` (writes your worktree's dist/, which is yours). Run a single e2e check with `NODE_PATH=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/pw/node_modules node scripts/e2e.js --grep='<regex>'`.
++
++**You own these files:**
++- server/keywords.js, server/geo.js, data/cities.json, public/features/comps.js;
++- the e2e test files of the 5 checks above (only the 5 checks' code inside them);
++- docs/process/fix6-fresh-data.md and docs/process/prompts/fix6-fresh-data.md;
++- a new test/fix6-fresh-data.test.js for unit-level regressions.
++
++**Do NOT edit:**
++- server/normalize.js, server/salary.js, server/vet.js and server/sources/* except google.js (salary-audit-backend owns them);
++- server/sources/google.js, server/families.js, and the grouping and filter code in public/viz/chart.js and public/app.js (google-grouping owns them);
++- public/api.js, scripts/build-static.js and scripts/snapshot.js (perf-mobile-beta-2 owns them);
++- public/viz/note.js and the text lines fix-density rewrote.
++
++If a fix needs a change in one of those files, write it as a patch to docs/process/patches/fix6-fresh-data-<name>.diff, with a line in your report saying why.
++
++**Rules:**
++- Keep the UI simple; add no new visible control.
++- Use plain words.
++- Never cut or drop a posting (the user's rule).
++- Never `pkill -f` or `pgrep -f`; use pid files under /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/fix6/.
++- Never run `playwright install`; Chromium is /opt/pw-browsers/chromium-1194/chrome-linux/chrome.
++- **Resume safety (the user, 2026-10-16: "if we get stop again due to limits, we're able to resume without losing much progress"):**
++  - Commit small and often, with explicit paths ("WIP: …" is fine).
++  - Keep a `## State` section at the top of your log: done, in progress, next step.
++  - Send the lead each finished, tested fix by SendMessage to "main" as soon as it is ready (SHA, what it fixes, tests), then continue.
++  - The lead checkpoints your worktree to the branch every 15 minutes. Never push.
++
++**Verify:**
++- `MELON_BETA_SNAPSHOT_DIR= npm test` with the data links moved aside (CI has no data): all green. S-6, PERF-1, V15 and T21 are load-sensitive; re-run them alone.
++- The 5 checks pass with today's data linked.
++- The full e2e suite shows no new failures.
++
++Write docs/process/fix6-fresh-data.md following docs/process/TEMPLATE.md: per finding, the root cause (with the data evidence), the fix (file:line), and how it was verified. Save this prompt verbatim to docs/process/prompts/fix6-fresh-data.md. Report: findings fixed, any you couldn't and why, test results, files changed, patches written, SHAs.
+-- 
+2.43.0
+

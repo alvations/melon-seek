@@ -1,7 +1,7 @@
 From 430f0004d632070bf686244c8902e1a815bfc45a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 11 Oct 2026 22:45:19 +0000
-Subject: [PATCH 4/8] fix-density: Details is a 44px tap target on phones
+Subject: [PATCH 04/10] fix-density: Details is a 44px tap target on phones
  without growing the line; tests read the estimate's and the compare card's
  Details
 

@@ -1,7 +1,7 @@
 From 417aa18a5df9b9918e5e0ce3d976b6c4b4490888 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 11 Oct 2026 21:41:07 +0000
-Subject: [PATCH 1/8] fix-density: one-line notes with one Details disclosure
+Subject: [PATCH 01/10] fix-density: one-line notes with one Details disclosure
  (chart, stats line, map legend, Insights, Pay estimate, drawer pay block,
  empty states, tagline)
 
