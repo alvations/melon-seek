@@ -1333,3 +1333,8 @@ screenshots in `docs/screenshots/`.
 - **Docs updated:** DATA_FRESHNESS's safety model, diagram and settings row; LIVABILITY; and the run.js and registry.js wording.
 - **Gate:** `npm test` CI-like: 1,162 tests, 1,102 pass, 0 fail.
 - **Next:** dispatch the refresh with `only=fx` to publish September's ECB monthly averages. The dry run 38149930292 found 22 rates changed, the largest KRW −8.6%, with 239 rent fields re-derived.
+- **Security review findings on the commit step, fixed the same day:**
+  - **S-8:** the step copied the tested files over the current tip, which could revert a newer change to one of those files, and it deployed before CI. Now it refuses when the tip changed a refreshed file since the tested commit. It deploys at once only when the tip equals the tested commit outside `wip/`; otherwise it runs CI and leaves the deploy to the next one.
+  - **S-9:** the deny-list became an allow-list of the eleven files the writers write, kept equal to the writers' targets by a test. A tag named like the branch is refused, and the fetch names `refs/heads/…`.
+  - `test/monthly-refresh-commit.test.js` runs the real step against scratch repos: 7 of 7 pass, and 5 of 7 fail on the previous workflow.
+  - The FX run in progress (38970963688) uses the previous step. It is safe today: only `wip/` checkpoints landed after its tested commit, and none of its files changed.

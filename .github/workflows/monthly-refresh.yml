@@ -285,15 +285,24 @@ jobs:
           set -euo pipefail
           target="$GITHUB_REF_NAME"
           # The run's own branch, and only the default or a trusted branch (the refresh job checked
-          # the same; this repeats it where the write token is).
+          # the same; this repeats it where the write token is). A tag named like a branch is refused
+          # (security-a11y-review-beta-2, S-9 hygiene).
+          [ "$GITHUB_REF" = "refs/heads/$target" ] || { echo "::error::refusing: $GITHUB_REF is not a branch"; exit 1; }
           case " ${DEFAULT_BRANCH:-} $TRUSTED_BRANCHES " in *" $target "*) ;; *) echo "::error::refusing to commit to $target (not the default or a trusted branch)"; exit 1 ;; esac
           day=$(date -u +%Y-%m-%d)
           run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           jq -r '.files[]' tmp/refresh/outcome.json > tmp/refresh/files.txt
+          # Only the files the refresh writers can write (scripts/refresh: the registry and its generated
+          # inventory, bigmac/fx/rents' data/cities.json, fx.js FX_CODE_COPIES + SHARED_FALLBACK_FILE,
+          # tax-watch.js TAX_FILE, derived.js README/LIVABILITY/CONTRACT, the pinned FX examples in
+          # test/juice.test.js). Anything else is refused, so a buggy or compromised refresh job cannot
+          # have this privileged step commit code (S-9). test/workflows.test.js keeps this list equal to
+          # the writers' targets.
           apply() {
             while IFS= read -r f; do
               case "$f" in
-                ""|/*|*..*|.*|*/.*|node_modules/*|package.json|package-lock.json) echo "::error::refusing to publish '$f'"; exit 1 ;;
+                data/freshness.json|docs/DATA_FRESHNESS.md|data/cities.json|README.md|docs/LIVABILITY.md|docs/CONTRACT.md|server/juice.js|server/salary.js|public/viz/palette.js|public/features/shared.js|test/juice.test.js) ;;
+                *) echo "::error::refusing to publish '$f' (not a file the refresh writes)"; exit 1 ;;
               esac
               printf '%s' "$f" | grep -Eq '^[A-Za-z0-9_][A-Za-z0-9_./-]*$' || { echo "::error::refusing to publish '$f'"; exit 1; }
               [ -f "tmp/changes/$f" ] || { echo "::error::$f is not in the changes artifact"; exit 1; }
@@ -310,7 +319,14 @@ jobs:
           pushed=0
           # Up to 4 tries: if someone pushed meanwhile, start again from the new tip with the same files.
           for try in 1 2 3 4; do
-            gitw fetch -q origin "$target"
+            gitw fetch -q origin "refs/heads/$target"
+            tip=$(git rev-parse FETCH_HEAD)
+            # S-8: the files were tested on $GITHUB_SHA. If the branch has since changed any of them, copying
+            # them over the tip would revert that change: refuse, and let the next run start from the new tip.
+            if [ "$tip" != "$GITHUB_SHA" ] && ! xargs -a tmp/refresh/files.txt -d '\n' git diff --quiet "$GITHUB_SHA" "$tip" --; then
+              echo "::error::the branch changed a refreshed file after the tested commit $GITHUB_SHA; not committing (dispatch the refresh again)"
+              exit 1
+            fi
             git checkout -q --detach FETCH_HEAD
             apply
             xargs -a tmp/refresh/files.txt -d '\n' git add --
@@ -325,9 +341,16 @@ jobs:
           sha=$(git rev-parse HEAD)
           echo "Committed $sha to $target."
           { echo "### Monthly refresh committed"; echo; echo "$sha on $target: $(wc -l < tmp/refresh/files.txt) file(s); the full test suite passed on them."; } >> "$GITHUB_STEP_SUMMARY"
-          # A GITHUB_TOKEN push starts no workflow: start CI and the deploy for the new commit.
+          # A GITHUB_TOKEN push starts no workflow: start CI for the new commit. Deploy at once only when the
+          # deployed tree is the tested one: the tip equals the tested commit outside wip/ (the lead's
+          # checkpoints of unfinished agent work, which CI and Pages ignore). Otherwise CI checks the new
+          # code with the new data first, and the next deploy (the daily one, or the next push) ships it (S-8).
           gh workflow run ci.yml --ref "$target" || echo "::warning::could not dispatch CI"
-          gh workflow run pages.yml --ref "$target" || echo "::warning::could not dispatch the Pages deploy"
+          if git diff --quiet "$GITHUB_SHA" "$tip" -- . ':(exclude)wip'; then
+            gh workflow run pages.yml --ref "$target" || echo "::warning::could not dispatch the Pages deploy"
+          else
+            echo "::notice::$target moved past the tested commit; not deploying now (CI runs on the new commit; the next deploy ships it)."
+          fi
 
       - name: Nothing committed (tests failed or the refresh reported problems)
         if: env.REFRESH_PUBLISH == 'commit' && needs.refresh.result == 'success' && needs.refresh.outputs.datafiles != '0' && (needs.refresh.outputs.tests != 'success' || needs.refresh.outputs.problems != '0')
