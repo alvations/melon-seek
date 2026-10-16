@@ -3,15 +3,15 @@
 The third desktop QA pass of the beta site (`/melon-seek/beta/`), beta round 3 (2026-10-16).
 
 ## State
-- **Done (23:15 UTC):** every area of the brief on the 7 big-tech boards and Anduril; 8 bugs, D-38 to D-45, each
-  with a red e2e test, a screenshot and an owner; `npm test`; the bug list sent to the lead twice by message.
-- **In progress:** the full e2e suite (`<scratch>/qa-desktop-beta-3/e2e-full.log`), run with the worktree's `dist`
-  linked to the lead's build.
-- **Next step:** put the full e2e result into "Suite results" below, restore any screenshots the suite rewrote
-  (`git checkout -- docs/screenshots/<their folders>`), remove the `dist` link, stop the server.
+- **Done (23:35 UTC):** every area of the brief on the 7 big-tech boards and Anduril; 8 bugs, D-38 to D-45, each
+  with a red e2e test, a screenshot and an owner; `npm test` and the full e2e; the findings sent to the lead three
+  times by message. The server is stopped, the `dist` link removed, and the screenshots the suite rewrote restored.
+- **In progress:** nothing.
+- **Next step:** the lead copies "Section for docs/QA.md" into `docs/QA.md` and integrates the test file, its
+  registration and the screenshots.
 - Commits in this worktree (local branch `qa-desktop-beta-3`, never pushed): a32cfe3 prompt and log, f089deb
-  state, 1f718d3 tests D-38 to D-43, 10ef395 screenshots, dcbafc5 D-44, c823b94 and 9e13c38 this log, 3e9776f
-  D-45 (found while the full e2e ran, so that run has D-38 to D-44 only).
+  state, 1f718d3 tests D-38 to D-43, 10ef395 screenshots, dcbafc5 D-44, c823b94 and 9e13c38 log, 3e9776f D-45,
+  2965dc8 D-45 in the log, then this final log.
 
 ## 1. Brief
 - **Prompt:** [prompts/qa-desktop-beta-3.md](prompts/qa-desktop-beta-3.md), saved verbatim.
@@ -108,7 +108,9 @@ The third desktop QA pass of the beta site (`/melon-seek/beta/`), beta round 3 (
   48 searches, 8 boards of chart, map and Insights checks, 44 drawers, 128 layout checks with axe colour contrast;
   0 console or page errors in any flow.
 - Screenshots: `docs/screenshots/qa-desktop-beta-3/D-38-*.png` … `D-45-*.png` (13 files, 848 KB).
-- `npm test` and the full e2e: see "Suite results" in the section below.
+- `npm test`: 1,168 tests, 1,113 pass, 3 fail (timing tests at load 20–23), 52 to-dos; the 3 pass alone at load 2.
+- Full e2e: 368/379 passed, 7 failed (exactly `[D-38]` … `[D-44]`), 4 skipped; `[D-45]` was added after that run
+  and fails alone as designed.
 
 ## 6. Known gaps and follow-ups
 - Live fetches, map tiles and the careers hosts behind Apply cannot be reached from the sandbox; the map ran
@@ -127,6 +129,8 @@ The third desktop QA pass of the beta site (`/melon-seek/beta/`), beta round 3 (
 - 22:40–22:54: `npm test`; then the full e2e.
 - 23:05–23:15: D-45 found from a dark-mode drawer screenshot (the drawer's headline is one place's range);
   test and screenshots added.
+- 23:29: full e2e 368/379 (7 failed: D-38 to D-44); this pass's tests 3/11; the timing tests pass alone at
+  load 2; screenshots the suite rewrote restored, `dist` link removed, server stopped.
 
 ## Section for docs/QA.md
 
@@ -181,7 +185,8 @@ keeps working on a new crawl.
   site" (`/melon-seek/beta/#c=amazon`); a `job=` is kept.
 - **D-37 fixed for the titles:** the share pages read "Amazon jobs by salary · 22,179 roles · median $141K —
   melon·seek beta" with beta `og:url`s (no `data-channel` mark, which the fix did not need).
-- The first and second passes' own tests (`[D-17]` … `[D-37]`) ran in the full suite: see "Suite results".
+- **All 21 earlier tests pass** in the full suite: the first pass's `[D-17]` … `[D-30]` and the second pass's
+  `[D-31]` … `[D-37]` (D-32 store names, D-33 one age, D-34 Microsoft pay by level, D-36 one label per place).
 
 ### What works on desktop, beta (all seven boards and Anduril unless noted)
 - **Beta only:**
@@ -483,9 +488,9 @@ stated. Screenshots are in `docs/screenshots/qa-desktop-beta-3/`.
 ### Suite results
 | Suite | Tree | Result |
 |---|---|---|
-| `npm test` | this worktree (d98a9f0 plus this pass's test file), with the 2026-10-16 data linked | 1,168 tests: **1,113 pass, 3 fail, 52 to-dos**. The 3 failures are the load-sensitive timing tests S-6 (27 ms a request), PERF-1 (844 ms of event-loop lag) and V15, at load 20–23. Alone, S-6 passes; PERF-1 (227 ms) and V15 (306 ms) still fail at load 20. They run only with local data (CI skips them) and passed on the lead's quiet gate. The to-dos are the methodology and security reviews' open findings. |
+| `npm test` | this worktree (d98a9f0 plus this pass's test file), with the 2026-10-16 data linked | 1,168 tests: **1,113 pass, 3 fail, 52 to-dos**. The 3 failures are the load-sensitive timing tests S-6 (27 ms a request), PERF-1 (844 ms of event-loop lag) and V15, at load 20–23. Run alone at load 20, S-6 passed and PERF-1 (227 ms) and V15 (306 ms) failed; at load 2 all 3 pass. They run only with local data (CI skips them). The to-dos are the methodology and security reviews' open findings. |
 | `node scripts/e2e.js --grep='^Beta desktop QA 3'` | the lead's build | **3/11**: the 3 guards pass; `[D-38]` … `[D-45]` fail by design |
-| `node scripts/e2e.js` (full) | this worktree, `dist` linked to the lead's build, `BETA_QA_DIST` set | RESULT PENDING |
+| `node scripts/e2e.js` (full) | this worktree, `dist` linked to the lead's build, `BETA_QA_DIST` set, load 2–23 | **368/379 passed, 7 failed, 4 skipped**. The 7 failures are exactly this pass's `[D-38]` … `[D-44]` (`[D-45]` was written after the run started). Every other test passes, including the first and second desktop passes' `[D-17]` … `[D-37]`, viz-even (7), google-grouping (7) and fix-density. The 4 skips are as before: `[D-11]` (these boards have listing dates), the methodology screenshots (need `E2E_SHOTS=1`), fix-app `[P-2]` (no estimate for its role) and fix3-viz's NVIDIA Munich test (no such roles today). |
 
 All runs used `NODE_PATH=<scratch>/pw/node_modules PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`.
 
