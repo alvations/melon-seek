@@ -385,7 +385,8 @@ export function boilerplateParagraphs(htmlList, { minShare = 0.5, minJobs = 5 } 
  * postings), "Google Cloud accelerates every organization's ability…" (565), the ML, Systems &
  * Cloud AI team's "…development of our TPUs, Vertex AI for Google Cloud…" (341), and Chrome's
  * "Chrome is available across all major platforms — iOS, Android…" (10). One posting copied per
- * country or city is one role, so its own prose is never counted. Pure; items: [{ html, title }].
+ * country or city is one role, so its own prose is never counted. A near copy of such a paragraph
+ * counts too (nearCopyOf: fix6-fresh-data). Pure; items: [{ html, title }].
  */
 export function teamParagraphs(items, { minPostings = 3, minTitles = 3, minChars = 60 } = {}) {
   const list = (Array.isArray(items) ? items : []).filter((x) => x && typeof x.html === 'string' && x.html);
@@ -393,6 +394,7 @@ export function teamParagraphs(items, { minPostings = 3, minTitles = 3, minChars
   if (list.length < minPostings) return out;
   const posts = new Map();
   const roles = new Map();
+  const texts = new Map(); // block hash -> its key, for nearCopyOf
   for (const { html, title } of list) {
     const seen = new Set();
     const bullets = [];
@@ -406,6 +408,7 @@ export function teamParagraphs(items, { minPostings = 3, minTitles = 3, minChars
       if (key.length < minChars) continue;
       const h = cyrb53(key);
       if (!seen.has(h)) seen.add(h);
+      if (!texts.has(h)) texts.set(h, key);
     }
     // One role: its own lists, else its title. A posting copied per city ("Forward Deployed
     // Engineer - Munich", "- Paris") has the same lists under different titles: still one role.
@@ -414,11 +417,66 @@ export function teamParagraphs(items, { minPostings = 3, minTitles = 3, minChars
       posts.set(h, (posts.get(h) || 0) + 1);
       let r = roles.get(h);
       if (!r) roles.set(h, (r = new Set()));
-      if (r.size < minTitles) r.add(role);
+      if (r.size < Math.max(minTitles, NEAR_COPY_MIN_ROLES)) r.add(role);
     }
   }
   for (const [h, c] of posts) if (c >= minPostings && roles.get(h).size >= minTitles) out.add(h);
+  const widely = new Set([...out].filter((h) => roles.get(h).size >= NEAR_COPY_MIN_ROLES));
+  for (const h of nearCopyOf(widely, texts, minChars)) out.add(h);
   return out;
+}
+
+/**
+ * fix6-fresh-data: the blocks that are a near copy of a team paragraph (a word or two changed, or
+ * the title put in a template) but too rare to count on their own. Google's AI and Infrastructure
+ * paragraph reads "We're the driving force behind Google's groundbreaking innovations…" on 377
+ * postings and "the driving team" on 68, each a team paragraph, but "the driving channel" on only
+ * 3 (in two wordings), below the minimum, so on the 2026-10-16 crawl its "…development of our TPUs,
+ * Vertex AI for Google Cloud, Google Global Networking…" tagged a data-centre technician "TPUs",
+ * "GCP" and "Networking". A near copy shares a sentence of at least `minChars` with a team
+ * paragraph that at least NEAR_COPY_MIN_ROLES roles repeat (a company or organisation paragraph, not
+ * one role's text copied to its levels), is within 5% of its length in words, and shares at least
+ * 95% of its words (counted with repeats). A paragraph that only shares a sentence or two with a
+ * team paragraph keeps its own. On that crawl this removes skills from 55 of 43,141 postings and
+ * adds none; e.g. xAI's "AI Tutor - Italian" loses "Speech / audio" from the audio-tutor paragraph,
+ * as its 12 sibling postings (Finnish, French, …) already did.
+ * `team`: team-paragraph hashes (the widely repeated ones); `texts`: block hash -> boilerplate
+ * key. Returns the new hashes.
+ */
+const NEAR_COPY_SHARE = 0.95;
+const NEAR_COPY_MIN_ROLES = 10;
+const sentencesOf = (key) => key.split(/(?<=[.!?])\s+/);
+function nearCopyOf(team, texts, minChars) {
+  const found = [];
+  if (!team.size) return found;
+  const bySentence = new Map(); // long sentence -> team hashes whose paragraph has it
+  for (const h of team) {
+    const key = texts.get(h);
+    if (!key) continue;
+    for (const s of sentencesOf(key)) {
+      if (s.length < minChars) continue;
+      const list = bySentence.get(s) || [];
+      if (list.length < 50) list.push(h);
+      bySentence.set(s, list);
+    }
+  }
+  if (!bySentence.size) return found;
+  const words = (key) => { const m = new Map(); let n = 0; for (const w of key.split(' ')) { if (w) { m.set(w, (m.get(w) || 0) + 1); n++; } } return { m, n }; };
+  const near = (a, b) => {
+    if (Math.min(a.n, b.n) < NEAR_COPY_SHARE * Math.max(a.n, b.n)) return false;
+    let common = 0;
+    for (const [w, c] of a.m) common += Math.min(c, b.m.get(w) || 0);
+    return common >= NEAR_COPY_SHARE * Math.max(a.n, b.n);
+  };
+  for (const [h, key] of texts) {
+    if (team.has(h)) continue;
+    const cands = new Set();
+    for (const s of sentencesOf(key)) if (s.length >= minChars) for (const t of bySentence.get(s) || []) cands.add(t);
+    if (!cands.size) continue;
+    const mine = words(key);
+    for (const t of cands) if (near(mine, words(texts.get(t)))) { found.push(h); break; }
+  }
+  return found;
 }
 
 /** The union of two hash sets (either may be null). */
