@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const BRANCH = 'claude/stoic-ride-54ddxp';
+const SECRETS = ['.env', 'config/.env.local', 'keys/deploy.pem', 'server.key', '.npmrc', 'aws-credentials.json', 'gh.token'];
 const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8', env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } });
 const sh = (cwd, script, args) => execFileSync('bash', [path.join(ROOT, 'scripts/cycle', script), ...args], { cwd, encoding: 'utf8', env: { ...process.env, MELON_BRANCH: BRANCH, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } });
 
@@ -37,6 +38,8 @@ function setup() {
   fs.writeFileSync(path.join(wt, 'big.bin'), Buffer.alloc(6 * 1024 * 1024));
   fs.mkdirSync(path.join(wt, 'docs', 'screenshots', 'lane-a'), { recursive: true });
   fs.writeFileSync(path.join(wt, 'docs', 'screenshots', 'lane-a', 'shot.png'), 'png');
+  // Files named like secrets (S-11): never packed, even when git does not ignore them.
+  for (const f of SECRETS) { fs.mkdirSync(path.dirname(path.join(wt, f)), { recursive: true }); fs.writeFileSync(path.join(wt, f), 'TOKEN=do-not-push\n'); }
   return { dir, origin, repo, wt };
 }
 
@@ -52,6 +55,10 @@ test('checkpoint pushes a lane\'s commits, edits and new files to wip/<lane>/, a
   assert.match(status, /data\/snapshots \(symlink\)/, 'the data link is left out and listed');
   assert.match(status, /big\.bin \(\d+ bytes\)/, 'a file over 5 MB is left out and listed');
   assert.match(status, /docs\/screenshots\/lane-a\/shot\.png \(screenshot/, 'new screenshots are listed, not copied');
+  for (const f of SECRETS) assert.ok(status.includes(`${f} (named like a secret`), `${f} is left out and listed`);
+  const packed = execFileSync('tar', ['-tzf', '-'], { input: execFileSync('git', ['show', `${BRANCH}:wip/lane-a/untracked.tgz`], { cwd: origin }), encoding: 'utf8' });
+  for (const f of SECRETS) assert.ok(!packed.split('\n').includes(f), `${f} not in untracked.tgz`);
+  assert.ok(packed.split('\n').includes('docs/log.md'), 'ordinary new files are still packed');
 
   // Unchanged work is not recommitted.
   assert.match(sh(repo, 'checkpoint.sh', ['--push', '--ckpt', ckpt, `lane-a=${wt}`]), /nothing changed/);

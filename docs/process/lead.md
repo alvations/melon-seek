@@ -1350,3 +1350,10 @@ screenshots in `docs/screenshots/`.
     - `npm test` CI-like: 1,112 pass, 0 fail.
     - `npm test` on the FX-refreshed files with today's snapshots (what the refresh job runs): 1,125 pass. The one failure was S-6 under load 12; it passes alone.
   - **Next:** dispatch the refresh again (`only=fx`, not a dry run).
+
+### security-a11y-review-beta-2 S-11: checkpoints never pack secret-named files (2026-10-16)
+- checkpoint.sh packed every untracked, non-ignored file into `wip/<lane>/untracked.tgz` on the public branch. It now leaves out anything named like a secret (`.env*`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `id_rsa*` and the other key names, `.npmrc`, `.netrc`, `.git-credentials`, `*credentials*`, `*.token`) and lists it in STATUS.md. test/checkpoint.test.js puts seven such files in a lane: none is packed, ordinary files still are, and the test fails on the old script.
+- Scanned every `untracked.tgz` ever pushed (54 files): no secret-named file.
+- **Not done (needs the user):**
+  - Moving checkpoints to a separate ref: pushes go only to this branch.
+  - The Pages source: it is still "Deploy from a branch". Every push runs GitHub's branch build too, and it fails at Jekyll, so only pages.yml deploys. If that build ever succeeds, a push could publish the raw branch. Switching the source to "GitHub Actions" closes this. It is a settings change for the user. Do not add `.nojekyll`: that would make the branch build succeed.

@@ -10,9 +10,10 @@
 # $TMPDIR/melon-ckpt):
 #   commits/*.patch   `git format-patch --binary` of the lane's commits since the branch
 #   uncommitted.diff  `git diff --binary HEAD` (tracked files, staged or not)
-#   untracked.tgz     new files (git's ignore rules apply; symlinks, new screenshots and files over
-#                     5 MB are left out and listed in STATUS.md, so data links are never copied and
-#                     the repo does not grow by a screenshot folder every 15 minutes)
+#   untracked.tgz     new files (git's ignore rules apply; symlinks, new screenshots, files over
+#                     5 MB and anything named like a secret are left out and listed in STATUS.md, so
+#                     data links are never copied, the repo does not grow by a screenshot folder
+#                     every 15 minutes, and a stray .env or key never reaches the public branch)
 #   STATUS.md         base and head SHAs, the commit list, `git status`, what was left out
 # then commits "WIP checkpoint: <lanes>" and, with --push, pushes it. The branch's CI and Pages
 # workflows ignore wip/** (paths-ignore), so a checkpoint never rebuilds or redeploys the site.
@@ -24,6 +25,13 @@ BRANCH="${MELON_BRANCH:-claude/stoic-ride-54ddxp}"
 PUSH=0
 CKPT="${TMPDIR:-/tmp}/melon-ckpt"
 MAX_BYTES=$((5 * 1024 * 1024))
+# Never packed, whatever git ignores (security-a11y-review-beta-2 S-11): the branch is public.
+secret_name() {
+  case "${1##*/}" in
+    .env|.env.*|*.pem|*.key|*.p12|*.pfx|id_rsa*|id_dsa*|id_ecdsa*|id_ed25519*|.npmrc|.netrc|.git-credentials|*credentials*|*.token) return 0 ;;
+  esac
+  return 1
+}
 LANES=()
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -53,6 +61,7 @@ fill() { # fill <lane> <worktree> <dest>
   list="$(mktemp)"; skipped="$(mktemp)"
   (cd "$wt" && git ls-files --others --exclude-standard -z) | while IFS= read -r -d '' f; do
     if [ -L "$wt/$f" ]; then echo "$f (symlink)" >> "$skipped"
+    elif secret_name "$f"; then echo "$f (named like a secret; never checkpointed)" >> "$skipped"
     elif [[ "$f" == docs/screenshots/* ]]; then echo "$f (screenshot; the lane's tests regenerate it)" >> "$skipped"
     elif [ "$(stat -c %s "$wt/$f")" -gt "$MAX_BYTES" ]; then echo "$f ($(stat -c %s "$wt/$f") bytes)" >> "$skipped"
     else printf '%s\0' "$f" >> "$list"; fi
