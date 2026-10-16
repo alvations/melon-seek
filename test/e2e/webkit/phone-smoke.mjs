@@ -73,8 +73,13 @@ for (const engine of ENGINES) {
           headerOnScreen: vis(title),
         };
       }).catch((e) => ({ err: e.message }));
+      // Errors up to here are the app's. Playwright's screenshot adds a <style> (caret: 'hide') that WebKit's CSP
+      // check refuses and logs ("Refused to apply a stylesheet …"): that one is the harness, printed apart.
+      const appErrs = errs.splice(0);
       const shot = path.join(OUT, `${engine}-${dev.replace(/\W+/g, '')}-${board}.png`);
       await page.screenshot({ path: shot }).catch(() => {});
+      const shotErrs = errs.splice(0);
+      errs.push(...appErrs);
       const pageErrors = errs.filter((e) => e.startsWith('pageerror') || e.startsWith('goto'));
       const problems = [
         ...pageErrors,
@@ -86,6 +91,7 @@ for (const engine of ENGINES) {
       const line = `${problems.length ? 'FAIL' : 'ok  '} ${engine.padEnd(8)} ${dev.padEnd(9)} ${board.padEnd(9)} ${String(ms).padStart(6)} ms  cards ${s.cards} (${s.cardsOnScreen} on screen)  chart ${s.chartOnScreen ? `${s.chartH}px` : 'off'}  scroll ${s.scrollW}/${s.w}`;
       console.log(line);
       for (const e of [...new Set(errs)].slice(0, 12)) console.log(`       ${e}`);
+      for (const e of [...new Set(shotErrs)].slice(0, 3)) console.log(`       (during the screenshot, harness) ${e}`);
       if (problems.length) { bad.push(line); console.log(`       text: ${s.text || ''}`); }
       await ctx.close();
     }

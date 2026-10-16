@@ -56,7 +56,8 @@ await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const ORIGIN = `http://127.0.0.1:${server.address().port}`;
 console.log(`serving ${DIST} at ${ORIGIN}/melon-seek/`);
 
-const sh = (cmdName, args) => execFileSync(cmdName, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
+// Every simulator command has a time limit: run 38979700118 hung in this step for 35 minutes with none.
+const sh = (cmdName, args, timeout = 180000) => execFileSync(cmdName, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'], timeout });
 const waitFor = async (pred, ms = 30000) => { const t0 = Date.now(); for (;;) { const hit = log.slice().reverse().find(pred); if (hit) return hit; if (Date.now() - t0 > ms) return null; await sleep(250); } };
 const send = (name) => { cmd = { id: cmd.id + 1, name }; };
 

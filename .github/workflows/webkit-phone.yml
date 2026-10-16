@@ -139,13 +139,15 @@ jobs:
           python3 -m pip install --break-system-packages fb-idb
           idb --help > /dev/null
       - name: Swipe the company list in Simulator Safari
+        timeout-minutes: 30 # the job limit is 40: leave time for the summary and the screenshots
         env:
           IOS_DEVICES: ${{ inputs.ios_devices }}
         run: node test/e2e/webkit/ios-sim-menu.mjs --dist dist --out ios-sim
       - name: Summary
         if: always()
         run: |
-          { echo '### iOS Simulator Safari: company menu'; echo '```'; cat ios-sim/result.txt 2>/dev/null || echo 'no result'; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          cat ios-sim/result.txt 2>/dev/null || echo 'no result' # in the log too (artifacts can't always be read)
+          { echo '### iOS Simulator Safari: boards and company menu'; echo '```'; cat ios-sim/result.txt 2>/dev/null || echo 'no result'; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
