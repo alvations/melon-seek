@@ -1,0 +1,16 @@
+{
+ "dataset": "mx-legal-minimum-wage",
+ "asOf": "2026-01-01",
+ "taxYear": null,
+ "source": {
+  "name": "CONASAMI (Comisión Nacional de los Salarios Mínimos) resolution of 2025-12-03, in force 2026-01-01; read through EY Law Flash \"Incremento salarios mínimos 2026\"",
+  "url": "https://www.gob.mx/conasami",
+  "licence": "official publication"
+ },
+ "exportedAt": "2026-10-16",
+ "values": {
+  "server/salary.js#LEGAL_MIN_ANNUAL": {
+   "MXN": 114990
+  }
+ }
+}
