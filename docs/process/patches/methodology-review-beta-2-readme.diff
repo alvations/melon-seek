@@ -1,0 +1,57 @@
+diff --git a/README.md b/README.md
+index a14a755..2e96374 100644
+--- a/README.md
++++ b/README.md
+@@ -374,9 +374,10 @@ caches HTML. Details, verification commands and other platforms are in
+ ### Beta site
+ 
+ <https://alvations.github.io/melon-seek/beta/> is a full second copy of the
+-app: the stable companies plus the big-tech career sites (Google, Microsoft, Apple,
+-Netflix and NVIDIA; Amazon and Meta were resumed on 2026-10-11 and appear after their first
+-crawl. Amazon shows all of its roughly 22,000 postings: no board is cut to a posting budget).
++app: the stable companies plus seven big-tech career sites (Google, Microsoft, Apple, Netflix,
++NVIDIA, Amazon and Meta; Amazon and Meta were paused for terms of use on 2026-10-10 and resumed
++on 2026-10-11, docs/AMAZON_META.md). Amazon shows its whole board, 22,179 postings on
++2026-10-16: no board is cut to a posting budget.
+ Tesla is left out because its site blocks plain requests; see
+ [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) §7.
+ The main site at `/melon-seek/` doesn't change and doesn't link to it.
+@@ -392,7 +393,8 @@ Contract: [docs/CONTRACT.md](docs/CONTRACT.md) "v3 additions"; build log:
+   `<meta name="melon-channel" content="beta">` next to the build marker. Market
+   comps ("Same role elsewhere", Insights), share pages `c/<slug>/` and CSV cover the beta
+   companies. The methodology page is the same as the main site's: it explains the Juice Score,
+-  not how the big-tech pay is read (that is in [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) §7a).
++  and its questions say how the posted pay and levels are read ("How is the posted pay read?");
++  the full pay rules for the big-tech boards are in [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) §7a.
+ - **Data:** `node scripts/snapshot.js --channel beta` (or one slug, e.g.
+   `node scripts/snapshot.js amazon`) fetches the big-tech boards. The workflows
+   keep them in `data/beta/snapshots/` (and their ledger in `data/beta/history/`),
+diff --git a/docs/process/PLAYBOOK.md b/docs/process/PLAYBOOK.md
+index 8df9720..d15d832 100644
+--- a/docs/process/PLAYBOOK.md
++++ b/docs/process/PLAYBOOK.md
+@@ -226,7 +226,8 @@ don't lose that much." So:
+   with Playwright in `<scratchpad>/pw/node_modules`.
+ - The Long Tasks API misses work after `fetch()` resolves. Read long tasks from a Chrome trace.
+ - Beta-specific: a company with `paused` in server/companies.js is never crawled or tested (its adapter
+-  refuses to start). Amazon is capped at 5,000 postings on /beta/ (`maxPostings`). Apple's full
++  refuses to start). No board is capped: Amazon's 5,000-posting budget (`maxPostings`) was removed on
++  2026-10-11, and its whole board (22,179 postings on 2026-10-16) is the heavy case. Apple's full
+   crawl took 89 minutes on 2026-10-11 (4,704 requests); an incremental run takes about 13.
+ 
+ ## Adding a board to the incremental crawl
+diff --git a/docs/AMAZON_META.md b/docs/AMAZON_META.md
+index 427e264..a214f24 100644
+--- a/docs/AMAZON_META.md
++++ b/docs/AMAZON_META.md
+@@ -6,8 +6,8 @@ quotes below come from the live pages, fetched on 2026-10-11. Their URLs, times
+ 
+ > [!NOTE]
+ > **Superseded by the [Decision](#decision-2026-10-11) below (2026-10-11).** The user chose to
+-> resume both; `paused` is gone from `server/companies.js`, and each board appears on `/beta/`
+-> after its first crawl. Since 2026-10-11 every Amazon posting is published, the whole board: the
++> resume both; `paused` is gone from `server/companies.js`, and both boards are on `/beta/`
++> since their first crawl on 2026-10-11 (2026-10-16: Amazon 22,179 postings, Meta 1,208). Since 2026-10-11 every Amazon posting is published, the whole board: the
+ > 5,000-posting budget (`maxPostings`) was removed when the user asked: "Why are you capping the no of posting we must present them as they are and not cut anything". The brief below is kept as it was written, before
+ > the decision.
+ 
