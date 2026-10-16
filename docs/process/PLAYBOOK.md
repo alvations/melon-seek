@@ -141,7 +141,9 @@ don't lose that much." So:
    - `STATUS.md`
    
    CI and Pages ignore `wip/**`, so a checkpoint never rebuilds or redeploys the site, and agents
-   still never push. Remove a lane's line when it is integrated, and its `wip/<lane>/` with the
+   still never push. A background command stops after 2 hours (the loop did, 2026-10-16 15:41), so
+   for a longer session the lead schedules the checkpoint as a session cron job every 15 minutes
+   (it fires while the lead is idle) and also checkpoints at every integration. Remove a lane's line when it is integrated, and its `wip/<lane>/` with the
    integration commit.
 2. **Agents commit small and often** in their worktrees ("WIP: …" is fine), and keep a
    `## State` section at the top of their log: what is done, what is in progress, the next step.
