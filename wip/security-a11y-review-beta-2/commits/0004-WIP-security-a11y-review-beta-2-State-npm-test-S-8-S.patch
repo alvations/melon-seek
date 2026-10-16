@@ -1,7 +1,7 @@
 From 185741c94a6814b1361c4080924bddb48d9b6ff6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 21:44:07 +0000
-Subject: [PATCH 4/4] WIP security-a11y-review-beta-2: State (npm test, S-8/S-9
+Subject: [PATCH 4/6] WIP security-a11y-review-beta-2: State (npm test, S-8/S-9
  sent, S-2 residual)
 
 ---

@@ -1,7 +1,7 @@
 From 8a65b8861cbfd6b676f88eadfe9838542a255137 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 21:30:20 +0000
-Subject: [PATCH 1/4] security-a11y-review-beta-2: prompt verbatim
+Subject: [PATCH 1/6] security-a11y-review-beta-2: prompt verbatim
 
 ---
  .../prompts/security-a11y-review-beta-2.md    | 30 +++++++++++++++++++

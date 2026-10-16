@@ -12,6 +12,7 @@
 ## Uncommitted and new files
 ```
 ?? docs/process/prompts/fix-touch-tips.md
+?? test/e2e/fix-touch-tips.e2e.js
 ```
 
 ## Left out (not in untracked.tgz)
