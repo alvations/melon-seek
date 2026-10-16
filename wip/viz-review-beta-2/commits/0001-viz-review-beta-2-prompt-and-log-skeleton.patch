@@ -1,0 +1,77 @@
+From 46c64b609195cecd2d5f4b6ff1a9bbeff3f805d7 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 21:31:28 +0000
+Subject: [PATCH] viz-review-beta-2: prompt and log skeleton
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/prompts/viz-review-beta-2.md | 32 +++++++++++++++++++++++
+ docs/process/viz-review-beta-2.md         | 16 ++++++++++++
+ 2 files changed, 48 insertions(+)
+ create mode 100644 docs/process/prompts/viz-review-beta-2.md
+ create mode 100644 docs/process/viz-review-beta-2.md
+
+diff --git a/docs/process/prompts/viz-review-beta-2.md b/docs/process/prompts/viz-review-beta-2.md
+new file mode 100644
+index 0000000..74bf468
+--- /dev/null
++++ b/docs/process/prompts/viz-review-beta-2.md
+@@ -0,0 +1,32 @@
++**The lead's note for this run (beta round 3, 2026-10-16).** You run in your own git worktree. First run `git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp`. Symlink today's crawl into it: `ln -s /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-data2/data/snapshots data/snapshots; mkdir -p data/beta; ln -s /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-data2/data/beta/snapshots data/beta/snapshots` (never commit them). The data is the 2026-10-16 crawl with every board whole, no cap: Amazon 22,179 postings, Apple 4,851, Google 3,821, NVIDIA 2,711, Microsoft 2,435, Meta 1,208, Netflix 414; main site Anduril 2,537. The lead's reviewer build is /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/cycle-beta6-dist; serve it and don't rebuild it. What changed since the last review: one-line notes with a Details disclosure (fix-density), Google grouped by job family with a Company filter (google-grouping), the salary audit fixes ("· 2 levels", per-place pay, no cut rows), first-page preview and a faster first render (perf-mobile-beta-2), and fix6-fresh-data. Read those sections of docs/process/lead.md first. Resume safety (the user, 2026-10-16: "if we get stop again due to limits, we're able to resume without losing much progress"): commit your files small and often in your worktree with explicit paths, keep a `## State` section at the top of your log, and send the lead your findings as you confirm them by SendMessage to "main". The lead checkpoints your worktree every 15 minutes; never push. Where the template says "don't commit", commit in your worktree anyway; the lead integrates. Give every server, browser or test command a timeout, so nothing can hang for hours. Other agents may run at the same time on a 4-CPU machine: note `uptime` with any timing. Check especially what changed since round 2: Amazon's whole board (22,179 postings) and Meta; the first-page preview on Amazon (real cards under "Loading 22,179 roles…", then the list replaces them); Google's job-family departments with the Company group-by and filter; the one-line notes with one Details disclosure (fix-density); "· 2 levels" and "· N places" cards, "from €X" minimums and shift-pay labels; the clusters chart, whose circles now sit at their postings' median pay, and the Ranges view, where identical posted bands are stacked into one row with ×N (viz-even). Also re-check that earlier findings stay fixed. Known open items you need not re-report, but may add evidence to: MR-23 (FX rates from 2026-07-01, waiting on the user), MR-26, MR-28, MR-29 (the on-screen label), MR-33 to MR-35, MR-37 to MR-42 in docs/process/methodology-review-beta-2.md, and the Insights tab on Amazon being one 4.3 s task (docs/process/perf-mobile-beta-2.md). The user's complaint behind viz-even (2026-10-11): the big-tech salary ranges 'kinda all span too evenly'. Judge, with measurements on the real data, whether the new clusters and Ranges drawing now shows where pay really concentrates on each board, and whether anything still looks evenly spaced for reasons of drawing rather than data.
++
++You are the data-visualisation reviewer for melon-seek (/home/user/melon-seek), "the Zillow of job postings": a company's job board plotted on a salary-range chart (default) or a map, with a Juice Score (pay left after tax, rent and living costs), a comps chart in the job drawer, Compstimate and Insights. Read docs/CONTRACT.md (the chart and map sections), docs/process/viz.md and docs/process/fix-viz.md (how the charts were built and last fixed), docs/LIVABILITY.md, docs/METHODOLOGY_GUIDE.md, docs/process/PLAYBOOK.md, docs/process/TEMPLATE.md and the newest sections of docs/process/lead.md (from "Beta round 3" on: fix wave 5, fix-density, google-grouping, the salary audit, perf-mobile-beta-2, fix6-fresh-data), docs/process/methodology-review-beta.md, docs/process/ux-review-beta.md, docs/process/viz-review-beta.md and the 2026-10-11 beta sections of docs/QA.md. The code is public/viz/chart.js, public/viz/map.js, public/viz/palette.js, public/viz/viz.css and the chart helpers in public/features/.
++
++**Your job:** check that every chart and map in target `beta` (`/melon-seek/beta/`) encodes the data honestly and readably, with real data for all seven big-tech boards (Amazon, Apple, Google, Meta, Microsoft, NVIDIA and Netflix), plus Anduril from the main site for comparison. Do not edit product code. You own:
++- docs/process/viz-review-beta-2.md (your log and findings);
++- docs/process/prompts/viz-review-beta-2.md (paste this prompt verbatim);
++- screenshots in docs/screenshots/viz-review-beta-2/ (run `bash scripts/cycle/shrink-screenshots.sh docs/screenshots/viz-review-beta-2` before you report);
++- a NEW test file, test/e2e/beta-viz-review-2.e2e.js, registered the way scripts/e2e.js registers the others. Every reproducible problem gets a test that fails now and will pass once it is fixed, with the finding ID in its name, e.g. `[V-3]`.
++Don't commit and never push.
++
++**Setup:** serve the build the lead made: `node scripts/cycle/serve.mjs --dist /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/cycle-beta6-dist --pid /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/viz-review-beta-2/serve.pid`. Don't rebuild it. Playwright: NODE_PATH=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/pw/node_modules, Chromium at /opt/pw-browsers/chromium-1194/chrome-linux/chrome; never run `playwright install`. Desktop 1440x900 and 1024x768, phone 390x844 (isMobile, hasTouch), light and dark. Use pid files; never `pkill -f` or `pgrep -f`. Read the same numbers from the data (the bundled snapshot files under /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/cycle-beta6-dist, or `data/beta/snapshots/`) so you can compare what is drawn with what is true.
++
++**Check, with numbers and a screenshot for each finding:**
++1. **Salary chart.**
++   - Axis: scale, ticks, currency, units (a year, an hour), and whether hourly, monthly, fixed-term and part-time pay are put on the same yearly footing as the label says.
++   - Bars: a range bar's ends match the posting's min and max (check 10 postings by hand per company). Ranges that span several levels, estimates and on-target earnings are drawn differently from a posted base range, and the legend says how.
++   - Clusters, Ranges and Group by: cluster sizes add up to the result count; group medians match a hand calculation (use base pay only, not on-target earnings).
++   - Overflow markers, very long lists (Apple, about 4,880 roles): scrolling, virtualisation, labels that collide.
++   - Postings with pay posted for other countries only: are they plotted, and with which currency?
++2. **Map.**
++   - Pins at the right place for 15 sampled locations (including non-US cities and local names). Pin counts per place add up to the filtered count; a multi-location posting is counted as the docs say.
++   - Pay|Juice colour scale: legend matches the colours; the scale is perceptually ordered; it works for red-green colour blindness (simulate deuteranopia and protanopia, e.g. with a CSS filter, and screenshot).
++   - Tooltips, area chips, Remote, clustering at each zoom level, the map after resizing with the drawer open.
++3. **Juice waterfall and comps chart in the drawer.** The bars add up to the total shown; Monthly/Yearly and household switch the numbers consistently; the comps chart's cells match docs/LIVABILITY.md and the market data.
++4. **Compstimate and Insights charts.** Percentile bands, the "same country" comparison, level ordering (median should rise with level), small-sample warnings.
++5. **Colour and contrast.** Measure contrast of marks against the background in both themes (3:1 for graphics, 4.5:1 for text labels). Company colours that clash or are too close.
++6. **Performance of drawing.** Time a filter change, a sort, Group by and a zoom on the largest board; anything over 200 ms on desktop is a finding.
++
++For each finding write: an ID (V-n, numbered after the highest V ID in docs/process/viz.md, docs/process/fix-viz.md and the newest sections of docs/process/lead.md (from "Beta round 3" on: fix wave 5, fix-density, google-grouping, the salary audit, perf-mobile-beta-2, fix6-fresh-data), docs/process/methodology-review-beta.md, docs/process/ux-review-beta.md, docs/process/viz-review-beta.md and the 2026-10-11 beta sections of docs/QA.md), a severity (High: a wrong or misleading number; Medium: hard to read or inconsistent; Low: polish), the view, exact repro, expected vs actual with the numbers, a screenshot, and the owning file and function. Say what works too. Also run `npm test` and the full e2e suite, and report the results.
++
++Report back with the findings ordered by how many job seekers they would mislead, one line each, and the suite results.
+diff --git a/docs/process/viz-review-beta-2.md b/docs/process/viz-review-beta-2.md
+new file mode 100644
+index 0000000..1187ac3
+--- /dev/null
++++ b/docs/process/viz-review-beta-2.md
+@@ -0,0 +1,16 @@
++# Process log: viz-review-beta-2 (data-visualisation review of target `beta`, round 3, 2026-10-16)
++
++## State
++- **Done:** worktree on origin/claude/stoic-ride-54ddxp (d98a9f0); crawl linked; prompt pasted.
++- **In progress:** reading the docs and chart code; serving the lead's cycle-beta6-dist build.
++- **Next step:** dump the app's lists per board, then the chart checks (clusters, Ranges, Group by).
++
++## 1. Brief
++
++Prompt: [prompts/viz-review-beta-2.md](prompts/viz-review-beta-2.md) (verbatim). Check that every chart and map
++on `/melon-seek/beta/` encodes the data honestly and readably, on the 2026-10-16 crawl with all seven big-tech
++boards whole (Amazon 22,179), plus Anduril from the main site; judge whether viz-even's clusters and Ranges now
++show where pay concentrates. No product code edited.
++
++Files owned: this log, the prompt file, `docs/screenshots/viz-review-beta-2/` and the new
++`test/e2e/beta-viz-review-2.e2e.js`, registered in `scripts/e2e.js`.
+-- 
+2.43.0
+
