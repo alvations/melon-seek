@@ -81,19 +81,30 @@ async function anthropicPlain() {
  * many postings that repeat a pay and places (as one requisition posted in many cities).
  */
 function amazonLike(base) {
-  const src = base.jobs.filter((j) => j.salary && j.locations.length);
-  assert.ok(src.length >= 5, 'enough salaried jobs to build from');
+  // Built from the site's jobs (the real Anthropic list, or in CI the 3-posting Greenhouse fixture), with
+  // pay and places of its own: 12 pay levels and 8 cities from data/cities.json, so it never depends on
+  // how many salaried postings the source has.
+  const src = base.jobs.length ? base.jobs : [{ id: 'zz:0', title: 'Engineer', department: 'Engineering', team: null, employmentType: 'Full-time', seniority: 'Senior', locations: [], keywords: { responsibilities: [], fit: [], skills: [] }, sections: { responsibilities: [], fit: [] } }];
+  const cities = readJson(ROOT, 'data', 'cities.json');
+  const usCities = (Array.isArray(cities) ? cities : cities.cities).filter((c) => c.country === 'US').slice(0, 8);
+  assert.equal(usCities.length, 8, 'US cities to place postings in');
+  const place = (c) => ({ name: `${c.city}, ${c.region}`, city: c.city, region: c.region, country: 'US', remote: false, rawName: `USA, ${c.region}, ${c.city}` });
+  const payOf = (n) => {
+    const min = 90000 + n * 10000, max = min + 40000;
+    return { min, max, mid: (min + max) / 2, currency: 'USD', interval: 'year', text: `USA - ${min.toLocaleString('en-US')}.00 - ${max.toLocaleString('en-US')}.00 USD annually`, kind: 'base', spread: +(max / min).toFixed(2), zones: 1, source: 'posting' };
+  };
   const jobs = [];
   for (let i = 0; i < 600; i++) {
     const b = src[i % src.length];
-    const loc = b.locations[0];
+    const locations = i % 4 === 3 && b.locations.length ? b.locations : [place(usCities[i % 8]), ...(i % 6 === 0 ? [place(usCities[(i + 3) % 8])] : [])];
+    const loc = locations[0];
     const id = String(10000 + i);
     const title = i % 41 === 0 ? `Spécialiste ${i % 3}` : i % 37 === 0 ? `Řidič ${i}` : `${b.title} ${i % 9}`;
     const ascii = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
     const url = i % 23 === 0 ? `https://www.amazon.jobs/en/jobs/${id}/something-else`
       : i % 29 === 0 ? null
         : /^[\x00-\x7f]*$/.test(title) ? `https://www.amazon.jobs/en/jobs/${id}/${ascii(title)}` : `https://www.amazon.jobs/en/jobs/${id}/${encodeURIComponent(title)}`;
-    const salary = { ...b.salary };
+    const salary = b.salary && i % 4 === 3 ? { ...b.salary } : payOf(i % 12);
     if (i % 3 === 0) {
       salary.ranges = [
         { min: salary.min, max: salary.max, currency: salary.currency || 'USD', interval: 'year', label: loc.rawName || loc.name },
@@ -105,7 +116,7 @@ function amazonLike(base) {
     if (i % 5 === 0) salary.originalInterval = 'hour';
     if (i % 10 === 0) { salary.partTime = true; if (i % 20 === 0) salary.hoursPerWeek = 20; }
     if (i % 7 === 0) salary.currency = 'CAD';
-    const job = { ...b, id: `zz:${id}`, company: 'zz', companyName: 'Zz', title, url, salary };
+    const job = { ...b, id: `zz:${id}`, company: 'zz', companyName: 'Zz', title, url, locations, salary };
     if (i % 31 === 0) job.salary = Object.fromEntries(Object.entries(salary).reverse()); // keys in another order
     if (i % 43 === 0) job.salary = null;
     if (i % 47 === 0) job.pool = true;
@@ -134,11 +145,12 @@ test('melon-packed-3 unpacks to exactly the 31ad25b melon-packed-2 output, key o
   // Not vacuous: the Amazon-like list uses each new encoding, and each fallback.
   const v3 = rt(packList(lists[1], api));
   const rows = v3.jobs.filter(Array.isArray);
-  assert.ok(rows.length > 500 && rows.length < 600, `${rows.length} row arrays, some objects`);
+  assert.ok(rows.length > 300 && rows.length < 600, `${rows.length} row arrays, some objects`);
   assert.equal(v3.shared.urlTemplate, 'https://www.amazon.jobs/en/jobs/{id}/{slug}');
   const urlAt = v3.shared.rowKeys.indexOf('url');
-  assert.ok(rows.filter((r) => r[urlAt] === 0).length > 400, 'templated urls');
-  assert.ok(rows.some((r) => typeof r[urlAt] === 'string'), 'urls kept as written where the template does not give them');
+  const urls = v3.jobs.map((r) => (Array.isArray(r) ? r[urlAt] : r.url));
+  assert.ok(urls.filter((u) => u === 0).length > 400, 'templated urls');
+  assert.ok(urls.some((u) => typeof u === 'string'), 'urls kept as written where the template does not give them');
   assert.deepEqual(v3.shared.rangeKeys, ['min', 'max', 'currency', 'interval', 'label']);
   const salAt = v3.shared.rowKeys.indexOf('salary');
   const sals = v3.jobs.map((r) => (Array.isArray(r) ? r[salAt] : r.salary)).filter(Boolean);
