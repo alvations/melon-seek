@@ -1,7 +1,7 @@
 From d89c3fb1b2dcc42d557fe7211a16fcbc04f841a1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 17:12:13 +0000
-Subject: [PATCH 09/11] WIP perf-mobile-beta-2 log: part 2 decisions; the
+Subject: [PATCH 09/12] WIP perf-mobile-beta-2 log: part 2 decisions; the
  lead's follow-ups in the prompt file
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

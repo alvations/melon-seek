@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a7425c5dcd4e39cbe`
 - Base (on claude/stoic-ride-54ddxp): `f254143f9171ca620fb4c58c0f5ff2687e6de040`
-- Head: `fc716d1088597d58c0c1d01620be21721d3200da`
+- Head: `9bda4c1341f7ac9c7e6861f6a70f2e22053633fb`
 - Restore: `bash scripts/cycle/restore-wip.sh perf-mobile-beta-2 <new worktree dir>`
 
 ## Commits since the base
 ```
+9bda4c1 WIP perf-mobile-beta-2 log: every-board matrix (5.4), part 2 record and main-site checks (5.6), gaps
 fc716d1 WIP perf-mobile-beta-2: State
 7bb9e5c perf-mobile-beta-2: preview only for boards of 10,000+ (Amazon): on smaller boards drawing it delayed the list and chart by 0.3-0.5 s while their first cards were near 3 s anyway; table script for the interleaved record
 d89c3fb WIP perf-mobile-beta-2 log: part 2 decisions; the lead's follow-ups in the prompt file
@@ -22,7 +23,9 @@ a9cb193 WIP perf-mobile-beta-2: first-page preview (build writes api/preview/<sl
 
 ## Uncommitted and new files
 ```
+?? dist
 ```
 
 ## Left out (not in untracked.tgz)
+- dist (symlink)
 - node_modules (symlink)

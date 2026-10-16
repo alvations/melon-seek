@@ -1,7 +1,7 @@
 From 7bb9e5c7d420ba4081c5fc9e396d949cafe7e325 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 17:29:22 +0000
-Subject: [PATCH 10/11] perf-mobile-beta-2: preview only for boards of 10,000+
+Subject: [PATCH 10/12] perf-mobile-beta-2: preview only for boards of 10,000+
  (Amazon): on smaller boards drawing it delayed the list and chart by 0.3-0.5
  s while their first cards were near 3 s anyway; table script for the
  interleaved record
