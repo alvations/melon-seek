@@ -10,8 +10,14 @@
 - Confirmed so far: S-2 is only partly fixed (a `paused` flag stops only the Amazon and Meta adapters; probe `probes/pause.mjs`:
   Apple, Google, Microsoft, Netflix, NVIDIA and Greenhouse still make requests when paused). S-1 is fixed in the workflow
   (per-folder download, rejected folders skipped), but the old S-1 test still checks the glob and stays a to-do.
-- Next: parser timing harness (new regexes), crafted postings through Amazon/Google/Meta mappers and the build, axe and
-  keyboard probes on the lead's build, tests, full e2e.
+- 22:00: the lead fixed S-8/S-9 in `9c548e2`; re-checked (fixed), worktree rebased onto it. Parser harness, axe (light and
+  dark, 13 screens), keyboard, names, contrast, reflow and screen-reader probes done. Confirmed and sent to the lead:
+  S-2 and S-4 residuals, S-10 (quadratic upstream parsers), S-11 (checkpoints), A-8 to A-11. Re-checked: A-1 to A-7, V8,
+  S-1, S-3, S-5 to S-7 fixed; V12 and V14 open.
+- 22:10: unit tests (`test/beta-security-review-2.test.js`: 3 pass, 6 to-dos) and e2e (`test/e2e/beta-a11y-2.e2e.js`:
+  4 red) committed, registered in `scripts/e2e.js`. Crafted Amazon/Google/Meta build: 0 injected elements so far;
+  rebuilding so hostile postings land in Amazon's first-page preview.
+- Next: XSS probe of the preview build, full e2e, REVIEW.md section, the rest of this log.
 
 ## 1. Brief
 Prompt: [prompts/security-a11y-review-beta-2.md](prompts/security-a11y-review-beta-2.md).
