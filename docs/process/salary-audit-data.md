@@ -12,9 +12,26 @@
       `salary-audit-data-chart.diff`); with them, SA-1 and SA-5 pass on 5f8b599;
     - SA-3 (the 12-row cap), SA-4 and SA-7 went to salary-audit-backend with their evidence, tests and
       patches; the SA-3 trim half is perf-mobile-beta-2's 161a472.
+  - salary-audit-backend fixed these in 50de7fe (on 2474fc4), re-checked here, and the tests are no longer
+    to-dos:
+    - SA-3's 12-row cap (its SB-3);
+    - SA-4: degree lines, plus Microsoft 1970393556984110's levels. NVIDIA 893397830858 keeps no invented
+      labels and shows the "Several pay ranges" chip;
+    - SA-7's normalize.js half.
+  - SA-3's trim test passes on perf-mobile-beta-2's 161a472 and is no longer a to-do either.
+  - SA-7's snapshot.js half is rebased on 161a472 as `salary-audit-data-pay-hint.diff` and sent to
+    perf-mobile-beta-2.
+  - Combined tree, all 18 tests pass:
+    - 50de7fe `server/`, 161a472 `scripts/snapshot.js`, 5f8b599 `public/`;
+    - plus `salary-audit-data-card-levels.diff`, `salary-audit-data-chart.diff` and
+      `salary-audit-data-pay-hint.diff`.
 - **In progress:** none.
-- **Next step:** none for this lane. The lead applies `salary-audit-data-card-levels.diff` and
-  `salary-audit-data-chart.diff` on 5f8b599 at integration; salary-audit-backend implements SA-3, SA-4 and SA-7.
+- **Next step:** none for this lane.
+  - The lead applies `salary-audit-data-card-levels.diff` and `salary-audit-data-chart.diff` on 5f8b599.
+  - perf-mobile-beta-2 applies `salary-audit-data-pay-hint.diff`.
+  - The three tests still marked to-do (SA-1, SA-5 and SA-7's trim test) lose that mark when their patches
+    land.
+  - `salary-audit-data-amazon-rows.diff` is superseded by salary-audit-backend's SB-3.
 
 ## 1. Brief
 Prompt: [`prompts/salary-audit-data.md`](prompts/salary-audit-data.md), verbatim, with the lead's three
@@ -454,3 +471,6 @@ Every test is in `test/salary-audit.test.js` and runs as a to-do.
   `npm test` with all seven applied: 1 failure, the S-6 timing flake (passes 3 of 3 alone).
 - 14:20 The lead's routing. SA-2 and SA-6 pass on 5f8b599 and are un-todoed. The SA-1 and SA-5 patches were
   rebased on 5f8b599 and both pass there. SA-3, SA-4 and SA-7 were sent to salary-audit-backend.
+- 14:40 salary-audit-backend landed SA-3, SA-4 and SA-7 (normalize half) in 50de7fe; the tests pass there and
+  are no longer to-dos, and so is SA-3's trim test, which passes on 161a472. The SA-7 trim hunk is rebased on
+  161a472 (`salary-audit-data-pay-hint.diff`). On the combined tree all 18 tests pass.

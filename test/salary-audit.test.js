@@ -137,12 +137,14 @@ test('SA-2 Amazon: "· N places" shows the span of the places\' ranges, or does 
 // so the rows after the twelfth are gone (amazon:10385593 "Operations Engineer": 12 rows Mesa to Atlanta are
 // kept; Austin's, the salary, and every row after GA are not). Those places get no own range: Juice and the
 // Location filter use the primary row there. The 13-row table below is synthetic (13 distinct ranges).
-test('SA-3 Amazon: every pay row is kept (13 distinct rows are 13 ranges)', TODO, () => {
+// Fixed by salary-audit-backend (SB-3, 50de7fe on 2474fc4): passes there, fails on 2474fc4 alone.
+test('SA-3 Amazon: every pay row is kept (13 distinct rows are 13 ranges)', () => {
   const rows = Array.from({ length: 13 }, (_, i) => `USA, WA, Town${String.fromCharCode(65 + i)} - ${100 + i},000.00 - ${150 + i},000.00 USD annually`);
   const { payRanges } = amazonSalary({ city: 'TownA', state: 'WA', country_code: 'USA', description: `${AMAZON_PAY_INTRO}${rows.map((l) => `<p>${l}</p>`).join('')}`, locations: [] });
   assert.equal(payRanges.length, 13, `kept ${payRanges.length} of 13 rows`);
 });
-test('SA-3 snapshot trimming keeps every pay row of an Amazon table', TODO, () => {
+// Fixed by perf-mobile-beta-2 161a472 (fix5-data-trim.diff applied): passes there, fails on 2474fc4 alone.
+test('SA-3 snapshot trimming keeps every pay row of an Amazon table', () => {
   const html = `<p>${'Amazon is looking for a Senior Financial Analyst. '.repeat(40)}</p>${AMAZON_PAY_INTRO}${AMAZON_ROWS.map((l) => `<p>${l}</p>`).join('')}`;
   const out = trimDescription(html, 800);
   const kept = AMAZON_ROWS.filter((r) => out.includes(r));
@@ -157,7 +159,8 @@ test('SA-3 snapshot trimming keeps every pay row of an Amazon table', TODO, () =
 // salary.levels, so neither the card nor the drawer names the degrees (7 Google postings). Same shape: NVIDIA
 // 893397830858 (five ranges for three titles shown as $127,234–368,000) and Microsoft 1970393556984110.
 // Owner: server/salary.js parseSalary (the country-line group keeps its members, as the level groups do).
-test('SA-4 Google: degree lines spanned into one range keep each line ("Bachelor\'s degree", "Master\'s degree")', TODO, () => {
+// Fixed by salary-audit-backend 50de7fe (salary-audit-data-degree-lines.diff applied): passes there.
+test('SA-4 Google: degree lines spanned into one range keep each line ("Bachelor\'s degree", "Master\'s degree")', () => {
   const text = "Individual pay is determined by factors including job-related skills, experience, and relevant education or training.\n\n [Bachelor's degree] Canada: $99000 (CAD) + 0% bonus target\n [Master's degree] Canada: $102000 (CAD) + 0% bonus target\n \n\n Learn more about benefits at Google .";
   const p = parseSalary(text, { countries: ['CA'] });
   assert.deepEqual([p.min, p.max, p.currency], [99000, 102000, 'CAD'], 'reference: the span');
@@ -201,11 +204,13 @@ const CARLISLE = {
   locations: [{ name: 'Carlisle, UK', city: 'Carlisle', region: 'England', country: 'GB', lat: 52.36, lng: -1.17, remote: false, rawName: 'Carlisle, England, GBR' }],
   descriptionHtml: '<p><strong>Job title – </strong>Customer Service Delivery Station Liaison</p><p><strong>Location</strong> - DPN1 - <p>[…] Full description on the posting page.</p>',
 };
-test('SA-7 Amazon: a stored salary is not erased because trimming cut its pay sentence', TODO, () => {
+// Fixed by salary-audit-backend 50de7fe (the normalize.js half of salary-audit-data-trimmed-pay.diff): passes there.
+test('SA-7 Amazon: a stored salary is not erased because trimming cut its pay sentence', () => {
   const [out] = relabelJobs([structuredClone(CARLISLE)]);
   assert.ok(out.salary, 'the salary is kept');
   assert.equal(out.salary.min, 26416);
 });
+// Fix: docs/process/patches/salary-audit-data-pay-hint.diff (scripts/snapshot.js, on 161a472), sent to perf-mobile-beta-2.
 test('SA-7 snapshot trimming keeps a pay paragraph in pounds ("Pay rate: £12.70 per hour", synthetic sentence)', TODO, () => {
   const html = `<p>${'Customer Service Delivery Station Liaison. '.repeat(30)}</p><p>Pay rate: £12.70 per hour</p>`;
   assert.match(trimDescription(html, 800), /£12\.70/);
