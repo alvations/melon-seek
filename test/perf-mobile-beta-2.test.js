@@ -316,3 +316,28 @@ test('config.js asks for the first company\'s preview only when it has one, befo
   const cfg = fs.readFileSync(path.join(DIST, 'config.js'), 'utf8');
   assert.ok(cfg.indexOf('MELON_FIRST_PREVIEW') < cfg.indexOf('MELON_FIRST_LIST'), 'the preview is requested first');
 });
+
+test('ci.yml list check reads previews: the list\'s own postings, no HTML, no stored Juice', async () => {
+  const api0 = await siteApi();
+  const { splitPayload, previewList, previewPath } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'build-static.js')).href);
+  const { vetSalaries } = await import(pathToFileURL(path.join(DIST, 'lib', 'vet.js')).href);
+  const split = splitPayload(await bigBoard(), api0, vetSalaries);
+  const prev = previewList(split, api0);
+  const d = path.join(TMP, 'ci-preview');
+  fs.mkdirSync(path.join(d, 'api', 'jobs'), { recursive: true });
+  fs.mkdirSync(path.join(d, 'api', 'preview'), { recursive: true });
+  fs.writeFileSync(path.join(d, 'api', 'jobs', 'zz.json'), JSON.stringify({ ...split.list, meta: { compstimate: null, history: { since: null, runs: 0 } } }));
+  fs.writeFileSync(path.join(d, previewPath('zz')), JSON.stringify(prev));
+  const check = () => spawnSync(process.execPath, [path.join(ROOT, '.github', 'scripts', 'check-lists.mjs'), d], { cwd: ROOT, encoding: 'utf8' });
+  const ok = check();
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.match(ok.stdout, /1 lists read through unpackJobs \(and 1 previews\), 0 problems/);
+  // A preview whose posting differs from the list's is caught.
+  const bad = JSON.parse(JSON.stringify(prev));
+  const r = bad.jobs[0];
+  if (Array.isArray(r)) r[bad.shared.rowKeys.indexOf('title')] += ' (edited)'; else r.title += ' (edited)';
+  fs.writeFileSync(path.join(d, previewPath('zz')), JSON.stringify(bad));
+  const no = check();
+  assert.equal(no.status, 1);
+  assert.match(no.stderr, /1 preview jobs are not the list's own postings/);
+});
