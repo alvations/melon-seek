@@ -87,10 +87,11 @@ const SEN_TIP = {
 };
 /* The Seniority filter in the link (s=, roles.js levelKey): "Level not stated" keeps its old value 'Mid', so
    earlier links and saved searches still mean what they said; a stated mid level is 'Mid-level'. */
-const SEN_NOTE = 'Staff+ means staff, principal and above. Director+ means director, head of, vice president and above. “Level not stated”: the title names no level.';
+// M-36 / UX-60 (fix-phone-text): a filter note is one line; its facts are behind its Details (viz/note.js).
+const SEN_NOTE = { line: 'What the levels mean', key: 'fnote-sen', details: ['Staff+ means staff, principal and above.', 'Director+ means director, head of, vice president and above.', '“Level not stated”: the title names no level.'] };
 const SEN_OPTS = { labelOf: senLabel, tipOf: (k) => SEN_TIP[k] || null, note: SEN_NOTE };
 /** I-6: what a city pick finds. */
-const LOC_NOTE = 'A city also finds roles that list only its country or region, and remote-only roles in its country.';
+const LOC_NOTE = { line: 'Also finds roles listed for its country', key: 'fnote-loc', details: ['A city also finds roles that list only its country or region, and remote-only roles in its country.'] };
 /** Employment types in plain words (I-3): "International EOR" -> "International (employer of record)". */
 const empLabel = (k) => (k === 'Unspecified' ? 'Not stated' : String(k).replace(/\s*\bEOR\b/g, ' (employer of record)').trim());
 // Hosts users may be sent to (mirrors ALLOWED_HOSTS in scripts/links-policy.js): ATS job pages, map attribution.
@@ -586,6 +587,8 @@ const groupBy = () => (S.g === 'brand' && !multiBrand() ? groupDefault(S.v) : S.
 const deptFromTitles = () => data.status === 'ready' && data.jobs.some((j) => j.departmentBasis === 'title');
 /** One short line for that (fix-density: secondary text is one line). */
 const deptTitleNote = () => `Grouped by job title: ${data.company?.name || 'this board'} doesn’t publish departments`;
+/** M-36: the filter sheet's one line (it took 2 lines at 360 px); the reason is in its Details. */
+const deptTitleLine = () => ({ line: 'Grouped by job title', details: [`${data.company?.name || 'This board'} doesn’t publish departments, so its roles are grouped by what their titles say.`] });
 /** Juice filter key for a juice entry: its grade ("Rind" files under Dry), or null without one. */
 const gradeOf = (e) => (e ? (e.grade === 'Rind' ? 'Dry' : e.grade) : null);
 /** Juice filter key: the best location's grade, or null without juice. */
@@ -2190,8 +2193,8 @@ function makeSalary({ compact = false } = {}) {
   const understood = h('p', { class: 'fnote salary-read', role: 'status', hidden: true });
   const toggle = h('input', { type: 'checkbox', role: 'switch', class: 'switch' });
   const toggleRow = h('label', { class: 'switch-row' }, h('span', null, 'Only show roles with pay'), toggle);
-  const noPay = h('p', { class: 'fnote salary-nopay', hidden: true });
-  const note = h('p', { class: 'fnote' });
+  const noPay = h('div', { class: 'fnote salary-nopay', hidden: true });
+  const note = h('div', { class: 'fnote' });
   const empty = h('p', { class: 'fnote' }, 'No pay information on this board.');
   const el = h('div', { class: `salary-ctl${compact ? ' salary-ctl--compact' : ''}` }, hist, track, vals, understood, toggleRow, noPay, note, empty);
   let dom = null;
@@ -2289,8 +2292,10 @@ function makeSalary({ compact = false } = {}) {
     // P-5: say when the pay filter hides postings that list no pay.
     const hidden = derived.fc?.noPayHidden || 0;
     const elsewhere = derived.fc?.elsewhereHidden || 0; // shared decision 1
-    noPay.textContent = [hidden ? `${plural(hidden, 'role')} that ${hidden === 1 ? 'lists' : 'list'} no pay ${hidden === 1 ? 'is' : 'are'} hidden while a pay filter is on.` : '',
-      elsewhere ? `${plural(elsewhere, 'role')} whose pay is posted for another country ${elsewhere === 1 ? 'is' : 'are'} hidden${hidden ? ' too' : ' while a pay filter is on'}: that pay isn’t for ${placesPicked()}.` : ''].filter(Boolean).join(' ');
+    // M-36 (fix-phone-text): one line, the two reasons behind its Details.
+    renderNote(noPay, { key: 'fnote-nopay', line: hidden || elsewhere ? `${plural(hidden + elsewhere, 'role')} hidden by the pay filter` : '', details: [
+      hidden ? `${plural(hidden, 'role')} that ${hidden === 1 ? 'lists' : 'list'} no pay ${hidden === 1 ? 'is' : 'are'} hidden while a pay filter is on.` : '',
+      elsewhere ? `${plural(elsewhere, 'role')} whose pay is posted for another country ${elsewhere === 1 ? 'is' : 'are'} hidden${hidden ? ' too' : ' while a pay filter is on'}: that pay isn’t for ${placesPicked()}.` : ''] });
     noPay.hidden = !hidden && !elsewhere;
     if (!has) { understood.hidden = true; return; }
     for (const r of [lo, hi]) { r.min = dom.lo; r.max = dom.hi; }
@@ -2305,7 +2310,12 @@ function makeSalary({ compact = false } = {}) {
     counts.forEach((c, i) => { bins[i].style.height = `${c ? Math.max(6, (c / max) * 100) : 0}%`; });
     const foreign = data.jobs.filter((j) => j._usd && j.salary.currency && j.salary.currency !== 'USD').length;
     const unclear = data.jobs.filter((j) => j.salaryFlag).length;
-    note.textContent = `A role matches if its range overlaps yours. You can type another currency (£80,000, A$350k)${foreign ? '; all pay is compared in approx US dollars' : ''}.${unclear ? ` ${unclear} with unclear pay ${unclear === 1 ? 'is' : 'are'} left out.` : ''}`;
+    // M-36 / UX-60 (fix-phone-text): one line (it was 30 words and 4 facts); the rest behind its Details.
+    renderNote(note, { key: 'fnote-pay', line: 'Matches roles whose range overlaps yours', details: [
+      'A role matches if its posted range overlaps the one you set.',
+      'You can type another currency (£80,000, A$350k).',
+      foreign ? 'All pay is compared in US dollars (converted at approximate rates).' : '',
+      unclear ? `${unclear} with unclear pay ${unclear === 1 ? 'is' : 'are'} left out.` : ''] });
     paint();
   }
   return { el, sync };
@@ -2359,7 +2369,7 @@ function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8,
   // A-10: every checklist is a named group ("Company", "Department", "Location", …).
   const list = h('div', { class: 'checklist', role: 'group', 'aria-labelledby': labelledBy, 'aria-label': labelledBy ? null : label });
   const more = h('button', { type: 'button', class: 'link-btn more-btn' });
-  const el = h('div', { class: 'checklist-wrap' }, searchWrap, list, more, note ? h('p', { class: 'fnote' }, note) : null);
+  const el = h('div', { class: 'checklist-wrap' }, searchWrap, list, more, note ? (typeof note === 'string' ? h('p', { class: 'fnote' }, note) : noteLine({ cls: 'fnote', ...note })) : null);
   input.addEventListener('input', () => { query = input.value.trim().toLowerCase(); sync(); });
   more.addEventListener('click', () => { expanded = !expanded; sync(); });
   list.addEventListener('change', (e) => {
@@ -2453,7 +2463,7 @@ function makeDeptFilter({ limit = 8 } = {}) {
   const deptHead = h('div', { class: 'check-group', id: `dept-filter-${n}-d` }, 'Department');
   const brands = makeChecklist('b', { limit: 6, searchable: false, colorDim: 'brand', labelledBy: brandHead.id });
   const depts = makeChecklist('d', { limit, colorDim: 'department', labelledBy: deptHead.id });
-  const note = h('p', { class: 'fnote', dataset: { note: 'dept-basis' } });
+  const note = h('div', { class: 'fnote', dataset: { note: 'dept-basis' } });
   return {
     el: h('div', { class: 'dept-filter' }, brandHead, brands.el, deptHead, depts.el, note),
     sync() {
@@ -2462,7 +2472,7 @@ function makeDeptFilter({ limit = 8 } = {}) {
       if (many) brands.sync();
       depts.sync();
       note.hidden = !deptFromTitles();
-      note.textContent = note.hidden ? '' : deptTitleNote();
+      if (note.hidden) note.replaceChildren(); else renderNote(note, { ...deptTitleLine(), key: 'fnote-dept' });
     },
   };
 }
@@ -2567,7 +2577,7 @@ function makeJuiceChips() {
     el.append(b);
     return [g, b];
   });
-  const note = h('p', { class: 'fnote' });
+  const note = h('div', { class: 'fnote' });
   return {
     el: h('div', null, el, note),
     sync() {
@@ -2576,7 +2586,9 @@ function makeJuiceChips() {
         b.querySelector('.kw-count').textContent = derived.fc?.jg.get(g) || 0;
       }
       const scored = data.jobs.filter((j) => j.juice).length;
-      note.textContent = scored ? `${scored.toLocaleString()} of ${data.jobs.length.toLocaleString()} roles have a Juice Score (needs a salary and a known city).` : 'No Juice Scores for this board yet.';
+      // M-39 (fix-phone-text): one line; what a score needs is behind its Details.
+      renderNote(note, { key: 'fnote-juice', line: scored ? `${scored.toLocaleString()} of ${data.jobs.length.toLocaleString()} have a Juice Score` : 'No Juice Scores for this board yet',
+        details: scored ? ['A Juice Score needs a salary and a known city.'] : [] });
     },
   };
 }
@@ -3523,7 +3535,9 @@ function juiceScaleNote(jobs) {
     } catch { juiceScaleShown = true; }
   }
   if (!juiceScaleShown) return null;
-  return h('li', { class: 'juice-scale' }, h('strong', null, '🍉 Juice'), ` is the money left a year after tax, rent and living costs, ${hhFor(juiceHousehold)}. ${juiceScaleText()}.`);
+  // M-35 / UX-35 (fix-phone-text): one line; the definition and the dollar scale are behind its Details.
+  return renderNote(h('li', { class: 'juice-scale' }), { key: 'juice-scale', line: [h('strong', null, '🍉 Juice'), ': what’s left after tax and rent'],
+    details: [`Juice is the money left a year after tax, rent and living costs, ${hhFor(juiceHousehold)}.`, `${juiceScaleText()}.`] });
 }
 
 const JUICE_TIP = 'Juice: money left a year after tax, rent and living costs';
@@ -4637,6 +4651,14 @@ function settleCarry() {
   commit({ replace: true });
   if (dropped.length) toast(`No ${dropped.join(' / ')} roles at ${c.name} — showing all ${dropped.length === 1 && c.l.length && !S.l.length ? 'locations' : 'matches'}`);
 }
+/** M-33: the one visible line over "Same role elsewhere": which level and country are compared. */
+function compsLine(res) {
+  const where = res?.country ? ` in ${countryInSentence(res.country)}` : '';
+  if (!res?.rows?.length) return `Nothing to compare yet${where}`;
+  if (res.level === 'Intern') return `Internships and fixed-term roles${where}`;
+  if (res.matchedOn === 'family+seniority') return `${levelLabel(res.level)} level${where}`;
+  return `Every full-time level${where}`;
+}
 let drawerComps = null; // V13: one live comps chart at a time (tooltip, ResizeObserver, theme listener)
 function destroyDrawerComps() { try { drawerComps?.destroy?.(); } catch { /* ignore */ } drawerComps = null; }
 function sameRoleSection(job) {
@@ -4654,20 +4676,24 @@ function sameRoleSection(job) {
       // fall back to another country. Without a country (an older market document) it stays hidden.
       const none = res?.country ? compsNote(res) : '';
       if (!none) { sec.hidden = true; applyDrawerBudget(); return; }
-      body.replaceChildren(h('p', { class: 'comps-note muted' }, none));
+      body.replaceChildren(noteLine({ cls: 'comps-note muted', key: 'drawer-comps', line: compsLine(res), details: [none] }));
       return;
     }
     const bySen = res.matchedOn === 'family+seniority';
     const filters = { family: res.family, seniority: bySen ? res.level : null };
     const chartHost = h('div', { class: 'comps-chart' });
+    // M-33 (fix-phone-text): one line ("Senior level in the US"), then the caveats behind its Details: what is
+    // compared (P-11, compsNote), MR-18's level caveat, the chart's pay basis, the dates and (MR-3) the link.
     body.replaceChildren(
-      // P-11: the note says what is really compared (compsNote reads res.fallback).
-      h('p', { class: 'comps-note muted' }, compsNote(res)),
-      // MR-18: a level match counts only postings that state a level, so a company that rarely states one may be missing. MR-3: the link.
-      h('p', { class: 'fnote comps-caveat' }, bySen ? 'Only postings that state a level count, so companies whose postings rarely state one may be missing. ' : null,
-        docLink(PAY_DOC, 'How pay is read')),
-      chartHost,
-      asOfNote('comps-asof', () => marketAsOfText(market, rows.map((r) => r.slug))));
+      noteLine({ cls: 'comps-note muted', key: 'drawer-comps', line: compsLine(res), details: [
+        compsNote(res),
+        bySen ? 'Only postings that state a level count, so companies whose postings rarely state one may be missing.' : '',
+        res.kind === 'ote' ? 'On-target earnings (base plus commission at target) a year, in US dollars (converted at approximate rates).'
+          : 'Posted base pay a year, in US dollars (converted at approximate rates).',
+        asOfNote('comps-asof', () => marketAsOfText(market, rows.map((r) => r.slug))),
+        docLink(PAY_DOC, 'How pay is read'),
+      ] }),
+      chartHost);
     try {
       destroyDrawerComps();
       drawerComps = createCompsChart(chartHost, { onSelect: (slug) => { if (slug && slug !== job.company) pickCompany(slug, filters); } });

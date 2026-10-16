@@ -219,7 +219,7 @@ export function registerFix3AppTests(suite) {
     const plnHere = body.jobs.filter((j) => j.salary?.currency === 'PLN' && (j.locations || []).some((l) => l.city === 'Munich' || (l.country === 'DE' && !l.city)));
     if (plnHere.length) {
       await page.click('[data-pop="salary"]'); await sleep(400);
-      const note = await page.locator('#popover .salary-nopay').innerText();
+      const note = await page.locator('#popover .salary-nopay').textContent(); // fix-phone-text: the sentence is in its Details
       assert(/pay is posted for another country/.test(note), `the pay filter says it hides pay posted for another country: "${note}"`);
     }
     noErrors(errors);

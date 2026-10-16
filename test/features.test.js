@@ -177,7 +177,7 @@ describe('estimateComp', () => {
     assert.equal(r.confidence, 'High');
     assert.ok(r.low <= r.mid && r.mid <= r.high);
     assert.equal(r.scores.length, r.comparables.length);
-    assert.match(r.explanation, /8 salaried roles/);
+    assert.match(r.explanation, /8 roles with pay/);
   });
 
   test('seniority match shifts the estimate', () => {
@@ -522,11 +522,11 @@ describe('backtest', () => {
 
   test('accuracy line + Low-confidence threshold (> 25%)', () => {
     const meta = { compstimate: { medianAbsPctError: 8.3, within10Pct: 55.8, n: 500, seed: 20261002, computedAt: 'x' } };
-    assert.equal(accuracyLine(meta), 'Typically within ±8% (tested on 500 listed salaries)');
+    assert.equal(accuracyLine(meta), 'Typically within ±8% (tested on 500 posted pay ranges)');
     assert.equal(accuracyLine(meta.compstimate), accuracyLine(meta), 'accepts meta or meta.compstimate');
-    assert.equal(accuracyLine({ compstimate: { ...meta.compstimate, n: 1 } }), 'Typically within ±8% (tested on 1 listed salary)');
-    assert.equal(accuracyLine({ medianAbsPctError: 0.3, n: 133 }), 'Typically within ±1% (tested on 133 listed salaries)', 'floored at ±1%');
-    assert.equal(accuracyLine({ medianAbsPctError: 14.2, n: 498, computedAt: '2026-10-10T08:05:17.836Z' }), 'Typically within ±14% (tested on 498 listed salaries, Oct 2026)', 'as of the backtest month');
+    assert.equal(accuracyLine({ compstimate: { ...meta.compstimate, n: 1 } }), 'Typically within ±8% (tested on 1 posted pay range)');
+    assert.equal(accuracyLine({ medianAbsPctError: 0.3, n: 133 }), 'Typically within ±1% (tested on 133 posted pay ranges)', 'floored at ±1%');
+    assert.equal(accuracyLine({ medianAbsPctError: 14.2, n: 498, computedAt: '2026-10-10T08:05:17.836Z' }), 'Typically within ±14% (tested on 498 posted pay ranges, Oct 2026)', 'as of the backtest month');
     assert.equal(accuracyLine(null), null);
     assert.equal(accuracyLine({ compstimate: null }), null);
     assert.equal(accuracyFrom({ compstimate: { medianAbsPctError: null, n: 0 } }), null);

@@ -7,7 +7,7 @@
 //   compstimateForJob(allJobs, job, { excludeIds }?)  // estimate for one posting (excludes itself)
 //   backtest(jobs, { seed = 20261002, maxN = 500 })
 //     -> { medianAbsPctError, within10Pct, n, seed, skipped }   // percents, 1 decimal
-//   accuracyLine(meta) -> "Typically within ±8% (tested on 500 listed salaries, Oct 2026)" | null
+//   accuracyLine(meta) -> "Typically within ±8% (tested on 500 posted pay ranges, Oct 2026)" | null
 //   displayConfidence(result, meta) -> "High"|"Medium"|"Low" (Low when backtest error > 25%)
 //   createCompstimateWidget(container, { getJobs, getMeta, onSelect, query })
 //     -> { update(allJobs?, meta?), setQuery(partial), getQuery(), getResult(), destroy() }
@@ -24,7 +24,7 @@ import {
   levelLabel, levelStated, displayLevel, NOT_STATED, LEVEL_NOT_STATED, DISPLAY_LEVEL_ORDER, levelKey, levelFromKey,
 } from './roles.js';
 import { compstimateAsOfText } from './freshness.js';
-import { noteLine } from '../viz/note.js';
+import { noteLine, renderNote } from '../viz/note.js';
 
 export { percentile, weightedPercentile, salaryUSD, toUSD, FX_FALLBACK } from './shared.js';
 // Role taxonomy lives in roles.js (no imports, Node-safe); re-exported for callers.
@@ -302,7 +302,7 @@ export function estimateComp(allJobs, query = {}) {
     (!hasTitle ? ' Add a role title for a sharper estimate.'
       : confidence === 'Low' ? ' Few close matches, so treat this as a rough guide.' : '');
   const explanation =
-    `Weighted by similarity to ${what} across ${plural(comps.length, 'salaried role')}` +
+    `Weighted by similarity to ${what} across ${plural(comps.length, 'role')} with pay` +
     (hasTitle ? ` (${close} with a closely matching title). ` : '. ') + detail;
 
   return {
@@ -507,15 +507,23 @@ export function accuracyAsOf(meta) {
 }
 
 /**
- * "Typically within ±14% (tested on 500 listed salaries, Oct 2026)", or null without a
- * backtest. The month is the backtest's computedAt (left out when it is missing).
+ * "Typically within ±14% (tested on 500 posted pay ranges, Oct 2026)", or null without a
+ * backtest. The month is the backtest's computedAt (left out when it is missing). UX-61: "posted pay
+ * ranges", the site's words for what a posting lists (it read "listed salaries").
  */
 export function accuracyLine(meta) {
   const acc = accuracyFrom(meta);
   if (!acc) return null;
   const asOf = accuracyAsOf(meta);
+  return `${accuracyShort(meta)} (tested on ${plural(acc.n, 'posted pay range', 'posted pay ranges')}${asOf ? `, ${asOf}` : ''})`;
+}
+
+/** M-34: the accuracy's one visible line on the Insights card, "Typically within ±14%" (the test is in its Details). */
+export function accuracyShort(meta) {
+  const acc = accuracyFrom(meta);
+  if (!acc) return null;
   // Floor at ±1%: boards with standard pay bands can back-test near 0%, and "±0%" reads as broken.
-  return `Typically within ±${Math.max(1, Math.round(acc.medianAbsPctError))}% (tested on ${plural(acc.n, 'listed salary', 'listed salaries')}${asOf ? `, ${asOf}` : ''})`;
+  return `Typically within ±${Math.max(1, Math.round(acc.medianAbsPctError))}%`;
 }
 
 /** True when the board's backtest error is above ACCURACY_LOW_THRESHOLD (estimates are then "Low confidence"). */
@@ -728,7 +736,7 @@ export function estimateView(result, { company = 'this company', meta = null, ex
     ok: true,
     reason: null,
     kind: result.kind || 'base',
-    label: result.kind === 'ote' ? `Estimated ${OTE_LABEL[0].toLowerCase()}${OTE_LABEL.slice(1)}` : 'Estimated base salary',
+    label: result.kind === 'ote' ? `Estimated ${OTE_LABEL[0].toLowerCase()}${OTE_LABEL.slice(1)}` : 'Estimated base pay', // UX-61
     confidence,
     basis: estimateBasisLine(result, company, extra),
     accuracy: low ? null : accuracyLine(meta),
@@ -822,7 +830,7 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
   const datalist = h('datalist', { id: id.list });
   const locSelect = h('select', { id: id.loc, class: 'ms-comp__select' });
   const senSelect = h('select', { id: id.sen, class: 'ms-comp__select' });
-  const autoLine = h('p', { class: 'ms-comp__auto', hidden: true });
+  const autoLine = h('div', { class: 'ms-comp__auto', hidden: true });
   const resetBtn = h('button', { type: 'button', class: 'ms-comp__reset', hidden: true, onclick: () => reset() }, 'Reset to filters');
   const resultEl = h('div', { class: 'ms-comp__result' });
   const live = h('p', { class: 'msf-sr', 'aria-live': 'polite', 'aria-atomic': 'true' });
@@ -833,7 +841,7 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
     h('header', { class: 'ms-comp__head' },
       h(hTag, { id: id.head, class: 'ms-comp__title' }, 'Pay estimate'),
       // fix-density: one line; how the fields follow the filters is behind "Details" (viz/note.js).
-      noteLine({ cls: 'ms-comp__sub', key: 'comp-sub', line: 'Estimated pay from similar roles',
+      noteLine({ cls: 'ms-comp__sub', key: 'comp-sub', line: 'Estimated pay from similar roles', about: id.head,
         details: [h('span', { id: `${id.head}-sub` }, 'It follows your filters until you change a field.')] })),
     h('form', { class: 'ms-comp__form', role: 'search', 'aria-label': 'Pay estimate role details', onsubmit: (e) => { e.preventDefault(); commitTitle(); } },
       h('div', { class: 'msf-field msf-field--wide' }, h('label', { for: id.title }, 'Role title'), titleInput, datalist),
@@ -891,8 +899,11 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
     const edited = Object.keys(edits).length > 0;
     resetBtn.hidden = !edited;
     autoLine.hidden = !(inputs.autoTitle && inputs.query.title);
-    autoLine.textContent = autoLine.hidden ? ''
-      : `Showing the most common role ${inputs.filtered ? 'in your filters' : 'on this board'}: “${inputs.query.title}”. Type any title.`;
+    // M-34 (fix-phone-text): one line; the role it shows is in its Details (the field holds it too).
+    if (autoLine.hidden) autoLine.replaceChildren();
+    else renderNote(autoLine, { key: 'comp-auto', line: 'Most common role · type any title', about: id.title, details: [
+      `Showing the most common role ${inputs.filtered ? 'in your filters' : 'on this board'}: “${inputs.query.title}”.`,
+      'Type any title in the field to estimate its pay.'] });
   }
 
   /** Recompute inputs; re-estimate and re-render only if the signature changed (Rule 10). */
@@ -934,6 +945,7 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
     }
     const { low, mid, high } = result;
     const { confidence, accuracy, caution, basis } = view;
+    const asOfText = compstimateAsOfText({ fetchedAt: ctx.asOf, meta });
     // The bar's scale: real ends, labelled with their values (P-2), from pay of the same kind.
     const market = inputs.pool.filter((j) => payKind(j) === (result.kind || 'base') && isInternLike(j) === (result.query.seniority === 'Intern')).map((j) => salaryUSD(j).mid);
     const scale = rangeScale(low, high, market.length ? market : [low, high]);
@@ -946,14 +958,19 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
       h('div', { class: 'ms-comp__eyebrow' }, view.label),
       h('div', { class: 'ms-comp__hero-row' },
         h('span', { class: 'ms-comp__hero' }, formatMoney(mid)),
-        h('span', { class: 'ms-comp__per' }, 'USD / yr')),
+        h('span', { class: 'ms-comp__per' }, 'US dollars a year')), // UX-61: one currency name
       h('div', { class: `ms-comp__conf ms-comp__conf--${confidence.toLowerCase()}` },
         signalIcon(CONF_LEVEL[confidence]),
         h('span', { class: 'ms-comp__conf-label' }, `${confidence} confidence`)),
-      h('div', { class: 'ms-comp__conf-n ms-comp__basis' }, basis),
+      // M-34 (fix-phone-text): the basis is one line, and the accuracy test, the weighting, the trim, the
+      // conversions and the dates are behind its one Details (they ran to 5 lines on a phone).
+      noteLine({ cls: 'ms-comp__conf-n ms-comp__basis', key: 'comp-basis', line: basis, about: id.head, details: [
+        accuracy || caution,
+        `Weighted by similarity to “${inputs.query.title}”${level}${place}. ${result.detail}`,
+        asOfText || ''] }),
       // No accuracy claim at low confidence (P-2: "low confidence" beside "within ±8%").
-      accuracy ? h('div', { class: 'ms-comp__accuracy' }, accuracy)
-        : caution ? h('div', { class: 'ms-comp__accuracy is-low' }, caution) : null,
+      accuracy ? h('div', { class: 'ms-comp__accuracy' }, accuracyShort(meta))
+        : caution ? h('div', { class: 'ms-comp__accuracy is-low' }, 'Treat this as a rough guide') : null,
       h('div', { class: 'ms-comp__range' },
         h('div', { class: 'ms-comp__range-ends' },
           h('span', null, h('span', { class: 'ms-comp__k' }, 'Low '), h('b', null, formatMoney(low))),
@@ -963,8 +980,7 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
           h('span', { class: 'ms-comp__dot', style: { left: pos(mid) } })),
         h('div', { class: 'ms-comp__scale', 'aria-hidden': 'true' },
           h('span', null, formatMoney(scale.lo)), h('span', null, scaleName), h('span', null, formatMoney(scale.hi)))),
-      h('p', { class: 'ms-comp__explain' }, `Weighted by similarity to “${inputs.query.title}”${level}${place}. ${result.detail}`),
-      compstimateAsOfText({ fetchedAt: ctx.asOf, meta }) ? h('p', { class: 'ms-comp__asof' }, compstimateAsOfText({ fetchedAt: ctx.asOf, meta })) : null);
+    );
 
     const list = h('ol', { class: 'ms-comp__list' }, result.comparables.map((job, i) => {
       const score = Math.round((result.scores[i] ?? 0) * 100);
@@ -982,7 +998,7 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
         h('span', { class: 'ms-comp__match' }, `${score}% match`))));
     }));
     const foot = result.comparables.some((j) => salaryUSD(j)?.converted)
-      ? h('p', { class: 'ms-comp__foot' }, '* converted to USD at approximate rates') : null;
+      ? h('p', { class: 'ms-comp__foot' }, '* converted to US dollars at approximate rates') : null;
     resultEl.append(card, h('div', { class: 'ms-comp__comps' }, h(subTag, { class: 'ms-comp__comps-title' }, 'Most comparable roles'), list, foot));
     live.textContent = `Pay estimate ${formatMoney(mid)}, range ${formatMoney(low)} to ${formatMoney(high)}, ${confidence.toLowerCase()} confidence. ${basis}.${accuracy ? ` ${accuracy}.` : caution ? ` ${caution}` : ''}`;
   }

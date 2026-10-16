@@ -112,7 +112,7 @@ describe('P-11 / P-3 / P-1 / P-10 "Same role elsewhere" (compsForJob)', () => {
     assert.equal(r.matchedOn, 'family');
     assert.equal(r.level, '*');
     assert.equal(r.fallback, 'level-not-stated');
-    assert.match(compsNote(r), /doesn't state a level/);
+    assert.match(compsNote(r), /doesn’t state a level/);
     assert.doesNotMatch(compsNote(r), /\bMid\b/);
   });
   test('a stated level with too few elsewhere falls back to full-time levels and says why', () => {
@@ -232,7 +232,7 @@ describe('P-2 pay estimate: place, level, kind, basis, accuracy, drawer = Insigh
     assert.match(estimateView(r, { company: 'A' }).label, /on-target earnings \(base plus commission at target\)/i);
     const base = estimateComp(mixed.filter((j) => !isOTE(j)), { title: 'Account Executive', seniority: 'Senior' });
     assert.equal(base.kind, 'base');
-    assert.equal(estimateView(base, { company: 'A' }).label, 'Estimated base salary');
+    assert.equal(estimateView(base, { company: 'A' }).label, 'Estimated base pay');
   });
   test('the range bar\'s end labels are its real ends and contain Low and High', () => {
     // persona case: labels $78K … $279K while High was $381K

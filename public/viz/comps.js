@@ -21,8 +21,10 @@ import { isTouchInput, actionHint, tipCloser, inView, placeNearTap } from '../fe
 
 const ROW_H = 28;
 // Plain words (persona review 2026-10-10, I-9): no "middle 50%", no "percentile".
-const NOTE_BASE = 'Posted base pay in approx. US dollars a year. Bar: the middle half of salaries. Tick: the median.';
-const NOTE_OTE = 'On-target earnings (base plus commission at target) in approx. US dollars a year. Bar: the middle half. Tick: the median.';
+// M-33 (fix-phone-text): one line on a phone. What the pay is (posted base pay or on-target earnings, a year, in US
+// dollars) is in the section's Details (app.js sameRoleSection).
+const NOTE_BASE = 'Bar: middle half of base pay · Tick: median';
+const NOTE_OTE = 'Bar: middle half · Tick: median · on-target earnings';
 const ROW_H_TOUCH = 44; // phones: every row is a 44px tap target (docs/QA.md M-8)
 const rowHeight = () => (globalThis.matchMedia?.('(max-width: 860px)').matches ? ROW_H_TOUCH : ROW_H);
 const AXIS_H = 20;

@@ -247,7 +247,7 @@ export function registerFixAppTests(suite) {
       const read = await filterSec(page, 'Salary').locator('.salary-read').innerText();
       assert(note.test(read), `"${typed}": understood "${read}"`);
     }
-    const nopay = await filterSec(page, 'Salary').locator('.salary-nopay').innerText();
+    const nopay = await filterSec(page, 'Salary').locator('.salary-nopay').textContent(); // fix-phone-text: the sentence is in its Details
     assert(/\d+ roles? that lists? no pay (is|are) hidden while a pay filter is on/.test(nopay), `no-pay note "${nopay}"`);
     await box.fill('lots'); await box.press('Enter'); await sleep(300);
     assert(/isn’t a pay figure/.test(await filterSec(page, 'Salary').locator('.salary-read').innerText()), 'junk is answered');
@@ -470,7 +470,8 @@ export function registerFixAppTests(suite) {
     const badges = await cardTexts(page, '.juice-badge');
     assert(!badges.some((b) => b.includes('≈')), `"≈" before a score: ${badges.find((b) => b.includes('≈'))}`);
     if (badges.length) {
-      const scale = await page.locator('#resultsList .juice-scale').innerText();
+      // fix-phone-text M-35: the scale is in the explainer's Details (textContent reads the closed list too).
+      const scale = await page.locator('#resultsList .juice-scale').textContent();
       assert(/Juicy: \$\d+K or more a year · Ripe: \$\d+K–\d+K · Dry: under \$\d+K · Rind: nothing left/.test(scale), `Juice scale on the cards' first use: "${scale}"`);
     }
     const stats = await page.locator('#statsLine').innerText();

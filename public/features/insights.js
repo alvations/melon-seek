@@ -241,7 +241,7 @@ function card(title, subtitle, body, { id = uid('ins'), headTag = 'h3', extra = 
   return h('section', { class: 'msi-card', 'aria-labelledby': id },
     h('header', { class: 'msi-card__head' },
       h(headTag, { id, class: 'msi-card__title' }, title),
-      subtitle || details.length ? noteLine({ cls: 'msi-card__sub', line: subtitle, details, key: `ins:${title}` }) : null,
+      subtitle || details.length ? noteLine({ cls: 'msi-card__sub', line: subtitle, details, key: `ins:${title}`, about: id }) : null,
       extra),
     body);
 }
@@ -446,7 +446,7 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
     preserveFocus(root, () => {
       header.replaceChildren(
         h(`h${hl}`, { id: headId, class: 'ms-insights__title' }, 'Market insights'),
-        noteLine({ cls: 'ms-insights__sub', key: 'ins-head',
+        noteLine({ cls: 'ms-insights__sub', key: 'ins-head', about: headId,
           line: !all.length ? 'No roles loaded yet.' : jobs.length === all.length ? `All ${plural(all.length, 'role')} on this board` : `${fmtCount(jobs.length)} of ${plural(all.length, 'role')} match your filters`,
           details: !all.length ? [] : [
             `Pay in approx. US dollars${fxAsOf()}`,

@@ -213,15 +213,15 @@ export function compsNote(res) {
   const fam = FAMILY_LABELS[res.family] || res.family || 'these';
   const pay = res.kind === 'ote' ? 'posted on-target earnings (base plus commission at target)' : 'posted base pay';
   const where = res.country ? ` in ${countryInSentence(res.country)}` : '';
-  const elsewhere = res.country ? " Pay for other countries isn't used." : '';
+  const elsewhere = res.country ? ' Pay for other countries isn’t used.' : '';
   if (!res.rows || !res.rows.length) {
     if (res.level === 'Intern') return `No other company lists pay for ${fam} internships or fixed-term roles${where}, so there is nothing to compare yet.${elsewhere}`;
     return `No other company lists ${res.kind === 'ote' ? 'on-target earnings' : 'pay'} for ${fam} roles${where}, so there is nothing to compare yet.${elsewhere}`;
   }
-  if (res.level === 'Intern') return `${fam} internships and fixed-term roles${where}: median and middle half of ${pay} as a yearly rate (approx USD).`;
-  if (res.matchedOn === 'family+seniority') return `${fam} roles at ${levelWord(res.bucket || res.level)} level${where}: median and middle half of ${pay} (approx USD).`;
-  if (res.fallback === 'too-few-at-level') return `Too few ${levelWord(levelKey(res.seniority))} ${fam} roles elsewhere list pay${where}, so this compares ${fam} roles${where ? ' there' : ''} at every full-time level (${pay}, approx USD).`;
-  return `This posting doesn't state a level, so this compares ${fam} roles${where} at every full-time level (${pay}, approx USD).`;
+  if (res.level === 'Intern') return `${fam} internships and fixed-term roles${where}: median and middle half of ${pay} as a yearly rate (in US dollars).`;
+  if (res.matchedOn === 'family+seniority') return `${fam} roles at ${levelWord(res.bucket || res.level)} level${where}: median and middle half of ${pay} (in US dollars).`;
+  if (res.fallback === 'too-few-at-level') return `Too few ${levelWord(levelKey(res.seniority))} ${fam} roles elsewhere list pay${where}, so this compares ${fam} roles${where ? ' there' : ''} at every full-time level (${pay}, in US dollars).`;
+  return `This posting doesn’t state a level, so this compares ${fam} roles${where} at every full-time level (${pay}, in US dollars).`;
 }
 
 /** Families present in the market (all-levels cells) for one country, most widely covered first. */

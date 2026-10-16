@@ -16,7 +16,10 @@
 //   details  array of items (string | Node | array of them; empty items are dropped): the list;
 //   label    the button's words (default "Details");
 //   key      remembers the open state across re-renders (a filter change re-renders the chart's notes);
-//   cls      extra classes for host.
+//   cls      extra classes for host;
+//   about    the id of what the button details (a card's heading); with a line, the button is described by both.
+// A-9 (docs/REVIEW.md): every button is named "Details" and described (aria-describedby) by its line, or by
+// `about`, so a screen reader's button list can tell them apart. Its arrow is CSS with empty alternative text.
 // It returns host, and keeps keyboard focus on the button when a re-render replaces it.
 // noteLine(opts) is the same on a new <div> (or opts.tag).
 //
@@ -39,17 +42,18 @@ function make(tag, cls) {
   return e;
 }
 
-export function renderNote(host, { line = null, details = [], label = 'Details', key = null, cls = '' } = {}) {
+export function renderNote(host, { line = null, details = [], label = 'Details', key = null, cls = '', about = null } = {}) {
   const active = typeof document !== 'undefined' ? document.activeElement : null;
   const hadFocus = !!(active && host.contains?.(active) && active.className === 'ms-note__more');
   const base = String(host.className || '').split(/\s+/).filter((c) => c && c !== 'ms-note' && c !== 'is-open');
   const classes = [...new Set([...base, 'ms-note', ...String(cls).split(/\s+/).filter(Boolean)])];
   const items = (details || []).filter((d) => !empty(d));
   const parts = [];
-  if (!empty(line)) { const text = make('span', 'ms-note__line'); put(text, line); parts.push(text); }
+  if (items.length || !empty(line)) host.dataset.noteId ||= `ms-note-${++seq}`;
+  const lineId = `${host.dataset.noteId}-line`;
+  if (!empty(line)) { const text = make('span', 'ms-note__line'); text.id = lineId; put(text, line); parts.push(text); }
   let isOpen = false;
   if (items.length) {
-    host.dataset.noteId ||= `ms-note-${++seq}`;
     const listId = `${host.dataset.noteId}-list`;
     isOpen = key != null && open.has(key);
     const btn = make('button', 'ms-note__more');
@@ -57,6 +61,8 @@ export function renderNote(host, { line = null, details = [], label = 'Details',
     btn.textContent = label;
     btn.setAttribute('aria-expanded', String(isOpen));
     btn.setAttribute('aria-controls', listId);
+    const desc = [about, empty(line) ? null : lineId].filter(Boolean).join(' ');
+    if (desc) btn.setAttribute('aria-describedby', desc);
     const list = make('ul', 'ms-note__list');
     list.id = listId;
     list.hidden = !isOpen;
