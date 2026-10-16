@@ -211,7 +211,14 @@ export function registerFixBetaAppTests(suite) {
   suite.test('Fix beta app: [D-19, M-22] a company this site does not list gets a plain message: no badge, no Retry, a way to the company menu', async (ctx) => {
     const st = await setup(ctx);
     const { page, errors } = await open(ctx, st, { url: null });
-    for (const [base, slug] of [[st.beta, 'meta'], [st.beta, 'amazon'], [st.main, 'apple']]) {
+    // Meta and Amazon were the beta examples while they were paused; since 2026-10-11 beta lists every board, so the
+    // main site's big-tech slugs are the cases (and the beta menu must list Meta and Amazon).
+    await page.goto(`${st.beta}/#c=apple`); await page.reload();
+    await page.waitForFunction(() => /role/.test(document.querySelector('#resultsTitle')?.textContent || ''), null, { timeout: 30000 });
+    const betaNames = await page.evaluate(async () => { document.querySelector('#companyMenuBtn').click(); await new Promise((r) => setTimeout(r, 300)); return [...document.querySelectorAll('#popover .company-item-name')].map((e) => e.textContent.toLowerCase()); });
+    for (const slug of ['meta', 'amazon']) assert(betaNames.includes(slug), `beta company menu lists ${slug}: ${betaNames.join(', ')}`);
+    await page.keyboard.press('Escape'); await sleep(200);
+    for (const [base, slug] of [[st.main, 'meta'], [st.main, 'amazon'], [st.main, 'apple']]) {
       await page.goto(`${base}/#c=${slug}`); await page.reload();
       await page.waitForFunction(() => /role/.test(document.querySelector('#resultsTitle')?.textContent || ''), null, { timeout: 30000 });
       await sleep(400);

@@ -67,8 +67,9 @@ function problems(site, slug, jobs) {
     if (!pt.length) p.push('no Apple part-time hourly posting');
     if (unmarked.length) p.push(`${unmarked.length} of ${pt.length} Apple part-time hourly postings lack salary.partTime`);
   }
-  // BP-11: creative and technical directors are not Director+.
-  const dir = jobs.filter((j) => IC_DIRECTOR_RE.test(j.title) && j.seniority === 'Director+');
+  // BP-11: creative and technical directors are not Director+ from the title alone. VT-8 (fix wave 5, lead
+  // decision): a level the company states itself wins, so Microsoft's "Art M6" (its manager track) stays Director+.
+  const dir = jobs.filter((j) => IC_DIRECTOR_RE.test(j.title) && j.seniority === 'Director+' && j.seniorityBasis !== 'pay');
   if (dir.length) p.push(`${dir.length} art/creative/technical directors are Director+, e.g. ${dir[0].title}`);
   // BP-14: Google separates required and preferred qualifications.
   if (slug === 'google') {
