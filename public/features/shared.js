@@ -15,7 +15,7 @@ import * as palette from '../viz/palette.js';
  * FX to USD: exactly palette.js's table (the app's single source), plus a currency it
  * lacks. No rate here may disagree with the palette (task force: one FX table).
  */
-export const FX_FALLBACK = Object.freeze({ ...(palette.FX_TO_USD || { USD: 1 }), CNY: 0.14 });
+export const FX_FALLBACK = Object.freeze({ ...(palette.FX_TO_USD || { USD: 1 }), CNY: 0.1491 });
 
 /**
  * Convert an amount to approximate USD. Uses palette.toUSD when palette knows

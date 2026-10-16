@@ -41,34 +41,34 @@ export const JUICE = Object.freeze({
 // ---------------------------------------------------------------------------
 // FX date and source reported in computeJuice inputs.fx (equal to data/cities.json fx.asOf and
 // fx.source.name; test/freshness.test.js checks both).
-export const FX_AS_OF = '2026-07-01';
-export const FX_SOURCE = 'The Economist Big Mac index source data v2, dollar_ex column (release 2026-07-01)';
+export const FX_AS_OF = '2026-09-30';
+export const FX_SOURCE = 'ECB euro reference rates, monthly averages 2026-09, crossed through USD; TWD Federal Reserve G.5; AED/SAR/QAR official pegs';
 // Keep in sync with public/viz/palette.js FX_PER_USD (as of 2026-07-01);
 // test/fx-consistency.test.js fails if they drift.
 export const FX_PER_USD = Object.freeze({
-  AED: 3.67285,
-  AUD: 1.42867347667691,
-  BRL: 5.07935,
-  CAD: 1.40515,
-  CHF: 0.80735,
-  CZK: 21.1625,
-  DKK: 6.5366,
-  EUR: 0.87439,
-  GBP: 0.74187,
-  HKD: 7.83895,
-  ILS: 2.9993,
-  INR: 96.26375,
-  JPY: 162.135,
-  KRW: 1485.9,
-  MXN: 17.386,
-  NOK: 9.68565,
-  NZD: 1.71335560695622,
-  PLN: 3.77915,
-  RON: 4.58165,
-  SAR: 3.755,
-  SEK: 9.63495,
-  SGD: 1.29005,
-  TWD: 32.1875,
+  AED: 3.6725,
+  AUD: 1.40411,
+  BRL: 5.14428,
+  CAD: 1.39602,
+  CHF: 0.819046,
+  CZK: 21.1031,
+  DKK: 6.49268,
+  EUR: 0.868566,
+  GBP: 0.745338,
+  HKD: 7.84324,
+  ILS: 3.03192,
+  INR: 95.4677,
+  JPY: 156.38,
+  KRW: 1358.37,
+  MXN: 17.2373,
+  NOK: 9.3808,
+  NZD: 1.73371,
+  PLN: 3.77349,
+  RON: 4.57148,
+  SAR: 3.75,
+  SEK: 9.75649,
+  SGD: 1.27261,
+  TWD: 31.7381,
   USD: 1,
 });
 export const FX_TO_USD = Object.freeze(Object.fromEntries(

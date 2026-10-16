@@ -90,33 +90,33 @@ export function normalizeInterval(interval) {
 // 2026-07-01, from data/cities.json's FX); copied verbatim here because this
 // module is bundled on its own. test/fx-consistency.test.js fails on drift.
 export const FX_PER_USD = Object.freeze({
-  AED: 3.67285,
-  AUD: 1.42867347667691,
-  BRL: 5.07935,
-  CAD: 1.40515,
-  CHF: 0.80735,
-  CZK: 21.1625,
-  DKK: 6.5366,
-  EUR: 0.87439,
-  GBP: 0.74187,
-  HKD: 7.83895,
-  ILS: 2.9993,
-  INR: 96.26375,
-  JPY: 162.135,
-  KRW: 1485.9,
-  MXN: 17.386,
-  NOK: 9.68565,
-  NZD: 1.71335560695622,
-  PLN: 3.77915,
-  RON: 4.58165,
-  SAR: 3.755,
-  SEK: 9.63495,
-  SGD: 1.29005,
-  TWD: 32.1875,
+  AED: 3.6725,
+  AUD: 1.40411,
+  BRL: 5.14428,
+  CAD: 1.39602,
+  CHF: 0.819046,
+  CZK: 21.1031,
+  DKK: 6.49268,
+  EUR: 0.868566,
+  GBP: 0.745338,
+  HKD: 7.84324,
+  ILS: 3.03192,
+  INR: 95.4677,
+  JPY: 156.38,
+  KRW: 1358.37,
+  MXN: 17.2373,
+  NOK: 9.3808,
+  NZD: 1.73371,
+  PLN: 3.77349,
+  RON: 4.57148,
+  SAR: 3.75,
+  SEK: 9.75649,
+  SGD: 1.27261,
+  TWD: 31.7381,
   USD: 1,
 });
 // Currencies the palette table lacks (rough, per USD; bounds only).
-const EXTRA_FX_PER_USD = Object.freeze({ QAR: 3.64, CNY: 7.14, ZAR: 18.2 });
+const EXTRA_FX_PER_USD = Object.freeze({ QAR: 3.64, CNY: 6.70897, ZAR: 16.2109 });
 
 /** USD per one unit of each currency (1 / FX_PER_USD), e.g. GBP ≈ 1.348. */
 export const USD_PER = Object.freeze(Object.fromEntries(
