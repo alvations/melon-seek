@@ -16910,7 +16910,7 @@
         "public/app.js:2221 \"Wide range\" label at max/min ≥ 2.0×",
         "public/app.js:3 salary slider cap",
         "public/app.js:1953 drawer distribution 32 bins",
-        "public/viz/chart.js:1 chart bin widths $10K..$500K",
+        "public/viz/chart.js:1 chart circles at least 24 px apart (touch target), 2 px between neighbours (viz-even)",
         "public/viz/chart.js:101 robust axis: P1–P99 + 3·IQR fence",
         "public/features/shared.js:155 deltas under $500 read ±$0; formatPct \"<1%\"",
         "public/features/compstimate.js:712 accuracy floor ±1%",
@@ -16960,11 +16960,11 @@
       "extract": [
         {
           "file": "public/viz/chart.js",
-          "const": "BIN_STEPS"
+          "const": "MIN_BIN_PX"
         },
         {
           "file": "public/viz/chart.js",
-          "const": "MIN_BIN_PX"
+          "const": "CIRCLE_GAP"
         }
       ],
       "group": "jobs"
