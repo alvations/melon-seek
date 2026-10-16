@@ -17,6 +17,7 @@
  M test/fix-beta-sources.test.js
 ?? server/families.js
 ?? test/fixtures/google-families-sample.json
+?? test/google-grouping.test.js
 ```
 
 ## Left out (not in untracked.tgz)

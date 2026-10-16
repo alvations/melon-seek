@@ -12,6 +12,7 @@
 ## Uncommitted and new files
 ```
 ?? data/vetting/2026-10-11-salary-audit/
+?? test/salary-audit.test.js
 ```
 
 ## Left out (not in untracked.tgz)
