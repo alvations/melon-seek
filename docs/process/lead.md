@@ -1236,3 +1236,24 @@ screenshots in `docs/screenshots/`.
   - the new one passes (16 lists, 0 problems), and also on today's real build (23 lists);
   - the CI smoke-test step passes;
   - `npm test` CI-like: 1,106 tests, 1,060 pass, 0 fail.
+
+### perf-mobile-beta-2 part 2 integrated: first cards in 2 s on a phone (2026-10-16)
+- **Commits:** a9cb193 … b63652f.
+  - **First-page preview:** the build writes `api/preview/<slug>.json` with the ~100 postings the default view lists first, plus the whole board's per-department pay counts. config.js fetches it before the big list, and app.js shows those real cards under "Loading 22,179 roles…". The full list then replaces them in place.
+  - **Faster first render:** bundled lists unpack in 40 ms slices, keyword facets are counted lazily, and the first render runs as separate derive, sort and draw tasks.
+  - **CI check:** `check-lists.mjs` now also reads previews. Each must hold the list's own postings, value for value, with no HTML and no stored Juice.
+- **Record** (2026-10-16 crawl, 390x844, 4x CPU, medians of 3 interleaved cold loads):
+
+  | Amazon, 22,179 postings | Base (2474fc4) | Part 1 | Part 2 |
+  |---|---|---|---|
+  | First cards, Fast 4G | 7.5 s | 6.9 s | **2.0 s** |
+  | Full list, Fast 4G | 7.5 s | 6.9 s | 6.6 s |
+  | First cards, Slow 4G | 18.5 s | 15.2 s | **5.0 s** |
+  | Longest task | 1.0 s | 1.0 s | 0.5 s |
+
+  - The preview's cards equalled the list's in 24 of 24 runs.
+- **Gate:**
+  - `npm test` CI-like: 1,110 tests, 1,064 pass, 0 fail.
+  - check-lists on today's build: 23 lists and 8 previews, 0 problems.
+  - Full e2e: 358/362, 0 failed.
+- **Next:** 7bb9e5c, already in the lane, limits the preview to boards of 10,000+ (Amazon only). On Apple and Anduril it brought first cards ~0.3 s sooner but made the chart 0.3–0.5 s later. It will be integrated with viz-even.
