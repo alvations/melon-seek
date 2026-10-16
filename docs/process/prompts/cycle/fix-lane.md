@@ -23,7 +23,7 @@ You are the <LANE> fixer for melon-seek (repo at /home/user/melon-seek, branch c
 - `npm test`, all green.
 - The full e2e suite, `NODE_PATH=... node scripts/e2e.js`, with no new failures. The red tests for your findings must now pass.
 - Before and after screenshots for every visible change, in docs/screenshots/<ROLE>/.
-- Desktop at 1440x900 and phone at 390x844 show no regressions.
+- Desktop at 1440x900 and phones at every size in test/e2e/phone-sizes.mjs (PHONES and POSTURES: the folded Galaxy Fold at 280x653, iPhone SE 1st gen 320x568, Fold cover 344x882, Razr cover 352x355, 360x740, iPhone mini 375x812, SE 375x667, 390x844, 393x852, Pixel 412x915, Razr open 412x1005, Pro Max 430x932, Surface Duo 540x720 and spanned 1114x720, Fold open 690x829, and landscape 667x375, 812x375 and 1005x412; the user, 2026-10-16: "Make sure we check for all phone sizes from iPhone mini to razr to duo or something"). Run `node test/e2e/webkit/phone-smoke.mjs --dist <DIST> --sizes all --engines chromium` first; it fails on page errors, a page wider than the screen, and main controls off screen or covered, and it lists cut text, show no regressions.
 Timing tests (PERF-1, V15, Compstimate T21) can fail when the machine is busy. Re-run them alone before calling them failures.
 
 Write docs/process/<ROLE>.md following docs/process/TEMPLATE.md: per finding, the root cause, the fix (file:line) and how it was verified. Save your prompt verbatim to docs/process/prompts/<ROLE>.md.

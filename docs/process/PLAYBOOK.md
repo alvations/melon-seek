@@ -172,6 +172,12 @@ don't lose that much." So:
 
 ## Known traps
 
+- **Phones come in more sizes than 360, 390 and 430.** On 2026-10-16 the phone matrix (test/e2e/phone-sizes.mjs,
+  run by test/e2e/webkit/phone-smoke.mjs and webkit-phone.yml) found the Razr cover screen (352x355) broken: the
+  landscape rule `(max-width: 860px) and (max-height: 500px)` caught a square screen, the top bar laid out at
+  476 px and the phone zoomed the page out. It also found the company name gone at 280 px. Every phone check runs the
+  whole matrix, and "page wider than the screen" is checked against the screen's width, not `innerWidth` (which
+  grows when a phone zooms out).
 - **A quoted accuracy line in a product doc is checked as a claim.** `scripts/refresh/jobs.js` reads every
   "±N% (tested on N …)" in product docs (docs/*.md, not docs/process/) and calls it drift unless a company's
   backtest matches it or the line marks it as an example ("e.g."). A QA section copied into docs/QA.md on

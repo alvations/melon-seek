@@ -15,7 +15,7 @@ on:
     inputs:
       ios_devices:
         description: 'Simulator devices, comma separated (names from `xcrun simctl list devicetypes`)'
-        default: 'iPhone 16,iPhone SE (3rd generation)'
+        default: 'iPhone 13 mini,iPhone 16,iPhone SE (3rd generation)'
 
 permissions:
   contents: read
@@ -66,10 +66,12 @@ jobs:
         run: |
           npm i --no-save playwright@1.63.0
           npx playwright install --with-deps webkit chromium
-      - name: Phone smoke on WebKit and Chromium (every big-tech board; page errors and the first screen, in this log)
+      # Every size in test/e2e/phone-sizes.mjs (the user: "all phone sizes from iPhone mini to razr to duo"):
+      # folded Fold 280 px to Surface Duo spanned, the Razr cover screen, landscape.
+      - name: Phone smoke on WebKit and Chromium (every phone size and big-tech board; page errors and layout, in this log)
         env:
           NODE_PATH: ${{ github.workspace }}/node_modules
-        run: node test/e2e/webkit/phone-smoke.mjs --dist dist --out phone-smoke --boards apple,amazon,google,meta,microsoft,netflix,nvidia | tee phone-smoke.log
+        run: node test/e2e/webkit/phone-smoke.mjs --dist dist --out phone-smoke --sizes all --boards apple,amazon,google,meta,microsoft,netflix,nvidia | tee phone-smoke.log
         continue-on-error: true
       - name: Phone tests on WebKit
         env:
@@ -116,7 +118,7 @@ jobs:
     name: Safari in the iOS Simulator (real swipes)
     needs: build
     runs-on: macos-15
-    timeout-minutes: 40
+    timeout-minutes: 60 # three simulated iPhones (mini, standard, SE), each opening every board
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -139,7 +141,7 @@ jobs:
           python3 -m pip install --break-system-packages fb-idb
           idb --help > /dev/null
       - name: Swipe the company list in Simulator Safari
-        timeout-minutes: 30 # the job limit is 40: leave time for the summary and the screenshots
+        timeout-minutes: 48 # the job limit is 60: leave time for the summary and the screenshots
         env:
           IOS_DEVICES: ${{ inputs.ios_devices }}
         run: node test/e2e/webkit/ios-sim-menu.mjs --dist dist --out ios-sim
