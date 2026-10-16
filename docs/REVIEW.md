@@ -1129,7 +1129,7 @@ The file list and contents come from the refresh job, which runs `npm ci` and pa
 
 `test/beta-security-review-2.test.js` "S-9" runs the step's `apply()` with seven disallowed paths, all refused, and three writer files, all applied.
 
-**Residual, for the lead to weigh**: the allow-list limits *which* files are committed, not *what is in them*. Four are executable code: `server/juice.js`, `server/salary.js`, `public/viz/palette.js` and `public/features/shared.js`. Two of them reach browsers. Hardening: after `apply`, run `git diff -U0 "$GITHUB_SHA" -- <those four>` and refuse unless every changed line has a shape the writers produce (`^[+-]\s*[A-Z]{3}: [0-9.e-]+,?$`, the `FX_AS_OF` / `FX_SOURCE` one-liners, the `FX_FALLBACK` CNY entry, the tax constants).
+**Residual, for the lead to weigh**: the allow-list limits *which* files are committed, not *what is in them*. Four are executable code: `server/juice.js`, `server/salary.js`, `public/viz/palette.js` and `public/features/shared.js`. All four run in visitors' browsers: `palette.js` and `shared.js` directly, and `juice.js` and `salary.js` through `/lib/` (`server/lib-modules.js:11`). Hardening: after `apply`, run `git diff -U0 "$GITHUB_SHA" -- <those four>` and refuse unless every changed line has a shape the writers produce (`^[+-]\s*[A-Z]{3}: [0-9.e-]+,?$`, the `FX_AS_OF` / `FX_SOURCE` one-liners, the `FX_FALLBACK` CNY entry, the tax constants).
 
 `test/juice.test.js` is on the list, so the gated job rewrites part of its own gate (the pinned FX examples). The lead accepts this as a known limitation. A cleaner option: move the pinned examples to a data fixture the examples test reads, and keep every assertion in test code the refresh never writes.
 
@@ -1220,7 +1220,7 @@ lab.setAttribute('aria-label', `${r.name}: all ${plural(r.all.length, 'role')}${
 
 **Repro**:
 - `#c=google&m=insights`: the accessibility tree has 8 buttons all named "Details ▾" (Pay estimate, Market insights, each card, Compare). None has an `aria-describedby`.
-- In a screen reader's button list they cannot be told apart, and in reading order the header's button comes before the "Pay estimate" heading.
+- In a screen reader's button list they cannot be told apart. Each sits next to a heading, but nothing in its name says which section it belongs to.
 - At 1440×900 the buttons are 49 to 55 × 16.8 to 19.6 px. axe flags `target-size` (serious) on the stats line's button once its list is open (22.8 px of clear space).
 - Keyboard handling is good: Enter toggles `aria-expanded`, the list follows, the 2 px accent ring is 5.31:1 (light) and 9.46:1 (dark), and focus survives a re-render.
 
