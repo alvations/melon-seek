@@ -1348,7 +1348,7 @@ Results:
 **Supply chain.** No new npm dependency and no new file under `public/vendor`. Every action is pinned by SHA. `webkit-phone.yml` pins `playwright@1.63.0`; its brew and pip installs are under V12.
 
 **Accessibility, positive.**
-- axe 4.13.0 on 13 screens in both themes found only A-8, A-9's target size and the known `aria-allowed-role` (minor) on `article role=button` and `aside role=dialog`. The screens: first load, every Details open, company menu, filters, Google by Company, Microsoft Ranges, the drawer with everything open, the map, Amazon Insights with Compstimate and Compare, the Amazon chart, the Amazon preview, and on the phone the first load, sheet and filters.
+- axe 4.13.0 on 14 screens in both themes found only A-8, A-9's target size and the known `aria-allowed-role` (minor) on `article role=button` and `aside role=dialog`. The screens: first load, every Details open, company menu, filters, Google by Company, Microsoft Ranges, the drawer with everything open, the map, Amazon Insights with Compstimate and Compare, the Amazon chart, the Amazon preview, and on the phone the first load, sheet and filters.
 - No `color-contrast` violations. Measured ratios, light / dark: Details button 5.31 / 9.46, Details list 5.95 / 8.50, Company heading 4.83 / 6.07, the stacked rows' `×N` 5.95 / 7.90.
 - Stacked Ranges rows have full names ("2 roles with the same posted range, $221K to $331K, Software Engineering"), and the visible "2 roles" is in the name. Enter lists the postings and updates the polite results count.
 - The preview list is `aria-busy`. The results title "Loading 22,179 roles…" is a polite live region. Preview cards carry the same names and descriptions as list cards.

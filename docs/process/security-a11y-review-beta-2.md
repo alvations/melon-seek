@@ -8,7 +8,7 @@
   the commit is not the tested tree, and copying whole files over a moved tip reverts newer commits) and S-9 (Low: the path
   filter is a deny-list, so code and test paths pass).
 - 22:00: the lead fixed S-8/S-9 in `9c548e2`; re-checked (fixed), worktree rebased onto it. Parser harness, axe (light and
-  dark, 13 screens), keyboard, names, contrast, reflow and screen-reader probes done. Confirmed and sent to the lead:
+  dark, 14 screens), keyboard, names, contrast, reflow and screen-reader probes done. Confirmed and sent to the lead:
   S-2 and S-4 residuals, S-10 (quadratic upstream parsers), S-11 (checkpoints), A-8 to A-11. Re-checked: A-1 to A-7, V8,
   S-1, S-3, S-5 to S-7 fixed; V12 and V14 open.
 - 22:10: unit tests (`test/beta-security-review-2.test.js`) and e2e (`test/e2e/beta-a11y-2.e2e.js`: 4 red) committed,
@@ -101,7 +101,7 @@ No product code was changed. Commits are in the worktree only (never pushed), as
    onto `32f556f`, then `9c548e2`.
 2. `npm test` (data linked): `(time timeout 1500 npm test) > $R/npm-test.log 2>&1`.
 3. Serve the lead's build: `node scripts/cycle/serve.mjs --dist $S/cycle-beta6-dist --pid $R/serve.pid` (port 41849).
-4. axe: `BASE=http://127.0.0.1:41849/melon-seek/beta SCHEME=light|dark node $R/a11y/axe-screens.mjs` (13 screens:
+4. axe: `BASE=http://127.0.0.1:41849/melon-seek/beta SCHEME=light|dark node $R/a11y/axe-screens.mjs` (14 screens:
    Google first load, every Details open, company menu, filters, Google by Company, Microsoft Ranges, the drawer with
    everything open, Apple map, Amazon Insights + Compstimate + Compare, Amazon chart, the Amazon preview with the list
    held back, and on the phone the first load, sheet and filters). Results in `$R/a11y/axe-{light,dark}.{log,json}`.
