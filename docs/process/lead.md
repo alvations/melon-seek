@@ -1300,3 +1300,18 @@ screenshots in `docs/screenshots/`.
   - `npm test` CI-like: 1,155 tests, 1,094 pass. The 1 failure was S-6 (server timing at load 6.4), which passes 3 of 3 alone.
   - Methodology e2e: 11/12, 0 failed.
   - check-lists: 0 problems.
+
+### viz-even integrated: the chart shows where pay really is (2026-10-16)
+- The user's 2026-10-11 complaint, "they … kinda all span too evenly", came partly from the drawing. salary-audit-backend found that the clusters view put midpoints into fixed $50K bins and drew each circle at the bin's centre, so circles were evenly spaced whatever the data.
+- **[viz-even](viz-even.md)** (77515cd … 40111d4):
+  - **Clusters:** each circle now sits at the median midpoint of its own postings. The fixed bins are gone, and neighbouring postings merge, closest first, only where two circles would touch.
+  - **Ranges:** postings with the same bar (colour, posted range, midpoint and pattern) are one row. The row reads "N roles" with "×N" by the bar, its tooltip lists the titles, and a click or Enter lists the postings.
+  - **Before the change:** circles sat 6–14 px from their postings' median on average (34 px at most), and 53–91% of Ranges bars repeated another bar's exact range.
+  - **Registry:** MIN_BIN_PX and CIRCLE_GAP replace BIN_STEPS.
+- **The lane stalled twice** (no file change and no process for 3.5 h, then 1 h). The lead stopped it both times; the second time the lead integrated its commits itself.
+- **Lead fix at integration:** the Ranges e2e expected Microsoft's $119,800–234,700 Software Engineering band in one row. Since SB-5, 12 of those postings carry per-place ranges and are drawn striped, so they stack in a row of their own, as designed. The test now checks that same-pattern bars stack.
+- **Gate:**
+  - `npm test` CI-like: 1,162 tests, 1,102 pass, 0 fail.
+  - check-lists: no-data build 16 lists, real build 23 lists and 1 preview, 0 problems.
+  - Full e2e on the 2026-10-16 crawl: 364/369 with the one test above, now 7/7 for viz-even.
+- **Still to come from the lane:** after-measurements (circle offsets, stacked duplicates, Amazon chart task times at 4x CPU), screenshots and its log.
