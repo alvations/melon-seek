@@ -1257,3 +1257,20 @@ screenshots in `docs/screenshots/`.
   - check-lists on today's build: 23 lists and 8 previews, 0 problems.
   - Full e2e: 358/362, 0 failed.
 - **Next:** 7bb9e5c, already in the lane, limits the preview to boards of 10,000+ (Amazon only). On Apple and Anduril it brought first cards ~0.3 s sooner but made the chart 0.3–0.5 s later. It will be integrated with viz-even.
+
+### perf-mobile-beta-2 finished (2026-10-16)
+- **Final commits:** 7bb9e5c limits the first-page preview to boards of 10,000+ (Amazon only today). With a threshold of 1,000, the preview also covered Apple and Anduril: their first cards came ~0.3 s sooner, but the full list and chart came 0.3–0.5 s later. The rest of the batch is the log (d89c3fb, fc716d1, 9bda4c1, 3782771).
+- **Final record** (390x844, 4x CPU, interleaved; base 2474fc4 → part 1 → head):
+  - Amazon, Fast 4G: first cards 7.5 → 7.1 → **2.0 s**.
+  - Amazon, Slow 4G: first cards 18.5 → 15.3 → **5.0 s**.
+  - Apple: Fast 4G 3.0 → 2.9 s; Slow 4G 8.1 → 7.4 s.
+  - Main site and Google: the same within noise. Main-site Anduril: the paired median is +0.10 s on first cards; total blocking time 1.29 → 0.94 s; longest task 501 → 321 ms.
+- **getJobs is unchanged:** it returns identical lists for all 23 boards. The preview's first 30 cards equal the list's in 32 of 32 runs.
+- **Gaps for the round-3 fix wave:**
+  - **Insights on Amazon is one 4.3 s task** (renderInsights 2.7 s, roleFamily 0.7 s; features code). It blocks input.
+  - Amazon's full list still lands at 7.2 s on Fast 4G and 15.4 s on Slow 4G.
+  - A shared link with a filter or another sort gets no preview.
+- **Gate:**
+  - `npm test` CI-like: 1,110 tests, 1,064 pass, 0 fail.
+  - check-lists: 23 lists and 1 preview, 0 problems.
+  - Full e2e: 358/362, 0 failed.
