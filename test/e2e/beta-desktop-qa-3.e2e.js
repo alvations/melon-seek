@@ -247,6 +247,18 @@ export function registerBetaDesktopQa3Tests(suite) {
     assert(!clash.length, `state-only places read like the city: ${clash.join('; ')}`);
   });
 
+  suite.test('Beta desktop QA 3: [D-44] Group by Location is not led by one-posting places ranked above the big hubs', async (ctx) => {
+    const { st, page } = await open(ctx, 'c=google&g=location');
+    await needBoard(page, st, 'google');
+    await page.waitForSelector('#chartHost .ms-crow', { timeout: 30000 }); await sleep(600);
+    const rows = await page.$$eval('#chartHost .ms-crow', (rs) => rs.map((r) => r.getAttribute('aria-label') || ''));
+    const n = (l) => Number((l.replace(/,/g, '').match(/(\d+) roles?/) || [])[1]);
+    const bigAt = rows.findIndex((l) => n(l) >= 100);
+    if (bigAt < 0) skip('no Location row with 100 or more roles among the rows drawn');
+    const tinyAbove = rows.slice(0, bigAt).filter((l) => n(l) < 3);
+    assert(!tinyAbove.length, `the first rows are ${tinyAbove.length} place(s) with 1–2 roles (${tinyAbove.slice(0, 4).map((l) => `"${l}"`).join(', ')}), above "${rows[bigAt]}" (row ${bigAt + 1})`);
+  });
+
   suite.test('Beta desktop QA 3: [D-43] the chart names a range end in the millions as the card does ("$1.07M", not "$1.1M")', async (ctx) => {
     const { st, page } = await open(ctx, 'c=netflix&v=ranges');
     const { jobs } = await needBoard(page, st, 'netflix');
