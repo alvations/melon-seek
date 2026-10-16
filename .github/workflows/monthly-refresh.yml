@@ -211,6 +211,9 @@ jobs:
             grep -E '^not ok|^# (pass|fail)' tmp/refresh/npm-test.log | head -n 40 || true
             echo '```'
           } > tmp/refresh/tests.md
+          # In the job log and the run summary too, so a blocked refresh can be diagnosed without the artifact.
+          cat tmp/refresh/tests.md
+          cat tmp/refresh/tests.md >> "$GITHUB_STEP_SUMMARY"
 
       # Exactly the files the orchestrator wrote, for the publish job (which never runs npm or
       # parses remote content). Kept a week; the report artifact is the permanent record.
@@ -417,10 +420,20 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           ALERTS: ${{ needs.refresh.outputs.alerts }}
+          # Commit mode with changed data that was NOT committed (tests failed or problems): an alert of its own,
+          # so the issue says so instead of being closed as "no alerts".
+          BLOCKED: ${{ env.REFRESH_PUBLISH == 'commit' && needs.refresh.outputs.datafiles != '0' && (needs.refresh.outputs.tests != 'success' || needs.refresh.outputs.problems != '0') }}
+          TESTS: ${{ needs.refresh.outputs.tests }}
+          PROBLEMS: ${{ needs.refresh.outputs.problems }}
         run: |
           set -euo pipefail
           day=$(date -u +%Y-%m-%d)
-          head -c 64000 tmp/refresh/summary.md > tmp/refresh/issue-body.md
+          if [ "${BLOCKED:-false}" = "true" ]; then
+            { echo "**The refreshed reference data was not committed** (tests: $TESTS, problems: $PROBLEMS). Fix the cause, then dispatch this workflow again."; echo; cat tmp/refresh/tests.md 2>/dev/null || true; echo; cat tmp/refresh/summary.md; } | head -c 64000 > tmp/refresh/issue-body.md
+            ALERTS=$(( ${ALERTS:-0} + 1 ))
+          else
+            head -c 64000 tmp/refresh/summary.md > tmp/refresh/issue-body.md
+          fi
           open=$(gh issue list --label "$ISSUE_LABEL" --state open --json number --jq '.[0].number' 2>/dev/null || true)
           if [ "${ALERTS:-0}" = "0" ]; then
             if [ -n "$open" ]; then
