@@ -1,7 +1,7 @@
 From 68a0748e184f0b5384995b9c0d59d8c09ffe9ae4 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 13:42:25 +0000
-Subject: [PATCH 07/18] WIP perf-mobile-beta-2: State section in the log
+Subject: [PATCH 07/19] WIP perf-mobile-beta-2: State section in the log
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

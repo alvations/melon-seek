@@ -1,7 +1,7 @@
 From d7af3854ec644431b01ea387329e2d6a4319e670 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 16:30:06 +0000
-Subject: [PATCH 16/18] WIP perf-mobile-beta-2: the first render after a load
+Subject: [PATCH 16/19] WIP perf-mobile-beta-2: the first render after a load
  runs as separate tasks (derive, sort, draw); a yield after
  disambiguateLocations
 

@@ -1,7 +1,7 @@
 From abac18aa043d5e44af4fd154ae9c14789d77964c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 11 Oct 2026 21:25:19 +0000
-Subject: [PATCH 03/18] perf-mobile-beta-2: test that the sections budget
+Subject: [PATCH 03/19] perf-mobile-beta-2: test that the sections budget
  decision is unchanged; log skeleton
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a7425c5dcd4e39cbe`
 - Base (on claude/stoic-ride-54ddxp): `2474fc4fd41051bba264426562e3e0d37f24bc9c`
-- Head: `a5c02c54be9b120da2e4f4b292646f599ae15297`
+- Head: `f8efd61e2bd54c4f38fdd3c99c7ddf3f0dc0c7ad`
 - Restore: `bash scripts/cycle/restore-wip.sh perf-mobile-beta-2 <new worktree dir>`
 
 ## Commits since the base
 ```
+f8efd61 perf-mobile-beta-2: getPreview asks only for boards config.js lists (window.MELON_PREVIEWS), so small boards make no 404 request
 a5c02c5 WIP perf-mobile-beta-2: State for part 2
 1452f37 perf-mobile-beta-2 equal-check: every first-page preview holds getJobs' own postings (all 8 previews of the 2026-10-16 crawl identical)
 d7af385 WIP perf-mobile-beta-2: the first render after a load runs as separate tasks (derive, sort, draw); a yield after disambiguateLocations
@@ -29,16 +30,6 @@ fc084ee melon-packed-3 lists and Juice once per distinct pay and places (behavio
 
 ## Uncommitted and new files
 ```
- M docs/screenshots/chart.png
- M docs/screenshots/dark-drawer.png
- M docs/screenshots/dark.png
- M docs/screenshots/drawer-juice.png
- M docs/screenshots/drawer.png
- M docs/screenshots/insights.png
- M docs/screenshots/map-juice.png
- M docs/screenshots/map.png
- M docs/screenshots/mobile.png
- M docs/screenshots/qa-mobile/e2e-landscape-map.png
 ?? dist
 ```
 
