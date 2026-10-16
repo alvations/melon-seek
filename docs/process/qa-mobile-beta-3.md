@@ -155,7 +155,8 @@ All probes are in `<scratch>/qa-mobile-beta-3/probes/` (`<scratch>` =
 - **New group `^Beta mobile QA 3`: 7/22 pass.** The 7 guards pass. The 15 failures are exactly `[M-33]` to `[M-47]`,
   each failing for its bug (log `<scratch>/qa-mobile-beta-3/e2e-qa3-run1.log`; M-47 re-run after a locator fix).
 - **Earlier groups `^Beta mobile QA` (first and second pass): 20/20 pass,** so M-19 to M-31 are still fixed.
-- **`npm test`:** see the Suite results at the end.
+- **`npm test`:** 1,168 tests, 1,112 pass, 4 fail (the load-sensitive S-3, S-6, PERF-1 and V15 at load 19-27; S-3 and
+  V15 pass when re-run alone at load 18), 52 todo.
 - **Screenshots:** docs/screenshots/qa-mobile-beta-3/, 98 files. Each `e2e-M-*` shot shows its bug; the rest are
   the passes and states named in the section.
 
@@ -572,6 +573,6 @@ Screenshots are in `docs/screenshots/qa-mobile-beta-3/`.
 |---|---|---|
 | `BETA_QA3_DIST=<lead build> node scripts/e2e.js --grep='^Beta mobile QA 3'` | `d98a9f0` + this pass's files | **7/22 pass**: the 7 guards; the 15 failures are exactly `[M-33]` to `[M-47]` |
 | `BETA_QA_DIST=<lead build> BETA_QA2_DIST=<lead build> node scripts/e2e.js --grep='^Beta mobile QA'` (earlier passes) | same | **20/20 pass** (M-19 to M-31 still fixed) |
-| `npm test` | same, data links present | NPM_RESULT |
+| `npm test` | same, data links present | **1,168 tests: 1,112 pass, 4 fail, 52 todo** (the to-dos are the open review findings, MR-23/26/28/29 among them). The 4 failures are the load-sensitive timing tests, run at load average 19-27: S-3 (2 s budget), S-6 (median ms per request), PERF-1 and V15 (event-loop lag; they run only with local data). Re-run alone at load 18, S-3 and V15 pass; S-6 (36 ms) and PERF-1 (295 ms) still fail. The lead saw S-6 pass 3 of 3 alone at load 6.4. Nothing this pass touched is on those paths (one new e2e file, two lines in scripts/e2e.js). |
 
 All browser runs used `NODE_PATH=<scratchpad>/pw/node_modules PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`.
