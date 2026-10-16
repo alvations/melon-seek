@@ -128,9 +128,12 @@ test('MR-25 seniority-ladder: no "USER DECISION PENDING" note after BP-7 decided
 // The methodology page's sources table says Gross pay is "Daily · update due" on a page built hours after
 // the crawl. loadFigureInputs marks each entry stale from its hand-set asOf (job-postings 2026-10-11), while
 // run.js stalenessRows treats daily entries as 'pipeline' (refreshed by snapshot.yml / pages.yml).
+// The build reads that day's snapshots, so a daily pipeline entry is never "update due" on the page it builds,
+// however old its hand-set asOf: the test builds 10 days after job-postings' asOf.
 test('MR-26 the sources table does not call the job postings overdue on the build day', todo('MR-26'), async () => {
   const before = process.env.MELON_BUILT_AT;
-  process.env.MELON_BUILT_AT = REVIEW_DAY.toISOString();
+  const asOf = Date.parse(`${entryOf('job-postings').asOf}T12:00:00Z`);
+  process.env.MELON_BUILT_AT = new Date(Math.max(asOf + 10 * 864e5, REVIEW_DAY.getTime())).toISOString();
   try {
     const ctx = figureContext(await loadFigureInputs(ROOT));
     const html = renderFigure('sources', ctx);
