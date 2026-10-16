@@ -879,8 +879,23 @@ function derive() {
   const bump = (m, k) => m.set(k, (m.get(k) || 0) + 1);
   viewSpec = F;
   const fc = { d: new Map(), b: new Map(), l: new Map(), lGroup: new Map(), s: new Map(), e: new Map(), r: { any: 0, remote: 0, onsite: 0 },
-    p: { 0: 0, 7: 0, 30: 0, 90: 0 }, jg: new Map(), kw: { responsibilities: new Map(), fit: new Map(), skills: new Map() }, salMids: [],
+    p: { 0: 0, 7: 0, 30: 0, 90: 0 }, jg: new Map(), kw: null, salMids: [],
     noPayHidden: 0, elsewhereHidden: 0, only: {} };
+  // perf-mobile-beta-2: the keyword counts are for the filter panel's keyword lists only, so they are
+  // counted when first read (the same jobs, in the same order: the same Maps). Counting them for every
+  // posting at each render was about 0.2 s of Amazon's first render at 4x CPU.
+  const kwJobs = [];
+  let kw = null;
+  Object.defineProperty(fc, 'kw', {
+    enumerable: true,
+    get() {
+      if (!kw) {
+        kw = { responsibilities: new Map(), fit: new Map(), skills: new Map() };
+        for (const j of kwJobs) for (const cat of ['responsibilities', 'fit', 'skills']) for (const k of j.keywords[cat]) bump(kw[cat], k);
+      }
+      return kw;
+    },
+  });
   const covers = coverIndex(jobs);
   const covered = new Map(); // city key -> postings that list only its country or region
   for (const j of jobs) {
@@ -894,9 +909,7 @@ function derive() {
     // D-2: with a cluster or map area active, the facet counts describe the roles in that area (the list).
     if (area && !area.ids.has(j.id)) continue;
     const counts = (facet) => !only || only === facet;
-    if (!only) {
-      for (const cat of ['responsibilities', 'fit', 'skills']) for (const k of j.keywords[cat]) bump(fc.kw[cat], k);
-    }
+    if (!only) kwJobs.push(j);
     if (counts('d')) bump(fc.d, deptKey(j));
     if (counts('b')) bump(fc.b, brandKey(j));
     if (counts('l')) {

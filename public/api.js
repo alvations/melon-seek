@@ -489,6 +489,25 @@ const objectMaker = (keys, more = []) => {
 };
 export function unpackJobs(body) {
   if (!body || !PACKED_FORMATS.has(body.format)) return body && Array.isArray(body.jobs) ? body.jobs : [];
+  return body.jobs.map(unpacker(body));
+}
+/**
+ * unpackJobs in slices of about JUICE_SLICE_MS that yield to the main thread (bundled lists: Amazon's
+ * 22,179 postings were one 0.38 s task at 4x CPU). The same jobs: the same function per job, in order.
+ */
+async function unpackJobsSliced(body) {
+  if (!body || !PACKED_FORMATS.has(body.format)) return unpackJobs(body);
+  const one = unpacker(body);
+  const out = [];
+  for (let i = 0; i < body.jobs.length;) {
+    const t0 = now();
+    do { out.push(one(body.jobs[i], i)); i++; } while (i < body.jobs.length && now() - t0 < JUICE_SLICE_MS);
+    if (i < body.jobs.length) await yieldToMain();
+  }
+  return out;
+}
+/** The per-job decoder of a packed body: (packed job, index) -> Job. */
+function unpacker(body) {
   const { shared = {}, dict = [] } = body;
   const at = (i) => (i == null ? null : dict[i]);
   const kw = (k = {}) => (Array.isArray(k)
@@ -520,7 +539,7 @@ export function unpackJobs(body) {
     : c.enc === 'dict' ? at(v)
     : c.enc === 'ts' ? (typeof v === 'number' ? iso(v) : v)
     : v);
-  return body.jobs.map((j, i) => {
+  return (j, i) => {
     // A row array becomes a new object; a packed object is copied, as before.
     const job = rowOf && Array.isArray(j) ? rowOf(j) : { ...j };
     for (const c of columns) job[c.key] = decode(c, c.values[i]);
@@ -548,7 +567,7 @@ export function unpackJobs(body) {
     job.keywords = kw(job.keywords);
     job.sections = job.sections || { responsibilities: [], fit: [] };
     return job;
-  });
+  };
 }
 
 // Bundled lists already vetted and juiced, most recently used last (see the header).
@@ -592,7 +611,7 @@ async function bundled(path, signal, refresh = false) {
     const raw = await getJson(path, { signal, early: refresh ? null : firstList(path) });
     if (!raw || !Array.isArray(raw.jobs)) return null;
     const { format, shared, dict, columns, ...body } = raw;
-    body.jobs = unpackJobs(raw);
+    body.jobs = await unpackJobsSliced(raw);
     if (shared && shared.vetted === true) vettedLists.add(body.jobs);
     if (body.jobs.length) bundleOrigin.set(body.jobs, { path, body });
     return body.jobs.length ? body : null;
