@@ -1357,3 +1357,10 @@ screenshots in `docs/screenshots/`.
 - **Not done (needs the user):**
   - Moving checkpoints to a separate ref: pushes go only to this branch.
   - The Pages source: it is still "Deploy from a branch". Every push runs GitHub's branch build too, and it fails at Jekyll, so only pages.yml deploys. If that build ever succeeds, a push could publish the raw branch. Switching the source to "GitHub Actions" closes this. It is a settings change for the user. Do not add `.nojekyll`: that would make the branch build succeed.
+
+### FX refresh published by the workflow (2026-10-16, MR-23 closed)
+- **Third `only=fx` run (38975710742, on 0f69645):** the full suite passed on the refreshed data, and the publish job committed **9de373f** "chore(data): monthly refresh of reference data (2026-10-16)" to the branch.
+  - 8 files: cities.json, freshness.json, DATA_FRESHNESS.md, LIVABILITY.md (re-derived), and the 4 FX code copies.
+  - The rates are the 2026-09 ECB monthly averages, as of 2026-09-30. TWD is from the Fed G.5; AED, SAR and QAR are at their pegs. The source was The Economist's dollar_ex as of 2026-07-01.
+- **S-8 behaved as designed:** d8ce13c (checkpoint.sh, not a refreshed file) had landed after the tested commit. So the step committed on top of it, dispatched CI (38976209376, green) and did not deploy. The lead dispatched pages.yml after CI passed.
+- **Deployed:** pages.yml 38976671607 on 9de373f, with both sites built and the live-site check passing. The September FX rates are live on the main site and /beta/.
