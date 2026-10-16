@@ -2033,7 +2033,7 @@ function renderQuickbar() {
     save.classList.toggle('is-saved', on); // V9: one pattern — the label changes (Save/Saved), no aria-pressed
     save.querySelector('span:last-child').textContent = on ? 'Saved' : 'Save';
     save.setAttribute('aria-label', on ? 'Saved search — remove it' : 'Save this search');
-    save.title = on ? 'Saved in this browser — click to remove. Saved searches are in the company menu.' : 'Save this search in this browser; the company menu shows it, with its new roles, next time';
+    save.title = on ? 'Saved in this browser. Press again to remove. Saved searches are in the company menu.' : 'Save this search in this browser; the company menu shows it, with its new roles, next time';
   }
 
   for (const slot of [$('#areaChipTop'), $('#areaChipList')]) {
@@ -3793,10 +3793,10 @@ const fxAsOf = () => formatAsOf(asOf('fx-per-usd') || FX_AS_OF);
    juice for one person; other households are re-attached here with the same juice.js. */
 const HOUSEHOLD_KEY = 'melon-seek.household.v1';
 const HOUSEHOLDS = [
-  // [key, button label, tooltip, bedrooms, people (living-cost row)]
-  ['single', 'Just me', 'One adult in a 1-bedroom home', 1, 'one person'],
-  ['couple', 'Couple', 'Two adults, one earner (married, filing jointly), in a 2-bedroom home', 2, 'two adults'],
-  ['family', 'Family', 'Two adults and two children, one earner (married, filing jointly), in a 3-bedroom home', 3, 'two adults and two children'],
+  // [key, button label, tooltip, bedrooms, people (living-cost row), the one line under the buttons (fix-touch-tips)]
+  ['single', 'Just me', 'One adult in a 1-bedroom home', 1, 'one person', 'One adult, 1-bedroom home'],
+  ['couple', 'Couple', 'Two adults, one earner (married, filing jointly), in a 2-bedroom home', 2, 'two adults', 'Two adults, one earner, 2-bedroom home'],
+  ['family', 'Family', 'Two adults and two children, one earner (married, filing jointly), in a 3-bedroom home', 3, 'two adults and two children', 'Two adults, two children, one earner, 3-bedroom home'],
 ];
 const householdInfo = (key) => HOUSEHOLDS.find(([k]) => k === key) || HOUSEHOLDS[0];
 let juiceHousehold = householdInfo(lsGet(HOUSEHOLD_KEY, 'single'))[0];
@@ -3960,8 +3960,11 @@ function juiceBlock(job) {
         type: 'button', 'aria-pressed': String(hhKey === k), dataset: { household: k }, title: tip,
         onclick: () => { setHousehold(k); },
       }, label)));
+    // fix-touch-tips: the picked household's meaning in one muted line (a hover title is out of reach on a phone).
+    const hhLine = HOUSEHOLDS.find(([k]) => k === hhKey)?.[5] || '';
     body.replaceChildren(...nn(
       h('div', { class: 'juice-controls' }, household, toggle),
+      hhLine ? h('p', { class: 'fnote juice-hh-note' }, hhLine) : null,
       h('div', { class: 'waterfall', role: 'table', 'aria-label': 'Juice breakdown' },
         ...rows.map(([label, value, style, kind, detail, extra]) => h('div', { class: `wf-row ${kind.split(' ').map((k, i) => (i ? k : `wf--${k}`)).join(' ')}`, role: 'row' },
           h('span', { class: 'wf-label', role: 'rowheader' }, label),
@@ -4314,7 +4317,7 @@ function drawerContent(job) {
     : term ? `${term.amount}${perText(term.per)}` : isMinimum(job) ? `from ${money(sal.min, sal.currency)}` : salaryRange(sal);
   const subText = !sal ? null : partHourly ? `${cur} · part-time, paid by the hour`
     : term?.fixed ? `${cur} · for ${termText(term.weeks)}` : term ? `${cur} · ${programText(job, term)}` : `${cur} · per year`;
-  let salaryNotes = null, annualEl = null;
+  let salaryNotes = null, annualEl = null, labelsEl = null;
   const salaryBlock = h('section', { class: 'd-salary' },
     sal ? h('div', { class: 'd-sal-top' },
       h('div', null,
@@ -4326,7 +4329,7 @@ function drawerContent(job) {
       : job.salaryFlag ? payUnclearBlock(job)
         : h('div', { class: 'd-sal-none' }, h('strong', null, 'No pay listed'), compstimateBlock(job)),
     sal ? salaryDistribution(job) : null,
-    sal ? payLabels(job) : null,
+    (labelsEl = sal ? payLabels(job) : null),
     sal && pctText ? h('p', { class: 'd-pct-text' }, pctText) : null,
     // fix-density: one line, then the caveats behind "Details" (viz/note.js): the full caption, the level
     // names, what the percentile ranks among and (MR-3) one tap to how pay is read.
@@ -4336,6 +4339,8 @@ function drawerContent(job) {
       [...(salaryNotes || [])].filter(Boolean).map((e) => e.dataset.note).find(Boolean) || '',
       sal && pctNote ? pctNote : '',
       sal && job._usd ? 'The strip counts each posted range at its middle.' : '',
+      // fix-touch-tips: each label's meaning (its hover title), so a tap or the keyboard can reach it.
+      ...(labelsEl ? [...labelsEl.querySelectorAll('.pay-label')].filter((e) => e.title).map((e) => `${e.textContent}: ${e.title.replace(/\.$/, '')}.`) : []),
       h('span', { class: 'd-pay-doc' }, docLink(PAY_DOC, 'How pay is read')),
     ] }) : null);
 
@@ -4373,7 +4378,7 @@ function drawerContent(job) {
     juiceBlock(job) || juiceMissing(job), // compact headline; the waterfall is in a disclosure
     listingSection(job),
     locs,
-    kwCat.some(Boolean) ? fold('d-kw', ['Keywords ', h('span', { class: 'muted small' }, 'click to filter')], ...kwCat) : null,
+    kwCat.some(Boolean) ? fold('d-kw', ['Keywords ', h('span', { class: 'muted small' }, 'pick one to filter')], ...kwCat) : null, // fix-touch-tips: words for any input
     bulletsFold,
     descWrap), foot];
 }

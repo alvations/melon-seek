@@ -1439,3 +1439,8 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
 .ms-insights__sub.ms-note, .msi-card__sub.ms-note, .ms-comp__sub.ms-note { margin: 2px 0 0; }
 .msi-card__sub .ms-note__list, .ms-insights__sub .ms-note__list, .ms-comp__sub .ms-note__list { font-size: 12px; }
 .msi-card__sub .msi-foot { margin: 0; padding: 0; border: 0; font-size: inherit; }
+
+/* fix-touch-tips (docs/process/fix-touch-tips.md): a map pin's tooltip slid sideways to stay on screen hides its
+   arrow, which would point past the pin; the Juice household's meaning, one muted line under its buttons. */
+.ms-map .leaflet-tooltip.ms-map-tip--slid::before { display: none; }
+.juice-hh-note { margin: 6px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

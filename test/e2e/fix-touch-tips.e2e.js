@@ -506,29 +506,35 @@ export function registerFixTouchTipsTests(suite) {
     await shot(g.page, 'map-pin-tap-p390');
     assert(chip, 'the tap selected the pin\'s place (an area chip)');
     assert(!t1.length, `no tooltip after the iPhone tap on a pin: ${one(t1)}`);
-    // Keyboard: every pin's tooltip, on focus, sits inside the map and the screen.
-    await g.page.evaluate(() => { location.hash = 'c=google&m=map'; });
-    await sleep(1500);
-    const out = await g.page.evaluate(async () => {
-      const map = document.querySelector('#mapHost').getBoundingClientRect();
-      const bad = [];
-      let n = 0;
-      for (const icon of [...document.querySelectorAll('#mapHost .leaflet-marker-icon')].slice(0, 30)) {
-        const b = icon.querySelector('.ms-pin')?.getBoundingClientRect();
-        if (!b || b.right < map.left || b.left > map.right || b.bottom < map.top || b.top > map.bottom) continue;
-        icon.focus({ preventScroll: true });
-        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-        const t = document.querySelector('#mapHost .leaflet-tooltip');
-        if (!t) continue;
-        n++;
-        const r = t.getBoundingClientRect();
-        if (r.left < Math.max(0, map.left) - 1 || r.right > Math.min(innerWidth, map.right) + 1) bad.push(`${t.innerText.split('\n')[1] || ''}: ${Math.round(r.left)}–${Math.round(r.right)} (map ${Math.round(map.left)}–${Math.round(map.right)})`);
-        icon.blur();
-      }
-      return { n, bad };
-    });
-    assert(out.n > 0, 'a focused pin opens its tooltip');
-    assert(!out.bad.length, `${out.bad.length} of ${out.n} pin tooltips run off the map: ${out.bad.slice(0, 4).join('; ')}`);
+    // Keyboard, on fresh phone pages (Google, Apple: the boards whose pins ran off): every pin's tooltip, on
+    // focus, sits inside the map and the screen.
+    for (const board of [COMPANY, 'apple']) {
+      const k = await open(ctx, `c=${board}&m=map`);
+      await k.page.waitForSelector('#mapHost .ms-pin', { timeout: 30000 });
+      await sleep(1500);
+      const out = await k.page.evaluate(async () => {
+        const map = document.querySelector('#mapHost').getBoundingClientRect();
+        const bad = [];
+        let n = 0;
+        for (const icon of [...document.querySelectorAll('#mapHost .leaflet-marker-icon')].slice(0, 40)) {
+          const b = icon.querySelector('.ms-pin')?.getBoundingClientRect();
+          if (!b || b.right < map.left || b.left > map.right || b.bottom < map.top || b.top > map.bottom) continue;
+          icon.focus({ preventScroll: true });
+          await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          const t = [...document.querySelectorAll('#mapHost .leaflet-tooltip')].pop(); // the last: one closing may still fade
+          if (!t) continue;
+          n++;
+          const r = t.getBoundingClientRect();
+          if (r.left < Math.max(0, map.left) - 1 || r.right > Math.min(innerWidth, map.right) + 1 || r.top < map.top - 1 || r.bottom > map.bottom + 1) {
+            bad.push(`${t.innerText.split('\n')[1] || ''}: ${Math.round(r.left)}–${Math.round(r.right)} × ${Math.round(r.top)}–${Math.round(r.bottom)} (map ${Math.round(map.left)}–${Math.round(map.right)} × ${Math.round(map.top)}–${Math.round(map.bottom)})`);
+          }
+          icon.blur();
+        }
+        return { n, bad };
+      });
+      assert(out.n > 0, `${board}: a focused pin opens its tooltip`);
+      assert(!out.bad.length, `${board}: ${out.bad.length} of ${out.n} pin tooltips run off the map: ${out.bad.slice(0, 4).join('; ')}`);
+    }
   });
 
   // ---------------------------------------------------------------- words a touch can reach

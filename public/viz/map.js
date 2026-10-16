@@ -43,6 +43,7 @@ import { payLocations } from '../features/shared.js';
 // M-23: pin counts as "4.5K", like the chart's circles; the exact count is in pinName().
 import { shortCount, placeMatcher, FX_DOC, FX_SOURCE_SHORT } from './chart.js';
 import { renderNote } from './note.js';
+import { isTouchInput } from '../features/shared.js';
 
 export const COLOR_MODES = Object.freeze(['pay', 'juice']);
 /** I-10: how full a Juice pin (and its legend swatch) is drawn, by grade. */
@@ -836,6 +837,39 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     }
   }
 
+  /**
+   * fix-touch-tips: the open tooltip inside the map (it ran 216 px off a 390 px phone): beside its pin near a side
+   * when it fits there, else above the pin (below it near the top), slid sideways to stay 8 px inside. A slid
+   * tooltip hides its arrow, which would point past the pin. Re-run when the map moves under an open tooltip.
+   */
+  let tipMarker = null;
+  function fitTooltip(m) {
+    const t = m.getTooltip?.(), node = t?.getElement?.();
+    if (!t || !node || !m.isTooltipOpen()) return;
+    const pt = map.latLngToContainerPoint(m.getLatLng()), size = map.getSize();
+    const w = node.offsetWidth, h = node.offsetHeight, pad = 8;
+    const fitsY = (top) => top >= pad && top + h <= size.y - pad;
+    let dir, off;
+    if (pt.x < 160 && pt.x + 60 + w <= size.x - pad && fitsY(pt.y - 18 - h / 2)) { dir = 'right'; off = [54, -18]; }
+    else if (pt.x > size.x - 160 && pt.x - 60 - w >= pad && fitsY(pt.y - 18 - h / 2)) { dir = 'left'; off = [-54, -18]; }
+    else {
+      const half = w / 2;
+      const dx = w + 2 * pad >= size.x ? size.x / 2 - pt.x : Math.min(Math.max(0, pad + half - pt.x), size.x - pad - half - pt.x);
+      // Above the pin (its top edge is 42 px over the point, with Leaflet's margin), else below it (12 px under);
+      // with room for neither, below it, slid up to stay inside the map.
+      if (pt.y - 42 - h >= pad) { dir = 'top'; off = [Math.round(dx), -36]; }
+      else {
+        dir = 'bottom';
+        const top = Math.max(pad, Math.min(size.y - pad - h, pt.y + 12));
+        off = [Math.round(dx), Math.round(top - pt.y - 6)];
+      }
+    }
+    node.classList.toggle('ms-map-tip--slid', (dir === 'top' || dir === 'bottom') && (Math.abs(off[0]) > 4 || (dir === 'bottom' && off[1] !== 6)));
+    const o = L.point(t.options.offset || [0, 0]);
+    if (t.options.direction !== dir || o.x !== off[0] || o.y !== off[1]) { t.options.direction = dir; t.options.offset = L.point(off); t.update(); }
+  }
+  map.on('moveend zoomend', () => { if (tipMarker) fitTooltip(tipMarker); });
+
   /** One marker per cluster; returns the pin to refocus (see draw). */
   function drawMarkers(focusedKeys, focusedLead) {
     let refocus = null;
@@ -849,13 +883,13 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       const m = L.marker([c.lat, c.lng], { icon, keyboard: true, title: '', riseOnHover: false, zIndexOffset: i });
       c.marker = m;
       m.bindTooltip(() => tooltipContent(c), { direction: 'top', offset: [0, -36], className: 'ms-map-tip', opacity: 1 });
-      // Keep the tooltip inside the map: near the left/right edge open sideways, near the top open below.
-      m.on('tooltipopen', e => {
-        const t = e.tooltip, pt = map.latLngToContainerPoint(m.getLatLng()), size = map.getSize();
-        const [dir, off] = pt.x < 160 ? ['right', [54, -18]] : pt.x > size.x - 160 ? ['left', [-54, -18]]
-          : pt.y < 200 ? ['bottom', [0, 6]] : ['top', [0, -36]];
-        if (t.options.direction !== dir) { t.options.direction = dir; t.options.offset = L.point(off); t.update(); }
-      });
+      // fix-touch-tips: a pin's tooltip is for a mouse or the keyboard. A tap selects the place at once (the list
+      // then shows its roles), so a tap never opens it: Leaflet opens it on click, focus and mouseover (which a
+      // phone emulates after a tap), all through the marker's openTooltip. Once open, it is kept inside the map.
+      const openTip = m.openTooltip;
+      m.openTooltip = function (...args) { return isTouchInput() ? this : openTip.apply(this, args); };
+      m.on('tooltipopen', () => { tipMarker = m; fitTooltip(m); });
+      m.on('tooltipclose', () => { if (tipMarker === m) tipMarker = null; });
       m.on('mouseover', () => { m.setZIndexOffset(100000); pinEl.classList.add('is-hover'); });
       m.on('mouseout', () => { m.setZIndexOffset(i); pinEl.classList.remove('is-hover'); });
       const activate = () => {

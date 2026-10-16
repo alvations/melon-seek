@@ -400,20 +400,39 @@ export function uid(prefix = 'ms') { uidN += 1; return `${prefix}-${uidN.toStrin
 
 /**
  * One tooltip per component root. bind(el, () => ({ value, label, rows })) shows
- * it on pointer hover and keyboard focus. Content is set with textContent only.
+ * it on mouse hover and keyboard focus. Content is set with textContent only.
+ * bind(el, getContent, { action: 'see these roles' }) also gives the tip a line saying how
+ * to do the item's action, and on touch makes the first tap show the tip ("Tap again to
+ * see these roles") and the second tap do the action (fix-touch-tips; see tipCloser below).
+ * A touch, or the mouse events a phone emulates after one, never opens a hover tip.
  */
 export function createTooltip(root) {
   const tip = h('div', { class: 'msf-tip', role: 'tooltip', id: uid('tip'), hidden: true });
   root.appendChild(tip);
-  let owner = null;
+  let owner = null, ownerKind = null;
+  const bound = new WeakMap(); // element -> { getContent, opts }
+  const closer = tipCloser(() => hide());
 
-  function render(c) {
+  function render(c, kind, action) {
     tip.replaceChildren();
     if (c.value != null) tip.appendChild(h('div', { class: 'msf-tip__value' }, c.value));
     if (c.label != null) tip.appendChild(h('div', { class: 'msf-tip__label' }, c.label));
     if (c.rows && c.rows.length) {
       tip.appendChild(h('dl', { class: 'msf-tip__rows' },
         c.rows.map(([k, v]) => [h('dt', null, k), h('dd', null, v)])));
+    }
+    if (action) tip.appendChild(h('div', { class: 'msf-tip__label msf-tip__hint' }, actionHint(kind, action)));
+  }
+
+  /** Set the tip's viewport position; a containing block above it (e.g. a container query box) is allowed for. */
+  function moveTo(left, top) {
+    tip.style.left = `${Math.round(left)}px`;
+    tip.style.top = `${Math.round(top)}px`;
+    const got = tip.getBoundingClientRect();
+    const dx = got.left - Math.round(left), dy = got.top - Math.round(top);
+    if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+      tip.style.left = `${Math.round(left - dx)}px`;
+      tip.style.top = `${Math.round(top - dy)}px`;
     }
   }
 
@@ -424,32 +443,65 @@ export function createTooltip(root) {
     let left = x + 14, top = below ? y + 8 : y + 16;
     if (left + r.width > vw - 8) left = Math.max(8, x - r.width - 14);
     if (top + r.height > vh - 8) top = Math.max(8, y - r.height - 12);
-    tip.style.left = `${Math.round(left)}px`;
-    tip.style.top = `${Math.round(top)}px`;
+    moveTo(left, top);
   }
 
-  function show(el, content, x, y, below) {
+  /** The keyboard tip's spot under its item (also used to follow it when the page scrolls). */
+  function placeUnder(el) {
+    const r = el.getBoundingClientRect();
+    place(r.left + Math.min(r.width / 2, 160), r.bottom, true);
+  }
+
+  function show(el, content, kind, x, y) {
     owner = el;
-    render(content);
-    place(x, y, below);
+    ownerKind = kind;
+    render(content, kind, bound.get(el)?.opts?.action);
+    if (kind === 'keyboard') placeUnder(el);
+    else if (kind === 'touch') {
+      tip.hidden = false;
+      const r = tip.getBoundingClientRect();
+      const p = placeNearTap(el.getBoundingClientRect(), r.width, r.height, x);
+      moveTo(p.left, p.top);
+    } else place(x, y, false);
+    closer.arm({ inside: [el], anchor: el, follow: kind === 'keyboard' ? () => (inView(el) ? (placeUnder(el), true) : false) : null });
   }
 
-  function hide(el) { if (!el || el === owner) { tip.hidden = true; owner = null; } }
+  function hide(el) {
+    if (el && el !== owner) return;
+    tip.hidden = true;
+    owner = null;
+    ownerKind = null;
+    closer.disarm();
+  }
 
-  function bind(el, getContent) {
-    el.addEventListener('pointermove', (e) => { if (e.pointerType !== 'touch') show(el, getContent(), e.clientX, e.clientY); });
-    el.addEventListener('pointerleave', () => hide(el));
+  function bind(el, getContent, opts = {}) {
+    bound.set(el, { getContent, opts });
+    el.addEventListener('pointermove', (e) => { if (!isTouchInput(e)) show(el, getContent(), 'mouse', e.clientX, e.clientY); });
+    el.addEventListener('pointerleave', (e) => { if (!isTouchInput(e) && ownerKind !== 'touch') hide(el); });
     el.addEventListener('focus', () => {
       if (!el.matches(':focus-visible')) return;
-      const r = el.getBoundingClientRect();
-      show(el, getContent(), r.left + Math.min(r.width / 2, 160), r.bottom, true);
+      show(el, getContent(), 'keyboard');
     });
     el.addEventListener('blur', () => hide(el));
   }
 
-  const onScroll = () => hide();
-  window.addEventListener('scroll', onScroll, { passive: true, capture: true });
-  return { bind, hide: () => hide(), destroy() { window.removeEventListener('scroll', onScroll, { capture: true }); tip.remove(); } };
+  // Touch on an item bound with { action }: the first tap shows its tip, the second does the action. This runs
+  // in the capture phase on the root, so the item's own click handler never sees the first tap.
+  const itemOf = (t) => { for (let n = t; n && n !== root; n = n.parentElement) if (bound.has(n)) return n; return null; };
+  function onTap(e) {
+    if (!isTouchInput(e)) return;
+    const el = itemOf(e.target);
+    const b = el && bound.get(el);
+    if (!b || !b.opts || !b.opts.action) return;
+    if (owner === el && !tip.hidden) { hide(); return; } // the second tap: the action runs, the tip goes
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const r = el.getBoundingClientRect();
+    show(el, b.getContent(), 'touch', e.clientX || r.left + r.width / 2);
+  }
+  root.addEventListener('click', onTap, true);
+
+  return { bind, hide: () => hide(), destroy() { closer.disarm(); root.removeEventListener?.('click', onTap, true); tip.remove(); } };
 }
 
 /** Keep keyboard focus on the element with the same data-key across a re-render. */
@@ -461,4 +513,135 @@ export function preserveFocus(root, renderFn) {
   for (const el of root.querySelectorAll('[data-key]')) {
     if (el.dataset.key === key) { el.focus({ preventScroll: true }); break; }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Floating tips and touch (fix-touch-tips, docs/process/fix-touch-tips.md)
+// ---------------------------------------------------------------------------
+//
+// One rule for every tooltip, tip and hover box (createTooltip above, viz/comps.js, viz/chart.js, viz/map.js):
+//   - a hover tip needs a real mouse. A touch, and the mouse events a phone emulates just after one (iOS Safari
+//     sends mouseover and mousemove after a tap, and never a pointerleave), never open one;
+//   - a tap does what a click does, at once, with no tip, except where the action takes you to another company's
+//     board ("Same role elsewhere", Compare companies) or the item has no action (the chart's pay strip): there the
+//     first tap shows the tip, which says "Tap again to …", and a second tap on the same item does the action;
+//   - an open tip closes on a press anywhere else, a scroll that moves its item, a resize, the page hiding, Esc, or
+//     the action. It never waits for a pointerleave;
+//   - a tip opened from the keyboard follows its item when the page scrolls, and closes when the item leaves the screen;
+//   - the words follow the input: "Click to …" for a mouse, "Tap again to …" for a touch, "Press Enter to …" for keys.
+
+/** A mouse event this soon after a touch is the phone's emulation of that touch, not a mouse (ms). */
+export const TOUCH_GRACE_MS = 1000;
+const lastInput = { kind: 'mouse', touchAt: -Infinity };
+const clock = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+  const o = { capture: true, passive: true };
+  const touched = () => { lastInput.kind = 'touch'; lastInput.touchAt = clock(); };
+  document.addEventListener('touchstart', touched, o);
+  document.addEventListener('touchend', touched, o);
+  document.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'touch') touched();
+    else if (clock() - lastInput.touchAt > TOUCH_GRACE_MS) lastInput.kind = 'mouse';
+  }, o);
+  document.addEventListener('keydown', () => { lastInput.kind = 'keyboard'; }, o);
+}
+
+/**
+ * True for a touch, and for the mouse and pointer events a phone sends within TOUCH_GRACE_MS of one (iOS's
+ * emulated mouse events; Chromium marks its own with sourceCapabilities.firesTouchEvents).
+ */
+export function isTouchInput(e) {
+  if (e && e.pointerType === 'touch') return true;
+  if (e && e.sourceCapabilities && e.sourceCapabilities.firesTouchEvents) return true;
+  return clock() - lastInput.touchAt < TOUCH_GRACE_MS;
+}
+
+/** How an event came in: 'touch', 'keyboard' or 'mouse' (a pen counts as a mouse: it can hover). */
+export function inputKind(e) {
+  if (isTouchInput(e)) return 'touch';
+  if (!e) return lastInput.kind;
+  if (/^key|^focus/.test(e.type)) return 'keyboard';
+  if (e.type === 'click' && e.detail === 0 && !e.pointerType) return 'keyboard'; // Enter or Space on a button
+  return 'mouse';
+}
+
+/** The tip's line that says how to do the item's action, in the words of the input that opened the tip. */
+export function actionHint(kind, action) {
+  return kind === 'touch' ? `Tap again to ${action}` : kind === 'keyboard' ? `Press Enter to ${action}` : `Click to ${action}`;
+}
+
+/** True while at least `min` of the element's height is on screen, inside every box that clips it. */
+export function inView(el, min = 0.5) {
+  if (!el || !el.isConnected || typeof getComputedStyle !== 'function') return false;
+  const r = el.getBoundingClientRect();
+  if (!r.height) return false;
+  let top = Math.max(r.top, 0), bottom = Math.min(r.bottom, innerHeight);
+  let left = Math.max(r.left, 0), right = Math.min(r.right, innerWidth);
+  for (let n = el.parentElement; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+    const cs = getComputedStyle(n);
+    if (!/(auto|scroll|hidden|clip)/.test(`${cs.overflowX} ${cs.overflowY}`)) continue;
+    const c = n.getBoundingClientRect();
+    top = Math.max(top, c.top); bottom = Math.min(bottom, c.bottom);
+    left = Math.max(left, c.left); right = Math.min(right, c.right);
+  }
+  return right > left && bottom - top >= min * r.height;
+}
+
+/**
+ * Where a tip opened by a tap goes, in viewport px: above its item, clear of the finger, else below it; centred on
+ * the tap's x and kept `pad` px inside the screen. anchor: a DOMRect; w, h: the tip's size.
+ */
+export function placeNearTap(anchor, w, h, x = anchor.left + anchor.width / 2, { gap = 8, pad = 8 } = {}) {
+  const vw = innerWidth, vh = innerHeight;
+  let top = anchor.top - h - gap;
+  if (top < pad) top = Math.min(anchor.bottom + gap, vh - h - pad);
+  const left = Math.max(pad, Math.min(x - w / 2, vw - w - pad));
+  return { left: Math.round(left), top: Math.round(Math.max(pad, top)) };
+}
+
+/**
+ * Closes an open tip without waiting for a pointerleave (iOS sends none after a tap): on a press outside `inside`,
+ * a scroll that moves `anchor` (or removes it), a resize, or the page being hidden. With `follow`, a scroll that
+ * moves the anchor calls follow() instead, which re-places the tip and returns false once the anchor has left
+ * the screen (that closes it): a keyboard tip stays with its row. close() is called once per arm.
+ *   const closer = tipCloser(() => hideTip());
+ *   closer.arm({ inside: [list], anchor: row, follow: fromKeys ? () => placeAt(row) : null });
+ *   closer.disarm();   // the tip closed some other way
+ */
+export function tipCloser(close) {
+  let on = null;
+  const o = { capture: true, passive: true };
+  const at = (el) => { if (!el || !el.isConnected) return null; const r = el.getBoundingClientRect(); return [r.left, r.top]; };
+  const fire = () => { if (!on) return; disarm(); close(); };
+  const onDown = (e) => { if (on && !on.inside.some((el) => el.contains(e.target))) fire(); };
+  const onScroll = () => {
+    if (!on || !on.anchor) return;
+    const now = at(on.anchor);
+    if (!now) { fire(); return; }
+    if (on.at && Math.abs(now[0] - on.at[0]) < 1 && Math.abs(now[1] - on.at[1]) < 1) return; // another box scrolled
+    if (on.follow && on.follow() !== false) { if (on) on.at = at(on.anchor); return; }
+    fire();
+  };
+  const onHide = () => { if (document.visibilityState === 'hidden') fire(); };
+  function disarm() {
+    if (!on) return;
+    on = null;
+    document.removeEventListener('pointerdown', onDown, o);
+    window.removeEventListener('scroll', onScroll, o);
+    window.removeEventListener('resize', fire);
+    document.removeEventListener('visibilitychange', onHide);
+  }
+  return {
+    arm({ inside = [], anchor = null, follow = null } = {}) {
+      const was = !!on;
+      on = { inside: [].concat(inside).filter(Boolean), anchor, follow, at: at(anchor) };
+      if (was || typeof document === 'undefined' || typeof window === 'undefined') return;
+      document.addEventListener('pointerdown', onDown, o);
+      window.addEventListener('scroll', onScroll, o);
+      window.addEventListener('resize', fire);
+      document.addEventListener('visibilitychange', onHide);
+    },
+    disarm,
+    get armed() { return !!on; },
+  };
 }

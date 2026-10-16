@@ -544,7 +544,9 @@ export function createCompsCard(container, { onPickCompany, market: initialMarke
               ticks.map((t) => h('span', { class: 'msi-grid', style: { left: x(t) } })),
               h('span', { class: 'msi-box__iqr', style: { left: x(r.p25), width: `max(4px, calc(${x(r.p75)} - ${x(r.p25)}))` } }),
               h('span', { class: 'msi-box__med', style: { left: x(r.median) } })));
-            tip.bind(btn, () => ({ value: `${formatMoney(r.median)} median`, label: r.name, rows: [['Middle half', `${formatMoney(r.p25)} – ${formatMoney(r.p75)}`], ['Salaried postings', String(r.n)]] }));
+            // fix-touch-tips: another company's row says how to open it; on touch the first tap shows this tip.
+            tip.bind(btn, () => ({ value: `${formatMoney(r.median)} median`, label: r.name, rows: [['Middle half', `${formatMoney(r.p25)} – ${formatMoney(r.p75)}`], ['Salaried postings', String(r.n)]] }),
+              { action: cur ? null : 'see these roles' });
             return btn;
           }),
           h('div', { class: 'msi-axis', 'aria-hidden': 'true' },

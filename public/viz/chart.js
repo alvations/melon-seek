@@ -46,6 +46,7 @@ import {
 import { levelLabel, displayLevel, DISPLAY_LEVEL_ORDER } from '../features/roles.js';
 import { payLocations, OTE_LABEL } from '../features/shared.js';
 import { renderNote } from './note.js';
+import { isTouchInput, tipCloser, inView, placeNearTap } from '../features/shared.js';
 
 export const VIEWS = Object.freeze(['clusters', 'ranges']);
 export const DEFAULT_VIEW = 'clusters';
@@ -553,6 +554,17 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
   tip.setAttribute('role', 'tooltip');
   tip.hidden = true;
   document.body.append(tip);
+  // fix-touch-tips (features/shared.js "Floating tips and touch"): circles, row names and Ranges rows act on the
+  // first tap with no tip; the pay strip's bars show theirs on a tap. A press elsewhere, a scroll that moves the
+  // tip's item, or Esc closes any tip; a keyboard tip follows its item.
+  let tipKind = null;        // what opened the tip: 'mouse', 'touch' or 'keyboard'
+  let histTip = null;        // the strip bar whose tip a tap opened
+  const closer = tipCloser(() => { onLeave(); clearHist(); });
+  /** Arm the closer for a tip just placed at `anchor`, opened by `kind`; a keyboard tip re-places itself with `place`. */
+  function armTip(anchor, kind, inside, place) {
+    tipKind = kind;
+    closer.arm({ inside: [inside], anchor, follow: kind === 'keyboard' && place ? () => (inView(anchor) ? (place(), true) : false) : null });
+  }
 
   const uid = 'ms-c' + Math.random().toString(36).slice(2, 8);
   let jobs = [];
@@ -730,6 +742,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       rowNotes.offRow ? `${plural(rowNotes.offRow, 'posting')} with pay for another place than their row’s ${isAre(rowNotes.offRow)} not in the rows` : '',
       // V-21: rows compare one country's pay when the board mixes currencies.
       rowNotes.basis && rowNotes.basisLeft ? `Each row’s median is pay ${payBasisPlace(rowNotes.basis)} only: ${rowNotes.basisLeft.toLocaleString()} paid elsewhere ${isAre(rowNotes.basisLeft)} on the chart, not in the medians` : '',
+      // fix-touch-tips: a row marked "several countries’ pay" (or "mixed") says why here too, not only in its hover title.
+      mixedRowsNote(),
       // BP-13: on-target earnings are plotted but not in the medians (the stats line's rule).
       pay?.oteLeftOut ? `${pay.oteLeftOut.toLocaleString()} with on-target earnings (base plus commission) ${isAre(pay.oteLeftOut)} on the chart, not in the medians`
         : pay?.oteOnly ? 'All of this pay is on-target earnings (base plus commission at target)' : '',
@@ -746,6 +760,17 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     ];
     renderNote(foot, { line: line.join(' · '), details, key: 'chart-notes' });
     foot.hidden = !line.length;
+  }
+
+  /** The Clusters rows whose median mixes several countries' pay (r.basis 'mixed'), in one sentence; '' for none. */
+  function mixedRowsNote() {
+    if (opts.view !== 'clusters') return '';
+    const names = cRows.filter((r) => r.basis === 'mixed' && !r.fold && r.items?.length).map((r) => r.name);
+    if (!names.length) return '';
+    const list = names.length <= 3 ? names.join(', ') : `${names.slice(0, 3).join(', ')} and ${names.length - 3} more`;
+    return names.length === 1
+      ? `${list} has pay for several countries only, converted to US dollars, so its median mixes them`
+      : `${list} have pay for several countries only, converted to US dollars, so their medians mix them`;
   }
 
   /** MR-2: "Jul 2026 exchange rates" for the rates of `asOf`, a link to the section that names their source. */
@@ -1044,9 +1069,12 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       if (r.fold) nameEl.append(el('span', 'ms-crow__fold', foldOpen ? ' \u25B4' : ' \u25BE')); // UX-24: ▾ opens, ▴ folds
       txt.append(nameEl, el('span', 'ms-crow__sub', sub));
       lab.append(sw, txt);
+      // fix-touch-tips: words for any input; the row's own caveat (r.why) is also in its accessible name, and
+      // what it means is in the chart's Details (renderNotes), which a tap reaches.
       lab.title = r.fold
-        ? `${r.name}: ${r.subFull}. Click to ${foldOpen ? 'fold them into one row again' : `show each ${dim === 'brand' ? 'company' : 'department'}`}${r.why ? `. ${r.why}` : ''}`
-        : `${r.name}: ${r.subFull}.${r.why ? ` ${r.why}` : ''} Click to show all ${plural(r.all.length, 'role')}`;
+        ? `${r.name}: ${r.subFull}. Tap or click to ${foldOpen ? 'fold them into one row again' : `show each ${dim === 'brand' ? 'company' : 'department'}`}${r.why ? `. ${r.why}` : ''}`
+        : `${r.name}: ${r.subFull}.${r.why ? ` ${r.why}` : ''} Tap or click to show all ${plural(r.all.length, 'role')}`;
+      if (r.why) lab.setAttribute('aria-label', `${lab.getAttribute('aria-label')}. ${r.why}`);
       if (r.fold) lab.setAttribute('aria-expanded', foldOpen ? 'true' : 'false');
       r.labelEl = lab;
       row.append(lab);
@@ -1238,8 +1266,10 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     binEl.classList.add('is-hover');
     const b = cRows[+binEl.dataset.r].bins[+binEl.dataset.i];
     showClusterTip(b);
+    const atBin = () => { const bb = binEl.getBoundingClientRect(); placeTip(bb.right - 6, bb.bottom - 6); };
     if (evt) placeTip(evt.clientX, evt.clientY);
-    else { const bb = binEl.getBoundingClientRect(); placeTip(bb.right - 6, bb.bottom - 6); }
+    else atBin();
+    armTip(binEl, evt ? 'mouse' : 'keyboard', rowsEl, atBin);
     if (b.items.length === 1) onHover?.(b.items[0].job);
   }
 
@@ -1550,7 +1580,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     if (spans) {
       const item = el('span', 'ms-legend__span');
       item.append(el('span', 'ms-legend__spansw'), el('span', 'ms-legend__spankey', 'Striped: several levels or places'), el('span', 'ms-legend__n', spans.toLocaleString()));
-      item.title = `${plural(spans, 'posting')} whose range runs over several levels (NVIDIA "Level 4" and "Level 5") or several places' ranges: hover a bar for each`;
+      item.title = `${plural(spans, 'posting')} whose range runs over several levels (NVIDIA "Level 4" and "Level 5") or several places' ranges. Each bar's tip, and its role's details, list them`;
       legend.append(item);
     }
     // fix-density: the legend is one row that scrolls sideways (viz.css); when it does, the keyboard can scroll it.
@@ -1567,8 +1597,10 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const r = rowsEl.querySelector(`.ms-row[data-idx="${i}"]`);
     r?.classList.add('is-hover');
     showJobTip(itemByRow[i]);
+    const atRow = () => { const b = r.getBoundingClientRect(); placeTip(b.left + parseFloat(container.style.getPropertyValue('--ms-plot-l')), b.bottom); };
     if (evt) placeTip(evt.clientX, evt.clientY);
-    else if (r) { const b = r.getBoundingClientRect(); placeTip(b.left + parseFloat(container.style.getPropertyValue('--ms-plot-l')), b.bottom); }
+    else if (r) atRow();
+    if (r) armTip(r, evt ? 'mouse' : 'keyboard', rowsEl, atRow);
     onHover?.(itemByRow[i].n > 1 ? null : itemByRow[i].job); // viz-even: a row of several postings is no one card
   }
 
@@ -1680,14 +1712,20 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     tip.style.transform = `translate(${Math.max(8, left)}px, ${Math.max(8, top)}px)`;
   }
 
-  function hideTip() { tip.hidden = true; }
+  function hideTip() { tip.hidden = true; tipKind = null; histTip = null; closer.disarm(); }
 
+  // A finger, and the mouse events a phone emulates just after a tap, never hover (iOS sends no pointerleave
+  // after them, so a tip they opened would stay).
   const onMove = e => {
+    if (isTouchInput(e)) return;
     if (opts.view === 'clusters') { setCHover(e.target.closest?.('.ms-bin') || null, e); return; }
     const r = e.target.closest?.('.ms-row');
     setHover(r ? +r.dataset.idx : -1, e);
   };
-  const onLeave = () => { if (opts.view === 'clusters') setCHover(null); else setHover(-1); };
+  const onLeave = (e) => {
+    if (e?.type === 'pointerleave' && isTouchInput(e)) return;
+    if (opts.view === 'clusters') setCHover(null); else setHover(-1);
+  };
   const onClick = e => {
     if (opts.view === 'clusters') {
       const t = e.target.closest?.('.ms-bin, .ms-crow__label');
@@ -1703,14 +1741,48 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     if (p) { setActive(+r.dataset.idx, false); activateRange(+r.dataset.idx); }
   };
   const onHistMove = e => {
+    if (isTouchInput(e)) return;
     const b = e.target.closest?.('.ms-hist__bin');
     hist.querySelectorAll('.ms-hist__bin.is-hover').forEach(n => n !== b && n.classList.remove('is-hover'));
     if (!b) { hideTip(); return; }
     b.classList.add('is-hover');
     showBinTip(b);
     placeTip(e.clientX, e.clientY);
+    armTip(b, 'mouse', hist);
   };
-  const onHistLeave = () => { hist.querySelectorAll('.is-hover').forEach(n => n.classList.remove('is-hover')); hideTip(); };
+  function clearHist() {
+    hist.querySelectorAll('.is-hover').forEach(n => n.classList.remove('is-hover'));
+    if (histTip || tipKind === 'mouse') hideTip();
+  }
+  const onHistLeave = (e) => {
+    if (isTouchInput(e) || tipKind === 'touch') return;
+    hist.querySelectorAll('.is-hover').forEach(n => n.classList.remove('is-hover'));
+    hideTip();
+  };
+  // The strip's bars have no action: on touch a tap shows the bar's tip (the nearest bar to the finger, as the
+  // bars are thin), above the strip; a second tap on it, or a tap between bars, closes it.
+  const onHistTap = e => {
+    if (!isTouchInput(e)) return;
+    let b = e.target.closest?.('.ms-hist__bin');
+    if (!b) {
+      let best = Infinity;
+      for (const n of hist.querySelectorAll('.ms-hist__bin')) {
+        const r = n.getBoundingClientRect(), d = e.clientX < r.left ? r.left - e.clientX : e.clientX > r.right ? e.clientX - r.right : 0;
+        if (d < best) { best = d; b = n; }
+      }
+      if (best > 6) b = null;
+    }
+    const again = b && b === histTip;
+    hist.querySelectorAll('.is-hover').forEach(n => n.classList.remove('is-hover'));
+    hideTip();
+    if (!b || again) return;
+    b.classList.add('is-hover');
+    showBinTip(b);
+    const p = placeNearTap(b.getBoundingClientRect(), tip.offsetWidth, tip.offsetHeight, e.clientX);
+    tip.style.transform = `translate(${p.left}px, ${p.top}px)`;
+    armTip(b, 'touch', hist);
+    histTip = b;
+  };
   const onKey = e => (opts.view === 'clusters' ? onClusterKey(e) : onRangesKey(e));
 
   rowsEl.addEventListener('pointermove', onMove);
@@ -1718,9 +1790,11 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
   rowsEl.addEventListener('click', onClick);
   hist.addEventListener('pointermove', onHistMove);
   hist.addEventListener('pointerleave', onHistLeave);
+  hist.addEventListener('click', onHistTap);
   body.addEventListener('keydown', onKey);
   body.addEventListener('blur', onLeave);
-  scroll.addEventListener('scroll', () => { if (!tip.hidden) hideTip(); schedulePaint(); }, { passive: true });
+  // A tip whose item this scroll moves closes (a keyboard tip follows it): the closer (armTip) does both.
+  scroll.addEventListener('scroll', () => { schedulePaint(); }, { passive: true });
   const onWinScroll = () => { if (container.classList.contains('ms-chart--flow')) schedulePaint(); };
   addEventListener('scroll', onWinScroll, { passive: true });
 
@@ -1793,6 +1867,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       ro.disconnect();
       offTheme();
       removeEventListener('scroll', onWinScroll);
+      closer.disarm();
       if (raf) cancelAnimationFrame(raf);
       vReset();
       tip.remove();

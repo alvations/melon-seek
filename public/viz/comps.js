@@ -10,9 +10,14 @@
 // text on the right. The current company (`current` option or `row.current`)
 // is emphasized. Keyboard: the chart is a listbox (arrows, Home/End, Enter).
 // Rows are sorted by median (high first) unless `sort: false`.
+// Tips (fix-touch-tips, features/shared.js "Floating tips and touch"): a mouse hovers a row for its tip
+// ("Click to see these roles"); on touch the first tap shows it ("Tap again to see these roles") and the
+// second opens that company; the keyboard's tip says "Press Enter to see these roles" and follows its row.
+// A tap elsewhere, a scroll that moves the row, Esc or the action closes it.
 
 import { colorFor, formatMoney, niceTicks, onThemeChange, readableOn, isDark } from './palette.js';
 import { robustBounds, formatTick } from './chart.js';
+import { isTouchInput, actionHint, tipCloser, inView, placeNearTap } from '../features/shared.js';
 
 const ROW_H = 28;
 // Plain words (persona review 2026-10-10, I-9): no "middle 50%", no "percentile".
@@ -67,14 +72,17 @@ export function createCompsChart(container, { onSelect } = {}) {
   let items = [];       // rendered rows (sorted), with .el
   let active = -1;
   let hover = -1;
+  let tipKind = null;   // what opened the tip: 'mouse', 'touch' or 'keyboard' (null: closed)
   let raf = 0;
+  const ACTION = 'see these roles';
+  const closer = tipCloser(() => setHover(-1));
 
   function render() {
     raf = 0;
     const activeSlug = items[active]?.slug ?? null;
     active = -1; hover = -1;
     list.removeAttribute('aria-activedescendant');
-    tip.hidden = true;
+    hideTip();
     const current = opts.current ?? rows.find(r => r.current)?.slug ?? null;
     items = rows.map(r => ({ ...r, current: r.slug === current || !!r.current }));
     const has = r => ok(r.median) && r.n > 0;
@@ -160,9 +168,9 @@ export function createCompsChart(container, { onSelect } = {}) {
     if (activeSlug != null) { const i = items.findIndex(r => r.slug === activeSlug); if (i >= 0) setActive(i, false); }
   }
 
-  function showTip(i, cx, cy) {
+  function showTip(i, kind, cx, cy) {
     const r = items[i];
-    if (!r) { tip.hidden = true; return; }
+    if (!r) { hideTip(); return; }
     tip.replaceChildren();
     if (ok(r.median) && r.n > 0) {
       tip.append(el('div', 'ms-tip__value', `${formatMoney(r.median)} median`));
@@ -172,22 +180,39 @@ export function createCompsChart(container, { onSelect } = {}) {
     }
     tip.append(el('div', 'ms-tip__title', (r.name || r.slug) + (r.current ? ' · this company' : '')));
     if (r.n > 0) tip.append(el('div', 'ms-tip__meta', plural(r.n, 'posting')));
-    if (onSelect && !r.current) tip.append(el('div', 'ms-tip__meta', 'Click to see these roles'));
+    if (onSelect && !r.current) tip.append(el('div', 'ms-tip__meta', actionHint(kind, ACTION)));
     tip.hidden = false;
-    const pad = 14, tw = tip.offsetWidth, th = tip.offsetHeight;
+    tipKind = kind;
+    position(i, kind, cx, cy);
+    closer.arm({ inside: [list], anchor: r.el, follow: kind === 'keyboard' ? () => (inView(r.el) ? (position(i, kind), true) : false) : null });
+  }
+
+  /** Mouse: beside the pointer. Touch: above the tapped row, clear of the finger. Keyboard: under the row. */
+  function position(i, kind, cx, cy) {
+    const b = items[i].el.getBoundingClientRect();
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    if (kind === 'touch') {
+      const p = placeNearTap(b, tw, th, cx);
+      tip.style.transform = `translate(${p.left}px, ${p.top}px)`;
+      return;
+    }
+    if (kind === 'keyboard') { cx = b.left + b.width / 2; cy = b.bottom; }
+    const pad = 14;
     let left = cx + pad, top = cy + pad;
     if (left + tw > innerWidth - 8) left = cx - tw - pad;
     if (top + th > innerHeight - 8) top = cy - th - pad;
     tip.style.transform = `translate(${Math.max(8, left)}px, ${Math.max(8, top)}px)`;
   }
 
-  function setHover(i, e) {
+  function hideTip() { tip.hidden = true; tipKind = null; closer.disarm(); }
+
+  /** Row i's hover look and its tip, opened by `kind` at (cx, cy); -1 clears both. */
+  function setHover(i, kind = 'keyboard', cx, cy) {
     if (hover >= 0 && hover !== i) items[hover]?.el?.classList.remove('is-hover');
     hover = i;
-    if (i < 0) { tip.hidden = true; return; }
+    if (i < 0) { hideTip(); return; }
     items[i]?.el?.classList.add('is-hover');
-    if (e) showTip(i, e.clientX, e.clientY);
-    else { const b = items[i].el.getBoundingClientRect(); showTip(i, b.left + b.width / 2, b.bottom); }
+    showTip(i, kind, cx, cy);
   }
 
   function setActive(i, announce = true) {
@@ -204,9 +229,29 @@ export function createCompsChart(container, { onSelect } = {}) {
   }
 
   const select = i => { const r = items[i]; if (r) onSelect?.(r.slug); };
-  list.addEventListener('pointermove', e => { const r = e.target.closest?.('.ms-comps__row'); setHover(r ? +r.dataset.i : -1, e); });
-  list.addEventListener('pointerleave', () => setHover(-1));
-  list.addEventListener('click', e => { const r = e.target.closest?.('.ms-comps__row'); if (r) { setActive(+r.dataset.i, false); select(+r.dataset.i); } });
+  const opens = i => !!(onSelect && items[i] && !items[i].current);
+  // A finger, and the mouse events a phone emulates after a tap, never hover (iOS sends no pointerleave after them).
+  list.addEventListener('pointermove', e => {
+    if (isTouchInput(e)) return;
+    const r = e.target.closest?.('.ms-comps__row');
+    if (r) setHover(+r.dataset.i, 'mouse', e.clientX, e.clientY);
+    else if (tipKind !== 'touch') setHover(-1);
+  });
+  list.addEventListener('pointerleave', e => { if (!isTouchInput(e) && tipKind !== 'touch') setHover(-1); });
+  list.addEventListener('click', e => {
+    const r = e.target.closest?.('.ms-comps__row');
+    if (!r) { if (tipKind === 'touch') setHover(-1); return; }
+    const i = +r.dataset.i;
+    setActive(i, false);
+    if (isTouchInput(e)) {
+      // The first tap shows the row's tip; a second tap on the same row opens it (or, with nothing to open, closes the tip).
+      if (!(tipKind === 'touch' && hover === i)) { const b = r.getBoundingClientRect(); setHover(i, 'touch', e.clientX || b.left + b.width / 2); return; }
+      setHover(-1);
+      if (opens(i)) select(i);
+      return;
+    }
+    if (opens(i)) { setHover(-1); select(i); }
+  });
   list.addEventListener('blur', () => setHover(-1));
   list.addEventListener('keydown', e => {
     const n = items.length;
@@ -217,7 +262,7 @@ export function createCompsChart(container, { onSelect } = {}) {
     else if (k === 'ArrowUp') i = active < 0 ? 0 : Math.max(0, active - 1);
     else if (k === 'Home') i = 0;
     else if (k === 'End') i = n - 1;
-    else if ((k === 'Enter' || k === ' ') && active >= 0) { e.preventDefault(); select(active); return; }
+    else if ((k === 'Enter' || k === ' ') && active >= 0) { e.preventDefault(); if (opens(active)) setHover(-1); select(active); return; }
     else if (k === 'Escape') {
       // D-8: the first Esc clears the list's own state (tooltip, active row) and is consumed; with
       // nothing left to clear it bubbles, so the drawer around the list closes.
@@ -249,6 +294,7 @@ export function createCompsChart(container, { onSelect } = {}) {
     destroy() {
       ro.disconnect();
       offTheme();
+      closer.disarm();
       if (raf) cancelAnimationFrame(raf);
       tip.remove();
       container.replaceChildren();
