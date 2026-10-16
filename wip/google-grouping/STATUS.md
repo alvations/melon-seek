@@ -2,21 +2,20 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a05870ef0d860271e`
 - Base (on claude/stoic-ride-54ddxp): `2474fc4fd41051bba264426562e3e0d37f24bc9c`
-- Head: `2474fc4fd41051bba264426562e3e0d37f24bc9c`
+- Head: `5963f2accbf44e77307f8382165a428df5fb7f20`
 - Restore: `bash scripts/cycle/restore-wip.sh google-grouping <new worktree dir>`
 
 ## Commits since the base
 ```
+5963f2a google-grouping: process log, prompt and CONTRACT section
+1d0c848 google-grouping: before/after screenshots, row lists and the list-packing patch
+fdc2357 google-grouping: e2e checks (Department rows, Company grouping, Company filter, other boards unchanged)
+61234d8 google-grouping: Company grouping and filter in chart mode, with URL state
+8842826 google-grouping: job families for Google from titles, brand kept as its own field
 ```
 
 ## Uncommitted and new files
 ```
-A  server/families.js
- M server/lib-modules.js
-M  server/sources/google.js
-M  test/fix-beta-sources.test.js
-A  test/fixtures/google-families-sample.json
-?? test/google-grouping.test.js
 ```
 
 ## Left out (not in untracked.tgz)

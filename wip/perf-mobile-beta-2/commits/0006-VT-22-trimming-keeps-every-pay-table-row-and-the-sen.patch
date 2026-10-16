@@ -1,7 +1,7 @@
 From 161a472bb6229ae2975013f2ad8739f9e089ff0a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sun, 11 Oct 2026 22:47:45 +0000
-Subject: [PATCH 6/7] VT-22: trimming keeps every pay-table row and the
+Subject: [PATCH 6/8] VT-22: trimming keeps every pay-table row and the
  sentence above it (fix5-data's patch, applied); VT-22 test un-todo'd
 
 No trimming drops a posting or a pay row (the user's no-cut rule).

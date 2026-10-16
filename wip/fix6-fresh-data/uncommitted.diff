@@ -1,17 +1,77 @@
-diff --git a/test/e2e/fix3-app.e2e.js b/test/e2e/fix3-app.e2e.js
-index aba3260..e1b134b 100644
---- a/test/e2e/fix3-app.e2e.js
-+++ b/test/e2e/fix3-app.e2e.js
-@@ -403,8 +403,10 @@ export function registerFix3AppTests(suite) {
-     assertEq(heads.join(' | '), 'Required | Nice to have', 'sub-headings');
-     const look = await about.textContent();
-     assert(look.includes('What they look for') && look.includes('A published paper') && look.includes(job.sections.fit[0]), 'both lists are shown');
--    // Without preferred qualifications, the list is as before: no sub-headings.
--    const plain = xai.jobs.find((j) => j !== job && j.sections?.fit?.length);
-+    // Without preferred qualifications, the list is as before: no sub-headings. The posting must have
-+    // no preferred list of its own: on the 2026-10-16 crawl 261 of xAI's 303 roles with fit bullets
-+    // have one (the first, "Application Security Engineer", has 9), and those rightly show both.
-+    const plain = xai.jobs.find((j) => j !== job && j.sections?.fit?.length && !j.sections?.preferred?.length);
-     if (plain) {
-       await page.keyboard.press('Escape'); await sleep(300);
-       await openDrawerFor(page, plain.id);
+diff --git a/server/keywords.js b/server/keywords.js
+index 1b61b65..e86e7d3 100644
+--- a/server/keywords.js
++++ b/server/keywords.js
+@@ -347,6 +347,19 @@ function cyrb53(str) {
+ }
+ 
+ const blockHash = (text) => cyrb53(boilerplateKey(text));
++// fix6-fresh-data: a team paragraph is also recognised by its sentences, so a copy with one word
++// changed still counts. Google's AI and Infrastructure paragraph reads "We're the driving force
++// behind…" on 377 postings, "the driving team" on 68 and "the driving channel" on 3; its last
++// sentence ("…key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google
++// Global Networking, Data Center operations…") is the same on all of them. Before, the 3-posting
++// copy was below teamParagraphs' minimum and tagged a data-centre technician "TPUs" and "GCP"
++// (2026-10-16 crawl). Sentence hashes carry their own prefix, so they never equal a block's, and
++// SENTENCE_MARK in a set says it holds some (it survives `new Set([...a, ...b])` unions).
++const SENTENCE_MARK = '~sentences';
++const sentenceHash = (key) => cyrb53(`s:${key}`);
++const SENTENCE_SPLIT_RE = /(?<=[.!?])\s+(?=[A-Z0-9"“‘'(])/;
++/** A block's sentences as boilerplate keys; [] for a one-sentence block (its block hash covers it). */
++const sentenceKeys = (text) => { const p = String(text || '').split(SENTENCE_SPLIT_RE); return p.length > 1 ? p.map(boilerplateKey) : []; };
+ const BOILERPLATE_MIN_CHARS = 20; // shorter blocks (headings, "Benefits") are never boilerplate
+ 
+ /**
+@@ -385,7 +398,9 @@ export function boilerplateParagraphs(htmlList, { minShare = 0.5, minJobs = 5 }
+  * postings), "Google Cloud accelerates every organization's ability…" (565), the ML, Systems &
+  * Cloud AI team's "…development of our TPUs, Vertex AI for Google Cloud…" (341), and Chrome's
+  * "Chrome is available across all major platforms — iOS, Android…" (10). One posting copied per
+- * country or city is one role, so its own prose is never counted. Pure; items: [{ html, title }].
++ * country or city is one role, so its own prose is never counted. fix6-fresh-data: each sentence
++ * of such a paragraph (at least `minChars`) is counted the same way, so a copy with one word
++ * changed still loses its shared sentences (SENTENCE_MARK). Pure; items: [{ html, title }].
+  */
+ export function teamParagraphs(items, { minPostings = 3, minTitles = 3, minChars = 60 } = {}) {
+   const list = (Array.isArray(items) ? items : []).filter((x) => x && typeof x.html === 'string' && x.html);
+@@ -404,8 +419,8 @@ export function teamParagraphs(items, { minPostings = 3, minTitles = 3, minChars
+       if (current && (b.type === 'li' || bulletPara || (b.line && listHeading))) { bullets.push(boilerplateKey(b.text)); continue; } // the role's own bullets
+       const key = boilerplateKey(b.text);
+       if (key.length < minChars) continue;
+-      const h = cyrb53(key);
+-      if (!seen.has(h)) seen.add(h);
++      seen.add(cyrb53(key));
++      for (const sk of sentenceKeys(b.text)) if (sk.length >= minChars) seen.add(sentenceHash(sk));
+     }
+     // One role: its own lists, else its title. A posting copied per city ("Forward Deployed
+     // Engineer - Munich", "- Paris") has the same lists under different titles: still one role.
+@@ -418,6 +433,7 @@ export function teamParagraphs(items, { minPostings = 3, minTitles = 3, minChars
+     }
+   }
+   for (const [h, c] of posts) if (c >= minPostings && roles.get(h).size >= minTitles) out.add(h);
++  if (out.size) out.add(SENTENCE_MARK);
+   return out;
+ }
+ 
+@@ -431,6 +447,7 @@ export function unionSets(a, b) {
+ /** Plain text of a description without the blocks in `skip` (boilerplate hashes). */
+ export function descriptionText(html, { skip = null } = {}) {
+   if (!skip || !skip.size) return htmlToText(html);
++  const bySentence = skip.has(SENTENCE_MARK);
+   const out = [];
+   let current = null;
+   let listHeading = false;
+@@ -443,7 +460,13 @@ export function descriptionText(html, { skip = null } = {}) {
+       continue;
+     }
+     const inSection = current && (b.type === 'li' || bulletPara || (b.line && listHeading));
+-    if (inSection || !skip.has(blockHash(b.text))) out.push(b.text);
++    if (inSection) { out.push(b.text); continue; }
++    if (skip.has(blockHash(b.text))) continue;
++    if (!bySentence) { out.push(b.text); continue; }
++    // A block that is not team prose as a whole keeps its own sentences (fix6-fresh-data).
++    const parts = b.text.split(SENTENCE_SPLIT_RE);
++    const own = parts.length > 1 ? parts.filter((t) => !skip.has(sentenceHash(boilerplateKey(t)))) : parts;
++    if (own.length) out.push(own.length === parts.length ? b.text : own.join(' '));
+   }
+   return out.join('\n');
+ }

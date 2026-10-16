@@ -1,0 +1,421 @@
+From 193205a43b594dab2c78d6ef5462e83deec742ef Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 14:50:57 +0000
+Subject: [PATCH 1/4] WIP salary-audit-backend: SB-1 stored Amazon rows kept,
+ SB-3 no 12-range cap, SB-4 New York City row, SB-5 Microsoft area range per
+ place, norm-11
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ server/normalize.js          |  53 +++++++++--
+ server/salary.js             |  18 ++++
+ server/sources/amazon.js     |  15 +++-
+ server/sources/upgrade.js    |  34 ++++---
+ test/salary-pipeline.test.js | 170 +++++++++++++++++++++++++++++++++++
+ 5 files changed, 269 insertions(+), 21 deletions(-)
+ create mode 100644 test/salary-pipeline.test.js
+
+diff --git a/server/normalize.js b/server/normalize.js
+index 879cb7c..18cd081 100644
+--- a/server/normalize.js
++++ b/server/normalize.js
+@@ -2,7 +2,7 @@
+ import { geocodeMany } from './geo.js';
+ import { extractSections, extractKeywords, jobSeniority, isSalesTitle } from './keywords.js';
+ import * as keywordsModule from './keywords.js';
+-import { parseSalary, toJobSalary, currenciesFor, payTerms, mayRelabelPay, payAreas } from './salary.js';
++import { parseSalary, toJobSalary, currenciesFor, payTerms, mayRelabelPay, payAreas, payAreaOf } from './salary.js';
+ import { htmlToText, isoOrNull } from './sources/util.js';
+ import { vetSalaries, salaryChecks } from './vet.js';
+ 
+@@ -33,11 +33,13 @@ import { vetSalaries, salaryChecks } from './vet.js';
+  * zone, virtual-location rows, salary.kind 'minimum', includesShiftDifferential, statedBase, stated
+  * annual figures, "$" in Mexico / Australia / New Zealand / Singapore / Hong Kong, NVIDIA cash
+  * compensation as 'ote', Meta salary.country, Amazon "III", Meta leadership and Microsoft IC/M
+- * levels, ISO-3 country codes, "20h per week"). Stored
++ * levels, ISO-3 country codes, "20h per week"); norm-11 = the salary audit (docs/process/salary-audit-backend.md:
++ * every posted range kept (no cap at 12), Amazon "New York City" rows tied to New York, Microsoft's SF Bay
++ * Area / NYC range kept per place for jobs with places inside and outside those areas). Stored
+  * snapshots are upgraded with relocateJobs (which also re-derives text-sourced pay, the
+  * pay labels and the level, then re-runs the vetting gate) and rekeyBoardJobs.
+  */
+-export const NORMALIZER_VERSION = 'norm-10';
++export const NORMALIZER_VERSION = 'norm-11';
+ 
+ const NO_EXTRAS = Object.freeze({ equity: false, bonus: false });
+ 
+@@ -129,12 +131,53 @@ export function deriveSalary(raw, locations = []) {
+     if (fromText && !salaryChecks(who, fromText).length) return terms({ ...fromText, zones: zonesOf(fromText), structuredRejected: hard.map((c) => c.code) });
+   }
+   // DQ-33 / VT-15: each range keeps the places it was posted for (ranges[].locations, as Apple's).
+-  if (salary && ranges.length > 1) salary.ranges = ranges.slice(0, 12).map(({ min, max, currency, interval, label, locations }) => ({ min, max, currency, interval, ...(label ? { label } : {}), ...(Array.isArray(locations) && locations.length ? { locations: [...locations] } : {}) }));
+-  if (!salary) salary = toJobSalary(parsed, { source: 'text' });
++  // SB-3 (salary audit): every posted range is kept. A cap at 12 dropped the rows after the twelfth,
++  // and with them those places' pay (a snapshot crawled before norm-11 can still lack them).
++  if (salary && ranges.length > 1) salary.ranges = ranges.map(({ min, max, currency, interval, label, locations }) => ({ min, max, currency, interval, ...(label ? { label } : {}), ...(Array.isArray(locations) && locations.length ? { locations: [...locations] } : {}) }));
++  if (!salary) {
++    salary = toJobSalary(parsed, { source: 'text' });
++    if (salary) salary = withAreaRanges(salary, parsed, locations);
++  }
+   if (salary) salary.zones = zonesOf(salary);
+   return salary ? terms(salary) : salary;
+ }
+ 
++/** A Location's key in salary.ranges[].locations (as Apple's and Amazon's ranges): the source string. */
++const placeKey = (l) => l && (l.rawName || l.name);
++const placeWords = (locs) => {
++  const words = [...new Set(locs.map((l) => (l.remote ? 'Remote' : String(l.city || placeKey(l) || '').split(',')[0].trim())).filter(Boolean))];
++  return words.length > 4 ? `${words.slice(0, 3).join(', ')} and ${words.length - 3} more` : words.join(', ');
++};
++
++/**
++ * SB-5 (salary audit, norm-11): Microsoft posts a national range and a second range for the SF Bay
++ * Area and New York City ("... the base pay range for this role in those locations is USD $X - $Y").
++ * A job located only in those areas already uses the second range (DQ-13). A job with places both
++ * inside and outside them kept only the national range, so its San Francisco or New York place was
++ * scored, filtered and shown on the national range. Here both posted ranges are kept, each tied to
++ * the job's places it applies to (salary.ranges[].locations, like Apple's and Amazon's): the national
++ * range for the job's other places in the pay's country, the area range for its places in the areas.
++ * salary.min/max stay the national range (DATA_SOURCES §7a). Annualized like the salary.
++ */
++export function withAreaRanges(salary, parsed, locations = []) {
++  const cr = parsed && parsed.cityRange;
++  if (!salary || !cr || !Array.isArray(cr.areas) || !cr.areas.length || (Array.isArray(salary.ranges) && salary.ranges.length)) return salary;
++  const country = salary.country || 'US';
++  const inCountry = (locations || []).filter((l) => l && placeKey(l) && String(l.country || '').toUpperCase() === country);
++  const inArea = inCountry.filter((l) => cr.areas.includes(payAreaOf(l)));
++  const others = inCountry.filter((l) => !inArea.includes(l));
++  if (!inArea.length || !others.length) return salary;
++  const city = toJobSalary({ ...parsed, min: cr.min, max: cr.max, levels: null, zones: 1 }, {});
++  if (!city || city.currency !== salary.currency) return salary;
++  return {
++    ...salary,
++    ranges: [
++      { label: placeWords(others), min: salary.min, max: salary.max, currency: salary.currency, interval: 'year', locations: others.map(placeKey) },
++      { label: placeWords(inArea), min: city.min, max: city.max, currency: city.currency, interval: 'year', locations: inArea.map(placeKey) },
++    ],
++  };
++}
++
+ /**
+  * Fix wave 4 (DQ-27): `salary.places`, the location strings (Location.rawName) a posting's pay
+  * was posted for, when the adapter knows it is only some of the posting's places (Apple posts a
+diff --git a/server/salary.js b/server/salary.js
+index 7fcdf7e..3a5bee2 100644
+--- a/server/salary.js
++++ b/server/salary.js
+@@ -1036,6 +1036,8 @@ export function parseSalary(text, { countries = [], areas = [] } = {}) {
+   //     degree] Poland: zł159000"), at most 3x. Lines for other countries are never part of
+   //     the span (DQ-15).
+   let group = null;
++  // SB-5: the national ranges the salary is read from (one, or the levels spanned below).
++  let usedNational = best.national && !city ? [best] : null;
+   if (city) group = cands.filter((c) => local(c) && same(c));
+   else if (best.national) group = cands.filter((c) => c.national === best.national && !c.cityOf && same(c));
+   else if (best.area) group = cands.filter((c) => !c.national && !c.cityOf && c.area === best.area && same(c));
+@@ -1052,6 +1054,7 @@ export function parseSalary(text, { countries = [], areas = [] } = {}) {
+     const bound = best.national || city ? 4 : TIER_MAX_RATIO;
+     if (group.length > 1 && glo > 0 && ghi / glo <= bound) {
+       lo = glo; hi = ghi;
++      if (usedNational) usedNational = group;
+       groupText = group.map((c) => `${c.level ? `${c.level.replace(/\s+/g, ' ')}: ` : ''}${flat(s.slice(c.start, c.end))}`).join('; ');
+       const names = group.map((c) => (c.level ? levelName(c.level) : null));
+       if (names.every(Boolean)) {
+@@ -1108,6 +1111,21 @@ export function parseSalary(text, { countries = [], areas = [] } = {}) {
+   // "across the U.S. is USD $X"), so Juice never applies it to another country's office.
+   const country = city ? nationalPick.area : bestCountry;
+   if (country) out.country = country;
++  // SB-5 (salary audit): the posting's own range for the SF Bay Area / NYC ("There is a different range
++  // applicable to specific work locations ... the base pay range for this role in those locations is
++  // USD $111,100 - $183,700 per year"), spanned over the same levels as the national salary. The salary
++  // stays the national range (DATA_SOURCES §7a); normalize.js#deriveSalary ties each range to the job's
++  // places when the job lists places both inside and outside those areas, so no posted range is dropped.
++  if (usedNational) {
++    const cityOwn = cands.filter((c) => c.cityOf && usedNational.includes(c.cityOf) && c.currency === best.currency && c.interval === best.interval && c.kind === best.kind);
++    if (cityOwn.length) {
++      out.cityRange = {
++        min: round2(Math.min(...cityOwn.map((c) => c.lo))),
++        max: round2(Math.max(...cityOwn.map((c) => c.hi))),
++        areas: [...new Set(cityOwn.flatMap((c) => c.cityAreas || []))],
++      };
++    }
++  }
+   return out;
+ }
+ 
+diff --git a/server/sources/amazon.js b/server/sources/amazon.js
+index e730899..7a2fa93 100644
+--- a/server/sources/amazon.js
++++ b/server/sources/amazon.js
+@@ -155,9 +155,15 @@ function placeOf(l) {
+   return { key, city: norm(l.city) || norm(String(key).split(',')[0]), region: norm(l.region) || null, country: l.country || null, remote: l.remote === true };
+ }
+ 
++// SB-4 (salary audit): a row's city as Amazon writes it in the pay table, and the same city as its
++// locations name it ("USA, NY, New York City" is the place "New York, New York, USA"). Whole names only.
++const ROW_CITY_ALIAS = Object.freeze({ 'new york city': 'new york' });
++const cityKey = (c) => (c ? ROW_CITY_ALIAS[c] || c : c);
++const sameCity = (a, b) => !!a && !!b && cityKey(a) === cityKey(b);
++
+ /** Does pay-table row place p name the posting place q? Cities and states compared whole. */
+ function rowNames(p, q) {
+-  if (!p || !q || q.remote || p.virtual || !p.city || p.city !== q.city) return false;
++  if (!p || !q || q.remote || p.virtual || !p.city || !sameCity(p.city, q.city)) return false;
+   if (p.country && q.country && ISO3_ISO2[p.country] && ISO3_ISO2[p.country] !== q.country) return false;
+   return !p.state || !q.region || p.state === q.region;
+ }
+@@ -235,8 +241,8 @@ export function amazonSalary(j, table = amazonPayTable(j.description, j.basic_qu
+   const sameCountry = (p) => !country || !p.country || p.country === country;
+   const row = (test) => rows.find((r) => test(r.place, r)) || null;
+   const pick = (primary && rows.find((r) => r.line === primary && (!r.place.virtual || r.locations.length)))
+-    || (city && (row((p) => p.city === city && sameCountry(p) && !!state && p.state === state)
+-    || row((p) => p.city === city && sameCountry(p) && (!state || !p.state))))
++    || (city && (row((p) => sameCity(p.city, city) && sameCountry(p) && !!state && p.state === state)
++    || row((p) => sameCity(p.city, city) && sameCountry(p) && (!state || !p.state))))
+     || row((p, r) => r.locations.length > 0 && !p.virtual)
+     || (country && (row((p) => p.country === country && !p.virtual) || row((p) => p.country === country)))
+     || rows[0];
+@@ -269,7 +275,8 @@ export function amazonSalary(j, table = amazonPayTable(j.description, j.basic_qu
+     if (g.locations.length) return short([...new Set(g.locations.map((l) => (/^remote\b/i.test(l) ? 'Remote' : String(l).split(',')[0].trim())))].join(', '));
+     return short([...new Set(g.rows.map((r) => (r.place.virtual ? `Remote${r.place.state ? ` (${r.place.state.toUpperCase()})` : ''}` : r.place.cityText || r.location)))].join(', '));
+   };
+-  const payRanges = groups.length > 1 ? groups.slice(0, 12).map((g) => ({
++  // SB-3 (salary audit): every distinct row is a range; none is cut (a cap at 12 dropped places' pay).
++  const payRanges = groups.length > 1 ? groups.map((g) => ({
+     min: yearly(g.min, g.interval), max: yearly(g.max, g.interval), currency: g.currency, interval: 'year', label: label(g),
+     ...(g.locations.length ? { locations: g.locations } : {}),
+   })) : [];
+diff --git a/server/sources/upgrade.js b/server/sources/upgrade.js
+index 329376a..78f9f50 100644
+--- a/server/sources/upgrade.js
++++ b/server/sources/upgrade.js
+@@ -22,7 +22,8 @@ import { upgradeAppleJobs } from './apple.js';
+ import { upgradeEightfoldJobs } from './eightfold.js';
+ import { upgradeGoogleJobs } from './google.js';
+ import { markTalentPools } from './pool.js';
+-import { amazonPayTable, amazonSalary } from './amazon.js';
++import { amazonPayTable, amazonSalary, amazonPlace } from './amazon.js';
++import { annualize } from '../salary.js';
+ import { deriveSalary, withPayPlaces } from '../normalize.js';
+ import { vetSalaries } from '../vet.js';
+ import { htmlToText } from './util.js';
+@@ -37,19 +38,28 @@ function upgradeAmazonJob(j) {
+   if (amazonPayTable(`<p>${sal.text}</p>`).length !== 1) return j;
+   if (Array.isArray(sal.ranges) && sal.ranges.some((r) => r && Array.isArray(r.locations))) return j;
+   let table = amazonPayTable(j.descriptionHtml);
++  // The adapter kept every row in salary.ranges (label = the row's place, numbers as posted).
++  const own = amazonPayTable(`<p>${sal.text}</p>`)[0];
++  const rs = Array.isArray(sal.ranges) ? sal.ranges.filter((r) => r && r.label && Number.isFinite(r.min) && Number.isFinite(r.max)) : [];
++  const storedRows = rs.map((r) => {
++    const row = { location: String(r.label), min: r.min, max: r.max, currency: r.currency, interval: r.interval || 'year', line: `${r.label} - ${r.min} - ${r.max} ${r.currency} ${r.interval}` };
++    if (own && own.location.startsWith(row.location) && own.min === r.min && own.max === r.max && own.currency === r.currency && own.interval === row.interval) row.line = sal.text;
++    return row;
++  });
+   if (!table.some((r) => r.line === sal.text)) {
+-    // VT-22: the stored description was trimmed and lost rows. The adapter kept every row in
+-    // salary.ranges (label = the row's place, numbers as posted), so the table is rebuilt from them.
+-    const own = amazonPayTable(`<p>${sal.text}</p>`)[0];
+-    const rs = Array.isArray(sal.ranges) ? sal.ranges.filter((r) => r && r.label && Number.isFinite(r.min) && Number.isFinite(r.max)) : [];
+-    table = rs.length > 1
+-      ? rs.map((r) => {
+-        const row = { location: String(r.label), min: r.min, max: r.max, currency: r.currency, interval: r.interval || 'year', line: `${r.label} - ${r.min} - ${r.max} ${r.currency} ${r.interval}` };
+-        if (own && own.location.startsWith(row.location) && own.min === r.min && own.max === r.max && own.currency === r.currency && own.interval === row.interval) row.line = sal.text;
+-        return row;
+-      })
+-      : [own];
++    // VT-22: the stored description was trimmed and lost rows, the salary's own row among them: the
++    // table is rebuilt from the stored ranges.
++    table = storedRows.length > 1 ? storedRows : [own];
+     if (!table.some((r) => r.line === sal.text)) table = [own, ...table];
++  } else if (storedRows.length > 1) {
++    // SB-1 (salary audit): a trimmed description can keep the salary's own row and lose others
++    // (scripts/snapshot.js#trimDescription kept 4 pay paragraphs). Every stored row the stored table
++    // no longer has is added back, so no place loses the range the posting gave it.
++    // Same place (the row's city) and the same yearly figures: a range stored yearly matches its hourly row.
++    const same = (a, b) => (amazonPlace(a.location).city || '') === (amazonPlace(b.location).city || '') && a.currency === b.currency
++      && annualize(a.min, a.interval) === annualize(b.min, b.interval) && annualize(a.max, a.interval) === annualize(b.max, b.interval);
++    const lost = storedRows.filter((r) => !table.some((t) => same(t, r)));
++    if (lost.length) table = [...table, ...lost];
+   }
+   const text = htmlToText(j.descriptionHtml);
+   const res = amazonSalary({}, table, { places: j.locations || [], primary: sal.text, text });
+diff --git a/test/salary-pipeline.test.js b/test/salary-pipeline.test.js
+new file mode 100644
+index 0000000..76c429b
+--- /dev/null
++++ b/test/salary-pipeline.test.js
+@@ -0,0 +1,170 @@
++// Salary pipeline audit (salary-audit-backend, 2026-10-16; docs/process/salary-audit-backend.md).
++// The user (2026-10-11): "Are you sure the salary range of the big tech are correct?! They don't look
++// correct and kinda all span too evenly." Each beta posting's pay was traced from the source adapter
++// to the pixel: stored snapshot -> build-static readSnapshot (relocateJobs, upgradeStoredJobs, the
++// vetting gate) -> the packed list -> the card (public/app.js payPill) -> the chart (public/viz/chart.js
++// chartPay) -> Juice (server/juice.js). Every place where the range a user sees could differ from the
++// range the company posted is a finding SB-n, and each test below failed before its fix.
++// Fixtures are short excerpts of real postings in the 2026-10-16 crawl, never a whole snapshot.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import path from 'node:path';
++import { fileURLToPath } from 'node:url';
++
++import { normalizeJob, normalizeLocations, deriveSalary, NORMALIZER_VERSION } from '../server/normalize.js';
++import { parseSalary } from '../server/salary.js';
++import { mapAmazonJob, amazonSalary, amazonPayTable } from '../server/sources/amazon.js';
++import { upgradeStoredJobs } from '../server/sources/upgrade.js';
++import { attachJuice } from '../server/juice.js';
++import { getCompany } from '../server/companies.js';
++import { payLocations } from '../public/features/shared.js';
++import { chartPay } from '../public/viz/chart.js';
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const CITIES = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'cities.json'), 'utf8'));
++const company = (slug) => getCompany(slug) || { slug, name: slug };
++const places = (...names) => normalizeLocations({ locationText: names[0], extraLocations: names.slice(1) });
++const key = (l) => l.rawName || l.name;
++
++/* ------------------------------------------------------------------- Amazon */
++const AMAZON_PAY_INTRO = '<p>The base salary range for this position is listed below. Your Amazon package will include sign-on payments and restricted stock units (RSUs). Final compensation will be determined based on factors including experience, qualifications, and location.</p>';
++const amazonLoc = (name) => JSON.stringify({ normalizedLocation: name, type: 'ONSITE' });
++function amazonRow({ id, title, city, state, places: list, table }) {
++  return {
++    id_icims: id, title, job_path: `/en/jobs/${id}/x`, job_category: 'Software Development', job_family: 'Software Development',
++    job_schedule_type: 'full-time', city, state, country_code: 'USA', posted_date: 'October 10, 2026',
++    locations: list.map(amazonLoc),
++    description: `<p>${'The team builds and runs the systems. '.repeat(40)}</p>${AMAZON_PAY_INTRO}${table.map((l) => `<p>${l}</p>`).join('')}`,
++    basic_qualifications: '- Bachelor\'s degree', preferred_qualifications: '',
++  };
++}
++
++// SB-1. amazon:10544529 "Data Center Category Manager, Data Center Sourcing & Procurement",
++// https://www.amazon.jobs/en/jobs/10544529 : Austin, Arlington, Herndon 79,500–139,100; Seattle 82,700–139,100.
++// The snapshot stores the description trimmed (scripts/snapshot.js), which kept the Austin, Arlington
++// and Herndon rows and lost Seattle's; salary.ranges still holds all four rows (a norm-9 snapshot).
++// The read-time upgrade (server/sources/upgrade.js) re-read only the trimmed table, so Seattle's own
++// range was dropped and Seattle was served as a place with no posted pay (salary.places without it).
++// 2026-10-11 crawl: 36 Amazon postings lost 38 posted rows this way.
++test('SB-1 Amazon: a stored row the trimmed description lost is kept (Seattle keeps its 82,700–139,100)', () => {
++  const locations = places('Austin, Texas, USA', 'Arlington, Virginia, USA', 'Seattle, Washington, USA', 'Herndon, Virginia, USA');
++  const trimmed = `<p>${'Data center sourcing. '.repeat(30)}</p><p>[…] Full description on the posting page.</p><p>USA, TX, Austin - 79,500.00 - 139,100.00 USD annually</p><p>USA, VA, Arlington - 79,500.00 - 139,100.00 USD annually</p><p>USA, VA, Herndon - 79,500.00 - 139,100.00 USD annually</p>`;
++  const stored = {
++    id: 'amazon:10544529', company: 'amazon', companyName: 'Amazon', title: 'Data Center Category Manager, Data Center Sourcing & Procurement',
++    locations, remote: false, descriptionHtml: trimmed,
++    salary: {
++      min: 79500, max: 139100, mid: 109300, currency: 'USD', interval: 'year', text: 'USA, VA, Arlington - 79,500.00 - 139,100.00 USD annually',
++      kind: 'salary', spread: 1.75, zones: 4, source: 'structured',
++      ranges: [
++        { min: 79500, max: 139100, currency: 'USD', interval: 'year', label: 'USA, TX, Austin' },
++        { min: 79500, max: 139100, currency: 'USD', interval: 'year', label: 'USA, VA, Arlington' },
++        { min: 79500, max: 139100, currency: 'USD', interval: 'year', label: 'USA, VA, Herndon' },
++        { min: 82700, max: 139100, currency: 'USD', interval: 'year', label: 'USA, WA, Seattle' },
++      ],
++    },
++  };
++  const [up] = upgradeStoredJobs([stored]);
++  assert.equal(up.salary.min, 79500, 'reference: the primary row (Arlington) stays the salary');
++  const seattle = (up.salary.ranges || []).find((r) => (r.locations || []).includes('Seattle, Washington, USA'));
++  assert.ok(seattle, `Seattle has its own range: ${JSON.stringify(up.salary.ranges || null)} places ${JSON.stringify(up.salary.places || null)}`);
++  assert.deepEqual([seattle.min, seattle.max], [82700, 139100]);
++  assert.ok(payLocations(up).some((l) => l.city === 'Seattle'), 'Seattle is a place the pay is posted for');
++  const j = attachJuice(JSON.parse(JSON.stringify(up)), CITIES);
++  const sea = j.juice && j.juice.byLocation.find((b) => /Seattle/.test(b.locationName));
++  assert.ok(sea, 'Seattle has Juice');
++  assert.equal(sea.gross, (82700 + 139100) / 2, 'Seattle is scored on its own range');
++});
++
++// SB-2. The root cause of SB-1 for new crawls: scripts/snapshot.js trimDescription kept the first 4
++// pay paragraphs, so a table of more rows lost the rest (the 2026-10-16 Amazon snapshot is trimmed to
++// 800 characters). Fixed by docs/process/patches/fix5-data-trim.diff (VT-22), which perf-mobile-beta-2
++// applied in its own lane (161a472); its test is 'VT-22 trimming a description keeps every row of its
++// pay table' in test/beta-vetting-2.test.js, so it is not repeated here.
++
++// SB-3. Ranges were cut at 12 (server/sources/amazon.js amazonSalary payRanges, server/normalize.js
++// deriveSalary): a posting with more distinct rows lost the places after the twelfth. A 2026-10-11
++// norm-8 snapshot shows it: amazon:10536115 "Engineering Operations Technician" stored zones 12 and
++// 12 ranges for 14 rows; Sterling and Herndon were then served with no posted pay.
++test('SB-3 every distinct pay row is kept as a range (14 rows, 14 ranges)', () => {
++  const cities = [['Seattle', 'WA', 'Washington'], ['Austin', 'TX', 'Texas'], ['Boston', 'MA', 'Massachusetts'], ['Denver', 'CO', 'Colorado'],
++    ['Chicago', 'IL', 'Illinois'], ['Atlanta', 'GA', 'Georgia'], ['Phoenix', 'AZ', 'Arizona'], ['Portland', 'OR', 'Oregon'], ['Nashville', 'TN', 'Tennessee'],
++    ['Miami', 'FL', 'Florida'], ['Detroit', 'MI', 'Michigan'], ['Columbus', 'OH', 'Ohio'], ['Minneapolis', 'MN', 'Minnesota'], ['Pittsburgh', 'PA', 'Pennsylvania']];
++  const table = cities.map(([c, s], i) => `USA, ${s}, ${c} - ${100000 + i * 1000}.00 - ${150000 + i * 1000}.00 USD annually`);
++  const row = amazonRow({ id: '1', title: 'Solutions Architect', city: 'Seattle', state: 'WA', places: cities.map(([c, , st]) => `${c}, ${st}, USA`), table });
++  const { payRanges } = amazonSalary(row);
++  assert.equal(payRanges.length, 14, `adapter ranges ${payRanges.length}`);
++  const job = normalizeJob(mapAmazonJob(row), company('amazon'));
++  assert.equal(job.salary.ranges.length, 14, `served ranges ${job.salary.ranges.length}`);
++  const pitt = job.salary.ranges.find((r) => (r.locations || []).includes('Pittsburgh, Pennsylvania, USA'));
++  assert.ok(pitt, 'the 14th place keeps its range');
++  assert.deepEqual([pitt.min, pitt.max], [113000, 163000]);
++});
++
++// SB-4. Amazon writes New York's row as "USA, NY, New York City"; its locations say "New York, New
++// York, USA". The row was tied to no place, so New York was scored on the primary city's range and,
++// under a Location filter, had no range of its own. amazon:10561521 "Principal Technical Product
++// Manager, AgentCore" (New York, Seattle, Santa Clara): New York 199,200–269,500.
++test('SB-4 Amazon: the "New York City" row is New York\'s range', () => {
++  const row = amazonRow({
++    id: '10561521', title: 'Principal Technical Product Manager, AgentCore', city: 'Seattle', state: 'WA',
++    places: ['New York, New York, USA', 'Seattle, Washington, USA', 'Santa Clara, California, USA'],
++    table: ['USA, CA, Santa Clara - 208,300.00 - 281,800.00 USD annually', 'USA, NY, New York City - 199,200.00 - 269,500.00 USD annually', 'USA, WA, Seattle - 181,100.00 - 245,000.00 USD annually'],
++  });
++  const job = normalizeJob(mapAmazonJob(row), company('amazon'));
++  const ny = job.salary.ranges.find((r) => r.min === 199200);
++  assert.ok(ny, 'reference: the New York row is a range');
++  assert.deepEqual(ny.locations, ['New York, New York, USA'], `New York's range is tied to ${JSON.stringify(ny.locations || null)}`);
++  const j = attachJuice(job, CITIES);
++  const nyc = j.juice && j.juice.byLocation.find((b) => /New York/.test(b.locationName));
++  assert.ok(nyc, 'New York has Juice');
++  assert.equal(nyc.gross, (199200 + 269500) / 2, `New York is scored on ${nyc.gross}`);
++});
++
++/* ---------------------------------------------------------------- Microsoft */
++// SB-5. microsoft:1970393556746669 "Senior Software Engineer" (Redmond, WA; New York, NY),
++// https://apply.careers.microsoft.com/careers/job/1970393556746669 : "… across the U.S. is USD $119,800 -
++// $234,700 per year. There is a different range applicable to specific work locations, within the San
++// Francisco Bay area and New York City metropolitan area, and the base pay range for this role in those
++// locations is USD $160,200 - $261,000 per year." A job located only in those areas already uses the
++// second range (DQ-13); a job with places inside and outside them dropped it, so its New York place was
++// scored, filtered and shown on the national range. 258 Microsoft postings on 2026-10-16.
++const MS_TEXT = 'Software Engineering IC4 - The typical base pay range for this role across the U.S. is USD $119,800 - $234,700 per year. There is a different range applicable to specific work locations, within the San Francisco Bay area and New York City metropolitan area, and the base pay range for this role in those locations is USD $160,200 - $261,000 per year.';
++test('SB-5 Microsoft: the SF Bay Area / NYC range is kept for the job\'s New York place', () => {
++  const locations = places('Redmond, WA, US', 'New York, NY, US');
++  const s = deriveSalary({ title: 'Senior Software Engineer', employmentType: 'Full-time', text: MS_TEXT, html: '' }, locations);
++  assert.deepEqual([s.min, s.max], [119800, 234700], 'reference: the national range stays the salary');
++  const ny = (s.ranges || []).find((r) => (r.locations || []).includes('New York, NY, US'));
++  assert.ok(ny, `New York has its own range: ${JSON.stringify(s.ranges || null)}`);
++  assert.deepEqual([ny.min, ny.max], [160200, 261000]);
++  const red = s.ranges.find((r) => (r.locations || []).includes('Redmond, WA, US'));
++  assert.deepEqual([red.min, red.max], [119800, 234700], 'Redmond keeps the national range');
++  const job = attachJuice({ id: 'microsoft:1970393556746669', company: 'microsoft', title: 'Senior Software Engineer', locations, salary: s }, CITIES);
++  const nyc = job.juice && job.juice.byLocation.find((b) => /New York/.test(b.locationName));
++  assert.ok(nyc, 'New York has Juice');
++  assert.equal(nyc.gross, (160200 + 261000) / 2, `New York is scored on ${nyc.gross}`);
++});
++
++test('SB-5 the national-only and area-only cases are unchanged', () => {
++  // Redmond only: one range, no ranges[] (nothing else was posted for its places).
++  const red = deriveSalary({ title: 'Senior Software Engineer', text: MS_TEXT, html: '' }, places('Redmond, WA, US'));
++  assert.deepEqual([red.min, red.max, red.ranges], [119800, 234700, undefined]);
++  // New York only: the area range is the salary (DQ-13).
++  const ny = deriveSalary({ title: 'Senior Software Engineer', text: MS_TEXT, html: '' }, places('New York, NY, US'));
++  assert.deepEqual([ny.min, ny.max, ny.ranges], [160200, 261000, undefined]);
++  // The parser reports the area range beside the national salary.
++  const p = parseSalary(MS_TEXT, { countries: ['US'] });
++  assert.deepEqual(p.cityRange, { min: 160200, max: 261000, areas: ['sf-bay', 'nyc'] });
++});
++
++/* -------------------------------------------------------------------- chart */
++// Reference (no defect): the chart plots each posting's own min, max and midpoint in approx USD,
++// exactly the served salary (the trace found 0 differences on 32,000+ postings).
++test('chart: a posting is plotted at its served range in approx USD', () => {
++  const { plotted } = chartPay([{ id: 'x:1', salary: { min: 141000, max: 202000, mid: 171500, currency: 'USD' }, locations: [] }]);
++  assert.deepEqual([plotted[0].lo, plotted[0].hi, plotted[0].mid], [141000, 202000, 171500]);
++});
++
++test('normalizer version is norm-11 (SB-3, SB-4, SB-5 change normalized pay)', () => {
++  assert.equal(NORMALIZER_VERSION, 'norm-11');
++});
+-- 
+2.43.0
+
