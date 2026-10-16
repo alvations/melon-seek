@@ -107,6 +107,11 @@ BG|Belgrade|RS|44.79|20.45|Beograd
 
 // ---------------------------------------------------------------------------
 // Countries: ISO2 | name | lat | lng | aliases (;-separated)
+// fix6-fresh-data (2026-10-16): Bahrain and Jordan, at the centroids of Google's canonical
+// countries.csv (developers.google.com/public-data/docs/canonical/countries_csv), the table the
+// rows above were rounded from. Microsoft lists a posting at a bare "JO" and Amazon at "Manama,
+// BHR"; a country missing here showed its raw code in the Location filter (D-23). A code still
+// missing is named by countryName() below, so a new country never shows as a bare code.
 // ---------------------------------------------------------------------------
 
 const COUNTRIES_RAW = `
@@ -155,6 +160,8 @@ UA|Ukraine|48.38|31.17|UA
 AM|Armenia|40.07|45.04|
 IL|Israel|31.05|34.85|ISR
 KW|Kuwait|29.31|47.48|
+BH|Bahrain|25.93|50.64|
+JO|Jordan|30.59|36.24|
 PS|Palestine|31.95|35.23|State of Palestine;Palestinian Territories
 AE|United Arab Emirates|23.42|53.85|UAE;U.A.E.;AE;ARE
 SA|Saudi Arabia|23.89|45.08|KSA;Kingdom of Saudi Arabia
@@ -568,13 +575,36 @@ const COUNTRY_BY_CODE = new Map();
 // DQ-40 (fix wave 5): ISO 3166 alpha-3 codes as Amazon writes them at the end of a place
 // ("Bratislava, Bratislavský kraj, SVK", "Enns, Upper Austria, AUT"). Read only when written in
 // capitals (a lower-case "can" or "per" is a word, not a country).
-const ISO3_TO_ISO2 = Object.freeze(Object.fromEntries(`USA US|CAN CA|MEX MX|CRI CR|BRA BR|ARG AR|CHL CL|COL CO|PER PE|URY UY|GBR GB|IRL IE|FRA FR|DEU DE|NLD NL|BEL BE|LUX LU|CHE CH|AUT AT|ITA IT|ESP ES|PRT PT|SWE SE|NOR NO|DNK DK|FIN FI|ISL IS|EST EE|LVA LV|LTU LT|POL PL|CZE CZ|HUN HU|ROU RO|BGR BG|SRB RS|HRV HR|SVK SK|SVN SI|GRC GR|TUR TR|UKR UA|ARM AM|ISR IL|KWT KW|ARE AE|SAU SA|QAT QA|EGY EG|NGA NG|GHA GH|KEN KE|ZAF ZA|IND IN|PAK PK|JPN JP|KOR KR|CHN CN|HKG HK|MAC MO|TWN TW|SGP SG|MYS MY|IDN ID|PHL PH|THA TH|VNM VN|AUS AU|NZL NZ`.split('|').map((x) => x.split(' '))));
+const ISO3_TO_ISO2 = Object.freeze(Object.fromEntries(`USA US|CAN CA|MEX MX|CRI CR|BRA BR|ARG AR|CHL CL|COL CO|PER PE|URY UY|GBR GB|IRL IE|FRA FR|DEU DE|NLD NL|BEL BE|LUX LU|CHE CH|AUT AT|ITA IT|ESP ES|PRT PT|SWE SE|NOR NO|DNK DK|FIN FI|ISL IS|EST EE|LVA LV|LTU LT|POL PL|CZE CZ|HUN HU|ROU RO|BGR BG|SRB RS|HRV HR|SVK SK|SVN SI|GRC GR|TUR TR|UKR UA|ARM AM|ISR IL|KWT KW|BHR BH|JOR JO|ARE AE|SAU SA|QAT QA|EGY EG|NGA NG|GHA GH|KEN KE|ZAF ZA|IND IN|PAK PK|JPN JP|KOR KR|CHN CN|HKG HK|MAC MO|TWN TW|SGP SG|MYS MY|IDN ID|PHL PH|THA TH|VNM VN|AUS AU|NZL NZ`.split('|').map((x) => x.split(' '))));
 for (const line of COUNTRIES_RAW.trim().split('\n')) {
   const [code, name, lat, lng, aliases] = line.split('|');
   const c = { code, name, lat: +lat, lng: +lng };
   COUNTRY_BY_CODE.set(code, c);
   COUNTRIES.set(normKey(name), c);
   for (const a of aliases ? aliases.split(';') : []) COUNTRIES.set(normKey(a), c);
+}
+// Amazon writes Puerto Rico's alpha-3 code as a place of its own ("San Juan, Puerto Rico" next to
+// "PRI"); the gazetteer keeps Puerto Rico with the US states (fix6-fresh-data).
+const ISO3_US_TERRITORY = Object.freeze({ PRI: 'PR' });
+
+// fix6-fresh-data (D-23): the English name of an ISO 3166-1 alpha-2 code the table above lacks,
+// from the runtime's own region names (Intl.DisplayNames, as public/app.js names countries), so a
+// country new to a board reads "Jordan", not "JO". User-assigned and grouping codes ("ZZ" is
+// "Unknown Region", "EU", "UN", "QO") are not countries; XK (Kosovo) is.
+const NOT_A_COUNTRY_RE = /^(?:AA|Q[M-Z]|X[A-JL-Z]|ZZ|EU|EZ|UN|UK)$/;
+let regionNames;
+/** English name of an ISO2 country code: the gazetteer's, else the runtime's; null if none. */
+export function countryName(code) {
+  const c = String(code || '');
+  if (COUNTRY_BY_CODE.has(c)) return COUNTRY_BY_CODE.get(c).name;
+  if (!/^[A-Z]{2}$/.test(c) || NOT_A_COUNTRY_RE.test(c)) return null;
+  try {
+    regionNames ??= new Intl.DisplayNames(['en'], { type: 'region' });
+    const n = regionNames.of(c);
+    return n && n !== c ? n : null;
+  } catch {
+    return null; // a runtime without Intl.DisplayNames
+  }
 }
 
 const CITIES = []; // all entries
@@ -624,6 +654,10 @@ function regionInfo(token) {
   if (!key) return null;
   if (STATES.has(key)) {
     const s = STATES.get(key);
+    return { kind: 'state', region: s.abbr, country: 'US', lat: s.lat, lng: s.lng };
+  }
+  if (ISO3_US_TERRITORY[compact]) { // capitals only, as for the alpha-3 countries below
+    const s = STATE_BY_ABBR.get(ISO3_US_TERRITORY[compact]);
     return { kind: 'state', region: s.abbr, country: 'US', lat: s.lat, lng: s.lng };
   }
   if (/^[A-Z]{3}$/.test(compact) && ISO3_TO_ISO2[compact] && COUNTRY_BY_CODE.has(ISO3_TO_ISO2[compact])) {
@@ -911,6 +945,11 @@ function resolvePlaceTokens(name, cleaned, extra) {
     const c = COUNTRY_BY_CODE.get(tokens[0]);
     return fromRegion(name, { region: null, country: c.code, lat: c.lat, lng: c.lng });
   }
+  // A bare code of a country the gazetteer lacks, and nothing else ("WA", "ON" and "MD" are
+  // regions first): that country by name, with no coordinates (D-23, fix6-fresh-data).
+  if (tokens.length === 1 && /^[A-Z]{2}$/.test(tokens[0]) && !regionInfo(tokens[0]) && countryName(tokens[0])) {
+    return fromRegion(name, { region: null, country: tokens[0], lat: null, lng: null });
+  }
   // "Seattle WA" / "Austin TX" / "Sydney NSW, Australia" without comma.
   const m = tokens[0].match(/^(.*\S)\s+([A-Z]{2,3}|[A-Z]\.[A-Z]\.)$/);
   if (m && regionInfo(m[2]) && isKnownCity(m[1])) tokens = [m[1], m[2], ...tokens.slice(1)];
@@ -1012,7 +1051,7 @@ function resolveRemote(name) {
  * Unknown places keep their name with lat/lng null.
  */
 const COUNTRY_LABEL = { GB: 'UK', US: 'US' };
-const countryLabel = (code) => COUNTRY_LABEL[code] || (COUNTRY_BY_CODE.get(code) || {}).name || code;
+const countryLabel = (code) => COUNTRY_LABEL[code] || countryName(code) || code;
 function regionLabel(region, country) {
   if (country === 'US' && STATE_BY_ABBR.has(region)) return STATE_BY_ABBR.get(region).name;
   const r = REGION_BY_CODE.get(region);
@@ -1034,7 +1073,7 @@ export function canonicalName(loc) {
     return normKey(cl) === normKey(loc.city) ? loc.city : `${loc.city}, ${cl}`; // city-states: "Singapore"
   }
   if (loc.region && loc.country) return `${regionLabel(loc.region, loc.country)}, ${countryLabel(loc.country)}`;
-  if (loc.country && loc.lat != null) return (COUNTRY_BY_CODE.get(loc.country) || {}).name || loc.country;
+  if (loc.country && (loc.lat != null || !COUNTRY_BY_CODE.has(loc.country))) return countryName(loc.country) || loc.country;
   return String(loc.rawName || loc.name || '').replace(/\s+/g, ' ').trim();
 }
 
