@@ -1,7 +1,7 @@
 From 8de8c2806f7b6aa8ccd9883bd5bb72311cf1f2b0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 16:18:13 +0000
-Subject: [PATCH 3/8] WIP perf-mobile-beta-2: bundled lists unpack in 40 ms
+Subject: [PATCH 3/9] WIP perf-mobile-beta-2: bundled lists unpack in 40 ms
  slices; derive counts keyword facets on first read
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
