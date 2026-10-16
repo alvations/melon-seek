@@ -399,14 +399,15 @@ export function placeCircles(items, { x, need }) {
 }
 
 /**
- * viz-even: what makes two Ranges bars the same bar: the colour key, the posted range (its currency and
- * values, converted the same way), the midpoint, and the bar's pattern (on-target earnings, a span of
- * several levels with the same levels, part-time hourly). Two postings with one key draw one bar.
+ * viz-even: what makes two Ranges bars the same bar: the colour it is drawn in (`colour`, by default its
+ * colour key; every department past the legend's seven is the one "Other" colour), the posted range (its
+ * currency and values, converted the same way), the midpoint, and the bar's pattern (on-target earnings,
+ * a span of several levels with the same levels, part-time hourly). Two postings with one key draw one bar.
  */
-export function rangeKey(p) {
+export function rangeKey(p, colour = p.key) {
   const sp = p.span || null;
   const levels = sp && sp.kind === 'levels' ? sp.tiers.map((t) => `${t.label || ''}:${t.min}-${t.max}`).join(',') : '';
-  return [p.key ?? '', p.cur, p.lo, p.hi, p.mid, p.ote ? 'ote' : '', sp ? `span:${levels}` : '', p.partTime ? 'pt' : ''].join('\u0001');
+  return [colour ?? '', p.cur, p.lo, p.hi, p.mid, p.ote ? 'ote' : '', sp ? `span:${levels}` : '', p.partTime ? 'pt' : ''].join('\u0001');
 }
 
 /**
@@ -1371,7 +1372,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     for (const g of groups()) {
       // viz-even: postings with the same bar are one row with their count (stackRanges); a row's first
       // posting stands for it (p.stack holds them all, p.n counts them).
-      const stacks = stackRanges(g.items);
+      const stacks = stackRanges(g.items, (p) => rangeKey(p, opts.colorBy === 'none' ? null : topSet.has(p.key) ? p.key : OTHER_KEY));
       if (g.name != null) {
         const first = gi++ === 0;
         vItems.push({ y, h: HEAD_H, build: () => buildHead(g, first) });
@@ -1487,7 +1488,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
   function rowTitle(p) {
     if (!(p.n > 1)) return p.job.title || 'Untitled';
     const title = shared(p, (j) => j.title || null);
-    return `${p.n.toLocaleString()} roles${title ? ` \u00b7 ${title}` : ''}`;
+    return `${p.n.toLocaleString()} roles${title ? ` · ${title}` : ''}`;
   }
 
   function optionName(p) {
@@ -1507,10 +1508,11 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     return `${p.job.title || 'Untitled'}, ${range}${approx ? ' in US dollars, converted' : ''}${p.ote ? ', on-target earnings' : ''}${kind}${pt}${where ? ', ' + where : ''}`;
   }
 
-  /** viz-even: the list label for a row of several postings ("Software Engineering \u00b7 $120K\u2013$235K"). */
+  /** viz-even: the list label for a row of several postings ("Software Engineering · $120K–$235K"). */
   function stackLabel(p) {
-    const head = p.group != null ? p.group : opts.colorBy !== 'none' && p.key != null ? groupName(opts.colorBy, p.key) : null;
-    return `${head ? `${head} \u00b7 ` : ''}${rangeText(p)}`;
+    const key = p.group != null ? null : opts.colorBy !== 'none' ? shared(p, (j) => keyOf(j, opts.colorBy)) : null;
+    const head = p.group != null ? p.group : key != null ? groupName(opts.colorBy, key) : null;
+    return `${head ? `${head} · ` : ''}${rangeText(p)}`;
   }
 
   /** Enter or a click on a Ranges row: one posting opens; a row of several lists them (as a circle does). */
