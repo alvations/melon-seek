@@ -2,21 +2,25 @@
 
 ## State
 
-Updated 2026-10-16 13:45. Worktree `.claude/worktrees/agent-a7425c5dcd4e39cbe`, detached, on 2474fc4.
+Updated 2026-10-16 15:30. Worktree `.claude/worktrees/agent-a7425c5dcd4e39cbe`, detached, on 2474fc4.
 
 - **Done, tested, committed:** no posting dropped (0b8413d, pushed by the lead); melon-packed-3 lists
   (fc084ee); Juice in time slices, the sections budget measured in melon-packed-2 bytes, the
   readableTitle memo patch (fdff79f); the budget test (abac18a); registry lines (b2e59c9); VT-22 trim
-  patch applied and its test un-todo'd (161a472). Full-scale identity: every list of both sites on the
-  2026-10-16 crawl (Amazon 22,179) unpacks and comes out of getJobs exactly as on 2474fc4.
-- **In progress:** the timed record on the 2026-10-16 crawl (`<scratch>/perf-mobile-beta-2/tools/timed2.sh`:
-  base `dist-b` = 2474fc4, head `dist-a`, `dist-p` = head + the roles.js patch; each step waits for a
-  1-minute load under 1.5). Results land in `<scratch>/perf-mobile-beta-2/perf-f-*.json`.
-- **Next step:** when `timed2.log` says "all done", fill sections 5.3-5.5 from the perf-f-*.json files
-  (`perf-mobile-beta-coldtable.mjs perf-f-base-cold3.json perf-f-head-cold3.json`,
-  `perf-mobile-beta-table.mjs perf-f-base.json perf-f-head.json`), commit, report to the lead.
-  If the container restarted: rebuild with `tools/build-fresh.sh`, then rerun `tools/timed2.sh`
-  (`STEPS="cold matrix patched"`, or only the missing ones).
+  patch applied and its test un-todo'd (161a472); the no-data CI fix of the new tests (c673b9c);
+  brand/departmentBasis round-trip in the test (d25d42c). Full-scale identity: every list of both sites on
+  the 2026-10-16 crawl (Amazon 22,179) unpacks and comes out of getJobs exactly as on 2474fc4.
+  google-grouping-pack.diff not applied (moot under melon-packed-3, and it would reorder keys; 5.2).
+- **In progress:** the timed record on the 2026-10-16 crawl, interleaved because other lanes keep the
+  load at 4-12 (`<scratch>/perf-mobile-beta-2/tools/timed3.sh`: base `dist-b` = 2474fc4, head `dist-a`,
+  `dist-p` = head + the roles.js patch; 3 rounds of cold loads, then one full matrix per network; a run
+  starts when the 1-minute load is under 2.5 and records its load). Output: `perf-c-*-N.json`,
+  `perf-m-*.json` in `<scratch>/perf-mobile-beta-2/`, progress in `timed3.log`.
+- **Next step:** when `timed3.log` says "all done": `node docs/process/scripts/perf-mobile-beta-2-merge.mjs
+  <scratch>/perf-mobile-beta-2 c-base c-head c-patch`, then `perf-mobile-beta-coldtable.mjs` (base vs head,
+  head vs patch) and `perf-mobile-beta-table.mjs perf-m-base-fast4g.json perf-m-head-fast4g.json`; fill 5.3-5.5,
+  commit, report. If the container restarted: `tools/build-fresh.sh`, recreate `dist-p` (hard-link copy of
+  dist-a with patchwork/roles.js), rerun `tools/timed3.sh` (STEPS="cold" or "matrix" for the missing part).
 
 ## 1. Brief
 
