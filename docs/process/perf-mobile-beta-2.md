@@ -2,25 +2,28 @@
 
 ## State
 
-Updated 2026-10-16 15:30. Worktree `.claude/worktrees/agent-a7425c5dcd4e39cbe`, detached, on 2474fc4.
+Updated 2026-10-16 16:35. Worktree `.claude/worktrees/agent-a7425c5dcd4e39cbe`, detached, on 2474fc4 (the
+lead is integrating up to 25efed6; rebase onto the branch head after that push).
 
-- **Done, tested, committed:** no posting dropped (0b8413d, pushed by the lead); melon-packed-3 lists
-  (fc084ee); Juice in time slices, the sections budget measured in melon-packed-2 bytes, the
-  readableTitle memo patch (fdff79f); the budget test (abac18a); registry lines (b2e59c9); VT-22 trim
-  patch applied and its test un-todo'd (161a472); the no-data CI fix of the new tests (c673b9c);
-  brand/departmentBasis round-trip in the test (d25d42c). Full-scale identity: every list of both sites on
-  the 2026-10-16 crawl (Amazon 22,179) unpacks and comes out of getJobs exactly as on 2474fc4.
-  google-grouping-pack.diff not applied (moot under melon-packed-3, and it would reorder keys; 5.2).
-- **In progress:** the timed record on the 2026-10-16 crawl, interleaved because other lanes keep the
-  load at 4-12 (`<scratch>/perf-mobile-beta-2/tools/timed3.sh`: base `dist-b` = 2474fc4, head `dist-a`,
-  `dist-p` = head + the roles.js patch; 3 rounds of cold loads, then one full matrix per network; a run
-  starts when the 1-minute load is under 2.5 and records its load). Output: `perf-c-*-N.json`,
-  `perf-m-*.json` in `<scratch>/perf-mobile-beta-2/`, progress in `timed3.log`.
-- **Next step:** when `timed3.log` says "all done": `node docs/process/scripts/perf-mobile-beta-2-merge.mjs
-  <scratch>/perf-mobile-beta-2 c-base c-head c-patch`, then `perf-mobile-beta-coldtable.mjs` (base vs head,
-  head vs patch) and `perf-mobile-beta-table.mjs perf-m-base-fast4g.json perf-m-head-fast4g.json`; fill 5.3-5.5,
-  commit, report. If the container restarted: `tools/build-fresh.sh`, recreate `dist-p` (hard-link copy of
-  dist-a with patchwork/roles.js), rerun `tools/timed3.sh` (STEPS="cold" or "matrix" for the missing part).
+- **Done, tested, committed (part 1):** no posting dropped (0b8413d, pushed); melon-packed-3 (fc084ee);
+  Juice in time slices, sections budget on melon-packed-2 bytes, roles.js memo patch (fdff79f); tests
+  (abac18a, c673b9c, d25d42c); VT-22 and SA-7 trim fixes in snapshot.js (161a472, 25efed6). 22,179 record:
+  section 5.3 (base 2474fc4 vs head, interleaved).
+- **Part 2 (the lead's new target: first cards within about 3 s on Amazon's 22,179, Fast 4G, 4x CPU):**
+  - first-page preview: the build writes `api/preview/<slug>.json` for boards of 1,000+ (4a3726d, tests
+    7385334, identity check 1452f37); config.js fetches it first; `api.js#getPreview`; app.js shows it
+    while the list loads (`data-preview-id` cards, "Loading 22,179 roles…"), the list then replaces it in
+    place. First cards at 1.9-2.0 s (was 6.7 s), the preview's first cards equal the list's (checked in
+    the harness: previewMatch true), no page errors.
+  - fewer long tasks: bundled unpack in 40 ms slices, keyword facets counted on first read (704dde1);
+    the first render after a load in three tasks (derive, sort, draw) and a yield after
+    disambiguateLocations (d7af385). Longest task on Amazon 1.0-1.1 s → 0.49 s (derive).
+  - getJobs unchanged: full-scale identity base vs head (`dist-b` vs `dist-c`) identical, previews
+    included.
+- **In progress:** full e2e on `dist-c` (`<scratch>/perf-mobile-beta-2/e2e-c.log`; `dist` → dist-c).
+- **Next:** npm test; the timed record for part 2 (interleaved base `dist-b` / part 1 `dist-a` / part 2
+  `dist-c`, Amazon + Apple + Anduril, both networks); send the chart numbers to viz-even; log sections
+  3 and 5 for part 2; report.
 
 ## 1. Brief
 
