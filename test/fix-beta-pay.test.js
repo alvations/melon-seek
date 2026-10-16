@@ -309,7 +309,7 @@ const stored = (over) => ({
 const loc = (name, rawName, city, region, country, lat, lng) => ({ name, rawName, city, region, country, lat, lng, remote: false });
 
 test('delivery: relocateJobs re-derives text pay, levels and seniorityBasis on stored norm-5 jobs, then re-vets', () => {
-  assert.equal(NORMALIZER_VERSION, 'norm-10'); // fix wave 5 (docs/process/fix5-data.md) bumped norm-9
+  assert.equal(NORMALIZER_VERSION, 'norm-11'); // the salary audit (docs/process/salary-audit-backend.md) bumped norm-10
   const krakow = loc('Krakow, Poland', 'Kraków, Poland', 'Krakow', null, 'PL', 50.06, 19.94);
   const waterloo = loc('Waterloo, Canada', 'Waterloo, ON, Canada', 'Waterloo', 'ON', 'CA', 43.46, -80.52);
   const jobs = [
