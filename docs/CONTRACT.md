@@ -701,3 +701,53 @@ bound. `REVIEW_DIR_RE` accepts `<date>-<channel>-<n>` folders (`2026-10-11-beta-
 numerically.
 
 **Cities (`data/cities.json`, DQ-34):** same-state `nearby` proxies only (docs/LIVABILITY.md "Proxies").
+
+## google-grouping additions (2026-10-16): job families and brands (google-grouping lane)
+
+The user asked (2026-10-11) that Google's listing in chart mode be consistent with the other big-tech boards,
+while still letting people zoom into, or group by, a Google subsidiary. Log: [docs/process/google-grouping.md](process/google-grouping.md).
+Every addition is optional for readers; no export changed its signature or return shape. This supersedes
+D-24's "the brand is the department" (Beta fix wave section above). `NORMALIZER_VERSION` is unchanged:
+stored snapshots get the new fields at read time (`upgradeGoogleJobs`, in `upgradeStoredJobs`).
+
+**Job adds:**
+
+| Field | Meaning |
+|---|---|
+| `brand` | The company or subsidiary the board names on the posting. Google only today, from the record's brand slot: Google, YouTube, DeepMind, Waymo, Wing, GFiber, Verily Life Sciences. Absent on every other board, because none publishes one. Amazon's `business_category` search facet is a business line ("aws", "fulfillment-ops", "subsidiaries"), not a brand, and it is not stored on Jobs. Apple, Microsoft, Meta, NVIDIA and Netflix have no such field |
+| `departmentBasis: 'title'` | `department` was read from the title by `server/families.js` because the board publishes no department (Google). Absent when the board publishes the department |
+
+**Google (`server/sources/google.js`):**
+- `department` is `familyOfTitle(title)`: one of 27 job families, or null when the title names no role. A null department shows as "No department", and there is never a guess.
+- `team` and `brand` are the brand.
+- The RawJob carries `brand` and `departmentBasis` too. `server/normalize.js` keeps only the fields it knows, so a fresh crawl's Jobs get them back from `team` when the snapshot is read.
+
+**`server/families.js`** (new, browser-safe, in `LIB_MODULES`):
+- `FAMILIES` is the family list, named after Google's careers categories plus Research, Data Science and Analytics, Security and Privacy, and Trust and Safety.
+- `familyOfTitle(title) -> family | null` is pure and deterministic. It tries, in order:
+  1. the role part of the title (before the first comma);
+  2. team-only families (Trust and Safety, Data Center, Government Affairs) in the team part;
+  3. the role rules on the team part;
+  4. generic role words.
+- Common Japanese, Chinese, Vietnamese and French role words are read too.
+- Measured against hand labels (`test/fixtures/google-families-sample.json`):
+  - coverage: 96.8% of the 2026-10-16 crawl;
+  - held-out 92/100 and fresh 88/100 right;
+  - precision on those 200: 180 right of 188 answered.
+
+**Chart (`public/viz/chart.js`):**
+- `keyOf(job, 'brand')` is `job.brand || job.companyName || 'No company'`.
+- `groupBy` and `colorBy` accept `'brand'` (shown as "company").
+- Company rows fold their small rows like department rows ("N more companies"), and compare one country's pay like department rows (V-21).
+
+**App (`public/app.js`):**
+- URL state:
+  - `b=<brand>` (repeatable) is the Company filter. It is in `FILTER_KEYS`, so it counts for Clear all, saved searches and company switches.
+  - `g=brand` groups by Company.
+- The Group select's Company option, and the Company list at the top of the Department filter section and of the Department chip's menu, show only on a board with more than one brand. A `g=brand` link on another board groups by the default.
+- When departments are read from titles, the Department option's tooltip and a one-line note under the department list say so: "Grouped by job title: Google doesn’t publish departments".
+
+**Build (patch for the static-build owner):** [`docs/process/patches/google-grouping-pack.diff`](process/patches/google-grouping-pack.diff)
+packs `departmentBasis` and `brand` as dict columns, like `seniorityBasis`. With it, the Google list is 1.62 MB, against 1.60 MB before; without it, 1.77 MB.
+
+**History ledger (`server/history.js#fingerprint`):** the fingerprint hashes the department, so Google's fingerprints change once. A posting that closed before this change and is reposted within `REPOST_WINDOW_DAYS` (30) may not be linked as a repost. Nothing is hidden or dropped.
