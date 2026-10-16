@@ -49,17 +49,18 @@ jobs:
           jq -e 'type == "array" and length >= 3' dist/api/companies.json
           for f in dist/api/jobs/*.json; do jq -e '.jobs | type == "array"' "$f" > /dev/null; done
           test -f dist/config.js && test -f dist/.nojekyll && test -f dist/vendor/leaflet/leaflet.js
-          # Lazy descriptions: lists carry no HTML, each job has a desc file.
-          jq -e '[.jobs[] | select(has("descriptionHtml") and .descriptionHtml != "")] | length == 0' dist/api/jobs/anthropic.json
+          # Lazy descriptions: each job has a desc file.
           test -n "$(find dist/api/desc -name '*.json' -print -quit)"
-          # Juice Score: inputs and module are bundled; juice itself is never stored in lists.
+          # Juice Score: inputs and module are bundled.
           test -f dist/lib/juice.js
           jq -e '(.cities | type == "array") and (.cities | length > 0)' dist/api/cities.json > /dev/null
-          for f in dist/api/jobs/*.json; do jq -e '[.jobs[] | select(has("juice"))] | length == 0' "$f" > /dev/null; done
-          # v2 (1-up): packed-2 lists with meta, plus per-company history and meta files.
+          # Every list read the way the app reads it (unpackJobs): a packed format the app knows, meta with
+          # compstimate and history, job objects, no description HTML, no stored Juice. Packed lists store most
+          # jobs as value arrays (melon-packed-3), so raw-JSON jq on .jobs[] cannot check them.
+          node .github/scripts/check-lists.mjs dist
+          # Per-company history and meta files.
           for f in dist/api/jobs/*.json; do
             slug=$(basename "$f" .json)
-            jq -e '.format == "melon-packed-2" and (.meta | has("compstimate") and has("history"))' "$f" > /dev/null
             jq -e 'type == "object"' "dist/api/history/$slug.json" > /dev/null
             jq -e 'has("compstimate") and has("history")' "dist/api/meta/$slug.json" > /dev/null
           done

@@ -172,6 +172,12 @@ don't lose that much." So:
 
 ## Known traps
 
+- **ci.yml has checks that `npm test` does not run.** On 2026-10-16 a list-format change (melon-packed-3)
+  passed the whole local gate and turned CI red: ci.yml's "Static build" step read `.jobs[]` with raw jq,
+  and packed rows are arrays (run 38930131882). Those checks are now `.github/scripts/check-lists.mjs`
+  (it reads lists through `unpackJobs`), and `test/ci-lists.test.js` runs it on a no-data build. After any
+  push, read CI's result; a red head is work now.
+
 - The sandbox has no route to the job boards, github.io or artifact downloads. Use the archive
   for data, GitHub Actions probe workflows for live checks (`workflow_dispatch` plus
   `get_job_logs`), and the post-deploy check for the live site.

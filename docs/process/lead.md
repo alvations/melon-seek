@@ -1224,3 +1224,15 @@ screenshots in `docs/screenshots/`.
 - **Gate:**
   - `npm test` CI-like: 1,104 tests, 1,058 pass, 0 fail.
   - Full e2e on the 2026-10-16 crawl: 358/362 passed, 0 failed, 4 skipped. This is the first fully green e2e on the uncapped crawl.
+
+### CI red on dd69477, fixed (2026-10-16)
+- CI failed on dd69477 (perf + salary-backend batch) and on 560f38b, though the local gate had passed. ci.yml's "Static build" step checked the lists with raw jq (`.jobs[] | select(has("juice"))`), and melon-packed-3 stores most jobs as value arrays: "Cannot check whether array has a string key" (run 38930131882). The Pages deploy was not affected.
+- Fix:
+  - `.github/scripts/check-lists.mjs` reads every list (main and beta) through `unpackJobs` and checks the same rules: a known packed format, meta with compstimate and history, job objects, no description HTML, no stored Juice. It replaces the three raw-jq checks.
+  - `test/ci-lists.test.js` runs it on a no-data build, so `npm test` now catches this.
+  - The PLAYBOOK "Known traps" section records it.
+- Verified locally:
+  - the old check fails on a no-data build, as in CI;
+  - the new one passes (16 lists, 0 problems), and also on today's real build (23 lists);
+  - the CI smoke-test step passes;
+  - `npm test` CI-like: 1,106 tests, 1,060 pass, 0 fail.
