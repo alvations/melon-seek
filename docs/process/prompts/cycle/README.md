@@ -33,8 +33,12 @@ Facts every template relies on. Update them here and in PLAYBOOK.md when they ch
 - `node scripts/e2e.js` (with `NODE_PATH`) is the full e2e suite. Register a new file the way
   the existing ones are registered.
 - Beta boards are `live: false`: the browser never calls them, and the bundled snapshot is all
-  there is. Tesla is blocked by its bot protection, so it does not appear on /beta/; Amazon shows
-  5,000 of its postings (`maxPostings`), and the page says so.
+  there is. Tesla is blocked by its bot protection, so it does not appear on /beta/. Every board is
+  shown whole: no posting is ever capped or cut (the user, 2026-10-11; Amazon has about 22,000).
+- Stops happen (usage limits, reclaimed containers). Every agent commits small and often in its own
+  worktree ("WIP: …" is fine), keeps a `## State` section at the top of its log (done, in progress,
+  next step), and sends the lead each finished, tested piece by SendMessage as soon as it is ready.
+  The lead checkpoints all worktrees to `wip/<lane>/` every 15 minutes (PLAYBOOK.md, "Checkpoints").
 - Re-running a role on the same target: give it a new `<ROLE>` with a pass number (for example
   `qa-desktop-beta-2`) and the same suffix on any test file whose name already exists
   (`test/e2e/beta-desktop-qa-2.e2e.js`). A later pass never edits an earlier pass's tests, log or

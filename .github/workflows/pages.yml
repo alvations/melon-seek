@@ -24,6 +24,8 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main, claude/stoic-ride-54ddxp]
+    # A push of only WIP checkpoints (scripts/cycle/checkpoint.sh) changes nothing on the site: no redeploy.
+    paths-ignore: ['wip/**']
   workflow_dispatch: # also sent by snapshot.yml after each beta crawl (and by site-watchdog.yml)
   schedule:
     - cron: "41 7 * * *" # daily, 07:41 UTC (after snapshot.yml's 06:17 run)

@@ -1097,3 +1097,14 @@ screenshots in `docs/screenshots/`.
 - **DQ-38 holds on real data.** 15,661 postings that first appeared in the uncapped run took their posted date as first-seen (`b: 1`). Only 2,249 count as "New" (posted within 7 days; every open Amazon posting has a posted date).
 - **Company list in real Safari.** WebKit run 38178731040 on e48fd32 passed every job. In the iOS Simulator (Safari), both the iPhone 16 and the iPhone SE (3rd generation) pass all three company-list checks: swipes on the rows, keyboard up, and keyboard up with swipes (the last company, Shield AI, 100% visible). The harness retry fixed the iPhone 16 cold-boot timeout. On the iPhone 16, the real tap once missed the menu button, so the script opened the menu from the page instead; the swipes are real touches. M-28 to M-32 are closed.
 - **Scheduled runs.** Snapshot, archive, Pages and the watchdog all ran green every day from 2026-10-11 to 2026-10-16.
+
+### The user: resume without losing progress (2026-10-16)
+- "Make sure that if we get stop again due to limits, we're able to resume without losing much progress. So push and compile often so that we don't lose that much."
+- On 2026-10-11 the stop left three of the five lanes with only uncommitted edits in their worktrees. Those edits existed only in this container.
+- New tooling:
+  - `scripts/cycle/checkpoint.sh` pushes each lane's commits, uncommitted diff and new files to `wip/<lane>/` on the deploy branch. It leaves out data links and files over 5 MB, and lists them in STATUS.md.
+  - `scripts/cycle/checkpoint-loop.sh` runs a checkpoint every 15 minutes while agents work.
+  - `scripts/cycle/restore-wip.sh` rebuilds a lane in a new worktree.
+  - CI and Pages now ignore pushes of only `wip/**`, so checkpoints never redeploy the site.
+  - `test/checkpoint.test.js` round-trips a commit, an uncommitted edit and a new file, and checks the symlink and big-file exclusions and the `paths-ignore`.
+- New process (PLAYBOOK "Checkpoints"; the cycle templates' shared facts): agents commit small and often, keep a `## State` section in their log, and hand finished, tested pieces to the lead as they go. The lead integrates and pushes them in increments with the full gate, rather than waiting for one big report.

@@ -123,6 +123,43 @@ These are the rules learned the hard way on 2026-10-10.
 7. **Watch the deploy.** pages.yml's post-deploy check must pass for `/` and, warning only, for
    `/beta/`. CI must be green; fix it before the next batch.
 
+### Checkpoints: a stop must cost minutes, not hours
+
+On 2026-10-11 every agent stopped at once on an API usage limit, and the work in their worktrees
+sat unsaved for five days. The user, 2026-10-16: "Make sure that if we get stop again due to
+limits, we're able to resume without losing much progress. So push and compile often so that we
+don't lose that much." So:
+
+1. **Checkpoint every 15 minutes while agents work.** The lead keeps one `LANE=WORKTREE` line
+   per running agent in a lanes file, and runs
+   `bash scripts/cycle/checkpoint-loop.sh <lanes file> 900` in the background. Each round runs
+   `scripts/cycle/checkpoint.sh --push`, which writes `wip/<lane>/` on the deploy branch with
+   these files (data links and files over 5 MB are left out and listed):
+   - `commits/*.patch`
+   - `uncommitted.diff`
+   - `untracked.tgz`
+   - `STATUS.md`
+   
+   CI and Pages ignore `wip/**`, so a checkpoint never rebuilds or redeploys the site, and agents
+   still never push. Remove a lane's line when it is integrated, and its `wip/<lane>/` with the
+   integration commit.
+2. **Agents commit small and often** in their worktrees ("WIP: …" is fine), and keep a
+   `## State` section at the top of their log: what is done, what is in progress, the next step.
+   That section is what a resumed or replacement agent reads first.
+3. **Integrate in increments.** An agent sends the lead each finished, tested piece by
+   SendMessage as soon as it is ready (a finding with its fix and test, or one patch), and keeps
+   working. The lead integrates and pushes those pieces with the full Stage 3 gate, rather than
+   waiting for one large final report.
+4. **Resume.**
+   - After a stop, resume each agent by SendMessage (its transcript survives while the container
+     does).
+   - If the container was reclaimed, restore the lane with
+     `bash scripts/cycle/restore-wip.sh <lane> <scratch>/wt-<lane>`, re-link the data, and start a
+     new agent on it with its saved prompt (`docs/process/prompts/<lane>.md`) plus the restored
+     log's `## State`.
+5. **Lead state is pushed too.** Every decision and integration goes into [lead.md](lead.md) in
+   the same push, so a new lead session can continue from the repo alone.
+
 ## Stage 4. Record and repeat
 
 - Append a section to [lead.md](lead.md): the request, agents, findings, fixes, verification

@@ -2,6 +2,8 @@ name: CI
 
 on:
   push:
+    # WIP checkpoints of unfinished agent work (scripts/cycle/checkpoint.sh) are not code to test.
+    paths-ignore: ['wip/**']
   pull_request:
 
 permissions:
