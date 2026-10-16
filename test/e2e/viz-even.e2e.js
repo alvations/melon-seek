@@ -155,8 +155,13 @@ export function registerVizEvenTests(suite) {
     const total = rows.reduce((s, r) => s + (r.n ?? 1), 0);
     assertEq(total, want.plotted, 'every posting with pay is in a row');
     assert(rows.length < want.plotted, `${rows.length} rows for ${want.plotted} postings: identical bars are not stacked`);
-    const band = rows.filter((r) => /\$120K to \$235K/.test(r.aria) && /Software Engineering/.test(r.aria) && r.n > 1);
-    assertEq(band.length, 1, `one Software Engineering row for $119,800-$234,700 (${band.map((r) => r.aria).join(' | ')})`);
+    // Bars stack only with bars drawn the same way. Since SB-5 (salary-audit-backend) some Microsoft postings carry
+    // per-place ranges, drawn striped ("each the range for one of its places"): those stack in a row of their own.
+    const PER_PLACE = /each the range for one of its places/;
+    const same = rows.filter((r) => /\$120K to \$235K/.test(r.aria) && /Software Engineering/.test(r.aria) && r.n > 1);
+    const band = same.filter((r) => !PER_PLACE.test(r.aria));
+    assertEq(band.length, 1, `one Software Engineering row for $119,800-$234,700 (${same.map((r) => r.aria).join(' | ')})`);
+    assert(same.filter((r) => PER_PLACE.test(r.aria)).length <= 1, `the per-place bars of that band are one row too (${same.map((r) => r.aria).join(' | ')})`);
     const [row] = band;
     assertEq(row.n, want.n, 'its count is every posting with that range');
     assertEq(row.count, `×${want.n}`, 'the count by the bar');
