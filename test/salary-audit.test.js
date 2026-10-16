@@ -102,7 +102,7 @@ const CAPEX = amazonRow({
 // lists "Pay by level" and the chart's tip names the levels, but the card shows a bare "$184K–357K", where a
 // posting with a range per place says "· 2 places". Owners: public/app.js payPill (card text);
 // server/salary.js parseSalary keeps the span and salary.levels (that part is correct and pinned below).
-test('SA-1 NVIDIA: a card whose range spans two posted levels says so ("· 2 levels")', TODO, () => {
+test('SA-1 NVIDIA: a card whose range spans two posted levels says so ("· 2 levels")', () => {
   const job = nvidiaJob();
   assert.equal(job.salary.levels.length, 2, 'reference: the two levels are kept');
   const pill = payPill(job);
@@ -169,7 +169,7 @@ test('SA-4 Google: degree lines spanned into one range keep each line ("Bachelor
 // plots salary.mid: Amazon's primary row, or Apple's span. amazon:10371179 filtered to New York: the card
 // reads $74K–129K, the chart's dot sits at Bellevue's $99,900. 2,184 Amazon and 390 Apple postings have
 // ranges with different midpoints. Owner: public/viz/chart.js chartPay (the place's range when one is posted).
-test('SA-5 chart: under a Location filter a posting is plotted at the range posted for that place', TODO, () => {
+test('SA-5 chart: under a Location filter a posting is plotted at the range posted for that place', () => {
   const job = normalizeJob(mapAmazonJob(CAPEX), company('amazon'));
   const ny = job.locations.find((l) => /New York/.test(l.name));
   const { plotted } = chartPay([job], { placeTest: (j, l) => l === ny });
