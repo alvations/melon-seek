@@ -152,7 +152,10 @@ test('the sources table speaks plain words: agencies spelled out, no stray abbre
     assert.match(text.slice(Math.max(0, m.index - 80), m.index + 6), /\(|Organisation/, `${m[1]} explained`);
   }
   assert.doesNotMatch(text, /Big Macs a year|drawer/i, 'no claim about the drawer');
-  assert.match(text, /Big Mac index data/, 'exchange rates: their source');
+  // The exchange-rate row names the source data/cities.json records: The Economist's Big Mac data until the first
+  // monthly FX refresh, the European Central Bank after it (monthly-refresh run 38972598049 failed on a pin here).
+  const fxPlain = /European Central Bank|\bECB\b/.test(CITIES.fx.source.name) ? 'European Central Bank (ECB) reference rates' : 'Big Mac index data';
+  assert.ok(text.includes(fxPlain), `exchange rates: their source (${fxPlain})`);
 });
 
 test('the real guide renders with every placeholder known and the drawer anchor (skips until it exists)', (t) => {

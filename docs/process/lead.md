@@ -1342,3 +1342,11 @@ screenshots in `docs/screenshots/`.
 - **Security re-check:** S-8 and S-9 are confirmed fixed on 9c548e2. Residual Low items, for the round-3 fix wave:
   - for the four code files in the allow-list (server/juice.js, server/salary.js, public/viz/palette.js, public/features/shared.js), accept only the line shapes the writers produce;
   - move the pinned FX examples out of test/juice.test.js into a data fixture the refresh writes, so the refresh can never edit what is asserted.
+- **Second commit-mode run (38972598049, `only=fx`):** blocked again, and the log named the 4 tests. Reproduced offline (`run.js --offline --only fx`, the FX fixtures write the same 7 files) and fixed:
+  - **771, 773 (test/refresh-derived.test.js):** `--only fx` ran fx alone, so the worked-example tables in docs/LIVABILITY.md (computed from the FX rates) went stale, and the derived tests caught it. Fix in scripts/refresh/run.js: `FOLLOWS_WRITES = ['derived']`. Under `--only`, derived also runs when an earlier module changed a file, on the overlay, so a partial refresh never commits stale docs. The run now writes 8 files (LIVABILITY.md is on the allow-list). New test in test/refresh-run.test.js: derived runs after a write and sees it, and is not run when nothing changed.
+  - **680 (test/methodology.test.js):** pinned "Big Mac index data" as the exchange-rate source. The figure already names the ECB once cities.json says so (methodology-figures.js PUBLISHERS). The test now expects the name for the source cities.json records.
+  - **731 (test/perf.test.js "stores persist"):** on a runner with network, the first load fetched the real Anduril and Cohere boards live. That replaced the snapshot path the test times (no `snap-` store), and it meant the suite was crawling real job boards. New server switch `MELON_OFFLINE=1` (never fetch upstream; cache and snapshots only), set by test/perf.test.js. test/server-offline.test.js checks no upstream request with it and a live request without it; it fails on the old server. Documented in docs/process/backend.md.
+  - **Gates:**
+    - `npm test` CI-like: 1,112 pass, 0 fail.
+    - `npm test` on the FX-refreshed files with today's snapshots (what the refresh job runs): 1,125 pass. The one failure was S-6 under load 12; it passes alone.
+  - **Next:** dispatch the refresh again (`only=fx`, not a dry run).

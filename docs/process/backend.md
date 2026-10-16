@@ -86,6 +86,8 @@ Files owned: `server/index.js`, `server/companies.js`, `server/sources/{greenhou
    - *H1 cache bounds and throttling:* custom boards are kept in an in-memory LRU of at most `MELON_CACHE_MAX`
      entries (default 50). Built-ins are never evicted. Their disk files go in `data/cache/custom/`, pruned to the
      `MELON_DISK_CACHE_MAX` (default 100) most recently used files by mtime; a read hit touches the mtime.
+     With env `MELON_OFFLINE=1` the server never fetches upstream (cache and snapshots only; test/perf.test.js
+     times the snapshot path with it, so the suite never crawls a real board).
      There is at most one live upstream attempt per slug per `MIN_REFRESH_MS` (60 s, env `MELON_MIN_REFRESH_MS`),
      whether or not `refresh=1` is set. A throttled request is served from cache, snapshot or demo, with the last
      attempt's error. The one exception: if the last attempt succeeded but its cache entry has since been evicted,

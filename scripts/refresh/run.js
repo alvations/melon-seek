@@ -4,7 +4,8 @@
 //   node scripts/refresh/run.js                     check every registry entry, write validated updates
 //   node scripts/refresh/run.js --dry-run           check and report, write nothing
 //   node scripts/refresh/run.js --offline           use test/fixtures/refresh/<module>/ instead of the network
-//   node scripts/refresh/run.js --only fx,tax-us-federal   only these modules or registry ids
+//   node scripts/refresh/run.js --only fx,tax-us-federal   only these modules or registry ids (derived still runs
+//                                                   after them when they change a file: see FOLLOWS_WRITES)
 //   node scripts/refresh/run.js --now 2026-11-03    pretend today is this date (staleness, tests)
 //   node scripts/refresh/run.js --out tmp/refresh   where report.json / report.md / pr-body.md / issue-body.md go
 //   node scripts/refresh/run.js --staleness         only the staleness table (CI / Pages step); never fails
@@ -41,6 +42,13 @@ import {
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** Modules run in this order; unknown modules run after these, alphabetically. derived is last on purpose. */
 export const MODULE_ORDER = Object.freeze(['bigmac', 'fx', 'rents', 'living', 'tax', 'jobs', 'policy', 'derived']);
+/**
+ * Modules that also run under --only when an earlier module changed a file. derived re-renders what is computed
+ * from the other modules' files (the worked examples in docs/LIVABILITY.md, README counts, test pins), so a
+ * partial refresh never publishes data with stale docs. Monthly-refresh run 38972598049 (only=fx) changed the
+ * FX rates without them, and test/refresh-derived.test.js failed on the stale tables.
+ */
+export const FOLLOWS_WRITES = Object.freeze(['derived']);
 /** Files in scripts/refresh/ that are not updater modules. */
 const NOT_MODULES = new Set(['lib.js', 'run.js', 'registry.js', 'tax-watch.js', 'examples.js']);
 /** Updaters that mean "no monthly module; the daily job-board pipeline refreshes it". */
@@ -265,7 +273,8 @@ export async function runRefresh(opts = {}) {
 
   for (const mod of modules) {
     if (mod.loadError) { problems.push(`module ${mod.name} failed to load: ${mod.loadError}`); continue; }
-    if (only && !only.has(mod.name) && !mod.ids.some((id) => only.has(id))) continue;
+    const follows = Boolean(only) && FOLLOWS_WRITES.includes(mod.name) && overlay.changedFiles().length > 0;
+    if (only && !follows && !only.has(mod.name) && !mod.ids.some((id) => only.has(id))) continue;
     const ctx = makeContext({ moduleName: mod.name, offline: opts.offline, dryRun: opts.dryRun, now, root, registry, fetchImpl: opts.fetchImpl, fixturesDir: opts.fixturesDir, log: (...a) => log(`${mod.name}:`, ...a) });
     // reads go through the overlay so modules build on earlier modules' writes
     ctx.readText = (rel) => overlay.read(rel);
@@ -278,8 +287,9 @@ export async function runRefresh(opts = {}) {
     } catch (err) {
       raw = mod.ids.map((id) => ({ id, mode: 'detect', status: 'error', summary: `module threw: ${err && err.message}` }));
     }
-    const list = (Array.isArray(raw) ? raw : []).map((r) => normalizeResult(r, mod.name)).filter((r) => !only || only.has(mod.name) || only.has(r.id));
-    for (const id of mod.ids) if ((!only || only.has(mod.name) || only.has(id)) && !list.some((r) => r.id === id)) list.push(normalizeResult({ id, mode: 'detect', status: 'error', summary: 'module returned no result for this id' }, mod.name));
+    const keep = (id) => !only || follows || only.has(mod.name) || only.has(id);
+    const list = (Array.isArray(raw) ? raw : []).map((r) => normalizeResult(r, mod.name)).filter((r) => keep(r.id));
+    for (const id of mod.ids) if (keep(id) && !list.some((r) => r.id === id)) list.push(normalizeResult({ id, mode: 'detect', status: 'error', summary: 'module returned no result for this id' }, mod.name));
     for (const r of list) {
       if (!regIds.has(r.id)) problems.push(`module ${mod.name} reported unregistered id ${r.id}`);
       if (r.status === 'changed') for (const w of r.writes) overlay.stage(w.file, w.content, r.id);

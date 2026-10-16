@@ -58,6 +58,12 @@ export function channelCompanies(channel = serverChannel()) {
   }
 }
 
+/**
+ * MELON_OFFLINE=1: never fetch upstream; serve cache and snapshots only. Tests that time the snapshot path set it
+ * (test/perf.test.js): on a runner with network, a live fetch of a real board replaced the snapshot it meant to time
+ * (monthly-refresh run 38972598049), and a test suite must not crawl real job boards.
+ */
+const OFFLINE = process.env.MELON_OFFLINE === '1';
 /** At most one live upstream attempt per slug per this window (review H1). */
 export const MIN_REFRESH_MS = Number(process.env.MELON_MIN_REFRESH_MS) || 60_000;
 /** Custom boards that fell back to demo are answered from memory for this long. */
@@ -617,6 +623,7 @@ export async function getMarket() {
  *   be a way to make the server generate boards).
  */
 async function getJobsBase(company, { refresh = false, offline = false, noBuild = false } = {}) {
+  offline = offline || OFFLINE;
   // ?name= is only a display name for custom boards (review V14): built-ins keep theirs.
   const builtin = !company.custom && listCompanies().find((c) => c.slug === company.slug);
   if (builtin) company = { ...company, name: builtin.name };

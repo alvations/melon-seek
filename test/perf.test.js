@@ -19,6 +19,9 @@ process.env.MELON_CACHE_DIR = path.join(tmp, 'cache');
 process.env.MELON_SNAPSHOT_DIR = path.join(tmp, 'snapshots');
 process.env.MELON_HISTORY_DIR = path.join(tmp, 'history');
 process.env.MELON_BACKTEST_WAIT_MS = '1';
+// The snapshot path, never a live fetch: with network (a GitHub runner), a live crawl of Anduril and Cohere
+// replaced the snapshots these tests time, and "stores persist" found no snap- store (monthly-refresh run 38972598049).
+process.env.MELON_OFFLINE = '1';
 fs.mkdirSync(process.env.MELON_SNAPSHOT_DIR, { recursive: true });
 
 let mod, server, port;

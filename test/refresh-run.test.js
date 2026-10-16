@@ -193,6 +193,23 @@ test('run: --only limits modules and ids', async () => {
   } finally { s.cleanup(); }
 });
 
+test('run: --only still runs derived after a module that changed a file (no stale docs), and not otherwise', async () => {
+  assert.deepEqual(run.FOLLOWS_WRITES, ['derived']);
+  const s = scratch([entry('a'), entry('d')], { 'data/x.json': '{"v":1}\n' });
+  try {
+    const ran = [];
+    const one = (v) => mod('one', ['a'], async () => { ran.push('one'); return [res('a', v === 1 ? 'ok' : 'changed', { writes: v === 1 ? [] : [{ file: 'data/x.json', content: `{"v":${v}}\n` }] })]; });
+    const derived = mod('derived', ['d'], async (ctx) => { ran.push(`derived saw ${ctx.readText('data/x.json').trim()}`); return [res('d', 'ok')]; });
+    const r = await run.runRefresh({ root: s.dir, modules: [one(2), derived], now: NOW, retryDelayMs: 0, dryRun: true, only: ['one'], log: () => {} });
+    assert.deepEqual(ran, ['one', 'derived saw {"v":2}'], 'derived runs on the overlay, after the change');
+    assert.deepEqual(r.results.map((x) => x.id), ['a', 'd']);
+    ran.length = 0;
+    const r2 = await run.runRefresh({ root: s.dir, modules: [one(1), derived], now: NOW, retryDelayMs: 0, dryRun: true, only: ['one'], log: () => {} });
+    assert.deepEqual(ran, ['one'], 'nothing changed: derived is not run');
+    assert.deepEqual(r2.results.map((x) => x.id), ['a']);
+  } finally { s.cleanup(); }
+});
+
 test('run: archive payloads are written with a manifest; reference export reads consts and JSON paths', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'refresh-arch-'));
   try {
