@@ -33,7 +33,9 @@ Goal: measure the beta site (`/melon-seek/beta/`) on a mid-range phone with all 
 first, and fix the biggest costs, keeping the app simple and what `getJobs` returns exactly the same.
 Mid-task the lead relayed the user: **"Why are you capping the no of posting we must present them as
 they are and not cut anything"**. So: no posting is ever dropped, and the target became Amazon's whole
-board (about 22,415 postings) plus every other board uncut.
+board (about 22,415 postings) plus every other board uncut. Part 2 (2026-10-16, the lead): on Amazon's
+22,179 postings at 390×844, 4x CPU, Fast 4G, the first cards visible and scrollable within about 3 s, the
+chart following without blocking input, Apple and the main site not regressing.
 
 Files owned:
 - `public/api.js`, `public/unpack-worker.js` (unchanged), `scripts/build-static.js`;
@@ -42,9 +44,12 @@ Files owned:
 - `test/perf-mobile-beta-2.test.js`, `test/fixtures/packed-2-reference.js` (new);
 - `docs/process/scripts/perf-mobile-beta-2*.mjs` (harness copy, identity checks);
 - `docs/process/patches/perf-mobile-beta-2-*.diff` (for files QA agents are testing; not applied);
-- this log and the prompt.
+- part 2: `public/app.js` (the prepare and first-render path only), `server/juice.js` / `lib/juice.js`
+  (Juice computation; not changed in the end), `.github/scripts/check-lists.mjs` (the preview checks);
+- this log and the prompt (the lead's follow-ups are appended to it).
 
-Worktree `/home/user/melon-seek/.claude/worktrees/agent-a7425c5dcd4e39cbe`, detached at 31ad25b.
+Worktree `/home/user/melon-seek/.claude/worktrees/agent-a7425c5dcd4e39cbe`, detached at 31ad25b, rebased
+onto e48fd32, 2474fc4 and f254143 as the lead integrated.
 
 ## 2. Inputs and sources
 
@@ -151,8 +156,42 @@ Item 7: the 2026-10-16 crawl with Amazon whole (22,179), baseline 2474fc4.
    identical on 96,422 titles (`perf-mobile-beta-2-title-check.mjs`). Measured on the 22,179 board
    (5.3): no difference above noise (first card 6.7 → 6.9 s Fast 4G, 15.7 → 15.6 s Slow 4G), so it is
    optional; its gain is under 0.1 s.
-6. **Method**: `docs/process/scripts/perf-mobile-beta-2.mjs` is perf-mobile-beta.mjs with Amazon and Meta
+6. **Part 2: a first-page preview** (`build-static.js#previewList`, `api.js#getPreview`, app.js
+   `showPreview`). On Fast 4G the whole Amazon list lands at about 2.5 s (1.14 MB sharing 1 MB/s with
+   the app's own files) and the work after it (parse, unpack, Juice, prepare, first render) takes about
+   4 s at 4x CPU, so no change to that path alone gets the first cards near 3 s. The first screen of the
+   default view needs only about 100 postings, so the build writes them:
+   - `api/preview/<slug>.json` for boards of 1,000+ postings whose list is `shared.vetted`: every posting
+     whose pay mid (app.js#prepare's `_usd.mid`, `previewPay`) is at least the 100th highest, ties
+     included, so it is exactly a prefix of the Highest-pay order whatever the tie-breaks (app.js sorts
+     by mid, then max, then title); a board with fewer paid postings adds its first unpaid ones in board
+     order. Same packed format (40-96 kB raw, about 10-15 kB gzip), plus `preview.total` and the whole
+     board's postings with pay per department (`colorCounts`, what computeColorKeys counts). The build
+     checks they unpack to the list's own postings.
+   - config.js requests it before the list (`previewPreloadJs`, `window.MELON_PREVIEWS` lists the boards
+     that have one, so others are never asked for: no 404s);
+   - `getPreview` returns those postings juiced as getJobs juices them (full-scale check: the 8 previews of
+     the 2026-10-16 crawl equal getJobs' postings, JSON and key order);
+   - app.js, only for the default view (Highest pay, no filter, search, area or saved search, colour by
+     department), prepares and sorts them with the same code, takes the colour keys from the counts and
+     the "New" marks from the last visit (read, not recorded), and draws them as the list: "Loading
+     22,179 roles…", cards with `data-preview-id` (so code and tests that wait for `.card[data-id]` still
+     wait for the list), `aria-setsize` the board's size. A tapped card opens when the list is in. The
+     list then replaces them; when its first cards are the preview's (always, in every run), it keeps
+     the place (`win.keep`). Nothing is hidden or cut: the whole list still loads and replaces it.
+7. **Part 2: shorter tasks after the list lands**, same results: the bundled unpack runs in 40 ms slices
+   (`unpackJobsSliced`, the same per-job decoder); derive counts the keyword facets (the filter panel's
+   keyword lists only) on first read, the same jobs in the same order; the first render after a load is
+   three tasks (derive, sort, draw; `renderInTwo`, a render in between wins); a yield after
+   disambiguateLocations. Amazon's longest task 1.0-1.1 s → about 0.5 s (derive itself).
+8. **Part 2, measured and not done:** Juice on the visible cards first (a lazy Juice): the cards, the
+   Juice filter's counts and the chart colours need every posting's Juice at the first render, so it
+   would change what the first render shows; the preview covers the wait instead. Chart time (two tasks
+   of about 0.4 s and 0.3 s on Amazon at 4x) is viz-even's (numbers sent).
+9. **Method**: `docs/process/scripts/perf-mobile-beta-2.mjs` is perf-mobile-beta.mjs with Amazon and Meta
    (switch Amazon ↔ Apple, Meta → Google, Netflix and Anduril → Amazon; the leak cycle adds Amazon),
+   (and, for part 2, a `preview` mark: the frame after the first `.card[data-preview-id]`, and
+   `previewMatch`: the preview's first 30 cards are the list's first 30),
    otherwise unchanged: 390×844, isMobile, touch, DPR 3, 4x CPU, CDP network presets, `serve.mjs`,
    trace-based long tasks with CPU-profile attribution. Every timing records the load average. The
    2026-10-11 baseline matrix ran alone (load 0.3-2); from 21:08 that day and through 2026-10-16 other

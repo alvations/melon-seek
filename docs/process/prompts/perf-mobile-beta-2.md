@@ -34,3 +34,35 @@ Every change must be simple and behaviour-identical. Prove it:
 - the unpacked jobs equal the old output exactly (add a test).
 
 Report back briefly with the before/after table per company and network, what you changed, and the patches you wrote for other files.
+
+---
+
+## Follow-ups from the lead during the run (verbatim)
+
+2026-10-11, relaying the user: "Why are you capping the no of posting we must present them as they are and not cut anything".
+
+> New requirements, with an expanded scope for you:
+> 1. **No posting is ever dropped.**
+>    - Remove Amazon's `maxPostings: 5000` (server/companies.js; you own that entry now). Record the user's quote next to it.
+>    - Make `fitSnapshot` (scripts/snapshot.js; you own it now) never cap postings, on any board. It may still move descriptions and sections out of the list into the lazy per-posting description files, which keeps everything and loads it when a posting is opened. If the snapshot file's byte budget would otherwise force a cut, raise or remove that budget, or split the stored snapshot. Nothing may be dropped.
+>    - Update every test that asserted capping, including test/amazon-meta-fit.test.js, the jobsCapped/MR-14 display and ledger tests, and the capped-board closure rules in test/incremental-closures.test.js. A capped board can no longer happen; keep the partial-list rules. Also update the docs that describe the budget: DATA_SOURCES, AMAZON_META, README, lead.md, CONTRACT.
+> 2. **Your optimization target is now all ~22,415 Amazon postings**, the whole board, plus every other board uncut. The backend's synthetic measurement had the first card at 10.5 s on a 4x-throttled phone (Fast 4G), against Apple at 4.6 s. Make the full board fast without cutting data. Candidates: a small first-paint list (id, title, place, pay, a few fields) with the rest streamed or chunked in the background; paged or virtualized list, chart and map work; moving unpack, vetting and Juice to the worker; caching on switch-back. Measure Amazon at its full size. The local snapshot has only 5,000; build a full-size one from the adapter fixtures, as docs/process/amazon-meta-backend.md did, until the next real crawl lands.
+> 3. The other rules stand: behaviour-identical (a test that unpacked jobs equal the old output), `npm test` and the full e2e green, patches for files you don't own, commit at milestones, report your SHAs.
+
+2026-10-16:
+
+> 1. Branch head is 2474fc4. … Rebase your commits … onto 2474fc4.
+> 2. FRESH DATA: today's crawl (2026-10-16) … Amazon is now uncapped at 22,179 postings, so this is the real size your work must make fast. Re-point your data links there.
+> 3. Apply docs/process/patches/fix5-data-trim.diff (VT-22, scripts/snapshot.js …) in your lane, reconciled with your snapshot.js changes, and un-todo the VT-22 test in test/beta-vetting-2.test.js once it passes.
+> 4. The rule is still that no posting or pay row is ever cut.
+
+> 6.7 s to the first card on Fast 4G (15.7 s on Slow 4G) on a phone is still too slow for a job seeker, so your lane continues, with wider ownership …
+> - Target: on Amazon's 22,179 postings at 390x844, 4x CPU, Fast 4G, the first cards are visible and scrollable within about 3 s, and the chart follows without blocking input. Apple and the main site must not regress.
+> - You now also own: public/app.js: the prepare and first-render path only. … server/juice.js and lib/juice.js: Juice computation only. …
+> - Ideas, measure before choosing: render the first windowed page of cards before Juice and prepare finish, then fill in; compute Juice lazily: visible cards first, the rest in idle slices or in the existing worker; stream or split the list so the first screen doesn't wait for 1.14 MB.
+> - Don't touch public/viz/chart.js … If chart time (~1.4 s) matters, send it numbers.
+> - Same rules: nothing cut or hidden; behaviour identical (your equality check); commit small and often; State in the log; send me each finished, tested piece.
+
+> Extend check-lists.mjs to cover `api/preview/<slug>.json` too … Before you send me the SHA, run the CI step itself locally on a no-data build, not just npm test.
+
+Standing rule (the user): "if we get stopped again due to limits, we must be able to resume without losing much progress": commit small and often, keep a `## State` section at the top of the log, send each finished piece to the lead.
