@@ -15,6 +15,8 @@
 
 ## Uncommitted and new files
 ```
+ M server/sources/amazon.js
+ M test/salary-pipeline.test.js
 ```
 
 ## Left out (not in untracked.tgz)

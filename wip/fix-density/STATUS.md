@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a62c9206a358fb258`
 - Base (on claude/stoic-ride-54ddxp): `2474fc4fd41051bba264426562e3e0d37f24bc9c`
-- Head: `a72e1da58c9d7ce0c26537330ce96e8089f41eaf`
+- Head: `316a56cc1f674caee07bdf2702d6581fb4a4eb8e`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-density <new worktree dir>`
 
 ## Commits since the base
 ```
+316a56c fix-density: log, full e2e on the fresh build (no failures from this lane), state done
 a72e1da fix-density: before/after screenshots on the fresh crawl (phone and desktop, light and dark), log table with the drawer rows
 3d3b461 fix-density: the drawer's converted-pay line and the part-time/annualized note are one line each (detail under the pay block's Details); median label clear of the strip's ends on a phone
 8ea3179 WIP fix-density: before/after inventory on the fresh crawl in the log
@@ -21,28 +22,6 @@ fddcdd3 fix-density: e2e test (one line, 12 words, Details with aria-expanded on
 
 ## Uncommitted and new files
 ```
- M docs/screenshots/chart.png
- M docs/screenshots/dark-drawer.png
- M docs/screenshots/dark.png
- M docs/screenshots/drawer-juice.png
- M docs/screenshots/drawer.png
- M docs/screenshots/insights.png
- M docs/screenshots/map-juice.png
- M docs/screenshots/map.png
- M docs/screenshots/mobile.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-360x640-with-the-keyboard-up-300-px-.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-iPhone-SE-Safari-375x548.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390-with-5-saved-searches.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-29-company-menu-focus.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-30-saved-searches-loaded.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-31-empty-message-half-sheet.png
- M docs/screenshots/qa-mobile-beta/e2e-M-19-sort-while-scrolled.png
- M docs/screenshots/qa-mobile-beta/e2e-M-21-company-menu.png
- M docs/screenshots/qa-mobile-beta/e2e-M-22-paused-board.png
- M docs/screenshots/qa-mobile-beta/e2e-M-24-keyboard-location-search.png
- M docs/screenshots/qa-mobile-beta/e2e-M-27-topbar-360.png
- M docs/screenshots/qa-mobile/e2e-landscape-map.png
 ```
 
 ## Left out (not in untracked.tgz)

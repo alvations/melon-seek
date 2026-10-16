@@ -1,7 +1,7 @@
 From 5f8b5992b551726caf31eafde759e212f2c32695 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 13:36:14 +0000
-Subject: [PATCH 06/10] fix-density: e2e waits for Insights on Amazon's 22,179
+Subject: [PATCH 06/11] fix-density: e2e waits for Insights on Amazon's 22,179
  postings; Amazon minimum and shift-pay drawers keep one caption line
  (fix5-data VT-17/VT-18)
 

@@ -1,7 +1,7 @@
 From a72e1da58c9d7ce0c26537330ce96e8089f41eaf Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 14:41:44 +0000
-Subject: [PATCH 10/10] fix-density: before/after screenshots on the fresh
+Subject: [PATCH 10/11] fix-density: before/after screenshots on the fresh
  crawl (phone and desktop, light and dark), log table with the drawer rows
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
