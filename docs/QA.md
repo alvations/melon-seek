@@ -2922,3 +2922,367 @@ Screenshots are in `docs/screenshots/qa-mobile-beta-3/`.
 | `npm test` | same, data links present | **1,168 tests: 1,112 pass, 4 fail, 52 todo** (the to-dos are the open review findings, MR-23/26/28/29 among them). The 4 failures are the load-sensitive timing tests, run at load average 19-27: S-3 (2 s budget), S-6 (median ms per request), PERF-1 and V15 (event-loop lag; they run only with local data). Re-run alone at load 18, S-3 and V15 pass; S-6 (36 ms) and PERF-1 (295 ms) still fail. The lead saw S-6 pass 3 of 3 alone at load 6.4. Nothing this pass touched is on those paths (one new e2e file, two lines in scripts/e2e.js). |
 
 All browser runs used `NODE_PATH=<scratchpad>/pw/node_modules PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`.
+
+
+The lead copies everything below this paragraph into `docs/QA.md` as a new section. Links are written as they
+resolve from `docs/QA.md`.
+
+## Full QA pass (desktop, beta) 2026-10-16
+
+The third functional pass of the desktop beta site (`/melon-seek/beta/`), beta round 3, by the beta desktop QA
+agent. The process log, with every replayable command, is in
+[`docs/process/qa-desktop-beta-3.md`](process/qa-desktop-beta-3.md). No product code was changed.
+
+**Setup**
+- **Build under test:** the lead's reviewer build `<scratch>/cycle-beta6-dist` (2026-10-16 21:29 UTC; its app,
+  chart, map, api and Insights code equal the branch head d98a9f0), served under `/melon-seek/` by
+  `scripts/cycle/serve.mjs` with a pid file.
+- **Data:** the 2026-10-16 crawl with every board whole: Amazon 22,179, Apple 4,851, Google 3,821, NVIDIA 2,711,
+  Microsoft 2,435, Meta 1,208, Netflix 414; Anduril 2,537 on the main site. All boards are `mode: "snapshot"`.
+- **Browser:** Playwright, Chromium 141. Every other host was aborted, so the map runs without its basemap.
+- **Viewports and themes:** 1440x900, 1280x800 and 1024x768, light and dark.
+- **Method:** counts and order were checked against the app's own data (`api.js` `getJobs()` in the page, the
+  prepared jobs the UI uses). The card pay text of all 23,508 paid big-tech postings was computed with the app's own
+  `payPill`, lifted from `public/app.js` as `test/salary-audit.test.js` does, and each finding confirmed on screen.
+- **Load:** other agents ran at the same time; load average 4 to 23, so timings are upper bounds.
+- **Overlap:** items already filed (the methodology review's MR-n, the lead's round-3 follow-ups, SA-1) are under
+  "Notes", not re-filed.
+
+**New e2e tests:** [`test/e2e/beta-desktop-qa-3.e2e.js`](../test/e2e/beta-desktop-qa-3.e2e.js), registered in
+`scripts/e2e.js`. Run them with `node scripts/e2e.js --grep='^Beta desktop QA 3'`. They serve `BETA_QA_DIST`, else
+the shared `dist/`, and skip without a beta build. Each `[D-n]` test finds its case in the build's own data, so it
+keeps working on a new crawl.
+- **3/11 pass:** the 3 guards (bundle-only boards with a Snapshot badge; the Amazon preview's cards equal the
+  list's; a ×N Ranges row lists N postings). The 8 failures are exactly `[D-38]` … `[D-45]`.
+
+### Round 3 changes on the desktop
+| Change | Status | Checked |
+|---|---|---|
+| Amazon whole board (22,179) | Works | Loads in 2.1–5.0 s at load 6–20; every facet, sort, search and filter equals the data; Download CSV has 22,179 records (RFC 4180: 2 titles contain a line break, quoted correctly) |
+| Amazon first-page preview | Works | With the list held 9 s: 60 real cards under "Loading 22,179 roles…" at 0.8 s; the list then starts with the same 60 (id, title and pay); a preview card clicked while loading opens when the list lands (`job=` set); a sort, search, Map or Insights during the preview shows a plain "Loading roles…" and the right result after |
+| Meta (1,208) | Works | Every check below; 45 departments, 948 postings with pay (78%) |
+| fix-density one-line notes | Works | The stats line, chart notes ("13,980 with pay · 8,199 without"), map legends and Insights captions are one line at 1440, 1280 and 1024 in both themes, each with one Details button; the Insights header is its heading plus one line |
+| google-grouping | Works | 27 Department options (the job families, Software Engineering 946 first, and "No department"), sum 3,821; the Company list (Google 3,546, YouTube 162, DeepMind 111, Waymo 1, Wing 1) only on Google; `b=YouTube` gives 162; Group by Company shows the brand rows; "Grouped by job title: Google doesn't publish departments" under the list; `b=` and `g=brand` round-trip |
+| Salary audit labels | **Partly** | "· 2 levels" on 876 NVIDIA, 139 Microsoft and 1 Google cards; "· N places" on 2,259 Amazon, 390 Apple, 255 Microsoft cards; "from €46K" on 283 Amazon minimums; the "Incl. top shift pay" chip and "Posted pay, including shift pay" on 636 Amazon postings. But "· N places" counts ranges, not places: D-39; a term posting drops its places: D-40; the drawer's headline is one place's range: D-45 |
+| viz-even clusters | Works | On all 8 boards every circle sits within 0.7 px of the median its label names (65 Google, 70 Amazon circles); the one exception is Apple's "$349K" circle, drawn 9 px inside the axis end so it isn't clipped |
+| viz-even Ranges | Works | Rows of identical bands read "N roles" with ×N (Microsoft 35 stacked rows in the first 53, Google 28); a click lists exactly N ("Software Engineering · $364K–$505K (2)"); its tip lists the titles |
+| fix6-fresh-data | Works | No bare country codes in any Location list; Microsoft's Jordan posting is listed as "Jordan" |
+
+### Earlier findings
+- **D-31 fixed:** after a pin click no pin holds more than the biggest pin at the world view (Apple: Anchorage →
+  197 pins, the largest holding 2,056, less than the world view's largest, 3,315; Amazon, Google, Meta, NVIDIA, Netflix and Anduril alike).
+- **D-35 fixed:** `/melon-seek/#c=amazon` says "Amazon is on melon·seek's beta site" with "Open Amazon on the beta
+  site" (`/melon-seek/beta/#c=amazon`); a `job=` is kept.
+- **D-37 fixed for the titles:** the share pages read "Amazon jobs by salary · 22,179 roles · median $141K —
+  melon·seek beta" with beta `og:url`s (no `data-channel` mark, which the fix did not need).
+- **All 21 earlier tests pass** in the full suite: the first pass's `[D-17]` … `[D-30]` and the second pass's
+  `[D-31]` … `[D-37]` (D-32 store names, D-33 one age, D-34 Microsoft pay by level, D-36 one label per place).
+
+### What works on desktop, beta (all seven boards and Anduril unless noted)
+- **Beta only:**
+  - The seven boards load from the bundle only: one `api/jobs/<slug>.json` each (Amazon also its
+    `api/preview/amazon.json`; Google comes from the early fetch), no request to any other host. The badge reads
+    "Snapshot · Oct 16", and its popover says "This board is collected by the site's crawler; your browser can't
+    fetch it live", the fetch time ("Oct 16, 2026, 11:58 UTC (9 hours ago)"), the count, Download CSV, "How we
+    collect this" (an on-site methodology anchor) and "Go to the main site".
+  - Tesla (left out) is absent: `#c=tesla` says "This board isn't on this site · Tesla isn't listed here", the
+    badge hidden. No company is paused today.
+  - The page says it is beta: the tab title "melon·seek beta — job boards, plotted by salary", the logo's name
+    "melon·seek beta home", the "Beta" tag linking to `/melon-seek/`, the tagline "Beta: adds 7 big-tech companies'
+    own careers sites".
+  - Apple stays responsive: every filter, sort, search and chart change lands in 0.12–0.45 s at load 21, Map in
+    1.4 s, Insights in 0.75 s (table below). Amazon, with 4.6 times Apple's postings, takes 0.3–0.7 s for
+    filters, sorts and searches and 1.1 s to redraw Clusters.
+- **Company and boards:** the menu focuses its search; "amaz" + Enter opens Amazon, "meta" + Enter Meta;
+  "eightfold" finds Microsoft, Netflix and NVIDIA; Esc closes and returns focus; the current board has a ✓. The
+  recent pill switches boards (one pill below 1,600 px, none below 1,200, as designed). Add board flags a bad slug,
+  opens a Lever board with labelled demo data, keeps it under "YOUR BOARDS" after a reload, and removing it in the
+  Add board popover returns to Google.
+- **Search:** "engineer", "manager", "data", "software engineer", "intern" and "nurse" on all eight boards: the
+  sort becomes Best match, the first "· N in title" cards all have the words in their title or team, and clearing
+  the search restores Highest pay.
+- **Filters** (1,281 checks against the data, 0 wrong):
+  - Department, Company (Google), Seniority, Remote and Employment type sum to the total on every board (Amazon
+    37 departments, NVIDIA and Microsoft 142, Anduril 467); each department count equals the data; a pick gives
+    exactly its count, two picks their sum; a facet's own counts don't move with its own pick; the other facets
+    then sum to the new total; unpicking restores the board.
+  - Location: the top city and a city of a second country give exactly their counts.
+  - The Responsibilities, Fit and Skills chips give exactly their counts and AND together.
+  - Salary on all eight: "Only show roles with pay" equals the paid count (Amazon 13,980); "200k", "300000" and
+    "£80,000" (≈ $108K) give the data's overlap counts; ten slider steps give the data's count for the new minimum.
+  - Clear all restores every board.
+- **Sorting:** Highest pay, Lowest pay, Newest, Title A–Z and Most juice are in order for the first 120 cards on
+  all eight boards.
+- **Chart:** Clusters, Ranges and Group by (Department, Location, Seniority in ladder order, None, and Company on
+  Google). A cluster gives a chip ("Project/Program/Product Management--Technical · $166K–$186K (483)") with
+  exactly its roles; dismissing it restores the board. Overflow markers have their own tip ("13 roles above $350K:
+  $434K, $434K, $367K, +10 more"). Arrow keys move `aria-activedescendant`. A stacked Ranges row's tip lists its
+  titles.
+- **Map:** pins and tooltips on all eight; a pin click gives an area chip equal to the list ("San Juan and Halifax
+  (5)"); the Remote control lists the remote roles (Amazon 354, Microsoft 357, Google 68) as a chip; Pay|Juice with
+  both legends ("Median base pay a year", "Gray: no Juice data", each with Details) and `mc=juice`; zoom buttons;
+  with the drawer open the map is 702, 582 and 638 px wide at 1440, 1280 and 1024 and the drawer stays in the
+  viewport.
+- **Insights:** on all eight, Compstimate prefills from the filters (Amazon "Technical Program Manager · Senior,
+  $175K, high confidence, based on 500 similar roles"); typing a title shows "Reset to filters", which restores the
+  title; the accuracy line shows everywhere ("Typically within ±8%" at Microsoft to "±15%" at Meta and Netflix).
+  Market insights rows add and remove their filter (Amazon "LLMs" 22,179 → 353 → 22,179). Compare companies
+  switches company with `rf=` and Back returns.
+- **Job drawer** (44 postings: two levels, several places, minimum, shift pay with a stated base, part-time
+  hourly, monthly, internships, on-target earnings, CAD, CZK, EUR, PLN, Pay unclear, no pay):
+  - Pay blocks label honestly: "Pay by level" and "Pay by place" as rows, "from €46K" with "Minimum", "Incl. top
+    shift pay", "Annualized from hourly pay", "≈ $53K in US dollars at Jul 2026 rates", "One number, not a range",
+    "Top is 2.1× the bottom (across levels)", and the rank within the posting's country.
+  - "Pay unclear" postings (Google 1, Netflix 1, Anduril 4) say why and show a labelled estimate (but see D-38).
+  - The Juice waterfall: Monthly is Yearly / 12 and keeps focus; Just me, Couple and Family re-score (Amazon
+    Irving 37 → 28 → 15) with focus kept, in 0.9–3.8 s at load 13–20; internships use "Whole term"; a missing
+    Juice says why ("no rent and living-cost data yet for Casirate d'Adda", the part-time case).
+  - Same role elsewhere: a row (Amazon → Netflix) switches with `s=Senior&rf=product`; Back reopens the Amazon
+    drawer at the same URL; Forward works.
+  - The Listing block, keywords, the lazy description (one `api/desc/…` request), and Apply on the right careers
+    host (www.amazon.jobs, jobs.apple.com, www.google.com, www.metacareers.com, apply.careers.microsoft.com,
+    jobs.nvidia.com, explore.jobs.netflix.net, boards.greenhouse.io) in a new tab with `noopener`.
+  - Copy link copies the `/beta/` URL with `job=`; Prev/Next and j/k step ("2 of 1,208" → "3 of 1,208"); Esc closes
+    with focus back on the card and `job=` removed; a deep link to Amazon's last role opens "22,179 of 22,179"; an
+    unknown `job=` is dropped.
+- **Other:** Save toggles to "Saved" with a toast; after ageing the save, "Meta · Senior · Remote 3 new" and 3
+  cards marked New; saving Amazon's Software Development (2,661 roles) works too. Download CSV: Amazon 22,179 records,
+  Google 3,821. The theme persists across a reload; `/` focuses the search; `t` on a card cycles the theme, while
+  "t/jk" typed in the search, or "t" in the company search, only types. Two full hashes (Google with `b=YouTube`
+  and `g=brand`; Amazon with `d`, `l`, `s`, `v=ranges`, `g=seniority`, `sort=newest`) round-trip exactly and the
+  controls show them. Back and Forward walk mode and sort. The share pages `/beta/c/<slug>/` are 200 for all
+  seven. Every methodology link on the page opens an on-site anchor that exists.
+- **Layout and errors:** 128 checks at the three widths in both themes on Amazon and Google: no horizontal
+  scroll, no top-bar overlap, the menu, badge, Add board, Salary, Location and More popovers, the 1024 filter
+  sheet and the drawer all inside the viewport; axe colour contrast finds 0 violations in Chart, Ranges, Map,
+  Insights, More and the drawer. No console or page error in any flow.
+
+### Timings on Amazon, Apple and Anduril (1440x900, no throttling, load 20–23)
+Wall clock from the action until the DOM changed (polled every 50 ms), and the longest task in it.
+
+| Action | Amazon (22,179) | Apple (4,851) | Anduril (2,537) |
+|---|---|---|---|
+| First cards / chart on load | 5034 / 5136 ms | 1833 / 2496 ms | 1734 / 2128 ms |
+| Tick the first department | 316 ms, longest task 167 ms | 404 ms, longest task 255 ms | 348 ms, longest task 142 ms |
+| Seniority Senior | 301 ms, longest task 144 ms | 243 ms, longest task 111 ms | 200 ms, longest task 83 ms |
+| Location: first city | 607 ms, longest task 487 ms | 185 ms, longest task 94 ms | 272 ms, longest task 158 ms |
+| Sort Lowest pay | 341 ms, longest task 275 ms | 218 ms, longest task 120 ms | 346 ms, longest task 242 ms |
+| Sort Most juice | 488 ms, longest task 456 ms | 247 ms, longest task 139 ms | 227 ms, longest task 177 ms |
+| Search "engineer" | 668 ms, longest task 309 ms | 311 ms, longest task 114 ms | 318 ms, longest task 145 ms |
+| Group by Location | 588 ms, longest task 297 ms | 208 ms, longest task 91 ms | 329 ms, longest task 109 ms |
+| Ranges view | 683 ms, longest task 225 ms | 318 ms, longest task 182 ms | 274 ms, longest task 76 ms |
+| Clusters view | 1120 ms, longest task 491 ms | 384 ms, longest task 143 ms | 261 ms, longest task 91 ms |
+| Skills chip Python | 467 ms, longest task 336 ms | 343 ms, longest task 75 ms | 282 ms, longest task 159 ms |
+| Clear all | 682 ms, longest task 365 ms | 125 ms, longest task 70 ms | 214 ms, longest task 77 ms |
+| Open Map | 2013 ms, longest task 745 ms | 1360 ms, longest task 432 ms | 1050 ms, longest task 571 ms |
+| Map Pay → Juice | 518 ms, longest task 206 ms | 571 ms, longest task 324 ms | 299 ms, longest task 118 ms |
+| Open Insights | 2234 ms, longest task 2016 ms | 753 ms, longest task 672 ms | 959 ms, longest task 722 ms |
+| Open a role | 523 ms, longest task 318 ms | 330 ms, longest task 100 ms | 396 ms, longest task 120 ms |
+| Household Family (drawer) | 1264 ms, longest task 548 ms | 442 ms, longest task 163 ms | 317 ms, longest task 57 ms |
+| 10 salary-slider steps | 4706 ms | 2340 ms | 2529 ms |
+| JS heap after the run | 114 MB | 39 MB | 40 MB |
+
+Apple's numbers equal round 2's within the higher load. Amazon's Insights is one 2.0 s task on the desktop too (the
+known perf-mobile-beta-2 item); its ten slider steps take 4.7 s.
+
+### Bugs (ordered by severity)
+Repro steps assume a fresh 1440x900 light window on the static beta build, with other hosts blocked, unless
+stated. Screenshots are in `docs/screenshots/qa-desktop-beta-3/`.
+
+| ID | Sev | Viewport | Summary |
+|---|---|---|---|
+| D-38 | Medium | All | Google's "Fellow, Core AI Foundations", a Google Fellow posted at $550,000, is levelled Intern, its pay quarantined as "implausible for an intern/fellow/resident title" and replaced by a "$138K" estimate |
+| D-39 | Medium | All | Amazon's "· N places" counts ranges, not places: 28 postings list one place name 2–4 times ("Remote" ×4 for six states' rows), so the reader can't tell which pay is where |
+| D-40 | Low | All | A term (internship) or part-time hourly posting never shows "Pay by place": Amazon's Mt Juliet intern pay of $39,695 reads "$44,115 a year" |
+| D-41 | Low | All | "St.", "St" and "Saint" are different labels: one town under two labels, and two towns of one name with no state (Amazon St. Louis MO / St Louis MI; Google St. George SC ×2 / UT) |
+| D-42 | Low | All | US state-only places read like the city beside them: NVIDIA "New York, US" (the state) next to "New York", "Washington, US" (the state) next to "Washington, DC" |
+| D-43 | Low | All | The chart rounds range ends in the millions to one decimal ("$600K–$1.1M") where the card, since SB-7, says "$600K–1.07M" |
+| D-44 | Low | All | Group by Location opens with one- and two-role places ranked by their single posting's pay: 8 of Google's first 10 rows hold 1–2 roles, and Mountain View (500) is row 11 |
+| D-45 | Low | All | For 2,200 Amazon and 255 Microsoft postings with pay per place, the drawer's headline is one place's range with no place named, while the card shows the span ("$60K–129K · 4 places" opens as "$83K–117K") |
+
+#### D-38 (Medium): a Google Fellow is treated as an intern and its posted $550,000 is replaced by a $138K estimate
+- **Viewport:** 1440x900, light; the same at every width.
+- **Repro:** open `/melon-seek/beta/#c=google&job=google%3A84245035704296134`, "Fellow, Core AI Foundations"; open
+  "Why?".
+- **Expected:** the posting's pay, "$550K" ("US: $550,000 (USD) + 80% bonus target + equity + benefits"), and a
+  Staff+ level: the description says "As Fellow for Agentic Development, you will serve as the technical authority
+  … Reporting directly to the General Manager of Core AI Foundations". Google Fellow is Google's top
+  individual-contributor level, not a fellowship.
+- **Actual:** "Intern" under the title; "Pay unclear, see posting — the listed figure didn't pass our sanity
+  checks"; Why?: "$550K/yr is implausible for an intern/fellow/resident title"; then "PAY ESTIMATE about $138K
+  ($115K–152K, low confidence)". One of Google's two highest posted salaries (with "Vice President, Strategic Alliances",
+  $550K) is left out of the chart, the medians and the "Highest pay" sort, and the one figure shown is a quarter of
+  it. The Seniority filter counts it as an Intern.
+- **Cause:** `server/vet.js`: `JUNIOR_RE` matches "fellow", and `NOT_JUNIOR_RE` only spares "technical /
+  distinguished / senior / principal / research fellow", so a title that starts "Fellow, …" is `junior`, and
+  `junior_high` (mid over $300K) quarantines it. The level comes from the same "fellow" word (the `intern` family
+  in `server/vet.js` `FAMILIES`, and the seniority rules).
+- **Screenshot:** `D-38-google-fellow-pay-unclear-estimate-138k.png`.
+- **Owner:** `server/vet.js` `titleClass` (`JUNIOR_RE`, `NOT_JUNIOR_RE`) and the seniority rule that reads
+  "fellow": a title that begins "Fellow," and names no programme ("Fellowship", "Fellows Program", student or
+  graduate words) is a senior title.
+- **Test:** `[D-38]`: no Google "Fellow, …" title (not a fellowship) is levelled Intern or flagged `junior_high`.
+
+#### D-39 (Medium): Amazon's "· N places" counts ranges, and Pay by place repeats one name
+- **Viewport:** 1440x900, light.
+- **Repro:**
+  1. Open `/melon-seek/beta/#c=amazon&q=Ad%20Sales%20Account%20Manager%2C%20Adapt`: the card reads "$56K–94K · 4
+     places".
+  2. Open it (`job=amazon%3A10568868`) and look at "Pay by place".
+- **Expected:** each range named by the place it is posted for. The posting gives six rows: "USA, CA, Virtual
+  Location - California" $70,400–94,000, Illinois $56,000–94,000, New Jersey $56,000–94,000, New York
+  $62,400–94,000, Virginia $56,000–94,000, Washington $80,200–94,000. So: "Remote (CA) $70K–94K · Remote (IL, NJ,
+  VA) $56K–94K · Remote (NY) $62K–94K · Remote (WA) $80K–94K", and a card count that counts places (or says
+  "· 4 ranges").
+- **Actual:** "Pay by place: Remote $70K–94K · Remote $56K–94K · Remote $62K–94K · Remote $80K–94K"; the card says
+  "4 places" for one place, Remote. The states, which decide the pay, are gone.
+- **Other cases:** 28 Amazon postings have rows that share a name: 11 with "Remote" rows (e.g. "Account Executive
+  II, PubSec GOV - State & Local", `amazon:10476446`, from Minnesota and other virtual rows), and 17 with one city's
+  two rows ("Senior Product Manager - Technical, ES, AWS Payments and Fraud Prevention": "Pay by place: Seattle
+  $151K–205K · Seattle $152K–206K", card "$151K–206K · 2 places", headline "$151K–205K"; "Engineering Operations
+  Technician": "Boardman, Hermiston, Umatilla" twice; one of the 17 is Canadian, "St Thomas" twice).
+- **Cause:** `server/sources/amazon.js` `amazonSalary` `label()`: a virtual row whose `locations` are the posting's
+  "Remote, United States" is labelled from that location ("Remote"), not from its state; rows of one place with
+  different ranges are separate groups with the same label. `public/app.js` `payPill` then writes
+  `${rs.length} places`.
+- **Screenshots:** `D-39-amazon-card-4-places-all-remote.png`, `D-39-amazon-drawer-pay-by-place-remote-x4.png`,
+  `D-39-amazon-drawer-seattle-twice.png`.
+- **Owner:** `server/sources/amazon.js` `amazonSalary` (label a virtual row "Remote (CA)" even when it has
+  locations; name a place's second row, or merge it), and `public/app.js` `payPill` (count distinct places).
+- **Test:** `[D-39]`: an Amazon posting whose rows share a name shows no repeated name in Pay by place.
+
+#### D-40 (Low): a term or part-time hourly posting never shows Pay by place
+- **Viewport:** 1440x900, light.
+- **Repro:** open `/melon-seek/beta/#c=amazon&job=amazon%3A10502807`, "Loss Prevention Specialist Intern 2027".
+- **Expected:** "Pay by place: Fort Worth, Jacksonville, Matteson, Salt Lake City, Stockton, Union $44,115 · Mt
+  Juliet $39,695", as other postings with a range per place show.
+- **Actual:** "$44,115 a year · USD · 10-week internship · One number, not a range", for 8 places; the card reads
+  "$44K/year". Mt Juliet's own posted pay ($39,695) is shown nowhere, and West Deptford Twp, which has no row,
+  reads as $44,115 too.
+- **Cause:** `public/app.js` `payPill` returns from the fixed-term branch before it reads `payRanges`, and
+  `drawerContent` skips `payPlacesLine` for any term or part-time hourly posting
+  (`term || partHourly ? null : payPlacesLine(sal)`). One posting today; the rule applies to every board.
+- **Screenshot:** `D-40-amazon-intern-8-places-one-figure.png`.
+- **Owner:** `public/app.js` `payPill` and `drawerContent` (show "Pay by place" for term and part-time pay, in the
+  posted unit).
+- **Test:** `[D-40]`: a term or part-time posting with different pay per place shows "Pay by place".
+
+#### D-41 (Low): "St.", "St" and "Saint" make different Location labels
+- **Viewport:** 1440x900, light.
+- **Repro:** open `/melon-seek/beta/#c=amazon` and type "Louis" in the left column's Location search; then
+  `#c=google` and type "George".
+- **Expected:** one label per place, and the state when two places share a name: "St. Louis, MO" and "St. Louis,
+  MI"; "St. George, SC" and "St. George, UT".
+- **Actual:** Amazon "St. Louis" (94) and "St Louis" (80): the first is St. Louis, Missouri (15 postings), the
+  second St Louis, Michigan (1 posting), and neither label says which. Google "Saint George" (15), "St George" (15)
+  and "St. George" (14): the first two are the same St. George, South Carolina (one posting each), the third is
+  St. George, Utah. Picking one label misses the other spelling's postings.
+- **Cause:** `public/app.js` `disambiguateLocations()` adds the state only when two places have the same key
+  (`locKey`), and the key keeps the spelling, so "St." and "St" never clash.
+- **Screenshots:** `D-41-amazon-location-st-louis-two-spellings.png`, `D-41-google-location-saint-george-three-labels.png`.
+- **Owner:** `public/app.js` `locKey` / `disambiguateLocations()` (fold "St."/"St"/"Saint" in the key), or
+  `server/geo.js` `canonicalName` (one spelling per place).
+- **Test:** `[D-41]`.
+
+#### D-42 (Low): US state-only places read like the city next to them
+- **Viewport:** 1440x900, light.
+- **Repro:** open `/melon-seek/beta/#c=nvidia`; in the Location search type "New York", then "Washington".
+- **Expected:** a posting that names only a state reads as the state: "New York State" or "New York (state)",
+  "Washington State".
+- **Actual:** "New York" (187) and "New York, US" (38), "Washington, DC" (151) and "Washington, US" (82). "New
+  York, US" is the state (raw "NY, US", pinned at the state's centre) and "Washington, US" is Washington state
+  (raw "WA, US"), but they read as New York City and Washington DC. NVIDIA has 27 such state labels ("California,
+  US" 242, "Texas, US" 96); the two that share a city's name mislead. Google has "District of Columbia, US" (4) next
+  to "Washington, DC".
+- **Screenshots:** `D-42-nvidia-location-new-york-us.png`, `D-42-nvidia-location-washington-us.png`.
+- **Owner:** `server/geo.js` (the label of a place with a region and no city) or `public/app.js` `locKey`.
+- **Test:** `[D-42]`: no "X, US" label sits next to an "X" or "X, …" label.
+
+#### D-43 (Low): the chart writes "$1.1M" where the card writes "$1.07M"
+- **Viewport:** 1440x900, light.
+- **Repro:** open `/melon-seek/beta/#c=netflix&v=ranges` and hover the "7 roles" row.
+- **Expected:** "$600K–$1.07M", as the cards beside it read ("AI Research Engineer 6 … $600K–1.07M") since SB-7
+  ("a range end in the millions keeps two decimals").
+- **Actual:** the tip "$600K – $1.1M · 7 postings with this posted range", the row's name "7 roles with the same
+  posted range, $600K to $1.1M", and the chip "Data & Insights · $600K–$1.1M (7)". "Director, Technical Program
+  Management - Ads Foundations" ($630,000–$1,090,000, card "$630K–1.09M") is "$630K to $1.1M" too, so two different
+  ranges read the same.
+- **Cause:** `public/viz/chart.js` `rangeText` and `moneyRange` format with `formatMoney` (one decimal), not the
+  app's `rangeEnd` (SB-7).
+- **Screenshot:** `D-43-netflix-ranges-1.1M-vs-card-1.07M.png`.
+- **Owner:** `public/viz/chart.js` `rangeText` / `moneyRange` (and the cluster tip), with SB-7's rule.
+- **Test:** `[D-43]`: every "$X.XM" in a Netflix Ranges row is a posted end written with two decimals.
+
+#### D-44 (Low): Group by Location opens with one-posting places
+- **Viewport:** 1440x900, light; at 1280 and 1024 the same rows.
+- **Repro:** open `/melon-seek/beta/#c=google&g=location`.
+- **Expected:** like Group by Department (UX-24): the places with the most postings with pay keep rows, the rest
+  fold into "N more places"; or rows by size, so a one-role place never leads.
+- **Actual:** the first rows are "Wyoming, US · 1 role · median $263K", "Alameda · 1 role · median $253K",
+  "Wilmer · 1 role", "Papillion · 1 role", "San Diego · 4 roles", "Brussels · 2 roles", "Arkansas, US · 2 roles",
+  "Seattle · 51 roles", "Iowa, US · 2 roles", "Michigan, US · 1 role", then "Mountain View · 500 roles". A single
+  posting's pay is drawn as a place's median at the top of the chart, and Google's 264 places are all rows. Apple
+  ("Long Island City · 1 role" first) and Amazon (1,570 places) do the same.
+- **Cause:** `public/viz/chart.js` `renderClusters`: rows sort by median, and the UX-24 fold applies only to
+  `FOLD_NOUN` = department and brand.
+- **Screenshot:** `D-44-google-group-by-location-led-by-one-role-places.png`.
+- **Owner:** `public/viz/chart.js` `renderClusters` (`FOLD_NOUN` for location, or a minimum count to lead).
+- **Test:** `[D-44]`: no 1–2-role Location row is drawn above a row of 100 or more.
+
+#### D-45 (Low): the drawer's headline is one place's range, with no place named, where the card shows the span
+- **Viewport:** 1440x900, light; the same in dark and at every width.
+- **Repro:** open `/melon-seek/beta/#c=amazon&q=Senior%20Financial%20Analyst%2C%20Engineering%20Capex%20Analytics%20%26%20Planning`;
+  the card reads "$60K–129K · 4 places". Open it.
+- **Expected:** the headline the card promised ("$60K–129K", the span of the four places' ranges, as Apple's drawers
+  show), or the place the figure is for ("Bellevue: $83K–117K").
+- **Actual:** the headline is "$83K–117K · USD · per year", then "Pay by place: New York $74K–129K · Nashville
+  $60K–105K · Irving, Arlington $67K–117K · Bellevue $83K–117K". The big number is Bellevue's range (the posting's
+  own city row), but nothing says so, and it is not the range on the card. The same on 2,200 of Amazon's 2,259
+  "· N places" postings and on all 255 of Microsoft's ("$102K–261K · 2 places" opens as "$102K–235K"); Apple's 390
+  show the span on both.
+- **Cause:** Amazon's and Microsoft's `salary.min/max` is the row for the posting's primary place (the pay rule in
+  DATA_SOURCES §7a), Apple's is the span; `public/app.js` `drawerContent` shows `salaryRange(sal)` while `payPill`
+  shows the span of `payRanges`.
+- **Screenshots:** `D-45-amazon-card-span-60k-129k-4-places.png`, `D-45-amazon-drawer-headline-83k-117k-unnamed.png`.
+- **Owner:** `public/app.js` `drawerContent` (the pay block's headline: the span, as on the card, or the primary
+  place's name beside it).
+- **Test:** `[D-45]`.
+
+### Notes
+- **Seen on the desktop, already filed, not re-filed (counts on this build):**
+  - The lead's round-3 card leftovers: 11 NVIDIA on-target-earnings level spans without "· 2 levels" (e.g.
+    "Global Energy Partner Ecosystem Manager" "$224K–397K"); 7 Google BS/MS internships with degree lines ("€47K/year",
+    the drawer lists "Bachelor's degree" and "Master's degree" as "Pay by level"); 2 Amazon fixed-term monthly
+    minimums without "from" ("€5,233/month", "€1,800/month"); Amazon "Town and Country, MO" as "Country" (80) and
+    "Town" (1).
+  - MR-34: bare cards whose drawer says "Several pay ranges": Microsoft 913, Google 32, Amazon 31 (Amazon's "$150,000
+    in our lowest geographic market up to $300,000").
+  - MR-40: Microsoft's "Redmond, Garden City, Boston $102K–235K" puts Garden City, NY in the national range.
+  - MR-29: Google's Insights rows ("Legal: median $254K") don't say the departments come from titles.
+  - MR-38: Microsoft "Applied Science: PhD Microsoft AI Internship Opportunities" reads "$82K–162K per year, Annualized
+    from monthly pay".
+  - SA-1's open question: NVIDIA "Senior Software Architect - Data Center Systems" scores Juice on $327,600, the
+    midpoint of its Level 5 and Level 6 span.
+  - perf-mobile-beta-2's Amazon Insights task: 2.0 s on the desktop at load 20.
+  - MR-23 and MR-26: the beta methodology table marks exchange rates (1 July 2026), tax, rent and living costs
+    "update due".
+- **Not bugs, for the record:** the map's Remote control shows the remote roles as an area chip, like a pin; a
+  second click keeps them (the chip's × clears it). The preview's list ends with "Show 40 more of 40" (the
+  preview's own cards). 19 Microsoft cards read "· 2 places" where each place's range spans two levels; their drawer
+  lists both "Pay by level" and "Pay by place". At 1440 the drawer overlays the right 137 px of the map, with its
+  backdrop.
+- **Polish:** the Salary note says "1 with unclear pay is left out" while "1,309 roles that list no pay" already
+  counts it (Google: 3,821 − 2,512); 2 Amazon titles contain a line break ("Partner Development Manager\n, Benelux
+  Partner Team").
+- **Not testable here:** live fetches, map tiles, and the careers hosts behind Apply.
+
+### Suite results
+| Suite | Tree | Result |
+|---|---|---|
+| `npm test` | this worktree (d98a9f0 plus this pass's test file), with the 2026-10-16 data linked | 1,168 tests: **1,113 pass, 3 fail, 52 to-dos**. The 3 failures are the load-sensitive timing tests S-6 (27 ms a request), PERF-1 (844 ms of event-loop lag) and V15, at load 20–23. Run alone at load 20, S-6 passed and PERF-1 (227 ms) and V15 (306 ms) failed; at load 2 all 3 pass. A second full run on the final tree at load 3–4: 1,114 pass, 2 fail (PERF-1 and V15 again, which share the CPU with the other test files there). PERF-1 and V15 run only with local data (CI skips them). The to-dos are the methodology and security reviews' open findings. |
+| `node scripts/e2e.js --grep='^Beta desktop QA 3'` | the lead's build | **3/11**: the 3 guards pass; `[D-38]` … `[D-45]` fail by design |
+| `node scripts/e2e.js` (full) | this worktree, `dist` linked to the lead's build, `BETA_QA_DIST` set, load 2–23 | **368/379 passed, 7 failed, 4 skipped**. The 7 failures are exactly this pass's `[D-38]` … `[D-44]` (`[D-45]` was written after the run started). Every other test passes, including the first and second desktop passes' `[D-17]` … `[D-37]`, viz-even (7), google-grouping (7) and fix-density. The 4 skips are as before: `[D-11]` (these boards have listing dates), the methodology screenshots (need `E2E_SHOTS=1`), fix-app `[P-2]` (no estimate for its role) and fix3-viz's NVIDIA Munich test (no such roles today). |
+
+All runs used `NODE_PATH=<scratch>/pw/node_modules PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`.
+
+---
