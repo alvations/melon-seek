@@ -1199,3 +1199,28 @@ screenshots in `docs/screenshots/`.
   - `npm test` (CI-like): 1,098 tests, 1,052 pass, 0 fail.
   - Full e2e on the 2026-10-16 crawl: 353/362, with only the same 5 data-driven failures. fix6-fresh-data has fixes for all 5.
 - **Checkpoints:** the 2-hour background limit stopped the loop at 15:41. A session cron job now runs `checkpoint.sh` every 15 minutes (PLAYBOOK, "Checkpoints").
+
+### fix6-fresh-data integrated; salary-audit-backend finished (2026-10-16)
+- **[fix6-fresh-data](fix6-fresh-data.md):** the 5 e2e checks that went red on the 2026-10-16 crawl.
+  - **Two product fixes:**
+    - D-23, Microsoft's bare "JO": server/geo.js now knows Jordan and Bahrain; Amazon's "PRI" is Puerto Rico; any other bare country code is named through `Intl.DisplayNames` with no invented coordinates. The check now covers all 7 big-tech boards.
+    - fix3-data, a Google technician tagged TPUs/GCP: server/keywords.js `nearCopyOf` leaves out near copies of team paragraphs that at least 10 roles repeat. Over 43,141 postings, 55 lose skills and none gain any; 0 of 300 golden hashes change.
+  - **Three tests rewritten** because the data moved; same intent, not weakened:
+    - BP-10: Apple no longer lists Columbus, GA.
+    - BP-14: the xAI posting now has a preferred list.
+    - T20: Anthropic's first Senior SWE is in Dublin, and pay is compared within one country.
+  - fix6's own norm-11 bump was not taken; salary-audit-backend's single bump covers it.
+  - **Follow-ups for the round-3 fix wave:**
+    - Amazon splits "Town and Country, MO" into two places.
+    - An old link to "Columbus, OH" finds nothing on a board that now labels the place "Columbus".
+- **[salary-audit-backend](salary-audit-backend.md), final:**
+  - 0203d7f: before/after chart screenshots for 7 boards.
+  - DATA_SOURCES §7a now states the norm-11 rules (SB-1 to SB-6).
+  - **Lead decision (2026-10-16):** a place the posting lists but gives no pay row of its own has no posted pay there. That means no Juice for that place, and no scoring on another place's row; the card still shows the posting's range. This affects 7 Amazon postings, and the code change is due in the round-3 fix wave.
+  - **Card leftovers for that wave:**
+    - 2 Amazon fixed-term monthly minimums lack "from €X".
+    - 11 NVIDIA OTE level spans and 7 Google internships with degree lines lack "· N levels".
+    - "These are Google's own level names" reads oddly for degree lines.
+- **Gate:**
+  - `npm test` CI-like: 1,104 tests, 1,058 pass, 0 fail.
+  - Full e2e on the 2026-10-16 crawl: 358/362 passed, 0 failed, 4 skipped. This is the first fully green e2e on the uncapped crawl.
