@@ -33,6 +33,7 @@ import { registerFix4AppTests } from '../test/e2e/fix4-app.e2e.js';
 import { registerFixDensityTests } from '../test/e2e/fix-density.e2e.js';
 import { registerGoogleGroupingTests } from '../test/e2e/google-grouping.e2e.js';
 import { registerVizEvenTests } from '../test/e2e/viz-even.e2e.js';
+import { registerBetaA11y2Tests } from '../test/e2e/beta-a11y-2.e2e.js';
 
 const args = new Set(process.argv.slice(2));
 const apiOnly = args.has('--api-only');
@@ -91,6 +92,7 @@ if (!apiOnly) {
   registerFixDensityTests(suite);
   registerGoogleGroupingTests(suite);
   registerVizEvenTests(suite);
+  registerBetaA11y2Tests(suite);
 }
 
 let results;

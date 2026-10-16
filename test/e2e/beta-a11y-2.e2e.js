@@ -1,0 +1,115 @@
+// Accessibility review of the beta site, round 3, 2026-10-16 (docs/REVIEW.md "beta review 2026-10-16",
+// docs/process/security-a11y-review-beta-2.md). Chromium against the static build's beta copy, served under
+// /melon-seek/ like GitHub Pages (ROOT/dist by default; E2E_DIST=<dir> serves another build).
+// Each test encodes one finding (A-n) and FAILS until it is fixed. Every test skips when the build (or the
+// beta data it needs) is missing.
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import { ROOT, assert, skip } from './harness.js';
+
+const DESKTOP = { width: 1440, height: 900 };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function serveDist() {
+  const dist = path.resolve(process.env.E2E_DIST || process.env.BETA_QA_DIST || path.join(ROOT, 'dist'));
+  if (!fs.existsSync(path.join(dist, 'beta', 'index.html')) || !fs.existsSync(path.join(dist, 'beta', 'api', 'jobs'))) return null;
+  const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2' };
+  const server = http.createServer((req, res) => {
+    const u = new URL(req.url, 'http://x');
+    if (!u.pathname.startsWith('/melon-seek/')) { res.writeHead(302, { location: '/melon-seek/' }); return res.end(); }
+    let rel;
+    try { rel = decodeURIComponent(u.pathname.slice('/melon-seek/'.length)); } catch { res.writeHead(400); return res.end(); }
+    let p = path.join(dist, rel);
+    if (p !== dist && !p.startsWith(dist + path.sep)) { res.writeHead(403); return res.end(); }
+    if (fs.existsSync(p) && fs.statSync(p).isDirectory()) p = path.join(p, 'index.html');
+    if (!fs.existsSync(p)) { res.writeHead(404); return res.end(); }
+    res.writeHead(200, { 'content-type': MIME[path.extname(p)] || 'application/octet-stream' });
+    res.end(fs.readFileSync(p));
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  return { dist, origin, beta: `${origin}/melon-seek/beta`, close: () => new Promise((r) => server.close(r)) };
+}
+
+/** Open the beta site at `hash`. `hold` (a RegExp) holds back matching requests until `release()`. */
+async function openBeta(ctx, hash, { viewport = DESKTOP, colorScheme = 'light', hold = null, wait = true, ...opts } = {}) {
+  const st = await serveDist();
+  if (!st) skip('dist/beta/ not built (npm run build, or set E2E_DIST)');
+  ctx.cleanup.push(() => st.close());
+  const context = await ctx.browser.newContext({ viewport, colorScheme, deviceScaleFactor: 1, ...opts });
+  ctx.cleanup.push(() => context.close());
+  await context.route((u) => !u.href.startsWith(st.origin) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
+  let release = () => {};
+  if (hold) {
+    const gate = new Promise((r) => { release = r; });
+    await context.route(hold, async (route) => { await gate; await route.continue().catch(() => {}); });
+  }
+  const page = await context.newPage();
+  await page.goto(`${st.beta}/#${hash}`);
+  if (wait) await ready(page);
+  return { st, context, page, release };
+}
+async function ready(page, timeout = 120000) {
+  await page.waitForFunction(() => { const t = document.querySelector('#resultsTitle'); return t && t.querySelector('strong') && !/Loading/.test(t.textContent); }, null, { timeout });
+  await sleep(600);
+}
+
+export function registerBetaA11y2Tests(suite) {
+  suite.test('[A-8] beta a11y 2: the chart\'s "N more departments" fold row does not put aria-expanded on an option', async (ctx) => {
+    const { page } = await openBeta(ctx, 'c=google');
+    const r = await page.evaluate(() => [...document.querySelectorAll('[role=option][aria-expanded]')].map((e) => `${e.getAttribute('aria-label')?.slice(0, 60)} (aria-expanded=${e.getAttribute('aria-expanded')})`));
+    const fold = await page.evaluate(() => !!document.querySelector('.ms-crow__fold'));
+    if (!fold && !r.length) skip('no fold row on this board');
+    assert(!r.length, `role=option does not support aria-expanded (axe aria-allowed-attr, critical), so screen readers do not hear that it opens: ${r.join(' | ')}`);
+  });
+
+  suite.test('[A-9] beta a11y 2: each "Details" button says what it details, and is at least 24px tall on a desktop', async (ctx) => {
+    const { page } = await openBeta(ctx, 'c=google&m=insights');
+    await sleep(3000);
+    const r = await page.evaluate(() => {
+      const bs = [...document.querySelectorAll('.ms-note__more')].filter((b) => b.getClientRects().length);
+      const spoken = bs.map((b) => {
+        const label = b.getAttribute('aria-label') || b.textContent.trim();
+        const desc = (b.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean).map((id) => document.getElementById(id)?.textContent.trim() || '').join(' ');
+        return `${label}${desc ? ` / ${desc}` : ''}`;
+      });
+      return { n: bs.length, spoken, heights: bs.map((b) => Math.round(b.getBoundingClientRect().height * 10) / 10) };
+    });
+    if (!r.n) skip('no Details buttons in Insights');
+    const dupes = r.spoken.filter((s, i) => r.spoken.indexOf(s) !== i);
+    assert(!dupes.length, `${r.n} Details buttons, ${new Set(r.spoken).size} distinct names: a screen reader's list of buttons reads ${JSON.stringify([...new Set(r.spoken)])}`);
+    assert(r.heights.every((h) => h >= 24), `Details buttons are ${[...new Set(r.heights)].join(', ')}px tall on a desktop (WCAG 2.5.8 asks 24px, or the spacing; axe target-size flags the open one)`);
+  });
+
+  suite.test('[A-10] beta a11y 2: the Company and Department checklists are named groups', async (ctx) => {
+    const { page } = await openBeta(ctx, 'c=google');
+    await page.evaluate(() => document.querySelectorAll('#filterBody details').forEach((d) => { if (d.querySelector('.dept-filter')) d.open = true; }));
+    await sleep(500);
+    const groups = await page.evaluate(() => [...document.querySelectorAll('#filters .dept-filter [role=group]')].filter((g) => g.getClientRects().length).map((g) => {
+      const name = g.getAttribute('aria-label') || (g.getAttribute('aria-labelledby') || '').split(/\s+/).map((id) => document.getElementById(id)?.textContent.trim() || '').join(' ').trim();
+      return { name, first: g.querySelector('input')?.value };
+    }));
+    if (groups.length < 2) skip('this board shows no Company list (one brand only)');
+    const unnamed = groups.filter((g) => !g.name);
+    assert(!unnamed.length, `${unnamed.length} of ${groups.length} checklists have no group name (first boxes: ${unnamed.map((g) => g.first).join(', ')}): "Company" and "Department" are plain text, so a screen reader hears "group, Google checkbox" with no context`);
+  });
+
+  suite.test('[A-11] beta a11y 2: a keyboard user on a preview card keeps focus when the whole list replaces the preview', async (ctx) => {
+    const { page, release } = await openBeta(ctx, 'c=amazon', { hold: /\/api\/jobs\/amazon\.json/, wait: false });
+    const shown = await page.waitForFunction(() => document.querySelector('#resultsList .card[data-preview-id]'), null, { timeout: 60000 }).then(() => true, () => false);
+    if (!shown) { release(); skip('no first-page preview for Amazon in this build'); }
+    await sleep(400);
+    const id = await page.evaluate(() => { const c = document.querySelectorAll('#resultsList .card[data-preview-id]')[2]; c.focus(); return c.dataset.previewId; });
+    await page.keyboard.press('ArrowDown');
+    await sleep(200);
+    const moved = await page.evaluate((id) => document.activeElement?.dataset?.previewId && document.activeElement.dataset.previewId !== id, id);
+    await page.evaluate((id) => document.querySelector(`#resultsList .card[data-preview-id="${CSS.escape(id)}"]`)?.focus(), id);
+    release();
+    await ready(page);
+    await sleep(800);
+    const after = await page.evaluate(() => { const a = document.activeElement; return a === document.body || !a ? 'body' : `${a.tagName.toLowerCase()} ${a.dataset?.id || a.id || a.className}`; });
+    assert(after.includes(id), `focus was on preview card ${id}; after the list landed it is on ${after}`);
+    assert(moved, 'ArrowDown on a preview card did not move to the next card (the list\'s M-20 keys work only once the list is in)');
+  });
+}
