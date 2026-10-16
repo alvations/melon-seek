@@ -5,6 +5,8 @@ on:
     # WIP checkpoints of unfinished agent work (scripts/cycle/checkpoint.sh) are not code to test.
     paths-ignore: ['wip/**']
   pull_request:
+  # Dispatched by monthly-refresh.yml after it commits refreshed reference data (a GITHUB_TOKEN push starts no workflow).
+  workflow_dispatch:
 
 permissions:
   contents: read

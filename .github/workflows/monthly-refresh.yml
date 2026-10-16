@@ -8,21 +8,29 @@ name: Monthly data refresh
 # by snapshot.yml / pages.yml and are only health-checked here.
 #
 # scripts/refresh/run.js runs one updater per data family (scripts/refresh/*.js):
-#   auto    fetch + validate + diff; validated changes become a REVIEW PR
+#   auto    fetch + validate + diff; validated changes are committed to the deploy branch once the
+#           full test suite passes on them (or, with REFRESH_PUBLISH=pr, become a review PR)
 #   detect  compare the official source with the encoded values; a mismatch or a
 #           newly published tax/data year becomes a GitHub ISSUE with the evidence
 #   manual  past-due entries are listed in the same issue with their checklist
-# Safety model (REVIEW.md V12, as col-refresh.yml before it): nothing is ever
-# pushed to the default/deploy branch. Changes go to the bot/monthly-refresh
-# branch and a pull request for a human to review; merging it deploys.
+# Publishing (the user's decision, 2026-10-16: "Commit straight make a GitHub action for it"): validated
+# changes are committed straight to the branch the run is on (the default branch for the schedule, or a
+# TRUSTED_BRANCHES dispatch), and only when ALL of these hold:
+#   - the full `npm test` suite passed against the refreshed data (the refresh job's tests step);
+#   - the refresh reported no problems (validation errors);
+#   - reference data changed (a month of bookkeeping only commits nothing).
+# Otherwise nothing is published and the data-freshness issue says why. The commit holds exactly the
+# files the refresh reported (never `git add -A`, never workflow files), is never force-pushed, and then
+# dispatches CI and the Pages deploy for the new commit (a push made with GITHUB_TOKEN starts no workflow).
+# Set the repository variable REFRESH_PUBLISH=pr to go back to the review-PR model (bot/monthly-refresh).
 # Two jobs: `refresh` fetches and parses the remote sources with a READ-ONLY
 # token; `publish` (write token, no npm, no remote content parsed, checkout
 # without persisted credentials) re-applies exactly the files `refresh`
-# reported, pushes the review branch, opens the PR and updates the issue. Only
-# runs on the default branch (schedule) or a TRUSTED_BRANCHES dispatch publish.
+# reported, commits them (or, in pr mode, pushes the review branch and opens the PR) and updates the
+# issue. Only runs on the default branch (schedule) or a TRUSTED_BRANCHES dispatch publish.
 #
-# Repo settings this needs (the workflow degrades gracefully without them):
-#   - Settings -> Actions -> General -> Workflow permissions ->
+# Repo settings (the workflow degrades gracefully without them):
+#   - pr mode only: Settings -> Actions -> General -> Workflow permissions ->
 #     "Allow GitHub Actions to create and approve pull requests" (to open the PR;
 #     without it the branch is pushed and the run says to open the PR by hand).
 #   - Optional secrets: ANTHROPIC_API_KEY (advisory LLM read of tax pages),
@@ -39,7 +47,7 @@ on:
         default: ""
         type: string
       dry_run:
-        description: "Report only: no branch, PR or issue"
+        description: "Report only: no commit, branch, PR or issue"
         required: false
         default: false
         type: boolean
@@ -55,6 +63,7 @@ env:
   TRUSTED_BRANCHES: claude/stoic-ride-54ddxp
   REVIEW_BRANCH: bot/monthly-refresh
   ISSUE_LABEL: data-freshness
+  REFRESH_PUBLISH: ${{ vars.REFRESH_PUBLISH || 'commit' }} # commit (default) | pr
 
 jobs:
   refresh:
@@ -68,6 +77,8 @@ jobs:
       files: ${{ steps.refresh.outputs.files }}
       datafiles: ${{ steps.refresh.outputs.datafiles }}
       alerts: ${{ steps.refresh.outputs.alerts }}
+      problems: ${{ steps.refresh.outputs.problems }}
+      tests: ${{ steps.tests.outcome }}
     steps:
       # Publishing (branch, PR, issue) happens only for the scheduled run (GitHub runs
       # schedules on the default branch only) or a dispatch on the default / a trusted branch.
@@ -173,14 +184,14 @@ jobs:
           node -e '
             const o = require("./tmp/refresh/outcome.json");
             const out = require("fs").createWriteStream(process.env.GITHUB_OUTPUT, { flags: "a" });
-            out.write(`files=${o.files.length}\ndatafiles=${(o.dataFiles || []).length}\nalerts=${o.alerts + o.problems}\n`);
+            out.write(`files=${o.files.length}\ndatafiles=${(o.dataFiles || []).length}\nalerts=${o.alerts + o.problems}\nproblems=${o.problems}\n`);
             out.end();
             console.log(`files changed: ${o.files.length} (data: ${(o.dataFiles || []).length}), alerts: ${o.alerts}, problems: ${o.problems}`);
           '
 
-      # The suite runs against the refreshed data, so a PR shows which tests a
-      # data change breaks (e.g. worked examples pinned to old FX). Never blocks
-      # the PR: a human decides.
+      # The suite runs against the refreshed data. In commit mode it is the gate: the publish job
+      # commits only when this step succeeded. In pr mode it is advisory (the PR shows which tests
+      # a data change breaks, e.g. worked examples pinned to old FX) and a human decides.
       - name: Tests against the refreshed data (advisory)
         id: tests
         if: steps.refresh.outputs.files != '0' && inputs.dry_run != true
@@ -194,7 +205,7 @@ jobs:
         if: steps.refresh.outputs.files != '0' && inputs.dry_run != true && steps.tests.outcome == 'failure'
         run: |
           {
-            echo "**Tests FAILED against the refreshed data.** Review before merging; failing tests may pin old values (see docs/DATA_FRESHNESS.md, 'Pinned values')."
+            echo "**Tests FAILED against the refreshed data.** In commit mode nothing was committed; in pr mode review before merging. Failing tests may pin old values (see docs/DATA_FRESHNESS.md, 'Pinned values')."
             echo
             echo '```'
             grep -E '^not ok|^# (pass|fail)' tmp/refresh/npm-test.log | head -n 40 || true
@@ -239,9 +250,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      contents: write      # push the bot/monthly-refresh review branch (never the default branch)
-      pull-requests: write # open / update the review PR
+      contents: write      # commit the tested data to the run's trusted branch (pr mode: push bot/monthly-refresh)
+      pull-requests: write # pr mode only: open / update the review PR
       issues: write        # open / update the data-freshness issue
+      actions: write       # dispatch CI and the Pages deploy for the new commit
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -261,10 +273,75 @@ jobs:
           name: monthly-refresh-changes
           path: tmp/changes
 
-      # A PR only when reference data changed: a month where only lastChecked / dueDate moved
-      # opens none (the next data PR carries that bookkeeping; the archive keeps the report).
-      - name: Push the review branch and open a PR (never the default branch)
-        if: needs.refresh.result == 'success' && needs.refresh.outputs.datafiles != '0'
+      # Commit mode (default): only when reference data changed, the full suite passed on it and the
+      # refresh reported no problems. A month where only lastChecked / dueDate moved commits nothing
+      # (the next data commit carries that bookkeeping; the archive keeps the report).
+      - name: Commit the tested data to the deploy branch (tests passed, no problems)
+        if: env.REFRESH_PUBLISH == 'commit' && needs.refresh.result == 'success' && needs.refresh.outputs.datafiles != '0' && needs.refresh.outputs.tests == 'success' && needs.refresh.outputs.problems == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          target="$GITHUB_REF_NAME"
+          # The run's own branch, and only the default or a trusted branch (the refresh job checked
+          # the same; this repeats it where the write token is).
+          case " ${DEFAULT_BRANCH:-} $TRUSTED_BRANCHES " in *" $target "*) ;; *) echo "::error::refusing to commit to $target (not the default or a trusted branch)"; exit 1 ;; esac
+          day=$(date -u +%Y-%m-%d)
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          jq -r '.files[]' tmp/refresh/outcome.json > tmp/refresh/files.txt
+          apply() {
+            while IFS= read -r f; do
+              case "$f" in
+                ""|/*|*..*|.*|*/.*|node_modules/*|package.json|package-lock.json) echo "::error::refusing to publish '$f'"; exit 1 ;;
+              esac
+              printf '%s' "$f" | grep -Eq '^[A-Za-z0-9_][A-Za-z0-9_./-]*$' || { echo "::error::refusing to publish '$f'"; exit 1; }
+              [ -f "tmp/changes/$f" ] || { echo "::error::$f is not in the changes artifact"; exit 1; }
+              mkdir -p "$(dirname "$f")"
+              cp -- "tmp/changes/$f" "$f"
+            done < tmp/refresh/files.txt
+          }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
+          # The token goes to these commands only (environment config), never into .git/config.
+          gitw() { GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.https://github.com/.extraheader GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth" git "$@"; }
+          pushed=0
+          # Up to 4 tries: if someone pushed meanwhile, start again from the new tip with the same files.
+          for try in 1 2 3 4; do
+            gitw fetch -q origin "$target"
+            git checkout -q --detach FETCH_HEAD
+            apply
+            xargs -a tmp/refresh/files.txt -d '\n' git add --
+            if git diff --cached --quiet; then echo "The branch already has these values; nothing to commit."; exit 0; fi
+            git commit -q -m "chore(data): monthly refresh of reference data ($day)" -m "Generated by .github/workflows/monthly-refresh.yml (scripts/refresh/run.js) after the full test suite passed on the refreshed data. Report: $run_url"
+            # Never --force: a rejected push means the branch moved, so the loop refetches and retries.
+            if gitw push origin "HEAD:refs/heads/$target"; then pushed=1; break; fi
+            echo "::warning::push to $target rejected (try $try); refetching"
+            sleep $((try * 5))
+          done
+          [ "$pushed" = 1 ] || { echo "::error::could not push to $target after 4 tries"; exit 1; }
+          sha=$(git rev-parse HEAD)
+          echo "Committed $sha to $target."
+          { echo "### Monthly refresh committed"; echo; echo "$sha on $target: $(wc -l < tmp/refresh/files.txt) file(s); the full test suite passed on them."; } >> "$GITHUB_STEP_SUMMARY"
+          # A GITHUB_TOKEN push starts no workflow: start CI and the deploy for the new commit.
+          gh workflow run ci.yml --ref "$target" || echo "::warning::could not dispatch CI"
+          gh workflow run pages.yml --ref "$target" || echo "::warning::could not dispatch the Pages deploy"
+
+      - name: Nothing committed (tests failed or the refresh reported problems)
+        if: env.REFRESH_PUBLISH == 'commit' && needs.refresh.result == 'success' && needs.refresh.outputs.datafiles != '0' && (needs.refresh.outputs.tests != 'success' || needs.refresh.outputs.problems != '0')
+        env:
+          TESTS: ${{ needs.refresh.outputs.tests }}
+          PROBLEMS: ${{ needs.refresh.outputs.problems }}
+        run: |
+          echo "::warning::Reference data changed but was NOT committed (tests: $TESTS, problems: $PROBLEMS). The data-freshness issue and the report artifact have the details."
+          { echo "### Monthly refresh not committed"; echo; echo "tests: $TESTS, problems: $PROBLEMS"; } >> "$GITHUB_STEP_SUMMARY"
+
+      # pr mode (REFRESH_PUBLISH=pr): a PR only when reference data changed: a month where only
+      # lastChecked / dueDate moved opens none (the next data PR carries that bookkeeping).
+      - name: Push the review branch and open a PR (pr mode; never the default branch)
+        if: env.REFRESH_PUBLISH == 'pr' && needs.refresh.result == 'success' && needs.refresh.outputs.datafiles != '0'
         env:
           GH_TOKEN: ${{ github.token }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -308,9 +385,9 @@ jobs:
             echo "::warning::Pushed $branch but could not open a PR (enable Settings -> Actions -> General -> 'Allow GitHub Actions to create and approve pull requests', or open it by hand)."
           fi
 
-      - name: No data change, no PR
+      - name: No data change, nothing published
         if: needs.refresh.result == 'success' && needs.refresh.outputs.datafiles == '0'
-        run: echo "No reference data changed (files ${{ needs.refresh.outputs.files }}, all bookkeeping); no PR this month. The report artifact has the details."
+        run: echo "No reference data changed (files ${{ needs.refresh.outputs.files }}, all bookkeeping); nothing published this month. The report artifact has the details."
 
       - name: Open or update the data-freshness issue (drift, flags, stale entries, errors)
         if: needs.refresh.result == 'success'

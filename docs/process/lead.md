@@ -1315,3 +1315,21 @@ screenshots in `docs/screenshots/`.
   - check-lists: no-data build 16 lists, real build 23 lists and 1 preview, 0 problems.
   - Full e2e on the 2026-10-16 crawl: 364/369 with the one test above, now 7/7 for viz-even.
 - **Still to come from the lane:** after-measurements (circle offsets, stacked duplicates, Amazon chart task times at 4x CPU), screenshots and its log.
+
+### The user: the monthly refresh commits straight to the branch (2026-10-16)
+- The user's answer to MR-23 (FX rates stuck at 2026-07-01): "Commit straight make a GitHub action for it or something".
+- **`.github/workflows/monthly-refresh.yml`, publish job, default `REFRESH_PUBLISH=commit`:** validated reference-data changes are committed to the run's own branch only when all of these hold:
+  - the full `npm test` suite passed against the refreshed data (the refresh job's tests step is now the gate);
+  - the refresh reported no problems;
+  - data changed.
+- **How the commit is made:**
+  - The branch must be the default or a `TRUSTED_BRANCHES` branch.
+  - Only the files the refresh reported are committed, with the old path checks.
+  - There is never a force push: a rejected push refetches and retries, up to 4 times.
+  - The job then dispatches CI and Pages for the new commit, since a `GITHUB_TOKEN` push starts no workflow. ci.yml gains `workflow_dispatch` for this.
+- **If tests fail or there are problems:** nothing is committed, and the step summary and the data-freshness issue say why.
+- **Fallback:** `REFRESH_PUBLISH=pr` keeps the old review-PR path.
+- **`test/workflows.test.js`** pins the new rule: one push to the target, never forced, inside the step gated on tests and problems, to the run's own branch only. A mutation check showed that removing the gate or adding `--force` turns the test red.
+- **Docs updated:** DATA_FRESHNESS's safety model, diagram and settings row; LIVABILITY; and the run.js and registry.js wording.
+- **Gate:** `npm test` CI-like: 1,162 tests, 1,102 pass, 0 fail.
+- **Next:** dispatch the refresh with `only=fx` to publish September's ECB monthly averages. The dry run 38149930292 found 22 rates changed, the largest KRW −8.6%, with 239 rent fields re-derived.

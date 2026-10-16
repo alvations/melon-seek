@@ -27,7 +27,7 @@
 //      turns every result writing it into 'flag' and nothing is written;
 //   6. updates lastChecked / asOf in the registry for what it confirmed or changed;
 //   7. writes the files (unless --dry-run) and the reports. The workflow
-//      (.github/workflows/monthly-refresh.yml) turns writes into a bot branch + review PR and
+//      (.github/workflows/monthly-refresh.yml) commits the writes once the full test suite passes on them (pr mode: a bot branch + review PR) and
 //      drift / flag / stale / error into one GitHub issue. Nothing here pushes anywhere.
 import fs from 'node:fs';
 import os from 'node:os';

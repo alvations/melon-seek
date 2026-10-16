@@ -243,7 +243,7 @@ export function renderInventory(reg) {
   const kv = (o) => Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(' · ');
   const out = [DOC_BEGIN, '', `Generated from \`data/freshness.json\` (updated ${reg.updated}). ${live.length} entries.`, '',
     `- **By type:** ${kv(sum.type)}`, `- **By cadence (how often the source really changes):** ${kv(sum.cadence)}`,
-    `- **By mechanism:** ${kv(sum.mode)} (auto = fetch + validate + review PR; detect = compare with the official source and open an issue; manual = checklist with a due date)`,
+    `- **By mechanism:** ${kv(sum.mode)} (auto = fetch + validate + commit once tests pass; detect = compare with the official source and open an issue; manual = checklist with a due date)`,
     `- **Entries that had no update mechanism before this work:** ${sum.noMechanismBefore}`, ''];
   const order = ['daily', 'weekly', 'monthly', 'quarterly', 'semiannual', 'yearly', 'ad-hoc'];
   out.push('### By cadence', '');

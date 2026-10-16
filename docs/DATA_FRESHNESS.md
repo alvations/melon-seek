@@ -22,21 +22,23 @@ data/freshness.json  ──>  scripts/refresh/run.js (monthly, .github/workflows
     owners, consumers,     │    bigmac -> fx -> rents -> living -> tax -> jobs -> policy -> derived
     source, asOf,          │  each returns one Result per registry id: ok | changed | drift | flag | stale | error | skipped
     cadence, mode)         │
-                           ├─ auto    (fetch + validate + diff)   -> validated file changes -> bot/monthly-refresh branch + review PR
+                           ├─ auto    (fetch + validate + diff)   -> validated file changes -> committed to the deploy branch once tests pass
                            ├─ detect  (official page vs encoded)  -> drift / new tax year     -> one "data-freshness" issue, with evidence
                            └─ manual  (checklist + due date)      -> past due                 -> the same issue, with the checklist
-                           then: npm test against the refreshed data (advisory, printed in the PR),
+                           then: npm test against the refreshed data (the gate for the commit),
                                  report + archive hand-off uploaded as the monthly-refresh-report artifact
 CI and Pages: node scripts/refresh/run.js --staleness   -> warn-only table of every dataset's age (never fails)
 UI: dist/api/freshness.json (client subset of the registry) -> "as of" labels next to the numbers
 ```
 
-**Safety model** (REVIEW.md V12):
-- Nothing is pushed to the default or deploy branch. Every data change is a commit on `bot/monthly-refresh`, opened as a pull request for a human.
-- Merging that PR deploys the change, because the default branch is the deploy branch.
+**Safety model** (the user's decision, 2026-10-16: "Commit straight make a GitHub action for it"):
+- A validated data change is committed straight to the run's branch (the default branch for the schedule, or a `TRUSTED_BRANCHES` dispatch), but only when the full `npm test` suite passed against the refreshed data **and** the refresh reported no problems. Otherwise nothing is published and the data-freshness issue says why (tests failed, or which problems).
+- The commit is never force-pushed: a rejected push refetches the branch and re-applies the same files, up to 4 times. It then dispatches CI and the Pages deploy for the new commit, because a push made with `GITHUB_TOKEN` starts no workflow.
+- `test/workflows.test.js` pins this: one push to the target branch, never forced, inside the step gated on tests and problems, to the run's own branch only.
+- The repository variable `REFRESH_PUBLISH=pr` switches back to the review model: a commit on `bot/monthly-refresh`, opened as a pull request for a human.
 - Two jobs. `refresh` fetches and parses the remote pages and PDFs, and runs `npm ci` and the tests, with a **read-only** token. `publish` holds the write token. It checks out without persisted credentials and never runs npm or parses remote content. It re-applies exactly the files `refresh` reported (from a 7-day `monthly-refresh-changes` artifact), refuses any path outside the data and code copies (`.github/`, dotfiles, `..`, `package*.json`), and passes the token to the one `git push` through environment config, never `.git/config`.
 - Only the scheduled run (GitHub runs schedules on the default branch only) or a dispatch on the default branch or `TRUSTED_BRANCHES` publishes. A dispatch from any other branch is report-only.
-- A PR opens only when reference data changed (`outcome.dataFiles`). A month where only `lastChecked` / `dueDate` / line references moved opens none; the next data PR carries that bookkeeping, and the archive keeps the report.
+- Something is committed (or, in pr mode, a PR opens) only when reference data changed (`outcome.dataFiles`). A month where only `lastChecked` / `dueDate` / line references moved publishes nothing; the next data change carries that bookkeeping, and the archive keeps the report.
 - A refresh that crashes is reported on the data-freshness issue, with the run link.
 - A validator that doubts new data returns `flag`. Nothing is written in that case, and the evidence goes to the issue.
 - Tax rules are never auto-written. A drift means a person updates `server/juice.js`, the golden tests and `TAX_SOURCES` together.
@@ -82,7 +84,7 @@ GitHub runs `schedule:` triggers only from the repository's **default branch**.
 
 | Setting | Why | Without it |
 |---|---|---|
-| Settings → Actions → General → Workflow permissions → **"Allow GitHub Actions to create and approve pull requests"** | the monthly refresh opens its review PR with `GITHUB_TOKEN` | the `bot/monthly-refresh` branch is still pushed; the run warns "open the PR by hand" |
+| Settings → Actions → General → Workflow permissions → **"Allow GitHub Actions to create and approve pull requests"** (only with `REFRESH_PUBLISH=pr`) | the monthly refresh opens its review PR with `GITHUB_TOKEN` | the `bot/monthly-refresh` branch is still pushed; the run warns "open the PR by hand" |
 | Issues enabled (default) | drift / stale / flag / error items go to one `data-freshness` issue | the issue step fails (the PR still opens) |
 | Optional secret `ANTHROPIC_API_KEY` | advisory LLM read of tax pages that have no stable structure | skipped; regex extractors only |
 | Optional secret `HUD_API_TOKEN` (free, huduser.gov) | HUD USER FMR API for US rents | the updater uses HUD's public eGIS feature service |
@@ -341,7 +343,7 @@ Generated from `data/freshness.json` (updated 2026-10-16). 135 entries.
 
 - **By type:** static-constant-from-a-source 75 · product-policy 22 · derived-at-build 17 · fetched 14 · static-data 7
 - **By cadence (how often the source really changes):** yearly 91 · monthly 15 · daily 13 · quarterly 10 · ad-hoc 4 · semiannual 2
-- **By mechanism:** manual 78 · detect 43 · auto 14 (auto = fetch + validate + review PR; detect = compare with the official source and open an issue; manual = checklist with a due date)
+- **By mechanism:** manual 78 · detect 43 · auto 14 (auto = fetch + validate + commit once tests pass; detect = compare with the official source and open an issue; manual = checklist with a due date)
 - **Entries that had no update mechanism before this work:** 33
 
 ### By cadence

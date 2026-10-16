@@ -981,8 +981,8 @@ eGIS, ONS, CSO RIQ02, Stadt Zürich, OLAP, Statistics Canada, HDB, NSW) and, whe
 changed, rewrites the matching `bedroomRatios` entries, the 2- and 3-bedroom rents of the cities
 that cite them (1-bedroom × ratio, USD at the city's FX), the pooled ratio when one of its members
 moved, and Sydney's three official rents. A ratio that moves more than 15% or a rent more than 25%
-between releases is held back (flag), and every write must pass `validateDoc`; changes go to a
-review PR, never straight to the branch. `living.js` checks the NYC basket against the BLS CPI-U
+between releases is held back (flag), and every write must pass `validateDoc`; changes are committed
+only after the full test suite passes on them (monthly-refresh.yml; a review PR with `REFRESH_PUBLISH=pr`). `living.js` checks the NYC basket against the BLS CPI-U
 for New York (alert at 3%) and the household scale against the HBAI weights and the latest BLS
 Consumer Expenditure Survey year. The Numbeo figures (1-bedroom rents, cost index, NYC basket)
 stay manual; the refresh lists the cities that are past due. Tests: `test/refresh-col.test.js`.

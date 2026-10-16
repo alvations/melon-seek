@@ -49,11 +49,32 @@ test('pages.yml: pages/id-token only on the deploy job; build is read-only', () 
 const WRITE_JOBS = { 'archive.yml': ['archive-ingest'], 'archive-backfill.yml': ['archive-ingest'] };
 
 // Workflows that may write, but only to their own bot review branch (a human merges the PR).
-const REVIEW_BRANCH_WORKFLOWS = Object.freeze({ 'col-refresh.yml': 'bot/col-refresh', 'monthly-refresh.yml': 'bot/monthly-refresh' });
+const REVIEW_BRANCH_WORKFLOWS = Object.freeze({ 'col-refresh.yml': 'bot/col-refresh' });
+// monthly-refresh.yml commits tested reference data straight to its own trusted branch (the user's decision,
+// 2026-10-16: "Commit straight make a GitHub action for it"); its pr mode still uses bot/monthly-refresh.
+const COMMIT_AFTER_TESTS_WORKFLOWS = Object.freeze({ 'monthly-refresh.yml': 'bot/monthly-refresh' });
 
 test('contents: write only where needed (gated ledger job, archive job, review-branch refresh workflows)', () => {
   for (const f of files) {
     const t = read(f);
+    if (COMMIT_AFTER_TESTS_WORKFLOWS[f]) {
+      const pushes = t.split('\n').filter((l) => /\bgit(w)? push\b/.test(l) && !/^\s*#/.test(l));
+      const target = pushes.filter((l) => l.includes('origin "HEAD:refs/heads/$target"'));
+      const review = pushes.filter((l) => l.includes('origin "$branch"'));
+      assert.equal(target.length + review.length, pushes.length, `${f} pushes only its target or its review branch: ${pushes.join(' | ')}`);
+      assert.equal(target.length, 1, `${f} has one push to its target branch`);
+      assert.doesNotMatch(target[0], /--force|-f\b|\+refs/, `${f} never force-pushes the target branch`);
+      assert.doesNotMatch(t, /git push[^\n]*\b(main|master|claude\/)/, `${f} names no branch in a push`);
+      // The target push sits in the one step gated on tests passing and no problems, in commit mode.
+      const step = t.slice(t.lastIndexOf('\n      - name:', t.indexOf('HEAD:refs/heads/$target')), t.indexOf('HEAD:refs/heads/$target'));
+      assert.match(step, /if: env\.REFRESH_PUBLISH == 'commit' && needs\.refresh\.result == 'success' && needs\.refresh\.outputs\.datafiles != '0' && needs\.refresh\.outputs\.tests == 'success' && needs\.refresh\.outputs\.problems == '0'/, `${f}: the commit is gated on tests and problems`);
+      assert.match(step, /target="\$GITHUB_REF_NAME"/, `${f} commits to the run's own branch`);
+      assert.match(step, /case " \$\{DEFAULT_BRANCH:-\} \$TRUSTED_BRANCHES " in \*" \$target "\*\) ;; \*\) echo "::error::refusing/, `${f} refuses a branch that is not the default or trusted`);
+      assert.doesNotMatch(step, /git add -A|git add \.|git commit -a/, `${f} commits only the files the refresh reported`);
+      assert.match(t, /tests: \$\{\{ steps\.tests\.outcome \}\}/, `${f}: the refresh job reports the test outcome`);
+      assert.match(t, /\n  REVIEW_BRANCH: bot\/monthly-refresh\n/, `${f}: pr mode keeps its bot review branch`);
+      continue;
+    }
     if (REVIEW_BRANCH_WORKFLOWS[f]) {
       const b = REVIEW_BRANCH_WORKFLOWS[f];
       const esc = b.replace(/[/]/g, '\\/');
