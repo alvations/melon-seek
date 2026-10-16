@@ -12,9 +12,10 @@
     bump (193205a, 8262aa3), and these changes re-derive under it.
 - Verified:
   - the 5 checks pass on the rebuilt bundle (5/5);
-  - `MELON_BETA_SNAPSHOT_DIR= npm test` with no data links: 1,059 tests, 1,013 pass, 0 fail.
-- In progress: the full e2e suite (see section 5).
-- Next: compare the full e2e run with the lead's 2026-10-16 gate, then send the final SHA list.
+  - `MELON_BETA_SNAPSHOT_DIR= npm test` with no data links: 1,059 tests, 1,013 pass, 0 fail;
+  - full e2e: 351/355 passed, 0 failed, 4 skipped (the lead's gate on the same crawl: 346, 5 failed,
+    4 skipped).
+- Finished. Nothing in progress. The follow-ups are in section 6.
 
 ## 1. Brief
 Prompt: [prompts/fix6-fresh-data.md](prompts/fix6-fresh-data.md). Five e2e checks went red on the
@@ -194,7 +195,13 @@ The investigation scripts are throwaway files in `<scratch>/fix6/`:
   more are this lane's file.
 - **Keyword impact** (all 43,141 postings, old against new): 55 postings lose skills, none gain any,
   and fit and responsibilities are unchanged.
-- **Full e2e:** see the change log.
+- **Full e2e** (`node scripts/e2e.js`, rebuilt dist, today's data linked): 351/355 passed,
+  0 failed, 4 skipped. These are the same 4 skips as the lead's gate (D-11, the methodology
+  screenshots, P-2 and BP-2, each skipped for its data). The lead's gate on the same crawl was
+  346/355 with 5 failed; those 5 are now green, and no new failures.
+  - The load-sensitive tests passed in the full run: T21 (24 s, inside its limit); S-6, PERF-1 and
+    V15 are in `npm test`, which was green.
+  - The suite rewrites docs/screenshots/*.png. Those were restored, not committed.
 
 ## 6. Known gaps and follow-ups
 - **Amazon names split in two** (geo.js and the Amazon adapter): "Town and Country, Missouri,
@@ -221,3 +228,4 @@ The investigation scripts are throwaway files in `<scratch>/fix6/`:
 - 15:40 T20 test rewrite, passes (df1b6be). norm-11 patch written (72c4ef7).
 - 15:48 5/5 on the rebuilt bundle. D-23 extended to all 7 boards (a36defd).
 - 15:52 `npm test` CI-like: 1,059 tests, 0 fail. The norm-11 patch dropped on the lead's call (60624f1).
+- 16:40 Full e2e: 351/355 passed, 0 failed, 4 skipped.
