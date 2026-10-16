@@ -1016,7 +1016,7 @@ h('span', { class: 'wf-label', role: 'rowheader' }, label,
 
 ## beta review 2026-10-16
 
-Scope: everything added or changed for target `beta` since the beta review of 2026-10-11 (`3cf226e..9c548e2`, 210 commits; line numbers refer to `9c548e2` unless a finding says otherwise). The lead asked for two extra items mid-review: the monthly refresh's new commit mode (`32f556f`) and its fix (`9c548e2`).
+Scope: everything added or changed for target `beta` since the beta review of 2026-10-11 (`3cf226e..9c548e2`, 209 commits; line numbers refer to `9c548e2` unless a finding says otherwise). The lead asked for two extra items mid-review: the monthly refresh's new commit mode (`32f556f`) and its fix (`9c548e2`).
 
 Security covered:
 - the Amazon, Meta and Google adapters, the shared incremental-crawl module (`server/sources/incremental.js`) and `server/families.js`;

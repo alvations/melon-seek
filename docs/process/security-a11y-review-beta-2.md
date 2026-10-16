@@ -33,7 +33,7 @@ No product code was changed. Commits are in the worktree only (never pushed), as
 
 ## 2. Inputs and sources
 - Code: `d98a9f0`, then `32f556f` and `9c548e2` (line numbers in REVIEW.md refer to `9c548e2`). Commits since the last
-  review: `git log --oneline 3cf226e..HEAD` (210). Code diff:
+  review: `git log --oneline 3cf226e..9c548e2` (209). Code diff:
   `git diff 3cf226e d98a9f0 -- server scripts public .github > <R>/code.diff` (68 files, +6,414 / −872).
 - Read first:
   - `docs/REVIEW.md`, every section;
