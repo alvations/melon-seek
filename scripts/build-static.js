@@ -422,7 +422,7 @@ export function previewSet(jobs, n = PREVIEW_SIZE) {
  * preview must hold exactly the postings getJobs returns). `preview.colorCounts` are the postings with
  * pay per department, what app.js#computeColorKeys counts, so the first cards get the chart's colours.
  */
-function previewList({ list, back, plain }, api) {
+export function previewList({ list, back, plain }, api) {
   if (!list.shared || list.shared.vetted !== true || back.length < PREVIEW_MIN_JOBS) return null;
   const idx = previewSet(back);
   const counts = new Map();
