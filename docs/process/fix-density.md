@@ -5,13 +5,14 @@
 - **Done:**
   - the rule and the shared disclosure (`public/viz/note.js`), applied on every surface;
   - fix5-data's display patch, folded in;
-  - the new e2e test, 51/51 on today's crawl;
+  - the new e2e test, 51 tests;
   - the existing tests that pinned the old text, updated;
   - rebased onto 2474fc4;
-  - every line re-measured before and after on the fresh crawl (the table in section 5).
-- **In progress:** the before and after screenshots, light and dark (`$F/measure-all.sh`, look step).
-- **Next step:** shrink the screenshots and commit them, run the full e2e on the fresh build, re-run S-6 on an
-  idle machine, delete the scratch build, and report.
+  - every line re-measured before and after on the fresh crawl (section 5);
+  - the screenshots, retaken on the fresh crawl and shrunk (155 files, 2.9 MB).
+- **In progress:** the full e2e on the fresh build (`$F/e2e-full2.log`).
+- **Next step:** read the e2e result, revert any `docs/screenshots/*` files the suite rewrote outside
+  `fix-density/`, re-run S-6 alone, delete `$F/dist`, commit and report.
 
 ## 1. Brief
 
@@ -136,7 +137,16 @@ drawer caption follows the rule (decision 9).
    in the pay block (still at most 2 labels). Its long captions ("Posted minimum base pay; the offer can be
    higher. …" and "Posted pay, including the highest shift differential. Base pay starts at $18.35/hour. …") are
    under Details. The caption line reads "Posted minimum base pay" or "Posted pay, including shift pay".
-10. **What didn't change**, because it already met the rule: the results header ("5,000 roles · of 22,352
+10. **Two drawer lines found in the fresh-data screenshots** were fixed the same way.
+    - The converted-pay line read "≈ $53K in approx US dollars for comparison, at Jul 2026 exchange rates", two
+      lines on a phone. It now reads "≈ $53K in US dollars at Jul 2026 rates". The month stays in the line,
+      linked to the rates' source (MR-2).
+    - The part-time note read "If full-time (2,080 hours): $40,976 a year. At the posted 30 hours a week: … As
+      posted: …", three lines. It now reads "If full-time: $40,976 a year", and the rest is in the pay block's
+      Details. The same goes for "Fixed-term pay, not a yearly salary", "Paid by the week" and "Annualized from
+      hourly pay": the posted text moved under Details.
+    - The strip's median label is clamped away from the end labels ("$10K" overlapped "median $49K" on a phone).
+11. **What didn't change**, because it already met the rule: the results header ("5,000 roles · of 22,352
     posted"), the badge's short label ("Oct 11"), the chart's median caption ("Median base pay $183K", desktop
     only), the drawer's "USD · per year", the pay labels (at most 2 chips), and the Pay estimate basis line.
 
@@ -172,7 +182,8 @@ The scratch folder is `/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92
 
 Cells give the maximum over the 8 boards: **visible words / wrapped lines**. "Phone" covers both 390x844 and
 360x740. In the after column, " [Details]" marks the disclosure button, which isn't counted as a word. Each
-board's full text and counts are in `$F/inv2-before.json` and `$F/inv2-after.json`.
+board's full text and counts are in `$F/inv2-before.json` and `$F/inv2-after.json`. The drawer rows come from
+`$F/inv3-{before,after}-drawer.json`, measured again after the last drawer fixes (decision 10).
 
 | Line | Phone before | Phone after | Desktop before | Desktop after | Worst text before (phone) | Worst text after (phone) |
 |---|---|---|---|---|---|---|
@@ -185,13 +196,15 @@ board's full text and counts are in `$F/inv2-before.json` and `$F/inv2-after.jso
 | Results header | 2 / 1 | 2 / 1 | 2 / 1 | 2 / 1 | amazon: “22,179 roles” | amazon: “22,179 roles” |
 | Badge short label | 2 / 1 | 2 / 1 | 3 / 1 | 3 / 1 | amazon: “Oct 16” | amazon: “Oct 16” |
 | Map Pay legend note | 16 / 1 | 2 / 1 | 16 / 2 | 5 / 1 | amazon: “Median posted base pay a year, approx US dollars (Jul 2026 exchange rates) · small number: postings” | amazon: “Median pay [Details]” |
-| Map Juice legend note (the as-of line before) | 15 / 1 | 4 / 1 | 15 / 2 | 4 / 1 | anduril: “As of: rent May–Sep 2026 · living costs Jun–Sep 2026 · exchange rates Jul 2026 · tax 2025–2026 [cut off]” | anduril: “Gray: no Juice data [Details]” |
+| Map Juice legend as-of line | 15 / 1 | 4 / 1 | 15 / 2 | 4 / 1 | anduril: “As of: rent May–Sep 2026 · living costs Jun–Sep 2026 · exchange rates Jul 2026 · tax 2025–2026 [cut off]” | anduril: “Gray: no Juice data [Details]” |
 | Market insights header | 38 / 5 | 6 / 1 | 38 / 2 | 6 / 1 | nvidia: “All 2,711 roles on this board · pay in approx. USD at Jul 2026 exchange rates · postings as of 16 Oct 2026 · 41 roles posting on-target earnings (base plus commission) le…” | apple: “All 4,851 roles on this board [Details]” |
 | Insights card captions (each) | 24 / 3 | 7 / 1 | 24 / 2 | 7 / 1 | amazon: “Where the openings are. Multi-location roles count in each city; a median uses only pay posted for that place, from 5 or more roles.” | amazon: “Posted pay in the US, by company [Details]” |
 | Insights card footnotes (each) | 61 / 8 | — | 61 / 4 | — | amazon: “Posted base pay ranges of full-time roles in the US, midpoints in approx. US dollars; companies need 3+ salaried postings there. Internships, fixed-term programmes and on…” | — |
 | Pay estimate caption | 13 / 2 | 5 / 1 | 13 / 1 | 5 / 1 | amazon: “Estimated pay from similar roles. Follows your filters until you change a field.” | amazon: “Estimated pay from similar roles [Details]” |
 | Pay estimate basis line | 7 / 1 | 7 / 1 | 7 / 1 | 7 / 1 | amazon: “Based on 500 similar roles at Amazon” | amazon: “Based on 500 similar roles at Amazon” |
 | Drawer: "USD · per year" | 3 / 1 | 3 / 1 | 3 / 1 | 3 / 1 | amazon: “USD · per year” | amazon: “USD · per year” |
+| Drawer, Amazon shift pay (part-time): annualized note | 27 / 4 | 5 / 1 | 27 / 2 | 5 / 1 | amazon: “If full-time (2,080 hours): $40,976 a year. At the posted 30 hours a week: about $30,732 a year. As posted: USA, TX, Lubbock - 19.70 - 19.70 USD hourly” | amazon: “If full-time: $40,976 a year” |
+| Drawer, Amazon minimum (euros): converted-pay line | 12 / 2 | 8 / 1 | 12 / 1 | 8 / 1 | amazon: “≈ $53K in approx US dollars for comparison, at Jul 2026 exchange rates” | amazon: “≈ $53K in US dollars at Jul 2026 rates” |
 | Drawer: pay by level / place (block) | 7 / 2 | 7 / 4 | 7 / 1 | 7 / 4 | amazon: “Pay by place: Cupertino $287K–350K · Seattle $250K–338K” | amazon: “Pay by place Cupertino $287K–350K Seattle $250K–338K” |
 | Drawer: pay by level / place (each row) | — | 2 / 1 | — | 2 / 1 | — | amazon: “Cupertino $287K–350K” |
 | Drawer: pay caption (before) | 8 / 1 | — | 8 / 1 | — | amazon: “Posted base pay. Equity and bonus aren’t included.” | — |
@@ -272,7 +285,8 @@ Per board, the chart notes line and the stats line at 390x844 (words / lines):
 - `before-<board>-<viewport>-light-*.png`: the inventory's shots of the worst lines before the change (the top
   of the page, the notes, the Ranges notes, the map, Insights, the drawer, the empty state).
 - `before-<shot>-<viewport>-<theme>.png` and `after-<shot>-<viewport>-<theme>.png`: pairs at 390x844 and
-  1440x900, in light and dark, of the top of the page, the notes, the stats line, Ranges, the map (Pay and
+  1440x900, in light and dark, all taken on the fresh crawl. The drawer shots were retaken after decision 10's
+  fixes. They show the top of the page, the notes, the stats line, Ranges, the map (Pay and
   Juice), Insights, the drawer (paid, no pay, NVIDIA, Amazon minimum and shift pay) and the empty state. The
   `after-*-open` shots show Details opened.
 
@@ -287,6 +301,13 @@ Per board, the chart notes line and the stats line at 390x844 (words / lines):
   Details pattern.
 - **Error states** still show the raw error text in their body (`data.error`). That is deliberate (it's the
   reason), so it isn't capped.
+- **Two Fix3 app e2e checks fail on the fresh crawl with the base code as well**, so they come from the data and
+  not from this lane. They were checked by swapping the base commit's `app.js`, `styles.css` and `chart.js` into
+  the same build: both still fail.
+  - `[BP-10] a place carries across boards …` gets "" for Google's key for Columbus, OH.
+  - `[BP-14] "What they look for" …` expects 0 sub-headings and gets 2.
+- **The strip's axis labels** could still crowd on a very narrow strip with a long median. Clamping to 7em
+  covers the 360px phone.
 - The fix-density test measures the line of each `.ms-note` without its button. A line that grows past 12 words
   later (a long company or place name) will fail the test, which is the point.
 
