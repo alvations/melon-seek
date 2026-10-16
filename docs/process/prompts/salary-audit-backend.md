@@ -1,0 +1,71 @@
+You are the BACKEND ENGINEER on a two-person squad (with a data engineer, `salary-audit-data`, working in parallel) for melon-seek (repo at /home/user/melon-seek; you are in your own git worktree). Run `git checkout d50d89b` first: that is the lead's latest integration (normalizer norm-10, fix wave 5 data lane); work on top of it. Your role name is `salary-audit-backend`.
+
+**The user's complaint, verbatim (2026-10-11):** "Are you sure the salary range of the big tech are correct?! They don't look correct and kinda all span too evenly. Make sure you get the agents squad back end engineer and data engineer to look into this properly on the beta page!!"
+
+**Your job:** trace every salary on the beta page (/melon-seek/beta/: Amazon, Apple, Google, Meta, Microsoft, NVIDIA and Netflix) end to end, from the source adapter to the pixel. Find every place where the range a user sees can differ from what the company posted, then fix the code you own.
+
+**Read first:**
+- README.md, docs/CONTRACT.md, docs/DATA_SOURCES.md, docs/METHODOLOGY_GUIDE.md;
+- docs/process/PLAYBOOK.md, docs/process/TEMPLATE.md;
+- docs/process/fix5-data.md, docs/process/vetting-beta-2.md, docs/process/data-check-beta-3.md.
+
+Data: real snapshots are at /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-data/data/beta/snapshots/*.json and .../wt-data/data/snapshots/*.json. Symlink them into your worktree as data/beta/snapshots and data/snapshots. Never commit data.
+
+**Trace these stages, writing down at each one which fields carry pay and how they can change:**
+1. **Source adapters:** server/sources/*.js (structured pay fields, per-zone tables, `ranges[]`).
+2. **Normalization:** server/normalize.js `deriveSalary` and server/salary.js. Look at:
+   - basis conversions (hourly ×2080, monthly ×12);
+   - FX conversion;
+   - rounding;
+   - min-of-mins / max-of-maxes collapse of zones;
+   - level-band or estimate fills;
+   - defaults;
+   - anything that widens or synthesizes a range.
+3. **Vet and gate:** server/vet.js and the beta gate in scripts/build-static.js (quarantine, bounds).
+4. **Snapshot fitting and packing:**
+   - scripts/snapshot.js (`fitSnapshot`, `trimDescription`);
+   - build-static.js (`readSnapshot`, the packed and worker formats; read the unpack worker under public/);
+   - check that min/max, `ranges`, currency and interval survive the round trip exactly.
+5. **Client:**
+   - public/api.js;
+   - public/app.js: the card pay text, the drawer pay lines, `payLabels`;
+   - public/features/shared.js `payLocations`;
+   - public/viz/chart.js: how a posting's range becomes a point or bar, the binning, the axis ticks, and whether bins or rows make ranges look evenly spaced.
+
+   Is the chart plotting midpoints into fixed-width bins so everything looks uniform? Does it use the annualized USD of a collapsed span? Does the Juice score use the range for the posting's place?
+6. **Estimates vs posted:** confirm estimates (Compstimate or level bands) are never shown as, or mixed into, posted ranges on beta, and are labelled where they appear.
+
+**Method:**
+- Write a script that, for every beta posting with pay, records the value at each stage: raw source fields → normalized salary → served JSON → what app.js formats for the card and drawer → what chart.js plots.
+- Flag every posting where a later stage disagrees with an earlier one beyond rounding.
+- Run the real client functions in Node where they are pure (import them), or in headless Chromium on a build: `node scripts/build-static.js --out <scratch>/dist`, then `node scripts/cycle/serve.mjs --dist <dist> --pid <pidfile>`. Chromium is at /opt/pw-browsers/chromium-1194/chrome-linux/chrome with NODE_PATH=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/pw/node_modules. Never `playwright install`; no `pkill -f` / `pgrep -f`.
+- Take screenshots of the beta chart per board, before and after, at 1440x900 and 390x844. Say whether the distribution looks "too even", and why.
+
+**You own and may edit:**
+- `server/normalize.js`, `server/salary.js`, `server/vet.js`, `server/sources/*.js` except `server/sources/google.js` (owned by a separate Google chart-grouping lane: send Google patches as `docs/process/patches/salary-audit-backend-google.diff`);
+- `scripts/snapshot.js` and `scripts/build-static.js`, only for salary-carrying fields; a performance lane also edits these, so keep changes minimal and local;
+- `test/salary-pipeline.test.js` (NEW);
+- `docs/process/salary-audit-backend.md` (your log in TEMPLATE.md structure) and `docs/process/prompts/salary-audit-backend.md` (paste this prompt verbatim);
+- screenshots in `docs/screenshots/salary-audit-backend/`.
+
+Client code (public/app.js, public/viz/chart.js, public/features/*) is owned by other lanes right now (text density, Google grouping). For a client bug, write a patch at `docs/process/patches/salary-audit-backend-client.diff` plus a failing test.
+
+**Tests:** every confirmed defect gets a test named with its ID (SB-1, SB-2, …) that fails before your fix and passes after. When you bump the normalizer version (norm-11), re-baseline the golden hashes the way docs/process/fix5-data.md describes, and explain every hash that changes. Run `MELON_BETA_SNAPSHOT_DIR= npm test` with no data links (CI-like) before reporting; S-6, PERF-1, V15 and T21 are known timing tests that can fail under load, so re-run those alone. Coordinate with `salary-audit-data` via SendMessage, so they can apply their patches to your files and you can share findings. Neither of you should duplicate the other's work: they own the statistical audit and the comparison with live postings; you own the pipeline trace and the fixes.
+
+**Rules:**
+- Commit in your worktree with clear messages, ending with these trailers:
+  ```
+  Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+  Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+  ```
+- Never push; the lead integrates.
+- Stage explicit paths; never `git add -A`.
+- If the harness blocks a report-style Markdown file, return its text in your final report. Never use a .txt workaround.
+- The user's standing rules: never cut or drop postings or pay rows; don't change crawl request rates; don't break what works.
+
+**Report back:**
+- per board, whether shown ranges equal posted ranges;
+- each SB finding (severity, file:function, before → after counts);
+- your SHAs;
+- the test results;
+- anything left for the client lanes.
