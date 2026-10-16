@@ -1,9 +1,15 @@
 # Process log: fix6-fresh-data
 
 ## State
-- Done: worktree on 53a03ec (branch head), data linked, prompt saved.
-- In progress: building dist/ with today's crawl; reproducing the 5 red checks.
-- Next: investigate D-23 (Microsoft "JO"), BP-10, BP-14, fix3-data TPUs tag, T20.
+- Base 53a03ec (branch head). All 5 checks reproduced red (0/5) on the unchanged head.
+- Done and committed:
+  - D-23 (product, server/geo.js): 210c34e.
+  - BP-10 and BP-14 (test assumptions, test/e2e/fix3-app.e2e.js): fa79727; both pass.
+  - fix3-data tag (product, server/keywords.js nearCopyOf): 2cbb977 + cda76cb.
+  - T20 (test assumption, test/e2e/ui.e2e.js): df1b6be; passes.
+- In progress: rebuild of dist/ with the geo and keyword fixes, to run D-23 and fix3-data e2e.
+- Next: the 5 checks together; `MELON_BETA_SNAPSHOT_DIR= npm test` with the data links moved
+  aside; the full e2e suite; the norm-11 patch; the log sections 2 to 7.
 
 ## 1. Brief
 Prompt: [prompts/fix6-fresh-data.md](prompts/fix6-fresh-data.md). Five e2e checks went red on the
