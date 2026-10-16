@@ -1,7 +1,7 @@
-From 704dde146f60bbedfa64518e8072628a1599bdc9 Mon Sep 17 00:00:00 2001
+From 8de8c2806f7b6aa8ccd9883bd5bb72311cf1f2b0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 16:18:13 +0000
-Subject: [PATCH 15/19] WIP perf-mobile-beta-2: bundled lists unpack in 40 ms
+Subject: [PATCH 3/8] WIP perf-mobile-beta-2: bundled lists unpack in 40 ms
  slices; derive counts keyword facets on first read
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -69,13 +69,13 @@ index 7033437..6b635d2 100644
      if (body.jobs.length) bundleOrigin.set(body.jobs, { path, body });
      return body.jobs.length ? body : null;
 diff --git a/public/app.js b/public/app.js
-index 3102a00..e84ce5e 100644
+index 94e4f16..5d628b9 100644
 --- a/public/app.js
 +++ b/public/app.js
-@@ -836,8 +836,23 @@ function derive() {
+@@ -879,8 +879,23 @@ function derive() {
    const bump = (m, k) => m.set(k, (m.get(k) || 0) + 1);
    viewSpec = F;
-   const fc = { d: new Map(), l: new Map(), lGroup: new Map(), s: new Map(), e: new Map(), r: { any: 0, remote: 0, onsite: 0 },
+   const fc = { d: new Map(), b: new Map(), l: new Map(), lGroup: new Map(), s: new Map(), e: new Map(), r: { any: 0, remote: 0, onsite: 0 },
 -    p: { 0: 0, 7: 0, 30: 0, 90: 0 }, jg: new Map(), kw: { responsibilities: new Map(), fit: new Map(), skills: new Map() }, salMids: [],
 +    p: { 0: 0, 7: 0, 30: 0, 90: 0 }, jg: new Map(), kw: null, salMids: [],
      noPayHidden: 0, elsewhereHidden: 0, only: {} };
@@ -97,7 +97,7 @@ index 3102a00..e84ce5e 100644
    const covers = coverIndex(jobs);
    const covered = new Map(); // city key -> postings that list only its country or region
    for (const j of jobs) {
-@@ -851,9 +866,7 @@ function derive() {
+@@ -894,9 +909,7 @@ function derive() {
      // D-2: with a cluster or map area active, the facet counts describe the roles in that area (the list).
      if (area && !area.ids.has(j.id)) continue;
      const counts = (facet) => !only || only === facet;
@@ -106,8 +106,8 @@ index 3102a00..e84ce5e 100644
 -    }
 +    if (!only) kwJobs.push(j);
      if (counts('d')) bump(fc.d, deptKey(j));
+     if (counts('b')) bump(fc.b, brandKey(j));
      if (counts('l')) {
-       const seen = new Set();
 -- 
 2.43.0
 

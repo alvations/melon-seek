@@ -1,7 +1,7 @@
-From f8efd61e2bd54c4f38fdd3c99c7ddf3f0dc0c7ad Mon Sep 17 00:00:00 2001
+From ad8964793469487832ca5ade8198662f246df515 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 16:42:51 +0000
-Subject: [PATCH 19/19] perf-mobile-beta-2: getPreview asks only for boards
+Subject: [PATCH 7/8] perf-mobile-beta-2: getPreview asks only for boards
  config.js lists (window.MELON_PREVIEWS), so small boards make no 404 request
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

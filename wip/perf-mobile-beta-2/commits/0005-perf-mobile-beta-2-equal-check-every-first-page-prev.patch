@@ -1,8 +1,8 @@
-From 1452f37b3f86c81822bc03225ebeab7d33514df4 Mon Sep 17 00:00:00 2001
+From 0719869da31cee8dd39ba5e05f4cc14f2486eddc Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 16:31:10 +0000
-Subject: [PATCH 17/19] perf-mobile-beta-2 equal-check: every first-page
- preview holds getJobs' own postings (all 8 previews of the 2026-10-16 crawl
+Subject: [PATCH 5/8] perf-mobile-beta-2 equal-check: every first-page preview
+ holds getJobs' own postings (all 8 previews of the 2026-10-16 crawl
  identical)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

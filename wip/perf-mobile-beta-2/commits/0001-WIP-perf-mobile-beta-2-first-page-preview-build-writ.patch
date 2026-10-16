@@ -1,8 +1,8 @@
-From 4a3726d6226e53fd1330d98cfc561183a39d7ff4 Mon Sep 17 00:00:00 2001
+From a9cb19301b76e3ebb77d819a08ae1abce13d98bd Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 16:15:01 +0000
-Subject: [PATCH 13/19] WIP perf-mobile-beta-2: first-page preview (build
- writes api/preview/<slug>.json for big boards; config.js fetches it first;
+Subject: [PATCH 1/8] WIP perf-mobile-beta-2: first-page preview (build writes
+ api/preview/<slug>.json for big boards; config.js fetches it first;
  api.js#getPreview; app.js shows it while the list loads)
 
 Untested WIP.
@@ -120,10 +120,10 @@ index 3a0994e..7033437 100644
  
  /**
 diff --git a/public/app.js b/public/app.js
-index d7cdb6d..3102a00 100644
+index 7a29542..94e4f16 100644
 --- a/public/app.js
 +++ b/public/app.js
-@@ -1010,7 +1010,10 @@ async function loadJobs({ refresh = false } = {}) {
+@@ -1054,7 +1054,10 @@ async function loadJobs({ refresh = false } = {}) {
    mapFitPending = true;
    if (savedView && savedView.slug !== S.c) savedView = null; // P-12: a saved search's New marks stay with its company
    data = { status: 'loading', jobs: [], company: companyInfo(S.c), mode: null, fetchedAt: null, error: null };
@@ -134,7 +134,7 @@ index d7cdb6d..3102a00 100644
    // Static mode shows the bundled list as soon as it lands, marked `pending` while the live board
    // loads (api.js staticJobs step 1); onUpdate then settles it once (settleLive). It waits until
    // the first list is on screen, so a quick live answer or failure is never dropped mid-prepare.
-@@ -1039,9 +1042,40 @@ async function loadJobs({ refresh = false } = {}) {
+@@ -1083,9 +1086,40 @@ async function loadJobs({ refresh = false } = {}) {
    if (data.status === 'ready') fillFamilies(data.jobs);
    settleSaved();
    if (S.job) openDrawer(S.job, { fromHash: true });
@@ -175,7 +175,7 @@ index d7cdb6d..3102a00 100644
  /** The live fetch behind a `pending` list ended: swap the live board in, or keep the list quietly. */
  function settleLive(next, seq) {
    if (data.status !== 'ready' || !data.pending) return;
-@@ -1150,7 +1184,7 @@ let visible = []; // sorted list after map-area filter
+@@ -1194,7 +1228,7 @@ let visible = []; // sorted list after map-area filter
  
  function render() {
    derived = data.status === 'ready' ? derive() : { filtered: [], fc: null };
@@ -184,7 +184,7 @@ index d7cdb6d..3102a00 100644
    const listed = area ? derived.filtered.filter((j) => area.ids.has(j.id)) : derived.filtered;
    visible = sortJobs(listed);
  
-@@ -1636,12 +1670,16 @@ const lsGet = (k, fallback) => { try { const v = localStorage.getItem(k); return
+@@ -1681,12 +1715,16 @@ const lsGet = (k, fallback) => { try { const v = localStorage.getItem(k); return
  const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage blocked: feature degrades */ } };
  
  /** Remember this visit; keep the previous one for the session so "New" stays stable across refreshes. */
@@ -204,7 +204,7 @@ index d7cdb6d..3102a00 100644
    lsSet(seenKey(slug), new Date().toISOString());
    lsSet(seenIdsKey(slug), jobs.map((j) => j.id));
  }
-@@ -1664,7 +1702,10 @@ function savedViewIds() {
+@@ -1709,7 +1747,10 @@ function savedViewIds() {
    }
    return v.ids;
  }
@@ -216,8 +216,8 @@ index d7cdb6d..3102a00 100644
  /** After a saved search's company loads: say how many new roles it has and where they are. */
  function settleSaved() {
    const v = savedView;
-@@ -2799,10 +2840,14 @@ function renderViz() {
- const colorBy = () => (S.g === 'none' ? 'department' : S.g);
+@@ -2897,10 +2938,14 @@ function syncGroupSelect() {
+ }
  
  function computeColorKeys(jobs) {
 -  colorKeys = new Set();
@@ -232,7 +232,7 @@ index d7cdb6d..3102a00 100644
    const ordered = [...counts.keys()].sort((a, b) => counts.get(b) - counts.get(a) || String(a).localeCompare(String(b)));
    const top = ordered.length > SLOT_COUNT ? ordered.slice(0, SLOT_COUNT - 1) : ordered;
    assignColors(top); // same (sticky) slots the chart assigns, so list/filter dots match its legend
-@@ -2955,7 +3000,18 @@ function renderResults() {
+@@ -3056,7 +3101,18 @@ function renderResults() {
    if (hasQuery() && !bestOpt.isConnected) sortSel.prepend(bestOpt);
    else if (!hasQuery() && bestOpt.isConnected) bestOpt.remove();
    sortSel.value = effectiveSort();
@@ -252,7 +252,7 @@ index d7cdb6d..3102a00 100644
    if (data.status === 'loading' || data.status === 'idle') {
      title.textContent = 'Loading roles…';
      list.replaceChildren(...Array.from({ length: 7 }, () => h('li', { class: 'card card--sk', 'aria-hidden': 'true' },
-@@ -2995,6 +3051,8 @@ function renderResults() {
+@@ -3096,6 +3152,8 @@ function renderResults() {
    // M-19: a new result set (another sort, filter, area or board) starts at the top of the list; the same
    // set re-rendered (a view switch, the live board replacing the snapshot) keeps its place and its pages.
    const sig = `${visible.length}|${visible.map((j) => j.id).join(',')}`;
@@ -261,7 +261,7 @@ index d7cdb6d..3102a00 100644
    const fresh = sig !== win.sig;
    win.sig = sig;
    if (fresh && !win.keep) { win.heights.clear(); toTop(list); }
-@@ -3044,7 +3102,7 @@ function toTop(list) {
+@@ -3145,7 +3203,7 @@ function toTop(list) {
     carries aria-posinset/aria-setsize, so a screen reader hears "12 of 6,105" however few are in the page. */
  const WINDOW_ALL = 150;
  const WINDOW_MIN = 120;
@@ -270,7 +270,7 @@ index d7cdb6d..3102a00 100644
  let listIO = null;
  
  /** Rebuild the list's cards (state changed): the note, the window, the spacers and "Show more". */
-@@ -3140,7 +3198,7 @@ function paintWindow(scrollTop = null) {
+@@ -3241,7 +3299,7 @@ function paintWindow(scrollTop = null) {
    for (let i = start; i < end; i++) {
      const job = visible[i];
      let li = win.els.get(job.id);
@@ -279,7 +279,7 @@ index d7cdb6d..3102a00 100644
      if (prev.nextSibling !== li) prev.after(li);
      prev = li;
    }
-@@ -3152,14 +3210,14 @@ function paintWindow(scrollTop = null) {
+@@ -3253,14 +3311,14 @@ function paintWindow(scrollTop = null) {
    win.top.style.height = `${Math.max(0, above - gap)}px`;
    win.bottom.style.display = end < n ? '' : 'none';
    win.bottom.style.height = `${Math.max(0, below - gap)}px`;
@@ -296,7 +296,7 @@ index d7cdb6d..3102a00 100644
      const hgt = li.getBoundingClientRect().height; // not offsetHeight: rounding would shift the content under a scroll
      if (id && hgt && Math.abs((win.heights.get(id) ?? avg) - hgt) > 1) changed = true;
      if (id && hgt) win.heights.set(id, hgt);
-@@ -3385,7 +3443,7 @@ function card(job, pos = null, size = null) {
+@@ -3497,7 +3555,7 @@ function card(job, pos = null, size = null) {
    const remoteTag = job.remote && !/^remote\b/i.test(loc);
    const term = cardTerm(job);
    const el = h('li', { 'aria-posinset': pos, 'aria-setsize': size }, h('article', {
@@ -305,7 +305,7 @@ index d7cdb6d..3102a00 100644
      'aria-label': `${job.title}${pool ? `, ${POOL_LABEL}` : ''}, ${pay ? `${pay.text}${pay.tip ? ` (${pay.tip})` : ''}` : job.salaryFlag ? 'pay unclear, see posting' : 'no pay listed'}, ${locSummary(job, 3)}`, style: `--stripe:${color}`,
      'aria-describedby': `${did}-m ${did}-f`,
    },
-@@ -4662,10 +4720,18 @@ function bindEvents() {
+@@ -4821,10 +4879,18 @@ function bindEvents() {
    $('.brand').addEventListener('click', (e) => { e.preventDefault(); dropHeld(); set({ ...resetFiltersPatch(), job: null, m: 'chart' }); closeDrawer(); });
  
    const list = $('#resultsList');

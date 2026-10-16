@@ -1,0 +1,112 @@
+From b63652f5a38c327f1a563f6bc6ba510a074ef01e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 17:01:39 +0000
+Subject: [PATCH 8/8] CI list check reads first-page previews too (the list's
+ own postings, no HTML, no stored Juice); test
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ .github/scripts/check-lists.mjs | 33 ++++++++++++++++++++++++++++++++-
+ test/perf-mobile-beta-2.test.js | 25 +++++++++++++++++++++++++
+ 2 files changed, 57 insertions(+), 1 deletion(-)
+
+diff --git a/.github/scripts/check-lists.mjs b/.github/scripts/check-lists.mjs
+index 761e642..5244c3b 100644
+--- a/.github/scripts/check-lists.mjs
++++ b/.github/scripts/check-lists.mjs
+@@ -9,6 +9,10 @@
+ //   - it unpacks to an array of job objects;
+ //   - lists carry no description HTML (descriptions are lazy, one file per job);
+ //   - Juice is never stored in a list (it is worked out in the browser).
++// And every first-page preview in <site>/api/preview (perf-mobile-beta-2; scripts/build-static.js#previewList):
++//   - the same format rules, with `preview: { total, colorCounts }`;
++//   - it unpacks to job objects with no description HTML and no stored Juice;
++//   - those are the list's own postings, value for value, and `total` is the list's length.
+ import fs from 'node:fs';
+ import path from 'node:path';
+ import { unpackJobs } from '../../public/api.js';
+@@ -16,7 +20,9 @@ import { unpackJobs } from '../../public/api.js';
+ const DIST = process.argv[2] || 'dist';
+ const FORMATS = new Set(['melon-packed-2', 'melon-packed-3']);
+ let checked = 0;
++let previews = 0;
+ const problems = [];
++const lists = new Map(); // list file -> unpacked jobs (for the preview checks)
+ 
+ for (const site of [DIST, path.join(DIST, 'beta')]) {
+   const dir = path.join(site, 'api', 'jobs');
+@@ -39,11 +45,36 @@ for (const site of [DIST, path.join(DIST, 'beta')]) {
+     if (html) problems.push(`${where}: ${html} jobs carry description HTML (descriptions are lazy)`);
+     const juice = jobs.filter((j) => 'juice' in j).length;
+     if (juice) problems.push(`${where}: ${juice} jobs carry a stored Juice score`);
++    lists.set(where, jobs);
+     checked++;
+   }
++  const pdir = path.join(site, 'api', 'preview');
++  if (!fs.existsSync(pdir)) continue;
++  for (const file of fs.readdirSync(pdir).filter((f) => f.endsWith('.json')).sort()) {
++    const where = path.join(pdir, file);
++    const body = JSON.parse(fs.readFileSync(where, 'utf8'));
++    if (!FORMATS.has(body.format)) problems.push(`${where}: format ${JSON.stringify(body.format)} is not one the app reads`);
++    const pv = body.preview;
++    if (!pv || !Number.isInteger(pv.total) || !Array.isArray(pv.colorCounts)) problems.push(`${where}: no preview { total, colorCounts }`);
++    let jobs;
++    try { jobs = unpackJobs(body); } catch (e) { problems.push(`${where}: does not unpack (${e.message})`); continue; }
++    if (!Array.isArray(jobs) || !jobs.length || jobs.some((j) => !j || typeof j !== 'object' || Array.isArray(j))) {
++      problems.push(`${where}: does not unpack to job objects`);
++      continue;
++    }
++    if (jobs.some((j) => j.descriptionHtml)) problems.push(`${where}: preview jobs carry description HTML`);
++    if (jobs.some((j) => 'juice' in j)) problems.push(`${where}: preview jobs carry a stored Juice score`);
++    const list = lists.get(path.join(site, 'api', 'jobs', file));
++    if (!list) { problems.push(`${where}: no list ${file} beside it`); continue; }
++    if (pv && pv.total !== list.length) problems.push(`${where}: total ${pv.total}, the list has ${list.length}`);
++    const byId = new Map(list.map((j) => [j.id, j]));
++    const off = jobs.filter((j) => JSON.stringify(j) !== JSON.stringify(byId.get(j.id))).length;
++    if (off) problems.push(`${where}: ${off} preview jobs are not the list's own postings`);
++    previews++;
++  }
+ }
+ 
+ if (!checked) problems.push(`no job lists under ${DIST}/api/jobs`);
+ for (const p of problems) console.error(`check-lists: ${p}`);
+-console.log(`check-lists: ${checked} lists read through unpackJobs, ${problems.length} problems`);
++console.log(`check-lists: ${checked} lists read through unpackJobs${previews ? ` (and ${previews} previews)` : ''}, ${problems.length} problems`);
+ process.exit(problems.length ? 1 : 0);
+diff --git a/test/perf-mobile-beta-2.test.js b/test/perf-mobile-beta-2.test.js
+index f0e4df9..9177a4e 100644
+--- a/test/perf-mobile-beta-2.test.js
++++ b/test/perf-mobile-beta-2.test.js
+@@ -316,3 +316,28 @@ test('config.js asks for the first company\'s preview only when it has one, befo
+   const cfg = fs.readFileSync(path.join(DIST, 'config.js'), 'utf8');
+   assert.ok(cfg.indexOf('MELON_FIRST_PREVIEW') < cfg.indexOf('MELON_FIRST_LIST'), 'the preview is requested first');
+ });
++
++test('ci.yml list check reads previews: the list\'s own postings, no HTML, no stored Juice', async () => {
++  const api0 = await siteApi();
++  const { splitPayload, previewList, previewPath } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'build-static.js')).href);
++  const { vetSalaries } = await import(pathToFileURL(path.join(DIST, 'lib', 'vet.js')).href);
++  const split = splitPayload(await bigBoard(), api0, vetSalaries);
++  const prev = previewList(split, api0);
++  const d = path.join(TMP, 'ci-preview');
++  fs.mkdirSync(path.join(d, 'api', 'jobs'), { recursive: true });
++  fs.mkdirSync(path.join(d, 'api', 'preview'), { recursive: true });
++  fs.writeFileSync(path.join(d, 'api', 'jobs', 'zz.json'), JSON.stringify({ ...split.list, meta: { compstimate: null, history: { since: null, runs: 0 } } }));
++  fs.writeFileSync(path.join(d, previewPath('zz')), JSON.stringify(prev));
++  const check = () => spawnSync(process.execPath, [path.join(ROOT, '.github', 'scripts', 'check-lists.mjs'), d], { cwd: ROOT, encoding: 'utf8' });
++  const ok = check();
++  assert.equal(ok.status, 0, ok.stderr);
++  assert.match(ok.stdout, /1 lists read through unpackJobs \(and 1 previews\), 0 problems/);
++  // A preview whose posting differs from the list's is caught.
++  const bad = JSON.parse(JSON.stringify(prev));
++  const r = bad.jobs[0];
++  if (Array.isArray(r)) r[bad.shared.rowKeys.indexOf('title')] += ' (edited)'; else r.title += ' (edited)';
++  fs.writeFileSync(path.join(d, previewPath('zz')), JSON.stringify(bad));
++  const no = check();
++  assert.equal(no.status, 1);
++  assert.match(no.stderr, /1 preview jobs are not the list's own postings/);
++});
+-- 
+2.43.0
+
