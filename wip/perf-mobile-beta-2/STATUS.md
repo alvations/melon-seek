@@ -2,11 +2,13 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a7425c5dcd4e39cbe`
 - Base (on claude/stoic-ride-54ddxp): `f254143f9171ca620fb4c58c0f5ff2687e6de040`
-- Head: `d89c3fb1b2dcc42d557fe7211a16fcbc04f841a1`
+- Head: `fc716d1088597d58c0c1d01620be21721d3200da`
 - Restore: `bash scripts/cycle/restore-wip.sh perf-mobile-beta-2 <new worktree dir>`
 
 ## Commits since the base
 ```
+fc716d1 WIP perf-mobile-beta-2: State
+7bb9e5c perf-mobile-beta-2: preview only for boards of 10,000+ (Amazon): on smaller boards drawing it delayed the list and chart by 0.3-0.5 s while their first cards were near 3 s anyway; table script for the interleaved record
 d89c3fb WIP perf-mobile-beta-2 log: part 2 decisions; the lead's follow-ups in the prompt file
 b63652f CI list check reads first-page previews too (the list's own postings, no HTML, no stored Juice); test
 ad89647 perf-mobile-beta-2: getPreview asks only for boards config.js lists (window.MELON_PREVIEWS), so small boards make no 404 request

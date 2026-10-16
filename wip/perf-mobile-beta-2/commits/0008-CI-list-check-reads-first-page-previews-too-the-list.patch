@@ -1,7 +1,7 @@
 From b63652f5a38c327f1a563f6bc6ba510a074ef01e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 17:01:39 +0000
-Subject: [PATCH 8/9] CI list check reads first-page previews too (the list's
+Subject: [PATCH 08/11] CI list check reads first-page previews too (the list's
  own postings, no HTML, no stored Juice); test
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1,0 +1,94 @@
+From 7bb9e5c7d420ba4081c5fc9e396d949cafe7e325 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 17:29:22 +0000
+Subject: [PATCH 10/11] perf-mobile-beta-2: preview only for boards of 10,000+
+ (Amazon): on smaller boards drawing it delayed the list and chart by 0.3-0.5
+ s while their first cards were near 3 s anyway; table script for the
+ interleaved record
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ .../scripts/perf-mobile-beta-2-table.mjs      | 27 +++++++++++++++++++
+ scripts/build-static.js                       |  6 ++++-
+ test/perf-mobile-beta-2.test.js               |  6 ++---
+ 3 files changed, 35 insertions(+), 4 deletions(-)
+ create mode 100644 docs/process/scripts/perf-mobile-beta-2-table.mjs
+
+diff --git a/docs/process/scripts/perf-mobile-beta-2-table.mjs b/docs/process/scripts/perf-mobile-beta-2-table.mjs
+new file mode 100644
+index 0000000..c223608
+--- /dev/null
++++ b/docs/process/scripts/perf-mobile-beta-2-table.mjs
+@@ -0,0 +1,27 @@
++// Medians of interleaved cold loads, several builds side by side (perf-mobile-beta-2.md 5.6).
++// usage: node perf-mobile-beta-2-table.mjs <label>=<merged perf json> ...   (perf-mobile-beta-2-merge.mjs output)
++// "First cards" is the first frame with result cards: the preview's (data-preview-id) when it shows, else the list's.
++import fs from 'node:fs';
++const cols = process.argv.slice(2).map((a) => { const [label, file] = a.split('='); return { label, R: JSON.parse(fs.readFileSync(file, 'utf8')) }; });
++const s = (ms) => (ms == null || !Number.isFinite(ms) ? '-' : ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.round(ms)} ms`);
++const med = (a) => { const x = a.filter((v) => v != null && Number.isFinite(v)).sort((p, q) => p - q); return x.length ? x[x.length >> 1] : null; };
++const runsOf = (R, net, co) => R.runs.filter((r) => r.net === net && r.company === co && r.cold);
++const first = (r) => (r.cold.preview ? Math.min(r.cold.preview, r.cold.cards || Infinity) : r.cold.cards);
++const cells = [];
++for (const { R } of cols) for (const r of R.runs) if (!cells.some(([n, c]) => n === r.net && c === r.company)) cells.push([r.net, r.company]);
++const metrics = [['First cards', first], ['List in', (r) => r.cold.cards], ['First chart', (r) => r.cold.chart], ['TTI', (r) => r.cold.tti], ['Longest task', (r) => r.cold.maxTask], ['TBT', (r) => r.cold.tbt]];
++console.log(`| Network · board | ${metrics.map(([m]) => m).join(' | ')} |`);
++console.log(`|---|${metrics.map(() => '---').join('|')}|`);
++for (const [net, co] of cells) {
++  const row = metrics.map(([, f]) => cols.map(({ R }) => s(med(runsOf(R, net, co).map(f)))).join(' → '));
++  console.log(`| ${net === 'fast4g' ? 'Fast 4G' : 'Slow 4G'} · ${co} | ${row.join(' | ')} |`);
++}
++console.log(`\nColumns: ${cols.map((c) => c.label).join(' → ')}.`);
++for (const { label, R } of cols) {
++  const loads = R.runs.map((r) => Number(r.loadavg.split(' ')[0]));
++  console.log(`${label}: ${R.runs.length} runs, 1-min load ${Math.min(...loads).toFixed(2)}-${Math.max(...loads).toFixed(2)}; first cards per cell (min-max): ${cells.map(([n, c]) => { const v = runsOf(R, n, c).map(first); return v.length ? `${n} ${c} ${s(Math.min(...v))}-${s(Math.max(...v))}` : null; }).filter(Boolean).join(', ')}`);
++  const pm = R.runs.filter((r) => r.cold && r.cold.previewMatch != null);
++  if (pm.length) console.log(`  preview's first cards = the list's: ${pm.filter((r) => r.cold.previewMatch).length} of ${pm.length} runs`);
++  const bad = R.runs.filter((r) => r.fail || (r.errors && r.errors.length));
++  if (bad.length) console.log(`  failures/errors: ${bad.map((r) => `${r.net} ${r.company}: ${r.fail || r.errors.join(' | ')}`).join('; ')}`);
++}
+diff --git a/scripts/build-static.js b/scripts/build-static.js
+index 3165ee7..b649796 100644
+--- a/scripts/build-static.js
++++ b/scripts/build-static.js
+@@ -380,7 +380,11 @@ async function writeSplit(out, payload, file, api, slug, vet = null) {
+ // public/app.js shows them as the first page while the whole list loads (then the whole list
+ // replaces them; the page keeps its place when they agree, which they do). Nothing is left out: the
+ // preview is an extra, early copy of the list's first postings; the list itself is unchanged.
+-export const PREVIEW_MIN_JOBS = 1000; // smaller boards load fast enough without one
++// Only where the whole list takes long: on the 2026-10-16 crawl a preview brought the first cards to about
++// 2 s on every board measured, but drawing it delays the whole list and the chart by about 0.3-0.5 s
++// (Apple 4,851: chart 3.0 -> 3.3 s; Anduril 2,537 on the main site: 2.6 -> 3.1 s, Fast 4G at 4x CPU),
++// while those boards' first cards were at about 3 s anyway. Amazon's 22,179 waited 6.9 s for them.
++export const PREVIEW_MIN_JOBS = 10000;
+ export const PREVIEW_SIZE = 100;
+ /** The preview file of a company, relative to the site root (public/api.js#getPreview reads it). */
+ export const previewPath = (slug) => `api/preview/${slug}.json`;
+diff --git a/test/perf-mobile-beta-2.test.js b/test/perf-mobile-beta-2.test.js
+index 9177a4e..3ed8dd1 100644
+--- a/test/perf-mobile-beta-2.test.js
++++ b/test/perf-mobile-beta-2.test.js
+@@ -19,7 +19,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
+ 
+ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+ const ref = await import(pathToFileURL(path.join(ROOT, 'test', 'fixtures', 'packed-2-reference.js')).href);
+-const { packList } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'build-static.js')).href);
++const { packList, PREVIEW_MIN_JOBS } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'build-static.js')).href);
+ const realFetch = globalThis.fetch;
+ let TMP, DIST;
+ const readJson = (...p) => JSON.parse(fs.readFileSync(path.join(...p), 'utf8'));
+@@ -230,8 +230,8 @@ test('the 1.5 MB list budget is still measured in melon-packed-2 bytes: the same
+ 
+ const vmRun = (code, sandbox) => vm.runInNewContext(code, sandbox);
+ 
+-/** A big board the salary gate leaves alone: US pay in 16 levels (some ties), 8 US cities, some unpaid. */
+-const bigBoard = async (n = 1300) => {
++/** A board big enough for a preview that the salary gate leaves alone: US pay in 16 levels (ties), 8 US cities, some unpaid. */
++const bigBoard = async (n = PREVIEW_MIN_JOBS + 300) => {
+   const base = (await anthropicPlain()).jobs;
+   const cities = readJson(ROOT, 'data', 'cities.json');
+   const us = (Array.isArray(cities) ? cities : cities.cities).filter((c) => c.country === 'US').slice(0, 8);
+-- 
+2.43.0
+
