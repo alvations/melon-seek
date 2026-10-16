@@ -11,4 +11,8 @@
 
 ## Uncommitted and new files
 ```
+?? docs/process/prompts/fix-touch-tips.md
 ```
+
+## Left out (not in untracked.tgz)
+- node_modules (symlink)
