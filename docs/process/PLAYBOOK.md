@@ -226,7 +226,8 @@ don't lose that much." So:
   with Playwright in `<scratchpad>/pw/node_modules`.
 - The Long Tasks API misses work after `fetch()` resolves. Read long tasks from a Chrome trace.
 - Beta-specific: a company with `paused` in server/companies.js is never crawled or tested (its adapter
-  refuses to start). Amazon is capped at 5,000 postings on /beta/ (`maxPostings`). Apple's full
+  refuses to start). No board is capped: Amazon's 5,000-posting budget (`maxPostings`) was removed on
+  2026-10-11, and its whole board (22,179 postings on 2026-10-16) is the heavy case. Apple's full
   crawl took 89 minutes on 2026-10-11 (4,704 requests); an incremental run takes about 13.
 
 ## Adding a board to the incremental crawl

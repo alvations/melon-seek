@@ -259,15 +259,23 @@ Rules:
 
 - **Salary:** `salary.mid` (annualized by `server/salary.js`; hourly × 2080). `salary.kind`
   is not used to filter; interns and hourly roles get a score like anyone else. A range spanned
-  over several places (`salary.ranges`, Apple requisitions) or levels (`salary.levels`, NVIDIA and
-  Microsoft) is scored on the span's midpoint.
+  over several levels (`salary.levels`, NVIDIA and Microsoft) is scored on the span's midpoint. A
+  place with its own posted range (`salary.ranges[].locations`: Apple requisitions, Amazon's pay
+  table, Microsoft's SF Bay Area / NYC range) is scored on that range's midpoint (`attachJuice`
+  `placeUSD`, DQ-28, DQ-33, SB-5), and only the places the pay was posted for are scored
+  (`salary.places`, else the ranges' places; DQ-27). A stated minimum (`kind: 'minimum'`, VT-17) is
+  scored on the minimum, and an hourly rate with `includesShiftDifferential` (VT-18) on the posted
+  rate, which includes the highest shift differential; Austria's stated annual figure
+  (`statedAnnual`, VT-19) is the salary. An internship whose posting gives no length (no
+  `termWeeks`) is annualized and scored for a year like any salary.
 - **Fixed-term pay:** with `salary.termWeeks` (an internship or programme length), the drawer shows
   Juice per month and for the whole term only ("Juice covers only that term"), and tax is worked
   out as if the pay lasted a year, so it may be lower (`public/app.js` `postedTerm`).
 - **FX:** `FX_TO_USD` is copied verbatim from `public/viz/palette.js`, so juice is in the same
   "approx USD" unit the salary chart plots. A currency the palette lacks would use the city's
-  `fxPerUSD`; today the palette has every city currency. RON (Romanian lei) has no rate anywhere, so
-  lei pay is not read (`server/salary.js`). Tax is computed in the
+  `fxPerUSD`; today the palette has every city currency and every currency the postings use. RON
+  (Romanian lei) has had a rate since fix wave 4 (MR-1: 4.58165 per USD, from the same Big Mac source
+  data release as every other rate), so lei pay is read and converted. Tax is computed in the
   city's currency at the same rate, so a £100K salary in London is taxed on exactly £100K.
 - **Currency scoping:** only matched locations that use the salary's currency are scored (a USD
   range posted for "San Francisco | London" is not applied to London), and when the pay line names

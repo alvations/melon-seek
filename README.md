@@ -374,9 +374,10 @@ caches HTML. Details, verification commands and other platforms are in
 ### Beta site
 
 <https://alvations.github.io/melon-seek/beta/> is a full second copy of the
-app: the stable companies plus the big-tech career sites (Google, Microsoft, Apple,
-Netflix and NVIDIA; Amazon and Meta were resumed on 2026-10-11 and appear after their first
-crawl. Amazon shows all of its roughly 22,000 postings: no board is cut to a posting budget).
+app: the stable companies plus seven big-tech career sites (Google, Microsoft, Apple, Netflix,
+NVIDIA, Amazon and Meta; Amazon and Meta were paused for terms of use on 2026-10-10 and resumed
+on 2026-10-11, docs/AMAZON_META.md). Amazon shows its whole board, 22,179 postings on
+2026-10-16: no board is cut to a posting budget.
 Tesla is left out because its site blocks plain requests; see
 [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) §7.
 The main site at `/melon-seek/` doesn't change and doesn't link to it.
@@ -392,7 +393,8 @@ Contract: [docs/CONTRACT.md](docs/CONTRACT.md) "v3 additions"; build log:
   `<meta name="melon-channel" content="beta">` next to the build marker. Market
   comps ("Same role elsewhere", Insights), share pages `c/<slug>/` and CSV cover the beta
   companies. The methodology page is the same as the main site's: it explains the Juice Score,
-  not how the big-tech pay is read (that is in [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) §7a).
+  and its questions say how the posted pay and levels are read ("How is the posted pay read?");
+  the full pay rules for the big-tech boards are in [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) §7a.
 - **Data:** `node scripts/snapshot.js --channel beta` (or one slug, e.g.
   `node scripts/snapshot.js amazon`) fetches the big-tech boards. The workflows
   keep them in `data/beta/snapshots/` (and their ledger in `data/beta/history/`),

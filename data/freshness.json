@@ -253,7 +253,7 @@
           "as": "salary.EXTRA_FX_PER_USD"
         }
       ],
-      "notes": "The first monthly run moves the table from Big Mac dollar_ex (2026-07-01) to ECB monthly averages (fixture: Sep 2026, KRW -8.6%, JPY -3.5%). Every USD-converted number on the site shifts with it; the review PR lists each move. All copies equal today (checked 2026-10-10: palette, juice, salary, cities.json fx.perUSD, 89 city fxPerUSD, 33 bigMac dollarEx). Gaps: (1) no test ties data/cities.json fx.perUSD to the code tables (fx-consistency only compares palette/juice/salary), so a col-refresh PR alone would split them; (2) EXTRA_FX_PER_USD (QAR, CNY, ZAR) has no source or as-of; (3) server/demo.js:697 has its own FX {USD 1, GBP 0.78, EUR 0.9} that fx.js does not touch (GBP 0.78 vs 0.74187 = +5.1%, EUR 0.9 vs 0.87439 = +2.9%), listed under demo-data; (4) every derived job number in USD changes when this table changes (job-salary-usd, market-comps, company-aggregates, Juice), so the refresh PR should regenerate them. UI shows no FX date except the Compare footer. FX_AS_OF is exported by palette.js but no UI module imports it (grep public/: only the definition). Copies NOT rewritten by fx.js: public/mock-api.js FX {GBP 1.27, EUR 1.09} and public/features/demo-data.js FX {GBP 1.27, EUR 1.09, CHF 1.13} (listed under demo-data), public/viz/demo.html:133 FXD (USD per unit, hand-rounded copy of today's palette: GBP 1.348, EUR 1.144, CHF 1.239, JPY 0.006168, SGD 0.7752, CAD 0.7117, AUD 0.6999; dev page, not in dist: build-static DEV_PAGES), and the chart footnote currency list. Fix: chart.js footnote should list Object.keys(FX_PER_USD) or say \"22 currencies\" and append \"as of <FX_AS_OF>\". Verified 2026-10-10: palette = juice = cities.json perUSD for all 23 codes; salary.js USD_PER adds CNY/QAR/ZAR. Methodology review beta (2026-10-11, MR-1): RON (Romanian leu) has no rate, so 16 Romania-only postings (Microsoft 12, Google 4) that post pay in lei show \"Salary not listed\". The ECB publishes RON: add it to scripts/refresh/fx.js ECB_CURRENCIES and the code copies.",
+      "notes": "The first monthly run moves the table from Big Mac dollar_ex (2026-07-01) to ECB monthly averages (fixture: Sep 2026, KRW -8.6%, JPY -3.5%). Every USD-converted number on the site shifts with it; the review PR lists each move. All copies equal today (checked 2026-10-10: palette, juice, salary, cities.json fx.perUSD, 89 city fxPerUSD, 33 bigMac dollarEx). Gaps: (1) no test ties data/cities.json fx.perUSD to the code tables (fx-consistency only compares palette/juice/salary), so a col-refresh PR alone would split them; (2) EXTRA_FX_PER_USD (QAR, CNY, ZAR) has no source or as-of; (3) server/demo.js:697 has its own FX {USD 1, GBP 0.78, EUR 0.9} that fx.js does not touch (GBP 0.78 vs 0.74187 = +5.1%, EUR 0.9 vs 0.87439 = +2.9%), listed under demo-data; (4) every derived job number in USD changes when this table changes (job-salary-usd, market-comps, company-aggregates, Juice), so the refresh PR should regenerate them. UI shows no FX date except the Compare footer. FX_AS_OF is exported by palette.js but no UI module imports it (grep public/: only the definition). Copies NOT rewritten by fx.js: public/mock-api.js FX {GBP 1.27, EUR 1.09} and public/features/demo-data.js FX {GBP 1.27, EUR 1.09, CHF 1.13} (listed under demo-data), public/viz/demo.html:133 FXD (USD per unit, hand-rounded copy of today's palette: GBP 1.348, EUR 1.144, CHF 1.239, JPY 0.006168, SGD 0.7752, CAD 0.7117, AUD 0.6999; dev page, not in dist: build-static DEV_PAGES), and the chart footnote currency list. Fix: chart.js footnote should list Object.keys(FX_PER_USD) or say \"22 currencies\" and append \"as of <FX_AS_OF>\". Verified 2026-10-10: palette = juice = cities.json perUSD for all 23 codes; salary.js USD_PER adds CNY/QAR/ZAR. Methodology review beta (2026-10-11, MR-1): RON (Romanian leu) has no rate, so 16 Romania-only postings (Microsoft 12, Google 4) that post pay in lei show \"Salary not listed\". The ECB publishes RON: add it to scripts/refresh/fx.js ECB_CURRENCIES and the code copies. Methodology review beta round 3 (2026-10-16, docs/process/methodology-review-beta-2.md, MR-23): on 2026-10-16 the table is still the 2026-07-01 Big Mac release, 62 days past its monthly cadence; round 2's MR-4 refresh never landed.",
       "checklist": [
         "If the auto refresh flags a move > 20%: confirm against https://data.ecb.europa.eu/data/datasets/EXR before merging the PR."
       ]
@@ -928,7 +928,7 @@
         "server/sources/incremental.js:46 DETAIL_REFRESH_DAYS (4: a cached detail is re-read after 2-4 days; MELON_DETAIL_REFRESH_DAYS)",
         "server/sources/meta.js:24 MAX_FAILED_IN_A_ROW / :26 MAX_FAILED_SHARE (Meta crawl stop and fail rules)"
       ],
-      "values": "stable snapshots 2026-10-02T05:54Z: anduril 2,418, anthropic 638, openai 833, shieldai 581, palantir 320, xai 297, scaleai 194, cohere 132 (total 5,413). Beta crawl 2026-10-11 (snapshot.yml run 38118242488, 06:38-07:59 UTC): apple 4,875 requisitions (6,094 listings), google 3,417, nvidia 2,663, microsoft 2,279, netflix 457; amazon (the whole board, about 22,415, no posting budget since 2026-10-11) and meta resumed 2026-10-11, counts after their first crawl. Beta boards are re-crawled every 6 hours (detail pages incremental since 2026-10-11)",
+      "values": "Stable snapshots 2026-10-16 (12:45 UTC): anduril 2,537, openai 801, anthropic 654, shieldai 619, palantir 309, xai 304, scaleai 180, cohere 118 (total 5,522). Beta crawl 2026-10-16 (snapshots fetched 11:58-12:17 UTC, every board whole, no posting budget since 2026-10-11): amazon 22,179, apple 4,851 requisitions (6,093 listings), google 3,821, nvidia 2,711, microsoft 2,435 (its search listed 2,435 of the 2,454 it counts), meta 1,208, netflix 414. Beta boards are re-crawled every 6 hours (detail pages incremental since 2026-10-11)",
       "consumers": [
         {
           "at": "public/app.js",
@@ -1014,16 +1014,16 @@
         "url": "https://alvations.github.io/melon-seek/",
         "licence": "public job postings; facts only, links to the original postings"
       },
-      "asOf": "2026-10-11",
+      "asOf": "2026-10-16",
       "cadence": "daily",
       "graceDays": 2,
       "mode": "detect",
       "updater": "pipeline: scripts/snapshot.js via snapshot.yml + pages.yml (daily); monthly check scripts/refresh/jobs.js",
       "validator": "scripts/refresh/jobs.js job-postings (snapshot age <= 3 days, count drop < 50% month over month, mode not demo); the vetting gate and build checks daily",
       "before": "daily job-board pipeline (snapshot.yml, pages.yml); no age or drop check",
-      "lastChecked": "2026-10-10",
+      "lastChecked": "2026-10-16",
       "archive": true,
-      "notes": "Monthly aggregate per company archived as jobs-aggregates. sourceAsOf = newest snapshot fetchedAt. | Versioned forever by the archive agent (docs/DATA_ARCHIVE.md), not by the monthly refresh. DATA LOSS RISK: job snapshots older than 14 days exist nowhere (artifact retention 14; data/snapshots gitignored) until the archive (scripts/archive/jobs.js) records versions. Local snapshots predate normalizerVersion (server re-derives them). Beta boards over 40 MB are trimmed or capped (jobsCapped), which changes per-company counts. Methodology review beta (2026-10-11, MR-6): values covered the stable boards only. The per-board crawl date the UI shows is each snapshot's fetchedAt (data badge 'Snapshot · Oct 11').",
+      "notes": "Monthly aggregate per company archived as jobs-aggregates. sourceAsOf = newest snapshot fetchedAt. | Versioned forever by the archive agent (docs/DATA_ARCHIVE.md), not by the monthly refresh. DATA LOSS RISK: job snapshots older than 14 days exist nowhere (artifact retention 14; data/snapshots gitignored) until the archive (scripts/archive/jobs.js) records versions. Local snapshots predate normalizerVersion (server re-derives them). Beta boards over 40 MB have their descriptions trimmed; no posting is dropped since 2026-10-11 (Amazon's snapshot is 97.8 MB on 2026-10-16). Older archived snapshots may carry jobsCapped. Methodology review beta (2026-10-11, MR-6): values covered the stable boards only. The per-board crawl date the UI shows is each snapshot's fetchedAt (data badge 'Snapshot · Oct 11'). Methodology review beta round 3 (2026-10-16, docs/process/methodology-review-beta-2.md, MR-25): values moved to the 2026-10-16 crawl.",
       "checklist": [
         "If stale: check the latest snapshot.yml / pages.yml runs and the vetting gate.",
         "Monthly (jobs.js job-postings): every board has a snapshot no older than 3 days, a non-zero job count, and did not lose more than half its postings since last month.",
@@ -14035,7 +14035,7 @@
       "description": "Per-job posted pay in its native currency and the honest-number labels around it.",
       "type": "fetched",
       "owners": [
-        "server/normalize.js:100 deriveSalary (structured vs text, ranges.slice(0,12), tier span <= 3x)",
+        "server/normalize.js:100 deriveSalary (structured vs text, every posted range kept (SB-3, norm-11), tier span <= 3x)",
         "server/salary.js:993 parseSalary",
         "server/salary.js:1172 toJobSalary (mid = round((min+max)/2), spread = max/min)",
         "server/sources/greenhouse.js:50 payRanges (cents / ZERO_DECIMAL)",
@@ -14044,9 +14044,16 @@
         "server/sources/lever.js:1 Lever salaryRange",
         "server/sources/meta.js:1 Meta currency map",
         "server/salary.js + adapters [jobs/core]",
-        "server/salary.js:477 PAY_AREAS (SF Bay Area 75 km, New York City 60 km: Microsoft's second range; norm-7, DQ-13)"
+        "server/salary.js:477 PAY_AREAS (SF Bay Area 75 km, New York City 60 km: Microsoft's second range; norm-7, DQ-13)",
+        "server/sources/amazon.js:180 MINIMUM_RE (a stated minimum: kind \"minimum\", shown \"from €X\"; VT-17)",
+        "server/sources/amazon.js:184 SHIFT_RE (hourly pay including the highest shift differential: includesShiftDifferential; VT-18)",
+        "server/sources/amazon.js:187 STATED_BASE_RE (\"Pay starts at $18.05 per hour\": statedBase; VT-18)",
+        "server/sources/amazon.js:190 STATED_ANNUAL_RE (a stated yearly figure, Austria 14 payments: statedAnnual; VT-19)",
+        "server/sources/amazon.js:121 ISO3_ISO2 (places written with ISO-3 codes; DQ-40)",
+        "server/sources/apple.js:353 APPLE_PAY_STATES (the pay-transparency states Apple posts pay for: salary.places; DQ-27)",
+        "server/sources/upgrade.js:76 upgradeAmazonJobs (stored snapshots get the norm-10/11 rules at read time)"
       ],
-      "values": "salary { min, max, mid (annualized), currency, interval: \"year\", text, originalInterval, kind, source, spread, zones, ranges? }; 4,551 of 5,413 postings salaried after the gate on 2026-10-02",
+      "values": "salary { min, max, mid (annualized), currency, interval: \"year\", text, originalInterval, kind, source, spread, zones, ranges? }; 4,551 of 5,413 postings salaried after the gate on 2026-10-02; 2026-10-16 (norm-11, as the build serves it): amazon 13,980 of 22,179 (285 minimums, 636 including the top shift differential, 77 with a stated base, 3 stated annual), apple 2,781 of 4,851, google 2,512 of 3,821, meta 948 of 1,208, microsoft 1,566 of 2,435, netflix 259 of 414, nvidia 1,462 of 2,711 (41 on-target earnings), anduril 2,388 of 2,537",
       "consumers": [
         {
           "at": "public/app.js:383",
@@ -14133,8 +14140,8 @@
       ],
       "validator": "scripts/refresh/jobs.js job-salary-parsed (pay share drop <= 15 points); test/salary.test.js; test/fixtures/real-salary-cases.json",
       "before": "daily job-board pipeline",
-      "lastChecked": "2026-10-10",
-      "notes": "Depends on salary-interval-factors (annualizing), salary-parser-bounds and fx-per-usd (bounds compared in USD). The parsed salary is in the posting currency; USD is derived per consumer (job-salary-usd)."
+      "lastChecked": "2026-10-16",
+      "notes": "Depends on salary-interval-factors (annualizing), salary-parser-bounds and fx-per-usd (bounds compared in USD). The parsed salary is in the posting currency; USD is derived per consumer (job-salary-usd). Methodology review beta round 3 (2026-10-16, docs/process/methodology-review-beta-2.md, MR-24/25): norm-11 rules (salary audit, SB-1 to SB-7) are in docs/DATA_SOURCES.md §7a; the 12-row cap the owners named is gone (SB-3)."
     },
     {
       "archive": true,
@@ -14228,9 +14235,10 @@
         "server/salary.js:397 national-range span <= 4x",
         "server/salary.js:365 unstated interval heuristics",
         "server/normalize.js:96 payRanges currency pick <= 3x",
-        "server/sources/greenhouse.js:37 MAX_TIER_SPAN"
+        "server/sources/greenhouse.js:37 MAX_TIER_SPAN",
+        "server/salary.js:58 meetsAnnualFloor (MIN_ANNUAL in USD, or the legal minimum: entry mx-legal-minimum-wage)"
       ],
-      "values": "MIN_ANNUAL 10000, MAX_ANNUAL 1200000, HARD_MAX_ANNUAL 5000000, PLAUSIBLE_ANNUAL_MIN 15000, TIER_GAP 130 chars, TIER_MAX_RATIO 3, national span 4x, hi < 1000 -> hourly, hi < 10000 with a range -> monthly, Greenhouse MAX_TIER_SPAN 3",
+      "values": "MIN_ANNUAL 10000, MAX_ANNUAL 1500000 (fix wave 5, VT-10: Netflix L7 $1.43M is shown), HARD_MAX_ANNUAL 5000000, PLAUSIBLE_ANNUAL_MIN 15000, TIER_GAP 130 chars, TIER_MAX_RATIO 3, national span 4x, hi < 1000 -> hourly, hi < 10000 with a range -> monthly, Greenhouse MAX_TIER_SPAN 3",
       "consumers": [
         {
           "at": "server/normalize.js:76",
@@ -14258,7 +14266,7 @@
       "validator": "scripts/refresh/policy.js salary-parser-bounds; test/salary.test.js",
       "before": "none",
       "lastChecked": null,
-      "notes": "Compared in USD via salary.js USD_PER, so they move with fx-per-usd.",
+      "notes": "Compared in USD via salary.js USD_PER, so they move with fx-per-usd. Methodology review beta round 3 (2026-10-16, docs/process/methodology-review-beta-2.md, MR-25): values said MAX_ANNUAL 1200000 after fix wave 5 raised it.",
       "extract": [
         {
           "file": "server/salary.js",
@@ -14286,6 +14294,56 @@
         }
       ],
       "lastReviewed": "2026-10-02"
+    },
+    {
+      "id": "mx-legal-minimum-wage",
+      "group": "jobs",
+      "description": "Mexico's legal minimum wage, per year in pesos: a real Mexico salary at or above it passes the parser's US$10,000 floor and the gate's $15K floor",
+      "type": "static-constant-from-a-source",
+      "owners": [
+        "server/salary.js:56 LEGAL_MIN_ANNUAL",
+        "server/salary.js:58 meetsAnnualFloor",
+        "server/vet.js:135 LEGAL_MIN_ANNUAL (the gate: below_min legal-minimum exemption)",
+        "docs/VETTING.md:152 (the rule and its source)",
+        "docs/DATA_SOURCES.md §7e (Amazon pay words)"
+      ],
+      "values": "MXN 114,990 a year = the 2026 general-zone minimum wage, MXN 315.04 a day, x 365 (about US$6,600 at 17.386 MXN per USD). No other currency has one: AUD, NZD, SGD and the rest have national minimums above US$10,000. 2026-10-16: 354 Amazon Mexico postings, none states pay, so no shown salary depends on it today",
+      "consumers": [
+        {
+          "at": "server/salary.js meetsAnnualFloor",
+          "surface": "API (a Mexico salary is read, not cut)"
+        },
+        {
+          "at": "server/vet.js salaryFlag below_min",
+          "surface": "vetting gate (a Mexico salary is shown, not quarantined)"
+        }
+      ],
+      "source": {
+        "name": "CONASAMI (Comisión Nacional de los Salarios Mínimos) resolution of 2025-12-03, in force 2026-01-01; read through EY Law Flash \"Incremento salarios mínimos 2026\"",
+        "url": "https://www.gob.mx/conasami",
+        "licence": "official publication"
+      },
+      "asOf": "2026-01-01",
+      "cadence": "yearly",
+      "graceDays": 60,
+      "mode": "manual",
+      "updater": "manual",
+      "checklist": [
+        "Each December, read CONASAMI's resolution for the next year in the Diario Oficial de la Federación (dof.gob.mx): the general-zone minimum wage in pesos a day.",
+        "Set LEGAL_MIN_ANNUAL.MXN in server/salary.js to that daily wage x 365, and update its comment, docs/VETTING.md §2 and docs/DATA_SOURCES.md §7e.",
+        "Set asOf to the date it takes effect (1 January) and lastChecked; run node --test test/beta-vetting-2.test.js test/salary.test.js."
+      ],
+      "validator": "test/beta-vetting-2.test.js (VT-14: the Mexico peso salary is MXN, read and shown); test/beta-methodology-2.test.js MR-24",
+      "before": "none (fix wave 5 added the constant on 2026-10-11 with no registry entry)",
+      "lastChecked": "2026-10-16",
+      "archive": true,
+      "extract": [
+        {
+          "file": "server/salary.js",
+          "const": "LEGAL_MIN_ANNUAL"
+        }
+      ],
+      "notes": "Methodology review beta round 3 (2026-10-16, docs/process/methodology-review-beta-2.md, MR-24). The source was read through a law firm's note, not the Diario Oficial itself; confirm on dof.gob.mx at the first yearly review. The daily wage x 365 is the floor's own convention (CONASAMI quotes a day; a month is usually 30.4 days)."
     },
     {
       "archive": true,
@@ -14517,7 +14575,7 @@
         "public/mock-api.js:1 mock COMPANIES (same 3)",
         "server/companies.js:87 PAUSE_REASONS"
       ],
-      "values": "8 stable (anthropic, anduril, openai, scaleai, xai, cohere, palantir, shieldai) + 7 beta (google, microsoft, meta, apple, netflix, amazon, nvidia). Amazon and Meta were paused for terms of use on 2026-10-10 and resumed by the user's decision on 2026-10-11 (docs/AMAZON_META.md \"Decision\"); each appears on /beta/ after its first crawl. Every posting of every board is published: Amazon's 5,000-posting budget (maxPostings) was removed on 2026-10-11 at the user's word (\"we must present them as they are and not cut anything\")",
+      "values": "8 stable (anthropic, anduril, openai, scaleai, xai, cohere, palantir, shieldai) + 7 beta (google, microsoft, meta, apple, netflix, amazon, nvidia). Amazon and Meta were paused for terms of use on 2026-10-10 and resumed by the user's decision on 2026-10-11 (docs/AMAZON_META.md \"Decision\"); both are on /beta/ since their first crawl on 2026-10-11. Every posting of every board is published: Amazon's 5,000-posting budget (maxPostings) was removed on 2026-10-11 at the user's word (\"we must present them as they are and not cut anything\")",
       "consumers": [
         {
           "at": "server/index.js:792",
@@ -14564,7 +14622,7 @@
       ],
       "validator": "scripts/refresh/jobs.js company-registry (registry vs snapshots vs live site)",
       "before": "none",
-      "lastChecked": "2026-10-10",
+      "lastChecked": "2026-10-16",
       "notes": "Company count appears in README/docs/OG copy (readme-counts, og-card). Finding 1: README names 3 built-ins, server/companies.js has 8 stable + 7 beta (fix in readme-counts). app.js FALLBACK_COMPANIES (used only when /api/companies fails) also lists 3; PROPOSED test: FALLBACK_COMPANIES slugs/colours ⊆ listCompanies().",
       "extract": [
         {
@@ -15020,7 +15078,10 @@
         "server/keywords.js:1234 MICROSOFT_IC (IC1-2 Entry, IC3 Mid, IC4 Senior, IC5+ Staff+)",
         "server/keywords.js:1235 MICROSOFT_M (M1-M5 Manager, M6+ Director+)",
         "server/keywords.js:1241 NVIDIA_LEVEL (Level 1 Entry, 2 Mid, 3-5 Senior, 6+ Staff+; the lower of two levels decides)",
-        "public/features/roles.js:379 LEVEL_NOT_STATED (stored 'Mid', shown 'Level not stated')"
+        "public/features/roles.js:379 LEVEL_NOT_STATED (stored 'Mid', shown 'Level not stated')",
+        "server/keywords.js:1181 AMAZON_RUNG (Amazon numerals: I Entry, II Mid, III-IV Senior, V+ Staff+; DQ-36)",
+        "server/keywords.js:1296 META_LEADERSHIP_RE (Meta \"(Technical Leadership)\" is Staff+; DQ-37)",
+        "server/keywords.js:1330 GOOGLE_NUMBERED_MANAGER_RE (a numbered \"... Manager II\" family at Google is a people manager; DQ-29)"
       ],
       "values": "buckets Intern, Entry, Mid, Senior, Staff+, Manager, Director+ (server/keywords.js inferSeniority). A title with no level word is stored as 'Mid' (LEVEL_NOT_STATED) and shown as \"Level not stated\" (fix wave 3, BP-7); a stated mid level reads \"Mid\". Company ladders (beta): Microsoft IC/M, NVIDIA \"Level N\", Google numerals, L-levels, generic numerals (server/keywords.js:1086-1144). Display order SENIORITY_LADDER = app.js / chart.js SENIORITY_ORDER. 2026-10-02: 48.8% of stable postings unlevelled; 2026-10-11 beta: Apple 686 of 2,695 used salaried postings levelled (market.json companies[].levelled)",
       "consumers": [
@@ -15083,8 +15144,8 @@
       ],
       "validator": "scripts/refresh/jobs.js seniority-ladder; test/keywords.test.js inferSeniority; patch docs/process/patches/freshness-jobs-seniority-default.diff adds seniorityBasis()",
       "before": "none",
-      "lastChecked": "2026-10-10",
-      "notes": "USER DECISION PENDING (seniority default): ~half the postings are \"Mid\" only because the title has no level word, so market-comps Mid cells and Compstimate's Mid weighting are mostly defaults. Options in docs/process/freshness-jobs.md §3: (A) keep, watched monthly (current); (B) expose seniorityBasis on each Job and label default levels \"Mid (no level in title)\"; (C) infer the level from the years-of-experience ask (CORPORATE_LADDER_PLAN). The patch only adds seniorityBasis() (no behaviour change). The ladder plan's \"41% Mid by default\" uses a broader level-word list than inferSeniority; jobs.js uses inferSeniority's own fallback. | Three orderings exist (keywords buckets, roles.js SENIORITY_LADDER, compstimate LEVEL_INDEX with Manager 3.5) plus vet.js junior/senior regexes; demo multipliers have no source. Three hand-kept copies of the order (roles.js, chart.js, app.js) with no test tying them together. server/keywords.js inferSeniority defaults unlevelled titles to \"Mid\" while roles.js returns null: cross-level comparisons (market \"Mid\" cells, Compstimate seniority weight) treat unlevelled roles as Mid. Cross-level caveat (review, 2026-10-10): big-tech postings often state several ranges (\"Level 4 ... Level 5\", per-location tables, tiers); server/salary.js keeps one lowest-min..highest-max envelope (zones > 1) and the posting enters one seniority bucket from its title, so a cell can mix two levels' pay. jobs.js market-comps reports each company whose salaried postings with several ranges exceed 20% (drift on a rise of 10+ points). No beta (big-tech) snapshot has been checked yet: re-dispatch monthly-refresh.yml with dry_run=true after the first beta snapshot.yml run. Methodology review beta (2026-10-11, MR-5/MR-7): the company level ladders added for the beta boards had no registry reference; the default is now shown as \"Level not stated\".",
+      "lastChecked": "2026-10-16",
+      "notes": "Decided in fix wave 3 (BP-7, 2026-10-11): option (B), an unlevelled title reads \"Level not stated\" and level comparisons use only postings that state one. The note as written before: ~half the postings are \"Mid\" only because the title has no level word, so market-comps Mid cells and Compstimate's Mid weighting are mostly defaults. Options in docs/process/freshness-jobs.md §3: (A) keep, watched monthly (current); (B) expose seniorityBasis on each Job and label default levels \"Mid (no level in title)\"; (C) infer the level from the years-of-experience ask (CORPORATE_LADDER_PLAN). The patch only adds seniorityBasis() (no behaviour change). The ladder plan's \"41% Mid by default\" uses a broader level-word list than inferSeniority; jobs.js uses inferSeniority's own fallback. | Three orderings exist (keywords buckets, roles.js SENIORITY_LADDER, compstimate LEVEL_INDEX with Manager 3.5) plus vet.js junior/senior regexes; demo multipliers have no source. Three hand-kept copies of the order (roles.js, chart.js, app.js) with no test tying them together. server/keywords.js inferSeniority defaults unlevelled titles to \"Mid\" while roles.js returns null: cross-level comparisons (market \"Mid\" cells, Compstimate seniority weight) treat unlevelled roles as Mid. Cross-level caveat (review, 2026-10-10): big-tech postings often state several ranges (\"Level 4 ... Level 5\", per-location tables, tiers); server/salary.js keeps one lowest-min..highest-max envelope (zones > 1) and the posting enters one seniority bucket from its title, so a cell can mix two levels' pay. jobs.js market-comps reports each company whose salaried postings with several ranges exceed 20% (drift on a rise of 10+ points). No beta (big-tech) snapshot has been checked yet: re-dispatch monthly-refresh.yml with dry_run=true after the first beta snapshot.yml run. Methodology review beta (2026-10-11, MR-5/MR-7): the company level ladders added for the beta boards had no registry reference; the default is now shown as \"Level not stated\". Methodology review beta round 3 (2026-10-16, docs/process/methodology-review-beta-2.md, MR-24/25): Amazon, Meta and Google manager rules added to the owners. 2026-10-16: 10,509 of 22,179 Amazon and 820 of 1,208 Meta postings state no level.",
       "lastReviewed": "2026-10-02",
       "reviewCadence": "yearly",
       "extract": [
@@ -15114,7 +15175,7 @@
         "server/vet.js:1 vet.js roleFamily",
         "public/features/roles.js:65 roles.js FAMILIES",
         "public/features/roles.js:163 FAMILY_LABELS",
-        "public/features/roles.js:163 FAMILY_LABELS (26)",
+        "public/features/roles.js:163 FAMILY_LABELS (28)",
         "public/features/roles.js:219 FAMILIES regex lexicon",
         "public/features/roles.js:254 DEPT_HINTS",
         "public/features/roles.js:21 ABBREV / SYNONYM / LEVEL_WORDS / STOPWORDS",
@@ -15192,6 +15253,58 @@
       ]
     },
     {
+      "id": "google-job-families",
+      "group": "jobs",
+      "description": "Google's departments: 27 job families read from the posting title, because Google's records name no department",
+      "type": "product-policy",
+      "owners": [
+        "server/families.js:24 FAMILIES",
+        "server/families.js TRANSLATE / ROLE / TEAM / LEAD_WORD / WEAK (the rules)",
+        "server/sources/google.js (department from the title, departmentBasis \"title\"; brand from slot 7)",
+        "public/app.js:528 deptTitleNote (\"Grouped by job title: Google doesn't publish departments\")",
+        "test/fixtures/google-families-sample.json (the hand-labelled sample)"
+      ],
+      "values": "27 families named after the job categories Google's careers site shows (Software Engineering, Technical Program Management, Data Center Operations, Technical Solutions, ...), plus Research, Data Science and Analytics, Security and Privacy and Trust and Safety. 2026-10-16: 3,700 of 3,821 Google titles read (96.8%), 121 \"No department\"; 92 of 100 held-out titles right, 88 of 100 titles new that day, 95.7% when it answers (docs/process/google-grouping.md). Brands: Google 3,546, YouTube 162, DeepMind 111, Waymo 1, Wing 1",
+      "consumers": [
+        {
+          "at": "public/viz/chart.js department rows",
+          "surface": "chart (Google's rows, \"20 more departments\")"
+        },
+        {
+          "at": "public/app.js department filter (deptTitleNote)",
+          "surface": "filters"
+        },
+        {
+          "at": "public/features/insights.js deptBoxes",
+          "surface": "Insights \"Pay by department\""
+        },
+        {
+          "at": "drawer and cards department line",
+          "surface": "drawer"
+        }
+      ],
+      "source": {
+        "name": "melon-seek title classifier; family names from the job categories Google's careers site shows",
+        "url": "https://github.com/alvations/melon-seek",
+        "licence": "our own rules; the category names are the careers site's (no beta posting host here: the stable build ships this registry, test/beta-build.test.js)"
+      },
+      "asOf": "2026-10-16",
+      "cadence": "monthly",
+      "graceDays": 14,
+      "mode": "manual",
+      "updater": "manual",
+      "checklist": [
+        "Monthly, on the latest Google snapshot: node --test test/google-grouping.test.js (coverage and the held-out sample's accuracy).",
+        "If coverage drops under 95% or Google's careers site adds or renames a category, add rules to server/families.js and re-label 100 new titles in test/fixtures/google-families-sample.json.",
+        "Set lastChecked."
+      ],
+      "validator": "test/google-grouping.test.js",
+      "before": "none (until 2026-10-16 Google was grouped by brand only)",
+      "lastChecked": "2026-10-16",
+      "archive": false,
+      "notes": "Methodology review beta round 3 (2026-10-16, docs/process/methodology-review-beta-2.md, MR-24, MR-29). The ledger fingerprint hashes the department, so for 30 days a repost of a Google posting closed before 2026-10-16 may not be linked as a repost (lead.md)."
+    },
+    {
       "archive": true,
       "id": "keyword-lexicons",
       "group": "jobs",
@@ -15213,7 +15326,8 @@
         "server/keywords.js:3 SALES_CONDITIONAL_RE",
         "server/keywords.js:1397 SALES_TITLE_RE",
         "server/keywords.js:1417 EQUITY_STRONG",
-        "server/keywords.js:1433 BONUS_STRONG"
+        "server/keywords.js:1433 BONUS_STRONG",
+        "server/keywords.js:446 NEAR_COPY_SHARE (0.95) / :447 NEAR_COPY_MIN_ROLES (10): team paragraphs that 10+ roles repeat are not skills (fix6-fresh-data)"
       ],
       "values": "server/keywords.js SKILL_LEXICON, RESPONSIBILITY_LEXICON, FIT_LEXICON, FIT_GLOBAL_LEXICON, years buckets 1+/3+/5+/8+/10+; 2026-10-02: 1.5%-8.4% of postings per company without a skill keyword",
       "consumers": [
@@ -15490,9 +15604,11 @@
         "server/geo.js:1053 COUNTRY_LABEL",
         "server/juice.js:6 juice.js REGION_COUNTRIES (US, CA, AU)",
         "data/cities.json cities[].aliases / nearby",
-        "server/geo.js [core]"
+        "server/geo.js [core]",
+        "server/geo.js:578 ISO3_TO_ISO2",
+        "server/geo.js:588 ISO3_US_TERRITORY (PRI is Puerto Rico)"
       ],
-      "values": "GAZETTEER_SIZE 246 cities, 52 states, 60 countries (2026-10-10)",
+      "values": "GAZETTEER_SIZE 331 cities, 52 states, 73 countries (2026-10-16; fix6-fresh-data added Jordan, Bahrain and Puerto Rico and ISO-3 codes)",
       "consumers": [
         {
           "at": "server/normalize.js:53",
@@ -15544,7 +15660,7 @@
       "validator": "test/geo.test.js",
       "before": "none",
       "lastChecked": null,
-      "notes": "NO SOURCE recorded for any coordinate. Coordinates do not age, but the alias coverage does (new office cities). Changes re-geocode every job (relocateJobs). Coverage is watched monthly through jobs.js job-juice (the top unmatched location strings per company) as the big-tech boards with worldwide offices arrive; a missing city drops its pins from the map and the Juice from the drawer.",
+      "notes": "NO SOURCE recorded for any coordinate. Coordinates do not age, but the alias coverage does (new office cities). Changes re-geocode every job (relocateJobs). Coverage is watched monthly through jobs.js job-juice (the top unmatched location strings per company) as the big-tech boards with worldwide offices arrive; a missing city drops its pins from the map and the Juice from the drawer. Methodology review beta round 3 (2026-10-16, docs/process/methodology-review-beta-2.md, MR-40): towns outside CITIES_RAW geocode to their state's centre (Garden City NY 42.17,-74.95; Fort Lee and Paramus NJ 40.3,-74.52), so distance rules such as Microsoft's PAY_AREAS cannot place them.",
       "extract": [
         {
           "file": "server/geo.js",
@@ -15582,7 +15698,8 @@
         "scripts/update-col.js:53 ISO3_TO_ISO2",
         "data/cities.json cities[].currency",
         "public/viz/palette.js:115 SYMBOLS (13 currencies)",
-        "public/app.js:117 CUR_SYM (9, a subset copy)"
+        "public/app.js:117 CUR_SYM (9, a subset copy)",
+        "server/salary.js:261 DOLLAR_COUNTRY (a bare \"$\" by country: CA CAD, MX MXN, AU AUD, NZ NZD, SG SGD, HK HKD; DQ-35)"
       ],
       "values": "USD $, GBP £, EUR €, CAD CA$, AUD A$, NZD NZ$, JPY ¥, SGD S$, HKD HK$, CHF, INR ₹, KRW ₩, ILS ₪",
       "consumers": [
@@ -15626,7 +15743,7 @@
       "validator": "test/freshness-policy.test.js: server/salary.js and scripts/vet-salaries.js COUNTRY_CURRENCY are equal, and server/sources/meta.js COUNTRY_CUR agrees wherever it overlaps; yearly manual review against the ISO 4217 list (SIX \"list one\"; URL not verified from the sandbox)",
       "before": "none",
       "lastChecked": null,
-      "notes": "STALE: Bulgaria (BG) adopted the euro on 2026-01-01 (21st euro-area member; EU Council decision 2025-07-08, verified 2026-10-10 via europarl.europa.eu EPRS_ATA(2025)775850 and the EU Learning Corner) but is not in COUNTRY_CURRENCY (BG is in NATION_CODE and geo COUNTRIES_RAW); a BG location gets no default currency (xai has Sofia postings). Patch: docs/process/patches/freshness-audit-core-bg-euro.diff (salary.js + vet-salaries.js). Duplicated in 3 places; no test ties the copies. Target: detect, by diffing the ISO 4217 list_one.xml (SIX) against COUNTRY_CURRENCY / ZERO_DECIMAL (no module yet). Two symbol tables (palette SYMBOLS, app CUR_SYM) disagree on coverage (KRW, ILS, NZD, HKD missing from CUR_SYM). Review finding (2026-10-10): was cadence ad-hoc with validator \"none\"; now yearly with a copy-agreement test.",
+      "notes": "STALE: Bulgaria (BG) adopted the euro on 2026-01-01 (21st euro-area member; EU Council decision 2025-07-08, verified 2026-10-10 via europarl.europa.eu EPRS_ATA(2025)775850 and the EU Learning Corner) but is not in COUNTRY_CURRENCY (BG is in NATION_CODE and geo COUNTRIES_RAW); a BG location gets no default currency (xai has Sofia postings). Patch: docs/process/patches/freshness-audit-core-bg-euro.diff (salary.js + vet-salaries.js). Duplicated in 3 places; no test ties the copies. Target: detect, by diffing the ISO 4217 list_one.xml (SIX) against COUNTRY_CURRENCY / ZERO_DECIMAL (no module yet). Two symbol tables (palette SYMBOLS, app CUR_SYM) disagree on coverage (KRW, ILS, NZD, HKD missing from CUR_SYM). Review finding (2026-10-10): was cadence ad-hoc with validator \"none\"; now yearly with a copy-agreement test. Methodology review beta round 3 (2026-10-16, docs/process/methodology-review-beta-2.md, MR-24): CODES has 27 codes since norm-9 (RON, MXN, PLN, SEK, NOK, DKK, CZK and more); currencies posted on 2026-10-16: USD, EUR, CAD, PLN, GBP, SEK, RON, DKK, CZK, AUD, NOK, SGD, BRL, CHF, JPY, KRW, all with a rate in fx-per-usd.",
       "extract": [
         {
           "file": "server/salary.js",
@@ -15777,7 +15894,8 @@
         "public/app.js:1055 PREPARE_CHUNK 300",
         "public/app.js:108 PAGE 24/60",
         "public/app.js:10 compstimate meta retry 5 s",
-        "public/viz/map.js:154 map offline 4 s"
+        "public/viz/map.js:154 map offline 4 s",
+        "scripts/build-static.js:387 PREVIEW_MIN_JOBS (10,000: boards that get api/preview/<slug>.json) / :388 PREVIEW_SIZE (100 postings)"
       ],
       "values": "see owners",
       "consumers": [
@@ -16801,7 +16919,9 @@
         "public/app.js:374 keyword clouds show 14 (10 in popovers); checklists 10–14",
         "public/features/comps.js:1 Compare default family needs ≥ 2 companies",
         "public/features/insights.js:30 MIN_SAMPLE (5: \"Skills need 5+ roles with pay\", medians, boxes, shares)",
-        "public/features/insights.js:36 TIE_SHARE (0.5: \"N skills left out: most of their roles post the same range\")"
+        "public/features/insights.js:36 TIE_SHARE (0.5: \"N skills left out: most of their roles post the same range\")",
+        "public/viz/palette.js:197 PAY_BREAKS (the map's Pay steps: $100K / $150K / $200K / $300K approx USD; V-16)",
+        "public/viz/map.js:68 MIN_PIN_PAY (a pin shows a median only from 3+ postings with pay for its places; V-17)"
       ],
       "values": "see owners",
       "consumers": [

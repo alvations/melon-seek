@@ -6,8 +6,8 @@ quotes below come from the live pages, fetched on 2026-10-11. Their URLs, times 
 
 > [!NOTE]
 > **Superseded by the [Decision](#decision-2026-10-11) below (2026-10-11).** The user chose to
-> resume both; `paused` is gone from `server/companies.js`, and each board appears on `/beta/`
-> after its first crawl. Since 2026-10-11 every Amazon posting is published, the whole board: the
+> resume both; `paused` is gone from `server/companies.js`, and both boards are on `/beta/`
+> since their first crawl on 2026-10-11 (2026-10-16: Amazon 22,179 postings, Meta 1,208). Since 2026-10-11 every Amazon posting is published, the whole board: the
 > 5,000-posting budget (`maxPostings`) was removed when the user asked: "Why are you capping the no of posting we must present them as they are and not cut anything". The brief below is kept as it was written, before
 > the decision.
 

@@ -1274,3 +1274,29 @@ screenshots in `docs/screenshots/`.
   - `npm test` CI-like: 1,110 tests, 1,064 pass, 0 fail.
   - check-lists: 23 lists and 1 preview, 0 problems.
   - Full e2e: 358/362, 0 failed.
+
+### Beta round 3: methodology and sources review (2026-10-16)
+- **[methodology-review-beta-2](methodology-review-beta-2.md):** MR-23 to MR-41, on the 2026-10-16 crawl.
+- **Patches applied by the lead:**
+  - guide and LIVABILITY;
+  - DATA_SOURCES: today's per-board counts, pay shares and sizes, Google's job families, and the MXN floor in §7e;
+  - README, PLAYBOOK and AMAZON_META;
+  - registry: 2 new entries, mx-legal-minimum-wage (CONASAMI, yearly) and google-job-families; 12 corrected, including MAX_ANNUAL $1.5M, the gazetteer size, today's counts and fx-per-usd.
+- **Tests:** test/beta-methodology-2.test.js has 45 tests.
+  - Fixed and turned into real tests: MR-24, MR-25, MR-27, MR-30, MR-31, MR-32 and MR-36.
+  - Still to-do: 14 tests across 11 findings, which need product code and go to the round-3 fix wave.
+- **Open for the fix wave:**
+  - **MR-23, a user decision:** FX rates are still 2026-07-01, 62 days past their monthly cadence. The monthly refresh's dry run (run 38149930292) found the September averages: 22 rates changed, the largest KRW −8.6%, and 239 rent fields re-derived. It publishes by pushing `bot/monthly-refresh` and opening a pull request, which needs the user's call. Neither the rate sources nor the artifact store can be reached from this sandbox. Asked the user: allow the PR, or have the refresh commit to the deploy branch after the full tests pass.
+  - **MR-28:** Amazon minimums (285), shift-pay figures (636) and part-time hourly pay are pooled as "posted base pay of full-time roles" in the medians, Compare, Insights and Same role elsewhere (scripts/build-market.js companyPart; the client medians).
+  - **MR-29 (UI half):** Google's title-derived departments are labelled only in the filter panel; the chart rows, cards, drawer and Insights don't say so.
+  - **MR-33, MR-38:** fixed-term pay converted to a yearly-looking figure. 182 internships that post monthly or hourly pay without a length are shown as yearly salaries, and 111 of them get a yearly Juice score.
+  - **MR-34:** the "Several pay ranges" chip says "the span of all of them" when the figure is one range: Microsoft 923, Google 36, Amazon 77.
+  - **MR-35, MR-37:** "$18/hour" is shown for a posted $18.05, and Austria's stated annual figure has no "As posted" line.
+  - **MR-26:** the methodology table shows Gross pay as "update due" on a fresh build.
+  - **MR-39:** headline medians mix countries.
+  - **MR-40:** Garden City NY, Fort Lee NJ and Paramus NJ geocode to their state's centre, so they miss the NYC-metro range.
+  - **MR-41:** the Mid chip's tip names "III", which is Senior at Amazon.
+- **Gate:**
+  - `npm test` CI-like: 1,155 tests, 1,094 pass. The 1 failure was S-6 (server timing at load 6.4), which passes 3 of 3 alone.
+  - Methodology e2e: 11/12, 0 failed.
+  - check-lists: 0 problems.
