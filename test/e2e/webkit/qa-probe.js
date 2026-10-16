@@ -31,10 +31,21 @@
       kbOpen: document.body.classList.contains('kb-open'),
     };
   };
+  // Page errors and the first screen's state, for the board check (the user, 2026-10-16: "The mobile page on the beta
+  // site is totally broken"). This script runs before the app module, so it sees the app's own startup errors.
+  addEventListener('error', (e) => post('error', { msg: String(e.message || (e.target && (e.target.src || e.target.href)) || 'error'), src: e.filename || null, line: e.lineno || null, col: e.colno || null }), true);
+  addEventListener('unhandledrejection', (e) => post('error', { msg: `unhandled rejection: ${String((e.reason && (e.reason.stack || e.reason.message)) || e.reason).slice(0, 400)}` }));
+  const t0 = Date.now();
+  const state = () => {
+    const cards = document.querySelectorAll('#resultsList .card[data-id]').length;
+    const btn = document.querySelector('#companyMenuBtn');
+    return { ms: Date.now() - t0, cards, company: btn ? btn.textContent.trim().slice(0, 40) : null, scrollW: document.documentElement.scrollWidth, inner: [innerWidth, innerHeight], text: document.body.innerText.replace(/\s+/g, ' ').slice(0, 160) };
+  };
+  for (const ms of [3000, 10000, 25000]) setTimeout(() => post('state', state()), ms);
   addEventListener('touchstart', (e) => { const t = e.touches[0]; post('touch', { x: t.clientX, y: t.clientY }); }, { passive: true, capture: true });
   addEventListener('touchend', () => setTimeout(() => post('geom', geom()), 900), { passive: true, capture: true });
   const ready = setInterval(() => {
-    if (document.querySelector('#resultsList .card[data-id]')) { clearInterval(ready); const b = document.querySelector('#companyMenuBtn').getBoundingClientRect(); post('ready', { btn: [b.left, b.top, b.right, b.bottom].map(Math.round), ua: navigator.userAgent, inner: [innerWidth, innerHeight], dpr: devicePixelRatio, screen: [screen.width, screen.height] }); }
+    if (document.querySelector('#resultsList .card[data-id]')) { clearInterval(ready); const b = document.querySelector('#companyMenuBtn').getBoundingClientRect(); post('ready', { ms: Date.now() - t0, btn: [b.left, b.top, b.right, b.bottom].map(Math.round), ua: navigator.userAgent, inner: [innerWidth, innerHeight], dpr: devicePixelRatio, screen: [screen.width, screen.height] }); }
   }, 300);
   let seq = 0;
   setInterval(async () => {

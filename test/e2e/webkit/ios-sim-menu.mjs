@@ -22,6 +22,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i > 0 ? process.argv[i + 1] : d; };
 const DIST = path.resolve(arg('dist', 'dist'));
 const OUT = path.resolve(arg('out', 'ios-sim'));
+// Every big-tech board is opened first, each as its own page load, and reported: cards on screen, page errors.
+const BOARDS = (arg('boards', process.env.IOS_BOARDS || 'apple,amazon,google,meta,microsoft,netflix,nvidia')).split(',').map((s) => s.trim()).filter(Boolean);
 const DEVICES = (arg('devices', process.env.IOS_DEVICES || 'iPhone 16,iPhone SE (3rd generation)')).split(',').map((s) => s.trim()).filter(Boolean);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 fs.mkdirSync(OUT, { recursive: true });
@@ -91,6 +93,23 @@ for (const device of DEVICES) {
     }
     const ready = await waitFor((e) => e.kind === 'ready', 120000);
     if (!ready) throw new Error('the page never showed a card (no "ready" from the probe)');
+    // 0. Every board in real Safari: a new page load each (?board= forces one), then its state after 25 s.
+    for (const board of BOARDS) {
+      log = [];
+      sh('xcrun', ['simctl', 'openurl', udid, `${ORIGIN}/melon-seek/beta/?board=${board}#c=${board}`]);
+      const st = await waitFor((e) => e.kind === 'state' && e.data.ms >= 24000, 60000);
+      const first = log.find((e) => e.kind === 'ready');
+      const errors = log.filter((e) => e.kind === 'error').map((e) => `${e.data.msg}${e.data.src ? ` (${String(e.data.src).replace(ORIGIN, '')}:${e.data.line}:${e.data.col})` : ''}`);
+      snap(`0-${board}`);
+      const ok = st && st.data.cards > 0 && !errors.length && st.data.scrollW <= st.data.inner[0] + 1;
+      if (!ok) failed++;
+      say(`${device}: ${ok ? 'PASS' : 'FAIL'} board ${board}: ${first ? `first cards ${first.data.ms} ms after the page started` : 'no card ever'}, ${st ? `${st.data.cards} cards, company "${st.data.company}", scroll ${st.data.scrollW}/${st.data.inner[0]}` : 'no state from the page (did it load?)'}${errors.length ? `; ${errors.length} page error(s)` : ''}`);
+      for (const e of [...new Set(errors)].slice(0, 8)) say(`${device}:     error: ${e.slice(0, 300)}`);
+      if (st && !ok) say(`${device}:     text: ${st.data.text}`);
+    }
+    log = [];
+    sh('xcrun', ['simctl', 'openurl', udid, `${ORIGIN}/melon-seek/beta/?board=apple-menu#c=apple`]);
+    if (!(await waitFor((e) => e.kind === 'ready', 60000))) throw new Error('apple did not load again for the menu checks');
     measures.push(ready);
     await sleep(1500);
     snap('1-landing');
