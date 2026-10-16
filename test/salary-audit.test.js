@@ -5,7 +5,7 @@
 // posts fixed-ratio bands per level), but some ranges beta shows are spans our code makes, and some cards
 // say something about a range that is not true.
 //
-// Findings are SA-1 to SA-6. Each SA test encodes a defect a job seeker sees today and runs as a to-do (the
+// Findings are SA-1 to SA-7. Each SA test encodes a defect a job seeker sees today and runs as a to-do (the
 // project's convention, test/beta-data-check-3.test.js): a failing to-do is reported but does not turn CI
 // red. The fix that makes one pass removes TODO from it. The "pinned" tests at the end encode what the audit
 // found correct, and must pass. Fixtures are short excerpts copied from real postings in the 2026-10-16
@@ -15,7 +15,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-import { normalizeJob } from '../server/normalize.js';
+import { normalizeJob, relabelJobs } from '../server/normalize.js';
 import { parseSalary } from '../server/salary.js';
 import { amazonSalary, mapAmazonJob } from '../server/sources/amazon.js';
 import { mapMetaJob } from '../server/sources/meta.js';
@@ -184,6 +184,29 @@ test('SA-5 chart: under a Location filter a posting is plotted at the range post
 test('SA-6 Amazon: a posted minimum reads "from €X" on the card', TODO, () => {
   const job = { salary: { min: 40300, max: 40300, mid: 40300, currency: 'EUR', interval: 'year', kind: 'minimum', text: 'Enns, AUT - 3,358.33 EUR Monthly', source: 'structured', zones: 1 } };
   assert.match(payPill(job).text, /^from /i, `card reads "${payPill(job).text}"`);
+});
+
+/* ------------------------------------------------------------------ SA-7 */
+// amazon:SF240111667 "Delivery Station Customer Service Associate" (Carlisle), https://www.amazon.jobs/en/jobs/SF240111667 :
+// stored with "£12.70" an hour, but its description was trimmed to 800 characters (scripts/snapshot.js
+// trimDescription) and the pay paragraph was not kept (PAY_HINT_RE has no "£" or "pay rate"). The build
+// re-derives text pay from the trimmed text, finds none and erases the salary (served: no pay). Owners:
+// server/normalize.js rederiveTextSalary (keep a stored salary the trimmed text cannot speak to),
+// scripts/snapshot.js PAY_HINT_RE. The stored record below is the posting's, as stored (its trimmed text).
+const CARLISLE = {
+  id: 'amazon:SF240111667', company: 'amazon', title: 'Delivery Station Customer Service Associate', employmentType: 'Full-time', seniority: 'Entry',
+  salary: { min: 26416, max: 26416, mid: 26416, currency: 'GBP', interval: 'year', text: '£12.70', kind: 'hourly', spread: 1, zones: 1, source: 'text', originalInterval: 'hour' },
+  locations: [{ name: 'Carlisle, UK', city: 'Carlisle', region: 'England', country: 'GB', lat: 52.36, lng: -1.17, remote: false, rawName: 'Carlisle, England, GBR' }],
+  descriptionHtml: '<p><strong>Job title – </strong>Customer Service Delivery Station Liaison</p><p><strong>Location</strong> - DPN1 - <p>[…] Full description on the posting page.</p>',
+};
+test('SA-7 Amazon: a stored salary is not erased because trimming cut its pay sentence', TODO, () => {
+  const [out] = relabelJobs([structuredClone(CARLISLE)]);
+  assert.ok(out.salary, 'the salary is kept');
+  assert.equal(out.salary.min, 26416);
+});
+test('SA-7 snapshot trimming keeps a pay paragraph in pounds ("Pay rate: £12.70 per hour", synthetic sentence)', TODO, () => {
+  const html = `<p>${'Customer Service Delivery Station Liaison. '.repeat(30)}</p><p>Pay rate: £12.70 per hour</p>`;
+  assert.match(trimDescription(html, 800), /£12\.70/);
 });
 
 /* ------------------------------------------------------------------ pinned: what is correct */
