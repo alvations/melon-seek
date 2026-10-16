@@ -1,0 +1,30 @@
+From a36defd3f19c89587d17053b9aa047a0493365ba Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 15:35:03 +0000
+Subject: [PATCH 8/8] fix6-fresh-data: D-23 checks all seven big-tech boards
+ (Google, Meta and Amazon too)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ test/e2e/beta-desktop-qa.e2e.js | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/test/e2e/beta-desktop-qa.e2e.js b/test/e2e/beta-desktop-qa.e2e.js
+index fc56700..8ba8b4f 100644
+--- a/test/e2e/beta-desktop-qa.e2e.js
++++ b/test/e2e/beta-desktop-qa.e2e.js
+@@ -274,7 +274,9 @@ export function registerBetaDesktopQaTests(suite) {
+     const { st, page } = await openBeta(ctx, 'c=microsoft');
+     await needBeta(page, st, 'microsoft');
+     const bad = [];
+-    for (const c of ['microsoft', 'nvidia', 'netflix', 'apple']) {
++    // fix6-fresh-data: every big-tech board. Google, Meta and Amazon joined beta after D-23 was written,
++    // and on the 2026-10-16 crawl Amazon listed bare "PRI" and "Manama, BHR" (now Puerto Rico, Bahrain).
++    for (const c of ['microsoft', 'nvidia', 'netflix', 'apple', 'google', 'meta', 'amazon']) {
+       if (c !== 'microsoft') { await page.goto(`${st.beta}/#c=${c}`); await ready(page); }
+       const opts = await locationOptions(page);
+       for (const o of opts) {
+-- 
+2.43.0
+

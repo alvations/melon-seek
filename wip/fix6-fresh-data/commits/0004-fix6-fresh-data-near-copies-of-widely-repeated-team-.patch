@@ -1,0 +1,198 @@
+From 2cbb9772b4383493fb49ef0f236f198dfc863da9 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 15:29:48 +0000
+Subject: [PATCH 4/8] fix6-fresh-data: near copies of widely repeated team
+ paragraphs leave the skills (Google technician no longer
+ TPUs/GCP/Networking); golden re-baselined (1 of 300)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ server/keywords.js                  | 62 ++++++++++++++++++++++++++++-
+ test/fix6-fresh-data.test.js        | 56 ++++++++++++++++++++++++++
+ test/fixtures/golden-normalize.json |  5 +++
+ 3 files changed, 121 insertions(+), 2 deletions(-)
+
+diff --git a/server/keywords.js b/server/keywords.js
+index 1b61b65..9a9eb61 100644
+--- a/server/keywords.js
++++ b/server/keywords.js
+@@ -385,7 +385,8 @@ export function boilerplateParagraphs(htmlList, { minShare = 0.5, minJobs = 5 }
+  * postings), "Google Cloud accelerates every organization's ability…" (565), the ML, Systems &
+  * Cloud AI team's "…development of our TPUs, Vertex AI for Google Cloud…" (341), and Chrome's
+  * "Chrome is available across all major platforms — iOS, Android…" (10). One posting copied per
+- * country or city is one role, so its own prose is never counted. Pure; items: [{ html, title }].
++ * country or city is one role, so its own prose is never counted. A near copy of such a paragraph
++ * counts too (nearCopyOf: fix6-fresh-data). Pure; items: [{ html, title }].
+  */
+ export function teamParagraphs(items, { minPostings = 3, minTitles = 3, minChars = 60 } = {}) {
+   const list = (Array.isArray(items) ? items : []).filter((x) => x && typeof x.html === 'string' && x.html);
+@@ -393,6 +394,7 @@ export function teamParagraphs(items, { minPostings = 3, minTitles = 3, minChars
+   if (list.length < minPostings) return out;
+   const posts = new Map();
+   const roles = new Map();
++  const texts = new Map(); // block hash -> its key, for nearCopyOf
+   for (const { html, title } of list) {
+     const seen = new Set();
+     const bullets = [];
+@@ -406,6 +408,7 @@ export function teamParagraphs(items, { minPostings = 3, minTitles = 3, minChars
+       if (key.length < minChars) continue;
+       const h = cyrb53(key);
+       if (!seen.has(h)) seen.add(h);
++      if (!texts.has(h)) texts.set(h, key);
+     }
+     // One role: its own lists, else its title. A posting copied per city ("Forward Deployed
+     // Engineer - Munich", "- Paris") has the same lists under different titles: still one role.
+@@ -414,13 +417,68 @@ export function teamParagraphs(items, { minPostings = 3, minTitles = 3, minChars
+       posts.set(h, (posts.get(h) || 0) + 1);
+       let r = roles.get(h);
+       if (!r) roles.set(h, (r = new Set()));
+-      if (r.size < minTitles) r.add(role);
++      if (r.size < Math.max(minTitles, NEAR_COPY_MIN_ROLES)) r.add(role);
+     }
+   }
+   for (const [h, c] of posts) if (c >= minPostings && roles.get(h).size >= minTitles) out.add(h);
++  const widely = new Set([...out].filter((h) => roles.get(h).size >= NEAR_COPY_MIN_ROLES));
++  for (const h of nearCopyOf(widely, texts, minChars)) out.add(h);
+   return out;
+ }
+ 
++/**
++ * fix6-fresh-data: the blocks that are a near copy of a team paragraph (a word or two changed, or
++ * the title put in a template) but too rare to count on their own. Google's AI and Infrastructure
++ * paragraph reads "We're the driving force behind Google's groundbreaking innovations…" on 377
++ * postings and "the driving team" on 68, each a team paragraph, but "the driving channel" on only
++ * 3 (in two wordings), below the minimum, so on the 2026-10-16 crawl its "…development of our TPUs,
++ * Vertex AI for Google Cloud, Google Global Networking…" tagged a data-centre technician "TPUs",
++ * "GCP" and "Networking". A near copy shares a sentence of at least `minChars` with a team
++ * paragraph that at least NEAR_COPY_MIN_ROLES roles repeat (a company or organisation paragraph, not
++ * one role's text copied to its levels), is within 5% of its length in words, and shares at least
++ * 95% of its words (counted with repeats). A paragraph that only shares a sentence or two with a
++ * team paragraph keeps its own. On that crawl this removes skills from 55 of 43,141 postings and
++ * adds none; e.g. xAI's "AI Tutor - Italian" loses "Speech / audio" from the audio-tutor paragraph,
++ * as its 12 sibling postings (Finnish, French, …) already did.
++ * `team`: team-paragraph hashes (the widely repeated ones); `texts`: block hash -> boilerplate
++ * key. Returns the new hashes.
++ */
++const NEAR_COPY_SHARE = 0.95;
++const NEAR_COPY_MIN_ROLES = 10;
++const sentencesOf = (key) => key.split(/(?<=[.!?])\s+/);
++function nearCopyOf(team, texts, minChars) {
++  const found = [];
++  if (!team.size) return found;
++  const bySentence = new Map(); // long sentence -> team hashes whose paragraph has it
++  for (const h of team) {
++    const key = texts.get(h);
++    if (!key) continue;
++    for (const s of sentencesOf(key)) {
++      if (s.length < minChars) continue;
++      const list = bySentence.get(s) || [];
++      if (list.length < 50) list.push(h);
++      bySentence.set(s, list);
++    }
++  }
++  if (!bySentence.size) return found;
++  const words = (key) => { const m = new Map(); let n = 0; for (const w of key.split(' ')) { if (w) { m.set(w, (m.get(w) || 0) + 1); n++; } } return { m, n }; };
++  const near = (a, b) => {
++    if (Math.min(a.n, b.n) < NEAR_COPY_SHARE * Math.max(a.n, b.n)) return false;
++    let common = 0;
++    for (const [w, c] of a.m) common += Math.min(c, b.m.get(w) || 0);
++    return common >= NEAR_COPY_SHARE * Math.max(a.n, b.n);
++  };
++  for (const [h, key] of texts) {
++    if (team.has(h)) continue;
++    const cands = new Set();
++    for (const s of sentencesOf(key)) if (s.length >= minChars) for (const t of bySentence.get(s) || []) cands.add(t);
++    if (!cands.size) continue;
++    const mine = words(key);
++    for (const t of cands) if (near(mine, words(texts.get(t)))) { found.push(h); break; }
++  }
++  return found;
++}
++
+ /** The union of two hash sets (either may be null). */
+ export function unionSets(a, b) {
+   if (!a || !a.size) return b || new Set();
+diff --git a/test/fix6-fresh-data.test.js b/test/fix6-fresh-data.test.js
+index 86a83b9..b3c6dc9 100644
+--- a/test/fix6-fresh-data.test.js
++++ b/test/fix6-fresh-data.test.js
+@@ -44,3 +44,59 @@ test('D-23: a bare code of a country the gazetteer lacks is named, never shown r
+   assert.deepEqual(names('DE'), ['Germany']);
+   assert.deepEqual(names('CA'), ['Canada']);
+ });
++
++// fix3-data [static beta], tag noise: Google's AI and Infrastructure paragraph, as posted on the
++// 2026-10-16 crawl. "the driving force" is on 377 postings; "the driving channel" on 3, too few to
++// count as a team paragraph by itself, so a data-centre technician was tagged TPUs, GCP, Networking.
++const AI2_TAIL = 'empowering the development of our cutting-edge AI models, delivering unparalleled computing power to global services, and providing the essential platforms that enable developers to build the future. From software to hardware our teams are shaping the future of world-leading hyperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center operations, systems research, and much more.';
++const AI2 = (word) => `<p>We're the driving ${word} behind Google's groundbreaking innovations, ${AI2_TAIL}</p>`;
++const gPosting = (title, team, own, resp, fit) => ({
++  id: `google:${title.replace(/\W+/g, '')}`, company: 'google', title, department: 'Google',
++  descriptionHtml: `<p>${own}</p>${team}<h3>Responsibilities</h3><ul>${resp.map((r) => `<li>${r}</li>`).join('')}</ul><h3>Minimum qualifications:</h3><ul>${fit.map((f) => `<li>${f}</li>`).join('')}</ul>`,
++});
++
++test('fix3-data tag noise: a near copy of a team paragraph ("the driving channel") gives a technician no TPUs, GCP or Networking', async () => {
++  const { teamParagraphs, rekeyBoardJobs, descriptionText } = await import('../server/keywords.js');
++  // The paragraph as most of the board posts it, on 10 different roles (an organisation's paragraph).
++  const ORG = ['Software Engineer III, Infrastructure', 'Program Manager, Data Centers', 'Site Reliability Engineer', 'Network Engineer',
++    'Product Manager, Cloud', 'Technical Writer', 'Security Engineer', 'Data Scientist', 'Hardware Test Engineer'];
++  const jobs = [
++    ...ORG.map((t, i) => gPosting(t, AI2('force'), `Own role ${i}.`, [`Do task ${i} for the ${t}.`], [`${i + 2} years of experience.`])),
++    gPosting('Hardware Engineer, TPU', AI2('force'), 'Design accelerator boards.', ['Bring up TPU boards.'], ['Experience with TPUs.']),
++    gPosting('Data Center Facilities Technician, Mechanical', AI2('channel'), 'Facilities Technicians at Google data centers operate, monitor and support physical facilities conditions.',
++      ['Inspect, maintain, and repair various data center systems such as piping and mechanical system components.'], ['2 years of Mechanical/HVAC experience in an industrial or commercial environment.']),
++  ];
++  const team = teamParagraphs(jobs.map((j) => ({ html: j.descriptionHtml, title: j.title })));
++  assert.equal(team.size, 2, 'the paragraph and its near copy');
++  const tech = jobs[jobs.length - 1];
++  assert.ok(!/TPUs/.test(descriptionText(tech.descriptionHtml, { skip: team })), 'the near copy is left out of the skill text');
++  const by = Object.fromEntries(rekeyBoardJobs(jobs).jobs.map((j) => [j.title, j.keywords.skills]));
++  const skills = by['Data Center Facilities Technician, Mechanical'];
++  for (const s of ['TPUs', 'GCP', 'Networking']) assert.ok(!skills.includes(s), `${s} on the technician: ${skills.join()}`);
++  assert.ok(by['Hardware Engineer, TPU'].includes('TPUs'), 'a role that names TPUs in its own lists keeps them');
++});
++
++test('fix3-data tag noise: a paragraph that only shares a sentence with a team paragraph keeps its own words', async () => {
++  const { teamParagraphs } = await import('../server/keywords.js');
++  const own = '<p>In this role you will build the GPU fleet scheduler, written in Go and Rust, for inference across many regions and many accelerator types. From software to hardware our teams are shaping the future of world-leading hyperscale computing, with key teams working on the development of our TPUs, Vertex AI for Google Cloud, Google Global Networking, Data Center operations, systems research, and much more.</p>';
++  const jobs = [
++    gPosting('Software Engineer III, Infrastructure', AI2('force'), 'Build serving systems.', ['Write C++.'], ['C++.']),
++    gPosting('Hardware Engineer, TPU', AI2('force'), 'Design boards.', ['Bring up boards.'], ['Boards.']),
++    gPosting('Program Manager, Data Centers', AI2('force'), 'Run builds.', ['Plan launches.'], ['Programs.']),
++    gPosting('Software Engineer, Fleet Scheduling', own, 'Schedule the fleet.', ['Write Go.'], ['Go.']),
++  ];
++  assert.equal(teamParagraphs(jobs.map((j) => ({ html: j.descriptionHtml, title: j.title }))).size, 1, 'only the repeated paragraph');
++});
++
++test('fix3-data tag noise: one role\'s text copied to a few postings is not a source of near copies', async () => {
++  const { teamParagraphs } = await import('../server/keywords.js');
++  // The same paragraph on 3 roles is a team paragraph (fix wave 3), but a near copy of it is only
++  // left out when at least 10 roles repeat the paragraph.
++  const jobs = [
++    gPosting('Software Engineer III, Infrastructure', AI2('force'), 'Build serving systems.', ['Write C++.'], ['C++.']),
++    gPosting('Hardware Engineer, TPU', AI2('force'), 'Design boards.', ['Bring up boards.'], ['Boards.']),
++    gPosting('Program Manager, Data Centers', AI2('force'), 'Run builds.', ['Plan launches.'], ['Programs.']),
++    gPosting('Data Center Facilities Technician, Mechanical', AI2('channel'), 'Maintain facilities.', ['Repair pumps.'], ['HVAC.']),
++  ];
++  assert.equal(teamParagraphs(jobs.map((j) => ({ html: j.descriptionHtml, title: j.title }))).size, 1);
++});
+diff --git a/test/fixtures/golden-normalize.json b/test/fixtures/golden-normalize.json
+index 160814c..186003d 100644
+--- a/test/fixtures/golden-normalize.json
++++ b/test/fixtures/golden-normalize.json
+@@ -50,6 +50,11 @@
+    "normalizerVersion": "norm-10",
+    "reason": "norm-10 fix wave 5 (fix5-data): 0 of the 300 hashes changed, version only",
+    "at": "2026-10-11T22:21:26.729Z"
++  },
++  {
++   "normalizerVersion": "norm-10",
++   "reason": "fix6-fresh-data (norm-10 kept; norm-11 bump in docs/process/patches/fix6-fresh-data-norm-11.diff): near copies of widely repeated team paragraphs leave the skills (keywords.js#nearCopyOf); 1 of 300 hashes changed (xai:5090209007 AI Tutor - Italian loses Speech / audio, as its 12 sibling postings)",
++   "at": "2026-10-16T15:29:40.073Z"
+   }
+  ],
+  "hashes": {
+-- 
+2.43.0
+

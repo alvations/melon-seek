@@ -1,7 +1,7 @@
 From 73fc23fdb4a9679b5123952dfbde783b02b6853f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 13:46:04 +0000
-Subject: [PATCH 3/6] WIP salary-audit-data: patches for SA-1, SA-3, SA-4, SA-5
+Subject: [PATCH 3/7] WIP salary-audit-data: patches for SA-1, SA-3, SA-4, SA-5
  (and the SA-2 chart tip); test harness reads the fix5 display helpers when
  present
 

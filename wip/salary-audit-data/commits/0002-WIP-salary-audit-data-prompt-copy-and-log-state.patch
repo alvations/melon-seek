@@ -1,7 +1,7 @@
 From b150c048cd16145893a68d84315257665f8a0617 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 13:43:44 +0000
-Subject: [PATCH 2/6] WIP salary-audit-data: prompt copy and log state
+Subject: [PATCH 2/7] WIP salary-audit-data: prompt copy and log state
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

@@ -1,0 +1,36 @@
+From df1b6be37ccc4fd5a61ba3e77a769faa5434b830 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 15:32:12 +0000
+Subject: [PATCH 6/8] fix6-fresh-data: T20 picks a US Senior SWE at Anthropic
+ (the first is now a Dublin posting, compared only within Ireland)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ test/e2e/ui.e2e.js | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/test/e2e/ui.e2e.js b/test/e2e/ui.e2e.js
+index 43d9a7e..e3f77ea 100644
+--- a/test/e2e/ui.e2e.js
++++ b/test/e2e/ui.e2e.js
+@@ -1486,9 +1486,14 @@ function registerCompstimateTests(suite) {
+ 
+   suite.test('Compstimate: T20 "Same role elsewhere" -> OpenAI sets rf=swe&s=Senior; Level Senior; basis at OpenAI; Back reopens the drawer', async (ctx) => {
+     const { roleFamily } = await lib('features/roles.js');
++    const { payCountry } = await lib('features/shared.js');
+     const api = await apiJobs(ctx, 'anthropic');
+-    const job = api.jobs.find((j) => j.salary && j.seniority === 'Senior' && roleFamily(j.title, j) === 'swe');
+-    assert(job, 'no salaried Senior software engineer at Anthropic');
++    // A US posting: "Same role elsewhere" compares pay within one country (fix3-compare, BP-3), and
++    // OpenAI's salaried Senior software engineers are in the US. On the 2026-10-16 crawl the first
++    // such Anthropic posting is "Senior Software Engineer, Inference" in Dublin (EUR pay); no other
++    // company lists software engineering pay in Ireland, so its drawer rightly shows no OpenAI row.
++    const job = api.jobs.find((j) => j.salary && j.seniority === 'Senior' && roleFamily(j.title, j) === 'swe' && payCountry(j) === 'US');
++    assert(job, 'no salaried Senior software engineer at Anthropic in the US');
+     const { page, errors, close } = await openComp(ctx, `c=anthropic&m=insights&job=${encodeURIComponent(job.id)}`);
+     try {
+       await page.locator('#drawer').waitFor({ state: 'visible', timeout: 8000 });
+-- 
+2.43.0
+

@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a3b39925ffed7d650`
 - Base (on claude/stoic-ride-54ddxp): `2474fc4fd41051bba264426562e3e0d37f24bc9c`
-- Head: `75a9d8772355bf14f318cb76eaadd6d2c09698c6`
+- Head: `29f94793d49817e7e28838c0cb86641859c4d355`
 - Restore: `bash scripts/cycle/restore-wip.sh salary-audit-data <new worktree dir>`
 
 ## Commits since the base
 ```
+29f9479 salary-audit-data: SA-7 trim test un-todoed (passes on perf-mobile-beta-2 25efed6)
 75a9d87 salary-audit-data: SA-3, SA-4, SA-7 un-todoed (pass on salary-audit-backend 50de7fe and perf-mobile-beta-2 161a472); SA-7 trim hunk rebased on 161a472
 5625370 salary-audit-data: SA-1/SA-5 patches rebased on 5f8b599; SA-2/SA-6 un-todoed (pass on fix-density 5f8b599); log state and verification
 5e86d41 WIP salary-audit-data: full log, SA-7 (trimmed pay erased) test and patch

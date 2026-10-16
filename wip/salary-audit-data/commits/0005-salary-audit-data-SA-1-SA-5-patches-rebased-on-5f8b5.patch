@@ -1,7 +1,7 @@
 From 56253700c321f31480c4abebb5c4969797b00316 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 13:54:27 +0000
-Subject: [PATCH 5/6] salary-audit-data: SA-1/SA-5 patches rebased on 5f8b599;
+Subject: [PATCH 5/7] salary-audit-data: SA-1/SA-5 patches rebased on 5f8b599;
  SA-2/SA-6 un-todoed (pass on fix-density 5f8b599); log state and verification
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

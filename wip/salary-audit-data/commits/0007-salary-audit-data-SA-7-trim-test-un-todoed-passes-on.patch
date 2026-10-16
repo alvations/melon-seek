@@ -1,0 +1,61 @@
+From 29f94793d49817e7e28838c0cb86641859c4d355 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 15:36:11 +0000
+Subject: [PATCH 7/7] salary-audit-data: SA-7 trim test un-todoed (passes on
+ perf-mobile-beta-2 25efed6)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/salary-audit-data.md | 11 ++++++-----
+ test/salary-audit.test.js         |  5 +++--
+ 2 files changed, 9 insertions(+), 7 deletions(-)
+
+diff --git a/docs/process/salary-audit-data.md b/docs/process/salary-audit-data.md
+index 8ebc5e7..7ba34b5 100644
+--- a/docs/process/salary-audit-data.md
++++ b/docs/process/salary-audit-data.md
+@@ -19,8 +19,9 @@
+       labels and shows the "Several pay ranges" chip;
+     - SA-7's normalize.js half.
+   - SA-3's trim test passes on perf-mobile-beta-2's 161a472 and is no longer a to-do either.
+-  - SA-7's snapshot.js half is rebased on 161a472 as `salary-audit-data-pay-hint.diff` and sent to
+-    perf-mobile-beta-2.
++  - SA-7's snapshot.js half is in perf-mobile-beta-2's 25efed6. That commit's PAY_HINT_RE is identical to
++    `salary-audit-data-pay-hint.diff`, which is now only a record. Its test passes there and is no longer a
++    to-do.
+   - Combined tree, all 18 tests pass:
+     - 50de7fe `server/`, 161a472 `scripts/snapshot.js`, 5f8b599 `public/`;
+     - plus `salary-audit-data-card-levels.diff`, `salary-audit-data-chart.diff` and
+@@ -28,9 +29,9 @@
+ - **In progress:** none.
+ - **Next step:** none for this lane.
+   - The lead applies `salary-audit-data-card-levels.diff` and `salary-audit-data-chart.diff` on 5f8b599.
+-  - perf-mobile-beta-2 applies `salary-audit-data-pay-hint.diff`.
+-  - The three tests still marked to-do (SA-1, SA-5 and SA-7's trim test) lose that mark when their patches
+-    land.
++  - SA-1 and SA-5 are the last two tests still marked to-do; each loses the mark when its patch lands.
++  - The un-todoed tests (SA-2 to SA-4, SA-6, SA-7) pass only once 5f8b599, 50de7fe, 161a472 and 25efed6 are
++    integrated.
+   - `salary-audit-data-amazon-rows.diff` is superseded by salary-audit-backend's SB-3.
+ 
+ ## 1. Brief
+diff --git a/test/salary-audit.test.js b/test/salary-audit.test.js
+index e4226f7..3bb8eb0 100644
+--- a/test/salary-audit.test.js
++++ b/test/salary-audit.test.js
+@@ -210,8 +210,9 @@ test('SA-7 Amazon: a stored salary is not erased because trimming cut its pay se
+   assert.ok(out.salary, 'the salary is kept');
+   assert.equal(out.salary.min, 26416);
+ });
+-// Fix: docs/process/patches/salary-audit-data-pay-hint.diff (scripts/snapshot.js, on 161a472), sent to perf-mobile-beta-2.
+-test('SA-7 snapshot trimming keeps a pay paragraph in pounds ("Pay rate: £12.70 per hour", synthetic sentence)', TODO, () => {
++// Fixed by perf-mobile-beta-2 25efed6 (the snapshot.js hunk of salary-audit-data-trimmed-pay.diff): passes there,
++// fails on 2474fc4 alone.
++test('SA-7 snapshot trimming keeps a pay paragraph in pounds ("Pay rate: £12.70 per hour", synthetic sentence)', () => {
+   const html = `<p>${'Customer Service Delivery Station Liaison. '.repeat(30)}</p><p>Pay rate: £12.70 per hour</p>`;
+   assert.match(trimDescription(html, 800), /£12\.70/);
+ });
+-- 
+2.43.0
+

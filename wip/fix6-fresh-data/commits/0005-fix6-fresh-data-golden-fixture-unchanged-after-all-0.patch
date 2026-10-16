@@ -1,0 +1,31 @@
+From cda76cb5346919340b14ecb64fe139903466701e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 15:30:15 +0000
+Subject: [PATCH 5/8] fix6-fresh-data: golden fixture unchanged after all (0 of
+ the 300 hashes move with the 10-role rule)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ test/fixtures/golden-normalize.json | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/test/fixtures/golden-normalize.json b/test/fixtures/golden-normalize.json
+index 186003d..160814c 100644
+--- a/test/fixtures/golden-normalize.json
++++ b/test/fixtures/golden-normalize.json
+@@ -50,11 +50,6 @@
+    "normalizerVersion": "norm-10",
+    "reason": "norm-10 fix wave 5 (fix5-data): 0 of the 300 hashes changed, version only",
+    "at": "2026-10-11T22:21:26.729Z"
+-  },
+-  {
+-   "normalizerVersion": "norm-10",
+-   "reason": "fix6-fresh-data (norm-10 kept; norm-11 bump in docs/process/patches/fix6-fresh-data-norm-11.diff): near copies of widely repeated team paragraphs leave the skills (keywords.js#nearCopyOf); 1 of 300 hashes changed (xai:5090209007 AI Tutor - Italian loses Speech / audio, as its 12 sibling postings)",
+-   "at": "2026-10-16T15:29:40.073Z"
+   }
+  ],
+  "hashes": {
+-- 
+2.43.0
+

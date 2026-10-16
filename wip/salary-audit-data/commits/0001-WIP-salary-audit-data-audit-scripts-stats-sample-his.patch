@@ -1,7 +1,7 @@
 From 1769224f810048e0024e7b00725555a94ba03c50 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 13:42:34 +0000
-Subject: [PATCH 1/6] WIP salary-audit-data: audit scripts, stats, sample,
+Subject: [PATCH 1/7] WIP salary-audit-data: audit scripts, stats, sample,
  histograms, SA-1..SA-6 tests (2026-10-16 crawl)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
