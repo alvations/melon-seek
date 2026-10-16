@@ -1364,3 +1364,25 @@ screenshots in `docs/screenshots/`.
   - The rates are the 2026-09 ECB monthly averages, as of 2026-09-30. TWD is from the Fed G.5; AED, SAR and QAR are at their pegs. The source was The Economist's dollar_ex as of 2026-07-01.
 - **S-8 behaved as designed:** d8ce13c (checkpoint.sh, not a refreshed file) had landed after the tested commit. So the step committed on top of it, dispatched CI (38976209376, green) and did not deploy. The lead dispatched pages.yml after CI passed.
 - **Deployed:** pages.yml 38976671607 on 9de373f, with both sites built and the live-site check passing. The September FX rates are live on the main site and /beta/.
+
+### The user: "The mobile page on the beta site is totally broken" (2026-10-16, 22:4x UTC)
+- The user, verbatim: "Whatever was done with the ui/UX it needs to go through the mobile and desktop QC QA again. The mobile page on the beta site is totally broken".
+- **What was live:** pages.yml 38977035334 on 6754049 (code d98a9f0 plus the FX commit 9de373f). Every GitHub branch build (pages-build-deployment 215–222) failed at Jekyll, so none overwrote the app.
+- **Reproduction attempts:** none showed a page that fails to load.
+  - Local build of the deployed commit, Chromium iPhone 13 / Pixel 7 / desktop: cards, no page error, no horizontal scroll.
+  - Playwright WebKit 26.6, iPhone 13 and SE, all 7 big-tech boards (new test/e2e/webkit/phone-smoke.mjs, webkit-phone.yml 38979700118): cards on every board, no page error, no horizontal scroll. Each page logs one WebKit CSP message, "Refused to apply a stylesheet…". It is most likely Playwright's screenshot `<style>`; the smoke script now prints errors raised during the screenshot separately, and run 38982255884 confirms it.
+  - Real Safari in the iOS Simulator, iPhone 16 and SE, each board as its own page load, with the probe reporting page errors: PASS on all 7. First cards at 0.6–6.5 s (Amazon slowest), no page error, no horizontal scroll, and the company menu swipes and keyboard checks PASS.
+  - The simulator step took 22 minutes with the board checks; the lead cancelled it during the last check thinking it hung (it hadn't). Every simulator command now has a time limit and the step has 30 minutes.
+- **What the round-3 reviewers did find on phones**, and what most likely reads as "broken":
+  - text: captions of 3–5 lines, text cut mid-word, numbers cut;
+  - a card and its job page showing different pay (M-42);
+  - floating tips that stick, including the map pin tip off screen (M-44);
+  - a preview tap with no feedback for 5–10 s (M-43).
+- **Fix lanes now running:**
+  - fix-phone-text: M-33–M-39, M-41, M-45, M-46, UX-53–55, UX-58, UX-60–62, A-9, plus a sub-pixel density guard;
+  - fix-phone-controls: M-40, M-43, M-47, UX-56, UX-57, A-10, A-11;
+  - fix-touch-tips (running);
+  - fix-pay-at-place (running): M-42 / D-45, D-39, D-40.
+  - Every lane's e2e must also run on WebKit through webkit-phone.yml.
+- **Then, per the user, mobile and desktop QA again** on the deployed fixed build, in Chromium and WebKit, with the simulator run: qa-mobile-beta-4 and qa-desktop-beta-4.
+- **Asked the user** what they saw (screenshot, board, device and browser), since no engine reproduced a page that fails to load.
