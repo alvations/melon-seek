@@ -1,7 +1,7 @@
 From a302d657949b2f99b638fc79d205a80c6a82715c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 13:26:11 +0000
-Subject: [PATCH 4/7] WIP qa-desktop-beta-4: e2e group with D-46 to D-48 and
+Subject: [PATCH 04/10] WIP qa-desktop-beta-4: e2e group with D-46 to D-48 and
  two guards
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

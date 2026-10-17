@@ -1,7 +1,7 @@
 From 1186911086b5a0d238c8f3662657c6d96954e32f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 13:58:04 +0000
-Subject: [PATCH 6/6] qa-mobile-beta-4: log (inputs, decisions, replayable
+Subject: [PATCH 6/7] qa-mobile-beta-4: log (inputs, decisions, replayable
  steps)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

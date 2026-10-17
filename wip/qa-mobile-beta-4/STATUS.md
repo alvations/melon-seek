@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a95ba92640fc9abf8`
 - Base (on claude/stoic-ride-54ddxp): `1ef0646b6f16aca8f215cf21e368185bddcf7b89`
-- Head: `1186911086b5a0d238c8f3662657c6d96954e32f`
+- Head: `4ed6655fd5d13755fa89b6cebe66716f84a3d658`
 - Restore: `bash scripts/cycle/restore-wip.sh qa-mobile-beta-4 <new worktree dir>`
 
 ## Commits since the base
 ```
+4ed6655 qa-mobile-beta-4: QA section draft (suite results to come)
 1186911 qa-mobile-beta-4: log (inputs, decisions, replayable steps)
 146a69b qa-mobile-beta-4: [M-52] test (touch phones wider than 860 px)
 b6f8778 qa-mobile-beta-4: test file (2 guards, M-48 to M-51), registered in scripts/e2e.js
@@ -467,6 +468,7 @@ fd904c6 qa-mobile-beta-4: the brief, verbatim
 - docs/screenshots/qa-mobile-beta-4/sep-390-amazon-amazon-10573828.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/sep-390-meta-meta-862605673369805.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/sheet-full-scrolled-amazon-280x653.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/sheet-full-scrolled-amazon-390x844.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/sheet-full-scrolled-apple-352x355.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/sheet-full-scrolled-apple-390x844.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/sheet-full-scrolled-google-667x375.png (screenshot; the lane's tests regenerate it)

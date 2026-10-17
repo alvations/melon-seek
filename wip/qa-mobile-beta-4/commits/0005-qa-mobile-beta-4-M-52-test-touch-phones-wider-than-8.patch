@@ -1,7 +1,7 @@
 From 146a69bd74bd6ee4bfef3f80493c866dc077ea14 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 13:52:49 +0000
-Subject: [PATCH 5/6] qa-mobile-beta-4: [M-52] test (touch phones wider than
+Subject: [PATCH 5/7] qa-mobile-beta-4: [M-52] test (touch phones wider than
  860 px)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
