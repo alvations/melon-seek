@@ -1,0 +1,33 @@
+From ed6f1242cd5673b964c96ecccfb5b50552bf457a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 13:43:59 +0000
+Subject: [PATCH 11/12] fix-viz-5: mobile QA 3's stacked-row tap test finds the
+ row by its count (UX-41 names it by its roles)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ test/e2e/beta-mobile-qa-3.e2e.js | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/test/e2e/beta-mobile-qa-3.e2e.js b/test/e2e/beta-mobile-qa-3.e2e.js
+index 4ffeee0..4e085d0 100644
+--- a/test/e2e/beta-mobile-qa-3.e2e.js
++++ b/test/e2e/beta-mobile-qa-3.e2e.js
+@@ -300,9 +300,11 @@ export function registerBetaMobileQa3Tests(suite) {
+   suite.test('Beta mobile QA 3: a tap on a stacked Ranges row ("N roles") selects those postings: a chip with the count and the list', async (ctx) => {
+     const { page } = await phone(ctx, { hash: 'c=microsoft&v=ranges' });
+     await sleep(800);
+-    const row = page.locator('#chartHost .ms-row').filter({ has: page.locator('.ms-row__label', { hasText: /^\d+ roles$/ }) }).first();
++    // fix-viz-5 (UX-41): a stacked row is named by its roles ("Software Engineer II +13") and counts its postings by its
++    // bar ("×14", data-n); it was named "14 roles".
++    const row = page.locator('#chartHost .ms-row:not([data-n="1"])').first();
+     assert(await row.count(), 'Microsoft Ranges has a stacked row');
+-    const n = Number((await row.locator('.ms-row__label').textContent()).match(/\d+/)[0]);
++    const n = Number(await row.getAttribute('data-n'));
+     await row.evaluate((e) => e.scrollIntoView({ block: 'center' }));
+     await sleep(300);
+     await tapBox(page, await row.locator('.ms-row__bar').boundingBox(), 1200);
+-- 
+2.43.0
+

@@ -1,7 +1,7 @@
 From 3e06304f369bd5baf47c8d5509ba92c910b3b54d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 13:25:40 +0000
-Subject: [PATCH 09/10] fix-viz-5: before/after screenshots (66, shrunk to 1.9
+Subject: [PATCH 09/12] fix-viz-5: before/after screenshots (66, shrunk to 1.9
  MB); log
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

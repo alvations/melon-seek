@@ -1,7 +1,7 @@
 From 2c5444c9539ffb1f2032e4a729cac39fe5ce17a9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 13:23:45 +0000
-Subject: [PATCH 08/10] fix-viz-5: V-35 runs again (its precondition reads
+Subject: [PATCH 08/12] fix-viz-5: V-35 runs again (its precondition reads
  barPlace's wording); a one-place bar's tip lists its posting's place ranges;
  the new legend keys have their own class
 

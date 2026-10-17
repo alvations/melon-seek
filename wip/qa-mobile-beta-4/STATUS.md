@@ -2,11 +2,14 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a95ba92640fc9abf8`
 - Base (on claude/stoic-ride-54ddxp): `1ef0646b6f16aca8f215cf21e368185bddcf7b89`
-- Head: `894edae5b5035eee497792dad1b2538a626d979c`
+- Head: `1186911086b5a0d238c8f3662657c6d96954e32f`
 - Restore: `bash scripts/cycle/restore-wip.sh qa-mobile-beta-4 <new worktree dir>`
 
 ## Commits since the base
 ```
+1186911 qa-mobile-beta-4: log (inputs, decisions, replayable steps)
+146a69b qa-mobile-beta-4: [M-52] test (touch phones wider than 860 px)
+b6f8778 qa-mobile-beta-4: test file (2 guards, M-48 to M-51), registered in scripts/e2e.js
 894edae qa-mobile-beta-4: state after the smoke and the round-3 re-check
 e85c9f8 qa-mobile-beta-4: log with its State section
 fd904c6 qa-mobile-beta-4: the brief, verbatim
@@ -26,9 +29,7 @@ fd904c6 qa-mobile-beta-4: the brief, verbatim
  M docs/screenshots/qa-mobile-beta/e2e-M-22-paused-board.png
  M docs/screenshots/qa-mobile-beta/e2e-M-24-keyboard-location-search.png
  M docs/screenshots/qa-mobile-beta/e2e-M-27-topbar-360.png
- M scripts/e2e.js
 ?? docs/screenshots/qa-mobile-beta-4/
-?? test/e2e/beta-mobile-qa-4.e2e.js
 ```
 
 ## Left out (not in untracked.tgz)
@@ -150,6 +151,14 @@ fd904c6 qa-mobile-beta-4: the brief, verbatim
 - docs/screenshots/qa-mobile-beta-4/chart-chip-nvidia-1114x720-light.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/chart-chip-nvidia-280x653-dark.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/chart-chip-nvidia-412x1005-light.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/chart-cluster-tap-microsoft-280x653.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/chart-stacked-tap-microsoft-280x653.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/chip-dept-390x844-apple.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/chip-loc-390x844-apple.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/chip-more-390x844-apple.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/chip-remote-390x844-apple.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/chip-salary-390x844-apple.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/chip-sen-390x844-apple.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/drawer-amazon-280x653-light.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/drawer-amazon-375x812-dark.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/drawer-amazon-667x375-light.png (screenshot; the lane's tests regenerate it)
@@ -193,6 +202,11 @@ fd904c6 qa-mobile-beta-4: the brief, verbatim
 - docs/screenshots/qa-mobile-beta-4/drawer-netflix-390x844-dark.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/drawer-nvidia-280x653-dark.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/drawer-nvidia-412x1005-light.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/duo-spanned-hinge-microsoft-light-filters.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/duo-spanned-hinge-microsoft-light-insights.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/duo-spanned-hinge-microsoft-light-job.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/duo-spanned-hinge-microsoft-light-map.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/duo-spanned-hinge-microsoft-light.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/e2e-M-48-sal-sub-amazon-280.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/e2e-M-48-sal-sub-amazon-390.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/e2e-M-48-sal-sub-microsoft-280.png (screenshot; the lane's tests regenerate it)
@@ -218,6 +232,18 @@ fd904c6 qa-mobile-beta-4: the brief, verbatim
 - docs/screenshots/qa-mobile-beta-4/e2e-M-51-meta-sep-amazon-390.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/filters-salary-drag-amazon-280x653.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/filters-salary-drag-apple-352x355.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/filters-salary-drag-google-390x844.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/filters-salary-drag-microsoft-667x375.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/google-dept-sheet-280x653.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/google-group-company-280x653.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/google-youtube-280x653.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/half-352x355-apple-full.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/half-352x355-apple-half.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/half-352x355-apple-peek.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/half-667x375-google-full.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/half-667x375-google-half.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/half-667x375-google-peek.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/inputs-filters-390x844-amazon.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/insights-amazon-280x653-light.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/insights-amazon-375x812-dark.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/insights-amazon-667x375-light.png (screenshot; the lane's tests regenerate it)
@@ -243,9 +269,15 @@ fd904c6 qa-mobile-beta-4: the brief, verbatim
 - docs/screenshots/qa-mobile-beta-4/insights-nvidia-1114x720-light.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/insights-nvidia-280x653-dark.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/insights-nvidia-412x1005-light.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/kb-insights-360x740.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/kb-insights-390x844.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/kb-insights-844x390.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/land-amazon-280x653-light.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/land-amazon-375x812-dark.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/land-amazon-667x375-light.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/land-amazon-844x390-drawer.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/land-amazon-844x390-half.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/land-amazon-844x390.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/land-anduril-280x653-dark.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/land-anduril-390x844-light.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/land-anduril-812x375-light.png (screenshot; the lane's tests regenerate it)
@@ -256,6 +288,9 @@ fd904c6 qa-mobile-beta-4: the brief, verbatim
 - docs/screenshots/qa-mobile-beta-4/land-google-1005x412-light.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/land-google-344x882-light.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/land-google-393x852-dark.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/land-google-844x390-drawer.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/land-google-844x390-half.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/land-google-844x390.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/land-meta-352x355-dark.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/land-meta-430x932-light.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/land-meta-540x720-dark.png (screenshot; the lane's tests regenerate it)
@@ -293,6 +328,10 @@ fd904c6 qa-mobile-beta-4: the brief, verbatim
 - docs/screenshots/qa-mobile-beta-4/map-nvidia-1114x720-light.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/map-nvidia-280x653-dark.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/map-nvidia-412x1005-light.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/menu-kb-280x653.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/menu-kb-352x355.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/menu-kb-667x375.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/menu-kb-812x375.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/pincover-1005x412-apple.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/pincover-1005x412-google.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/pincover-1005x412-meta.png (screenshot; the lane's tests regenerate it)
@@ -414,6 +453,13 @@ fd904c6 qa-mobile-beta-4: the brief, verbatim
 - docs/screenshots/qa-mobile-beta-4/recheck-M-47-keyboard-667x375.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/recheck-M-47-keyboard-812x375.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/recheck-M-47-keyboard-844x390.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/safe-drawer-390x844.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/safe-drawer-844x390.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/safe-filters-390x844.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/safe-filters-844x390.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/salfield-390x844-amazon-chip.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/salfield-390x844-amazon-filters.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/saved-menu-390x844.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/sep-360-amazon-amazon-10444191.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/sep-360-amazon-amazon-10573828.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/sep-360-meta-meta-862605673369805.png (screenshot; the lane's tests regenerate it)
@@ -655,4 +701,13 @@ fd904c6 qa-mobile-beta-4: the brief, verbatim
 - docs/screenshots/qa-mobile-beta-4/tip-google-map-pin-tap-1-after-tap.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/tip-google-map-pin-then-pan-finger-1-after-tap.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-mobile-beta-4/tip-google-map-pin-then-pan-tap-1-after-tap.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/under-280x653-apple.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/wide-1005x412-apple-insights.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/wide-1005x412-apple-menu.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/wide-1114x720-apple-insights.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/wide-1114x720-apple-menu.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/wide-844x390-apple-insights.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/wide-844x390-apple-menu.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/wide-932x430-apple-insights.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-mobile-beta-4/wide-932x430-apple-menu.png (screenshot; the lane's tests regenerate it)
 - node_modules (symlink)

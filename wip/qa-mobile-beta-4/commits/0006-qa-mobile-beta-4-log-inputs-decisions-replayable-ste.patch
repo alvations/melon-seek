@@ -1,0 +1,181 @@
+From 1186911086b5a0d238c8f3662657c6d96954e32f Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 13:58:04 +0000
+Subject: [PATCH 6/6] qa-mobile-beta-4: log (inputs, decisions, replayable
+ steps)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/qa-mobile-beta-4.md | 156 +++++++++++++++++++++++++++----
+ 1 file changed, 136 insertions(+), 20 deletions(-)
+
+diff --git a/docs/process/qa-mobile-beta-4.md b/docs/process/qa-mobile-beta-4.md
+index b9c6d61..0c81e6b 100644
+--- a/docs/process/qa-mobile-beta-4.md
++++ b/docs/process/qa-mobile-beta-4.md
+@@ -1,25 +1,141 @@
+ # Process log: qa-mobile-beta-4 (fourth mobile QA pass on beta)
+ 
+ ## State
+-- **In progress (2026-10-17 12:58 UTC):** setup done (worktree on 1ef0646, data and node_modules links, own build in
+-  `<scratch>/qa-mobile-beta-4/dist`, server on port 5471 with a pid file). The phone smoke (all 19 sizes, 7 boards,
+-  Chromium) is running in the background.
+-- **Done so far (13:25):**
+-  - The phone smoke: 133/133 ok (19 sizes x 7 boards, Chromium, exit 0).
+-  - Round 3 re-checked:
+-    - fixed: M-33 to M-39, M-41 to M-47;
+-    - still open (known): M-40's integration cut at ≤360 px, and UX-39.
+-    - Sent to the lead.
+-  - e2e re-run of the round-3 and lane groups (in progress): only the known red-by-design tests fail.
+-- **Candidates being confirmed:**
+-  - M-48: `.sal-sub` ("5 places", "2 levels") is 11.5 px on every card;
+-  - map pins under the map legend at 320x568 (Apple's London pin; `p35-pincover.mjs` running);
+-  - the Apply label wraps at ≤360 px.
+-- **Next:** the feature walk at every size (p6 streams A and B running, p32-sizes), dark mode, then the test file,
+-  the screenshots and the QA section.
+-- **If resumed:** the probes are in `<scratch>/qa-mobile-beta-4/probes/` (`<scratch>` =
+-  `/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad`); the server is
+-  `PORT=5471 node scripts/cycle/serve.mjs --dist <scratch>/qa-mobile-beta-4/dist --pid <scratch>/qa-mobile-beta-4/serve.pid`.
++- **In progress (2026-10-17 14:00 UTC):** the findings are in. What is left:
++  - the end of the e2e re-run of the round-3 and lane groups;
++  - this pass's own group (run once, alone);
++  - the timings again at a load under 8;
++  - pruning and shrinking the screenshots;
++  - the QA section below.
++- **Done:**
++  - phone smoke at all 19 sizes x 7 boards, light (133/133) and dark (133/133);
++  - round 3 re-checked: M-33 to M-39 and M-41 to M-47 fixed; M-40's integration cut and UX-39 still open (known);
++  - the feature walk at every size;
++  - 5 new bugs, M-48 to M-52, each with a red test in test/e2e/beta-mobile-qa-4.e2e.js (registered);
++  - findings sent to the lead in two messages.
++- **If resumed:**
++  - The probes are in `<scratch>/qa-mobile-beta-4/probes/` (`<scratch>` =
++    `/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad`).
++  - The server is `PORT=5471 node scripts/cycle/serve.mjs --dist <scratch>/qa-mobile-beta-4/dist --pid
++    <scratch>/qa-mobile-beta-4/serve.pid`.
++  - Run one e2e suite at a time (the lead, 13:40).
+ 
+ ## 1. Brief
+-Prompt: [prompts/qa-mobile-beta-4.md](prompts/qa-mobile-beta-4.md).
++Prompt: [prompts/qa-mobile-beta-4.md](prompts/qa-mobile-beta-4.md) (verbatim).
++
++This is a functional QA pass of the phone beta site (`/melon-seek/beta/`) on 1ef0646, the deployed head. That build
++carries fix wave 5: fix-touch-tips, fix-phone-controls, fix-phone-text, fix-phone-sizes, fix-pay-at-place, fix-data-3,
++fix-sec-3 and the September FX rates. It answers the user's "The mobile page on the beta site is totally broken" and
++"Make sure we check for all phone sizes from iPhone mini to razr to duo or something". No product code is edited.
++
++Files owned:
++- this log;
++- the prompt;
++- test/e2e/beta-mobile-qa-4.e2e.js, and its two lines in scripts/e2e.js;
++- docs/screenshots/qa-mobile-beta-4/;
++- the "Section for docs/QA.md" at the end of this log. The lead copies it in.
++
++## 2. Inputs and sources
++- **Docs read:**
++  - README.md, docs/CONTRACT.md, docs/process/{PLAYBOOK,TEMPLATE,mobile}.md;
++  - docs/process/lead.md from "The user: The mobile page on the beta site is totally broken" to the end (fix-touch-tips
++    and fix-phone-controls integrated; fix wave 5 integrated), and its fix wave 5 data-lane notes;
++  - docs/process/qa-mobile-beta-3.md (the whole log and section; its probes are the start of mine);
++  - docs/process/ux-review-beta-2.md (the findings table), docs/process/viz-review-beta-2.md (V-33 to V-48),
++    docs/REVIEW.md A-8 to A-11 (security-a11y-review-beta-2);
++  - the lane logs: fix-phone-sizes (the decisions on landscape, short screens, the name and dual screens),
++    fix-phone-text (the under-360 rule: two lines allowed, the lead's decision of 2026-10-16), fix-touch-tips;
++  - docs/QA.md "Full QA pass (mobile, beta) 2026-10-16" (the format of my section) and the desktop round-3 section.
++- **Highest ID so far:** M-47 (qa-mobile-beta-3). New IDs start at **M-48**.
++- **Known and not re-filed** (the lead's list): the viz lane's V-33, V-34, V-38, V-41 to V-48, UX-36, UX-40 to UX-43,
++  UX-45, UX-59, D-43, D-44, A-8; fix-phone-sizes' UX-39 and the Amazon department-row cut at 280 to 360 px.
++- **Code read for the findings:**
++  - public/styles.css:1383 (`.sal-sub`), 1276 (the `(hover: none)` block, the only touch rule above 860 px), 1593
++    (dual screens), the `(max-width: 860px)` blocks (the 16 px fields and 44 px controls);
++  - public/app.js:3835 (`card`, `.sal-sub`), 4636 and 4784 (`.d-meta` with `.sep` spans), 4773 (the Apply label);
++  - test/e2e/phone-sizes.mjs (the 19 sizes), test/e2e/webkit/phone-smoke.mjs, test/e2e/phone-matrix.e2e.js (the
++    Duo's hinge emulation).
++- **Build:** my own, `node scripts/build-static.js --out <scratch>/qa-mobile-beta-4/dist` from 1ef0646 with the
++  2026-10-16 crawl linked in (build 3 min 28 s; 7/7 beta companies; the one warning is Amazon's 6.76 MB list over
++  its 1.5 MB budget, known). Served by `scripts/cycle/serve.mjs` on port 5471 with a pid file.
++
++## 3. Decisions and rationale
++1. **All 19 sizes for the smoke and the flows, a subset for each bug.** The smoke and `p32-sizes.mjs` cover every
++   entry of phone-sizes.mjs. Each red test uses the sizes where its bug shows, so the group stays under 2 minutes a test.
++2. **The lane's under-360 rule stands.** Under 360 px a caption may take two lines (fix-phone-text, approved by the
++   lead). The filter notes take two lines at 280 px; that is within the rule and is not filed. M-49's test allows two
++   lines under 360 px too.
++3. **M-52 is Medium.** It is not in phone-sizes.mjs, but an iPhone 15 Pro Max (or Plus) in landscape is 932 (926) CSS
++   px wide, so it gets the desktop layout. iOS Safari zooms the page into any focused field under 16 px, and there the
++   search, the company search, the sort and every Insights field are 13 to 14 px. The Razr inner landscape and the
++   Duo spanned, which are in the matrix, get the same mouse-sized controls (26 to 38 px).
++4. **M-50 excludes the sandbox's basemap note.** Every other host is aborted here, so the map shows "Basemap
++   unavailable · pins still work" over its middle; real phones show tiles instead. The test and the counts look through
++   that note (`elementsFromPoint`), so only the map's own legend and Remote button count. M-50 is Low, because a pan
++   uncovers the pin.
++5. **One ID per cause.** M-49 covers every board's Apply label (one string, app.js:4773). M-50 covers both the legend
++   and the Remote button (one fit rule).
++6. **Timings above load 8 are not filed.** The lead asked (13:40) that anything timed above a load of about 8 be
++   re-checked on a quieter machine. No bug in this pass rests on a timing. The timings in the section carry their load.
++7. **Not filed:**
++   - The landscape Map tab is 42x44, and the landscape tagline row takes 40 px. Both were noted in round 3.
++   - The sheet handle is 20 to 28 px tall. The header around it takes the same taps and drags.
++   - A tap on a map pin that sits under the "Basemap unavailable" note: that note is the sandbox's (decision 4).
++   - The Razr cover's Insights area is 134 px, between the two-row top bar and the peek row. The Pay estimate field
++     starts half under the peek row; a swipe brings it up, and a tap then lifts it above the keyboard.
++   - On Apple at 280x653, one pan from the map's centre (140, 419) did not move it. A pan from other points did, and
++     it does on Google. Not reproduced elsewhere.
++   - p9's untimed flicks "failing": they are round 3's decision 6 (CDP latency). The timed-flick guard passes.
++8. **Screenshots:** the probes write to docs/screenshots/qa-mobile-beta-4/. The test file writes there only with
++   `BETA_QA4_SHOTS=1`.
++
++## 4. Replayable steps
++All probes are in `<scratch>/qa-mobile-beta-4/probes/`. Round 3's `lib.mjs`, `lib2.mjs` and `p1`–`p18` were copied and
++re-pointed at my build. The new ones are `p30`–`p47` and `phone-smoke-dark.mjs`.
++
++1. `git fetch origin claude/stoic-ride-54ddxp && git checkout --detach 1ef0646`, the two data links and the
++   `node_modules` link from the brief.
++2. `node scripts/build-static.js --out <scratch>/qa-mobile-beta-4/dist` (3 min 28 s at load 1-3).
++3. `PORT=5471 node scripts/cycle/serve.mjs --dist <scratch>/qa-mobile-beta-4/dist --pid <scratch>/qa-mobile-beta-4/serve.pid`.
++4. `NODE_PATH=<scratch>/pw/node_modules node test/e2e/webkit/phone-smoke.mjs --dist <scratch>/qa-mobile-beta-4/dist
++   --sizes all --engines chromium --boards apple,amazon,google,meta,microsoft,nvidia,netflix --out <scratch>/qa-mobile-beta-4/smoke`
++   (133 pages, 5 min 43 s, load 3 → 10). The same with `probes/phone-smoke-dark.mjs` (a copy that sets
++   `colorScheme: 'dark'` and lists light panels) for dark.
++5. The round-3 findings: `node p30-recheck.mjs M-33 … M-47` (one screenshot each), `node p2-preview.mjs slow tap`
++   (M-43), `node p4-tips.mjs google|apple` (M-44).
++6. The feature walk:
++   - `bash run-p6a.sh` and `bash run-p6b.sh`: `p6-smoke.mjs` on 24 board, size and theme runs.
++   - `node p32-sizes.mjs`, every size: company menu, badge, More, filter sheet (✕, Back, keyboard), sheet, job page,
++     map, Insights with the keyboard, small text and tap targets.
++   - `bash run-batch2.sh`: sheet, flicks, filters, chart, Google, memory, keyboard, safe area, landscape.
++   - `node p15-saved.mjs`: saved searches and the CSV.
++7. Findings:
++   - `node p35-pincover.mjs` and `node p34-pins.mjs <slug> <WxH>`: M-50.
++   - `node p36-apply.mjs`: M-49.
++   - `node p38-sep.mjs 390,360 8`: M-51.
++   - `node p40-wide.mjs apple`: M-52.
++   - `node p37-remote.mjs <WxH>`: the Remote control.
++   - `node p43-duo.mjs microsoft`: the Duo with its hinge.
++   - `node p44-menu-kb.mjs <WxH>`: company search with the keyboard up; map pan and pinch.
++   - `node p47-chips.mjs`: each chip and the filter sections.
++8. Tests: `BETA_QA4_DIST=<scratch>/qa-mobile-beta-4/dist NODE_PATH=<scratch>/pw/node_modules
++   PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers node scripts/e2e.js --grep='^Beta mobile QA 4'`. Add `BETA_QA4_SHOTS=1`
++   for the evidence screenshots.
++
++## 5. Verification
++(Filled in at the end; see the section's "Suite results".)
++
++## 6. Known gaps and follow-ups
++- **No WebKit or real Safari here.** webkit-phone.yml runs on GitHub; the lead sends those results, and they go in
++  the section.
++- **iPhone Pro Max landscape is not in phone-sizes.mjs.** It is the most common phone screen over 860 px (M-52). Add
++  `ios('iPhone 15 Pro Max (landscape)', 932, 430, 3)` to POSTURES.
++- **Not testable here:** map tiles, live boards, a real keyboard, and the history ledger's "N new". The seen-list path
++  works: "Google · YouTube 3 new".
++- **Timings were taken on a busy machine** (load 4 to 27), as decision 6 says.
++
++## 7. Change log
++- 2026-10-17 14:00: log written; M-52 test added.
++- 2026-10-17 13:40: test file with 2 guards and M-48 to M-51; registered in scripts/e2e.js.
++- 2026-10-17 13:25: round 3 re-checked; findings sent to the lead.
++- 2026-10-17 12:51: started; brief saved; build and smoke.
+-- 
+2.43.0
+

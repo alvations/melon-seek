@@ -2,11 +2,13 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a500839343c7a8ea9`
 - Base (on claude/stoic-ride-54ddxp): `1ef0646b6f16aca8f215cf21e368185bddcf7b89`
-- Head: `724550a7b205cb26668d1f9b9bdd740a5c996653`
+- Head: `6349a5109bdfdf1705dfd845df53258f24388c2d`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-viz-5 <new worktree dir>`
 
 ## Commits since the base
 ```
+6349a51 fix-viz-5: D-51 the Ranges legend wraps on a desktop and leads with its pattern keys; M-50 the map's tap check leaves out the offline note; e2e checks for both
+ed6f124 fix-viz-5: mobile QA 3's stacked-row tap test finds the row by its count (UX-41 names it by its roles)
 724550a fix-viz-5: on a landscape phone the label column fits the axis caption with its median (cut on Apple and Microsoft at 667 and 812 px); the caption check covers them
 3e06304 fix-viz-5: before/after screenshots (66, shrunk to 1.9 MB); log
 2c5444c fix-viz-5: V-35 runs again (its precondition reads barPlace's wording); a one-place bar's tip lists its posting's place ranges; the new legend keys have their own class

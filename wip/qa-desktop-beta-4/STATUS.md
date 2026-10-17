@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a55b46bf2eee2a142`
 - Base (on claude/stoic-ride-54ddxp): `1ef0646b6f16aca8f215cf21e368185bddcf7b89`
-- Head: `118e29fab558a655c1dbb957c03e48e313b8650b`
+- Head: `48bc6474b03f534b7027f48cdef7206ba8faf3b8`
 - Restore: `bash scripts/cycle/restore-wip.sh qa-desktop-beta-4 <new worktree dir>`
 
 ## Commits since the base
 ```
+48bc647 WIP qa-desktop-beta-4: D-51 Ranges legend test and screenshot
 118e29f WIP qa-desktop-beta-4: D-50 test; bug screenshots D-46 (by decision) to D-50
 ee254a3 WIP qa-desktop-beta-4: D-46 is by decision (guard instead of a red test); D-49 CSV test
 a302d65 WIP qa-desktop-beta-4: e2e group with D-46 to D-48 and two guards
@@ -17,6 +18,21 @@ d7acc88 qa-desktop-beta-4: brief verbatim
 
 ## Uncommitted and new files
 ```
+ M docs/screenshots/chart.png
+ M docs/screenshots/dark-drawer.png
+ M docs/screenshots/dark.png
+ M docs/screenshots/drawer-juice.png
+ M docs/screenshots/drawer.png
+ M docs/screenshots/insights.png
+ M docs/screenshots/map-juice.png
+ M docs/screenshots/map.png
+ M docs/screenshots/mobile.png
+ M docs/screenshots/qa-mobile/e2e-landscape-map.png
+?? dist
+?? docs/screenshots/qa-desktop-beta-4/recheck-A-10-google-company-department-groups.png
+?? docs/screenshots/qa-desktop-beta-4/recheck-A-11-amazon-preview-focus-kept.png
+?? docs/screenshots/qa-desktop-beta-4/recheck-A-8-google-fold-row.png
+?? docs/screenshots/qa-desktop-beta-4/recheck-A-9-insights-details-focus.png
 ?? docs/screenshots/qa-desktop-beta-4/recheck-D-38-google-fellow-550k-posted.png
 ?? docs/screenshots/qa-desktop-beta-4/recheck-D-39-amazon-remote-rows-by-state.png
 ?? docs/screenshots/qa-desktop-beta-4/recheck-D-40-amazon-intern-pay-by-place.png
@@ -51,6 +67,7 @@ d7acc88 qa-desktop-beta-4: brief verbatim
 ?? docs/screenshots/qa-desktop-beta-4/recheck-V-38-google-ranges-x200.png
 ?? docs/screenshots/qa-desktop-beta-4/recheck-V-39-microsoft-mountain-view-chart.png
 ?? docs/screenshots/qa-desktop-beta-4/recheck-V-39-microsoft-mountain-view-map.png
+?? docs/screenshots/qa-desktop-beta-4/recheck-V-40-microsoft-compstimate-new-york.png
 ?? docs/screenshots/qa-desktop-beta-4/recheck-V-41-amazon-ranges-minimum-tip.png
 ?? docs/screenshots/qa-desktop-beta-4/recheck-V-42-amazon-clusters-dark.png
 ?? docs/screenshots/qa-desktop-beta-4/recheck-V-43-amazon-map-world.png
@@ -60,6 +77,11 @@ d7acc88 qa-desktop-beta-4: brief verbatim
 ```
 
 ## Left out (not in untracked.tgz)
+- dist (symlink)
+- docs/screenshots/qa-desktop-beta-4/recheck-A-10-google-company-department-groups.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-desktop-beta-4/recheck-A-11-amazon-preview-focus-kept.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-desktop-beta-4/recheck-A-8-google-fold-row.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-desktop-beta-4/recheck-A-9-insights-details-focus.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-desktop-beta-4/recheck-D-38-google-fellow-550k-posted.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-desktop-beta-4/recheck-D-39-amazon-remote-rows-by-state.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-desktop-beta-4/recheck-D-40-amazon-intern-pay-by-place.png (screenshot; the lane's tests regenerate it)
@@ -94,6 +116,7 @@ d7acc88 qa-desktop-beta-4: brief verbatim
 - docs/screenshots/qa-desktop-beta-4/recheck-V-38-google-ranges-x200.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-desktop-beta-4/recheck-V-39-microsoft-mountain-view-chart.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-desktop-beta-4/recheck-V-39-microsoft-mountain-view-map.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/qa-desktop-beta-4/recheck-V-40-microsoft-compstimate-new-york.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-desktop-beta-4/recheck-V-41-amazon-ranges-minimum-tip.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-desktop-beta-4/recheck-V-42-amazon-clusters-dark.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/qa-desktop-beta-4/recheck-V-43-amazon-map-world.png (screenshot; the lane's tests regenerate it)
