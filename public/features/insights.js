@@ -433,7 +433,7 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
     return h('div', { class: 'msi-stats', role: 'list' },
       // UX-53 / UX-61 (fix-phone-text): "of 2,781 with pay" (it read "of 2,781 salaried ro…" at 360). UX-55: a range is
       // written like the cards ("$188K–252K"), so the tile no longer cuts its number at 1440.
-      [tile('Median base pay', enough ? formatMoney(s.median) : '—', !s.salaried ? (s.posted ? 'no base pay posted' : 'no pay published') : enough ? `of ${fmtCount(s.salaried)} with ${s.posted > s.salaried ? 'base ' : ''}pay` : `too few with pay (${s.salaried})`),
+      [tile('Median base pay', enough ? formatMoney(s.median) : '—', !s.salaried ? (s.posted ? 'no base pay posted' : 'no pay published') : enough ? `of ${fmtCount(s.salaried)} ${s.posted > s.salaried ? 'ranges' : 'with pay'}` : `too few with pay (${s.salaried})`),
         tile('Middle half', enough && s.p25 != null ? moneySpan(s.p25, s.p75) : '—', 'of roles with pay'),
         tile('Pay published', formatPct(s.payShare), `${fmtCount(s.posted)} of ${fmtCount(s.total)}`),
         tile('Remote-eligible', formatPct(s.remoteShare), plural(jobs.filter((j) => j.remote).length, 'role'))]
