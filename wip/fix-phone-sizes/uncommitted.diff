@@ -1,175 +1,52 @@
-diff --git a/public/styles.css b/public/styles.css
-index 9748dc7..fad789d 100644
---- a/public/styles.css
-+++ b/public/styles.css
-@@ -1465,7 +1465,9 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
-    arrow, which would point past the pin; the Juice household's meaning, one muted line under its buttons. */
- .ms-map .leaflet-tooltip.ms-map-tip--slid::before { display: none; }
- .juice-hh-note { margin: 6px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
--/* ============================================================   fix-phone-sizes (docs/process/fix-phone-sizes.md, 2026-10-17): every size in test/e2e/phone-sizes.mjs, from the
-+
-+/* ===================================================================
-+   fix-phone-sizes (docs/process/fix-phone-sizes.md, 2026-10-17): every size in test/e2e/phone-sizes.mjs, from the
-    folded Galaxy Fold (280 px) to the Surface Duo spanned (1114 px), the Razr cover screen and landscape.
-    Each finding is its own rule block. test/e2e/phone-matrix.e2e.js checks them all.
-    =================================================================== */
-@@ -1612,11 +1614,29 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
-   .tagline { flex: 1 1 100%; margin: 0; text-align: left; }
- }
+diff --git a/docs/process/fix-phone-sizes.md b/docs/process/fix-phone-sizes.md
+index b2593fb..0069cd6 100644
+--- a/docs/process/fix-phone-sizes.md
++++ b/docs/process/fix-phone-sizes.md
+@@ -10,10 +10,15 @@
+   - the matrix goes from 17 of 34 failing before to 34 of 34 passing; the full e2e suite has no new failures (section 5);
+   - before and after screenshots, shrunk;
+   - `npm test` green without data links.
+-- **In progress (after the 02:10 container restart):** the gate is re-running on d896658. The order is npm test with
+-  the data links out (they wait in `<scratch>/fps/links/`), then the matrix through the suite runner, the related e2e
+-  groups and the full e2e. If resumed: link `<scratch>/fps/links/snapshots` → data/snapshots and
+-  `<scratch>/fps/links/beta/snapshots` → data/beta/snapshots, then re-run what is missing.
++- **Integrated:** everything up to f8057c7 is in the lead's fbdad58. On a build of fbdad58 (with pay-at-place, data-3,
++  sec-3 and phone-text) the matrix passes 34/34 and phone-smoke 140/140 (20 sizes x 7 boards). Nothing regressed.
++- **Since then (on fbdad58):**
++  - the Surface Duo stacked (720x1114, hinge across) is in phone-sizes.mjs and has its own CSS block and matrix test;
++  - a stray `=======` conflict line in styles.css (from 6a7de9e, between this lane's block and fix-phone-text's) is
++    removed: it dropped UX-58's `.d-juice.d-juice--none` rule.
++- **In progress:** the gate on the new head: npm test with the data links out, then the matrix and the full e2e with
++  them in. If resumed, the links wait in `<scratch>/fps/links/` while npm test runs: link
++  `<scratch>/fps/links/snapshots` → data/snapshots and `<scratch>/fps/links/beta/snapshots` → data/beta/snapshots.
+ - **Next, if resumed:** the follow-ups in section 6 (the Duo spanned in its other posture; WebKit results from
+   webkit-phone.yml).
  
-+/* Dual screens stacked (the Surface Duo turned a quarter: two 720x540 screens, a 34 px hinge across at y 540–574), on
-+   the phone layout. The top screen has the top bar, the quick bar, the chart and the filter sheet; the bottom screen
-+   has the results list (it stays open there: no peek, nothing to drag), the job page and the bottom-sheet popovers.
-+   Nothing lies on the hinge. */
-+@media (vertical-viewport-segments: 2) and (max-width: 860px) {
-+  .main { padding-bottom: calc(100vh - env(viewport-segment-bottom 0 0)); padding-bottom: calc(100dvh - env(viewport-segment-bottom 0 0)); }
-+  .results, body[data-sheet] .results, body.sheet-open .results, .results.is-dragging {
-+    top: env(viewport-segment-top 0 1); bottom: 0; height: auto; transform: none !important; border-radius: 0;
-+  }
-+  .sheet-handle { display: none; }
-+  .results-head { cursor: default; padding-top: 10px; }
-+  .cards, body[data-sheet] .cards { touch-action: pan-y; }
-+  .filters, body.filters-collapsed .filters { bottom: auto; height: env(viewport-segment-bottom 0 0); }
-+  .drawer { top: env(viewport-segment-top 0 1); padding-top: 0; }
-+  .popover, .popover--more, .popover--board, .popover--badge, .popover--company { max-height: calc(env(viewport-segment-height 0 1) - 8px); }
-+  .toast { bottom: 16px; }
-+}
-+
- /* The search box's "/" key hint never takes a tap meant for the box (it covered the box's right end on the Duo's
-    narrow search), and touch screens without a keyboard don't show it. */
- .search kbd { pointer-events: none; }
- @media (hover: none) { .search kbd { display: none; } }
--=======
-+
- /* ---- fix-phone-text (docs/process/fix-phone-text.md): the phone page's text, one rule block ----
-    Every caption, note and explainer is one line with its facts behind Details (viz/note.js); nothing is cut. */
- /* UX-58: the "No Juice" box keeps its padding (.d-juice { padding: 0 } above overrode .d-juice--none). */
-diff --git a/test/e2e/phone-matrix.e2e.js b/test/e2e/phone-matrix.e2e.js
-index d9f8249..e862d38 100644
---- a/test/e2e/phone-matrix.e2e.js
-+++ b/test/e2e/phone-matrix.e2e.js
-@@ -41,6 +41,8 @@ const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g
- const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
- // The Surface Duo's hinge when spanned: two 540 px screens with 34 px between them.
- const DUO = { width: 1114, height: 720, dpr: 2.5, fold: { offset: 540, maskLength: 34 } };
-+// Turned a quarter: two 720x540 screens stacked, the hinge across at y 540–574.
-+const DUO_STACKED = { width: 720, height: 1114, dpr: 2.5, fold: { orientation: 'horizontal', offset: 540, maskLength: 34 } };
- const DESKTOP = [
-   { name: 'Desktop 1440x900', width: 1440, height: 900 },
-   { name: 'Laptop 1280x800', width: 1280, height: 800 },
-@@ -98,7 +100,7 @@ async function open(ctx, size, { board = 'apple', site = 'beta/', colorScheme =
-     cdp = await context.newCDPSession(page);
-     await cdp.send('Emulation.setDeviceMetricsOverride', {
-       width: size.width, height: size.height, deviceScaleFactor: size.dpr || 1, mobile: true, screenWidth: size.width, screenHeight: size.height,
--      displayFeature: { orientation: 'vertical', offset: fold.offset, maskLength: fold.maskLength },
-+      displayFeature: { orientation: fold.orientation || 'vertical', offset: fold.offset, maskLength: fold.maskLength },
-     });
-   }
-   await page.goto(`${st.base}${site}#c=${board}`, { timeout: 60000 });
-@@ -326,8 +328,11 @@ async function shot(page, name, cdp = null) {
-   await page.screenshot({ path: file }).catch(() => {});
- }
+@@ -94,6 +99,14 @@ Files owned: public/styles.css (layout rule blocks only), test/e2e/phone-matrix.
+    the hinge (the quick chips scroll sideways inside the left screen, with the phone's fade). The toast is centred on
+    the right screen and the tagline takes its own line. Popovers open on their control's screen: positionPopover clamps
+    to the segment of the anchor (`window.viewport.segments`), which CSS can't do.
++8b. **Dual screens stacked** (`@media (vertical-viewport-segments: 2) and (max-width: 860px)`, the Duo turned a
++   quarter: two 720x540 screens, the hinge across at y 540–574) keep the phone layout, split at the hinge:
++   - the top screen has the top bar, the quick bar and the chart (`.main` padding ends it at
++     `env(viewport-segment-bottom 0 0)`), and the filter sheet is the top screen's height;
++   - the bottom screen has the results list, open there for good (its top is `env(viewport-segment-top 0 1)`, no
++     transform, no handle, its cards scroll by touch), the job page, and the bottom-sheet popovers (at most the bottom
++     screen's height);
++   - in the matrix: a 20th entry in phone-sizes.mjs, and a fold test with CDP's horizontal `displayFeature`.
+ 9. **The Fold open (690x829) and the Duo on one screen (540x720)** keep the phone layout, as the tablet (768x1024)
+    does: the screenshots show a two-row top bar, a full-width chart and the sheet, and a job page with ~95-character
+    lines. Nothing looked stretched, so no change.
+@@ -177,8 +190,10 @@ neither zoomed nor panned, and on the map not every price pin is covered by the
  
--/** Run in the page: everything with content (a control, a card, the chart, text) that lies on the hinge band [a, b]. */
--function onHinge([a, b]) {
-+/**
-+ * Run in the page: everything with content (a control, a card, the chart, text) that lies on the hinge band [a, b]:
-+ * across x for side-by-side screens, across y (axis 'y') for stacked ones.
-+ */
-+function onHinge([a, b, axis = 'x']) {
-   const out = [];
-   const W = innerWidth;
-   const H = innerHeight;
-@@ -350,8 +355,9 @@ function onHinge([a, b]) {
-       }
-     }
-     if (r.right - r.left < 1 || r.bottom - r.top < 1 || r.bottom <= 0 || r.top >= H || r.right <= 0 || r.left >= W) continue;
--    if (r.left < b - 0.5 && r.right > a + 0.5) {
--      out.push(`${e.tagName.toLowerCase()}${e.id ? `#${e.id}` : ''}${typeof e.className === 'string' && e.className.trim() ? `.${e.className.trim().split(/\s+/).slice(0, 2).join('.')}` : ''} [${Math.round(r.left)}–${Math.round(r.right)}] "${(e.getAttribute('aria-label') || e.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 30)}"`);
-+    const [lo, hi] = axis === 'y' ? [r.top, r.bottom] : [r.left, r.right];
-+    if (lo < b - 0.5 && hi > a + 0.5) {
-+      out.push(`${e.tagName.toLowerCase()}${e.id ? `#${e.id}` : ''}${typeof e.className === 'string' && e.className.trim() ? `.${e.className.trim().split(/\s+/).slice(0, 2).join('.')}` : ''} [${Math.round(lo)}–${Math.round(hi)}] "${(e.getAttribute('aria-label') || e.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 30)}"`);
-     }
-   }
-   return [...new Set(out)];
-@@ -496,6 +502,67 @@ export function registerPhoneMatrixTests(suite) {
-     }
-     assert(!bad.length, `${bad.length} problem(s):\n  ${bad.join('\n  ')}`);
-   });
-+
-+  suite.test('Phone matrix: [Surface Duo stacked 720x1114, hinge emulated across at y 540–574 px] top bar, quick bar, chart and filters on the top screen, the list, the job page and the sheets on the bottom one, nothing on the hinge (Chromium CDP)', async (ctx) => {
-+    if (engineOf(ctx) !== 'chromium') skip('emulating the hinge needs Chromium CDP (Emulation.setDeviceMetricsOverride displayFeature)');
-+    const size = ALL_SIZES.find((s) => s.width === DUO_STACKED.width && s.height === DUO_STACKED.height);
-+    assert(size, 'the matrix lists the Surface Duo stacked (720x1114)');
-+    const [a, b] = [DUO_STACKED.fold.offset, DUO_STACKED.fold.offset + DUO_STACKED.fold.maskLength];
-+    const bad = [];
-+    const span = (page, sel) => page.evaluate((s) => { const e = document.querySelector(s); if (!e || !e.getClientRects().length) return null; const r = e.getBoundingClientRect(); return [Math.round(r.top), Math.round(r.bottom)]; }, sel);
-+    for (const board of ['apple', 'amazon']) {
-+      const { page, errors, context, cdp } = await open(ctx, size, { board, fold: DUO_STACKED.fold });
-+      const seg = await page.evaluate(() => ({ mq: matchMedia('(vertical-viewport-segments: 2)').matches, segs: window.viewport?.segments?.map((s) => [s.y, s.height]) || null }));
-+      assert(seg.mq && seg.segs && seg.segs.length === 2, `the fold emulation took (two stacked viewport segments): ${JSON.stringify(seg)}`);
-+      const label = `${board} Duo stacked`;
-+      bad.push(...problemsOf(await page.evaluate(measure, CHART_CONTROLS.filter((c) => c !== 'results sheet handle')), size.width, label));
-+      const viz = await span(page, '#vizArea');
-+      const list = await span(page, '#results');
-+      if (!viz || viz[1] > a) bad.push(`${label}: the chart is not on the top screen (${viz})`);
-+      if (!list || list[0] < b) bad.push(`${label}: the list is not on the bottom screen (${list})`);
-+      const main = await page.evaluate(onHinge, [a, b, 'y']);
-+      if (main.length) bad.push(`${label}: on the hinge: ${main.slice(0, 8).join(' | ')}`);
-+      if (board === 'apple') await shot(page, 'surface-duo-stacked-hinge-720x1114-light', cdp);
-+      // The job page on the bottom screen.
-+      await page.evaluate(() => document.querySelector('#resultsList .card[data-id]').click());
-+      await page.waitForFunction(() => document.querySelector('#drawer.is-open #drawerTitle'), null, { timeout: 15000 }).catch(() => {});
-+      await sleep(900);
-+      const d = await span(page, '#drawer');
-+      if (!d || d[0] < b) bad.push(`${label}: the job page is not on the bottom screen (${d})`);
-+      const job = await page.evaluate(onHinge, [a, b, 'y']);
-+      if (job.length) bad.push(`${label}, job open: on the hinge: ${job.slice(0, 8).join(' | ')}`);
-+      if (board === 'apple') await shot(page, 'surface-duo-stacked-hinge-job-720x1114-light', cdp);
-+      await page.keyboard.press('Escape');
-+      await page.waitForFunction(() => !document.querySelector('#drawer.is-open'), null, { timeout: 5000 }).catch(() => {});
-+      await sleep(400);
-+      // The filter sheet on the top screen.
-+      await clickEl(page, '#filtersToggle');
-+      await page.waitForFunction(() => document.body.classList.contains('filters-open'), null, { timeout: 5000 }).catch(() => {});
-+      await sleep(500);
-+      const f = await span(page, '#filters');
-+      if (!f || f[0] < -1 || f[1] > a) bad.push(`${label}: the filter sheet is not on the top screen (${f})`);
-+      const fl = await page.evaluate(onHinge, [a, b, 'y']);
-+      if (fl.length) bad.push(`${label}, filters open: on the hinge: ${fl.slice(0, 8).join(' | ')}`);
-+      await page.keyboard.press('Escape');
-+      await page.waitForFunction(() => !document.body.classList.contains('filters-open'), null, { timeout: 5000 }).catch(() => {});
-+      await sleep(400);
-+      // The company sheet and the data badge's sheet on the bottom screen.
-+      for (const [what, sel] of [['company', '#companyMenuBtn'], ['data badge', '#dataBadge']]) {
-+        await clickEl(page, sel);
-+        await page.waitForFunction(() => !document.querySelector('#popover').hidden, null, { timeout: 5000 }).catch(() => {});
-+        await sleep(400);
-+        const p = await span(page, '#popover');
-+        if (p && p[0] < b) bad.push(`${label}: the ${what} sheet is not on the bottom screen (${p})`);
-+        const ph = await page.evaluate(onHinge, [a, b, 'y']);
-+        if (ph.length) bad.push(`${label}, ${what} sheet open: on the hinge: ${ph.slice(0, 6).join(' | ')}`);
-+        await page.keyboard.press('Escape');
-+        await sleep(350);
-+      }
-+      bad.push(...errors.map((e) => `${label}: ${e}`));
-+      await context.close();
-+    }
-+    assert(!bad.length, `${bad.length} problem(s):\n  ${bad.join('\n  ')}`);
-+  });
- }
+ - WebKit is not installed here: the lead's webkit-phone.yml runs `node test/e2e/phone-matrix.e2e.js --browser=webkit`
+   and phone-smoke in WebKit; the fold test skips there (it needs Chromium's CDP).
+-- The Duo spanned the other way (720x1114, a horizontal hinge: `vertical-viewport-segments: 2`) is not handled: the
+-  sheet's half snap could be the lower screen. Not in the matrix.
++- The Duo stacked (720x1114) is handled since fca80ac (decision 8b). Its list stays open on the bottom screen, so
++  there is no sheet to drag there; a stacked dual screen wider than 860 px keeps the desktop layout as is.
++- The Razr cover screen's third pin sits under the map's attribution. That is the viz lane's (fix-viz-5, map.js: the
++  fit could leave room for the corners).
+ - Custom boards with very long names still end in "…" at small widths (the built-in names are whole everywhere).
  
- // Standalone: node test/e2e/phone-matrix.e2e.js [--browser=webkit|chromium] [--grep=re]
-diff --git a/test/e2e/phone-sizes.mjs b/test/e2e/phone-sizes.mjs
-index 3ea62c6..a05c361 100644
---- a/test/e2e/phone-sizes.mjs
-+++ b/test/e2e/phone-sizes.mjs
-@@ -31,6 +31,8 @@ export const PHONES = Object.freeze([
- export const POSTURES = Object.freeze([
-   android('Motorola razr (cover screen)', 352, 355, 3, 'motorola razr 40 ultra'),
-   android('Surface Duo (spanned, two screens)', 1114, 720, 2.5, 'Surface Duo'),
-+  // The Duo turned a quarter: two 720x540 screens stacked, a 34 px hinge across at y 540–574 (fix-phone-sizes).
-+  android('Surface Duo (spanned, stacked)', 720, 1114, 2.5, 'Surface Duo'),
-   ios('iPhone 13 mini (landscape)', 812, 375, 3),
-   ios('iPhone SE (3rd gen, landscape)', 667, 375, 2),
-   android('Motorola razr (inner, landscape)', 1005, 412, 2.625, 'motorola razr 50 ultra'),
+ ## 7. Change log

@@ -1,7 +1,7 @@
 From bc95d97e5244d71ee3b08685993a63fbc8d5e9a7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 00:55:44 +0000
-Subject: [PATCH 01/51] fix-sec-3: S-2 residual: one pause guard for every
+Subject: [PATCH 01/52] fix-sec-3: S-2 residual: one pause guard for every
  crawl (fetchLive, snapshot.js one(), probe full mode)
 
 server/pipeline.js#pauseError refuses a paused company (or a paused built-in's source and board)

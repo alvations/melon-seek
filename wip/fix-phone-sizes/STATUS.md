@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a3ec7679b4d2dd1a0`
 - Base (on claude/stoic-ride-54ddxp): `228aed732384c0c6e1b94b673bd6d56c31ec9beb`
-- Head: `fbdad5856455a1a176cfd806b858cab7e88ef836`
+- Head: `fca80aceb2b2bde6d56ef2a84c04f0d11008a7c0`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-phone-sizes <new worktree dir>`
 
 ## Commits since the base
 ```
+fca80ac fix-phone-sizes: the Surface Duo stacked (720x1114, hinge across): chart and filters on the top screen, the list, job page and sheets on the bottom one; in phone-sizes.mjs and the matrix. Drop a stray conflict marker in styles.css
 fbdad58 Integration: fix-data-3's patches (postedPlaces per tied row, the Compare footnote names MR-28's left-out pay, M-40's precondition) and the pay lane's Juice test on
 83512bc fix-pay-at-place: log the final gate (full e2e 389/394, T21 under load passes alone); the Juice patch is a reference (fix-data-3 0ae184e)
 7833e88 fix-pay-at-place: before/after screenshots (shrunk, 1.2 MB)
@@ -62,9 +63,7 @@ bc95d97 fix-sec-3: S-2 residual: one pause guard for every crawl (fetchLive, sna
 
 ## Uncommitted and new files
 ```
- M public/styles.css
- M test/e2e/phone-matrix.e2e.js
- M test/e2e/phone-sizes.mjs
+ M docs/process/fix-phone-sizes.md
 ```
 
 ## Left out (not in untracked.tgz)

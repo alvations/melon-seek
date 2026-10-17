@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a500839343c7a8ea9`
 - Base (on claude/stoic-ride-54ddxp): `228aed732384c0c6e1b94b673bd6d56c31ec9beb`
-- Head: `717274e006e998ace8dc196666add7444738c95f`
+- Head: `cef9fd0b00481aa164e0cc017ce658cdee59407e`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-viz-5 <new worktree dir>`
 
 ## Commits since the base
 ```
+cef9fd0 WIP fix-viz-5: log skeleton with State
 717274e fix-viz-5: prompt verbatim
 fbdad58 Integration: fix-data-3's patches (postedPlaces per tied row, the Compare footnote names MR-28's left-out pay, M-40's precondition) and the pay lane's Juice test on
 83512bc fix-pay-at-place: log the final gate (full e2e 389/394, T21 under load passes alone); the Juice patch is a reference (fix-data-3 0ae184e)
@@ -63,6 +64,8 @@ bc95d97 fix-sec-3: S-2 residual: one pause guard for every crawl (fetchLive, sna
 
 ## Uncommitted and new files
 ```
+ M public/features/shared.js
+?? test/fix-viz-5.test.js
 ```
 
 ## Left out (not in untracked.tgz)

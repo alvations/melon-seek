@@ -1,7 +1,7 @@
 From a5b36727a698c48a4c96803c30a224c9de5b86f8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 00:52:37 +0000
-Subject: [PATCH 44/52] fix-pay-at-place: V-40 Compstimate uses the comparables
+Subject: [PATCH 44/53] fix-pay-at-place: V-40 Compstimate uses the comparables
  that post a range for the city asked (5 or more); e2e file (10 checks, all
  red on ff6a3d0)
 

@@ -1,7 +1,7 @@
 From bdc045f94feaa58156413e1552bc40c810af71b0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 00:29:36 +0000
-Subject: [PATCH 43/51] fix-pay-at-place: UX-52 place count as a muted line
+Subject: [PATCH 43/52] fix-pay-at-place: UX-52 place count as a muted line
  under the pill; drawer heading = the card's range; no label cut (WIP)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

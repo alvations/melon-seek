@@ -1,7 +1,7 @@
 From 28a18a8c9a4ed3e019be337f487f2ba1aa984f09 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 02:07:06 +0000
-Subject: [PATCH 28/51] fix-phone-sizes: the Razr cover screen's map before and
+Subject: [PATCH 28/52] fix-phone-sizes: the Razr cover screen's map before and
  after; log for the lead's two Razr findings
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

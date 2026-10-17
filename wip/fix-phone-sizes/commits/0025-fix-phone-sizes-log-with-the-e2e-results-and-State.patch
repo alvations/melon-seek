@@ -1,7 +1,7 @@
 From 5f0bc7f9e468440b53da815b1e5c5b386feccb7e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 01:45:09 +0000
-Subject: [PATCH 25/51] fix-phone-sizes: log with the e2e results and State
+Subject: [PATCH 25/52] fix-phone-sizes: log with the e2e results and State
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

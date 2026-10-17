@@ -1,7 +1,7 @@
 From 68fe621c0ab498bbc08f830cd2b10aa945d1e040 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 00:20:49 +0000
-Subject: [PATCH 21/52] WIP fix-phone-sizes: landscape means landscape, short
+Subject: [PATCH 21/53] WIP fix-phone-sizes: landscape means landscape, short
  screens, the name whole at every width, the 280 px toolbar and tagline, cards
  and Apply fit, map scale, dual screens
 
