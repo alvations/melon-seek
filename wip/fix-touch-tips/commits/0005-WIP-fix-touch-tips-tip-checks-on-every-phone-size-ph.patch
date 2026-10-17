@@ -1,7 +1,7 @@
 From 7d26b475627da4fc3ceb2da0a94b7c64ea0ec87c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 00:27:10 +0000
-Subject: [PATCH 5/5] WIP fix-touch-tips: tip checks on every phone size
+Subject: [PATCH 5/7] WIP fix-touch-tips: tip checks on every phone size
  (phone-sizes.mjs); map tooltip no bigger than a small map
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

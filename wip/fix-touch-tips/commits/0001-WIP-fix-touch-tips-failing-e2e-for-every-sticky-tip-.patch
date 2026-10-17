@@ -1,7 +1,7 @@
 From bc4755d90f8b9b0c9395d573f2a31bb6e587c317 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 22:14:24 +0000
-Subject: [PATCH 1/5] WIP fix-touch-tips: failing e2e for every sticky tip on
+Subject: [PATCH 1/7] WIP fix-touch-tips: failing e2e for every sticky tip on
  touch (iPhone sequence), prompt, before screenshots
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

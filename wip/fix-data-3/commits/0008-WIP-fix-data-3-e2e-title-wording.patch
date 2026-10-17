@@ -1,0 +1,27 @@
+From f247eaccbb69fa0175eafddb793fc43ef63781ed Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 01:41:36 +0000
+Subject: [PATCH 8/8] WIP fix-data-3: e2e title wording
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ test/e2e/fix-data-3.e2e.js | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/test/e2e/fix-data-3.e2e.js b/test/e2e/fix-data-3.e2e.js
+index b8b93df..a72180a 100644
+--- a/test/e2e/fix-data-3.e2e.js
++++ b/test/e2e/fix-data-3.e2e.js
+@@ -111,7 +111,7 @@ export function registerFixData3Tests(suite) {
+     assert(!(await page.locator('#drawer').innerText()).includes('implausible for an intern'), 'the drawer still says the pay is implausible for an intern');
+   });
+ 
+-  suite.test('fix-data-3: [MR-28] the drawer\'s Juice says, in one line on every phone, when gross pay is a posted minimum or includes the top shift differential', async (ctx) => {
++  suite.test('fix-data-3: [MR-28] the drawer\'s Juice says, in one line on every phone, when gross pay is a posted minimum or includes top shift pay', async (ctx) => {
+     const { st, page } = await open(ctx, 'c=amazon');
+     const cases = await appJobs(page, st, 'amazon', '(j) => j.juice && j.juice.best && j.salary && (j.salary.kind === "minimum" || j.salary.includesShiftDifferential) ? { id: j.id, kind: j.salary.kind === "minimum" ? "minimum" : "shift" } : null');
+     const pick = ['minimum', 'shift'].map((k) => cases.find((c) => c.kind === k)).filter(Boolean);
+-- 
+2.43.0
+

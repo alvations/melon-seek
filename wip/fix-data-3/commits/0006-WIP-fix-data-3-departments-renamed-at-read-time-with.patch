@@ -1,7 +1,7 @@
 From f5db79e1ec5462de4feb723e1a3a4fc320750de8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 01:26:47 +0000
-Subject: [PATCH 6/6] WIP fix-data-3: departments renamed at read time without
+Subject: [PATCH 6/8] WIP fix-data-3: departments renamed at read time without
  a per-job field; e2e tests; docs
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8

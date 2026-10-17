@@ -1,7 +1,7 @@
 From 7088bb37c014b70e6421b1c61d08b9fafed87cbd Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 22:35:45 +0000
-Subject: [PATCH 2/5] WIP fix-touch-tips: one touch rule for every floating tip
+Subject: [PATCH 2/7] WIP fix-touch-tips: one touch rule for every floating tip
  (comps, chart, strip, Insights, Compare, map), input-worded hints,
  touch-reachable words
 

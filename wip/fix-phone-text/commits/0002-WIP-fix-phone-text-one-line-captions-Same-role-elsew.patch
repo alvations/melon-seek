@@ -1,7 +1,7 @@
 From 64dddff5f5db822a4a6bff955d855336ab4f0f84 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 23:47:47 +0000
-Subject: [PATCH 2/7] WIP fix-phone-text: one-line captions (Same role
+Subject: [PATCH 2/8] WIP fix-phone-text: one-line captions (Same role
  elsewhere, Pay estimate, Juice explainer, filter notes, More), Details
  described (A-9)
 

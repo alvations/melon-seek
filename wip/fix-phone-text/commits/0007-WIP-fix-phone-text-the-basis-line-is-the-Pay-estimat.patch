@@ -1,7 +1,7 @@
 From c5312d194b5b1cb3818c4b5e8bccecd6987a10b5 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 01:05:40 +0000
-Subject: [PATCH 7/7] WIP fix-phone-text: the basis line is the Pay estimate's
+Subject: [PATCH 7/8] WIP fix-phone-text: the basis line is the Pay estimate's
  explainer; badge line spacing; a popover test reads its Details
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

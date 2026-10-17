@@ -1,7 +1,7 @@
 From fdc977974ae9157c74bcbf7047d88ccaa3a1af76 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 00:04:52 +0000
-Subject: [PATCH 1/5] WIP fix-phone-sizes: phone matrix guard (every size in
+Subject: [PATCH 1/7] WIP fix-phone-sizes: phone matrix guard (every size in
  phone-sizes.mjs, 3 boards), prompt and log
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

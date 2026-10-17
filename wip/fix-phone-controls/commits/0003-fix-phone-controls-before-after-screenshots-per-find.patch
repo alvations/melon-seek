@@ -1,7 +1,7 @@
 From 0c145e01b7f948ced6e806df3372752db2d9c295 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 00:33:12 +0000
-Subject: [PATCH 3/3] fix-phone-controls: before / after screenshots per
+Subject: [PATCH 3/4] fix-phone-controls: before / after screenshots per
  finding, phone and desktop, light and dark (shrunk, 3.1 MB)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

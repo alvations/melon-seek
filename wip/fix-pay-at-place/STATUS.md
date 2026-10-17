@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-af40fcca54b57983d`
 - Base (on claude/stoic-ride-54ddxp): `ff6a3d0648f338535010fbfc7a3804c41f702344`
-- Head: `72c8d8376a47e27ad44266c452878b72963115c9`
+- Head: `c54e297418634bbacf8fe1ff33a64d6cf19afa13`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-pay-at-place <new worktree dir>`
 
 ## Commits since the base
 ```
+c54e297 fix-pay-at-place: the drawer names the headline row by its own label (Remote (CA)); payHere needs US-dollar pay; the phone check runs per size
 72c8d83 fix-pay-at-place: log, prompt, CONTRACT note on payAt, DATA_SOURCES §7a, the Juice patch (server/juice.js) and its to-do test
 37a6971 fix-pay-at-place: V-40 Compstimate uses the comparables that post a range for the city asked (5 or more); e2e file (10 checks, all red on ff6a3d0)
 ea3a2b6 fix-pay-at-place: UX-52 place count as a muted line under the pill; drawer heading = the card's range; no label cut (WIP)
@@ -17,28 +18,7 @@ ea3a2b6 fix-pay-at-place: UX-52 place count as a muted line under the pill; draw
 
 ## Uncommitted and new files
 ```
- M docs/screenshots/chart.png
- M docs/screenshots/dark-drawer.png
- M docs/screenshots/dark.png
- M docs/screenshots/drawer-juice.png
- M docs/screenshots/drawer.png
- M docs/screenshots/insights.png
- M docs/screenshots/map-juice.png
- M docs/screenshots/map.png
- M docs/screenshots/mobile.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-360x640-with-the-keyboard-up-300-px-.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-iPhone-SE-Safari-375x548.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390-with-5-saved-searches.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-29-company-menu-focus.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-30-saved-searches-loaded.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-31-empty-message-half-sheet.png
- M docs/screenshots/qa-mobile-beta/e2e-M-19-sort-while-scrolled.png
- M docs/screenshots/qa-mobile-beta/e2e-M-21-company-menu.png
- M docs/screenshots/qa-mobile-beta/e2e-M-22-paused-board.png
- M docs/screenshots/qa-mobile-beta/e2e-M-24-keyboard-location-search.png
- M docs/screenshots/qa-mobile-beta/e2e-M-27-topbar-360.png
- M docs/screenshots/qa-mobile/e2e-landscape-map.png
+ M test/e2e/fix-pay-at-place.e2e.js
 ?? docs/screenshots/fix-pay-at-place/
 ```
 
@@ -77,4 +57,8 @@ ea3a2b6 fix-pay-at-place: UX-52 place count as a muted line under the pill; draw
 - docs/screenshots/fix-pay-at-place/before-microsoft-map-pins.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/fix-pay-at-place/before-microsoft-mountain-view-chart-and-stats.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/fix-pay-at-place/before-microsoft-mountain-view-map.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-pay-at-place/e2e-card-1114x720.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-pay-at-place/e2e-card-280x653.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-pay-at-place/e2e-card-352x355.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-pay-at-place/e2e-card-375x812.png (screenshot; the lane's tests regenerate it)
 - node_modules (symlink)

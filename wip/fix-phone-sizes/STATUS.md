@@ -2,11 +2,13 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a3ec7679b4d2dd1a0`
 - Base (on claude/stoic-ride-54ddxp): `a92a3c83eb4890db11b724667e469ec99655e95c`
-- Head: `d4794c52b81a446c5f9893f517c0992c4f87f8d4`
+- Head: `eaaaf726a1ced6780f115f63f0b5454b74db94f3`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-phone-sizes <new worktree dir>`
 
 ## Commits since the base
 ```
+eaaaf72 fix-phone-sizes: final npm test and suite-runner numbers in the log
+1e3dbd8 fix-phone-sizes: log with the e2e results and State
 d4794c5 fix-phone-sizes: before and after screenshots for every size in the matrix (shrunk), verification table
 f5098ce WIP fix-phone-sizes: one name-sweep test per board; dual-screen rules only from 861 px
 a6c3e2b WIP fix-phone-sizes: the matrix measures the placeholder in the field's font; log decisions
@@ -16,7 +18,8 @@ fdc9779 WIP fix-phone-sizes: phone matrix guard (every size in phone-sizes.mjs, 
 
 ## Uncommitted and new files
 ```
- M docs/process/fix-phone-sizes.md
+ M public/styles.css
+ M test/e2e/phone-matrix.e2e.js
 ```
 
 ## Left out (not in untracked.tgz)

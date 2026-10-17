@@ -13,6 +13,9 @@ a220eb1 fix-sec-3: S-2 residual: one pause guard for every crawl (fetchLive, sna
 
 ## Uncommitted and new files
 ```
+ M scripts/alt-data/xlsx.js
+ M server/families.js
+ M server/sources/meta.js
 ```
 
 ## Left out (not in untracked.tgz)

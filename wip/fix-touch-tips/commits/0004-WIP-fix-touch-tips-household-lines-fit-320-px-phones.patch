@@ -1,7 +1,7 @@
 From ce06980cd4c5eb638c2420f1afdedfda58dab95b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 00:24:08 +0000
-Subject: [PATCH 4/5] WIP fix-touch-tips: household lines fit 320 px phones,
+Subject: [PATCH 4/7] WIP fix-touch-tips: household lines fit 320 px phones,
  drop unused inputKind, before/after shots at 390 and 360 in both themes
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
