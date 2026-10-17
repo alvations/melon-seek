@@ -1,0 +1,76 @@
+You are the front-end and data engineer `fix-qa4` for melon-seek (repo /home/user/melon-seek, branch claude/stoic-ride-54ddxp), a zero-build vanilla ES-module app, "the Zillow of job postings". You are in your own git worktree. First run `git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp` (1ef0646, the deployed fix wave 5, or later). Read docs/CONTRACT.md (the fix-pay-at-place and fix-data-3 sections), docs/process/PLAYBOOK.md (including "Checkpoints" and "Known traps"), docs/process/TEMPLATE.md, docs/process/fix-pay-at-place.md and docs/DATA_SOURCES.md §7a.
+
+**Standing rules from the user** (never break them):
+- "we must present them as they are and not cut anything". Never drop or hide a posting or a posted pay row.
+- Present pay as posted, so we don't misrepresent the companies and roles. Big-tech figures are base pay only, and say so.
+- 2026-10-16: "Whatever was done with the ui/UX it needs to go through the mobile and desktop QC QA again", and "Make sure we check for all phone sizes from iPhone mini to razr to duo or something".
+
+**Your findings** come from desktop QA round 4 on 1ef0646. The red tests are in /home/user/melon-seek/.claude/worktrees/agent-a55b46bf2eee2a142/test/e2e/beta-desktop-qa-4.e2e.js; copy that file and its scripts/e2e.js registration into your worktree, and take the newest version when you start. The evidence is in its log, docs/process/qa-desktop-beta-4.md, in the same worktree.
+1. **D-52 (Medium).** fix-pay-at-place's V-40 rule drops most of a city's postings from the Pay estimate.
+   - In public/features/compstimate.js estimateComp, a comparable is `local` only when it has per-place rows that price the city: `p.rows ? payAtQuery(...)`, about l.247. With LOCAL_MIN (5) or more local comparables, only those are used (l.277). A posting with one range that lists the city is not local, so it is cut.
+   - Apple "Software Engineer" in Cupertino reads "Based on 38", while 211 Apple Cupertino postings with pay have that title and 184 of them have one range. Microsoft Redmond reads 77 of 234, and every listed comparable is Principal, yet it says "High confidence". Amazon SDE in Seattle reads 65 of 433.
+   - A one-range posting whose pay places include the city has its range posted for that city, so it is local. Use `payAt`'s rule: basis 'posting' covers the place, and basis 'place' is a row for it.
+   - "Most comparable roles" shows each job's headline range, not the city's range the estimate used. Show the pay the estimate used (`p.pay`), named for its place when it is one place's row.
+   - V-40's tests (test/fix-pay-at-place.test.js, test/e2e/fix-pay-at-place.e2e.js) must still pass. So must the Compstimate backtest and accuracy tests and their documented error. Say before and after numbers.
+2. **D-49 (Medium).** Download CSV on beta loses what each pay figure is.
+   - server/export.js `jobsToCsv` writes salary.min/max with no kind column. `csvReadme` is the main site's: the beta data/README.txt says every row is "as published on the company's own job board (Greenhouse, Ashby or Lever)" and "salary_min/max posted BASE pay range … Equity and bonus excluded".
+   - Amazon minimums ("from €46K", 285 postings) are written 46000,46000, as if exact (amazon:10377152).
+   - NVIDIA on-target earnings (41, base plus commission) read as base pay (nvidia:893395123425 224000,396750, also a 2-level span).
+   - Postings with pay per place carry one place's row, unnamed: 2,201 Amazon and 255 Microsoft. amazon:10371179 shows "$60K–129K · 5 places" on the card and in the drawer, but the CSV has 82700,117100, which is Bellevue's row.
+   - Shift-inclusive pay (636 Amazon) and two-level spans (876 NVIDIA) are unmarked.
+   - Fix:
+     - add a `salary_kind` column (salary, hourly, minimum, ote, shift, part-time, fixed-term: whatever the card says);
+     - make the min and max the card's range;
+     - add a column that lists every posted row with its place or level;
+     - write a README per channel: big tech is base pay only, from the company's own careers site (name the systems as docs/DATA_SOURCES.md does).
+   - Keep the existing columns' meaning for the main site, or say in the README what changed. Update the CSV contract in docs/CONTRACT.md.
+3. **D-50 (Low).** A "Pay unclear" posting's estimate runs past the maximum the posting itself states, right under its "As parsed" line.
+   - netflix:790298021069 "Distributed Systems Engineer (L4)" reads "As parsed: $71,040.00 - $464,000.00", then "about $473K ($330K–602K, low confidence)".
+   - anduril:5078772007 reads "As parsed: 12,600–167,000 USD", then "about $193K ($166K–222K)".
+   - When the stated maximum passed the checks and only the minimum or the ratio failed, cap the estimate at it, or say "the posting states up to $464K" beside it.
+   - Owner: public/app.js, the no-pay estimate in drawerContent, and features/compstimate.js compstimateForJob.
+4. **D-48 (Low).** The drawer's rank line says "The highest pay of Amazon's roles in the US" for #1, #10, #30 and #50 of Highest pay. amazon:10389713, $229K–309K, has about 50 roles above it. It says "The lowest pay" for $19.70/h and $21.05/h part-time roles, with 19 and 55 US roles below.
+   - Cause: shared.js payRank rounds with Math.round to 0 or 100; app.js drawerContent `pctText` checks pct >= 100 and pct <= 0.
+   - Say highest or lowest only when no role pays more or less. Otherwise say e.g. "In the top 1% of …" or "In the lowest 1% of …". The line must still fit one line at every size in test/e2e/phone-sizes.mjs: fitOneLine and its short form.
+5. **D-47 (Low).** After an in-page switch to a board that isn't on the site (#c=tesla), or one that fails to load, the previous board's chart stays drawn behind the message, faded, and stays in the accessibility tree. app.js renderViz returns early on 'unknown' and 'error' without hiding #chartHost (and the map). Hide or clear them in those states.
+The lead may send more round-4 findings while you work; add them to your list.
+
+**Your job:**
+1. Each red test from the QA file must fail before your fix and pass after. Add unit tests in test/fix-qa4.test.js where the logic is pure: payRank, the local rule, the CSV columns. Add e2e in test/e2e/fix-qa4.e2e.js, registered in scripts/e2e.js, where it is visible.
+2. Check phones too: every size in test/e2e/phone-sizes.mjs for the drawer lines you touch (D-48, D-50), and `node test/e2e/webkit/phone-smoke.mjs --dist dist --sizes all --engines chromium` before and after.
+3. Don't regress: fix-pay-at-place (`payAt` is the one rule for pay at a place), the Compstimate backtest, the CSV's existing tests (test/export*.test.js), and fix-phone-text's density guard.
+
+**Data and build:**
+- Today's crawl is at /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-data2/data/snapshots and .../wt-data2/data/beta/snapshots. Symlink them as data/snapshots and data/beta/snapshots in your worktree, never commit them, and **never move them**. A session hung twice on moving a data link. For the CI-like `npm test`, use a clean checkout with no links:
+  - `git worktree add --detach <scratch>/fqa4/clean HEAD`;
+  - `ln -s /home/user/melon-seek/node_modules <scratch>/fqa4/clean/node_modules`;
+  - `cd <clean> && MELON_BETA_SNAPSHOT_DIR= timeout 1200 npm test > <scratch>/fqa4/npm.log 2>&1`, with run_in_background;
+  - for later SHAs, `git -C <clean> checkout --detach <sha>`.
+- Symlink node_modules from /home/user/melon-seek. Build with `node scripts/build-static.js`; your worktree's dist/ is yours. Serve with `node scripts/cycle/serve.mjs --dist dist --pid <scratch pidfile>`.
+- Playwright: NODE_PATH=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/pw/node_modules, Chromium at /opt/pw-browsers/chromium-1194/chrome-linux/chrome. Never `playwright install`; no `pkill -f` / `pgrep -f`.
+- Give every command a timeout. Run anything longer than a few minutes in the background and poll its log. Run one e2e suite at a time: other agents share this 4-CPU machine.
+
+**Ownership:**
+- Yours:
+  - public/features/compstimate.js;
+  - payRank in public/features/shared.js;
+  - server/export.js and the CSV/README step of scripts/build-static.js;
+  - in public/app.js: renderViz's unknown and error states, the drawer's rank line (`pctText`) and the no-pay estimate line.
+- Not yours:
+  - the drawer footer and meta line (fix-phone-sizes: M-49, M-51);
+  - chart and map drawing (fix-viz-5);
+  - `payAt` itself (use it).
+- Also yours:
+  - test/fix-qa4.test.js and test/e2e/fix-qa4.e2e.js;
+  - docs/process/fix-qa4.md, your log in TEMPLATE.md structure with a `## State` section at the top;
+  - docs/process/prompts/fix-qa4.md, this prompt verbatim.
+
+**Rules:**
+- Keep the UI simple: no new visible control. Use plain words.
+- Commit small and often with explicit paths. Send the lead each finished, tested piece by SendMessage to "main": the SHA, what it fixes, and its tests. Never push.
+- Before you send any SHA:
+  - npm test in the clean checkout, 0 fail;
+  - your e2e plus the related groups (fix-pay-at-place, Compstimate, the drawer, Beta desktop QA 4) with data linked;
+  - the full e2e once at the end. S-3, S-6, PERF-1, V15 and T21 are load-sensitive; re-run them alone.
+
+Report: per ID, before → after with numbers, the tests that fail before and pass after, and SHAs.
