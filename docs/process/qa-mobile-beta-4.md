@@ -213,10 +213,11 @@ No, not on this build, at any of the 19 sizes, in Chromium or (per the lead's ru
   - the company menu switches boards;
   - the badge and the More popover sit on screen;
   - the filter sheet's ✕ and "Show N roles" are on screen, and ✕ and hardware Back both close it with focus on Filters;
-  - a filter field typed into stays above a simulated keyboard (42% of the height; 55% in landscape);
+  - a filter field typed into stays above a simulated keyboard (42% of the height; 55% in landscape), on every phone
+    layout; at 1005x412 it stays under it (M-52);
   - the sheet goes to full and a card opens its job page;
   - Back, next and Apply are on screen, next goes to "2 of N", and two hardware Backs close the job page;
-  - map pins and a pin tap give the area chip;
+  - a pin tap gives the area chip, except on M-50's hidden pins;
   - the Pay estimate field rises above the keyboard;
   - no text under 12 px, except M-48.
   - The 1005 and 1114 px screens get the desktop layout, with mouse-sized controls: **M-52**.
@@ -353,12 +354,17 @@ Screenshots are in `docs/screenshots/qa-mobile-beta-4/`.
   - in the company menu, the rows are 34 px and the search is 13 px;
   - in Insights, the Pay estimate field and its selects are 34 px at 13 px.
   - On an iPhone each of these fields zooms the page when focused.
+  - With a simulated keyboard (55% of the height) at 1005x412, the filter column's salary field stays under it
+    (195–215 px, with 0–185 visible). `bindKeyboardInsets` (app.js:5176) calls `revealField` for the filter and
+    popover fields only when `isMobile()` (the ≤860 px layout), and sets `kb-open` the same way. The Insights fields
+    got a touch-screen clause with M-47 (5178), and they do rise.
 - **Screenshots:** `wide-932x430-apple-menu.png`, `wide-932x430-apple-insights.png`, `wide-1005x412-apple-*.png`,
   `wide-1114x720-apple-*.png`, and `wide-844x390-apple-menu.png` (the phone layout, for comparison).
 - **Cause:** `public/styles.css`. The 16 px fields and 44 px controls sit only in the `(max-width: 860px)` blocks.
   Above 860 px the only touch rule is the `(hover: none)` block at 1276, which removes hover looks. The dual-screen
-  block at 1593 changes the layout, not the sizes. phone-sizes.mjs has no iPhone in landscape over 860 px, so the
-  matrix never sees this.
+  block at 1593 changes the layout, not the sizes. In public/app.js, `bindKeyboardInsets` keys the filter fields'
+  keyboard handling on `isMobile()`. phone-sizes.mjs has no iPhone in landscape over 860 px, so the matrix never sees
+  this.
 - **Fix direction:** a `(pointer: coarse) and (min-width: 861px)` block with 44 px controls and 16 px fields, or the
   phone landscape layout for `(pointer: coarse) and (max-height: 500px)`. Also add the Pro Max landscape to POSTURES.
 - **Test:** `Beta mobile QA 4: [M-52] …`.
