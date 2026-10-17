@@ -226,7 +226,7 @@ export function registerFixQa4Tests(suite) {
       const v = Number(m[1]) * (m[2] === 'M' ? 1e6 : 1e3);
       if (v > j.salaryRaw.max + 999) bad.push(`${j.id}: "${amt}" over the stated ${j.salaryRaw.max}`);
       const note = (await page.locator('#drawer .d-comp-note').first().textContent()).trim();
-      if (v >= Math.floor(j.salaryRaw.max / 1000) * 1000 && !/capped at the posted maximum/i.test(note)) bad.push(`${j.id}: capped, but the line reads "${note}"`);
+      if (v >= Math.floor(j.salaryRaw.max / 1000) * 1000 && !/capped at (the posted|its) maximum/i.test(note)) bad.push(`${j.id}: capped, but the line reads "${note}"`);
     }
     assert(!bad.length, bad.join('; '));
     assert(!errors.length, errors.join(' | '));
@@ -273,7 +273,7 @@ export function registerFixQa4Tests(suite) {
       const note = page.locator('#drawer .d-comp-note').first();
       await note.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => {});
       await sleep(300);
-      if (!/capped at the posted maximum/i.test(await note.textContent())) bad.push(`the line reads "${(await note.textContent()).trim()}"`);
+      if (!/capped at (the posted|its) maximum/i.test(await note.textContent())) bad.push(`the line reads "${(await note.textContent()).trim()}"`);
       for (const msg of await oneLine(page, '#drawer .d-comp-note')) bad.push(msg);
       // Its Details say what the similar roles suggest and what the posting states.
       await note.locator('.ms-note__more').click({ timeout: 5000 }).catch(() => {});

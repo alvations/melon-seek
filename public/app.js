@@ -4634,7 +4634,7 @@ function compstimateBlock(job) {
       h('span', { class: 'd-comp-amt' }, `about ${money(est.mid)}`),
       h('span', { class: 'muted' }, `(${money(est.low)}–${money(est.high).replace(/^\$/, '')}, ${v.confidence.toLowerCase()} confidence)`)),
     // fix-density: one line, and the basis, accuracy (MR-17), dates and (MR-3) the method behind "Details".
-    noteLine({ cls: 'd-comp-note', key: 'drawer-comp', line: cap ? fitOneLine(h('span'), ['An estimate, capped at the posted maximum', 'Capped at the posted maximum']) : 'Not from the posting: an estimate', details: [
+    noteLine({ cls: 'd-comp-note', key: 'drawer-comp', line: cap ? fitOneLine(h('span'), ['An estimate, capped at the posted maximum', 'Capped at the posted maximum', 'Capped at its maximum']) : 'Not from the posting: an estimate', details: [
       cap ? `Similar roles suggest about ${money(cap.mid)} (${money(cap.low)}–${money(cap.high).replace(/^\$/, '')}). The posting itself states up to ${money(cap.stated.amount, cap.stated.currency)}${cap.stated.currency === 'USD' ? '' : ` (about ${money(cap.max)})`}, a figure that passed our checks, so the estimate stops there.` : '',
       `${v.basis}. ${v.kind === 'ote' ? 'On-target earnings (base plus commission at target), like the roles it is based on. ' : ''}An estimate, not a figure from the posting (in US dollars a year).`,
       v.accuracy ? `${v.accuracy}: in half of the tests the estimate was at least this close to the posted pay.` : v.caution || '',

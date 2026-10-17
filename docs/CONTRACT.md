@@ -938,7 +938,8 @@ Findings D-47 to D-50 and D-52 ([docs/process/qa-desktop-beta-4.md](process/qa-d
   `salaryFlag.codes` are only `below_min` and `range_ratio` (its stated maximum passed the checks),
   `compstimateForJob` caps low, mid and high at `salaryRaw.max` in US dollars (rounded down to $1K) and adds
   `cap: { max, stated: { usd, amount, currency, text }, low, mid, high }` (the figures before the cap). The drawer's
-  line then reads "An estimate, capped at the posted maximum"; Details give the figure before the cap.
+  line then reads "An estimate, capped at the posted maximum" (shorter where that doesn't fit one line); Details give
+  the figure before the cap.
 
 **Rank (`public/features/shared.js`, D-48):** `payRank` adds `below` and `above` (same-country roles paid less and
 more). New pure `rankText(rank, among)`: "The highest pay of <among>" / "The lowest pay of <among>" only when no role

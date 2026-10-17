@@ -77,7 +77,8 @@
    `range_ratio` keeps its stated maximum (server/vet.js: those two checks say nothing about the top). Any other code
    (`above_max`, `hourly_high`, `junior_high`, `senior_low`, `min_gt_max`, `stat_outlier`) questions the top too, so no cap.
    `compstimateForJob` caps low, mid and high at it, rounded down to $1K, and keeps the figures before the cap.
-   - The drawer's line reads "An estimate, capped at the posted maximum" (short form "Capped at the posted maximum");
+   - The drawer's line reads "An estimate, capped at the posted maximum" (short forms "Capped at the posted maximum" and,
+     at 280 px where that took two lines, "Capped at its maximum");
      Details: "Similar roles suggest about $473K ($330K–602K). The posting itself states up to $464K, a figure that passed
      our checks, so the estimate stops there."
    - Considered: only saying "the posting states up to $464K" beside an uncapped figure. Rejected: the drawer would still
