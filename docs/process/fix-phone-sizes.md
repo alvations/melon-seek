@@ -149,8 +149,11 @@ fix-density 51/51, Desktop QA 21, Beta desktop QA 2 10/10, Beta UX review 9/9, F
 logo and the Beta tag at 360, 390 and 430 px). Afterwards `git checkout -- docs/screenshots` reverted the screenshots
 the suite rewrote outside this lane's folder.
 
-`MELON_BETA_SNAPSHOT_DIR= npm test` with the data links out of data/ (on 2754e9d; the later commits touch only the
-test, the log and a media query): 1116 pass, 0 fail, 8 skipped, 56 todo.
+`MELON_BETA_SNAPSHOT_DIR= npm test` with the data links out of data/: on 2754e9d 1116 pass, 0 fail, 8 skipped, 56 todo;
+on the final head (load 25) 1114 pass and 2 fail, S-3 ("one hostile 256 KB posting normalizes in under 2 s") and S-6,
+both timing tests, and both pass alone (7/7 in test/beta-security-review.test.js).
+
+The matrix through the suite runner (`node scripts/e2e.js --grep="^Phone matrix"`, the final CSS): 34/34.
 
 Screenshots (shrunk 15.8 → 3.3 MB): docs/screenshots/fix-phone-sizes/before-*.png and after-*.png, the Apple board in
 light at every size, dark at 280, 320, 344 and the Duo spanned, and the Duo with the hinge (first screen, job page,
