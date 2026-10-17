@@ -275,4 +275,19 @@ export function registerBetaDesktopQa4Tests(suite) {
     }
     assert(!bad.length, `the estimate shown in place of a posting's unclear pay is above the posting's own maximum: ${bad.join('; ')}`);
   });
+
+  suite.test('Beta desktop QA 4: [D-51] on a desktop the Ranges legend shows its keys, including "Striped", without a sideways scroll', async (ctx) => {
+    const { st, page } = await open(ctx, 'c=nvidia&v=ranges');
+    await needBoard(page, st, 'nvidia');
+    await page.waitForSelector('#chartHost .ms-chart__legend', { timeout: 30000 }); await sleep(600);
+    const r = await page.locator('#chartHost .ms-chart__legend').evaluate((e) => {
+      const box = e.getBoundingClientRect();
+      const keys = [...e.children].map((c) => ({ t: c.textContent.trim(), r: c.getBoundingClientRect() }));
+      // A key counts as shown when it ends inside the box, short of the 28 px fade.
+      const out = keys.filter((k) => k.r.right > box.right - 28).map((k) => k.t);
+      return { out, striped: keys.some((k) => /^Striped/.test(k.t)), w: Math.round(box.width), scrollW: e.scrollWidth };
+    });
+    if (!r.striped) skip('no striped bars on NVIDIA\'s Ranges view');
+    assert(!r.out.some((t) => /^Striped/.test(t)), `at 1440 px the legend shows ${r.w} of its ${r.scrollW} px; out of view (a vertical mouse wheel doesn't scroll it, and it has no scrollbar): ${r.out.map((t) => `"${t}"`).join(', ')}`);
+  });
 }
