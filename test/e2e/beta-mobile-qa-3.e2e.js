@@ -300,9 +300,11 @@ export function registerBetaMobileQa3Tests(suite) {
   suite.test('Beta mobile QA 3: a tap on a stacked Ranges row ("N roles") selects those postings: a chip with the count and the list', async (ctx) => {
     const { page } = await phone(ctx, { hash: 'c=microsoft&v=ranges' });
     await sleep(800);
-    const row = page.locator('#chartHost .ms-row').filter({ has: page.locator('.ms-row__label', { hasText: /^\d+ roles$/ }) }).first();
+    // fix-viz-5 (UX-41): a stacked row is named by its roles ("Software Engineer II +13") and counts its postings by its
+    // bar ("×14", data-n); it was named "14 roles".
+    const row = page.locator('#chartHost .ms-row:not([data-n="1"])').first();
     assert(await row.count(), 'Microsoft Ranges has a stacked row');
-    const n = Number((await row.locator('.ms-row__label').textContent()).match(/\d+/)[0]);
+    const n = Number(await row.getAttribute('data-n'));
     await row.evaluate((e) => e.scrollIntoView({ block: 'center' }));
     await sleep(300);
     await tapBox(page, await row.locator('.ms-row__bar').boundingBox(), 1200);
