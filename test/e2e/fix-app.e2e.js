@@ -228,11 +228,15 @@ export function registerFixAppTests(suite) {
     const box = filterSec(page, 'Salary').locator('input.range-val').first();
     assertEq((await filterSec(page, 'Salary').locator('.range-vals > label > span').first().innerText()).trim(), 'Min $/yr', 'Min label');
     const k = (n) => Math.round(n / 1000) * 1000;
+    // The converted figure follows the current FX rates (the monthly refresh changes them; 2026-10-16 moved
+    // £80,000 from $108K to $107K), so the expected text is built from the same rate the app uses.
+    const shown = (usd) => `\\$${usd / 1000}K`;
+    const gbp80 = k(toUSD(80000, 'GBP')), gbp250 = k(toUSD(250000, 'GBP')), aud350 = k(toUSD(350000, 'AUD'));
     const cases = [
-      ['£80,000', k(toUSD(80000, 'GBP')), /£80,000 ≈ \$108K a year/],
-      ['£250,000', k(toUSD(250000, 'GBP')), /£250,000 ≈ \$337K/],
+      ['£80,000', gbp80, new RegExp(`£80,000 ≈ ${shown(gbp80)} a year`)],
+      ['£250,000', gbp250, new RegExp(`£250,000 ≈ ${shown(gbp250)}`)],
       ['80k', 80000, /below the lowest pay listed here/],
-      ['A$350k', k(toUSD(350000, 'AUD')), /A\$350,000 ≈ \$245K/],
+      ['A$350k', aud350, new RegExp(`A\\$350,000 ≈ ${shown(aud350)}`)],
       ['AUD 350000', k(toUSD(350000, 'AUD')), /A\$350,000 ≈/],
       ['60000', 60000, /below the lowest pay/],
       ['400', 400000, /“400” read as \$400K a year/],

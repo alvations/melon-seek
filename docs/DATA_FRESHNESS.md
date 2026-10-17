@@ -312,6 +312,11 @@ Some tests and docs pin numbers that move when the data refreshes:
 
 `scripts/refresh/derived.js` regenerates the generated blocks (`<!-- freshness:... -->` markers) in each refresh PR. Hand-written figures are checked and reported as drift.
 
+The refresh's gate runs `npm test`, not the browser suite (`scripts/e2e.js`). So an e2e test that pins a converted
+figure passes the gate and breaks after a refresh. The first real FX refresh (2026-10-16) did this to Fix app
+[P-5] ("£80,000 ≈ $108K" became $107K). E2e tests build their expected figures from the app's own rates (`toUSD`
+from public/viz/palette.js), never from a literal.
+
 Intentional golden vectors, such as the tax tests, change only together with a verified rule change. The list of pins and their owners is in [process/freshness-derived.md](process/freshness-derived.md) and [process/freshness-audit-surface.md](process/freshness-audit-surface.md).
 
 ### History and the archive

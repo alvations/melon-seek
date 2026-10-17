@@ -172,6 +172,10 @@ don't lose that much." So:
 
 ## Known traps
 
+- **E2e tests that pin converted pay break after an FX refresh.** The monthly refresh commits once `npm test`
+  passes; it does not run the browser suite. Fix app [P-5] pinned "£80,000 ≈ $108K", and the September rates made it
+  $107K. In e2e tests, build expected figures from `toUSD` (public/viz/palette.js), as the test's own `want` value
+  already did, never from a literal (docs/DATA_FRESHNESS.md "Pinned values").
 - **Phones come in more sizes than 360, 390 and 430.** On 2026-10-16 the phone matrix (test/e2e/phone-sizes.mjs,
   run by test/e2e/webkit/phone-smoke.mjs and webkit-phone.yml) found the Razr cover screen (352x355) broken: the
   landscape rule `(max-width: 860px) and (max-height: 500px)` caught a square screen, the top bar laid out at
