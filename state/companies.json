@@ -131,9 +131,9 @@
  },
  "google": {
   "slug": "google",
-  "lastObservedAt": "2026-10-17T11:16:19.597Z",
+  "lastObservedAt": "2026-10-17T16:00:59.790Z",
   "firstObservedAt": "2026-10-10T11:09:51.834Z",
-  "observations": 27,
+  "observations": 28,
   "name": "Google",
   "channel": "beta",
   "source": "google",
@@ -147,10 +147,10 @@
    "resumed": 0,
    "closed": 0,
    "unseen": 0,
-   "changed": 0,
-   "payChanged": 0,
-   "sourceChanged": 0,
-   "observations": 1
+   "changed": 7,
+   "payChanged": 1,
+   "sourceChanged": 1,
+   "observations": 2
   },
   "lastDailyDate": "2026-10-17",
   "lastDailyAt": "2026-10-17T05:08:02.064Z"
@@ -183,35 +183,35 @@
  },
  "microsoft": {
   "slug": "microsoft",
-  "lastObservedAt": "2026-10-17T11:23:46.197Z",
+  "lastObservedAt": "2026-10-17T16:03:23.646Z",
   "firstObservedAt": "2026-10-10T10:55:39.033Z",
-  "observations": 27,
+  "observations": 28,
   "name": "Microsoft",
   "channel": "beta",
   "source": "eightfold",
   "board": "microsoft",
   "color": "#00a4ef",
-  "open": 2439,
-  "ids": 3123,
+  "open": 2440,
+  "ids": 3124,
   "pending": {
-   "opened": 1,
+   "opened": 2,
    "reopened": 0,
    "resumed": 286,
    "closed": 287,
    "unseen": 0,
-   "changed": 13,
+   "changed": 14,
    "payChanged": 1,
-   "sourceChanged": 1,
-   "observations": 1
+   "sourceChanged": 2,
+   "observations": 2
   },
   "lastDailyDate": "2026-10-17",
   "lastDailyAt": "2026-10-17T05:11:06.285Z"
  },
  "netflix": {
   "slug": "netflix",
-  "lastObservedAt": "2026-10-17T11:14:10.323Z",
+  "lastObservedAt": "2026-10-17T15:59:24.290Z",
   "firstObservedAt": "2026-10-10T10:21:03.942Z",
-  "observations": 27,
+  "observations": 28,
   "name": "Netflix",
   "channel": "beta",
   "source": "eightfold",
@@ -225,10 +225,10 @@
    "resumed": 0,
    "closed": 0,
    "unseen": 0,
-   "changed": 32,
+   "changed": 64,
    "payChanged": 0,
    "sourceChanged": 0,
-   "observations": 1
+   "observations": 2
   },
   "lastDailyDate": "2026-10-17",
   "lastDailyAt": "2026-10-17T05:03:30.103Z"
