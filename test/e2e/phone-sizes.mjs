@@ -35,6 +35,8 @@ export const POSTURES = Object.freeze([
   android('Surface Duo (spanned, stacked)', 720, 1114, 2.5, 'Surface Duo'),
   ios('iPhone 13 mini (landscape)', 812, 375, 3),
   ios('iPhone SE (3rd gen, landscape)', 667, 375, 2),
+  // Over 860 px: the desktop layout on a touch screen (mobile QA 4, M-52).
+  ios('iPhone 15 Pro Max (landscape)', 932, 430, 3),
   android('Motorola razr (inner, landscape)', 1005, 412, 2.625, 'motorola razr 50 ultra'),
 ]);
 
