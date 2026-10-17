@@ -16,9 +16,9 @@
 //   UX-57  the chart view's toolbar has 3 controls again: the stats line's Details is folded into the chart notes'
 //          Details (the map keeps it, having no chart notes).
 //
-// Every phone change is checked on the phone-size matrix (the lead, 2026-10-16: "Make sure we check for all phone
-// sizes from iPhone mini to razr to duo"): Galaxy Fold folded 280x653, iPhone SE 320x568, Razr cover 352x355,
-// iPhone mini 375x812, 390x844, 412x1005, 430x932, Surface Duo 540x720 and spanned 1114x720, and landscapes.
+// Every phone change is checked on the phone-size matrix, test/e2e/phone-sizes.mjs (the user, 2026-10-16: "Make sure
+// we check for all phone sizes from iPhone mini to razr to duo or something"): the folded Galaxy Fold (280x653) to
+// the Surface Duo spanned (1114x720), the Razr cover screen (352x355) and landscapes.
 //
 // The tests serve the static build (FPC_DIST, else BETA_QA_DIST, else dist/) under /melon-seek/ the way GitHub Pages
 // does (gzip), and skip without a beta build. Taps are real touch: CDP Input.dispatchTouchEvent in Chromium, first
@@ -32,34 +32,32 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { ROOT, assert, skip } from './harness.js';
+import { ALL_SIZES } from './phone-sizes.mjs';
 
 const IOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
 const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36';
-/** The phone-size matrix (portrait and the wide ones). Widths up to 860 get the phone layout. */
-const PHONES = [
-  { name: 'Fold folded 280x653', width: 280, height: 653, ua: ANDROID },
-  { name: 'iPhone SE 320x568', width: 320, height: 568 },
-  { name: 'Razr cover 352x355', width: 352, height: 355, ua: ANDROID },
-  { name: 'iPhone mini 375x812', width: 375, height: 812 },
-  { name: 'iPhone 390x844', width: 390, height: 844 },
-  { name: 'Pixel 412x1005', width: 412, height: 1005, ua: ANDROID },
-  { name: 'iPhone Pro Max 430x932', width: 430, height: 932 },
-  { name: 'Duo 540x720', width: 540, height: 720, ua: ANDROID },
+// The shared phone-size matrix (test/e2e/phone-sizes.mjs: 14 portrait phones and 5 postures), plus the landscapes
+// the reviews used (M-47 was found at 844x390).
+const named = (re) => ALL_SIZES.find((d) => re.test(d.name));
+const P390 = named(/iPhone 13 \/ 14/);
+const FOLD = named(/Fold \(folded\)/);
+const RAZR_COVER = named(/razr \(cover/);
+const DUO = named(/Surface Duo \(one/);
+const DUO_SPANNED = named(/spanned/);
+const RAZR_LAND = named(/razr \(inner, landscape/);
+const EXTRA_LANDSCAPES = [
+  { name: 'iPhone 13 / 14 (landscape)', width: 844, height: 390, dpr: 3, ua: IOS },
+  { name: 'iPhone SE (1st gen, landscape)', width: 568, height: 320, dpr: 2, ua: IOS },
+  { name: 'Galaxy Fold (folded, landscape)', width: 653, height: 280, dpr: 3, ua: ANDROID },
+  { name: 'Surface Duo (one screen, landscape)', width: 720, height: 540, dpr: 2.5, ua: ANDROID },
 ];
-const LANDSCAPES = [
-  { name: 'iPhone landscape 844x390', width: 844, height: 390 },
-  { name: 'iPhone mini landscape 812x375', width: 812, height: 375 },
-  { name: 'iPhone SE landscape 568x320', width: 568, height: 320 },
-  { name: 'Fold folded landscape 653x280', width: 653, height: 280, ua: ANDROID },
-  { name: 'Duo landscape 720x540', width: 720, height: 540, ua: ANDROID },
-];
-const DUO_SPANNED = { name: 'Duo spanned 1114x720', width: 1114, height: 720, ua: ANDROID };
-const DESKTOP = { name: 'desktop 1440x900', width: 1440, height: 900, desktop: true };
-const P390 = PHONES[4];
+const DESKTOP = { name: 'desktop', width: 1440, height: 900, desktop: true };
+const D1024 = { name: 'desktop', width: 1024, height: 768, desktop: true };
+const tag = (d) => `${d.name} ${d.width}x${d.height}`;
 const isPhone = (d) => !d.desktop && d.width <= 860;
 const device = (d, extra = {}) => (d.desktop
   ? { viewport: { width: d.width, height: d.height }, deviceScaleFactor: 1, ...extra }
-  : { viewport: { width: d.width, height: d.height }, userAgent: d.ua || IOS, isMobile: true, hasTouch: true, deviceScaleFactor: 2, ...extra });
+  : { viewport: { width: d.width, height: d.height }, userAgent: d.ua || IOS, isMobile: true, hasTouch: true, deviceScaleFactor: d.dpr || 2, ...extra });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const SLOW_4G = { offline: false, latency: 562.5, downloadThroughput: 180e3, uploadThroughput: 84e3 };
 const SHOTS = path.join(ROOT, 'docs', 'screenshots', 'fix-phone-controls');
@@ -304,8 +302,8 @@ export function registerFixPhoneControlsTests(suite) {
     assert(b.focus === `article[${c.id}]`, `focus returns to the posting's card (${b.focus})`);
   });
 
-  for (const d of [...PHONES, DUO_SPANNED, DESKTOP]) {
-    suite.test(`Fix phone controls: [M-43] [${d.name}] while Amazon's list loads, a tap on a preview card opens its job page at once; the whole page replaces it when the list lands`, async (ctx) => {
+  for (const d of [...ALL_SIZES, DESKTOP]) {
+    suite.test(`Fix phone controls: [M-43] [${tag(d)}] while Amazon's list loads, a tap on a preview card opens its job page at once; the whole page replaces it when the list lands`, async (ctx) => {
       const { page, cdp, release, errors } = await open(ctx, d, 'c=amazon', { hold: /\/api\/jobs\/amazon\.json/, wait: false });
       const shown = await page.waitForSelector('#resultsList .card[data-preview-id]', { timeout: 60000 }).then(() => true, () => false);
       if (!shown) { release(); skip('no first-page preview for Amazon in this build'); }
@@ -316,7 +314,7 @@ export function registerFixPhoneControlsTests(suite) {
       await tap(page, cdp, d, c.x, c.y);
       await sleep(400);
       const s = await drawerState(page);
-      await shot(page, `M-43-${slug(d.name)}-loading`);
+      await shot(page, `M-43-${slug(tag(d))}-loading`);
       assert(s.previewing, 'the list is still held back');
       assert(s.open && s.title === c.title, `400 ms after the tap on "${c.title}" its job page is open with its title: ${JSON.stringify(s)}`);
       assert(s.busy && s.loading, `the job page says its details are loading: ${JSON.stringify(s)}`);
@@ -337,8 +335,8 @@ export function registerFixPhoneControlsTests(suite) {
     });
   }
 
-  for (const [d, how] of [[P390, 'Back button'], [P390, 'browser Back'], [PHONES[2], 'Back button'], [DESKTOP, 'Escape']]) {
-    suite.test(`Fix phone controls: [M-43] [${d.name}] a loading job page closed with the ${how} stays closed when the list lands, and the page stays`, async (ctx) => {
+  for (const [d, how] of [[P390, 'Back button'], [P390, 'browser Back'], [RAZR_COVER, 'Back button'], [DESKTOP, 'Escape']]) {
+    suite.test(`Fix phone controls: [M-43] [${tag(d)}] a loading job page closed with the ${how} stays closed when the list lands, and the page stays`, async (ctx) => {
       const { page, cdp, release } = await open(ctx, d, 'c=amazon', { hold: /\/api\/jobs\/amazon\.json/, wait: false });
       const shown = await page.waitForSelector('#resultsList .card[data-preview-id]', { timeout: 60000 }).then(() => true, () => false);
       if (!shown) { release(); skip('no first-page preview for Amazon in this build'); }
@@ -364,8 +362,8 @@ export function registerFixPhoneControlsTests(suite) {
   }
 
   // ------------------------------------------------------------------ A-11
-  for (const d of [DESKTOP, DUO_SPANNED, { name: 'desktop 1024x768', width: 1024, height: 768, desktop: true }]) {
-    suite.test(`Fix phone controls: [A-11] [${d.name}] preview cards take the list's keys (ArrowDown/Up, Enter, Escape), and focus stays on the same posting when the whole list replaces the preview`, async (ctx) => {
+  for (const d of [DESKTOP, D1024, DUO_SPANNED]) {
+    suite.test(`Fix phone controls: [A-11] [${tag(d)}] preview cards take the list's keys (ArrowDown/Up, Enter, Escape), and focus stays on the same posting when the whole list replaces the preview`, async (ctx) => {
       const { page, release } = await open(ctx, d, 'c=amazon', { hold: /\/api\/jobs\/amazon\.json/, wait: false });
       const shown = await page.waitForSelector('#resultsList .card[data-preview-id]', { timeout: 60000 }).then(() => true, () => false);
       if (!shown) { release(); skip('no first-page preview for Amazon in this build'); }
@@ -391,7 +389,7 @@ export function registerFixPhoneControlsTests(suite) {
       assert(!e.open && (await focused()) === ids[2], `Escape closes it and focus returns to preview card 3: ${JSON.stringify(e)}, focus ${await focused()}`);
       await page.keyboard.press('ArrowDown');
       await sleep(150);
-      await shot(page, `A-11-${slug(d.name)}-preview-focus`);
+      await shot(page, `A-11-${slug(tag(d))}-preview-focus`);
       release();
       await ready(page);
       await sleep(800);
@@ -404,8 +402,8 @@ export function registerFixPhoneControlsTests(suite) {
   }
 
   // ------------------------------------------------------------------ M-40
-  for (const d of [...PHONES, LANDSCAPES[0], DUO_SPANNED, DESKTOP]) {
-    suite.test(`Fix phone controls: [M-40] [${d.name}] Amazon's departments can be told apart in the Department list ("…--Technical" and "…--Non-Tech"), at most two lines each, the whole name spoken`, async (ctx) => {
+  for (const d of [...ALL_SIZES, EXTRA_LANDSCAPES[0], DESKTOP]) {
+    suite.test(`Fix phone controls: [M-40] [${tag(d)}] Amazon's departments can be told apart in the Department list ("…--Technical" and "…--Non-Tech"), at most two lines each, the whole name spoken`, async (ctx) => {
       const { page, cdp } = await open(ctx, d, 'c=amazon');
       let sel;
       if (isPhone(d)) {
@@ -425,12 +423,12 @@ export function registerFixPhoneControlsTests(suite) {
       assert(rows.some((r) => /--Technical$/.test(r.full)) && rows.some((r) => /--Non-Tech$/.test(r.full)), `the build has Amazon's two "Project/Program/Product Management--…" departments (${rows.length} rows)`);
       const twin = rows.find((r) => /--Technical$/.test(r.full));
       await page.evaluate(({ sel, full }) => [...document.querySelectorAll(sel)].find((e) => e.textContent.replace(/\s+/g, ' ').trim() === full)?.scrollIntoView({ block: 'center' }), { sel, full: twin.full });
-      await shot(page, `M-40-${slug(d.name)}-amazon`);
-      assertRows(rows, `${d.name} Amazon`);
+      await shot(page, `M-40-${slug(tag(d))}-amazon`);
+      assertRows(rows, `${tag(d)} Amazon`);
     });
   }
-  for (const d of [PHONES[0], P390, DESKTOP]) {
-    suite.test(`Fix phone controls: [M-40] [${d.name}] Anduril's "Hardware Operations : Supply Chain : …" departments (main site, all of them) can be told apart`, async (ctx) => {
+  for (const d of [FOLD, P390, DESKTOP]) {
+    suite.test(`Fix phone controls: [M-40] [${tag(d)}] Anduril's "Hardware Operations : Supply Chain : …" departments (main site, all of them) can be told apart`, async (ctx) => {
       const st = await serveDist();
       if (!st || !fs.existsSync(path.join(st.dist, 'api', 'jobs', 'anduril.json'))) skip('no Anduril list in this build');
       const { page, cdp } = await open(ctx, d, 'c=anduril', { site: 'main' });
@@ -450,15 +448,15 @@ export function registerFixPhoneControlsTests(suite) {
       const rows = await page.evaluate(shownRows, `${root} label.check .check-label`);
       assert(rows.filter((r) => /^Hardware Operations : Supply Chain : /.test(r.full)).length >= 2, `Anduril has several "Hardware Operations : Supply Chain : …" departments (${rows.length} rows)`);
       await page.evaluate((root) => [...document.querySelectorAll(`${root} .check-label`)].find((e) => /^Hardware Operations : Supply Chain/.test(e.textContent))?.scrollIntoView({ block: 'center' }), root);
-      await shot(page, `M-40-${slug(d.name)}-anduril`);
-      assertRows(rows, `${d.name} Anduril`, { wrapOk: true });
+      await shot(page, `M-40-${slug(tag(d))}-anduril`);
+      assertRows(rows, `${tag(d)} Anduril`, { wrapOk: true });
       console.log(`      ${rows.length} rows: ${rows.filter((r) => r.wrap).length} wrap whole, ${rows.filter((r) => r.cut).length} cut in two parts`);
     });
   }
 
   // ------------------------------------------------------------------ A-10
-  for (const d of [DESKTOP, P390]) {
-    suite.test(`Fix phone controls: [A-10] [${d.name}] the Company and Department checklists (and Location, Seniority, Employment type) are named groups, in the filter panel and the Department menu`, async (ctx) => {
+  for (const d of [DESKTOP, P390, FOLD]) {
+    suite.test(`Fix phone controls: [A-10] [${tag(d)}] the Company and Department checklists (and Location, Seniority, Employment type) are named groups, in the filter panel and the Department menu`, async (ctx) => {
       const { page, cdp } = await open(ctx, d, 'c=google');
       const names = () => page.evaluate(() => [...document.querySelectorAll('#filters [role=group].checklist, #popover [role=group].checklist')].filter((g) => g.getClientRects().length || g.closest('details')).map((g) => {
         const ids = (g.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean);
@@ -480,7 +478,7 @@ export function registerFixPhoneControlsTests(suite) {
         const menu = (await names()).filter((g) => g.where === 'menu');
         assert(has(menu, 'Company') && has(menu, 'Department') && menu.every((g) => g.name), `the Department menu's lists are named: ${JSON.stringify(menu)}`);
       }
-      await shot(page, `A-10-${slug(d.name)}-google`);
+      await shot(page, `A-10-${slug(tag(d))}-google`);
     });
   }
   suite.test('Fix phone controls: [A-10] [desktop 1440x900] a one-company board\'s Department checklist is named "Department" (its heading is hidden)', async (ctx) => {
@@ -494,8 +492,8 @@ export function registerFixPhoneControlsTests(suite) {
 
   // ------------------------------------------------------------------ M-47
   const kbOf = (d) => Math.round(d.height > d.width ? Math.min(300, d.height * 0.42) : d.height * 0.49);
-  for (const d of [...LANDSCAPES, ...PHONES]) {
-    suite.test(`Fix phone controls: [M-47] [${d.name}, keyboard ${kbOf(d)} px] a tap on the Pay estimate title field brings it above the keyboard`, async (ctx) => {
+  for (const d of [...EXTRA_LANDSCAPES, ...ALL_SIZES]) {
+    suite.test(`Fix phone controls: [M-47] [${tag(d)}, keyboard ${kbOf(d)} px] a tap on the Pay estimate title field brings it above the keyboard`, async (ctx) => {
       const kb = kbOf(d);
       const { page, cdp } = await open(ctx, d, 'c=amazon&m=insights', { keyboard: kb });
       await page.waitForSelector('#compHost input.ms-comp__input', { timeout: 60000 });
@@ -515,7 +513,7 @@ export function registerFixPhoneControlsTests(suite) {
         const label = e.labels?.[0]?.getBoundingClientRect();
         return { focused: document.activeElement === e, top: Math.round(b.top), bottom: Math.round(b.bottom), labelTop: label ? Math.round(label.top) : null, vvTop: Math.round(vv.offsetTop), vvBottom: Math.round(vv.offsetTop + vv.height), boxTop: Math.round(bb.top), boxBottom: Math.round(bb.bottom), page: (document.scrollingElement || document.documentElement).scrollTop, innerHeight };
       });
-      await shot(page, `M-47-${slug(d.name)}-keyboard`);
+      await shot(page, `M-47-${slug(tag(d))}-keyboard`);
       assert(r.focused, 'the field has focus');
       assert(r.vvBottom < r.innerHeight - 50, `the simulated keyboard is up (${JSON.stringify(r)})`);
       assert(r.top >= r.vvTop && r.bottom <= r.vvBottom, `the field (${r.top}–${r.bottom}) is under the keyboard: only ${r.vvTop}–${r.vvBottom} is visible`);
@@ -530,8 +528,8 @@ export function registerFixPhoneControlsTests(suite) {
   }
 
   // ------------------------------------------------------------------ UX-56
-  for (const d of [{ name: 'desktop 1024x768', width: 1024, height: 768, desktop: true }, { name: 'desktop 900x700', width: 900, height: 700, desktop: true }, { name: 'desktop 1199x800', width: 1199, height: 800, desktop: true }, DUO_SPANNED]) {
-    suite.test(`Fix phone controls: [UX-56] [${d.name}] the closed filter side sheet takes no keyboard focus; opened, it does; Escape closes it back to Filters`, async (ctx) => {
+  for (const d of [D1024, { name: 'desktop', width: 900, height: 700, desktop: true }, { name: 'desktop', width: 1199, height: 800, desktop: true }, DUO_SPANNED, RAZR_LAND]) {
+    suite.test(`Fix phone controls: [UX-56] [${tag(d)}] the closed filter side sheet takes no keyboard focus; opened, it does; Escape closes it back to Filters`, async (ctx) => {
       const { page } = await open(ctx, d, 'c=google');
       const closed = await page.evaluate(() => { const r = document.querySelector('#filters').getBoundingClientRect(); return r.right <= 0 || r.left >= innerWidth; });
       assert(closed, 'the filter sheet is closed, off screen, at this width');
@@ -553,7 +551,7 @@ export function registerFixPhoneControlsTests(suite) {
       await sleep(500);
       const o = await page.evaluate(() => ({ inert: document.querySelector('#filters').inert, hidden: document.querySelector('#filters').getAttribute('aria-hidden'), focusIn: !!document.activeElement?.closest('#filters') }));
       assert(!o.inert && o.hidden !== 'true' && o.focusIn, `opened, the sheet takes focus: ${JSON.stringify(o)}`);
-      await shot(page, `UX-56-${slug(d.name)}-open`);
+      await shot(page, `UX-56-${slug(tag(d))}-open`);
       await page.keyboard.press('Escape');
       await sleep(500);
       const c = await page.evaluate(() => ({ inert: document.querySelector('#filters').inert, focus: document.activeElement?.id }));
@@ -609,15 +607,20 @@ export function registerFixPhoneControlsTests(suite) {
     if ((await btn.getAttribute('aria-expanded')) !== 'true') { await btn.click(); await sleep(250); }
     return page.evaluate(() => [...document.querySelectorAll('#chartHost .ms-note__list li')].map((li) => li.textContent.replace(/\s+/g, ' ').trim()).filter(Boolean));
   };
-  for (const d of [DESKTOP, { name: 'desktop 1024x768', width: 1024, height: 768, desktop: true }, DUO_SPANNED, P390, PHONES[0], PHONES[7]]) {
-    suite.test(`Fix phone controls: [UX-57] [${d.name}] the chart view's toolbar has 3 controls (no Details on the stats line); its facts are in the chart notes' Details`, async (ctx) => {
+  for (const d of [DESKTOP, D1024, DUO_SPANNED, RAZR_LAND, P390, FOLD, DUO, RAZR_COVER]) {
+    suite.test(`Fix phone controls: [UX-57] [${tag(d)}] the chart view's toolbar has 3 controls (no Details on the stats line); its facts are in the chart notes' Details`, async (ctx) => {
       const { page } = await open(ctx, d, 'c=amazon');
-      await page.waitForSelector('#chartHost .ms-note__more', { timeout: 30000 }).catch(() => {});
+      await page.waitForSelector('#chartHost .ms-note__more', { state: 'attached', timeout: 30000 }).catch(() => {});
       await sleep(800);
       const t = await page.evaluate(toolbar);
-      await shot(page, `UX-57-${slug(d.name)}-chart`);
+      await shot(page, `UX-57-${slug(tag(d))}-chart`);
       assert(t.statsDetails === 0, `the stats line has its own Details button (toolbar: ${t.controls.join(', ')})`);
       assert(t.controls.length <= 3, `the chart view's toolbar has ${t.controls.length} controls: ${t.controls.join(', ')}`);
+      // The facts stay one tap away wherever the stats line shows: in the chart notes' Details. A short landscape
+      // layout shows neither line (styles.css: rows matter more there), and then there is nothing to fold.
+      const shown = await page.evaluate(() => ({ stats: document.querySelector('#statsLine').getClientRects().length > 0, notes: (document.querySelector('#chartHost .ms-chart__foot')?.getClientRects().length || 0) > 0 }));
+      if (!shown.stats && !shown.notes) { console.log('      note: this layout shows neither the stats line nor the chart notes'); return; }
+      assert(shown.notes, `the stats line shows but the chart notes, which hold its facts, do not: ${JSON.stringify(shown)}`);
       const notes = await chartNotes(page);
       assert(notes, 'the chart notes have a Details list');
       assert(notes.some((n) => /^The median is base pay/.test(n)), `the stats line's facts are in the chart notes' Details: ${JSON.stringify(notes)}`);
@@ -647,7 +650,7 @@ export function registerFixPhoneControlsTests(suite) {
     }
   });
   for (const d of [DESKTOP, P390]) {
-    suite.test(`Fix phone controls: [UX-57] [${d.name}] in Map view (no chart notes) the stats line keeps its Details, with the same facts`, async (ctx) => {
+    suite.test(`Fix phone controls: [UX-57] [${tag(d)}] in Map view (no chart notes) the stats line keeps its Details, with the same facts`, async (ctx) => {
       const { page } = await open(ctx, d, 'c=amazon&m=map');
       await sleep(1200);
       const t = await page.evaluate(toolbar);

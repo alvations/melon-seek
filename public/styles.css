@@ -553,6 +553,9 @@ html[data-mode="map"] .demo-banner > code { order: 0; flex: 0 1 auto; margin-lef
 .d-company { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--ms-muted); font-size: 13px; }
 .d-title { margin: 6px 0 6px; font-size: 23px; line-height: 1.22; letter-spacing: -.02em; }
 .d-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--ms-muted); font-size: 13.5px; }
+/* M-47: typing in Insights on a short touch screen (landscape, the keyboard up): the top bars step aside so the
+   field shows above the keyboard (app.js revealField); they come back when it loses focus or the keyboard closes. */
+body.kb-lift .topbar, body.kb-lift .quickbar { display: none; }
 /* M-43: a preview card's job page while the whole list loads: the card's fields, then "Loading…" */
 .d-loading-pay { margin: 14px 0 0; }
 .d-loading { margin: 14px 0 10px; color: var(--ms-muted); font-size: 14px; }
@@ -1170,9 +1173,6 @@ html[data-mode="insights"] .viz-controls { display: none; }
   .filters-foot { padding: 10px var(--m-gutter-r) calc(10px + env(safe-area-inset-bottom)) var(--m-gutter-l); background: var(--ms-bg); }
   .filters-foot .btn { height: 48px; font-size: 16px; }
   body.kb-open .filters-foot { display: none; }   /* the keyboard would cover it anyway */
-  /* M-47: typing in Insights on a short screen (landscape, the keyboard up): the top bars step aside so the
-     field shows above the keyboard (app.js revealField); they come back when it loses focus. */
-  body.kb-lift .topbar, body.kb-lift .quickbar { display: none; }
   body.filters-open .results { content-visibility: hidden; }   /* covered by the sheet; catches up on close */
   .fsec > summary { min-height: 52px; padding: 0; font-size: 15px; }
   .fsec-badge { min-width: 20px; height: 20px; font-size: 12px; }

@@ -98,6 +98,22 @@ jobs:
           set -o pipefail
           node test/e2e/fix-touch-tips.e2e.js --browser=webkit | tee webkit-fix-touch-tips.log
         continue-on-error: true # first WebKit run of these tests (the sandbox has only Chromium); the summary shows each result
+      # fix-phone-controls (docs/process/fix-phone-controls.md), on every size in test/e2e/phone-sizes.mjs: a tap on a
+      # preview card opens its job page at once (M-43) and preview cards take the keys (A-11); department rows told
+      # apart (M-40) and named (A-10); the Pay estimate field above a simulated keyboard (M-47); the closed side sheet
+      # inert (UX-56); one Details in the chart view (UX-57). The 4x CPU / Slow 4G case needs Chromium's CDP and skips
+      # here. Its result is in this step's summary and log; a red result does not stop the steps after it.
+      - name: Phone controls on WebKit (fix-phone-controls)
+        timeout-minutes: 40
+        continue-on-error: true
+        env:
+          FPC_DIST: dist
+        run: |
+          set -o pipefail
+          status=0
+          node test/e2e/fix-phone-controls.e2e.js --browser=webkit | tee webkit-fix-phone-controls.log || status=$?
+          { echo '### Phone controls on WebKit (fix-phone-controls)'; echo '```'; grep -E '^\s+(✓|✗|-) |passed' webkit-fix-phone-controls.log || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
       - name: Same tests on Chromium, for comparison
         env:
           BETA_QA2_DIST: dist

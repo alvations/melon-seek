@@ -4819,7 +4819,7 @@ function bindKeyboardInsets() {
     const short = vv.height < full - 120; // any on-screen keyboard takes well over 120px
     const open = isMobile() && short && (typing() || (vv.offsetTop || 0) > 0);
     document.body.classList.toggle('kb-open', open);
-    if (!open) document.body.classList.remove('kb-lift'); // M-47: the top bars come back with the keyboard down
+    if (!(short && typing())) document.body.classList.remove('kb-lift'); // M-47: the top bars come back with the keyboard down
     document.body.classList.toggle('kb-search', open && document.activeElement?.id === 'search'); // M-12: lift the peek row
     document.documentElement.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
     document.documentElement.style.setProperty('--vvt', `${Math.max(0, Math.round(vv.offsetTop || 0))}px`); // fix-company-scroll: iOS pans the visual viewport
@@ -4836,7 +4836,10 @@ function bindKeyboardInsets() {
   vv.addEventListener('scroll', resync);
   document.addEventListener('focusin', (e) => {
     resync();
-    if (isMobile() && e.target.matches?.('#filters input, #popover input, #insightsHost input:not([type=checkbox]):not([type=radio]):not([type=range])')) setTimeout(() => revealField(e.target), 300);
+    const t = e.target;
+    if (isMobile() && t.matches?.('#filters input, #popover input')) setTimeout(() => revealField(t), 300);
+    // M-47: the Pay estimate's fields on any touch screen (a phone in landscape can be wider than 860 px).
+    else if ((isMobile() || matchMedia('(hover: none) and (pointer: coarse)').matches) && t.matches?.('#insightsHost input:not([type=checkbox]):not([type=radio]):not([type=range])')) setTimeout(() => revealField(t), 300);
   });
   document.addEventListener('focusout', () => setTimeout(resync, 50));
 }

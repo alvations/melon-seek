@@ -144,11 +144,14 @@ export function registerFixDensityTests(suite) {
         check(stats, bad, 'chart');
         check(notes, bad, 'chart');
         if (phone) check(await measure(p, '#tagline'), bad, 'chart');
-        for (const m of [...stats, ...notes]) if (!m.details) bad.push(`${m.sel}: no Details button`);
+        // UX-57 (fix-phone-controls): in Chart view the stats line is its one line, and its facts are in the chart
+        // notes' Details, so the view has one Details.
+        for (const m of notes) if (!m.details) bad.push(`${m.sel}: no Details button`);
+        for (const m of stats) if (m.details) bad.push(`${m.sel}: a second Details button in the Chart view (UX-57)`);
         // The facts are still there, one click away (and the exchange rates' date, MR-2).
         const e1 = await details(p, '#chartHost .ms-chart__foot', { want: /Pay is yearly/ });
         if (e1) bad.push(e1);
-        const e2 = await details(p, '#statsLine', { want: /show pay/ });
+        const e2 = await details(p, '#chartHost .ms-chart__foot', { want: /show pay/ });
         if (e2) bad.push(e2);
         // Ranges: the notes line and a one-row legend.
         await go(p, `${base}#c=${slug}&v=ranges`);
