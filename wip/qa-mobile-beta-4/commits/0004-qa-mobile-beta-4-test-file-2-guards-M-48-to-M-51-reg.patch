@@ -1,7 +1,7 @@
 From b6f8778d1a7318502d248700d9a7c5ee0281c0f7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 13:46:15 +0000
-Subject: [PATCH 4/8] qa-mobile-beta-4: test file (2 guards, M-48 to M-51),
+Subject: [PATCH 04/10] qa-mobile-beta-4: test file (2 guards, M-48 to M-51),
  registered in scripts/e2e.js
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
