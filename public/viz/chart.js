@@ -2005,7 +2005,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     // V-20: the pattern keys, beside the colours (only when there are such bars): striped spans, V-48 (fix-viz-5)
     // dashed on-target earnings, V-41 a stated minimum that fades out ("from").
     const key = (cls, words, n, title) => {
-      const item = el('span', 'ms-legend__span');
+      // .ms-legend__span is the striped key alone (fix-pay-at-place's tests count it); the others are kinds of pay.
+      const item = el('span', cls ? 'ms-legend__kind' : 'ms-legend__span');
       item.append(el('span', `ms-legend__spansw ${cls}`), el('span', 'ms-legend__spankey', words), el('span', 'ms-legend__n', n.toLocaleString()));
       item.title = title;
       legend.append(item);
@@ -2080,6 +2081,11 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       if (own && sp.tiers.length > 4) tip.append(el('div', 'ms-tip__sub', `+${sp.tiers.length - 4} more`));
     } else if (one) {
       tip.append(el('div', 'ms-tip__sub', `Posted for ${one}${rows > 1 ? `; the posting${many ? 's list' : ' lists'} other places’ ranges too` : ''}`));
+      // V-35: one posting's bar lists its places' ranges, this bar's own named as above, so the bar is seen as one of them.
+      const all = !many && rows > 1 && Array.isArray(j.salary.ranges) ? j.salary.ranges.filter((r) => r && isFinite(Number(r.min))) : [];
+      const mine = new Set((p.at || payAt(j))?.ranges || []);
+      for (const r of all.slice(0, 4)) tip.append(el('div', 'ms-tip__sub', `${mine.has(r) ? one : r.label || 'Another place'}: ${formatCurrency(r.min, String(r.currency || cur).toUpperCase())} – ${formatCurrency(r.max ?? r.min, String(r.currency || cur).toUpperCase())}`));
+      if (all.length > 4) tip.append(el('div', 'ms-tip__sub', `+${all.length - 4} more`));
     } else if (many && stackPerPlace(p)) {
       tip.append(el('div', 'ms-tip__sub', 'Each is the range posted for one of its places'));
     }

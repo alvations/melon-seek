@@ -155,7 +155,9 @@ export function registerBetaVizReviewTests2(suite) {
       return chartPay(jobs).plotted.filter((p) => { const s = spanTiers(p.job); return s && s.kind === 'places' && s.span === false; }).length;
     }, { base });
     if (!n) skip('no Amazon posting plotted at one of its places\' ranges');
-    const hit = await scrollFind(page, `(host) => { const r = [...host.querySelectorAll('.ms-row')].find((row) => /one of \\d+ places/.test(row.getAttribute('aria-label') || '')); return r ? r.dataset.idx : null; }`);
+    // fix-viz-5: since fix-pay-at-place a one-place bar's accessible name says "the range posted for <place>" (chart.js
+    // barPlace); the old "one of N places" wording no longer exists, so this test skipped. One posting's bar, not a stack.
+    const hit = await scrollFind(page, `(host) => { const r = [...host.querySelectorAll('.ms-row')].find((row) => row.dataset.n === '1' && /, the range posted for [^,]/.test(row.getAttribute('aria-label') || '')); return r ? r.dataset.idx : null; }`);
     if (hit == null) skip('no one-place row found');
     const row = page.locator(`#chartHost .ms-row[data-idx="${hit}"]`);
     await row.scrollIntoViewIfNeeded();

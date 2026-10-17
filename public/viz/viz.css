@@ -323,7 +323,7 @@
 .ms-row__bar--span.ms-row__bar--ote { background-image: repeating-linear-gradient(90deg, transparent 0 7px, var(--_surface) 7px 9px), repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in srgb, var(--_surface) 70%, transparent) 3px 5px); }
 /* V-41 (fix-viz-5): a stated minimum ("from €46K") has no top: its bar starts at the figure and fades out. */
 .ms-row__bar--min { min-width: 22px; border-radius: 4px 0 0 4px; -webkit-mask-image: linear-gradient(to right, #000 25%, transparent); mask-image: linear-gradient(to right, #000 25%, transparent); }
-.ms-legend__span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--_text); }
+.ms-legend__span, .ms-legend__kind { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--_text); }
 .ms-legend__spansw { flex: none; width: 18px; height: 8px; border-radius: 4px; background-color: var(--_muted); background-image: repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in srgb, var(--_surface) 70%, transparent) 3px 5px); }
 .ms-legend__spansw--ote { background-image: repeating-linear-gradient(90deg, transparent 0 7px, var(--_surface) 7px 9px); }
 .ms-legend__spansw--min { background-image: none; border-radius: 4px 0 0 4px; -webkit-mask-image: linear-gradient(to right, #000 25%, transparent); mask-image: linear-gradient(to right, #000 25%, transparent); }
