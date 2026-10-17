@@ -514,11 +514,13 @@ function disambiguateLocations(jobs) {
      NVIDIA's state "New York, US", now "New York State" (D-42); "Saint George, SC", now "St. George, SC" (D-41).
      A value is compared with each place's label, canonical name and posted words, "City, ST" and "City, Country",
      ignoring case, accents, periods and the "Saint"/"St" spelling, and is replaced only when exactly one label fits.
-   - Department: the board's own name ("Engineer, ASIC", "Project/Program/Product Management--Technical", kept as
-     departmentPosted) becomes the name shown (UX-32).
-   A value that fits nothing, or several labels, stays as it is. Returns true when the filters changed. */
+   - Department: the board's own name ("Engineer, ASIC", "Project/Program/Product Management--Technical") becomes the
+     name shown ("ASIC Engineering", UX-32), by the function the data uses (lib/families.js departmentDisplayName,
+     loaded only when a link has such a value).
+   A value that fits nothing, or several labels, stays as it is. Resolves to true when the filters changed. */
 const foldPlace = (s) => foldText(s).replace(/\./g, '').replace(/\bsaint\b/g, 'st').replace(/[^a-z0-9]+/g, ' ').trim();
-function resolveOldFilterKeys(jobs = data.jobs) {
+let familiesLib = null;
+async function resolveOldFilterKeys(jobs = data.jobs) {
   if (data.status !== 'ready' || (!S.l.length && !S.d.length)) return false;
   let changed = false;
   if (S.l.length) {
@@ -548,17 +550,19 @@ function resolveOldFilterKeys(jobs = data.jobs) {
       if (changed) S.l = next;
     }
   }
-  if (S.d.length) {
-    const shown = new Set(jobs.map(deptKey));
-    const was = new Map();
-    for (const j of jobs) if (j.departmentPosted && !was.has(j.departmentPosted)) was.set(j.departmentPosted, deptKey(j));
+  const shown = S.d.length ? new Set(jobs.map(deptKey)) : null;
+  if (shown && S.d.some((x) => !shown.has(x))) {
+    const seq = loadSeq;
+    const lib = await (familiesLib ||= import('./lib/families.js').catch(() => null));
+    if (seq !== loadSeq || !lib?.departmentDisplayName) return changed && (commit({ replace: true }), true);
     const next = [];
     for (const x of S.d) {
-      const y = !shown.has(x) && was.has(x) ? was.get(x) : x;
+      const d = shown.has(x) ? x : lib.departmentDisplayName(x);
+      const y = shown.has(d) ? d : x;
       if (y !== x) changed = true;
       if (!next.includes(y)) next.push(y);
     }
-    if (next.length !== S.d.length || next.some((y, i) => y !== S.d[i])) S.d = next;
+    if (changed) S.d = next;
   }
   if (changed) commit({ replace: true });
   return changed;
@@ -663,7 +667,7 @@ function prepare(jobs, { source = null } = {}) {
     j.juice = usableJuice(j);
     j._grade = gradeKey(j);
     j._locKeys = j.locations.map(locKey);
-    j._hay = [j.title, j._postedTitle !== j.title ? j._postedTitle : null, j.department, j.departmentPosted, j.team, j.employmentType, senKey(j) === NOT_STATED ? null : j.seniority,
+    j._hay = [j.title, j._postedTitle !== j.title ? j._postedTitle : null, j.department, j.team, j.employmentType, senKey(j) === NOT_STATED ? null : j.seniority,
       ...j.locations.map((l) => l.name), ...j.keywords.responsibilities, ...j.keywords.fit, ...j.keywords.skills]
       .filter(Boolean).join(' \u0001 ').toLowerCase();
   }
@@ -1149,7 +1153,8 @@ async function loadJobs({ refresh = false } = {}) {
   }
   settleCarry();
   settleKeep();
-  resolveOldFilterKeys(); // fix-data-3: an old link's place or department label finds the board's current one
+  await resolveOldFilterKeys(); // fix-data-3: an old link's place or department label finds the board's current one
+  if (seq !== loadSeq) return;
   if (data.status === 'ready') await renderInTwo(seq); else render();
   if (seq !== loadSeq) return;
   if (data.status === 'ready') fillFamilies(data.jobs);

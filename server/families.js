@@ -154,8 +154,9 @@ export function familyOfTitle(title) {
 // specialty first, then the discipline: "ASIC Engineering", "Product Development Management", "Technical
 // Program Management", "Internships", "Technical Project, Program and Product Management" and "Non-Technical
 // Project, Program and Product Management" (the qualifier that tells Amazon's two apart comes first, so a cut
-// label still shows it, UX-38). Every other name is returned unchanged. The board's own name is kept on the job
-// (departmentPosted), searchable and reachable; old links with it still find the department (public/app.js).
+// label still shows it, UX-38). Every other name is returned unchanged, and a shown name maps to itself. Applied at
+// read time (server/sources/upgrade.js displayDepartments), so snapshots keep the board's own name, and the app maps
+// an old link's or saved search's board name with this same function (public/app.js resolveOldFilterKeys).
 // The mapping is one to one on each board's departments (test/fix-data-3.test.js), so no two departments merge.
 const DISCIPLINE = Object.freeze({
   Engineer: 'Engineering', Architect: 'Architecture', Management: 'Management', Manager: 'Management',

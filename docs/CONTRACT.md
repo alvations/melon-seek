@@ -768,3 +768,58 @@ stored snapshots get the new fields at read time (`upgradeGoogleJobs`, in `upgra
 packs `departmentBasis` and `brand` as dict columns, like `seniorityBasis`. With it, the Google list is 1.62 MB, against 1.60 MB before; without it, 1.77 MB.
 
 **History ledger (`server/history.js#fingerprint`):** the fingerprint hashes the department, so Google's fingerprints change once. A posting that closed before this change and is reposted within `REPOST_WINDOW_DAYS` (30) may not be linked as a repost. Nothing is hidden or dropped.
+
+## fix-data-3 additions (2026-10-17): Fellow ranks, base pay in comparisons, pay at a place, places and department names (fix-data-3 lane)
+
+Findings D-38, D-41, D-42 (docs/QA.md "Full QA pass (desktop, beta) 2026-10-16"), V-45 ([docs/process/viz-review-beta-2.md](process/viz-review-beta-2.md)),
+MR-28 ([docs/process/methodology-review-beta-2.md](process/methodology-review-beta-2.md)), UX-32 and the lead's round-3 follow-ups
+([docs/process/lead.md](process/lead.md): the no-row decision, Town and Country, old "Columbus, OH" links). Log:
+[docs/process/fix-data-3.md](process/fix-data-3.md). Every addition is optional for readers; no export changed its signature or return
+shape. `NORMALIZER_VERSION` is `norm-12`: stored older snapshots are re-derived once (relocateJobs re-geocodes, re-levels and re-vets).
+Nothing is dropped: every posting, pay row and place string is kept (the only place count that changes is Town and Country, MO, two
+halves of one name joined).
+
+**Levels and the gate (D-38):** new pure exports in `server/salary.js`: `isFellowRank(title)` (a Fellow rank: "Fellow, Core AI
+Foundations", "Fellow", "Google Fellow", a distinguished-type fellow; never a title with a programme word: fellowship, Fellows Program,
+program, residency, student, graduate, PhD, postdoc, intern) and `programmeText(title)` / `NOT_PROGRAMME_RE` ("Data Residency" is not a
+residency). A Fellow rank is `'Staff+'` (`keywords.js`), not `junior` for the gate (`vet.js#titleClass`, so no `junior_high`), not the
+`intern` role family (`vet.js#roleFamily`), and not a fixed-term role (`isFixedTermRole`).
+
+**Market doc (`scripts/build-market.js`, MR-28):** `notBasePay(job) -> 'minimum' | 'shiftPay' | 'partTime' | null` (exported, with
+`NOT_BASE_KINDS`). A salaried posting whose figure is a stated minimum (`salary.kind: 'minimum'`), includes the highest shift differential
+(`includesShiftDifferential`) or is part-time hourly pay (`partTime`) enters no cell (`cells`, `oteCells`, the Intern bucket) and is
+counted on `companies[]` as `minimum`, `shiftPay` and `partTime` (`used = ote + internLike + fullTime` still holds). Format and columns
+unchanged.
+
+**Juice (`server/juice.js`, lead decision 2026-10-16):** when a salary prices places in rows of their own (`salary.ranges[].locations`),
+only the places of those rows are scored; a place in no row gets no Juice and is never scored on another place's row, even when another
+row is tied to no listed place. Before, one untied row made every place score on the headline. `public/features/shared.js` `payAt` (fix-pay-at-place)
+applies the same rule to every other view; `postedPlaces` (behind `payLocations`) gets it from
+[`docs/process/patches/fix-data-3-shared-posted-places.diff`](process/patches/fix-data-3-shared-posted-places.diff).
+
+**Drawer (`public/app.js` `juiceBlock`):** one line, `.juice-gross`, "Gross pay is the posted minimum." or "Gross pay includes the top
+shift differential." (MR-28).
+
+**Locations (`server/geo.js`):**
+- D-41: an unknown US town's "St", "St." or "Saint" is "St." ("St Louis, Michigan" -> city "St. Louis", region MI; "Saint George, SC" and
+  "St George, SC" -> "St. George"), a Canadian "St" is "St.", and every other spelling is kept. Two towns of one name are then told apart
+  by the app's `disambiguateLocations` ("St. Louis, MO" / "St. Louis, MI").
+- D-42: `canonicalName` of a US state-only place is "<State> State" when the state's name is also a gazetteer city's ("New York State",
+  "Washington State"), and "Washington, DC" for the District of Columbia; other states keep "<State>, US".
+- V-45: "City, State, CCC" (ISO-3, Amazon) is one place even when the state shares a city's name. New gazetteer cities: Cajamar, Osasco,
+  Barueri, Embu das Artes, Jundiaí, Paulínia, São João de Meriti, Belford Roxo (Brazil), Luxembourg (Luxembourg City; "Luxembourg, LUX"
+  and a bare "Luxembourg" are the city, precision `'city'`, label unchanged), Town and Country (MO).
+- `splitLocations` keeps a name with " and " in it whole (`AND_PLACES`: Town and Country, Trinidad and Tobago, Bosnia and Herzegovina, …),
+  and `geocodeMany` joins a stored pair cut at one ("Town" | "Country, Missouri, USA").
+
+**Department names (UX-32):** `server/families.js#departmentDisplayName(name)` (pure, browser-safe) writes NVIDIA's inverted job families
+and "Intern", and Amazon's "--" qualifiers, as natural names ("ASIC Engineering", "Technical Program Management", "Internships",
+"Technical Project, Program and Product Management"); other names pass through. `server/sources/upgrade.js#displayDepartments(jobs)`
+(last step of `upgradeStoredJobs`, NVIDIA and Amazon) sets `department` to that name. Read time only: snapshots and the history ledger keep
+the board's name, so fingerprints do not change. `departmentDisplayName` of a shown name is that name (idempotent). No new Job field: the
+board's name on each job made the Amazon and NVIDIA lists 3% and 6% bigger (gzip).
+
+**App (`public/app.js`):** `resolveOldFilterKeys()` runs once a board has loaded: a link's `l=` value that no posting uses is replaced by
+the one current label for the same place (its canonical name, posted words, "City, ST", "City, Country", the old state label, compared
+without case, accents, periods and "Saint"/"St"), and a `d=` value the board no longer uses by `departmentDisplayName(value)` when the board
+has that department (`lib/families.js`, imported only then). The hash is rewritten (replace). A value that fits nothing or several labels is left as it is.

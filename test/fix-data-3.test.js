@@ -280,21 +280,24 @@ test('UX-32: the names are one to one on NVIDIA\'s 142 departments (2026-10-16),
   assert.equal(NVIDIA.length, 142);
   const shown = NVIDIA.map(departmentDisplayName);
   assert.equal(new Set(shown).size, NVIDIA.length, 'two departments got one name');
+  // Idempotent: a shown name maps to itself (stored jobs are upgraded on every read), and never to another board name.
+  for (const s of shown) assert.equal(departmentDisplayName(s), s, s);
   assert.ok(!shown.some((s) => /^(Engineer|Architect|Management|Program Manager|Account Manager|Analyst|Specialist|Planner), /.test(s)), shown.filter((s) => /, /.test(s)).join(' | '));
 });
 
-test('UX-32: stored NVIDIA and Amazon jobs show the natural name and keep the board\'s own as departmentPosted (idempotent, no job dropped)', () => {
+test('UX-32: stored NVIDIA and Amazon jobs show the natural name at read time (idempotent, no job dropped, other boards untouched)', () => {
   const jobs = [
     { id: 'nvidia:1', company: 'nvidia', title: 'Senior ASIC Engineer', department: 'Engineer, ASIC' },
     { id: 'nvidia:2', company: 'nvidia', title: 'Product Manager', department: 'Product Management' },
     { id: 'amazon:3', company: 'amazon', title: 'Sr. TPM', department: 'Project/Program/Product Management--Technical' },
     { id: 'google:4', company: 'google', title: 'Intern', department: 'Intern' },
+    { id: 'microsoft:5', company: 'microsoft', title: 'Software Engineer', department: 'Software Engineering' },
   ];
   const once = upgrade.displayDepartments ? upgrade.displayDepartments(jobs) : jobs;
   assert.equal(once.length, jobs.length);
-  assert.deepEqual(once.map((j) => [j.department, j.departmentPosted]), [['ASIC Engineering', 'Engineer, ASIC'], ['Product Management', undefined],
-    ['Technical Project, Program and Product Management', 'Project/Program/Product Management--Technical'], ['Intern', undefined]]);
+  assert.deepEqual(once.map((j) => j.department), ['ASIC Engineering', 'Product Management', 'Technical Project, Program and Product Management', 'Intern', 'Software Engineering']);
   assert.deepEqual(upgrade.displayDepartments(once), once, 'idempotent');
+  assert.equal(once[1], jobs[1], 'an unchanged job is the same object');
   const again = upgrade.upgradeStoredJobs(once.slice(0, 3));
-  assert.deepEqual(again.map((j) => [j.department, j.departmentPosted]), once.slice(0, 3).map((j) => [j.department, j.departmentPosted]), 'the read-time upgrade keeps them');
+  assert.deepEqual(again.map((j) => j.department), once.slice(0, 3).map((j) => j.department), 'the read-time upgrade keeps them');
 });

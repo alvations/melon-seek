@@ -12,7 +12,9 @@
 //     carries its places (DQ-33), virtual rows for unlisted states are dropped (DQ-41), identical
 //     rows are one zone, and a stated minimum, shift differential, lower base or annual figure is
 //     labelled (VT-17, VT-18, VT-19). The stored primary row (salary.text) stays the salary;
-//   - Meta (fix wave 5, DQ-42 / VT-20): salary.country from the range's "(IT)" tag.
+//   - Meta (fix wave 5, DQ-42 / VT-20): salary.country from the range's "(IT)" tag;
+//   - NVIDIA and Amazon (fix-data-3, UX-32): natural department names (displayDepartments); the
+//     snapshot keeps the board's own.
 // Location fixes (DQ-4, DQ-10, D-23) need nothing here: relocateJobs re-geocodes stored
 // locations with server/geo.js. Pure and idempotent: a snapshot crawled with the fixed
 // adapters passes through unchanged. Unlike relocateJobs it may return FEWER jobs (Apple
@@ -108,25 +110,21 @@ const DISPLAY_BOARDS = new Set(['nvidia', 'amazon']);
  * UX-32 (fix-data-3): NVIDIA's and Amazon's department names as natural group names (server/families.js
  * departmentDisplayName: "Engineer, ASIC" -> "ASIC Engineering", "Intern" -> "Internships",
  * "Project/Program/Product Management--Technical" -> "Technical Project, Program and Product Management").
- * The board's own name (NVIDIA's in plain words, BP-8) is kept as `departmentPosted` on the jobs whose name
- * changed; search and old links still match it (public/app.js). Read time only, like the brand
- * (upgradeGoogleJobs): snapshots and the history ledger keep the board's name, so fingerprints do not change.
- * Idempotent: the shown name is always worked out from departmentPosted. Pure; the same jobs, never fewer.
+ * Read time only, like the brand (upgradeGoogleJobs): snapshots and the history ledger keep the board's own
+ * name, so fingerprints do not change, and an old link or saved search with the board's name still finds the
+ * department (public/app.js maps it with the same function). The name is not copied onto each job: as a field on
+ * 2,389 Amazon and 2,594 NVIDIA postings it made the lists 3% and 6% bigger (gzip). Idempotent
+ * (departmentDisplayName of a shown name is that name). Pure; the same jobs, never fewer.
  */
 export function displayDepartments(jobs) {
   if (!Array.isArray(jobs)) return jobs;
   let changed = false;
   const out = jobs.map((j) => {
-    if (!j || !DISPLAY_BOARDS.has(j.company)) return j;
-    const posted = j.departmentPosted || j.department;
-    if (typeof posted !== 'string' || !posted) return j;
-    const shown = departmentDisplayName(posted);
-    if (shown === j.department && (shown === posted ? !('departmentPosted' in j) : j.departmentPosted === posted)) return j;
+    if (!j || !DISPLAY_BOARDS.has(j.company) || typeof j.department !== 'string' || !j.department) return j;
+    const shown = departmentDisplayName(j.department);
+    if (shown === j.department) return j;
     changed = true;
-    const next = { ...j, department: shown };
-    if (shown !== posted) next.departmentPosted = posted;
-    else delete next.departmentPosted;
-    return next;
+    return { ...j, department: shown };
   });
   return changed ? out : jobs;
 }
