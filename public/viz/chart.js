@@ -1086,6 +1086,11 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const nb = notBaseWords(pay?.notBaseLeftOut);
     return `The middle of the base pay ranges${here}: half are above and half below${pay?.oteLeftOut ? `. ${plural(pay.oteLeftOut, 'posting')} with on-target earnings (base plus commission) left out` : ''}${nb ? `. ${nb} left out` : ''}`;
   }
+  /** V-46: the label column a landscape phone's axis caption needs, "US dollars a year · median $214K", in px. */
+  function capNeed(pay) {
+    const f = `12px ${curFam}`, med = pay?.median ?? median(plotted.map((p) => p.mid));
+    return Math.ceil(textWidth('US dollars a year · ', f) + textWidth(`median ${formatMoney(med)}`, `600 ${f}`)) + 16 + 6;
+  }
   /**
    * V-46, UX-61 (fix-viz-5): what the axis is, in one currency name ("US dollars a year"), as long as fits `w` px:
    * the label column on a desktop (it was cut at 540 px, the Surface Duo), the phone's caption line otherwise.
@@ -1279,6 +1284,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       // BP-13: the median caption ("Median base pay $347K") shows in full too.
       need = Math.max(need, textWidth(`${medianCaption(stats.pay)}${formatMoney(stats.pay?.median)}`, `600 ${SUB_FONT}`) - 8);
       labelW = Math.round(Math.max(150, Math.min(maxW, need + LABEL_PAD)));
+      // V-46: with the strip hidden (landscape phones) the axis caption carries the median too, on one line.
+      if (!histShown) labelW = Math.max(labelW, Math.min(Math.round(width * 0.4), capNeed(stats.pay)));
       for (const r of cRows) if (textWidth(r.sub, SUB_FONT) + LABEL_PAD > labelW) r.sub = r.subTight;
     } else {
       for (const r of cRows) r.sub = r.subTight; // stacked label line: the row's name gives way first
@@ -1776,7 +1783,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
 
     // Narrow (phones): the full-width title sits above its bar, so titles stay readable (M-17).
     rowH = narrow ? ROW_H_NARROW : ROW_H;
-    const labelW = narrow ? 0 : Math.round(Math.max(140, Math.min(300, width * 0.3)));
+    let labelW = narrow ? 0 : Math.round(Math.max(140, Math.min(300, width * 0.3)));
+    if (!narrow && !histShown) labelW = Math.max(labelW, Math.min(Math.round(width * 0.4), capNeed(stats.pay))); // V-46
     const valFont = `600 12px ${curFam}`;
     const padR = narrow ? 16 : 28;
     const plotL = narrow ? 12 : labelW + 12;

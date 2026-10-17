@@ -122,7 +122,8 @@ docs/screenshots/fix-viz-5/ and docs/process/scripts/viz-even-measure.mjs.
     ("Yearly pay, US dollars (converted)", "US dollars a year, converted", "US dollars a year"; it was cut at 540 px).
     Phones (no label column): one line above the strip, "US dollars a year, converted · Median base pay $149K", shorter
     forms when that does not fit (280 px: "… · median $149K"). Landscape phones hide the strip (styles.css), so there the
-    axis caption carries the median.
+    axis caption carries the median, and the label column widens to fit it (up to 40% of the chart; the phone smoke found
+    it cut on Apple and Microsoft at 667 and 812 px).
 16. **Cuts from fix-phone-text's guard:** the legend keys show their whole names (the legend already scrolls sideways);
     the fold arrow sits beside the row's name, so a cut name keeps it; under 340 px the map's Pay scale and line sit under
     the Pay | Juice switch, as wide as the box. The four "viz lane" entries are removed from the guard's allow-lists.

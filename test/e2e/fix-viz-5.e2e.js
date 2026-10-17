@@ -417,7 +417,10 @@ export function registerFixViz5Tests(suite) {
 
   suite.test('fix-viz-5: [V-46, UX-61] at every phone size the chart says its axis is US dollars a year, with the median, on one line (Google; Amazon at 390)', async (ctx) => {
     const bad = [];
-    const cases = [...ALL_SIZES.map((d) => ['google', d]), ['amazon', ALL_SIZES.find((d) => d.width === 390)]];
+    // Landscape phones hide the strip, and the axis caption carries the median: Apple's and Microsoft's label columns
+    // are the narrowest there.
+    const land = ALL_SIZES.filter((d) => d.width > d.height && d.height < 500);
+    const cases = [...ALL_SIZES.map((d) => ['google', d]), ['amazon', ALL_SIZES.find((d) => d.width === 390)], ...land.flatMap((d) => [['apple', d], ['microsoft', d]])];
     for (const [company, d] of cases) {
       for (const v of ['clusters', 'ranges']) {
         if (company === 'google' && v === 'ranges' && d.width > 430) continue;
