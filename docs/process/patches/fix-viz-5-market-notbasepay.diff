@@ -1,0 +1,30 @@
+diff --git a/scripts/build-market.js b/scripts/build-market.js
+index c342d7b..e650c4d 100644
+--- a/scripts/build-market.js
++++ b/scripts/build-market.js
+@@ -68,7 +68,7 @@ import path from 'node:path';
+ import { fileURLToPath, pathToFileURL } from 'node:url';
+ import { roleFamily } from '../public/features/compstimate.js';
+ import { displayLevel, levelKey } from '../public/features/roles.js';
+-import { isOTE, isInternLike, payCountry } from '../public/features/shared.js';
++import { isOTE, isInternLike, payCountry, notBasePay } from '../public/features/shared.js';
+ import { toUSD, FX_AS_OF, hasFx } from '../public/viz/palette.js';
+ 
+ export const MARKET_FORMAT = 'melon-market-1';
+@@ -109,14 +109,8 @@ export function usdMid(salary) {
+  * minimum, "from €46K"), 'shiftPay' (hourly pay including the highest shift differential) or 'partTime'
+  * (part-time hourly pay at 2,080 hours). Pure; reads only job.salary.
+  */
+-export function notBasePay(job) {
+-  const s = job && job.salary;
+-  if (!s) return null;
+-  if (s.kind === 'minimum') return 'minimum';
+-  if (s.includesShiftDifferential === true) return 'shiftPay';
+-  if (s.partTime === true) return 'partTime';
+-  return null;
+-}
++// fix-viz-5: one rule for the market cells and every median the browser draws (public/features/shared.js).
++export { notBasePay };
+ export const NOT_BASE_KINDS = Object.freeze(['minimum', 'shiftPay', 'partTime']);
+ 
+ /** The home country: most salaried postings, then the US, then the alphabet. */

@@ -1,0 +1,13 @@
+diff --git a/public/index.html b/public/index.html
+index 775b5d9..062b930 100644
+--- a/public/index.html
++++ b/public/index.html
+@@ -131,7 +131,7 @@
+               <option value="department">Department</option>
+               <option value="location">Location</option>
+               <option value="seniority">Seniority</option>
+-              <option value="none">None</option>
++              <option value="none">No grouping</option>
+             </select>
+           </label>
+         </div>

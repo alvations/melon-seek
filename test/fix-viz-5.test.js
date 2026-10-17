@@ -12,6 +12,8 @@ import * as chart from '../public/viz/chart.js';
 import * as mapViz from '../public/viz/map.js';
 import * as insights from '../public/features/insights.js';
 import * as market from '../scripts/build-market.js';
+import * as juice from '../server/juice.js';
+import { juiceNetForScore, JUICE_BREAKS, formatMoney } from '../public/viz/palette.js';
 
 const has = (fn, name) => assert.equal(typeof fn, 'function', `${name} is not exported yet`);
 const sal = (min, max, extra = {}) => ({ min, max, mid: (min + max) / 2, currency: 'USD', interval: 'year', ...extra });
@@ -198,4 +200,18 @@ test('[V-44] postings with no place are counted by the map (never dropped)', () 
 test('[V-45] a place pinned at its state\'s or country\'s centre is marked approximate, not only an unknown town', () => {
   has(mapViz.isApproxPrecision, 'map.isApproxPrecision');
   assert.deepEqual(['city', 'centroid', 'region', 'country', 'remote', 'unknown'].map(mapViz.isApproxPrecision), [false, true, true, true, false, false]);
+});
+
+/* ------------------------------------------------------------------ UX-45: one set of Juice cut-offs */
+
+test('[UX-45] the map\'s Juice legend starts each grade where the list\'s scale and the drawer\'s badge do ($47K, $95K)', () => {
+  has(mapViz.juiceCutoff, 'map.juiceCutoff');
+  const [ripe, juicy] = JUICE_BREAKS;
+  for (const s of [ripe, juicy]) {
+    // The live server/juice.js netForScore (what the map loads) and palette.js's mirror (what app.js juiceScaleText uses).
+    assert.equal(formatMoney(mapViz.juiceCutoff(s, juice.netForScore)), formatMoney(juiceNetForScore(s)), `score ${s}`);
+    assert.ok(Math.abs(mapViz.juiceCutoff(s, juice.netForScore) - juiceNetForScore(s)) < 1e-6);
+  }
+  assert.equal(formatMoney(mapViz.juiceCutoff(ripe, juice.netForScore)), '$47K');
+  assert.equal(formatMoney(mapViz.juiceCutoff(juicy, juice.netForScore)), '$95K');
 });

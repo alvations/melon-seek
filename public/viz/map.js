@@ -87,6 +87,16 @@ export function pinCountText(c) {
  * pinned at that centre ("Luxembourg, LUX" sat at the country's centre unmarked).
  */
 export const isApproxPrecision = (p) => p === 'centroid' || p === 'region' || p === 'country';
+/**
+ * UX-45 (fix-viz-5): the money left a year at which a shown Juice Score starts. Scores are shown rounded, so a 45 (Ripe)
+ * starts at 44.5: $47,103, and a 70 (Juicy) at 69.5: $94,996 (docs/METHODOLOGY_GUIDE.md), the figures the list's scale
+ * and the drawer's badge give (app.js juiceScaleText, palette.js juiceNetForScore). The map's legend wrote netForScore(45)
+ * and netForScore(70), "$48K" and "$96K". `netForScore` is the live server/juice.js one (palette.js's mirror without it).
+ */
+export function juiceCutoff(score, netForScore = null) {
+  if (typeof netForScore !== 'function') return juiceNetForScore(score);
+  return netForScore(Math.max(0, Number(score) - 0.5));
+}
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const fxMonth = (iso) => { const m = /^(\d{4})-(\d{2})/.exec(String(iso || '')); return m ? `${MONTHS[+m[2] - 1]} ${m[1]}` : String(iso || ''); };
 
@@ -556,7 +566,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     if (!legend) return;
     legend.replaceChildren();
     const [b1, b2] = jScale.breaks;
-    const nf = s => formatMoney(jScale.netForScore(s));
+    const nf = s => formatMoney(juiceCutoff(s, jScale.netForScore)); // UX-45: the list's and the drawer's cut-offs
     // I-10: each grade has its own fill (outline, tint, solid), the same as the pins, so the
     // grades read without telling shades of red apart; the dollars are the money left a year.
     for (const [grade, scoreTxt, range] of [
