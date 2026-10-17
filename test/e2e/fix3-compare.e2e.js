@@ -79,7 +79,8 @@ async function drawerComps(page, base, slug, id) {
   await page.waitForSelector('#drawer.is-open', { timeout: 30000 });
   await page.waitForFunction(() => { const s = document.querySelector('#drawer .d-comps'); return !s || s.hidden || !s.querySelector('.sk'); }, null, { timeout: 30000 });
   await sleep(300);
-  return page.evaluate(() => { const s = document.querySelector('#drawer .d-comps'); return s && !s.hidden ? (s.querySelector('.comps-note')?.textContent || '') : ''; });
+  // fix-phone-text M-33: the note's sentence (compsNote) is the first fact behind the section's one-line Details.
+  return page.evaluate(() => { const s = document.querySelector('#drawer .d-comps'); return s && !s.hidden ? (s.querySelector('.comps-note .ms-note__list li')?.textContent || s.querySelector('.comps-note')?.textContent || '') : ''; });
 }
 /** The Insights "Compare companies" card, rendered. */
 async function compareCard(page) {
@@ -153,7 +154,7 @@ export function registerFix3CompareTests(suite) {
     const note = await drawerComps(page, st.beta, 'google', job.id);
     const want = compsNote(compsForJob(market, job, { includeSelf: true }));
     assertEq(note, want, 'the drawer says there is nothing to compare in Ireland');
-    assert(/in Ireland, so there is nothing to compare yet\. Pay for other countries isn't used\.$/.test(note), note);
+    assert(/in Ireland, so there is nothing to compare yet\. Pay for other countries isn[’']t used\.$/.test(note), note); // UX-61: curly apostrophe
     assertEq(await page.locator('#drawer .d-comps .ms-comps__row').count(), 0, 'no chart of another country\'s pay');
     assert(!errors.length, errors.join(' | '));
   });
@@ -203,7 +204,7 @@ export function registerFix3CompareTests(suite) {
     const res = compsForJob(market, job, { includeSelf: true });
     const { page, errors } = await open(ctx, st);
     const note = await drawerComps(page, st.beta, 'google', job.id);
-    assert(!/doesn't state a level/.test(note), `a "Mid" posting is not told it states no level: ${note}`);
+    assert(!/doesn[’']t state a level/.test(note), `a "Mid" posting is not told it states no level: ${note}`);
     if (res.matchedOn === 'family+seniority') assert(/ at Mid level in /.test(note), note);
     else assert(!note || /^Too few Mid /.test(note), note);
     assert(!errors.length, errors.join(' | '));

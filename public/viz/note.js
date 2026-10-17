@@ -107,9 +107,12 @@ export function fitLine(el, variants) {
     return t.right > b.right - parseFloat(cs.borderRightWidth) - parseFloat(cs.paddingRight) + 0.01
       || t.left < b.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft) - 0.01;
   };
+  // The text is replaced only to try a variant, so a line that already fits is never touched.
   const fit = () => {
-    el.classList.remove('is-wrapped');
-    for (const v of list) { el.textContent = v; if (!over()) return; }
+    for (const v of list) {
+      if (el.textContent !== v) el.textContent = v;
+      if (!over()) { el.classList.remove('is-wrapped'); return; }
+    }
     el.classList.add('is-wrapped');
   };
   el.textContent = list[0];

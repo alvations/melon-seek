@@ -4688,7 +4688,7 @@ function listingSection(job) {
     // M-37 (fix-phone-text): one line per fact; what the line can't hold is behind its Details.
     lines.push(job.ageIsMinimum
       ? { line: `Open at least ${ago.replace(/ ago$/, '')}`, details: ['It was already listed when melon-seek started tracking this board.'] }
-      : d >= ALWAYS_OPEN_DAYS ? { line: `Always-open posting, listed ${ago}`, details: [posted ? `Listed on ${new Date(posted).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}.` : ''] } : `Listed ${ago}${on}`);
+      : d >= ALWAYS_OPEN_DAYS ? { line: `Always open: listed ${ago}`, details: [posted ? `Listed on ${new Date(posted).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}.` : ''] } : `Listed ${ago}${on}`);
   }
   if (job.firstSeenAt) lines.push(`First seen by melon-seek on ${new Date(job.firstSeenAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`);
   if (job.repost?.count > 0) lines.push(`Reposted ${job.repost.count}×${job.repost.firstSeenAt ? ` since ${new Date(job.repost.firstSeenAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}` : ''}`);

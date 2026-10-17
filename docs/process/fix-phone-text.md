@@ -94,10 +94,22 @@ and numbers ellipsized. This lane fixes the text. The rule (fix-density's, now e
 3. **The accuracy line stays on the card.** ROADMAP §6.2 Top 2 asks the Compstimate card to show its accuracy. The
    card keeps "Typically within ±13%", one line, and the test it comes from is in the Details. At low confidence
    it reads "Treat this as a rough guide", and the reason is in the Details.
-4. **The percentile line keeps its country where it fits** (BP-3 put it there). `fitOneLine(el, variants)` (app.js)
-   shows the first variant that fits one line, measured to the sub-pixel. Otherwise it shows the shorter one
-   ("Pays more than 72% of Amazon’s roles"; the country is in pctNote). If even that doesn't fit, it wraps and is
-   never cut. A ResizeObserver re-fits the line when its width changes.
+4. **Longer words where they fit: `fitLine(el, variants)`** (viz/note.js, shared by app.js and compstimate.js).
+   - It shows the first variant that fits one line, measured to the sub-pixel: a second line box, or text past
+     its box. If none fits, it shows the last one wrapping, never cut. A ResizeObserver re-fits it when its line's
+     width changes. Every variant says the same thing; a shorter one leaves a fact to its Details.
+   - **Percentile:** "Pays more than 72% of Amazon’s roles in the US", or "…of Amazon’s roles" where that doesn't
+     fit. BP-3 put the country in the line, and pctNote has it.
+   - **Same role elsewhere:** "Hardware & systems engineering, Director+ level in the US" on a desktop, "Director+
+     level in the US" on a phone.
+   - **Pay estimate basis:** "Based on 38 similar roles at Anthropic, Sales" where it fits, "Based on 38 similar
+     roles" on a phone.
+   - **Accuracy:** "Typically within ±13% (tested on 499 posted pay ranges, Oct 2026)", as ROADMAP §6.2 asks, or
+     "Typically within ±13%" on a phone.
+   - **Tagline** (`fitTagline`, app.js), the lead's item from fix-phone-sizes. At 1280x800 the desktop line was
+     cut ("…", 295 px of text in 273 px), and it was cut at 861 and 1200 px too. It now shows its longest line that
+     fits: "Beta: adds 7 big-tech companies’ own careers sites", "Beta: adds 7 big-tech careers sites" or "Beta:
+     7 big-tech sites". On a phone the short line, else the shortest. The full line stays its title.
 5. **A note's line wraps, never "…".** Before, `.ms-note__line` was `nowrap` with an ellipsis, so a line that was too
    long was cut silently. It now wraps: the tests fail on a second line at 360 px and up, and nothing is hidden on
    a 280 px Fold.
