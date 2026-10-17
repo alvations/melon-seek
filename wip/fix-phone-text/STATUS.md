@@ -18,6 +18,7 @@ c5312d1 WIP fix-phone-text: the basis line is the Pay estimate's explainer; badg
 
 ## Uncommitted and new files
 ```
+ M docs/process/fix-phone-text.md
  M docs/screenshots/chart.png
  M docs/screenshots/dark-drawer.png
  M docs/screenshots/dark.png
@@ -40,6 +41,7 @@ c5312d1 WIP fix-phone-text: the basis line is the Pay estimate's explainer; badg
  M docs/screenshots/qa-mobile-beta/e2e-M-24-keyboard-location-search.png
  M docs/screenshots/qa-mobile-beta/e2e-M-27-topbar-360.png
  M docs/screenshots/qa-mobile/e2e-landscape-map.png
+ M test/e2e/fix3-compare.e2e.js
 ?? docs/screenshots/fix-phone-text/
 ```
 
