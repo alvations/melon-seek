@@ -1,7 +1,7 @@
 From dd58b483b0fd0e2cb2920320a266f81b85732e2e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 10:52:40 +0000
-Subject: [PATCH 1/4] fix-phone-sizes: the Surface Duo stacked (720x1114, hinge
+Subject: [PATCH 1/5] fix-phone-sizes: the Surface Duo stacked (720x1114, hinge
  across): chart and filters on the top screen, the list, job page and sheets
  on the bottom one; in phone-sizes.mjs and the matrix. Drop a stray conflict
  marker in styles.css
