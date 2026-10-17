@@ -94,3 +94,7 @@ Lead: two more inputs from qa-mobile-beta-3, plus one testing requirement.
    - add a step to .github/workflows/webkit-phone.yml (the "Playwright WebKit, iPhone profile" job) that runs it.
    You may edit that workflow for this one step. After I integrate, I dispatch webkit-phone.yml, which also has the iOS Simulator job with real taps, and report back.
 Screenshots and probes are in /home/user/melon-seek/.claude/worktrees/agent-af67aa71fe3cb195d/docs/screenshots/qa-mobile-beta-3/ and /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/qa-mobile-beta-3/probes/.
+
+## Third mid-task message from the lead (verbatim)
+
+Lead to fix-touch-tips: a new requirement from the user, 2026-10-16: "Make sure we check for all phone sizes from iPhone mini to razr to duo or something". The size matrix is on the branch (a92a3c8): test/e2e/phone-sizes.mjs, from the folded Galaxy Fold at 280x653 to the Surface Duo spanned at 1114x720, plus the Razr cover at 352x355 and landscape. Run your tip tests on every entry. That matters most for tips placed near screen edges: the map pin tip must stay on screen at 280 px and on the 352x355 cover screen. A new lane, fix-phone-sizes, owns breakpoints and layout, so keep your CSS in the tip rules only. When you send your next SHA, say which sizes you checked.

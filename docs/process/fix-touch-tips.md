@@ -2,21 +2,21 @@
 
 ## State
 
-- **Done (2026-10-16):**
+- **Done (2026-10-17, head fc67365 on a7c4198):**
   - one touch rule for every floating box, in one shared helper (`public/features/shared.js`, "Floating tips and touch");
   - applied to the drawer's "Same role elsewhere" tip (the user's report), the chart's circle, Ranges and pay-strip tips, the Insights and Compare companies tips (`createTooltip`, same API plus an optional `{ action }`), and the map's pin tooltips;
   - the lead's ux-review-beta-2 items 1 to 7 and qa-mobile-beta-3 items 1 to 3 are fixed;
-  - `test/e2e/fix-touch-tips.e2e.js` (14 tests) failed 13 of 14 before and passes 14 of 14 after on Chromium. It also runs alone on WebKit and has a step in `.github/workflows/webkit-phone.yml`;
+  - `test/e2e/fix-touch-tips.e2e.js` has 33 tests: 14 behaviour tests and one tip test for each of the 19 sizes in `test/e2e/phone-sizes.mjs`. On Chromium, 13 of the 14 behaviour tests fail before and all 33 pass after. The file also runs alone on WebKit, with a step in `.github/workflows/webkit-phone.yml`;
   - `test/fix-touch-tips.test.js` (7 unit tests) passes;
-  - screenshots before and after, light and dark, are in `docs/screenshots/fix-touch-tips/`.
-- **In progress:** none (see the change log for the gate results).
+  - screenshots before and after, light and dark, at 390 and 360 px, are in `docs/screenshots/fix-touch-tips/`.
+- **In progress:** none.
 - **Next:**
   - the lead dispatches webkit-phone.yml (WebKit, plus the iOS Simulator job) and reads the "Floating tips on touch on WebKit" summary;
   - the remaining title-only texts in section 6 go to the fix wave if they are wanted on touch.
 
 ## 1. Brief
 
-Prompt: [prompts/fix-touch-tips.md](prompts/fix-touch-tips.md), verbatim, with the lead's two mid-task messages.
+Prompt: [prompts/fix-touch-tips.md](prompts/fix-touch-tips.md), verbatim, with the lead's three mid-task messages that changed the scope.
 
 The user, on an iPhone (2026-10-16): "There seems to be a UI/UX bug where the floating box don't go away on a mobile."
 A tap on "Same role elsewhere" left "$281K median … Click to see these roles" on screen. The job was to find every floating box, reproduce each one with real touch input, fix them all with one rule, keep desktop as it was, and take screenshots.
@@ -82,7 +82,10 @@ Files owned:
    - Ranges legend striped key: "Each bar's tip, and its role's details, list them".
    - Pay-label chips: their meanings are items in the pay block's Details. They are read from the chips `payLabels()` drew, so `payLabels` is untouched (fix-pay-at-place owns it), and the chip wording (MR-34) is unchanged.
    - Juice household: one muted line under the buttons, for example "2 adults, 1 earner, 2 bedrooms". Each of the three lines fits a 320 px phone (the longest, the family's, is 254 px wide where the drawer gives it 306 px at 360, so about 266 px at 320). The `nowrap` and ellipsis CSS keeps it to one line (fix-density). The long title stays for a mouse.
-7. **How the tests reproduce an iPhone in any engine.** Headless Chromium never showed the bug. It fires `pointerleave` after a touch lifts, moves focus to a tapped `tabindex` list (so `blur` hid the tip), and re-runs hover after a scroll. The e2e init script plays the iPhone's sequence instead:
+7. **A tip stays on the screen, not just on the page.**
+   - `placeNearTap` keeps a tapped tip inside the visual viewport. The Razr cover screen (352x355) shows a page 487 px wide, panned 12 px left and 59 px down, and a pinch zoom pans the screen the same way. Placed against the layout viewport, the tips there sat 4 px off the screen.
+   - The map's `fitTooltip` fits the part of the map on screen: a short landscape screen (Razr inner, 1005x412) scrolls part of the map away. It also caps the tooltip's width and height to that part, so on a 280 px Fold or the Razr cover the tooltip is no bigger than the map. Lines that do not fit are cut at the bottom; the figures come first.
+8. **How the tests reproduce an iPhone in any engine.** Headless Chromium never showed the bug. It fires `pointerleave` after a touch lifts, moves focus to a tapped `tabindex` list (so `blur` hid the tip), and re-runs hover after a scroll. The e2e init script plays the iPhone's sequence instead:
    - a real tap (CDP `Input.dispatchTouchEvent` in Chromium, `page.touchscreen.tap` in WebKit);
    - at its `touchend`, before the click, iOS's emulated `pointerover`, `pointermove`, `mouseover` and `mousemove` (pointerType "mouse") on the element under the finger;
    - no click when those events showed a tip, as WebKit's content-change observer does;
@@ -133,11 +136,22 @@ git checkout -- docs/screenshots                                                
 | Popovers: quick-filter chips, company menu, data badge, add board; the filters panel | Open on click, close on Close, Done, Esc or a press outside, follow their anchor on scroll | Same | Bottom sheets: open on tap, close on a tap outside or Esc (probed at 360 dark and 390 light) | Unchanged |
 | Toasts | Auto-dismiss | — | — | Unchanged |
 
+- **Sizes** (`test/e2e/phone-sizes.mjs`, the user's "all phone sizes from iPhone mini to razr to duo"). Every entry has its own e2e test: the strip's tip, a circle tap, Same role elsewhere and Compare companies taps ("Tap again", fully on screen, closed by a tap elsewhere), a pin tap (no tooltip), and every focused pin's tooltip inside the part of the map on screen. All 19 pass:
+  - portrait: Galaxy Fold folded 280x653, iPhone SE (1st gen) 320x568, Z Fold 5 cover 344x882, Galaxy S8 360x740, Z Flip 5 360x880, iPhone 13 mini 375x812, iPhone SE (3rd gen) 375x667, iPhone 15/16 393x852, iPhone 13/14 390x844, Pixel 8 412x915, razr inner 412x1005, iPhone 15 Pro Max 430x932, Surface Duo single 540x720, Z Fold 5 open 690x829;
+  - other postures: razr cover 352x355, Surface Duo spanned 1114x720, iPhone 13 mini landscape 812x375, iPhone SE (3rd gen) landscape 667x375, razr inner landscape 1005x412.
+
+  What no finger can reach is noted, not failed. The pay strip is hidden on purpose on the three short landscapes and the razr cover. On the razr cover, the map's Remote button and legend cover its three pins; that is a layout bug for fix-phone-sizes, and the keyboard check of those pins passes.
 - **Tests.**
   - `test/e2e/fix-touch-tips.e2e.js` on Chromium: before the fix (base 32f556f + the tests), 1 of 14 passed (the desktop chart-hover guard). After, 14 of 14 pass. The logs are in the scratchpad (`ftt/before-light.log`, `before-dark.log`).
   - Each failure before named the bug: "the first tap opens nothing yet", "a tap on the section's text closes the tip", "the tip closed or stayed by its row", "a moving finger opened a tip" (4 boxes), "the keyboard tip says Press Enter, never Click", "a tap elsewhere closes it" (strip), "the first tap switches nothing yet" (Compare), "no tip after the iPhone tap" (Insights), "the tap selected the pin's place", and the seven word checks.
   - `test/fix-touch-tips.test.js`: 7 of 7 (words, `isTouchInput`, `placeNearTap`, `tipCloser` with a fake document).
-  - `MELON_BETA_SNAPSHOT_DIR= npm test` with the data links moved out: 1162 tests, 1102 pass, 0 fail, 8 skipped (the rest are TODO markers).
+  - `MELON_BETA_SNAPSHOT_DIR= npm test` with the data links moved out:
+    - at 0102980: 1162 tests, 1102 pass, 0 fail, 8 skipped (the rest are TODO markers);
+    - at fc67365 (after the rebase): 1187 tests, 1120 pass, 3 fail, 8 skipped. The 3 are the timing tests S-3 (two) and S-6, run at load 23; alone, 7 of 7 pass.
+  - Full e2e with data linked (at 0102980): 377 of 383 pass, 2 fail, 4 skipped.
+    - T21 is load-sensitive and passes alone.
+    - The UI drawer section-order test strips the old "click to filter" words. It passes with `docs/process/patches/fix-touch-tips-ui-e2e.diff`.
+    - The suite's rewrites of other lanes' screenshots were reverted (`git checkout -- docs/screenshots`).
 - **Screenshots** (`docs/screenshots/fix-touch-tips/`, 8-bit). Each is `before-*` and `after-*`, in `-light` and `-dark`:
   - `comps-tap-p390`, `comps-tap-p360`, `comps-current-tap-p390`, `comps-current-tap-p360`, `comps-tap-elsewhere-p390`, `comps-tap-elsewhere-p360`, `comps-scroll-p390`;
   - `comps-hover-desktop`, `comps-keyboard-desktop`;
@@ -149,6 +163,7 @@ git checkout -- docs/screenshots                                                
 ## 6. Known gaps and follow-ups
 
 - **A test outside my files needed the new words.** `test/e2e/ui.e2e.js` strips "click to filter" from the drawer's section names. Its one-line change is the patch `docs/process/patches/fix-touch-tips-ui-e2e.diff`, which strips "pick one to filter" as well.
+- **Layout seen during the size matrix (fix-phone-sizes' files, not mine).** At 352x355 the page is 487 px wide, and the results sheet's peek sits below the screen (top 427 of 355). On the razr cover, the map's Remote button and legend cover its pins.
 - **WebKit has not run here.** The sandbox has only Chromium, so the WebKit step in webkit-phone.yml has `continue-on-error` for its first run. Its summary shows each result. The iOS Simulator job in the same workflow is the real-tap check.
 - **Title-only texts left as they are.** None is a floating box, and none was in the lead's list:
   - on cards: the pay pill tip, the "Pay unclear" reason (the drawer has "Why?"), seniority meanings (the Seniority filter's note says them), the pool, OTE and term tags, the age, and the status tags;
@@ -167,4 +182,5 @@ git checkout -- docs/screenshots                                                
 - 22:05: probes: Chromium hides the tip by `pointerleave`, `blur` and hover-after-scroll; the iPhone sequence written as an init script reproduces the user's screenshot.
 - 22:12: e00c2c0, the failing e2e (13 of 14 fail) with before screenshots.
 - 22:30: 0102980, the fix: the shared helper and every box; 14 of 14 pass; `npm test` 0 fail; after screenshots.
+- 23:30 to 01:50: the lead's phone-size matrix. Rebased onto a7c4198 (one conflict in `scripts/e2e.js`'s registrations) and rebuilt. 7d26b47: one tip test per size. fc67365: tips kept in the visual viewport and the map's visible part, and the matrix taps in screen px and lowers the sheet: 33 of 33.
 - Coordinated with fix-pay-at-place (af40fcca54b57983d) on the shared files: my edits stay in the tip code, my notes item goes before "How pay is read", and `payLabels` itself is untouched.
