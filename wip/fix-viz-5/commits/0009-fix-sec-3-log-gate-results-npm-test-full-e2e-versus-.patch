@@ -1,7 +1,7 @@
 From f8f296b40eabdd4d055d280e4e63204d2de2d9d4 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 03:29:20 +0000
-Subject: [PATCH 09/54] fix-sec-3: log: gate results (npm test, full e2e versus
+Subject: [PATCH 09/55] fix-sec-3: log: gate results (npm test, full e2e versus
  an f53a270 baseline)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

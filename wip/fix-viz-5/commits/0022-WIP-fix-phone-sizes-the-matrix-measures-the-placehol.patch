@@ -1,7 +1,7 @@
 From 79a7c1ae4599270bfab4af495a649dad632c058b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 00:29:27 +0000
-Subject: [PATCH 22/54] WIP fix-phone-sizes: the matrix measures the
+Subject: [PATCH 22/55] WIP fix-phone-sizes: the matrix measures the
  placeholder in the field's font; log decisions
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

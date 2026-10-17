@@ -1,7 +1,7 @@
 From e81f138990c2f76531cf4dda24a62df7f0bebe0e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 01:07:15 +0000
-Subject: [PATCH 02/54] fix-sec-3: S-4 residual: Amazon links on-host, beta
+Subject: [PATCH 02/55] fix-sec-3: S-4 residual: Amazon links on-host, beta
  links only on their company's hosts, no dead Apply button
 
 - server/sources/amazon.js#amazonPostingUrl: the API's job_path is kept verbatim only when the joined

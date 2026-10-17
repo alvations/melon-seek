@@ -1,7 +1,7 @@
 From 9e987f0b8565f10a38c5ee5b6ccd536f59b22f26 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 00:22:48 +0000
-Subject: [PATCH 42/54] WIP fix-pay-at-place: chart notes count pay posted for
+Subject: [PATCH 42/55] WIP fix-pay-at-place: chart notes count pay posted for
  other places only; comments name payAt
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
