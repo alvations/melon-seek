@@ -240,7 +240,8 @@ export function registerFixEstimatesTests(suite) {
       await page.locator('#drawer').waitFor({ state: 'visible', timeout: 8000 });
       await sleep(900);
       const sec = page.locator('#drawer .d-comps');
-      const text = (await sec.count()) && await sec.isVisible() ? (await sec.innerText()).replace(/\s+/g, ' ') : '';
+      // fix-phone-text M-33: what is compared (the family) is in the section's Details on a narrow drawer: textContent.
+      const text = (await sec.count()) && await sec.isVisible() ? (await sec.textContent()).replace(/\s+/g, ' ') : '';
       assert(!/No other company lists this level/.test(text), `${job.title}: "${text.slice(0, 160)}"`);
       if (job === head && text) assert(/Sales & partnerships/.test(text) && !/Security roles/.test(text), `${job.title}: "${text.slice(0, 160)}"`);
       if (job === fellow && text) assert(/Intern|internships/.test(text), `${job.title} compared with full-time roles: "${text.slice(0, 160)}"`);

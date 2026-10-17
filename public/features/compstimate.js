@@ -24,7 +24,7 @@ import {
   levelLabel, levelStated, displayLevel, NOT_STATED, LEVEL_NOT_STATED, DISPLAY_LEVEL_ORDER, levelKey, levelFromKey,
 } from './roles.js';
 import { compstimateAsOfText } from './freshness.js';
-import { noteLine, renderNote } from '../viz/note.js';
+import { noteLine, renderNote, fitLine } from '../viz/note.js';
 
 export { percentile, weightedPercentile, salaryUSD, toUSD, FX_FALLBACK } from './shared.js';
 // Role taxonomy lives in roles.js (no imports, Node-safe); re-exported for callers.
@@ -964,13 +964,13 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
         h('span', { class: 'ms-comp__conf-label' }, `${confidence} confidence`)),
       // M-34 (fix-phone-text): the basis is one line, and the accuracy test, the weighting, the trim, the
       // conversions and the dates are behind its one Details (they ran to 5 lines on a phone).
-      noteLine({ cls: 'ms-comp__conf-n ms-comp__basis', key: 'comp-basis', line: `Based on ${plural(result.n, 'similar role')}`, about: id.head, details: [
+      noteLine({ cls: 'ms-comp__conf-n ms-comp__basis', key: 'comp-basis', line: fitLine(h('span', { class: 'ms-comp__basis-text' }), [basis, `Based on ${plural(result.n, 'similar role')}`]), about: id.head, details: [
         `${basis}.`,
         accuracy || caution,
         `Weighted by similarity to “${inputs.query.title}”${level}${place}. ${result.detail}`,
         asOfText || ''] }),
       // No accuracy claim at low confidence (P-2: "low confidence" beside "within ±8%").
-      accuracy ? h('div', { class: 'ms-comp__accuracy' }, accuracyShort(meta))
+      accuracy ? fitLine(h('div', { class: 'ms-comp__accuracy' }), [accuracy, accuracyShort(meta)])
         : caution ? h('div', { class: 'ms-comp__accuracy is-low' }, 'Treat this as a rough guide') : null,
       h('div', { class: 'ms-comp__range' },
         h('div', { class: 'ms-comp__range-ends' },

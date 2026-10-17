@@ -125,13 +125,15 @@
 }
 .ms-note__more:hover { text-decoration-color: currentColor; }
 .ms-note__more:focus-visible { outline: 2px solid var(--ms-accent, #0b7a5c); outline-offset: 2px; }
-.ms-note__more::after { content: " ▾"; content: " ▾" / ""; font-size: .85em; text-decoration: none; display: inline-block; }
-.ms-note__more[aria-expanded="true"]::after { content: " ▴"; content: " ▴" / ""; }
+.ms-note__more::after { content: "▾"; content: "▾" / ""; font-size: .85em; text-decoration: none; display: inline-block; }
+.ms-note__more[aria-expanded="true"]::after { content: "▴"; content: "▴" / ""; }
 /* A-9: the arrow has empty alternative text, so the button's name is "Details". On a desktop it is a 24px target;
    the negative margins keep the line as tall as before. */
 @media (min-width: 861px) {
   .ms-note__more { min-height: 24px; display: inline-flex; align-items: center; margin-block: -4px; }
 }
+/* The arrow's space is a margin: as a flex item (phones, and desktops above) its leading space collapsed ("Details▾"). */
+.ms-note__more::after { margin-left: .25em; }
 /* fix-phone-text: a note's line is never cut. It is written to fit one line on a phone from 360 px up (the tests
    measure it); on a narrower screen (a folded Fold, 280 px) it wraps instead of ending in "…". */
 .ms-note__line { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: break-word; }

@@ -5,7 +5,7 @@
 
 import { colorFor, formatMoney, resetColors, assignColors, otherColor, toUSD, SLOT_COUNT, hasFx, juiceNetForScore, JUICE_BREAKS, FX_AS_OF, FX_SOURCE } from './viz/palette.js';
 import { createChart, keyOf, VIEWS, DEFAULT_VIEW } from './viz/chart.js';
-import { renderNote, noteLine } from './viz/note.js';
+import { renderNote, noteLine, fitLine as fitOneLine } from './viz/note.js';
 import { createMap } from './viz/map.js';
 import * as api from './api.js';
 import { createCompstimateWidget, compstimateForJob, estimateView } from './features/compstimate.js';
@@ -273,39 +273,6 @@ const cssId = (id) => (window.CSS?.escape ? CSS.escape(id) : String(id).replace(
 
 /** Drop null/false children (Element.replaceChildren would render them as text). */
 const nn = (...kids) => kids.filter((k) => k != null && k !== false);
-
-/**
- * fix-phone-text: show the first of `variants` that fits `el` on one line (measured to the sub-pixel: an ellipsis is
- * drawn at any overflow), else the last one, wrapping (never cut). Every variant says the same thing, the shorter ones
- * with a fact left to the line's Details. Re-fits when the element's width changes; stops once it leaves the page.
- */
-function fitOneLine(el, variants) {
-  const list = variants.filter(Boolean);
-  if (!list.length) return el;
-  const over = () => {
-    const r = document.createRange();
-    r.selectNodeContents(el);
-    const cs = getComputedStyle(el), box = el.getBoundingClientRect();
-    return r.getBoundingClientRect().width > box.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) + 0.01;
-  };
-  const fit = () => {
-    el.classList.remove('is-wrapped');
-    for (const v of list) { el.textContent = v; if (!over()) return; }
-    el.classList.add('is-wrapped');
-  };
-  el.textContent = list[0];
-  if (typeof ResizeObserver !== 'function') return el;
-  let w = -1;
-  const ro = new ResizeObserver(() => {
-    if (!el.isConnected) { ro.disconnect(); return; }
-    const now = el.getBoundingClientRect().width;
-    if (Math.abs(now - w) < 0.5) return;
-    w = now;
-    fit();
-  });
-  ro.observe(el);
-  return el;
-}
 
 function rafThrottle(fn) {
   let queued = false;
@@ -4768,13 +4735,18 @@ function settleCarry() {
   commit({ replace: true });
   if (dropped.length) toast(`No ${dropped.join(' / ')} roles at ${c.name} — showing all ${dropped.length === 1 && c.l.length && !S.l.length ? 'locations' : 'matches'}`);
 }
-/** M-33: the one visible line over "Same role elsewhere": which level and country are compared. */
+/**
+ * M-33: the one visible line over "Same role elsewhere": which roles, level and country are compared. Where the
+ * role family doesn't fit (a phone), the line is the level and country; the family is in compsNote, its Details.
+ */
 function compsLine(res) {
   const where = res?.country ? ` in ${countryInSentence(res.country)}` : '';
-  if (!res?.rows?.length) return `Nothing to compare yet${where}`;
-  if (res.level === 'Intern') return `Internships and fixed-term roles${where}`;
-  if (res.matchedOn === 'family+seniority') return `${levelLabel(res.level)} level${where}`;
-  return `Every full-time level${where}`;
+  const fam = FAMILY_LABELS[res?.family] || res?.family || '';
+  const lines = !res?.rows?.length ? [`Nothing to compare yet${where}`]
+    : res.level === 'Intern' ? [fam && `${fam} internships${where}`, `Internships and fixed-term roles${where}`]
+      : res.matchedOn === 'family+seniority' ? [fam && `${fam}, ${levelLabel(res.level)} level${where}`, `${levelLabel(res.level)} level${where}`]
+        : [fam && `${fam}, every full-time level${where}`, `Every full-time level${where}`];
+  return fitOneLine(h('span', { class: 'comps-line' }), lines);
 }
 let drawerComps = null; // V13: one live comps chart at a time (tooltip, ResizeObserver, theme listener)
 function destroyDrawerComps() { try { drawerComps?.destroy?.(); } catch { /* ignore */ } drawerComps = null; }

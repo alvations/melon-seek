@@ -326,7 +326,8 @@ export function registerDesktopQaTests(suite) {
     await page.locator('#compHost .ms-comp__reset').click(); await sleep(700);
     await page.goBack(); await sleep(1500);
     const title = await page.locator('#compHost .ms-comp__input').inputValue();
-    const basis = ((await page.locator('#compHost .ms-comp__result').innerText()).match(/Weighted by similarity to “([^”]*)”/) || [])[1];
+    // fix-phone-text M-34: the weighting sentence is in the basis line's Details (textContent reads the closed list).
+    const basis = ((await page.locator('#compHost .ms-comp__result').textContent()).match(/Weighted by similarity to “([^”]*)”/) || [])[1];
     assertEq(title, basis, 'Role title field vs the title the estimate is for');
   });
 

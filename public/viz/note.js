@@ -86,3 +86,44 @@ export function renderNote(host, { line = null, details = [], label = 'Details',
 export function noteLine({ tag = 'div', ...opts } = {}) {
   return renderNote(document.createElement(tag), opts);
 }
+
+/**
+ * fix-phone-text (fitLine): show the first of `variants` that fits on one line, else the last one, wrapping (never cut).
+ * Every variant says the same thing; a shorter one leaves a fact to its line's Details. `el` is a block that clips
+ * (an ellipsis is drawn at any overflow, so the fit is measured to the sub-pixel) or an inline span inside a line
+ * that wraps (then a second line box is what doesn't fit). Re-fits when its line's width changes.
+ */
+export function fitLine(el, variants) {
+  const list = variants.filter(Boolean);
+  if (!list.length) return el;
+  const boxOf = () => { let b = el; while (b.parentElement && getComputedStyle(b).display === 'inline') b = b.parentElement; return b; };
+  const over = () => {
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    const mids = [];
+    for (const x of r.getClientRects()) { if (x.width < 0.5) continue; const m = x.top + x.height / 2; if (!mids.some((t) => Math.abs(t - m) < 6)) mids.push(m); }
+    if (mids.length > 1) return true;
+    const box = boxOf(), cs = getComputedStyle(box), b = box.getBoundingClientRect(), t = r.getBoundingClientRect();
+    return t.right > b.right - parseFloat(cs.borderRightWidth) - parseFloat(cs.paddingRight) + 0.01
+      || t.left < b.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft) - 0.01;
+  };
+  const fit = () => {
+    el.classList.remove('is-wrapped');
+    for (const v of list) { el.textContent = v; if (!over()) return; }
+    el.classList.add('is-wrapped');
+  };
+  el.textContent = list[0];
+  if (typeof ResizeObserver !== 'function') return el;
+  let w = -1, watched = null;
+  const ro = new ResizeObserver(() => {
+    if (!el.isConnected) { ro.disconnect(); return; }
+    const box = boxOf();
+    if (box !== watched) { watched = box; if (box !== el) ro.observe(box); }
+    const now = box.getBoundingClientRect().width;
+    if (Math.abs(now - w) < 0.5) return;
+    w = now;
+    fit();
+  });
+  ro.observe(el);
+  return el;
+}
