@@ -1634,6 +1634,15 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
   .toast { bottom: 16px; }
 }
 
+/* M-40 meets fix-data-3's longer names ("Non-Technical Project, Program and Product Management": its end was cut by
+   0.42 px at 360 px, and more on narrower phones): a split name that fits whole in two lines flows as one text
+   (app.js fitCheckLabels); on the narrowest phones in 13 px, then 12 px, with tighter gaps in its row. */
+.check-label.is-split.is-flow .check-part { display: inline; max-width: none; white-space: normal; overflow: visible; }
+.check-label.is-split.is-snug { font-size: 13px; padding: 3px 0; }
+.check-label.is-split.is-snugger { font-size: 12px; padding: 3px 0; }
+.check:has(> .check-label.is-snug) { gap: 6px; }
+.check:has(> .check-label.is-snugger) { gap: 4px; }
+
 /* The search box's "/" key hint never takes a tap meant for the box (it covered the box's right end on the Duo's
    narrow search), and touch screens without a keyboard don't show it. */
 .search kbd { pointer-events: none; }

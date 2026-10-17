@@ -2408,6 +2408,33 @@ function labelLayouts(names) {
     return [name, { cls: ' is-split', parts: [h('span', { class: 'check-part' }, p.head), p.gap, h('span', { class: 'check-part' }, p.tail)], long: true }];
   }));
 }
+/**
+ * fix-phone-sizes (M-40 meets fix-data-3's names): a split name flows as one wrapping text when that keeps it whole in at
+ * most two lines ("Non-Technical Project, Program and" / "Product Management"); on the narrowest phones in 13 px, then
+ * 12 px, with tighter row gaps (styles.css .is-flow, .is-snug, .is-snugger). A name that needs more keeps its two
+ * one-line parts. Measured after each render and when the list's width changes; the label's text, the checkbox's
+ * name and the row's title stay the whole name.
+ */
+const FIT_STEPS = [['is-flow'], ['is-flow', 'is-snug'], ['is-flow', 'is-snugger']];
+function fitCheckLabels(root) {
+  let todo = [...root.querySelectorAll('.check-label.is-split')];
+  for (const l of todo) l.classList.remove('is-flow', 'is-snug', 'is-snugger');
+  if (!todo.length || !root.getBoundingClientRect().width) return;
+  const fits = (l) => {
+    const r = l.getBoundingClientRect();
+    if (!r.width) return false;
+    const cs = getComputedStyle(l);
+    const lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.3;
+    const lines = Math.round((r.height - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)) / lh);
+    return lines <= 2 && l.scrollWidth <= l.clientWidth + 0.5;
+  };
+  for (const step of FIT_STEPS) {
+    for (const l of todo) l.classList.add(...step);
+    const ok = todo.map(fits);
+    todo = todo.filter((l, i) => { if (!ok[i]) l.classList.remove(...step); return !ok[i]; });
+    if (!todo.length) break;
+  }
+}
 
 function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8, order = null, colorDim = null, labelOf = (k) => k, tipOf = null, note = null, label = null, labelledBy = null } = {}) {
   let query = '';
@@ -2488,12 +2515,18 @@ function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8,
     }
     if (!items.length) nodes.push(h('p', { class: 'fnote' }, query ? 'No matches' : 'Nothing to filter'));
     list.replaceChildren(...nodes);
+    fitCheckLabels(list); // fix-phone-sizes
     const hidden = items.length - shown;
     more.hidden = !(hidden > 0 || (expanded && items.length > limit)) || !!query;
     more.textContent = expanded ? 'Show fewer' : `Show all ${items.length}`;
     if (hadFocus) list.querySelector(`input[value="${cssId(hadFocus)}"]`)?.focus();
   }
   const uid = Math.random().toString(36).slice(2, 7);
+  // fix-phone-sizes: refit the long names when the list gets a width (a sheet opening) or a new one (a rotation).
+  if ('ResizeObserver' in window) {
+    let fitW = 0;
+    new ResizeObserver(rafThrottle(() => { const w = Math.round(list.getBoundingClientRect().width); if (w && w !== fitW) { fitW = w; fitCheckLabels(list); } })).observe(list);
+  }
   return { el, sync };
 }
 
