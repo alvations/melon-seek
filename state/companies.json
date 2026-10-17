@@ -1,29 +1,29 @@
 {
  "amazon": {
   "slug": "amazon",
-  "lastObservedAt": "2026-10-16T21:51:11.998Z",
+  "lastObservedAt": "2026-10-17T05:08:33.298Z",
   "firstObservedAt": "2026-10-11T15:04:28.012Z",
-  "observations": 20,
+  "observations": 21,
   "name": "Amazon",
   "channel": "beta",
   "source": "amazon",
   "board": "amazon",
   "color": "#ff9900",
-  "open": 22192,
-  "ids": 25074,
+  "open": 22193,
+  "ids": 25127,
   "pending": {
-   "opened": 385,
-   "reopened": 27,
+   "opened": 0,
+   "reopened": 0,
    "resumed": 0,
-   "closed": 490,
+   "closed": 0,
    "unseen": 0,
-   "changed": 5681,
-   "payChanged": 4083,
-   "sourceChanged": 2798,
-   "observations": 3
+   "changed": 0,
+   "payChanged": 0,
+   "sourceChanged": 0,
+   "observations": 0
   },
-  "lastDailyDate": "2026-10-16",
-  "lastDailyAt": "2026-10-16T05:13:33.030Z"
+  "lastDailyDate": "2026-10-17",
+  "lastDailyAt": "2026-10-17T05:08:33.298Z"
  },
  "anduril": {
   "slug": "anduril",
@@ -131,29 +131,29 @@
  },
  "google": {
   "slug": "google",
-  "lastObservedAt": "2026-10-16T21:47:07.624Z",
+  "lastObservedAt": "2026-10-17T05:08:02.064Z",
   "firstObservedAt": "2026-10-10T11:09:51.834Z",
-  "observations": 25,
+  "observations": 26,
   "name": "Google",
   "channel": "beta",
   "source": "google",
   "board": "google",
   "color": "#4285f4",
-  "open": 3815,
-  "ids": 4362,
+  "open": 3824,
+  "ids": 4373,
   "pending": {
-   "opened": 163,
+   "opened": 0,
    "reopened": 0,
    "resumed": 0,
-   "closed": 110,
+   "closed": 0,
    "unseen": 0,
-   "changed": 3843,
-   "payChanged": 9,
-   "sourceChanged": 3836,
-   "observations": 3
+   "changed": 0,
+   "payChanged": 0,
+   "sourceChanged": 0,
+   "observations": 0
   },
-  "lastDailyDate": "2026-10-16",
-  "lastDailyAt": "2026-10-16T05:09:27.905Z"
+  "lastDailyDate": "2026-10-17",
+  "lastDailyAt": "2026-10-17T05:08:02.064Z"
  },
  "meta": {
   "slug": "meta",
@@ -209,29 +209,29 @@
  },
  "netflix": {
   "slug": "netflix",
-  "lastObservedAt": "2026-10-16T21:45:51.890Z",
+  "lastObservedAt": "2026-10-17T05:03:30.103Z",
   "firstObservedAt": "2026-10-10T10:21:03.942Z",
-  "observations": 25,
+  "observations": 26,
   "name": "Netflix",
   "channel": "beta",
   "source": "eightfold",
   "board": "netflix",
   "color": "#e50914",
-  "open": 417,
-  "ids": 480,
+  "open": 405,
+  "ids": 482,
   "pending": {
-   "opened": 10,
+   "opened": 0,
    "reopened": 0,
    "resumed": 0,
-   "closed": 14,
+   "closed": 0,
    "unseen": 0,
-   "changed": 95,
+   "changed": 0,
    "payChanged": 0,
-   "sourceChanged": 3,
-   "observations": 3
+   "sourceChanged": 0,
+   "observations": 0
   },
-  "lastDailyDate": "2026-10-16",
-  "lastDailyAt": "2026-10-16T05:07:59.595Z"
+  "lastDailyDate": "2026-10-17",
+  "lastDailyAt": "2026-10-17T05:03:30.103Z"
  },
  "nvidia": {
   "slug": "nvidia",
