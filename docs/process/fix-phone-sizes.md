@@ -2,11 +2,17 @@
 
 ## State
 
-- **Done:** prompt saved; baseline phone-smoke and phone-matrix runs; test/e2e/phone-matrix.e2e.js written and
-  registered; CSS fixes in public/styles.css (own rule blocks at the end, plus the two landscape media queries) and
-  three small app.js changes (popover per screen, search placeholder fallbacks); `npm test` green without data links.
-- **In progress:** the after-run of the matrix, the full e2e suite, before and after screenshots.
-- **Next:** shrink the screenshots, final numbers in section 5, send the SHA to the lead.
+- **Done:**
+  - prompt saved; baseline phone-smoke and phone-matrix runs;
+  - test/e2e/phone-matrix.e2e.js written and registered;
+  - CSS fixes in public/styles.css: their own rule blocks at the end, plus the two landscape media queries;
+  - two small app.js changes: positionPopover per screen, fitSearchHint fallbacks;
+  - the matrix goes from 17 of 34 failing before to 34 of 34 passing; the full e2e suite has no new failures (section 5);
+  - before and after screenshots, shrunk;
+  - `npm test` green without data links.
+- **In progress:** nothing; the lead integrates.
+- **Next, if resumed:** the follow-ups in section 6 (the Duo spanned in its other posture; WebKit results from
+  webkit-phone.yml).
 
 ## 1. Brief
 
@@ -130,6 +136,18 @@ Size by size (Apple unless named; "name" is the company menu's text; controls ar
 | razr inner landscape 1005x412 | 1005 | whole | ok | ok | |
 | Name sweep 280–860 px, heights 740 and 360, 10 boards | 505 px at 280–559 x 360 → fits | 84 (Microsoft) to 162 (Anthropic) cut widths per board → 0 | | | |
 | Desktop 1440x900, 1280x800, 1024x768, tablet 768x1024 | = | = | = | = | |
+
+**The full e2e suite** (`node scripts/e2e.js`, data linked, load 10–30 from other lanes): 394 of 420 pass, 22 fail,
+4 skipped. None of the 22 is new from this lane:
+- 18 are reviewers' red tests, which fail by design until their lanes land: Beta mobile QA 3 [M-33] to [M-44], [M-46]
+  and [M-47], and beta a11y 2 [A-8] to [A-11]. [M-45] **passes now** (it failed before);
+- the old single name-sweep test hit the 120 s test limit under load. It is now one test per board, and all 10 pass;
+- T21 (load-sensitive) and P-5 ("£80,000 … below the lowest pay listed here ($110K)", from today's data) fail the
+  same way with a92a3c8's styles.css and app.js put back. D-20 timed out under load and passes alone.
+The groups this lane must not break all pass: Beta mobile QA 14/14, Beta mobile QA 2 6/6, Fix company scroll 23/23,
+fix-density 51/51, Desktop QA 21, Beta desktop QA 2 10/10, Beta UX review 9/9, Fix beta app 11/11 (M-25 and M-27: the
+logo and the Beta tag at 360, 390 and 430 px). Afterwards `git checkout -- docs/screenshots` reverted the screenshots
+the suite rewrote outside this lane's folder.
 
 `MELON_BETA_SNAPSHOT_DIR= npm test` with the data links out of data/ (on 2754e9d; the later commits touch only the
 test, the log and a media query): 1116 pass, 0 fail, 8 skipped, 56 todo.
