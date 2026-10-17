@@ -379,6 +379,14 @@ input.range-val { width: 100%; min-width: 0; padding: 0; border: 0; background: 
 .radio input:checked + .radio-dot { border-color: var(--ms-accent); }
 .radio input:checked + .radio-dot::after { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--ms-accent); }
 .check-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* M-40: a long name's start and end (app.js labelParts) each keep one line: the end wraps under the start, so
+   "…Management--Technical" and "…Management--Non-Tech" differ on screen; only a start longer than a line is cut.
+   Names that would still look the same wrap whole (.is-wrap). A checked or keyboard-focused row shows its whole name. */
+.check-label.is-split { white-space: normal; text-overflow: clip; }
+.check-label.is-wrap { white-space: normal; overflow-wrap: anywhere; }
+.check-label.is-split, .check-label.is-wrap { padding: 4px 0; line-height: 1.3; }   /* two lines stay apart from the next row */
+.check-part { display: inline-block; max-width: 100%; vertical-align: top; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.check input:checked ~ .check-label .check-part, .check input:focus-visible ~ .check-label .check-part { white-space: normal; overflow-wrap: anywhere; }
 .check-count { font-size: 12px; color: var(--ms-faint); font-variant-numeric: tabular-nums; }
 .check.is-zero .check-label { color: var(--ms-faint); }
 .more-btn { margin-top: 6px; }
@@ -545,6 +553,10 @@ html[data-mode="map"] .demo-banner > code { order: 0; flex: 0 1 auto; margin-lef
 .d-company { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--ms-muted); font-size: 13px; }
 .d-title { margin: 6px 0 6px; font-size: 23px; line-height: 1.22; letter-spacing: -.02em; }
 .d-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--ms-muted); font-size: 13.5px; }
+/* M-43: a preview card's job page while the whole list loads: the card's fields, then "Loading…" */
+.d-loading-pay { margin: 14px 0 0; }
+.d-loading { margin: 14px 0 10px; color: var(--ms-muted); font-size: 14px; }
+.d-loading-body { display: grid; gap: 10px; }
 .d-meta .sen { margin-left: 4px; }
 .d-updated, .d-posted { font-size: 12.5px; margin-top: 4px; }
 .d-salary { margin: 18px 0 6px; padding: 16px; border-radius: 12px; background: var(--ms-surface-2); border: 1px solid var(--ms-border); }
@@ -1158,6 +1170,9 @@ html[data-mode="insights"] .viz-controls { display: none; }
   .filters-foot { padding: 10px var(--m-gutter-r) calc(10px + env(safe-area-inset-bottom)) var(--m-gutter-l); background: var(--ms-bg); }
   .filters-foot .btn { height: 48px; font-size: 16px; }
   body.kb-open .filters-foot { display: none; }   /* the keyboard would cover it anyway */
+  /* M-47: typing in Insights on a short screen (landscape, the keyboard up): the top bars step aside so the
+     field shows above the keyboard (app.js revealField); they come back when it loses focus. */
+  body.kb-lift .topbar, body.kb-lift .quickbar { display: none; }
   body.filters-open .results { content-visibility: hidden; }   /* covered by the sheet; catches up on close */
   .fsec > summary { min-height: 52px; padding: 0; font-size: 15px; }
   .fsec-badge { min-width: 20px; height: 20px; font-size: 12px; }

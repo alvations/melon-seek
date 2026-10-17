@@ -590,6 +590,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
   let chipFont = '700 12px system-ui, sans-serif'; // the edge chips' font (renderClusters)
   let foldOpen = false;      // UX-24: the "N more departments" row is opened
   let rowNotes = { offRow: 0, basis: null, basisLeft: 0, spans: 0, partTime: 0 }; // notes-line counts from the rows (V-18 to V-21)
+  let hostNotes = [];        // UX-57: the host's facts (app.js: the stats line's), listed first in the notes' Details
+  let noteStats = null;      // the last render's stats, so setNotes can redo the notes alone
 
   // ---------- data prep ----------
   function prepare() {
@@ -727,7 +729,9 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     if (highlighted) applyHighlight(highlighted, false);
   }
 
-  function renderNotes({ noSalary, fxCount, unknownFx, elsewhere, pay }) {
+  function renderNotes(stats) {
+    noteStats = stats;
+    const { noSalary, fxCount, unknownFx, elsewhere, pay } = stats;
     const where = placesPhrase(opts.places);
     // fix-density: one line with the two counts a job seeker needs ("564 with pay · 81 without"); every
     // other caveat in the short list behind "Details" (public/viz/note.js), in plain words.
@@ -736,6 +740,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     if (noSalary) line.push(`${noSalary.toLocaleString()} without`);
     const isAre = (n) => (n === 1 ? 'is' : 'are');
     const details = [
+      ...hostNotes,
       // BP-2: with a Location filter, the plotted pay is for those places, and the rest is counted.
       elsewhere ? `${plural(elsewhere, 'posting')} with pay for another country only ${isAre(elsewhere)} left out${where ? `: that pay says nothing about pay in ${where}` : ''}` : '',
       // V-18: Group by Location rows hold only the pay posted for their place.
@@ -1856,6 +1861,14 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     highlight(jobId) {
       highlighted = jobId ?? null;
       applyHighlight(highlighted, highlighted != null);
+    },
+    /**
+     * UX-57: the host's facts for the notes' Details (app.js: the stats line's, so the chart view has one
+     * Details), listed before the chart's own; only the notes are redone.
+     */
+    setNotes(items) {
+      hostNotes = Array.isArray(items) ? items : [];
+      if (noteStats) renderNotes(noteStats);
     },
     /** Clear the selected cluster/row state (visual only; no callback). */
     clearSelection() {

@@ -38,6 +38,7 @@ import { registerBetaA11y2Tests } from '../test/e2e/beta-a11y-2.e2e.js';
 import { registerBetaVizReviewTests2 } from '../test/e2e/beta-viz-review-2.e2e.js';
 import { registerBetaUxReview2Tests } from '../test/e2e/beta-ux-review-2.e2e.js';
 import { registerFixTouchTipsTests } from '../test/e2e/fix-touch-tips.e2e.js';
+import { registerFixPhoneControlsTests } from '../test/e2e/fix-phone-controls.e2e.js';
 
 const args = new Set(process.argv.slice(2));
 const apiOnly = args.has('--api-only');
@@ -101,6 +102,7 @@ if (!apiOnly) {
   registerBetaVizReviewTests2(suite);
   registerBetaUxReview2Tests(suite);
   registerFixTouchTipsTests(suite);
+  registerFixPhoneControlsTests(suite);
 }
 
 let results;
