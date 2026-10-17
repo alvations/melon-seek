@@ -3398,6 +3398,9 @@ function renderResults() {
   else if (!hasQuery() && bestOpt.isConnected) bestOpt.remove();
   sortSel.value = effectiveSort();
   if ((data.status !== 'ready' && !previewing()) || !visible.length) { win.sig = ''; win.more = null; listIO?.disconnect(); listIO = null; win.previewIds = null; }
+  // UX-39 (fix-phone-sizes): while the preview shows, a phone's peeking sheet rises to show its first card
+  // (styles.css body.is-previewing); half and full stay where the user put them. Off again when the list lands.
+  document.body.classList.toggle('is-previewing', previewing());
   if (previewing()) {
     title.textContent = `Loading ${plural(preview.total, 'role')}…`;
     list.setAttribute('aria-busy', 'true');

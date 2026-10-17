@@ -503,6 +503,54 @@ export function registerPhoneMatrixTests(suite) {
     assert(!bad.length, `${bad.length} problem(s):\n  ${bad.join('\n  ')}`);
   });
 
+  // UX-39 (docs/process/ux-review-beta-2.md): while Amazon's whole list loads, its first-page preview shows a real card
+  // on the first screen, on every phone layout (the 1005 and 1114 px postures show the list beside the chart).
+  for (const size of ALL_SIZES.filter((s) => s.width <= 860)) suite.test(`Phone matrix: [UX-39] [${size.name} ${size.width}x${size.height}] Amazon's first-page preview shows its first card on the first screen while the whole list loads, and the sheet goes back to its peek when the list lands`, async (ctx) => {
+    const st = await serveDist();
+    if (!st) skip('no beta build (npm run build writes dist/beta/)');
+    if (!fs.existsSync(path.join(st.dist, 'beta', 'api', 'preview', 'amazon.json'))) skip('no Amazon first-page preview in this build');
+    const bad = [];
+    do {
+      let release;
+      const held = new Promise((r) => { release = r; });
+      const context = await ctx.browser.newContext({ ...contextFor(size, engineOf(ctx)), colorScheme: 'light' });
+      ctx.cleanup.push(() => { release(); return context.close(); });
+      await context.route((u) => !u.href.startsWith(st.origin) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
+      // Hold the whole list (not the preview) so the preview state lasts.
+      await context.route(/\/beta\/api\/jobs\/amazon\.json/, async (r) => { await Promise.race([held, sleep(30000)]); await r.continue().catch(() => {}); });
+      const page = await context.newPage();
+      page.goto(`${st.base}beta/#c=amazon`).catch(() => {});
+      const ok = await page.waitForFunction(() => /Loading/.test(document.querySelector('#resultsTitle')?.textContent || '') && document.querySelectorAll('#resultsList .card[data-preview-id]').length > 0, null, { timeout: 30000 }).then(() => true, () => false);
+      const label = `${size.name} ${size.width}x${size.height}`;
+      if (!ok) { bad.push(`${label}: no preview cards`); release(); await context.close(); continue; }
+      await sleep(900); // the sheet's rise (0.32 s)
+      const seen = await page.evaluate(() => {
+        const cards = [...document.querySelectorAll('#resultsList .card[data-preview-id]')];
+        const H = Math.min(innerHeight, screen.height || innerHeight);
+        const on = cards.filter((c) => {
+          const r = c.getBoundingClientRect();
+          if (r.bottom <= 0 || r.top >= H - 8 || r.height < 20) return false;
+          const y = Math.min(H - 4, r.top + Math.min(r.height / 2, 24));
+          const hit = document.elementFromPoint(r.left + r.width / 2, y);
+          return !!hit && c.contains(hit);
+        });
+        return { cards: cards.length, on: on.length, sheet: document.body.dataset.sheet || '', top: Math.round(document.querySelector('#results').getBoundingClientRect().top), H };
+      });
+      if (!seen.on) bad.push(`${label}: ${seen.cards} preview cards, none on the first screen (sheet "${seen.sheet}", its top at ${seen.top} of ${seen.H})`);
+      release();
+      await page.waitForFunction(() => !/Loading/.test(document.querySelector('#resultsTitle')?.textContent || '') && document.querySelector('#resultsList .card[data-id]'), null, { timeout: 90000 }).catch(() => {});
+      await sleep(900);
+      const after = await page.evaluate(() => {
+        const s = document.querySelector('#results');
+        const peek = parseFloat(getComputedStyle(s).getPropertyValue('--sheet-peek'));
+        return { previewing: document.body.classList.contains('is-previewing'), peek, shows: Math.round(innerHeight - s.getBoundingClientRect().top), sheet: document.body.dataset.sheet || '' };
+      });
+      if (after.previewing || (after.sheet === 'peek' && Math.abs(after.shows - after.peek) > 40)) bad.push(`${label}: after the list landed the sheet did not go back to its peek (${JSON.stringify(after)})`);
+      await context.close();
+    } while (false);
+    assert(!bad.length, `${bad.length} problem(s):\n  ${bad.join('\n  ')}`);
+  });
+
   suite.test('Phone matrix: [Surface Duo stacked 720x1114, hinge emulated across at y 540–574 px] top bar, quick bar, chart and filters on the top screen, the list, the job page and the sheets on the bottom one, nothing on the hinge (Chromium CDP)', async (ctx) => {
     if (engineOf(ctx) !== 'chromium') skip('emulating the hinge needs Chromium CDP (Emulation.setDeviceMetricsOverride displayFeature)');
     const size = ALL_SIZES.find((s) => s.width === DUO_STACKED.width && s.height === DUO_STACKED.height);
