@@ -133,7 +133,23 @@ function colorFromString(str) {
 
 /** Name-independent display name for a custom board (used for cached data). */
 export function defaultName(board) {
-  return titleCase(String(board || ''));
+  return customBoardName(titleCase(String(board || '')));
+}
+
+/** A name compared loosely: case, accents' compatibility forms, spaces and punctuation ignored. */
+const nameKey = (s) => String(s || '').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+
+/**
+ * V14 residual (docs/REVIEW.md "beta review 2026-10-11"): a custom board never shows a built-in company's
+ * name, on any channel (Apple, Google, Meta … as well as the stable ones): `?name=Apple` on a Lever board, or
+ * greenhouse/google's default "Google", reads "Apple (custom)", the suffix public/app.js#companyInfo gives
+ * the header for the same case. Compared loosely ("A.P.P.L.E", "scale ai"). On the stable site the browser's
+ * registry holds the stable companies only, so there it guards their names.
+ */
+export function customBoardName(name) {
+  const n = String(name || '').trim();
+  const key = nameKey(n);
+  return key && COMPANIES.some((c) => nameKey(c.name) === key) ? `${n} (custom)` : n;
 }
 
 function titleCase(s) {
@@ -166,7 +182,7 @@ export function resolveCompany(query = {}) {
     let name = get('name');
     name = typeof name === 'string' ? name.trim().slice(0, 80) : '';
     const slug = `${src}-${board.toLowerCase()}`;
-    return { slug, name: name || titleCase(board), source: src, board, color: colorFromString(slug), custom: true };
+    return { slug, name: customBoardName(name || titleCase(board)), source: src, board, color: colorFromString(slug), custom: true };
   }
 
   if (companyParam) {

@@ -273,7 +273,7 @@ test('S-7: scripts/cycle/serve.mjs survives a request with bad percent-encoding'
 
 /* ------------------------------------------------- residuals of v2 findings */
 
-test('V14 residual: a custom board cannot take a built-in company name (now including the beta names)', OPEN, async () => {
+test('V14 residual: a custom board cannot take a built-in company name (now including the beta names)', async () => {
   const { resolveCompany, listCompanies } = await imp('server', 'companies.js');
   const names = new Set(listCompanies({ channel: 'beta', includePaused: true }).map((c) => c.name.toLowerCase()));
   for (const q of [{ source: 'lever', board: 'zzexample', name: 'Apple' }, { source: 'greenhouse', board: 'google' }, { source: 'ashby', board: 'zz', name: 'anthropic' }]) {

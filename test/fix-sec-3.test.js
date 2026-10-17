@@ -307,3 +307,34 @@ test('S-10: normalizeEmployer gives every real employer name the same key as bef
   for (const s of fuzz(['AMAZON', 'Meta', ' ', '.', ',', 'INC', 'LLC', 'L L C', 'CO', 'U.S.', '&', 'SERVICES', 'Platforms', '-'], 2000, 10)) names.push(s);
   for (const n of names) assert.equal(normalizeEmployer(n), OLD.normalizeEmployer(n), n);
 });
+
+/* ------------------------------------------------------------ V14 residual */
+
+test('V14 residual: no custom board shows any built-in name, on any channel, however it is spelled', async () => {
+  const { resolveCompany, defaultName, COMPANIES } = await imp('server', 'companies.js');
+  const builtins = COMPANIES.map((c) => c.name);
+  assert.ok(['Amazon', 'Apple', 'Google', 'Meta', 'Microsoft', 'Netflix', 'NVIDIA', 'Anthropic', 'Scale AI'].every((n) => builtins.includes(n)));
+  const key = (s) => String(s).normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+  const taken = new Set(builtins.map(key));
+  for (const n of builtins) {
+    for (const spelled of [n, n.toUpperCase(), n.toLowerCase(), ` ${n} `, n.split('').join('.'), n.replace(/\s+/g, ''), n.normalize('NFKD')]) {
+      for (const src of ['greenhouse', 'ashby', 'lever']) {
+        const c = resolveCompany({ source: src, board: 'zzexample', name: spelled });
+        assert.equal(c.custom, true);
+        assert.ok(!taken.has(key(c.name)), `${src}/zzexample?name=${JSON.stringify(spelled)} is shown as "${c.name}"`);
+        assert.match(c.name, / \(custom\)$/);
+      }
+    }
+  }
+  // A board slug that spells a built-in's name gets the same suffix by default, and in the cached copy's name.
+  for (const [src, board] of [['greenhouse', 'google'], ['lever', 'nvidia'], ['ashby', 'meta'], ['greenhouse', 'scale-ai']]) {
+    assert.match(resolveCompany({ source: src, board }).name, / \(custom\)$/, `${src}/${board}`);
+    assert.ok(!taken.has(key(defaultName(board))), `defaultName(${board}) = ${defaultName(board)}`);
+  }
+  // Other names are kept as given; built-ins keep their own name (the 2026-10-02 V14 fix).
+  assert.equal(resolveCompany({ source: 'lever', board: 'acme-co', name: 'Acme' }).name, 'Acme');
+  assert.equal(resolveCompany({ source: 'greenhouse', board: 'acme' }).name, 'Acme');
+  assert.equal(resolveCompany({ source: 'lever', board: 'zz', name: 'Apple Pie Bakery' }).name, 'Apple Pie Bakery');
+  assert.equal(resolveCompany({ source: 'greenhouse', board: 'anthropic', name: 'Evil Corp' }).name, 'Anthropic');
+  assert.equal(resolveCompany({ company: 'apple' }).name, 'Apple');
+});
