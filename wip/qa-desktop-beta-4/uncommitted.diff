@@ -1,0 +1,54 @@
+diff --git a/test/e2e/beta-desktop-qa-4.e2e.js b/test/e2e/beta-desktop-qa-4.e2e.js
+index 450397a..b13d6d8 100644
+--- a/test/e2e/beta-desktop-qa-4.e2e.js
++++ b/test/e2e/beta-desktop-qa-4.e2e.js
+@@ -134,8 +134,10 @@ export function registerBetaDesktopQa4Tests(suite) {
+     }
+   });
+ 
+-  // ---------------------------------------------------------------- open bugs (fail until fixed)
+-  suite.test('Beta desktop QA 4: [D-46] a pay row tied to no place the posting lists does not widen the card\'s range or its place count', async (ctx) => {
++  // Lead decision (2026-10-16, re-stated for D-46 on 2026-10-17): the card and the drawer headline present every posted
++  // row ("we must present them as they are and not cut anything"), including a row tied to no place the posting lists;
++  // only the pricing of a place (payAt) leaves such a row out. This guard keeps that: the rows are listed and counted.
++  suite.test('Beta desktop QA 4: a pay row tied to no listed place is still listed under Pay by place and inside the card\'s range (lead decision 2026-10-16)', async (ctx) => {
+     const { st, page } = await open(ctx, 'c=amazon');
+     const found = [];
+     for (const c of ['amazon', 'apple', 'microsoft']) {
+@@ -146,24 +148,28 @@ export function registerBetaDesktopQa4Tests(suite) {
+         if (!s || s.ranges.length < 2 || s.kind === 'minimum' || s.termWeeks || s.partTime || j.remote) continue;
+         if (j.locations.some((l) => /remote/i.test(l.name))) continue;
+         const own = s.ranges.filter((r) => r.locations.length), none = s.ranges.filter((r) => !r.locations.length);
+-        if (!own.length || !none.length) continue;
+-        const lo = Math.min(...own.map((r) => +r.min)), hi = Math.max(...own.map((r) => +(r.max ?? r.min)));
+-        const alo = Math.min(s.min, ...s.ranges.map((r) => +r.min)), ahi = Math.max(s.max, ...s.ranges.map((r) => +(r.max ?? r.min)));
+-        if (alo < lo - 500 || ahi > hi + 500) found.push({ c, j, lo, hi, none });
++        if (own.length && none.length && none.every((r) => r.label)) found.push({ c, j, none });
+       }
+     }
+-    if (!found.length) return; // no posting has such a row today
+-    const { c, j, lo, hi, none } = found.find((f) => f.c === 'amazon' && f.none.length >= 2) || found[0];
++    if (!found.length) skip('no posting has a pay row tied to no listed place today');
++    const { c, j, none } = found.find((f) => f.c === 'amazon' && f.none.length >= 2) || found[0];
+     await go(page, st, `c=${c}&q=${encodeURIComponent(j.title)}`);
+     const card = page.locator(`#resultsList .card[data-id="${j.id}"]`);
+     if (!(await card.count())) skip(`"${j.title}" is not in the first page of its own search`);
+     const pill = (await card.locator('.sal-pill').innerText()).replace(/\n+/g, ' ').trim();
+     const shown = parseRange(pill);
++    const s = j.salary;
++    const alo = Math.min(s.min, ...s.ranges.map((r) => +r.min)), ahi = Math.max(s.max, ...s.ranges.map((r) => +(r.max ?? r.min)));
+     const near = (a, b) => Math.abs(a - b) <= Math.max(1000, b * 0.01);
+-    assert(shown && near(shown[0], lo) && near(shown[1], hi),
+-      `${j.id} "${j.title}" is listed in ${j.locations.map((l) => l.name).join(' and ')}, whose rows span $${Math.round(lo / 1000)}K–${Math.round(hi / 1000)}K, but the card reads "${pill}": it includes ${none.map((r) => `"${r.label}" $${Math.round(r.min / 1000)}K–${Math.round((r.max ?? r.min) / 1000)}K`).join(' and ')}, rows tied to no place the posting lists (${found.length} such postings)`);
++    assert(shown && near(shown[0], alo) && near(shown[1], ahi), `${j.id}: the card reads "${pill}", not the span of every posted row ($${Math.round(alo / 1000)}K–${Math.round(ahi / 1000)}K)`);
++    await card.click();
++    await page.waitForSelector('#drawer.is-open', { timeout: 20000 }); await sleep(800);
++    const names = await page.locator('#drawer .d-sal-places .d-tier-name').allInnerTexts();
++    const missing = none.filter((r) => !names.some((n) => n.includes(r.label)));
++    assert(!missing.length, `${j.id}: Pay by place lists ${names.map((n) => `"${n}"`).join(', ')}, without the posted row(s) ${missing.map((r) => `"${r.label}"`).join(', ')}`);
+   });
+ 
++  // ---------------------------------------------------------------- open bugs (fail until fixed)
+   suite.test('Beta desktop QA 4: [D-47] after switching to a board that is not on the site, or fails to load, the previous board\'s chart is not left behind the message', async (ctx) => {
+     const { st, page } = await open(ctx, 'c=netflix', { status: (p) => (/\/beta\/api\/jobs\/apple\.json$/.test(p) ? 500 : 0) });
+     await needBoard(page, st, 'netflix');
