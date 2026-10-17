@@ -2944,7 +2944,9 @@ function renderTagline() {
     el.dataset.text = text;
     el.title = big.length ? `Beta: adds ${list} from their own careers sites` : text;
     el.replaceChildren(h('strong', { class: 'tagline-brand' }, 'melon·seek'), h('span', { class: 'tagline-sep', 'aria-hidden': 'true' }, ' · '),
-      h('span', { class: 'tagline-long' }, text), h('span', { class: 'tagline-short' }, short));
+      h('span', { class: 'tagline-long' }, text), h('span', { class: 'tagline-short' }, short),
+      // fix-phone-text: under 360 px (a folded Fold, the first iPhone SE) the short line was cut; a shorter one fits.
+      h('span', { class: 'tagline-tiny' }, big.length ? `Beta: ${big.length > 1 ? `${big.length} big-tech sites` : `${big[0]}’s site`}` : 'Pay after tax and rent'));
   }
   document.body.classList.toggle('is-filtered', activeFilterCount() > 0 || !!area);
 }
@@ -3312,12 +3314,15 @@ function notHereState() {
   };
 }
 
+let stateSeq = 0;
 function stateCard({ icon = null, title, body, details = null, action = null, link = null, tone = '' }) {
   // fix-density: one short body line; a caveat (roles a pay filter hides) goes behind "Details" (viz/note.js).
-  const more = details && details.filter(Boolean).length ? noteLine({ cls: 'state-note', details, key: `state:${title}` }) : null;
+  // A-9 (fix-phone-text): that Details is described by the card's title.
+  const hid = `state-title-${++stateSeq}`;
+  const more = details && details.filter(Boolean).length ? noteLine({ cls: 'state-note', details, key: `state:${title}`, about: hid }) : null;
   return h('div', { class: `state-card ${tone ? `state-card--${tone}` : ''}` },
     icon ? h('div', { class: 'state-ico', html: icon }) : h('div', { class: 'state-ico state-ico--melon' }, h('img', { src: 'favicon.svg', alt: '' })),
-    h('h3', null, title), body ? h('p', null, body) : null, more,
+    h('h3', { id: hid }, title), body ? h('p', null, body) : null, more,
     action ? h('button', { type: 'button', class: 'btn btn--primary btn--sm', onclick: action[1] }, action[0]) : null,
     link ? h('a', { class: 'btn btn--primary btn--sm', href: link[1] }, link[0]) : null);
 }
@@ -5169,8 +5174,8 @@ function fitSearchHint() {
   const inp = $('#search');
   if (!inp) return;
   const cs = getComputedStyle(inp);
+  if (!inp.clientWidth) return; // not laid out (hidden)
   const have = inp.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-  if (!(have > 0)) return;
   hintCanvas ??= document.createElement('canvas').getContext('2d');
   hintCanvas.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
   // fix-phone-sizes: "Search" where even "Search roles" is cut (the 119 px box at 320–359 px), and only the magnifier

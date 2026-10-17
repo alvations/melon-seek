@@ -116,13 +116,13 @@ describe('BP-3 market cells have one country each', () => {
     assert.equal(r.country, 'IE');
     assert.deepEqual(r.rows, []);
     assert.equal(r.fallback, 'no-peers');
-    assert.equal(compsNote(r), "No other company lists pay for Data science & analytics roles in Ireland, so there is nothing to compare yet. Pay for other countries isn't used.");
+    assert.equal(compsNote(r), "No other company lists pay for Data science & analytics roles in Ireland, so there is nothing to compare yet. Pay for other countries isn’t used."); // UX-61: curly apostrophe
   });
   test('an internship with no same-country internship elsewhere: no rows, never full-time pay', () => {
     const intern = job({ title: 'Software Engineering Intern', seniority: 'Intern', company: 'google', locations: [L.WAW], mid: 120000, termWeeks: 12 });
     const r = compsForJob(market, intern, { includeSelf: true });
     assert.deepEqual([r.rows.length, r.level, r.fallback, r.country], [0, 'Intern', 'intern-too-few', 'PL']);
-    assert.equal(compsNote(r), "No other company lists pay for Software engineering internships or fixed-term roles in Poland, so there is nothing to compare yet. Pay for other countries isn't used.");
+    assert.equal(compsNote(r), "No other company lists pay for Software engineering internships or fixed-term roles in Poland, so there is nothing to compare yet. Pay for other countries isn’t used."); // UX-61: curly apostrophe
   });
   test('a US role is compared with US pay, named in the note', () => {
     const r = compsForJob(market, usEntry);
@@ -249,8 +249,8 @@ describe('BP-7 a stated mid level is a level ("Mid" badge, never "doesn\'t state
     const r = compsForJob(market, me, { includeSelf: true });
     assert.deepEqual([r.matchedOn, r.level, r.bucket, r.fallback], ['family+seniority', 'Mid', 'Mid-level', null]);
     assert.deepEqual(r.rows.map((x) => x.slug), ['netflix', 'google', 'microsoft']);
-    assert.equal(compsNote(r), 'Software engineering roles at Mid level in the US: median and middle half of posted base pay (approx USD).');
-    assert.doesNotMatch(compsNote(r), /doesn't state a level/);
+    assert.equal(compsNote(r), 'Software engineering roles at Mid level in the US: median and middle half of posted base pay (in US dollars).'); // UX-61
+    assert.doesNotMatch(compsNote(r), /doesn[’']t state a level/);
   });
   test('with too few stated mid roles elsewhere it says so, not "doesn\'t state a level"', () => {
     const solo = buildMarket([payload('google', 'Google', many(4, { title: t, seniority: 'Mid', basis: 'title', company: 'google' })),
@@ -262,7 +262,7 @@ describe('BP-7 a stated mid level is a level ("Mid" badge, never "doesn\'t state
   test('the default "Mid" is still "Level not stated"', () => {
     const r = compsForJob(market, job({ seniority: 'Mid', company: 'xai' }));
     assert.equal(r.fallback, 'level-not-stated');
-    assert.match(compsNote(r), /^This posting doesn't state a level, so this compares Software engineering roles in the US at every full-time level/);
+    assert.match(compsNote(r), /^This posting doesn’t state a level, so this compares Software engineering roles in the US at every full-time level/);
   });
   test('Compare companies offers "Mid" for stated mid levels, and opens on it', () => {
     const opts = levelOptions(market, 'swe', { country: 'US' });

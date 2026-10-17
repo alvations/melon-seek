@@ -50,8 +50,15 @@ export const ALLOW = [
   { sel: '#filterBody .check-label, #popover .check-label', why: 'M-40, owned by the fix-phone-controls lane (a filter row\'s label; the row is a checkbox): left to that lane, listed here so this guard stays about text' },
   { sel: '.company-list .company-item, .company-list .company-item *', why: 'a company name in the company menu (a list row; the button opens the board, whose top bar names it)' },
   { sel: '#drawer .ms-comps__name, #drawer .ms-comps__label', why: 'a company name in "Same role elsewhere" (a listbox row; a tap or Enter opens that company\'s roles)' },
-  { sel: '#chartHost .ms-legend__key', why: 'the Ranges colour legend (viz lane): one row that scrolls sideways, each key capped at 220 px; the bars and their chips name the department. Reported to the lead for the viz lane' },
+  { sel: '#chartHost .ms-legend__key', why: 'viz lane: the Ranges colour legend caps each key at 220 px (viz.css .ms-legend__item); the legend scrolls sideways, and the bars and their chips name the department' },
+  { sel: '#chartHost .ms-crow__fold', why: 'viz lane: a chart row\'s fold arrow is cut at 280 px (the folded Fold)' },
+  { sel: '#chartHost .ms-axis__cap', why: 'viz lane: the Ranges axis caption "Yearly pay, US$ (converted)" is cut at 540 px (the Surface Duo, one screen)' },
   { sel: '#companyMenuBtn .company-name', why: 'M-45, owned by the fix-phone-sizes lane (the top bar\'s layout at 380-392 px): left to that lane' },
+];
+
+/** Captions that may wrap for now, each with the reason (the lead's call, 2026-10-16): another lane's to fix. */
+export const ALLOW_LINES = [
+  { sel: '#mapHost .ms-modes__paywhat', why: 'viz lane: the map\'s Pay legend box is too narrow at 280 px, so "Median pay [Details]" takes 3 lines' },
 ];
 
 /* ------------------------------------------------------------------ the build and pages */
@@ -184,7 +191,7 @@ export const CAPTION_SEL = [
  * is measured by its line, without its Details). cut: any text box that cuts its text, or an input that cuts its
  * placeholder, unless ALLOW names it (never when the text is a number or an amount).
  */
-function scanText({ roots, captionSel, allow, words, maxLines = 1 }) {
+function scanText({ roots, captionSel, allow, allowLines = [], words, maxLines = 1 }) {
   const rootEls = roots.flatMap((r) => [...document.querySelectorAll(r)]);
   const seen = new Set();
   /** Inside a closed <details> and not its summary (Chromium still lays such content out for script). */
@@ -244,7 +251,7 @@ function scanText({ roots, captionSel, allow, words, maxLines = 1 }) {
     if (!text) continue;
     const n = Math.max(rectLines(lineEl), heightLines(lineEl));
     const wc = text.split(' ').filter((x) => /[\p{L}\p{N}]/u.test(x)).length;
-    if (n > maxLines || wc > words) lines.push({ sel: name(e), text: text.slice(0, 170), lines: n, words: wc, max: maxLines });
+    if ((n > maxLines && !allowLines.some((a) => e.matches(a.sel))) || wc > words) lines.push({ sel: name(e), text: text.slice(0, 170), lines: n, words: wc, max: maxLines });
   }
   const cut = [];
   const allowed = (e) => allow.find((a) => e.matches(a.sel));
@@ -288,7 +295,7 @@ function scanText({ roots, captionSel, allow, words, maxLines = 1 }) {
   return { lines, cut };
 }
 async function scan(page, roots, maxLines = 1) {
-  return page.evaluate(scanText, { roots: [].concat(roots), captionSel: CAPTION_SEL, allow: ALLOW.map(({ sel }) => ({ sel })), words: WORDS, maxLines });
+  return page.evaluate(scanText, { roots: [].concat(roots), captionSel: CAPTION_SEL, allow: ALLOW.map(({ sel }) => ({ sel })), allowLines: ALLOW_LINES.map(({ sel }) => ({ sel })), words: WORDS, maxLines });
 }
 /**
  * Lines a caption may take at a width: one from 360 px up (every phone in common use, the iPhone mini included);
@@ -330,9 +337,10 @@ async function guardWalk(s, slug) {
   const { page } = s;
   const p = await picks(s.st, slug);
   const out = [];
-  const maxLines = linesAt(await page.evaluate(() => innerWidth));
+  let maxLines = 1;
   const look = async (where, roots) => { out.push(...report(await scan(page, roots, maxLines), where)); };
   await s.go(`c=${slug}`);
+  maxLines = linesAt(await page.evaluate(() => innerWidth)); // the page's own width (about:blank has none)
   const top = await topPaidId(page);
   await look('first screen', ['.topbar', '.quickbar', '#vizToolbar', '#tagline', '#vizArea']);
   // A results sheet only where the layout has one (a phone); a wide posture (the Duo spanned) has the list column.
@@ -622,7 +630,7 @@ export function registerFixPhoneTextTests(suite) {
         return { ph: i.placeholder, need: c.measureText(i.placeholder).width, have: i.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) };
       });
       if (r.need > r.have) bad.push(`${width}px: "${r.ph}" needs ${r.need.toFixed(1)} px and gets ${r.have.toFixed(1)}`);
-      if (!/^Search/.test(r.ph)) bad.push(`${width}px: the placeholder still says what the box is for: "${r.ph}"`);
+      if (!/^Search/.test(r.ph)) bad.push(`${width}px: the placeholder no longer says what the box is for: "${r.ph}"`);
     }
     assert(!bad.length, bad.join('\n  '));
   });

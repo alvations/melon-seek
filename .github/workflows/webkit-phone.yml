@@ -118,6 +118,18 @@ jobs:
           node test/e2e/fix-phone-controls.e2e.js --browser=webkit | tee webkit-fix-phone-controls.log || status=$?
           { echo '### Phone controls on WebKit (fix-phone-controls)'; echo '```'; grep -E '^\s+(✓|✗|-) |passed' webkit-fix-phone-controls.log || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit $status
+      # The fix lane's text checks (docs/process/fix-phone-text.md): every caption, note and explainer one line (two
+      # under 360 px), nothing cut, on every big-tech board at 390x844 and 360x740 in light and dark, and on every
+      # size in test/e2e/phone-sizes.mjs (Amazon and Google); plus one test per finding (M-33 to M-46, UX-35 to UX-62,
+      # A-9). WebKit measures text a little differently from Chromium, so this is the check that counts for iPhones.
+      - name: Phone text on WebKit (fix-phone-text)
+        env:
+          FIX_PHONE_TEXT_DIST: dist
+        timeout-minutes: 90
+        run: |
+          set -o pipefail
+          node test/e2e/fix-phone-text.e2e.js --browser=webkit | tee webkit-fix-phone-text.log
+        continue-on-error: true # the log (and the Summary) is the result; later steps still run
       - name: Same tests on Chromium, for comparison
         env:
           BETA_QA2_DIST: dist
@@ -131,6 +143,7 @@ jobs:
             echo '### Beta mobile QA 2 on WebKit'; echo '```'; grep -E '^\s+(✓|✗|-) |^e2e:' webkit-e2e.log || true; echo '```'
             echo '### Company sheet geometry on WebKit (fix-company-scroll)'; echo '```'; grep -E '^\s+(✓|✗|-) |passed' webkit-fix-company-scroll.log || true; echo '```'
             echo '### Floating tips on touch on WebKit (fix-touch-tips)'; echo '```'; grep -E '^\s+(✓|✗|-) |passed' webkit-fix-touch-tips.log || true; echo '```'
+            echo '### Phone text on WebKit (fix-phone-text)'; echo '```'; grep -E '^\s+(✓|✗|-) |passed' webkit-fix-phone-text.log || true; echo '```'
             echo '### The same on Chromium'; echo '```'; grep -E '^\s+(✓|✗|-) |^e2e:' chromium-e2e.log || true; echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -144,6 +157,7 @@ jobs:
             chromium-e2e.log
             webkit-fix-company-scroll.log
             webkit-fix-touch-tips.log
+            webkit-fix-phone-text.log
             docs/screenshots/qa-mobile-beta-2/e2e-*.png
 
   ios-simulator:
