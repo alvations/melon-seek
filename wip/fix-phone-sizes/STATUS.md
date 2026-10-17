@@ -23,6 +23,10 @@ dd58b48 fix-phone-sizes: the Surface Duo stacked (720x1114, hinge across): chart
  M docs/screenshots/dark.png
  M docs/screenshots/drawer-juice.png
  M docs/screenshots/drawer.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-1114x720.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-280x653.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-352x355.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-375x812.png
  M docs/screenshots/insights.png
  M docs/screenshots/map-juice.png
  M docs/screenshots/map.png
@@ -44,8 +48,10 @@ dd58b48 fix-phone-sizes: the Surface Duo stacked (720x1114, hinge across): chart
  M public/styles.css
  M test/e2e/phone-matrix.e2e.js
  M test/e2e/phone-sizes.mjs
+?? docs/screenshots/fix-pay-at-place/e2e-card-720x1114.png
 ?? test/e2e/beta-mobile-qa-4.e2e.js
 ```
 
 ## Left out (not in untracked.tgz)
+- docs/screenshots/fix-pay-at-place/e2e-card-720x1114.png (screenshot; the lane's tests regenerate it)
 - node_modules (symlink)
