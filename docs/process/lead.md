@@ -1386,3 +1386,33 @@ screenshots in `docs/screenshots/`.
   - Every lane's e2e must also run on WebKit through webkit-phone.yml.
 - **Then, per the user, mobile and desktop QA again** on the deployed fixed build, in Chromium and WebKit, with the simulator run: qa-mobile-beta-4 and qa-desktop-beta-4.
 - **Asked the user** what they saw (screenshot, board, device and browser), since no engine reproduced a page that fails to load.
+
+### fix-touch-tips and fix-phone-controls integrated (2026-10-17, after the container restart)
+- **fix-touch-tips** (the user's sticky-tooltip report), 7 commits through fc67365 and bdca659, plus its ui.e2e patch. One touch rule for every floating tip:
+  - a touch, and mouse events within 1 s of a touch, never open a hover tip;
+  - a tap acts at once, or, where it would switch boards, shows the tip with "Tap again to…";
+  - a tip closes on a press elsewhere, a scroll, a resize, Esc, blur or the action;
+  - tips stay inside the visual viewport and the visible part of the map.
+  - The cause on the iPhone: Safari's emulated mouse events after a tap, and no `pointerleave`.
+  - Tests: 33/33, which is 14 behaviour tests plus one per size in phone-sizes.mjs.
+- **fix-phone-controls**, 4 commits through b74c99e:
+  - M-43: a preview card opens its job page within 400 ms;
+  - A-11: keys on preview cards;
+  - M-40: Amazon's department rows told apart;
+  - A-10: named checklists;
+  - M-47: the Pay estimate field above the keyboard;
+  - UX-56: the closed side sheet is inert;
+  - UX-57: one Details in Chart view.
+  - Tests: 98/98 on every size.
+- **Conflicts:** scripts/e2e.js registrations and the webkit-phone.yml steps; both sides kept each time.
+- **Also:** Fix app [P-5] now builds its expected figures from `toUSD`. The September FX refresh had moved £80,000 from $108K to $107K, and the refresh gate runs `npm test`, not the browser suite. The trap is in DATA_FRESHNESS "Pinned values" and the playbook.
+- **Gate** (restarted after the container restart killed the first run):
+  - `npm test` CI-like: 1,123 pass, 0 fail.
+  - build: 7/7 beta companies; check-lists: 23 lists + 1 preview, 0 problems.
+  - **Full e2e: 514/568, 50 failed, 4 skipped. All 50 are the reviewers' red-by-design groups:** UX review 2 (14), viz review 2 (15), mobile QA 3 (11), desktop QA 3 (8), A-8 and A-9. T21 and P-5 passed.
+- **Container restart, about 02:10 UTC:**
+  - Every agent and background run stopped. The worktrees and commits were intact.
+  - Two orphaned test servers were stopped by pid, and 5 lanes resumed by SendMessage.
+  - The session's checkpoint cron was gone and has been recreated.
+  - The lead's own integration worktree is now checkpointed too (lane `lead-integration`), so unpushed merges survive a stop.
+- **Disk:** 90% full, so about 4 GB of finished lanes' base builds and old-round builds were removed from the scratchpad.
