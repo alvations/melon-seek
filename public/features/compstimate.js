@@ -963,8 +963,9 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
         signalIcon(CONF_LEVEL[confidence]),
         h('span', { class: 'ms-comp__conf-label' }, `${confidence} confidence`)),
       // M-34 (fix-phone-text): the basis is one line, and the accuracy test, the weighting, the trim, the
-      // conversions and the dates are behind its one Details (they ran to 5 lines on a phone).
-      noteLine({ cls: 'ms-comp__conf-n ms-comp__basis', key: 'comp-basis', line: fitLine(h('span', { class: 'ms-comp__basis-text' }), [basis, `Based on ${plural(result.n, 'similar role')}`]), about: id.head, details: [
+      // conversions and the dates are behind its one Details (they ran to 5 lines on a phone). It is the card's
+      // explainer now, so it keeps that class (ms-comp__explain).
+      noteLine({ cls: 'ms-comp__conf-n ms-comp__basis ms-comp__explain', key: 'comp-basis', line: fitLine(h('span', { class: 'ms-comp__basis-text' }), [basis, `Based on ${plural(result.n, 'similar role')}`]), about: id.head, details: [
         `${basis}.`,
         accuracy || caution,
         `Weighted by similarity to “${inputs.query.title}”${level}${place}. ${result.detail}`,

@@ -162,7 +162,7 @@ export function registerBetaMobileQaTests(suite) {
       assert(/^Data source: saved snapshot from /.test(aria), `${slug}: badge "${aria}"`);
       await tapSel(page, '#dataBadge', 700);
       const pop = await page.evaluate(() => ({
-        text: document.querySelector('#popover').innerText,
+        text: document.querySelector('#popover').textContent, // fix-phone-text M-39: the sentence is in the popover's Details
         refreshShown: [...document.querySelectorAll('#popover button')].some((b) => /Refresh from the live board/.test(b.textContent) && !b.hidden),
         csv: (() => { const a = document.querySelector('#popover .badge-csv a'); return a ? new URL(a.getAttribute('href'), location.href).pathname : null; })(),
         csvH: Math.round(document.querySelector('#popover .badge-csv a')?.getBoundingClientRect().height || 0),

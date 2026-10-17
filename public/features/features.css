@@ -484,3 +484,5 @@
 @container ms-insights (max-width: 480px) { .ms-insights .msi-stat__value { font-size: min(17px, 13.5cqi); } }
 /* UX-53: a tile's note is never cut; it wraps under its number on a narrow tile. */
 .msi-stat__note { overflow: visible; text-overflow: clip; white-space: normal; }
+/* M-34: the basis line is the card's explainer now (it carries ms-comp__explain); it keeps the basis line's look. */
+.ms-comp__conf-n.ms-comp__explain { margin: 2px 0 0; font-size: 12.5px; line-height: inherit; }
