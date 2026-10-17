@@ -1,7 +1,7 @@
 From 6781d312391b78aa0e622a94daf42c6aee157e3f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 00:50:59 +0000
-Subject: [PATCH 5/9] WIP fix-phone-text: the tagline fits its box at every
+Subject: [PATCH 05/10] WIP fix-phone-text: the tagline fits its box at every
  width (fitTagline); desktop guard at 1024, 1280, 1440; empty-state Details
  described
 

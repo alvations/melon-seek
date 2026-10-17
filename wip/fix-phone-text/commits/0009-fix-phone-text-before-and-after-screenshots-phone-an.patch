@@ -1,7 +1,7 @@
 From 311bc84237f3b9bf81ecf333681a8af17a162f2a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 02:14:02 +0000
-Subject: [PATCH 9/9] fix-phone-text: before and after screenshots (phone and
+Subject: [PATCH 09/10] fix-phone-text: before and after screenshots (phone and
  desktop, light and dark), shrunk
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
