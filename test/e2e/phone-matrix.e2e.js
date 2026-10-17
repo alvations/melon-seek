@@ -35,7 +35,7 @@ import { ALL_SIZES, contextFor } from './phone-sizes.mjs';
 
 const BOARDS = (process.env.PHONE_MATRIX_BOARDS || 'apple,amazon,google').split(',').map((s) => s.trim()).filter(Boolean);
 const SHOTS = process.env.PHONE_MATRIX_SHOTS || '';
-const SHOT_DIR = path.join(ROOT, 'docs', 'screenshots', 'fix-phone-sizes');
+const SHOT_DIR = path.resolve(process.env.PHONE_MATRIX_SHOT_DIR || path.join(ROOT, 'docs', 'screenshots', 'fix-phone-sizes'));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
@@ -93,8 +93,9 @@ async function open(ctx, size, { board = 'apple', site = 'beta/', colorScheme = 
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(`pageerror: ${String(e && e.message || e).slice(0, 300)}`));
+  let cdp = null;
   if (fold) {
-    const cdp = await context.newCDPSession(page);
+    cdp = await context.newCDPSession(page);
     await cdp.send('Emulation.setDeviceMetricsOverride', {
       width: size.width, height: size.height, deviceScaleFactor: size.dpr || 1, mobile: true, screenWidth: size.width, screenHeight: size.height,
       displayFeature: { orientation: 'vertical', offset: fold.offset, maskLength: fold.maskLength },
@@ -106,7 +107,7 @@ async function open(ctx, size, { board = 'apple', site = 'beta/', colorScheme = 
     return t && !/Loading/.test(t.textContent) && /\d/.test(t.textContent) && document.querySelector('#resultsList .card[data-id]');
   }, null, { timeout: 90000 });
   await sleep(700);
-  return { page, errors, context };
+  return { page, errors, context, cdp };
 }
 
 /** Run in the page: the layout facts the checks read. `want` names the controls expected on screen. */
@@ -144,14 +145,19 @@ function measure(want) {
   }
   // The one line above the chart on phones (I-2, fix-density): one line, nothing cut off (the lead, 2026-10-17: at 280 px
   // "melon·seek · Beta: adds 7 big-tech car…" ran to x = 313).
+  // Phones and dual screens only: the desktop line sits beside the chart controls and may end in "…" (fix-density).
   const tl = document.querySelector('#tagline');
-  if (vis(tl) && getComputedStyle(tl).display !== 'none' && tl.getBoundingClientRect().width > 0) {
+  if ((phone || matchMedia('(horizontal-viewport-segments: 2)').matches) && vis(tl) && getComputedStyle(tl).display !== 'none' && tl.getBoundingClientRect().width > 0) {
     const tr = tl.getBoundingClientRect();
     out.tagline = { text: tl.innerText.trim(), scrollW: tl.scrollWidth, clientW: tl.clientWidth, left: Math.round(tr.left), right: Math.round(tr.right), lines: Math.round(tr.height / parseFloat(getComputedStyle(tl).lineHeight || '18')) };
   }
   const card = document.querySelector('#resultsList .card[data-id]');
   const list = document.querySelector('#resultsList');
   if (card) out.card = { ...box(card), scrollW: card.scrollWidth, clientW: card.clientWidth };
+  // Every card in the list's first page, not only the first: a "$296K–497K · 2 places" pill beside a long title is the
+  // wide case.
+  const wide = [...document.querySelectorAll('#resultsList .card[data-id]')].filter((c) => c.scrollWidth > c.clientWidth + 1);
+  out.wideCards = { n: wide.length, of: document.querySelectorAll('#resultsList .card[data-id]').length, first: wide[0] ? `${wide[0].querySelector('.card-title')?.textContent.trim().slice(0, 40)} | ${wide[0].querySelector('.sal-pill')?.textContent.trim()} (${wide[0].scrollWidth} > ${wide[0].clientWidth})` : null };
   if (list) out.list = { scrollW: list.scrollWidth, clientW: list.clientWidth };
   // Controls and text boxes that run past a side of the screen (the Group select and the tagline at 280 px), outside
   // the rows that scroll sideways on purpose (the quick chips) and outside overlays that are closed (the filter
@@ -167,6 +173,23 @@ function measure(want) {
     for (let p = e.parentElement; p; p = p.parentElement) if (/auto|scroll/.test(getComputedStyle(p).overflowX)) return false;
     return r.left < -1 || r.right > W + 1;
   }).slice(0, 8).map((e) => { const r = e.getBoundingClientRect(); return `${e.tagName.toLowerCase()}${e.id ? `#${e.id}` : ''}${typeof e.className === 'string' && e.className.trim() ? `.${e.className.trim().split(/\s+/)[0]}` : ''} "${(e.getAttribute('aria-label') || e.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 30)}" [${Math.round(r.left)}, ${Math.round(r.right)}]`; });
+  // The search box shows its whole placeholder. UX-21's canvas measure misses the room an empty search field keeps for
+  // its clear button (6 px over at 352 px), so the placeholder's text goes in as the value, with the clear button
+  // hidden as it is while the placeholder shows, and the field must not scroll.
+  const inp = document.querySelector('#search');
+  if (vis(inp) && inp.placeholder && !inp.value) {
+    const st = document.createElement('style');
+    st.textContent = '#search::-webkit-search-cancel-button { display: none !important; }';
+    document.head.append(st);
+    inp.value = inp.placeholder;
+    out.placeholder = { text: inp.placeholder, need: inp.scrollWidth, have: inp.clientWidth };
+    inp.value = '';
+    st.remove();
+  }
+  // The map's own controls (Pay | Juice and its scale, zoom, Remote): inside the screen, and no wider than their box.
+  out.mapControls = [...document.querySelectorAll('.ms-map .leaflet-control')].filter((e) => e.getClientRects().length && e.getBoundingClientRect().width > 0)
+    .filter((e) => { const r = e.getBoundingClientRect(); return r.left < -1 || r.right > W + 1 || e.scrollWidth > e.clientWidth + 1; })
+    .map((e) => { const r = e.getBoundingClientRect(); return `.${[...e.classList].join('.')} [${Math.round(r.left)}, ${Math.round(r.right)}] content ${e.scrollWidth} in ${e.clientWidth}`; });
   return out;
 }
 
@@ -184,8 +207,11 @@ function problemsOf(m, screenW, label) {
     if (m.card.left < -0.5 || m.card.right > m.w + 0.5) p.push(`${label}: the first card runs off the screen (${m.card.left}–${m.card.right} of ${m.w})`);
     if (m.card.scrollW > m.card.clientW + 1) p.push(`${label}: the first card's content is wider than the card (${m.card.scrollW} > ${m.card.clientW})`);
   }
+  if (m.wideCards && m.wideCards.n) p.push(`${label}: ${m.wideCards.n} of ${m.wideCards.of} cards are wider than their box, e.g. ${m.wideCards.first}`);
   if (m.list && m.list.scrollW > m.list.clientW + 1) p.push(`${label}: the results list scrolls sideways (${m.list.scrollW} > ${m.list.clientW})`);
   if (m.tagline && (m.tagline.scrollW > m.tagline.clientW + 0.5 || m.tagline.right > m.w + 0.5)) p.push(`${label}: the line above the chart is cut: "${m.tagline.text}" needs ${m.tagline.scrollW} px in ${m.tagline.clientW}`);
+  if (m.placeholder && m.placeholder.need > m.placeholder.have) p.push(`${label}: the search box's placeholder "${m.placeholder.text}" is cut (${m.placeholder.need} px in ${m.placeholder.have})`);
+  if (m.mapControls && m.mapControls.length) p.push(`${label}: a map control runs past its box or the screen: ${m.mapControls.join(' | ')}`);
   if (m.sides && m.sides.length) p.push(`${label}: cut at the side of the ${m.w} px screen: ${m.sides.join(' | ')}`);
   return p;
 }
@@ -237,7 +263,7 @@ async function checkDrawer(page, screenW, label) {
 async function checkFilters(page, screenW, label) {
   const overlay = await page.evaluate(() => getComputedStyle(document.querySelector('#filters')).position === 'fixed');
   if (overlay) {
-    await page.locator('#filtersToggle').click();
+    await clickEl(page, '#filtersToggle');
     await page.waitForFunction(() => document.body.classList.contains('filters-open'), null, { timeout: 5000 }).catch(() => {});
     await sleep(450);
   }
@@ -258,10 +284,16 @@ async function checkFilters(page, screenW, label) {
   return p;
 }
 
-async function shot(page, name) {
+/** A DOM click: the layout checks say whether a finger can reach the control; this only drives the page. */
+const clickEl = (page, sel) => page.evaluate((s) => document.querySelector(s).click(), sel);
+
+async function shot(page, name, cdp = null) {
   if (!SHOTS) return;
   fs.mkdirSync(SHOT_DIR, { recursive: true });
-  await page.screenshot({ path: path.join(SHOT_DIR, `${SHOTS}-${name}.png`) }).catch(() => {});
+  const file = path.join(SHOT_DIR, `${SHOTS}-${name}.png`);
+  // With the hinge emulated, Playwright's own screenshot resets the device metrics (and so the fold): take it over CDP.
+  if (cdp) { const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(file, Buffer.from(data, 'base64')); return; }
+  await page.screenshot({ path: file }).catch(() => {});
 }
 
 /** Run in the page: everything with content (a control, a card, the chart, text) that lies on the hinge band [a, b]. */
@@ -276,18 +308,18 @@ function onHinge([a, b]) {
     const content = e.matches('button, input, select, a[href], [tabindex="0"], .card, #vizArea, img, svg:not(svg svg)')
       || [...e.childNodes].some((c) => c.nodeType === 3 && c.textContent.trim());
     if (!content) continue;
-    const r = e.getBoundingClientRect();
-    if (r.width < 1 || r.height < 1 || r.bottom <= 0 || r.top >= H || r.right <= 0 || r.left >= W) continue;
-    // Clipped away by a scrolling or clipping ancestor? Then it is not on screen.
-    let clipped = false;
+    const b0 = e.getBoundingClientRect();
+    // The part that shows: the box cut to every clipping or scrolling ancestor (a chip half scrolled out of the quick
+    // bar, a line cut by its ellipsis).
+    const r = { left: b0.left, right: b0.right, top: b0.top, bottom: b0.bottom };
     for (let p = e.parentElement; p && p !== document.body; p = p.parentElement) {
       const pcs = getComputedStyle(p);
       if (/auto|scroll|hidden|clip/.test(pcs.overflowX + pcs.overflowY)) {
         const pr = p.getBoundingClientRect();
-        if (r.right <= pr.left || r.left >= pr.right || r.bottom <= pr.top || r.top >= pr.bottom) { clipped = true; break; }
+        r.left = Math.max(r.left, pr.left); r.right = Math.min(r.right, pr.right); r.top = Math.max(r.top, pr.top); r.bottom = Math.min(r.bottom, pr.bottom);
       }
     }
-    if (clipped) continue;
+    if (r.right - r.left < 1 || r.bottom - r.top < 1 || r.bottom <= 0 || r.top >= H || r.right <= 0 || r.left >= W) continue;
     if (r.left < b - 0.5 && r.right > a + 0.5) {
       out.push(`${e.tagName.toLowerCase()}${e.id ? `#${e.id}` : ''}${typeof e.className === 'string' && e.className.trim() ? `.${e.className.trim().split(/\s+/).slice(0, 2).join('.')}` : ''} [${Math.round(r.left)}–${Math.round(r.right)}] "${(e.getAttribute('aria-label') || e.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 30)}"`);
     }
@@ -308,11 +340,11 @@ export function registerPhoneMatrixTests(suite) {
           await shot(page, `${slug(size.name)}-${dev}-light`);
           // Map and Insights keep the top bar, the quick bar and the sheet on screen too.
           for (const mode of ['map', 'insights']) {
-            await page.locator(`.topbar .seg [data-mode="${mode}"]`).click();
+            await clickEl(page, `.topbar .seg [data-mode="${mode}"]`);
             await sleep(mode === 'map' ? 1500 : 900);
             bad.push(...problemsOf(await page.evaluate(measure, OTHER_CONTROLS), size.width, `${label} ${mode}`));
           }
-          await page.locator('.topbar .seg [data-mode="chart"]').click();
+          await clickEl(page, '.topbar .seg [data-mode="chart"]');
           await sleep(900);
         }
         bad.push(...await checkDrawer(page, size.width, label));
@@ -383,7 +415,7 @@ export function registerPhoneMatrixTests(suite) {
     const hinge = [DUO.fold.offset, DUO.fold.offset + DUO.fold.maskLength];
     const bad = [];
     for (const board of ['apple', 'amazon']) {
-      const { page, errors, context } = await open(ctx, size, { board, fold: DUO.fold });
+      const { page, errors, context, cdp } = await open(ctx, size, { board, fold: DUO.fold });
       const seg = await page.evaluate(() => ({ mq: matchMedia('(horizontal-viewport-segments: 2)').matches, segs: window.viewport?.segments?.map((s) => [s.x, s.width]) || null }));
       assert(seg.mq && seg.segs && seg.segs.length === 2, `the fold emulation took (two viewport segments): ${JSON.stringify(seg)}`);
       const label = `${board} Duo spanned`;
@@ -393,7 +425,7 @@ export function registerPhoneMatrixTests(suite) {
       if (where['#results'][0] < hinge[1] || where['#results'][1] > size.width) bad.push(`${label}: the list is not on the right screen (${where['#results'].join('–')})`);
       const main = await page.evaluate(onHinge, hinge);
       if (main.length) bad.push(`${label}: on the hinge: ${main.slice(0, 8).join(' | ')}`);
-      if (board === 'apple') await shot(page, 'surface-duo-spanned-hinge-1114x720-light');
+      if (board === 'apple') await shot(page, 'surface-duo-spanned-hinge-1114x720-light', cdp);
       // The job page on the right screen.
       await page.evaluate(() => document.querySelector('#resultsList .card[data-id]').click());
       await page.waitForFunction(() => document.querySelector('#drawer.is-open #drawerTitle'), null, { timeout: 15000 });
@@ -402,26 +434,26 @@ export function registerPhoneMatrixTests(suite) {
       if (d[0] < hinge[1] || d[1] > size.width) bad.push(`${label}: the job page is not on the right screen (${d.join('–')})`);
       const job = await page.evaluate(onHinge, hinge);
       if (job.length) bad.push(`${label}, job open: on the hinge: ${job.slice(0, 8).join(' | ')}`);
-      if (board === 'apple') await shot(page, 'surface-duo-spanned-hinge-job-1114x720-light');
+      if (board === 'apple') await shot(page, 'surface-duo-spanned-hinge-job-1114x720-light', cdp);
       await page.keyboard.press('Escape');
       await page.waitForFunction(() => !document.querySelector('#drawer.is-open'), null, { timeout: 5000 });
       await sleep(350);
       // The filters on the left screen.
-      await page.locator('#filtersToggle').click();
+      await clickEl(page, '#filtersToggle');
       await page.waitForFunction(() => document.body.classList.contains('filters-open'), null, { timeout: 5000 });
       await sleep(450);
       const f = await page.evaluate(() => { const r = document.querySelector('#filters').getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right)]; });
       if (f[0] < 0 || f[1] > hinge[0]) bad.push(`${label}: the filters are not on the left screen (${f.join('–')})`);
       const fl = await page.evaluate(onHinge, hinge);
       if (fl.length) bad.push(`${label}, filters open: on the hinge: ${fl.slice(0, 8).join(' | ')}`);
-      if (board === 'apple') await shot(page, 'surface-duo-spanned-hinge-filters-1114x720-light');
+      if (board === 'apple') await shot(page, 'surface-duo-spanned-hinge-filters-1114x720-light', cdp);
       await page.keyboard.press('Escape');
       await sleep(400);
       // Popovers open on the screen of the control that opened them.
       for (const [what, sel] of [['company menu', '#companyMenuBtn'], ['data badge', '#dataBadge'], ['More', '#quickChips [data-pop="more"]'], ['Department', '#quickChips [data-pop="dept"]']]) {
         const btn = page.locator(sel);
         if (!(await btn.count()) || !(await btn.first().isVisible())) continue;
-        await btn.first().click();
+        await clickEl(page, sel);
         await page.waitForFunction(() => !document.querySelector('#popover').hidden, null, { timeout: 5000 }).catch(() => {});
         await sleep(350);
         const pr = await page.evaluate(() => { const p = document.querySelector('#popover'); if (p.hidden) return null; const r = p.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right)]; });
@@ -430,6 +462,11 @@ export function registerPhoneMatrixTests(suite) {
         await sleep(300);
       }
       bad.push(...errors.map((e) => `${label}: ${e}`));
+      await context.close();
+    }
+    if (SHOTS) {
+      const { page, cdp, context } = await open(ctx, size, { board: 'apple', fold: DUO.fold, colorScheme: 'dark' });
+      await shot(page, 'surface-duo-spanned-hinge-1114x720-dark', cdp);
       await context.close();
     }
     assert(!bad.length, `${bad.length} problem(s):\n  ${bad.join('\n  ')}`);

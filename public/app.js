@@ -2718,7 +2718,10 @@ function positionPopover() {
   const r = popover.anchor.getBoundingClientRect();
   const w = el.offsetWidth;
   el.style.top = `${r.bottom + 8}px`;
-  el.style.left = `${Math.max(12, Math.min(r.left, innerWidth - w - 12))}px`;
+  // fix-phone-sizes: on a dual screen (the Surface Duo spanned) the popover stays on its control's screen, off the hinge.
+  const segs = window.viewport?.segments;
+  const seg = segs?.length > 1 ? segs.find((s) => r.left < s.x + s.width) || segs[segs.length - 1] : { x: 0, width: innerWidth };
+  el.style.left = `${Math.max(seg.x + 12, Math.min(r.left, seg.x + seg.width - w - 12))}px`;
 }
 
 function closePopover(restoreFocus = true, { keepHist = false } = {}) {
@@ -5064,7 +5067,10 @@ function fitSearchHint() {
   if (!(have > 0)) return;
   hintCanvas ??= document.createElement('canvas').getContext('2d');
   hintCanvas.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
-  const next = hintCanvas.measureText(SEARCH_HINT).width <= have - 2 ? SEARCH_HINT : 'Search roles';
+  // fix-phone-sizes: "Search" where even "Search roles" is cut (the 119 px box at 320–359 px), and only the magnifier
+  // where "Search" is cut too (the one-row landscape bar at 560–639 px); the field's label stays "Search roles".
+  const fits = (t) => hintCanvas.measureText(t).width <= have - 2;
+  const next = [SEARCH_HINT, 'Search roles', 'Search'].find(fits) || '';
   if (inp.placeholder !== next) inp.placeholder = next;
 }
 
