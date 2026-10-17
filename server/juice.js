@@ -1569,11 +1569,19 @@ export function attachJuice(job, cities, opts = {}) {
   return job;
 }
 
-/** The location strings a salary was posted for (salary.places, else every range's places), or null. */
+/**
+ * The location strings a salary was posted for (salary.places, else the places of its per-place rows), or null.
+ * Lead decision (2026-10-16, fix-data-3): a posting that prices places in rows of their own (salary.ranges with
+ * `locations`: Amazon's pay table, Apple's footers, Microsoft's SF Bay Area / NYC range) has no posted pay at a
+ * place it lists in no row, so that place gets no Juice and is never scored on another place's row. A row tied
+ * to no listed place (Amazon "San Francisco" on a posting that lists Austin) prices nothing. It was "every row
+ * tied", so one untied row scored every place on the headline row (6 Amazon postings and 1 Apple on 2026-10-16).
+ */
 function postedPlaceSet(s) {
   if (Array.isArray(s.places) && s.places.length) return new Set(s.places);
   const rs = Array.isArray(s.ranges) ? s.ranges : [];
-  if (rs.length && rs.every((r) => r && Array.isArray(r.locations) && r.locations.length)) return new Set(rs.flatMap((r) => r.locations));
+  const tied = rs.filter((r) => r && Array.isArray(r.locations) && r.locations.length);
+  if (tied.length) return new Set(tied.flatMap((r) => r.locations));
   return null;
 }
 

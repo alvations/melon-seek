@@ -3,12 +3,17 @@
 // (docs/process/fix-data-3.md). No snapshot data needed: each case is copied from the 2026-10-16 crawl.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { attachJuice } from '../server/juice.js';
 import { inferSeniority, jobSeniority } from '../server/keywords.js';
 import { titleClass, roleFamily as vetFamily, salaryChecks, vetSalaries } from '../server/vet.js';
 import * as salaryMod from '../server/salary.js';
 import { relabelJobs } from '../server/normalize.js';
 import * as marketMod from '../scripts/build-market.js';
 
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // New exports are read from the module namespace, so on the base tree each test fails on its own assertion.
 const { isFixedTermRole } = salaryMod;
 const isFellowRank = (t) => (salaryMod.isFellowRank ? salaryMod.isFellowRank(t) : null);
@@ -122,4 +127,39 @@ test('MR-28: mergeMarkets keeps the counts (the server builds one company at a t
   assert.deepEqual(mergeMarkets([one], { generatedAt: 'x' }), one);
   assert.equal(one.companies[0].minimum, 1);
   assert.equal(one.cells.find((c) => c[2] === 'Mid')[3], 3, 'the minimum is not in the cell');
+});
+
+/* ------------------------------------------- no posted pay at a place without its own row */
+// Lead decision (2026-10-16, docs/process/lead.md "salary-audit-backend, final"). amazon:10434407 "Physical Security
+// Engineering Manager, Data Center Design Engineering" lists Austin, Seattle, Columbus and Herndon; its pay table has
+// "USA, CA, San Francisco" (a place it does not list) and one row for Columbus, Herndon and Seattle. Austin has no
+// row: no Juice there, and never Herndon's row (the headline) scored in Austin.
+const CITIES = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'cities.json'), 'utf8'));
+const loc = (rawName, name, city, region, lat, lng) => ({ name, city, region, country: 'US', lat, lng, remote: false, rawName });
+const NO_ROW = {
+  id: 'amazon:10434407', company: 'amazon', title: 'Physical Security Engineering Manager, Data Center Design Engineering, Data Center Design Engineering',
+  locations: [loc('Austin, Texas, USA', 'Austin, TX', 'Austin', 'TX', 30.2672, -97.7431), loc('Seattle, Washington, USA', 'Seattle, WA', 'Seattle', 'WA', 47.6062, -122.3321),
+    loc('Columbus, Ohio, USA', 'Columbus, OH', 'Columbus', 'OH', 39.9612, -82.9988), loc('Herndon, Virginia, USA', 'Herndon, VA', 'Herndon', 'VA', 38.9696, -77.3861)],
+  salary: { min: 150200, max: 203300, mid: 176750, currency: 'USD', interval: 'year', kind: 'salary', source: 'structured', zones: 2, text: 'USA, VA, Herndon - 150,200.00 - 203,300.00 USD annually',
+    ranges: [{ label: 'San Francisco', min: 172800, max: 233700, currency: 'USD', interval: 'year' },
+      { label: 'Columbus, Herndon, Seattle', min: 150200, max: 203300, currency: 'USD', interval: 'year', locations: ['Columbus, Ohio, USA', 'Herndon, Virginia, USA', 'Seattle, Washington, USA'] }] },
+};
+test('no-row places: a listed place with no pay row of its own gets no Juice, and the rows and the card range are kept', () => {
+  const j = structuredClone(NO_ROW);
+  attachJuice(j, CITIES);
+  assert.ok(j.juice, 'the places with a row still get Juice');
+  const names = j.juice.byLocation.map((e) => e.locationName);
+  assert.ok(!names.includes('Austin, TX'), `Austin has no row but is scored: ${names.join(', ')}`);
+  assert.ok(names.includes('Seattle, WA'), `Seattle has its row: ${names.join(', ')}`);
+  assert.deepEqual(j.salary, NO_ROW.salary, 'the salary (card range) and every row are untouched');
+  // A posting whose rows are all tied keeps scoring each place on its own row (DQ-28), as before.
+  const apple = structuredClone(NO_ROW);
+  apple.salary.ranges[0].locations = ['Austin, Texas, USA'];
+  attachJuice(apple, CITIES);
+  assert.ok(apple.juice.byLocation.some((e) => e.locationName === 'Austin, TX'), 'Austin with its own row is scored');
+  // A posting with one range and no rows (most postings) scores every place in the pay's country, as before.
+  const plain = structuredClone(NO_ROW);
+  delete plain.salary.ranges;
+  attachJuice(plain, CITIES);
+  assert.ok(plain.juice.byLocation.some((e) => e.locationName === 'Austin, TX'));
 });
