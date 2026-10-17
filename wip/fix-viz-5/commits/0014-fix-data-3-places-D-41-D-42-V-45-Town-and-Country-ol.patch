@@ -1,7 +1,7 @@
 From c8bde7c4cd19327d3630182f9b9d451edfeef974 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 01:17:13 +0000
-Subject: [PATCH 14/53] fix-data-3: places (D-41, D-42, V-45, Town and Country,
+Subject: [PATCH 14/54] fix-data-3: places (D-41, D-42, V-45, Town and Country,
  old location links) and department names (UX-32); norm-12
 
 - geo.js: one 'St.' spelling for US (and Canadian 'St') towns; 'New York State', 'Washington State' and

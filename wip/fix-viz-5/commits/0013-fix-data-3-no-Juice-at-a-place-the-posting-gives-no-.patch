@@ -1,7 +1,7 @@
 From 84cf5deffdd77de7f4e07e29a44240d06e25b6d7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 01:03:14 +0000
-Subject: [PATCH 13/53] fix-data-3: no Juice at a place the posting gives no
+Subject: [PATCH 13/54] fix-data-3: no Juice at a place the posting gives no
  pay row of its own (lead decision 2026-10-16)
 
 server/juice.js postedPlaceSet: when a posting prices places in rows of their own, the posted places are the

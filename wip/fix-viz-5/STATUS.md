@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a500839343c7a8ea9`
 - Base (on claude/stoic-ride-54ddxp): `228aed732384c0c6e1b94b673bd6d56c31ec9beb`
-- Head: `cef9fd0b00481aa164e0cc017ce658cdee59407e`
+- Head: `2df05f54af877bd67887418906200bf99a790e5c`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-viz-5 <new worktree dir>`
 
 ## Commits since the base
 ```
+2df05f5 WIP fix-viz-5: settled circle plan and area sizes (V-33, V-34), bar weight and titles (V-38, UX-41), pay as posted (V-41, V-48, MR-28, D-43), axis and words (V-42, V-46, UX-40/42/43/59/61, A-8, D-44), map (V-43 to V-45, Razr)
 cef9fd0 WIP fix-viz-5: log skeleton with State
 717274e fix-viz-5: prompt verbatim
 fbdad58 Integration: fix-data-3's patches (postedPlaces per tied row, the Compare footnote names MR-28's left-out pay, M-40's precondition) and the pay lane's Juice test on
@@ -64,13 +65,7 @@ bc95d97 fix-sec-3: S-2 residual: one pause guard for every crawl (fetchLive, sna
 
 ## Uncommitted and new files
 ```
- M public/app.js
- M public/features/insights.js
- M public/features/shared.js
  M public/viz/chart.js
- M public/viz/map.js
- M public/viz/viz.css
-?? test/fix-viz-5.test.js
 ```
 
 ## Left out (not in untracked.tgz)

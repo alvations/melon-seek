@@ -84,8 +84,11 @@ bc95d97 fix-sec-3: S-2 residual: one pause guard for every crawl (fetchLive, sna
  M docs/screenshots/qa-mobile-beta/e2e-M-24-keyboard-location-search.png
  M docs/screenshots/qa-mobile-beta/e2e-M-27-topbar-360.png
  M docs/screenshots/qa-mobile/e2e-landscape-map.png
+ M public/app.js
+ M public/styles.css
  M test/e2e/beta-mobile-qa-3.e2e.js
  M test/e2e/fix-estimates.e2e.js
+?? test/conflict-markers.test.js
 ```
 
 ## Left out (not in untracked.tgz)

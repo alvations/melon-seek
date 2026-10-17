@@ -139570,6 +139570,50 @@ z4lXVs1{|iVrbg4Aj^Ie4+>DQlrzf6O+BF(0_weSQ<JJCd3MC)r@$hi5XZ*<DZD;4^
 z&dr-)HCHof!NNTSP%LpjwBY9NG>*}3sg#m>$eOLV>j%Q+#f9>=|04LuwSN)HWr9qd
 W`a5%31I_<NQdvnQiQ<=U{`o%)d<f70
 
+diff --git a/public/app.js b/public/app.js
+index 515bb17..afde45e 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -4357,7 +4357,17 @@ function payPlacesLine(s, job = null) {
+   const unit = job ? payUnit(job) : null;
+   const pay = (r) => (unit ? unit.fmt(Number(r.min), Number(r.max ?? r.min)) : rangeText(r, s.currency));
+   // fix-pay-at-place: one line per range, with no place name cut off (rangeName); the pay block's Details list every place.
+-  const el = tierList('Pay by place', rs.map((r) => [rangeName(r), pay(r)]));
++  // D-39: ranges posted for the same places (Amazon's two hourly rates for Boardman, Hermiston and Umatilla) share one
++  // row that names the places once and gives each posted range, "or" between them.
++  const rows = new Map();
++  for (const r of rs) {
++    const k = rangeLabel(r);
++    if (!rows.has(k)) rows.set(k, { name: rangeName(r), pays: [] });
++    const p = pay(r);
++    if (!rows.get(k).pays.includes(p)) rows.get(k).pays.push(p);
++  }
++  const el = tierList('Pay by place', [...rows.values()].map(({ name, pays }) => [name, pays.length > 1
++    ? pays.map((p, i) => h('span', { class: 'd-tier-alt' }, i ? `or ${p}` : p)) : pays[0]]));
+   el.classList.add('d-sal-places');
+   if (rs.some((r) => rangeName(r) !== rangeLabel(r))) el.dataset.note = `Pay by place, every place: ${rs.map((r) => `${rangeLabel(r)} ${pay(r)}`).join('; ')}.`;
+   return el;
+diff --git a/public/styles.css b/public/styles.css
+index 9748dc7..845d1f0 100644
+--- a/public/styles.css
++++ b/public/styles.css
+@@ -1449,6 +1449,8 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
+ /* fix-pay-at-place: a long place list wraps; no place name is cut with an ellipsis (lead, 2026-10-16). */
+ .d-tier-name { min-width: 0; overflow-wrap: anywhere; color: var(--ms-muted); }
+ .d-tier-pay { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
++/* D-39: two ranges posted for the same places, one under the other in that place's row. */
++.d-tier-alt { display: block; }
+ .d-pay-note { margin: 8px 0 0; font-size: 12px; color: var(--ms-muted); }
+ .d-pct-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+ .d-sal-none .d-comp-note { margin-top: 6px; }
+@@ -1616,7 +1618,6 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
+    narrow search), and touch screens without a keyboard don't show it. */
+ .search kbd { pointer-events: none; }
+ @media (hover: none) { .search kbd { display: none; } }
+-=======
+ /* ---- fix-phone-text (docs/process/fix-phone-text.md): the phone page's text, one rule block ----
+    Every caption, note and explainer is one line with its facts behind Details (viz/note.js); nothing is cut. */
+ /* UX-58: the "No Juice" box keeps its padding (.d-juice { padding: 0 } above overrode .d-juice--none). */
 diff --git a/test/e2e/beta-mobile-qa-3.e2e.js b/test/e2e/beta-mobile-qa-3.e2e.js
 index 3b566b4..4ffeee0 100644
 --- a/test/e2e/beta-mobile-qa-3.e2e.js
