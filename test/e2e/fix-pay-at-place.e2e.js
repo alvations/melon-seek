@@ -40,6 +40,7 @@ async function phoneSizes() {
   }
   return SIZES_FALLBACK;
 }
+const SIZES = await phoneSizes();
 
 async function serveDist() {
   const dist = path.resolve(process.env.BETA_QA_DIST || path.join(ROOT, 'dist'));
@@ -345,29 +346,29 @@ export function registerFixPayAtPlaceTests(suite) {
     assert(/one of them/.test(chip.title), `chip: "${chip.title}"`);
   });
 
-  suite.test('fix-pay-at-place: [phones] the pill, its place count and the title fit on every phone size, 280 px to the Duo spanned', async (ctx) => {
-    const sizes = await phoneSizes();
-    const bad = [];
-    fs.mkdirSync(SHOTS, { recursive: true });
-    for (const size of sizes) {
+  // One check per size (the suite gives each check 120 s; sixteen cold loads of Amazon's board do not fit in one).
+  for (const size of SIZES) {
+    suite.test(`fix-pay-at-place: [phones] ${size.name} ${size.width}x${size.height}: the pill (the range alone), its place count and the title fit`, async (ctx) => {
+      const bad = [];
+      fs.mkdirSync(SHOTS, { recursive: true });
       const { page } = await openBeta(ctx, 'c=amazon&q=Senior%20Financial%20Analyst%2C%20Engineering%20Capex', { size });
       await page.waitForSelector('#resultsList .card[data-id]', { timeout: 60000 });
       const c = await cardOf(page, 'amazon:10371179');
-      if (!c) { bad.push(`${size.name}: card not listed`); continue; }
+      if (!c) skip('amazon:10371179 is not on the board today');
       const w = await page.evaluate(() => ({ vw: document.documentElement.clientWidth, sw: document.documentElement.scrollWidth }));
       // The Razr cover screen (352x355) lays the page out 495 px wide on the base build too: the phone-sizes lane's
       // finding, not this card's. There the card must fit the page; elsewhere the screen.
       const room = w.sw > w.vw + 1 ? w.sw : w.vw;
-      if (c.card.right > room + 0.5 || c.card.left < -0.5) bad.push(`${size.name}: the card is wider than the ${room === w.vw ? 'screen' : 'page'}`);
+      if (c.card.right > room + 0.5 || c.card.left < -0.5) bad.push(`the card is wider than the ${room === w.vw ? 'screen' : 'page'}`);
       if (w.sw > w.vw + 1) ctx.notes.push(`fix-pay-at-place phones: ${size.name} scrolls sideways (${w.sw} > ${w.vw}) on the base build too, not from the card`);
       // UX-52: the place count is out of the pill, so the pill is the range alone (it took 154-179 of 366 px).
-      if (c.pillBox.width > Math.max(96, 0.4 * c.card.width)) bad.push(`${size.name}: the pill is ${Math.round(c.pillBox.width)} px of a ${Math.round(c.card.width)} px card`);
-      if (c.pill !== '$60K–129K') bad.push(`${size.name}: pill "${c.pill}"`);
-      if (c.sub !== '5 places') bad.push(`${size.name}: count line "${c.sub}"`);
-      if (c.pillBox.right > c.card.right + 0.5 || c.pillBox.left < c.card.left) bad.push(`${size.name}: pill outside the card`);
-      if (c.subBox && (c.subBox.right > c.card.right + 0.5)) bad.push(`${size.name}: count outside the card`);
-      if (c.titleBox && c.pillBox && c.titleBox.right > c.pillBox.left + 0.5 && c.titleBox.top < c.pillBox.bottom && c.titleBox.bottom > c.pillBox.top) bad.push(`${size.name}: title runs under the pill`);
-      if (c.titleLines > (size.width < 330 ? 5 : 4)) bad.push(`${size.name}: title wraps to ${c.titleLines} lines`);
+      if (c.pillBox.width > Math.max(96, 0.4 * c.card.width)) bad.push(`the pill is ${Math.round(c.pillBox.width)} px of a ${Math.round(c.card.width)} px card`);
+      if (c.pill !== '$60K–129K') bad.push(`pill "${c.pill}"`);
+      if (c.sub !== '5 places') bad.push(`count line "${c.sub}"`);
+      if (c.pillBox.right > c.card.right + 0.5 || c.pillBox.left < c.card.left) bad.push('pill outside the card');
+      if (c.subBox && (c.subBox.right > c.card.right + 0.5)) bad.push('count outside the card');
+      if (c.titleBox && c.pillBox && c.titleBox.right > c.pillBox.left + 0.5 && c.titleBox.top < c.pillBox.bottom && c.titleBox.bottom > c.pillBox.top) bad.push('title runs under the pill');
+      if (c.titleLines > (size.width < 330 ? 5 : 4)) bad.push(`title wraps to ${c.titleLines} lines`);
       if (/^(Galaxy Fold|Motorola razr \(cover|iPhone 13 mini$|Surface Duo \(spanned)/.test(size.name)) {
         // The phone list is a bottom sheet: open it, then the card itself.
         for (let i = 0; i < 3; i++) {
@@ -380,7 +381,7 @@ export function registerFixPayAtPlaceTests(suite) {
         await card.scrollIntoViewIfNeeded().catch(() => {});
         await card.screenshot({ path: path.join(SHOTS, `e2e-card-${size.width}x${size.height}.png`) }).catch(() => {});
       }
-    }
-    assert(!bad.length, bad.join('; '));
-  });
+      assert(!bad.length, `${size.name}: ${bad.join('; ')}`);
+    });
+  }
 }

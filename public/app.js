@@ -643,7 +643,7 @@ function placePay(j, F = viewSpec) {
   return r;
 }
 /** Shared decision 1: true when the posting has pay posted for a place of the Location filter (always, without one). */
-const payHere = (j, F = viewSpec) => !!j?._usd && (!F?.l.size || !!placePay(j, F));
+const payHere = (j, F = viewSpec) => !!j?._usd && (!F?.l.size || !!placePay(j, F)?.usd);
 /** The approx-USD pay that counts in the view: the places' own under a Location filter (placePay), else the posting's. */
 const usdHere = (j, F = viewSpec) => (!F?.l.size ? j._usd : placePay(j, F)?.usd || null);
 
@@ -4356,14 +4356,19 @@ function payPlacesLine(s, job = null) {
   if (!rs) return null;
   const unit = job ? payUnit(job) : null;
   const pay = (r) => (unit ? unit.fmt(Number(r.min), Number(r.max ?? r.min)) : rangeText(r, s.currency));
-  // fix-pay-at-place: one line per range, with no place name cut off. A range for more than two places names two and
-  // counts the rest ("Fort Worth, Jacksonville and 4 more"); the pay block's Details list every place.
-  const parts = (r) => rangeLabel(r).split(/,\s*(?![^()]*\))/).filter(Boolean);
-  const name = (r) => { const p = parts(r); return p.length > 2 ? `${p.slice(0, 2).join(', ')} and ${p.length - 2} more` : p.join(', '); };
-  const el = tierList('Pay by place', rs.map((r) => [name(r), pay(r)]));
+  // fix-pay-at-place: one line per range, with no place name cut off (rangeName); the pay block's Details list every place.
+  const el = tierList('Pay by place', rs.map((r) => [rangeName(r), pay(r)]));
   el.classList.add('d-sal-places');
-  if (rs.some((r) => parts(r).length > 2)) el.dataset.note = `Pay by place, every place: ${rs.map((r) => `${rangeLabel(r)} ${pay(r)}`).join('; ')}.`;
+  if (rs.some((r) => rangeName(r) !== rangeLabel(r))) el.dataset.note = `Pay by place, every place: ${rs.map((r) => `${rangeLabel(r)} ${pay(r)}`).join('; ')}.`;
   return el;
+}
+/**
+ * fix-pay-at-place: a range's places in one short line with no name cut: at most two by name, the rest counted
+ * ("Fort Worth, Jacksonville and 4 more"). "Remote (IL, NJ, VA)" is one place name.
+ */
+function rangeName(r) {
+  const p = rangeLabel(r).split(/,\s*(?![^()]*\))/).filter(Boolean);
+  return p.length > 2 ? `${p.slice(0, 2).join(', ')} and ${p.length - 2} more` : p.join(', ');
 }
 /**
  * UX-22: the range posted for the places a Location filter picked, when the posting gives each place its own
@@ -4442,7 +4447,8 @@ function payHeadline(job, F = viewSpec) {
   return {
     text: `${span} · ${n ? `${n} places` : `${rs.length} ranges`}`, range: span, sub: n ? `${n} places` : `${rs.length} ranges`,
     tip: `${span} runs from the lowest to the highest of ${rs.length} ranges posted for ${n ? `${n} places` : 'its places'}${what}. ${byPlace}`,
-    picked: null, rankPlace: head && head.basis === 'place' && !head.span ? head.label : '', min: lo, max: hi, across: true,
+    // The headline row's own name ("Bellevue", "Remote (CA)"), which a Location's name ("Remote (US)") would not say.
+    picked: null, rankPlace: head && head.basis === 'place' && !head.span ? (head.ranges.length === 1 && rangeName(head.ranges[0])) || head.label : '', min: lo, max: hi, across: true,
   };
 }
 
