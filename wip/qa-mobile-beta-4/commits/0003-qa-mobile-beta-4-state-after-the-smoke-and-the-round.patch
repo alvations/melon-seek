@@ -1,7 +1,7 @@
 From 894edae5b5035eee497792dad1b2538a626d979c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 13:18:14 +0000
-Subject: [PATCH 3/7] qa-mobile-beta-4: state after the smoke and the round-3
+Subject: [PATCH 3/8] qa-mobile-beta-4: state after the smoke and the round-3
  re-check
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
