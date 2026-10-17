@@ -964,7 +964,8 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
         h('span', { class: 'ms-comp__conf-label' }, `${confidence} confidence`)),
       // M-34 (fix-phone-text): the basis is one line, and the accuracy test, the weighting, the trim, the
       // conversions and the dates are behind its one Details (they ran to 5 lines on a phone).
-      noteLine({ cls: 'ms-comp__conf-n ms-comp__basis', key: 'comp-basis', line: basis, about: id.head, details: [
+      noteLine({ cls: 'ms-comp__conf-n ms-comp__basis', key: 'comp-basis', line: `Based on ${plural(result.n, 'similar role')}`, about: id.head, details: [
+        `${basis}.`,
         accuracy || caution,
         `Weighted by similarity to “${inputs.query.title}”${level}${place}. ${result.detail}`,
         asOfText || ''] }),

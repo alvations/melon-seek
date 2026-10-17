@@ -132,6 +132,9 @@
 @media (min-width: 861px) {
   .ms-note__more { min-height: 24px; display: inline-flex; align-items: center; margin-block: -4px; }
 }
+/* fix-phone-text: a note's line is never cut. It is written to fit one line on a phone from 360 px up (the tests
+   measure it); on a narrower screen (a folded Fold, 280 px) it wraps instead of ending in "…". */
+.ms-note__line { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: break-word; }
 .ms-note__list {
   grid-column: 1 / -1;
   /* The list wraps to the note's width and never widens the one-line row above it. */

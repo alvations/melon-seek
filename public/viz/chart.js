@@ -909,7 +909,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       r.median = ps.median; r.p25 = ps.p25; r.p75 = ps.p75;
       const onTarget = ps.oteOnly && !stats.pay?.oteOnly ? 'on-target ' : '';
       // BP-2: a row whose ranges are all for another country has no salary posted for here.
-      const none = r.offPay || (stats.elsewhere && r.all.some((j) => stats.elsewhereIds.has(j.id))) ? ['no salary posted for here', 'no salary here'] : ['no published salary', 'no salary'];
+      const none = r.offPay || (stats.elsewhere && r.all.some((j) => stats.elsewhereIds.has(j.id))) ? ['no pay posted for here', 'no pay here'] : ['no pay listed', 'no pay']; // UX-61 (fix-phone-text): the cards' words
       r.noneText = r.items.length ? '' : none[0];
       r.subFull = r.items.length ? `${plural(r.all.length, 'role')} · ${onTarget}median ${formatMoney(r.median)}${basisWords(r)}` : `${plural(r.all.length, 'role')} · ${none[0]}`;
       r.subShort = r.items.length ? `${r.all.length.toLocaleString()} · ${onTarget}${formatMoney(r.median)}${basisWordsShort(r)}` : `${r.all.length.toLocaleString()} · ${none[1]}`;

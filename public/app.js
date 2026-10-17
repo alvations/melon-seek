@@ -274,6 +274,39 @@ const cssId = (id) => (window.CSS?.escape ? CSS.escape(id) : String(id).replace(
 /** Drop null/false children (Element.replaceChildren would render them as text). */
 const nn = (...kids) => kids.filter((k) => k != null && k !== false);
 
+/**
+ * fix-phone-text: show the first of `variants` that fits `el` on one line (measured to the sub-pixel: an ellipsis is
+ * drawn at any overflow), else the last one, wrapping (never cut). Every variant says the same thing, the shorter ones
+ * with a fact left to the line's Details. Re-fits when the element's width changes; stops once it leaves the page.
+ */
+function fitOneLine(el, variants) {
+  const list = variants.filter(Boolean);
+  if (!list.length) return el;
+  const over = () => {
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    const cs = getComputedStyle(el), box = el.getBoundingClientRect();
+    return r.getBoundingClientRect().width > box.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) + 0.01;
+  };
+  const fit = () => {
+    el.classList.remove('is-wrapped');
+    for (const v of list) { el.textContent = v; if (!over()) return; }
+    el.classList.add('is-wrapped');
+  };
+  el.textContent = list[0];
+  if (typeof ResizeObserver !== 'function') return el;
+  let w = -1;
+  const ro = new ResizeObserver(() => {
+    if (!el.isConnected) { ro.disconnect(); return; }
+    const now = el.getBoundingClientRect().width;
+    if (Math.abs(now - w) < 0.5) return;
+    w = now;
+    fit();
+  });
+  ro.observe(el);
+  return el;
+}
+
 function rafThrottle(fn) {
   let queued = false;
   return () => {
@@ -1544,20 +1577,39 @@ function csvLink() {
   const c = data.company;
   if (MOCK || !c?.slug || isCustomKey(S.c) || data.status !== 'ready') return null;
   const href = api.isStatic?.() ? `data/${encodeURIComponent(c.slug)}.csv` : `api/export?company=${encodeURIComponent(c.slug)}`;
-  return h('p', { class: 'badge-csv' }, h('a', { href, download: true }, 'Download CSV'), // the server's Content-Disposition names the file
-    h('span', { class: 'muted' }, ' · titles, teams, locations and posted pay; links to the original postings'));
+  // UX-61: plain words ("Download CSV"). M-39 (fix-phone-text): one line; what the file holds is behind its Details.
+  return noteLine({ cls: 'badge-csv', key: 'badge-csv', line: h('a', { href, download: true }, 'Download a spreadsheet (CSV)'), // the server's Content-Disposition names the file
+    details: ['Titles, teams, locations and posted pay, with links to the original postings.'] });
+}
+/**
+ * M-39 (fix-phone-text): the badge popover's one line. The whole sentence (badgeInfo().tip), the crawl cadence,
+ * the count notes and what the beta site is are behind its Details; a failed live fetch keeps its error visible.
+ */
+function badgeLine(info) {
+  if (!info) return '';
+  const failed = !!data.error && /fail|skipped/i.test(info.tip || '');
+  if (MOCK) return 'Synthetic test data, not real postings';
+  if (data.status !== 'ready') return info.tip;
+  switch (data.mode) {
+    case 'live': return `Fetched live${data.fetchedAt ? ` ${ago(data.fetchedAt)}` : ''}`;
+    case 'cache': return failed ? 'A recent copy: the live fetch failed' : 'A recent copy of the board';
+    case 'snapshot': return data.pending ? 'Saved snapshot; checking the live board' : failed ? 'Saved snapshot: the live fetch failed' : 'A saved snapshot, not a live read';
+    case 'demo': return data.pending ? 'Sample data; checking the live board' : 'Sample data, not real postings';
+    default: return info.tip;
+  }
 }
 
 function makeBadgeDetails() {
   // Built once per popover; sync() updates it in place, so focus on its button or link survives
   // a re-render (e.g. the live board replacing the snapshot while the popover is open).
-  const tip = h('p');
+  const tip = h('div', { class: 'badge-tip' });
   const dl = h('dl');
   const err = h('pre', { class: 'badge-error', hidden: true });
   const refresh = MOCK ? null : h('button', { type: 'button', class: 'btn btn--ghost btn--sm btn--block', onclick: () => { closePopover(false); loadJobs({ refresh: true }); } }, 'Refresh from the live board');
   const csv = h('div');
-  // UX-23: what the beta site is, in words a touch screen can read (the Beta tag's hover title).
-  const betaNote = CHANNEL === 'beta' ? h('p', { class: 'muted badge-beta' }, 'You’re on the beta site, which adds big-tech companies’ own careers sites. ',
+  // UX-23: what the beta site is, in words a touch screen can read (the Beta tag's hover title). M-39: one line;
+  // what the beta adds is in the popover's Details.
+  const betaNote = CHANNEL === 'beta' ? h('p', { class: 'muted badge-beta' }, 'This is the beta site. ',
     h('a', { href: new URL('../', location.href).href }, 'Go to the main site')) : null;
   const el = h('div', { class: 'badge-details' }, ...nn(tip, dl, err, refresh, csv, betaNote));
   function sync() {
@@ -1566,21 +1618,30 @@ function makeBadgeDetails() {
     const url = sourceUrl(c);
     const cap = cappedNote();
     // MR-10: the source is a link, the time has its time zone, and the popover says how often the board is read.
-    const cadence = bundleOnly(c) ? 'Read by the site’s crawler about every 6 hours (GitHub often starts it hours late)'
+    // UX-61: "sometimes a few hours late" (it named GitHub). M-39 (fix-phone-text): each row is one line; the
+    // whole cadence, the count notes and the link are in the popover's Details.
+    const cadence = bundleOnly(c) ? 'Read by the site’s crawler about every 6 hours (sometimes a few hours late)'
       : data.mode === 'live' ? 'Read live by your browser when you open the board' : 'Saved copy rebuilt every day; Refresh reads the live board';
+    const cadenceShort = bundleOnly(c) ? 'About every 6 hours' : data.mode === 'live' ? 'Live, when you open it' : 'Every day';
     const rows = [
       ['Status', info?.label || '—'],
       ['Source', url ? h('a', { href: url, target: '_blank', rel: 'noopener noreferrer' }, sourceText(c)) : sourceText(c) || '—'],
-      ['Fetched', data.fetchedAt ? `${utcTime(data.fetchedAt)} (${ago(data.fetchedAt)})` : '—'],
-      ['Updates', h('span', null, `${cadence}. `, docLink(UPDATED_DOC, 'How we collect this'))],
-      ['Roles', h('span', null, cap ? `${data.jobs.length.toLocaleString()} of ${cap.total.toLocaleString()} posted` : data.jobs.length.toLocaleString(),
-        COUNT_NOTE[c.slug] ? h('span', { class: 'muted' }, ` · ${COUNT_NOTE[c.slug]}`) : null,
-        cap ? h('span', { class: 'muted' }, ` · ${cap.tip}`) : null)],
+      ['Fetched', data.fetchedAt ? utcTime(data.fetchedAt) : '—'],
+      ['Updates', cadenceShort],
+      ['Roles', cap ? `${data.jobs.length.toLocaleString()} of ${cap.total.toLocaleString()} posted` : data.jobs.length.toLocaleString()],
     ];
-    tip.textContent = info?.tip || '';
+    renderNote(tip, { key: 'badge-tip', line: badgeLine(info), details: [
+      info?.tip || '',
+      data.fetchedAt ? `Fetched ${ago(data.fetchedAt)}, at ${utcTime(data.fetchedAt)}.` : '',
+      [`${cadence}. `, docLink(UPDATED_DOC, 'How we collect this')],
+      COUNT_NOTE[c.slug] || '',
+      cap ? cap.tip : '',
+      CHANNEL === 'beta' ? 'The beta site adds big-tech companies’ own careers sites.' : '',
+    ] });
     dl.replaceChildren(...rows.flatMap(([k, v]) => [h('dt', null, k), h('dd', null, v)]));
-    // M-14: the raw error only when the sentence above doesn't already carry it.
-    const raw = data.error && !(info?.tip || '').includes(data.error) ? data.error : '';
+    // M-14: the raw error, once. M-39 (fix-phone-text): the sentence that carries it is behind Details now, so a
+    // failed fetch shows its error here whenever the line says it failed.
+    const raw = data.error && (!(info?.tip || '').includes(data.error) || /failed/.test(badgeLine(info))) ? data.error : '';
     err.textContent = raw;
     err.hidden = !raw;
     // A snapshot-only board (static `live: false`) has no live board to refresh from.
@@ -2841,8 +2902,10 @@ function renderKpis() {
       `${st.withSalary.toLocaleString()} of ${st.n.toLocaleString()} postings include a pay range${here}${here ? ' (a pay range in another country’s currency is not counted)' : ''}${capNote ? `. ${capNote.tip}` : ''}`, 'stat--share') : null,
     // BP-13: it says which pay the median is of; the chart's median uses the same set.
     st.median != null ? item(money(st.median), st.oteOnly ? 'median on-target earnings' : 'base pay median',
-      `Half of these roles pay more than this and half less (the middle of each posted range, ${ote || 'base pay, '}approx US dollars${here}${left})`, 'stat--median') : null,
+      `Half of these roles pay more than this and half less (the middle of each posted range, ${ote || 'base pay, '}in US dollars${here}${left})`, 'stat--median') : null,
   ].filter(Boolean);
+  // M-46 (fix-phone-text): a phone shows only the median, so with no pay in view its line said nothing but "Details".
+  const noPay = st.n && st.median == null ? h('span', { class: 'stat stat--nopay' }, st.withSalary ? 'Too few with pay for a median' : 'No pay listed') : null;
   const details = [
     // Phones show the median only (the chart's notes line has the with/without counts), so the share is here too.
     st.n ? `${st.withSalary.toLocaleString()} of ${st.n.toLocaleString()} roles show pay${onePlace ? ` for ${onePlace}` : ''} (${pct}%)` : '',
@@ -2860,7 +2923,7 @@ function renderKpis() {
   const fold = S.m === 'chart' && (!chart || typeof chart.setNotes === 'function');
   statsNotes = details;
   chart?.setNotes?.(fold ? details : []);
-  renderNote(el, { line: line.flatMap((p, i) => (i ? [h('span', { class: 'stat-sep', 'aria-hidden': 'true' }, '·'), p] : [p])), details: fold ? [] : details, key: 'stats-line' });
+  renderNote(el, { line: [...line.flatMap((p, i) => (i ? [h('span', { class: 'stat-sep', 'aria-hidden': 'true' }, '·'), p] : [p])), noPay], details: fold ? [] : details, key: 'stats-line' });
 }
 let statsNotes = []; // UX-57: the stats line's facts, for the chart notes
 
@@ -3866,6 +3929,8 @@ function payPool(job) {
 }
 /** What the pool is called in "Pays more than 37% of <noun> at Anthropic". */
 const poolNoun = (job) => (job.seniority === 'Intern' ? 'internships' : isOte(job) ? 'roles with on-target earnings' : 'roles');
+/** M-38 (fix-phone-text): the noun on a one-line drawer line ("roles"); the full one (poolNoun) is in its Details. */
+const shortNoun = (job) => (job.seniority === 'Intern' ? 'internships' : 'roles');
 function percentile(job) {
   const pool = likePool(job);
   return pool ? payRank(job, pool, { mid: (j) => j._mid }) : null;
@@ -3916,7 +3981,8 @@ function salaryDistribution(job) {
   // MR-17: the strip says what it shows (which roles, and which number of each).
   return h('div', { class: 'd-dist' },
     // fix-density: one line; "the middle of each posted range" is in the pay block's Details.
-    h('p', { class: 'fnote dist-caption', title: 'The pay of each role, at the middle of its posted range; this one is marked' }, `This one among ${mids.length.toLocaleString()} ${poolNoun(job)} at ${data.company?.name || 'this company'}`),
+    // M-38 (fix-phone-text): "roles with on-target earnings" made it 2 lines; the full noun is in the pay block's Details.
+    h('p', { class: 'fnote dist-caption', title: `The pay of each of ${mids.length.toLocaleString()} ${poolNoun(job)}, at the middle of its posted range; this one is marked` }, `This one among ${mids.length.toLocaleString()} ${shortNoun(job)} at ${data.company?.name || 'this company'}`),
     svg,
     h('div', { class: 'dist-axis' }, h('span', null, money(dom.lo)), medLabel, h('span', null, money(dom.hi))),
     approx);
@@ -4041,10 +4107,12 @@ function juiceBlock(job) {
   const [hhKey, , , beds, people] = householdInfo(jb.household || b.household || 'single');
   const term = postedTerm(job.salary);
   const place = b.cityName || b.locationName;
-  // MR-12 / UX-30: when the costs come from another city than the job's own, the headline says so.
+  // MR-12 / UX-30: when the costs come from another city than the job's own, the headline names the job's own
+  // place; M-37 (fix-phone-text): the stand-in ("using San Jose's rent and living costs") is the fold's first line,
+  // so the headline stays one line on a phone.
   const own = String(b.locationName || '').split(',')[0].trim();
-  const headPlace = b.cityName && own && own.toLowerCase() !== String(b.cityName).toLowerCase()
-    ? `${own} (using ${b.cityName}’s rent and living costs, the nearest city with cost data)` : place;
+  const standIn = b.cityName && own && own.toLowerCase() !== String(b.cityName).toLowerCase();
+  const headPlace = standIn ? own : place;
   const headNet = h('span', { class: 'juice-head-net' });
   const body = h('div', { class: 'juice-body' });
   // BP-1: the length is said the way the pay block says it (a yearly rate for a 13-week internship, or
@@ -4056,7 +4124,8 @@ function juiceBlock(job) {
   // I15 + shared decision 1: say why the filtered place has no Juice, in the posting's terms.
   const elsewhere = noneHere && !payHere(job) ? payPlaceText(job) : null;
   const where = [
-    'Juice: what’s left after tax, rent and living costs (approx US dollars).',
+    standIn ? `${own} uses ${b.cityName}’s rent and living costs, the nearest city with cost data.` : null,
+    'Juice: what’s left after tax, rent and living costs (in US dollars).',
     term ? `${lasts}, so Juice covers only that term. Tax is worked out as if the pay lasted a year, so it may be lower.` : null,
     isOte(job) ? 'The pay is on-target earnings, so this assumes commission at target.' : null,
     b.estimated ? 'Some costs here are estimates.' : null,
@@ -4163,14 +4232,16 @@ function juiceBlock(job) {
  */
 function juiceMissing(job) {
   if (job.juice || !job._usd || !data.jobs.some((j) => j.juice)) return null;
-  const say = (text) => h('section', { class: 'd-juice d-juice--none' }, h('p', { class: 'juice-none' }, h('strong', null, '🍉 No Juice:'), ` ${text}`));
-  if (isPartTime(job) && !statedHours(job)) return say('this part-time posting gives an hourly rate but not the hours a week, so a year’s take-home pay can’t be worked out.');
-  if (!job.locations.some((l) => l && l.city && !l.remote)) return say('the posting names no city, so rent and living costs can’t be worked out.');
+  // M-37 (fix-phone-text): one line ("🍉 No Juice: no cost data for this place yet"), the full reason behind its Details.
+  const say = (short, text) => h('section', { class: 'd-juice d-juice--none' },
+    noteLine({ cls: 'juice-none', key: 'juice-none', line: [h('strong', null, '🍉 No Juice:'), ` ${short}`], details: [`No Juice Score: ${text}`] }));
+  if (isPartTime(job) && !statedHours(job)) return say('no hours a week posted', 'this part-time posting gives an hourly rate but not the hours a week, so a year’s take-home pay can’t be worked out.');
+  if (!job.locations.some((l) => l && l.city && !l.remote)) return say('the posting names no city', 'the posting names no city, so rent and living costs can’t be worked out.');
   const pay = (job._payLocs || []).filter(Boolean);
   const names = [...new Set(pay.map((l) => l.city || l.name).filter(Boolean))];
   const where = names.length === 1 ? names[0] : names.length === 2 ? `${names[0]} or ${names[1]}` : 'the places this pay is for';
   const others = job.locations.some((l) => l && !pay.includes(l));
-  return say(`there is no rent and living-cost data yet for ${where}${others && names.length <= 2 ? ', where this pay is posted' : ''}.${others ? ' Pay posted for one country isn’t used for another.' : ''}`);
+  return say('no cost data here yet', `there is no rent and living-cost data yet for ${where}${others && names.length <= 2 ? ', where this pay is posted' : ''}.${others ? ' Pay posted for one country isn’t used for another.' : ''}`);
 }
 
 /** Salary quarantined by the server's vetting gate (salary null + salaryFlag): say so, keep the reason one click away. */
@@ -4270,7 +4341,7 @@ function payLabels(job) {
   const labels = [
     // Fix wave 5 (VT-17, VT-18): what the figure is comes first.
     isMinimum(job) ? ['Minimum', MINIMUM_TIP] : null,
-    s.includesShiftDifferential ? ['Incl. top shift pay', shiftTip(s)] : null,
+    s.includesShiftDifferential ? ['Includes top shift pay', shiftTip(s)] : null, // UX-61: no abbreviation
     // D-21: a range that covers several levels lists them (payLevelsLine) instead of a bare "Multiple pay zones".
     // UX-22: a range per place lists them (payPlacesLine) too; UX-31: the chip says what it means.
     s.zones > 1 && !payLevels(s) && !payRanges(s) ? ['Several pay ranges', 'The posting lists different ranges for different locations or levels; this is the span of all of them'] : null,
@@ -4337,7 +4408,7 @@ function compstimateBlock(job) {
       h('span', { class: 'muted' }, `(${money(est.low)}–${money(est.high).replace(/^\$/, '')}, ${v.confidence.toLowerCase()} confidence)`)),
     // fix-density: one line, and the basis, accuracy (MR-17), dates and (MR-3) the method behind "Details".
     noteLine({ cls: 'd-comp-note', key: 'drawer-comp', line: 'Not from the posting: an estimate', details: [
-      `${v.basis}. ${v.kind === 'ote' ? 'On-target earnings (base plus commission at target), like the roles it is based on. ' : ''}An estimate, not a figure from the posting (approx USD / year).`,
+      `${v.basis}. ${v.kind === 'ote' ? 'On-target earnings (base plus commission at target), like the roles it is based on. ' : ''}An estimate, not a figure from the posting (in US dollars a year).`,
       v.accuracy ? `${v.accuracy}: in half of the tests the estimate was at least this close to the posted pay.` : v.caution || '',
       asOfNote('d-comp-asof', () => compstimateAsOfText({ fetchedAt: data.fetchedAt, meta: data.meta })),
       docLink(ESTIMATE_DOC, 'How estimates work'),
@@ -4470,10 +4541,14 @@ function drawerContent(job) {
   const of = `${coName}’s ${noun}${place}${isOte(job) ? '' : ' that show pay'}`;
   // BP-3: ranked only among roles paid for the same country; with too few of them, say so.
   // fix-density: one line ("Pays more than 72% of Google’s roles in Poland"); what it ranks among is in Details.
-  const among = `${coName}’s ${noun}${place}`;
+  // M-38 (fix-phone-text): the line names the country (BP-3) with the short noun, so it fits one line on a phone;
+  // "with on-target earnings" and "that show pay" are in the pay block's Details (pctNote).
+  const among = `${coName}’s ${shortNoun(job)}${place}`;
   const pctText = pct == null ? (rank?.others && place ? `Too few roles${place} show pay to rank this one` : null)
     : pct >= 100 ? `The highest pay of ${among}`
       : pct <= 0 ? `The lowest pay of ${among}` : `Pays more than ${pct}% of ${among}`;
+  const pctShort = !place ? null : pct == null ? 'Too few roles show pay to rank this one'
+    : pct >= 100 ? `The highest pay of ${coName}’s ${shortNoun(job)}` : pct <= 0 ? `The lowest pay of ${coName}’s ${shortNoun(job)}` : `Pays more than ${pct}% of ${coName}’s ${shortNoun(job)}`;
   const pctNote = pct == null ? (rank?.others && place ? `Too few of ${coName}’s ${noun}${place} show pay to rank this one. Pay for other countries isn’t used.` : null)
     : `Ranked among ${of}${place ? '; pay for other countries isn’t used' : ''}.`;
   const partHourly = isPartTimeHourly(job);
@@ -4510,7 +4585,9 @@ function drawerContent(job) {
         : h('div', { class: 'd-sal-none' }, h('strong', null, 'No pay listed'), compstimateBlock(job)),
     sal ? salaryDistribution(job) : null,
     (labelsEl = sal ? payLabels(job) : null),
-    sal && pctText ? h('p', { class: 'd-pct-text' }, pctText) : null,
+    // M-38 (fix-phone-text): one line, never cut ("Pays more than 72% of Amazon’s roles in the …"): where the country
+    // doesn't fit, the line drops it (it is in the pay block's Details, pctNote).
+    sal && pctText ? fitOneLine(h('p', { class: 'd-pct-text' }), [pctText, pctShort]) : null,
     // fix-density: one line, then the caveats behind "Details" (viz/note.js): the full caption, the level
     // names, what the percentile ranks among and (MR-3) one tap to how pay is read.
     caption ? noteLine({ cls: 'd-pay-note', key: 'drawer-pay', line: captionLine, details: [
@@ -4518,7 +4595,7 @@ function drawerContent(job) {
       annualEl?.dataset.note || '',
       [...(salaryNotes || [])].filter(Boolean).map((e) => e.dataset.note).find(Boolean) || '',
       sal && pctNote ? pctNote : '',
-      sal && job._usd ? 'The strip counts each posted range at its middle.' : '',
+      sal && job._usd ? `The strip shows ${coName}’s ${noun} that show pay, each posted range at its middle.` : '',
       // fix-touch-tips: each label's meaning (its hover title), so a tap or the keyboard can reach it.
       ...(labelsEl ? [...labelsEl.querySelectorAll('.pay-label')].filter((e) => e.title).map((e) => `${e.textContent}: ${e.title.replace(/\.$/, '')}.`) : []),
       h('span', { class: 'd-pay-doc' }, docLink(PAY_DOC, 'How pay is read')),
@@ -4549,7 +4626,8 @@ function drawerContent(job) {
       data.mode === 'demo' ? h('span', { class: 'tag tag--demo' }, 'Demo') : null),
     h('h2', { class: 'd-title', id: 'drawerTitle' }, job.title),
     job._postedTitle && job._postedTitle.replace(/^\s*\[[^\]]{1,16}\]\s*/, '') !== job.title ? h('div', { class: 'd-posted muted' }, `Posted as “${job._postedTitle}”`) : null,
-    isPool(job) ? h('p', { class: 'd-pool' }, h('strong', null, POOL_LABEL), h('span', { class: 'muted' }, `. ${POOL_TIP}.`)) : null,
+    // M-37 (fix-phone-text): one line; what a general application is, behind its Details.
+    isPool(job) ? noteLine({ cls: 'd-pool', key: 'drawer-pool', line: h('strong', null, POOL_LABEL), details: [`${POOL_TIP}.`] }) : null,
     h('div', { class: 'd-meta' }, ...metaParts(job).map((t, i) => [i ? h('span', { class: 'sep' }, '·') : null, h('span', null, t)]),
       h('span', { class: `sen sen--${sen.toLowerCase().replace(/\W/g, '')}`, title: SEN_TIP[sen] || null }, senLabel(sen)),
       job._titleTag ? h('span', { class: 'tag', title: `The posting's title starts with “[${job._titleTag}]”, a tag the company adds (often a team or office code)` }, `Tag: ${job._titleTag}`) : null),
@@ -4603,17 +4681,19 @@ function listingSection(job) {
     // I-3: months and years in words; "Always-open posting" for one listed two years ago or more.
     const ago = d === 0 ? 'today' : d < 60 ? `${plural(d, 'day')} ago` : d < ALWAYS_OPEN_DAYS ? `${plural(Math.round(d / 30.44), 'month')} ago` : `${plural(Math.floor(d / 365), 'year')} ago`;
     const on = posted ? ` (${new Date(posted).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })})` : '';
+    // M-37 (fix-phone-text): one line per fact; what the line can't hold is behind its Details.
     lines.push(job.ageIsMinimum
-      ? `Open at least ${ago.replace(/ ago$/, '')} (it was already listed when melon-seek started tracking this board)`
-      : d >= ALWAYS_OPEN_DAYS ? `Always-open posting: listed ${ago}${on}` : `Listed ${ago}${on}`);
+      ? { line: `Open at least ${ago.replace(/ ago$/, '')}`, details: ['It was already listed when melon-seek started tracking this board.'] }
+      : d >= ALWAYS_OPEN_DAYS ? { line: `Always-open posting, listed ${ago}`, details: [posted ? `Listed on ${new Date(posted).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}.` : ''] } : `Listed ${ago}${on}`);
   }
   if (job.firstSeenAt) lines.push(`First seen by melon-seek on ${new Date(job.firstSeenAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`);
   if (job.repost?.count > 0) lines.push(`Reposted ${job.repost.count}×${job.repost.firstSeenAt ? ` since ${new Date(job.repost.firstSeenAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}` : ''}`);
   if (job.freshness === 'evergreen' || (job._age != null && job._age >= 180 && 'ageDays' in job)) {
-    lines.push('Open 180+ days. Some companies keep a posting open to collect applicants for a recurring role.');
+    lines.push({ line: 'Open 180+ days', details: ['Some companies keep a posting open to collect applicants for a recurring role.'] });
   }
   if (!lines.length) return null;
-  return fold('d-listing', 'Listing', h('ul', { class: 'listing-lines' }, ...lines.map((t) => h('li', null, t))));
+  return fold('d-listing', 'Listing', h('ul', { class: 'listing-lines' }, ...lines.map((t, i) => (typeof t === 'string' ? h('li', null, t)
+    : renderNote(h('li'), { ...t, key: `listing-${i}` })))));
 }
 
 /* ---- F1: "Same role elsewhere" (product's compsForJob + viz's createCompsChart, loaded lazily) ---- */

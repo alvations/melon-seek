@@ -8,10 +8,13 @@
 // ONE line, with any further facts behind its Details; no text is cut mid-word except a long proper name in a list
 // row that also shows the whole name on tap and keyboard (ALLOW below); numbers are never cut.
 //
-// Tests tagged "[M-n]", "[UX-n]" or "[A-n]" encode one finding each. "[guard]" scans every big-tech board at both
-// phone sizes in light and dark: every visible caption is measured (lines from its text's line boxes, and from its
+// Tests tagged "[M-n]", "[UX-n]" or "[A-n]" encode one finding each. "[guard]" scans every big-tech board at 390x844
+// and 360x740 in light and dark: every visible caption is measured (lines from its text's line boxes, and from its
 // height over its line-height) and every text box that clips is measured to the sub-pixel (an ellipsis box cuts at
-// 0.01 px over, any other clipping box at 0.5 px), unlike M-27's whole-pixel scrollWidth check.
+// 0.01 px over, any other clipping box at 0.5 px), unlike M-27's whole-pixel scrollWidth check. "[guard, size]" runs
+// the same walk on every other entry of test/e2e/phone-sizes.mjs (the user, 2026-10-16: "Make sure we check for all
+// phone sizes from iPhone mini to razr to duo or something"), on Amazon and Google, whose strings are the longest
+// (FIX_PHONE_TEXT_ALL=1: every big-tech board at every size).
 //
 // The tests serve the build (FIX_PHONE_TEXT_DIST, else BETA_QA_DIST, else dist/) under /melon-seek/ the way GitHub
 // Pages does; every other host is aborted. They use standard Playwright APIs only (touchscreen.tap, click, keyboard),
@@ -25,6 +28,7 @@ import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { ROOT, assert, skip } from './harness.js';
 import { unpackJobs } from '../../public/api.js';
+import { ALL_SIZES, contextFor } from './phone-sizes.mjs';
 
 const IOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
 const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36';
@@ -46,6 +50,8 @@ export const ALLOW = [
   { sel: '#filterBody .check-label, #popover .check-label', why: 'M-40, owned by the fix-phone-controls lane (a filter row\'s label; the row is a checkbox): left to that lane, listed here so this guard stays about text' },
   { sel: '.company-list .company-item, .company-list .company-item *', why: 'a company name in the company menu (a list row; the button opens the board, whose top bar names it)' },
   { sel: '#drawer .ms-comps__name, #drawer .ms-comps__label', why: 'a company name in "Same role elsewhere" (a listbox row; a tap or Enter opens that company\'s roles)' },
+  { sel: '#chartHost .ms-legend__key', why: 'the Ranges colour legend (viz lane): one row that scrolls sideways, each key capped at 220 px; the bars and their chips name the department. Reported to the lead for the viz lane' },
+  { sel: '#companyMenuBtn .company-name', why: 'M-45, owned by the fix-phone-sizes lane (the top bar\'s layout at 380-392 px): left to that lane' },
 ];
 
 /* ------------------------------------------------------------------ the build and pages */
@@ -97,11 +103,15 @@ async function boardJobs(st, slug, site = 'beta') {
  * Returns { page, go(hash), hash(hash), errors }: go() loads the page and waits for the board's list; hash() changes
  * the hash in place (the board stays loaded) and waits a little.
  */
-async function open(ctx, { vp = P390, theme = 'light', site = 'beta' } = {}) {
+async function open(ctx, { vp = P390, theme = 'light', site = 'beta', device = null } = {}) {
   const st = await serveDist();
   if (!st) skip('no beta build (npm run build, or FIX_PHONE_TEXT_DIST=<dir>)');
-  const mobile = vp.width <= 860;
-  const context = await ctx.browser.newContext({ viewport: vp, colorScheme: theme, ...(mobile ? { isMobile: true, hasTouch: true, deviceScaleFactor: 2, userAgent: vp.width <= 360 ? ANDROID : IOS } : {}) });
+  if (device) vp = { width: device.width, height: device.height };
+  const mobile = !!device || vp.width <= 860;
+  const engine = ctx.browser.browserType?.().name() || 'chromium';
+  const opts = device ? contextFor(device, engine)
+    : mobile ? { viewport: vp, isMobile: engine !== 'firefox', hasTouch: true, deviceScaleFactor: 2, userAgent: vp.width <= 360 ? ANDROID : IOS } : { viewport: vp };
+  const context = await ctx.browser.newContext({ ...opts, colorScheme: theme });
   ctx.cleanup.push(() => context.close().catch(() => {}));
   await context.route((u) => !u.href.startsWith(st.origin) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
   const page = await context.newPage();
@@ -174,11 +184,19 @@ export const CAPTION_SEL = [
  * is measured by its line, without its Details). cut: any text box that cuts its text, or an input that cuts its
  * placeholder, unless ALLOW names it (never when the text is a number or an amount).
  */
-function scanText({ roots, captionSel, allow, words }) {
+function scanText({ roots, captionSel, allow, words, maxLines = 1 }) {
   const rootEls = roots.flatMap((r) => [...document.querySelectorAll(r)]);
   const seen = new Set();
+  /** Inside a closed <details> and not its summary (Chromium still lays such content out for script). */
+  const folded = (e) => {
+    for (let d = e.closest('details:not([open])'); d; d = d.parentElement?.closest('details:not([open])') || null) {
+      const sm = e.closest('summary');
+      if (!sm || sm.parentElement !== d) return true;
+    }
+    return false;
+  };
   const vis = (e) => {
-    if (e.closest('[hidden], .ms-note__list, .sr-only, [role="tooltip"], .ms-viz-tip, .msi-tip, #toast')) return false;
+    if (e.closest('[hidden], .ms-note__list, .sr-only, [role="tooltip"], .ms-viz-tip, .msi-tip, #toast') || folded(e)) return false;
     const r = e.getBoundingClientRect();
     if (r.width < 2 || r.height < 2 || r.right <= 0 || r.left >= innerWidth) return false;
     const cs = getComputedStyle(e);
@@ -226,7 +244,7 @@ function scanText({ roots, captionSel, allow, words }) {
     if (!text) continue;
     const n = Math.max(rectLines(lineEl), heightLines(lineEl));
     const wc = text.split(' ').filter((x) => /[\p{L}\p{N}]/u.test(x)).length;
-    if (n > 1 || wc > words) lines.push({ sel: name(e), text: text.slice(0, 170), lines: n, words: wc });
+    if (n > maxLines || wc > words) lines.push({ sel: name(e), text: text.slice(0, 170), lines: n, words: wc, max: maxLines });
   }
   const cut = [];
   const allowed = (e) => allow.find((a) => e.matches(a.sel));
@@ -269,13 +287,19 @@ function scanText({ roots, captionSel, allow, words }) {
   }
   return { lines, cut };
 }
-async function scan(page, roots) {
-  return page.evaluate(scanText, { roots: [].concat(roots), captionSel: CAPTION_SEL, allow: ALLOW.map(({ sel }) => ({ sel })), words: WORDS });
+async function scan(page, roots, maxLines = 1) {
+  return page.evaluate(scanText, { roots: [].concat(roots), captionSel: CAPTION_SEL, allow: ALLOW.map(({ sel }) => ({ sel })), words: WORDS, maxLines });
 }
+/**
+ * Lines a caption may take at a width: one from 360 px up (every phone in common use, the iPhone mini included);
+ * two on a narrower screen (the folded Fold at 280, the first iPhone SE at 320, the Fold cover at 344, the Razr
+ * cover at 352), where a caption wraps rather than being cut. Nothing is ever cut, at any width.
+ */
+const linesAt = (width) => (width < 360 ? 2 : 1);
 /** One message per problem, for an assertion. */
 function report(res, where) {
   return [
-    ...res.lines.map((m) => `${where} ${m.sel}: ${m.lines > 1 ? `${m.lines} lines` : ''}${m.lines > 1 && m.words > WORDS ? ', ' : ''}${m.words > WORDS ? `${m.words} words` : ''}: "${m.text}"`),
+    ...res.lines.map((m) => `${where} ${m.sel}: ${m.lines > (m.max || 1) ? `${m.lines} lines` : ''}${m.lines > (m.max || 1) && m.words > WORDS ? ', ' : ''}${m.words > WORDS ? `${m.words} words` : ''}: "${m.text}"`),
     ...res.cut.map((m) => `${where} ${m.sel}: cut off by ${m.over} px${m.why ? ` (${m.why})` : ''}: "${m.text}"`),
   ];
 }
@@ -306,15 +330,19 @@ async function guardWalk(s, slug) {
   const { page } = s;
   const p = await picks(s.st, slug);
   const out = [];
-  const look = async (where, roots) => { out.push(...report(await scan(page, roots), where)); };
+  const maxLines = linesAt(await page.evaluate(() => innerWidth));
+  const look = async (where, roots) => { out.push(...report(await scan(page, roots, maxLines), where)); };
   await s.go(`c=${slug}`);
   const top = await topPaidId(page);
   await look('first screen', ['.topbar', '.quickbar', '#vizToolbar', '#tagline', '#vizArea']);
-  await sheetTo(page, 'half');
-  await look('list (half sheet)', ['#results']);
-  await sheetTo(page, 'full');
-  await look('list (full sheet)', ['#results']);
-  await sheetTo(page, 'peek');
+  // A results sheet only where the layout has one (a phone); a wide posture (the Duo spanned) has the list column.
+  if (await page.locator('#sheetHandle').isVisible()) {
+    await sheetTo(page, 'half');
+    await look('list (half sheet)', ['#results']);
+    await sheetTo(page, 'full');
+    await look('list (full sheet)', ['#results']);
+    await sheetTo(page, 'peek');
+  } else await look('list', ['#results']);
   await s.hash(`c=${slug}&v=ranges`, 900);
   await look('Ranges', ['#vizToolbar', '#vizArea']);
   await s.hash(`c=${slug}&m=map`, 1200);
@@ -330,13 +358,12 @@ async function guardWalk(s, slug) {
     await look(`job page, ${what} (${id})`, ['#drawer']);
   }
   await s.hash(`c=${slug}`, 900);
-  await tap(page, '#filtersToggle', 900);
+  if (await page.locator('#filtersToggle').isVisible()) await tap(page, '#filtersToggle', 900);
   await page.evaluate(() => { for (const d of document.querySelectorAll('#filterBody details')) d.open = true; });
   await sleep(500);
   await look('filter sheet', ['#filters']);
   await page.keyboard.press('Escape');
   await sleep(500);
-  if (await page.evaluate(() => !document.querySelector('#filters')?.matches('.is-open, [data-open="true"]'))) { /* closed */ }
   await s.hash(`c=${slug}`, 600);
   await tap(page, '#dataBadge', 900);
   await look('data badge popover', ['#popover']);
@@ -366,6 +393,22 @@ export function registerFixPhoneTextTests(suite) {
         const s = await open(ctx, { vp, theme });
         const bad = await guardWalk(s, slug);
         if (bad.length) await shot(s.page, `guard-${slug}-${vp.width}-${theme}`);
+        assert(!bad.length, `${bad.length} problem(s):\n  ${bad.join('\n  ')}`);
+        assert(!s.errors.length, s.errors.join(' | '));
+      });
+    }
+  }
+
+  const sizeBoards = process.env.FIX_PHONE_TEXT_ALL ? BOARDS : ['amazon', 'google'];
+  for (const d of ALL_SIZES.filter((x) => !((x.width === 390 && x.height === 844) || (x.width === 360 && x.height === 740)))) {
+    for (const slug of sizeBoards) {
+      suite.test(`Fix phone text: [guard, size] ${slug} on ${d.name} ${d.width}x${d.height}: every caption is ${linesAt(d.width) === 1 ? 'one line' : 'at most two lines'} of at most ${WORDS} words, and no text is cut`, async (ctx) => {
+        const st = await serveDist();
+        if (!st) skip('no beta build');
+        if (!hasBoard(st, slug)) skip(`no ${slug} list in this build`);
+        const s = await open(ctx, { device: d });
+        const bad = await guardWalk(s, slug);
+        if (bad.length) await shot(s.page, `guard-${slug}-${d.width}x${d.height}`);
         assert(!bad.length, `${bad.length} problem(s):\n  ${bad.join('\n  ')}`);
         assert(!s.errors.length, s.errors.join(' | '));
       });
@@ -535,18 +578,6 @@ export function registerFixPhoneTextTests(suite) {
     assert(!bad.length, `${bad.length} row name(s) cut off:\n  ${bad.join('\n  ')}`);
   });
 
-  suite.test('Fix phone text: [M-45] "Microsoft" shows whole in the beta top bar from 360 to 430 px (sub-pixel)', async (ctx) => {
-    const bad = [];
-    for (const width of [360, 375, 380, 390, 393, 414, 430]) {
-      const s = await open(ctx, { vp: { width, height: 844 } });
-      if (!hasBoard(s.st, 'microsoft')) skip('no microsoft list');
-      await s.go('c=microsoft', 400);
-      const m = await s.page.evaluate(() => { const n = document.querySelector('#companyMenuBtn .company-name'); const r = document.createRange(); r.selectNodeContents(n); const cs = getComputedStyle(n); return { name: n.textContent, text: r.getBoundingClientRect().width, box: n.getBoundingClientRect().width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) }; });
-      if (m.text > m.box + 0.01) { bad.push(`${width}px: "${m.name}" is ${m.text.toFixed(2)} px of text in a ${m.box.toFixed(2)} px box`); await shot(s.page, `M-45-${width}`); }
-    }
-    assert(!bad.length, bad.join('\n  '));
-  });
-
   suite.test('Fix phone text: [M-46] with no pay in view, the phone\'s stats line still says something (Google in Buenos Aires: not a lone "Details")', async (ctx) => {
     const s = await open(ctx, { vp: P390 });
     if (!hasBoard(s.st, 'google')) skip('no google list');
@@ -666,10 +697,11 @@ export function registerFixPhoneTextTests(suite) {
     for (const slug of ['apple', 'google']) {
       await s.go(`c=${slug}&job=${encodeURIComponent(await (async () => { await s.go(`c=${slug}`); return topPaidId(s.page); })())}`);
       await openFolds(s.page);
-      const d = await s.page.evaluate(() => document.querySelector('#drawer').innerHTML);
+      // The app's own words only (a posting's description is the company's text).
+      const d = await s.page.evaluate(() => [...document.querySelectorAll('#drawer .d-salary, #drawer .d-comps, #drawer .d-juice, #drawer .d-listing')].map((e) => e.textContent).join(' '));
       const straight = d.match(/[A-Za-z]'[a-z]/g);
       if (straight) bad.push(`${slug} job page has straight apostrophes: ${[...new Set(straight)].join(', ')}`);
-      const txt = await s.page.evaluate(() => document.querySelector('#drawer').textContent.replace(/\s+/g, ' '));
+      const txt = d.replace(/\s+/g, ' ');
       for (const w of ['approx USD', 'US$', 'approx. USD']) if (txt.includes(w)) bad.push(`${slug} job page says "${w}"`);
     }
     await s.go('c=google&v=ranges', 900);

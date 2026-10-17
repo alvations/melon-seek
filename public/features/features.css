@@ -470,3 +470,17 @@
 /* UX-20 (docs/process/fix4-app.md): the 12px text floor of the phone rule above, at every width. */
 .msi-stat__note, .msi-foot, .msi-row__n, .msi-row__tag, .msi-row__delta, .msi-legend, .msi-axis__tick,
 .msi-cols, .msi-chip__n, .ms-comp__scale, .ms-comp__item-meta, .ms-comp__match, .ms-comp__foot { font-size: 12px; }
+
+/* ---- fix-phone-text (docs/process/fix-phone-text.md): the phone page's text, one rule block ---- */
+/* M-41: an Insights row's name wraps instead of being cut ("Network…", "Mountain…" on a phone); the end that tells
+   two long names apart ("…--Technical", "…--Non-Tech") stays visible. */
+.msi-row__name { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: break-word; min-width: 0; }
+/* M-34: "Most comparable roles" rows show their whole title and place · level · department (they were cut). */
+.ms-comp__item-title, .ms-comp__item-meta { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: break-word; }
+.ms-comp__item-title { display: block; -webkit-line-clamp: none; line-clamp: none; }
+/* UX-55: a stat tile's number is never cut; a long one gets smaller instead (the tile is a size container). */
+.msi-stat { container-type: inline-size; }
+.msi-stat__value { overflow: visible; text-overflow: clip; font-size: min(20px, 13.5cqi); }
+@container ms-insights (max-width: 480px) { .ms-insights .msi-stat__value { font-size: min(17px, 13.5cqi); } }
+/* UX-53: a tile's note is never cut; it wraps under its number on a narrow tile. */
+.msi-stat__note { overflow: visible; text-overflow: clip; white-space: normal; }

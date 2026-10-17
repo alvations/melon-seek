@@ -247,6 +247,12 @@ function card(title, subtitle, body, { id = uid('ins'), headTag = 'h3', extra = 
 }
 
 function emptyNote(text) { return h('p', { class: 'msi-empty' }, text); }
+/** UX-55: "$188K–252K", the cards' range (one currency sign, never "$188K–$252K"). */
+function moneySpan(lo, hi) {
+  const a = formatMoney(lo), b = formatMoney(hi);
+  const sign = a.match(/^[^\d]*/)[0];
+  return `${a}–${sign && b.startsWith(sign) ? b.slice(sign.length) : b}`;
+}
 
 /**
  * @param {HTMLElement} container
@@ -288,7 +294,7 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
       const pos = it.premium >= 0;
       const delta = formatDelta(it.premium);
       return row('skill', it.skill,
-        `${it.skill}: average ${formatMoney(it.average)}, ${delta.replace('−', 'minus ')} vs. all roles in view, ${plural(it.n, 'salaried role')}. Filter by this skill.`,
+        `${it.skill}: average ${formatMoney(it.average)}, ${delta.replace('−', 'minus ')} vs. all roles in view, ${plural(it.n, 'role')} with pay. Filter by this skill.`,
         [
           h('span', { class: 'msi-row__label' }, h('span', { class: 'msi-row__name' }, it.skill), h('span', { class: 'msi-row__n' }, fmtCount(it.n))),
           h('span', { class: 'msi-div', 'aria-hidden': 'true' },
@@ -301,7 +307,7 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
     const legend = h('div', { class: 'msi-legend', 'aria-hidden': 'true' },
       h('span', null, h('i', { class: 'msi-key msi-key--neg' }), 'Pays less'),
       h('span', null, h('i', { class: 'msi-key msi-key--pos' }), 'Pays more'),
-      h('span', { class: 'msi-legend__n' }, '# = salaried roles'));
+      h('span', { class: 'msi-legend__n' }, '# = roles with pay')); // UX-61
     const foot = dropped > 0
       ? h('span', { class: 'msi-foot' }, `${plural(dropped, 'skill')} left out: most of ${dropped === 1 ? 'its' : 'their'} roles post the same range, so the difference would only repeat one pay band. Skills need ${MIN_SAMPLE}+ roles with pay.`) : null;
     return card('Skill premium', 'Average pay by skill, vs. all roles', [h('div', { class: 'msi-rows msi-rows--div' }, rows, legend)], { headTag: `h${hl + 1}`, more: sub, notes: foot });
@@ -337,13 +343,13 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
           h('span', { class: 'msi-box__iqr', style: { left: x(b.p25), width: `max(4px, calc(${x(b.p75)} - ${x(b.p25)}))` } }),
           h('span', { class: 'msi-box__med', style: { left: x(b.median) } })),
       ],
-      () => ({ value: `${formatMoney(b.median)} median`, label: b.department, rows: [['Most roles', `${formatMoney(b.p10)} – ${formatMoney(b.p90)}`], ['Middle half', `${formatMoney(b.p25)} – ${formatMoney(b.p75)}`], ['Salaried roles', String(b.n)]] })));
+      () => ({ value: `${formatMoney(b.median)} median`, label: b.department, rows: [['Most roles', `${formatMoney(b.p10)} – ${formatMoney(b.p90)}`], ['Middle half', `${formatMoney(b.p25)} – ${formatMoney(b.p75)}`], ['Roles with pay', String(b.n)]] })));
     const axis = h('div', { class: 'msi-axis', 'aria-hidden': 'true' },
       h('span', { class: 'msi-axis__pad' }),
       h('span', { class: 'msi-axis__track' }, ticks.map((t) => h('span', { class: 'msi-axis__tick', style: { left: x(t) } }, formatMoney(t)))),
       h('span', { class: 'msi-axis__pad msi-axis__pad--end' }));
     const foot = hidden > 0
-      ? h('span', { class: 'msi-foot' }, `${plural(hidden, 'department')} with fewer than ${MIN_SAMPLE} salaried roles not shown.`) : null;
+      ? h('span', { class: 'msi-foot' }, `${plural(hidden, 'department')} with fewer than ${MIN_SAMPLE} roles with pay not shown.`) : null;
     return card('Pay by department', 'Middle half of pay, and the median', [h('div', { class: 'msi-rows msi-rows--box' }, rows, axis)], { headTag: `h${hl + 1}`, more: sub, notes: foot });
   }
 
@@ -411,8 +417,10 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
       h('div', { class: 'msi-stat__value' }, value),
       note ? h('div', { class: 'msi-stat__note' }, note) : null);
     return h('div', { class: 'msi-stats', role: 'list' },
-      [tile('Median base pay', enough ? formatMoney(s.median) : '—', !s.salaried ? 'no pay published' : enough ? `of ${plural(s.salaried, 'salaried role')}` : `too few with pay (${s.salaried})`),
-        tile('Middle half', enough && s.p25 != null ? `${formatMoney(s.p25)}–${formatMoney(s.p75)}` : '—', 'of salaried roles'),
+      // UX-53 / UX-61 (fix-phone-text): "of 2,781 with pay" (it read "of 2,781 salaried ro…" at 360). UX-55: a range is
+      // written like the cards ("$188K–252K"), so the tile no longer cuts its number at 1440.
+      [tile('Median base pay', enough ? formatMoney(s.median) : '—', !s.salaried ? 'no pay published' : enough ? `of ${fmtCount(s.salaried)} with pay` : `too few with pay (${s.salaried})`),
+        tile('Middle half', enough && s.p25 != null ? moneySpan(s.p25, s.p75) : '—', 'of roles with pay'),
         tile('Pay published', formatPct(s.payShare), `${fmtCount(s.salaried)} of ${fmtCount(s.total)}`),
         tile('Remote-eligible', formatPct(s.remoteShare), plural(jobs.filter((j) => j.remote).length, 'role'))]
         .map((t) => { t.setAttribute('role', 'listitem'); return t; }));

@@ -734,7 +734,7 @@ export function registerUiTests(suite) {
       await page.locator('#dataBadge').click();
       const pop = page.locator('#popover.popover--badge');
       await pop.waitFor({ state: 'visible', timeout: 5000 });
-      const link = pop.getByRole('link', { name: 'Download CSV' });
+      const link = pop.getByRole('link', { name: 'Download a spreadsheet (CSV)' }); // UX-61 (fix-phone-text): it read "Download CSV"
       const href = await link.getAttribute('href');
       assert(/api\/export\?company=anthropic$/.test(href), `CSV href ${href}`);
       const url = new URL(href, page.url()).href;
@@ -1543,7 +1543,7 @@ function registerCompstimateTests(suite) {
       const { page, close } = await openComp(ctx, hash);
       try {
         const c = await readComp(page);
-        if (!/USD/.test(c.per || '')) problems.push(`${label}: hero unit "${c.per}"`);
+        if (!/US dollars|USD/.test(c.per || '')) problems.push(`${label}: hero unit "${c.per}"`); // UX-61: "US dollars a year"
         if (!c.foot || !/\*/.test(c.foot)) problems.push(`${label}: no "*" converted footnote (foot "${c.foot}")`);
       } finally { await close(); }
     }
@@ -1551,7 +1551,7 @@ function registerCompstimateTests(suite) {
     try {
       await page.locator('#drawer').waitFor({ state: 'visible', timeout: 8000 });
       const d = await readDrawerComp(page);
-      if (!d || !/approx USD/.test(d.text)) problems.push(`drawer Compstimate lacks "approx USD": "${d && d.text}"`);
+      if (!d || !/US dollars/.test(d.text)) problems.push(`drawer Compstimate lacks "US dollars": "${d && d.text}"`); // UX-61: one currency name
     } finally { await close(); }
     const shared = await lib('features/shared.js');
     const { toUSD } = await lib('viz/palette.js');

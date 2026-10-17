@@ -145,7 +145,9 @@ export function registerFixBetaAppTests(suite) {
     assertEq((await card.locator('.tag--pool').innerText()).trim(), 'General application (no specific opening)', 'card label');
     assert(/General application \(no specific opening\)/.test(await card.getAttribute('aria-label')), 'the card is named a general application');
     await card.click(); await page.waitForSelector('#drawer.is-open'); await sleep(400);
-    assert(/^General application \(no specific opening\)\./.test((await page.locator('#drawer .d-pool').innerText()).trim()), 'drawer line');
+    // fix-phone-text M-37: the drawer line is the label; what it means is behind its Details (textContent reads both).
+    assert(/^General application \(no specific opening\)/.test((await page.locator('#drawer .d-pool .ms-note__line').innerText()).trim()), 'drawer line');
+    assert(/collects applications here for roles that may open later/.test(await page.locator('#drawer .d-pool').textContent()), 'drawer line says what it means');
     await page.keyboard.press('Escape'); await sleep(300);
     const labelled = await page.$$eval('#resultsList .card:has(.tag--pool)', (e) => e.map((x) => x.dataset.id));
     assertEq(labelled.join(), pool.id, 'only the pool is labelled');

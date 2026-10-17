@@ -1462,8 +1462,7 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
    arrow, which would point past the pin; the Juice household's meaning, one muted line under its buttons. */
 .ms-map .leaflet-tooltip.ms-map-tip--slid::before { display: none; }
 .juice-hh-note { margin: 6px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* ===================================================================
-   fix-phone-sizes (docs/process/fix-phone-sizes.md, 2026-10-17): every size in test/e2e/phone-sizes.mjs, from the
+/* ============================================================   fix-phone-sizes (docs/process/fix-phone-sizes.md, 2026-10-17): every size in test/e2e/phone-sizes.mjs, from the
    folded Galaxy Fold (280 px) to the Surface Duo spanned (1114 px), the Razr cover screen and landscape.
    Each finding is its own rule block. test/e2e/phone-matrix.e2e.js checks them all.
    =================================================================== */
@@ -1614,3 +1613,15 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
    narrow search), and touch screens without a keyboard don't show it. */
 .search kbd { pointer-events: none; }
 @media (hover: none) { .search kbd { display: none; } }
+=======
+/* ---- fix-phone-text (docs/process/fix-phone-text.md): the phone page's text, one rule block ----
+   Every caption, note and explainer is one line with its facts behind Details (viz/note.js); nothing is cut. */
+/* UX-58: the "No Juice" box keeps its padding (.d-juice { padding: 0 } above overrode .d-juice--none). */
+.d-juice.d-juice--none { padding: 10px 14px; }
+/* UX-62: the search box's "/" key cap was 11 px, the only text under 12 px. */
+.search kbd { font-size: 12px; }
+/* M-46: with no pay in view the phone's stats line says so (the desktop line has the count and the 0% share). */
+.stats-line .stat--nopay { display: none; }
+@media (max-width: 860px) { .stats-line .stat--nopay { display: inline; } }
+/* M-38: the percentile line is fitted to one line (app.js fitOneLine); when nothing fits it wraps, never "…". */
+.d-pct-text.is-wrapped { white-space: normal; overflow: visible; text-overflow: clip; }
