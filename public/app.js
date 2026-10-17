@@ -2945,10 +2945,42 @@ function renderTagline() {
     el.title = big.length ? `Beta: adds ${list} from their own careers sites` : text;
     el.replaceChildren(h('strong', { class: 'tagline-brand' }, 'melon·seek'), h('span', { class: 'tagline-sep', 'aria-hidden': 'true' }, ' · '),
       h('span', { class: 'tagline-long' }, text), h('span', { class: 'tagline-short' }, short),
-      // fix-phone-text: under 360 px (a folded Fold, the first iPhone SE) the short line was cut; a shorter one fits.
+      // fix-phone-text: the shortest line, for a box too narrow for the others (fitTagline).
       h('span', { class: 'tagline-tiny' }, big.length ? `Beta: ${big.length > 1 ? `${big.length} big-tech sites` : `${big[0]}’s site`}` : 'Pay after tax and rent'));
+    requestAnimationFrame(fitTagline);
   }
   document.body.classList.toggle('is-filtered', activeFilterCount() > 0 || !!area);
+}
+
+/**
+ * fix-phone-text: the tagline is never cut. Its longest line that fits shows: on a desktop the long one, else the
+ * short one, else the shortest (at 1280x800 the beta line was 295 px of text in a 273 px box, "…"); on a phone the
+ * short one, else the shortest (a folded Fold). If none fits it wraps. The full line is always the tagline's title.
+ */
+let taglineRo = null;
+function fitTagline() {
+  const el = $('#tagline');
+  if (!el) return;
+  if (!taglineRo && typeof ResizeObserver === 'function') {
+    let w = -1;
+    taglineRo = new ResizeObserver(() => { const now = el.getBoundingClientRect().width; if (Math.abs(now - w) >= 0.5) { w = now; fitTagline(); } });
+    taglineRo.observe(el);
+  }
+  if (!el.getClientRects().length) return;
+  const over = () => {
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    const cs = getComputedStyle(el), box = el.getBoundingClientRect();
+    return el.scrollWidth > el.clientWidth || r.getBoundingClientRect().width > box.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) + 0.01;
+  };
+  const steps = matchMedia('(max-width: 860px)').matches ? ['', 'fit-tiny'] : ['', 'fit-short', 'fit-tiny'];
+  el.classList.remove('fit-short', 'fit-tiny', 'fit-wrap');
+  for (const c of steps) {
+    el.classList.remove('fit-short', 'fit-tiny');
+    if (c) el.classList.add(c);
+    if (!over()) return;
+  }
+  el.classList.add('fit-wrap');
 }
 
 /* ------------------------------------------------------------------- viz */

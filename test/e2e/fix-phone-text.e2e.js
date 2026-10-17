@@ -14,7 +14,8 @@
 // 0.01 px over, any other clipping box at 0.5 px), unlike M-27's whole-pixel scrollWidth check. "[guard, size]" runs
 // the same walk on every other entry of test/e2e/phone-sizes.mjs (the user, 2026-10-16: "Make sure we check for all
 // phone sizes from iPhone mini to razr to duo or something"), on Amazon and Google, whose strings are the longest
-// (FIX_PHONE_TEXT_ALL=1: every big-tech board at every size).
+// (FIX_PHONE_TEXT_ALL=1: every big-tech board at every size). "[guard, desktop]" runs it at 1024x768, 1280x800 and
+// 1440x900 on every big-tech board (fix-phone-sizes found the desktop tagline cut at 1280: "…", 295 px in 273).
 //
 // The tests serve the build (FIX_PHONE_TEXT_DIST, else BETA_QA_DIST, else dist/) under /melon-seek/ the way GitHub
 // Pages does; every other host is aborted. They use standard Playwright APIs only (touchscreen.tap, click, keyboard),
@@ -35,6 +36,7 @@ const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KH
 const P390 = { width: 390, height: 844 };
 const P360 = { width: 360, height: 740 };
 const D1440 = { width: 1440, height: 900 };
+const DESKTOPS = [{ width: 1024, height: 768 }, { width: 1280, height: 800 }, D1440];
 const WORDS = 12;
 const BOARDS = ['amazon', 'apple', 'google', 'meta', 'microsoft', 'netflix', 'nvidia'];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -191,7 +193,7 @@ export const CAPTION_SEL = [
  * is measured by its line, without its Details). cut: any text box that cuts its text, or an input that cuts its
  * placeholder, unless ALLOW names it (never when the text is a number or an amount).
  */
-function scanText({ roots, captionSel, allow, allowLines = [], words, maxLines = 1 }) {
+export function scanText({ roots, captionSel, allow, allowLines = [], words, maxLines = 1 }) {
   const rootEls = roots.flatMap((r) => [...document.querySelectorAll(r)]);
   const seen = new Set();
   /** Inside a closed <details> and not its summary (Chromium still lays such content out for script). */
@@ -401,6 +403,21 @@ export function registerFixPhoneTextTests(suite) {
         const s = await open(ctx, { vp, theme });
         const bad = await guardWalk(s, slug);
         if (bad.length) await shot(s.page, `guard-${slug}-${vp.width}-${theme}`);
+        assert(!bad.length, `${bad.length} problem(s):\n  ${bad.join('\n  ')}`);
+        assert(!s.errors.length, s.errors.join(' | '));
+      });
+    }
+  }
+
+  for (const slug of BOARDS) {
+    for (const vp of DESKTOPS) {
+      suite.test(`Fix phone text: [guard, desktop] ${slug} ${vp.width}x${vp.height}: every caption is one line of at most ${WORDS} words, and no text is cut (the tagline, the stats line, Insights, job pages, filters, badge, More)`, async (ctx) => {
+        const st = await serveDist();
+        if (!st) skip('no beta build');
+        if (!hasBoard(st, slug)) skip(`no ${slug} list in this build`);
+        const s = await open(ctx, { vp });
+        const bad = await guardWalk(s, slug);
+        if (bad.length) await shot(s.page, `guard-${slug}-${vp.width}x${vp.height}`);
         assert(!bad.length, `${bad.length} problem(s):\n  ${bad.join('\n  ')}`);
         assert(!s.errors.length, s.errors.join(' | '));
       });
@@ -715,6 +732,26 @@ export function registerFixPhoneTextTests(suite) {
     await s.go('c=google&v=ranges', 900);
     const rows = await s.page.evaluate(() => document.querySelector('#vizArea').textContent.replace(/\s+/g, ' '));
     if (/no published salary/.test(rows)) bad.push('the chart still says "no published salary"');
+    assert(!bad.length, bad.join('\n  '));
+  });
+
+  suite.test('Fix phone text: [tagline] the tagline beside the chart controls is never cut, from 861 to 1920 px and on phones (fix-phone-sizes: "…" at 1280x800, 295 px of text in 273)', async (ctx) => {
+    const bad = [];
+    for (const width of [280, 320, 360, 390, 430, 861, 1024, 1100, 1200, 1280, 1366, 1440, 1600, 1920]) {
+      const s = await open(ctx, { vp: { width, height: 800 } });
+      await s.go('c=apple', 500);
+      const r = await s.page.evaluate(() => {
+        const t = document.querySelector('#tagline');
+        if (!t || !t.getClientRects().length) return null;
+        const rg = document.createRange();
+        rg.selectNodeContents(t);
+        const cs = getComputedStyle(t), b = t.getBoundingClientRect();
+        return { text: t.innerText.trim(), title: t.title, over: rg.getBoundingClientRect().width - (b.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)), sw: t.scrollWidth, cw: t.clientWidth, ell: cs.textOverflow === 'ellipsis' && cs.whiteSpace === 'nowrap' };
+      });
+      if (!r) continue;
+      if ((r.ell && r.over > 0.01) || r.sw > r.cw) bad.push(`${width}px: "${r.text}" is cut (${r.over.toFixed(2)} px over)`);
+      if (!/careers sites/.test(r.title)) bad.push(`${width}px: the tagline's title lost the full line: "${r.title}"`);
+    }
     assert(!bad.length, bad.join('\n  '));
   });
 

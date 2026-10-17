@@ -1625,9 +1625,8 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
 @media (max-width: 860px) { .stats-line .stat--nopay { display: inline; } }
 /* M-38: the percentile line is fitted to one line (app.js fitOneLine); when nothing fits it wraps, never "…". */
 .d-pct-text.is-wrapped { white-space: normal; overflow: visible; text-overflow: clip; }
-/* The tagline under 360 px: its shortest line ("melon·seek · Beta: 7 big-tech sites"; the full line is its title). */
+/* The tagline shows its longest line that fits (app.js fitTagline), never "…": the full line is its title. */
 .tagline-tiny { display: none; }
-@media (max-width: 359px) {
-  .tagline .tagline-short { display: none; }
-  .tagline .tagline-tiny { display: inline; }
-}
+.tagline.fit-short .tagline-long, .tagline.fit-tiny .tagline-long, .tagline.fit-tiny .tagline-short { display: none; }
+.tagline.fit-short .tagline-short, .tagline.fit-tiny .tagline-tiny { display: inline; }
+.tagline.fit-wrap { white-space: normal; text-overflow: clip; }
