@@ -271,6 +271,57 @@ function overlayProblems(f, what, screenW, label) {
   return p;
 }
 
+/**
+ * Mobile QA 4 on the job page, at every size: the meta line shows no "·" at a line's start or end and cuts no word
+ * (M-51: a wrapped line's leading "·" is clipped away, so the check reads what shows); the Apply label is one line
+ * (M-49: shorter words where the long ones would wrap), and the link's name stays the long label.
+ */
+function drawerTextFacts() {
+  const out = [];
+  const m = document.querySelector('#drawer .d-meta');
+  if (m && m.getClientRects().length) {
+    const mr = m.getBoundingClientRect();
+    const cs = getComputedStyle(m);
+    const inset = cs.clipPath && cs.clipPath !== 'none' ? parseFloat((cs.clipPath.match(/inset\(([^)]*)\)/)?.[1] || '0').split(/\s+/)[3] || '0') : 0;
+    const clipL = mr.left + inset;
+    const bits = [];
+    const walk = (n) => {
+      if (n.nodeType === 3) {
+        if (!n.textContent.trim()) return;
+        const r = document.createRange();
+        r.selectNodeContents(n);
+        for (const x of r.getClientRects()) if (x.width > 0.5) bits.push({ t: n.textContent.trim(), sep: n.textContent.trim() === '·', l: x.left, r: x.right, mid: x.top + x.height / 2 });
+        return;
+      }
+      for (const c of n.childNodes) walk(c);
+    };
+    walk(m);
+    const lines = [];
+    for (const b of bits) { let L = lines.find((x) => Math.abs(x.mid - b.mid) < 6); if (!L) lines.push((L = { mid: b.mid, bits: [] })); L.bits.push(b); }
+    for (const L of lines) {
+      const seen = L.bits.filter((b) => b.r > clipL + 0.5).sort((a, b) => a.l - b.l);
+      const words = seen.map((b) => b.t).join(' ');
+      if (seen.length && seen[0].sep) out.push(`the meta line has a line that starts with "·" ("${words}")`);
+      if (seen.length && seen[seen.length - 1].sep) out.push(`the meta line has a line that ends with "·" ("${words}")`);
+      const cut = L.bits.filter((b) => !b.sep && b.l < clipL - 0.5);
+      if (cut.length) out.push(`the meta line's clip cuts "${cut.map((b) => b.t).join('", "')}"`);
+    }
+  }
+  const lab = document.querySelector('#drawer .apply-label');
+  const words = lab?.firstChild;
+  if (words?.nodeType === 3 && lab.getClientRects().length) {
+    const r = document.createRange();
+    r.selectNodeContents(words);
+    const mids = [];
+    for (const x of r.getClientRects()) { if (x.width < 0.5) continue; const md = x.top + x.height / 2; if (!mids.some((t) => Math.abs(t - md) < 5)) mids.push(md); }
+    if (mids.length > 1) out.push(`the Apply label "${words.textContent}" takes ${mids.length} lines`);
+    const a = lab.closest('a');
+    const name = a.getAttribute('aria-label') || lab.textContent;
+    if (lab.dataset.long && !name.startsWith(lab.dataset.long)) out.push(`the Apply link's name "${name}" is not the whole label "${lab.dataset.long}"`);
+  }
+  return out;
+}
+
 /** Open the first job, check the job page, close it. */
 async function checkDrawer(page, screenW, label) {
   await page.evaluate(() => document.querySelector('#resultsList .card[data-id]').click());
@@ -285,6 +336,7 @@ async function checkDrawer(page, screenW, label) {
     return r.left < -1 || r.right > innerWidth + 1 || r.top < -1 || r.bottom > innerHeight + 1 ? `${s} off screen [${Math.round(r.left)}, ${Math.round(r.top)}, ${Math.round(r.right)}, ${Math.round(r.bottom)}]` : null;
   }).filter(Boolean));
   p.push(...ctl.map((c) => `${label}: job page: ${c}`));
+  p.push(...(await page.evaluate(drawerTextFacts)).map((c) => `${label}: job page: ${c}`));
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => !document.querySelector('#drawer.is-open'), null, { timeout: 5000 }).catch(() => {});
   await sleep(350);
