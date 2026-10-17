@@ -132,11 +132,13 @@ export function registerVizEvenTests(suite) {
     const { page, base } = await openBeta(ctx, 'c=microsoft&v=ranges');
     await page.waitForSelector('#chartHost .ms-row', { timeout: 30000 });
     const want = await page.evaluate(async ({ base }) => {
-      const { chartPay, keyOf, spanTiers, isPartTimeHourly } = await import(`${base}/viz/chart.js`);
+      // fix-pay-at-place (V-35): a bar is striped only when it spans levels or places (barSpan); one place's row is not.
+      const { chartPay, keyOf, spanTiers, barSpan, isPartTimeHourly } = await import(`${base}/viz/chart.js`);
+      const striped = (p) => (barSpan ? barSpan(p) : spanTiers(p.job));
       const jobs = (await (await import(`${base}/api.js`)).getJobs({ company: 'microsoft' })).jobs || [];
       const { plotted } = chartPay(jobs);
       const n = plotted.filter((p) => p.cur === 'USD' && p.job.salary.min === 119800 && p.job.salary.max === 234700 && keyOf(p.job, 'department') === 'Software Engineering'
-        && !p.ote && !spanTiers(p.job) && !isPartTimeHourly(p.job)).length;
+        && !p.ote && !striped(p) && !isPartTimeHourly(p.job)).length;
       return { n, plotted: plotted.length };
     }, { base });
     if (want.n < 2) skip(`the band is on ${want.n} Software Engineering postings today`);

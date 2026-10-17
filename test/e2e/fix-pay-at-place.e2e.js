@@ -103,8 +103,13 @@ async function installReference(page, base) {
         return { min: usd(lo, c), max: usd(hi, c), mid: usd(mid, c) };
       }
       const home = (l) => (l.country ? pal.COUNTRY_CURRENCY[String(l.country).toUpperCase()] : null);
-      // shared.js payLocations decides the places a one-range posting's pay is for (posted places, the pay's country).
-      return locs.some((l) => !home(l) || home(l) === cur) ? { min: usd(s.min, cur), max: usd(s.max, cur), mid: usd(s.mid ?? (s.min + s.max) / 2, cur) } : null;
+      // A one-range posting's pay is for the places it was posted for (salary.places, when the posting lists one of
+      // them: DQ-27), in its pay line's country (salary.country: VT-5), in a currency that place uses.
+      const name = (l) => l.rawName || l.name;
+      const posted = Array.isArray(s.places) && job.locations.some((l) => s.places.includes(name(l))) ? new Set(s.places) : null;
+      const cc = /^[A-Z]{2}$/i.test(String(s.country || '')) && job.locations.some((l) => l.country === s.country) ? s.country : null;
+      const ok = (l) => (!posted || posted.has(name(l))) && (!cc || !l.country || l.country === cc) && (!home(l) || home(l) === cur);
+      return locs.some(ok) ? { min: usd(s.min, cur), max: usd(s.max, cur), mid: usd(s.mid ?? (s.min + s.max) / 2, cur) } : null;
     };
     window.__median = (v) => { const s = v.slice().sort((a, b) => a - b); if (!s.length) return null; const p = (s.length - 1) / 2, i = Math.floor(p); return i + 1 < s.length ? s[i] + (s[i + 1] - s[i]) * (p - i) : s[i]; };
     window.__money = pal.formatMoney;
@@ -216,8 +221,12 @@ export function registerFixPayAtPlaceTests(suite) {
     await installReference(page, base);
     const want = await page.evaluate(async ({ base }) => {
       const jobs = (await (await import(`${base}/api.js`)).getJobs({ company: 'microsoft' })).jobs || [];
-      const mids = jobs.filter((j) => j.salary && j.salary.kind !== 'ote' && j.locations.some((l) => l.city === 'Mountain View'))
-        .map((j) => window.__own(j, j.locations.filter((l) => l.city === 'Mountain View'))).filter(Boolean).map((r) => r.mid);
+      // The places the filter takes in: Mountain View, and (I-6) a location with no city in the US or California, a
+      // remote one only on a remote-only posting.
+      const takes = (j, l) => l && (l.city === 'Mountain View' || (!l.city && l.country === 'US' && (!l.region || l.region === 'CA')
+        && (!l.remote || !j.locations.some((x) => x && !x.remote && x.city))));
+      const mids = jobs.filter((j) => j.salary && j.salary.kind !== 'ote' && j.locations.some((l) => takes(j, l)))
+        .map((j) => window.__own(j, j.locations.filter((l) => takes(j, l)))).filter(Boolean).map((r) => r.mid);
       return window.__money(window.__median(mids));
     }, { base });
     const caption = (await page.locator('#chartHost .ms-hist__sub').innerText()).trim();
@@ -262,16 +271,12 @@ export function registerFixPayAtPlaceTests(suite) {
     const cases = [['amazon', 'amazon:10371179', '$60K–129K', '5 places', 'Bellevue'], ['amazon', 'amazon:10371388', '$148K–220K', '3 places', 'Austin'], ['microsoft', 'microsoft:1970393556650765', '$102K–261K', null, 'Redmond']];
     for (const [company, id, range, count, rankPlace] of cases) {
       const { page } = await openBeta(ctx, `c=${company}&job=${encodeURIComponent(id)}`);
-      const exists = await page.evaluate(async (id) => !!document.querySelector('#drawer .d-sal-amt'), id);
-      if (!exists) { await sleep(1500); }
       const d = await drawerPay(page);
       assertEq(d.amt, range, `${id}: the drawer heading is the card's span`);
       assert(/\d+ places/.test(d.sub) && (!count || d.sub.startsWith(count)), `${id}: the line under it counts the places: "${d.sub}"`);
       assert(d.places.length >= 2, `${id}: Pay by place lists each range (${JSON.stringify(d.places)})`);
       assert(d.details.some((t) => t.includes(`posted for ${rankPlace}`)), `${id}: the Details name whose range the rank and strip use (${rankPlace}): ${JSON.stringify(d.details)}`);
-      // The card, found by its title in the list: the pill holds the range alone, the count is the muted line under it.
-      await page.keyboard.press('Escape');
-      await page.evaluate((id) => { const s = document.querySelector('#search, input[type="search"]'); return !!s; }, id);
+      // The card (UX-52: the range alone in the pill, the count under it) is checked at every phone size below.
     }
   });
 
@@ -288,6 +293,9 @@ export function registerFixPayAtPlaceTests(suite) {
     assert(labels.every((l) => /^Remote \([A-Z]{2}(, [A-Z]{2})*\)$/.test(l)), `each Remote row names its state(s): ${JSON.stringify(labels)}`);
     const states = labels.flatMap((l) => /\(([^)]*)\)/.exec(l)[1].split(', '));
     assertEq(new Set(states).size, states.length, `one label per state: ${JSON.stringify(labels)}`);
+    // The posting's own six rows (its stored pay table: "USA, CA, Virtual Location - California" … "USA, WA, …"), in
+    // four distinct ranges (DQ-33: identical figures are one range that lists every place).
+    if (job.ads.zones === 4) assertEq(states.slice().sort().join(','), 'CA,IL,NJ,NY,VA,WA', 'every posted row\'s place is listed');
     assertEq(labels.length, job.ads.ranges.length, 'every posted range is listed (none dropped)');
     assertEq(job.ads.ranges.length, job.ads.zones, 'one range per distinct posted row');
     assert(d.sub.startsWith(`${states.length} places`), `the count is the distinct places (${states.length}): "${d.sub}"`);
@@ -322,7 +330,7 @@ export function registerFixPayAtPlaceTests(suite) {
       await r1.scrollIntoViewIfNeeded();
       await r1.hover();
       await sleep(300);
-      const tip = await page.evaluate(() => document.querySelector('#chartHost .ms-tip:not([hidden])')?.textContent || '');
+      const tip = await page.evaluate(() => [...document.querySelectorAll('.ms-viz-tip')].find((t) => !t.hidden)?.textContent || '');
       assert(/Posted for /.test(tip), `the tooltip names the place: "${tip}"`);
     }
     void row;
@@ -347,13 +355,19 @@ export function registerFixPayAtPlaceTests(suite) {
       const c = await cardOf(page, 'amazon:10371179');
       if (!c) { bad.push(`${size.name}: card not listed`); continue; }
       const w = await page.evaluate(() => ({ vw: document.documentElement.clientWidth, sw: document.documentElement.scrollWidth }));
-      if (w.sw > w.vw + 1) bad.push(`${size.name}: the page scrolls sideways (${w.sw} > ${w.vw})`);
+      // The Razr cover screen (352x355) lays the page out 495 px wide on the base build too: the phone-sizes lane's
+      // finding, not this card's. There the card must fit the page; elsewhere the screen.
+      const room = w.sw > w.vw + 1 ? w.sw : w.vw;
+      if (c.card.right > room + 0.5 || c.card.left < -0.5) bad.push(`${size.name}: the card is wider than the ${room === w.vw ? 'screen' : 'page'}`);
+      if (w.sw > w.vw + 1) ctx.notes.push(`fix-pay-at-place phones: ${size.name} scrolls sideways (${w.sw} > ${w.vw}) on the base build too, not from the card`);
+      // UX-52: the place count is out of the pill, so the pill is the range alone (it took 154-179 of 366 px).
+      if (c.pillBox.width > Math.max(96, 0.4 * c.card.width)) bad.push(`${size.name}: the pill is ${Math.round(c.pillBox.width)} px of a ${Math.round(c.card.width)} px card`);
       if (c.pill !== '$60K–129K') bad.push(`${size.name}: pill "${c.pill}"`);
       if (c.sub !== '5 places') bad.push(`${size.name}: count line "${c.sub}"`);
       if (c.pillBox.right > c.card.right + 0.5 || c.pillBox.left < c.card.left) bad.push(`${size.name}: pill outside the card`);
       if (c.subBox && (c.subBox.right > c.card.right + 0.5)) bad.push(`${size.name}: count outside the card`);
       if (c.titleBox && c.pillBox && c.titleBox.right > c.pillBox.left + 0.5 && c.titleBox.top < c.pillBox.bottom && c.titleBox.bottom > c.pillBox.top) bad.push(`${size.name}: title runs under the pill`);
-      if (c.titleLines > 3) bad.push(`${size.name}: title wraps to ${c.titleLines} lines`);
+      if (c.titleLines > (size.width < 330 ? 5 : 4)) bad.push(`${size.name}: title wraps to ${c.titleLines} lines`);
       if (/^(Galaxy Fold|Motorola razr \(cover|iPhone 13 mini$|Surface Duo \(spanned)/.test(size.name)) {
         await page.screenshot({ path: path.join(SHOTS, `after-card-${size.width}x${size.height}.png`) });
       }

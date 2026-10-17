@@ -180,6 +180,10 @@ function tokenSim(qTokens, qSum, p, idf) {
 const MIN_WEIGHT = 0.02;        // absolute floor for a comparable
 const REL_WEIGHT = 0.12;        // ... and at least 12% of the best match's weight
 const MAX_COMPARABLES = 500;     // safety cap only; the relative cut does the real work
+// V-40 (fix-pay-at-place): with at least this many comparables that post a range of their own for the city asked
+// (salary.ranges: Amazon, Apple, Microsoft price each place), only those are used. The others' pay is other cities'
+// rows; a board without per-place ranges is unchanged.
+const LOCAL_MIN = 5;
 const LOW_P = 0.15, HIGH_P = 0.85;
 
 /**
@@ -240,7 +244,8 @@ export function estimateComp(allJobs, query = {}) {
     // Weighting keeps "no level word" close to "no level word" (a title feature: the backtest error
     // rises from 10.7% to 13.3% at Anduril without it); the basis line never calls it a level.
     const w = ts * ts * senioritySim(level, p.job.seniority) * deptSim(q.department, p.job.department) * locSim(ql, p.locs, p.job);
-    scored.push({ job: p.job, pay: ql && ql.city && p.rows ? payAtQuery(p, ql) : p.pay, titleSim: ts, w });
+    const here = ql && ql.city && p.rows ? payAtQuery(p, ql) : null;
+    scored.push({ job: p.job, pay: here || p.pay, local: !!here, titleSim: ts, w });
   }
   if (!scored.length) {
     if (!candidates) return empty('No roles on this board publish pay, so there is nothing to compare against yet.', 'no-pay');
@@ -266,8 +271,10 @@ export function estimateComp(allJobs, query = {}) {
   const sameKind = wOte > 0 ? scored.filter((p) => payKind(p.job) === kind) : scored;
   const best = sameKind[0].w;
   const cut = Math.max(MIN_WEIGHT, REL_WEIGHT * best);
-  const comps = [];
+  let comps = [];
   for (const p of sameKind) { if (p.w < cut || comps.length >= MAX_COMPARABLES) break; comps.push(p); }
+  const local = comps.filter((p) => p.local);
+  if (local.length >= LOCAL_MIN && local.length < comps.length) comps = local;
 
   const mids = comps.map((p) => [p.pay.mid, p.w]);
   const band = [];
@@ -321,14 +328,14 @@ export function estimateComp(allJobs, query = {}) {
 /**
  * V-40 (fix-pay-at-place): a comparable's pay at the city asked for, when it posts a range per place: the
  * range posted for its places there (payAt), not its headline (Microsoft's U.S. range for a New York role,
- * Amazon's Bellevue row for its New York place). Elsewhere, or without a range of its own there, its posted pay.
+ * Amazon's Bellevue row for its New York place). null when it posts no range of its own there.
  */
 function payAtQuery(p, ql) {
   const here = p.locs.filter((l) => atPlace(l, ql));
   const at = here.length ? payAt(p.job, here.length === 1 ? here[0] : here) : null;
-  if (!at) return p.pay;
+  if (!at || at.basis !== 'place') return null;
   const min = toUSD(at.min, at.currency), mid = toUSD(at.mid, at.currency), max = toUSD(at.max, at.currency);
-  return min == null || mid == null || max == null ? p.pay : { min, mid, max, currency: at.currency, converted: at.currency !== 'USD' };
+  return min == null || mid == null || max == null ? null : { min, mid, max, currency: at.currency, converted: at.currency !== 'USD' };
 }
 
 /** Does this pay location sit at the query's place (city / name / app key)? */
