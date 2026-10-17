@@ -50,7 +50,7 @@ export const CAREER_HOSTS = Object.freeze({
   microsoft: ['apply.careers.microsoft.com', 'careers.microsoft.com', 'jobs.careers.microsoft.com'],
   nvidia: ['nvidia.wd5.myworkdayjobs.com', 'jobs.nvidia.com'],
   apple: ['jobs.apple.com'],
-  google: ['careers.google.com'],
+  google: ['careers.google.com', 'www.google.com'], // www.google.com: the adapter's origin (GOOGLE_ORIGIN: robots.txt, sitemap, /about/careers/); the terms are on policies.google.com
   meta: ['www.metacareers.com', 'metacareers.com'],
   tesla: [],
 });
@@ -410,11 +410,14 @@ async function rawRequests(spec) {
 
 async function full(slug) {
   const { getCompany } = await import('../server/companies.js');
-  const { ADAPTERS } = await import('../server/pipeline.js');
+  const { ADAPTERS, pauseError } = await import('../server/pipeline.js');
   const { normalizeJobs } = await import('../server/normalize.js');
   const { scanCompany } = await import('./vet-salaries.js');
   const company = getCompany(slug);
   if (!company) { say(`no registry entry for ${slug}`); return; }
+  // The adapters are called directly here, so the pipeline's pause guard is repeated (S-2 residual).
+  const paused = pauseError(company);
+  if (paused) { say(`${paused.message}; no request made`); return; }
   const adapter = ADAPTERS[company.source];
   if (!adapter) { say(`no adapter for source ${company.source}`); return; }
   const stats = newStats();

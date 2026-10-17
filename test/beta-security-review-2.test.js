@@ -45,7 +45,7 @@ test('S-1 (re-check): the beta merge copies only accepted crawls, never beta-cra
 // The pause guard (server/companies.js crawlBlock) is called by the Amazon and Meta adapters only. A
 // `paused` flag on any other built-in (Apple, whose terms have a similar clause; Google; the Eightfold
 // boards; a stable Greenhouse board) does not stop `node scripts/snapshot.js <slug>` or fetchLive.
-test('S-2 residual: a paused flag on ANY built-in stops fetchLive before its first request', OPEN, async () => {
+test('S-2 residual: a paused flag on ANY built-in stops fetchLive before its first request', async () => {
   const { COMPANIES, getCompany } = await imp('server', 'companies.js');
   const { fetchLive } = await imp('server', 'pipeline.js');
   const realFetch = globalThis.fetch;

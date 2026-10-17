@@ -38,49 +38,83 @@ function jobBlock(text, name) {
 
 /* ------------------------------------------------------------------ S-2 */
 
-test('S-2: scripts/snapshot.js never crawls a paused company, even when its slug is named', OPEN, async () => {
+// Fixed by fix-sec-3 (docs/process/fix-sec-3.md): one guard, server/pipeline.js#pauseError, in fetchLive and in
+// scripts/snapshot.js one(). Nothing is paused since 2026-10-11 (the user resumed Amazon and Meta), so each test
+// sets `paused` on a registry entry for its run and restores it; before the fix Amazon and Meta were the only
+// adapters that refused.
+
+/** Run `fn` with `paused: 'terms'` set on the named built-ins (the registry entries themselves), then restore them. */
+async function withPaused(slugs, fn) {
+  const { COMPANIES } = await imp('server', 'companies.js');
+  const saved = slugs.map((slug) => { const c = COMPANIES.find((x) => x.slug === slug); assert.ok(c, slug); return [c, Object.hasOwn(c, 'paused'), c.paused]; });
+  for (const [c] of saved) c.paused = 'terms';
+  try { return await fn(); } finally { for (const [c, had, v] of saved) { if (had) c.paused = v; else delete c.paused; } }
+}
+
+test('S-2: scripts/snapshot.js never crawls a paused company, even when its slug is named', async () => {
   const { runSnapshot } = await imp('scripts', 'snapshot.js');
   const dir = tmpDir();
   const called = [];
   const fetchLive = async (company) => { called.push(company.slug); return []; };
-  const res = await runSnapshot(['amazon', 'meta'], {
+  const slugs = ['amazon', 'meta', 'apple', 'google', 'netflix', 'anthropic'];
+  const res = await withPaused(slugs, () => runSnapshot([...slugs, 'greenhouse:anthropic'], {
     fetchLive, outDir: path.join(dir, 'snaps'), historyDir: path.join(dir, 'hist'), log: () => {}, error: () => {}, parallelBeta: false,
-  });
+  }));
   assert.deepEqual(called, [], `fetchLive was called for paused companies: ${called.join(', ')}`);
-  assert.equal(res.failed, 2);
+  assert.equal(res.failed, slugs.length + 1);
   for (const r of res.results) assert.match(r.error, /paused/i, `${r.slug}: ${r.error}`);
+  assert.deepEqual(fs.readdirSync(path.join(dir, 'snaps')), [], 'no snapshot written');
 });
 
-test('S-2: pipeline fetchLive refuses a paused company before any request', OPEN, async () => {
-  const { fetchLive } = await imp('server', 'pipeline.js');
-  const { getCompany } = await imp('server', 'companies.js');
+test('S-2: pipeline fetchLive refuses a paused company before any request (every built-in with an adapter)', async () => {
+  const { fetchLive, ADAPTERS } = await imp('server', 'pipeline.js');
+  const { COMPANIES, getCompany } = await imp('server', 'companies.js');
+  const slugs = COMPANIES.filter((c) => ADAPTERS[c.source]).map((c) => c.slug);
   const realFetch = globalThis.fetch;
   const hosts = [];
-  globalThis.fetch = async (u) => { hosts.push(new URL(String(u)).host); return new Response('no', { status: 403 }); };
+  const leaks = [];
+  globalThis.fetch = async (u) => { hosts.push(new URL(String((u && u.url) || u)).host); return new Response('no', { status: 403 }); };
   try {
-    for (const slug of ['amazon', 'meta']) {
-      const c = getCompany(slug);
-      assert.equal(c.paused, 'terms', `${slug} is expected to be paused`);
-      let err = null;
-      try { await fetchLive(c); } catch (e) { err = e; }
-      assert.ok(err, `${slug}: fetchLive resolved`);
-      assert.equal(err.code, 'paused', `${slug}: expected code "paused", got ${err.code} (${err.message})`);
-    }
-    assert.deepEqual(hosts, [], `requests were made to ${hosts.join(', ')}`);
+    await withPaused(slugs, async () => {
+      for (const slug of slugs) {
+        let err = null;
+        try { await fetchLive(getCompany(slug)); } catch (e) { err = e; }
+        if (!err || err.code !== 'paused') leaks.push(`${slug}: ${err ? `code ${err.code} (${err.message})` : 'resolved'}`);
+      }
+    });
+    assert.ok(slugs.length >= 12, `${slugs.length} built-ins`);
+    assert.deepEqual(leaks, [], `not refused as paused:\n  ${leaks.join('\n  ')}`);
+    assert.deepEqual(hosts, [], `requests were made to ${[...new Set(hosts)].join(', ')}`);
   } finally {
     globalThis.fetch = realFetch;
   }
 });
 
-test('S-2: the big-tech probe never targets a paused company or its careers host by default', OPEN, async () => {
-  const src = fs.readFileSync(path.join(ROOT, 'scripts', 'probe-bigtech.js'), 'utf8');
-  const { getCompany } = await imp('server', 'companies.js');
-  const slugs = JSON.parse(/const SLUGS = (\[[^\]]*\])/.exec(src)[1].replace(/'/g, '"'));
-  const paused = slugs.filter((s) => getCompany(s)?.paused);
-  assert.deepEqual(paused, [], `probe-bigtech.js SLUGS (the default "all") includes paused companies: ${paused.join(', ')}`);
-  const hosts = /const HOSTS = new Set\(\[([\s\S]*?)\]\)/.exec(src)[1];
-  for (const h of ['www.amazon.jobs', 'amazon.jobs', 'www.metacareers.com', 'metacareers.com']) {
-    assert.ok(!hosts.includes(`'${h}'`), `raw probe requests may still reach the paused careers host ${h}`);
+test('S-2: the big-tech probe never targets a paused company or its careers host by default', async () => {
+  const probe = await imp('scripts', 'probe-bigtech.js');
+  const { COMPANIES } = await imp('server', 'companies.js');
+  const { AMAZON_ORIGIN } = await imp('server', 'sources', 'amazon.js');
+  const { APPLE_ORIGIN } = await imp('server', 'sources', 'apple.js');
+  const { GOOGLE_ORIGIN } = await imp('server', 'sources', 'google.js');
+  const { META_ORIGIN } = await imp('server', 'sources', 'meta.js');
+  const { EIGHTFOLD_BOARDS } = await imp('server', 'sources', 'eightfold.js');
+  // Every host each adapter requests: its origin (robots.txt, the list, the postings).
+  const adapterHosts = {
+    amazon: [AMAZON_ORIGIN], apple: [APPLE_ORIGIN], google: [GOOGLE_ORIGIN], meta: [META_ORIGIN],
+    ...Object.fromEntries(Object.entries(EIGHTFOLD_BOARDS).map(([slug, t]) => [slug, [`https://${t.host}`]])),
+  };
+  for (const slug of probe.SLUGS.filter((s) => COMPANIES.some((c) => c.slug === s))) {
+    const registry = COMPANIES.map((c) => (c.slug === slug ? { ...c, paused: 'terms' } : c));
+    const all = probe.probeTargets([], registry);
+    assert.ok(!all.run.includes(slug) && all.skipped.some((x) => x.slug === slug), `${slug}: the default (all) run still targets it`);
+    assert.deepEqual(probe.probeTargets([slug], registry).run, [], `${slug}: --companies ${slug} still targets it`);
+    for (const h of [...(adapterHosts[slug] || []).map((u) => new URL(u).host), ...probe.CAREER_HOSTS[slug]]) {
+      assert.equal(probe.pausedHost(h, registry), slug, `${slug} paused: raw mode may still request its careers host ${h}`);
+    }
+    // Pausing one company never blocks another's careers hosts.
+    for (const [other, hosts] of Object.entries(probe.CAREER_HOSTS)) {
+      if (other !== slug) for (const h of hosts) assert.equal(probe.pausedHost(h, registry), null, `${slug} paused blocks ${other}'s ${h}`);
+    }
   }
 });
 

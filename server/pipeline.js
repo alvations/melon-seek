@@ -19,7 +19,8 @@ import { fetchAmazon } from './sources/amazon.js';
 import { fetchApple } from './sources/apple.js';
 import { fetchGoogle } from './sources/google.js';
 import { fetchMeta } from './sources/meta.js';
-import { MAX_BYTES, MAX_BYTES_BUILTIN } from './sources/util.js';
+import { MAX_BYTES, MAX_BYTES_BUILTIN, UpstreamError } from './sources/util.js';
+import { crawlBlock, PAUSE_REASONS } from './companies.js';
 import { normalizeJobs, relocateJobs, NORMALIZER_VERSION } from './normalize.js';
 import { rekeyBoardJobs } from './keywords.js';
 import { upgradeStoredJobs } from './sources/upgrade.js';
@@ -45,11 +46,29 @@ export function maxBytesFor(company) {
 }
 
 /**
+ * The one pause guard every crawl passes (server/companies.js PAUSING; S-2 residual, docs/REVIEW.md
+ * "beta review 2026-10-16"): a company with `paused`, or whose source and board are a paused
+ * built-in's, gets an UpstreamError with code 'paused', before any request. Otherwise null.
+ * fetchLive and scripts/snapshot.js one() call it, so no adapter has to (Amazon and Meta still do).
+ */
+export function pauseError(company) {
+  if (!company) return null;
+  const blocked = company.paused
+    ? { slug: company.slug, paused: company.paused, reason: PAUSE_REASONS[company.paused] || String(company.paused) }
+    : crawlBlock(company.source, company.board);
+  if (!blocked) return null;
+  return new UpstreamError(`${blocked.slug}: paused (${blocked.paused}): ${blocked.reason}; not crawled (server/companies.js PAUSING)`, { code: 'paused' });
+}
+
+/**
  * Fetch live jobs for a company and normalize them (in the calling thread; used
  * by the snapshot CLI). `opts.log` / `opts.stats` reach the beta adapters
  * (progress lines, request counts). Adapters return RawJob[] or { jobs }.
+ * A paused company is refused before its first request (pauseError).
  */
 export async function fetchLive(company, opts = {}) {
+  const paused = pauseError(company);
+  if (paused) throw paused;
   const adapter = ADAPTERS[company.source];
   if (!adapter) throw new Error(`No adapter for source "${company.source}"`);
   const extra = {};

@@ -74,10 +74,12 @@ export function listCompanies({ channel = 'stable', includePaused = false } = {}
  *     matrix (.github/scripts/beta-snapshots.mjs slugs), not merged into the beta artifact (the
  *     merge removes a paused company's old files), not built into /beta/ and not on its company
  *     list, the market comps or the share pages; the archive only ever sees what a crawl uploads;
- *   - its adapter refuses to start before its first request (crawlBlock, UpstreamError code
- *     'paused'), whoever calls it: scripts/snapshot.js <slug>, server/pipeline.js#fetchLive or the
- *     probe's full mode; scripts/probe-bigtech.js also skips it in recon and refuses its career
- *     hosts in raw mode;
+ *   - it is refused before its first request (UpstreamError code 'paused'), whoever asks:
+ *     server/pipeline.js#pauseError guards fetchLive, scripts/snapshot.js one() (so
+ *     `snapshot.js <slug>` too) and the probe's full mode, for every source (S-2 residual,
+ *     docs/REVIEW.md "beta review 2026-10-16"); the Amazon and Meta adapters also check crawlBlock
+ *     themselves; scripts/probe-bigtech.js also skips it in recon and refuses its career hosts in
+ *     raw mode;
  *   - getCompany() still resolves it, so links to it get a plain "paused" message (server/index.js).
  * To RESUME: delete the `paused` field and record the decision in the comment above the entry.
  * Nothing else changes: the next 6-hourly snapshot.yml run crawls it, the merge, archive and

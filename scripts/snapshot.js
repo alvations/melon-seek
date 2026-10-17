@@ -23,7 +23,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { pathToFileURL } from 'node:url';
 import { listCompanies, resolveCompany } from '../server/companies.js';
-import { ADAPTERS, maxBytesFor, BUILTIN_TIMEOUT_MS } from '../server/pipeline.js';
+import { ADAPTERS, maxBytesFor, BUILTIN_TIMEOUT_MS, pauseError } from '../server/pipeline.js';
 import { NORMALIZER_VERSION, normalizeJobs } from '../server/normalize.js';
 import { ROOT } from '../server/cache.js';
 import { newStats } from '../server/sources/polite.js';
@@ -251,6 +251,10 @@ export async function runSnapshot(targets, opts = {}) {
       const [a, b] = arg.split(':');
       const company = b ? resolveCompany({ source: a, board: b }) : resolveCompany({ company: a });
       slug = company.slug;
+      // A paused company is never crawled, even when its slug is named (server/companies.js PAUSING):
+      // refused here, before the crawl state is read or any request is made, whichever fetch runs.
+      const paused = pauseError(company);
+      if (paused) throw paused;
       const beta = company.channel === 'beta';
       const t0 = Date.now();
       const stats = newStats();
