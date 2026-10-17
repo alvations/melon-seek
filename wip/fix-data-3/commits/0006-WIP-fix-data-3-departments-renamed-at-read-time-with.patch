@@ -1,0 +1,784 @@
+From f5db79e1ec5462de4feb723e1a3a4fc320750de8 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 01:26:47 +0000
+Subject: [PATCH 6/6] WIP fix-data-3: departments renamed at read time without
+ a per-job field; e2e tests; docs
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The board's department name is not copied onto each job (it made Amazon's list 3% and NVIDIA's 6% bigger, gzip);
+old d= links map through lib/families.js departmentDisplayName. test/e2e/fix-data-3.e2e.js registered.
+DATA_SOURCES §7a/§7c/§7e, CONTRACT and methodology-review-beta-2 (MR-28 fixed) updated; comps footnote patch.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/CONTRACT.md                              |  55 ++++
+ docs/DATA_SOURCES.md                          |   6 +-
+ docs/process/fix-data-3.md                    | 124 +++++++-
+ docs/process/methodology-review-beta-2.md     |   5 +
+ .../patches/fix-data-3-comps-left-out.diff    |  15 +
+ public/app.js                                 |  29 +-
+ scripts/e2e.js                                |   2 +
+ server/families.js                            |   5 +-
+ server/sources/upgrade.js                     |  26 +-
+ test/e2e/fix-data-3.e2e.js                    | 276 ++++++++++++++++++
+ test/fix-data-3.test.js                       |  11 +-
+ 11 files changed, 514 insertions(+), 40 deletions(-)
+ create mode 100644 docs/process/patches/fix-data-3-comps-left-out.diff
+ create mode 100644 test/e2e/fix-data-3.e2e.js
+
+diff --git a/docs/CONTRACT.md b/docs/CONTRACT.md
+index b60774e..033c5de 100644
+--- a/docs/CONTRACT.md
++++ b/docs/CONTRACT.md
+@@ -754,3 +754,58 @@ stored snapshots get the new fields at read time (`upgradeGoogleJobs`, in `upgra
+ packs `departmentBasis` and `brand` as dict columns, like `seniorityBasis`. With it, the Google list is 1.62 MB, against 1.60 MB before; without it, 1.77 MB.
+ 
+ **History ledger (`server/history.js#fingerprint`):** the fingerprint hashes the department, so Google's fingerprints change once. A posting that closed before this change and is reposted within `REPOST_WINDOW_DAYS` (30) may not be linked as a repost. Nothing is hidden or dropped.
++
++## fix-data-3 additions (2026-10-17): Fellow ranks, base pay in comparisons, pay at a place, places and department names (fix-data-3 lane)
++
++Findings D-38, D-41, D-42 (docs/QA.md "Full QA pass (desktop, beta) 2026-10-16"), V-45 ([docs/process/viz-review-beta-2.md](process/viz-review-beta-2.md)),
++MR-28 ([docs/process/methodology-review-beta-2.md](process/methodology-review-beta-2.md)), UX-32 and the lead's round-3 follow-ups
++([docs/process/lead.md](process/lead.md): the no-row decision, Town and Country, old "Columbus, OH" links). Log:
++[docs/process/fix-data-3.md](process/fix-data-3.md). Every addition is optional for readers; no export changed its signature or return
++shape. `NORMALIZER_VERSION` is `norm-12`: stored older snapshots are re-derived once (relocateJobs re-geocodes, re-levels and re-vets).
++Nothing is dropped: every posting, pay row and place string is kept (the only place count that changes is Town and Country, MO, two
++halves of one name joined).
++
++**Levels and the gate (D-38):** new pure exports in `server/salary.js`: `isFellowRank(title)` (a Fellow rank: "Fellow, Core AI
++Foundations", "Fellow", "Google Fellow", a distinguished-type fellow; never a title with a programme word: fellowship, Fellows Program,
++program, residency, student, graduate, PhD, postdoc, intern) and `programmeText(title)` / `NOT_PROGRAMME_RE` ("Data Residency" is not a
++residency). A Fellow rank is `'Staff+'` (`keywords.js`), not `junior` for the gate (`vet.js#titleClass`, so no `junior_high`), not the
++`intern` role family (`vet.js#roleFamily`), and not a fixed-term role (`isFixedTermRole`).
++
++**Market doc (`scripts/build-market.js`, MR-28):** `notBasePay(job) -> 'minimum' | 'shiftPay' | 'partTime' | null` (exported, with
++`NOT_BASE_KINDS`). A salaried posting whose figure is a stated minimum (`salary.kind: 'minimum'`), includes the highest shift differential
++(`includesShiftDifferential`) or is part-time hourly pay (`partTime`) enters no cell (`cells`, `oteCells`, the Intern bucket) and is
++counted on `companies[]` as `minimum`, `shiftPay` and `partTime` (`used = ote + internLike + fullTime` still holds). Format and columns
++unchanged.
++
++**Juice (`server/juice.js`, lead decision 2026-10-16):** when a salary prices places in rows of their own (`salary.ranges[].locations`),
++only the places of those rows are scored; a place in no row gets no Juice and is never scored on another place's row, even when another
++row is tied to no listed place. Before, one untied row made every place score on the headline. `public/features/shared.js` `payAt` (fix-pay-at-place)
++applies the same rule to every other view; `postedPlaces` (behind `payLocations`) gets it from
++[`docs/process/patches/fix-data-3-shared-posted-places.diff`](process/patches/fix-data-3-shared-posted-places.diff).
++
++**Drawer (`public/app.js` `juiceBlock`):** one line, `.juice-gross`, "Gross pay is the posted minimum." or "Gross pay includes the top
++shift differential." (MR-28).
++
++**Locations (`server/geo.js`):**
++- D-41: an unknown US town's "St", "St." or "Saint" is "St." ("St Louis, Michigan" -> city "St. Louis", region MI; "Saint George, SC" and
++  "St George, SC" -> "St. George"), a Canadian "St" is "St.", and every other spelling is kept. Two towns of one name are then told apart
++  by the app's `disambiguateLocations` ("St. Louis, MO" / "St. Louis, MI").
++- D-42: `canonicalName` of a US state-only place is "<State> State" when the state's name is also a gazetteer city's ("New York State",
++  "Washington State"), and "Washington, DC" for the District of Columbia; other states keep "<State>, US".
++- V-45: "City, State, CCC" (ISO-3, Amazon) is one place even when the state shares a city's name. New gazetteer cities: Cajamar, Osasco,
++  Barueri, Embu das Artes, Jundiaí, Paulínia, São João de Meriti, Belford Roxo (Brazil), Luxembourg (Luxembourg City; "Luxembourg, LUX"
++  and a bare "Luxembourg" are the city, precision `'city'`, label unchanged), Town and Country (MO).
++- `splitLocations` keeps a name with " and " in it whole (`AND_PLACES`: Town and Country, Trinidad and Tobago, Bosnia and Herzegovina, …),
++  and `geocodeMany` joins a stored pair cut at one ("Town" | "Country, Missouri, USA").
++
++**Department names (UX-32):** `server/families.js#departmentDisplayName(name)` (pure, browser-safe) writes NVIDIA's inverted job families
++and "Intern", and Amazon's "--" qualifiers, as natural names ("ASIC Engineering", "Technical Program Management", "Internships",
++"Technical Project, Program and Product Management"); other names pass through. `server/sources/upgrade.js#displayDepartments(jobs)`
++(last step of `upgradeStoredJobs`, NVIDIA and Amazon) sets `department` to that name. Read time only: snapshots and the history ledger keep
++the board's name, so fingerprints do not change. `departmentDisplayName` of a shown name is that name (idempotent). No new Job field: the
++board's name on each job made the Amazon and NVIDIA lists 3% and 6% bigger (gzip).
++
++**App (`public/app.js`):** `resolveOldFilterKeys()` runs once a board has loaded: a link's `l=` value that no posting uses is replaced by
++the one current label for the same place (its canonical name, posted words, "City, ST", "City, Country", the old state label, compared
++without case, accents, periods and "Saint"/"St"), and a `d=` value the board no longer uses by `departmentDisplayName(value)` when the board
++has that department (`lib/families.js`, imported only then). The hash is rewritten (replace). A value that fits nothing or several labels is left as it is.
+diff --git a/docs/DATA_SOURCES.md b/docs/DATA_SOURCES.md
+index 45b8b8a..06c392c 100644
+--- a/docs/DATA_SOURCES.md
++++ b/docs/DATA_SOURCES.md
+@@ -261,11 +261,12 @@ pay table). Every result then passes the vetting gate (`server/vet.js`); see
+ | **On-target earnings** (norm-6) | A range the posting calls OTE / on-target earnings / on target compensation / base + commission at target keeps its numbers and gets `salary.kind: "ote"` (base plus commission at target), never shown or pooled as base pay. "For sales roles, the range provided is the role's On Target Earnings ("OTE") range" (Anthropic boilerplate) applies to sales titles only. See [VETTING.md](VETTING.md) §2. NVIDIA's sales "cash compensation range" (85% base, 15% variable) is `"ote"` since fix wave 5 (VT-7, the lead's decision: shown, not hidden). Netflix's sales "market range" for an area is still `salary: null` under the rule below |
+ | **Base pay only** | "+ bonus + equity + benefits" after a range marks it as base pay, and the extras are never added. A **total** compensation range (Google DeepMind "Total Compensation Range: $550,000 – $1,100,000 (includes … sign-on bonus …)") is not base pay, so the posting gets `salary: null`. NVIDIA's sales **cash** compensation range ("85% paid through base salary and 15% variable compensation. The cash compensation range is …") is base plus variable pay at target: on-target earnings, `kind: "ote"` (fix wave 5, VT-7) |
+ | **Several ranges by location** | The first or national range. Microsoft states the U.S. range first and the SF Bay Area / NYC range second: the U.S. one is used, except for a job whose US locations are **all** in the SF Bay Area (75 km around the bay) or the New York City metro (60 km around Manhattan), which uses the SF Bay Area / NYC range (norm-7, decided by the lead for DQ-13: 31 postings, median 18% higher). Amazon has no national figure, only a per-location table, so the row for the posting's own primary city is used (city and state compared whole, so "York, PA" is not "New York, NY"), else the first row for one of the posting's own places, else the first row in the posting's country, else the first row. Every row is kept in `salary.ranges`, each with the posting's places it names (`ranges[].locations`, fix wave 5, DQ-33), so Juice and the Location filter use each place's own range; identical rows are one range and one zone; a "Virtual Location" row for a state the posting lists no place in is dropped (DQ-41) |
+-| **Every posted row is kept** (norm-11, [salary-audit-backend](process/salary-audit-backend.md)) | No cap on rows: Amazon's table and `salary.ranges` keep every posted row (SB-3; it was 12). A stored row that a trimmed description no longer shows is put back from `salary.ranges` (SB-1), and trimming keeps every pay-table row and the sentence above it (SB-2, VT-22). Amazon row names are matched to the posting's places, including "New York City", "N.Reading", "Westboro", "Hazle Township" and "San Franscisco" (SB-4). A posting that lists a Remote place keeps its "Virtual Location - <state>" rows, which are its remote pay (SB-6; DQ-41 still drops them when no place is remote). Microsoft's SF Bay Area / NYC range is kept as a second `salary.ranges` entry with its own places, and the headline stays the U.S. range (SB-5). **Lead decision (2026-10-16):** a place the posting lists but prices with no row of its own gets no posted pay there: no Juice for that place, and it is never scored on another place's row. The card still shows the posting's range (7 Amazon postings on the 2026-10-16 crawl; the fix is due in the round-3 fix wave) |
++| **Every posted row is kept** (norm-11, [salary-audit-backend](process/salary-audit-backend.md)) | No cap on rows: Amazon's table and `salary.ranges` keep every posted row (SB-3; it was 12). A stored row that a trimmed description no longer shows is put back from `salary.ranges` (SB-1), and trimming keeps every pay-table row and the sentence above it (SB-2, VT-22). Amazon row names are matched to the posting's places, including "New York City", "N.Reading", "Westboro", "Hazle Township" and "San Franscisco" (SB-4). A posting that lists a Remote place keeps its "Virtual Location - <state>" rows, which are its remote pay (SB-6; DQ-41 still drops them when no place is remote). Microsoft's SF Bay Area / NYC range is kept as a second `salary.ranges` entry with its own places, and the headline stays the U.S. range (SB-5). **Lead decision (2026-10-16), applied since norm-12 ([fix-data-3](process/fix-data-3.md)):** a place the posting lists but prices with no row of its own gets no posted pay there: no Juice for that place, and it is never scored on another place's row. The card still shows the posting's range, and every row is kept. A row tied to no listed place (Amazon "San Francisco" on a posting that lists Austin, Seattle, Columbus and Herndon) prices nothing; it used to make every place score on the headline row. On the 2026-10-16 crawl this was 7 postings: Amazon 10434407 and 10572516 (Austin), 10543760 (Sunnyvale), 10579032 (East Palo Alto), 10580055 and 10580057 (Arlington, VA), and Apple 200679317-3337 (San Francisco Bay Area, whose second footer names no place). `server/juice.js` `postedPlaceSet` (Juice) and `public/features/shared.js` `payAt` (every other view; `postedPlaces` for `payLocations`: patch `docs/process/patches/fix-data-3-shared-posted-places.diff`) |
+ | **Several ranges by level** | Lowest listed min to highest listed max, with the levels named in `salary.text`: NVIDIA "168,000 USD - 264,500 USD for Level 4, and 196,000 USD - 310,500 USD for Level 5"; Microsoft "IC4: USD $119,800 - $234,700 per year; IC5: USD $142,800 - $274,800 per year". Each level's own range is kept in `salary.levels` (`[{ label: "Level 4", min, max }, …]`, annual, norm-7). The span is capped at 4× (the gate's ratio bound). Microsoft also prices one level per **country** ("across Ireland is €…", "across Germany is €…"). Those are not levels: the job's own country is used, and countries are never mixed |
+ | **One line per country** (Google) | "US: $171000 - $247000 (USD) + 20% bonus target + equity + benefits", "Ireland: €142000 - €145000 (EUR) …": the line for the job's country, the US one when the job has a US location, else the line for its first location's country. Lines for different countries are never spanned; one country's degree lines are ("[Bachelor's degree] Poland: zł156000 (PLN)", "[Master's degree] …"), and since norm-11 each degree line is also kept as a level (`salary.levels`, SA-4: "Pay by level: Bachelor's degree CA$99K · Master's degree CA$102K"). The code in parentheses is the currency, so a Canadian line is CAD (norm-7, DQ-15, D-22) |
+ | **Fixed-term pay** (norm-8) | The programme's length is `salary.termWeeks` (information only). How the pay was stated decides what it is: a yearly rate on an internship (Google "Ireland: €72000 (EUR)" with "a minimum 13 week full-time internship", Microsoft "CAD $43,800 - CAD $50,000 per year" for a 6-month one; 27 postings on 2026-10-11) gets `originalInterval: "year"`; week, month or whole-term pay keeps its own interval |
+ | **Part-time hourly pay** (norm-8) | Apple's part-time retail roles ("$22.00 and $28.88/hr", 52 postings) get `salary.partTime: true`; the yearly figure is the 2,080-hour equivalent, and Juice needs the posting's stated weekly hours ("work 16 hours per week", 1 posting) |
++| **Not base pay in comparisons** (MR-28, [fix-data-3](process/fix-data-3.md)) | Three posted figures are shown as posted but are not a posted base-pay range, so the market comparisons (`api/market.json`: Same role elsewhere, Compare companies) leave them out of every cell and count them on the company's entry instead: a stated minimum (`salary.kind: 'minimum'`, `minimum`), an hourly figure that includes the highest shift differential (`includesShiftDifferential`, `shiftPay`), and part-time hourly pay at 2,080 hours (`partTime`). `scripts/build-market.js` `notBasePay`. Juice still starts from the posted figure, and the drawer's Juice block says so in one line: "Gross pay is the posted minimum." or "Gross pay includes the top shift differential." |
+ | **The pay line's country** (norm-8) | The country a Google line or a Microsoft national range names is `salary.country`; Juice is never worked out for another country's office from it. Since norm-9 also NVIDIA's "Italy: The base salary range is …" and "For Poland: …" sentences (VT-6), and the places the pay applies to (`payLocations`: map, Location filter, comparisons) are only that country's (VT-5) |
+ | **Another country's line is not the job's pay** (norm-9) | A pay line that names a country none of the job's places is in gets `salary: null`: Microsoft "across the U.S. is USD $75,400 - $167,900" on a São Paulo-only job (VT-1). A job with no known country (remote only) keeps the line |
+ | **Where the pay was posted** (norm-9) | `salary.places`: the location strings a range was posted for, when that is only some of the posting's places. Apple posts a requisition's footer only in pay-transparency states (CA, CO, CT, DC, IL, MA, MD, ME, MN, NJ, NY, OH, VA, WA on 2026-10-11; TX 0 of 299, OR 0 of 53 single-place postings priced), so a Cupertino range is not Austin pay. Juice, the Location filter, the map and the comparisons use only those places; a merged requisition's place with its own range (`salary.ranges[].locations`) is scored on that range's midpoint (DQ-27, DQ-28) |
+@@ -302,6 +303,7 @@ Parser changes made for these formats (`server/salary.js`):
+ | Requests | 1 (sitemap) + 1 per posting. Run 6: 3 × HTTP 502, all recovered on retry |
+ | Levels (norm-9, DQ-29) | Google numbers each family on its own band: "Product Manager I/II" read one rung up (II is Mid, at the TPM III band, $200K), "Leadership Technical Program Manager I/II" ($235K) is Senior, and any other numbered "… Manager <numeral>" family is a people manager ("Facilities Manager II", like "Software Engineering Manager II"). Program, Technical Program and Account Manager titles keep the ladder |
+ | Places (norm-9, DQ-31, D-36) | A few data-centre towns carry a ZIP code ("Moncks Corner, SC 29461, USA", "Pryor Creek, OK 74361, USA"): the state is kept. "Pryor, OK" is Pryor Creek, OK, so the town is one Location label |
++| Places (norm-12, D-41, D-42) | Google wrote St. George, SC as "Saint George" and "St George": both are "St. George", and the Location filter names it "St. George, SC" beside Utah's "St. George, UT". "District of Columbia, USA" (4 postings) reads "Washington, DC", the label of the city's postings. NVIDIA's state-only places "NY, US" (38) and "WA, US" (82) read "New York State" and "Washington State" (a state whose name is also a city's); "California, US" and the other states are unchanged. An old link with the old label ("New York, US", or "Columbus, OH" where the board labels Columbus, Ohio "Columbus") finds the place (`public/app.js` `resolveOldFilterKeys`) |
+ 
+ ### 7c. Microsoft and NVIDIA: Eightfold PCSX (`server/sources/eightfold.js`)
+ 
+@@ -313,6 +315,7 @@ Parser changes made for these formats (`server/salary.js`):
+ | Position fields | `id`, `displayJobId`, `name`, `locations[]` ("United States, Washington, Redmond"), `standardizedLocations[]` ("Redmond, WA, US"; NVIDIA remote: "CA,US"), `postedTs`, `creationTs` (epoch s), `department`, `workLocationOption` (`onsite`, `remote_local`, …), `positionUrl` |
+ | Detail | `GET /api/pcsx/position_details?position_id=<id>&domain=<d>&hl=en` → `data.jobDescription` (HTML), `publicUrl`, Microsoft `efcustomTextEmploymentType[]`, `efcustomTextWorkSite[]`, `efcustomTextTaDisciplineName[]`; NVIDIA `efcustomTextTimeType[]`. The list has no description, so pay costs one detail request per posting |
+ | Departments (norm-8) | NVIDIA's `department` is a job-family code ("Mgmt, Sys SW", "Engineer, SW QA Test Dev", "Program Mgr, Technical"; 86 of 146 names, 1,287 postings) and five Microsoft disciplines are abbreviated ("Customer Success Account Mgmt", "Critical Environment Ops"). `departmentName` writes them in plain words from a tested word list (Mgmt Management, Mgr Manager, SW Software, Sys Systems, Eng Engineering, Ops Operations, Dev Development, Prod Production, QA Quality Assurance, …; "Dev Tech" Developer Technology and "Prod" Production from the titles filed under them) and drops a bracket that repeats the name ("Mgmt, Sales (Sales)"). ASIC, CAD, IT, HR and UX stay. Applied to fresh rows and, through `upgradeEightfoldJobs`, to stored ones |
++| Department names (UX-32, [fix-data-3](process/fix-data-3.md)) | NVIDIA's job-family names are inverted ("Engineer, ASIC", "Management, Product Development", "Program Manager, Technical") and "Intern" is one of them. At read time (`server/sources/upgrade.js` `displayDepartments`, `server/families.js` `departmentDisplayName`) they read the way Microsoft names its departments: "ASIC Engineering", "Product Development Management", "Technical Program Management", "Internships"; a manager family whose specialty already ends in Management is "Product Management (Managers)". 122 of NVIDIA's 142 names change, one to one (no two merge). Snapshots and the history ledger keep the board's name (in BP-8 plain words), so fingerprints do not change, and an old `d=` link or saved search with it finds the department (`public/app.js` maps it with the same function). The board's name is not copied onto each job: that made the Amazon and NVIDIA lists 3% and 6% bigger (gzip). Microsoft's and Netflix's names already read naturally and are unchanged |
+ | Mapping | sourceId = id; reqId = displayJobId; locations = standardizedLocations; remote = workLocationOption ~ remote, or a "Remote" location. NVIDIA's own work-mode tag in the description wins over `remote_local`: a posting tagged `#LI-Hybrid` or `#LI-Onsite` (also misspelt "#LI-Hybid") is not remote unless a location says "Remote" (52 of the 60 tagged remote postings in run 38044091555; the other 8 list "Remote, OR, US"); url = publicUrl (`https://<host>/careers/job/<id>`); postedAt = creationTs; updatedAt = postedTs |
+ | Pay (Microsoft) | "Software Engineering IC2 - The typical base pay range for this role across the U.S. is USD $85,400 - $168,100 per year. There is a different range applicable to specific work locations, within the San Francisco Bay area and New York City metropolitan area, and the base pay range for this role in those locations is USD $111,100 - $183,700 per year." Hourly and monthly (interns: "USD $6,810 - $13,480 per month") versions exist. Outside the US: "…across Germany is € 130,200.00 - € 222,000.00 per year", "…across Czechia is Kč 1,338,000.00 - Kč 2,448,000". Several levels, or several countries, can be listed in one posting (rules in 7a) |
+ | Pay (NVIDIA) | "Your base salary will be determined based on your location, experience, and the pay of employees in similar positions. The base salary range is 272,000 USD - 431,250 USD." Levels: "… 168,000 USD - 264,500 USD for Level 4, and 196,000 USD - 310,500 USD for Level 5." Interns: "The hourly rate for our interns is 20 USD - 71 USD." Sales: "cash compensation range" (not base: null) |
+@@ -343,6 +346,7 @@ Parser changes made for these formats (`server/salary.js`):
+ | Pay | After "The base salary range for this position is listed below.", a **per-location table**, one line each: "USA, CA, East Palo Alto - 165,200.00 - 223,600.00 USD annually", "Seattle, WA, USA - 80,200.00 USD Annually", "USA, VA, Aldie - 27.98 - 48.99 USD hourly", "CAN, ON, Toronto - 84,600.00 - 126,800.00 CAD annually". Parsed by the adapter (`amazonPayTable`: structured). Older postings use the national sentence "ranges from $129,300/year in our lowest geographic market up to $223,600/year in our highest geographic market", which the text parser reads |
+ 
+ | Pay words (fix wave 5) | The sentence above the table says what the figures are, and the salary keeps it (lead decisions under "we must present them as they are and not cut anything"): "The minimum gross base pay salary for this position is listed below" / "See below the minimum gross base salary" (EU, Poland) is `kind: 'minimum'`, shown as "from €X" (VT-17; a posting that also says "The base pay for this position is PLN 6000 monthly" is the pay); "including the base pay rate plus the highest available shift differential" (US hourly) keeps the posted figure with `includesShiftDifferential` and a stated lower base ("Pay starts at $18.35 per hour") as `statedBase` (VT-18); "The minimum basic salary for this position is EUR 47'000 gross annually" (Austria, 14 payments) makes that annual figure the salary (`statedAnnual`, VT-19). A bare "$" in a Mexico-only posting ("Monthly Salary: $12,569") is MXN (DQ-35, `server/salary.js` `DOLLAR_COUNTRY`), and Mexico's legal minimum wage (`LEGAL_MIN_ANNUAL`: MXN 315.04 a day in 2026, CONASAMI resolution of 2025-12-03, × 365 = MXN 114,990) lets such pay pass the US$10,000 parser floor and the gate's $15K floor ([VETTING.md](VETTING.md) §2); it changes every 1 January. The 2026-10-16 crawl has 354 Mexico postings and none states pay. Places written with an ISO-3 code ("Bratislava, Bratislavský kraj, SVK") resolve to their country (DQ-40). Stored snapshots get all of this at read time (`server/sources/upgrade.js#upgradeAmazonJobs`) from the stored table, or from `salary.ranges` when trimming cut rows (VT-22) |
++| Places and departments (norm-12, [fix-data-3](process/fix-data-3.md)) | "City, State, CCC" is one place even when the state shares a city's name ("Cajamar, Sao Paulo, BRA"). Cajamar (67 postings), Osasco (43), São João de Meriti, Jundiaí, Paulínia, Barueri, Embu das Artes and Belford Roxo are in the gazetteer, so none is pinned and named as São Paulo or Rio de Janeiro city any more (V-45). "Luxembourg, LUX" (121) is Luxembourg City, not the country's centre; its label stays "Luxembourg". "Town and Country, Missouri, USA" is one place (it was "Town" and "Country"; stored split pairs are joined again). "St", "St." and "Saint" are written "St." in a US town ("St Louis, Michigan" is St. Louis, MI, next to St. Louis, MO) and "St" is "St." in Canada (D-41). Departments: "Project/Program/Product Management--Technical" and "--Non-Tech" read "Technical Project, Program and Product Management" and "Non-Technical Project, Program and Product Management" (UX-32, UX-38), at read time, so the snapshot keeps Amazon's own name and an old link with it still finds the department |
+ 
+ ### 7f. Apple (`server/sources/apple.js`)
+ 
+diff --git a/docs/process/fix-data-3.md b/docs/process/fix-data-3.md
+index cce1b97..52d506b 100644
+--- a/docs/process/fix-data-3.md
++++ b/docs/process/fix-data-3.md
+@@ -1,18 +1,128 @@
+ # Process log: fix-data-3
+ 
+ ## State
+-- **Done:** prompt saved; baseline build of f53a270 on the 2026-10-16 crawl (scratch `fd3/dist-base`).
+-- **In progress:** failing tests for D-38, MR-28, the no-row places, D-41, D-42, V-45, Town and Country, the
+-  Columbus alias and UX-32.
+-- **Next:** fixes in that order, one commit each, then the census before/after.
++- **Done:** D-38, MR-28, the no-row Juice rule, D-41, D-42, V-45, Town and Country, old location and
++  department links, UX-32; norm-12 with the golden file re-baselined (0 of 300 hashes changed); unit tests
++  (test/fix-data-3.test.js) and e2e (test/e2e/fix-data-3.e2e.js); DATA_SOURCES, CONTRACT and
++  methodology-review-beta-2 (MR-28 fixed) updated; two patches for other lanes.
++- **In progress:** the after build, census and e2e runs (§5).
++- **Next:** send the SHAs to the lead; then nothing in this lane.
+ 
+ ## 1. Brief
+ Prompt: [prompts/fix-data-3.md](prompts/fix-data-3.md). Data and backend fixes from beta round 3: the Google
+ Fellow levelled Intern and quarantined (D-38), minimums and shift-inclusive pay pooled as base pay (MR-28), Juice
+ at a place the posting gives no pay row (lead decision 2026-10-16), place names (D-41, D-42, V-45, Town and
+ Country, old "Columbus, OH" links) and raw department names (UX-32). Files: server/vet.js, server/geo.js,
+-server/sources/*.js (labels and departments), scripts/build-market.js, server/families.js (display names), the
+-location-key alias in public/app.js and one Juice line in the drawer.
++server/sources/upgrade.js, server/families.js, scripts/build-market.js, the location-key alias and the one Juice
++line in public/app.js. Outside the list, small and named to the lead: server/salary.js (the shared Fellow-rank
++predicate), server/keywords.js (the level rule), server/juice.js (one function), server/normalize.js (the
++version), public/features/roles.js (one regex), the version pins in three tests, and app.js's search haystack.
++
++## 2. Inputs and sources
++- docs/CONTRACT.md (all sections), docs/DATA_SOURCES.md §7 and §7a, docs/process/PLAYBOOK.md ("Checkpoints",
++  "Known traps"), docs/process/TEMPLATE.md.
++- Findings: docs/QA.md "Full QA pass (desktop, beta) 2026-10-16" (D-38, D-41, D-42), docs/process/viz-review-beta-2.md
++  (V-45), docs/process/methodology-review-beta-2.md (MR-28), docs/process/ux-review-beta.md and -beta-2.md (UX-32,
++  UX-38), docs/process/lead.md (the no-row decision, Town and Country, the Columbus link), docs/process/salary-audit-backend.md
++  §5 and §6 (the 7 postings).
++- The reviewers' red tests: test/e2e/beta-desktop-qa-3.e2e.js `[D-38]`, `[D-41]`, `[D-42]`; test/e2e/beta-viz-review-2.e2e.js
++  `[V-45]`; test/beta-methodology-2.test.js MR-28.
++- fix-pay-at-place's checkpoint (wip/fix-pay-at-place on the branch at 7afbfd6): its `payAt` already prices a place
++  with no row as no pay, so the client side of the no-row rule is there; this lane did Juice.
++- Data: the 2026-10-16 crawl (all snapshots norm-9, so every build re-derives them with relocateJobs).
++- No skills loaded (no chart or artifact).
++
++## 3. Decisions and rationale
++1. **A Fellow rank is not a fellowship (D-38).** One predicate, `isFellowRank` in server/salary.js (the module with no
++   imports, which vet.js and keywords.js already import), used by the level rule, the gate's junior class and role
++   family, and `isFixedTermRole`. A rank: "Fellow" as the title's own role noun ("Fellow", "Fellow, <team>",
++   "Fellow - <team>"), a distinguished-type fellow, or "<Company> Fellow". Any programme word keeps it a programme
++   (fellowship, Fellows Program, program, residency, student, graduate, PhD, postdoc, intern). Anthropic's
++   "Conceptual Reasoning Fellow" and Scale's "SWE Fellow - Human Frontier Collective" stay fellowships: the role noun is
++   not first. Alternatives: a Google-only rule (rejected: IBM, Intel and AMD Fellows are the same rank), or dropping
++   "fellow" from JUNIOR_RE (rejected: real fellowships would lose the gate).
++2. **Audit of the junior rule (every board).** On the base build the only `junior_high` quarantine is the Google Fellow.
++   Titles levelled Intern or junior without a plain programme word: Anthropic's 4-month fellows, Scale's 14 Human
++   Frontier Collective fellows, Microsoft's "Research Fellow" (employment type Internship) and Google's 4 French
++   "Étudiant-chercheur" roles, all real programmes, and **Google's "Engineering Manager, Data Residency and Fast
++   Compliance"** ($207K–300K), levelled Intern because of "Residency". "Data/tax/cloud/digital/sovereign residency"
++   is now left out before the programme words are read (`programmeText`).
++3. **MR-28: leave the three kinds out of the cells, and count them.** The methodology review offered own groups or
++   leaving them out. Own groups would add three more cell arrays to market.json for figures nobody compares with
++   anything; leaving them out keeps the doc's basis true ("posted base pay ranges") and the counts say what was left
++   out. A posting counts once (minimum, then shift pay, then part-time). The postings and their pay are unchanged.
++4. **One Juice line, in the Juice body above the waterfall** (`.fnote.juice-gross`), not in the `where` sentence that
++   fix-phone-text owns. "includes the highest shift differential" wraps at 280 px, so the line reads "Gross pay
++   includes the top shift differential." (the pay block's chip already says "Incl. top shift pay").
++5. **No-row places: "some rows tied", not "every row tied".** The 7 postings all have one row tied to no listed
++   place (Amazon's "San Francisco" row on a posting that lists Austin), so `postedPlaceSet` returned null and every
++   place was scored on the headline. With the rule, the places of the tied rows are the posted places. The same
++   change for `payLocations` is a patch (shared.js is fix-pay-at-place's).
++6. **One "St." spelling, US and Canada only.** USPS and AP write "St."; UK towns are written "St Helens"; a spelled-out
++   "Saint John, NB" is not St. John's. Done where an unknown town's token becomes the city.
++7. **State labels.** Only states whose name is also a city's change ("New York State", "Washington State"); "California
++   State" reads like the university, so other states keep "<State>, US". The District of Columbia is "Washington, DC",
++   the label of the city's own postings.
++8. **V-45: gazetteer entries, not a new rule.** Restricting the "district, City, Country" rule moved 300 Tokyo-ward,
++   Mexico City-borough, Taguig, Ho Chi Minh and Taipei district postings off their city (checked with tools/geodiff), so
++   it was reverted. The towns Amazon writes "<town>, Sao Paulo, BRA" / "<town>, Rio de Janeiro, BRA" are gazetteer
++   cities now, and Amazon's ISO-3 "City, State, CCC" is one place. Luxembourg City carries the name "Luxembourg", so the
++   label is unchanged and the pin moves from the country's centre to the city.
++9. **Town and Country.** `splitLocations` keeps " and " names whole (a short list), and `geocodeMany` joins a stored
++   pair cut at one, because the stored snapshot already holds "Town" and "Country, Missouri, USA".
++10. **UX-32 at read time; the board's name stays in the snapshot.** The department itself is renamed in
++    `upgradeStoredJobs` (like google-grouping's brand), so every view shows one name, and the app maps an old link's
++    board name with the same function. Alternatives: display-only names in chart.js and app.js (rejected: about ten call
++    sites in other lanes' files); renaming in the adapters (rejected: the snapshot would lose the board's name and
++    fingerprints would change); and a `departmentPosted` field on each renamed job, tried first and dropped: the packed
++    lists keep a job with an extra key as an object, so Amazon's list grew 6.75 → 7.15 MB (gzip +3.2%) and NVIDIA's
++    876 → 954 kB (gzip +6.2%); on every job of the board it was still +1.3% and +4.8%.
++    The names follow Microsoft's ("Software Engineering", "Technical Program Management"). 122 of NVIDIA's 142
++    names change, one to one. Six NVIDIA postings' role families change, each from no family or the generic engineer
++    fallback to the department's own (3 in Technical and Non-Technical Program Management: program; 2 in Accounting:
++    finance; 1 "OEM Field Enablement Manager": program); a roles.js regex keeps "Verification Engineering" as chip
++    design, as "Engineer, Verification" was.
++11. **Old links.** Resolved once a board has loaded (`resolveOldFilterKeys`, after `settleKeep`): an `l=` value no posting
++    uses is replaced when exactly one current label names the same place; a `d=` value the board no longer uses becomes
++    `departmentDisplayName(value)` when the board has that department (lib/families.js, imported only then).
++    Ambiguous values stay.
++12. **norm-12.** The geo, level and gate rules change normalizeJob output, and a norm-11 snapshot would otherwise skip
++    relocateJobs. 0 of the 300 golden hashes changed (the stable sample has none of these cases); re-baselined with
++    `UPDATE_GOLDEN=1`.
++
++## 4. Replayable steps
++```sh
++S=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad
++git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp   # f53a270
++ln -s $S/wt-data2/data/snapshots data/snapshots; mkdir -p data/beta; ln -s $S/wt-data2/data/beta/snapshots data/beta/snapshots
++ln -s /home/user/melon-seek/node_modules node_modules
++node scripts/build-static.js --out $S/fd3/dist-base          # the base build (12 min at load 25)
++git archive f53a270 | tar -x -C $S/fd3/base                   # the base tree, for the before runs of the new tests
++node $S/fd3/tools/census.mjs $S/fd3/dist-base $S/fd3/census-base.json
++node $S/fd3/tools/junior.mjs $S/fd3/dist-base $S/fd3/old/server/vet.js   # D-38 audit
++node $S/fd3/tools/norow.mjs $S/fd3/dist-base                  # the 7 no-row postings
++node $S/fd3/tools/geodiff.mjs $S/fd3/dist-base                # every place the new geo.js reads differently
++node $S/fd3/tools/deptmap.mjs $S/fd3/dist-base nvidia         # department names, collisions, role-family changes
++UPDATE_GOLDEN=1 GOLDEN_REASON="norm-12 fix-data-3 …" node --test test/golden-normalize.test.js
++node scripts/build-static.js                                  # the after build (dist/)
++node $S/fd3/tools/census.mjs dist $S/fd3/census-after.json
++NODE_PATH=$S/pw/node_modules node scripts/e2e.js --grep='fix-data-3|\[D-38\]|\[D-41\]|\[D-42\]|\[V-45\]'
++```
++
++## 5. Verification
++(Filled in with the after build.)
++
++## 6. Known gaps and follow-ups
++- Client medians (stats line, chart, Insights) still pool minimums, shift pay and part-time hourly figures; the
++  Compare companies footnote does not list them as left out: patch `docs/process/patches/fix-data-3-comps-left-out.diff`.
++- `payLocations` keeps the "every row tied" rule until `docs/process/patches/fix-data-3-shared-posted-places.diff` is
++  applied (fix-pay-at-place's `payAt` already applies the lead's rule).
++- map.js `isApprox` still flags only 'centroid' (V-45's second half is the viz lane's); Luxembourg is a city now, so it
++  is not affected.
++- Apple 200679317-3337 has a footer range with no place ("" label, stored at crawl time). It prices nothing now; the
++  next crawl may tie it.
+ 
+ ## 7. Change log
+-- 2026-10-17 00:38 started on f53a270.
++- 2026-10-17 00:38 started on f53a270; baseline build of the 2026-10-16 crawl.
++- 01:00 D-38 (8a443a0), MR-28 (79871b0), no-row Juice (0ae184e).
++- 01:16 places, departments, old links, norm-12 (e0f828a).
+diff --git a/docs/process/methodology-review-beta-2.md b/docs/process/methodology-review-beta-2.md
+index ba26040..46f791c 100644
+--- a/docs/process/methodology-review-beta-2.md
++++ b/docs/process/methodology-review-beta-2.md
+@@ -142,6 +142,11 @@ kill "$(cat $S/methodology-review-beta-2/serve.pid)"
+ Ordered by severity. "Screen" means the beta site at 1440×1000 unless it says otherwise. IDs continue after round 2 (MR-1 to MR-22).
+ 
+ ### MR-28 (High): minimums and shift-inclusive pay are called "posted base pay" and counted as base pay
++- **Status: fixed** by [fix-data-3](fix-data-3.md) (2026-10-17):
++  - `scripts/build-market.js` `notBasePay` leaves stated minimums, shift-inclusive hourly figures and part-time hourly pay out of every market cell (base pay, on-target earnings and Intern) and counts them on the company's entry (`minimum`, `shiftPay`, `partTime`). On the 2026-10-16 crawl: Amazon 283 minimums, 634 shift-inclusive figures and 83 part-time hourly figures, Apple 40 part-time (counts of postings the comparison would otherwise use).
++  - The drawer's Juice block says "Gross pay is the posted minimum." or "Gross pay includes the top shift differential." in one line (`.juice-gross`; one line from 280 px up).
++  - The MR-28 test in test/beta-methodology-2.test.js is a real test now.
++  - Not in this fix: the client medians (stats line, chart, Insights) and the Compare companies footnote, which still lists only internships, fixed-term programmes and on-target earnings as left out. Those are the app and viz lanes'.
+ - **Where:**
+   - **Same role elsewhere** in every drawer, and **Compare companies** in Insights: "Posted base pay ranges of full-time roles in the US … Internships, fixed-term programmes and on-target earnings … are left out".
+   - **The stats-line median, the chart medians and Insights.**
+diff --git a/docs/process/patches/fix-data-3-comps-left-out.diff b/docs/process/patches/fix-data-3-comps-left-out.diff
+new file mode 100644
+index 0000000..503fec2
+--- /dev/null
++++ b/docs/process/patches/fix-data-3-comps-left-out.diff
+@@ -0,0 +1,15 @@
++diff --git a/public/features/comps.js b/public/features/comps.js
++index 81d80d1..2466462 100644
++--- a/public/features/comps.js
+++++ b/public/features/comps.js
++@@ -563,7 +563,9 @@ export function createCompsCard(container, { onPickCompany, market: initialMarke
++       const what = level === 'Intern'
++         ? `Posted internship and fixed-term pay${where}, as a yearly rate`
++         : `${capitalize(market.basis || 'posted base pay ranges')} of ${level ? `${levelWord(level)} ` : ''}full-time roles${where}`;
++-      const left = level === 'Intern' ? '' : ' Internships, fixed-term programmes and on-target earnings (sales pay that includes commission) are left out.';
+++      // MR-28 (fix-data-3): scripts/build-market.js notBasePay also leaves out stated minimums, shift-inclusive and part-time hourly pay.
+++      const left = level === 'Intern' ? ' Stated minimums and part-time hourly pay are left out.'
+++        : ' Internships, fixed-term programmes, on-target earnings (sales pay that includes commission), stated minimums, hourly pay that includes a shift differential and part-time hourly pay are left out.';
++       const only = country ? ` Only pay for roles${where} is compared.` : '';
++       foot.textContent = `${what}, midpoints in approx. US dollars; companies need ${market.minN || 3}+ salaried postings${country ? ' there' : ''}.${left} Equity and bonus aren't included.${only}${asOf}`;
++       live.textContent = rows.length ? `${label}${level ? `, ${level === 'Intern' ? 'internships' : levelWord(level)}` : ''}${where}: ${plural(rows.length, 'company', 'companies')} compared.` : '';
+diff --git a/public/app.js b/public/app.js
+index 36c4393..658b54b 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -514,11 +514,13 @@ function disambiguateLocations(jobs) {
+      NVIDIA's state "New York, US", now "New York State" (D-42); "Saint George, SC", now "St. George, SC" (D-41).
+      A value is compared with each place's label, canonical name and posted words, "City, ST" and "City, Country",
+      ignoring case, accents, periods and the "Saint"/"St" spelling, and is replaced only when exactly one label fits.
+-   - Department: the board's own name ("Engineer, ASIC", "Project/Program/Product Management--Technical", kept as
+-     departmentPosted) becomes the name shown (UX-32).
+-   A value that fits nothing, or several labels, stays as it is. Returns true when the filters changed. */
++   - Department: the board's own name ("Engineer, ASIC", "Project/Program/Product Management--Technical") becomes the
++     name shown ("ASIC Engineering", UX-32), by the function the data uses (lib/families.js departmentDisplayName,
++     loaded only when a link has such a value).
++   A value that fits nothing, or several labels, stays as it is. Resolves to true when the filters changed. */
+ const foldPlace = (s) => foldText(s).replace(/\./g, '').replace(/\bsaint\b/g, 'st').replace(/[^a-z0-9]+/g, ' ').trim();
+-function resolveOldFilterKeys(jobs = data.jobs) {
++let familiesLib = null;
++async function resolveOldFilterKeys(jobs = data.jobs) {
+   if (data.status !== 'ready' || (!S.l.length && !S.d.length)) return false;
+   let changed = false;
+   if (S.l.length) {
+@@ -548,17 +550,19 @@ function resolveOldFilterKeys(jobs = data.jobs) {
+       if (changed) S.l = next;
+     }
+   }
+-  if (S.d.length) {
+-    const shown = new Set(jobs.map(deptKey));
+-    const was = new Map();
+-    for (const j of jobs) if (j.departmentPosted && !was.has(j.departmentPosted)) was.set(j.departmentPosted, deptKey(j));
++  const shown = S.d.length ? new Set(jobs.map(deptKey)) : null;
++  if (shown && S.d.some((x) => !shown.has(x))) {
++    const seq = loadSeq;
++    const lib = await (familiesLib ||= import('./lib/families.js').catch(() => null));
++    if (seq !== loadSeq || !lib?.departmentDisplayName) return changed && (commit({ replace: true }), true);
+     const next = [];
+     for (const x of S.d) {
+-      const y = !shown.has(x) && was.has(x) ? was.get(x) : x;
++      const d = shown.has(x) ? x : lib.departmentDisplayName(x);
++      const y = shown.has(d) ? d : x;
+       if (y !== x) changed = true;
+       if (!next.includes(y)) next.push(y);
+     }
+-    if (next.length !== S.d.length || next.some((y, i) => y !== S.d[i])) S.d = next;
++    if (changed) S.d = next;
+   }
+   if (changed) commit({ replace: true });
+   return changed;
+@@ -663,7 +667,7 @@ function prepare(jobs, { source = null } = {}) {
+     j.juice = usableJuice(j);
+     j._grade = gradeKey(j);
+     j._locKeys = j.locations.map(locKey);
+-    j._hay = [j.title, j._postedTitle !== j.title ? j._postedTitle : null, j.department, j.departmentPosted, j.team, j.employmentType, senKey(j) === NOT_STATED ? null : j.seniority,
++    j._hay = [j.title, j._postedTitle !== j.title ? j._postedTitle : null, j.department, j.team, j.employmentType, senKey(j) === NOT_STATED ? null : j.seniority,
+       ...j.locations.map((l) => l.name), ...j.keywords.responsibilities, ...j.keywords.fit, ...j.keywords.skills]
+       .filter(Boolean).join(' \u0001 ').toLowerCase();
+   }
+@@ -1150,7 +1154,8 @@ async function loadJobs({ refresh = false } = {}) {
+   }
+   settleCarry();
+   settleKeep();
+-  resolveOldFilterKeys(); // fix-data-3: an old link's place or department label finds the board's current one
++  await resolveOldFilterKeys(); // fix-data-3: an old link's place or department label finds the board's current one
++  if (seq !== loadSeq) return;
+   if (data.status === 'ready') await renderInTwo(seq); else render();
+   if (seq !== loadSeq) return;
+   if (data.status === 'ready') fillFamilies(data.jobs);
+diff --git a/scripts/e2e.js b/scripts/e2e.js
+index f2b9134..4f32fbd 100644
+--- a/scripts/e2e.js
++++ b/scripts/e2e.js
+@@ -37,6 +37,7 @@ import { registerVizEvenTests } from '../test/e2e/viz-even.e2e.js';
+ import { registerBetaA11y2Tests } from '../test/e2e/beta-a11y-2.e2e.js';
+ import { registerBetaVizReviewTests2 } from '../test/e2e/beta-viz-review-2.e2e.js';
+ import { registerBetaUxReview2Tests } from '../test/e2e/beta-ux-review-2.e2e.js';
++import { registerFixData3Tests } from '../test/e2e/fix-data-3.e2e.js';
+ 
+ const args = new Set(process.argv.slice(2));
+ const apiOnly = args.has('--api-only');
+@@ -99,6 +100,7 @@ if (!apiOnly) {
+   registerBetaDesktopQa3Tests(suite);
+   registerBetaVizReviewTests2(suite);
+   registerBetaUxReview2Tests(suite);
++  registerFixData3Tests(suite);
+ }
+ 
+ let results;
+diff --git a/server/families.js b/server/families.js
+index 2c40c19..0fc0b93 100644
+--- a/server/families.js
++++ b/server/families.js
+@@ -152,8 +152,9 @@ export function familyOfTitle(title) {
+ // specialty first, then the discipline: "ASIC Engineering", "Product Development Management", "Technical
+ // Program Management", "Internships", "Technical Project, Program and Product Management" and "Non-Technical
+ // Project, Program and Product Management" (the qualifier that tells Amazon's two apart comes first, so a cut
+-// label still shows it, UX-38). Every other name is returned unchanged. The board's own name is kept on the job
+-// (departmentPosted), searchable and reachable; old links with it still find the department (public/app.js).
++// label still shows it, UX-38). Every other name is returned unchanged, and a shown name maps to itself. Applied at
++// read time (server/sources/upgrade.js displayDepartments), so snapshots keep the board's own name, and the app maps
++// an old link's or saved search's board name with this same function (public/app.js resolveOldFilterKeys).
+ // The mapping is one to one on each board's departments (test/fix-data-3.test.js), so no two departments merge.
+ const DISCIPLINE = Object.freeze({
+   Engineer: 'Engineering', Architect: 'Architecture', Management: 'Management', Manager: 'Management',
+diff --git a/server/sources/upgrade.js b/server/sources/upgrade.js
+index 64f997d..e08b8a5 100644
+--- a/server/sources/upgrade.js
++++ b/server/sources/upgrade.js
+@@ -12,7 +12,9 @@
+ //     carries its places (DQ-33), virtual rows for unlisted states are dropped (DQ-41), identical
+ //     rows are one zone, and a stated minimum, shift differential, lower base or annual figure is
+ //     labelled (VT-17, VT-18, VT-19). The stored primary row (salary.text) stays the salary;
+-//   - Meta (fix wave 5, DQ-42 / VT-20): salary.country from the range's "(IT)" tag.
++//   - Meta (fix wave 5, DQ-42 / VT-20): salary.country from the range's "(IT)" tag;
++//   - NVIDIA and Amazon (fix-data-3, UX-32): natural department names (displayDepartments); the
++//     snapshot keeps the board's own.
+ // Location fixes (DQ-4, DQ-10, D-23) need nothing here: relocateJobs re-geocodes stored
+ // locations with server/geo.js. Pure and idempotent: a snapshot crawled with the fixed
+ // adapters passes through unchanged. Unlike relocateJobs it may return FEWER jobs (Apple
+@@ -108,25 +110,21 @@ const DISPLAY_BOARDS = new Set(['nvidia', 'amazon']);
+  * UX-32 (fix-data-3): NVIDIA's and Amazon's department names as natural group names (server/families.js
+  * departmentDisplayName: "Engineer, ASIC" -> "ASIC Engineering", "Intern" -> "Internships",
+  * "Project/Program/Product Management--Technical" -> "Technical Project, Program and Product Management").
+- * The board's own name (NVIDIA's in plain words, BP-8) is kept as `departmentPosted` on the jobs whose name
+- * changed; search and old links still match it (public/app.js). Read time only, like the brand
+- * (upgradeGoogleJobs): snapshots and the history ledger keep the board's name, so fingerprints do not change.
+- * Idempotent: the shown name is always worked out from departmentPosted. Pure; the same jobs, never fewer.
++ * Read time only, like the brand (upgradeGoogleJobs): snapshots and the history ledger keep the board's own
++ * name, so fingerprints do not change, and an old link or saved search with the board's name still finds the
++ * department (public/app.js maps it with the same function). The name is not copied onto each job: as a field on
++ * 2,389 Amazon and 2,594 NVIDIA postings it made the lists 3% and 6% bigger (gzip). Idempotent
++ * (departmentDisplayName of a shown name is that name). Pure; the same jobs, never fewer.
+  */
+ export function displayDepartments(jobs) {
+   if (!Array.isArray(jobs)) return jobs;
+   let changed = false;
+   const out = jobs.map((j) => {
+-    if (!j || !DISPLAY_BOARDS.has(j.company)) return j;
+-    const posted = j.departmentPosted || j.department;
+-    if (typeof posted !== 'string' || !posted) return j;
+-    const shown = departmentDisplayName(posted);
+-    if (shown === j.department && (shown === posted ? !('departmentPosted' in j) : j.departmentPosted === posted)) return j;
++    if (!j || !DISPLAY_BOARDS.has(j.company) || typeof j.department !== 'string' || !j.department) return j;
++    const shown = departmentDisplayName(j.department);
++    if (shown === j.department) return j;
+     changed = true;
+-    const next = { ...j, department: shown };
+-    if (shown !== posted) next.departmentPosted = posted;
+-    else delete next.departmentPosted;
+-    return next;
++    return { ...j, department: shown };
+   });
+   return changed ? out : jobs;
+ }
+diff --git a/test/e2e/fix-data-3.e2e.js b/test/e2e/fix-data-3.e2e.js
+new file mode 100644
+index 0000000..f75b1a0
+--- /dev/null
++++ b/test/e2e/fix-data-3.e2e.js
+@@ -0,0 +1,276 @@
++// fix-data-3 (beta round 3, 2026-10-17; docs/process/fix-data-3.md): the data and backend fixes, checked on the built
++// site. Chromium against the static build (BETA_QA_DIST, else dist/ from `npm run build`), served under /melon-seek/
++// like GitHub Pages; other hosts are aborted. Each test reads the build's own data (public/api.js getJobs, as the UI
++// sees it) to find its case, so it keeps testing the same rule on a new crawl, and skips when the case is gone.
++// Tests are tagged with the finding they encode; each failed on f53a270 (the round-3 base) with the 2026-10-16 crawl.
++import http from 'node:http';
++import fs from 'node:fs';
++import path from 'node:path';
++import { ROOT, assert, assertEq, skip } from './harness.js';
++import { PHONES } from './phone-sizes.mjs';
++
++const DESKTOP = { width: 1440, height: 900 };
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2' };
++
++/** Serve the build under /melon-seek/; null without a beta build. */
++async function serveDist() {
++  const dist = path.resolve(process.env.BETA_QA_DIST || path.join(ROOT, 'dist'));
++  if (!fs.existsSync(path.join(dist, 'beta', 'index.html')) || !fs.existsSync(path.join(dist, 'beta', 'api', 'jobs'))) return null;
++  const server = http.createServer((req, res) => {
++    const u = new URL(req.url, 'http://x');
++    if (!u.pathname.startsWith('/melon-seek/')) { res.writeHead(302, { location: '/melon-seek/' }); return res.end(); }
++    let p;
++    try { p = path.join(dist, decodeURIComponent(u.pathname.slice('/melon-seek/'.length))); } catch { res.writeHead(400); return res.end(); }
++    if (p !== dist && !p.startsWith(dist + path.sep)) { res.writeHead(403); return res.end(); }
++    if (fs.existsSync(p) && fs.statSync(p).isDirectory()) p = path.join(p, 'index.html');
++    if (!fs.existsSync(p)) { res.writeHead(404); return res.end(); }
++    res.writeHead(200, { 'content-type': MIME[path.extname(p)] || 'application/octet-stream' });
++    res.end(fs.readFileSync(p));
++  });
++  await new Promise((r) => server.listen(0, '127.0.0.1', r));
++  const origin = `http://127.0.0.1:${server.address().port}`;
++  return { origin, beta: `${origin}/melon-seek/beta`, close: () => new Promise((r) => server.close(r)) };
++}
++
++/** A fresh page; `hash` opens <beta>/#<hash> and waits for the results. `phone` is a phone-sizes.mjs entry. */
++async function open(ctx, hash, { phone = null } = {}) {
++  const st = await serveDist();
++  if (!st) skip('no beta build (npm run build, or BETA_QA_DIST=<dir>)');
++  ctx.cleanup.push(() => st.close());
++  const context = await ctx.browser.newContext(phone
++    ? { viewport: { width: phone.width, height: phone.height }, deviceScaleFactor: phone.dpr, isMobile: true, hasTouch: true, userAgent: phone.ua, colorScheme: 'light' }
++    : { viewport: DESKTOP, colorScheme: 'light', deviceScaleFactor: 1 });
++  ctx.cleanup.push(() => context.close());
++  await context.route((u) => !u.href.startsWith(st.origin) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
++  const page = await context.newPage();
++  if (hash != null) await go(page, st, hash);
++  return { st, page };
++}
++async function go(page, st, hash) {
++  await page.goto(`${st.beta}/#${hash}`);
++  await page.waitForFunction(() => { const t = document.querySelector('#resultsTitle'); return t && t.querySelector('strong') && !/Loading/.test(t.textContent); }, null, { timeout: 120000 });
++  await sleep(500);
++}
++const resultsCount = async (page) => Number(((await page.locator('#resultsTitle').innerText()).replace(/,/g, '').match(/(\d+)\s+role/) || [])[1]);
++const hashParams = async (page) => page.evaluate(() => Object.fromEntries([...new URLSearchParams(location.hash.slice(1))].reduce((m, [k, v]) => m.set(k, [...(m.get(k) || []), v]), new Map())));
++
++/** The app's own jobs for a company (getJobs, as the UI sees them, Juice attached), reduced by `pick` (a function source). */
++async function appJobs(page, st, company, pick) {
++  const r = await page.evaluate(`(async () => {
++    const api = await import(${JSON.stringify(`${st.beta}/api.js`)});
++    const res = await api.getJobs({ company: ${JSON.stringify(company)} });
++    const pick = ${pick};
++    return { mode: res.mode, jobs: res.jobs.map(pick).filter(Boolean) };
++  })()`);
++  if (r.mode !== 'snapshot') skip(`${company} has no snapshot in this build (${r.mode})`);
++  return r.jobs;
++}
++
++/** A filter section's options in the left column, fully expanded: [{ label, count }]. The Department section holds the
++ *  Company list (hidden on a one-company board) before the departments, so its last list is read. */
++async function options(page, title) {
++  const sec = page.locator('#filterBody details.fsec').filter({ has: page.locator('summary', { hasText: title }) });
++  await sec.first().evaluate((d) => { d.open = true; }); await sleep(200);
++  const wrap = sec.locator('.checklist-wrap').last();
++  for (let k = 0; k < 3; k++) {
++    const more = wrap.locator('.more-btn');
++    if (!(await more.count()) || !(await more.first().isVisible()) || !/Show all/.test(await more.first().innerText())) break;
++    await more.first().click(); await sleep(300);
++  }
++  return wrap.locator('.checklist').first().evaluate((list) => [...list.querySelectorAll('label.check')].map((n) => ({
++    label: n.querySelector('.check-label').textContent.trim(), count: Number(n.querySelector('.check-count').textContent.replace(/,/g, '')) })));
++}
++
++async function openDrawer(page, st, company, id) {
++  await go(page, st, `c=${company}&job=${encodeURIComponent(id)}`);
++  await page.waitForSelector('#drawer.is-open', { timeout: 20000 }); await sleep(800);
++}
++
++/** Lines a text element wraps to (distinct line boxes of its text), and whether it overflows its box. */
++const lineCount = (page, sel) => page.locator(sel).first().evaluate((el) => {
++  const r = document.createRange(); r.selectNodeContents(el);
++  const tops = new Set([...r.getClientRects()].filter((x) => x.width > 0).map((x) => Math.round(x.top)));
++  return { lines: tops.size, cut: el.scrollWidth > el.clientWidth + 1, text: el.textContent };
++});
++
++export function registerFixData3Tests(suite) {
++  suite.test('fix-data-3: [D-38] Google\'s "Fellow, Core AI Foundations" is Staff+, not quarantined, and its drawer shows the posted $550K', async (ctx) => {
++    const { st, page } = await open(ctx, 'c=google');
++    const fellows = await appJobs(page, st, 'google', '(j) => /^fellow\\b/i.test(j.title) && !/fellowship|fellows program|student|graduate|phd/i.test(j.title) ? { id: j.id, title: j.title, sen: j.seniority, flag: j.salaryFlag || null, sal: j.salary && [j.salary.min, j.salary.max] } : null');
++    if (!fellows.length) skip('no Google "Fellow, …" title in this crawl');
++    for (const f of fellows) {
++      assert(f.sen !== 'Intern' && !f.flag, `"${f.title}" (${f.id}): level ${f.sen}${f.flag ? `, quarantined (${f.flag.codes})` : ''}`);
++      assert(f.sal, `"${f.title}" (${f.id}) shows no posted pay`);
++    }
++    const f = fellows[0];
++    await openDrawer(page, st, 'google', f.id);
++    const pay = await page.locator('#drawer .d-sal-amt').innerText();
++    assert(/\$550K|\$550,000/.test(pay) || f.sal[0] !== 550000, `the drawer's pay reads "${pay}"`);
++    assert(!/Intern/.test(await page.locator('#drawer .d-meta').innerText()), 'the drawer says Intern');
++    assert(!(await page.locator('#drawer').innerText()).includes('implausible for an intern'), 'the drawer still says the pay is implausible for an intern');
++  });
++
++  suite.test('fix-data-3: [MR-28] the drawer\'s Juice says, in one line on every phone, when gross pay is a posted minimum or includes the top shift differential', async (ctx) => {
++    const { st, page } = await open(ctx, 'c=amazon');
++    const cases = await appJobs(page, st, 'amazon', '(j) => j.juice && j.juice.best && j.salary && (j.salary.kind === "minimum" || j.salary.includesShiftDifferential) ? { id: j.id, kind: j.salary.kind === "minimum" ? "minimum" : "shift" } : null');
++    const pick = ['minimum', 'shift'].map((k) => cases.find((c) => c.kind === k)).filter(Boolean);
++    if (!pick.length) skip('no Amazon minimum or shift-pay posting with Juice');
++    const want = { minimum: 'Gross pay is the posted minimum.', shift: 'Gross pay includes the top shift differential.' };
++    for (const c of pick) {
++      await openDrawer(page, st, 'amazon', c.id);
++      await page.evaluate(() => { const d = document.querySelector('#drawer details.juice-details'); if (d) d.open = true; }); await sleep(300);
++      const note = page.locator('#drawer .juice-gross');
++      assert(await note.count(), `${c.id} (${c.kind}): no gross-pay line in the Juice block`);
++      assertEq((await note.innerText()).trim(), want[c.kind], `${c.id} Juice gross line`);
++    }
++    // A base-pay range has no such line.
++    const plain = await appJobs(page, st, 'amazon', '(j) => j.juice && j.juice.best && j.salary && j.salary.kind === "salary" && !j.salary.includesShiftDifferential ? j.id : null');
++    if (plain.length) {
++      await openDrawer(page, st, 'amazon', plain[0]);
++      await page.evaluate(() => { const d = document.querySelector('#drawer details.juice-details'); if (d) d.open = true; }); await sleep(300);
++      assertEq(await page.locator('#drawer .juice-gross').count(), 0, `${plain[0]}: a base-pay range says its gross pay is a minimum or includes shift pay`);
++    }
++    // One line on the narrowest phones and a common one (fix-density rule).
++    const bad = [];
++    for (const phone of PHONES.filter((p) => [280, 320, 390].includes(p.width))) {
++      const { st: s2, page: p2 } = await open(ctx, null, { phone });
++      for (const c of pick) {
++        await openDrawer(p2, s2, 'amazon', c.id);
++        await p2.evaluate(() => { const d = document.querySelector('#drawer details.juice-details'); if (d) d.open = true; }); await sleep(300);
++        if (!(await p2.locator('#drawer .juice-gross').count())) { bad.push(`${phone.name}: ${c.id} has no line`); continue; }
++        const m = await lineCount(p2, '#drawer .juice-gross');
++        if (m.lines !== 1 || m.cut) bad.push(`${phone.name} (${phone.width} px): "${m.text}" takes ${m.lines} lines${m.cut ? ', cut' : ''}`);
++      }
++    }
++    assert(!bad.length, bad.join('; '));
++  });
++
++  suite.test('fix-data-3: [no-row] a place the posting lists but prices in no row of its own has no Juice there (lead decision 2026-10-16)', async (ctx) => {
++    const { st, page } = await open(ctx, 'c=amazon');
++    const bad = [];
++    let n = 0;
++    for (const c of ['amazon', 'apple', 'microsoft']) {
++      const hits = await appJobs(page, st, c, `(j) => {
++        const s = j.salary;
++        if (!s || !Array.isArray(s.ranges) || !s.ranges.some((r) => Array.isArray(r.locations) && r.locations.length) || !j.juice) return null;
++        const tied = new Set(s.ranges.flatMap((r) => r.locations || []));
++        const none = j.locations.filter((l) => !l.remote && l.city && !tied.has(l.rawName || l.name) && !(Array.isArray(s.places) && !s.places.includes(l.rawName || l.name)));
++        if (!none.length) return null;
++        const scored = j.juice.byLocation.filter((e) => none.some((l) => l.name === e.locationName)).map((e) => e.locationName);
++        return { id: j.id, title: j.title, none: none.map((l) => l.name), scored };
++      }`);
++      n += hits.length;
++      for (const h of hits) if (h.scored.length) bad.push(`${c} "${h.title}" (${h.id}): Juice at ${h.scored.join(', ')}, which has no pay row`);
++    }
++    if (!n) skip('no posting lists a place without a pay row of its own');
++    assert(!bad.length, `${bad.length} postings get Juice at a place with no pay row: ${bad.slice(0, 4).join('; ')}`);
++  });
++
++  suite.test('fix-data-3: [D-41] one place per town however "Saint" is spelled: Google\'s St. George, SC (both spellings) and St. George, UT; Amazon\'s St. Louis, MO and MI', async (ctx) => {
++    const { st, page } = await open(ctx, 'c=google');
++    const opts = await options(page, 'Location');
++    const fold = (s) => s.toLowerCase().replace(/\./g, '').replace(/^saint\s/, 'st ').replace(/,.*$/, '');
++    const saints = opts.filter((o) => /^(st\.?|saint)\s/i.test(o.label));
++    const byTown = new Map();
++    for (const o of saints) { const k = fold(o.label); byTown.set(k, [...(byTown.get(k) || []), o]); }
++    const spelled = [...byTown.values()].filter((v) => new Set(v.map((o) => o.label.replace(/,.*$/, ''))).size > 1);
++    assert(!spelled.length, `one town under two spellings: ${spelled.map((v) => v.map((o) => `"${o.label}" (${o.count})`).join(' / ')).join('; ')}`);
++    const george = saints.filter((o) => fold(o.label) === 'st george');
++    if (george.length) {
++      assert(george.every((o) => /, [A-Z]{2}$/.test(o.label)), `St. George labels without a state: ${george.map((o) => o.label).join(', ')}`);
++      const sc = george.find((o) => /, SC$/.test(o.label));
++      if (sc) {
++        const both = await appJobs(page, st, 'google', '(j) => j.locations.some((l) => /^(saint|st\\.?)\\s+george, sc\\b/i.test(l.rawName || "")) ? j.id : null');
++        await go(page, st, `c=google&l=${encodeURIComponent(sc.label)}`);
++        assertEq(await resultsCount(page), both.length, `"${sc.label}" lists every posting written "Saint George, SC" or "St George, SC"`);
++      }
++    }
++    await go(page, st, 'c=amazon');
++    const az = (await options(page, 'Location')).filter((o) => /^st\.? louis\b/i.test(o.label));
++    if (az.length > 1) assert(az.every((o) => /, [A-Z]{2}$/.test(o.label)) && new Set(az.map((o) => o.label.replace(/,.*$/, ''))).size === 1, `Amazon: ${az.map((o) => `"${o.label}"`).join(', ')}`);
++  });
++
++  suite.test('fix-data-3: [D-42] NVIDIA\'s state-only places read "New York State" and "Washington State", never like the city beside them', async (ctx) => {
++    const { st, page } = await open(ctx, 'c=nvidia');
++    await appJobs(page, st, 'nvidia', '(j) => j.id');
++    const labels = (await options(page, 'Location')).map((o) => o.label);
++    assert(!labels.includes('New York, US') && !labels.includes('Washington, US'), `labels: ${labels.filter((l) => /^(New York|Washington)/.test(l)).join(', ')}`);
++    const states = await appJobs(page, st, 'nvidia', '(j) => j.locations.filter((l) => !l.city && !l.remote && l.country === "US" && (l.region === "NY" || l.region === "WA")).map((l) => l.name).join("|") || null');
++    if (states.length) assert(states.join('|').split('|').every((n) => /^(New York|Washington) State$/.test(n)), `state-only names: ${[...new Set(states.join('|').split('|'))].join(', ')}`);
++  });
++
++  suite.test('fix-data-3: [V-45] Amazon\'s Cajamar is its own place (named and pinned as Cajamar), and "Luxembourg, LUX" is Luxembourg City', async (ctx) => {
++    const { st, page } = await open(ctx, 'c=amazon');
++    const caj = await appJobs(page, st, 'amazon', '(j) => j.locations.filter((l) => /^Cajamar\\b/i.test(l.rawName || "")).map((l) => [l.name, l.city, l.lat, l.lng])[0] || null');
++    if (!caj.length) skip('no Cajamar posting');
++    for (const [name, city, lat, lng] of caj) assert(name === 'Cajamar, Brazil' && city === 'Cajamar' && Math.abs(lat + 23.36) < 0.05 && Math.abs(lng + 46.88) < 0.05, `Cajamar reads "${name}" at ${lat}, ${lng}`);
++    const opts = await options(page, 'Location');
++    const c = opts.find((o) => o.label === 'Cajamar');
++    assert(c && c.count >= caj.length, `the Location filter lists Cajamar: ${c ? c.count : 'no'} (want ${caj.length})`);
++    const lux = await appJobs(page, st, 'amazon', '(j) => j.locations.filter((l) => l.rawName === "Luxembourg, LUX").map((l) => [l.city, l.lat, l.lng])[0] || null');
++    for (const [city, lat] of lux) assert(city === 'Luxembourg' && Math.abs(lat - 49.61) < 0.05, `Luxembourg, LUX: city ${city} at ${lat}`);
++  });
++
++  suite.test('fix-data-3: [Town and Country] Amazon lists "Town and Country, MO" as one place, not "Town" and "Country"', async (ctx) => {
++    const { st, page } = await open(ctx, 'c=amazon');
++    const tc = await appJobs(page, st, 'amazon', '(j) => j.locations.some((l) => /^town and country\\b/i.test(l.rawName || "") || l.rawName === "Town" || /^Country, /.test(l.rawName || "")) ? j.locations.map((l) => l.name).join(" | ") : null');
++    if (!tc.length) skip('no Town and Country posting');
++    for (const t of tc) assert(t.split(' | ').includes('Town and Country, MO') && !/(^| \| )(Town|Country, MO)( \| |$)/.test(t), `places: ${t}`);
++    const labels = (await options(page, 'Location')).map((o) => o.label);
++    assert(labels.includes('Town and Country') && !labels.includes('Town') && !labels.includes('Country'), `labels: ${labels.filter((l) => /Town|^Country/.test(l)).join(', ')}`);
++  });
++
++  suite.test('fix-data-3: [old links] an old "City, ST" link finds the place the board now labels "City", and the link takes the current label', async (ctx) => {
++    const { st, page } = await open(ctx, 'c=google');
++    // A city the board labels without its state (one place of that name), with the state its postings name.
++    const cand = await page.evaluate(async (base) => {
++      const res = await (await import(`${base}/api.js`)).getJobs({ company: 'google' });
++      const by = new Map();
++      for (const j of res.jobs) for (const l of j.locations) if (l.city && !l.remote && l.country === 'US' && l.region) {
++        const k = l.city; if (!by.has(k)) by.set(k, { regions: new Set(), ids: new Set() });
++        by.get(k).regions.add(l.region); by.get(k).ids.add(j.id);
++      }
++      const one = [...by].filter(([, v]) => v.regions.size === 1).sort((a, b) => b[1].ids.size - a[1].ids.size).find(([k]) => k === 'Columbus') || [...by].find(([, v]) => v.regions.size === 1);
++      return one ? { city: one[0], region: [...one[1].regions][0], n: one[1].ids.size } : null;
++    }, st.beta);
++    if (!cand) skip('no single-state US city on Google');
++    await go(page, st, `c=google&l=${encodeURIComponent(`${cand.city}, ${cand.region}`)}`);
++    const n = await resultsCount(page);
++    assert(n > 0, `#l=${cand.city}, ${cand.region} finds nothing on Google, which labels the place "${cand.city}" (${cand.n} postings)`);
++    const h = await hashParams(page);
++    assertEq((h.l || []).join('|'), cand.city, 'the link now holds the current label');
++    // NVIDIA's state, linked under its old label.
++    await go(page, st, `c=nvidia&l=${encodeURIComponent('New York, US')}`);
++    const hn = await hashParams(page);
++    const ny = await appJobs(page, st, 'nvidia', '(j) => j.locations.some((l) => l.name === "New York State") ? j.id : null');
++    if (ny.length) assertEq((hn.l || []).join('|'), 'New York State', 'NVIDIA "New York, US" link');
++  });
++
++  suite.test('fix-data-3: [UX-32] NVIDIA and Amazon department names read naturally, tell Amazon\'s Technical and Non-Technical apart, and old department links still work', async (ctx) => {
++    const { st, page } = await open(ctx, 'c=nvidia');
++    await appJobs(page, st, 'nvidia', '(j) => j.id');
++    const nv = (await options(page, 'Department')).map((o) => o.label);
++    const inverted = nv.filter((l) => /^(Engineer|Architect|Management|Program Manager|Account Manager|Analyst|Specialist|Planner|Designer|Accountant|Attorney|Representative|Administrator), /.test(l) || l === 'Intern');
++    assert(!inverted.length, `NVIDIA departments still inverted: ${inverted.slice(0, 6).join(' | ')}`);
++    // An old link with NVIDIA's own name still finds the department, under its current name.
++    const asic = (await options(page, 'Department')).find((o) => o.label === 'ASIC Engineering');
++    if (asic) {
++      await go(page, st, `c=nvidia&d=${encodeURIComponent('Engineer, ASIC')}`);
++      assertEq(await resultsCount(page), asic.count, 'old d=Engineer, ASIC link');
++      assertEq(((await hashParams(page)).d || []).join('|'), 'ASIC Engineering', 'the link takes the current name');
++    }
++    await go(page, st, 'c=amazon');
++    const az = await options(page, 'Department');
++    const raw = az.filter((o) => /--/.test(o.label));
++    assert(!raw.length, `Amazon departments with "--": ${raw.map((o) => o.label).join(' | ')}`);
++    const tech = az.find((o) => /^Technical .*Product Management$/.test(o.label)), non = az.find((o) => /^Non-Technical .*Product Management$/.test(o.label));
++    if (tech && non) {
++      assert(tech.label.slice(0, 14) !== non.label.slice(0, 14), `"${tech.label}" and "${non.label}" read the same when cut`);
++      // An old link with Amazon's own name finds the same postings and takes the current name.
++      await go(page, st, `c=amazon&d=${encodeURIComponent('Project/Program/Product Management--Technical')}`);
++      assertEq(await resultsCount(page), tech.count, 'old d= link');
++      assertEq(((await hashParams(page)).d || []).join('|'), tech.label, 'the link takes the current name');
++    }
++  });
++}
+diff --git a/test/fix-data-3.test.js b/test/fix-data-3.test.js
+index b547940..d75d25e 100644
+--- a/test/fix-data-3.test.js
++++ b/test/fix-data-3.test.js
+@@ -280,21 +280,24 @@ test('UX-32: the names are one to one on NVIDIA\'s 142 departments (2026-10-16),
+   assert.equal(NVIDIA.length, 142);
+   const shown = NVIDIA.map(departmentDisplayName);
+   assert.equal(new Set(shown).size, NVIDIA.length, 'two departments got one name');
++  // Idempotent: a shown name maps to itself (stored jobs are upgraded on every read), and never to another board name.
++  for (const s of shown) assert.equal(departmentDisplayName(s), s, s);
+   assert.ok(!shown.some((s) => /^(Engineer|Architect|Management|Program Manager|Account Manager|Analyst|Specialist|Planner), /.test(s)), shown.filter((s) => /, /.test(s)).join(' | '));
+ });
+ 
+-test('UX-32: stored NVIDIA and Amazon jobs show the natural name and keep the board\'s own as departmentPosted (idempotent, no job dropped)', () => {
++test('UX-32: stored NVIDIA and Amazon jobs show the natural name at read time (idempotent, no job dropped, other boards untouched)', () => {
+   const jobs = [
+     { id: 'nvidia:1', company: 'nvidia', title: 'Senior ASIC Engineer', department: 'Engineer, ASIC' },
+     { id: 'nvidia:2', company: 'nvidia', title: 'Product Manager', department: 'Product Management' },
+     { id: 'amazon:3', company: 'amazon', title: 'Sr. TPM', department: 'Project/Program/Product Management--Technical' },
+     { id: 'google:4', company: 'google', title: 'Intern', department: 'Intern' },
++    { id: 'microsoft:5', company: 'microsoft', title: 'Software Engineer', department: 'Software Engineering' },
+   ];
+   const once = upgrade.displayDepartments ? upgrade.displayDepartments(jobs) : jobs;
+   assert.equal(once.length, jobs.length);
+-  assert.deepEqual(once.map((j) => [j.department, j.departmentPosted]), [['ASIC Engineering', 'Engineer, ASIC'], ['Product Management', undefined],
+-    ['Technical Project, Program and Product Management', 'Project/Program/Product Management--Technical'], ['Intern', undefined]]);
++  assert.deepEqual(once.map((j) => j.department), ['ASIC Engineering', 'Product Management', 'Technical Project, Program and Product Management', 'Intern', 'Software Engineering']);
+   assert.deepEqual(upgrade.displayDepartments(once), once, 'idempotent');
++  assert.equal(once[1], jobs[1], 'an unchanged job is the same object');
+   const again = upgrade.upgradeStoredJobs(once.slice(0, 3));
+-  assert.deepEqual(again.map((j) => [j.department, j.departmentPosted]), once.slice(0, 3).map((j) => [j.department, j.departmentPosted]), 'the read-time upgrade keeps them');
++  assert.deepEqual(again.map((j) => j.department), once.slice(0, 3).map((j) => j.department), 'the read-time upgrade keeps them');
+ });
+-- 
+2.43.0
+
