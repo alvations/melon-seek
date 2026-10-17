@@ -507,7 +507,7 @@ export function registerUiTests(suite) {
       await page.waitForTimeout(500);
       // Section order (ROADMAP §8) and the 3-open budget.
       const folds = await drawer.locator('.drawer-scroll > .d-fold').evaluateAll((els) => els.filter((e) => !e.hidden)
-        .map((e) => ({ t: e.querySelector('summary h3').textContent.replace(/click to filter/, '').trim(), open: e.open })));
+        .map((e) => ({ t: e.querySelector('summary h3').textContent.replace(/(click|pick one) to filter/, '').trim(), open: e.open })));
       const ORDER = [/^Same role elsewhere$/, /^Listing$/, /^Locations?( \(\d+\))?$/, /^Keywords$/, /^About the role$/, /^Full description$/];
       let k = 0;
       for (const f of folds) {
