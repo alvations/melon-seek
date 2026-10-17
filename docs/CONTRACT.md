@@ -648,6 +648,14 @@ opening bracket. 1 MB of hostile text takes 40–110 ms in each (was quadratic: 
 Pipeline tasks stop after `MELON_TASK_TIMEOUT_MS` (default 5 minutes; 0 turns the limit off) and their
 worker is replaced.
 
+**Parser limits (S-10, fix-sec-3):** `parseMetaAmount` reads the trimmed first 100 characters;
+`familyOfTitle` the first 500 characters of a title, dropping brackets of at most 200 characters with no
+bracket inside; `parseMetaSitemap` a `<loc>` of at most 2,048 characters; the Meta JSON-LD reader
+(`metaJsonLd`) a `type="application/ld+json"` within the first 500 characters of a `<script>` tag. The DOL
+tools read cells and text runs in one forward pass (`cellElements`, `textRuns`) and at most 300 characters of
+an employer name. Each reads real pages and files exactly as before; 64–256 KB of hostile text takes
+milliseconds (was quadratic: 2 to 59 minutes projected for 1 MB).
+
 **Vetting (`scripts/vet-salaries.js#scanJob`, `scripts/llm-vet.js`):** a merged Apple requisition is not
 `structured_text_disagree` when its text states one of its ranges (DQ-32). `reviewedFiles` reads
 `<date>-beta` folders; `latestFlags(channel, dir)` is exported and the CLI takes `--channel beta` (VT-9).

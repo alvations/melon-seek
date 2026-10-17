@@ -17,7 +17,9 @@ const SUFFIX_RE = /\s+(?:INC|INCORPORATED|LLC|L L C|CORP|CORPORATION|CO|COMPANY|
 
 /** "Amazon.com Services, LLC." -> "AMAZON COM SERVICES". */
 export function normalizeEmployer(name) {
-  let s = String(name || '').toUpperCase().replace(/&/g, ' AND ').replace(/[^A-Z0-9]+/g, ' ').trim();
+  // S-10: at most 300 characters (real employer names are far shorter), so stripping one suffix at a time
+  // stays cheap on a hostile name ("INC " repeated over 64 KB took 2.7 s, quadratic).
+  let s = String(name || '').slice(0, 300).toUpperCase().replace(/&/g, ' AND ').replace(/[^A-Z0-9]+/g, ' ').trim();
   // "U S" (from "U.S.") stays two letters; collapse it so "U S" and "US" match alike.
   s = s.replace(/\bU S\b/g, 'US');
   for (let prev = null; prev !== s;) { prev = s; s = s.replace(SUFFIX_RE, '').trim(); }

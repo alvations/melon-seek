@@ -117,9 +117,11 @@ const WEAK = [
 ];
 
 function prep(title) {
-  let t = String(title || '');
+  // S-10: real titles are under 200 characters; the cap and the bounded bracket group keep an unclosed "(" run
+  // linear (64 KB of "(" took 9 s). Brackets are dropped innermost first, as real titles never nest them.
+  let t = String(title || '').slice(0, 500);
   for (const [re, en] of TRANSLATE) t = t.replace(re, en);
-  return t.replace(/[（(][^）)]*[）)]/g, ' ').replace(/\s+/g, ' ').trim();
+  return t.replace(/[（(][^（(）)]{0,200}[）)]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 const first = (rules, s) => {

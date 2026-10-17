@@ -159,17 +159,17 @@ const LIMIT = 2000; // linear code does each of these in a few ms; today they ta
 
 // Measured at d98a9f0 (docs/process/security-a11y-review-beta-2.md §5): exponent about 2, 1 MB projected
 // 59 min (parseMetaAmount), 19 min (familyOfTitle), 13 min (parseMetaSitemap), 2.3 min (extractMetaPage).
-test('S-10: parseMetaAmount is linear on a long whitespace run (64 KB under 2 s)', OPEN, async () => {
+test('S-10: parseMetaAmount is linear on a long whitespace run (64 KB under 2 s)', async () => {
   const ms = await timedInWorker(`async () => { const m = await import(${url('server', 'sources', 'meta.js')}); m.parseMetaAmount(' '.repeat(65536)); m.parseMetaAmount('\\n'.repeat(65536)); }`, LIMIT);
   assert.ok(ms < LIMIT, `${Math.round(ms)} ms`);
 });
 
-test('S-10: familyOfTitle (Google job families) is linear on an unclosed "(" run (64 KB under 2 s)', OPEN, async () => {
+test('S-10: familyOfTitle (Google job families) is linear on an unclosed "(" run (64 KB under 2 s)', async () => {
   const ms = await timedInWorker(`async () => { const f = await import(${url('server', 'families.js')}); f.familyOfTitle('('.repeat(65536)); f.familyOfTitle('(L5'.repeat(21846)); }`, LIMIT);
   assert.ok(ms < LIMIT, `${Math.round(ms)} ms`);
 });
 
-test('S-10: Meta sitemap and page parsers are linear on unclosed tags (256 KB under 2 s)', OPEN, async () => {
+test('S-10: Meta sitemap and page parsers are linear on unclosed tags (256 KB under 2 s)', async () => {
   const ms = await timedInWorker(`async () => { const m = await import(${url('server', 'sources', 'meta.js')}); m.parseMetaSitemap('<loc>'.repeat(52429)); m.extractMetaPage('<script '.repeat(32768), '123456'); }`, LIMIT);
   assert.ok(ms < LIMIT, `${Math.round(ms)} ms`);
 });

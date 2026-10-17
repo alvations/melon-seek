@@ -33,7 +33,8 @@ export function parseMetaSitemap(xml) {
   const out = [];
   const seen = new Set();
   const text = String(xml || '');
-  const blocks = /<url>/.test(text) ? text.split(/<url>/).slice(1) : [...text.matchAll(/<loc>[\s\S]*?<\/loc>/g)].map((m) => m[0]);
+  // S-10: a bounded <loc> (a page URL is short), so a run of unclosed "<loc>" is read once, not once per tag.
+  const blocks = /<url>/.test(text) ? text.split(/<url>/).slice(1) : [...text.matchAll(/<loc>[^<]{0,2048}<\/loc>/g)].map((m) => m[0]);
   for (const b of blocks) {
     const loc = /<loc>\s*([^<\s]+)\s*<\/loc>/.exec(b);
     const u = loc && /\/(?:profile\/job_details|jobs)\/(\d{6,})/.exec(loc[1]);
@@ -77,14 +78,36 @@ export function jsonSpanAfter(text, key, from = 0) {
   try { return { value: JSON.parse(text.slice(start, i)), end: i }; } catch { return null; }
 }
 
-/** schema.org JobPosting blocks in the page. */
-function jsonLd(html) {
+/**
+ * schema.org JobPosting blocks in the page. S-10: the same blocks the regex
+ * /<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g found, read in one forward pass:
+ * the opening tag's type attribute within its first 500 characters, the body up to the next </script>.
+ * A run of unclosed "<script " no longer rescans the page from every tag.
+ */
+export function metaJsonLd(html) {
   const out = [];
-  for (const m of String(html).matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)) {
-    try {
-      const v = JSON.parse(m[1]);
-      for (const x of Array.isArray(v) ? v : [v]) if (x && x['@type'] === 'JobPosting') out.push(x);
-    } catch {}
+  const s = String(html);
+  const TYPE = 'type="application/ld+json"';
+  const lastClose = s.lastIndexOf('</script>');
+  // The next '>' and the next TYPE at or after a position; both only move forward, so each is found once.
+  let gt = -2;
+  let tp = -2;
+  for (let i = s.indexOf('<script'); i >= 0;) {
+    if (gt !== -1 && gt < i + 7) gt = s.indexOf('>', i + 7);
+    if (tp !== -1 && tp < i + 8) tp = s.indexOf(TYPE, i + 8);
+    if (gt === -1 || tp === -1) break; // no tag can close, or none has the type
+    if (tp < gt && tp - (i + 7) <= 500) {
+      const start = gt + 1;
+      if (start > lastClose) break; // no </script> after this tag, nor after any later one
+      const end = s.indexOf('</script>', start);
+      try {
+        const v = JSON.parse(s.slice(start, end));
+        for (const x of Array.isArray(v) ? v : [v]) if (x && x['@type'] === 'JobPosting') out.push(x);
+      } catch {}
+      i = s.indexOf('<script', end + 9);
+    } else {
+      i = s.indexOf('<script', i + 1);
+    }
   }
   return out;
 }
@@ -92,7 +115,7 @@ function jsonLd(html) {
 /** Pull the fields we use out of a job page (kept small: this is also the probe fixture). */
 export function extractMetaPage(html, id) {
   const page = String(html || '');
-  const ld = jsonLd(page)[0] || null;
+  const ld = metaJsonLd(page)[0] || null;
   // The page's own requisition object: its keys (title, locations, departments,
   // description, public_compensation …) follow the "apply_for_this_job_section"
   // object, which has a title and description of its own, so start after it.
@@ -131,7 +154,9 @@ const COUNTRY_CUR = { US: 'USD', CA: 'CAD', GB: 'GBP', UK: 'GBP', IE: 'EUR', SG:
 
 /** "$173,000/year" -> { value: 173000, symbol: "$", interval: "year" } or null. */
 export function parseMetaAmount(s) {
-  const m = /^\s*([A-Z]{3}\s?|[A-Z]{0,2}\$|£|€|¥|₹|₪)?\s*([\d,]+(?:\.\d+)?)\s*([A-Z]{3})?\s*(?:\/|per\s+)?\s*(year|yr|hour|hr|month|week|day)?/i.exec(String(s || ''));
+  // S-10: trimmed and cut to 100 characters (an amount is short), so the regex's back-to-back \s* can't
+  // backtrack over a long whitespace run (64 KB of spaces took 12 s).
+  const m = /^\s*([A-Z]{3}\s?|[A-Z]{0,2}\$|£|€|¥|₹|₪)?\s*([\d,]+(?:\.\d+)?)\s*([A-Z]{3})?\s*(?:\/|per\s+)?\s*(year|yr|hour|hr|month|week|day)?/i.exec(String(s || '').trim().slice(0, 100));
   if (!m) return null;
   const value = Number(m[2].replace(/,/g, ''));
   if (!Number.isFinite(value) || value <= 0) return null;

@@ -152,11 +152,67 @@ export function xmlText(s) {
     .replace(/_x([0-9A-Fa-f]{4})_/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
 }
 
+const WORD_CH = /[A-Za-z0-9_]/;
+const WS_CH = /\s/;
+
+/**
+ * `s` without its <rPh>…</rPh> runs: what s.replace(/<rPh\b[\s\S]*?<\/rPh>/g, '') gives, in one forward
+ * pass (S-10: the regex rescanned to the end from every unclosed "<rPh").
+ */
+function dropPhonetic(s) {
+  let out = '';
+  let pos = 0;
+  for (let i = s.indexOf('<rPh'); i >= 0;) {
+    if (i + 4 < s.length && WORD_CH.test(s[i + 4])) { i = s.indexOf('<rPh', i + 1); continue; } // "<rPhx": no \b
+    const e = s.indexOf('</rPh>', i + 4);
+    if (e < 0) break; // no close after this one, nor after any later one
+    out += s.slice(pos, i);
+    pos = e + 6;
+    i = s.indexOf('<rPh', pos);
+  }
+  return out + s.slice(pos);
+}
+
+/**
+ * The text runs of an <si> / <is> body, in order: what
+ * /<t(?:\s[^>]*)?>([\s\S]*?)<\/t>|<t(?:\s[^>]*)?\/>/g matched (a self-closing <t/> is ''), in one forward pass
+ * (S-10: the regex rescanned to the end from every unclosed "<t" or "<t ").
+ */
+export function textRuns(b) {
+  const runs = [];
+  const lastClose = b.lastIndexOf('</t>');
+  let gt = -2; // the next '>' at or after a position (only moves forward)
+  for (let i = b.indexOf('<t'); i >= 0;) {
+    const c = b[i + 2];
+    let end = -1;
+    let text = null;
+    if (c === '>' || (c !== undefined && WS_CH.test(c))) {
+      if (c === '>') gt = i + 2;
+      else if (gt !== -1 && gt < i + 3) gt = b.indexOf('>', i + 3);
+      if (gt === -1) break; // no tag can close
+      if (gt + 1 <= lastClose) { // <t …>text</t>
+        const e = b.indexOf('</t>', gt + 1);
+        text = b.slice(gt + 1, e);
+        end = e + 4;
+      } else if (c !== '>' && b[gt - 1] === '/') { // <t …/>
+        text = '';
+        end = gt + 1;
+      }
+    } else if (c === '/' && b[i + 3] === '>') { // <t/>
+      text = '';
+      end = i + 4;
+    }
+    if (end < 0) { i = b.indexOf('<t', i + 1); continue; }
+    runs.push(text);
+    i = b.indexOf('<t', end);
+  }
+  return runs;
+}
+
 /** Text of an <si> or <is> body: every <t> outside phonetic runs (<rPh>), joined. */
 export function richText(body) {
-  const b = String(body).replace(/<rPh\b[\s\S]*?<\/rPh>/g, '');
   let out = '';
-  for (const m of b.matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>|<t(?:\s[^>]*)?\/>/g)) out += m[1] ? xmlText(m[1]) : '';
+  for (const t of textRuns(dropPhonetic(String(body)))) out += t ? xmlText(t) : '';
   return out;
 }
 
@@ -217,7 +273,42 @@ export function colIndex(ref) {
   return n - 1;
 }
 
-const CELL_RE = /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
+/**
+ * The <c> elements of a row, in order: [{ attrs, body }] (body null for <c …/>), what
+ * /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g matched, in one forward pass (S-10: the regex rescanned to the end
+ * of the row from every unclosed "<c").
+ */
+export function cellElements(rowXml) {
+  const s = String(rowXml);
+  const cells = [];
+  const lastClose = s.lastIndexOf('</c>');
+  let gt = -2; // the next '>' at or after a position (only moves forward)
+  for (let i = s.indexOf('<c'); i >= 0;) {
+    if (i + 2 < s.length && WORD_CH.test(s[i + 2])) { i = s.indexOf('<c', i + 1); continue; } // "<col": no \b
+    if (gt !== -1 && gt < i + 2) gt = s.indexOf('>', i + 2);
+    if (gt === -1) break; // no tag can close
+    let end = -1;
+    if (s[gt - 1] === '/' && gt - 1 >= i + 2) { // <c …/>
+      cells.push({ attrs: s.slice(i + 2, gt - 1), body: null });
+      end = gt + 1;
+    } else if (gt + 1 <= lastClose) { // <c …>…</c>
+      const e = s.indexOf('</c>', gt + 1);
+      cells.push({ attrs: s.slice(i + 2, gt), body: s.slice(gt + 1, e) });
+      end = e + 4;
+    }
+    i = end < 0 ? s.indexOf('<c', i + 1) : s.indexOf('<c', end);
+  }
+  return cells;
+}
+
+/** The text between the first `<tag>` and the next `</tag>` in `s`, or null (what /<tag>([\s\S]*?)<\/tag>/ captured). */
+function between(s, tag) {
+  const a = s.indexOf(`<${tag}>`);
+  if (a < 0) return null;
+  const e = s.indexOf(`</${tag}>`, a + tag.length + 2);
+  return e < 0 ? null : s.slice(a + tag.length + 2, e);
+}
+
 const ATTR = (attrs, name) => {
   const m = new RegExp(`\\b${name}="([^"]*)"`).exec(attrs);
   return m ? m[1] : null;
@@ -231,19 +322,18 @@ const ATTR = (attrs, name) => {
 export function rowCells(rowXml, only = null) {
   const cells = new Map();
   let next = 0;
-  for (const m of rowXml.matchAll(CELL_RE)) {
-    const attrs = m[1];
+  for (const { attrs, body: cellBody } of cellElements(rowXml)) {
     const ref = ATTR(attrs, 'r');
     const col = ref ? colIndex(ref) : next;
     next = col + 1;
     if (only && !only.has(col)) continue;
     const t = ATTR(attrs, 't') || 'n';
-    const body = m[2] || '';
+    const body = cellBody || '';
     let v = null;
-    if (t === 'inlineStr') v = richText((/<is>([\s\S]*?)<\/is>/.exec(body) || [])[1] || '');
+    if (t === 'inlineStr') v = richText(between(body, 'is') || '');
     else {
-      const vm = /<v>([\s\S]*?)<\/v>/.exec(body);
-      v = vm ? xmlText(vm[1]) : null;
+      const vm = between(body, 'v');
+      v = vm != null ? xmlText(vm) : null;
     }
     if (v != null && v !== '') cells.set(col, { t, v });
   }
