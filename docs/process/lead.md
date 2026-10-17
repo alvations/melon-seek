@@ -1447,7 +1447,10 @@ screenshots in `docs/screenshots/`.
     - the 360 px pay-label test read "· 2 levels" in the pill; it is now the muted line under it (UX-52);
     - [P-10]'s footnote regex now accepts the MR-28 wording;
     - [M-40] looked for "…--Technical"; data-3's names are "Technical/Non-Technical Project, Program and Product Management".
-- **Gate on fbdad58** (`npm test` CI-like: 1,184 pass, 0 fail; build: 7/7 beta companies, check-lists clean). Full e2e: the browser closed at test 771 of 856 (Fix phone text [M-35]), and the 40 tests after it failed on "Target page, context or browser has been closed". Those groups were re-run on b815f2b: see below.
+- **Gate on fbdad58** (`npm test` CI-like: 1,184 pass, 0 fail; build: 7/7 beta companies, check-lists clean). Full e2e: the browser closed at test 771 of 856 (Fix phone text [M-35]), and the 40 tests after it failed on "Target page, context or browser has been closed". Those groups were re-run on b815f2b (npm test again: 1,185 pass, 0 fail; build clean):
+  - **Re-run: 146 pass, 7 fail.** The crashed groups (the rest of Fix phone text, all of fix-pay-at-place) pass. So do the fixed ones: UX-58 (both tests), D-39 (both), [P-10], the 360 px pay labels, and M-40 at all 21 Amazon sizes.
+  - **The 7 failures are one integration interaction:** the phone-text guard on Amazon at 280–360 px. M-40's two-part department rows meet data-3's new names: "Program and Product Management" is cut by 0.42 px at 360 px and 80 px at 280 px, and at 280 px also "Fulfillment & Operations" and "& Account Management". The rows stay told apart, at most two lines, with the whole name in the title and the accessible name.
+  - **Pushed with this one known item open**, assigned to fix-phone-sizes. Every other failure in the full run is a reviewer's red-by-design test owned by fix-viz-5 or fix-phone-sizes (UX-39).
 - **Integration findings sent to lanes:**
   - fix-phone-sizes:
     - "Non-Technical Project, Program and Product Management" is cut by 0.42 px at 360 px and narrower (the phone-text guard; M-40's split meets data-3's names);
@@ -1459,3 +1462,4 @@ screenshots in `docs/screenshots/`.
   - fix-phone-sizes: resumed after the rate limit; re-checks every size on the integrated build, and covers the Duo stacked.
 - **WebKit run 9 (228aed7): green.** Phone smoke on WebKit and Chromium at every size and board, the phone, company-sheet, touch-tip and phone-control tests on WebKit, and Simulator Safari (13 mini, 16, SE).
 - **Container restart, about 10:25 UTC:** the checkpoint cron was lost and has been recreated.
+- **Both agents hung, found 12:28.** fix-phone-sizes stopped at 10:53 and fix-viz-5 at 11:49, each on a tool call with no process left behind it. Their transcripts stopped growing, and the checkpoint said "nothing changed". Both were stopped (TaskStop) and resumed by SendMessage from their transcripts, with their commits intact. **Trap:** a checkpoint that changes nothing while the load is low is the sign; check the transcript's last write and `ps`.
