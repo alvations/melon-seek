@@ -3793,10 +3793,11 @@ const fxAsOf = () => formatAsOf(asOf('fx-per-usd') || FX_AS_OF);
    juice for one person; other households are re-attached here with the same juice.js. */
 const HOUSEHOLD_KEY = 'melon-seek.household.v1';
 const HOUSEHOLDS = [
-  // [key, button label, tooltip, bedrooms, people (living-cost row), the one line under the buttons (fix-touch-tips)]
-  ['single', 'Just me', 'One adult in a 1-bedroom home', 1, 'one person', 'One adult, 1-bedroom home'],
-  ['couple', 'Couple', 'Two adults, one earner (married, filing jointly), in a 2-bedroom home', 2, 'two adults', 'Two adults, one earner, 2-bedroom home'],
-  ['family', 'Family', 'Two adults and two children, one earner (married, filing jointly), in a 3-bedroom home', 3, 'two adults and two children', 'Two adults, two children, one earner, 3-bedroom home'],
+  // [key, button label, tooltip, bedrooms, people (living-cost row), the one line under the buttons (fix-touch-tips:
+  //  it fits a 320 px phone's drawer, about 260 px at 13 px)]
+  ['single', 'Just me', 'One adult in a 1-bedroom home', 1, 'one person', '1 adult, 1 bedroom'],
+  ['couple', 'Couple', 'Two adults, one earner (married, filing jointly), in a 2-bedroom home', 2, 'two adults', '2 adults, 1 earner, 2 bedrooms'],
+  ['family', 'Family', 'Two adults and two children, one earner (married, filing jointly), in a 3-bedroom home', 3, 'two adults and two children', '2 adults, 2 children, 1 earner, 3 bedrooms'],
 ];
 const householdInfo = (key) => HOUSEHOLDS.find(([k]) => k === key) || HOUSEHOLDS[0];
 let juiceHousehold = householdInfo(lsGet(HOUSEHOLD_KEY, 'single'))[0];

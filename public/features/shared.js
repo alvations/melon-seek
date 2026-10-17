@@ -532,18 +532,14 @@ export function preserveFocus(root, renderFn) {
 
 /** A mouse event this soon after a touch is the phone's emulation of that touch, not a mouse (ms). */
 export const TOUCH_GRACE_MS = 1000;
-const lastInput = { kind: 'mouse', touchAt: -Infinity };
+const lastInput = { touchAt: -Infinity };
 const clock = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
   const o = { capture: true, passive: true };
-  const touched = () => { lastInput.kind = 'touch'; lastInput.touchAt = clock(); };
+  const touched = () => { lastInput.touchAt = clock(); };
   document.addEventListener('touchstart', touched, o);
   document.addEventListener('touchend', touched, o);
-  document.addEventListener('pointerdown', (e) => {
-    if (e.pointerType === 'touch') touched();
-    else if (clock() - lastInput.touchAt > TOUCH_GRACE_MS) lastInput.kind = 'mouse';
-  }, o);
-  document.addEventListener('keydown', () => { lastInput.kind = 'keyboard'; }, o);
+  document.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') touched(); }, o);
 }
 
 /**
@@ -554,15 +550,6 @@ export function isTouchInput(e) {
   if (e && e.pointerType === 'touch') return true;
   if (e && e.sourceCapabilities && e.sourceCapabilities.firesTouchEvents) return true;
   return clock() - lastInput.touchAt < TOUCH_GRACE_MS;
-}
-
-/** How an event came in: 'touch', 'keyboard' or 'mouse' (a pen counts as a mouse: it can hover). */
-export function inputKind(e) {
-  if (isTouchInput(e)) return 'touch';
-  if (!e) return lastInput.kind;
-  if (/^key|^focus/.test(e.type)) return 'keyboard';
-  if (e.type === 'click' && e.detail === 0 && !e.pointerType) return 'keyboard'; // Enter or Space on a button
-  return 'mouse';
 }
 
 /** The tip's line that says how to do the item's action, in the words of the input that opened the tip. */

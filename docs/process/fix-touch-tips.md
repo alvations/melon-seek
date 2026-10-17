@@ -55,7 +55,7 @@ Files owned:
      - no tip on touch at all, which would hide the comps' middle-half figures from phones and make the one-tap company switch a surprise;
      - closing on any scroll, which would close a keyboard tip on the chart's own `scrollIntoView`, and a tip whose row did not move.
 2. **One helper, `features/shared.js`.** It is already imported by chart.js and map.js, and comps.js now imports it too. It exports:
-   - `isTouchInput(e)` and `inputKind(e)`, backed by one capture listener each for touchstart, touchend, pointerdown and keydown, installed at module load;
+   - `isTouchInput(e)`, backed by one capture listener each for touchstart, touchend and touch pointerdown, installed at module load (each component already knows whether its tip came from a mouse, a tap or the keyboard, so no general input classifier is needed);
    - `actionHint`;
    - `inView`;
    - `placeNearTap`: above the tapped item, clear of the finger, else below it, centred on the tap and kept 8 px inside the screen;
@@ -81,7 +81,7 @@ Files owned:
    - Chart row names: "Tap or click to …". A row's own caveat (`r.why`) is now in its accessible name. The chart's Details explains rows of several countries' pay ("mixed"), next to the existing basis and other-place lines.
    - Ranges legend striped key: "Each bar's tip, and its role's details, list them".
    - Pay-label chips: their meanings are items in the pay block's Details. They are read from the chips `payLabels()` drew, so `payLabels` is untouched (fix-pay-at-place owns it), and the chip wording (MR-34) is unchanged.
-   - Juice household: one muted line under the buttons, for example "Two adults, one earner, 2-bedroom home". The `nowrap` and ellipsis CSS keeps it to one line (fix-density). The long title stays for a mouse.
+   - Juice household: one muted line under the buttons, for example "2 adults, 1 earner, 2 bedrooms". Each of the three lines fits a 320 px phone (the longest, the family's, is 254 px wide where the drawer gives it 306 px at 360, so about 266 px at 320). The `nowrap` and ellipsis CSS keeps it to one line (fix-density). The long title stays for a mouse.
 7. **How the tests reproduce an iPhone in any engine.** Headless Chromium never showed the bug. It fires `pointerleave` after a touch lifts, moves focus to a tapped `tabindex` list (so `blur` hid the tip), and re-runs hover after a scroll. The e2e init script plays the iPhone's sequence instead:
    - a real tap (CDP `Input.dispatchTouchEvent` in Chromium, `page.touchscreen.tap` in WebKit);
    - at its `touchend`, before the click, iOS's emulated `pointerover`, `pointermove`, `mouseover` and `mousemove` (pointerType "mouse") on the element under the finger;
@@ -136,7 +136,7 @@ git checkout -- docs/screenshots                                                
 - **Tests.**
   - `test/e2e/fix-touch-tips.e2e.js` on Chromium: before the fix (base 32f556f + the tests), 1 of 14 passed (the desktop chart-hover guard). After, 14 of 14 pass. The logs are in the scratchpad (`ftt/before-light.log`, `before-dark.log`).
   - Each failure before named the bug: "the first tap opens nothing yet", "a tap on the section's text closes the tip", "the tip closed or stayed by its row", "a moving finger opened a tip" (4 boxes), "the keyboard tip says Press Enter, never Click", "a tap elsewhere closes it" (strip), "the first tap switches nothing yet" (Compare), "no tip after the iPhone tap" (Insights), "the tap selected the pin's place", and the seven word checks.
-  - `test/fix-touch-tips.test.js`: 7 of 7 (words, input classes, `placeNearTap`, `tipCloser` with a fake document).
+  - `test/fix-touch-tips.test.js`: 7 of 7 (words, `isTouchInput`, `placeNearTap`, `tipCloser` with a fake document).
   - `MELON_BETA_SNAPSHOT_DIR= npm test` with the data links moved out: 1162 tests, 1102 pass, 0 fail, 8 skipped (the rest are TODO markers).
 - **Screenshots** (`docs/screenshots/fix-touch-tips/`, 8-bit). Each is `before-*` and `after-*`, in `-light` and `-dark`:
   - `comps-tap-p390`, `comps-tap-p360`, `comps-current-tap-p390`, `comps-current-tap-p360`, `comps-tap-elsewhere-p390`, `comps-tap-elsewhere-p360`, `comps-scroll-p390`;

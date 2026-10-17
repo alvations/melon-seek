@@ -4,7 +4,7 @@
 // tip goes, and when the closer closes a tip.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { actionHint, inputKind, isTouchInput, placeNearTap, tipCloser, TOUCH_GRACE_MS } from '../public/features/shared.js';
+import { actionHint, isTouchInput, placeNearTap, tipCloser, TOUCH_GRACE_MS } from '../public/features/shared.js';
 
 describe('fix-touch-tips: words and input', () => {
   test('actionHint: the words follow the input', () => {
@@ -15,19 +15,16 @@ describe('fix-touch-tips: words and input', () => {
     assert.doesNotMatch(actionHint('touch', 'x'), /click/i);
   });
 
-  test('isTouchInput and inputKind: a touch, a mouse, a key, a click from Enter', () => {
+  test('isTouchInput: a touch, the mouse events made from one, and a real mouse', () => {
     assert.ok(TOUCH_GRACE_MS >= 500 && TOUCH_GRACE_MS <= 2000, 'the grace after a touch covers iOS\'s emulated mouse events');
     assert.equal(isTouchInput({ type: 'pointermove', pointerType: 'touch' }), true);
+    assert.equal(isTouchInput({ type: 'click', pointerType: 'touch', detail: 1 }), true);
     // Chromium marks the mouse events it makes from a touch.
     assert.equal(isTouchInput({ type: 'mousemove', sourceCapabilities: { firesTouchEvents: true } }), true);
     // No touch has happened in this process, so a mouse is a mouse.
     assert.equal(isTouchInput({ type: 'pointermove', pointerType: 'mouse' }), false);
-    assert.equal(inputKind({ type: 'pointermove', pointerType: 'mouse' }), 'mouse');
-    assert.equal(inputKind({ type: 'click', pointerType: 'touch', detail: 1 }), 'touch');
-    assert.equal(inputKind({ type: 'click', pointerType: '', detail: 0 }), 'keyboard');
-    assert.equal(inputKind({ type: 'click', detail: 1 }), 'mouse');
-    assert.equal(inputKind({ type: 'keydown' }), 'keyboard');
-    assert.equal(inputKind({ type: 'focus' }), 'keyboard');
+    assert.equal(isTouchInput({ type: 'click', detail: 1 }), false);
+    assert.equal(isTouchInput(), false);
   });
 });
 
