@@ -52,15 +52,13 @@ export const ALLOW = [
   { sel: '#filterBody .check-label, #popover .check-label', why: 'M-40, owned by the fix-phone-controls lane (a filter row\'s label; the row is a checkbox): left to that lane, listed here so this guard stays about text' },
   { sel: '.company-list .company-item, .company-list .company-item *', why: 'a company name in the company menu (a list row; the button opens the board, whose top bar names it)' },
   { sel: '#drawer .ms-comps__name, #drawer .ms-comps__label', why: 'a company name in "Same role elsewhere" (a listbox row; a tap or Enter opens that company\'s roles)' },
-  { sel: '#chartHost .ms-legend__key', why: 'viz lane: the Ranges colour legend caps each key at 220 px (viz.css .ms-legend__item); the legend scrolls sideways, and the bars and their chips name the department' },
-  { sel: '#chartHost .ms-crow__fold', why: 'viz lane: a chart row\'s fold arrow is cut at 280 px (the folded Fold)' },
-  { sel: '#chartHost .ms-axis__cap', why: 'viz lane: the Ranges axis caption "Yearly pay, US$ (converted)" is cut at 540 px (the Surface Duo, one screen)' },
+  // fix-viz-5: the viz lane's three entries (legend keys, fold arrow, axis caption) are fixed and gone.
   { sel: '#companyMenuBtn .company-name', why: 'M-45, owned by the fix-phone-sizes lane (the top bar\'s layout at 380-392 px): left to that lane' },
 ];
 
 /** Captions that may wrap for now, each with the reason (the lead's call, 2026-10-16): another lane's to fix. */
 export const ALLOW_LINES = [
-  { sel: '#mapHost .ms-modes__paywhat', why: 'viz lane: the map\'s Pay legend box is too narrow at 280 px, so "Median pay [Details]" takes 3 lines' },
+  // fix-viz-5 fixed the viz lane's entries (the legend keys, the fold arrow, the axis caption, the map's Pay line).
 ];
 
 /* ------------------------------------------------------------------ the build and pages */

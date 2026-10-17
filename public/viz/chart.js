@@ -933,11 +933,14 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
   // ---------- render (shared) ----------
   // V-47: the container's font and surface, read once a draw before any row changes (a read after them forced a
   // style pass over the whole chart, several times a draw).
-  let curFam = 'system-ui, sans-serif', curSurf = null;
+  let curFam = 'system-ui, sans-serif', curSurf = null, histShown = true;
   function render() {
     raf = 0;
     width = scroll.clientWidth || container.clientWidth || 800;
-    if (typeof getComputedStyle === 'function') { const cs = getComputedStyle(container); curFam = cs.fontFamily || curFam; curSurf = parseColor(cs.backgroundColor); }
+    if (typeof getComputedStyle === 'function') {
+      const cs = getComputedStyle(container); curFam = cs.fontFamily || curFam; curSurf = parseColor(cs.backgroundColor);
+      histShown = getComputedStyle(hist).display !== 'none'; // short screens hide the strip (styles.css), and its median caption
+    }
     const stats = prepare();
     const clusters = opts.view === 'clusters';
     container.classList.toggle('ms-chart--clusters', clusters);
@@ -1135,7 +1138,18 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const fam = curFam;
     if (labelW > 0) {
       // I-3: plain words ("Annual salary · approx USD" read as jargon).
-      const cap = el('div', 'ms-axis__cap', axisCaption(approx, labelW - 16 - 4, `12px ${fam}`));
+      const w = labelW - 16 - 4, f = `12px ${fam}`;
+      const cap = el('div', 'ms-axis__cap', axisCaption(approx, w, f));
+      if (!histShown) {
+        // V-46: a landscape phone hides the strip and its median caption, so the axis caption carries the median too.
+        const med = pay?.median ?? median(plotted.map((p) => p.mid));
+        const m = `median ${formatMoney(med)}`;
+        const units = approx ? ['US dollars a year, converted', 'US dollars a year'] : ['US dollars a year'];
+        const unit = units.find((u) => textWidth(`${u} · `, f) + textWidth(m, `600 ${f}`) <= w) || units[units.length - 1];
+        const mEl = el('span', 'ms-chart__capmed', m);
+        mEl.title = medianTitle(pay);
+        cap.replaceChildren(unit, el('span', 'ms-chart__capsep', ' · '), mEl);
+      }
       cap.title = capTitle;
       cap.style.width = labelW + 'px';
       axis.append(cap);

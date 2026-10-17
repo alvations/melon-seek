@@ -45,6 +45,7 @@ import { registerPhoneMatrixTests } from '../test/e2e/phone-matrix.e2e.js';
 import { registerFixPhoneTextTests } from '../test/e2e/fix-phone-text.e2e.js';
 import { registerFixPayAtPlaceTests } from '../test/e2e/fix-pay-at-place.e2e.js';
 import { registerBetaMobileQa4Tests } from '../test/e2e/beta-mobile-qa-4.e2e.js';
+import { registerFixViz5Tests } from '../test/e2e/fix-viz-5.e2e.js';
 
 const args = new Set(process.argv.slice(2));
 const apiOnly = args.has('--api-only');
@@ -115,6 +116,7 @@ if (!apiOnly) {
   registerFixPhoneTextTests(suite);
   registerFixPayAtPlaceTests(suite);
   registerBetaMobileQa4Tests(suite);
+  registerFixViz5Tests(suite);
 }
 
 let results;
