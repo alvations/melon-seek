@@ -226,6 +226,8 @@ export function registerBetaVizReviewTests2(suite) {
       await page.waitForSelector('#chartHost .ms-crow', { timeout: 60000 });
       const want = await page.evaluate(async ({ base, company }) => {
         const { chartPay, locationRowKey, payCoversRow } = await import(`${base}/viz/chart.js`);
+        // MR-28 (fix-viz-5): a row's median is of base pay; stated minimums, shift pay and part-time pay stay out of it.
+        const { notBasePay } = await import(`${base}/features/shared.js`);
         const { toUSD, formatMoney } = await import(`${base}/viz/palette.js`);
         const jobs = (await (await import(`${base}/api.js`)).getJobs({ company })).jobs || [];
         const { plotted } = chartPay(jobs);
@@ -234,7 +236,7 @@ export function registerBetaVizReviewTests2(suite) {
         const rows = new Map();
         for (const p of plotted) {
           const k = locationRowKey(p.job);
-          if (!payCoversRow(p.job, k) || p.ote) continue;
+          if (!payCoversRow(p.job, k) || p.ote || notBasePay(p.job)) continue;
           const r = rows.get(k) || rows.set(k, { n: 0, other: 0, own: [] }).get(k);
           r.n++;
           const s = p.job.salary, rs = (s.ranges || []).filter((x) => Array.isArray(x.locations));

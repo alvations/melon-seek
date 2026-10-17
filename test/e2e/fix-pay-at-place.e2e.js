@@ -178,11 +178,13 @@ export function registerFixPayAtPlaceTests(suite) {
       await installReference(page, base);
       const want = await page.evaluate(async ({ base, company, places }) => {
         const jobs = (await (await import(`${base}/api.js`)).getJobs({ company })).jobs || [];
+        // MR-28 (fix-viz-5): a median is of base pay; stated minimums, shift pay and part-time pay stay out of it.
+        const { notBasePay } = await import(`${base}/features/shared.js`);
         const firstPlace = (j) => (j.locations || []).find((l) => l && !l.remote);
         const out = {};
         for (const p of places) {
           const here = jobs.filter((j) => firstPlace(j)?.city === p);
-          const base_ = here.filter((j) => j.salary && j.salary.kind !== 'ote');
+          const base_ = here.filter((j) => j.salary && j.salary.kind !== 'ote' && !notBasePay(j));
           const mids = base_.map((j) => window.__own(j, j.locations.filter((l) => l && !l.remote && l.city === p))).filter(Boolean).map((r) => r.mid);
           const head = base_.map((j) => j.salary.mid);
           out[p] = { n: here.length, median: window.__money(window.__median(mids)), headline: window.__money(window.__median(head)), priced: mids.length };
