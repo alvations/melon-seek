@@ -161,6 +161,22 @@ don't lose that much." So:
      log's `## State`.
 5. **Lead state is pushed too.** Every decision and integration goes into [lead.md](lead.md) in
    the same push, so a new lead session can continue from the repo alone.
+6. **Delete nothing until it is on the branch.** The user, 2026-10-17: "Make sure the data and
+   code is pushed and the audit trail before you delete stuff."
+   - Before removing a lane's worktree, run
+     `bash scripts/cycle/safe-to-delete.sh <lane>=<worktree>` and remove only on exit 0. It checks:
+     - every commit is on the branch, by subject, or file for file for a squash;
+     - nothing is uncommitted or untracked;
+     - the last `wip/<lane>/` checkpoint names the worktree's HEAD, so the lane's own commits are in
+       the history as patches;
+     - the lane's log and prompt are pushed.
+   - When the checkpoint is behind, run `checkpoint.sh --push` for that lane first.
+   - Builds (`dist*/`) can always go, since they are rebuilt from the branch.
+   - The crawl data is never only local. Before deleting a data folder or its links' target,
+     check the crawl is on the data-archive branch: `observations/<month>.jsonl` with the same
+     `observedAt` and job counts. Rebuild it with `scripts/cycle/local-data.js`.
+   - `git worktree remove` without `--force` refuses a worktree with changes; keep it that way
+     unless the only changes are screenshots the suite rewrote.
 
 ## Stage 4. Record and repeat
 

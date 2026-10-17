@@ -1463,3 +1463,18 @@ screenshots in `docs/screenshots/`.
 - **WebKit run 9 (228aed7): green.** Phone smoke on WebKit and Chromium at every size and board, the phone, company-sheet, touch-tip and phone-control tests on WebKit, and Simulator Safari (13 mini, 16, SE).
 - **Container restart, about 10:25 UTC:** the checkpoint cron was lost and has been recreated.
 - **Both agents hung, found 12:28.** fix-phone-sizes stopped at 10:53 and fix-viz-5 at 11:49, each on a tool call with no process left behind it. Their transcripts stopped growing, and the checkpoint said "nothing changed". Both were stopped (TaskStop) and resumed by SendMessage from their transcripts, with their commits intact. **Trap:** a checkpoint that changes nothing while the load is low is the sign; check the transcript's last write and `ps`.
+
+### The user: push the data, code and audit trail before deleting anything (2026-10-17, 14:3x UTC)
+- **The user:** "Make sure the data and code is pushed and the audit trail before you delete stuff."
+- **What was deleted at 14:15, to free disk at 86%:**
+  - the worktrees of 10 finished lanes: fix-phone-text, fix-data-3, fix-phone-controls, viz-even, fix-touch-tips, fix-sec-3, viz-review-beta-2, ux-review-beta-2, fix-pay-at-place and security-a11y-review-beta-2;
+  - 5 build folders of finished lanes in the scratchpad (`dist-before`, `dist-after`, `empty-beta`).
+- **Checked afterwards against origin:**
+  - **Code:** every lane commit is on the branch, cherry-picked under the same subject. ux-review-beta-2 was squashed; its 31 non-image files are identical on the branch and all 113 screenshots are present.
+  - **Audit trail:** all 10 logs and prompts are on the branch. Each lane's last `wip/` checkpoint in the history named its final HEAD, except two that were behind:
+    - ux-review-beta-2: 10 of 11 commits;
+    - security-a11y-review-beta-2: 16 of 19.
+
+    Both were re-checkpointed from their final commits, which were still in the object store: ab84cc3, with 11 and 19 patches.
+  - **Data:** the crawl the lanes used (2026-10-16, about 12:00 UTC: Amazon 22,179, Apple 4,851, Google 3,821, Meta 1,208, Microsoft 2,435, Netflix 414, NVIDIA 2,711) is on the data-archive branch with the same `observedAt` and counts. The deleted folders held builds only.
+- **New:** `scripts/cycle/safe-to-delete.sh` checks code, uncommitted work, the checkpoint and the log before a worktree goes, and exits 1 otherwise. It has a test (test/safe-to-delete.test.js) and is PLAYBOOK "Checkpoints" step 6. From now on the lead runs it before every removal.
