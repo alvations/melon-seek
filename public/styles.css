@@ -1679,6 +1679,11 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
   .topbar { gap: 10px; }
   .topbar-right { gap: 6px; }
   .beta-tag { margin-left: -2px; }
+  /* The search box can be ~100 px here (a board with a Refresh button): without the "/" hint and its 34 px of padding,
+     "Search" still shows (fitSearchHint). */
+  .search kbd { display: none; }
+  .search input { padding-left: 32px; padding-right: 8px; }
+  .search > svg { left: 9px; }
 }
 
 /* M-40 meets fix-data-3's longer names ("Non-Technical Project, Program and Product Management": its end was cut by

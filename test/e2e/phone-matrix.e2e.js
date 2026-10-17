@@ -491,12 +491,14 @@ export function registerPhoneMatrixTests(suite) {
         const { page, errors } = await open(ctx, size, { board, site });
         for (let width = 861; width <= 1001; width += 4) {
           await page.setViewportSize({ width, height: size.height });
+          await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))); // the hint refits on resize
           const m = await page.evaluate(() => {
             const n = document.querySelector('#companyMenuBtn .company-name');
             const over = [...document.querySelectorAll('.topbar *')].filter((e) => e.getClientRects().length && e.getBoundingClientRect().right > innerWidth + 1).slice(0, 3).map((e) => `${e.tagName.toLowerCase()}.${[...e.classList].join('.')}`);
-            return { w: innerWidth, pageW: document.documentElement.scrollWidth, cut: !n || n.scrollWidth > n.clientWidth + 0.5, over };
+            return { w: innerWidth, pageW: document.documentElement.scrollWidth, cut: !n || n.scrollWidth > n.clientWidth + 0.5, over, hint: document.querySelector('#search').placeholder };
           });
           const where = `${site ? 'beta' : 'main'} ${board} ${width}`;
+          if (!m.hint) bad.push(`${where}: the search box shows no words, only the magnifier`);
           if (m.w > width + 1 || m.pageW > width + 1) bad.push(`${where}: page laid out ${Math.max(m.w, m.pageW)} px wide${m.over.length ? ` (${m.over.join(', ')})` : ''}`);
           if (m.cut) bad.push(`${where}: the company name is cut`);
         }
