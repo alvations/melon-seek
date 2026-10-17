@@ -1,7 +1,7 @@
-From 01029801928b9a1518e7068ee05aaa3f903321bb Mon Sep 17 00:00:00 2001
+From 7088bb37c014b70e6421b1c61d08b9fafed87cbd Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 22:35:45 +0000
-Subject: [PATCH 2/3] WIP fix-touch-tips: one touch rule for every floating tip
+Subject: [PATCH 2/5] WIP fix-touch-tips: one touch rule for every floating tip
  (comps, chart, strip, Insights, Compare, map), input-worded hints,
  touch-reachable words
 
@@ -22,10 +22,10 @@ Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
  create mode 100644 test/fix-touch-tips.test.js
 
 diff --git a/.github/workflows/webkit-phone.yml b/.github/workflows/webkit-phone.yml
-index 0cd7770..7c4f591 100644
+index 61e6561..25f6568 100644
 --- a/.github/workflows/webkit-phone.yml
 +++ b/.github/workflows/webkit-phone.yml
-@@ -81,6 +81,16 @@ jobs:
+@@ -88,6 +88,16 @@ jobs:
          run: |
            set -o pipefail
            node test/e2e/fix-company-scroll.e2e.js --browser=webkit | tee webkit-fix-company-scroll.log
@@ -42,15 +42,15 @@ index 0cd7770..7c4f591 100644
        - name: Same tests on Chromium, for comparison
          env:
            BETA_QA2_DIST: dist
-@@ -92,6 +102,7 @@ jobs:
-           {
+@@ -100,6 +110,7 @@ jobs:
+             echo '### Phone smoke (every board)'; echo '```'; cat phone-smoke.log || true; echo '```'
              echo '### Beta mobile QA 2 on WebKit'; echo '```'; grep -E '^\s+(✓|✗|-) |^e2e:' webkit-e2e.log || true; echo '```'
              echo '### Company sheet geometry on WebKit (fix-company-scroll)'; echo '```'; grep -E '^\s+(✓|✗|-) |passed' webkit-fix-company-scroll.log || true; echo '```'
 +            echo '### Floating tips on touch on WebKit (fix-touch-tips)'; echo '```'; grep -E '^\s+(✓|✗|-) |passed' webkit-fix-touch-tips.log || true; echo '```'
              echo '### The same on Chromium'; echo '```'; grep -E '^\s+(✓|✗|-) |^e2e:' chromium-e2e.log || true; echo '```'
            } >> "$GITHUB_STEP_SUMMARY"
        - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-@@ -102,6 +113,7 @@ jobs:
+@@ -112,6 +123,7 @@ jobs:
              webkit-e2e.log
              chromium-e2e.log
              webkit-fix-company-scroll.log
@@ -150,7 +150,7 @@ index 81d80d1..e846531 100644
            }),
            h('div', { class: 'msi-axis', 'aria-hidden': 'true' },
 diff --git a/public/features/shared.js b/public/features/shared.js
-index ef8f6e2..e88f533 100644
+index d6ff4b4..806b9e6 100644
 --- a/public/features/shared.js
 +++ b/public/features/shared.js
 @@ -400,14 +400,20 @@ export function uid(prefix = 'ms') { uidN += 1; return `${prefix}-${uidN.toStrin

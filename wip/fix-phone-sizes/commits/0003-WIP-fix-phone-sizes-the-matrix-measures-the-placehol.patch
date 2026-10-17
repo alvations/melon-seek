@@ -1,0 +1,185 @@
+From a6c3e2b120508907e5c530b802ad78d871e07488 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 00:29:27 +0000
+Subject: [PATCH 3/3] WIP fix-phone-sizes: the matrix measures the placeholder
+ in the field's font; log decisions
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/fix-phone-sizes.md | 102 ++++++++++++++++++++++++++++++--
+ test/e2e/phone-matrix.e2e.js    |  24 ++++----
+ 2 files changed, 108 insertions(+), 18 deletions(-)
+
+diff --git a/docs/process/fix-phone-sizes.md b/docs/process/fix-phone-sizes.md
+index 07c76cc..c8767e2 100644
+--- a/docs/process/fix-phone-sizes.md
++++ b/docs/process/fix-phone-sizes.md
+@@ -2,10 +2,11 @@
+ 
+ ## State
+ 
+-- **Done:** prompt saved; baseline phone-smoke (Chromium, 19 sizes x 7 boards: 7 failures, all on the Razr cover
+-  screen); test/e2e/phone-matrix.e2e.js written and registered; baseline run of it in progress.
+-- **In progress:** the fixes in public/styles.css.
+-- **Next:** CSS fixes per finding, then the gate (npm test without data links, the full e2e), screenshots after.
++- **Done:** prompt saved; baseline phone-smoke and phone-matrix runs; test/e2e/phone-matrix.e2e.js written and
++  registered; CSS fixes in public/styles.css (own rule blocks at the end, plus the two landscape media queries) and
++  three small app.js changes (popover per screen, search placeholder fallbacks); `npm test` green without data links.
++- **In progress:** the after-run of the matrix, the full e2e suite, before and after screenshots.
++- **Next:** shrink the screenshots, final numbers in section 5, send the SHA to the lead.
+ 
+ ## 1. Brief
+ 
+@@ -13,18 +14,107 @@ Prompt: [prompts/fix-phone-sizes.md](prompts/fix-phone-sizes.md) (verbatim). Goa
+ size and posture in test/e2e/phone-sizes.mjs, from the folded Galaxy Fold (280 px) to the Surface Duo spanned
+ (1114 px), the Razr cover screen and landscape; the company name is always whole; dual screens keep the hinge clear.
+ Files owned: public/styles.css (layout rule blocks only), test/e2e/phone-matrix.e2e.js (new), scripts/e2e.js
+-(registration), this log, the prompt file, docs/screenshots/fix-phone-sizes/.
++(registration), this log, the prompt file, docs/screenshots/fix-phone-sizes/. public/app.js: two functions
++(positionPopover, fitSearchHint), where CSS alone can't do it.
+ 
+ ## 2. Inputs and sources
+ 
++- docs/CONTRACT.md (layout and frontend interfaces), docs/strategy/ROADMAP.md §8 (no new visible control; anything
++  else goes in an existing popover), docs/process/PLAYBOOK.md ("Checkpoints", "Known traps": phones come in more sizes,
++  emulated phones have no toolbars), docs/process/TEMPLATE.md, docs/process/ux.md (the phone layout at 860 px and below).
++- test/e2e/phone-sizes.mjs (the 19 sizes) and test/e2e/webkit/phone-smoke.mjs (its hard checks, which the new test
++  repeats); test/e2e/fix-company-scroll.e2e.js (how a test runs standalone under `--browser=webkit`).
++- docs/process/qa-mobile-beta-3.md (M-45: "Microsoft" as "Micros…" at 380–392 px) and its test.
++- The lead's runs: the Razr cover screen laid out 476–505 px wide, the name gone at 280, the Group select to x 301;
++  and, from fix-phone-controls' run, the 280 px tagline running to x 313.
++- Chromium 141 (the sandbox's): `horizontal-viewport-segments` and `env(viewport-segment-*)` work, and
++  `window.viewport.segments` lists the screens. The hinge emulates with CDP `Emulation.setDeviceMetricsOverride` and its
++  `displayFeature` (`{ orientation: 'vertical', offset: 540, maskLength: 34 }`); `Emulation.setDisplayFeaturesOverride`
++  alone changed nothing here (probe: `<scratch>/fps/probe-fold2.cjs`). Playwright's `page.screenshot` resets the device
++  metrics and so the fold, so the fold screenshots go over CDP `Page.captureScreenshot`.
++
+ ## 3. Decisions and rationale
+ 
++1. **Landscape means landscape.** The one-row top bar (styles.css "Phone landscape" and A-3) now needs
++   `(orientation: landscape) and (min-width: 560px)` as well as `(max-height: 500px)`. One row needs about 500 px
++   (the Razr laid it out at 476–505 px). A short screen that is square or narrow keeps two rows.
++2. **Short screens that are not landscape** (`max-width: 559px and max-height: 500px`, the Razr cover screen): two
++   rows with 4 px gaps, the 52 px quick bar, the 64 px peek row and the half sheet at 45 %, no stats line, strip,
++   notes line or tagline above the chart. The chart keeps about 80 px and the sheet shows.
++3. **The name first.** Row 1 gives way in this order, each step at the width where the longest built-in name
++   (Microsoft, 74.4 px; Anthropic 76.9 on the main site) stops fitting, with 4 px or more to spare:
++   - 479 px and below: the badge's shortest label ("● Oct 16"; "Microsoft" was cut at 441–460 px by "Snapshot · Oct 16");
++   - 399 px and below: 16 px of spacing (row gaps 8 → 6, the menu's padding 12/10 → 10/8, the badge's 12 → 10). This
++     is M-45 (380–392 px). Hiding the logo there instead broke three tests that keep the logo beside the Beta tag at
++     390 px (fix-beta-app M-27, fix-app I-2, UX-19), so the logo stays;
++   - 379 px and below: the beta logo goes (as before);
++   - 359 px and below: the main site's logo and the Beta tag go. The tagline above the chart still says
++     "melon·seek · Beta: …", and the badge's sheet says it is the beta site with a link to the main site (UX-23);
++   - 319 px and below: the badge shows only its dot (44 x 44; its sheet has the date and source). "Demo" stays.
++   The theme button stays everywhere (it fits, so nothing moves behind More: ROADMAP §8 is untouched).
++4. **Row 2** (search, Chart / Map / Insights) stays one row down to 320 px with 8 px tab padding and a 100 px search
++   basis; at 319 px and below the view switch gets its own row of three equal tabs, and `--m-topbar` says three rows
++   (the full sheet's top).
++5. **The 280 px chart toolbar:** Clusters | Ranges at 13 px with 8 px padding, the Group select with 4/18 px padding
++   and no 40vw cap: "Department" ends at x 268 on a 280 px screen (was 301).
++6. **The tagline at 280 px:** 12 px text at 339 px and below; at 319 px and below the beta line drops its
++   "melon·seek ·" so "Beta: adds 7 big-tech careers sites" is whole (it ran to x 313).
++7. **Found by the matrix, not in the brief, and fixed because they are layout:**
++   - the job page was wider than phones of 363 px and less: the Apply label ("Apply on Amazon's careers site") was one
++     line of 346–363 px. Its label now wraps (`.drawer-foot .apply`);
++   - cards with "$296K–497K · 2 places" pushed the results list sideways at 280 px: on phones the pay pill goes under
++     the title when the title would get less than 8em (`.card-top` wraps);
++   - the map's Pay scale (168 px) ran past its box and the screen at 344–360 px, and "Details" to x 322 at 320 px: at
++     379 px and below the scale and its line go under the Pay | Juice switch;
++   - the search placeholder was cut ("Search role" at 352 px): an empty search field kept 14 px for its hidden clear
++     button. `.search input:placeholder-shown::-webkit-search-cancel-button { display: none }`, and fitSearchHint
++     falls back to "Search", then to no placeholder (the one-row landscape bar at 560–639 px);
++   - the main site's one-row landscape bar cut "Anthropic" at 560–600 px: A-3's treatment (shortest badge label, the
++     search gives way first, 6 px tabs) now applies to both sites, and below 640 px the logo and Beta tag go;
++   - the "/" key hint covered the right end of a narrow search box: it takes no taps, and touch screens don't show it.
++8. **Dual screens** (`@media (horizontal-viewport-segments: 2)`): the layout grid is the two screens with the hinge
++   between them (`env(viewport-segment-width 0 0)`, the hinge, `env(viewport-segment-width 1 0)`): chart left, list
++   right; the filter slide-over is the left screen's width and the job page the right screen's. The top bar's and the
++   quick bar's right-hand groups start 8 px into the right screen, and their margin keeps the left group 8 px clear of
++   the hinge (the quick chips scroll sideways inside the left screen, with the phone's fade). The toast is centred on
++   the right screen and the tagline takes its own line. Popovers open on their control's screen: positionPopover clamps
++   to the segment of the anchor (`window.viewport.segments`), which CSS can't do.
++9. **The Fold open (690x829) and the Duo on one screen (540x720)** keep the phone layout, as the tablet (768x1024)
++   does: the screenshots show a two-row top bar, a full-width chart and the sheet, and a job page with ~95-character
++   lines. Nothing looked stretched, so no change.
++10. **Not mine, left alone:** Amazon's long department names (M-40), the off-screen filter slide-over buttons at
++    861–1199 px (UX-56; the matrix ignores the closed slide-over), and the desktop tagline at 1280x800, which ends in
++    "…" beside the chart controls (fix-density's one line; the matrix checks the tagline on phones and dual screens).
++
+ ## 4. Replayable steps
+ 
++1. `git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp` (a92a3c8).
++2. Link `node_modules`, `data/snapshots` and `data/beta/snapshots` (the 2026-10-16 crawl); `node scripts/build-static.js`.
++3. Keep the baseline: `cp -al dist <scratch>/fps/dist-before`, then copy styles.css and app.js into it with
++   `cp --remove-destination` (so later edits to dist/ never reach it). styles.css and app.js are copied verbatim by the
++   build, so `<scratch>/fps/sync.sh` copies them into dist/ and dist/beta/ between builds.
++4. Baseline smoke: `NODE_PATH=<scratch>/pw/node_modules node test/e2e/webkit/phone-smoke.mjs --dist dist --out <scratch>/fps/smoke-before --engines chromium --sizes all --boards apple,amazon,google,meta,microsoft,netflix,nvidia`.
++5. The matrix: `NODE_PATH=<scratch>/pw/node_modules node test/e2e/phone-matrix.e2e.js [--browser=webkit]`
++   (`PHONE_MATRIX_DIST=<dir>` for another build, `PHONE_MATRIX_SHOTS=before|after` for screenshots,
++   `PHONE_MATRIX_BOARDS=` to change the boards). About 12 minutes in Chromium on the loaded sandbox.
++6. Measuring helpers (scratch only): `measure-row1.cjs` (the top bar's item widths per width and board),
++   `probe-wide.cjs` (what is wider than the screen: drawer, cards, map, filters), `probe-map.cjs` (the map's Pay box),
++   `probe-duo.cjs` (the Duo with the hinge: placements and what lies on the hinge), `probe-ph.cjs` (the placeholder).
++
+ ## 5. Verification
+ 
++(filled in at the end)
++
+ ## 6. Known gaps and follow-ups
+ 
++- WebKit is not installed here: the lead's webkit-phone.yml runs `node test/e2e/phone-matrix.e2e.js --browser=webkit`
++  and phone-smoke in WebKit; the fold test skips there (it needs Chromium's CDP).
++- The Duo spanned the other way (720x1114, a horizontal hinge: `vertical-viewport-segments: 2`) is not handled: the
++  sheet's half snap could be the lower screen. Not in the matrix.
++- Custom boards with very long names still end in "…" at small widths (the built-in names are whole everywhere).
++
+ ## 7. Change log
+ 
+-- 2026-10-16 23:50: started from a92a3c8; baseline smoke and matrix runs.
++- 2026-10-16 23:50: started from a92a3c8; baseline smoke (7 failures, all the Razr cover screen) and matrix runs.
++- 2026-10-17 00:40: CSS and app.js fixes; the matrix's extra checks (sides, tagline, all cards, map controls,
++  placeholder, the hinge with clipping).
+diff --git a/test/e2e/phone-matrix.e2e.js b/test/e2e/phone-matrix.e2e.js
+index 06902c3..d4585a3 100644
+--- a/test/e2e/phone-matrix.e2e.js
++++ b/test/e2e/phone-matrix.e2e.js
+@@ -173,22 +173,22 @@ function measure(want) {
+     for (let p = e.parentElement; p; p = p.parentElement) if (/auto|scroll/.test(getComputedStyle(p).overflowX)) return false;
+     return r.left < -1 || r.right > W + 1;
+   }).slice(0, 8).map((e) => { const r = e.getBoundingClientRect(); return `${e.tagName.toLowerCase()}${e.id ? `#${e.id}` : ''}${typeof e.className === 'string' && e.className.trim() ? `.${e.className.trim().split(/\s+/)[0]}` : ''} "${(e.getAttribute('aria-label') || e.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 30)}" [${Math.round(r.left)}, ${Math.round(r.right)}]`; });
+-  // The search box shows its whole placeholder. UX-21's canvas measure misses the room an empty search field keeps for
+-  // its clear button (6 px over at 352 px), so the placeholder's text goes in as the value, with the clear button
+-  // hidden as it is while the placeholder shows, and the field must not scroll.
++  // The search box shows its whole placeholder: its text in the field's own font and font features (UX-21's canvas
++  // measure has no features), against the field's content box. styles.css gives an empty field's clear button no room.
+   const inp = document.querySelector('#search');
+-  if (vis(inp) && inp.placeholder && !inp.value) {
+-    const st = document.createElement('style');
+-    st.textContent = '#search::-webkit-search-cancel-button { display: none !important; }';
+-    document.head.append(st);
+-    inp.value = inp.placeholder;
+-    out.placeholder = { text: inp.placeholder, need: inp.scrollWidth, have: inp.clientWidth };
+-    inp.value = '';
+-    st.remove();
++  if (vis(inp) && inp.placeholder) {
++    const cs = getComputedStyle(inp);
++    const s = document.createElement('span');
++    s.style.cssText = `position:absolute;visibility:hidden;white-space:pre;font:${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily};font-feature-settings:${cs.fontFeatureSettings};letter-spacing:${cs.letterSpacing}`;
++    s.textContent = inp.placeholder;
++    document.body.append(s);
++    out.placeholder = { text: inp.placeholder, need: Math.ceil(s.getBoundingClientRect().width), have: Math.floor(inp.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) };
++    s.remove();
+   }
+   // The map's own controls (Pay | Juice and its scale, zoom, Remote): inside the screen, and no wider than their box.
+   out.mapControls = [...document.querySelectorAll('.ms-map .leaflet-control')].filter((e) => e.getClientRects().length && e.getBoundingClientRect().width > 0)
+-    .filter((e) => { const r = e.getBoundingClientRect(); return r.left < -1 || r.right > W + 1 || e.scrollWidth > e.clientWidth + 1; })
++    // 3 px of slack: the Pay scale's 168 px sits 2 px into the box's edge at every width (viz.css), which no one sees.
++    .filter((e) => { const r = e.getBoundingClientRect(); return r.left < -1 || r.right > W + 1 || e.scrollWidth > e.clientWidth + 3; })
+     .map((e) => { const r = e.getBoundingClientRect(); return `.${[...e.classList].join('.')} [${Math.round(r.left)}, ${Math.round(r.right)}] content ${e.scrollWidth} in ${e.clientWidth}`; });
+   return out;
+ }
+-- 
+2.43.0
+
