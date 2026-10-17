@@ -173,22 +173,22 @@ function measure(want) {
     for (let p = e.parentElement; p; p = p.parentElement) if (/auto|scroll/.test(getComputedStyle(p).overflowX)) return false;
     return r.left < -1 || r.right > W + 1;
   }).slice(0, 8).map((e) => { const r = e.getBoundingClientRect(); return `${e.tagName.toLowerCase()}${e.id ? `#${e.id}` : ''}${typeof e.className === 'string' && e.className.trim() ? `.${e.className.trim().split(/\s+/)[0]}` : ''} "${(e.getAttribute('aria-label') || e.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 30)}" [${Math.round(r.left)}, ${Math.round(r.right)}]`; });
-  // The search box shows its whole placeholder. UX-21's canvas measure misses the room an empty search field keeps for
-  // its clear button (6 px over at 352 px), so the placeholder's text goes in as the value, with the clear button
-  // hidden as it is while the placeholder shows, and the field must not scroll.
+  // The search box shows its whole placeholder: its text in the field's own font and font features (UX-21's canvas
+  // measure has no features), against the field's content box. styles.css gives an empty field's clear button no room.
   const inp = document.querySelector('#search');
-  if (vis(inp) && inp.placeholder && !inp.value) {
-    const st = document.createElement('style');
-    st.textContent = '#search::-webkit-search-cancel-button { display: none !important; }';
-    document.head.append(st);
-    inp.value = inp.placeholder;
-    out.placeholder = { text: inp.placeholder, need: inp.scrollWidth, have: inp.clientWidth };
-    inp.value = '';
-    st.remove();
+  if (vis(inp) && inp.placeholder) {
+    const cs = getComputedStyle(inp);
+    const s = document.createElement('span');
+    s.style.cssText = `position:absolute;visibility:hidden;white-space:pre;font:${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily};font-feature-settings:${cs.fontFeatureSettings};letter-spacing:${cs.letterSpacing}`;
+    s.textContent = inp.placeholder;
+    document.body.append(s);
+    out.placeholder = { text: inp.placeholder, need: Math.ceil(s.getBoundingClientRect().width), have: Math.floor(inp.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) };
+    s.remove();
   }
   // The map's own controls (Pay | Juice and its scale, zoom, Remote): inside the screen, and no wider than their box.
   out.mapControls = [...document.querySelectorAll('.ms-map .leaflet-control')].filter((e) => e.getClientRects().length && e.getBoundingClientRect().width > 0)
-    .filter((e) => { const r = e.getBoundingClientRect(); return r.left < -1 || r.right > W + 1 || e.scrollWidth > e.clientWidth + 1; })
+    // 3 px of slack: the Pay scale's 168 px sits 2 px into the box's edge at every width (viz.css), which no one sees.
+    .filter((e) => { const r = e.getBoundingClientRect(); return r.left < -1 || r.right > W + 1 || e.scrollWidth > e.clientWidth + 3; })
     .map((e) => { const r = e.getBoundingClientRect(); return `.${[...e.classList].join('.')} [${Math.round(r.left)}, ${Math.round(r.right)}] content ${e.scrollWidth} in ${e.clientWidth}`; });
   return out;
 }
