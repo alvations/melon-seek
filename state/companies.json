@@ -1,26 +1,26 @@
 {
  "amazon": {
   "slug": "amazon",
-  "lastObservedAt": "2026-10-17T05:08:33.298Z",
+  "lastObservedAt": "2026-10-17T11:19:26.173Z",
   "firstObservedAt": "2026-10-11T15:04:28.012Z",
-  "observations": 21,
+  "observations": 22,
   "name": "Amazon",
   "channel": "beta",
   "source": "amazon",
   "board": "amazon",
   "color": "#ff9900",
-  "open": 22193,
-  "ids": 25127,
+  "open": 22114,
+  "ids": 25137,
   "pending": {
-   "opened": 0,
-   "reopened": 0,
+   "opened": 10,
+   "reopened": 11,
    "resumed": 0,
-   "closed": 0,
+   "closed": 100,
    "unseen": 0,
-   "changed": 0,
-   "payChanged": 0,
-   "sourceChanged": 0,
-   "observations": 0
+   "changed": 131,
+   "payChanged": 4,
+   "sourceChanged": 129,
+   "observations": 1
   },
   "lastDailyDate": "2026-10-17",
   "lastDailyAt": "2026-10-17T05:08:33.298Z"
@@ -131,18 +131,18 @@
  },
  "google": {
   "slug": "google",
-  "lastObservedAt": "2026-10-17T05:08:02.064Z",
+  "lastObservedAt": "2026-10-17T11:16:19.597Z",
   "firstObservedAt": "2026-10-10T11:09:51.834Z",
-  "observations": 26,
+  "observations": 27,
   "name": "Google",
   "channel": "beta",
   "source": "google",
   "board": "google",
   "color": "#4285f4",
-  "open": 3824,
-  "ids": 4373,
+  "open": 3825,
+  "ids": 4374,
   "pending": {
-   "opened": 0,
+   "opened": 1,
    "reopened": 0,
    "resumed": 0,
    "closed": 0,
@@ -150,7 +150,7 @@
    "changed": 0,
    "payChanged": 0,
    "sourceChanged": 0,
-   "observations": 0
+   "observations": 1
   },
   "lastDailyDate": "2026-10-17",
   "lastDailyAt": "2026-10-17T05:08:02.064Z"
@@ -209,9 +209,9 @@
  },
  "netflix": {
   "slug": "netflix",
-  "lastObservedAt": "2026-10-17T05:03:30.103Z",
+  "lastObservedAt": "2026-10-17T11:14:10.323Z",
   "firstObservedAt": "2026-10-10T10:21:03.942Z",
-  "observations": 26,
+  "observations": 27,
   "name": "Netflix",
   "channel": "beta",
   "source": "eightfold",
@@ -225,10 +225,10 @@
    "resumed": 0,
    "closed": 0,
    "unseen": 0,
-   "changed": 0,
+   "changed": 32,
    "payChanged": 0,
    "sourceChanged": 0,
-   "observations": 0
+   "observations": 1
   },
   "lastDailyDate": "2026-10-17",
   "lastDailyAt": "2026-10-17T05:03:30.103Z"
