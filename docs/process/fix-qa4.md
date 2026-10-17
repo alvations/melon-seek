@@ -1,11 +1,18 @@
 # Process log: fix-qa4
 
 ## State
-- **Done:** fixes for D-52, D-49, D-50, D-48 and D-47; unit tests (test/fix-qa4.test.js, 12 of 14 red on the base, 2
-  guards); the e2e group (test/e2e/fix-qa4.e2e.js, registered in scripts/e2e.js); the CONTRACT section; numbers (§5).
-- **In progress:** the e2e gate (fix-qa4, Beta desktop QA 4, fix-pay-at-place, Compstimate, the drawer), the phone
-  smoke after, the clean `npm test`, screenshots.
-- **Next step:** send the lead the tested SHA; the full e2e once.
+- **Done:** D-52, D-49, D-50, D-48 and D-47 fixed, with numbers before and after (§5). Unit tests: test/fix-qa4.test.js,
+  12 of 14 red on the base (2 guards). The e2e group: test/e2e/fix-qa4.e2e.js, registered in scripts/e2e.js. The
+  CONTRACT section, screenshots before and after (docs/screenshots/fix-qa4/, shrunk), this log.
+  - Gate at 6a9ddc0: the clean `npm test` 0 fail; e2e fix-qa4 42/42; QA round 4 8/9 (D-51 is fix-viz-5's); the related
+    groups 145/147 (T21 passes alone; 1 skip on the base too); the phone smoke 95/95.
+  - Sent to the lead: 6a9ddc0. The final SHA is in §7.
+- **In progress:** none. The lead integrates this series (11a107a onward) in the next batch. That batch's full e2e gate on
+  the lead's head is this lane's full run, so the lane runs no full e2e of its own (the lead, 2026-10-17: two full suites
+  at once double the load).
+- **Next step:** at integration, check against fix-viz-5. It also changes public/features/shared.js (`notBasePay`, used
+  by every median) and the drawer's notes. This lane changed shared.js only at `payRank` and the new `rankText`, and
+  app.js only at the rank line, `compstimateBlock` and `renderViz`'s empty states.
 
 ## 1. Brief
 - **Prompt:** [prompts/fix-qa4.md](prompts/fix-qa4.md), verbatim.
@@ -167,6 +174,16 @@ Numbers are from the 2026-10-16 crawl. "Before" is eccdca9 (1ef0646's code) on i
 - Clean `npm test` (no data links) at c43ff33: 1,252 tests, 1,199 pass, 0 fail (8 skipped, 45 to-do). At 1a04bf5 it failed
   test/beta-build.test.js ("lib/export.js mentions the beta posting host apply.careers.microsoft.com"), fixed in 196922d.
 
+**Screenshots** (docs/screenshots/fix-qa4/, 8-bit, 496 KB): `before-*` on the base build, `after-*` on this one.
+- D-52: the Microsoft New York comparables. Before, they showed the U.S. headline ($120K–235K) although the estimate used
+  the New York rows; after, $160K–261K, "Posted for New York".
+- D-48: the rank line at 280x653 and 1114x720 (amazon #11: "The highest pay of …", now "In the top 1% of Amazon’s roles").
+- D-50: netflix:790298021069 at 280x653, 390x844 and 1114x720 (about $473K, now about $464K, capped).
+- D-47: #c=tesla after Netflix, the chart behind the message before and gone after; after, the map case as well.
+- The phone smoke's "text cut" notes, before against after, differ only in the Amazon chart's department labels at some
+  sizes ("Technical Project, Program and Product M"). Those belong to chart drawing (fix-viz-5), which this lane does
+  not touch, and they move from run to run.
+
 ## 6. Known gaps and follow-ups
 - The Pay estimate's top five comparables are ordered by weight, then by date; for a level-less query many weights tie,
   so Microsoft "Software Engineer" in Redmond still lists four Principal roles first, although the estimate now uses all
@@ -179,3 +196,5 @@ Numbers are from the 2026-10-16 crawl. "Before" is eccdca9 (1ef0646's code) on i
   - 11a107a: the brief. eccdca9: QA round 4's tests copied and registered.
   - 463c5c9: the five fixes. 1a04bf5: unit tests, the e2e group, per-file sources. 03860dc: CONTRACT, this log.
   - 196922d: the careers-site names moved to the build script (the main site's lib/ names no beta host).
+  - c43ff33: D-50's third, shorter line for 280 px. 6a9ddc0: the numbers in this log (sent to the lead).
+  - Final commit: the screenshots and this State (integration pending).
