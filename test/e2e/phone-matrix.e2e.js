@@ -118,7 +118,11 @@ function measure(want) {
   const box = (el) => { const r = el.getBoundingClientRect(); return { left: +r.left.toFixed(1), right: +r.right.toFixed(1), top: +r.top.toFixed(1), bottom: +r.bottom.toFixed(1), width: +r.width.toFixed(1) }; };
   const results = document.querySelector('#results');
   const phone = !!results && getComputedStyle(results).position === 'fixed';
-  const out = { w: W, h: H, scrollW: document.documentElement.scrollWidth, bodyScrollW: document.body.scrollWidth, phone, controls: {} };
+  // What the screen shows: a phone that zoomed a too-wide page out has a layout viewport larger than its screen
+  // (the Razr cover screen laid out 487x500 on 352x355), so "on screen" is checked against the screen too.
+  const SW = Math.min(W, screen.width || W);
+  const SH = Math.min(H, screen.height || H);
+  const out = { w: W, h: H, sw: SW, sh: SH, scrollW: document.documentElement.scrollWidth, bodyScrollW: document.body.scrollWidth, phone, controls: {} };
   const n = document.querySelector('#companyMenuBtn .company-name');
   if (n) {
     const range = document.createRange();
@@ -137,7 +141,7 @@ function measure(want) {
     if (!vis(el)) { out.controls[name] = 'missing or hidden'; continue; }
     const r = el.getBoundingClientRect();
     if (r.width < 1 || r.height < 1) { out.controls[name] = 'zero size'; continue; }
-    if (r.left < -1 || r.right > W + 1 || r.top < -1 || r.bottom > H + 1) { out.controls[name] = `off screen [${Math.round(r.left)}, ${Math.round(r.top)}, ${Math.round(r.right)}, ${Math.round(r.bottom)}] on ${W}x${H}`; continue; }
+    if (r.left < -1 || r.right > SW + 1 || r.top < -1 || r.bottom > SH + 1) { out.controls[name] = `off screen [${Math.round(r.left)}, ${Math.round(r.top)}, ${Math.round(r.right)}, ${Math.round(r.bottom)}] on ${SW}x${SH}`; continue; }
     const cy = (r.top + r.bottom) / 2;
     const hit = [0.2, 0.5, 0.8].map((f) => document.elementFromPoint(Math.min(W - 1, Math.max(0, r.left + r.width * f)), Math.min(H - 1, Math.max(0, cy))));
     const over = hit.find((t) => t && t !== el && !el.contains(t) && !t.contains(el));
@@ -185,6 +189,29 @@ function measure(want) {
     out.placeholder = { text: inp.placeholder, need: Math.ceil(s.getBoundingClientRect().width), have: Math.floor(inp.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) };
     s.remove();
   }
+  // The results sheet's peek row is on screen (fix-touch-tips, 2026-10-17: on the Razr cover screen its top was at 427
+  // on a 355 px screen, so there was no way into the list), and the browser has not zoomed or panned the page.
+  if (phone) {
+    const r = results.getBoundingClientRect();
+    out.peek = { top: Math.round(r.top), shows: Math.round(Math.min(r.bottom, SH) - r.top) };
+  }
+  const vv = window.visualViewport;
+  if (vv) out.vv = { scale: +vv.scale.toFixed(3), left: Math.round(vv.offsetLeft), top: Math.round(vv.offsetTop), width: Math.round(vv.width) };
+  // On the map, the price pins are not all covered by the map's own controls (on the Razr cover screen the Remote button
+  // and the legend covered all three).
+  if (document.documentElement.dataset.mode === 'map') {
+    const pins = [...document.querySelectorAll('.ms-map .ms-pin')].filter((p) => p.getClientRects().length && p.getBoundingClientRect().width > 0);
+    const map = document.querySelector('.ms-map')?.getBoundingClientRect();
+    const seen = pins.filter((p) => {
+      const r = p.getBoundingClientRect();
+      const x = r.left + r.width / 2;
+      const y = r.top + r.height / 2;
+      if (!map || x < map.left || x > map.right || y < map.top || y > map.bottom || x < 0 || x > W || y < 0 || y > H) return false;
+      const t = document.elementFromPoint(x, y);
+      return t && p.contains(t);
+    });
+    out.pins = { n: pins.length, seen: seen.length, covers: [...new Set(pins.map((p) => { const r = p.getBoundingClientRect(); const t = document.elementFromPoint(Math.max(0, Math.min(W - 1, r.left + r.width / 2)), Math.max(0, Math.min(H - 1, r.top + r.height / 2))); return t && !p.contains(t) ? `${t.tagName.toLowerCase()}.${[...t.classList].slice(0, 2).join('.')}` : null; }).filter(Boolean))].slice(0, 4) };
+  }
   // The map's own controls (Pay | Juice and its scale, zoom, Remote): inside the screen, and no wider than their box.
   out.mapControls = [...document.querySelectorAll('.ms-map .leaflet-control')].filter((e) => e.getClientRects().length && e.getBoundingClientRect().width > 0)
     // 3 px of slack: the Pay scale's 168 px sits 2 px into the box's edge at every width (viz.css), which no one sees.
@@ -210,6 +237,9 @@ function problemsOf(m, screenW, label) {
   if (m.wideCards && m.wideCards.n) p.push(`${label}: ${m.wideCards.n} of ${m.wideCards.of} cards are wider than their box, e.g. ${m.wideCards.first}`);
   if (m.list && m.list.scrollW > m.list.clientW + 1) p.push(`${label}: the results list scrolls sideways (${m.list.scrollW} > ${m.list.clientW})`);
   if (m.tagline && (m.tagline.scrollW > m.tagline.clientW + 0.5 || m.tagline.right > m.w + 0.5)) p.push(`${label}: the line above the chart is cut: "${m.tagline.text}" needs ${m.tagline.scrollW} px in ${m.tagline.clientW}`);
+  if (m.peek && m.peek.shows < 44) p.push(`${label}: the results sheet's peek row is off the screen (top ${m.peek.top} on a ${m.sh} px screen, ${m.peek.shows} px showing)`);
+  if (m.vv && (m.vv.scale < 0.99 || m.vv.left > 1 || m.vv.top > 1)) p.push(`${label}: the browser zoomed or panned the page (visual viewport ${JSON.stringify(m.vv)})`);
+  if (m.pins && m.pins.n && !m.pins.seen) p.push(`${label}: the map's controls cover all ${m.pins.n} price pins (${m.pins.covers.join(', ')})`);
   if (m.placeholder && m.placeholder.need > m.placeholder.have) p.push(`${label}: the search box's placeholder "${m.placeholder.text}" is cut (${m.placeholder.need} px in ${m.placeholder.have})`);
   if (m.mapControls && m.mapControls.length) p.push(`${label}: a map control runs past its box or the screen: ${m.mapControls.join(' | ')}`);
   if (m.sides && m.sides.length) p.push(`${label}: cut at the side of the ${m.w} px screen: ${m.sides.join(' | ')}`);
@@ -341,6 +371,7 @@ export function registerPhoneMatrixTests(suite) {
           // Map and Insights keep the top bar, the quick bar and the sheet on screen too.
           for (const mode of ['map', 'insights']) {
             await clickEl(page, `.topbar .seg [data-mode="${mode}"]`);
+            if (mode === 'map') await page.waitForFunction(() => document.querySelector('.ms-map .ms-pin'), null, { timeout: 20000 }).catch(() => {});
             await sleep(mode === 'map' ? 1500 : 900);
             bad.push(...problemsOf(await page.evaluate(measure, OTHER_CONTROLS), size.width, `${label} ${mode}`));
           }
