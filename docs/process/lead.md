@@ -1478,3 +1478,6 @@ screenshots in `docs/screenshots/`.
     Both were re-checkpointed from their final commits, which were still in the object store: ab84cc3, with 11 and 19 patches.
   - **Data:** the crawl the lanes used (2026-10-16, about 12:00 UTC: Amazon 22,179, Apple 4,851, Google 3,821, Meta 1,208, Microsoft 2,435, Netflix 414, NVIDIA 2,711) is on the data-archive branch with the same `observedAt` and counts. The deleted folders held builds only.
 - **New:** `scripts/cycle/safe-to-delete.sh` checks code, uncommitted work, the checkpoint and the log before a worktree goes, and exits 1 otherwise. It has a test (test/safe-to-delete.test.js) and is PLAYBOOK "Checkpoints" step 6. From now on the lead runs it before every removal.
+- **15:0x UTC, all four agents stopped on an API session limit** (it reset at 15:20): fix-phone-sizes, fix-viz-5, qa-desktop-beta-4 and fix-qa4.
+  - All four worktrees were checkpointed at 15:28 (60cdf05), with fix-phone-sizes' 5 uncommitted files and fix-viz-5's 1.
+  - Each was resumed by SendMessage at 15:28 with its next step. Nothing was lost.
