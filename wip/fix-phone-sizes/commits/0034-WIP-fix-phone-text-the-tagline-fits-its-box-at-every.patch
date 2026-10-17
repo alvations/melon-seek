@@ -1,0 +1,167 @@
+From ef4d46ec00da58908e50e99b4a0cf779569e2253 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 00:50:59 +0000
+Subject: [PATCH 34/51] WIP fix-phone-text: the tagline fits its box at every
+ width (fitTagline); desktop guard at 1024, 1280, 1440; empty-state Details
+ described
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 6781d312391b78aa0e622a94daf42c6aee157e3f)
+---
+ public/app.js                  | 34 +++++++++++++++++++++++++++-
+ public/styles.css              |  9 ++++----
+ test/e2e/fix-phone-text.e2e.js | 41 ++++++++++++++++++++++++++++++++--
+ 3 files changed, 76 insertions(+), 8 deletions(-)
+
+diff --git a/public/app.js b/public/app.js
+index ca26869..c5ebf01 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -2945,12 +2945,44 @@ function renderTagline() {
+     el.title = big.length ? `Beta: adds ${list} from their own careers sites` : text;
+     el.replaceChildren(h('strong', { class: 'tagline-brand' }, 'melon·seek'), h('span', { class: 'tagline-sep', 'aria-hidden': 'true' }, ' · '),
+       h('span', { class: 'tagline-long' }, text), h('span', { class: 'tagline-short' }, short),
+-      // fix-phone-text: under 360 px (a folded Fold, the first iPhone SE) the short line was cut; a shorter one fits.
++      // fix-phone-text: the shortest line, for a box too narrow for the others (fitTagline).
+       h('span', { class: 'tagline-tiny' }, big.length ? `Beta: ${big.length > 1 ? `${big.length} big-tech sites` : `${big[0]}’s site`}` : 'Pay after tax and rent'));
++    requestAnimationFrame(fitTagline);
+   }
+   document.body.classList.toggle('is-filtered', activeFilterCount() > 0 || !!area);
+ }
+ 
++/**
++ * fix-phone-text: the tagline is never cut. Its longest line that fits shows: on a desktop the long one, else the
++ * short one, else the shortest (at 1280x800 the beta line was 295 px of text in a 273 px box, "…"); on a phone the
++ * short one, else the shortest (a folded Fold). If none fits it wraps. The full line is always the tagline's title.
++ */
++let taglineRo = null;
++function fitTagline() {
++  const el = $('#tagline');
++  if (!el) return;
++  if (!taglineRo && typeof ResizeObserver === 'function') {
++    let w = -1;
++    taglineRo = new ResizeObserver(() => { const now = el.getBoundingClientRect().width; if (Math.abs(now - w) >= 0.5) { w = now; fitTagline(); } });
++    taglineRo.observe(el);
++  }
++  if (!el.getClientRects().length) return;
++  const over = () => {
++    const r = document.createRange();
++    r.selectNodeContents(el);
++    const cs = getComputedStyle(el), box = el.getBoundingClientRect();
++    return el.scrollWidth > el.clientWidth || r.getBoundingClientRect().width > box.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) + 0.01;
++  };
++  const steps = matchMedia('(max-width: 860px)').matches ? ['', 'fit-tiny'] : ['', 'fit-short', 'fit-tiny'];
++  el.classList.remove('fit-short', 'fit-tiny', 'fit-wrap');
++  for (const c of steps) {
++    el.classList.remove('fit-short', 'fit-tiny');
++    if (c) el.classList.add(c);
++    if (!over()) return;
++  }
++  el.classList.add('fit-wrap');
++}
++
+ /* ------------------------------------------------------------------- viz */
+ 
+ let chart = null;
+diff --git a/public/styles.css b/public/styles.css
+index 384e912..c6c2e68 100644
+--- a/public/styles.css
++++ b/public/styles.css
+@@ -1625,9 +1625,8 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
+ @media (max-width: 860px) { .stats-line .stat--nopay { display: inline; } }
+ /* M-38: the percentile line is fitted to one line (app.js fitOneLine); when nothing fits it wraps, never "…". */
+ .d-pct-text.is-wrapped { white-space: normal; overflow: visible; text-overflow: clip; }
+-/* The tagline under 360 px: its shortest line ("melon·seek · Beta: 7 big-tech sites"; the full line is its title). */
++/* The tagline shows its longest line that fits (app.js fitTagline), never "…": the full line is its title. */
+ .tagline-tiny { display: none; }
+-@media (max-width: 359px) {
+-  .tagline .tagline-short { display: none; }
+-  .tagline .tagline-tiny { display: inline; }
+-}
++.tagline.fit-short .tagline-long, .tagline.fit-tiny .tagline-long, .tagline.fit-tiny .tagline-short { display: none; }
++.tagline.fit-short .tagline-short, .tagline.fit-tiny .tagline-tiny { display: inline; }
++.tagline.fit-wrap { white-space: normal; text-overflow: clip; }
+diff --git a/test/e2e/fix-phone-text.e2e.js b/test/e2e/fix-phone-text.e2e.js
+index 69d0fb9..c5d1c7c 100644
+--- a/test/e2e/fix-phone-text.e2e.js
++++ b/test/e2e/fix-phone-text.e2e.js
+@@ -14,7 +14,8 @@
+ // 0.01 px over, any other clipping box at 0.5 px), unlike M-27's whole-pixel scrollWidth check. "[guard, size]" runs
+ // the same walk on every other entry of test/e2e/phone-sizes.mjs (the user, 2026-10-16: "Make sure we check for all
+ // phone sizes from iPhone mini to razr to duo or something"), on Amazon and Google, whose strings are the longest
+-// (FIX_PHONE_TEXT_ALL=1: every big-tech board at every size).
++// (FIX_PHONE_TEXT_ALL=1: every big-tech board at every size). "[guard, desktop]" runs it at 1024x768, 1280x800 and
++// 1440x900 on every big-tech board (fix-phone-sizes found the desktop tagline cut at 1280: "…", 295 px in 273).
+ //
+ // The tests serve the build (FIX_PHONE_TEXT_DIST, else BETA_QA_DIST, else dist/) under /melon-seek/ the way GitHub
+ // Pages does; every other host is aborted. They use standard Playwright APIs only (touchscreen.tap, click, keyboard),
+@@ -35,6 +36,7 @@ const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KH
+ const P390 = { width: 390, height: 844 };
+ const P360 = { width: 360, height: 740 };
+ const D1440 = { width: 1440, height: 900 };
++const DESKTOPS = [{ width: 1024, height: 768 }, { width: 1280, height: 800 }, D1440];
+ const WORDS = 12;
+ const BOARDS = ['amazon', 'apple', 'google', 'meta', 'microsoft', 'netflix', 'nvidia'];
+ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+@@ -191,7 +193,7 @@ export const CAPTION_SEL = [
+  * is measured by its line, without its Details). cut: any text box that cuts its text, or an input that cuts its
+  * placeholder, unless ALLOW names it (never when the text is a number or an amount).
+  */
+-function scanText({ roots, captionSel, allow, allowLines = [], words, maxLines = 1 }) {
++export function scanText({ roots, captionSel, allow, allowLines = [], words, maxLines = 1 }) {
+   const rootEls = roots.flatMap((r) => [...document.querySelectorAll(r)]);
+   const seen = new Set();
+   /** Inside a closed <details> and not its summary (Chromium still lays such content out for script). */
+@@ -407,6 +409,21 @@ export function registerFixPhoneTextTests(suite) {
+     }
+   }
+ 
++  for (const slug of BOARDS) {
++    for (const vp of DESKTOPS) {
++      suite.test(`Fix phone text: [guard, desktop] ${slug} ${vp.width}x${vp.height}: every caption is one line of at most ${WORDS} words, and no text is cut (the tagline, the stats line, Insights, job pages, filters, badge, More)`, async (ctx) => {
++        const st = await serveDist();
++        if (!st) skip('no beta build');
++        if (!hasBoard(st, slug)) skip(`no ${slug} list in this build`);
++        const s = await open(ctx, { vp });
++        const bad = await guardWalk(s, slug);
++        if (bad.length) await shot(s.page, `guard-${slug}-${vp.width}x${vp.height}`);
++        assert(!bad.length, `${bad.length} problem(s):\n  ${bad.join('\n  ')}`);
++        assert(!s.errors.length, s.errors.join(' | '));
++      });
++    }
++  }
++
+   const sizeBoards = process.env.FIX_PHONE_TEXT_ALL ? BOARDS : ['amazon', 'google'];
+   for (const d of ALL_SIZES.filter((x) => !((x.width === 390 && x.height === 844) || (x.width === 360 && x.height === 740)))) {
+     for (const slug of sizeBoards) {
+@@ -718,6 +735,26 @@ export function registerFixPhoneTextTests(suite) {
+     assert(!bad.length, bad.join('\n  '));
+   });
+ 
++  suite.test('Fix phone text: [tagline] the tagline beside the chart controls is never cut, from 861 to 1920 px and on phones (fix-phone-sizes: "…" at 1280x800, 295 px of text in 273)', async (ctx) => {
++    const bad = [];
++    for (const width of [280, 320, 360, 390, 430, 861, 1024, 1100, 1200, 1280, 1366, 1440, 1600, 1920]) {
++      const s = await open(ctx, { vp: { width, height: 800 } });
++      await s.go('c=apple', 500);
++      const r = await s.page.evaluate(() => {
++        const t = document.querySelector('#tagline');
++        if (!t || !t.getClientRects().length) return null;
++        const rg = document.createRange();
++        rg.selectNodeContents(t);
++        const cs = getComputedStyle(t), b = t.getBoundingClientRect();
++        return { text: t.innerText.trim(), title: t.title, over: rg.getBoundingClientRect().width - (b.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)), sw: t.scrollWidth, cw: t.clientWidth, ell: cs.textOverflow === 'ellipsis' && cs.whiteSpace === 'nowrap' };
++      });
++      if (!r) continue;
++      if ((r.ell && r.over > 0.01) || r.sw > r.cw) bad.push(`${width}px: "${r.text}" is cut (${r.over.toFixed(2)} px over)`);
++      if (!/careers sites/.test(r.title)) bad.push(`${width}px: the tagline's title lost the full line: "${r.title}"`);
++    }
++    assert(!bad.length, bad.join('\n  '));
++  });
++
+   suite.test('Fix phone text: [UX-62] no visible text under 12 px in the top bar (the search box\'s "/" key cap)', async (ctx) => {
+     const s = await open(ctx, { vp: D1440 });
+     await s.go('c=google');
+-- 
+2.43.0
+

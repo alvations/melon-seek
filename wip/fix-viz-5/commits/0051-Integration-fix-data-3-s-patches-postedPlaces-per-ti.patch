@@ -1,0 +1,91 @@
+From fbdad5856455a1a176cfd806b858cab7e88ef836 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 10:29:27 +0000
+Subject: [PATCH 51/52] Integration: fix-data-3's patches (postedPlaces per
+ tied row, the Compare footnote names MR-28's left-out pay, M-40's
+ precondition) and the pay lane's Juice test on
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ public/features/comps.js         | 4 +++-
+ public/features/shared.js        | 9 +++++++--
+ test/e2e/beta-mobile-qa-3.e2e.js | 5 ++++-
+ test/fix-pay-at-place.test.js    | 5 ++---
+ 4 files changed, 16 insertions(+), 7 deletions(-)
+
+diff --git a/public/features/comps.js b/public/features/comps.js
+index 2aa108d..abb9d8e 100644
+--- a/public/features/comps.js
++++ b/public/features/comps.js
+@@ -565,7 +565,9 @@ export function createCompsCard(container, { onPickCompany, market: initialMarke
+       const what = level === 'Intern'
+         ? `Posted internship and fixed-term pay${where}, as a yearly rate`
+         : `${capitalize(market.basis || 'posted base pay ranges')} of ${level ? `${levelWord(level)} ` : ''}full-time roles${where}`;
+-      const left = level === 'Intern' ? '' : ' Internships, fixed-term programmes and on-target earnings (sales pay that includes commission) are left out.';
++      // MR-28 (fix-data-3): scripts/build-market.js notBasePay also leaves out stated minimums, shift-inclusive and part-time hourly pay.
++      const left = level === 'Intern' ? ' Stated minimums and part-time hourly pay are left out.'
++        : ' Internships, fixed-term programmes, on-target earnings (sales pay that includes commission), stated minimums, hourly pay that includes a shift differential and part-time hourly pay are left out.';
+       const only = country ? ` Only pay for roles${where} is compared.` : '';
+       foot.textContent = `${what}, midpoints in approx. US dollars; companies need ${market.minN || 3}+ salaried postings${country ? ' there' : ''}.${left} Equity and bonus aren't included.${only}${asOf}`;
+       live.textContent = rows.length ? `${label}${level ? `, ${level === 'Intern' ? 'internships' : levelWord(level)}` : ''}${where}: ${plural(rows.length, 'company', 'companies')} compared.` : '';
+diff --git a/public/features/shared.js b/public/features/shared.js
+index 4b87389..2001a0a 100644
+--- a/public/features/shared.js
++++ b/public/features/shared.js
+@@ -245,11 +245,16 @@ export function payLocations(job) {
+   return hit.length ? hit : pool;
+ }
+ 
+-/** The location strings a salary was posted for (salary.places, else every range's places), or null. */
++/**
++ * The location strings a salary was posted for (salary.places, else the places of its per-place rows), or null.
++ * Lead decision (2026-10-16, fix-data-3; as server/juice.js postedPlaceSet): a place the posting lists in no row
++ * has no posted pay there, even when another row is tied to no listed place (it was "every row tied").
++ */
+ function postedPlaces(sal) {
+   if (Array.isArray(sal?.places) && sal.places.length) return new Set(sal.places);
+   const rs = Array.isArray(sal?.ranges) ? sal.ranges : [];
+-  if (rs.length && rs.every((r) => Array.isArray(r?.locations) && r.locations.length)) return new Set(rs.flatMap((r) => r.locations));
++  const tied = rs.filter((r) => Array.isArray(r?.locations) && r.locations.length);
++  if (tied.length) return new Set(tied.flatMap((r) => r.locations));
+   return null;
+ }
+ 
+diff --git a/test/e2e/beta-mobile-qa-3.e2e.js b/test/e2e/beta-mobile-qa-3.e2e.js
+index 8ae9f40..3b566b4 100644
+--- a/test/e2e/beta-mobile-qa-3.e2e.js
++++ b/test/e2e/beta-mobile-qa-3.e2e.js
+@@ -436,8 +436,11 @@ export function registerBetaMobileQa3Tests(suite) {
+     await sleep(200);
+     await tapSel(page, '#quickChips [data-pop=dept]', 1000);
+     const rows = await page.evaluate(() => [...document.querySelectorAll('#filterBody details.fsec[open] label.check .check-label')].filter((e) => e.getClientRects().length).map((e) => ({ text: e.textContent.trim(), cut: e.scrollWidth > e.clientWidth + 1, title: e.closest('label')?.title || e.title || '' })));
++    // Amazon's two project, program and product management departments ("…--Technical", "…--Non-Tech"; since fix-data-3,
++    // UX-32, named "Technical …" and "Non-Technical …"), and any other two labels that start alike.
++    const pm = rows.filter((r) => /Project\W+Program\W+(?:and )?Product Management/i.test(r.text));
++    assert(pm.length >= 2, `the build has Amazon's two "Project/Program/Product Management" departments (${pm.length})`);
+     const twins = rows.filter((r) => rows.some((o) => o !== r && o.text.slice(0, 30) === r.text.slice(0, 30)));
+-    assert(twins.length >= 2, `the build has Amazon's two "Project/Program/Product Management--…" departments (${twins.length})`);
+     const lost = twins.filter((r) => r.cut);
+     if (lost.length) { await page.locator('#filterBody label.check', { hasText: twins[0].text }).first().evaluate((e) => e.scrollIntoView({ block: 'center' })); await shot(page, 'e2e-M-40-amazon-departments'); }
+     assert(!lost.length, `cut to the same visible text: ${lost.map((r) => `"${r.text}"`).join(', ')}`);
+diff --git a/test/fix-pay-at-place.test.js b/test/fix-pay-at-place.test.js
+index feedf44..e3135cf 100644
+--- a/test/fix-pay-at-place.test.js
++++ b/test/fix-pay-at-place.test.js
+@@ -359,10 +359,9 @@ test('amazon.js: a virtual-location row keeps its state in its label (QA round 3
+   assert.deepEqual(payRanges.map((r) => r.label), ['Remote (CA)', 'Remote (IL, NJ)']);
+   assert.ok(payRanges.every((r) => r.locations?.length), 'still tied to the Remote place');
+ });
+-
++// Juice (server/juice.js): fix-data-3 (0ae184e, postedPlaceSet) applies the lead decision; docs/process/patches/fix-pay-at-place-juice.diff is kept as a reference.
+ // Juice (server/juice.js, another lane's file): docs/process/patches/fix-pay-at-place-juice.diff applies the lead decision.
+-const JUICE_PATCHED = /const hasRows = Array\.isArray\(s\.ranges\)/.test(fs.readFileSync(new URL('../server/juice.js', import.meta.url), 'utf8'));
+-test('lead decision 2026-10-16: no Juice at a listed place with no row of its own (Seattle, amazon:10387863 shape)', { todo: JUICE_PATCHED ? false : 'apply docs/process/patches/fix-pay-at-place-juice.diff' }, async () => {
++test('lead decision 2026-10-16: no Juice at a listed place with no row of its own (Seattle, amazon:10387863 shape)', async () => {
+   const { attachJuice } = await import('../server/juice.js');
+   const cities = JSON.parse(fs.readFileSync(new URL('../data/cities.json', import.meta.url), 'utf8'));
+   const SEA = { name: 'Seattle, WA', rawName: 'Seattle, Washington, USA', city: 'Seattle', region: 'WA', country: 'US', lat: 47.61, lng: -122.33, remote: false };
+-- 
+2.43.0
+

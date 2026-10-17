@@ -1,0 +1,741 @@
+From 6a7de9eff87b4da0238f89bd4433bbc3c196a8ab Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 00:07:30 +0000
+Subject: [PATCH 32/52] WIP fix-phone-text: drawer lines, badge popover,
+ Insights tiles and rows, stats line, search placeholder; guard on every phone
+ size
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 2bbb3b72c00dc2655763354da58f7bba03af9fb9)
+---
+ public/app.js                  | 150 +++++++++++++++++++++++++--------
+ public/features/compstimate.js |   3 +-
+ public/features/features.css   |  14 +++
+ public/features/insights.js    |  20 +++--
+ public/styles.css              |  15 +++-
+ public/viz/chart.js            |   2 +-
+ public/viz/viz.css             |   3 +
+ test/e2e/fix-beta-app.e2e.js   |   4 +-
+ test/e2e/fix-phone-text.e2e.js | 100 ++++++++++++++--------
+ test/e2e/ui.e2e.js             |   6 +-
+ 10 files changed, 234 insertions(+), 83 deletions(-)
+
+diff --git a/public/app.js b/public/app.js
+index 2645a51..81e64b1 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -274,6 +274,39 @@ const cssId = (id) => (window.CSS?.escape ? CSS.escape(id) : String(id).replace(
+ /** Drop null/false children (Element.replaceChildren would render them as text). */
+ const nn = (...kids) => kids.filter((k) => k != null && k !== false);
+ 
++/**
++ * fix-phone-text: show the first of `variants` that fits `el` on one line (measured to the sub-pixel: an ellipsis is
++ * drawn at any overflow), else the last one, wrapping (never cut). Every variant says the same thing, the shorter ones
++ * with a fact left to the line's Details. Re-fits when the element's width changes; stops once it leaves the page.
++ */
++function fitOneLine(el, variants) {
++  const list = variants.filter(Boolean);
++  if (!list.length) return el;
++  const over = () => {
++    const r = document.createRange();
++    r.selectNodeContents(el);
++    const cs = getComputedStyle(el), box = el.getBoundingClientRect();
++    return r.getBoundingClientRect().width > box.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) + 0.01;
++  };
++  const fit = () => {
++    el.classList.remove('is-wrapped');
++    for (const v of list) { el.textContent = v; if (!over()) return; }
++    el.classList.add('is-wrapped');
++  };
++  el.textContent = list[0];
++  if (typeof ResizeObserver !== 'function') return el;
++  let w = -1;
++  const ro = new ResizeObserver(() => {
++    if (!el.isConnected) { ro.disconnect(); return; }
++    const now = el.getBoundingClientRect().width;
++    if (Math.abs(now - w) < 0.5) return;
++    w = now;
++    fit();
++  });
++  ro.observe(el);
++  return el;
++}
++
+ function rafThrottle(fn) {
+   let queued = false;
+   return () => {
+@@ -1544,20 +1577,39 @@ function csvLink() {
+   const c = data.company;
+   if (MOCK || !c?.slug || isCustomKey(S.c) || data.status !== 'ready') return null;
+   const href = api.isStatic?.() ? `data/${encodeURIComponent(c.slug)}.csv` : `api/export?company=${encodeURIComponent(c.slug)}`;
+-  return h('p', { class: 'badge-csv' }, h('a', { href, download: true }, 'Download CSV'), // the server's Content-Disposition names the file
+-    h('span', { class: 'muted' }, ' · titles, teams, locations and posted pay; links to the original postings'));
++  // UX-61: plain words ("Download CSV"). M-39 (fix-phone-text): one line; what the file holds is behind its Details.
++  return noteLine({ cls: 'badge-csv', key: 'badge-csv', line: h('a', { href, download: true }, 'Download a spreadsheet (CSV)'), // the server's Content-Disposition names the file
++    details: ['Titles, teams, locations and posted pay, with links to the original postings.'] });
++}
++/**
++ * M-39 (fix-phone-text): the badge popover's one line. The whole sentence (badgeInfo().tip), the crawl cadence,
++ * the count notes and what the beta site is are behind its Details; a failed live fetch keeps its error visible.
++ */
++function badgeLine(info) {
++  if (!info) return '';
++  const failed = !!data.error && /fail|skipped/i.test(info.tip || '');
++  if (MOCK) return 'Synthetic test data, not real postings';
++  if (data.status !== 'ready') return info.tip;
++  switch (data.mode) {
++    case 'live': return `Fetched live${data.fetchedAt ? ` ${ago(data.fetchedAt)}` : ''}`;
++    case 'cache': return failed ? 'A recent copy: the live fetch failed' : 'A recent copy of the board';
++    case 'snapshot': return data.pending ? 'Saved snapshot; checking the live board' : failed ? 'Saved snapshot: the live fetch failed' : 'A saved snapshot, not a live read';
++    case 'demo': return data.pending ? 'Sample data; checking the live board' : 'Sample data, not real postings';
++    default: return info.tip;
++  }
+ }
+ 
+ function makeBadgeDetails() {
+   // Built once per popover; sync() updates it in place, so focus on its button or link survives
+   // a re-render (e.g. the live board replacing the snapshot while the popover is open).
+-  const tip = h('p');
++  const tip = h('div', { class: 'badge-tip' });
+   const dl = h('dl');
+   const err = h('pre', { class: 'badge-error', hidden: true });
+   const refresh = MOCK ? null : h('button', { type: 'button', class: 'btn btn--ghost btn--sm btn--block', onclick: () => { closePopover(false); loadJobs({ refresh: true }); } }, 'Refresh from the live board');
+   const csv = h('div');
+-  // UX-23: what the beta site is, in words a touch screen can read (the Beta tag's hover title).
+-  const betaNote = CHANNEL === 'beta' ? h('p', { class: 'muted badge-beta' }, 'You’re on the beta site, which adds big-tech companies’ own careers sites. ',
++  // UX-23: what the beta site is, in words a touch screen can read (the Beta tag's hover title). M-39: one line;
++  // what the beta adds is in the popover's Details.
++  const betaNote = CHANNEL === 'beta' ? h('p', { class: 'muted badge-beta' }, 'This is the beta site. ',
+     h('a', { href: new URL('../', location.href).href }, 'Go to the main site')) : null;
+   const el = h('div', { class: 'badge-details' }, ...nn(tip, dl, err, refresh, csv, betaNote));
+   function sync() {
+@@ -1566,21 +1618,30 @@ function makeBadgeDetails() {
+     const url = sourceUrl(c);
+     const cap = cappedNote();
+     // MR-10: the source is a link, the time has its time zone, and the popover says how often the board is read.
+-    const cadence = bundleOnly(c) ? 'Read by the site’s crawler about every 6 hours (GitHub often starts it hours late)'
++    // UX-61: "sometimes a few hours late" (it named GitHub). M-39 (fix-phone-text): each row is one line; the
++    // whole cadence, the count notes and the link are in the popover's Details.
++    const cadence = bundleOnly(c) ? 'Read by the site’s crawler about every 6 hours (sometimes a few hours late)'
+       : data.mode === 'live' ? 'Read live by your browser when you open the board' : 'Saved copy rebuilt every day; Refresh reads the live board';
++    const cadenceShort = bundleOnly(c) ? 'About every 6 hours' : data.mode === 'live' ? 'Live, when you open it' : 'Every day';
+     const rows = [
+       ['Status', info?.label || '—'],
+       ['Source', url ? h('a', { href: url, target: '_blank', rel: 'noopener noreferrer' }, sourceText(c)) : sourceText(c) || '—'],
+-      ['Fetched', data.fetchedAt ? `${utcTime(data.fetchedAt)} (${ago(data.fetchedAt)})` : '—'],
+-      ['Updates', h('span', null, `${cadence}. `, docLink(UPDATED_DOC, 'How we collect this'))],
+-      ['Roles', h('span', null, cap ? `${data.jobs.length.toLocaleString()} of ${cap.total.toLocaleString()} posted` : data.jobs.length.toLocaleString(),
+-        COUNT_NOTE[c.slug] ? h('span', { class: 'muted' }, ` · ${COUNT_NOTE[c.slug]}`) : null,
+-        cap ? h('span', { class: 'muted' }, ` · ${cap.tip}`) : null)],
++      ['Fetched', data.fetchedAt ? utcTime(data.fetchedAt) : '—'],
++      ['Updates', cadenceShort],
++      ['Roles', cap ? `${data.jobs.length.toLocaleString()} of ${cap.total.toLocaleString()} posted` : data.jobs.length.toLocaleString()],
+     ];
+-    tip.textContent = info?.tip || '';
++    renderNote(tip, { key: 'badge-tip', line: badgeLine(info), details: [
++      info?.tip || '',
++      data.fetchedAt ? `Fetched ${ago(data.fetchedAt)}, at ${utcTime(data.fetchedAt)}.` : '',
++      [`${cadence}. `, docLink(UPDATED_DOC, 'How we collect this')],
++      COUNT_NOTE[c.slug] || '',
++      cap ? cap.tip : '',
++      CHANNEL === 'beta' ? 'The beta site adds big-tech companies’ own careers sites.' : '',
++    ] });
+     dl.replaceChildren(...rows.flatMap(([k, v]) => [h('dt', null, k), h('dd', null, v)]));
+-    // M-14: the raw error only when the sentence above doesn't already carry it.
+-    const raw = data.error && !(info?.tip || '').includes(data.error) ? data.error : '';
++    // M-14: the raw error, once. M-39 (fix-phone-text): the sentence that carries it is behind Details now, so a
++    // failed fetch shows its error here whenever the line says it failed.
++    const raw = data.error && (!(info?.tip || '').includes(data.error) || /failed/.test(badgeLine(info))) ? data.error : '';
+     err.textContent = raw;
+     err.hidden = !raw;
+     // A snapshot-only board (static `live: false`) has no live board to refresh from.
+@@ -2841,8 +2902,10 @@ function renderKpis() {
+       `${st.withSalary.toLocaleString()} of ${st.n.toLocaleString()} postings include a pay range${here}${here ? ' (a pay range in another country’s currency is not counted)' : ''}${capNote ? `. ${capNote.tip}` : ''}`, 'stat--share') : null,
+     // BP-13: it says which pay the median is of; the chart's median uses the same set.
+     st.median != null ? item(money(st.median), st.oteOnly ? 'median on-target earnings' : 'base pay median',
+-      `Half of these roles pay more than this and half less (the middle of each posted range, ${ote || 'base pay, '}approx US dollars${here}${left})`, 'stat--median') : null,
++      `Half of these roles pay more than this and half less (the middle of each posted range, ${ote || 'base pay, '}in US dollars${here}${left})`, 'stat--median') : null,
+   ].filter(Boolean);
++  // M-46 (fix-phone-text): a phone shows only the median, so with no pay in view its line said nothing but "Details".
++  const noPay = st.n && st.median == null ? h('span', { class: 'stat stat--nopay' }, st.withSalary ? 'Too few with pay for a median' : 'No pay listed') : null;
+   const details = [
+     // Phones show the median only (the chart's notes line has the with/without counts), so the share is here too.
+     st.n ? `${st.withSalary.toLocaleString()} of ${st.n.toLocaleString()} roles show pay${onePlace ? ` for ${onePlace}` : ''} (${pct}%)` : '',
+@@ -2860,7 +2923,7 @@ function renderKpis() {
+   const fold = S.m === 'chart' && (!chart || typeof chart.setNotes === 'function');
+   statsNotes = details;
+   chart?.setNotes?.(fold ? details : []);
+-  renderNote(el, { line: line.flatMap((p, i) => (i ? [h('span', { class: 'stat-sep', 'aria-hidden': 'true' }, '·'), p] : [p])), details: fold ? [] : details, key: 'stats-line' });
++  renderNote(el, { line: [...line.flatMap((p, i) => (i ? [h('span', { class: 'stat-sep', 'aria-hidden': 'true' }, '·'), p] : [p])), noPay], details: fold ? [] : details, key: 'stats-line' });
+ }
+ let statsNotes = []; // UX-57: the stats line's facts, for the chart notes
+ 
+@@ -3866,6 +3929,8 @@ function payPool(job) {
+ }
+ /** What the pool is called in "Pays more than 37% of <noun> at Anthropic". */
+ const poolNoun = (job) => (job.seniority === 'Intern' ? 'internships' : isOte(job) ? 'roles with on-target earnings' : 'roles');
++/** M-38 (fix-phone-text): the noun on a one-line drawer line ("roles"); the full one (poolNoun) is in its Details. */
++const shortNoun = (job) => (job.seniority === 'Intern' ? 'internships' : 'roles');
+ function percentile(job) {
+   const pool = likePool(job);
+   return pool ? payRank(job, pool, { mid: (j) => j._mid }) : null;
+@@ -3916,7 +3981,8 @@ function salaryDistribution(job) {
+   // MR-17: the strip says what it shows (which roles, and which number of each).
+   return h('div', { class: 'd-dist' },
+     // fix-density: one line; "the middle of each posted range" is in the pay block's Details.
+-    h('p', { class: 'fnote dist-caption', title: 'The pay of each role, at the middle of its posted range; this one is marked' }, `This one among ${mids.length.toLocaleString()} ${poolNoun(job)} at ${data.company?.name || 'this company'}`),
++    // M-38 (fix-phone-text): "roles with on-target earnings" made it 2 lines; the full noun is in the pay block's Details.
++    h('p', { class: 'fnote dist-caption', title: `The pay of each of ${mids.length.toLocaleString()} ${poolNoun(job)}, at the middle of its posted range; this one is marked` }, `This one among ${mids.length.toLocaleString()} ${shortNoun(job)} at ${data.company?.name || 'this company'}`),
+     svg,
+     h('div', { class: 'dist-axis' }, h('span', null, money(dom.lo)), medLabel, h('span', null, money(dom.hi))),
+     approx);
+@@ -4041,10 +4107,12 @@ function juiceBlock(job) {
+   const [hhKey, , , beds, people] = householdInfo(jb.household || b.household || 'single');
+   const term = postedTerm(job.salary);
+   const place = b.cityName || b.locationName;
+-  // MR-12 / UX-30: when the costs come from another city than the job's own, the headline says so.
++  // MR-12 / UX-30: when the costs come from another city than the job's own, the headline names the job's own
++  // place; M-37 (fix-phone-text): the stand-in ("using San Jose's rent and living costs") is the fold's first line,
++  // so the headline stays one line on a phone.
+   const own = String(b.locationName || '').split(',')[0].trim();
+-  const headPlace = b.cityName && own && own.toLowerCase() !== String(b.cityName).toLowerCase()
+-    ? `${own} (using ${b.cityName}’s rent and living costs, the nearest city with cost data)` : place;
++  const standIn = b.cityName && own && own.toLowerCase() !== String(b.cityName).toLowerCase();
++  const headPlace = standIn ? own : place;
+   const headNet = h('span', { class: 'juice-head-net' });
+   const body = h('div', { class: 'juice-body' });
+   // BP-1: the length is said the way the pay block says it (a yearly rate for a 13-week internship, or
+@@ -4056,7 +4124,8 @@ function juiceBlock(job) {
+   // I15 + shared decision 1: say why the filtered place has no Juice, in the posting's terms.
+   const elsewhere = noneHere && !payHere(job) ? payPlaceText(job) : null;
+   const where = [
+-    'Juice: what’s left after tax, rent and living costs (approx US dollars).',
++    standIn ? `${own} uses ${b.cityName}’s rent and living costs, the nearest city with cost data.` : null,
++    'Juice: what’s left after tax, rent and living costs (in US dollars).',
+     term ? `${lasts}, so Juice covers only that term. Tax is worked out as if the pay lasted a year, so it may be lower.` : null,
+     isOte(job) ? 'The pay is on-target earnings, so this assumes commission at target.' : null,
+     b.estimated ? 'Some costs here are estimates.' : null,
+@@ -4163,14 +4232,16 @@ function juiceBlock(job) {
+  */
+ function juiceMissing(job) {
+   if (job.juice || !job._usd || !data.jobs.some((j) => j.juice)) return null;
+-  const say = (text) => h('section', { class: 'd-juice d-juice--none' }, h('p', { class: 'juice-none' }, h('strong', null, '🍉 No Juice:'), ` ${text}`));
+-  if (isPartTime(job) && !statedHours(job)) return say('this part-time posting gives an hourly rate but not the hours a week, so a year’s take-home pay can’t be worked out.');
+-  if (!job.locations.some((l) => l && l.city && !l.remote)) return say('the posting names no city, so rent and living costs can’t be worked out.');
++  // M-37 (fix-phone-text): one line ("🍉 No Juice: no cost data for this place yet"), the full reason behind its Details.
++  const say = (short, text) => h('section', { class: 'd-juice d-juice--none' },
++    noteLine({ cls: 'juice-none', key: 'juice-none', line: [h('strong', null, '🍉 No Juice:'), ` ${short}`], details: [`No Juice Score: ${text}`] }));
++  if (isPartTime(job) && !statedHours(job)) return say('no hours a week posted', 'this part-time posting gives an hourly rate but not the hours a week, so a year’s take-home pay can’t be worked out.');
++  if (!job.locations.some((l) => l && l.city && !l.remote)) return say('the posting names no city', 'the posting names no city, so rent and living costs can’t be worked out.');
+   const pay = (job._payLocs || []).filter(Boolean);
+   const names = [...new Set(pay.map((l) => l.city || l.name).filter(Boolean))];
+   const where = names.length === 1 ? names[0] : names.length === 2 ? `${names[0]} or ${names[1]}` : 'the places this pay is for';
+   const others = job.locations.some((l) => l && !pay.includes(l));
+-  return say(`there is no rent and living-cost data yet for ${where}${others && names.length <= 2 ? ', where this pay is posted' : ''}.${others ? ' Pay posted for one country isn’t used for another.' : ''}`);
++  return say('no cost data here yet', `there is no rent and living-cost data yet for ${where}${others && names.length <= 2 ? ', where this pay is posted' : ''}.${others ? ' Pay posted for one country isn’t used for another.' : ''}`);
+ }
+ 
+ /** Salary quarantined by the server's vetting gate (salary null + salaryFlag): say so, keep the reason one click away. */
+@@ -4270,7 +4341,7 @@ function payLabels(job) {
+   const labels = [
+     // Fix wave 5 (VT-17, VT-18): what the figure is comes first.
+     isMinimum(job) ? ['Minimum', MINIMUM_TIP] : null,
+-    s.includesShiftDifferential ? ['Incl. top shift pay', shiftTip(s)] : null,
++    s.includesShiftDifferential ? ['Includes top shift pay', shiftTip(s)] : null, // UX-61: no abbreviation
+     // D-21: a range that covers several levels lists them (payLevelsLine) instead of a bare "Multiple pay zones".
+     // UX-22: a range per place lists them (payPlacesLine) too; UX-31: the chip says what it means.
+     s.zones > 1 && !payLevels(s) && !payRanges(s) ? ['Several pay ranges', 'The posting lists different ranges for different locations or levels; this is the span of all of them'] : null,
+@@ -4337,7 +4408,7 @@ function compstimateBlock(job) {
+       h('span', { class: 'muted' }, `(${money(est.low)}–${money(est.high).replace(/^\$/, '')}, ${v.confidence.toLowerCase()} confidence)`)),
+     // fix-density: one line, and the basis, accuracy (MR-17), dates and (MR-3) the method behind "Details".
+     noteLine({ cls: 'd-comp-note', key: 'drawer-comp', line: 'Not from the posting: an estimate', details: [
+-      `${v.basis}. ${v.kind === 'ote' ? 'On-target earnings (base plus commission at target), like the roles it is based on. ' : ''}An estimate, not a figure from the posting (approx USD / year).`,
++      `${v.basis}. ${v.kind === 'ote' ? 'On-target earnings (base plus commission at target), like the roles it is based on. ' : ''}An estimate, not a figure from the posting (in US dollars a year).`,
+       v.accuracy ? `${v.accuracy}: in half of the tests the estimate was at least this close to the posted pay.` : v.caution || '',
+       asOfNote('d-comp-asof', () => compstimateAsOfText({ fetchedAt: data.fetchedAt, meta: data.meta })),
+       docLink(ESTIMATE_DOC, 'How estimates work'),
+@@ -4470,10 +4541,14 @@ function drawerContent(job) {
+   const of = `${coName}’s ${noun}${place}${isOte(job) ? '' : ' that show pay'}`;
+   // BP-3: ranked only among roles paid for the same country; with too few of them, say so.
+   // fix-density: one line ("Pays more than 72% of Google’s roles in Poland"); what it ranks among is in Details.
+-  const among = `${coName}’s ${noun}${place}`;
++  // M-38 (fix-phone-text): the line names the country (BP-3) with the short noun, so it fits one line on a phone;
++  // "with on-target earnings" and "that show pay" are in the pay block's Details (pctNote).
++  const among = `${coName}’s ${shortNoun(job)}${place}`;
+   const pctText = pct == null ? (rank?.others && place ? `Too few roles${place} show pay to rank this one` : null)
+     : pct >= 100 ? `The highest pay of ${among}`
+       : pct <= 0 ? `The lowest pay of ${among}` : `Pays more than ${pct}% of ${among}`;
++  const pctShort = !place ? null : pct == null ? 'Too few roles show pay to rank this one'
++    : pct >= 100 ? `The highest pay of ${coName}’s ${shortNoun(job)}` : pct <= 0 ? `The lowest pay of ${coName}’s ${shortNoun(job)}` : `Pays more than ${pct}% of ${coName}’s ${shortNoun(job)}`;
+   const pctNote = pct == null ? (rank?.others && place ? `Too few of ${coName}’s ${noun}${place} show pay to rank this one. Pay for other countries isn’t used.` : null)
+     : `Ranked among ${of}${place ? '; pay for other countries isn’t used' : ''}.`;
+   const partHourly = isPartTimeHourly(job);
+@@ -4510,7 +4585,9 @@ function drawerContent(job) {
+         : h('div', { class: 'd-sal-none' }, h('strong', null, 'No pay listed'), compstimateBlock(job)),
+     sal ? salaryDistribution(job) : null,
+     (labelsEl = sal ? payLabels(job) : null),
+-    sal && pctText ? h('p', { class: 'd-pct-text' }, pctText) : null,
++    // M-38 (fix-phone-text): one line, never cut ("Pays more than 72% of Amazon’s roles in the …"): where the country
++    // doesn't fit, the line drops it (it is in the pay block's Details, pctNote).
++    sal && pctText ? fitOneLine(h('p', { class: 'd-pct-text' }), [pctText, pctShort]) : null,
+     // fix-density: one line, then the caveats behind "Details" (viz/note.js): the full caption, the level
+     // names, what the percentile ranks among and (MR-3) one tap to how pay is read.
+     caption ? noteLine({ cls: 'd-pay-note', key: 'drawer-pay', line: captionLine, details: [
+@@ -4518,7 +4595,7 @@ function drawerContent(job) {
+       annualEl?.dataset.note || '',
+       [...(salaryNotes || [])].filter(Boolean).map((e) => e.dataset.note).find(Boolean) || '',
+       sal && pctNote ? pctNote : '',
+-      sal && job._usd ? 'The strip counts each posted range at its middle.' : '',
++      sal && job._usd ? `The strip shows ${coName}’s ${noun} that show pay, each posted range at its middle.` : '',
+       // fix-touch-tips: each label's meaning (its hover title), so a tap or the keyboard can reach it.
+       ...(labelsEl ? [...labelsEl.querySelectorAll('.pay-label')].filter((e) => e.title).map((e) => `${e.textContent}: ${e.title.replace(/\.$/, '')}.`) : []),
+       h('span', { class: 'd-pay-doc' }, docLink(PAY_DOC, 'How pay is read')),
+@@ -4549,7 +4626,8 @@ function drawerContent(job) {
+       data.mode === 'demo' ? h('span', { class: 'tag tag--demo' }, 'Demo') : null),
+     h('h2', { class: 'd-title', id: 'drawerTitle' }, job.title),
+     job._postedTitle && job._postedTitle.replace(/^\s*\[[^\]]{1,16}\]\s*/, '') !== job.title ? h('div', { class: 'd-posted muted' }, `Posted as “${job._postedTitle}”`) : null,
+-    isPool(job) ? h('p', { class: 'd-pool' }, h('strong', null, POOL_LABEL), h('span', { class: 'muted' }, `. ${POOL_TIP}.`)) : null,
++    // M-37 (fix-phone-text): one line; what a general application is, behind its Details.
++    isPool(job) ? noteLine({ cls: 'd-pool', key: 'drawer-pool', line: h('strong', null, POOL_LABEL), details: [`${POOL_TIP}.`] }) : null,
+     h('div', { class: 'd-meta' }, ...metaParts(job).map((t, i) => [i ? h('span', { class: 'sep' }, '·') : null, h('span', null, t)]),
+       h('span', { class: `sen sen--${sen.toLowerCase().replace(/\W/g, '')}`, title: SEN_TIP[sen] || null }, senLabel(sen)),
+       job._titleTag ? h('span', { class: 'tag', title: `The posting's title starts with “[${job._titleTag}]”, a tag the company adds (often a team or office code)` }, `Tag: ${job._titleTag}`) : null),
+@@ -4603,17 +4681,19 @@ function listingSection(job) {
+     // I-3: months and years in words; "Always-open posting" for one listed two years ago or more.
+     const ago = d === 0 ? 'today' : d < 60 ? `${plural(d, 'day')} ago` : d < ALWAYS_OPEN_DAYS ? `${plural(Math.round(d / 30.44), 'month')} ago` : `${plural(Math.floor(d / 365), 'year')} ago`;
+     const on = posted ? ` (${new Date(posted).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })})` : '';
++    // M-37 (fix-phone-text): one line per fact; what the line can't hold is behind its Details.
+     lines.push(job.ageIsMinimum
+-      ? `Open at least ${ago.replace(/ ago$/, '')} (it was already listed when melon-seek started tracking this board)`
+-      : d >= ALWAYS_OPEN_DAYS ? `Always-open posting: listed ${ago}${on}` : `Listed ${ago}${on}`);
++      ? { line: `Open at least ${ago.replace(/ ago$/, '')}`, details: ['It was already listed when melon-seek started tracking this board.'] }
++      : d >= ALWAYS_OPEN_DAYS ? { line: `Always-open posting, listed ${ago}`, details: [posted ? `Listed on ${new Date(posted).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}.` : ''] } : `Listed ${ago}${on}`);
+   }
+   if (job.firstSeenAt) lines.push(`First seen by melon-seek on ${new Date(job.firstSeenAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`);
+   if (job.repost?.count > 0) lines.push(`Reposted ${job.repost.count}×${job.repost.firstSeenAt ? ` since ${new Date(job.repost.firstSeenAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}` : ''}`);
+   if (job.freshness === 'evergreen' || (job._age != null && job._age >= 180 && 'ageDays' in job)) {
+-    lines.push('Open 180+ days. Some companies keep a posting open to collect applicants for a recurring role.');
++    lines.push({ line: 'Open 180+ days', details: ['Some companies keep a posting open to collect applicants for a recurring role.'] });
+   }
+   if (!lines.length) return null;
+-  return fold('d-listing', 'Listing', h('ul', { class: 'listing-lines' }, ...lines.map((t) => h('li', null, t))));
++  return fold('d-listing', 'Listing', h('ul', { class: 'listing-lines' }, ...lines.map((t, i) => (typeof t === 'string' ? h('li', null, t)
++    : renderNote(h('li'), { ...t, key: `listing-${i}` })))));
+ }
+ 
+ /* ---- F1: "Same role elsewhere" (product's compsForJob + viz's createCompsChart, loaded lazily) ---- */
+diff --git a/public/features/compstimate.js b/public/features/compstimate.js
+index 51ef275..a8a450e 100644
+--- a/public/features/compstimate.js
++++ b/public/features/compstimate.js
+@@ -964,7 +964,8 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
+         h('span', { class: 'ms-comp__conf-label' }, `${confidence} confidence`)),
+       // M-34 (fix-phone-text): the basis is one line, and the accuracy test, the weighting, the trim, the
+       // conversions and the dates are behind its one Details (they ran to 5 lines on a phone).
+-      noteLine({ cls: 'ms-comp__conf-n ms-comp__basis', key: 'comp-basis', line: basis, about: id.head, details: [
++      noteLine({ cls: 'ms-comp__conf-n ms-comp__basis', key: 'comp-basis', line: `Based on ${plural(result.n, 'similar role')}`, about: id.head, details: [
++        `${basis}.`,
+         accuracy || caution,
+         `Weighted by similarity to “${inputs.query.title}”${level}${place}. ${result.detail}`,
+         asOfText || ''] }),
+diff --git a/public/features/features.css b/public/features/features.css
+index b0e2440..89c6028 100644
+--- a/public/features/features.css
++++ b/public/features/features.css
+@@ -470,3 +470,17 @@
+ /* UX-20 (docs/process/fix4-app.md): the 12px text floor of the phone rule above, at every width. */
+ .msi-stat__note, .msi-foot, .msi-row__n, .msi-row__tag, .msi-row__delta, .msi-legend, .msi-axis__tick,
+ .msi-cols, .msi-chip__n, .ms-comp__scale, .ms-comp__item-meta, .ms-comp__match, .ms-comp__foot { font-size: 12px; }
++
++/* ---- fix-phone-text (docs/process/fix-phone-text.md): the phone page's text, one rule block ---- */
++/* M-41: an Insights row's name wraps instead of being cut ("Network…", "Mountain…" on a phone); the end that tells
++   two long names apart ("…--Technical", "…--Non-Tech") stays visible. */
++.msi-row__name { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: break-word; min-width: 0; }
++/* M-34: "Most comparable roles" rows show their whole title and place · level · department (they were cut). */
++.ms-comp__item-title, .ms-comp__item-meta { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: break-word; }
++.ms-comp__item-title { display: block; -webkit-line-clamp: none; line-clamp: none; }
++/* UX-55: a stat tile's number is never cut; a long one gets smaller instead (the tile is a size container). */
++.msi-stat { container-type: inline-size; }
++.msi-stat__value { overflow: visible; text-overflow: clip; font-size: min(20px, 13.5cqi); }
++@container ms-insights (max-width: 480px) { .ms-insights .msi-stat__value { font-size: min(17px, 13.5cqi); } }
++/* UX-53: a tile's note is never cut; it wraps under its number on a narrow tile. */
++.msi-stat__note { overflow: visible; text-overflow: clip; white-space: normal; }
+diff --git a/public/features/insights.js b/public/features/insights.js
+index 46fc154..d8963fa 100644
+--- a/public/features/insights.js
++++ b/public/features/insights.js
+@@ -247,6 +247,12 @@ function card(title, subtitle, body, { id = uid('ins'), headTag = 'h3', extra =
+ }
+ 
+ function emptyNote(text) { return h('p', { class: 'msi-empty' }, text); }
++/** UX-55: "$188K–252K", the cards' range (one currency sign, never "$188K–$252K"). */
++function moneySpan(lo, hi) {
++  const a = formatMoney(lo), b = formatMoney(hi);
++  const sign = a.match(/^[^\d]*/)[0];
++  return `${a}–${sign && b.startsWith(sign) ? b.slice(sign.length) : b}`;
++}
+ 
+ /**
+  * @param {HTMLElement} container
+@@ -288,7 +294,7 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
+       const pos = it.premium >= 0;
+       const delta = formatDelta(it.premium);
+       return row('skill', it.skill,
+-        `${it.skill}: average ${formatMoney(it.average)}, ${delta.replace('−', 'minus ')} vs. all roles in view, ${plural(it.n, 'salaried role')}. Filter by this skill.`,
++        `${it.skill}: average ${formatMoney(it.average)}, ${delta.replace('−', 'minus ')} vs. all roles in view, ${plural(it.n, 'role')} with pay. Filter by this skill.`,
+         [
+           h('span', { class: 'msi-row__label' }, h('span', { class: 'msi-row__name' }, it.skill), h('span', { class: 'msi-row__n' }, fmtCount(it.n))),
+           h('span', { class: 'msi-div', 'aria-hidden': 'true' },
+@@ -301,7 +307,7 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
+     const legend = h('div', { class: 'msi-legend', 'aria-hidden': 'true' },
+       h('span', null, h('i', { class: 'msi-key msi-key--neg' }), 'Pays less'),
+       h('span', null, h('i', { class: 'msi-key msi-key--pos' }), 'Pays more'),
+-      h('span', { class: 'msi-legend__n' }, '# = salaried roles'));
++      h('span', { class: 'msi-legend__n' }, '# = roles with pay')); // UX-61
+     const foot = dropped > 0
+       ? h('span', { class: 'msi-foot' }, `${plural(dropped, 'skill')} left out: most of ${dropped === 1 ? 'its' : 'their'} roles post the same range, so the difference would only repeat one pay band. Skills need ${MIN_SAMPLE}+ roles with pay.`) : null;
+     return card('Skill premium', 'Average pay by skill, vs. all roles', [h('div', { class: 'msi-rows msi-rows--div' }, rows, legend)], { headTag: `h${hl + 1}`, more: sub, notes: foot });
+@@ -337,13 +343,13 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
+           h('span', { class: 'msi-box__iqr', style: { left: x(b.p25), width: `max(4px, calc(${x(b.p75)} - ${x(b.p25)}))` } }),
+           h('span', { class: 'msi-box__med', style: { left: x(b.median) } })),
+       ],
+-      () => ({ value: `${formatMoney(b.median)} median`, label: b.department, rows: [['Most roles', `${formatMoney(b.p10)} – ${formatMoney(b.p90)}`], ['Middle half', `${formatMoney(b.p25)} – ${formatMoney(b.p75)}`], ['Salaried roles', String(b.n)]] })));
++      () => ({ value: `${formatMoney(b.median)} median`, label: b.department, rows: [['Most roles', `${formatMoney(b.p10)} – ${formatMoney(b.p90)}`], ['Middle half', `${formatMoney(b.p25)} – ${formatMoney(b.p75)}`], ['Roles with pay', String(b.n)]] })));
+     const axis = h('div', { class: 'msi-axis', 'aria-hidden': 'true' },
+       h('span', { class: 'msi-axis__pad' }),
+       h('span', { class: 'msi-axis__track' }, ticks.map((t) => h('span', { class: 'msi-axis__tick', style: { left: x(t) } }, formatMoney(t)))),
+       h('span', { class: 'msi-axis__pad msi-axis__pad--end' }));
+     const foot = hidden > 0
+-      ? h('span', { class: 'msi-foot' }, `${plural(hidden, 'department')} with fewer than ${MIN_SAMPLE} salaried roles not shown.`) : null;
++      ? h('span', { class: 'msi-foot' }, `${plural(hidden, 'department')} with fewer than ${MIN_SAMPLE} roles with pay not shown.`) : null;
+     return card('Pay by department', 'Middle half of pay, and the median', [h('div', { class: 'msi-rows msi-rows--box' }, rows, axis)], { headTag: `h${hl + 1}`, more: sub, notes: foot });
+   }
+ 
+@@ -411,8 +417,10 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
+       h('div', { class: 'msi-stat__value' }, value),
+       note ? h('div', { class: 'msi-stat__note' }, note) : null);
+     return h('div', { class: 'msi-stats', role: 'list' },
+-      [tile('Median base pay', enough ? formatMoney(s.median) : '—', !s.salaried ? 'no pay published' : enough ? `of ${plural(s.salaried, 'salaried role')}` : `too few with pay (${s.salaried})`),
+-        tile('Middle half', enough && s.p25 != null ? `${formatMoney(s.p25)}–${formatMoney(s.p75)}` : '—', 'of salaried roles'),
++      // UX-53 / UX-61 (fix-phone-text): "of 2,781 with pay" (it read "of 2,781 salaried ro…" at 360). UX-55: a range is
++      // written like the cards ("$188K–252K"), so the tile no longer cuts its number at 1440.
++      [tile('Median base pay', enough ? formatMoney(s.median) : '—', !s.salaried ? 'no pay published' : enough ? `of ${fmtCount(s.salaried)} with pay` : `too few with pay (${s.salaried})`),
++        tile('Middle half', enough && s.p25 != null ? moneySpan(s.p25, s.p75) : '—', 'of roles with pay'),
+         tile('Pay published', formatPct(s.payShare), `${fmtCount(s.salaried)} of ${fmtCount(s.total)}`),
+         tile('Remote-eligible', formatPct(s.remoteShare), plural(jobs.filter((j) => j.remote).length, 'role'))]
+         .map((t) => { t.setAttribute('role', 'listitem'); return t; }));
+diff --git a/public/styles.css b/public/styles.css
+index 300e8ae..f0ec2e0 100644
+--- a/public/styles.css
++++ b/public/styles.css
+@@ -1462,8 +1462,7 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
+    arrow, which would point past the pin; the Juice household's meaning, one muted line under its buttons. */
+ .ms-map .leaflet-tooltip.ms-map-tip--slid::before { display: none; }
+ .juice-hh-note { margin: 6px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+-/* ===================================================================
+-   fix-phone-sizes (docs/process/fix-phone-sizes.md, 2026-10-17): every size in test/e2e/phone-sizes.mjs, from the
++/* ============================================================   fix-phone-sizes (docs/process/fix-phone-sizes.md, 2026-10-17): every size in test/e2e/phone-sizes.mjs, from the
+    folded Galaxy Fold (280 px) to the Surface Duo spanned (1114 px), the Razr cover screen and landscape.
+    Each finding is its own rule block. test/e2e/phone-matrix.e2e.js checks them all.
+    =================================================================== */
+@@ -1614,3 +1613,15 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
+    narrow search), and touch screens without a keyboard don't show it. */
+ .search kbd { pointer-events: none; }
+ @media (hover: none) { .search kbd { display: none; } }
++=======
++/* ---- fix-phone-text (docs/process/fix-phone-text.md): the phone page's text, one rule block ----
++   Every caption, note and explainer is one line with its facts behind Details (viz/note.js); nothing is cut. */
++/* UX-58: the "No Juice" box keeps its padding (.d-juice { padding: 0 } above overrode .d-juice--none). */
++.d-juice.d-juice--none { padding: 10px 14px; }
++/* UX-62: the search box's "/" key cap was 11 px, the only text under 12 px. */
++.search kbd { font-size: 12px; }
++/* M-46: with no pay in view the phone's stats line says so (the desktop line has the count and the 0% share). */
++.stats-line .stat--nopay { display: none; }
++@media (max-width: 860px) { .stats-line .stat--nopay { display: inline; } }
++/* M-38: the percentile line is fitted to one line (app.js fitOneLine); when nothing fits it wraps, never "…". */
++.d-pct-text.is-wrapped { white-space: normal; overflow: visible; text-overflow: clip; }
+diff --git a/public/viz/chart.js b/public/viz/chart.js
+index 2e9b253..4096557 100644
+--- a/public/viz/chart.js
++++ b/public/viz/chart.js
+@@ -909,7 +909,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+       r.median = ps.median; r.p25 = ps.p25; r.p75 = ps.p75;
+       const onTarget = ps.oteOnly && !stats.pay?.oteOnly ? 'on-target ' : '';
+       // BP-2: a row whose ranges are all for another country has no salary posted for here.
+-      const none = r.offPay || (stats.elsewhere && r.all.some((j) => stats.elsewhereIds.has(j.id))) ? ['no salary posted for here', 'no salary here'] : ['no published salary', 'no salary'];
++      const none = r.offPay || (stats.elsewhere && r.all.some((j) => stats.elsewhereIds.has(j.id))) ? ['no pay posted for here', 'no pay here'] : ['no pay listed', 'no pay']; // UX-61 (fix-phone-text): the cards' words
+       r.noneText = r.items.length ? '' : none[0];
+       r.subFull = r.items.length ? `${plural(r.all.length, 'role')} · ${onTarget}median ${formatMoney(r.median)}${basisWords(r)}` : `${plural(r.all.length, 'role')} · ${none[0]}`;
+       r.subShort = r.items.length ? `${r.all.length.toLocaleString()} · ${onTarget}${formatMoney(r.median)}${basisWordsShort(r)}` : `${r.all.length.toLocaleString()} · ${none[1]}`;
+diff --git a/public/viz/viz.css b/public/viz/viz.css
+index 815340c..a5a4f36 100644
+--- a/public/viz/viz.css
++++ b/public/viz/viz.css
+@@ -132,6 +132,9 @@
+ @media (min-width: 861px) {
+   .ms-note__more { min-height: 24px; display: inline-flex; align-items: center; margin-block: -4px; }
+ }
++/* fix-phone-text: a note's line is never cut. It is written to fit one line on a phone from 360 px up (the tests
++   measure it); on a narrower screen (a folded Fold, 280 px) it wraps instead of ending in "…". */
++.ms-note__line { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: break-word; }
+ .ms-note__list {
+   grid-column: 1 / -1;
+   /* The list wraps to the note's width and never widens the one-line row above it. */
+diff --git a/test/e2e/fix-beta-app.e2e.js b/test/e2e/fix-beta-app.e2e.js
+index 7d514bf..11c7894 100644
+--- a/test/e2e/fix-beta-app.e2e.js
++++ b/test/e2e/fix-beta-app.e2e.js
+@@ -145,7 +145,9 @@ export function registerFixBetaAppTests(suite) {
+     assertEq((await card.locator('.tag--pool').innerText()).trim(), 'General application (no specific opening)', 'card label');
+     assert(/General application \(no specific opening\)/.test(await card.getAttribute('aria-label')), 'the card is named a general application');
+     await card.click(); await page.waitForSelector('#drawer.is-open'); await sleep(400);
+-    assert(/^General application \(no specific opening\)\./.test((await page.locator('#drawer .d-pool').innerText()).trim()), 'drawer line');
++    // fix-phone-text M-37: the drawer line is the label; what it means is behind its Details (textContent reads both).
++    assert(/^General application \(no specific opening\)/.test((await page.locator('#drawer .d-pool .ms-note__line').innerText()).trim()), 'drawer line');
++    assert(/collects applications here for roles that may open later/.test(await page.locator('#drawer .d-pool').textContent()), 'drawer line says what it means');
+     await page.keyboard.press('Escape'); await sleep(300);
+     const labelled = await page.$$eval('#resultsList .card:has(.tag--pool)', (e) => e.map((x) => x.dataset.id));
+     assertEq(labelled.join(), pool.id, 'only the pool is labelled');
+diff --git a/test/e2e/fix-phone-text.e2e.js b/test/e2e/fix-phone-text.e2e.js
+index ca02c35..7f1dd1d 100644
+--- a/test/e2e/fix-phone-text.e2e.js
++++ b/test/e2e/fix-phone-text.e2e.js
+@@ -8,10 +8,13 @@
+ // ONE line, with any further facts behind its Details; no text is cut mid-word except a long proper name in a list
+ // row that also shows the whole name on tap and keyboard (ALLOW below); numbers are never cut.
+ //
+-// Tests tagged "[M-n]", "[UX-n]" or "[A-n]" encode one finding each. "[guard]" scans every big-tech board at both
+-// phone sizes in light and dark: every visible caption is measured (lines from its text's line boxes, and from its
++// Tests tagged "[M-n]", "[UX-n]" or "[A-n]" encode one finding each. "[guard]" scans every big-tech board at 390x844
++// and 360x740 in light and dark: every visible caption is measured (lines from its text's line boxes, and from its
+ // height over its line-height) and every text box that clips is measured to the sub-pixel (an ellipsis box cuts at
+-// 0.01 px over, any other clipping box at 0.5 px), unlike M-27's whole-pixel scrollWidth check.
++// 0.01 px over, any other clipping box at 0.5 px), unlike M-27's whole-pixel scrollWidth check. "[guard, size]" runs
++// the same walk on every other entry of test/e2e/phone-sizes.mjs (the user, 2026-10-16: "Make sure we check for all
++// phone sizes from iPhone mini to razr to duo or something"), on Amazon and Google, whose strings are the longest
++// (FIX_PHONE_TEXT_ALL=1: every big-tech board at every size).
+ //
+ // The tests serve the build (FIX_PHONE_TEXT_DIST, else BETA_QA_DIST, else dist/) under /melon-seek/ the way GitHub
+ // Pages does; every other host is aborted. They use standard Playwright APIs only (touchscreen.tap, click, keyboard),
+@@ -25,6 +28,7 @@ import zlib from 'node:zlib';
+ import { fileURLToPath } from 'node:url';
+ import { ROOT, assert, skip } from './harness.js';
+ import { unpackJobs } from '../../public/api.js';
++import { ALL_SIZES, contextFor } from './phone-sizes.mjs';
+ 
+ const IOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
+ const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36';
+@@ -46,6 +50,8 @@ export const ALLOW = [
+   { sel: '#filterBody .check-label, #popover .check-label', why: 'M-40, owned by the fix-phone-controls lane (a filter row\'s label; the row is a checkbox): left to that lane, listed here so this guard stays about text' },
+   { sel: '.company-list .company-item, .company-list .company-item *', why: 'a company name in the company menu (a list row; the button opens the board, whose top bar names it)' },
+   { sel: '#drawer .ms-comps__name, #drawer .ms-comps__label', why: 'a company name in "Same role elsewhere" (a listbox row; a tap or Enter opens that company\'s roles)' },
++  { sel: '#chartHost .ms-legend__key', why: 'the Ranges colour legend (viz lane): one row that scrolls sideways, each key capped at 220 px; the bars and their chips name the department. Reported to the lead for the viz lane' },
++  { sel: '#companyMenuBtn .company-name', why: 'M-45, owned by the fix-phone-sizes lane (the top bar\'s layout at 380-392 px): left to that lane' },
+ ];
+ 
+ /* ------------------------------------------------------------------ the build and pages */
+@@ -97,11 +103,15 @@ async function boardJobs(st, slug, site = 'beta') {
+  * Returns { page, go(hash), hash(hash), errors }: go() loads the page and waits for the board's list; hash() changes
+  * the hash in place (the board stays loaded) and waits a little.
+  */
+-async function open(ctx, { vp = P390, theme = 'light', site = 'beta' } = {}) {
++async function open(ctx, { vp = P390, theme = 'light', site = 'beta', device = null } = {}) {
+   const st = await serveDist();
+   if (!st) skip('no beta build (npm run build, or FIX_PHONE_TEXT_DIST=<dir>)');
+-  const mobile = vp.width <= 860;
+-  const context = await ctx.browser.newContext({ viewport: vp, colorScheme: theme, ...(mobile ? { isMobile: true, hasTouch: true, deviceScaleFactor: 2, userAgent: vp.width <= 360 ? ANDROID : IOS } : {}) });
++  if (device) vp = { width: device.width, height: device.height };
++  const mobile = !!device || vp.width <= 860;
++  const engine = ctx.browser.browserType?.().name() || 'chromium';
++  const opts = device ? contextFor(device, engine)
++    : mobile ? { viewport: vp, isMobile: engine !== 'firefox', hasTouch: true, deviceScaleFactor: 2, userAgent: vp.width <= 360 ? ANDROID : IOS } : { viewport: vp };
++  const context = await ctx.browser.newContext({ ...opts, colorScheme: theme });
+   ctx.cleanup.push(() => context.close().catch(() => {}));
+   await context.route((u) => !u.href.startsWith(st.origin) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
+   const page = await context.newPage();
+@@ -174,11 +184,19 @@ export const CAPTION_SEL = [
+  * is measured by its line, without its Details). cut: any text box that cuts its text, or an input that cuts its
+  * placeholder, unless ALLOW names it (never when the text is a number or an amount).
+  */
+-function scanText({ roots, captionSel, allow, words }) {
++function scanText({ roots, captionSel, allow, words, maxLines = 1 }) {
+   const rootEls = roots.flatMap((r) => [...document.querySelectorAll(r)]);
+   const seen = new Set();
++  /** Inside a closed <details> and not its summary (Chromium still lays such content out for script). */
++  const folded = (e) => {
++    for (let d = e.closest('details:not([open])'); d; d = d.parentElement?.closest('details:not([open])') || null) {
++      const sm = e.closest('summary');
++      if (!sm || sm.parentElement !== d) return true;
++    }
++    return false;
++  };
+   const vis = (e) => {
+-    if (e.closest('[hidden], .ms-note__list, .sr-only, [role="tooltip"], .ms-viz-tip, .msi-tip, #toast')) return false;
++    if (e.closest('[hidden], .ms-note__list, .sr-only, [role="tooltip"], .ms-viz-tip, .msi-tip, #toast') || folded(e)) return false;
+     const r = e.getBoundingClientRect();
+     if (r.width < 2 || r.height < 2 || r.right <= 0 || r.left >= innerWidth) return false;
+     const cs = getComputedStyle(e);
+@@ -226,7 +244,7 @@ function scanText({ roots, captionSel, allow, words }) {
+     if (!text) continue;
+     const n = Math.max(rectLines(lineEl), heightLines(lineEl));
+     const wc = text.split(' ').filter((x) => /[\p{L}\p{N}]/u.test(x)).length;
+-    if (n > 1 || wc > words) lines.push({ sel: name(e), text: text.slice(0, 170), lines: n, words: wc });
++    if (n > maxLines || wc > words) lines.push({ sel: name(e), text: text.slice(0, 170), lines: n, words: wc, max: maxLines });
+   }
+   const cut = [];
+   const allowed = (e) => allow.find((a) => e.matches(a.sel));
+@@ -269,13 +287,19 @@ function scanText({ roots, captionSel, allow, words }) {
+   }
+   return { lines, cut };
+ }
+-async function scan(page, roots) {
+-  return page.evaluate(scanText, { roots: [].concat(roots), captionSel: CAPTION_SEL, allow: ALLOW.map(({ sel }) => ({ sel })), words: WORDS });
++async function scan(page, roots, maxLines = 1) {
++  return page.evaluate(scanText, { roots: [].concat(roots), captionSel: CAPTION_SEL, allow: ALLOW.map(({ sel }) => ({ sel })), words: WORDS, maxLines });
+ }
++/**
++ * Lines a caption may take at a width: one from 360 px up (every phone in common use, the iPhone mini included);
++ * two on a narrower screen (the folded Fold at 280, the first iPhone SE at 320, the Fold cover at 344, the Razr
++ * cover at 352), where a caption wraps rather than being cut. Nothing is ever cut, at any width.
++ */
++const linesAt = (width) => (width < 360 ? 2 : 1);
+ /** One message per problem, for an assertion. */
+ function report(res, where) {
+   return [
+-    ...res.lines.map((m) => `${where} ${m.sel}: ${m.lines > 1 ? `${m.lines} lines` : ''}${m.lines > 1 && m.words > WORDS ? ', ' : ''}${m.words > WORDS ? `${m.words} words` : ''}: "${m.text}"`),
++    ...res.lines.map((m) => `${where} ${m.sel}: ${m.lines > (m.max || 1) ? `${m.lines} lines` : ''}${m.lines > (m.max || 1) && m.words > WORDS ? ', ' : ''}${m.words > WORDS ? `${m.words} words` : ''}: "${m.text}"`),
+     ...res.cut.map((m) => `${where} ${m.sel}: cut off by ${m.over} px${m.why ? ` (${m.why})` : ''}: "${m.text}"`),
+   ];
+ }
+@@ -306,15 +330,19 @@ async function guardWalk(s, slug) {
+   const { page } = s;
+   const p = await picks(s.st, slug);
+   const out = [];
+-  const look = async (where, roots) => { out.push(...report(await scan(page, roots), where)); };
++  const maxLines = linesAt(await page.evaluate(() => innerWidth));
++  const look = async (where, roots) => { out.push(...report(await scan(page, roots, maxLines), where)); };
+   await s.go(`c=${slug}`);
+   const top = await topPaidId(page);
+   await look('first screen', ['.topbar', '.quickbar', '#vizToolbar', '#tagline', '#vizArea']);
+-  await sheetTo(page, 'half');
+-  await look('list (half sheet)', ['#results']);
+-  await sheetTo(page, 'full');
+-  await look('list (full sheet)', ['#results']);
+-  await sheetTo(page, 'peek');
++  // A results sheet only where the layout has one (a phone); a wide posture (the Duo spanned) has the list column.
++  if (await page.locator('#sheetHandle').isVisible()) {
++    await sheetTo(page, 'half');
++    await look('list (half sheet)', ['#results']);
++    await sheetTo(page, 'full');
++    await look('list (full sheet)', ['#results']);
++    await sheetTo(page, 'peek');
++  } else await look('list', ['#results']);
+   await s.hash(`c=${slug}&v=ranges`, 900);
+   await look('Ranges', ['#vizToolbar', '#vizArea']);
+   await s.hash(`c=${slug}&m=map`, 1200);
+@@ -330,13 +358,12 @@ async function guardWalk(s, slug) {
+     await look(`job page, ${what} (${id})`, ['#drawer']);
+   }
+   await s.hash(`c=${slug}`, 900);
+-  await tap(page, '#filtersToggle', 900);
++  if (await page.locator('#filtersToggle').isVisible()) await tap(page, '#filtersToggle', 900);
+   await page.evaluate(() => { for (const d of document.querySelectorAll('#filterBody details')) d.open = true; });
+   await sleep(500);
+   await look('filter sheet', ['#filters']);
+   await page.keyboard.press('Escape');
+   await sleep(500);
+-  if (await page.evaluate(() => !document.querySelector('#filters')?.matches('.is-open, [data-open="true"]'))) { /* closed */ }
+   await s.hash(`c=${slug}`, 600);
+   await tap(page, '#dataBadge', 900);
+   await look('data badge popover', ['#popover']);
+@@ -372,6 +399,22 @@ export function registerFixPhoneTextTests(suite) {
+     }
+   }
+ 
++  const sizeBoards = process.env.FIX_PHONE_TEXT_ALL ? BOARDS : ['amazon', 'google'];
++  for (const d of ALL_SIZES.filter((x) => !((x.width === 390 && x.height === 844) || (x.width === 360 && x.height === 740)))) {
++    for (const slug of sizeBoards) {
++      suite.test(`Fix phone text: [guard, size] ${slug} on ${d.name} ${d.width}x${d.height}: every caption is ${linesAt(d.width) === 1 ? 'one line' : 'at most two lines'} of at most ${WORDS} words, and no text is cut`, async (ctx) => {
++        const st = await serveDist();
++        if (!st) skip('no beta build');
++        if (!hasBoard(st, slug)) skip(`no ${slug} list in this build`);
++        const s = await open(ctx, { device: d });
++        const bad = await guardWalk(s, slug);
++        if (bad.length) await shot(s.page, `guard-${slug}-${d.width}x${d.height}`);
++        assert(!bad.length, `${bad.length} problem(s):\n  ${bad.join('\n  ')}`);
++        assert(!s.errors.length, s.errors.join(' | '));
++      });
++    }
++  }
++
+   suite.test('Fix phone text: [M-33] the job page\'s "Same role elsewhere" captions are one line each on a phone (Amazon, Apple, Google, NVIDIA; 390 and 360)', async (ctx) => {
+     const bad = [];
+     for (const vp of [P390, P360]) {
+@@ -535,18 +578,6 @@ export function registerFixPhoneTextTests(suite) {
+     assert(!bad.length, `${bad.length} row name(s) cut off:\n  ${bad.join('\n  ')}`);
+   });
+ 
+-  suite.test('Fix phone text: [M-45] "Microsoft" shows whole in the beta top bar from 360 to 430 px (sub-pixel)', async (ctx) => {
+-    const bad = [];
+-    for (const width of [360, 375, 380, 390, 393, 414, 430]) {
+-      const s = await open(ctx, { vp: { width, height: 844 } });
+-      if (!hasBoard(s.st, 'microsoft')) skip('no microsoft list');
+-      await s.go('c=microsoft', 400);
+-      const m = await s.page.evaluate(() => { const n = document.querySelector('#companyMenuBtn .company-name'); const r = document.createRange(); r.selectNodeContents(n); const cs = getComputedStyle(n); return { name: n.textContent, text: r.getBoundingClientRect().width, box: n.getBoundingClientRect().width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) }; });
+-      if (m.text > m.box + 0.01) { bad.push(`${width}px: "${m.name}" is ${m.text.toFixed(2)} px of text in a ${m.box.toFixed(2)} px box`); await shot(s.page, `M-45-${width}`); }
+-    }
+-    assert(!bad.length, bad.join('\n  '));
+-  });
+-
+   suite.test('Fix phone text: [M-46] with no pay in view, the phone\'s stats line still says something (Google in Buenos Aires: not a lone "Details")', async (ctx) => {
+     const s = await open(ctx, { vp: P390 });
+     if (!hasBoard(s.st, 'google')) skip('no google list');
+@@ -666,10 +697,11 @@ export function registerFixPhoneTextTests(suite) {
+     for (const slug of ['apple', 'google']) {
+       await s.go(`c=${slug}&job=${encodeURIComponent(await (async () => { await s.go(`c=${slug}`); return topPaidId(s.page); })())}`);
+       await openFolds(s.page);
+-      const d = await s.page.evaluate(() => document.querySelector('#drawer').innerHTML);
++      // The app's own words only (a posting's description is the company's text).
++      const d = await s.page.evaluate(() => [...document.querySelectorAll('#drawer .d-salary, #drawer .d-comps, #drawer .d-juice, #drawer .d-listing')].map((e) => e.textContent).join(' '));
+       const straight = d.match(/[A-Za-z]'[a-z]/g);
+       if (straight) bad.push(`${slug} job page has straight apostrophes: ${[...new Set(straight)].join(', ')}`);
+-      const txt = await s.page.evaluate(() => document.querySelector('#drawer').textContent.replace(/\s+/g, ' '));
++      const txt = d.replace(/\s+/g, ' ');
+       for (const w of ['approx USD', 'US$', 'approx. USD']) if (txt.includes(w)) bad.push(`${slug} job page says "${w}"`);
+     }
+     await s.go('c=google&v=ranges', 900);
+diff --git a/test/e2e/ui.e2e.js b/test/e2e/ui.e2e.js
+index e59ff44..ff24c0c 100644
+--- a/test/e2e/ui.e2e.js
++++ b/test/e2e/ui.e2e.js
+@@ -734,7 +734,7 @@ export function registerUiTests(suite) {
+       await page.locator('#dataBadge').click();
+       const pop = page.locator('#popover.popover--badge');
+       await pop.waitFor({ state: 'visible', timeout: 5000 });
+-      const link = pop.getByRole('link', { name: 'Download CSV' });
++      const link = pop.getByRole('link', { name: 'Download a spreadsheet (CSV)' }); // UX-61 (fix-phone-text): it read "Download CSV"
+       const href = await link.getAttribute('href');
+       assert(/api\/export\?company=anthropic$/.test(href), `CSV href ${href}`);
+       const url = new URL(href, page.url()).href;
+@@ -1543,7 +1543,7 @@ function registerCompstimateTests(suite) {
+       const { page, close } = await openComp(ctx, hash);
+       try {
+         const c = await readComp(page);
+-        if (!/USD/.test(c.per || '')) problems.push(`${label}: hero unit "${c.per}"`);
++        if (!/US dollars|USD/.test(c.per || '')) problems.push(`${label}: hero unit "${c.per}"`); // UX-61: "US dollars a year"
+         if (!c.foot || !/\*/.test(c.foot)) problems.push(`${label}: no "*" converted footnote (foot "${c.foot}")`);
+       } finally { await close(); }
+     }
+@@ -1551,7 +1551,7 @@ function registerCompstimateTests(suite) {
+     try {
+       await page.locator('#drawer').waitFor({ state: 'visible', timeout: 8000 });
+       const d = await readDrawerComp(page);
+-      if (!d || !/approx USD/.test(d.text)) problems.push(`drawer Compstimate lacks "approx USD": "${d && d.text}"`);
++      if (!d || !/US dollars/.test(d.text)) problems.push(`drawer Compstimate lacks "US dollars": "${d && d.text}"`); // UX-61: one currency name
+     } finally { await close(); }
+     const shared = await lib('features/shared.js');
+     const { toUSD } = await lib('viz/palette.js');
+-- 
+2.43.0
+

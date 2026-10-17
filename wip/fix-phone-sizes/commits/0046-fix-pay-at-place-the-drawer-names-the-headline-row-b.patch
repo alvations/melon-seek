@@ -1,0 +1,163 @@
+From 4bf0b2a3e3dcf8b13c85587ff54f92db9f979056 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 01:54:01 +0000
+Subject: [PATCH 46/51] fix-pay-at-place: the drawer names the headline row by
+ its own label (Remote (CA)); payHere needs US-dollar pay; the phone check
+ runs per size
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit c54e297418634bbacf8fe1ff33a64d6cf19afa13)
+---
+ public/app.js                    | 22 ++++++++++++--------
+ test/e2e/fix-pay-at-place.e2e.js | 35 ++++++++++++++++----------------
+ test/fix-pay-at-place.test.js    |  2 +-
+ test/salary-audit.test.js        |  2 +-
+ 4 files changed, 34 insertions(+), 27 deletions(-)
+
+diff --git a/public/app.js b/public/app.js
+index 2fe71bf..515bb17 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -643,7 +643,7 @@ function placePay(j, F = viewSpec) {
+   return r;
+ }
+ /** Shared decision 1: true when the posting has pay posted for a place of the Location filter (always, without one). */
+-const payHere = (j, F = viewSpec) => !!j?._usd && (!F?.l.size || !!placePay(j, F));
++const payHere = (j, F = viewSpec) => !!j?._usd && (!F?.l.size || !!placePay(j, F)?.usd);
+ /** The approx-USD pay that counts in the view: the places' own under a Location filter (placePay), else the posting's. */
+ const usdHere = (j, F = viewSpec) => (!F?.l.size ? j._usd : placePay(j, F)?.usd || null);
+ 
+@@ -4356,15 +4356,20 @@ function payPlacesLine(s, job = null) {
+   if (!rs) return null;
+   const unit = job ? payUnit(job) : null;
+   const pay = (r) => (unit ? unit.fmt(Number(r.min), Number(r.max ?? r.min)) : rangeText(r, s.currency));
+-  // fix-pay-at-place: one line per range, with no place name cut off. A range for more than two places names two and
+-  // counts the rest ("Fort Worth, Jacksonville and 4 more"); the pay block's Details list every place.
+-  const parts = (r) => rangeLabel(r).split(/,\s*(?![^()]*\))/).filter(Boolean);
+-  const name = (r) => { const p = parts(r); return p.length > 2 ? `${p.slice(0, 2).join(', ')} and ${p.length - 2} more` : p.join(', '); };
+-  const el = tierList('Pay by place', rs.map((r) => [name(r), pay(r)]));
++  // fix-pay-at-place: one line per range, with no place name cut off (rangeName); the pay block's Details list every place.
++  const el = tierList('Pay by place', rs.map((r) => [rangeName(r), pay(r)]));
+   el.classList.add('d-sal-places');
+-  if (rs.some((r) => parts(r).length > 2)) el.dataset.note = `Pay by place, every place: ${rs.map((r) => `${rangeLabel(r)} ${pay(r)}`).join('; ')}.`;
++  if (rs.some((r) => rangeName(r) !== rangeLabel(r))) el.dataset.note = `Pay by place, every place: ${rs.map((r) => `${rangeLabel(r)} ${pay(r)}`).join('; ')}.`;
+   return el;
+ }
++/**
++ * fix-pay-at-place: a range's places in one short line with no name cut: at most two by name, the rest counted
++ * ("Fort Worth, Jacksonville and 4 more"). "Remote (IL, NJ, VA)" is one place name.
++ */
++function rangeName(r) {
++  const p = rangeLabel(r).split(/,\s*(?![^()]*\))/).filter(Boolean);
++  return p.length > 2 ? `${p.slice(0, 2).join(', ')} and ${p.length - 2} more` : p.join(', ');
++}
+ /**
+  * UX-22: the range posted for the places a Location filter picked, when the posting gives each place its own
+  * range: { range, label, n, min, max, currency } (yearly), or null (no filter, no ranges, or no picked place in
+@@ -4442,7 +4447,8 @@ function payHeadline(job, F = viewSpec) {
+   return {
+     text: `${span} · ${n ? `${n} places` : `${rs.length} ranges`}`, range: span, sub: n ? `${n} places` : `${rs.length} ranges`,
+     tip: `${span} runs from the lowest to the highest of ${rs.length} ranges posted for ${n ? `${n} places` : 'its places'}${what}. ${byPlace}`,
+-    picked: null, rankPlace: head && head.basis === 'place' && !head.span ? head.label : '', min: lo, max: hi, across: true,
++    // The headline row's own name ("Bellevue", "Remote (CA)"), which a Location's name ("Remote (US)") would not say.
++    picked: null, rankPlace: head && head.basis === 'place' && !head.span ? (head.ranges.length === 1 && rangeName(head.ranges[0])) || head.label : '', min: lo, max: hi, across: true,
+   };
+ }
+ 
+diff --git a/test/e2e/fix-pay-at-place.e2e.js b/test/e2e/fix-pay-at-place.e2e.js
+index 1d0f597..95d3c49 100644
+--- a/test/e2e/fix-pay-at-place.e2e.js
++++ b/test/e2e/fix-pay-at-place.e2e.js
+@@ -40,6 +40,7 @@ async function phoneSizes() {
+   }
+   return SIZES_FALLBACK;
+ }
++const SIZES = await phoneSizes();
+ 
+ async function serveDist() {
+   const dist = path.resolve(process.env.BETA_QA_DIST || path.join(ROOT, 'dist'));
+@@ -345,29 +346,29 @@ export function registerFixPayAtPlaceTests(suite) {
+     assert(/one of them/.test(chip.title), `chip: "${chip.title}"`);
+   });
+ 
+-  suite.test('fix-pay-at-place: [phones] the pill, its place count and the title fit on every phone size, 280 px to the Duo spanned', async (ctx) => {
+-    const sizes = await phoneSizes();
+-    const bad = [];
+-    fs.mkdirSync(SHOTS, { recursive: true });
+-    for (const size of sizes) {
++  // One check per size (the suite gives each check 120 s; sixteen cold loads of Amazon's board do not fit in one).
++  for (const size of SIZES) {
++    suite.test(`fix-pay-at-place: [phones] ${size.name} ${size.width}x${size.height}: the pill (the range alone), its place count and the title fit`, async (ctx) => {
++      const bad = [];
++      fs.mkdirSync(SHOTS, { recursive: true });
+       const { page } = await openBeta(ctx, 'c=amazon&q=Senior%20Financial%20Analyst%2C%20Engineering%20Capex', { size });
+       await page.waitForSelector('#resultsList .card[data-id]', { timeout: 60000 });
+       const c = await cardOf(page, 'amazon:10371179');
+-      if (!c) { bad.push(`${size.name}: card not listed`); continue; }
++      if (!c) skip('amazon:10371179 is not on the board today');
+       const w = await page.evaluate(() => ({ vw: document.documentElement.clientWidth, sw: document.documentElement.scrollWidth }));
+       // The Razr cover screen (352x355) lays the page out 495 px wide on the base build too: the phone-sizes lane's
+       // finding, not this card's. There the card must fit the page; elsewhere the screen.
+       const room = w.sw > w.vw + 1 ? w.sw : w.vw;
+-      if (c.card.right > room + 0.5 || c.card.left < -0.5) bad.push(`${size.name}: the card is wider than the ${room === w.vw ? 'screen' : 'page'}`);
++      if (c.card.right > room + 0.5 || c.card.left < -0.5) bad.push(`the card is wider than the ${room === w.vw ? 'screen' : 'page'}`);
+       if (w.sw > w.vw + 1) ctx.notes.push(`fix-pay-at-place phones: ${size.name} scrolls sideways (${w.sw} > ${w.vw}) on the base build too, not from the card`);
+       // UX-52: the place count is out of the pill, so the pill is the range alone (it took 154-179 of 366 px).
+-      if (c.pillBox.width > Math.max(96, 0.4 * c.card.width)) bad.push(`${size.name}: the pill is ${Math.round(c.pillBox.width)} px of a ${Math.round(c.card.width)} px card`);
+-      if (c.pill !== '$60K–129K') bad.push(`${size.name}: pill "${c.pill}"`);
+-      if (c.sub !== '5 places') bad.push(`${size.name}: count line "${c.sub}"`);
+-      if (c.pillBox.right > c.card.right + 0.5 || c.pillBox.left < c.card.left) bad.push(`${size.name}: pill outside the card`);
+-      if (c.subBox && (c.subBox.right > c.card.right + 0.5)) bad.push(`${size.name}: count outside the card`);
+-      if (c.titleBox && c.pillBox && c.titleBox.right > c.pillBox.left + 0.5 && c.titleBox.top < c.pillBox.bottom && c.titleBox.bottom > c.pillBox.top) bad.push(`${size.name}: title runs under the pill`);
+-      if (c.titleLines > (size.width < 330 ? 5 : 4)) bad.push(`${size.name}: title wraps to ${c.titleLines} lines`);
++      if (c.pillBox.width > Math.max(96, 0.4 * c.card.width)) bad.push(`the pill is ${Math.round(c.pillBox.width)} px of a ${Math.round(c.card.width)} px card`);
++      if (c.pill !== '$60K–129K') bad.push(`pill "${c.pill}"`);
++      if (c.sub !== '5 places') bad.push(`count line "${c.sub}"`);
++      if (c.pillBox.right > c.card.right + 0.5 || c.pillBox.left < c.card.left) bad.push('pill outside the card');
++      if (c.subBox && (c.subBox.right > c.card.right + 0.5)) bad.push('count outside the card');
++      if (c.titleBox && c.pillBox && c.titleBox.right > c.pillBox.left + 0.5 && c.titleBox.top < c.pillBox.bottom && c.titleBox.bottom > c.pillBox.top) bad.push('title runs under the pill');
++      if (c.titleLines > (size.width < 330 ? 5 : 4)) bad.push(`title wraps to ${c.titleLines} lines`);
+       if (/^(Galaxy Fold|Motorola razr \(cover|iPhone 13 mini$|Surface Duo \(spanned)/.test(size.name)) {
+         // The phone list is a bottom sheet: open it, then the card itself.
+         for (let i = 0; i < 3; i++) {
+@@ -380,7 +381,7 @@ export function registerFixPayAtPlaceTests(suite) {
+         await card.scrollIntoViewIfNeeded().catch(() => {});
+         await card.screenshot({ path: path.join(SHOTS, `e2e-card-${size.width}x${size.height}.png`) }).catch(() => {});
+       }
+-    }
+-    assert(!bad.length, bad.join('; '));
+-  });
++      assert(!bad.length, `${size.name}: ${bad.join('; ')}`);
++    });
++  }
+ }
+diff --git a/test/fix-pay-at-place.test.js b/test/fix-pay-at-place.test.js
+index 33621fe..feedf44 100644
+--- a/test/fix-pay-at-place.test.js
++++ b/test/fix-pay-at-place.test.js
+@@ -278,7 +278,7 @@ function fnSource(name) {
+ }
+ const CARD = ['payPill', 'salaryRange', 'money', 'moneyRange', 'payRanges', 'rangeLabel', 'rangeText', 'pickedRange', 'payLevels', 'isMinimum', 'MINIMUM_TIP', 'rangeEnd',
+   'postedTerm', 'termFactor', 'postedPair', 'postedMoney', 'isFixedPay', 'PER_UNIT', 'PER_YEAR', 'termText', 'programNoun', 'programText', 'perText',
+-  'isPartTime', 'isPartTimeHourly', 'isOte', 'rangePlaceKeys', 'placeCount', 'payUnit', 'severalRangesTip', 'payHeadline'];
++  'isPartTime', 'isPartTimeHourly', 'isOte', 'rangePlaceKeys', 'placeCount', 'payUnit', 'severalRangesTip', 'payHeadline', 'rangeName'];
+ function liftApp(names) {
+   const body = names.map(fnSource).filter(Boolean).join('\n');
+   // eslint-disable-next-line no-new-func
+diff --git a/test/salary-audit.test.js b/test/salary-audit.test.js
+index bc0cd54..2bb847b 100644
+--- a/test/salary-audit.test.js
++++ b/test/salary-audit.test.js
+@@ -51,7 +51,7 @@ const CARD = ['payPill', 'salaryRange', 'money', 'moneyRange', 'payRanges', 'ran
+ // Defined once fix5-data-display.diff is in (fix-density e3c745a, 5f8b599): SA-2, SA-6.
+ // rangeEnd: SB-7 (salary-audit-backend's client patch), two decimals for range ends in the millions.
+ // fix-pay-at-place: payHeadline and its helpers (a range per place, counted by distinct places, in the posted unit).
+-const CARD_IF_PRESENT = ['isMinimum', 'MINIMUM_TIP', 'rangeEnd', 'payHeadline', 'payUnit', 'placeCount', 'rangePlaceKeys'].filter((n) => new RegExp(`^(?:const ${n} = |function ${n}\\()`, 'm').test(APP));
++const CARD_IF_PRESENT = ['isMinimum', 'MINIMUM_TIP', 'rangeEnd', 'payHeadline', 'payUnit', 'placeCount', 'rangePlaceKeys', 'rangeName'].filter((n) => new RegExp(`^(?:const ${n} = |function ${n}\\()`, 'm').test(APP));
+ // eslint-disable-next-line no-new-func
+ const { payPill } = new Function('formatMoney', 'payAt', `
+   const CUR_SYM = { USD: '$', GBP: '£', EUR: '€', CAD: 'CA$', AUD: 'A$', JPY: '¥', INR: '₹', CHF: 'CHF ', SGD: 'S$' };
+-- 
+2.43.0
+

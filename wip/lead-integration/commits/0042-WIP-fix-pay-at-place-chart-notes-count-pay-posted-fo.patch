@@ -1,0 +1,78 @@
+From 9e987f0b8565f10a38c5ee5b6ccd536f59b22f26 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 00:22:48 +0000
+Subject: [PATCH 42/51] WIP fix-pay-at-place: chart notes count pay posted for
+ other places only; comments name payAt
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 05e5c248c3d03dfc34ac57308696b88d3760da67)
+---
+ public/viz/chart.js | 23 +++++++++++++----------
+ 1 file changed, 13 insertions(+), 10 deletions(-)
+
+diff --git a/public/viz/chart.js b/public/viz/chart.js
+index a84c015..1974ff0 100644
+--- a/public/viz/chart.js
++++ b/public/viz/chart.js
+@@ -15,9 +15,11 @@
+ //
+ // Location filter (BP-2, fix wave 3 shared decision 1): pass `places` (the filter's location keys,
+ // app.js S.l) and optionally `placeTest(job, location)` (the app's own test). A posting is then
+-// plotted only when its pay applies to one of those places (payLocations in public/features/shared.js:
+-// the locations in the pay currency's countries); the others stay out of the plot and every median,
+-// and the notes line counts them ("12 with pay for another country only, left out").
++// plotted only when it has pay posted for one of those places, and at that pay (payAt in
++// public/features/shared.js: a place's own row of salary.ranges, else the posting's one range in the
++// pay currency's countries; fix-pay-at-place); the others stay out of the plot and every median, and
++// the notes line counts them ("12 with pay for another country only, left out"). Group by Location
++// prices each row at its own place the same way (V-36, V-37), so the chart, the map and the stats line agree.
+ //
+ // Medians are base pay (BP-13): ranges with salary.kind 'ote' (on-target earnings, base plus
+ // commission at target) are plotted but left out of the medians, as in the app's stats line; only
+@@ -251,10 +253,9 @@ export function locationRowKey(job, test = null) {
+ }
+ const rowKeyOfLoc = (l) => (l.remote ? 'Remote' : l.city || l.name || 'Unknown');
+ /**
+- * V-18: true when the posting's pay is posted for the place its Location row is named for: one of
+- * its payLocations is that place, and the pay is in that place's currency (payLocations falls back
+- * to every location when none matches the currency; a US range on a London-only posting is not
+- * London pay).
++ * V-18: true when the posting has pay posted for the place its Location row is named for (payAt: that
++ * place's own row, or the posting's one range in a currency that place uses; a US range on a
++ * London-only posting is not London pay, and a place with no row of its own has none).
+  */
+ export function payCoversRow(job, key) {
+   const locs = (job?.locations || []).filter(Boolean);
+@@ -750,7 +751,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+       const msg = jobs.length
+         ? (stats.elsewhere
+           ? [`No pay posted for ${placesPhrase(opts.places) || 'these places'}`,
+-            `${plural(jobs.length, 'posting')} match; ${stats.elsewhere.toLocaleString()} ${stats.elsewhere === 1 ? 'lists' : 'list'} pay for another country only, so the chart leaves ${stats.elsewhere === 1 ? 'it' : 'them'} out.`]
++            `${plural(jobs.length, 'posting')} match; ${stats.elsewhere.toLocaleString()} ${stats.elsewhere === 1 ? 'lists' : 'list'} pay for ${stats.otherPlaces === stats.elsewhere ? 'other places' : stats.otherPlaces ? 'other places or countries' : 'another country'} only, so the chart leaves ${stats.elsewhere === 1 ? 'it' : 'them'} out.`]
+           : ['No published salaries', `${plural(jobs.length, 'posting')} match, but none list a salary range.`])
+         : e ? (typeof e === 'string' ? [e, ''] : [e.title || '', e.sub || '']) : null;
+       empty.hidden = !msg;
+@@ -782,7 +783,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+ 
+   function renderNotes(stats) {
+     noteStats = stats;
+-    const { noSalary, fxCount, unknownFx, elsewhere, pay } = stats;
++    const { noSalary, fxCount, unknownFx, elsewhere, otherPlaces = 0, pay } = stats;
+     const where = placesPhrase(opts.places);
+     // fix-density: one line with the two counts a job seeker needs ("564 with pay · 81 without"); every
+     // other caveat in the short list behind "Details" (public/viz/note.js), in plain words.
+@@ -793,7 +794,9 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+     const details = [
+       ...hostNotes,
+       // BP-2: with a Location filter, the plotted pay is for those places, and the rest is counted.
+-      elsewhere ? `${plural(elsewhere, 'posting')} with pay for another country only ${isAre(elsewhere)} left out${where ? `: that pay says nothing about pay in ${where}` : ''}` : '',
++      elsewhere - otherPlaces ? `${plural(elsewhere - otherPlaces, 'posting')} with pay for another country only ${isAre(elsewhere - otherPlaces)} left out${where ? `: that pay says nothing about pay in ${where}` : ''}` : '',
++      // fix-pay-at-place (the lead decision of 2026-10-16): a posting that prices other places in rows of their own has no pay posted here.
++      otherPlaces ? `${plural(otherPlaces, 'posting')} with pay posted for other places only ${isAre(otherPlaces)} left out${where ? `: none is posted for ${where}` : ''}` : '',
+       // V-18: Group by Location rows hold only the pay posted for their place.
+       rowNotes.offRow ? `${plural(rowNotes.offRow, 'posting')} with pay for another place than their row’s ${isAre(rowNotes.offRow)} not in the rows` : '',
+       // V-21: rows compare one country's pay when the board mixes currencies.
+-- 
+2.43.0
+

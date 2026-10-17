@@ -1,0 +1,68 @@
+From 30f60693f18ca28853e07bcddae39608ab8dcb61 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 01:05:40 +0000
+Subject: [PATCH 36/52] WIP fix-phone-text: the basis line is the Pay
+ estimate's explainer; badge line spacing; a popover test reads its Details
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit c5312d194b5b1cb3818c4b5e8bccecd6987a10b5)
+---
+ public/features/compstimate.js | 5 +++--
+ public/features/features.css   | 2 ++
+ public/styles.css              | 2 ++
+ test/e2e/beta-mobile-qa.e2e.js | 2 +-
+ 4 files changed, 8 insertions(+), 3 deletions(-)
+
+diff --git a/public/features/compstimate.js b/public/features/compstimate.js
+index 48261e9..66a6584 100644
+--- a/public/features/compstimate.js
++++ b/public/features/compstimate.js
+@@ -963,8 +963,9 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
+         signalIcon(CONF_LEVEL[confidence]),
+         h('span', { class: 'ms-comp__conf-label' }, `${confidence} confidence`)),
+       // M-34 (fix-phone-text): the basis is one line, and the accuracy test, the weighting, the trim, the
+-      // conversions and the dates are behind its one Details (they ran to 5 lines on a phone).
+-      noteLine({ cls: 'ms-comp__conf-n ms-comp__basis', key: 'comp-basis', line: fitLine(h('span', { class: 'ms-comp__basis-text' }), [basis, `Based on ${plural(result.n, 'similar role')}`]), about: id.head, details: [
++      // conversions and the dates are behind its one Details (they ran to 5 lines on a phone). It is the card's
++      // explainer now, so it keeps that class (ms-comp__explain).
++      noteLine({ cls: 'ms-comp__conf-n ms-comp__basis ms-comp__explain', key: 'comp-basis', line: fitLine(h('span', { class: 'ms-comp__basis-text' }), [basis, `Based on ${plural(result.n, 'similar role')}`]), about: id.head, details: [
+         `${basis}.`,
+         accuracy || caution,
+         `Weighted by similarity to “${inputs.query.title}”${level}${place}. ${result.detail}`,
+diff --git a/public/features/features.css b/public/features/features.css
+index 89c6028..f7bb25d 100644
+--- a/public/features/features.css
++++ b/public/features/features.css
+@@ -484,3 +484,5 @@
+ @container ms-insights (max-width: 480px) { .ms-insights .msi-stat__value { font-size: min(17px, 13.5cqi); } }
+ /* UX-53: a tile's note is never cut; it wraps under its number on a narrow tile. */
+ .msi-stat__note { overflow: visible; text-overflow: clip; white-space: normal; }
++/* M-34: the basis line is the card's explainer now (it carries ms-comp__explain); it keeps the basis line's look. */
++.ms-comp__conf-n.ms-comp__explain { margin: 2px 0 0; font-size: 12.5px; line-height: inherit; }
+diff --git a/public/styles.css b/public/styles.css
+index c6c2e68..305a337 100644
+--- a/public/styles.css
++++ b/public/styles.css
+@@ -1630,3 +1630,5 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
+ .tagline.fit-short .tagline-long, .tagline.fit-tiny .tagline-long, .tagline.fit-tiny .tagline-short { display: none; }
+ .tagline.fit-short .tagline-short, .tagline.fit-tiny .tagline-tiny { display: inline; }
+ .tagline.fit-wrap { white-space: normal; text-overflow: clip; }
++/* M-39: the badge popover's one line keeps the paragraph's spacing it replaced (.badge-details p). */
++.badge-details .badge-tip { margin: 0 0 10px; font-size: 13px; color: var(--ms-muted); }
+diff --git a/test/e2e/beta-mobile-qa.e2e.js b/test/e2e/beta-mobile-qa.e2e.js
+index b57e7dd..ea03d25 100644
+--- a/test/e2e/beta-mobile-qa.e2e.js
++++ b/test/e2e/beta-mobile-qa.e2e.js
+@@ -162,7 +162,7 @@ export function registerBetaMobileQaTests(suite) {
+       assert(/^Data source: saved snapshot from /.test(aria), `${slug}: badge "${aria}"`);
+       await tapSel(page, '#dataBadge', 700);
+       const pop = await page.evaluate(() => ({
+-        text: document.querySelector('#popover').innerText,
++        text: document.querySelector('#popover').textContent, // fix-phone-text M-39: the sentence is in the popover's Details
+         refreshShown: [...document.querySelectorAll('#popover button')].some((b) => /Refresh from the live board/.test(b.textContent) && !b.hidden),
+         csv: (() => { const a = document.querySelector('#popover .badge-csv a'); return a ? new URL(a.getAttribute('href'), location.href).pathname : null; })(),
+         csvH: Math.round(document.querySelector('#popover .badge-csv a')?.getBoundingClientRect().height || 0),
+-- 
+2.43.0
+

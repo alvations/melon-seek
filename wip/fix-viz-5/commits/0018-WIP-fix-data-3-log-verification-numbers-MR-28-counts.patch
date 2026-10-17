@@ -1,0 +1,81 @@
+From 39830717865a445f2f12f8481f857208d415290b Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 02:12:54 +0000
+Subject: [PATCH 18/52] WIP fix-data-3: log verification numbers; MR-28 counts
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 2d951364104724e2db55ae7e50e7067d37f9cff2)
+---
+ docs/process/fix-data-3.md                | 39 ++++++++++++++++++++++-
+ docs/process/methodology-review-beta-2.md |  4 +--
+ 2 files changed, 40 insertions(+), 3 deletions(-)
+
+diff --git a/docs/process/fix-data-3.md b/docs/process/fix-data-3.md
+index eb1f808..84efd96 100644
+--- a/docs/process/fix-data-3.md
++++ b/docs/process/fix-data-3.md
+@@ -111,7 +111,44 @@ NODE_PATH=$S/pw/node_modules node scripts/e2e.js --grep='fix-data-3|\[D-38\]|\[D
+ ```
+ 
+ ## 5. Verification
+-(Filled in with the after build.)
++**Nothing dropped** (tools/census.mjs and tools/compare.mjs, base build of f53a270 vs the after build, posting by
++posting on all 15 boards):
++
++| Board | Postings | With pay | Quarantined | Pay rows (incl. quarantined) | Levels | Location entries | Distinct places |
++|---|---|---|---|---|---|---|---|
++| Amazon | 22,179 → 22,179 | 13,980 → 13,980 | 0 → 0 | 16,831 → 16,831 | 0 → 0 | 34,139 → 34,138 | 1,570 → 1,577 |
++| Apple | 4,851 → 4,851 | 2,781 → 2,781 | 0 → 0 | 3,197 → 3,197 | 0 → 0 | 6,080 → 6,080 | 317 → 317 |
++| Google | 3,821 → 3,821 | 2,512 → 2,513 | 1 → 0 | 2,513 → 2,513 | 16 → 16 | 6,601 → 6,601 | 264 → 262 |
++| Meta | 1,208 → 1,208 | 948 → 948 | 0 → 0 | 948 → 948 | 0 → 0 | 2,937 → 2,937 | 111 → 111 |
++| Microsoft | 2,435 → 2,435 | 1,566 → 1,566 | 0 → 0 | 1,821 → 1,821 | 316 → 316 | 3,973 → 3,973 | 252 → 252 |
++| Netflix | 414 → 414 | 259 → 259 | 1 → 1 | 260 → 260 | 0 → 0 | 538 → 538 | 32 → 32 |
++| NVIDIA | 2,711 → 2,711 | 1,462 → 1,462 | 0 → 0 | 1,462 → 1,462 | 1,774 → 1,774 | 4,640 → 4,640 | 120 → 120 |
++| 8 main-site boards | unchanged | unchanged | unchanged | unchanged | unchanged | unchanged | unchanged |
++
++- Same posting ids on every board (0 lost, 0 added); 0 postings lost pay, 0 changed pay, 0 changed their number of
++  pay rows. One gained pay: Google's Fellow ($550,000, was quarantined). Two levels changed: the Fellow (Intern →
++  Staff+) and "Engineering Manager, Data Residency and Fast Compliance" (Intern → Manager).
++- One posting's place list changed: amazon:10445545, "Town" | "Country, Missouri, USA" → "Town and Country, Missouri,
++  USA" (the one location entry fewer). 383 postings read a place differently (tools/geodiff.mjs: 25 distinct changes,
++  all the intended ones). Amazon gains 7 places (the Brazilian towns), Google loses 2 labels (St. George, SC's two
++  spellings; "District of Columbia, US" is "Washington, DC").
++- Departments renamed: NVIDIA 2,554 postings (122 names), Amazon 2,389 (2 names); 0 merged.
++- Market doc (api/market.json, beta): 1,291 → 1,238 cells (home and other countries); Amazon's postings in cells
++  12,670 → 11,980 (229 minimums, 447 shift-inclusive, 14 part-time left out and counted), Apple 2,666 → 2,659 (7
++  part-time); 26 cells' medians moved; 101 kB (was 105).
++- Juice: the 7 no-row places have no Juice (tools/norow.mjs: 232 postings list a place with no row; 7 got Juice there
++  before, 0 after). The `.juice-gross` line shows on Amazon's 98 minimums and 134 shift-inclusive figures with Juice.
++- Compstimate backtests unchanged except NVIDIA MdAPE 12.3% → 12.5% (the 6 role families, decision 10) and Google
++  n 496 → 498 (the two re-levelled postings).
++- List sizes: Amazon 6.75 MB and NVIDIA 875 kB, as before (the per-job department field was dropped, decision 10).
++
++**Tests:**
++- test/fix-data-3.test.js: 14 tests; 0 of 14 pass on the base tree (f53a270, `git archive` into a scratch folder), 14
++  of 14 after.
++- test/e2e/fix-data-3.e2e.js: 9 tests; 0 of 9 pass on the base build, 9 of 9 on the after build.
++- The reviewers' red tests now pass: `[D-38]`, `[D-41]`, `[D-42]` (beta-desktop-qa-3) and `[V-45]` (beta-viz-review-2);
++  MR-28 in test/beta-methodology-2.test.js is a real test and passes.
++- Full suites: below (§5, gate).
+ 
+ ## 6. Known gaps and follow-ups
+ - Client medians (stats line, chart, Insights) still pool minimums, shift pay and part-time hourly figures; the
+diff --git a/docs/process/methodology-review-beta-2.md b/docs/process/methodology-review-beta-2.md
+index 73f3c51..0b979dc 100644
+--- a/docs/process/methodology-review-beta-2.md
++++ b/docs/process/methodology-review-beta-2.md
+@@ -143,8 +143,8 @@ Ordered by severity. "Screen" means the beta site at 1440×1000 unless it says o
+ 
+ ### MR-28 (High): minimums and shift-inclusive pay are called "posted base pay" and counted as base pay
+ - **Status: fixed** by [fix-data-3](fix-data-3.md) (2026-10-17):
+-  - `scripts/build-market.js` `notBasePay` leaves stated minimums, shift-inclusive hourly figures and part-time hourly pay out of every market cell (base pay, on-target earnings and Intern) and counts them on the company's entry (`minimum`, `shiftPay`, `partTime`). On the 2026-10-16 crawl: Amazon 283 minimums, 634 shift-inclusive figures and 83 part-time hourly figures, Apple 40 part-time (counts of postings the comparison would otherwise use).
+-  - The drawer's Juice block says "Gross pay is the posted minimum." or "Gross pay includes top shift pay." in one line (`.juice-gross`; one line from 280 px up).
++  - `scripts/build-market.js` `notBasePay` leaves stated minimums, shift-inclusive hourly figures and part-time hourly pay out of every market cell (base pay, on-target earnings and Intern) and counts them on the company's entry (`minimum`, `shiftPay`, `partTime`). On the 2026-10-16 crawl the boards post 285 minimums, 636 shift-inclusive figures (69 of Amazon's 83 part-time postings among them) and 14 more part-time hourly figures at Amazon, and 40 part-time hourly figures at Apple. Of those, the comparisons used 690 at Amazon (229 minimums, 447 shift-inclusive, 14 part-time) and 7 at Apple; the rest have no role family or pay country. Amazon's postings in the cells fell from 12,670 to 11,980 and Apple's from 2,666 to 2,659; 26 cells' medians moved (Amazon field operations, Mid: $49,100 to $152,000, once the shift-inclusive hourly figures are out).
++  - The drawer's Juice block says "Gross pay is the posted minimum." or "Gross pay includes top shift pay." in one line (`.juice-gross`; one line from 280 px up), on the 98 minimums and 134 shift-inclusive figures that carry a Juice score.
+   - The MR-28 test in test/beta-methodology-2.test.js is a real test now.
+   - Not in this fix: the client medians (stats line, chart, Insights) and the Compare companies footnote, which still lists only internships, fixed-term programmes and on-target earnings as left out. Those are the app and viz lanes'.
+ - **Where:**
+-- 
+2.43.0
+

@@ -1,0 +1,224 @@
+From 2a864253cf1c68be1bbbe9f66d50705f21894f80 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 22:27:30 +0000
+Subject: [PATCH 40/52] fix-pay-at-place: payAt(job, place) helper in
+ features/shared.js (WIP, no callers yet)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 3374a451f153ae0cbff48f67a7bb41bf33eea580)
+---
+ public/features/shared.js | 197 ++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 197 insertions(+)
+
+diff --git a/public/features/shared.js b/public/features/shared.js
+index 6173fb1..b6cf82f 100644
+--- a/public/features/shared.js
++++ b/public/features/shared.js
+@@ -320,6 +320,203 @@ export function payLocationKeys(job) {
+   return [...out];
+ }
+ 
++
++// ---------------------------------------------------------------------------
++// Pay at a place (fix-pay-at-place)
++// ---------------------------------------------------------------------------
++
++/** The string a Location is named by in salary.ranges[].locations (the posting's own words). */
++const placeName = (l) => (l ? l.rawName || l.name : null);
++const POSTING = 'posting';
++const NO_ROWS = Object.freeze([]);
++const PAY_TABLES = new WeakMap();
++
++/**
++ * The places of a posting that have posted pay, built once per job (again when its salary or
++ * locations change): `at` maps a Location to its own rows of salary.ranges, or to POSTING (the
++ * posting's one range covers it). A Location missing from `at` has no posted pay.
++ *   - A posting with salary.ranges (Amazon's pay table, Apple's footers, Microsoft's SF Bay Area / NYC
++ *     range: one range per place, DATA_SOURCES §7a) prices each place on the rows whose `locations`
++ *     name it. A place it lists in no row has no posted pay there (the lead decision of 2026-10-16): it
++ *     is never priced on another place's row.
++ *   - A posting with one range prices the places it applies to (payLocations), in a country that uses
++ *     the pay's currency (chart.js payCoversRow, V-18: a US range on a London-only posting is not
++ *     London pay).
++ */
++function payTable(job) {
++  const sal = job?.salary || null;
++  const locs = Array.isArray(job?.locations) ? job.locations : [];
++  const cacheable = !!job && typeof job === 'object';
++  const hit = cacheable ? PAY_TABLES.get(job) : null;
++  if (hit && hit.sal === sal && hit.locs === locs && hit.n === locs.length && hit.min === sal?.min && hit.max === sal?.max
++    && hit.mid === sal?.mid && hit.ranges === sal?.ranges && hit.cur === sal?.currency) return hit;
++  const cur = String(sal?.currency || 'USD').toUpperCase();
++  const smin = Number(sal?.min ?? sal?.max), smax = Number(sal?.max ?? sal?.min);
++  const t = {
++    sal, locs, n: locs.length, min: sal?.min, max: sal?.max, mid: sal?.mid, ranges: sal?.ranges, cur: sal?.currency,
++    currency: cur, smin, smax, smid: Number.isFinite(Number(sal?.mid)) && sal?.mid !== null ? Number(sal.mid) : (smin + smax) / 2,
++    at: new Map(), rows: [], one: null, head: undefined,
++  };
++  if (sal && (sal.min != null || sal.max != null)) {
++    t.rows = (Array.isArray(sal.ranges) ? sal.ranges : []).filter((r) => r && Number.isFinite(Number(r.min)));
++    if (t.rows.length) {
++      for (const l of locs) {
++        const name = placeName(l);
++        if (!name) continue;
++        const own = t.rows.filter((r) => Array.isArray(r.locations) && r.locations.includes(name));
++        if (own.length) t.at.set(l, own);
++      }
++    } else {
++      const map = palette.COUNTRY_CURRENCY || {};
++      for (const l of payLocations(job)) {
++        if (!l) continue;
++        const home = l.country ? map[String(l.country).toUpperCase()] : null;
++        if (!home || home === cur) t.at.set(l, POSTING);
++      }
++    }
++  }
++  if (cacheable) PAY_TABLES.set(job, t);
++  return t;
++}
++
++/** The job's Locations that `place` names (see payAt). */
++function placesOf(locs, place) {
++  if (typeof place === 'function') return locs.filter((l) => l && place(l));
++  if (typeof place === 'string') return locs.filter((l) => l && (locationKey(l) === place || l.name === place || placeName(l) === place));
++  const want = place instanceof Set ? [...place] : Array.isArray(place) ? place : [place];
++  return locs.filter((l) => l && want.some((w) => w === l || (w && typeof w === 'object' && placeName(w) && placeName(w) === placeName(l))));
++}
++
++/**
++ * "Bellevue", "Seattle and Bellevue", "Seattle, Bellevue and 3 more": the places a range was posted for, by city.
++ * @param {Array<object>} places Locations
++ */
++export function placeLabel(places, max = 2) {
++  const names = [...new Set((places || []).map((l) => (l?.remote ? l.name || 'Remote' : l?.city || l?.name)).filter(Boolean))];
++  if (names.length <= max) return names.length === 2 ? `${names[0]} and ${names[1]}` : names.join('');
++  return `${names.slice(0, max).join(', ')} and ${names.length - max} more`;
++}
++
++/**
++ * A payAt result. Results are shared (cached per job and place), so callers never change them. `usd`
++ * converts as the chart, the map and the app's stats do (public/viz/palette.js toUSD: a currency without a
++ * rate stays unconverted, and `rated` is false), so every view gets the same numbers. `label` is worked out
++ * when first read.
++ */
++class PlacePay {
++  constructor(min, max, mid, currency, basis, places, span, rows, ranges, named = true, usd = undefined) {
++    const r = palette.FX_TO_USD?.[currency];
++    const k = r == null ? 1 : r;
++    this.min = min; this.max = max; this.mid = mid; this.currency = currency;
++    this.usd = usd !== undefined ? usd : Number.isFinite(min + max + mid) ? { min: min * k, max: max * k, mid: mid * k } : null;
++    this.rated = r != null;
++    this.basis = basis; this.places = places; this.span = span; this.rows = rows; this.ranges = ranges;
++    this._named = named; this._label = null;
++  }
++  get label() { return this._named ? (this._label ??= placeLabel(this.places)) : ''; }
++}
++
++/** The headline range, named for its place when it is one place's row. */
++function headPay(t) {
++  const { currency: cur, smin, smax } = t;
++  const isHead = (r) => String(r.currency || cur).toUpperCase() === cur && Number(r.min) === smin && Number(r.max ?? r.min) === smax;
++  const head = t.rows.length ? t.rows.find(isHead) : null;
++  const places = [];
++  for (const [l, rs] of t.at) if (head ? rs !== POSTING && rs.includes(head) : true) places.push(l);
++  const named = !!head && places.length > 0;
++  return new PlacePay(smin, smax, t.smid, cur, named ? 'place' : 'posting', places, !head && t.rows.length > 1, t.rows.length, head ? [head] : t.rows, named);
++}
++
++/** payAt for one of the job's own Locations (the hot path of the map and Insights): no array work. */
++function priceOne(t, l) {
++  const e = t.at.get(l);
++  if (!e) return null;
++  if (e !== POSTING) return priceAt(t, [l]);
++  // The posting's one range: the headline's numbers, sharing its US-dollar figures.
++  const head = t.head ?? (t.head = headPay(t));
++  return new PlacePay(t.smin, t.smax, t.smid, t.currency, 'posting', [l], false, 0, NO_ROWS, true, head.usd);
++}
++
++/** The pay posted for `want` (the job's Locations), or null. */
++function priceAt(t, want) {
++  const priced = want.filter((l) => t.at.has(l));
++  if (!priced.length) return null;
++  const { currency: cur, smin, smax } = t;
++  if (!t.rows.length) return new PlacePay(smin, smax, t.smid, cur, 'posting', priced, false, 0, NO_ROWS);
++  const rowCur = (r) => String(r.currency || cur).toUpperCase();
++  const rows = [];
++  for (const l of priced) for (const r of t.at.get(l)) if (!rows.includes(r)) rows.push(r);
++  // One currency: the salary's, else the first row's (no posting mixes them on the 2026-10-16 crawl).
++  const c = rows.some((r) => rowCur(r) === cur) ? cur : rowCur(rows[0]);
++  const use = rows.filter((r) => rowCur(r) === c);
++  const places = priced.filter((l) => t.at.get(l).some((r) => use.includes(r)));
++  let min = Infinity, max = -Infinity;
++  for (const r of use) { min = Math.min(min, Number(r.min)); max = Math.max(max, Number(r.max ?? r.min)); }
++  const mid = c === cur && min === smin && max === smax ? t.smid : (min + max) / 2;
++  const distinct = use.length > 1 && new Set(use.map((r) => `${r.min}|${r.max ?? r.min}`)).size > 1;
++  return new PlacePay(min, max, mid, c, 'place', places, distinct, t.rows.length, use);
++}
++
++/**
++ * The pay a posting posted for a place (fix-pay-at-place). Every view that prices a place uses this one
++ * helper (the chart's Clusters and Ranges, Group by Location and under a Location filter; the map's pins;
++ * the stats line; Compstimate; Insights' hot locations; the drawer's rank and strip), so they agree.
++ * Since the salary audit, Amazon, Apple and Microsoft postings carry one range per place
++ * (salary.ranges[].locations) and the headline salary.min/max/mid is one of them (Amazon: the primary
++ * city's row; Microsoft: the national range) or their span (Apple).
++ *
++ * @param {object} job
++ * @param {null|object|object[]|Set|string|((l: object) => boolean)} place one of the job's Locations, several,
++ *   a location key ("Seattle", "Remote"), or a test over job.locations. null: the posting as a whole (its
++ *   headline range, named for its place when it is one place's row).
++ * @returns {null|Readonly<{ min, max, mid, currency, usd: {min, max, mid}|null, rated: boolean,
++ *   basis: 'place'|'posting', places: object[], label: string, span: boolean, rows: number, ranges: object[] }>}
++ *   - basis 'place': the range posted for those places (salary.ranges); for several places with different
++ *     rows, the span of their rows (`span` true). Captions say "pay posted for <label>".
++ *   - basis 'posting': the posting's one range, which covers the places (`span` true when the headline is
++ *     itself a span of several places' ranges, Apple's, with place null).
++ *   - null when the posting has pay but none for the place: it prices other places in rows of their own but
++ *     not this one (the lead decision of 2026-10-16), its one range is pay for another country, or the place
++ *     is not one of its places. payMissAt(job, place) says which.
++ *   min/max/mid are yearly, in `currency`; `usd` is approx US dollars (palette.js rates; unconverted and
++ *   `rated` false without a rate); `rows` counts the posting's per-place ranges (0 without) and `ranges` are
++ *   the ones this figure is (the headline's row, or every row for a span). Pure; results
++ *   are cached per job and Location and shared, so callers never change them.
++ */
++export function payAt(job, place = null) {
++  const sal = job?.salary;
++  if (!sal || (sal.min == null && sal.max == null)) return null;
++  const t = payTable(job);
++  if (place == null) return t.head ?? (t.head = headPay(t));
++  if (typeof place === 'object' && !Array.isArray(place) && !(place instanceof Set) && t.locs.includes(place)) {
++    const one = (t.one ||= new Map());
++    let r = one.get(place);
++    if (r === undefined) { r = priceOne(t, place); one.set(place, r); }
++    return r;
++  }
++  return priceAt(t, placesOf(t.locs, place));
++}
++
++/**
++ * Why payAt(job, place) is null: 'none' (no pay posted at all), 'unlisted' (not one of the posting's places),
++ * 'place' (the posting prices other places in rows of their own, not this one: the lead decision of
++ * 2026-10-16), 'country' (its one range is pay for another country). null when there is pay for the place.
++ */
++export function payMissAt(job, place) {
++  const sal = job?.salary;
++  if (!sal || (sal.min == null && sal.max == null)) return 'none';
++  if (payAt(job, place)) return null;
++  const t = payTable(job);
++  if (place != null && !placesOf(t.locs, place).length) return 'unlisted';
++  return t.rows.length ? 'place' : 'country';
++}
++
++/** The posting's Locations that have posted pay (payAt is not null there), in the posting's order. */
++export function pricedPlaces(job) {
++  const t = payTable(job);
++  return t.locs.filter((l) => l && t.at.has(l));
++}
++
+ let regionNames = null;
+ /** "GB" -> "UK", "KR" -> "South Korea": a name, not a bare country code. */
+ export function countryName(code) {
+-- 
+2.43.0
+

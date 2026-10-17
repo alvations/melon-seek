@@ -1,0 +1,720 @@
+From c8bde7c4cd19327d3630182f9b9d451edfeef974 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 01:17:13 +0000
+Subject: [PATCH 14/51] fix-data-3: places (D-41, D-42, V-45, Town and Country,
+ old location links) and department names (UX-32); norm-12
+
+- geo.js: one 'St.' spelling for US (and Canadian 'St') towns; 'New York State', 'Washington State' and
+  'Washington, DC' for state-only places; Cajamar, six other Brazilian towns and Luxembourg City in the
+  gazetteer; Amazon's 'City, State, CCC' is one place; 'Town and Country' is one place, also when stored split.
+- families.js departmentDisplayName + upgrade.js displayDepartments: NVIDIA's inverted names and 'Intern', and
+  Amazon's '--' names, read naturally at read time; the board's name stays as departmentPosted.
+- app.js: search matches departmentPosted; an old link's location or department value resolves to the
+  board's current label (resolveOldFilterKeys).
+- roles.js: NVIDIA's verification department still reads as chip design under its new name.
+- NORMALIZER_VERSION norm-12; golden re-baselined with the tooling: 0 of 300 hashes changed.
+- docs/process/patches/fix-data-3-shared-posted-places.diff: payLocations' postedPlaces, as juice.js (for the lead).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit e0f828a5668d3a9c91ec218b1b461475b8ce67f4)
+---
+ .../fix-data-3-shared-posted-places.diff      |  23 +++
+ public/app.js                                 |  58 +++++++-
+ public/features/roles.js                      |   2 +-
+ server/families.js                            |  65 +++++++++
+ server/geo.js                                 |  88 +++++++++++-
+ server/normalize.js                           |   6 +-
+ server/sources/upgrade.js                     |  33 ++++-
+ test/fix-beta-pay.test.js                     |   2 +-
+ test/fix-data-3.test.js                       | 135 ++++++++++++++++++
+ test/fix-pay-data.test.js                     |   2 +-
+ test/fixtures/golden-normalize.json           |   7 +-
+ test/golden-normalize.test.js                 |   2 +-
+ test/salary-pipeline.test.js                  |   4 +-
+ 13 files changed, 410 insertions(+), 17 deletions(-)
+ create mode 100644 docs/process/patches/fix-data-3-shared-posted-places.diff
+
+diff --git a/docs/process/patches/fix-data-3-shared-posted-places.diff b/docs/process/patches/fix-data-3-shared-posted-places.diff
+new file mode 100644
+index 0000000..28e1cff
+--- /dev/null
++++ b/docs/process/patches/fix-data-3-shared-posted-places.diff
+@@ -0,0 +1,23 @@
++diff --git a/public/features/shared.js b/public/features/shared.js
++index d6ff4b4..4816ecd 100644
++--- a/public/features/shared.js
+++++ b/public/features/shared.js
++@@ -245,11 +245,16 @@ export function payLocations(job) {
++   return hit.length ? hit : pool;
++ }
++ 
++-/** The location strings a salary was posted for (salary.places, else every range's places), or null. */
+++/**
+++ * The location strings a salary was posted for (salary.places, else the places of its per-place rows), or null.
+++ * Lead decision (2026-10-16, fix-data-3; as server/juice.js postedPlaceSet): a place the posting lists in no row
+++ * has no posted pay there, even when another row is tied to no listed place (it was "every row tied").
+++ */
++ function postedPlaces(sal) {
++   if (Array.isArray(sal?.places) && sal.places.length) return new Set(sal.places);
++   const rs = Array.isArray(sal?.ranges) ? sal.ranges : [];
++-  if (rs.length && rs.every((r) => Array.isArray(r?.locations) && r.locations.length)) return new Set(rs.flatMap((r) => r.locations));
+++  const tied = rs.filter((r) => Array.isArray(r?.locations) && r.locations.length);
+++  if (tied.length) return new Set(tied.flatMap((r) => r.locations));
++   return null;
++ }
++ 
+diff --git a/public/app.js b/public/app.js
+index c4a36bd..431153b 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -508,6 +508,61 @@ function disambiguateLocations(jobs) {
+     if (changed) { j._locAlt = j._locKeys; j._locKeys = keys; } // _locAlt: old bare-city links (l=Washington) still match
+   }
+ }
++/* fix-data-3: a link's filter value that no posting here uses is matched to the board's current one for the same
++   place or department, so an old link finds what it found before the labels changed:
++   - Location: "Columbus, OH" where the board labels Columbus, Ohio "Columbus" (no other Columbus to tell apart);
++     NVIDIA's state "New York, US", now "New York State" (D-42); "Saint George, SC", now "St. George, SC" (D-41).
++     A value is compared with each place's label, canonical name and posted words, "City, ST" and "City, Country",
++     ignoring case, accents, periods and the "Saint"/"St" spelling, and is replaced only when exactly one label fits.
++   - Department: the board's own name ("Engineer, ASIC", "Project/Program/Product Management--Technical", kept as
++     departmentPosted) becomes the name shown (UX-32).
++   A value that fits nothing, or several labels, stays as it is. Returns true when the filters changed. */
++const foldPlace = (s) => foldText(s).replace(/\./g, '').replace(/\bsaint\b/g, 'st').replace(/[^a-z0-9]+/g, ' ').trim();
++function resolveOldFilterKeys(jobs = data.jobs) {
++  if (data.status !== 'ready' || (!S.l.length && !S.d.length)) return false;
++  let changed = false;
++  if (S.l.length) {
++    const used = new Set();
++    for (const j of jobs) { for (const k of j._locKeys) used.add(k); if (j._locAlt) for (const k of j._locAlt) used.add(k); }
++    const want = new Map(S.l.filter((x) => !used.has(x)).map((x) => [foldPlace(x), new Set()]));
++    if (want.size) {
++      const add = (alias, key) => { const s = alias ? want.get(foldPlace(alias)) : null; if (s) s.add(key); };
++      for (const j of jobs) j.locations.forEach((l, i) => {
++        const key = j._locKeys[i];
++        if (!l || !key) return;
++        add(l.name, key); add(l.rawName, key);
++        if (l.remote) return;
++        if (l.city) { add(l.city, key); add(`${l.city}, ${l.region || ''}`, key); add(`${l.city}, ${l.country || ''}`, key); }
++        else if (l.country === 'US' && l.region) { // D-42: the state's label before ("New York, US", "District of Columbia, US")
++          if (/ State$/.test(l.name || '')) add(`${l.name.slice(0, -6)}, US`, key);
++          if (l.region === 'DC') add('District of Columbia, US', key);
++        }
++      });
++      const next = [];
++      for (const x of S.l) {
++        const fit = used.has(x) ? null : want.get(foldPlace(x));
++        const y = fit && fit.size === 1 ? [...fit][0] : x;
++        if (y !== x) changed = true;
++        if (!next.includes(y)) next.push(y);
++      }
++      if (changed) S.l = next;
++    }
++  }
++  if (S.d.length) {
++    const shown = new Set(jobs.map(deptKey));
++    const was = new Map();
++    for (const j of jobs) if (j.departmentPosted && !was.has(j.departmentPosted)) was.set(j.departmentPosted, deptKey(j));
++    const next = [];
++    for (const x of S.d) {
++      const y = !shown.has(x) && was.has(x) ? was.get(x) : x;
++      if (y !== x) changed = true;
++      if (!next.includes(y)) next.push(y);
++    }
++    if (next.length !== S.d.length || next.some((y, i) => y !== S.d[i])) S.d = next;
++  }
++  if (changed) commit({ replace: true });
++  return changed;
++}
+ const deptKey = (j) => keyOf(j, 'department'); // same keys the chart colors by
+ /* google-grouping: the company or subsidiary a board names on its postings (Google's YouTube, DeepMind,
+    Waymo, …: Job.brand, CONTRACT.md "google-grouping"), the key of the Company grouping and filter. */
+@@ -608,7 +663,7 @@ function prepare(jobs, { source = null } = {}) {
+     j.juice = usableJuice(j);
+     j._grade = gradeKey(j);
+     j._locKeys = j.locations.map(locKey);
+-    j._hay = [j.title, j._postedTitle !== j.title ? j._postedTitle : null, j.department, j.team, j.employmentType, senKey(j) === NOT_STATED ? null : j.seniority,
++    j._hay = [j.title, j._postedTitle !== j.title ? j._postedTitle : null, j.department, j.departmentPosted, j.team, j.employmentType, senKey(j) === NOT_STATED ? null : j.seniority,
+       ...j.locations.map((l) => l.name), ...j.keywords.responsibilities, ...j.keywords.fit, ...j.keywords.skills]
+       .filter(Boolean).join(' \u0001 ').toLowerCase();
+   }
+@@ -1094,6 +1149,7 @@ async function loadJobs({ refresh = false } = {}) {
+   }
+   settleCarry();
+   settleKeep();
++  resolveOldFilterKeys(); // fix-data-3: an old link's place or department label finds the board's current one
+   if (data.status === 'ready') await renderInTwo(seq); else render();
+   if (seq !== loadSeq) return;
+   if (data.status === 'ready') fillFamilies(data.jobs);
+diff --git a/public/features/roles.js b/public/features/roles.js
+index e64cffb..fc0e08f 100644
+--- a/public/features/roles.js
++++ b/public/features/roles.js
+@@ -268,7 +268,7 @@ const DEPT_HINTS = [
+   ['product', /\bproduct management\b/],
+   ['ml', /\b(research|modeling|model|ai research)\b/],
+   ['it', /\b(it|corporate technology|business systems)\b/],
+-  ['chip', /\b(asic|phys design|physical design|mask design|mixed signal|silicon|vlsi|soc)\b|^engineer verification$/],
++  ['chip', /\b(asic|phys design|physical design|mask design|mixed signal|silicon|vlsi|soc)\b|^engineer verification$|^verification engineering$/], // UX-32: NVIDIA's "Engineer, Verification" reads "Verification Engineering"
+   ['hardware', /\b(hardware|mechanical|electrical|propulsion|aircraft|x bat|v bat|space|test operations|quality|reliability|systems engineering|flight|avionics|engineering services)\b/],
+   ['swe', /\b(software|infrastructure|platform|applications)\b/],
+   ['program', /\b(program management|programs)\b/],
+diff --git a/server/families.js b/server/families.js
+index 2c6ac4d..858a752 100644
+--- a/server/families.js
++++ b/server/families.js
+@@ -143,3 +143,68 @@ export function familyOfTitle(title) {
+   const rest = parts.slice(1).join(', ').toLowerCase();
+   return first(ROLE, role) ?? first(TEAM, rest) ?? first(ROLE, rest) ?? first(LEAD_WORD, rest) ?? first(WEAK, role);
+ }
++
++// ---------------------------------------------------------------------------
++// Department display names (UX-32, fix-data-3)
++// ---------------------------------------------------------------------------
++// NVIDIA names its departments as inverted job families ("Engineer, ASIC", "Management, Product Development",
++// "Program Manager, Technical", plain "Intern"), and Amazon writes a qualifier after "--"
++// ("Project/Program/Product Management--Technical" and "--Non-Tech"). departmentDisplayName writes them the
++// way Microsoft names its own departments ("Software Engineering", "Technical Program Management"): the
++// specialty first, then the discipline: "ASIC Engineering", "Product Development Management", "Technical
++// Program Management", "Internships", "Technical Project, Program and Product Management" and "Non-Technical
++// Project, Program and Product Management" (the qualifier that tells Amazon's two apart comes first, so a cut
++// label still shows it, UX-38). Every other name is returned unchanged. The board's own name is kept on the job
++// (departmentPosted), searchable and reachable; old links with it still find the department (public/app.js).
++// The mapping is one to one on each board's departments (test/fix-data-3.test.js), so no two departments merge.
++const DISCIPLINE = Object.freeze({
++  Engineer: 'Engineering', Architect: 'Architecture', Management: 'Management', Manager: 'Management',
++  'Program Manager': 'Program Management', 'Account Manager': 'Account Management', Analyst: 'Analysis',
++  Planner: 'Planning', Designer: 'Design', Accountant: 'Accounting', Administrator: 'Administration',
++  'Systems Administrator': 'Systems Administration', Specialist: 'Specialists', Representative: 'Representatives',
++});
++// A role noun as a department of its own.
++const BARE = Object.freeze({
++  Intern: 'Internships', Architect: 'Architecture', 'Account Manager': 'Account Management', Accountant: 'Accounting',
++  Technician: 'Technicians', 'Data Scientist': 'Data Science', 'Attorney, General': 'Legal',
++});
++// A specialty that ends in a role noun, as a discipline ("Management, Solutions Architect": Solutions Architecture).
++const TRAILING_ROLE = [[/\bData Scientist$/, 'Data Science'], [/\bArchitect$/, 'Architecture'], [/\bEngineer$/, 'Engineering']];
++const AMAZON_QUALIFIER = Object.freeze({ technical: 'Technical', tech: 'Technical', 'non-tech': 'Non-Technical', 'non-technical': 'Non-Technical', nontech: 'Non-Technical' });
++
++/** "Hardware (Engineering)" -> "Hardware Engineering"; "Program Management (Technical)" -> "Technical Program Management". */
++function specialty(y) {
++  let s = String(y).replace(/\b(\w+) \(\1 \(([^()]+)\)\)/, '$1 ($2)'); // "Returns (Returns (RMA))" -> "Returns (RMA)"
++  s = s.replace(/^(.*\S)\s*\((Technical|Non-Technical)\)$/, '$2 $1');
++  s = s.replace(/^(.*\S)\s*\((Engineering)\)$/, '$1 $2');
++  return s.trim();
++}
++
++/**
++ * A board's department name as a natural group name (UX-32), or the name unchanged when it reads as one already.
++ * Pure and deterministic; null and '' pass through.
++ */
++export function departmentDisplayName(name) {
++  if (typeof name !== 'string' || !name.trim()) return name;
++  const n = name.replace(/\s+/g, ' ').trim();
++  if (BARE[n]) return BARE[n];
++  // Amazon: "Project/Program/Product Management--Technical".
++  const q = /^(.*\S)\s*--\s*([A-Za-z-]+)$/.exec(n);
++  if (q && AMAZON_QUALIFIER[q[2].toLowerCase()]) {
++    const base = q[1].replace(/^(\w+)\/(\w+)\/(\w+)(?= )/, '$1, $2 and $3');
++    return `${AMAZON_QUALIFIER[q[2].toLowerCase()]} ${base}`;
++  }
++  // NVIDIA: "Engineer, ASIC", "Management, Hardware (Engineering)".
++  const m = /^([A-Z][A-Za-z]*(?: [A-Z][a-z]+)?), (.+)$/.exec(n);
++  if (!m || !DISCIPLINE[m[1]]) return n;
++  const field = DISCIPLINE[m[1]];
++  let y = specialty(m[2]);
++  // "Management, Field Applications Engineering (Sales)": the bracket stays last.
++  const tail = /^(.*\S)\s*(\([^()]+\))$/.exec(y);
++  const bracket = tail ? ` ${tail[2]}` : '';
++  if (tail) y = tail[1];
++  if (field === 'Management') for (const [re, to] of TRAILING_ROLE) y = y.replace(re, to);
++  // "Management, Product Management" is the managers of product management, not "Product Management Management".
++  if (field === 'Management' && /\bManagement$/.test(y)) return `${y} (Managers)${bracket}`;
++  return `${y} ${field}${bracket}`;
++}
+diff --git a/server/geo.js b/server/geo.js
+index c5d2fa5..f6f929a 100644
+--- a/server/geo.js
++++ b/server/geo.js
+@@ -207,6 +207,13 @@ NZ|New Zealand|-40.90|174.89|NZ
+ // "Grosse Bockenheimer Strasse" Frankfurt, "Fukuoka Tenjin" Fukuoka, "Antara" Mexico City and
+ // "VillageMall" Rio de Janeiro. D-36 adds two Google data-centre towns: Moncks Corner, SC and
+ // Pryor Creek, OK, which Google also writes "Pryor, OK".
++// fix-data-3 (V-45 and the Town and Country split, 2026-10-16 crawl) adds Amazon's Cajamar, São Paulo state
++// (67 postings, pinned and named as São Paulo city 33 km away), the six other Brazilian towns Amazon writes
++// "<town>, Sao Paulo, BRA" or "<town>, Rio de Janeiro, BRA" (Osasco 43, Barueri, Embu das Artes, Jundiaí,
++// Paulínia, São João de Meriti, Belford Roxo; all named as the state's capital before), Luxembourg City for "Luxembourg, LUX" (121
++// postings, at the country's centre; Amazon's Luxembourg offices are in the city; the label stays
++// "Luxembourg"), and Town and Country, MO (Amazon "Town and Country, Missouri, USA", read as "Town" and
++// "Country" because " and " splits places; see AND_PLACES).
+ // A name prefixed with "!" becomes the default for an ambiguous name.
+ // ---------------------------------------------------------------------------
+ 
+@@ -378,6 +385,7 @@ Minneapolis|MN|US|44.9778|-93.2650|
+ Detroit|MI|US|42.3314|-83.0458|
+ Ann Arbor|MI|US|42.2808|-83.7430|
+ St. Louis|MO|US|38.6270|-90.1994|Saint Louis;St Louis
++Town and Country|MO|US|38.6123|-90.4632|
+ Kansas City|MO|US|39.0997|-94.5786|
+ Indianapolis|IN|US|39.7684|-86.1581|
+ Madison|WI|US|43.0731|-89.4012|
+@@ -421,6 +429,7 @@ Stuttgart||DE|48.7758|9.1829|
+ Amsterdam||NL|52.3676|4.9041|Schiphol
+ Eindhoven||NL|51.4416|5.4697|
+ Brussels||BE|50.8503|4.3517|Bruxelles;Zaventem
++Luxembourg||LU|49.6116|6.1319|Luxembourg City;Ville de Luxembourg
+ Saint-Ghislain||BE|50.4469|3.8186|
+ Madrid||ES|40.4168|-3.7038|
+ Barcelona||ES|41.3874|2.1686|
+@@ -528,6 +537,14 @@ Regina|SK|CA|50.4452|-104.6189|
+ Mexico City||MX|19.4326|-99.1332|CDMX;Ciudad de México;Antara, Mexico;Antara Polanco
+ Guadalajara||MX|20.6597|-103.3496|
+ Sao Paulo||BR|-23.5505|-46.6333|São Paulo;Morumbi
++Cajamar||BR|-23.3556|-46.8769|
++Osasco||BR|-23.5325|-46.7917|
++Barueri||BR|-23.5057|-46.8790|
++Embu das Artes||BR|-23.6489|-46.8522|
++Jundiaí||BR|-23.1857|-46.8978|
++Paulínia||BR|-22.7611|-47.1544|
++São João de Meriti||BR|-22.8039|-43.3722|
++Belford Roxo||BR|-22.7642|-43.3995|
+ Rio de Janeiro||BR|-22.9068|-43.1729|VillageMall;Village Mall
+ Brasília||BR|-15.7939|-47.8828|Brasilia
+ Belo Horizonte||BR|-19.9167|-43.9345|
+@@ -733,6 +750,9 @@ function splitTopLevel(str, re) {
+ function splitCommaGroups(part) {
+   const tokens = splitTopLevel(part, /\s*,\s*/);
+   if (tokens.length <= 1) return tokens;
++  // Amazon writes one place as "City, State, CCC" (an ISO-3 country code, DQ-40). Its state can share a city's
++  // name ("Cajamar, Sao Paulo, BRA"), which is not a second place (V-45, fix-data-3).
++  if (tokens.length === 3 && /^[A-Z]{3}$/.test(tokens[2]) && ISO3_TO_ISO2[tokens[2]] && !REMOTE_RE.test(part)) return [tokens.join(', ')];
+   const groups = [];
+   let cur = null;
+   for (const tok of tokens) {
+@@ -782,17 +802,45 @@ export function splitLocations(str) {
+   if (Array.isArray(str)) return dedupe(str.flatMap((s) => splitLocations(s)));
+   const s = String(str).replace(/\s+/g, ' ').trim();
+   if (!s) return [];
+-  const coarse = splitTopLevel(s, /\s*[|;\n•]\s*|\s+\/\s+|\s+or\s+|\s*&\s*|\s+and\s+(?=[A-Z])/);
++  // A place whose own name has " and " in it is one place (fix-data-3: "Town and Country, Missouri, USA").
++  const kept = s.replace(AND_PLACE_RE, (m) => m.replace(/\s+and\s+/i, AND_MARK));
++  const coarse = splitTopLevel(kept, /\s*[|;\n•]\s*|\s+\/\s+|\s+or\s+|\s*&\s*|\s+and\s+(?=[A-Z])/);
+   const out = [];
+   for (const part of coarse) {
+     for (const p of splitCommaGroups(part)) {
+-      const t = p.replace(/^[\s,\-–—]+|[\s,\-–—]+$/g, '');
++      const t = p.replace(/^[\s,\-–—]+|[\s,\-–—]+$/g, '').replaceAll(AND_MARK, ' and ');
+       if (t) out.push(t);
+     }
+   }
+   return dedupe(out);
+ }
+ 
++// Place names with " and " in them, which the " and " separator above would cut in two. Town and Country, MO
++// (Amazon, 2026-10-16) and the countries and territories whose names have one.
++const AND_PLACES = ['Town and Country', 'Trinidad and Tobago', 'Bosnia and Herzegovina', 'Antigua and Barbuda',
++  'Saint Kitts and Nevis', 'St Kitts and Nevis', 'St. Kitts and Nevis', 'Turks and Caicos', 'Sao Tome and Principe',
++  'São Tomé and Príncipe', 'Heard and McDonald Islands', 'Wallis and Futuna', 'Saint Pierre and Miquelon', 'Svalbard and Jan Mayen',
++  'Saint Vincent and the Grenadines', 'St Vincent and the Grenadines'];
++const AND_PLACE_RE = new RegExp(`(?<![\\w])(?:${AND_PLACES.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ and /, '\\s+and\\s+')).join('|')})(?![\\w])`, 'gi');
++const AND_MARK = '\u0003';
++/** A stored location list cut at an " and " name ("Town" | "Country, Missouri, USA", norm-9), joined again. */
++function joinAndPlaces(parts) {
++  const out = [];
++  for (let i = 0; i < parts.length; i++) {
++    const a = parts[i], b = parts[i + 1];
++    if (typeof a === 'string' && typeof b === 'string' && a && !a.includes(',')) {
++      const joined = `${a} and ${b}`;
++      const name = joined.split(',')[0];
++      AND_PLACE_RE.lastIndex = 0;
++      const m = AND_PLACE_RE.exec(name);
++      AND_PLACE_RE.lastIndex = 0;
++      if (m && m.index === 0 && m[0].length === name.trim().length) { out.push(joined); i++; continue; }
++    }
++    out.push(a);
++  }
++  return out;
++}
++
+ function dedupe(arr) {
+   const seen = new Set();
+   const out = [];
+@@ -922,6 +970,20 @@ function finalCountry(token, cands, tokens) {
+ 
+ const US_ZIP_RE = /^([A-Z]{2})\s+\d{5}(?:-\d{4})?$/;
+ 
++/**
++ * D-41 (fix-data-3): one spelling of "Saint" in a town the gazetteer does not know, so one town is one place.
++ * Google wrote St. George, SC as "Saint George" and "St George"; Amazon writes "St Louis, Michigan" where the
++ * gazetteer's St. Louis, MO is "St. Louis". In the US "St", "St." and "Saint" are "St." (the USPS and AP form);
++ * in Canada "St" is "St." ("St Thomas, Ontario" is St. Thomas), and a spelled-out "Saint" stays (Saint John, NB
++ * is not St. John's). Elsewhere the name is kept as written ("St Helens, England").
++ */
++function saintSpelling(token, country) {
++  const t = String(token || '');
++  if (country === 'US') return t.replace(/^(?:st\.?|saint)\s+/i, 'St. ');
++  if (country === 'CA') return t.replace(/^st\.?\s+/i, 'St. ');
++  return t;
++}
++
+ /** "City, Region" / "City, Country" / "Region" / unknown-city fallbacks of resolvePlaceIn. */
+ function resolvePlaceTokens(name, cleaned, extra) {
+   let tokens = cleaned.split(/\s*,\s*/).filter(Boolean);
+@@ -983,7 +1045,10 @@ function resolvePlaceTokens(name, cleaned, extra) {
+       if (local) return fromCity(name, local);
+     }
+   }
+-  // "กทม, Bangkok, TH": the city is a later token (never a region or country token).
++  // "กทม, Bangkok, TH", "Ota-ku, Tokyo, JPN", "Cuauhtémoc, Mexico City, MEX": an unknown district of a city named
++  // after it is filed under that city (never a region or country token). V-45 (fix-data-3): where the later token is
++  // a state that shares its capital's name ("Cajamar, Sao Paulo, BRA" is a town in São Paulo state, 33 km from the
++  // city), the town is in the gazetteer, so this rule is not reached.
+   for (const t of rest) {
+     if (regionInfo(t)) continue;
+     const later = CITY_INDEX.get(normKey(t));
+@@ -1009,7 +1074,7 @@ function resolvePlaceTokens(name, cleaned, extra) {
+       const [lat, lng] = DISTRICT_CENTRES[`${best.country}|${normKey(district)}`] || [best.lat, best.lng];
+       return { ...fromRegion(name, best), region: district, lat, lng };
+     }
+-    return fromRegion(name, best, first);
++    return fromRegion(name, best, saintSpelling(first, best.country));
+   }
+   // Last resort: look for a known city name inside the string.
+   const key = ` ${normKey(cleaned)} `;
+@@ -1072,7 +1137,17 @@ export function canonicalName(loc) {
+     const cl = countryLabel(loc.country);
+     return normKey(cl) === normKey(loc.city) ? loc.city : `${loc.city}, ${cl}`; // city-states: "Singapore"
+   }
+-  if (loc.region && loc.country) return `${regionLabel(loc.region, loc.country)}, ${countryLabel(loc.country)}`;
++  if (loc.region && loc.country) {
++    // D-42 (fix-data-3): a US state whose name is also a city's reads as the state ("New York State", "Washington
++    // State"), never like the city next to it ("New York, US" beside "New York"); the District of Columbia is
++    // Washington, DC. Other states keep "California, US".
++    if (loc.country === 'US' && STATE_BY_ABBR.has(loc.region)) {
++      if (loc.region === 'DC') return 'Washington, DC';
++      const st = STATE_BY_ABBR.get(loc.region).name;
++      if (CITY_INDEX.has(normKey(st))) return `${st} State`;
++    }
++    return `${regionLabel(loc.region, loc.country)}, ${countryLabel(loc.country)}`;
++  }
+   if (loc.country && (loc.lat != null || !COUNTRY_BY_CODE.has(loc.country))) return countryName(loc.country) || loc.country;
+   return String(loc.rawName || loc.name || '').replace(/\s+/g, ' ').trim();
+ }
+@@ -1110,7 +1185,8 @@ export function geocodeMany(inputs) {
+   const parts = [];
+   // A dangling "Republic of" (a stored location split from "Seoul, Korea, Republic of" before
+   // norm-6) belongs to the country before it (DQ-10).
+-  for (const s of Array.isArray(inputs) ? inputs : [inputs]) {
++  const list = joinAndPlaces((Array.isArray(inputs) ? inputs : [inputs]).map((s) => (typeof s === 'string' ? s.trim() : s)));
++  for (const s of list) {
+     for (const part of splitLocations(s)) if (!(parts.length && INVERTED_TAIL_RE.test(part))) parts.push(part);
+   }
+   const first = parts.map((part) => (REMOTE_RE.test(part) ? { loc: resolveRemote(part), ambiguous: false } : resolvePlaceIn(part)));
+diff --git a/server/normalize.js b/server/normalize.js
+index 489b0de..3f43fb5 100644
+--- a/server/normalize.js
++++ b/server/normalize.js
+@@ -38,11 +38,13 @@ import { postingRule } from './companies.js';
+  * every posted range kept (no cap at 12), Amazon "New York City" rows tied to New York, Microsoft's SF Bay
+  * Area / NYC range kept per place for jobs with places inside and outside those areas, Google degree lines
+  * and late Microsoft level paragraphs kept as salary.levels, a stored salary kept when trimming cut its
+- * pay sentence). Stored
++ * pay sentence); norm-12 = fix-data-3 (docs/process/fix-data-3.md: a Fellow rank is Staff+ and its pay is not
++ * an intern's, "Data Residency" is not a residency, one "St." spelling in US and Canadian towns, "New York State"
++ * and "Washington State", Cajamar and six other Brazilian towns, Luxembourg City, Town and Country, MO). Stored
+  * snapshots are upgraded with relocateJobs (which also re-derives text-sourced pay, the
+  * pay labels and the level, then re-runs the vetting gate) and rekeyBoardJobs.
+  */
+-export const NORMALIZER_VERSION = 'norm-11';
++export const NORMALIZER_VERSION = 'norm-12';
+ 
+ const NO_EXTRAS = Object.freeze({ equity: false, bonus: false });
+ 
+diff --git a/server/sources/upgrade.js b/server/sources/upgrade.js
+index 78f9f50..64f997d 100644
+--- a/server/sources/upgrade.js
++++ b/server/sources/upgrade.js
+@@ -27,6 +27,7 @@ import { annualize } from '../salary.js';
+ import { deriveSalary, withPayPlaces } from '../normalize.js';
+ import { vetSalaries } from '../vet.js';
+ import { htmlToText } from './util.js';
++import { departmentDisplayName } from '../families.js';
+ 
+ /** One stored Amazon Job with its pay re-read from the stored table, or the same object. */
+ function upgradeAmazonJob(j) {
+@@ -100,8 +101,38 @@ export function upgradeMetaJobs(jobs) {
+   return changed ? out : jobs;
+ }
+ 
++// UX-32 (fix-data-3): the boards whose department names are inverted job families or carry a "--" qualifier.
++const DISPLAY_BOARDS = new Set(['nvidia', 'amazon']);
++
++/**
++ * UX-32 (fix-data-3): NVIDIA's and Amazon's department names as natural group names (server/families.js
++ * departmentDisplayName: "Engineer, ASIC" -> "ASIC Engineering", "Intern" -> "Internships",
++ * "Project/Program/Product Management--Technical" -> "Technical Project, Program and Product Management").
++ * The board's own name (NVIDIA's in plain words, BP-8) is kept as `departmentPosted` on the jobs whose name
++ * changed; search and old links still match it (public/app.js). Read time only, like the brand
++ * (upgradeGoogleJobs): snapshots and the history ledger keep the board's name, so fingerprints do not change.
++ * Idempotent: the shown name is always worked out from departmentPosted. Pure; the same jobs, never fewer.
++ */
++export function displayDepartments(jobs) {
++  if (!Array.isArray(jobs)) return jobs;
++  let changed = false;
++  const out = jobs.map((j) => {
++    if (!j || !DISPLAY_BOARDS.has(j.company)) return j;
++    const posted = j.departmentPosted || j.department;
++    if (typeof posted !== 'string' || !posted) return j;
++    const shown = departmentDisplayName(posted);
++    if (shown === j.department && (shown === posted ? !('departmentPosted' in j) : j.departmentPosted === posted)) return j;
++    changed = true;
++    const next = { ...j, department: shown };
++    if (shown !== posted) next.departmentPosted = posted;
++    else delete next.departmentPosted;
++    return next;
++  });
++  return changed ? out : jobs;
++}
++
+ /** Stored Jobs of one board -> the same Jobs as the current adapters would have produced. */
+ export function upgradeStoredJobs(jobs) {
+   if (!Array.isArray(jobs)) return jobs;
+-  return markTalentPools(upgradeMetaJobs(upgradeAmazonJobs(upgradeGoogleJobs(upgradeEightfoldJobs(upgradeAppleJobs(jobs))))));
++  return displayDepartments(markTalentPools(upgradeMetaJobs(upgradeAmazonJobs(upgradeGoogleJobs(upgradeEightfoldJobs(upgradeAppleJobs(jobs)))))));
+ }
+diff --git a/test/fix-beta-pay.test.js b/test/fix-beta-pay.test.js
+index 888861d..27639ea 100644
+--- a/test/fix-beta-pay.test.js
++++ b/test/fix-beta-pay.test.js
+@@ -309,7 +309,7 @@ const stored = (over) => ({
+ const loc = (name, rawName, city, region, country, lat, lng) => ({ name, rawName, city, region, country, lat, lng, remote: false });
+ 
+ test('delivery: relocateJobs re-derives text pay, levels and seniorityBasis on stored norm-5 jobs, then re-vets', () => {
+-  assert.equal(NORMALIZER_VERSION, 'norm-11'); // the salary audit (docs/process/salary-audit-backend.md) bumped norm-10
++  assert.equal(NORMALIZER_VERSION, 'norm-12'); // fix-data-3 (docs/process/fix-data-3.md) bumped norm-11
+   const krakow = loc('Krakow, Poland', 'Kraków, Poland', 'Krakow', null, 'PL', 50.06, 19.94);
+   const waterloo = loc('Waterloo, Canada', 'Waterloo, ON, Canada', 'Waterloo', 'ON', 'CA', 43.46, -80.52);
+   const jobs = [
+diff --git a/test/fix-data-3.test.js b/test/fix-data-3.test.js
+index 460017f..b547940 100644
+--- a/test/fix-data-3.test.js
++++ b/test/fix-data-3.test.js
+@@ -7,6 +7,10 @@ import fs from 'node:fs';
+ import path from 'node:path';
+ import { fileURLToPath } from 'node:url';
+ import { attachJuice } from '../server/juice.js';
++import { geocodeMany, locationPrecision, splitLocations } from '../server/geo.js';
++import { normalizeLocations } from '../server/normalize.js';
++import * as families from '../server/families.js';
++import * as upgrade from '../server/sources/upgrade.js';
+ import { inferSeniority, jobSeniority } from '../server/keywords.js';
+ import { titleClass, roleFamily as vetFamily, salaryChecks, vetSalaries } from '../server/vet.js';
+ import * as salaryMod from '../server/salary.js';
+@@ -19,6 +23,7 @@ const { isFixedTermRole } = salaryMod;
+ const isFellowRank = (t) => (salaryMod.isFellowRank ? salaryMod.isFellowRank(t) : null);
+ const { buildMarket, mergeMarkets } = marketMod;
+ const notBasePay = (j) => (marketMod.notBasePay ? marketMod.notBasePay(j) : undefined);
++const departmentDisplayName = (n) => (families.departmentDisplayName ? families.departmentDisplayName(n) : n);
+ 
+ /* ---------------------------------------------------------------- D-38 */
+ // Google's "Fellow, Core AI Foundations" (google:84245035704296134): "As Fellow for Agentic Development, you will
+@@ -163,3 +168,133 @@ test('no-row places: a listed place with no pay row of its own gets no Juice, an
+   attachJuice(plain, CITIES);
+   assert.ok(plain.juice.byLocation.some((e) => e.locationName === 'Austin, TX'));
+ });
++
++/* ---------------------------------------------------------------- places */
++const at = (...inputs) => geocodeMany(inputs).map((l) => ({ name: l.name, city: l.city, region: l.region, country: l.country, precision: locationPrecision(l) }));
++
++test('D-41: "St", "St." and "Saint" are one spelling in a US town, so one town is one place and two towns of one name differ by state', () => {
++  // Google wrote St. George, SC both ways; Utah's St. George is another town.
++  const sc1 = at('Saint George, SC, USA')[0], sc2 = at('St George, SC, USA')[0], ut = at('St. George, UT, USA')[0];
++  assert.equal(sc1.city, 'St. George');
++  assert.deepEqual(sc2, sc1);
++  assert.equal(ut.city, 'St. George');
++  assert.notEqual(ut.region, sc1.region);
++  // Amazon's "St Louis, Michigan" is a town in Michigan, spelled like the gazetteer's St. Louis, MO.
++  assert.deepEqual(at('St Louis, Michigan, USA').map((l) => [l.name, l.city, l.region]), [['St. Louis, MI', 'St. Louis', 'MI']]);
++  assert.deepEqual(at('St Louis, Missouri, USA').map((l) => [l.name, l.precision]), [['St. Louis, MO', 'city']]);
++  // Canada: "St" -> "St."; a spelled-out "Saint" stays (Saint John, NB is not St. John's). Elsewhere as written.
++  assert.equal(at('St Thomas, Ontario, CAN')[0].city, 'St. Thomas');
++  assert.equal(at('Saint John, New Brunswick, CAN')[0].city, 'Saint John');
++  assert.equal(at('St Helens, England, GBR')[0].city, 'St Helens');
++  assert.equal(at('Saint-Ghislain, Belgium')[0].city, 'Saint-Ghislain');
++});
++
++test('D-42: a US state-only place reads as the state when its name is also a city\'s ("New York State", "Washington State")', () => {
++  assert.deepEqual(at('NY, US').map((l) => [l.name, l.city, l.region]), [['New York State', null, 'NY']]);
++  assert.deepEqual(at('WA, US').map((l) => [l.name, l.city, l.region]), [['Washington State', null, 'WA']]);
++  assert.equal(at('District of Columbia, USA')[0].name, 'Washington, DC');
++  // Other states keep their name, and the cities are unchanged.
++  assert.equal(at('CA, US')[0].name, 'California, US');
++  assert.equal(at('TX, US')[0].name, 'Texas, US');
++  assert.equal(at('New York, NY, US')[0].name, 'New York, NY');
++  assert.equal(at('Washington, DC')[0].name, 'Washington, DC');
++  assert.equal(at('Seattle, WA, US')[0].name, 'Seattle, WA');
++});
++
++test('V-45: Cajamar is pinned and named as Cajamar, not as São Paulo city 33 km away; Luxembourg, LUX is Luxembourg City', () => {
++  const [caj] = geocodeMany(['Cajamar, Sao Paulo, BRA']);
++  assert.equal(caj.name, 'Cajamar, Brazil');
++  assert.equal(locationPrecision(caj), 'city');
++  assert.ok(Math.abs(caj.lat - -23.3556) < 0.05 && Math.abs(caj.lng - -46.8769) < 0.05, `${caj.lat}, ${caj.lng}`);
++  assert.equal(geocodeMany(['Cajamar, Sao Paulo, BRA']).length, 1, 'one place, not Cajamar and São Paulo');
++  // The other Amazon towns written "<town>, Sao Paulo, BRA" or "<town>, Rio de Janeiro, BRA".
++  for (const [raw, town] of [['Osasco, Sao Paulo, BRA', 'Osasco'], ['Jundiaí, Sao Paulo, BRA', 'Jundiaí'], ['Paulínia, Sao Paulo, BRA', 'Paulínia'],
++    ['Barueri, Sao Paulo, BRA', 'Barueri'], ['Embu das Artes, Sao Paulo, BRA', 'Embu das Artes'], ['São João de Meriti, Rio de Janeiro, BRA', 'São João de Meriti'],
++    ['Belford Roxo, Rio de Janeiro, BRA', 'Belford Roxo']]) assert.equal(geocodeMany([raw])[0].city, town, raw);
++  // São Paulo itself, a Tokyo ward and a Thai abbreviation keep their readings.
++  assert.equal(at('Sao Paulo')[0].name, 'Sao Paulo, Brazil');
++  assert.equal(at('Ota-ku, Tokyo, JPN')[0].name, 'Tokyo, Japan');
++  assert.equal(at('กทม, Bangkok, TH')[0].name, 'Bangkok, Thailand');
++  const [lux] = geocodeMany(['Luxembourg, LUX']);
++  assert.deepEqual([lux.name, lux.city, lux.country, locationPrecision(lux)], ['Luxembourg', 'Luxembourg', 'LU', 'city']);
++  assert.equal(at('Remote, Luxembourg')[0].name, 'Remote (Luxembourg)');
++});
++
++test('Town and Country, MO is one place, fresh ("Town and Country, Missouri, USA") or as stored ("Town" | "Country, Missouri, USA")', () => {
++  for (const inputs of [['Town and Country, Missouri, USA'], ['Town', 'Country, Missouri, USA']]) {
++    const locs = normalizeLocations({ locationText: inputs[0], extraLocations: inputs.slice(1) });
++    assert.deepEqual(locs.map((l) => [l.name, l.city, l.region, locationPrecision(l)]), [['Town and Country, MO', 'Town and Country', 'MO', 'city']], inputs.join(' | '));
++  }
++  // " and " still separates two places, and other names with " and " stay whole.
++  assert.deepEqual(splitLocations('Seattle, WA and Austin, TX'), ['Seattle, WA', 'Austin, TX']);
++  assert.deepEqual(splitLocations('Port of Spain, Trinidad and Tobago'), ['Port of Spain, Trinidad and Tobago']);
++});
++
++/* ---------------------------------------------------------------- UX-32 */
++test('UX-32: NVIDIA\'s inverted department names and "Intern", and Amazon\'s "--" names, read as natural names', () => {
++  const cases = {
++    'Engineer, Systems Software': 'Systems Software Engineering', 'Engineer, ASIC': 'ASIC Engineering', Intern: 'Internships',
++    'Architect, Solutions': 'Solutions Architecture', 'Program Manager, Technical': 'Technical Program Management',
++    'Program Manager, Non-Technical': 'Non-Technical Program Management', 'Management, Product Development': 'Product Development Management',
++    'Management, Hardware (Engineering)': 'Hardware Engineering Management', 'Management, Product Management': 'Product Management (Managers)',
++    'Management, Program Management (Technical)': 'Technical Program Management (Managers)',
++    'Account Manager, Developer Relations': 'Developer Relations Account Management',
++    'Project/Program/Product Management--Technical': 'Technical Project, Program and Product Management',
++    'Project/Program/Product Management--Non-Tech': 'Non-Technical Project, Program and Product Management',
++    // Unchanged: names that already read naturally (Microsoft, Amazon, Google families), and empty values.
++    'Software Engineering': 'Software Engineering', 'Operations, IT, & Support Engineering': 'Operations, IT, & Support Engineering',
++    'Supply Chain/Transportation Management': 'Supply Chain/Transportation Management', 'Research Staff Member': 'Research Staff Member',
++  };
++  for (const [raw, want] of Object.entries(cases)) assert.equal(departmentDisplayName(raw), want, raw);
++  assert.equal(departmentDisplayName(null), null);
++  assert.equal(departmentDisplayName(''), '');
++  // Amazon's two names differ in their first word, so a cut label still tells them apart (UX-38).
++  const [t, n] = ['Project/Program/Product Management--Technical', 'Project/Program/Product Management--Non-Tech'].map(departmentDisplayName);
++  assert.notEqual(t.slice(0, 12), n.slice(0, 12));
++});
++
++test('UX-32: the names are one to one on NVIDIA\'s 142 departments (2026-10-16), so no two departments merge', () => {
++  const NVIDIA = ['Engineer, Systems Software', 'Engineer, ASIC', 'Architect', 'Intern', 'Architect, Solutions', 'Engineer, Verification', 'Account Manager, Developer Relations',
++    'Program Manager, Technical', 'Engineer, Systems Design', 'Account Manager', 'Management, Systems Software', 'Engineer, Software', 'Engineer, Product Development', 'Product Management',
++    'Engineer, ASIC Mixed Signal Design', 'Engineer, Technology Software', 'Research Staff Member', 'Engineer, Software Quality Assurance Test Development', 'Engineer, CAD',
++    'Architect, Professional Services', 'Management, Hardware (Engineering)', 'Program Manager, Non-Technical', 'Engineer, Mask Design', 'Engineer, Test', 'Engineer, Mechanical',
++    'Site Reliability Engineering', 'Engineer, ASIC Signal Integrity', 'Distinguished Engineer', 'Product Marketing', 'Engineer, Physical Design', 'Technical Product Marketing',
++    'Engineer, Applications', 'Engineer, Software Quality Assurance', 'Management, Software Engineering', 'Engineer, Technical Support', 'Engineer, Network Infrastructure',
++    'Engineer, Field Applications', 'Analyst, Business Systems', 'Engineer, IT', 'Engineer, DevOps', 'Management, Solutions Architect', 'Management, Sales', 'Engineer, Technical Marketing',
++    'Engineer, Quality Assurance', 'Management, Systems Design', 'Management, Operations', 'Accountant', 'Audit', 'Specialist, Integrated Marketing', 'Management, Developer Technology Software',
++    'Management, Accounting', 'Engineer, Tools Development', 'Engineer, Cyber Security', 'Analyst, Sales', 'Business Development', 'Engineer, Product', 'Management, Professional Services',
++    'Management, Product Development', 'Management, Supply Chain', 'Engineer, Process', 'Technician', 'Data Scientist', 'Management, Product Management', 'Analyst, Financial',
++    'Engineer, Performance', 'Management, Business Development', 'Systems Administrator, Network', 'Specialist, Public Relations', 'Specialist, Marketing', 'Engineer, Reliability',
++    'Analyst, Business', 'Engineer, Manufacturing', 'Management, Sourcing', 'Management, Program Management (Technical)', 'Management, ASIC Mixed Signal', 'Management, Security',
++    'Management, Finance', 'Compliance', 'Engineer, Telecom/Network', 'Engineer, Package Development', 'Management, Tax', 'Production Planner', 'Analyst, Cyber Security',
++    'Management, Test Engineering', 'Engineer, Data Center', 'Management, Corporate Marketing', 'Analyst, Compensation', 'Engineer, Failure Analysis', 'Management, Reliability Engineering',
++    'Planner, Materials', 'Planner, Supply Chain', 'Management, Marketing', 'Attorney, General', 'Analyst, Business Intelligence', 'Specialist, Corporate Events', 'Management, Facilities',
++    'Management, Quality Assurance', 'Management, Software Quality Assurance', 'Manager, Business Planning', 'HR Business Partner (Individual Contributor)', 'Engineer, Foundry',
++    'Management, IT', 'Engineer, Process Development', 'Specialist, Strategic', 'Stock Plan Administrator', 'Sourcer', 'Analyst, Import/Export', 'Management, Production Engineering',
++    'Management, Architecture', 'Management, Product Marketing', 'Management, Employment', 'Management, Program Management', 'Management, Process Engineering', 'HR Generalist', 'Handler',
++    'Specialist, Returns (Returns (RMA))', 'Program Manager, Marketing Communications', 'Doctoral Candidate', 'Analyst, Treasury', 'Management, Legal', 'Management, Purchasing',
++    'Office Manager', 'Management, DevOps Engineering', 'Management, Production Test', 'Analyst, Document Control', 'Management, Developer Relations', 'Representative, Customer Service',
++    'Accountant, Tax', 'Management, Government Relations', 'Management, HR Generalist', 'Analyst, Credit/Collections', 'Management, Sales Operations', 'Analyst, Logistics',
++    'Product Perf Lab', 'Administrator, Unix', 'IT Developer', 'Buyer', 'Management, Field Applications Engineering (Sales)', 'Management, Data Scientist', 'Management, Public Relations',
++    'Management, Network Infrastructure', 'Designer, Industrial'];
++  assert.equal(NVIDIA.length, 142);
++  const shown = NVIDIA.map(departmentDisplayName);
++  assert.equal(new Set(shown).size, NVIDIA.length, 'two departments got one name');
++  assert.ok(!shown.some((s) => /^(Engineer|Architect|Management|Program Manager|Account Manager|Analyst|Specialist|Planner), /.test(s)), shown.filter((s) => /, /.test(s)).join(' | '));
++});
++
++test('UX-32: stored NVIDIA and Amazon jobs show the natural name and keep the board\'s own as departmentPosted (idempotent, no job dropped)', () => {
++  const jobs = [
++    { id: 'nvidia:1', company: 'nvidia', title: 'Senior ASIC Engineer', department: 'Engineer, ASIC' },
++    { id: 'nvidia:2', company: 'nvidia', title: 'Product Manager', department: 'Product Management' },
++    { id: 'amazon:3', company: 'amazon', title: 'Sr. TPM', department: 'Project/Program/Product Management--Technical' },
++    { id: 'google:4', company: 'google', title: 'Intern', department: 'Intern' },
++  ];
++  const once = upgrade.displayDepartments ? upgrade.displayDepartments(jobs) : jobs;
++  assert.equal(once.length, jobs.length);
++  assert.deepEqual(once.map((j) => [j.department, j.departmentPosted]), [['ASIC Engineering', 'Engineer, ASIC'], ['Product Management', undefined],
++    ['Technical Project, Program and Product Management', 'Project/Program/Product Management--Technical'], ['Intern', undefined]]);
++  assert.deepEqual(upgrade.displayDepartments(once), once, 'idempotent');
++  const again = upgrade.upgradeStoredJobs(once.slice(0, 3));
++  assert.deepEqual(again.map((j) => [j.department, j.departmentPosted]), once.slice(0, 3).map((j) => [j.department, j.departmentPosted]), 'the read-time upgrade keeps them');
++});
+diff --git a/test/fix-pay-data.test.js b/test/fix-pay-data.test.js
+index 31beaea..6d66455 100644
+--- a/test/fix-pay-data.test.js
++++ b/test/fix-pay-data.test.js
+@@ -298,7 +298,7 @@ const stored = (over) => ({
+ });
+ 
+ test('delivery: relocateJobs (the snapshot upgrade the server and the static build run) re-derives pay labels, level and locations', () => {
+-  assert.equal(NORMALIZER_VERSION, 'norm-11', 'stored older snapshots are upgraded once (norm-11: the salary audit, docs/process/salary-audit-backend.md)');
++  assert.equal(NORMALIZER_VERSION, 'norm-12', 'stored older snapshots are upgraded once (norm-12: fix-data-3, docs/process/fix-data-3.md)');
+   const jobs = [
+     stored({ id: 'anthropic:ae', title: 'Strategic Account Executive, Banking', seniority: 'Mid', descriptionHtml: `<p>${ANTHROPIC_OTE}</p>`, salary: { ...toJobSalary(structured(380000, 450000), { source: 'structured' }), zones: 1 } }),
+     stored({ id: 'anthropic:re', title: 'Research Engineer', seniority: 'Mid', descriptionHtml: `<p>${ANTHROPIC_OTE}</p>`, salary: { ...toJobSalary(structured(350000, 850000), { source: 'structured' }), zones: 1 } }),
+diff --git a/test/fixtures/golden-normalize.json b/test/fixtures/golden-normalize.json
+index 2e798f6..1c98b74 100644
+--- a/test/fixtures/golden-normalize.json
++++ b/test/fixtures/golden-normalize.json
+@@ -1,5 +1,5 @@
+ {
+- "normalizerVersion": "norm-11",
++ "normalizerVersion": "norm-12",
+  "history": [
+   {
+    "normalizerVersion": "norm-2",
+@@ -55,6 +55,11 @@
+    "normalizerVersion": "norm-11",
+    "reason": "norm-11 salary audit (salary-audit-backend: no 12-range cap, Amazon New York City rows, Microsoft area ranges per place): 0 of the 300 hashes changed, version only",
+    "at": "2026-10-16T14:52:44.638Z"
++  },
++  {
++   "normalizerVersion": "norm-12",
++   "reason": "norm-12 fix-data-3: Fellow ranks, Data Residency, St. spelling, state-only labels, Brazilian towns, Luxembourg City, Town and Country (0 of 300 hashes changed)",
++   "at": "2026-10-17T01:16:57.915Z"
+   }
+  ],
+  "hashes": {
+diff --git a/test/golden-normalize.test.js b/test/golden-normalize.test.js
+index baf2ebb..e49a9c3 100644
+--- a/test/golden-normalize.test.js
++++ b/test/golden-normalize.test.js
+@@ -7,7 +7,7 @@
+ // NORMALIZER_VERSION in server/normalize.js (stored snapshots are then upgraded
+ // once by the server), then regenerate with:
+ //   UPDATE_GOLDEN=1 GOLDEN_REASON="what changed" node --test test/golden-normalize.test.js
+-// Re-baselines: 2026-10-02 initial; norm-3 "UX-3 canonical locations" (geo.js name/rawName); norm-7 job.seniorityBasis (fix-beta-pay); norm-8 fix wave 3 (fix3-data: sections.preferred, tag rules, team paragraphs, salary.originalInterval/partTime); norm-9 fix wave 4 (fix4-data: 0 of the 300 hashes changed, version only); norm-10 fix wave 5 (fix5-data: 0 of the 300 hashes changed, version only); norm-11 salary audit (salary-audit-backend: 0 of the 300 hashes changed, version only: the sample is the stable boards, which have no Amazon rows or Microsoft area ranges).
++// Re-baselines: 2026-10-02 initial; norm-3 "UX-3 canonical locations" (geo.js name/rawName); norm-7 job.seniorityBasis (fix-beta-pay); norm-8 fix wave 3 (fix3-data: sections.preferred, tag rules, team paragraphs, salary.originalInterval/partTime); norm-9 fix wave 4 (fix4-data: 0 of the 300 hashes changed, version only); norm-10 fix wave 5 (fix5-data: 0 of the 300 hashes changed, version only); norm-11 salary audit (salary-audit-backend: 0 of the 300 hashes changed, version only: the sample is the stable boards, which have no Amazon rows or Microsoft area ranges); norm-12 fix-data-3 (0 of the 300 hashes changed, version only: the sample's stable boards have no Fellow ranks, "Saint" towns, state-only places or Brazilian towns).
+ import { test } from 'node:test';
+ import assert from 'node:assert/strict';
+ import fs from 'node:fs';
+diff --git a/test/salary-pipeline.test.js b/test/salary-pipeline.test.js
+index 28be269..8ea73aa 100644
+--- a/test/salary-pipeline.test.js
++++ b/test/salary-pipeline.test.js
+@@ -240,6 +240,6 @@ test('chart: a posting is plotted at its served range in approx USD', () => {
+   assert.deepEqual([plotted[0].lo, plotted[0].hi, plotted[0].mid], [141000, 202000, 171500]);
+ });
+ 
+-test('normalizer version is norm-11 (SB-3, SB-4, SB-5 change normalized pay)', () => {
+-  assert.equal(NORMALIZER_VERSION, 'norm-11');
++test('normalizer version is norm-12 (SB-3, SB-4, SB-5 changed normalized pay in norm-11; fix-data-3 bumped it)', () => {
++  assert.equal(NORMALIZER_VERSION, 'norm-12');
+ });
+-- 
+2.43.0
+
