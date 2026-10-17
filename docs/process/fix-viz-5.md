@@ -141,9 +141,16 @@ docs/screenshots/fix-viz-5/ and docs/process/scripts/viz-even-measure.mjs.
 21. **UX-45:** the map's Juice legend starts each grade where the list's scale and the drawer's badge do: a shown score is
     rounded, so Ripe (45) starts at 44.5, $47,103, and Juicy (70) at 69.5, $94,996 (`juiceCutoff`, the live
     netForScore at score − 0.5, which equals palette.js juiceNetForScore). It read "$48K" and "$96K".
-22. **UX-36:** "Group: None" is index.html's option text, not this lane's file. Patch:
+22. **V-35 runs again** (the lead's ask). Its precondition looked for the old accessible name "one of N places", which
+    fix-pay-at-place replaced with "the range posted for <place>" (barPlace), so it skipped on fbdad58 and in desktop QA
+    round 4. It now finds one posting's bar with that wording; its assertions are unchanged. They need the tip to list
+    the posting's place ranges with the bar's own named as in its heading, so a one-place bar's tip now lists them
+    ("Bellevue: $82,700.00 – $117,100.00", up to 4 and "+N more"). On fbdad58's build it fails ("Posted for Cupertino; …"
+    with no ranges listed); after, it passes. The new legend keys (dashed, fading) have their own class
+    (`.ms-legend__kind`): `.ms-legend__span` stays the striped key, which fix-pay-at-place's [V-35] counts.
+23. **UX-36:** "Group: None" is index.html's option text, not this lane's file. Patch:
     docs/process/patches/fix-viz-5-group-none.diff ("No grouping").
-23. **V-47: the chart's share of a filter or view switch, with no change to what is drawn.**
+24. **V-47: the chart's share of a filter or view switch, with no change to what is drawn.**
     - chartPay's items, the medians, the groups, the stacks, each bar's pattern and stack key, and the circle plan are
       kept for the same list and Location filter (the app re-derives its list on any change, so "the same list" is the
       same postings in the same order).
@@ -257,8 +264,8 @@ $527K and three $403K rows are past the fence); Microsoft $0–400K → $0–350
   read the pins of the state- and country-only places themselves.
 - **The reviewers' red tests for these IDs**, on fbdad58's build: 13 of 27 pass (V-36, V-37, V-39, V-40, V-45, UX-38 and
   viz-even's 7; V-35 skips: it looks for the old "one of N places" wording), 13 fail (A-8, D-43, D-44, V-33, V-34, V-38,
-  V-41, V-42, V-43, V-44, V-46, V-48, UX-42). After: 26 of 27 pass, V-35 skips. UX-45 (beta-ux-review-2): fails before,
-  passes after.
+  V-41, V-42, V-43, V-44, V-46, V-48, UX-42). After: 27 of 27 pass. V-35, with its precondition updated (decision 22),
+  fails on fbdad58's build and passes after. UX-45 (beta-ux-review-2): fails before, passes after.
 - **viz-even:** 7/7 unit tests; e2e 7/7 with the UX-41 edit (decision 5).
 - **CI-like `npm test`** at 97cd2b8, in a clean worktree with no data links (`MELON_BETA_SNAPSHOT_DIR=`), load 18:
   1,253 tests, 1,200 pass, 0 fail, 8 skipped, 45 to-do.
@@ -311,3 +318,4 @@ legend desktop and 390 dark) and three colour-blind views.
 - 11:49 and 12:31: the session hung twice on the command that moved the data links out of data/; the lead restarted it.
   The links were never moved. `npm test` now runs in a clean worktree instead.
 - 12:40: UX-45 (97cd2b8); rebased onto 164874a, then 1ef0646.
+- 13:20: V-35 runs again (2c5444c), the lead's ask.
