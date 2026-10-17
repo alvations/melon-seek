@@ -47,6 +47,7 @@ import { registerFixPayAtPlaceTests } from '../test/e2e/fix-pay-at-place.e2e.js'
 import { registerBetaMobileQa4Tests } from '../test/e2e/beta-mobile-qa-4.e2e.js';
 import { registerFixViz5Tests } from '../test/e2e/fix-viz-5.e2e.js';
 import { registerBetaDesktopQa4Tests } from '../test/e2e/beta-desktop-qa-4.e2e.js';
+import { registerFixQa4Tests } from '../test/e2e/fix-qa4.e2e.js';
 
 const args = new Set(process.argv.slice(2));
 const apiOnly = args.has('--api-only');
@@ -127,6 +128,7 @@ if (!apiOnly) {
   registerBetaMobileQa4Tests(suite);
   registerFixViz5Tests(suite);
   registerBetaDesktopQa4Tests(suite);
+  registerFixQa4Tests(suite);
 }
 
 let results;

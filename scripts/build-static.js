@@ -1197,7 +1197,7 @@ async function writeCompany(ctx, out, c, payload, ledger, { live } = {}) {
     const csv = ctx.jobsToCsv(payload.jobs, { mode: payload.mode });
     await fs.mkdir(path.join(out, 'data'), { recursive: true });
     await fs.writeFile(path.join(out, 'data', `${c.slug}.csv`), csv);
-    csvRow = { slug: c.slug, name: c.name, rows: payload.jobs.length, mode: payload.mode, source: c.source, channel: c.channel || 'stable' };
+    csvRow = { slug: c.slug, name: c.name, rows: payload.jobs.length, mode: payload.mode, source: c.source };
     csvNote = `  csv ${size(Buffer.byteLength(csv))}`;
   }
   let line = `${c.slug.padEnd(10)} ${payload.mode.padEnd(8)} ${String(payload.jobs.length).padStart(4)} jobs  list ${size(r.listBytes).padStart(9)}  desc ${String(r.descFiles).padStart(4)} files ${size(r.descBytes).padStart(9)}`;
@@ -1243,7 +1243,7 @@ async function reuseStable(ctx, from, c) {
     line: `${c.slug.padEnd(10)} ${String(raw.mode).padEnd(8)} ${String(jobs.length).padStart(4)} jobs  (the main site's files, copied from ${rel(from)}/)`,
     share: shareStats(c, payload, ctx.shareFx),
     market: { company: payload.company, mode: payload.mode, fetchedAt: payload.fetchedAt, jobs },
-    csvRow: csv ? { slug: c.slug, name: c.name, rows: jobs.length, mode: raw.mode, source: c.source, channel: c.channel || 'stable' } : null,
+    csvRow: csv ? { slug: c.slug, name: c.name, rows: jobs.length, mode: raw.mode, source: c.source } : null,
     stats: { mode: raw.mode, jobs: jobs.length, withPay: jobs.filter((j) => j && j.salary).length, fetchedAt: payload.fetchedAt },
   };
 }
@@ -1346,7 +1346,7 @@ async function buildSite(ctx, site) {
     summary.push(r.line);
     shares.push(r.share);
     marketPayloads.push(r.market);
-    if (r.csvRow) csvRows.push(r.csvRow);
+    if (r.csvRow) csvRows.push({ ...r.csvRow, channel: c.channel || 'stable' }); // D-49: the README names each file's source
     if (c.channel === 'beta') included.push({ slug: c.slug, name: c.name, ...r.stats });
   }
   await writeJson(path.join(out, 'api', 'companies.json'), companies);

@@ -162,7 +162,9 @@ export const CSV_SOURCES = Object.freeze({
   amazon: 'Amazon Jobs (amazon.jobs): the site\'s own search API (search.json)',
   nvidia: 'NVIDIA Careers (jobs.nvidia.com): the site\'s own Eightfold search (PCSX)',
 });
-const sourceOf = (c) => CSV_SOURCES[c.slug] && c.channel === 'beta' ? CSV_SOURCES[c.slug] : CSV_SOURCES[c.source] || null;
+const JOB_BOARDS = new Set(['greenhouse', 'ashby', 'lever']);
+/** A board's source line: a job-board API by `source`, a careers site by `slug`. */
+const sourceOf = (c) => (JOB_BOARDS.has(c.source) ? CSV_SOURCES[c.source] : CSV_SOURCES[c.slug] || CSV_SOURCES[c.source]) || null;
 
 /**
  * data/README.txt for the static build. `channel`: 'stable' (the main site: Greenhouse, Ashby and Lever boards) or
