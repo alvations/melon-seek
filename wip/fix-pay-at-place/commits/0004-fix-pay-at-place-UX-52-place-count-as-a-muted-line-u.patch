@@ -1,8 +1,8 @@
 From ea3a2b66a46869dade440330b4f3e555ed2f6fa4 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 00:29:36 +0000
-Subject: [PATCH 4/8] fix-pay-at-place: UX-52 place count as a muted line under
- the pill; drawer heading = the card's range; no label cut (WIP)
+Subject: [PATCH 04/10] fix-pay-at-place: UX-52 place count as a muted line
+ under the pill; drawer heading = the card's range; no label cut (WIP)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

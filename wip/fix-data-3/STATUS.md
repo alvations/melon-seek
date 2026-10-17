@@ -42,6 +42,7 @@ d9450ed WIP fix-data-3: prompt and log skeleton
  M docs/screenshots/qa-mobile-beta/e2e-M-24-keyboard-location-search.png
  M docs/screenshots/qa-mobile-beta/e2e-M-27-topbar-360.png
  M docs/screenshots/qa-mobile/e2e-landscape-map.png
+?? docs/process/patches/fix-data-3-m40-test.diff
 ```
 
 ## Left out (not in untracked.tgz)

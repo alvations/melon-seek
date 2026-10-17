@@ -1,7 +1,7 @@
 From 95f5efbd75ea06ddb5ae5fd774c39218cfb24779 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 02:14:30 +0000
-Subject: [PATCH 7/7] fix-sec-3: process log (State, decisions, replay steps)
+Subject: [PATCH 7/8] fix-sec-3: process log (State, decisions, replay steps)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

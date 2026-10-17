@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-ab8feec32a367855e`
 - Base (on claude/stoic-ride-54ddxp): `f53a2700e30e7c2d1a2adf3e2b484bcbeb098323`
-- Head: `95f5efbd75ea06ddb5ae5fd774c39218cfb24779`
+- Head: `8c808dac84a9109ba58d3697ccde2b2d45ef650a`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-sec-3 <new worktree dir>`
 
 ## Commits since the base
 ```
+8c808da fix-sec-3: REVIEW.md: S-2, S-4, S-9 and V12/V14 residuals and S-10 marked fixed, with commits
 95f5efb fix-sec-3: process log (State, decisions, replay steps)
 928ab7f fix-sec-3: S-9 residual: the refresh commits FX values only in code files, and never test code
 9479771 fix-sec-3: V12 residual: read-only checkouts keep no token; idb pinned in the iOS Simulator job
