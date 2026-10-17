@@ -4664,6 +4664,11 @@ function annualNote(sal, job = null) {
   return annualLine(`Annualized from ${what}`, [sal.text ? `As posted: ${sal.text}.` : '', lasts].filter(Boolean).join(' '));
 }
 
+/**
+ * M-51 (fix-phone-sizes): one item of the job page's meta line with the "·" before it, so a wrap never leaves a "·"
+ * at a line's end; the "·" that starts a line (and the first one) is clipped away (styles.css .d-meta-part).
+ */
+const metaPart = (t) => h('span', { class: 'd-meta-part' }, h('span', { class: 'sep', 'aria-hidden': 'true' }, '·'), t);
 /** P-16: "Revenue · Revenue" and "Internships · Internships · Intern [Intern]" once each. */
 function metaParts(job) {
   const seen = new Set([String(senLabel(senKey(job))).toLowerCase()]);
@@ -4702,7 +4707,7 @@ function drawerLoading(job) {
   return [drawerHead(), h('div', { class: 'drawer-scroll', tabindex: '0', 'aria-label': 'Role details' },
     h('div', { class: 'd-company' }, h('span', { class: 'dot', style: `--dot:${companyColor(company)}` }), company.name || job.companyName),
     h('h2', { class: 'd-title', id: 'drawerTitle' }, job.title),
-    h('div', { class: 'd-meta' }, ...metaParts(job).map((t, i) => [i ? h('span', { class: 'sep' }, '·') : null, h('span', null, t)]),
+    h('div', { class: 'd-meta' }, ...metaParts(job).map(metaPart),
       h('span', { class: `sen sen--${sen.toLowerCase().replace(/\W/g, '')}` }, senLabel(sen))),
     h('div', { class: 'd-loading-pay' }, pay ? h('span', { class: `sal-pill${pay.elsewhere ? ' sal-pill--elsewhere' : ''}`, title: pay.tip }, pay.text)
       : h('span', { class: 'sal-pill sal-pill--none' }, job.salaryFlag ? 'Pay unclear' : 'No pay listed')),
@@ -4852,7 +4857,7 @@ function drawerContent(job) {
     job._postedTitle && job._postedTitle.replace(/^\s*\[[^\]]{1,16}\]\s*/, '') !== job.title ? h('div', { class: 'd-posted muted' }, `Posted as “${job._postedTitle}”`) : null,
     // M-37 (fix-phone-text): one line; what a general application is, behind its Details.
     isPool(job) ? noteLine({ cls: 'd-pool', key: 'drawer-pool', line: h('strong', null, POOL_LABEL), details: [`${POOL_TIP}.`] }) : null,
-    h('div', { class: 'd-meta' }, ...metaParts(job).map((t, i) => [i ? h('span', { class: 'sep' }, '·') : null, h('span', null, t)]),
+    h('div', { class: 'd-meta' }, ...metaParts(job).map(metaPart),
       h('span', { class: `sen sen--${sen.toLowerCase().replace(/\W/g, '')}`, title: SEN_TIP[sen] || null }, senLabel(sen)),
       job._titleTag ? h('span', { class: 'tag', title: `The posting's title starts with “[${job._titleTag}]”, a tag the company adds (often a team or office code)` }, `Tag: ${job._titleTag}`) : null),
     job._ts ? h('div', { class: 'd-updated muted' }, updatedText(job)) : null,
