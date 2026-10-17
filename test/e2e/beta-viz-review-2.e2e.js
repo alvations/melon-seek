@@ -245,6 +245,12 @@ export function registerBetaVizReviewTests2(suite) {
         const cand = [...rows].filter(([, r]) => r.n >= 10 && r.other >= 5).map(([k, r]) => ({ k, n: r.n, other: r.other, own: formatMoney(median(r.own)) })).sort((p, q) => q.other - p.other);
         return cand.slice(0, 2);
       }, { base, company });
+      // D-44 (fix-viz-5): the small places fold into "N more places"; open it so every place is a row to check.
+      const fold = page.locator('#chartHost .ms-crow__label:has(.ms-crow__fold)').first();
+      if ((await fold.count()) && (await fold.locator('.ms-crow__fold').textContent()) !== '▴') {
+        await fold.click();
+        await page.waitForFunction(() => document.querySelector('#chartHost .ms-crow__fold')?.textContent === '▴', null, { timeout: 15000 });
+      }
       for (const w of want) {
         const shown = await scrollFind(page, `(host) => { const r = [...host.querySelectorAll('.ms-crow')].find((row) => row.querySelector('.ms-crow__name')?.firstChild?.textContent.trim() === ${JSON.stringify(w.k)}); return r ? r.querySelector('.ms-crow__label').title : null; }`);
         if (!shown) continue;

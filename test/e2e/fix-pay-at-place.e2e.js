@@ -135,6 +135,14 @@ async function allRows(page, sel) {
   }, sel);
 }
 
+/** D-44 (fix-viz-5): Group by Location folds the small places into "N more places"; open it so every place is a row. */
+async function openFold(page) {
+  const fold = page.locator('#chartHost .ms-crow__label:has(.ms-crow__fold)').first();
+  if (!(await fold.count()) || (await fold.locator('.ms-crow__fold').textContent()) === '▴') return;
+  await fold.click();
+  await page.waitForFunction(() => document.querySelector('#chartHost .ms-crow__fold')?.textContent === '▴', null, { timeout: 15000 });
+}
+
 /** The pay block of the open drawer: heading, the line under it, Pay by place rows, chips and Details. */
 async function drawerPay(page) {
   await page.locator('#drawer .d-sal-amt').waitFor({ timeout: 30000 });
@@ -181,6 +189,7 @@ export function registerFixPayAtPlaceTests(suite) {
         }
         return out;
       }, { base, company, places });
+      await openFold(page);
       const rows = await allRows(page, '.ms-crow');
       for (const p of places) {
         if (!want[p].n) continue;
