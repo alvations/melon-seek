@@ -31,7 +31,7 @@
   --_hist-o: calc(.74 + .06 * var(--_d));
   --_hist-o-c: calc(.74 + .06 * var(--_d));
   --_bin-mix: 100%;
-  --_band-mix: calc(9% + 7% * var(--_d));
+  --_band-mix: calc(13% + 9% * var(--_d)); /* V-42 (fix-viz-5): with its edge (.ms-crow__band) the band clears 3:1 */
   --_font: var(--ms-font, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
 }
 @media (prefers-color-scheme: dark) {
@@ -85,7 +85,9 @@
 .ms-chart__legend > * { flex: none; }
 .ms-chart__legend[hidden] { display: none; }
 .ms-legend__title { color: var(--_muted); font-weight: 500; margin-right: 2px; }
-.ms-legend__item { display: inline-flex; align-items: center; gap: 6px; max-width: 220px; white-space: nowrap; }
+/* fix-viz-5: a key shows its whole name ("Operations, IT, & Support Engineering" was cut at 220 px); the legend is one
+   row that scrolls sideways, so a long key costs no line. */
+.ms-legend__item { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .ms-legend__swatch { flex: none; width: 10px; height: 10px; border-radius: 2px; }
 .ms-legend__key { overflow: hidden; text-overflow: ellipsis; color: var(--_text); }
 .ms-legend__n { color: var(--_muted); font-variant-numeric: tabular-nums; }
@@ -176,6 +178,16 @@
 }
 
 .ms-chart__hist { position: relative; }
+/* V-46 (fix-viz-5): a phone has no label column, so the axis's unit and the median caption are one line above the
+   strip ("US dollars a year · Median base pay $141K"; chart.js renderAxis picks a form that fits). */
+.ms-chart__caprow {
+  padding: 4px 12px 0;
+  line-height: 16px;
+  white-space: nowrap; overflow: hidden;
+  color: var(--_muted);
+}
+.ms-chart__caprow[hidden] { display: none; }
+.ms-chart__capmed { color: var(--_text); font-weight: 600; }
 .ms-hist__cap {
   position: absolute; left: 0; bottom: 3px;
   padding-left: 16px;
@@ -307,8 +319,14 @@
    The colour stays the row's (3:1); the surface stripes say "not one posted range" without colour. */
 .ms-row__bar--span { background-image: repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in srgb, var(--_surface) 70%, transparent) 3px 5px); }
 .ms-row__bar--ote { background-image: repeating-linear-gradient(90deg, transparent 0 7px, var(--_surface) 7px 9px); }
+/* V-48 (fix-viz-5): on-target earnings over several levels: dashed and striped. */
+.ms-row__bar--span.ms-row__bar--ote { background-image: repeating-linear-gradient(90deg, transparent 0 7px, var(--_surface) 7px 9px), repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in srgb, var(--_surface) 70%, transparent) 3px 5px); }
+/* V-41 (fix-viz-5): a stated minimum ("from €46K") has no top: its bar starts at the figure and fades out. */
+.ms-row__bar--min { min-width: 22px; border-radius: 4px 0 0 4px; -webkit-mask-image: linear-gradient(to right, #000 25%, transparent); mask-image: linear-gradient(to right, #000 25%, transparent); }
 .ms-legend__span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--_text); }
 .ms-legend__spansw { flex: none; width: 18px; height: 8px; border-radius: 4px; background-color: var(--_muted); background-image: repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in srgb, var(--_surface) 70%, transparent) 3px 5px); }
+.ms-legend__spansw--ote { background-image: repeating-linear-gradient(90deg, transparent 0 7px, var(--_surface) 7px 9px); }
+.ms-legend__spansw--min { background-image: none; border-radius: 4px 0 0 4px; -webkit-mask-image: linear-gradient(to right, #000 25%, transparent); mask-image: linear-gradient(to right, #000 25%, transparent); }
 /* MR-2: the exchange-rate date in the notes line links to where its source is named. */
 .ms-chart__fx { color: inherit; text-decoration: underline; text-decoration-color: var(--_axis); text-underline-offset: 2px; }
 .ms-chart__fx:hover { color: var(--_text); }
@@ -335,7 +353,7 @@
   pointer-events: none;
 }
 .ms-row__count--in { top: 2px; line-height: 18px; padding: 0 5px; border-radius: 4px; background: var(--_surface); box-shadow: 0 0 0 1px var(--_border); }
-.ms-row.is-hover .ms-row__count, .ms-row.is-highlighted .ms-row__count, .ms-chart--stack .ms-row__count { visibility: hidden; }
+.ms-row.is-hover .ms-row__count, .ms-row.is-highlighted .ms-row__count { visibility: hidden; }
 .ms-row__bar[hidden], .ms-row__dot[hidden] { display: none; }
 /* Axis-overflow chevrons (ranges): the bar continues beyond the domain. */
 .ms-row__over {
@@ -374,8 +392,11 @@
 }
 .ms-crow--last { border-bottom: 0; }
 /* Rows beyond the 8 palette slots are neutral (palette.js OTHER, 3:1 like the slots). */
-.ms-crow--other { --_band-mix: calc(9% + 5% * var(--_d)); }
-.ms-crow__fold { color: var(--_muted); font-weight: 600; } /* UX-24: the "N more departments" row's ▾ / ▴ */
+.ms-crow--other { --_band-mix: calc(12% + 7% * var(--_d)); }
+/* UX-24: the "N more departments" row's ▾ / ▴. fix-viz-5: beside the name (.ms-crow__head), never cut with it. */
+.ms-crow__head { display: flex; align-items: baseline; gap: 4px; min-width: 0; }
+.ms-crow__head .ms-crow__name { flex: 0 1 auto; min-width: 0; }
+.ms-crow__fold { flex: none; color: var(--_muted); font-weight: 600; font-size: 13px; line-height: 1.22; }
 .ms-crow.is-selected { background: color-mix(in srgb, var(--c) 6%, transparent); }
 
 .ms-crow__label {
@@ -415,6 +436,7 @@
   align-items: flex-end;
 }
 .ms-chart--narrow .ms-crow__text { flex-direction: row; align-items: baseline; gap: 8px; min-width: 0; }
+.ms-chart--narrow .ms-crow__head { flex: 0 1 auto; min-width: 0; }
 .ms-chart--narrow .ms-crow__name { display: block; flex: 0 1 auto; min-width: 0; white-space: nowrap; text-overflow: ellipsis; }
 .ms-chart--narrow .ms-crow__sub { flex: none; }
 
@@ -424,6 +446,9 @@
   position: absolute; top: 50%;
   border-radius: 999px;
   background: color-mix(in srgb, var(--c) var(--_band-mix, 9%), var(--_surface));
+  /* V-42 (fix-viz-5): the middle half's edge is the row colour itself (3:1 or better on the chart, V-22); its values
+     are in the row's name and title ("middle half $87K to $142K"). The fill was 1.1:1 in light, 1.2–1.35:1 in dark. */
+  box-shadow: inset 0 0 0 1px var(--c);
 }
 .ms-crow__median {
   position: absolute; top: 50%;
@@ -624,6 +649,20 @@
   font-size: 12px;
 }
 .ms-map--offline .ms-map__offline-note { display: block; }
+/* fix-viz-5: a short map (the Razr cover screen's is 123 px tall) keeps its pins; the names under them say enough. */
+@media (max-width: 559px) and (max-height: 500px) { .ms-map--offline .ms-map__offline-note { display: none; } }
+/* V-44 (fix-viz-5): "9 postings list no place, so not on the map" (one line above the Remote button). */
+.ms-map .ms-map__unplaced {
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--_surface) 90%, transparent);
+  border: 1px solid var(--_border);
+  color: var(--_muted);
+  font-size: 12px; line-height: 16px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.ms-map .ms-map__unplaced[hidden] { display: none; }
 
 .ms-map .ms-pin-icon { outline: none; }
 .ms-map .ms-pin-icon:focus-visible .ms-pin { box-shadow: 0 0 0 2px var(--_surface), 0 0 0 4px var(--_accent), 0 2px 6px rgba(0, 0, 0, .22); }
@@ -805,7 +844,8 @@
 /* Ranges, narrow: the title gets its own full-width line above the bar (chart.js ms-chart--stack, 44px rows). */
 .ms-chart--stack .ms-row__label { right: 0; bottom: auto; height: 20px; line-height: 20px; padding: 0 12px; }
 .ms-chart--stack .ms-row__bar, .ms-chart--stack .ms-row__dot { top: 32px; }
-.ms-chart--stack .ms-row__val, .ms-chart--stack .ms-row__over { top: 20px; line-height: 24px; }
+.ms-chart--stack .ms-row__val, .ms-chart--stack .ms-row__over, .ms-chart--stack .ms-row__count { top: 20px; line-height: 24px; }
+.ms-chart--stack .ms-row__count--in, .ms-chart--stack .ms-row__val--in { top: 23px; line-height: 18px; }
 .ms-chart--stack .ms-row::before { inset: 1px 4px; }
 .ms-chart--stack .ms-group__name { max-width: calc(100% - 124px); padding-left: 12px; }
 .ms-chart--stack .ms-group__title { min-width: 0; }
@@ -828,6 +868,13 @@
   .ms-modes__paywhat { white-space: nowrap; max-width: min(176px, calc(100vw - 200px)); }
   .ms-modes__long { display: none; }
   .ms-modes__short { display: inline; }
+  /* fix-viz-5: under 340 px the scale and its line sit under the switch, as wide as the box ("Median pay" took 3 lines
+     beside it at 280 px). */
+  @media (max-width: 340px) {
+    .ms-map .ms-modes.ms-modes--pay { flex-direction: column; align-items: stretch; }
+    .ms-modes__scale { min-width: min(184px, calc(100vw - 96px)); }
+    .ms-modes__paywhat { max-width: none; }
+  }
   /* fix-density: the opened Details drop under the switch, as wide as the box. */
   .ms-map .ms-modes.ms-modes--pay:has(.ms-note.is-open) { flex-wrap: wrap; }
   .ms-modes--pay:has(.ms-note.is-open) .ms-modes__pay { flex: 1 1 100%; }

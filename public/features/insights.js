@@ -11,7 +11,7 @@
 
 import {
   salaryUSD, percentile, median, formatMoney, formatDelta, formatPct, plural, fmtCount, niceTicks,
-  jobLocationKeys, countryName, isOTE, h, createTooltip, preserveFocus, uid, payAt, pricedPlaces, toUSD,
+  jobLocationKeys, countryName, isOTE, notBasePay, h, createTooltip, preserveFocus, uid, payAt, pricedPlaces, toUSD,
 } from './shared.js';
 import { formatAsOf, asOf as registryAsOf } from './freshness.js';
 import { FX_AS_OF } from '../viz/palette.js';
@@ -47,8 +47,10 @@ export { percentile, median, salaryUSD, toUSD } from './shared.js';
 /**
  * A job's base pay midpoint in approx USD, or null. On-target earnings (base plus commission at
  * target) are never pooled with base pay (shared decision 3), so they count as "no base pay" here.
+ * MR-28 (fix-viz-5): nor are stated minimums, shift-inclusive or part-time pay (shared.js notBasePay, the market
+ * doc's rule); the header's Details count them.
  */
-function midOf(job) { if (isOTE(job)) return null; const p = salaryUSD(job); return p ? p.mid : null; }
+function midOf(job) { if (isOTE(job) || notBasePay(job)) return null; const p = salaryUSD(job); return p ? p.mid : null; }
 
 const mean = (a) => (a.length ? a.reduce((s, v) => s + v, 0) / a.length : null);
 
@@ -83,10 +85,13 @@ function kw(job, facet) {
 /** Headline numbers for a set of jobs. */
 export function summaryStats(jobs = []) {
   const mids = jobs.map(midOf).filter((v) => v != null);
+  // MR-28: pay posted as a stated minimum, shift-inclusive or part-time is published pay, but not in the median.
+  const posted = mids.length + jobs.filter((j) => !isOTE(j) && notBasePay(j) && salaryUSD(j)).length;
   return {
     total: jobs.length,
     salaried: mids.length,
-    payShare: jobs.length ? mids.length / jobs.length : 0,
+    posted,
+    payShare: jobs.length ? posted / jobs.length : 0,
     remoteShare: jobs.length ? jobs.filter((j) => j.remote).length / jobs.length : 0,
     median: median(mids),
     p25: percentile(mids, 0.25),
@@ -428,9 +433,9 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
     return h('div', { class: 'msi-stats', role: 'list' },
       // UX-53 / UX-61 (fix-phone-text): "of 2,781 with pay" (it read "of 2,781 salaried ro…" at 360). UX-55: a range is
       // written like the cards ("$188K–252K"), so the tile no longer cuts its number at 1440.
-      [tile('Median base pay', enough ? formatMoney(s.median) : '—', !s.salaried ? 'no pay published' : enough ? `of ${fmtCount(s.salaried)} with pay` : `too few with pay (${s.salaried})`),
+      [tile('Median base pay', enough ? formatMoney(s.median) : '—', !s.salaried ? (s.posted ? 'no base pay posted' : 'no pay published') : enough ? `of ${fmtCount(s.salaried)} with ${s.posted > s.salaried ? 'base ' : ''}pay` : `too few with pay (${s.salaried})`),
         tile('Middle half', enough && s.p25 != null ? moneySpan(s.p25, s.p75) : '—', 'of roles with pay'),
-        tile('Pay published', formatPct(s.payShare), `${fmtCount(s.salaried)} of ${fmtCount(s.total)}`),
+        tile('Pay published', formatPct(s.payShare), `${fmtCount(s.posted)} of ${fmtCount(s.total)}`),
         tile('Remote-eligible', formatPct(s.remoteShare), plural(jobs.filter((j) => j.remote).length, 'role'))]
         .map((t) => { t.setAttribute('role', 'listitem'); return t; }));
   }
@@ -458,10 +463,12 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
         : { ...j, salary: { ...s, min: at.min, max: at.max, mid: at.mid, currency: at.currency } };
     });
     const ote = jobs.filter((j) => isOTE(j)).length;
+    const notBase = jobs.filter((j) => j.salary && notBasePay(j)).length;
     // fix-density: the header's one line ("All 5,000 roles", "120 of 5,000 roles match"); the rates, dates,
     // left-out counts and the pay guide behind "Details" (viz/note.js).
     const notes = [
       ote ? `${plural(ote, 'role')} posting on-target earnings (base plus commission) left out of pay figures` : '',
+      notBase ? `${plural(notBase, 'role')} posting a stated minimum, top shift pay or part-time pay left out of pay figures (not a base pay range)` : '',
       elsewhere ? `${plural(elsewhere, 'role')} whose pay is posted for other places or countries left out of pay figures` : '',
     ].filter(Boolean);
     tip.hide();

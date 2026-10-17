@@ -82,7 +82,7 @@ export function registerBetaVizReviewTests2(suite) {
     const { page, base } = await open(ctx, 'c=amazon');
     await page.waitForSelector('#chartHost .ms-bin', { timeout: 60000 });
     const r = await page.evaluate(async ({ base }) => {
-      const { chartPay, keyOf, placeCircles } = await import(`${base}/viz/chart.js`);
+      const { chartPay, keyOf, placeCircles, circleRadius } = await import(`${base}/viz/chart.js`);
       const jobs = (await (await import(`${base}/api.js`)).getJobs({ company: 'amazon' })).jobs || [];
       const { plotted } = chartPay(jobs);
       const host = document.querySelector('#chartHost');
@@ -97,10 +97,18 @@ export function registerBetaVizReviewTests2(suite) {
       const names = rows.map((row) => row.querySelector('.ms-crow__name').firstChild.textContent.trim());
       const named = new Set(names.filter((n) => !/^\d[\d,]* more /.test(n)));
       const drawn = rows.map((row) => [...row.querySelectorAll('.ms-bin:not(.ms-bin--overflow)')].map((b) => ({ n: +b.dataset.n, at: +b.dataset.at, d: parseFloat(b.querySelector('.ms-bin__dot').style.width) })));
-      const maxN = Math.max(...drawn.flat().map((c) => c.n));
-      const rMax = Math.max(...drawn.flat().map((c) => c.d)) / 2, rMin = Math.min(4.5, rMax), edge = Math.max(0, rMax - 6);
+      let maxN = Math.max(...drawn.flat().map((c) => c.n));
+      let rMax = Math.max(...drawn.flat().map((c) => c.d)) / 2, rMin = Math.min(4.5, rMax), edge = Math.max(0, rMax - 6);
+      let rad = (n) => Math.max(rMin, rMax * Math.sqrt(n / maxN));
+      // fix-viz-5 (V-34 changed the size scale): when the chart exports its scale and says what its sizes were drawn
+      // against (the body's data-plan-n, data-r-max, data-edge), replay with those, so the check stays "the drawn
+      // circles are the plan at the drawn sizes" whatever the scale.
+      const P = host.querySelector('.ms-chart__body')?.dataset || {};
+      if (typeof circleRadius === 'function' && P.planN) {
+        maxN = +P.planN; rMax = +P.rMax; edge = +P.edge;
+        rad = (n) => circleRadius(n, maxN, { rMax });
+      }
       const xd = (v) => Math.min(plotR - edge, Math.max(plotL + edge, x(v)));
-      const rad = (n) => Math.max(rMin, rMax * Math.sqrt(n / maxN));
       const bad = [];
       rows.forEach((row, i) => {
         const fold = /^\d[\d,]* more /.test(names[i]);

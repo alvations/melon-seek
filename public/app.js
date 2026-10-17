@@ -13,7 +13,7 @@ import { compsForJob, compsNote, createCompsCard } from './features/comps.js';
 import { loadFreshness, freshnessDoc, juiceAsOfText, juiceSpanText, marketAsOfText, compstimateAsOfText, asOf, formatAsOf } from './features/freshness.js';
 import { createCompsChart } from './viz/comps.js';
 import { roleFamily, FAMILY_LABELS, readableTitle, levelLabel, displayLevel, NOT_STATED, DISPLAY_LEVEL_ORDER, levelKey, levelFromKey } from './features/roles.js';
-import { payLocations, payRank, samePayCountry, countryInSentence, payAt, pricedPlaces, placeLabel } from './features/shared.js';
+import { payLocations, payRank, samePayCountry, countryInSentence, payAt, pricedPlaces, placeLabel, notBasePay } from './features/shared.js';
 // ./features/insights.js is imported on first use (Insights mode), see renderInsights.
 // api.js: getCompanies, getJobs, getJobDetail (namespace import: tolerate a missing optional export)
 
@@ -1117,19 +1117,22 @@ function titleMatch(j, m) {
  * (usdHere: Microsoft's Mountain View roles at their SF Bay Area range), as the chart caption and the map pin do.
  */
 function stats(list, F = viewSpec) {
-  const base = [], ote = [];
+  const base = [], ote = [], nb = [];
   for (const j of list) {
     if (!payHere(j, F)) continue;
-    (isOte(j) ? ote : base).push(usdHere(j, F).mid);
+    // MR-28 (fix-viz-5): the chart's rule (features/shared.js notBasePay): a stated minimum, shift-inclusive or
+    // part-time figure is shown and counted as pay, and left out of the median unless nothing else is left.
+    (notBasePay(j) ? nb : isOte(j) ? ote : base).push(usdHere(j, F).mid);
   }
-  const mids = (base.length ? base : ote).sort((a, b) => a - b);
+  const mids = (base.length ? base : ote.length ? ote : nb).sort((a, b) => a - b);
   const depts = new Map();
   for (const j of list) depts.set(deptKey(j), (depts.get(deptKey(j)) || 0) + 1);
   const top = [...depts].sort((a, b) => b[1] - a[1])[0] || null;
   return {
-    n: list.length, withSalary: base.length + ote.length,
+    n: list.length, withSalary: base.length + ote.length + nb.length,
     median: quantile(mids, 0.5), p25: quantile(mids, 0.25), p75: quantile(mids, 0.75), top,
     oteOnly: !base.length && ote.length > 0, oteLeftOut: base.length ? ote.length : 0,
+    notBaseOnly: !base.length && !ote.length && nb.length > 0, notBaseLeftOut: base.length || ote.length ? nb.length : 0,
   };
 }
 
@@ -2921,7 +2924,7 @@ function renderKpis() {
       : capNote?.salariedFirst ? `of the ${capNote.kept.toLocaleString()} kept show pay` : onePlace ? `show pay for ${onePlace}` : 'show pay',
       `${st.withSalary.toLocaleString()} of ${st.n.toLocaleString()} postings include a pay range${here}${here ? ' (pay posted only for other places or another country is not counted)' : ''}${capNote ? `. ${capNote.tip}` : ''}`, 'stat--share') : null,
     // BP-13: it says which pay the median is of; the chart's median uses the same set.
-    st.median != null ? item(money(st.median), st.oteOnly ? 'median on-target earnings' : 'base pay median',
+    st.median != null ? item(money(st.median), st.oteOnly ? 'median on-target earnings' : st.notBaseOnly ? 'posted pay median' : 'base pay median',
       `Half of these roles pay more than this and half less (the middle of each posted range, ${ote || 'base pay, '}in US dollars${here}${left})`, 'stat--median') : null,
   ].filter(Boolean);
   // M-46 (fix-phone-text): a phone shows only the median, so with no pay in view its line said nothing but "Details".
@@ -2932,6 +2935,9 @@ function renderKpis() {
     st.p25 != null && st.p75 != null && money(st.p25) !== money(st.p75) ? `Half of these roles pay between ${money(st.p25)} and ${money(st.p75)} (the middle of each posted range)` : '',
     st.median != null ? `The median is ${st.oteOnly ? 'on-target earnings' : 'base pay'}, in approx US dollars${here}: half of these roles pay more, half less` : '',
     st.oteLeftOut ? `${plural(st.oteLeftOut, 'posting')} with on-target earnings (base plus commission) left out of the median` : '',
+    // MR-28 (fix-viz-5): as the market comparisons say it (in Chart view the chart's notes say it, with the counts).
+    S.m !== 'chart' && st.notBaseLeftOut ? `${plural(st.notBaseLeftOut, 'posting')} with a stated minimum, top shift pay or part-time pay left out of the median (not a base pay range)` : '',
+    S.m !== 'chart' && st.notBaseOnly ? 'The median is of stated minimums, top shift pay or part-time pay: none of this pay is a base pay range' : '',
     here ? 'Each role counts at the range posted for the places you picked; pay posted only for other places or another country is not counted' : '',
     capNote ? capNote.tip : '',
     // P-6: "mostly" only for a real majority (it read "mostly Sales" at 19%).

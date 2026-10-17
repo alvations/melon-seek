@@ -40,7 +40,7 @@ import {
   formatMoney, toUSD, median, payColor, paySteps, inkOn, onThemeChange, isDark, prefersReducedMotion,
   juiceColor, juiceGrade, juiceNetForScore, JUICE_BREAKS, isForeign, hasFx, FX_AS_OF,
 } from './palette.js';
-import { payAt, payCovers, placeRowCount } from '../features/shared.js';
+import { payAt, payCovers, placeRowCount, notBasePay } from '../features/shared.js';
 // M-23: pin counts as "4.5K", like the chart's circles; the exact count is in pinName().
 import { shortCount, placeMatcher, FX_DOC, FX_SOURCE_SHORT } from './chart.js';
 import { renderNote } from './note.js';
@@ -68,6 +68,25 @@ const MERGE_PASSES = 6; // draw(): at most this many merges of pins whose names 
  * median rests on part of its postings says how many ("median $101K from 28 with pay for here").
  */
 export const MIN_PIN_PAY = 3;
+/**
+ * V-43 (fix-viz-5): a pin whose median rests on fewer than this share of its postings says so on the pin: its count
+ * reads "5 of 434" (postings with pay for here, of its postings), not "434", so "$76K · 434" no longer reads as the
+ * median of 434 postings when 5 post pay for there.
+ */
+export const MIN_PIN_SHARE = 0.25;
+/** V-43: the count on a priced pin: "434", or "5 of 434" when its median rests on under MIN_PIN_SHARE of them ('' for one). */
+export function pinCountText(c) {
+  if (!c || c.median == null || c.few) return '';
+  const k = c.based ?? c.salaried; // the postings the median rests on
+  if (k < c.n * MIN_PIN_SHARE) return `${shortCount(k)} of ${shortCount(c.n)}`;
+  return c.n > 1 ? shortCount(c.n) : '';
+}
+/**
+ * V-45 (fix-viz-5): a place pinned where the gazetteer has no town of its own is approximate: a town it does not know
+ * (server/geo.js locationPrecision 'centroid'), or a place named only by its state ('region') or country ('country'),
+ * pinned at that centre ("Luxembourg, LUX" sat at the country's centre unmarked).
+ */
+export const isApproxPrecision = (p) => p === 'centroid' || p === 'region' || p === 'country';
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const fxMonth = (iso) => { const m = /^(\d{4})-(\d{2})/.exec(String(iso || '')); return m ? `${MONTHS[+m[2] - 1]} ${m[1]}` : String(iso || ''); };
 
@@ -147,6 +166,7 @@ export function aggregate(jobs, { places: filter = null, placeTest = null } = {}
   const wide = []; // [{ job, l, seen }] country- or state-wide locations to count at the filtered cities
   const homes = new Map(); // job id -> Set of place keys (under a filter, for `also`)
   const others = new Set(); // job ids that list a location outside the filter
+  let unplaced = 0; // V-44: postings with no place at all and not remote: on no pin and not in Remote, so counted
   // `rows`: the posting prices its places on rows of their own (salary.ranges), so a pin keeps which of its places
   // it is at (locsAt) to price it there; a posting with one range is its headline at every place it covers.
   const at = (job, l, hasPay, key, seen, rows = false) => {
@@ -172,6 +192,7 @@ export function aggregate(jobs, { places: filter = null, placeTest = null } = {}
   for (const job of jobs) {
     let isRemote = false;
     const seen = new Set();
+    if (!test && !job.remote && !(job.locations || []).some(Boolean)) { unplaced++; continue; }
     const hasPay = !!job.salary && (job.salary.min != null || job.salary.max != null);
     const rows = hasPay && placeRowCount(job) > 0;
     for (const l of job.locations || []) {
@@ -204,7 +225,7 @@ export function aggregate(jobs, { places: filter = null, placeTest = null } = {}
     }
   }
   for (const id of others) for (const key of homes.get(id) || []) places.get(key).also.add(id);
-  return { places: [...places.values()], remote, remotePaid, remotePriceOf: (j) => priceAtUSD(j, remoteAt.get(j.id)) };
+  return { places: [...places.values()], remote, remotePaid, remotePriceOf: (j) => priceAtUSD(j, remoteAt.get(j.id)), unplaced };
 }
 const up = (s) => (s ? String(s).toUpperCase() : '');
 
@@ -224,21 +245,24 @@ function priceAtUSD(job, locs) {
  * here (aggregate's place.priceOf, V-39); without it, the posting's headline midpoint.
  */
 export function summarize(jobs, paid = null, priceOf = null) {
-  const base = [], ote = [];
+  const base = [], ote = [], nb = [];
   let elsewhere = 0, fx = 0;
   for (const j of jobs) {
     const head = midUSD(j);
     if (head == null) continue;
     if (paid && !paid.has(j.id)) { elsewhere++; continue; }
     const v = (priceOf && priceOf(j)) ?? head;
-    (j.salary.kind === 'ote' ? ote : base).push(v); // BP-13: base pay, as the stats line and the chart
+    // BP-13: base pay, as the stats line and the chart; MR-28 (fix-viz-5): nor a stated minimum, shift-inclusive or
+    // part-time pay (shared.js notBasePay), which are counted at the pin and used only when nothing else is left.
+    (notBasePay(j) ? nb : j.salary.kind === 'ote' ? ote : base).push(v);
     if (isForeign(j.salary.currency) && hasFx(j.salary.currency)) fx++;
   }
-  const mids = base.length ? base : ote;
-  const salaried = base.length + ote.length;
+  const mids = base.length ? base : ote.length ? ote : nb;
+  const salaried = base.length + ote.length + nb.length;
   // V-17: `few` when too few postings post pay here for the pin to show a price (pinPrice).
   const few = mids.length > 0 && mids.length < MIN_PIN_PAY;
-  return { n: jobs.length, salaried, elsewhere, fx, few, only: few ? mids.slice().sort((x, y) => x - y) : null, median: median(mids) };
+  return { n: jobs.length, salaried, elsewhere, fx, few, only: few ? mids.slice().sort((x, y) => x - y) : null, median: median(mids),
+    based: mids.length, notBaseLeft: base.length || ote.length ? nb.length : 0, notBaseOnly: !base.length && !ote.length && nb.length > 0 };
 }
 
 const shortPlace = (p) => p.city || String(p.label || '').split(',')[0].trim() || 'Unknown';
@@ -471,6 +495,18 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
   });
   const remoteCtl = new RemoteControl().addTo(map);
   const remoteBtn = remoteCtl.getContainer();
+  // V-44 (fix-viz-5): postings that list no place are on no pin and not in Remote; the map says how many (one line,
+  // above the Remote button), so none goes uncounted. They are in the list and on the chart.
+  const UnplacedControl = L.Control.extend({
+    options: { position: 'bottomleft' },
+    onAdd() { const d = L.DomUtil.create('div', 'ms-map__unplaced'); d.hidden = true; return d; },
+  });
+  const unplacedEl = new UnplacedControl().addTo(map).getContainer();
+  let unplaced = 0;
+  function drawUnplaced() {
+    unplacedEl.hidden = !unplaced;
+    unplacedEl.textContent = unplaced ? `${plural(unplaced, 'posting')} ${unplaced === 1 ? 'lists' : 'list'} no place, so not on the map` : '';
+  }
 
   // "Pay | Juice" segmented control (+ the Juice legend when active)
   let colorMode = COLOR_MODES.includes(initialMode) ? initialMode : 'pay';
@@ -586,7 +622,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       details: [
         'Colour: the median posted base pay a year, in approx US dollars',
         ['Other currencies converted at ', a],
-        'Small number: postings',
+        'Small number: postings; "5 of 434" when the median rests on under a quarter of them (the rest post no pay, or pay for other places)',
         `A pin shows a median only when ${MIN_PIN_PAY} or more of its postings post pay for its places`,
       ],
       key: 'map-pay',
@@ -616,7 +652,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     .catch(() => { /* no geo.js here (the viz demo): no approximate marks */ });
   const isApprox = (m) => {
     if (!precisionOf || !m.loc) return false;
-    if (m.approx == null) { try { m.approx = precisionOf(m.loc) === 'centroid'; } catch { m.approx = false; } }
+    if (m.approx == null) { try { m.approx = isApproxPrecision(precisionOf(m.loc)); } catch { m.approx = false; } } // V-45
     return m.approx;
   };
 
@@ -652,6 +688,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
   new NoteControl().addTo(map);
 
   const markerLayer = L.layerGroup().addTo(map);
+  let mergeCovered = false; // fix-viz-5: after a fit, pins still under a control join their neighbour (clearOfControls)
   let places = [];
   let remoteJobs = [];
   let remotePaid = new Set();
@@ -756,7 +793,9 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
         : c.few
           ? `${plural(c.n, 'posting')} · ${c.salaried.toLocaleString()} with salary for here (${c.only.map((v) => formatMoney(v)).join(', ')}), too few for a median`
           : `${plural(c.n, 'posting')} · ${c.elsewhere ? 'no salary posted for here' : 'no published salary'}`));
-      if (priced && c.salaried < c.n) root.append(el('div', 'ms-tip__meta', `The median is of those ${c.salaried.toLocaleString()}, not of all ${c.n.toLocaleString()}`));
+      const based = c.based ?? c.salaried;
+      if (priced && based < c.n) root.append(el('div', 'ms-tip__meta', `The median is of ${based.toLocaleString()} (${Math.max(1, Math.round((100 * based) / c.n))}%), not of all ${c.n.toLocaleString()}`));
+      if (priced && c.notBaseLeft) root.append(el('div', 'ms-tip__meta', `${plural(c.notBaseLeft, 'posting')} with a stated minimum, top shift pay or part-time pay left out of the median`)); // MR-28
       if (c.elsewhere) root.append(el('div', 'ms-tip__meta', `${plural(c.elsewhere, 'posting')} ${c.elsewhere === 1 ? 'lists' : 'list'} pay for another country only, so not in the median`));
       if (c.fx && (priced || c.few)) root.append(el('div', 'ms-tip__meta', `Pay in other currencies converted at ${fxMonth(FX_AS_OF)} exchange rates`)); // MR-2
       for (const t of filterLines(c)) root.append(el('div', 'ms-tip__meta', t));
@@ -811,7 +850,9 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       pin.style.setProperty('--pin-bg', bg);
       pin.style.setProperty('--pin-fg', inkOn(bg));
       pin.append(el('span', 'ms-pin__price', formatMoney(c.median)));
-      if (c.n > 1) pin.append(el('span', 'ms-pin__count', shortCount(c.n)));
+      // V-43 (fix-viz-5): "5 of 434" when the median rests on few of the pin's postings.
+      const count = pinCountText(c);
+      if (count) pin.append(el('span', /\bof\b/.test(count) ? 'ms-pin__count ms-pin__count--of' : 'ms-pin__count', count));
     } else {
       pin.classList.add('ms-pin--nosalary');
       pin.append(el('span', 'ms-pin__price', jobsText(c.n))); // "1.1K jobs", like the "4.5K" counts
@@ -826,8 +867,9 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       return `${c.label}: ${plural(c.n, 'posting')}, ${J ? `Juice ${J.score}, ${J.grade}, median ${formatMoney(J.net)} a year left` : 'no Juice data'}`;
     }
     const approx = c.approx?.length ? (c.members.length === 1 ? ', approximate place' : `, ${c.approx.length} approximate ${c.approx.length === 1 ? 'place' : 'places'}`) : '';
+    const based = c.based ?? c.salaried;
     const pay = hasPrice(c)
-      ? `, median ${formatMoney(c.median)}${c.salaried < c.n ? ` from ${c.salaried.toLocaleString()} with pay for here` : ''}`
+      ? `, median ${formatMoney(c.median)}${based < c.n ? ` from ${based.toLocaleString()} with pay for here` : ''}${based < c.n * MIN_PIN_SHARE ? ` (${Math.round((100 * based) / c.n)}% of them)` : ''}`
       : c.few ? `, ${c.salaried.toLocaleString()} with pay for here, too few for a median` : c.elsewhere ? ', no salary posted for here' : ', no published salary';
     return `${c.label}: ${plural(c.n, 'posting')}${pay}${approx}`;
   }
@@ -847,6 +889,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       clusters = cluster(joins, cache);
       refocus = drawMarkers(focusedKeys, focusedLead);
       const hidden = placeLabels();
+      if (mergeCovered) for (const c of coveredClusters()) if (!hidden.includes(c)) hidden.push(c);
       if (!hidden.length || pass >= MERGE_PASSES || clusters.length < 2) break;
       mergeInto(hidden, joins);
     }
@@ -1039,6 +1082,8 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     const size = map.getSize();
     if (!size.x || !size.y) { pendingFit = true; return; }
     pendingFit = false;
+    fitFresh = true;
+    mergeCovered = false;
     const pts = places.map(p => [p.lat, p.lng]);
     if (!pts.length) { map.setView([30, -20], BASE_MIN_ZOOM, { animate: false }); return; }
     if (pts.length === 1) { map.setView(pts[0], 10, { animate: false }); return; }
@@ -1053,12 +1098,65 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     map.fitBounds(bounds, { paddingTopLeft: [padX, top], paddingBottomRight: [padX, bottom], maxZoom: 11, animate: false });
   }
 
+  /**
+   * fix-viz-5 (fix-phone-sizes' Razr finding): after a fit, no price pin sits under the map's own controls (on the Razr
+   * cover screen, 352x355, the Remote button and the attribution covered the third pin). Zoom out half a step at a time,
+   * at most four, while one does; the pins then gather toward the middle (and merge, keeping every place's name).
+   */
+  function clearOfControls() {
+    const hit = (a, b) => a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
+    const box = container.getBoundingClientRect();
+    const inside = (r) => r.top >= box.top && r.bottom <= box.bottom && r.left >= box.left && r.right <= box.right;
+    const covered = () => {
+      const ctl = [...container.querySelectorAll('.leaflet-control')].map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
+      let n = 0;
+      for (const p of container.querySelectorAll('.ms-pin')) { const r = p.getBoundingClientRect(); if (r.width > 0 && (!inside(r) || ctl.some((c) => hit(r, c)))) n++; }
+      return n;
+    };
+    for (let k = 0; k < 4; k++) {
+      if (!covered() || map.getZoom() - 0.5 < 0) break;
+      const z = map.getZoom() - 0.5;
+      if (z < map.getMinZoom()) map.setMinZoom(z);
+      map.off('zoomend', draw);
+      map.setZoom(z, { animate: false });
+      map.on('zoomend', draw);
+      draw();
+    }
+    // At the widest zoom (a 352x123 map shows the whole world), a small pan clears the controls instead.
+    let best = covered();
+    if (!best) return;
+    let at = [0, 0];
+    for (const [dx, dy] of [[0, -8], [0, 8], [0, -16], [0, 16], [0, -24], [0, 24], [-24, 0], [24, 0], [-24, -16], [24, -16], [-24, 16], [24, 16]]) {
+      map.panBy([dx - at[0], dy - at[1]], { animate: false });
+      at = [dx, dy];
+      const n = covered();
+      if (n < best) { best = n; if (!n) return; }
+    }
+    map.panBy([-at[0], -at[1]], { animate: false }); // nothing better: back where the fit put it
+    // Still covered (a whole world in 123 px): such a pin joins its nearest neighbour, whose name then counts it, as a
+    // pin whose name finds no room does (draw), until the user moves the map.
+    mergeCovered = true;
+    draw();
+  }
+  /** The clusters whose pin is under one of the map's controls (clearOfControls). */
+  function coveredClusters() {
+    const hit = (a, b) => a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
+    const ctl = [...container.querySelectorAll('.leaflet-control')].map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
+    return clusters.filter((c) => { const r = c.pinEl?.getBoundingClientRect(); return r && r.width > 0 && ctl.some((b) => hit(r, b)); });
+  }
+
   map.on('zoomend', draw);
 
+  // fix-viz-5: until the user moves the map, a resize after the fit (the phone's sheet settling) re-checks the controls.
+  let fitFresh = false;
+  for (const ev of ['pointerdown', 'wheel', 'keydown']) container.addEventListener(ev, () => { fitFresh = false; mergeCovered = false; }, { passive: true });
   const ro = new ResizeObserver(() => {
     map.invalidateSize({ pan: false });
-    if (pendingFit && map.getSize().x && map.getSize().y) { fitToData(); draw(); }
-    else if (placeLabels().length) draw(); // the map's edges moved; a name with no room merges its pin
+    if (pendingFit && map.getSize().x && map.getSize().y) { fitToData(); draw(); clearOfControls(); }
+    else {
+      if (placeLabels().length) draw(); // the map's edges moved; a name with no room merges its pin
+      if (fitFresh && map.getSize().x && map.getSize().y) clearOfControls();
+    }
   });
   ro.observe(container);
   const offTheme = onThemeChange(dark => {
@@ -1075,7 +1173,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       if (mode != null) setColorMode(mode, false); // programmatic (e.g. from the URL hash): no callback
       // BP-2: with a Location filter only its places are pinned (placeTest: the host's own match).
       const keys = filter == null ? [] : (typeof filter === 'string' ? [filter] : [...filter]).filter(Boolean);
-      ({ places, remote: remoteJobs, remotePaid, remotePriceOf } = aggregate(jobs, keys.length ? { places: keys, placeTest } : {}));
+      ({ places, remote: remoteJobs, remotePaid, remotePriceOf, unplaced } = aggregate(jobs, keys.length ? { places: keys, placeTest } : {}));
       // Default: refit only when the dataset identity (set of companies) or the filtered places change.
       const sig = [...new Set(jobs.map(j => j.company))].sort().join('|') + `\u0000${keys.slice().sort().join('|')}`;
       const doFit = fit ?? (first || sig !== lastSig);
@@ -1089,6 +1187,8 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       }
       draw();
       drawRemote();
+      drawUnplaced();
+      if (doFit && !pendingFit) clearOfControls();
     },
     highlight(jobId) { highlighted = jobId ?? null; applyHighlight(); },
     /** Override the Juice scale: a juice.js-like module or { netForScore(score), breaks: [45, 70] }. */
@@ -1105,8 +1205,10 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     get colorMode() { return colorMode; },
     invalidateSize() {
       map.invalidateSize({ pan: false });
-      if (pendingFit) fitToData();
+      const fitNow = pendingFit;
+      if (fitNow) fitToData();
       draw();
+      if (fitNow && !pendingFit) clearOfControls();
     },
     destroy() {
       destroyed = true;

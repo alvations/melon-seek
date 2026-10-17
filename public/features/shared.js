@@ -82,6 +82,26 @@ export function isOTE(job) { return job?.salary?.kind === 'ote'; }
 export function payKind(job) { return isOTE(job) ? 'ote' : 'base'; }
 
 /**
+ * MR-28 (fix-viz-5): the base-pay rule for every median the browser draws (the chart's rows and caption, the stats
+ * line, the map's pins and Remote button, Insights). Why a posted figure is not a posted base-pay range, or null when
+ * it is one, in this order (a posting in more than one counts once):
+ * - 'minimum': the posting states its figure as the minimum base pay (salary.kind 'minimum', Amazon's "from €46K");
+ * - 'shiftPay': the hourly figure includes the highest shift differential (salary.includesShiftDifferential);
+ * - 'partTime': part-time pay (salary.partTime), annualized at 2,080 hours.
+ * The same rule as scripts/build-market.js notBasePay, which keeps these out of the comparison cells. The postings
+ * stay on every chart and list, at their posted pay; only the medians leave them out (and say so). Pure; reads
+ * only job.salary.
+ */
+export function notBasePay(job) {
+  const s = job && job.salary;
+  if (!s) return null;
+  if (s.kind === 'minimum') return 'minimum';
+  if (s.includesShiftDifferential === true) return 'shiftPay';
+  if (s.partTime === true) return 'partTime';
+  return null;
+}
+
+/**
  * Pay for a fixed term (a 12-week internship, a 4-month fellowship): salary.termWeeks when the
  * posting states the length, or a stipend. Never a plain yearly salary.
  */

@@ -167,7 +167,9 @@ export function registerVizEvenTests(suite) {
     const [row] = band;
     assertEq(row.n, want.n, 'its count is every posting with that range');
     assertEq(row.count, `×${want.n}`, 'the count by the bar');
-    assert(row.label.startsWith(`${want.n} roles`), `the title column says how many: "${row.label}"`);
+    // UX-41 (fix-viz-5): the title column names the row by its most common title ("Software Engineer II +13"); the count
+    // is said once, by the bar (above). viz-even's "14 roles" here said it twice and named no title.
+    assert(row.label && !/^\d[\d,]* roles\b/.test(row.label), `the title column names the row's roles, not its count again: "${row.label}"`);
     assert(row.aria.startsWith(`${want.n} roles with the same posted range`), `aria-label: "${row.aria}"`);
     // Hover: the tooltip says how many share the range; click: the list shows them.
     await page.evaluate((idx) => {
