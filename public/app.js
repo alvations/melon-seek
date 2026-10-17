@@ -13,7 +13,7 @@ import { compsForJob, compsNote, createCompsCard } from './features/comps.js';
 import { loadFreshness, freshnessDoc, juiceAsOfText, juiceSpanText, marketAsOfText, compstimateAsOfText, asOf, formatAsOf } from './features/freshness.js';
 import { createCompsChart } from './viz/comps.js';
 import { roleFamily, FAMILY_LABELS, readableTitle, levelLabel, displayLevel, NOT_STATED, DISPLAY_LEVEL_ORDER, levelKey, levelFromKey } from './features/roles.js';
-import { payLocations, payRank, samePayCountry, countryInSentence, payAt, pricedPlaces, placeLabel, notBasePay } from './features/shared.js';
+import { payLocations, payRank, rankText, samePayCountry, countryInSentence, payAt, pricedPlaces, placeLabel, notBasePay } from './features/shared.js';
 // ./features/insights.js is imported on first use (Insights mode), see renderInsights.
 // api.js: getCompanies, getJobs, getJobDetail (namespace import: tolerate a missing optional export)
 
@@ -3157,12 +3157,18 @@ function renderViz() {
       ...Array.from({ length: 18 }, (_, i) => h('div', { class: 'sk sk-bar', style: `margin-left:${8 + ((i * 37) % 45)}%;width:${14 + ((i * 53) % 22)}%` }))));
     return;
   }
+  // D-47 (fix-qa4): a board that isn't on the site, fails to load or has no roles draws nothing, so the previous
+  // board's chart or map is hidden (out of sight and of the accessibility tree), not left faded behind the message.
+  // The next board that loads shows its own again (the hidden flags above, and a new vizSig).
+  const noBoard = () => { chartHost.hidden = true; mapHost.hidden = true; };
   if (data.status === 'error') {
+    noBoard();
     overlay.hidden = false;
     overlay.replaceChildren(stateCard({ icon: ICON.alert, title: 'Couldn\u2019t load this board', body: data.error || 'Unknown error', action: ['Retry', () => loadJobs()], tone: 'error' }));
     return;
   }
   if (data.status === 'unknown') {
+    noBoard();
     overlay.hidden = false;
     overlay.replaceChildren(stateCard(notHereState()));
     return;
@@ -3170,6 +3176,7 @@ function renderViz() {
   const jobs = derived.filtered;
 
   if (!data.jobs.length) {
+    noBoard();
     overlay.hidden = false;
     overlay.replaceChildren(stateCard({ title: 'No open roles on this board', body: 'Try another company from the menu.' }));
     return;
@@ -4618,13 +4625,17 @@ function compstimateBlock(job) {
   const v = estimateView(est, { company: data.company?.name || 'this company', meta: data.meta });
   // fix-density: "No pay estimate" and its reason behind "Details" (the reason ran to four lines on a phone).
   if (!v.ok) return v.reason ? noteLine({ cls: 'd-comp-note', key: 'drawer-comp', line: 'No pay estimate either', details: [h('span', { class: 'd-comp-none' }, v.reason)] }) : null;
+  // D-50 (fix-qa4): a "Pay unclear" posting whose stated maximum passed the checks is not estimated above it
+  // (compstimateForJob caps it); the line says so, and Details give the similar roles' figure before the cap.
+  const cap = est.cap;
   return h('div', { class: 'd-comp', role: 'note' },
     h('div', { class: 'd-comp-top' },
       h('span', { class: 'd-comp-label', title: 'Estimated pay from similar roles at this company' }, 'Pay estimate'),
       h('span', { class: 'd-comp-amt' }, `about ${money(est.mid)}`),
       h('span', { class: 'muted' }, `(${money(est.low)}–${money(est.high).replace(/^\$/, '')}, ${v.confidence.toLowerCase()} confidence)`)),
     // fix-density: one line, and the basis, accuracy (MR-17), dates and (MR-3) the method behind "Details".
-    noteLine({ cls: 'd-comp-note', key: 'drawer-comp', line: 'Not from the posting: an estimate', details: [
+    noteLine({ cls: 'd-comp-note', key: 'drawer-comp', line: cap ? fitOneLine(h('span'), ['An estimate, capped at the posted maximum', 'Capped at the posted maximum']) : 'Not from the posting: an estimate', details: [
+      cap ? `Similar roles suggest about ${money(cap.mid)} (${money(cap.low)}–${money(cap.high).replace(/^\$/, '')}). The posting itself states up to ${money(cap.stated.amount, cap.stated.currency)}${cap.stated.currency === 'USD' ? '' : ` (about ${money(cap.max)})`}, a figure that passed our checks, so the estimate stops there.` : '',
       `${v.basis}. ${v.kind === 'ote' ? 'On-target earnings (base plus commission at target), like the roles it is based on. ' : ''}An estimate, not a figure from the posting (in US dollars a year).`,
       v.accuracy ? `${v.accuracy}: in half of the tests the estimate was at least this close to the posted pay.` : v.caution || '',
       asOfNote('d-comp-asof', () => compstimateAsOfText({ fetchedAt: data.fetchedAt, meta: data.meta })),
@@ -4766,11 +4777,10 @@ function drawerContent(job) {
   // M-38 (fix-phone-text): the line names the country (BP-3) with the short noun, so it fits one line on a phone;
   // "with on-target earnings" and "that show pay" are in the pay block's Details (pctNote).
   const among = `${coName}’s ${shortNoun(job)}${place}`;
-  const pctText = pct == null ? (rank?.others && place ? `Too few roles${place} show pay to rank this one` : null)
-    : pct >= 100 ? `The highest pay of ${among}`
-      : pct <= 0 ? `The lowest pay of ${among}` : `Pays more than ${pct}% of ${among}`;
-  const pctShort = !place ? null : pct == null ? 'Too few roles show pay to rank this one'
-    : pct >= 100 ? `The highest pay of ${coName}’s ${shortNoun(job)}` : pct <= 0 ? `The lowest pay of ${coName}’s ${shortNoun(job)}` : `Pays more than ${pct}% of ${coName}’s ${shortNoun(job)}`;
+  // D-48 (fix-qa4): "The highest pay" or "The lowest pay" only when no role is paid more or less (rankText); a share
+  // that rounds to 100% or 0% reads "In the top 1% of …" or "In the lowest 1% of …".
+  const pctText = pct == null ? (rank?.others && place ? `Too few roles${place} show pay to rank this one` : null) : rankText(rank, among);
+  const pctShort = !place ? null : pct == null ? 'Too few roles show pay to rank this one' : rankText(rank, `${coName}’s ${shortNoun(job)}`);
   const pctNote = pct == null ? (rank?.others && place ? `Too few of ${coName}’s ${noun}${place} show pay to rank this one. Pay for other countries isn’t used.` : null)
     : `Ranked among ${of}${place ? '; pay for other countries isn’t used' : ''}.`;
   const partHourly = isPartTimeHourly(job);

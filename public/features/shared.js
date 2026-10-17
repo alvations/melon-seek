@@ -316,19 +316,45 @@ export function samePayCountry(job, jobs) {
  * same country (BP-3: "Pays more than 1% of Google's roles" for a Warsaw role ranked against US
  * pay). `pool` is the caller's like-for-like pool (app.js payPool: same kind of pay, interns with
  * interns); `mid(j)` is a role's comparable pay. The posting itself is never in its own pool.
- * @returns {{ pct: number|null, n: number, country: string|null, others: number }|null}
- *   pct: the share of same-country roles paid less (0..100), null with fewer than minN of them;
+ * @returns {{ pct: number|null, n: number, country: string|null, others: number, below: number, above: number }|null}
+ *   pct: the share of same-country roles paid less (0..100, rounded), null with fewer than minN of them;
  *   n: how many same-country roles; others: pool roles left out because their pay is for another
- *   country. null when the posting has no comparable pay.
+ *   country; below / above: how many same-country roles are paid less / more (D-48: pct rounds to 100
+ *   or 0 with roles still above or below, so "the highest" or "the lowest" reads from these, rankText).
+ *   null when the posting has no comparable pay.
  */
 export function payRank(job, pool, { mid = (j) => j?._mid, minN = 5 } = {}) {
   const v = mid(job);
   if (!Number.isFinite(v)) return null;
   const country = payCountry(job);
   const usable = (pool || []).filter((j) => j && j !== job && (job?.id == null || j.id !== job.id) && Number.isFinite(mid(j)));
-  const same = usable.filter((j) => payCountry(j) === country);
-  const pct = same.length >= minN ? Math.round((same.filter((j) => mid(j) < v).length / same.length) * 100) : null;
-  return { pct, n: same.length, country, others: usable.length - same.length };
+  let below = 0, above = 0, n = 0;
+  for (const j of usable) {
+    if (payCountry(j) !== country) continue;
+    n += 1;
+    const m = mid(j);
+    if (m < v) below += 1; else if (m > v) above += 1;
+  }
+  const pct = n >= minN ? Math.round((below / n) * 100) : null;
+  return { pct, n, country, others: usable.length - n, below, above };
+}
+
+/**
+ * The drawer's rank line for a payRank result (D-48), or null without a percentage. "The highest pay of <among>" and
+ * "The lowest pay of <among>" only when no role is paid more, or less; a share that rounds to 100% or 0% with roles
+ * still above or below reads "In the top 1% of <among>" or "In the lowest 1% of <among>" (it said "The highest pay"
+ * for Amazon's #50). `among` is the pool's name ("Amazon’s roles in the US").
+ */
+export function rankText(rank, among) {
+  if (!rank || rank.pct == null) return null;
+  const { pct, below, above } = rank;
+  const counted = Number.isFinite(below) && Number.isFinite(above);
+  if (counted && above === 0 && below === 0) return `The same pay as the rest of ${among}`;
+  if (counted && above === 0) return `The highest pay of ${among}`;
+  if (counted && below === 0) return `The lowest pay of ${among}`;
+  if (pct >= 100) return `In the top 1% of ${among}`;
+  if (pct <= 0) return `In the lowest 1% of ${among}`;
+  return `Pays more than ${pct}% of ${among}`;
 }
 
 /** True when the posting's pay applies in `country` (a two-letter code): see payLocations. */

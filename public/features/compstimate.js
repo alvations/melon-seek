@@ -17,7 +17,7 @@
 
 import {
   salaryUSD, weightedPercentile, percentile, median, formatMoney, plural, h, uid, locationKey,
-  payLocations, isOTE, payKind, isInternLike, countryName, countryInSentence, OTE_LABEL, payAt, toUSD,
+  payLocations, isOTE, payKind, isInternLike, countryName, countryInSentence, OTE_LABEL, payAt, payCovers, toUSD,
 } from './shared.js';
 import {
   normalizeTitle, familySim, rolePart, roleFamily, FAMILY_LABELS, SENIORITY_LADDER,
@@ -180,9 +180,11 @@ function tokenSim(qTokens, qSum, p, idf) {
 const MIN_WEIGHT = 0.02;        // absolute floor for a comparable
 const REL_WEIGHT = 0.12;        // ... and at least 12% of the best match's weight
 const MAX_COMPARABLES = 500;     // safety cap only; the relative cut does the real work
-// V-40 (fix-pay-at-place): with at least this many comparables that post a range of their own for the city asked
-// (salary.ranges: Amazon, Apple, Microsoft price each place), only those are used. The others' pay is other cities'
-// rows; a board without per-place ranges is unchanged.
+// V-40 (fix-pay-at-place), D-52 (fix-qa4): with at least this many comparables that post pay for the city asked, only
+// those are used. A comparable posts pay for the city when payAt prices a place of it there: its one range covers that
+// place, or it has a row of its own for it (salary.ranges: Amazon, Apple, Microsoft price each place). Before D-52 only
+// the second counted, so a city's one-range postings were left out (Apple "Software Engineer" in Cupertino: 37 used of
+// 204 there).
 const LOCAL_MIN = 5;
 const LOW_P = 0.15, HIGH_P = 0.85;
 
@@ -244,8 +246,7 @@ export function estimateComp(allJobs, query = {}) {
     // Weighting keeps "no level word" close to "no level word" (a title feature: the backtest error
     // rises from 10.7% to 13.3% at Anduril without it); the basis line never calls it a level.
     const w = ts * ts * senioritySim(level, p.job.seniority) * deptSim(q.department, p.job.department) * locSim(ql, p.locs, p.job);
-    const here = ql && ql.city && p.rows ? payAtQuery(p, ql) : null;
-    scored.push({ job: p.job, pay: here || p.pay, local: !!here, titleSim: ts, w });
+    scored.push({ p, job: p.job, pay: p.pay, local: false, place: null, titleSim: ts, w });
   }
   if (!scored.length) {
     if (!candidates) return empty('No roles on this board publish pay, so there is nothing to compare against yet.', 'no-pay');
@@ -273,8 +274,24 @@ export function estimateComp(allJobs, query = {}) {
   const cut = Math.max(MIN_WEIGHT, REL_WEIGHT * best);
   let comps = [];
   for (const p of sameKind) { if (p.w < cut || comps.length >= MAX_COMPARABLES) break; comps.push(p); }
-  const local = comps.filter((p) => p.local);
-  if (local.length >= LOCAL_MIN && local.length < comps.length) comps = local;
+  // V-40, D-52: a comparable is local when it posts pay for the city asked (payAt's rule): its one range covers a place
+  // there, or it has a row of its own for one. A comparable with a row there is priced at that row. When the company
+  // prices the city on rows of its own (one comparable at least), its pay differs by place, so with LOCAL_MIN or more
+  // local comparables only those are used. A company that posts one range for many places (Google's US range, the main
+  // site's boards) is unchanged: its other cities' postings carry the same kind of pay, and leaving them out only
+  // shrinks the sample (the backtest with the cut on every board: Google 12.4% to 14.2%, Palantir 8.6% to 10.7%).
+  // Worked out for the comparables only (at most MAX_COMPARABLES), so the board-wide pass stays as cheap as before.
+  if (ql && ql.city) {
+    let rowHere = false;
+    for (const c of comps) {
+      const here = payAtQuery(c.p, ql);
+      if (!here) continue;
+      c.local = true; c.pay = here; c.place = here.label || null;
+      if (c.p.rows) rowHere = true;
+    }
+    const local = rowHere ? comps.filter((p) => p.local) : [];
+    if (local.length >= LOCAL_MIN && local.length < comps.length) comps = local;
+  }
 
   const mids = comps.map((p) => [p.pay.mid, p.w]);
   const band = [];
@@ -318,6 +335,9 @@ export function estimateComp(allJobs, query = {}) {
   return {
     low, mid, high, currency: 'USD', confidence, n: comps.length,
     comparables: comps.slice(0, 5).map((p) => p.job),
+    // D-52: the pay each listed comparable was used at (US dollars a year), and the place it was posted for when it is
+    // one place's row (the city asked for, or the posting's headline row: Amazon's search city), else null.
+    comparablePay: comps.slice(0, 5).map(usedPay),
     scores: comps.slice(0, 5).map((p) => Math.round(p.w * 100) / 100),
     explanation, detail, query: used,
     reason: null, kind, country,
@@ -326,16 +346,40 @@ export function estimateComp(allJobs, query = {}) {
 }
 
 /**
- * V-40 (fix-pay-at-place): a comparable's pay at the city asked for, when it posts a range per place: the
- * range posted for its places there (payAt), not its headline (Microsoft's U.S. range for a New York role,
- * Amazon's Bellevue row for its New York place). null when it posts no range of its own there.
+ * V-40 (fix-pay-at-place), D-52: a comparable's pay at the city asked for (payAt, the one rule for pay at a place), or
+ * null when it posts none there.
+ *   - basis 'posting': its one range covers a place in the city, so the range was posted for the city: its own pay
+ *     (`p.pay`), with no place name (D-52: these were left out, so Apple "Software Engineer" in Cupertino used 37 of
+ *     the 204 Cupertino postings with that title).
+ *   - basis 'place': the range posted for its places there, not its headline (Microsoft's U.S. range for a New York
+ *     role, Amazon's Bellevue row for its New York place), named for them (`label`).
  */
 function payAtQuery(p, ql) {
   const here = p.locs.filter((l) => atPlace(l, ql));
-  const at = here.length ? payAt(p.job, here.length === 1 ? here[0] : here) : null;
-  if (!at || at.basis !== 'place') return null;
+  if (!here.length) return null;
+  if (!p.rows) return here.some((l) => payCovers(p.job, l)) ? p.pay : null;
+  const at = payAt(p.job, here.length === 1 ? here[0] : here);
+  if (!at) return null;
+  if (at.basis !== 'place') return p.pay;
   const min = toUSD(at.min, at.currency), mid = toUSD(at.mid, at.currency), max = toUSD(at.max, at.currency);
-  return min == null || mid == null || max == null ? null : { min, mid, max, currency: at.currency, converted: at.currency !== 'USD' };
+  return min == null || mid == null || max == null ? null
+    : { min, mid, max, currency: at.currency, converted: at.currency !== 'USD', label: at.label };
+}
+
+/**
+ * D-52: what a listed comparable was used at: { min, mid, max, converted, place }. `place` names the place a row was
+ * posted for: the city asked for, or, for a comparable used at its headline, that headline's place when it is one
+ * place's row (payAt(job) basis 'place': Amazon's search city, Microsoft's U.S. range). null for a posting's one range
+ * or a span of several places' ranges.
+ */
+function usedPay(c) {
+  const { min, mid, max, converted } = c.pay;
+  let place = c.place;
+  if (!c.local && c.p.rows) {
+    const head = payAt(c.job);
+    place = head && head.basis === 'place' && !head.span ? head.label || null : null;
+  }
+  return { min, mid, max, converted: !!converted, place: place || null };
 }
 
 /** Does this pay location sit at the query's place (city / name / app key)? */
@@ -414,13 +458,48 @@ export function jobLocationQuery(job) {
  * Title, level and location only; no department and no filters (task force Rule 8), so
  * Insights with the same three fields edited shows the same numbers.
  * `opts.excludeIds` drops more postings (the backtest passes the job's duplicates).
+ * D-50: a "Pay unclear" posting whose stated maximum passed the checks is never estimated above it (statedMax).
  */
 export function compstimateForJob(allJobs, job, opts = {}) {
   if (!job) return estimateComp(allJobs, {});
-  return estimateComp(allJobs, {
+  const est = estimateComp(allJobs, {
     title: job.title, seniority: job.seniority || '', department: '', location: jobLocationQuery(job),
     excludeId: job.id, excludeIds: opts.excludeIds || null, internLike: isInternLike(job),
   });
+  return capAtStatedMax(est, statedMax(job));
+}
+
+// D-50: the vetting gate's checks (server/vet.js salaryChecks) that say nothing against a posting's stated maximum: its
+// minimum is under the full-time floor, or the range is wider than the ratio bound. Any other code (above_max,
+// hourly_high, junior_high, senior_low, min_gt_max, stat_outlier, not_numeric) questions the top too.
+const MAX_STANDS = new Set(['below_min', 'range_ratio']);
+
+/**
+ * D-50: the most a "Pay unclear" posting states it pays, in US dollars a year, when only its minimum or its ratio failed
+ * the checks (salaryFlag.codes), so its maximum stands: { usd, amount, currency, text }. null otherwise, and for a
+ * posting with pay (salary set). netflix:790298021069 states "$71,040.00 - $464,000.00" (range_ratio): $464,000.
+ */
+export function statedMax(job) {
+  const raw = job?.salaryRaw, codes = job?.salaryFlag?.codes;
+  if (job?.salary || !raw || !Array.isArray(codes) || !codes.length || !codes.every((c) => MAX_STANDS.has(c))) return null;
+  const amount = Number(raw.max ?? raw.min);
+  const usd = toUSD(amount, raw.currency || 'USD');
+  return Number.isFinite(usd) && usd > 0 ? { usd, amount, currency: String(raw.currency || 'USD').toUpperCase(), text: raw.text || null } : null;
+}
+
+/**
+ * D-50: an estimate never above the posting's own stated maximum (statedMax). Low, mid and high are capped at it,
+ * rounded down to $1K, and `cap` keeps the figures before ({ max, low, mid, high }) for the drawer to say so. An
+ * estimate under the cap, or without a figure, is returned as it is.
+ */
+export function capAtStatedMax(est, max) {
+  if (!est || !max || est.mid == null || !(est.high > max.usd)) return est;
+  const top = Math.floor(max.usd / 1000) * 1000;
+  return {
+    ...est,
+    low: Math.min(est.low, top), mid: Math.min(est.mid, top), high: Math.min(est.high, top),
+    cap: { max: top, stated: max, low: est.low, mid: est.mid, high: est.high },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -799,20 +878,24 @@ function signalIcon(level) {
 }
 
 /** Comparable row meta: the pay location that matched the query (else the first), level, department. */
-function jobMeta(job, locQuery) {
+/**
+ * "Seattle +2 · Senior · Finance": where, the level and the department of a listed comparable. D-52: when the pay shown
+ * is one place's row, the line starts with that place ("Posted for Bellevue · …"), the drawer's words for it.
+ */
+function jobMeta(job, locQuery, payPlace = null) {
   const locs = payLocations(job);
   const want = String(locQuery || '').toLowerCase();
   const hit = want ? locs.find((l) => [locKeyOf(l), l.city, l.name].some((x) => x && x.toLowerCase() === want))
     || (/remote/.test(want) ? locs.find((l) => l.remote) : null) : null;
   const loc = hit || locs[0];
-  const where = loc ? locKeyOf(loc) : job.remote ? 'Remote' : '';
-  const more = locs.length > 1 ? ` +${locs.length - 1}` : '';
+  const where = payPlace ? `Posted for ${payPlace}` : loc ? locKeyOf(loc) : job.remote ? 'Remote' : '';
+  const more = !payPlace && locs.length > 1 ? ` +${locs.length - 1}` : '';
   return [where && where + more, levelLabel(displayLevel(job)), job.department].filter(Boolean).join(' · ');
 }
 
-function payRange(job) {
-  const p = salaryUSD(job);
-  if (!p) return '—';
+/** "$152K–237K" (with * when converted) for a pay object ({ min, max, converted }, US dollars a year). */
+function payRange(p) {
+  if (!p || !Number.isFinite(p.min) || !Number.isFinite(p.max)) return '—';
   const a = formatMoney(p.min), b = formatMoney(p.max);
   return (a === b ? a : `${a}–${b}`) + (p.converted ? '*' : '');
 }
@@ -1007,22 +1090,27 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
           h('span', null, formatMoney(scale.lo)), h('span', null, scaleName), h('span', null, formatMoney(scale.hi)))),
     );
 
+    // D-52: each role shows the pay the estimate used: the range posted for the city asked for, or its headline, named
+    // for its place when it is one place's row ("Posted for Bellevue"), not always the posting's headline range.
+    const used = (i, job) => (result.comparablePay && result.comparablePay[i]) || { ...salaryUSD(job), place: null };
     const list = h('ol', { class: 'ms-comp__list' }, result.comparables.map((job, i) => {
       const score = Math.round((result.scores[i] ?? 0) * 100);
-      const m = jobMeta(job, inputs.query.location);
+      const pay = used(i, job);
+      const m = jobMeta(job, inputs.query.location, pay.place);
+      const range = payRange(pay);
       return h('li', null, h('button', {
         type: 'button', class: 'ms-comp__item', dataset: { key: `comp:${job.id}` },
-        'aria-label': `${job.title}, ${m}, pays ${payRange(job).replace('–', ' to ')}, ${score}% match. Open role.`,
+        'aria-label': `${job.title}, ${m}, pays ${range.replace('–', ' to ')}${pay.place ? `, the range posted for ${pay.place}` : ''}, ${score}% match. Open role.`,
         onclick: () => onSelect && onSelect(job),
       },
       h('span', { class: 'ms-comp__item-main' },
         h('span', { class: 'ms-comp__item-title' }, job.title),
         h('span', { class: 'ms-comp__item-meta' }, m)),
       h('span', { class: 'ms-comp__item-side' },
-        h('span', { class: 'ms-comp__item-pay' }, payRange(job)),
+        h('span', { class: 'ms-comp__item-pay', title: pay.place ? `The range posted for ${pay.place}` : null }, range),
         h('span', { class: 'ms-comp__match' }, `${score}% match`))));
     }));
-    const foot = result.comparables.some((j) => salaryUSD(j)?.converted)
+    const foot = result.comparables.some((j, i) => used(i, j)?.converted)
       ? h('p', { class: 'ms-comp__foot' }, '* converted to US dollars at approximate rates') : null;
     resultEl.append(card, h('div', { class: 'ms-comp__comps' }, h(subTag, { class: 'ms-comp__comps-title' }, 'Most comparable roles'), list, foot));
     live.textContent = `Pay estimate ${formatMoney(mid)}, range ${formatMoney(low)} to ${formatMoney(high)}, ${confidence.toLowerCase()} confidence. ${basis}.${accuracy ? ` ${accuracy}.` : caution ? ` ${caution}` : ''}`;

@@ -1197,7 +1197,7 @@ async function writeCompany(ctx, out, c, payload, ledger, { live } = {}) {
     const csv = ctx.jobsToCsv(payload.jobs, { mode: payload.mode });
     await fs.mkdir(path.join(out, 'data'), { recursive: true });
     await fs.writeFile(path.join(out, 'data', `${c.slug}.csv`), csv);
-    csvRow = { slug: c.slug, name: c.name, rows: payload.jobs.length, mode: payload.mode };
+    csvRow = { slug: c.slug, name: c.name, rows: payload.jobs.length, mode: payload.mode, source: c.source, channel: c.channel || 'stable' };
     csvNote = `  csv ${size(Buffer.byteLength(csv))}`;
   }
   let line = `${c.slug.padEnd(10)} ${payload.mode.padEnd(8)} ${String(payload.jobs.length).padStart(4)} jobs  list ${size(r.listBytes).padStart(9)}  desc ${String(r.descFiles).padStart(4)} files ${size(r.descBytes).padStart(9)}`;
@@ -1243,7 +1243,7 @@ async function reuseStable(ctx, from, c) {
     line: `${c.slug.padEnd(10)} ${String(raw.mode).padEnd(8)} ${String(jobs.length).padStart(4)} jobs  (the main site's files, copied from ${rel(from)}/)`,
     share: shareStats(c, payload, ctx.shareFx),
     market: { company: payload.company, mode: payload.mode, fetchedAt: payload.fetchedAt, jobs },
-    csvRow: csv ? { slug: c.slug, name: c.name, rows: jobs.length, mode: raw.mode } : null,
+    csvRow: csv ? { slug: c.slug, name: c.name, rows: jobs.length, mode: raw.mode, source: c.source, channel: c.channel || 'stable' } : null,
     stats: { mode: raw.mode, jobs: jobs.length, withPay: jobs.filter((j) => j && j.salary).length, fetchedAt: payload.fetchedAt },
   };
 }
@@ -1366,7 +1366,8 @@ async function buildSite(ctx, site) {
       marketNote = 'buildMarket failed';
     }
   }
-  if (csvRows.length && ctx.csvReadme) await fs.writeFile(path.join(out, 'data', 'README.txt'), ctx.csvReadme({ generatedAt: ctx.builtAt, companies: csvRows }));
+  // D-49 (fix-qa4): a README per site; the beta one names each big-tech file's careers site.
+  if (csvRows.length && ctx.csvReadme) await fs.writeFile(path.join(out, 'data', 'README.txt'), ctx.csvReadme({ generatedAt: ctx.builtAt, companies: csvRows, channel: site.channel }));
 
   // 5. config.js + .nojekyll (site root only; the beta copy is a sub-folder of it)
   const build = { builtAt: ctx.builtAt, commit: process.env.GITHUB_SHA || null, ref: process.env.GITHUB_REF_NAME || null };

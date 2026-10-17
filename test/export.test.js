@@ -54,19 +54,20 @@ test('jobsToCsv: columns, facts only, vetted salary, F4 dates, round-trip', () =
   assert.ok(csv.endsWith('\r\n'));
   const rows = parseCsv(csv);
   assert.deepEqual(rows[0], [...CSV_COLUMNS]);
-  assert.deepEqual(rows[0], ['id', 'title', 'department', 'team', 'seniority', 'locations', 'remote', 'salary_min', 'salary_max', 'salary_currency', 'posted_at', 'first_seen_at', 'url', 'data_mode']);
+  // fix-qa4 (D-49): salary_kind and salary_ranges come before data_mode, which stays last; the others keep their places.
+  assert.deepEqual(rows[0], ['id', 'title', 'department', 'team', 'seniority', 'locations', 'remote', 'salary_min', 'salary_max', 'salary_currency', 'posted_at', 'first_seen_at', 'url', 'salary_kind', 'salary_ranges', 'data_mode']);
   assert.equal(rows.length, 3);
   const r1 = Object.fromEntries(rows[0].map((k, i) => [k, rows[1][i]]));
   assert.deepEqual(r1, {
     id: 'acme:1', title: 'Engineer, "Platform"', department: 'Eng', team: '', seniority: 'Senior',
     locations: 'San Francisco, CA | New York City, NY', remote: 'false', salary_min: '200000', salary_max: '250000',
     salary_currency: 'USD', posted_at: '2026-09-01T00:00:00.000Z', first_seen_at: '2026-09-02T06:00:00.000Z',
-    url: 'https://example.test/1', data_mode: 'snapshot',
+    url: 'https://example.test/1', data_mode: 'snapshot', salary_kind: 'salary', salary_ranges: '',
   });
   const r2 = Object.fromEntries(rows[0].map((k, i) => [k, rows[2][i]]));
   assert.equal(r2.title, "'=cmd()");
   assert.equal(r2.remote, 'true');
-  assert.deepEqual([r2.salary_min, r2.salary_max, r2.salary_currency], ['', '', ''], 'quarantined pay is not exported');
+  assert.deepEqual([r2.salary_min, r2.salary_max, r2.salary_currency, r2.salary_kind, r2.salary_ranges], ['', '', '', '', ''], 'quarantined pay is not exported');
   assert.equal(jobsToCsv([]), CSV_COLUMNS.join(',') + '\r\n');
 });
 

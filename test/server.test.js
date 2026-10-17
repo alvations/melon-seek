@@ -562,7 +562,7 @@ test('F7: GET /api/export returns CSV with the documented columns and no descrip
   assert.ok(['live', 'cache'].includes(res.headers.get('x-melon-mode')));
   const text = await res.text();
   const lines = text.trim().split('\r\n');
-  assert.equal(lines[0], 'id,title,department,team,seniority,locations,remote,salary_min,salary_max,salary_currency,posted_at,first_seen_at,url,data_mode');
+  assert.equal(lines[0], 'id,title,department,team,seniority,locations,remote,salary_min,salary_max,salary_currency,posted_at,first_seen_at,url,salary_kind,salary_ranges,data_mode'); // fix-qa4 (D-49): two columns before data_mode
   assert.equal(lines.length, 3);
   assert.ok(!text.includes('We build developer tools'), 'no description text');
   assert.ok(lines.some((l) => l.startsWith('lever-example:a1b2c3d4-1111-4222-8333-444455556666,Senior Backend Engineer,Engineering,Platform,')));
