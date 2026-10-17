@@ -1,0 +1,49 @@
+From 17ba77950561eff4a37df6e5ad76d90704f76632 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 21:30:20 +0000
+Subject: [PATCH 01/19] security-a11y-review-beta-2: prompt verbatim
+
+---
+ .../prompts/security-a11y-review-beta-2.md    | 30 +++++++++++++++++++
+ 1 file changed, 30 insertions(+)
+ create mode 100644 docs/process/prompts/security-a11y-review-beta-2.md
+
+diff --git a/docs/process/prompts/security-a11y-review-beta-2.md b/docs/process/prompts/security-a11y-review-beta-2.md
+new file mode 100644
+index 0000000..daec92f
+--- /dev/null
++++ b/docs/process/prompts/security-a11y-review-beta-2.md
+@@ -0,0 +1,30 @@
++**The lead's note for this run (beta round 3, 2026-10-16).** You run in your own git worktree. First run `git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp`. Symlink today's crawl into it: `ln -s /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-data2/data/snapshots data/snapshots; mkdir -p data/beta; ln -s /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-data2/data/beta/snapshots data/beta/snapshots` (never commit them). The data is the 2026-10-16 crawl with every board whole, no cap: Amazon 22,179 postings, Apple 4,851, Google 3,821, NVIDIA 2,711, Microsoft 2,435, Meta 1,208, Netflix 414; main site Anduril 2,537. The lead's reviewer build is /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/cycle-beta6-dist; serve it and don't rebuild it. What changed since the last review: one-line notes with a Details disclosure (fix-density), Google grouped by job family with a Company filter (google-grouping), the salary audit fixes ("· 2 levels", per-place pay, no cut rows), first-page preview and a faster first render (perf-mobile-beta-2), and fix6-fresh-data. Read those sections of docs/process/lead.md first. Resume safety (the user, 2026-10-16: "if we get stop again due to limits, we're able to resume without losing much progress"): commit your files small and often in your worktree with explicit paths, keep a `## State` section at the top of your log, and send the lead your findings as you confirm them by SendMessage to "main". The lead checkpoints your worktree every 15 minutes; never push. Where the template says "don't commit", commit in your worktree anyway; the lead integrates. Give every server, browser or test command a timeout, so nothing can hang for hours. Other agents may run at the same time on a 4-CPU machine: note `uptime` with any timing. Check especially what changed since round 2: Amazon's whole board (22,179 postings) and Meta; the first-page preview on Amazon (real cards under "Loading 22,179 roles…", then the list replaces them); Google's job-family departments with the Company group-by and filter; the one-line notes with one Details disclosure (fix-density); "· 2 levels" and "· N places" cards, "from €X" minimums and shift-pay labels; the clusters chart, whose circles now sit at their postings' median pay, and the Ranges view, where identical posted bands are stacked into one row with ×N (viz-even). Also re-check that earlier findings stay fixed. Known open items you need not re-report, but may add evidence to: MR-23 (FX rates from 2026-07-01, waiting on the user), MR-26, MR-28, MR-29 (the on-screen label), MR-33 to MR-35, MR-37 to MR-42 in docs/process/methodology-review-beta-2.md, and the Insights tab on Amazon being one 4.3 s task (docs/process/perf-mobile-beta-2.md). Include the new public/viz/note.js Details disclosure, the Company filter controls, the stacked Ranges rows (keyboard, screen-reader labels) and the preview cards (focus, aria-busy) in the accessibility checks, and .github/scripts/check-lists.mjs, scripts/cycle/checkpoint.sh and restore-wip.sh in the security checks.
++
++You are the security and accessibility reviewer for melon-seek (/home/user/melon-seek), a zero-build Node app with a static GitHub Pages build ("the Zillow of job postings"). Read docs/REVIEW.md (every earlier section, including "Re-check" and "v2 review"), docs/CONTRACT.md, docs/ARCHITECTURE.md, docs/DATA_SOURCES.md, docs/process/review.md, docs/process/PLAYBOOK.md and docs/process/TEMPLATE.md first.
++
++**Your job:** review everything added or changed for target `beta` since the last review in docs/REVIEW.md, and re-check the earlier findings that are still open. Find the commits with `git log --since=<the date of the last REVIEW.md section> --stat`. Treat all code as read-only. You own:
++- a new "beta review 2026-10-16" section appended to docs/REVIEW.md;
++- docs/process/security-a11y-review-beta-2.md (your log: files reviewed and at which commit, checklist, commands, results, gaps);
++- docs/process/prompts/security-a11y-review-beta-2.md (paste this prompt verbatim);
++- NEW tests that fail now and will pass once each finding is fixed: test/beta-security-review-2.test.js for code-level findings, and test/e2e/beta-a11y-2.e2e.js (registered the way scripts/e2e.js registers the others) for accessibility findings. Put the finding ID in each test name.
++Don't commit and never push.
++
++**Security checklist** (cite file:line for every finding):
++1. **Untrusted text into the page.** Every new field that reaches the DOM (titles, department and team names, store names, local place names, keywords, description HTML, level labels, salary captions, location search terms): any `innerHTML`, `insertAdjacentHTML`, template string into HTML, SVG `<title>`, Leaflet `divIcon` or tooltip HTML, `title` attributes. Try a crafted posting through the real normalizer and the static build.
++2. **Parsers on hostile input.** New regular expressions in server/salary.js, server/normalize*.js and server/sources/*.js: catastrophic backtracking (time each new regex on a 1 MB adversarial string), unbounded loops, prototype pollution from JSON keys, very large numbers.
++3. **Crawlers and sources.** server/sources/* for the target's boards and scripts/crawl* or the beta crawl scripts: host pinning (can a board config or a redirect make the crawler fetch another host?), redirect handling, response size and time limits, the User-Agent is honest, robots.txt and rate limits are respected, the terms-of-use pauses (`paused: 'terms'`) are enforced and not bypassable by a flag.
++4. **Build and share pages.** scripts/build-static.js for the target: what data is bundled (no secrets, no full descriptions where the docs say they are lazy), share pages under /c/<slug>/, redirects, the holding page, path traversal in any new served path.
++5. **Workflows.** Every new or changed .github/workflows/* and .github/scripts/*: token permissions per job, `${{ }}` script injection from branch names, inputs or commit messages, artifact trust (which run's artifact is restored), pushes to the archive branch, concurrency.
++6. **Client state.** Hash keys and localStorage entries added since the last review: type checks, length caps, unknown keys ignored.
++7. **Supply chain.** New files under public/vendor, new dependencies, pinned versions.
++
++**Accessibility checklist** (run the app: serve `/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/cycle-beta6-dist` with `node scripts/cycle/serve.mjs --dist /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/cycle-beta6-dist --pid /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/security-a11y-review-beta-2/serve.pid`, Playwright from NODE_PATH=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/pw/node_modules, Chromium at /opt/pw-browsers/chromium-1194/chrome-linux/chrome; never run `playwright install`; use pid files and never `pkill -f`):
++1. Run axe-core on the main screens (first load, filters open, chart, map, drawer, Insights, Compstimate, company menu, mobile sheet). If axe-core is not installed, install it with `npm i axe-core --no-save --prefix /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/pw` and inject `axe.min.js` from there; record the version.
++2. Keyboard only: reach and operate every control added since the last review, with a visible focus ring; the drawer traps focus and returns it; no keyboard trap; shortcuts don't fire while typing.
++3. Names and roles: every button, toggle, chip, chart row and map pin has an accessible name that says what it does; state changes (pressed, expanded, selected) are announced; live regions for result counts.
++4. Contrast of text and focus rings in both themes (quote the ratios), text at 200% zoom and at 320 px width without loss of content, reduced motion, target size on the phone (390x844).
++5. The beta notice, Snapshot badge and big-tech-only content (level ranges, part-time pay, non-US currencies) read correctly with a screen reader's accessible tree (`page.accessibility.snapshot()`).
++
++For each finding write: an ID (S-n for security, A-n for accessibility, numbered after the highest in docs/REVIEW.md), a severity (Critical, High, Medium or Low), file:line, a concrete reproduction or exploit, and an exact suggested patch. Re-check the still-open earlier findings and mark each fixed, partially fixed or open with evidence. Also run `npm test` and the full e2e suite, and report the results.
++
++Report back with the open and new findings ordered by severity, one line each.
+-- 
+2.43.0
+

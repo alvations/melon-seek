@@ -1,0 +1,56 @@
+From f19f7fab8418d69b6f654c6a3c546c20b20aac83 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 22:09:48 +0000
+Subject: [PATCH 07/19] WIP security-a11y-review-beta-2: S-1 re-check test
+ (runs the merge's skip step)
+
+---
+ test/beta-security-review-2.test.js | 25 ++++++++++++++++++++++---
+ 1 file changed, 22 insertions(+), 3 deletions(-)
+
+diff --git a/test/beta-security-review-2.test.js b/test/beta-security-review-2.test.js
+index 5678b5a..5c1da31 100644
+--- a/test/beta-security-review-2.test.js
++++ b/test/beta-security-review-2.test.js
+@@ -20,6 +20,25 @@ const url = (...p) => JSON.stringify(pathToFileURL(path.join(ROOT, ...p)).href);
+ const OPEN = { todo: 'open finding: docs/REVIEW.md "beta review 2026-10-16"' };
+ const tmpDir = (p = 'melon-beta-sec2-') => fs.mkdtempSync(path.join(os.tmpdir(), p));
+ 
++/* ------------------------------------------------- S-1 (re-check: fixed) */
++
++// The 2026-10-11 test (test/beta-security-review.test.js "S-1") checks the download glob, which still
++// matches beta-crawl-rejected-<slug>: the lead fixed S-1 differently (one folder per artifact, rejected
++// folders skipped), so that test stays a to-do although the finding is fixed. This one runs the fix.
++test('S-1 (re-check): the beta merge copies only accepted crawls, never beta-crawl-rejected-<slug> (run for real)', () => {
++  const s = refreshStep('Keep only the accepted crawls', 'snapshot.yml');
++  const dir = tmpDir('melon-beta-merge-');
++  for (const [art, file] of [['beta-crawl-apple', 'apple.json'], ['beta-crawl-rejected-google', 'google.json'], ['beta-crawl-rejected-apple', 'apple.json']]) {
++    fs.mkdirSync(path.join(dir, 'data', 'beta-downloads', art), { recursive: true });
++    fs.writeFileSync(path.join(dir, 'data', 'beta-downloads', art, file), JSON.stringify({ from: art }));
++  }
++  const r = spawnSync('bash', ['-c', `set -euo pipefail\n${s}`], { cwd: dir, encoding: 'utf8' });
++  assert.equal(r.status, 0, r.stderr);
++  const fresh = fs.readdirSync(path.join(dir, 'data', 'beta-fresh')).sort();
++  assert.deepEqual(fresh, ['apple.json'], `fresh: ${fresh.join(', ')}`);
++  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'data', 'beta-fresh', 'apple.json'), 'utf8')).from, 'beta-crawl-apple', 'the rejected apple.json replaced the accepted one');
++});
++
+ /* ----------------------------------------------------------- S-2 residual */
+ 
+ // The pause guard (server/companies.js crawlBlock) is called by the Amazon and Meta adapters only. A
+@@ -69,9 +88,9 @@ test('S-4 residual: Amazon posting links stay on www.amazon.jobs whatever job_pa
+ 
+ /* ------------------------------------------------- S-8 and S-9 (fixed: 9c548e2) */
+ 
+-/** The `run: |` body of a monthly-refresh.yml step whose name starts with `name`. */
+-function refreshStep(name) {
+-  const lines = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'monthly-refresh.yml'), 'utf8').split('\n');
++/** The `run: |` body of a workflow step whose name starts with `name` (monthly-refresh.yml by default). */
++function refreshStep(name, file = 'monthly-refresh.yml') {
++  const lines = fs.readFileSync(path.join(ROOT, '.github', 'workflows', file), 'utf8').split('\n');
+   const start = lines.findIndex((l) => l.startsWith(`      - name: ${name}`));
+   assert.ok(start >= 0, `step "${name}" not found`);
+   const run = lines.findIndex((l, i) => i > start && /^ {8}run: \|$/.test(l));
+-- 
+2.43.0
+

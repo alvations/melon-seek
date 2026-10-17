@@ -1,0 +1,111 @@
+From 16be446c4f30b9c7cd31b580b206fde8cbffff7a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 23:08:23 +0000
+Subject: [PATCH 19/19] security-a11y-review-beta-2: final log (full e2e, npm
+ test after rebase, S-11 fixed)
+
+---
+ docs/process/security-a11y-review-beta-2.md | 51 +++++++++++++++++----
+ 1 file changed, 42 insertions(+), 9 deletions(-)
+
+diff --git a/docs/process/security-a11y-review-beta-2.md b/docs/process/security-a11y-review-beta-2.md
+index 3b606e5..8c23fa9 100644
+--- a/docs/process/security-a11y-review-beta-2.md
++++ b/docs/process/security-a11y-review-beta-2.md
+@@ -14,7 +14,15 @@
+ - 22:10: unit tests (`test/beta-security-review-2.test.js`) and e2e (`test/e2e/beta-a11y-2.e2e.js`: 4 red) committed,
+   registered in `scripts/e2e.js`. Crafted Amazon/Google/Meta build, including hostile postings in Amazon's first-page
+   preview: 0 injected elements.
+-- 22:20: REVIEW.md section drafted; the full e2e suite and the 1 MB parser run are in progress (results in §5 when done).
++- 22:20: REVIEW.md section written. 1 MB parser run done: nothing else is superlinear.
++- 22:45: the lead fixed S-11's secret filter in `d8ce13c`. My S-11 test passes against that script, so it is now a
++  regression test. The separate checkpoint ref and the Pages source stay as they are, by the user's decision. The first
++  live monthly-refresh commit (`9de373f`, run 38975710742) took the S-8 path: CI only, deployed later.
++- 23:00: full e2e on the lead's build: 363/373 passed, 6 failed (the 4 new red tests, plus T21 and M-20 on timing at
++  load 13-27), 4 skipped, 43.8 min. M-20 passes alone; T21 fails alone at load 13 (the PLAYBOOK's load-sensitive cold-server
++  test). Rebased onto the branch head (`4b2dfd3`). `npm test` there: 1,187 tests, 1,128 pass, 2 fail (PERF-1 and V15,
++  timing at load 12; 3/3 pass alone), 57 to-dos.
++- **Done.** Commits are in this worktree only, as the lead asked; nothing pushed.
+ 
+ ## 1. Brief
+ Prompt: [prompts/security-a11y-review-beta-2.md](prompts/security-a11y-review-beta-2.md). This is the security and
+@@ -62,9 +70,11 @@ No product code was changed. Commits are in the worktree only (never pushed), as
+   (`/opt/pw-browsers/chromium-1194`), Node 22, bash, git, tar.
+ 
+ ## 3. Decisions and rationale
+-1. Open findings get `{ todo }` unit tests, as in round 2, so `npm test` stays green. S-8 and S-9 were fixed by the lead
+-   while the review ran, so their tests are plain passing regression tests. S-1's fix differs from the 2026-10-11 test's
+-   assumption (glob), so I added a test that runs the fix, and kept the old one untouched (not my file).
++1. Open findings get `{ todo }` unit tests, as in round 2, so `npm test` stays green. S-8 and S-9 (`9c548e2`) and S-11's
++   secret filter (`d8ce13c`) were fixed by the lead while the review ran, so their tests are plain passing regression
++   tests. S-1's fix differs from the 2026-10-11 test's assumption (glob), so I added a test that runs the fix and left the
++   old one untouched (not my file). The lead keeps the old one as a to-do and deletes it at integration in favour of the
++   re-check.
+ 2. S-8 is Medium. A scheduled job with a write token silently reverting other commits on the deploy branch, then
+    deploying an untested tree, is an integrity problem with no attacker needed, and it is likely given this repository's
+    commit rate. S-9 is Low, because exploiting it needs a compromised or buggy refresh job.
+@@ -74,7 +84,9 @@ No product code was changed. Commits are in the worktree only (never pushed), as
+    because nothing is paused today.
+ 5. S-11 is Low. Nothing secret was found in the published checkpoints (four `untracked.tgz` from history were listed:
+    data/vetting scripts, screenshots, a lane log). The finding is the missing filter on an unattended push to a public
+-   default branch, plus its coupling to the branch Pages build.
++   default branch, plus its coupling to the branch Pages build. The lead fixed the filter (`d8ce13c`) and scanned every
++   tarball pushed so far (no secret-named file). Pushing to the deploy branch and the Pages source setting stay, by the
++   user's decision, so REVIEW.md records that coupling as a remaining risk, not an open finding.
+ 6. The S-11 test runs `checkpoint.sh` for real against a scratch origin, a clone and a lane worktree under the OS temp
+    dir, without `--push`, and lists the tarball. That proves the behaviour, not a text pattern.
+ 7. Not reported:
+@@ -144,12 +156,24 @@ No product code was changed. Commits are in the worktree only (never pushed), as
+ ## 5. Verification and results
+ - **`npm test`** (data linked, load 0.4 → 5.6): 1,168 tests, **1,116 pass, 0 fail, 52 to-dos**, 3 min 36 s. The new file
+   adds 9 tests: 3 pass (S-1 re-check, S-8, S-9) and 6 are to-dos that fail for their finding's reason (S-2 residual,
+-  S-4 residual, S-10 ×3, S-11).
++  S-4 residual, S-10 ×3, S-11). After the rebase onto `4b2dfd3` (S-11 fixed in `d8ce13c`), S-11 lost its to-do and passes:
++  4 pass, 5 to-dos. Full `npm test` there (load 12): 1,187 tests, 1,128 pass, 2 fail, 57 to-dos, 6 min 3 s. The 2
++  failures are PERF-1 and V15 (event-loop timing). `node --test test/perf.test.js` alone passes 3/3: first loads 2.2 s,
++  max lag 75 ms; cold `/api/market` 2.0 s, max lag 105 ms.
+ - **New e2e** (`beta a11y 2`): 0/4 pass, as intended. A-8: "20 more departments … (aria-expanded=false)". A-9: "8 Details
+   buttons, 1 distinct names". A-10: "2 of 2 checklists have no group name". A-11: "focus was on preview card
+   amazon:10522652; after the list landed it is on body".
+ - **Old e2e group** (`beta a11y`, the 2026-10-11 tests): 8/8 pass (A-1 to A-7, V8 fixed).
+-- **Full e2e**: see the Change log entry for the final count (running at the time of writing).
++- **Full e2e** (this worktree at `9c548e2` plus my tests, `dist` = the lead's build; 2,630 s; load 13 to 27 from other
++  agents): **363/373 passed, 6 failed, 4 skipped**. The 6 failures:
++  - A-8 to A-11, the 4 new red tests (intended);
++  - Compstimate T21 (cold server), timing;
++  - beta mobile QA [M-20], which timed out after 120 s.
++  
++  Re-run alone (load 13): M-20 passes (12 s). T21 fails again on "app not ready (initial load) after 30000ms", the cold-server
++  test the PLAYBOOK lists as load-sensitive. This review changed no product code, so neither comes from it. The e2e run
++  rewrote 22 tracked screenshots in `docs/screenshots/`. Those were discarded with `git checkout -- docs/screenshots`,
++  not committed.
+ - **axe 4.13.0**, light and dark (same results):
+   - `aria-allowed-attr` (critical, ×1) on the fold row, on the Google and Amazon first screens and on the phone (A-8);
+   - `target-size` (serious, ×1) on the open stats-line Details (A-9);
+@@ -165,8 +189,8 @@ No product code was changed. Commits are in the worktree only (never pushed), as
+ - **Parsers** (64 KB, 3,328 cases, 40 s): 11 slow pairs, then fitted (load 9 to 17):
+   parseMetaAmount (spaces) 12.3 s at 64 KB, exponent 2.04; familyOfTitle ("(") 9.4 s, 1.74; familyOfTitle ("(L5")
+   2.8 s, 1.70; parseMetaSitemap ("<loc>") 0.66 s, 2.55; extractMetaPage ("<script ") 2.2 s, 1.50; xlsx rowCells ("<c")
+-  3.3 s, 1.61; xlsx richText ("<t>") 0.85 s, 1.73; normalizeEmployer ("INC ") 2.7 s, 2.04. The 1 MB run of everything
+-  else is in the Change log entry.
++  3.3 s, 1.61; xlsx richText ("<t>") 0.85 s, 1.73; normalizeEmployer ("INC ") 2.7 s, 2.04. The 1 MB run of the other
++  2,752 pairs is below.
+ - **Crafted postings**: 0 injected elements or handlers in any view, `window.__xss` never set, `Object.prototype`
+   clean. Preview cards show hostile titles as text (2 of 60 hostile). The CSV writes `'=HYPERLINK(…)`. check-lists:
+   19 lists and 1 preview, 0 problems. Amazon's `@evil.example/x` link is published (S-4 residual).
+@@ -207,3 +231,12 @@ No product code was changed. Commits are in the worktree only (never pushed), as
+ - 22:00: `9c548e2` re-checked (S-8/S-9 fixed); rebased.
+ - 22:00-22:15: crafted builds (×3) and XSS probes; unit and e2e tests written and committed; second batch of findings sent.
+ - 22:20: REVIEW.md section written; full e2e and the 1 MB parser run started.
++- 22:21-22:40: 1 MB run finished (none superlinear beyond S-10; geocode "1,1," exponent 1.16). Drawer trap and
++  typing-shortcut probes. Fixed several counts in REVIEW.md: 14 axe screens; 209 commits; branch builds since 09:49 UTC
++  are 77 failures and 3 cancelled. Also corrected that all four refreshed code files reach browsers.
++- 22:45: the lead's `d8ce13c` (S-11 filter) re-checked: my test passes against it. REVIEW.md updated (S-11 filter fixed;
++  the first live refresh commit `9de373f` took the S-8 path: CI only, deployed later by pages.yml 38976671607, per the lead;
++  the four code files' changes in it are constant lines only).
++- 22:59: full e2e finished (363/373, 6 failed, 4 skipped). Screenshots it rewrote were discarded.
++- 23:00-23:08: rebased onto `4b2dfd3`; S-11 test un-to-do'd; T21 and M-20 re-run alone; `npm test` (2 timing failures,
++  3/3 alone). Final summary sent to the lead.
+-- 
+2.43.0
+
