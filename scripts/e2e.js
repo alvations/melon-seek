@@ -41,6 +41,7 @@ import { registerFixTouchTipsTests } from '../test/e2e/fix-touch-tips.e2e.js';
 import { registerFixPhoneControlsTests } from '../test/e2e/fix-phone-controls.e2e.js';
 import { registerFixSec3Tests } from '../test/e2e/fix-sec-3.e2e.js';
 import { registerFixData3Tests } from '../test/e2e/fix-data-3.e2e.js';
+import { registerPhoneMatrixTests } from '../test/e2e/phone-matrix.e2e.js';
 
 const args = new Set(process.argv.slice(2));
 const apiOnly = args.has('--api-only');
@@ -107,6 +108,7 @@ if (!apiOnly) {
   registerFixPhoneControlsTests(suite);
   registerFixSec3Tests(suite);
   registerFixData3Tests(suite);
+  registerPhoneMatrixTests(suite);
 }
 
 let results;
