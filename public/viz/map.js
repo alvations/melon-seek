@@ -792,7 +792,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
         ? `${plural(c.n, 'posting')} · ${c.salaried.toLocaleString()} with salary for here`
         : c.few
           ? `${plural(c.n, 'posting')} · ${c.salaried.toLocaleString()} with salary for here (${c.only.map((v) => formatMoney(v)).join(', ')}), too few for a median`
-          : `${plural(c.n, 'posting')} · ${c.elsewhere ? 'no salary posted for here' : 'no published salary'}`));
+          : `${plural(c.n, 'posting')} · ${c.elsewhere ? 'no pay posted for here' : 'no pay listed'}`)); // UX-61: the cards' words
       const based = c.based ?? c.salaried;
       if (priced && based < c.n) root.append(el('div', 'ms-tip__meta', `The median is of ${based.toLocaleString()} (${Math.max(1, Math.round((100 * based) / c.n))}%), not of all ${c.n.toLocaleString()}`));
       if (priced && c.notBaseLeft) root.append(el('div', 'ms-tip__meta', `${plural(c.notBaseLeft, 'posting')} with a stated minimum, top shift pay or part-time pay left out of the median`)); // MR-28
@@ -870,7 +870,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     const based = c.based ?? c.salaried;
     const pay = hasPrice(c)
       ? `, median ${formatMoney(c.median)}${based < c.n ? ` from ${based.toLocaleString()} with pay for here` : ''}${based < c.n * MIN_PIN_SHARE ? ` (${Math.round((100 * based) / c.n)}% of them)` : ''}`
-      : c.few ? `, ${c.salaried.toLocaleString()} with pay for here, too few for a median` : c.elsewhere ? ', no salary posted for here' : ', no published salary';
+      : c.few ? `, ${c.salaried.toLocaleString()} with pay for here, too few for a median` : c.elsewhere ? ', no pay posted for here' : ', no pay listed';
     return `${c.label}: ${plural(c.n, 'posting')}${pay}${approx}`;
   }
 

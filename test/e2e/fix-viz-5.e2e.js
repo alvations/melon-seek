@@ -538,10 +538,14 @@ export function registerFixViz5Tests(suite) {
       const { locationPrecision } = await import(`${base}lib/geo.js`);
       const jobs = (await (await import(`${base}api.js`)).getJobs({ company: 'nvidia' })).jobs || [];
       const wide = jobs.flatMap((j) => j.locations || []).filter((l) => !l.remote && ['region', 'country'].includes(locationPrecision(l)));
-      return { wide: wide.length, ex: wide[0]?.name, approx: [...document.querySelectorAll('#mapHost .leaflet-marker-icon')].filter((m) => /approximate/.test(m.getAttribute('aria-label') || '')).length };
+      const names = [...new Set(wide.map((l) => l.name))];
+      // The pins led by such a place (its name first in the pin's name).
+      const pins = [...document.querySelectorAll('#mapHost .leaflet-marker-icon')].map((m) => m.getAttribute('aria-label') || '').filter((a) => names.some((n) => a.startsWith(`${n}:`) || a.startsWith(`${n} and`) || a.startsWith(`${n},`)));
+      return { wide: wide.length, ex: names.slice(0, 3), pins: pins.map((a) => a.slice(0, 140)) };
     });
-    if (!r.wide) skip('no state- or country-only place');
-    assert(r.approx > 0, `${r.wide} NVIDIA places are pinned at a state's or country's centre (e.g. "${r.ex}"), and no pin says approximate`);
+    if (!r.wide || !r.pins.length) skip('no pin led by a state- or country-only place');
+    const plain = r.pins.filter((a) => !/approximate/.test(a));
+    assert(!plain.length, `pins of places pinned at a state's or country's centre (${r.ex.join(', ')}) do not say approximate: ${plain.join(' | ')}`);
   });
 
   suite.test('fix-viz-5: [Razr] on the Razr cover screen (352x355) no price pin is under the map\'s own controls (Apple, Amazon, Google)', async (ctx) => {
