@@ -31,6 +31,8 @@ export const PHONES = Object.freeze([
 export const POSTURES = Object.freeze([
   android('Motorola razr (cover screen)', 352, 355, 3, 'motorola razr 40 ultra'),
   android('Surface Duo (spanned, two screens)', 1114, 720, 2.5, 'Surface Duo'),
+  // The Duo turned a quarter: two 720x540 screens stacked, a 34 px hinge across at y 540–574 (fix-phone-sizes).
+  android('Surface Duo (spanned, stacked)', 720, 1114, 2.5, 'Surface Duo'),
   ios('iPhone 13 mini (landscape)', 812, 375, 3),
   ios('iPhone SE (3rd gen, landscape)', 667, 375, 2),
   android('Motorola razr (inner, landscape)', 1005, 412, 2.625, 'motorola razr 50 ultra'),

@@ -41,6 +41,8 @@ const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
 // The Surface Duo's hinge when spanned: two 540 px screens with 34 px between them.
 const DUO = { width: 1114, height: 720, dpr: 2.5, fold: { offset: 540, maskLength: 34 } };
+// Turned a quarter: two 720x540 screens stacked, the hinge across at y 540–574.
+const DUO_STACKED = { width: 720, height: 1114, dpr: 2.5, fold: { orientation: 'horizontal', offset: 540, maskLength: 34 } };
 const DESKTOP = [
   { name: 'Desktop 1440x900', width: 1440, height: 900 },
   { name: 'Laptop 1280x800', width: 1280, height: 800 },
@@ -98,7 +100,7 @@ async function open(ctx, size, { board = 'apple', site = 'beta/', colorScheme = 
     cdp = await context.newCDPSession(page);
     await cdp.send('Emulation.setDeviceMetricsOverride', {
       width: size.width, height: size.height, deviceScaleFactor: size.dpr || 1, mobile: true, screenWidth: size.width, screenHeight: size.height,
-      displayFeature: { orientation: 'vertical', offset: fold.offset, maskLength: fold.maskLength },
+      displayFeature: { orientation: fold.orientation || 'vertical', offset: fold.offset, maskLength: fold.maskLength },
     });
   }
   await page.goto(`${st.base}${site}#c=${board}`, { timeout: 60000 });
@@ -326,8 +328,11 @@ async function shot(page, name, cdp = null) {
   await page.screenshot({ path: file }).catch(() => {});
 }
 
-/** Run in the page: everything with content (a control, a card, the chart, text) that lies on the hinge band [a, b]. */
-function onHinge([a, b]) {
+/**
+ * Run in the page: everything with content (a control, a card, the chart, text) that lies on the hinge band [a, b]:
+ * across x for side-by-side screens, across y (axis 'y') for stacked ones.
+ */
+function onHinge([a, b, axis = 'x']) {
   const out = [];
   const W = innerWidth;
   const H = innerHeight;
@@ -350,8 +355,9 @@ function onHinge([a, b]) {
       }
     }
     if (r.right - r.left < 1 || r.bottom - r.top < 1 || r.bottom <= 0 || r.top >= H || r.right <= 0 || r.left >= W) continue;
-    if (r.left < b - 0.5 && r.right > a + 0.5) {
-      out.push(`${e.tagName.toLowerCase()}${e.id ? `#${e.id}` : ''}${typeof e.className === 'string' && e.className.trim() ? `.${e.className.trim().split(/\s+/).slice(0, 2).join('.')}` : ''} [${Math.round(r.left)}–${Math.round(r.right)}] "${(e.getAttribute('aria-label') || e.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 30)}"`);
+    const [lo, hi] = axis === 'y' ? [r.top, r.bottom] : [r.left, r.right];
+    if (lo < b - 0.5 && hi > a + 0.5) {
+      out.push(`${e.tagName.toLowerCase()}${e.id ? `#${e.id}` : ''}${typeof e.className === 'string' && e.className.trim() ? `.${e.className.trim().split(/\s+/).slice(0, 2).join('.')}` : ''} [${Math.round(lo)}–${Math.round(hi)}] "${(e.getAttribute('aria-label') || e.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 30)}"`);
     }
   }
   return [...new Set(out)];
@@ -492,6 +498,67 @@ export function registerPhoneMatrixTests(suite) {
     if (SHOTS) {
       const { page, cdp, context } = await open(ctx, size, { board: 'apple', fold: DUO.fold, colorScheme: 'dark' });
       await shot(page, 'surface-duo-spanned-hinge-1114x720-dark', cdp);
+      await context.close();
+    }
+    assert(!bad.length, `${bad.length} problem(s):\n  ${bad.join('\n  ')}`);
+  });
+
+  suite.test('Phone matrix: [Surface Duo stacked 720x1114, hinge emulated across at y 540–574 px] top bar, quick bar, chart and filters on the top screen, the list, the job page and the sheets on the bottom one, nothing on the hinge (Chromium CDP)', async (ctx) => {
+    if (engineOf(ctx) !== 'chromium') skip('emulating the hinge needs Chromium CDP (Emulation.setDeviceMetricsOverride displayFeature)');
+    const size = ALL_SIZES.find((s) => s.width === DUO_STACKED.width && s.height === DUO_STACKED.height);
+    assert(size, 'the matrix lists the Surface Duo stacked (720x1114)');
+    const [a, b] = [DUO_STACKED.fold.offset, DUO_STACKED.fold.offset + DUO_STACKED.fold.maskLength];
+    const bad = [];
+    const span = (page, sel) => page.evaluate((s) => { const e = document.querySelector(s); if (!e || !e.getClientRects().length) return null; const r = e.getBoundingClientRect(); return [Math.round(r.top), Math.round(r.bottom)]; }, sel);
+    for (const board of ['apple', 'amazon']) {
+      const { page, errors, context, cdp } = await open(ctx, size, { board, fold: DUO_STACKED.fold });
+      const seg = await page.evaluate(() => ({ mq: matchMedia('(vertical-viewport-segments: 2)').matches, segs: window.viewport?.segments?.map((s) => [s.y, s.height]) || null }));
+      assert(seg.mq && seg.segs && seg.segs.length === 2, `the fold emulation took (two stacked viewport segments): ${JSON.stringify(seg)}`);
+      const label = `${board} Duo stacked`;
+      bad.push(...problemsOf(await page.evaluate(measure, CHART_CONTROLS.filter((c) => c !== 'results sheet handle')), size.width, label));
+      const viz = await span(page, '#vizArea');
+      const list = await span(page, '#results');
+      if (!viz || viz[1] > a) bad.push(`${label}: the chart is not on the top screen (${viz})`);
+      if (!list || list[0] < b) bad.push(`${label}: the list is not on the bottom screen (${list})`);
+      const main = await page.evaluate(onHinge, [a, b, 'y']);
+      if (main.length) bad.push(`${label}: on the hinge: ${main.slice(0, 8).join(' | ')}`);
+      if (board === 'apple') await shot(page, 'surface-duo-stacked-hinge-720x1114-light', cdp);
+      // The job page on the bottom screen.
+      await page.evaluate(() => document.querySelector('#resultsList .card[data-id]').click());
+      await page.waitForFunction(() => document.querySelector('#drawer.is-open #drawerTitle'), null, { timeout: 15000 }).catch(() => {});
+      await sleep(900);
+      const d = await span(page, '#drawer');
+      if (!d || d[0] < b) bad.push(`${label}: the job page is not on the bottom screen (${d})`);
+      const job = await page.evaluate(onHinge, [a, b, 'y']);
+      if (job.length) bad.push(`${label}, job open: on the hinge: ${job.slice(0, 8).join(' | ')}`);
+      if (board === 'apple') await shot(page, 'surface-duo-stacked-hinge-job-720x1114-light', cdp);
+      await page.keyboard.press('Escape');
+      await page.waitForFunction(() => !document.querySelector('#drawer.is-open'), null, { timeout: 5000 }).catch(() => {});
+      await sleep(400);
+      // The filter sheet on the top screen.
+      await clickEl(page, '#filtersToggle');
+      await page.waitForFunction(() => document.body.classList.contains('filters-open'), null, { timeout: 5000 }).catch(() => {});
+      await sleep(500);
+      const f = await span(page, '#filters');
+      if (!f || f[0] < -1 || f[1] > a) bad.push(`${label}: the filter sheet is not on the top screen (${f})`);
+      const fl = await page.evaluate(onHinge, [a, b, 'y']);
+      if (fl.length) bad.push(`${label}, filters open: on the hinge: ${fl.slice(0, 8).join(' | ')}`);
+      await page.keyboard.press('Escape');
+      await page.waitForFunction(() => !document.body.classList.contains('filters-open'), null, { timeout: 5000 }).catch(() => {});
+      await sleep(400);
+      // The company sheet and the data badge's sheet on the bottom screen.
+      for (const [what, sel] of [['company', '#companyMenuBtn'], ['data badge', '#dataBadge']]) {
+        await clickEl(page, sel);
+        await page.waitForFunction(() => !document.querySelector('#popover').hidden, null, { timeout: 5000 }).catch(() => {});
+        await sleep(400);
+        const p = await span(page, '#popover');
+        if (p && p[0] < b) bad.push(`${label}: the ${what} sheet is not on the bottom screen (${p})`);
+        const ph = await page.evaluate(onHinge, [a, b, 'y']);
+        if (ph.length) bad.push(`${label}, ${what} sheet open: on the hinge: ${ph.slice(0, 6).join(' | ')}`);
+        await page.keyboard.press('Escape');
+        await sleep(350);
+      }
+      bad.push(...errors.map((e) => `${label}: ${e}`));
       await context.close();
     }
     assert(!bad.length, `${bad.length} problem(s):\n  ${bad.join('\n  ')}`);

@@ -1467,7 +1467,9 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
    arrow, which would point past the pin; the Juice household's meaning, one muted line under its buttons. */
 .ms-map .leaflet-tooltip.ms-map-tip--slid::before { display: none; }
 .juice-hh-note { margin: 6px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* ============================================================   fix-phone-sizes (docs/process/fix-phone-sizes.md, 2026-10-17): every size in test/e2e/phone-sizes.mjs, from the
+
+/* ===================================================================
+   fix-phone-sizes (docs/process/fix-phone-sizes.md, 2026-10-17): every size in test/e2e/phone-sizes.mjs, from the
    folded Galaxy Fold (280 px) to the Surface Duo spanned (1114 px), the Razr cover screen and landscape.
    Each finding is its own rule block. test/e2e/phone-matrix.e2e.js checks them all.
    =================================================================== */
@@ -1614,10 +1616,29 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
   .tagline { flex: 1 1 100%; margin: 0; text-align: left; }
 }
 
+/* Dual screens stacked (the Surface Duo turned a quarter: two 720x540 screens, a 34 px hinge across at y 540–574), on
+   the phone layout. The top screen has the top bar, the quick bar, the chart and the filter sheet; the bottom screen
+   has the results list (it stays open there: no peek, nothing to drag), the job page and the bottom-sheet popovers.
+   Nothing lies on the hinge. */
+@media (vertical-viewport-segments: 2) and (max-width: 860px) {
+  .main { padding-bottom: calc(100vh - env(viewport-segment-bottom 0 0)); padding-bottom: calc(100dvh - env(viewport-segment-bottom 0 0)); }
+  .results, body[data-sheet] .results, body.sheet-open .results, .results.is-dragging {
+    top: env(viewport-segment-top 0 1); bottom: 0; height: auto; transform: none !important; border-radius: 0;
+  }
+  .sheet-handle { display: none; }
+  .results-head { cursor: default; padding-top: 10px; }
+  .cards, body[data-sheet] .cards { touch-action: pan-y; }
+  .filters, body.filters-collapsed .filters { bottom: auto; height: env(viewport-segment-bottom 0 0); }
+  .drawer { top: env(viewport-segment-top 0 1); padding-top: 0; }
+  .popover, .popover--more, .popover--board, .popover--badge, .popover--company { max-height: calc(env(viewport-segment-height 0 1) - 8px); }
+  .toast { bottom: 16px; }
+}
+
 /* The search box's "/" key hint never takes a tap meant for the box (it covered the box's right end on the Duo's
    narrow search), and touch screens without a keyboard don't show it. */
 .search kbd { pointer-events: none; }
 @media (hover: none) { .search kbd { display: none; } }
+
 /* ---- fix-phone-text (docs/process/fix-phone-text.md): the phone page's text, one rule block ----
    Every caption, note and explainer is one line with its facts behind Details (viz/note.js); nothing is cut. */
 /* UX-58: the "No Juice" box keeps its padding (.d-juice { padding: 0 } above overrode .d-juice--none). */
