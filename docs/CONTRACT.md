@@ -891,7 +891,8 @@ Also new in `shared.js`:
 **Compstimate (`public/features/compstimate.js`):**
 - A comparable that posts a range per place is priced at its range for the city asked.
 - With `LOCAL_MIN` (5) or more such comparables, only those are used (V-40). Boards without per-place ranges are
-  unchanged.
+  unchanged. Since fix-qa4 (D-52, below), "such comparables" are all the comparables with pay posted for the city
+  (`payAt`), one-range postings there included.
 - A posting's places with no row of their own are not its pay places.
 
 **App (`public/app.js`):**
@@ -914,3 +915,56 @@ Also new in `shared.js`:
 - Labels are no longer cut at 60 characters.
 - Stored snapshots get both at read time (`upgradeAmazonJobs`).
 - Identical rows stay one range that lists every place (DQ-33).
+
+## fix-qa4 additions (2026-10-17): QA round 4's pay estimate, rank line, open data and empty states (fix-qa4 lane)
+
+Findings D-47 to D-50 and D-52 ([docs/process/qa-desktop-beta-4.md](process/qa-desktop-beta-4.md), red tests in
+`test/e2e/beta-desktop-qa-4.e2e.js`). Log: [docs/process/fix-qa4.md](process/fix-qa4.md). Job fields and
+`NORMALIZER_VERSION` are unchanged; every addition is optional for readers, except the CSV's two new columns (below).
+
+**Compstimate (`public/features/compstimate.js`, D-52):**
+- A comparable is local when `payAt` prices one of its places in the city asked: its one range covers the place
+  (`basis: 'posting'`), or it has a row of its own for it (`basis: 'place'`, and it is priced at that row). Before,
+  only the second counted, so the city's one-range postings were cut (Apple "Software Engineer" in Cupertino used 37
+  of the 204 Cupertino postings with that title; now 274 comparables, Cupertino's only).
+- The V-40 cut (`LOCAL_MIN` = 5 or more local comparables: only those are used) applies when at least one comparable
+  has a row of its own for the city: the company prices that city separately. A company that posts one range for many
+  places (Google's US range, every main-site board) keeps its other cities' postings, as before.
+- `estimateComp` results add `comparablePay`: for each of `comparables`, `{ min, mid, max, converted, place }`, the
+  pay the estimate used (US dollars a year), with `place` naming the place when it is one place's row (the city's row,
+  or the headline row of a posting used at its headline: Amazon's search city). Insights' "Most comparable roles" shows
+  that pay, and "Posted for <place>" on its line.
+- New pure exports `statedMax(job)` and `capAtStatedMax(estimate, max)` (D-50): for a "Pay unclear" posting whose
+  `salaryFlag.codes` are only `below_min` and `range_ratio` (its stated maximum passed the checks),
+  `compstimateForJob` caps low, mid and high at `salaryRaw.max` in US dollars (rounded down to $1K) and adds
+  `cap: { max, stated: { usd, amount, currency, text }, low, mid, high }` (the figures before the cap). The drawer's
+  line then reads "An estimate, capped at the posted maximum"; Details give the figure before the cap.
+
+**Rank (`public/features/shared.js`, D-48):** `payRank` adds `below` and `above` (same-country roles paid less and
+more). New pure `rankText(rank, among)`: "The highest pay of <among>" / "The lowest pay of <among>" only when no role
+pays more / less; a share that rounds to 100% or 0% reads "In the top 1% of <among>" / "In the lowest 1% of <among>";
+otherwise "Pays more than N% of <among>"; null without a percentage. The drawer's line and its short form use it.
+
+**Empty states (`public/app.js renderViz`, D-47):** a board that isn't on the site (`unknown`), fails to load
+(`error`) or has no roles hides `#chartHost` and `#mapHost`; the previous board's chart or map is no longer drawn behind
+the message or left in the accessibility tree. The next board that loads shows its own.
+
+**Open data CSV (`server/export.js`, F7, D-49):**
+- `CSV_COLUMNS` is `id, title, department, team, seniority, locations, remote, salary_min, salary_max,
+  salary_currency, posted_at, first_seen_at, url, salary_kind, salary_ranges, data_mode`: two columns before
+  `data_mode`, which stays last; every other column keeps its place.
+- `salary_min` / `salary_max` are the range the job card shows (`salaryRange(salary)`): for a posting with a range
+  per place, the lowest to the highest of its rows in the salary's currency (it was the headline, one place's row);
+  for a stated minimum, `salary_max` is empty (it was the minimum twice). Annualized as before.
+- `salary_kind` (`salaryKind(salary)`, `SALARY_KINDS`): `salary`, `hourly`, `ote`, `minimum`, `shift`,
+  `part-time` or `fixed-term`, as the card and the drawer caption say it; two that both hold are joined with "+"
+  (`shift+part-time`).
+- `salary_ranges` (`salaryRows(salary)`): every range the posting states for a level (`salary.levels`, two or more)
+  or a place (`salary.ranges`, every row in its own currency): `"<level or place>: <min>-<max> <currency>"`,
+  separated by `" | "`; empty for one range.
+- `csvReadme({ generatedAt, companies, channel })`: written per site. The beta README says each big-tech file comes
+  from the company's own careers site, names it per file (`CSV_SOURCES`, as docs/DATA_SOURCES.md §7 names the
+  systems), and says big-tech pay is base pay only; the main site's names Greenhouse, Ashby and Lever. Both explain
+  `salary_kind` and what changed on 2026-10-17. `scripts/build-static.js` passes `channel: site.channel`, and each
+  file's `source` and `channel`.
+
