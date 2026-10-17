@@ -1,0 +1,1335 @@
+From 053fd9c2f7ed3253d5fbc190c60db1cd75c5cdd2 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 00:00:20 +0000
+Subject: [PATCH] WIP fix-phone-controls: preview cards open at once and take
+ the keys (M-43, A-11), checklist names told apart and named (M-40, A-10),
+ Insights field above the keyboard (M-47), closed side sheet inert (UX-56),
+ stats Details folded into the chart notes (UX-57); e2e on the phone-size
+ matrix
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/prompts/fix-phone-controls.md |  43 ++
+ public/app.js                              | 224 +++++--
+ public/styles.css                          |  15 +
+ public/viz/chart.js                        |  15 +-
+ scripts/e2e.js                             |   2 +
+ test/e2e/fix-phone-controls.e2e.js         | 700 +++++++++++++++++++++
+ 6 files changed, 947 insertions(+), 52 deletions(-)
+ create mode 100644 docs/process/prompts/fix-phone-controls.md
+ create mode 100644 test/e2e/fix-phone-controls.e2e.js
+
+diff --git a/docs/process/prompts/fix-phone-controls.md b/docs/process/prompts/fix-phone-controls.md
+new file mode 100644
+index 0000000..ad38faf
+--- /dev/null
++++ b/docs/process/prompts/fix-phone-controls.md
+@@ -0,0 +1,43 @@
++You are the front-end and UI/UX engineer `fix-phone-controls` for melon-seek (repo /home/user/melon-seek, branch claude/stoic-ride-54ddxp), a zero-build vanilla ES-module app, "the Zillow of job postings". You are in your own git worktree. First run `git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp` (head 5a847e4 or later). Read docs/CONTRACT.md, docs/strategy/ROADMAP.md §8 (UI simplicity budget), docs/process/PLAYBOOK.md (including "Checkpoints" and "Known traps"), docs/process/TEMPLATE.md, docs/process/ux.md and docs/process/perf-mobile-beta-2.md (the first-page preview).
++
++**The user, 2026-10-16 (verbatim):**
++
++> "Whatever was done with the ui/UX it needs to go through the mobile and desktop QC QA again. The mobile page on the beta site is totally broken"
++
++The lead could not reproduce a page that fails to load: Chromium's and WebKit's iPhone profiles load every big-tech board with cards and no page error (webkit-phone.yml run 38979700118). The round-3 reviewers found controls on phones that give no feedback, that a keyboard covers, or that can't be told apart. Your lane fixes those. Other lanes: fix-phone-text (captions, cut text), fix-touch-tips (floating tips), fix-pay-at-place (per-place pay).
++
++**Your findings.** Evidence and screenshots are in docs/process/qa-mobile-beta-3.md, docs/QA.md (last section), docs/screenshots/qa-mobile-beta-3/, docs/REVIEW.md ("beta review 2026-10-16"), test/e2e/beta-a11y-2.e2e.js, and in the not-yet-integrated worktree /home/user/melon-seek/.claude/worktrees/agent-af29c49e4f4fc6d19 (ux-review-beta-2).
++- M-43: a tap on an Amazon preview card gives no feedback; the job opens 5–10 s later on Slow 4G when the whole list lands (`pendingOpenId`). Show at once that the tap registered (the card's pressed state and the drawer opening with the card's own fields, details "loading"), or open the drawer from the preview's data straight away.
++- A-11: focus on an Amazon preview card drops to `<body>` when the full list replaces the preview, and ArrowDown does nothing on preview cards (app.js:4925-4933). Keep focus on the same posting's card, and make the preview cards keyboard-navigable like the list.
++- M-40: Amazon's Department filter shows "Project/Program/Product Management--Technical" and "--Non-Tech" both as "Project/Program/Product Manageme…" at 390 px; Anduril's "Hardware Operations : Supply Chain : …" rows have the same problem. Make rows that share a cut prefix distinguishable (keep the distinguishing end visible, e.g. a middle ellipsis or wrapping to two lines in the checklist only), with the full name reachable by touch and screen reader.
++- A-10: the Company and Department checklists are role=group with no name; the "Company" and "Department" headers are plain divs (app.js:2253, 2339-2342). Name them with aria-labelledby.
++- M-47: in landscape (844x390) with the keyboard up, the Pay estimate field sits under the keyboard (simulated keyboard, as earlier passes). Scroll it into the visual viewport on focus, as the company sheet does (fix-company-scroll).
++- UX-56: at 1024 px the closed filter side sheet is translated off screen but not inert: Tab lands on "Reset", "Close filters" and "Show roles" off screen and focus disappears. Set `inert` on #filters when it is closed at side-sheet widths (setFiltersModal handles only the phone).
++- UX-57: the stats line's "Details" is a new always-visible main-view control (toolbar count 3 → 4, against ROADMAP §8). Fold the stats line's facts into the chart notes' Details, so the count is back to 3. (fix-phone-text owns the stats line's words; agree the split by SendMessage to "main" if you both touch it: you own the control, it owns the text.)
++
++**Your job:**
++1. A red e2e test per ID first: test/e2e/fix-phone-controls.e2e.js, registered in scripts/e2e.js, failing before and passing after. Use real touch (CDP `Input.dispatchTouchEvent`) for taps and swipes, validated on a control element first (PLAYBOOK, Known traps). For M-43 use 4x CPU and Slow 4G throttling as qa-mobile-beta-3 did.
++2. Make the test file runnable with `--browser=webkit` the way test/e2e/fix-company-scroll.e2e.js is (skip only what needs CDP, and say so), and add one step to .github/workflows/webkit-phone.yml (the "Playwright WebKit, iPhone profile" job) that runs it, after the "Company sheet geometry on WebKit" step. fix-touch-tips and fix-phone-text add steps there too; keep yours separate.
++3. Don't regress: desktop keyboard navigation, aria (aria-activedescendant, roles), focus rings, Escape, the drawer's close, the company sheet scroll (test/e2e/fix-company-scroll.e2e.js), the preview's same-cards-same-order replacement (perf-mobile-beta-2 tests), and its timings (first cards about 2 s on Fast 4G at 4x CPU).
++4. Screenshots: before and after for each ID, phone and desktop, light and dark, in docs/screenshots/fix-phone-controls/, shrunk with `bash scripts/cycle/shrink-screenshots.sh docs/screenshots/fix-phone-controls`.
++
++**Data and build:**
++- Today's crawl is at /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-data2/data/snapshots and .../wt-data2/data/beta/snapshots. Symlink them as data/snapshots and data/beta/snapshots in your worktree, and never commit them.
++- Build with `node scripts/build-static.js` (your worktree's dist/ is yours) and serve with `node scripts/cycle/serve.mjs --dist dist --pid <scratch pidfile>`.
++- Playwright: NODE_PATH=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/pw/node_modules, Chromium at /opt/pw-browsers/chromium-1194/chrome-linux/chrome. WebKit is not installed here; the lead runs webkit-phone.yml on GitHub. Never `playwright install`; no `pkill -f` / `pgrep -f`.
++- Give every server, browser or test command a timeout, so nothing can hang.
++
++**Ownership** (other lanes are editing the same files, so stay inside these parts):
++- public/app.js: the preview cards and `pendingOpenId`, list keyboard navigation, the Company/Department checklists' markup and labels, the filter sheet's open/close and `inert`, the stats line's Details control, the Pay estimate field's focus scrolling;
++- public/styles.css for those rules only; public/features/compstimate.js only for the field's focus handling;
++- NOT yours: caption and note text (fix-phone-text), tooltip open-close (fix-touch-tips), `payPill` and the drawer's pay (fix-pay-at-place), chart and map drawing (the viz lane).
++Also yours: the NEW test/e2e/fix-phone-controls.e2e.js (registered in scripts/e2e.js), the webkit-phone.yml step, docs/process/fix-phone-controls.md (your log in TEMPLATE.md structure, with a `## State` section at the top), docs/process/prompts/fix-phone-controls.md (this prompt pasted verbatim).
++
++**Rules:**
++- Keep the UI simple: no new visible control. Use plain words.
++- Commit small and often in your worktree with explicit paths ("WIP: …" is fine). Send the lead each finished, tested piece by SendMessage to "main" (SHA, what it fixes, tests), then keep going. The lead checkpoints your worktree every 15 minutes and integrates. Never push.
++- Before you send any SHA:
++  - run `MELON_BETA_SNAPSHOT_DIR= npm test` with the data links moved OUT of data/, as CI runs it. S-6, PERF-1, V15 and T21 are load-sensitive; re-run them alone.
++  - run your e2e plus the full e2e suite with data linked: no new failures (the reviewers' red groups fail by design until their lanes land; say which). Then `git checkout -- docs/screenshots` for any screenshots the suite rewrote outside yours.
++
++Report: per ID, before → after, tests that fail before and pass after, SHAs and screenshots.
+diff --git a/public/app.js b/public/app.js
+index 1c8e9cd..eae0ef7 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -1068,7 +1068,6 @@ async function loadJobs({ refresh = false } = {}) {
+   if (savedView && savedView.slug !== S.c) savedView = null; // P-12: a saved search's New marks stay with its company
+   data = { status: 'loading', jobs: [], company: companyInfo(S.c), mode: null, fetchedAt: null, error: null };
+   preview = null;
+-  pendingOpenId = null;
+   render();
+   if (previewable()) dataApi.getPreview?.(jobsQuery(S.c), { signal: abortCtl.signal }).then((p) => showPreview(p, seq)).catch(() => {});
+   // Static mode shows the bundled list as soon as it lands, marked `pending` while the live board
+@@ -1099,9 +1098,8 @@ async function loadJobs({ refresh = false } = {}) {
+   if (seq !== loadSeq) return;
+   if (data.status === 'ready') fillFamilies(data.jobs);
+   settleSaved();
++  // M-43: a job page opened from a preview card (its own fields, the rest loading) becomes the whole page here.
+   if (S.job) openDrawer(S.job, { fromHash: true });
+-  else if (pendingOpenId && data.status === 'ready') openDrawer(pendingOpenId);
+-  pendingOpenId = null;
+   preview = null;
+   onScreen();
+ }
+@@ -1112,11 +1110,17 @@ async function loadJobs({ refresh = false } = {}) {
+    1.14 MB download, then Juice, prepare and the first render). They are the same postings, prepared and
+    sorted by the same code, with the chart's colours (the build counts them on the whole board) and the
+    same "New" tags (the last visit, read but not yet recorded); only the default view gets one (Highest pay,
+-   no filter, no search, no saved search). The list says it is still loading; a tapped card opens when the
+-   list is in. Then the whole list replaces it, keeping the place when its first cards are the same. */
++   no filter, no search, no saved search). The list says it is still loading; a tapped card opens its job page
++   at once with the card's own fields and the rest loading (M-43), and the whole page follows when the list is
++   in. Then the whole list replaces it, keeping the place when its first cards are the same, and the focus on
++   the same posting's card (A-11). */
+ let preview = null; // { slug, jobs, total, visit } while shown
+-let pendingOpenId = null;
+ const previewing = () => data.status === 'loading' && preview?.slug === S.c && previewable();
++/** A posting of the preview on screen (M-43), or null. */
++const previewJob = (id) => (previewing() ? preview.jobs.find((j) => j.id === id) || null : null);
++/** A result card, from the list or the preview; its posting's id. */
++const CARD_SEL = '.card[data-id], .card[data-preview-id]';
++const cardId = (c) => c?.dataset.id ?? c?.dataset.previewId;
+ function previewable() {
+   if (!api.isStatic?.() || !S.c || isCustomKey(S.c) || area || effectiveSort() !== 'salary-desc' || colorBy() !== 'department') return false;
+   if (savedView && savedView.slug === S.c) return false;
+@@ -2245,12 +2249,53 @@ function makeSalary({ compact = false } = {}) {
+   return { el, sync };
+ }
+ 
+-function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8, order = null, colorDim = null, labelOf = (k) => k, tipOf = null, note = null } = {}) {
++/**
++ * M-40: a long option name in two parts, its start and its end ("Project/Program/Product Management--" and
++ * "Technical"), split at its last separator (" : ", "--", " - ", "/", ", ") or else its last space. Each part
++ * keeps to one line (styles.css .check-part), so the end, which tells similar names apart, wraps under the start
++ * instead of being cut; only a start longer than a line is cut. Names that would still look the same (the same
++ * start and the same end, as Anduril's "Maritime & Maneuver Dominance : … - Engineering & Operations" rows) are
++ * not cut at all: they wrap. The label's text is always the whole name (the checkbox's accessible name), and the
++ * row's title has it for a mouse. Short names stay one plain text.
++ */
++const SPLIT_MIN = 19;
++const SPLIT_SEEN = 15; // characters of a part that always show, down to the narrowest phone (280 px: about 24)
++const LABEL_SEPS = [' : ', ' – ', ' — ', ' - ', '--', '/', ' | ', ', '];
++function splitName(s) {
++  if (s.length < SPLIT_MIN) return null;
++  let cut = -1;
++  for (const sep of LABEL_SEPS) {
++    const i = s.lastIndexOf(sep);
++    if (i > 0 && i + sep.length < s.length - 2) cut = Math.max(cut, i + sep.trimEnd().length);
++  }
++  if (cut < 0) cut = s.lastIndexOf(' ');
++  if (cut <= 0) return null;
++  const head = s.slice(0, cut).trimEnd();
++  const rest = s.slice(head.length);
++  const tail = rest.trimStart();
++  return tail ? { head, gap: rest.slice(0, rest.length - tail.length), tail } : null;
++}
++/** Each name's label content in a list: its two parts, the whole name wrapping, or the plain name. */
++function labelLayouts(names) {
++  const splits = names.map(splitName);
++  const sig = (p) => `${p.head.slice(0, SPLIT_SEEN)}|${p.tail.slice(0, SPLIT_SEEN)}`;
++  const seen = new Map();
++  for (const p of splits) if (p) seen.set(sig(p), (seen.get(sig(p)) || 0) + 1);
++  return new Map(names.map((name, i) => {
++    const p = splits[i];
++    if (!p) return [name, { cls: '', parts: [name], long: false }];
++    if (seen.get(sig(p)) > 1) return [name, { cls: ' is-wrap', parts: [name], long: true }];
++    return [name, { cls: ' is-split', parts: [h('span', { class: 'check-part' }, p.head), p.gap, h('span', { class: 'check-part' }, p.tail)], long: true }];
++  }));
++}
++
++function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8, order = null, colorDim = null, labelOf = (k) => k, tipOf = null, note = null, label = null, labelledBy = null } = {}) {
+   let query = '';
+   let expanded = false;
+   const input = h('input', { type: 'search', class: 'fsearch', placeholder: 'Search…', 'aria-label': 'Search options' });
+   const searchWrap = h('div', { class: 'fsearch-wrap' }, h('span', { html: ICON.search }), input);
+-  const list = h('div', { class: 'checklist', role: 'group' });
++  // A-10: every checklist is a named group ("Company", "Department", "Location", …).
++  const list = h('div', { class: 'checklist', role: 'group', 'aria-labelledby': labelledBy, 'aria-label': labelledBy ? null : label });
+   const more = h('button', { type: 'button', class: 'link-btn more-btn' });
+   const el = h('div', { class: 'checklist-wrap' }, searchWrap, list, more, note ? h('p', { class: 'fnote' }, note) : null);
+   input.addEventListener('input', () => { query = input.value.trim().toLowerCase(); sync(); });
+@@ -2279,13 +2324,16 @@ function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8,
+     const hadFocus = list.contains(document.activeElement) ? document.activeElement.value : focusKey;
+     focusKey = null;
+ 
++    const layouts = labelLayouts(items.map((it) => String(labelOf(it.key)))); // M-40
+     const row = (it) => {
+       const id = `f-${facet}-${btoa(unescape(encodeURIComponent(it.key))).replace(/[^a-z0-9]/gi, '')}-${uid}`;
+-      return h('label', { class: `check${it.count === 0 ? ' is-zero' : ''}`, for: id, title: tipOf?.(it.key) || null },
++      const name = String(labelOf(it.key));
++      const lay = layouts.get(name);
++      return h('label', { class: `check${it.count === 0 ? ' is-zero' : ''}`, for: id, title: tipOf?.(it.key) || (lay.long ? name : null) },
+         h('input', { type: 'checkbox', id, value: it.key, checked: selected.has(it.key) }),
+         h('span', { class: 'check-box', 'aria-hidden': 'true' }),
+         colorDim && colorBy() === colorDim && it.key !== 'Remote' && !/^Remote/.test(it.key) ? h('span', { class: 'dot dot--sm', style: `--dot:${vizColor(it.key)}`, 'aria-hidden': 'true' }) : null,
+-        h('span', { class: 'check-label' }, labelOf(it.key)), h('span', { class: 'check-count' }, it.count));
++        h('span', { class: `check-label${lay.cls}` }, ...lay.parts), h('span', { class: 'check-count' }, it.count));
+     };
+ 
+     const nodes = [];
+@@ -2335,11 +2383,14 @@ function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8,
+  * subsidiary can be zoomed into without a new section (ROADMAP §8); departments read from job titles
+  * say so in one line.
+  */
++let deptFilterSeq = 0;
+ function makeDeptFilter({ limit = 8 } = {}) {
+-  const brands = makeChecklist('b', { limit: 6, searchable: false, colorDim: 'brand' });
+-  const brandHead = h('div', { class: 'check-group' }, 'Company');
+-  const deptHead = h('div', { class: 'check-group' }, 'Department');
+-  const depts = makeChecklist('d', { limit, colorDim: 'department' });
++  // A-10: the two lists are groups named by their headings (a hidden heading still names its list).
++  const n = ++deptFilterSeq;
++  const brandHead = h('div', { class: 'check-group', id: `dept-filter-${n}-b` }, 'Company');
++  const deptHead = h('div', { class: 'check-group', id: `dept-filter-${n}-d` }, 'Department');
++  const brands = makeChecklist('b', { limit: 6, searchable: false, colorDim: 'brand', labelledBy: brandHead.id });
++  const depts = makeChecklist('d', { limit, colorDim: 'department', labelledBy: deptHead.id });
+   const note = h('p', { class: 'fnote', dataset: { note: 'dept-basis' } });
+   return {
+     el: h('div', { class: 'dept-filter' }, brandHead, brands.el, deptHead, depts.el, note),
+@@ -2499,11 +2550,11 @@ function renderFilterPanel() {
+     panel = [
+       section('Salary', makeSalary(), { badge: sel('sal') }),
+       section('Department', makeDeptFilter(), { badge: sel('d') }),
+-      section('Location', makeChecklist('l', { grouped: true, limit: 10, searchable: 'auto', colorDim: 'location', note: LOC_NOTE }), { badge: sel('l') }),
+-      section('Seniority', makeChecklist('s', { order: SENIORITY_SHOWN, limit: 10, colorDim: 'seniority', ...SEN_OPTS }), { badge: sel('s') }),
++      section('Location', makeChecklist('l', { grouped: true, limit: 10, searchable: 'auto', colorDim: 'location', note: LOC_NOTE, label: 'Location' }), { badge: sel('l') }),
++      section('Seniority', makeChecklist('s', { order: SENIORITY_SHOWN, limit: 10, colorDim: 'seniority', ...SEN_OPTS, label: 'Seniority' }), { badge: sel('s') }),
+       section('Remote', makeRemote(), { badge: sel('r') }),
+       ...KW_CATS.map((k) => section(k.title, makeCloud(k), { badge: sel(k.key) })),
+-      section('Employment type', makeChecklist('e', { limit: 6, labelOf: empLabel }), { open: false, badge: sel('e') }),
++      section('Employment type', makeChecklist('e', { limit: 6, labelOf: empLabel, label: 'Employment type' }), { open: false, badge: sel('e') }),
+       section('Listed', makePosted(), { open: false, badge: sel('p') }),
+     ];
+     body.replaceChildren(...panel.map((s) => s.el));
+@@ -2526,13 +2577,13 @@ function popoverParts(id) {
+   switch (id) {
+     case 'salary': return [makeSalary({ compact: true })];
+     case 'dept': return [makeDeptFilter({ limit: 12 })];
+-    case 'loc': return [makeChecklist('l', { grouped: true, limit: 14, note: LOC_NOTE })];
+-    case 'sen': return [makeChecklist('s', { order: SENIORITY_SHOWN, limit: 10, ...SEN_OPTS })];
++    case 'loc': return [makeChecklist('l', { grouped: true, limit: 14, note: LOC_NOTE, label: 'Location' })];
++    case 'sen': return [makeChecklist('s', { order: SENIORITY_SHOWN, limit: 10, ...SEN_OPTS, label: 'Seniority' })];
+     case 'remote': return [makeRemote()];
+     case 'more': return [
+       titled('Pay', makeSwitch('Only show roles with pay', 'so')),
+       titled('Juice', makeJuiceChips(), 'What’s left after tax, rent and living'),
+-      titled('Employment type', makeChecklist('e', { limit: 6, labelOf: empLabel })),
++      titled('Employment type', makeChecklist('e', { limit: 6, labelOf: empLabel, label: 'Employment type' })),
+       titled('Listed', makePosted()),
+       ...KW_CATS.map((k) => titled(k.title, makeCloud(k, { limit: 10 }), k.hint)),
+     ];
+@@ -2726,8 +2777,15 @@ function renderKpis() {
+     // P-6: "mostly" only for a real majority (it read "mostly Sales" at 19%).
+     share > 0.5 ? `Mostly ${st.top[0]}: ${st.top[1].toLocaleString()} of ${st.n.toLocaleString()} roles (${Math.round(share * 100)}%)` : '',
+   ];
+-  renderNote(el, { line: line.flatMap((p, i) => (i ? [h('span', { class: 'stat-sep', 'aria-hidden': 'true' }, '·'), p] : [p])), details, key: 'stats-line' });
++  // UX-57: in Chart view the stats line is its one line, and its facts are listed first in the chart notes'
++  // Details (chart.setNotes), so the main view has one Details (ROADMAP §8). The map has no chart notes, so its
++  // stats line keeps them; so does Insights.
++  const fold = S.m === 'chart' && (!chart || typeof chart.setNotes === 'function');
++  statsNotes = details;
++  chart?.setNotes?.(fold ? details : []);
++  renderNote(el, { line: line.flatMap((p, i) => (i ? [h('span', { class: 'stat-sep', 'aria-hidden': 'true' }, '·'), p] : [p])), details: fold ? [] : details, key: 'stats-line' });
+ }
++let statsNotes = []; // UX-57: the stats line's facts, for the chart notes
+ 
+ /** I-2: one line on what the site is ("Pay, and what's left after tax and rent, for 8 tech companies' open roles"). */
+ function renderTagline() {
+@@ -2772,6 +2830,7 @@ function ensureViz() {
+         onHover: (job) => hoverFromViz(job),
+         onClusterSelect: (jobs, label) => setArea('cluster', jobs, label),
+       });
++      chart.setNotes?.(statsNotes); // UX-57
+     }
+     if (S.m === 'map' && !map) {
+       // Leaflet (~150 KB) loads on first Map open, not at startup (PERF-3).
+@@ -3261,7 +3320,8 @@ function buildWindow(list) {
+   win.els = new Map();
+   win.btn = h('button', { type: 'button', class: 'btn btn--ghost btn--block', onclick: () => loadMore() });
+   win.more = h('li', { class: 'list-more' }, win.btn);
+-  const focusId = document.activeElement?.closest?.('#resultsList .card[data-id]')?.dataset.id;
++  // A-11: a focused preview card hands its focus to the same posting's card when the whole list replaces it.
++  const focusId = cardId(document.activeElement?.closest?.('#resultsList .card'));
+   // No layout is read until the cards and spacers are back, so the browser never clamps the scroll position.
+   const keepTop = list.scrollTop;
+   list.replaceChildren(...nn(note, win.top, win.bottom, win.more));
+@@ -3633,8 +3693,15 @@ let drawerReturnFocus = null;
+ function findJob(id) { return data.jobs.find((j) => j.id === id); }
+ 
+ function openDrawer(id, { fromHash = false, step = false } = {}) {
+-  const job = findJob(id);
+-  if (!job) { if (fromHash && data.status === 'ready') set({ job: null }, { replace: true }); return; }
++  // M-43: while a big board's list loads, a preview card's job page opens at once with the card's own fields
++  // and the rest loading (drawerLoading); loadJobs opens the whole page for it when the list is in.
++  const job = findJob(id) || previewJob(id);
++  const loading = !!job && data.status !== 'ready';
++  if (!job) {
++    if (drawerJobId === id && drawerLoadingShown()) closeDrawer(); // its list never came, or does not have it
++    if (fromHash && data.status === 'ready') set({ job: null }, { replace: true });
++    return;
++  }
+   if (!drawerJobId || !drawerReturnFocus) {
+     drawerReturnFocus = document.activeElement && document.activeElement !== document.body && !$('#drawer').contains(document.activeElement) ? document.activeElement : null;
+   }
+@@ -3645,19 +3712,20 @@ function openDrawer(id, { fromHash = false, step = false } = {}) {
+   // M-9: paging next/prev rewrites the job page's entry, so one Back always leaves the job page.
+   if (S.job !== id) { S.job = id; commit({ replace: fromHash || step }); }
+   const drawer = $('#drawer');
+-  drawer.replaceChildren(...drawerContent(job));
+-  applyDrawerBudget();
++  if (loading) drawer.replaceChildren(...drawerLoading(job));
++  else { drawer.replaceChildren(...drawerContent(job)); applyDrawerBudget(); }
+   drawer.hidden = false;
+   $('#drawerBackdrop').hidden = false;
+   requestAnimationFrame(() => { drawer.classList.add('is-open'); $('#drawerBackdrop').classList.add('is-open'); });
+   drawer.scrollTop = 0;
+   drawer.querySelector('.drawer-scroll')?.scrollTo(0, 0);
+   for (const c of document.querySelectorAll('.card.is-open')) c.classList.remove('is-open');
+-  $(`.card[data-id="${cssId(id)}"]`)?.classList.add('is-open');
++  $(`.card[data-id="${cssId(id)}"], .card[data-preview-id="${cssId(id)}"]`)?.classList.add('is-open');
+   highlightViz();
+   renderDrawerNav();
+   $('#drawerClose')?.focus({ preventScroll: true }); // always — including deep links and Back/Forward
+ }
++const drawerLoadingShown = () => !!$('#drawer .d-loading');
+ 
+ // Everything behind the modal drawer becomes inert (not focusable, hidden from AT).
+ const behindDrawer = () => [$('.topbar'), $('.quickbar'), $('#layout'), $('.skip-link')];
+@@ -3680,7 +3748,7 @@ function closeDrawer({ fromHash = false } = {}) {
+   highlightViz();
+   // The original trigger may have been re-rendered away (e.g. a keyword toggled in the drawer), or
+   // left the page with the list's window (M-20): then its card is brought back if it is loaded.
+-  const target = drawerReturnFocus?.isConnected ? drawerReturnFocus : $(`.card[data-id="${cssId(closedId)}"]`);
++  const target = drawerReturnFocus?.isConnected ? drawerReturnFocus : $(`.card[data-id="${cssId(closedId)}"], .card[data-preview-id="${cssId(closedId)}"]`);
+   if (target) target.focus({ preventScroll: true });
+   else if (!focusResult(visible.findIndex((j) => j.id === closedId))) $('#resultsList')?.focus({ preventScroll: true });
+   drawerReturnFocus = null;
+@@ -3692,7 +3760,8 @@ function renderDrawerNav() {
+   if (!prev) return;
+   prev.disabled = idx <= 0;
+   next.disabled = idx < 0 || idx >= visible.length - 1;
+-  pos.textContent = idx >= 0 ? `${(idx + 1).toLocaleString()} of ${visible.length.toLocaleString()}` : ''; // M-23: "1 of 6,105"
++  const total = previewing() ? preview.total : visible.length; // M-43: the preview is the whole board's first page
++  pos.textContent = idx >= 0 ? `${(idx + 1).toLocaleString()} of ${total.toLocaleString()}` : ''; // M-23: "1 of 6,105"
+ }
+ function stepDrawer(d) {
+   const idx = visible.findIndex((j) => j.id === drawerJobId);
+@@ -4233,6 +4302,40 @@ function metaParts(job) {
+   return out;
+ }
+ 
++/** The drawer's top row: previous / position / next, and close ("‹ Back" on a phone). */
++function drawerHead() {
++  return h('div', { class: 'drawer-head' },
++    h('div', { class: 'drawer-nav' },
++      h('button', { type: 'button', class: 'icon-btn icon-btn--sm', id: 'drawerPrev', 'aria-label': 'Previous role', html: ICON.prev, onclick: () => stepDrawer(-1) }),
++      h('span', { class: 'drawer-pos', id: 'drawerPos' }),
++      h('button', { type: 'button', class: 'icon-btn icon-btn--sm', id: 'drawerNext', 'aria-label': 'Next role', html: ICON.next, onclick: () => stepDrawer(1) })),
++    // Phones show this as "‹ Back" at the left of a full-screen page (styles.css); P-16: the word
++    // keeps it apart from the "Previous role" arrow next to it.
++    h('button', { type: 'button', class: 'icon-btn', id: 'drawerClose', 'aria-label': 'Close details, back to the list (Esc)', html: `<span class="ico-close">${ICON.close}</span><span class="ico-back">${ICON.prev}<span class="back-label">Back</span></span>`, onclick: () => closeDrawer() }));
++}
++
++/**
++ * M-43: a preview card's job page while the board's whole list loads (Amazon's 22,179 postings take 5–10 s on
++ * 4G). It opens at the tap with what the card shows (title, pay, department, level) and says the rest is
++ * loading; the pay ranking, Juice and comparisons need the whole board, so they come with the whole page,
++ * which loadJobs opens for the same posting when the list is in. Back, Escape and close work as on any job page.
++ */
++function drawerLoading(job) {
++  const company = data.company || {};
++  const pay = payPill(job);
++  const sen = senKey(job);
++  return [drawerHead(), h('div', { class: 'drawer-scroll', tabindex: '0', 'aria-label': 'Role details' },
++    h('div', { class: 'd-company' }, h('span', { class: 'dot', style: `--dot:${companyColor(company)}` }), company.name || job.companyName),
++    h('h2', { class: 'd-title', id: 'drawerTitle' }, job.title),
++    h('div', { class: 'd-meta' }, ...metaParts(job).map((t, i) => [i ? h('span', { class: 'sep' }, '·') : null, h('span', null, t)]),
++      h('span', { class: `sen sen--${sen.toLowerCase().replace(/\W/g, '')}` }, senLabel(sen))),
++    h('div', { class: 'd-loading-pay' }, pay ? h('span', { class: `sal-pill${pay.elsewhere ? ' sal-pill--elsewhere' : ''}`, title: pay.tip }, pay.text)
++      : h('span', { class: 'sal-pill sal-pill--none' }, job.salaryFlag ? 'Pay unclear' : 'No pay listed')),
++    h('p', { class: 'd-loading', role: 'status' }, 'Loading this role’s details…'),
++    h('div', { class: 'd-loading-body', 'aria-busy': 'true', 'aria-hidden': 'true' },
++      ...[88, 64, 92, 48, 76].map((w) => h('div', { class: 'sk sk-line', style: `width:${w}%` }))))];
++}
++
+ function drawerContent(job) {
+   const company = data.company || {};
+   const coName = company.name || job.companyName;
+@@ -4270,14 +4373,7 @@ function drawerContent(job) {
+   } }, 'Read full description');
+   descWrap.append(descToggle);
+ 
+-  const head = h('div', { class: 'drawer-head' },
+-    h('div', { class: 'drawer-nav' },
+-      h('button', { type: 'button', class: 'icon-btn icon-btn--sm', id: 'drawerPrev', 'aria-label': 'Previous role', html: ICON.prev, onclick: () => stepDrawer(-1) }),
+-      h('span', { class: 'drawer-pos', id: 'drawerPos' }),
+-      h('button', { type: 'button', class: 'icon-btn icon-btn--sm', id: 'drawerNext', 'aria-label': 'Next role', html: ICON.next, onclick: () => stepDrawer(1) })),
+-    // Phones show this as "‹ Back" at the left of a full-screen page (styles.css); P-16: the word
+-    // keeps it apart from the "Previous role" arrow next to it.
+-    h('button', { type: 'button', class: 'icon-btn', id: 'drawerClose', 'aria-label': 'Close details, back to the list (Esc)', html: `<span class="ico-close">${ICON.close}</span><span class="ico-back">${ICON.prev}<span class="back-label">Back</span></span>`, onclick: () => closeDrawer() }));
++  const head = drawerHead();
+ 
+   const sal = job.salary;
+   const term = postedTerm(sal);
+@@ -4717,6 +4813,7 @@ function bindKeyboardInsets() {
+     const short = vv.height < full - 120; // any on-screen keyboard takes well over 120px
+     const open = isMobile() && short && (typing() || (vv.offsetTop || 0) > 0);
+     document.body.classList.toggle('kb-open', open);
++    if (!open) document.body.classList.remove('kb-lift'); // M-47: the top bars come back with the keyboard down
+     document.body.classList.toggle('kb-search', open && document.activeElement?.id === 'search'); // M-12: lift the peek row
+     document.documentElement.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
+     document.documentElement.style.setProperty('--vvt', `${Math.max(0, Math.round(vv.offsetTop || 0))}px`); // fix-company-scroll: iOS pans the visual viewport
+@@ -4733,7 +4830,7 @@ function bindKeyboardInsets() {
+   vv.addEventListener('scroll', resync);
+   document.addEventListener('focusin', (e) => {
+     resync();
+-    if (isMobile() && e.target.matches?.('#filters input, #popover input')) setTimeout(() => revealField(e.target), 300);
++    if (isMobile() && e.target.matches?.('#filters input, #popover input, #insightsHost input:not([type=checkbox]):not([type=radio]):not([type=range])')) setTimeout(() => revealField(e.target), 300);
+   });
+   document.addEventListener('focusout', () => setTimeout(resync, 50));
+ }
+@@ -4750,9 +4847,21 @@ function revealField(el) {
+     box = box.parentElement;
+   }
+   if (!box || box === document.body) return;
+-  const top = el.closest('.fsearch-wrap, label, .field') || el;
+-  const delta = top.getBoundingClientRect().top - box.getBoundingClientRect().top - 8;
++  const top = el.closest('.fsearch-wrap, label, .field, .msf-field') || el;
++  // The top of what shows: the panel's, or the visual viewport's when iOS has panned it down past the panel's top.
++  const vv = window.visualViewport;
++  const viewTop = Math.max(box.getBoundingClientRect().top, vv?.offsetTop || 0);
++  const delta = top.getBoundingClientRect().top - viewTop - 8;
+   if (Math.abs(delta) > 4) box.scrollTop += delta;
++  // M-47: in Insights on a short screen (landscape with the keyboard up: 200 px or less to see) the field can
++  // still be under the keyboard, below the top bars: they step aside while it is typed in (styles.css
++  // body.kb-lift), and come back when it loses focus or the keyboard closes (bindKeyboardInsets).
++  const below = vv && el.getBoundingClientRect().bottom > vv.offsetTop + vv.height;
++  if (below && el.closest('#insightsHost') && !document.body.classList.contains('kb-lift')) {
++    document.body.classList.add('kb-lift');
++    el.addEventListener('blur', () => document.body.classList.remove('kb-lift'), { once: true });
++    requestAnimationFrame(() => revealField(el));
++  }
+ }
+ 
+ let filtersOpener = null; // the chip or Filters button that opened the overlay sheet (M-4, M-15)
+@@ -4762,6 +4871,7 @@ function setFiltersOpen(open, { opener = null, focus = null } = {}) {
+     const was = document.body.classList.contains('filters-open');
+     document.body.classList.toggle('filters-open', open);
+     $('#filtersScrim').hidden = !open;
++    syncFiltersInert();
+     setFiltersModal(open && isMobile());
+     if (open) {
+       if (!was || opener) filtersOpener = opener || filtersOpener;
+@@ -4787,6 +4897,18 @@ function setFiltersOpen(open, { opener = null, focus = null } = {}) {
+   setTimeout(() => { try { map?.invalidateSize(); } catch { /* ignore */ } }, 260);
+ }
+ 
++/* UX-56: below 1200 px the filter panel is a sheet that a closed state only moves off screen (the phone's also
++   hides it), so while closed it is inert and hidden from screen readers: Tab never lands on its off-screen
++   "Reset" or "Show roles". The docked column (1200 px and up) is always live. */
++function syncFiltersInert() {
++  const f = $('#filters');
++  if (!f) return;
++  const off = isOverlayFilters() && !document.body.classList.contains('filters-open');
++  if (f.inert === off) return;
++  f.inert = off;
++  if (off) f.setAttribute('aria-hidden', 'true'); else f.removeAttribute('aria-hidden');
++}
++
+ /* M-7: on phones the filter sheet is full screen, so it is a modal dialog while open: dialog
+    semantics, everything behind it inert, and Tab kept inside (bindEvents). Wider screens keep
+    the plain labelled <aside> (a docked column, or a side sheet with its scrim). */
+@@ -4919,31 +5041,29 @@ function bindEvents() {
+   $('.brand').addEventListener('click', (e) => { e.preventDefault(); dropHeld(); set({ ...resetFiltersPatch(), job: null, m: 'chart' }); closeDrawer(); });
+ 
+   const list = $('#resultsList');
++  // M-43 / A-11: a preview card (the first page while a big board's list loads) is a card like the others:
++  // a tap or Enter opens its job page at once (openDrawer shows its own fields while the rest loads), and
++  // the arrow keys move between cards.
+   list.addEventListener('click', (e) => {
+-    const c = e.target.closest('.card[data-id]');
+-    if (c) openDrawer(c.dataset.id);
+-    else if (previewing()) pendingOpenId = e.target.closest('.card[data-preview-id]')?.dataset.previewId || pendingOpenId;
++    const c = e.target.closest(CARD_SEL);
++    if (c) openDrawer(cardId(c));
+   });
+   list.addEventListener('keydown', (e) => {
+     const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+-    const c = e.target.closest('.card[data-id]');
+-    if (!c && previewing() && (e.key === 'Enter' || e.key === ' ')) {
+-      const pc = e.target.closest('.card[data-preview-id]');
+-      if (pc) { e.preventDefault(); pendingOpenId = pc.dataset.previewId; return; }
+-    }
++    const c = e.target.closest(CARD_SEL);
+     if (!c) {
+       // M-20: focus handed to the list (its card scrolled out of the page) goes on from the first card in view.
+       if (e.target === list && step) {
+         e.preventDefault();
+         const top = list.getBoundingClientRect().top;
+-        [...list.querySelectorAll('.card[data-id]')].find((x) => x.getBoundingClientRect().bottom > top + 4)?.focus();
++        [...list.querySelectorAll(CARD_SEL)].find((x) => x.getBoundingClientRect().bottom > top + 4)?.focus();
+       }
+       return;
+     }
+-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrawer(c.dataset.id); }
++    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrawer(cardId(c)); }
+     if (step) {
+       e.preventDefault();
+-      focusResult(visible.findIndex((j) => j.id === c.dataset.id) + step); // M-20: by result, not by card in the page
++      focusResult(visible.findIndex((j) => j.id === cardId(c)) + step); // M-20: by result, not by card in the page
+     }
+   });
+   list.addEventListener('scroll', () => { if (win.loaded > WINDOW_ALL) scheduleWindow(); }, { passive: true });
+@@ -4989,6 +5109,7 @@ function bindEvents() {
+     positionPopover();
+     if (win.more?.isConnected) paintWindow(); // M-20: card heights follow the list's width
+     if (document.body.classList.contains('filters-open')) { setFiltersModal(isMobile()); syncChipsExpanded(); } // rotation / resize across 860px
++    syncFiltersInert(); // UX-56: across 1200px the panel turns from a docked column into a sheet, and back
+   }));
+   addEventListener('scroll', () => positionPopover(), true);
+ 
+@@ -5044,6 +5165,7 @@ async function boot() {
+     if (localStorage.getItem('melon-seek.filtersCollapsed') === '1') document.body.classList.add('filters-collapsed');
+   } catch { /* ignore */ }
+   if (isOverlayFilters()) $('#filtersToggle').setAttribute('aria-expanded', 'false');
++  syncFiltersInert();
+   bindEvents();
+   setSheet('peek');
+   S = parseHash();
+diff --git a/public/styles.css b/public/styles.css
+index 0653798..d29fdb7 100644
+--- a/public/styles.css
++++ b/public/styles.css
+@@ -379,6 +379,14 @@ input.range-val { width: 100%; min-width: 0; padding: 0; border: 0; background:
+ .radio input:checked + .radio-dot { border-color: var(--ms-accent); }
+ .radio input:checked + .radio-dot::after { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--ms-accent); }
+ .check-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++/* M-40: a long name's start and end (app.js labelParts) each keep one line: the end wraps under the start, so
++   "…Management--Technical" and "…Management--Non-Tech" differ on screen; only a start longer than a line is cut.
++   Names that would still look the same wrap whole (.is-wrap). A checked or keyboard-focused row shows its whole name. */
++.check-label.is-split { white-space: normal; text-overflow: clip; }
++.check-label.is-wrap { white-space: normal; overflow-wrap: anywhere; }
++.check-label.is-split, .check-label.is-wrap { padding: 4px 0; line-height: 1.3; }   /* two lines stay apart from the next row */
++.check-part { display: inline-block; max-width: 100%; vertical-align: top; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
++.check input:checked ~ .check-label .check-part, .check input:focus-visible ~ .check-label .check-part { white-space: normal; overflow-wrap: anywhere; }
+ .check-count { font-size: 12px; color: var(--ms-faint); font-variant-numeric: tabular-nums; }
+ .check.is-zero .check-label { color: var(--ms-faint); }
+ .more-btn { margin-top: 6px; }
+@@ -545,6 +553,10 @@ html[data-mode="map"] .demo-banner > code { order: 0; flex: 0 1 auto; margin-lef
+ .d-company { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--ms-muted); font-size: 13px; }
+ .d-title { margin: 6px 0 6px; font-size: 23px; line-height: 1.22; letter-spacing: -.02em; }
+ .d-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--ms-muted); font-size: 13.5px; }
++/* M-43: a preview card's job page while the whole list loads: the card's fields, then "Loading…" */
++.d-loading-pay { margin: 14px 0 0; }
++.d-loading { margin: 14px 0 10px; color: var(--ms-muted); font-size: 14px; }
++.d-loading-body { display: grid; gap: 10px; }
+ .d-meta .sen { margin-left: 4px; }
+ .d-updated, .d-posted { font-size: 12.5px; margin-top: 4px; }
+ .d-salary { margin: 18px 0 6px; padding: 16px; border-radius: 12px; background: var(--ms-surface-2); border: 1px solid var(--ms-border); }
+@@ -1158,6 +1170,9 @@ html[data-mode="insights"] .viz-controls { display: none; }
+   .filters-foot { padding: 10px var(--m-gutter-r) calc(10px + env(safe-area-inset-bottom)) var(--m-gutter-l); background: var(--ms-bg); }
+   .filters-foot .btn { height: 48px; font-size: 16px; }
+   body.kb-open .filters-foot { display: none; }   /* the keyboard would cover it anyway */
++  /* M-47: typing in Insights on a short screen (landscape, the keyboard up): the top bars step aside so the
++     field shows above the keyboard (app.js revealField); they come back when it loses focus. */
++  body.kb-lift .topbar, body.kb-lift .quickbar { display: none; }
+   body.filters-open .results { content-visibility: hidden; }   /* covered by the sheet; catches up on close */
+   .fsec > summary { min-height: 52px; padding: 0; font-size: 15px; }
+   .fsec-badge { min-width: 20px; height: 20px; font-size: 12px; }
+diff --git a/public/viz/chart.js b/public/viz/chart.js
+index 621dd03..3ef62cd 100644
+--- a/public/viz/chart.js
++++ b/public/viz/chart.js
+@@ -578,6 +578,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+   let chipFont = '700 12px system-ui, sans-serif'; // the edge chips' font (renderClusters)
+   let foldOpen = false;      // UX-24: the "N more departments" row is opened
+   let rowNotes = { offRow: 0, basis: null, basisLeft: 0, spans: 0, partTime: 0 }; // notes-line counts from the rows (V-18 to V-21)
++  let hostNotes = [];        // UX-57: the host's facts (app.js: the stats line's), listed first in the notes' Details
++  let noteStats = null;      // the last render's stats, so setNotes can redo the notes alone
+ 
+   // ---------- data prep ----------
+   function prepare() {
+@@ -715,7 +717,9 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+     if (highlighted) applyHighlight(highlighted, false);
+   }
+ 
+-  function renderNotes({ noSalary, fxCount, unknownFx, elsewhere, pay }) {
++  function renderNotes(stats) {
++    noteStats = stats;
++    const { noSalary, fxCount, unknownFx, elsewhere, pay } = stats;
+     const where = placesPhrase(opts.places);
+     // fix-density: one line with the two counts a job seeker needs ("564 with pay · 81 without"); every
+     // other caveat in the short list behind "Details" (public/viz/note.js), in plain words.
+@@ -724,6 +728,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+     if (noSalary) line.push(`${noSalary.toLocaleString()} without`);
+     const isAre = (n) => (n === 1 ? 'is' : 'are');
+     const details = [
++      ...hostNotes,
+       // BP-2: with a Location filter, the plotted pay is for those places, and the rest is counted.
+       elsewhere ? `${plural(elsewhere, 'posting')} with pay for another country only ${isAre(elsewhere)} left out${where ? `: that pay says nothing about pay in ${where}` : ''}` : '',
+       // V-18: Group by Location rows hold only the pay posted for their place.
+@@ -1783,6 +1788,14 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+       highlighted = jobId ?? null;
+       applyHighlight(highlighted, highlighted != null);
+     },
++    /**
++     * UX-57: the host's facts for the notes' Details (app.js: the stats line's, so the chart view has one
++     * Details), listed before the chart's own; only the notes are redone.
++     */
++    setNotes(items) {
++      hostNotes = Array.isArray(items) ? items : [];
++      if (noteStats) renderNotes(noteStats);
++    },
+     /** Clear the selected cluster/row state (visual only; no callback). */
+     clearSelection() {
+       selectedKey = null;
+diff --git a/scripts/e2e.js b/scripts/e2e.js
+index c35cca4..411e9ce 100644
+--- a/scripts/e2e.js
++++ b/scripts/e2e.js
+@@ -35,6 +35,7 @@ import { registerFixDensityTests } from '../test/e2e/fix-density.e2e.js';
+ import { registerGoogleGroupingTests } from '../test/e2e/google-grouping.e2e.js';
+ import { registerVizEvenTests } from '../test/e2e/viz-even.e2e.js';
+ import { registerBetaA11y2Tests } from '../test/e2e/beta-a11y-2.e2e.js';
++import { registerFixPhoneControlsTests } from '../test/e2e/fix-phone-controls.e2e.js';
+ 
+ const args = new Set(process.argv.slice(2));
+ const apiOnly = args.has('--api-only');
+@@ -95,6 +96,7 @@ if (!apiOnly) {
+   registerVizEvenTests(suite);
+   registerBetaA11y2Tests(suite);
+   registerBetaDesktopQa3Tests(suite);
++  registerFixPhoneControlsTests(suite);
+ }
+ 
+ let results;
+diff --git a/test/e2e/fix-phone-controls.e2e.js b/test/e2e/fix-phone-controls.e2e.js
+new file mode 100644
+index 0000000..fb2e59a
+--- /dev/null
++++ b/test/e2e/fix-phone-controls.e2e.js
+@@ -0,0 +1,700 @@
++// Fix lane fix-phone-controls (docs/process/fix-phone-controls.md): controls on phones that gave no feedback,
++// that a keyboard covered, or that could not be told apart, from the round-3 reviews of the beta site
++// (docs/process/qa-mobile-beta-3.md, docs/REVIEW.md "beta review 2026-10-16", docs/process/ux-review-beta-2.md).
++// The user, 2026-10-16: "The mobile page on the beta site is totally broken".
++//
++//   M-43   a tap on a first-page preview card (Amazon) opens the job page at once, with the card's own fields and
++//          the rest "loading"; the whole page follows when the list lands, and Back / Escape / the close button work
++//          while it loads.
++//   A-11   preview cards take the list's keys (ArrowUp/Down, Enter), and focus stays on the same posting's card
++//          when the whole list replaces the preview.
++//   M-40   checklist rows whose names share a long start can be told apart: the end of the name stays visible
++//          (two lines at most), and the whole name is the row's accessible name and its title.
++//   A-10   the Company and Department checklists (and the other checklists) are named groups.
++//   M-47   in landscape with the keyboard up, the Pay estimate title field moves above the keyboard.
++//   UX-56  at side-sheet widths (861–1199 px) the closed filter sheet takes no keyboard focus (inert).
++//   UX-57  the chart view's toolbar has 3 controls again: the stats line's Details is folded into the chart notes'
++//          Details (the map keeps it, having no chart notes).
++//
++// Every phone change is checked on the phone-size matrix (the lead, 2026-10-16: "Make sure we check for all phone
++// sizes from iPhone mini to razr to duo"): Galaxy Fold folded 280x653, iPhone SE 320x568, Razr cover 352x355,
++// iPhone mini 375x812, 390x844, 412x1005, 430x932, Surface Duo 540x720 and spanned 1114x720, and landscapes.
++//
++// The tests serve the static build (FPC_DIST, else BETA_QA_DIST, else dist/) under /melon-seek/ the way GitHub Pages
++// does (gzip), and skip without a beta build. Taps are real touch: CDP Input.dispatchTouchEvent in Chromium, first
++// checked on the results sheet's handle; under WebKit, page.touchscreen.tap. The tests that need Chromium's CDP
++// (4x CPU and Slow 4G for M-43) skip on other engines. Run alone, under either engine:
++//   node test/e2e/fix-phone-controls.e2e.js [--browser=webkit|chromium] [--grep=re]
++// FPC_SHOTS=1 saves a screenshot of each test's last state to docs/screenshots/fix-phone-controls/e2e-*.png.
++import http from 'node:http';
++import fs from 'node:fs';
++import path from 'node:path';
++import zlib from 'node:zlib';
++import { fileURLToPath } from 'node:url';
++import { ROOT, assert, skip } from './harness.js';
++
++const IOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
++const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36';
++/** The phone-size matrix (portrait and the wide ones). Widths up to 860 get the phone layout. */
++const PHONES = [
++  { name: 'Fold folded 280x653', width: 280, height: 653, ua: ANDROID },
++  { name: 'iPhone SE 320x568', width: 320, height: 568 },
++  { name: 'Razr cover 352x355', width: 352, height: 355, ua: ANDROID },
++  { name: 'iPhone mini 375x812', width: 375, height: 812 },
++  { name: 'iPhone 390x844', width: 390, height: 844 },
++  { name: 'Pixel 412x1005', width: 412, height: 1005, ua: ANDROID },
++  { name: 'iPhone Pro Max 430x932', width: 430, height: 932 },
++  { name: 'Duo 540x720', width: 540, height: 720, ua: ANDROID },
++];
++const LANDSCAPES = [
++  { name: 'iPhone landscape 844x390', width: 844, height: 390 },
++  { name: 'iPhone mini landscape 812x375', width: 812, height: 375 },
++  { name: 'iPhone SE landscape 568x320', width: 568, height: 320 },
++  { name: 'Fold folded landscape 653x280', width: 653, height: 280, ua: ANDROID },
++  { name: 'Duo landscape 720x540', width: 720, height: 540, ua: ANDROID },
++];
++const DUO_SPANNED = { name: 'Duo spanned 1114x720', width: 1114, height: 720, ua: ANDROID };
++const DESKTOP = { name: 'desktop 1440x900', width: 1440, height: 900, desktop: true };
++const P390 = PHONES[4];
++const isPhone = (d) => !d.desktop && d.width <= 860;
++const device = (d, extra = {}) => (d.desktop
++  ? { viewport: { width: d.width, height: d.height }, deviceScaleFactor: 1, ...extra }
++  : { viewport: { width: d.width, height: d.height }, userAgent: d.ua || IOS, isMobile: true, hasTouch: true, deviceScaleFactor: 2, ...extra });
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const SLOW_4G = { offline: false, latency: 562.5, downloadThroughput: 180e3, uploadThroughput: 84e3 };
++const SHOTS = path.join(ROOT, 'docs', 'screenshots', 'fix-phone-controls');
++const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2' };
++const engineOf = (ctx) => ctx.browser.browserType?.().name?.() || 'chromium';
++
++let shared = null;
++/** Serve the build under /melon-seek/ (gzip, like Pages); null without a beta build with Amazon's list. */
++async function serveDist() {
++  if (shared) return shared;
++  const dist = path.resolve(process.env.FPC_DIST || process.env.BETA_QA_DIST || path.join(ROOT, 'dist'));
++  if (!fs.existsSync(path.join(dist, 'beta', 'index.html')) || !fs.existsSync(path.join(dist, 'beta', 'api', 'jobs', 'amazon.json'))) return null;
++  const server = http.createServer((req, res) => {
++    const u = new URL(req.url, 'http://x');
++    if (!u.pathname.startsWith('/melon-seek/')) { res.writeHead(302, { location: '/melon-seek/' }); return res.end(); }
++    let rel;
++    try { rel = decodeURIComponent(u.pathname.slice('/melon-seek/'.length)); } catch { res.writeHead(400); return res.end(); }
++    let p = path.join(dist, rel);
++    if (p !== dist && !p.startsWith(dist + path.sep)) { res.writeHead(403); return res.end(); }
++    if (fs.existsSync(p) && fs.statSync(p).isDirectory()) p = path.join(p, 'index.html');
++    if (!fs.existsSync(p)) { res.writeHead(404); return res.end(); }
++    const type = MIME[path.extname(p)] || 'application/octet-stream';
++    const body = fs.readFileSync(p);
++    if (/text|javascript|json|svg|csv/.test(type) && body.length > 1024 && /gzip/.test(req.headers['accept-encoding'] || '')) {
++      res.writeHead(200, { 'content-type': type, 'content-encoding': 'gzip' });
++      return res.end(zlib.gzipSync(body));
++    }
++    res.writeHead(200, { 'content-type': type });
++    res.end(body);
++  });
++  await new Promise((r) => server.listen(0, '127.0.0.1', r));
++  server.unref();
++  const origin = `http://127.0.0.1:${server.address().port}`;
++  shared = { dist, origin, beta: `${origin}/melon-seek/beta/`, main: `${origin}/melon-seek/` };
++  return shared;
++}
++
++/** The earlier passes' simulated keyboard: the visual viewport is `kb` px shorter while a text field has focus. */
++const KEYBOARD_INIT = (kb) => {
++  const desc = Object.getOwnPropertyDescriptor(VisualViewport.prototype, 'height');
++  Object.defineProperty(VisualViewport.prototype, 'height', {
++    configurable: true,
++    get() {
++      const a = document.activeElement;
++      const typing = a && a.matches && a.matches('input:not([type=checkbox]):not([type=radio]):not([type=range]), textarea');
++      return typing ? innerHeight - kb : desc.get.call(this);
++    },
++  });
++  const fire = () => setTimeout(() => visualViewport.dispatchEvent(new Event('resize')), 30);
++  document.addEventListener('focusin', fire);
++  document.addEventListener('focusout', fire);
++};
++
++async function ready(page, timeout = 120000) {
++  await page.waitForFunction(() => { const t = document.querySelector('#resultsTitle'); return t && t.querySelector('strong') && !/Loading/.test(t.textContent); }, null, { timeout });
++  await sleep(500);
++}
++
++/**
++ * A fresh page on `d` at `hash` (beta site unless site: 'main'). hold: a RegExp of requests held back until
++ * release(); throttle: 4x CPU and Slow 4G (Chromium only); keyboard: a simulated keyboard of that height.
++ */
++async function open(ctx, d, hash, { site = 'beta', theme = 'light', hold = null, wait = true, throttle = false, keyboard = 0 } = {}) {
++  const st = await serveDist();
++  if (!st) skip('no beta build with Amazon\'s list (npm run build, or FPC_DIST=<dir>)');
++  const chromium = engineOf(ctx) === 'chromium';
++  if (throttle && !chromium) skip('CPU and network throttling need Chromium\'s CDP');
++  const context = await ctx.browser.newContext({ colorScheme: theme, ...device(d) });
++  ctx.cleanup.push(() => context.close().catch(() => {}));
++  await context.route((u) => !u.href.startsWith(st.origin) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
++  let release = () => {};
++  if (hold) {
++    const gate = new Promise((r) => { release = r; });
++    await context.route(hold, async (route) => { await gate; await route.continue().catch(() => {}); });
++  }
++  if (keyboard) await context.addInitScript(KEYBOARD_INIT, keyboard);
++  const page = await context.newPage();
++  const errors = [];
++  page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
++  const cdp = chromium ? await context.newCDPSession(page) : null;
++  if (throttle) {
++    await cdp.send('Network.enable');
++    await cdp.send('Network.emulateNetworkConditions', SLOW_4G);
++    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
++  }
++  await page.goto(`${site === 'main' ? st.main : st.beta}#${hash}`);
++  if (wait) await ready(page);
++  return { st, page, cdp, errors, release, context };
++}
++
++/** A real tap: CDP touch events in Chromium, page.touchscreen elsewhere; a mouse click on a desktop page. */
++async function tap(page, cdp, d, x, y) {
++  if (d.desktop) return page.mouse.click(x, y);
++  if (cdp) {
++    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, id: 1 }] });
++    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
++    return;
++  }
++  return page.touchscreen.tap(x, y);
++}
++async function tapSel(page, cdp, d, sel) {
++  const b = await page.locator(`${sel} >> visible=true`).first().boundingBox();
++  assert(b, `${sel} has no box`);
++  await tap(page, cdp, d, b.x + b.width / 2, b.y + b.height / 2);
++}
++const sheetState = (page) => page.evaluate(() => document.body.dataset.sheet || '');
++/** PLAYBOOK "Known traps": the touch path is checked on a control first. A tap on the sheet's handle moves the sheet. */
++async function checkTouch(page, cdp, d) {
++  const a = await sheetState(page);
++  await tapSel(page, cdp, d, '#sheetHandle');
++  await sleep(700);
++  const b = await sheetState(page);
++  assert(a !== b, `a real tap on the results sheet's handle moves the sheet (${a} → ${b}): the touch path works`);
++}
++/** The first card (preview or list) whose middle is on screen and not covered: { id, x, y, title }. */
++function findCard(sel) {
++  for (const c of document.querySelectorAll(sel)) {
++    const b = c.getBoundingClientRect();
++    const x = b.left + b.width / 2, y = b.top + Math.min(b.height / 2, 28);
++    if (b.width < 10 || y < 2 || y > innerHeight - 4 || x < 0 || x > innerWidth) continue;
++    const hit = document.elementFromPoint(x, y);
++    if (hit && c.contains(hit)) return { id: c.dataset.previewId || c.dataset.id, x, y, title: c.querySelector('.card-title')?.textContent.trim() };
++  }
++  return null;
++}
++/** A preview card in view: on a phone the sheet is raised (peek → half → full) until one shows. */
++async function previewCardInView(page, cdp, d) {
++  let c = await page.evaluate(findCard, '#resultsList .card[data-preview-id]');
++  for (let i = 0; !c && isPhone(d) && i < 2; i++) {
++    await tapSel(page, cdp, d, '#sheetHandle');
++    await sleep(700);
++    c = await page.evaluate(findCard, '#resultsList .card[data-preview-id]');
++  }
++  return c;
++}
++/** The drawer's state: open, its title, whether it says it is loading, its hash and focus. */
++const drawerState = (page) => page.evaluate(() => {
++  const dr = document.querySelector('#drawer');
++  const a = document.activeElement;
++  return {
++    open: !dr.hidden && dr.classList.contains('is-open'),
++    title: dr.querySelector('#drawerTitle')?.textContent.trim() || '',
++    busy: !!dr.querySelector('[aria-busy="true"]'),
++    loading: /Loading/i.test(dr.innerText || ''),
++    full: !!dr.querySelector('.d-salary') && !!dr.querySelector('.drawer-foot .apply'),
++    pos: dr.querySelector('#drawerPos')?.textContent.trim() || '',
++    hash: decodeURIComponent(location.hash),
++    path: location.pathname,
++    previewing: !!document.querySelector('#resultsList .card[data-preview-id]'),
++    focus: !a || a === document.body ? 'body' : a.id ? `#${a.id}` : `${a.tagName.toLowerCase()}[${a.dataset?.id || a.dataset?.previewId || ''}]`,
++  };
++});
++async function shot(page, name) {
++  if (!process.env.FPC_SHOTS) return;
++  fs.mkdirSync(SHOTS, { recursive: true });
++  try { await page.screenshot({ path: path.join(SHOTS, `e2e-${name}.png`), timeout: 15000 }); } catch { /* evidence only */ }
++}
++const slug = (s) => s.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase();
++
++/** What a checklist row shows: its parts' visible text (an ellipsized part measured with the canvas). */
++function shownRows(sel) {
++  const c = document.createElement('canvas').getContext('2d');
++  const shown = (el) => {
++    const text = el.textContent.replace(/\s+/g, ' ').trim();
++    const cs = getComputedStyle(el);
++    if (el.scrollWidth <= el.clientWidth + 1 || cs.overflowX === 'visible') return { text, cut: false };
++    c.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
++    const w = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
++    let k = text.length;
++    while (k > 0 && c.measureText(text.slice(0, k) + '…').width > w) k--;
++    return { text: `${text.slice(0, k).trimEnd()}…`, cut: true };
++  };
++  return [...document.querySelectorAll(sel)].filter((l) => l.getClientRects().length && l.getBoundingClientRect().width > 0).map((label) => {
++    const parts = [...label.children].filter((e) => e.getClientRects().length);
++    const bits = (parts.length ? parts : [label]).map(shown);
++    const row = label.closest('label');
++    const input = row?.querySelector('input');
++    // The checkbox's name from its <label>: the name, then the count.
++    const named = input?.labels?.[0]?.cloneNode(true);
++    named?.querySelectorAll('.check-count').forEach((e) => e.remove());
++    const lh = parseFloat(getComputedStyle(label).lineHeight) || parseFloat(getComputedStyle(label).fontSize) * 1.3;
++    return {
++      full: label.textContent.replace(/\s+/g, ' ').trim(),
++      shown: bits.map((b) => b.text).join(' ').replace(/\s+/g, ' '),
++      cut: bits.some((b) => b.cut),
++      name: named?.textContent.replace(/\s+/g, ' ').trim() || '',
++      value: input?.value || '',
++      title: row?.title || label.title || '',
++      lines: Math.round(label.getBoundingClientRect().height / lh),
++      wrap: label.classList.contains('is-wrap'),
++    };
++  });
++}
++/** Press the department list's "Show all N" (the last one under `root`); true when there was one. */
++const showAll = (page, root) => page.evaluate((root) => {
++  const b = [...document.querySelectorAll(`${root} .more-btn`)].filter((x) => x.getClientRects().length && /Show all/.test(x.textContent)).pop();
++  b?.click();
++  return !!b;
++}, root);
++function assertRows(rows, where, { wrapOk = false } = {}) {
++  const by = new Map();
++  for (const r of rows) { if (!by.has(r.shown)) by.set(r.shown, new Set()); by.get(r.shown).add(r.full); }
++  const twins = [...by].filter(([, f]) => f.size > 1).map(([v, f]) => `"${v}" stands for ${[...f].map((x) => `"${x}"`).join(' and ')}`);
++  assert(!twins.length, `${where}: ${twins.length} visible label(s) stand for more than one name:\n  ${twins.slice(0, 8).join('\n  ')}`);
++  const unnamed = rows.filter((r) => r.name.replace(/\s+/g, '') !== r.full.replace(/\s+/g, ''));
++  assert(!unnamed.length, `${where}: a row's accessible name is not its whole name: ${unnamed.slice(0, 3).map((r) => `"${r.name}" for "${r.full}"`).join(', ')}`);
++  const untitled = rows.filter((r) => r.cut && r.title !== r.full);
++  assert(!untitled.length, `${where}: a cut row's title is not its whole name: ${untitled.slice(0, 3).map((r) => `"${r.shown}" (title "${r.title}")`).join(', ')}`);
++  const tall = rows.filter((r) => r.lines > 2 && !(wrapOk && r.wrap));
++  assert(!tall.length, `${where}: rows taller than two lines: ${tall.slice(0, 3).map((r) => `"${r.full}" (${r.lines})`).join(', ')}`);
++}
++
++export function registerFixPhoneControlsTests(suite) {
++  // ------------------------------------------------------------------ M-43
++  suite.test('Fix phone controls: [M-43] Slow 4G, 4x CPU, 390x844: a tap on an Amazon preview card opens its job page at once (title, details loading); the whole page follows when the list lands; Back returns focus to the card (Chromium CDP touch)', async (ctx) => {
++    const d = P390;
++    const { page, cdp } = await open(ctx, d, 'c=amazon', { wait: false, throttle: true });
++    await page.waitForSelector('#resultsList .card[data-preview-id]', { timeout: 90000 });
++    await checkTouch(page, cdp, d);
++    const c = await previewCardInView(page, cdp, d);
++    assert(c, 'a preview card is on screen');
++    const t0 = Date.now();
++    await tap(page, cdp, d, c.x, c.y);
++    await sleep(400);
++    const s = await drawerState(page);
++    if (!s.previewing && !s.open) skip('the whole list landed before the tap (machine too fast for this check)');
++    await shot(page, 'M-43-slow-4g-tap');
++    assert(s.open, `400 ms after the tap on "${c.title}" the job page is not open: nothing shows the tap was heard (${JSON.stringify(s)})`);
++    assert(s.title === c.title, `the job page shows the tapped card's title ("${s.title}" for "${c.title}")`);
++    if (s.previewing) assert(s.busy && s.loading, `while the list loads, the job page says its details are loading: ${JSON.stringify(s)}`);
++    await page.waitForFunction(() => document.querySelector('#resultsList .card[data-id]'), null, { timeout: 90000 });
++    await page.waitForFunction(() => { const dr = document.querySelector('#drawer'); return !dr.querySelector('[aria-busy="true"]') && dr.querySelector('.drawer-foot .apply'); }, null, { timeout: 30000 });
++    await sleep(500);
++    const f = await drawerState(page);
++    console.log(`      the job page opened within 400 ms of the tap; the whole page ${((Date.now() - t0) / 1000).toFixed(1)} s after it`);
++    assert(f.open && f.full && f.title === c.title && f.hash.includes(`job=${c.id}`), `the whole job page for the same posting follows: ${JSON.stringify(f)}`);
++    assert(f.focus === '#drawerClose', `focus is on the job page's Back button (${f.focus})`);
++    await tapSel(page, cdp, d, '#drawerClose');
++    await sleep(600);
++    const b = await drawerState(page);
++    assert(!b.open && !b.hash.includes('job='), `Back closes the job page: ${JSON.stringify(b)}`);
++    assert(b.focus === `article[${c.id}]`, `focus returns to the posting's card (${b.focus})`);
++  });
++
++  for (const d of [...PHONES, DUO_SPANNED, DESKTOP]) {
++    suite.test(`Fix phone controls: [M-43] [${d.name}] while Amazon's list loads, a tap on a preview card opens its job page at once; the whole page replaces it when the list lands`, async (ctx) => {
++      const { page, cdp, release, errors } = await open(ctx, d, 'c=amazon', { hold: /\/api\/jobs\/amazon\.json/, wait: false });
++      const shown = await page.waitForSelector('#resultsList .card[data-preview-id]', { timeout: 60000 }).then(() => true, () => false);
++      if (!shown) { release(); skip('no first-page preview for Amazon in this build'); }
++      await sleep(400);
++      if (isPhone(d)) await checkTouch(page, cdp, d);
++      const c = await previewCardInView(page, cdp, d);
++      assert(c, 'a preview card is on screen');
++      await tap(page, cdp, d, c.x, c.y);
++      await sleep(400);
++      const s = await drawerState(page);
++      await shot(page, `M-43-${slug(d.name)}-loading`);
++      assert(s.previewing, 'the list is still held back');
++      assert(s.open && s.title === c.title, `400 ms after the tap on "${c.title}" its job page is open with its title: ${JSON.stringify(s)}`);
++      assert(s.busy && s.loading, `the job page says its details are loading: ${JSON.stringify(s)}`);
++      assert(s.hash.includes(`job=${c.id}`), `the job page has its own history entry (${s.hash})`);
++      const total = await page.evaluate(() => (/Loading ([\d,]+) roles/.exec(document.querySelector('#resultsTitle').textContent) || [])[1]);
++      assert(total && s.pos.endsWith(`of ${total}`), `its place is out of the whole board ("${s.pos}", board ${total})`);
++      release();
++      await ready(page);
++      await page.waitForFunction(() => document.querySelector('#drawer .drawer-foot .apply') && !document.querySelector('#drawer [aria-busy="true"]'), null, { timeout: 30000 });
++      const f = await drawerState(page);
++      assert(f.open && f.full && f.title === c.title, `the whole job page for "${c.title}" replaces the loading one: ${JSON.stringify(f)}`);
++      if (d.desktop) await page.keyboard.press('Escape'); else await tapSel(page, cdp, d, '#drawerClose');
++      await sleep(600);
++      const b = await drawerState(page);
++      assert(!b.open && !b.hash.includes('job='), `the job page closes: ${JSON.stringify(b)}`);
++      assert(b.focus === `article[${c.id}]`, `focus is back on the posting's card (${b.focus})`);
++      assert(!errors.length, errors.join(' | '));
++    });
++  }
++
++  for (const [d, how] of [[P390, 'Back button'], [P390, 'browser Back'], [PHONES[2], 'Back button'], [DESKTOP, 'Escape']]) {
++    suite.test(`Fix phone controls: [M-43] [${d.name}] a loading job page closed with the ${how} stays closed when the list lands, and the page stays`, async (ctx) => {
++      const { page, cdp, release } = await open(ctx, d, 'c=amazon', { hold: /\/api\/jobs\/amazon\.json/, wait: false });
++      const shown = await page.waitForSelector('#resultsList .card[data-preview-id]', { timeout: 60000 }).then(() => true, () => false);
++      if (!shown) { release(); skip('no first-page preview for Amazon in this build'); }
++      await sleep(400);
++      const c = await previewCardInView(page, cdp, d);
++      assert(c, 'a preview card is on screen');
++      await tap(page, cdp, d, c.x, c.y);
++      await sleep(500);
++      const s = await drawerState(page);
++      assert(s.open, `the tap opened the job page: ${JSON.stringify(s)}`);
++      if (how === 'Escape') await page.keyboard.press('Escape');
++      else if (how === 'browser Back') await page.evaluate(() => history.back());
++      else await tapSel(page, cdp, d, '#drawerClose');
++      await sleep(700);
++      const b = await drawerState(page);
++      assert(!b.open && !b.hash.includes('job=') && b.path === s.path && b.hash.includes('c=amazon'), `the ${how} closes the job page and keeps the page: ${JSON.stringify(b)}`);
++      release();
++      await ready(page);
++      await sleep(1200);
++      const a = await drawerState(page);
++      assert(!a.open && !a.hash.includes('job='), `once the list lands the job page stays closed: ${JSON.stringify(a)}`);
++    });
++  }
++
++  // ------------------------------------------------------------------ A-11
++  for (const d of [DESKTOP, DUO_SPANNED, { name: 'desktop 1024x768', width: 1024, height: 768, desktop: true }]) {
++    suite.test(`Fix phone controls: [A-11] [${d.name}] preview cards take the list's keys (ArrowDown/Up, Enter, Escape), and focus stays on the same posting when the whole list replaces the preview`, async (ctx) => {
++      const { page, release } = await open(ctx, d, 'c=amazon', { hold: /\/api\/jobs\/amazon\.json/, wait: false });
++      const shown = await page.waitForSelector('#resultsList .card[data-preview-id]', { timeout: 60000 }).then(() => true, () => false);
++      if (!shown) { release(); skip('no first-page preview for Amazon in this build'); }
++      await sleep(400);
++      const ids = await page.evaluate(() => [...document.querySelectorAll('#resultsList .card[data-preview-id]')].slice(0, 6).map((c) => c.dataset.previewId));
++      const focused = () => page.evaluate(() => document.activeElement?.dataset?.previewId || document.activeElement?.dataset?.id || (document.activeElement === document.body ? 'body' : document.activeElement?.id || document.activeElement?.tagName));
++      await page.evaluate((id) => document.querySelector(`#resultsList .card[data-preview-id="${CSS.escape(id)}"]`).focus(), ids[2]);
++      await page.keyboard.press('ArrowDown');
++      await sleep(150);
++      assert((await focused()) === ids[3], `ArrowDown on preview card 3 moves to card 4 (focus on ${await focused()})`);
++      await page.keyboard.press('ArrowUp');
++      await sleep(150);
++      assert((await focused()) === ids[2], `ArrowUp moves back to card 3 (focus on ${await focused()})`);
++      const ring = await page.evaluate(() => { const a = document.activeElement; const cs = getComputedStyle(a); return { fv: a.matches(':focus-visible'), ring: cs.boxShadow !== 'none' || cs.outlineStyle !== 'none' }; });
++      assert(ring.fv && ring.ring, `the focused preview card shows the focus ring: ${JSON.stringify(ring)}`);
++      await page.keyboard.press('Enter');
++      await sleep(400);
++      const s = await drawerState(page);
++      assert(s.open && s.busy && s.focus === '#drawerClose', `Enter opens the loading job page with focus on its close button: ${JSON.stringify(s)}`);
++      await page.keyboard.press('Escape');
++      await sleep(500);
++      const e = await drawerState(page);
++      assert(!e.open && (await focused()) === ids[2], `Escape closes it and focus returns to preview card 3: ${JSON.stringify(e)}, focus ${await focused()}`);
++      await page.keyboard.press('ArrowDown');
++      await sleep(150);
++      await shot(page, `A-11-${slug(d.name)}-preview-focus`);
++      release();
++      await ready(page);
++      await sleep(800);
++      const after = await page.evaluate(() => { const a = document.activeElement; return a?.matches?.('.card[data-id]') ? a.dataset.id : a === document.body ? 'body' : `${a?.tagName} ${a?.id || a?.className}`; });
++      assert(after === ids[3], `focus was on preview card 4 (${ids[3]}); after the whole list landed it is on ${after}`);
++      await page.keyboard.press('ArrowDown');
++      await sleep(150);
++      assert((await focused()) === ids[4], `ArrowDown then goes on in the whole list (focus on ${await focused()})`);
++    });
++  }
++
++  // ------------------------------------------------------------------ M-40
++  for (const d of [...PHONES, LANDSCAPES[0], DUO_SPANNED, DESKTOP]) {
++    suite.test(`Fix phone controls: [M-40] [${d.name}] Amazon's departments can be told apart in the Department list ("…--Technical" and "…--Non-Tech"), at most two lines each, the whole name spoken`, async (ctx) => {
++      const { page, cdp } = await open(ctx, d, 'c=amazon');
++      let sel;
++      if (isPhone(d)) {
++        await page.evaluate(() => document.querySelector('#quickChips [data-pop=dept]').scrollIntoView({ inline: 'center' }));
++        await sleep(200);
++        await tapSel(page, cdp, d, '#quickChips [data-pop=dept]');
++        await sleep(1000);
++        sel = '#filterBody details.fsec[open] .dept-filter label.check .check-label';
++      } else {
++        await page.click('#quickChips [data-pop=dept]');
++        await page.waitForSelector('#popover .dept-filter label.check');
++        await sleep(300);
++        sel = '#popover .dept-filter label.check .check-label';
++      }
++      if (await showAll(page, sel.split(' label.check')[0])) await sleep(400);
++      const rows = await page.evaluate(shownRows, sel);
++      assert(rows.some((r) => /--Technical$/.test(r.full)) && rows.some((r) => /--Non-Tech$/.test(r.full)), `the build has Amazon's two "Project/Program/Product Management--…" departments (${rows.length} rows)`);
++      const twin = rows.find((r) => /--Technical$/.test(r.full));
++      await page.evaluate(({ sel, full }) => [...document.querySelectorAll(sel)].find((e) => e.textContent.replace(/\s+/g, ' ').trim() === full)?.scrollIntoView({ block: 'center' }), { sel, full: twin.full });
++      await shot(page, `M-40-${slug(d.name)}-amazon`);
++      assertRows(rows, `${d.name} Amazon`);
++    });
++  }
++  for (const d of [PHONES[0], P390, DESKTOP]) {
++    suite.test(`Fix phone controls: [M-40] [${d.name}] Anduril's "Hardware Operations : Supply Chain : …" departments (main site, all of them) can be told apart`, async (ctx) => {
++      const st = await serveDist();
++      if (!st || !fs.existsSync(path.join(st.dist, 'api', 'jobs', 'anduril.json'))) skip('no Anduril list in this build');
++      const { page, cdp } = await open(ctx, d, 'c=anduril', { site: 'main' });
++      let root;
++      if (isPhone(d)) {
++        await page.evaluate(() => document.querySelector('#quickChips [data-pop=dept]').scrollIntoView({ inline: 'center' }));
++        await sleep(200);
++        await tapSel(page, cdp, d, '#quickChips [data-pop=dept]');
++        await sleep(1000);
++        root = '#filterBody details.fsec[open] .dept-filter';
++      } else {
++        await page.click('#quickChips [data-pop=dept]');
++        await page.waitForSelector('#popover .dept-filter label.check');
++        root = '#popover .dept-filter';
++      }
++      if (await showAll(page, root)) await sleep(600);
++      const rows = await page.evaluate(shownRows, `${root} label.check .check-label`);
++      assert(rows.filter((r) => /^Hardware Operations : Supply Chain : /.test(r.full)).length >= 2, `Anduril has several "Hardware Operations : Supply Chain : …" departments (${rows.length} rows)`);
++      await page.evaluate((root) => [...document.querySelectorAll(`${root} .check-label`)].find((e) => /^Hardware Operations : Supply Chain/.test(e.textContent))?.scrollIntoView({ block: 'center' }), root);
++      await shot(page, `M-40-${slug(d.name)}-anduril`);
++      assertRows(rows, `${d.name} Anduril`, { wrapOk: true });
++      console.log(`      ${rows.length} rows: ${rows.filter((r) => r.wrap).length} wrap whole, ${rows.filter((r) => r.cut).length} cut in two parts`);
++    });
++  }
++
++  // ------------------------------------------------------------------ A-10
++  for (const d of [DESKTOP, P390]) {
++    suite.test(`Fix phone controls: [A-10] [${d.name}] the Company and Department checklists (and Location, Seniority, Employment type) are named groups, in the filter panel and the Department menu`, async (ctx) => {
++      const { page, cdp } = await open(ctx, d, 'c=google');
++      const names = () => page.evaluate(() => [...document.querySelectorAll('#filters [role=group].checklist, #popover [role=group].checklist')].filter((g) => g.getClientRects().length || g.closest('details')).map((g) => {
++        const ids = (g.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean);
++        const name = (g.getAttribute('aria-label') || ids.map((id) => document.getElementById(id)?.textContent.trim() || '').join(' ')).trim();
++        return { name, first: g.querySelector('input')?.value || '', where: g.closest('#popover') ? 'menu' : 'panel' };
++      }));
++      if (isPhone(d)) { await tapSel(page, cdp, d, '#filtersToggle'); await sleep(900); }
++      await page.evaluate(() => document.querySelectorAll('#filterBody details').forEach((x) => { x.open = true; }));
++      await sleep(400);
++      const panel = await names();
++      const has = (list, n) => list.some((g) => g.name === n);
++      assert(has(panel, 'Company') && has(panel, 'Department'), `the panel's Company and Department lists are named: ${JSON.stringify(panel)}`);
++      for (const n of ['Location', 'Seniority', 'Employment type']) assert(has(panel, n), `the panel's ${n} list is named: ${JSON.stringify(panel)}`);
++      const unnamed = panel.filter((g) => !g.name);
++      assert(!unnamed.length, `unnamed checklists: ${JSON.stringify(unnamed)}`);
++      if (!isPhone(d)) {
++        await page.click('#quickChips [data-pop=dept]');
++        await page.waitForSelector('#popover .dept-filter [role=group]');
++        const menu = (await names()).filter((g) => g.where === 'menu');
++        assert(has(menu, 'Company') && has(menu, 'Department') && menu.every((g) => g.name), `the Department menu's lists are named: ${JSON.stringify(menu)}`);
++      }
++      await shot(page, `A-10-${slug(d.name)}-google`);
++    });
++  }
++  suite.test('Fix phone controls: [A-10] [desktop 1440x900] a one-company board\'s Department checklist is named "Department" (its heading is hidden)', async (ctx) => {
++    const { page } = await open(ctx, DESKTOP, 'c=amazon');
++    const g = await page.evaluate(() => [...document.querySelectorAll('#filters .dept-filter [role=group]')].filter((x) => x.getClientRects().length).map((x) => {
++      const ids = (x.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean);
++      return (x.getAttribute('aria-label') || ids.map((id) => document.getElementById(id)?.textContent.trim() || '').join(' ')).trim();
++    }));
++    assert(g.length === 1 && g[0] === 'Department', `Amazon's one visible department checklist is named "Department": ${JSON.stringify(g)}`);
++  });
++
++  // ------------------------------------------------------------------ M-47
++  const kbOf = (d) => Math.round(d.height > d.width ? Math.min(300, d.height * 0.42) : d.height * 0.49);
++  for (const d of [...LANDSCAPES, ...PHONES]) {
++    suite.test(`Fix phone controls: [M-47] [${d.name}, keyboard ${kbOf(d)} px] a tap on the Pay estimate title field brings it above the keyboard`, async (ctx) => {
++      const kb = kbOf(d);
++      const { page, cdp } = await open(ctx, d, 'c=amazon&m=insights', { keyboard: kb });
++      await page.waitForSelector('#compHost input.ms-comp__input', { timeout: 60000 });
++      await sleep(1200);
++      const field = page.locator('#compHost input.ms-comp__input >> visible=true').first();
++      await field.evaluate((e) => e.scrollIntoView({ block: 'end' }));
++      await sleep(300);
++      const b = await field.boundingBox();
++      await tap(page, cdp, d, b.x + Math.min(40, b.width / 2), b.y + b.height / 2);
++      await sleep(1000);
++      const r = await field.evaluate((e) => {
++        const b = e.getBoundingClientRect();
++        let box = e.parentElement;
++        while (box && box !== document.body && !/auto|scroll/.test(getComputedStyle(box).overflowY)) box = box.parentElement;
++        const bb = box && box !== document.body ? box.getBoundingClientRect() : { top: 0, bottom: innerHeight };
++        const vv = visualViewport;
++        const label = e.labels?.[0]?.getBoundingClientRect();
++        return { focused: document.activeElement === e, top: Math.round(b.top), bottom: Math.round(b.bottom), labelTop: label ? Math.round(label.top) : null, vvTop: Math.round(vv.offsetTop), vvBottom: Math.round(vv.offsetTop + vv.height), boxTop: Math.round(bb.top), boxBottom: Math.round(bb.bottom), page: (document.scrollingElement || document.documentElement).scrollTop, innerHeight };
++      });
++      await shot(page, `M-47-${slug(d.name)}-keyboard`);
++      assert(r.focused, 'the field has focus');
++      assert(r.vvBottom < r.innerHeight - 50, `the simulated keyboard is up (${JSON.stringify(r)})`);
++      assert(r.top >= r.vvTop && r.bottom <= r.vvBottom, `the field (${r.top}–${r.bottom}) is under the keyboard: only ${r.vvTop}–${r.vvBottom} is visible`);
++      assert(r.top >= r.boxTop - 1 && r.bottom <= r.boxBottom + 1, `the field is inside its scroll box (${r.boxTop}–${r.boxBottom}), not clipped: ${JSON.stringify(r)}`);
++      assert(r.page === 0, `the page itself did not scroll (${r.page})`);
++      // The keyboard goes down: the top bar and the quick filters are back.
++      await page.evaluate(() => document.activeElement?.blur());
++      await sleep(900);
++      const bars = await page.evaluate(() => ['.topbar', '.quickbar'].map((s) => document.querySelector(s).getClientRects().length > 0));
++      assert(bars.every(Boolean), `with the keyboard down the top bar and quick filters show again (${bars})`);
++    });
++  }
++
++  // ------------------------------------------------------------------ UX-56
++  for (const d of [{ name: 'desktop 1024x768', width: 1024, height: 768, desktop: true }, { name: 'desktop 900x700', width: 900, height: 700, desktop: true }, { name: 'desktop 1199x800', width: 1199, height: 800, desktop: true }, DUO_SPANNED]) {
++    suite.test(`Fix phone controls: [UX-56] [${d.name}] the closed filter side sheet takes no keyboard focus; opened, it does; Escape closes it back to Filters`, async (ctx) => {
++      const { page } = await open(ctx, d, 'c=google');
++      const closed = await page.evaluate(() => { const r = document.querySelector('#filters').getBoundingClientRect(); return r.right <= 0 || r.left >= innerWidth; });
++      assert(closed, 'the filter sheet is closed, off screen, at this width');
++      const tabs = async (n) => {
++        const hits = [];
++        for (let i = 0; i < n; i++) {
++          await page.keyboard.press('Tab');
++          const f = await page.evaluate(() => { const e = document.activeElement; if (!e || e === document.body) return null; const r = e.getBoundingClientRect(); return { inFilters: !!e.closest('#filters'), name: (e.innerText || e.getAttribute('aria-label') || e.id || e.tagName).trim().replace(/\s+/g, ' ').slice(0, 30), on: r.right > 0 && r.left < innerWidth && r.bottom > 0 && r.top < innerHeight }; });
++          if (f) hits.push(f);
++        }
++        return hits;
++      };
++      const before = await tabs(70);
++      const bad = before.filter((f) => f.inFilters || !f.on);
++      const inert = await page.evaluate(() => ({ inert: document.querySelector('#filters').inert, hidden: document.querySelector('#filters').getAttribute('aria-hidden') }));
++      assert(!bad.length, `Tab stops on controls of the closed, off-screen sheet: ${[...new Set(bad.map((f) => `"${f.name}"`))].join(', ')} (${JSON.stringify(inert)})`);
++      assert(inert.inert && inert.hidden === 'true', `the closed sheet is inert and hidden from screen readers: ${JSON.stringify(inert)}`);
++      await page.click('#filtersToggle');
++      await sleep(500);
++      const o = await page.evaluate(() => ({ inert: document.querySelector('#filters').inert, hidden: document.querySelector('#filters').getAttribute('aria-hidden'), focusIn: !!document.activeElement?.closest('#filters') }));
++      assert(!o.inert && o.hidden !== 'true' && o.focusIn, `opened, the sheet takes focus: ${JSON.stringify(o)}`);
++      await shot(page, `UX-56-${slug(d.name)}-open`);
++      await page.keyboard.press('Escape');
++      await sleep(500);
++      const c = await page.evaluate(() => ({ inert: document.querySelector('#filters').inert, focus: document.activeElement?.id }));
++      assert(c.inert && c.focus === 'filtersToggle', `Escape closes it, inert again, focus on Filters: ${JSON.stringify(c)}`);
++    });
++  }
++  suite.test('Fix phone controls: [UX-56] [desktop 1440x900 ↔ 1024x768] the docked filter column is never inert; resizing to a side sheet makes the closed sheet inert, and back', async (ctx) => {
++    const { page } = await open(ctx, DESKTOP, 'c=google');
++    const state = () => page.evaluate(() => ({ inert: document.querySelector('#filters').inert, hidden: document.querySelector('#filters').getAttribute('aria-hidden') }));
++    let s = await state();
++    assert(!s.inert && s.hidden !== 'true', `docked at 1440 px the filter column is live: ${JSON.stringify(s)}`);
++    let reach = false;
++    for (let i = 0; i < 40 && !reach; i++) { await page.keyboard.press('Tab'); reach = await page.evaluate(() => !!document.activeElement?.closest('#filters')); }
++    assert(reach, 'Tab reaches the docked filter column');
++    await page.setViewportSize({ width: 1024, height: 768 });
++    await sleep(600);
++    s = await state();
++    assert(s.inert && s.hidden === 'true', `at 1024 px the closed side sheet is inert: ${JSON.stringify(s)}`);
++    await page.setViewportSize({ width: 1440, height: 900 });
++    await sleep(600);
++    s = await state();
++    assert(!s.inert && s.hidden !== 'true', `back at 1440 px the docked column is live again: ${JSON.stringify(s)}`);
++  });
++  suite.test('Fix phone controls: [UX-56] [iPhone 390x844] the phone filter sheet still opens as a dialog with focus inside, and closes back to Filters', async (ctx) => {
++    const d = P390;
++    const { page, cdp } = await open(ctx, d, 'c=google');
++    assert(await page.evaluate(() => document.querySelector('#filters').inert), 'the closed phone sheet is inert');
++    await tapSel(page, cdp, d, '#filtersToggle');
++    await sleep(900);
++    const o = await page.evaluate(() => ({ inert: document.querySelector('#filters').inert, role: document.querySelector('#filters').getAttribute('role'), focusIn: !!document.activeElement?.closest('#filters'), mainInert: document.querySelector('#main').inert }));
++    assert(!o.inert && o.role === 'dialog' && o.focusIn && o.mainInert, `the open phone sheet is a modal dialog with focus inside: ${JSON.stringify(o)}`);
++    await tapSel(page, cdp, d, '#filtersClose');
++    await sleep(700);
++    const c = await page.evaluate(() => ({ inert: document.querySelector('#filters').inert, focus: document.activeElement?.id, mainInert: document.querySelector('#main').inert }));
++    assert(c.inert && !c.mainInert && c.focus === 'filtersToggle', `closed: inert again, the page live, focus on Filters: ${JSON.stringify(c)}`);
++  });
++
++  // ------------------------------------------------------------------ UX-57
++  const toolbar = () => {
++    const vis = (e) => e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden';
++    const tb = document.querySelector('#vizToolbar');
++    return {
++      shown: vis(tb),
++      controls: [...tb.querySelectorAll('button, select, a[href], input')].filter(vis).map((e) => (e.tagName === 'SELECT' ? 'Group select' : (e.innerText || e.getAttribute('aria-label') || e.tagName).trim().slice(0, 24))),
++      statsDetails: [...document.querySelectorAll('#statsLine .ms-note__more')].filter(vis).length,
++      stats: document.querySelector('#statsLine')?.innerText.replace(/\s+/g, ' ').trim(),
++    };
++  };
++  /** The chart notes' Details items (opened), and the stats line's numbers. */
++  const chartNotes = async (page) => {
++    const btn = page.locator('#chartHost .ms-note__more >> visible=true').first();
++    if (!(await btn.count())) return null;
++    if ((await btn.getAttribute('aria-expanded')) !== 'true') { await btn.click(); await sleep(250); }
++    return page.evaluate(() => [...document.querySelectorAll('#chartHost .ms-note__list li')].map((li) => li.textContent.replace(/\s+/g, ' ').trim()).filter(Boolean));
++  };
++  for (const d of [DESKTOP, { name: 'desktop 1024x768', width: 1024, height: 768, desktop: true }, DUO_SPANNED, P390, PHONES[0], PHONES[7]]) {
++    suite.test(`Fix phone controls: [UX-57] [${d.name}] the chart view's toolbar has 3 controls (no Details on the stats line); its facts are in the chart notes' Details`, async (ctx) => {
++      const { page } = await open(ctx, d, 'c=amazon');
++      await page.waitForSelector('#chartHost .ms-note__more', { timeout: 30000 }).catch(() => {});
++      await sleep(800);
++      const t = await page.evaluate(toolbar);
++      await shot(page, `UX-57-${slug(d.name)}-chart`);
++      assert(t.statsDetails === 0, `the stats line has its own Details button (toolbar: ${t.controls.join(', ')})`);
++      assert(t.controls.length <= 3, `the chart view's toolbar has ${t.controls.length} controls: ${t.controls.join(', ')}`);
++      const notes = await chartNotes(page);
++      assert(notes, 'the chart notes have a Details list');
++      assert(notes.some((n) => /^The median is base pay/.test(n)), `the stats line's facts are in the chart notes' Details: ${JSON.stringify(notes)}`);
++      assert(notes.some((n) => /^Half of these roles pay between/.test(n)), `the middle half is in the chart notes' Details: ${JSON.stringify(notes)}`);
++    });
++  }
++  suite.test('Fix phone controls: [UX-57] [desktop 1440x900] the folded facts follow a filter and a picked cluster (the stats line\'s count)', async (ctx) => {
++    const { page } = await open(ctx, DESKTOP, 'c=amazon');
++    const check = async (label) => {
++      await sleep(900);
++      const count = await page.evaluate(() => document.querySelector('#statsLine .stat--count strong')?.textContent.trim());
++      const notes = await chartNotes(page);
++      const share = (notes || []).find((n) => /roles show pay/.test(n)) || '';
++      assert(count && share.includes(`of ${count} roles show pay`), `${label}: the stats line counts ${count}; the chart notes say "${share}"`);
++    };
++    await check('the whole board');
++    await page.goto('about:blank');
++    await page.goto(`${(await serveDist()).beta}#c=amazon&r=remote`);
++    await ready(page);
++    await check('Remote only');
++    const bin = page.locator('#chartHost .ms-bin >> visible=true').first();
++    if (await bin.count()) {
++      await bin.click();
++      await sleep(600);
++      const area = await page.evaluate(() => !!document.querySelector('.area-chip'));
++      if (area) await check('a picked cluster');
++    }
++  });
++  for (const d of [DESKTOP, P390]) {
++    suite.test(`Fix phone controls: [UX-57] [${d.name}] in Map view (no chart notes) the stats line keeps its Details, with the same facts`, async (ctx) => {
++      const { page } = await open(ctx, d, 'c=amazon&m=map');
++      await sleep(1200);
++      const t = await page.evaluate(toolbar);
++      assert(t.statsDetails === 1, `the map's stats line has its Details: ${JSON.stringify(t)}`);
++      const btn = page.locator('#statsLine .ms-note__more');
++      await btn.click();
++      await sleep(250);
++      const items = await page.evaluate(() => [...document.querySelectorAll('#statsLine .ms-note__list li')].map((li) => li.textContent.trim()));
++      assert(items.some((n) => /^The median is base pay/.test(n)), `the facts are there: ${JSON.stringify(items)}`);
++    });
++  }
++
++  // ------------------------------------------------------------------ guards (pass before and after)
++  suite.test('Fix phone controls: guard: [desktop 1440x900] with the whole list, ArrowDown moves card to card, Enter opens, Escape closes back to the card', async (ctx) => {
++    const { page } = await open(ctx, DESKTOP, 'c=apple');
++    const ids = await page.evaluate(() => [...document.querySelectorAll('#resultsList .card[data-id]')].slice(0, 3).map((c) => c.dataset.id));
++    await page.evaluate((id) => document.querySelector(`#resultsList .card[data-id="${CSS.escape(id)}"]`).focus(), ids[0]);
++    await page.keyboard.press('ArrowDown');
++    await sleep(150);
++    assert((await page.evaluate(() => document.activeElement?.dataset?.id)) === ids[1], 'ArrowDown moves to the next card');
++    await page.keyboard.press('Enter');
++    await sleep(500);
++    const s = await drawerState(page);
++    assert(s.open && s.full && s.focus === '#drawerClose', `Enter opens the job page: ${JSON.stringify(s)}`);
++    await page.keyboard.press('Escape');
++    await sleep(500);
++    assert((await page.evaluate(() => document.activeElement?.dataset?.id)) === ids[1], 'Escape closes it back to the card');
++  });
++}
++
++// Standalone: node test/e2e/fix-phone-controls.e2e.js [--browser=webkit|chromium] [--grep=re]
++if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
++  const { createSuite, loadPlaywright, findChromium } = await import('./harness.js');
++  const engine = (process.argv.find((a) => a.startsWith('--browser=')) || '--browser=chromium').slice(10);
++  const grepArg = process.argv.find((a) => a.startsWith('--grep='));
++  const pw = await loadPlaywright();
++  if (!pw) { console.error('fix-phone-controls: the `playwright` package was not found'); process.exit(2); }
++  const browser = await pw[engine].launch(engine === 'chromium' ? { executablePath: findChromium() } : {});
++  console.log(`fix-phone-controls: ${engine} ${browser.version()}`);
++  const suite = createSuite();
++  registerFixPhoneControlsTests(suite);
++  const ctx = { data: {}, notes: [], cleanup: [], pw, browser };
++  const results = await suite.run(ctx, grepArg ? new RegExp(grepArg.slice(7), 'i') : null);
++  await browser.close();
++  const failed = results.filter((r) => !r.ok);
++  const skipped = results.filter((r) => r.skipped);
++  console.log(`\n${results.length - failed.length - skipped.length} passed, ${skipped.length} skipped, ${failed.length} failed`);
++  if (failed.length) for (const f of failed) console.log(`  - ${f.name}`);
++  process.exit(failed.length ? 1 : 0);
++}
+-- 
+2.43.0
+

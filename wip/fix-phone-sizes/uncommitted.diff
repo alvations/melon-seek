@@ -1,0 +1,74 @@
+diff --git a/test/e2e/phone-matrix.e2e.js b/test/e2e/phone-matrix.e2e.js
+index 1dbc40e..8935787 100644
+--- a/test/e2e/phone-matrix.e2e.js
++++ b/test/e2e/phone-matrix.e2e.js
+@@ -152,6 +152,10 @@ function measure(want) {
+   const card = document.querySelector('#resultsList .card[data-id]');
+   const list = document.querySelector('#resultsList');
+   if (card) out.card = { ...box(card), scrollW: card.scrollWidth, clientW: card.clientWidth };
++  // Every card in the list's first page, not only the first: a "$296K–497K · 2 places" pill beside a long title is the
++  // wide case.
++  const wide = [...document.querySelectorAll('#resultsList .card[data-id]')].filter((c) => c.scrollWidth > c.clientWidth + 1);
++  out.wideCards = { n: wide.length, of: document.querySelectorAll('#resultsList .card[data-id]').length, first: wide[0] ? `${wide[0].querySelector('.card-title')?.textContent.trim().slice(0, 40)} | ${wide[0].querySelector('.sal-pill')?.textContent.trim()} (${wide[0].scrollWidth} > ${wide[0].clientWidth})` : null };
+   if (list) out.list = { scrollW: list.scrollWidth, clientW: list.clientWidth };
+   // Controls and text boxes that run past a side of the screen (the Group select and the tagline at 280 px), outside
+   // the rows that scroll sideways on purpose (the quick chips) and outside overlays that are closed (the filter
+@@ -184,6 +188,7 @@ function problemsOf(m, screenW, label) {
+     if (m.card.left < -0.5 || m.card.right > m.w + 0.5) p.push(`${label}: the first card runs off the screen (${m.card.left}–${m.card.right} of ${m.w})`);
+     if (m.card.scrollW > m.card.clientW + 1) p.push(`${label}: the first card's content is wider than the card (${m.card.scrollW} > ${m.card.clientW})`);
+   }
++  if (m.wideCards && m.wideCards.n) p.push(`${label}: ${m.wideCards.n} of ${m.wideCards.of} cards are wider than their box, e.g. ${m.wideCards.first}`);
+   if (m.list && m.list.scrollW > m.list.clientW + 1) p.push(`${label}: the results list scrolls sideways (${m.list.scrollW} > ${m.list.clientW})`);
+   if (m.tagline && (m.tagline.scrollW > m.tagline.clientW + 0.5 || m.tagline.right > m.w + 0.5)) p.push(`${label}: the line above the chart is cut: "${m.tagline.text}" needs ${m.tagline.scrollW} px in ${m.tagline.clientW}`);
+   if (m.sides && m.sides.length) p.push(`${label}: cut at the side of the ${m.w} px screen: ${m.sides.join(' | ')}`);
+@@ -237,7 +242,7 @@ async function checkDrawer(page, screenW, label) {
+ async function checkFilters(page, screenW, label) {
+   const overlay = await page.evaluate(() => getComputedStyle(document.querySelector('#filters')).position === 'fixed');
+   if (overlay) {
+-    await page.locator('#filtersToggle').click();
++    await clickEl(page, '#filtersToggle');
+     await page.waitForFunction(() => document.body.classList.contains('filters-open'), null, { timeout: 5000 }).catch(() => {});
+     await sleep(450);
+   }
+@@ -258,6 +263,9 @@ async function checkFilters(page, screenW, label) {
+   return p;
+ }
+ 
++/** A DOM click: the layout checks say whether a finger can reach the control; this only drives the page. */
++const clickEl = (page, sel) => page.evaluate((s) => document.querySelector(s).click(), sel);
++
+ async function shot(page, name) {
+   if (!SHOTS) return;
+   fs.mkdirSync(SHOT_DIR, { recursive: true });
+@@ -308,11 +316,11 @@ export function registerPhoneMatrixTests(suite) {
+           await shot(page, `${slug(size.name)}-${dev}-light`);
+           // Map and Insights keep the top bar, the quick bar and the sheet on screen too.
+           for (const mode of ['map', 'insights']) {
+-            await page.locator(`.topbar .seg [data-mode="${mode}"]`).click();
++            await clickEl(page, `.topbar .seg [data-mode="${mode}"]`);
+             await sleep(mode === 'map' ? 1500 : 900);
+             bad.push(...problemsOf(await page.evaluate(measure, OTHER_CONTROLS), size.width, `${label} ${mode}`));
+           }
+-          await page.locator('.topbar .seg [data-mode="chart"]').click();
++          await clickEl(page, '.topbar .seg [data-mode="chart"]');
+           await sleep(900);
+         }
+         bad.push(...await checkDrawer(page, size.width, label));
+@@ -407,7 +415,7 @@ export function registerPhoneMatrixTests(suite) {
+       await page.waitForFunction(() => !document.querySelector('#drawer.is-open'), null, { timeout: 5000 });
+       await sleep(350);
+       // The filters on the left screen.
+-      await page.locator('#filtersToggle').click();
++      await clickEl(page, '#filtersToggle');
+       await page.waitForFunction(() => document.body.classList.contains('filters-open'), null, { timeout: 5000 });
+       await sleep(450);
+       const f = await page.evaluate(() => { const r = document.querySelector('#filters').getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right)]; });
+@@ -421,7 +429,7 @@ export function registerPhoneMatrixTests(suite) {
+       for (const [what, sel] of [['company menu', '#companyMenuBtn'], ['data badge', '#dataBadge'], ['More', '#quickChips [data-pop="more"]'], ['Department', '#quickChips [data-pop="dept"]']]) {
+         const btn = page.locator(sel);
+         if (!(await btn.count()) || !(await btn.first().isVisible())) continue;
+-        await btn.first().click();
++        await clickEl(page, sel);
+         await page.waitForFunction(() => !document.querySelector('#popover').hidden, null, { timeout: 5000 }).catch(() => {});
+         await sleep(350);
+         const pr = await page.evaluate(() => { const p = document.querySelector('#popover'); if (p.hidden) return null; const r = p.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right)]; });

@@ -1,528 +1,293 @@
-diff --git a/public/app.js b/public/app.js
-index 1c8e9cd..8d09d11 100644
---- a/public/app.js
-+++ b/public/app.js
-@@ -1068,7 +1068,6 @@ async function loadJobs({ refresh = false } = {}) {
-   if (savedView && savedView.slug !== S.c) savedView = null; // P-12: a saved search's New marks stay with its company
-   data = { status: 'loading', jobs: [], company: companyInfo(S.c), mode: null, fetchedAt: null, error: null };
-   preview = null;
--  pendingOpenId = null;
-   render();
-   if (previewable()) dataApi.getPreview?.(jobsQuery(S.c), { signal: abortCtl.signal }).then((p) => showPreview(p, seq)).catch(() => {});
-   // Static mode shows the bundled list as soon as it lands, marked `pending` while the live board
-@@ -1099,9 +1098,8 @@ async function loadJobs({ refresh = false } = {}) {
-   if (seq !== loadSeq) return;
-   if (data.status === 'ready') fillFamilies(data.jobs);
-   settleSaved();
-+  // M-43: a job page opened from a preview card (its own fields, the rest loading) becomes the whole page here.
-   if (S.job) openDrawer(S.job, { fromHash: true });
--  else if (pendingOpenId && data.status === 'ready') openDrawer(pendingOpenId);
--  pendingOpenId = null;
-   preview = null;
-   onScreen();
- }
-@@ -1112,11 +1110,17 @@ async function loadJobs({ refresh = false } = {}) {
-    1.14 MB download, then Juice, prepare and the first render). They are the same postings, prepared and
-    sorted by the same code, with the chart's colours (the build counts them on the whole board) and the
-    same "New" tags (the last visit, read but not yet recorded); only the default view gets one (Highest pay,
--   no filter, no search, no saved search). The list says it is still loading; a tapped card opens when the
--   list is in. Then the whole list replaces it, keeping the place when its first cards are the same. */
-+   no filter, no search, no saved search). The list says it is still loading; a tapped card opens its job page
-+   at once with the card's own fields and the rest loading (M-43), and the whole page follows when the list is
-+   in. Then the whole list replaces it, keeping the place when its first cards are the same, and the focus on
-+   the same posting's card (A-11). */
- let preview = null; // { slug, jobs, total, visit } while shown
--let pendingOpenId = null;
- const previewing = () => data.status === 'loading' && preview?.slug === S.c && previewable();
-+/** A posting of the preview on screen (M-43), or null. */
-+const previewJob = (id) => (previewing() ? preview.jobs.find((j) => j.id === id) || null : null);
-+/** A result card, from the list or the preview; its posting's id. */
-+const CARD_SEL = '.card[data-id], .card[data-preview-id]';
-+const cardId = (c) => c?.dataset.id ?? c?.dataset.previewId;
- function previewable() {
-   if (!api.isStatic?.() || !S.c || isCustomKey(S.c) || area || effectiveSort() !== 'salary-desc' || colorBy() !== 'department') return false;
-   if (savedView && savedView.slug === S.c) return false;
-@@ -2245,12 +2249,39 @@ function makeSalary({ compact = false } = {}) {
-   return { el, sync };
- }
+diff --git a/.github/workflows/webkit-phone.yml b/.github/workflows/webkit-phone.yml
+index 61e6561..0145ba2 100644
+--- a/.github/workflows/webkit-phone.yml
++++ b/.github/workflows/webkit-phone.yml
+@@ -88,6 +88,22 @@ jobs:
+         run: |
+           set -o pipefail
+           node test/e2e/fix-company-scroll.e2e.js --browser=webkit | tee webkit-fix-company-scroll.log
++      # fix-phone-controls (docs/process/fix-phone-controls.md), on every size in test/e2e/phone-sizes.mjs: a tap on a
++      # preview card opens its job page at once (M-43) and preview cards take the keys (A-11); department rows told
++      # apart (M-40) and named (A-10); the Pay estimate field above a simulated keyboard (M-47); the closed side sheet
++      # inert (UX-56); one Details in the chart view (UX-57). The 4x CPU / Slow 4G case needs Chromium's CDP and skips
++      # here. Its result is in this step's summary and log; a red result does not stop the steps after it.
++      - name: Phone controls on WebKit (fix-phone-controls)
++        timeout-minutes: 40
++        continue-on-error: true
++        env:
++          FPC_DIST: dist
++        run: |
++          set -o pipefail
++          status=0
++          node test/e2e/fix-phone-controls.e2e.js --browser=webkit | tee webkit-fix-phone-controls.log || status=$?
++          { echo '### Phone controls on WebKit (fix-phone-controls)'; echo '```'; grep -E '^\s+(✓|✗|-) |passed' webkit-fix-phone-controls.log || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
++          exit $status
+       - name: Same tests on Chromium, for comparison
+         env:
+           BETA_QA2_DIST: dist
+diff --git a/test/e2e/fix-density.e2e.js b/test/e2e/fix-density.e2e.js
+index da9c9ad..ec9ed18 100644
+--- a/test/e2e/fix-density.e2e.js
++++ b/test/e2e/fix-density.e2e.js
+@@ -144,11 +144,14 @@ export function registerFixDensityTests(suite) {
+         check(stats, bad, 'chart');
+         check(notes, bad, 'chart');
+         if (phone) check(await measure(p, '#tagline'), bad, 'chart');
+-        for (const m of [...stats, ...notes]) if (!m.details) bad.push(`${m.sel}: no Details button`);
++        // UX-57 (fix-phone-controls): in Chart view the stats line is its one line, and its facts are in the chart
++        // notes' Details, so the view has one Details.
++        for (const m of notes) if (!m.details) bad.push(`${m.sel}: no Details button`);
++        for (const m of stats) if (m.details) bad.push(`${m.sel}: a second Details button in the Chart view (UX-57)`);
+         // The facts are still there, one click away (and the exchange rates' date, MR-2).
+         const e1 = await details(p, '#chartHost .ms-chart__foot', { want: /Pay is yearly/ });
+         if (e1) bad.push(e1);
+-        const e2 = await details(p, '#statsLine', { want: /show pay/ });
++        const e2 = await details(p, '#chartHost .ms-chart__foot', { want: /show pay/ });
+         if (e2) bad.push(e2);
+         // Ranges: the notes line and a one-row legend.
+         await go(p, `${base}#c=${slug}&v=ranges`);
+diff --git a/test/e2e/fix-phone-controls.e2e.js b/test/e2e/fix-phone-controls.e2e.js
+index fb2e59a..921680f 100644
+--- a/test/e2e/fix-phone-controls.e2e.js
++++ b/test/e2e/fix-phone-controls.e2e.js
+@@ -16,9 +16,9 @@
+ //   UX-57  the chart view's toolbar has 3 controls again: the stats line's Details is folded into the chart notes'
+ //          Details (the map keeps it, having no chart notes).
+ //
+-// Every phone change is checked on the phone-size matrix (the lead, 2026-10-16: "Make sure we check for all phone
+-// sizes from iPhone mini to razr to duo"): Galaxy Fold folded 280x653, iPhone SE 320x568, Razr cover 352x355,
+-// iPhone mini 375x812, 390x844, 412x1005, 430x932, Surface Duo 540x720 and spanned 1114x720, and landscapes.
++// Every phone change is checked on the phone-size matrix, test/e2e/phone-sizes.mjs (the user, 2026-10-16: "Make sure
++// we check for all phone sizes from iPhone mini to razr to duo or something"): the folded Galaxy Fold (280x653) to
++// the Surface Duo spanned (1114x720), the Razr cover screen (352x355) and landscapes.
+ //
+ // The tests serve the static build (FPC_DIST, else BETA_QA_DIST, else dist/) under /melon-seek/ the way GitHub Pages
+ // does (gzip), and skip without a beta build. Taps are real touch: CDP Input.dispatchTouchEvent in Chromium, first
+@@ -32,34 +32,32 @@ import path from 'node:path';
+ import zlib from 'node:zlib';
+ import { fileURLToPath } from 'node:url';
+ import { ROOT, assert, skip } from './harness.js';
++import { ALL_SIZES } from './phone-sizes.mjs';
  
--function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8, order = null, colorDim = null, labelOf = (k) => k, tipOf = null, note = null } = {}) {
-+/**
-+ * M-40: a long option name in two parts, its start and its end ("Project/Program/Product Management--" and
-+ * "Technical"), split at its last separator (" : ", "--", " - ", "/", ", ") or else its last space. Each part
-+ * keeps to one line (styles.css .check-part), so the end, which tells similar names apart, wraps under the start
-+ * instead of being cut; only a start longer than a line is cut. The label's text is still the whole name (the
-+ * checkbox's accessible name), and the row's title has it for a mouse. Short names stay one plain text.
-+ */
-+const SPLIT_MIN = 19;
-+const LABEL_SEPS = [' : ', ' – ', ' — ', ' - ', '--', '/', ' | ', ', '];
-+function labelParts(name) {
-+  const s = String(name);
-+  if (s.length < SPLIT_MIN) return [s];
-+  let cut = -1;
-+  for (const sep of LABEL_SEPS) {
-+    const i = s.lastIndexOf(sep);
-+    if (i > 0 && i + sep.length < s.length - 2) cut = Math.max(cut, i + sep.trimEnd().length);
-+  }
-+  if (cut < 0) cut = s.lastIndexOf(' ');
-+  if (cut <= 0) return [s];
-+  const head = s.slice(0, cut).trimEnd();
-+  const rest = s.slice(head.length);
-+  const tail = rest.trimStart();
-+  if (!tail) return [s];
-+  return [h('span', { class: 'check-part' }, head), rest.slice(0, rest.length - tail.length), h('span', { class: 'check-part' }, tail)];
-+}
-+
-+function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8, order = null, colorDim = null, labelOf = (k) => k, tipOf = null, note = null, label = null, labelledBy = null } = {}) {
-   let query = '';
-   let expanded = false;
-   const input = h('input', { type: 'search', class: 'fsearch', placeholder: 'Search…', 'aria-label': 'Search options' });
-   const searchWrap = h('div', { class: 'fsearch-wrap' }, h('span', { html: ICON.search }), input);
--  const list = h('div', { class: 'checklist', role: 'group' });
-+  // A-10: every checklist is a named group ("Company", "Department", "Location", …).
-+  const list = h('div', { class: 'checklist', role: 'group', 'aria-labelledby': labelledBy, 'aria-label': labelledBy ? null : label });
-   const more = h('button', { type: 'button', class: 'link-btn more-btn' });
-   const el = h('div', { class: 'checklist-wrap' }, searchWrap, list, more, note ? h('p', { class: 'fnote' }, note) : null);
-   input.addEventListener('input', () => { query = input.value.trim().toLowerCase(); sync(); });
-@@ -2281,11 +2312,13 @@ function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8,
- 
-     const row = (it) => {
-       const id = `f-${facet}-${btoa(unescape(encodeURIComponent(it.key))).replace(/[^a-z0-9]/gi, '')}-${uid}`;
--      return h('label', { class: `check${it.count === 0 ? ' is-zero' : ''}`, for: id, title: tipOf?.(it.key) || null },
-+      const name = String(labelOf(it.key));
-+      const parts = labelParts(name);
-+      return h('label', { class: `check${it.count === 0 ? ' is-zero' : ''}`, for: id, title: tipOf?.(it.key) || (parts.length > 1 ? name : null) },
-         h('input', { type: 'checkbox', id, value: it.key, checked: selected.has(it.key) }),
-         h('span', { class: 'check-box', 'aria-hidden': 'true' }),
-         colorDim && colorBy() === colorDim && it.key !== 'Remote' && !/^Remote/.test(it.key) ? h('span', { class: 'dot dot--sm', style: `--dot:${vizColor(it.key)}`, 'aria-hidden': 'true' }) : null,
--        h('span', { class: 'check-label' }, labelOf(it.key)), h('span', { class: 'check-count' }, it.count));
-+        h('span', { class: `check-label${parts.length > 1 ? ' is-split' : ''}` }, ...parts), h('span', { class: 'check-count' }, it.count));
-     };
- 
-     const nodes = [];
-@@ -2335,11 +2368,14 @@ function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8,
-  * subsidiary can be zoomed into without a new section (ROADMAP §8); departments read from job titles
-  * say so in one line.
-  */
-+let deptFilterSeq = 0;
- function makeDeptFilter({ limit = 8 } = {}) {
--  const brands = makeChecklist('b', { limit: 6, searchable: false, colorDim: 'brand' });
--  const brandHead = h('div', { class: 'check-group' }, 'Company');
--  const deptHead = h('div', { class: 'check-group' }, 'Department');
--  const depts = makeChecklist('d', { limit, colorDim: 'department' });
-+  // A-10: the two lists are groups named by their headings (a hidden heading still names its list).
-+  const n = ++deptFilterSeq;
-+  const brandHead = h('div', { class: 'check-group', id: `dept-filter-${n}-b` }, 'Company');
-+  const deptHead = h('div', { class: 'check-group', id: `dept-filter-${n}-d` }, 'Department');
-+  const brands = makeChecklist('b', { limit: 6, searchable: false, colorDim: 'brand', labelledBy: brandHead.id });
-+  const depts = makeChecklist('d', { limit, colorDim: 'department', labelledBy: deptHead.id });
-   const note = h('p', { class: 'fnote', dataset: { note: 'dept-basis' } });
-   return {
-     el: h('div', { class: 'dept-filter' }, brandHead, brands.el, deptHead, depts.el, note),
-@@ -2499,11 +2535,11 @@ function renderFilterPanel() {
-     panel = [
-       section('Salary', makeSalary(), { badge: sel('sal') }),
-       section('Department', makeDeptFilter(), { badge: sel('d') }),
--      section('Location', makeChecklist('l', { grouped: true, limit: 10, searchable: 'auto', colorDim: 'location', note: LOC_NOTE }), { badge: sel('l') }),
--      section('Seniority', makeChecklist('s', { order: SENIORITY_SHOWN, limit: 10, colorDim: 'seniority', ...SEN_OPTS }), { badge: sel('s') }),
-+      section('Location', makeChecklist('l', { grouped: true, limit: 10, searchable: 'auto', colorDim: 'location', note: LOC_NOTE, label: 'Location' }), { badge: sel('l') }),
-+      section('Seniority', makeChecklist('s', { order: SENIORITY_SHOWN, limit: 10, colorDim: 'seniority', ...SEN_OPTS, label: 'Seniority' }), { badge: sel('s') }),
-       section('Remote', makeRemote(), { badge: sel('r') }),
-       ...KW_CATS.map((k) => section(k.title, makeCloud(k), { badge: sel(k.key) })),
--      section('Employment type', makeChecklist('e', { limit: 6, labelOf: empLabel }), { open: false, badge: sel('e') }),
-+      section('Employment type', makeChecklist('e', { limit: 6, labelOf: empLabel, label: 'Employment type' }), { open: false, badge: sel('e') }),
-       section('Listed', makePosted(), { open: false, badge: sel('p') }),
-     ];
-     body.replaceChildren(...panel.map((s) => s.el));
-@@ -2526,13 +2562,13 @@ function popoverParts(id) {
-   switch (id) {
-     case 'salary': return [makeSalary({ compact: true })];
-     case 'dept': return [makeDeptFilter({ limit: 12 })];
--    case 'loc': return [makeChecklist('l', { grouped: true, limit: 14, note: LOC_NOTE })];
--    case 'sen': return [makeChecklist('s', { order: SENIORITY_SHOWN, limit: 10, ...SEN_OPTS })];
-+    case 'loc': return [makeChecklist('l', { grouped: true, limit: 14, note: LOC_NOTE, label: 'Location' })];
-+    case 'sen': return [makeChecklist('s', { order: SENIORITY_SHOWN, limit: 10, ...SEN_OPTS, label: 'Seniority' })];
-     case 'remote': return [makeRemote()];
-     case 'more': return [
-       titled('Pay', makeSwitch('Only show roles with pay', 'so')),
-       titled('Juice', makeJuiceChips(), 'What’s left after tax, rent and living'),
--      titled('Employment type', makeChecklist('e', { limit: 6, labelOf: empLabel })),
-+      titled('Employment type', makeChecklist('e', { limit: 6, labelOf: empLabel, label: 'Employment type' })),
-       titled('Listed', makePosted()),
-       ...KW_CATS.map((k) => titled(k.title, makeCloud(k, { limit: 10 }), k.hint)),
-     ];
-@@ -2726,8 +2762,15 @@ function renderKpis() {
-     // P-6: "mostly" only for a real majority (it read "mostly Sales" at 19%).
-     share > 0.5 ? `Mostly ${st.top[0]}: ${st.top[1].toLocaleString()} of ${st.n.toLocaleString()} roles (${Math.round(share * 100)}%)` : '',
-   ];
--  renderNote(el, { line: line.flatMap((p, i) => (i ? [h('span', { class: 'stat-sep', 'aria-hidden': 'true' }, '·'), p] : [p])), details, key: 'stats-line' });
-+  // UX-57: in Chart view the stats line is its one line, and its facts are listed first in the chart notes'
-+  // Details (chart.setNotes), so the main view has one Details (ROADMAP §8). The map has no chart notes, so its
-+  // stats line keeps them; so does Insights.
-+  const fold = S.m === 'chart' && (!chart || typeof chart.setNotes === 'function');
-+  statsNotes = details;
-+  chart?.setNotes?.(fold ? details : []);
-+  renderNote(el, { line: line.flatMap((p, i) => (i ? [h('span', { class: 'stat-sep', 'aria-hidden': 'true' }, '·'), p] : [p])), details: fold ? [] : details, key: 'stats-line' });
- }
-+let statsNotes = []; // UX-57: the stats line's facts, for the chart notes
- 
- /** I-2: one line on what the site is ("Pay, and what's left after tax and rent, for 8 tech companies' open roles"). */
- function renderTagline() {
-@@ -2772,6 +2815,7 @@ function ensureViz() {
-         onHover: (job) => hoverFromViz(job),
-         onClusterSelect: (jobs, label) => setArea('cluster', jobs, label),
-       });
-+      chart.setNotes?.(statsNotes); // UX-57
-     }
-     if (S.m === 'map' && !map) {
-       // Leaflet (~150 KB) loads on first Map open, not at startup (PERF-3).
-@@ -3261,7 +3305,8 @@ function buildWindow(list) {
-   win.els = new Map();
-   win.btn = h('button', { type: 'button', class: 'btn btn--ghost btn--block', onclick: () => loadMore() });
-   win.more = h('li', { class: 'list-more' }, win.btn);
--  const focusId = document.activeElement?.closest?.('#resultsList .card[data-id]')?.dataset.id;
-+  // A-11: a focused preview card hands its focus to the same posting's card when the whole list replaces it.
-+  const focusId = cardId(document.activeElement?.closest?.('#resultsList .card'));
-   // No layout is read until the cards and spacers are back, so the browser never clamps the scroll position.
-   const keepTop = list.scrollTop;
-   list.replaceChildren(...nn(note, win.top, win.bottom, win.more));
-@@ -3633,8 +3678,15 @@ let drawerReturnFocus = null;
- function findJob(id) { return data.jobs.find((j) => j.id === id); }
- 
- function openDrawer(id, { fromHash = false, step = false } = {}) {
--  const job = findJob(id);
--  if (!job) { if (fromHash && data.status === 'ready') set({ job: null }, { replace: true }); return; }
-+  // M-43: while a big board's list loads, a preview card's job page opens at once with the card's own fields
-+  // and the rest loading (drawerLoading); loadJobs opens the whole page for it when the list is in.
-+  const job = findJob(id) || previewJob(id);
-+  const loading = !!job && data.status !== 'ready';
-+  if (!job) {
-+    if (drawerJobId === id && drawerLoadingShown()) closeDrawer(); // its list never came, or does not have it
-+    if (fromHash && data.status === 'ready') set({ job: null }, { replace: true });
-+    return;
-+  }
-   if (!drawerJobId || !drawerReturnFocus) {
-     drawerReturnFocus = document.activeElement && document.activeElement !== document.body && !$('#drawer').contains(document.activeElement) ? document.activeElement : null;
-   }
-@@ -3645,19 +3697,20 @@ function openDrawer(id, { fromHash = false, step = false } = {}) {
-   // M-9: paging next/prev rewrites the job page's entry, so one Back always leaves the job page.
-   if (S.job !== id) { S.job = id; commit({ replace: fromHash || step }); }
-   const drawer = $('#drawer');
--  drawer.replaceChildren(...drawerContent(job));
--  applyDrawerBudget();
-+  if (loading) drawer.replaceChildren(...drawerLoading(job));
-+  else { drawer.replaceChildren(...drawerContent(job)); applyDrawerBudget(); }
-   drawer.hidden = false;
-   $('#drawerBackdrop').hidden = false;
-   requestAnimationFrame(() => { drawer.classList.add('is-open'); $('#drawerBackdrop').classList.add('is-open'); });
-   drawer.scrollTop = 0;
-   drawer.querySelector('.drawer-scroll')?.scrollTo(0, 0);
-   for (const c of document.querySelectorAll('.card.is-open')) c.classList.remove('is-open');
--  $(`.card[data-id="${cssId(id)}"]`)?.classList.add('is-open');
-+  $(`.card[data-id="${cssId(id)}"], .card[data-preview-id="${cssId(id)}"]`)?.classList.add('is-open');
-   highlightViz();
-   renderDrawerNav();
-   $('#drawerClose')?.focus({ preventScroll: true }); // always — including deep links and Back/Forward
- }
-+const drawerLoadingShown = () => !!$('#drawer .d-loading');
- 
- // Everything behind the modal drawer becomes inert (not focusable, hidden from AT).
- const behindDrawer = () => [$('.topbar'), $('.quickbar'), $('#layout'), $('.skip-link')];
-@@ -3680,7 +3733,7 @@ function closeDrawer({ fromHash = false } = {}) {
-   highlightViz();
-   // The original trigger may have been re-rendered away (e.g. a keyword toggled in the drawer), or
-   // left the page with the list's window (M-20): then its card is brought back if it is loaded.
--  const target = drawerReturnFocus?.isConnected ? drawerReturnFocus : $(`.card[data-id="${cssId(closedId)}"]`);
-+  const target = drawerReturnFocus?.isConnected ? drawerReturnFocus : $(`.card[data-id="${cssId(closedId)}"], .card[data-preview-id="${cssId(closedId)}"]`);
-   if (target) target.focus({ preventScroll: true });
-   else if (!focusResult(visible.findIndex((j) => j.id === closedId))) $('#resultsList')?.focus({ preventScroll: true });
-   drawerReturnFocus = null;
-@@ -3692,7 +3745,8 @@ function renderDrawerNav() {
-   if (!prev) return;
-   prev.disabled = idx <= 0;
-   next.disabled = idx < 0 || idx >= visible.length - 1;
--  pos.textContent = idx >= 0 ? `${(idx + 1).toLocaleString()} of ${visible.length.toLocaleString()}` : ''; // M-23: "1 of 6,105"
-+  const total = previewing() ? preview.total : visible.length; // M-43: the preview is the whole board's first page
-+  pos.textContent = idx >= 0 ? `${(idx + 1).toLocaleString()} of ${total.toLocaleString()}` : ''; // M-23: "1 of 6,105"
- }
- function stepDrawer(d) {
-   const idx = visible.findIndex((j) => j.id === drawerJobId);
-@@ -4233,6 +4287,40 @@ function metaParts(job) {
-   return out;
- }
- 
-+/** The drawer's top row: previous / position / next, and close ("‹ Back" on a phone). */
-+function drawerHead() {
-+  return h('div', { class: 'drawer-head' },
-+    h('div', { class: 'drawer-nav' },
-+      h('button', { type: 'button', class: 'icon-btn icon-btn--sm', id: 'drawerPrev', 'aria-label': 'Previous role', html: ICON.prev, onclick: () => stepDrawer(-1) }),
-+      h('span', { class: 'drawer-pos', id: 'drawerPos' }),
-+      h('button', { type: 'button', class: 'icon-btn icon-btn--sm', id: 'drawerNext', 'aria-label': 'Next role', html: ICON.next, onclick: () => stepDrawer(1) })),
-+    // Phones show this as "‹ Back" at the left of a full-screen page (styles.css); P-16: the word
-+    // keeps it apart from the "Previous role" arrow next to it.
-+    h('button', { type: 'button', class: 'icon-btn', id: 'drawerClose', 'aria-label': 'Close details, back to the list (Esc)', html: `<span class="ico-close">${ICON.close}</span><span class="ico-back">${ICON.prev}<span class="back-label">Back</span></span>`, onclick: () => closeDrawer() }));
-+}
-+
-+/**
-+ * M-43: a preview card's job page while the board's whole list loads (Amazon's 22,179 postings take 5–10 s on
-+ * 4G). It opens at the tap with what the card shows (title, pay, department, level) and says the rest is
-+ * loading; the pay ranking, Juice and comparisons need the whole board, so they come with the whole page,
-+ * which loadJobs opens for the same posting when the list is in. Back, Escape and close work as on any job page.
-+ */
-+function drawerLoading(job) {
-+  const company = data.company || {};
-+  const pay = payPill(job);
-+  const sen = senKey(job);
-+  return [drawerHead(), h('div', { class: 'drawer-scroll', tabindex: '0', 'aria-label': 'Role details' },
-+    h('div', { class: 'd-company' }, h('span', { class: 'dot', style: `--dot:${companyColor(company)}` }), company.name || job.companyName),
-+    h('h2', { class: 'd-title', id: 'drawerTitle' }, job.title),
-+    h('div', { class: 'd-meta' }, ...metaParts(job).map((t, i) => [i ? h('span', { class: 'sep' }, '·') : null, h('span', null, t)]),
-+      h('span', { class: `sen sen--${sen.toLowerCase().replace(/\W/g, '')}` }, senLabel(sen))),
-+    h('div', { class: 'd-loading-pay' }, pay ? h('span', { class: `sal-pill${pay.elsewhere ? ' sal-pill--elsewhere' : ''}`, title: pay.tip }, pay.text)
-+      : h('span', { class: 'sal-pill sal-pill--none' }, job.salaryFlag ? 'Pay unclear' : 'No pay listed')),
-+    h('p', { class: 'd-loading', role: 'status' }, 'Loading this role’s details…'),
-+    h('div', { class: 'd-loading-body', 'aria-busy': 'true', 'aria-hidden': 'true' },
-+      ...[88, 64, 92, 48, 76].map((w) => h('div', { class: 'sk sk-line', style: `width:${w}%` }))))];
-+}
-+
- function drawerContent(job) {
-   const company = data.company || {};
-   const coName = company.name || job.companyName;
-@@ -4270,14 +4358,7 @@ function drawerContent(job) {
-   } }, 'Read full description');
-   descWrap.append(descToggle);
- 
--  const head = h('div', { class: 'drawer-head' },
--    h('div', { class: 'drawer-nav' },
--      h('button', { type: 'button', class: 'icon-btn icon-btn--sm', id: 'drawerPrev', 'aria-label': 'Previous role', html: ICON.prev, onclick: () => stepDrawer(-1) }),
--      h('span', { class: 'drawer-pos', id: 'drawerPos' }),
--      h('button', { type: 'button', class: 'icon-btn icon-btn--sm', id: 'drawerNext', 'aria-label': 'Next role', html: ICON.next, onclick: () => stepDrawer(1) })),
--    // Phones show this as "‹ Back" at the left of a full-screen page (styles.css); P-16: the word
--    // keeps it apart from the "Previous role" arrow next to it.
--    h('button', { type: 'button', class: 'icon-btn', id: 'drawerClose', 'aria-label': 'Close details, back to the list (Esc)', html: `<span class="ico-close">${ICON.close}</span><span class="ico-back">${ICON.prev}<span class="back-label">Back</span></span>`, onclick: () => closeDrawer() }));
-+  const head = drawerHead();
- 
-   const sal = job.salary;
-   const term = postedTerm(sal);
-@@ -4733,7 +4814,7 @@ function bindKeyboardInsets() {
-   vv.addEventListener('scroll', resync);
-   document.addEventListener('focusin', (e) => {
-     resync();
--    if (isMobile() && e.target.matches?.('#filters input, #popover input')) setTimeout(() => revealField(e.target), 300);
-+    if (isMobile() && e.target.matches?.('#filters input, #popover input, #insightsHost input:not([type=checkbox]):not([type=radio]):not([type=range])')) setTimeout(() => revealField(e.target), 300);
+ const IOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
+ const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36';
+-/** The phone-size matrix (portrait and the wide ones). Widths up to 860 get the phone layout. */
+-const PHONES = [
+-  { name: 'Fold folded 280x653', width: 280, height: 653, ua: ANDROID },
+-  { name: 'iPhone SE 320x568', width: 320, height: 568 },
+-  { name: 'Razr cover 352x355', width: 352, height: 355, ua: ANDROID },
+-  { name: 'iPhone mini 375x812', width: 375, height: 812 },
+-  { name: 'iPhone 390x844', width: 390, height: 844 },
+-  { name: 'Pixel 412x1005', width: 412, height: 1005, ua: ANDROID },
+-  { name: 'iPhone Pro Max 430x932', width: 430, height: 932 },
+-  { name: 'Duo 540x720', width: 540, height: 720, ua: ANDROID },
++// The shared phone-size matrix (test/e2e/phone-sizes.mjs: 14 portrait phones and 5 postures), plus the landscapes
++// the reviews used (M-47 was found at 844x390).
++const named = (re) => ALL_SIZES.find((d) => re.test(d.name));
++const P390 = named(/iPhone 13 \/ 14/);
++const FOLD = named(/Fold \(folded\)/);
++const RAZR_COVER = named(/razr \(cover/);
++const DUO = named(/Surface Duo \(one/);
++const DUO_SPANNED = named(/spanned/);
++const RAZR_LAND = named(/razr \(inner, landscape/);
++const EXTRA_LANDSCAPES = [
++  { name: 'iPhone 13 / 14 (landscape)', width: 844, height: 390, dpr: 3, ua: IOS },
++  { name: 'iPhone SE (1st gen, landscape)', width: 568, height: 320, dpr: 2, ua: IOS },
++  { name: 'Galaxy Fold (folded, landscape)', width: 653, height: 280, dpr: 3, ua: ANDROID },
++  { name: 'Surface Duo (one screen, landscape)', width: 720, height: 540, dpr: 2.5, ua: ANDROID },
+ ];
+-const LANDSCAPES = [
+-  { name: 'iPhone landscape 844x390', width: 844, height: 390 },
+-  { name: 'iPhone mini landscape 812x375', width: 812, height: 375 },
+-  { name: 'iPhone SE landscape 568x320', width: 568, height: 320 },
+-  { name: 'Fold folded landscape 653x280', width: 653, height: 280, ua: ANDROID },
+-  { name: 'Duo landscape 720x540', width: 720, height: 540, ua: ANDROID },
+-];
+-const DUO_SPANNED = { name: 'Duo spanned 1114x720', width: 1114, height: 720, ua: ANDROID };
+-const DESKTOP = { name: 'desktop 1440x900', width: 1440, height: 900, desktop: true };
+-const P390 = PHONES[4];
++const DESKTOP = { name: 'desktop', width: 1440, height: 900, desktop: true };
++const D1024 = { name: 'desktop', width: 1024, height: 768, desktop: true };
++const tag = (d) => `${d.name} ${d.width}x${d.height}`;
+ const isPhone = (d) => !d.desktop && d.width <= 860;
+ const device = (d, extra = {}) => (d.desktop
+   ? { viewport: { width: d.width, height: d.height }, deviceScaleFactor: 1, ...extra }
+-  : { viewport: { width: d.width, height: d.height }, userAgent: d.ua || IOS, isMobile: true, hasTouch: true, deviceScaleFactor: 2, ...extra });
++  : { viewport: { width: d.width, height: d.height }, userAgent: d.ua || IOS, isMobile: true, hasTouch: true, deviceScaleFactor: d.dpr || 2, ...extra });
+ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+ const SLOW_4G = { offline: false, latency: 562.5, downloadThroughput: 180e3, uploadThroughput: 84e3 };
+ const SHOTS = path.join(ROOT, 'docs', 'screenshots', 'fix-phone-controls');
+@@ -304,8 +302,8 @@ export function registerFixPhoneControlsTests(suite) {
+     assert(b.focus === `article[${c.id}]`, `focus returns to the posting's card (${b.focus})`);
    });
-   document.addEventListener('focusout', () => setTimeout(resync, 50));
- }
-@@ -4750,9 +4831,21 @@ function revealField(el) {
-     box = box.parentElement;
+ 
+-  for (const d of [...PHONES, DUO_SPANNED, DESKTOP]) {
+-    suite.test(`Fix phone controls: [M-43] [${d.name}] while Amazon's list loads, a tap on a preview card opens its job page at once; the whole page replaces it when the list lands`, async (ctx) => {
++  for (const d of [...ALL_SIZES, DESKTOP]) {
++    suite.test(`Fix phone controls: [M-43] [${tag(d)}] while Amazon's list loads, a tap on a preview card opens its job page at once; the whole page replaces it when the list lands`, async (ctx) => {
+       const { page, cdp, release, errors } = await open(ctx, d, 'c=amazon', { hold: /\/api\/jobs\/amazon\.json/, wait: false });
+       const shown = await page.waitForSelector('#resultsList .card[data-preview-id]', { timeout: 60000 }).then(() => true, () => false);
+       if (!shown) { release(); skip('no first-page preview for Amazon in this build'); }
+@@ -316,7 +314,7 @@ export function registerFixPhoneControlsTests(suite) {
+       await tap(page, cdp, d, c.x, c.y);
+       await sleep(400);
+       const s = await drawerState(page);
+-      await shot(page, `M-43-${slug(d.name)}-loading`);
++      await shot(page, `M-43-${slug(tag(d))}-loading`);
+       assert(s.previewing, 'the list is still held back');
+       assert(s.open && s.title === c.title, `400 ms after the tap on "${c.title}" its job page is open with its title: ${JSON.stringify(s)}`);
+       assert(s.busy && s.loading, `the job page says its details are loading: ${JSON.stringify(s)}`);
+@@ -337,8 +335,8 @@ export function registerFixPhoneControlsTests(suite) {
+     });
    }
-   if (!box || box === document.body) return;
--  const top = el.closest('.fsearch-wrap, label, .field') || el;
--  const delta = top.getBoundingClientRect().top - box.getBoundingClientRect().top - 8;
-+  const top = el.closest('.fsearch-wrap, label, .field, .msf-field') || el;
-+  // The top of what shows: the panel's, or the visual viewport's when iOS has panned it down past the panel's top.
-+  const vv = window.visualViewport;
-+  const viewTop = Math.max(box.getBoundingClientRect().top, vv?.offsetTop || 0);
-+  const delta = top.getBoundingClientRect().top - viewTop - 8;
-   if (Math.abs(delta) > 4) box.scrollTop += delta;
-+  // M-47: in Insights on a short screen (landscape with the keyboard up: 200 px or less to see) the field can
-+  // still be under the keyboard, below the top bars: they step aside while it is typed in (styles.css
-+  // body.kb-lift), and come back when it loses focus.
-+  const below = vv && el.getBoundingClientRect().bottom > vv.offsetTop + vv.height;
-+  if (below && el.closest('#insightsHost') && !document.body.classList.contains('kb-lift')) {
-+    document.body.classList.add('kb-lift');
-+    el.addEventListener('blur', () => document.body.classList.remove('kb-lift'), { once: true });
-+    requestAnimationFrame(() => revealField(el));
-+  }
- }
  
- let filtersOpener = null; // the chip or Filters button that opened the overlay sheet (M-4, M-15)
-@@ -4762,6 +4855,7 @@ function setFiltersOpen(open, { opener = null, focus = null } = {}) {
-     const was = document.body.classList.contains('filters-open');
-     document.body.classList.toggle('filters-open', open);
-     $('#filtersScrim').hidden = !open;
-+    syncFiltersInert();
-     setFiltersModal(open && isMobile());
-     if (open) {
-       if (!was || opener) filtersOpener = opener || filtersOpener;
-@@ -4787,6 +4881,18 @@ function setFiltersOpen(open, { opener = null, focus = null } = {}) {
-   setTimeout(() => { try { map?.invalidateSize(); } catch { /* ignore */ } }, 260);
- }
+-  for (const [d, how] of [[P390, 'Back button'], [P390, 'browser Back'], [PHONES[2], 'Back button'], [DESKTOP, 'Escape']]) {
+-    suite.test(`Fix phone controls: [M-43] [${d.name}] a loading job page closed with the ${how} stays closed when the list lands, and the page stays`, async (ctx) => {
++  for (const [d, how] of [[P390, 'Back button'], [P390, 'browser Back'], [RAZR_COVER, 'Back button'], [DESKTOP, 'Escape']]) {
++    suite.test(`Fix phone controls: [M-43] [${tag(d)}] a loading job page closed with the ${how} stays closed when the list lands, and the page stays`, async (ctx) => {
+       const { page, cdp, release } = await open(ctx, d, 'c=amazon', { hold: /\/api\/jobs\/amazon\.json/, wait: false });
+       const shown = await page.waitForSelector('#resultsList .card[data-preview-id]', { timeout: 60000 }).then(() => true, () => false);
+       if (!shown) { release(); skip('no first-page preview for Amazon in this build'); }
+@@ -364,8 +362,8 @@ export function registerFixPhoneControlsTests(suite) {
+   }
  
-+/* UX-56: below 1200 px the filter panel is a sheet that a closed state only moves off screen (the phone's also
-+   hides it), so while closed it is inert and hidden from screen readers: Tab never lands on its off-screen
-+   "Reset" or "Show roles". The docked column (1200 px and up) is always live. */
-+function syncFiltersInert() {
-+  const f = $('#filters');
-+  if (!f) return;
-+  const off = isOverlayFilters() && !document.body.classList.contains('filters-open');
-+  if (f.inert === off) return;
-+  f.inert = off;
-+  if (off) f.setAttribute('aria-hidden', 'true'); else f.removeAttribute('aria-hidden');
-+}
-+
- /* M-7: on phones the filter sheet is full screen, so it is a modal dialog while open: dialog
-    semantics, everything behind it inert, and Tab kept inside (bindEvents). Wider screens keep
-    the plain labelled <aside> (a docked column, or a side sheet with its scrim). */
-@@ -4919,31 +5025,29 @@ function bindEvents() {
-   $('.brand').addEventListener('click', (e) => { e.preventDefault(); dropHeld(); set({ ...resetFiltersPatch(), job: null, m: 'chart' }); closeDrawer(); });
+   // ------------------------------------------------------------------ A-11
+-  for (const d of [DESKTOP, DUO_SPANNED, { name: 'desktop 1024x768', width: 1024, height: 768, desktop: true }]) {
+-    suite.test(`Fix phone controls: [A-11] [${d.name}] preview cards take the list's keys (ArrowDown/Up, Enter, Escape), and focus stays on the same posting when the whole list replaces the preview`, async (ctx) => {
++  for (const d of [DESKTOP, D1024, DUO_SPANNED]) {
++    suite.test(`Fix phone controls: [A-11] [${tag(d)}] preview cards take the list's keys (ArrowDown/Up, Enter, Escape), and focus stays on the same posting when the whole list replaces the preview`, async (ctx) => {
+       const { page, release } = await open(ctx, d, 'c=amazon', { hold: /\/api\/jobs\/amazon\.json/, wait: false });
+       const shown = await page.waitForSelector('#resultsList .card[data-preview-id]', { timeout: 60000 }).then(() => true, () => false);
+       if (!shown) { release(); skip('no first-page preview for Amazon in this build'); }
+@@ -391,7 +389,7 @@ export function registerFixPhoneControlsTests(suite) {
+       assert(!e.open && (await focused()) === ids[2], `Escape closes it and focus returns to preview card 3: ${JSON.stringify(e)}, focus ${await focused()}`);
+       await page.keyboard.press('ArrowDown');
+       await sleep(150);
+-      await shot(page, `A-11-${slug(d.name)}-preview-focus`);
++      await shot(page, `A-11-${slug(tag(d))}-preview-focus`);
+       release();
+       await ready(page);
+       await sleep(800);
+@@ -404,8 +402,8 @@ export function registerFixPhoneControlsTests(suite) {
+   }
  
-   const list = $('#resultsList');
-+  // M-43 / A-11: a preview card (the first page while a big board's list loads) is a card like the others:
-+  // a tap or Enter opens its job page at once (openDrawer shows its own fields while the rest loads), and
-+  // the arrow keys move between cards.
-   list.addEventListener('click', (e) => {
--    const c = e.target.closest('.card[data-id]');
--    if (c) openDrawer(c.dataset.id);
--    else if (previewing()) pendingOpenId = e.target.closest('.card[data-preview-id]')?.dataset.previewId || pendingOpenId;
-+    const c = e.target.closest(CARD_SEL);
-+    if (c) openDrawer(cardId(c));
-   });
-   list.addEventListener('keydown', (e) => {
-     const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
--    const c = e.target.closest('.card[data-id]');
--    if (!c && previewing() && (e.key === 'Enter' || e.key === ' ')) {
--      const pc = e.target.closest('.card[data-preview-id]');
--      if (pc) { e.preventDefault(); pendingOpenId = pc.dataset.previewId; return; }
--    }
-+    const c = e.target.closest(CARD_SEL);
-     if (!c) {
-       // M-20: focus handed to the list (its card scrolled out of the page) goes on from the first card in view.
-       if (e.target === list && step) {
-         e.preventDefault();
-         const top = list.getBoundingClientRect().top;
--        [...list.querySelectorAll('.card[data-id]')].find((x) => x.getBoundingClientRect().bottom > top + 4)?.focus();
-+        [...list.querySelectorAll(CARD_SEL)].find((x) => x.getBoundingClientRect().bottom > top + 4)?.focus();
+   // ------------------------------------------------------------------ M-40
+-  for (const d of [...PHONES, LANDSCAPES[0], DUO_SPANNED, DESKTOP]) {
+-    suite.test(`Fix phone controls: [M-40] [${d.name}] Amazon's departments can be told apart in the Department list ("…--Technical" and "…--Non-Tech"), at most two lines each, the whole name spoken`, async (ctx) => {
++  for (const d of [...ALL_SIZES, EXTRA_LANDSCAPES[0], DESKTOP]) {
++    suite.test(`Fix phone controls: [M-40] [${tag(d)}] Amazon's departments can be told apart in the Department list ("…--Technical" and "…--Non-Tech"), at most two lines each, the whole name spoken`, async (ctx) => {
+       const { page, cdp } = await open(ctx, d, 'c=amazon');
+       let sel;
+       if (isPhone(d)) {
+@@ -425,12 +423,12 @@ export function registerFixPhoneControlsTests(suite) {
+       assert(rows.some((r) => /--Technical$/.test(r.full)) && rows.some((r) => /--Non-Tech$/.test(r.full)), `the build has Amazon's two "Project/Program/Product Management--…" departments (${rows.length} rows)`);
+       const twin = rows.find((r) => /--Technical$/.test(r.full));
+       await page.evaluate(({ sel, full }) => [...document.querySelectorAll(sel)].find((e) => e.textContent.replace(/\s+/g, ' ').trim() === full)?.scrollIntoView({ block: 'center' }), { sel, full: twin.full });
+-      await shot(page, `M-40-${slug(d.name)}-amazon`);
+-      assertRows(rows, `${d.name} Amazon`);
++      await shot(page, `M-40-${slug(tag(d))}-amazon`);
++      assertRows(rows, `${tag(d)} Amazon`);
+     });
+   }
+-  for (const d of [PHONES[0], P390, DESKTOP]) {
+-    suite.test(`Fix phone controls: [M-40] [${d.name}] Anduril's "Hardware Operations : Supply Chain : …" departments (main site, all of them) can be told apart`, async (ctx) => {
++  for (const d of [FOLD, P390, DESKTOP]) {
++    suite.test(`Fix phone controls: [M-40] [${tag(d)}] Anduril's "Hardware Operations : Supply Chain : …" departments (main site, all of them) can be told apart`, async (ctx) => {
+       const st = await serveDist();
+       if (!st || !fs.existsSync(path.join(st.dist, 'api', 'jobs', 'anduril.json'))) skip('no Anduril list in this build');
+       const { page, cdp } = await open(ctx, d, 'c=anduril', { site: 'main' });
+@@ -450,15 +448,15 @@ export function registerFixPhoneControlsTests(suite) {
+       const rows = await page.evaluate(shownRows, `${root} label.check .check-label`);
+       assert(rows.filter((r) => /^Hardware Operations : Supply Chain : /.test(r.full)).length >= 2, `Anduril has several "Hardware Operations : Supply Chain : …" departments (${rows.length} rows)`);
+       await page.evaluate((root) => [...document.querySelectorAll(`${root} .check-label`)].find((e) => /^Hardware Operations : Supply Chain/.test(e.textContent))?.scrollIntoView({ block: 'center' }), root);
+-      await shot(page, `M-40-${slug(d.name)}-anduril`);
+-      assertRows(rows, `${d.name} Anduril`, { wrapOk: true });
++      await shot(page, `M-40-${slug(tag(d))}-anduril`);
++      assertRows(rows, `${tag(d)} Anduril`, { wrapOk: true });
+       console.log(`      ${rows.length} rows: ${rows.filter((r) => r.wrap).length} wrap whole, ${rows.filter((r) => r.cut).length} cut in two parts`);
+     });
+   }
+ 
+   // ------------------------------------------------------------------ A-10
+-  for (const d of [DESKTOP, P390]) {
+-    suite.test(`Fix phone controls: [A-10] [${d.name}] the Company and Department checklists (and Location, Seniority, Employment type) are named groups, in the filter panel and the Department menu`, async (ctx) => {
++  for (const d of [DESKTOP, P390, FOLD]) {
++    suite.test(`Fix phone controls: [A-10] [${tag(d)}] the Company and Department checklists (and Location, Seniority, Employment type) are named groups, in the filter panel and the Department menu`, async (ctx) => {
+       const { page, cdp } = await open(ctx, d, 'c=google');
+       const names = () => page.evaluate(() => [...document.querySelectorAll('#filters [role=group].checklist, #popover [role=group].checklist')].filter((g) => g.getClientRects().length || g.closest('details')).map((g) => {
+         const ids = (g.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean);
+@@ -480,7 +478,7 @@ export function registerFixPhoneControlsTests(suite) {
+         const menu = (await names()).filter((g) => g.where === 'menu');
+         assert(has(menu, 'Company') && has(menu, 'Department') && menu.every((g) => g.name), `the Department menu's lists are named: ${JSON.stringify(menu)}`);
        }
-       return;
-     }
--    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrawer(c.dataset.id); }
-+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrawer(cardId(c)); }
-     if (step) {
-       e.preventDefault();
--      focusResult(visible.findIndex((j) => j.id === c.dataset.id) + step); // M-20: by result, not by card in the page
-+      focusResult(visible.findIndex((j) => j.id === cardId(c)) + step); // M-20: by result, not by card in the page
-     }
-   });
-   list.addEventListener('scroll', () => { if (win.loaded > WINDOW_ALL) scheduleWindow(); }, { passive: true });
-@@ -4989,6 +5093,7 @@ function bindEvents() {
-     positionPopover();
-     if (win.more?.isConnected) paintWindow(); // M-20: card heights follow the list's width
-     if (document.body.classList.contains('filters-open')) { setFiltersModal(isMobile()); syncChipsExpanded(); } // rotation / resize across 860px
-+    syncFiltersInert(); // UX-56: across 1200px the panel turns from a docked column into a sheet, and back
-   }));
-   addEventListener('scroll', () => positionPopover(), true);
+-      await shot(page, `A-10-${slug(d.name)}-google`);
++      await shot(page, `A-10-${slug(tag(d))}-google`);
+     });
+   }
+   suite.test('Fix phone controls: [A-10] [desktop 1440x900] a one-company board\'s Department checklist is named "Department" (its heading is hidden)', async (ctx) => {
+@@ -494,8 +492,8 @@ export function registerFixPhoneControlsTests(suite) {
  
-@@ -5044,6 +5149,7 @@ async function boot() {
-     if (localStorage.getItem('melon-seek.filtersCollapsed') === '1') document.body.classList.add('filters-collapsed');
-   } catch { /* ignore */ }
-   if (isOverlayFilters()) $('#filtersToggle').setAttribute('aria-expanded', 'false');
-+  syncFiltersInert();
-   bindEvents();
-   setSheet('peek');
-   S = parseHash();
-diff --git a/public/styles.css b/public/styles.css
-index 0653798..b3512cb 100644
---- a/public/styles.css
-+++ b/public/styles.css
-@@ -379,6 +379,12 @@ input.range-val { width: 100%; min-width: 0; padding: 0; border: 0; background:
- .radio input:checked + .radio-dot { border-color: var(--ms-accent); }
- .radio input:checked + .radio-dot::after { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--ms-accent); }
- .check-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-+/* M-40: a long name's start and end (app.js labelParts) each keep one line: the end wraps under the start, so
-+   "…Management--Technical" and "…Management--Non-Tech" differ on screen; only a start longer than a line is cut.
-+   A checked or keyboard-focused row shows its whole name. */
-+.check-label.is-split { white-space: normal; text-overflow: clip; }
-+.check-part { display: inline-block; max-width: 100%; vertical-align: top; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-+.check input:checked ~ .check-label .check-part, .check input:focus-visible ~ .check-label .check-part { white-space: normal; overflow-wrap: anywhere; }
- .check-count { font-size: 12px; color: var(--ms-faint); font-variant-numeric: tabular-nums; }
- .check.is-zero .check-label { color: var(--ms-faint); }
- .more-btn { margin-top: 6px; }
-@@ -545,6 +551,10 @@ html[data-mode="map"] .demo-banner > code { order: 0; flex: 0 1 auto; margin-lef
- .d-company { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--ms-muted); font-size: 13px; }
- .d-title { margin: 6px 0 6px; font-size: 23px; line-height: 1.22; letter-spacing: -.02em; }
- .d-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--ms-muted); font-size: 13.5px; }
-+/* M-43: a preview card's job page while the whole list loads: the card's fields, then "Loading…" */
-+.d-loading-pay { margin: 14px 0 0; }
-+.d-loading { margin: 14px 0 10px; color: var(--ms-muted); font-size: 14px; }
-+.d-loading-body { display: grid; gap: 10px; }
- .d-meta .sen { margin-left: 4px; }
- .d-updated, .d-posted { font-size: 12.5px; margin-top: 4px; }
- .d-salary { margin: 18px 0 6px; padding: 16px; border-radius: 12px; background: var(--ms-surface-2); border: 1px solid var(--ms-border); }
-@@ -1158,6 +1168,9 @@ html[data-mode="insights"] .viz-controls { display: none; }
-   .filters-foot { padding: 10px var(--m-gutter-r) calc(10px + env(safe-area-inset-bottom)) var(--m-gutter-l); background: var(--ms-bg); }
-   .filters-foot .btn { height: 48px; font-size: 16px; }
-   body.kb-open .filters-foot { display: none; }   /* the keyboard would cover it anyway */
-+  /* M-47: typing in Insights on a short screen (landscape, the keyboard up): the top bars step aside so the
-+     field shows above the keyboard (app.js revealField); they come back when it loses focus. */
-+  body.kb-lift .topbar, body.kb-lift .quickbar { display: none; }
-   body.filters-open .results { content-visibility: hidden; }   /* covered by the sheet; catches up on close */
-   .fsec > summary { min-height: 52px; padding: 0; font-size: 15px; }
-   .fsec-badge { min-width: 20px; height: 20px; font-size: 12px; }
-diff --git a/public/viz/chart.js b/public/viz/chart.js
-index 621dd03..3ef62cd 100644
---- a/public/viz/chart.js
-+++ b/public/viz/chart.js
-@@ -578,6 +578,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
-   let chipFont = '700 12px system-ui, sans-serif'; // the edge chips' font (renderClusters)
-   let foldOpen = false;      // UX-24: the "N more departments" row is opened
-   let rowNotes = { offRow: 0, basis: null, basisLeft: 0, spans: 0, partTime: 0 }; // notes-line counts from the rows (V-18 to V-21)
-+  let hostNotes = [];        // UX-57: the host's facts (app.js: the stats line's), listed first in the notes' Details
-+  let noteStats = null;      // the last render's stats, so setNotes can redo the notes alone
- 
-   // ---------- data prep ----------
-   function prepare() {
-@@ -715,7 +717,9 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
-     if (highlighted) applyHighlight(highlighted, false);
+   // ------------------------------------------------------------------ M-47
+   const kbOf = (d) => Math.round(d.height > d.width ? Math.min(300, d.height * 0.42) : d.height * 0.49);
+-  for (const d of [...LANDSCAPES, ...PHONES]) {
+-    suite.test(`Fix phone controls: [M-47] [${d.name}, keyboard ${kbOf(d)} px] a tap on the Pay estimate title field brings it above the keyboard`, async (ctx) => {
++  for (const d of [...EXTRA_LANDSCAPES, ...ALL_SIZES]) {
++    suite.test(`Fix phone controls: [M-47] [${tag(d)}, keyboard ${kbOf(d)} px] a tap on the Pay estimate title field brings it above the keyboard`, async (ctx) => {
+       const kb = kbOf(d);
+       const { page, cdp } = await open(ctx, d, 'c=amazon&m=insights', { keyboard: kb });
+       await page.waitForSelector('#compHost input.ms-comp__input', { timeout: 60000 });
+@@ -515,7 +513,7 @@ export function registerFixPhoneControlsTests(suite) {
+         const label = e.labels?.[0]?.getBoundingClientRect();
+         return { focused: document.activeElement === e, top: Math.round(b.top), bottom: Math.round(b.bottom), labelTop: label ? Math.round(label.top) : null, vvTop: Math.round(vv.offsetTop), vvBottom: Math.round(vv.offsetTop + vv.height), boxTop: Math.round(bb.top), boxBottom: Math.round(bb.bottom), page: (document.scrollingElement || document.documentElement).scrollTop, innerHeight };
+       });
+-      await shot(page, `M-47-${slug(d.name)}-keyboard`);
++      await shot(page, `M-47-${slug(tag(d))}-keyboard`);
+       assert(r.focused, 'the field has focus');
+       assert(r.vvBottom < r.innerHeight - 50, `the simulated keyboard is up (${JSON.stringify(r)})`);
+       assert(r.top >= r.vvTop && r.bottom <= r.vvBottom, `the field (${r.top}–${r.bottom}) is under the keyboard: only ${r.vvTop}–${r.vvBottom} is visible`);
+@@ -530,8 +528,8 @@ export function registerFixPhoneControlsTests(suite) {
    }
  
--  function renderNotes({ noSalary, fxCount, unknownFx, elsewhere, pay }) {
-+  function renderNotes(stats) {
-+    noteStats = stats;
-+    const { noSalary, fxCount, unknownFx, elsewhere, pay } = stats;
-     const where = placesPhrase(opts.places);
-     // fix-density: one line with the two counts a job seeker needs ("564 with pay · 81 without"); every
-     // other caveat in the short list behind "Details" (public/viz/note.js), in plain words.
-@@ -724,6 +728,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
-     if (noSalary) line.push(`${noSalary.toLocaleString()} without`);
-     const isAre = (n) => (n === 1 ? 'is' : 'are');
-     const details = [
-+      ...hostNotes,
-       // BP-2: with a Location filter, the plotted pay is for those places, and the rest is counted.
-       elsewhere ? `${plural(elsewhere, 'posting')} with pay for another country only ${isAre(elsewhere)} left out${where ? `: that pay says nothing about pay in ${where}` : ''}` : '',
-       // V-18: Group by Location rows hold only the pay posted for their place.
-@@ -1783,6 +1788,14 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
-       highlighted = jobId ?? null;
-       applyHighlight(highlighted, highlighted != null);
-     },
-+    /**
-+     * UX-57: the host's facts for the notes' Details (app.js: the stats line's, so the chart view has one
-+     * Details), listed before the chart's own; only the notes are redone.
-+     */
-+    setNotes(items) {
-+      hostNotes = Array.isArray(items) ? items : [];
-+      if (noteStats) renderNotes(noteStats);
-+    },
-     /** Clear the selected cluster/row state (visual only; no callback). */
-     clearSelection() {
-       selectedKey = null;
-diff --git a/scripts/e2e.js b/scripts/e2e.js
-index cb72290..184f044 100644
---- a/scripts/e2e.js
-+++ b/scripts/e2e.js
-@@ -34,6 +34,7 @@ import { registerFixDensityTests } from '../test/e2e/fix-density.e2e.js';
- import { registerGoogleGroupingTests } from '../test/e2e/google-grouping.e2e.js';
- import { registerVizEvenTests } from '../test/e2e/viz-even.e2e.js';
- import { registerBetaA11y2Tests } from '../test/e2e/beta-a11y-2.e2e.js';
-+import { registerFixPhoneControlsTests } from '../test/e2e/fix-phone-controls.e2e.js';
- 
- const args = new Set(process.argv.slice(2));
- const apiOnly = args.has('--api-only');
-@@ -93,6 +94,7 @@ if (!apiOnly) {
-   registerGoogleGroupingTests(suite);
-   registerVizEvenTests(suite);
-   registerBetaA11y2Tests(suite);
-+  registerFixPhoneControlsTests(suite);
- }
- 
- let results;
+   // ------------------------------------------------------------------ UX-56
+-  for (const d of [{ name: 'desktop 1024x768', width: 1024, height: 768, desktop: true }, { name: 'desktop 900x700', width: 900, height: 700, desktop: true }, { name: 'desktop 1199x800', width: 1199, height: 800, desktop: true }, DUO_SPANNED]) {
+-    suite.test(`Fix phone controls: [UX-56] [${d.name}] the closed filter side sheet takes no keyboard focus; opened, it does; Escape closes it back to Filters`, async (ctx) => {
++  for (const d of [D1024, { name: 'desktop', width: 900, height: 700, desktop: true }, { name: 'desktop', width: 1199, height: 800, desktop: true }, DUO_SPANNED, RAZR_LAND]) {
++    suite.test(`Fix phone controls: [UX-56] [${tag(d)}] the closed filter side sheet takes no keyboard focus; opened, it does; Escape closes it back to Filters`, async (ctx) => {
+       const { page } = await open(ctx, d, 'c=google');
+       const closed = await page.evaluate(() => { const r = document.querySelector('#filters').getBoundingClientRect(); return r.right <= 0 || r.left >= innerWidth; });
+       assert(closed, 'the filter sheet is closed, off screen, at this width');
+@@ -553,7 +551,7 @@ export function registerFixPhoneControlsTests(suite) {
+       await sleep(500);
+       const o = await page.evaluate(() => ({ inert: document.querySelector('#filters').inert, hidden: document.querySelector('#filters').getAttribute('aria-hidden'), focusIn: !!document.activeElement?.closest('#filters') }));
+       assert(!o.inert && o.hidden !== 'true' && o.focusIn, `opened, the sheet takes focus: ${JSON.stringify(o)}`);
+-      await shot(page, `UX-56-${slug(d.name)}-open`);
++      await shot(page, `UX-56-${slug(tag(d))}-open`);
+       await page.keyboard.press('Escape');
+       await sleep(500);
+       const c = await page.evaluate(() => ({ inert: document.querySelector('#filters').inert, focus: document.activeElement?.id }));
+@@ -609,13 +607,13 @@ export function registerFixPhoneControlsTests(suite) {
+     if ((await btn.getAttribute('aria-expanded')) !== 'true') { await btn.click(); await sleep(250); }
+     return page.evaluate(() => [...document.querySelectorAll('#chartHost .ms-note__list li')].map((li) => li.textContent.replace(/\s+/g, ' ').trim()).filter(Boolean));
+   };
+-  for (const d of [DESKTOP, { name: 'desktop 1024x768', width: 1024, height: 768, desktop: true }, DUO_SPANNED, P390, PHONES[0], PHONES[7]]) {
+-    suite.test(`Fix phone controls: [UX-57] [${d.name}] the chart view's toolbar has 3 controls (no Details on the stats line); its facts are in the chart notes' Details`, async (ctx) => {
++  for (const d of [DESKTOP, D1024, DUO_SPANNED, RAZR_LAND, P390, FOLD, DUO, RAZR_COVER]) {
++    suite.test(`Fix phone controls: [UX-57] [${tag(d)}] the chart view's toolbar has 3 controls (no Details on the stats line); its facts are in the chart notes' Details`, async (ctx) => {
+       const { page } = await open(ctx, d, 'c=amazon');
+       await page.waitForSelector('#chartHost .ms-note__more', { timeout: 30000 }).catch(() => {});
+       await sleep(800);
+       const t = await page.evaluate(toolbar);
+-      await shot(page, `UX-57-${slug(d.name)}-chart`);
++      await shot(page, `UX-57-${slug(tag(d))}-chart`);
+       assert(t.statsDetails === 0, `the stats line has its own Details button (toolbar: ${t.controls.join(', ')})`);
+       assert(t.controls.length <= 3, `the chart view's toolbar has ${t.controls.length} controls: ${t.controls.join(', ')}`);
+       const notes = await chartNotes(page);
+@@ -647,7 +645,7 @@ export function registerFixPhoneControlsTests(suite) {
+     }
+   });
+   for (const d of [DESKTOP, P390]) {
+-    suite.test(`Fix phone controls: [UX-57] [${d.name}] in Map view (no chart notes) the stats line keeps its Details, with the same facts`, async (ctx) => {
++    suite.test(`Fix phone controls: [UX-57] [${tag(d)}] in Map view (no chart notes) the stats line keeps its Details, with the same facts`, async (ctx) => {
+       const { page } = await open(ctx, d, 'c=amazon&m=map');
+       await sleep(1200);
+       const t = await page.evaluate(toolbar);
