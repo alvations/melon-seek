@@ -1,7 +1,7 @@
 From edcdd103d5fb24b7a4a4aa3cd8e815c3d46a5f74 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 02:10:12 +0000
-Subject: [PATCH 06/51] fix-sec-3: S-9 residual: the refresh commits FX values
+Subject: [PATCH 06/53] fix-sec-3: S-9 residual: the refresh commits FX values
  only in code files, and never test code
 
 - monthly-refresh.yml commit step: after apply, .github/scripts/fx-values-only.mjs (from the tip's

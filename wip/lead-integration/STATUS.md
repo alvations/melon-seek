@@ -2,11 +2,13 @@
 
 - Worktree: `/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-int`
 - Base (on claude/stoic-ride-54ddxp): `228aed732384c0c6e1b94b673bd6d56c31ec9beb`
-- Head: `fbdad5856455a1a176cfd806b858cab7e88ef836`
+- Head: `164874ac7c859094c4269b79524b582402285fa0`
 - Restore: `bash scripts/cycle/restore-wip.sh lead-integration <new worktree dir>`
 
 ## Commits since the base
 ```
+164874a Lead log: fix wave 5 integrated (sec-3, data-3, phone sizes and text, pay at a place); integration fixes; the gate's browser crash and re-run
+b815f2b Integration fixes for fix wave 5: a merge's stray '=======' in styles.css (dropped UX-58's rule), one Pay by place row per place set (D-39), tests read the pill's sub line, data-3's department names and MR-28 footnote
 fbdad58 Integration: fix-data-3's patches (postedPlaces per tied row, the Compare footnote names MR-28's left-out pay, M-40's precondition) and the pay lane's Juice test on
 83512bc fix-pay-at-place: log the final gate (full e2e 389/394, T21 under load passes alone); the Juice patch is a reference (fix-data-3 0ae184e)
 7833e88 fix-pay-at-place: before/after screenshots (shrunk, 1.2 MB)
@@ -62,34 +64,6 @@ bc95d97 fix-sec-3: S-2 residual: one pause guard for every crawl (fetchLive, sna
 
 ## Uncommitted and new files
 ```
- M docs/screenshots/chart.png
- M docs/screenshots/dark-drawer.png
- M docs/screenshots/dark.png
- M docs/screenshots/drawer-juice.png
- M docs/screenshots/drawer.png
- M docs/screenshots/insights.png
- M docs/screenshots/map-juice.png
- M docs/screenshots/map.png
- M docs/screenshots/mobile.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-360x640-with-the-keyboard-up-300-px-.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-iPhone-SE-Safari-375x548.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390-with-5-saved-searches.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-29-company-menu-focus.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-30-saved-searches-loaded.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-31-empty-message-half-sheet.png
- M docs/screenshots/qa-mobile-beta/e2e-M-19-sort-while-scrolled.png
- M docs/screenshots/qa-mobile-beta/e2e-M-21-company-menu.png
- M docs/screenshots/qa-mobile-beta/e2e-M-22-paused-board.png
- M docs/screenshots/qa-mobile-beta/e2e-M-24-keyboard-location-search.png
- M docs/screenshots/qa-mobile-beta/e2e-M-27-topbar-360.png
- M docs/screenshots/qa-mobile/e2e-landscape-map.png
- M public/app.js
- M public/styles.css
- M test/e2e/beta-mobile-qa-3.e2e.js
- M test/e2e/fix-estimates.e2e.js
- M test/e2e/fix-phone-controls.e2e.js
-?? test/conflict-markers.test.js
 ```
 
 ## Left out (not in untracked.tgz)

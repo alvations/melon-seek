@@ -1,7 +1,7 @@
 From 4e8fb5b90001a3c7d0d74c65c7defc2dd3d90747 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 01:59:33 +0000
-Subject: [PATCH 03/51] fix-sec-3: S-10: bounded Meta, job-family and DOL
+Subject: [PATCH 03/53] fix-sec-3: S-10: bounded Meta, job-family and DOL
  parsers (linear on hostile text, same output on real data)
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8

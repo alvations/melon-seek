@@ -1,7 +1,7 @@
 From a5db67489fcd0080c50c163cec09739a359a8b94 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 00:53:48 +0000
-Subject: [PATCH 35/51] WIP fix-phone-text: fitLine shared in viz/note.js; the
+Subject: [PATCH 35/53] WIP fix-phone-text: fitLine shared in viz/note.js; the
  comps line, the estimate's basis and accuracy keep their full words where
  they fit
 
