@@ -1,7 +1,7 @@
 From 6c0ebab51758c457274c0ab15e6f36990974b3b2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 12:39:05 +0000
-Subject: [PATCH 3/9] fix-phone-sizes: a long department name that fits whole
+Subject: [PATCH 03/14] fix-phone-sizes: a long department name that fits whole
  in two lines flows as one text (13 px, then 12 px, on the narrowest phones),
  so Amazon's 'Non-Technical Project, Program and Product Management' is never
  cut (M-40 with fix-data-3's names)

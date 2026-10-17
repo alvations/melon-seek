@@ -1,5 +1,5 @@
 diff --git a/docs/process/fix-phone-sizes.md b/docs/process/fix-phone-sizes.md
-index 9ebe58c..dd336dc 100644
+index 9ebe58c..972322b 100644
 --- a/docs/process/fix-phone-sizes.md
 +++ b/docs/process/fix-phone-sizes.md
 @@ -17,11 +17,17 @@
@@ -24,7 +24,7 @@ index 9ebe58c..dd336dc 100644
  - **Next, if resumed:** send the lead the SHAs; then WebKit results from webkit-phone.yml when the lead sends them.
  
  ## 1. Brief
-@@ -131,6 +137,30 @@ Files owned: public/styles.css (layout rule blocks only), test/e2e/phone-matrix.
+@@ -131,6 +137,35 @@ Files owned: public/styles.css (layout rule blocks only), test/e2e/phone-matrix.
  13. **Not mine, left alone:** Amazon's long department names in chart rows (M-40, viz), the off-screen filter slide-over buttons at
      861–1199 px (UX-56; the matrix ignores the closed slide-over), and the desktop tagline at 1280x800, which ends in
      "…" beside the chart controls (fix-density's one line; the matrix checks the tagline on phones and dual screens).
@@ -38,6 +38,11 @@ index 9ebe58c..dd336dc 100644
 +      fields already did, M-47). At 1005x412 with a keyboard over half the screen the filter sheet's pay field went from
 +      218–238 px (the keyboard from 206) to 100–123. The cost: on the 412 px tall Razr landscape the chart is about
 +      16 px shorter.
++    - **The top bar from 861 to 999 px** (found by the new 932x430 size): the desktop's one-row top bar needed 926 px
++      for Amazon and 964 for a board with a Refresh button with a mouse (so a narrow window scrolled sideways), and
++      935 and 981 with the touch sizes (so the phone zoomed the page out). In that range the wordmark goes (the logo
++      and the Beta tag stay, as on phones; the link's name is unchanged), the top bar's gaps go from 16 to 10 px and
++      the right group's from 10 to 6. Everything fits from 861 px, with touch and with a mouse.
 +    - **The iPhone 15 Pro Max in landscape (932x430)** is in POSTURES, so the matrix, the phone-text guards and
 +      phone-smoke cover it: 21 sizes.
 +    - **M-48:** a card's "N places" / "2 levels" line is 12 px (was 11.5), still one line.
@@ -55,6 +60,54 @@ index 9ebe58c..dd336dc 100644
  
  ## 4. Replayable steps
  
+@@ -210,6 +245,27 @@ filters; taken over CDP), and the Razr cover screen's map.
+   filter sheet and the company sheet across the hinge.
+ - phone-smoke: 140/140 (20 sizes x 7 boards). npm test with the data links out: 1185 pass, 0 fail.
+ 
++**The full e2e on 780e0ac** (data linked, one suite at a time): 745 of 766 pass, 16 fail, 5 skipped. 14 of the 16 are
++other lanes' red tests (A-8, D-43, D-44, V-33, V-34, V-38, V-41 to V-44, V-46, V-48, UX-42, UX-45); the other two are
++the UI map tests that race under load and pass alone. The matrix was 54/54 in it.
++
++**Mobile QA 4 (decision 14), on 780e0ac plus 8606e3d to b0abf24:**
++- Beta mobile QA 4: 6 of 7 pass, M-48, M-49, M-51 and M-52 among them (all four were red). M-50 still fails (fix-viz-5's:
++  pins under the map's own note and Remote button).
++- The matrix (58 tests, 21 sizes): 57 of 58 at first. The new 932x430 size failed for Amazon: its one-row top bar was
++  935 px wide. A sweep found the same from 861 px up on the 780e0ac build, with a mouse too (926 px for Amazon, 964
++  for a board with a Refresh button), so the 861–999 px block in decision 14 went in, and with it a matrix sweep of
++  every 4 px from 861 to 1001, touch and mouse: 0 of 2 pass on the 780e0ac build (29 widths each), 2 of 2 after.
++  After it the wide sizes (932x430, 1005x412, 1114x720 with and without the hinge, their M-52 tests), UX-56 at 900,
++  1024, 1199, 1005 and 1114, and Mobile QA 4's M-52 pass: 16/16.
++- The matrix's M-52 test at 932x430 on the 780e0ac build: 10 controls under 44 px (26–38 px tall), 4 fields under
++  16 px (search, Sort, Group, the pay field), and the focused pay field at 218–238 px under a keyboard from 215.
++- phone-smoke, 21 sizes x 7 boards: 147 of 147 pages ok. The only cut text left is long department names (M-40).
++- Measured with scratch probes (probe-meta.cjs, probe-salsub.cjs, probe-wide-touch.cjs, probe-coarse-sweep.cjs):
++  every "N places" / "2 levels" line at 280 px (Amazon 9, NVIDIA 1) is 12 px, one line, inside its card and clear of
++  the title; the meta line of the first 6–10 roles of Amazon, Meta and Microsoft at 280, 360 and 390 px has no "·" at a
++  line's edge and nothing clipped.
++
+ The matrix's later checks (from the lead's Razr findings): the results sheet's peek row shows at least 44 px of the
+ screen, "on screen" is judged against the screen's own size as well as the layout viewport (a zoomed-out page has a
+ larger one: the baseline Razr now fails on Sort, the sheet handle and the peek row at top 417), the visual viewport is
+@@ -224,9 +280,19 @@ neither zoomed nor panned, and on the map not every price pin is covered by the
+ - The Razr cover screen's third pin sits under the map's attribution. That is the viz lane's (fix-viz-5, map.js: the
+   fit could leave room for the corners).
+ - Custom boards with very long names still end in "…" at small widths (the built-in names are whole everywhere).
++- M-52's side effects: at 861–999 px the search box of a board with a Refresh button is ~100 px, just the magnifier
++  (fitSearchHint drops the words that do not fit); on the 412 px tall Razr landscape the chart is ~16 px shorter; the
++  filter sheet's "Show N roles" footer stays at the bottom with the keyboard up above 860 px (on phones kb-open hides
++  it), so it waits under the keyboard until the field loses focus.
++- M-51's level pill sits 18 px after the text before it (was 10), the price of clipping the "·" that starts a line.
+ 
+ ## 7. Change log
+ 
+ - 2026-10-16 23:50: started from a92a3c8; baseline smoke (7 failures, all the Razr cover screen) and matrix runs.
+ - 2026-10-17 00:40: CSS and app.js fixes; the matrix's extra checks (sides, tagline, all cards, map controls,
+   placeholder, the hinge with clipping).
++- 2026-10-17 02:07: the lead's two Razr findings (the peek row, the map's pins); then a container restart.
++- 2026-10-17 10:52–12:59: on fbdad58, then 1ef0646: the stacked Duo, Amazon's long department rows, UX-39.
++- 2026-10-17 15:29: the full e2e on 780e0ac (745/766, no new failure); mobile QA 4 started.
++- 2026-10-17 16:06: M-48, M-49, M-51, M-52 (with the 861–999 px top bar) and the iPhone 15 Pro Max landscape, one
++  commit each, with the matrix's new checks and before/after screenshots.
 diff --git a/docs/screenshots/dark-drawer.png b/docs/screenshots/dark-drawer.png
 index b688f30614727bc3db503ffc74c0b38f74c74948..384ac13c5f229403c934bebac2f5a20c69b86e33 100644
 GIT binary patch
@@ -39263,28 +39316,6 @@ z!zAW|QylO|tZHQ`^<PQg{=<1JE20&IYFW*pt@C?gwHrt`UTlJ$lKAN9C3|rz{3a6Z
 z?_F01!~aSk*cP2V(?Vt}E6(dOkh2WK=(V&GH}v3~pEu6s24$+NUDJTyqqzU(Gxw4g
 q;x}(zUrV8cXt2c(|C;sfo3Gk@U4=)=s<3a~NPU+VuM+*~|9=2A4b49Q
 
-diff --git a/public/styles.css b/public/styles.css
-index 43bc017..c0a0ecb 100644
---- a/public/styles.css
-+++ b/public/styles.css
-@@ -1670,6 +1670,17 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
-   .check, .radio, .company-item { min-height: 44px; }
- }
- 
-+/* M-52: from 861 to 999 px the one-row top bar was wider than the screen: 926 px for Amazon and 964 px for a board
-+   with a Refresh button with a mouse, 935 and 981 px with the touch sizes (a phone in landscape was zoomed out, a
-+   narrow desktop window scrolled sideways). The logo stays and the wordmark goes, as on phones (the link's name is
-+   still "melon·seek home"), and the gaps close up a little. */
-+@media (min-width: 861px) and (max-width: 999px) {
-+  .brand-word { display: none; }
-+  .topbar { gap: 10px; }
-+  .topbar-right { gap: 6px; }
-+  .beta-tag { margin-left: -2px; }
-+}
-+
- /* M-40 meets fix-data-3's longer names ("Non-Technical Project, Program and Product Management": its end was cut by
-    0.42 px at 360 px, and more on narrower phones): a split name that fits whole in two lines flows as one text
-    (app.js fitCheckLabels); on the narrowest phones in 13 px, then 12 px, with tighter gaps in its row. */
 diff --git a/scripts/e2e.js b/scripts/e2e.js
 index 022b412..4fcfabc 100644
 --- a/scripts/e2e.js
@@ -39305,107 +39336,3 @@ index 022b412..4fcfabc 100644
  }
  
  let results;
-diff --git a/test/e2e/phone-matrix.e2e.js b/test/e2e/phone-matrix.e2e.js
-index 42acc97..a02a068 100644
---- a/test/e2e/phone-matrix.e2e.js
-+++ b/test/e2e/phone-matrix.e2e.js
-@@ -271,6 +271,57 @@ function overlayProblems(f, what, screenW, label) {
-   return p;
- }
- 
-+/**
-+ * Mobile QA 4 on the job page, at every size: the meta line shows no "·" at a line's start or end and cuts no word
-+ * (M-51: a wrapped line's leading "·" is clipped away, so the check reads what shows); the Apply label is one line
-+ * (M-49: shorter words where the long ones would wrap), and the link's name stays the long label.
-+ */
-+function drawerTextFacts() {
-+  const out = [];
-+  const m = document.querySelector('#drawer .d-meta');
-+  if (m && m.getClientRects().length) {
-+    const mr = m.getBoundingClientRect();
-+    const cs = getComputedStyle(m);
-+    const inset = cs.clipPath && cs.clipPath !== 'none' ? parseFloat((cs.clipPath.match(/inset\(([^)]*)\)/)?.[1] || '0').split(/\s+/)[3] || '0') : 0;
-+    const clipL = mr.left + inset;
-+    const bits = [];
-+    const walk = (n) => {
-+      if (n.nodeType === 3) {
-+        if (!n.textContent.trim()) return;
-+        const r = document.createRange();
-+        r.selectNodeContents(n);
-+        for (const x of r.getClientRects()) if (x.width > 0.5) bits.push({ t: n.textContent.trim(), sep: n.textContent.trim() === '·', l: x.left, r: x.right, mid: x.top + x.height / 2 });
-+        return;
-+      }
-+      for (const c of n.childNodes) walk(c);
-+    };
-+    walk(m);
-+    const lines = [];
-+    for (const b of bits) { let L = lines.find((x) => Math.abs(x.mid - b.mid) < 6); if (!L) lines.push((L = { mid: b.mid, bits: [] })); L.bits.push(b); }
-+    for (const L of lines) {
-+      const seen = L.bits.filter((b) => b.r > clipL + 0.5).sort((a, b) => a.l - b.l);
-+      const words = seen.map((b) => b.t).join(' ');
-+      if (seen.length && seen[0].sep) out.push(`the meta line has a line that starts with "·" ("${words}")`);
-+      if (seen.length && seen[seen.length - 1].sep) out.push(`the meta line has a line that ends with "·" ("${words}")`);
-+      const cut = L.bits.filter((b) => !b.sep && b.l < clipL - 0.5);
-+      if (cut.length) out.push(`the meta line's clip cuts "${cut.map((b) => b.t).join('", "')}"`);
-+    }
-+  }
-+  const lab = document.querySelector('#drawer .apply-label');
-+  const words = lab?.firstChild;
-+  if (words?.nodeType === 3 && lab.getClientRects().length) {
-+    const r = document.createRange();
-+    r.selectNodeContents(words);
-+    const mids = [];
-+    for (const x of r.getClientRects()) { if (x.width < 0.5) continue; const md = x.top + x.height / 2; if (!mids.some((t) => Math.abs(t - md) < 5)) mids.push(md); }
-+    if (mids.length > 1) out.push(`the Apply label "${words.textContent}" takes ${mids.length} lines`);
-+    const a = lab.closest('a');
-+    const name = a.getAttribute('aria-label') || lab.textContent;
-+    if (lab.dataset.long && !name.startsWith(lab.dataset.long)) out.push(`the Apply link's name "${name}" is not the whole label "${lab.dataset.long}"`);
-+  }
-+  return out;
-+}
-+
- /** Open the first job, check the job page, close it. */
- async function checkDrawer(page, screenW, label) {
-   await page.evaluate(() => document.querySelector('#resultsList .card[data-id]').click());
-@@ -285,6 +336,7 @@ async function checkDrawer(page, screenW, label) {
-     return r.left < -1 || r.right > innerWidth + 1 || r.top < -1 || r.bottom > innerHeight + 1 ? `${s} off screen [${Math.round(r.left)}, ${Math.round(r.top)}, ${Math.round(r.right)}, ${Math.round(r.bottom)}]` : null;
-   }).filter(Boolean));
-   p.push(...ctl.map((c) => `${label}: job page: ${c}`));
-+  p.push(...(await page.evaluate(drawerTextFacts)).map((c) => `${label}: job page: ${c}`));
-   await page.keyboard.press('Escape');
-   await page.waitForFunction(() => !document.querySelector('#drawer.is-open'), null, { timeout: 5000 }).catch(() => {});
-   await sleep(350);
-@@ -427,6 +479,33 @@ export function registerPhoneMatrixTests(suite) {
-     });
-   }
- 
-+  // M-52: just over 860 px the desktop's one-row top bar was wider than the screen (Amazon 926 px, a board with a
-+  // Refresh button 964; 935 and 981 with the touch sizes), so a phone in landscape was zoomed out and a narrow window
-+  // scrolled sideways. Every 4 px from 861 to 1001, with touch and with a mouse, on the beta board with the longest
-+  // count and on a main-site board with Refresh.
-+  for (const [kind, size] of [['touch', ALL_SIZES.find((s) => s.width === 932 && s.height === 430)], ['mouse', { name: 'mouse', width: 1024, height: 430 }]]) {
-+    suite.test(`Phone matrix: [M-52] [top bar sweep, ${kind}] the page fits and the company name is whole at every width from 861 to 1001 px (beta Amazon, main Anthropic)`, async (ctx) => {
-+      assert(size, 'phone-sizes.mjs lists the iPhone 15 Pro Max in landscape (932x430)');
-+      const bad = [];
-+      for (const [site, board] of [['beta/', 'amazon'], ['', 'anthropic']]) {
-+        const { page, errors } = await open(ctx, size, { board, site });
-+        for (let width = 861; width <= 1001; width += 4) {
-+          await page.setViewportSize({ width, height: size.height });
-+          const m = await page.evaluate(() => {
-+            const n = document.querySelector('#companyMenuBtn .company-name');
-+            const over = [...document.querySelectorAll('.topbar *')].filter((e) => e.getClientRects().length && e.getBoundingClientRect().right > innerWidth + 1).slice(0, 3).map((e) => `${e.tagName.toLowerCase()}.${[...e.classList].join('.')}`);
-+            return { w: innerWidth, pageW: document.documentElement.scrollWidth, cut: !n || n.scrollWidth > n.clientWidth + 0.5, over };
-+          });
-+          const where = `${site ? 'beta' : 'main'} ${board} ${width}`;
-+          if (m.w > width + 1 || m.pageW > width + 1) bad.push(`${where}: page laid out ${Math.max(m.w, m.pageW)} px wide${m.over.length ? ` (${m.over.join(', ')})` : ''}`);
-+          if (m.cut) bad.push(`${where}: the company name is cut`);
-+        }
-+        bad.push(...errors);
-+      }
-+      assert(!bad.length, `${bad.length} problem(s):\n  ${bad.slice(0, 30).join('\n  ')}`);
-+    });
-+  }
-+
-   for (const size of DESKTOP) {
-     const dev = `${size.width}x${size.height}`;
-     suite.test(`Phone matrix: [${size.name}] desktop and tablet keep the same checks: the page fits, the name is whole, the controls are on screen, the job page and filters fit`, async (ctx) => {
