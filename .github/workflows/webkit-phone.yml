@@ -30,6 +30,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # read-only job: the token is not left in .git/config (REVIEW.md V12)
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
@@ -53,6 +55,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # read-only job: the token is not left in .git/config (REVIEW.md V12)
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
@@ -149,6 +153,8 @@ jobs:
     timeout-minutes: 60 # three simulated iPhones (mini, standard, SE), each opening every board
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # read-only job: the token is not left in .git/config (REVIEW.md V12)
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
@@ -157,6 +163,14 @@ jobs:
           name: site-dist
           path: dist
       - name: idb (Facebook's iOS Development Bridge) for touch input
+        env:
+          # Pinned (REVIEW.md V12): the facebook/fb tap at a commit whose formula installs idb-companion
+          # v1.7.6 from its release tarball (the formula pins the tarball's sha256), and fb-idb 1.7.6 with
+          # its dependencies at the versions run 38979700118 installed, each wheel checked against its PyPI
+          # sha256 (.github/scripts/idb-requirements.txt). No auto-update, so brew never moves the tap.
+          IDB_TAP_COMMIT: 1fabba2a20e26befe0a02fc6c4c12e6384532460
+          IDB_COMPANION_VERSION: 1.7.6
+          HOMEBREW_NO_AUTO_UPDATE: "1"
         run: |
           # idb-companion builds against a full Xcode, not the Command Line Tools the image
           # selects by default: pick the newest installed Xcode first (run 38147604789 failed here).
@@ -165,8 +179,12 @@ jobs:
           sudo xcode-select -s "$XCODE/Contents/Developer"
           xcodebuild -version
           brew tap facebook/fb
+          tap="$(brew --repository facebook/fb)"
+          git -C "$tap" fetch -q origin "$IDB_TAP_COMMIT"
+          git -C "$tap" checkout -q --detach "$IDB_TAP_COMMIT"
+          grep -q "releases/download/v$IDB_COMPANION_VERSION/" "$tap/idb-companion.rb" || { echo "::error::the pinned tap commit does not install idb-companion $IDB_COMPANION_VERSION"; exit 1; }
           brew install facebook/fb/idb-companion
-          python3 -m pip install --break-system-packages fb-idb
+          python3 -m pip install --break-system-packages --require-hashes --only-binary :all: -r .github/scripts/idb-requirements.txt
           idb --help > /dev/null
       - name: Swipe the company list in Simulator Safari
         timeout-minutes: 48 # the job limit is 60: leave time for the summary and the screenshots

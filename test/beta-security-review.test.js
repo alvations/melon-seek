@@ -282,17 +282,52 @@ test('V14 residual: a custom board cannot take a built-in company name (now incl
   }
 });
 
-test('V12 residual: read-only jobs check out without persisting the token', OPEN, () => {
-  const want = { 'ci.yml': null, 'pages.yml': ['build'], 'snapshot.yml': ['snapshot', 'beta-companies', 'beta-crawl', 'beta-merge'], 'bigtech-probe.yml': ['probe'] };
-  for (const [f, jobs] of Object.entries(want)) {
+// Fixed by fix-sec-3 (docs/process/fix-sec-3.md). The original list (ci.yml, the pages.yml build, every snapshot.yml
+// read-only job, bigtech-probe.yml) is now every workflow: only the jobs that push with the checkout's own token keep it.
+const jobNames = (text) => {
+  const lines = text.split('\n');
+  const at = lines.indexOf('jobs:');
+  const out = [];
+  for (const l of lines.slice(at + 1)) { if (/^\S/.test(l)) break; const m = /^ {2}([A-Za-z0-9_-]+):\s*$/.exec(l); if (m) out.push(m[1]); }
+  return out;
+};
+
+test('V12 residual: read-only jobs check out without persisting the token', () => {
+  // The four jobs that push with the token actions/checkout leaves in .git/config: the archive branch
+  // (scripts/archive/branch.sh) and the ledger branch (ledger.sh commit-branch). Each has contents: write.
+  const PUSHERS = ['archive-backfill.yml archive-ingest', 'archive.yml archive-ingest', 'pages.yml persist-ledger', 'snapshot.yml persist-ledger'];
+  const keeps = [];
+  let checkouts = 0;
+  for (const f of fs.readdirSync(path.join(ROOT, '.github', 'workflows')).filter((x) => x.endsWith('.yml')).sort()) {
     const text = readWf(f);
-    const blocks = jobs ? jobs.map((j) => [j, jobBlock(text, j)]) : [[f, text]];
-    for (const [j, b] of blocks) {
-      const checkouts = b.split(/\n(?=\s+- uses: actions\/checkout@)/).slice(1);
-      for (const c of checkouts) {
-        const step = c.split(/\n\s+- /)[0];
-        assert.match(step, /persist-credentials:\s*false/, `${f} ${j}: actions/checkout keeps the token in .git/config`);
+    for (const job of jobNames(text)) {
+      for (const c of jobBlock(text, job).split(/\n(?=[ \t]+- uses: actions\/checkout@)/).slice(1)) {
+        checkouts++;
+        const step = c.split(/\n[ \t]*\n|\n[ \t]+- /)[0];
+        if (!/persist-credentials:\s*false/.test(step)) keeps.push(`${f} ${job}`);
       }
     }
   }
+  assert.ok(checkouts >= 24, `${checkouts} checkouts found`);
+  assert.deepEqual(keeps.sort(), PUSHERS, `actions/checkout keeps the token in .git/config in: ${keeps.join(', ')}`);
+  for (const p of PUSHERS) {
+    const [f, job] = p.split(' ');
+    assert.match(jobBlock(readWf(f), job), /contents: write/, `${p} pushes, so it is a contents: write job`);
+  }
+});
+
+test('V12 residual: the iOS Simulator job installs idb at pinned versions (a tap commit, hashed Python wheels)', () => {
+  const job = jobBlock(readWf('webkit-phone.yml'), 'ios-simulator');
+  assert.doesNotMatch(job, /pip install(?![^\n]*--require-hashes)[^\n]*/, 'a pip install without --require-hashes');
+  assert.match(job, /pip install --break-system-packages --require-hashes --only-binary :all: -r \.github\/scripts\/idb-requirements\.txt/);
+  assert.match(job, /IDB_TAP_COMMIT: [0-9a-f]{40}\n/, 'the facebook/fb tap is pinned to a full commit');
+  assert.match(job, /git -C "\$tap" checkout -q --detach "\$IDB_TAP_COMMIT"/);
+  assert.match(job, /HOMEBREW_NO_AUTO_UPDATE: "1"/, 'brew must not update the pinned tap');
+  assert.ok(job.indexOf('checkout -q --detach "$IDB_TAP_COMMIT"') < job.indexOf('brew install facebook/fb/idb-companion'), 'pinned before the install');
+  const req = fs.readFileSync(path.join(ROOT, '.github', 'scripts', 'idb-requirements.txt'), 'utf8').replace(/\s*\\\n\s*/g, ' ');
+  const pkgs = req.split('\n').filter((l) => l.trim() && !l.startsWith('#'));
+  assert.deepEqual(pkgs.map((l) => l.split(' ')[0]).sort(),
+    ['aiofiles==25.1.0', 'fb-idb==1.7.6', 'grpclib==0.4.9', 'h2==4.4.1', 'hpack==4.2.0', 'hyperframe==6.1.0', 'multidict==7.1.0', 'protobuf==7.36.2'],
+    'fb-idb 1.7.6 and the dependencies run 38979700118 installed');
+  for (const l of pkgs) assert.match(l, /^[a-z0-9-]+==[0-9.]+( --hash=sha256:[0-9a-f]{64})+\s*$/, l);
 });

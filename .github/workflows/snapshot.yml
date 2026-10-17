@@ -56,6 +56,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # read-only job: the token is not left in .git/config (REVIEW.md V12)
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -164,6 +166,8 @@ jobs:
       slugs: ${{ steps.list.outputs.slugs }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # read-only job: the token is not left in .git/config (REVIEW.md V12)
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -190,6 +194,8 @@ jobs:
         slug: ${{ fromJSON(needs.beta-companies.outputs.slugs) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # read-only job: the token is not left in .git/config (REVIEW.md V12)
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -274,6 +280,8 @@ jobs:
       fresh: ${{ steps.merge.outputs.fresh }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # read-only job: the token is not left in .git/config (REVIEW.md V12)
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
