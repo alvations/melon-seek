@@ -54,7 +54,7 @@ export const VET = Object.freeze({
 export const CRITICAL_CODES = Object.freeze(['above_max', 'below_min', 'hourly_high']);
 
 // Rough FX lives in salary.js (one table for parser bounds and this gate).
-import { USD_PER, toUSD, LEGAL_MIN_ANNUAL } from './salary.js';
+import { USD_PER, toUSD, LEGAL_MIN_ANNUAL, isFellowRank, programmeText } from './salary.js';
 export { USD_PER, toUSD };
 
 const PART_TIME_RE = /part[- ]?time|intern|co-?op|contract|temporary|seasonal|casual|per diem/i;
@@ -70,10 +70,14 @@ const JUNIOR_RE = /\b(intern(ship)?|co-?op|fellow(ship)?s?|resident|residency|ap
 const SENIOR_RE = /\b(director|vp|svp|evp|vice president)\b/i;
 const NOT_JUNIOR_RE = /\b(technical|distinguished|senior|principal|research) fellow\b/i;
 
-/** 'junior' | 'senior' | null from the title. */
+/**
+ * 'junior' | 'senior' | null from the title. D-38 (fix-data-3): a Fellow rank (salary.js isFellowRank:
+ * Google's "Fellow, Core AI Foundations", its top engineering level, posted at $550,000) is not junior, and
+ * "Data Residency" is not a residency programme (programmeText); their posted pay is shown as posted.
+ */
 export function titleClass(title) {
-  const t = String(title || '');
-  if (JUNIOR_RE.test(t) && !NOT_JUNIOR_RE.test(t)) return 'junior';
+  const t = programmeText(title);
+  if (JUNIOR_RE.test(t) && !NOT_JUNIOR_RE.test(t) && !isFellowRank(t)) return 'junior';
   if (SENIOR_RE.test(t) && !/\b(assistant|associate|coordinator) to\b/i.test(t)) return 'senior';
   return null;
 }
@@ -91,10 +95,11 @@ const FAMILIES = [
   ['ops', /\b(operations|program|project|coordinator|specialist|analyst|strategist)\b/i],
 ];
 
-/** Coarse role family from the title (first match wins). */
+/** Coarse role family from the title (first match wins). A Fellow rank or "Data Residency" is not the intern family (D-38). */
 export function roleFamily(title) {
-  const t = String(title || '');
-  for (const [name, re] of FAMILIES) if (re.test(t)) return name;
+  const t = programmeText(title);
+  const rank = isFellowRank(t);
+  for (const [name, re] of FAMILIES) if (re.test(t) && !(name === 'intern' && rank && !re.test(t.replace(/\bfellows?\b/gi, ' ')))) return name;
   return 'other';
 }
 

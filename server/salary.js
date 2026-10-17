@@ -603,7 +603,30 @@ export function mayRelabelPay(text) {
 }
 // Fixed-term roles: internships, co-ops, fellowships, residencies, apprenticeships.
 const FIXED_TERM_TITLE_RE = /\b(?:intern(?:ship)?s?|co-?ops?|fellows?|fellowships?|residen(?:t|cy|cies)|apprentice(?:ship)?s?|summer\s+(?:analyst|associate|student)s?)\b/i;
-const SENIOR_FELLOW_TITLE_RE = /\b(?:distinguished|technical|senior|principal|corporate|chief)\s+fellows?\b/i;
+
+// D-38 (fix-data-3): a Fellow RANK is a company's top individual-contributor level, not a fixed-term
+// fellowship. Google's "Fellow, Core AI Foundations" ("you will serve as the technical authority … reporting
+// directly to the General Manager", posted at $550,000) was levelled Intern and its pay quarantined as an
+// intern's. A rank is a distinguished-type fellow ("Distinguished Fellow", "Technical Fellow, Silicon"), "Fellow"
+// as the title's own role noun ("Fellow", "Fellow, <team>", "Fellow - <team>", "Fellow (<team>)"), or a company's
+// named rank ("Google Fellow", "IBM Fellow"). A programme word anywhere in the title keeps it a fellowship:
+// "Anthropic Fellows Program", "AI Safety Fellowship", "Conceptual Reasoning Fellow", "SWE Fellow - Human
+// Frontier Collective", "Research Fellow", a residency, a student, graduate, PhD or postdoc role.
+const FELLOW_RANK_RE = /^\s*fellow(?![\w-])(?=\s*(?:$|[,(\-–—:|]))|\b(?:distinguished|technical|senior|principal|corporate|chief)\s+fellows?\b|\b(?:google|ibm|intel|amd|nvidia|apple|microsoft|meta|amazon|qualcomm|oracle|cisco|adobe)\s+fellow(?![\w-])/i;
+const FELLOW_PROGRAMME_RE = /\b(?:fellowships?|fellows\s+program(?:me)?s?|program(?:me)?s?|residency|residencies|students?|graduates?|grads?|ph\.?\s?d|post-?docs?|postdoctoral|interns?|internships?)\b/i;
+/** True for a Fellow rank (an individual-contributor level: "Fellow, Core AI Foundations", "Distinguished Fellow"), never a fellowship programme. */
+export function isFellowRank(title) {
+  const t = String(title || '');
+  return FELLOW_RANK_RE.test(t) && !FELLOW_PROGRAMME_RE.test(t);
+}
+// D-38 audit (fix-data-3): "residency" in a title can be a data term, not a residency programme. Google's
+// "Engineering Manager, Data Residency and Fast Compliance" was levelled Intern. These phrases are left out
+// before the fixed-term and junior words are read.
+export const NOT_PROGRAMME_RE = /\b(?:data|tax|cloud|digital|sovereign)\s+residency\b/gi;
+/** The title without words that look like a programme but are not one (NOT_PROGRAMME_RE). */
+export function programmeText(title) {
+  return String(title || '').replace(NOT_PROGRAMME_RE, ' ');
+}
 
 const termNum = (s) => {
   const k = String(s || '').toLowerCase();
@@ -625,8 +648,8 @@ function termOf(lo, hi, unit) {
 
 /** True for an internship, co-op, fellowship, residency or apprenticeship (title or employment type). */
 export function isFixedTermRole({ title = '', employmentType = '' } = {}) {
-  const t = String(title || '');
-  if (FIXED_TERM_TITLE_RE.test(t) && !SENIOR_FELLOW_TITLE_RE.test(t)) return true;
+  const t = programmeText(title);
+  if (FIXED_TERM_TITLE_RE.test(t) && !isFellowRank(t)) return true;
   return /\b(?:intern(?:ship)?|temporary|seasonal|co-?op)\b/i.test(String(employmentType || ''));
 }
 

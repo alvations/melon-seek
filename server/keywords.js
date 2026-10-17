@@ -1,6 +1,6 @@
 // Job description parsing: bullet sections, keyword facets and seniority.
 // No DOM library: a small regex tokenizer walks the HTML.
-import { SALES_CONDITIONAL_RE } from './salary.js';
+import { SALES_CONDITIONAL_RE, isFellowRank, programmeText } from './salary.js';
 
 // ---------------------------------------------------------------------------
 // HTML helpers
@@ -1347,9 +1347,13 @@ function seniorityOf(title, company = null) {
   const exec = t.replace(NON_EXEC_DIRECTOR_RE, ' ').replace(IC_DIRECTOR_RE, ' ').replace(NON_EXEC_CHIEF_RE, ' engineer ');
   if ((EXEC_WORD_RE.test(exec) && !execTail(exec)) || /^head\b/i.test(t)) return byTitle('Director+');
   if (String(company || '').toLowerCase() === 'meta' && META_LEADERSHIP_RE.test(t)) return byTitle('Staff+');
-  if (/\b(?:intern(?:ship)?s?|fellowships?|fellows program|co-?op|apprentice(?:ship)?|summer (?:analyst|associate|student)|residency|resident)\b/i.test(t)
-    || (FELLOW_RE.test(t) && !SENIOR_FELLOW_RE.test(t)) || STUDENT_RE.test(t)) return byTitle('Intern');
-  if (/\b(?:staff|principal|distinguished)\b/i.test(t) || SENIOR_FELLOW_RE.test(t)) return byTitle('Staff+');
+  // D-38 (fix-data-3): a Fellow rank ("Fellow, Core AI Foundations": Google's top engineering level) is Staff+,
+  // and "Data Residency" is not a residency programme (salary.js isFellowRank, programmeText).
+  const prog = programmeText(t);
+  const rank = isFellowRank(t);
+  if (/\b(?:intern(?:ship)?s?|fellowships?|fellows program|co-?op|apprentice(?:ship)?|summer (?:analyst|associate|student)|residency|resident)\b/i.test(prog)
+    || (FELLOW_RE.test(t) && !SENIOR_FELLOW_RE.test(t) && !rank) || STUDENT_RE.test(t)) return byTitle('Intern');
+  if (/\b(?:staff|principal|distinguished)\b/i.test(t) || SENIOR_FELLOW_RE.test(t) || rank) return byTitle('Staff+');
   const google = googleNumberedManager(t, company);
   if (google) return byTitle(google);
   const isManager = /\bmanager\b/i.test(t) && !NON_PEOPLE_MANAGER.test(t);
@@ -1466,7 +1470,7 @@ export function compExtrasEvidence(text, { title = '' } = {}) {
   let src = String(text || '');
   if (/<(?:p|li|ul|div|br|h[1-6])\b/i.test(src)) src = htmlToText(src);
   const salesTitle = isSalesTitle(title);
-  const nonFullTime = NON_FULLTIME_TITLE_RE.test(title);
+  const nonFullTime = NON_FULLTIME_TITLE_RE.test(title) && !isFellowRank(title); // D-38: a Fellow rank is full-time
   const evidence = { equity: [], bonus: [] };
   const vetoed = { equity: false, bonus: false };
 
