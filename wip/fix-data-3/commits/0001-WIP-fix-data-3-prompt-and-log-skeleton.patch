@@ -1,7 +1,7 @@
 From d9450edf8fa967fbc1060581b0b5af414dcc4e3a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 00:48:01 +0000
-Subject: [PATCH 1/9] WIP fix-data-3: prompt and log skeleton
+Subject: [PATCH 01/10] WIP fix-data-3: prompt and log skeleton
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

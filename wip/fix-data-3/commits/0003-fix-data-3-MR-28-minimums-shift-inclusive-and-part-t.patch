@@ -1,8 +1,8 @@
 From 79871b0bee6eaed2d63d315d4cf4bbfd9b09a4b3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 01:01:56 +0000
-Subject: [PATCH 3/9] fix-data-3: MR-28 minimums, shift-inclusive and part-time
- hourly figures leave the base-pay cells; one Juice line
+Subject: [PATCH 03/10] fix-data-3: MR-28 minimums, shift-inclusive and
+ part-time hourly figures leave the base-pay cells; one Juice line
 
 scripts/build-market.js notBasePay: a stated minimum, an hourly figure that includes the highest shift
 differential and part-time hourly pay at 2,080 hours enter no market cell and are counted on the company entry
