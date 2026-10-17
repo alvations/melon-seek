@@ -848,25 +848,28 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     if (!t || !node || !m.isTooltipOpen()) return;
     const pt = map.latLngToContainerPoint(m.getLatLng()), size = map.getSize();
     const pad = 8;
-    // A small map (a 280 px phone, the Razr's 352x355 cover screen) gets a tooltip no bigger than itself; the lines
-    // that do not fit are cut at the bottom (the figures come first).
-    node.style.maxWidth = `${Math.max(120, size.x - 2 * pad)}px`;
-    node.style.maxHeight = `${Math.max(60, size.y - 2 * pad)}px`;
+    // The part of the map on screen, in the map's own px (a short landscape screen scrolls part of it away).
+    const box = map.getContainer().getBoundingClientRect();
+    const v = { l: Math.max(0, -box.left), r: Math.min(size.x, innerWidth - box.left), t: Math.max(0, -box.top), b: Math.min(size.y, innerHeight - box.top) };
+    // A small map (a 280 px phone, the Razr's 352x355 cover screen) gets a tooltip no bigger than that part; the
+    // lines that do not fit are cut at the bottom (the figures come first).
+    node.style.maxWidth = `${Math.max(120, v.r - v.l - 2 * pad)}px`;
+    node.style.maxHeight = `${Math.max(60, v.b - v.t - 2 * pad)}px`;
     node.style.overflow = 'hidden';
     const w = node.offsetWidth, h = node.offsetHeight;
-    const fitsY = (top) => top >= pad && top + h <= size.y - pad;
+    const fitsY = (top) => top >= v.t + pad && top + h <= v.b - pad;
     let dir, off;
-    if (pt.x < 160 && pt.x + 60 + w <= size.x - pad && fitsY(pt.y - 18 - h / 2)) { dir = 'right'; off = [54, -18]; }
-    else if (pt.x > size.x - 160 && pt.x - 60 - w >= pad && fitsY(pt.y - 18 - h / 2)) { dir = 'left'; off = [-54, -18]; }
+    if (pt.x - v.l < 160 && pt.x + 60 + w <= v.r - pad && fitsY(pt.y - 18 - h / 2)) { dir = 'right'; off = [54, -18]; }
+    else if (v.r - pt.x < 160 && pt.x - 60 - w >= v.l + pad && fitsY(pt.y - 18 - h / 2)) { dir = 'left'; off = [-54, -18]; }
     else {
       const half = w / 2;
-      const dx = w + 2 * pad >= size.x ? size.x / 2 - pt.x : Math.min(Math.max(0, pad + half - pt.x), size.x - pad - half - pt.x);
+      const dx = w + 2 * pad >= v.r - v.l ? (v.l + v.r) / 2 - pt.x : Math.min(Math.max(0, v.l + pad + half - pt.x), v.r - pad - half - pt.x);
       // Above the pin (its top edge is 42 px over the point, with Leaflet's margin), else below it (12 px under);
       // with room for neither, below it, slid up to stay inside the map.
-      if (pt.y - 42 - h >= pad) { dir = 'top'; off = [Math.round(dx), -36]; }
+      if (pt.y - 42 - h >= v.t + pad) { dir = 'top'; off = [Math.round(dx), -36]; }
       else {
         dir = 'bottom';
-        const top = Math.max(pad, Math.min(size.y - pad - h, pt.y + 12));
+        const top = Math.max(v.t + pad, Math.min(v.b - pad - h, pt.y + 12));
         off = [Math.round(dx), Math.round(top - pt.y - 6)];
       }
     }

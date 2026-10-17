@@ -579,11 +579,14 @@ export function inView(el, min = 0.5) {
  * the tap's x and kept `pad` px inside the screen. anchor: a DOMRect; w, h: the tip's size.
  */
 export function placeNearTap(anchor, w, h, x = anchor.left + anchor.width / 2, { gap = 8, pad = 8 } = {}) {
-  const vw = innerWidth, vh = innerHeight;
+  // The screen is the visual viewport: a page wider than the screen, or a pinch zoom, pans it over the page.
+  const vv = typeof visualViewport !== 'undefined' && visualViewport ? visualViewport : null;
+  const sl = vv ? vv.offsetLeft : 0, st = vv ? vv.offsetTop : 0;
+  const vw = vv ? vv.width : innerWidth, vh = vv ? vv.height : innerHeight;
   let top = anchor.top - h - gap;
-  if (top < pad) top = Math.min(anchor.bottom + gap, vh - h - pad);
-  const left = Math.max(pad, Math.min(x - w / 2, vw - w - pad));
-  return { left: Math.round(left), top: Math.round(Math.max(pad, top)) };
+  if (top < st + pad) top = Math.min(anchor.bottom + gap, st + vh - h - pad);
+  const left = Math.max(sl + pad, Math.min(x - w / 2, sl + vw - w - pad));
+  return { left: Math.round(left), top: Math.round(Math.max(st + pad, top)) };
 }
 
 /**
