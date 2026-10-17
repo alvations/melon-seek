@@ -53,6 +53,13 @@
 //   BP-7: 554 postings with a "Mid" badge were told they "don't state a level").
 // - `counts` lists the groups below minN (company, family, level, n) with no pay figures, so a
 //   reader can say "fewer than 3 salaried postings" instead of leaving a company out silently.
+// - MR-28 (fix-data-3, docs/process/methodology-review-beta-2.md): three kinds of posted figure are not a
+//   posted base-pay range, so they enter no cell (base pay, on-target earnings or Intern) and are counted on
+//   the company's entry instead: a stated minimum (salary.kind 'minimum', Amazon's "See below the minimum
+//   gross base salary": `minimum`), an hourly figure that includes the highest shift differential
+//   (salary.includesShiftDifferential: `shiftPay`), and part-time hourly pay annualized at 2,080 hours
+//   (salary.partTime: `partTime`). The postings and their pay are untouched; only the comparison leaves
+//   them out. A posting in more than one of these counts once, in that order (notBasePay).
 //
 // CLI: node scripts/build-market.js [--out file] [--snapshots dir]
 //      (default: data/snapshots/*.json -> stdout)
@@ -97,6 +104,21 @@ export function usdMid(salary) {
   return Number.isFinite(usd) && usd > 0 ? usd : null;
 }
 
+/**
+ * MR-28: why a posted figure is not a posted base-pay range, or null when it is one: 'minimum' (a stated
+ * minimum, "from €46K"), 'shiftPay' (hourly pay including the highest shift differential) or 'partTime'
+ * (part-time hourly pay at 2,080 hours). Pure; reads only job.salary.
+ */
+export function notBasePay(job) {
+  const s = job && job.salary;
+  if (!s) return null;
+  if (s.kind === 'minimum') return 'minimum';
+  if (s.includesShiftDifferential === true) return 'shiftPay';
+  if (s.partTime === true) return 'partTime';
+  return null;
+}
+export const NOT_BASE_KINDS = Object.freeze(['minimum', 'shiftPay', 'partTime']);
+
 /** The home country: most salaried postings, then the US, then the alphabet. */
 function homeCountry(byCountry) {
   return [...byCountry].sort((a, b) => b[1] - a[1] || (a[0] === 'US' ? -1 : b[0] === 'US' ? 1 : 0) || (a[0] < b[0] ? -1 : 1))[0]?.[0] || null;
@@ -112,6 +134,7 @@ function companyPart(p, minN) {
   let salaried = 0;
   let used = 0;
   let ote = 0, internLike = 0, fullTime = 0, levelled = 0;
+  const notBase = { minimum: 0, shiftPay: 0, partTime: 0 }; // MR-28: posted, shown, compared with nothing
   const groups = new Map(); // "country|family|seniority" -> number[] (base pay)
   const oteGroups = new Map(); // the same for on-target earnings
   const perCountry = new Map(); // country -> salaried postings used
@@ -126,6 +149,8 @@ function companyPart(p, minN) {
     if (!family) continue;
     const country = payCountry(job);
     if (!country) continue; // pay for no known country is compared with nothing
+    const nb = notBasePay(job);
+    if (nb) { notBase[nb]++; continue; } // MR-28: a minimum, shift-inclusive or part-time hourly figure is not base pay
     const intern = isInternLike(job);
     const target = isOTE(job) ? oteGroups : groups;
     // Interns and fixed-term pay only in "Intern"; "*" = every full-time level.
@@ -164,6 +189,8 @@ function companyPart(p, minN) {
       jobs: p.jobs.length, salaried, used,
       // used = ote + internLike + fullTime; levelled = full-time base postings that state a level
       ote, internLike, fullTime, levelled,
+      // MR-28: salaried postings left out of every cell because the figure is not a posted base-pay range
+      ...notBase,
       country: home, countries,
     },
     home: byCountry.get(home) || empty(),

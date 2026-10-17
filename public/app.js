@@ -3971,6 +3971,9 @@ function juiceBlock(job) {
   // BP-1: the length is said the way the pay block says it (a yearly rate for a 13-week internship, or
   // fixed-term pay for 17 weeks); the whole term divides the yearly figures as the pay block does.
   const lasts = !term ? null : term.fixed ? `This pay lasts ${termText(term.weeks)}` : `The ${programNoun(job)} lasts ${termText(term.weeks)}`;
+  // MR-28 (fix-data-3): one line when the gross pay Juice starts from is not a base-pay range (one line on every phone).
+  const grossNote = job.salary?.kind === 'minimum' ? 'Gross pay is the posted minimum.'
+    : job.salary?.includesShiftDifferential ? 'Gross pay includes the top shift differential.' : null;
   // I15 + shared decision 1: say why the filtered place has no Juice, in the posting's terms.
   const elsewhere = noneHere && !payHere(job) ? payPlaceText(job) : null;
   const where = [
@@ -4035,6 +4038,7 @@ function juiceBlock(job) {
     body.replaceChildren(...nn(
       h('div', { class: 'juice-controls' }, household, toggle),
       hhLine ? h('p', { class: 'fnote juice-hh-note' }, hhLine) : null,
+      grossNote ? h('p', { class: 'fnote juice-gross' }, grossNote) : null,
       h('div', { class: 'waterfall', role: 'table', 'aria-label': 'Juice breakdown' },
         ...rows.map(([label, value, style, kind, detail, extra]) => h('div', { class: `wf-row ${kind.split(' ').map((k, i) => (i ? k : `wf--${k}`)).join(' ')}`, role: 'row' },
           h('span', { class: 'wf-label', role: 'rowheader' }, label),

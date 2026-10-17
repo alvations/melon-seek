@@ -7,10 +7,13 @@ import { inferSeniority, jobSeniority } from '../server/keywords.js';
 import { titleClass, roleFamily as vetFamily, salaryChecks, vetSalaries } from '../server/vet.js';
 import * as salaryMod from '../server/salary.js';
 import { relabelJobs } from '../server/normalize.js';
+import * as marketMod from '../scripts/build-market.js';
 
 // New exports are read from the module namespace, so on the base tree each test fails on its own assertion.
 const { isFixedTermRole } = salaryMod;
 const isFellowRank = (t) => (salaryMod.isFellowRank ? salaryMod.isFellowRank(t) : null);
+const { buildMarket, mergeMarkets } = marketMod;
+const notBasePay = (j) => (marketMod.notBasePay ? marketMod.notBasePay(j) : undefined);
 
 /* ---------------------------------------------------------------- D-38 */
 // Google's "Fellow, Core AI Foundations" (google:84245035704296134): "As Fellow for Agentic Development, you will
@@ -76,4 +79,47 @@ test('D-38 audit: "Data Residency" is not a residency programme (Google "Enginee
   assert.equal(vetFamily(t), 'manager');
   // A residency programme is still one.
   assert.equal(inferSeniority('Data Science Residency'), 'Intern');
+});
+
+/* ---------------------------------------------------------------- MR-28 */
+// Amazon states minimums ("See below the minimum gross base salary": "from €46K", 285 postings), hourly figures
+// "including the base pay rate plus the highest available shift differential" (636), and part-time hourly pay
+// (Amazon 83, Apple 40) that the site annualizes at 2,080 hours. None is a posted base-pay range of a full-time
+// role, which is what the market cells hold (basis "posted base pay ranges").
+const SEA = { name: 'Seattle, WA', city: 'Seattle', region: 'WA', country: 'US', lat: 47.6, lng: -122.33 };
+test('MR-28: the market cells leave out stated minimums, shift-inclusive and part-time hourly figures, and count them on the company entry', () => {
+  const job = (id, mid, extra = {}, title = 'Data Center Technician') => ({ id: `amazon:${id}`, company: 'amazon', title, seniority: 'Mid', seniorityBasis: 'title', locations: [SEA],
+    salary: { min: mid, max: mid, mid, currency: 'USD', interval: 'year', source: 'structured', ...extra } });
+  const base = [1, 2, 3, 4].map((i) => job(i, 52000));
+  const minimum = [5, 6, 7].map((i) => job(i, 40000, { kind: 'minimum' }));
+  const shift = [8, 9, 10].map((i) => job(i, 60000, { kind: 'hourly', originalInterval: 'hour', includesShiftDifferential: true, statedBase: { min: 38168, max: 38168, currency: 'USD' } }));
+  const part = [11, 12, 13].map((i) => job(i, 45000, { kind: 'hourly', originalInterval: 'hour', partTime: true, hoursPerWeek: 20 }));
+  const jobs = [...base, ...minimum, ...shift, ...part];
+  const before = JSON.stringify(jobs);
+  const m = buildMarket([{ company: { slug: 'amazon', name: 'Amazon' }, mode: 'snapshot', jobs }], { generatedAt: '2026-10-17T00:00:00Z' });
+  const all = [...m.cells, ...m.oteCells, ...Object.values(m.byCountry).flatMap((o) => [...o.cells, ...o.oteCells])];
+  assert.ok(all.length, 'the base-pay postings make cells');
+  for (const c of all) {
+    assert.ok(c[3] <= base.length, `cell ${c.slice(0, 3).join('/')} holds ${c[3]} postings: more than the ${base.length} base-pay ones`);
+    assert.equal(c[5], 52000, `cell ${c.slice(0, 3).join('/')}: median ${c[5]} mixes in minimums, shift pay or part-time hourly pay`);
+  }
+  const co = m.companies.find((c) => c.slug === 'amazon');
+  assert.deepEqual([co.salaried, co.minimum, co.shiftPay, co.partTime, co.fullTime, co.used], [13, 3, 3, 3, 4, 4]);
+  assert.equal(JSON.stringify(jobs), before, 'the postings and their pay are untouched');
+  // One reason per posting, in a fixed order; a base-pay range has none.
+  assert.equal(notBasePay(job(20, 1, { kind: 'minimum', includesShiftDifferential: true })), 'minimum');
+  assert.equal(notBasePay(job(21, 1, { includesShiftDifferential: true, partTime: true })), 'shiftPay');
+  assert.equal(notBasePay(job(22, 1, { partTime: true })), 'partTime');
+  assert.equal(notBasePay(job(23, 1)), null);
+  assert.equal(notBasePay({ salary: null }), null);
+});
+
+test('MR-28: mergeMarkets keeps the counts (the server builds one company at a time)', () => {
+  const jobs = [1, 2, 3].map((i) => ({ id: `amazon:${i}`, title: 'Software Development Engineer', seniority: 'Mid', locations: [SEA], salary: { min: 150000, max: 150000, mid: 150000, currency: 'USD' } }))
+    .concat([{ id: 'amazon:9', title: 'Software Development Engineer', seniority: 'Mid', locations: [SEA], salary: { min: 140000, max: 140000, mid: 140000, currency: 'USD', kind: 'minimum' } }]);
+  const p = { company: { slug: 'amazon', name: 'Amazon' }, mode: 'snapshot', jobs };
+  const one = buildMarket([p], { generatedAt: 'x' });
+  assert.deepEqual(mergeMarkets([one], { generatedAt: 'x' }), one);
+  assert.equal(one.companies[0].minimum, 1);
+  assert.equal(one.cells.find((c) => c[2] === 'Mid')[3], 3, 'the minimum is not in the cell');
 });

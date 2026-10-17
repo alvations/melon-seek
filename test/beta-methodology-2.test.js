@@ -30,8 +30,9 @@ const entryOf = (id) => REG.entries.find((e) => e.id === id);
 const REG_TEXT = JSON.stringify(REG);
 const REVIEW_DAY = new Date('2026-10-16T19:55:00Z'); // the reviewer build's time (the crawl: 11:58-12:45 UTC)
 // Fixed by the review's doc and registry patches, applied by the lead (2026-10-16): every test of these IDs
-// passes, so they are real tests now. MR-29 and MR-41 are only partly fixed and stay to-do.
-const FIXED = new Set(['MR-24', 'MR-25', 'MR-27', 'MR-30', 'MR-31', 'MR-32', 'MR-36']);
+// passes, so they are real tests now. MR-29 and MR-41 are only partly fixed and stay to-do. MR-28 was fixed by
+// fix-data-3 (scripts/build-market.js notBasePay, and one line in the drawer's Juice block).
+const FIXED = new Set(['MR-24', 'MR-25', 'MR-27', 'MR-28', 'MR-30', 'MR-31', 'MR-32', 'MR-36']);
 const todo = (id) => (FIXED.has(id) ? {} : { todo: `${id}: docs/process/methodology-review-beta-2.md` });
 const section = (text, head) => {
   const i = text.indexOf(head);
