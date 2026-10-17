@@ -1,0 +1,84 @@
+From f2a4b0f9a426cf06efc26de8d83212a345419060 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 13:37:48 +0000
+Subject: [PATCH 17/22] fix-viz-5: on a landscape phone the label column fits
+ the axis caption with its median (cut on Apple and Microsoft at 667 and 812
+ px); the caption check covers them
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 724550a7b205cb26668d1f9b9bdd740a5c996653)
+---
+ docs/process/fix-viz-5.md |  3 ++-
+ public/viz/chart.js       | 10 +++++++++-
+ test/e2e/fix-viz-5.e2e.js |  5 ++++-
+ 3 files changed, 15 insertions(+), 3 deletions(-)
+
+diff --git a/docs/process/fix-viz-5.md b/docs/process/fix-viz-5.md
+index 0d83484..1571038 100644
+--- a/docs/process/fix-viz-5.md
++++ b/docs/process/fix-viz-5.md
+@@ -122,7 +122,8 @@ docs/screenshots/fix-viz-5/ and docs/process/scripts/viz-even-measure.mjs.
+     ("Yearly pay, US dollars (converted)", "US dollars a year, converted", "US dollars a year"; it was cut at 540 px).
+     Phones (no label column): one line above the strip, "US dollars a year, converted · Median base pay $149K", shorter
+     forms when that does not fit (280 px: "… · median $149K"). Landscape phones hide the strip (styles.css), so there the
+-    axis caption carries the median.
++    axis caption carries the median, and the label column widens to fit it (up to 40% of the chart; the phone smoke found
++    it cut on Apple and Microsoft at 667 and 812 px).
+ 16. **Cuts from fix-phone-text's guard:** the legend keys show their whole names (the legend already scrolls sideways);
+     the fold arrow sits beside the row's name, so a cut name keeps it; under 340 px the map's Pay scale and line sit under
+     the Pay | Juice switch, as wide as the box. The four "viz lane" entries are removed from the guard's allow-lists.
+diff --git a/public/viz/chart.js b/public/viz/chart.js
+index 3df5f40..7b81f4c 100644
+--- a/public/viz/chart.js
++++ b/public/viz/chart.js
+@@ -1086,6 +1086,11 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+     const nb = notBaseWords(pay?.notBaseLeftOut);
+     return `The middle of the base pay ranges${here}: half are above and half below${pay?.oteLeftOut ? `. ${plural(pay.oteLeftOut, 'posting')} with on-target earnings (base plus commission) left out` : ''}${nb ? `. ${nb} left out` : ''}`;
+   }
++  /** V-46: the label column a landscape phone's axis caption needs, "US dollars a year · median $214K", in px. */
++  function capNeed(pay) {
++    const f = `12px ${curFam}`, med = pay?.median ?? median(plotted.map((p) => p.mid));
++    return Math.ceil(textWidth('US dollars a year · ', f) + textWidth(`median ${formatMoney(med)}`, `600 ${f}`)) + 16 + 6;
++  }
+   /**
+    * V-46, UX-61 (fix-viz-5): what the axis is, in one currency name ("US dollars a year"), as long as fits `w` px:
+    * the label column on a desktop (it was cut at 540 px, the Surface Duo), the phone's caption line otherwise.
+@@ -1279,6 +1284,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+       // BP-13: the median caption ("Median base pay $347K") shows in full too.
+       need = Math.max(need, textWidth(`${medianCaption(stats.pay)}${formatMoney(stats.pay?.median)}`, `600 ${SUB_FONT}`) - 8);
+       labelW = Math.round(Math.max(150, Math.min(maxW, need + LABEL_PAD)));
++      // V-46: with the strip hidden (landscape phones) the axis caption carries the median too, on one line.
++      if (!histShown) labelW = Math.max(labelW, Math.min(Math.round(width * 0.4), capNeed(stats.pay)));
+       for (const r of cRows) if (textWidth(r.sub, SUB_FONT) + LABEL_PAD > labelW) r.sub = r.subTight;
+     } else {
+       for (const r of cRows) r.sub = r.subTight; // stacked label line: the row's name gives way first
+@@ -1776,7 +1783,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+ 
+     // Narrow (phones): the full-width title sits above its bar, so titles stay readable (M-17).
+     rowH = narrow ? ROW_H_NARROW : ROW_H;
+-    const labelW = narrow ? 0 : Math.round(Math.max(140, Math.min(300, width * 0.3)));
++    let labelW = narrow ? 0 : Math.round(Math.max(140, Math.min(300, width * 0.3)));
++    if (!narrow && !histShown) labelW = Math.max(labelW, Math.min(Math.round(width * 0.4), capNeed(stats.pay))); // V-46
+     const valFont = `600 12px ${curFam}`;
+     const padR = narrow ? 16 : 28;
+     const plotL = narrow ? 12 : labelW + 12;
+diff --git a/test/e2e/fix-viz-5.e2e.js b/test/e2e/fix-viz-5.e2e.js
+index e83765f..0d38c59 100644
+--- a/test/e2e/fix-viz-5.e2e.js
++++ b/test/e2e/fix-viz-5.e2e.js
+@@ -417,7 +417,10 @@ export function registerFixViz5Tests(suite) {
+ 
+   suite.test('fix-viz-5: [V-46, UX-61] at every phone size the chart says its axis is US dollars a year, with the median, on one line (Google; Amazon at 390)', async (ctx) => {
+     const bad = [];
+-    const cases = [...ALL_SIZES.map((d) => ['google', d]), ['amazon', ALL_SIZES.find((d) => d.width === 390)]];
++    // Landscape phones hide the strip, and the axis caption carries the median: Apple's and Microsoft's label columns
++    // are the narrowest there.
++    const land = ALL_SIZES.filter((d) => d.width > d.height && d.height < 500);
++    const cases = [...ALL_SIZES.map((d) => ['google', d]), ['amazon', ALL_SIZES.find((d) => d.width === 390)], ...land.flatMap((d) => [['apple', d], ['microsoft', d]])];
+     for (const [company, d] of cases) {
+       for (const v of ['clusters', 'ranges']) {
+         if (company === 'google' && v === 'ranges' && d.width > 430) continue;
+-- 
+2.43.0
+

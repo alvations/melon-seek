@@ -2,11 +2,14 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a3ec7679b4d2dd1a0`
 - Base (on claude/stoic-ride-54ddxp): `1ef0646b6f16aca8f215cf21e368185bddcf7b89`
-- Head: `780e0ac7238abecbf2f569ae56236ad8b4c28fe2`
+- Head: `e939c46367f58295cce292b6c123ad979087e625`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-phone-sizes <new worktree dir>`
 
 ## Commits since the base
 ```
+e939c46 WIP fix-phone-sizes: M-48, M-49, M-51, M-52 (untested)
+8606e3d fix-phone-sizes: the iPhone 15 Pro Max in landscape (932x430) joins the phone sizes (mobile QA 4, M-52)
+13bff8f WIP fix-phone-sizes: log, the verification on 780e0ac
 780e0ac fix-phone-sizes: UX-39 before and after (Amazon's preview at 390x844 and on the Razr cover screen)
 623e430 WIP fix-phone-sizes: log for the department rows and UX-39
 93228f6 WIP fix-phone-sizes: UX-39, the peeking sheet rises to show the preview's first card while Amazon's list loads; a matrix test per phone size
@@ -18,40 +21,27 @@ dd58b48 fix-phone-sizes: the Surface Duo stacked (720x1114, hinge across): chart
 ## Uncommitted and new files
 ```
  M docs/process/fix-phone-sizes.md
- M docs/screenshots/chart.png
- M docs/screenshots/dark-drawer.png
- M docs/screenshots/dark.png
- M docs/screenshots/drawer-juice.png
- M docs/screenshots/drawer.png
- M docs/screenshots/fix-pay-at-place/e2e-card-1114x720.png
- M docs/screenshots/fix-pay-at-place/e2e-card-280x653.png
- M docs/screenshots/fix-pay-at-place/e2e-card-352x355.png
- M docs/screenshots/fix-pay-at-place/e2e-card-375x812.png
- M docs/screenshots/insights.png
- M docs/screenshots/map-juice.png
- M docs/screenshots/map.png
- M docs/screenshots/mobile.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-360x640-with-the-keyboard-up-300-px-.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-iPhone-SE-Safari-375x548.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390-with-5-saved-searches.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-29-company-menu-focus.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-30-saved-searches-loaded.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-31-empty-message-half-sheet.png
- M docs/screenshots/qa-mobile-beta/e2e-M-19-sort-while-scrolled.png
- M docs/screenshots/qa-mobile-beta/e2e-M-21-company-menu.png
- M docs/screenshots/qa-mobile-beta/e2e-M-22-paused-board.png
- M docs/screenshots/qa-mobile-beta/e2e-M-24-keyboard-location-search.png
- M docs/screenshots/qa-mobile-beta/e2e-M-27-topbar-360.png
- M docs/screenshots/qa-mobile/e2e-landscape-map.png
- M public/app.js
  M public/styles.css
+ M scripts/e2e.js
  M test/e2e/phone-matrix.e2e.js
- M test/e2e/phone-sizes.mjs
-?? docs/screenshots/fix-pay-at-place/e2e-card-720x1114.png
+?? docs/screenshots/fix-phone-sizes/after-m49-apply-microsoft-390.png
+?? docs/screenshots/fix-phone-sizes/after-m51-meta-line-amazon-390.png
+?? docs/screenshots/fix-phone-sizes/after-m52-razr-landscape-1005x412.png
+?? docs/screenshots/fix-phone-sizes/after-m52-razr-landscape-keyboard.png
+?? docs/screenshots/fix-phone-sizes/before-m49-apply-microsoft-390.png
+?? docs/screenshots/fix-phone-sizes/before-m51-meta-line-amazon-390.png
+?? docs/screenshots/fix-phone-sizes/before-m52-razr-landscape-1005x412.png
+?? docs/screenshots/fix-phone-sizes/before-m52-razr-landscape-keyboard.png
 ?? test/e2e/beta-mobile-qa-4.e2e.js
 ```
 
 ## Left out (not in untracked.tgz)
-- docs/screenshots/fix-pay-at-place/e2e-card-720x1114.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-phone-sizes/after-m49-apply-microsoft-390.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-phone-sizes/after-m51-meta-line-amazon-390.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-phone-sizes/after-m52-razr-landscape-1005x412.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-phone-sizes/after-m52-razr-landscape-keyboard.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-phone-sizes/before-m49-apply-microsoft-390.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-phone-sizes/before-m51-meta-line-amazon-390.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-phone-sizes/before-m52-razr-landscape-1005x412.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-phone-sizes/before-m52-razr-landscape-keyboard.png (screenshot; the lane's tests regenerate it)
 - node_modules (symlink)

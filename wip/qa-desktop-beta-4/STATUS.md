@@ -26,6 +26,10 @@ d7acc88 qa-desktop-beta-4: brief verbatim
  M docs/screenshots/dark.png
  M docs/screenshots/drawer-juice.png
  M docs/screenshots/drawer.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-1114x720.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-280x653.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-352x355.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-375x812.png
  M docs/screenshots/insights.png
  M docs/screenshots/map-juice.png
  M docs/screenshots/map.png

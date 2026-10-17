@@ -2,11 +2,13 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a500839343c7a8ea9`
 - Base (on claude/stoic-ride-54ddxp): `1ef0646b6f16aca8f215cf21e368185bddcf7b89`
-- Head: `6349a5109bdfdf1705dfd845df53258f24388c2d`
+- Head: `0e22fd2582092f647fe4ce88e3127c31cd2d731a`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-viz-5 <new worktree dir>`
 
 ## Commits since the base
 ```
+0e22fd2 fix-viz-5: the two [V-36] e2e checks open the "N more places" row (D-44 folds the small places) before they look for a place's row; assertions unchanged
+c82b33b fix-viz-5: the insights median tile reads "of N ranges" when some pay is not base pay ("with base pay" wrapped at 360 and 1440)
 6349a51 fix-viz-5: D-51 the Ranges legend wraps on a desktop and leads with its pattern keys; M-50 the map's tap check leaves out the offline note; e2e checks for both
 ed6f124 fix-viz-5: mobile QA 3's stacked-row tap test finds the row by its count (UX-41 names it by its roles)
 724550a fix-viz-5: on a landscape phone the label column fits the axis caption with its median (cut on Apple and Microsoft at 667 and 812 px); the caption check covers them
@@ -23,33 +25,7 @@ ece9af7 fix-viz-5: prompt verbatim
 
 ## Uncommitted and new files
 ```
- M docs/screenshots/chart.png
- M docs/screenshots/dark-drawer.png
- M docs/screenshots/dark.png
- M docs/screenshots/drawer-juice.png
- M docs/screenshots/drawer.png
- M docs/screenshots/fix-pay-at-place/e2e-card-1114x720.png
- M docs/screenshots/fix-pay-at-place/e2e-card-280x653.png
- M docs/screenshots/fix-pay-at-place/e2e-card-352x355.png
- M docs/screenshots/fix-pay-at-place/e2e-card-375x812.png
- M docs/screenshots/insights.png
- M docs/screenshots/map-juice.png
- M docs/screenshots/map.png
- M docs/screenshots/mobile.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-360x640-with-the-keyboard-up-300-px-.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-iPhone-SE-Safari-375x548.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390-with-5-saved-searches.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-29-company-menu-focus.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-30-saved-searches-loaded.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-31-empty-message-half-sheet.png
- M docs/screenshots/qa-mobile-beta/e2e-M-19-sort-while-scrolled.png
- M docs/screenshots/qa-mobile-beta/e2e-M-21-company-menu.png
- M docs/screenshots/qa-mobile-beta/e2e-M-22-paused-board.png
- M docs/screenshots/qa-mobile-beta/e2e-M-24-keyboard-location-search.png
- M docs/screenshots/qa-mobile-beta/e2e-M-27-topbar-360.png
- M docs/screenshots/qa-mobile/e2e-landscape-map.png
- M public/features/insights.js
+ M docs/process/fix-viz-5.md
 ```
 
 ## Left out (not in untracked.tgz)

@@ -1,0 +1,180 @@
+From 3730f7ed18c9b108cce4b5a540288ab6614b2e7a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 13:56:09 +0000
+Subject: [PATCH 19/22] fix-viz-5: D-51 the Ranges legend wraps on a desktop
+ and leads with its pattern keys; M-50 the map's tap check leaves out the
+ offline note; e2e checks for both
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 6349a5109bdfdf1705dfd845df53258f24388c2d)
+---
+ public/viz/chart.js       |  7 ++++-
+ public/viz/map.js         | 10 ++++--
+ public/viz/viz.css        |  5 +++
+ test/e2e/fix-viz-5.e2e.js | 65 ++++++++++++++++++++++++++++++---------
+ 4 files changed, 69 insertions(+), 18 deletions(-)
+
+diff --git a/public/viz/chart.js b/public/viz/chart.js
+index 7b81f4c..589876c 100644
+--- a/public/viz/chart.js
++++ b/public/viz/chart.js
+@@ -1997,6 +1997,10 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+     legend.replaceChildren();
+     legend.hidden = opts.colorBy === 'none';
+     if (legend.hidden) return;
++    // D-51 (fix-viz-5): the pattern keys come first, so a phone's one-row legend (it scrolls sideways) shows them
++    // without a scroll; on a desktop the legend wraps (viz.css).
++    const patterns = el('span', 'ms-legend__patterns');
++    legend.append(patterns);
+     // UX-36: with Group "None" the bars are still coloured by department; the legend says it is colour.
+     legend.append(el('span', 'ms-legend__title', `Colour: ${DIM_LABEL[opts.colorBy] || opts.colorBy}`));
+     const add = (key, n, color) => {
+@@ -2017,11 +2021,12 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } =
+       const item = el('span', cls ? 'ms-legend__kind' : 'ms-legend__span');
+       item.append(el('span', `ms-legend__spansw ${cls}`), el('span', 'ms-legend__spankey', words), el('span', 'ms-legend__n', n.toLocaleString()));
+       item.title = title;
+-      legend.append(item);
++      legend.insertBefore(item, patterns);
+     };
+     if (spans) key('', 'Striped: several levels or places', spans, `${plural(spans, 'posting')} whose range runs over several levels (NVIDIA "Level 4" and "Level 5") or several places' ranges. Each bar's tip, and its role's details, list them`);
+     if (ote) key('ms-legend__spansw--ote', 'Dashed: on-target earnings', ote, `${plural(ote, 'posting')} posting on-target earnings: base plus commission at target. They are on the chart, not in the medians`);
+     if (minimums) key('ms-legend__spansw--min', 'Fading: a posted minimum', minimums, `${plural(minimums, 'posting')} stating a minimum base pay ("from €46K"); the offer can be higher. On the chart, not in the medians`);
++    patterns.remove(); // a placeholder: the keys went before it
+     // fix-density: the legend is one row that scrolls sideways (viz.css); when it does, the keyboard can scroll it.
+     requestAnimationFrame(() => {
+       if (legend.scrollWidth > legend.clientWidth + 1) legend.tabIndex = 0; else legend.removeAttribute('tabindex');
+diff --git a/public/viz/map.js b/public/viz/map.js
+index d63570a..ec2af59 100644
+--- a/public/viz/map.js
++++ b/public/viz/map.js
+@@ -1118,7 +1118,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+     const box = container.getBoundingClientRect();
+     const inside = (r) => r.top >= box.top && r.bottom <= box.bottom && r.left >= box.left && r.right <= box.right;
+     const covered = () => {
+-      const ctl = [...container.querySelectorAll('.leaflet-control')].map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
++      const ctl = controlBoxes();
+       let n = 0;
+       for (const p of container.querySelectorAll('.ms-pin')) { const r = p.getBoundingClientRect(); if (r.width > 0 && (!inside(r) || ctl.some((c) => hit(r, c)))) n++; }
+       return n;
+@@ -1148,10 +1148,16 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+     mergeCovered = true;
+     draw();
+   }
++  /**
++   * The boxes of the map's own controls that take taps (the Pay | Juice box, zoom, Remote, the attribution). The
++   * offline note is left out: it shows only when the basemap fails, and the pins' names are under them then.
++   */
++  const controlBoxes = () => [...container.querySelectorAll('.leaflet-control')].filter((e) => !e.classList.contains('ms-map__offline-note') && !e.classList.contains('ms-map__unplaced'))
++    .map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
+   /** The clusters whose pin is under one of the map's controls (clearOfControls). */
+   function coveredClusters() {
+     const hit = (a, b) => a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
+-    const ctl = [...container.querySelectorAll('.leaflet-control')].map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
++    const ctl = controlBoxes();
+     return clusters.filter((c) => { const r = c.pinEl?.getBoundingClientRect(); return r && r.width > 0 && ctl.some((b) => hit(r, b)); });
+   }
+ 
+diff --git a/public/viz/viz.css b/public/viz/viz.css
+index 7616b17..218c6f7 100644
+--- a/public/viz/viz.css
++++ b/public/viz/viz.css
+@@ -81,6 +81,11 @@
+   padding-right: 28px;
+ }
+ .ms-chart__legend::-webkit-scrollbar { display: none; }
++/* D-51 (fix-viz-5): a desktop has the room, and a mouse wheel does not scroll sideways: the legend wraps there, so every
++   key shows. Phones keep the one row (fix-density), with the pattern keys first (chart.js renderLegend). */
++@media (min-width: 861px) {
++  .ms-chart__legend { flex-wrap: wrap; overflow-x: visible; white-space: normal; -webkit-mask-image: none; mask-image: none; padding-right: 0; }
++}
+ .ms-chart__legend:focus-visible { outline: 2px solid var(--_accent); outline-offset: 2px; }
+ .ms-chart__legend > * { flex: none; }
+ .ms-chart__legend[hidden] { display: none; }
+diff --git a/test/e2e/fix-viz-5.e2e.js b/test/e2e/fix-viz-5.e2e.js
+index 0d38c59..198b034 100644
+--- a/test/e2e/fix-viz-5.e2e.js
++++ b/test/e2e/fix-viz-5.e2e.js
+@@ -485,6 +485,28 @@ export function registerFixViz5Tests(suite) {
+     assert(!bad.length, bad.slice(0, 8).join('; '));
+   });
+ 
++  suite.test('fix-viz-5: [D-51] on a desktop the Ranges legend shows every key without a sideways scroll, and on a phone its pattern keys come first (NVIDIA, Amazon, Google)', async (ctx) => {
++    const bad = [];
++    for (const company of ['nvidia', 'amazon', 'google']) {
++      for (const viewport of [{ width: 1440, height: 900 }, { width: 1024, height: 768 }, null]) {
++        const { page, context } = await open(ctx, `c=${company}&v=ranges`, viewport ? { viewport } : { phone: true });
++        await page.waitForSelector('#chartHost .ms-chart__legend', { timeout: 60000 });
++        await sleep(400);
++        const r = await page.locator('#chartHost .ms-chart__legend').evaluate((e) => {
++          const box = e.getBoundingClientRect();
++          const kids = [...e.children].map((c) => ({ t: c.textContent.trim(), right: c.getBoundingClientRect().right, kind: c.matches('.ms-legend__span, .ms-legend__kind') }));
++          const firstColour = kids.findIndex((k) => !k.kind);
++          return { out: kids.filter((k) => k.right > box.right + 0.5).map((k) => k.t.slice(0, 30)), scroll: e.scrollWidth > e.clientWidth + 1, late: kids.filter((k, i) => k.kind && i > firstColour).map((k) => k.t.slice(0, 30)) };
++        });
++        await context.close();
++        const tag = `${company} ${viewport ? viewport.width : 'phone 390'}`;
++        if (viewport && (r.scroll || r.out.length)) bad.push(`${tag}: keys out of view (${r.out.join(', ')})`);
++        if (r.late.length) bad.push(`${tag}: pattern keys after the colours (${r.late.join(', ')})`);
++      }
++    }
++    assert(!bad.length, bad.join('; '));
++  });
++
+   suite.test('fix-viz-5: [A-8, 280 px] a real tap on the fold row opens it and its arrow stays whole (Google, Galaxy Fold folded)', async (ctx) => {
+     const d = ALL_SIZES.find((x) => x.width === 280);
+     const { page, context } = await open(ctx, 'c=google', { device: d });
+@@ -551,22 +573,35 @@ export function registerFixViz5Tests(suite) {
+     assert(!plain.length, `pins of places pinned at a state's or country's centre (${r.ex.join(', ')}) do not say approximate: ${plain.join(' | ')}`);
+   });
+ 
+-  suite.test('fix-viz-5: [Razr] on the Razr cover screen (352x355) no price pin is under the map\'s own controls (Apple, Amazon, Google)', async (ctx) => {
+-    const d = ALL_SIZES.find((x) => x.width === 352 && x.height === 355);
++  suite.test('fix-viz-5: [Razr, M-50] on the map\'s first view every price pin can be tapped: none is under the map\'s own controls (Razr cover 352x355, 320x568, 280x653, 812x375)', async (ctx) => {
++    const at = (w, h) => ALL_SIZES.find((x) => x.width === w && x.height === h);
+     const bad = [];
+-    for (const company of ['apple', 'amazon', 'google']) {
+-      const { page, context } = await open(ctx, `c=${company}&m=map`, { device: d });
+-      await page.locator('#mapHost .ms-pin').first().waitFor({ timeout: 60000 }).catch(() => {});
+-      await sleep(5000);
+-      const r = await page.evaluate(() => {
+-        const hit = (a, b) => a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
+-        const ctl = [...document.querySelectorAll('#mapHost .leaflet-control')].map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
+-        const pins = [...document.querySelectorAll('#mapHost .ms-pin')].map((p) => ({ t: p.querySelector('.ms-pin__price')?.textContent, r: p.getBoundingClientRect() })).filter((p) => p.r.width > 0);
+-        return { n: pins.length, under: pins.filter((p) => ctl.some((c) => hit(p.r, c))).map((p) => p.t) };
+-      });
+-      await context.close();
+-      if (!r.n) bad.push(`${company}: no pin`);
+-      if (r.under.length) bad.push(`${company}: ${r.under.length} of ${r.n} pins under a control (${r.under.join(', ')})`);
++    for (const [d, boards] of [[at(352, 355), ['apple', 'amazon', 'google', 'microsoft']], [at(320, 568), ['apple', 'meta', 'netflix']], [at(280, 653), ['apple', 'meta', 'anduril']], [at(812, 375), ['anduril']]]) {
++      for (const company of boards) {
++        const { page, context } = await open(ctx, `c=${company}&m=map`, { device: d });
++        await page.locator('#mapHost .ms-pin').first().waitFor({ timeout: 60000 }).catch(() => {});
++        await sleep(5000);
++        // mobile QA 4's M-50 rule: a pin is reachable when a tap at its middle row lands on it; the sandbox's "Basemap
++        // unavailable" note is looked through (real phones have a basemap); pins wholly under the results sheet are not counted.
++        const r = await page.evaluate(() => {
++          const m = document.querySelector('#mapHost').getBoundingClientRect();
++          const sheet = document.querySelector('#results')?.getBoundingClientRect();
++          const bottom = Math.min(m.bottom, sheet ? sheet.top : Infinity, innerHeight);
++          const out = [];
++          let n = 0;
++          for (const p of document.querySelectorAll('#mapHost .ms-pin')) {
++            const b = (p.querySelector('.ms-pin__price, .ms-pin__count') || p).getBoundingClientRect();
++            if (!b.width || b.top >= bottom || b.bottom <= m.top) continue;
++            n++;
++            const reach = [0.15, 0.5, 0.85].some((fx) => { const x = b.left + b.width * fx, y = b.top + b.height / 2; if (x < 0 || x >= innerWidth || y >= bottom) return false; const t = document.elementsFromPoint(x, y).find((e) => !e.closest('.ms-map__offline-note')); return t && (t === p || p.contains(t)); });
++            if (!reach) { const t = document.elementsFromPoint(b.left + b.width / 2, b.top + b.height / 2).find((e) => !e.closest('.ms-map__offline-note')); out.push(`"${p.innerText.replace(/\s+/g, ' ').trim().slice(0, 30)}" under ${t ? `${t.tagName.toLowerCase()}.${String(t.className).split(' ')[0]}` : '?'}`); }
++          }
++          return { n, out };
++        });
++        await context.close();
++        if (!r.n) bad.push(`${company} ${d.width}x${d.height}: no pin on the first view`);
++        if (r.out.length) bad.push(`${company} ${d.width}x${d.height}: ${r.out.join('; ')}`);
++      }
+     }
+     assert(!bad.length, bad.join('; '));
+   });
+-- 
+2.43.0
+

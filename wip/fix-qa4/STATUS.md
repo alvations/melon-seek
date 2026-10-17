@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a7dfe0f9055abab4e`
 - Base (on claude/stoic-ride-54ddxp): `2c9f42514d3c0d321d24d2e206d123fdf5285854`
-- Head: `c43ff33221efafb47fad5568d56b836e36149ba5`
+- Head: `6a9ddc0198ab11c49e0d8ca90c98c22ab8ed5082`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-qa4 <new worktree dir>`
 
 ## Commits since the base
 ```
+6a9ddc0 WIP fix-qa4: log the numbers (before and after, backtests) and the test results so far
 c43ff33 fix-qa4: D-50 a third, shorter form of the capped line (280 px took two lines)
 bb14c7e WIP fix-qa4: log decisions and steps; e2e: D-47 chart case, New York by option value
 196922d fix-qa4: the careers-site names live in the build script, not in lib/export.js (the main site ships no beta host)
@@ -19,6 +20,11 @@ eccdca9 fix-qa4: copy QA round 4's desktop tests (beta-desktop-qa-4.e2e.js) and 
 
 ## Uncommitted and new files
 ```
+ M docs/screenshots/dark-drawer.png
+ M docs/screenshots/dark.png
+ M docs/screenshots/drawer-juice.png
+ M docs/screenshots/drawer.png
+ M docs/screenshots/insights.png
 ?? docs/screenshots/fix-qa4/
 ```
 
