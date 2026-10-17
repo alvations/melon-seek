@@ -1379,6 +1379,8 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
 /* Cards: the pay pill and, in the tablet column, the age stacked at the top right (app.js cardFit). */
 .card-pay { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
 .card-age-top { display: none; font-size: 12px; color: var(--ms-faint); white-space: nowrap; }
+/* UX-52 (fix-pay-at-place): "5 places" or "2 levels" as a muted line under the pay pill, not in pay green inside it. */
+.sal-sub { font-size: 11.5px; line-height: 1.2; color: var(--ms-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 @media (min-width: 861px) and (max-width: 1299px) {
   .card-age-top { display: block; }
   .card-foot .card-age { display: none; }
@@ -1444,7 +1446,8 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
 .d-tiers-title { font-size: 12px; }
 .d-tiers { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
 .d-tiers li { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; align-items: baseline; max-width: 420px; }
-.d-tier-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ms-muted); }
+/* fix-pay-at-place: a long place list wraps; no place name is cut with an ellipsis (lead, 2026-10-16). */
+.d-tier-name { min-width: 0; overflow-wrap: anywhere; color: var(--ms-muted); }
 .d-tier-pay { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
 .d-pay-note { margin: 8px 0 0; font-size: 12px; color: var(--ms-muted); }
 .d-pct-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

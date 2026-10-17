@@ -3740,7 +3740,7 @@ function payPill(job) {
   // UX-22, QA round 3 (fix-pay-at-place): a posting that gives each place its own range, in the unit it was posted
   // in (an internship's yearly rate, a part-time hourly rate): the places' span, or the range of the place picked.
   const ph = isOte(job) || isMinimum(job) ? null : payHeadline(job);
-  if (ph) return { text: ph.text, tip: ph.tip };
+  if (ph) return { text: ph.text, range: ph.range, sub: ph.sub, tip: ph.tip };
   if (isPartTimeHourly(job)) {
     const hr = postedPair(s.min / 2080, s.max / 2080, s.currency);
     return { text: `${hr}/hour`, tip: `Part-time, paid by the hour: ${hr} an hour (${postedPair(Math.round(s.min), Math.round(s.max), s.currency)} a year if full-time, 2,080 hours)` };
@@ -3766,7 +3766,7 @@ function payPill(job) {
   const lv = payLevels(s);
   if (lv) {
     const byLevel = lv.map((l) => `${String(l.label).trim()} ${moneyRange(l.min, l.max ?? l.min, s.currency)}`).join(' · ');
-    return { text: `${range} · ${lv.length} levels`, tip: `${range} runs from the lowest to the highest of ${lv.length} ranges posted for different levels. Pay by level: ${byLevel}` };
+    return { text: `${range} · ${lv.length} levels`, range, sub: `${lv.length} levels`, tip: `${range} runs from the lowest to the highest of ${lv.length} ranges posted for different levels. Pay by level: ${byLevel}` };
   }
   return { text: range, tip: null };
 }
@@ -3828,9 +3828,11 @@ function card(job, pos = null, size = null) {
   h('div', { class: 'card-top' },
     h('h3', { class: 'card-title' }, job.title),
     h('div', { class: 'card-pay' },
-      pay ? h('span', { class: `sal-pill${pay.elsewhere ? ' sal-pill--elsewhere' : ''}`, title: pay.tip }, pay.text)
+      pay ? h('span', { class: `sal-pill${pay.elsewhere ? ' sal-pill--elsewhere' : ''}`, title: pay.tip }, pay.range || pay.text)
         : job.salaryFlag ? h('span', { class: 'sal-pill sal-pill--unclear', title: job.salaryFlag.reason || 'Pay unclear' }, 'Pay unclear')
           : h('span', { class: 'sal-pill sal-pill--none' }, 'No pay listed'),
+      // UX-52 (fix-pay-at-place): "5 places" or "2 levels" as a muted line under the pill, not in pay green inside it.
+      pay?.sub ? h('span', { class: 'sal-sub', title: pay.tip, 'aria-hidden': 'true' }, pay.sub) : null,
       // The tablet column puts the age here, beside the title's second line (styles.css). UX-33: the same words at every width.
       ageText(job) ? h('span', { class: 'card-age-top', 'aria-hidden': 'true', title: ageTitle(job) }, ageText(job)) : null)),
   h('div', { class: 'card-meta', id: `${did}-m` },
@@ -4343,7 +4345,7 @@ function payRanges(s) {
     && String(r.currency || cur).toUpperCase() === cur) : [];
   return rs.length > 1 ? rs : null;
 }
-const rangeLabel = (r) => String(r.label || [...new Set(r.locations.map((x) => String(x).split(',')[0].trim()))].join(', ')).trim();
+const rangeLabel = (r) => String((r.label && !/…$/.test(r.label)) || !Array.isArray(r.locations) || !r.locations.length ? r.label || '' : [...new Set(r.locations.map((x) => (/^remote\b/i.test(x) ? 'Remote' : String(x).split(',')[0].trim())))].join(', ')).trim();
 const rangeText = (r, cur) => moneyRange(Number(r.min), Number(r.max ?? r.min), cur);
 /**
  * "Pay by place: Waltham $166K–292K · Los Angeles, San Diego $175K–309K" under the range in the pay block (UX-22). QA
@@ -4353,8 +4355,14 @@ function payPlacesLine(s, job = null) {
   const rs = payRanges(s);
   if (!rs) return null;
   const unit = job ? payUnit(job) : null;
-  const el = tierList('Pay by place', rs.map((r) => [rangeLabel(r), unit ? unit.fmt(Number(r.min), Number(r.max ?? r.min)) : rangeText(r, s.currency)]));
+  const pay = (r) => (unit ? unit.fmt(Number(r.min), Number(r.max ?? r.min)) : rangeText(r, s.currency));
+  // fix-pay-at-place: one line per range, with no place name cut off. A range for more than two places names two and
+  // counts the rest ("Fort Worth, Jacksonville and 4 more"); the pay block's Details list every place.
+  const parts = (r) => rangeLabel(r).split(/,\s*(?![^()]*\))/).filter(Boolean);
+  const name = (r) => { const p = parts(r); return p.length > 2 ? `${p.slice(0, 2).join(', ')} and ${p.length - 2} more` : p.join(', '); };
+  const el = tierList('Pay by place', rs.map((r) => [name(r), pay(r)]));
   el.classList.add('d-sal-places');
+  if (rs.some((r) => parts(r).length > 2)) el.dataset.note = `Pay by place, every place: ${rs.map((r) => `${rangeLabel(r)} ${pay(r)}`).join('; ')}.`;
   return el;
 }
 /**
@@ -4426,13 +4434,13 @@ function payHeadline(job, F = viewSpec) {
   const byPlace = `Pay by place: ${rs.map((r) => `${rangeLabel(r)} ${unit.fmt(Number(r.min), Number(r.max ?? r.min))}`).join(' · ')}`;
   const what = unit.note ? ` (${unit.note})` : '';
   const picked = pickedRange(job, F);
-  if (picked) return { text: unit.fmt(picked.min, picked.max), tip: `The range posted for ${picked.label}${what}. ${byPlace}`, picked, rankPlace: picked.label, min: picked.min, max: picked.max, across: false };
+  if (picked) { const text = unit.fmt(picked.min, picked.max); return { text, range: text, sub: '', tip: `The range posted for ${picked.label}${what}. ${byPlace}`, picked, rankPlace: picked.label, min: picked.min, max: picked.max, across: false }; }
   const lo = Math.min(s.min, ...rs.map((r) => Number(r.min))), hi = Math.max(s.max, ...rs.map((r) => Number(r.max ?? r.min)));
   const span = unit.fmt(lo, hi);
   const n = placeCount(rs);
   const head = payAt(job);
   return {
-    text: `${span} · ${n ? `${n} places` : `${rs.length} ranges`}`,
+    text: `${span} · ${n ? `${n} places` : `${rs.length} ranges`}`, range: span, sub: n ? `${n} places` : `${rs.length} ranges`,
     tip: `${span} runs from the lowest to the highest of ${rs.length} ranges posted for ${n ? `${n} places` : 'its places'}${what}. ${byPlace}`,
     picked: null, rankPlace: head && head.basis === 'place' && !head.span ? head.label : '', min: lo, max: hi, across: true,
   };
@@ -4695,9 +4703,9 @@ function drawerContent(job) {
   // Shared decisions 3 and 4: the amount as it was stated. Fixed-term pay: "$3,850 a week · for about 17
   // weeks"; a rate for a programme: "€72,000 a year · 13-week internship"; part-time: "$22.00–28.88 an hour".
   const cur = sal?.currency || 'USD';
-  const amountText = !sal ? null : ph ? ph.text : partHourly ? `${postedPair(sal.min / 2080, sal.max / 2080, sal.currency)} an hour`
+  const amountText = !sal ? null : ph ? ph.range : partHourly ? `${postedPair(sal.min / 2080, sal.max / 2080, sal.currency)} an hour`
     : term ? `${term.amount}${perText(term.per)}` : isMinimum(job) ? `from ${money(sal.min, sal.currency)}` : salaryRange(sal);
-  const subText = !sal ? null : (ph?.picked ? `Posted for ${ph.picked.label} · ` : '') + (partHourly ? `${cur} · part-time, paid by the hour`
+  const subText = !sal ? null : (ph?.picked ? `Posted for ${ph.picked.label} · ` : ph?.sub ? `${ph.sub} · ` : '') + (partHourly ? `${cur} · part-time, paid by the hour`
     : term?.fixed ? `${cur} · for ${termText(term.weeks)}` : term ? `${cur} · ${programText(job, term)}` : `${cur} · per year`);
   // Whose range the rank and the strip use: the place picked, the posting's headline row (Bellevue), or its span.
   const rankWhose = !ph ? '' : ph.rankPlace ? `the range posted for ${ph.rankPlace}` : 'the middle of its span';
@@ -4722,7 +4730,7 @@ function drawerContent(job) {
     caption ? noteLine({ cls: 'd-pay-note', key: 'drawer-pay', line: captionLine, details: [
       h('span', { class: 'd-pay-caption' }, caption),
       annualEl?.dataset.note || '',
-      [...(salaryNotes || [])].filter(Boolean).map((e) => e.dataset.note).find(Boolean) || '',
+      ...[...(salaryNotes || [])].filter(Boolean).map((e) => e.dataset.note || ''), // the level names; every place of a long Pay by place row
       sal && pctNote ? `${pctNote}${rankWhose ? ` This role is ranked at ${rankWhose}.` : ''}` : '',
       sal && job._usd ? `The strip shows ${coName}’s ${noun} that show pay, each posted range at its middle${rankWhose ? `; this role's is ${rankWhose}` : ''}.` : '',
       // fix-touch-tips: each label's meaning (its hover title), so a tap or the keyboard can reach it.

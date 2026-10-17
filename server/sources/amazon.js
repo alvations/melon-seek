@@ -205,7 +205,6 @@ export function amazonPayWords(text) {
   return { minimum, shift: SHIFT_RE.test(t), statedBase: b ? { rate: Number(b[1]), text: sentence(STATED_BASE_RE) } : null, statedAnnual };
 }
 
-const short = (s, n = 60) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 /**
  * Pay rule (docs/DATA_SOURCES.md §7a, §7e): the row for the posting's primary location (the
@@ -283,8 +282,8 @@ export function amazonSalary(j, table = amazonPayTable(j.description, j.basic_qu
     return states.length ? `Remote (${states.join(', ')})` : 'Remote';
   };
   const label = (g) => {
-    if (g.locations.length) return short([...new Set(g.locations.map((l) => (/^remote\b/i.test(l) ? remoteName(g.rows) : String(l).split(',')[0].trim())))].join(', '));
-    return short([...new Set(g.rows.map((r) => (r.place.virtual ? `Remote${r.place.state ? ` (${r.place.state.toUpperCase()})` : ''}` : r.place.cityText || r.location)))].join(', '));
+    if (g.locations.length) return [...new Set(g.locations.map((l) => (/^remote\b/i.test(l) ? remoteName(g.rows) : String(l).split(',')[0].trim())))].join(', ');
+    return [...new Set(g.rows.map((r) => (r.place.virtual ? `Remote${r.place.state ? ` (${r.place.state.toUpperCase()})` : ''}` : r.place.cityText || r.location)))].join(', ');
   };
   // SB-3 (salary audit): every distinct row is a range; none is cut (a cap at 12 dropped places' pay).
   const payRanges = groups.length > 1 ? groups.map((g) => ({
