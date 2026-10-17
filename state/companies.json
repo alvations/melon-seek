@@ -1,26 +1,26 @@
 {
  "amazon": {
   "slug": "amazon",
-  "lastObservedAt": "2026-10-17T11:19:26.173Z",
+  "lastObservedAt": "2026-10-17T16:04:12.803Z",
   "firstObservedAt": "2026-10-11T15:04:28.012Z",
-  "observations": 22,
+  "observations": 23,
   "name": "Amazon",
   "channel": "beta",
   "source": "amazon",
   "board": "amazon",
   "color": "#ff9900",
-  "open": 22114,
-  "ids": 25137,
+  "open": 22110,
+  "ids": 25138,
   "pending": {
-   "opened": 10,
-   "reopened": 11,
+   "opened": 11,
+   "reopened": 15,
    "resumed": 0,
-   "closed": 100,
+   "closed": 109,
    "unseen": 0,
-   "changed": 131,
-   "payChanged": 4,
-   "sourceChanged": 129,
-   "observations": 1
+   "changed": 1434,
+   "payChanged": 156,
+   "sourceChanged": 1006,
+   "observations": 2
   },
   "lastDailyDate": "2026-10-17",
   "lastDailyAt": "2026-10-17T05:08:33.298Z"
@@ -79,26 +79,26 @@
  },
  "apple": {
   "slug": "apple",
-  "lastObservedAt": "2026-10-17T11:24:51.964Z",
+  "lastObservedAt": "2026-10-17T16:07:29.204Z",
   "firstObservedAt": "2026-10-10T12:19:51.916Z",
-  "observations": 27,
+  "observations": 28,
   "name": "Apple",
   "channel": "beta",
   "source": "apple",
   "board": "apple",
   "color": "#6e6e73",
-  "open": 4872,
-  "ids": 6517,
+  "open": 4875,
+  "ids": 6518,
   "pending": {
-   "opened": 1,
-   "reopened": 0,
+   "opened": 2,
+   "reopened": 2,
    "resumed": 0,
    "closed": 0,
    "unseen": 0,
-   "changed": 8,
+   "changed": 10,
    "payChanged": 2,
-   "sourceChanged": 8,
-   "observations": 1
+   "sourceChanged": 10,
+   "observations": 2
   },
   "lastDailyDate": "2026-10-17",
   "lastDailyAt": "2026-10-17T05:15:19.650Z"
@@ -235,9 +235,9 @@
  },
  "nvidia": {
   "slug": "nvidia",
-  "lastObservedAt": "2026-10-17T11:22:43.696Z",
+  "lastObservedAt": "2026-10-17T16:05:23.225Z",
   "firstObservedAt": "2026-10-10T11:01:40.411Z",
-  "observations": 27,
+  "observations": 28,
   "name": "NVIDIA",
   "channel": "beta",
   "source": "eightfold",
@@ -251,10 +251,10 @@
    "resumed": 0,
    "closed": 0,
    "unseen": 0,
-   "changed": 0,
+   "changed": 104,
    "payChanged": 0,
    "sourceChanged": 0,
-   "observations": 1
+   "observations": 2
   },
   "lastDailyDate": "2026-10-17",
   "lastDailyAt": "2026-10-17T05:12:33.334Z"
