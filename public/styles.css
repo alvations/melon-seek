@@ -1645,6 +1645,9 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
   body.is-previewing .results { --sheet-peek: 156px; }
 }
 
+/* M-48: the card's "5 places" / "2 levels" line keeps to the 12 px floor, on one line. */
+.sal-sub { font-size: 12px; white-space: nowrap; }
+
 /* M-40 meets fix-data-3's longer names ("Non-Technical Project, Program and Product Management": its end was cut by
    0.42 px at 360 px, and more on narrower phones): a split name that fits whole in two lines flows as one text
    (app.js fitCheckLabels); on the narrowest phones in 13 px, then 12 px, with tighter gaps in its row. */
