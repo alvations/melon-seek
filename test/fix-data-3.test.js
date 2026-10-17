@@ -7,6 +7,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { attachJuice } from '../server/juice.js';
+import { geocodeMany, locationPrecision, splitLocations } from '../server/geo.js';
+import { normalizeLocations } from '../server/normalize.js';
+import * as families from '../server/families.js';
+import * as upgrade from '../server/sources/upgrade.js';
 import { inferSeniority, jobSeniority } from '../server/keywords.js';
 import { titleClass, roleFamily as vetFamily, salaryChecks, vetSalaries } from '../server/vet.js';
 import * as salaryMod from '../server/salary.js';
@@ -19,6 +23,7 @@ const { isFixedTermRole } = salaryMod;
 const isFellowRank = (t) => (salaryMod.isFellowRank ? salaryMod.isFellowRank(t) : null);
 const { buildMarket, mergeMarkets } = marketMod;
 const notBasePay = (j) => (marketMod.notBasePay ? marketMod.notBasePay(j) : undefined);
+const departmentDisplayName = (n) => (families.departmentDisplayName ? families.departmentDisplayName(n) : n);
 
 /* ---------------------------------------------------------------- D-38 */
 // Google's "Fellow, Core AI Foundations" (google:84245035704296134): "As Fellow for Agentic Development, you will
@@ -162,4 +167,134 @@ test('no-row places: a listed place with no pay row of its own gets no Juice, an
   delete plain.salary.ranges;
   attachJuice(plain, CITIES);
   assert.ok(plain.juice.byLocation.some((e) => e.locationName === 'Austin, TX'));
+});
+
+/* ---------------------------------------------------------------- places */
+const at = (...inputs) => geocodeMany(inputs).map((l) => ({ name: l.name, city: l.city, region: l.region, country: l.country, precision: locationPrecision(l) }));
+
+test('D-41: "St", "St." and "Saint" are one spelling in a US town, so one town is one place and two towns of one name differ by state', () => {
+  // Google wrote St. George, SC both ways; Utah's St. George is another town.
+  const sc1 = at('Saint George, SC, USA')[0], sc2 = at('St George, SC, USA')[0], ut = at('St. George, UT, USA')[0];
+  assert.equal(sc1.city, 'St. George');
+  assert.deepEqual(sc2, sc1);
+  assert.equal(ut.city, 'St. George');
+  assert.notEqual(ut.region, sc1.region);
+  // Amazon's "St Louis, Michigan" is a town in Michigan, spelled like the gazetteer's St. Louis, MO.
+  assert.deepEqual(at('St Louis, Michigan, USA').map((l) => [l.name, l.city, l.region]), [['St. Louis, MI', 'St. Louis', 'MI']]);
+  assert.deepEqual(at('St Louis, Missouri, USA').map((l) => [l.name, l.precision]), [['St. Louis, MO', 'city']]);
+  // Canada: "St" -> "St."; a spelled-out "Saint" stays (Saint John, NB is not St. John's). Elsewhere as written.
+  assert.equal(at('St Thomas, Ontario, CAN')[0].city, 'St. Thomas');
+  assert.equal(at('Saint John, New Brunswick, CAN')[0].city, 'Saint John');
+  assert.equal(at('St Helens, England, GBR')[0].city, 'St Helens');
+  assert.equal(at('Saint-Ghislain, Belgium')[0].city, 'Saint-Ghislain');
+});
+
+test('D-42: a US state-only place reads as the state when its name is also a city\'s ("New York State", "Washington State")', () => {
+  assert.deepEqual(at('NY, US').map((l) => [l.name, l.city, l.region]), [['New York State', null, 'NY']]);
+  assert.deepEqual(at('WA, US').map((l) => [l.name, l.city, l.region]), [['Washington State', null, 'WA']]);
+  assert.equal(at('District of Columbia, USA')[0].name, 'Washington, DC');
+  // Other states keep their name, and the cities are unchanged.
+  assert.equal(at('CA, US')[0].name, 'California, US');
+  assert.equal(at('TX, US')[0].name, 'Texas, US');
+  assert.equal(at('New York, NY, US')[0].name, 'New York, NY');
+  assert.equal(at('Washington, DC')[0].name, 'Washington, DC');
+  assert.equal(at('Seattle, WA, US')[0].name, 'Seattle, WA');
+});
+
+test('V-45: Cajamar is pinned and named as Cajamar, not as São Paulo city 33 km away; Luxembourg, LUX is Luxembourg City', () => {
+  const [caj] = geocodeMany(['Cajamar, Sao Paulo, BRA']);
+  assert.equal(caj.name, 'Cajamar, Brazil');
+  assert.equal(locationPrecision(caj), 'city');
+  assert.ok(Math.abs(caj.lat - -23.3556) < 0.05 && Math.abs(caj.lng - -46.8769) < 0.05, `${caj.lat}, ${caj.lng}`);
+  assert.equal(geocodeMany(['Cajamar, Sao Paulo, BRA']).length, 1, 'one place, not Cajamar and São Paulo');
+  // The other Amazon towns written "<town>, Sao Paulo, BRA" or "<town>, Rio de Janeiro, BRA".
+  for (const [raw, town] of [['Osasco, Sao Paulo, BRA', 'Osasco'], ['Jundiaí, Sao Paulo, BRA', 'Jundiaí'], ['Paulínia, Sao Paulo, BRA', 'Paulínia'],
+    ['Barueri, Sao Paulo, BRA', 'Barueri'], ['Embu das Artes, Sao Paulo, BRA', 'Embu das Artes'], ['São João de Meriti, Rio de Janeiro, BRA', 'São João de Meriti'],
+    ['Belford Roxo, Rio de Janeiro, BRA', 'Belford Roxo']]) assert.equal(geocodeMany([raw])[0].city, town, raw);
+  // São Paulo itself, a Tokyo ward and a Thai abbreviation keep their readings.
+  assert.equal(at('Sao Paulo')[0].name, 'Sao Paulo, Brazil');
+  assert.equal(at('Ota-ku, Tokyo, JPN')[0].name, 'Tokyo, Japan');
+  assert.equal(at('กทม, Bangkok, TH')[0].name, 'Bangkok, Thailand');
+  const [lux] = geocodeMany(['Luxembourg, LUX']);
+  assert.deepEqual([lux.name, lux.city, lux.country, locationPrecision(lux)], ['Luxembourg', 'Luxembourg', 'LU', 'city']);
+  assert.equal(at('Remote, Luxembourg')[0].name, 'Remote (Luxembourg)');
+});
+
+test('Town and Country, MO is one place, fresh ("Town and Country, Missouri, USA") or as stored ("Town" | "Country, Missouri, USA")', () => {
+  for (const inputs of [['Town and Country, Missouri, USA'], ['Town', 'Country, Missouri, USA']]) {
+    const locs = normalizeLocations({ locationText: inputs[0], extraLocations: inputs.slice(1) });
+    assert.deepEqual(locs.map((l) => [l.name, l.city, l.region, locationPrecision(l)]), [['Town and Country, MO', 'Town and Country', 'MO', 'city']], inputs.join(' | '));
+  }
+  // " and " still separates two places, and other names with " and " stay whole.
+  assert.deepEqual(splitLocations('Seattle, WA and Austin, TX'), ['Seattle, WA', 'Austin, TX']);
+  assert.deepEqual(splitLocations('Port of Spain, Trinidad and Tobago'), ['Port of Spain, Trinidad and Tobago']);
+});
+
+/* ---------------------------------------------------------------- UX-32 */
+test('UX-32: NVIDIA\'s inverted department names and "Intern", and Amazon\'s "--" names, read as natural names', () => {
+  const cases = {
+    'Engineer, Systems Software': 'Systems Software Engineering', 'Engineer, ASIC': 'ASIC Engineering', Intern: 'Internships',
+    'Architect, Solutions': 'Solutions Architecture', 'Program Manager, Technical': 'Technical Program Management',
+    'Program Manager, Non-Technical': 'Non-Technical Program Management', 'Management, Product Development': 'Product Development Management',
+    'Management, Hardware (Engineering)': 'Hardware Engineering Management', 'Management, Product Management': 'Product Management (Managers)',
+    'Management, Program Management (Technical)': 'Technical Program Management (Managers)',
+    'Account Manager, Developer Relations': 'Developer Relations Account Management',
+    'Project/Program/Product Management--Technical': 'Technical Project, Program and Product Management',
+    'Project/Program/Product Management--Non-Tech': 'Non-Technical Project, Program and Product Management',
+    // Unchanged: names that already read naturally (Microsoft, Amazon, Google families), and empty values.
+    'Software Engineering': 'Software Engineering', 'Operations, IT, & Support Engineering': 'Operations, IT, & Support Engineering',
+    'Supply Chain/Transportation Management': 'Supply Chain/Transportation Management', 'Research Staff Member': 'Research Staff Member',
+  };
+  for (const [raw, want] of Object.entries(cases)) assert.equal(departmentDisplayName(raw), want, raw);
+  assert.equal(departmentDisplayName(null), null);
+  assert.equal(departmentDisplayName(''), '');
+  // Amazon's two names differ in their first word, so a cut label still tells them apart (UX-38).
+  const [t, n] = ['Project/Program/Product Management--Technical', 'Project/Program/Product Management--Non-Tech'].map(departmentDisplayName);
+  assert.notEqual(t.slice(0, 12), n.slice(0, 12));
+});
+
+test('UX-32: the names are one to one on NVIDIA\'s 142 departments (2026-10-16), so no two departments merge', () => {
+  const NVIDIA = ['Engineer, Systems Software', 'Engineer, ASIC', 'Architect', 'Intern', 'Architect, Solutions', 'Engineer, Verification', 'Account Manager, Developer Relations',
+    'Program Manager, Technical', 'Engineer, Systems Design', 'Account Manager', 'Management, Systems Software', 'Engineer, Software', 'Engineer, Product Development', 'Product Management',
+    'Engineer, ASIC Mixed Signal Design', 'Engineer, Technology Software', 'Research Staff Member', 'Engineer, Software Quality Assurance Test Development', 'Engineer, CAD',
+    'Architect, Professional Services', 'Management, Hardware (Engineering)', 'Program Manager, Non-Technical', 'Engineer, Mask Design', 'Engineer, Test', 'Engineer, Mechanical',
+    'Site Reliability Engineering', 'Engineer, ASIC Signal Integrity', 'Distinguished Engineer', 'Product Marketing', 'Engineer, Physical Design', 'Technical Product Marketing',
+    'Engineer, Applications', 'Engineer, Software Quality Assurance', 'Management, Software Engineering', 'Engineer, Technical Support', 'Engineer, Network Infrastructure',
+    'Engineer, Field Applications', 'Analyst, Business Systems', 'Engineer, IT', 'Engineer, DevOps', 'Management, Solutions Architect', 'Management, Sales', 'Engineer, Technical Marketing',
+    'Engineer, Quality Assurance', 'Management, Systems Design', 'Management, Operations', 'Accountant', 'Audit', 'Specialist, Integrated Marketing', 'Management, Developer Technology Software',
+    'Management, Accounting', 'Engineer, Tools Development', 'Engineer, Cyber Security', 'Analyst, Sales', 'Business Development', 'Engineer, Product', 'Management, Professional Services',
+    'Management, Product Development', 'Management, Supply Chain', 'Engineer, Process', 'Technician', 'Data Scientist', 'Management, Product Management', 'Analyst, Financial',
+    'Engineer, Performance', 'Management, Business Development', 'Systems Administrator, Network', 'Specialist, Public Relations', 'Specialist, Marketing', 'Engineer, Reliability',
+    'Analyst, Business', 'Engineer, Manufacturing', 'Management, Sourcing', 'Management, Program Management (Technical)', 'Management, ASIC Mixed Signal', 'Management, Security',
+    'Management, Finance', 'Compliance', 'Engineer, Telecom/Network', 'Engineer, Package Development', 'Management, Tax', 'Production Planner', 'Analyst, Cyber Security',
+    'Management, Test Engineering', 'Engineer, Data Center', 'Management, Corporate Marketing', 'Analyst, Compensation', 'Engineer, Failure Analysis', 'Management, Reliability Engineering',
+    'Planner, Materials', 'Planner, Supply Chain', 'Management, Marketing', 'Attorney, General', 'Analyst, Business Intelligence', 'Specialist, Corporate Events', 'Management, Facilities',
+    'Management, Quality Assurance', 'Management, Software Quality Assurance', 'Manager, Business Planning', 'HR Business Partner (Individual Contributor)', 'Engineer, Foundry',
+    'Management, IT', 'Engineer, Process Development', 'Specialist, Strategic', 'Stock Plan Administrator', 'Sourcer', 'Analyst, Import/Export', 'Management, Production Engineering',
+    'Management, Architecture', 'Management, Product Marketing', 'Management, Employment', 'Management, Program Management', 'Management, Process Engineering', 'HR Generalist', 'Handler',
+    'Specialist, Returns (Returns (RMA))', 'Program Manager, Marketing Communications', 'Doctoral Candidate', 'Analyst, Treasury', 'Management, Legal', 'Management, Purchasing',
+    'Office Manager', 'Management, DevOps Engineering', 'Management, Production Test', 'Analyst, Document Control', 'Management, Developer Relations', 'Representative, Customer Service',
+    'Accountant, Tax', 'Management, Government Relations', 'Management, HR Generalist', 'Analyst, Credit/Collections', 'Management, Sales Operations', 'Analyst, Logistics',
+    'Product Perf Lab', 'Administrator, Unix', 'IT Developer', 'Buyer', 'Management, Field Applications Engineering (Sales)', 'Management, Data Scientist', 'Management, Public Relations',
+    'Management, Network Infrastructure', 'Designer, Industrial'];
+  assert.equal(NVIDIA.length, 142);
+  const shown = NVIDIA.map(departmentDisplayName);
+  assert.equal(new Set(shown).size, NVIDIA.length, 'two departments got one name');
+  assert.ok(!shown.some((s) => /^(Engineer|Architect|Management|Program Manager|Account Manager|Analyst|Specialist|Planner), /.test(s)), shown.filter((s) => /, /.test(s)).join(' | '));
+});
+
+test('UX-32: stored NVIDIA and Amazon jobs show the natural name and keep the board\'s own as departmentPosted (idempotent, no job dropped)', () => {
+  const jobs = [
+    { id: 'nvidia:1', company: 'nvidia', title: 'Senior ASIC Engineer', department: 'Engineer, ASIC' },
+    { id: 'nvidia:2', company: 'nvidia', title: 'Product Manager', department: 'Product Management' },
+    { id: 'amazon:3', company: 'amazon', title: 'Sr. TPM', department: 'Project/Program/Product Management--Technical' },
+    { id: 'google:4', company: 'google', title: 'Intern', department: 'Intern' },
+  ];
+  const once = upgrade.displayDepartments ? upgrade.displayDepartments(jobs) : jobs;
+  assert.equal(once.length, jobs.length);
+  assert.deepEqual(once.map((j) => [j.department, j.departmentPosted]), [['ASIC Engineering', 'Engineer, ASIC'], ['Product Management', undefined],
+    ['Technical Project, Program and Product Management', 'Project/Program/Product Management--Technical'], ['Intern', undefined]]);
+  assert.deepEqual(upgrade.displayDepartments(once), once, 'idempotent');
+  const again = upgrade.upgradeStoredJobs(once.slice(0, 3));
+  assert.deepEqual(again.map((j) => [j.department, j.departmentPosted]), once.slice(0, 3).map((j) => [j.department, j.departmentPosted]), 'the read-time upgrade keeps them');
 });

@@ -268,7 +268,7 @@ const DEPT_HINTS = [
   ['product', /\bproduct management\b/],
   ['ml', /\b(research|modeling|model|ai research)\b/],
   ['it', /\b(it|corporate technology|business systems)\b/],
-  ['chip', /\b(asic|phys design|physical design|mask design|mixed signal|silicon|vlsi|soc)\b|^engineer verification$/],
+  ['chip', /\b(asic|phys design|physical design|mask design|mixed signal|silicon|vlsi|soc)\b|^engineer verification$|^verification engineering$/], // UX-32: NVIDIA's "Engineer, Verification" reads "Verification Engineering"
   ['hardware', /\b(hardware|mechanical|electrical|propulsion|aircraft|x bat|v bat|space|test operations|quality|reliability|systems engineering|flight|avionics|engineering services)\b/],
   ['swe', /\b(software|infrastructure|platform|applications)\b/],
   ['program', /\b(program management|programs)\b/],

@@ -143,3 +143,68 @@ export function familyOfTitle(title) {
   const rest = parts.slice(1).join(', ').toLowerCase();
   return first(ROLE, role) ?? first(TEAM, rest) ?? first(ROLE, rest) ?? first(LEAD_WORD, rest) ?? first(WEAK, role);
 }
+
+// ---------------------------------------------------------------------------
+// Department display names (UX-32, fix-data-3)
+// ---------------------------------------------------------------------------
+// NVIDIA names its departments as inverted job families ("Engineer, ASIC", "Management, Product Development",
+// "Program Manager, Technical", plain "Intern"), and Amazon writes a qualifier after "--"
+// ("Project/Program/Product Management--Technical" and "--Non-Tech"). departmentDisplayName writes them the
+// way Microsoft names its own departments ("Software Engineering", "Technical Program Management"): the
+// specialty first, then the discipline: "ASIC Engineering", "Product Development Management", "Technical
+// Program Management", "Internships", "Technical Project, Program and Product Management" and "Non-Technical
+// Project, Program and Product Management" (the qualifier that tells Amazon's two apart comes first, so a cut
+// label still shows it, UX-38). Every other name is returned unchanged. The board's own name is kept on the job
+// (departmentPosted), searchable and reachable; old links with it still find the department (public/app.js).
+// The mapping is one to one on each board's departments (test/fix-data-3.test.js), so no two departments merge.
+const DISCIPLINE = Object.freeze({
+  Engineer: 'Engineering', Architect: 'Architecture', Management: 'Management', Manager: 'Management',
+  'Program Manager': 'Program Management', 'Account Manager': 'Account Management', Analyst: 'Analysis',
+  Planner: 'Planning', Designer: 'Design', Accountant: 'Accounting', Administrator: 'Administration',
+  'Systems Administrator': 'Systems Administration', Specialist: 'Specialists', Representative: 'Representatives',
+});
+// A role noun as a department of its own.
+const BARE = Object.freeze({
+  Intern: 'Internships', Architect: 'Architecture', 'Account Manager': 'Account Management', Accountant: 'Accounting',
+  Technician: 'Technicians', 'Data Scientist': 'Data Science', 'Attorney, General': 'Legal',
+});
+// A specialty that ends in a role noun, as a discipline ("Management, Solutions Architect": Solutions Architecture).
+const TRAILING_ROLE = [[/\bData Scientist$/, 'Data Science'], [/\bArchitect$/, 'Architecture'], [/\bEngineer$/, 'Engineering']];
+const AMAZON_QUALIFIER = Object.freeze({ technical: 'Technical', tech: 'Technical', 'non-tech': 'Non-Technical', 'non-technical': 'Non-Technical', nontech: 'Non-Technical' });
+
+/** "Hardware (Engineering)" -> "Hardware Engineering"; "Program Management (Technical)" -> "Technical Program Management". */
+function specialty(y) {
+  let s = String(y).replace(/\b(\w+) \(\1 \(([^()]+)\)\)/, '$1 ($2)'); // "Returns (Returns (RMA))" -> "Returns (RMA)"
+  s = s.replace(/^(.*\S)\s*\((Technical|Non-Technical)\)$/, '$2 $1');
+  s = s.replace(/^(.*\S)\s*\((Engineering)\)$/, '$1 $2');
+  return s.trim();
+}
+
+/**
+ * A board's department name as a natural group name (UX-32), or the name unchanged when it reads as one already.
+ * Pure and deterministic; null and '' pass through.
+ */
+export function departmentDisplayName(name) {
+  if (typeof name !== 'string' || !name.trim()) return name;
+  const n = name.replace(/\s+/g, ' ').trim();
+  if (BARE[n]) return BARE[n];
+  // Amazon: "Project/Program/Product Management--Technical".
+  const q = /^(.*\S)\s*--\s*([A-Za-z-]+)$/.exec(n);
+  if (q && AMAZON_QUALIFIER[q[2].toLowerCase()]) {
+    const base = q[1].replace(/^(\w+)\/(\w+)\/(\w+)(?= )/, '$1, $2 and $3');
+    return `${AMAZON_QUALIFIER[q[2].toLowerCase()]} ${base}`;
+  }
+  // NVIDIA: "Engineer, ASIC", "Management, Hardware (Engineering)".
+  const m = /^([A-Z][A-Za-z]*(?: [A-Z][a-z]+)?), (.+)$/.exec(n);
+  if (!m || !DISCIPLINE[m[1]]) return n;
+  const field = DISCIPLINE[m[1]];
+  let y = specialty(m[2]);
+  // "Management, Field Applications Engineering (Sales)": the bracket stays last.
+  const tail = /^(.*\S)\s*(\([^()]+\))$/.exec(y);
+  const bracket = tail ? ` ${tail[2]}` : '';
+  if (tail) y = tail[1];
+  if (field === 'Management') for (const [re, to] of TRAILING_ROLE) y = y.replace(re, to);
+  // "Management, Product Management" is the managers of product management, not "Product Management Management".
+  if (field === 'Management' && /\bManagement$/.test(y)) return `${y} (Managers)${bracket}`;
+  return `${y} ${field}${bracket}`;
+}

@@ -207,6 +207,13 @@ NZ|New Zealand|-40.90|174.89|NZ
 // "Grosse Bockenheimer Strasse" Frankfurt, "Fukuoka Tenjin" Fukuoka, "Antara" Mexico City and
 // "VillageMall" Rio de Janeiro. D-36 adds two Google data-centre towns: Moncks Corner, SC and
 // Pryor Creek, OK, which Google also writes "Pryor, OK".
+// fix-data-3 (V-45 and the Town and Country split, 2026-10-16 crawl) adds Amazon's Cajamar, São Paulo state
+// (67 postings, pinned and named as São Paulo city 33 km away), the six other Brazilian towns Amazon writes
+// "<town>, Sao Paulo, BRA" or "<town>, Rio de Janeiro, BRA" (Osasco 43, Barueri, Embu das Artes, Jundiaí,
+// Paulínia, São João de Meriti, Belford Roxo; all named as the state's capital before), Luxembourg City for "Luxembourg, LUX" (121
+// postings, at the country's centre; Amazon's Luxembourg offices are in the city; the label stays
+// "Luxembourg"), and Town and Country, MO (Amazon "Town and Country, Missouri, USA", read as "Town" and
+// "Country" because " and " splits places; see AND_PLACES).
 // A name prefixed with "!" becomes the default for an ambiguous name.
 // ---------------------------------------------------------------------------
 
@@ -378,6 +385,7 @@ Minneapolis|MN|US|44.9778|-93.2650|
 Detroit|MI|US|42.3314|-83.0458|
 Ann Arbor|MI|US|42.2808|-83.7430|
 St. Louis|MO|US|38.6270|-90.1994|Saint Louis;St Louis
+Town and Country|MO|US|38.6123|-90.4632|
 Kansas City|MO|US|39.0997|-94.5786|
 Indianapolis|IN|US|39.7684|-86.1581|
 Madison|WI|US|43.0731|-89.4012|
@@ -421,6 +429,7 @@ Stuttgart||DE|48.7758|9.1829|
 Amsterdam||NL|52.3676|4.9041|Schiphol
 Eindhoven||NL|51.4416|5.4697|
 Brussels||BE|50.8503|4.3517|Bruxelles;Zaventem
+Luxembourg||LU|49.6116|6.1319|Luxembourg City;Ville de Luxembourg
 Saint-Ghislain||BE|50.4469|3.8186|
 Madrid||ES|40.4168|-3.7038|
 Barcelona||ES|41.3874|2.1686|
@@ -528,6 +537,14 @@ Regina|SK|CA|50.4452|-104.6189|
 Mexico City||MX|19.4326|-99.1332|CDMX;Ciudad de México;Antara, Mexico;Antara Polanco
 Guadalajara||MX|20.6597|-103.3496|
 Sao Paulo||BR|-23.5505|-46.6333|São Paulo;Morumbi
+Cajamar||BR|-23.3556|-46.8769|
+Osasco||BR|-23.5325|-46.7917|
+Barueri||BR|-23.5057|-46.8790|
+Embu das Artes||BR|-23.6489|-46.8522|
+Jundiaí||BR|-23.1857|-46.8978|
+Paulínia||BR|-22.7611|-47.1544|
+São João de Meriti||BR|-22.8039|-43.3722|
+Belford Roxo||BR|-22.7642|-43.3995|
 Rio de Janeiro||BR|-22.9068|-43.1729|VillageMall;Village Mall
 Brasília||BR|-15.7939|-47.8828|Brasilia
 Belo Horizonte||BR|-19.9167|-43.9345|
@@ -733,6 +750,9 @@ function splitTopLevel(str, re) {
 function splitCommaGroups(part) {
   const tokens = splitTopLevel(part, /\s*,\s*/);
   if (tokens.length <= 1) return tokens;
+  // Amazon writes one place as "City, State, CCC" (an ISO-3 country code, DQ-40). Its state can share a city's
+  // name ("Cajamar, Sao Paulo, BRA"), which is not a second place (V-45, fix-data-3).
+  if (tokens.length === 3 && /^[A-Z]{3}$/.test(tokens[2]) && ISO3_TO_ISO2[tokens[2]] && !REMOTE_RE.test(part)) return [tokens.join(', ')];
   const groups = [];
   let cur = null;
   for (const tok of tokens) {
@@ -782,15 +802,43 @@ export function splitLocations(str) {
   if (Array.isArray(str)) return dedupe(str.flatMap((s) => splitLocations(s)));
   const s = String(str).replace(/\s+/g, ' ').trim();
   if (!s) return [];
-  const coarse = splitTopLevel(s, /\s*[|;\n•]\s*|\s+\/\s+|\s+or\s+|\s*&\s*|\s+and\s+(?=[A-Z])/);
+  // A place whose own name has " and " in it is one place (fix-data-3: "Town and Country, Missouri, USA").
+  const kept = s.replace(AND_PLACE_RE, (m) => m.replace(/\s+and\s+/i, AND_MARK));
+  const coarse = splitTopLevel(kept, /\s*[|;\n•]\s*|\s+\/\s+|\s+or\s+|\s*&\s*|\s+and\s+(?=[A-Z])/);
   const out = [];
   for (const part of coarse) {
     for (const p of splitCommaGroups(part)) {
-      const t = p.replace(/^[\s,\-–—]+|[\s,\-–—]+$/g, '');
+      const t = p.replace(/^[\s,\-–—]+|[\s,\-–—]+$/g, '').replaceAll(AND_MARK, ' and ');
       if (t) out.push(t);
     }
   }
   return dedupe(out);
+}
+
+// Place names with " and " in them, which the " and " separator above would cut in two. Town and Country, MO
+// (Amazon, 2026-10-16) and the countries and territories whose names have one.
+const AND_PLACES = ['Town and Country', 'Trinidad and Tobago', 'Bosnia and Herzegovina', 'Antigua and Barbuda',
+  'Saint Kitts and Nevis', 'St Kitts and Nevis', 'St. Kitts and Nevis', 'Turks and Caicos', 'Sao Tome and Principe',
+  'São Tomé and Príncipe', 'Heard and McDonald Islands', 'Wallis and Futuna', 'Saint Pierre and Miquelon', 'Svalbard and Jan Mayen',
+  'Saint Vincent and the Grenadines', 'St Vincent and the Grenadines'];
+const AND_PLACE_RE = new RegExp(`(?<![\\w])(?:${AND_PLACES.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ and /, '\\s+and\\s+')).join('|')})(?![\\w])`, 'gi');
+const AND_MARK = '\u0003';
+/** A stored location list cut at an " and " name ("Town" | "Country, Missouri, USA", norm-9), joined again. */
+function joinAndPlaces(parts) {
+  const out = [];
+  for (let i = 0; i < parts.length; i++) {
+    const a = parts[i], b = parts[i + 1];
+    if (typeof a === 'string' && typeof b === 'string' && a && !a.includes(',')) {
+      const joined = `${a} and ${b}`;
+      const name = joined.split(',')[0];
+      AND_PLACE_RE.lastIndex = 0;
+      const m = AND_PLACE_RE.exec(name);
+      AND_PLACE_RE.lastIndex = 0;
+      if (m && m.index === 0 && m[0].length === name.trim().length) { out.push(joined); i++; continue; }
+    }
+    out.push(a);
+  }
+  return out;
 }
 
 function dedupe(arr) {
@@ -922,6 +970,20 @@ function finalCountry(token, cands, tokens) {
 
 const US_ZIP_RE = /^([A-Z]{2})\s+\d{5}(?:-\d{4})?$/;
 
+/**
+ * D-41 (fix-data-3): one spelling of "Saint" in a town the gazetteer does not know, so one town is one place.
+ * Google wrote St. George, SC as "Saint George" and "St George"; Amazon writes "St Louis, Michigan" where the
+ * gazetteer's St. Louis, MO is "St. Louis". In the US "St", "St." and "Saint" are "St." (the USPS and AP form);
+ * in Canada "St" is "St." ("St Thomas, Ontario" is St. Thomas), and a spelled-out "Saint" stays (Saint John, NB
+ * is not St. John's). Elsewhere the name is kept as written ("St Helens, England").
+ */
+function saintSpelling(token, country) {
+  const t = String(token || '');
+  if (country === 'US') return t.replace(/^(?:st\.?|saint)\s+/i, 'St. ');
+  if (country === 'CA') return t.replace(/^st\.?\s+/i, 'St. ');
+  return t;
+}
+
 /** "City, Region" / "City, Country" / "Region" / unknown-city fallbacks of resolvePlaceIn. */
 function resolvePlaceTokens(name, cleaned, extra) {
   let tokens = cleaned.split(/\s*,\s*/).filter(Boolean);
@@ -983,7 +1045,10 @@ function resolvePlaceTokens(name, cleaned, extra) {
       if (local) return fromCity(name, local);
     }
   }
-  // "กทม, Bangkok, TH": the city is a later token (never a region or country token).
+  // "กทม, Bangkok, TH", "Ota-ku, Tokyo, JPN", "Cuauhtémoc, Mexico City, MEX": an unknown district of a city named
+  // after it is filed under that city (never a region or country token). V-45 (fix-data-3): where the later token is
+  // a state that shares its capital's name ("Cajamar, Sao Paulo, BRA" is a town in São Paulo state, 33 km from the
+  // city), the town is in the gazetteer, so this rule is not reached.
   for (const t of rest) {
     if (regionInfo(t)) continue;
     const later = CITY_INDEX.get(normKey(t));
@@ -1009,7 +1074,7 @@ function resolvePlaceTokens(name, cleaned, extra) {
       const [lat, lng] = DISTRICT_CENTRES[`${best.country}|${normKey(district)}`] || [best.lat, best.lng];
       return { ...fromRegion(name, best), region: district, lat, lng };
     }
-    return fromRegion(name, best, first);
+    return fromRegion(name, best, saintSpelling(first, best.country));
   }
   // Last resort: look for a known city name inside the string.
   const key = ` ${normKey(cleaned)} `;
@@ -1072,7 +1137,17 @@ export function canonicalName(loc) {
     const cl = countryLabel(loc.country);
     return normKey(cl) === normKey(loc.city) ? loc.city : `${loc.city}, ${cl}`; // city-states: "Singapore"
   }
-  if (loc.region && loc.country) return `${regionLabel(loc.region, loc.country)}, ${countryLabel(loc.country)}`;
+  if (loc.region && loc.country) {
+    // D-42 (fix-data-3): a US state whose name is also a city's reads as the state ("New York State", "Washington
+    // State"), never like the city next to it ("New York, US" beside "New York"); the District of Columbia is
+    // Washington, DC. Other states keep "California, US".
+    if (loc.country === 'US' && STATE_BY_ABBR.has(loc.region)) {
+      if (loc.region === 'DC') return 'Washington, DC';
+      const st = STATE_BY_ABBR.get(loc.region).name;
+      if (CITY_INDEX.has(normKey(st))) return `${st} State`;
+    }
+    return `${regionLabel(loc.region, loc.country)}, ${countryLabel(loc.country)}`;
+  }
   if (loc.country && (loc.lat != null || !COUNTRY_BY_CODE.has(loc.country))) return countryName(loc.country) || loc.country;
   return String(loc.rawName || loc.name || '').replace(/\s+/g, ' ').trim();
 }
@@ -1110,7 +1185,8 @@ export function geocodeMany(inputs) {
   const parts = [];
   // A dangling "Republic of" (a stored location split from "Seoul, Korea, Republic of" before
   // norm-6) belongs to the country before it (DQ-10).
-  for (const s of Array.isArray(inputs) ? inputs : [inputs]) {
+  const list = joinAndPlaces((Array.isArray(inputs) ? inputs : [inputs]).map((s) => (typeof s === 'string' ? s.trim() : s)));
+  for (const s of list) {
     for (const part of splitLocations(s)) if (!(parts.length && INVERTED_TAIL_RE.test(part))) parts.push(part);
   }
   const first = parts.map((part) => (REMOTE_RE.test(part) ? { loc: resolveRemote(part), ambiguous: false } : resolvePlaceIn(part)));

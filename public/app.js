@@ -508,6 +508,61 @@ function disambiguateLocations(jobs) {
     if (changed) { j._locAlt = j._locKeys; j._locKeys = keys; } // _locAlt: old bare-city links (l=Washington) still match
   }
 }
+/* fix-data-3: a link's filter value that no posting here uses is matched to the board's current one for the same
+   place or department, so an old link finds what it found before the labels changed:
+   - Location: "Columbus, OH" where the board labels Columbus, Ohio "Columbus" (no other Columbus to tell apart);
+     NVIDIA's state "New York, US", now "New York State" (D-42); "Saint George, SC", now "St. George, SC" (D-41).
+     A value is compared with each place's label, canonical name and posted words, "City, ST" and "City, Country",
+     ignoring case, accents, periods and the "Saint"/"St" spelling, and is replaced only when exactly one label fits.
+   - Department: the board's own name ("Engineer, ASIC", "Project/Program/Product Management--Technical", kept as
+     departmentPosted) becomes the name shown (UX-32).
+   A value that fits nothing, or several labels, stays as it is. Returns true when the filters changed. */
+const foldPlace = (s) => foldText(s).replace(/\./g, '').replace(/\bsaint\b/g, 'st').replace(/[^a-z0-9]+/g, ' ').trim();
+function resolveOldFilterKeys(jobs = data.jobs) {
+  if (data.status !== 'ready' || (!S.l.length && !S.d.length)) return false;
+  let changed = false;
+  if (S.l.length) {
+    const used = new Set();
+    for (const j of jobs) { for (const k of j._locKeys) used.add(k); if (j._locAlt) for (const k of j._locAlt) used.add(k); }
+    const want = new Map(S.l.filter((x) => !used.has(x)).map((x) => [foldPlace(x), new Set()]));
+    if (want.size) {
+      const add = (alias, key) => { const s = alias ? want.get(foldPlace(alias)) : null; if (s) s.add(key); };
+      for (const j of jobs) j.locations.forEach((l, i) => {
+        const key = j._locKeys[i];
+        if (!l || !key) return;
+        add(l.name, key); add(l.rawName, key);
+        if (l.remote) return;
+        if (l.city) { add(l.city, key); add(`${l.city}, ${l.region || ''}`, key); add(`${l.city}, ${l.country || ''}`, key); }
+        else if (l.country === 'US' && l.region) { // D-42: the state's label before ("New York, US", "District of Columbia, US")
+          if (/ State$/.test(l.name || '')) add(`${l.name.slice(0, -6)}, US`, key);
+          if (l.region === 'DC') add('District of Columbia, US', key);
+        }
+      });
+      const next = [];
+      for (const x of S.l) {
+        const fit = used.has(x) ? null : want.get(foldPlace(x));
+        const y = fit && fit.size === 1 ? [...fit][0] : x;
+        if (y !== x) changed = true;
+        if (!next.includes(y)) next.push(y);
+      }
+      if (changed) S.l = next;
+    }
+  }
+  if (S.d.length) {
+    const shown = new Set(jobs.map(deptKey));
+    const was = new Map();
+    for (const j of jobs) if (j.departmentPosted && !was.has(j.departmentPosted)) was.set(j.departmentPosted, deptKey(j));
+    const next = [];
+    for (const x of S.d) {
+      const y = !shown.has(x) && was.has(x) ? was.get(x) : x;
+      if (y !== x) changed = true;
+      if (!next.includes(y)) next.push(y);
+    }
+    if (next.length !== S.d.length || next.some((y, i) => y !== S.d[i])) S.d = next;
+  }
+  if (changed) commit({ replace: true });
+  return changed;
+}
 const deptKey = (j) => keyOf(j, 'department'); // same keys the chart colors by
 /* google-grouping: the company or subsidiary a board names on its postings (Google's YouTube, DeepMind,
    Waymo, …: Job.brand, CONTRACT.md "google-grouping"), the key of the Company grouping and filter. */
@@ -608,7 +663,7 @@ function prepare(jobs, { source = null } = {}) {
     j.juice = usableJuice(j);
     j._grade = gradeKey(j);
     j._locKeys = j.locations.map(locKey);
-    j._hay = [j.title, j._postedTitle !== j.title ? j._postedTitle : null, j.department, j.team, j.employmentType, senKey(j) === NOT_STATED ? null : j.seniority,
+    j._hay = [j.title, j._postedTitle !== j.title ? j._postedTitle : null, j.department, j.departmentPosted, j.team, j.employmentType, senKey(j) === NOT_STATED ? null : j.seniority,
       ...j.locations.map((l) => l.name), ...j.keywords.responsibilities, ...j.keywords.fit, ...j.keywords.skills]
       .filter(Boolean).join(' \u0001 ').toLowerCase();
   }
@@ -1094,6 +1149,7 @@ async function loadJobs({ refresh = false } = {}) {
   }
   settleCarry();
   settleKeep();
+  resolveOldFilterKeys(); // fix-data-3: an old link's place or department label finds the board's current one
   if (data.status === 'ready') await renderInTwo(seq); else render();
   if (seq !== loadSeq) return;
   if (data.status === 'ready') fillFamilies(data.jobs);

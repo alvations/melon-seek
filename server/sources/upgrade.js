@@ -27,6 +27,7 @@ import { annualize } from '../salary.js';
 import { deriveSalary, withPayPlaces } from '../normalize.js';
 import { vetSalaries } from '../vet.js';
 import { htmlToText } from './util.js';
+import { departmentDisplayName } from '../families.js';
 
 /** One stored Amazon Job with its pay re-read from the stored table, or the same object. */
 function upgradeAmazonJob(j) {
@@ -100,8 +101,38 @@ export function upgradeMetaJobs(jobs) {
   return changed ? out : jobs;
 }
 
+// UX-32 (fix-data-3): the boards whose department names are inverted job families or carry a "--" qualifier.
+const DISPLAY_BOARDS = new Set(['nvidia', 'amazon']);
+
+/**
+ * UX-32 (fix-data-3): NVIDIA's and Amazon's department names as natural group names (server/families.js
+ * departmentDisplayName: "Engineer, ASIC" -> "ASIC Engineering", "Intern" -> "Internships",
+ * "Project/Program/Product Management--Technical" -> "Technical Project, Program and Product Management").
+ * The board's own name (NVIDIA's in plain words, BP-8) is kept as `departmentPosted` on the jobs whose name
+ * changed; search and old links still match it (public/app.js). Read time only, like the brand
+ * (upgradeGoogleJobs): snapshots and the history ledger keep the board's name, so fingerprints do not change.
+ * Idempotent: the shown name is always worked out from departmentPosted. Pure; the same jobs, never fewer.
+ */
+export function displayDepartments(jobs) {
+  if (!Array.isArray(jobs)) return jobs;
+  let changed = false;
+  const out = jobs.map((j) => {
+    if (!j || !DISPLAY_BOARDS.has(j.company)) return j;
+    const posted = j.departmentPosted || j.department;
+    if (typeof posted !== 'string' || !posted) return j;
+    const shown = departmentDisplayName(posted);
+    if (shown === j.department && (shown === posted ? !('departmentPosted' in j) : j.departmentPosted === posted)) return j;
+    changed = true;
+    const next = { ...j, department: shown };
+    if (shown !== posted) next.departmentPosted = posted;
+    else delete next.departmentPosted;
+    return next;
+  });
+  return changed ? out : jobs;
+}
+
 /** Stored Jobs of one board -> the same Jobs as the current adapters would have produced. */
 export function upgradeStoredJobs(jobs) {
   if (!Array.isArray(jobs)) return jobs;
-  return markTalentPools(upgradeMetaJobs(upgradeAmazonJobs(upgradeGoogleJobs(upgradeEightfoldJobs(upgradeAppleJobs(jobs))))));
+  return displayDepartments(markTalentPools(upgradeMetaJobs(upgradeAmazonJobs(upgradeGoogleJobs(upgradeEightfoldJobs(upgradeAppleJobs(jobs)))))));
 }

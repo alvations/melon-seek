@@ -38,11 +38,13 @@ import { postingRule } from './companies.js';
  * every posted range kept (no cap at 12), Amazon "New York City" rows tied to New York, Microsoft's SF Bay
  * Area / NYC range kept per place for jobs with places inside and outside those areas, Google degree lines
  * and late Microsoft level paragraphs kept as salary.levels, a stored salary kept when trimming cut its
- * pay sentence). Stored
+ * pay sentence); norm-12 = fix-data-3 (docs/process/fix-data-3.md: a Fellow rank is Staff+ and its pay is not
+ * an intern's, "Data Residency" is not a residency, one "St." spelling in US and Canadian towns, "New York State"
+ * and "Washington State", Cajamar and six other Brazilian towns, Luxembourg City, Town and Country, MO). Stored
  * snapshots are upgraded with relocateJobs (which also re-derives text-sourced pay, the
  * pay labels and the level, then re-runs the vetting gate) and rekeyBoardJobs.
  */
-export const NORMALIZER_VERSION = 'norm-11';
+export const NORMALIZER_VERSION = 'norm-12';
 
 const NO_EXTRAS = Object.freeze({ equity: false, bonus: false });
 
