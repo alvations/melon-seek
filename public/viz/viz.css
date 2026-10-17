@@ -81,6 +81,11 @@
   padding-right: 28px;
 }
 .ms-chart__legend::-webkit-scrollbar { display: none; }
+/* D-51 (fix-viz-5): a desktop has the room, and a mouse wheel does not scroll sideways: the legend wraps there, so every
+   key shows. Phones keep the one row (fix-density), with the pattern keys first (chart.js renderLegend). */
+@media (min-width: 861px) {
+  .ms-chart__legend { flex-wrap: wrap; overflow-x: visible; white-space: normal; -webkit-mask-image: none; mask-image: none; padding-right: 0; }
+}
 .ms-chart__legend:focus-visible { outline: 2px solid var(--_accent); outline-offset: 2px; }
 .ms-chart__legend > * { flex: none; }
 .ms-chart__legend[hidden] { display: none; }

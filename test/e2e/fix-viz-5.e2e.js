@@ -485,6 +485,28 @@ export function registerFixViz5Tests(suite) {
     assert(!bad.length, bad.slice(0, 8).join('; '));
   });
 
+  suite.test('fix-viz-5: [D-51] on a desktop the Ranges legend shows every key without a sideways scroll, and on a phone its pattern keys come first (NVIDIA, Amazon, Google)', async (ctx) => {
+    const bad = [];
+    for (const company of ['nvidia', 'amazon', 'google']) {
+      for (const viewport of [{ width: 1440, height: 900 }, { width: 1024, height: 768 }, null]) {
+        const { page, context } = await open(ctx, `c=${company}&v=ranges`, viewport ? { viewport } : { phone: true });
+        await page.waitForSelector('#chartHost .ms-chart__legend', { timeout: 60000 });
+        await sleep(400);
+        const r = await page.locator('#chartHost .ms-chart__legend').evaluate((e) => {
+          const box = e.getBoundingClientRect();
+          const kids = [...e.children].map((c) => ({ t: c.textContent.trim(), right: c.getBoundingClientRect().right, kind: c.matches('.ms-legend__span, .ms-legend__kind') }));
+          const firstColour = kids.findIndex((k) => !k.kind);
+          return { out: kids.filter((k) => k.right > box.right + 0.5).map((k) => k.t.slice(0, 30)), scroll: e.scrollWidth > e.clientWidth + 1, late: kids.filter((k, i) => k.kind && i > firstColour).map((k) => k.t.slice(0, 30)) };
+        });
+        await context.close();
+        const tag = `${company} ${viewport ? viewport.width : 'phone 390'}`;
+        if (viewport && (r.scroll || r.out.length)) bad.push(`${tag}: keys out of view (${r.out.join(', ')})`);
+        if (r.late.length) bad.push(`${tag}: pattern keys after the colours (${r.late.join(', ')})`);
+      }
+    }
+    assert(!bad.length, bad.join('; '));
+  });
+
   suite.test('fix-viz-5: [A-8, 280 px] a real tap on the fold row opens it and its arrow stays whole (Google, Galaxy Fold folded)', async (ctx) => {
     const d = ALL_SIZES.find((x) => x.width === 280);
     const { page, context } = await open(ctx, 'c=google', { device: d });
@@ -551,22 +573,35 @@ export function registerFixViz5Tests(suite) {
     assert(!plain.length, `pins of places pinned at a state's or country's centre (${r.ex.join(', ')}) do not say approximate: ${plain.join(' | ')}`);
   });
 
-  suite.test('fix-viz-5: [Razr] on the Razr cover screen (352x355) no price pin is under the map\'s own controls (Apple, Amazon, Google)', async (ctx) => {
-    const d = ALL_SIZES.find((x) => x.width === 352 && x.height === 355);
+  suite.test('fix-viz-5: [Razr, M-50] on the map\'s first view every price pin can be tapped: none is under the map\'s own controls (Razr cover 352x355, 320x568, 280x653, 812x375)', async (ctx) => {
+    const at = (w, h) => ALL_SIZES.find((x) => x.width === w && x.height === h);
     const bad = [];
-    for (const company of ['apple', 'amazon', 'google']) {
-      const { page, context } = await open(ctx, `c=${company}&m=map`, { device: d });
-      await page.locator('#mapHost .ms-pin').first().waitFor({ timeout: 60000 }).catch(() => {});
-      await sleep(5000);
-      const r = await page.evaluate(() => {
-        const hit = (a, b) => a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
-        const ctl = [...document.querySelectorAll('#mapHost .leaflet-control')].map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
-        const pins = [...document.querySelectorAll('#mapHost .ms-pin')].map((p) => ({ t: p.querySelector('.ms-pin__price')?.textContent, r: p.getBoundingClientRect() })).filter((p) => p.r.width > 0);
-        return { n: pins.length, under: pins.filter((p) => ctl.some((c) => hit(p.r, c))).map((p) => p.t) };
-      });
-      await context.close();
-      if (!r.n) bad.push(`${company}: no pin`);
-      if (r.under.length) bad.push(`${company}: ${r.under.length} of ${r.n} pins under a control (${r.under.join(', ')})`);
+    for (const [d, boards] of [[at(352, 355), ['apple', 'amazon', 'google', 'microsoft']], [at(320, 568), ['apple', 'meta', 'netflix']], [at(280, 653), ['apple', 'meta', 'anduril']], [at(812, 375), ['anduril']]]) {
+      for (const company of boards) {
+        const { page, context } = await open(ctx, `c=${company}&m=map`, { device: d });
+        await page.locator('#mapHost .ms-pin').first().waitFor({ timeout: 60000 }).catch(() => {});
+        await sleep(5000);
+        // mobile QA 4's M-50 rule: a pin is reachable when a tap at its middle row lands on it; the sandbox's "Basemap
+        // unavailable" note is looked through (real phones have a basemap); pins wholly under the results sheet are not counted.
+        const r = await page.evaluate(() => {
+          const m = document.querySelector('#mapHost').getBoundingClientRect();
+          const sheet = document.querySelector('#results')?.getBoundingClientRect();
+          const bottom = Math.min(m.bottom, sheet ? sheet.top : Infinity, innerHeight);
+          const out = [];
+          let n = 0;
+          for (const p of document.querySelectorAll('#mapHost .ms-pin')) {
+            const b = (p.querySelector('.ms-pin__price, .ms-pin__count') || p).getBoundingClientRect();
+            if (!b.width || b.top >= bottom || b.bottom <= m.top) continue;
+            n++;
+            const reach = [0.15, 0.5, 0.85].some((fx) => { const x = b.left + b.width * fx, y = b.top + b.height / 2; if (x < 0 || x >= innerWidth || y >= bottom) return false; const t = document.elementsFromPoint(x, y).find((e) => !e.closest('.ms-map__offline-note')); return t && (t === p || p.contains(t)); });
+            if (!reach) { const t = document.elementsFromPoint(b.left + b.width / 2, b.top + b.height / 2).find((e) => !e.closest('.ms-map__offline-note')); out.push(`"${p.innerText.replace(/\s+/g, ' ').trim().slice(0, 30)}" under ${t ? `${t.tagName.toLowerCase()}.${String(t.className).split(' ')[0]}` : '?'}`); }
+          }
+          return { n, out };
+        });
+        await context.close();
+        if (!r.n) bad.push(`${company} ${d.width}x${d.height}: no pin on the first view`);
+        if (r.out.length) bad.push(`${company} ${d.width}x${d.height}: ${r.out.join('; ')}`);
+      }
     }
     assert(!bad.length, bad.join('; '));
   });

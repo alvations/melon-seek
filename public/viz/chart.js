@@ -1997,6 +1997,10 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     legend.replaceChildren();
     legend.hidden = opts.colorBy === 'none';
     if (legend.hidden) return;
+    // D-51 (fix-viz-5): the pattern keys come first, so a phone's one-row legend (it scrolls sideways) shows them
+    // without a scroll; on a desktop the legend wraps (viz.css).
+    const patterns = el('span', 'ms-legend__patterns');
+    legend.append(patterns);
     // UX-36: with Group "None" the bars are still coloured by department; the legend says it is colour.
     legend.append(el('span', 'ms-legend__title', `Colour: ${DIM_LABEL[opts.colorBy] || opts.colorBy}`));
     const add = (key, n, color) => {
@@ -2017,11 +2021,12 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       const item = el('span', cls ? 'ms-legend__kind' : 'ms-legend__span');
       item.append(el('span', `ms-legend__spansw ${cls}`), el('span', 'ms-legend__spankey', words), el('span', 'ms-legend__n', n.toLocaleString()));
       item.title = title;
-      legend.append(item);
+      legend.insertBefore(item, patterns);
     };
     if (spans) key('', 'Striped: several levels or places', spans, `${plural(spans, 'posting')} whose range runs over several levels (NVIDIA "Level 4" and "Level 5") or several places' ranges. Each bar's tip, and its role's details, list them`);
     if (ote) key('ms-legend__spansw--ote', 'Dashed: on-target earnings', ote, `${plural(ote, 'posting')} posting on-target earnings: base plus commission at target. They are on the chart, not in the medians`);
     if (minimums) key('ms-legend__spansw--min', 'Fading: a posted minimum', minimums, `${plural(minimums, 'posting')} stating a minimum base pay ("from €46K"); the offer can be higher. On the chart, not in the medians`);
+    patterns.remove(); // a placeholder: the keys went before it
     // fix-density: the legend is one row that scrolls sideways (viz.css); when it does, the keyboard can scroll it.
     requestAnimationFrame(() => {
       if (legend.scrollWidth > legend.clientWidth + 1) legend.tabIndex = 0; else legend.removeAttribute('tabindex');

@@ -1118,7 +1118,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     const box = container.getBoundingClientRect();
     const inside = (r) => r.top >= box.top && r.bottom <= box.bottom && r.left >= box.left && r.right <= box.right;
     const covered = () => {
-      const ctl = [...container.querySelectorAll('.leaflet-control')].map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
+      const ctl = controlBoxes();
       let n = 0;
       for (const p of container.querySelectorAll('.ms-pin')) { const r = p.getBoundingClientRect(); if (r.width > 0 && (!inside(r) || ctl.some((c) => hit(r, c)))) n++; }
       return n;
@@ -1148,10 +1148,16 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     mergeCovered = true;
     draw();
   }
+  /**
+   * The boxes of the map's own controls that take taps (the Pay | Juice box, zoom, Remote, the attribution). The
+   * offline note is left out: it shows only when the basemap fails, and the pins' names are under them then.
+   */
+  const controlBoxes = () => [...container.querySelectorAll('.leaflet-control')].filter((e) => !e.classList.contains('ms-map__offline-note') && !e.classList.contains('ms-map__unplaced'))
+    .map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
   /** The clusters whose pin is under one of the map's controls (clearOfControls). */
   function coveredClusters() {
     const hit = (a, b) => a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
-    const ctl = [...container.querySelectorAll('.leaflet-control')].map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
+    const ctl = controlBoxes();
     return clusters.filter((c) => { const r = c.pinEl?.getBoundingClientRect(); return r && r.width > 0 && ctl.some((b) => hit(r, b)); });
   }
 
