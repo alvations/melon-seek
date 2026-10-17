@@ -24,6 +24,7 @@
 //      (scripts/methodology.js gives each one a home there).
 import fs from 'node:fs';
 import path from 'node:path';
+import { COMPANIES } from '../server/companies.js';
 
 // Big-tech career sites (beta channel only, docs/CONTRACT.md "v3 additions"): the
 // posting pages ("Apply" links) of the beta companies, as the adapters in
@@ -31,18 +32,11 @@ import path from 'node:path';
 // are allowed whole; a shared host only under its careers path (BETA_POSTING_PREFIXES).
 // Tesla is not listed: its site blocks plain requests, so it is not on the beta site.
 // The stable site never links to any of them (scripts/build-static.js#betaLeaks).
-export const BETA_POSTING_HOSTS = Object.freeze([
-  'careers.google.com', // Google's former careers host (postings: BETA_POSTING_PREFIXES)
-  'apply.careers.microsoft.com', 'jobs.careers.microsoft.com', 'careers.microsoft.com', // Microsoft (Eightfold)
-  'www.metacareers.com', // Meta
-  'jobs.apple.com', // Apple
-  'explore.jobs.netflix.net', 'jobs.netflix.com', // Netflix (Eightfold)
-  'www.amazon.jobs', // Amazon
-  'jobs.nvidia.com', 'nvidia.wd5.myworkdayjobs.com', // NVIDIA (Eightfold; applications on Workday)
-]);
-export const BETA_POSTING_PREFIXES = Object.freeze([
-  'https://www.google.com/about/careers/', // Google: www.google.com/about/careers/applications/jobs/results/<id>
-]);
+// Built from the registry entries' `postingHosts` / `postingPrefixes` (server/companies.js), which
+// the normalizer also uses to drop a beta posting's link that is not on its own company's hosts (S-4).
+const BETA_ENTRIES = COMPANIES.filter((c) => c.channel === 'beta');
+export const BETA_POSTING_HOSTS = Object.freeze(BETA_ENTRIES.flatMap((c) => c.postingHosts || []));
+export const BETA_POSTING_PREFIXES = Object.freeze(BETA_ENTRIES.flatMap((c) => c.postingPrefixes || []));
 
 export const ALLOWED_HOSTS = Object.freeze([
   // ATS job pages (each posting's url, "Apply" links)

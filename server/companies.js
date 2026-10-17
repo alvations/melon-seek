@@ -23,15 +23,19 @@ export const COMPANIES = [
   // serves the bundled snapshot (`node scripts/snapshot.js --channel beta`).
   // Each source is built-in only (not in SOURCES, never a custom board), and
   // `board` is a key into that adapter's fixed host table.
-  { slug: 'google', name: 'Google', source: 'google', board: 'google', color: '#4285f4', channel: 'beta', live: false },
-  { slug: 'microsoft', name: 'Microsoft', source: 'eightfold', board: 'microsoft', color: '#00a4ef', channel: 'beta', live: false },
+  // `postingHosts` (whole hosts) and `postingPrefixes` (https careers paths on a shared host):
+  // where its postings live. A posting link elsewhere is dropped (server/normalize.js#postingUrl,
+  // S-4), and scripts/links-policy.js BETA_POSTING_HOSTS / _PREFIXES are built from them. Kept
+  // in the entries, so the stable site's lib/companies.js (beta entries removed) ships none.
+  { slug: 'google', name: 'Google', source: 'google', board: 'google', color: '#4285f4', channel: 'beta', live: false, postingHosts: ['careers.google.com'], postingPrefixes: ['https://www.google.com/about/careers/'] },
+  { slug: 'microsoft', name: 'Microsoft', source: 'eightfold', board: 'microsoft', color: '#00a4ef', channel: 'beta', live: false, postingHosts: ['apply.careers.microsoft.com', 'jobs.careers.microsoft.com', 'careers.microsoft.com'] },
   // PAUSED (2026-10-10, lead): Meta's Automated Data Collection Terms bar automated collection
   // "without ... express written permission", even though robots.txt and the sitemap expose the
   // job pages. Not crawled until the user decides (docs/DATA_SOURCES.md §7 "Terms of use").
   // RESUMED (2026-10-11, by the user: "Resume both now", choosing to accept the legal risk after the verified terms were put to them (docs/AMAZON_META.md, "Decision")). See PAUSING.
-  { slug: 'meta', name: 'Meta', source: 'meta', board: 'meta', color: '#0866ff', channel: 'beta', live: false },
-  { slug: 'apple', name: 'Apple', source: 'apple', board: 'apple', color: '#6e6e73', channel: 'beta', live: false },
-  { slug: 'netflix', name: 'Netflix', source: 'eightfold', board: 'netflix', color: '#e50914', channel: 'beta', live: false },
+  { slug: 'meta', name: 'Meta', source: 'meta', board: 'meta', color: '#0866ff', channel: 'beta', live: false, postingHosts: ['www.metacareers.com'] },
+  { slug: 'apple', name: 'Apple', source: 'apple', board: 'apple', color: '#6e6e73', channel: 'beta', live: false, postingHosts: ['jobs.apple.com'] },
+  { slug: 'netflix', name: 'Netflix', source: 'eightfold', board: 'netflix', color: '#e50914', channel: 'beta', live: false, postingHosts: ['explore.jobs.netflix.net', 'jobs.netflix.com'] },
   // PAUSED (2026-10-10, lead): Amazon's Conditions of Use exclude "data mining, robots, or similar
   // data gathering and extraction tools". Not crawled until the user decides (DATA_SOURCES §7).
   // RESUMED (2026-10-11, by the user: "Resume both now", choosing to accept the legal risk after the verified terms were put to them (docs/AMAZON_META.md, "Decision")). See PAUSING.
@@ -39,10 +43,10 @@ export const COMPANIES = [
   // are you capping the no of posting we must present them as they are and not cut anything". Every
   // posting of every board is published (scripts/snapshot.js#fitSnapshot never drops one); the
   // whole board's phone cost is handled in the browser (docs/process/perf-mobile-beta-2.md).
-  { slug: 'amazon', name: 'Amazon', source: 'amazon', board: 'amazon', color: '#ff9900', channel: 'beta', live: false },
+  { slug: 'amazon', name: 'Amazon', source: 'amazon', board: 'amazon', color: '#ff9900', channel: 'beta', live: false, postingHosts: ['www.amazon.jobs'] },
   // NVIDIA's own careers site (jobs.nvidia.com) is an Eightfold tenant; its Workday
   // CXS API was in a maintenance redirect during the first probe.
-  { slug: 'nvidia', name: 'NVIDIA', source: 'eightfold', board: 'nvidia', color: '#76b900', channel: 'beta', live: false },
+  { slug: 'nvidia', name: 'NVIDIA', source: 'eightfold', board: 'nvidia', color: '#76b900', channel: 'beta', live: false, postingHosts: ['jobs.nvidia.com', 'nvidia.wd5.myworkdayjobs.com'] },
   // Tesla is left out: tesla.com answers every plain request (robots.txt, the careers
   // API, the careers page) with an Akamai "Access Denied" 403 (probe 2026-10-10), and
   // getting around bot protection is out of bounds. See docs/DATA_SOURCES.md §7.
@@ -96,6 +100,17 @@ export function crawlBlock(source, board) {
   const c = COMPANIES.find((x) => x.source === source && String(x.board).toLowerCase() === String(board || '').toLowerCase());
   if (!c || !c.paused) return null;
   return { slug: c.slug, name: c.name, paused: c.paused, reason: PAUSE_REASONS[c.paused] || String(c.paused) };
+}
+
+/**
+ * S-4: where a built-in's posting links may point, { hosts, prefixes }, for an entry that declares
+ * `postingHosts` (the beta big-tech boards), else null (stable boards and custom boards keep any
+ * http(s) link). Looked up by slug in the registry, whatever fields the caller's copy carries.
+ */
+export function postingRule(company) {
+  if (!company || company.custom || typeof company.slug !== 'string') return null;
+  const c = COMPANIES.find((x) => x.slug === company.slug);
+  return c && Array.isArray(c.postingHosts) ? { hosts: c.postingHosts, prefixes: c.postingPrefixes || [] } : null;
 }
 
 /** Any built-in on any channel; the result carries `channel` ('stable' or 'beta'). */

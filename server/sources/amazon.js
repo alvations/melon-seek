@@ -298,6 +298,24 @@ export function amazonSalary(j, table = amazonPayTable(j.description, j.basic_qu
 /** job_schedule_type values -> employmentType (anything else is kept as written). */
 const SCHEDULE = { 'full-time': 'Full-time', 'part-time': 'Part-time' };
 
+/**
+ * S-4 residual (docs/REVIEW.md "beta review 2026-10-16"): the posting link is the API's job_path on
+ * www.amazon.jobs, kept as the API wrote it, only when the joined URL is https on that host with no
+ * user name or password ("@evil.example/x" would give https://www.amazon.jobs@evil.example/x, host
+ * evil.example). Otherwise the posting's canonical page, /en/jobs/<id>.
+ */
+export function amazonPostingUrl(j) {
+  const p = j.job_path ? String(j.job_path) : '';
+  if (p) {
+    const joined = `${AMAZON_ORIGIN}${p}`;
+    try {
+      const u = new URL(joined);
+      if (u.origin === AMAZON_ORIGIN && !u.username && !u.password) return joined;
+    } catch { /* not a URL: use the canonical page */ }
+  }
+  return `${AMAZON_ORIGIN}/en/jobs/${encodeURIComponent(String(j.id_icims ?? j.id ?? ''))}`;
+}
+
 /** One search.json row -> RawJob. */
 export function mapAmazonJob(j) {
   const { locs, remote } = parseLocations(j);
@@ -321,7 +339,7 @@ export function mapAmazonJob(j) {
     remote,
     html,
     text: htmlToText(html),
-    url: j.job_path ? `${AMAZON_ORIGIN}${j.job_path}` : `${AMAZON_ORIGIN}/en/jobs/${j.id_icims}`,
+    url: amazonPostingUrl(j),
     updatedAt: posted,
     postedAt: posted,
     reqId: str(j.id_icims),

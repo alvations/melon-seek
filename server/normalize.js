@@ -5,6 +5,7 @@ import * as keywordsModule from './keywords.js';
 import { parseSalary, toJobSalary, currenciesFor, payTerms, mayRelabelPay, payAreas, payAreaOf } from './salary.js';
 import { htmlToText, isoOrNull } from './sources/util.js';
 import { vetSalaries, salaryChecks } from './vet.js';
+import { postingRule } from './companies.js';
 
 /**
  * Version of the normalized output. Bump it whenever normalizeJob(s) output
@@ -287,12 +288,35 @@ export function relabelJobs(jobs) {
   return changed ? vetSalaries(out) : out;
 }
 
-/** S-4 (fix wave 4): a posting link is an absolute http(s) URL, or null ("javascript:…" never reaches the CSV or the JSON). */
-export function postingUrl(u) {
+/**
+ * True when `u` is an https link with no user name, password or port, on one of `rule.hosts`, or under
+ * one of `rule.prefixes` (compared on the parsed URL, so "…/careers/../x", "<host>.evil.example" or
+ * "https://<host>@evil.example/" cannot pass). No host is named here: this module ships on the stable site.
+ */
+export function onPostingHost(u, rule) {
+  let x;
+  try { x = new URL(String(u)); } catch { return false; }
+  if (x.protocol !== 'https:' || x.username || x.password || x.port) return false;
+  const host = x.hostname.toLowerCase();
+  if (rule.hosts.includes(host)) return true;
+  const here = `${x.protocol}//${host}${x.pathname}`;
+  return rule.prefixes.some((p) => here.startsWith(p));
+}
+
+/**
+ * S-4 (fix wave 4): a posting link is an absolute http(s) URL, or null ("javascript:…" never reaches the
+ * CSV or the JSON). S-4 residual (fix-sec-3): for a beta built-in (its registry entry's `postingHosts` /
+ * `postingPrefixes`, server/companies.js#postingRule) it must also be https, with no user name, password or
+ * port, on that company's own posting hosts; any other link is dropped (the drawer then says "No link to
+ * the posting").
+ */
+export function postingUrl(u, company = null) {
   if (typeof u !== 'string' || !u.trim()) return null;
   try {
     const x = new URL(u.trim());
-    return x.protocol === 'https:' || x.protocol === 'http:' ? u.trim() : null;
+    if (x.protocol !== 'https:' && x.protocol !== 'http:') return null;
+    const rule = postingRule(company);
+    return !rule || onPostingHost(u.trim(), rule) ? u.trim() : null;
   } catch { return null; }
 }
 
@@ -339,7 +363,7 @@ export function normalizeJob(raw, company, { boilerplate = null, team = null } =
     locations,
     remote,
     salary,
-    url: postingUrl(raw.url),                                            // S-4: http(s) only
+    url: postingUrl(raw.url, company),                                   // S-4: http(s) only; a beta built-in's own hosts
     updatedAt: raw.updatedAt || null,
     postedAt: isoOrNull(raw.postedAt),                                    // F4
     reqId: raw.reqId != null && raw.reqId !== '' ? String(raw.reqId) : null, // F4 (Greenhouse internal_job_id)

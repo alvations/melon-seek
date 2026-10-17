@@ -633,7 +633,13 @@ Grosse Bockenheimer Strasse (Frankfurt), Fukuoka Tenjin, "Antara, Mexico" (Mexic
 **Eightfold (`server/sources/eightfold.js`):** twice-escaped numeric character references are decoded
 (`undoubleCharRefs`, VT-13); posting links are https on the tenant host, else the canonical
 `https://<host>/careers/job/<id>` (S-4). **`normalizeJob`** keeps a posting `url` only when it is an
-absolute http(s) URL, else `null` (`postingUrl`, S-4).
+absolute http(s) URL, else `null` (`postingUrl`, S-4). For a beta built-in it must also be https, with no
+user name, password or port, on that company's own posting hosts (its registry entry's `postingHosts` /
+`postingPrefixes`, `server/companies.js#postingRule`; `scripts/links-policy.js` `BETA_POSTING_HOSTS` /
+`_PREFIXES` are built from them, and the stable site's `lib/companies.js` ships none); Amazon's `job_path` is
+kept only when it stays on `www.amazon.jobs` (`amazonPostingUrl`), else the posting's `/en/jobs/<id>` page.
+A posting with no link shows "No link to the posting" in the drawer instead of an Apply button (S-4 residual,
+fix-sec-3).
 
 **Parser limits (S-3):** `parseSalary` reads at most `MAX_PAY_TEXT` (40,000) characters and
 `MAX_PAY_AMOUNTS` (1,000) amounts, finds clause ends once per text and reads at most 600 characters each

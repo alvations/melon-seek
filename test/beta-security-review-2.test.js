@@ -73,7 +73,7 @@ test('S-2 residual: a paused flag on ANY built-in stops fetchLive before its fir
 // https://www.amazon.jobs@evil.example/x (host evil.example). normalize.js#postingUrl only checks the
 // scheme, so the link is stored, published in beta/data/amazon.csv and api/jobs/amazon.json, and is the
 // drawer's Apply link.
-test('S-4 residual: Amazon posting links stay on www.amazon.jobs whatever job_path says', OPEN, async () => {
+test('S-4 residual: Amazon posting links stay on www.amazon.jobs whatever job_path says', async () => {
   const { mapAmazonJob } = await imp('server', 'sources', 'amazon.js');
   const { normalizeJob } = await imp('server', 'normalize.js');
   const amazon = { slug: 'amazon', name: 'Amazon', source: 'amazon', board: 'amazon', channel: 'beta', live: false };

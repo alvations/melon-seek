@@ -4453,6 +4453,8 @@ function drawerContent(job) {
     }) : [h('li', { class: 'muted' }, 'Not listed')])));
 
   const foot = h('div', { class: 'drawer-foot' },
+    // S-4 residual: a posting whose link was dropped (not http(s), or off its company's own hosts) has no Apply button.
+    !applyHost(job.url) ? h('p', { class: 'muted', style: 'flex:1;margin:0;align-self:center' }, 'No link to the posting') :
     h('a', { class: 'btn btn--primary btn--lg apply', href: job.url, target: '_blank', rel: 'noopener noreferrer', title: `Opens ${applyHost(job.url) || 'the posting'} in a new tab` },
       // Demo jobs link to the real board index, not to a real posting — say so. I-3: name the company, not the job-board system.
       h('span', { class: 'apply-label' }, data.mode === 'demo' && !MOCK ? `Open ${coName}’s real job board` : `Apply on ${coName}’s careers site`, applyHost(job.url) ? h('span', { class: 'apply-host' }, applyHost(job.url)) : null), h('span', { html: ICON.ext })),
@@ -4652,6 +4654,7 @@ function copyLink() {
 }
 
 function applyHost(u) {
+  if (!/^https?:\/\//i.test(String(u || ''))) return ''; // no link, or not an absolute http(s) one (S-4 residual)
   const x = safeUrl(u);
   if (x === '#') return '';
   try { return new URL(x).hostname.replace(/^www\./, ''); } catch { return ''; }
