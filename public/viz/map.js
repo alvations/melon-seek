@@ -40,7 +40,7 @@ import {
   formatMoney, toUSD, median, payColor, paySteps, inkOn, onThemeChange, isDark, prefersReducedMotion,
   juiceColor, juiceGrade, juiceNetForScore, JUICE_BREAKS, isForeign, hasFx, FX_AS_OF,
 } from './palette.js';
-import { payAt } from '../features/shared.js';
+import { payAt, payCovers, placeRowCount } from '../features/shared.js';
 // M-23: pin counts as "4.5K", like the chart's circles; the exact count is in pinName().
 import { shortCount, placeMatcher, FX_DOC, FX_SOURCE_SHORT } from './chart.js';
 import { renderNote } from './note.js';
@@ -147,7 +147,9 @@ export function aggregate(jobs, { places: filter = null, placeTest = null } = {}
   const wide = []; // [{ job, l, seen }] country- or state-wide locations to count at the filtered cities
   const homes = new Map(); // job id -> Set of place keys (under a filter, for `also`)
   const others = new Set(); // job ids that list a location outside the filter
-  const at = (job, l, hasPay, key, seen) => {
+  // `rows`: the posting prices its places on rows of their own (salary.ranges), so a pin keeps which of its places
+  // it is at (locsAt) to price it there; a posting with one range is its headline at every place it covers.
+  const at = (job, l, hasPay, key, seen, rows = false) => {
     let p = places.get(key);
     if (!p) {
       const locsAt = new Map(); // job id -> its Locations here that have posted pay
@@ -157,10 +159,12 @@ export function aggregate(jobs, { places: filter = null, placeTest = null } = {}
     }
     if (!p.locNames.has(job.id)) { p.jobs.push(job); p.locNames.set(job.id, new Set()); }
     p.locNames.get(job.id).add(norm(l.name || locLabel(l)));
-    if (hasPay && payAt(job, l)) {
+    if (hasPay && payCovers(job, l)) {
       p.paid.add(job.id);
-      const ls = p.locsAt.get(job.id);
-      if (ls) { if (!ls.includes(l)) ls.push(l); } else p.locsAt.set(job.id, [l]);
+      if (rows) {
+        const ls = p.locsAt.get(job.id);
+        if (ls) { if (!ls.includes(l)) ls.push(l); } else p.locsAt.set(job.id, [l]);
+      }
     }
     seen?.add(key);
     return p;
@@ -169,13 +173,14 @@ export function aggregate(jobs, { places: filter = null, placeTest = null } = {}
     let isRemote = false;
     const seen = new Set();
     const hasPay = !!job.salary && (job.salary.min != null || job.salary.max != null);
+    const rows = hasPay && placeRowCount(job) > 0;
     for (const l of job.locations || []) {
       if (!l) continue;
       if (test && !test(job, l)) { others.add(job.id); continue; } // a place outside the filter: not pinned
       if (l.remote) { isRemote = true; continue; }
-      if (test && !l.city && !named.has(l.name)) { wide.push({ job, l, hasPay, seen }); continue; }
+      if (test && !l.city && !named.has(l.name)) { wide.push({ job, l, hasPay, seen, rows }); continue; }
       if (l.lat == null || l.lng == null || !isFinite(l.lat) || !isFinite(l.lng)) continue;
-      at(job, l, hasPay, `${l.lat.toFixed(1)},${l.lng.toFixed(1)}`, seen);
+      at(job, l, hasPay, `${l.lat.toFixed(1)},${l.lng.toFixed(1)}`, seen, rows);
     }
     if (test) homes.set(job.id, seen);
     // D-4: the Remote bucket is exactly the Remote filter (job.remote), also for roles that have a pin.
@@ -184,18 +189,18 @@ export function aggregate(jobs, { places: filter = null, placeTest = null } = {}
       remote.push(job);
       // Pay counts for Remote when it is posted for a remote location, or when the posting names none.
       if (hasPay) {
-        const here = (job.locations || []).filter((l) => l && l.remote && (!test || test(job, l)) && payAt(job, l));
-        if (here.length) { remotePaid.add(job.id); remoteAt.set(job.id, here); } else if (!isRemote && !test) remotePaid.add(job.id);
+        const here = (job.locations || []).filter((l) => l && l.remote && (!test || test(job, l)) && payCovers(job, l));
+        if (here.length) { remotePaid.add(job.id); if (rows) remoteAt.set(job.id, here); } else if (!isRemote && !test) remotePaid.add(job.id);
       }
     }
   }
   if (wide.length) {
     const cities = [...places.values()].filter((p) => p.city);
-    for (const { job, l, hasPay, seen } of wide) {
+    for (const { job, l, hasPay, seen, rows } of wide) {
       const c = up(l.country), r = up(l.region);
       const hit = cities.filter((p) => p.country === c && (!r || p.region === r));
-      if (hit.length) for (const p of hit) { at(job, l, hasPay, p.key, seen).wide.add(job.id); }
-      else if (l.lat != null && l.lng != null && isFinite(l.lat) && isFinite(l.lng)) at(job, l, hasPay, `${l.lat.toFixed(1)},${l.lng.toFixed(1)}`, seen);
+      if (hit.length) for (const p of hit) { at(job, l, hasPay, p.key, seen, rows).wide.add(job.id); }
+      else if (l.lat != null && l.lng != null && isFinite(l.lat) && isFinite(l.lng)) at(job, l, hasPay, `${l.lat.toFixed(1)},${l.lng.toFixed(1)}`, seen, rows);
     }
   }
   for (const id of others) for (const key of homes.get(id) || []) places.get(key).also.add(id);

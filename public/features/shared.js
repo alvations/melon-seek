@@ -330,6 +330,15 @@ const placeName = (l) => (l ? l.rawName || l.name : null);
 const POSTING = 'posting';
 const NO_ROWS = Object.freeze([]);
 const PAY_TABLES = new WeakMap();
+/** The places a posting's one range covers, read like a Map of Location -> POSTING (cheaper to build). */
+class Covered {
+  constructor(list) { this.list = list; }
+  has(l) { return this.list.includes(l); }
+  get(l) { return this.list.includes(l) ? POSTING : undefined; }
+  keys() { return this.list[Symbol.iterator](); }
+  *[Symbol.iterator]() { for (const l of this.list) yield [l, POSTING]; }
+}
+const NONE = new Covered(NO_ROWS);
 
 /**
  * The places of a posting that have posted pay, built once per job (again when its salary or
@@ -355,24 +364,25 @@ function payTable(job) {
   const t = {
     sal, locs, n: locs.length, min: sal?.min, max: sal?.max, mid: sal?.mid, ranges: sal?.ranges, cur: sal?.currency,
     currency: cur, smin, smax, smid: Number.isFinite(Number(sal?.mid)) && sal?.mid !== null ? Number(sal.mid) : (smin + smax) / 2,
-    at: new Map(), rows: [], one: null, head: undefined,
+    at: NONE, rows: NO_ROWS, one: null, head: undefined,
   };
   if (sal && (sal.min != null || sal.max != null)) {
-    t.rows = (Array.isArray(sal.ranges) ? sal.ranges : []).filter((r) => r && Number.isFinite(Number(r.min)));
+    t.rows = Array.isArray(sal.ranges) && sal.ranges.length ? sal.ranges.filter((r) => r && Number.isFinite(Number(r.min))) : NO_ROWS;
     if (t.rows.length) {
+      const at = new Map();
       for (const l of locs) {
         const name = placeName(l);
         if (!name) continue;
         const own = t.rows.filter((r) => Array.isArray(r.locations) && r.locations.includes(name));
-        if (own.length) t.at.set(l, own);
+        if (own.length) at.set(l, own);
       }
+      t.at = at;
     } else {
+      // One range: the places it covers, as a list (most postings; no Map to build).
       const map = palette.COUNTRY_CURRENCY || {};
-      for (const l of payLocations(job)) {
-        if (!l) continue;
-        const home = l.country ? map[String(l.country).toUpperCase()] : null;
-        if (!home || home === cur) t.at.set(l, POSTING);
-      }
+      const pl = payLocations(job);
+      const ok = (l) => { if (!l) return false; const home = l.country ? map[String(l.country).toUpperCase()] : null; return !home || home === cur; };
+      t.at = new Covered(pl.every(ok) ? pl : pl.filter(ok));
     }
   }
   if (cacheable) PAY_TABLES.set(job, t);
@@ -509,6 +519,23 @@ export function payMissAt(job, place) {
   const t = payTable(job);
   if (place != null && !placesOf(t.locs, place).length) return 'unlisted';
   return t.rows.length ? 'place' : 'country';
+}
+
+/**
+ * True when payAt(job, location) is not null, for one of the job's own Locations, without building a result (the hot
+ * path of the map's aggregate and the chart's Location rows). Other `place` forms ask payAt.
+ */
+export function payCovers(job, place) {
+  const sal = job?.salary;
+  if (!sal || (sal.min == null && sal.max == null)) return false;
+  const t = payTable(job);
+  if (place && typeof place === 'object' && !Array.isArray(place) && !(place instanceof Set) && t.locs.includes(place)) return t.at.has(place);
+  return !!payAt(job, place);
+}
+
+/** How many per-place ranges (salary.ranges) a posting prices its places with; 0 for one range. */
+export function placeRowCount(job) {
+  return job?.salary ? payTable(job).rows.length : 0;
 }
 
 /** The posting's Locations that have posted pay (payAt is not null there), in the posting's order. */

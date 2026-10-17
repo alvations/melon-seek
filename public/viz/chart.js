@@ -46,7 +46,7 @@ import {
   FX_SOURCE, COUNTRY_CURRENCY,
 } from './palette.js';
 import { levelLabel, displayLevel, DISPLAY_LEVEL_ORDER } from '../features/roles.js';
-import { OTE_LABEL, payAt, payMissAt } from '../features/shared.js';
+import { OTE_LABEL, payAt, payMissAt, payCovers, placeRowCount } from '../features/shared.js';
 import { renderNote } from './note.js';
 import { isTouchInput, tipCloser, inView, placeNearTap } from '../features/shared.js';
 
@@ -197,7 +197,7 @@ function pricedItem(p, at) {
   if (!at || !at.usd) return null;
   const { min: lo, max: hi, mid } = at.usd;
   if (!isFinite(lo) || !isFinite(hi) || !isFinite(mid)) return null;
-  if (lo === p.lo && hi === p.hi && mid === p.mid && at.currency === p.cur) return p.at ? p : { ...p, at };
+  if (lo === p.lo && hi === p.hi && mid === p.mid && at.currency === p.cur) return p; // the same bar: no copy (perf)
   return { ...p, lo: Math.min(lo, hi), hi: Math.max(lo, hi), mid, cur: at.currency, at };
 }
 
@@ -213,8 +213,18 @@ export function locationRowItem(p, key, test = null) {
   // A posting with no on-site place sits in "Unknown" (or "Remote" with no place at all): its own pay.
   if (key === 'Unknown' && !locs.some((l) => !l.remote)) return p;
   if (key === 'Remote' && !locs.length) return p;
-  const here = locs.filter((l) => rowKeyOfLoc(l) === key && (!test || test(job, l)));
-  return pricedItem(p, payAt(job, here.length ? here : locs.filter((l) => rowKeyOfLoc(l) === key)));
+  // The row's place(s) of the job; one place (the usual case) takes payAt's cached path.
+  let here = null, any = null;
+  for (const l of locs) {
+    if (rowKeyOfLoc(l) !== key) continue;
+    (any ||= []).push(l);
+    if (!test || test(job, l)) (here ||= []).push(l);
+  }
+  const at = here || any;
+  if (!at) return null;
+  // A posting with one range is its own figure at every place it covers (no result to build, no copy).
+  if (!placeRowCount(job)) return at.some((l) => payCovers(job, l)) ? p : null;
+  return pricedItem(p, payAt(job, at.length === 1 ? at[0] : at));
 }
 
 /**
