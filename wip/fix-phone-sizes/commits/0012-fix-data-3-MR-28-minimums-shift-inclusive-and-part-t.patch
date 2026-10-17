@@ -1,7 +1,7 @@
 From fb37fe9d4f0d8a91864877f7b7830aebf011ed7a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 01:01:56 +0000
-Subject: [PATCH 12/52] fix-data-3: MR-28 minimums, shift-inclusive and
+Subject: [PATCH 12/56] fix-data-3: MR-28 minimums, shift-inclusive and
  part-time hourly figures leave the base-pay cells; one Juice line
 
 scripts/build-market.js notBasePay: a stated minimum, an hourly figure that includes the highest shift

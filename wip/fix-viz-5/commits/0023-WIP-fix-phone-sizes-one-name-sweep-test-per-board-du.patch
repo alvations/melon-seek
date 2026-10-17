@@ -1,7 +1,7 @@
 From debebf52aacd489bd9dc27c87e11565aa365e85e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 00:43:59 +0000
-Subject: [PATCH 23/57] WIP fix-phone-sizes: one name-sweep test per board;
+Subject: [PATCH 23/60] WIP fix-phone-sizes: one name-sweep test per board;
  dual-screen rules only from 861 px
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

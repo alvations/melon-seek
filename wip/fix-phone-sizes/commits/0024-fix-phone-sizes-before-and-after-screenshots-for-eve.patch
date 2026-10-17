@@ -1,7 +1,7 @@
 From d2bb4b36e144680c4c5d2b69809b70ae595a4167 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 00:58:02 +0000
-Subject: [PATCH 24/52] fix-phone-sizes: before and after screenshots for every
+Subject: [PATCH 24/56] fix-phone-sizes: before and after screenshots for every
  size in the matrix (shrunk), verification table
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

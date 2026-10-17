@@ -1,7 +1,7 @@
-From be69f306546373e15eaa5fa25269882b1b6df988 Mon Sep 17 00:00:00 2001
+From 2a943182bfd57b08153788439047e774e7b9d607 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 11:30:43 +0000
-Subject: [PATCH 55/57] WIP fix-viz-5: V-47 chart update keeps its work across
+Subject: [PATCH 57/60] WIP fix-viz-5: V-47 chart update keeps its work across
  a view or Group switch (same drawing); map pins clear of controls
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

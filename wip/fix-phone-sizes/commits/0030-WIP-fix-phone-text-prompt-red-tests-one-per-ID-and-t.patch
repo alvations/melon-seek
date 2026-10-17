@@ -1,7 +1,7 @@
 From 25ca8cbcc30c8ba4a66d00673e5635e30cd4ea0f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 23:40:27 +0000
-Subject: [PATCH 30/52] WIP fix-phone-text: prompt, red tests (one per ID) and
+Subject: [PATCH 30/56] WIP fix-phone-text: prompt, red tests (one per ID) and
  the density guard
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

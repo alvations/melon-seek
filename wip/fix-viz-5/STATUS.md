@@ -2,17 +2,20 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a500839343c7a8ea9`
 - Base (on claude/stoic-ride-54ddxp): `228aed732384c0c6e1b94b673bd6d56c31ec9beb`
-- Head: `db9ec446a6d16aa684f9ad3741d604e06efbaa2e`
+- Head: `09d9bdeaaff8e180d6e32431d47c2a3c58f64043`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-viz-5 <new worktree dir>`
 
 ## Commits since the base
 ```
-db9ec44 WIP fix-viz-5: the measurement script, V-45 test on the pins themselves, map words
-585454b WIP fix-viz-5: e2e checks per finding, viz-lane allow-list entries removed, landscape median caption
-be69f30 WIP fix-viz-5: V-47 chart update keeps its work across a view or Group switch (same drawing); map pins clear of controls
-2df05f5 WIP fix-viz-5: settled circle plan and area sizes (V-33, V-34), bar weight and titles (V-38, UX-41), pay as posted (V-41, V-48, MR-28, D-43), axis and words (V-42, V-46, UX-40/42/43/59/61, A-8, D-44), map (V-43 to V-45, Razr)
-cef9fd0 WIP fix-viz-5: log skeleton with State
-717274e fix-viz-5: prompt verbatim
+09d9bde fix-viz-5: UX-45 the map's Juice legend starts each grade where the list and the drawer do; patches for UX-36 (index.html) and one notBasePay for build-market
+db0dc60 WIP fix-viz-5: the measurement script, V-45 test on the pins themselves, map words
+7952304 WIP fix-viz-5: e2e checks per finding, viz-lane allow-list entries removed, landscape median caption
+2a94318 WIP fix-viz-5: V-47 chart update keeps its work across a view or Group switch (same drawing); map pins clear of controls
+90ee349 WIP fix-viz-5: settled circle plan and area sizes (V-33, V-34), bar weight and titles (V-38, UX-41), pay as posted (V-41, V-48, MR-28, D-43), axis and words (V-42, V-46, UX-40/42/43/59/61, A-8, D-44), map (V-43 to V-45, Razr)
+29e245b WIP fix-viz-5: log skeleton with State
+7cad5b3 fix-viz-5: prompt verbatim
+164874a Lead log: fix wave 5 integrated (sec-3, data-3, phone sizes and text, pay at a place); integration fixes; the gate's browser crash and re-run
+b815f2b Integration fixes for fix wave 5: a merge's stray '=======' in styles.css (dropped UX-58's rule), one Pay by place row per place set (D-39), tests read the pill's sub line, data-3's department names and MR-28 footnote
 fbdad58 Integration: fix-data-3's patches (postedPlaces per tied row, the Compare footnote names MR-28's left-out pay, M-40's precondition) and the pay lane's Juice test on
 83512bc fix-pay-at-place: log the final gate (full e2e 389/394, T21 under load passes alone); the Juice patch is a reference (fix-data-3 0ae184e)
 7833e88 fix-pay-at-place: before/after screenshots (shrunk, 1.2 MB)
@@ -68,8 +71,6 @@ bc95d97 fix-sec-3: S-2 residual: one pause guard for every crawl (fetchLive, sna
 
 ## Uncommitted and new files
 ```
-?? docs/process/patches/fix-viz-5-group-none.diff
-?? docs/process/patches/fix-viz-5-market-notbasepay.diff
 ?? docs/screenshots/fix-viz-5/
 ```
 

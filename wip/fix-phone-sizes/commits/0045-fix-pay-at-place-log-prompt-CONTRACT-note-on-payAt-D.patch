@@ -1,7 +1,7 @@
 From 06574020f1300c5c6cc5d6b3b0d08084ea913c0b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 01:04:27 +0000
-Subject: [PATCH 45/52] =?UTF-8?q?fix-pay-at-place:=20log,=20prompt,=20CONT?=
+Subject: [PATCH 45/56] =?UTF-8?q?fix-pay-at-place:=20log,=20prompt,=20CONT?=
  =?UTF-8?q?RACT=20note=20on=20payAt,=20DATA=5FSOURCES=20=C2=A77a,=20the=20?=
  =?UTF-8?q?Juice=20patch=20(server/juice.js)=20and=20its=20to-do=20test?=
 MIME-Version: 1.0

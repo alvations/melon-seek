@@ -1,7 +1,7 @@
-From 585454b757ceb6758d5d0b905e632d0553b42c7c Mon Sep 17 00:00:00 2001
+From 7952304c63f9ebf88b456953d06b91554885cba9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 11:43:50 +0000
-Subject: [PATCH 56/57] WIP fix-viz-5: e2e checks per finding, viz-lane
+Subject: [PATCH 58/60] WIP fix-viz-5: e2e checks per finding, viz-lane
  allow-list entries removed, landscape median caption
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

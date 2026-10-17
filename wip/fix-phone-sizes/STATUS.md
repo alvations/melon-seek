@@ -2,12 +2,16 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a3ec7679b4d2dd1a0`
 - Base (on claude/stoic-ride-54ddxp): `228aed732384c0c6e1b94b673bd6d56c31ec9beb`
-- Head: `fca80aceb2b2bde6d56ef2a84c04f0d11008a7c0`
+- Head: `d283d66d9fc90a9643a318b4475c3df875df6264`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-phone-sizes <new worktree dir>`
 
 ## Commits since the base
 ```
-fca80ac fix-phone-sizes: the Surface Duo stacked (720x1114, hinge across): chart and filters on the top screen, the list, job page and sheets on the bottom one; in phone-sizes.mjs and the matrix. Drop a stray conflict marker in styles.css
+d283d66 fix-phone-sizes: a long department name that fits whole in two lines flows as one text (13 px, then 12 px, on the narrowest phones), so Amazon's 'Non-Technical Project, Program and Product Management' is never cut (M-40 with fix-data-3's names)
+71a0aae WIP fix-phone-sizes: log State on fbdad58, the stacked Duo, the conflict line
+6f81610 fix-phone-sizes: the Surface Duo stacked (720x1114, hinge across): chart and filters on the top screen, the list, job page and sheets on the bottom one; in phone-sizes.mjs and the matrix. Drop a stray conflict marker in styles.css
+164874a Lead log: fix wave 5 integrated (sec-3, data-3, phone sizes and text, pay at a place); integration fixes; the gate's browser crash and re-run
+b815f2b Integration fixes for fix wave 5: a merge's stray '=======' in styles.css (dropped UX-58's rule), one Pay by place row per place set (D-39), tests read the pill's sub line, data-3's department names and MR-28 footnote
 fbdad58 Integration: fix-data-3's patches (postedPlaces per tied row, the Compare footnote names MR-28's left-out pay, M-40's precondition) and the pay lane's Juice test on
 83512bc fix-pay-at-place: log the final gate (full e2e 389/394, T21 under load passes alone); the Juice patch is a reference (fix-data-3 0ae184e)
 7833e88 fix-pay-at-place: before/after screenshots (shrunk, 1.2 MB)
@@ -63,7 +67,9 @@ bc95d97 fix-sec-3: S-2 residual: one pause guard for every crawl (fetchLive, sna
 
 ## Uncommitted and new files
 ```
- M docs/process/fix-phone-sizes.md
+ M public/app.js
+ M public/styles.css
+ M test/e2e/phone-matrix.e2e.js
 ```
 
 ## Left out (not in untracked.tgz)

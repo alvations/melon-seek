@@ -1,0 +1,67 @@
+From 164874ac7c859094c4269b79524b582402285fa0 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 12:07:21 +0000
+Subject: [PATCH 53/60] Lead log: fix wave 5 integrated (sec-3, data-3, phone
+ sizes and text, pay at a place); integration fixes; the gate's browser crash
+ and re-run
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/lead.md | 43 +++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 43 insertions(+)
+
+diff --git a/docs/process/lead.md b/docs/process/lead.md
+index ea4c914..a59eb10 100644
+--- a/docs/process/lead.md
++++ b/docs/process/lead.md
+@@ -1416,3 +1416,46 @@ screenshots in `docs/screenshots/`.
+   - The session's checkpoint cron was gone and has been recreated.
+   - The lead's own integration worktree is now checkpointed too (lane `lead-integration`), so unpushed merges survive a stop.
+ - **Disk:** 90% full, so about 4 GB of finished lanes' base builds and old-round builds were removed from the scratchpad.
++
++### Fix wave 5 integrated: phone text and sizes, pay at a place, data-3, sec-3 (2026-10-17)
++- **Lanes merged** (cherry-picked onto 228aed7, in this order):
++  - **fix-sec-3**: S-2, S-4, S-9, S-10, V12 and V14 residuals.
++  - **fix-data-3**:
++    - D-38: Google Fellow is Staff+, and its $550,000 shows as posted;
++    - MR-28: minimums, shift-inclusive and part-time pay are out of the base-pay cells;
++    - places: D-41 St./Saint, D-42 "New York State", V-45 Cajamar and Luxembourg City, Town and Country, old "City, ST" links;
++    - UX-32: department names; norm-12.
++  - **fix-phone-sizes**: the matrix, 34/34, the 280 px Fold, the Razr cover screen and the Duo spanned.
++  - **fix-phone-text**: every caption and note is one line, at every size.
++  - **fix-pay-at-place**:
++    - `payAt`, one rule for the pay posted at a place, in every view (V-35 to V-40);
++    - UX-37, UX-52, D-39, D-40, M-42 and MR-34.
++- **fix-data-3's patches**, applied at integration:
++  - `postedPlaces` per tied row (the no-row decision in every view);
++  - the Compare footnote names MR-28's left-out pay;
++  - M-40's precondition.
++  - The pay lane's Juice test is now a plain test, because data-3's `postedPlaceSet` applies the same rule.
++- **Conflicts:**
++  - scripts/e2e.js registrations and the webkit-phone.yml steps: both sides kept;
++  - public/app.js stats line, percentile line, Pay Details, search hint and Juice lines: both lanes' changes kept;
++  - chart.js `renderNotes`: `noteStats` plus `otherPlaces`;
++  - CONTRACT.md and DATA_SOURCES.md §7a: both sections kept, one merged "Lead decision" cell.
++- **Found by the gate, fixed at integration** (b815f2b):
++  - **A stray `=======` in public/styles.css**, left by the phone-sizes merge. The CSS parser dropped the rule after it, so UX-58's "No Juice" padding was lost. It was never deployed. **New: test/conflict-markers.test.js** fails `npm test` on any conflict marker in a tracked source file.
++  - **D-39:** Amazon posts two hourly rates for the same three Oregon towns (amazon:10397395), so Pay by place showed "Boardman, Hermiston and 1 more" twice. Rows for the same places now share one row, with each posted range under it. Nothing is dropped.
++  - **Three tests still expected the pre-wave design:**
++    - the 360 px pay-label test read "· 2 levels" in the pill; it is now the muted line under it (UX-52);
++    - [P-10]'s footnote regex now accepts the MR-28 wording;
++    - [M-40] looked for "…--Technical"; data-3's names are "Technical/Non-Technical Project, Program and Product Management".
++- **Gate on fbdad58** (`npm test` CI-like: 1,184 pass, 0 fail; build: 7/7 beta companies, check-lists clean). Full e2e: the browser closed at test 771 of 856 (Fix phone text [M-35]), and the 40 tests after it failed on "Target page, context or browser has been closed". Those groups were re-run on b815f2b: see below.
++- **Integration findings sent to lanes:**
++  - fix-phone-sizes:
++    - "Non-Technical Project, Program and Product Management" is cut by 0.42 px at 360 px and narrower (the phone-text guard; M-40's split meets data-3's names);
++    - UX-39, the preview's cards in the collapsed sheet, which no lane owned.
++  - fix-viz-5: UX-45, the map's Juice legend cut-offs.
++- **Retired from the checkpoint list:** viz-even, fix-pay-at-place, fix-phone-text, fix-data-3 and fix-sec-3 (merged). Their lane builds were deleted (about 2 GB).
++- **Running:**
++  - fix-viz-5: the rest of "spans too evenly" (V-33, V-34, V-38), V-41 to V-48, MR-28 in the client medians, axes and legends, the map, and V-47;
++  - fix-phone-sizes: resumed after the rate limit; re-checks every size on the integrated build, and covers the Duo stacked.
++- **WebKit run 9 (228aed7): green.** Phone smoke on WebKit and Chromium at every size and board, the phone, company-sheet, touch-tip and phone-control tests on WebKit, and Simulator Safari (13 mini, 16, SE).
++- **Container restart, about 10:25 UTC:** the checkpoint cron was lost and has been recreated.
+-- 
+2.43.0
+

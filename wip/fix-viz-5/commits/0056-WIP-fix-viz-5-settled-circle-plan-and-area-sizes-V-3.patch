@@ -1,7 +1,7 @@
-From 2df05f54af877bd67887418906200bf99a790e5c Mon Sep 17 00:00:00 2001
+From 90ee34999a42ab59e11f32be23b9c33daf6db284 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 11:19:05 +0000
-Subject: [PATCH 54/57] WIP fix-viz-5: settled circle plan and area sizes
+Subject: [PATCH 56/60] WIP fix-viz-5: settled circle plan and area sizes
  (V-33, V-34), bar weight and titles (V-38, UX-41), pay as posted (V-41, V-48,
  MR-28, D-43), axis and words (V-42, V-46, UX-40/42/43/59/61, A-8, D-44), map
  (V-43 to V-45, Razr)
@@ -22,7 +22,7 @@ Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
  create mode 100644 test/fix-viz-5.test.js
 
 diff --git a/public/app.js b/public/app.js
-index 515bb17..5cebdda 100644
+index afde45e..4bf4035 100644
 --- a/public/app.js
 +++ b/public/app.js
 @@ -13,7 +13,7 @@ import { compsForJob, compsNote, createCompsCard } from './features/comps.js';
