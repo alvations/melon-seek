@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a500839343c7a8ea9`
 - Base (on claude/stoic-ride-54ddxp): `1ef0646b6f16aca8f215cf21e368185bddcf7b89`
-- Head: `3e06304f369bd5baf47c8d5509ba92c910b3b54d`
+- Head: `724550a7b205cb26668d1f9b9bdd740a5c996653`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-viz-5 <new worktree dir>`
 
 ## Commits since the base
 ```
+724550a fix-viz-5: on a landscape phone the label column fits the axis caption with its median (cut on Apple and Microsoft at 667 and 812 px); the caption check covers them
 3e06304 fix-viz-5: before/after screenshots (66, shrunk to 1.9 MB); log
 2c5444c fix-viz-5: V-35 runs again (its precondition reads barPlace's wording); a one-place bar's tip lists its posting's place ranges; the new legend keys have their own class
 97cd2b8 fix-viz-5: UX-45 the map's Juice legend starts each grade where the list and the drawer do; patches for UX-36 (index.html) and one notBasePay for build-market
@@ -29,6 +30,18 @@ ece9af7 fix-viz-5: prompt verbatim
  M docs/screenshots/map-juice.png
  M docs/screenshots/map.png
  M docs/screenshots/mobile.png
+ M docs/screenshots/qa-mobile-beta-2/e2e-M-28-360x640-with-the-keyboard-up-300-px-.png
+ M docs/screenshots/qa-mobile-beta-2/e2e-M-28-iPhone-SE-Safari-375x548.png
+ M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390-with-5-saved-searches.png
+ M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390.png
+ M docs/screenshots/qa-mobile-beta-2/e2e-M-29-company-menu-focus.png
+ M docs/screenshots/qa-mobile-beta-2/e2e-M-30-saved-searches-loaded.png
+ M docs/screenshots/qa-mobile-beta-2/e2e-M-31-empty-message-half-sheet.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-19-sort-while-scrolled.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-21-company-menu.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-22-paused-board.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-24-keyboard-location-search.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-27-topbar-360.png
  M docs/screenshots/qa-mobile/e2e-landscape-map.png
 ```
 
