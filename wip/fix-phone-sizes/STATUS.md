@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a3ec7679b4d2dd1a0`
 - Base (on claude/stoic-ride-54ddxp): `a92a3c83eb4890db11b724667e469ec99655e95c`
-- Head: `a6c3e2b120508907e5c530b802ad78d871e07488`
+- Head: `f5098cea6960902522f37e76e496c000c6320b9d`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-phone-sizes <new worktree dir>`
 
 ## Commits since the base
 ```
+f5098ce WIP fix-phone-sizes: one name-sweep test per board; dual-screen rules only from 861 px
 a6c3e2b WIP fix-phone-sizes: the matrix measures the placeholder in the field's font; log decisions
 2754e9d WIP fix-phone-sizes: landscape means landscape, short screens, the name whole at every width, the 280 px toolbar and tagline, cards and Apply fit, map scale, dual screens
 fdc9779 WIP fix-phone-sizes: phone matrix guard (every size in phone-sizes.mjs, 3 boards), prompt and log
@@ -23,9 +24,12 @@ fdc9779 WIP fix-phone-sizes: phone matrix guard (every size in phone-sizes.mjs, 
  M docs/screenshots/map-juice.png
  M docs/screenshots/map.png
  M docs/screenshots/mobile.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-19-sort-while-scrolled.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-21-company-menu.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-22-paused-board.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-24-keyboard-location-search.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-27-topbar-360.png
  M docs/screenshots/qa-mobile/e2e-landscape-map.png
- M public/styles.css
- M test/e2e/phone-matrix.e2e.js
 ?? docs/screenshots/fix-phone-sizes/
 ```
 
@@ -47,9 +51,14 @@ fdc9779 WIP fix-phone-sizes: phone matrix guard (every size in phone-sizes.mjs, 
 - docs/screenshots/fix-phone-sizes/after-iphone-se-3rd-gen-375x667-light.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/fix-phone-sizes/after-iphone-se-3rd-gen-landscape-667x375-light.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/fix-phone-sizes/after-motorola-razr-cover-screen-352x355-light.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-phone-sizes/after-motorola-razr-inner-landscape-1005x412-light.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/fix-phone-sizes/after-motorola-razr-inner-open-412x1005-light.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/fix-phone-sizes/after-pixel-8-412x915-light.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/fix-phone-sizes/after-surface-duo-one-screen-540x720-light.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-phone-sizes/after-surface-duo-spanned-hinge-1114x720-dark.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-phone-sizes/after-surface-duo-spanned-hinge-1114x720-light.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-phone-sizes/after-surface-duo-spanned-hinge-filters-1114x720-light.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-phone-sizes/after-surface-duo-spanned-hinge-job-1114x720-light.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/fix-phone-sizes/after-surface-duo-spanned-two-screens-1114x720-dark.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/fix-phone-sizes/after-surface-duo-spanned-two-screens-1114x720-light.png (screenshot; the lane's tests regenerate it)
 - docs/screenshots/fix-phone-sizes/before-galaxy-fold-folded-280x653-dark.png (screenshot; the lane's tests regenerate it)

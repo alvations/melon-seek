@@ -1,0 +1,131 @@
+diff --git a/server/keywords.js b/server/keywords.js
+index 9a9eb61..f39b9ee 100644
+--- a/server/keywords.js
++++ b/server/keywords.js
+@@ -1,6 +1,6 @@
+ // Job description parsing: bullet sections, keyword facets and seniority.
+ // No DOM library: a small regex tokenizer walks the HTML.
+-import { SALES_CONDITIONAL_RE } from './salary.js';
++import { SALES_CONDITIONAL_RE, isFellowRank, programmeText } from './salary.js';
+ 
+ // ---------------------------------------------------------------------------
+ // HTML helpers
+@@ -1347,9 +1347,13 @@ function seniorityOf(title, company = null) {
+   const exec = t.replace(NON_EXEC_DIRECTOR_RE, ' ').replace(IC_DIRECTOR_RE, ' ').replace(NON_EXEC_CHIEF_RE, ' engineer ');
+   if ((EXEC_WORD_RE.test(exec) && !execTail(exec)) || /^head\b/i.test(t)) return byTitle('Director+');
+   if (String(company || '').toLowerCase() === 'meta' && META_LEADERSHIP_RE.test(t)) return byTitle('Staff+');
+-  if (/\b(?:intern(?:ship)?s?|fellowships?|fellows program|co-?op|apprentice(?:ship)?|summer (?:analyst|associate|student)|residency|resident)\b/i.test(t)
+-    || (FELLOW_RE.test(t) && !SENIOR_FELLOW_RE.test(t)) || STUDENT_RE.test(t)) return byTitle('Intern');
+-  if (/\b(?:staff|principal|distinguished)\b/i.test(t) || SENIOR_FELLOW_RE.test(t)) return byTitle('Staff+');
++  // D-38 (fix-data-3): a Fellow rank ("Fellow, Core AI Foundations": Google's top engineering level) is Staff+,
++  // and "Data Residency" is not a residency programme (salary.js isFellowRank, programmeText).
++  const prog = programmeText(t);
++  const rank = isFellowRank(t);
++  if (/\b(?:intern(?:ship)?s?|fellowships?|fellows program|co-?op|apprentice(?:ship)?|summer (?:analyst|associate|student)|residency|resident)\b/i.test(prog)
++    || (FELLOW_RE.test(t) && !SENIOR_FELLOW_RE.test(t) && !rank) || STUDENT_RE.test(t)) return byTitle('Intern');
++  if (/\b(?:staff|principal|distinguished)\b/i.test(t) || SENIOR_FELLOW_RE.test(t) || rank) return byTitle('Staff+');
+   const google = googleNumberedManager(t, company);
+   if (google) return byTitle(google);
+   const isManager = /\bmanager\b/i.test(t) && !NON_PEOPLE_MANAGER.test(t);
+@@ -1466,7 +1470,7 @@ export function compExtrasEvidence(text, { title = '' } = {}) {
+   let src = String(text || '');
+   if (/<(?:p|li|ul|div|br|h[1-6])\b/i.test(src)) src = htmlToText(src);
+   const salesTitle = isSalesTitle(title);
+-  const nonFullTime = NON_FULLTIME_TITLE_RE.test(title);
++  const nonFullTime = NON_FULLTIME_TITLE_RE.test(title) && !isFellowRank(title); // D-38: a Fellow rank is full-time
+   const evidence = { equity: [], bonus: [] };
+   const vetoed = { equity: false, bonus: false };
+ 
+diff --git a/server/salary.js b/server/salary.js
+index 388c238..c4c8a67 100644
+--- a/server/salary.js
++++ b/server/salary.js
+@@ -603,7 +603,30 @@ export function mayRelabelPay(text) {
+ }
+ // Fixed-term roles: internships, co-ops, fellowships, residencies, apprenticeships.
+ const FIXED_TERM_TITLE_RE = /\b(?:intern(?:ship)?s?|co-?ops?|fellows?|fellowships?|residen(?:t|cy|cies)|apprentice(?:ship)?s?|summer\s+(?:analyst|associate|student)s?)\b/i;
+-const SENIOR_FELLOW_TITLE_RE = /\b(?:distinguished|technical|senior|principal|corporate|chief)\s+fellows?\b/i;
++
++// D-38 (fix-data-3): a Fellow RANK is a company's top individual-contributor level, not a fixed-term
++// fellowship. Google's "Fellow, Core AI Foundations" ("you will serve as the technical authority … reporting
++// directly to the General Manager", posted at $550,000) was levelled Intern and its pay quarantined as an
++// intern's. A rank is a distinguished-type fellow ("Distinguished Fellow", "Technical Fellow, Silicon"), "Fellow"
++// as the title's own role noun ("Fellow", "Fellow, <team>", "Fellow - <team>", "Fellow (<team>)"), or a company's
++// named rank ("Google Fellow", "IBM Fellow"). A programme word anywhere in the title keeps it a fellowship:
++// "Anthropic Fellows Program", "AI Safety Fellowship", "Conceptual Reasoning Fellow", "SWE Fellow - Human
++// Frontier Collective", "Research Fellow", a residency, a student, graduate, PhD or postdoc role.
++const FELLOW_RANK_RE = /^\s*fellow(?![\w-])(?=\s*(?:$|[,(\-–—:|]))|\b(?:distinguished|technical|senior|principal|corporate|chief)\s+fellows?\b|\b(?:google|ibm|intel|amd|nvidia|apple|microsoft|meta|amazon|qualcomm|oracle|cisco|adobe)\s+fellow(?![\w-])/i;
++const FELLOW_PROGRAMME_RE = /\b(?:fellowships?|fellows\s+program(?:me)?s?|program(?:me)?s?|residency|residencies|students?|graduates?|grads?|ph\.?\s?d|post-?docs?|postdoctoral|interns?|internships?)\b/i;
++/** True for a Fellow rank (an individual-contributor level: "Fellow, Core AI Foundations", "Distinguished Fellow"), never a fellowship programme. */
++export function isFellowRank(title) {
++  const t = String(title || '');
++  return FELLOW_RANK_RE.test(t) && !FELLOW_PROGRAMME_RE.test(t);
++}
++// D-38 audit (fix-data-3): "residency" in a title can be a data term, not a residency programme. Google's
++// "Engineering Manager, Data Residency and Fast Compliance" was levelled Intern. These phrases are left out
++// before the fixed-term and junior words are read.
++export const NOT_PROGRAMME_RE = /\b(?:data|tax|cloud|digital|sovereign)\s+residency\b/gi;
++/** The title without words that look like a programme but are not one (NOT_PROGRAMME_RE). */
++export function programmeText(title) {
++  return String(title || '').replace(NOT_PROGRAMME_RE, ' ');
++}
+ 
+ const termNum = (s) => {
+   const k = String(s || '').toLowerCase();
+@@ -625,8 +648,8 @@ function termOf(lo, hi, unit) {
+ 
+ /** True for an internship, co-op, fellowship, residency or apprenticeship (title or employment type). */
+ export function isFixedTermRole({ title = '', employmentType = '' } = {}) {
+-  const t = String(title || '');
+-  if (FIXED_TERM_TITLE_RE.test(t) && !SENIOR_FELLOW_TITLE_RE.test(t)) return true;
++  const t = programmeText(title);
++  if (FIXED_TERM_TITLE_RE.test(t) && !isFellowRank(t)) return true;
+   return /\b(?:intern(?:ship)?|temporary|seasonal|co-?op)\b/i.test(String(employmentType || ''));
+ }
+ 
+diff --git a/server/vet.js b/server/vet.js
+index a5a35de..05b96bc 100644
+--- a/server/vet.js
++++ b/server/vet.js
+@@ -54,7 +54,7 @@ export const VET = Object.freeze({
+ export const CRITICAL_CODES = Object.freeze(['above_max', 'below_min', 'hourly_high']);
+ 
+ // Rough FX lives in salary.js (one table for parser bounds and this gate).
+-import { USD_PER, toUSD, LEGAL_MIN_ANNUAL } from './salary.js';
++import { USD_PER, toUSD, LEGAL_MIN_ANNUAL, isFellowRank, programmeText } from './salary.js';
+ export { USD_PER, toUSD };
+ 
+ const PART_TIME_RE = /part[- ]?time|intern|co-?op|contract|temporary|seasonal|casual|per diem/i;
+@@ -70,10 +70,14 @@ const JUNIOR_RE = /\b(intern(ship)?|co-?op|fellow(ship)?s?|resident|residency|ap
+ const SENIOR_RE = /\b(director|vp|svp|evp|vice president)\b/i;
+ const NOT_JUNIOR_RE = /\b(technical|distinguished|senior|principal|research) fellow\b/i;
+ 
+-/** 'junior' | 'senior' | null from the title. */
++/**
++ * 'junior' | 'senior' | null from the title. D-38 (fix-data-3): a Fellow rank (salary.js isFellowRank:
++ * Google's "Fellow, Core AI Foundations", its top engineering level, posted at $550,000) is not junior, and
++ * "Data Residency" is not a residency programme (programmeText); their posted pay is shown as posted.
++ */
+ export function titleClass(title) {
+-  const t = String(title || '');
+-  if (JUNIOR_RE.test(t) && !NOT_JUNIOR_RE.test(t)) return 'junior';
++  const t = programmeText(title);
++  if (JUNIOR_RE.test(t) && !NOT_JUNIOR_RE.test(t) && !isFellowRank(t)) return 'junior';
+   if (SENIOR_RE.test(t) && !/\b(assistant|associate|coordinator) to\b/i.test(t)) return 'senior';
+   return null;
+ }
+@@ -91,10 +95,11 @@ const FAMILIES = [
+   ['ops', /\b(operations|program|project|coordinator|specialist|analyst|strategist)\b/i],
+ ];
+ 
+-/** Coarse role family from the title (first match wins). */
++/** Coarse role family from the title (first match wins). A Fellow rank or "Data Residency" is not the intern family (D-38). */
+ export function roleFamily(title) {
+-  const t = String(title || '');
+-  for (const [name, re] of FAMILIES) if (re.test(t)) return name;
++  const t = programmeText(title);
++  const rank = isFellowRank(t);
++  for (const [name, re] of FAMILIES) if (re.test(t) && !(name === 'intern' && rank && !re.test(t.replace(/\bfellows?\b/gi, ' ')))) return name;
+   return 'other';
+ }
+ 

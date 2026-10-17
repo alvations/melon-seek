@@ -1,0 +1,119 @@
+diff --git a/public/viz/map.js b/public/viz/map.js
+index 0a6fa3e..2e4ec5e 100644
+--- a/public/viz/map.js
++++ b/public/viz/map.js
+@@ -848,25 +848,28 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+     if (!t || !node || !m.isTooltipOpen()) return;
+     const pt = map.latLngToContainerPoint(m.getLatLng()), size = map.getSize();
+     const pad = 8;
+-    // A small map (a 280 px phone, the Razr's 352x355 cover screen) gets a tooltip no bigger than itself; the lines
+-    // that do not fit are cut at the bottom (the figures come first).
+-    node.style.maxWidth = `${Math.max(120, size.x - 2 * pad)}px`;
+-    node.style.maxHeight = `${Math.max(60, size.y - 2 * pad)}px`;
++    // The part of the map on screen, in the map's own px (a short landscape screen scrolls part of it away).
++    const box = map.getContainer().getBoundingClientRect();
++    const v = { l: Math.max(0, -box.left), r: Math.min(size.x, innerWidth - box.left), t: Math.max(0, -box.top), b: Math.min(size.y, innerHeight - box.top) };
++    // A small map (a 280 px phone, the Razr's 352x355 cover screen) gets a tooltip no bigger than that part; the
++    // lines that do not fit are cut at the bottom (the figures come first).
++    node.style.maxWidth = `${Math.max(120, v.r - v.l - 2 * pad)}px`;
++    node.style.maxHeight = `${Math.max(60, v.b - v.t - 2 * pad)}px`;
+     node.style.overflow = 'hidden';
+     const w = node.offsetWidth, h = node.offsetHeight;
+-    const fitsY = (top) => top >= pad && top + h <= size.y - pad;
++    const fitsY = (top) => top >= v.t + pad && top + h <= v.b - pad;
+     let dir, off;
+-    if (pt.x < 160 && pt.x + 60 + w <= size.x - pad && fitsY(pt.y - 18 - h / 2)) { dir = 'right'; off = [54, -18]; }
+-    else if (pt.x > size.x - 160 && pt.x - 60 - w >= pad && fitsY(pt.y - 18 - h / 2)) { dir = 'left'; off = [-54, -18]; }
++    if (pt.x - v.l < 160 && pt.x + 60 + w <= v.r - pad && fitsY(pt.y - 18 - h / 2)) { dir = 'right'; off = [54, -18]; }
++    else if (v.r - pt.x < 160 && pt.x - 60 - w >= v.l + pad && fitsY(pt.y - 18 - h / 2)) { dir = 'left'; off = [-54, -18]; }
+     else {
+       const half = w / 2;
+-      const dx = w + 2 * pad >= size.x ? size.x / 2 - pt.x : Math.min(Math.max(0, pad + half - pt.x), size.x - pad - half - pt.x);
++      const dx = w + 2 * pad >= v.r - v.l ? (v.l + v.r) / 2 - pt.x : Math.min(Math.max(0, v.l + pad + half - pt.x), v.r - pad - half - pt.x);
+       // Above the pin (its top edge is 42 px over the point, with Leaflet's margin), else below it (12 px under);
+       // with room for neither, below it, slid up to stay inside the map.
+-      if (pt.y - 42 - h >= pad) { dir = 'top'; off = [Math.round(dx), -36]; }
++      if (pt.y - 42 - h >= v.t + pad) { dir = 'top'; off = [Math.round(dx), -36]; }
+       else {
+         dir = 'bottom';
+-        const top = Math.max(pad, Math.min(size.y - pad - h, pt.y + 12));
++        const top = Math.max(v.t + pad, Math.min(v.b - pad - h, pt.y + 12));
+         off = [Math.round(dx), Math.round(top - pt.y - 6)];
+       }
+     }
+diff --git a/test/e2e/fix-touch-tips.e2e.js b/test/e2e/fix-touch-tips.e2e.js
+index 62f4e5f..2b7b8cc 100644
+--- a/test/e2e/fix-touch-tips.e2e.js
++++ b/test/e2e/fix-touch-tips.e2e.js
+@@ -191,8 +191,18 @@ async function open(ctx, hash, { phone = true, size = PHONE, dark = DARK, device
+             const x = r.left + Math.min(r.width / 2, 80), y = r.top + r.height / 2;
+             return x >= 0 && x < innerWidth && y >= 0 && y < innerHeight && e.contains(document.elementFromPoint(x, y)) ? { x, y, top: r.top, bottom: r.bottom } : null;
+           };
++          const settle = async () => {
++            let last = null;
++            for (let k = 0; k < 12; k++) {
++              await new Promise((r) => setTimeout(r, 100));
++              const t = e.getBoundingClientRect().top;
++              if (last != null && Math.abs(t - last) < 0.5) return;
++              last = t;
++            }
++          };
++          await settle();
+           let hit = at();
+-          if (!hit) { e.scrollIntoView({ block: 'center' }); await new Promise((r) => setTimeout(r, 250)); hit = at(); }
++          if (!hit) { e.scrollIntoView({ block: 'center' }); await settle(); hit = at(); }
+           return hit;
+         });
+         if (p) return p;
+@@ -672,15 +682,7 @@ function registerSizeMatrix(suite) {
+         const e = await g.reachable('#resultsTitle, .results-head, .brand');
+         if (e) await g.tap(e.x, e.y);
+       };
+-      // The chart: a circle acts at once; the strip shows its tip.
+-      const circle = await g.reachable('#chartHost .ms-bin:not(.ms-bin--overflow)', 1);
+-      if (circle) {
+-        await g.iosTap(circle.x, circle.y);
+-        const t = await tips(g.page);
+-        if (t.length) bad.push(`circle: a tip after the tap: ${one(t)}`);
+-        await g.page.evaluate(() => document.querySelector('.area-chip .area-x')?.click());
+-        await sleep(300);
+-      } else missed.push('chart circle');
++      // The chart's pay strip shows its tip.
+       const bar = await g.reachable('#chartHost .ms-hist__bin', 6);
+       if (bar) {
+         await g.iosTap(bar.x, bar.y);
+@@ -689,6 +691,15 @@ function registerSizeMatrix(suite) {
+         await elsewhere();
+         if ((await tips(g.page)).length) bad.push(`strip: a tap elsewhere left ${one(await tips(g.page))}`);
+       } else missed.push('pay strip');
++      // A chart circle acts at once (after the strip: its selection raises the results sheet over the chart).
++      const circle = await g.reachable('#chartHost .ms-bin:not(.ms-bin--overflow)', 1);
++      if (circle) {
++        await g.iosTap(circle.x, circle.y);
++        const t = await tips(g.page);
++        if (t.length) bad.push(`circle: a tip after the tap: ${one(t)}`);
++        await g.page.evaluate(() => document.querySelector('.area-chip .area-x')?.click());
++        await sleep(300);
++      } else missed.push('chart circle');
+       // Same role elsewhere.
+       const job = await compsPosting(g);
+       await openDrawer(g, job.id);
+@@ -707,8 +718,8 @@ function registerSizeMatrix(suite) {
+       } else missed.push('Same role elsewhere row');
+       // Compare companies.
+       await g.page.evaluate(() => { location.hash = 'c=google&m=insights'; });
+-      await g.page.waitForSelector('#compsCardHost .msi-row', { timeout: 30000 }).catch(() => {});
+-      await sleep(600);
++      await g.page.waitForFunction(() => !document.querySelector('#drawer.is-open') && document.querySelector('#compsCardHost:not([hidden]) .msi-row'), null, { timeout: 30000 }).catch(() => {});
++      await sleep(900);
+       const cmp = await g.reachable('#compsCardHost .msi-row:not(.is-current)');
+       if (cmp) {
+         const h0 = await g.hash();
+@@ -731,6 +742,7 @@ function registerSizeMatrix(suite) {
+         if (!hd) break;
+         await g.tap(hd.x + hd.width / 2, hd.y + hd.height / 2, 600);
+       }
++      await sleep(1300); // a keyboard focus right after a tap counts as that tap (TOUCH_GRACE_MS): wait it out
+       const out = await g.page.evaluate(async () => {
+         const map = document.querySelector('#mapHost').getBoundingClientRect();
+         const lo = { left: Math.max(0, map.left), right: Math.min(innerWidth, map.right), top: Math.max(0, map.top), bottom: Math.min(innerHeight, map.bottom) };

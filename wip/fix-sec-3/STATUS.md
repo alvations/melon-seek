@@ -11,4 +11,10 @@
 
 ## Uncommitted and new files
 ```
+ M test/beta-security-review-2.test.js
+ M test/beta-security-review.test.js
+?? docs/process/prompts/fix-sec-3.md
 ```
+
+## Left out (not in untracked.tgz)
+- node_modules (symlink)

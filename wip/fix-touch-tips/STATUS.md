@@ -16,6 +16,8 @@ bc4755d WIP fix-touch-tips: failing e2e for every sticky tip on touch (iPhone se
 
 ## Uncommitted and new files
 ```
+ M public/viz/map.js
+ M test/e2e/fix-touch-tips.e2e.js
 ```
 
 ## Left out (not in untracked.tgz)

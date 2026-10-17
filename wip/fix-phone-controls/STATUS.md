@@ -23,6 +23,7 @@
  M docs/screenshots/map-juice.png
  M docs/screenshots/map.png
  M docs/screenshots/mobile.png
+ M docs/screenshots/qa-mobile/e2e-landscape-map.png
 ```
 
 ## Left out (not in untracked.tgz)
