@@ -847,7 +847,13 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     const t = m.getTooltip?.(), node = t?.getElement?.();
     if (!t || !node || !m.isTooltipOpen()) return;
     const pt = map.latLngToContainerPoint(m.getLatLng()), size = map.getSize();
-    const w = node.offsetWidth, h = node.offsetHeight, pad = 8;
+    const pad = 8;
+    // A small map (a 280 px phone, the Razr's 352x355 cover screen) gets a tooltip no bigger than itself; the lines
+    // that do not fit are cut at the bottom (the figures come first).
+    node.style.maxWidth = `${Math.max(120, size.x - 2 * pad)}px`;
+    node.style.maxHeight = `${Math.max(60, size.y - 2 * pad)}px`;
+    node.style.overflow = 'hidden';
+    const w = node.offsetWidth, h = node.offsetHeight;
     const fitsY = (top) => top >= pad && top + h <= size.y - pad;
     let dir, off;
     if (pt.x < 160 && pt.x + 60 + w <= size.x - pad && fitsY(pt.y - 18 - h / 2)) { dir = 'right'; off = [54, -18]; }
