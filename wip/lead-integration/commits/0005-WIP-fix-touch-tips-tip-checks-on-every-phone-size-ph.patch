@@ -1,0 +1,227 @@
+From 26436d1c1fb27fe9ce0c089e639f7e4b37db46c9 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 00:27:10 +0000
+Subject: [PATCH 05/13] WIP fix-touch-tips: tip checks on every phone size
+ (phone-sizes.mjs); map tooltip no bigger than a small map
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 7d26b475627da4fc3ceb2da0a94b7c64ea0ec87c)
+---
+ public/viz/map.js              |   8 +-
+ test/e2e/fix-touch-tips.e2e.js | 149 ++++++++++++++++++++++++++++++++-
+ 2 files changed, 152 insertions(+), 5 deletions(-)
+
+diff --git a/public/viz/map.js b/public/viz/map.js
+index 862db80..0a6fa3e 100644
+--- a/public/viz/map.js
++++ b/public/viz/map.js
+@@ -847,7 +847,13 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
+     const t = m.getTooltip?.(), node = t?.getElement?.();
+     if (!t || !node || !m.isTooltipOpen()) return;
+     const pt = map.latLngToContainerPoint(m.getLatLng()), size = map.getSize();
+-    const w = node.offsetWidth, h = node.offsetHeight, pad = 8;
++    const pad = 8;
++    // A small map (a 280 px phone, the Razr's 352x355 cover screen) gets a tooltip no bigger than itself; the lines
++    // that do not fit are cut at the bottom (the figures come first).
++    node.style.maxWidth = `${Math.max(120, size.x - 2 * pad)}px`;
++    node.style.maxHeight = `${Math.max(60, size.y - 2 * pad)}px`;
++    node.style.overflow = 'hidden';
++    const w = node.offsetWidth, h = node.offsetHeight;
+     const fitsY = (top) => top >= pad && top + h <= size.y - pad;
+     let dir, off;
+     if (pt.x < 160 && pt.x + 60 + w <= size.x - pad && fitsY(pt.y - 18 - h / 2)) { dir = 'right'; off = [54, -18]; }
+diff --git a/test/e2e/fix-touch-tips.e2e.js b/test/e2e/fix-touch-tips.e2e.js
+index 4f87d0d..62f4e5f 100644
+--- a/test/e2e/fix-touch-tips.e2e.js
++++ b/test/e2e/fix-touch-tips.e2e.js
+@@ -35,6 +35,7 @@ import path from 'node:path';
+ import zlib from 'node:zlib';
+ import { fileURLToPath } from 'node:url';
+ import { ROOT, assert, skip } from './harness.js';
++import { ALL_SIZES, contextFor } from './phone-sizes.mjs';
+ 
+ const IOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
+ // FTT_PHONE=360x740 runs every 390x844 check at that size instead.
+@@ -75,13 +76,15 @@ const engineOf = (ctx) => ctx.browser.browserType().name();
+  * A page on the beta build at `hash`. phone: a touch phone (`size`, default PHONE: 390x844) whose taps never move focus to a
+  * non-form element (iOS); otherwise a 1440x900 desktop with a mouse.
+  */
+-async function open(ctx, hash, { phone = true, size = PHONE, dark = DARK } = {}) {
++async function open(ctx, hash, { phone = true, size = PHONE, dark = DARK, device = null } = {}) {
+   const st = await serveDist();
+   if (!st) skip('no beta build (npm run build writes dist/beta/; or BETA_QA_DIST=<dir>)');
+   ctx.cleanup.push(() => st.close());
+-  const context = await ctx.browser.newContext(phone
+-    ? { viewport: size, userAgent: IOS, isMobile: true, hasTouch: true, deviceScaleFactor: 2, colorScheme: dark ? 'dark' : 'light' }
+-    : { viewport: DESKTOP, deviceScaleFactor: 1, colorScheme: dark ? 'dark' : 'light' });
++  const scheme = { colorScheme: dark ? 'dark' : 'light' };
++  const context = await ctx.browser.newContext(device ? { ...contextFor(device, engineOf(ctx)), ...scheme } : phone
++    ? { viewport: size, userAgent: IOS, isMobile: true, hasTouch: true, deviceScaleFactor: 2, ...scheme }
++    : { viewport: DESKTOP, deviceScaleFactor: 1, ...scheme });
++  if (device) phone = true;
+   ctx.cleanup.push(() => context.close());
+   await context.route((u) => !u.href.startsWith(st.origin) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
+   if (phone) {
+@@ -175,6 +178,27 @@ async function open(ctx, hash, { phone = true, size = PHONE, dark = DARK } = {})
+       return { x: b.x + Math.min(b.width / 2, 80), y: b.y + b.height / 2, box: b };
+     },
+     hash: () => page.evaluate(() => decodeURIComponent(location.hash)),
++    /**
++     * The first match of `sel` (from `from`) that a finger can reach: scrolled into view when needed, its point not
++     * under the results sheet, a bar or the drawer's footer. null when none is.
++     */
++    async reachable(sel, from = 0) {
++      const n = await page.locator(sel).count();
++      for (let i = from; i < Math.min(n, from + 12); i++) {
++        const p = await page.locator(sel).nth(i).evaluate(async (e) => {
++          const at = () => {
++            const r = e.getBoundingClientRect();
++            const x = r.left + Math.min(r.width / 2, 80), y = r.top + r.height / 2;
++            return x >= 0 && x < innerWidth && y >= 0 && y < innerHeight && e.contains(document.elementFromPoint(x, y)) ? { x, y, top: r.top, bottom: r.bottom } : null;
++          };
++          let hit = at();
++          if (!hit) { e.scrollIntoView({ block: 'center' }); await new Promise((r) => setTimeout(r, 250)); hit = at(); }
++          return hit;
++        });
++        if (p) return p;
++      }
++      return null;
++    },
+   };
+   return g;
+ }
+@@ -223,6 +247,7 @@ async function openDrawer(g, id) {
+ }
+ 
+ export function registerFixTouchTipsTests(suite) {
++  registerSizeMatrix(suite);
+   // ---------------------------------------------------------------- Same role elsewhere (the user's report)
+   for (const size of [PHONE, SMALL].filter((z, i, a) => a.findIndex((y) => y.width === z.width && y.height === z.height) === i)) {
+     const at = `${size.width}x${size.height}`;
+@@ -626,6 +651,122 @@ export function registerFixTouchTipsTests(suite) {
+   });
+ }
+ 
++/**
++ * Every phone size and posture in test/e2e/phone-sizes.mjs (the user, 2026-10-16: "Make sure we check for all phone
++ * sizes from iPhone mini to razr to duo or something"): each kind of tip, by the iPhone's tap, on one page.
++ *   - Same role elsewhere: the first tap's tip says "Tap again", is fully on screen, and a tap elsewhere closes it;
++ *   - Compare companies: the same;
++ *   - the chart's pay strip: a tap's tip is fully on screen, and a tap elsewhere closes it;
++ *   - a chart circle and a map pin: the tap acts and leaves no tip;
++ *   - every focused map pin's tooltip (the keyboard) inside the part of the map on screen.
++ * An item no finger can reach at that size (under the sheet, off the page) is noted, not failed.
++ */
++function registerSizeMatrix(suite) {
++  for (const device of ALL_SIZES) {
++    suite.test(`Fix touch tips: every tip by touch on ${device.name} (${device.width}x${device.height})`, async (ctx) => {
++      const g = await open(ctx, `c=${COMPANY}`, { device });
++      const vw = device.width, vh = device.height;
++      const bad = [], missed = [];
++      const onScreen = (t) => t.left >= -0.5 && t.right <= vw + 0.5 && t.top >= -0.5 && t.bottom <= vh + 0.5;
++      const elsewhere = async () => {
++        const e = await g.reachable('#resultsTitle, .results-head, .brand');
++        if (e) await g.tap(e.x, e.y);
++      };
++      // The chart: a circle acts at once; the strip shows its tip.
++      const circle = await g.reachable('#chartHost .ms-bin:not(.ms-bin--overflow)', 1);
++      if (circle) {
++        await g.iosTap(circle.x, circle.y);
++        const t = await tips(g.page);
++        if (t.length) bad.push(`circle: a tip after the tap: ${one(t)}`);
++        await g.page.evaluate(() => document.querySelector('.area-chip .area-x')?.click());
++        await sleep(300);
++      } else missed.push('chart circle');
++      const bar = await g.reachable('#chartHost .ms-hist__bin', 6);
++      if (bar) {
++        await g.iosTap(bar.x, bar.y);
++        const t = await tips(g.page);
++        if (t.length !== 1 || !onScreen(t[0])) bad.push(`strip: ${t.length} tips, want 1 on screen: ${one(t)}`);
++        await elsewhere();
++        if ((await tips(g.page)).length) bad.push(`strip: a tap elsewhere left ${one(await tips(g.page))}`);
++      } else missed.push('pay strip');
++      // Same role elsewhere.
++      const job = await compsPosting(g);
++      await openDrawer(g, job.id);
++      const row = await g.reachable('#drawer .ms-comps__row:not(.is-current)');
++      if (row) {
++        const h0 = await g.hash();
++        await g.iosTap(row.x, row.y);
++        const t = await tips(g.page);
++        if (await g.hash() !== h0) bad.push('Same role elsewhere: the first tap switched company');
++        else if (t.length !== 1 || !/Tap again to see these roles/.test(t[0].text) || !onScreen(t[0])) bad.push(`Same role elsewhere: want one tip on screen saying "Tap again": ${one(t) || 'none'}`);
++        const note = await g.reachable('#drawer .d-comps .comps-note');
++        if (note) {
++          await g.tap(note.x, note.y);
++          if ((await tips(g.page)).length) bad.push(`Same role elsewhere: a tap elsewhere left ${one(await tips(g.page))}`);
++        }
++      } else missed.push('Same role elsewhere row');
++      // Compare companies.
++      await g.page.evaluate(() => { location.hash = 'c=google&m=insights'; });
++      await g.page.waitForSelector('#compsCardHost .msi-row', { timeout: 30000 }).catch(() => {});
++      await sleep(600);
++      const cmp = await g.reachable('#compsCardHost .msi-row:not(.is-current)');
++      if (cmp) {
++        const h0 = await g.hash();
++        await g.iosTap(cmp.x, cmp.y);
++        const t = await tips(g.page);
++        if (await g.hash() !== h0) bad.push('Compare companies: the first tap switched company');
++        else if (t.length !== 1 || !/Tap again/.test(t[0].text) || !onScreen(t[0])) bad.push(`Compare companies: want one tip on screen saying "Tap again": ${one(t) || 'none'}`);
++        const head = await g.reachable('#compsCardHost .msi-card__title');
++        if (head) {
++          await g.tap(head.x, head.y);
++          if ((await tips(g.page)).length) bad.push(`Compare companies: a tap elsewhere left ${one(await tips(g.page))}`);
++        }
++      } else missed.push('Compare companies row');
++      // The map: a focused pin's tooltip stays inside the part of the map on screen; a tap opens none.
++      await g.page.evaluate(() => { location.hash = 'c=google&m=map'; });
++      await g.page.waitForSelector('#mapHost .ms-pin', { timeout: 30000 }).catch(() => {});
++      await sleep(1500);
++      for (let k = 0; k < 3 && await g.page.evaluate(() => (document.body.dataset.sheet || 'peek') !== 'peek'); k++) {
++        const hd = await g.page.locator('#sheetHandle').boundingBox();
++        if (!hd) break;
++        await g.tap(hd.x + hd.width / 2, hd.y + hd.height / 2, 600);
++      }
++      const out = await g.page.evaluate(async () => {
++        const map = document.querySelector('#mapHost').getBoundingClientRect();
++        const lo = { left: Math.max(0, map.left), right: Math.min(innerWidth, map.right), top: Math.max(0, map.top), bottom: Math.min(innerHeight, map.bottom) };
++        const res = { n: 0, bad: [] };
++        for (const icon of [...document.querySelectorAll('#mapHost .leaflet-marker-icon')].slice(0, 40)) {
++          const b = icon.querySelector('.ms-pin')?.getBoundingClientRect();
++          if (!b || b.right < lo.left || b.left > lo.right || b.bottom < lo.top || b.top > lo.bottom) continue;
++          icon.focus({ preventScroll: true });
++          await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
++          const t = [...document.querySelectorAll('#mapHost .leaflet-tooltip')].pop();
++          if (t) {
++            res.n++;
++            const r = t.getBoundingClientRect();
++            if (r.left < lo.left - 1 || r.right > lo.right + 1 || r.top < lo.top - 1 || r.bottom > lo.bottom + 1) {
++              res.bad.push(`${(t.innerText.split('\n')[1] || '').slice(0, 40)}: ${Math.round(r.left)}–${Math.round(r.right)} × ${Math.round(r.top)}–${Math.round(r.bottom)} (map on screen ${Math.round(lo.left)}–${Math.round(lo.right)} × ${Math.round(lo.top)}–${Math.round(lo.bottom)})`);
++            }
++          }
++          icon.blur();
++        }
++        return res;
++      });
++      for (const b of out.bad) bad.push(`map pin tooltip (keyboard) off the map: ${b}`);
++      if (!out.n) missed.push('a focused map pin');
++      const pin = await g.reachable('#mapHost .leaflet-marker-icon .ms-pin');
++      if (pin) {
++        await g.iosTap(pin.x, pin.y);
++        const t = await tips(g.page);
++        if (t.length) bad.push(`map: a tooltip after the tap on a pin: ${one(t)}`);
++      } else missed.push('map pin');
++      if (missed.length) ctx.notes.push(`fix-touch-tips ${device.name} ${device.width}x${device.height}: no finger can reach ${missed.join(', ')}`);
++      assert(!bad.length, bad.join(' | '));
++      assert(!g.errors.length, `page errors: ${g.errors.join('; ')}`);
++    });
++  }
++}
++
+ // Standalone: node test/e2e/fix-touch-tips.e2e.js [--browser=webkit|chromium] [--grep=re]
+ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+   const { createSuite, loadPlaywright, findChromium } = await import('./harness.js');
+-- 
+2.43.0
+

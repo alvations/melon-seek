@@ -1,0 +1,79 @@
+From e97aa8aff468c0b0e379dfb165376073d5be92d8 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 02:11:52 +0000
+Subject: [PATCH 13/13] =?UTF-8?q?Fix=20app=20[P-5]:=20expected=20converted?=
+ =?UTF-8?q?=20figures=20follow=20the=20current=20FX=20rates=20(the=20refre?=
+ =?UTF-8?q?sh=20moved=20=C2=A380,000=20from=20$108K=20to=20$107K);=20trap?=
+ =?UTF-8?q?=20noted?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The monthly refresh gates on npm test, not the browser suite, so an e2e pin on a converted figure broke
+after the first real FX refresh. docs/DATA_FRESHNESS.md 'Pinned values' and the playbook say so.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/DATA_FRESHNESS.md   |  5 +++++
+ docs/process/PLAYBOOK.md |  4 ++++
+ test/e2e/fix-app.e2e.js  | 10 +++++++---
+ 3 files changed, 16 insertions(+), 3 deletions(-)
+
+diff --git a/docs/DATA_FRESHNESS.md b/docs/DATA_FRESHNESS.md
+index 3287a8a..e481d34 100644
+--- a/docs/DATA_FRESHNESS.md
++++ b/docs/DATA_FRESHNESS.md
+@@ -312,6 +312,11 @@ Some tests and docs pin numbers that move when the data refreshes:
+ 
+ `scripts/refresh/derived.js` regenerates the generated blocks (`<!-- freshness:... -->` markers) in each refresh PR. Hand-written figures are checked and reported as drift.
+ 
++The refresh's gate runs `npm test`, not the browser suite (`scripts/e2e.js`). So an e2e test that pins a converted
++figure passes the gate and breaks after a refresh. The first real FX refresh (2026-10-16) did this to Fix app
++[P-5] ("£80,000 ≈ $108K" became $107K). E2e tests build their expected figures from the app's own rates (`toUSD`
++from public/viz/palette.js), never from a literal.
++
+ Intentional golden vectors, such as the tax tests, change only together with a verified rule change. The list of pins and their owners is in [process/freshness-derived.md](process/freshness-derived.md) and [process/freshness-audit-surface.md](process/freshness-audit-surface.md).
+ 
+ ### History and the archive
+diff --git a/docs/process/PLAYBOOK.md b/docs/process/PLAYBOOK.md
+index 433b44d..07fe376 100644
+--- a/docs/process/PLAYBOOK.md
++++ b/docs/process/PLAYBOOK.md
+@@ -172,6 +172,10 @@ don't lose that much." So:
+ 
+ ## Known traps
+ 
++- **E2e tests that pin converted pay break after an FX refresh.** The monthly refresh commits once `npm test`
++  passes; it does not run the browser suite. Fix app [P-5] pinned "£80,000 ≈ $108K", and the September rates made it
++  $107K. In e2e tests, build expected figures from `toUSD` (public/viz/palette.js), as the test's own `want` value
++  already did, never from a literal (docs/DATA_FRESHNESS.md "Pinned values").
+ - **Phones come in more sizes than 360, 390 and 430.** On 2026-10-16 the phone matrix (test/e2e/phone-sizes.mjs,
+   run by test/e2e/webkit/phone-smoke.mjs and webkit-phone.yml) found the Razr cover screen (352x355) broken: the
+   landscape rule `(max-width: 860px) and (max-height: 500px)` caught a square screen, the top bar laid out at
+diff --git a/test/e2e/fix-app.e2e.js b/test/e2e/fix-app.e2e.js
+index d8feca0..ca5004d 100644
+--- a/test/e2e/fix-app.e2e.js
++++ b/test/e2e/fix-app.e2e.js
+@@ -228,11 +228,15 @@ export function registerFixAppTests(suite) {
+     const box = filterSec(page, 'Salary').locator('input.range-val').first();
+     assertEq((await filterSec(page, 'Salary').locator('.range-vals > label > span').first().innerText()).trim(), 'Min $/yr', 'Min label');
+     const k = (n) => Math.round(n / 1000) * 1000;
++    // The converted figure follows the current FX rates (the monthly refresh changes them; 2026-10-16 moved
++    // £80,000 from $108K to $107K), so the expected text is built from the same rate the app uses.
++    const shown = (usd) => `\\$${usd / 1000}K`;
++    const gbp80 = k(toUSD(80000, 'GBP')), gbp250 = k(toUSD(250000, 'GBP')), aud350 = k(toUSD(350000, 'AUD'));
+     const cases = [
+-      ['£80,000', k(toUSD(80000, 'GBP')), /£80,000 ≈ \$108K a year/],
+-      ['£250,000', k(toUSD(250000, 'GBP')), /£250,000 ≈ \$337K/],
++      ['£80,000', gbp80, new RegExp(`£80,000 ≈ ${shown(gbp80)} a year`)],
++      ['£250,000', gbp250, new RegExp(`£250,000 ≈ ${shown(gbp250)}`)],
+       ['80k', 80000, /below the lowest pay listed here/],
+-      ['A$350k', k(toUSD(350000, 'AUD')), /A\$350,000 ≈ \$245K/],
++      ['A$350k', aud350, new RegExp(`A\\$350,000 ≈ ${shown(aud350)}`)],
+       ['AUD 350000', k(toUSD(350000, 'AUD')), /A\$350,000 ≈/],
+       ['60000', 60000, /below the lowest pay/],
+       ['400', 400000, /“400” read as \$400K a year/],
+-- 
+2.43.0
+
