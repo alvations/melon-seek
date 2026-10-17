@@ -361,40 +361,34 @@ export function registerPhoneMatrixTests(suite) {
     });
   }
 
-  // The name sweep: M-45 ("Micros…" at 380–392 px) lived between the matrix's sizes, so every width from 280 to 860.
-  suite.test('Phone matrix: the company name is whole at every width from 280 to 860 px, portrait and short (every beta board, and the main site\'s longest names)', async (ctx) => {
-    const bad = [];
-    const boards = [['beta/', ['microsoft', 'amazon', 'netflix', 'nvidia', 'google', 'apple', 'meta']], ['', ['anthropic', 'shieldai', 'palantir']]];
-    for (const [site, slugs] of boards) {
+  // The name sweep: M-45 ("Micros…" at 380–392 px) lived between the matrix's sizes, so every width from 280 to 860, at a
+  // portrait height and a short one (360: the one-row landscape bar from 560 px, two rows below). One test per board.
+  const SWEEP = [...['microsoft', 'amazon', 'netflix', 'nvidia', 'google', 'apple', 'meta'].map((b) => ['beta/', b]), ...['anthropic', 'shieldai', 'palantir'].map((b) => ['', b])];
+  for (const [site, board] of SWEEP) {
+    const where = `${site ? 'beta' : 'main'} ${board}`;
+    suite.test(`Phone matrix: [name sweep, ${where}] the company name is whole and the page fits at every width from 280 to 860 px, portrait and short`, async (ctx) => {
+      const bad = [];
       const phone = { name: 'sweep', width: 390, height: 844, dpr: 2, platform: 'ios', ua: ALL_SIZES.find((s) => s.platform === 'ios').ua };
-      const { page, errors, context } = await open(ctx, phone, { board: slugs[0], site });
-      for (const board of slugs) {
-        if (board !== slugs[0]) {
-          await page.evaluate((b) => { location.hash = `c=${b}`; }, board);
-          await page.waitForFunction((b) => { const t = document.querySelector('#resultsTitle'); return location.hash.includes(b) && t && !/Loading/.test(t.textContent) && document.querySelector('#companyMenuBtn .company-name')?.textContent.length; }, board, { timeout: 90000 });
-          await sleep(500);
-        }
-        for (const height of [740, 360]) {
-          for (let width = 280; width <= 860; width += 4) {
-            await page.setViewportSize({ width, height });
-            const m = await page.evaluate(() => {
-              const n = document.querySelector('#companyMenuBtn .company-name');
-              if (!n || !n.getClientRects().length) return { gone: true, w: innerWidth };
-              const r = document.createRange();
-              r.selectNodeContents(n);
-              return { text: n.textContent, textW: r.getBoundingClientRect().width, boxW: n.getBoundingClientRect().width, scrollW: n.scrollWidth, clientW: n.clientWidth, w: innerWidth, pageW: document.documentElement.scrollWidth };
-            });
-            if (m.gone || m.boxW < 1) bad.push(`${site || 'main '}${board} ${width}x${height}: no company name`);
-            else if (m.scrollW > m.clientW + 0.5 || m.textW > m.boxW + 0.05) bad.push(`${site || 'main '}${board} ${width}x${height}: "${m.text}" cut (${m.textW.toFixed(1)} px of text in ${m.boxW.toFixed(1)})`);
-            if (m.w > width + 1 || m.pageW > width + 1) bad.push(`${site || 'main '}${board} ${width}x${height}: page laid out ${Math.max(m.w, m.pageW)} px wide`);
-          }
+      const { page, errors } = await open(ctx, phone, { board, site });
+      for (const height of [740, 360]) {
+        for (let width = 280; width <= 860; width += 4) {
+          await page.setViewportSize({ width, height });
+          const m = await page.evaluate(() => {
+            const n = document.querySelector('#companyMenuBtn .company-name');
+            if (!n || !n.getClientRects().length) return { gone: true, w: innerWidth };
+            const r = document.createRange();
+            r.selectNodeContents(n);
+            return { text: n.textContent, textW: r.getBoundingClientRect().width, boxW: n.getBoundingClientRect().width, scrollW: n.scrollWidth, clientW: n.clientWidth, w: innerWidth, pageW: document.documentElement.scrollWidth };
+          });
+          if (m.gone || m.boxW < 1) bad.push(`${where} ${width}x${height}: no company name`);
+          else if (m.scrollW > m.clientW + 0.5 || m.textW > m.boxW + 0.05) bad.push(`${where} ${width}x${height}: "${m.text}" cut (${m.textW.toFixed(1)} px of text in ${m.boxW.toFixed(1)})`);
+          if (m.w > width + 1 || m.pageW > width + 1) bad.push(`${where} ${width}x${height}: page laid out ${Math.max(m.w, m.pageW)} px wide`);
         }
       }
       bad.push(...errors);
-      await context.close();
-    }
-    assert(!bad.length, `${bad.length} problem(s):\n  ${bad.slice(0, 40).join('\n  ')}${bad.length > 40 ? `\n  … and ${bad.length - 40} more` : ''}`);
-  });
+      assert(!bad.length, `${bad.length} problem(s):\n  ${bad.slice(0, 40).join('\n  ')}${bad.length > 40 ? `\n  … and ${bad.length - 40} more` : ''}`);
+    });
+  }
 
   for (const size of DESKTOP) {
     const dev = `${size.width}x${size.height}`;
