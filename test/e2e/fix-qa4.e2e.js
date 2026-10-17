@@ -120,7 +120,7 @@ export function registerFixQa4Tests(suite) {
     await page.locator('#compHost select[id^="comp-s"]').selectOption('').catch(() => {});
     await page.locator('#compHost input[id^="comp-t"]').fill('Software Engineer'); await sleep(900);
     const sel = page.locator('#compHost select[id^="comp-l"]');
-    const v = await sel.evaluate((s) => [...s.options].find((o) => o.textContent.trim() === 'New York')?.value);
+    const v = await sel.evaluate((s) => [...s.options].find((o) => o.value === 'New York')?.value);
     if (v == null) skip('no New York in the Location list');
     await sel.selectOption(v); await sleep(1500);
     const items = await page.$$eval('#compHost .ms-comp__item', (els) => els.map((e) => ({ id: e.dataset.key.replace(/^comp:/, ''), pay: e.querySelector('.ms-comp__item-pay').textContent.trim(), meta: e.querySelector('.ms-comp__item-meta').textContent.trim(), label: e.getAttribute('aria-label') })));
@@ -149,15 +149,21 @@ export function registerFixQa4Tests(suite) {
 
   /* ------------------------------------------------------------- D-47 */
   suite.test('fix-qa4: [D-47] the map is hidden too behind "This board isn\'t on this site", and the next board shows its chart again', async (ctx) => {
-    const { st, page, errors } = await open(ctx, 'c=netflix&m=map');
+    const { st, page, errors } = await open(ctx, 'c=netflix');
     await board(page, st, 'netflix');
+    await page.waitForSelector('#chartHost .ms-crow', { timeout: 30000 });
+    await page.goto(`${st.beta}/#c=tesla`); await sleep(2500);
+    const chartGone = await page.evaluate(() => document.querySelector('#chartHost').hidden);
+    await shot(page, 'D-47-tesla-after-netflix-chart');
+    assert(chartGone, 'the chart is hidden behind "This board isn\'t on this site"');
+    await go(page, st, 'c=netflix&m=map');
     await page.waitForSelector('#mapHost .leaflet-container, #mapHost .ms-map', { timeout: 30000 }).catch(() => {});
     await sleep(800);
     await page.goto(`${st.beta}/#c=tesla&m=map`); await sleep(2500);
     const gone = await page.evaluate(() => ({ map: document.querySelector('#mapHost').hidden, chart: document.querySelector('#chartHost').hidden, msg: document.querySelector('#vizOverlay')?.textContent || '' }));
+    await shot(page, 'D-47-tesla-after-netflix-map');
     assert(gone.map && gone.chart, `map hidden ${gone.map}, chart hidden ${gone.chart}`);
     assert(/isn.t on this site/.test(gone.msg), `overlay: "${gone.msg.slice(0, 80)}"`);
-    await shot(page, 'D-47-tesla-after-netflix-map');
     await go(page, st, 'c=netflix');
     await page.waitForSelector('#chartHost .ms-crow', { timeout: 30000 });
     const back = await page.evaluate(() => ({ hidden: document.querySelector('#chartHost').hidden, rows: document.querySelectorAll('#chartHost .ms-crow').length, overlay: document.querySelector('#vizOverlay').hidden }));
