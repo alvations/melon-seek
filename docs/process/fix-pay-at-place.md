@@ -76,8 +76,9 @@
 2. **Cost.** A per-job table (Location -> rows, or "the posting's range") is built once and cached in a WeakMap. It is
    checked against the salary, locations and ranges objects, so a changed salary is read again. Results per Location
    are cached too, and `label` is worked out on first read.
-   - Amazon's whole board in Node, cold: 65 ms for the tables, 138 ms for a price at each of 34,139 locations
-     (`payLocations` alone: 26 ms). Warm: 5 to 10 ms.
+   - A posting with one range keeps a list of the places it covers, not a Map. Such a posting is its own figure at every
+     place, so the chart and the map make no result or item copy for it (`payCovers`, `placeRowCount`).
+   - Amazon's whole board in Node, cold: about 50 ms for the tables (`payLocations` alone: 25 to 40 ms). Warm: 5 to 10 ms.
    - Used only where a place is priced: Group by Location, a Location filter, the map's aggregate, Insights' hot
      locations, and the index of Compstimate comparables that have ranges.
    - The default chart (Clusters by department) and the unfiltered stats line make no new pass. `barSpan` and `barPlace`
@@ -216,10 +217,42 @@ runs this lane's.
 | MR-34 "Several pay ranges" says "span of all of them": Microsoft / Amazon / Google | 923 / 86 / 36 | 920 / 66 / 32 now say "one of them"; 3 / 20 / 4 (real spans) say "lowest to the highest" |
 | Lead decision: Amazon places priced on another place's row (payLocations) | 14 places in 12 postings | 0 |
 
+**Timings on Amazon (22,179 postings).** The machine was at load 15 to 19 throughout (other lanes), so only large
+differences mean anything. Each figure is a median of 5 to 9 runs, interleaved base and head.
+
+Chromium, 4x CPU, `chart.update` and the app (`<scratch>/fpp/perf.cjs`, two rounds each):
+
+| | Base | Head |
+|---|---:|---:|
+| Clusters by department (the default) | 285–369 ms | 263–311 ms |
+| Ranges, no groups | 231–265 ms | 216–294 ms |
+| Clusters, Location = Seattle | 105–171 ms | 117–122 ms |
+| Clusters by Location (each posting priced at its row) | 581–629 ms | 721–778 ms (before the per-place fast path) |
+| Ranges by Location | 271–368 ms | 488–498 ms (before the fast path) |
+| App: Location filter on and off, to the stats line and chart | 642–692 ms | 670–728 ms |
+
+Node, Amazon's whole board, cold (fresh jobs) and warm (`<scratch>/fpp/bench.mjs`, `bench2.mjs`), after the fast path:
+
+| | Base | Head |
+|---|---|---|
+| Location rows (Clusters and Ranges by Location) | 36–56 ms, warm 20–45 | 62–92 ms, warm 25–38 |
+| `chartPay` under a Location filter, all 22,179 (the app passes only the filter's matches) | 47–100 ms, warm 28–41 | 72–183 ms, warm 33–47 |
+| Map: `aggregate` alone, cold | 231–286 ms | 194–223 ms |
+| Map: `aggregate` and every pin summarized | 216–235 ms cold, 161–175 warm | 333–365 ms cold, 167–182 warm |
+
+- No view does a new pass over the board: the default chart, Ranges, the stats line and the cards are unchanged.
+- The views that price a place (Group by Location, the map's first draw) do per-place work inside their existing pass.
+  On a cold board that costs tens of milliseconds, about 0.1 s for the map. Warm, they are the same as before.
+
 Tests:
 - test/fix-pay-at-place.test.js: 20 tests. 19 pass and 1 is a to-do (the Juice patch; it passes with the patch). All 19 fail
   on ff6a3d0.
-- test/e2e/fix-pay-at-place.e2e.js: 10 checks. All pass on this build; all 10 fail on ff6a3d0's build.
+- test/e2e/fix-pay-at-place.e2e.js: 25 checks (9, plus one per phone size, 16 sizes). All pass on this build; all of them
+  fail on ff6a3d0's build (the phone sizes as one check there).
+- The full e2e (`node scripts/e2e.js`, data linked) at 37a6971's build: 374 of 379 passed, 4 skipped, 1 failed. The failure
+  was this lane's phone check, which ran 16 sizes in one 120 s check and timed out. It is now one check per size (all pass).
+  The groups that could move with c54e297 and 6fb7f11 were run again and pass: fix-pay-at-place, Fix app, Fix beta app,
+  Fix3 app, Beta UX review, viz-even, fix-pay-data, Fix viz, Fix viz 3, Beta viz review.
   - At 280 px, the 1st-generation iPhone SE and the Z Fold cover, the pill took 154 px and the title wrapped to 7 lines.
     Now the pill is the range alone and the title takes at most 5 lines at 280 px.
   - The Razr cover screen (352x355) lays the page out 495 px wide on the base build too. That is a page-layout finding for
