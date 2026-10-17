@@ -1,0 +1,192 @@
+From bb14c7e2abfc1cc7c8ffb38bad670f3826f30971 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 14:52:48 +0000
+Subject: [PATCH 7/8] WIP fix-qa4: log decisions and steps; e2e: D-47 chart
+ case, New York by option value
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/fix-qa4.md | 124 +++++++++++++++++++++++++++++++++++++---
+ test/e2e/fix-qa4.e2e.js |  12 +++-
+ 2 files changed, 126 insertions(+), 10 deletions(-)
+
+diff --git a/docs/process/fix-qa4.md b/docs/process/fix-qa4.md
+index 7da0129..d01c59b 100644
+--- a/docs/process/fix-qa4.md
++++ b/docs/process/fix-qa4.md
+@@ -1,17 +1,127 @@
+ # Process log: fix-qa4
+ 
+ ## State
+-- **Done:** fixes for D-52, D-49, D-50, D-48 and D-47 (commits 463c5c9, 1a04bf5), unit tests (test/fix-qa4.test.js,
+-  12 of 14 red on the base; 2 are guards), the e2e group (test/e2e/fix-qa4.e2e.js), the CONTRACT section.
+-- **In progress:** build with the README fix, then the e2e groups (fix-qa4, Beta desktop QA 4, fix-pay-at-place,
+-  Compstimate, the drawer), the phone smoke after, the clean `npm test`.
+-- **Next step:** send the lead the first tested SHA; screenshots before and after; the full e2e.
++- **Done:** fixes for D-52, D-49, D-50, D-48 and D-47; unit tests (test/fix-qa4.test.js, 12 of 14 red on the base, 2
++  guards); the e2e group (test/e2e/fix-qa4.e2e.js, registered in scripts/e2e.js); the CONTRACT section; numbers (§5).
++- **In progress:** the e2e gate (fix-qa4, Beta desktop QA 4, fix-pay-at-place, Compstimate, the drawer), the phone
++  smoke after, the clean `npm test`, screenshots.
++- **Next step:** send the lead the tested SHA; the full e2e once.
+ 
+ ## 1. Brief
+ - **Prompt:** [prompts/fix-qa4.md](prompts/fix-qa4.md), verbatim.
+ - **Goal:** fix desktop QA round 4's D-52, D-49, D-50, D-48 and D-47 on the beta site
+-  ([qa-desktop-beta-4.md](qa-desktop-beta-4.md); red tests in test/e2e/beta-desktop-qa-4.e2e.js, copied here and
+-  registered in scripts/e2e.js), without cutting or hiding any posting or posted pay row.
++  ([qa-desktop-beta-4.md](qa-desktop-beta-4.md); red tests in test/e2e/beta-desktop-qa-4.e2e.js, copied from the QA
++  worktree and registered in scripts/e2e.js), without cutting or hiding any posting or posted pay row, and with pay
++  presented as posted (big-tech figures are base pay only, and say so).
+ - **Owned:** public/features/compstimate.js; `payRank` in public/features/shared.js; server/export.js and the CSV/README
+   step of scripts/build-static.js; in public/app.js renderViz's unknown and error states, the drawer's rank line and the
+   no-pay estimate line; test/fix-qa4.test.js, test/e2e/fix-qa4.e2e.js; this log and its prompt.
++- **Not owned, not touched:** the drawer footer and meta line (fix-phone-sizes), chart and map drawing (fix-viz-5),
++  `payAt` itself (used as it is), features.css.
++
++## 2. Inputs and sources
++- docs/CONTRACT.md: the fix-data-3 and fix-pay-at-place sections (`payAt`, V-40, the lead decision of 2026-10-16), the
++  F7 CSV row.
++- docs/process/PLAYBOOK.md ("Checkpoints", "Known traps"), TEMPLATE.md, fix-pay-at-place.md (its V-40 decision and
++  `measure.mjs`, whose approach `<scratch>/fqa4/d52.mjs` follows).
++- docs/DATA_SOURCES.md §7 (the big-tech systems table, which the beta README names) and §7a (pay rules: OTE, minimums,
++  shift pay, part-time, fixed-term, ranges by place and level).
++- The QA lane's test file and checkpoint (wip/qa-desktop-beta-4/STATUS.md): the IDs and postings named in the brief.
++- Code read: compstimate.js (`buildIndex`, `estimateComp`, `payAtQuery`, `describeComparables`, `compstimateForJob`,
++  `backtest`, the widget's comparables list), shared.js (`payAt`, `payCovers`, `payRank`, `salaryUSD`), app.js
++  (`renderViz`, `drawerContent`'s rank and pay block, `compstimateBlock`, `payUnclearBlock`, `payPill`, `payHeadline`,
++  `payRanges`), server/vet.js (`salaryChecks` codes), server/export.js, scripts/build-static.js (the CSV step,
++  `pubCompany`, `buildSite`), test/beta-build.test.js (no beta host in the main site's files).
++- Data: the 2026-10-16 crawl (wt-data2), through the static build's lists (`public/api.js unpackJobs`).
++
++## 3. Decisions and rationale
++1. **D-52, the local rule.** A comparable is local when `payAt` prices one of its places in the city: its one range covers
++   the place (`basis: 'posting'`, checked with `payCovers`), or it has a row of its own there (`basis: 'place'`, and it
++   is priced at that row, as V-40 did).
++   - **When the city-only cut applies.** V-40 used only local comparables once there were `LOCAL_MIN` (5). With
++     one-range postings counted as local, that cut would reach every board. Measured on the 2026-10-16 crawl, the cut on
++     every board made the backtest worse where a company posts one range for many places: Google 12.4% to 14.2%,
++     Palantir 8.6% to 10.7%, Meta 14.8% to 15.4%, Netflix 15.0% to 15.7% (median error). Their other cities' postings
++     carry the same national range, so leaving them out only shrinks the sample.
++   - So the cut applies when at least one comparable has a row of its own for the city, which says the company prices
++     that city separately. Then every local comparable is kept, one-range ones included. Boards without per-place rows
++     are unchanged, as V-40 promised.
++   - Considered: a trigger only when the city's row differs from the posting's headline (so Microsoft's U.S. row in
++     Redmond would not trigger). Same backtest figures (Microsoft 8.4% either way); more to explain. Not taken.
++   - The local test runs on the comparables only (at most 500, after the weight cut), not over the board, so the
++     board-wide pass costs what it did. Amazon's 500-posting backtest: 24.4 s before, 19.5 s after in Node (load 6 to 10).
++2. **D-52, the list.** `estimateComp` returns `comparablePay`: the pay each listed comparable was used at, and the place
++   when it is one place's row (the city's row, or the headline row of a comparable used at its headline, Amazon's search
++   city). The widget's "Most comparable roles" shows that range; its line starts "Posted for <place>" (the drawer's
++   words) and the accessible name says "the range posted for <place>". No new control and no CSS change: the meta line
++   already wraps.
++3. **D-49, the CSV.**
++   - Two columns, `salary_kind` and `salary_ranges`, before `data_mode`. `data_mode` stays last (rows of demo data end
++     in ",demo", which test/server.test.js and test/static-build.test.js read), and every other column keeps its place.
++     Considered: after `salary_currency` (moves four columns), or after `data_mode` (breaks the ",demo" ending).
++   - `salary_min/max` are the card's range: the span of the posting's same-currency rows for a range per place (as
++     `payHeadline`), the minimum alone with an empty `salary_max` for a stated minimum, else the salary's min and max.
++   - `salary_kind` follows the drawer caption's order (OTE, minimum, shift, part-time, fixed-term), then hourly or salary.
++     Two that both hold are joined with "+": 69 Amazon reduced-time roles are part-time and include shift pay, and 2 are
++     a stated minimum paid by the month for a fixed term. A single value would drop one of the two facts.
++   - `salary_ranges` lists every posted row: levels (two or more) and every `salary.ranges` row, each in its own currency
++     (Cohere's CAD and USD rows), "<level or place>: <min>-<max> <currency>", " | " between them. Rows tied to no listed
++     place are listed too (the lead decision: every posted row is presented).
++   - **README per site.** The main site's README keeps its sentence (Greenhouse, Ashby or Lever). The beta one says a
++     big-tech file comes from the company's own careers site, names that site per file, and says big-tech pay is base
++     pay only, with on-target earnings marked. Both explain `salary_kind` and say what changed on 2026-10-17.
++   - The careers-site names live in scripts/build-static.js (`CAREERS_SITES`), not in server/export.js: export.js ships
++     in the main site's `lib/`, and test/beta-build.test.js checks that no main-site file names a beta posting host (the
++     first version failed it: "lib/export.js mentions the beta posting host apply.careers.microsoft.com").
++4. **D-50, the cap.** `statedMax(job)`: a "Pay unclear" posting whose `salaryFlag.codes` are only `below_min` and
++   `range_ratio` keeps its stated maximum (server/vet.js: those two checks say nothing about the top). Any other code
++   (`above_max`, `hourly_high`, `junior_high`, `senior_low`, `min_gt_max`, `stat_outlier`) questions the top too, so no cap.
++   `compstimateForJob` caps low, mid and high at it, rounded down to $1K, and keeps the figures before the cap.
++   - The drawer's line reads "An estimate, capped at the posted maximum" (short form "Capped at the posted maximum");
++     Details: "Similar roles suggest about $473K ($330K–602K). The posting itself states up to $464K, a figure that passed
++     our checks, so the estimate stops there."
++   - Considered: only saying "the posting states up to $464K" beside an uncapped figure. Rejected: the drawer would still
++     show a figure above what the employer says it pays at most, right under its "As parsed" line.
++   - The backtest uses postings with pay only, so it never meets a cap.
++5. **D-48, the words.** `payRank` also counts the same-country roles paid less and more (`below`, `above`). `rankText`
++   says "The highest pay" / "The lowest pay" only when none pays more / less, "In the top 1%" / "In the lowest 1%" when
++   the share rounds to 100% / 0% with roles still above / below, else "Pays more than N%". All roles paid the same: "The
++   same pay as the rest of …". The line and its short form (fitOneLine) both use it; each is no longer than the "Pays
++   more than 72% of …" line they replace.
++6. **D-47.** renderViz hides `#chartHost` and `#mapHost` for `error`, `unknown` and a board with no roles. Both hosts are
++   absolutely placed in `.viz`, so the message card keeps its size. The next board that loads unhides its host at the
++   top of renderViz, and a changed list redraws it (`vizSig`); returning to the same board shows its chart as drawn.
++   Loading keeps its opaque skeleton over the old chart, as before.
++
++## 4. Replayable steps
++1. `git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp` (2c9f425: 1ef0646
++   plus wip/ checkpoints only). Symlink `node_modules`, `data/snapshots` and `data/beta/snapshots` (wt-data2).
++2. Copy test/e2e/beta-desktop-qa-4.e2e.js from the QA worktree and register it in scripts/e2e.js.
++3. Base build: `node scripts/build-static.js --out <scratch>/fqa4/dist-before`; base copy:
++   `git archive eccdca9 public server scripts test docs package.json` into `<scratch>/fqa4/base`.
++4. Phone smoke before and after: `NODE_PATH=<scratch>/pw/node_modules node test/e2e/webkit/phone-smoke.mjs --dist <dist>
++   --sizes all --engines chromium` (`<scratch>/fqa4/smoke.sh <dist> <label>`).
++5. Numbers (`<scratch>/fqa4/`): `d52.mjs <base> . <dist> bt` (estimates and the 15 backtests, base modules vs head),
++   `csvcount.mjs <dist-before> dist .` (D-49), `d50.mjs <base> . dist`, `d48.mjs . dist amazon`, `flags.mjs`, `survey.mjs`.
++6. Unit tests: `node --test test/fix-qa4.test.js`; red on the base: copy it into `<scratch>/fqa4/base/test/` and run there.
++7. Build `node scripts/build-static.js`; e2e: `NODE_PATH=… CHROMIUM_PATH=… node scripts/e2e.js --grep=<group>`
++   (`<scratch>/fqa4/e2e.sh <label> <grep> [dist]`); `FQA4_SHOTS=after` (or `before` with `BETA_QA_DIST=<dist-before>`)
++   saves screenshots to docs/screenshots/fix-qa4/.
++8. Clean `npm test`: `git worktree add --detach <scratch>/fqa4/clean <sha>`, link `node_modules`, then
++   `MELON_BETA_SNAPSHOT_DIR= timeout 1200 npm test` (`<scratch>/fqa4/npmtest.sh <label>`).
++
++## 5. Verification
++See the tables below; filled in as the gate runs.
++
++## 6. Known gaps and follow-ups
++- The Pay estimate's top five comparables are ordered by weight, then by date; for a level-less query many weights tie,
++  so Microsoft "Software Engineer" in Redmond still lists four Principal roles first, although the estimate now uses all
++  328 Redmond comparables (confidence Medium, it was High on 77).
++- `salary_kind` "salary" includes an internship's yearly rate (Google's 13-week internships): the card calls it a yearly
++  rate, so the CSV does; the term's length is not a column.
++
++## 7. Change log
++- 2026-10-17:
++  - 11a107a: the brief. eccdca9: QA round 4's tests copied and registered.
++  - 463c5c9: the five fixes. 1a04bf5: unit tests, the e2e group, per-file sources. 03860dc: CONTRACT, this log.
++  - 196922d: the careers-site names moved to the build script (the main site's lib/ names no beta host).
+diff --git a/test/e2e/fix-qa4.e2e.js b/test/e2e/fix-qa4.e2e.js
+index c986f3a..8848aa0 100644
+--- a/test/e2e/fix-qa4.e2e.js
++++ b/test/e2e/fix-qa4.e2e.js
+@@ -120,7 +120,7 @@ export function registerFixQa4Tests(suite) {
+     await page.locator('#compHost select[id^="comp-s"]').selectOption('').catch(() => {});
+     await page.locator('#compHost input[id^="comp-t"]').fill('Software Engineer'); await sleep(900);
+     const sel = page.locator('#compHost select[id^="comp-l"]');
+-    const v = await sel.evaluate((s) => [...s.options].find((o) => o.textContent.trim() === 'New York')?.value);
++    const v = await sel.evaluate((s) => [...s.options].find((o) => o.value === 'New York')?.value);
+     if (v == null) skip('no New York in the Location list');
+     await sel.selectOption(v); await sleep(1500);
+     const items = await page.$$eval('#compHost .ms-comp__item', (els) => els.map((e) => ({ id: e.dataset.key.replace(/^comp:/, ''), pay: e.querySelector('.ms-comp__item-pay').textContent.trim(), meta: e.querySelector('.ms-comp__item-meta').textContent.trim(), label: e.getAttribute('aria-label') })));
+@@ -149,15 +149,21 @@ export function registerFixQa4Tests(suite) {
+ 
+   /* ------------------------------------------------------------- D-47 */
+   suite.test('fix-qa4: [D-47] the map is hidden too behind "This board isn\'t on this site", and the next board shows its chart again', async (ctx) => {
+-    const { st, page, errors } = await open(ctx, 'c=netflix&m=map');
++    const { st, page, errors } = await open(ctx, 'c=netflix');
+     await board(page, st, 'netflix');
++    await page.waitForSelector('#chartHost .ms-crow', { timeout: 30000 });
++    await page.goto(`${st.beta}/#c=tesla`); await sleep(2500);
++    const chartGone = await page.evaluate(() => document.querySelector('#chartHost').hidden);
++    await shot(page, 'D-47-tesla-after-netflix-chart');
++    assert(chartGone, 'the chart is hidden behind "This board isn\'t on this site"');
++    await go(page, st, 'c=netflix&m=map');
+     await page.waitForSelector('#mapHost .leaflet-container, #mapHost .ms-map', { timeout: 30000 }).catch(() => {});
+     await sleep(800);
+     await page.goto(`${st.beta}/#c=tesla&m=map`); await sleep(2500);
+     const gone = await page.evaluate(() => ({ map: document.querySelector('#mapHost').hidden, chart: document.querySelector('#chartHost').hidden, msg: document.querySelector('#vizOverlay')?.textContent || '' }));
++    await shot(page, 'D-47-tesla-after-netflix-map');
+     assert(gone.map && gone.chart, `map hidden ${gone.map}, chart hidden ${gone.chart}`);
+     assert(/isn.t on this site/.test(gone.msg), `overlay: "${gone.msg.slice(0, 80)}"`);
+-    await shot(page, 'D-47-tesla-after-netflix-map');
+     await go(page, st, 'c=netflix');
+     await page.waitForSelector('#chartHost .ms-crow', { timeout: 30000 });
+     const back = await page.evaluate(() => ({ hidden: document.querySelector('#chartHost').hidden, rows: document.querySelectorAll('#chartHost .ms-crow').length, overlay: document.querySelector('#vizOverlay').hidden }));
+-- 
+2.43.0
+

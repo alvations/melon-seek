@@ -40,6 +40,11 @@ dd58b48 fix-phone-sizes: the Surface Duo stacked (720x1114, hinge across): chart
  M docs/screenshots/qa-mobile-beta/e2e-M-24-keyboard-location-search.png
  M docs/screenshots/qa-mobile-beta/e2e-M-27-topbar-360.png
  M docs/screenshots/qa-mobile/e2e-landscape-map.png
+ M public/app.js
+ M public/styles.css
+ M test/e2e/phone-matrix.e2e.js
+ M test/e2e/phone-sizes.mjs
+?? test/e2e/beta-mobile-qa-4.e2e.js
 ```
 
 ## Left out (not in untracked.tgz)
