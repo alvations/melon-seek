@@ -77,7 +77,13 @@ Files owned: public/styles.css (layout rule blocks only), test/e2e/phone-matrix.
      falls back to "Search", then to no placeholder (the one-row landscape bar at 560–639 px);
    - the main site's one-row landscape bar cut "Anthropic" at 560–600 px: A-3's treatment (shortest badge label, the
      search gives way first, 6 px tabs) now applies to both sites, and below 640 px the logo and Beta tag go;
-   - the "/" key hint covered the right end of a narrow search box: it takes no taps, and touch screens don't show it.
+   - the "/" key hint covered the right end of a narrow search box: it takes no taps, and touch screens don't show it;
+   - from fix-touch-tips' run on the Razr cover screen (the lead, 2026-10-17): the results sheet's peek row sat below
+     the screen (top 417–427 on 355 px), and on the map the Remote button and the legend covered all three pins. The
+     first is the zoomed-out page (fixed by decision 2). For the second, on short screens that are not landscape the
+     empty toolbar band above the map goes, the zoom buttons go (pinch, double-tap and the keyboard's + and − still
+     zoom) and the Pay | Juice box keeps only its switch: 2 of the 3 pins show on the 124 px map (the third sits under
+     the attribution, and in the sandbox under the "Basemap unavailable" note that real phones don't show).
 8. **Dual screens** (`@media (horizontal-viewport-segments: 2)`): the layout grid is the two screens with the hinge
    between them (`env(viewport-segment-width 0 0)`, the hinge, `env(viewport-segment-width 1 0)`): chart left, list
    right; the filter slide-over is the left screen's width and the job page the right screen's. The top bar's and the
@@ -129,7 +135,7 @@ Size by size (Apple unless named; "name" is the company menu's text; controls ar
 | Pixel 8, razr inner, 15 Pro Max (412–430) | = | whole | ok | ok | |
 | Surface Duo one screen 540x720 | 540 | whole | ok | ok, phone layout as on the tablet | |
 | Galaxy Z Fold 5 open 690x829 | 690 | whole | ok | ok, phone layout as on the tablet | |
-| **Motorola razr cover 352x355** | **476–505 (zoomed out) → 352** | whole | **Chart under the search box → all on screen** | **no sheet → peek row with the count and Sort**; chart 82 px | |
+| **Motorola razr cover 352x355** | **476–505 (zoomed out) → 352** | whole | **Chart under the search box → all on screen** | **peek row at 417 on a 355 px screen → on screen with the count and Sort**; chart 82 px; map: pins under its controls → 2 of 3 show | |
 | Surface Duo spanned 1114x720, no hinge | 1114 | whole | ok | ok | |
 | **Surface Duo spanned, hinge emulated** | 1114 | whole | search, 2 chips, tagline, chart on the hinge → none | job page 554–1114 → 574–1114; filters 0–540; popovers 222–562 → 188–528 | **8 kinds of content on it → nothing** |
 | iPhone 13 mini / SE 3 landscape 812x375, 667x375 | = | whole | ok | ok | |
@@ -156,8 +162,13 @@ both timing tests, and both pass alone (7/7 in test/beta-security-review.test.js
 The matrix through the suite runner (`node scripts/e2e.js --grep="^Phone matrix"`, the final CSS): 34/34.
 
 Screenshots (shrunk 15.8 → 3.3 MB): docs/screenshots/fix-phone-sizes/before-*.png and after-*.png, the Apple board in
-light at every size, dark at 280, 320, 344 and the Duo spanned, and the Duo with the hinge (first screen, job page,
-filters; taken over CDP).
+light at every size, dark at 280, 320, 344 and the Duo spanned, the Duo with the hinge (first screen, job page,
+filters; taken over CDP), and the Razr cover screen's map.
+
+The matrix's later checks (from the lead's Razr findings): the results sheet's peek row shows at least 44 px of the
+screen, "on screen" is judged against the screen's own size as well as the layout viewport (a zoomed-out page has a
+larger one: the baseline Razr now fails on Sort, the sheet handle and the peek row at top 417), the visual viewport is
+neither zoomed nor panned, and on the map not every price pin is covered by the map's controls.
 
 ## 6. Known gaps and follow-ups
 
