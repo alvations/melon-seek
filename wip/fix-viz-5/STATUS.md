@@ -2,11 +2,13 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a500839343c7a8ea9`
 - Base (on claude/stoic-ride-54ddxp): `228aed732384c0c6e1b94b673bd6d56c31ec9beb`
-- Head: `be69f306546373e15eaa5fa25269882b1b6df988`
+- Head: `db9ec446a6d16aa684f9ad3741d604e06efbaa2e`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-viz-5 <new worktree dir>`
 
 ## Commits since the base
 ```
+db9ec44 WIP fix-viz-5: the measurement script, V-45 test on the pins themselves, map words
+585454b WIP fix-viz-5: e2e checks per finding, viz-lane allow-list entries removed, landscape median caption
 be69f30 WIP fix-viz-5: V-47 chart update keeps its work across a view or Group switch (same drawing); map pins clear of controls
 2df05f5 WIP fix-viz-5: settled circle plan and area sizes (V-33, V-34), bar weight and titles (V-38, UX-41), pay as posted (V-41, V-48, MR-28, D-43), axis and words (V-42, V-46, UX-40/42/43/59/61, A-8, D-44), map (V-43 to V-45, Razr)
 cef9fd0 WIP fix-viz-5: log skeleton with State
@@ -66,11 +68,72 @@ bc95d97 fix-sec-3: S-2 residual: one pause guard for every crawl (fetchLive, sna
 
 ## Uncommitted and new files
 ```
- M public/viz/chart.js
- M scripts/e2e.js
- M test/e2e/fix-phone-text.e2e.js
-?? test/e2e/fix-viz-5.e2e.js
+?? docs/process/patches/fix-viz-5-group-none.diff
+?? docs/process/patches/fix-viz-5-market-notbasepay.diff
+?? docs/screenshots/fix-viz-5/
 ```
 
 ## Left out (not in untracked.tgz)
+- docs/screenshots/fix-viz-5/after-clusters-amazon-d1440-dark.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-clusters-amazon-d1440-deuteranopia.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-clusters-amazon-d1440.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-clusters-amazon-p280.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-clusters-amazon-p390-dark.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-clusters-amazon-p390.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-clusters-anduril-d1440.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-clusters-google-d1440.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-clusters-google-landscape-812.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-location-google-d1440.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-location-google-p390.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-map-amazon-d1440.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-map-amazon-p280.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-map-amazon-p390-dark.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-map-amazon-razr-cover.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-map-apple-razr-cover.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-map-meta-d1440-dark.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-map-meta-d1440.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-ranges-amazon-d1440-dark.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-ranges-amazon-d1440.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-ranges-amazon-min-d1440-deuteranopia.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-ranges-amazon-min-d1440.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-ranges-amazon-p390-dark.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-ranges-amazon-p390.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-ranges-amazon-p540.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-ranges-amazon-shift-d1440.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-ranges-google-d1440.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-ranges-microsoft-d1440.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-ranges-netflix-d1440.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-ranges-nvidia-ote-d1440-protanopia.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/after-ranges-nvidia-ote-d1440.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-clusters-amazon-d1440-dark.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-clusters-amazon-d1440-deuteranopia.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-clusters-amazon-d1440.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-clusters-amazon-p280.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-clusters-amazon-p390-dark.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-clusters-amazon-p390.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-clusters-anduril-d1440.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-clusters-google-d1440.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-clusters-google-landscape-812.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-location-google-d1440.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-location-google-p390.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-map-amazon-d1440.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-map-amazon-p280.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-map-amazon-p390-dark.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-map-amazon-razr-cover.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-map-apple-razr-cover.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-map-meta-d1440-dark.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-map-meta-d1440.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-ranges-amazon-d1440-dark.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-ranges-amazon-d1440.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-ranges-amazon-min-d1440-deuteranopia.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-ranges-amazon-min-d1440.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-ranges-amazon-p390-dark.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-ranges-amazon-p390.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-ranges-amazon-p540.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-ranges-amazon-shift-d1440.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-ranges-google-d1440.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-ranges-microsoft-d1440.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-ranges-netflix-d1440.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-ranges-nvidia-ote-d1440-protanopia.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-viz-5/before-ranges-nvidia-ote-d1440.png (screenshot; the lane's tests regenerate it)
 - node_modules (symlink)

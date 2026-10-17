@@ -1,7 +1,7 @@
 From bbaae7db2be3fd958f2b94968245d3278f70d790 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 01:44:52 +0000
-Subject: [PATCH 37/55] WIP fix-phone-text: fitLine touches only lines that
+Subject: [PATCH 37/57] WIP fix-phone-text: fitLine touches only lines that
  don't fit; shorter always-open line; compare tests read the note's Details
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

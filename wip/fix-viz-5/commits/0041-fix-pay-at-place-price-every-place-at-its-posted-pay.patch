@@ -1,7 +1,7 @@
 From a2a86cf22756e2e05a034576f1a046629724e4ee Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 22:52:33 +0000
-Subject: [PATCH 41/55] fix-pay-at-place: price every place at its posted pay
+Subject: [PATCH 41/57] fix-pay-at-place: price every place at its posted pay
  (payAt) in the chart, map, stats line, Compstimate, Insights and drawer (WIP)
 
 V-35, V-36, V-37, V-39, V-40, UX-37, MR-34 and QA round 3 (places count, term Pay by place, Remote state labels).

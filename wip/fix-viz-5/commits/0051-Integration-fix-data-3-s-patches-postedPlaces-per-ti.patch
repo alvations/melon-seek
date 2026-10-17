@@ -1,7 +1,7 @@
 From fbdad5856455a1a176cfd806b858cab7e88ef836 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 10:29:27 +0000
-Subject: [PATCH 51/55] Integration: fix-data-3's patches (postedPlaces per
+Subject: [PATCH 51/57] Integration: fix-data-3's patches (postedPlaces per
  tied row, the Compare footnote names MR-28's left-out pay, M-40's
  precondition) and the pay lane's Juice test on
 
