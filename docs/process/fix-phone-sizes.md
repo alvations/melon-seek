@@ -10,7 +10,10 @@
   - the matrix goes from 17 of 34 failing before to 34 of 34 passing; the full e2e suite has no new failures (section 5);
   - before and after screenshots, shrunk;
   - `npm test` green without data links.
-- **In progress:** nothing; the lead integrates.
+- **In progress (after the 02:10 container restart):** the gate is re-running on d896658. The order is npm test with
+  the data links out (they wait in `<scratch>/fps/links/`), then the matrix through the suite runner, the related e2e
+  groups and the full e2e. If resumed: link `<scratch>/fps/links/snapshots` → data/snapshots and
+  `<scratch>/fps/links/beta/snapshots` → data/beta/snapshots, then re-run what is missing.
 - **Next, if resumed:** the follow-ups in section 6 (the Duo spanned in its other posture; WebKit results from
   webkit-phone.yml).
 
