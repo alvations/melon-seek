@@ -201,7 +201,8 @@ function pricedItem(p, at) {
   const { min: lo, max: hi, mid } = at.usd;
   if (!isFinite(lo) || !isFinite(hi) || !isFinite(mid)) return null;
   if (lo === p.lo && hi === p.hi && mid === p.mid && at.currency === p.cur) return p; // the same bar: no copy (perf)
-  return { ...p, lo: Math.min(lo, hi), hi: Math.max(lo, hi), mid, cur: at.currency, at };
+  // A copy has its own pattern and stack key (V-47 keeps them on the item): never the original's.
+  return { ...p, lo: Math.min(lo, hi), hi: Math.max(lo, hi), mid, cur: at.currency, at, kindDone: false, span: undefined, rk: undefined, rkFor: undefined };
 }
 
 /**
@@ -284,17 +285,18 @@ export function payCoversRow(job, key) {
  * one currency when it has none of the main one; a row of several other currencies says so.
  * -> { stats (basePayStats), basis: currency|null, left: items not in the median }
  */
+const basisOf = (p) => p.basis || payBasis(p.job); // payBasis, kept on chartPay's items (V-47)
 function basisStats(items, main) {
   if (!main) return { stats: basePayStats(items), basis: null, left: 0 };
-  const own = items.filter((p) => payBasis(p.job) === main);
+  const own = items.filter((p) => basisOf(p) === main);
   if (own.length) return { stats: basePayStats(own), basis: main, left: items.length - own.length };
-  const bases = new Set(items.map((p) => payBasis(p.job)));
+  const bases = new Set(items.map(basisOf));
   return { stats: basePayStats(items), basis: bases.size === 1 ? [...bases][0] : (items.length ? 'mixed' : null), left: 0 };
 }
 /** The most common pay currency of the plotted postings when there is more than one, else null. */
 function mainBasis(items) {
   const n = new Map();
-  for (const p of items) { const b = payBasis(p.job); n.set(b, (n.get(b) || 0) + 1); }
+  for (const p of items) { const b = basisOf(p); n.set(b, (n.get(b) || 0) + 1); }
   if (n.size < 2) return null;
   return [...n].sort((a, b) => b[1] - a[1] || (a[0] === 'USD' ? -1 : 1))[0][0];
 }
@@ -384,7 +386,7 @@ export function chartPay(jobs, { places = null, placeTest = null } = {}) {
     const isOte = s.kind === 'ote';
     if (isOte) ote++;
     // MR-28 (fix-viz-5): a stated minimum, shift-inclusive or part-time figure is plotted as posted, and medians leave it out.
-    plotted.push({ job, lo, hi, mid, cur, ote: isOte, at, nb: notBasePay(job) });
+    plotted.push({ job, lo, hi, mid, cur, ote: isOte, at, nb: notBasePay(job), basis: payBasis(job) });
   }
   return { plotted, noSalary, elsewhere: elsewhereIds.size, elsewhereIds, otherPlaces, fxCount, unknownFx: [...unknownFx], ote };
 }
@@ -848,12 +850,23 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
   let noteStats = null;      // the last render's stats, so setNotes can redo the notes alone
 
   // ---------- data prep ----------
+  // V-47 (fix-viz-5): a view switch or a new Group by draws the same postings at the same pay, so chartPay's items,
+  // the medians and the circle plan are kept for the same list and Location filter (payMemo, planMemo).
+  let payMemo = null;
+  let payVersion = 0;
   function prepare() {
     // BP-2: under a Location filter only pay posted for those places; BP-13: base-pay medians.
-    const r = chartPay(jobs, { places: opts.places, placeTest: opts.placeTest });
-    plotted = r.plotted;
-    for (const p of plotted) p.key = keyOf(p.job, opts.colorBy);
-    return { ...r, pay: basePayStats(plotted) };
+    const pk = opts.places ? opts.places.join('\u0001') : '';
+    // The app re-derives its list on any change (a Group by, a view switch): the same postings in the same order are
+    // the same list.
+    const same = payMemo && (payMemo.jobs === jobs || (payMemo.jobs.length === jobs.length && jobs.every((j, i) => j === payMemo.jobs[i])));
+    if (!same || payMemo.pk !== pk || payMemo.test !== opts.placeTest) {
+      const r = chartPay(jobs, { places: opts.places, placeTest: opts.placeTest });
+      payMemo = { jobs, pk, test: opts.placeTest, r, pay: basePayStats(r.plotted), keyDim: null, v: ++payVersion };
+    }
+    plotted = payMemo.r.plotted;
+    if (payMemo.keyDim !== opts.colorBy) { for (const p of plotted) p.key = keyOf(p.job, opts.colorBy); payMemo.keyDim = opts.colorBy; }
+    return { ...payMemo.r, pay: payMemo.pay };
   }
 
   // ---------- windowed rows (PERF-2) ----------
@@ -918,9 +931,13 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
   }
 
   // ---------- render (shared) ----------
+  // V-47: the container's font and surface, read once a draw before any row changes (a read after them forced a
+  // style pass over the whole chart, several times a draw).
+  let curFam = 'system-ui, sans-serif', curSurf = null;
   function render() {
     raf = 0;
     width = scroll.clientWidth || container.clientWidth || 800;
+    if (typeof getComputedStyle === 'function') { const cs = getComputedStyle(container); curFam = cs.fontFamily || curFam; curSurf = parseColor(cs.backgroundColor); }
     const stats = prepare();
     const clusters = opts.view === 'clusters';
     container.classList.toggle('ms-chart--clusters', clusters);
@@ -970,7 +987,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       if (activeCKey) { const a = cFindKey(activeCKey); if (a) cActive = { r: a.r, i: a.i }; }
     } else {
       renderRanges(stats, narrow);
-      if (activeJobId != null && idxByJob.has(activeJobId)) activeIdx = idxByJob.get(activeJobId); // applied when the row is built
+      const ai = activeJobId != null ? rowOfJob(activeJobId) : undefined;
+      if (ai != null) activeIdx = ai; // applied when the row is built
     }
     renderNotes(stats);
 
@@ -1114,7 +1132,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
   function renderAxis(ticks, x, approx, labelW, narrow, pay) {
     axis.replaceChildren();
     const capTitle = approx ? 'Yearly pay in US dollars; pay in other currencies is converted at fixed rates' : 'Yearly pay in US dollars';
-    const fam = (typeof getComputedStyle === 'function' && getComputedStyle(container).fontFamily) || 'system-ui, sans-serif';
+    const fam = curFam;
     if (labelW > 0) {
       // I-3: plain words ("Annual salary · approx USD" read as jargon).
       const cap = el('div', 'ms-axis__cap', axisCaption(approx, labelW - 16 - 4, `12px ${fam}`));
@@ -1235,7 +1253,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     // group name fits on at most two lines; capped at 36% of the width (then the subtitle
     // switches to the short "69 · $512K" form instead of truncating).
     let labelW = 0;
-    const fam = (typeof getComputedStyle === 'function' && getComputedStyle(container).fontFamily) || 'system-ui, sans-serif';
+    const fam = curFam;
     const NAME_FONT = `600 13px ${fam}`, SUB_FONT = `12px ${fam}`;
     if (!narrow) {
       const maxW = Math.max(150, Math.min(320, Math.round(width * 0.36)));
@@ -1252,7 +1270,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
       for (const r of cRows) r.sub = r.subTight; // stacked label line: the row's name gives way first
     }
     // Robust domain: P1..P99 of midpoints, padded, snapped to $50K/$100K/$250K ticks.
-    const [lo, hi] = robustBounds((drawnItems.length ? drawnItems : plotted).map(p => p.mid));
+    const domainItems = drawnItems.length ? drawnItems : plotted;
+    const [lo, hi] = domainItems === plotted && payMemo ? (payMemo.midBounds ||= robustBounds(plotted.map((p) => p.mid))) : robustBounds(domainItems.map((p) => p.mid));
     const span = Math.max(1, hi - lo);
     const step = span > 1500000 ? 250000 : span > 300000 ? 100000 : 50000;
     const pad = Math.max(span * AXIS_PAD, 1000);
@@ -1293,7 +1312,10 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const rMax = Math.max(6, Math.min(plotH / 2 - 9, solo ? 30 : 16));
     const sizes = { rMax, rMin: Math.min(4.5, rMax), rOne: Math.min(3, rMax) };
     const inAxis = cRows.map((r) => r.items.filter((p) => p.mid >= d0 && p.mid <= d1));
-    const plan = settleCircles(inAxis, { x, plot: [plotL, plotL + plotW], ...sizes });
+    // V-47: the same rows on the same axis are the same plan (a view switch and back).
+    const planKey = [payMemo?.v, dim, foldOpen, plotL, plotW, d0, d1, rMax].join('|');
+    const plan = payMemo?.plan?.key === planKey ? payMemo.plan.value : settleCircles(inAxis, { x, plot: [plotL, plotL + plotW], ...sizes });
+    if (payMemo) payMemo.plan = { key: planKey, value: plan };
     const placed = plan.placed;
     // V-29: a circle never runs past the plot into the axis-edge "‹" / "›" chips' gutters (6px out).
     const edge = plan.edge;
@@ -1335,7 +1357,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     // A11Y-1: count labels sit on the row color mixed into the surface (viz.css --_bin-mix);
     // pick their ink from that actual mix so they always clear 4.5:1 (dark "Other" rows were 3.43:1).
     {
-      const surf = parseColor(getComputedStyle(container).backgroundColor) || (isDark() ? [22, 26, 33] : [252, 252, 251]);
+      const surf = curSurf || (isDark() ? [22, 26, 33] : [252, 252, 251]);
       for (const r of cRows) {
         const pct = 1; // = viz.css --_bin-mix: V-22, circles are the row colour itself (>= 3:1 on the surface)
         const c = parseColor(r.color) || surf;
@@ -1346,7 +1368,6 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     const gridFrag = document.createDocumentFragment();
     cRows.forEach((r, ri) => {
       r.index = ri;
-      for (const b of r.bins) for (const p of b.items) binByJob.set(p.job.id, b);
       vItems.push({ y: ri * rowH, h: rowH, build: () => buildCRow(r, ri), unbuild: () => { r.el = r.labelEl = null; for (const b of r.bins) b.el = null; } });
     });
     function buildCRow(r, ri) {
@@ -1467,6 +1488,17 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     renderGridlines(ticks, x, gridFrag);
     grid.replaceChildren(gridFrag);
     body.style.height = (cRows.length * rowH + 8) + 'px';
+  }
+
+  // V-47: which row or circle holds a posting, indexed on first use (a highlight, a kept keyboard position), not on
+  // every draw (14,000 map writes on Amazon).
+  function rowOfJob(id) {
+    if (!idxByJob.size && itemByRow.length) itemByRow.forEach((p, i) => { for (const q of p.stack || [p]) idxByJob.set(q.job.id, i); });
+    return idxByJob.get(id);
+  }
+  function binOfJob(id) {
+    if (!binByJob.size && cRows.length) for (const r of cRows) for (const b of r.bins || []) for (const p of b.items) binByJob.set(p.job.id, b);
+    return binByJob.get(id);
   }
 
   function markActive(e) {
@@ -1644,7 +1676,18 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     return { top, counts, ordered };
   }
 
+  /** V-47: groups() for the same postings and Group by, with the notes counts it makes. */
   function groups() {
+    const memo = payMemo && payMemo.groups?.[opts.groupBy];
+    if (memo) { rowNotes = { ...rowNotes, ...memo.notes }; return memo.out; }
+    const before = rowNotes;
+    const out = groupsOf();
+    const notes = {};
+    for (const k of ['offRow', 'basis', 'basisLeft']) if (rowNotes[k] !== before[k]) notes[k] = rowNotes[k];
+    if (payMemo) (payMemo.groups ||= {})[opts.groupBy] = { out, notes };
+    return out;
+  }
+  function groupsOf() {
     if (opts.groupBy === 'none') return [{ name: null, items: plotted.slice().sort((a, b) => b.mid - a.mid) }];
     const m = new Map();
     // V-37 (fix-pay-at-place): grouped by Location, a posting sits in the row of its first place (the first one
@@ -1694,8 +1737,9 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     // real span is striped (several levels, or several places' ranges), never one place's row.
     let spans = 0, partTime = 0, ote = 0, minimums = 0;
     for (const p of drawn) {
-      p.span = barSpan(p); if (p.span) spans++;
-      p.partTime = isPartTimeHourly(p.job); if (p.partTime) partTime++;
+      if (!p.kindDone) { p.span = barSpan(p); p.partTime = isPartTimeHourly(p.job); p.kindDone = true; } // V-47: once per item
+      if (p.span) spans++;
+      if (p.partTime) partTime++;
       if (p.ote) ote++;
       if (p.nb === 'minimum') minimums++;
     }
@@ -1704,8 +1748,14 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     head.hidden = legend.hidden;
     // viz-even: postings with the same bar are one row with their count (stackRanges); a row's first posting stands
     // for it (p.stack holds them all, p.n counts them). Stacked before the axis, which is taken from the rows (UX-59).
-    const stackKey = (p) => rangeKey(p, opts.colorBy === 'none' ? null : topSet.has(p.key) ? p.key : OTHER_KEY);
-    const gStacks = gs.map((g) => stackRanges(g.items, stackKey));
+    const stackKey = (p) => {
+      const c = opts.colorBy === 'none' ? null : topSet.has(p.key) ? p.key : OTHER_KEY;
+      if (p.rkFor !== c || p.rk === undefined) { p.rkFor = c; p.rk = rangeKey(p, c); } // V-47: a key per item and colour
+      return p.rk;
+    };
+    const sk = `${opts.groupBy}\u0001${opts.colorBy}\u0001${top.join('\u0002')}`;
+    const gStacks = payMemo?.stacks?.key === sk ? payMemo.stacks.value : gs.map((g) => stackRanges(g.items, stackKey));
+    if (payMemo) payMemo.stacks = { key: sk, value: gStacks };
     const rowsAll = gStacks.flat().map((st) => ({ lo: st.p.lo, hi: st.p.hi, mid: st.p.mid, n: st.n }));
     // V-38 (fix-viz-5): a bar's thickness says how many postings its row stands for.
     const maxStack = rowsAll.reduce((m, r) => Math.max(m, r.n), 1);
@@ -1713,7 +1763,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     // Narrow (phones): the full-width title sits above its bar, so titles stay readable (M-17).
     rowH = narrow ? ROW_H_NARROW : ROW_H;
     const labelW = narrow ? 0 : Math.round(Math.max(140, Math.min(300, width * 0.3)));
-    const valFont = `600 12px ${(typeof getComputedStyle === 'function' && getComputedStyle(container).fontFamily) || 'system-ui, sans-serif'}`;
+    const valFont = `600 12px ${curFam}`;
     const padR = narrow ? 16 : 28;
     const plotL = narrow ? 12 : labelW + 12;
     container.classList.toggle('ms-chart--stack', narrow);
@@ -1753,7 +1803,6 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         p.stack = st.items;
         p.n = st.n;
         itemByRow[i] = p;
-        for (const q of st.items) idxByJob.set(q.job.id, i);
         rowY[i] = y;
         p.group = g.name;
         p.clipped = p.hi > d1 || p.lo < d0;
@@ -1780,7 +1829,7 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
         const ml = el('div', 'ms-group__median', mtext);
         if (g.basisLeft) ml.title = `Pay ${payBasisPlace(g.basis)} only: ${plural(g.basisLeft, 'posting')} with pay for other countries ${g.basisLeft === 1 ? 'is' : 'are'} not in this median`;
         ml.style.left = mx + 'px';
-        if (mx > width - textWidth(mtext, `12px ${(typeof getComputedStyle === 'function' && getComputedStyle(container).fontFamily) || 'system-ui, sans-serif'}`) - 16) ml.classList.add('ms-group__median--left');
+        if (mx > width - textWidth(mtext, `12px ${curFam}`) - 16) ml.classList.add('ms-group__median--left');
         h.append(ml);
         return h;
       }
@@ -2190,14 +2239,14 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     rowsEl.querySelectorAll('.is-highlighted').forEach(n => n.classList.remove('is-highlighted'));
     if (id == null) return;
     if (opts.view === 'clusters') {
-      const b = binByJob.get(id);
+      const b = binOfJob(id);
       if (!b) return;
       const ri = b.row.index;
       if (scrollIt) scrollToY(vItems[ri].y, vItems[ri].h, true);
       b.el?.classList.add('is-highlighted');
       return;
     }
-    const i = idxByJob.get(id);
+    const i = rowOfJob(id);
     if (i == null) return;
     if (scrollIt) scrollToY(rowY[i], rowH, true);
     rowsEl.querySelector(`.ms-row[data-idx="${i}"]`)?.classList.add('is-highlighted');
