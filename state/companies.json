@@ -27,9 +27,9 @@
  },
  "anduril": {
   "slug": "anduril",
-  "lastObservedAt": "2026-10-17T03:31:12.891Z",
+  "lastObservedAt": "2026-10-17T05:24:33.675Z",
   "firstObservedAt": "2026-10-02T12:47:55.311Z",
-  "observations": 123,
+  "observations": 124,
   "name": "Anduril",
   "channel": "stable",
   "source": "greenhouse",
@@ -46,16 +46,16 @@
    "changed": 0,
    "payChanged": 0,
    "sourceChanged": 0,
-   "observations": 2
+   "observations": 3
   },
   "lastDailyDate": "2026-10-17",
   "lastDailyAt": "2026-10-17T00:28:48.592Z"
  },
  "anthropic": {
   "slug": "anthropic",
-  "lastObservedAt": "2026-10-17T03:30:49.456Z",
+  "lastObservedAt": "2026-10-17T05:24:09.705Z",
   "firstObservedAt": "2026-10-02T12:47:35.158Z",
-  "observations": 123,
+  "observations": 124,
   "name": "Anthropic",
   "channel": "stable",
   "source": "greenhouse",
@@ -69,10 +69,10 @@
    "resumed": 0,
    "closed": 1,
    "unseen": 0,
-   "changed": 0,
+   "changed": 1,
    "payChanged": 0,
-   "sourceChanged": 0,
-   "observations": 2
+   "sourceChanged": 1,
+   "observations": 3
   },
   "lastDailyDate": "2026-10-17",
   "lastDailyAt": "2026-10-17T00:28:39.357Z"
@@ -105,9 +105,9 @@
  },
  "cohere": {
   "slug": "cohere",
-  "lastObservedAt": "2026-10-17T03:31:20.417Z",
+  "lastObservedAt": "2026-10-17T05:24:43.061Z",
   "firstObservedAt": "2026-10-02T12:48:00.027Z",
-  "observations": 123,
+  "observations": 124,
   "name": "Cohere",
   "channel": "stable",
   "source": "ashby",
@@ -124,7 +124,7 @@
    "changed": 0,
    "payChanged": 0,
    "sourceChanged": 0,
-   "observations": 2
+   "observations": 3
   },
   "lastDailyDate": "2026-10-17",
   "lastDailyAt": "2026-10-17T00:28:53.733Z"
@@ -157,29 +157,29 @@
  },
  "meta": {
   "slug": "meta",
-  "lastObservedAt": "2026-10-16T22:05:28.829Z",
+  "lastObservedAt": "2026-10-17T05:22:37.723Z",
   "firstObservedAt": "2026-10-11T15:17:42.075Z",
-  "observations": 20,
+  "observations": 21,
   "name": "Meta",
   "channel": "beta",
   "source": "meta",
   "board": "meta",
   "color": "#0866ff",
-  "open": 1220,
-  "ids": 1323,
+  "open": 1221,
+  "ids": 1327,
   "pending": {
-   "opened": 36,
-   "reopened": 2,
+   "opened": 0,
+   "reopened": 0,
    "resumed": 0,
-   "closed": 14,
+   "closed": 0,
    "unseen": 0,
-   "changed": 988,
-   "payChanged": 945,
-   "sourceChanged": 34,
-   "observations": 3
+   "changed": 0,
+   "payChanged": 0,
+   "sourceChanged": 0,
+   "observations": 0
   },
-  "lastDailyDate": "2026-10-16",
-  "lastDailyAt": "2026-10-16T05:26:57.242Z"
+  "lastDailyDate": "2026-10-17",
+  "lastDailyAt": "2026-10-17T05:22:37.723Z"
  },
  "microsoft": {
   "slug": "microsoft",
@@ -261,9 +261,9 @@
  },
  "openai": {
   "slug": "openai",
-  "lastObservedAt": "2026-10-17T03:31:17.415Z",
+  "lastObservedAt": "2026-10-17T05:24:38.890Z",
   "firstObservedAt": "2026-10-02T12:47:58.148Z",
-  "observations": 123,
+  "observations": 124,
   "name": "OpenAI",
   "channel": "stable",
   "source": "ashby",
@@ -280,16 +280,16 @@
    "changed": 0,
    "payChanged": 0,
    "sourceChanged": 0,
-   "observations": 2
+   "observations": 3
   },
   "lastDailyDate": "2026-10-17",
   "lastDailyAt": "2026-10-17T00:28:51.594Z"
  },
  "palantir": {
   "slug": "palantir",
-  "lastObservedAt": "2026-10-17T03:31:22.233Z",
+  "lastObservedAt": "2026-10-17T05:24:45.729Z",
   "firstObservedAt": "2026-10-02T12:48:01.886Z",
-  "observations": 123,
+  "observations": 124,
   "name": "Palantir",
   "channel": "stable",
   "source": "lever",
@@ -306,16 +306,16 @@
    "changed": 0,
    "payChanged": 0,
    "sourceChanged": 0,
-   "observations": 2
+   "observations": 3
   },
   "lastDailyDate": "2026-10-17",
   "lastDailyAt": "2026-10-17T00:28:56.329Z"
  },
  "scaleai": {
   "slug": "scaleai",
-  "lastObservedAt": "2026-10-17T03:31:18.531Z",
+  "lastObservedAt": "2026-10-17T05:24:40.180Z",
   "firstObservedAt": "2026-10-02T12:47:58.811Z",
-  "observations": 123,
+  "observations": 124,
   "name": "Scale AI",
   "channel": "stable",
   "source": "greenhouse",
@@ -332,16 +332,16 @@
    "changed": 0,
    "payChanged": 0,
    "sourceChanged": 0,
-   "observations": 2
+   "observations": 3
   },
   "lastDailyDate": "2026-10-17",
   "lastDailyAt": "2026-10-17T00:28:52.472Z"
  },
  "shieldai": {
   "slug": "shieldai",
-  "lastObservedAt": "2026-10-17T03:31:25.438Z",
+  "lastObservedAt": "2026-10-17T05:24:49.055Z",
   "firstObservedAt": "2026-10-02T12:48:03.997Z",
-  "observations": 123,
+  "observations": 124,
   "name": "Shield AI",
   "channel": "stable",
   "source": "lever",
@@ -358,16 +358,16 @@
    "changed": 0,
    "payChanged": 0,
    "sourceChanged": 0,
-   "observations": 2
+   "observations": 3
   },
   "lastDailyDate": "2026-10-17",
   "lastDailyAt": "2026-10-17T00:28:58.367Z"
  },
  "xai": {
   "slug": "xai",
-  "lastObservedAt": "2026-10-17T03:31:19.805Z",
+  "lastObservedAt": "2026-10-17T05:24:42.367Z",
   "firstObservedAt": "2026-10-02T12:47:59.614Z",
-  "observations": 123,
+  "observations": 124,
   "name": "xAI",
   "channel": "stable",
   "source": "greenhouse",
@@ -384,7 +384,7 @@
    "changed": 0,
    "payChanged": 0,
    "sourceChanged": 0,
-   "observations": 2
+   "observations": 3
   },
   "lastDailyDate": "2026-10-17",
   "lastDailyAt": "2026-10-17T00:28:53.326Z"
