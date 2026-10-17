@@ -1,4 +1,4 @@
-From f2e54971d2f94177717c51ab5709a61585de5ca2 Mon Sep 17 00:00:00 2001
+From 45ef5500e183ac2dddc2c42d5f799ab96f21604f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 10:52:40 +0000
 Subject: [PATCH 1/6] fix-phone-sizes: the Surface Duo stacked (720x1114, hinge

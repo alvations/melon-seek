@@ -1,4 +1,4 @@
-From a81444a0b7496a27c5903e59d389865da2b81497 Mon Sep 17 00:00:00 2001
+From 4c0e9e98b09bec71b61bc7ef943cd4adb1e9a702 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 12:29:39 +0000
 Subject: [PATCH 2/6] WIP fix-phone-sizes: log State on fbdad58, the stacked

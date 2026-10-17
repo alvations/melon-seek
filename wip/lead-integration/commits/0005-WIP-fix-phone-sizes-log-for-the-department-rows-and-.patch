@@ -1,4 +1,4 @@
-From 6d47af6445cce8f0e0d2afaa625cd745300662f0 Mon Sep 17 00:00:00 2001
+From 24b11516564a9f5268ec10493c19ed6ef69cf5c2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 12:59:18 +0000
 Subject: [PATCH 5/6] WIP fix-phone-sizes: log for the department rows and

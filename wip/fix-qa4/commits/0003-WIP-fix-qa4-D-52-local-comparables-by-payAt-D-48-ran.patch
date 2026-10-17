@@ -1,0 +1,694 @@
+From 463c5c9d1581465baa8fac1bca4bed678309e85b Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 14:33:20 +0000
+Subject: [PATCH 3/5] WIP fix-qa4: D-52 local comparables by payAt, D-48 rank
+ words, D-47 hide the old chart, D-50 cap at the stated maximum, D-49 CSV kind
+ and ranges
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ public/app.js                  |  24 +++--
+ public/features/compstimate.js | 138 +++++++++++++++++++++-----
+ public/features/shared.js      |  38 ++++++--
+ scripts/build-static.js        |   7 +-
+ server/export.js               | 171 ++++++++++++++++++++++++++++++---
+ test/export.test.js            |   7 +-
+ test/server.test.js            |   2 +-
+ 7 files changed, 328 insertions(+), 59 deletions(-)
+
+diff --git a/public/app.js b/public/app.js
+index afde45e..a0a5d45 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -13,7 +13,7 @@ import { compsForJob, compsNote, createCompsCard } from './features/comps.js';
+ import { loadFreshness, freshnessDoc, juiceAsOfText, juiceSpanText, marketAsOfText, compstimateAsOfText, asOf, formatAsOf } from './features/freshness.js';
+ import { createCompsChart } from './viz/comps.js';
+ import { roleFamily, FAMILY_LABELS, readableTitle, levelLabel, displayLevel, NOT_STATED, DISPLAY_LEVEL_ORDER, levelKey, levelFromKey } from './features/roles.js';
+-import { payLocations, payRank, samePayCountry, countryInSentence, payAt, pricedPlaces, placeLabel } from './features/shared.js';
++import { payLocations, payRank, rankText, samePayCountry, countryInSentence, payAt, pricedPlaces, placeLabel } from './features/shared.js';
+ // ./features/insights.js is imported on first use (Insights mode), see renderInsights.
+ // api.js: getCompanies, getJobs, getJobDetail (namespace import: tolerate a missing optional export)
+ 
+@@ -3118,12 +3118,18 @@ function renderViz() {
+       ...Array.from({ length: 18 }, (_, i) => h('div', { class: 'sk sk-bar', style: `margin-left:${8 + ((i * 37) % 45)}%;width:${14 + ((i * 53) % 22)}%` }))));
+     return;
+   }
++  // D-47 (fix-qa4): a board that isn't on the site, fails to load or has no roles draws nothing, so the previous
++  // board's chart or map is hidden (out of sight and of the accessibility tree), not left faded behind the message.
++  // The next board that loads shows its own again (the hidden flags above, and a new vizSig).
++  const noBoard = () => { chartHost.hidden = true; mapHost.hidden = true; };
+   if (data.status === 'error') {
++    noBoard();
+     overlay.hidden = false;
+     overlay.replaceChildren(stateCard({ icon: ICON.alert, title: 'Couldn\u2019t load this board', body: data.error || 'Unknown error', action: ['Retry', () => loadJobs()], tone: 'error' }));
+     return;
+   }
+   if (data.status === 'unknown') {
++    noBoard();
+     overlay.hidden = false;
+     overlay.replaceChildren(stateCard(notHereState()));
+     return;
+@@ -3131,6 +3137,7 @@ function renderViz() {
+   const jobs = derived.filtered;
+ 
+   if (!data.jobs.length) {
++    noBoard();
+     overlay.hidden = false;
+     overlay.replaceChildren(stateCard({ title: 'No open roles on this board', body: 'Try another company from the menu.' }));
+     return;
+@@ -4549,13 +4556,17 @@ function compstimateBlock(job) {
+   const v = estimateView(est, { company: data.company?.name || 'this company', meta: data.meta });
+   // fix-density: "No pay estimate" and its reason behind "Details" (the reason ran to four lines on a phone).
+   if (!v.ok) return v.reason ? noteLine({ cls: 'd-comp-note', key: 'drawer-comp', line: 'No pay estimate either', details: [h('span', { class: 'd-comp-none' }, v.reason)] }) : null;
++  // D-50 (fix-qa4): a "Pay unclear" posting whose stated maximum passed the checks is not estimated above it
++  // (compstimateForJob caps it); the line says so, and Details give the similar roles' figure before the cap.
++  const cap = est.cap;
+   return h('div', { class: 'd-comp', role: 'note' },
+     h('div', { class: 'd-comp-top' },
+       h('span', { class: 'd-comp-label', title: 'Estimated pay from similar roles at this company' }, 'Pay estimate'),
+       h('span', { class: 'd-comp-amt' }, `about ${money(est.mid)}`),
+       h('span', { class: 'muted' }, `(${money(est.low)}–${money(est.high).replace(/^\$/, '')}, ${v.confidence.toLowerCase()} confidence)`)),
+     // fix-density: one line, and the basis, accuracy (MR-17), dates and (MR-3) the method behind "Details".
+-    noteLine({ cls: 'd-comp-note', key: 'drawer-comp', line: 'Not from the posting: an estimate', details: [
++    noteLine({ cls: 'd-comp-note', key: 'drawer-comp', line: cap ? fitOneLine(h('span'), ['An estimate, capped at the posted maximum', 'Capped at the posted maximum']) : 'Not from the posting: an estimate', details: [
++      cap ? `Similar roles suggest about ${money(cap.mid)} (${money(cap.low)}–${money(cap.high).replace(/^\$/, '')}). The posting itself states up to ${money(cap.stated.amount, cap.stated.currency)}${cap.stated.currency === 'USD' ? '' : ` (about ${money(cap.max)})`}, a figure that passed our checks, so the estimate stops there.` : '',
+       `${v.basis}. ${v.kind === 'ote' ? 'On-target earnings (base plus commission at target), like the roles it is based on. ' : ''}An estimate, not a figure from the posting (in US dollars a year).`,
+       v.accuracy ? `${v.accuracy}: in half of the tests the estimate was at least this close to the posted pay.` : v.caution || '',
+       asOfNote('d-comp-asof', () => compstimateAsOfText({ fetchedAt: data.fetchedAt, meta: data.meta })),
+@@ -4692,11 +4703,10 @@ function drawerContent(job) {
+   // M-38 (fix-phone-text): the line names the country (BP-3) with the short noun, so it fits one line on a phone;
+   // "with on-target earnings" and "that show pay" are in the pay block's Details (pctNote).
+   const among = `${coName}’s ${shortNoun(job)}${place}`;
+-  const pctText = pct == null ? (rank?.others && place ? `Too few roles${place} show pay to rank this one` : null)
+-    : pct >= 100 ? `The highest pay of ${among}`
+-      : pct <= 0 ? `The lowest pay of ${among}` : `Pays more than ${pct}% of ${among}`;
+-  const pctShort = !place ? null : pct == null ? 'Too few roles show pay to rank this one'
+-    : pct >= 100 ? `The highest pay of ${coName}’s ${shortNoun(job)}` : pct <= 0 ? `The lowest pay of ${coName}’s ${shortNoun(job)}` : `Pays more than ${pct}% of ${coName}’s ${shortNoun(job)}`;
++  // D-48 (fix-qa4): "The highest pay" or "The lowest pay" only when no role is paid more or less (rankText); a share
++  // that rounds to 100% or 0% reads "In the top 1% of …" or "In the lowest 1% of …".
++  const pctText = pct == null ? (rank?.others && place ? `Too few roles${place} show pay to rank this one` : null) : rankText(rank, among);
++  const pctShort = !place ? null : pct == null ? 'Too few roles show pay to rank this one' : rankText(rank, `${coName}’s ${shortNoun(job)}`);
+   const pctNote = pct == null ? (rank?.others && place ? `Too few of ${coName}’s ${noun}${place} show pay to rank this one. Pay for other countries isn’t used.` : null)
+     : `Ranked among ${of}${place ? '; pay for other countries isn’t used' : ''}.`;
+   const partHourly = isPartTimeHourly(job);
+diff --git a/public/features/compstimate.js b/public/features/compstimate.js
+index 8900999..d1b0e25 100644
+--- a/public/features/compstimate.js
++++ b/public/features/compstimate.js
+@@ -17,7 +17,7 @@
+ 
+ import {
+   salaryUSD, weightedPercentile, percentile, median, formatMoney, plural, h, uid, locationKey,
+-  payLocations, isOTE, payKind, isInternLike, countryName, countryInSentence, OTE_LABEL, payAt, toUSD,
++  payLocations, isOTE, payKind, isInternLike, countryName, countryInSentence, OTE_LABEL, payAt, payCovers, toUSD,
+ } from './shared.js';
+ import {
+   normalizeTitle, familySim, rolePart, roleFamily, FAMILY_LABELS, SENIORITY_LADDER,
+@@ -180,9 +180,11 @@ function tokenSim(qTokens, qSum, p, idf) {
+ const MIN_WEIGHT = 0.02;        // absolute floor for a comparable
+ const REL_WEIGHT = 0.12;        // ... and at least 12% of the best match's weight
+ const MAX_COMPARABLES = 500;     // safety cap only; the relative cut does the real work
+-// V-40 (fix-pay-at-place): with at least this many comparables that post a range of their own for the city asked
+-// (salary.ranges: Amazon, Apple, Microsoft price each place), only those are used. The others' pay is other cities'
+-// rows; a board without per-place ranges is unchanged.
++// V-40 (fix-pay-at-place), D-52 (fix-qa4): with at least this many comparables that post pay for the city asked, only
++// those are used. A comparable posts pay for the city when payAt prices a place of it there: its one range covers that
++// place, or it has a row of its own for it (salary.ranges: Amazon, Apple, Microsoft price each place). Before D-52 only
++// the second counted, so a city's one-range postings were left out (Apple "Software Engineer" in Cupertino: 37 used of
++// 204 there).
+ const LOCAL_MIN = 5;
+ const LOW_P = 0.15, HIGH_P = 0.85;
+ 
+@@ -244,8 +246,7 @@ export function estimateComp(allJobs, query = {}) {
+     // Weighting keeps "no level word" close to "no level word" (a title feature: the backtest error
+     // rises from 10.7% to 13.3% at Anduril without it); the basis line never calls it a level.
+     const w = ts * ts * senioritySim(level, p.job.seniority) * deptSim(q.department, p.job.department) * locSim(ql, p.locs, p.job);
+-    const here = ql && ql.city && p.rows ? payAtQuery(p, ql) : null;
+-    scored.push({ job: p.job, pay: here || p.pay, local: !!here, titleSim: ts, w });
++    scored.push({ p, job: p.job, pay: p.pay, local: false, place: null, titleSim: ts, w });
+   }
+   if (!scored.length) {
+     if (!candidates) return empty('No roles on this board publish pay, so there is nothing to compare against yet.', 'no-pay');
+@@ -273,8 +274,24 @@ export function estimateComp(allJobs, query = {}) {
+   const cut = Math.max(MIN_WEIGHT, REL_WEIGHT * best);
+   let comps = [];
+   for (const p of sameKind) { if (p.w < cut || comps.length >= MAX_COMPARABLES) break; comps.push(p); }
+-  const local = comps.filter((p) => p.local);
+-  if (local.length >= LOCAL_MIN && local.length < comps.length) comps = local;
++  // V-40, D-52: a comparable is local when it posts pay for the city asked (payAt's rule): its one range covers a place
++  // there, or it has a row of its own for one. A comparable with a row there is priced at that row. When the company
++  // prices the city on rows of its own (one comparable at least), its pay differs by place, so with LOCAL_MIN or more
++  // local comparables only those are used. A company that posts one range for many places (Google's US range, the main
++  // site's boards) is unchanged: its other cities' postings carry the same kind of pay, and leaving them out only
++  // shrinks the sample (the backtest with the cut on every board: Google 12.4% to 14.2%, Palantir 8.6% to 10.7%).
++  // Worked out for the comparables only (at most MAX_COMPARABLES), so the board-wide pass stays as cheap as before.
++  if (ql && ql.city) {
++    let rowHere = false;
++    for (const c of comps) {
++      const here = payAtQuery(c.p, ql);
++      if (!here) continue;
++      c.local = true; c.pay = here; c.place = here.label || null;
++      if (c.p.rows) rowHere = true;
++    }
++    const local = rowHere ? comps.filter((p) => p.local) : [];
++    if (local.length >= LOCAL_MIN && local.length < comps.length) comps = local;
++  }
+ 
+   const mids = comps.map((p) => [p.pay.mid, p.w]);
+   const band = [];
+@@ -318,6 +335,9 @@ export function estimateComp(allJobs, query = {}) {
+   return {
+     low, mid, high, currency: 'USD', confidence, n: comps.length,
+     comparables: comps.slice(0, 5).map((p) => p.job),
++    // D-52: the pay each listed comparable was used at (US dollars a year), and the place it was posted for when it is
++    // one place's row (the city asked for, or the posting's headline row: Amazon's search city), else null.
++    comparablePay: comps.slice(0, 5).map(usedPay),
+     scores: comps.slice(0, 5).map((p) => Math.round(p.w * 100) / 100),
+     explanation, detail, query: used,
+     reason: null, kind, country,
+@@ -326,16 +346,40 @@ export function estimateComp(allJobs, query = {}) {
+ }
+ 
+ /**
+- * V-40 (fix-pay-at-place): a comparable's pay at the city asked for, when it posts a range per place: the
+- * range posted for its places there (payAt), not its headline (Microsoft's U.S. range for a New York role,
+- * Amazon's Bellevue row for its New York place). null when it posts no range of its own there.
++ * V-40 (fix-pay-at-place), D-52: a comparable's pay at the city asked for (payAt, the one rule for pay at a place), or
++ * null when it posts none there.
++ *   - basis 'posting': its one range covers a place in the city, so the range was posted for the city: its own pay
++ *     (`p.pay`), with no place name (D-52: these were left out, so Apple "Software Engineer" in Cupertino used 37 of
++ *     the 204 Cupertino postings with that title).
++ *   - basis 'place': the range posted for its places there, not its headline (Microsoft's U.S. range for a New York
++ *     role, Amazon's Bellevue row for its New York place), named for them (`label`).
+  */
+ function payAtQuery(p, ql) {
+   const here = p.locs.filter((l) => atPlace(l, ql));
+-  const at = here.length ? payAt(p.job, here.length === 1 ? here[0] : here) : null;
+-  if (!at || at.basis !== 'place') return null;
++  if (!here.length) return null;
++  if (!p.rows) return here.some((l) => payCovers(p.job, l)) ? p.pay : null;
++  const at = payAt(p.job, here.length === 1 ? here[0] : here);
++  if (!at) return null;
++  if (at.basis !== 'place') return p.pay;
+   const min = toUSD(at.min, at.currency), mid = toUSD(at.mid, at.currency), max = toUSD(at.max, at.currency);
+-  return min == null || mid == null || max == null ? null : { min, mid, max, currency: at.currency, converted: at.currency !== 'USD' };
++  return min == null || mid == null || max == null ? null
++    : { min, mid, max, currency: at.currency, converted: at.currency !== 'USD', label: at.label };
++}
++
++/**
++ * D-52: what a listed comparable was used at: { min, mid, max, converted, place }. `place` names the place a row was
++ * posted for: the city asked for, or, for a comparable used at its headline, that headline's place when it is one
++ * place's row (payAt(job) basis 'place': Amazon's search city, Microsoft's U.S. range). null for a posting's one range
++ * or a span of several places' ranges.
++ */
++function usedPay(c) {
++  const { min, mid, max, converted } = c.pay;
++  let place = c.place;
++  if (!c.local && c.p.rows) {
++    const head = payAt(c.job);
++    place = head && head.basis === 'place' && !head.span ? head.label || null : null;
++  }
++  return { min, mid, max, converted: !!converted, place: place || null };
+ }
+ 
+ /** Does this pay location sit at the query's place (city / name / app key)? */
+@@ -414,13 +458,48 @@ export function jobLocationQuery(job) {
+  * Title, level and location only; no department and no filters (task force Rule 8), so
+  * Insights with the same three fields edited shows the same numbers.
+  * `opts.excludeIds` drops more postings (the backtest passes the job's duplicates).
++ * D-50: a "Pay unclear" posting whose stated maximum passed the checks is never estimated above it (statedMax).
+  */
+ export function compstimateForJob(allJobs, job, opts = {}) {
+   if (!job) return estimateComp(allJobs, {});
+-  return estimateComp(allJobs, {
++  const est = estimateComp(allJobs, {
+     title: job.title, seniority: job.seniority || '', department: '', location: jobLocationQuery(job),
+     excludeId: job.id, excludeIds: opts.excludeIds || null, internLike: isInternLike(job),
+   });
++  return capAtStatedMax(est, statedMax(job));
++}
++
++// D-50: the vetting gate's checks (server/vet.js salaryChecks) that say nothing against a posting's stated maximum: its
++// minimum is under the full-time floor, or the range is wider than the ratio bound. Any other code (above_max,
++// hourly_high, junior_high, senior_low, min_gt_max, stat_outlier, not_numeric) questions the top too.
++const MAX_STANDS = new Set(['below_min', 'range_ratio']);
++
++/**
++ * D-50: the most a "Pay unclear" posting states it pays, in US dollars a year, when only its minimum or its ratio failed
++ * the checks (salaryFlag.codes), so its maximum stands: { usd, amount, currency, text }. null otherwise, and for a
++ * posting with pay (salary set). netflix:790298021069 states "$71,040.00 - $464,000.00" (range_ratio): $464,000.
++ */
++export function statedMax(job) {
++  const raw = job?.salaryRaw, codes = job?.salaryFlag?.codes;
++  if (job?.salary || !raw || !Array.isArray(codes) || !codes.length || !codes.every((c) => MAX_STANDS.has(c))) return null;
++  const amount = Number(raw.max ?? raw.min);
++  const usd = toUSD(amount, raw.currency || 'USD');
++  return Number.isFinite(usd) && usd > 0 ? { usd, amount, currency: String(raw.currency || 'USD').toUpperCase(), text: raw.text || null } : null;
++}
++
++/**
++ * D-50: an estimate never above the posting's own stated maximum (statedMax). Low, mid and high are capped at it,
++ * rounded down to $1K, and `cap` keeps the figures before ({ max, low, mid, high }) for the drawer to say so. An
++ * estimate under the cap, or without a figure, is returned as it is.
++ */
++export function capAtStatedMax(est, max) {
++  if (!est || !max || est.mid == null || !(est.high > max.usd)) return est;
++  const top = Math.floor(max.usd / 1000) * 1000;
++  return {
++    ...est,
++    low: Math.min(est.low, top), mid: Math.min(est.mid, top), high: Math.min(est.high, top),
++    cap: { max: top, stated: max, low: est.low, mid: est.mid, high: est.high },
++  };
+ }
+ 
+ // ---------------------------------------------------------------------------
+@@ -799,20 +878,24 @@ function signalIcon(level) {
+ }
+ 
+ /** Comparable row meta: the pay location that matched the query (else the first), level, department. */
+-function jobMeta(job, locQuery) {
++/**
++ * "Seattle +2 · Senior · Finance": where, the level and the department of a listed comparable. D-52: when the pay shown
++ * is one place's row, the line starts with that place ("Posted for Bellevue · …"), the drawer's words for it.
++ */
++function jobMeta(job, locQuery, payPlace = null) {
+   const locs = payLocations(job);
+   const want = String(locQuery || '').toLowerCase();
+   const hit = want ? locs.find((l) => [locKeyOf(l), l.city, l.name].some((x) => x && x.toLowerCase() === want))
+     || (/remote/.test(want) ? locs.find((l) => l.remote) : null) : null;
+   const loc = hit || locs[0];
+-  const where = loc ? locKeyOf(loc) : job.remote ? 'Remote' : '';
+-  const more = locs.length > 1 ? ` +${locs.length - 1}` : '';
++  const where = payPlace ? `Posted for ${payPlace}` : loc ? locKeyOf(loc) : job.remote ? 'Remote' : '';
++  const more = !payPlace && locs.length > 1 ? ` +${locs.length - 1}` : '';
+   return [where && where + more, levelLabel(displayLevel(job)), job.department].filter(Boolean).join(' · ');
+ }
+ 
+-function payRange(job) {
+-  const p = salaryUSD(job);
+-  if (!p) return '—';
++/** "$152K–237K" (with * when converted) for a pay object ({ min, max, converted }, US dollars a year). */
++function payRange(p) {
++  if (!p || !Number.isFinite(p.min) || !Number.isFinite(p.max)) return '—';
+   const a = formatMoney(p.min), b = formatMoney(p.max);
+   return (a === b ? a : `${a}–${b}`) + (p.converted ? '*' : '');
+ }
+@@ -1007,22 +1090,27 @@ export function createCompstimateWidget(container, { getJobs, getMeta, onSelect,
+           h('span', null, formatMoney(scale.lo)), h('span', null, scaleName), h('span', null, formatMoney(scale.hi)))),
+     );
+ 
++    // D-52: each role shows the pay the estimate used: the range posted for the city asked for, or its headline, named
++    // for its place when it is one place's row ("Posted for Bellevue"), not always the posting's headline range.
++    const used = (i, job) => (result.comparablePay && result.comparablePay[i]) || { ...salaryUSD(job), place: null };
+     const list = h('ol', { class: 'ms-comp__list' }, result.comparables.map((job, i) => {
+       const score = Math.round((result.scores[i] ?? 0) * 100);
+-      const m = jobMeta(job, inputs.query.location);
++      const pay = used(i, job);
++      const m = jobMeta(job, inputs.query.location, pay.place);
++      const range = payRange(pay);
+       return h('li', null, h('button', {
+         type: 'button', class: 'ms-comp__item', dataset: { key: `comp:${job.id}` },
+-        'aria-label': `${job.title}, ${m}, pays ${payRange(job).replace('–', ' to ')}, ${score}% match. Open role.`,
++        'aria-label': `${job.title}, ${m}, pays ${range.replace('–', ' to ')}${pay.place ? `, the range posted for ${pay.place}` : ''}, ${score}% match. Open role.`,
+         onclick: () => onSelect && onSelect(job),
+       },
+       h('span', { class: 'ms-comp__item-main' },
+         h('span', { class: 'ms-comp__item-title' }, job.title),
+         h('span', { class: 'ms-comp__item-meta' }, m)),
+       h('span', { class: 'ms-comp__item-side' },
+-        h('span', { class: 'ms-comp__item-pay' }, payRange(job)),
++        h('span', { class: 'ms-comp__item-pay', title: pay.place ? `The range posted for ${pay.place}` : null }, range),
+         h('span', { class: 'ms-comp__match' }, `${score}% match`))));
+     }));
+-    const foot = result.comparables.some((j) => salaryUSD(j)?.converted)
++    const foot = result.comparables.some((j, i) => used(i, j)?.converted)
+       ? h('p', { class: 'ms-comp__foot' }, '* converted to US dollars at approximate rates') : null;
+     resultEl.append(card, h('div', { class: 'ms-comp__comps' }, h(subTag, { class: 'ms-comp__comps-title' }, 'Most comparable roles'), list, foot));
+     live.textContent = `Pay estimate ${formatMoney(mid)}, range ${formatMoney(low)} to ${formatMoney(high)}, ${confidence.toLowerCase()} confidence. ${basis}.${accuracy ? ` ${accuracy}.` : caution ? ` ${caution}` : ''}`;
+diff --git a/public/features/shared.js b/public/features/shared.js
+index 2001a0a..d7c2914 100644
+--- a/public/features/shared.js
++++ b/public/features/shared.js
+@@ -296,19 +296,45 @@ export function samePayCountry(job, jobs) {
+  * same country (BP-3: "Pays more than 1% of Google's roles" for a Warsaw role ranked against US
+  * pay). `pool` is the caller's like-for-like pool (app.js payPool: same kind of pay, interns with
+  * interns); `mid(j)` is a role's comparable pay. The posting itself is never in its own pool.
+- * @returns {{ pct: number|null, n: number, country: string|null, others: number }|null}
+- *   pct: the share of same-country roles paid less (0..100), null with fewer than minN of them;
++ * @returns {{ pct: number|null, n: number, country: string|null, others: number, below: number, above: number }|null}
++ *   pct: the share of same-country roles paid less (0..100, rounded), null with fewer than minN of them;
+  *   n: how many same-country roles; others: pool roles left out because their pay is for another
+- *   country. null when the posting has no comparable pay.
++ *   country; below / above: how many same-country roles are paid less / more (D-48: pct rounds to 100
++ *   or 0 with roles still above or below, so "the highest" or "the lowest" reads from these, rankText).
++ *   null when the posting has no comparable pay.
+  */
+ export function payRank(job, pool, { mid = (j) => j?._mid, minN = 5 } = {}) {
+   const v = mid(job);
+   if (!Number.isFinite(v)) return null;
+   const country = payCountry(job);
+   const usable = (pool || []).filter((j) => j && j !== job && (job?.id == null || j.id !== job.id) && Number.isFinite(mid(j)));
+-  const same = usable.filter((j) => payCountry(j) === country);
+-  const pct = same.length >= minN ? Math.round((same.filter((j) => mid(j) < v).length / same.length) * 100) : null;
+-  return { pct, n: same.length, country, others: usable.length - same.length };
++  let below = 0, above = 0, n = 0;
++  for (const j of usable) {
++    if (payCountry(j) !== country) continue;
++    n += 1;
++    const m = mid(j);
++    if (m < v) below += 1; else if (m > v) above += 1;
++  }
++  const pct = n >= minN ? Math.round((below / n) * 100) : null;
++  return { pct, n, country, others: usable.length - n, below, above };
++}
++
++/**
++ * The drawer's rank line for a payRank result (D-48), or null without a percentage. "The highest pay of <among>" and
++ * "The lowest pay of <among>" only when no role is paid more, or less; a share that rounds to 100% or 0% with roles
++ * still above or below reads "In the top 1% of <among>" or "In the lowest 1% of <among>" (it said "The highest pay"
++ * for Amazon's #50). `among` is the pool's name ("Amazon’s roles in the US").
++ */
++export function rankText(rank, among) {
++  if (!rank || rank.pct == null) return null;
++  const { pct, below, above } = rank;
++  const counted = Number.isFinite(below) && Number.isFinite(above);
++  if (counted && above === 0 && below === 0) return `The same pay as the rest of ${among}`;
++  if (counted && above === 0) return `The highest pay of ${among}`;
++  if (counted && below === 0) return `The lowest pay of ${among}`;
++  if (pct >= 100) return `In the top 1% of ${among}`;
++  if (pct <= 0) return `In the lowest 1% of ${among}`;
++  return `Pays more than ${pct}% of ${among}`;
+ }
+ 
+ /** True when the posting's pay applies in `country` (a two-letter code): see payLocations. */
+diff --git a/scripts/build-static.js b/scripts/build-static.js
+index b649796..e48e44d 100644
+--- a/scripts/build-static.js
++++ b/scripts/build-static.js
+@@ -1197,7 +1197,7 @@ async function writeCompany(ctx, out, c, payload, ledger, { live } = {}) {
+     const csv = ctx.jobsToCsv(payload.jobs, { mode: payload.mode });
+     await fs.mkdir(path.join(out, 'data'), { recursive: true });
+     await fs.writeFile(path.join(out, 'data', `${c.slug}.csv`), csv);
+-    csvRow = { slug: c.slug, name: c.name, rows: payload.jobs.length, mode: payload.mode };
++    csvRow = { slug: c.slug, name: c.name, rows: payload.jobs.length, mode: payload.mode, source: c.source, channel: c.channel || 'stable' };
+     csvNote = `  csv ${size(Buffer.byteLength(csv))}`;
+   }
+   let line = `${c.slug.padEnd(10)} ${payload.mode.padEnd(8)} ${String(payload.jobs.length).padStart(4)} jobs  list ${size(r.listBytes).padStart(9)}  desc ${String(r.descFiles).padStart(4)} files ${size(r.descBytes).padStart(9)}`;
+@@ -1243,7 +1243,7 @@ async function reuseStable(ctx, from, c) {
+     line: `${c.slug.padEnd(10)} ${String(raw.mode).padEnd(8)} ${String(jobs.length).padStart(4)} jobs  (the main site's files, copied from ${rel(from)}/)`,
+     share: shareStats(c, payload, ctx.shareFx),
+     market: { company: payload.company, mode: payload.mode, fetchedAt: payload.fetchedAt, jobs },
+-    csvRow: csv ? { slug: c.slug, name: c.name, rows: jobs.length, mode: raw.mode } : null,
++    csvRow: csv ? { slug: c.slug, name: c.name, rows: jobs.length, mode: raw.mode, source: c.source, channel: c.channel || 'stable' } : null,
+     stats: { mode: raw.mode, jobs: jobs.length, withPay: jobs.filter((j) => j && j.salary).length, fetchedAt: payload.fetchedAt },
+   };
+ }
+@@ -1366,7 +1366,8 @@ async function buildSite(ctx, site) {
+       marketNote = 'buildMarket failed';
+     }
+   }
+-  if (csvRows.length && ctx.csvReadme) await fs.writeFile(path.join(out, 'data', 'README.txt'), ctx.csvReadme({ generatedAt: ctx.builtAt, companies: csvRows }));
++  // D-49 (fix-qa4): a README per site; the beta one names each big-tech file's careers site.
++  if (csvRows.length && ctx.csvReadme) await fs.writeFile(path.join(out, 'data', 'README.txt'), ctx.csvReadme({ generatedAt: ctx.builtAt, companies: csvRows, channel: site.channel }));
+ 
+   // 5. config.js + .nojekyll (site root only; the beta copy is a sub-folder of it)
+   const build = { builtAt: ctx.builtAt, commit: process.env.GITHUB_SHA || null, ref: process.env.GITHUB_REF_NAME || null };
+diff --git a/server/export.js b/server/export.js
+index 2af56dd..8567a28 100644
+--- a/server/export.js
++++ b/server/export.js
+@@ -7,12 +7,22 @@
+ // Facts only: no description text. RFC 4180 (CRLF, quoted when needed), UTF-8.
+ // Text cells that a spreadsheet would run as a formula (leading = + - @ tab CR)
+ // are prefixed with an apostrophe.
++//
++// D-49 (fix-qa4, 2026-10-17): every pay figure says what it is. salary_min/max are the range the job card shows
++// (salaryRange), salary_kind says what kind of figure it is (salaryKind), and salary_ranges lists every range the
++// posting states for a place or a level (salaryRows). The README is written per site (csvReadme `channel`): the
++// beta site's big-tech files come from each company's own careers site, base pay only.
+ 
+ export const CSV_COLUMNS = Object.freeze([
+   'id', 'title', 'department', 'team', 'seniority', 'locations', 'remote',
+-  'salary_min', 'salary_max', 'salary_currency', 'posted_at', 'first_seen_at', 'url', 'data_mode',
++  'salary_min', 'salary_max', 'salary_currency', 'posted_at', 'first_seen_at', 'url',
++  // D-49: before data_mode, which stays last ("demo" rows end in ",demo"); every other column keeps its place.
++  'salary_kind', 'salary_ranges', 'data_mode',
+ ]);
+ 
++/** salary_kind values (D-49), in the order the drawer's pay caption checks them (public/app.js drawerContent). */
++export const SALARY_KINDS = Object.freeze(['ote', 'minimum', 'shift', 'part-time', 'fixed-term', 'hourly', 'salary']);
++
+ // Leading characters a spreadsheet may run as a formula (checked on the raw
+ // value, before line endings are normalized, so a leading CR or LF counts too).
+ const FORMULA_RE = /^[=+\-@\t\r\n]/;
+@@ -30,10 +40,86 @@ export function csvCell(v) {
+   return QUOTE_RE.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+ }
+ 
++const finite = (v) => v != null && v !== '' && Number.isFinite(Number(v));
++const cur = (s, r = null) => String((r && r.currency) || s.currency || 'USD').toUpperCase();
++/** Pay stated per week, per month or for the whole programme, or a stipend: fixed-term pay (public/app.js isFixedPay). */
++const fixedPay = (s) => s.originalInterval === 'week' || s.originalInterval === 'month' || s.originalInterval === 'term' || s.kind === 'stipend';
++
++/**
++ * D-49: what a salary's figure is, as the job card and the drawer say it: 'ote' (on-target earnings: base plus
++ * commission at target), 'minimum' (a stated minimum, "from €46K"), 'shift' (hourly pay including the highest shift
++ * differential), 'part-time' (part-time hourly pay), 'fixed-term' (pay per week, per month or for a whole programme),
++ * 'hourly' (an hourly rate), else 'salary' (a yearly base-pay range). Two that both hold are joined with "+"
++ * ("shift+part-time": Amazon's reduced-time shift roles). null without a salary.
++ */
++export function salaryKind(s) {
++  if (!s) return null;
++  const k = [];
++  if (s.kind === 'ote') k.push('ote');
++  if (s.kind === 'minimum') k.push('minimum');
++  if (s.includesShiftDifferential) k.push('shift');
++  if (s.partTime === true) k.push('part-time');
++  if (s.termWeeks > 0 && fixedPay(s)) k.push('fixed-term');
++  if (!k.length) k.push(s.kind === 'hourly' || s.originalInterval === 'hour' ? 'hourly' : 'salary');
++  return k.join('+');
++}
++
++/**
++ * The posting's ranges for its places, as the card reads them (public/app.js payRanges): two or more rows in the
++ * salary's currency with a number and a name (a label or places). null otherwise.
++ */
++function placeRows(s) {
++  const c = cur(s);
++  const rs = Array.isArray(s.ranges) ? s.ranges.filter((r) => r && finite(r.min) && (r.label || (Array.isArray(r.locations) && r.locations.length)) && cur(s, r) === c) : [];
++  return rs.length > 1 ? rs : null;
++}
++
++/**
++ * D-49: the range the job card shows, yearly, in salary.currency: [min, max].
++ *   - A posting with a range per place (Amazon, Apple, Microsoft): the lowest to the highest of its ranges (the card's
++ *     "$60K–129K · 5 places"), not one place's row (the headline is Amazon's search city: amazon:10371179's 82,700 to
++ *     117,100 is Bellevue's).
++ *   - A stated minimum: [min, null], as the card's "from €46K" (it was written 46000,46000, as if exact).
++ *   - On-target earnings and everything else: salary.min and salary.max (a span of levels is salary_kind's figure
++ *     with each level in salary_ranges).
++ * [null, null] without a salary.
++ */
++export function salaryRange(s) {
++  if (!s) return [null, null];
++  const min = finite(s.min) ? Number(s.min) : finite(s.max) ? Number(s.max) : null;
++  const max = finite(s.max) ? Number(s.max) : min;
++  if (s.kind === 'minimum') return [min, null];
++  const rs = s.kind === 'ote' ? null : placeRows(s);
++  if (!rs) return [min, max];
++  let lo = min ?? Infinity, hi = max ?? -Infinity;
++  for (const r of rs) { lo = Math.min(lo, Number(r.min)); hi = Math.max(hi, Number(r.max ?? r.min)); }
++  return [lo, hi];
++}
++
++/** A row's name: its label, else the places it was posted for. */
++const rowName = (r) => String(r.label || (Array.isArray(r.locations) ? r.locations.join(' / ') : '') || '').replace(/\s+/g, ' ').trim();
++const amounts = (r) => { const a = Math.round(Number(r.min)), b = Math.round(Number(r.max ?? r.min)); return `${a}-${b}`; };
++
++/**
++ * D-49: every range the posting states for a level or a place, yearly: "Level 4: 168000-264500 USD | Level 5:
++ * 196000-310500 USD" (salary.levels, two or more), then "New York: 73600-128800 USD | Nashville: 60200-105400 USD | …"
++ * (salary.ranges, every row, in its own currency). '' when the posting states one range.
++ */
++export function salaryRows(s) {
++  if (!s) return '';
++  const out = [];
++  const lv = Array.isArray(s.levels) ? s.levels.filter((l) => l && l.label && finite(l.min)) : [];
++  if (lv.length > 1) for (const l of lv) out.push(`${rowName(l)}: ${amounts(l)} ${cur(s, l)}`);
++  const rs = Array.isArray(s.ranges) ? s.ranges.filter((r) => r && finite(r.min)) : [];
++  if (rs.length > 1) for (const r of rs) out.push(`${rowName(r) || 'Unnamed'}: ${amounts(r)} ${cur(s, r)}`);
++  return out.join(' | ');
++}
++
+ /**
+  * Jobs -> CSV text (header + one row per job).
+- * Salary columns are the vetted, annualized base-pay range in the posting's
+- * currency; empty when the salary is missing or was quarantined.
++ * Salary columns are the vetted, annualized pay range the job card shows, in the posting's currency, with what kind of
++ * figure it is (salary_kind) and every range it states per place or level (salary_ranges); empty when the salary is
++ * missing or was quarantined.
+  * @param {Job[]} jobs
+  * @param {{ mode?: string }} [opts]  data mode for the data_mode column (live, cache, snapshot, demo)
+  */
+@@ -43,10 +129,12 @@ export function jobsToCsv(jobs, { mode = '' } = {}) {
+     if (!j) continue;
+     const s = j.salary || null;
+     const locs = Array.isArray(j.locations) ? j.locations.map((l) => l && l.name).filter(Boolean).join(' | ') : '';
++    const [min, max] = salaryRange(s);
+     rows.push([
+       j.id, j.title, j.department, j.team, j.seniority, locs, j.remote === true,
+-      s ? s.min : null, s ? s.max : null, s ? s.currency : null,
+-      j.postedAt || null, j.firstSeenAt || null, j.url, mode || null,
++      min, max, s ? s.currency : null,
++      j.postedAt || null, j.firstSeenAt || null, j.url,
++      salaryKind(s), s ? salaryRows(s) || null : null, mode || null,
+     ].map(csvCell).join(','));
+   }
+   return rows.join('\r\n') + '\r\n';
+@@ -58,36 +146,91 @@ export function csvFileName(slug, { mode = '', date = new Date().toISOString() }
+   return `melon-seek-${safe}-${String(date).slice(0, 10)}${mode === 'demo' ? '-demo' : ''}.csv`;
+ }
+ 
+-/** data/README.txt for the static build. */
+-export function csvReadme({ generatedAt = new Date().toISOString(), companies = [] } = {}) {
++/**
++ * D-49: where each board's rows come from, as docs/DATA_SOURCES.md names the systems: the job-board APIs of the main
++ * site's boards (by `source`), and each big-tech company's own careers site (by `slug`, beta site).
++ */
++export const CSV_SOURCES = Object.freeze({
++  greenhouse: 'Greenhouse job board API',
++  ashby: 'Ashby posting API',
++  lever: 'Lever postings API',
++  google: 'Google Careers (google.com/about/careers): its jobs sitemap and the site\'s own search service',
++  microsoft: 'Microsoft Careers (apply.careers.microsoft.com): the site\'s own Eightfold search (PCSX)',
++  meta: 'Meta Careers (metacareers.com): its jobs sitemap and job pages',
++  apple: 'Apple Jobs (jobs.apple.com): the site\'s own search and job-detail API',
++  netflix: 'Netflix Jobs (explore.jobs.netflix.net): the site\'s own Eightfold search',
++  amazon: 'Amazon Jobs (amazon.jobs): the site\'s own search API (search.json)',
++  nvidia: 'NVIDIA Careers (jobs.nvidia.com): the site\'s own Eightfold search (PCSX)',
++});
++const sourceOf = (c) => CSV_SOURCES[c.slug] && c.channel === 'beta' ? CSV_SOURCES[c.slug] : CSV_SOURCES[c.source] || null;
++
++/**
++ * data/README.txt for the static build. `channel`: 'stable' (the main site: Greenhouse, Ashby and Lever boards) or
++ * 'beta' (those plus the big-tech careers sites). `companies`: [{ slug, name, rows, mode, source?, channel? }].
++ */
++export function csvReadme({ generatedAt = new Date().toISOString(), companies = [], channel = 'stable' } = {}) {
++  const beta = channel === 'beta' || companies.some((c) => c && c.channel === 'beta');
+   const lines = [
+     'melon-seek open data',
+     '',
+     `Generated: ${generatedAt}`,
+     '',
+     'One CSV per company: data/<slug>.csv (UTF-8, comma-separated, RFC 4180).',
+-    'Each row is one job posting as published on the company\'s own job board',
+-    '(Greenhouse, Ashby or Lever). Descriptions are not included; follow the url',
+-    'column to the original posting. Please attribute "melon-seek" and the company.',
++    ...(beta ? [
++      'Each row is one job posting as published by the company itself. Amazon, Apple,',
++      'Google, Meta, Microsoft, NVIDIA and Netflix: from the company\'s own careers site',
++      '(each file\'s source is listed under Files). The other companies: from their own',
++      'job board (Greenhouse, Ashby or Lever).',
++      'Big-tech pay is base pay only, as each company posts it: equity, bonus and',
++      'benefits are never added. On-target earnings (salary_kind "ote", NVIDIA\'s sales',
++      'roles) are base plus commission at target, as posted, and are marked so.',
++    ] : [
++      'Each row is one job posting as published on the company\'s own job board',
++      '(Greenhouse, Ashby or Lever).',
++    ]),
++    'Descriptions are not included; follow the url column to the original posting.',
++    'Please attribute "melon-seek" and the company.',
+     '',
+     'Columns:',
+     '  id               melon-seek id, "<company>:<posting id>"',
+     '  title, department, team, seniority (inferred from the title)',
+     '  locations        location names, separated by " | "',
+     '  remote           true when the posting is marked remote',
+-    '  salary_min/max   posted BASE pay range, annualized (hourly x 2080, monthly x 12),',
+-    '                   in salary_currency; empty when not posted or when it failed the',
+-    '                   plausibility checks (docs/VETTING.md). Equity and bonus excluded.',
++    '  salary_min/max   the posted pay range the job card shows, annualized (hourly x 2080,',
++    '                   monthly x 12), in salary_currency; empty when not posted or when it',
++    '                   failed the plausibility checks (docs/VETTING.md). salary_kind says',
++    '                   what the figure is. A posting with a range per place: the lowest to',
++    '                   the highest of them (each one is in salary_ranges). A stated minimum:',
++    '                   salary_max is empty. Equity and bonus are never included.',
+     '  posted_at        date the board reports the posting was first published',
+     '  first_seen_at    first melon-seek snapshot that saw the posting',
+     '  url              the original posting',
++    '  salary_kind      what salary_min/max is, as the job card says:',
++    '                     salary      a yearly base-pay range',
++    '                     hourly      an hourly base-pay rate',
++    '                     ote         on-target earnings: base plus commission at target',
++    '                     minimum     a stated minimum base pay; the offer can be higher',
++    '                     shift       hourly pay including the highest shift differential',
++    '                     part-time   part-time hourly pay (x 2080 as if full time)',
++    '                     fixed-term  pay per week, per month or for a whole programme',
++    '                   two that both hold are joined with "+" (shift+part-time)',
++    '  salary_ranges    every range the posting states for a level or a place, yearly,',
++    '                   "<level or place>: <min>-<max> <currency>", separated by " | ";',
++    '                   empty when it states one range',
+     '  data_mode        live | cache | snapshot | demo ("demo" rows are synthetic)',
+     '',
++    'Changed on 2026-10-17: salary_kind and salary_ranges were added before data_mode.',
++    'salary_min/max used to be the posting\'s headline range: one place\'s range when it',
++    'posts a range per place, and a stated minimum written as both min and max.',
++    '',
+     'Text cells starting with = + - @ are prefixed with an apostrophe.',
+   ];
+   if (companies.length) {
+     lines.push('', 'Files:');
+-    for (const c of companies) lines.push(`  ${c.slug}.csv  ${c.name || c.slug}${c.rows != null ? `, ${c.rows} rows` : ''}${c.mode ? ` (${c.mode})` : ''}`);
++    for (const c of companies) {
++      const src = beta ? sourceOf(c) : null;
++      lines.push(`  ${c.slug}.csv  ${c.name || c.slug}${c.rows != null ? `, ${c.rows} rows` : ''}${c.mode ? ` (${c.mode})` : ''}${src ? `; ${src}` : ''}`);
++    }
+   }
+   return lines.join('\n') + '\n';
+ }
+diff --git a/test/export.test.js b/test/export.test.js
+index 6faed68..79962f5 100644
+--- a/test/export.test.js
++++ b/test/export.test.js
+@@ -54,19 +54,20 @@ test('jobsToCsv: columns, facts only, vetted salary, F4 dates, round-trip', () =
+   assert.ok(csv.endsWith('\r\n'));
+   const rows = parseCsv(csv);
+   assert.deepEqual(rows[0], [...CSV_COLUMNS]);
+-  assert.deepEqual(rows[0], ['id', 'title', 'department', 'team', 'seniority', 'locations', 'remote', 'salary_min', 'salary_max', 'salary_currency', 'posted_at', 'first_seen_at', 'url', 'data_mode']);
++  // fix-qa4 (D-49): salary_kind and salary_ranges come before data_mode, which stays last; the others keep their places.
++  assert.deepEqual(rows[0], ['id', 'title', 'department', 'team', 'seniority', 'locations', 'remote', 'salary_min', 'salary_max', 'salary_currency', 'posted_at', 'first_seen_at', 'url', 'salary_kind', 'salary_ranges', 'data_mode']);
+   assert.equal(rows.length, 3);
+   const r1 = Object.fromEntries(rows[0].map((k, i) => [k, rows[1][i]]));
+   assert.deepEqual(r1, {
+     id: 'acme:1', title: 'Engineer, "Platform"', department: 'Eng', team: '', seniority: 'Senior',
+     locations: 'San Francisco, CA | New York City, NY', remote: 'false', salary_min: '200000', salary_max: '250000',
+     salary_currency: 'USD', posted_at: '2026-09-01T00:00:00.000Z', first_seen_at: '2026-09-02T06:00:00.000Z',
+-    url: 'https://example.test/1', data_mode: 'snapshot',
++    url: 'https://example.test/1', data_mode: 'snapshot', salary_kind: 'salary', salary_ranges: '',
+   });
+   const r2 = Object.fromEntries(rows[0].map((k, i) => [k, rows[2][i]]));
+   assert.equal(r2.title, "'=cmd()");
+   assert.equal(r2.remote, 'true');
+-  assert.deepEqual([r2.salary_min, r2.salary_max, r2.salary_currency], ['', '', ''], 'quarantined pay is not exported');
++  assert.deepEqual([r2.salary_min, r2.salary_max, r2.salary_currency, r2.salary_kind, r2.salary_ranges], ['', '', '', '', ''], 'quarantined pay is not exported');
+   assert.equal(jobsToCsv([]), CSV_COLUMNS.join(',') + '\r\n');
+ });
+ 
+diff --git a/test/server.test.js b/test/server.test.js
+index fd30a16..a4921e6 100644
+--- a/test/server.test.js
++++ b/test/server.test.js
+@@ -562,7 +562,7 @@ test('F7: GET /api/export returns CSV with the documented columns and no descrip
+   assert.ok(['live', 'cache'].includes(res.headers.get('x-melon-mode')));
+   const text = await res.text();
+   const lines = text.trim().split('\r\n');
+-  assert.equal(lines[0], 'id,title,department,team,seniority,locations,remote,salary_min,salary_max,salary_currency,posted_at,first_seen_at,url,data_mode');
++  assert.equal(lines[0], 'id,title,department,team,seniority,locations,remote,salary_min,salary_max,salary_currency,posted_at,first_seen_at,url,salary_kind,salary_ranges,data_mode'); // fix-qa4 (D-49): two columns before data_mode
+   assert.equal(lines.length, 3);
+   assert.ok(!text.includes('We build developer tools'), 'no description text');
+   assert.ok(lines.some((l) => l.startsWith('lever-example:a1b2c3d4-1111-4222-8333-444455556666,Senior Backend Engineer,Engineering,Platform,')));
+-- 
+2.43.0
+

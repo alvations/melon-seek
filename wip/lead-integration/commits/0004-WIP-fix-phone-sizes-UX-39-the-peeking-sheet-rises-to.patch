@@ -1,4 +1,4 @@
-From 66dd5986f86c1505fe14750683752fe57e3e1aa6 Mon Sep 17 00:00:00 2001
+From 3a4356fd4da61a0e0696d4d62eafb9737419def8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 12:51:57 +0000
 Subject: [PATCH 4/6] WIP fix-phone-sizes: UX-39, the peeking sheet rises to
