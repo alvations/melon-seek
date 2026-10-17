@@ -1,7 +1,7 @@
 From 8a443a06e97587667b16ed0e593a2ff4959c728b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 00:54:58 +0000
-Subject: [PATCH 2/8] fix-data-3: D-38 a Fellow rank is Staff+ and its posted
+Subject: [PATCH 2/9] fix-data-3: D-38 a Fellow rank is Staff+ and its posted
  pay is shown; Data Residency is not a residency
 
 isFellowRank (server/salary.js) is shared by the level rule (keywords.js), the gate's junior class and

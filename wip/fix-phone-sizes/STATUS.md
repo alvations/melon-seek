@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a3ec7679b4d2dd1a0`
 - Base (on claude/stoic-ride-54ddxp): `a92a3c83eb4890db11b724667e469ec99655e95c`
-- Head: `d8966585dae59fd195b3b89246c7bad1b82c1efb`
+- Head: `f8057c7e71b8b1bebf01e3c94c8a8e098db34eed`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-phone-sizes <new worktree dir>`
 
 ## Commits since the base
 ```
+f8057c7 WIP fix-phone-sizes: State after the container restart
 d896658 fix-phone-sizes: the Razr cover screen's map before and after; log for the lead's two Razr findings
 26cfd82 fix-phone-sizes: the Razr cover screen's map shows its pins (no empty toolbar band, no zoom buttons, the Pay | Juice switch only); the matrix checks the sheet's peek row, the screen's own size, a zoomed or panned page and covered pins
 eaaaf72 fix-phone-sizes: final npm test and suite-runner numbers in the log
@@ -20,6 +21,19 @@ fdc9779 WIP fix-phone-sizes: phone matrix guard (every size in phone-sizes.mjs, 
 
 ## Uncommitted and new files
 ```
+ M docs/screenshots/qa-mobile-beta-2/e2e-M-28-360x640-with-the-keyboard-up-300-px-.png
+ M docs/screenshots/qa-mobile-beta-2/e2e-M-28-iPhone-SE-Safari-375x548.png
+ M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390-with-5-saved-searches.png
+ M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390.png
+ M docs/screenshots/qa-mobile-beta-2/e2e-M-29-company-menu-focus.png
+ M docs/screenshots/qa-mobile-beta-2/e2e-M-30-saved-searches-loaded.png
+ M docs/screenshots/qa-mobile-beta-2/e2e-M-31-empty-message-half-sheet.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-19-sort-while-scrolled.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-21-company-menu.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-22-paused-board.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-24-keyboard-location-search.png
+ M docs/screenshots/qa-mobile-beta/e2e-M-27-topbar-360.png
+ M docs/screenshots/qa-mobile/e2e-landscape-map.png
 ```
 
 ## Left out (not in untracked.tgz)

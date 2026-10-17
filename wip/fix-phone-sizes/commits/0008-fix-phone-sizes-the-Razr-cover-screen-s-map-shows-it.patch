@@ -1,7 +1,7 @@
 From 26cfd82ae309769eb4ccd319a3df511a5ca0d9c4 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 01:57:37 +0000
-Subject: [PATCH 8/9] fix-phone-sizes: the Razr cover screen's map shows its
+Subject: [PATCH 08/10] fix-phone-sizes: the Razr cover screen's map shows its
  pins (no empty toolbar band, no zoom buttons, the Pay | Juice switch only);
  the matrix checks the sheet's peek row, the screen's own size, a zoomed or
  panned page and covered pins

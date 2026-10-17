@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a31d67e4799da9dcf`
 - Base (on claude/stoic-ride-54ddxp): `f53a2700e30e7c2d1a2adf3e2b484bcbeb098323`
-- Head: `f247eaccbb69fa0175eafddb793fc43ef63781ed`
+- Head: `2d951364104724e2db55ae7e50e7067d37f9cff2`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-data-3 <new worktree dir>`
 
 ## Commits since the base
 ```
+2d95136 WIP fix-data-3: log verification numbers; MR-28 counts
 f247eac WIP fix-data-3: e2e title wording
 09fa753 fix-data-3: old links resolve on a hash change too; shift-pay Juice line fits 280 px; registry and fixtures for norm-12
 f5db79e WIP fix-data-3: departments renamed at read time without a per-job field; e2e tests; docs
@@ -19,8 +20,16 @@ d9450ed WIP fix-data-3: prompt and log skeleton
 
 ## Uncommitted and new files
 ```
- M docs/process/fix-data-3.md
- M docs/process/methodology-review-beta-2.md
+ M docs/screenshots/chart.png
+ M docs/screenshots/dark-drawer.png
+ M docs/screenshots/dark.png
+ M docs/screenshots/drawer-juice.png
+ M docs/screenshots/drawer.png
+ M docs/screenshots/insights.png
+ M docs/screenshots/map-juice.png
+ M docs/screenshots/map.png
+ M docs/screenshots/mobile.png
+ M docs/screenshots/qa-mobile/e2e-landscape-map.png
 ```
 
 ## Left out (not in untracked.tgz)

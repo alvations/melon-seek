@@ -1,7 +1,7 @@
 From 2bbb3b72c00dc2655763354da58f7bba03af9fb9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 00:07:30 +0000
-Subject: [PATCH 3/8] WIP fix-phone-text: drawer lines, badge popover, Insights
+Subject: [PATCH 3/9] WIP fix-phone-text: drawer lines, badge popover, Insights
  tiles and rows, stats line, search placeholder; guard on every phone size
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

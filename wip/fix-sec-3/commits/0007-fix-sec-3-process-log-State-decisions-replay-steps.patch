@@ -1,0 +1,207 @@
+From 95f5efbd75ea06ddb5ae5fd774c39218cfb24779 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 02:14:30 +0000
+Subject: [PATCH 7/7] fix-sec-3: process log (State, decisions, replay steps)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/fix-sec-3.md | 186 ++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 186 insertions(+)
+ create mode 100644 docs/process/fix-sec-3.md
+
+diff --git a/docs/process/fix-sec-3.md b/docs/process/fix-sec-3.md
+new file mode 100644
+index 0000000..ecb58ff
+--- /dev/null
++++ b/docs/process/fix-sec-3.md
+@@ -0,0 +1,186 @@
++# Process log: fix-sec-3 (security fixes, beta round 3 residuals)
++
++## State
++- 2026-10-17 02:20 UTC. Worktree `/home/user/melon-seek/.claude/worktrees/agent-ab8feec32a367855e`, on `f53a270`.
++  Nothing pushed.
++- Done and committed, each with tests that fail on `f53a270` and pass now:
++  - S-2 residual: `a220eb1`. Sent to the lead after `npm test` (data links out).
++  - S-4 residual: `fe41715`.
++  - S-10: `d05d6db`.
++  - V14 residual: `1a9870d`.
++  - V12 residual: `9479771`.
++  - S-9 residual: `928ab7f`.
++- In progress: the full e2e suite on an isolated copy of `928ab7f` (`<S>/fix-sec-3/t2`, data linked). The
++  02:10 container restart killed the first run, which was on `fe41715`. Next: `npm test` with the data links
++  out, on HEAD; then send the lead fe41715 and later; then mark REVIEW.md.
++- If resumed: read section 4 for the commands. Re-run load-sensitive tests alone (S-3, S-6, PERF-1, V15, T21).
++
++## 1. Brief
++Prompt: [prompts/fix-sec-3.md](prompts/fix-sec-3.md). Fix the open Low findings of the beta security reviews
++(docs/REVIEW.md "beta review 2026-10-11" and "beta review 2026-10-16"):
++- the S-2, S-4, S-9, V12 and V14 residuals;
++- S-10.
++
++For each one, un-todo its test so it is plain and fails on the old code.
++
++Files owned (by the prompt):
++- `server/pipeline.js` (the pause guard), `scripts/snapshot.js` `one()`, `scripts/probe-bigtech.js`;
++- `server/sources/amazon.js` (URL building), the bounded regexes in `server/sources/meta.js` and
++  `server/families.js`, the posting-host rule in `server/normalize.js`, the DOL tools in `scripts/alt-data/`;
++- the custom-board name rule, `.github/workflows/*.yml` (the residuals), `test/juice.test.js` and the FX fixture,
++  the Apply-button line in `public/app.js`;
++- `test/fix-sec-3.test.js`, `test/e2e/fix-sec-3.e2e.js`, this log, REVIEW.md marks.
++
++Also touched, outside that list:
++- `server/companies.js`: the posting hosts per beta entry, `postingRule`, `customBoardName` and the PAUSING comment.
++  The name rule lives in `resolveCompany`, which `server/index.js` and the static client both call.
++- `scripts/links-policy.js`: built from the registry.
++- `scripts/e2e.js`: two registration lines.
++- `docs/CONTRACT.md`, `docs/DATA_FRESHNESS.md`.
++- `.github/scripts/fx-values-only.mjs` and `.github/scripts/idb-requirements.txt` (new).
++- `test/monthly-refresh-commit.test.js` and `test/fixtures/refresh/fx-refresh-9de373f.json`.
++
++## 2. Inputs and sources
++- `docs/CONTRACT.md`, `docs/REVIEW.md` (both beta sections), `docs/process/security-a11y-review-beta-2.md`,
++  `docs/process/PLAYBOOK.md` ("Checkpoints", "Known traps"), `docs/process/TEMPLATE.md`.
++- The to-dos in `test/beta-security-review.test.js` and `test/beta-security-review-2.test.js`.
++- `git show 9de373f` (the first real monthly refresh): which lines the FX writer changes in the code copies.
++- GitHub (MCP, read-only): run 38979700118, job 117238199843. The idb step installed idb-companion 1.7.6
++  from the tap, then fb-idb 1.7.6, aiofiles 25.1.0, grpclib 0.4.9, h2 4.4.1, hpack 4.2.0, hyperframe 6.1.0,
++  multidict 7.1.0 (cp314 macOS arm64) and protobuf 7.36.2.
++- `git ls-remote https://github.com/facebook/homebrew-fb HEAD`: the tap head is `1fabba2a…`. Its
++  `idb-companion.rb` (read over raw.githubusercontent.com) renders v1.7.6, with the release tarball's sha256.
++- PyPI JSON (`https://pypi.org/pypi/<name>/<version>/json`): the sha256 of each wheel.
++- GitHub search: the repository is public, so the read-only jobs' remaining `git fetch` calls (data-archive,
++  ledger mirror) work without the token.
++
++## 3. Decisions and rationale
++1. **S-2: one guard, `pipeline.js#pauseError`.**
++   - It applies to `company.paused` or `crawlBlock(source, board)`, so a custom spelling of a paused built-in's
++     board is refused too.
++   - Callers: `fetchLive`, `snapshot.js one()` (before the crawl state is read, so both fetch paths are covered)
++     and the probe's full mode, which calls adapters directly.
++   - The 2026-10-11 S-2 tests assumed Amazon and Meta were paused. They now set `paused` on registry entries for
++     their run, so they test the guard instead of today's registry.
++   - The probe already skipped paused slugs. Its gap was Google's careers hosts: they lacked `www.google.com`,
++     the adapter's origin, so raw mode could still reach a paused Google.
++2. **S-4: posting hosts per company, in the registry entries** (`postingHosts`, `postingPrefixes`).
++   - A first version put the table in `server/sources/links.js`. The stable build then shipped it in
++     `dist/lib/` (normalize.js imports it), and `test/beta-build.test.js` failed: a beta host on the main site.
++   - In the entries, the stable site's `lib/companies.js` (beta entries removed by `stableRegistry`) ships none.
++   - `postingRule` looks the rule up by slug, so a caller's partial copy still gets it.
++   - `scripts/links-policy.js` builds the same two lists from the entries; a test pins them to the old literals.
++   - normalize.js names no host, not even in comments, because it ships on the stable site.
++   - Amazon keeps `job_path` verbatim when the joined URL is on-origin, so real links are byte-identical
++     (22,179 of 22,179).
++3. **S-4 drawer.** `applyHost` returns '' for anything but an absolute http(s) link. The foot then shows
++   `p.muted` "No link to the posting" (inline flex style, no CSS change) instead of the Apply link. The Copy-link
++   button stays.
++4. **S-10.**
++   - Bounds as the lead specified: amounts trimmed and cut to 100 characters; titles cut to 500 with
++     `[（(][^（(）)]{0,200}[）)]`; `<loc>[^<]{0,2048}</loc>`; the JSON-LD type attribute within 500 characters
++     of `<script`.
++   - The JSON-LD reader's trailing `[^>]*>` and body `[\s\S]*?</script>` were also quadratic, so a bound alone
++     was not enough. It is now a forward scan with cached next-`>` and next-type positions and a last-`</script>`
++     index. It is exact except for the 500-character bound.
++   - The DOL regexes (`CELL_RE`, the rich-text pair, `<rPh>`) are forward scans with the same results; seeded
++     fuzz of 5,000 cell strings agrees.
++   - The bracket rule differs from the old one only for nested brackets. 0 of the 37,619 real titles nest, and
++     `familyOfTitle` is unchanged on all of them.
++5. **V14.**
++   - `customBoardName` suffixes " (custom)", the suffix `public/app.js#companyInfo` already gives the header.
++   - Names are compared loosely (NFKC, case, spaces, punctuation), so "A.P.P.L.E" and "scale ai" are caught.
++   - `defaultName` uses it too, so the cached copy's name never collides.
++   - On the stable static site the browser registry holds stable entries only, so beta names are guarded in
++     server mode and on /beta/, and stable names everywhere.
++6. **V12.**
++   - persist-credentials: false on every checkout except the four jobs that push with the checkout token
++     (archive-ingest ×2, persist-ledger ×2, all `contents: write`). The test now walks every workflow.
++   - The tap is fetched at a pinned commit, with no brew auto-update. The pip install uses
++     `--require-hashes --only-binary :all:` against `.github/scripts/idb-requirements.txt`.
++   - `pip download` for macOS arm64 / cp314 resolves exactly the 8 packages of run 38979700118.
++7. **S-9 residual.**
++   - A Node checker, `.github/scripts/fx-values-only.mjs`, from the tip's `.github/`, which the allow-list keeps
++     the refresh away from.
++   - It masks the values the FX writer changes and requires each code copy to equal the tip otherwise. That is
++     stricter than a line-shape check: a valid-looking row added elsewhere, or a key added, is also refused.
++   - It accepts `FX_AS_OF`, `FX_SOURCE`, `EXTRA_FX_PER_USD` and the `FX_FALLBACK` CNY rate as well as the rows,
++     because `9de373f` changed all of them.
++   - The `9de373f` replay uses its hunks with 8 lines of context: CI checks out at depth 1, so it has no history.
++8. **S-9, test code: no FX example to move.**
++   - `test/juice.test.js` holds no pinned FX example. Its Big Mac date pin was already made relational, and the
++     `TEST_PINS` rule that names the file is detect-only.
++   - It was on the allow-list only because the allow-list test read every `file:` literal, detect rules
++     included. README.md and docs/CONTRACT.md were there for the same reason.
++   - All three are removed. The allow-list test now reads the writers' `{ file, content }` write sites and
++     checks that no test file and no code besides the four FX copies is listed.
++   - So no `test/fixtures/fx-examples.json` was made: nothing would read or write it.
++
++## 4. Replayable steps
++`S` = `/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad`, `W` = the worktree.
++1. `git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp` (f53a270).
++2. Set up the links (never committed):
++   - `ln -s /home/user/melon-seek/node_modules node_modules`;
++   - `mkdir -p data/beta`;
++   - `ln -s $S/wt-data2/data/snapshots data/snapshots`;
++   - `ln -s $S/wt-data2/data/beta/snapshots data/beta/snapshots`.
++3. Before and after: `$S/fix-sec-3/old-run.sh "<src files>" --test-name-pattern=<id> <test files>` swaps the
++   files for their f53a270 copies, runs `node --test` and restores them.
++4. Real-data checks:
++   - `node $S/fix-sec-3/urls-check.mjs`: every posting link of today's crawl is unchanged by the new rule.
++   - `node $S/fix-sec-3/paren-check.mjs` and `node $S/fix-sec-3/families-check.mjs`: titles and families
++     are unchanged.
++5. `git show -U8 9de373f -- <4 files>` → `node $S/fix-sec-3/make-fx-fixture.mjs $W <out>` (the 9de373f fixture);
++   `node $S/fix-sec-3/check-9de373f.mjs` (the whole files pass the checker).
++6. `timeout 300 python3 -I -m pip download --require-hashes --only-binary :all: --platform macosx_11_0_arm64
++   --python-version 3.14 --implementation cp --abi cp314 -r .github/scripts/idb-requirements.txt -d <dir>`.
++7. Gate:
++   - move the two data links out of `data/`;
++   - run `MELON_BETA_SNAPSHOT_DIR= timeout 1500 npm test`, and put the links back;
++   - full e2e: `bash $S/fix-sec-3/e2e-full.sh <copy>`. It builds `git archive HEAD` extracted to `<copy>` (links
++     added) with `scripts/build-static.js --out <copy>/dist`. Then it runs `scripts/e2e.js` with
++     `NODE_PATH=$S/pw/node_modules`, `CHROMIUM_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome` and
++     `E2E_DIST`/`BETA_QA_DIST` set to the copy's dist.
++   - The e2e runs in a copy, so later edits in the worktree don't change the tree under test.
++8. New e2e group alone: `node scripts/e2e.js --grep='fix-sec-3'` (with NODE_PATH and CHROMIUM_PATH).
++
++## 5. Verification
++- Before and after, from `old-run.sh`:
++  - S-2: 4 tests, 0/4 then 4/4.
++  - S-4: 5 tests, 1/5 then 5/5. The two that pass before are output-equivalence checks.
++  - S-4 e2e: 1/3 then 3/3.
++  - S-10: 11 tests, 3/11 then 11/11. The 3 that pass before are equivalence checks.
++  - V14: 2 tests, 0/2 then 2/2.
++  - V12: 2 tests, 0/2 then 2/2.
++  - S-9: 9 tests, 7/9 then 9/9. The 9de373f replay passes before and after, as it must.
++- Real data: 37,619 posting links unchanged (all 7 beta boards; the 8 stable boards too); 37,619 titles, same
++  family.
++- `npm test` at `fe41715`, data links out, load 22 to 35: 1,184 tests, 1,123 pass, 51 to-dos, 2 fail (S-3 ×2,
++  timing). All 6 S-3 tests pass alone.
++- Full e2e: see section 7 once the run on `928ab7f` ends.
++
++## 6. Known gaps and follow-ups
++- The webkit-phone iOS job (macOS, manual dispatch) was not run. The pins are checked by test, and the pip set
++  by `pip download`. Dispatch webkit-phone.yml once to confirm that brew installs from the pinned tap commit.
++- The read-only jobs' `git fetch` calls are anonymous. That works because the repository is public; if it
++  becomes private, those fetches (all best effort except webkit's `local-data.js`) need the token passed
++  explicitly.
++- V14 on the stable static site guards the stable names only (its registry has no beta entries). Look-alike
++  Unicode (Cyrillic "Аpple") is not folded.
++- The JSON-LD reader ignores a `type="application/ld+json"` more than 500 characters into a `<script>` tag.
++  `familyOfTitle` now drops the innermost of nested brackets.
++
++## 7. Change log
++- 00:37 UTC: started; worktree at f53a270, links made, prompt saved.
++- 00:50 to 01:05: S-2 (a220eb1).
++- 01:05 to 01:45: S-4 (fe41715). The posting table moved from a new module into the registry after
++  beta-build failed.
++- 01:45 to 01:52: `npm test` gate; S-2 sent to the lead.
++- 01:53: full e2e started on an fe41715 copy.
++- 01:55 to 02:00: S-10 (d05d6db).
++- 02:00 to 02:05: V14 (1a9870d).
++- 02:05 to 02:08: V12 (9479771).
++- 02:08 to 02:10: S-9 residual (928ab7f).
++- 02:10: container restart killed the agent and the e2e run (155 of about 380 done; T21 failed on timing
++  before the stop, and the rest failed when the browser died).
++- 02:13: full e2e restarted on a 928ab7f copy.
+-- 
+2.43.0
+
