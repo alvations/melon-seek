@@ -111,7 +111,7 @@ export function registerFixData3Tests(suite) {
     assert(!(await page.locator('#drawer').innerText()).includes('implausible for an intern'), 'the drawer still says the pay is implausible for an intern');
   });
 
-  suite.test('fix-data-3: [MR-28] the drawer\'s Juice says, in one line on every phone, when gross pay is a posted minimum or includes the top shift differential', async (ctx) => {
+  suite.test('fix-data-3: [MR-28] the drawer\'s Juice says, in one line on every phone, when gross pay is a posted minimum or includes top shift pay', async (ctx) => {
     const { st, page } = await open(ctx, 'c=amazon');
     const cases = await appJobs(page, st, 'amazon', '(j) => j.juice && j.juice.best && j.salary && (j.salary.kind === "minimum" || j.salary.includesShiftDifferential) ? { id: j.id, kind: j.salary.kind === "minimum" ? "minimum" : "shift" } : null');
     const pick = ['minimum', 'shift'].map((k) => cases.find((c) => c.kind === k)).filter(Boolean);
