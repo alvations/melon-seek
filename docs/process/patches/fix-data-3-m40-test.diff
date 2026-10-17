@@ -1,0 +1,17 @@
+diff --git a/test/e2e/beta-mobile-qa-3.e2e.js b/test/e2e/beta-mobile-qa-3.e2e.js
+index 8ae9f40..3b566b4 100644
+--- a/test/e2e/beta-mobile-qa-3.e2e.js
++++ b/test/e2e/beta-mobile-qa-3.e2e.js
+@@ -436,8 +436,11 @@ export function registerBetaMobileQa3Tests(suite) {
+     await sleep(200);
+     await tapSel(page, '#quickChips [data-pop=dept]', 1000);
+     const rows = await page.evaluate(() => [...document.querySelectorAll('#filterBody details.fsec[open] label.check .check-label')].filter((e) => e.getClientRects().length).map((e) => ({ text: e.textContent.trim(), cut: e.scrollWidth > e.clientWidth + 1, title: e.closest('label')?.title || e.title || '' })));
++    // Amazon's two project, program and product management departments ("…--Technical", "…--Non-Tech"; since fix-data-3,
++    // UX-32, named "Technical …" and "Non-Technical …"), and any other two labels that start alike.
++    const pm = rows.filter((r) => /Project\W+Program\W+(?:and )?Product Management/i.test(r.text));
++    assert(pm.length >= 2, `the build has Amazon's two "Project/Program/Product Management" departments (${pm.length})`);
+     const twins = rows.filter((r) => rows.some((o) => o !== r && o.text.slice(0, 30) === r.text.slice(0, 30)));
+-    assert(twins.length >= 2, `the build has Amazon's two "Project/Program/Product Management--…" departments (${twins.length})`);
+     const lost = twins.filter((r) => r.cut);
+     if (lost.length) { await page.locator('#filterBody label.check', { hasText: twins[0].text }).first().evaluate((e) => e.scrollIntoView({ block: 'center' })); await shot(page, 'e2e-M-40-amazon-departments'); }
+     assert(!lost.length, `cut to the same visible text: ${lost.map((r) => `"${r.text}"`).join(', ')}`);
