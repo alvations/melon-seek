@@ -199,6 +199,17 @@ Screenshots (shrunk 15.8 → 3.3 MB): docs/screenshots/fix-phone-sizes/before-*.
 light at every size, dark at 280, 320, 344 and the Duo spanned, the Duo with the hinge (first screen, job page,
 filters; taken over CDP), and the Razr cover screen's map.
 
+**On 1ef0646 plus this lane's later commits (780e0ac):**
+- Department rows (6c0ebab): M-40 26/26 at every size; the phone-text guards for Amazon 22/22 (360 and 390, light and
+  dark, plus every other size); the matrix 36/36.
+- UX-39 (93228f6): Beta UX review 2 [UX-39] passes (it was red), and so does the new matrix test at every phone size
+  (18/18). Also passing: Beta mobile QA 3's throttled preview test; M-43 at every size plus its Back and Escape cases;
+  A-11 in beta a11y 2 and fix-phone-controls; and the sheet drag and flick tests (Mobile QA, Beta mobile QA, Beta mobile
+  QA 3). That run was 90/90.
+- The stacked Duo (dd58b48): its matrix entry and its hinge test pass. Its "before" shows the chart, the job page, the
+  filter sheet and the company sheet across the hinge.
+- phone-smoke: 140/140 (20 sizes x 7 boards). npm test with the data links out: 1185 pass, 0 fail.
+
 The matrix's later checks (from the lead's Razr findings): the results sheet's peek row shows at least 44 px of the
 screen, "on screen" is judged against the screen's own size as well as the layout viewport (a zoomed-out page has a
 larger one: the baseline Razr now fails on Sort, the sheet handle and the peek row at top 417), the visual viewport is
