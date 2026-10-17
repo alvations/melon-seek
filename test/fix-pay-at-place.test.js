@@ -360,6 +360,21 @@ test('amazon.js: a virtual-location row keeps its state in its label (QA round 3
   assert.ok(payRanges.every((r) => r.locations?.length), 'still tied to the Remote place');
 });
 
+// Juice (server/juice.js, another lane's file): docs/process/patches/fix-pay-at-place-juice.diff applies the lead decision.
+const JUICE_PATCHED = /const hasRows = Array\.isArray\(s\.ranges\)/.test(fs.readFileSync(new URL('../server/juice.js', import.meta.url), 'utf8'));
+test('lead decision 2026-10-16: no Juice at a listed place with no row of its own (Seattle, amazon:10387863 shape)', { todo: JUICE_PATCHED ? false : 'apply docs/process/patches/fix-pay-at-place-juice.diff' }, async () => {
+  const { attachJuice } = await import('../server/juice.js');
+  const cities = JSON.parse(fs.readFileSync(new URL('../data/cities.json', import.meta.url), 'utf8'));
+  const SEA = { name: 'Seattle, WA', rawName: 'Seattle, Washington, USA', city: 'Seattle', region: 'WA', country: 'US', lat: 47.61, lng: -122.33, remote: false };
+  const AUS2 = { name: 'Austin, TX', rawName: 'Austin, Texas, USA', city: 'Austin', region: 'TX', country: 'US', lat: 30.27, lng: -97.74, remote: false };
+  const job = { id: 'j', locations: [SEA, AUS2], salary: { min: 120000, max: 160000, mid: 140000, currency: 'USD', interval: 'year',
+    ranges: [{ min: 110000, max: 150000, currency: 'USD', label: 'Ridgeland' }, { min: 120000, max: 160000, currency: 'USD', label: 'Austin', locations: [AUS2.rawName] }] } };
+  attachJuice(job, cities);
+  const at = (job.juice?.byLocation || []).map((e) => e.cityName || e.city);
+  assert.ok(at.some((c) => /Austin/.test(c)), `Juice in Austin: ${JSON.stringify(at)}`);
+  assert.ok(!at.some((c) => /Seattle/.test(c)), `no Juice in Seattle on Austin's row: ${JSON.stringify(at)}`);
+});
+
 test('payAt is the one rule: chart.js, map.js, app.js, compstimate.js and insights.js use it', () => {
   for (const f of ['public/viz/chart.js', 'public/viz/map.js', 'public/app.js', 'public/features/compstimate.js', 'public/features/insights.js']) {
     assert.match(fs.readFileSync(new URL(`../${f}`, import.meta.url), 'utf8'), /\bpayAt\(/, f);

@@ -823,3 +823,94 @@ board's name on each job made the Amazon and NVIDIA lists 3% and 6% bigger (gzip
 the one current label for the same place (its canonical name, posted words, its city with the state or country tag ("Columbus, OH"), the old state label, compared
 without case, accents, periods and "Saint"/"St"), and a `d=` value the board no longer uses by `departmentDisplayName(value)` when the board
 has that department (`lib/families.js`, imported only then). The hash is rewritten (replace). A value that fits nothing or several labels is left as it is.
+
+## fix-pay-at-place additions (2026-10-16): one rule for the pay posted at a place (fix-pay-at-place lane)
+
+Findings V-35 to V-40 (viz-review-beta-2), UX-37 and UX-52 (ux-review-beta-2), MR-34 (methodology-review-beta-2), D-39,
+D-40 and D-45 (qa-desktop-beta-3) and M-42 (qa-mobile-beta-3), plus the lead's decision of 2026-10-16 in
+[DATA_SOURCES.md](DATA_SOURCES.md) §7a. Log: [docs/process/fix-pay-at-place.md](process/fix-pay-at-place.md). Every
+addition is optional for readers. Job fields are unchanged, and `NORMALIZER_VERSION` is unchanged.
+
+**`payAt(job, place = null)` (`public/features/shared.js`):** the pay a posting posted for a place. Every view that
+prices a place uses it, so the views agree under the same filter:
+- the chart's Clusters and Ranges, grouped by Location and under a Location filter;
+- the map's pins and Remote button;
+- the stats line, the pay filter and the salary sort;
+- Compstimate's comparables, Insights' hot locations and its Location-filtered figures;
+- the drawer's rank and strip.
+
+`place` can be:
+- one of the job's Locations, or several (an array or a Set);
+- a location key ("Seattle", "Remote");
+- a test `(location) => boolean` over `job.locations`;
+- `null`, for the posting as a whole.
+
+It returns `null`, or `{ min, max, mid, currency, usd: { min, max, mid } | null, rated, basis, places, label, span,
+rows, ranges }`:
+- `basis: 'place'`: the ranges in `salary.ranges` whose `locations` name the places. Several places with different
+  rows give the span of their rows, with `span: true`. `label` names the places ("Nashville", "Seattle and Bellevue",
+  "Seattle, Bellevue and 3 more") for captions that say "pay posted for <label>".
+- `basis: 'posting'`: the posting's one range, which covers the place: the place is in `payLocations` and in a
+  country that uses the pay's currency (chart.js `payCoversRow`, V-18).
+- `null`: no pay is posted there. Either the posting has ranges per place and lists this place in none of them (the
+  lead decision: it is never priced on another place's row), or its one range is another country's pay, or the place
+  is not one of its places.
+- `place = null`: the headline (`salary.min/max/mid`). It is `basis: 'place'`, named for its place, when it is one
+  place's row (Amazon's search city, Microsoft's U.S. range). It has `span: true` when it is the span of the places'
+  rows (Apple).
+- `usd`: converted with palette.js rates, as the chart, the map and the stats line convert. A currency with no rate
+  stays unconverted, with `rated: false`.
+- `rows`: how many per-place ranges the posting has. `ranges`: the ones this figure is.
+
+Results are cached per job and Location and shared, so callers never change them.
+
+Also new in `shared.js`:
+- `payMissAt(job, place)`: `'none' | 'unlisted' | 'place' | 'country' | null`, saying why `payAt` is null.
+- `pricedPlaces(job)`: the Locations that have posted pay.
+- `placeLabel(places, max = 2)`.
+
+**Chart (`public/viz/chart.js`):**
+- `chartPay(jobs, { places, placeTest })` items carry `at`, the `payAt` result under a Location filter. The result
+  adds `otherPlaces`: the postings left out because they price other places but not these. The notes line names
+  them apart from pay for another country.
+- New pure exports:
+  - `locationRowItem(p, key, test)`: an item priced for its Location row, or `null`. Clusters and Ranges, grouped by
+    Location, use the same row (`locationRowKey`) and the same pay (V-36, V-37). `payCoversRow` is now `payAt`'s rule.
+  - `barSpan(p)`: a bar is striped only when it spans several levels or several places' ranges (V-35).
+  - `barPlace(p)`: the place a bar's range was posted for, named in its accessible name and tooltip.
+- `spanTiers` is unchanged.
+
+**Map (`public/viz/map.js`):**
+- Each `aggregate()` place adds `locsAt` (job id -> its Locations there with posted pay) and `priceOf(job)`. The result
+  adds `remotePriceOf`.
+- `summarize(jobs, paid, priceOf)`: `priceOf` is optional. Without it, the headline midpoint is used, as before.
+
+**Insights (`public/features/insights.js`):** `hotLocations` and `payPlaceKeys` use `payAt` and `pricedPlaces`.
+`update(..., { places })` prices each role at the places picked.
+
+**Compstimate (`public/features/compstimate.js`):**
+- A comparable that posts a range per place is priced at its range for the city asked.
+- With `LOCAL_MIN` (5) or more such comparables, only those are used (V-40). Boards without per-place ranges are
+  unchanged.
+- A posting's places with no row of their own are not its pay places.
+
+**App (`public/app.js`):**
+- `placePay(j, F)` is the `payAt` of the places the Location filter takes in. `payHere` and the new `usdHere` use it
+  for the pay filter, the sort, the stats line and the filter's histogram.
+- `payPill` returns `range` and `sub` beside `text`. The pill shows the range alone, and `sub` ("5 places",
+  "2 levels", "2 ranges") is a muted line under it (UX-52).
+- `payHeadline(job)` is shared by the card and the drawer heading (UX-37):
+  - the span of a posting's ranges, in the unit it was posted in (D-40: an internship's "/year", part-time "/hour");
+  - or, under a Location filter, the place's own range with "Posted for <place>" under it.
+  - "· N places" counts distinct places: Amazon's "Remote (IL, NJ, VA)" is three. It reads "· N ranges" when the
+    ranges are not one per place (D-39).
+- The drawer's rank and strip use `drawerUSD(job)`, and its Details say whose range that is.
+- "Pay by place" is shown for fixed-term and part-time pay too, and never cuts a place name: a row for more than two
+  places names two and counts the rest, and Details list every place.
+- `severalRangesTip(s)` says whether the figure is one of the posted ranges or their span (MR-34).
+
+**Amazon (`server/sources/amazon.js`):**
+- A virtual-location row's label keeps its state ("Remote (CA)"; identical rows: "Remote (IL, NJ, VA)", D-39).
+- Labels are no longer cut at 60 characters.
+- Stored snapshots get both at read time (`upgradeAmazonJobs`).
+- Identical rows stay one range that lists every place (DQ-33).

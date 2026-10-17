@@ -369,7 +369,16 @@ export function registerFixPayAtPlaceTests(suite) {
       if (c.titleBox && c.pillBox && c.titleBox.right > c.pillBox.left + 0.5 && c.titleBox.top < c.pillBox.bottom && c.titleBox.bottom > c.pillBox.top) bad.push(`${size.name}: title runs under the pill`);
       if (c.titleLines > (size.width < 330 ? 5 : 4)) bad.push(`${size.name}: title wraps to ${c.titleLines} lines`);
       if (/^(Galaxy Fold|Motorola razr \(cover|iPhone 13 mini$|Surface Duo \(spanned)/.test(size.name)) {
-        await page.screenshot({ path: path.join(SHOTS, `after-card-${size.width}x${size.height}.png`) });
+        // The phone list is a bottom sheet: open it, then the card itself.
+        for (let i = 0; i < 3; i++) {
+          const open = await page.evaluate(() => (document.body.dataset.sheet || 'peek') === 'full' || !document.querySelector('#sheetHandle')?.getClientRects().length);
+          if (open) break;
+          await page.locator('#sheetHandle').click().catch(() => {});
+          await sleep(500);
+        }
+        const card = page.locator('#resultsList .card[data-id="amazon:10371179"]');
+        await card.scrollIntoViewIfNeeded().catch(() => {});
+        await card.screenshot({ path: path.join(SHOTS, `e2e-card-${size.width}x${size.height}.png`) }).catch(() => {});
       }
     }
     assert(!bad.length, bad.join('; '));

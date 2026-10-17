@@ -1,0 +1,31 @@
+--- a/server/juice.js
++++ b/server/juice.js
+@@ -1535,19 +1535,25 @@
+   const overrides = opts.rentOverrides || null; // { [cityKey]: monthly USD } from the user
+   const byLocation = [];
+   // DQ-28: a place with its own posted range (salary.ranges[].locations) is scored on that range's
+-  // midpoint, not the span's.
++  // midpoint, not the span's. fix-pay-at-place (the lead decision of 2026-10-16, DATA_SOURCES §7a): a posting
++  // that prices its places in rows of their own has no posted pay at a place it lists in no row, so that place
++  // gets no Juice and is never scored on another place's row (public/features/shared.js payAt, the same rule).
++  const hasRows = Array.isArray(s.ranges) && s.ranges.some((x) => x && Number.isFinite(Number(x.min)));
+   const placeUSD = (m) => {
+     const key = m.location.rawName || m.location.name;
+     const r = Array.isArray(s.ranges) ? s.ranges.find((x) => x && Array.isArray(x.locations) && x.locations.includes(key) && Number.isFinite(Number(x.min)) && Number.isFinite(Number(x.max))) : null;
+-    if (!r || String(r.currency || cur).toUpperCase() !== cur) return salaryUSD;
++    if (!r) return hasRows ? null : salaryUSD;
++    if (String(r.currency || cur).toUpperCase() !== cur) return salaryUSD;
+     const mid = (Number(r.min) + Number(r.max)) / 2;
+     const v = toUSD(partTime ? (mid / 2080) * hours * 52 : mid, cur, cities);
+     return v != null && v > 0 ? v : salaryUSD;
+   };
+   for (const m of use) {
+     let j;
++    const usd = placeUSD(m);
++    if (usd == null) continue;
+     const ov = overrides && overrides[m.city.key];
+-    try { j = computeJuice(placeUSD(m), m.city, ov != null ? { ...o, rentOverrideUSD: ov } : o); } catch { continue; }
++    try { j = computeJuice(usd, m.city, ov != null ? { ...o, rentOverrideUSD: ov } : o); } catch { continue; }
+     const entry = { locationName: m.location.name || m.city.name, city: m.city.key, cityName: m.city.name, ...j };
+     if (m.via === 'nearby') entry.proxy = true;
+     byLocation.push(entry);
