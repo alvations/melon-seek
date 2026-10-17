@@ -52,8 +52,9 @@ version), public/features/roles.js (one regex), the version pins in three tests,
    anything; leaving them out keeps the doc's basis true ("posted base pay ranges") and the counts say what was left
    out. A posting counts once (minimum, then shift pay, then part-time). The postings and their pay are unchanged.
 4. **One Juice line, in the Juice body above the waterfall** (`.fnote.juice-gross`), not in the `where` sentence that
-   fix-phone-text owns. "includes the highest shift differential" wraps at 280 px, so the line reads "Gross pay
-   includes the top shift differential." (the pay block's chip already says "Incl. top shift pay").
+   fix-phone-text owns. "…includes the highest shift differential" and "…includes the top shift differential" both
+   wrap to two lines on the Galaxy Fold (280 px), so the line reads "Gross pay includes top shift pay.", the pay
+   block chip's own words ("Incl. top shift pay").
 5. **No-row places: "some rows tied", not "every row tied".** The 7 postings all have one row tied to no listed
    place (Amazon's "San Francisco" row on a posting that lists Austin), so `postedPlaceSet` returned null and every
    place was scored on the headline. With the rule, the places of the tied rows are the posted places. The same

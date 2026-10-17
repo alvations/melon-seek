@@ -144,7 +144,7 @@ Ordered by severity. "Screen" means the beta site at 1440×1000 unless it says o
 ### MR-28 (High): minimums and shift-inclusive pay are called "posted base pay" and counted as base pay
 - **Status: fixed** by [fix-data-3](fix-data-3.md) (2026-10-17):
   - `scripts/build-market.js` `notBasePay` leaves stated minimums, shift-inclusive hourly figures and part-time hourly pay out of every market cell (base pay, on-target earnings and Intern) and counts them on the company's entry (`minimum`, `shiftPay`, `partTime`). On the 2026-10-16 crawl: Amazon 283 minimums, 634 shift-inclusive figures and 83 part-time hourly figures, Apple 40 part-time (counts of postings the comparison would otherwise use).
-  - The drawer's Juice block says "Gross pay is the posted minimum." or "Gross pay includes the top shift differential." in one line (`.juice-gross`; one line from 280 px up).
+  - The drawer's Juice block says "Gross pay is the posted minimum." or "Gross pay includes top shift pay." in one line (`.juice-gross`; one line from 280 px up).
   - The MR-28 test in test/beta-methodology-2.test.js is a real test now.
   - Not in this fix: the client medians (stats line, chart, Insights) and the Compare companies footnote, which still lists only internships, fixed-term programmes and on-target earnings as left out. Those are the app and viz lanes'.
 - **Where:**

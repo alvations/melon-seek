@@ -116,7 +116,7 @@ export function registerFixData3Tests(suite) {
     const cases = await appJobs(page, st, 'amazon', '(j) => j.juice && j.juice.best && j.salary && (j.salary.kind === "minimum" || j.salary.includesShiftDifferential) ? { id: j.id, kind: j.salary.kind === "minimum" ? "minimum" : "shift" } : null');
     const pick = ['minimum', 'shift'].map((k) => cases.find((c) => c.kind === k)).filter(Boolean);
     if (!pick.length) skip('no Amazon minimum or shift-pay posting with Juice');
-    const want = { minimum: 'Gross pay is the posted minimum.', shift: 'Gross pay includes the top shift differential.' };
+    const want = { minimum: 'Gross pay is the posted minimum.', shift: 'Gross pay includes top shift pay.' };
     for (const c of pick) {
       await openDrawer(page, st, 'amazon', c.id);
       await page.evaluate(() => { const d = document.querySelector('#drawer details.juice-details'); if (d) d.open = true; }); await sleep(300);
@@ -181,9 +181,16 @@ export function registerFixData3Tests(suite) {
       assert(george.every((o) => /, [A-Z]{2}$/.test(o.label)), `St. George labels without a state: ${george.map((o) => o.label).join(', ')}`);
       const sc = george.find((o) => /, SC$/.test(o.label));
       if (sc) {
+        // Both spellings' postings are under the one label (its count also holds the postings that name only the state
+        // or the country, as every city's does).
         const both = await appJobs(page, st, 'google', '(j) => j.locations.some((l) => /^(saint|st\\.?)\\s+george, sc\\b/i.test(l.rawName || "")) ? j.id : null');
+        const keyed = await page.evaluate(async ({ base }) => {
+          const res = await (await import(`${base}/api.js`)).getJobs({ company: 'google' });
+          return res.jobs.filter((j) => j.locations.some((l) => /^(saint|st\.?)\s+george, sc\b/i.test(l.rawName || ''))).map((j) => j.locations.filter((l) => /george/i.test(l.rawName || '')).map((l) => `${l.city}|${l.region}`).join(','));
+        }, { base: st.beta });
+        assertEq(new Set(keyed).size, 1, `the ${both.length} postings written "Saint George, SC" and "St George, SC" are one place (${[...new Set(keyed)].join(' / ')})`);
         await go(page, st, `c=google&l=${encodeURIComponent(sc.label)}`);
-        assertEq(await resultsCount(page), both.length, `"${sc.label}" lists every posting written "Saint George, SC" or "St George, SC"`);
+        assertEq(await resultsCount(page), sc.count, `"${sc.label}" lists its count`);
       }
     }
     await go(page, st, 'c=amazon');

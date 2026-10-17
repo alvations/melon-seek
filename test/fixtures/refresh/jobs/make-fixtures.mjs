@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const FETCHED_AT = '2026-10-09T06:00:00.000Z';
-const NORMALIZER_VERSION = 'norm-11'; // = server/normalize.js NORMALIZER_VERSION (fixtures are current-version snapshots)
+const NORMALIZER_VERSION = 'norm-12'; // = server/normalize.js NORMALIZER_VERSION (fixtures are current-version snapshots)
 const LEVELS = [
   // [seniority, title prefix, multiplier vs Mid]
   ['Entry', 'Associate ', 0.77],

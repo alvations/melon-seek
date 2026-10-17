@@ -512,7 +512,7 @@ function disambiguateLocations(jobs) {
    place or department, so an old link finds what it found before the labels changed:
    - Location: "Columbus, OH" where the board labels Columbus, Ohio "Columbus" (no other Columbus to tell apart);
      NVIDIA's state "New York, US", now "New York State" (D-42); "Saint George, SC", now "St. George, SC" (D-41).
-     A value is compared with each place's label, canonical name and posted words, "City, ST" and "City, Country",
+     A value is compared with each place's label, canonical name and posted words, its city with the state or country tag ("Columbus, OH"),
      ignoring case, accents, periods and the "Saint"/"St" spelling, and is replaced only when exactly one label fits.
    - Department: the board's own name ("Engineer, ASIC", "Project/Program/Product Management--Technical") becomes the
      name shown ("ASIC Engineering", UX-32), by the function the data uses (lib/families.js departmentDisplayName,
@@ -534,7 +534,8 @@ async function resolveOldFilterKeys(jobs = data.jobs) {
         if (!l || !key) return;
         add(l.name, key); add(l.rawName, key);
         if (l.remote) return;
-        if (l.city) { add(l.city, key); add(`${l.city}, ${l.region || ''}`, key); add(`${l.city}, ${l.country || ''}`, key); }
+        // A city's bare key and its disambiguated form ("Columbus, OH", "Victoria, AU": disambiguateLocations' tag).
+        if (l.city) { add(l.city, key); if (l.region || l.country) add(`${l.city}, ${l.region || l.country}`, key); }
         else if (l.country === 'US' && l.region) { // D-42: the state's label before ("New York, US", "District of Columbia, US")
           if (/ State$/.test(l.name || '')) add(`${l.name.slice(0, -6)}, US`, key);
           if (l.region === 'DC') add('District of Columbia, US', key);
@@ -4034,7 +4035,7 @@ function juiceBlock(job) {
   const lasts = !term ? null : term.fixed ? `This pay lasts ${termText(term.weeks)}` : `The ${programNoun(job)} lasts ${termText(term.weeks)}`;
   // MR-28 (fix-data-3): one line when the gross pay Juice starts from is not a base-pay range (one line on every phone).
   const grossNote = job.salary?.kind === 'minimum' ? 'Gross pay is the posted minimum.'
-    : job.salary?.includesShiftDifferential ? 'Gross pay includes the top shift differential.' : null;
+    : job.salary?.includesShiftDifferential ? 'Gross pay includes top shift pay.' : null;
   // I15 + shared decision 1: say why the filtered place has no Juice, in the posting's terms.
   const elsewhere = noneHere && !payHere(job) ? payPlaceText(job) : null;
   const where = [
@@ -5217,7 +5218,10 @@ function onHashChange() {
   S = next;
   resultsLimit = PAGE;
   if (companyChanged) { closeDrawer({ fromHash: true }); loadJobs(); return; }
+  // fix-data-3: a link with an old place or department label on the board already open (places resolve before this render).
+  const resolving = data.status === 'ready' && (S.l.length || S.d.length) ? resolveOldFilterKeys() : null;
   render();
+  resolving?.then((changed) => { if (changed) render(); });
   if (S.job && S.job !== drawerJobId) openDrawer(S.job, { fromHash: true });
   else if (!S.job && drawerJobId) closeDrawer({ fromHash: true });
 }

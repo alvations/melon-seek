@@ -1,6 +1,6 @@
 {
   "format": "melon-freshness-1",
-  "updated": "2026-10-16",
+  "updated": "2026-10-17",
   "description": "Registry of every dataset and constant group the product shows, cites, compares or computes from. Schema and runbook: docs/DATA_FRESHNESS.md. Ids are stable (archive dataset keys).",
   "graceDefaults": {
     "daily": 2,
@@ -535,11 +535,11 @@
         "server/juice.js:148 GRADES",
         "server/juice.js:153 RIND",
         "public/viz/palette.js:280 JUICE_BREAKS (copy)",
-        "public/app.js:2443 JUICE_GRADES (UI copy \"70+\", \"45–69\", \"under 45\")",
+        "public/app.js:2504 JUICE_GRADES (UI copy \"70+\", \"45–69\", \"under 45\")",
         "public/viz/palette.js:280 JUICE_BREAKS [45, 70] (copy)",
         "public/viz/palette.js:280 JUICE_BREAKS [45, 70]",
-        "public/app.js:2443 JUICE_GRADES chip tooltips \"(score 70+)\", \"(45–69)\", \"(under 45)\" (hard-coded copy)",
-        "public/app.js:532 gradeKey: Rind is filtered as Dry"
+        "public/app.js:2504 JUICE_GRADES chip tooltips \"(score 70+)\", \"(45–69)\", \"(under 45)\" (hard-coded copy)",
+        "public/app.js:591 gradeKey: Rind is filtered as Dry"
       ],
       "values": "breaks 45 / 70; labels Dry, Ripe, Juicy, Rind",
       "consumers": [
@@ -750,10 +750,10 @@
       "type": "product-policy",
       "owners": [
         "server/juice.js:107 HOUSEHOLDS",
-        "public/app.js:3795 HOUSEHOLDS (UI labels)",
+        "public/app.js:3856 HOUSEHOLDS (UI labels)",
         "server/juice.js:113 DEFAULT_HOUSEHOLD",
-        "public/app.js:3795 HOUSEHOLDS (UI copy: labels, tooltips, bedrooms)",
-        "public/app.js:3795 HOUSEHOLDS labels/bedrooms/people (UI copy of server/juice.js HOUSEHOLDS)"
+        "public/app.js:3856 HOUSEHOLDS (UI copy: labels, tooltips, bedrooms)",
+        "public/app.js:3856 HOUSEHOLDS labels/bedrooms/people (UI copy of server/juice.js HOUSEHOLDS)"
       ],
       "values": "single 1 bedroom / couple 2 / family 3; \"two adults and two children\"",
       "consumers": [
@@ -915,8 +915,8 @@
         "data/snapshots/<slug>.json (artifact job-board-snapshots)",
         "server/sources/*.js adapters",
         "server/companies.js COMPANIES",
-        "server/normalize.js:299 normalizeJob",
-        "server/normalize.js:44 NORMALIZER_VERSION",
+        "server/normalize.js:301 normalizeJob",
+        "server/normalize.js:46 NORMALIZER_VERSION",
         "scripts/snapshot.js:36 MAX_BETA_SNAPSHOT_BYTES (beta description-trim target; never drops a posting)",
         "data/snapshots/<slug>.json { company, mode, fetchedAt, error, normalizerVersion, jobs[], jobsCapped? } (gitignored)",
         "data/cache/store/*.list.json + *.desc.ndjson (melon-store-1, gitignored)",
@@ -1036,13 +1036,13 @@
       "description": "Per-job annual pay converted to approx USD (client side, palette FX) and every statistic derived from it in the UI.",
       "type": "derived-at-build",
       "owners": [
-        "public/app.js:568 _usd",
+        "public/app.js:627 _usd",
         "public/features/shared.js:25 toUSD",
         "public/viz/palette.js:1 palette toUSD (chart/map/comps)",
         "public/features/shared.js:1 shared toUSD (Compstimate/Insights: palette then FX_FALLBACK)",
         "server/salary.js:1 salary.js toUSD (vetting, share pages via vet.js)",
         "server/juice.js:6 juice.js toUSD (Juice)",
-        "scripts/build-market.js:90 usdMid (market comps; drops currencies without palette FX)",
+        "scripts/build-market.js:97 usdMid (market comps; drops currencies without palette FX)",
         "public/app.js:383",
         "public/features/shared.js:45 salaryUSD (also annualizes)"
       ],
@@ -14035,9 +14035,9 @@
       "description": "Per-job posted pay in its native currency and the honest-number labels around it.",
       "type": "fetched",
       "owners": [
-        "server/normalize.js:100 deriveSalary (structured vs text, every posted range kept (SB-3, norm-11), tier span <= 3x)",
-        "server/salary.js:993 parseSalary",
-        "server/salary.js:1172 toJobSalary (mid = round((min+max)/2), spread = max/min)",
+        "server/normalize.js:102 deriveSalary (structured vs text, every posted range kept (SB-3, norm-11), tier span <= 3x)",
+        "server/salary.js:1016 parseSalary",
+        "server/salary.js:1195 toJobSalary (mid = round((min+max)/2), spread = max/min)",
         "server/sources/greenhouse.js:50 payRanges (cents / ZERO_DECIMAL)",
         "server/sources/amazon.js:37 Amazon PAY_LINE_RE",
         "server/sources/ashby.js:1 Ashby compensation",
@@ -14051,7 +14051,7 @@
         "server/sources/amazon.js:190 STATED_ANNUAL_RE (a stated yearly figure, Austria 14 payments: statedAnnual; VT-19)",
         "server/sources/amazon.js:121 ISO3_ISO2 (places written with ISO-3 codes; DQ-40)",
         "server/sources/apple.js:353 APPLE_PAY_STATES (the pay-transparency states Apple posts pay for: salary.places; DQ-27)",
-        "server/sources/upgrade.js:76 upgradeAmazonJobs (stored snapshots get the norm-10/11 rules at read time)"
+        "server/sources/upgrade.js:79 upgradeAmazonJobs (stored snapshots get the norm-10/11 rules at read time)"
       ],
       "values": "salary { min, max, mid (annualized), currency, interval: \"year\", text, originalInterval, kind, source, spread, zones, ranges? }; 4,551 of 5,413 postings salaried after the gate on 2026-10-02; 2026-10-16 (norm-11, as the build serves it): amazon 13,980 of 22,179 (285 minimums, 636 including the top shift differential, 77 with a stated base, 3 stated annual), apple 2,781 of 4,851, google 2,512 of 3,821, meta 948 of 1,208, microsoft 1,566 of 2,435, netflix 259 of 414, nvidia 1,462 of 2,711 (41 on-target earnings), anduril 2,388 of 2,537",
       "consumers": [
@@ -14158,7 +14158,7 @@
         "server/export.js:62 csvReadme text",
         "public/features/shared.js:45 salaryUSD defensive annualization (2080 h if mid < 1000, ×12 if mid < 30000): duplicate of server/salary.js annualize",
         "public/viz/chart.js:68 INTERVAL_ADJ labels",
-        "public/app.js:3777 INTERVAL_ADJ labels"
+        "public/app.js:3838 INTERVAL_ADJ labels"
       ],
       "values": "2080 hours/yr, 12 months, 52 weeks",
       "consumers": [
@@ -14234,7 +14234,7 @@
         "server/salary.js:66 TIER_MAX_RATIO",
         "server/salary.js:397 national-range span <= 4x",
         "server/salary.js:365 unstated interval heuristics",
-        "server/normalize.js:96 payRanges currency pick <= 3x",
+        "server/normalize.js:98 payRanges currency pick <= 3x",
         "server/sources/greenhouse.js:37 MAX_TIER_SPAN",
         "server/salary.js:58 meetsAnnualFloor (MIN_ANNUAL in USD, or the legal minimum: entry mx-legal-minimum-wage)"
       ],
@@ -14303,7 +14303,7 @@
       "owners": [
         "server/salary.js:56 LEGAL_MIN_ANNUAL",
         "server/salary.js:58 meetsAnnualFloor",
-        "server/vet.js:135 LEGAL_MIN_ANNUAL (the gate: below_min legal-minimum exemption)",
+        "server/vet.js:57 LEGAL_MIN_ANNUAL (the gate: below_min legal-minimum exemption)",
         "docs/VETTING.md:152 (the rule and its source)",
         "docs/DATA_SOURCES.md §7e (Amazon pay words)"
       ],
@@ -14724,17 +14724,17 @@
       "description": "Market comps (company × family × seniority: n, p25/median/p75 USD) in \"Same role elsewhere\" (drawer) and \"Compare companies\" (Insights).",
       "type": "derived-at-build",
       "owners": [
-        "scripts/build-market.js:68 MIN_N",
-        "scripts/build-market.js:87 round100",
-        "scripts/build-market.js:79 percentileSorted (linear)",
-        "scripts/build-market.js:217 buildMarket",
+        "scripts/build-market.js:75 MIN_N",
+        "scripts/build-market.js:94 round100",
+        "scripts/build-market.js:86 percentileSorted (linear)",
+        "scripts/build-market.js:244 buildMarket",
         "scripts/build-static.js:128 MARKET_MAX_BYTES",
         "scripts/build-market.js MIN_N 3, round100 [jobs]",
         "public/features/comps.js:177 compsForJob: family+seniority, falls back to the family across levels",
         "public/features/comps.js:332 defaultFamily: families covered by ≥ 2 companies",
-        "scripts/build-market.js:70 COUNTRY_MIN_N (10 salaried postings for cells outside a company's home country; market.json byCountry, BP-3)",
-        "scripts/build-market.js:72 MID_STATED (a stated mid level)",
-        "scripts/build-market.js:74 OTE_BASIS (on-target earnings cells)"
+        "scripts/build-market.js:77 COUNTRY_MIN_N (10 salaried postings for cells outside a company's home country; market.json byCountry, BP-3)",
+        "scripts/build-market.js:79 MID_STATED (a stated mid level)",
+        "scripts/build-market.js:81 OTE_BASIS (on-target earnings cells)"
       ],
       "values": "company x family x seniority cells with n >= 3 (plus \"*\" family roll-ups), and byCountry cells (n >= 10 outside the home country): n, p25, median, p75 of USD midpoints rounded to $100; 391 cells over 8 companies and 26 families on 2026-10-02; beta build 2026-10-11: 781 cells over 13 companies (beta/api/market.json, 79 kB)",
       "consumers": [
@@ -15261,7 +15261,7 @@
         "server/families.js:24 FAMILIES",
         "server/families.js TRANSLATE / ROLE / TEAM / LEAD_WORD / WEAK (the rules)",
         "server/sources/google.js (department from the title, departmentBasis \"title\"; brand from slot 7)",
-        "public/app.js:528 deptTitleNote (\"Grouped by job title: Google doesn't publish departments\")",
+        "public/app.js:587 deptTitleNote (\"Grouped by job title: Google doesn't publish departments\")",
         "test/fixtures/google-families-sample.json (the hand-labelled sample)"
       ],
       "values": "27 families named after the job categories Google's careers site shows (Software Engineering, Technical Program Management, Data Center Operations, Technical Solutions, ...), plus Research, Data Science and Analytics, Security and Privacy and Trust and Safety. 2026-10-16: 3,700 of 3,821 Google titles read (96.8%), 121 \"No department\"; 92 of 100 held-out titles right, 88 of 100 titles new that day, 95.7% when it answers (docs/process/google-grouping.md). Brands: Google 3,546, YouTube 162, DeepMind 111, Waymo 1, Wing 1",
@@ -15317,16 +15317,16 @@
         "server/keywords.js:894 FIT_GLOBAL_LEXICON",
         "server/keywords.js:273 boilerplate minShare 0.5 / minJobs 5",
         "server/keywords.js:1 facet guard maxShare 0.9 / minJobs 20",
-        "server/normalize.js:44 NORMALIZER_VERSION",
+        "server/normalize.js:46 NORMALIZER_VERSION",
         "server/keywords.js [core]",
-        "server/keywords.js:1374 EQUITY_NOISE_RE",
-        "server/keywords.js:1387 BONUS_NOISE_RE",
-        "server/keywords.js:1390 COMP_DUTY_RE",
-        "server/keywords.js:1393 COMP_NEGATION_RE",
+        "server/keywords.js:1378 EQUITY_NOISE_RE",
+        "server/keywords.js:1391 BONUS_NOISE_RE",
+        "server/keywords.js:1394 COMP_DUTY_RE",
+        "server/keywords.js:1397 COMP_NEGATION_RE",
         "server/keywords.js:3 SALES_CONDITIONAL_RE",
-        "server/keywords.js:1397 SALES_TITLE_RE",
-        "server/keywords.js:1417 EQUITY_STRONG",
-        "server/keywords.js:1433 BONUS_STRONG",
+        "server/keywords.js:1401 SALES_TITLE_RE",
+        "server/keywords.js:1421 EQUITY_STRONG",
+        "server/keywords.js:1437 BONUS_STRONG",
         "server/keywords.js:446 NEAR_COPY_SHARE (0.95) / :447 NEAR_COPY_MIN_ROLES (10): team paragraphs that 10+ roles repeat are not skills (fix6-fresh-data)"
       ],
       "values": "server/keywords.js SKILL_LEXICON, RESPONSIBILITY_LEXICON, FIT_LEXICON, FIT_GLOBAL_LEXICON, years buckets 1+/3+/5+/8+/10+; 2026-10-02: 1.5%-8.4% of postings per company without a skill keyword",
@@ -15415,7 +15415,7 @@
         "public/app.js:1 app.js 180 (copy)",
         "public/app.js:227 Listed filter 7 / 30 / 90 days",
         "public/app.js:1268 hide roles open ≥ 180 days",
-        "public/app.js:3579 card age: < 60 → \"Nd\", < 730 → months (÷30.44), else years; \"+\" when a lower bound"
+        "public/app.js:3640 card age: < 60 → \"Nd\", < 730 → months (÷30.44), else years; \"+\" when a lower bound"
       ],
       "values": "filter 7/30/90; 180+ days; contract freshness new ≤ 7, active 8–59, stale 60–179, evergreen ≥ 180 (server/history.js FRESHNESS)",
       "consumers": [
@@ -15599,16 +15599,16 @@
         "server/geo.js:25 US_STATES_RAW",
         "server/geo.js:81 OTHER_REGIONS_RAW",
         "server/geo.js:117 COUNTRIES_RAW",
-        "server/geo.js:213 CITIES_RAW",
-        "server/geo.js:631 GAZETTEER_SIZE",
-        "server/geo.js:1053 COUNTRY_LABEL",
+        "server/geo.js:220 CITIES_RAW",
+        "server/geo.js:648 GAZETTEER_SIZE",
+        "server/geo.js:1118 COUNTRY_LABEL",
         "server/juice.js:6 juice.js REGION_COUNTRIES (US, CA, AU)",
         "data/cities.json cities[].aliases / nearby",
         "server/geo.js [core]",
-        "server/geo.js:578 ISO3_TO_ISO2",
-        "server/geo.js:588 ISO3_US_TERRITORY (PRI is Puerto Rico)"
+        "server/geo.js:595 ISO3_TO_ISO2",
+        "server/geo.js:605 ISO3_US_TERRITORY (PRI is Puerto Rico)"
       ],
-      "values": "GAZETTEER_SIZE 331 cities, 52 states, 73 countries (2026-10-16; fix6-fresh-data added Jordan, Bahrain and Puerto Rico and ISO-3 codes)",
+      "values": "GAZETTEER_SIZE 341 cities, 52 states, 73 countries (2026-10-17; fix-data-3 added Cajamar, Osasco, Barueri, Embu das Artes, Jundiai, Paulinia, Sao Joao de Meriti and Belford Roxo in Brazil, Luxembourg City and Town and Country, MO; fix6-fresh-data added Jordan, Bahrain and Puerto Rico and ISO-3 codes)",
       "consumers": [
         {
           "at": "server/normalize.js:53",
@@ -15891,7 +15891,7 @@
         "public/api.js:91 LIVE_TIMEOUT_MS 12 s",
         "public/api.js:274 WORKER_READY_MS 10 s",
         "public/api.js:732 JUICE_CHUNK 400",
-        "public/app.js:1055 PREPARE_CHUNK 300",
+        "public/app.js:1114 PREPARE_CHUNK 300",
         "public/app.js:108 PAGE 24/60",
         "public/app.js:10 compstimate meta retry 5 s",
         "public/viz/map.js:154 map offline 4 s",
@@ -17847,7 +17847,7 @@
       "type": "derived-at-build",
       "owners": [
         "server/juice.js:1487 attachJuice",
-        "server/juice.js:1581 attachJuiceAll",
+        "server/juice.js:1589 attachJuiceAll",
         "server/juice.js:1220 computeJuice",
         "data/cities.json (registry cities-dataset)"
       ],
@@ -17985,8 +17985,8 @@
       "description": "Market comps policy: minimum postings per cell (minN 3), $100 rounding of p25/median/p75, the \"Same role elsewhere\" fallback from family+seniority to family, and the UI copy that restates minN.",
       "type": "product-policy",
       "owners": [
-        "scripts/build-market.js:68 MIN_N",
-        "scripts/build-market.js:87 round100",
+        "scripts/build-market.js:75 MIN_N",
+        "scripts/build-market.js:94 round100",
         "public/features/comps.js:177 compsForJob",
         "public/features/comps.js:172 / :207 minN || 3 fallback copy",
         "scripts/archive/report.js:32 MIN_N (copy; test/freshness-policy.test.js keeps it equal)"

@@ -797,8 +797,8 @@ row is tied to no listed place. Before, one untied row made every place score on
 applies the same rule to every other view; `postedPlaces` (behind `payLocations`) gets it from
 [`docs/process/patches/fix-data-3-shared-posted-places.diff`](process/patches/fix-data-3-shared-posted-places.diff).
 
-**Drawer (`public/app.js` `juiceBlock`):** one line, `.juice-gross`, "Gross pay is the posted minimum." or "Gross pay includes the top
-shift differential." (MR-28).
+**Drawer (`public/app.js` `juiceBlock`):** one line, `.juice-gross`, "Gross pay is the posted minimum." or "Gross pay includes top shift
+pay." (MR-28), one line from 280 px up.
 
 **Locations (`server/geo.js`):**
 - D-41: an unknown US town's "St", "St." or "Saint" is "St." ("St Louis, Michigan" -> city "St. Louis", region MI; "Saint George, SC" and
@@ -820,6 +820,6 @@ the board's name, so fingerprints do not change. `departmentDisplayName` of a sh
 board's name on each job made the Amazon and NVIDIA lists 3% and 6% bigger (gzip).
 
 **App (`public/app.js`):** `resolveOldFilterKeys()` runs once a board has loaded: a link's `l=` value that no posting uses is replaced by
-the one current label for the same place (its canonical name, posted words, "City, ST", "City, Country", the old state label, compared
+the one current label for the same place (its canonical name, posted words, its city with the state or country tag ("Columbus, OH"), the old state label, compared
 without case, accents, periods and "Saint"/"St"), and a `d=` value the board no longer uses by `departmentDisplayName(value)` when the board
 has that department (`lib/families.js`, imported only then). The hash is rewritten (replace). A value that fits nothing or several labels is left as it is.
