@@ -359,10 +359,9 @@ test('amazon.js: a virtual-location row keeps its state in its label (QA round 3
   assert.deepEqual(payRanges.map((r) => r.label), ['Remote (CA)', 'Remote (IL, NJ)']);
   assert.ok(payRanges.every((r) => r.locations?.length), 'still tied to the Remote place');
 });
-
+// Juice (server/juice.js): fix-data-3 (0ae184e, postedPlaceSet) applies the lead decision; docs/process/patches/fix-pay-at-place-juice.diff is kept as a reference.
 // Juice (server/juice.js, another lane's file): docs/process/patches/fix-pay-at-place-juice.diff applies the lead decision.
-const JUICE_PATCHED = /const hasRows = Array\.isArray\(s\.ranges\)/.test(fs.readFileSync(new URL('../server/juice.js', import.meta.url), 'utf8'));
-test('lead decision 2026-10-16: no Juice at a listed place with no row of its own (Seattle, amazon:10387863 shape)', { todo: JUICE_PATCHED ? false : 'apply docs/process/patches/fix-pay-at-place-juice.diff' }, async () => {
+test('lead decision 2026-10-16: no Juice at a listed place with no row of its own (Seattle, amazon:10387863 shape)', async () => {
   const { attachJuice } = await import('../server/juice.js');
   const cities = JSON.parse(fs.readFileSync(new URL('../data/cities.json', import.meta.url), 'utf8'));
   const SEA = { name: 'Seattle, WA', rawName: 'Seattle, Washington, USA', city: 'Seattle', region: 'WA', country: 'US', lat: 47.61, lng: -122.33, remote: false };

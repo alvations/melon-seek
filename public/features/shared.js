@@ -245,11 +245,16 @@ export function payLocations(job) {
   return hit.length ? hit : pool;
 }
 
-/** The location strings a salary was posted for (salary.places, else every range's places), or null. */
+/**
+ * The location strings a salary was posted for (salary.places, else the places of its per-place rows), or null.
+ * Lead decision (2026-10-16, fix-data-3; as server/juice.js postedPlaceSet): a place the posting lists in no row
+ * has no posted pay there, even when another row is tied to no listed place (it was "every row tied").
+ */
 function postedPlaces(sal) {
   if (Array.isArray(sal?.places) && sal.places.length) return new Set(sal.places);
   const rs = Array.isArray(sal?.ranges) ? sal.ranges : [];
-  if (rs.length && rs.every((r) => Array.isArray(r?.locations) && r.locations.length)) return new Set(rs.flatMap((r) => r.locations));
+  const tied = rs.filter((r) => Array.isArray(r?.locations) && r.locations.length);
+  if (tied.length) return new Set(tied.flatMap((r) => r.locations));
   return null;
 }
 

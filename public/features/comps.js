@@ -565,7 +565,9 @@ export function createCompsCard(container, { onPickCompany, market: initialMarke
       const what = level === 'Intern'
         ? `Posted internship and fixed-term pay${where}, as a yearly rate`
         : `${capitalize(market.basis || 'posted base pay ranges')} of ${level ? `${levelWord(level)} ` : ''}full-time roles${where}`;
-      const left = level === 'Intern' ? '' : ' Internships, fixed-term programmes and on-target earnings (sales pay that includes commission) are left out.';
+      // MR-28 (fix-data-3): scripts/build-market.js notBasePay also leaves out stated minimums, shift-inclusive and part-time hourly pay.
+      const left = level === 'Intern' ? ' Stated minimums and part-time hourly pay are left out.'
+        : ' Internships, fixed-term programmes, on-target earnings (sales pay that includes commission), stated minimums, hourly pay that includes a shift differential and part-time hourly pay are left out.';
       const only = country ? ` Only pay for roles${where} is compared.` : '';
       foot.textContent = `${what}, midpoints in approx. US dollars; companies need ${market.minN || 3}+ salaried postings${country ? ' there' : ''}.${left} Equity and bonus aren't included.${only}${asOf}`;
       live.textContent = rows.length ? `${label}${level ? `, ${level === 'Intern' ? 'internships' : levelWord(level)}` : ''}${where}: ${plural(rows.length, 'company', 'companies')} compared.` : '';
