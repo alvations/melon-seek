@@ -1,7 +1,7 @@
 From 58f51699696975c6585bc4f0f4dbab4a2497d89e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 00:29:06 +0000
-Subject: [PATCH 4/5] WIP fix-phone-text: log, WebKit step, narrow-screen rule,
+Subject: [PATCH 4/7] WIP fix-phone-text: log, WebKit step, narrow-screen rule,
  viz-lane allow-list, tagline and search hint under 360 px
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1,0 +1,335 @@
+From a220eb1a1519a904162f240a12d111063f7073cb Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 00:55:44 +0000
+Subject: [PATCH 1/2] fix-sec-3: S-2 residual: one pause guard for every crawl
+ (fetchLive, snapshot.js one(), probe full mode)
+
+server/pipeline.js#pauseError refuses a paused company (or a paused built-in's source and board)
+with code 'paused' before any request; fetchLive and scripts/snapshot.js one() call it, and the
+probe's full mode too. The probe's Google careers hosts now include www.google.com, the adapter's
+origin, so raw mode refuses it when Google is paused. The three 2026-10-11 S-2 tests now pause the
+registry entries for their run (nothing is paused today) and the round-3 residual test is un-todo'd.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/prompts/fix-sec-3.md   | 55 ++++++++++++++++++
+ scripts/probe-bigtech.js            |  7 ++-
+ scripts/snapshot.js                 |  6 +-
+ server/companies.js                 | 10 ++--
+ server/pipeline.js                  | 21 ++++++-
+ test/beta-security-review-2.test.js |  2 +-
+ test/beta-security-review.test.js   | 86 ++++++++++++++++++++---------
+ 7 files changed, 152 insertions(+), 35 deletions(-)
+ create mode 100644 docs/process/prompts/fix-sec-3.md
+
+diff --git a/docs/process/prompts/fix-sec-3.md b/docs/process/prompts/fix-sec-3.md
+new file mode 100644
+index 0000000..c76eae5
+--- /dev/null
++++ b/docs/process/prompts/fix-sec-3.md
+@@ -0,0 +1,55 @@
++You are the security engineer `fix-sec-3` for melon-seek (repo /home/user/melon-seek, branch claude/stoic-ride-54ddxp), a zero-build vanilla ES-module app, "the Zillow of job postings". You are in your own git worktree. First run `git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp` (head f53a270 or later). Read docs/CONTRACT.md, docs/REVIEW.md (the "beta review 2026-10-11" and "beta review 2026-10-16" sections), docs/process/security-a11y-review-beta-2.md, docs/process/PLAYBOOK.md (including "Checkpoints" and "Known traps") and docs/process/TEMPLATE.md.
++
++**Your findings.** All are open and Low; the tests are to-dos in test/beta-security-review.test.js and test/beta-security-review-2.test.js. Fix each one, and turn its to-do into a plain passing test that fails on the old code.
++1. **S-2 residual.** `crawlBlock` (the `paused` guard) is called only by amazon.js and meta.js. With `paused:'terms'` set on Apple, Google, Microsoft, Netflix, NVIDIA or Anthropic, `fetchLive` still requests robots.txt and the search API (2 requests each; error code http, not paused). Put one guard at the top of server/pipeline.js `fetchLive` and in scripts/snapshot.js `one()`. The big-tech probe must never target a paused company or its careers host by default.
++2. **S-4 residual.**
++   - amazon.js:324 builds `${AMAZON_ORIGIN}${j.job_path}` with no check. A job_path of "@evil.example/x" gives https://www.amazon.jobs@evil.example/x, which passes `postingUrl` (a scheme check only) and lands in beta/data/amazon.csv and the list.
++   - Add an on-host check like eightfold.js `onHost`, and make the normalizer require BETA_POSTING_HOSTS for beta built-ins.
++   - When a posting's URL is dropped, the drawer still renders the Apply button with the site's own host and no href (app.js:4552). Hide the button, and say "No link to the posting" in one line. Keep that edit tiny: other lanes own the drawer.
++3. **S-10.** New quadratic parsers, reached only by upstream text. The fitted exponent is about 2; projected times on 1 MB:
++   | Parser | Where | 1 MB |
++   |---|---|---|
++   | `parseMetaAmount` | meta.js:134, double `\s*` | 59 min |
++   | `familyOfTitle` | families.js:122, `[（(][^）)]*[）)]` | 19 min |
++   | `parseMetaSitemap` without `<url>` | meta.js:36 | 13 min |
++   | `extractMetaPage` jsonLd | meta.js:83 | 2.3 min |
++
++   Fix:
++   - trim and slice amounts to 100 chars;
++   - slice titles to 500 and use `[（(][^（(）)]{0,200}[）)]`;
++   - bounded `<loc>[^<]{0,2048}</loc>` and `<script[^>]{0,500}…`.
++
++   Also bound the local DOL tools (xlsx.js:157/220, employers.js:23). Each fix has a test that times a 64–256 KB hostile input under 2 s, and a check that the output on the real fixtures is unchanged.
++4. **S-9 residual** (.github/workflows/monthly-refresh.yml commit step).
++   - Four of the 11 allow-listed files are code that reaches browsers: server/juice.js, server/salary.js, public/viz/palette.js and public/features/shared.js. Accept a change to them only in the line shapes the FX writer produces: a diff confined to the FX table's lines, of the form `CODE: number,`. Commit 9de373f (the first real refresh) must pass the check, and test/monthly-refresh-commit.test.js must get a case where a code line outside the table is refused.
++   - Move the pinned FX examples out of test/juice.test.js into a data fixture the refresh writes (e.g. test/fixtures/fx-examples.json), so the refresh never edits test code. Update the allow-list, test/monthly-refresh-commit.test.js's "allow-list equals the writers' targets" case, and docs/DATA_FRESHNESS.md.
++5. **V12 residual.**
++   - Read-only jobs check out without `persist-credentials: false`. Add it to every checkout that doesn't push, including the 3 in webkit-phone.yml.
++   - Pin webkit-phone.yml's unpinned `brew tap facebook/fb` + `brew install idb-companion` and `pip install fb-idb` to exact versions. fb-idb 1.7.6 and its dependencies were installed in run 38979700118; pin the tap to a commit, or install a pinned idb-companion release.
++   - The test is test/beta-security-review.test.js "V12 residual".
++6. **V14 residual.** A custom board cannot take a built-in company name, including the beta names (Amazon, Apple, Google, Meta, Microsoft, Netflix, NVIDIA).
++
++**Rules for workflow edits:** keep every existing guard in place, and don't change triggers or permissions beyond what a finding needs. test/workflows.test.js must stay green. Pushes go only to claude/stoic-ride-54ddxp; you never push, the lead does.
++
++**Data and build:**
++- Today's crawl is at /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-data2/data/snapshots and .../wt-data2/data/beta/snapshots. Symlink them as data/snapshots and data/beta/snapshots in your worktree, and never commit them.
++- No crawling: tests use fixtures and stubbed fetch.
++- Playwright: NODE_PATH=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/pw/node_modules, Chromium at /opt/pw-browsers/chromium-1194/chrome-linux/chrome. Never `playwright install`; no `pkill -f` / `pgrep -f`. Give every command a timeout.
++
++**Ownership:**
++- Yours: server/pipeline.js `fetchLive`'s guard, scripts/snapshot.js `one()`, scripts/probe-bigtech.js, server/sources/amazon.js (URL building only), server/sources/meta.js and server/families.js (the bounded regexes only), server/normalize.js (the posting-host rule), the DOL tools, the custom-board name rule in server/index.js, .github/workflows/*.yml (the residuals above), test/juice.test.js and the new FX fixture, and the Apply-button line in public/app.js.
++- Not yours: UI layout and text (the phone lanes), place labels and departments (fix-data-3), per-place pay (fix-pay-at-place).
++- Also yours:
++  - test/fix-sec-3.test.js, if you need new tests beyond the to-dos you un-todo;
++  - docs/REVIEW.md: mark each finding fixed, with its commit;
++  - docs/process/fix-sec-3.md, your log in TEMPLATE.md structure, with a `## State` section at the top;
++  - docs/process/prompts/fix-sec-3.md, with this prompt pasted verbatim.
++
++**Rules:**
++- Commit small and often in your worktree with explicit paths.
++- Send the lead each finished, tested piece by SendMessage to "main" (SHA, what it fixes, tests). The lead checkpoints your worktree every 15 minutes and integrates. Never push.
++- Before you send any SHA:
++  - run `MELON_BETA_SNAPSHOT_DIR= npm test` with the data links moved OUT of data/, as CI runs it. S-6, PERF-1, V15 and T21 are load-sensitive; re-run them alone.
++  - run the full e2e suite with data linked for anything touching the app or the build: no new failures.
++
++Report: per finding, before → after, the tests that fail before and pass after, and SHAs.
+diff --git a/scripts/probe-bigtech.js b/scripts/probe-bigtech.js
+index 4c907a7..9e11318 100644
+--- a/scripts/probe-bigtech.js
++++ b/scripts/probe-bigtech.js
+@@ -50,7 +50,7 @@ export const CAREER_HOSTS = Object.freeze({
+   microsoft: ['apply.careers.microsoft.com', 'careers.microsoft.com', 'jobs.careers.microsoft.com'],
+   nvidia: ['nvidia.wd5.myworkdayjobs.com', 'jobs.nvidia.com'],
+   apple: ['jobs.apple.com'],
+-  google: ['careers.google.com'],
++  google: ['careers.google.com', 'www.google.com'], // www.google.com: the adapter's origin (GOOGLE_ORIGIN: robots.txt, sitemap, /about/careers/); the terms are on policies.google.com
+   meta: ['www.metacareers.com', 'metacareers.com'],
+   tesla: [],
+ });
+@@ -410,11 +410,14 @@ async function rawRequests(spec) {
+ 
+ async function full(slug) {
+   const { getCompany } = await import('../server/companies.js');
+-  const { ADAPTERS } = await import('../server/pipeline.js');
++  const { ADAPTERS, pauseError } = await import('../server/pipeline.js');
+   const { normalizeJobs } = await import('../server/normalize.js');
+   const { scanCompany } = await import('./vet-salaries.js');
+   const company = getCompany(slug);
+   if (!company) { say(`no registry entry for ${slug}`); return; }
++  // The adapters are called directly here, so the pipeline's pause guard is repeated (S-2 residual).
++  const paused = pauseError(company);
++  if (paused) { say(`${paused.message}; no request made`); return; }
+   const adapter = ADAPTERS[company.source];
+   if (!adapter) { say(`no adapter for source ${company.source}`); return; }
+   const stats = newStats();
+diff --git a/scripts/snapshot.js b/scripts/snapshot.js
+index 77de94b..14b3f37 100644
+--- a/scripts/snapshot.js
++++ b/scripts/snapshot.js
+@@ -23,7 +23,7 @@ import path from 'node:path';
+ import zlib from 'node:zlib';
+ import { pathToFileURL } from 'node:url';
+ import { listCompanies, resolveCompany } from '../server/companies.js';
+-import { ADAPTERS, maxBytesFor, BUILTIN_TIMEOUT_MS } from '../server/pipeline.js';
++import { ADAPTERS, maxBytesFor, BUILTIN_TIMEOUT_MS, pauseError } from '../server/pipeline.js';
+ import { NORMALIZER_VERSION, normalizeJobs } from '../server/normalize.js';
+ import { ROOT } from '../server/cache.js';
+ import { newStats } from '../server/sources/polite.js';
+@@ -251,6 +251,10 @@ export async function runSnapshot(targets, opts = {}) {
+       const [a, b] = arg.split(':');
+       const company = b ? resolveCompany({ source: a, board: b }) : resolveCompany({ company: a });
+       slug = company.slug;
++      // A paused company is never crawled, even when its slug is named (server/companies.js PAUSING):
++      // refused here, before the crawl state is read or any request is made, whichever fetch runs.
++      const paused = pauseError(company);
++      if (paused) throw paused;
+       const beta = company.channel === 'beta';
+       const t0 = Date.now();
+       const stats = newStats();
+diff --git a/server/companies.js b/server/companies.js
+index 0a6b149..c541597 100644
+--- a/server/companies.js
++++ b/server/companies.js
+@@ -74,10 +74,12 @@ export function listCompanies({ channel = 'stable', includePaused = false } = {}
+  *     matrix (.github/scripts/beta-snapshots.mjs slugs), not merged into the beta artifact (the
+  *     merge removes a paused company's old files), not built into /beta/ and not on its company
+  *     list, the market comps or the share pages; the archive only ever sees what a crawl uploads;
+- *   - its adapter refuses to start before its first request (crawlBlock, UpstreamError code
+- *     'paused'), whoever calls it: scripts/snapshot.js <slug>, server/pipeline.js#fetchLive or the
+- *     probe's full mode; scripts/probe-bigtech.js also skips it in recon and refuses its career
+- *     hosts in raw mode;
++ *   - it is refused before its first request (UpstreamError code 'paused'), whoever asks:
++ *     server/pipeline.js#pauseError guards fetchLive, scripts/snapshot.js one() (so
++ *     `snapshot.js <slug>` too) and the probe's full mode, for every source (S-2 residual,
++ *     docs/REVIEW.md "beta review 2026-10-16"); the Amazon and Meta adapters also check crawlBlock
++ *     themselves; scripts/probe-bigtech.js also skips it in recon and refuses its career hosts in
++ *     raw mode;
+  *   - getCompany() still resolves it, so links to it get a plain "paused" message (server/index.js).
+  * To RESUME: delete the `paused` field and record the decision in the comment above the entry.
+  * Nothing else changes: the next 6-hourly snapshot.yml run crawls it, the merge, archive and
+diff --git a/server/pipeline.js b/server/pipeline.js
+index 1334743..c898763 100644
+--- a/server/pipeline.js
++++ b/server/pipeline.js
+@@ -19,7 +19,8 @@ import { fetchAmazon } from './sources/amazon.js';
+ import { fetchApple } from './sources/apple.js';
+ import { fetchGoogle } from './sources/google.js';
+ import { fetchMeta } from './sources/meta.js';
+-import { MAX_BYTES, MAX_BYTES_BUILTIN } from './sources/util.js';
++import { MAX_BYTES, MAX_BYTES_BUILTIN, UpstreamError } from './sources/util.js';
++import { crawlBlock, PAUSE_REASONS } from './companies.js';
+ import { normalizeJobs, relocateJobs, NORMALIZER_VERSION } from './normalize.js';
+ import { rekeyBoardJobs } from './keywords.js';
+ import { upgradeStoredJobs } from './sources/upgrade.js';
+@@ -44,12 +45,30 @@ export function maxBytesFor(company) {
+   return company && company.custom ? MAX_BYTES : MAX_BYTES_BUILTIN;
+ }
+ 
++/**
++ * The one pause guard every crawl passes (server/companies.js PAUSING; S-2 residual, docs/REVIEW.md
++ * "beta review 2026-10-16"): a company with `paused`, or whose source and board are a paused
++ * built-in's, gets an UpstreamError with code 'paused', before any request. Otherwise null.
++ * fetchLive and scripts/snapshot.js one() call it, so no adapter has to (Amazon and Meta still do).
++ */
++export function pauseError(company) {
++  if (!company) return null;
++  const blocked = company.paused
++    ? { slug: company.slug, paused: company.paused, reason: PAUSE_REASONS[company.paused] || String(company.paused) }
++    : crawlBlock(company.source, company.board);
++  if (!blocked) return null;
++  return new UpstreamError(`${blocked.slug}: paused (${blocked.paused}): ${blocked.reason}; not crawled (server/companies.js PAUSING)`, { code: 'paused' });
++}
++
+ /**
+  * Fetch live jobs for a company and normalize them (in the calling thread; used
+  * by the snapshot CLI). `opts.log` / `opts.stats` reach the beta adapters
+  * (progress lines, request counts). Adapters return RawJob[] or { jobs }.
++ * A paused company is refused before its first request (pauseError).
+  */
+ export async function fetchLive(company, opts = {}) {
++  const paused = pauseError(company);
++  if (paused) throw paused;
+   const adapter = ADAPTERS[company.source];
+   if (!adapter) throw new Error(`No adapter for source "${company.source}"`);
+   const extra = {};
+diff --git a/test/beta-security-review-2.test.js b/test/beta-security-review-2.test.js
+index 540a140..5f05cf3 100644
+--- a/test/beta-security-review-2.test.js
++++ b/test/beta-security-review-2.test.js
+@@ -45,7 +45,7 @@ test('S-1 (re-check): the beta merge copies only accepted crawls, never beta-cra
+ // The pause guard (server/companies.js crawlBlock) is called by the Amazon and Meta adapters only. A
+ // `paused` flag on any other built-in (Apple, whose terms have a similar clause; Google; the Eightfold
+ // boards; a stable Greenhouse board) does not stop `node scripts/snapshot.js <slug>` or fetchLive.
+-test('S-2 residual: a paused flag on ANY built-in stops fetchLive before its first request', OPEN, async () => {
++test('S-2 residual: a paused flag on ANY built-in stops fetchLive before its first request', async () => {
+   const { COMPANIES, getCompany } = await imp('server', 'companies.js');
+   const { fetchLive } = await imp('server', 'pipeline.js');
+   const realFetch = globalThis.fetch;
+diff --git a/test/beta-security-review.test.js b/test/beta-security-review.test.js
+index 7332dc6..3e0ecb4 100644
+--- a/test/beta-security-review.test.js
++++ b/test/beta-security-review.test.js
+@@ -38,49 +38,83 @@ function jobBlock(text, name) {
+ 
+ /* ------------------------------------------------------------------ S-2 */
+ 
+-test('S-2: scripts/snapshot.js never crawls a paused company, even when its slug is named', OPEN, async () => {
++// Fixed by fix-sec-3 (docs/process/fix-sec-3.md): one guard, server/pipeline.js#pauseError, in fetchLive and in
++// scripts/snapshot.js one(). Nothing is paused since 2026-10-11 (the user resumed Amazon and Meta), so each test
++// sets `paused` on a registry entry for its run and restores it; before the fix Amazon and Meta were the only
++// adapters that refused.
++
++/** Run `fn` with `paused: 'terms'` set on the named built-ins (the registry entries themselves), then restore them. */
++async function withPaused(slugs, fn) {
++  const { COMPANIES } = await imp('server', 'companies.js');
++  const saved = slugs.map((slug) => { const c = COMPANIES.find((x) => x.slug === slug); assert.ok(c, slug); return [c, Object.hasOwn(c, 'paused'), c.paused]; });
++  for (const [c] of saved) c.paused = 'terms';
++  try { return await fn(); } finally { for (const [c, had, v] of saved) { if (had) c.paused = v; else delete c.paused; } }
++}
++
++test('S-2: scripts/snapshot.js never crawls a paused company, even when its slug is named', async () => {
+   const { runSnapshot } = await imp('scripts', 'snapshot.js');
+   const dir = tmpDir();
+   const called = [];
+   const fetchLive = async (company) => { called.push(company.slug); return []; };
+-  const res = await runSnapshot(['amazon', 'meta'], {
++  const slugs = ['amazon', 'meta', 'apple', 'google', 'netflix', 'anthropic'];
++  const res = await withPaused(slugs, () => runSnapshot([...slugs, 'greenhouse:anthropic'], {
+     fetchLive, outDir: path.join(dir, 'snaps'), historyDir: path.join(dir, 'hist'), log: () => {}, error: () => {}, parallelBeta: false,
+-  });
++  }));
+   assert.deepEqual(called, [], `fetchLive was called for paused companies: ${called.join(', ')}`);
+-  assert.equal(res.failed, 2);
++  assert.equal(res.failed, slugs.length + 1);
+   for (const r of res.results) assert.match(r.error, /paused/i, `${r.slug}: ${r.error}`);
++  assert.deepEqual(fs.readdirSync(path.join(dir, 'snaps')), [], 'no snapshot written');
+ });
+ 
+-test('S-2: pipeline fetchLive refuses a paused company before any request', OPEN, async () => {
+-  const { fetchLive } = await imp('server', 'pipeline.js');
+-  const { getCompany } = await imp('server', 'companies.js');
++test('S-2: pipeline fetchLive refuses a paused company before any request (every built-in with an adapter)', async () => {
++  const { fetchLive, ADAPTERS } = await imp('server', 'pipeline.js');
++  const { COMPANIES, getCompany } = await imp('server', 'companies.js');
++  const slugs = COMPANIES.filter((c) => ADAPTERS[c.source]).map((c) => c.slug);
+   const realFetch = globalThis.fetch;
+   const hosts = [];
+-  globalThis.fetch = async (u) => { hosts.push(new URL(String(u)).host); return new Response('no', { status: 403 }); };
++  const leaks = [];
++  globalThis.fetch = async (u) => { hosts.push(new URL(String((u && u.url) || u)).host); return new Response('no', { status: 403 }); };
+   try {
+-    for (const slug of ['amazon', 'meta']) {
+-      const c = getCompany(slug);
+-      assert.equal(c.paused, 'terms', `${slug} is expected to be paused`);
+-      let err = null;
+-      try { await fetchLive(c); } catch (e) { err = e; }
+-      assert.ok(err, `${slug}: fetchLive resolved`);
+-      assert.equal(err.code, 'paused', `${slug}: expected code "paused", got ${err.code} (${err.message})`);
+-    }
+-    assert.deepEqual(hosts, [], `requests were made to ${hosts.join(', ')}`);
++    await withPaused(slugs, async () => {
++      for (const slug of slugs) {
++        let err = null;
++        try { await fetchLive(getCompany(slug)); } catch (e) { err = e; }
++        if (!err || err.code !== 'paused') leaks.push(`${slug}: ${err ? `code ${err.code} (${err.message})` : 'resolved'}`);
++      }
++    });
++    assert.ok(slugs.length >= 12, `${slugs.length} built-ins`);
++    assert.deepEqual(leaks, [], `not refused as paused:\n  ${leaks.join('\n  ')}`);
++    assert.deepEqual(hosts, [], `requests were made to ${[...new Set(hosts)].join(', ')}`);
+   } finally {
+     globalThis.fetch = realFetch;
+   }
+ });
+ 
+-test('S-2: the big-tech probe never targets a paused company or its careers host by default', OPEN, async () => {
+-  const src = fs.readFileSync(path.join(ROOT, 'scripts', 'probe-bigtech.js'), 'utf8');
+-  const { getCompany } = await imp('server', 'companies.js');
+-  const slugs = JSON.parse(/const SLUGS = (\[[^\]]*\])/.exec(src)[1].replace(/'/g, '"'));
+-  const paused = slugs.filter((s) => getCompany(s)?.paused);
+-  assert.deepEqual(paused, [], `probe-bigtech.js SLUGS (the default "all") includes paused companies: ${paused.join(', ')}`);
+-  const hosts = /const HOSTS = new Set\(\[([\s\S]*?)\]\)/.exec(src)[1];
+-  for (const h of ['www.amazon.jobs', 'amazon.jobs', 'www.metacareers.com', 'metacareers.com']) {
+-    assert.ok(!hosts.includes(`'${h}'`), `raw probe requests may still reach the paused careers host ${h}`);
++test('S-2: the big-tech probe never targets a paused company or its careers host by default', async () => {
++  const probe = await imp('scripts', 'probe-bigtech.js');
++  const { COMPANIES } = await imp('server', 'companies.js');
++  const { AMAZON_ORIGIN } = await imp('server', 'sources', 'amazon.js');
++  const { APPLE_ORIGIN } = await imp('server', 'sources', 'apple.js');
++  const { GOOGLE_ORIGIN } = await imp('server', 'sources', 'google.js');
++  const { META_ORIGIN } = await imp('server', 'sources', 'meta.js');
++  const { EIGHTFOLD_BOARDS } = await imp('server', 'sources', 'eightfold.js');
++  // Every host each adapter requests: its origin (robots.txt, the list, the postings).
++  const adapterHosts = {
++    amazon: [AMAZON_ORIGIN], apple: [APPLE_ORIGIN], google: [GOOGLE_ORIGIN], meta: [META_ORIGIN],
++    ...Object.fromEntries(Object.entries(EIGHTFOLD_BOARDS).map(([slug, t]) => [slug, [`https://${t.host}`]])),
++  };
++  for (const slug of probe.SLUGS.filter((s) => COMPANIES.some((c) => c.slug === s))) {
++    const registry = COMPANIES.map((c) => (c.slug === slug ? { ...c, paused: 'terms' } : c));
++    const all = probe.probeTargets([], registry);
++    assert.ok(!all.run.includes(slug) && all.skipped.some((x) => x.slug === slug), `${slug}: the default (all) run still targets it`);
++    assert.deepEqual(probe.probeTargets([slug], registry).run, [], `${slug}: --companies ${slug} still targets it`);
++    for (const h of [...(adapterHosts[slug] || []).map((u) => new URL(u).host), ...probe.CAREER_HOSTS[slug]]) {
++      assert.equal(probe.pausedHost(h, registry), slug, `${slug} paused: raw mode may still request its careers host ${h}`);
++    }
++    // Pausing one company never blocks another's careers hosts.
++    for (const [other, hosts] of Object.entries(probe.CAREER_HOSTS)) {
++      if (other !== slug) for (const h of hosts) assert.equal(probe.pausedHost(h, registry), null, `${slug} paused blocks ${other}'s ${h}`);
++    }
+   }
+ });
+ 
+-- 
+2.43.0
+
