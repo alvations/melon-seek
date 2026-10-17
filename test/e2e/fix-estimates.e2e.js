@@ -195,7 +195,8 @@ export function registerFixEstimatesTests(suite) {
     const text = (await card.innerText()).replace(/\s+/g, ' ');
     assert(!/xAI\s*\d+\s*\$5\dK/.test(text), `xAI business operations still shows internship pay: "${text.slice(0, 300)}"`);
     // fix-density: the foot is in the card caption's Details list.
-    assert(/Internships, fixed-term programmes and on-target earnings/.test(await card.evaluate((e) => e.textContent)), 'foot does not say what is left out');
+    // MR-28 (fix-data-3): the foot also names stated minimums, shift-inclusive and part-time hourly pay.
+    assert(/Internships, fixed-term programmes(?:,| and) on-target earnings/.test(await card.evaluate((e) => e.textContent)), 'foot does not say what is left out');
     await shot(page, 'after-p10-compare-bizops');
     await fam.selectOption('swe');
     const levels = await lvl.locator('option').allInnerTexts();

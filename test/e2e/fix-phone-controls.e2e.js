@@ -420,8 +420,10 @@ export function registerFixPhoneControlsTests(suite) {
       }
       if (await showAll(page, sel.split(' label.check')[0])) await sleep(400);
       const rows = await page.evaluate(shownRows, sel);
-      assert(rows.some((r) => /--Technical$/.test(r.full)) && rows.some((r) => /--Non-Tech$/.test(r.full)), `the build has Amazon's two "Project/Program/Product Management--…" departments (${rows.length} rows)`);
-      const twin = rows.find((r) => /--Technical$/.test(r.full));
+      // fix-data-3 (UX-32) names them "Technical Project, Program and Product Management" and "Non-Technical …"; either form.
+      const isTech = (r) => /--Technical$|^Technical Project\W+Program/.test(r.full), isNon = (r) => /--Non-Tech$|^Non-Technical Project\W+Program/.test(r.full);
+      assert(rows.some(isTech) && rows.some(isNon), `the build has Amazon's two "Project/Program/Product Management--…" departments (${rows.length} rows)`);
+      const twin = rows.find(isTech);
       await page.evaluate(({ sel, full }) => [...document.querySelectorAll(sel)].find((e) => e.textContent.replace(/\s+/g, ' ').trim() === full)?.scrollIntoView({ block: 'center' }), { sel, full: twin.full });
       await shot(page, `M-40-${slug(tag(d))}-amazon`);
       assertRows(rows, `${tag(d)} Amazon`);

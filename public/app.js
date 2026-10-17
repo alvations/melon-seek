@@ -4357,7 +4357,17 @@ function payPlacesLine(s, job = null) {
   const unit = job ? payUnit(job) : null;
   const pay = (r) => (unit ? unit.fmt(Number(r.min), Number(r.max ?? r.min)) : rangeText(r, s.currency));
   // fix-pay-at-place: one line per range, with no place name cut off (rangeName); the pay block's Details list every place.
-  const el = tierList('Pay by place', rs.map((r) => [rangeName(r), pay(r)]));
+  // D-39: ranges posted for the same places (Amazon's two hourly rates for Boardman, Hermiston and Umatilla) share one
+  // row that names the places once and gives each posted range, "or" between them.
+  const rows = new Map();
+  for (const r of rs) {
+    const k = rangeLabel(r);
+    if (!rows.has(k)) rows.set(k, { name: rangeName(r), pays: [] });
+    const p = pay(r);
+    if (!rows.get(k).pays.includes(p)) rows.get(k).pays.push(p);
+  }
+  const el = tierList('Pay by place', [...rows.values()].map(({ name, pays }) => [name, pays.length > 1
+    ? pays.map((p, i) => h('span', { class: 'd-tier-alt' }, i ? `or ${p}` : p)) : pays[0]]));
   el.classList.add('d-sal-places');
   if (rs.some((r) => rangeName(r) !== rangeLabel(r))) el.dataset.note = `Pay by place, every place: ${rs.map((r) => `${rangeLabel(r)} ${pay(r)}`).join('; ')}.`;
   return el;

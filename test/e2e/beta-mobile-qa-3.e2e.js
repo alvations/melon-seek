@@ -239,7 +239,8 @@ export function registerBetaMobileQa3Tests(suite) {
       await page.goto('about:blank');
       await go(`c=${slug}&q=${encodeURIComponent(j.title)}`, 800);
       await sheetTo(page, 'full');
-      const c = await page.evaluate((id) => { const card = document.querySelector(`#resultsList .card[data-id="${CSS.escape(id)}"]`); const p = card?.querySelector('.sal-pill'); if (!p) return null; const r = p.getBoundingClientRect(), cr = card.getBoundingClientRect(); return { text: p.innerText.replace(/\s+/g, ' ').trim(), cut: p.scrollWidth > p.clientWidth + 1, inside: r.right <= cr.right + 0.5 }; }, j.id);
+      // UX-52 (fix-pay-at-place): "2 levels" and "N places" are a muted line under the pill (.sal-sub); both must fit.
+      const c = await page.evaluate((id) => { const card = document.querySelector(`#resultsList .card[data-id="${CSS.escape(id)}"]`); const p = card?.querySelector('.sal-pill'); if (!p) return null; const sub = card.querySelector('.sal-sub'); const cr = card.getBoundingClientRect(); const els = [p, sub].filter(Boolean); return { text: els.map((e) => e.innerText.replace(/\s+/g, ' ').trim()).join(' · '), cut: els.some((e) => e.scrollWidth > e.clientWidth + 1), inside: els.every((e) => e.getBoundingClientRect().right <= cr.right + 0.5) }; }, j.id);
       if (!c) { bad.push(`${j.id}: no card for "${j.title}"`); continue; }
       if (!want.test(c.text) || c.cut || !c.inside) bad.push(`${j.id}: pill "${c.text}" (want ${want}${c.cut ? ', cut off' : ''}${c.inside ? '' : ', outside its card'})`);
     }
