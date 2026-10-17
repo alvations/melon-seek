@@ -1,7 +1,7 @@
 {
  "format": "melon-archive",
  "schemaVersion": 1,
- "updatedAt": "2026-10-17T12:56:29.005Z",
+ "updatedAt": "2026-10-17T12:57:01.761Z",
  "generator": "scripts/archive@1ef0646b6f16aca8f215cf21e368185bddcf7b89",
  "tables": {
   "audit/flags": 1315,
@@ -16,8 +16,8 @@
   "jobs.versions": 126725,
   "ledger/entries": 79043,
   "observations": 1203,
-  "reference.files": 304,
-  "reference/index": 304
+  "reference.files": 309,
+  "reference/index": 309
  },
  "files": {
   "audit/flags/2026-10.jsonl": {
@@ -573,9 +573,9 @@
   },
   "reference/index/2026.jsonl": {
    "kind": "append",
-   "bytes": 139866,
-   "sha256": "3aa3f0a0c4634733b3d153e0c1b162429051275b0591d2e3d9fd7de3b52ca811",
-   "rows": 304
+   "bytes": 141902,
+   "sha256": "04f5c8e2874e94244de94dc0ffc5c1bae1d9af145f8829fb8c3188bca0b5bbe4",
+   "rows": 309
   },
   "reference/jobs-aggregates/2026-10-09.json": {
    "kind": "immutable",
@@ -787,6 +787,11 @@
    "bytes": 2178,
    "sha256": "3a4a768b7f85d8af4f860b94225f1984dac125dd4c20ed20150d75434742793f"
   },
+  "reference/repo.companies/2026-10-17.json": {
+   "kind": "immutable",
+   "bytes": 2745,
+   "sha256": "ca91bb92e443b0a242d5530e1d0299abb0f563c01a6fa01ad75c87728f2988d6"
+  },
   "reference/repo.compstimate-policy/2026-10-10.json": {
    "kind": "immutable",
    "bytes": 3003,
@@ -937,6 +942,11 @@
    "bytes": 760427,
    "sha256": "6c1bbd42f656588e3e80eac19cfad8624cbf0036d4f7acd4e506910d19a1da90"
   },
+  "reference/repo.freshness-registry/2026-10-17.json": {
+   "kind": "immutable",
+   "bytes": 760602,
+   "sha256": "e609a220b74ce645ded70c8ad660f2855d0103c622086b35c5a23f3104833017"
+  },
   "reference/repo.fx-juice/2026-07-01.json": {
    "kind": "immutable",
    "bytes": 463,
@@ -1027,6 +1037,11 @@
    "bytes": 315,
    "sha256": "23e89c72c12fb6fce556b768942d284136c0591b30b118691077d2eb0edeef13"
   },
+  "reference/repo.market-policy/2026-10-17.json": {
+   "kind": "immutable",
+   "bytes": 380,
+   "sha256": "3f7fdc0c7fe99e4dbbc8a024018dc07f97b1ed232c2cb40f7ff288437754a509"
+  },
   "reference/repo.normalizer/2026-10-10.json": {
    "kind": "immutable",
    "bytes": 36,
@@ -1061,6 +1076,11 @@
    "kind": "immutable",
    "bytes": 37,
    "sha256": "35723eff069caf7fca0dbe5ca403cd63ca4d7459aef2d63ff9a340f54f6b5f35"
+  },
+  "reference/repo.normalizer/2026-10-17.json": {
+   "kind": "immutable",
+   "bytes": 37,
+   "sha256": "61f798462d288b1fb6376ad9fe64c0b677942790785c331c04f7ef55457a37f9"
   },
   "reference/repo.roles/2026-10-10.json": {
    "kind": "immutable",
@@ -1121,6 +1141,11 @@
    "kind": "immutable",
    "bytes": 3154,
    "sha256": "68fc1e08c7cdc56237c3e795341f4dc4ceab92ca8094be50888fe86b67da9c5e"
+  },
+  "reference/repo.salary-policy/2026-10-17.json": {
+   "kind": "immutable",
+   "bytes": 3238,
+   "sha256": "9f869fc32c4406e0353899db36ceb707914142ede961d004774a5c397cd8ad07"
   },
   "reference/repo.tax-probe/2026-10-10.json": {
    "kind": "immutable",

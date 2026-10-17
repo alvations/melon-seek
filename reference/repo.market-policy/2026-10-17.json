@@ -1,0 +1,22 @@
+{
+ "BASIS": "posted base pay ranges",
+ "COLUMNS": [
+  "company",
+  "family",
+  "seniority",
+  "n",
+  "p25",
+  "median",
+  "p75"
+ ],
+ "COUNTRY_MIN_N": 10,
+ "MARKET_FORMAT": "melon-market-1",
+ "MID_STATED": "Mid-level",
+ "MIN_N": 3,
+ "NOT_BASE_KINDS": [
+  "minimum",
+  "shiftPay",
+  "partTime"
+ ],
+ "OTE_BASIS": "posted on-target earnings ranges (base plus commission at target)"
+}
