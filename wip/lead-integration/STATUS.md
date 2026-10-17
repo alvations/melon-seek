@@ -1,51 +1,58 @@
 # WIP checkpoint: lead-integration
 
 - Worktree: `/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-int`
-- Base (on claude/stoic-ride-54ddxp): `b6250b3ca783529311ec25dbf6eac82c1b1cc29a`
-- Head: `e97aa8aff468c0b0e379dfb165376073d5be92d8`
+- Base (on claude/stoic-ride-54ddxp): `228aed732384c0c6e1b94b673bd6d56c31ec9beb`
+- Head: `a2a86cf22756e2e05a034576f1a046629724e4ee`
 - Restore: `bash scripts/cycle/restore-wip.sh lead-integration <new worktree dir>`
 
 ## Commits since the base
 ```
-e97aa8a Fix app [P-5]: expected converted figures follow the current FX rates (the refresh moved £80,000 from $108K to $107K); trap noted
-d52341d fix-touch-tips: log (sizes checked, gate results), the lead's phone-size message in the prompt
-5e1c457 fix-phone-controls: log with the gate's results (npm test 0 fail, full e2e no new failures, 98/98 on the phone-size matrix)
-b756042 fix-phone-controls: before / after screenshots per finding, phone and desktop, light and dark (shrunk, 3.1 MB)
-3035c1c WIP fix-phone-controls: tests on the shared phone-size matrix, the WebKit step, fix-density's stats-line guard for UX-57, the Insights field on wide touch screens, log and shot scripts
-dad860f WIP fix-phone-controls: preview cards open at once and take the keys (M-43, A-11), checklist names told apart and named (M-40, A-10), Insights field above the keyboard (M-47), closed side sheet inert (UX-56), stats Details folded into the chart notes (UX-57); e2e on the phone-size matrix
-4e7fd29 fix-touch-tips: tips stay inside the visual viewport and the map's visible part (Razr cover, Razr landscape); size matrix taps in screen px, lowers the sheet, says what covers an unreachable item
-766ae7c ui.e2e: the drawer section-order test strips the new input-neutral keyword words (fix-touch-tips patch)
-26436d1 WIP fix-touch-tips: tip checks on every phone size (phone-sizes.mjs); map tooltip no bigger than a small map
-8d647de WIP fix-touch-tips: household lines fit 320 px phones, drop unused inputKind, before/after shots at 390 and 360 in both themes
-129d990 WIP fix-touch-tips: log, after screenshots, ui.e2e patch for the Keywords words, e2e size switch and drawer/map shots
-afba2d1 WIP fix-touch-tips: one touch rule for every floating tip (comps, chart, strip, Insights, Compare, map), input-worded hints, touch-reachable words
-dafefd8 WIP fix-touch-tips: failing e2e for every sticky tip on touch (iPhone sequence), prompt, before screenshots
+a2a86cf fix-pay-at-place: price every place at its posted pay (payAt) in the chart, map, stats line, Compstimate, Insights and drawer (WIP)
+2a86425 fix-pay-at-place: payAt(job, place) helper in features/shared.js (WIP, no callers yet)
+1dd9bc8 fix-phone-text: log (state, verification before and after, gaps); the gate is clean
+d43dcea fix-phone-text: before and after screenshots (phone and desktop, light and dark), shrunk
+bbaae7d WIP fix-phone-text: fitLine touches only lines that don't fit; shorter always-open line; compare tests read the note's Details
+30f6069 WIP fix-phone-text: the basis line is the Pay estimate's explainer; badge line spacing; a popover test reads its Details
+a5db674 WIP fix-phone-text: fitLine shared in viz/note.js; the comps line, the estimate's basis and accuracy keep their full words where they fit
+ef4d46e WIP fix-phone-text: the tagline fits its box at every width (fitTagline); desktop guard at 1024, 1280, 1440; empty-state Details described
+7bd9ff2 WIP fix-phone-text: log, WebKit step, narrow-screen rule, viz-lane allow-list, tagline and search hint under 360 px
+6a7de9e WIP fix-phone-text: drawer lines, badge popover, Insights tiles and rows, stats line, search placeholder; guard on every phone size
+0adf8ba WIP fix-phone-text: one-line captions (Same role elsewhere, Pay estimate, Juice explainer, filter notes, More), Details described (A-9)
+25ca8cb WIP fix-phone-text: prompt, red tests (one per ID) and the density guard
+5902b17 WIP fix-phone-sizes: State after the container restart
+28a18a8 fix-phone-sizes: the Razr cover screen's map before and after; log for the lead's two Razr findings
+2c378b8 fix-phone-sizes: the Razr cover screen's map shows its pins (no empty toolbar band, no zoom buttons, the Pay | Juice switch only); the matrix checks the sheet's peek row, the screen's own size, a zoomed or panned page and covered pins
+becb20b fix-phone-sizes: final npm test and suite-runner numbers in the log
+5f0bc7f fix-phone-sizes: log with the e2e results and State
+d2bb4b3 fix-phone-sizes: before and after screenshots for every size in the matrix (shrunk), verification table
+debebf5 WIP fix-phone-sizes: one name-sweep test per board; dual-screen rules only from 861 px
+79a7c1a WIP fix-phone-sizes: the matrix measures the placeholder in the field's font; log decisions
+68fe621 WIP fix-phone-sizes: landscape means landscape, short screens, the name whole at every width, the 280 px toolbar and tagline, cards and Apply fit, map scale, dual screens
+b077559 WIP fix-phone-sizes: phone matrix guard (every size in phone-sizes.mjs, 3 boards), prompt and log
+93193d0 fix-data-3: log with the gate results; M-40 test patch for the renamed Amazon departments
+3983071 WIP fix-data-3: log verification numbers; MR-28 counts
+47c316d WIP fix-data-3: e2e title wording
+2fea155 fix-data-3: old links resolve on a hash change too; shift-pay Juice line fits 280 px; registry and fixtures for norm-12
+d8c317b WIP fix-data-3: departments renamed at read time without a per-job field; e2e tests; docs
+c8bde7c fix-data-3: places (D-41, D-42, V-45, Town and Country, old location links) and department names (UX-32); norm-12
+84cf5de fix-data-3: no Juice at a place the posting gives no pay row of its own (lead decision 2026-10-16)
+fb37fe9 fix-data-3: MR-28 minimums, shift-inclusive and part-time hourly figures leave the base-pay cells; one Juice line
+ca1e008 fix-data-3: D-38 a Fellow rank is Staff+ and its posted pay is shown; Data Residency is not a residency
+6f6add6 WIP fix-data-3: prompt and log skeleton
+f8f296b fix-sec-3: log: gate results (npm test, full e2e versus an f53a270 baseline)
+c7f2d49 fix-sec-3: REVIEW.md: S-2, S-4, S-9 and V12/V14 residuals and S-10 marked fixed, with commits
+e394553 fix-sec-3: process log (State, decisions, replay steps)
+edcdd10 fix-sec-3: S-9 residual: the refresh commits FX values only in code files, and never test code
+3ef8b33 fix-sec-3: V12 residual: read-only checkouts keep no token; idb pinned in the iOS Simulator job
+204cdcd fix-sec-3: V14 residual: a custom board never shows a built-in company's name
+4e8fb5b fix-sec-3: S-10: bounded Meta, job-family and DOL parsers (linear on hostile text, same output on real data)
+e81f138 fix-sec-3: S-4 residual: Amazon links on-host, beta links only on their company's hosts, no dead Apply button
+bc95d97 fix-sec-3: S-2 residual: one pause guard for every crawl (fetchLive, snapshot.js one(), probe full mode)
 ```
 
 ## Uncommitted and new files
 ```
- M docs/screenshots/chart.png
- M docs/screenshots/dark-drawer.png
- M docs/screenshots/dark.png
- M docs/screenshots/drawer-juice.png
- M docs/screenshots/drawer.png
- M docs/screenshots/insights.png
- M docs/screenshots/map-juice.png
- M docs/screenshots/map.png
- M docs/screenshots/mobile.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-360x640-with-the-keyboard-up-300-px-.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-iPhone-SE-Safari-375x548.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390-with-5-saved-searches.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-29-company-menu-focus.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-30-saved-searches-loaded.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-31-empty-message-half-sheet.png
- M docs/screenshots/qa-mobile-beta/e2e-M-19-sort-while-scrolled.png
- M docs/screenshots/qa-mobile-beta/e2e-M-21-company-menu.png
- M docs/screenshots/qa-mobile-beta/e2e-M-22-paused-board.png
- M docs/screenshots/qa-mobile-beta/e2e-M-24-keyboard-location-search.png
- M docs/screenshots/qa-mobile-beta/e2e-M-27-topbar-360.png
- M docs/screenshots/qa-mobile/e2e-landscape-map.png
+UU public/viz/chart.js
 ```
 
 ## Left out (not in untracked.tgz)

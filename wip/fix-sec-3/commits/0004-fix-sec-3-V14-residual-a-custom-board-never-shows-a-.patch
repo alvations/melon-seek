@@ -1,7 +1,7 @@
 From 1a9870dca366d74844df6fafcb335a6f19952319 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 02:02:52 +0000
-Subject: [PATCH 4/8] fix-sec-3: V14 residual: a custom board never shows a
+Subject: [PATCH 4/9] fix-sec-3: V14 residual: a custom board never shows a
  built-in company's name
 
 server/companies.js#customBoardName: a custom board's name (?name=, a saved name or its titled slug)

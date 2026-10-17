@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-af40fcca54b57983d`
 - Base (on claude/stoic-ride-54ddxp): `ff6a3d0648f338535010fbfc7a3804c41f702344`
-- Head: `4b902b14de92c8744a209d126573262f6ea7007d`
+- Head: `306768d4789c5bbd9ab6fa06626d7c9d9675b6f4`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-pay-at-place <new worktree dir>`
 
 ## Commits since the base
 ```
+306768d fix-pay-at-place: log the final gate (full e2e 389/394, T21 under load passes alone); the Juice patch is a reference (fix-data-3 0ae184e)
 4b902b1 fix-pay-at-place: before/after screenshots (shrunk, 1.2 MB)
 b2b992c fix-pay-at-place: log timings and e2e results
 6fb7f11 fix-pay-at-place: cheaper per-place pricing (no copies for one-range postings, a covered list instead of a Map), bounded phone-check steps
@@ -21,29 +22,6 @@ ea3a2b6 fix-pay-at-place: UX-52 place count as a muted line under the pill; draw
 
 ## Uncommitted and new files
 ```
- M docs/process/fix-pay-at-place.md
- M docs/screenshots/chart.png
- M docs/screenshots/dark-drawer.png
- M docs/screenshots/dark.png
- M docs/screenshots/drawer-juice.png
- M docs/screenshots/drawer.png
- M docs/screenshots/insights.png
- M docs/screenshots/map-juice.png
- M docs/screenshots/map.png
- M docs/screenshots/mobile.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-360x640-with-the-keyboard-up-300-px-.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-iPhone-SE-Safari-375x548.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390-with-5-saved-searches.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-29-company-menu-focus.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-30-saved-searches-loaded.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-31-empty-message-half-sheet.png
- M docs/screenshots/qa-mobile-beta/e2e-M-19-sort-while-scrolled.png
- M docs/screenshots/qa-mobile-beta/e2e-M-21-company-menu.png
- M docs/screenshots/qa-mobile-beta/e2e-M-22-paused-board.png
- M docs/screenshots/qa-mobile-beta/e2e-M-24-keyboard-location-search.png
- M docs/screenshots/qa-mobile-beta/e2e-M-27-topbar-360.png
- M docs/screenshots/qa-mobile/e2e-landscape-map.png
 ```
 
 ## Left out (not in untracked.tgz)

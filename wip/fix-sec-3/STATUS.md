@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-ab8feec32a367855e`
 - Base (on claude/stoic-ride-54ddxp): `f53a2700e30e7c2d1a2adf3e2b484bcbeb098323`
-- Head: `8c808dac84a9109ba58d3697ccde2b2d45ef650a`
+- Head: `668e087c4122f7b30cb111e7a0933acecb000ed2`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-sec-3 <new worktree dir>`
 
 ## Commits since the base
 ```
+668e087 fix-sec-3: log: gate results (npm test, full e2e versus an f53a270 baseline)
 8c808da fix-sec-3: REVIEW.md: S-2, S-4, S-9 and V12/V14 residuals and S-10 marked fixed, with commits
 95f5efb fix-sec-3: process log (State, decisions, replay steps)
 928ab7f fix-sec-3: S-9 residual: the refresh commits FX values only in code files, and never test code

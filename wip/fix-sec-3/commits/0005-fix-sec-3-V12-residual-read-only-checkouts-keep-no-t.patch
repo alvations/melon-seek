@@ -1,7 +1,7 @@
 From 94797717fcba1955371bad26112d77df9d9f8516 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 02:06:09 +0000
-Subject: [PATCH 5/8] fix-sec-3: V12 residual: read-only checkouts keep no
+Subject: [PATCH 5/9] fix-sec-3: V12 residual: read-only checkouts keep no
  token; idb pinned in the iOS Simulator job
 
 - persist-credentials: false on all 16 checkouts of jobs that do not push with the checkout's token

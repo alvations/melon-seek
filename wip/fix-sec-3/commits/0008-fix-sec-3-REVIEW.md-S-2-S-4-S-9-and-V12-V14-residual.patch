@@ -1,7 +1,7 @@
 From 8c808dac84a9109ba58d3697ccde2b2d45ef650a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 02:51:01 +0000
-Subject: [PATCH 8/8] fix-sec-3: REVIEW.md: S-2, S-4, S-9 and V12/V14 residuals
+Subject: [PATCH 8/9] fix-sec-3: REVIEW.md: S-2, S-4, S-9 and V12/V14 residuals
  and S-10 marked fixed, with commits
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1,0 +1,493 @@
+From e81f138990c2f76531cf4dda24a62df7f0bebe0e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 01:07:15 +0000
+Subject: [PATCH 02/41] fix-sec-3: S-4 residual: Amazon links on-host, beta
+ links only on their company's hosts, no dead Apply button
+
+- server/sources/amazon.js#amazonPostingUrl: the API's job_path is kept verbatim only when the joined
+  URL is https on www.amazon.jobs with no userinfo; else /en/jobs/<id>.
+- server/normalize.js#postingUrl(u, company): a beta built-in's link must be https, with no userinfo or
+  port, on its own registry entry's postingHosts / postingPrefixes (server/companies.js#postingRule).
+  Real links of every beta board are unchanged (fixtures; 37,619 links in today's crawl).
+- scripts/links-policy.js builds BETA_POSTING_HOSTS / _PREFIXES from those entries (same lists); the
+  stable site's lib/companies.js drops beta entries, so no beta host ships there.
+- public/app.js: a posting with no http(s) link has no Apply button; the drawer foot says
+  "No link to the posting".
+Tests: S-4 residual un-todo'd; test/fix-sec-3.test.js; test/e2e/fix-sec-3.e2e.js (registered).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit fe41715a9ae0adf66f5d0a6cf125e19fed614ba7)
+---
+ docs/CONTRACT.md                    |   8 +-
+ public/app.js                       |   3 +
+ scripts/e2e.js                      |   2 +
+ scripts/links-policy.js             |  18 ++---
+ server/companies.js                 |  29 +++++--
+ server/normalize.js                 |  32 +++++++-
+ server/sources/amazon.js            |  20 ++++-
+ test/beta-security-review-2.test.js |   2 +-
+ test/e2e/fix-sec-3.e2e.js           |  60 ++++++++++++++
+ test/fix-sec-3.test.js              | 116 ++++++++++++++++++++++++++++
+ 10 files changed, 264 insertions(+), 26 deletions(-)
+ create mode 100644 test/e2e/fix-sec-3.e2e.js
+ create mode 100644 test/fix-sec-3.test.js
+
+diff --git a/docs/CONTRACT.md b/docs/CONTRACT.md
+index b60774e..a4d52b2 100644
+--- a/docs/CONTRACT.md
++++ b/docs/CONTRACT.md
+@@ -633,7 +633,13 @@ Grosse Bockenheimer Strasse (Frankfurt), Fukuoka Tenjin, "Antara, Mexico" (Mexic
+ **Eightfold (`server/sources/eightfold.js`):** twice-escaped numeric character references are decoded
+ (`undoubleCharRefs`, VT-13); posting links are https on the tenant host, else the canonical
+ `https://<host>/careers/job/<id>` (S-4). **`normalizeJob`** keeps a posting `url` only when it is an
+-absolute http(s) URL, else `null` (`postingUrl`, S-4).
++absolute http(s) URL, else `null` (`postingUrl`, S-4). For a beta built-in it must also be https, with no
++user name, password or port, on that company's own posting hosts (its registry entry's `postingHosts` /
++`postingPrefixes`, `server/companies.js#postingRule`; `scripts/links-policy.js` `BETA_POSTING_HOSTS` /
++`_PREFIXES` are built from them, and the stable site's `lib/companies.js` ships none); Amazon's `job_path` is
++kept only when it stays on `www.amazon.jobs` (`amazonPostingUrl`), else the posting's `/en/jobs/<id>` page.
++A posting with no link shows "No link to the posting" in the drawer instead of an Apply button (S-4 residual,
++fix-sec-3).
+ 
+ **Parser limits (S-3):** `parseSalary` reads at most `MAX_PAY_TEXT` (40,000) characters and
+ `MAX_PAY_AMOUNTS` (1,000) amounts, finds clause ends once per text and reads at most 600 characters each
+diff --git a/public/app.js b/public/app.js
+index 2caa246..1fdc1c4 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -4453,6 +4453,8 @@ function drawerContent(job) {
+     }) : [h('li', { class: 'muted' }, 'Not listed')])));
+ 
+   const foot = h('div', { class: 'drawer-foot' },
++    // S-4 residual: a posting whose link was dropped (not http(s), or off its company's own hosts) has no Apply button.
++    !applyHost(job.url) ? h('p', { class: 'muted', style: 'flex:1;margin:0;align-self:center' }, 'No link to the posting') :
+     h('a', { class: 'btn btn--primary btn--lg apply', href: job.url, target: '_blank', rel: 'noopener noreferrer', title: `Opens ${applyHost(job.url) || 'the posting'} in a new tab` },
+       // Demo jobs link to the real board index, not to a real posting — say so. I-3: name the company, not the job-board system.
+       h('span', { class: 'apply-label' }, data.mode === 'demo' && !MOCK ? `Open ${coName}’s real job board` : `Apply on ${coName}’s careers site`, applyHost(job.url) ? h('span', { class: 'apply-host' }, applyHost(job.url)) : null), h('span', { html: ICON.ext })),
+@@ -4652,6 +4654,7 @@ function copyLink() {
+ }
+ 
+ function applyHost(u) {
++  if (!/^https?:\/\//i.test(String(u || ''))) return ''; // no link, or not an absolute http(s) one (S-4 residual)
+   const x = safeUrl(u);
+   if (x === '#') return '';
+   try { return new URL(x).hostname.replace(/^www\./, ''); } catch { return ''; }
+diff --git a/scripts/e2e.js b/scripts/e2e.js
+index 1640b6f..42d8883 100644
+--- a/scripts/e2e.js
++++ b/scripts/e2e.js
+@@ -39,6 +39,7 @@ import { registerBetaVizReviewTests2 } from '../test/e2e/beta-viz-review-2.e2e.j
+ import { registerBetaUxReview2Tests } from '../test/e2e/beta-ux-review-2.e2e.js';
+ import { registerFixTouchTipsTests } from '../test/e2e/fix-touch-tips.e2e.js';
+ import { registerFixPhoneControlsTests } from '../test/e2e/fix-phone-controls.e2e.js';
++import { registerFixSec3Tests } from '../test/e2e/fix-sec-3.e2e.js';
+ 
+ const args = new Set(process.argv.slice(2));
+ const apiOnly = args.has('--api-only');
+@@ -103,6 +104,7 @@ if (!apiOnly) {
+   registerBetaUxReview2Tests(suite);
+   registerFixTouchTipsTests(suite);
+   registerFixPhoneControlsTests(suite);
++  registerFixSec3Tests(suite);
+ }
+ 
+ let results;
+diff --git a/scripts/links-policy.js b/scripts/links-policy.js
+index e47e5aa..3c8e37d 100644
+--- a/scripts/links-policy.js
++++ b/scripts/links-policy.js
+@@ -24,6 +24,7 @@
+ //      (scripts/methodology.js gives each one a home there).
+ import fs from 'node:fs';
+ import path from 'node:path';
++import { COMPANIES } from '../server/companies.js';
+ 
+ // Big-tech career sites (beta channel only, docs/CONTRACT.md "v3 additions"): the
+ // posting pages ("Apply" links) of the beta companies, as the adapters in
+@@ -31,18 +32,11 @@ import path from 'node:path';
+ // are allowed whole; a shared host only under its careers path (BETA_POSTING_PREFIXES).
+ // Tesla is not listed: its site blocks plain requests, so it is not on the beta site.
+ // The stable site never links to any of them (scripts/build-static.js#betaLeaks).
+-export const BETA_POSTING_HOSTS = Object.freeze([
+-  'careers.google.com', // Google's former careers host (postings: BETA_POSTING_PREFIXES)
+-  'apply.careers.microsoft.com', 'jobs.careers.microsoft.com', 'careers.microsoft.com', // Microsoft (Eightfold)
+-  'www.metacareers.com', // Meta
+-  'jobs.apple.com', // Apple
+-  'explore.jobs.netflix.net', 'jobs.netflix.com', // Netflix (Eightfold)
+-  'www.amazon.jobs', // Amazon
+-  'jobs.nvidia.com', 'nvidia.wd5.myworkdayjobs.com', // NVIDIA (Eightfold; applications on Workday)
+-]);
+-export const BETA_POSTING_PREFIXES = Object.freeze([
+-  'https://www.google.com/about/careers/', // Google: www.google.com/about/careers/applications/jobs/results/<id>
+-]);
++// Built from the registry entries' `postingHosts` / `postingPrefixes` (server/companies.js), which
++// the normalizer also uses to drop a beta posting's link that is not on its own company's hosts (S-4).
++const BETA_ENTRIES = COMPANIES.filter((c) => c.channel === 'beta');
++export const BETA_POSTING_HOSTS = Object.freeze(BETA_ENTRIES.flatMap((c) => c.postingHosts || []));
++export const BETA_POSTING_PREFIXES = Object.freeze(BETA_ENTRIES.flatMap((c) => c.postingPrefixes || []));
+ 
+ export const ALLOWED_HOSTS = Object.freeze([
+   // ATS job pages (each posting's url, "Apply" links)
+diff --git a/server/companies.js b/server/companies.js
+index c541597..bc7c9a9 100644
+--- a/server/companies.js
++++ b/server/companies.js
+@@ -23,15 +23,19 @@ export const COMPANIES = [
+   // serves the bundled snapshot (`node scripts/snapshot.js --channel beta`).
+   // Each source is built-in only (not in SOURCES, never a custom board), and
+   // `board` is a key into that adapter's fixed host table.
+-  { slug: 'google', name: 'Google', source: 'google', board: 'google', color: '#4285f4', channel: 'beta', live: false },
+-  { slug: 'microsoft', name: 'Microsoft', source: 'eightfold', board: 'microsoft', color: '#00a4ef', channel: 'beta', live: false },
++  // `postingHosts` (whole hosts) and `postingPrefixes` (https careers paths on a shared host):
++  // where its postings live. A posting link elsewhere is dropped (server/normalize.js#postingUrl,
++  // S-4), and scripts/links-policy.js BETA_POSTING_HOSTS / _PREFIXES are built from them. Kept
++  // in the entries, so the stable site's lib/companies.js (beta entries removed) ships none.
++  { slug: 'google', name: 'Google', source: 'google', board: 'google', color: '#4285f4', channel: 'beta', live: false, postingHosts: ['careers.google.com'], postingPrefixes: ['https://www.google.com/about/careers/'] },
++  { slug: 'microsoft', name: 'Microsoft', source: 'eightfold', board: 'microsoft', color: '#00a4ef', channel: 'beta', live: false, postingHosts: ['apply.careers.microsoft.com', 'jobs.careers.microsoft.com', 'careers.microsoft.com'] },
+   // PAUSED (2026-10-10, lead): Meta's Automated Data Collection Terms bar automated collection
+   // "without ... express written permission", even though robots.txt and the sitemap expose the
+   // job pages. Not crawled until the user decides (docs/DATA_SOURCES.md §7 "Terms of use").
+   // RESUMED (2026-10-11, by the user: "Resume both now", choosing to accept the legal risk after the verified terms were put to them (docs/AMAZON_META.md, "Decision")). See PAUSING.
+-  { slug: 'meta', name: 'Meta', source: 'meta', board: 'meta', color: '#0866ff', channel: 'beta', live: false },
+-  { slug: 'apple', name: 'Apple', source: 'apple', board: 'apple', color: '#6e6e73', channel: 'beta', live: false },
+-  { slug: 'netflix', name: 'Netflix', source: 'eightfold', board: 'netflix', color: '#e50914', channel: 'beta', live: false },
++  { slug: 'meta', name: 'Meta', source: 'meta', board: 'meta', color: '#0866ff', channel: 'beta', live: false, postingHosts: ['www.metacareers.com'] },
++  { slug: 'apple', name: 'Apple', source: 'apple', board: 'apple', color: '#6e6e73', channel: 'beta', live: false, postingHosts: ['jobs.apple.com'] },
++  { slug: 'netflix', name: 'Netflix', source: 'eightfold', board: 'netflix', color: '#e50914', channel: 'beta', live: false, postingHosts: ['explore.jobs.netflix.net', 'jobs.netflix.com'] },
+   // PAUSED (2026-10-10, lead): Amazon's Conditions of Use exclude "data mining, robots, or similar
+   // data gathering and extraction tools". Not crawled until the user decides (DATA_SOURCES §7).
+   // RESUMED (2026-10-11, by the user: "Resume both now", choosing to accept the legal risk after the verified terms were put to them (docs/AMAZON_META.md, "Decision")). See PAUSING.
+@@ -39,10 +43,10 @@ export const COMPANIES = [
+   // are you capping the no of posting we must present them as they are and not cut anything". Every
+   // posting of every board is published (scripts/snapshot.js#fitSnapshot never drops one); the
+   // whole board's phone cost is handled in the browser (docs/process/perf-mobile-beta-2.md).
+-  { slug: 'amazon', name: 'Amazon', source: 'amazon', board: 'amazon', color: '#ff9900', channel: 'beta', live: false },
++  { slug: 'amazon', name: 'Amazon', source: 'amazon', board: 'amazon', color: '#ff9900', channel: 'beta', live: false, postingHosts: ['www.amazon.jobs'] },
+   // NVIDIA's own careers site (jobs.nvidia.com) is an Eightfold tenant; its Workday
+   // CXS API was in a maintenance redirect during the first probe.
+-  { slug: 'nvidia', name: 'NVIDIA', source: 'eightfold', board: 'nvidia', color: '#76b900', channel: 'beta', live: false },
++  { slug: 'nvidia', name: 'NVIDIA', source: 'eightfold', board: 'nvidia', color: '#76b900', channel: 'beta', live: false, postingHosts: ['jobs.nvidia.com', 'nvidia.wd5.myworkdayjobs.com'] },
+   // Tesla is left out: tesla.com answers every plain request (robots.txt, the careers
+   // API, the careers page) with an Akamai "Access Denied" 403 (probe 2026-10-10), and
+   // getting around bot protection is out of bounds. See docs/DATA_SOURCES.md §7.
+@@ -98,6 +102,17 @@ export function crawlBlock(source, board) {
+   return { slug: c.slug, name: c.name, paused: c.paused, reason: PAUSE_REASONS[c.paused] || String(c.paused) };
+ }
+ 
++/**
++ * S-4: where a built-in's posting links may point, { hosts, prefixes }, for an entry that declares
++ * `postingHosts` (the beta big-tech boards), else null (stable boards and custom boards keep any
++ * http(s) link). Looked up by slug in the registry, whatever fields the caller's copy carries.
++ */
++export function postingRule(company) {
++  if (!company || company.custom || typeof company.slug !== 'string') return null;
++  const c = COMPANIES.find((x) => x.slug === company.slug);
++  return c && Array.isArray(c.postingHosts) ? { hosts: c.postingHosts, prefixes: c.postingPrefixes || [] } : null;
++}
++
+ /** Any built-in on any channel; the result carries `channel` ('stable' or 'beta'). */
+ export function getCompany(slug) {
+   if (!slug) return null;
+diff --git a/server/normalize.js b/server/normalize.js
+index c0d8e20..489b0de 100644
+--- a/server/normalize.js
++++ b/server/normalize.js
+@@ -5,6 +5,7 @@ import * as keywordsModule from './keywords.js';
+ import { parseSalary, toJobSalary, currenciesFor, payTerms, mayRelabelPay, payAreas, payAreaOf } from './salary.js';
+ import { htmlToText, isoOrNull } from './sources/util.js';
+ import { vetSalaries, salaryChecks } from './vet.js';
++import { postingRule } from './companies.js';
+ 
+ /**
+  * Version of the normalized output. Bump it whenever normalizeJob(s) output
+@@ -287,12 +288,35 @@ export function relabelJobs(jobs) {
+   return changed ? vetSalaries(out) : out;
+ }
+ 
+-/** S-4 (fix wave 4): a posting link is an absolute http(s) URL, or null ("javascript:…" never reaches the CSV or the JSON). */
+-export function postingUrl(u) {
++/**
++ * True when `u` is an https link with no user name, password or port, on one of `rule.hosts`, or under
++ * one of `rule.prefixes` (compared on the parsed URL, so "…/careers/../x", "<host>.evil.example" or
++ * "https://<host>@evil.example/" cannot pass). No host is named here: this module ships on the stable site.
++ */
++export function onPostingHost(u, rule) {
++  let x;
++  try { x = new URL(String(u)); } catch { return false; }
++  if (x.protocol !== 'https:' || x.username || x.password || x.port) return false;
++  const host = x.hostname.toLowerCase();
++  if (rule.hosts.includes(host)) return true;
++  const here = `${x.protocol}//${host}${x.pathname}`;
++  return rule.prefixes.some((p) => here.startsWith(p));
++}
++
++/**
++ * S-4 (fix wave 4): a posting link is an absolute http(s) URL, or null ("javascript:…" never reaches the
++ * CSV or the JSON). S-4 residual (fix-sec-3): for a beta built-in (its registry entry's `postingHosts` /
++ * `postingPrefixes`, server/companies.js#postingRule) it must also be https, with no user name, password or
++ * port, on that company's own posting hosts; any other link is dropped (the drawer then says "No link to
++ * the posting").
++ */
++export function postingUrl(u, company = null) {
+   if (typeof u !== 'string' || !u.trim()) return null;
+   try {
+     const x = new URL(u.trim());
+-    return x.protocol === 'https:' || x.protocol === 'http:' ? u.trim() : null;
++    if (x.protocol !== 'https:' && x.protocol !== 'http:') return null;
++    const rule = postingRule(company);
++    return !rule || onPostingHost(u.trim(), rule) ? u.trim() : null;
+   } catch { return null; }
+ }
+ 
+@@ -339,7 +363,7 @@ export function normalizeJob(raw, company, { boilerplate = null, team = null } =
+     locations,
+     remote,
+     salary,
+-    url: postingUrl(raw.url),                                            // S-4: http(s) only
++    url: postingUrl(raw.url, company),                                   // S-4: http(s) only; a beta built-in's own hosts
+     updatedAt: raw.updatedAt || null,
+     postedAt: isoOrNull(raw.postedAt),                                    // F4
+     reqId: raw.reqId != null && raw.reqId !== '' ? String(raw.reqId) : null, // F4 (Greenhouse internal_job_id)
+diff --git a/server/sources/amazon.js b/server/sources/amazon.js
+index 24a02fc..9fc16cb 100644
+--- a/server/sources/amazon.js
++++ b/server/sources/amazon.js
+@@ -298,6 +298,24 @@ export function amazonSalary(j, table = amazonPayTable(j.description, j.basic_qu
+ /** job_schedule_type values -> employmentType (anything else is kept as written). */
+ const SCHEDULE = { 'full-time': 'Full-time', 'part-time': 'Part-time' };
+ 
++/**
++ * S-4 residual (docs/REVIEW.md "beta review 2026-10-16"): the posting link is the API's job_path on
++ * www.amazon.jobs, kept as the API wrote it, only when the joined URL is https on that host with no
++ * user name or password ("@evil.example/x" would give https://www.amazon.jobs@evil.example/x, host
++ * evil.example). Otherwise the posting's canonical page, /en/jobs/<id>.
++ */
++export function amazonPostingUrl(j) {
++  const p = j.job_path ? String(j.job_path) : '';
++  if (p) {
++    const joined = `${AMAZON_ORIGIN}${p}`;
++    try {
++      const u = new URL(joined);
++      if (u.origin === AMAZON_ORIGIN && !u.username && !u.password) return joined;
++    } catch { /* not a URL: use the canonical page */ }
++  }
++  return `${AMAZON_ORIGIN}/en/jobs/${encodeURIComponent(String(j.id_icims ?? j.id ?? ''))}`;
++}
++
+ /** One search.json row -> RawJob. */
+ export function mapAmazonJob(j) {
+   const { locs, remote } = parseLocations(j);
+@@ -321,7 +339,7 @@ export function mapAmazonJob(j) {
+     remote,
+     html,
+     text: htmlToText(html),
+-    url: j.job_path ? `${AMAZON_ORIGIN}${j.job_path}` : `${AMAZON_ORIGIN}/en/jobs/${j.id_icims}`,
++    url: amazonPostingUrl(j),
+     updatedAt: posted,
+     postedAt: posted,
+     reqId: str(j.id_icims),
+diff --git a/test/beta-security-review-2.test.js b/test/beta-security-review-2.test.js
+index 5f05cf3..dfed019 100644
+--- a/test/beta-security-review-2.test.js
++++ b/test/beta-security-review-2.test.js
+@@ -73,7 +73,7 @@ test('S-2 residual: a paused flag on ANY built-in stops fetchLive before its fir
+ // https://www.amazon.jobs@evil.example/x (host evil.example). normalize.js#postingUrl only checks the
+ // scheme, so the link is stored, published in beta/data/amazon.csv and api/jobs/amazon.json, and is the
+ // drawer's Apply link.
+-test('S-4 residual: Amazon posting links stay on www.amazon.jobs whatever job_path says', OPEN, async () => {
++test('S-4 residual: Amazon posting links stay on www.amazon.jobs whatever job_path says', async () => {
+   const { mapAmazonJob } = await imp('server', 'sources', 'amazon.js');
+   const { normalizeJob } = await imp('server', 'normalize.js');
+   const amazon = { slug: 'amazon', name: 'Amazon', source: 'amazon', board: 'amazon', channel: 'beta', live: false };
+diff --git a/test/e2e/fix-sec-3.e2e.js b/test/e2e/fix-sec-3.e2e.js
+new file mode 100644
+index 0000000..a941816
+--- /dev/null
++++ b/test/e2e/fix-sec-3.e2e.js
+@@ -0,0 +1,60 @@
++// fix-sec-3 lane (docs/process/fix-sec-3.md), S-4 residual (docs/REVIEW.md "beta review 2026-10-16"): when a
++// posting's link is dropped (the normalizer keeps only http(s), and for a beta company only its own posting hosts),
++// the drawer used to render the "Apply on <company>'s careers site" button anyway, naming this site's own host and
++// with no href. Now it shows no button and one line, "No link to the posting". The server-mode lists are patched
++// in the browser (route), so this runs on any data, demo included.
++import { assert } from './harness.js';
++
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const isExternal = (url, origin) => !!url && !url.startsWith(origin) && !url.startsWith('data:') && !url.startsWith('blob:');
++
++async function openWithLinks(ctx, setUrl) {
++  const context = await ctx.browser.newContext({ viewport: { width: 1440, height: 900 } });
++  ctx.cleanup.push(() => context.close());
++  const origin = new URL(ctx.baseUrl).origin;
++  await context.route((u) => isExternal(u.href, origin), (r) => r.abort('blockedbyclient'));
++  // The list and the per-posting detail both carry `url`: rewrite both.
++  await context.route(/\/api\/jobs?\?/, async (route) => {
++    const r = await route.fetch();
++    let body;
++    try { body = await r.json(); } catch { return route.fulfill({ response: r }); }
++    for (const j of Array.isArray(body.jobs) ? body.jobs : []) j.url = setUrl(j);
++    if (body.job) body.job.url = setUrl(body.job);
++    if (body.url !== undefined) body.url = setUrl(body);
++    return route.fulfill({ response: r, body: JSON.stringify(body) });
++  });
++  const page = await context.newPage();
++  const errors = [];
++  page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
++  await page.goto(`${ctx.baseUrl}/#c=anthropic`);
++  await page.locator('#resultsTitle strong').first().waitFor({ timeout: 30000 });
++  await sleep(400);
++  await page.locator('#resultsList .card[data-id]').first().click();
++  await page.locator('#drawer .d-title').waitFor({ timeout: 8000 });
++  await sleep(400);
++  return { page, errors };
++}
++
++export function registerFixSec3Tests(suite) {
++  for (const [label, setUrl] of [['no link (dropped by the normalizer)', () => null], ['a javascript: link (an old snapshot)', () => "javascript:window.__x='apply'"]]) {
++    suite.test(`fix-sec-3: [S-4 residual] a posting with ${label} has no Apply button, and the drawer says "No link to the posting"`, async (ctx) => {
++      const { page, errors } = await openWithLinks(ctx, setUrl);
++      const apply = await page.locator('#drawer a.apply').count();
++      const foot = (await page.locator('#drawer .drawer-foot').innerText()).trim();
++      assert(apply === 0, `the drawer still renders an Apply button (${apply}); foot reads "${foot}"`);
++      assert(/^No link to the posting$/m.test(foot), `foot reads "${foot}"`);
++      assert(await page.locator('#drawer .drawer-foot button[aria-label="Copy link to this role"]').count() === 1, 'the Copy link button stays');
++      assert(!errors.length, errors.join(' | '));
++    });
++  }
++
++  suite.test('fix-sec-3: [S-4 residual] a posting with a real link keeps its Apply button and host', async (ctx) => {
++    const { page, errors } = await openWithLinks(ctx, (j) => j.url);
++    const a = page.locator('#drawer a.apply');
++    assert(await a.count() === 1, 'no Apply button');
++    const href = await a.getAttribute('href');
++    assert(/^https:\/\//.test(href || ''), `href ${href}`);
++    assert((await a.locator('.apply-host').innerText()) === new URL(href).hostname.replace(/^www\./, ''), 'host shown under Apply');
++    assert(!errors.length, errors.join(' | '));
++  });
++}
+diff --git a/test/fix-sec-3.test.js b/test/fix-sec-3.test.js
+new file mode 100644
+index 0000000..1d34ec3
+--- /dev/null
++++ b/test/fix-sec-3.test.js
+@@ -0,0 +1,116 @@
++// fix-sec-3 lane (docs/process/fix-sec-3.md): tests for the security fixes beyond the to-dos un-todo'd in
++// test/beta-security-review.test.js and test/beta-security-review-2.test.js. Each block names its finding in
++// docs/REVIEW.md. Equivalence checks run the new code against a frozen copy of the old one, on the real fixtures,
++// so a fix that bounds a parser cannot change what it reads from real pages.
++// No network: fixtures only, and the slow-parser checks run in a worker with a hard limit.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import path from 'node:path';
++import { Worker } from 'node:worker_threads';
++import { fileURLToPath, pathToFileURL } from 'node:url';
++
++const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const FIX = path.join(ROOT, 'test', 'fixtures');
++const imp = (...p) => import(pathToFileURL(path.join(ROOT, ...p)).href);
++const fixture = (slug) => JSON.parse(fs.readFileSync(path.join(FIX, `bigtech-${slug}.json`), 'utf8'));
++
++/* ------------------------------------------------------------ S-4 residual */
++
++const BETA = ['amazon', 'apple', 'google', 'meta', 'microsoft', 'netflix', 'nvidia'];
++
++/** Each beta fixture's raw postings, through its own adapter's mapper. */
++async function betaRaws(slug) {
++  const { mapEightfoldJob, EIGHTFOLD_BOARDS } = await imp('server', 'sources', 'eightfold.js');
++  const { mapAmazonJob } = await imp('server', 'sources', 'amazon.js');
++  const { mapAppleJob } = await imp('server', 'sources', 'apple.js');
++  const { mapGoogleJob } = await imp('server', 'sources', 'google.js');
++  const { mapMetaJob } = await imp('server', 'sources', 'meta.js');
++  return fixture(slug).records.map((r) => {
++    if (EIGHTFOLD_BOARDS[slug]) return mapEightfoldJob(r, EIGHTFOLD_BOARDS[slug]);
++    if (slug === 'amazon') return mapAmazonJob(r);
++    if (slug === 'apple') return mapAppleJob(r.row, r.detail);
++    if (slug === 'google') return mapGoogleJob(r, {});
++    return mapMetaJob(r, { id: r.id, url: `https://www.metacareers.com/profile/job_details/${r.id}/` });
++  });
++}
++
++test('S-4 residual: every real beta posting link is kept exactly as its adapter built it', async () => {
++  const { normalizeJob } = await imp('server', 'normalize.js');
++  const { getCompany } = await imp('server', 'companies.js');
++  for (const slug of BETA) {
++    const raws = await betaRaws(slug);
++    assert.ok(raws.length, slug);
++    for (const raw of raws) {
++      assert.match(raw.url, /^https:\/\//, `${slug}: ${raw.url}`);
++      assert.equal(normalizeJob(raw, getCompany(slug)).url, raw.url, `${slug} ${raw.sourceId}`);
++    }
++  }
++});
++
++test('S-4 residual: Amazon job_path values on www.amazon.jobs are kept verbatim; anything else becomes the canonical page', async () => {
++  const { amazonPostingUrl, mapAmazonJob } = await imp('server', 'sources', 'amazon.js');
++  for (const r of fixture('amazon').records) {
++    // The old code joined origin and job_path with no check: for real rows the new result is identical.
++    assert.equal(mapAmazonJob(r).url, r.job_path ? `https://www.amazon.jobs${r.job_path}` : `https://www.amazon.jobs/en/jobs/${r.id_icims}`);
++  }
++  for (const p of ['@evil.example/x', '.evil.example/x', ':8443/x', "javascript:alert('x')", 'x@evil.example/']) {
++    assert.equal(amazonPostingUrl({ id_icims: '3012345', job_path: p }), 'https://www.amazon.jobs/en/jobs/3012345', p);
++  }
++  assert.equal(amazonPostingUrl({ id_icims: '3012345', job_path: null }), 'https://www.amazon.jobs/en/jobs/3012345');
++  assert.equal(amazonPostingUrl({ id_icims: '1', job_path: '/en/jobs/1/sde-ii' }), 'https://www.amazon.jobs/en/jobs/1/sde-ii');
++});
++
++test('S-4 residual: a beta built-in keeps only https links on its own posting hosts; stable and custom boards keep any http(s) link', async () => {
++  const { postingUrl } = await imp('server', 'normalize.js');
++  const { getCompany } = await imp('server', 'companies.js');
++  const drop = {
++    amazon: ['https://www.amazon.jobs@evil.example/x', 'https://evil.example/en/jobs/1', 'http://www.amazon.jobs/en/jobs/1', 'https://www.amazon.jobs:8443/en/jobs/1', 'https://user:pw@www.amazon.jobs/en/jobs/1', 'https://jobs.apple.com/en-us/details/1'],
++    google: ['https://www.google.com/search?q=x', 'https://www.google.com/about/careers/../../url?q=https://evil.example', 'https://careers.google.com.evil.example/jobs/1', 'https://www.google.com.evil.example/about/careers/x'],
++    apple: ['https://jobs.apple.com.evil.example/x', 'https://www.apple.com/x'],
++    meta: ['https://www.facebook.com/careers/1', 'https://metacareers.com.evil.example/'],
++    microsoft: ['https://explore.jobs.netflix.net/careers/job/1'],
++    netflix: ['https://apply.careers.microsoft.com/careers/job/1'],
++    nvidia: ['https://evil.myworkdayjobs.com/x'],
++  };
++  const keep = {
++    amazon: ['https://www.amazon.jobs/en/jobs/3012345/software-dev-engineer'],
++    google: ['https://www.google.com/about/careers/applications/jobs/results/123-x', 'https://careers.google.com/jobs/results/123/'],
++    apple: ['https://jobs.apple.com/en-us/details/200612345/x'],
++    meta: ['https://www.metacareers.com/profile/job_details/1234567/'],
++    microsoft: ['https://apply.careers.microsoft.com/careers/job/1970393556632811'],
++    netflix: ['https://explore.jobs.netflix.net/careers/job/790300000001'],
++    nvidia: ['https://jobs.nvidia.com/careers/job/893375056870', 'https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite/job/x'],
++  };
++  for (const slug of BETA) {
++    const c = getCompany(slug);
++    for (const u of drop[slug]) assert.equal(postingUrl(u, c), null, `${slug} kept ${u}`);
++    for (const u of keep[slug]) assert.equal(postingUrl(u, c), u, `${slug} dropped ${u}`);
++  }
++  // Stable built-ins and custom boards: any absolute http(s) link, as before.
++  for (const c of [getCompany('anthropic'), { slug: 'greenhouse-amazon', name: 'Amazon', source: 'greenhouse', board: 'amazon', custom: true }]) {
++    for (const u of ['https://job-boards.greenhouse.io/x/jobs/1', 'http://example.com/x']) assert.equal(postingUrl(u, c), u, `${c.slug} ${u}`);
++    assert.equal(postingUrl("javascript:alert('x')", c), null);
++  }
++  assert.equal(postingUrl('https://evil.example/x'), 'https://evil.example/x', 'no company: the old scheme-only rule');
++});
++
++test('S-4 residual: scripts/links-policy.js keeps the same posting allowlist, now built from the registry entries', async () => {
++  const policy = await imp('scripts', 'links-policy.js');
++  const { postingRule } = await imp('server', 'companies.js');
++  // The literal lists links-policy.js had before the move (f53a270).
++  assert.deepEqual([...policy.BETA_POSTING_HOSTS], [
++    'careers.google.com', 'apply.careers.microsoft.com', 'jobs.careers.microsoft.com', 'careers.microsoft.com', 'www.metacareers.com',
++    'jobs.apple.com', 'explore.jobs.netflix.net', 'jobs.netflix.com', 'www.amazon.jobs', 'jobs.nvidia.com', 'nvidia.wd5.myworkdayjobs.com',
++  ]);
++  assert.deepEqual([...policy.BETA_POSTING_PREFIXES], ['https://www.google.com/about/careers/']);
++  const { listCompanies } = await imp('server', 'companies.js');
++  for (const c of listCompanies({ channel: 'beta', includePaused: true })) {
++    const rule = postingRule(c);
++    if (c.channel === 'beta') assert.ok(rule && rule.hosts.length, `${c.slug}: no posting hosts`);
++    else assert.equal(rule, null, `${c.slug}: a stable board keeps any http(s) link`);
++    // The rule is looked up by slug, so a caller's partial copy (no postingHosts field) still gets it.
++    if (c.channel === 'beta') assert.deepEqual(postingRule({ slug: c.slug, name: c.name }), rule);
++  }
++  assert.equal(postingRule({ slug: 'amazon', custom: true }), null, 'never for a custom board');
++});
+-- 
+2.43.0
+

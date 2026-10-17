@@ -1,0 +1,31 @@
+From 5902b17f0c33f6a67a0fe7c0f89b85767e27296d Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 02:13:11 +0000
+Subject: [PATCH 29/41] WIP fix-phone-sizes: State after the container restart
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit f8057c7e71b8b1bebf01e3c94c8a8e098db34eed)
+---
+ docs/process/fix-phone-sizes.md | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/docs/process/fix-phone-sizes.md b/docs/process/fix-phone-sizes.md
+index d54ce72..b2593fb 100644
+--- a/docs/process/fix-phone-sizes.md
++++ b/docs/process/fix-phone-sizes.md
+@@ -10,7 +10,10 @@
+   - the matrix goes from 17 of 34 failing before to 34 of 34 passing; the full e2e suite has no new failures (section 5);
+   - before and after screenshots, shrunk;
+   - `npm test` green without data links.
+-- **In progress:** nothing; the lead integrates.
++- **In progress (after the 02:10 container restart):** the gate is re-running on d896658. The order is npm test with
++  the data links out (they wait in `<scratch>/fps/links/`), then the matrix through the suite runner, the related e2e
++  groups and the full e2e. If resumed: link `<scratch>/fps/links/snapshots` → data/snapshots and
++  `<scratch>/fps/links/beta/snapshots` → data/beta/snapshots, then re-run what is missing.
+ - **Next, if resumed:** the follow-ups in section 6 (the Duo spanned in its other posture; WebKit results from
+   webkit-phone.yml).
+ 
+-- 
+2.43.0
+

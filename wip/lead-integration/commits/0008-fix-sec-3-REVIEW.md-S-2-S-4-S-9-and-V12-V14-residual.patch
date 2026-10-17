@@ -1,0 +1,126 @@
+From c7f2d4934b07d47d008479861dca8dd438b8c3ce Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 02:51:01 +0000
+Subject: [PATCH 08/41] fix-sec-3: REVIEW.md: S-2, S-4, S-9 and V12/V14
+ residuals and S-10 marked fixed, with commits
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 8c808dac84a9109ba58d3697ccde2b2d45ef650a)
+---
+ docs/REVIEW.md | 50 ++++++++++++++++++++++++++++++++++++--------------
+ 1 file changed, 36 insertions(+), 14 deletions(-)
+
+diff --git a/docs/REVIEW.md b/docs/REVIEW.md
+index 85010aa..8d9335b 100644
+--- a/docs/REVIEW.md
++++ b/docs/REVIEW.md
+@@ -1040,17 +1040,17 @@ No product code was changed.
+ | # | Severity | Area | Finding |
+ |---|----------|------|---------|
+ | S-8 | Medium | CI / data integrity | **Fixed during the review (`9c548e2`).** monthly-refresh.yml's new commit mode tested the refreshed files on `GITHUB_SHA`, then copied them whole over the branch's *current* tip. That silently reverted any newer commit to those files, which include `data/freshness.json`, changed in 10 commits that day. It also deployed a tree that had never been tested |
+-| S-2 | Low | Crawler policy | **Residual.** The `paused` switch stops only the Amazon and Meta adapters. Paused Apple, Google, Microsoft, Netflix, NVIDIA or Greenhouse boards are still crawled by `snapshot.js <slug>` and `fetchLive` |
+-| S-4 | Low | Integrity / phishing | **Residual.** Amazon's `job_path` is appended to the origin unchecked: `@evil.example/x` publishes `https://www.amazon.jobs@evil.example/x` as the Apply link. A dropped link still shows an Apply button naming the site's own host |
+-| S-9 | Low | CI / least privilege | **Fixed during the review (`9c548e2`).** The privileged commit step's path filter was a deny-list. Any code path the less-trusted refresh job named (`server/`, `scripts/`, `public/`, `test/`) would have been committed to the deploy branch. Tags named like a branch passed the branch check |
+-| S-10 | Low | DoS / parsers | New quadratic parsers on upstream text: `parseMetaAmount`, `familyOfTitle`, `parseMetaSitemap` and `extractMetaPage`, plus the local DOL tools. Projected times for 1 MB are 2 to 59 min |
++| S-2 | Low | Crawler policy | **Residual, fixed in `a220eb1` (fix-sec-3).** The `paused` switch stops only the Amazon and Meta adapters. Paused Apple, Google, Microsoft, Netflix, NVIDIA or Greenhouse boards are still crawled by `snapshot.js <slug>` and `fetchLive` |
++| S-4 | Low | Integrity / phishing | **Residual, fixed in `fe41715` (fix-sec-3).** Amazon's `job_path` is appended to the origin unchecked: `@evil.example/x` publishes `https://www.amazon.jobs@evil.example/x` as the Apply link. A dropped link still shows an Apply button naming the site's own host |
++| S-9 | Low | CI / least privilege | **Fixed during the review (`9c548e2`); residual fixed in `928ab7f` (fix-sec-3).** The privileged commit step's path filter was a deny-list. Any code path the less-trusted refresh job named (`server/`, `scripts/`, `public/`, `test/`) would have been committed to the deploy branch. Tags named like a branch passed the branch check |
++| S-10 | Low | DoS / parsers | **Fixed in `d05d6db` (fix-sec-3).** New quadratic parsers on upstream text: `parseMetaAmount`, `familyOfTitle`, `parseMetaSitemap` and `extractMetaPage`, plus the local DOL tools. Projected times for 1 MB are 2 to 59 min |
+ | S-11 | Low | Secrets / process | **Secret filter fixed in `d8ce13c`.** `checkpoint.sh` packed every untracked, non-ignored file of an agent worktree and pushed it to the public default branch every 15 minutes, with no secret filter. Pushing to the deploy branch with Pages on "Deploy from a branch" stays, by the user's decision; that is harmless only while the branch build keeps failing |
+ | A-8 | Low | A11y | The chart's "N more departments" fold row is `role=option` with `aria-expanded` (axe `aria-allowed-attr`, critical). Its open or closed state and its action are not announced |
+ | A-9 | Low | A11y | Every one-line note's disclosure is named "Details ▾". There are 8 in Insights and 2 on the first screen, none says what it details, and on a desktop they are 16.8 to 19.6 px tall |
+ | A-10 | Low | A11y | The Company and Department checklists in the Department section are unnamed `role=group`s. Their headings are plain text |
+ | A-11 | Low | A11y | When Amazon's full list replaces the first-page preview, a focused preview card loses focus to `<body>`. Arrow keys do nothing on preview cards |
+ 
+-Still open from earlier reviews: V12 (no `persist-credentials: false` in read-only jobs, now also in `webkit-phone.yml` and the monthly refresh job; plus unpinned `brew tap facebook/fb` and `pip install fb-idb`) and V14 (a custom board can take a built-in's name). The rest of the 2026-10-11 findings are fixed; see "Re-check (beta round 3)".
++Still open from earlier reviews at the time: V12 (no `persist-credentials: false` in read-only jobs, now also in `webkit-phone.yml` and the monthly refresh job; plus unpinned `brew tap facebook/fb` and `pip install fb-idb`) and V14 (a custom board can take a built-in's name). The rest of the 2026-10-11 findings are fixed; see "Re-check (beta round 3)". **V12 and V14 were fixed afterwards by fix-sec-3 (`9479771`, `1a9870d`); see "Fixes after the review (fix-sec-3, 2026-10-17)".**
+ 
+ ### S-8. Monthly refresh commit over a moved tip (Medium, fixed in `9c548e2`)
+ 
+@@ -1068,7 +1068,7 @@ Still open from earlier reviews: V12 (no `persist-credentials: false` in read-on
+ 
+ The first live run of the commit path, monthly-refresh run 38975710742, tested `0f69645` and committed `9de373f` on top of `d8ce13c`. `d8ce13c` touched no refreshed file, so the guard let the commit through. The tip was not the tested tree, so the run dispatched CI only. The lead reports that CI passed and pages.yml run 38976671607 then deployed it. That is the S-8 path working as intended.
+ 
+-### S-2 (residual). The pause stops only two adapters (Low)
++### S-2 (residual). The pause stops only two adapters (Low, fixed in `a220eb1`)
+ 
+ **Where**: `server/companies.js:93` (`crawlBlock`) is called only by `server/sources/amazon.js:342` and `server/sources/meta.js:251`. `server/pipeline.js:52` (`fetchLive`) and `scripts/snapshot.js:252` resolve any built-in, paused or not. The PAUSING comment (`server/companies.js:77-80`) says "its adapter refuses to start before its first request … whoever calls it", which is true only for those two.
+ 
+@@ -1091,7 +1091,7 @@ if (company.paused) throw Object.assign(new Error(`${company.slug} is paused (${
+ ```
+ Also call `crawlBlock` at the top of `fetchApple`, `fetchGoogle` and `fetchEightfold`, as Amazon and Meta do, so the probe's full mode is covered too.
+ 
+-### S-4 (residual). Amazon posting links are not host-checked (Low)
++### S-4 (residual). Amazon posting links are not host-checked (Low, fixed in `fe41715`)
+ 
+ **Where**:
+ - `server/sources/amazon.js:324`: ``url: j.job_path ? `${AMAZON_ORIGIN}${j.job_path}` : …``. String concatenation, so `job_path` can move the host.
+@@ -1131,11 +1131,11 @@ The file list and contents come from the refresh job, which runs `npm ci` and pa
+ 
+ `test/beta-security-review-2.test.js` "S-9" runs the step's `apply()` with seven disallowed paths, all refused, and three writer files, all applied.
+ 
+-**Residual, for the lead to weigh**: the allow-list limits *which* files are committed, not *what is in them*. Four are executable code: `server/juice.js`, `server/salary.js`, `public/viz/palette.js` and `public/features/shared.js`. All four run in visitors' browsers: `palette.js` and `shared.js` directly, and `juice.js` and `salary.js` through `/lib/` (`server/lib-modules.js:11`). Hardening: after `apply`, run `git diff -U0 "$GITHUB_SHA" -- <those four>` and refuse unless every changed line has a shape the writers produce (`^[+-]\s*[A-Z]{3}: [0-9.e-]+,?$`, the `FX_AS_OF` / `FX_SOURCE` one-liners, the `FX_FALLBACK` CNY entry, the tax constants). In the first live refresh commit (`9de373f`), every changed line in those four files has one of these shapes: the FX table rows, `FX_AS_OF`, `FX_SOURCE` and the CNY fallback. So the check would not get in the way of a real refresh.
++**Residual, for the lead to weigh** (fixed in `928ab7f` by fix-sec-3; see "Fixes after the review"): the allow-list limits *which* files are committed, not *what is in them*. Four are executable code: `server/juice.js`, `server/salary.js`, `public/viz/palette.js` and `public/features/shared.js`. All four run in visitors' browsers: `palette.js` and `shared.js` directly, and `juice.js` and `salary.js` through `/lib/` (`server/lib-modules.js:11`). Hardening: after `apply`, run `git diff -U0 "$GITHUB_SHA" -- <those four>` and refuse unless every changed line has a shape the writers produce (`^[+-]\s*[A-Z]{3}: [0-9.e-]+,?$`, the `FX_AS_OF` / `FX_SOURCE` one-liners, the `FX_FALLBACK` CNY entry, the tax constants). In the first live refresh commit (`9de373f`), every changed line in those four files has one of these shapes: the FX table rows, `FX_AS_OF`, `FX_SOURCE` and the CNY fallback. So the check would not get in the way of a real refresh.
+ 
+-`test/juice.test.js` is on the list, so the gated job rewrites part of its own gate (the pinned FX examples). The lead accepts this as a known limitation. A cleaner option: move the pinned examples to a data fixture the examples test reads, and keep every assertion in test code the refresh never writes.
++`test/juice.test.js` is on the list, so the gated job rewrites part of its own gate (the pinned FX examples). The lead accepted this as a known limitation (fix-sec-3 then found that nothing writes `test/juice.test.js`; it was listed only because a detect rule names it, and `928ab7f` removes it). A cleaner option: move the pinned examples to a data fixture the examples test reads, and keep every assertion in test code the refresh never writes.
+ 
+-### S-10. New quadratic parsers on upstream text (Low)
++### S-10. New quadratic parsers on upstream text (Low, fixed in `d05d6db`)
+ 
+ **Where**:
+ - `server/sources/meta.js:134` (`parseMetaAmount`: `^\s*(…)?\s*` around an optional group).
+@@ -1276,14 +1276,36 @@ const c = e.target.closest('.card[data-id], .card[data-preview-id]');
+ // Enter on a preview card: toast('Opens when the list has loaded') (role=status)
+ ```
+ 
++### Fixes after the review (fix-sec-3, 2026-10-17)
++
++Lane log: [process/fix-sec-3.md](process/fix-sec-3.md). Each fix's tests fail on `f53a270` and pass at its
++commit. The to-dos in `test/beta-security-review.test.js` and `test/beta-security-review-2.test.js` are now plain
++tests. More tests are in `test/fix-sec-3.test.js`, `test/e2e/fix-sec-3.e2e.js` and
++`test/monthly-refresh-commit.test.js`.
++
++| # | Commit | Fix | Tests |
++|---|--------|-----|-------|
++| S-2 (residual) | `a220eb1` | `server/pipeline.js#pauseError` refuses a paused company before its first request (code `paused`), for every source. Callers: `fetchLive`, `scripts/snapshot.js one()` and the probe's full mode. The probe counts `www.google.com`, the Google adapter's origin, as Google's careers host, so raw mode refuses it while Google is paused | "S-2 residual" (every built-in with an adapter) and the three 2026-10-11 S-2 tests, now run with `paused` set on the registry entries |
++| S-4 (residual) | `fe41715` | `amazonPostingUrl` keeps `job_path` only when the joined URL stays on `https://www.amazon.jobs` with no userinfo, else `/en/jobs/<id>`. `postingUrl(u, company)` keeps a beta built-in's link only when it is https, with no userinfo or port, on that entry's `postingHosts` / `postingPrefixes` (`server/companies.js`). `scripts/links-policy.js` builds `BETA_POSTING_HOSTS` from the same entries, and the stable site ships none. The drawer shows "No link to the posting" instead of an Apply button. All 37,619 links of the 2026-10-16 crawl are unchanged | "S-4 residual"; `test/fix-sec-3.test.js` S-4 ×4; `test/e2e/fix-sec-3.e2e.js` ×3 |
++| S-10 | `d05d6db` | `parseMetaAmount` reads the trimmed first 100 characters. `familyOfTitle` reads the first 500 and drops `[（(][^（(）)]{0,200}[）)]`. The sitemap reads `<loc>[^<]{0,2048}</loc>`. The JSON-LD reader and the DOL xlsx cell, text-run and `<rPh>` readers are forward scans, and employer names are capped at 300 characters. Hostile 64–256 KB inputs take milliseconds; output on the real fixtures and on seeded fuzz is identical to the old regexes', and families are unchanged on all 37,619 real titles | the three S-10 tests, plus `test/fix-sec-3.test.js` S-10 ×8 (timing and old-versus-new) |
++| S-9 (residual) | `928ab7f` | The commit step runs `.github/scripts/fx-values-only.mjs` after copying the files in. In the four code copies, everything except the FX writer's values (`FX_PER_USD` rows, `FX_AS_OF`, `FX_SOURCE`, `EXTRA_FX_PER_USD`, the `FX_FALLBACK` CNY rate) must equal the tip, or the step stops before committing. `README.md`, `docs/CONTRACT.md` and `test/juice.test.js` leave the allow-list: no writer writes them, so the refresh never edits test code. `test/juice.test.js` pins no FX example, so there was nothing to move | `test/monthly-refresh-commit.test.js`: 9de373f's hunks are committed; 6 code injections are refused with nothing pushed; the allow-list equals the writers' `{ file, content }` sites |
++| V12 (residual) | `9479771` | `persist-credentials: false` on all 16 checkouts of jobs that do not push with the checkout token; the 4 that do (archive and ledger branches, `contents: write`) keep theirs. `webkit-phone.yml` checks out the facebook/fb tap at `1fabba2a` (idb-companion v1.7.6, tarball sha256 in the formula) with `HOMEBREW_NO_AUTO_UPDATE`. fb-idb 1.7.6 and its 7 dependencies, at the versions of run 38979700118, install with `--require-hashes --only-binary :all:` from `.github/scripts/idb-requirements.txt` | "V12 residual" (every workflow) and "V12 residual: the iOS Simulator job installs idb at pinned versions" |
++| V14 (residual) | `1a9870d` | `customBoardName`: a custom board whose name loosely equals any built-in's (NFKC, case, spaces and punctuation ignored, beta names included) reads "<name> (custom)", as the header already did. `resolveCompany` and `defaultName` use it, in server and static modes | "V14 residual"; `test/fix-sec-3.test.js` V14 (every built-in name × 7 spellings × 3 sources) |
++
++Residual risks:
++- The read-only jobs' remaining `git fetch` calls are anonymous; that works because the repository is public.
++- On the stable static site the browser registry holds the stable names only, so it cannot guard the beta ones.
++- Look-alike Unicode names are not folded.
++- The iOS Simulator job has not been dispatched with the pins yet.
++
+ ### Re-check (beta round 3)
+ 
+ | # | Status | Evidence (at `9c548e2`) |
+ |---|--------|-------------------------|
+ | S-1 | Fixed | snapshot.yml downloads each `beta-crawl-*` artifact into its own folder, and "Keep only the accepted crawls" skips `beta-crawl-rejected-*` (`snapshot.yml:296-312`). The new test runs that step: only the accepted `apple.json` is kept. The 2026-10-11 test still checks the glob, so it stays a to-do (replace it with the new one) |
+-| S-2 | **Partially fixed** | `snapshot.js amazon` and the probe's defaults no longer crawl a paused company. The guard is in two adapters only; see "S-2 (residual)" |
++| S-2 | **Partially fixed** (fixed later in `a220eb1`) | `snapshot.js amazon` and the probe's defaults no longer crawl a paused company. The guard is in two adapters only; see "S-2 (residual)" |
+ | S-3 | Fixed | `MAX_PAY_TEXT`/`MAX_PAY_AMOUNTS` (`server/salary.js:951-997`), a boundary index for `clauseSpan`, bounded tag regexes, and a 5-minute pipeline task limit. The six 2026-10-11 S-3 tests pass, including 1 MB in under 1 s |
+-| S-4 | **Partially fixed** | Eightfold links are on-host and https, and the normalizer keeps http(s) only (tests pass). Amazon's `job_path` is not checked; see "S-4 (residual)" |
++| S-4 | **Partially fixed** (fixed later in `fe41715`) | Eightfold links are on-host and https, and the normalizer keeps http(s) only (tests pass). Amazon's `job_path` is not checked; see "S-4 (residual)" |
+ | S-5 | Fixed | One concurrency queue per channel (`snapshot.yml:49-51`); the test passes |
+ | S-6 | Fixed | `/methodology/` is memoized by input mtimes (`server/index.js:963-980`); the test passes |
+ | S-7 | Fixed | serve.mjs answers 400 to bad percent-encoding; the test passes |
+@@ -1295,8 +1317,8 @@ const c = e.target.closest('.card[data-id], .card[data-preview-id]');
+ | A-6 | Fixed | Juice rows hold only cells (e2e passes) |
+ | A-7 | Fixed | No `landmark-unique` or `region` in Insights |
+ | V8 | Fixed | The sliders are 24 px tall. The focused thumb has a 2 px surface gap and a 2 px accent ring (5.31:1 light, 9.46:1 dark). No axe `target-size` on the filters |
+-| V12 | **Open** | `actions/checkout` without `persist-credentials: false` in ci.yml, pages.yml `build`, every snapshot.yml job, bigtech-probe.yml, `webkit-phone.yml:32,55,113` and monthly-refresh.yml's `refresh` job (`:98`, which runs `npm ci` and parses remote content). `webkit-phone.yml:129-131` installs `brew tap facebook/fb` (tap HEAD) and `pip install fb-idb` unpinned (manual dispatch only, `contents: read`) |
+-| V14 | **Open** | The "V14 residual" test still fails: a custom board can be shown under a built-in's name |
++| V12 | **Open** (fixed later in `9479771`) | `actions/checkout` without `persist-credentials: false` in ci.yml, pages.yml `build`, every snapshot.yml job, bigtech-probe.yml, `webkit-phone.yml:32,55,113` and monthly-refresh.yml's `refresh` job (`:98`, which runs `npm ci` and parses remote content). `webkit-phone.yml:129-131` installs `brew tap facebook/fb` (tap HEAD) and `pip install fb-idb` unpinned (manual dispatch only, `contents: read`) |
++| V14 | **Open** (fixed later in `1a9870d`) | The "V14 residual" test still fails: a custom board can be shown under a built-in's name |
+ 
+ ### Checked and fine (beta round 3)
+ 
+-- 
+2.43.0
+

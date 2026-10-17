@@ -1,0 +1,115 @@
+From 204cdcdec63c5a3d5574c4869e7dd8d3c569a573 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 02:02:52 +0000
+Subject: [PATCH 04/41] fix-sec-3: V14 residual: a custom board never shows a
+ built-in company's name
+
+server/companies.js#customBoardName: a custom board's name (?name=, a saved name or its titled slug)
+that loosely equals any built-in's name, beta ones included (case, spaces, punctuation and NFKC forms
+ignored), reads "<name> (custom)", the suffix public/app.js#companyInfo already gives the header.
+resolveCompany and defaultName (the cached copy's name) use it; server and static modes share it.
+Tests: the 2026-10-11 "V14 residual" to-do un-todo'd; test/fix-sec-3.test.js covers every built-in
+name in 7 spellings on all three sources, slug defaults, and names that must stay as given.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 1a9870dca366d74844df6fafcb335a6f19952319)
+---
+ server/companies.js               | 20 ++++++++++++++++++--
+ test/beta-security-review.test.js |  2 +-
+ test/fix-sec-3.test.js            | 31 +++++++++++++++++++++++++++++++
+ 3 files changed, 50 insertions(+), 3 deletions(-)
+
+diff --git a/server/companies.js b/server/companies.js
+index bc7c9a9..3850515 100644
+--- a/server/companies.js
++++ b/server/companies.js
+@@ -133,7 +133,23 @@ function colorFromString(str) {
+ 
+ /** Name-independent display name for a custom board (used for cached data). */
+ export function defaultName(board) {
+-  return titleCase(String(board || ''));
++  return customBoardName(titleCase(String(board || '')));
++}
++
++/** A name compared loosely: case, accents' compatibility forms, spaces and punctuation ignored. */
++const nameKey = (s) => String(s || '').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
++
++/**
++ * V14 residual (docs/REVIEW.md "beta review 2026-10-11"): a custom board never shows a built-in company's
++ * name, on any channel (Apple, Google, Meta … as well as the stable ones): `?name=Apple` on a Lever board, or
++ * greenhouse/google's default "Google", reads "Apple (custom)", the suffix public/app.js#companyInfo gives
++ * the header for the same case. Compared loosely ("A.P.P.L.E", "scale ai"). On the stable site the browser's
++ * registry holds the stable companies only, so there it guards their names.
++ */
++export function customBoardName(name) {
++  const n = String(name || '').trim();
++  const key = nameKey(n);
++  return key && COMPANIES.some((c) => nameKey(c.name) === key) ? `${n} (custom)` : n;
+ }
+ 
+ function titleCase(s) {
+@@ -166,7 +182,7 @@ export function resolveCompany(query = {}) {
+     let name = get('name');
+     name = typeof name === 'string' ? name.trim().slice(0, 80) : '';
+     const slug = `${src}-${board.toLowerCase()}`;
+-    return { slug, name: name || titleCase(board), source: src, board, color: colorFromString(slug), custom: true };
++    return { slug, name: customBoardName(name || titleCase(board)), source: src, board, color: colorFromString(slug), custom: true };
+   }
+ 
+   if (companyParam) {
+diff --git a/test/beta-security-review.test.js b/test/beta-security-review.test.js
+index 3e0ecb4..e934cf8 100644
+--- a/test/beta-security-review.test.js
++++ b/test/beta-security-review.test.js
+@@ -273,7 +273,7 @@ test('S-7: scripts/cycle/serve.mjs survives a request with bad percent-encoding'
+ 
+ /* ------------------------------------------------- residuals of v2 findings */
+ 
+-test('V14 residual: a custom board cannot take a built-in company name (now including the beta names)', OPEN, async () => {
++test('V14 residual: a custom board cannot take a built-in company name (now including the beta names)', async () => {
+   const { resolveCompany, listCompanies } = await imp('server', 'companies.js');
+   const names = new Set(listCompanies({ channel: 'beta', includePaused: true }).map((c) => c.name.toLowerCase()));
+   for (const q of [{ source: 'lever', board: 'zzexample', name: 'Apple' }, { source: 'greenhouse', board: 'google' }, { source: 'ashby', board: 'zz', name: 'anthropic' }]) {
+diff --git a/test/fix-sec-3.test.js b/test/fix-sec-3.test.js
+index f81ee17..539cb78 100644
+--- a/test/fix-sec-3.test.js
++++ b/test/fix-sec-3.test.js
+@@ -307,3 +307,34 @@ test('S-10: normalizeEmployer gives every real employer name the same key as bef
+   for (const s of fuzz(['AMAZON', 'Meta', ' ', '.', ',', 'INC', 'LLC', 'L L C', 'CO', 'U.S.', '&', 'SERVICES', 'Platforms', '-'], 2000, 10)) names.push(s);
+   for (const n of names) assert.equal(normalizeEmployer(n), OLD.normalizeEmployer(n), n);
+ });
++
++/* ------------------------------------------------------------ V14 residual */
++
++test('V14 residual: no custom board shows any built-in name, on any channel, however it is spelled', async () => {
++  const { resolveCompany, defaultName, COMPANIES } = await imp('server', 'companies.js');
++  const builtins = COMPANIES.map((c) => c.name);
++  assert.ok(['Amazon', 'Apple', 'Google', 'Meta', 'Microsoft', 'Netflix', 'NVIDIA', 'Anthropic', 'Scale AI'].every((n) => builtins.includes(n)));
++  const key = (s) => String(s).normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
++  const taken = new Set(builtins.map(key));
++  for (const n of builtins) {
++    for (const spelled of [n, n.toUpperCase(), n.toLowerCase(), ` ${n} `, n.split('').join('.'), n.replace(/\s+/g, ''), n.normalize('NFKD')]) {
++      for (const src of ['greenhouse', 'ashby', 'lever']) {
++        const c = resolveCompany({ source: src, board: 'zzexample', name: spelled });
++        assert.equal(c.custom, true);
++        assert.ok(!taken.has(key(c.name)), `${src}/zzexample?name=${JSON.stringify(spelled)} is shown as "${c.name}"`);
++        assert.match(c.name, / \(custom\)$/);
++      }
++    }
++  }
++  // A board slug that spells a built-in's name gets the same suffix by default, and in the cached copy's name.
++  for (const [src, board] of [['greenhouse', 'google'], ['lever', 'nvidia'], ['ashby', 'meta'], ['greenhouse', 'scale-ai']]) {
++    assert.match(resolveCompany({ source: src, board }).name, / \(custom\)$/, `${src}/${board}`);
++    assert.ok(!taken.has(key(defaultName(board))), `defaultName(${board}) = ${defaultName(board)}`);
++  }
++  // Other names are kept as given; built-ins keep their own name (the 2026-10-02 V14 fix).
++  assert.equal(resolveCompany({ source: 'lever', board: 'acme-co', name: 'Acme' }).name, 'Acme');
++  assert.equal(resolveCompany({ source: 'greenhouse', board: 'acme' }).name, 'Acme');
++  assert.equal(resolveCompany({ source: 'lever', board: 'zz', name: 'Apple Pie Bakery' }).name, 'Apple Pie Bakery');
++  assert.equal(resolveCompany({ source: 'greenhouse', board: 'anthropic', name: 'Evil Corp' }).name, 'Anthropic');
++  assert.equal(resolveCompany({ company: 'apple' }).name, 'Apple');
++});
+-- 
+2.43.0
+

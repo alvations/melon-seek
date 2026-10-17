@@ -1,0 +1,112 @@
+From 93193d034dd546c9b3c193f24a46c98691d8b05a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 03:26:55 +0000
+Subject: [PATCH 19/41] fix-data-3: log with the gate results; M-40 test patch
+ for the renamed Amazon departments
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit dbeb3fd1965e6c88d0b74b530874aca55612584a)
+---
+ docs/process/fix-data-3.md                    | 38 ++++++++++++++++---
+ docs/process/patches/fix-data-3-m40-test.diff | 17 +++++++++
+ 2 files changed, 49 insertions(+), 6 deletions(-)
+ create mode 100644 docs/process/patches/fix-data-3-m40-test.diff
+
+diff --git a/docs/process/fix-data-3.md b/docs/process/fix-data-3.md
+index 84efd96..8873ee8 100644
+--- a/docs/process/fix-data-3.md
++++ b/docs/process/fix-data-3.md
+@@ -3,10 +3,10 @@
+ ## State
+ - **Done:** D-38, MR-28, the no-row Juice rule, D-41, D-42, V-45, Town and Country, old location and
+   department links, UX-32; norm-12 with the golden file re-baselined (0 of 300 hashes changed); unit tests
+-  (test/fix-data-3.test.js) and e2e (test/e2e/fix-data-3.e2e.js); DATA_SOURCES, CONTRACT and
+-  methodology-review-beta-2 (MR-28 fixed) updated; two patches for other lanes.
+-- **In progress:** the after build, census and e2e runs (§5).
+-- **Next:** send the SHAs to the lead; then nothing in this lane.
++  (test/fix-data-3.test.js) and e2e (test/e2e/fix-data-3.e2e.js); DATA_SOURCES, CONTRACT, the registry and
++  methodology-review-beta-2 (MR-28 fixed) updated; three patches for other lanes; the gate (§5) passed.
++- **In progress:** nothing.
++- **Next:** the lead integrates the commits and the patches (§6); then nothing in this lane.
+ 
+ ## 1. Brief
+ Prompt: [prompts/fix-data-3.md](prompts/fix-data-3.md). Data and backend fixes from beta round 3: the Google
+@@ -16,7 +16,8 @@ Country, old "Columbus, OH" links) and raw department names (UX-32). Files: serv
+ server/sources/upgrade.js, server/families.js, scripts/build-market.js, the location-key alias and the one Juice
+ line in public/app.js. Outside the list, small and named to the lead: server/salary.js (the shared Fellow-rank
+ predicate), server/keywords.js (the level rule), server/juice.js (one function), server/normalize.js (the
+-version), public/features/roles.js (one regex), the version pins in three tests, and app.js's search haystack.
++version), public/features/roles.js (one regex), the version pins in three tests, the refresh-jobs fixtures (regenerated at
++norm-12) and data/freshness.json (the gazetteer size, line references).
+ 
+ ## 2. Inputs and sources
+ - docs/CONTRACT.md (all sections), docs/DATA_SOURCES.md §7 and §7a, docs/process/PLAYBOOK.md ("Checkpoints",
+@@ -148,11 +149,32 @@ posting on all 15 boards):
+ - test/e2e/fix-data-3.e2e.js: 9 tests; 0 of 9 pass on the base build, 9 of 9 on the after build.
+ - The reviewers' red tests now pass: `[D-38]`, `[D-41]`, `[D-42]` (beta-desktop-qa-3) and `[V-45]` (beta-viz-review-2);
+   MR-28 in test/beta-methodology-2.test.js is a real test and passes.
+-- Full suites: below (§5, gate).
++- **Gate** (2026-10-17, load 9 to 17 on 4 CPUs):
++  - `MELON_BETA_SNAPSHOT_DIR= npm test` with the data links moved out of data/: 1,194 tests, 1,130 pass, 1 fail,
++    55 to-dos, 8 skipped. The failure is S-6 (server timing under load), which passes 3 of 3 alone. A first run had
++    found two real failures, both fixed: the registry's gazetteer size (MR-25, now 341 cities) and the refresh-jobs
++    fixtures, which must be at the current normalizer version (regenerated with make-fixtures.mjs).
++  - Full e2e with the data linked, on this build: 387/446 passed, 55 failed, 4 skipped. The 55: T21 (cold server,
++    load-bound: 0 of 3 alone here and 1 of 3 on the base at load 15 to 17; a cold server answers Anduril in 21.7 s
++    here and 24.5 s on the base, tools/cold.mjs), Fix app [P-5] (known: the FX refresh; the lead fixed the test in
++    e97aa8a), and the 53 red-by-design tests of the round-3 reviews (Beta mobile QA 3 M-33 to M-47, beta a11y 2 A-8
++    to A-11, Beta desktop QA 3 D-39, D-40, D-43 to D-45, Beta viz review 2 V-33 to V-48 except V-45, Beta UX review 2
++    UX-35 to UX-62 except UX-38).
++  - The same 69 review tests on the base build (tools/e2ecmp.mjs): 5 fixed by this lane (D-38, D-41, D-42, V-45 and
++    UX-38), 0 new failures, 54 red in both. M-40 stays red for a new reason: its precondition looks for two Amazon
++    labels that start alike, and there are none now; patch `docs/process/patches/fix-data-3-m40-test.diff` keeps its
++    intent (the two departments are listed and not cut to one text).
++  - `git checkout -- docs/screenshots` after each run.
+ 
+ ## 6. Known gaps and follow-ups
+ - Client medians (stats line, chart, Insights) still pool minimums, shift pay and part-time hourly figures; the
+   Compare companies footnote does not list them as left out: patch `docs/process/patches/fix-data-3-comps-left-out.diff`.
++- `docs/process/patches/fix-data-3-m40-test.diff`: test/e2e/beta-mobile-qa-3.e2e.js [M-40]'s precondition, for the
++  renamed Amazon departments (see §5).
++- A saved search opened on the board already loaded resolves an old place or department only on the next hash change
++  or load (resolveOldFilterKeys runs on load and on hashchange).
++- Search no longer matches NVIDIA's old inverted wording as one phrase ("Program Manager, Technical"); the words still
++  match the title-and-department text one by one.
+ - `payLocations` keeps the "every row tied" rule until `docs/process/patches/fix-data-3-shared-posted-places.diff` is
+   applied (fix-pay-at-place's `payAt` already applies the lead's rule).
+ - map.js `isApprox` still flags only 'centroid' (V-45's second half is the viz lane's); Luxembourg is a city now, so it
+@@ -164,3 +186,7 @@ posting on all 15 boards):
+ - 2026-10-17 00:38 started on f53a270; baseline build of the 2026-10-16 crawl.
+ - 01:00 D-38 (8a443a0), MR-28 (79871b0), no-row Juice (0ae184e).
+ - 01:16 places, departments, old links, norm-12 (e0f828a).
++- 01:30 dropped the per-job departmentPosted (list size); old d= links map through lib/families.js (f5db79e).
++- 01:45 old links on a hash change; the shorter shift line for 280 px; registry and refresh fixtures (09fa753).
++- 02:10 the container restart killed the full e2e at test 227; re-run from the start.
++- 03:30 gate done (§5); SHAs sent to the lead.
+diff --git a/docs/process/patches/fix-data-3-m40-test.diff b/docs/process/patches/fix-data-3-m40-test.diff
+new file mode 100644
+index 0000000..16cd693
+--- /dev/null
++++ b/docs/process/patches/fix-data-3-m40-test.diff
+@@ -0,0 +1,17 @@
++diff --git a/test/e2e/beta-mobile-qa-3.e2e.js b/test/e2e/beta-mobile-qa-3.e2e.js
++index 8ae9f40..3b566b4 100644
++--- a/test/e2e/beta-mobile-qa-3.e2e.js
+++++ b/test/e2e/beta-mobile-qa-3.e2e.js
++@@ -436,8 +436,11 @@ export function registerBetaMobileQa3Tests(suite) {
++     await sleep(200);
++     await tapSel(page, '#quickChips [data-pop=dept]', 1000);
++     const rows = await page.evaluate(() => [...document.querySelectorAll('#filterBody details.fsec[open] label.check .check-label')].filter((e) => e.getClientRects().length).map((e) => ({ text: e.textContent.trim(), cut: e.scrollWidth > e.clientWidth + 1, title: e.closest('label')?.title || e.title || '' })));
+++    // Amazon's two project, program and product management departments ("…--Technical", "…--Non-Tech"; since fix-data-3,
+++    // UX-32, named "Technical …" and "Non-Technical …"), and any other two labels that start alike.
+++    const pm = rows.filter((r) => /Project\W+Program\W+(?:and )?Product Management/i.test(r.text));
+++    assert(pm.length >= 2, `the build has Amazon's two "Project/Program/Product Management" departments (${pm.length})`);
++     const twins = rows.filter((r) => rows.some((o) => o !== r && o.text.slice(0, 30) === r.text.slice(0, 30)));
++-    assert(twins.length >= 2, `the build has Amazon's two "Project/Program/Product Management--…" departments (${twins.length})`);
++     const lost = twins.filter((r) => r.cut);
++     if (lost.length) { await page.locator('#filterBody label.check', { hasText: twins[0].text }).first().evaluate((e) => e.scrollIntoView({ block: 'center' })); await shot(page, 'e2e-M-40-amazon-departments'); }
++     assert(!lost.length, `cut to the same visible text: ${lost.map((r) => `"${r.text}"`).join(', ')}`);
+-- 
+2.43.0
+
