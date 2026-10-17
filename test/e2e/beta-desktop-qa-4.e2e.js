@@ -290,4 +290,30 @@ export function registerBetaDesktopQa4Tests(suite) {
     if (!r.striped) skip('no striped bars on NVIDIA\'s Ranges view');
     assert(!r.out.some((t) => /^Striped/.test(t)), `at 1440 px the legend shows ${r.w} of its ${r.scrollW} px; out of view (a vertical mouse wheel doesn't scroll it, and it has no scrollbar): ${r.out.map((t) => `"${t}"`).join(', ')}`);
   });
+
+  suite.test('Beta desktop QA 4: [D-52] the Pay estimate for a city keeps the city\'s postings that post one range (Apple "Software Engineer" in Cupertino, Microsoft in Redmond)', async (ctx) => {
+    const { st, page } = await open(ctx, 'c=apple');
+    const bad = [];
+    for (const [c, title, city] of [['apple', 'Software Engineer', 'Cupertino'], ['microsoft', 'Software Engineer', 'Redmond']]) {
+      const { jobs, mode } = await appJobs(page, st, c);
+      if (mode !== 'snapshot') continue;
+      const words = title.toLowerCase();
+      const there = jobs.filter((j) => j.salary && !j.salary.termWeeks && j.seniority !== 'Intern' && j.title.toLowerCase().includes(words) && j.locations.some((l) => l.name.startsWith(city)));
+      const oneRange = there.filter((j) => j.salary.ranges.length < 2);
+      if (oneRange.length < 20) continue;
+      await go(page, st, `c=${c}&m=insights`);
+      await page.waitForSelector('#compHost input[id^="comp-t"]', { timeout: 30000 }); await sleep(800);
+      await page.locator('#compHost select[id^="comp-s"]').selectOption('').catch(() => {});
+      await page.locator('#compHost input[id^="comp-t"]').fill(title); await sleep(900);
+      const sel = page.locator('#compHost select[id^="comp-l"]');
+      const v = await sel.evaluate((s, city) => [...s.options].find((o) => o.textContent.startsWith(city))?.value, city);
+      if (v == null) continue;
+      await sel.selectOption(v); await sleep(1500);
+      const text = await page.locator('#compHost').innerText();
+      const n = Number(((text.match(/Based on ([\d,]+) similar roles/) || [])[1] || '0').replace(/,/g, ''));
+      if (n < there.length / 2) bad.push(`${c} "${title}" in ${city}: "Based on ${n} similar roles", but ${there.length} ${c} postings in ${city} with pay have "${title}" in their title, ${oneRange.length} of them with one posted range for all their places (left out: only postings with a range per place count as local)`);
+    }
+    if (!bad.length && !(await page.locator('#compHost').count())) skip('no Insights');
+    assert(!bad.length, bad.join('; '));
+  });
 }
