@@ -34,9 +34,10 @@ UI: dist/api/freshness.json (client subset of the registry) -> "as of" labels ne
 **Safety model** (the user's decision, 2026-10-16: "Commit straight make a GitHub action for it"):
 - A validated data change is committed straight to the run's branch (the default branch for the schedule, or a `TRUSTED_BRANCHES` dispatch), but only when the full `npm test` suite passed against the refreshed data **and** the refresh reported no problems. Otherwise nothing is published and the data-freshness issue says why (tests failed, or which problems).
 - The commit is never force-pushed: a rejected push refetches the branch and re-applies the same files, up to 4 times. It then dispatches CI and the Pages deploy for the new commit, because a push made with `GITHUB_TOKEN` starts no workflow.
-- Only files the refresh writers write are committed: an allow-list (the registry and its inventory, `data/cities.json`, README, LIVABILITY, CONTRACT, the FX code copies and `test/juice.test.js`), so a faulty refresh job cannot commit code. The ref must be a branch (`refs/heads/…`), not a tag of the same name.
+- Only files the refresh writers write are committed: an allow-list of the registry and its inventory, `data/cities.json`, `docs/LIVABILITY.md` and the four FX code copies (`server/juice.js`, `server/salary.js`, `public/viz/palette.js`, `public/features/shared.js`), so a faulty refresh job cannot commit code. No test file is on the list: the refresh never edits test code (README, CONTRACT and `test/juice.test.js` were on it until 2026-10-17, but only detect rules read them; nothing writes them). The ref must be a branch (`refs/heads/…`), not a tag of the same name.
+- The four FX code copies reach visitors' browsers, so each may differ from the branch tip only in the values the FX writer changes: the `FX_PER_USD` table rows (`  CODE: number,`, keys never added or dropped), `FX_AS_OF`, `FX_SOURCE` (a plain one-line string), salary.js's one-line `EXTRA_FX_PER_USD` and shared.js's `FX_FALLBACK` CNY rate. `.github/scripts/fx-values-only.mjs` masks those values and requires the rest of each file to be unchanged; any other line, code above all, stops the step before anything is committed. The first real refresh (`9de373f`) passes it (`test/fixtures/refresh/fx-refresh-9de373f.json`).
 - The data is never copied over a tip that changed one of the refreshed files after the tested commit: the step refuses and the next run starts fresh. When the tip moved only in `wip/` (checkpoints), it commits and deploys. When other code moved, it commits and runs CI, and the next deploy ships it, so an untested tree is never deployed at once.
-- `test/workflows.test.js` pins the push rules (one push to the target branch, never forced, inside the step gated on tests and problems, to the run's own branch only). `test/monthly-refresh-commit.test.js` runs the step's own shell against scratch git repositories for each case, and checks that the allow-list equals the writers' targets.
+- `test/workflows.test.js` pins the push rules (one push to the target branch, never forced, inside the step gated on tests and problems, to the run's own branch only). `test/monthly-refresh-commit.test.js` runs the step's own shell against scratch git repositories for each case (including the 9de373f replay and six ways of slipping code into an FX copy), and checks that the allow-list equals the writers' write sites (`{ file, content }` in `scripts/refresh/*.js`, plus the registry and its inventory).
 - The repository variable `REFRESH_PUBLISH=pr` switches back to the review model: a commit on `bot/monthly-refresh`, opened as a pull request for a human.
 - Two jobs. `refresh` fetches and parses the remote pages and PDFs, and runs `npm ci` and the tests, with a **read-only** token. `publish` holds the write token. It checks out without persisted credentials and never runs npm or parses remote content. It re-applies exactly the files `refresh` reported (from a 7-day `monthly-refresh-changes` artifact), refuses any path outside the data and code copies (`.github/`, dotfiles, `..`, `package*.json`), and passes the token to the one `git push` through environment config, never `.git/config`.
 - Only the scheduled run (GitHub runs schedules on the default branch only) or a dispatch on the default branch or `TRUSTED_BRANCHES` publishes. A dispatch from any other branch is report-only.
@@ -305,12 +306,13 @@ Typical publication dates:
 - **Before 2026-10.** The table was the Big Mac `dollar_ex` column. It was refreshed only twice a year, and the code copies were updated by hand.
 
 ### Pinned values
-Some tests and docs pin numbers that move when the data refreshes:
-- worked examples at a given FX;
-- `DOC.bigMac.asOf === '2026-07-01'`;
+Some docs pin numbers that move when the data refreshes:
+- worked examples at a given FX (docs/LIVABILITY.md);
 - README counts.
 
 `scripts/refresh/derived.js` regenerates the generated blocks (`<!-- freshness:... -->` markers) in each refresh PR. Hand-written figures are checked and reported as drift.
+
+Tests never pin a refreshed data value as a literal, and the refresh never edits a test: a test reads the value from the data (`test/juice.test.js` compares the Big Mac release with `DOC.bigMac.asOf`, not a date), and the `e2e-pinned-values` check reports any pin that comes back. A test that does pin one fails the refresh's own test run, so nothing is committed until a person fixes the test.
 
 The refresh's gate runs `npm test`, not the browser suite (`scripts/e2e.js`). So an e2e test that pins a converted
 figure passes the gate and breaks after a refresh. The first real FX refresh (2026-10-16) did this to Fix app
