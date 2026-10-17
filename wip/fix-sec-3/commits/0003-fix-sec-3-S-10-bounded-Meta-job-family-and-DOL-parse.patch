@@ -1,0 +1,532 @@
+From d05d6db26bd6d22a9454bd45ba0e7817c117fcc8 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 01:59:33 +0000
+Subject: [PATCH 3/5] fix-sec-3: S-10: bounded Meta, job-family and DOL parsers
+ (linear on hostile text, same output on real data)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- meta.js parseMetaAmount: trimmed, first 100 characters; parseMetaSitemap: <loc>[^<]{0,2048}</loc>;
+  JSON-LD: metaJsonLd, one forward pass (type attribute within 500 characters of <script).
+- families.js prep: first 500 characters, brackets [（(][^（(）)]{0,200}[）)].
+- scripts/alt-data/xlsx.js: cellElements / textRuns / dropPhonetic replace CELL_RE and the rich-text
+  regexes with forward scans that match exactly what they matched; employers.js: names capped at 300.
+Tests: the three S-10 to-dos un-todo'd; test/fix-sec-3.test.js times 64-256 KB hostile inputs of every
+shape (under 2 s; 2 to 60 s before) and checks old versus new output on the real fixtures and on
+seeded fuzz (all equal). familyOfTitle is unchanged on all 37,619 titles of today's crawl.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/CONTRACT.md                    |   8 ++
+ scripts/alt-data/employers.js       |   4 +-
+ scripts/alt-data/xlsx.js            | 108 ++++++++++++++--
+ server/families.js                  |   6 +-
+ server/sources/meta.js              |  45 +++++--
+ test/beta-security-review-2.test.js |   6 +-
+ test/fix-sec-3.test.js              | 193 ++++++++++++++++++++++++++++
+ 7 files changed, 345 insertions(+), 25 deletions(-)
+
+diff --git a/docs/CONTRACT.md b/docs/CONTRACT.md
+index a4d52b2..20988d1 100644
+--- a/docs/CONTRACT.md
++++ b/docs/CONTRACT.md
+@@ -648,6 +648,14 @@ opening bracket. 1 MB of hostile text takes 40–110 ms in each (was quadratic:
+ Pipeline tasks stop after `MELON_TASK_TIMEOUT_MS` (default 5 minutes; 0 turns the limit off) and their
+ worker is replaced.
+ 
++**Parser limits (S-10, fix-sec-3):** `parseMetaAmount` reads the trimmed first 100 characters;
++`familyOfTitle` the first 500 characters of a title, dropping brackets of at most 200 characters with no
++bracket inside; `parseMetaSitemap` a `<loc>` of at most 2,048 characters; the Meta JSON-LD reader
++(`metaJsonLd`) a `type="application/ld+json"` within the first 500 characters of a `<script>` tag. The DOL
++tools read cells and text runs in one forward pass (`cellElements`, `textRuns`) and at most 300 characters of
++an employer name. Each reads real pages and files exactly as before; 64–256 KB of hostile text takes
++milliseconds (was quadratic: 2 to 59 minutes projected for 1 MB).
++
+ **Vetting (`scripts/vet-salaries.js#scanJob`, `scripts/llm-vet.js`):** a merged Apple requisition is not
+ `structured_text_disagree` when its text states one of its ranges (DQ-32). `reviewedFiles` reads
+ `<date>-beta` folders; `latestFlags(channel, dir)` is exported and the CLI takes `--channel beta` (VT-9).
+diff --git a/scripts/alt-data/employers.js b/scripts/alt-data/employers.js
+index 19a70e2..40c5e5a 100644
+--- a/scripts/alt-data/employers.js
++++ b/scripts/alt-data/employers.js
+@@ -17,7 +17,9 @@ const SUFFIX_RE = /\s+(?:INC|INCORPORATED|LLC|L L C|CORP|CORPORATION|CO|COMPANY|
+ 
+ /** "Amazon.com Services, LLC." -> "AMAZON COM SERVICES". */
+ export function normalizeEmployer(name) {
+-  let s = String(name || '').toUpperCase().replace(/&/g, ' AND ').replace(/[^A-Z0-9]+/g, ' ').trim();
++  // S-10: at most 300 characters (real employer names are far shorter), so stripping one suffix at a time
++  // stays cheap on a hostile name ("INC " repeated over 64 KB took 2.7 s, quadratic).
++  let s = String(name || '').slice(0, 300).toUpperCase().replace(/&/g, ' AND ').replace(/[^A-Z0-9]+/g, ' ').trim();
+   // "U S" (from "U.S.") stays two letters; collapse it so "U S" and "US" match alike.
+   s = s.replace(/\bU S\b/g, 'US');
+   for (let prev = null; prev !== s;) { prev = s; s = s.replace(SUFFIX_RE, '').trim(); }
+diff --git a/scripts/alt-data/xlsx.js b/scripts/alt-data/xlsx.js
+index 79845ea..716ce41 100644
+--- a/scripts/alt-data/xlsx.js
++++ b/scripts/alt-data/xlsx.js
+@@ -152,11 +152,67 @@ export function xmlText(s) {
+     .replace(/_x([0-9A-Fa-f]{4})_/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+ }
+ 
++const WORD_CH = /[A-Za-z0-9_]/;
++const WS_CH = /\s/;
++
++/**
++ * `s` without its <rPh>…</rPh> runs: what s.replace(/<rPh\b[\s\S]*?<\/rPh>/g, '') gives, in one forward
++ * pass (S-10: the regex rescanned to the end from every unclosed "<rPh").
++ */
++function dropPhonetic(s) {
++  let out = '';
++  let pos = 0;
++  for (let i = s.indexOf('<rPh'); i >= 0;) {
++    if (i + 4 < s.length && WORD_CH.test(s[i + 4])) { i = s.indexOf('<rPh', i + 1); continue; } // "<rPhx": no \b
++    const e = s.indexOf('</rPh>', i + 4);
++    if (e < 0) break; // no close after this one, nor after any later one
++    out += s.slice(pos, i);
++    pos = e + 6;
++    i = s.indexOf('<rPh', pos);
++  }
++  return out + s.slice(pos);
++}
++
++/**
++ * The text runs of an <si> / <is> body, in order: what
++ * /<t(?:\s[^>]*)?>([\s\S]*?)<\/t>|<t(?:\s[^>]*)?\/>/g matched (a self-closing <t/> is ''), in one forward pass
++ * (S-10: the regex rescanned to the end from every unclosed "<t" or "<t ").
++ */
++export function textRuns(b) {
++  const runs = [];
++  const lastClose = b.lastIndexOf('</t>');
++  let gt = -2; // the next '>' at or after a position (only moves forward)
++  for (let i = b.indexOf('<t'); i >= 0;) {
++    const c = b[i + 2];
++    let end = -1;
++    let text = null;
++    if (c === '>' || (c !== undefined && WS_CH.test(c))) {
++      if (c === '>') gt = i + 2;
++      else if (gt !== -1 && gt < i + 3) gt = b.indexOf('>', i + 3);
++      if (gt === -1) break; // no tag can close
++      if (gt + 1 <= lastClose) { // <t …>text</t>
++        const e = b.indexOf('</t>', gt + 1);
++        text = b.slice(gt + 1, e);
++        end = e + 4;
++      } else if (c !== '>' && b[gt - 1] === '/') { // <t …/>
++        text = '';
++        end = gt + 1;
++      }
++    } else if (c === '/' && b[i + 3] === '>') { // <t/>
++      text = '';
++      end = i + 4;
++    }
++    if (end < 0) { i = b.indexOf('<t', i + 1); continue; }
++    runs.push(text);
++    i = b.indexOf('<t', end);
++  }
++  return runs;
++}
++
+ /** Text of an <si> or <is> body: every <t> outside phonetic runs (<rPh>), joined. */
+ export function richText(body) {
+-  const b = String(body).replace(/<rPh\b[\s\S]*?<\/rPh>/g, '');
+   let out = '';
+-  for (const m of b.matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>|<t(?:\s[^>]*)?\/>/g)) out += m[1] ? xmlText(m[1]) : '';
++  for (const t of textRuns(dropPhonetic(String(body)))) out += t ? xmlText(t) : '';
+   return out;
+ }
+ 
+@@ -217,7 +273,42 @@ export function colIndex(ref) {
+   return n - 1;
+ }
+ 
+-const CELL_RE = /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
++/**
++ * The <c> elements of a row, in order: [{ attrs, body }] (body null for <c …/>), what
++ * /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g matched, in one forward pass (S-10: the regex rescanned to the end
++ * of the row from every unclosed "<c").
++ */
++export function cellElements(rowXml) {
++  const s = String(rowXml);
++  const cells = [];
++  const lastClose = s.lastIndexOf('</c>');
++  let gt = -2; // the next '>' at or after a position (only moves forward)
++  for (let i = s.indexOf('<c'); i >= 0;) {
++    if (i + 2 < s.length && WORD_CH.test(s[i + 2])) { i = s.indexOf('<c', i + 1); continue; } // "<col": no \b
++    if (gt !== -1 && gt < i + 2) gt = s.indexOf('>', i + 2);
++    if (gt === -1) break; // no tag can close
++    let end = -1;
++    if (s[gt - 1] === '/' && gt - 1 >= i + 2) { // <c …/>
++      cells.push({ attrs: s.slice(i + 2, gt - 1), body: null });
++      end = gt + 1;
++    } else if (gt + 1 <= lastClose) { // <c …>…</c>
++      const e = s.indexOf('</c>', gt + 1);
++      cells.push({ attrs: s.slice(i + 2, gt), body: s.slice(gt + 1, e) });
++      end = e + 4;
++    }
++    i = end < 0 ? s.indexOf('<c', i + 1) : s.indexOf('<c', end);
++  }
++  return cells;
++}
++
++/** The text between the first `<tag>` and the next `</tag>` in `s`, or null (what /<tag>([\s\S]*?)<\/tag>/ captured). */
++function between(s, tag) {
++  const a = s.indexOf(`<${tag}>`);
++  if (a < 0) return null;
++  const e = s.indexOf(`</${tag}>`, a + tag.length + 2);
++  return e < 0 ? null : s.slice(a + tag.length + 2, e);
++}
++
+ const ATTR = (attrs, name) => {
+   const m = new RegExp(`\\b${name}="([^"]*)"`).exec(attrs);
+   return m ? m[1] : null;
+@@ -231,19 +322,18 @@ const ATTR = (attrs, name) => {
+ export function rowCells(rowXml, only = null) {
+   const cells = new Map();
+   let next = 0;
+-  for (const m of rowXml.matchAll(CELL_RE)) {
+-    const attrs = m[1];
++  for (const { attrs, body: cellBody } of cellElements(rowXml)) {
+     const ref = ATTR(attrs, 'r');
+     const col = ref ? colIndex(ref) : next;
+     next = col + 1;
+     if (only && !only.has(col)) continue;
+     const t = ATTR(attrs, 't') || 'n';
+-    const body = m[2] || '';
++    const body = cellBody || '';
+     let v = null;
+-    if (t === 'inlineStr') v = richText((/<is>([\s\S]*?)<\/is>/.exec(body) || [])[1] || '');
++    if (t === 'inlineStr') v = richText(between(body, 'is') || '');
+     else {
+-      const vm = /<v>([\s\S]*?)<\/v>/.exec(body);
+-      v = vm ? xmlText(vm[1]) : null;
++      const vm = between(body, 'v');
++      v = vm != null ? xmlText(vm) : null;
+     }
+     if (v != null && v !== '') cells.set(col, { t, v });
+   }
+diff --git a/server/families.js b/server/families.js
+index 34e7190..2c6ac4d 100644
+--- a/server/families.js
++++ b/server/families.js
+@@ -117,9 +117,11 @@ const WEAK = [
+ ];
+ 
+ function prep(title) {
+-  let t = String(title || '');
++  // S-10: real titles are under 200 characters; the cap and the bounded bracket group keep an unclosed "(" run
++  // linear (64 KB of "(" took 9 s). Brackets are dropped innermost first, as real titles never nest them.
++  let t = String(title || '').slice(0, 500);
+   for (const [re, en] of TRANSLATE) t = t.replace(re, en);
+-  return t.replace(/[（(][^）)]*[）)]/g, ' ').replace(/\s+/g, ' ').trim();
++  return t.replace(/[（(][^（(）)]{0,200}[）)]/g, ' ').replace(/\s+/g, ' ').trim();
+ }
+ 
+ const first = (rules, s) => {
+diff --git a/server/sources/meta.js b/server/sources/meta.js
+index 4c4f56e..4ce141a 100644
+--- a/server/sources/meta.js
++++ b/server/sources/meta.js
+@@ -33,7 +33,8 @@ export function parseMetaSitemap(xml) {
+   const out = [];
+   const seen = new Set();
+   const text = String(xml || '');
+-  const blocks = /<url>/.test(text) ? text.split(/<url>/).slice(1) : [...text.matchAll(/<loc>[\s\S]*?<\/loc>/g)].map((m) => m[0]);
++  // S-10: a bounded <loc> (a page URL is short), so a run of unclosed "<loc>" is read once, not once per tag.
++  const blocks = /<url>/.test(text) ? text.split(/<url>/).slice(1) : [...text.matchAll(/<loc>[^<]{0,2048}<\/loc>/g)].map((m) => m[0]);
+   for (const b of blocks) {
+     const loc = /<loc>\s*([^<\s]+)\s*<\/loc>/.exec(b);
+     const u = loc && /\/(?:profile\/job_details|jobs)\/(\d{6,})/.exec(loc[1]);
+@@ -77,14 +78,36 @@ export function jsonSpanAfter(text, key, from = 0) {
+   try { return { value: JSON.parse(text.slice(start, i)), end: i }; } catch { return null; }
+ }
+ 
+-/** schema.org JobPosting blocks in the page. */
+-function jsonLd(html) {
++/**
++ * schema.org JobPosting blocks in the page. S-10: the same blocks the regex
++ * /<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g found, read in one forward pass:
++ * the opening tag's type attribute within its first 500 characters, the body up to the next </script>.
++ * A run of unclosed "<script " no longer rescans the page from every tag.
++ */
++export function metaJsonLd(html) {
+   const out = [];
+-  for (const m of String(html).matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)) {
+-    try {
+-      const v = JSON.parse(m[1]);
+-      for (const x of Array.isArray(v) ? v : [v]) if (x && x['@type'] === 'JobPosting') out.push(x);
+-    } catch {}
++  const s = String(html);
++  const TYPE = 'type="application/ld+json"';
++  const lastClose = s.lastIndexOf('</script>');
++  // The next '>' and the next TYPE at or after a position; both only move forward, so each is found once.
++  let gt = -2;
++  let tp = -2;
++  for (let i = s.indexOf('<script'); i >= 0;) {
++    if (gt !== -1 && gt < i + 7) gt = s.indexOf('>', i + 7);
++    if (tp !== -1 && tp < i + 8) tp = s.indexOf(TYPE, i + 8);
++    if (gt === -1 || tp === -1) break; // no tag can close, or none has the type
++    if (tp < gt && tp - (i + 7) <= 500) {
++      const start = gt + 1;
++      if (start > lastClose) break; // no </script> after this tag, nor after any later one
++      const end = s.indexOf('</script>', start);
++      try {
++        const v = JSON.parse(s.slice(start, end));
++        for (const x of Array.isArray(v) ? v : [v]) if (x && x['@type'] === 'JobPosting') out.push(x);
++      } catch {}
++      i = s.indexOf('<script', end + 9);
++    } else {
++      i = s.indexOf('<script', i + 1);
++    }
+   }
+   return out;
+ }
+@@ -92,7 +115,7 @@ function jsonLd(html) {
+ /** Pull the fields we use out of a job page (kept small: this is also the probe fixture). */
+ export function extractMetaPage(html, id) {
+   const page = String(html || '');
+-  const ld = jsonLd(page)[0] || null;
++  const ld = metaJsonLd(page)[0] || null;
+   // The page's own requisition object: its keys (title, locations, departments,
+   // description, public_compensation …) follow the "apply_for_this_job_section"
+   // object, which has a title and description of its own, so start after it.
+@@ -131,7 +154,9 @@ const COUNTRY_CUR = { US: 'USD', CA: 'CAD', GB: 'GBP', UK: 'GBP', IE: 'EUR', SG:
+ 
+ /** "$173,000/year" -> { value: 173000, symbol: "$", interval: "year" } or null. */
+ export function parseMetaAmount(s) {
+-  const m = /^\s*([A-Z]{3}\s?|[A-Z]{0,2}\$|£|€|¥|₹|₪)?\s*([\d,]+(?:\.\d+)?)\s*([A-Z]{3})?\s*(?:\/|per\s+)?\s*(year|yr|hour|hr|month|week|day)?/i.exec(String(s || ''));
++  // S-10: trimmed and cut to 100 characters (an amount is short), so the regex's back-to-back \s* can't
++  // backtrack over a long whitespace run (64 KB of spaces took 12 s).
++  const m = /^\s*([A-Z]{3}\s?|[A-Z]{0,2}\$|£|€|¥|₹|₪)?\s*([\d,]+(?:\.\d+)?)\s*([A-Z]{3})?\s*(?:\/|per\s+)?\s*(year|yr|hour|hr|month|week|day)?/i.exec(String(s || '').trim().slice(0, 100));
+   if (!m) return null;
+   const value = Number(m[2].replace(/,/g, ''));
+   if (!Number.isFinite(value) || value <= 0) return null;
+diff --git a/test/beta-security-review-2.test.js b/test/beta-security-review-2.test.js
+index dfed019..49e72be 100644
+--- a/test/beta-security-review-2.test.js
++++ b/test/beta-security-review-2.test.js
+@@ -159,17 +159,17 @@ const LIMIT = 2000; // linear code does each of these in a few ms; today they ta
+ 
+ // Measured at d98a9f0 (docs/process/security-a11y-review-beta-2.md §5): exponent about 2, 1 MB projected
+ // 59 min (parseMetaAmount), 19 min (familyOfTitle), 13 min (parseMetaSitemap), 2.3 min (extractMetaPage).
+-test('S-10: parseMetaAmount is linear on a long whitespace run (64 KB under 2 s)', OPEN, async () => {
++test('S-10: parseMetaAmount is linear on a long whitespace run (64 KB under 2 s)', async () => {
+   const ms = await timedInWorker(`async () => { const m = await import(${url('server', 'sources', 'meta.js')}); m.parseMetaAmount(' '.repeat(65536)); m.parseMetaAmount('\\n'.repeat(65536)); }`, LIMIT);
+   assert.ok(ms < LIMIT, `${Math.round(ms)} ms`);
+ });
+ 
+-test('S-10: familyOfTitle (Google job families) is linear on an unclosed "(" run (64 KB under 2 s)', OPEN, async () => {
++test('S-10: familyOfTitle (Google job families) is linear on an unclosed "(" run (64 KB under 2 s)', async () => {
+   const ms = await timedInWorker(`async () => { const f = await import(${url('server', 'families.js')}); f.familyOfTitle('('.repeat(65536)); f.familyOfTitle('(L5'.repeat(21846)); }`, LIMIT);
+   assert.ok(ms < LIMIT, `${Math.round(ms)} ms`);
+ });
+ 
+-test('S-10: Meta sitemap and page parsers are linear on unclosed tags (256 KB under 2 s)', OPEN, async () => {
++test('S-10: Meta sitemap and page parsers are linear on unclosed tags (256 KB under 2 s)', async () => {
+   const ms = await timedInWorker(`async () => { const m = await import(${url('server', 'sources', 'meta.js')}); m.parseMetaSitemap('<loc>'.repeat(52429)); m.extractMetaPage('<script '.repeat(32768), '123456'); }`, LIMIT);
+   assert.ok(ms < LIMIT, `${Math.round(ms)} ms`);
+ });
+diff --git a/test/fix-sec-3.test.js b/test/fix-sec-3.test.js
+index 1d34ec3..f81ee17 100644
+--- a/test/fix-sec-3.test.js
++++ b/test/fix-sec-3.test.js
+@@ -114,3 +114,196 @@ test('S-4 residual: scripts/links-policy.js keeps the same posting allowlist, no
+   }
+   assert.equal(postingRule({ slug: 'amazon', custom: true }), null, 'never for a custom board');
+ });
++
++/* ------------------------------------------------------------------ S-10 */
++
++/** Run `body` (a function source taking no args) in a worker; resolve its ms, or reject after limitMs. */
++function timedInWorker(body, limitMs) {
++  const src = `const { parentPort } = require('node:worker_threads');
++(async () => { const t0 = performance.now(); await (${body})(); parentPort.postMessage(performance.now() - t0); })()
++  .catch((e) => parentPort.postMessage('error: ' + e.message));`;
++  return new Promise((resolve, reject) => {
++    const w = new Worker(src, { eval: true });
++    const timer = setTimeout(() => { w.terminate(); reject(new Error(`still running after ${limitMs} ms`)); }, limitMs);
++    w.once('message', (m) => { clearTimeout(timer); w.terminate(); typeof m === 'number' ? resolve(m) : reject(new Error(m)); });
++    w.once('error', (e) => { clearTimeout(timer); reject(e); });
++  });
++}
++const url = (...p) => JSON.stringify(pathToFileURL(path.join(ROOT, ...p)).href);
++const LIMIT = 2000; // linear code does each of these in a few ms; before the fix they took 1 to 60 s
++
++// More hostile shapes than the review's own tests (test/beta-security-review-2.test.js "S-10"): every way the old
++// regexes backtracked, each 64-256 KB.
++test('S-10: the Meta parsers stay linear on every unclosed-tag shape (256 KB each under 2 s)', async () => {
++  const ms = await timedInWorker(`async () => {
++    const m = await import(${url('server', 'sources', 'meta.js')});
++    const n = 262144;
++    m.parseMetaAmount('$' + ' '.repeat(n)); m.parseMetaAmount(' '.repeat(n) + '$' + ' '.repeat(n) + '1');
++    m.parseMetaSitemap('<loc>' + 'a'.repeat(n)); m.parseMetaSitemap('<loc>a '.repeat(n / 7)); m.parseMetaSitemap('<url><loc>' + ' '.repeat(n));
++    m.extractMetaPage('<script type="application/ld+json">'.repeat(n / 35), '1');
++    m.extractMetaPage('<script '.repeat(n / 8) + '>', '1');
++    m.extractMetaPage('<script type="application/ld+json">{}</script>'.repeat(n / 46), '1');
++  }`, LIMIT * 2);
++  assert.ok(ms < LIMIT * 2, `${Math.round(ms)} ms`);
++});
++
++test('S-10: familyOfTitle reads at most 500 characters of a title, whatever brackets it holds', async () => {
++  const ms = await timedInWorker(`async () => {
++    const f = await import(${url('server', 'families.js')});
++    f.familyOfTitle('（'.repeat(65536)); f.familyOfTitle('(a'.repeat(32768) + ')'); f.familyOfTitle('Software Engineer, ' + 'x'.repeat(262144));
++  }`, LIMIT);
++  assert.ok(ms < LIMIT, `${Math.round(ms)} ms`);
++  const { familyOfTitle } = await imp('server', 'families.js');
++  assert.equal(familyOfTitle(`Software Engineer, ${'x '.repeat(400)}`), familyOfTitle('Software Engineer, x'));
++});
++
++test('S-10: the DOL tools (xlsx reader, employer names) stay linear on hostile XML and names (64 KB under 2 s)', async () => {
++  const ms = await timedInWorker(`async () => {
++    const x = await import(${url('scripts', 'alt-data', 'xlsx.js')});
++    const e = await import(${url('scripts', 'alt-data', 'employers.js')});
++    const n = 65536;
++    x.rowCells('<c'.repeat(n / 2)); x.rowCells('<c>'.repeat(n / 3)); x.rowCells('<c '.repeat(n / 3) + '>'); x.rowCells('<c r="A1">' + '<v>'.repeat(n / 3) + '</c>');
++    x.rowCells('<c t="inlineStr"><is>' + '<t>'.repeat(n / 3) + '</is></c>');
++    x.richText('<t>'.repeat(n / 3)); x.richText('<t '.repeat(n / 3)); x.richText('<t '.repeat(n / 3) + '>'); x.richText('<rPh'.repeat(n / 4)); x.richText('<rPh>' + '<t>a'.repeat(n / 4));
++    e.normalizeEmployer('INC '.repeat(n / 4)); e.normalizeEmployer('A'.repeat(n) + ' LLC'.repeat(n / 4));
++  }`, LIMIT);
++  assert.ok(ms < LIMIT, `${Math.round(ms)} ms`);
++});
++
++/* Frozen copies of the parsers as they were at f53a270, for the equivalence checks below. */
++const OLD = {
++  parseMetaAmount(s) {
++    const m = /^\s*([A-Z]{3}\s?|[A-Z]{0,2}\$|£|€|¥|₹|₪)?\s*([\d,]+(?:\.\d+)?)\s*([A-Z]{3})?\s*(?:\/|per\s+)?\s*(year|yr|hour|hr|month|week|day)?/i.exec(String(s || ''));
++    if (!m) return null;
++    const value = Number(m[2].replace(/,/g, ''));
++    if (!Number.isFinite(value) || value <= 0) return null;
++    const iv = String(m[4] || 'year').toLowerCase();
++    return { value, symbol: (m[1] || m[3] || '').trim(), interval: /^h/.test(iv) ? 'hour' : /^mo/.test(iv) ? 'month' : /^w/.test(iv) ? 'week' : /^d/.test(iv) ? 'day' : 'year' };
++  },
++  sitemapBlocks(text) { return /<url>/.test(text) ? text.split(/<url>/).slice(1) : [...text.matchAll(/<loc>[\s\S]*?<\/loc>/g)].map((m) => m[0]); },
++  jsonLd(html) {
++    const out = [];
++    for (const m of String(html).matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)) {
++      try { const v = JSON.parse(m[1]); for (const x of Array.isArray(v) ? v : [v]) if (x && x['@type'] === 'JobPosting') out.push(x); } catch {}
++    }
++    return out;
++  },
++  richText(body) {
++    const b = String(body).replace(/<rPh\b[\s\S]*?<\/rPh>/g, '');
++    const runs = [];
++    for (const m of b.matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>|<t(?:\s[^>]*)?\/>/g)) runs.push(m[1] || '');
++    return runs;
++  },
++  cells(rowXml) {
++    return [...rowXml.matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)].map((m) => [m[1], m[2] ?? null]);
++  },
++  normalizeEmployer(name) {
++    let s = String(name || '').toUpperCase().replace(/&/g, ' AND ').replace(/[^A-Z0-9]+/g, ' ').trim();
++    s = s.replace(/\bU S\b/g, 'US');
++    for (let prev = null; prev !== s;) { prev = s; s = s.replace(/\s+(?:INC|INCORPORATED|LLC|L L C|CORP|CORPORATION|CO|COMPANY|LTD|LIMITED|LP|LLP|PLLC|PC|NA)$/, '').trim(); }
++    return s;
++  },
++};
++
++/** A seeded generator of strings made of `tokens` (mulberry32), for the old-versus-new checks. */
++function* fuzz(tokens, n, maxLen, seed = 20261017) {
++  let a = seed >>> 0;
++  const rnd = () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
++  for (let k = 0; k < n; k++) {
++    let s = '';
++    const len = 1 + Math.floor(rnd() * maxLen);
++    for (let i = 0; i < len; i++) s += tokens[Math.floor(rnd() * tokens.length)];
++    yield s;
++  }
++}
++
++test('S-10: parseMetaAmount reads every real and sample amount exactly as before', async () => {
++  const { parseMetaAmount } = await imp('server', 'sources', 'meta.js');
++  const amounts = new Set(['$173,000/year', ' $173,000/year ', '£95,000 per year', 'USD 50/hour', 'CA$120,000', '€80.000', '₹ 2,500,000', 'S$ 120000/yr', '$85.50/hr', '173000 USD', 'GBP 60,000 per month', '$1,000 / week', 'A$ 90 per day', '', 'n/a', '$0', '¥8,000,000']);
++  for (const p of fixture('meta').records) for (const c of p.public_compensation) for (const v of Object.values(c)) if (typeof v === 'string' && v) amounts.add(v);
++  for (const s of fuzz(['$', '£', 'USD', ' ', '1', '73', ',', '000', '.', '50', '/', 'year', 'hr', 'per ', 'EUR', '\n'], 3000, 12)) amounts.add(s);
++  for (const s of [...amounts, null, undefined]) assert.deepEqual(parseMetaAmount(s), OLD.parseMetaAmount(s), JSON.stringify(s));
++});
++
++test('S-10: the Meta sitemap and JSON-LD readers find exactly what the old regexes found', async () => {
++  const { parseMetaSitemap, metaJsonLd, extractMetaPage, META_ORIGIN } = await imp('server', 'sources', 'meta.js');
++  const oldSitemap = (xml) => {
++    const out = []; const seen = new Set();
++    for (const b of OLD.sitemapBlocks(String(xml || ''))) {
++      const loc = /<loc>\s*([^<\s]+)\s*<\/loc>/.exec(b);
++      const u = loc && /\/(?:profile\/job_details|jobs)\/(\d{6,})/.exec(loc[1]);
++      if (!u || seen.has(u[1])) continue;
++      seen.add(u[1]);
++      const lm = /<lastmod>\s*([^<\s]+)\s*<\/lastmod>/.exec(b);
++      out.push({ id: u[1], url: `${META_ORIGIN}/profile/job_details/${u[1]}/`, ...(lm ? { lastmod: lm[1] } : {}) });
++    }
++    return out;
++  };
++  const ids = fixture('meta').records.map((p) => p.id);
++  const real = [
++    `<urlset>${ids.map((id) => `<url><loc>https://www.metacareers.com/profile/job_details/${id}/</loc><lastmod>2026-10-10</lastmod></url>`).join('')}</urlset>`,
++    ids.map((id) => `<loc>\n  https://www.metacareers.com/jobs/${id}/\n</loc>`).join('\n'),
++  ];
++  for (const s of [...real, ...fuzz(['<loc>', '</loc>', 'https://www.metacareers.com/jobs/1234567/', '/profile/job_details/7654321/', ' ', '\n', '<url>', '<lastmod>', '</lastmod>', '2026-10-10', '<', 'x'], 3000, 14)]) {
++    assert.deepEqual(parseMetaSitemap(s), oldSitemap(s), JSON.stringify(s));
++  }
++  assert.equal(parseMetaSitemap(real[1]).length, ids.length);
++  // JSON-LD: the fixture's pages as metacareers.com sends them (test/bigtech-sources.test.js metaPage), then shuffled tags.
++  const page = (p) => `<html><head><script type="application/ld+json" nonce="x">${JSON.stringify({ '@context': 'https://schema.org', '@type': 'JobPosting', title: p.ld.title, description: p.ld.description, datePosted: p.ld.datePosted })}</script></head><body><script>require(["x"])</script></body></html>`;
++  for (const p of fixture('meta').records) {
++    const html = page(p);
++    assert.deepEqual(metaJsonLd(html), OLD.jsonLd(html));
++    assert.equal(extractMetaPage(html, p.id).title, p.ld.title);
++  }
++  const LD = '{"@type":"JobPosting","title":"x"}';
++  for (const s of fuzz(['<script', ' ', 'type="application/ld+json"', '>', '</script>', LD, `[${LD}]`, 'x', '<scripts', '\n', 'nonce="a"', '<'], 4000, 14)) {
++    assert.deepEqual(metaJsonLd(s), OLD.jsonLd(s), JSON.stringify(s));
++  }
++});
++
++test('S-10: familyOfTitle gives every real Google title the same family as before', async () => {
++  const { familyOfTitle } = await imp('server', 'families.js');
++  // The old module is this one with the two S-10 lines reverted (families.js has no imports, so it loads from a data: URL).
++  const src = fs.readFileSync(path.join(ROOT, 'server', 'families.js'), 'utf8');
++  const oldSrc = src.replace("String(title || '').slice(0, 500)", "String(title || '')").replace('/[（(][^（(）)]{0,200}[）)]/g', '/[（(][^）)]*[）)]/g');
++  assert.ok(!oldSrc.includes('.slice(0, 500)') && oldSrc.includes('/[（(][^）)]*[）)]/g'), 'the S-10 lines were found and reverted');
++  const old = await import(`data:text/javascript;base64,${Buffer.from(oldSrc).toString('base64')}`);
++  const titles = [...JSON.parse(fs.readFileSync(path.join(FIX, 'google-families-sample.json'), 'utf8')).rows.map((r) => r.title), ...fixture('google').records.map((r) => r.title)];
++  assert.ok(titles.length > 300);
++  // Brackets as real titles have them: a pair at a time, never nested (0 of the 37,619 titles crawled on 2026-10-16 nest them).
++  for (const t of fuzz(['Software Engineer', 'Manager', ', ', ' - ', ' (L5)', ' (Remote)', '（东京）', ' YouTube', 'Data Center Technician', 'Trust and Safety', 'Sales', ' | ', 'Ingeniero', 'Analyst'], 2000, 8)) titles.push(t);
++  for (const t of titles) assert.equal(familyOfTitle(t), old.familyOfTitle(t), t);
++});
++
++test('S-10: the DOL xlsx reader reads the real LCA rows and every cell shape exactly as before', async () => {
++  const x = await imp('scripts', 'alt-data', 'xlsx.js');
++  const oldRich = (body) => OLD.richText(body).map((t) => (t ? x.xmlText(t) : '')).join('');
++  const oldRowCells = (rowXml) => {
++    const cells = new Map(); let next = 0;
++    for (const [attrs, b] of OLD.cells(rowXml)) {
++      const attr = (name) => { const m = new RegExp(`\\b${name}="([^"]*)"`).exec(attrs); return m ? m[1] : null; };
++      const ref = attr('r'); const col = ref ? x.colIndex(ref) : next; next = col + 1;
++      const t = attr('t') || 'n'; const body = b || ''; let v = null;
++      if (t === 'inlineStr') v = oldRich((/<is>([\s\S]*?)<\/is>/.exec(body) || [])[1] || '');
++      else { const vm = /<v>([\s\S]*?)<\/v>/.exec(body); v = vm ? x.xmlText(vm[1]) : null; }
++      if (v != null && v !== '') cells.set(col, { t, v });
++    }
++    return cells;
++  };
++  const rows = fs.readFileSync(path.join(FIX, 'alt-data', 'lca-fy2026-q3-rows-1-2.xml'), 'utf8').match(/<row\b[\s\S]*?<\/row>/g);
++  assert.equal(rows.length, 2);
++  for (const r of rows) assert.deepEqual([...x.rowCells(r)], [...oldRowCells(r)]);
++  assert.equal(x.rowCells(rows[0]).size, 98, 'the 98 header cells');
++  for (const s of fuzz(['<c', '<c ', '<c r="B2"', ' t="inlineStr"', ' t="s"', '>', '/>', '</c>', '<v>', '</v>', '1', 'x', ' ', '<is>', '</is>', '<t>', '</t>', '<t ', '<t/>', '<rPh>', '</rPh>', '<rPhx', '"', '<col', '&amp;'], 5000, 16)) {
++    assert.deepEqual(x.cellElements(s).map((c) => [c.attrs, c.body]), OLD.cells(s), JSON.stringify(s));
++    assert.deepEqual([...x.rowCells(s)], [...oldRowCells(s)], JSON.stringify(s));
++    assert.equal(x.richText(s), oldRich(s), JSON.stringify(s));
++  }
++});
++
++test('S-10: normalizeEmployer gives every real employer name the same key as before', async () => {
++  const { normalizeEmployer, ENTITIES } = await imp('scripts', 'alt-data', 'employers.js');
++  const names = ['Amazon.com Services LLC', 'AMAZON.COM SERVICES, L.L.C.', 'Amazon Development Center U.S., Inc.', 'Meta Platforms, Inc.', '  meta platforms technologies, llc ', 'Amazon Web Services, Inc', 'AMAZON & CO INC', 'Facebook, Inc. (now Meta Platforms, Inc.)', ...ENTITIES.map((e) => e[1])];
++  for (const s of fuzz(['AMAZON', 'Meta', ' ', '.', ',', 'INC', 'LLC', 'L L C', 'CO', 'U.S.', '&', 'SERVICES', 'Platforms', '-'], 2000, 10)) names.push(s);
++  for (const n of names) assert.equal(normalizeEmployer(n), OLD.normalizeEmployer(n), n);
++});
+-- 
+2.43.0
+

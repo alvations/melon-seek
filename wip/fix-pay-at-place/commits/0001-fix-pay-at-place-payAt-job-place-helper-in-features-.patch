@@ -1,7 +1,7 @@
 From 3374a451f153ae0cbff48f67a7bb41bf33eea580 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 16 Oct 2026 22:27:30 +0000
-Subject: [PATCH 1/7] fix-pay-at-place: payAt(job, place) helper in
+Subject: [PATCH 1/8] fix-pay-at-place: payAt(job, place) helper in
  features/shared.js (WIP, no callers yet)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

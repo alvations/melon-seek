@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-af40fcca54b57983d`
 - Base (on claude/stoic-ride-54ddxp): `ff6a3d0648f338535010fbfc7a3804c41f702344`
-- Head: `c54e297418634bbacf8fe1ff33a64d6cf19afa13`
+- Head: `6fb7f11105675589253cc3e01a1eb5440b1c9d4a`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-pay-at-place <new worktree dir>`
 
 ## Commits since the base
 ```
+6fb7f11 fix-pay-at-place: cheaper per-place pricing (no copies for one-range postings, a covered list instead of a Map), bounded phone-check steps
 c54e297 fix-pay-at-place: the drawer names the headline row by its own label (Remote (CA)); payHere needs US-dollar pay; the phone check runs per size
 72c8d83 fix-pay-at-place: log, prompt, CONTRACT note on payAt, DATA_SOURCES §7a, the Juice patch (server/juice.js) and its to-do test
 37a6971 fix-pay-at-place: V-40 Compstimate uses the comparables that post a range for the city asked (5 or more); e2e file (10 checks, all red on ff6a3d0)
@@ -18,7 +19,7 @@ ea3a2b6 fix-pay-at-place: UX-52 place count as a muted line under the pill; draw
 
 ## Uncommitted and new files
 ```
- M test/e2e/fix-pay-at-place.e2e.js
+ M docs/process/fix-pay-at-place.md
 ?? docs/screenshots/fix-pay-at-place/
 ```
 
