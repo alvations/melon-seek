@@ -139570,3 +139570,31 @@ z4lXVs1{|iVrbg4Aj^Ie4+>DQlrzf6O+BF(0_weSQ<JJCd3MC)r@$hi5XZ*<DZD;4^
 z&dr-)HCHof!NNTSP%LpjwBY9NG>*}3sg#m>$eOLV>j%Q+#f9>=|04LuwSN)HWr9qd
 W`a5%31I_<NQdvnQiQ<=U{`o%)d<f70
 
+diff --git a/test/e2e/beta-mobile-qa-3.e2e.js b/test/e2e/beta-mobile-qa-3.e2e.js
+index 3b566b4..4ffeee0 100644
+--- a/test/e2e/beta-mobile-qa-3.e2e.js
++++ b/test/e2e/beta-mobile-qa-3.e2e.js
+@@ -239,7 +239,8 @@ export function registerBetaMobileQa3Tests(suite) {
+       await page.goto('about:blank');
+       await go(`c=${slug}&q=${encodeURIComponent(j.title)}`, 800);
+       await sheetTo(page, 'full');
+-      const c = await page.evaluate((id) => { const card = document.querySelector(`#resultsList .card[data-id="${CSS.escape(id)}"]`); const p = card?.querySelector('.sal-pill'); if (!p) return null; const r = p.getBoundingClientRect(), cr = card.getBoundingClientRect(); return { text: p.innerText.replace(/\s+/g, ' ').trim(), cut: p.scrollWidth > p.clientWidth + 1, inside: r.right <= cr.right + 0.5 }; }, j.id);
++      // UX-52 (fix-pay-at-place): "2 levels" and "N places" are a muted line under the pill (.sal-sub); both must fit.
++      const c = await page.evaluate((id) => { const card = document.querySelector(`#resultsList .card[data-id="${CSS.escape(id)}"]`); const p = card?.querySelector('.sal-pill'); if (!p) return null; const sub = card.querySelector('.sal-sub'); const cr = card.getBoundingClientRect(); const els = [p, sub].filter(Boolean); return { text: els.map((e) => e.innerText.replace(/\s+/g, ' ').trim()).join(' · '), cut: els.some((e) => e.scrollWidth > e.clientWidth + 1), inside: els.every((e) => e.getBoundingClientRect().right <= cr.right + 0.5) }; }, j.id);
+       if (!c) { bad.push(`${j.id}: no card for "${j.title}"`); continue; }
+       if (!want.test(c.text) || c.cut || !c.inside) bad.push(`${j.id}: pill "${c.text}" (want ${want}${c.cut ? ', cut off' : ''}${c.inside ? '' : ', outside its card'})`);
+     }
+diff --git a/test/e2e/fix-estimates.e2e.js b/test/e2e/fix-estimates.e2e.js
+index 0029e07..e08827a 100644
+--- a/test/e2e/fix-estimates.e2e.js
++++ b/test/e2e/fix-estimates.e2e.js
+@@ -195,7 +195,8 @@ export function registerFixEstimatesTests(suite) {
+     const text = (await card.innerText()).replace(/\s+/g, ' ');
+     assert(!/xAI\s*\d+\s*\$5\dK/.test(text), `xAI business operations still shows internship pay: "${text.slice(0, 300)}"`);
+     // fix-density: the foot is in the card caption's Details list.
+-    assert(/Internships, fixed-term programmes and on-target earnings/.test(await card.evaluate((e) => e.textContent)), 'foot does not say what is left out');
++    // MR-28 (fix-data-3): the foot also names stated minimums, shift-inclusive and part-time hourly pay.
++    assert(/Internships, fixed-term programmes(?:,| and) on-target earnings/.test(await card.evaluate((e) => e.textContent)), 'foot does not say what is left out');
+     await shot(page, 'after-p10-compare-bizops');
+     await fam.selectOption('swe');
+     const levels = await lvl.locator('option').allInnerTexts();

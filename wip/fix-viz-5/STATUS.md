@@ -64,7 +64,12 @@ bc95d97 fix-sec-3: S-2 residual: one pause guard for every crawl (fetchLive, sna
 
 ## Uncommitted and new files
 ```
+ M public/app.js
+ M public/features/insights.js
  M public/features/shared.js
+ M public/viz/chart.js
+ M public/viz/map.js
+ M public/viz/viz.css
 ?? test/fix-viz-5.test.js
 ```
 
