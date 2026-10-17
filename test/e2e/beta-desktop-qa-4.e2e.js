@@ -247,4 +247,32 @@ export function registerBetaDesktopQa4Tests(suite) {
     }
     assert(!bad.length, bad.join('; '));
   });
+
+  suite.test('Beta desktop QA 4: [D-50] a "Pay unclear" posting\'s estimate does not run past the maximum the posting itself states', async (ctx) => {
+    const { st, page } = await open(ctx, 'c=netflix');
+    const flagged = [];
+    for (const [c, site] of [['amazon', 'beta'], ['apple', 'beta'], ['google', 'beta'], ['meta', 'beta'], ['microsoft', 'beta'], ['nvidia', 'beta'], ['netflix', 'beta'], ['anduril', 'main']]) {
+      const ids = await page.evaluate(async ({ base, c }) => {
+        const api = await import(`${base}/api.js`);
+        const res = await api.getJobs({ company: c });
+        return res.mode === 'snapshot' ? res.jobs.filter((j) => j.salaryFlag).map((j) => j.id) : [];
+      }, { base: site === 'beta' ? st.beta : st.main, c });
+      for (const id of ids) flagged.push({ c, site, id });
+    }
+    if (!flagged.length) skip('no "Pay unclear" posting in this build');
+    const bad = [];
+    for (const { c, site, id } of flagged) {
+      await page.goto(`${site === 'beta' ? st.beta : st.main}/#c=${c}&job=${encodeURIComponent(id)}`); await ready(page);
+      await page.waitForSelector('#drawer.is-open', { timeout: 20000 }); await sleep(900);
+      await page.evaluate(() => document.querySelectorAll('#drawer details').forEach((d) => { d.open = true; })); await sleep(200);
+      const pay = (await page.locator('#drawer .d-salary').innerText()).replace(/\n+/g, ' ');
+      const parsed = /As parsed:[^\d]*([\d,.]+)\s*[-–]\s*\$?([\d,.]+)/.exec(pay);
+      const est = /about \$([\d.]+)([KM])/.exec(pay);
+      if (!parsed || !est) continue;
+      const max = Number(parsed[2].replace(/,/g, ''));
+      const v = Number(est[1]) * (est[2] === 'M' ? 1e6 : 1e3);
+      if (max >= 15000 && v > max + 999) bad.push(`${id}: "As parsed: ${parsed[1]} – ${parsed[2]}", yet "about $${est[1]}${est[2]}"`);
+    }
+    assert(!bad.length, `the estimate shown in place of a posting's unclear pay is above the posting's own maximum: ${bad.join('; ')}`);
+  });
 }
