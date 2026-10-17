@@ -1,7 +1,7 @@
 From 9fa0e0449edda256ec58a9172ecebec88714cf4c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 11:48:02 +0000
-Subject: [PATCH 13/22] WIP fix-viz-5: the measurement script, V-45 test on the
+Subject: [PATCH 13/24] WIP fix-viz-5: the measurement script, V-45 test on the
  pins themselves, map words
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

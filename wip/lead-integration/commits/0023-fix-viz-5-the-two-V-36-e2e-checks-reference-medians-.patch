@@ -1,0 +1,61 @@
+From 700b69569bf4c1a208020c7acbdc698346689212 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 15:48:20 +0000
+Subject: [PATCH 23/24] fix-viz-5: the two [V-36] e2e checks' reference medians
+ leave out stated minimums, shift pay and part-time pay (MR-28), as the
+ chart's do
+
+Amazon's Nashville: $116K over all 339 postings with pay, $126K over its 334 base-pay ones (the chart's, whose name says the 5 shift-pay postings are not in it). D-44's fold had hidden the row from both checks.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 36b71181c65bfe1e7316620748a42666fc483d4d)
+---
+ test/e2e/beta-viz-review-2.e2e.js | 4 +++-
+ test/e2e/fix-pay-at-place.e2e.js  | 4 +++-
+ 2 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/test/e2e/beta-viz-review-2.e2e.js b/test/e2e/beta-viz-review-2.e2e.js
+index ed95202..1874aaf 100644
+--- a/test/e2e/beta-viz-review-2.e2e.js
++++ b/test/e2e/beta-viz-review-2.e2e.js
+@@ -226,6 +226,8 @@ export function registerBetaVizReviewTests2(suite) {
+       await page.waitForSelector('#chartHost .ms-crow', { timeout: 60000 });
+       const want = await page.evaluate(async ({ base, company }) => {
+         const { chartPay, locationRowKey, payCoversRow } = await import(`${base}/viz/chart.js`);
++        // MR-28 (fix-viz-5): a row's median is of base pay; stated minimums, shift pay and part-time pay stay out of it.
++        const { notBasePay } = await import(`${base}/features/shared.js`);
+         const { toUSD, formatMoney } = await import(`${base}/viz/palette.js`);
+         const jobs = (await (await import(`${base}/api.js`)).getJobs({ company })).jobs || [];
+         const { plotted } = chartPay(jobs);
+@@ -234,7 +236,7 @@ export function registerBetaVizReviewTests2(suite) {
+         const rows = new Map();
+         for (const p of plotted) {
+           const k = locationRowKey(p.job);
+-          if (!payCoversRow(p.job, k) || p.ote) continue;
++          if (!payCoversRow(p.job, k) || p.ote || notBasePay(p.job)) continue;
+           const r = rows.get(k) || rows.set(k, { n: 0, other: 0, own: [] }).get(k);
+           r.n++;
+           const s = p.job.salary, rs = (s.ranges || []).filter((x) => Array.isArray(x.locations));
+diff --git a/test/e2e/fix-pay-at-place.e2e.js b/test/e2e/fix-pay-at-place.e2e.js
+index 4213799..57769c6 100644
+--- a/test/e2e/fix-pay-at-place.e2e.js
++++ b/test/e2e/fix-pay-at-place.e2e.js
+@@ -178,11 +178,13 @@ export function registerFixPayAtPlaceTests(suite) {
+       await installReference(page, base);
+       const want = await page.evaluate(async ({ base, company, places }) => {
+         const jobs = (await (await import(`${base}/api.js`)).getJobs({ company })).jobs || [];
++        // MR-28 (fix-viz-5): a median is of base pay; stated minimums, shift pay and part-time pay stay out of it.
++        const { notBasePay } = await import(`${base}/features/shared.js`);
+         const firstPlace = (j) => (j.locations || []).find((l) => l && !l.remote);
+         const out = {};
+         for (const p of places) {
+           const here = jobs.filter((j) => firstPlace(j)?.city === p);
+-          const base_ = here.filter((j) => j.salary && j.salary.kind !== 'ote');
++          const base_ = here.filter((j) => j.salary && j.salary.kind !== 'ote' && !notBasePay(j));
+           const mids = base_.map((j) => window.__own(j, j.locations.filter((l) => l && !l.remote && l.city === p))).filter(Boolean).map((r) => r.mid);
+           const head = base_.map((j) => j.salary.mid);
+           out[p] = { n: here.length, median: window.__money(window.__median(mids)), headline: window.__money(window.__median(head)), priced: mids.length };
+-- 
+2.43.0
+

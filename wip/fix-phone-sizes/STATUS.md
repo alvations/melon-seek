@@ -21,6 +21,10 @@ dd58b48 fix-phone-sizes: the Surface Duo stacked (720x1114, hinge across): chart
 ## Uncommitted and new files
 ```
  M docs/process/fix-phone-sizes.md
+ M docs/screenshots/dark-drawer.png
+ M docs/screenshots/dark.png
+ M docs/screenshots/drawer-juice.png
+ M docs/screenshots/drawer.png
  M public/styles.css
  M scripts/e2e.js
  M test/e2e/phone-matrix.e2e.js

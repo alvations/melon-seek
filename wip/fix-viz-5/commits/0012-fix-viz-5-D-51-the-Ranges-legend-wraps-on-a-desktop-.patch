@@ -1,7 +1,7 @@
 From 6349a5109bdfdf1705dfd845df53258f24388c2d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 13:56:09 +0000
-Subject: [PATCH 12/14] fix-viz-5: D-51 the Ranges legend wraps on a desktop
+Subject: [PATCH 12/16] fix-viz-5: D-51 the Ranges legend wraps on a desktop
  and leads with its pattern keys; M-50 the map's tap check leaves out the
  offline note; e2e checks for both
 

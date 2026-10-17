@@ -1,7 +1,7 @@
 From 4c0e9e98b09bec71b61bc7ef943cd4adb1e9a702 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 12:29:39 +0000
-Subject: [PATCH 02/22] WIP fix-phone-sizes: log State on fbdad58, the stacked
+Subject: [PATCH 02/24] WIP fix-phone-sizes: log State on fbdad58, the stacked
  Duo, the conflict line
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
