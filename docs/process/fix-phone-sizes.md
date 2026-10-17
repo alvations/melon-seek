@@ -103,7 +103,40 @@ Files owned: public/styles.css (layout rule blocks only), test/e2e/phone-matrix.
 
 ## 5. Verification
 
-(filled in at the end)
+**test/e2e/phone-matrix.e2e.js** (Chromium 141, the 2026-10-16 crawl): **17 of 34 fail before** (on a copy of the
+a92a3c8 build), **34 of 34 pass after**. Failing before: 280, 320, 344, 360x740, 360x880, the Razr cover screen, all
+10 name sweeps and the Duo with the hinge. Log: `<scratch>/fps/matrix-before2.log`, `<scratch>/fps/matrix-after.log`.
+
+**test/e2e/webkit/phone-smoke.mjs** (Chromium, 19 sizes x 7 boards): before 7 failing pages (the Razr cover screen on
+every board) → after 133 of 133 ok. The only "controls cut at the sides" left are the closed filter slide-over's
+buttons at 1005 and 1114 px (UX-56, fix-phone-controls); the only cut text left is long department names (M-40).
+
+Size by size (Apple unless named; "name" is the company menu's text; controls are the eleven the matrix checks):
+
+| Size | Page width | Name | Controls | Sheet / job page / filters | Duo hinge |
+|---|---|---|---|---|---|
+| Galaxy Fold folded 280x653 | 280 → 280 | gone (0 px box) → whole | Group to x 301 → in; tagline to x 313 → whole | cards and list scrolled sideways (299 px), job page 346–363 px with Apply off screen → fit | |
+| iPhone SE 1st gen 320x568 | 320 → 320 | "Ap…" (38 of 46 px) → whole | three-row top bar → two rows (chart 149 → 200 px) | job page 346–363 px → fits | |
+| Galaxy Z Fold 5 cover 344x882 | 344 | "Amazo…" → whole | placeholder cut → whole | job page → fits | |
+| Galaxy S8, Z Flip 5 360x740/880 | 360 | whole | placeholder cut → whole | Amazon job page 363 px → fits | |
+| iPhone 13 mini, SE 3rd gen, 15/16, 13/14 (375–393) | = | whole (M-45 380–392 px: "Micros…" → whole, sweep) | ok | ok | |
+| Pixel 8, razr inner, 15 Pro Max (412–430) | = | whole | ok | ok | |
+| Surface Duo one screen 540x720 | 540 | whole | ok | ok, phone layout as on the tablet | |
+| Galaxy Z Fold 5 open 690x829 | 690 | whole | ok | ok, phone layout as on the tablet | |
+| **Motorola razr cover 352x355** | **476–505 (zoomed out) → 352** | whole | **Chart under the search box → all on screen** | **no sheet → peek row with the count and Sort**; chart 82 px | |
+| Surface Duo spanned 1114x720, no hinge | 1114 | whole | ok | ok | |
+| **Surface Duo spanned, hinge emulated** | 1114 | whole | search, 2 chips, tagline, chart on the hinge → none | job page 554–1114 → 574–1114; filters 0–540; popovers 222–562 → 188–528 | **8 kinds of content on it → nothing** |
+| iPhone 13 mini / SE 3 landscape 812x375, 667x375 | = | whole | ok | ok | |
+| razr inner landscape 1005x412 | 1005 | whole | ok | ok | |
+| Name sweep 280–860 px, heights 740 and 360, 10 boards | 505 px at 280–559 x 360 → fits | 84 (Microsoft) to 162 (Anthropic) cut widths per board → 0 | | | |
+| Desktop 1440x900, 1280x800, 1024x768, tablet 768x1024 | = | = | = | = | |
+
+`MELON_BETA_SNAPSHOT_DIR= npm test` with the data links out of data/ (on 2754e9d; the later commits touch only the
+test, the log and a media query): 1116 pass, 0 fail, 8 skipped, 56 todo.
+
+Screenshots (shrunk 15.8 → 3.3 MB): docs/screenshots/fix-phone-sizes/before-*.png and after-*.png, the Apple board in
+light at every size, dark at 280, 320, 344 and the Duo spanned, and the Duo with the hinge (first screen, job page,
+filters; taken over CDP).
 
 ## 6. Known gaps and follow-ups
 
