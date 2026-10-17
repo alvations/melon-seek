@@ -1282,6 +1282,21 @@ function markBeta(html, isIndex) {
  * Build one site into site.out: the stable site (channel "stable", at OUT) or the beta
  * copy (channel "beta", at OUT/beta). Same steps, same code, for both.
  */
+/**
+ * D-49 (fix-qa4): the careers site each big-tech board's CSV comes from, for the beta README (server/export.js
+ * csvReadme `sourceText`), named as docs/DATA_SOURCES.md §7 names the systems. Kept here, not in server/export.js,
+ * which the main site ships in lib/ and which names no beta company or host.
+ */
+export const CAREERS_SITES = Object.freeze({
+  google: 'Google Careers (google.com/about/careers): its jobs sitemap and the site\'s own search service',
+  microsoft: 'Microsoft Careers (apply.careers.microsoft.com): the site\'s own Eightfold search (PCSX)',
+  meta: 'Meta Careers (metacareers.com): its jobs sitemap and job pages',
+  apple: 'Apple Jobs (jobs.apple.com): the site\'s own search and job-detail API',
+  netflix: 'Netflix Jobs (explore.jobs.netflix.net): the site\'s own Eightfold search',
+  amazon: 'Amazon Jobs (amazon.jobs): the site\'s own search API (search.json)',
+  nvidia: 'NVIDIA Careers (jobs.nvidia.com): the site\'s own Eightfold search (PCSX)',
+});
+
 async function buildSite(ctx, site) {
   const { out } = site;
   const beta = site.channel === 'beta';
@@ -1346,7 +1361,7 @@ async function buildSite(ctx, site) {
     summary.push(r.line);
     shares.push(r.share);
     marketPayloads.push(r.market);
-    if (r.csvRow) csvRows.push({ ...r.csvRow, channel: c.channel || 'stable' }); // D-49: the README names each file's source
+    if (r.csvRow) csvRows.push({ ...r.csvRow, channel: c.channel || 'stable', sourceText: c.channel === 'beta' ? CAREERS_SITES[c.slug] || null : null }); // D-49: the README names each file's source
     if (c.channel === 'beta') included.push({ slug: c.slug, name: c.name, ...r.stats });
   }
   await writeJson(path.join(out, 'api', 'companies.json'), companies);

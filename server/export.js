@@ -147,28 +147,20 @@ export function csvFileName(slug, { mode = '', date = new Date().toISOString() }
 }
 
 /**
- * D-49: where each board's rows come from, as docs/DATA_SOURCES.md names the systems: the job-board APIs of the main
- * site's boards (by `source`), and each big-tech company's own careers site (by `slug`, beta site).
+ * D-49: the job-board APIs the main site's boards come from, by `source` (docs/DATA_SOURCES.md §1, §3, §4). A big-tech
+ * board's careers site is named by the build (scripts/build-static.js CAREERS_SITES, as `sourceText`): this module
+ * ships in the main site's lib/, which names no beta company or host.
  */
-export const CSV_SOURCES = Object.freeze({
+export const JOB_BOARD_SOURCES = Object.freeze({
   greenhouse: 'Greenhouse job board API',
   ashby: 'Ashby posting API',
   lever: 'Lever postings API',
-  google: 'Google Careers (google.com/about/careers): its jobs sitemap and the site\'s own search service',
-  microsoft: 'Microsoft Careers (apply.careers.microsoft.com): the site\'s own Eightfold search (PCSX)',
-  meta: 'Meta Careers (metacareers.com): its jobs sitemap and job pages',
-  apple: 'Apple Jobs (jobs.apple.com): the site\'s own search and job-detail API',
-  netflix: 'Netflix Jobs (explore.jobs.netflix.net): the site\'s own Eightfold search',
-  amazon: 'Amazon Jobs (amazon.jobs): the site\'s own search API (search.json)',
-  nvidia: 'NVIDIA Careers (jobs.nvidia.com): the site\'s own Eightfold search (PCSX)',
 });
-const JOB_BOARDS = new Set(['greenhouse', 'ashby', 'lever']);
-/** A board's source line: a job-board API by `source`, a careers site by `slug`. */
-const sourceOf = (c) => (JOB_BOARDS.has(c.source) ? CSV_SOURCES[c.source] : CSV_SOURCES[c.slug] || CSV_SOURCES[c.source]) || null;
 
 /**
  * data/README.txt for the static build. `channel`: 'stable' (the main site: Greenhouse, Ashby and Lever boards) or
- * 'beta' (those plus the big-tech careers sites). `companies`: [{ slug, name, rows, mode, source?, channel? }].
+ * 'beta' (those plus the big-tech careers sites). `companies`: [{ slug, name, rows, mode, source?, sourceText?,
+ * channel? }]; each file's source is `sourceText` (a careers site, from the build) or its job-board API.
  */
 export function csvReadme({ generatedAt = new Date().toISOString(), companies = [], channel = 'stable' } = {}) {
   const beta = channel === 'beta' || companies.some((c) => c && c.channel === 'beta');
@@ -179,13 +171,12 @@ export function csvReadme({ generatedAt = new Date().toISOString(), companies = 
     '',
     'One CSV per company: data/<slug>.csv (UTF-8, comma-separated, RFC 4180).',
     ...(beta ? [
-      'Each row is one job posting as published by the company itself. Amazon, Apple,',
-      'Google, Meta, Microsoft, NVIDIA and Netflix: from the company\'s own careers site',
-      '(each file\'s source is listed under Files). The other companies: from their own',
-      'job board (Greenhouse, Ashby or Lever).',
+      'Each row is one job posting as published by the company itself: a big-tech',
+      'company\'s file comes from its own careers site, the others from their job board',
+      '(Greenhouse, Ashby or Lever). Each file\'s source is listed under Files.',
       'Big-tech pay is base pay only, as each company posts it: equity, bonus and',
-      'benefits are never added. On-target earnings (salary_kind "ote", NVIDIA\'s sales',
-      'roles) are base plus commission at target, as posted, and are marked so.',
+      'benefits are never added. On-target earnings (salary_kind "ote") are base plus',
+      'commission at target, as posted, and are marked so.',
     ] : [
       'Each row is one job posting as published on the company\'s own job board',
       '(Greenhouse, Ashby or Lever).',
@@ -230,7 +221,7 @@ export function csvReadme({ generatedAt = new Date().toISOString(), companies = 
   if (companies.length) {
     lines.push('', 'Files:');
     for (const c of companies) {
-      const src = beta ? sourceOf(c) : null;
+      const src = c.sourceText || JOB_BOARD_SOURCES[c.source] || null;
       lines.push(`  ${c.slug}.csv  ${c.name || c.slug}${c.rows != null ? `, ${c.rows} rows` : ''}${c.mode ? ` (${c.mode})` : ''}${src ? `; ${src}` : ''}`);
     }
   }

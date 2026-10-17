@@ -213,30 +213,37 @@ test('D-49 each pay figure says what it is, and its min and max are the card\'s 
   assert.equal(fn(csv.salaryRows, 'salaryRows')({ min: 1, max: 2 }), '');
 });
 
-test('D-49 the README is written per site: the beta one names each big-tech careers site and says base pay only', () => {
+test('D-49 the README is written per site: the beta one names each big-tech careers site and says base pay only', async () => {
+  const { CAREERS_SITES } = await import('../scripts/build-static.js');
+  assert.ok(CAREERS_SITES, 'scripts/build-static.js CAREERS_SITES');
+  const big = (slug, name, rows, source) => ({ slug, name, rows, mode: 'snapshot', source, channel: 'beta', sourceText: CAREERS_SITES[slug] });
   const stable = [{ slug: 'anthropic', name: 'Anthropic', rows: 654, mode: 'snapshot', source: 'greenhouse', channel: 'stable' }];
-  const beta = [...stable, { slug: 'amazon', name: 'Amazon', rows: 22179, mode: 'snapshot', source: 'amazon', channel: 'beta' }, { slug: 'nvidia', name: 'NVIDIA', rows: 2711, mode: 'snapshot', source: 'eightfold', channel: 'beta' }, { slug: 'microsoft', name: 'Microsoft', rows: 2435, mode: 'snapshot', source: 'eightfold' }];
+  const beta = [...stable, big('amazon', 'Amazon', 22179, 'amazon'), big('nvidia', 'NVIDIA', 2711, 'eightfold'), big('microsoft', 'Microsoft', 2435, 'eightfold')];
   const main = csvReadme({ generatedAt: 'x', companies: stable, channel: 'stable' });
   assert.match(main, /own job board\n\(Greenhouse, Ashby or Lever\)/);
   assert.doesNotMatch(main, /Amazon|careers site/);
+  assert.match(main, /anthropic\.csv {2}Anthropic, 654 rows \(snapshot\); Greenhouse job board API/);
   const b = csvReadme({ generatedAt: 'x', companies: beta, channel: 'beta' });
   assert.doesNotMatch(b, /own job board\s*\(Greenhouse, Ashby or Lever\)/, 'the main site\'s sentence');
   assert.match(b, /Big-tech pay is base pay only/);
   assert.match(b, /amazon\.csv {2}Amazon, 22179 rows \(snapshot\); Amazon Jobs \(amazon\.jobs\)/);
   assert.match(b, /nvidia\.csv {2}NVIDIA, 2711 rows \(snapshot\); NVIDIA Careers \(jobs\.nvidia\.com\)/);
+  assert.match(b, /microsoft\.csv {2}Microsoft, 2435 rows \(snapshot\); Microsoft Careers \(apply\.careers\.microsoft\.com\)/);
   assert.match(b, /anthropic\.csv {2}Anthropic, 654 rows \(snapshot\); Greenhouse job board API/);
-  assert.match(b, /microsoft\.csv {2}Microsoft, 2435 rows \(snapshot\); Microsoft Careers \(apply\.careers\.microsoft\.com\)/, 'by slug for a careers site, whatever its source');
   for (const t of [main, b]) {
     for (const col of CSV_COLUMNS) assert.ok(t.includes(`  ${col}`) || t.includes(col.split('_')[0]), col);
     for (const k of ['ote', 'minimum', 'shift', 'part-time', 'fixed-term', 'hourly']) assert.match(t, new RegExp(`^ {21}${k} `, 'm'), `salary_kind ${k} is explained`);
     assert.match(t, /Changed on 2026-10-17/);
   }
-  for (const slug of ['google', 'microsoft', 'meta', 'apple', 'netflix', 'amazon', 'nvidia']) assert.ok(csv.CSV_SOURCES?.[slug], slug);
+  for (const slug of ['google', 'microsoft', 'meta', 'apple', 'netflix', 'amazon', 'nvidia']) assert.ok(CAREERS_SITES[slug], slug);
+  // server/export.js ships in the main site's lib/: it names no big-tech company or host (test/beta-build.test.js).
+  const src = fs.readFileSync(new URL('../server/export.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(src, /amazon\.jobs|jobs\.apple\.com|careers\.microsoft|metacareers|jobs\.nvidia|netflix\.net|google\.com/i);
 });
 
 test('D-49 the build writes the README per site (source)', () => {
   const src = fs.readFileSync(new URL('../scripts/build-static.js', import.meta.url), 'utf8');
   assert.match(src, /ctx\.csvReadme\(\{ generatedAt: ctx\.builtAt, companies: csvRows, channel: site\.channel \}\)/);
   assert.equal((src.match(/mode: (payload|raw)\.mode, source: c\.source \}/g) || []).length, 2, 'both csvRow builders name the source');
-  assert.match(src, /csvRows\.push\(\{ \.\.\.r\.csvRow, channel: c\.channel \|\| 'stable' \}\)/, 'and the site loop its channel');
+  assert.match(src, /csvRows\.push\(\{ \.\.\.r\.csvRow, channel: c\.channel \|\| 'stable', sourceText: c\.channel === 'beta' \? CAREERS_SITES\[c\.slug\] \|\| null : null \}\)/, 'and the site loop its channel and careers site');
 });
