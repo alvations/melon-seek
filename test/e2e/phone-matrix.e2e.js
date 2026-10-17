@@ -427,6 +427,33 @@ export function registerPhoneMatrixTests(suite) {
     });
   }
 
+  // M-52: just over 860 px the desktop's one-row top bar was wider than the screen (Amazon 926 px, a board with a
+  // Refresh button 964; 935 and 981 with the touch sizes), so a phone in landscape was zoomed out and a narrow window
+  // scrolled sideways. Every 4 px from 861 to 1001, with touch and with a mouse, on the beta board with the longest
+  // count and on a main-site board with Refresh.
+  for (const [kind, size] of [['touch', ALL_SIZES.find((s) => s.width === 932 && s.height === 430)], ['mouse', { name: 'mouse', width: 1024, height: 430 }]]) {
+    suite.test(`Phone matrix: [M-52] [top bar sweep, ${kind}] the page fits and the company name is whole at every width from 861 to 1001 px (beta Amazon, main Anthropic)`, async (ctx) => {
+      assert(size, 'phone-sizes.mjs lists the iPhone 15 Pro Max in landscape (932x430)');
+      const bad = [];
+      for (const [site, board] of [['beta/', 'amazon'], ['', 'anthropic']]) {
+        const { page, errors } = await open(ctx, size, { board, site });
+        for (let width = 861; width <= 1001; width += 4) {
+          await page.setViewportSize({ width, height: size.height });
+          const m = await page.evaluate(() => {
+            const n = document.querySelector('#companyMenuBtn .company-name');
+            const over = [...document.querySelectorAll('.topbar *')].filter((e) => e.getClientRects().length && e.getBoundingClientRect().right > innerWidth + 1).slice(0, 3).map((e) => `${e.tagName.toLowerCase()}.${[...e.classList].join('.')}`);
+            return { w: innerWidth, pageW: document.documentElement.scrollWidth, cut: !n || n.scrollWidth > n.clientWidth + 0.5, over };
+          });
+          const where = `${site ? 'beta' : 'main'} ${board} ${width}`;
+          if (m.w > width + 1 || m.pageW > width + 1) bad.push(`${where}: page laid out ${Math.max(m.w, m.pageW)} px wide${m.over.length ? ` (${m.over.join(', ')})` : ''}`);
+          if (m.cut) bad.push(`${where}: the company name is cut`);
+        }
+        bad.push(...errors);
+      }
+      assert(!bad.length, `${bad.length} problem(s):\n  ${bad.slice(0, 30).join('\n  ')}`);
+    });
+  }
+
   for (const size of DESKTOP) {
     const dev = `${size.width}x${size.height}`;
     suite.test(`Phone matrix: [${size.name}] desktop and tablet keep the same checks: the page fits, the name is whole, the controls are on screen, the job page and filters fit`, async (ctx) => {
@@ -550,6 +577,61 @@ export function registerPhoneMatrixTests(suite) {
     } while (false);
     assert(!bad.length, `${bad.length} problem(s):\n  ${bad.join('\n  ')}`);
   });
+
+  // M-52 (mobile QA 4): touch screens wider than 860 px keep the desktop layout, and have an on-screen keyboard. A field
+  // focused in the filter sheet moves above it (the keyboard: the earlier passes' stand-in, a visual viewport that
+  // shrinks while a text field has focus).
+  for (const size of ALL_SIZES.filter((s) => s.width > 860)) {
+    suite.test(`Phone matrix: [M-52] [${size.name} ${size.width}x${size.height}] touch controls are 44 px and fields 16 px, and the filter sheet's pay field focused with the keyboard up stays above the keyboard`, async (ctx) => {
+      const st = await serveDist();
+      if (!st) skip('no beta build (npm run build writes dist/beta/)');
+      const kb = Math.round(size.height * 0.5);
+      const context = await ctx.browser.newContext({ ...contextFor(size, engineOf(ctx)), colorScheme: 'light' });
+      ctx.cleanup.push(() => context.close());
+      await context.route((u) => !u.href.startsWith(st.origin) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
+      await context.addInitScript((k) => {
+        const desc = Object.getOwnPropertyDescriptor(VisualViewport.prototype, 'height');
+        Object.defineProperty(VisualViewport.prototype, 'height', {
+          configurable: true,
+          get() { const a = document.activeElement; return a && a.matches && a.matches('input:not([type=checkbox]):not([type=radio]):not([type=range]), textarea') ? innerHeight - k : desc.get.call(this); },
+        });
+        const fire = () => setTimeout(() => visualViewport.dispatchEvent(new Event('resize')), 30);
+        document.addEventListener('focusin', fire);
+        document.addEventListener('focusout', fire);
+      }, kb);
+      const page = await context.newPage();
+      await page.goto(`${st.base}beta/#c=apple`, { timeout: 60000 });
+      await page.waitForFunction(() => { const t = document.querySelector('#resultsTitle'); return t && !/Loading/.test(t.textContent) && document.querySelector('#resultsList .card[data-id]'); }, null, { timeout: 90000 });
+      await sleep(600);
+      const bad = [];
+      const small = await page.evaluate(() => {
+        const out = [];
+        for (const [name, sel] of [['company menu', '#companyMenuBtn'], ['search', '#search'], ['view switch', '.topbar .seg button'], ['data badge', '#dataBadge'], ['theme', '#themeBtn'], ['Filters', '#filtersToggle'], ['quick chip', '#quickChips > *'], ['sort', '#sortBy'], ['Clusters/Ranges', '#vizControls button'], ['Group', '#groupBy']]) {
+          const e = [...document.querySelectorAll(sel)].find((x) => x.getClientRects().length);
+          if (!e) continue;
+          const r = e.getBoundingClientRect();
+          if (Math.min(r.width, r.height) < 43.5) out.push(`${name} ${Math.round(r.width)}x${Math.round(r.height)}`);
+          if (e.matches('input, select') && parseFloat(getComputedStyle(e).fontSize) < 16) out.push(`${name} font ${getComputedStyle(e).fontSize}`);
+        }
+        return out;
+      });
+      bad.push(...small);
+      await clickEl(page, '#filtersToggle');
+      await page.waitForFunction(() => document.body.classList.contains('filters-open') || getComputedStyle(document.querySelector('#filters')).position !== 'fixed', null, { timeout: 5000 }).catch(() => {});
+      await sleep(500);
+      const sel = '#filters input.range-val';
+      if (!(await page.locator(sel).count())) bad.push('no pay field in the filter sheet');
+      else {
+        const fs = await page.evaluate((s) => parseFloat(getComputedStyle(document.querySelector(s)).fontSize), sel);
+        if (fs < 16) bad.push(`the pay field is ${fs} px (iOS zooms the page into it)`);
+        await page.focus(sel);
+        await sleep(900); // the stand-in keyboard's resize, then revealField after 300 ms
+        const g = await page.evaluate((s) => { const r = document.querySelector(s).getBoundingClientRect(); return { top: Math.round(r.top), bottom: Math.round(r.bottom), view: Math.round(visualViewport.height) }; }, sel);
+        if (g.top < 0 || g.bottom > g.view) bad.push(`the focused pay field (${g.top}–${g.bottom}) is not above the keyboard (${g.view} px of screen left)`);
+      }
+      assert(!bad.length, `${size.name} ${size.width}x${size.height}: ${bad.join('; ')}`);
+    });
+  }
 
   suite.test('Phone matrix: [Surface Duo stacked 720x1114, hinge emulated across at y 540–574 px] top bar, quick bar, chart and filters on the top screen, the list, the job page and the sheets on the bottom one, nothing on the hinge (Chromium CDP)', async (ctx) => {
     if (engineOf(ctx) !== 'chromium') skip('emulating the hinge needs Chromium CDP (Emulation.setDeviceMetricsOverride displayFeature)');

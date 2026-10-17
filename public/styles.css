@@ -1656,6 +1656,31 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
 .d-meta-part > .sep { flex: none; width: 6px; text-align: center; }
 .d-meta > .sen, .d-meta > .tag { margin-left: 12px; }
 
+/* M-52: touch screens wider than 860 px (a large phone in landscape, the Razr inner screen in landscape, the Surface
+   Duo spanned) keep the desktop layout with touch-sized controls: 44 px targets, and 16 px fields so iOS does not zoom
+   the page into a field it focuses. A mouse (pointer: fine) keeps the desktop sizes. */
+@media (pointer: coarse) and (min-width: 861px) {
+  .company-menu-btn, .search input, .topbar .seg button, .data-badge, .chip, .seg--sm button,
+  .select-field select, .quiet-select select { height: 44px; min-height: 44px; }
+  .icon-btn, .theme-btn { width: 44px; height: 44px; }
+  .data-badge { border-radius: 22px; }
+  .search input, .select-field select, .quiet-select select, .fsearch, input.range-val,
+  .popover input, .popover select, .board-form input, .board-form select, #insightsHost input, #insightsHost select { font-size: 16px; }
+  .fsearch { height: 44px; }
+  .check, .radio, .company-item { min-height: 44px; }
+}
+
+/* M-52: from 861 to 999 px the one-row top bar was wider than the screen: 926 px for Amazon and 964 px for a board
+   with a Refresh button with a mouse, 935 and 981 px with the touch sizes (a phone in landscape was zoomed out, a
+   narrow desktop window scrolled sideways). The logo stays and the wordmark goes, as on phones (the link's name is
+   still "melon·seek home"), and the gaps close up a little. */
+@media (min-width: 861px) and (max-width: 999px) {
+  .brand-word { display: none; }
+  .topbar { gap: 10px; }
+  .topbar-right { gap: 6px; }
+  .beta-tag { margin-left: -2px; }
+}
+
 /* M-40 meets fix-data-3's longer names ("Non-Technical Project, Program and Product Management": its end was cut by
    0.42 px at 360 px, and more on narrower phones): a split name that fits whole in two lines flows as one text
    (app.js fitCheckLabels); on the narrowest phones in 13 px, then 12 px, with tighter gaps in its row. */

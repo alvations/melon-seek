@@ -5123,6 +5123,8 @@ function sanitizeHtml(html, baseUrl) {
 /* --------------------------------------------------------------- mobile */
 
 const isMobile = () => matchMedia('(max-width: 860px)').matches;
+/** A touch screen (any width): it has an on-screen keyboard (M-52, fix-phone-sizes). */
+const isCoarse = () => matchMedia('(pointer: coarse)').matches;
 const isOverlayFilters = () => matchMedia('(max-width: 1199px)').matches;
 
 /* Results bottom sheet (phones). Three snap points on body[data-sheet]: peek (count + sort),
@@ -5249,7 +5251,8 @@ function bindKeyboardInsets() {
   document.addEventListener('focusin', (e) => {
     resync();
     const t = e.target;
-    if (isMobile() && t.matches?.('#filters input, #popover input')) setTimeout(() => revealField(t), 300);
+    // M-52 (fix-phone-sizes): touch screens wider than 860 px (a phone in landscape, the Duo) have the keyboard too.
+    if ((isMobile() || isCoarse()) && t.matches?.('#filters input, #popover input')) setTimeout(() => revealField(t), 300);
     // M-47: the Pay estimate's fields on any touch screen (a phone in landscape can be wider than 860 px).
     else if ((isMobile() || matchMedia('(hover: none) and (pointer: coarse)').matches) && t.matches?.('#insightsHost input:not([type=checkbox]):not([type=radio]):not([type=range])')) setTimeout(() => revealField(t), 300);
   });
