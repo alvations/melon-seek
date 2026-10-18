@@ -131,9 +131,9 @@
  },
  "google": {
   "slug": "google",
-  "lastObservedAt": "2026-10-18T11:54:05.763Z",
+  "lastObservedAt": "2026-10-18T16:14:52.622Z",
   "firstObservedAt": "2026-10-10T11:09:51.834Z",
-  "observations": 31,
+  "observations": 32,
   "name": "Google",
   "channel": "beta",
   "source": "google",
@@ -150,7 +150,7 @@
    "changed": 0,
    "payChanged": 0,
    "sourceChanged": 0,
-   "observations": 1
+   "observations": 2
   },
   "lastDailyDate": "2026-10-18",
   "lastDailyAt": "2026-10-18T05:14:15.278Z"
@@ -183,9 +183,9 @@
  },
  "microsoft": {
   "slug": "microsoft",
-  "lastObservedAt": "2026-10-18T11:53:42.427Z",
+  "lastObservedAt": "2026-10-18T16:16:14.287Z",
   "firstObservedAt": "2026-10-10T10:55:39.033Z",
-  "observations": 31,
+  "observations": 32,
   "name": "Microsoft",
   "channel": "beta",
   "source": "eightfold",
@@ -199,19 +199,19 @@
    "resumed": 0,
    "closed": 15,
    "unseen": 0,
-   "changed": 3,
+   "changed": 4,
    "payChanged": 0,
-   "sourceChanged": 3,
-   "observations": 1
+   "sourceChanged": 4,
+   "observations": 2
   },
   "lastDailyDate": "2026-10-18",
   "lastDailyAt": "2026-10-18T05:18:53.891Z"
  },
  "netflix": {
   "slug": "netflix",
-  "lastObservedAt": "2026-10-18T11:46:38.075Z",
+  "lastObservedAt": "2026-10-18T16:10:49.394Z",
   "firstObservedAt": "2026-10-10T10:21:03.942Z",
-  "observations": 31,
+  "observations": 32,
   "name": "Netflix",
   "channel": "beta",
   "source": "eightfold",
@@ -228,7 +228,7 @@
    "changed": 1,
    "payChanged": 0,
    "sourceChanged": 0,
-   "observations": 1
+   "observations": 2
   },
   "lastDailyDate": "2026-10-18",
   "lastDailyAt": "2026-10-18T05:12:35.491Z"
