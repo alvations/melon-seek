@@ -27,9 +27,9 @@
  },
  "anduril": {
   "slug": "anduril",
-  "lastObservedAt": "2026-10-18T05:34:28.757Z",
+  "lastObservedAt": "2026-10-18T11:19:55.469Z",
   "firstObservedAt": "2026-10-02T12:47:55.311Z",
-  "observations": 132,
+  "observations": 133,
   "name": "Anduril",
   "channel": "stable",
   "source": "greenhouse",
@@ -46,16 +46,16 @@
    "changed": 0,
    "payChanged": 0,
    "sourceChanged": 0,
-   "observations": 0
+   "observations": 1
   },
   "lastDailyDate": "2026-10-18",
   "lastDailyAt": "2026-10-18T05:34:28.757Z"
  },
  "anthropic": {
   "slug": "anthropic",
-  "lastObservedAt": "2026-10-18T05:34:15.325Z",
+  "lastObservedAt": "2026-10-18T11:19:42.012Z",
   "firstObservedAt": "2026-10-02T12:47:35.158Z",
-  "observations": 132,
+  "observations": 133,
   "name": "Anthropic",
   "channel": "stable",
   "source": "greenhouse",
@@ -72,7 +72,7 @@
    "changed": 0,
    "payChanged": 0,
    "sourceChanged": 0,
-   "observations": 0
+   "observations": 1
   },
   "lastDailyDate": "2026-10-18",
   "lastDailyAt": "2026-10-18T05:34:15.325Z"
@@ -105,9 +105,9 @@
  },
  "cohere": {
   "slug": "cohere",
-  "lastObservedAt": "2026-10-18T05:34:35.745Z",
+  "lastObservedAt": "2026-10-18T11:20:02.500Z",
   "firstObservedAt": "2026-10-02T12:48:00.027Z",
-  "observations": 132,
+  "observations": 133,
   "name": "Cohere",
   "channel": "stable",
   "source": "ashby",
@@ -124,7 +124,7 @@
    "changed": 0,
    "payChanged": 0,
    "sourceChanged": 0,
-   "observations": 0
+   "observations": 1
   },
   "lastDailyDate": "2026-10-18",
   "lastDailyAt": "2026-10-18T05:34:35.745Z"
@@ -261,9 +261,9 @@
  },
  "openai": {
   "slug": "openai",
-  "lastObservedAt": "2026-10-18T05:34:32.887Z",
+  "lastObservedAt": "2026-10-18T11:19:59.650Z",
   "firstObservedAt": "2026-10-02T12:47:58.148Z",
-  "observations": 132,
+  "observations": 133,
   "name": "OpenAI",
   "channel": "stable",
   "source": "ashby",
@@ -280,16 +280,16 @@
    "changed": 0,
    "payChanged": 0,
    "sourceChanged": 0,
-   "observations": 0
+   "observations": 1
   },
   "lastDailyDate": "2026-10-18",
   "lastDailyAt": "2026-10-18T05:34:32.887Z"
  },
  "palantir": {
   "slug": "palantir",
-  "lastObservedAt": "2026-10-18T05:34:37.672Z",
+  "lastObservedAt": "2026-10-18T11:20:07.371Z",
   "firstObservedAt": "2026-10-02T12:48:01.886Z",
-  "observations": 132,
+  "observations": 133,
   "name": "Palantir",
   "channel": "stable",
   "source": "lever",
@@ -306,16 +306,16 @@
    "changed": 0,
    "payChanged": 0,
    "sourceChanged": 0,
-   "observations": 0
+   "observations": 1
   },
   "lastDailyDate": "2026-10-18",
   "lastDailyAt": "2026-10-18T05:34:37.672Z"
  },
  "scaleai": {
   "slug": "scaleai",
-  "lastObservedAt": "2026-10-18T05:34:33.910Z",
+  "lastObservedAt": "2026-10-18T11:20:00.694Z",
   "firstObservedAt": "2026-10-02T12:47:58.811Z",
-  "observations": 132,
+  "observations": 133,
   "name": "Scale AI",
   "channel": "stable",
   "source": "greenhouse",
@@ -332,16 +332,16 @@
    "changed": 0,
    "payChanged": 0,
    "sourceChanged": 0,
-   "observations": 0
+   "observations": 1
   },
   "lastDailyDate": "2026-10-18",
   "lastDailyAt": "2026-10-18T05:34:33.910Z"
  },
  "shieldai": {
   "slug": "shieldai",
-  "lastObservedAt": "2026-10-18T05:34:40.572Z",
+  "lastObservedAt": "2026-10-18T11:20:16.936Z",
   "firstObservedAt": "2026-10-02T12:48:03.997Z",
-  "observations": 132,
+  "observations": 133,
   "name": "Shield AI",
   "channel": "stable",
   "source": "lever",
@@ -358,16 +358,16 @@
    "changed": 0,
    "payChanged": 0,
    "sourceChanged": 0,
-   "observations": 0
+   "observations": 1
   },
   "lastDailyDate": "2026-10-18",
   "lastDailyAt": "2026-10-18T05:34:40.572Z"
  },
  "xai": {
   "slug": "xai",
-  "lastObservedAt": "2026-10-18T05:34:35.144Z",
+  "lastObservedAt": "2026-10-18T11:20:01.916Z",
   "firstObservedAt": "2026-10-02T12:47:59.614Z",
-  "observations": 132,
+  "observations": 133,
   "name": "xAI",
   "channel": "stable",
   "source": "greenhouse",
@@ -384,7 +384,7 @@
    "changed": 0,
    "payChanged": 0,
    "sourceChanged": 0,
-   "observations": 0
+   "observations": 1
   },
   "lastDailyDate": "2026-10-18",
   "lastDailyAt": "2026-10-18T05:34:35.144Z"
