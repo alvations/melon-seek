@@ -1,29 +1,29 @@
 {
  "amazon": {
   "slug": "amazon",
-  "lastObservedAt": "2026-10-17T21:07:23.109Z",
+  "lastObservedAt": "2026-10-18T05:17:30.180Z",
   "firstObservedAt": "2026-10-11T15:04:28.012Z",
-  "observations": 24,
+  "observations": 25,
   "name": "Amazon",
   "channel": "beta",
   "source": "amazon",
   "board": "amazon",
   "color": "#ff9900",
-  "open": 22102,
-  "ids": 25140,
+  "open": 22094,
+  "ids": 25146,
   "pending": {
-   "opened": 13,
-   "reopened": 16,
+   "opened": 0,
+   "reopened": 0,
    "resumed": 0,
-   "closed": 120,
+   "closed": 0,
    "unseen": 0,
-   "changed": 1434,
-   "payChanged": 156,
-   "sourceChanged": 1006,
-   "observations": 3
+   "changed": 0,
+   "payChanged": 0,
+   "sourceChanged": 0,
+   "observations": 0
   },
-  "lastDailyDate": "2026-10-17",
-  "lastDailyAt": "2026-10-17T05:08:33.298Z"
+  "lastDailyDate": "2026-10-18",
+  "lastDailyAt": "2026-10-18T05:17:30.180Z"
  },
  "anduril": {
   "slug": "anduril",
@@ -131,9 +131,9 @@
  },
  "google": {
   "slug": "google",
-  "lastObservedAt": "2026-10-17T21:04:24.570Z",
+  "lastObservedAt": "2026-10-18T05:14:15.278Z",
   "firstObservedAt": "2026-10-10T11:09:51.834Z",
-  "observations": 29,
+  "observations": 30,
   "name": "Google",
   "channel": "beta",
   "source": "google",
@@ -142,18 +142,18 @@
   "open": 3825,
   "ids": 4374,
   "pending": {
-   "opened": 1,
+   "opened": 0,
    "reopened": 0,
    "resumed": 0,
    "closed": 0,
    "unseen": 0,
-   "changed": 7,
-   "payChanged": 1,
-   "sourceChanged": 1,
-   "observations": 3
+   "changed": 0,
+   "payChanged": 0,
+   "sourceChanged": 0,
+   "observations": 0
   },
-  "lastDailyDate": "2026-10-17",
-  "lastDailyAt": "2026-10-17T05:08:02.064Z"
+  "lastDailyDate": "2026-10-18",
+  "lastDailyAt": "2026-10-18T05:14:15.278Z"
  },
  "meta": {
   "slug": "meta",
@@ -209,9 +209,9 @@
  },
  "netflix": {
   "slug": "netflix",
-  "lastObservedAt": "2026-10-17T21:01:33.901Z",
+  "lastObservedAt": "2026-10-18T05:12:35.491Z",
   "firstObservedAt": "2026-10-10T10:21:03.942Z",
-  "observations": 29,
+  "observations": 30,
   "name": "Netflix",
   "channel": "beta",
   "source": "eightfold",
@@ -225,13 +225,13 @@
    "resumed": 0,
    "closed": 0,
    "unseen": 0,
-   "changed": 71,
+   "changed": 0,
    "payChanged": 0,
    "sourceChanged": 0,
-   "observations": 3
+   "observations": 0
   },
-  "lastDailyDate": "2026-10-17",
-  "lastDailyAt": "2026-10-17T05:03:30.103Z"
+  "lastDailyDate": "2026-10-18",
+  "lastDailyAt": "2026-10-18T05:12:35.491Z"
  },
  "nvidia": {
   "slug": "nvidia",
