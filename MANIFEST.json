@@ -1,21 +1,21 @@
 {
  "format": "melon-archive",
  "schemaVersion": 1,
- "updatedAt": "2026-10-18T12:09:03.554Z",
+ "updatedAt": "2026-10-18T12:10:04.093Z",
  "generator": "scripts/archive@ccf10a418b25c2a4db554e2cae531a0150b35cf1",
  "tables": {
   "audit/flags": 1315,
   "audit/refresh": 277,
   "audit/runs": 203,
   "audit/verdicts": 681,
-  "blobs": 84230,
+  "blobs": 84247,
   "daily": 197,
-  "ingests": 794,
-  "jobs.closed": 85399,
-  "jobs.open": 43042,
-  "jobs.versions": 128441,
+  "ingests": 797,
+  "jobs.closed": 85421,
+  "jobs.open": 43031,
+  "jobs.versions": 128452,
   "ledger/entries": 80019,
-  "observations": 1267,
+  "observations": 1270,
   "reference.files": 309,
   "reference/index": 309
  },
@@ -117,9 +117,9 @@
   },
   "blobs/2026-10.8.jsonl": {
    "kind": "append",
-   "bytes": 29985343,
-   "sha256": "8c88608a34ea14bf020d10530922008ec401583a4c4cc3368ac28b62bfe53c5d",
-   "rows": 5332
+   "bytes": 30064658,
+   "sha256": "1f680dec3c772fb38325a49e8cd6b1e585c82ea8676e43dc2c86bb49c14bdd85",
+   "rows": 5349
   },
   "blobs/2026-10.jsonl": {
    "kind": "append",
@@ -175,9 +175,9 @@
   },
   "ingests/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 974869,
-   "sha256": "a0b0579d51f98001f7332b3f9dc2a42e7b653c77ce9bb9f7dd3c1d35d980bdca",
-   "rows": 794
+   "bytes": 976376,
+   "sha256": "323b2e4407f95510f0a71cbe4c79d2993104a863cf6e0c4612c67adaa5771ebb",
+   "rows": 797
   },
   "jobs/amazon/2026-10.jsonl": {
    "kind": "append",
@@ -232,19 +232,19 @@
   },
   "jobs/apple/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 29723633,
-   "sha256": "14684231946c69a9c1bc0073215af973551396f1dbfdaa8acd54a1fd7c70127a",
-   "rows": 14990
+   "bytes": 29730861,
+   "sha256": "29d98403965a6750c5e8a95336bb119ece8f735283ff2f24168e4d33be7692ff",
+   "rows": 14994
   },
   "jobs/apple/ids.json": {
    "kind": "mutable",
    "bytes": 169028,
-   "sha256": "09126c4028d16c7e90deef564fc9529b1e45472fb5965c817026d30fca3066d8"
+   "sha256": "98ab7b11cf09b6a07f36326437444c9a950b33a2f8ceafb9af04d10ee0c78e9b"
   },
   "jobs/apple/open.jsonl": {
    "kind": "mutable",
-   "bytes": 8616923,
-   "sha256": "08f257d990dd61043cf854c1e6bae65b0b7d406b94449ab8f03979209d4dae58",
+   "bytes": 8617132,
+   "sha256": "ee7c44da8eb21a9b91870facdb3dfbc58ceab54a8c4a117e4709724ae7f82a65",
    "rows": 4875
   },
   "jobs/cohere/2026-10.jsonl": {
@@ -300,20 +300,20 @@
   },
   "jobs/microsoft/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 16209844,
-   "sha256": "224593f8879aca44bea70e54813926bd61530652c7e74da34daa8230e5405aed",
-   "rows": 8218
+   "bytes": 16244134,
+   "sha256": "0c6d3ca1a51eff46df851b614626d0e9fab1d5b10cce234bf9b11f895a5ff2f6",
+   "rows": 8236
   },
   "jobs/microsoft/ids.json": {
    "kind": "mutable",
-   "bytes": 99973,
-   "sha256": "3fe17b02f848b5a1f5f5d22f4a3327d2ae92c584256b442ff86b82d01c1ada53"
+   "bytes": 100101,
+   "sha256": "32e3f409cf9fe378f5d73ded66fae99eff3f31bd3613f1d9bbcbd128536ecb4e"
   },
   "jobs/microsoft/open.jsonl": {
    "kind": "mutable",
-   "bytes": 4687250,
-   "sha256": "7d624fc2226205c6e41cabc49f82718e10beaf238e1232a66f70919cc07ace1a",
-   "rows": 2406
+   "bytes": 4665040,
+   "sha256": "2218348292c6685623a34fc3cb5e932d692ec9fce32e53e608b354161a3fbbd5",
+   "rows": 2395
   },
   "jobs/netflix/2026-10.jsonl": {
    "kind": "append",
@@ -442,9 +442,9 @@
   },
   "observations/2026-10.jsonl": {
    "kind": "append",
-   "bytes": 1281173,
-   "sha256": "ce541a1578b2201827f49b6d1f55528516e067b4d126640b3fee932a6f7a274a",
-   "rows": 1267
+   "bytes": 1284541,
+   "sha256": "8f1e2b61ed27e2a4797a3852abb95adcd60af64b75a8b94918e4e6032b89616f",
+   "rows": 1270
   },
   "reference/archive-policy/2026-10-10.json": {
    "kind": "immutable",
@@ -2009,13 +2009,13 @@
   },
   "state/blob-index.json": {
    "kind": "mutable",
-   "bytes": 5042219,
-   "sha256": "d9e90ae7e359b0041a854af8297f815e61cfdeca0ab63d88a7e08c91caa1725f"
+   "bytes": 5043239,
+   "sha256": "97d87d20198e1a8c7068c439bd6fd82491881e9fec22655ac5441d2261a86e86"
   },
   "state/companies.json": {
    "kind": "mutable",
-   "bytes": 8385,
-   "sha256": "d5a8cac09e490b20193e4910d13e72858a0fc658a4c129cbd014b1ce6e456cfa"
+   "bytes": 8386,
+   "sha256": "db7f55cb16953c8d1cc29ab5024c3c669927bce9456076e319e52d302b304a77"
   }
  }
 }
