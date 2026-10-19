@@ -79,29 +79,29 @@
  },
  "apple": {
   "slug": "apple",
-  "lastObservedAt": "2026-10-18T21:16:03.831Z",
+  "lastObservedAt": "2026-10-19T05:38:34.483Z",
   "firstObservedAt": "2026-10-10T12:19:51.916Z",
-  "observations": 33,
+  "observations": 34,
   "name": "Apple",
   "channel": "beta",
   "source": "apple",
   "board": "apple",
   "color": "#6e6e73",
-  "open": 4863,
-  "ids": 6521,
+  "open": 4868,
+  "ids": 6526,
   "pending": {
-   "opened": 1,
-   "reopened": 1,
-   "resumed": 1,
-   "closed": 14,
+   "opened": 0,
+   "reopened": 0,
+   "resumed": 0,
+   "closed": 0,
    "unseen": 0,
-   "changed": 5,
-   "payChanged": 2,
-   "sourceChanged": 5,
-   "observations": 3
+   "changed": 0,
+   "payChanged": 0,
+   "sourceChanged": 0,
+   "observations": 0
   },
-  "lastDailyDate": "2026-10-18",
-  "lastDailyAt": "2026-10-18T05:21:19.031Z"
+  "lastDailyDate": "2026-10-19",
+  "lastDailyAt": "2026-10-19T05:38:34.483Z"
  },
  "cohere": {
   "slug": "cohere",
@@ -131,9 +131,9 @@
  },
  "google": {
   "slug": "google",
-  "lastObservedAt": "2026-10-18T21:09:22.650Z",
+  "lastObservedAt": "2026-10-19T05:31:36.853Z",
   "firstObservedAt": "2026-10-10T11:09:51.834Z",
-  "observations": 33,
+  "observations": 34,
   "name": "Google",
   "channel": "beta",
   "source": "google",
@@ -150,10 +150,10 @@
    "changed": 0,
    "payChanged": 0,
    "sourceChanged": 0,
-   "observations": 3
+   "observations": 0
   },
-  "lastDailyDate": "2026-10-18",
-  "lastDailyAt": "2026-10-18T05:14:15.278Z"
+  "lastDailyDate": "2026-10-19",
+  "lastDailyAt": "2026-10-19T05:31:36.853Z"
  },
  "meta": {
   "slug": "meta",
@@ -183,29 +183,29 @@
  },
  "microsoft": {
   "slug": "microsoft",
-  "lastObservedAt": "2026-10-18T21:11:52.929Z",
+  "lastObservedAt": "2026-10-19T05:32:27.917Z",
   "firstObservedAt": "2026-10-10T10:55:39.033Z",
-  "observations": 33,
+  "observations": 34,
   "name": "Microsoft",
   "channel": "beta",
   "source": "eightfold",
   "board": "microsoft",
   "color": "#00a4ef",
-  "open": 2396,
-  "ids": 3128,
+  "open": 2411,
+  "ids": 3143,
   "pending": {
-   "opened": 4,
-   "reopened": 1,
-   "resumed": 1,
-   "closed": 15,
+   "opened": 0,
+   "reopened": 0,
+   "resumed": 0,
+   "closed": 0,
    "unseen": 0,
-   "changed": 6,
+   "changed": 0,
    "payChanged": 0,
-   "sourceChanged": 4,
-   "observations": 3
+   "sourceChanged": 0,
+   "observations": 0
   },
-  "lastDailyDate": "2026-10-18",
-  "lastDailyAt": "2026-10-18T05:18:53.891Z"
+  "lastDailyDate": "2026-10-19",
+  "lastDailyAt": "2026-10-19T05:32:27.917Z"
  },
  "netflix": {
   "slug": "netflix",
