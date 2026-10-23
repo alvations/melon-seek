@@ -25,7 +25,8 @@ import { getCompany } from '../server/companies.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CITIES = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'cities.json'), 'utf8'));
 const company = (slug) => getCompany(slug) || { slug, name: slug };
-const TODO = { todo: 'beta data check 3: docs/process/data-check-beta-3.md' };
+// T-20 (the test-suite review, via fix-mr-3): the last to-do here, DQ-6 residue, already passed (fix5-data's currency
+// group in the gate, VT-16), so it is a plain test now; no to-do is left open in this file.
 
 /* ------------------------------------------------------------ Amazon fixtures */
 // A search.json row carries the whole posting. Only the fields mapAmazonJob reads, with the posting's
@@ -263,7 +264,7 @@ test('DQ-42 Meta: an Italy range is not scored in Madrid or Paris', () => {
 // microsoft:1970393557014754 "Cloud Solution Architect" (lei 83,000–107,800) and microsoft:1970393556864608
 // "Technical Support Engineer - Entry Level" (lei 90,500–135,700). Owner: server/vet.js statOutliers
 // (compares a Romanian range with US pay).
-test('DQ-6 residue: a posted Romania range is not quarantined as an outlier against US pay', TODO, () => {
+test('DQ-6 residue: a posted Romania range is not quarantined as an outlier against US pay', () => {
   const us = Array.from({ length: 40 }, (_, i) => ({
     id: `microsoft:us${i}`, title: 'Cloud Solution Architect', department: 'Cloud Solution Architecture', employmentType: 'Full-time',
     locations: [{ name: 'Redmond, WA', city: 'Redmond', region: 'WA', country: 'US' }],

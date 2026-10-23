@@ -34,8 +34,10 @@ const REVIEW_DAY = new Date('2026-10-16T19:55:00Z'); // the reviewer build's tim
 // fix-data-3 (scripts/build-market.js notBasePay, and one line in the drawer's Juice block).
 // MR-35 was fixed by fix-qa4 (public/app.js hourlyText keeps the posted cents). fix-mr-3 (2026-10-23,
 // docs/process/fix-mr-3.md) fixed MR-26, MR-29 (the stats and chart notes' Details), MR-33, MR-37, MR-38, MR-40 and
-// MR-41 (the Mid tip's example is each board's own); its own tests are in test/fix-mr-3.test.js.
-const FIXED = new Set(['MR-24', 'MR-25', 'MR-26', 'MR-27', 'MR-28', 'MR-29', 'MR-30', 'MR-31', 'MR-32', 'MR-33', 'MR-35', 'MR-36', 'MR-37', 'MR-38', 'MR-40', 'MR-41']);
+// MR-41 (the Mid tip's example is each board's own); its own tests are in test/fix-mr-3.test.js. T-20 (the test-suite
+// review): MR-23 (the FX refresh of 2026-09-30) and MR-34 (fix-pay-at-place's severalRangesTip) already passed, so they are
+// plain tests too. No to-do is left open here (MR-39 and MR-42 have no code test).
+const FIXED = new Set(['MR-23', 'MR-24', 'MR-25', 'MR-26', 'MR-27', 'MR-28', 'MR-29', 'MR-30', 'MR-31', 'MR-32', 'MR-33', 'MR-34', 'MR-35', 'MR-36', 'MR-37', 'MR-38', 'MR-40', 'MR-41']);
 const todo = (id) => (FIXED.has(id) ? {} : { todo: `${id}: docs/process/methodology-review-beta-2.md` });
 const section = (text, head) => {
   const i = text.indexOf(head);
