@@ -80,6 +80,8 @@ function placeRows(s) {
  *     "$60K–129K · 5 places"), not one place's row (the headline is Amazon's search city: amazon:10371179's 82,700 to
  *     117,100 is Bellevue's).
  *   - A stated minimum: [min, null], as the card's "from €46K" (it was written 46000,46000, as if exact).
+ *   - Pay that includes the top shift differential (UX-51): [stated base, posted rate] when the posting states a base
+ *     ("$18.05–19.70/hour"), [null, rate] for one posted figure ("up to $19.70/hour"), else the posted range.
  *   - On-target earnings and everything else: salary.min and salary.max (a span of levels is salary_kind's figure
  *     with each level in salary_ranges).
  * [null, null] without a salary.
@@ -90,6 +92,13 @@ export function salaryRange(s) {
   const max = finite(s.max) ? Number(s.max) : min;
   if (s.kind === 'minimum') return [min, null];
   const rs = s.kind === 'ote' ? null : placeRows(s);
+  if (!rs && s.includesShiftDifferential && s.kind !== 'ote' && max != null) {
+    // UX-51 (fix-qa4): pay that includes the top shift differential, as its card shows it (public/app.js shiftRange):
+    // from the stated base pay to the posted rate, or "up to" one posted figure (salary_min empty); a posted range as is.
+    const b = s.statedBase;
+    if (b && cur(s, b) === cur(s) && finite(b.min) && Number(b.min) < max) return [Math.min(Number(b.min), min ?? Infinity), max];
+    if (min === max) return [null, max];
+  }
   if (!rs) return [min, max];
   let lo = min ?? Infinity, hi = max ?? -Infinity;
   for (const r of rs) { lo = Math.min(lo, Number(r.min)); hi = Math.max(hi, Number(r.max ?? r.min)); }
@@ -203,7 +212,9 @@ export function csvReadme({ generatedAt = new Date().toISOString(), companies = 
     '                     hourly      an hourly base-pay rate',
     '                     ote         on-target earnings: base plus commission at target',
     '                     minimum     a stated minimum base pay; the offer can be higher',
-    '                     shift       hourly pay including the highest shift differential',
+    '                     shift       hourly pay including the highest shift differential:',
+    '                                 salary_min is the stated base pay when the posting',
+    '                                 gives one, empty when it posts one figure ("up to")',
     '                     part-time   part-time hourly pay (x 2080 as if full time)',
     '                     fixed-term  pay per week, per month or for a whole programme',
     '                   two that both hold are joined with "+" (shift+part-time)',
@@ -214,7 +225,8 @@ export function csvReadme({ generatedAt = new Date().toISOString(), companies = 
     '',
     'Changed on 2026-10-17: salary_kind and salary_ranges were added before data_mode.',
     'salary_min/max used to be the posting\'s headline range: one place\'s range when it',
-    'posts a range per place, and a stated minimum written as both min and max.',
+    'posts a range per place; a stated minimum, or shift pay\'s one posted figure, written',
+    'as both min and max; shift pay without the base pay the posting states.',
     '',
     'Text cells starting with = + - @ are prefixed with an apostrophe.',
   ];

@@ -2,6 +2,8 @@
 // test/e2e/beta-desktop-qa-4.e2e.js): D-52 Compstimate's local comparables, D-48 the drawer's rank words, D-50 the
 // estimate of a "Pay unclear" posting, and D-49 the open-data CSV's pay columns and README. Synthetic postings shaped
 // like the real ones (ids in the comments); the browser checks on the 2026-10-16 crawl are in test/e2e/fix-qa4.e2e.js.
+// Added later: UX-51 (shift pay on the card and in the CSV) and UX-50 (the card dot under Group by Company), from
+// docs/process/ux-review-beta-2.md.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -246,4 +248,71 @@ test('D-49 the build writes the README per site (source)', () => {
   assert.match(src, /ctx\.csvReadme\(\{ generatedAt: ctx\.builtAt, companies: csvRows, channel: site\.channel \}\)/);
   assert.equal((src.match(/mode: (payload|raw)\.mode, source: c\.source \}/g) || []).length, 2, 'both csvRow builders name the source');
   assert.match(src, /csvRows\.push\(\{ \.\.\.r\.csvRow, channel: c\.channel \|\| 'stable', sourceText: c\.channel === 'beta' \? CAREERS_SITES\[c\.slug\] \|\| null : null \}\)/, 'and the site loop its channel and careers site');
+});
+
+/* ------------------------------------------------------------ UX-51: shift pay on the card and in the CSV */
+
+// amazon:10409027 "Retail Lead Associate (Reduced-Time)": $19.70 an hour including the top shift differential, "Pay
+// starts at $18.05 per hour"; amazon:10389108 the same role at $21.05 with no base stated; amazon:10377970 a posted
+// range; amazon:10376377 a full-time role at one rate; amazon:10536906 a base at the posted minimum.
+const SHIFT = {
+  base: { min: 40976, max: 40976, mid: 40976, currency: 'USD', kind: 'hourly', originalInterval: 'hour', includesShiftDifferential: true, partTime: true,
+    statedBase: { min: 37544, max: 37544, currency: 'USD', originalInterval: 'hour', text: 'Pay starts at $18.05 per hour with benefits available.' } },
+  one: { min: 43784, max: 43784, mid: 43784, currency: 'USD', kind: 'hourly', originalInterval: 'hour', includesShiftDifferential: true, partTime: true },
+  range: { min: 55952, max: 60112, mid: 58032, currency: 'USD', kind: 'hourly', originalInterval: 'hour', includesShiftDifferential: true },
+  fullOne: { min: 48880, max: 48880, mid: 48880, currency: 'USD', kind: 'hourly', originalInterval: 'hour', includesShiftDifferential: true },
+  baseAbove: { min: 66560, max: 74880, currency: 'USD', kind: 'hourly', originalInterval: 'hour', includesShiftDifferential: true, statedBase: { min: 66560, max: 66560, currency: 'USD' } },
+};
+/** app.js shiftRange, lifted from the source (it uses nothing else from app.js). */
+function appShiftRange() {
+  const src = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  const m = /\nfunction shiftRange\(s\) \{\n[\s\S]*?\n\}\n/.exec(src);
+  assert.ok(m, 'public/app.js has function shiftRange(s)');
+  return new Function(`${m[0]}; return shiftRange;`)();
+}
+
+test('UX-51 the card\'s shift pay: from the stated base to the posted rate, else "up to" one posted figure', () => {
+  const shiftRange = appShiftRange();
+  assert.deepEqual(shiftRange(SHIFT.base), { lo: 37544, hi: 40976, upTo: false }, '"$18.05–19.70/hour"');
+  assert.deepEqual(shiftRange(SHIFT.one), { lo: 43784, hi: 43784, upTo: true }, '"up to $21.05/hour"');
+  assert.deepEqual(shiftRange(SHIFT.range), { lo: 55952, hi: 60112, upTo: false }, 'a posted range keeps both ends');
+  assert.deepEqual(shiftRange(SHIFT.baseAbove), { lo: 66560, hi: 74880, upTo: false }, 'a base at the posted minimum');
+  assert.equal(shiftRange({ ...SHIFT.one, includesShiftDifferential: false }), null);
+  assert.equal(shiftRange({ ...SHIFT.one, kind: 'minimum' }), null, 'a stated minimum reads "from …"');
+  assert.equal(shiftRange({ ...SHIFT.base, statedBase: { ...SHIFT.base.statedBase, currency: 'CAD' } }).upTo, true, 'a base in another currency is not used');
+});
+
+test('UX-51 the card and the drawer heading use it, and say "with top shift pay" (source)', () => {
+  const src = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  const pill = src.slice(src.indexOf('function payPill(job) {'), src.indexOf('/** UX-29: the term of a fixed-term role'));
+  assert.ok(pill.indexOf('shiftRange(s)') > 0 && pill.indexOf('shiftRange(s)') < pill.indexOf('if (isPartTimeHourly(job))'), 'before the part-time branch, which showed "$19.70/hour"');
+  assert.match(pill, /sub: SHIFT_SUB/);
+  assert.match(src, /const SHIFT_SUB = 'with top shift pay';/);
+  assert.match(src, /const amountText = [^\n]*shiftR \? shiftText\(job, shiftR, ' an hour'\)/);
+});
+
+test('UX-51 the CSV writes shift pay as its card shows it', () => {
+  const rows = Object.fromEntries(csvRows(Object.entries(SHIFT).map(([id, salary]) => ({ id, title: id, locations: [], salary }))).map((x) => [x.id, x]));
+  const mm = (id) => [rows[id].salary_min, rows[id].salary_max, rows[id].salary_kind];
+  assert.deepEqual(mm('base'), ['37544', '40976', 'shift+part-time'], 'from the stated base');
+  assert.deepEqual(mm('one'), ['', '43784', 'shift+part-time'], '"up to": no minimum');
+  assert.deepEqual(mm('range'), ['55952', '60112', 'shift']);
+  assert.deepEqual(mm('fullOne'), ['', '48880', 'shift']);
+  assert.deepEqual(mm('baseAbove'), ['66560', '74880', 'shift']);
+  // The CSV and the card agree, case by case.
+  const shiftRange = appShiftRange();
+  for (const [id, s] of Object.entries(SHIFT)) {
+    const r = shiftRange(s);
+    assert.deepEqual(fn(csv.salaryRange, 'salaryRange')(s), [r.upTo ? null : r.lo, r.hi], id);
+  }
+  assert.match(csvReadme({ generatedAt: 'x' }), /salary_min is the stated base pay when the posting/);
+});
+
+/* ------------------------------------------------------------ UX-50: the card's dot under Group by Company */
+
+test('UX-50 coloured by company, the card names the company first, beside its dot (source)', () => {
+  const src = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  const meta = src.slice(src.indexOf("h('div', { class: 'card-meta', id: `${did}-m` },"), src.indexOf("h('div', { class: 'card-foot', id: `${did}-f` },"));
+  assert.ok(meta.length > 100, 'the card meta block');
+  assert.match(meta, /colorBy\(\) === 'brand' \? `\$\{brandKey\(job\)\} · \$\{deptKey\(job\)\}` : deptKey\(job\)/);
 });

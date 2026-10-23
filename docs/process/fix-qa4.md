@@ -100,6 +100,28 @@
    absolutely placed in `.viz`, so the message card keeps its size. The next board that loads unhides its host at the
    top of renderViz, and a changed list redraws it (`vizSig`); returning to the same board shows its chart as drawn.
    Loading keeps its opaque skeleton over the old chart, as before.
+7. **UX-51 (added 2026-10-23), shift pay on the card.** `shiftRange(salary)` in app.js: a posting that states its base
+   pay runs from that base to the posted rate ("$18.05–19.70/hour"), one posted figure with no base is "up to" it ("up
+   to $19.70/hour"), and a posted range keeps both its ends.
+   - The muted line under the pill (the `sal-sub` that "5 places" uses) reads "with top shift pay"; the tip is
+     shiftTip's "The posted rate includes the highest shift differential." plus the stated base.
+   - Considered: "up to" for a posted range too (Amazon's "26.90 - 28.90" rows). Rejected: it would drop the posted
+     minimum ("present them as they are and not cut anything"), and the low end may be a shift rate as well.
+   - Considered: the label in the pill ("$19.70/hour incl. shift"). Rejected: an abbreviation, and the pill must stay
+     one short line at 280 px.
+   - The drawer heading says the same figure, " an hour" for "/hour", as it already did for part-time pay.
+   - The 5 shift postings with ranges per place keep the span and "N ranges" (D-39); their tip adds the shift note.
+   - The CSV writes the same range (`salaryRange`): the stated base as `salary_min`, or `salary_min` empty for one
+     figure. A unit test checks the CSV against app.js's own `shiftRange`, lifted from the source.
+8. **MR-35 (added 2026-10-23).** `hourlyText` formats with `postedPair`, which keeps cents when a rate has them, so the
+   tip and the pay block's Details read "Base pay starts at $18.05/hour" (it was "$18/hour"). Whole rates stay "$18/hour".
+9. **UX-50 (added 2026-10-23).** Coloured by company (`colorBy() === 'brand'`), the card's `.card-dept` reads
+   "YouTube · User Experience and Design", so the company-coloured dot sits beside the company's name.
+   - In the same span, so the department still gives way first on a narrow card (UX-16) and no CSS changes.
+   - Considered: the department colour for the dot under every grouping. Rejected: the dot is there to match the
+     chart's legend, which colours by company in that grouping.
+   - Location and Level colouring put the dot beside the department too. The review reported only Company; that is a
+     follow-up (§6).
 
 ## 4. Replayable steps
 1. `git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp` (2c9f425: 1ef0646
@@ -185,6 +207,8 @@ Numbers are from the 2026-10-16 crawl. "Before" is eccdca9 (1ef0646's code) on i
   not touch, and they move from run to run.
 
 ## 6. Known gaps and follow-ups
+- UX-50's pattern under Group by Location and by Level: the dot takes the place's or the level's colour beside the
+  department's name. Not reported; same fix if wanted (name the coloured key first).
 - The Pay estimate's top five comparables are ordered by weight, then by date; for a level-less query many weights tie,
   so Microsoft "Software Engineer" in Redmond still lists four Principal roles first, although the estimate now uses all
   328 Redmond comparables (confidence Medium, it was High on 77).

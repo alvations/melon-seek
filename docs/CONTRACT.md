@@ -919,7 +919,9 @@ Also new in `shared.js`:
 ## fix-qa4 additions (2026-10-17): QA round 4's pay estimate, rank line, open data and empty states (fix-qa4 lane)
 
 Findings D-47 to D-50 and D-52 ([docs/process/qa-desktop-beta-4.md](process/qa-desktop-beta-4.md), red tests in
-`test/e2e/beta-desktop-qa-4.e2e.js`). Log: [docs/process/fix-qa4.md](process/fix-qa4.md). Job fields and
+`test/e2e/beta-desktop-qa-4.e2e.js`), and since 2026-10-23 UX-50 and UX-51
+([docs/process/ux-review-beta-2.md](process/ux-review-beta-2.md)) and MR-35
+([docs/process/methodology-review-beta-2.md](process/methodology-review-beta-2.md)). Log: [docs/process/fix-qa4.md](process/fix-qa4.md). Job fields and
 `NORMALIZER_VERSION` are unchanged; every addition is optional for readers, except the CSV's two new columns (below).
 
 **Compstimate (`public/features/compstimate.js`, D-52):**
@@ -956,7 +958,9 @@ the message or left in the accessibility tree. The next board that loads shows i
   `data_mode`, which stays last; every other column keeps its place.
 - `salary_min` / `salary_max` are the range the job card shows (`salaryRange(salary)`): for a posting with a range
   per place, the lowest to the highest of its rows in the salary's currency (it was the headline, one place's row);
-  for a stated minimum, `salary_max` is empty (it was the minimum twice). Annualized as before.
+  for a stated minimum, `salary_max` is empty (it was the minimum twice); for pay that includes the top shift
+  differential, as its card shows it (UX-51, below): the stated base to the posted rate, or an empty `salary_min` for
+  one posted figure. Annualized as before.
 - `salary_kind` (`salaryKind(salary)`, `SALARY_KINDS`): `salary`, `hourly`, `ote`, `minimum`, `shift`,
   `part-time` or `fixed-term`, as the card and the drawer caption say it; two that both hold are joined with "+"
   (`shift+part-time`).
@@ -964,8 +968,28 @@ the message or left in the accessibility tree. The next board that loads shows i
   or a place (`salary.ranges`, every row in its own currency): `"<level or place>: <min>-<max> <currency>"`,
   separated by `" | "`; empty for one range.
 - `csvReadme({ generatedAt, companies, channel })`: written per site. The beta README says each big-tech file comes
-  from the company's own careers site, names it per file (`CSV_SOURCES`, as docs/DATA_SOURCES.md §7 names the
-  systems), and says big-tech pay is base pay only; the main site's names Greenhouse, Ashby and Lever. Both explain
-  `salary_kind` and what changed on 2026-10-17. `scripts/build-static.js` passes `channel: site.channel`, and each
-  file's `source` and `channel`.
+  from the company's own careers site, names it per file, and says big-tech pay is base pay only; the main site's
+  names Greenhouse, Ashby and Lever. Both explain `salary_kind` and what changed on 2026-10-17.
+  `scripts/build-static.js` passes `channel: site.channel` and each file's `source`, `channel` and `sourceText`: the
+  careers site, from `CAREERS_SITES` in the build script (as docs/DATA_SOURCES.md §7 names the systems), since
+  server/export.js ships in the main site's `lib/`, which names no beta host. A job-board file's source is
+  `JOB_BOARD_SOURCES[source]`.
+
+**Shift pay on the card (`public/app.js`, UX-51, 2026-10-23):** pay that includes the highest shift differential
+(`salary.includesShiftDifferential`) says so on its card. `shiftRange(salary)` gives `{ lo, hi, upTo }`:
+- a posting that states its base pay (`salary.statedBase`, same currency, under the posted rate) runs from the base
+  to the posted rate: "$18.05–19.70/hour" (part-time hourly pay) or a yearly range;
+- one posted figure with no base is "up to" it: "up to $19.70/hour";
+- a posted range keeps both its ends.
+
+The pill shows that range, the muted line under it reads "with top shift pay", and the tip says "The posted rate
+includes the highest shift differential." with the stated base. The drawer heading reads the same figure ("$18.05–19.70
+an hour"). A posting with ranges per place keeps its span and place count, with the shift note in its tip. Stated
+minimums and on-target earnings are unchanged. The CSV writes the same range (server/export.js `salaryRange`).
+MR-35: hourly rates in these tips keep their posted cents (`hourlyText`: "$18.05/hour", it was "$18/hour").
+
+**The card's dot under company colouring (`public/app.js card`, UX-50):** when the list is coloured by company (Group
+by Company, `colorBy() === 'brand'`), the card's meta names the company first, beside its company-coloured dot:
+"YouTube · User Experience and Design". The department still gives way first on a narrow card (UX-16); other
+groupings are unchanged.
 

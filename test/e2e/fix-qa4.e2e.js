@@ -7,7 +7,11 @@
 //        at every phone size of test/e2e/phone-sizes.mjs;
 //   D-50 a "Pay unclear" posting's estimate stops at the maximum the posting states, its line one line at every size;
 //   D-47 a board that isn't on the site, or fails to load, leaves no chart or map of the previous board behind;
-//   D-49 Download CSV: what each pay figure is, the card's range, every posted row, and a README per site.
+//   D-49 Download CSV: what each pay figure is, the card's range, every posted row, and a README per site;
+//   UX-51 pay that includes the top shift differential says so on its card ("$18.05–19.70/hour", "up to $19.70/hour",
+//        "with top shift pay"), on one line at every phone size (docs/process/ux-review-beta-2.md); MR-35 its tip
+//        keeps the stated base pay's cents;
+//   UX-50 under Group by Company, the card names the company beside its company-coloured dot.
 // Expected figures are worked out in the page from the board's own list (public/api.js getJobs), not by the code
 // under test. FQA4_SHOTS=<tag> saves screenshots to docs/screenshots/fix-qa4/<tag>-*.png. Each check skips when the
 // build or the board it needs is missing.
@@ -79,9 +83,12 @@ async function board(page, st, company, site = 'beta') {
       mode: res.mode,
       jobs: res.jobs.map((j) => ({
         id: j.id, title: j.title, seniority: j.seniority || null, salaryFlag: j.salaryFlag || null, salaryRaw: j.salaryRaw || null,
+        brand: j.brand || j.companyName || null, department: j.department || null,
         locations: (j.locations || []).map((l) => ({ name: l.name || '', rawName: l.rawName || l.name || '', city: l.city || null, country: l.country || null, remote: !!l.remote })),
         salary: j.salary ? {
           min: j.salary.min, max: j.salary.max, currency: j.salary.currency, kind: j.salary.kind || null, termWeeks: j.salary.termWeeks || null, partTime: !!j.salary.partTime,
+          originalInterval: j.salary.originalInterval || null, shift: !!j.salary.includesShiftDifferential,
+          statedBase: j.salary.statedBase ? { min: j.salary.statedBase.min, currency: j.salary.statedBase.currency || j.salary.currency } : null,
           ranges: Array.isArray(j.salary.ranges) ? j.salary.ranges.map((r) => ({ label: r.label || '', min: r.min, max: r.max, currency: r.currency || null, locations: r.locations || [] })) : [],
         } : null,
       })),
@@ -111,7 +118,128 @@ function rankPool(jobs) {
 }
 const RANK_RE = /^(In the top 1% of|In the lowest 1% of|Pays more than \d+% of) Amazon’s roles( in the US)?$/;
 
+/* --------------------------------------------------------------- UX-51: shift pay on the card */
+
+/** Amazon's shift-pay postings of each shape: a stated base (part-time), one figure (part-time, full-time), a range. */
+function shiftPicks(jobs) {
+  const sh = jobs.filter((j) => j.salary && j.salary.shift && j.salary.ranges.length < 2 && j.salary.kind !== 'minimum');
+  return {
+    base: sh.find((j) => j.salary.partTime && j.salary.statedBase && j.salary.statedBase.min < j.salary.max),
+    onePart: sh.find((j) => j.salary.partTime && !j.salary.statedBase && j.salary.min === j.salary.max),
+    oneFull: sh.find((j) => !j.salary.partTime && !j.salary.statedBase && j.salary.min === j.salary.max),
+    range: sh.find((j) => !j.salary.partTime && !j.salary.statedBase && j.salary.min !== j.salary.max),
+  };
+}
+/** "$18.05–19.70/hour" -> [18.05, 19.7]; "up to $21.05/hour" -> [null, 21.05]; "$56–60K" -> [56000, 60000]; "up to $48.9K". */
+function pillNumbers(text) {
+  const up = /^up to /.test(text || '');
+  const m = /\$([\d.,]+)(K|M)?(?:–\$?([\d.,]+)(K|M)?)?/.exec(text || '');
+  if (!m) return null;
+  const unit = (u) => (u === 'M' ? 1e6 : u === 'K' ? 1e3 : 1);
+  const hiU = m[4] || m[2];
+  const a = Number(m[1].replace(/,/g, '')) * unit(m[2] || hiU);
+  const b = m[3] ? Number(m[3].replace(/,/g, '')) * unit(hiU) : a;
+  return up ? [null, a] : [a, b];
+}
+/**
+ * The card of `j` from a search for its title in its own place (Amazon posts the same title for many stores), its pill,
+ * the line under it and the pill's tip, each measured. A phone's first screen may be the preview list (data-preview-id).
+ */
+async function cardPay(page, st, j) {
+  const city = j.locations.find((l) => l.city && !l.remote)?.city;
+  await go(page, st, `c=amazon&q=${encodeURIComponent(j.title)}${city ? `&l=${encodeURIComponent(city)}` : ''}`);
+  const sel = `#resultsList .card[data-id="${j.id}"], #resultsList .card[data-preview-id="${j.id}"]`;
+  await page.waitForSelector(sel, { timeout: 30000 }).catch(() => {});
+  return page.evaluate((sel) => {
+    const c = document.querySelector(sel);
+    if (!c) return null;
+    const one = (e) => {
+      if (!e) return null;
+      const r = document.createRange(); r.selectNodeContents(e);
+      const mids = [];
+      for (const x of r.getClientRects()) { if (x.width < 0.5) continue; const m = x.top + x.height / 2; if (!mids.some((t) => Math.abs(t - m) < 4)) mids.push(m); }
+      const b = e.getBoundingClientRect(), cb = c.getBoundingClientRect();
+      return { text: e.textContent.trim(), lines: mids.length, cut: e.scrollWidth > e.clientWidth + 0.5, inside: b.left >= cb.left - 0.5 && b.right <= cb.right + 0.5 };
+    };
+    const pill = c.querySelector('.sal-pill');
+    return { pill: one(pill), sub: one(c.querySelector('.sal-sub')), tip: pill?.title || '', vw: document.documentElement.clientWidth, cardRight: c.getBoundingClientRect().right };
+  }, sel);
+}
+/** What a shift posting's card must say, worked out from the posting (not by the app's code). */
+function shiftWant(j) {
+  const s = j.salary, hourly = s.partTime && s.originalInterval === 'hour';
+  const base = s.statedBase && s.statedBase.currency === s.currency && s.statedBase.min < s.max ? Math.min(s.statedBase.min, s.min) : null;
+  const lo = base ?? (s.min === s.max ? null : s.min);
+  const f = hourly ? 2080 : 1;
+  return { lo: lo == null ? null : lo / f, hi: s.max / f, hourly, base: base != null };
+}
+function shiftCheck(c, j, where) {
+  if (!c) return [`${where}: ${j.id} is not in the first page of its own search`];
+  const bad = [];
+  const w = shiftWant(j), got = pillNumbers(c.pill?.text);
+  const near = (a, b) => (a == null || b == null ? a === b : Math.abs(a - b) <= Math.max(0.006, Math.abs(b) * (w.hourly ? 0.0005 : 0.012)));
+  if (!got || !near(got[0], w.lo) || !near(got[1], w.hi)) bad.push(`${j.id}: the pill reads "${c.pill?.text}", want ${w.lo == null ? 'up to ' : `${w.lo}–`}${w.hi}${w.hourly ? '/hour' : ' a year'}${w.base ? ' (from the stated base)' : ''}`);
+  if (w.hourly && !/\/hour$/.test(c.pill?.text || '')) bad.push(`${j.id}: "${c.pill?.text}" is not per hour`);
+  if (w.lo == null && !/^up to /.test(c.pill?.text || '')) bad.push(`${j.id}: one posted figure that includes the top shift differential reads "${c.pill?.text}", not "up to …"`);
+  if (c.sub?.text !== 'with top shift pay') bad.push(`${j.id}: the line under the pill reads "${c.sub?.text ?? ''}", not "with top shift pay"`);
+  if (!/highest shift differential/.test(c.tip)) bad.push(`${j.id}: the pill's tip "${c.tip}" does not say it includes the highest shift differential`);
+  if (w.base) {
+    // MR-35: the stated base keeps its posted cents ("$18.05/hour", never "$18/hour").
+    const b = (j.salary.statedBase.min / 2080).toFixed(2).replace(/\.00$/, '');
+    if (!c.tip.includes(`Base pay starts at $${b}/hour`)) bad.push(`${j.id}: the tip does not give the stated base as posted ($${b}/hour): "${c.tip}"`);
+  }
+  for (const [k, e] of [['pill', c.pill], ['line under it', c.sub]]) if (e && (e.lines > 1 || e.cut || !e.inside)) bad.push(`${j.id}: the ${k} "${e.text}" ${e.lines > 1 ? `takes ${e.lines} lines` : e.cut ? 'is cut' : 'runs out of the card'}`);
+  return bad;
+}
+
 export function registerFixQa4Tests(suite) {
+  /* ------------------------------------------------------------- UX-51 */
+  suite.test('fix-qa4: [UX-51] Amazon\'s shift pay says so on the card: from the stated base, "up to" one figure, "with top shift pay", the tip; the drawer heading agrees', async (ctx) => {
+    const { st, page, errors } = await open(ctx, 'c=amazon');
+    const picks = shiftPicks(await board(page, st, 'amazon'));
+    if (!picks.base || !picks.onePart) skip('no Amazon shift-pay posting with a stated base, or with one figure');
+    const bad = [];
+    for (const [k, j] of Object.entries(picks)) {
+      if (!j) continue;
+      const c = await cardPay(page, st, j);
+      bad.push(...shiftCheck(c, j, k));
+      if (k === 'base' && c) await shot(page, 'UX-51-amazon-shift-base-card', page.locator(`#resultsList .card[data-id="${j.id}"], #resultsList .card[data-preview-id="${j.id}"]`).first());
+      if (!c) continue;
+      // The drawer heading reads the same figure, in its own words for the unit (" an hour").
+      await drawer(page, st, 'amazon', j.id);
+      const amt = (await page.locator('#drawer .d-sal-amt').textContent().catch(() => '')).trim();
+      const want = (c.pill.text || '').replace(/\/hour$/, ' an hour');
+      if (amt !== want) bad.push(`${j.id}: the drawer heading reads "${amt}", the card "${c.pill.text}"`);
+    }
+    assert(!bad.length, bad.join('; '));
+    assert(!errors.length, errors.join(' | '));
+  });
+
+  /* ------------------------------------------------------------- UX-50 */
+  suite.test('fix-qa4: [UX-50] under Group by Company, each card names its company first, beside the company-coloured dot (Google)', async (ctx) => {
+    const { st, page, errors } = await open(ctx, 'c=google&g=brand');
+    const jobs = await board(page, st, 'google');
+    if (new Set(jobs.map((j) => j.brand).filter(Boolean)).size < 2) skip('Google names one company today');
+    await page.waitForSelector('#resultsList .card[data-id]', { timeout: 30000 });
+    const read = () => page.$$eval('#resultsList .card[data-id]', (els) => els.slice(0, 40).map((c) => ({ id: c.dataset.id, dept: c.querySelector('.card-dept')?.textContent || '' })));
+    const cards = await read();
+    const byId = new Map(jobs.map((j) => [j.id, j]));
+    const bad = [];
+    for (const c of cards) {
+      const j = byId.get(c.id);
+      const want = `${j.brand || 'No company'} · ${j.department || 'No department'}`;
+      if (c.dept !== want) bad.push(`${c.id}: "${c.dept}", want "${want}"`);
+    }
+    await shot(page, 'UX-50-google-company-cards', page.locator('#resultsList'));
+    // Grouped by department (the default), the card names the department alone, as before.
+    await go(page, st, 'c=google');
+    await page.waitForSelector('#resultsList .card[data-id]', { timeout: 30000 });
+    for (const c of (await read()).slice(0, 10)) { const j = byId.get(c.id); if (c.dept !== (j.department || 'No department')) bad.push(`department grouping, ${c.id}: "${c.dept}"`); }
+    assert(cards.length >= 5, `${cards.length} cards`);
+    assert(!bad.length, bad.slice(0, 8).join('; '));
+    assert(!errors.length, errors.join(' | '));
+  });
+
   /* ------------------------------------------------------------- D-52 */
   suite.test('fix-qa4: [D-52] the Pay estimate for Microsoft "Software Engineer" in New York lists each role at the range it used (the New York row), named for New York', async (ctx) => {
     const { st, page, errors } = await open(ctx, 'c=microsoft&m=insights');
@@ -249,6 +377,22 @@ export function registerFixQa4Tests(suite) {
         if (!RANK_RE.test(text)) bad.push(`${j.id} (#11 from the ${end}): "${text}"`);
         for (const m of await oneLine(page, '#drawer .d-pct-text')) bad.push(`${j.id}: ${m}`);
         if (end === 'top' && (size.width === 280 || size.width === 1114)) await shot(page, `D-48-${size.width}x${size.height}-top`, page.locator('#drawer .d-salary'));
+      }
+      assert(!bad.length, `${size.name}: ${bad.join('; ')}`);
+      assert(!errors.length, errors.join(' | '));
+    });
+  }
+  for (const size of ALL_SIZES) {
+    suite.test(`fix-qa4: [UX-51] ${size.name} ${size.width}x${size.height}: a shift-pay card's pill ("$18.05–19.70/hour") and its line "with top shift pay" fit one line each`, async (ctx) => {
+      const { st, page, errors } = await open(ctx, 'c=amazon', { size });
+      const { base, onePart } = shiftPicks(await board(page, st, 'amazon'));
+      if (!base) skip('no Amazon shift-pay posting with a stated base');
+      const bad = [];
+      for (const j of [base, onePart].filter(Boolean)) {
+        const c = await cardPay(page, st, j);
+        bad.push(...shiftCheck(c, j, size.name).filter((m) => !/tip/.test(m)));
+        if (c && c.cardRight > c.vw + 0.5) bad.push(`${j.id}: the card runs ${Math.round(c.cardRight - c.vw)} px past the screen`);
+        if (j === base && c && (size.width === 280 || size.width === 390)) await shot(page, `UX-51-${size.width}x${size.height}`, page.locator(`#resultsList .card[data-id="${j.id}"], #resultsList .card[data-preview-id="${j.id}"]`).first());
       }
       assert(!bad.length, `${size.name}: ${bad.join('; ')}`);
       assert(!errors.length, errors.join(' | '));

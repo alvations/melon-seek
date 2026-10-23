@@ -203,7 +203,32 @@ const OTE_LABEL = 'On-target earnings (base plus commission at target)';
    and in the pay block; the detail is in the label's tip and the pay block's caption. */
 const isMinimum = (j) => j?.salary?.kind === 'minimum';
 const MINIMUM_TIP = 'The posting states this as the minimum base pay; the offer can be higher';
-const hourlyText = (s, v) => `${money(v / 2080, s.currency)}/hour`;
+// MR-35 (fix-qa4): an hourly rate keeps the cents it was posted with ("$18.05/hour"; money() rounded it to "$18/hour").
+const hourlyText = (s, v) => `${postedPair(v / 2080, v / 2080, s.currency)}/hour`;
+/**
+ * UX-51 (fix-qa4): pay that includes the highest shift differential (VT-18, salary.includesShiftDifferential), as the card
+ * and the drawer heading show it. A posting that states its base pay runs from that base to the posted rate
+ * ("$18.05–19.70/hour"); one posted figure with no base is the top of the pay ("up to $19.70/hour"); a posted range
+ * keeps both its ends. { lo, hi, upTo } yearly in salary.currency, or null (no shift pay, on-target earnings, a stated
+ * minimum). server/export.js salaryRange writes the same range to the CSV.
+ */
+function shiftRange(s) {
+  if (!s?.includesShiftDifferential || s.kind === 'ote' || s.kind === 'minimum' || !Number.isFinite(s.max)) return null;
+  const b = s.statedBase;
+  const base = b && String(b.currency || s.currency).toUpperCase() === String(s.currency || 'USD').toUpperCase() && Number.isFinite(b.min) && b.min < s.max ? b.min : null;
+  if (base != null) return { lo: Math.min(base, s.min), hi: s.max, upTo: false };
+  return { lo: s.min, hi: s.max, upTo: s.min === s.max };
+}
+/** UX-51: the card's muted line under such a pill. */
+const SHIFT_SUB = 'with top shift pay';
+/** UX-51: shift pay in the unit it is shown in: part-time hourly pay per hour, other pay per year. `per` " an hour" or "/hour". */
+function shiftText(job, sr, per = '/hour') {
+  const s = job.salary;
+  const hourly = isPartTimeHourly(job);
+  const one = (v) => (hourly ? `${postedPair(v / 2080, v / 2080, s.currency)}${per}` : rangeEnd(v, s.currency));
+  if (sr.upTo) return `up to ${one(sr.hi)}`;
+  return hourly ? `${postedPair(sr.lo / 2080, sr.hi / 2080, s.currency)}${per}` : moneyRange(sr.lo, sr.hi, s.currency);
+}
 /** VT-18: "Includes the highest shift differential. Base pay starts at $18.35/hour." */
 function shiftTip(s) {
   const base = s?.statedBase ? ` Base pay starts at ${s.statedBase.originalInterval === 'hour' ? hourlyText(s.statedBase, s.statedBase.min) : money(s.statedBase.min, s.statedBase.currency)}.` : '';
@@ -3789,7 +3814,14 @@ function payPill(job) {
   // UX-22, QA round 3 (fix-pay-at-place): a posting that gives each place its own range, in the unit it was posted
   // in (an internship's yearly rate, a part-time hourly rate): the places' span, or the range of the place picked.
   const ph = isOte(job) || isMinimum(job) ? null : payHeadline(job);
-  if (ph) return { text: ph.text, range: ph.range, sub: ph.sub, tip: ph.tip };
+  if (ph) return { text: ph.text, range: ph.range, sub: ph.sub, tip: s.includesShiftDifferential ? `${ph.tip} ${shiftTip(s)}` : ph.tip };
+  // UX-51 (fix-qa4): pay that includes the top shift differential says so on the card: from the stated base to the
+  // posted rate, or "up to" one posted figure, with "with top shift pay" under the pill.
+  const sr = shiftRange(s);
+  if (sr) {
+    const range = shiftText(job, sr);
+    return { text: range, range, sub: SHIFT_SUB, tip: `${isPartTimeHourly(job) ? 'Part-time, paid by the hour. ' : ''}${shiftTip(s)}` };
+  }
   if (isPartTimeHourly(job)) {
     const hr = postedPair(s.min / 2080, s.max / 2080, s.currency);
     return { text: `${hr}/hour`, tip: `Part-time, paid by the hour: ${hr} an hour (${postedPair(Math.round(s.min), Math.round(s.max), s.currency)} a year if full-time, 2,080 hours)` };
@@ -3886,7 +3918,9 @@ function card(job, pos = null, size = null) {
       ageText(job) ? h('span', { class: 'card-age-top', 'aria-hidden': 'true', title: ageTitle(job) }, ageText(job)) : null)),
   h('div', { class: 'card-meta', id: `${did}-m` },
     h('span', { class: 'card-dot', style: `--dot:${color}`, 'aria-hidden': 'true' }),
-    h('span', { class: 'card-dept' }, deptKey(job)), h('span', { class: 'sep', 'aria-hidden': 'true' }, '·'),
+    // UX-50 (fix-qa4): coloured by company (Group by Company), the dot is the company's, so the company comes first,
+    // beside it ("YouTube · User Experience and Design"); the department gives way first, as before (UX-16).
+    h('span', { class: 'card-dept' }, colorBy() === 'brand' ? `${brandKey(job)} · ${deptKey(job)}` : deptKey(job)), h('span', { class: 'sep', 'aria-hidden': 'true' }, '·'),
     h('span', { class: 'card-loc' }, loc), remoteTag ? h('span', { class: 'tag tag--remote' }, 'Remote') : null),
   h('div', { class: 'card-foot', id: `${did}-f` },
     level ? h('span', { class: `sen sen--${level.toLowerCase().replace(/\W/g, '')}`, title: SEN_TIP[level] || null }, senLabel(level)) : null,
@@ -4803,7 +4837,9 @@ function drawerContent(job) {
   // Shared decisions 3 and 4: the amount as it was stated. Fixed-term pay: "$3,850 a week · for about 17
   // weeks"; a rate for a programme: "€72,000 a year · 13-week internship"; part-time: "$22.00–28.88 an hour".
   const cur = sal?.currency || 'USD';
-  const amountText = !sal ? null : ph ? ph.range : partHourly ? `${postedPair(sal.min / 2080, sal.max / 2080, sal.currency)} an hour`
+  // UX-51 (fix-qa4): shift pay reads as on its card ("$18.05–19.70 an hour", "up to $19.70 an hour").
+  const shiftR = sal && !ph ? shiftRange(sal) : null;
+  const amountText = !sal ? null : ph ? ph.range : shiftR ? shiftText(job, shiftR, ' an hour') : partHourly ? `${postedPair(sal.min / 2080, sal.max / 2080, sal.currency)} an hour`
     : term ? `${term.amount}${perText(term.per)}` : isMinimum(job) ? `from ${money(sal.min, sal.currency)}` : salaryRange(sal);
   const subText = !sal ? null : (ph?.picked ? `Posted for ${ph.picked.label} · ` : ph?.sub ? `${ph.sub} · ` : '') + (partHourly ? `${cur} · part-time, paid by the hour`
     : term?.fixed ? `${cur} · for ${termText(term.weeks)}` : term ? `${cur} · ${programText(job, term)}` : `${cur} · per year`);
