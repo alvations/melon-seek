@@ -1,7 +1,7 @@
 From b56344052d1b188d22570cfc53a58b0ba43924e6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 14:07:58 +0000
-Subject: [PATCH 25/34] fix-mr-3: T-17 job titles on one line (line breaks and
+Subject: [PATCH 25/35] fix-mr-3: T-17 job titles on one line (line breaks and
  runs of whitespace are one space), in the norm-13 bump
 
 cleanTitle in normalizeJob and relabelJobs (stored snapshots): Meta "Research Scientist,\nMachine Learning ..." and

@@ -2,11 +2,12 @@
 
 - Worktree: `/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-int`
 - Base (on claude/stoic-ride-54ddxp): `9979e589405ecffff9c454108b63b2e96a392ad7`
-- Head: `72cfbf6fa320ad06e9977a6459750c9eb1470c87`
+- Head: `fc8980e94f932e471e17cfbb6603b0040540f451`
 - Restore: `bash scripts/cycle/restore-wip.sh lead-integration <new worktree dir>`
 
 ## Commits since the base
 ```
+fc8980e fix-viz-5 [MR-28] e2e: the reference median is the main currency's (MR-39, fix-mr-3), as the caption and the stats line now are
 72cfbf6 iOS Simulator probe: each message names its page, only the visible tab acts, the driver waits for its own page
 d0e6095 fix-mr-3: T-20 the to-dos that already passed are plain tests (beta-methodology MR-4 to MR-20, beta-methodology-2 MR-23 and MR-34, beta-data-check-3 DQ-6)
 5027260 fix-mr-3: MR-39 the Ranges view's label column fits the strip's caption with its basis ("Median base pay $239K US" was cut by 0.05 px at 1280)
@@ -45,32 +46,6 @@ c1c2e2b fix-qa4: UX-51 and UX-50 screenshots before and after (shrunk); the phon
 
 ## Uncommitted and new files
 ```
- M docs/screenshots/chart.png
- M docs/screenshots/dark-drawer.png
- M docs/screenshots/dark.png
- M docs/screenshots/drawer-juice.png
- M docs/screenshots/drawer.png
- M docs/screenshots/fix-pay-at-place/e2e-card-1114x720.png
- M docs/screenshots/fix-pay-at-place/e2e-card-280x653.png
- M docs/screenshots/fix-pay-at-place/e2e-card-352x355.png
- M docs/screenshots/fix-pay-at-place/e2e-card-375x812.png
- M docs/screenshots/insights.png
- M docs/screenshots/map-juice.png
- M docs/screenshots/map.png
- M docs/screenshots/mobile.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-360x640-with-the-keyboard-up-300-px-.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-iPhone-SE-Safari-375x548.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390-with-5-saved-searches.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-28-landscape-844x390.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-29-company-menu-focus.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-30-saved-searches-loaded.png
- M docs/screenshots/qa-mobile-beta-2/e2e-M-31-empty-message-half-sheet.png
- M docs/screenshots/qa-mobile-beta/e2e-M-19-sort-while-scrolled.png
- M docs/screenshots/qa-mobile-beta/e2e-M-21-company-menu.png
- M docs/screenshots/qa-mobile-beta/e2e-M-22-paused-board.png
- M docs/screenshots/qa-mobile-beta/e2e-M-24-keyboard-location-search.png
- M docs/screenshots/qa-mobile-beta/e2e-M-27-topbar-360.png
- M docs/screenshots/qa-mobile/e2e-landscape-map.png
 ?? docs/screenshots/fix-pay-at-place/e2e-card-720x1114.png
 ```
 

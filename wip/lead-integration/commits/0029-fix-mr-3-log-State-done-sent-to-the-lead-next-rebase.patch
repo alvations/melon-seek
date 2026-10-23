@@ -1,7 +1,7 @@
 From 4d05ecfc16c2d77dd2bac6679145f947ea2bae2d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 14:53:33 +0000
-Subject: [PATCH 29/34] fix-mr-3: log State: done, sent to the lead; next:
+Subject: [PATCH 29/35] fix-mr-3: log State: done, sent to the lead; next:
  rebase when told
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
