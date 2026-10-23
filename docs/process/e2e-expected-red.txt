@@ -21,4 +21,4 @@
 # Compstimate T21: the cold server re-normalizes Anduril's 2,537 postings (crawl norm-9, code norm-12), which takes
 # past the 30 s ready limit on a loaded machine. The test passed alone in 24.7 s on 8898566.
 # Remove this entry when qa-suite-beta-flake-t21-cpu.diff lands.
-T21 flaky until qa-suite-beta-flake-t21-cpu.diff lands
+# 2026-10-23: T21's CPU-time patch landed and passed in the batch-3 gate (28 s); no test is expected red.
