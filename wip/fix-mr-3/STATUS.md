@@ -2,18 +2,36 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a2e3d85e328fdbc3e`
 - Base (on claude/stoic-ride-54ddxp): `0e6f21abb1304c3b871382a9d59179a27a1ca9e8`
-- Head: `6fa07cd0398e5783317ce3a00b73b208db9a3fad`
+- Head: `134ae044fa254e386d08cb0a3dcc3d0ddd67dc58`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-mr-3 <new worktree dir>`
 
 ## Commits since the base
 ```
-6fa07cd fix-mr-3: MR-40 43 NYC-area towns in the gazetteer, so the NYC pay area sees them; norm-13
-2e5d4dc fix-mr-3: MR-41 the Mid chip's tip gives each board's own example of a mid level
-94efc50 fix-mr-3: MR-26 build-day data is never "update due"
-6c2bad1 fix-mr-3: MR-21 registry.js usage lists --docs; MR-22 market.json fx.source is FX_SOURCE
-9f334f8 fix-mr-3: red tests for MR-21, MR-22, MR-26, MR-29, MR-33, MR-37, MR-38, MR-39, MR-40, MR-41
-2369a6d fix-mr-3: log skeleton with State
-9b43827 fix-mr-3: brief, verbatim
+134ae04 fix-mr-3: MR-39 e2e counts base pay as the integrated build does (MR-28's notBasePay out), and the numbers on it ($149K → $152K US)
+b119cd9 fix-mr-3: MR-39 the chart caption's median on the same basis ("Median base pay $149K US"), applied in chart.js (was the patch for fix-viz-5)
+332f9c8 fix-mr-3: log State: done, sent to the lead; next: rebase when told
+ae6ba37 fix-mr-3: MR-39 the stats line says its median's country short ("base pay median (US)"), within fix-density's 12 words when filtered
+c6c329f fix-mr-3: the BP-13 e2e takes the stats line's median on the MR-39 rule (the main currency's, with pay in several)
+36530fb fix-mr-3: log: T-17, npm test, before/after e2e, phone lines
+be1810e fix-mr-3: T-17 job titles on one line (line breaks and runs of whitespace are one space), in the norm-13 bump
+0d846e5 fix-mr-3: the Juice headline's "while it lasts" moves to the text below when it would wrap (one line from 344 px up)
+ca88310 fix-mr-3: review logs mark MR-21, MR-22, MR-26, MR-29, MR-33, MR-37, MR-38, MR-39, MR-40, MR-41 fixed; process log
+951968d fix-mr-3: e2e on the built site (every ID, and every phone size), docs, and the chart caption patch for fix-viz-5
+4197588 fix-mr-3: refresh fixtures regenerated at norm-13 (make-fixtures.mjs)
+65b17fa fix-mr-3: MR-38/MR-33 fixed-term pay of unstated length, MR-37 stated annual figure, MR-29 departments note, MR-39 headline median basis
+6e0e296 fix-mr-3: MR-40 43 NYC-area towns in the gazetteer, so the NYC pay area sees them; norm-13
+9fd9158 fix-mr-3: MR-41 the Mid chip's tip gives each board's own example of a mid level
+0412b39 fix-mr-3: MR-26 build-day data is never "update due"
+d5456a5 fix-mr-3: MR-21 registry.js usage lists --docs; MR-22 market.json fx.source is FX_SOURCE
+d6afaba fix-mr-3: red tests for MR-21, MR-22, MR-26, MR-29, MR-33, MR-37, MR-38, MR-39, MR-40, MR-41
+cc0ebd9 fix-mr-3: log skeleton with State
+75a6976 fix-mr-3: brief, verbatim
+e168ac7 fix-qa4: log State after UX-51, MR-35 and UX-50 (gated, sent to the lead)
+594845f fix-qa4: UX-51 and UX-50 screenshots before and after (shrunk); the phone shot opens the sheet first; log the e2e results
+743ae59 WIP fix-qa4: log the UX-51, MR-35 and UX-50 numbers and State
+fc32216 fix-qa4: salary-audit's lifted card helpers include UX-51's shift pay (payPill asks shiftRange of every posting)
+1edb804 fix-qa4: MR-35 marked fixed (6185ba3) in the methodology review; log
+82d24da fix-qa4: UX-51 shift pay labelled on the card, its tip, the drawer heading and the CSV; MR-35 the base keeps its cents; UX-50 the company beside its dot
 5c0cda3 QA: the desktop beta pass of 2026-10-17 (qa-desktop-beta-4) in docs/QA.md
 2e7da1a qa-desktop-beta-4: final log and QA section (full e2e, npm test CI-like)
 61d2c2d WIP qa-desktop-beta-4: process log and QA section (full e2e pending)
@@ -74,10 +92,6 @@ f348b14 Lead log: the 15:0x session-limit stop; four agents checkpointed and res
 
 ## Uncommitted and new files
 ```
-UU public/app.js
-UU public/features/insights.js
-M  public/features/shared.js
-M  test/fix-pay-at-place.test.js
 ```
 
 ## Left out (not in untracked.tgz)

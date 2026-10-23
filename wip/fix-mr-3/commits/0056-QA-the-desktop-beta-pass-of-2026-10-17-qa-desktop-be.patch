@@ -1,7 +1,7 @@
 From 5c0cda3ce45594d4b5daa0a4ca2455dbdb63e327 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 13:09:21 +0000
-Subject: [PATCH 56/63] QA: the desktop beta pass of 2026-10-17
+Subject: [PATCH 56/81] QA: the desktop beta pass of 2026-10-17
  (qa-desktop-beta-4) in docs/QA.md
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

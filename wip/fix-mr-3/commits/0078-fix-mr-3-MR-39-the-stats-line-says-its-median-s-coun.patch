@@ -1,0 +1,129 @@
+From ae6ba37cf06becf5e19a90bef3c7ca88c58c15dd Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 14:38:34 +0000
+Subject: [PATCH 78/81] fix-mr-3: MR-39 the stats line says its median's
+ country short ("base pay median (US)"), within fix-density's 12 words when
+ filtered
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/CONTRACT.md                          | 2 +-
+ docs/METHODOLOGY_GUIDE.md                 | 2 +-
+ docs/process/fix-mr-3.md                  | 2 +-
+ docs/process/methodology-review-beta-2.md | 2 +-
+ public/app.js                             | 6 ++++--
+ test/e2e/fix-mr-3.e2e.js                  | 6 +++---
+ 6 files changed, 11 insertions(+), 9 deletions(-)
+
+diff --git a/docs/CONTRACT.md b/docs/CONTRACT.md
+index 546ce81..aed689d 100644
+--- a/docs/CONTRACT.md
++++ b/docs/CONTRACT.md
+@@ -1019,7 +1019,7 @@ unchanged: `salary.min/max` stay annualized.
+ - `annualNote` (MR-37): a stated yearly figure (`salary.statedAnnual`) reads "Stated as a yearly figure"; its Details quote the
+   posting and its payments a year ("paid as 14 monthly payments of €3,358.33, not 12").
+ - `stats(list, F)` (MR-39) adds `basis` (the main pay currency when the paid postings in view use two or more, else null), `basisN`
+-  and `basisLeft`; the median and quartiles are the basis currency's. The stats line reads "$149K base pay median in the US" and
++  and `basisLeft`; the median and quartiles are the basis currency's. The stats line reads "$149K base pay median (US)" (short, within fix-density's 12 words) and
+   its Details say how many roles the median is of and how many are left out. `payBasisPlace` is imported from `viz/chart.js`.
+ - The stats line's Details (also the chart notes' Details) say, on a board whose departments are read from titles, "Google doesn't
+   publish departments, so its roles are grouped by what their titles say." (MR-29).
+diff --git a/docs/METHODOLOGY_GUIDE.md b/docs/METHODOLOGY_GUIDE.md
+index 32d344d..0ed4e78 100644
+--- a/docs/METHODOLOGY_GUIDE.md
++++ b/docs/METHODOLOGY_GUIDE.md
+@@ -149,7 +149,7 @@ Every $100 a month less than our figure adds $1,200 a year to Juice left, and ev
+ 
+ ### How is the posted pay read?
+ 
+-From the posting itself, or from the careers site's own pay field where there is one. Only base pay counts: a range that includes bonus, commission or equity is shown as such or left out. When a posting gives a range per level (Microsoft's "IC4" and "IC5", NVIDIA's "Level 4" and "Level 5", the company's own level names), the drawer lists each level's range under **Pay by level**, the card says "· 2 levels", and the headline range runs from the lowest to the highest. When it gives a range for each place (Amazon's pay table, Apple's and Microsoft's ranges for some areas), the drawer lists each place's own range under **Pay by place** and the card says "· N places". A posting that states only a minimum shows it as "from €46K"; an hourly rate that includes the highest shift differential says so ("Incl. top shift pay"), with the stated base beside it when the posting gives one; where a posting states a yearly figure (Austria's minimum, paid in 14 instalments) that figure is used, and the drawer says "Stated as a yearly figure" and quotes the posting. An internship's pay per hour, week or month is shown as posted, also when the posting doesn't say how long the internship lasts; it is never turned into a yearly salary, and a converted figure ("≈ $6,025 a month") is converted at the same interval. The headline median (the stats line over the chart, and Insights' median and middle half) compares one country's pay, as the chart's rows do: when the roles in view are paid in more than one currency, it is the median of the main one ("base pay median in the US"), and the rest are counted, not pooled. Part-time hourly pay is also shown as a full-time year of 2,080 hours, for comparison only.
++From the posting itself, or from the careers site's own pay field where there is one. Only base pay counts: a range that includes bonus, commission or equity is shown as such or left out. When a posting gives a range per level (Microsoft's "IC4" and "IC5", NVIDIA's "Level 4" and "Level 5", the company's own level names), the drawer lists each level's range under **Pay by level**, the card says "· 2 levels", and the headline range runs from the lowest to the highest. When it gives a range for each place (Amazon's pay table, Apple's and Microsoft's ranges for some areas), the drawer lists each place's own range under **Pay by place** and the card says "· N places". A posting that states only a minimum shows it as "from €46K"; an hourly rate that includes the highest shift differential says so ("Incl. top shift pay"), with the stated base beside it when the posting gives one; where a posting states a yearly figure (Austria's minimum, paid in 14 instalments) that figure is used, and the drawer says "Stated as a yearly figure" and quotes the posting. An internship's pay per hour, week or month is shown as posted, also when the posting doesn't say how long the internship lasts; it is never turned into a yearly salary, and a converted figure ("≈ $6,025 a month") is converted at the same interval. The headline median (the stats line over the chart, and Insights' median and middle half) compares one country's pay, as the chart's rows do: when the roles in view are paid in more than one currency, it is the median of the main one ("base pay median (US)"), and the rest are counted, not pooled. Part-time hourly pay is also shown as a full-time year of 2,080 hours, for comparison only.
+ 
+ ### How are levels read?
+ 
+diff --git a/docs/process/fix-mr-3.md b/docs/process/fix-mr-3.md
+index 07cf77d..13703be 100644
+--- a/docs/process/fix-mr-3.md
++++ b/docs/process/fix-mr-3.md
+@@ -153,7 +153,7 @@ NODE_PATH=$S/pw/node_modules node scripts/e2e.js --grep="fix-mr-3"
+   Francisco $134K–261K".
+ - **e2e (test/e2e/fix-mr-3.e2e.js):** 30/30 on the fixed build (11 ID tests, 19 phone sizes: phone-sizes.mjs has 14 portrait
+   phones and 5 postures today). On a build of 05263e8 (`scratchpad/fmr3/dist-base`) the 11 ID tests and the two phone sizes tried
+-  fail (13/13), e.g. "Amazon stats line median: expected "$149K base pay median in the US", got "$141K base pay median"",
++  fail (13/13), e.g. "Amazon stats line median: expected "$149K base pay median in the US" (the long form it had then), got "$141K base pay median"",
+   "Garden City at 42.17,-74.95 … priced at 102100–234700", "Daily · update due".
+ - **Phone lines** (fix-phone-text's scanText): every line I added or changed is one line from 344 px up. Below that the guard allows
+   two, and these take two: at 280 px the converted line "≈ $6,025 a month at Sep 2026 rates" (the yearly one, "≈ $72K in US dollars
+diff --git a/docs/process/methodology-review-beta-2.md b/docs/process/methodology-review-beta-2.md
+index 4c6c790..985b773 100644
+--- a/docs/process/methodology-review-beta-2.md
++++ b/docs/process/methodology-review-beta-2.md
+@@ -378,7 +378,7 @@ Quoted lines and their corrections (all in `methodology-review-beta-2-guide.diff
+ - **Tests:** MR-37.
+ 
+ ### MR-39 (Low): the headline median mixes countries without saying so
+-- **Status: fixed** by [fix-mr-3](fix-mr-3.md) (2026-10-23, 99d5640): with pay in several currencies in view, the stats line's and Insights' median is the main currency's (the chart rows' rule) and says so: Amazon "$141K base pay median" (all 13,980, 803 converted) is "$149K base pay median in the US" (13,177), and the tiles read "of 13,177 in the US". The chart caption's change is a patch for fix-viz-5 (docs/process/patches/fix-mr-3-chart-caption.diff). Tests: test/fix-mr-3.test.js MR-39 ×3, e2e [MR-39] ×2.
++- **Status: fixed** by [fix-mr-3](fix-mr-3.md) (2026-10-23, 99d5640): with pay in several currencies in view, the stats line's and Insights' median is the main currency's (the chart rows' rule) and says so: Amazon "$141K base pay median" (all 13,980, 803 converted) is "$149K base pay median (US)" (13,177; its Details: "It is the median of the 13,177 roles paid in the US; 803 roles paid in other currencies are left out"), and the tiles read "of 13,177 in the US". The chart caption's change is a patch for fix-viz-5 (docs/process/patches/fix-mr-3-chart-caption.diff). Tests: test/fix-mr-3.test.js MR-39 ×3, e2e [MR-39] ×2.
+ - **Where:**
+   - the stats line "$141K base pay median" (Amazon);
+   - the chart caption "Median base pay $141K";
+diff --git a/public/app.js b/public/app.js
+index 555aa4c..6ca3bc9 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -2963,7 +2963,9 @@ function renderKpis() {
+   const capWhole = capNote && capNote.salariedFirst && capNote.whole != null ? capNote : null;
+   const onePlace = viewSpec?.l.size ? (viewSpec.l.size === 1 ? [...viewSpec.l][0] : 'these places') : '';
+   // MR-39 (fix-mr-3): which country the median is for, when the pay in view is in more than one currency.
++  // The line says it short ("(US)", "(euro area)"), so a filtered desktop line stays within fix-density's 12 words.
+   const basisWhere = st.basis ? ` ${payBasisPlace(st.basis)}` : '';
++  const basisShort = st.basis ? ` (${payBasisPlace(st.basis).replace(/^(?:paid )?in (?:the )?/, '')})` : '';
+   const basisTip = st.basis ? `; of the ${st.basisN.toLocaleString()} roles paid ${payBasisPlace(st.basis).replace(/^paid /, '')}, as the chart rows compare one country's pay; ${plural(st.basisLeft, 'role')} paid in other currencies left out` : '';
+   // fix-density: one line (roles · share with pay · median); the rest in the list behind "Details" (viz/note.js).
+   const line = [
+@@ -2973,8 +2975,8 @@ function renderKpis() {
+       : capNote?.salariedFirst ? `of the ${capNote.kept.toLocaleString()} kept show pay` : onePlace ? `show pay for ${onePlace}` : 'show pay',
+       `${st.withSalary.toLocaleString()} of ${st.n.toLocaleString()} postings include a pay range${here}${here ? ' (pay posted only for other places or another country is not counted)' : ''}${capNote ? `. ${capNote.tip}` : ''}`, 'stat--share') : null,
+     // BP-13: it says which pay the median is of; the chart's median uses the same set.
+-    // MR-39: with pay in several currencies, the median is the main one's and says where ("base pay median in the US").
+-    st.median != null ? item(money(st.median), `${st.oteOnly ? 'median on-target earnings' : st.notBaseOnly ? 'posted pay median' : 'base pay median'}${basisWhere}`,
++    // MR-39: with pay in several currencies, the median is the main one's and says where ("base pay median (US)").
++    st.median != null ? item(money(st.median), `${st.oteOnly ? 'median on-target earnings' : st.notBaseOnly ? 'posted pay median' : 'base pay median'}${basisShort}`,
+       `Half of these roles pay more than this and half less (the middle of each posted range, ${ote || 'base pay, '}in US dollars${here}${left}${basisTip})`, 'stat--median') : null,
+   ].filter(Boolean);
+   // M-46 (fix-phone-text): a phone shows only the median, so with no pay in view its line said nothing but "Details".
+diff --git a/test/e2e/fix-mr-3.e2e.js b/test/e2e/fix-mr-3.e2e.js
+index 558898a..c90561b 100644
+--- a/test/e2e/fix-mr-3.e2e.js
++++ b/test/e2e/fix-mr-3.e2e.js
+@@ -200,7 +200,7 @@ export function registerFixMr3Tests(suite) {
+     else assert(note.includes(`Its monthly row is ${monthly}`), `${c.id}: the Details don't name the monthly row: "${note.slice(0, 400)}"`);
+   });
+ 
+-  suite.test('fix-mr-3: [MR-39] the stats line\'s median is the main currency\'s (US pay on Amazon), says "in the US", and equals that median', async (ctx) => {
++  suite.test('fix-mr-3: [MR-39] the stats line\'s median is the main currency\'s (US pay on Amazon), says "(US)", and equals that median', async (ctx) => {
+     const { st, page } = await open(ctx);
+     await board(page, st, 'c=amazon&m=map');
+     const pay = await appJobs(page, st, 'amazon', `(j, sh, pal) => j.salary && j.salary.kind !== 'ote' && pal.hasFx(j.salary.currency || 'USD') ? { cur: String(j.salary.currency || 'USD').toUpperCase(), mid: pal.toUSD(j.salary.mid, j.salary.currency || 'USD') } : null`);
+@@ -211,7 +211,7 @@ export function registerFixMr3Tests(suite) {
+     const median = q(us, 0.5);
+     const shown = await text(page, '#statsLine .stat--median');
+     const fmt = await page.evaluate(async ([u, m]) => (await import(u)).formatMoney(m), [`${st.beta}/viz/palette.js`, median]);
+-    assertEq(shown, `${fmt} base pay median in the US`, 'Amazon stats line median');
++    assertEq(shown, `${fmt} base pay median (US)`, 'Amazon stats line median');
+     const details = await text(page, '#statsLine');
+     assert(new RegExp(`median of the ${us.length.toLocaleString('en-US')} roles paid in the US; ${(pay.length - us.length).toLocaleString('en-US')} roles paid in other currencies are left out`).test(details), `the stats Details don't say whose median it is: "${details.slice(0, 400)}"`);
+     // A board whose pay is in one currency keeps its plain line.
+@@ -220,7 +220,7 @@ export function registerFixMr3Tests(suite) {
+       const one = new Set((await appJobs(page, st, slug, '(j) => j.salary && j.salary.kind !== "ote" ? String(j.salary.currency || "USD").toUpperCase() : null')));
+       const line = await text(page, '#statsLine .stat--median');
+       if (one.size === 1) assert(/base pay median$/.test(line), `${slug} (one currency): "${line}"`);
+-      else assert(/base pay median in /.test(line), `${slug} (${[...one].join(', ')}): "${line}" doesn't say whose median`);
++      else assert(/base pay median \(/.test(line), `${slug} (${[...one].join(', ')}): "${line}" doesn't say whose median`);
+     }
+   });
+ 
+-- 
+2.43.0
+

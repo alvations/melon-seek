@@ -1,7 +1,7 @@
 From 61757b9d7afd16f7cb607c505d330a4b202d1c97 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 16:06:22 +0000
-Subject: [PATCH 32/63] =?UTF-8?q?fix-phone-sizes:=20the=20matrix=20checks?=
+Subject: [PATCH 32/81] =?UTF-8?q?fix-phone-sizes:=20the=20matrix=20checks?=
  =?UTF-8?q?=20the=20job=20page's=20meta=20line=20(no=20"=C2=B7"=20at=20a?=
  =?UTF-8?q?=20line's=20start=20or=20end,=20no=20word=20clipped)=20and=20th?=
  =?UTF-8?q?e=20Apply=20label=20(one=20line,=20the=20whole=20name)=20at=20e?=

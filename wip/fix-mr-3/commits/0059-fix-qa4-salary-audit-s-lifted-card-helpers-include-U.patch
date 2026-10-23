@@ -1,0 +1,30 @@
+From fc3221600bf92b83dfe4cda9bb5ab9e090cfbb17 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 13:27:06 +0000
+Subject: [PATCH 59/81] fix-qa4: salary-audit's lifted card helpers include
+ UX-51's shift pay (payPill asks shiftRange of every posting)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ test/salary-audit.test.js | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/test/salary-audit.test.js b/test/salary-audit.test.js
+index 2bb847b..5e19944 100644
+--- a/test/salary-audit.test.js
++++ b/test/salary-audit.test.js
+@@ -51,7 +51,9 @@ const CARD = ['payPill', 'salaryRange', 'money', 'moneyRange', 'payRanges', 'ran
+ // Defined once fix5-data-display.diff is in (fix-density e3c745a, 5f8b599): SA-2, SA-6.
+ // rangeEnd: SB-7 (salary-audit-backend's client patch), two decimals for range ends in the millions.
+ // fix-pay-at-place: payHeadline and its helpers (a range per place, counted by distinct places, in the posted unit).
+-const CARD_IF_PRESENT = ['isMinimum', 'MINIMUM_TIP', 'rangeEnd', 'payHeadline', 'payUnit', 'placeCount', 'rangePlaceKeys', 'rangeName'].filter((n) => new RegExp(`^(?:const ${n} = |function ${n}\\()`, 'm').test(APP));
++// fix-qa4 (UX-51): shift pay (shiftRange, which payPill asks of every posting) and its text and tip (MR-35: postedPair).
++const CARD_IF_PRESENT = ['isMinimum', 'MINIMUM_TIP', 'rangeEnd', 'payHeadline', 'payUnit', 'placeCount', 'rangePlaceKeys', 'rangeName',
++  'shiftRange', 'SHIFT_SUB', 'shiftText', 'shiftTip', 'hourlyText', 'postedPair', 'postedMoney'].filter((n) => new RegExp(`^(?:const ${n} = |function ${n}\\()`, 'm').test(APP));
+ // eslint-disable-next-line no-new-func
+ const { payPill } = new Function('formatMoney', 'payAt', `
+   const CUR_SYM = { USD: '$', GBP: '£', EUR: '€', CAD: 'CA$', AUD: 'A$', JPY: '¥', INR: '₹', CHF: 'CHF ', SGD: 'S$' };
+-- 
+2.43.0
+

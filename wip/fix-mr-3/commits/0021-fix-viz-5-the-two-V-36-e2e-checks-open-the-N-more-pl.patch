@@ -1,7 +1,7 @@
 From 08abb08b1ffa6bb84da94fd0adc38018b916bcc6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 15:41:30 +0000
-Subject: [PATCH 21/63] fix-viz-5: the two [V-36] e2e checks open the "N more
+Subject: [PATCH 21/81] fix-viz-5: the two [V-36] e2e checks open the "N more
  places" row (D-44 folds the small places) before they look for a place's row;
  assertions unchanged
 

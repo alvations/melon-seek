@@ -1,7 +1,7 @@
 From 925a582a9537d55db220eee6cf47fb23d6450559 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 14:33:32 +0000
-Subject: [PATCH 13/13] qa-suite-beta: e2e header IDs; CI e2e job gets a 240 s
+Subject: [PATCH 13/16] qa-suite-beta: e2e header IDs; CI e2e job gets a 240 s
  per-test limit for a cold cache
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

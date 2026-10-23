@@ -1,7 +1,7 @@
 From 99c7536c15d60d0b9ab123cd15ea2702637a6e33 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 13:40:40 +0000
-Subject: [PATCH 50/63] WIP qa-desktop-beta-4: D-50 test; bug screenshots D-46
+Subject: [PATCH 50/81] WIP qa-desktop-beta-4: D-50 test; bug screenshots D-46
  (by decision) to D-50
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

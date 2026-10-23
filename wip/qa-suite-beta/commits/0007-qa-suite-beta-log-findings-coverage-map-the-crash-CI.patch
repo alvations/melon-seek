@@ -1,7 +1,7 @@
 From 2e6fb474426ba82534f6c865e9e2bdf007d50dfc Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 14:13:50 +0000
-Subject: [PATCH 07/13] qa-suite-beta: log (findings, coverage map, the crash,
+Subject: [PATCH 07/16] qa-suite-beta: log (findings, coverage map, the crash,
  CI parity); the CI e2e workflow patch
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

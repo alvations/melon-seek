@@ -1,7 +1,7 @@
 From a12990f71542a8a2979ae2b80104527713d7b406 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 14:02:14 +0000
-Subject: [PATCH 35/63] fix-qa4: the brief verbatim
+Subject: [PATCH 35/81] fix-qa4: the brief verbatim
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

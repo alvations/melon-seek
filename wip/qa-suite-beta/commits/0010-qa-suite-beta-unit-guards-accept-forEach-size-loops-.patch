@@ -1,7 +1,7 @@
 From cf87bc073a2f1d07c46883b3771fec0c3d453993 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 14:28:51 +0000
-Subject: [PATCH 10/13] qa-suite-beta: unit guards accept forEach size loops
+Subject: [PATCH 10/16] qa-suite-beta: unit guards accept forEach size loops
  and registry board lists; T-9 check reads the patched fail line
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

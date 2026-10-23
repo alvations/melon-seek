@@ -1,7 +1,7 @@
 From 700b69569bf4c1a208020c7acbdc698346689212 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 15:48:20 +0000
-Subject: [PATCH 23/63] fix-viz-5: the two [V-36] e2e checks' reference medians
+Subject: [PATCH 23/81] fix-viz-5: the two [V-36] e2e checks' reference medians
  leave out stated minimums, shift pay and part-time pay (MR-28), as the
  chart's do
 

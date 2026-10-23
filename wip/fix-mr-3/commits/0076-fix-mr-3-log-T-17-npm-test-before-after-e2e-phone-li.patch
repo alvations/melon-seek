@@ -1,0 +1,114 @@
+From 36530fb09e708b191974342dd02a7fe0a4bb8e61 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 14:16:31 +0000
+Subject: [PATCH 76/81] fix-mr-3: log: T-17, npm test, before/after e2e, phone
+ lines
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/fix-mr-3.md | 50 +++++++++++++++++++++++++++++++---------
+ 1 file changed, 39 insertions(+), 11 deletions(-)
+
+diff --git a/docs/process/fix-mr-3.md b/docs/process/fix-mr-3.md
+index 727e08b..07cf77d 100644
+--- a/docs/process/fix-mr-3.md
++++ b/docs/process/fix-mr-3.md
+@@ -1,17 +1,21 @@
+ # Process log: fix-mr-3 (methodology and data engineer, fix wave 5)
+ 
+ ## State
+-- 2026-10-23 14:00 UTC: **all ten IDs fixed and tested in the worktree**; e2e at every phone size in progress; then the related
+-  e2e groups, the before-build check of the e2e tests, and the report to the lead.
++- 2026-10-23 14:30 UTC: **all ten IDs and T-17 fixed and tested in the worktree.** npm test CI-like at ee08a5a: 1,261 tests,
++  1,220 pass, 0 fail. My e2e: 30/30 on the fixed build (11 ID tests and 19 phone sizes), 13/13 tried fail on the base build. The
++  related e2e groups are running on the rebuilt dist (T-17 included); then the report to the lead.
+ - Base: origin/claude/stoic-ride-54ddxp at 05263e8 (detached). Not yet rebased onto fix wave 5's last batch (the lead says when).
+ - Commits (worktree only, never pushed), oldest first: d8818ca brief, 7bded6c log, 7297ce7 red tests, 62899e8 MR-21/MR-22,
+   055fa0f MR-26, c59177f MR-41, ff2b272 MR-40 (norm-13), 99d5640 MR-38/MR-33/MR-37/MR-29/MR-39, e598d8a refresh fixtures at norm-13,
+-  9054eae e2e, docs and the chart patch, then the review-log and log commits.
++  9054eae e2e, docs and the chart patch, 89c88b1 review logs and this log, 2f51186 the Juice headline's fit, ee08a5a T-17.
+ - Not committed: the data links data/snapshots and data/beta/snapshots, and the node_modules link.
+ - For the lead: `docs/process/patches/fix-mr-3-chart-caption.diff` (MR-39's chart caption, fix-viz-5's file). Two one-token edits
+   in other lanes' code: `postedTerm(s, job)` in `payPill` (fix-qa4's pill) and `isTermUnstated` passed to
+   test/fix-pay-at-place.test.js's lifted app functions.
+ 
++- **T-17** (the coordinator, mid-task, from the test-suite review): titles held line breaks as posted (Meta 1, Amazon 2).
++  Folded into the same norm-13 bump with one golden re-baseline (ee08a5a).
++
+ ## 1. Brief
+ - **Prompt:** [prompts/fix-mr-3.md](prompts/fix-mr-3.md), verbatim.
+ - **Goal:** fix MR-21, MR-22 ([methodology-review-beta](methodology-review-beta.md)) and MR-26, MR-29 (the UI half), MR-33, MR-37,
+@@ -78,13 +82,22 @@
+    string of the crawl (67,372 in 43,141 postings) the change is exactly 43 results in 101 postings, latitude and longitude only.
+    The Bay Area has the same kind of gap (East Palo Alto 80 Amazon postings, Burlingame 71 Meta, Brisbane, Hayward, Newark CA, …)
+    but no Microsoft posting there, so it is a follow-up, not done here.
+-8. **norm-13, once.** The gazetteer change is a normalizer output change (geocodeMany), so stored norm-12 snapshots must be
+-   re-geocoded once. The golden file was re-baselined with `UPDATE_GOLDEN=1`: **0 of the 300 hashes changed** (the sample is the
+-   stable boards, none in these towns), version and history only. The refresh fixtures were regenerated with their own
++8. **norm-13, once.** The gazetteer change and T-17 are normalizer output changes, so stored norm-12 snapshots are re-derived
++   once. The golden file was re-baselined once for both, from its norm-12 state, with `UPDATE_GOLDEN=1`: **3 of the 300 hashes
++   changed**, all for T-17 (scaleai:4722811005 "Sr. Director, (Applied AI)  Forward Deployed Engineering",
++   shieldai:9e5b2887 "… Integration –  Emerging Domains (R5401)", xai:5215034007 "Receiving Specialist, Supercomputer  Operations
++   - Memphis": a double space is one space); the MR-40 towns change none (the sample is the stable boards). The refresh fixtures were regenerated with their own
+    make-fixtures.mjs (test/refresh-jobs.test.js failed at norm-12: an older version re-derives the doctored keywords).
+ 9. **MR-26: one rule in lib.js.** run.js already treated daily entries as pipeline data; the sources table and api/freshness.json
+    did not. `shownOverdue` is that rule for every surface.
+-10. **Registry.** Only the values my fixes move: geo-gazetteer is 384 cities (and its note). The 47 pending `--lines` moves of other
++10. **T-17: what "a space left before a comma" means.** Only the line break (and the spaces around it) before a comma or
++    period goes: "Manager\n, Benelux" is "Manager, Benelux". A space the posting itself writes before a comma ("Engineering
++    Operation Technician , AWS Opportunity", 1,141 Amazon titles) is kept as posted; the rule is one regex if the lead wants those
++    too. Every other run of whitespace (340 double spaces, 19 non-breaking spaces) is one space. 362 titles change on the
++    2026-10-16 crawl, none in its words or their order. Fresh crawls get it in `normalizeJob`, stored snapshots in `relabelJobs`
++    (run by `relocateJobs` on the version change). The ledger's fingerprints use `normText`, which already reads any whitespace as
++    one space, so no posting's history changes.
++11. **Registry.** Only the values my fixes move: geo-gazetteer is 384 cities (and its note). The 47 pending `--lines` moves of other
+     lanes are left to the lead's batch resync (PLAYBOOK Stage 3).
+ 
+ ## 4. Replayable steps
+@@ -109,11 +122,11 @@ NODE_PATH=$S/pw/node_modules node scripts/e2e.js --grep="fix-mr-3"
+ ```
+ 
+ ## 5. Verification
+-- **Node tests:** test/fix-mr-3.test.js 18 tests; the reviewers' to-dos for my IDs are plain tests (beta-methodology-2: MR-26,
++- **Node tests:** test/fix-mr-3.test.js 17 tests; the reviewers' to-dos for my IDs are plain tests (beta-methodology-2: MR-26,
+   MR-29 ×3, MR-33, MR-37, MR-38, MR-40, MR-41 ×2; beta-methodology: MR-21, MR-22). On 05263e8 these fail: 10 failures in the
+   three files (7297ce7).
+-- **npm test, CI-like** (clean checkout, no data links), at 99d5640: 1,259 tests, 1 fail (test/refresh-jobs.test.js, fixtures at
+-  norm-12: fixed in e598d8a, 14/14 pass); the final run is below.
++- **npm test, CI-like** (clean checkout, no data links): at 99d5640 1,259 tests, 1 fail (test/refresh-jobs.test.js, fixtures at
++  norm-12: fixed in e598d8a, 14/14 pass); **at ee08a5a 1,261 tests, 1,220 pass, 0 fail, 8 skipped, 33 to-dos**.
+ - **Before and after, per board** (served lists, Juice attached; the beta site, which includes the stable boards):
+ 
+   | Board | Postings | With pay | Pay rows | Places | With Juice | Internships of unstated length (Juice) |
+@@ -138,7 +151,18 @@ NODE_PATH=$S/pw/node_modules node scripts/e2e.js --grep="fix-mr-3"
+ - **MR-40:** Microsoft's Garden City (3), Fort Lee (1), Paramus (1) and Bridgewater (4) places move from the U.S. row to the
+   NYC-metro row; e.g. microsoft:1970393556650765 "Pay by place: Redmond, Boston $102K–235K · Garden City, Mountain View, San
+   Francisco $134K–261K".
+-- **e2e (test/e2e/fix-mr-3.e2e.js):** the 11 ID tests pass on the fixed build; the phone results are below.
++- **e2e (test/e2e/fix-mr-3.e2e.js):** 30/30 on the fixed build (11 ID tests, 19 phone sizes: phone-sizes.mjs has 14 portrait
++  phones and 5 postures today). On a build of 05263e8 (`scratchpad/fmr3/dist-base`) the 11 ID tests and the two phone sizes tried
++  fail (13/13), e.g. "Amazon stats line median: expected "$149K base pay median in the US", got "$141K base pay median"",
++  "Garden City at 42.17,-74.95 … priced at 102100–234700", "Daily · update due".
++- **Phone lines** (fix-phone-text's scanText): every line I added or changed is one line from 344 px up. Below that the guard allows
++  two, and these take two: at 280 px the converted line "≈ $6,025 a month at Sep 2026 rates" (the yearly one, "≈ $72K in US dollars
++  at Sep 2026 rates", took two there before), and at 280 and 320 px the Insights tile notes ("of 13,177 in the US" as "of 13,980
++  with pay" did) and the Juice headline ("$1,650/mo left for one person in Menlo Park"). The first phone run found the Juice
++  headline at 2 lines from 360 to 393 px with " while it lasts"; that part now moves to the text below when it would wrap (2f51186).
++- **T-17 on the rebuilt dist:** no title with a line break is left; the three read "Research Scientist, Machine Learning for
++  Monetization (PhD)", "Partner Development Manager, Benelux Partner Team" and "Payroll Analyst - BENELUX, 12 months fixed
++  contract, EMEA Payroll Operations". Per-board counts are unchanged (the same table as above).
+ 
+ ## 6. Known gaps and follow-ups
+ - The chart caption (fix-viz-5's file) still pools countries until the lead applies `patches/fix-mr-3-chart-caption.diff`.
+@@ -152,3 +176,7 @@ NODE_PATH=$S/pw/node_modules node scripts/e2e.js --grep="fix-mr-3"
+ - 13:30–13:40: MR-40 (43 towns, `?` entries after "Greenwich, London" split), norm-13, golden re-baselined (0 of 300 changed).
+ - 13:40–13:46: MR-38/MR-33, MR-37, MR-29, MR-39 in the app and Insights; CI-like npm test; the refresh fixtures at norm-13.
+ - 13:46–14:00: rebuilt, counted after, wrote the e2e file, the docs, the chart patch and the review-log statuses.
++- 14:00–14:05: every phone size: the Juice headline wrapped at 360–393 px; fixed (2f51186) and re-run.
++- 14:05–14:10: T-17 from the coordinator: cleanTitle, one golden re-baseline for norm-13 (3 of 300), unit tests.
++- 14:10–14:30: CI-like npm test (0 fail), a build of the base for the before e2e (13/13 fail), the rebuilt dist (T-17), the
++  related e2e groups.
+-- 
+2.43.0
+

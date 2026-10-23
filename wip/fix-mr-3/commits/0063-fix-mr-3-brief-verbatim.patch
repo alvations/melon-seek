@@ -1,7 +1,7 @@
-From 9b438279f39b03565adc46ab46427bec4b4934cb Mon Sep 17 00:00:00 2001
+From 75a69761f752b1304157a0242cbdfb61e224be6e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 13:13:34 +0000
-Subject: [PATCH 57/63] fix-mr-3: brief, verbatim
+Subject: [PATCH 63/81] fix-mr-3: brief, verbatim
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

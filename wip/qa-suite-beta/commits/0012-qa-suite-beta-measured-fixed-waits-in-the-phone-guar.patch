@@ -1,7 +1,7 @@
 From 5c9e8b04e1f96f126ae977e30b9ad60cbaee6714 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 14:31:21 +0000
-Subject: [PATCH 12/13] qa-suite-beta: measured fixed waits in the phone guard
+Subject: [PATCH 12/16] qa-suite-beta: measured fixed waits in the phone guard
  walks (68-85%)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

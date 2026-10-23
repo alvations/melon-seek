@@ -2,11 +2,14 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-aa166069d49bf488a`
 - Base (on claude/stoic-ride-54ddxp): `05263e8c010758f51cca4bcbcfb2871eac1defd3`
-- Head: `925a582a9537d55db220eee6cf47fb23d6450559`
+- Head: `c4f7909453a3adadbd53ca9226ea59cf309589dc`
 - Restore: `bash scripts/cycle/restore-wip.sh qa-suite-beta <new worktree dir>`
 
 ## Commits since the base
 ```
+c4f7909 qa-suite-beta: log counts
+c804d64 qa-suite-beta: log State
+eaf23b9 qa-suite-beta: T-11 state waits patch (fix-phone-text, phone-matrix): same results, 44% less time on the same load
 925a582 qa-suite-beta: e2e header IDs; CI e2e job gets a 240 s per-test limit for a cold cache
 5c9e8b0 qa-suite-beta: measured fixed waits in the phone guard walks (68-85%)
 84ad21a qa-suite-beta: log State; vacuity check with data

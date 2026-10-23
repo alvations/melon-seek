@@ -1,7 +1,7 @@
 From 29aea442babd477da06c4e5da20b96cfa11ef027 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 14:09:28 +0000
-Subject: [PATCH 06/13] qa-suite-beta: runner patch (SIGTERM/SIGHUP/SIGINT stop
+Subject: [PATCH 06/16] qa-suite-beta: runner patch (SIGTERM/SIGHUP/SIGINT stop
  the run, relaunch only on a real disconnect, --shard, --list, --max-skips,
  links registered), T-1 board list, T-4 link checker, T21 patch
 

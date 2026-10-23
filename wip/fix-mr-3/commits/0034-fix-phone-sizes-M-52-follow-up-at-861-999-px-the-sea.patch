@@ -1,7 +1,7 @@
 From a0c6695bc5cf388768ede191999a75eac46f0e85 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 16:19:04 +0000
-Subject: [PATCH 34/63] fix-phone-sizes: M-52 follow-up, at 861-999 px the
+Subject: [PATCH 34/81] fix-phone-sizes: M-52 follow-up, at 861-999 px the
  search box keeps "Search" on a board with a Refresh button (no "/" hint,
  tighter padding); the top bar sweep checks it
 

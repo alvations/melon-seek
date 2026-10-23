@@ -1,7 +1,7 @@
-From 2e5d4dcca9de6edb5c9a90ed2de5259cd3939b63 Mon Sep 17 00:00:00 2001
+From 9fd9158f5ea378fc6c302f5ba113e16a87ddd560 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 13:36:37 +0000
-Subject: [PATCH 62/63] fix-mr-3: MR-41 the Mid chip's tip gives each board's
+Subject: [PATCH 68/81] fix-mr-3: MR-41 the Mid chip's tip gives each board's
  own example of a mid level
 
 Amazon III is Senior and Google II is Entry, so MID_EXAMPLE names one per board (Google III, Amazon II,
@@ -15,7 +15,7 @@ Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
  2 files changed, 12 insertions(+), 3 deletions(-)
 
 diff --git a/public/app.js b/public/app.js
-index 7a09588..2dfe496 100644
+index f90ff40..6708e32 100644
 --- a/public/app.js
 +++ b/public/app.js
 @@ -79,10 +79,18 @@ const SENIORITY_ORDER = ['Intern', 'Entry', 'Mid', 'Senior', 'Staff+', 'Manager'

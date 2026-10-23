@@ -1,7 +1,7 @@
 From 9fa0ab2f66dfad0ad9946c562e0bb76300e01afb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 13:06:49 +0000
-Subject: [PATCH 25/63] e2e: relaunch the browser when it dies mid-run;
+Subject: [PATCH 25/81] e2e: relaunch the browser when it dies mid-run;
  fix-density's one-row legend rule is for phones only (D-51)
 
 Twice a full run's Chromium closed near test 750 (2026-10-17), and every later test failed on

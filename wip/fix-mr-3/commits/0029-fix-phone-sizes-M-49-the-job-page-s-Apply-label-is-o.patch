@@ -1,7 +1,7 @@
 From 21900d08269d24e498eaa4cd12f0a91707d9569f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 16:05:54 +0000
-Subject: [PATCH 29/63] =?UTF-8?q?fix-phone-sizes:=20M-49,=20the=20job=20pa?=
+Subject: [PATCH 29/81] =?UTF-8?q?fix-phone-sizes:=20M-49,=20the=20job=20pa?=
  =?UTF-8?q?ge's=20Apply=20label=20is=20one=20line:=20"Apply=20on=20X?=
  =?UTF-8?q?=E2=80=99s=20careers=20site",=20else=20"Apply=20on=20X=E2=80=99?=
  =?UTF-8?q?s=20site",=20else=20"Apply"=20(the=20host=20stays=20under=20it)?=

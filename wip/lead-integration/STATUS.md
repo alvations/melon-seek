@@ -73,6 +73,10 @@ f348b14 Lead log: the 15:0x session-limit stop; four agents checkpointed and res
  M docs/screenshots/dark.png
  M docs/screenshots/drawer-juice.png
  M docs/screenshots/drawer.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-1114x720.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-280x653.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-352x355.png
+ M docs/screenshots/fix-pay-at-place/e2e-card-375x812.png
  M docs/screenshots/insights.png
  M docs/screenshots/map-juice.png
  M docs/screenshots/map.png
@@ -90,7 +94,9 @@ f348b14 Lead log: the 15:0x session-limit stop; four agents checkpointed and res
  M docs/screenshots/qa-mobile-beta/e2e-M-24-keyboard-location-search.png
  M docs/screenshots/qa-mobile-beta/e2e-M-27-topbar-360.png
  M docs/screenshots/qa-mobile/e2e-landscape-map.png
+?? docs/screenshots/fix-pay-at-place/e2e-card-720x1114.png
 ```
 
 ## Left out (not in untracked.tgz)
+- docs/screenshots/fix-pay-at-place/e2e-card-720x1114.png (screenshot; the lane's tests regenerate it)
 - node_modules (symlink)

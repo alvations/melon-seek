@@ -1,0 +1,611 @@
+From 951968de3ce89b203cedd88266619b8e464b10f3 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 13:55:34 +0000
+Subject: [PATCH 72/81] fix-mr-3: e2e on the built site (every ID, and every
+ phone size), docs, and the chart caption patch for fix-viz-5
+
+- test/e2e/fix-mr-3.e2e.js, registered in scripts/e2e.js: MR-26, MR-29, MR-33, MR-37, MR-38 (x3), MR-39 (x2), MR-40, MR-41,
+  and [phone] per phone-sizes.mjs entry with fix-phone-text's scanText.
+- docs: CONTRACT (fix-mr-3 section), DATA_SOURCES 7a/7e, METHODOLOGY_GUIDE (1 and the pay and level FAQs), LIVABILITY.
+- docs/process/patches/fix-mr-3-chart-caption.diff: the chart caption's median on the same basis (MR-39), for the lead.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/CONTRACT.md                              |  50 +++
+ docs/DATA_SOURCES.md                          |   6 +-
+ docs/LIVABILITY.md                            |  10 +-
+ docs/METHODOLOGY_GUIDE.md                     |   6 +-
+ .../patches/fix-mr-3-chart-caption.diff       |  51 +++
+ public/features/shared.js                     |   7 +-
+ scripts/e2e.js                                |   2 +
+ test/e2e/fix-mr-3.e2e.js                      | 332 ++++++++++++++++++
+ test/fix-mr-3.test.js                         |   2 +-
+ 9 files changed, 453 insertions(+), 13 deletions(-)
+ create mode 100644 docs/process/patches/fix-mr-3-chart-caption.diff
+ create mode 100644 test/e2e/fix-mr-3.e2e.js
+
+diff --git a/docs/CONTRACT.md b/docs/CONTRACT.md
+index 0a45976..d1d0e85 100644
+--- a/docs/CONTRACT.md
++++ b/docs/CONTRACT.md
+@@ -993,3 +993,53 @@ by Company, `colorBy() === 'brand'`), the card's meta names the company first, b
+ "YouTube · User Experience and Design". The department still gives way first on a narrow card (UX-16); other
+ groupings are unchanged.
+ 
++## fix-mr-3 additions (2026-10-23): fixed-term pay, headline medians, NYC-area towns and build-day freshness (fix-mr-3 lane)
++
++Findings MR-21, MR-22 ([docs/process/methodology-review-beta.md](process/methodology-review-beta.md)) and MR-26, MR-29 (the UI
++half), MR-33, MR-37, MR-38, MR-39, MR-40 and MR-41 ([docs/process/methodology-review-beta-2.md](process/methodology-review-beta-2.md)).
++Log: [docs/process/fix-mr-3.md](process/fix-mr-3.md). Every addition is optional for readers; no export changed its return shape.
++`NORMALIZER_VERSION` is `norm-13` (the gazetteer moved 43 towns): stored older snapshots are re-derived once. Nothing is dropped:
++every posting, pay row and place string is kept; one Microsoft posting gains the second range it posts (1,821 → 1,822 rows).
++
++**Fixed-term pay of unstated length (MR-38, `public/features/shared.js`):** `isTermUnstated(job)` is true for a posting at level
++`'Intern'` paid by the hour, day, week or month (`salary.originalInterval`) with no `termWeeks`, no stipend and no `partTime`.
++`isFixedTerm(job)` includes it; `isInternLike` is unchanged (the market cells and Compstimate's pools are unchanged). Job fields are
++unchanged: `salary.min/max` stay annualized.
++
++**App (`public/app.js`):**
++- `postedTerm(s, job = null)`: with `job`, a term of unstated length returns `{ amount, per, weeks: null, weeksMax: null, fixed,
++  toTerm: null, unstated: true }`. Every caller passes the job (the card pill, `cardTerm`, `payUnit`, the drawer, the Juice block).
++  `isTerm(j)` includes it, so such a posting is out of the drawer's rank and strip pools, like any fixed-term pay.
++- The pay block shows it as posted ("$6,688–10,800 a month", "USD · length not stated", "Fixed-term pay, not a yearly salary";
++  hourly: "Paid by the hour"); the card has no term tag for it; the Juice block shows Monthly only (no period toggle) and says why.
++- `approxLine(job, own, fullTime)` (MR-33): the drawer's "≈ … in US dollars" line converts fixed-term pay at its posted interval
++  ("≈ $5,686–6,000 a month", "≈ $78K a year", "≈ $15K for the whole term"); "in US dollars" is hidden while the line would wrap
++  (`dropWhenWrapped`), and the tip keeps it.
++- `annualNote` (MR-37): a stated yearly figure (`salary.statedAnnual`) reads "Stated as a yearly figure"; its Details quote the
++  posting and its payments a year ("paid as 14 monthly payments of €3,358.33, not 12").
++- `stats(list, F)` (MR-39) adds `basis` (the main pay currency when the paid postings in view use two or more, else null), `basisN`
++  and `basisLeft`; the median and quartiles are the basis currency's. The stats line reads "$149K base pay median in the US" and
++  its Details say how many roles the median is of and how many are left out. `payBasisPlace` is imported from `viz/chart.js`.
++- The stats line's Details (also the chart notes' Details) say, on a board whose departments are read from titles, "Google doesn't
++  publish departments, so its roles are grouped by what their titles say." (MR-29).
++- `MID_EXAMPLE` and `SEN_TIP.Mid` (MR-41): the Mid chip's tip gives the board's own example (Google "III", Amazon "II", Microsoft
++  "IC3", NVIDIA "Level 2", Netflix "L4", else "II" or "L4").
++
++**Shared and Insights (MR-39):** `mainPayCurrency(currencies) -> code | null` (`shared.js`): the most common currency when there are
++two or more (USD on a tie), the chart rows' rule (`chart.js mainBasis`, V-21). `insights.js summaryStats(jobs)` adds `basis` and
++`basisN`; `median`, `p25` and `p75` are the basis currency's, `salaried` and `payShare` still count every country. The tiles read
++"of 13,177 in the US" and "of roles in the US" (Amazon, 2026-10-16: $149K of 13,177 US roles, was $141K of all 13,980). The chart's own caption is fix-viz-5's: [`docs/process/patches/fix-mr-3-chart-caption.diff`](process/patches/fix-mr-3-chart-caption.diff)
++gives it the same basis ("Median base pay $149K US").
++
++**Locations (`server/geo.js`, MR-40):** 43 New York, New Jersey and Connecticut towns within about 80 km of Manhattan (the 2026-10-16
++crawl's towns that were at their state's centre) are gazetteer cities. A `CITIES_RAW` name prefixed with `?` is read only with its
++own state named: never bare, never by its country alone, never to split a comma list and never in the last-resort scan. On the
++2026-10-16 crawl 101 postings change, latitude and longitude only. `GAZETTEER_SIZE` is 384 cities.
++
++**Freshness (`scripts/refresh/lib.js`, MR-26):** `isPipelineEntry(entry)` (cadence `daily`) and `shownOverdue(entry, now)`. A daily
++pipeline entry (the postings) is never "update due" on the page built from it: `run.js` `stalenessRows` and `genericResult`, the
++methodology's sources table (`methodology-figures.js loadFigureInputs`) and `api/freshness.json` (`derived.js publicFreshness`:
++`stale: false`, `staleAfter: null`).
++
++**Market doc (`scripts/build-market.js`, MR-22):** `fx.source` is `palette.js FX_SOURCE` (the rates' own source), not a code path.
++**Registry tool (`scripts/refresh/registry.js`, MR-21):** the usage header lists `--docs [--write]`.
+diff --git a/docs/DATA_SOURCES.md b/docs/DATA_SOURCES.md
+index c3bc0ae..7ee6576 100644
+--- a/docs/DATA_SOURCES.md
++++ b/docs/DATA_SOURCES.md
+@@ -260,11 +260,11 @@ pay table). Every result then passes the vetting gate (`server/vet.js`); see
+ |---|---|
+ | **On-target earnings** (norm-6) | A range the posting calls OTE / on-target earnings / on target compensation / base + commission at target keeps its numbers and gets `salary.kind: "ote"` (base plus commission at target), never shown or pooled as base pay. "For sales roles, the range provided is the role's On Target Earnings ("OTE") range" (Anthropic boilerplate) applies to sales titles only. See [VETTING.md](VETTING.md) §2. NVIDIA's sales "cash compensation range" (85% base, 15% variable) is `"ote"` since fix wave 5 (VT-7, the lead's decision: shown, not hidden). Netflix's sales "market range" for an area is still `salary: null` under the rule below |
+ | **Base pay only** | "+ bonus + equity + benefits" after a range marks it as base pay, and the extras are never added. A **total** compensation range (Google DeepMind "Total Compensation Range: $550,000 – $1,100,000 (includes … sign-on bonus …)") is not base pay, so the posting gets `salary: null`. NVIDIA's sales **cash** compensation range ("85% paid through base salary and 15% variable compensation. The cash compensation range is …") is base plus variable pay at target: on-target earnings, `kind: "ote"` (fix wave 5, VT-7) |
+-| **Several ranges by location** | The first or national range. Microsoft states the U.S. range first and the SF Bay Area / NYC range second: the U.S. one is used, except for a job whose US locations are **all** in the SF Bay Area (75 km around the bay) or the New York City metro (60 km around Manhattan), which uses the SF Bay Area / NYC range (norm-7, decided by the lead for DQ-13: 31 postings, median 18% higher). Amazon has no national figure, only a per-location table, so the row for the posting's own primary city is used (city and state compared whole, so "York, PA" is not "New York, NY"), else the first row for one of the posting's own places, else the first row in the posting's country, else the first row. Every row is kept in `salary.ranges`, each with the posting's places it names (`ranges[].locations`, fix wave 5, DQ-33), so Juice and the Location filter use each place's own range; identical rows are one range and one zone; a "Virtual Location" row for a state the posting lists no place in is dropped (DQ-41) |
++| **Several ranges by location** | The first or national range. Microsoft states the U.S. range first and the SF Bay Area / NYC range second: the U.S. one is used, except for a job whose US locations are **all** in the SF Bay Area (75 km around the bay) or the New York City metro (60 km around Manhattan), which uses the SF Bay Area / NYC range (norm-7, decided by the lead for DQ-13: 31 postings, median 18% higher). The distance is the town's own: since norm-13 ([fix-mr-3](process/fix-mr-3.md), MR-40) the gazetteer has the 43 New York, New Jersey and Connecticut towns within about 80 km of Manhattan that the boards list (Garden City NY, Fort Lee and Paramus NJ, Bridgewater NJ, the Bronx, Staten Island, Long Island, Westchester and North and Central Jersey towns); before, they were placed at their state's centre (New York State's is 200 km from the city), so Microsoft's Garden City (3 postings), Fort Lee (1), Paramus (1) and Bridgewater (4) places were priced at the U.S. range. They are now on the posting's NYC-metro row; one Philadelphia and Bridgewater posting keeps both its posted ranges (1,821 → 1,822 Microsoft pay rows). A town elsewhere with the same name ("Oceanside, CA") is not moved: these entries are read only with their state named. Amazon has no national figure, only a per-location table, so the row for the posting's own primary city is used (city and state compared whole, so "York, PA" is not "New York, NY"), else the first row for one of the posting's own places, else the first row in the posting's country, else the first row. Every row is kept in `salary.ranges`, each with the posting's places it names (`ranges[].locations`, fix wave 5, DQ-33), so Juice and the Location filter use each place's own range; identical rows are one range and one zone; a "Virtual Location" row for a state the posting lists no place in is dropped (DQ-41) |
+ | **Every posted row is kept** (norm-11, [salary-audit-backend](process/salary-audit-backend.md)) | No cap on rows: Amazon's table and `salary.ranges` keep every posted row (SB-3; it was 12). A stored row that a trimmed description no longer shows is put back from `salary.ranges` (SB-1), and trimming keeps every pay-table row and the sentence above it (SB-2, VT-22). Amazon row names are matched to the posting's places, including "New York City", "N.Reading", "Westboro", "Hazle Township" and "San Franscisco" (SB-4). A posting that lists a Remote place keeps its "Virtual Location - <state>" rows, which are its remote pay (SB-6; DQ-41 still drops them when no place is remote). Microsoft's SF Bay Area / NYC range is kept as a second `salary.ranges` entry with its own places, and the headline stays the U.S. range (SB-5). **Lead decision (2026-10-16), applied since norm-12 ([fix-data-3](process/fix-data-3.md)):** a place the posting lists but prices with no row of its own gets no posted pay there: no Juice for that place, and it is never scored on another place's row. The card still shows the posting's range, and every row is kept. A row tied to no listed place (Amazon "San Francisco" on a posting that lists Austin, Seattle, Columbus and Herndon) prices nothing; it used to make every place score on the headline row. On the 2026-10-16 crawl this was 7 postings: Amazon 10434407 and 10572516 (Austin), 10543760 (Sunnyvale), 10579032 (East Palo Alto), 10580055 and 10580057 (Arlington, VA), and Apple 200679317-3337 (San Francisco Bay Area, whose second footer names no place). Applied by `server/juice.js` `postedPlaceSet` (Juice) and, in every other view (the chart, the map, the stats line, Compstimate, Insights and the drawer), by one helper, `payAt` in public/features/shared.js ([fix-pay-at-place](process/fix-pay-at-place.md); `postedPlaces` for `payLocations`). Virtual-location rows keep their state in their labels ("Remote (CA)") |
+ | **Several ranges by level** | Lowest listed min to highest listed max, with the levels named in `salary.text`: NVIDIA "168,000 USD - 264,500 USD for Level 4, and 196,000 USD - 310,500 USD for Level 5"; Microsoft "IC4: USD $119,800 - $234,700 per year; IC5: USD $142,800 - $274,800 per year". Each level's own range is kept in `salary.levels` (`[{ label: "Level 4", min, max }, …]`, annual, norm-7). The span is capped at 4× (the gate's ratio bound). Microsoft also prices one level per **country** ("across Ireland is €…", "across Germany is €…"). Those are not levels: the job's own country is used, and countries are never mixed |
+ | **One line per country** (Google) | "US: $171000 - $247000 (USD) + 20% bonus target + equity + benefits", "Ireland: €142000 - €145000 (EUR) …": the line for the job's country, the US one when the job has a US location, else the line for its first location's country. Lines for different countries are never spanned; one country's degree lines are ("[Bachelor's degree] Poland: zł156000 (PLN)", "[Master's degree] …"), and since norm-11 each degree line is also kept as a level (`salary.levels`, SA-4: "Pay by level: Bachelor's degree CA$99K · Master's degree CA$102K"). The code in parentheses is the currency, so a Canadian line is CAD (norm-7, DQ-15, D-22) |
+-| **Fixed-term pay** (norm-8) | The programme's length is `salary.termWeeks` (information only). How the pay was stated decides what it is: a yearly rate on an internship (Google "Ireland: €72000 (EUR)" with "a minimum 13 week full-time internship", Microsoft "CAD $43,800 - CAD $50,000 per year" for a 6-month one; 27 postings on 2026-10-11) gets `originalInterval: "year"`; week, month or whole-term pay keeps its own interval |
++| **Fixed-term pay** (norm-8) | The programme's length is `salary.termWeeks` (information only). How the pay was stated decides what it is: a yearly rate on an internship (Google "Ireland: €72000 (EUR)" with "a minimum 13 week full-time internship", Microsoft "CAD $43,800 - CAD $50,000 per year" for a 6-month one; 27 postings on 2026-10-11) gets `originalInterval: "year"`; week, month or whole-term pay keeps its own interval. **No stated length** ([fix-mr-3](process/fix-mr-3.md), MR-38): an internship (level Intern: internships, fellowships, co-ops, residencies, apprenticeships, students) paid by the hour, day, week or month whose posting gives no length is fixed-term pay of unstated length (`public/features/shared.js` `isTermUnstated`, part of `isFixedTerm`): shown as posted ("$6,688–10,800 a month", "$27.00–29.00 an hour"), never as a yearly salary, with Juice per month only, and converted figures at the posted interval ("≈ $5,686–6,000 a month"). The salary itself is unchanged (still annualized, so the Intern comparisons are unchanged). On the 2026-10-16 crawl: Amazon 91 (58 monthly, 33 hourly), Meta 35, NVIDIA 34, Microsoft 14, Anduril 5 and Apple 1 (180, 111 of them with Juice; Amazon's other 2 of the review's 182 are part-time hourly pay, already shown at the hourly rate), and on the stable boards Palantir 35, Shield AI 6 and xAI 4. Every one is kept, with its pay |
+ | **Part-time hourly pay** (norm-8) | Apple's part-time retail roles ("$22.00 and $28.88/hr", 52 postings) get `salary.partTime: true`; the yearly figure is the 2,080-hour equivalent, and Juice needs the posting's stated weekly hours ("work 16 hours per week", 1 posting) |
+ | **Not base pay in comparisons** (MR-28, [fix-data-3](process/fix-data-3.md)) | Three posted figures are shown as posted but are not a posted base-pay range, so the market comparisons (`api/market.json`: Same role elsewhere, Compare companies) leave them out of every cell and count them on the company's entry instead: a stated minimum (`salary.kind: 'minimum'`, `minimum`), an hourly figure that includes the highest shift differential (`includesShiftDifferential`, `shiftPay`), and part-time hourly pay at 2,080 hours (`partTime`). `scripts/build-market.js` `notBasePay`. Juice still starts from the posted figure, and the drawer's Juice block says so in one line: "Gross pay is the posted minimum." or "Gross pay includes top shift pay." |
+ | **The pay line's country** (norm-8) | The country a Google line or a Microsoft national range names is `salary.country`; Juice is never worked out for another country's office from it. Since norm-9 also NVIDIA's "Italy: The base salary range is …" and "For Poland: …" sentences (VT-6), and the places the pay applies to (`payLocations`: map, Location filter, comparisons) are only that country's (VT-5) |
+@@ -345,7 +345,7 @@ Parser changes made for these formats (`server/salary.js`):
+ | Mapping | sourceId = reqId = id_icims; department = job_category; team = job_family (when different); locations = each `locations[].normalizedLocation`; url = `https://www.amazon.jobs<job_path>`; postedAt = posted_date (UTC date); the "- " lines become `<ul>` lists |
+ | Pay | After "The base salary range for this position is listed below.", a **per-location table**, one line each: "USA, CA, East Palo Alto - 165,200.00 - 223,600.00 USD annually", "Seattle, WA, USA - 80,200.00 USD Annually", "USA, VA, Aldie - 27.98 - 48.99 USD hourly", "CAN, ON, Toronto - 84,600.00 - 126,800.00 CAD annually". Parsed by the adapter (`amazonPayTable`: structured). Older postings use the national sentence "ranges from $129,300/year in our lowest geographic market up to $223,600/year in our highest geographic market", which the text parser reads |
+ 
+-| Pay words (fix wave 5) | The sentence above the table says what the figures are, and the salary keeps it (lead decisions under "we must present them as they are and not cut anything"): "The minimum gross base pay salary for this position is listed below" / "See below the minimum gross base salary" (EU, Poland) is `kind: 'minimum'`, shown as "from €X" (VT-17; a posting that also says "The base pay for this position is PLN 6000 monthly" is the pay); "including the base pay rate plus the highest available shift differential" (US hourly) keeps the posted figure with `includesShiftDifferential` and a stated lower base ("Pay starts at $18.35 per hour") as `statedBase` (VT-18); "The minimum basic salary for this position is EUR 47'000 gross annually" (Austria, 14 payments) makes that annual figure the salary (`statedAnnual`, VT-19). A bare "$" in a Mexico-only posting ("Monthly Salary: $12,569") is MXN (DQ-35, `server/salary.js` `DOLLAR_COUNTRY`), and Mexico's legal minimum wage (`LEGAL_MIN_ANNUAL`: MXN 315.04 a day in 2026, CONASAMI resolution of 2025-12-03, × 365 = MXN 114,990) lets such pay pass the US$10,000 parser floor and the gate's $15K floor ([VETTING.md](VETTING.md) §2); it changes every 1 January. The 2026-10-16 crawl has 354 Mexico postings and none states pay. Places written with an ISO-3 code ("Bratislava, Bratislavský kraj, SVK") resolve to their country (DQ-40). Stored snapshots get all of this at read time (`server/sources/upgrade.js#upgradeAmazonJobs`) from the stored table, or from `salary.ranges` when trimming cut rows (VT-22) |
++| Pay words (fix wave 5) | The sentence above the table says what the figures are, and the salary keeps it (lead decisions under "we must present them as they are and not cut anything"): "The minimum gross base pay salary for this position is listed below" / "See below the minimum gross base salary" (EU, Poland) is `kind: 'minimum'`, shown as "from €X" (VT-17; a posting that also says "The base pay for this position is PLN 6000 monthly" is the pay); "including the base pay rate plus the highest available shift differential" (US hourly) keeps the posted figure with `includesShiftDifferential` and a stated lower base ("Pay starts at $18.35 per hour") as `statedBase` (VT-18); "The minimum basic salary for this position is EUR 47'000 gross annually" (Austria, 14 payments) makes that annual figure the salary (`statedAnnual`, VT-19); the drawer says "Stated as a yearly figure" and quotes the posting with its payments ("paid as 14 monthly payments of €3,358.33, not 12"; MR-37, [fix-mr-3](process/fix-mr-3.md)). A bare "$" in a Mexico-only posting ("Monthly Salary: $12,569") is MXN (DQ-35, `server/salary.js` `DOLLAR_COUNTRY`), and Mexico's legal minimum wage (`LEGAL_MIN_ANNUAL`: MXN 315.04 a day in 2026, CONASAMI resolution of 2025-12-03, × 365 = MXN 114,990) lets such pay pass the US$10,000 parser floor and the gate's $15K floor ([VETTING.md](VETTING.md) §2); it changes every 1 January. The 2026-10-16 crawl has 354 Mexico postings and none states pay. Places written with an ISO-3 code ("Bratislava, Bratislavský kraj, SVK") resolve to their country (DQ-40). Stored snapshots get all of this at read time (`server/sources/upgrade.js#upgradeAmazonJobs`) from the stored table, or from `salary.ranges` when trimming cut rows (VT-22) |
+ | Places and departments (norm-12, [fix-data-3](process/fix-data-3.md)) | "City, State, CCC" is one place even when the state shares a city's name ("Cajamar, Sao Paulo, BRA"). Cajamar (67 postings), Osasco (43), São João de Meriti, Jundiaí, Paulínia, Barueri, Embu das Artes and Belford Roxo are in the gazetteer, so none is pinned and named as São Paulo or Rio de Janeiro city any more (V-45). "Luxembourg, LUX" (121) is Luxembourg City, not the country's centre; its label stays "Luxembourg". "Town and Country, Missouri, USA" is one place (it was "Town" and "Country"; stored split pairs are joined again). "St", "St." and "Saint" are written "St." in a US town ("St Louis, Michigan" is St. Louis, MI, next to St. Louis, MO) and "St" is "St." in Canada (D-41). Departments: "Project/Program/Product Management--Technical" and "--Non-Tech" read "Technical Project, Program and Product Management" and "Non-Technical Project, Program and Product Management" (UX-32, UX-38), at read time, so the snapshot keeps Amazon's own name and an old link with it still finds the department |
+ 
+ ### 7f. Apple (`server/sources/apple.js`)
+diff --git a/docs/LIVABILITY.md b/docs/LIVABILITY.md
+index 3803160..eee0c5b 100644
+--- a/docs/LIVABILITY.md
++++ b/docs/LIVABILITY.md
+@@ -266,11 +266,15 @@ Rules:
+   (`salary.places`, else the ranges' places; DQ-27). A stated minimum (`kind: 'minimum'`, VT-17) is
+   scored on the minimum, and an hourly rate with `includesShiftDifferential` (VT-18) on the posted
+   rate, which includes the highest shift differential; Austria's stated annual figure
+-  (`statedAnnual`, VT-19) is the salary. An internship whose posting gives no length (no
+-  `termWeeks`) is annualized and scored for a year like any salary.
++  (`statedAnnual`, VT-19) is the salary. An internship paid per hour, day, week or month whose
++  posting gives no length (no `termWeeks`) is scored on its annualized pay like any term pay below.
+ - **Fixed-term pay:** with `salary.termWeeks` (an internship or programme length), the drawer shows
+   Juice per month and for the whole term only ("Juice covers only that term"), and tax is worked
+-  out as if the pay lasted a year, so it may be lower (`public/app.js` `postedTerm`).
++  out as if the pay lasted a year, so it may be lower (`public/app.js` `postedTerm`). An internship
++  paid per hour, day, week or month with no stated length is term pay of unstated length
++  (`public/features/shared.js` `isTermUnstated`, fix-mr-3, MR-38): its pay is shown as posted and
++  never as a yearly salary, and its Juice per month only ("while it lasts"), since it has no whole
++  term.
+ - **FX:** `FX_TO_USD` is copied verbatim from `public/viz/palette.js`, so juice is in the same
+   "approx USD" unit the salary chart plots. A currency the palette lacks would use the city's
+   `fxPerUSD`; today the palette has every city currency and every currency the postings use. RON
+diff --git a/docs/METHODOLOGY_GUIDE.md b/docs/METHODOLOGY_GUIDE.md
+index 1418d1c..3970579 100644
+--- a/docs/METHODOLOGY_GUIDE.md
++++ b/docs/METHODOLOGY_GUIDE.md
+@@ -19,7 +19,7 @@ For example, one person on {{value:example.gross}} a year in {{value:example.cit
+ 
+ Every amount is for a full year (the drawer can also show it per month), in US dollars, so jobs in different countries sit on the same scale.
+ 
+-- **Gross pay** is the middle of the job's posted base-pay range. Pay quoted by the hour or the month is turned into a yearly figure first, then converted to US dollars. When one posting gives a range for each of several places, each place is scored on its own range (the drawer lists them under **Pay by place**); when it gives a range for each of several levels, the middle is taken across all of them, from the lowest to the highest (listed under **Pay by level**). A posted minimum ("from €46K") counts as that minimum, and an hourly rate that the posting says includes the highest shift differential counts as posted. Part-time hourly pay is counted on the hours a week the posting states; with no hours stated there is no score. Pay for an internship or another fixed-term programme counts for that term only when the posting says how long it lasts, so the drawer shows it per month and for the whole term; with no length stated, it is turned into a yearly figure like a salary. Pay posted for one country is never used for an office in another country.
++- **Gross pay** is the middle of the job's posted base-pay range. Pay quoted by the hour or the month is turned into a yearly figure first, then converted to US dollars. When one posting gives a range for each of several places, each place is scored on its own range (the drawer lists them under **Pay by place**); when it gives a range for each of several levels, the middle is taken across all of them, from the lowest to the highest (listed under **Pay by level**). A posted minimum ("from €46K") counts as that minimum, and an hourly rate that the posting says includes the highest shift differential counts as posted. Part-time hourly pay is counted on the hours a week the posting states; with no hours stated there is no score. Pay for an internship or another fixed-term programme is fixed-term pay, never a yearly salary: the drawer shows it as posted ("$6,688–10,800 a month") and its Juice per month while it lasts, and for the whole term when the posting says how long it lasts. When the posting gives no length, there is no whole term to show, so Juice is per month only. The score itself is worked out as if the pay lasted a year. Pay posted for one country is never used for an office in another country.
+ - **Tax** is income tax at every level that has one (national, state or province, and city), plus the compulsory social insurance an employee pays, such as Social Security and Medicare in the US. It comes from each country's official tax rules and is worked out in the local currency, so a salary of £100,000 in London is taxed as £100,000.
+ - **Rent** is twelve months of rent for a home in the city centre, sized for your household. Most one-bedroom rents come from Numbeo, a crowd-sourced cost-of-living website. Two- and three-bedroom rents are usually estimated from the one-bedroom rent, using official data on how much rents rise with each extra bedroom in that city or country. So they carry two dates: the one-bedroom rents are from {{value:rent.asOf}}, and the bedroom data is from {{value:rent.bedrooms.us}} in US cities and {{value:rent.bedrooms.other}} elsewhere.
+ - **Living costs** are everyday spending other than rent: groceries, transport, utilities, eating out and leisure. They come from Numbeo's estimate of monthly costs for one person in that city, scaled up for couples and families.
+@@ -149,11 +149,11 @@ Every $100 a month less than our figure adds $1,200 a year to Juice left, and ev
+ 
+ ### How is the posted pay read?
+ 
+-From the posting itself, or from the careers site's own pay field where there is one. Only base pay counts: a range that includes bonus, commission or equity is shown as such or left out. When a posting gives a range per level (Microsoft's "IC4" and "IC5", NVIDIA's "Level 4" and "Level 5", the company's own level names), the drawer lists each level's range under **Pay by level**, the card says "· 2 levels", and the headline range runs from the lowest to the highest. When it gives a range for each place (Amazon's pay table, Apple's and Microsoft's ranges for some areas), the drawer lists each place's own range under **Pay by place** and the card says "· N places". A posting that states only a minimum shows it as "from €46K"; an hourly rate that includes the highest shift differential says so ("Incl. top shift pay"), with the stated base beside it when the posting gives one; where a posting states a yearly figure (Austria's minimum, paid in 14 instalments) that figure is used. Part-time hourly pay is also shown as a full-time year of 2,080 hours, for comparison only.
++From the posting itself, or from the careers site's own pay field where there is one. Only base pay counts: a range that includes bonus, commission or equity is shown as such or left out. When a posting gives a range per level (Microsoft's "IC4" and "IC5", NVIDIA's "Level 4" and "Level 5", the company's own level names), the drawer lists each level's range under **Pay by level**, the card says "· 2 levels", and the headline range runs from the lowest to the highest. When it gives a range for each place (Amazon's pay table, Apple's and Microsoft's ranges for some areas), the drawer lists each place's own range under **Pay by place** and the card says "· N places". A posting that states only a minimum shows it as "from €46K"; an hourly rate that includes the highest shift differential says so ("Incl. top shift pay"), with the stated base beside it when the posting gives one; where a posting states a yearly figure (Austria's minimum, paid in 14 instalments) that figure is used, and the drawer says "Stated as a yearly figure" and quotes the posting. An internship's pay per hour, week or month is shown as posted, also when the posting doesn't say how long the internship lasts; it is never turned into a yearly salary, and a converted figure ("≈ $5,686–6,000 a month") is converted at the same interval. The headline median (the stats line over the chart, and Insights' median and middle half) compares one country's pay, as the chart's rows do: when the roles in view are paid in more than one currency, it is the median of the main one ("base pay median in the US"), and the rest are counted, not pooled. Part-time hourly pay is also shown as a full-time year of 2,080 hours, for comparison only.
+ 
+ ### How are levels read?
+ 
+-Every role gets one of seven levels: Intern, Entry, Mid, Senior, Staff+ (staff, principal and above), Manager, and Director+ (director, head of, vice president and above). Most come from the title's own words ("Senior", "Principal", "Director", "Intern"). Where a company numbers its levels, its own ladder decides: Microsoft IC1–IC2 are Entry, IC3 Mid, IC4 Senior and IC5 and up Staff+, and M1–M5 Manager (M6 and up Director+); NVIDIA Level 1 is Entry, 2 Mid, 3 to 5 Senior and 6 and up Staff+; Google's numerals I–II are Entry, III Mid, IV Senior and V and up Staff+; Amazon's I is Entry, II Mid, III and IV Senior and V and up Staff+; L-levels such as Netflix's are Entry to L3, L4 Mid, L5 Senior and L6 and up Staff+; Meta's "(Technical Leadership)" roles are Staff+. A title with no level word shows **Level not stated**, and comparisons "at Senior level" use only postings that state one.
++Every role gets one of seven levels: Intern, Entry, Mid, Senior, Staff+ (staff, principal and above), Manager, and Director+ (director, head of, vice president and above). Most come from the title's own words ("Senior", "Principal", "Director", "Intern"). Where a company numbers its levels, its own ladder decides: Microsoft IC1–IC2 are Entry, IC3 Mid, IC4 Senior and IC5 and up Staff+, and M1–M5 Manager (M6 and up Director+); NVIDIA Level 1 is Entry, 2 Mid, 3 to 5 Senior and 6 and up Staff+; Google's numerals I–II are Entry, III Mid, IV Senior and V and up Staff+; Amazon's I is Entry, II Mid, III and IV Senior and V and up Staff+; L-levels such as Netflix's are Entry to L3, L4 Mid, L5 Senior and L6 and up Staff+; Meta's "(Technical Leadership)" roles are Staff+. A title with no level word shows **Level not stated**, and comparisons "at Senior level" use only postings that state one. Because the ladders differ, the same numeral can mean different levels: "III" is Mid at Google but Senior at Amazon, so the Mid chip's tip gives each board's own example.
+ 
+ ### How are Google's departments read?
+ 
+diff --git a/docs/process/patches/fix-mr-3-chart-caption.diff b/docs/process/patches/fix-mr-3-chart-caption.diff
+new file mode 100644
+index 0000000..54efb9d
+--- /dev/null
++++ b/docs/process/patches/fix-mr-3-chart-caption.diff
+@@ -0,0 +1,51 @@
++--- a/public/viz/chart.js	2026-10-23 13:46:58.513413515 +0000
+++++ b/public/viz/chart.js	2026-10-23 13:47:14.536734800 +0000
++@@ -661,7 +661,10 @@
++     const r = chartPay(jobs, { places: opts.places, placeTest: opts.placeTest });
++     plotted = r.plotted;
++     for (const p of plotted) p.key = keyOf(p.job, opts.colorBy);
++-    return { ...r, pay: basePayStats(plotted) };
+++    // MR-39 (fix-mr-3): the caption's median compares one currency's pay, as the rows do (V-21) and as the app's stats
+++    // line and Insights' tiles do (shared.js mainPayCurrency): with pay in several currencies, the main one's.
+++    const head = basisStats(plotted, mainBasis(plotted));
+++    return { ...r, pay: { ...head.stats, basis: head.basis, basisLeft: head.left } };
++   }
++ 
++   // ---------- windowed rows (PERF-2) ----------
++@@ -855,11 +858,16 @@
++   function medianCaption(pay) {
++     return pay?.oteOnly ? 'Median on-target earnings ' : 'Median base pay ';
++   }
+++  /** MR-39: " US" after the caption's median when it is one currency's pay of several ("Median base pay $149K US"). */
+++  function medianBasis(pay) {
+++    return pay?.basis && pay.basis !== 'mixed' && pay.basisLeft ? ` ${basisShort(pay.basis)}` : '';
+++  }
++   function medianTitle(pay) {
++     const where = placesPhrase(opts.places);
++     const here = where ? ` posted for ${where}` : '';
++-    if (pay?.oteOnly) return `The middle of the on-target earnings (base plus commission at target) ranges${here}: half are above and half below`;
++-    return `The middle of the base pay ranges${here}: half are above and half below${pay?.oteLeftOut ? `. ${plural(pay.oteLeftOut, 'posting')} with on-target earnings (base plus commission) left out` : ''}`;
+++    const basis = medianBasis(pay) ? `. Pay ${payBasisPlace(pay.basis)} only: ${plural(pay.basisLeft, 'posting')} with pay for other countries ${pay.basisLeft === 1 ? 'is' : 'are'} in the chart, not in the median` : '';
+++    if (pay?.oteOnly) return `The middle of the on-target earnings (base plus commission at target) ranges${here}: half are above and half below${basis}`;
+++    return `The middle of the base pay ranges${here}: half are above and half below${pay?.oteLeftOut ? `. ${plural(pay.oteLeftOut, 'posting')} with on-target earnings (base plus commission) left out` : ''}${basis}`;
++   }
++ 
++   function renderHist(x, d0, d1, plotL, plotW, labelW, pay) {
++@@ -877,7 +885,7 @@
++     if (labelW > 0) {
++       const cap = el('div', 'ms-hist__cap');
++       cap.style.width = labelW + 'px';
++-      cap.append(el('span', 'ms-hist__title', medianCaption(pay)), el('span', 'ms-hist__sub', formatMoney(med)));
+++      cap.append(el('span', 'ms-hist__title', medianCaption(pay)), el('span', 'ms-hist__sub', `${formatMoney(med)}${medianBasis(pay)}`));
++       cap.title = medianTitle(pay);
++       hist.append(cap);
++     }
++@@ -1003,7 +1011,7 @@
++         need = Math.max(need, textWidth(r.subFull, SUB_FONT), nameW > 150 ? Math.min(nameW, nameW / 2 + 24) : nameW);
++       }
++       // BP-13: the median caption ("Median base pay $347K") shows in full too.
++-      need = Math.max(need, textWidth(`${medianCaption(stats.pay)}${formatMoney(stats.pay?.median)}`, `600 ${SUB_FONT}`) - 8);
+++      need = Math.max(need, textWidth(`${medianCaption(stats.pay)}${formatMoney(stats.pay?.median)}${medianBasis(stats.pay)}`, `600 ${SUB_FONT}`) - 8);
++       labelW = Math.round(Math.max(150, Math.min(maxW, need + LABEL_PAD)));
++       for (const r of cRows) r.useShort = textWidth(r.subFull, SUB_FONT) + LABEL_PAD > labelW;
++     } else {
+diff --git a/public/features/shared.js b/public/features/shared.js
+index e5a04f1..bcd375f 100644
+--- a/public/features/shared.js
++++ b/public/features/shared.js
+@@ -86,9 +86,10 @@ const TERM_UNITS = new Set(['hour', 'day', 'week', 'month']);
+ /**
+  * MR-38 (fix-mr-3): an internship, fellowship, co-op, residency or apprenticeship (level 'Intern') paid by the hour,
+  * day, week or month whose posting gives no length (no salary.termWeeks). Its pay is for a term of unstated length:
+- * shown as posted ("$6,688–10,800 a month"), never as a yearly salary. On the 2026-10-16 crawl: 182 on the big-tech
+- * boards and Anduril (Amazon 93, Meta 35, NVIDIA 34, Microsoft 14, Anduril 5, Apple 1), and Palantir 35, Shield AI 6,
+- * xAI 4. Part-time hourly pay (salary.partTime) is shown as its hourly rate already, so it is left to that rule.
++ * shown as posted ("$6,688–10,800 a month"), never as a yearly salary. On the 2026-10-16 crawl: 180 on the big-tech
++ * boards and Anduril (Amazon 91, Meta 35, NVIDIA 34, Microsoft 14, Anduril 5, Apple 1), and Palantir 35, Shield AI 6,
++ * xAI 4. Part-time hourly pay (salary.partTime: Amazon's other 2) is shown as its hourly rate already, so it is left to
++ * that rule.
+  */
+ export function isTermUnstated(job) {
+   const s = job?.salary;
+diff --git a/scripts/e2e.js b/scripts/e2e.js
+index 248e192..1e22857 100644
+--- a/scripts/e2e.js
++++ b/scripts/e2e.js
+@@ -48,6 +48,7 @@ import { registerBetaMobileQa4Tests } from '../test/e2e/beta-mobile-qa-4.e2e.js'
+ import { registerFixViz5Tests } from '../test/e2e/fix-viz-5.e2e.js';
+ import { registerBetaDesktopQa4Tests } from '../test/e2e/beta-desktop-qa-4.e2e.js';
+ import { registerFixQa4Tests } from '../test/e2e/fix-qa4.e2e.js';
++import { registerFixMr3Tests } from '../test/e2e/fix-mr-3.e2e.js';
+ 
+ const args = new Set(process.argv.slice(2));
+ const apiOnly = args.has('--api-only');
+@@ -129,6 +130,7 @@ if (!apiOnly) {
+   registerFixViz5Tests(suite);
+   registerBetaDesktopQa4Tests(suite);
+   registerFixQa4Tests(suite);
++  registerFixMr3Tests(suite);
+ }
+ 
+ let results;
+diff --git a/test/e2e/fix-mr-3.e2e.js b/test/e2e/fix-mr-3.e2e.js
+new file mode 100644
+index 0000000..558898a
+--- /dev/null
++++ b/test/e2e/fix-mr-3.e2e.js
+@@ -0,0 +1,332 @@
++// fix-mr-3 (fix wave 5, 2026-10-23; docs/process/fix-mr-3.md): the methodology and data fixes, checked on the built site.
++// Chromium against the static build (BETA_QA_DIST, else dist/ from `npm run build`), served under /melon-seek/ like GitHub
++// Pages; other hosts are aborted. Each test finds its case in the build's own data (public/api.js getJobs, as the UI sees
++// it), so it keeps testing the same rule on a new crawl, and skips when the case is gone. Tests are tagged with the
++// finding they encode (docs/process/methodology-review-beta-2.md); each failed on 05263e8 with the 2026-10-16 crawl.
++// "[phone]" measures every line this lane added or changed at every entry of test/e2e/phone-sizes.mjs with
++// fix-phone-text's own scanner (scanText): one line, or two below 360 px (its linesAt rule), at most 12 words, never cut.
++import http from 'node:http';
++import fs from 'node:fs';
++import path from 'node:path';
++import zlib from 'node:zlib';
++import { ROOT, assert, assertEq, skip } from './harness.js';
++import { ALL_SIZES, contextFor } from './phone-sizes.mjs';
++import { scanText, CAPTION_SEL } from './fix-phone-text.e2e.js';
++
++const DESKTOP = { width: 1440, height: 900 };
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2' };
++const linesAt = (width) => (width < 360 ? 2 : 1); // fix-phone-text's rule
++
++let shared = null;
++/** Serve the build under /melon-seek/ (gzip, like Pages); null without a beta build. One server for the whole file. */
++async function serveDist() {
++  if (shared) return shared;
++  const dist = path.resolve(process.env.BETA_QA_DIST || path.join(ROOT, 'dist'));
++  if (!fs.existsSync(path.join(dist, 'beta', 'index.html')) || !fs.existsSync(path.join(dist, 'beta', 'api', 'jobs'))) return null;
++  const server = http.createServer((req, res) => {
++    const u = new URL(req.url, 'http://x');
++    if (!u.pathname.startsWith('/melon-seek/')) { res.writeHead(302, { location: '/melon-seek/' }); return res.end(); }
++    let p;
++    try { p = path.join(dist, decodeURIComponent(u.pathname.slice('/melon-seek/'.length))); } catch { res.writeHead(400); return res.end(); }
++    if (p !== dist && !p.startsWith(dist + path.sep)) { res.writeHead(403); return res.end(); }
++    if (fs.existsSync(p) && fs.statSync(p).isDirectory()) p = path.join(p, 'index.html');
++    if (!fs.existsSync(p)) { res.writeHead(404); return res.end(); }
++    const type = MIME[path.extname(p)] || 'application/octet-stream';
++    const body = fs.readFileSync(p);
++    const gz = /text|javascript|json|svg|csv/.test(type) && /gzip/.test(req.headers['accept-encoding'] || '') && body.length > 1024;
++    res.writeHead(200, { 'content-type': type, ...(gz ? { 'content-encoding': 'gzip' } : {}) });
++    res.end(gz ? zlib.gzipSync(body) : body);
++  });
++  await new Promise((r) => server.listen(0, '127.0.0.1', r));
++  server.unref();
++  const origin = `http://127.0.0.1:${server.address().port}`;
++  shared = { origin, dist, beta: `${origin}/melon-seek/beta`, main: `${origin}/melon-seek` };
++  return shared;
++}
++
++/** A fresh page on the beta site; `device` is a phone-sizes.mjs entry, else a 1440 desktop. */
++async function open(ctx, { device = null } = {}) {
++  const st = await serveDist();
++  if (!st) skip('no beta build (npm run build, or BETA_QA_DIST=<dir>)');
++  const engine = ctx.browser.browserType?.().name() || 'chromium';
++  const context = await ctx.browser.newContext(device ? { ...contextFor(device, engine), colorScheme: 'light' } : { viewport: DESKTOP, colorScheme: 'light', deviceScaleFactor: 1 });
++  ctx.cleanup.push(() => context.close().catch(() => {}));
++  await context.route((u) => !u.href.startsWith(st.origin) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
++  const page = await context.newPage();
++  const errors = [];
++  page.on('pageerror', (e) => errors.push(e.message));
++  return { st, page, errors };
++}
++const ready = (page) => page.waitForFunction(() => {
++  const t = document.querySelector('#resultsTitle');
++  return t && !/Loading/.test(t.textContent) && /\d/.test(t.textContent) && document.querySelector('#resultsList .card[data-id]');
++}, null, { timeout: 120000 });
++/** Load the board (a full page load). */
++async function board(page, st, hash) {
++  await page.goto('about:blank');
++  await page.goto(`${st.beta}/#${hash}`);
++  await ready(page);
++  await sleep(600);
++}
++/** Open a job on the loaded board (a hash change: the list stays loaded), every fold and Details open. */
++async function job(page, slug, id, title) {
++  await page.evaluate((h) => { location.hash = h; }, `c=${slug}&job=${encodeURIComponent(id)}`);
++  await page.waitForFunction((t) => document.querySelector('#drawer.is-open #drawerTitle')?.textContent.trim() === t, title, { timeout: 30000 });
++  await sleep(700);
++  await page.evaluate(() => { for (const d of document.querySelectorAll('#drawer details')) d.open = true; });
++  await sleep(300);
++}
++const text = (page, sel) => page.locator(sel).first().evaluate((e) => (e.textContent || '').replace(/\s+/g, ' ').trim()).catch(() => null);
++
++/** The app's own jobs for a board (getJobs, Juice attached), reduced in the page by `pick` (a function source). */
++async function appJobs(page, st, company, pick) {
++  const r = await page.evaluate(`(async () => {
++    const api = await import(${JSON.stringify(`${st.beta}/api.js`)});
++    const shared = await import(${JSON.stringify(`${st.beta}/features/shared.js`)});
++    const palette = await import(${JSON.stringify(`${st.beta}/viz/palette.js`)});
++    const res = await api.getJobs({ company: ${JSON.stringify(company)} });
++    const pick = ${pick};
++    return { mode: res.mode, jobs: res.jobs.map((j) => pick(j, shared, palette)).filter(Boolean) };
++  })()`);
++  if (r.mode !== 'snapshot') skip(`${company} has no snapshot in this build (${r.mode})`);
++  return r.jobs;
++}
++
++/* ---------------------------------------------------------------- the cases, found in the build's data */
++
++// An internship paid by the month with no stated length (MR-38), in US dollars.
++const UNSTATED_MONTH = `(j, sh) => sh.isTermUnstated(j) && j.salary.originalInterval === 'month' && j.salary.currency === 'USD' && !(j.salary.ranges && j.salary.ranges.length > 1)
++  ? { id: j.id, title: j.title, min: j.salary.min, max: j.salary.max, juice: !!(j.juice && j.juice.best) } : null`;
++// One paid by the hour (MR-38).
++const UNSTATED_HOUR = `(j, sh) => sh.isTermUnstated(j) && j.salary.originalInterval === 'hour' && !(j.salary.ranges && j.salary.ranges.length > 1)
++  ? { id: j.id, title: j.title, min: j.salary.min, max: j.salary.max, cur: j.salary.currency } : null`;
++// Fixed-term pay in another currency, per month (MR-33): a term of known or unstated length.
++const FOREIGN_MONTH_TERM = `(j, sh, pal) => j.salary && j.salary.currency !== 'USD' && pal.hasFx(j.salary.currency) && j.salary.originalInterval === 'month' && (j.salary.termWeeks > 0 || sh.isTermUnstated(j)) && !(j.salary.ranges && j.salary.ranges.length > 1)
++  ? { id: j.id, title: j.title, min: j.salary.min, max: j.salary.max, cur: j.salary.currency, usdMin: pal.toUSD(j.salary.min, j.salary.currency), usdMax: pal.toUSD(j.salary.max, j.salary.currency), unstated: sh.isTermUnstated(j) } : null`;
++// A stated yearly figure (MR-37, Austria).
++const STATED_ANNUAL = `(j) => j.salary && j.salary.statedAnnual ? { id: j.id, title: j.title, ...j.salary.statedAnnual, text: j.salary.text } : null`;
++
++async function pickOne(page, st, slug, pick, what) {
++  const list = await appJobs(page, st, slug, pick);
++  if (!list.length) skip(`no ${what} on ${slug} in this build`);
++  return list[0];
++}
++
++/* ---------------------------------------------------------------- the tests */
++
++export function registerFixMr3Tests(suite) {
++  suite.test('fix-mr-3: [MR-38] an internship paid by the month with no stated length shows its monthly pay as fixed-term pay, and Juice per month only', async (ctx) => {
++    const { st, page, errors } = await open(ctx);
++    await board(page, st, 'c=meta');
++    const c = await pickOne(page, st, 'meta', UNSTATED_MONTH, 'monthly internship with no stated length');
++    await job(page, 'meta', c.id, c.title);
++    const amt = await text(page, '#drawer .d-sal-amt');
++    const lo = Math.round(c.min / 12), hi = Math.round(c.max / 12);
++    const want = (v) => `$${v.toLocaleString('en-US')}`;
++    assert(new RegExp(`^\\${want(lo)}(–${hi.toLocaleString('en-US')})? a month$`).test(amt), `${c.id}: the pay reads "${amt}", not the posted ${want(lo)}–${hi.toLocaleString('en-US')} a month`);
++    assertEq(await text(page, '#drawer .d-sal-top .muted'), 'USD · length not stated', `${c.id} pay sub-line`);
++    assertEq(await text(page, '#drawer .d-annual'), 'Fixed-term pay, not a yearly salary', `${c.id} pay note`);
++    const note = await text(page, '#drawer .d-pay-note');
++    assert(/doesn’t say how long the internship lasts/.test(note), `${c.id}: the pay Details don't say the length is not stated: "${note.slice(0, 200)}"`);
++    assert(!/per year|Annualized/.test(await text(page, '#drawer .d-salary')), `${c.id}: the pay block still reads as a yearly salary`);
++    if (c.juice) {
++      assertEq(await page.locator('#drawer .d-juice [data-period]').count(), 0, `${c.id}: the Juice block offers a Yearly or Whole term view of pay with no stated length`);
++      const head = await text(page, '#drawer .juice-head-net');
++      assert(/\/mo left .* while it lasts$/.test(head), `${c.id}: Juice headline "${head}"`);
++      assert(/doesn’t say how long the internship lasts, so Juice is shown per month while it lasts/.test(await text(page, '#drawer .juice-where')), `${c.id}: the Juice block doesn't say why it is monthly`);
++    }
++    // The card's pill shows the posted monthly pay too (shared helper postedTerm).
++    const card = page.locator(`#resultsList .card[data-id="${c.id}"] .sal-pill`);
++    if (await card.count()) assert(/\/month$/.test((await card.first().innerText()).trim()), `${c.id}: the card reads "${await card.first().innerText()}"`);
++    assert(!errors.length, errors.join('; '));
++  });
++
++  suite.test('fix-mr-3: [MR-38] an internship paid by the hour with no stated length shows its hourly rate, not a yearly salary', async (ctx) => {
++    const { st, page } = await open(ctx);
++    await board(page, st, 'c=nvidia');
++    const c = await pickOne(page, st, 'nvidia', UNSTATED_HOUR, 'hourly internship with no stated length');
++    await job(page, 'nvidia', c.id, c.title);
++    const amt = await text(page, '#drawer .d-sal-amt');
++    assert(/ an hour$/.test(amt), `${c.id}: the pay reads "${amt}"`);
++    assert(/^USD · .*, length not stated$/.test(await text(page, '#drawer .d-sal-top .muted')), `${c.id} pay sub-line: "${await text(page, '#drawer .d-sal-top .muted')}"`);
++    assertEq(await text(page, '#drawer .d-annual'), 'Paid by the hour', `${c.id} pay note`);
++  });
++
++  suite.test('fix-mr-3: [MR-38] nothing is dropped: every board lists the same postings, and every internship of unstated length keeps its pay', async (ctx) => {
++    const { st, page } = await open(ctx);
++    await board(page, st, 'c=amazon');
++    const bad = [];
++    for (const slug of ['amazon', 'meta', 'nvidia', 'microsoft', 'apple', 'anduril']) {
++      const all = await appJobs(page, st, slug, '(j, sh) => ({ paid: !!j.salary, unstated: sh.isTermUnstated(j), fixed: sh.isFixedTerm(j), intern: sh.isInternLike(j) })');
++      const list = JSON.parse(fs.readFileSync(path.join(st.dist, 'beta', 'api', 'jobs', `${slug}.json`), 'utf8')).jobs.length;
++      if (all.length !== list) bad.push(`${slug}: ${all.length} postings in the app, ${list} in the list`);
++      const un = all.filter((x) => x.unstated);
++      if (un.some((x) => !x.paid || !x.fixed || !x.intern)) bad.push(`${slug}: an internship of unstated length lost its pay or its kind`);
++      ctx.notes.push(`fix-mr-3 MR-38: ${slug} ${all.length} postings, ${all.filter((x) => x.paid).length} with pay, ${un.length} internships of unstated length shown as fixed-term pay`);
++    }
++    assert(!bad.length, bad.join('; '));
++  });
++
++  suite.test('fix-mr-3: [MR-33] converted fixed-term pay uses the interval it was posted in ("≈ $X a month"), not an unlabelled year', async (ctx) => {
++    const { st, page } = await open(ctx);
++    const seen = [];
++    for (const slug of ['amazon', 'microsoft']) {
++      await board(page, st, `c=${slug}`);
++      const list = await appJobs(page, st, slug, FOREIGN_MONTH_TERM);
++      for (const c of [list.find((x) => x.unstated), list.find((x) => !x.unstated)].filter(Boolean)) {
++        await job(page, slug, c.id, c.title);
++        const line = await text(page, '#drawer .dist-approx');
++        const lo = Math.round(c.usdMin / 12), hi = Math.round(c.usdMax / 12);
++        const amt = lo === hi ? `$${lo.toLocaleString('en-US')}` : `$${lo.toLocaleString('en-US')}–${hi.toLocaleString('en-US')}`;
++        assert(line && line.startsWith(`≈ ${amt} a month`), `${c.id} (${c.cur} a month${c.unstated ? ', length not stated' : ''}): the converted line reads "${line}", want "≈ ${amt} a month …"`);
++        assert(/ rates$/.test(line), `${c.id}: "${line}" lost its rates link`);
++        seen.push(c.id);
++      }
++    }
++    if (!seen.length) skip('no foreign fixed-term monthly pay in this build');
++  });
++
++  suite.test('fix-mr-3: [MR-37] Austria\'s stated yearly figure says so, and its Details quote the posting and its payments', async (ctx) => {
++    const { st, page } = await open(ctx);
++    await board(page, st, 'c=amazon');
++    const c = await pickOne(page, st, 'amazon', STATED_ANNUAL, 'stated annual figure');
++    await job(page, 'amazon', c.id, c.title);
++    assertEq(await text(page, '#drawer .d-annual'), 'Stated as a yearly figure', `${c.id} pay note`);
++    const note = await text(page, '#drawer .d-pay-note');
++    assert(note.includes(`As posted: ${c.text.replace(/[.\s]+$/, '')}`), `${c.id}: no "As posted" quote in the pay Details: "${note.slice(0, 300)}"`);
++    const monthly = `€${Number(c.monthly).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
++    if (Number.isInteger(c.paymentsPerYear)) assert(note.includes(`paid as ${c.paymentsPerYear} monthly payments of ${monthly}, not 12`), `${c.id}: the Details don't name the ${c.paymentsPerYear} payments: "${note.slice(0, 400)}"`);
++    else assert(note.includes(`Its monthly row is ${monthly}`), `${c.id}: the Details don't name the monthly row: "${note.slice(0, 400)}"`);
++  });
++
++  suite.test('fix-mr-3: [MR-39] the stats line\'s median is the main currency\'s (US pay on Amazon), says "in the US", and equals that median', async (ctx) => {
++    const { st, page } = await open(ctx);
++    await board(page, st, 'c=amazon&m=map');
++    const pay = await appJobs(page, st, 'amazon', `(j, sh, pal) => j.salary && j.salary.kind !== 'ote' && pal.hasFx(j.salary.currency || 'USD') ? { cur: String(j.salary.currency || 'USD').toUpperCase(), mid: pal.toUSD(j.salary.mid, j.salary.currency || 'USD') } : null`);
++    const curs = new Set(pay.map((p) => p.cur));
++    if (curs.size < 2) skip('Amazon\'s pay is in one currency in this build');
++    const us = pay.filter((p) => p.cur === 'USD').map((p) => p.mid).sort((a, b) => a - b);
++    const q = (v, p) => { const h = (v.length - 1) * p, lo = Math.floor(h), hi = Math.ceil(h); return v[lo] + (v[hi] - v[lo]) * (h - lo); };
++    const median = q(us, 0.5);
++    const shown = await text(page, '#statsLine .stat--median');
++    const fmt = await page.evaluate(async ([u, m]) => (await import(u)).formatMoney(m), [`${st.beta}/viz/palette.js`, median]);
++    assertEq(shown, `${fmt} base pay median in the US`, 'Amazon stats line median');
++    const details = await text(page, '#statsLine');
++    assert(new RegExp(`median of the ${us.length.toLocaleString('en-US')} roles paid in the US; ${(pay.length - us.length).toLocaleString('en-US')} roles paid in other currencies are left out`).test(details), `the stats Details don't say whose median it is: "${details.slice(0, 400)}"`);
++    // A board whose pay is in one currency keeps its plain line.
++    for (const slug of ['netflix', 'meta']) {
++      await board(page, st, `c=${slug}&m=map`);
++      const one = new Set((await appJobs(page, st, slug, '(j) => j.salary && j.salary.kind !== "ote" ? String(j.salary.currency || "USD").toUpperCase() : null')));
++      const line = await text(page, '#statsLine .stat--median');
++      if (one.size === 1) assert(/base pay median$/.test(line), `${slug} (one currency): "${line}"`);
++      else assert(/base pay median in /.test(line), `${slug} (${[...one].join(', ')}): "${line}" doesn't say whose median`);
++    }
++  });
++
++  suite.test('fix-mr-3: [MR-39] Insights\' median and middle half are of the main currency\'s roles, and say "in the US"', async (ctx) => {
++    const { st, page } = await open(ctx);
++    await board(page, st, 'c=amazon&m=insights');
++    await page.waitForSelector('.msi-stats', { timeout: 60000 });
++    const tiles = await page.$$eval('.msi-stat', (els) => els.map((e) => [e.querySelector('.msi-stat__label')?.textContent.trim(), e.querySelector('.msi-stat__note')?.textContent.trim()]));
++    const med = tiles.find(([l]) => l === 'Median base pay');
++    const mid = tiles.find(([l]) => l === 'Middle half');
++    assert(med && /^of [\d,]+ in the US$/.test(med[1]), `Median tile note: ${JSON.stringify(med)}`);
++    assert(mid && mid[1] === 'of roles in the US', `Middle half tile note: ${JSON.stringify(mid)}`);
++    const pub = tiles.find(([l]) => l === 'Pay published');
++    const n = Number(med[1].replace(/\D/g, '')), all = Number(pub[1].split(' of ')[0].replace(/\D/g, ''));
++    assert(n < all, `the median's ${n} roles should be the US ones of the ${all} with pay`);
++    assert(/The median and middle half are of the [\d,]+ roles paid in the US/.test(await text(page, '.ms-insights__sub')), 'the Insights Details don\'t say whose median the tiles show');
++  });
++
++  suite.test('fix-mr-3: [MR-29] Google\'s chart notes say once, in their Details, that departments are read from titles; Amazon\'s do not', async (ctx) => {
++    const { st, page } = await open(ctx);
++    await board(page, st, 'c=google&m=chart');
++    await page.waitForSelector('#chartHost .ms-note', { timeout: 30000 });
++    const want = 'Google doesn’t publish departments, so its roles are grouped by what their titles say.';
++    const notes = await page.$$eval('#chartHost .ms-note', (els) => els.map((e) => e.textContent));
++    assertEq(notes.filter((t) => t.includes(want)).length, 1, 'the chart notes\' Details say departments come from titles');
++    // No new visible control: the sentence is in the Details list, which is closed until asked.
++    const visible = await page.$$eval('#chartHost .ms-note__list', (els, w) => els.some((e) => !e.hidden && e.textContent.includes(w)), want);
++    assert(!visible, 'the sentence is shown outside the closed Details list');
++    await board(page, st, 'c=amazon&m=chart');
++    await page.waitForSelector('#chartHost .ms-note', { timeout: 30000 });
++    assert(!(await page.$$eval('#chartHost .ms-note', (els) => els.some((e) => /grouped by what their titles say/.test(e.textContent)))), 'Amazon publishes departments; its notes say they come from titles');
++  });
++
++  suite.test('fix-mr-3: [MR-41] the Mid chip\'s tip names the board\'s own mid level (Amazon "II", Google "III")', async (ctx) => {
++    const { st, page } = await open(ctx);
++    for (const [slug, ex, never] of [['amazon', '“II”', '“III”'], ['google', '“III”', null]]) {
++      await board(page, st, `c=${slug}`);
++      const c = await pickOne(page, st, slug, '(j) => j.seniority === "Mid" && j.seniorityBasis === "title" ? { id: j.id, title: j.title } : null', 'stated mid-level posting');
++      await job(page, slug, c.id, c.title);
++      const tip = await page.locator('#drawer .sen--mid').first().getAttribute('title');
++      assert(tip && tip.includes(ex), `${slug}: the Mid tip is "${tip}", want ${ex}`);
++      if (never) assert(!tip.includes(never), `${slug}: the Mid tip names ${never}, which is Senior on ${slug}`);
++    }
++  });
++
++  suite.test('fix-mr-3: [MR-40] Microsoft\'s Garden City, Fort Lee and Paramus postings are placed in their towns and priced at the NYC-metro range', async (ctx) => {
++    const { st, page } = await open(ctx);
++    await board(page, st, 'c=microsoft');
++    const towns = { 'Garden City': [40.7268, -73.6343], 'Fort Lee': [40.8509, -73.9701], Paramus: [40.9445, -74.0754] };
++    const list = await appJobs(page, st, 'microsoft', `(j) => { const l = (j.locations || []).find((x) => ['Garden City', 'Fort Lee', 'Paramus'].includes(x.city) && ['NY', 'NJ'].includes(x.region)); return l && j.salary ? { id: j.id, title: j.title, city: l.city, lat: l.lat, lng: l.lng, raw: l.rawName || l.name, ranges: (j.salary.ranges || []).map((r) => ({ min: r.min, max: r.max, locations: r.locations || [] })), min: j.salary.min, max: j.salary.max } : null; }`);
++    if (!list.length) skip('no Microsoft posting in Garden City, Fort Lee or Paramus in this build');
++    const bad = [];
++    for (const c of list) {
++      const [lat, lng] = towns[c.city];
++      if (Math.abs(c.lat - lat) > 0.01 || Math.abs(c.lng - lng) > 0.01) bad.push(`${c.id}: ${c.city} at ${c.lat},${c.lng}`);
++      // With another place outside the area, the town's own range is the higher NYC-metro one (SB-5); alone, the headline is.
++      const own = c.ranges.find((r) => r.locations.includes(c.raw));
++      const top = c.ranges.length ? Math.max(...c.ranges.map((r) => r.max)) : c.max;
++      if (c.ranges.length > 1 && (!own || own.max !== top)) bad.push(`${c.id}: ${c.city} is priced at ${own ? `${own.min}–${own.max}` : 'no row'}, not the NYC-metro range (top ${top})`);
++    }
++    ctx.notes.push(`fix-mr-3 MR-40: ${list.length} Microsoft postings in Garden City, Fort Lee or Paramus`);
++    assert(!bad.length, bad.join('; '));
++  });
++
++  suite.test('fix-mr-3: [MR-26] the methodology\'s sources table does not call the postings "update due" on the build', async (ctx) => {
++    const { st, page } = await open(ctx);
++    for (const site of [st.beta, st.main]) {
++      await page.goto(`${site}/methodology/`);
++      // The sources table (§7), not the worked example's waterfall, which has a "Gross pay" row too.
++      const row = await page.locator('tr:has(td[data-label="Refreshed"])', { has: page.locator('th', { hasText: /^Gross pay$/ }) }).first().textContent({ timeout: 10000 }).catch(() => null);
++      if (row == null) skip('the methodology page has no sources table in this build');
++      assert(!/update due/.test(row), `${site}/methodology/: "${row.replace(/\s+/g, ' ').trim()}"`);
++      assert(/Daily/.test(row), `${site}/methodology/: the Gross pay row lost its cadence: "${row}"`);
++    }
++  });
++
++  // [phone] Every line this lane added or changed, at every phone size: the drawer's pay lines for a monthly internship
++  // of unstated length (Meta), a foreign fixed-term line (Amazon), Austria's stated yearly figure (Amazon), the stats
++  // line (Amazon) and Insights' tiles (Amazon).
++  for (const d of ALL_SIZES) {
++    suite.test(`fix-mr-3: [phone] ${d.name} ${d.width}x${d.height}: the new and changed pay lines and the stats line are ${linesAt(d.width) === 1 ? 'one line' : 'at most two lines'}, never cut`, async (ctx) => {
++      const { st, page, errors } = await open(ctx, { device: d });
++      const bad = [];
++      const measure = async (sel, where) => {
++        if (!(await page.locator(sel).count())) { bad.push(`${where}: ${sel} not shown`); return; }
++        const r = await page.evaluate(scanText, { roots: [sel], captionSel: `${CAPTION_SEL}, ${sel}`, allow: [], words: 12, maxLines: linesAt(d.width) });
++        for (const m of r.lines) bad.push(`${where} ${m.sel}: ${m.lines} lines, ${m.words} words: "${m.text}"`);
++        for (const m of r.cut) bad.push(`${where} ${m.sel}: cut by ${m.over} px: "${m.text}"`);
++      };
++      await board(page, st, 'c=amazon');
++      await measure('#statsLine', 'Amazon stats line');
++      const term = (await appJobs(page, st, 'amazon', FOREIGN_MONTH_TERM))[0];
++      const annual = (await appJobs(page, st, 'amazon', STATED_ANNUAL))[0];
++      if (term) { await job(page, 'amazon', term.id, term.title); await measure('#drawer .dist-approx', term.id); await measure('#drawer .d-sal-top .muted', term.id); }
++      if (annual) { await job(page, 'amazon', annual.id, annual.title); await measure('#drawer .d-annual', annual.id); }
++      await board(page, st, 'c=amazon&m=insights');
++      await page.waitForSelector('.msi-stats', { timeout: 60000 });
++      await measure('.msi-stat__note', 'Insights tiles');
++      await board(page, st, 'c=meta');
++      const un = (await appJobs(page, st, 'meta', UNSTATED_MONTH))[0];
++      if (un) {
++        await job(page, 'meta', un.id, un.title);
++        for (const sel of ['#drawer .d-sal-top .muted', '#drawer .d-annual', '#drawer .d-pay-note', '#drawer .juice-head-net']) if (sel !== '#drawer .juice-head-net' || un.juice) await measure(sel, un.id);
++      }
++      assert(!bad.length, bad.join('; '));
++      assert(!errors.length, errors.join('; '));
++    });
++  }
++}
+diff --git a/test/fix-mr-3.test.js b/test/fix-mr-3.test.js
+index 9b390ff..f567d53 100644
+--- a/test/fix-mr-3.test.js
++++ b/test/fix-mr-3.test.js
+@@ -133,7 +133,7 @@ test('MR-40 the gazetteer change is a normalizer change: NORMALIZER_VERSION is n
+ 
+ /* ------------------------------------------------------------- MR-38, MR-33 */
+ // 182 internships on /beta/ (Amazon 93, Meta 35, NVIDIA 34, Microsoft 14, Anduril 5, Apple 1; and Palantir 35, Shield AI
+-// 6, xAI 4) post pay per hour or per month and no length. They were shown as yearly salaries, and 111 of the big-tech
++// 6, xAI 4) post pay per hour or per month and no length (2 of Amazon's are part-time hourly pay, already shown hourly). They were shown as yearly salaries, and 111 of the big-tech
+ // ones got a yearly Juice view. Pay for a programme of unstated length is fixed-term pay: shown as posted, never as a
+ // yearly salary, and Juice is per month while it lasts.
+ const intern = (salary, extra = {}) => ({ seniority: 'Intern', title: 'Thermal Engineering Intern', ...extra, salary: { min: 80256, max: 129600, mid: 104928, currency: 'USD', interval: 'year', kind: 'salary', ...salary } });
+-- 
+2.43.0
+

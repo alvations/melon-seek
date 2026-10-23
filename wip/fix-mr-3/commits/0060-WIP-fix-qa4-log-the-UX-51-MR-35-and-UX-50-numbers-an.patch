@@ -1,0 +1,78 @@
+From 743ae59f363bc1791f55cdf0302d6c84fe0f4547 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 14:01:38 +0000
+Subject: [PATCH 60/81] WIP fix-qa4: log the UX-51, MR-35 and UX-50 numbers and
+ State
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/fix-qa4.md | 45 ++++++++++++++++++++++++++++++-----------
+ 1 file changed, 33 insertions(+), 12 deletions(-)
+
+diff --git a/docs/process/fix-qa4.md b/docs/process/fix-qa4.md
+index 5bd3d58..88dba78 100644
+--- a/docs/process/fix-qa4.md
++++ b/docs/process/fix-qa4.md
+@@ -1,18 +1,18 @@
+ # Process log: fix-qa4
+ 
+ ## State
+-- **Done:** D-52, D-49, D-50, D-48 and D-47 fixed, with numbers before and after (§5). Unit tests: test/fix-qa4.test.js,
+-  12 of 14 red on the base (2 guards). The e2e group: test/e2e/fix-qa4.e2e.js, registered in scripts/e2e.js. The
+-  CONTRACT section, screenshots before and after (docs/screenshots/fix-qa4/, shrunk), this log.
+-  - Gate at 6a9ddc0: the clean `npm test` 0 fail; e2e fix-qa4 42/42; QA round 4 8/9 (D-51 is fix-viz-5's); the related
+-    groups 145/147 (T21 passes alone; 1 skip on the base too); the phone smoke 95/95.
+-  - Sent to the lead: 6a9ddc0. The final SHA is in §7.
+-- **In progress:** none. The lead integrates this series (11a107a onward) in the next batch. That batch's full e2e gate on
+-  the lead's head is this lane's full run, so the lane runs no full e2e of its own (the lead, 2026-10-17: two full suites
+-  at once double the load).
+-- **Next step:** at integration, check against fix-viz-5. It also changes public/features/shared.js (`notBasePay`, used
+-  by every median) and the drawer's notes. This lane changed shared.js only at `payRank` and the new `rankText`, and
+-  app.js only at the rank line, `compstimateBlock` and `renderViz`'s empty states.
++- **Done, round 1 (2026-10-17):** D-52, D-49, D-50, D-48 and D-47, with numbers before and after (§5); unit tests
++  (test/fix-qa4.test.js), the e2e group (test/e2e/fix-qa4.e2e.js), the CONTRACT section, screenshots. Series
++  11a107a..dcebc6a, gated at 6a9ddc0, sent to the lead and in its integration branch.
++- **Done, round 2 (2026-10-23, after the weekly limit):** UX-51 (shift pay labelled on the card, its tip, the drawer
++  heading and the CSV), MR-35 (the stated base keeps its cents) and UX-50 (the company beside its dot under Group by
++  Company). Commits 6185ba3 (fixes and tests), 40a11f2 (MR-35 marked fixed), 15edb5c (salary-audit's lifted helpers).
++  - Red first: 4 unit tests and 21 e2e checks fail on dcebc6a, and MR-35's test fails there once it is a plain test.
++  - Gate at 15edb5c: clean `npm test` 1,204 pass, 0 fail. The e2e and the phone smoke on 6185ba3's build: §5.
++- **In progress:** the e2e groups (fix-qa4 per size, the card, the drawer, fix-phone-text, google-grouping) and the
++  phone smoke, one at a time, while the lead's gate also runs.
++- **Next step:** send the lead the SHAs. At integration: test/beta-methodology-2.test.js `FIXED` gains MR-35, and the
++  methodology lane starting now edits the same line; test/salary-audit.test.js `CARD_IF_PRESENT` gains the shift helpers.
+ 
+ ## 1. Brief
+ - **Prompt:** [prompts/fix-qa4.md](prompts/fix-qa4.md), verbatim.
+@@ -165,6 +165,27 @@ Numbers are from the 2026-10-16 crawl. "Before" is eccdca9 (1ef0646's code) on i
+ | D-48 amazon:10389713 ($229K–309K, 45 roles above) | "The highest pay of Amazon’s roles in the US" | "In the top 1% of Amazon’s roles in the US" |
+ | D-47 `#c=tesla` after Netflix; Apple failing after Google | the previous chart drawn, faded, behind the message, in the accessibility tree | `#chartHost` and `#mapHost` hidden; back on Netflix the chart is drawn again |
+ 
++**UX-51, MR-35 and UX-50** (2026-10-23; before is dcebc6a's build, after is 6185ba3's):
++
++| Finding | Before | After |
++|---|---|---|
++| UX-51 amazon:10409027 (posted $19.70 an hour including the top shift differential; "Pay starts at $18.05 per hour") | card "$19.70/hour", tip "Part-time, paid by the hour: $19.70 an hour (…)", no label | "$18.05–19.70/hour", "with top shift pay" under it; tip "Part-time, paid by the hour. The posted rate includes the highest shift differential. Base pay starts at $18.05/hour."; drawer heading "$18.05–19.70 an hour" |
++| UX-51 amazon:10389108 (one posted rate, no base) | "$21.05/hour" | "up to $21.05/hour", "with top shift pay" |
++| UX-51 Amazon's 636 shift-pay cards (`ux51count.mjs`) | no label on any card | 63 from the stated base, 191 "up to" one figure, 377 posted ranges as posted (all 631 with "with top shift pay"); the 5 with ranges per place keep their span and "N ranges", and their tip says it |
++| UX-51 the CSV (Amazon) | 254 shift rows' `salary_min` not the card's (191 one figure written twice, 63 without the stated base) | the card's: `salary_min` empty for "up to", the stated base for the 63; rows whose numbers changed since 1ef0646: 2,486 to 2,740 |
++| MR-35 the stated base in the tip and the pay block's Details | "Base pay starts at $18/hour" | "Base pay starts at $18.05/hour" |
++| UX-50 Google, Group by Company: the dot's colour and the name beside it | YouTube orange beside "User Experience and Design"; Google blue beside "No department" | "YouTube · User Experience and Design", "Google · No department"; grouped by department, the card names the department alone, as before |
++
++Tests (2026-10-23):
++- test/fix-qa4.test.js: 4 new tests (UX-51 ×3, UX-50), all red on dcebc6a (`<scratch>/fqa4/base2`), green on 6185ba3. 18 of 18 pass.
++- test/beta-methodology-2.test.js MR-35 is a plain test (`FIXED`): red on dcebc6a (the clean checkout), green on 6185ba3.
++- test/e2e/fix-qa4.e2e.js: 21 new checks ([UX-51] on the desktop, [UX-50], and [UX-51] at each of the 19 sizes): 21 of 21
++  red on dcebc6a's build, for the reasons in their titles (the pill read "$19.70/hour" and "$21.05/hour", no line under
++  it, no shift note in the tip; Google's cards named the department beside the company's dot).
++- test/salary-audit.test.js lifts payPill from app.js with its helpers; it now lifts `shiftRange` and the shift text too
++  (15edb5c). The first clean `npm test` at 40a11f2 failed its SA-1 and SA-6 ("shiftRange is not defined").
++- Clean `npm test` at 15edb5c: 1,256 tests, 1,204 pass, 0 fail.
++
+ **Compstimate backtest** (seeded, 500 postings, `dedupe: "role"`; median error, within 10%), from the build lines:
+ 
+ | Board | Before | After |
+-- 
+2.43.0
+

@@ -1,7 +1,7 @@
 From 9a440ea940f519e43d32ee789ace4d75115f53f5 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 13:55:04 +0000
-Subject: [PATCH 51/63] WIP qa-desktop-beta-4: D-51 Ranges legend test and
+Subject: [PATCH 51/81] WIP qa-desktop-beta-4: D-51 Ranges legend test and
  screenshot
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

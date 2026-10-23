@@ -1,0 +1,40 @@
+From c804d646113a4f346006bcf2afc182e5d7b92712 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 15:09:39 +0000
+Subject: [PATCH 15/16] qa-suite-beta: log State
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/qa-suite-beta.md | 14 +++++++++-----
+ 1 file changed, 9 insertions(+), 5 deletions(-)
+
+diff --git a/docs/process/qa-suite-beta.md b/docs/process/qa-suite-beta.md
+index 8aed280..ddf2372 100644
+--- a/docs/process/qa-suite-beta.md
++++ b/docs/process/qa-suite-beta.md
+@@ -8,12 +8,16 @@
+   - **T-12, the browser "crash": root cause found and reproduced.** The e2e process gets a signal (SIGTERM or
+     SIGHUP), Playwright closes Chromium and the run carries on (§7). The fix is the core of the runner patch;
+   - new files:
+-    - `test/beta-coverage.test.js`: 10 guards, 7 [T-n] to-dos and 1 real-data check;
+-    - `test/e2e/beta-coverage.e2e.js`: 6 desktop tests, 1 per board and 1 per phone size, registered in
++    - `test/beta-coverage.test.js`, 14 tests: 7 guards, 6 [T-n] to-dos and 1 real-data check. In CI: 7 pass,
++      2 skipped, 5 to-dos, 0 fail;
++    - `test/e2e/beta-coverage.e2e.js`, 34 tests: 6 desktop tests, 7 per board and 21 per phone size, registered in
+       scripts/e2e.js;
+-  - the patches in `docs/process/patches/qa-suite-beta-*.diff`, §11: the runner (signals, --shard, --list,
+-    --max-skips, failure durations, links registered), T-1, T-4, five flake fixes and the CI workflow (in
+-    `<scratch>/qa-suite-beta/patchwt`, to be written out).
++  - the 12 patches in `docs/process/patches/qa-suite-beta-*.diff` (§11):
++    - the runner: signals, --shard, --list, --max-skips, failure durations, links registered;
++    - T-1, T-4 and T-11 (state waits: the same results, 44% less time);
++    - six flake fixes;
++    - the CI workflow;
++  - on the lead's 5c0cda3 build, with the runner and T-1 patches: my group plus the three T-1 groups pass 75/75;
+   - the coverage group: 28/30 on its third run, and both failures were my test's own wait (fixed);
+   - the stress runs: originals fail every run, patched 0 of 9;
+   - a with-data `npm test` (`runs/unit-data-1`, 271 s, load 11–17): 1,262 tests, 1 fail (my own guard, fixed), and
+-- 
+2.43.0
+

@@ -1,0 +1,324 @@
+From ca88310e65804bcda9c83b6e4b6a7328e3cf18fd Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 13:58:05 +0000
+Subject: [PATCH 73/81] fix-mr-3: review logs mark MR-21, MR-22, MR-26, MR-29,
+ MR-33, MR-37, MR-38, MR-39, MR-40, MR-41 fixed; process log
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/CONTRACT.md                          |   2 +-
+ docs/DATA_SOURCES.md                      |   2 +-
+ docs/METHODOLOGY_GUIDE.md                 |   2 +-
+ docs/process/fix-mr-3.md                  | 148 ++++++++++++++++++++--
+ docs/process/methodology-review-beta-2.md |  12 +-
+ docs/process/methodology-review-beta.md   |   2 +
+ 6 files changed, 151 insertions(+), 17 deletions(-)
+
+diff --git a/docs/CONTRACT.md b/docs/CONTRACT.md
+index d1d0e85..492fd36 100644
+--- a/docs/CONTRACT.md
++++ b/docs/CONTRACT.md
+@@ -1013,7 +1013,7 @@ unchanged: `salary.min/max` stay annualized.
+ - The pay block shows it as posted ("$6,688–10,800 a month", "USD · length not stated", "Fixed-term pay, not a yearly salary";
+   hourly: "Paid by the hour"); the card has no term tag for it; the Juice block shows Monthly only (no period toggle) and says why.
+ - `approxLine(job, own, fullTime)` (MR-33): the drawer's "≈ … in US dollars" line converts fixed-term pay at its posted interval
+-  ("≈ $5,686–6,000 a month", "≈ $78K a year", "≈ $15K for the whole term"); "in US dollars" is hidden while the line would wrap
++  ("≈ $6,025 a month" for amazon:10544548's €5,233 a month, "≈ $78K a year", "≈ $15K for the whole term"); "in US dollars" is hidden while the line would wrap
+   (`dropWhenWrapped`), and the tip keeps it.
+ - `annualNote` (MR-37): a stated yearly figure (`salary.statedAnnual`) reads "Stated as a yearly figure"; its Details quote the
+   posting and its payments a year ("paid as 14 monthly payments of €3,358.33, not 12").
+diff --git a/docs/DATA_SOURCES.md b/docs/DATA_SOURCES.md
+index 7ee6576..5437e5a 100644
+--- a/docs/DATA_SOURCES.md
++++ b/docs/DATA_SOURCES.md
+@@ -264,7 +264,7 @@ pay table). Every result then passes the vetting gate (`server/vet.js`); see
+ | **Every posted row is kept** (norm-11, [salary-audit-backend](process/salary-audit-backend.md)) | No cap on rows: Amazon's table and `salary.ranges` keep every posted row (SB-3; it was 12). A stored row that a trimmed description no longer shows is put back from `salary.ranges` (SB-1), and trimming keeps every pay-table row and the sentence above it (SB-2, VT-22). Amazon row names are matched to the posting's places, including "New York City", "N.Reading", "Westboro", "Hazle Township" and "San Franscisco" (SB-4). A posting that lists a Remote place keeps its "Virtual Location - <state>" rows, which are its remote pay (SB-6; DQ-41 still drops them when no place is remote). Microsoft's SF Bay Area / NYC range is kept as a second `salary.ranges` entry with its own places, and the headline stays the U.S. range (SB-5). **Lead decision (2026-10-16), applied since norm-12 ([fix-data-3](process/fix-data-3.md)):** a place the posting lists but prices with no row of its own gets no posted pay there: no Juice for that place, and it is never scored on another place's row. The card still shows the posting's range, and every row is kept. A row tied to no listed place (Amazon "San Francisco" on a posting that lists Austin, Seattle, Columbus and Herndon) prices nothing; it used to make every place score on the headline row. On the 2026-10-16 crawl this was 7 postings: Amazon 10434407 and 10572516 (Austin), 10543760 (Sunnyvale), 10579032 (East Palo Alto), 10580055 and 10580057 (Arlington, VA), and Apple 200679317-3337 (San Francisco Bay Area, whose second footer names no place). Applied by `server/juice.js` `postedPlaceSet` (Juice) and, in every other view (the chart, the map, the stats line, Compstimate, Insights and the drawer), by one helper, `payAt` in public/features/shared.js ([fix-pay-at-place](process/fix-pay-at-place.md); `postedPlaces` for `payLocations`). Virtual-location rows keep their state in their labels ("Remote (CA)") |
+ | **Several ranges by level** | Lowest listed min to highest listed max, with the levels named in `salary.text`: NVIDIA "168,000 USD - 264,500 USD for Level 4, and 196,000 USD - 310,500 USD for Level 5"; Microsoft "IC4: USD $119,800 - $234,700 per year; IC5: USD $142,800 - $274,800 per year". Each level's own range is kept in `salary.levels` (`[{ label: "Level 4", min, max }, …]`, annual, norm-7). The span is capped at 4× (the gate's ratio bound). Microsoft also prices one level per **country** ("across Ireland is €…", "across Germany is €…"). Those are not levels: the job's own country is used, and countries are never mixed |
+ | **One line per country** (Google) | "US: $171000 - $247000 (USD) + 20% bonus target + equity + benefits", "Ireland: €142000 - €145000 (EUR) …": the line for the job's country, the US one when the job has a US location, else the line for its first location's country. Lines for different countries are never spanned; one country's degree lines are ("[Bachelor's degree] Poland: zł156000 (PLN)", "[Master's degree] …"), and since norm-11 each degree line is also kept as a level (`salary.levels`, SA-4: "Pay by level: Bachelor's degree CA$99K · Master's degree CA$102K"). The code in parentheses is the currency, so a Canadian line is CAD (norm-7, DQ-15, D-22) |
+-| **Fixed-term pay** (norm-8) | The programme's length is `salary.termWeeks` (information only). How the pay was stated decides what it is: a yearly rate on an internship (Google "Ireland: €72000 (EUR)" with "a minimum 13 week full-time internship", Microsoft "CAD $43,800 - CAD $50,000 per year" for a 6-month one; 27 postings on 2026-10-11) gets `originalInterval: "year"`; week, month or whole-term pay keeps its own interval. **No stated length** ([fix-mr-3](process/fix-mr-3.md), MR-38): an internship (level Intern: internships, fellowships, co-ops, residencies, apprenticeships, students) paid by the hour, day, week or month whose posting gives no length is fixed-term pay of unstated length (`public/features/shared.js` `isTermUnstated`, part of `isFixedTerm`): shown as posted ("$6,688–10,800 a month", "$27.00–29.00 an hour"), never as a yearly salary, with Juice per month only, and converted figures at the posted interval ("≈ $5,686–6,000 a month"). The salary itself is unchanged (still annualized, so the Intern comparisons are unchanged). On the 2026-10-16 crawl: Amazon 91 (58 monthly, 33 hourly), Meta 35, NVIDIA 34, Microsoft 14, Anduril 5 and Apple 1 (180, 111 of them with Juice; Amazon's other 2 of the review's 182 are part-time hourly pay, already shown at the hourly rate), and on the stable boards Palantir 35, Shield AI 6 and xAI 4. Every one is kept, with its pay |
++| **Fixed-term pay** (norm-8) | The programme's length is `salary.termWeeks` (information only). How the pay was stated decides what it is: a yearly rate on an internship (Google "Ireland: €72000 (EUR)" with "a minimum 13 week full-time internship", Microsoft "CAD $43,800 - CAD $50,000 per year" for a 6-month one; 27 postings on 2026-10-11) gets `originalInterval: "year"`; week, month or whole-term pay keeps its own interval. **No stated length** ([fix-mr-3](process/fix-mr-3.md), MR-38): an internship (level Intern: internships, fellowships, co-ops, residencies, apprenticeships, students) paid by the hour, day, week or month whose posting gives no length is fixed-term pay of unstated length (`public/features/shared.js` `isTermUnstated`, part of `isFixedTerm`): shown as posted ("$6,688–10,800 a month", "$27.00–29.00 an hour"), never as a yearly salary, with Juice per month only, and converted figures at the posted interval ("≈ $6,025 a month"). The salary itself is unchanged (still annualized, so the Intern comparisons are unchanged). On the 2026-10-16 crawl: Amazon 91 (58 monthly, 33 hourly), Meta 35, NVIDIA 34, Microsoft 14, Anduril 5 and Apple 1 (180, 111 of them with Juice; Amazon's other 2 of the review's 182 are part-time hourly pay, already shown at the hourly rate), and on the stable boards Palantir 35, Shield AI 6 and xAI 4. Every one is kept, with its pay |
+ | **Part-time hourly pay** (norm-8) | Apple's part-time retail roles ("$22.00 and $28.88/hr", 52 postings) get `salary.partTime: true`; the yearly figure is the 2,080-hour equivalent, and Juice needs the posting's stated weekly hours ("work 16 hours per week", 1 posting) |
+ | **Not base pay in comparisons** (MR-28, [fix-data-3](process/fix-data-3.md)) | Three posted figures are shown as posted but are not a posted base-pay range, so the market comparisons (`api/market.json`: Same role elsewhere, Compare companies) leave them out of every cell and count them on the company's entry instead: a stated minimum (`salary.kind: 'minimum'`, `minimum`), an hourly figure that includes the highest shift differential (`includesShiftDifferential`, `shiftPay`), and part-time hourly pay at 2,080 hours (`partTime`). `scripts/build-market.js` `notBasePay`. Juice still starts from the posted figure, and the drawer's Juice block says so in one line: "Gross pay is the posted minimum." or "Gross pay includes top shift pay." |
+ | **The pay line's country** (norm-8) | The country a Google line or a Microsoft national range names is `salary.country`; Juice is never worked out for another country's office from it. Since norm-9 also NVIDIA's "Italy: The base salary range is …" and "For Poland: …" sentences (VT-6), and the places the pay applies to (`payLocations`: map, Location filter, comparisons) are only that country's (VT-5) |
+diff --git a/docs/METHODOLOGY_GUIDE.md b/docs/METHODOLOGY_GUIDE.md
+index 3970579..32d344d 100644
+--- a/docs/METHODOLOGY_GUIDE.md
++++ b/docs/METHODOLOGY_GUIDE.md
+@@ -149,7 +149,7 @@ Every $100 a month less than our figure adds $1,200 a year to Juice left, and ev
+ 
+ ### How is the posted pay read?
+ 
+-From the posting itself, or from the careers site's own pay field where there is one. Only base pay counts: a range that includes bonus, commission or equity is shown as such or left out. When a posting gives a range per level (Microsoft's "IC4" and "IC5", NVIDIA's "Level 4" and "Level 5", the company's own level names), the drawer lists each level's range under **Pay by level**, the card says "· 2 levels", and the headline range runs from the lowest to the highest. When it gives a range for each place (Amazon's pay table, Apple's and Microsoft's ranges for some areas), the drawer lists each place's own range under **Pay by place** and the card says "· N places". A posting that states only a minimum shows it as "from €46K"; an hourly rate that includes the highest shift differential says so ("Incl. top shift pay"), with the stated base beside it when the posting gives one; where a posting states a yearly figure (Austria's minimum, paid in 14 instalments) that figure is used, and the drawer says "Stated as a yearly figure" and quotes the posting. An internship's pay per hour, week or month is shown as posted, also when the posting doesn't say how long the internship lasts; it is never turned into a yearly salary, and a converted figure ("≈ $5,686–6,000 a month") is converted at the same interval. The headline median (the stats line over the chart, and Insights' median and middle half) compares one country's pay, as the chart's rows do: when the roles in view are paid in more than one currency, it is the median of the main one ("base pay median in the US"), and the rest are counted, not pooled. Part-time hourly pay is also shown as a full-time year of 2,080 hours, for comparison only.
++From the posting itself, or from the careers site's own pay field where there is one. Only base pay counts: a range that includes bonus, commission or equity is shown as such or left out. When a posting gives a range per level (Microsoft's "IC4" and "IC5", NVIDIA's "Level 4" and "Level 5", the company's own level names), the drawer lists each level's range under **Pay by level**, the card says "· 2 levels", and the headline range runs from the lowest to the highest. When it gives a range for each place (Amazon's pay table, Apple's and Microsoft's ranges for some areas), the drawer lists each place's own range under **Pay by place** and the card says "· N places". A posting that states only a minimum shows it as "from €46K"; an hourly rate that includes the highest shift differential says so ("Incl. top shift pay"), with the stated base beside it when the posting gives one; where a posting states a yearly figure (Austria's minimum, paid in 14 instalments) that figure is used, and the drawer says "Stated as a yearly figure" and quotes the posting. An internship's pay per hour, week or month is shown as posted, also when the posting doesn't say how long the internship lasts; it is never turned into a yearly salary, and a converted figure ("≈ $6,025 a month") is converted at the same interval. The headline median (the stats line over the chart, and Insights' median and middle half) compares one country's pay, as the chart's rows do: when the roles in view are paid in more than one currency, it is the median of the main one ("base pay median in the US"), and the rest are counted, not pooled. Part-time hourly pay is also shown as a full-time year of 2,080 hours, for comparison only.
+ 
+ ### How are levels read?
+ 
+diff --git a/docs/process/fix-mr-3.md b/docs/process/fix-mr-3.md
+index 69cd1f2..727e08b 100644
+--- a/docs/process/fix-mr-3.md
++++ b/docs/process/fix-mr-3.md
+@@ -1,30 +1,154 @@
+ # Process log: fix-mr-3 (methodology and data engineer, fix wave 5)
+ 
+ ## State
+-- 2026-10-23 13:25 UTC: started. Base: origin/claude/stoic-ride-54ddxp at 05263e8 (detached).
+-- Done: brief saved (d8818ca); data linked (not committed); first build of the base made (dist/).
+-- In progress: red tests per ID (test/fix-mr-3.test.js).
+-- Next: fixes in this order: MR-21/MR-22, MR-26, MR-41, MR-40, MR-38/MR-33, MR-37, MR-29, MR-39; then the e2e file and the docs.
++- 2026-10-23 14:00 UTC: **all ten IDs fixed and tested in the worktree**; e2e at every phone size in progress; then the related
++  e2e groups, the before-build check of the e2e tests, and the report to the lead.
++- Base: origin/claude/stoic-ride-54ddxp at 05263e8 (detached). Not yet rebased onto fix wave 5's last batch (the lead says when).
++- Commits (worktree only, never pushed), oldest first: d8818ca brief, 7bded6c log, 7297ce7 red tests, 62899e8 MR-21/MR-22,
++  055fa0f MR-26, c59177f MR-41, ff2b272 MR-40 (norm-13), 99d5640 MR-38/MR-33/MR-37/MR-29/MR-39, e598d8a refresh fixtures at norm-13,
++  9054eae e2e, docs and the chart patch, then the review-log and log commits.
++- Not committed: the data links data/snapshots and data/beta/snapshots, and the node_modules link.
++- For the lead: `docs/process/patches/fix-mr-3-chart-caption.diff` (MR-39's chart caption, fix-viz-5's file). Two one-token edits
++  in other lanes' code: `postedTerm(s, job)` in `payPill` (fix-qa4's pill) and `isTermUnstated` passed to
++  test/fix-pay-at-place.test.js's lifted app functions.
+ 
+ ## 1. Brief
+ - **Prompt:** [prompts/fix-mr-3.md](prompts/fix-mr-3.md), verbatim.
+-- **Goal:** fix MR-21, MR-22, MR-26, MR-29 (the UI half), MR-33, MR-37, MR-38, MR-39, MR-40 and MR-41
+-  ([methodology-review-beta-2](methodology-review-beta-2.md), [methodology-review-beta](methodology-review-beta.md)), keeping every
+-  posting and pay row, with a red test per ID first.
+-- **Files owned:** server/salary.js and server/normalize.js (fixed-term pay), server/geo.js (gazetteer),
+-  scripts/build-market.js (fx.source), scripts/refresh/registry.js, the freshness rule for MR-26, in public/app.js the drawer's
+-  converted-pay and "As posted" lines, the stats line's median basis and the Mid chip's tip, public/features/insights.js (the
+-  tiles' basis), test/fix-mr-3.test.js, test/e2e/fix-mr-3.e2e.js, this log and the prompt file.
++- **Goal:** fix MR-21, MR-22 ([methodology-review-beta](methodology-review-beta.md)) and MR-26, MR-29 (the UI half), MR-33, MR-37,
++  MR-38, MR-39, MR-40 and MR-41 ([methodology-review-beta-2](methodology-review-beta-2.md)), a red test per ID first, keeping every
++  posting and pay row ("we must present them as they are and not cut anything"), pay as posted, every line one line at every
++  phone size.
++- **Files owned:** server/salary.js and server/normalize.js (fixed-term pay), server/geo.js (gazetteer), scripts/build-market.js
++  (fx.source), scripts/refresh/registry.js, the freshness rule for MR-26, in public/app.js the drawer's converted-pay and "As
++  posted" lines, the stats line's median basis and the Mid chip's tip, public/features/insights.js (the tiles' basis),
++  test/fix-mr-3.test.js, test/e2e/fix-mr-3.e2e.js, this log and the prompt file.
+ 
+ ## 2. Inputs and sources
++- **Docs read:** docs/CONTRACT.md (all sections from fix wave 4 on), docs/DATA_SOURCES.md §7 and §7a, the two review logs (MR-21,
++  MR-22, MR-23 to MR-42), PLAYBOOK "Checkpoints" (step 6) and "Known traps", TEMPLATE.md, METHODOLOGY_GUIDE.md §1, §5, §7, §8,
++  LIVABILITY.md's attachJuice rules, lead.md "Fix wave 5 integrated".
++- **Code read:** public/app.js (postedTerm, payPill, cardTerm, payUnit, annualNote, drawerContent, juiceBlock, salaryDistribution,
++  stats, renderKpis, SEN_TIP), public/features/shared.js (isFixedTerm, isInternLike, payCountry), public/features/insights.js
++  (summaryStats, the tiles, update), public/viz/chart.js (payBasis, mainBasis, basisStats, the caption), public/viz/note.js,
++  server/salary.js (payTerms, isFixedTermRole, PAY_AREAS, payAreaOf), server/geo.js (CITIES_RAW, splitCommaGroups, pickCity,
++  resolvePlaceIn, resolvePlaceTokens, locationPrecision), server/keywords.js (the ladders), server/juice.js (attachJuice,
++  matchCity), scripts/methodology-figures.js, scripts/refresh/{lib,run,derived,registry}.js, test/e2e/fix-phone-text.e2e.js
++  (scanText, CAPTION_SEL), test/e2e/phone-sizes.mjs.
++- **Data:** the 2026-10-16 crawl (Amazon 22,179, Apple 4,851, Google 3,821, NVIDIA 2,711, Microsoft 2,435, Meta 1,208, Netflix 414;
++  stable 5,522), linked from `scratchpad/wt-data2/data`.
++- **Skills:** none loaded (no artifact or chart made).
++- **External:** none. Town coordinates are the towns' centres (the usual gazetteer form), each checked against its distance from
++  Manhattan; the four borderline ones (Darien 59 km, East Northport 58 km, Freehold 57 km, Bridgewater 54 km) are kept in the area
++  by about 1 km or more.
+ 
+ ## 3. Decisions and rationale
++1. **MR-38 is a client rule, not a normalizer field.** The review's own test asks `isFixedTerm(job)` to know an internship from its
++   level and posted interval, with no new field. One rule in `shared.js` (`isTermUnstated`: level Intern, paid per hour, day, week
++   or month, no `termWeeks`, no stipend, not part-time) keeps the server's salary unchanged (still annualized), so the market
++   cells, Compstimate's Intern pools, the chart and the CSVs are unchanged, and no golden hash moves for it. A server flag would be
++   a second rule that could disagree with this one.
++   - Part-time hourly interns (Amazon 2) keep the part-time rule, which already shows the hourly rate.
++   - Fixed-term pay of unstated length is out of the drawer's rank and strip pools, as any fixed-term pay is (`isTerm`).
++   - Juice: the score is the same as before (as for a known term, worked out as if the pay lasted a year); the drawer shows it per
++     month "while it lasts", with no Yearly or Whole-term view, since there is no whole term. The card's Juice tip already says
++     "(while the internship lasts)" for any term.
++   - The card has no term tag for it ("Internship, length not stated" would crowd the card; the pill says "/month" and the level
++     chip "Intern").
++2. **MR-33's line.** "≈ $6,025 a month in US dollars at Sep 2026 rates" for €5,233 a month; hourly keeps cents, a week or month
++   whole dollars, a yearly rate for a term says "a year", whole-term pay "for the whole term". Where the line would wrap,
++   "in US dollars" is hidden (`dropWhenWrapped`, a ResizeObserver like note.js `fitLine`) and stays in the tip, so it is one line
++   on every phone from 320 px up.
++3. **MR-37.** One visible line, "Stated as a yearly figure"; the Details quote the posting and the payments ("paid as 14 monthly
++   payments of €3,358.33, not 12"; a row that doesn't divide evenly, 13.69 payments, says "about 13.7").
++4. **MR-39: compute per main currency, as the rows do.** The review offered "say it pools countries" or "use one country". The rows
++   (V-21), the drawer's strip (BP-3) and the market cells already compare one country, so the headline does too: with pay in two
++   or more currencies in view, the median is the most common currency's (`mainPayCurrency`, USD on a tie), and the line says where
++   ("in the US"). With one currency nothing changes. The pay share still counts every country. The chart caption is fix-viz-5's:
++   a patch, not a change.
++5. **MR-29.** The one sentence goes in the stats line's Details, which are also the chart notes' Details (UX-57): one place, no new
++   control, on boards whose departments are read from titles (Google).
++6. **MR-41.** No numeral is Mid on every board (Amazon III Senior, Google II Entry), so the tip uses the board's own example; "L4"
++   alone would hold everywhere but is not what Google or Amazon titles say. The test reads each example through `jobSeniority`
++   and refuses the "Level not stated" default.
++7. **MR-40: the towns, and how they are read.** All 43 NY, NJ and CT towns of the crawl within about 80 km of Manhattan that sat at
++   their state's centre, not only Microsoft's 4 (the area rule is distance, so every listed town should be at its place). Towns
++   beyond 80 km (Trenton, Philadelphia's suburbs, Poughkeepsie) are left: they are outside the area either way. A plain gazetteer
++   entry would have changed other strings ("Greenwich, London, United Kingdom" split into Greenwich, CT and London; a bare
++   "Oceanside"; "Edison, United States"), so these are `?` entries, read only with their own state named. Over every location
++   string of the crawl (67,372 in 43,141 postings) the change is exactly 43 results in 101 postings, latitude and longitude only.
++   The Bay Area has the same kind of gap (East Palo Alto 80 Amazon postings, Burlingame 71 Meta, Brisbane, Hayward, Newark CA, …)
++   but no Microsoft posting there, so it is a follow-up, not done here.
++8. **norm-13, once.** The gazetteer change is a normalizer output change (geocodeMany), so stored norm-12 snapshots must be
++   re-geocoded once. The golden file was re-baselined with `UPDATE_GOLDEN=1`: **0 of the 300 hashes changed** (the sample is the
++   stable boards, none in these towns), version and history only. The refresh fixtures were regenerated with their own
++   make-fixtures.mjs (test/refresh-jobs.test.js failed at norm-12: an older version re-derives the doctored keywords).
++9. **MR-26: one rule in lib.js.** run.js already treated daily entries as pipeline data; the sources table and api/freshness.json
++   did not. `shownOverdue` is that rule for every surface.
++10. **Registry.** Only the values my fixes move: geo-gazetteer is 384 cities (and its note). The 47 pending `--lines` moves of other
++    lanes are left to the lead's batch resync (PLAYBOOK Stage 3).
+ 
+ ## 4. Replayable steps
++```sh
++S=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad
++git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp     # 05263e8
++ln -s $S/wt-data2/data/snapshots data/snapshots; mkdir -p data/beta; ln -s $S/wt-data2/data/beta/snapshots data/beta/snapshots
++ln -s /home/user/melon-seek/node_modules node_modules
++node scripts/build-static.js                                   # 7 min at load 6-19; beta 7/7
++node $S/fmr3/tools/count.mjs $S/fmr3/before-counts.json         # per board, from the served lists with Juice attached
++node $S/fmr3/tools/centroids.mjs NY,NJ,CT,PA                    # towns at their state's centre (MR-40); CA for the Bay Area
++# fixes (see the commits), then:
++node $S/fmr3/tools/geodiff.mjs                                  # every location string, base geo.js vs new: 43 results, 101 jobs
++UPDATE_GOLDEN=1 GOLDEN_REASON="norm-13 fix-mr-3 (MR-40 ...)" node --test test/golden-normalize.test.js
++node test/fixtures/refresh/jobs/make-fixtures.mjs
++node $S/fmr3/tools/registry-edit.mjs mr40 && node scripts/refresh/registry.js --check && node scripts/refresh/registry.js --docs --write
++node scripts/build-static.js && node $S/fmr3/tools/count.mjs $S/fmr3/after-counts.json && node $S/fmr3/tools/compare.mjs $S/fmr3/before-counts.json $S/fmr3/after-counts.json
++node $S/fmr3/tools/count38.mjs                                  # MR-38 after, per board
++git worktree add --detach $S/fmr3/clean HEAD; ln -s /home/user/melon-seek/node_modules $S/fmr3/clean/node_modules
++(cd $S/fmr3/clean && MELON_BETA_SNAPSHOT_DIR= timeout 1200 npm test)
++NODE_PATH=$S/pw/node_modules node scripts/e2e.js --grep="fix-mr-3"
++```
+ 
+ ## 5. Verification
++- **Node tests:** test/fix-mr-3.test.js 18 tests; the reviewers' to-dos for my IDs are plain tests (beta-methodology-2: MR-26,
++  MR-29 ×3, MR-33, MR-37, MR-38, MR-40, MR-41 ×2; beta-methodology: MR-21, MR-22). On 05263e8 these fail: 10 failures in the
++  three files (7297ce7).
++- **npm test, CI-like** (clean checkout, no data links), at 99d5640: 1,259 tests, 1 fail (test/refresh-jobs.test.js, fixtures at
++  norm-12: fixed in e598d8a, 14/14 pass); the final run is below.
++- **Before and after, per board** (served lists, Juice attached; the beta site, which includes the stable boards):
++
++  | Board | Postings | With pay | Pay rows | Places | With Juice | Internships of unstated length (Juice) |
++  |---|---:|---:|---:|---:|---:|---|
++  | Amazon | 22,179 | 13,980 | 16,831 | 34,138 | 9,819 | 0 → 91 (26), and 2 part-time hourly left as they were |
++  | Meta | 1,208 | 948 | 948 | 2,937 | 897 | 0 → 35 (35) |
++  | NVIDIA | 2,711 | 1,462 | 1,462 | 4,640 | 1,383 | 0 → 34 (34) |
++  | Microsoft | 2,435 | 1,566 | **1,821 → 1,822** | 3,973 | 1,166 | 0 → 14 (12) |
++  | Apple | 4,851 | 2,781 | 3,197 | 6,080 | 2,703 | 0 → 1 (1) |
++  | Anduril | 2,537 | 2,388 | 2,388 | 3,430 | 2,070 | 0 → 5 (3) |
++  | Palantir | 309 | 241 | 241 | 309 | 223 | 0 → 35 (33) |
++  | Shield AI | 619 | 492 | 492 | 980 | 452 | 0 → 6 (6) |
++  | xAI | 304 | 123 | 123 | 537 | 95 | 0 → 4 (4) |
++  | Google, Netflix, Anthropic, OpenAI, Scale AI, Cohere | unchanged | unchanged | unchanged | unchanged | unchanged | 0 |
++
++  **Nothing dropped:** every board's postings, postings with pay, places and Juice counts are equal before and after. The one
++  pay-row change is a row added: microsoft:1970393556978017 (Philadelphia and Bridgewater) now keeps its posted NYC-metro range
++  for Bridgewater beside the U.S. range (SB-5). Fixed-term postings by `isFixedTerm`: Amazon 3 → 94, Meta 10 → 45, NVIDIA 14 → 48,
++  Microsoft 18 → 32, Anduril 22 → 27, Apple 0 → 1, Palantir 1 → 36, Shield AI 0 → 6, xAI 0 → 4.
++- **MR-39 numbers:** Amazon's headline median $141K of 13,980 (803 converted) → $149K of the 13,177 paid in the US; the middle half
++  $93K–175K → $96K–175K. Boards whose pay is in one currency keep their line.
++- **MR-40:** Microsoft's Garden City (3), Fort Lee (1), Paramus (1) and Bridgewater (4) places move from the U.S. row to the
++  NYC-metro row; e.g. microsoft:1970393556650765 "Pay by place: Redmond, Boston $102K–235K · Garden City, Mountain View, San
++  Francisco $134K–261K".
++- **e2e (test/e2e/fix-mr-3.e2e.js):** the 11 ID tests pass on the fixed build; the phone results are below.
+ 
+ ## 6. Known gaps and follow-ups
++- The chart caption (fix-viz-5's file) still pools countries until the lead applies `patches/fix-mr-3-chart-caption.diff`.
++- Bay Area towns at California's centre (East Palo Alto 80, Burlingame 71, Brisbane 8, Hayward 7, Newark 7, …): the same kind of
++  gap as MR-40, with no Microsoft posting there today.
++- MR-35 (the shift tip's cents) is fix-qa4's and stays a to-do.
+ 
+ ## 7. Change log
+-- 2026-10-23 13:13: checked out 05263e8, saved the brief, linked the 2026-10-16 crawl, built the base.
++- 2026-10-23 13:13: checked out 05263e8, saved the brief, linked the 2026-10-16 crawl, built the base, counted the cases.
++- 13:25–13:30: red tests (10 failures), then MR-21/MR-22, MR-26, MR-41.
++- 13:30–13:40: MR-40 (43 towns, `?` entries after "Greenwich, London" split), norm-13, golden re-baselined (0 of 300 changed).
++- 13:40–13:46: MR-38/MR-33, MR-37, MR-29, MR-39 in the app and Insights; CI-like npm test; the refresh fixtures at norm-13.
++- 13:46–14:00: rebuilt, counted after, wrote the e2e file, the docs, the chart patch and the review-log statuses.
+diff --git a/docs/process/methodology-review-beta-2.md b/docs/process/methodology-review-beta-2.md
+index 6d89c74..4c6c790 100644
+--- a/docs/process/methodology-review-beta-2.md
++++ b/docs/process/methodology-review-beta-2.md
+@@ -218,6 +218,7 @@ None of these is named in `data/freshness.json`:
+ - **Tests:** MR-25 ×5.
+ 
+ ### MR-26 (Medium): the methodology table says the job postings are "update due" on the day they were read
++- **Status: fixed** by [fix-mr-3](fix-mr-3.md) (2026-10-23, 055fa0f): `scripts/refresh/lib.js` `isPipelineEntry`/`shownOverdue`. A daily entry (the postings) is never "update due" on the page built from it, in the sources table, in `api/freshness.json` and in `run.js` alike; a monthly entry past due still is. The built tables read "The latest postings · Daily" on both sites. Tests: MR-26 (here, a plain test now) and test/fix-mr-3.test.js MR-26.
+ - **Where:** the beta methodology §7 table: "Gross pay … The latest postings · Daily · update due" (`beta-methodology-sources-table.png`). The page was built 7 hours after every board was read.
+ - **Why:**
+   - `scripts/methodology-figures.js:586` loadFigureInputs marks each entry `stale` from `staleness(e).overdue`, which uses the hand-set asOf (job-postings 2026-10-11 + 1 day + 2 days' grace).
+@@ -242,6 +243,7 @@ Quoted lines and their corrections (all in `methodology-review-beta-2-guide.diff
+ - **Tests:** MR-27 ×4.
+ 
+ ### MR-29 (Medium): Google's departments are read from titles, and the screen barely says so
++- **Status: fixed (UI half)** by [fix-mr-3](fix-mr-3.md) (2026-10-23, 99d5640): the stats line's Details, which are also the chart notes' Details (UX-57), say once on Google "Google doesn't publish departments, so its roles are grouped by what their titles say." No new visible control. The docs half was fixed by this review's patches. Tests: MR-29 ×3 (plain tests now), test/fix-mr-3.test.js MR-29, test/e2e/fix-mr-3.e2e.js [MR-29].
+ - **Where the note is shown:** "Grouped by job title: Google doesn't publish departments" (`public/app.js:528`) appears in two places only:
+   - a `<p>` at the bottom of the Department filter list, below the Company list and the 28 family rows, so below the fold on desktop (`beta-google-chart-departments.png`) and inside the Filters sheet on a phone;
+   - a hover `title` on the Group select (app.js:2974), which no tap reaches.
+@@ -282,6 +284,7 @@ Quoted lines and their corrections (all in `methodology-review-beta-2-guide.diff
+ - **Tests:** MR-30.
+ 
+ ### MR-33 (Medium): converted fixed-term pay shows the 12-month annualization with no "a year"
++- **Status: fixed** by [fix-mr-3](fix-mr-3.md) (2026-10-23, 99d5640): `public/app.js` `approxLine` converts fixed-term pay at its posted interval: amazon:10544548 "€5,233 a month · for about 10 weeks" over "≈ $72K in US dollars at Sep 2026 rates" now reads "≈ $6,025 a month in US dollars at Sep 2026 rates" (one line at 390 px; on a narrower phone "in US dollars" moves to the tip); a yearly rate for a term says "a year". Tests: MR-33 (plain), test/fix-mr-3.test.js MR-33, e2e [MR-33].
+ - **Where:** `public/app.js:3743`. The drawer's ≈ line prints `job._usd` (annualized) under pay shown per month for a term:
+   - "€5,233 a month · for about 10 weeks · Fixed-term pay, not a yearly salary · **≈ $72K in US dollars** at Jul 2026 rates" (amazon:10544548, `drawer-amazon-intern-monthly-minimum.png`);
+   - "€800 a month · for about 26 weeks · **≈ $11K**" (Microsoft Amsterdam intern, `drawer-microsoft-term-foreign.png`).
+@@ -300,6 +303,7 @@ Quoted lines and their corrections (all in `methodology-review-beta-2-guide.diff
+ - **Tests:** MR-34.
+ 
+ ### MR-38 (Medium): internships with no stated length are shown and scored as a yearly salary
++- **Status: fixed** by [fix-mr-3](fix-mr-3.md) (2026-10-23, 99d5640): `public/features/shared.js` `isTermUnstated` (part of `isFixedTerm`). 180 of the 182 (Amazon 91, Meta 35, NVIDIA 34, Microsoft 14, Anduril 5, Apple 1; Amazon's other 2 are part-time hourly pay, already shown hourly) and Palantir 35, Shield AI 6, xAI 4 are shown as posted ("$6,688–10,800 a month · USD · length not stated · Fixed-term pay, not a yearly salary"; hourly: "Paid by the hour"); the 111 with Juice show it per month only, "while it lasts". No posting, pay row or salary figure changed. Tests: MR-38 (plain), test/fix-mr-3.test.js MR-38 ×4, e2e [MR-38] ×3.
+ - **Scale:** 182 internships post monthly or hourly pay without a length: Amazon 93, Meta 35, NVIDIA 34, Microsoft 14, Anduril 5 and Apple 1.
+ - **Actual:** the drawer shows a salary and gives 111 of them a yearly Juice score.
+   - "$80K–130K · USD · per year · Annualized from monthly pay … Gross pay $104,900/yr … Juice 22 · Dry" for "$6,688/month to $10,800/month" (meta:1054006261009917, `drawer-meta-intern-monthly-no-term.png`).
+@@ -311,6 +315,7 @@ Quoted lines and their corrections (all in `methodology-review-beta-2-guide.diff
+ - **Tests:** MR-38.
+ 
+ ### MR-40 (Medium): NYC-metro towns at a state's centre get Microsoft's national range
++- **Status: fixed** by [fix-mr-3](fix-mr-3.md) (2026-10-23, ff2b272): 43 NY, NJ and CT towns within about 80 km of Manhattan are in the gazetteer (read only with their state named), norm-13. Garden City (3), Fort Lee (1), Paramus (1) and Bridgewater (4) Microsoft places are on the NYC-metro row now (microsoft:1970393556650765: "Garden City, Mountain View, San Francisco $134K–261K"). 101 postings' coordinates move; nothing else changes. Tests: MR-40 (plain), test/fix-mr-3.test.js MR-40 ×3, e2e [MR-40].
+ - **Why:** Microsoft's SF Bay Area / NYC range (SB-5) is assigned by distance (`server/salary.js:477` PAY_AREAS, 60 km from Manhattan). `server/geo.js` geocodes Garden City NY to 42.17,-74.95 (New York State's centre) and Fort Lee and Paramus NJ to 40.3,-74.52 (`locationPrecision`: 'centroid').
+ - **Effect:** 4 postings price those towns at the national range. Example: microsoft:1970393556650765, "Pay by place: Redmond, Garden City, Boston $102K–235K · Mountain View, San Francisco $134K–261K" (`drawer-microsoft-bay-nyc-range.png`). Its Garden City pay is the posting's NYC-metro range.
+ - **Fix:**
+@@ -320,6 +325,7 @@ Quoted lines and their corrections (all in `methodology-review-beta-2-guide.diff
+ - **Tests:** MR-40.
+ 
+ ### MR-41 (Medium): neither methodology page explains the level buckets or each company's ladder
++- **Status: fixed (the chip's tip)** by [fix-mr-3](fix-mr-3.md) (2026-10-23, c59177f): the Mid tip gives the board's own example (Google "III", Amazon "II", Microsoft "IC3", NVIDIA "Level 2", Netflix "L4", else "II" or "L4"), each read through `jobSeniority` in the test. The guide half was this review's patch. Tests: MR-41 ×2 (plain), test/fix-mr-3.test.js MR-41, e2e [MR-41].
+ - **Where the levels are used:** every card and drawer level chip, the Seniority filter, "Same role elsewhere … at Senior level", Compare companies' Level picker and Compstimate all use seven buckets. Each company's numbers map differently (server/keywords.js:1170–1241, 1296):
+   - Amazon "III" is Senior, but Google "III" is Mid;
+   - Microsoft IC4 is Senior, and M6 is Director+;
+@@ -365,12 +371,14 @@ Quoted lines and their corrections (all in `methodology-review-beta-2-guide.diff
+ - **Tests:** MR-36.
+ 
+ ### MR-37 (Low): Austria's annual figure has no "As posted" line
++- **Status: fixed** by [fix-mr-3](fix-mr-3.md) (2026-10-23, 99d5640): the pay block reads "Stated as a yearly figure", and its Details quote the posting and its payments ("… paid as 14 monthly payments of €3,358.33, not 12"; amazon:10557624's row is 13.69 payments and says so). Tests: MR-37 (plain), test/fix-mr-3.test.js MR-37, e2e [MR-37].
+ - **Where:** "from €47K · EUR · per year" for "The minimum basic salary for this position is EUR 47'000 gross annually", paid as 14 payments of €3,358.33 (amazon:10551812, `drawer-amazon-austria-annual.png`).
+ - **Actual:** the pay block's Details have no "As posted" line, though Poland's monthly minimum has one. The 14 payments are never mentioned, and `public/app.js` never reads `salary.statedAnnual`. The stored description lost its monthly row in trimming (a norm-9 snapshot).
+ - **Fix:** add "As posted: EUR 47'000 gross a year (14 monthly payments of €3,358.33)" from `statedAnnual`.
+ - **Tests:** MR-37.
+ 
+ ### MR-39 (Low): the headline median mixes countries without saying so
++- **Status: fixed** by [fix-mr-3](fix-mr-3.md) (2026-10-23, 99d5640): with pay in several currencies in view, the stats line's and Insights' median is the main currency's (the chart rows' rule) and says so: Amazon "$141K base pay median" (all 13,980, 803 converted) is "$149K base pay median in the US" (13,177), and the tiles read "of 13,177 in the US". The chart caption's change is a patch for fix-viz-5 (docs/process/patches/fix-mr-3-chart-caption.diff). Tests: test/fix-mr-3.test.js MR-39 ×3, e2e [MR-39] ×2.
+ - **Where:**
+   - the stats line "$141K base pay median" (Amazon);
+   - the chart caption "Median base pay $141K";
+@@ -388,8 +396,8 @@ Quoted lines and their corrections (all in `methodology-review-beta-2-guide.diff
+ 
+ ### Still open from round 2 (not re-filed)
+ - MR-4: exchange rates (see MR-23).
+-- MR-21: registry.js's usage header still has no `--docs`.
+-- MR-22: `scripts/build-market.js:200` still writes `fx.source: 'public/viz/palette.js FX_PER_USD'`.
++- MR-21: registry.js's usage header still has no `--docs`. Fixed by [fix-mr-3](fix-mr-3.md) (62899e8).
++- MR-22: `scripts/build-market.js:200` still writes `fx.source: 'public/viz/palette.js FX_PER_USD'`. Fixed by [fix-mr-3](fix-mr-3.md) (62899e8): `FX_SOURCE`.
+ 
+ Their to-dos in test/beta-methodology.test.js still fail.
+ 
+diff --git a/docs/process/methodology-review-beta.md b/docs/process/methodology-review-beta.md
+index 10781a1..519d212 100644
+--- a/docs/process/methodology-review-beta.md
++++ b/docs/process/methodology-review-beta.md
+@@ -265,9 +265,11 @@ Tests: MR-15 ×2.
+ - **Tests:** MR-20.
+ 
+ ### MR-21 (Low): registry.js's usage header leaves out a mode
++- **Status: fixed** by [fix-mr-3](fix-mr-3.md) (2026-10-23, 62899e8): the header lists `--docs [--write]`; test/fix-mr-3.test.js checks every mode `main()` runs.
+ `scripts/refresh/registry.js:3-15` lists `--check`, `--sync-tax`, `--merge`, `--lines` and `--summary`, but not `--docs` (l.345), which the PLAYBOOK tells the lead to run. Tests: MR-21.
+ 
+ ### MR-22 (Low): market.json names a code path as its FX source
++- **Status: fixed** by [fix-mr-3](fix-mr-3.md) (2026-10-23, 62899e8): `fx.source` is `palette.js FX_SOURCE`, the rates' own source.
+ `scripts/build-market.js:200` writes `fx: { asOf, source: 'public/viz/palette.js FX_PER_USD' }` into `beta/api/market.json`. It should be `FX_SOURCE`, the rate's real source name. Tests: MR-22.
+ 
+ ### Checked and fine
+-- 
+2.43.0
+

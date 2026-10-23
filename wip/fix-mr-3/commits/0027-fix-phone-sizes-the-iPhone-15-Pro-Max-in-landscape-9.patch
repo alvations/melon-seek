@@ -1,7 +1,7 @@
 From 3ed0d6272dac9c87aeba03c87f0568789b4905c3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 15:29:25 +0000
-Subject: [PATCH 27/63] fix-phone-sizes: the iPhone 15 Pro Max in landscape
+Subject: [PATCH 27/81] fix-phone-sizes: the iPhone 15 Pro Max in landscape
  (932x430) joins the phone sizes (mobile QA 4, M-52)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

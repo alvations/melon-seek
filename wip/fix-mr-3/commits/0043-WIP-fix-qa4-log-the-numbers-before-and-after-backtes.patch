@@ -1,7 +1,7 @@
 From 5cff46cc5a0fa8d00f3bd792acefe02700aa35b8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 15:32:17 +0000
-Subject: [PATCH 43/63] WIP fix-qa4: log the numbers (before and after,
+Subject: [PATCH 43/81] WIP fix-qa4: log the numbers (before and after,
  backtests) and the test results so far
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

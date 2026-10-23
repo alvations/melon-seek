@@ -1,7 +1,7 @@
 From 388fd265b5596728a549c6d344f57223a782582b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 12:53:39 +0000
-Subject: [PATCH 46/63] WIP qa-desktop-beta-4: log with State
+Subject: [PATCH 46/81] WIP qa-desktop-beta-4: log with State
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
