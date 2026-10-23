@@ -1,7 +1,7 @@
 From bf46e1fceec944cfea9318e38649771be2a6bd24 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 14:37:09 +0000
-Subject: [PATCH 27/33] fix-mr-3: the BP-13 e2e takes the stats line's median
+Subject: [PATCH 27/34] fix-mr-3: the BP-13 e2e takes the stats line's median
  on the MR-39 rule (the main currency's, with pay in several)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

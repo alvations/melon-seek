@@ -1,7 +1,7 @@
 From e91cba2e6c3ff9ce309bb82b084417640640de8b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 15:09:39 +0000
-Subject: [PATCH 31/33] =?UTF-8?q?fix-mr-3:=20MR-39=20e2e=20counts=20base?=
+Subject: [PATCH 31/34] =?UTF-8?q?fix-mr-3:=20MR-39=20e2e=20counts=20base?=
  =?UTF-8?q?=20pay=20as=20the=20integrated=20build=20does=20(MR-28's=20notB?=
  =?UTF-8?q?asePay=20out),=20and=20the=20numbers=20on=20it=20($149K=20?=
  =?UTF-8?q?=E2=86=92=20$152K=20US)?=

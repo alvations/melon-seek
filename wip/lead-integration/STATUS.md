@@ -2,11 +2,12 @@
 
 - Worktree: `/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-int`
 - Base (on claude/stoic-ride-54ddxp): `9979e589405ecffff9c454108b63b2e96a392ad7`
-- Head: `d0e60950e203dd33e33afa48750eb530ce2a8a00`
+- Head: `72cfbf6fa320ad06e9977a6459750c9eb1470c87`
 - Restore: `bash scripts/cycle/restore-wip.sh lead-integration <new worktree dir>`
 
 ## Commits since the base
 ```
+72cfbf6 iOS Simulator probe: each message names its page, only the visible tab acts, the driver waits for its own page
 d0e6095 fix-mr-3: T-20 the to-dos that already passed are plain tests (beta-methodology MR-4 to MR-20, beta-methodology-2 MR-23 and MR-34, beta-data-check-3 DQ-6)
 5027260 fix-mr-3: MR-39 the Ranges view's label column fits the strip's caption with its basis ("Median base pay $239K US" was cut by 0.05 px at 1280)
 e91cba2 fix-mr-3: MR-39 e2e counts base pay as the integrated build does (MR-28's notBasePay out), and the numbers on it ($149K → $152K US)

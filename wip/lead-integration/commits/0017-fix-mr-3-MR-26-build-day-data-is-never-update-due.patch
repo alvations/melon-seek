@@ -1,7 +1,7 @@
 From d67136b3db5107878d0a2107388e5f00f051904a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 13:35:21 +0000
-Subject: [PATCH 17/33] fix-mr-3: MR-26 build-day data is never "update due"
+Subject: [PATCH 17/34] fix-mr-3: MR-26 build-day data is never "update due"
 
 lib.js isPipelineEntry/shownOverdue: a daily entry (the postings) is the pipeline's own data, read by the build
 that shows it. One rule for run.js (stalenessRows, genericResult), the methodology's sources table

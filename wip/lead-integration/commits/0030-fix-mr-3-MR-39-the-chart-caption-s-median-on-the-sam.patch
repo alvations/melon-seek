@@ -1,7 +1,7 @@
 From 03e4491ca75dffb1e614655ed5b0a72657fdaced Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 14:58:53 +0000
-Subject: [PATCH 30/33] fix-mr-3: MR-39 the chart caption's median on the same
+Subject: [PATCH 30/34] fix-mr-3: MR-39 the chart caption's median on the same
  basis ("Median base pay $149K US"), applied in chart.js (was the patch for
  fix-viz-5)
 

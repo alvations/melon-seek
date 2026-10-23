@@ -1,7 +1,7 @@
 From 9676fbed0f9f28086a7e24091f687783319fc03f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 15:58:16 +0000
-Subject: [PATCH 12/33] e2e harness: bound each cleanup step (30 s,
+Subject: [PATCH 12/34] e2e harness: bound each cleanup step (30 s,
  E2E_CLEANUP_TIMEOUT), so a hung context.close() can't stall a run
 
 fix-mr-3's run sat 15 minutes after a passing test (2026-10-23): its cleanup awaited a context close that never

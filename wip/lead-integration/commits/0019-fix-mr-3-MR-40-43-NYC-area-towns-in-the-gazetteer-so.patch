@@ -1,7 +1,7 @@
 From b650562f52022b6bf0122e66ac12a1bce1ba3c6e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 13:41:16 +0000
-Subject: [PATCH 19/33] fix-mr-3: MR-40 43 NYC-area towns in the gazetteer, so
+Subject: [PATCH 19/34] fix-mr-3: MR-40 43 NYC-area towns in the gazetteer, so
  the NYC pay area sees them; norm-13
 
 Garden City NY, Fort Lee NJ, Paramus NJ, Bridgewater NJ (Microsoft) and 39 more NY/NJ/CT towns within about

@@ -1,7 +1,7 @@
 From 867085eb645ec736c85ba55ddf064f5f277e0986 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 14:38:34 +0000
-Subject: [PATCH 28/33] fix-mr-3: MR-39 the stats line says its median's
+Subject: [PATCH 28/34] fix-mr-3: MR-39 the stats line says its median's
  country short ("base pay median (US)"), within fix-density's 12 words when
  filtered
 
