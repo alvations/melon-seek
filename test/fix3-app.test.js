@@ -69,7 +69,8 @@ test('BP-6: a Location search matches a country\'s places and a city\'s local na
 test('shared decisions in the app: the pay rule, how pay was stated, part-time pay and Juice', () => {
   // Decision 1: one rule for "pay applies here", used by the pay filter, sort, stats, Juice and the card.
   assert.match(src, /const payHere = \(j, F = viewSpec\) =>/);
-  assert.match(src, /salActive && \(!payHere\(j, F\)/, 'the pay filter');
+  // fix-app-6 (BN-6): the pay filter's test is salWhy(), which says why it hides a posting.
+  assert.match(src, /salActive && \(!payHere\(j, F\)|if \(!payHere\(j, F\)\) return 'elsewhere';/, 'the pay filter');
   assert.match(src, /if \(!payHere\(j, F\)\) continue;/, 'the stats line');
   assert.match(src, /Pay posted for \$\{where\} only/, 'the card');
   assert.doesNotMatch(src, /applied as posted/, 'the currencyMismatch fallback is retired');

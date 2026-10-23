@@ -210,7 +210,8 @@ test('MR-39 Insights\' tiles: the median and middle half are of the main currenc
 });
 test('MR-39 the stats line\'s median is the main currency\'s, and the line and its Details say which', () => {
   const body = fnBody('stats');
-  assert.match(body, /mainPayCurrency\(/, 'stats() pools every currency into the median');
+  // fix-app-6 (BN-2): the rule moved into shared.js headlineMedian, which calls mainPayCurrency.
+  assert.match(body, /mainPayCurrency\(|headlineMedian\(/, 'stats() pools every currency into the median');
   const k = fnBody('renderKpis');
   assert.match(k, /st\.basis/, 'the stats line does not say which country its median is for');
 });

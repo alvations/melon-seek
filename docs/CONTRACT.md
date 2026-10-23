@@ -1144,3 +1144,46 @@ title has the number of companies and the big-tech boards the beta adds. The mai
 **The map's fit (`public/viz/map.js clearOfControls`, B-7):** a pin is its price tag and its pointer, down to the place
 (`PIN_TIP`, 7 px), with `CONTROL_GAP` (2 px) of air from each control; a small pan is tried before zooming out, and a re-check
 after a resize starts from unmerged pins.
+
+## fix-app-6 additions (2026-10-23): facet counts per place, medians in the pay's currency, posted minimums, carried filters and posted levels (fix-app-6 lane)
+
+Findings BN-1 to BN-7 from the persona reviews (wave 2) on e800c43. Log: [docs/process/fix-app-6.md](process/fix-app-6.md). Job fields and
+`NORMALIZER_VERSION` are unchanged; every addition is optional for readers. Nothing is dropped: the filters only filter, and every posting and
+pay row is kept.
+
+**Facet counts (`public/app.js derive`, BN-1):** a facet's counts ignore its own selection, so a place's count is what picking that place alone
+shows. The pay filter and the Juice grade are judged at the places the Location filter picks (`payHere`, `shownJuice`), so for the Location
+counts they are judged at each counted place (`judgeAtPlace(F, jobs)`: a spec whose `l` is that one place; `countPlaces`). Before, a posting
+listed elsewhere failed both the Location and the pay filter and was never counted (Google + Warsaw + $40K: Dublin 2, alone 137), and one listed
+in Warsaw and Dublin counted for Dublin at Warsaw's pay. Every other facet (department, company, level, employment type, Remote, listing date,
+Juice) was checked the same way and was already right. The Location list's search box shows by the board's own number of places
+(`boardOptions(facet)`), not by how many the filters leave.
+
+**Pay filter (`salWhy(j, F)`, BN-6):** `'none' | 'elsewhere' | 'under' | 'over' | null`, why the pay filter hides a posting. A posted minimum
+(`salary.kind: 'minimum'`, "from €31,100") states no top, so a minimum never hides it; pay stated "up to" one figure (`shiftRange(s).upTo`) states
+no bottom, so a maximum never hides it. `derive().fc.salWhy` counts the roles the pay filter alone hides, by reason; the Salary note's line counts
+them all and its Details say why. The empty state names every filter whose removal alone brings roles back, the pay filter included
+(`emptyState`, fitted to one line, each count in its Details).
+
+**Headline medians (`public/features/shared.js headlineMedian(pool)`, `medianText(h, v)`, `currencyWords(cur)`, BN-2 and BN-4):** one rule for
+the stats line (`stats()` adds `cur`, `local`, `perHour`, `fullTime`, `hm`), Insights' tiles (`summaryStats()` adds `cur`, `local`, `hm`), the
+chart's caption (`headPay`, `capMedian`) and the map's pins (`summarize()` adds `price`, `cur`, `basis`, `onlyText`). MR-39's basis is kept
+(two or more currencies: the main one's median). The median is written in the currency of the postings it is of, as the cards write pay
+("CA$101K" over Canadian pay, "€81K (euro area)" when euros are the main currency of several), never a bare "$" for converted pay; the
+approx-USD figure stays for positions and colours. When every figure is part-time hourly pay (a year if full-time), the median is per hour as
+posted ("$28.41/hour posted pay median"); when only some are, the line says "median, a year if full-time" (shorter where it would wrap), and
+its Details never call it base pay. `basePayStats` adds `pool` (the items its median is of).
+
+**Locale (BN-3):** the stats line's count is the word alone ("roles"); it cut the number off `plural()` with a digits-and-commas pattern, so
+any locale whose separator isn't a comma showed it twice ("3.821 3.821 roles" in de-DE, "3 821 3 821" in fr-FR, "3’821" in de-CH).
+
+**Carried filters (`settleKeep`, BN-5):** a list facet (places, departments, levels, employment types, keywords, Juice) keeps the values it set
+aside at a company switch while the person ticks or unticks others, as the toast's "for now" said; a one-value filter (role family, Remote,
+listing date) drops them once another value replaces it. Clear all and a facet's Reset drop them and say so ("Also dropped Krakow, set aside
+from an earlier company"). Held items carry `from`, the board where they were in force.
+
+**Posted levels (`public/features/roles.js postedLevels(job)`, `POSTED_LADDERS`, BN-7):** for a posting whose level comes from the company's
+own ladder in its pay (`seniorityBasis: 'pay'`: Microsoft IC/M, NVIDIA Level n), `{ labels, levels, text }`: "Microsoft M5–M6" is Manager and
+Director+. The ladders are copies of server/keywords.js's (checked rung by rung by test/fix-app-6.test.js). The Seniority filter finds such a
+posting under each of its levels (`senKeys(j)`) and counts it under each; its shown level stays the lower one (VT-8, keywords.js). The drawer's
+level chip reads "Manager · Microsoft M5–M6", and "What the levels mean" says the company's own level comes first.

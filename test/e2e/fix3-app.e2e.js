@@ -372,11 +372,12 @@ export function registerFix3AppTests(suite) {
     assertEq((await params(page)).getAll('l').join(), 'Munich', 'Munich is back at OpenAI');
     const t2 = await page.locator('#toast').innerText();
     assert(/[Pp]ut back Munich/.test(t2), `restore toast "${t2}"`);
-    // A filter the person changed in between is theirs: it is not put back over it.
+    // fix-app-6 (BN-5): a place the person adds in between is added to what was set aside, which still comes back where
+    // it exists ("for now", as the toast said); only Clear all or the Location Reset drops it.
     await switchTo(page, 'Microsoft', 'microsoft');
     await page.evaluate(() => { location.hash = location.hash.replace(/&?l=[^&]*/g, '') + '&l=Redmond'; }); await sleep(800);
     await switchTo(page, 'Google', 'google');
-    assert(!(await params(page)).getAll('l').includes('Munich'), 'not put back after the person picked another place');
+    assert((await params(page)).getAll('l').includes('Munich'), 'Munich, set aside "for now", is lost once another place is picked');
     noErrors(errors);
   });
 
