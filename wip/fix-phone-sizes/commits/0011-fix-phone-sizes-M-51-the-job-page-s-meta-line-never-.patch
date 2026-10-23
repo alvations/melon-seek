@@ -1,7 +1,7 @@
 From 13f008266ecfb745b734ef61f6dbc28c99ff234d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 16:06:00 +0000
-Subject: [PATCH 11/15] =?UTF-8?q?fix-phone-sizes:=20M-51,=20the=20job=20pa?=
+Subject: [PATCH 11/17] =?UTF-8?q?fix-phone-sizes:=20M-51,=20the=20job=20pa?=
  =?UTF-8?q?ge's=20meta=20line=20never=20starts=20or=20ends=20a=20line=20wi?=
  =?UTF-8?q?th=20"=C2=B7"=20(each=20item=20carries=20its=20"=C2=B7";=20the?=
  =?UTF-8?q?=20one=20that=20starts=20a=20line=20is=20clipped=20away)?=

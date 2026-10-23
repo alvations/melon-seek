@@ -1,7 +1,7 @@
 From eccdca90c081e52c713f452201e5b072e536b08f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 14:03:39 +0000
-Subject: [PATCH 02/10] fix-qa4: copy QA round 4's desktop tests
+Subject: [PATCH 02/12] fix-qa4: copy QA round 4's desktop tests
  (beta-desktop-qa-4.e2e.js) and register them
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

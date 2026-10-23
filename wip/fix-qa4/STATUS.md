@@ -2,11 +2,13 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a7dfe0f9055abab4e`
 - Base (on claude/stoic-ride-54ddxp): `2c9f42514d3c0d321d24d2e206d123fdf5285854`
-- Head: `dcebc6a0dc1b5ba33e05ab7c93a29f022792cb64`
+- Head: `40a11f27bf59f0fd9dc5371c51abcd24e53d1f36`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-qa4 <new worktree dir>`
 
 ## Commits since the base
 ```
+40a11f2 fix-qa4: MR-35 marked fixed (6185ba3) in the methodology review; log
+6185ba3 fix-qa4: UX-51 shift pay labelled on the card, its tip, the drawer heading and the CSV; MR-35 the base keeps its cents; UX-50 the company beside its dot
 dcebc6a fix-qa4: screenshots before and after (shrunk), log State: integration by the lead pending
 6a9ddc0 WIP fix-qa4: log the numbers (before and after, backtests) and the test results so far
 c43ff33 fix-qa4: D-50 a third, shorter form of the capped line (280 px took two lines)
@@ -21,12 +23,15 @@ eccdca9 fix-qa4: copy QA round 4's desktop tests (beta-desktop-qa-4.e2e.js) and 
 
 ## Uncommitted and new files
 ```
- M public/app.js
- M server/export.js
- M test/beta-methodology-2.test.js
- M test/e2e/fix-qa4.e2e.js
- M test/fix-qa4.test.js
+?? docs/screenshots/fix-qa4/before-UX-50-google-company-cards.png
+?? docs/screenshots/fix-qa4/before-UX-51-280x653.png
+?? docs/screenshots/fix-qa4/before-UX-51-390x844.png
+?? docs/screenshots/fix-qa4/before-UX-51-amazon-shift-base-card.png
 ```
 
 ## Left out (not in untracked.tgz)
+- docs/screenshots/fix-qa4/before-UX-50-google-company-cards.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-qa4/before-UX-51-280x653.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-qa4/before-UX-51-390x844.png (screenshot; the lane's tests regenerate it)
+- docs/screenshots/fix-qa4/before-UX-51-amazon-shift-base-card.png (screenshot; the lane's tests regenerate it)
 - node_modules (symlink)

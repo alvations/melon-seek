@@ -2,11 +2,13 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a3ec7679b4d2dd1a0`
 - Base (on claude/stoic-ride-54ddxp): `1ef0646b6f16aca8f215cf21e368185bddcf7b89`
-- Head: `55606359ccddfed1cfb1f63f918c69ff8fd56173`
+- Head: `c938f0a79ed6d6a197cf808d45ceb9265f30cc30`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-phone-sizes <new worktree dir>`
 
 ## Commits since the base
 ```
+c938f0a fix-phone-sizes: log, mobile QA 4 State, decision 14 and results (matrix, smoke 147/147, job-page tests, phone-text 104/104, npm test 1185/0 in a clean checkout)
+11823ad fix-phone-sizes: the matrix waits for the filter sheet's slide to end before measuring it (it started after the fixed 450 ms on a busy machine: 932 and 1005 px failed 2 runs of 3)
 5560635 fix-phone-sizes: M-52 follow-up, at 861-999 px the search box keeps "Search" on a board with a Refresh button (no "/" hint, tighter padding); the top bar sweep checks it
 51364e1 fix-phone-sizes: mobile QA 4 before and after (M-49 Microsoft's Apply at 390, M-51 Amazon's meta line at 390, M-52 the Razr in landscape and its filter field with the keyboard up)
 b0abf24 fix-phone-sizes: the matrix checks the job page's meta line (no "·" at a line's start or end, no word clipped) and the Apply label (one line, the whole name) at every size (M-49, M-51)
@@ -26,9 +28,6 @@ dd58b48 fix-phone-sizes: the Surface Duo stacked (720x1114, hinge across): chart
 
 ## Uncommitted and new files
 ```
- M docs/process/fix-phone-sizes.md
- M scripts/e2e.js
-?? test/e2e/beta-mobile-qa-4.e2e.js
 ```
 
 ## Left out (not in untracked.tgz)
