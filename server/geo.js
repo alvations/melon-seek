@@ -225,6 +225,20 @@ NZ|New Zealand|-40.90|174.89|NZ
 // own state named ("Garden City, NY", "Woodside, New York, USA"): never alone, never by its country alone, never to
 // split a comma list into two places and never in the last-resort scan, so "Greenwich, London", a bare "Oceanside" and
 // "Edison, United States" read as they did before it was added (fix-mr-3, MR-40).
+// fix-data-6 (G-1, 2026-10-16 crawl) adds, at the end of the list, the other 359 places the boards list that the gazetteer
+// put at their state's or country's centre, within about 80 km (85 km at most) of a city with 200 or more big-tech
+// postings or of Washington, DC: the Bay Area (East Palo Alto 80 Amazon postings, Burlingame 71 Meta, Tracy, Brisbane,
+// Hayward, Newark, San Leandro, Richmond, Dublin, Milpitas, ...; California's centre is 36.12,-119.68, 200 km from San
+// Francisco), Los Angeles, San Diego, Seattle, Austin, Dallas, Houston, Boston, the DC area, Chicago, Atlanta, Denver,
+// Nashville, the last New Jersey and Hudson Valley towns, Toronto, Vancouver, London, Dublin, Munich, Tel Aviv, the north
+// of Israel, Mumbai, Delhi, Tokyo, Beijing, Taipei, Mexico City, Sydney and Melbourne. Coordinates are GeoNames' (cities
+// over 1,000 people, CC BY 4.0) or, for a place it lacks, the town's usual coordinates; a county is at its seat
+// (docs/process/fix-data-6.md lists each). Every one is a "?" entry. One with no region ("Thane, Maharashtra, IND",
+// "Sagamihara-shi, Kanagawa, JPN": the gazetteer knows neither state) is read with its own country named, as its own
+// place's name only (never a later part of another place), so "Hsinchu, Hsinchu City, TW" stays one place. A "?" entry
+// never decides what a two-letter code means ("Ontario, CA" stays Ontario, Canada, not Ontario, California). On the crawl
+// 359 results change, in 2,206 postings, latitude and longitude only. Left out: "Bogota, D.C." (Bogotá, Colombia: another
+// country, not a town at its centre), and "Monroe Twp" and "Hamilton Twp", NJ (two townships of each name).
 // ---------------------------------------------------------------------------
 
 const CITIES_RAW = `
@@ -612,6 +626,365 @@ Nairobi||KE|-1.2921|36.8219|
 Lagos||NG|6.5244|3.3792|
 Accra||GH|5.6037|-0.1870|
 Cairo||EG|30.0444|31.2357|
+?Arleta|CA|US|34.2414|-118.4325|
+?Beverly Hills|CA|US|34.0736|-118.4004|
+?Camarillo|CA|US|34.2164|-119.0376|
+?Canoga Park|CA|US|34.2011|-118.5981|
+?Encino|CA|US|34.1592|-118.5012|
+?Malibu|CA|US|34.0258|-118.7804|
+?Manhattan Beach|CA|US|33.8847|-118.4109|
+?Northridge|CA|US|34.2283|-118.5367|
+?Oxnard|CA|US|34.1975|-119.177|
+?Playa Vista|CA|US|33.974|-118.422|
+?Porter Ranch|CA|US|34.279|-118.5555|
+?Redondo Beach|CA|US|33.8492|-118.3884|
+?Santa Clarita|CA|US|34.3917|-118.5426|
+?Sherman Oaks|CA|US|34.1511|-118.4492|
+?Simi Valley|CA|US|34.2695|-118.7815|
+?Valencia|CA|US|34.4436|-118.6095|
+?Monterey|CA|US|36.6002|-121.8947|
+?Santa Clara Valley|CA|US|37.323|-122.0322|
+?Aliso Viejo|CA|US|33.565|-117.7271|
+?Bloomington|CA|US|34.0703|-117.3959|
+?Buena Park|CA|US|33.8675|-117.9981|
+?Burbank|CA|US|34.1808|-118.309|
+?Chino|CA|US|34.0122|-117.6889|
+?City of Industry|CA|US|34.0197|-117.9587|
+?Corona|CA|US|33.8753|-117.5664|
+?Eastvale|CA|US|33.9636|-117.5642|
+?Fontana|CA|US|34.0922|-117.435|
+?Fullerton|CA|US|33.8703|-117.9253|
+?Glendale|CA|US|34.1425|-118.2551|
+?Huntington Beach|CA|US|33.6603|-117.9992|
+?Jurupa Valley|CA|US|33.9925|-117.5164|
+?Ontario|CA|US|34.0633|-117.6509|
+?Pasadena|CA|US|34.1478|-118.1445|
+?Rancho Cucamonga|CA|US|34.1064|-117.5931|
+?Rialto|CA|US|34.1064|-117.3703|
+?Riverside|CA|US|33.9534|-117.3962|
+?Santa Fe Springs|CA|US|33.9472|-118.0853|
+?Tustin|CA|US|33.7459|-117.8262|
+?Vernon|CA|US|34.0039|-118.2301|
+?Dublin|CA|US|37.7022|-121.9358|
+?East Palo Alto|CA|US|37.4688|-122.1411|
+?Foster City|CA|US|37.5585|-122.2711|
+?Hayward|CA|US|37.6688|-122.0808|
+?Newark|CA|US|37.5297|-122.0402|
+?Chula Vista|CA|US|32.6401|-117.0842|
+?Escondido|CA|US|33.1192|-117.0864|
+?La Jolla|CA|US|32.8473|-117.2742|
+?Poway|CA|US|32.9628|-117.0359|
+?Vista|CA|US|33.2|-117.2425|
+?Alameda|CA|US|37.771|-122.2609|
+?American Canyon|CA|US|38.1749|-122.2608|
+?Antioch|CA|US|38.0049|-121.8058|
+?Brisbane|CA|US|37.6808|-122.4|
+?Burlingame|CA|US|37.5841|-122.3661|
+?Oakley|CA|US|37.9974|-121.7124|
+?Pleasant Hill|CA|US|37.948|-122.0608|
+?Richmond|CA|US|37.9358|-122.3477|
+?San Leandro|CA|US|37.7249|-122.1561|
+?Santa Rosa|CA|US|38.4405|-122.7144|
+?Vacaville|CA|US|38.3566|-121.9877|
+?Walnut Creek|CA|US|37.9063|-122.065|
+?Gilroy|CA|US|37.0058|-121.5683|
+?Hollister|CA|US|36.8525|-121.4016|
+?Patterson|CA|US|37.4716|-121.1297|
+?Salinas|CA|US|36.6777|-121.6555|
+?Tracy|CA|US|37.7399|-121.4262|
+?Milpitas|CA|US|37.4283|-121.9066|
+?Commerce City|CO|US|39.8083|-104.9339|
+?Englewood|CO|US|39.6478|-104.9878|
+?Glendale|CO|US|39.705|-104.9336|
+?Lakewood|CO|US|39.7047|-105.0814|
+?Loveland|CO|US|40.3978|-105.075|
+?Westminster|CO|US|39.8367|-105.0372|
+?Acworth|GA|US|34.0664|-84.6784|
+?Alpharetta|GA|US|34.0754|-84.2941|
+?Austell|GA|US|33.8126|-84.6344|
+?Braselton|GA|US|34.1093|-83.7627|
+?Cartersville|GA|US|34.1653|-84.8023|
+?Covington|GA|US|33.5968|-83.8602|
+?Doraville|GA|US|33.8982|-84.2833|
+?Douglasville|GA|US|33.7515|-84.7477|
+?Duluth|GA|US|34.0029|-84.1446|
+?East Point|GA|US|33.6796|-84.4394|
+?Fairburn|GA|US|33.5671|-84.581|
+?Fayetteville|GA|US|33.4487|-84.4549|
+?Griffin|GA|US|33.2468|-84.2641|
+?Hampton|GA|US|33.3871|-84.283|
+?Jackson|GA|US|33.2946|-83.966|
+?Lithia Springs|GA|US|33.794|-84.6605|
+?Moreland|GA|US|33.2862|-84.7677|
+?Newton County|GA|US|33.5968|-83.8602|
+?Palmetto|GA|US|33.5179|-84.6696|
+?Pendergrass|GA|US|34.1628|-83.6781|
+?Scottdale|GA|US|33.7898|-84.2641|
+?Stanton Springs|GA|US|33.6562|-83.7182|
+?Stone Mountain|GA|US|33.8082|-84.1702|
+?Union City|GA|US|33.5871|-84.5424|
+?White|GA|US|34.2831|-84.7472|
+?Arlington Heights|IL|US|42.0884|-87.9806|
+?Aurora|IL|US|41.7606|-88.3201|
+?Bloomingdale|IL|US|41.9575|-88.0809|
+?Bolingbrook|IL|US|41.6986|-88.0684|
+?Channahon|IL|US|41.4295|-88.2287|
+?Cicero|IL|US|41.8456|-87.7539|
+?Crest Hill|IL|US|41.5548|-88.0987|
+?Deerfield|IL|US|42.1711|-87.8445|
+?Downers Grove|IL|US|41.8089|-88.0112|
+?Harvey|IL|US|41.61|-87.6467|
+?Huntley|IL|US|42.1681|-88.4281|
+?Joliet|IL|US|41.5252|-88.0834|
+?Markham|IL|US|41.5936|-87.6948|
+?Matteson|IL|US|41.5039|-87.7131|
+?Melrose Park|IL|US|41.9006|-87.8567|
+?Monee|IL|US|41.42|-87.7417|
+?Naperville|IL|US|41.7859|-88.1473|
+?Northlake|IL|US|41.9173|-87.8956|
+?Oak Lawn|IL|US|41.7109|-87.7581|
+?Palatine|IL|US|42.1103|-88.0342|
+?River Grove|IL|US|41.9259|-87.8359|
+?Romeoville|IL|US|41.6475|-88.0895|
+?Schaumburg|IL|US|42.0334|-88.0834|
+?Skokie|IL|US|42.0334|-87.7334|
+?University Park|IL|US|41.443|-87.6836|
+?Waukegan|IL|US|42.3636|-87.8448|
+?West Chicago|IL|US|41.8847|-88.204|
+?Wilmington|IL|US|41.3078|-88.1467|
+?Wood Dale|IL|US|41.9634|-87.979|
+?Crown Point|IN|US|41.417|-87.3653|
+?Hobart|IN|US|41.5323|-87.255|
+?La Porte|IN|US|41.6077|-86.7139|
+?Merrillville|IN|US|41.4828|-87.3328|
+?Michigan City|IN|US|41.7075|-86.895|
+?Schererville|IN|US|41.4789|-87.4548|
+?Bellingham|MA|US|42.0868|-71.4745|
+?Beverly|MA|US|42.5584|-70.88|
+?Bridgewater|MA|US|41.9904|-70.975|
+?Brighton|MA|US|42.3501|-71.1564|
+?Canton|MA|US|42.1584|-71.1448|
+?Charlton|MA|US|42.1357|-71.9701|
+?Everett|MA|US|42.4084|-71.0537|
+?Fall River|MA|US|41.7015|-71.155|
+?Haverhill|MA|US|42.7762|-71.0773|
+?Hudson|MA|US|42.3918|-71.5662|
+?Littleton|MA|US|42.5375|-71.5111|
+?Melrose|MA|US|42.4584|-71.0662|
+?Middleborough|MA|US|41.8932|-70.9112|
+?Millbury|MA|US|42.194|-71.7601|
+?Natick|MA|US|42.2834|-71.3495|
+?Newtonville|MA|US|42.3501|-71.2037|
+?North Andover|MA|US|42.6987|-71.1351|
+?North Reading|MA|US|42.5751|-71.0787|
+?Northborough|MA|US|42.3195|-71.6412|
+?Norwood|MA|US|42.1945|-71.1995|
+?Plymouth|MA|US|41.9584|-70.6673|
+?Revere|MA|US|42.4084|-71.012|
+?Salem|MA|US|42.5198|-70.8955|
+?Stoughton|MA|US|42.1251|-71.1023|
+?Taunton|MA|US|41.9001|-71.0898|
+?Uxbridge|MA|US|42.0773|-71.6295|
+?Westborough|MA|US|42.2695|-71.6162|
+?Wilmington|MA|US|42.5465|-71.1737|
+?Woburn|MA|US|42.4793|-71.1523|
+?Worcester|MA|US|42.2626|-71.8023|
+?Waldorf|MD|US|38.6246|-76.9391|
+?Frederick|MD|US|39.4143|-77.4105|
+?Hagerstown|MD|US|39.6418|-77.72|
+?Beltsville|MD|US|39.0348|-76.9075|
+?Elkridge|MD|US|39.2126|-76.7136|
+?Glen Burnie|MD|US|39.1626|-76.6247|
+?Hyattsville|MD|US|38.9559|-76.9455|
+?Jessup|MD|US|39.1493|-76.7752|
+?Lanham|MD|US|38.9688|-76.8634|
+?Laurel|MD|US|39.0993|-76.8483|
+?Nottingham|MD|US|39.398|-76.486|
+?Sparrows Point|MD|US|39.219|-76.472|
+?Upper Marlboro|MD|US|38.816|-76.7497|
+?Hudson|NH|US|42.7648|-71.4398|
+?Manchester|NH|US|42.9956|-71.4548|
+?Milford|NH|US|42.8354|-71.649|
+?Newington|NH|US|43.1|-70.8334|
+?Lawrence Township|NJ|US|40.2968|-74.7296|
+?Robbinsville|NJ|US|40.2146|-74.6193|
+?New Windsor|NY|US|41.4768|-74.0238|
+?Rock Tavern|NY|US|41.459|-74.168|
+?Niagara Falls|NY|US|43.0945|-79.0567|
+?Tonawanda|NY|US|43.0203|-78.8803|
+?Johnston|RI|US|41.8219|-71.5067|
+?Antioch|TN|US|36.06|-86.6719|
+?Franklin|TN|US|35.9251|-86.8689|
+?Gallatin|TN|US|36.3884|-86.4467|
+?Lebanon|TN|US|36.2081|-86.2911|
+?McEwen|TN|US|36.1078|-87.6331|
+?Mt Juliet|TN|US|36.2001|-86.5186|
+?Murfreesboro|TN|US|35.8456|-86.3903|
+?Bastrop|TX|US|30.1105|-97.3153|
+?Bee Cave|TX|US|30.3085|-97.945|
+?Georgetown|TX|US|30.6327|-97.6772|
+?Hutto|TX|US|30.5427|-97.5467|
+?Kyle|TX|US|29.9891|-97.8772|
+?Pflugerville|TX|US|30.4394|-97.62|
+?Round Rock|TX|US|30.5083|-97.6789|
+?San Marcos|TX|US|29.8833|-97.9414|
+?Balch Springs|TX|US|32.7287|-96.6228|
+?Carrollton|TX|US|32.9537|-96.8903|
+?Cleburne|TX|US|32.3476|-97.3867|
+?Coppell|TX|US|32.9546|-97.015|
+?DFW Airport|TX|US|32.8998|-97.0403|
+?Flower Mound|TX|US|33.0146|-97.097|
+?Forney|TX|US|32.7482|-96.4719|
+?Frisco|TX|US|33.1507|-96.8236|
+?Garland|TX|US|32.9126|-96.6389|
+?Lancaster|TX|US|32.5921|-96.7561|
+?Mansfield|TX|US|32.5632|-97.1417|
+?McKinney|TX|US|33.1976|-96.6153|
+?Midlothian|TX|US|32.4824|-96.9944|
+?Red Oak|TX|US|32.5176|-96.8044|
+?Richardson|TX|US|32.9482|-96.7297|
+?Roanoke|TX|US|33.004|-97.2258|
+?Southlake|TX|US|32.9412|-97.1342|
+?Wilmer|TX|US|32.589|-96.6853|
+?Brookshire|TX|US|29.7861|-95.9511|
+?Cypress|TX|US|29.9691|-95.6972|
+?Fresno|TX|US|29.5389|-95.4474|
+?Humble|TX|US|29.9988|-95.2622|
+?Katy|TX|US|29.7858|-95.8244|
+?La Marque|TX|US|29.3686|-94.9713|
+?League City|TX|US|29.5075|-95.0949|
+?Missouri City|TX|US|29.6186|-95.5377|
+?Richmond|TX|US|29.5822|-95.7608|
+?Texas City|TX|US|29.3839|-94.9027|
+?Fredericksburg|VA|US|38.3032|-77.4605|
+?Stafford|VA|US|38.4221|-77.4083|
+?Woodbridge|VA|US|38.6582|-77.2497|
+?Aldie|VA|US|38.9757|-77.6414|
+?Ashburn|VA|US|39.0437|-77.4875|
+?Bristow|VA|US|38.7229|-77.5361|
+?Clear Brook|VA|US|39.2564|-78.0961|
+?Culpeper|VA|US|38.4732|-77.9967|
+?Gainesville|VA|US|38.7957|-77.6139|
+?Haymarket|VA|US|38.8121|-77.6364|
+?Leesburg|VA|US|39.1157|-77.5636|
+?Loudoun County|VA|US|39.1157|-77.5636|
+?Manassas|VA|US|38.751|-77.4753|
+?Stevensburg|VA|US|38.44|-77.87|
+?Warrenton|VA|US|38.7135|-77.7953|
+?Kent|WA|US|47.3809|-122.2348|
+?Renton|WA|US|47.4829|-122.2171|
+?Arlington|WA|US|48.1987|-122.1251|
+?Bothell|WA|US|47.7623|-122.2054|
+?Edmonds|WA|US|47.8107|-122.3774|
+?Lynnwood|WA|US|47.8209|-122.3151|
+?Bremerton|WA|US|47.5673|-122.6326|
+?Dupont|WA|US|47.0968|-122.6312|
+?Fife|WA|US|47.2393|-122.3571|
+?Kitsap|WA|US|47.5404|-122.6362|
+?Lacey|WA|US|47.0343|-122.8232|
+?Puyallup|WA|US|47.1854|-122.2929|
+?Spanaway|WA|US|47.104|-122.4346|
+?Sumner|WA|US|47.2032|-122.2404|
+?Tukwila|WA|US|47.474|-122.261|
+?Kenosha|WI|US|42.5847|-87.8212|
+?Kemps Creek|NSW|AU|-33.8806|150.7876|
+?Ravenhall|VIC|AU|-37.7655|144.7511|
+?Burnaby|BC|CA|49.2664|-122.9526|
+?Delta|BC|CA|49.0892|-123.0532|
+?Langley|BC|CA|49.1011|-122.6588|
+?New Westminster|BC|CA|49.2068|-122.9109|
+?Pitt Meadows|BC|CA|49.2212|-122.6896|
+?Richmond|BC|CA|49.17|-123.1368|
+?Sidney|BC|CA|48.6496|-123.4026|
+?Ajax|ON|CA|43.8501|-79.0329|
+?Brampton|ON|CA|43.6834|-79.7663|
+?Caledon|ON|CA|43.8654|-79.9932|
+?Cambridge|ON|CA|43.3601|-80.3127|
+?Hamilton|ON|CA|43.2501|-79.8496|
+?Mississauga|ON|CA|43.5789|-79.6583|
+?Whitby|ON|CA|43.8834|-78.9329|
+?Langfang||CN|39.5208|116.7147|
+?Neubiberg||DE|48.0771|11.6581|
+?Dachau|Bavaria|DE|48.26|11.434|
+?Erding|Bavaria|DE|48.306|11.9069|
+?Garching bei München|Bavaria|DE|48.249|11.651|
+?Gersthofen|Bavaria|DE|48.4243|10.8727|
+?Graben|Bavaria|DE|48.1873|10.8222|
+?Kaufbeuren|Bavaria|DE|47.8824|10.6219|
+?Maisach|Bavaria|DE|48.2167|11.2667|
+?Moosburg an der Isar|Bavaria|DE|48.4709|11.9381|
+?Neufahrn bei Freising|Bavaria|DE|48.3159|11.6632|
+?Olching|Bavaria|DE|48.2|11.3333|
+?Penzing|Bavaria|DE|48.0748|10.9275|
+?Untermeitingen|Bavaria|DE|48.1608|10.8069|
+?Thames Valley||GB|51.4563|-0.9711|
+?Waltham Cross||GB|51.686|-0.0357|
+?Basildon|England|GB|51.5684|0.4578|
+?Bedford|England|GB|52.1346|-0.4663|
+?Belvedere|England|GB|51.4911|0.1514|
+?Bracknell|England|GB|51.4136|-0.7505|
+?Crawley|England|GB|51.113|-0.1831|
+?Croydon|England|GB|51.3833|-0.1|
+?Dartford|England|GB|51.4466|0.2142|
+?Didcot|England|GB|51.6093|-1.2421|
+?Dunstable|England|GB|51.8857|-0.5229|
+?Enfield|England|GB|51.6515|-0.085|
+?Grays|England|GB|51.4757|0.3252|
+?Harlow|England|GB|51.7766|0.1116|
+?Hemel Hempstead|England|GB|51.7537|-0.4497|
+?Maidstone|England|GB|51.2667|0.5167|
+?Milton Keynes|England|GB|52.0417|-0.7558|
+?Orpington|England|GB|51.3746|0.0979|
+?Rochester|England|GB|51.3876|0.5055|
+?Romford|England|GB|51.5752|0.1858|
+?Shepperton|England|GB|51.3955|-0.4489|
+?Slough|England|GB|51.5095|-0.5954|
+?Tilbury|England|GB|51.4625|0.3586|
+?Welwyn Garden City|England|GB|51.8017|-0.2069|
+?Weybridge|England|GB|51.3718|-0.4597|
+?Windsor|England|GB|51.4833|-0.6|
+?Clonee||IE|53.4106|-6.4436|
+?Modi'in Makkabbim-Re'ut||IL|31.8939|35.015|
+?Ramat Gan||IL|32.0823|34.8107|
+?Nazareth||IL|32.7009|35.2972|
+?Faridabad||IN|28.4112|77.3132|
+?Navi Mumbai||IN|19.0368|73.0158|
+?Thane||IN|19.197|72.9636|
+?Ageo-shi||JP|35.9715|139.6138|
+?Chiba||JP|35.6|140.1167|
+?Chiba-shi||JP|35.6|140.1167|
+?Hiratsuka-shi||JP|35.3279|139.3373|
+?Ichikawa-shi||JP|35.7341|139.9065|
+?Inzai||JP|35.8348|140.1636|
+?Kashiwa-shi||JP|35.8622|139.9773|
+?Kawaguchi-shi||JP|35.8052|139.7107|
+?Kawajima-machi||JP|35.9806|139.4806|
+?Kawasaki-shi||JP|35.5206|139.7172|
+?Kuki-shi||JP|36.0674|139.675|
+?Matsudo-shi||JP|35.78|139.9014|
+?Misato-shi||JP|35.8437|139.8835|
+?Nagareyama-shi||JP|35.8563|139.9027|
+?Narita-shi||JP|35.7833|140.3167|
+?Nogi-machi||JP|36.2279|139.7345|
+?Odawara-shi||JP|35.2556|139.1597|
+?Sagamihara-shi||JP|35.5671|139.2417|
+?Saitama||JP|35.9081|139.6566|
+?Sakado-shi||JP|35.9569|139.3889|
+?Sayama-shi||JP|35.853|139.4121|
+?Tsukuba-shi||JP|36.0833|140.1167|
+?Yokohama-shi||JP|35.4437|139.638|
+?Yotsukaido-shi||JP|35.65|140.1667|
+?Zama-shi||JP|35.4879|139.391|
+?Cuautitlán Izcalli||MX|19.6439|-99.216|
+?Tepotzotlán||MX|19.7212|-99.2239|
+?Tepoztlán||MX|18.9856|-99.1016|
+?Toluca||MX|19.2879|-99.6532|
+?Tultitlán||MX|19.6466|-99.1679|
+?Tijuana||MX|32.5027|-117.0037|
+?Hsinchu City||TW|24.8138|120.9675|
+?Longtan||TW|24.864|121.216|
+?Taoyuan City||TW|24.9937|121.297|
+?Zhubei||TW|24.8383|121.0078|
 `;
 
 // ---------------------------------------------------------------------------
@@ -940,7 +1313,8 @@ function pickCity(cands, ctx) {
   // A country match only when the context names no state or region in that country:
   // "Springfield, IL" is not Springfield, VA (P-9, norm-6).
   const stated = new Set(ctx.filter((c) => c.region && c.kind !== 'country').map((c) => c.country));
-  const byCountry = cands.find((c) => !c.contextOnly && countries.includes(c.country) && !stated.has(c.country));
+  // G-1: a "?" entry with no region is read with its own country named (it has no state to name).
+  const byCountry = cands.find((c) => (!c.contextOnly || !c.region) && countries.includes(c.country) && !stated.has(c.country));
   if (byCountry) return byCountry;
   return null; // known name but context says elsewhere
 }
@@ -1015,7 +1389,7 @@ function finalCountry(token, cands, tokens) {
   if (plain && plain.kind === 'country') return null; // "UK", "NL", "FR": regionInfo already says so
   const c = COUNTRY_BY_CODE.get(t);
   const asCountry = { kind: 'country', region: null, country: c.code, lat: c.lat, lng: c.lng };
-  const known = cands || [];
+  const known = openCities(cands); // a "?" entry never says which country a code is (G-1: "Ontario, CA" is Ontario, Canada)
   if (known.some((k) => k.country === c.code)) return asCountry; // Bengaluru is in India, Jakarta in Indonesia
   if (!plain) return tokens.length > 2 || !known.length ? asCountry : null; // "Stavanger, Rogaland, NO"; not "Adelaide, SA"
   if (known.some((k) => k.country === plain.country)) return null; // "Columbus, IN" is Indiana, "Boise, ID" Idaho
@@ -1109,7 +1483,7 @@ function resolvePlaceTokens(name, cleaned, extra) {
   // city), the town is in the gazetteer, so this rule is not reached.
   for (const t of rest) {
     if (regionInfo(t)) continue;
-    const later = CITY_INDEX.get(normKey(t));
+    const later = (CITY_INDEX.get(normKey(t)) || []).filter((c) => !c.contextOnly || c.region); // G-1: a "?" town with no region is only its own place's name
     const c = later && ctx.length && pickCity(later, ctx);
     if (c) return fromCity(name, c);
   }

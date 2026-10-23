@@ -47,7 +47,9 @@ import { postingRule } from './companies.js';
  * pay line a posting states for a country or pay area is a salary.ranges row tied to the job's places there, with its
  * country and levels, and a line for a place the job doesn't list is salary.unlisted; "kr" and "$" with no code are read
  * by their line's own country; a "[Degree]" line heads the country lines under it; main-site rows named for places
- * ("Canada", "USA - All Other States") are tied to them). Stored
+ * ("Canada", "USA - All Other States") are tied to them) and fix-data-6 (docs/process/fix-data-6.md, G-1: 359 more
+ * towns near the big-tech hubs are at their own place, not their state's or country's centre, East Palo Alto and
+ * Burlingame among them; K-1: a stated "+ 0% bonus target" is not a bonus mention, extras.bonus, zeroBonusOnly). Stored
  * snapshots are upgraded with relocateJobs (which also re-derives text-sourced pay, the
  * pay labels and the level, then re-runs the vetting gate) and rekeyBoardJobs.
  */
@@ -453,6 +455,11 @@ export function relabelJobs(jobs) {
     if (typeof j.title === 'string' && title && title !== j.title) next.title = title;
     if (lvl) { next.seniority = lvl.level; next.seniorityBasis = lvl.basis; }
     else if (!next.seniorityBasis) next.seniorityBasis = (next.seniority || 'Mid') === 'Mid' ? 'default' : 'title';
+    // K-1 (fix-data-6): a stored bonus whose only wording is a stated 0% bonus target ("+ 0% bonus target") is no bonus.
+    if (j.extras && j.extras.bonus === true && typeof keywordsModule.zeroBonusOnly === 'function') {
+      const src = [text, j.salary && j.salary.text, j.salaryRaw && j.salaryRaw.text].filter(Boolean).join('\n');
+      if (safe(() => keywordsModule.zeroBonusOnly(src, { title }), false)) next.extras = { ...j.extras, bonus: false };
+    }
     // (Not safe(): a fresh null, "no salary", must replace the stored one.)
     let fresh;
     try { fresh = rederiveTextSalary(j, text); } catch { fresh = undefined; }

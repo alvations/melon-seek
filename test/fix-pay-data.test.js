@@ -199,7 +199,7 @@ test('P-9: a final ISO country code that is also a US state is the country when 
   // US strings keep their state.
   assert.equal(where('Chicago, IL'), 'Chicago, IL [US] city');
   assert.equal(where('Fort Wayne, IN, USA'), 'Fort Wayne, IN [US] centroid');
-  assert.equal(where('Dublin, CA'), 'Dublin, CA [US] centroid');
+  assert.equal(where('Dublin, CA'), 'Dublin, CA [US] city'); // in the gazetteer since fix-data-6 (G-1); before, California's centre
   assert.equal(where('Springfield, IL, US'), 'Springfield, IL [US] centroid', 'not Springfield, VA');
   // Other forms the big-tech boards use.
   assert.equal(where('Sydney NSW, Australia'), 'Sydney, Australia [AU] city');
@@ -298,7 +298,7 @@ const stored = (over) => ({
 });
 
 test('delivery: relocateJobs (the snapshot upgrade the server and the static build run) re-derives pay labels, level and locations', () => {
-  assert.equal(NORMALIZER_VERSION, 'norm-14', 'stored older snapshots are upgraded once (norm-14: fix-salary-6, docs/process/fix-salary-6.md)');
+  assert.equal(NORMALIZER_VERSION, 'norm-14', 'stored older snapshots are upgraded once (norm-14: fix-salary-6 and fix-data-6, docs/process/fix-salary-6.md, docs/process/fix-data-6.md)');
   const jobs = [
     stored({ id: 'anthropic:ae', title: 'Strategic Account Executive, Banking', seniority: 'Mid', descriptionHtml: `<p>${ANTHROPIC_OTE}</p>`, salary: { ...toJobSalary(structured(380000, 450000), { source: 'structured' }), zones: 1 } }),
     stored({ id: 'anthropic:re', title: 'Research Engineer', seniority: 'Mid', descriptionHtml: `<p>${ANTHROPIC_OTE}</p>`, salary: { ...toJobSalary(structured(350000, 850000), { source: 'structured' }), zones: 1 } }),

@@ -70,6 +70,11 @@
    "normalizerVersion": "norm-14",
    "reason": "norm-14 fix-salary-6: S-1 (every pay line for a country or pay area kept as a salary.ranges row tied to its places, salary.unlisted, kr/$ by the line's country, [Degree] header lines, main-site rows named for places tied to them); 0 of 300 hashes changed (the sample has no posting with pay for two places)",
    "at": "2026-10-24T00:46:08.313Z"
+  },
+  {
+   "normalizerVersion": "norm-14",
+   "reason": "norm-14 fix-data-6 on top of fix-salary-6 (docs/process/fix-data-6.md: G-1 towns near the hubs at their own place, K-1 a stated 0% bonus target is no bonus, R-2 lead associates Mid): 2 of 300 hashes changed, both G-1 towns (palantir:802add74 Kitsap, WA; xai:5216075007 Bastrop, TX)",
+   "at": "2026-10-24T02:16:14.572Z"
   }
  ],
  "hashes": {
@@ -239,7 +244,7 @@
   "palantir:6ed76ce8-4156-4b60-b120-403538bd66cd": "b3d5fe7ec08ea0a1",
   "palantir:ff1029bd-bb6d-4d78-a03e-5f9744d0b798": "51456679d852c997",
   "palantir:def1573d-c2b6-42a7-963b-e13c3587b5e9": "edecdaf92db888ab",
-  "palantir:802add74-04cf-479c-9479-ff3043940e29": "124ad795d8a760c7",
+  "palantir:802add74-04cf-479c-9479-ff3043940e29": "c06ece86dddfcf71",
   "palantir:d5d83a8f-cb96-41cc-9612-c7224fbb2fbc": "796c400cda7ba888",
   "palantir:bba1ecbc-e56d-48b0-b33a-aefcbffbd655": "095c71d61b98755a",
   "palantir:18383723-04a2-44ae-ae58-1166a76f0859": "4532617ea12125ba",
@@ -359,7 +364,7 @@
   "xai:5252678007": "88ead873004e769a",
   "xai:5178416007": "c5187210b7d75935",
   "xai:5108231007": "e12d1f9f8cdbc060",
-  "xai:5216075007": "da8587b86d7c35ad",
+  "xai:5216075007": "0ffba02d4675931c",
   "xai:5007261007": "3bf81393d0ebb950",
   "xai:5124647007": "5c6ad93bd69fae18",
   "xai:5214372007": "4475f5d13717cdea",

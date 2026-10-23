@@ -240,6 +240,6 @@ test('chart: a posting is plotted at its served range in approx USD', () => {
   assert.deepEqual([plotted[0].lo, plotted[0].hi, plotted[0].mid], [141000, 202000, 171500]);
 });
 
-test('normalizer version is norm-14 (SB-3, SB-4, SB-5 changed normalized pay in norm-11; fix-data-3, fix-mr-3 and fix-salary-6 bumped it)', () => {
+test('normalizer version is norm-14 (SB-3, SB-4, SB-5 changed normalized pay in norm-11; fix-data-3, fix-mr-3, fix-salary-6 and fix-data-6 bumped it)', () => {
   assert.equal(NORMALIZER_VERSION, 'norm-14');
 });

@@ -1455,6 +1455,11 @@ const BONUS_STRONG = [
   /\bprofit[- ]sharing\b/i,
 ];
 
+// K-1 (fix-data-6): a stated 0% bonus target is not a bonus. Google writes "+ 0% bonus target" on the pay line of roles
+// with no bonus ("Canada: $99000 (CAD) + 0% bonus target", 50 postings on the 2026-10-16 crawl); "bonus target" made it
+// one. Only a figure that is zero ("0%", "0.0%", "0,00 %") is removed; "+ 15% bonus target" is still a bonus.
+const ZERO_BONUS_RE = /(?:\+\s*)?(?<![\d.,])0(?:[.,]0+)?\s*%\s*(?:(?:annual|target|performance)\s+)?(?:bonus(?:es)?|incentives?|commissions?)(?:\s+target)?\b/gi;
+
 function compSegments(text) {
   return String(text || '')
     .split(/\n+|(?<=[.!?])\s+(?=[A-Z(“"])/)
@@ -1466,7 +1471,7 @@ function compSegments(text) {
  * Like extractCompExtras but also returns the sentences that decided each facet.
  * @returns {{equity:boolean, bonus:boolean, evidence:{equity:string[], bonus:string[]}}}
  */
-export function compExtrasEvidence(text, { title = '' } = {}) {
+export function compExtrasEvidence(text, { title = '', zeroIsBonus = false } = {}) {
   let src = String(text || '');
   if (/<(?:p|li|ul|div|br|h[1-6])\b/i.test(src)) src = htmlToText(src);
   const salesTitle = isSalesTitle(title);
@@ -1476,7 +1481,8 @@ export function compExtrasEvidence(text, { title = '' } = {}) {
 
   for (const seg of compSegments(src)) {
     const eqText = seg.replace(EQUITY_NOISE_RE, ' ');
-    const bnText = seg.replace(BONUS_NOISE_RE, ' ');
+    let bnText = seg.replace(BONUS_NOISE_RE, ' ');
+    if (!zeroIsBonus) bnText = bnText.replace(ZERO_BONUS_RE, ' '); // K-1: "+ 0% bonus target" is no bonus
     const hasEq = /\bequity\b|\bstock\b|\bRSUs?\b|\bESPP\b|\bownership stake\b/i.test(eqText);
     const hasBn = /\bbonus(?:es)?\b|\bcommissions?\b|\bOTE\b|on[- ]target|incentive|variable|profit[- ]sharing/i.test(bnText);
     if (!hasEq && !hasBn) continue;
@@ -1522,4 +1528,12 @@ export function compExtrasEvidence(text, { title = '' } = {}) {
 export function extractCompExtras(text, opts = {}) {
   const { equity, bonus } = compExtrasEvidence(text, opts);
   return { equity, bonus };
+}
+
+/**
+ * K-1: true when the posting's only bonus wording is a stated 0% bonus target, so a stored `extras.bonus` from before
+ * norm-14 is wrong (normalize.js relabelJobs clears it). Anything else that reads as a bonus keeps it.
+ */
+export function zeroBonusOnly(text, opts = {}) {
+  return compExtrasEvidence(text, { ...opts, zeroIsBonus: true }).bonus && !compExtrasEvidence(text, opts).bonus;
 }
