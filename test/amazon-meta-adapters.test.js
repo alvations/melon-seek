@@ -2,7 +2,7 @@
 // on the real fixture rows (test/fixtures/bigtech-*.json) and the synthetic boards
 // (test/amazon-meta-synth.js). No network. Each fetch test lifts the registry's `paused` in this
 // process only (server/companies.js PAUSING); the paused path itself is test/amazon-meta-resume.test.js.
-import { test, afterEach } from 'node:test';
+import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -18,7 +18,18 @@ import { amazonRows, amazonSite, metaRecords, metaSite, metaPageHtml, installFet
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const fixture = (slug) => JSON.parse(fs.readFileSync(path.join(FIX, `bigtech-${slug}.json`), 'utf8'));
-afterEach(() => { setMinInterval(null); resetRateLimits(); resetRobots(); });
+afterEach(() => { mock.timers.reset(); setMinInterval(null); resetRateLimits(); resetRobots(); });
+
+/** Run `promise` on node:test's virtual clock (setTimeout and Date), 1 ms per event-loop turn (qa-suite-beta T-13). */
+async function onVirtualClock(promise) {
+  let done = false;
+  const p = Promise.resolve(promise).finally(() => { done = true; });
+  for (let i = 0; !done && i < 600000; i++) {
+    await new Promise((r) => setImmediate(r));
+    if (!done) mock.timers.tick(1);
+  }
+  return p;
+}
 
 async function resumed(slug, fn) {
   const c = COMPANIES.find((x) => x.slug === slug);
@@ -93,12 +104,14 @@ test('fetchAmazon: honest User-Agent, robots.txt first, spaced requests, every p
   globalThis.fetch = async (url, init) => { seen.push({ url: String(url), at: Date.now(), ua: init.headers['User-Agent'], redirect: init.redirect }); return site(String(url)); };
   try {
     const stats = newStats();
-    const { jobs } = await resumed('amazon', () => fetchAmazon('amazon', { stats }));
+    mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
+    const { jobs } = await onVirtualClock(resumed('amazon', () => fetchAmazon('amazon', { stats })));
+    mock.timers.reset();
     assert.equal(jobs.length, 260);
     assert.match(seen[0].url, /\/robots\.txt$/);
     assert.ok(seen.every((c) => c.ua === BOT_USER_AGENT && c.redirect === 'manual'));
     const gaps = seen.slice(1).map((c, i) => c.at - seen[i].at);
-    assert.ok(gaps.every((g) => g >= 20), `request starts at least the interval apart: ${gaps}`);
+    assert.ok(gaps.every((g) => g >= 25), `request starts at least the interval apart (virtual clock): ${gaps}`);
     assert.equal(stats.requests, seen.length);
   } finally {
     globalThis.fetch = real;

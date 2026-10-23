@@ -10,9 +10,11 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ROOT, assert, assertEq, skip } from './harness.js';
+import { BETA_BOARDS } from './beta-boards.mjs';
 
 const DESKTOP = { width: 1440, height: 900 };
-const BIG_TECH = ['apple', 'google', 'nvidia', 'microsoft', 'netflix'];
+// Every non-paused beta board, from the registry (T-1: Amazon and Meta were missing from a hand-written list).
+const BIG_TECH = BETA_BOARDS;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2' };
 

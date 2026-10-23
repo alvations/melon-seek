@@ -9,10 +9,12 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ROOT, assert, assertEq, skip, startServer } from './harness.js';
+import { BETA_BOARDS, postingHostsOf } from './beta-boards.mjs';
 import { COMPANIES } from '../../server/companies.js';
 
 const DESKTOP = { width: 1440, height: 900 };
-const BIG_TECH = { apple: 'jobs.apple.com', google: 'google.com', nvidia: 'jobs.nvidia.com', microsoft: 'apply.careers.microsoft.com', netflix: 'explore.jobs.netflix.net' };
+// Every non-paused beta board, from the registry (T-1: Amazon and Meta were missing from a hand-written list).
+const BIG_TECH = BETA_BOARDS;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** Serve ROOT/dist under /melon-seek/ (the GitHub Pages layout) on a free port; null without a beta build. */
@@ -116,7 +118,7 @@ export function registerBetaDesktopQaTests(suite) {
   // ---------------------------------------------------------------- guards (pass today)
   suite.test('Beta desktop QA: big-tech boards load from the bundle only (Snapshot badge, no live request)', async (ctx) => {
     const { st, page, errors, external, requests } = await openBeta(ctx, null);
-    for (const c of Object.keys(BIG_TECH)) {
+    for (const c of BIG_TECH) {
       const e0 = external.length, r0 = requests.length;
       await page.goto(`${st.beta}/#c=${c}`); await ready(page); await sleep(1200);
       const label = await page.locator('#dataBadge .badge-label').innerText();
@@ -130,11 +132,11 @@ export function registerBetaDesktopQaTests(suite) {
     assert(!errors.length, `console errors: ${errors.slice(0, 3).join(' | ')}`);
   });
 
-  suite.test('Beta desktop QA: paused and absent companies (Meta, Amazon, Tesla) are nowhere; the main site lists no beta company', async (ctx) => {
+  suite.test('Beta desktop QA: paused and absent companies (the registry\'s paused ones, and Tesla) are nowhere; the main site lists no beta company', async (ctx) => {
     const { st, page } = await openBeta(ctx, 'c=netflix');
     await page.click('#companyMenuBtn'); await sleep(300);
     const names = await page.$$eval('#popover .company-item-name', (e) => e.map((x) => x.textContent));
-    for (const n of ['Google', 'Microsoft', 'Apple', 'Netflix', 'NVIDIA']) assert(names.includes(n), `company menu lacks ${n}`);
+    for (const n of COMPANIES.filter((c) => BIG_TECH.includes(c.slug)).map((c) => c.name)) assert(names.includes(n), `company menu lacks ${n}`);
     // Paused companies come from the registry (server/companies.js `paused`), so resuming one needs no edit here.
     const paused = COMPANIES.filter((c) => c.paused);
     for (const n of [...paused.map((c) => c.name), 'Tesla']) assert(!names.includes(n), `company menu lists ${n}`);
@@ -142,7 +144,7 @@ export function registerBetaDesktopQaTests(suite) {
       assertEq((await fetch(`${st.main}/${p}`)).status, 404, `/${p}`);
     }
     const main = await (await fetch(`${st.main}/api/companies.json`)).json();
-    assert(!main.some((c) => c.channel === 'beta' || c.slug in BIG_TECH), `main site companies.json lists ${main.map((c) => c.slug).join(',')}`);
+    assert(!main.some((c) => c.channel === 'beta' || BIG_TECH.includes(c.slug)), `main site companies.json lists ${main.map((c) => c.slug).join(',')}`);
   });
 
   suite.test('Beta desktop QA: Apple (6,105 roles) facet counts stay consistent and each update lands quickly', async (ctx) => {
@@ -175,12 +177,13 @@ export function registerBetaDesktopQaTests(suite) {
 
   suite.test('Beta desktop QA: Apply opens each big-tech careers host in a new tab', async (ctx) => {
     const { st, page } = await openBeta(ctx, null);
-    for (const [c, host] of Object.entries(BIG_TECH)) {
+    for (const c of BIG_TECH) {
       await page.goto(`${st.beta}/#c=${c}`); await ready(page);
       await page.locator('#resultsList .card[data-id]').first().click(); await sleep(700);
       const a = page.locator('#drawer a.apply');
       const href = await a.getAttribute('href');
-      assertEq(new URL(href).hostname.replace(/^www\./, ''), host, `${c}: Apply host`);
+      const host = new URL(href).hostname.replace(/^www\./, '');
+      assert(postingHostsOf(c).has(host), `${c}: Apply goes to ${host}, not ${[...postingHostsOf(c)].join(' or ')}`);
       assertEq(await a.getAttribute('target'), '_blank', `${c}: Apply target`);
       assert(/noopener/.test(await a.getAttribute('rel')), `${c}: Apply rel`);
       assert((await a.locator('.apply-host').innerText()) === host, `${c}: host shown under Apply`);
@@ -190,7 +193,7 @@ export function registerBetaDesktopQaTests(suite) {
 
   suite.test('Beta desktop QA: beta share pages /beta/c/<slug>/ have their own titles and open the beta app', async (ctx) => {
     const { st, page } = await openBeta(ctx, null);
-    for (const c of Object.keys(BIG_TECH)) {
+    for (const c of BIG_TECH) {
       const r = await fetch(`${st.beta}/c/${c}/`);
       assertEq(r.status, 200, `/beta/c/${c}/`);
       const html = await r.text();

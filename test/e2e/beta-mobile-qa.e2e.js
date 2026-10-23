@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { ROOT, assert, assertEq, skip } from './harness.js';
+import { BETA_BOARDS, BETA_NAMES } from './beta-boards.mjs';
 import { COMPANIES } from '../../server/companies.js';
 
 const SHOTS = path.join(ROOT, 'docs', 'screenshots', 'qa-mobile-beta');
@@ -19,7 +20,8 @@ const IOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/
 const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36';
 const PHONE = { width: 390, height: 844 };
 const SMALL = { width: 360, height: 740 };
-const BIG_TECH = ['netflix', 'google', 'microsoft', 'apple', 'nvidia']; // the first is opened by URL
+// Every non-paused beta board, from the registry (T-1: Amazon and Meta were missing); the first is opened by URL.
+const BIG_TECH = ['netflix', ...BETA_BOARDS.filter((s) => s !== 'netflix')];
 const KEYBOARD = 336; // simulated on-screen keyboard height (px)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const num = (s) => Number(String(s).replace(/,/g, '').match(/(\d+)/)?.[1]);
@@ -154,7 +156,7 @@ export function registerBetaMobileQaTests(suite) {
 
   suite.test('Beta mobile QA: every big-tech board loads from its snapshot with no live request; badge, popover and CSV agree', async (ctx) => {
     const { page, errors, external } = await openBeta(ctx, { hash: `c=${BIG_TECH[0]}` });
-    const names = { google: 'Google', microsoft: 'Microsoft', apple: 'Apple', netflix: 'Netflix', nvidia: 'NVIDIA' };
+    const names = BETA_NAMES;
     for (const slug of BIG_TECH) {
       if (slug !== BIG_TECH[0]) await switchTo(page, names[slug]);
       const roles = num(await page.textContent('#resultsTitle'));
@@ -171,7 +173,18 @@ export function registerBetaMobileQaTests(suite) {
       assert(!pop.refreshShown, `${slug}: "Refresh from the live board" offered for a live: false board`);
       assertEq(pop.csv, `/melon-seek/beta/data/${slug}.csv`, `${slug}: CSV link`);
       assert(pop.csvH >= 44, `${slug}: CSV link is ${pop.csvH}px tall`);
-      const lines = await page.evaluate(async (u) => (await (await fetch(u)).text()).split('\n').filter(Boolean).length, pop.csv);
+      // Records, not lines: a quoted field may hold a line break (RFC 4180; Meta's "Research Scientist,\nMachine
+      // Learning…" title does, qa-suite-beta T-17), which a split on "\n" counts as a row.
+      const lines = await page.evaluate(async (u) => {
+        const t = await (await fetch(u)).text();
+        let n = 0, q = false, any = false;
+        for (const c of t) {
+          if (c === '"') q = !q;
+          else if (c === '\n' && !q) { if (any) n++; any = false; continue; }
+          if (c !== '\r') any = true;
+        }
+        return n + (any ? 1 : 0);
+      }, pop.csv);
       assertEq(lines, roles + 1, `${slug}: CSV rows (header + roles)`);
       await tapSel(page, '#popover .pop-head .icon-btn');
     }

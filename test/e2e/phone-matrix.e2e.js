@@ -37,6 +37,27 @@ const BOARDS = (process.env.PHONE_MATRIX_BOARDS || 'apple,amazon,google').split(
 const SHOTS = process.env.PHONE_MATRIX_SHOTS || '';
 const SHOT_DIR = path.resolve(process.env.PHONE_MATRIX_SHOT_DIR || path.join(ROOT, 'docs', 'screenshots', 'fix-phone-sizes'));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Wait until the page is still, at most `cap` ms: at least 150 ms after the action (a hash change or a tap is handled
+ * in a later task), then until no DOM change for 120 ms, the fonts are loaded (a swap re-flows text with no DOM
+ * change), and no transition or animation is running (an endless one, a
+ * skeleton's shimmer, does not count). It replaces fixed sleeps of 0.4-1.5 s, which were 68-85% of a guard walk
+ * (qa-suite-beta T-11, measured): a page that settles sooner is measured sooner, and one that never settles is measured
+ * after `cap`, as before. The mutation clock is installed by STILL_INIT in every context.
+ */
+async function quiet(page, cap = 700) {
+  await sleep(Math.min(150, cap));
+  if (cap <= 150) return;
+  await page.waitForFunction(() => performance.now() - (window.__qsbMut || 0) > 120 && document.fonts.status === 'loaded'
+    && document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getComputedTiming?.().iterations === Infinity),
+  null, { timeout: cap - 150, polling: 50 }).catch(() => {});
+}
+/** Init script: the time of the page's last DOM change (window.__qsbMut), for quiet(). */
+const STILL_INIT = () => {
+  window.__qsbMut = performance.now();
+  new MutationObserver(() => { window.__qsbMut = performance.now(); }).observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
+};
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
 // The Surface Duo's hinge when spanned: two 540 px screens with 34 px between them.
@@ -91,6 +112,7 @@ async function open(ctx, size, { board = 'apple', site = 'beta/', colorScheme = 
   const opts = size.ua ? contextFor(size, engine) : { viewport: { width: size.width, height: size.height }, deviceScaleFactor: 1, hasTouch: !!size.touch };
   const context = await ctx.browser.newContext({ ...opts, colorScheme });
   ctx.cleanup.push(() => context.close());
+  await context.addInitScript(STILL_INIT);
   await context.route((u) => !u.href.startsWith(st.origin) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
   const page = await context.newPage();
   const errors = [];
@@ -108,7 +130,7 @@ async function open(ctx, size, { board = 'apple', site = 'beta/', colorScheme = 
     const t = document.querySelector('#resultsTitle');
     return t && !/Loading/.test(t.textContent) && /\d/.test(t.textContent) && document.querySelector('#resultsList .card[data-id]');
   }, null, { timeout: 90000 });
-  await sleep(700);
+  await quiet(page, 700);
   return { page, errors, context, cdp };
 }
 
@@ -326,7 +348,7 @@ function drawerTextFacts() {
 async function checkDrawer(page, screenW, label) {
   await page.evaluate(() => document.querySelector('#resultsList .card[data-id]').click());
   await page.waitForFunction(() => document.querySelector('#drawer.is-open #drawerTitle'), null, { timeout: 15000 }).catch(() => {});
-  await sleep(900); // the slide-in (0.22 s) and the description file
+  await quiet(page, 900); // the slide-in (0.22 s) and the description file
   const f = await page.evaluate(overlayFacts, '#drawer');
   const p = overlayProblems(f, 'job page', screenW, label);
   const ctl = await page.evaluate(() => ['#drawerClose', '.drawer-foot .apply'].map((s) => {
@@ -339,7 +361,7 @@ async function checkDrawer(page, screenW, label) {
   p.push(...(await page.evaluate(drawerTextFacts)).map((c) => `${label}: job page: ${c}`));
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => !document.querySelector('#drawer.is-open'), null, { timeout: 5000 }).catch(() => {});
-  await sleep(350);
+  await quiet(page, 350);
   return p;
 }
 
@@ -366,7 +388,7 @@ async function checkFilters(page, screenW, label) {
     if (done) p.push(`${label}: filter sheet: ${done}`);
     await page.keyboard.press('Escape');
     await page.waitForFunction(() => !document.body.classList.contains('filters-open'), null, { timeout: 5000 }).catch(() => {});
-    await sleep(350);
+    await quiet(page, 350);
   }
   return p;
 }
@@ -433,11 +455,12 @@ export function registerPhoneMatrixTests(suite) {
           for (const mode of ['map', 'insights']) {
             await clickEl(page, `.topbar .seg [data-mode="${mode}"]`);
             if (mode === 'map') await page.waitForFunction(() => document.querySelector('.ms-map .ms-pin'), null, { timeout: 20000 }).catch(() => {});
-            await sleep(mode === 'map' ? 1500 : 900);
+            if (mode === 'insights') await page.waitForSelector('#insightsHost .msi-stat', { timeout: 20000 }).catch(() => {});
+            await quiet(page, mode === 'map' ? 1500 : 900);
             bad.push(...problemsOf(await page.evaluate(measure, OTHER_CONTROLS), size.width, `${label} ${mode}`));
           }
           await clickEl(page, '.topbar .seg [data-mode="chart"]');
-          await sleep(900);
+          await quiet(page, 900);
         }
         bad.push(...await checkDrawer(page, size.width, label));
         bad.push(...await checkFilters(page, size.width, label));

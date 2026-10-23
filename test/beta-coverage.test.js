@@ -13,7 +13,10 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
 const E2E = path.join(ROOT, 'test', 'e2e');
 const e2eFiles = () => fs.readdirSync(E2E).filter((f) => f.endsWith('.e2e.js')).sort();
-const todo = (id) => ({ todo: `${id}: docs/process/qa-suite-beta.md` });
+// Fixed by qa-suite-beta-e2e-runner.diff (T-4, T-5, T-9, T-10) and qa-suite-beta-t1-board-list.diff (T-1): every
+// test of these IDs passes, so they are real tests now. T-17 waits on fix-mr-3 (norm-13).
+const FIXED = new Set(['T-1', 'T-4', 'T-5', 'T-9', 'T-10']);
+const todo = (id) => (FIXED.has(id) ? {} : { todo: `${id}: docs/process/qa-suite-beta.md` });
 
 const { listCompanies } = await import(pathToFileURL(path.join(ROOT, 'server', 'companies.js')).href);
 /** The boards the beta site shows: the registry's non-paused beta companies. */

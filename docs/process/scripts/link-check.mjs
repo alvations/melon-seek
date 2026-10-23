@@ -305,18 +305,28 @@ export function checkMarkdown(rep, root = ROOT) {
   const files = ['README.md'];
   const walk = (d) => { for (const e of fs.readdirSync(path.join(root, d), { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else if (e.name.endsWith('.md')) files.push(p); } };
   if (fs.existsSync(path.join(root, 'docs'))) walk('docs');
+  // Docs the build renders as site pages link to each other by their site paths (scripts/build-static.js:
+  // methodology/ is docs/METHODOLOGY_GUIDE.md, methodology/reference/ is docs/LIVABILITY.md). qa-suite-beta T-4.
+  const SITE_LINKS = { 'docs/METHODOLOGY_GUIDE.md': { 'reference/': 'docs/LIVABILITY.md' } };
   for (const f of files) {
     if (!fs.existsSync(path.join(root, f))) continue;
-    const text = fs.readFileSync(path.join(root, f), 'utf8').replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
+    const full = fs.readFileSync(path.join(root, f), 'utf8').replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
+    // A process log's "Section for docs/QA.md" is written to be pasted into docs/QA.md: its links are relative to docs/.
+    const cut = /^## Section for docs\/QA\.md\s*$/m.exec(full);
+    const parts = cut ? [[full.slice(0, cut.index), path.dirname(f)], [full.slice(cut.index), 'docs']] : [[full, path.dirname(f)]];
+    for (const [text, from] of parts) {
     const links = [...text.matchAll(/\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g), ...text.matchAll(/<a\s[^>]*href=["']([^"']+)["']/g)].map((m) => m[1]);
     for (const raw of links) {
       if (/^(https?:|mailto:|tel:)/i.test(raw) || raw.startsWith('#') || raw.startsWith('<')) continue;
-      const target = decodeURIComponent(raw.replace(/[?#].*$/, ''));
+      let target = decodeURIComponent(raw.replace(/[?#].*$/, ''));
       if (!target) continue;
-      const abs = path.resolve(path.join(root, path.dirname(f)), target);
+      const site = Object.entries(SITE_LINKS[f.split(path.sep).join('/')] || {}).find(([prefix]) => target.startsWith(prefix));
+      if (site) target = path.relative(path.join(root, from), path.join(root, site[1]));
+      const abs = path.resolve(path.join(root, from), target);
       if (!abs.startsWith(root)) { bad(rep, f, raw, 'points outside the repo'); continue; }
       if (!fs.existsSync(abs)) bad(rep, f, raw, 'file not found');
       else rep.ok++;
+    }
     }
   }
   return files.length;

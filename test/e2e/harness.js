@@ -100,6 +100,7 @@ export async function startServer({ timeoutMs = 20000, env = {} } = {}) {
   return {
     baseUrl,
     logs,
+    pid: child.pid, // a test can read the server's CPU time (/proc/<pid>/stat) instead of trusting wall time on a loaded machine
     stop: () => new Promise((resolve) => {
       if (exited !== null) return resolve();
       child.once('exit', () => resolve());
@@ -140,9 +141,21 @@ const TEST_TIMEOUT = Number(process.env.E2E_TEST_TIMEOUT || 120000);
 export function createSuite() {
   const tests = [];
   const results = [];
+  let stopReason = null;
+  let notRun = 0;
   return {
     test(name, fn) { tests.push({ name, fn }); },
-    async run(ctx, grep = null) {
+    /**
+     * Stop the run before its next test (scripts/e2e.js calls it on SIGTERM, SIGHUP or SIGINT). The test in progress
+     * ends when the caller closes the browser; it is reported as interrupted, and the rest as not run.
+     */
+    stop(reason) { stopReason = stopReason || reason; },
+    /** { reason, notRun } once stop() was called, else null. */
+    stopped() { return stopReason ? { reason: stopReason, notRun } : null; },
+    /** The names the run would take, in order (--list, --shard). */
+    names(grep = null) { return tests.filter((t) => !grep || grep.test(t.name)).map((t) => t.name); },
+    /** only: a Set of names to run (one shard); null runs every test grep takes. */
+    async run(ctx, grep = null, { only = null } = {}) {
       let current = null;
       const stray = (err) => {
         if (current) current.stray.push(err);
@@ -153,8 +166,9 @@ export function createSuite() {
       try {
         for (const t of tests) {
           if (grep && !grep.test(t.name)) continue;
-          // A browser that died in an earlier test (it did twice near test 750 of a full run, 2026-10-17)
-          // is relaunched here, so one crash fails one test, not every test after it.
+          if (only && !only.has(t.name)) continue;
+          if (stopReason) { notRun++; continue; }
+          // A browser that died on its own (a real crash, not a stop) is relaunched here, so one crash fails one test.
           if (ctx.ensureBrowser) await ctx.ensureBrowser();
           const start = Date.now();
           current = { stray: [] };
@@ -177,8 +191,11 @@ export function createSuite() {
               console.log(`  - ${t.name} (skipped: ${err.message})`);
               continue;
             }
-            results.push({ name: t.name, ok: false, ms: Date.now() - start, error: err });
-            console.log(`  \u2717 ${t.name}\n      ${String(err && err.message || err).split('\n').join('\n      ')}`);
+            const interrupted = !!stopReason;
+            results.push({ name: t.name, ok: false, ms: Date.now() - start, error: err, interrupted });
+            // The duration too (qa-suite-beta T-9): a failure that waited out a timeout costs minutes, and a run's
+            // time can only be split by group when every line says how long it took.
+            console.log(`  \u2717 ${t.name} (${Date.now() - start}ms${interrupted ? `, interrupted by ${stopReason}` : ''})\n      ${String(err && err.message || err).split('\n').join('\n      ')}`);
           } finally {
             clearTimeout(timer);
             if (ctx.cleanup) {

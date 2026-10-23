@@ -21,7 +21,7 @@ function isExternal(url, baseUrl) {
   return !!url && !url.startsWith(baseUrl) && !url.startsWith('data:') && !url.startsWith('blob:');
 }
 
-async function openApp(ctx, { hash = '', viewport = DESKTOP, colorScheme = 'light', ready = true } = {}) {
+async function openApp(ctx, { hash = '', viewport = DESKTOP, colorScheme = 'light', ready = true, readyTimeout = READY_TIMEOUT } = {}) {
   const context = await ctx.browser.newContext({ viewport, colorScheme, deviceScaleFactor: 1, acceptDownloads: true });
   ctx.cleanup.push(() => context.close());
   // Block external hosts up front so the run is deterministic and fast.
@@ -45,21 +45,21 @@ async function openApp(ctx, { hash = '', viewport = DESKTOP, colorScheme = 'ligh
     if (!isExternal(res.url(), ctx.baseUrl) && res.status() >= 400) errors.push(`HTTP ${res.status()}: ${res.url()}`);
   });
   await page.goto(`${ctx.baseUrl}/${hash ? `#${hash}` : ''}`);
-  if (ready) await waitReady(page, 'initial load');
+  if (ready) await waitReady(page, 'initial load', readyTimeout);
   return { context, page, errors, close: () => context.close() };
 }
 
 /** Wait until the results header shows a count ("N roles"). */
-async function waitReady(page, where = '') {
+async function waitReady(page, where = '', timeout = READY_TIMEOUT) {
   try {
-    await page.locator('#resultsTitle strong').first().waitFor({ timeout: READY_TIMEOUT });
+    await page.locator('#resultsTitle strong').first().waitFor({ timeout });
   } catch {
     const st = await page.evaluate(() => ({
       title: document.querySelector('#resultsTitle')?.textContent,
       hash: location.hash,
       cards: document.querySelectorAll('#resultsList .card[data-id]').length,
     })).catch(() => ({}));
-    throw new Error(`app not ready${where ? ` (${where})` : ''} after ${READY_TIMEOUT}ms: ${JSON.stringify(st)}`);
+    throw new Error(`app not ready${where ? ` (${where})` : ''} after ${timeout}ms: ${JSON.stringify(st)}`);
   }
 }
 
@@ -239,6 +239,9 @@ export function registerUiTests(suite) {
     const { page, errors, close } = await openApp(ctx);
     try {
       await modeBtn(page, 'map').click();
+      // The switch re-renders the view; read aria-pressed once it has (qa-suite-beta T-18: "map pressed: expected true,
+      // got false" in a full run at load 7-10, fps/e2e-full3.log).
+      await page.waitForFunction(() => document.querySelector('.topbar .seg button[data-mode="map"]')?.getAttribute('aria-pressed') === 'true', null, { timeout: 5000 }).catch(() => {});
       assertEq(await modeBtn(page, 'map').getAttribute('aria-pressed'), 'true', 'map pressed');
       await page.locator('#mapHost .ms-pin').first().waitFor({ timeout: 10000 });
       const pins = await page.locator('#mapHost .ms-pin').count();
@@ -292,7 +295,9 @@ export function registerUiTests(suite) {
   });
 
   suite.test('UI: map initial fit keeps every pin inside the visible map', async (ctx) => {
-    assert(ctx.mapClipped, 'map test did not run');
+    // Reads what the map test measured (one page load for both). Run alone (a --grep, or a --shard cut between them),
+    // it has nothing to read: a skip, not a failure (qa-suite-beta T-18).
+    if (!ctx.mapClipped) skip('needs "UI: map mode shows price pins…" to run first');
     const { clipped, total } = ctx.mapClipped;
     assert(clipped.length === 0, `${clipped.length}/${total} pins outside the visible map after initial fit: ${clipped.map((g) => g.label).join('; ')}`);
   });
@@ -894,7 +899,7 @@ export function registerUiTests(suite) {
   });
 
   suite.test('UI: mobile 390x844 buttons keep visible text / accessible names', async (ctx) => {
-    assert(ctx.mobileUnnamed, 'mobile test did not run');
+    if (!ctx.mobileUnnamed) skip('needs "UI: mobile 390x844 renders without horizontal scroll…" to run first'); // T-18
     const u = [...new Set(ctx.mobileUnnamed)];
     assert(u.length === 0, `${u.length} visible buttons have no text or accessible name at 390px:\n${u.join('\n')}`);
   });
@@ -1524,15 +1529,28 @@ function registerCompstimateTests(suite) {
     const hist = mkdtempSync(path.join(os.tmpdir(), 'melon-cold-hist-'));
     const cold = await startServer({ env: { MELON_CACHE_DIR: cache, MELON_HISTORY_DIR: hist } });
     ctx.cleanup.push(() => cold.stop());
-    const { page, close } = await openComp({ ...ctx, baseUrl: cold.baseUrl }, 'c=anduril&m=insights');
+    // A cold server normalizes Anduril's 2,537 postings before its first list: 16 s at load 5 in the sandbox
+    // (qa-suite-beta T-13), over the 30 s READY_TIMEOUT at load 10+. That wait is not what T21 times.
+    const { page, close } = await openComp({ ...ctx, baseUrl: cold.baseUrl }, 'c=anduril&m=insights', { readyTimeout: 75000 });
     try {
       const first = await readComp(page);
+      // The server's CPU time (utime + stime in /proc/<pid>/stat, 100 ticks a second), where Linux has it: the
+      // backtest behind the accuracy line costs the same CPU at any load, while a loaded machine can stretch its wall
+      // time past 10 s (qa-suite-beta T-13). The budget is 10 s of server CPU, and the line must come with no user
+      // action within 40 s of wall time.
+      const cpuMs = () => { try { const f = fs.readFileSync(`/proc/${cold.pid}/stat`, 'utf8').slice(fs.readFileSync(`/proc/${cold.pid}/stat`, 'utf8').lastIndexOf(')') + 2).split(' '); return (Number(f[11]) + Number(f[12])) * 10; } catch { return null; } };
       const t0 = Date.now();
+      const c0 = cpuMs();
       let c = first;
       // fix-estimates (P-2): at low confidence the line is a caution, never an accuracy figure.
       const settled = (x) => !!x.accuracy && (/^low/i.test(x.conf || '') ? !/±/.test(x.accuracy) : /within ±\d+%/.test(x.accuracy));
-      while (Date.now() - t0 < 10000 && !settled(c)) { await page.waitForTimeout(500); c = await readComp(page); }
-      assert(settled(c), `no accuracy line (or low-confidence caution) ${Math.round((Date.now() - t0) / 1000)} s after the first estimate (first visit on a cold server)`);
+      const budget = c0 == null ? 10000 : 40000; // wall: the 75 s first load and this fit the harness's 120 s
+      while (Date.now() - t0 < budget && !settled(c)) { await page.waitForTimeout(500); c = await readComp(page); }
+      const wall = Date.now() - t0;
+      const used = c0 == null ? null : cpuMs() - c0;
+      ctx.notes.push(`T21: the accuracy line came ${Math.round(wall / 100) / 10} s after the first estimate${used == null ? '' : `, after ${Math.round(used / 100) / 10} s of server CPU`}`);
+      assert(settled(c), `no accuracy line (or low-confidence caution) ${Math.round(wall / 1000)} s after the first estimate (first visit on a cold server)`);
+      if (used != null) assert(used < 10000, `the accuracy line took ${Math.round(used / 1000)} s of server CPU (${Math.round(wall / 1000)} s of wall time)`);
       assertEq(JSON.stringify(fields(c)), JSON.stringify(fields(first)), 'other fields unchanged when the accuracy arrives');
     } finally { await close(); }
   });

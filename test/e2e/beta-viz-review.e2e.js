@@ -105,6 +105,18 @@ async function allClusterRows(page) {
   });
 }
 
+/**
+ * D-44 (fix-viz-5): Group by Location folds the small places into "N more places"; open it so every place is a row
+ * (as fix-pay-at-place's [V-36] checks do). Without it [V-18] never found its London row and skipped on every run
+ * since D-44 (qa-suite-beta T-19).
+ */
+async function openFold(page) {
+  const fold = page.locator('#chartHost .ms-crow__label:has(.ms-crow__fold)').first();
+  if (!(await fold.count()) || (await fold.locator('.ms-crow__fold').textContent()) === '\u25b4') return;
+  await fold.click();
+  await page.waitForFunction(() => document.querySelector('#chartHost .ms-crow__fold')?.textContent === '\u25b4', null, { timeout: 15000 });
+}
+
 /** Hover each ranges row (up to `max`) and return the tooltips. */
 async function rangeTips(page, max = 12) {
   const n = Math.min(max, await page.locator('#chartHost .ms-row').count());
@@ -215,6 +227,7 @@ export function registerBetaVizReviewTests(suite) {
   suite.test('Beta viz review: [V-18] Group by Location: a row for a place no posted pay covers shows no median (Google "London")', async (ctx) => {
     const { page, base } = await open(ctx, 'c=google&g=location');
     await needBoard(page, base, 'google');
+    await openFold(page);
     const rows = await allClusterRows(page);
     const london = rows.find((r) => r.name === 'London');
     if (!london) skip('no London row');

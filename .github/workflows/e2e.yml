@@ -1,0 +1,119 @@
+name: E2E suite (sharded)
+
+# The full browser suite (node scripts/e2e.js, about 900 tests and 2 hours on one machine) ran nowhere in CI until
+# 2026-10-23 (docs/process/qa-suite-beta.md, T-14): CI ran `npm test` on a build with no data, so every data-dependent
+# check skipped, and the e2e suite ran only on the sandbox. This runs it on the archived crawl (as webkit-phone.yml
+# does), in 4 shards in parallel (scripts/e2e.js --shard=i/4, about 30-45 min each), and fails on a failure that is not
+# a known red-by-design test (docs/process/e2e-expected-red.txt: a reviewer's [ID] test waiting for its fix lane).
+# Manual, nightly, and on pull requests that touch the app or the tests. Never on wip/** checkpoints.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '41 3 * * *'
+  pull_request:
+    paths: ['public/**', 'server/**', 'scripts/**', 'test/e2e/**', '.github/workflows/e2e.yml', '.github/scripts/e2e-summary.mjs', 'docs/process/e2e-expected-red.txt']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build the site with real data
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # read-only job: the token is not left in .git/config (REVIEW.md V12)
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Latest archived crawl (data/snapshots, data/beta/snapshots)
+        run: node scripts/cycle/local-data.js
+      - name: Build
+        run: |
+          node scripts/build-static.js --out dist
+          test -f dist/beta/index.html && test -f dist/beta/api/jobs/amazon.json
+      # The server-mode groups read data/snapshots and data/beta/snapshots; the static groups read dist/.
+      - name: Pack the inputs
+        run: tar -czf e2e-input.tgz dist data/snapshots data/beta/snapshots
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-input
+          path: e2e-input.tgz
+          retention-days: 3
+
+  e2e:
+    name: E2E shard ${{ matrix.shard }}/4
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # read-only job: the token is not left in .git/config (REVIEW.md V12)
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: e2e-input
+      - run: tar -xzf e2e-input.tgz
+      - name: Playwright (not a repo dependency) and Chromium
+        run: |
+          npm i --no-save playwright@1.63.0
+          npx playwright install --with-deps chromium
+      # --timings: a test's duration in test/e2e/timings.log (a past run's log, refreshed by hand) balances the shards
+      # by time; without it they split by test count. --max-skips: a build without a board turns its tests into skips.
+      - name: node scripts/e2e.js --shard=${{ matrix.shard }}/4
+        env:
+          NODE_PATH: ${{ github.workspace }}/node_modules
+          # A fresh runner has a cold data/cache: the server re-normalizes every board the crawl stored at an older
+          # normalizer version (D-20 took 101 s of the default 120 s on a cold cache, qa-suite-beta section 6).
+          E2E_TEST_TIMEOUT: '240000'
+        run: |
+          set -o pipefail
+          timings=""; [ -f test/e2e/timings.log ] && timings="--timings=test/e2e/timings.log"
+          node scripts/e2e.js --shard=${{ matrix.shard }}/4 $timings --max-skips=20 | tee e2e-shard-${{ matrix.shard }}.log
+        continue-on-error: true # the summary job decides: known red-by-design failures are expected
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: e2e-shard-${{ matrix.shard }}
+          path: e2e-shard-${{ matrix.shard }}.log
+          retention-days: 14
+
+  summary:
+    name: E2E summary
+    needs: e2e
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # read-only job: the token is not left in .git/config (REVIEW.md V12)
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: e2e-shard-*
+          merge-multiple: true
+      # Every shard's results in one table; exit 1 on a failure that is not in docs/process/e2e-expected-red.txt,
+      # on a shard that never finished, or on a test that passes while listed as expected red (its lane landed:
+      # take it off the list).
+      - run: node .github/scripts/e2e-summary.mjs --expected docs/process/e2e-expected-red.txt --summary "$GITHUB_STEP_SUMMARY" e2e-shard-*.log

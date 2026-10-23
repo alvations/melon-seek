@@ -120,14 +120,20 @@ test('S-2: the big-tech probe never targets a paused company or its careers host
 
 /* ------------------------------------------------------------------ S-3 */
 
-/** Run `body` (a function source taking no args) in a worker; resolve its ms, or reject after limitMs. */
+/**
+ * Run `body` (a function source taking no args) in a worker; resolve the CPU ms the worker's thread spent on it
+ * (process.threadCpuUsage, Node 22.19+ and 23.9+; wall ms before that), or reject after 5 x limitMs of wall time.
+ * CPU time, because a loaded machine stretches wall time while a quadratic parse costs the same CPU anywhere
+ * (qa-suite-beta T-13); the wall limit only stops a runaway.
+ */
 function timedInWorker(body, limitMs) {
   const src = `const { parentPort } = require('node:worker_threads');
-(async () => { const t0 = performance.now(); await (${body})(); parentPort.postMessage(performance.now() - t0); })()
+const clock = () => { if (typeof process.threadCpuUsage === 'function') { const u = process.threadCpuUsage(); return (u.user + u.system) / 1000; } return performance.now(); };
+(async () => { const t0 = clock(); await (${body})(); parentPort.postMessage(clock() - t0); })()
   .catch((e) => parentPort.postMessage('error: ' + e.message));`;
   return new Promise((resolve, reject) => {
     const w = new Worker(src, { eval: true });
-    const timer = setTimeout(() => { w.terminate(); reject(new Error(`still running after ${limitMs} ms`)); }, limitMs);
+    const timer = setTimeout(() => { w.terminate(); reject(new Error(`still running after ${5 * limitMs} ms`)); }, 5 * limitMs);
     w.once('message', (m) => { clearTimeout(timer); w.terminate(); typeof m === 'number' ? resolve(m) : reject(new Error(m)); });
     w.once('error', (e) => { clearTimeout(timer); reject(e); });
   });
@@ -180,7 +186,7 @@ test('S-3: 1 MB of hostile text: parseSalary, both htmlToTexts and geocode each 
     const ms = await timedInWorker(`async () => {
       const m = await import(${url('server', 'salary.js')}); const u = await import(${url('server', 'sources', 'util.js')});
       const k = await import(${url('server', 'keywords.js')}); const g = await import(${url('server', 'geo.js')});
-      const t0 = performance.now(); ${call}; if (performance.now() - t0 > 1000) throw new Error(String(Math.round(performance.now() - t0)) + ' ms');
+      const t0 = clock(); ${call}; if (clock() - t0 > 1000) throw new Error(String(Math.round(clock() - t0)) + ' ms');
     }`, 10000);
     assert.ok(ms < 10000, `${name}: ${Math.round(ms)} ms`);
   }
@@ -232,15 +238,24 @@ test('S-6: /methodology/ is not re-rendered on every request in server mode', as
     const first = await fetch(`${base}/methodology/`);
     assert.equal(first.status, 200);
     await first.text();
+    // CPU time, not wall time (qa-suite-beta T-13): a re-render costs this thread's CPU whatever the load, while a
+    // loaded machine stretches the wall time of a cached reply (29 ms median at load 10, 2026-10-23). The server runs
+    // in this process; process.threadCpuUsage (Node 22.19+, 23.9+) counts this thread only, process.cpuUsage all.
+    const cpu = () => { const u = typeof process.threadCpuUsage === 'function' ? process.threadCpuUsage() : process.cpuUsage(); return (u.user + u.system) / 1000; };
     const times = [];
+    const walls = [];
     for (let i = 0; i < 5; i++) {
       const t0 = performance.now();
+      const c0 = cpu();
       const r = await fetch(`${base}/methodology/`);
       await r.text();
-      times.push(performance.now() - t0);
+      times.push(cpu() - c0);
+      walls.push(performance.now() - t0);
     }
     times.sort((a, b) => a - b);
-    assert.ok(times[2] < 25, `median ${Math.round(times[2])} ms per request (the guide and its charts are rebuilt each time)`);
+    walls.sort((a, b) => a - b);
+    assert.ok(times[2] < 25, `median ${Math.round(times[2])} ms of CPU per request (the guide and its charts are rebuilt each time); wall ${walls.map(Math.round)} ms`);
+    assert.ok(walls[2] < 1000, `median ${Math.round(walls[2])} ms per request`);
   } finally {
     await new Promise((r) => server.close(r));
   }
