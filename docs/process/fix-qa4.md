@@ -221,4 +221,7 @@ Numbers are from the 2026-10-16 crawl. "Before" is eccdca9 (1ef0646's code) on i
   - 463c5c9: the five fixes. 1a04bf5: unit tests, the e2e group, per-file sources. 03860dc: CONTRACT, this log.
   - 196922d: the careers-site names moved to the build script (the main site's lib/ names no beta host).
   - c43ff33: D-50's third, shorter line for 280 px. 6a9ddc0: the numbers in this log (sent to the lead).
-  - Final commit: the screenshots and this State (integration pending).
+  - dcebc6a: the screenshots and the State (sent to the lead; integrated in its batch).
+- 2026-10-23 (after the weekly limit): UX-51, MR-35 and UX-50, from the lead.
+  - 6185ba3: the fixes, their unit tests (4 red on dcebc6a) and e2e checks (21 red on its build), CONTRACT, this log.
+  - Next commit: MR-35 marked fixed in methodology-review-beta-2.md; numbers and screenshots.

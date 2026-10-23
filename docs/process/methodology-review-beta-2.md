@@ -349,6 +349,10 @@ Quoted lines and their corrections (all in `methodology-review-beta-2-guide.diff
 - **Tests:** MR-32.
 
 ### MR-35 (Low): the stated base pay loses its cents
+- **Status: fixed** by [fix-qa4](fix-qa4.md) (2026-10-23, 6185ba3): `public/app.js` `hourlyText` formats with
+  `postedPair`, which keeps the posted cents, so the shift-pay tip and the pay block's Details read "Base pay starts at
+  $18.05/hour" (amazon:10409027). Whole rates still read "$18/hour". The MR-35 test in test/beta-methodology-2.test.js
+  is a plain test now: it fails on dcebc6a and passes on 6185ba3.
 - **Where:** the shift-pay tip and the pay block's Details read "Base pay starts at $18/hour" for the posting's "Pay starts at $18.05 per hour" (amazon:10409027, `drawer-amazon-part-time-shift-base.png`). `public/app.js:205` hourlyText uses `money()`, which rounds to whole dollars, so $19.50 can read "$20/hour".
 - **Note:** the VT-18 comment's own example is "$18.35/hour".
 - **Fix:** format hourly rates with two decimals.
