@@ -413,12 +413,13 @@ const POSTED_NAME = { microsoft: 'Microsoft', nvidia: 'NVIDIA' };
 const rungOf = (table, n) => (n >= 1 ? table[Math.min(n, table.length - 1)] || null : null);
 /**
  * BN-7: the levels a posting's pay names on the company's own ladder, when its level comes from there
- * (`seniorityBasis` 'pay': Microsoft "IC4" / "M5", NVIDIA "Level 4"), read from `salary.levels` or the pay sentence.
+ * (`seniorityBasis` 'pay': Microsoft "IC4" / "M5", NVIDIA "Level 4"), read from `salary.levels` or the pay sentence (and, with
+ * `{ description: true }`, the posting's own text once it is loaded).
  * -> { labels: ['M5', 'M6'], levels: ['Manager', 'Director+'] (ours, distinct, low to high), text: 'Microsoft M5–M6' }
  * or null. A posting that names two rungs on two of our levels (Microsoft M5–M6: Manager and Director+) is hired at
  * either, so the Seniority filter finds it under both; the level shown stays the lower one (keywords.js).
  */
-export function postedLevels(job) {
+export function postedLevels(job, { description = false } = {}) {
   const slug = String(job?.company || String(job?.id || '').split(':')[0]).toLowerCase();
   const ladder = POSTED_LADDERS[slug];
   if (!ladder || job?.seniorityBasis !== 'pay') return null;
@@ -431,7 +432,9 @@ export function postedLevels(job) {
   };
   for (const l of Array.isArray(s.levels) ? s.levels : []) read(String(l?.label || ''));
   if (!rungs.length) {
-    const t = String(s.text || '');
+    // The served lists keep the pay range only; with `description` (the drawer, once the posting's text is loaded) its pay
+    // sentence names the level. The filter never reads it, so it finds a posting the same way before and after.
+    const t = `${s.text || ''} ${description && job.descriptionHtml ? String(job.descriptionHtml).replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ') : ''}`;
     if (slug === 'nvidia') for (const m of t.matchAll(/\bfor\s+Level\s+(\d{1,2})\b/gi)) add('Level', Number(m[1]));
     else for (const m of t.matchAll(/\b(IC|M)(\d{1,2})\s+[-–—]\s+the typical base pay range\b/gi)) add(m[1].toUpperCase(), Number(m[2]));
   }

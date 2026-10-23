@@ -205,6 +205,27 @@ test('BN-1 the Location list\'s search box depends on the board\'s places, not o
   assert.match(body, /showSearch = [^;]*boardOptions\(facet\)/, 'makeChecklist: the search box shows by the filtered items only, so it vanished under a pay floor');
 });
 
+test('BN-1 a town counts its own postings; those listed only for its country or state stand beside them ("Palmetto 3 +294"), and its map pin too', () => {
+  const PAL = city('Palmetto', 'US', 'GA', 33.5, -84.7), US = nation('US', 'United States'), GA = { name: 'Georgia, US', city: null, region: 'GA', country: 'US', lat: 33, lng: -83, remote: false };
+  const m = machine();
+  const jobs = [...times(3, () => job({ company: 'microsoft', locs: [PAL] })), ...times(5, () => job({ company: 'microsoft', locs: [US] })), ...times(2, () => job({ company: 'microsoft', locs: [GA] })),
+    job({ company: 'microsoft', locs: [ATL] })];
+  m.load(jobs);
+  const { fc } = m.run({});
+  assert.equal(fc.l.get('Palmetto'), 10, 'a pick of Palmetto finds its 3 and the 7 listed only for the US or Georgia (I-6)');
+  assert.equal(fc.lWide?.get('Palmetto'), 7, 'fc.lWide: the country- and state-wide part, shown apart ("3 +7")');
+  assert.equal(m.run({ l: ['Palmetto'] }).filtered.length, 10);
+  checkPlaces(m, jobs, {}, 'no filter');
+  assert.match(APP.slice(APP.indexOf('function makeChecklist('), APP.indexOf('function makeDeptFilter(')), /check-wide/, 'the Location list shows one number of 10 for 3 Palmetto postings');
+  // The map under the same filter: the pin's own postings first.
+  const agg = mapViz.aggregate(jobs, { places: ['Palmetto'], placeTest: (j, l) => l.city === 'Palmetto' || (!l.city && l.country === 'US') });
+  const pin = agg.places.find((p) => p.city === 'Palmetto');
+  assert.equal(pin.wide.size, 7);
+  assert.equal(typeof mapViz.pinCount, 'function', 'map.js pinCount');
+  assert.equal(mapViz.pinCount({ n: pin.jobs.length, wide: pin.wide.size }), '3+7');
+  assert.equal(mapViz.pinCount({ n: 12 }), '12');
+});
+
 /* ------------------------------------------------------------ BN-2 */
 
 const usd = (v, c) => toUSD(v, c);

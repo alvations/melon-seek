@@ -82,8 +82,16 @@ export const MIN_PIN_SHARE = 0.25;
 export function pinCountText(c) {
   if (!c || c.median == null || c.few) return '';
   const k = c.based ?? c.salaried; // the postings the median rests on
-  if (k < c.n * MIN_PIN_SHARE) return `${shortCount(k)} of ${shortCount(c.n)}`;
-  return c.n > 1 ? shortCount(c.n) : '';
+  if (k < c.n * MIN_PIN_SHARE) return `${shortCount(k)} of ${pinCount(c)}`;
+  return c.n > 1 ? pinCount(c) : '';
+}
+/**
+ * BN-1 (fix-app-6): a pin's postings under a Location filter, its own first: "83+294" when 294 of them are listed only
+ * for its country or state (aggregate `wide`), so a town's own count is not hidden in a country's.
+ */
+export function pinCount(c) {
+  const w = Math.min(c?.wide || 0, c?.n || 0);
+  return w ? `${shortCount(c.n - w)}+${shortCount(w)}` : shortCount(c?.n || 0);
 }
 /**
  * V-45 (fix-viz-5): a place pinned where the gazetteer has no town of its own is approximate: a town it does not know
@@ -234,7 +242,8 @@ export function aggregate(jobs, { places: filter = null, placeTest = null } = {}
     for (const { job, l, hasPay, seen, rows } of wide) {
       const c = up(l.country), r = up(l.region);
       const hit = cities.filter((p) => p.country === c && (!r || p.region === r));
-      if (hit.length) for (const p of hit) { at(job, l, hasPay, p.key, seen, rows).wide.add(job.id); }
+      // BN-1 (fix-app-6): `wide` holds the postings here only through their country or state (not also listed here).
+      if (hit.length) for (const p of hit) { const own = p.locNames.has(job.id); const q = at(job, l, hasPay, p.key, seen, rows); if (!own) q.wide.add(job.id); }
       else if (l.lat != null && l.lng != null && isFinite(l.lat) && isFinite(l.lng)) at(job, l, hasPay, `${l.lat.toFixed(1)},${l.lng.toFixed(1)}`, seen, rows);
     }
   }
@@ -775,7 +784,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       const ids = new Set();
       const jobs = [];
       const paid = new Set();
-      const also = new Set(), wide = new Set();
+      const also = new Set(), wide = new Set(), ownHere = new Set();
       // V-39 (fix-pay-at-place): each posting at the pay posted for its places in this pin (payAt).
       let priceOf = c.members.length === 1 ? c.members[0].priceOf : null;
       const locsAt = priceOf ? null : new Map();
@@ -784,9 +793,11 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
         for (const id of m.paid || []) paid.add(id);
         for (const id of m.also || []) also.add(id);
         for (const id of m.wide || []) wide.add(id);
+        for (const j of m.jobs) if (!m.wide?.has(j.id)) ownHere.add(j.id); // BN-1: listed at one of the cluster's places
         if (locsAt) for (const [id, ls] of m.locsAt || []) { const all = locsAt.get(id); if (all) { for (const l of ls) if (!all.includes(l)) all.push(l); } else locsAt.set(id, ls.slice()); }
       }
       if (!priceOf) priceOf = pricer((j) => locsAt.get(j.id));
+      for (const id of ownHere) wide.delete(id);
       const label = clusterLabel(c.members);
       const res = {
         lat: c.lead.lat, lng: c.lead.lng, pt: c.pt, members: c.members, jobs, ids, label, short: shortLabel(c.members), also: also.size, wide: wide.size,
@@ -891,7 +902,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       if (count) pin.append(el('span', /\bof\b/.test(count) ? 'ms-pin__count ms-pin__count--of' : 'ms-pin__count', count));
     } else {
       pin.classList.add('ms-pin--nosalary');
-      pin.append(el('span', 'ms-pin__price', jobsText(c.n))); // "1.1K jobs", like the "4.5K" counts
+      pin.append(el('span', 'ms-pin__price', c.wide ? `${pinCount(c)} jobs` : jobsText(c.n))); // "1.1K jobs", like the "4.5K" counts
     }
     pin.append(el('span', 'ms-pin__label', c.label));
     return pin;
@@ -907,7 +918,8 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     const pay = hasPrice(c)
       ? `, median ${pinPrice(c)}${based < c.n ? ` from ${based.toLocaleString()} with pay for here` : ''}${based < c.n * MIN_PIN_SHARE ? ` (${Math.round((100 * based) / c.n)}% of them)` : ''}`
       : c.few ? `, ${c.salaried.toLocaleString()} with pay for here, too few for a median` : c.elsewhere ? ', no pay posted for here' : ', no pay listed';
-    return `${c.label}: ${plural(c.n, 'posting')}${pay}${approx}`;
+    const wide = c.wide ? `, ${c.wide.toLocaleString()} of them listed only for its country or state` : ''; // BN-1
+    return `${c.label}: ${plural(c.n, 'posting')}${wide}${pay}${approx}`;
   }
 
   function draw() {

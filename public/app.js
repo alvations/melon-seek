@@ -1116,8 +1116,11 @@ function derive() {
     if (counts('sal') && payHere(j, F)) fc.salMids.push(usdHere(j, F).mid);
     if (counts('jg')) { const g = gradeOf(shownJuice(j, F)); if (g) bump(fc.jg, g); }
   }
-  // I-6: postings that list only a country or region add to the places other roles list (and to a place picked).
-  for (const [k, n] of covered) if (fc.l.has(k) || (placeJudge && F.l.has(k))) fc.l.set(k, (fc.l.get(k) || 0) + n);
+  // I-6: postings that list only a country or region add to the places other roles list (and to a place picked), so a
+  // place's count is what picking it finds. BN-1 (fix-app-6): `lWide` keeps that part apart, so the list shows a town's
+  // own postings with the country- or state-wide ones beside them ("Palmetto 3 +294"), not one number of 297.
+  fc.lWide = new Map();
+  for (const [k, n] of covered) if (fc.l.has(k) || F.l.has(k)) { fc.l.set(k, (fc.l.get(k) || 0) + n); fc.lWide.set(k, n); }
   return { filtered, fc };
 }
 
@@ -2663,8 +2666,10 @@ function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8,
   function sync() {
     const counts = derived.fc?.[facet] || new Map();
     const selected = new Set(S[facet]);
-    let items = [...new Set([...counts.keys(), ...selected])].map((k) => ({ key: k, count: counts.get(k) || 0 }))
-      .filter((it) => it.count > 0 || selected.has(it.key));
+    // BN-1 (fix-app-6): a place counts its own postings; those listed only for its country or state are beside them.
+    const wideOf = facet === 'l' ? derived.fc?.lWide : null;
+    let items = [...new Set([...counts.keys(), ...selected])].map((k) => { const w = wideOf?.get(k) || 0; return { key: k, count: (counts.get(k) || 0) - w, wide: w }; })
+      .filter((it) => it.count > 0 || it.wide > 0 || selected.has(it.key));
     if (order) items.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
     else items.sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
     // BN-1 (fix-app-6): by the board's own options too, so the box doesn't vanish while filters narrow the list.
@@ -2688,7 +2693,10 @@ function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8,
         h('input', { type: 'checkbox', id, value: it.key, checked: selected.has(it.key) }),
         h('span', { class: 'check-box', 'aria-hidden': 'true' }),
         colorDim && colorBy() === colorDim && it.key !== 'Remote' && !/^Remote/.test(it.key) ? h('span', { class: 'dot dot--sm', style: `--dot:${vizColor(it.key)}`, 'aria-hidden': 'true' }) : null,
-        h('span', { class: `check-label${lay.cls}` }, ...lay.parts), h('span', { class: 'check-count' }, it.count));
+        h('span', { class: `check-label${lay.cls}` }, ...lay.parts), it.wide
+          ? h('span', { class: 'check-nums', title: `${plural(it.count, 'role')} listed for ${name}, and ${it.wide.toLocaleString()} listed only for its country or state, which picking ${name} finds too` },
+            h('span', { class: 'check-count' }, it.count), h('span', { class: 'check-wide' }, `+${it.wide.toLocaleString()}`))
+          : h('span', { class: 'check-count' }, it.count));
     };
 
     const nodes = [];
@@ -5223,7 +5231,7 @@ function metaParts(job) {
  * M5–M6"), so a "Director" title filed as Manager or Staff+ says why (VT-8).
  */
 function senChip(job, sen = senKey(job)) {
-  const p = postedLevels(job);
+  const p = postedLevels(job, { description: true });
   const tip = p ? `${p.text}: the level ${data.company?.name || 'the company'} posts in the pay, which comes before the title’s words${p.levels.length > 1 ? `; it is hired at either, so the Seniority filter finds it under ${p.levels.join(' and ')}` : ''}` : SEN_TIP[sen] || null;
   return h('span', { class: `sen sen--${sen.toLowerCase().replace(/\W/g, '')}`, title: tip }, p ? `${senLabel(sen)} · ${p.text}` : senLabel(sen));
 }
@@ -5588,6 +5596,9 @@ function fillDescription(job, desc, wrap, onSections = () => {}) {
   Promise.resolve(dataApi.getJobDetail(job)).then((detail) => {
     const html = detail?.descriptionHtml || '';
     job.descriptionHtml = html;
+    // BN-7: the posting's text names its own level ("IC5 - The typical base pay range …"): the chip says it now.
+    const chip = desc.isConnected ? desc.closest('#drawer')?.querySelector('.d-meta .sen') : null;
+    if (chip && html) chip.replaceWith(senChip(job));
     let gotSections = false;
     // fix3-data BP-14: sections.preferred (the posting's "Preferred qualifications") arrives with the others.
     if (detail?.sections) for (const k of ['responsibilities', 'fit', 'preferred']) if (!job.sections[k]?.length && detail.sections[k]?.length) { job.sections[k] = detail.sections[k]; gotSections = true; }

@@ -388,6 +388,9 @@ input.range-val { width: 100%; min-width: 0; padding: 0; border: 0; background: 
 .check-part { display: inline-block; max-width: 100%; vertical-align: top; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .check input:checked ~ .check-label .check-part, .check input:focus-visible ~ .check-label .check-part { white-space: normal; overflow-wrap: anywhere; }
 .check-count { font-size: 12px; color: var(--ms-faint); font-variant-numeric: tabular-nums; }
+/* BN-1 (fix-app-6): a place's own count, then the postings listed only for its country or state ("3 +294"). */
+.check-nums { display: inline-flex; gap: 3px; flex: none; white-space: nowrap; }
+.check-wide { font-size: 12px; color: var(--ms-faint); font-variant-numeric: tabular-nums; }
 .check.is-zero .check-label { color: var(--ms-faint); }
 .more-btn { margin-top: 6px; }
 

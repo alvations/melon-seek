@@ -61,7 +61,7 @@ async function open(ctx, { device = null, viewport = null, locale = 'en-US' } = 
 }
 const ready = (page) => page.waitForFunction(() => {
   const t = document.querySelector('#resultsTitle');
-  return t && !/Loading/.test(t.textContent) && /\d/.test(t.textContent) && (document.querySelector('#resultsList .card[data-id]') || document.querySelector('#resultsList .state-card'));
+  return t && !/Loading/.test(t.textContent) && /\d/.test(t.textContent) && document.querySelector('#resultsList .card[data-id], #resultsList .list-empty, #resultsList .state-card');
 }, null, { timeout: 120000 });
 /** Load the board (a full page load). */
 async function board(page, st, hash) {
@@ -98,9 +98,12 @@ async function locationOptions(page) {
     if (!(await more.count()) || !(await more.first().isVisible()) || !/Show all/.test(await more.first().innerText())) break;
     await more.first().click(); await sleep(300);
   }
-  return sec.locator('.checklist').first().evaluate((list) => [...list.querySelectorAll('label.check')].map((n) => ({
-    key: n.querySelector('input').value, label: n.querySelector('.check-label').textContent.trim(), checked: n.querySelector('input').checked,
-    count: Number(n.querySelector('.check-count').textContent.replace(/\D/g, '')) })));
+  // `count` is what a pick finds: the place's own postings and (BN-1) those listed only for its country or state.
+  return sec.locator('.checklist').first().evaluate((list) => [...list.querySelectorAll('label.check')].map((n) => {
+    const own = Number(n.querySelector('.check-count').textContent.replace(/\D/g, ''));
+    const wide = Number(n.querySelector('.check-wide')?.textContent.replace(/\D/g, '') || 0);
+    return { key: n.querySelector('input').value, label: n.querySelector('.check-label').textContent.trim(), checked: n.querySelector('input').checked, own, wide, count: own + wide };
+  }));
 }
 const searchShown = (page) => locSection(page).locator('.fsearch-wrap').first().evaluate((e) => !e.hidden && e.getBoundingClientRect().height > 0);
 
@@ -157,6 +160,28 @@ export function registerFixApp6Tests(suite) {
       noErrors(errors);
     });
   }
+
+  suite.test('fix-app-6: [BN-1] Microsoft: a town lists its own postings, with those listed only for its country or state beside them ("Palmetto 3 +294"); a pick still finds both, and the map\'s pin says the same', async (ctx) => {
+    const { st, page, errors } = await open(ctx);
+    await board(page, st, 'c=microsoft');
+    const opts = await locationOptions(page);
+    const wide = opts.filter((o) => o.wide > 0);
+    if (!wide.length) skip('no Microsoft place gets postings listed only for its country or state in this build');
+    const names = await appJobs(page, st, 'microsoft', `(j) => ({ cities: (j.locations || []).filter((l) => l && l.city && !l.remote).map((l) => l.city) })`);
+    const own = (city) => names.filter((j) => j.cities.includes(city)).length;
+    const pick = wide.find((o) => /^Palmetto\b/.test(o.label)) || wide.sort((a, b) => a.own - b.own)[0];
+    const city = pick.label.split(',')[0];
+    assertEq(pick.own, own(city), `${pick.label}: its own count is the postings that name it`);
+    await go(page, `c=microsoft&l=${encodeURIComponent(pick.key)}`);
+    assertEq(await roleCount(page), pick.own + pick.wide, `${pick.label} ${pick.own} +${pick.wide}: a pick finds both (I-6)`);
+    await go(page, `c=microsoft&l=${encodeURIComponent(pick.key)}&m=map`);
+    await page.waitForSelector('.ms-pin', { timeout: 60000 });
+    await sleep(800);
+    const counts = await page.locator('.ms-pin__count, .ms-pin.ms-pin--nosalary .ms-pin__price').allTextContents();
+    assert(counts.some((t) => /\d\+\d/.test(t)), `the map's pins read ${counts.join(', ')}: a town's own postings are hidden in its country's`);
+    await shot(page, 'bn1-microsoft-wide-map');
+    noErrors(errors);
+  });
 
   suite.test('fix-app-6: [BN-2] one foreign currency in view: the stats line, Insights\' tile, the map\'s pin and the chart caption give the median in that currency', async (ctx) => {
     const { st, page, errors } = await open(ctx);
@@ -314,7 +339,7 @@ export function registerFixApp6Tests(suite) {
       if (viewport.width > 860) assert(new RegExp(`^${hidden.toLocaleString('en-US')} roles? hidden by the pay filter`).test(note.trim()), `Salary note "${note}", ${hidden} hidden (${before} → ${after})`);
       // The empty state names the pay filter too.
       await go(page, 'c=amazon&l=Milan&smin=400000&q=engineer');
-      const empty = await page.evaluate(() => document.querySelector('#resultsList .state-card')?.textContent.replace(/\s+/g, ' ') || '');
+      const empty = await page.evaluate(() => [...document.querySelectorAll('.state-card')].find((e) => e.getClientRects().length)?.textContent.replace(/\s+/g, ' ') || '');
       if (empty) assert(/the pay filter/.test(empty), `empty state "${empty}"`);
       await shot(page, `bn6-amazon-milan-${viewport.width}`);
       noErrors(errors);
