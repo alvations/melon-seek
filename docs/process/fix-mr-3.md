@@ -153,7 +153,7 @@ NODE_PATH=$S/pw/node_modules node scripts/e2e.js --grep="fix-mr-3"
   Francisco $134K–261K".
 - **e2e (test/e2e/fix-mr-3.e2e.js):** 30/30 on the fixed build (11 ID tests, 19 phone sizes: phone-sizes.mjs has 14 portrait
   phones and 5 postures today). On a build of 05263e8 (`scratchpad/fmr3/dist-base`) the 11 ID tests and the two phone sizes tried
-  fail (13/13), e.g. "Amazon stats line median: expected "$149K base pay median in the US", got "$141K base pay median"",
+  fail (13/13), e.g. "Amazon stats line median: expected "$149K base pay median in the US" (the long form it had then), got "$141K base pay median"",
   "Garden City at 42.17,-74.95 … priced at 102100–234700", "Daily · update due".
 - **Phone lines** (fix-phone-text's scanText): every line I added or changed is one line from 344 px up. Below that the guard allows
   two, and these take two: at 280 px the converted line "≈ $6,025 a month at Sep 2026 rates" (the yearly one, "≈ $72K in US dollars

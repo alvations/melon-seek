@@ -200,7 +200,7 @@ export function registerFixMr3Tests(suite) {
     else assert(note.includes(`Its monthly row is ${monthly}`), `${c.id}: the Details don't name the monthly row: "${note.slice(0, 400)}"`);
   });
 
-  suite.test('fix-mr-3: [MR-39] the stats line\'s median is the main currency\'s (US pay on Amazon), says "in the US", and equals that median', async (ctx) => {
+  suite.test('fix-mr-3: [MR-39] the stats line\'s median is the main currency\'s (US pay on Amazon), says "(US)", and equals that median', async (ctx) => {
     const { st, page } = await open(ctx);
     await board(page, st, 'c=amazon&m=map');
     const pay = await appJobs(page, st, 'amazon', `(j, sh, pal) => j.salary && j.salary.kind !== 'ote' && pal.hasFx(j.salary.currency || 'USD') ? { cur: String(j.salary.currency || 'USD').toUpperCase(), mid: pal.toUSD(j.salary.mid, j.salary.currency || 'USD') } : null`);
@@ -211,7 +211,7 @@ export function registerFixMr3Tests(suite) {
     const median = q(us, 0.5);
     const shown = await text(page, '#statsLine .stat--median');
     const fmt = await page.evaluate(async ([u, m]) => (await import(u)).formatMoney(m), [`${st.beta}/viz/palette.js`, median]);
-    assertEq(shown, `${fmt} base pay median in the US`, 'Amazon stats line median');
+    assertEq(shown, `${fmt} base pay median (US)`, 'Amazon stats line median');
     const details = await text(page, '#statsLine');
     assert(new RegExp(`median of the ${us.length.toLocaleString('en-US')} roles paid in the US; ${(pay.length - us.length).toLocaleString('en-US')} roles paid in other currencies are left out`).test(details), `the stats Details don't say whose median it is: "${details.slice(0, 400)}"`);
     // A board whose pay is in one currency keeps its plain line.
@@ -220,7 +220,7 @@ export function registerFixMr3Tests(suite) {
       const one = new Set((await appJobs(page, st, slug, '(j) => j.salary && j.salary.kind !== "ote" ? String(j.salary.currency || "USD").toUpperCase() : null')));
       const line = await text(page, '#statsLine .stat--median');
       if (one.size === 1) assert(/base pay median$/.test(line), `${slug} (one currency): "${line}"`);
-      else assert(/base pay median in /.test(line), `${slug} (${[...one].join(', ')}): "${line}" doesn't say whose median`);
+      else assert(/base pay median \(/.test(line), `${slug} (${[...one].join(', ')}): "${line}" doesn't say whose median`);
     }
   });
 

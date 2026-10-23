@@ -2963,7 +2963,9 @@ function renderKpis() {
   const capWhole = capNote && capNote.salariedFirst && capNote.whole != null ? capNote : null;
   const onePlace = viewSpec?.l.size ? (viewSpec.l.size === 1 ? [...viewSpec.l][0] : 'these places') : '';
   // MR-39 (fix-mr-3): which country the median is for, when the pay in view is in more than one currency.
+  // The line says it short ("(US)", "(euro area)"), so a filtered desktop line stays within fix-density's 12 words.
   const basisWhere = st.basis ? ` ${payBasisPlace(st.basis)}` : '';
+  const basisShort = st.basis ? ` (${payBasisPlace(st.basis).replace(/^(?:paid )?in (?:the )?/, '')})` : '';
   const basisTip = st.basis ? `; of the ${st.basisN.toLocaleString()} roles paid ${payBasisPlace(st.basis).replace(/^paid /, '')}, as the chart rows compare one country's pay; ${plural(st.basisLeft, 'role')} paid in other currencies left out` : '';
   // fix-density: one line (roles · share with pay · median); the rest in the list behind "Details" (viz/note.js).
   const line = [
@@ -2973,8 +2975,8 @@ function renderKpis() {
       : capNote?.salariedFirst ? `of the ${capNote.kept.toLocaleString()} kept show pay` : onePlace ? `show pay for ${onePlace}` : 'show pay',
       `${st.withSalary.toLocaleString()} of ${st.n.toLocaleString()} postings include a pay range${here}${here ? ' (pay posted only for other places or another country is not counted)' : ''}${capNote ? `. ${capNote.tip}` : ''}`, 'stat--share') : null,
     // BP-13: it says which pay the median is of; the chart's median uses the same set.
-    // MR-39: with pay in several currencies, the median is the main one's and says where ("base pay median in the US").
-    st.median != null ? item(money(st.median), `${st.oteOnly ? 'median on-target earnings' : st.notBaseOnly ? 'posted pay median' : 'base pay median'}${basisWhere}`,
+    // MR-39: with pay in several currencies, the median is the main one's and says where ("base pay median (US)").
+    st.median != null ? item(money(st.median), `${st.oteOnly ? 'median on-target earnings' : st.notBaseOnly ? 'posted pay median' : 'base pay median'}${basisShort}`,
       `Half of these roles pay more than this and half less (the middle of each posted range, ${ote || 'base pay, '}in US dollars${here}${left}${basisTip})`, 'stat--median') : null,
   ].filter(Boolean);
   // M-46 (fix-phone-text): a phone shows only the median, so with no pay in view its line said nothing but "Details".

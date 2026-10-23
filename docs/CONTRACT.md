@@ -1019,7 +1019,7 @@ unchanged: `salary.min/max` stay annualized.
 - `annualNote` (MR-37): a stated yearly figure (`salary.statedAnnual`) reads "Stated as a yearly figure"; its Details quote the
   posting and its payments a year ("paid as 14 monthly payments of €3,358.33, not 12").
 - `stats(list, F)` (MR-39) adds `basis` (the main pay currency when the paid postings in view use two or more, else null), `basisN`
-  and `basisLeft`; the median and quartiles are the basis currency's. The stats line reads "$149K base pay median in the US" and
+  and `basisLeft`; the median and quartiles are the basis currency's. The stats line reads "$149K base pay median (US)" (short, within fix-density's 12 words) and
   its Details say how many roles the median is of and how many are left out. `payBasisPlace` is imported from `viz/chart.js`.
 - The stats line's Details (also the chart notes' Details) say, on a board whose departments are read from titles, "Google doesn't
   publish departments, so its roles are grouped by what their titles say." (MR-29).
