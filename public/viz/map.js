@@ -40,7 +40,7 @@ import {
   formatMoney, toUSD, median, payColor, paySteps, inkOn, onThemeChange, isDark, prefersReducedMotion,
   juiceColor, juiceGrade, juiceNetForScore, JUICE_BREAKS, isForeign, hasFx, FX_AS_OF,
 } from './palette.js';
-import { payAt, payCovers, placeRowCount, notBasePay } from '../features/shared.js';
+import { payAt, payCovers, placeRowCount, notBasePay, headlineMedian, medianText } from '../features/shared.js';
 // M-23: pin counts as "4.5K", like the chart's circles; the exact count is in pinName().
 import { shortCount, placeMatcher, FX_DOC, FX_SOURCE_SHORT } from './chart.js';
 import { renderNote } from './note.js';
@@ -188,7 +188,7 @@ export function aggregate(jobs, { places: filter = null, placeTest = null } = {}
     if (!p) {
       const locsAt = new Map(); // job id -> its Locations here that have posted pay
       p = { key, lat: +l.lat, lng: +l.lng, label: locLabel(l), city: l.city || null, country: up(l.country), region: up(l.region), loc: l,
-        jobs: [], locNames: new Map(), paid: new Set(), also: new Set(), wide: new Set(), locsAt, priceOf: (j) => priceAtUSD(j, locsAt.get(j.id)) };
+        jobs: [], locNames: new Map(), paid: new Set(), also: new Set(), wide: new Set(), locsAt, priceOf: pricer((j) => locsAt.get(j.id)) };
       places.set(key, p);
     }
     if (!p.locNames.has(job.id)) { p.jobs.push(job); p.locNames.set(job.id, new Set()); }
@@ -239,7 +239,7 @@ export function aggregate(jobs, { places: filter = null, placeTest = null } = {}
     }
   }
   for (const id of others) for (const key of homes.get(id) || []) places.get(key).also.add(id);
-  return { places: [...places.values()], remote, remotePaid, remotePriceOf: (j) => priceAtUSD(j, remoteAt.get(j.id)), unplaced };
+  return { places: [...places.values()], remote, remotePaid, remotePriceOf: pricer((j) => remoteAt.get(j.id)), unplaced };
 }
 const up = (s) => (s ? String(s).toUpperCase() : '');
 
@@ -250,6 +250,17 @@ const up = (s) => (s ? String(s).toUpperCase() : '');
 function priceAtUSD(job, locs) {
   const r = locs && locs.length ? payAt(job, locs.length === 1 ? locs[0] : locs) : null;
   return r?.usd ? r.usd.mid : midUSD(job);
+}
+/** BN-2 (fix-app-6): the currency of that pay (a place's own row can be in its own currency). */
+function curAt(job, locs) {
+  const r = locs && locs.length ? payAt(job, locs.length === 1 ? locs[0] : locs) : null;
+  return String((r?.usd ? r.currency : job.salary?.currency) || 'USD').toUpperCase();
+}
+/** A pin's priceOf(job): its pay here (priceAtUSD); priceOf.cur(job) is that pay's currency (BN-2). */
+function pricer(locsOf) {
+  const f = (j) => priceAtUSD(j, locsOf(j));
+  f.cur = (j) => curAt(j, locsOf(j));
+  return f;
 }
 
 /**
@@ -266,18 +277,28 @@ export function summarize(jobs, paid = null, priceOf = null) {
     if (head == null) continue;
     if (paid && !paid.has(j.id)) { elsewhere++; continue; }
     const v = (priceOf && priceOf(j)) ?? head;
+    const cur = priceOf?.cur ? priceOf.cur(j) : String(j.salary.currency || 'USD').toUpperCase();
     // BP-13: base pay, as the stats line and the chart; MR-28 (fix-viz-5): nor a stated minimum, shift-inclusive or
     // part-time pay (shared.js notBasePay), which are counted at the pin and used only when nothing else is left.
-    (notBasePay(j) ? nb : j.salary.kind === 'ote' ? ote : base).push(v);
+    (notBasePay(j) ? nb : j.salary.kind === 'ote' ? ote : base).push({ usd: v, cur, hourly: j.salary.partTime === true && j.salary.originalInterval === 'hour' });
     if (isForeign(j.salary.currency) && hasFx(j.salary.currency)) fx++;
   }
-  const mids = base.length ? base : ote.length ? ote : nb;
+  const pool = base.length ? base : ote.length ? ote : nb;
   const salaried = base.length + ote.length + nb.length;
+  // BN-2 (fix-app-6): shared.js headlineMedian, as the stats line, the chart's caption and Insights' tiles: MR-39's main
+  // currency, written in that currency (`price`: "CA$101K" for a Toronto pin, never a bare "$" for converted pay).
+  const hm = headlineMedian(pool);
   // V-17: `few` when too few postings post pay here for the pin to show a price (pinPrice).
-  const few = mids.length > 0 && mids.length < MIN_PIN_PAY;
-  return { n: jobs.length, salaried, elsewhere, fx, few, only: few ? mids.slice().sort((x, y) => x - y) : null, median: median(mids),
-    based: mids.length, notBaseLeft: base.length || ote.length ? nb.length : 0, notBaseOnly: !base.length && !ote.length && nb.length > 0 };
+  const few = hm.n > 0 && hm.n < MIN_PIN_PAY;
+  const one = (x) => medianText(headlineMedian([x]));
+  const only = few ? pool.slice().sort((x, y) => x.usd - y.usd) : null;
+  return { n: jobs.length, salaried, elsewhere, fx, few, only: only && only.map((x) => x.usd), onlyText: only && only.map(one), median: hm.median,
+    price: hm.median != null ? medianText(hm) : null, cur: hm.cur, basis: hm.basis,
+    based: hm.n, notBaseLeft: base.length || ote.length ? nb.length : 0, notBaseOnly: !base.length && !ote.length && nb.length > 0 };
 }
+
+/** BN-2: a pin's median as the stats line writes it (summarize's `price`), else in US dollars. */
+const pinPrice = (c) => c.price || formatMoney(c.median);
 
 const shortPlace = (p) => p.city || String(p.label || '').split(',')[0].trim() || 'Unknown';
 
@@ -635,6 +656,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       line: [el('span', 'ms-modes__long', 'Median base pay a year'), el('span', 'ms-modes__short', 'Median pay')],
       details: [
         'Colour: the median posted base pay a year, in approx US dollars',
+        'Figure: that median in the currency its postings are paid in (CA$, €, £), as the cards show pay', // BN-2
         ['Other currencies converted at ', a],
         'Small number: postings; "5 of 434" when the median rests on under a quarter of them (the rest post no pay, or pay for other places)',
         `A pin shows a median only when ${MIN_PIN_PAY} or more of its postings post pay for its places`,
@@ -764,7 +786,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
         for (const id of m.wide || []) wide.add(id);
         if (locsAt) for (const [id, ls] of m.locsAt || []) { const all = locsAt.get(id); if (all) { for (const l of ls) if (!all.includes(l)) all.push(l); } else locsAt.set(id, ls.slice()); }
       }
-      if (!priceOf) priceOf = (j) => priceAtUSD(j, locsAt.get(j.id));
+      if (!priceOf) priceOf = pricer((j) => locsAt.get(j.id));
       const label = clusterLabel(c.members);
       const res = {
         lat: c.lead.lat, lng: c.lead.lng, pt: c.pt, members: c.members, jobs, ids, label, short: shortLabel(c.members), also: also.size, wide: wide.size,
@@ -796,16 +818,16 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
         ? `median ${formatMoney(J.net)}/yr left after rent, tax and living costs`
         : 'Juice needs a published salary and a known city'));
       root.append(el('div', 'ms-tip__title', c.label));
-      root.append(el('div', 'ms-tip__meta', `${plural(c.n, 'posting')} · ${(J?.n || 0).toLocaleString()} with Juice${c.median != null ? ` · pay median ${formatMoney(c.median)}` : ''}`));
+      root.append(el('div', 'ms-tip__meta', `${plural(c.n, 'posting')} · ${(J?.n || 0).toLocaleString()} with Juice${c.median != null ? ` · pay median ${pinPrice(c)}` : ''}`));
       for (const t of filterLines(c)) root.append(el('div', 'ms-tip__meta', t));
     } else {
       const priced = hasPrice(c);
-      root.append(el('div', 'ms-tip__value', priced ? `${formatMoney(c.median)} median` : jobsText(c.n)));
+      root.append(el('div', 'ms-tip__value', priced ? `${pinPrice(c)} median` : jobsText(c.n)));
       root.append(el('div', 'ms-tip__title', c.label));
       root.append(el('div', 'ms-tip__meta', priced
         ? `${plural(c.n, 'posting')} · ${c.salaried.toLocaleString()} with salary for here`
         : c.few
-          ? `${plural(c.n, 'posting')} · ${c.salaried.toLocaleString()} with salary for here (${c.only.map((v) => formatMoney(v)).join(', ')}), too few for a median`
+          ? `${plural(c.n, 'posting')} · ${c.salaried.toLocaleString()} with salary for here (${(c.onlyText || c.only.map((v) => formatMoney(v))).join(', ')}), too few for a median`
           : `${plural(c.n, 'posting')} · ${c.elsewhere ? 'no pay posted for here' : 'no pay listed'}`)); // UX-61: the cards' words
       const based = c.based ?? c.salaried;
       if (priced && based < c.n) root.append(el('div', 'ms-tip__meta', `The median is of ${based.toLocaleString()} (${Math.max(1, Math.round((100 * based) / c.n))}%), not of all ${c.n.toLocaleString()}`));
@@ -863,7 +885,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
       const bg = payColor(c.median); // V-16: one fixed dollar scale (palette.js PAY_BREAKS), not the pins on screen
       pin.style.setProperty('--pin-bg', bg);
       pin.style.setProperty('--pin-fg', inkOn(bg));
-      pin.append(el('span', 'ms-pin__price', formatMoney(c.median)));
+      pin.append(el('span', 'ms-pin__price', pinPrice(c)));
       // V-43 (fix-viz-5): "5 of 434" when the median rests on few of the pin's postings.
       const count = pinCountText(c);
       if (count) pin.append(el('span', /\bof\b/.test(count) ? 'ms-pin__count ms-pin__count--of' : 'ms-pin__count', count));
@@ -883,7 +905,7 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     const approx = c.approx?.length ? (c.members.length === 1 ? ', approximate place' : `, ${c.approx.length} approximate ${c.approx.length === 1 ? 'place' : 'places'}`) : '';
     const based = c.based ?? c.salaried;
     const pay = hasPrice(c)
-      ? `, median ${formatMoney(c.median)}${based < c.n ? ` from ${based.toLocaleString()} with pay for here` : ''}${based < c.n * MIN_PIN_SHARE ? ` (${Math.round((100 * based) / c.n)}% of them)` : ''}`
+      ? `, median ${pinPrice(c)}${based < c.n ? ` from ${based.toLocaleString()} with pay for here` : ''}${based < c.n * MIN_PIN_SHARE ? ` (${Math.round((100 * based) / c.n)}% of them)` : ''}`
       : c.few ? `, ${c.salaried.toLocaleString()} with pay for here, too few for a median` : c.elsewhere ? ', no pay posted for here' : ', no pay listed';
     return `${c.label}: ${plural(c.n, 'posting')}${pay}${approx}`;
   }
@@ -1077,8 +1099,8 @@ export function createMap(container, { onSelect, onAreaSelect, onColorModeChange
     const s = summarize(remoteJobs, remotePaid, remotePriceOf);
     remoteBtn.append(el('span', 'ms-remote__icon', '🌐'), el('span', 'ms-remote__label', 'Remote'),
       el('span', 'ms-remote__n', s.n.toLocaleString()));
-    if (s.median != null) remoteBtn.append(el('span', 'ms-remote__price', formatMoney(s.median)));
-    remoteBtn.title = `${plural(s.n, 'remote posting')}${s.median != null ? ` · median ${formatMoney(s.median)}` : ''} — show list`;
+    if (s.median != null) remoteBtn.append(el('span', 'ms-remote__price', pinPrice(s)));
+    remoteBtn.title = `${plural(s.n, 'remote posting')}${s.median != null ? ` · median ${pinPrice(s)}` : ''} — show list`;
     remoteBtn.setAttribute('aria-label', remoteBtn.title);
   }
 

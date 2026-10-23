@@ -178,6 +178,60 @@ export function mainPayCurrency(currencies) {
 }
 
 /**
+ * BN-2, BN-4 (fix-app-6): the figure a headline median is (the stats line, Insights' tiles, the chart's caption and the
+ * map's pins use it, so they agree). `pool`: one entry per posting whose pay counts, `{ usd, cur, hourly }`: its
+ * approx-USD yearly midpoint, its pay currency, and `hourly` for part-time pay posted by the hour (its yearly figure is a
+ * year if full-time, 2,080 hours).
+ * - The median is MR-39's: with two or more currencies, of the main one's postings (`basis`, mainPayCurrency), and
+ *   `left` counts the others.
+ * - It is given in the currency of the postings it is of (`cur`), as the cards show their pay: a view paid in Canadian
+ *   dollars reads CA$101K, never a bare "$" for converted pay. `local` holds the median and quartiles in `cur` (a year).
+ * - `perHour` when every figure is part-time hourly pay: the median is written per hour, as posted ("$28.41/hour").
+ *   `fullTime` when only some are: the yearly figure is then partly "a year if full-time".
+ * -> { basis, cur, n, left, median, p25, p75 (approx USD a year, for positions and colours), local, perHour, fullTime }
+ */
+export function headlineMedian(pool) {
+  const all = (pool || []).filter((x) => x && x.usd != null && Number.isFinite(x.usd));
+  const cur0 = (x) => String(x.cur || 'USD').toUpperCase();
+  const basis = mainPayCurrency(all.map(cur0));
+  const use = basis ? all.filter((x) => cur0(x) === basis) : all;
+  const cur = basis || (use.length ? cur0(use[0]) : 'USD');
+  const v = use.map((x) => x.usd).sort((a, b) => a - b);
+  const q = (p) => (v.length ? percentile(v, p) : null);
+  const median = q(0.5), p25 = q(0.25), p75 = q(0.75);
+  const per = palette.FX_PER_USD?.[cur];
+  const back = (x) => (x == null ? null : per == null ? x : x * per); // toUSD's inverse (a currency with no rate was never converted)
+  const hourly = use.filter((x) => x.hourly).length;
+  return { basis, cur, n: v.length, left: all.length - use.length, median, p25, p75, local: { median: back(median), p25: back(p25), p75: back(p75) },
+    perHour: use.length > 0 && hourly === use.length, fullTime: hourly > 0 && hourly < use.length };
+}
+
+/**
+ * BN-2, BN-4: a headlineMedian figure as the cards write pay: "CA$101K", "€81K", "PLN 280K", "$149K"; per hour as posted
+ * when `h.perHour` ("$28.41/hour"). `v` is in `h.cur`, a year (default: the median).
+ */
+export function medianText(h, v = h?.local?.median) {
+  if (v == null || !Number.isFinite(v)) return '—';
+  const cur = h?.cur || 'USD';
+  const yearly = typeof palette.formatCurrency === 'function' ? palette.formatCurrency(v, cur) : formatMoney(v);
+  if (!h?.perHour) return yearly;
+  const sym = yearly.replace(/[-\d.,]+[KM]?$/, '');
+  return `${sym}${(v / 2080).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/hour`;
+}
+
+const CURRENCY_WORDS = {
+  USD: 'US dollars', CAD: 'Canadian dollars', EUR: 'euros', GBP: 'pounds', PLN: 'złoty', CHF: 'Swiss francs', INR: 'rupees',
+  JPY: 'yen', AUD: 'Australian dollars', SGD: 'Singapore dollars', MXN: 'Mexican pesos', BRL: 'reais', ILS: 'shekels',
+  SEK: 'Swedish kronor', DKK: 'Danish kroner', NOK: 'Norwegian kroner', CZK: 'Czech koruna', RON: 'lei', KRW: 'won',
+  HKD: 'Hong Kong dollars', TWD: 'Taiwan dollars', NZD: 'New Zealand dollars', AED: 'dirhams',
+};
+/** "Canadian dollars", "euros", "US dollars": a currency in a sentence (its code when it has no name here). */
+export function currencyWords(cur) {
+  const c = String(cur || 'USD').toUpperCase();
+  return CURRENCY_WORDS[c] || c;
+}
+
+/**
  * Weighted percentile over [value, weight] pairs. Each value sits at the centre
  * of its weight mass ((cum - w/2) / W) and we interpolate between neighbours;
  * below the first / above the last centre clamps to the extreme value.

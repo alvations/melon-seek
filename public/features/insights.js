@@ -11,7 +11,7 @@
 
 import {
   salaryUSD, percentile, median, formatMoney, formatDelta, formatPct, plural, fmtCount, niceTicks,
-  jobLocationKeys, countryName, isOTE, notBasePay, h, createTooltip, preserveFocus, uid, payAt, pricedPlaces, toUSD, mainPayCurrency,
+  jobLocationKeys, countryName, isOTE, notBasePay, h, createTooltip, preserveFocus, uid, payAt, pricedPlaces, toUSD, mainPayCurrency, headlineMedian, medianText,
 } from './shared.js';
 import { payBasisPlace } from '../viz/chart.js';
 import { formatAsOf, asOf as registryAsOf } from './freshness.js';
@@ -89,22 +89,26 @@ function kw(job, facet) {
  * pay share (`salaried`) still counts every country's pay. `basis` is null with one currency.
  */
 export function summaryStats(jobs = []) {
-  const paid = jobs.map((j) => ({ mid: midOf(j), cur: String(j?.salary?.currency || 'USD').toUpperCase() })).filter((x) => x.mid != null);
+  const paid = jobs.map((j) => ({ usd: midOf(j), cur: String(j?.salary?.currency || 'USD').toUpperCase() })).filter((x) => x.usd != null);
   // MR-28: pay posted as a stated minimum, shift-inclusive or part-time is published pay, but not in the median.
   const posted = paid.length + jobs.filter((j) => !isOTE(j) && notBasePay(j) && salaryUSD(j)).length;
-  const basis = mainPayCurrency(paid.map((x) => x.cur));
-  const mids = (basis ? paid.filter((x) => x.cur === basis) : paid).map((x) => x.mid);
+  // BN-2 (fix-app-6): shared.js headlineMedian, as the stats line, the chart's caption and the map's pins: MR-39's main
+  // currency, and the figures in that currency (`cur`, `local`): CA$101K over Canadian pay, never a bare "$".
+  const hm = headlineMedian(paid);
   return {
     total: jobs.length,
     salaried: paid.length,
     posted,
     payShare: jobs.length ? posted / jobs.length : 0,
     remoteShare: jobs.length ? jobs.filter((j) => j.remote).length / jobs.length : 0,
-    median: median(mids),
-    p25: percentile(mids, 0.25),
-    p75: percentile(mids, 0.75),
-    basis,
-    basisN: mids.length,
+    median: hm.median,
+    p25: hm.p25,
+    p75: hm.p75,
+    basis: hm.basis,
+    basisN: hm.n,
+    cur: hm.cur,
+    local: hm.local,
+    hm,
   };
 }
 
@@ -271,8 +275,8 @@ function card(title, subtitle, body, { id = uid('ins'), headTag = 'h3', extra = 
 
 function emptyNote(text) { return h('p', { class: 'msi-empty' }, text); }
 /** UX-55: "$188K–252K", the cards' range (one currency sign, never "$188K–$252K"). */
-function moneySpan(lo, hi) {
-  const a = formatMoney(lo), b = formatMoney(hi);
+function moneySpan(lo, hi, fmt = formatMoney) {
+  const a = fmt(lo), b = fmt(hi);
   const sign = a.match(/^[^\d]*/)[0];
   return `${a}–${sign && b.startsWith(sign) ? b.slice(sign.length) : b}`;
 }
@@ -445,8 +449,9 @@ export function createInsights(container, { onFilter, headingLevel = 2 } = {}) {
       // UX-53 / UX-61 (fix-phone-text): "of 2,781 with pay" (it read "of 2,781 salaried ro…" at 360). UX-55: a range is
       // written like the cards ("$188K–252K"), so the tile no longer cuts its number at 1440.
       // MR-39 (fix-mr-3): "of 12,529 in the US" when the median is the main currency's (pay in several currencies in view).
-      [tile('Median base pay', enough ? formatMoney(s.median) : '—', !s.salaried ? (s.posted ? 'no base pay posted' : 'no pay published') : enough ? `of ${fmtCount(s.basisN)} ${where || (s.posted > s.salaried ? 'ranges' : 'with pay')}` : `too few with pay (${s.basisN})`),
-        tile('Middle half', enough && s.p25 != null ? moneySpan(s.p25, s.p75) : '—', where ? `of roles ${where}` : 'of roles with pay'),
+      // BN-2 (fix-app-6): in the currency of the pay they are of (CA$101K, €81K), as the cards show it.
+      [tile('Median base pay', enough ? medianText(s.hm) : '—', !s.salaried ? (s.posted ? 'no base pay posted' : 'no pay published') : enough ? `of ${fmtCount(s.basisN)} ${where || (s.posted > s.salaried ? 'ranges' : 'with pay')}` : `too few with pay (${s.basisN})`),
+        tile('Middle half', enough && s.p25 != null ? moneySpan(s.local.p25, s.local.p75, (v) => medianText(s.hm, v)) : '—', where ? `of roles ${where}` : 'of roles with pay'),
         tile('Pay published', formatPct(s.payShare), `${fmtCount(s.posted)} of ${fmtCount(s.total)}`),
         tile('Remote-eligible', formatPct(s.remoteShare), plural(jobs.filter((j) => j.remote).length, 'role'))]
         .map((t) => { t.setAttribute('role', 'listitem'); return t; }));

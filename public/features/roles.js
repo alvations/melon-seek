@@ -400,6 +400,54 @@ export function displayLevel(job) {
   if (level === LEVEL_NOT_STATED && (!job.seniorityBasis || job.seniorityBasis === 'default')) return NOT_STATED;
   return level;
 }
+/*
+ * BN-7 (fix-app-6): the company's own ladders a posting's pay names (VT-8: that level beats the title's words). Copies of
+ * server/keywords.js MICROSOFT_IC, MICROSOFT_M and NVIDIA_LEVEL (rung n -> level), which the browser does not load;
+ * test/fix-app-6.test.js checks every rung against keywords.js seniorityFromPay.
+ */
+export const POSTED_LADDERS = Object.freeze({
+  microsoft: { IC: [null, 'Entry', 'Entry', 'Mid', 'Senior', 'Staff+', 'Staff+', 'Staff+', 'Staff+'], M: [null, 'Manager', 'Manager', 'Manager', 'Manager', 'Manager', 'Director+', 'Director+', 'Director+'] },
+  nvidia: { Level: [null, 'Entry', 'Mid', 'Senior', 'Senior', 'Senior', 'Staff+', 'Staff+', 'Staff+'] },
+});
+const POSTED_NAME = { microsoft: 'Microsoft', nvidia: 'NVIDIA' };
+const rungOf = (table, n) => (n >= 1 ? table[Math.min(n, table.length - 1)] || null : null);
+/**
+ * BN-7: the levels a posting's pay names on the company's own ladder, when its level comes from there
+ * (`seniorityBasis` 'pay': Microsoft "IC4" / "M5", NVIDIA "Level 4"), read from `salary.levels` or the pay sentence.
+ * -> { labels: ['M5', 'M6'], levels: ['Manager', 'Director+'] (ours, distinct, low to high), text: 'Microsoft M5–M6' }
+ * or null. A posting that names two rungs on two of our levels (Microsoft M5–M6: Manager and Director+) is hired at
+ * either, so the Seniority filter finds it under both; the level shown stays the lower one (keywords.js).
+ */
+export function postedLevels(job) {
+  const slug = String(job?.company || String(job?.id || '').split(':')[0]).toLowerCase();
+  const ladder = POSTED_LADDERS[slug];
+  if (!ladder || job?.seniorityBasis !== 'pay') return null;
+  const s = job.salary || {};
+  const rungs = [];
+  const add = (kind, n) => { const level = ladder[kind] ? rungOf(ladder[kind], n) : null; if (level) rungs.push({ kind, n, level }); };
+  const read = (t) => {
+    const m = slug === 'nvidia' ? /^\s*Level\s+(\d{1,2})\s*$/i.exec(t) : /^\s*(IC|M)(\d{1,2})\s*$/i.exec(t);
+    if (m) slug === 'nvidia' ? add('Level', Number(m[1])) : add(m[1].toUpperCase(), Number(m[2]));
+  };
+  for (const l of Array.isArray(s.levels) ? s.levels : []) read(String(l?.label || ''));
+  if (!rungs.length) {
+    const t = String(s.text || '');
+    if (slug === 'nvidia') for (const m of t.matchAll(/\bfor\s+Level\s+(\d{1,2})\b/gi)) add('Level', Number(m[1]));
+    else for (const m of t.matchAll(/\b(IC|M)(\d{1,2})\s+[-–—]\s+the typical base pay range\b/gi)) add(m[1].toUpperCase(), Number(m[2]));
+  }
+  if (!rungs.length) return null;
+  const order = (r) => (r.kind === 'M' ? 100 : 0) + r.n;
+  rungs.sort((a, b) => order(a) - order(b));
+  const uniq = rungs.filter((r, i) => i === 0 || order(r) !== order(rungs[i - 1]));
+  const labels = uniq.map((r) => (r.kind === 'Level' ? `Level ${r.n}` : `${r.kind}${r.n}`));
+  const levels = [...new Set(uniq.map((r) => r.level))];
+  const name = POSTED_NAME[slug];
+  const first = labels[0], last = labels[labels.length - 1];
+  const span = labels.length === 1 ? first : uniq.every((r) => r.kind === uniq[0].kind) && labels.length === 2
+    ? `${first}–${uniq[1].kind === 'Level' ? uniq[1].n : last}` : labels.join(', ');
+  return { labels, levels, text: `${name} ${span}` };
+}
+
 /** Words for a displayLevel() value: NOT_STATED (or nothing) reads "Level not stated"; a level reads as itself ("Mid"). */
 export function levelLabel(level) {
   return !level || level === NOT_STATED ? 'Level not stated' : level;

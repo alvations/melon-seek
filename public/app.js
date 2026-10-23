@@ -12,8 +12,8 @@ import { createCompstimateWidget, compstimateForJob, estimateView } from './feat
 import { compsForJob, compsNote, createCompsCard } from './features/comps.js';
 import { loadFreshness, freshnessDoc, juiceAsOfText, juiceSpanText, marketAsOfText, compstimateAsOfText, asOf, formatAsOf } from './features/freshness.js';
 import { createCompsChart } from './viz/comps.js';
-import { roleFamily, FAMILY_LABELS, readableTitle, levelLabel, displayLevel, NOT_STATED, DISPLAY_LEVEL_ORDER, levelKey, levelFromKey } from './features/roles.js';
-import { payLocations, payRank, rankText, samePayCountry, countryInSentence, payAt, pricedPlaces, placeLabel, notBasePay, isTermUnstated, mainPayCurrency } from './features/shared.js';
+import { roleFamily, FAMILY_LABELS, readableTitle, levelLabel, displayLevel, NOT_STATED, DISPLAY_LEVEL_ORDER, levelKey, levelFromKey, postedLevels } from './features/roles.js';
+import { payLocations, payRank, rankText, samePayCountry, countryInSentence, payAt, pricedPlaces, placeLabel, notBasePay, isTermUnstated, mainPayCurrency, headlineMedian, medianText, currencyWords } from './features/shared.js';
 import { taxRows, jurisdictionOf, householdTaxLine, PERIOD_KEY, periodOf, shownPeriod, gradeMeaning, gradeShort } from './features/juice-drawer.js';
 // ./features/insights.js is imported on first use (Insights mode), see renderInsights.
 // api.js: getCompanies, getJobs, getJobDetail (namespace import: tolerate a missing optional export)
@@ -81,6 +81,18 @@ const SENIORITY_SHOWN = DISPLAY_LEVEL_ORDER;
 const senKey = (j) => displayLevel(j);
 const senLabel = (k) => levelLabel(k);
 /**
+ * BN-7 (fix-app-6): the levels the Seniority filter finds a posting under: its level, and the other of ours its pay names
+ * on the company's own ladder (roles.js postedLevels: Microsoft M5–M6 is Manager and Director+). Cached on the job.
+ */
+const senKeys = (j) => {
+  if (j._senKeys && j._senKeysOf === j.seniority) return j._senKeys;
+  const own = senKey(j);
+  const p = postedLevels(j);
+  const keys = p && p.levels.length > 1 ? [own, ...p.levels.filter((l) => l !== own)] : [own];
+  j._senKeysOf = j.seniority; j._senKeys = keys;
+  return keys;
+};
+/**
  * MR-41 (fix-mr-3): a mid level each board names, read on its own ladder (server/keywords.js): Amazon's "III" is
  * Senior and Google's "II" is Entry, so no one numeral holds on every board. Microsoft and NVIDIA name the level in
  * the pay sentence ("IC3 - The typical base pay range …", "… for Level 2"). test/fix-mr-3.test.js reads each one
@@ -97,7 +109,12 @@ const SEN_TIP = {
 /* The Seniority filter in the link (s=, roles.js levelKey): "Level not stated" keeps its old value 'Mid', so
    earlier links and saved searches still mean what they said; a stated mid level is 'Mid-level'. */
 // M-36 / UX-60 (fix-phone-text): a filter note is one line; its facts are behind its Details (viz/note.js).
-const SEN_NOTE = { line: 'What the levels mean', key: 'fnote-sen', details: ['Staff+ means staff, principal and above.', 'Director+ means director, head of, vice president and above.', '“Level not stated”: the title names no level.'] };
+// BN-7 (fix-app-6): the company's own level comes first (VT-8), so the words say so, and a posting whose pay names two
+// of these levels counts under both.
+const SEN_NOTE = { line: 'What the levels mean', key: 'fnote-sen', details: ['Staff+ means staff, principal and above.', 'Director+ means director, head of, vice president and above.',
+  'Microsoft, Amazon and NVIDIA postings use the company’s own level, so some “Director” titles are Staff+ or Manager.',
+  'A posting whose pay names two of these levels (Microsoft M5–M6) counts under both.',
+  '“Level not stated”: the title names no level.'] };
 const SEN_OPTS = { labelOf: senLabel, tipOf: (k) => SEN_TIP[k] || null, note: SEN_NOTE };
 /** I-6: what a city pick finds. */
 const LOC_NOTE = { line: 'Also finds roles listed for its country', key: 'fnote-loc', details: ['A city also finds roles that list only its country or region, and remote-only roles in its country.'] };
@@ -508,9 +525,11 @@ function clearFilters() {
   const patch = {};
   for (const k of FILTER_KEYS) patch[k] = structuredClone(DEFAULTS[k]);
   clearArea();
+  const aside = heldLabels();
   dropHeld(); // BP-10: nothing set aside comes back after Clear all
   $('#search').value = '';
   set(patch);
+  heldToast(aside); // BN-5
 }
 
 function activeFilterCount(st = S) {
@@ -962,23 +981,43 @@ function filterSpec(st = S, jobs = data.jobs) {
   };
 }
 
+const salActive = (F) => !!(F.so || F.smin != null || F.smax != null);
+/**
+ * Why the pay filter hides a posting (null: it passes): 'none' (no pay), 'elsewhere' (shared decision 1: under a Location
+ * filter, pay posted only for another country or other places), 'under' (its posted pay is all under the floor), 'over'
+ * (all over the ceiling). BN-6 (fix-app-6): a posted minimum ("from €31,100") states no top, so a floor never hides it;
+ * pay stated "up to" one figure (top shift pay with no base) states no bottom, so a ceiling never hides it.
+ */
+function salWhy(j, F) {
+  if (!salActive(F)) return null;
+  if (!j._usd) return 'none';
+  if (!payHere(j, F)) return 'elsewhere';
+  const u = usdHere(j, F);
+  if (F.smin != null && u.max < F.smin && !isMinimum(j)) return 'under';
+  if (F.smax != null && u.min > F.smax && !shiftRange(j.salary)?.upTo) return 'over';
+  return null;
+}
+/** The Juice-grade filter fails (P-7: under a Location filter, the posting's best Juice among the places picked). */
+const jgFails = (j, F) => { if (!F.jg.size) return false; const g = gradeOf(shownJuice(j, F)); return !(g && F.jg.has(g)); };
+/** The filters judged at the places the Location filter picks (payHere, shownJuice), so BN-1 judges them per place. */
+const AT_PLACE = new Set(['l', 'sal', 'jg']);
+
 /** Returns the list of facet names this job fails (empty = passes all). */
 function failures(j, F, now) {
   const out = [];
   if (F.q.length && !F.q.every((re) => re.test(j._hay))) out.push('q');
-  const salActive = F.so || F.smin != null || F.smax != null;
   // Shared decision 1: under a Location filter, pay posted for another country doesn't pass a pay filter.
-  if (salActive && (!payHere(j, F) || (F.smin != null && usdHere(j, F).max < F.smin) || (F.smax != null && usdHere(j, F).min > F.smax))) out.push('sal');
+  if (salWhy(j, F)) out.push('sal');
   if (F.d.size && !F.d.has(deptKey(j))) out.push('d');
   if (F.b.size && !F.b.has(brandKey(j))) out.push('b');
   if (F.l.size && !locMatches(j, F)) out.push('l');
-  if (F.s.size && !F.s.has(senKey(j))) out.push('s');
+  if (F.s.size && !senKeys(j).some((k) => F.s.has(k))) out.push('s'); // BN-7: either level a posting is hired at
   if (F.e.size && !F.e.has(empKey(j))) out.push('e');
   if (F.r === 'remote' && !j.remote) out.push('r');
   if (F.r === 'onsite' && j.remote) out.push('r'); // BP-17: On-site is a role that isn't open to remote work
   if ((F.p && !(j._age != null && j._age <= F.p)) || (F.ho && j._age != null && j._age >= 180)) out.push('p');
   if (F.rf && famOf(j) !== F.rf) out.push('rf');
-  if (F.jg.size) { const g = gradeOf(shownJuice(j, F)); if (!(g && F.jg.has(g))) out.push('jg'); }
+  if (jgFails(j, F)) out.push('jg');
   for (const cat of ['responsibilities', 'fit', 'skills']) {
     const sel = F.kw[cat];
     if (sel.length && !sel.every((k) => j.keywords[cat].includes(k))) { out.push('kw'); break; }
@@ -1018,21 +1057,35 @@ function derive() {
   });
   const covers = coverIndex(jobs);
   const covered = new Map(); // city key -> postings that list only its country or region
+  // BN-1 (fix-app-6): the pay filter and the Juice grade are judged at the places the Location filter picks, so for the
+  // Location counts they are judged at each counted place: a place's count is what picking it alone shows, whatever
+  // else is picked (a facet's counts ignore its own selection). Without them every place counts the same posting.
+  const placeJudge = salActive(F) || F.jg.size ? judgeAtPlace(F, jobs) : null;
+  fc.salWhy = { none: 0, elsewhere: 0, under: 0, over: 0 };
   for (const j of jobs) {
     const fails = failures(j, F, now);
-    if (fails.length > 1) continue;
-    const only = fails[0];
-    if (!only) filtered.push(j); // the chart/map draw the whole filtered set; a cluster/map area narrows the list in render()
-    else fc.only[only] = (fc.only[only] || 0) + 1; // P-16: what an empty result is blocked by
-    if (only === 'sal' && !j._usd) fc.noPayHidden++; // P-5: postings with no pay that the pay filter hides
-    else if (only === 'sal' && !payHere(j, F)) fc.elsewhereHidden++; // shared decision 1: pay posted for another country
+    const byPlace = !!placeJudge && fails.every((f) => AT_PLACE.has(f));
+    if (fails.length > 1 && !byPlace) continue;
+    const only = fails.length === 1 ? fails[0] : undefined;
+    if (fails.length < 2) {
+      if (!only) filtered.push(j); // the chart/map draw the whole filtered set; a cluster/map area narrows the list in render()
+      else fc.only[only] = (fc.only[only] || 0) + 1; // P-16: what an empty result is blocked by
+      if (only === 'sal') {
+        const why = salWhy(j, F);
+        fc.salWhy[why]++; // BN-6: every role the pay filter hides, and why
+        if (why === 'none') fc.noPayHidden++; // P-5: postings with no pay that the pay filter hides
+        else if (why === 'elsewhere') fc.elsewhereHidden++; // shared decision 1: pay posted for another country
+      }
+    }
     // D-2: with a cluster or map area active, the facet counts describe the roles in that area (the list).
     if (area && !area.ids.has(j.id)) continue;
+    if (byPlace) countPlaces(j, placeJudge, covers, covered, fc, bump);
+    if (fails.length > 1) continue;
     const counts = (facet) => !only || only === facet;
     if (!only) kwJobs.push(j);
     if (counts('d')) bump(fc.d, deptKey(j));
     if (counts('b')) bump(fc.b, brandKey(j));
-    if (counts('l')) {
+    if (counts('l') && !placeJudge) {
       const seen = new Set();
       for (let i = 0; i < j.locations.length; i++) {
         const k = j._locKeys[i];
@@ -1049,7 +1102,7 @@ function derive() {
         for (const k of covers(l)) if (!seen.has(k)) { seen.add(k); bump(covered, k); }
       }
     }
-    if (counts('s')) bump(fc.s, senKey(j));
+    if (counts('s')) for (const k of senKeys(j)) bump(fc.s, k); // BN-7: under both of its levels
     if (counts('e')) bump(fc.e, empKey(j));
     if (counts('r')) {
       fc.r.any++;
@@ -1063,8 +1116,55 @@ function derive() {
     if (counts('sal') && payHere(j, F)) fc.salMids.push(usdHere(j, F).mid);
     if (counts('jg')) { const g = gradeOf(shownJuice(j, F)); if (g) bump(fc.jg, g); }
   }
-  for (const [k, n] of covered) if (fc.l.has(k)) fc.l.set(k, fc.l.get(k) + n);
+  // I-6: postings that list only a country or region add to the places other roles list (and to a place picked).
+  for (const [k, n] of covered) if (fc.l.has(k) || (placeJudge && F.l.has(k))) fc.l.set(k, (fc.l.get(k) || 0) + n);
   return { filtered, fc };
+}
+
+/**
+ * BN-1: `(j, key) -> true` when the posting passes the pay filter and the Juice grade with the Location filter set to
+ * that one place (the same salWhy and jgFails, with a spec whose `l` is { key }), so its count is what picking the place
+ * alone shows. Specs are made once per place; a posting's answer is shared between places that take in the same of its
+ * locations (a country-only posting covers many cities the same way).
+ */
+function judgeAtPlace(F, jobs) {
+  const specs = new Map();
+  const specOf = (k) => {
+    let s = specs.get(k);
+    if (!s) { const l = new Set([k]); s = { ...F, l, lCover: placeCover(l, jobs) }; specs.set(k, s); }
+    return s;
+  };
+  let memoJob = null, memo = null;
+  return (j, k) => {
+    const Fk = specOf(k);
+    if (memoJob !== j) { memoJob = j; memo = new Map(); }
+    // Which of its locations the place takes in: its own key (or an old link's), or a country or region that covers it.
+    let sig = '';
+    for (let i = 0; i < j.locations.length; i++) {
+      const l = j.locations[i];
+      if (j._locKeys[i] === k || j._locAlt?.[i] === k) sig += `o${i}`;
+      else if (coverLoc(j, l) && coveredBy(l, Fk.lCover)) sig += `c${i}`;
+    }
+    let ok = memo.get(sig);
+    if (ok === undefined) { ok = !salWhy(j, Fk) && !jgFails(j, Fk); memo.set(sig, ok); }
+    return ok;
+  };
+}
+/** BN-1: one posting's Location counts, each place judged by `judge` (judgeAtPlace); the same keys as the plain count. */
+function countPlaces(j, judge, covers, covered, fc, bump) {
+  const seen = new Set();
+  for (let i = 0; i < j.locations.length; i++) {
+    const k = j._locKeys[i];
+    if (seen.has(k)) continue;
+    seen.add(k);
+    const l = j.locations[i];
+    if (!fc.lGroup.has(k)) fc.lGroup.set(k, l.remote ? '~remote' : l.country || 'ZZ');
+    if (judge(j, k)) bump(fc.l, k);
+  }
+  for (const l of j.locations) {
+    if (!coverLoc(j, l)) continue;
+    for (const k of covers(l)) if (!seen.has(k)) { seen.add(k); if (judge(j, k)) bump(covered, k); }
+  }
 }
 
 /** I-6: (country-or-region location) -> the board's city keys it covers, cached per board. */
@@ -1164,22 +1264,23 @@ function stats(list, F = viewSpec) {
     // part-time figure is shown and counted as pay, and left out of the median unless nothing else is left.
     // MR-39: the currency of the pay that counts (under a Location filter, the places' own range).
     const cur = (F?.l.size ? placePay(j, F)?.currency : j.salary.currency) || 'USD';
-    (notBasePay(j) ? nb : isOte(j) ? ote : base).push({ mid: usdHere(j, F).mid, cur });
+    (notBasePay(j) ? nb : isOte(j) ? ote : base).push({ usd: usdHere(j, F).mid, cur, hourly: isPartTimeHourly(j) });
   }
   // MR-39 (fix-mr-3): with pay in two or more currencies in view, the median is the main currency's (the chart rows'
-  // rule, V-21: "median $222K in the US"), not every country's pay converted and pooled.
+  // rule, V-21: "median $222K in the US"), not every country's pay converted and pooled. BN-2, BN-4 (fix-app-6): it is
+  // given in that currency (shared.js headlineMedian: CA$101K over Canadian pay), and per hour when it is all part-time
+  // hourly pay; the chart's caption, the map's pins and Insights' tiles use the same helper.
   const use = base.length ? base : ote.length ? ote : nb;
-  const basis = mainPayCurrency(use.map((x) => x.cur));
-  const mids = (basis ? use.filter((x) => String(x.cur).toUpperCase() === basis) : use).map((x) => x.mid).sort((a, b) => a - b);
+  const hm = headlineMedian(use);
   const depts = new Map();
   for (const j of list) depts.set(deptKey(j), (depts.get(deptKey(j)) || 0) + 1);
   const top = [...depts].sort((a, b) => b[1] - a[1])[0] || null;
   return {
     n: list.length, withSalary: base.length + ote.length + nb.length,
-    median: quantile(mids, 0.5), p25: quantile(mids, 0.25), p75: quantile(mids, 0.75), top,
+    median: hm.median, p25: hm.p25, p75: hm.p75, top,
     oteOnly: !base.length && ote.length > 0, oteLeftOut: base.length ? ote.length : 0,
     notBaseOnly: !base.length && !ote.length && nb.length > 0, notBaseLeftOut: base.length || ote.length ? nb.length : 0,
-    basis, basisN: mids.length, basisLeft: use.length - mids.length,
+    basis: hm.basis, basisN: hm.n, basisLeft: hm.left, cur: hm.cur, local: hm.local, perHour: hm.perHour, fullTime: hm.fullTime, hm,
   };
 }
 
@@ -1702,19 +1803,45 @@ function switchCompany(c) {
   if (!c || c.slug === S.c) return;
   // BP-10: the places picked here, by what they are (placeOf), so the next board can find its own label for them.
   pendingKeep = activeFilterCount() || Object.keys(held).length
-    ? { name: c.name, places: new Map(S.l.map((x) => [x, data.status === 'ready' ? placeOf(x, data.jobs) : null])) } : null;
+    ? { name: c.name, from: data.company?.name || '', places: new Map(S.l.map((x) => [x, data.status === 'ready' ? placeOf(x, data.jobs) : null])) } : null;
   set({ c: c.slug, cn: c.custom ? c.name : '', job: null });
 }
 let pendingKeep = null;
 /**
  * BP-10: filter values a board didn't have, set aside until a board that has them: facet key ->
- * { items: [{ value, place }], after } (`after`: the facet's value when they were set aside; once the
- * person changes that filter, what they set aside is dropped). Clearing filters or opening a saved search
- * clears it (dropHeld).
+ * { items: [{ value, place, from }], after } (`after`: the facet's value when they were set aside; `from`: the board
+ * where they were in force). BN-5 (fix-app-6): a list facet (places, departments, levels, …) keeps what it set aside
+ * while the person ticks or unticks other values, as the toast's "for now" promised; a one-value filter (role family,
+ * Remote, listing date) drops it once another value replaces it. Clear all, the facet's Reset and opening a saved
+ * search clear it (dropHeld), with a toast that names what was set aside (heldToast).
  */
 let held = {};
 const facetSnap = (key) => JSON.stringify(key === 'p' ? [S.p, S.ho] : S[key]);
 function dropHeld(keys = null) { if (!keys) held = {}; else for (const k of keys) delete held[k]; }
+/** BN-5: the values set aside for `keys` (all facets by default), as the toasts name them. */
+function heldLabels(keys = null) {
+  const out = [];
+  for (const [key, hf] of Object.entries(held)) {
+    if (keys && !keys.includes(key)) continue;
+    for (const it of hf.items) out.push(heldLabel(key, it.value));
+  }
+  return out;
+}
+function heldLabel(key, v) {
+  if (key === 's') return senLabel(v);
+  if (key === 'e') return empLabel(v);
+  if (key === 'jg') return `Juice: ${v}`;
+  if (key === 'rf') return FAMILY_LABEL[v] || v;
+  if (key === 'r') return v === 'remote' ? 'Remote' : 'On-site';
+  if (key === 'p') return 'listing date';
+  return String(v);
+}
+/** BN-5: say what Clear all or a Reset dropped of the values set aside at an earlier board. */
+function heldToast(labels) {
+  if (!labels.length) return;
+  const list = labels.length > 3 ? `${labels.slice(0, 3).join(', ')} +${labels.length - 3}` : labels.join(', ');
+  toast(`Also dropped ${list}, set aside from an earlier company`, 4500);
+}
 /** Popover "Reset" keys -> the facets it clears. */
 const HELD_OF = { salary: [], dept: ['d', 'b'], loc: ['l'], sen: ['s'], remote: ['r'], more: ['e', 'p', 'kr', 'kf', 'ks', 'jg'] };
 /**
@@ -1728,7 +1855,8 @@ function settleKeep() {
   if (!k || data.status !== 'ready') return;
   const jobs = data.jobs;
   const kept = [], dropped = [], back = [];
-  for (const key of Object.keys(held)) if (facetSnap(key) !== held[key].after) delete held[key];
+  // BN-5: a one-value filter drops what it set aside once another value replaced it; a list facet keeps it.
+  for (const key of Object.keys(held)) if (!Array.isArray(S[key]) && facetSnap(key) !== held[key].after) delete held[key];
   if (S.q) kept.push(`“${S.q}”`);
   if (S.smin != null || S.smax != null || S.so) kept.push(quickLabel('salary'));
   /* `here(x, place)`: the value to use on this board, or null when it has none. Values in force are kept
@@ -1755,7 +1883,7 @@ function settleKeep() {
   // A known place keeps to that place ("Cambridge" in Massachusetts never becomes Cambridge, England); a label
   // with no place behind it (an old link) is kept where it still matches.
   keepArr('l', (x, p) => (p ? keyOnBoard(p, jobs) : locOnBoard(x, jobs) ? x : null), (x) => x, (x) => k.places?.get(x) || null);
-  keepArr('s', has((j, x) => senKey(j) === x), senLabel);
+  keepArr('s', has((j, x) => senKeys(j).includes(x)), senLabel);
   keepArr('e', has((j, x) => empKey(j) === x), empLabel);
   for (const { key, cat } of KW_CATS) keepArr(key, has((j, x) => j.keywords[cat].includes(x)));
   keepArr('jg', has((j, x) => gradeKey(j) === x), (x) => `Juice: ${x}`);
@@ -2397,14 +2525,18 @@ function makeSalary({ compact = false } = {}) {
     for (const n of [hist, track, vals, note]) n.hidden = !has;
     empty.hidden = has;
     toggle.checked = S.so;
-    // P-5: say when the pay filter hides postings that list no pay.
-    const hidden = derived.fc?.noPayHidden || 0;
-    const elsewhere = derived.fc?.elsewhereHidden || 0; // shared decision 1
-    // M-36 (fix-phone-text): one line, the two reasons behind its Details.
-    renderNote(noPay, { key: 'fnote-nopay', line: hidden || elsewhere ? `${plural(hidden + elsewhere, 'role')} hidden by the pay filter` : '', details: [
-      hidden ? `${plural(hidden, 'role')} that ${hidden === 1 ? 'lists' : 'list'} no pay ${hidden === 1 ? 'is' : 'are'} hidden while a pay filter is on.` : '',
-      elsewhere ? `${plural(elsewhere, 'role')} whose pay is posted for another country ${elsewhere === 1 ? 'is' : 'are'} hidden${hidden ? ' too' : ' while a pay filter is on'}: that pay isn’t for ${placesPicked()}.` : ''] });
-    noPay.hidden = !hidden && !elsewhere;
+    // P-5: say when the pay filter hides postings that list no pay. BN-6 (fix-app-6): every role it hides, and why.
+    const why = derived.fc?.salWhy || { none: derived.fc?.noPayHidden || 0, elsewhere: derived.fc?.elsewhereHidden || 0, under: 0, over: 0 };
+    const hidden = why.none, elsewhere = why.elsewhere; // shared decision 1
+    const all = hidden + elsewhere + why.under + why.over;
+    const is = (n) => (n === 1 ? 'is' : 'are');
+    // M-36 (fix-phone-text): one line, the reasons behind its Details.
+    renderNote(noPay, { key: 'fnote-nopay', line: all ? `${plural(all, 'role')} hidden by the pay filter` : '', details: [
+      why.under ? `${plural(why.under, 'role')} whose posted pay is all under ${money(S.smin)} a year ${is(why.under)} hidden. Posted minimums (“from …”) are kept: their top isn’t stated.` : '',
+      why.over ? `${plural(why.over, 'role')} whose posted pay is all over ${money(S.smax)} a year ${is(why.over)} hidden.` : '',
+      hidden ? `${plural(hidden, 'role')} that ${hidden === 1 ? 'lists' : 'list'} no pay ${is(hidden)} hidden while a pay filter is on.` : '',
+      elsewhere ? `${plural(elsewhere, 'role')} whose pay is posted for another country ${is(elsewhere)} hidden${hidden ? ' too' : ' while a pay filter is on'}: that pay isn’t for ${placesPicked()}.` : ''] });
+    noPay.hidden = !all;
     if (!has) { understood.hidden = true; return; }
     for (const r of [lo, hi]) { r.min = dom.lo; r.max = dom.hi; }
     if (document.activeElement !== lo) lo.value = S.smin ?? dom.lo;
@@ -2496,6 +2628,21 @@ function fitCheckLabels(root) {
   }
 }
 
+/** How many options a facet has on the whole board (distinct keys), cached per board. */
+const boardOptionCounts = new WeakMap();
+function boardOptions(facet) {
+  const jobs = data.jobs;
+  let m = boardOptionCounts.get(jobs);
+  if (!m) { m = new Map(); boardOptionCounts.set(jobs, m); }
+  if (!m.has(facet)) {
+    const keyOf1 = { d: deptKey, b: brandKey, s: senKey, e: empKey }[facet];
+    const keys = new Set();
+    for (const j of jobs) { if (facet === 'l') for (const k of j._locKeys || []) keys.add(k); else if (keyOf1) keys.add(keyOf1(j)); }
+    m.set(facet, keys.size);
+  }
+  return m.get(facet);
+}
+
 function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8, order = null, colorDim = null, labelOf = (k) => k, tipOf = null, note = null, label = null, labelledBy = null } = {}) {
   let query = '';
   let expanded = false;
@@ -2520,7 +2667,8 @@ function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8,
       .filter((it) => it.count > 0 || selected.has(it.key));
     if (order) items.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
     else items.sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
-    const showSearch = searchable === true || (searchable === 'auto' && items.length > 8);
+    // BN-1 (fix-app-6): by the board's own options too, so the box doesn't vanish while filters narrow the list.
+    const showSearch = searchable === true || (searchable === 'auto' && (items.length > 8 || boardOptions(facet) > 8));
     searchWrap.hidden = !showSearch;
     if (query && grouped) {
       // BP-6: a country ("Ireland", "Deutschland") lists its places; a local name ("München", "Zürich") its city.
@@ -2853,8 +3001,10 @@ function clearPopoverFacet(id) {
     salary: { smin: null, smax: null, so: false }, dept: { d: [], b: [] }, loc: { l: [] }, sen: { s: [] }, remote: { r: 'any' },
     more: { so: false, e: [], p: 0, ho: false, kr: [], kf: [], ks: [], jg: [] },
   };
+  const aside = heldLabels(HELD_OF[id] || []);
   dropHeld(HELD_OF[id] || []);
   set(patches[id] || {});
+  heldToast(aside); // BN-5
 }
 
 function syncPopover() {
@@ -2992,23 +3142,29 @@ function renderKpis() {
   const basisTip = st.basis ? `; of the ${st.basisN.toLocaleString()} roles paid ${payBasisPlace(st.basis).replace(/^paid /, '')}, as the chart rows compare one country's pay; ${plural(st.basisLeft, 'role')} paid in other currencies left out` : '';
   // fix-density: one line (roles · share with pay · median); the rest in the list behind "Details" (viz/note.js).
   const line = [
-    item(st.n.toLocaleString(), st.n === total ? plural(st.n, 'role').replace(/^[\d,]+ /, '') : `of ${total.toLocaleString()} roles`, null, 'stat--count'),
+    // BN-3 (fix-app-6): the word alone, never a localized number cut off ("3.821 3.821 roles" in de-DE).
+    item(st.n.toLocaleString(), st.n === total ? (st.n === 1 ? 'role' : 'roles') : `of ${total.toLocaleString()} roles`, null, 'stat--count'),
     // P-6: with a Location filter, the share counts pay that applies there ("22% show pay for London").
     st.n ? item(capWhole ? `${capWhole.whole}%` : `${pct}%`, capWhole ? `of all ${capWhole.total.toLocaleString()} show pay`
       : capNote?.salariedFirst ? `of the ${capNote.kept.toLocaleString()} kept show pay` : onePlace ? `show pay for ${onePlace}` : 'show pay',
       `${st.withSalary.toLocaleString()} of ${st.n.toLocaleString()} postings include a pay range${here}${here ? ' (pay posted only for other places or another country is not counted)' : ''}${capNote ? `. ${capNote.tip}` : ''}`, 'stat--share') : null,
     // BP-13: it says which pay the median is of; the chart's median uses the same set.
     // MR-39: with pay in several currencies, the median is the main one's and says where ("base pay median (US)").
-    st.median != null ? item(money(st.median), `${st.oteOnly ? 'median on-target earnings' : st.notBaseOnly ? 'posted pay median' : 'base pay median'}${basisShort}`,
-      `Half of these roles pay more than this and half less (the middle of each posted range, ${ote || 'base pay, '}in US dollars${here}${left}${basisTip})`, 'stat--median') : null,
+    // BN-2 (fix-app-6): in the currency of the pay it is of (CA$101K over Canadian pay; MR-39's main currency when the
+    // view mixes them), as the cards show it. BN-4: part-time hourly pay only is per hour, as posted; a median that is
+    // partly a full-time year of part-time pay says so, and an annualised figure is never "posted pay".
+    st.median != null ? medianItem(st, basisShort,
+      `Half of these roles pay more than this and half less (the middle of each posted range, ${ote || (st.notBaseOnly ? '' : 'base pay, ')}${medianUnitTip(st)}${here}${left}${basisTip})`) : null,
   ].filter(Boolean);
   // M-46 (fix-phone-text): a phone shows only the median, so with no pay in view its line said nothing but "Details".
   const noPay = st.n && st.median == null ? h('span', { class: 'stat stat--nopay' }, st.withSalary ? 'Too few with pay for a median' : 'No pay listed') : null;
   const details = [
     // Phones show the median only (the chart's notes line has the with/without counts), so the share is here too.
     st.n ? `${st.withSalary.toLocaleString()} of ${st.n.toLocaleString()} roles show pay${onePlace ? ` for ${onePlace}` : ''} (${pct}%)` : '',
-    st.p25 != null && st.p75 != null && money(st.p25) !== money(st.p75) ? `Half of these roles pay between ${money(st.p25)} and ${money(st.p75)} (the middle of each posted range)` : '',
-    st.median != null ? `The median is ${st.oteOnly ? 'on-target earnings' : 'base pay'}${basisWhere}, in approx US dollars${here}: half of these roles pay more, half less` : '',
+    st.p25 != null && st.p75 != null && medianText(st.hm, st.local.p25) !== medianText(st.hm, st.local.p75) ? `Half of these roles pay between ${medianText(st.hm, st.local.p25)} and ${medianText(st.hm, st.local.p75)} (the middle of each posted range)` : '',
+    // BN-4: "base pay" only when it is (MR-28's stated minimums, shift pay and part-time pay are not).
+    st.median != null ? `The median is ${st.oteOnly ? 'on-target earnings' : st.notBaseOnly ? (st.perHour ? 'of part-time pay' : 'of posted pay') : 'base pay'}${basisWhere}, ${medianUnitTip(st)}${here}: half of these roles pay more, half less` : '',
+    st.median != null && st.fullTime ? 'Part-time pay posted by the hour counts as a year if full-time (2,080 hours)' : '',
     // MR-39: the median compares one country's pay, as the chart rows do; the rest is counted, not pooled.
     st.median != null && st.basis ? `It is the median of the ${st.basisN.toLocaleString()} roles paid ${payBasisPlace(st.basis).replace(/^paid /, '')}; ${plural(st.basisLeft, 'role')} paid in other currencies ${st.basisLeft === 1 ? 'is' : 'are'} left out, so countries' pay is never pooled` : '',
     st.oteLeftOut ? `${plural(st.oteLeftOut, 'posting')} with on-target earnings (base plus commission) left out of the median` : '',
@@ -3031,6 +3187,24 @@ function renderKpis() {
   renderNote(el, { line: [...line.flatMap((p, i) => (i ? [h('span', { class: 'stat-sep', 'aria-hidden': 'true' }, '·'), p] : [p])), noPay], details: fold ? [] : details, key: 'stats-line' });
 }
 let statsNotes = []; // UX-57: the stats line's facts, for the chart notes
+
+/** BN-2, BN-4: "in Canadian dollars, as posted", "per hour, as posted", "in US dollars": what the stats line's median is in. */
+function medianUnitTip(st) {
+  if (st.perHour) return `per hour in ${currencyWords(st.cur)}, as posted`;
+  return `in ${currencyWords(st.cur)}${st.cur === 'USD' ? '' : ', as posted'}${st.fullTime ? ', with part-time hourly pay as a year if full-time' : ''}`;
+}
+/**
+ * BN-2, BN-4 (fix-app-6): the stats line's median: "CA$101K base pay median", "$28.41/hour posted pay median", or, when
+ * part of it is a full-time year of part-time hourly pay, "$56K median, a year if full-time" (shorter where that would
+ * wrap: fitOneLine). MR-39's "(US)" when the view mixes currencies.
+ */
+function medianItem(st, basisShort, title) {
+  const v = medianText(st.hm);
+  const words = st.oteOnly ? ['median on-target earnings'] : st.fullTime ? ['median, a year if full-time', 'median if full-time']
+    : st.notBaseOnly ? ['posted pay median'] : ['base pay median'];
+  const rest = words.map((w) => `${w}${basisShort}`);
+  return h('span', { class: 'stat stat--median', title }, h('strong', null, v), ' ', rest.length > 1 ? fitOneLine(h('span'), rest) : rest[0]);
+}
 
 /** I-2: one line on what the site is ("Pay, and what's left after tax and rent, for 8 tech companies' open roles"). */
 function renderTagline() {
@@ -3448,13 +3622,18 @@ function activeFacets(st = S) {
   if (st.kr.length || st.kf.length || st.ks.length) on.push('kw');
   return on;
 }
+/** "a, b and c". */
+const andList = (a) => (a.length > 1 ? `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}` : a[0] || '');
 const dropFacet = (f) => () => { const [, patch] = FACET_OFF[f](); if ('q' in patch) $('#search').value = ''; set(patch); };
 /** { title, body, action } for an empty result: the one filter to blame, or the one whose removal helps most. */
 function emptyState() {
   const on = activeFacets();
   const only = derived.fc?.only || {};
-  const noPay = derived.fc?.noPayHidden || 0, elsewhere = derived.fc?.elsewhereHidden || 0;
-  const payNote = [noPay ? `${plural(noPay, 'role')} that ${noPay === 1 ? 'lists' : 'list'} no pay ${noPay === 1 ? 'is' : 'are'} hidden by the pay filter.` : '',
+  const why = derived.fc?.salWhy || { none: derived.fc?.noPayHidden || 0, elsewhere: derived.fc?.elsewhereHidden || 0, under: 0, over: 0 };
+  const noPay = why.none, elsewhere = why.elsewhere;
+  const payNote = [why.under ? `${plural(why.under, 'role')} whose posted pay is all under ${money(S.smin)} a year ${why.under === 1 ? 'is' : 'are'} hidden by the pay filter.` : '',
+    why.over ? `${plural(why.over, 'role')} whose posted pay is all over ${money(S.smax)} a year ${why.over === 1 ? 'is' : 'are'} hidden by the pay filter.` : '',
+    noPay ? `${plural(noPay, 'role')} that ${noPay === 1 ? 'lists' : 'list'} no pay ${noPay === 1 ? 'is' : 'are'} hidden by the pay filter.` : '',
     elsewhere ? `${plural(elsewhere, 'role')} whose pay is posted for another country ${elsewhere === 1 ? 'is' : 'are'} hidden by the pay filter.` : ''].filter(Boolean);
   if (on.length === 1) {
     const f = on[0];
@@ -3463,10 +3642,22 @@ function emptyState() {
     if (f === 'sal') return { title: 'No roles in this pay range', body: 'Try a wider range.', details: payNote, action: ['Remove the pay filter', dropFacet('sal')] };
     return { title: 'No roles match', body: `Nothing here fits ${label}.`, action: [`Remove ${label}`, dropFacet(f)] };
   }
-  const best = on.filter((f) => only[f] > 0).sort((a, b) => only[b] - only[a])[0];
+  // BN-6 (fix-app-6): every filter that alone empties the list is named (the pay filter included), the one whose
+  // removal brings back the most first; the line is fitted to one line, with every count behind Details.
+  const blockers = on.filter((f) => only[f] > 0).sort((a, b) => only[b] - only[a]);
+  const best = blockers[0];
   if (best) {
     const [label] = FACET_OFF[best]();
-    return { title: 'No roles match every filter', body: `Without ${label}: ${plural(only[best], 'role')}.`, details: best === 'sal' ? payNote : null, action: [`Remove ${label}`, dropFacet(best)] };
+    const labels = blockers.map((f) => FACET_OFF[f]()[0]);
+    const without = blockers.map((f, i) => `without ${labels[i]}: ${plural(only[f], 'role')}`);
+    const first = `Without ${label}: ${plural(only[best], 'role')}.`;
+    const body = blockers.length === 1 ? first : fitOneLine(h('span'), [
+      `${without.join('; ').replace(/^w/, 'W')}.`,
+      `Without ${label}: ${plural(only[best], 'role')}; or remove ${andList(labels.slice(1))}.`,
+      `Blocked by ${andList(labels)}.`,
+      `Blocked by ${andList(labels.map((x) => x.replace(/^the | filter$| “.*”$/g, '')))}.`]);
+    const details = [...(blockers.length > 1 ? without.map((x) => `${x[0].toUpperCase()}${x.slice(1)}.`) : []), ...(blockers.includes('sal') ? payNote : [])];
+    return { title: 'No roles match every filter', body, details: details.length ? details : null, action: [`Remove ${label}`, dropFacet(best)] };
   }
   return { title: 'No roles match', body: 'Nothing fits every filter you’ve set.', action: ['Clear filters', clearFilters] };
 }
@@ -5027,6 +5218,16 @@ function metaParts(job) {
   return out;
 }
 
+/**
+ * BN-7 (fix-app-6): the drawer's level chip. A level read from the company's own ladder names it ("Manager · Microsoft
+ * M5–M6"), so a "Director" title filed as Manager or Staff+ says why (VT-8).
+ */
+function senChip(job, sen = senKey(job)) {
+  const p = postedLevels(job);
+  const tip = p ? `${p.text}: the level ${data.company?.name || 'the company'} posts in the pay, which comes before the title’s words${p.levels.length > 1 ? `; it is hired at either, so the Seniority filter finds it under ${p.levels.join(' and ')}` : ''}` : SEN_TIP[sen] || null;
+  return h('span', { class: `sen sen--${sen.toLowerCase().replace(/\W/g, '')}`, title: tip }, p ? `${senLabel(sen)} · ${p.text}` : senLabel(sen));
+}
+
 /** The drawer's top row: previous / position / next, and close ("‹ Back" on a phone). */
 function drawerHead() {
   return h('div', { class: 'drawer-head' },
@@ -5207,7 +5408,7 @@ function drawerContent(job) {
     // M-37 (fix-phone-text): one line; what a general application is, behind its Details.
     isPool(job) ? noteLine({ cls: 'd-pool', key: 'drawer-pool', line: h('strong', null, POOL_LABEL), details: [`${POOL_TIP}.`] }) : null,
     h('div', { class: 'd-meta' }, ...metaParts(job).map(metaPart),
-      h('span', { class: `sen sen--${sen.toLowerCase().replace(/\W/g, '')}`, title: SEN_TIP[sen] || null }, senLabel(sen)),
+      senChip(job, sen),
       job._titleTag ? h('span', { class: 'tag', title: `The posting's title starts with “[${job._titleTag}]”, a tag the company adds (often a team or office code)` }, `Tag: ${job._titleTag}`) : null),
     job._ts ? h('div', { class: 'd-updated muted' }, updatedText(job)) : null,
     // Fixed order (ROADMAP §8): pay block → Same role elsewhere → (Juice headline) → Listing → Locations → Keywords → Bullets → Description.
