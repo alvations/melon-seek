@@ -1,0 +1,88 @@
+From 2e7da1a450293b08bdece5c8ec14e1cf5751595e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 16:14:39 +0000
+Subject: [PATCH 55/63] qa-desktop-beta-4: final log and QA section (full e2e,
+ npm test CI-like)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 36e3e425d8a707bc8f542bf657e59fcea0117d26)
+---
+ docs/process/qa-desktop-beta-4.md | 35 ++++++++++++++++++++++---------
+ 1 file changed, 25 insertions(+), 10 deletions(-)
+
+diff --git a/docs/process/qa-desktop-beta-4.md b/docs/process/qa-desktop-beta-4.md
+index 9c637fc..f67d66e 100644
+--- a/docs/process/qa-desktop-beta-4.md
++++ b/docs/process/qa-desktop-beta-4.md
+@@ -4,16 +4,19 @@ The fourth desktop QA pass of the beta site (`/melon-seek/beta/`), beta round 4
+ build that carries fix wave 5.
+ 
+ ## State
+-- **Done (14:05 UTC):** every area of the brief on the 7 big-tech boards and Anduril; the round-3 re-check (every
++- **Done (16:20 UTC):** every area of the brief on the 7 big-tech boards and Anduril; the round-3 re-check (every
+   desktop finding, with a screenshot each); new findings D-46 (by decision, not a bug) and D-47 to D-52, each with a
+-  test in `test/e2e/beta-desktop-qa-4.e2e.js`, a screenshot and an owner, all sent to the lead; `npm test`; server
+-  mode; timings.
+-- **In progress:** the full e2e (`<scratch>/qa-desktop-beta-4/e2e-full.log`, started 13:53).
+-- **Next step:** when it ends, write its numbers into §5 and the QA section, restore the screenshots the suite
+-  rewrote (`git checkout -- docs/screenshots` outside `qa-desktop-beta-4/`), remove the `dist` link, run `npm test`
+-  CI-like (no data links), stop the static server (`kill "$(cat <scratch>/qa-desktop-beta-4/serve.pid)"`), commit.
++  test in `test/e2e/beta-desktop-qa-4.e2e.js`, a screenshot and an owner, all sent to the lead; `npm test` (with data,
++  and CI-like); server mode; timings; the full e2e (its first run, then the three unfinished groups one at a time).
++  The screenshots the suite rewrote are restored, the `dist` link removed, the servers stopped.
++- **In progress:** nothing.
++- **Next step:** the lead copies "Section for docs/QA.md" into `docs/QA.md` and integrates the test file, its
++  registration and the screenshots.
+ - The lead's routing: D-47, D-48, D-49, D-50 and D-52 go to the fix lane fix-qa4, which reads the red tests from this
+   worktree; D-51 goes to fix-viz-5. D-46 is by decision (lead, 2026-10-16).
++- The session paused at an API limit during the full e2e (about 15:05 to 15:28). The run was still going and would have
++  passed its 110-minute limit, so it was stopped at test 701 and the groups it had not finished (Fix phone text,
++  fix-pay-at-place, Beta desktop QA 4) were re-run one at a time (`$Q/rerun.sh`).
+ - Commits in this worktree (detached at 1ef0646, never pushed): d7acc88 brief, then WIP commits for the log, the
+   tests, the screenshots and this log.
+ 
+@@ -117,7 +120,13 @@ build that carries fix wave 5.
+ - Screenshots: `docs/screenshots/qa-desktop-beta-4/`: `D-46-*` … `D-52-*` (13 files) and `recheck-*` (45 files), 2.9 MB.
+ - `npm test` (data linked, 13:33–13:43, load 20 to 28): **1,244 tests, 1,197 pass, 2 fail, 45 to-dos**. The 2 are
+   PERF-1 (281 ms of event-loop lag) and V15 (557 ms), the load-sensitive timing tests that run only with local data.
+-- Full e2e: see "Suite results" in the section below.
++- Full e2e (dist linked to my build): the first run (13:52–15:29, load 4 to 14) finished 701 tests (674 pass, 22 fail,
++  5 skipped) and was stopped inside Fix phone text; the unfinished groups were re-run one at a time (15:31–16:09):
++  Beta desktop QA 4 3/9, fix-pay-at-place 25/25, Fix phone text 93/100. Together **748 tests: 715 pass, 28 fail, 5
++  skipped**, every failure expected (the section's "Suite results").
++- The two timing tests alone at 15:30 (load 8): PERF-1 59 ms of lag and V15 68 ms, both pass.
++- `npm test` CI-like (data links removed, `MELON_BETA_SNAPSHOT_DIR=`, 16:12–16:14): **1,238 tests, 1,185 pass, 0 fail,
++  8 skipped, 45 to-dos**, the lead's gate on 1ef0646 exactly. The data links were put back after it.
+ 
+ ## 6. Known gaps and follow-ups
+ - Desktop Safari is not available in this sandbox; everything here is Chromium 141.
+@@ -138,6 +147,11 @@ build that carries fix wave 5.
+ - 13:45–14:00: server mode, descriptions, timings at load 6 to 7, D-51 (legend), D-52 (Compstimate by city), all
+   sent; the full e2e started at 13:53.
+ - 14:05: screenshots shrunk and committed; this log.
++- 15:05–15:28: the session paused at an API limit; the full e2e kept running.
++- 15:29: the full e2e stopped at test 701 (it would have passed its time limit); the three unfinished groups re-run one
++  at a time (15:31–16:09); the timing tests alone (pass).
++- 16:10–16:15: the screenshots the suite rewrote restored, `dist` link removed, `npm test` CI-like (1,185 pass, 0 fail),
++  data links back; the static server had already exited; final log.
+ 
+ ## Section for docs/QA.md
+ 
+@@ -495,10 +509,11 @@ D-52), fix-viz-5 (D-51).
+ ### Suite results
+ | Suite | Tree | Result |
+ |---|---|---|
+-| `npm test` | this worktree (1ef0646 plus this pass's test file), with the 2026-10-16 data linked, load 20–28 | 1,244 tests: **1,197 pass, 2 fail, 45 to-dos**. The 2 are PERF-1 (281 ms of event-loop lag) and V15 (557 ms), the load-sensitive timing tests that run only with local data (CI skips them). The to-dos are the methodology and security reviews' open findings. |
++| `npm test` | this worktree (1ef0646 plus this pass's test file), with the 2026-10-16 data linked, load 20–28 | 1,244 tests: **1,197 pass, 2 fail, 45 to-dos**. The 2 are PERF-1 (281 ms of event-loop lag) and V15 (557 ms), the load-sensitive timing tests that run only with local data (CI skips them). Alone at load 8 both pass (59 ms and 68 ms of lag). The to-dos are the methodology and security reviews' open findings. |
++| `npm test` CI-like | the same tree, data links removed, `MELON_BETA_SNAPSHOT_DIR=` | 1,238 tests: **1,185 pass, 0 fail**, 8 skipped, 45 to-dos (the lead's gate on 1ef0646: 1,185 pass, 0 fail) |
+ | `node scripts/e2e.js --grep='^Beta desktop QA 4'` | my build | **3/9**: the 3 guards pass; `[D-47]` … `[D-52]` fail by design |
+ | Round 3's red groups (`Beta desktop QA 3`, `Beta UX review 2`, `Beta viz review 2`, `beta a11y 2`) | my build | **30/46 pass, 15 fail, 1 skipped**: the 15 are A-8, D-43, D-44, V-33, V-34, V-38, V-41 to V-44, V-46, V-48, UX-39, UX-42, UX-45, all on the lead's known list |
+-| `node scripts/e2e.js` (full) | this worktree, `dist` linked to my build, `BETA_QA_DIST` set | FULL_E2E_RESULT |
++| `node scripts/e2e.js` (full) | this worktree, `dist` linked to my build, `BETA_QA_DIST` set, load 4–14 | **748 tests: 715 pass, 28 fail, 5 skipped.** The first run (13:52–15:29) finished 701 tests and was stopped inside Fix phone text, before its time limit cut it (the session paused at an API limit while it ran); the three groups it had not finished were re-run one at a time: Fix phone text 93/100, fix-pay-at-place 25/25, Beta desktop QA 4 3/9. The 28 failures are all expected: the 15 reviewers' red-by-design tests owned by fix-viz-5 and fix-phone-sizes (A-8, D-43, D-44, V-33, V-34, V-38, V-41 to V-44, V-46, V-48, UX-39, UX-42, UX-45); 7 Fix phone text guards on Amazon at 280–360 px, all the known department row cut ("Program and Product Management" by 0.42 to 80.42 px, at 280 px also "Fulfillment & Operations" by 1.59 px; fix-phone-sizes); and this pass's 6, `[D-47]` … `[D-52]`. Every other group passes, including the earlier desktop passes' `[D-17]` … `[D-42]` and `[D-45]`, fix-pay-at-place, fix-data-3, fix-sec-3, fix-touch-tips (33), fix-phone-controls (98), the phone matrix (34) and fix-density (51). The 5 skips: `[D-11]` (these boards have listing dates), the methodology screenshots (`E2E_SHOTS=1`), fix-app `[P-2]` (no estimate for its role), fix3-viz's NVIDIA Munich case (no such roles) and `[V-35]` (no one-place striped row, the fix). |
+ 
+ All runs used `NODE_PATH=<scratch>/pw/node_modules PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`.
+ 
+-- 
+2.43.0
+

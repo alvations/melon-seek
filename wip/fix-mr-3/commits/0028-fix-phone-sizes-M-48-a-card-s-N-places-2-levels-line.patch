@@ -1,0 +1,30 @@
+From ec2aa4b02e2485d050d560a121d3408119e2d543 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 16:05:45 +0000
+Subject: [PATCH 28/63] fix-phone-sizes: M-48, a card's "N places" / "2 levels"
+ line is 12 px (was 11.5), on one line
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 97a36d3adf02f40a7981dbb5578fe676bfe6d380)
+---
+ public/styles.css | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/public/styles.css b/public/styles.css
+index d285511..d2e958d 100644
+--- a/public/styles.css
++++ b/public/styles.css
+@@ -1645,6 +1645,9 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
+   body.is-previewing .results { --sheet-peek: 156px; }
+ }
+ 
++/* M-48: the card's "5 places" / "2 levels" line keeps to the 12 px floor, on one line. */
++.sal-sub { font-size: 12px; white-space: nowrap; }
++
+ /* M-40 meets fix-data-3's longer names ("Non-Technical Project, Program and Product Management": its end was cut by
+    0.42 px at 360 px, and more on narrower phones): a split name that fits whole in two lines flows as one text
+    (app.js fitCheckLabels); on the narrowest phones in 13 px, then 12 px, with tighter gaps in its row. */
+-- 
+2.43.0
+

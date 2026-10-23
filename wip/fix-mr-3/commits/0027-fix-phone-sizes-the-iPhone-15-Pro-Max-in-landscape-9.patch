@@ -1,0 +1,29 @@
+From 3ed0d6272dac9c87aeba03c87f0568789b4905c3 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 15:29:25 +0000
+Subject: [PATCH 27/63] fix-phone-sizes: the iPhone 15 Pro Max in landscape
+ (932x430) joins the phone sizes (mobile QA 4, M-52)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 8606e3d87e2f8ace5a8ccbc4a7711595341c6db8)
+---
+ test/e2e/phone-sizes.mjs | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/test/e2e/phone-sizes.mjs b/test/e2e/phone-sizes.mjs
+index a05c361..a6bcb16 100644
+--- a/test/e2e/phone-sizes.mjs
++++ b/test/e2e/phone-sizes.mjs
+@@ -35,6 +35,8 @@ export const POSTURES = Object.freeze([
+   android('Surface Duo (spanned, stacked)', 720, 1114, 2.5, 'Surface Duo'),
+   ios('iPhone 13 mini (landscape)', 812, 375, 3),
+   ios('iPhone SE (3rd gen, landscape)', 667, 375, 2),
++  // Over 860 px: the desktop layout on a touch screen (mobile QA 4, M-52).
++  ios('iPhone 15 Pro Max (landscape)', 932, 430, 3),
+   android('Motorola razr (inner, landscape)', 1005, 412, 2.625, 'motorola razr 50 ultra'),
+ ]);
+ 
+-- 
+2.43.0
+

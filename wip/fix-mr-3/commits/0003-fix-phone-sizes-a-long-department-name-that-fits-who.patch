@@ -1,0 +1,96 @@
+From 246f7724d2c06e06ea5a6695ff0aaed33a53e1f0 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 12:39:05 +0000
+Subject: [PATCH 03/63] fix-phone-sizes: a long department name that fits whole
+ in two lines flows as one text (13 px, then 12 px, on the narrowest phones),
+ so Amazon's 'Non-Technical Project, Program and Product Management' is never
+ cut (M-40 with fix-data-3's names)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 6c0ebab51758c457274c0ab15e6f36990974b3b2)
+---
+ public/app.js     | 33 +++++++++++++++++++++++++++++++++
+ public/styles.css |  9 +++++++++
+ 2 files changed, 42 insertions(+)
+
+diff --git a/public/app.js b/public/app.js
+index afde45e..653cbfe 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -2408,6 +2408,33 @@ function labelLayouts(names) {
+     return [name, { cls: ' is-split', parts: [h('span', { class: 'check-part' }, p.head), p.gap, h('span', { class: 'check-part' }, p.tail)], long: true }];
+   }));
+ }
++/**
++ * fix-phone-sizes (M-40 meets fix-data-3's names): a split name flows as one wrapping text when that keeps it whole in at
++ * most two lines ("Non-Technical Project, Program and" / "Product Management"); on the narrowest phones in 13 px, then
++ * 12 px, with tighter row gaps (styles.css .is-flow, .is-snug, .is-snugger). A name that needs more keeps its two
++ * one-line parts. Measured after each render and when the list's width changes; the label's text, the checkbox's
++ * name and the row's title stay the whole name.
++ */
++const FIT_STEPS = [['is-flow'], ['is-flow', 'is-snug'], ['is-flow', 'is-snugger']];
++function fitCheckLabels(root) {
++  let todo = [...root.querySelectorAll('.check-label.is-split')];
++  for (const l of todo) l.classList.remove('is-flow', 'is-snug', 'is-snugger');
++  if (!todo.length || !root.getBoundingClientRect().width) return;
++  const fits = (l) => {
++    const r = l.getBoundingClientRect();
++    if (!r.width) return false;
++    const cs = getComputedStyle(l);
++    const lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.3;
++    const lines = Math.round((r.height - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)) / lh);
++    return lines <= 2 && l.scrollWidth <= l.clientWidth + 0.5;
++  };
++  for (const step of FIT_STEPS) {
++    for (const l of todo) l.classList.add(...step);
++    const ok = todo.map(fits);
++    todo = todo.filter((l, i) => { if (!ok[i]) l.classList.remove(...step); return !ok[i]; });
++    if (!todo.length) break;
++  }
++}
+ 
+ function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8, order = null, colorDim = null, labelOf = (k) => k, tipOf = null, note = null, label = null, labelledBy = null } = {}) {
+   let query = '';
+@@ -2488,12 +2515,18 @@ function makeChecklist(facet, { searchable = 'auto', grouped = false, limit = 8,
+     }
+     if (!items.length) nodes.push(h('p', { class: 'fnote' }, query ? 'No matches' : 'Nothing to filter'));
+     list.replaceChildren(...nodes);
++    fitCheckLabels(list); // fix-phone-sizes
+     const hidden = items.length - shown;
+     more.hidden = !(hidden > 0 || (expanded && items.length > limit)) || !!query;
+     more.textContent = expanded ? 'Show fewer' : `Show all ${items.length}`;
+     if (hadFocus) list.querySelector(`input[value="${cssId(hadFocus)}"]`)?.focus();
+   }
+   const uid = Math.random().toString(36).slice(2, 7);
++  // fix-phone-sizes: refit the long names when the list gets a width (a sheet opening) or a new one (a rotation).
++  if ('ResizeObserver' in window) {
++    let fitW = 0;
++    new ResizeObserver(rafThrottle(() => { const w = Math.round(list.getBoundingClientRect().width); if (w && w !== fitW) { fitW = w; fitCheckLabels(list); } })).observe(list);
++  }
+   return { el, sync };
+ }
+ 
+diff --git a/public/styles.css b/public/styles.css
+index 7869b6f..842e7f3 100644
+--- a/public/styles.css
++++ b/public/styles.css
+@@ -1634,6 +1634,15 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
+   .toast { bottom: 16px; }
+ }
+ 
++/* M-40 meets fix-data-3's longer names ("Non-Technical Project, Program and Product Management": its end was cut by
++   0.42 px at 360 px, and more on narrower phones): a split name that fits whole in two lines flows as one text
++   (app.js fitCheckLabels); on the narrowest phones in 13 px, then 12 px, with tighter gaps in its row. */
++.check-label.is-split.is-flow .check-part { display: inline; max-width: none; white-space: normal; overflow: visible; }
++.check-label.is-split.is-snug { font-size: 13px; padding: 3px 0; }
++.check-label.is-split.is-snugger { font-size: 12px; padding: 3px 0; }
++.check:has(> .check-label.is-snug) { gap: 6px; }
++.check:has(> .check-label.is-snugger) { gap: 4px; }
++
+ /* The search box's "/" key hint never takes a tap meant for the box (it covered the box's right end on the Duo's
+    narrow search), and touch screens without a keyboard don't show it. */
+ .search kbd { pointer-events: none; }
+-- 
+2.43.0
+

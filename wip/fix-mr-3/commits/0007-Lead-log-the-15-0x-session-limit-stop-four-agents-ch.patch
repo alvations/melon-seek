@@ -1,0 +1,26 @@
+From f348b14339c32ba8cb1efa7ca5e11eada63a0d62 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 15:28:51 +0000
+Subject: [PATCH 07/63] Lead log: the 15:0x session-limit stop; four agents
+ checkpointed and resumed
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/lead.md | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/docs/process/lead.md b/docs/process/lead.md
+index ae9ca43..69b0dad 100644
+--- a/docs/process/lead.md
++++ b/docs/process/lead.md
+@@ -1478,3 +1478,6 @@ screenshots in `docs/screenshots/`.
+     Both were re-checkpointed from their final commits, which were still in the object store: ab84cc3, with 11 and 19 patches.
+   - **Data:** the crawl the lanes used (2026-10-16, about 12:00 UTC: Amazon 22,179, Apple 4,851, Google 3,821, Meta 1,208, Microsoft 2,435, Netflix 414, NVIDIA 2,711) is on the data-archive branch with the same `observedAt` and counts. The deleted folders held builds only.
+ - **New:** `scripts/cycle/safe-to-delete.sh` checks code, uncommitted work, the checkpoint and the log before a worktree goes, and exits 1 otherwise. It has a test (test/safe-to-delete.test.js) and is PLAYBOOK "Checkpoints" step 6. From now on the lead runs it before every removal.
++- **15:0x UTC, all four agents stopped on an API session limit** (it reset at 15:20): fix-phone-sizes, fix-viz-5, qa-desktop-beta-4 and fix-qa4.
++  - All four worktrees were checkpointed at 15:28 (60cdf05), with fix-phone-sizes' 5 uncommitted files and fix-viz-5's 1.
++  - Each was resumed by SendMessage at 15:28 with its next step. Nothing was lost.
+-- 
+2.43.0
+

@@ -1,7 +1,7 @@
 From 15edb5c9dc50047c0dfef79f9899121adf8e21be Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 13:27:06 +0000
-Subject: [PATCH 13/14] fix-qa4: salary-audit's lifted card helpers include
+Subject: [PATCH 13/16] fix-qa4: salary-audit's lifted card helpers include
  UX-51's shift pay (payPill asks shiftRange of every posting)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

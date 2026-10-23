@@ -1,0 +1,53 @@
+From 6c2bad1e11bd2f651590ce91c5c13c1495a93353 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 13:34:24 +0000
+Subject: [PATCH 60/63] fix-mr-3: MR-21 registry.js usage lists --docs; MR-22
+ market.json fx.source is FX_SOURCE
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ scripts/build-market.js     | 5 +++--
+ scripts/refresh/registry.js | 3 +++
+ 2 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/scripts/build-market.js b/scripts/build-market.js
+index e650c4d..457ad2a 100644
+--- a/scripts/build-market.js
++++ b/scripts/build-market.js
+@@ -69,7 +69,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
+ import { roleFamily } from '../public/features/compstimate.js';
+ import { displayLevel, levelKey } from '../public/features/roles.js';
+ import { isOTE, isInternLike, payCountry, notBasePay } from '../public/features/shared.js';
+-import { toUSD, FX_AS_OF, hasFx } from '../public/viz/palette.js';
++import { toUSD, FX_AS_OF, FX_SOURCE, hasFx } from '../public/viz/palette.js';
+ 
+ export const MARKET_FORMAT = 'melon-market-1';
+ export const MIN_N = 3;
+@@ -218,7 +218,8 @@ function assemble(parts, { minN, generatedAt, mode }) {
+     basis: BASIS,
+     currency: 'USD',
+     stat: 'midpoint of each posted range, annualized, in USD',
+-    fx: { asOf: FX_AS_OF, source: 'public/viz/palette.js FX_PER_USD' },
++    // MR-22: the rates' own source (palette.js FX_SOURCE, as data/cities.json fx.source.name), not a code path.
++    fx: { asOf: FX_AS_OF, source: FX_SOURCE },
+     generatedAt,
+     minN,
+     mode,
+diff --git a/scripts/refresh/registry.js b/scripts/refresh/registry.js
+index 8381746..5439883 100644
+--- a/scripts/refresh/registry.js
++++ b/scripts/refresh/registry.js
+@@ -12,6 +12,9 @@
+ //                                                         whose line moved (owners and consumers), and
+ //                                                         roll year-suffixed extract constants forward
+ //   node scripts/refresh/registry.js --summary             counts by type, cadence, mode, before
++//   node scripts/refresh/registry.js --docs [--write]      regenerate the inventory in
++//                                                         docs/DATA_FRESHNESS.md from the registry
++//                                                         (exit 1 when it is out of date)
+ // Without --write it prints what would change. The registry is data: this tool never
+ // invents values, it only copies them from the code (TAX_SOURCES) or from fragments.
+ import fs from 'node:fs';
+-- 
+2.43.0
+

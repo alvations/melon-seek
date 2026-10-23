@@ -1,7 +1,7 @@
 From 7d79dc4c3f95da0d4c451d21cec924c19fa614a3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 14:01:38 +0000
-Subject: [PATCH 14/14] WIP fix-qa4: log the UX-51, MR-35 and UX-50 numbers and
+Subject: [PATCH 14/16] WIP fix-qa4: log the UX-51, MR-35 and UX-50 numbers and
  State
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

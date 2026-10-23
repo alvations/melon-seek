@@ -1,0 +1,62 @@
+From 08abb08b1ffa6bb84da94fd0adc38018b916bcc6 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 15:41:30 +0000
+Subject: [PATCH 21/63] fix-viz-5: the two [V-36] e2e checks open the "N more
+ places" row (D-44 folds the small places) before they look for a place's row;
+ assertions unchanged
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 0e22fd2582092f647fe4ce88e3127c31cd2d731a)
+---
+ test/e2e/beta-viz-review-2.e2e.js | 6 ++++++
+ test/e2e/fix-pay-at-place.e2e.js  | 9 +++++++++
+ 2 files changed, 15 insertions(+)
+
+diff --git a/test/e2e/beta-viz-review-2.e2e.js b/test/e2e/beta-viz-review-2.e2e.js
+index 428ad7d..ed95202 100644
+--- a/test/e2e/beta-viz-review-2.e2e.js
++++ b/test/e2e/beta-viz-review-2.e2e.js
+@@ -245,6 +245,12 @@ export function registerBetaVizReviewTests2(suite) {
+         const cand = [...rows].filter(([, r]) => r.n >= 10 && r.other >= 5).map(([k, r]) => ({ k, n: r.n, other: r.other, own: formatMoney(median(r.own)) })).sort((p, q) => q.other - p.other);
+         return cand.slice(0, 2);
+       }, { base, company });
++      // D-44 (fix-viz-5): the small places fold into "N more places"; open it so every place is a row to check.
++      const fold = page.locator('#chartHost .ms-crow__label:has(.ms-crow__fold)').first();
++      if ((await fold.count()) && (await fold.locator('.ms-crow__fold').textContent()) !== '▴') {
++        await fold.click();
++        await page.waitForFunction(() => document.querySelector('#chartHost .ms-crow__fold')?.textContent === '▴', null, { timeout: 15000 });
++      }
+       for (const w of want) {
+         const shown = await scrollFind(page, `(host) => { const r = [...host.querySelectorAll('.ms-crow')].find((row) => row.querySelector('.ms-crow__name')?.firstChild?.textContent.trim() === ${JSON.stringify(w.k)}); return r ? r.querySelector('.ms-crow__label').title : null; }`);
+         if (!shown) continue;
+diff --git a/test/e2e/fix-pay-at-place.e2e.js b/test/e2e/fix-pay-at-place.e2e.js
+index 54a9a44..4213799 100644
+--- a/test/e2e/fix-pay-at-place.e2e.js
++++ b/test/e2e/fix-pay-at-place.e2e.js
+@@ -135,6 +135,14 @@ async function allRows(page, sel) {
+   }, sel);
+ }
+ 
++/** D-44 (fix-viz-5): Group by Location folds the small places into "N more places"; open it so every place is a row. */
++async function openFold(page) {
++  const fold = page.locator('#chartHost .ms-crow__label:has(.ms-crow__fold)').first();
++  if (!(await fold.count()) || (await fold.locator('.ms-crow__fold').textContent()) === '▴') return;
++  await fold.click();
++  await page.waitForFunction(() => document.querySelector('#chartHost .ms-crow__fold')?.textContent === '▴', null, { timeout: 15000 });
++}
++
+ /** The pay block of the open drawer: heading, the line under it, Pay by place rows, chips and Details. */
+ async function drawerPay(page) {
+   await page.locator('#drawer .d-sal-amt').waitFor({ timeout: 30000 });
+@@ -181,6 +189,7 @@ export function registerFixPayAtPlaceTests(suite) {
+         }
+         return out;
+       }, { base, company, places });
++      await openFold(page);
+       const rows = await allRows(page, '.ms-crow');
+       for (const p of places) {
+         if (!want[p].n) continue;
+-- 
+2.43.0
+

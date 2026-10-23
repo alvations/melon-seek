@@ -1,0 +1,93 @@
+From 9b438279f39b03565adc46ab46427bec4b4934cb Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 13:13:34 +0000
+Subject: [PATCH 57/63] fix-mr-3: brief, verbatim
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/prompts/fix-mr-3.md | 72 ++++++++++++++++++++++++++++++++
+ 1 file changed, 72 insertions(+)
+ create mode 100644 docs/process/prompts/fix-mr-3.md
+
+diff --git a/docs/process/prompts/fix-mr-3.md b/docs/process/prompts/fix-mr-3.md
+new file mode 100644
+index 0000000..b17a860
+--- /dev/null
++++ b/docs/process/prompts/fix-mr-3.md
+@@ -0,0 +1,72 @@
++You are the methodology and data engineer `fix-mr-3` for melon-seek (repo /home/user/melon-seek, branch claude/stoic-ride-54ddxp), a zero-build vanilla ES-module app, "the Zillow of job postings". You are in your own git worktree. First run `git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp`. The lead will tell you when fix wave 5's last batch is pushed; rebase onto it then. Read:
++- docs/CONTRACT.md;
++- docs/DATA_SOURCES.md;
++- docs/process/methodology-review-beta-2.md (MR-23 to MR-41) and docs/process/methodology-review-beta.md (MR-21, MR-22);
++- docs/process/PLAYBOOK.md ("Checkpoints", step 6 included, and "Known traps") and docs/process/TEMPLATE.md.
++
++**Standing rules from the user** (never break them):
++- "we must present them as they are and not cut anything". Never drop or hide a posting or a posted pay row.
++- Present pay as posted, so we don't misrepresent the companies and roles. Big-tech figures are base pay only, and say so.
++- Every phone size counts. Any line you add or change must fit test/e2e/phone-sizes.mjs's 21 sizes, one line each (fix-phone-text's density guard).
++
++**Your findings.** Each has a to-do test in test/beta-methodology-2.test.js or test/beta-methodology.test.js. Turn each to-do into a plain test that fails on the old code and passes after your fix, and mark the finding fixed in its review log with your commit.
++1. **MR-38 and MR-33 (High).** Fixed-term pay is converted to a yearly-looking figure.
++   - 182 internships post monthly or hourly pay with no stated length, and they are shown as yearly salaries; 111 of them get a yearly Juice score.
++   - An internship paid by the month with no stated length is fixed-term pay, not a yearly salary.
++   - The drawer's converted line for fixed-term pay must use the posted interval, or say "a year" plainly.
++   - If the normalizer changes, bump NORMALIZER_VERSION once and re-baseline the golden files with the tooling, never by hand. Say how many hashes changed and why.
++   - Show before and after counts per board, and prove nothing was dropped.
++2. **MR-37.** Austria's stated annual figure ("14 payments") has no "As posted" line. The drawer must explain a stated annual figure.
++3. **MR-39.** The headline medians mix countries. Say which country a headline median is for, or compute it per the board's home country, as the market cells do. This means the stats line, Insights' tiles and the chart caption. fix-viz-5 owns the chart's drawing, so coordinate through the lead if you change its caption.
++4. **MR-40.** Garden City NY, Fort Lee NJ and Paramus NJ geocode to their state's centre, so they miss Microsoft's NYC-metro pay area. Add them to the gazetteer in server/geo.js, and check for other NYC-metro towns that fall the same way.
++5. **MR-29, the UI half.** Google's departments are derived from job titles, and only the filter panel and a hover title say so. Say it once where the departments are read: the chart rows' notes or the stats line's Details. Keep the one-line rule; no new visible control.
++6. **MR-41.** The "Mid" chip's tip names "III" as mid level, but III is Senior at Amazon. Give an example that holds on every board, or a per-board example.
++7. **MR-26.** The methodology table shows Gross pay as "update due" on a freshly built site. Fix the freshness rule for build-day data.
++8. **MR-21 and MR-22.** registry.js's usage header must list every mode (--docs). market.json's fx.source must name the rate source, not a code path.
++Not yours:
++- MR-35, the shift-pay tip's cents, belongs to fix-qa4 (UX-51).
++- MR-28 and MR-34 are already fixed.
++
++**Your job:**
++1. A red test per ID first.
++2. Fix, keeping every posting and pay row.
++3. e2e on the built site where the result is visible: test/e2e/fix-mr-3.e2e.js, registered in scripts/e2e.js, including the phone sizes for any line you touch.
++4. Update docs/DATA_SOURCES.md, the methodology guide (docs/METHODOLOGY or wherever the guide lives; see the review logs) and docs/CONTRACT.md where the rules change.
++
++**Data and build:**
++- Today's crawl is at /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-data2/data/snapshots and .../wt-data2/data/beta/snapshots. Symlink them as data/snapshots and data/beta/snapshots in your worktree. Never commit them, and **never move them**: a session hung twice on moving a data link.
++- For the CI-like `npm test`, use a clean checkout with no links:
++  - `git worktree add --detach <scratch>/fmr3/clean HEAD`;
++  - `ln -s /home/user/melon-seek/node_modules <clean>/node_modules`;
++  - `cd <clean> && MELON_BETA_SNAPSHOT_DIR= timeout 1200 npm test > <scratch>/fmr3/npm.log 2>&1`, with run_in_background;
++  - for later SHAs, `git -C <clean> checkout --detach <sha>`.
++- Symlink node_modules from /home/user/melon-seek. Build with `node scripts/build-static.js`; your worktree's dist/ is yours. Serve with `node scripts/cycle/serve.mjs --dist dist --pid <scratch pidfile>`.
++- Playwright: NODE_PATH=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/pw/node_modules, Chromium at /opt/pw-browsers/chromium-1194/chrome-linux/chrome. Never `playwright install`; no `pkill -f` / `pgrep -f`.
++- Give every command a timeout. Run anything longer than a few minutes in the background (run_in_background) and poll its log. Run one e2e suite at a time: other agents share this 4-CPU machine. No crawling: work from the stored snapshots and fixtures.
++
++**Ownership:**
++- Yours:
++  - server/salary.js and server/normalize.js, for fixed-term pay;
++  - server/geo.js, for the gazetteer;
++  - scripts/build-market.js (fx.source) and scripts/registry.js;
++  - the freshness rule for MR-26;
++  - in public/app.js: the drawer's converted-pay and "As posted" lines, the stats line's median basis, and the Mid chip's tip;
++  - public/features/insights.js, the tiles' basis only.
++- Not yours:
++  - the card pill and the shift-pay labels (fix-qa4);
++  - chart and map drawing (finished fix-viz-5; propose a patch through the lead);
++  - phone layout (fix-phone-sizes).
++- Also yours:
++  - test/fix-mr-3.test.js and test/e2e/fix-mr-3.e2e.js;
++  - docs/process/fix-mr-3.md, your log in TEMPLATE.md structure with a `## State` section at the top;
++  - docs/process/prompts/fix-mr-3.md, this prompt verbatim.
++
++**Rules:**
++- Commit small and often with explicit paths; never `git add -A data`.
++- Send the lead each finished, tested piece by SendMessage to "main": the SHA, what it fixes, and its tests. The lead checkpoints your worktree every 15 minutes and integrates. Never push.
++- Before you send any SHA:
++  - npm test in the clean checkout, 0 fail;
++  - your e2e plus the related groups (methodology, the drawer, fix-data-3, fix-pay-at-place) with data linked. S-3, S-6, PERF-1, V15 and T21 are load-sensitive; re-run them alone.
++- Skip the full e2e: the lead's batch gate runs it.
++
++Report: per ID, before → after with counts, the "nothing dropped" proof, the tests that fail before and pass after, and SHAs.
+-- 
+2.43.0
+

@@ -1,0 +1,114 @@
+From 3a4356fd4da61a0e0696d4d62eafb9737419def8 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 12:51:57 +0000
+Subject: [PATCH 04/63] WIP fix-phone-sizes: UX-39, the peeking sheet rises to
+ show the preview's first card while Amazon's list loads; a matrix test per
+ phone size
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 93228f654fff7ef3e81221b2641131f8c5fbb003)
+---
+ public/app.js                |  3 +++
+ public/styles.css            | 11 +++++++++
+ test/e2e/phone-matrix.e2e.js | 48 ++++++++++++++++++++++++++++++++++++
+ 3 files changed, 62 insertions(+)
+
+diff --git a/public/app.js b/public/app.js
+index 653cbfe..e18b30c 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -3398,6 +3398,9 @@ function renderResults() {
+   else if (!hasQuery() && bestOpt.isConnected) bestOpt.remove();
+   sortSel.value = effectiveSort();
+   if ((data.status !== 'ready' && !previewing()) || !visible.length) { win.sig = ''; win.more = null; listIO?.disconnect(); listIO = null; win.previewIds = null; }
++  // UX-39 (fix-phone-sizes): while the preview shows, a phone's peeking sheet rises to show its first card
++  // (styles.css body.is-previewing); half and full stay where the user put them. Off again when the list lands.
++  document.body.classList.toggle('is-previewing', previewing());
+   if (previewing()) {
+     title.textContent = `Loading ${plural(preview.total, 'role')}…`;
+     list.setAttribute('aria-busy', 'true');
+diff --git a/public/styles.css b/public/styles.css
+index 842e7f3..d285511 100644
+--- a/public/styles.css
++++ b/public/styles.css
+@@ -1634,6 +1634,17 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
+   .toast { bottom: 16px; }
+ }
+ 
++/* UX-39: while a big board's first-page preview shows (Amazon's whole list still loading), the peeking results sheet
++   rises to show its first card: the peek row, the Juice line and the card's top. Half and full stay where the user put
++   them, and the sheet goes back to its peek when the whole list lands (app.js toggles body.is-previewing). A plain px
++   value, since app.js reads --sheet-peek for the drag's snap points. */
++@media (max-width: 860px) {
++  body.is-previewing .results { --sheet-peek: 220px; }
++}
++@media (max-width: 860px) and (max-height: 500px) {
++  body.is-previewing .results { --sheet-peek: 156px; }
++}
++
+ /* M-40 meets fix-data-3's longer names ("Non-Technical Project, Program and Product Management": its end was cut by
+    0.42 px at 360 px, and more on narrower phones): a split name that fits whole in two lines flows as one text
+    (app.js fitCheckLabels); on the narrowest phones in 13 px, then 12 px, with tighter gaps in its row. */
+diff --git a/test/e2e/phone-matrix.e2e.js b/test/e2e/phone-matrix.e2e.js
+index e862d38..a67615e 100644
+--- a/test/e2e/phone-matrix.e2e.js
++++ b/test/e2e/phone-matrix.e2e.js
+@@ -503,6 +503,54 @@ export function registerPhoneMatrixTests(suite) {
+     assert(!bad.length, `${bad.length} problem(s):\n  ${bad.join('\n  ')}`);
+   });
+ 
++  // UX-39 (docs/process/ux-review-beta-2.md): while Amazon's whole list loads, its first-page preview shows a real card
++  // on the first screen, on every phone layout (the 1005 and 1114 px postures show the list beside the chart).
++  for (const size of ALL_SIZES.filter((s) => s.width <= 860)) suite.test(`Phone matrix: [UX-39] [${size.name} ${size.width}x${size.height}] Amazon's first-page preview shows its first card on the first screen while the whole list loads, and the sheet goes back to its peek when the list lands`, async (ctx) => {
++    const st = await serveDist();
++    if (!st) skip('no beta build (npm run build writes dist/beta/)');
++    if (!fs.existsSync(path.join(st.dist, 'beta', 'api', 'preview', 'amazon.json'))) skip('no Amazon first-page preview in this build');
++    const bad = [];
++    do {
++      let release;
++      const held = new Promise((r) => { release = r; });
++      const context = await ctx.browser.newContext({ ...contextFor(size, engineOf(ctx)), colorScheme: 'light' });
++      ctx.cleanup.push(() => { release(); return context.close(); });
++      await context.route((u) => !u.href.startsWith(st.origin) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => r.abort('blockedbyclient'));
++      // Hold the whole list (not the preview) so the preview state lasts.
++      await context.route(/\/beta\/api\/jobs\/amazon\.json/, async (r) => { await Promise.race([held, sleep(30000)]); await r.continue().catch(() => {}); });
++      const page = await context.newPage();
++      page.goto(`${st.base}beta/#c=amazon`).catch(() => {});
++      const ok = await page.waitForFunction(() => /Loading/.test(document.querySelector('#resultsTitle')?.textContent || '') && document.querySelectorAll('#resultsList .card[data-preview-id]').length > 0, null, { timeout: 30000 }).then(() => true, () => false);
++      const label = `${size.name} ${size.width}x${size.height}`;
++      if (!ok) { bad.push(`${label}: no preview cards`); release(); await context.close(); continue; }
++      await sleep(900); // the sheet's rise (0.32 s)
++      const seen = await page.evaluate(() => {
++        const cards = [...document.querySelectorAll('#resultsList .card[data-preview-id]')];
++        const H = Math.min(innerHeight, screen.height || innerHeight);
++        const on = cards.filter((c) => {
++          const r = c.getBoundingClientRect();
++          if (r.bottom <= 0 || r.top >= H - 8 || r.height < 20) return false;
++          const y = Math.min(H - 4, r.top + Math.min(r.height / 2, 24));
++          const hit = document.elementFromPoint(r.left + r.width / 2, y);
++          return !!hit && c.contains(hit);
++        });
++        return { cards: cards.length, on: on.length, sheet: document.body.dataset.sheet || '', top: Math.round(document.querySelector('#results').getBoundingClientRect().top), H };
++      });
++      if (!seen.on) bad.push(`${label}: ${seen.cards} preview cards, none on the first screen (sheet "${seen.sheet}", its top at ${seen.top} of ${seen.H})`);
++      release();
++      await page.waitForFunction(() => !/Loading/.test(document.querySelector('#resultsTitle')?.textContent || '') && document.querySelector('#resultsList .card[data-id]'), null, { timeout: 90000 }).catch(() => {});
++      await sleep(900);
++      const after = await page.evaluate(() => {
++        const s = document.querySelector('#results');
++        const peek = parseFloat(getComputedStyle(s).getPropertyValue('--sheet-peek'));
++        return { previewing: document.body.classList.contains('is-previewing'), peek, shows: Math.round(innerHeight - s.getBoundingClientRect().top), sheet: document.body.dataset.sheet || '' };
++      });
++      if (after.previewing || (after.sheet === 'peek' && Math.abs(after.shows - after.peek) > 40)) bad.push(`${label}: after the list landed the sheet did not go back to its peek (${JSON.stringify(after)})`);
++      await context.close();
++    } while (false);
++    assert(!bad.length, `${bad.length} problem(s):\n  ${bad.join('\n  ')}`);
++  });
++
+   suite.test('Phone matrix: [Surface Duo stacked 720x1114, hinge emulated across at y 540–574 px] top bar, quick bar, chart and filters on the top screen, the list, the job page and the sheets on the bottom one, nothing on the hinge (Chromium CDP)', async (ctx) => {
+     if (engineOf(ctx) !== 'chromium') skip('emulating the hinge needs Chromium CDP (Emulation.setDeviceMetricsOverride displayFeature)');
+     const size = ALL_SIZES.find((s) => s.width === DUO_STACKED.width && s.height === DUO_STACKED.height);
+-- 
+2.43.0
+

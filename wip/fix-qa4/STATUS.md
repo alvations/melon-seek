@@ -2,11 +2,13 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a7dfe0f9055abab4e`
 - Base (on claude/stoic-ride-54ddxp): `2c9f42514d3c0d321d24d2e206d123fdf5285854`
-- Head: `7d79dc4c3f95da0d4c451d21cec924c19fa614a3`
+- Head: `67ef8e425e60483f742a1790266520b021fc18f8`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-qa4 <new worktree dir>`
 
 ## Commits since the base
 ```
+67ef8e4 fix-qa4: log State after UX-51, MR-35 and UX-50 (gated, sent to the lead)
+25eb1ba fix-qa4: UX-51 and UX-50 screenshots before and after (shrunk); the phone shot opens the sheet first; log the e2e results
 7d79dc4 WIP fix-qa4: log the UX-51, MR-35 and UX-50 numbers and State
 15edb5c fix-qa4: salary-audit's lifted card helpers include UX-51's shift pay (payPill asks shiftRange of every posting)
 40a11f2 fix-qa4: MR-35 marked fixed (6185ba3) in the methodology review; log
@@ -25,36 +27,7 @@ eccdca9 fix-qa4: copy QA round 4's desktop tests (beta-desktop-qa-4.e2e.js) and 
 
 ## Uncommitted and new files
 ```
- M docs/screenshots/dark-drawer.png
- M docs/screenshots/dark.png
- M docs/screenshots/drawer-juice.png
- M docs/screenshots/drawer.png
- M docs/screenshots/fix-qa4/after-D-47-tesla-after-netflix-chart.png
- M docs/screenshots/fix-qa4/after-D-47-tesla-after-netflix-map.png
- M docs/screenshots/fix-qa4/after-D-48-1114x720-top.png
- M docs/screenshots/fix-qa4/after-D-48-280x653-top.png
- M docs/screenshots/fix-qa4/after-D-50-1114x720.png
- M docs/screenshots/fix-qa4/after-D-50-280x653.png
- M docs/screenshots/fix-qa4/after-D-50-390x844.png
- M docs/screenshots/fix-qa4/after-D-52-microsoft-new-york-comparables.png
- M test/e2e/fix-qa4.e2e.js
-?? docs/screenshots/fix-qa4/after-UX-50-google-company-cards.png
-?? docs/screenshots/fix-qa4/after-UX-51-280x653.png
-?? docs/screenshots/fix-qa4/after-UX-51-390x844.png
-?? docs/screenshots/fix-qa4/after-UX-51-amazon-shift-base-card.png
-?? docs/screenshots/fix-qa4/before-UX-50-google-company-cards.png
-?? docs/screenshots/fix-qa4/before-UX-51-280x653.png
-?? docs/screenshots/fix-qa4/before-UX-51-390x844.png
-?? docs/screenshots/fix-qa4/before-UX-51-amazon-shift-base-card.png
 ```
 
 ## Left out (not in untracked.tgz)
-- docs/screenshots/fix-qa4/after-UX-50-google-company-cards.png (screenshot; the lane's tests regenerate it)
-- docs/screenshots/fix-qa4/after-UX-51-280x653.png (screenshot; the lane's tests regenerate it)
-- docs/screenshots/fix-qa4/after-UX-51-390x844.png (screenshot; the lane's tests regenerate it)
-- docs/screenshots/fix-qa4/after-UX-51-amazon-shift-base-card.png (screenshot; the lane's tests regenerate it)
-- docs/screenshots/fix-qa4/before-UX-50-google-company-cards.png (screenshot; the lane's tests regenerate it)
-- docs/screenshots/fix-qa4/before-UX-51-280x653.png (screenshot; the lane's tests regenerate it)
-- docs/screenshots/fix-qa4/before-UX-51-390x844.png (screenshot; the lane's tests regenerate it)
-- docs/screenshots/fix-qa4/before-UX-51-amazon-shift-base-card.png (screenshot; the lane's tests regenerate it)
 - node_modules (symlink)

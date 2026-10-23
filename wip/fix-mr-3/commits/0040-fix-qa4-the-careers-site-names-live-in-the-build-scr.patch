@@ -1,0 +1,167 @@
+From a979e584bb3debec92df137d8c14961a5aad1096 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 14:44:31 +0000
+Subject: [PATCH 40/63] fix-qa4: the careers-site names live in the build
+ script, not in lib/export.js (the main site ships no beta host)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+(cherry picked from commit 196922d5a08ea3142598c646708582fc984e07f1)
+---
+ scripts/build-static.js | 17 ++++++++++++++++-
+ server/export.js        | 33 ++++++++++++---------------------
+ test/fix-qa4.test.js    | 17 ++++++++++++-----
+ 3 files changed, 40 insertions(+), 27 deletions(-)
+
+diff --git a/scripts/build-static.js b/scripts/build-static.js
+index e58c843..57100de 100644
+--- a/scripts/build-static.js
++++ b/scripts/build-static.js
+@@ -1282,6 +1282,21 @@ function markBeta(html, isIndex) {
+  * Build one site into site.out: the stable site (channel "stable", at OUT) or the beta
+  * copy (channel "beta", at OUT/beta). Same steps, same code, for both.
+  */
++/**
++ * D-49 (fix-qa4): the careers site each big-tech board's CSV comes from, for the beta README (server/export.js
++ * csvReadme `sourceText`), named as docs/DATA_SOURCES.md §7 names the systems. Kept here, not in server/export.js,
++ * which the main site ships in lib/ and which names no beta company or host.
++ */
++export const CAREERS_SITES = Object.freeze({
++  google: 'Google Careers (google.com/about/careers): its jobs sitemap and the site\'s own search service',
++  microsoft: 'Microsoft Careers (apply.careers.microsoft.com): the site\'s own Eightfold search (PCSX)',
++  meta: 'Meta Careers (metacareers.com): its jobs sitemap and job pages',
++  apple: 'Apple Jobs (jobs.apple.com): the site\'s own search and job-detail API',
++  netflix: 'Netflix Jobs (explore.jobs.netflix.net): the site\'s own Eightfold search',
++  amazon: 'Amazon Jobs (amazon.jobs): the site\'s own search API (search.json)',
++  nvidia: 'NVIDIA Careers (jobs.nvidia.com): the site\'s own Eightfold search (PCSX)',
++});
++
+ async function buildSite(ctx, site) {
+   const { out } = site;
+   const beta = site.channel === 'beta';
+@@ -1346,7 +1361,7 @@ async function buildSite(ctx, site) {
+     summary.push(r.line);
+     shares.push(r.share);
+     marketPayloads.push(r.market);
+-    if (r.csvRow) csvRows.push({ ...r.csvRow, channel: c.channel || 'stable' }); // D-49: the README names each file's source
++    if (r.csvRow) csvRows.push({ ...r.csvRow, channel: c.channel || 'stable', sourceText: c.channel === 'beta' ? CAREERS_SITES[c.slug] || null : null }); // D-49: the README names each file's source
+     if (c.channel === 'beta') included.push({ slug: c.slug, name: c.name, ...r.stats });
+   }
+   await writeJson(path.join(out, 'api', 'companies.json'), companies);
+diff --git a/server/export.js b/server/export.js
+index 783059c..76f2ab8 100644
+--- a/server/export.js
++++ b/server/export.js
+@@ -147,28 +147,20 @@ export function csvFileName(slug, { mode = '', date = new Date().toISOString() }
+ }
+ 
+ /**
+- * D-49: where each board's rows come from, as docs/DATA_SOURCES.md names the systems: the job-board APIs of the main
+- * site's boards (by `source`), and each big-tech company's own careers site (by `slug`, beta site).
++ * D-49: the job-board APIs the main site's boards come from, by `source` (docs/DATA_SOURCES.md §1, §3, §4). A big-tech
++ * board's careers site is named by the build (scripts/build-static.js CAREERS_SITES, as `sourceText`): this module
++ * ships in the main site's lib/, which names no beta company or host.
+  */
+-export const CSV_SOURCES = Object.freeze({
++export const JOB_BOARD_SOURCES = Object.freeze({
+   greenhouse: 'Greenhouse job board API',
+   ashby: 'Ashby posting API',
+   lever: 'Lever postings API',
+-  google: 'Google Careers (google.com/about/careers): its jobs sitemap and the site\'s own search service',
+-  microsoft: 'Microsoft Careers (apply.careers.microsoft.com): the site\'s own Eightfold search (PCSX)',
+-  meta: 'Meta Careers (metacareers.com): its jobs sitemap and job pages',
+-  apple: 'Apple Jobs (jobs.apple.com): the site\'s own search and job-detail API',
+-  netflix: 'Netflix Jobs (explore.jobs.netflix.net): the site\'s own Eightfold search',
+-  amazon: 'Amazon Jobs (amazon.jobs): the site\'s own search API (search.json)',
+-  nvidia: 'NVIDIA Careers (jobs.nvidia.com): the site\'s own Eightfold search (PCSX)',
+ });
+-const JOB_BOARDS = new Set(['greenhouse', 'ashby', 'lever']);
+-/** A board's source line: a job-board API by `source`, a careers site by `slug`. */
+-const sourceOf = (c) => (JOB_BOARDS.has(c.source) ? CSV_SOURCES[c.source] : CSV_SOURCES[c.slug] || CSV_SOURCES[c.source]) || null;
+ 
+ /**
+  * data/README.txt for the static build. `channel`: 'stable' (the main site: Greenhouse, Ashby and Lever boards) or
+- * 'beta' (those plus the big-tech careers sites). `companies`: [{ slug, name, rows, mode, source?, channel? }].
++ * 'beta' (those plus the big-tech careers sites). `companies`: [{ slug, name, rows, mode, source?, sourceText?,
++ * channel? }]; each file's source is `sourceText` (a careers site, from the build) or its job-board API.
+  */
+ export function csvReadme({ generatedAt = new Date().toISOString(), companies = [], channel = 'stable' } = {}) {
+   const beta = channel === 'beta' || companies.some((c) => c && c.channel === 'beta');
+@@ -179,13 +171,12 @@ export function csvReadme({ generatedAt = new Date().toISOString(), companies =
+     '',
+     'One CSV per company: data/<slug>.csv (UTF-8, comma-separated, RFC 4180).',
+     ...(beta ? [
+-      'Each row is one job posting as published by the company itself. Amazon, Apple,',
+-      'Google, Meta, Microsoft, NVIDIA and Netflix: from the company\'s own careers site',
+-      '(each file\'s source is listed under Files). The other companies: from their own',
+-      'job board (Greenhouse, Ashby or Lever).',
++      'Each row is one job posting as published by the company itself: a big-tech',
++      'company\'s file comes from its own careers site, the others from their job board',
++      '(Greenhouse, Ashby or Lever). Each file\'s source is listed under Files.',
+       'Big-tech pay is base pay only, as each company posts it: equity, bonus and',
+-      'benefits are never added. On-target earnings (salary_kind "ote", NVIDIA\'s sales',
+-      'roles) are base plus commission at target, as posted, and are marked so.',
++      'benefits are never added. On-target earnings (salary_kind "ote") are base plus',
++      'commission at target, as posted, and are marked so.',
+     ] : [
+       'Each row is one job posting as published on the company\'s own job board',
+       '(Greenhouse, Ashby or Lever).',
+@@ -230,7 +221,7 @@ export function csvReadme({ generatedAt = new Date().toISOString(), companies =
+   if (companies.length) {
+     lines.push('', 'Files:');
+     for (const c of companies) {
+-      const src = beta ? sourceOf(c) : null;
++      const src = c.sourceText || JOB_BOARD_SOURCES[c.source] || null;
+       lines.push(`  ${c.slug}.csv  ${c.name || c.slug}${c.rows != null ? `, ${c.rows} rows` : ''}${c.mode ? ` (${c.mode})` : ''}${src ? `; ${src}` : ''}`);
+     }
+   }
+diff --git a/test/fix-qa4.test.js b/test/fix-qa4.test.js
+index 6bcf27f..c2e1ee8 100644
+--- a/test/fix-qa4.test.js
++++ b/test/fix-qa4.test.js
+@@ -213,30 +213,37 @@ test('D-49 each pay figure says what it is, and its min and max are the card\'s
+   assert.equal(fn(csv.salaryRows, 'salaryRows')({ min: 1, max: 2 }), '');
+ });
+ 
+-test('D-49 the README is written per site: the beta one names each big-tech careers site and says base pay only', () => {
++test('D-49 the README is written per site: the beta one names each big-tech careers site and says base pay only', async () => {
++  const { CAREERS_SITES } = await import('../scripts/build-static.js');
++  assert.ok(CAREERS_SITES, 'scripts/build-static.js CAREERS_SITES');
++  const big = (slug, name, rows, source) => ({ slug, name, rows, mode: 'snapshot', source, channel: 'beta', sourceText: CAREERS_SITES[slug] });
+   const stable = [{ slug: 'anthropic', name: 'Anthropic', rows: 654, mode: 'snapshot', source: 'greenhouse', channel: 'stable' }];
+-  const beta = [...stable, { slug: 'amazon', name: 'Amazon', rows: 22179, mode: 'snapshot', source: 'amazon', channel: 'beta' }, { slug: 'nvidia', name: 'NVIDIA', rows: 2711, mode: 'snapshot', source: 'eightfold', channel: 'beta' }, { slug: 'microsoft', name: 'Microsoft', rows: 2435, mode: 'snapshot', source: 'eightfold' }];
++  const beta = [...stable, big('amazon', 'Amazon', 22179, 'amazon'), big('nvidia', 'NVIDIA', 2711, 'eightfold'), big('microsoft', 'Microsoft', 2435, 'eightfold')];
+   const main = csvReadme({ generatedAt: 'x', companies: stable, channel: 'stable' });
+   assert.match(main, /own job board\n\(Greenhouse, Ashby or Lever\)/);
+   assert.doesNotMatch(main, /Amazon|careers site/);
++  assert.match(main, /anthropic\.csv {2}Anthropic, 654 rows \(snapshot\); Greenhouse job board API/);
+   const b = csvReadme({ generatedAt: 'x', companies: beta, channel: 'beta' });
+   assert.doesNotMatch(b, /own job board\s*\(Greenhouse, Ashby or Lever\)/, 'the main site\'s sentence');
+   assert.match(b, /Big-tech pay is base pay only/);
+   assert.match(b, /amazon\.csv {2}Amazon, 22179 rows \(snapshot\); Amazon Jobs \(amazon\.jobs\)/);
+   assert.match(b, /nvidia\.csv {2}NVIDIA, 2711 rows \(snapshot\); NVIDIA Careers \(jobs\.nvidia\.com\)/);
++  assert.match(b, /microsoft\.csv {2}Microsoft, 2435 rows \(snapshot\); Microsoft Careers \(apply\.careers\.microsoft\.com\)/);
+   assert.match(b, /anthropic\.csv {2}Anthropic, 654 rows \(snapshot\); Greenhouse job board API/);
+-  assert.match(b, /microsoft\.csv {2}Microsoft, 2435 rows \(snapshot\); Microsoft Careers \(apply\.careers\.microsoft\.com\)/, 'by slug for a careers site, whatever its source');
+   for (const t of [main, b]) {
+     for (const col of CSV_COLUMNS) assert.ok(t.includes(`  ${col}`) || t.includes(col.split('_')[0]), col);
+     for (const k of ['ote', 'minimum', 'shift', 'part-time', 'fixed-term', 'hourly']) assert.match(t, new RegExp(`^ {21}${k} `, 'm'), `salary_kind ${k} is explained`);
+     assert.match(t, /Changed on 2026-10-17/);
+   }
+-  for (const slug of ['google', 'microsoft', 'meta', 'apple', 'netflix', 'amazon', 'nvidia']) assert.ok(csv.CSV_SOURCES?.[slug], slug);
++  for (const slug of ['google', 'microsoft', 'meta', 'apple', 'netflix', 'amazon', 'nvidia']) assert.ok(CAREERS_SITES[slug], slug);
++  // server/export.js ships in the main site's lib/: it names no big-tech company or host (test/beta-build.test.js).
++  const src = fs.readFileSync(new URL('../server/export.js', import.meta.url), 'utf8');
++  assert.doesNotMatch(src, /amazon\.jobs|jobs\.apple\.com|careers\.microsoft|metacareers|jobs\.nvidia|netflix\.net|google\.com/i);
+ });
+ 
+ test('D-49 the build writes the README per site (source)', () => {
+   const src = fs.readFileSync(new URL('../scripts/build-static.js', import.meta.url), 'utf8');
+   assert.match(src, /ctx\.csvReadme\(\{ generatedAt: ctx\.builtAt, companies: csvRows, channel: site\.channel \}\)/);
+   assert.equal((src.match(/mode: (payload|raw)\.mode, source: c\.source \}/g) || []).length, 2, 'both csvRow builders name the source');
+-  assert.match(src, /csvRows\.push\(\{ \.\.\.r\.csvRow, channel: c\.channel \|\| 'stable' \}\)/, 'and the site loop its channel');
++  assert.match(src, /csvRows\.push\(\{ \.\.\.r\.csvRow, channel: c\.channel \|\| 'stable', sourceText: c\.channel === 'beta' \? CAREERS_SITES\[c\.slug\] \|\| null : null \}\)/, 'and the site loop its channel and careers site');
+ });
+-- 
+2.43.0
+
