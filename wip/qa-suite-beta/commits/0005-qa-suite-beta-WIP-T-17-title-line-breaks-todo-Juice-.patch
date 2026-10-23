@@ -1,0 +1,397 @@
+From e09fe53b04b828f423f1852f83280946fd8ca210 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 13:58:30 +0000
+Subject: [PATCH 5/6] qa-suite-beta: WIP T-17 title line breaks (todo), Juice
+ grades in the More popover, phone filter rows; flake patches one per test
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ .../qa-suite-beta-flake-perf1-v15-cpu.diff    |  68 ++++++++++++
+ .../qa-suite-beta-flake-polite-clock.diff     | 105 ++++++++++++++++++
+ .../patches/qa-suite-beta-flake-s3-cpu.diff   |  37 ++++++
+ .../patches/qa-suite-beta-flake-s6-cpu.diff   |  31 ++++++
+ .../patches/qa-suite-beta-flake-t21-cpu.diff  |  42 +++++++
+ test/beta-coverage.test.js                    |  12 ++
+ test/e2e/beta-coverage.e2e.js                 |  16 ++-
+ 7 files changed, 306 insertions(+), 5 deletions(-)
+ create mode 100644 docs/process/patches/qa-suite-beta-flake-perf1-v15-cpu.diff
+ create mode 100644 docs/process/patches/qa-suite-beta-flake-polite-clock.diff
+ create mode 100644 docs/process/patches/qa-suite-beta-flake-s3-cpu.diff
+ create mode 100644 docs/process/patches/qa-suite-beta-flake-s6-cpu.diff
+ create mode 100644 docs/process/patches/qa-suite-beta-flake-t21-cpu.diff
+
+diff --git a/docs/process/patches/qa-suite-beta-flake-perf1-v15-cpu.diff b/docs/process/patches/qa-suite-beta-flake-perf1-v15-cpu.diff
+new file mode 100644
+index 0000000..07f9e72
+--- /dev/null
++++ b/docs/process/patches/qa-suite-beta-flake-perf1-v15-cpu.diff
+@@ -0,0 +1,68 @@
++diff --git a/test/perf.test.js b/test/perf.test.js
++index 54fc312..612ea72 100644
++--- a/test/perf.test.js
+++++ b/test/perf.test.js
++@@ -57,21 +57,40 @@ function get(p) {
++   });
++ }
++ 
++-/** Max event-loop delay while fn runs (10 ms probe). */
+++/**
+++ * Max event-loop block while fn runs (10 ms probe). A late tick is a block only for the CPU this thread spent in it:
+++ * on a loaded machine the OS deschedules the process, and the tick comes late with no work done here (171-557 ms of
+++ * "lag" at load 4-28 that was not this code; qa-suite-beta T-13). process.threadCpuUsage (Node 22.19+, 23.9+) counts
+++ * this thread only (the pipeline worker is another thread). Without it the probe falls back to wall time.
+++ * maxWallLag is reported for the log.
+++ */
++ async function withLagProbe(fn) {
+++  const thread = typeof process.threadCpuUsage === 'function';
+++  const cpu = () => { const u = process.threadCpuUsage(); return (u.user + u.system) / 1000; };
++   let max = 0;
+++  let maxWall = 0;
++   let last = performance.now();
++-  const iv = setInterval(() => { const now = performance.now(); max = Math.max(max, now - last - 10); last = now; }, 10);
+++  let lastCpu = thread ? cpu() : 0;
+++  const iv = setInterval(() => {
+++    const now = performance.now();
+++    const wall = now - last - 10;
+++    const c = thread ? cpu() : 0;
+++    const blocked = thread ? Math.min(wall, c - lastCpu) : wall;
+++    max = Math.max(max, blocked);
+++    maxWall = Math.max(maxWall, wall);
+++    last = now;
+++    lastCpu = c;
+++  }, 10);
++   try {
++     const result = await fn();
++-    return { result, maxLag: max };
+++    return { result, maxLag: max, maxWallLag: maxWall, measure: thread ? 'thread CPU' : 'wall' };
++   } finally {
++     clearInterval(iv);
++   }
++ }
++ 
++ test('first company loads do not block the event loop (PERF-1)', { skip, timeout: 180000 }, async () => {
++-  const { result, maxLag } = await withLagProbe(async () => {
+++  const { result: r0, maxLag, maxWallLag, measure } = await withLagProbe(async () => {
++     // Health checks keep arriving while the two boards load for the first time.
++     const health = [];
++     let stop = false;
++@@ -81,12 +100,16 @@ test('first company loads do not block the event loop (PERF-1)', { skip, timeout
++     await pinger;
++     return { a, c, health };
++   });
+++  const result = { ...r0, maxWallLag };
+++  console.log(`# probe: ${measure}; max wall lag ${maxWallLag.toFixed(0)} ms`);
++   const worstHealth = Math.max(...result.health);
++-  console.log(`# first loads: anduril ${result.a.ms.toFixed(0)} ms, cohere (rekey) ${result.c.ms.toFixed(0)} ms; max event-loop lag ${maxLag.toFixed(0)} ms; worst /api/health ${worstHealth.toFixed(0)} ms over ${result.health.length} pings`);
+++  console.log(`# first loads: anduril ${result.a.ms.toFixed(0)} ms, cohere (rekey) ${result.c.ms.toFixed(0)} ms; max event-loop block ${maxLag.toFixed(0)} ms; worst /api/health ${worstHealth.toFixed(0)} ms over ${result.health.length} pings`);
++   assert.equal(result.a.status, 200);
++   assert.equal(result.c.status, 200);
++   assert.ok(maxLag < 150, `event loop blocked for ${maxLag.toFixed(0)} ms (goal < 100 ms)`);
++-  assert.ok(worstHealth < 250, `/api/health took ${worstHealth.toFixed(0)} ms during first loads`);
+++  // A health reply waits for the OS as much as for this server: allow the scheduling delay the probe saw.
+++  const sched = Math.max(0, result.maxWallLag - maxLag);
+++  assert.ok(worstHealth < 250 + sched, `/api/health took ${worstHealth.toFixed(0)} ms during first loads (allowed 250 ms + ${sched.toFixed(0)} ms of scheduling delay)`);
++ });
++ 
++ test('stores persist: a restart reuses them (no re-parse, no rekey)', { skip, timeout: 120000 }, async () => {
+diff --git a/docs/process/patches/qa-suite-beta-flake-polite-clock.diff b/docs/process/patches/qa-suite-beta-flake-polite-clock.diff
+new file mode 100644
+index 0000000..2ea9714
+--- /dev/null
++++ b/docs/process/patches/qa-suite-beta-flake-polite-clock.diff
+@@ -0,0 +1,105 @@
++diff --git a/test/amazon-meta-adapters.test.js b/test/amazon-meta-adapters.test.js
++index b7c96ba..539b15d 100644
++--- a/test/amazon-meta-adapters.test.js
+++++ b/test/amazon-meta-adapters.test.js
++@@ -2,7 +2,7 @@
++ // on the real fixture rows (test/fixtures/bigtech-*.json) and the synthetic boards
++ // (test/amazon-meta-synth.js). No network. Each fetch test lifts the registry's `paused` in this
++ // process only (server/companies.js PAUSING); the paused path itself is test/amazon-meta-resume.test.js.
++-import { test, afterEach } from 'node:test';
+++import { test, afterEach, mock } from 'node:test';
++ import assert from 'node:assert/strict';
++ import fs from 'node:fs';
++ import path from 'node:path';
++@@ -18,7 +18,18 @@ import { amazonRows, amazonSite, metaRecords, metaSite, metaPageHtml, installFet
++ 
++ const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
++ const fixture = (slug) => JSON.parse(fs.readFileSync(path.join(FIX, `bigtech-${slug}.json`), 'utf8'));
++-afterEach(() => { setMinInterval(null); resetRateLimits(); resetRobots(); });
+++afterEach(() => { mock.timers.reset(); setMinInterval(null); resetRateLimits(); resetRobots(); });
+++
+++/** Run `promise` on node:test's virtual clock (setTimeout and Date), 1 ms per event-loop turn (qa-suite-beta T-13). */
+++async function onVirtualClock(promise) {
+++  let done = false;
+++  const p = Promise.resolve(promise).finally(() => { done = true; });
+++  for (let i = 0; !done && i < 600000; i++) {
+++    await new Promise((r) => setImmediate(r));
+++    if (!done) mock.timers.tick(1);
+++  }
+++  return p;
+++}
++ 
++ async function resumed(slug, fn) {
++   const c = COMPANIES.find((x) => x.slug === slug);
++@@ -93,12 +104,14 @@ test('fetchAmazon: honest User-Agent, robots.txt first, spaced requests, every p
++   globalThis.fetch = async (url, init) => { seen.push({ url: String(url), at: Date.now(), ua: init.headers['User-Agent'], redirect: init.redirect }); return site(String(url)); };
++   try {
++     const stats = newStats();
++-    const { jobs } = await resumed('amazon', () => fetchAmazon('amazon', { stats }));
+++    mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
+++    const { jobs } = await onVirtualClock(resumed('amazon', () => fetchAmazon('amazon', { stats })));
+++    mock.timers.reset();
++     assert.equal(jobs.length, 260);
++     assert.match(seen[0].url, /\/robots\.txt$/);
++     assert.ok(seen.every((c) => c.ua === BOT_USER_AGENT && c.redirect === 'manual'));
++     const gaps = seen.slice(1).map((c, i) => c.at - seen[i].at);
++-    assert.ok(gaps.every((g) => g >= 20), `request starts at least the interval apart: ${gaps}`);
+++    assert.ok(gaps.every((g) => g >= 25), `request starts at least the interval apart (virtual clock): ${gaps}`);
++     assert.equal(stats.requests, seen.length);
++   } finally {
++     globalThis.fetch = real;
++diff --git a/test/bigtech-polite.test.js b/test/bigtech-polite.test.js
++index af6658c..9f8c313 100644
++--- a/test/bigtech-polite.test.js
+++++ b/test/bigtech-polite.test.js
++@@ -1,7 +1,7 @@
++ // Beta channel plumbing: the polite HTTP client (server/sources/polite.js), the
++ // channel-aware registry (server/companies.js) and `snapshot.js --channel`.
++ // docs/CONTRACT.md v3, docs/DATA_SOURCES.md §7.
++-import { test, afterEach } from 'node:test';
+++import { test, afterEach, mock } from 'node:test';
++ import assert from 'node:assert/strict';
++ import {
++   politeRequest, politeJson, robotsRules, robotsAllows, checkRobots, resetRobots, setMinInterval, resetRateLimits,
++@@ -11,7 +11,23 @@ import { listCompanies, getCompany, resolveCompany, SOURCES, COMPANIES } from '.
++ import { targetsFor, fitSnapshot, trimDescription } from '../scripts/snapshot.js';
++ 
++ const realFetch = globalThis.fetch;
++-afterEach(() => { globalThis.fetch = realFetch; setMinInterval(null); resetRateLimits(); resetRobots(); });
+++afterEach(() => { mock.timers.reset(); globalThis.fetch = realFetch; setMinInterval(null); resetRateLimits(); resetRobots(); });
+++
+++/**
+++ * Run `promise` on a virtual clock (node:test mock timers for setTimeout and Date, enabled by the caller): advance
+++ * 1 ms per turn of the event loop until it settles. The spacing is then measured in the clock polite.js reads, so a
+++ * loaded machine (a preempted process, a late timer) cannot shrink a measured gap below the one the code kept
+++ * (qa-suite-beta T-13: "gaps 27,42" at load 10-12).
+++ */
+++async function onVirtualClock(promise) {
+++  let done = false;
+++  const p = Promise.resolve(promise).finally(() => { done = true; });
+++  for (let i = 0; !done && i < 600000; i++) {
+++    await new Promise((r) => setImmediate(r));
+++    if (!done) mock.timers.tick(1);
+++  }
+++  return p;
+++}
++ 
++ const STABLE = ['anthropic', 'anduril', 'openai', 'scaleai', 'xai', 'cohere', 'palantir', 'shieldai'];
++ const BETA_ALL = ['google', 'microsoft', 'meta', 'apple', 'netflix', 'amazon', 'nvidia'];
++@@ -145,11 +161,13 @@ test('politeRequest: honest User-Agent, per-host spacing, backoff on 429/5xx wit
++     return new Response('{"ok":true}', { status: 200, headers: { 'content-type': 'application/json' } });
++   };
++   const stats = newStats();
+++  mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
++   const t0 = Date.now();
++-  await Promise.all([1, 2, 3].map((i) => politeJson(`https://x.test/p${i}`, { stats })));
++-  assert.ok(Date.now() - t0 >= 75, 'three requests to one host are spaced');
+++  await onVirtualClock(Promise.all([1, 2, 3].map((i) => politeJson(`https://x.test/p${i}`, { stats }))));
+++  assert.ok(Date.now() - t0 >= 80, `three requests to one host are spaced (${Date.now() - t0} ms)`);
++   const gaps = calls.slice(1).map((c, i) => c.at - calls[i].at);
++-  assert.ok(gaps.every((g) => g >= 35), `gaps ${gaps}`);
+++  assert.ok(gaps.every((g) => g >= 40), `gaps ${gaps}`); // exact on the virtual clock: the minimum interval is 40
+++  mock.timers.reset();
++   assert.equal(calls[0].headers['User-Agent'], BOT_USER_AGENT);
++   assert.match(BOT_USER_AGENT, /^melon-seek\/\S+ \(\+https:\/\/alvations\.github\.io\/melon-seek\//);
++   assert.ok(!/Mozilla|Chrome|Safari/.test(BOT_USER_AGENT), 'no browser impersonation');
+diff --git a/docs/process/patches/qa-suite-beta-flake-s3-cpu.diff b/docs/process/patches/qa-suite-beta-flake-s3-cpu.diff
+new file mode 100644
+index 0000000..aadea2e
+--- /dev/null
++++ b/docs/process/patches/qa-suite-beta-flake-s3-cpu.diff
+@@ -0,0 +1,37 @@
++diff --git a/test/beta-security-review.test.js b/test/beta-security-review.test.js
++index 14cd4c1..c40e322 100644
++--- a/test/beta-security-review.test.js
+++++ b/test/beta-security-review.test.js
++@@ -120,14 +120,20 @@ test('S-2: the big-tech probe never targets a paused company or its careers host
++ 
++ /* ------------------------------------------------------------------ S-3 */
++ 
++-/** Run `body` (a function source taking no args) in a worker; resolve its ms, or reject after limitMs. */
+++/**
+++ * Run `body` (a function source taking no args) in a worker; resolve the CPU ms the worker's thread spent on it
+++ * (process.threadCpuUsage, Node 22.19+ and 23.9+; wall ms before that), or reject after 5 x limitMs of wall time.
+++ * CPU time, because a loaded machine stretches wall time while a quadratic parse costs the same CPU anywhere
+++ * (qa-suite-beta T-13); the wall limit only stops a runaway.
+++ */
++ function timedInWorker(body, limitMs) {
++   const src = `const { parentPort } = require('node:worker_threads');
++-(async () => { const t0 = performance.now(); await (${body})(); parentPort.postMessage(performance.now() - t0); })()
+++const clock = () => { if (typeof process.threadCpuUsage === 'function') { const u = process.threadCpuUsage(); return (u.user + u.system) / 1000; } return performance.now(); };
+++(async () => { const t0 = clock(); await (${body})(); parentPort.postMessage(clock() - t0); })()
++   .catch((e) => parentPort.postMessage('error: ' + e.message));`;
++   return new Promise((resolve, reject) => {
++     const w = new Worker(src, { eval: true });
++-    const timer = setTimeout(() => { w.terminate(); reject(new Error(`still running after ${limitMs} ms`)); }, limitMs);
+++    const timer = setTimeout(() => { w.terminate(); reject(new Error(`still running after ${5 * limitMs} ms`)); }, 5 * limitMs);
++     w.once('message', (m) => { clearTimeout(timer); w.terminate(); typeof m === 'number' ? resolve(m) : reject(new Error(m)); });
++     w.once('error', (e) => { clearTimeout(timer); reject(e); });
++   });
++@@ -180,7 +186,7 @@ test('S-3: 1 MB of hostile text: parseSalary, both htmlToTexts and geocode each
++     const ms = await timedInWorker(`async () => {
++       const m = await import(${url('server', 'salary.js')}); const u = await import(${url('server', 'sources', 'util.js')});
++       const k = await import(${url('server', 'keywords.js')}); const g = await import(${url('server', 'geo.js')});
++-      const t0 = performance.now(); ${call}; if (performance.now() - t0 > 1000) throw new Error(String(Math.round(performance.now() - t0)) + ' ms');
+++      const t0 = clock(); ${call}; if (clock() - t0 > 1000) throw new Error(String(Math.round(clock() - t0)) + ' ms');
++     }`, 10000);
++     assert.ok(ms < 10000, `${name}: ${Math.round(ms)} ms`);
++   }
+diff --git a/docs/process/patches/qa-suite-beta-flake-s6-cpu.diff b/docs/process/patches/qa-suite-beta-flake-s6-cpu.diff
+new file mode 100644
+index 0000000..9fcaace
+--- /dev/null
++++ b/docs/process/patches/qa-suite-beta-flake-s6-cpu.diff
+@@ -0,0 +1,31 @@
++diff --git a/test/beta-security-review.test.js b/test/beta-security-review.test.js
++index 14cd4c1..c40e322 100644
++--- a/test/beta-security-review.test.js
+++++ b/test/beta-security-review.test.js
++@@ -232,15 +232,24 @@ test('S-6: /methodology/ is not re-rendered on every request in server mode', as
++     const first = await fetch(`${base}/methodology/`);
++     assert.equal(first.status, 200);
++     await first.text();
+++    // CPU time, not wall time (qa-suite-beta T-13): a re-render costs this thread's CPU whatever the load, while a
+++    // loaded machine stretches the wall time of a cached reply (29 ms median at load 10, 2026-10-23). The server runs
+++    // in this process; process.threadCpuUsage (Node 22.19+, 23.9+) counts this thread only, process.cpuUsage all.
+++    const cpu = () => { const u = typeof process.threadCpuUsage === 'function' ? process.threadCpuUsage() : process.cpuUsage(); return (u.user + u.system) / 1000; };
++     const times = [];
+++    const walls = [];
++     for (let i = 0; i < 5; i++) {
++       const t0 = performance.now();
+++      const c0 = cpu();
++       const r = await fetch(`${base}/methodology/`);
++       await r.text();
++-      times.push(performance.now() - t0);
+++      times.push(cpu() - c0);
+++      walls.push(performance.now() - t0);
++     }
++     times.sort((a, b) => a - b);
++-    assert.ok(times[2] < 25, `median ${Math.round(times[2])} ms per request (the guide and its charts are rebuilt each time)`);
+++    walls.sort((a, b) => a - b);
+++    assert.ok(times[2] < 25, `median ${Math.round(times[2])} ms of CPU per request (the guide and its charts are rebuilt each time); wall ${walls.map(Math.round)} ms`);
+++    assert.ok(walls[2] < 1000, `median ${Math.round(walls[2])} ms per request`);
++   } finally {
++     await new Promise((r) => server.close(r));
++   }
+diff --git a/docs/process/patches/qa-suite-beta-flake-t21-cpu.diff b/docs/process/patches/qa-suite-beta-flake-t21-cpu.diff
+new file mode 100644
+index 0000000..e7298b3
+--- /dev/null
++++ b/docs/process/patches/qa-suite-beta-flake-t21-cpu.diff
+@@ -0,0 +1,42 @@
++diff --git a/test/e2e/harness.js b/test/e2e/harness.js
++index 849d421..51f605b 100644
++--- a/test/e2e/harness.js
+++++ b/test/e2e/harness.js
++@@ -100,6 +100,7 @@ export async function startServer({ timeoutMs = 20000, env = {} } = {}) {
++   return {
++     baseUrl,
++     logs,
+++    pid: child.pid, // a test can read the server's CPU time (/proc/<pid>/stat) instead of trusting wall time on a loaded machine
++     stop: () => new Promise((resolve) => {
++       if (exited !== null) return resolve();
++       child.once('exit', () => resolve());
++diff --git a/test/e2e/ui.e2e.js b/test/e2e/ui.e2e.js
++index ff24c0c..c4cdab7 100644
++--- a/test/e2e/ui.e2e.js
+++++ b/test/e2e/ui.e2e.js
++@@ -1527,12 +1527,23 @@ function registerCompstimateTests(suite) {
++     const { page, close } = await openComp({ ...ctx, baseUrl: cold.baseUrl }, 'c=anduril&m=insights');
++     try {
++       const first = await readComp(page);
+++      // The server's CPU time (utime + stime in /proc/<pid>/stat, 100 ticks a second), where Linux has it: the
+++      // backtest behind the accuracy line costs the same CPU at any load, while a loaded machine can stretch its wall
+++      // time past 10 s (qa-suite-beta T-13). The budget is 10 s of server CPU, and the line must come with no user
+++      // action within 60 s of wall time.
+++      const cpuMs = () => { try { const f = fs.readFileSync(`/proc/${cold.pid}/stat`, 'utf8').slice(fs.readFileSync(`/proc/${cold.pid}/stat`, 'utf8').lastIndexOf(')') + 2).split(' '); return (Number(f[11]) + Number(f[12])) * 10; } catch { return null; } };
++       const t0 = Date.now();
+++      const c0 = cpuMs();
++       let c = first;
++       // fix-estimates (P-2): at low confidence the line is a caution, never an accuracy figure.
++       const settled = (x) => !!x.accuracy && (/^low/i.test(x.conf || '') ? !/±/.test(x.accuracy) : /within ±\d+%/.test(x.accuracy));
++-      while (Date.now() - t0 < 10000 && !settled(c)) { await page.waitForTimeout(500); c = await readComp(page); }
++-      assert(settled(c), `no accuracy line (or low-confidence caution) ${Math.round((Date.now() - t0) / 1000)} s after the first estimate (first visit on a cold server)`);
+++      const budget = c0 == null ? 10000 : 60000;
+++      while (Date.now() - t0 < budget && !settled(c)) { await page.waitForTimeout(500); c = await readComp(page); }
+++      const wall = Date.now() - t0;
+++      const used = c0 == null ? null : cpuMs() - c0;
+++      ctx.notes.push(`T21: the accuracy line came ${Math.round(wall / 100) / 10} s after the first estimate${used == null ? '' : `, after ${Math.round(used / 100) / 10} s of server CPU`}`);
+++      assert(settled(c), `no accuracy line (or low-confidence caution) ${Math.round(wall / 1000)} s after the first estimate (first visit on a cold server)`);
+++      if (used != null) assert(used < 10000, `the accuracy line took ${Math.round(used / 1000)} s of server CPU (${Math.round(wall / 1000)} s of wall time)`);
++       assertEq(JSON.stringify(fields(c)), JSON.stringify(fields(first)), 'other fields unchanged when the accuracy arrives');
++     } finally { await close(); }
++   });
+diff --git a/test/beta-coverage.test.js b/test/beta-coverage.test.js
+index dda40fc..c09088c 100644
+--- a/test/beta-coverage.test.js
++++ b/test/beta-coverage.test.js
+@@ -168,3 +168,15 @@ test('beta-coverage: the build publishes every beta board with every posting of
+     }
+     assert.deepEqual(bad, [], bad.join('; '));
+   });
++
++test('[T-17] no posting title holds a line break (Meta 1, Amazon 2 on the 2026-10-16 crawl: "Partner Development Manager\\n, Benelux …")',
++  { ...todo('T-17'), skip: !haveData && 'needs data/beta/snapshots' }, () => {
++    // The card shows "Manager , Benelux" (the break collapses to a space before the comma), and a CSV reader that splits
++    // on lines (beta-mobile-qa's CSV check did) counts an extra row. server/normalize.js keeps the title's raw whitespace.
++    const bad = [];
++    for (const slug of BETA) {
++      const snap = JSON.parse(fs.readFileSync(path.join(SNAP, `${slug}.json`), 'utf8'));
++      for (const j of snap.jobs || []) if (/[\r\n]/.test(j.title || '')) bad.push(`${j.id} ${JSON.stringify(j.title)}`);
++    }
++    assert.deepEqual(bad, [], `${bad.length} titles with a line break: ${bad.slice(0, 5).join('; ')}`);
++  });
+diff --git a/test/e2e/beta-coverage.e2e.js b/test/e2e/beta-coverage.e2e.js
+index 2b95f6b..780de89 100644
+--- a/test/e2e/beta-coverage.e2e.js
++++ b/test/e2e/beta-coverage.e2e.js
+@@ -286,10 +286,15 @@ export function registerBetaCoverageTests(suite) {
+       if (got !== want) bad.push(`hide 180+ days: ${got} shown, ${want} postings are younger (or undated)`);
+     }
+     await hashTo(page, `c=${c.slug}`);
++    // The Juice grades live in the "More" popover (its quick chip), not in the filter column.
++    await page.locator('#quickChips [data-pop=more]').click();
++    await page.waitForSelector('#popover .kw--juice', { timeout: 10000 }).catch(() => {});
+     const g = await page.evaluate(() => ({
+-      grades: Object.fromEntries([...document.querySelectorAll('#filterBody .kw--juice')].map((b) => [b.firstChild.textContent, Number(b.querySelector('.kw-count').textContent.replace(/,/g, ''))])),
+-      note: [...document.querySelectorAll('#filterBody .fnote')].map((n) => n.textContent).find((t) => /Juice Score/.test(t)) || '',
++      grades: Object.fromEntries([...document.querySelectorAll('#popover .kw--juice')].map((b) => [b.firstChild.textContent, Number(b.querySelector('.kw-count').textContent.replace(/,/g, ''))])),
++      note: [...document.querySelectorAll('#popover .fnote')].map((n) => n.textContent).find((t) => /Juice Score/.test(t)) || '',
+     }));
++    await page.keyboard.press('Escape');
++    await sleep(300);
+     if (Object.keys(g.grades).length !== 3) { bad.push(`Juice grade buttons ${JSON.stringify(g.grades)}`); return; }
+     const scored = Number((g.note.replace(/,/g, '').match(/(\d+) of \d+ have a Juice Score/) || [])[1] ?? NaN);
+     const sum = Object.values(g.grades).reduce((a, b) => a + b, 0);
+@@ -468,11 +473,12 @@ export function registerBetaCoverageTests(suite) {
+       // Filters: a tapped Seniority row (every board has one) gives "Show N roles" = its count, then that list.
+       await tap(page, page.locator('#filtersToggle'));
+       await sleep(700);
++      // The phone's filter sheet is built when it opens, and a section's rows when that section opens.
++      await page.evaluate(() => { for (const x of document.querySelectorAll('#filterBody details.fsec')) if (/Seniority/.test(x.querySelector('summary')?.textContent || '')) x.open = true; });
++      await sleep(500);
+       const row = page.locator('#filterBody details.fsec').filter({ has: page.locator('summary', { hasText: 'Seniority' }) }).locator('label.check').first();
+-      if (!(await row.count())) bad.push('the filter panel has no Seniority row');
++      if (!(await row.count())) bad.push(`the filter sheet has no Seniority row (sections: ${await page.$$eval('#filterBody details.fsec summary', (e) => e.map((x) => x.textContent.trim()).join(', '))})`);
+       else {
+-        await page.evaluate(() => { for (const x of document.querySelectorAll('#filterBody details.fsec')) if (/Seniority/.test(x.querySelector('summary')?.textContent || '')) x.open = true; });
+-        await sleep(300);
+         const want = Number((await row.locator('.check-count').innerText()).replace(/,/g, ''));
+         await tap(page, row, { dx: 40 });
+         await sleep(900);
+-- 
+2.43.0
+

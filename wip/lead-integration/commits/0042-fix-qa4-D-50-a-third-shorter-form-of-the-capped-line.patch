@@ -1,7 +1,7 @@
 From ef7dc49fb505c7ec6ea31b7beaadaac95acbfad4 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 14:56:05 +0000
-Subject: [PATCH 42/56] fix-qa4: D-50 a third, shorter form of the capped line
+Subject: [PATCH 42/57] fix-qa4: D-50 a third, shorter form of the capped line
  (280 px took two lines)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

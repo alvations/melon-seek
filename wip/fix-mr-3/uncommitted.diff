@@ -1,0 +1,13 @@
+diff --git a/docs/process/fix-mr-3.md b/docs/process/fix-mr-3.md
+index 727e08b..9d12caa 100644
+--- a/docs/process/fix-mr-3.md
++++ b/docs/process/fix-mr-3.md
+@@ -109,7 +109,7 @@ NODE_PATH=$S/pw/node_modules node scripts/e2e.js --grep="fix-mr-3"
+ ```
+ 
+ ## 5. Verification
+-- **Node tests:** test/fix-mr-3.test.js 18 tests; the reviewers' to-dos for my IDs are plain tests (beta-methodology-2: MR-26,
++- **Node tests:** test/fix-mr-3.test.js 17 tests; the reviewers' to-dos for my IDs are plain tests (beta-methodology-2: MR-26,
+   MR-29 ×3, MR-33, MR-37, MR-38, MR-40, MR-41 ×2; beta-methodology: MR-21, MR-22). On 05263e8 these fail: 10 failures in the
+   three files (7297ce7).
+ - **npm test, CI-like** (clean checkout, no data links), at 99d5640: 1,259 tests, 1 fail (test/refresh-jobs.test.js, fixtures at

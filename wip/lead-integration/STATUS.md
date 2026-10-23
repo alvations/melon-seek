@@ -2,11 +2,12 @@
 
 - Worktree: `/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-int`
 - Base (on claude/stoic-ride-54ddxp): `0e6f21abb1304c3b871382a9d59179a27a1ca9e8`
-- Head: `5c0cda3ce45594d4b5daa0a4ca2455dbdb63e327`
+- Head: `ceed71ee78819b1a6466b26788559b9a577a6613`
 - Restore: `bash scripts/cycle/restore-wip.sh lead-integration <new worktree dir>`
 
 ## Commits since the base
 ```
+ceed71e Lead log: resumed after the weekly limit; the e2e browser 'crash' was the gate's own timeouts (T-12); lanes now running
 5c0cda3 QA: the desktop beta pass of 2026-10-17 (qa-desktop-beta-4) in docs/QA.md
 2e7da1a qa-desktop-beta-4: final log and QA section (full e2e, npm test CI-like)
 61d2c2d WIP qa-desktop-beta-4: process log and QA section (full e2e pending)

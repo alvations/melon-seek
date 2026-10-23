@@ -1,0 +1,571 @@
+From 29aea442babd477da06c4e5da20b96cfa11ef027 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 14:09:28 +0000
+Subject: [PATCH 6/6] qa-suite-beta: runner patch (SIGTERM/SIGHUP/SIGINT stop
+ the run, relaunch only on a real disconnect, --shard, --list, --max-skips,
+ links registered), T-1 board list, T-4 link checker, T21 patch
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ ...ard.diff => qa-suite-beta-e2e-runner.diff} |  95 ++++++++--
+ .../patches/qa-suite-beta-flake-t21-cpu.diff  |  51 +++++-
+ .../patches/qa-suite-beta-t1-board-list.diff  | 165 ++++++++++++++++++
+ .../patches/qa-suite-beta-t4-link-check.diff  |  37 ++++
+ docs/process/qa-suite-beta.md                 |  37 ++--
+ test/e2e/beta-coverage.e2e.js                 |   9 +-
+ 6 files changed, 361 insertions(+), 33 deletions(-)
+ rename docs/process/patches/{qa-suite-beta-e2e-shard.diff => qa-suite-beta-e2e-runner.diff} (63%)
+ create mode 100644 docs/process/patches/qa-suite-beta-t1-board-list.diff
+ create mode 100644 docs/process/patches/qa-suite-beta-t4-link-check.diff
+
+diff --git a/docs/process/patches/qa-suite-beta-e2e-shard.diff b/docs/process/patches/qa-suite-beta-e2e-runner.diff
+similarity index 63%
+rename from docs/process/patches/qa-suite-beta-e2e-shard.diff
+rename to docs/process/patches/qa-suite-beta-e2e-runner.diff
+index e97ea05..4315da5 100644
+--- a/docs/process/patches/qa-suite-beta-e2e-shard.diff
++++ b/docs/process/patches/qa-suite-beta-e2e-runner.diff
+@@ -1,6 +1,6 @@
+ --- a/scripts/e2e.js
+ +++ b/scripts/e2e.js
+-@@ -1,9 +1,17 @@
++@@ -1,12 +1,21 @@
+  #!/usr/bin/env node
+  // End-to-end suite: real server + headless Chromium via Playwright.
+ -// Usage: node scripts/e2e.js [--api-only] [--headed] [--grep=<regex>]
+@@ -19,7 +19,11 @@
+  import { createSuite, loadPlaywright, findChromium, startServer, playwrightInfo } from '../test/e2e/harness.js';
+  import { registerApiTests } from '../test/e2e/api.e2e.js';
+  import { registerUiTests } from '../test/e2e/ui.e2e.js';
+-@@ -53,9 +61,35 @@
+++import { registerLinkTests } from '../test/e2e/links.e2e.js';
++ import { registerMobileQaTests } from '../test/e2e/mobile-qa.e2e.js';
++ import { registerDesktopQaTests } from '../test/e2e/desktop-qa.e2e.js';
++ import { registerMethodologyTests } from '../test/e2e/methodology.e2e.js';
++@@ -53,9 +62,35 @@
+  const apiOnly = args.has('--api-only');
+  const grepArg = process.argv.find((a) => a.startsWith('--grep='));
+  const grep = grepArg ? new RegExp(grepArg.slice(7), 'i') : null;
+@@ -57,7 +61,7 @@
+    console.error(
+      'e2e: the `playwright` package was not found.\n' +
+      '  Install it without touching package.json:  npm i playwright --no-save\n' +
+-@@ -66,10 +100,10 @@
++@@ -66,28 +101,57 @@
+    process.exit(2);
+  }
+  
+@@ -71,30 +75,61 @@
+  registerApiTests(suite);
+  
+  let browser = null;
+-@@ -77,16 +111,18 @@
++ let relaunches = 0;
+++/**
+++ * Stop on SIGTERM, SIGHUP and SIGINT (qa-suite-beta T-12). Playwright's own handlers (launch's handleSIGTERM and
+++ * handleSIGHUP, on by default) close the browser on SIGTERM or SIGHUP and let the process run on, so a `timeout`, a
+++ * tool's time limit or a stopped session closed Chromium mid-run and every later test failed on "Target page, context
+++ * or browser has been closed" (the 2026-10-17 gate runs ended at their own `timeout 5400`, exit 124). Here the run stops
+++ * before its next test, the test in progress ends now (the browser closes), and the summary says how many did not run.
+++ * A second signal exits at once.
+++ */
+++let stopSignal = null;
+++const SIGNAL_CODES = { SIGHUP: 1, SIGINT: 2, SIGTERM: 15 };
+++for (const sig of Object.keys(SIGNAL_CODES)) {
+++  process.on(sig, () => {
+++    if (stopSignal) process.exit(128 + SIGNAL_CODES[sig]);
+++    stopSignal = sig;
+++    console.log(`\n  ! ${sig}: stopping; the test in progress ends now and the rest are not run`);
+++    suite.stop(sig);
+++    if (browser) browser.close().catch(() => {});
+++  });
+++}
+  if (!apiOnly) {
+    const executablePath = findChromium();
+-   const launch = () => pw.chromium.launch({ headless: !args.has('--headed'), executablePath });
++-  const launch = () => pw.chromium.launch({ headless: !args.has('--headed'), executablePath });
+ -  browser = await launch();
+ -  ctx.browser = browser;
+++  let disconnected = false;
+++  const launch = async () => {
+++    const b = await pw.chromium.launch({ headless: !args.has('--headed'), executablePath, handleSIGTERM: false, handleSIGHUP: false, handleSIGINT: false });
+++    b.on('disconnected', () => { disconnected = true; });
+++    return b;
+++  };
+ +  if (!listOnly) {
+ +    browser = await launch();
+ +    ctx.browser = browser;
+ +    console.log(`e2e: playwright ${playwrightInfo.path}`);
+ +    console.log(`e2e: chromium ${browser.version()} (${executablePath || 'playwright default'})`);
+ +  }
+++  // A real crash (the browser disconnected and no signal asked for it): relaunch, so one crash fails one test.
+    ctx.ensureBrowser = async () => {
+-     if (ctx.browser.isConnected()) return;
++-    if (ctx.browser.isConnected()) return;
+++    if (stopSignal || !disconnected) return;
+++    disconnected = false;
+      relaunches += 1;
+-     console.log(`  ! the browser closed; relaunching it (${relaunches})`);
++-    console.log(`  ! the browser closed; relaunching it (${relaunches})`);
+++    console.log(`  ! the browser disconnected on its own; relaunching it (${relaunches})`);
+      browser = ctx.browser = await launch();
+    };
+ -  console.log(`e2e: playwright ${playwrightInfo.path}`);
+ -  console.log(`e2e: chromium ${browser.version()} (${executablePath || 'playwright default'})`);
+    registerUiTests(suite);
+++  registerLinkTests(suite); // T-4 (qa-suite-beta): written for this suite, never registered until 2026-10-23
+    registerMobileQaTests(suite);
+    registerDesktopQaTests(suite);
+-@@ -131,9 +167,18 @@
++   registerBadgeTests(suite);
++@@ -131,15 +195,26 @@
+    registerFixQa4Tests(suite);
+  }
+  
+@@ -114,7 +149,16 @@
+  } finally {
+    if (browser) await browser.close().catch(() => {});
+    await server.stop();
+-@@ -150,4 +195,11 @@
++ }
++ const failed = results.filter((r) => !r.ok);
++-if (relaunches) console.log(`e2e: the browser was relaunched ${relaunches} time(s) after closing`);
+++if (relaunches) console.log(`e2e: the browser was relaunched ${relaunches} time(s) after it disconnected on its own`);
+++const stop = suite.stopped();
+++if (stop) console.log(`e2e: stopped by ${stop.reason}: ${results.length} tests ran, ${stop.notRun} not run`);
++ if (ctx.notes.length) {
++   console.log('\ne2e notes (non-fatal observations):');
++   for (const n of [...new Set(ctx.notes)]) console.log(`  * ${n}`);
++@@ -150,4 +225,12 @@
+    for (const f of failed) console.log(`  - ${f.name}`);
+    if (process.env.E2E_SERVER_LOGS) console.log('\nserver logs:\n' + server.logs.join(''));
+  }
+@@ -126,14 +170,26 @@
+ +  console.log(`\ne2e: skipped, by reason${tooManySkips ? ` (more than --max-skips=${maxSkips}: the run fails)` : ''}:`);
+ +  for (const [r, k] of [...why].sort((a, b) => b[1] - a[1])) console.log(`  ${k} × ${r}`);
+ +}
+++if (stop) process.exit(128 + SIGNAL_CODES[stop.reason]);
+ +process.exit(failed.length || tooManySkips ? 1 : 0);
+ --- a/test/e2e/harness.js
+ +++ b/test/e2e/harness.js
+-@@ -142,7 +142,10 @@
++@@ -140,9 +140,21 @@
++ export function createSuite() {
++   const tests = [];
+    const results = [];
+++  let stopReason = null;
+++  let notRun = 0;
+    return {
+      test(name, fn) { tests.push({ name, fn }); },
+ -    async run(ctx, grep = null) {
+++    /**
+++     * Stop the run before its next test (scripts/e2e.js calls it on SIGTERM, SIGHUP or SIGINT). The test in progress
+++     * ends when the caller closes the browser; it is reported as interrupted, and the rest as not run.
+++     */
+++    stop(reason) { stopReason = stopReason || reason; },
+++    /** { reason, notRun } once stop() was called, else null. */
+++    stopped() { return stopReason ? { reason: stopReason, notRun } : null; },
+ +    /** The names the run would take, in order (--list, --shard). */
+ +    names(grep = null) { return tests.filter((t) => !grep || grep.test(t.name)).map((t) => t.name); },
+ +    /** only: a Set of names to run (one shard); null runs every test grep takes. */
+@@ -141,22 +197,29 @@
+        let current = null;
+        const stray = (err) => {
+          if (current) current.stray.push(err);
+-@@ -153,6 +156,7 @@
++@@ -153,8 +165,9 @@
+        try {
+          for (const t of tests) {
+            if (grep && !grep.test(t.name)) continue;
++-          // A browser that died in an earlier test (it did twice near test 750 of a full run, 2026-10-17)
++-          // is relaunched here, so one crash fails one test, not every test after it.
+ +          if (only && !only.has(t.name)) continue;
+-           // A browser that died in an earlier test (it did twice near test 750 of a full run, 2026-10-17)
+-           // is relaunched here, so one crash fails one test, not every test after it.
+++          if (stopReason) { notRun++; continue; }
+++          // A browser that died on its own (a real crash, not a stop) is relaunched here, so one crash fails one test.
+            if (ctx.ensureBrowser) await ctx.ensureBrowser();
+-@@ -178,7 +182,9 @@
++           const start = Date.now();
++           current = { stray: [] };
++@@ -177,8 +190,11 @@
++               console.log(`  - ${t.name} (skipped: ${err.message})`);
+                continue;
+              }
+-             results.push({ name: t.name, ok: false, ms: Date.now() - start, error: err });
++-            results.push({ name: t.name, ok: false, ms: Date.now() - start, error: err });
+ -            console.log(`  \u2717 ${t.name}\n      ${String(err && err.message || err).split('\n').join('\n      ')}`);
+++            const interrupted = !!stopReason;
+++            results.push({ name: t.name, ok: false, ms: Date.now() - start, error: err, interrupted });
+ +            // The duration too (qa-suite-beta T-9): a failure that waited out a timeout costs minutes, and a run's
+ +            // time can only be split by group when every line says how long it took.
+-+            console.log(`  \u2717 ${t.name} (${Date.now() - start}ms)\n      ${String(err && err.message || err).split('\n').join('\n      ')}`);
+++            console.log(`  \u2717 ${t.name} (${Date.now() - start}ms${interrupted ? `, interrupted by ${stopReason}` : ''})\n      ${String(err && err.message || err).split('\n').join('\n      ')}`);
+            } finally {
+              clearTimeout(timer);
+              if (ctx.cleanup) {
+diff --git a/docs/process/patches/qa-suite-beta-flake-t21-cpu.diff b/docs/process/patches/qa-suite-beta-flake-t21-cpu.diff
+index e7298b3..6e5d655 100644
+--- a/docs/process/patches/qa-suite-beta-flake-t21-cpu.diff
++++ b/docs/process/patches/qa-suite-beta-flake-t21-cpu.diff
+@@ -11,17 +11,58 @@ index 849d421..51f605b 100644
+        if (exited !== null) return resolve();
+        child.once('exit', () => resolve());
+ diff --git a/test/e2e/ui.e2e.js b/test/e2e/ui.e2e.js
+-index ff24c0c..c4cdab7 100644
++index ff24c0c..7fcccee 100644
+ --- a/test/e2e/ui.e2e.js
+ +++ b/test/e2e/ui.e2e.js
+-@@ -1527,12 +1527,23 @@ function registerCompstimateTests(suite) {
+-     const { page, close } = await openComp({ ...ctx, baseUrl: cold.baseUrl }, 'c=anduril&m=insights');
++@@ -21,7 +21,7 @@ function isExternal(url, baseUrl) {
++   return !!url && !url.startsWith(baseUrl) && !url.startsWith('data:') && !url.startsWith('blob:');
++ }
++ 
++-async function openApp(ctx, { hash = '', viewport = DESKTOP, colorScheme = 'light', ready = true } = {}) {
+++async function openApp(ctx, { hash = '', viewport = DESKTOP, colorScheme = 'light', ready = true, readyTimeout = READY_TIMEOUT } = {}) {
++   const context = await ctx.browser.newContext({ viewport, colorScheme, deviceScaleFactor: 1, acceptDownloads: true });
++   ctx.cleanup.push(() => context.close());
++   // Block external hosts up front so the run is deterministic and fast.
++@@ -45,21 +45,21 @@ async function openApp(ctx, { hash = '', viewport = DESKTOP, colorScheme = 'ligh
++     if (!isExternal(res.url(), ctx.baseUrl) && res.status() >= 400) errors.push(`HTTP ${res.status()}: ${res.url()}`);
++   });
++   await page.goto(`${ctx.baseUrl}/${hash ? `#${hash}` : ''}`);
++-  if (ready) await waitReady(page, 'initial load');
+++  if (ready) await waitReady(page, 'initial load', readyTimeout);
++   return { context, page, errors, close: () => context.close() };
++ }
++ 
++ /** Wait until the results header shows a count ("N roles"). */
++-async function waitReady(page, where = '') {
+++async function waitReady(page, where = '', timeout = READY_TIMEOUT) {
++   try {
++-    await page.locator('#resultsTitle strong').first().waitFor({ timeout: READY_TIMEOUT });
+++    await page.locator('#resultsTitle strong').first().waitFor({ timeout });
++   } catch {
++     const st = await page.evaluate(() => ({
++       title: document.querySelector('#resultsTitle')?.textContent,
++       hash: location.hash,
++       cards: document.querySelectorAll('#resultsList .card[data-id]').length,
++     })).catch(() => ({}));
++-    throw new Error(`app not ready${where ? ` (${where})` : ''} after ${READY_TIMEOUT}ms: ${JSON.stringify(st)}`);
+++    throw new Error(`app not ready${where ? ` (${where})` : ''} after ${timeout}ms: ${JSON.stringify(st)}`);
++   }
++ }
++ 
++@@ -1524,15 +1524,28 @@ function registerCompstimateTests(suite) {
++     const hist = mkdtempSync(path.join(os.tmpdir(), 'melon-cold-hist-'));
++     const cold = await startServer({ env: { MELON_CACHE_DIR: cache, MELON_HISTORY_DIR: hist } });
++     ctx.cleanup.push(() => cold.stop());
++-    const { page, close } = await openComp({ ...ctx, baseUrl: cold.baseUrl }, 'c=anduril&m=insights');
+++    // A cold server normalizes Anduril's 2,537 postings before its first list: 16 s at load 5 in the sandbox
+++    // (qa-suite-beta T-13), over the 30 s READY_TIMEOUT at load 10+. That wait is not what T21 times.
+++    const { page, close } = await openComp({ ...ctx, baseUrl: cold.baseUrl }, 'c=anduril&m=insights', { readyTimeout: 75000 });
+      try {
+        const first = await readComp(page);
+ +      // The server's CPU time (utime + stime in /proc/<pid>/stat, 100 ticks a second), where Linux has it: the
+ +      // backtest behind the accuracy line costs the same CPU at any load, while a loaded machine can stretch its wall
+ +      // time past 10 s (qa-suite-beta T-13). The budget is 10 s of server CPU, and the line must come with no user
+-+      // action within 60 s of wall time.
+++      // action within 40 s of wall time.
+ +      const cpuMs = () => { try { const f = fs.readFileSync(`/proc/${cold.pid}/stat`, 'utf8').slice(fs.readFileSync(`/proc/${cold.pid}/stat`, 'utf8').lastIndexOf(')') + 2).split(' '); return (Number(f[11]) + Number(f[12])) * 10; } catch { return null; } };
+        const t0 = Date.now();
+ +      const c0 = cpuMs();
+@@ -30,7 +71,7 @@ index ff24c0c..c4cdab7 100644
+        const settled = (x) => !!x.accuracy && (/^low/i.test(x.conf || '') ? !/±/.test(x.accuracy) : /within ±\d+%/.test(x.accuracy));
+ -      while (Date.now() - t0 < 10000 && !settled(c)) { await page.waitForTimeout(500); c = await readComp(page); }
+ -      assert(settled(c), `no accuracy line (or low-confidence caution) ${Math.round((Date.now() - t0) / 1000)} s after the first estimate (first visit on a cold server)`);
+-+      const budget = c0 == null ? 10000 : 60000;
+++      const budget = c0 == null ? 10000 : 40000; // wall: the 75 s first load and this fit the harness's 120 s
+ +      while (Date.now() - t0 < budget && !settled(c)) { await page.waitForTimeout(500); c = await readComp(page); }
+ +      const wall = Date.now() - t0;
+ +      const used = c0 == null ? null : cpuMs() - c0;
+diff --git a/docs/process/patches/qa-suite-beta-t1-board-list.diff b/docs/process/patches/qa-suite-beta-t1-board-list.diff
+new file mode 100644
+index 0000000..b64b544
+--- /dev/null
++++ b/docs/process/patches/qa-suite-beta-t1-board-list.diff
+@@ -0,0 +1,165 @@
++diff --git a/test/e2e/beta-boards.mjs b/test/e2e/beta-boards.mjs
++new file mode 100644
++index 0000000..758a516
++--- /dev/null
+++++ b/test/e2e/beta-boards.mjs
++@@ -0,0 +1,16 @@
+++// The beta site's boards, from the registry (server/companies.js): every non-paused company of the beta channel.
+++// e2e files that mean "every big-tech board" read them here, so a board added (Amazon and Meta, 2026-10-11) or resumed
+++// is tested without editing each file (qa-suite-beta T-1: three files kept five hand-written boards for 12 days).
+++import { COMPANIES } from '../../server/companies.js';
+++
+++export const BETA_COMPANIES = Object.freeze(COMPANIES.filter((c) => c.channel === 'beta' && !c.paused));
+++/** Slugs, in registry order. */
+++export const BETA_BOARDS = Object.freeze(BETA_COMPANIES.map((c) => c.slug));
+++/** slug -> the name the company menu shows. */
+++export const BETA_NAMES = Object.freeze(Object.fromEntries(BETA_COMPANIES.map((c) => [c.slug, c.name])));
+++/** The hosts (no "www.") a board's postings may link to: its postingHosts and the hosts of its postingPrefixes. */
+++export function postingHostsOf(slug) {
+++  const c = BETA_COMPANIES.find((x) => x.slug === slug);
+++  if (!c) return new Set();
+++  return new Set([...(c.postingHosts || []), ...(c.postingPrefixes || []).map((p) => new URL(p).hostname)].map((h) => h.replace(/^www\./, '')));
+++}
++diff --git a/test/e2e/beta-desktop-qa-2.e2e.js b/test/e2e/beta-desktop-qa-2.e2e.js
++index 7bc707e..8bc9435 100644
++--- a/test/e2e/beta-desktop-qa-2.e2e.js
+++++ b/test/e2e/beta-desktop-qa-2.e2e.js
++@@ -10,9 +10,11 @@ import http from 'node:http';
++ import fs from 'node:fs';
++ import path from 'node:path';
++ import { ROOT, assert, assertEq, skip } from './harness.js';
+++import { BETA_BOARDS } from './beta-boards.mjs';
++ 
++ const DESKTOP = { width: 1440, height: 900 };
++-const BIG_TECH = ['apple', 'google', 'nvidia', 'microsoft', 'netflix'];
+++// Every non-paused beta board, from the registry (T-1: Amazon and Meta were missing from a hand-written list).
+++const BIG_TECH = BETA_BOARDS;
++ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2' };
++ 
++diff --git a/test/e2e/beta-desktop-qa.e2e.js b/test/e2e/beta-desktop-qa.e2e.js
++index 8ba8b4f..49f183c 100644
++--- a/test/e2e/beta-desktop-qa.e2e.js
+++++ b/test/e2e/beta-desktop-qa.e2e.js
++@@ -9,10 +9,12 @@ import http from 'node:http';
++ import fs from 'node:fs';
++ import path from 'node:path';
++ import { ROOT, assert, assertEq, skip, startServer } from './harness.js';
+++import { BETA_BOARDS, postingHostsOf } from './beta-boards.mjs';
++ import { COMPANIES } from '../../server/companies.js';
++ 
++ const DESKTOP = { width: 1440, height: 900 };
++-const BIG_TECH = { apple: 'jobs.apple.com', google: 'google.com', nvidia: 'jobs.nvidia.com', microsoft: 'apply.careers.microsoft.com', netflix: 'explore.jobs.netflix.net' };
+++// Every non-paused beta board, from the registry (T-1: Amazon and Meta were missing from a hand-written list).
+++const BIG_TECH = BETA_BOARDS;
++ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++ 
++ /** Serve ROOT/dist under /melon-seek/ (the GitHub Pages layout) on a free port; null without a beta build. */
++@@ -116,7 +118,7 @@ export function registerBetaDesktopQaTests(suite) {
++   // ---------------------------------------------------------------- guards (pass today)
++   suite.test('Beta desktop QA: big-tech boards load from the bundle only (Snapshot badge, no live request)', async (ctx) => {
++     const { st, page, errors, external, requests } = await openBeta(ctx, null);
++-    for (const c of Object.keys(BIG_TECH)) {
+++    for (const c of BIG_TECH) {
++       const e0 = external.length, r0 = requests.length;
++       await page.goto(`${st.beta}/#c=${c}`); await ready(page); await sleep(1200);
++       const label = await page.locator('#dataBadge .badge-label').innerText();
++@@ -130,11 +132,11 @@ export function registerBetaDesktopQaTests(suite) {
++     assert(!errors.length, `console errors: ${errors.slice(0, 3).join(' | ')}`);
++   });
++ 
++-  suite.test('Beta desktop QA: paused and absent companies (Meta, Amazon, Tesla) are nowhere; the main site lists no beta company', async (ctx) => {
+++  suite.test('Beta desktop QA: paused and absent companies (the registry\'s paused ones, and Tesla) are nowhere; the main site lists no beta company', async (ctx) => {
++     const { st, page } = await openBeta(ctx, 'c=netflix');
++     await page.click('#companyMenuBtn'); await sleep(300);
++     const names = await page.$$eval('#popover .company-item-name', (e) => e.map((x) => x.textContent));
++-    for (const n of ['Google', 'Microsoft', 'Apple', 'Netflix', 'NVIDIA']) assert(names.includes(n), `company menu lacks ${n}`);
+++    for (const n of COMPANIES.filter((c) => BIG_TECH.includes(c.slug)).map((c) => c.name)) assert(names.includes(n), `company menu lacks ${n}`);
++     // Paused companies come from the registry (server/companies.js `paused`), so resuming one needs no edit here.
++     const paused = COMPANIES.filter((c) => c.paused);
++     for (const n of [...paused.map((c) => c.name), 'Tesla']) assert(!names.includes(n), `company menu lists ${n}`);
++@@ -142,7 +144,7 @@ export function registerBetaDesktopQaTests(suite) {
++       assertEq((await fetch(`${st.main}/${p}`)).status, 404, `/${p}`);
++     }
++     const main = await (await fetch(`${st.main}/api/companies.json`)).json();
++-    assert(!main.some((c) => c.channel === 'beta' || c.slug in BIG_TECH), `main site companies.json lists ${main.map((c) => c.slug).join(',')}`);
+++    assert(!main.some((c) => c.channel === 'beta' || BIG_TECH.includes(c.slug)), `main site companies.json lists ${main.map((c) => c.slug).join(',')}`);
++   });
++ 
++   suite.test('Beta desktop QA: Apple (6,105 roles) facet counts stay consistent and each update lands quickly', async (ctx) => {
++@@ -175,12 +177,13 @@ export function registerBetaDesktopQaTests(suite) {
++ 
++   suite.test('Beta desktop QA: Apply opens each big-tech careers host in a new tab', async (ctx) => {
++     const { st, page } = await openBeta(ctx, null);
++-    for (const [c, host] of Object.entries(BIG_TECH)) {
+++    for (const c of BIG_TECH) {
++       await page.goto(`${st.beta}/#c=${c}`); await ready(page);
++       await page.locator('#resultsList .card[data-id]').first().click(); await sleep(700);
++       const a = page.locator('#drawer a.apply');
++       const href = await a.getAttribute('href');
++-      assertEq(new URL(href).hostname.replace(/^www\./, ''), host, `${c}: Apply host`);
+++      const host = new URL(href).hostname.replace(/^www\./, '');
+++      assert(postingHostsOf(c).has(host), `${c}: Apply goes to ${host}, not ${[...postingHostsOf(c)].join(' or ')}`);
++       assertEq(await a.getAttribute('target'), '_blank', `${c}: Apply target`);
++       assert(/noopener/.test(await a.getAttribute('rel')), `${c}: Apply rel`);
++       assert((await a.locator('.apply-host').innerText()) === host, `${c}: host shown under Apply`);
++@@ -190,7 +193,7 @@ export function registerBetaDesktopQaTests(suite) {
++ 
++   suite.test('Beta desktop QA: beta share pages /beta/c/<slug>/ have their own titles and open the beta app', async (ctx) => {
++     const { st, page } = await openBeta(ctx, null);
++-    for (const c of Object.keys(BIG_TECH)) {
+++    for (const c of BIG_TECH) {
++       const r = await fetch(`${st.beta}/c/${c}/`);
++       assertEq(r.status, 200, `/beta/c/${c}/`);
++       const html = await r.text();
++diff --git a/test/e2e/beta-mobile-qa.e2e.js b/test/e2e/beta-mobile-qa.e2e.js
++index ea03d25..af5c3ca 100644
++--- a/test/e2e/beta-mobile-qa.e2e.js
+++++ b/test/e2e/beta-mobile-qa.e2e.js
++@@ -12,6 +12,7 @@ import fs from 'node:fs';
++ import path from 'node:path';
++ import zlib from 'node:zlib';
++ import { ROOT, assert, assertEq, skip } from './harness.js';
+++import { BETA_BOARDS, BETA_NAMES } from './beta-boards.mjs';
++ import { COMPANIES } from '../../server/companies.js';
++ 
++ const SHOTS = path.join(ROOT, 'docs', 'screenshots', 'qa-mobile-beta');
++@@ -19,7 +20,8 @@ const IOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/
++ const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36';
++ const PHONE = { width: 390, height: 844 };
++ const SMALL = { width: 360, height: 740 };
++-const BIG_TECH = ['netflix', 'google', 'microsoft', 'apple', 'nvidia']; // the first is opened by URL
+++// Every non-paused beta board, from the registry (T-1: Amazon and Meta were missing); the first is opened by URL.
+++const BIG_TECH = ['netflix', ...BETA_BOARDS.filter((s) => s !== 'netflix')];
++ const KEYBOARD = 336; // simulated on-screen keyboard height (px)
++ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++ const num = (s) => Number(String(s).replace(/,/g, '').match(/(\d+)/)?.[1]);
++@@ -154,7 +156,7 @@ export function registerBetaMobileQaTests(suite) {
++ 
++   suite.test('Beta mobile QA: every big-tech board loads from its snapshot with no live request; badge, popover and CSV agree', async (ctx) => {
++     const { page, errors, external } = await openBeta(ctx, { hash: `c=${BIG_TECH[0]}` });
++-    const names = { google: 'Google', microsoft: 'Microsoft', apple: 'Apple', netflix: 'Netflix', nvidia: 'NVIDIA' };
+++    const names = BETA_NAMES;
++     for (const slug of BIG_TECH) {
++       if (slug !== BIG_TECH[0]) await switchTo(page, names[slug]);
++       const roles = num(await page.textContent('#resultsTitle'));
++@@ -171,7 +173,18 @@ export function registerBetaMobileQaTests(suite) {
++       assert(!pop.refreshShown, `${slug}: "Refresh from the live board" offered for a live: false board`);
++       assertEq(pop.csv, `/melon-seek/beta/data/${slug}.csv`, `${slug}: CSV link`);
++       assert(pop.csvH >= 44, `${slug}: CSV link is ${pop.csvH}px tall`);
++-      const lines = await page.evaluate(async (u) => (await (await fetch(u)).text()).split('\n').filter(Boolean).length, pop.csv);
+++      // Records, not lines: a quoted field may hold a line break (RFC 4180; Meta's "Research Scientist,\nMachine
+++      // Learning…" title does, qa-suite-beta T-17), which a split on "\n" counts as a row.
+++      const lines = await page.evaluate(async (u) => {
+++        const t = await (await fetch(u)).text();
+++        let n = 0, q = false, any = false;
+++        for (const c of t) {
+++          if (c === '"') q = !q;
+++          else if (c === '\n' && !q) { if (any) n++; any = false; continue; }
+++          if (c !== '\r') any = true;
+++        }
+++        return n + (any ? 1 : 0);
+++      }, pop.csv);
++       assertEq(lines, roles + 1, `${slug}: CSV rows (header + roles)`);
++       await tapSel(page, '#popover .pop-head .icon-btn');
++     }
+diff --git a/docs/process/patches/qa-suite-beta-t4-link-check.diff b/docs/process/patches/qa-suite-beta-t4-link-check.diff
+new file mode 100644
+index 0000000..23a3675
+--- /dev/null
++++ b/docs/process/patches/qa-suite-beta-t4-link-check.diff
+@@ -0,0 +1,37 @@
++diff --git a/docs/process/scripts/link-check.mjs b/docs/process/scripts/link-check.mjs
++index 011f972..b8ee2ff 100644
++--- a/docs/process/scripts/link-check.mjs
+++++ b/docs/process/scripts/link-check.mjs
++@@ -305,19 +305,29 @@ export function checkMarkdown(rep, root = ROOT) {
++   const files = ['README.md'];
++   const walk = (d) => { for (const e of fs.readdirSync(path.join(root, d), { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else if (e.name.endsWith('.md')) files.push(p); } };
++   if (fs.existsSync(path.join(root, 'docs'))) walk('docs');
+++  // Docs the build renders as site pages link to each other by their site paths (scripts/build-static.js:
+++  // methodology/ is docs/METHODOLOGY_GUIDE.md, methodology/reference/ is docs/LIVABILITY.md). qa-suite-beta T-4.
+++  const SITE_LINKS = { 'docs/METHODOLOGY_GUIDE.md': { 'reference/': 'docs/LIVABILITY.md' } };
++   for (const f of files) {
++     if (!fs.existsSync(path.join(root, f))) continue;
++-    const text = fs.readFileSync(path.join(root, f), 'utf8').replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
+++    const full = fs.readFileSync(path.join(root, f), 'utf8').replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
+++    // A process log's "Section for docs/QA.md" is written to be pasted into docs/QA.md: its links are relative to docs/.
+++    const cut = /^## Section for docs\/QA\.md\s*$/m.exec(full);
+++    const parts = cut ? [[full.slice(0, cut.index), path.dirname(f)], [full.slice(cut.index), 'docs']] : [[full, path.dirname(f)]];
+++    for (const [text, from] of parts) {
++     const links = [...text.matchAll(/\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g), ...text.matchAll(/<a\s[^>]*href=["']([^"']+)["']/g)].map((m) => m[1]);
++     for (const raw of links) {
++       if (/^(https?:|mailto:|tel:)/i.test(raw) || raw.startsWith('#') || raw.startsWith('<')) continue;
++-      const target = decodeURIComponent(raw.replace(/[?#].*$/, ''));
+++      let target = decodeURIComponent(raw.replace(/[?#].*$/, ''));
++       if (!target) continue;
++-      const abs = path.resolve(path.join(root, path.dirname(f)), target);
+++      const site = Object.entries(SITE_LINKS[f.split(path.sep).join('/')] || {}).find(([prefix]) => target.startsWith(prefix));
+++      if (site) target = path.relative(path.join(root, from), path.join(root, site[1]));
+++      const abs = path.resolve(path.join(root, from), target);
++       if (!abs.startsWith(root)) { bad(rep, f, raw, 'points outside the repo'); continue; }
++       if (!fs.existsSync(abs)) bad(rep, f, raw, 'file not found');
++       else rep.ok++;
++     }
+++    }
++   }
++   return files.length;
++ }
+diff --git a/docs/process/qa-suite-beta.md b/docs/process/qa-suite-beta.md
+index a49eb72..6373e32 100644
+--- a/docs/process/qa-suite-beta.md
++++ b/docs/process/qa-suite-beta.md
+@@ -1,18 +1,35 @@
+ # Process log: qa-suite-beta (test-suite QA, target `beta`, 2026-10-23)
+ 
+ ## State
+-- **Done:** brief saved verbatim (f06c2f8); worktree on origin head 05263e8 (detached), data and
+-  node_modules linked (never committed). The lead's two gate logs were deleted by the gate script
+-  (the lead, 13:2x); the crash evidence is the five other full-run logs listed in §2.
+-- **In progress:** reading the suites; crash analysis from the logs; coverage map.
+-- **Next:** coverage map, gap tests, the runs (npm test ×3 in a clean checkout; one full e2e when the
+-  lead's gate on 5c0cda3 is done), patches.
+-- **Waiting on:** the lead's message that fix wave 5's last batch has landed (then move to that head).
++- **Done:**
++  - the brief, saved verbatim (f06c2f8), and this log;
++  - the worktree is on origin head 05263e8, detached, with the data and node_modules links (never committed);
++  - **npm test, CI-like, 3 runs** on 6038890 (05263e8 plus this log);
++  - the coverage map (§4);
++  - new files: `test/beta-coverage.test.js` (11 guards, 7 [T-n] to-dos) and `test/e2e/beta-coverage.e2e.js` (37 tests:
++    6 desktop, 7 per board, 21 per phone size), registered in scripts/e2e.js;
++  - the patches in `docs/process/patches/qa-suite-beta-*.diff` (§11): T-1 board lists, T-4 links registration and
++    link checker, five load-robust flake fixes, the e2e shard/list/max-skips options, and the CI e2e workflow.
++- **In progress:** the patched groups re-run in `<scratch>/qa-suite-beta/patchwt`; the crash analysis from the
++  memory samples taken during the lead's gate run on 5c0cda3.
++- **Next:**
++  1. the red-by-design list from the gate log (`<scratch>/gate/e2e.log`) when it finishes;
++  2. the one full e2e run, instrumented, on the landed head;
++  3. regenerate the shard patch on that head;
++  4. the final report.
++- **Waiting on:** the lead's message that fix wave 5's last batch has landed, so I can move to that head.
++- **Scratch:** `<scratch>/qa-suite-beta/`, where `<scratch>` is
++  `/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad`. It holds:
++  - `tools/`: log and TAP summarisers, the memory sampler, the instrument preload, the runners, the probes;
++  - `runs/`: the npm test TAP and spec outputs;
++  - `dist/`: my build, linked as `dist` in the worktree and never committed;
++  - `clean/`: the CI-like checkout;
++  - `patchwt/`: the worktree the patches are made in.
+ 
+ ## 1. Brief
+ - Prompt (verbatim): [prompts/qa-suite-beta.md](prompts/qa-suite-beta.md).
+-- Goal: make sure `npm test` and `node scripts/e2e.js` actually protect `/melon-seek/beta/` (Amazon,
+-  Apple, Google, Meta, Microsoft, NVIDIA, Netflix) and Anduril on the main site; find what the tests
+-  miss, why the full e2e takes over 2 hours and why its browser closes near test 750.
++- Goal: make sure `npm test` and `node scripts/e2e.js` actually protect `/melon-seek/beta/` (Amazon, Apple, Google,
++  Meta, Microsoft, NVIDIA, Netflix) and Anduril on the main site. Find what the tests miss, why the full e2e takes over
++  2 hours, why its browser closes near test 750, which red-by-design tests can never pass, and what CI should run.
+ - Files owned: this log, the prompt, `test/e2e/beta-coverage.e2e.js` (registered in scripts/e2e.js),
+   `test/beta-coverage.test.js`, and `docs/process/patches/qa-suite-beta-*.diff`.
+diff --git a/test/e2e/beta-coverage.e2e.js b/test/e2e/beta-coverage.e2e.js
+index 780de89..e25bca0 100644
+--- a/test/e2e/beta-coverage.e2e.js
++++ b/test/e2e/beta-coverage.e2e.js
+@@ -470,9 +470,14 @@ export function registerBetaCoverageTests(suite) {
+           if (h.get('c') !== board.slug) bad.push(`the browser's Back left the board (hash "${h}")`);
+         } else bad.push('a tap on the second card did not open its job page');
+       }
+-      // Filters: a tapped Seniority row (every board has one) gives "Show N roles" = its count, then that list.
++      // Filters: a tapped Seniority row (every board has one) gives "Show N roles" = its count, then that list. The full
++      // results sheet covers the top bar's Filters chip, so the list goes back down first, as a person would do it.
++      if (fit.phone) {
++        for (let k = 0; k < 3 && !['peek', 'half'].includes(await page.evaluate(() => document.body.dataset.sheet)); k++) { await tap(page, page.locator('#sheetHandle')); await sleep(600); }
++      }
+       await tap(page, page.locator('#filtersToggle'));
+-      await sleep(700);
++      await page.waitForSelector('#filterBody details.fsec', { timeout: 5000 }).catch(() => {});
++      await sleep(400);
+       // The phone's filter sheet is built when it opens, and a section's rows when that section opens.
+       await page.evaluate(() => { for (const x of document.querySelectorAll('#filterBody details.fsec')) if (/Seniority/.test(x.querySelector('summary')?.textContent || '')) x.open = true; });
+       await sleep(500);
+-- 
+2.43.0
+

@@ -1,7 +1,7 @@
 From e598d8af91c5d9485932d6105a14daf8e851642f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 13:49:25 +0000
-Subject: [PATCH 09/10] fix-mr-3: refresh fixtures regenerated at norm-13
+Subject: [PATCH 09/13] fix-mr-3: refresh fixtures regenerated at norm-13
  (make-fixtures.mjs)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

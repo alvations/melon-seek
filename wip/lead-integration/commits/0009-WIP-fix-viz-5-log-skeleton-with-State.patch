@@ -1,7 +1,7 @@
 From 36dca11d669dc2c318740e5be4aad830a8a354f2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 10:53:21 +0000
-Subject: [PATCH 09/56] WIP fix-viz-5: log skeleton with State
+Subject: [PATCH 09/57] WIP fix-viz-5: log skeleton with State
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

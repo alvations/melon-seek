@@ -1,7 +1,7 @@
 From 8e08770a762eff074d356a3ce8b59775e767d0b9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 13:36:19 +0000
-Subject: [PATCH 3/4] qa-suite-beta: WIP the coverage groups (unit and e2e),
+Subject: [PATCH 3/6] qa-suite-beta: WIP the coverage groups (unit and e2e),
  registered in scripts/e2e.js
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

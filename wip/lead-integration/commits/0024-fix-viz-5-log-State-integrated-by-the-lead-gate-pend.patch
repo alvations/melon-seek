@@ -1,7 +1,7 @@
 From 912a158a23c7fe13d44169f060cf03b323e8a1da Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 15:49:43 +0000
-Subject: [PATCH 24/56] fix-viz-5: log: State (integrated by the lead, gate
+Subject: [PATCH 24/57] fix-viz-5: log: State (integrated by the lead, gate
  pending on the lead's head), D-51, M-50, the tile note and the [V-36] checks,
  phones, e2e, V-47 timings
 

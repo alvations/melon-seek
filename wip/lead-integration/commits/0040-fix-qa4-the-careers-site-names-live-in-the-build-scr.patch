@@ -1,7 +1,7 @@
 From a979e584bb3debec92df137d8c14961a5aad1096 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 14:44:31 +0000
-Subject: [PATCH 40/56] fix-qa4: the careers-site names live in the build
+Subject: [PATCH 40/57] fix-qa4: the careers-site names live in the build
  script, not in lib/export.js (the main site ships no beta host)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1,7 +1,7 @@
 From 7297ce783df04089f6d97b6c72b6b8b5bab61e4f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 13:33:51 +0000
-Subject: [PATCH 03/10] fix-mr-3: red tests for MR-21, MR-22, MR-26, MR-29,
+Subject: [PATCH 03/13] fix-mr-3: red tests for MR-21, MR-22, MR-26, MR-29,
  MR-33, MR-37, MR-38, MR-39, MR-40, MR-41
 
 The reviewers' to-dos for these IDs are plain tests now; test/fix-mr-3.test.js adds a test per ID.

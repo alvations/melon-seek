@@ -1,0 +1,53 @@
+From ceed71ee78819b1a6466b26788559b9a577a6613 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 14:05:22 +0000
+Subject: [PATCH 57/57] Lead log: resumed after the weekly limit; the e2e
+ browser 'crash' was the gate's own timeouts (T-12); lanes now running
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ docs/process/lead.md | 30 ++++++++++++++++++++++++++++++
+ 1 file changed, 30 insertions(+)
+
+diff --git a/docs/process/lead.md b/docs/process/lead.md
+index 69b0dad..3d58545 100644
+--- a/docs/process/lead.md
++++ b/docs/process/lead.md
+@@ -1481,3 +1481,33 @@ screenshots in `docs/screenshots/`.
+ - **15:0x UTC, all four agents stopped on an API session limit** (it reset at 15:20): fix-phone-sizes, fix-viz-5, qa-desktop-beta-4 and fix-qa4.
+   - All four worktrees were checkpointed at 15:28 (60cdf05), with fix-phone-sizes' 5 uncommitted files and fix-viz-5's 1.
+   - Each was resumed by SendMessage at 15:28 with its next step. Nothing was lost.
++
++### Resumed after the weekly limit; the e2e "browser crash" was our own timeouts (2026-10-23)
++- **13:04 UTC:** the container had restarted, and the weekly API limit (Oct 17 to Oct 23, 13:00) had stopped every agent.
++  - The checkpoint cron was recreated.
++  - Each lane was checkpointed (05263e8) before anything else.
++  - The e2e gate on e57151f had hit its 90-minute `timeout` after 792 tests.
++- **Root cause of the "crashes"** ([qa-suite-beta](qa-suite-beta.md) T-12): Chromium never crashed. Playwright 1.56 handles SIGTERM and SIGHUP by closing the browser without exiting. Any of these closed the browser mid-run, and every later test then failed with "browser has been closed":
++  - the gate's own `timeout 5400`, which both Oct 17 runs hit (exit 124);
++  - the Bash tool's 2-hour limit on background commands;
++  - a stopped session.
++  - Reproduced with `kill -TERM`. Memory stayed flat at about 200 MB for the browser process, with 12+ GB free.
++- **Changes:**
++  - 9fa0ab2: the runner relaunches a closed browser, so one close fails at most two tests.
++  - The gate runs detached (`setsid nohup`) with a 3-hour limit.
++  - qa-suite-beta's runner patch replaces the relaunch: the runner stops cleanly on a signal, with a partial summary, and relaunches only on a real disconnect.
++  - The gate script archives old logs instead of deleting them. Its old `rm -f gate/*.log` deleted two saved run logs; their facts are in this log.
++- **The batch on 5c0cda3** (gate running):
++  - fix-phone-sizes' second set: M-48, M-49, M-51, M-52 and the 932x430 size;
++  - fix-qa4: D-47 to D-50 and D-52;
++  - qa-desktop-beta-4's pass and its QA section;
++  - fix-density's legend rule (phones only, D-51).
++- **New lanes:**
++  - fix-mr-3: MR-21, MR-22, MR-26, MR-29, MR-33, MR-37 to MR-41, and T-17 (titles with line breaks).
++  - qa-suite-beta, with findings so far:
++    - T-1: three board lists missed Amazon and Meta;
++    - T-4: links.e2e.js was never registered;
++    - T-12: above;
++    - T21 and S-6 root causes;
++    - sharding to about 31 minutes per shard.
++- **fix-qa4:** resumed on UX-51, UX-50 and MR-35.
+-- 
+2.43.0
+

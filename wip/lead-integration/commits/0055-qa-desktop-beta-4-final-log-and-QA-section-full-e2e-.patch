@@ -1,7 +1,7 @@
 From 2e7da1a450293b08bdece5c8ec14e1cf5751595e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 16:14:39 +0000
-Subject: [PATCH 55/56] qa-desktop-beta-4: final log and QA section (full e2e,
+Subject: [PATCH 55/57] qa-desktop-beta-4: final log and QA section (full e2e,
  npm test CI-like)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
