@@ -36,7 +36,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
-  ROOT, CADENCES, CADENCE_DAYS, MODES, STATUSES, TYPES, isoDate, parseDate, staleness, makeContext, jsonText, extractConst,
+  ROOT, CADENCES, CADENCE_DAYS, MODES, STATUSES, TYPES, isoDate, parseDate, staleness, isPipelineEntry, makeContext, jsonText, extractConst,
 } from './lib.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -182,7 +182,7 @@ export function genericResult(entry, now) {
   const s = staleness(entry, now);
   const pipeline = PIPELINE_UPDATERS.test(entry.updater || '');
   const base = { id: entry.id, mode: entry.mode, module: pipeline ? 'pipeline' : 'registry', findings: [], evidence: [], writes: [], checklist: entry.checklist || [], sourceAsOf: entry.asOf || null };
-  if (pipeline || entry.cadence === 'daily') {
+  if (pipeline || isPipelineEntry(entry)) {
     return { ...base, status: 'ok', summary: `refreshed by the daily job-board pipeline (${entry.updater})` };
   }
   if (s.overdue) {
@@ -407,7 +407,7 @@ export function stalenessRows(reg, now = new Date()) {
     const s = staleness(e, now);
     // Job data refreshed every day by snapshot.yml / pages.yml: its age is the deploy's
     // business (site-watchdog, the snapshot badge), not the monthly refresh's.
-    const pipeline = e.cadence === 'daily';
+    const pipeline = isPipelineEntry(e);
     // 'ad-hoc' only when nothing schedules a review (an ad-hoc entry with reviewCadence or a
     // dueDate has a due date like any other).
     const status = pipeline ? 'pipeline' : e.cadence === 'ad-hoc' && s.dueInDays == null ? 'ad-hoc' : s.dueInDays == null ? 'unknown' : s.overdue ? 'STALE' : s.dueInDays <= 14 ? 'due soon' : 'fresh';

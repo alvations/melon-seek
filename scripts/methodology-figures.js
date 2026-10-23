@@ -579,11 +579,12 @@ export async function loadFigureInputs(root, { citiesFile = null } = {}) {
   try { freshness = JSON.parse(await readFile(path.join(root, 'data', 'freshness.json'), 'utf8')); } catch { freshness = null; }
   if (freshness && Array.isArray(freshness.entries)) {
     // The sources table's "update due": staleness at the build time (MELON_BUILT_AT pins it), as api/freshness.json.
+    // MR-26: never for a daily pipeline entry (the postings), which the build itself has just read (lib.js shownOverdue).
     try {
-      const { staleness } = await import(pathToFileURL(path.join(root, 'scripts', 'refresh', 'lib.js')).href);
+      const { shownOverdue } = await import(pathToFileURL(path.join(root, 'scripts', 'refresh', 'lib.js')).href);
       const t = Date.parse(process.env.MELON_BUILT_AT || '');
       const now = Number.isFinite(t) ? new Date(t) : new Date();
-      freshness = { ...freshness, entries: freshness.entries.map((e) => (e && e.id && !e.retired ? { ...e, stale: !!staleness(e, now).overdue } : e)) };
+      freshness = { ...freshness, entries: freshness.entries.map((e) => (e && e.id && !e.retired ? { ...e, stale: shownOverdue(e, now) } : e)) };
     } catch { /* no refresh lib: no status column */ }
   }
   return { juice, cities, freshness };

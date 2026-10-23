@@ -40,7 +40,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { result, errorResult, staleness, isoDate, addDays, extractConst, ROOT } from './lib.js';
+import { result, errorResult, staleness, isPipelineEntry, isoDate, addDays, extractConst, ROOT } from './lib.js';
 import * as EX from './examples.js';
 
 export const MODULE = Object.freeze({
@@ -632,8 +632,10 @@ export function publicFreshness(registry, { now = new Date() } = {}) {
     out.source = e.source ? { name: e.source.name || null, url: e.source.url || null } : null;
     out.cadence = e.cadence || null;
     out.lastChecked = e.lastChecked || null;
-    out.stale = !!s.overdue;
-    out.staleAfter = s.dueInDays == null ? null : isoDate(addDays(now, s.dueInDays));
+    // MR-26: a daily pipeline entry (the postings) is as fresh as the build that read it: never stale, no staleAfter.
+    const pipeline = isPipelineEntry(e);
+    out.stale = !pipeline && !!s.overdue;
+    out.staleAfter = pipeline || s.dueInDays == null ? null : isoDate(addDays(now, s.dueInDays));
     return out;
   });
   // Always a document (entries [] without a registry): the site fetches it, and a 404 would be a console error.

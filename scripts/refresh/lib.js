@@ -114,6 +114,18 @@ export function staleness(entry, now = new Date()) {
   return { ageDays: asOfAge, checkedDays: checkedAge, reviewedDays: reviewedAge, dueInDays, reviewDueInDays, dueReason, overdue: dueInDays != null && dueInDays < 0, cadenceDays, graceDays };
 }
 
+/**
+ * MR-26 (fix-mr-3): a daily entry is the job pipeline's own data. snapshot.yml crawls the boards and pages.yml builds
+ * the site from that crawl, so a page is never built from postings older than its build, whatever the entry's
+ * hand-set asOf says. run.js reports such an entry as 'pipeline', and nothing the site shows (the methodology's
+ * sources table, api/freshness.json) calls it "update due".
+ */
+export const isPipelineEntry = (entry) => !!entry && entry.cadence === 'daily';
+/** Past due at `now` as the site says it: staleness(entry).overdue, and never for a pipeline entry (MR-26). */
+export function shownOverdue(entry, now = new Date()) {
+  return !isPipelineEntry(entry) && !!staleness(entry, now).overdue;
+}
+
 // ---------------------------------------------------------------- text and numbers
 
 const ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', euro: '€', pound: '£', yen: '¥', ndash: '–', mdash: '—', rsquo: '’', lsquo: '‘', ldquo: '“', rdquo: '”', hellip: '…', middot: '·', times: '×', shy: '', minus: '−', thinsp: ' ', ensp: ' ', emsp: ' ' };
