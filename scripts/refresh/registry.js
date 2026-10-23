@@ -12,6 +12,9 @@
 //                                                         whose line moved (owners and consumers), and
 //                                                         roll year-suffixed extract constants forward
 //   node scripts/refresh/registry.js --summary             counts by type, cadence, mode, before
+//   node scripts/refresh/registry.js --docs [--write]      regenerate the inventory in
+//                                                         docs/DATA_FRESHNESS.md from the registry
+//                                                         (exit 1 when it is out of date)
 // Without --write it prints what would change. The registry is data: this tool never
 // invents values, it only copies them from the code (TAX_SOURCES) or from fragments.
 import fs from 'node:fs';

@@ -69,7 +69,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { roleFamily } from '../public/features/compstimate.js';
 import { displayLevel, levelKey } from '../public/features/roles.js';
 import { isOTE, isInternLike, payCountry, notBasePay } from '../public/features/shared.js';
-import { toUSD, FX_AS_OF, hasFx } from '../public/viz/palette.js';
+import { toUSD, FX_AS_OF, FX_SOURCE, hasFx } from '../public/viz/palette.js';
 
 export const MARKET_FORMAT = 'melon-market-1';
 export const MIN_N = 3;
@@ -218,7 +218,8 @@ function assemble(parts, { minN, generatedAt, mode }) {
     basis: BASIS,
     currency: 'USD',
     stat: 'midpoint of each posted range, annualized, in USD',
-    fx: { asOf: FX_AS_OF, source: 'public/viz/palette.js FX_PER_USD' },
+    // MR-22: the rates' own source (palette.js FX_SOURCE, as data/cities.json fx.source.name), not a code path.
+    fx: { asOf: FX_AS_OF, source: FX_SOURCE },
     generatedAt,
     minN,
     mode,
