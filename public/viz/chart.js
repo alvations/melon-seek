@@ -1799,6 +1799,8 @@ export function createChart(container, { onSelect, onHover, onClusterSelect } = 
     rowH = narrow ? ROW_H_NARROW : ROW_H;
     let labelW = narrow ? 0 : Math.round(Math.max(140, Math.min(300, width * 0.3)));
     if (!narrow && !histShown) labelW = Math.max(labelW, Math.min(Math.round(width * 0.4), capNeed(stats.pay))); // V-46
+    // MR-39 (fix-mr-3): the strip's median caption ("Median base pay $239K US") shows in full, as in Clusters.
+    if (!narrow && histShown) labelW = Math.max(labelW, Math.min(Math.round(width * 0.4), Math.ceil(textWidth(`${medianCaption(stats.pay)}${formatMoney(stats.pay?.median)}${medianBasis(stats.pay)}`, `600 12px ${curFam}`)) + 16 + 6));
     const valFont = `600 12px ${curFam}`;
     const padR = narrow ? 16 : 28;
     const plotL = narrow ? 12 : labelW + 12;
