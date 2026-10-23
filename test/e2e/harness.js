@@ -131,6 +131,7 @@ export function guarded(promise) {
 }
 
 const TEST_TIMEOUT = Number(process.env.E2E_TEST_TIMEOUT || 120000);
+const CLEANUP_TIMEOUT = Number(process.env.E2E_CLEANUP_TIMEOUT || 30000);
 
 /**
  * Tiny sequential test runner: failures are collected, not fatal.
@@ -200,7 +201,16 @@ export function createSuite() {
             clearTimeout(timer);
             if (ctx.cleanup) {
               // Close anything a timed-out / failed test left open.
-              for (const fn of ctx.cleanup.splice(0)) { try { await fn(); } catch { /* ignore */ } }
+              // Each step is bounded: a context.close() on a renderer that stopped answering hung a run for 15 minutes
+              // after a passing test (2026-10-23), and the next test never started.
+              for (const fn of ctx.cleanup.splice(0)) {
+                let ct;
+                try {
+                  await Promise.race([Promise.resolve().then(fn), new Promise((_, rej) => { ct = setTimeout(() => rej(new Error('cleanup timed out')), CLEANUP_TIMEOUT); })]);
+                } catch (err) {
+                  if (err && err.message === 'cleanup timed out') console.log(`  ! cleanup after "${t.name}" timed out after ${CLEANUP_TIMEOUT} ms`);
+                } finally { clearTimeout(ct); }
+              }
             }
           }
         }
