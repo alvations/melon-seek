@@ -2,9 +2,10 @@
 
 ## State
 
-- 2026-10-23 21:10 UTC: brief saved; server and browser daemon up on the lead's build
-  (`cycle-beta7-dist`, e800c43). Personas defined; starting person 1.
-- Next: run the five people in the browser, then the re-check of wave 1, then the three lists.
+- 2026-10-23 21:55 UTC: **done.** Five people run on the lead's build (`cycle-beta7-dist`, e800c43),
+  wave 1 re-checked (8 of 8 Broken fixed), lists written (§4). Four Broken items found and each sent
+  to the lead by SendMessage when confirmed. Server and browser stopped by pid.
+- Next: nothing; waiting for the lead.
 
 ## 1. Brief
 
@@ -186,3 +187,193 @@ The site says all of this plainly; the gap is in the data, not the screens.
 | 9 | Saves two searches; comes back: "Reopened where you left off: Google · "policy" · London". The menu lists "Google · "policy" · London" and **"Microsoft · $188K+ · London"**: her £140,000 is renamed in dollars. [p5-12](../screenshots/persona-beta-2-45-54/p5-12-return-menu-2-saved.png) | 0.6 s | 30 s |
 
 About 16 minutes.
+
+## 4. Findings for the group
+
+Persona letters: G = Grace, T = Tomás, P = Petra, D = Deb, R = Rosalind. Owners are the files I
+traced the behaviour to on e800c43. Each Broken item was sent to the lead as soon as I had confirmed it.
+
+### 4.1 Broken, fix now (wrong, misleading or blocking)
+
+1. **"+ bonus mentioned" on postings that say the bonus is 0%.** Google's "Canada: $99000 (CAD) + 0%
+   bonus target" gets the chip "+ bonus mentioned", and its Details say "The description mentions a bonus;
+   it isn't in this figure". A new graduate reads that as money on top. This affects 50 postings: every
+   one whose only bonus text is "+ 0% bonus target" (Ireland €47,000 interns, a US $192–278K role,
+   Belgium). I checked this by running `compExtrasEvidence` over `dist/beta/api/desc`.
+   — G · drawer · [p1-08](../screenshots/persona-beta-2-45-54/p1-08-student-researcher-drawer.png) · `server/keywords.js` (`compExtrasEvidence`, `BONUS_STRONG` matches "bonus target"), chip in `public/app.js` ~4694.
+2. **The stats line repeats the count in non-English browsers: "3.821 3.821 roles".** Every board of
+   1,000+ roles, unfiltered, in de-DE (Google "3.821 3.821", Apple "4.851 4.851", Amazon "22.179 22.179",
+   Microsoft "2.435 2.435") and fr-FR ("3 821 3 821 roles"). The line is shown at tablet and desktop
+   widths.
+   — P · stats line · [p3-01](../screenshots/persona-beta-2-45-54/p3-01-arrive-duo-hinge.png) · `public/app.js:2972`: `plural(...).replace(/^[\d,]+ /, '')` only strips digits and commas, and `plural` uses `toLocaleString()`.
+3. **"Pay posted for the US only" in a US city.** With Location Austin, Apple's *SoC Physical Design
+   Engineer, Electrical Analysis* (listed "Austin, TX | San Jose, CA", posted "$150,400 and $277,600")
+   reads:
+   - card: "Pay posted for the US only";
+   - tip: "$150K–278K is the pay posted for the US, not for Austin";
+   - drawer: "Posted for the US, not Austin";
+   - stats line: "0% show pay for Austin".
+
+   The site holds that pay for San Jose (`salary.places`), and the Juice line says "in San Jose". The
+   sentence names the country, not the place. This affects 253 Apple and 284 Amazon postings with pay
+   (e.g. Amazon's *Mechanical BIM Designer*: "…pay posted for the US, not for Austin"). For Deb it
+   wipes out Apple: all 34 Austin physical-design roles show no usable pay.
+   — D · cards, drawer, stats line · [p4-07](../screenshots/persona-beta-2-45-54/p4-07-apple-austin-pd.png), [p4-08](../screenshots/persona-beta-2-45-54/p4-08-apple-pd-drawer.png), [p4-09](../screenshots/persona-beta-2-45-54/p4-09-amazon-pay-us-only-austin.png) · `public/app.js` `payPlaceText` (~3894). It names places only from `salary.ranges`, otherwise the country; used by `payPill` (~3840) and the drawer.
+4. **A second country's posted pay is dropped.**
+   - Google's *Customer Engineer, Migrations Specialist* posts "Germany: €150000 - €153000" and
+     "Italy: €124000 - €127000". Only Germany's line is kept, so with Location Milan the card says
+     "Pay posted for Germany only (… not for Milan)".
+   - The Dublin intern posts Ireland €47,000, Germany €53,000 and France €41,500. It shows €47,000
+     everywhere, with both "Several pay ranges" ("this figure is one of them") and "One number, not a
+     range", and the other two figures appear nowhere.
+
+   That is 13 of 13 Google postings with pay lines for 2+ countries (a lower bound from my regex).
+   This goes against "present them as they are and not cut anything".
+   — P, R (European places) · cards, drawer, CSV · [rc-04](../screenshots/persona-beta-2-45-54/rc-04-google-italy-pay-dropped.png), [rc-01](../screenshots/persona-beta-2-45-54/rc-01-google-intern-two-chips.png) · `server/salary.js` DQ-15 line choice (~394, `unitCountry` ~952): one country line is scored and kept; the others are never stored as ranges.
+
+### 4.2 Improve (ranked by how many of the 5 it would help)
+
+| Rank | Change | Helps | Screen · screenshot · owner |
+|---|---|---|---|
+| 1 | **Juice in the person's own terms.** None of the five could test their own target, as in wave 1. Each is missing something different: G a second earner and her own rent, T a household of three and the low end of the range, P euros, D one NVIDIA level (not the two-level midpoint), R pounds. Juice is still US dollars only, one earner, a city-centre flat and the range midpoint. | 5/5 | Juice · [p1-10](../screenshots/persona-beta-2-45-54/p1-10-juice-family-monthly.png), [p2-12](../screenshots/persona-beta-2-45-54/p2-12-juice-family-austin.png), [p3-07](../screenshots/persona-beta-2-45-54/p3-07-juice-single-munich.png), [p4-05](../screenshots/persona-beta-2-45-54/p4-05-juice-couple-austin.png), [p5-11](../screenshots/persona-beta-2-45-54/p5-11-juice-couple-london.png) · `public/app.js` (`juiceBlock`), `server/juice.js` |
+| 2 | **Say where the matches are, across companies.** Everyone switched 3–5 boards by hand. "research analyst Toronto" ended at 0 with "Check the spelling" (place words in the search box match nothing). With a search on, Location "Austin" says "No matches" without "none of these 52". Kept and put-back filters (Good #2) made it bearable. | 5/5 | Empty state, Location filter, company menu · [p1-03](../screenshots/persona-beta-2-45-54/p1-03-search-research-toronto.png), [p2-03](../screenshots/persona-beta-2-45-54/p2-03-location-austin.png) · `public/app.js` (empty state, facet search, `switchCompany`) |
+| 3 | **Plain words and grades.** Five examples:<br>- "40 · Dry" and "51 · Ripe" on jobs that meet the person's goal (T);<br>- "Level 4 / Level 5 · These are NVIDIA's own level names" with no plain word (D);<br>- "‹2 ›13" chips on chart rows (G);<br>- "Typically within ±10%" printed next to "Low $70K · High $110K" for a $73K estimate (G, D);<br>- "state or local tax" and "social security" on an Ontario tax line (G). | 4/5 (G, T, P, D) | Juice, drawer, chart, Pay estimate · [p2-12](../screenshots/persona-beta-2-45-54/p2-12-juice-family-austin.png), [p4-04](../screenshots/persona-beta-2-45-54/p4-04-nvidia-pd-drawer.png), [p1-01](../screenshots/persona-beta-2-45-54/p1-01-arrive-pixel8.png), [p1-19](../screenshots/persona-beta-2-45-54/p1-19-estimate-entry.png) · `public/app.js`, `public/features/compstimate.js`, `public/viz/chart.js` |
+| 4 | **One currency and one number format per screen.** In Toronto, Munich and London the cards are in CA$, € and £, while the stats line, chart, map legend and Pay estimate are in US dollars ("Median base pay $98K" over CA$ cards). In de-DE, counts use German separators ("2.513 with pay") and money English ones ("$3,250/mo"). | 3/5 (G, P, R) | Stats line, chart, map, Insights · [p1-06](../screenshots/persona-beta-2-45-54/p1-06-toronto-google.png), [p3-05](../screenshots/persona-beta-2-45-54/p3-05-google-munich-ux.png), [p3-12](../screenshots/persona-beta-2-45-54/p3-12-map-google-munich.png) · `public/app.js` `renderKpis`, `public/viz/chart.js`, `public/viz/map.js`, `public/features/compstimate.js` |
+| 5 | **Keyword tags that don't fit the job.** Examples:<br>- "FP&A" on a Google *Senior Account Executive*;<br>- "GPUs · Datacenters" on Microsoft's *ITIM Sub-regional lead*;<br>- "Agents" on a *Strategic Account Technology Strategist*;<br>- "Prototyping" on DeepMind's *Impact Portfolio Lead*;<br>- "GCP" on Google's French *Étudiant-chercheur* postings. | 3/5 (G, T, R) | Cards · [p2-02](../screenshots/persona-beta-2-45-54/p2-02-google-account-exec.png), [p5-06](../screenshots/persona-beta-2-45-54/p5-06-microsoft-london-dkk-card.png) · `server/keywords.js` |
+| 6 | **Separate title matches from description matches.** Meta "policy": "226 roles · 32 in title". After *Public Policy Manager, Philippines* the list goes straight on to *VP Robotics* with no divider, and the chart leads with Engineering and Legal. Google "policy" in London: 18 roles, none in the title, and Compare companies opens on Software engineering. | 2/5 (G, R) | List, chart, Insights · [rc-05](../screenshots/persona-beta-2-45-54/rc-05-title-vs-description-divider.png), [p5-08](../screenshots/persona-beta-2-45-54/p5-08-compare-policy.png) · `public/app.js` (search ranking), `public/features/insights.js` |
+| 7 | **A card's Juice grade should name its place.** Google's two *Key Account Executive* cards both post $147K–204K and both read "New York": one is "41 · Dry", the other ("New York, NY +1") "63 · Ripe", because it is graded for Chicago. Meta's *Communications Director* card reads "Los Angeles", and its Juice is "for one person in Seattle". | 2/5 (T, R) | Cards · [p2-02](../screenshots/persona-beta-2-45-54/p2-02-google-account-exec.png), [p5-03](../screenshots/persona-beta-2-45-54/p5-03-razr-drawer.png) · `public/app.js` (`juiceBadge`, `locSummary`) |
+| 8 | **"Same role elsewhere" on phones: keep the counts and the family.** On the desktop it reads "Chip design & silicon engineering, Senior level · Meta 3 · NVIDIA 152…". On a phone it reads "Director+ level in the US · Apple $349K…", with no family and no counts. Netflix's "$380K" for sales is 7 postings. | 2/5 (T, R) | Drawer · [p2-11](../screenshots/persona-beta-2-45-54/p2-11-same-role-elsewhere.png), [p5-13](../screenshots/persona-beta-2-45-54/p5-13-razr-same-role-director.png) · `public/app.js` (drawer comps, phone density rule) |
+| 9 | **Use each company's ladder.** Microsoft's "Senior" and "Staff+" come from its own levels but never say which (a *Partner Development Manager* is "Staff+"). NVIDIA gives "Level 4/5" with no plain word. Apple is "Level not stated" on all 34 Austin physical-design roles. | 2/5 (T, D) | Cards, drawer · [p2-15](../screenshots/persona-beta-2-45-54/p2-15-microsoft-ae-drawer.png), [p4-04](../screenshots/persona-beta-2-45-54/p4-04-nvidia-pd-drawer.png) · `server/keywords.js`, `public/features/roles.js` (`displayLevel`) |
+| 10 | **Show posted hourly pay first.** Amazon's *Associate Account Executive* reads "$65K–114K · per year · Annualized from hourly pay". The posted "$31.39 - 54.90 USD hourly" is only under Details. Shift and part-time pay already show the hourly rate. | 1/5 (T) | Card, drawer · [p2-18](../screenshots/persona-beta-2-45-54/p2-18-associate-ae-drawer.png) · `public/app.js` `payPill` |
+| 11 | **Name saved searches in the currency typed.** "£140,000" is saved as "Microsoft · $188K+ · London". | 1/5 (R) | Company menu · [p5-12](../screenshots/persona-beta-2-45-54/p5-12-return-menu-2-saved.png) · `public/app.js` (saved-search label) |
+| 12 | **Say when a role family has no pay in this country.** Compare companies (UK) just leaves Policy & government affairs out of the list. | 1/5 (R) | Insights · [p5-08](../screenshots/persona-beta-2-45-54/p5-08-compare-policy.png) · `public/features/insights.js` |
+| 13 | **Part-time and four-day weeks.** Employment type is "Not stated / Contract / Intern"; "Teilzeit" and "part-time" find nothing in Munich. | 1/5 (P) | Filters · [p3-08](../screenshots/persona-beta-2-45-54/p3-08-employment-type.png) · `public/app.js`, `server/keywords.js` |
+| 14 | Small things:<br>- the return toast still covers the company menu on the phone (G);<br>- "London" on four boards, "London, England" on Amazon (R);<br>- in landscape at 812×375 only two chart rows show above the collapsed list (D);<br>- "No department" is a chart row and a card department on Google (G);<br>- the internship strip's axis runs to $440K for 11 Canadian internships (G). | 1/5 each | [p1-22](../screenshots/persona-beta-2-45-54/p1-22-return-menu.png), [p5-05](../screenshots/persona-beta-2-45-54/p5-05-amazon-policy-london.png), [p4-12](../screenshots/persona-beta-2-45-54/p4-12-landscape-shared-link.png), [p1-06](../screenshots/persona-beta-2-45-54/p1-06-toronto-google.png) · `public/app.js`, `public/viz/chart.js` |
+
+All of these fit ROADMAP §8: they change words, the drawer's Juice block, existing selects or existing
+popovers, and add no main-view control or mode.
+
+### 4.3 Good: keep
+
+1. **All eight of wave 1's Broken items are fixed** (§4.4). — all.
+2. **Filters survive a company switch, and come back.** "Kept "designer" · dropped Munich (not at
+   Microsoft) for now", then "Kept "designer" · put back Munich" on Apple. — G, T, P, D, R ·
+   [p3-10 Microsoft](../screenshots/persona-beta-2-45-54/p3-10-switch-microsoft.png), [p3-10 Apple](../screenshots/persona-beta-2-45-54/p3-10-switch-apple.png) · `public/app.js`.
+3. **Pay is priced at the place picked.**
+   - Under Austin, Amazon cards show Austin's own row ("$92K–160K", "Posted for Austin").
+   - The drawer's "Pay by place" lists every row.
+   - Microsoft keeps its NYC row; NVIDIA's two-level spans say "· 2 levels".
+   - Another country's pay is named, not used: "Pay posted for Denmark only", "Italy only", "Canada only", with no Juice.
+
+   — T, D, R · [p2-10](../screenshots/persona-beta-2-45-54/p2-10-ae-telco-drawer.png), [p5-06](../screenshots/persona-beta-2-45-54/p5-06-microsoft-london-dkk-card.png), [rc-03](../screenshots/persona-beta-2-45-54/rc-03-cohere-cad-london.png).
+4. **Honest estimates and empty states.** Examples:
+   - "Not enough comparable roles … Remove a filter or try a broader title";
+   - "No similar role at Google in the UK lists pay … Pay from other countries isn't used";
+   - "Without the search "Teilzeit": 35 roles · Remove the search".
+
+   — P, R, G · [p3-11](../screenshots/persona-beta-2-45-54/p3-11-insights-google-munich.png), [p5-09](../screenshots/persona-beta-2-45-54/p5-09-estimate-head-policy-london.png), [p3-09](../screenshots/persona-beta-2-45-54/p3-09-teilzeit-empty.png).
+5. **Every phone size in the run works:**
+   - Pixel 8, iPhone 13 mini, the Razr cover screen (352×355) and the iPhone 13 mini in landscape:
+     no sideways scroll; on the Razr and in landscape the job page fills the screen with Apply
+     pinned;
+   - the Surface Duo with its hinge: chart on one screen, the job on the other, nothing readable on the hinge.
+
+   — G, T, P, D, R · [p5-01](../screenshots/persona-beta-2-45-54/p5-01-razr-cover-meta-policy.png), [p5-03](../screenshots/persona-beta-2-45-54/p5-03-razr-drawer.png), [p3-06](../screenshots/persona-beta-2-45-54/p3-06-chrome-ux-drawer.png), [p4-14](../screenshots/persona-beta-2-45-54/p4-14-landscape-drawer.png).
+6. **Saving and coming back:**
+   - "Saved in this browser"; "Reopened where you left off: …";
+   - saved searches at the top of the company menu;
+   - a shared link opens the same view on another device in 0.7 s.
+
+   — all · [p1-17](../screenshots/persona-beta-2-45-54/p1-17-save.png), [p1-22](../screenshots/persona-beta-2-45-54/p1-22-return-menu.png), [p4-12](../screenshots/persona-beta-2-45-54/p4-12-landscape-shared-link.png).
+7. **Compare companies follows the person.** Its country follows the Location ("Posted pay in the UK,
+   by company") and its family follows the search (Chip design & silicon engineering). It gives a count
+   per company and says who is left out and why ("OpenAI, Meta and Apple (don't state levels…)"). —
+   T, D, R · [p2-13](../screenshots/persona-beta-2-45-54/p2-13-compare-companies.png), [p4-10](../screenshots/persona-beta-2-45-54/p4-10-compare-chip-staff.png).
+8. **The base-pay rule is visible wherever pay is.** "Posted base pay. Equity and bonus aren't
+   included" in every drawer, and "As posted: USA, TX, Austin - 31.39 - 54.90 USD hourly" in Details.
+   Every sales figure on the big-tech boards was base pay. — T, all.
+9. **Place search speaks the person's language.** "Canada", "Deutschland", "München", "Muenchen" and
+   "Germany" all work. Remote roles in the person's country come with a city filter ("Also finds roles
+   listed for its country"). — G, P, T · [p1-05](../screenshots/persona-beta-2-45-54/p1-05-location-canada.png), [p3-04](../screenshots/persona-beta-2-45-54/p3-04-location-deutschland.png).
+10. **Fast enough everywhere but Amazon on a phone.** Most switches, drawers and Insights took 0.1–1.3 s
+    at load 3–14. Amazon took 2.3–5.6 s on an unthrottled phone and 4.0 s on the desktop. — all · §3.
+11. **The Ranges view stacks identical bands ("×3") and stripes multi-level spans**, which answers the
+    user's "too evenly". The Juice breakdown explains each country's tax and household, and Compare
+    locations ranks Austin over Santa Clara. — D · [p4-16](../screenshots/persona-beta-2-45-54/p4-16-ranges.png), [p4-06](../screenshots/persona-beta-2-45-54/p4-06-compare-locations.png).
+
+### 4.4 Wave 1's findings for this group: fixed or not
+
+Broken items from [persona-beta-45-54.md](persona-beta-45-54.md) §4.1, re-checked on e800c43:
+
+| # | Wave 1 said | Now |
+|---|---|---|
+| 1 | Yearly internship pay labelled as a lump sum ("€47,000 · for about 13 weeks") | **Fixed.** "€47,000 a year · EUR · 13-week internship", "CA$43,800–50,000 a year · 26-week internship" ([rc-01](../screenshots/persona-beta-2-45-54/rc-01-google-intern-dublin-drawer.png), [p1-13](../screenshots/persona-beta-2-45-54/p1-13-microsoft-intern-drawer.png)). Still uneven: some Google cards say "CA$120K/year" and their neighbours "CA$120K". **New:** the same Dublin posting drops its German and French pay (Broken #4). |
+| 2 | "Same role elsewhere" and "Pays more than N%" compare non-US jobs with US pay | **Fixed.** "Pays more than 48% of Google's roles in Germany", "Nothing to compare yet in Germany … Pay for other countries isn't used" ([p3-06](../screenshots/persona-beta-2-45-54/p3-06-chrome-ux-drawer.png)). |
+| 3 | Wrong role families (NVIDIA chip design as software, Netflix distributed systems as hardware) | **Fixed.** "Chip design & silicon engineering" in the drawer and Compare ([p4-04](../screenshots/persona-beta-2-45-54/p4-04-nvidia-pd-drawer.png)); `roleFamily` puts 137 NVIDIA verification titles in chip and every Netflix *Distributed Systems Engineer* in software. |
+| 4 | Required and preferred qualifications merged | **Fixed.** "Required" and "Nice to have" ([rc-02](../screenshots/persona-beta-2-45-54/rc-02-google-about-role-required-nice.png)). |
+| 5 | Location search says "No matches" for a country or a local name | **Fixed.** "Germany", "Deutschland", "München", "Muenchen", "Canada" ([p3-03](../screenshots/persona-beta-2-45-54/p3-03-location-muenchen.png), [p3-04](../screenshots/persona-beta-2-45-54/p3-04-location-deutschland.png)). |
+| 6 | Two medians on one screen ($347K vs $352K) | **Fixed.** NVIDIA: stats line and chart both $239K ([p4-02](../screenshots/persona-beta-2-45-54/p4-02-nvidia.png)). |
+| 7 | London Juice from Canadian or Danish pay | **Fixed.** "Pay posted for Denmark only", "Pay posted for Canada only", no Juice ([p5-06](../screenshots/persona-beta-2-45-54/p5-06-microsoft-london-dkk-card.png), [rc-03](../screenshots/persona-beta-2-45-54/rc-03-cohere-cad-london.png)). |
+| 8 | Two ages in one drawer | **Fixed.** "Updated 14 days ago" and "Listed 14 days ago (9. Okt. 2026)" ([p3-06](../screenshots/persona-beta-2-45-54/p3-06-chrome-ux-drawer.png)). |
+
+Wave 1's Improve list:
+- **Fixed:**
+  - #6 department names: NVIDIA's are spelled out; Google is "grouped by job title";
+  - #8 the card shows the place the pay is for (under a Location filter);
+  - #10 map labels: every pin named, "Munich, Germany · $134K · 35";
+  - #12 "my city or remote in my country".
+- **Partly fixed:**
+  - #1: dropped filters are put back, but there is still no cross-company search;
+  - #5: NVIDIA's ladder is named but not explained;
+  - #11: Ranges stacks repeats; the list doesn't.
+- **Still open:**
+  - #2 Juice in the person's terms (Improve 1 here);
+  - #3 part of the jargon (Improve 3);
+  - #4 title vs description matches (Improve 6);
+  - #7 keyword tags (Improve 5);
+  - #9 part-time (Improve 13);
+  - the phone toast over the menu (Improve 14).
+
+## 5. Replayable steps
+
+1. Serve the lead's build, shared and not rebuilt:
+   `node scripts/cycle/serve.mjs --dist <scratch>/cycle-beta7-dist --pid <scratch>/persona-beta-2-45-54/serve.pid`
+   (printed `serve: http://127.0.0.1:40931/melon-seek/`).
+2. `<scratch>/persona-beta-2-45-54/work/daemon.mjs <base> 47345` holds one Chromium (pid in `daemon.pid`).
+   Each step is a snippet POSTed by `run.sh`. Contexts per person:
+   - G: Pixel 8 412×915 @2.625, en-CA, America/Toronto;
+   - T: iPhone 13 mini 375×812 @3, en-US, America/Chicago;
+   - P: Surface Duo 1114×720 @2.5, de-DE, Europe/Berlin, first without and then with the hinge
+     (CDP `Emulation.setDeviceMetricsOverride`, `displayFeature` vertical at 540, 34 px, screenshots
+     over `Page.captureScreenshot`);
+   - D: 1280×800 desktop, then iPhone 13 mini landscape 812×375;
+   - R: Razr cover 352×355 @3, then 1440×900, en-GB, Europe/London.
+
+   All phones use `isMobile`, `hasTouch` and the user agent from `test/e2e/phone-sizes.mjs`.
+3. Data checks, all on the build's files:
+   - `csvq.mjs`: CSV filters by board, place, title and level;
+   - `fam.mjs`: `roleFamily` from `public/features/roles.js` over the CSVs;
+   - `bonus0.mjs`: `compExtrasEvidence` over `api/desc` (Broken #1);
+   - `places.mjs`: `unpackJobs` over `api/jobs`, counting `salary.places` with other places in the same country (Broken #3);
+   - `multicountry.mjs`: Google descriptions with pay lines for 2+ countries against the served `salary` (Broken #4).
+4. Screenshots shrunk with `bash scripts/cycle/shrink-screenshots.sh docs/screenshots/persona-beta-2-45-54`.
+
+## 6. Known gaps
+
+- Timings are unthrottled localhost on a machine shared with four other reviewers (load 3–14). They show
+  where people wait, not what a phone on 4G sees.
+- Human times are estimates. Apply was checked up to the new tab (the careers sites were stubbed);
+  no real application was made.
+- Not tested:
+  - live board fetches and map tiles (sandbox);
+  - dark mode;
+  - screen readers;
+  - WebKit or real Safari;
+  - "N new" on a return visit (wave 1 simulated it; no new postings arrive between my visits).
+- Broken #4's count (13) comes from one regex for "<Country>: €X (EUR)" lines. Other formats may add more.
+
+## 7. Change log
+
+- 2026-10-23: five people on the beta build of e800c43 (2026-10-16 crawl), over five phone sizes and two
+  desktops; 4 Broken (all sent to the lead), 14 Improve, 11 Good; wave 1's 8 Broken items re-checked
+  (all fixed, one with a new related bug).
