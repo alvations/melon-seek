@@ -392,7 +392,19 @@ export function registerFixQa4Tests(suite) {
         const c = await cardPay(page, st, j);
         bad.push(...shiftCheck(c, j, size.name).filter((m) => !/tip/.test(m)));
         if (c && c.cardRight > c.vw + 0.5) bad.push(`${j.id}: the card runs ${Math.round(c.cardRight - c.vw)} px past the screen`);
-        if (j === base && c && (size.width === 280 || size.width === 390)) await shot(page, `UX-51-${size.width}x${size.height}`, page.locator(`#resultsList .card[data-id="${j.id}"], #resultsList .card[data-preview-id="${j.id}"]`).first());
+        if (j === base && c && (size.width === 280 || size.width === 390) && SHOT_TAG) {
+          // The phone list is a bottom sheet: open it, then the card itself, for the picture.
+          for (let i = 0; i < 3; i++) {
+            const open = await page.evaluate(() => (document.body.dataset.sheet || 'peek') === 'full' || !document.querySelector('#sheetHandle')?.getClientRects().length);
+            if (open) break;
+            await page.locator('#sheetHandle').click({ timeout: 3000 }).catch(() => {});
+            await sleep(500);
+          }
+          const card = page.locator(`#resultsList .card[data-id="${j.id}"], #resultsList .card[data-preview-id="${j.id}"]`).first();
+          await card.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => {});
+          await sleep(300);
+          await shot(page, `UX-51-${size.width}x${size.height}`, card);
+        }
       }
       assert(!bad.length, `${size.name}: ${bad.join('; ')}`);
       assert(!errors.length, errors.join(' | '));

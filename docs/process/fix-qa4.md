@@ -186,6 +186,14 @@ Tests (2026-10-23):
   (15edb5c). The first clean `npm test` at 40a11f2 failed its SA-1 and SA-6 ("shiftRange is not defined").
 - Clean `npm test` at 15edb5c: 1,256 tests, 1,204 pass, 0 fail.
 
+- e2e on 6185ba3's build (load 6 to 21, the lead's gate running too): test/e2e/fix-qa4.e2e.js 63 of 63 (the first run's
+  browser hung after 9 checks under load; the other 54 passed on a re-run). The card, drawer, fix-phone-text,
+  google-grouping and fix-density groups: 191 of 195, 1 skip. The 3 failures fail on 1ef0646's build too and belong to
+  the chart and phone lanes: Beta desktop QA 3 [D-43] (chart range ends in the millions), Beta viz review 2 [V-41] (the
+  Ranges tooltip of a minimum and of shift pay) and Beta UX review 2 [UX-39] (the phone preview's first screen).
+- Screenshots: before-/after-UX-51-amazon-shift-base-card, -280x653, -390x844 and before-/after-UX-50-google-company-cards.
+  At 280 px the pill wraps under the title, as every card's does there, and the line under it keeps its right alignment.
+
 **Compstimate backtest** (seeded, 500 postings, `dedupe: "role"`; median error, within 10%), from the build lines:
 
 | Board | Before | After |
