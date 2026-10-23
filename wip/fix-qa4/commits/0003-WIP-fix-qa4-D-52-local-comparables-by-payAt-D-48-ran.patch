@@ -1,7 +1,7 @@
 From 463c5c9d1581465baa8fac1bca4bed678309e85b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 14:33:20 +0000
-Subject: [PATCH 03/12] WIP fix-qa4: D-52 local comparables by payAt, D-48 rank
+Subject: [PATCH 03/13] WIP fix-qa4: D-52 local comparables by payAt, D-48 rank
  words, D-47 hide the old chart, D-50 cap at the stated maximum, D-49 CSV kind
  and ranges
 

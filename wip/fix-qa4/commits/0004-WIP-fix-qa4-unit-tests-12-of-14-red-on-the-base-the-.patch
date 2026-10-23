@@ -1,7 +1,7 @@
 From 1a04bf576e6345f17e6ef9193665d2be0493e1f6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 14:38:58 +0000
-Subject: [PATCH 04/12] WIP fix-qa4: unit tests (12 of 14 red on the base), the
+Subject: [PATCH 04/13] WIP fix-qa4: unit tests (12 of 14 red on the base), the
  e2e group, the README's per-file sources
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1,0 +1,61 @@
+diff --git a/test/e2e/beta-coverage.e2e.js b/test/e2e/beta-coverage.e2e.js
+index 7e4c6dc..ba908e4 100644
+--- a/test/e2e/beta-coverage.e2e.js
++++ b/test/e2e/beta-coverage.e2e.js
+@@ -100,11 +100,16 @@ async function ready(page, timeout = 90000) {
+   }, null, { timeout });
+   await sleep(300);
+ }
+-/** Change the hash in place (the board stays loaded) and wait for the list to follow. */
+-async function hashTo(page, h) {
++/**
++ * Change the hash in place (the board stays loaded) and wait for the list to follow: for the count or the first card
++ * to change (at most `wait` ms: a sort that keeps the first card, or a filter that keeps the count, changes neither),
++ * then for two frames and the list.
++ */
++async function hashTo(page, h, wait = 4000) {
+   const before = await page.evaluate(() => document.querySelector('#resultsTitle')?.textContent + '|' + document.querySelector('#resultsList .card[data-id]')?.dataset.id);
+   await page.evaluate((x) => { location.hash = x; }, h);
+-  await page.waitForFunction((b) => document.querySelector('#resultsTitle')?.textContent + '|' + document.querySelector('#resultsList .card[data-id]')?.dataset.id !== b, before, { timeout: 15000 }).catch(() => {});
++  await page.waitForFunction((b) => document.querySelector('#resultsTitle')?.textContent + '|' + document.querySelector('#resultsList .card[data-id]')?.dataset.id !== b, before, { timeout: wait, polling: 50 }).catch(() => {});
++  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 50)))));
+   await ready(page);
+ }
+ async function count(page) {
+@@ -123,9 +128,15 @@ const cardIds = (page, n = 30) => page.$$eval('#resultsList .card[data-id]', (el
+  */
+ function boardFacts(page, base, company, ids = []) {
+   return page.evaluate(async ({ base, company, ids }) => {
+-    const api = await import(`${base}/api.js`);
++    // One getJobs per board and page (Amazon's list is 22,179 postings): kept on the window for the next call.
++    window.__bcJobs ??= {};
++    const key = `${base}|${company}`;
++    if (!window.__bcJobs[key]) {
++      const api = await import(`${base}/api.js`);
++      window.__bcJobs[key] = await api.getJobs({ company });
++    }
+     const { toUSD } = await import(`${base}/viz/palette.js`);
+-    const res = await api.getJobs({ company });
++    const res = window.__bcJobs[key];
+     const usd = (j) => {
+       const s = j.salary;
+       if (!s || (s.min == null && s.max == null)) return null;
+@@ -187,7 +198,9 @@ export function registerBetaCoverageTests(suite) {
+     const missing = BETA.filter((c) => !fs.existsSync(path.join(st.dist, 'beta', 'api', 'jobs', `${c.slug}.json`))).map((c) => c.slug);
+     assertEq(missing.join(', '), '', 'beta boards the build does not publish (their tests would only skip)');
+     const bad = [];
++    let betaExternal = 0;
+     for (const [site, slug] of [...BETA.map((c) => ['beta', c.slug]), ['main', MAIN_BOARD]]) {
++      if (site === 'main') betaExternal = external.length; // the main site's boards are live: the browser asks Greenhouse
+       await go(page, `${base(site)}/#c=${slug}`);
+       const f = await needBoard(page, base(site), slug);
+       const shown = await count(page);
+@@ -197,7 +210,7 @@ export function registerBetaCoverageTests(suite) {
+       else if (csvRecords(csv) !== f.n + 1) bad.push(`${site} ${slug}: the CSV has ${csvRecords(csv) - 1} rows for ${f.n} roles`);
+     }
+     assertEq(bad.length, 0, bad.join('; '));
+-    assertEq(external.length, 0, `requests to other hosts: ${external.slice(0, 3).join(', ')}`);
++    assertEq(betaExternal, 0, `the beta boards asked other hosts: ${external.slice(0, 3).join(', ')}`);
+     assertEq(errors.length, 0, errors.slice(0, 3).join(' | '));
+   });
+ 

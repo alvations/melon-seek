@@ -1,7 +1,7 @@
 From bb14c7e2abfc1cc7c8ffb38bad670f3826f30971 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 14:52:48 +0000
-Subject: [PATCH 07/12] WIP fix-qa4: log decisions and steps; e2e: D-47 chart
+Subject: [PATCH 07/13] WIP fix-qa4: log decisions and steps; e2e: D-47 chart
  case, New York by option value
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

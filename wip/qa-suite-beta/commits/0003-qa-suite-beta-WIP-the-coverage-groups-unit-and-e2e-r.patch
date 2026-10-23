@@ -1,0 +1,659 @@
+From 8e08770a762eff074d356a3ce8b59775e767d0b9 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 13:36:19 +0000
+Subject: [PATCH 3/3] qa-suite-beta: WIP the coverage groups (unit and e2e),
+ registered in scripts/e2e.js
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ scripts/e2e.js                |   2 +
+ test/beta-coverage.test.js    | 170 +++++++++++++
+ test/e2e/beta-coverage.e2e.js | 438 ++++++++++++++++++++++++++++++++++
+ 3 files changed, 610 insertions(+)
+ create mode 100644 test/beta-coverage.test.js
+ create mode 100644 test/e2e/beta-coverage.e2e.js
+
+diff --git a/scripts/e2e.js b/scripts/e2e.js
+index 4fcfabc..b7f3717 100644
+--- a/scripts/e2e.js
++++ b/scripts/e2e.js
+@@ -45,6 +45,7 @@ import { registerPhoneMatrixTests } from '../test/e2e/phone-matrix.e2e.js';
+ import { registerFixPhoneTextTests } from '../test/e2e/fix-phone-text.e2e.js';
+ import { registerFixPayAtPlaceTests } from '../test/e2e/fix-pay-at-place.e2e.js';
+ import { registerBetaMobileQa4Tests } from '../test/e2e/beta-mobile-qa-4.e2e.js';
++import { registerBetaCoverageTests } from '../test/e2e/beta-coverage.e2e.js';
+ 
+ const args = new Set(process.argv.slice(2));
+ const apiOnly = args.has('--api-only');
+@@ -115,6 +116,7 @@ if (!apiOnly) {
+   registerFixPhoneTextTests(suite);
+   registerFixPayAtPlaceTests(suite);
+   registerBetaMobileQa4Tests(suite);
++  registerBetaCoverageTests(suite);
+ }
+ 
+ let results;
+diff --git a/test/beta-coverage.test.js b/test/beta-coverage.test.js
+new file mode 100644
+index 0000000..dda40fc
+--- /dev/null
++++ b/test/beta-coverage.test.js
+@@ -0,0 +1,170 @@
++// Test-suite QA for the beta site (docs/process/qa-suite-beta.md, 2026-10-23): checks that the suites cover what they
++// say they cover. Tests named [T-n] encode a gap in the suites themselves; each is a `todo` until the owning test file
++// or scripts/e2e.js is fixed (docs/process/patches/qa-suite-beta-*.diff), so it shows in `npm test` without turning CI
++// red. The rest are guards that pass today. Nothing here needs data or a browser; the one data check skips without
++// both the beta snapshots and a beta build.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import path from 'node:path';
++import { fileURLToPath, pathToFileURL } from 'node:url';
++
++const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
++const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
++const E2E = path.join(ROOT, 'test', 'e2e');
++const e2eFiles = () => fs.readdirSync(E2E).filter((f) => f.endsWith('.e2e.js')).sort();
++const todo = (id) => ({ todo: `${id}: docs/process/qa-suite-beta.md` });
++
++const { listCompanies } = await import(pathToFileURL(path.join(ROOT, 'server', 'companies.js')).href);
++/** The boards the beta site shows: the registry's non-paused beta companies. */
++const BETA = listCompanies({ channel: 'beta' }).filter((c) => c.channel === 'beta').map((c) => c.slug).sort();
++
++/** Files run on their own (a CLI, a WebKit job), never through scripts/e2e.js. Each needs its reason. */
++const STANDALONE = {
++  // (none today: links.e2e.js says "Register from scripts/e2e.js", and is not; see [T-4])
++};
++
++test('beta-coverage: the registry has the seven big-tech boards the brief names, none paused', () => {
++  assert.deepEqual(BETA, ['amazon', 'apple', 'google', 'meta', 'microsoft', 'netflix', 'nvidia']);
++});
++
++test('beta-coverage: every registered e2e group is imported from a file that exists (scripts/e2e.js)', () => {
++  const src = read('scripts', 'e2e.js');
++  const imports = [...src.matchAll(/import \{ (\w+) \} from '\.\.\/test\/e2e\/([\w.-]+\.js)';/g)];
++  assert.ok(imports.length > 30, `only ${imports.length} imports found: the pattern no longer matches scripts/e2e.js`);
++  for (const [, fn, file] of imports) {
++    assert.ok(fs.existsSync(path.join(E2E, file)), `${file} is imported but missing`);
++    if (fn === 'createSuite') continue;
++    assert.match(read('test', 'e2e', file), new RegExp(`export function ${fn}\\b`), `${file} exports no ${fn}`);
++    if (/^register/.test(fn)) assert.match(src, new RegExp(`\\b${fn}\\(suite\\)`), `${fn} is imported but never called`);
++  }
++});
++
++test('[T-4] every e2e file with a register function runs in the full suite (links.e2e.js never does)', todo('T-4'), () => {
++  const src = read('scripts', 'e2e.js');
++  const missing = [];
++  for (const f of e2eFiles()) {
++    const fns = [...read('test', 'e2e', f).matchAll(/export function (register\w+)\(/g)].map((m) => m[1]);
++    if (!fns.length || STANDALONE[f]) continue;
++    for (const fn of fns) if (!new RegExp(`\\b${fn}\\(suite\\)`).test(src)) missing.push(`${f} ${fn}`);
++  }
++  assert.deepEqual(missing, [], `never run by node scripts/e2e.js: ${missing.join(', ')}`);
++});
++
++/**
++ * Arrays and objects in the e2e files that list big-tech boards: `const NAME = [...]` / `{ slug: ... }` holding at least
++ * four of the seven slugs. A list that holds four or more means "the big-tech boards"; it must hold all seven, or a
++ * board added later (Amazon and Meta, 2026-10-11) is never tested by it.
++ */
++function boardLists() {
++  const out = [];
++  for (const f of e2eFiles()) {
++    const src = read('test', 'e2e', f);
++    for (const m of src.matchAll(/const (\w+) = (\[[^\]\n]*\]|\{[^}\n]*\})/g)) {
++      const slugs = [...new Set([...m[2].matchAll(/['"]?\b(amazon|apple|google|meta|microsoft|netflix|nvidia)\b['"]?\s*[:,\]}'"]/g)].map((x) => x[1]))];
++      if (slugs.length >= 4) out.push({ file: f, name: m[1], slugs });
++    }
++  }
++  return out;
++}
++
++test('beta-coverage: the e2e files still declare their board lists the way this check reads them', () => {
++  const lists = boardLists();
++  assert.ok(lists.length >= 6, `found ${lists.length} board lists: ${lists.map((l) => `${l.file} ${l.name}`).join(', ')}`);
++  assert.ok(lists.some((l) => l.file === 'fix-phone-text.e2e.js' && l.slugs.length === 7), 'fix-phone-text.e2e.js BOARDS (all seven) not found');
++});
++
++test('[T-1] every e2e list of "the big-tech boards" names all seven (Amazon and Meta are missing from three)', todo('T-1'), () => {
++  const short = boardLists().filter((l) => BETA.some((s) => !l.slugs.includes(s)))
++    .map((l) => `${l.file} ${l.name} lacks ${BETA.filter((s) => !l.slugs.includes(s)).join(', ')}`);
++  assert.deepEqual(short, [], short.join('; '));
++});
++
++test('beta-coverage: the WebKit phone smoke and the Chromium phone matrix name every beta board or read the registry', () => {
++  const wf = read('.github', 'workflows', 'webkit-phone.yml');
++  const m = /phone-smoke\.mjs[^\n]*--boards ([\w,]+)/.exec(wf);
++  assert.ok(m, 'webkit-phone.yml runs phone-smoke.mjs with --boards');
++  assert.deepEqual(m[1].split(',').sort(), BETA, 'the WebKit phone smoke boards');
++});
++
++test('beta-coverage: phone-sizes.mjs lists 21 distinct sizes, each a touch phone with a viewport, DPR and user agent', async () => {
++  const { ALL_SIZES, contextFor } = await import(pathToFileURL(path.join(E2E, 'phone-sizes.mjs')).href);
++  assert.ok(ALL_SIZES.length >= 19, `${ALL_SIZES.length} sizes`);
++  const keys = ALL_SIZES.map((d) => `${d.name} ${d.width}x${d.height}`);
++  assert.equal(new Set(keys).size, keys.length, 'sizes are distinct');
++  assert.equal(new Set(ALL_SIZES.map((d) => d.name)).size, ALL_SIZES.length, 'names are distinct (tests are named by them)');
++  for (const d of ALL_SIZES) {
++    const o = contextFor(d);
++    assert.ok(o.viewport.width >= 280 && o.viewport.height >= 300 && o.deviceScaleFactor >= 1 && o.hasTouch && o.isMobile, d.name);
++    assert.match(o.userAgent, /iPhone|Android/, d.name);
++  }
++  assert.ok(ALL_SIZES.some((d) => d.width === 280), 'the folded Fold (280 px)');
++  assert.ok(ALL_SIZES.some((d) => d.width === 352 && d.height === 355), 'the Razr cover screen');
++  assert.ok(ALL_SIZES.some((d) => d.width > d.height), 'a landscape posture');
++});
++
++/** e2e files whose tests loop over every phone size (ALL_SIZES, or PHONES with POSTURES). */
++function sizeLoopFiles() {
++  return e2eFiles().filter((f) => /for \(const \w+ of (\[\.\.\.)?(ALL_SIZES|PHONES)\b/.test(read('test', 'e2e', f)));
++}
++test('beta-coverage: the phone checks that run at every size are the ones this suite\'s phone map lists', () => {
++  const files = sizeLoopFiles();
++  for (const f of ['phone-matrix.e2e.js', 'fix-phone-text.e2e.js', 'fix-phone-controls.e2e.js', 'beta-coverage.e2e.js']) {
++    assert.ok(files.includes(f), `${f} no longer loops over every phone size (found: ${files.join(', ')})`);
++  }
++});
++
++test('beta-coverage: the harness keeps its per-test timeout and context cleanup', () => {
++  const h = read('test', 'e2e', 'harness.js');
++  assert.match(h, /E2E_TEST_TIMEOUT/, 'per-test timeout');
++  assert.match(h, /ctx\.cleanup/, 'contexts a failed test left open are closed');
++});
++
++test('[T-9] a failed e2e test prints how long it ran (only passing tests print a time today)', todo('T-9'), () => {
++  const h = read('test', 'e2e', 'harness.js');
++  // The pass line prints `(${Date.now() - start}ms)`; the fail line must too, or a run's time cannot be split by group.
++  const failLine = /console\.log\(`  \\u2717 \$\{t\.name\}([^`]*)`/.exec(h);
++  assert.ok(failLine, 'the fail line is printed');
++  assert.match(failLine[1], /ms\)/, `the fail line prints no duration: ${failLine[0]}`);
++});
++
++test('[T-10] scripts/e2e.js can split a run (--shard=i/n) and list tests without running them (--list)', todo('T-10'), () => {
++  const src = read('scripts', 'e2e.js');
++  assert.match(src, /--shard/, 'no --shard option');
++  assert.match(src, /--list/, 'no --list option');
++});
++
++test('[T-5] the e2e run fails when a board\'s tests all skip because the build lacks that board', todo('T-5'), () => {
++  // Every beta group skips its tests when a board's list is missing from the build ("no <slug> list in this build").
++  // A beta gate that drops Amazon turns dozens of Amazon tests into skips and the run stays green. scripts/e2e.js should
++  // fail (or the coverage group's build check should) when a board the registry lists has no list in the build.
++  const src = read('scripts', 'e2e.js');
++  assert.match(src, /E2E_ALLOW_SKIPS|maxSkips|skipped.*exit|exit.*skipped/, 'skips never fail the run');
++});
++
++/* -------------------------------------------------------------------------------------------- real data (local) */
++
++const SNAP = process.env.MELON_BETA_SNAPSHOT_DIR === '' ? null : path.resolve(process.env.MELON_BETA_SNAPSHOT_DIR || path.join(ROOT, 'data', 'beta', 'snapshots'));
++const DIST = path.resolve(process.env.E2E_DIST || process.env.BETA_QA_DIST || path.join(ROOT, 'dist'));
++const haveData = SNAP && BETA.every((s) => fs.existsSync(path.join(SNAP, `${s}.json`)));
++const haveBuild = fs.existsSync(path.join(DIST, 'beta', 'api', 'jobs'));
++
++test('beta-coverage: the build publishes every beta board with every posting of its snapshot (none dropped, none added)',
++  { skip: !(haveData && haveBuild) && 'needs data/beta/snapshots and a beta build (dist/, E2E_DIST or BETA_QA_DIST)' }, async () => {
++    const { unpackJobs } = await import(pathToFileURL(path.join(ROOT, 'public', 'api.js')).href);
++    const bad = [];
++    for (const slug of BETA) {
++      const snap = JSON.parse(fs.readFileSync(path.join(SNAP, `${slug}.json`), 'utf8'));
++      const want = (snap.jobs || []).length;
++      const f = path.join(DIST, 'beta', 'api', 'jobs', `${slug}.json`);
++      if (!fs.existsSync(f)) { bad.push(`${slug}: not in the build (${want} postings in the snapshot)`); continue; }
++      const got = unpackJobs(JSON.parse(fs.readFileSync(f, 'utf8'))).length;
++      if (got !== want) bad.push(`${slug}: ${got} in the build, ${want} in the snapshot`);
++      const pv = path.join(DIST, 'beta', 'api', 'preview', `${slug}.json`);
++      if (fs.existsSync(pv)) {
++        const total = JSON.parse(fs.readFileSync(pv, 'utf8')).preview?.total;
++        if (total !== got) bad.push(`${slug}: the preview says ${total}, the list has ${got}`);
++      }
++    }
++    assert.deepEqual(bad, [], bad.join('; '));
++  });
+diff --git a/test/e2e/beta-coverage.e2e.js b/test/e2e/beta-coverage.e2e.js
+new file mode 100644
+index 0000000..7e4c6dc
+--- /dev/null
++++ b/test/e2e/beta-coverage.e2e.js
+@@ -0,0 +1,438 @@
++// Test-suite QA for the beta site (docs/process/qa-suite-beta.md, 2026-10-23): the features of /melon-seek/beta/ that
++// no other group covered on the big-tech boards, found by the coverage map in that log. Each test checks behaviour
++// against numbers computed from the build's own lists (public/api.js getJobs, the jobs the page shows, and
++// viz/palette.js toUSD, the page's own conversion), never a count pinned to one crawl.
++//   - every beta board (from the registry, so a board added later is covered) is in the build, and its count on
++//     screen equals its list and its CSV: a board the build dropped fails here instead of skipping everywhere [T-5];
++//   - Apply on every board, Amazon and Meta included, goes to the posting on that company's own host [T-1];
++//   - the pay filter (minimum, maximum, "only with pay") on every board [T-2];
++//   - the sorts (Highest pay, Lowest pay, Title A–Z) on every board [T-3];
++//   - search lists title matches first on the big boards [T-6];
++//   - a deep link survives a reload, and Back / Forward walk the filter history, on Amazon [T-7];
++//   - at every size in phone-sizes.mjs, the phone flow a job seeker uses: the list opens full, a tapped card opens
++//     its job page, the Back button and the browser's Back close it, and a tapped filter row gives "Show N roles"
++//     equal to its own count and to the list it shows [T-8]. One board per size, in turn, so all seven boards are
++//     covered on phones without loading each board at every size (the runtime finding, T-11).
++// Serves the build (E2E_DIST, else BETA_QA_DIST, else dist/) under /melon-seek/ with one server for the file (gzip
++// cached once per file). Skips without a beta build. Other hosts are aborted.
++import http from 'node:http';
++import fs from 'node:fs';
++import path from 'node:path';
++import zlib from 'node:zlib';
++import { ROOT, assert, assertEq, skip } from './harness.js';
++import { ALL_SIZES, contextFor } from './phone-sizes.mjs';
++import { COMPANIES } from '../../server/companies.js';
++
++const DESKTOP = { width: 1440, height: 900 };
++/** The boards the beta site shows: the registry's non-paused beta companies. */
++const BETA = COMPANIES.filter((c) => c.channel === 'beta' && !c.paused);
++const MAIN_BOARD = 'anduril';
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.csv': 'text/csv', '.txt': 'text/plain', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
++
++let shared = null;
++/** One server for the file. Bodies are read and gzipped once (Amazon's list is 6.8 MB; gzipping it per load costs CPU). */
++async function serveDist() {
++  if (shared) return shared;
++  const dist = path.resolve(process.env.E2E_DIST || process.env.BETA_QA_DIST || path.join(ROOT, 'dist'));
++  if (!fs.existsSync(path.join(dist, 'beta', 'index.html')) || !fs.existsSync(path.join(dist, 'beta', 'api', 'jobs'))) return null;
++  const cache = new Map();
++  const server = http.createServer((req, res) => {
++    const u = new URL(req.url, 'http://x');
++    if (!u.pathname.startsWith('/melon-seek/')) { res.writeHead(302, { location: '/melon-seek/' }); return res.end(); }
++    let rel;
++    try { rel = decodeURIComponent(u.pathname.slice('/melon-seek/'.length)); } catch { res.writeHead(400); return res.end(); }
++    let p = path.join(dist, rel);
++    if (p !== dist && !p.startsWith(dist + path.sep)) { res.writeHead(403); return res.end(); }
++    if (fs.existsSync(p) && fs.statSync(p).isDirectory()) p = path.join(p, 'index.html');
++    if (!fs.existsSync(p)) { res.writeHead(404); return res.end(); }
++    const type = MIME[path.extname(p)] || 'application/octet-stream';
++    let e = cache.get(p);
++    if (!e) {
++      const body = fs.readFileSync(p);
++      e = { body, gz: /text|javascript|json|svg|csv/.test(type) && body.length > 1024 ? zlib.gzipSync(body) : null };
++      cache.set(p, e);
++    }
++    const gz = e.gz && /gzip/.test(req.headers['accept-encoding'] || '');
++    res.writeHead(200, { 'content-type': type, ...(gz ? { 'content-encoding': 'gzip' } : {}) });
++    res.end(gz ? e.gz : e.body);
++  });
++  await new Promise((r) => server.listen(0, '127.0.0.1', r));
++  server.unref();
++  const origin = `http://127.0.0.1:${server.address().port}`;
++  shared = { dist, origin, beta: `${origin}/melon-seek/beta`, main: `${origin}/melon-seek` };
++  return shared;
++}
++
++/** A fresh context: `device` (a phone-sizes.mjs entry) or a desktop viewport. `hash` opens `<site>/#<hash>`. */
++async function open(ctx, { device = null, viewport = DESKTOP, hash = null, site = 'beta' } = {}) {
++  const st = await serveDist();
++  if (!st) skip('no beta build (npm run build, or E2E_DIST=<dir>)');
++  const engine = ctx.browser.browserType?.().name?.() || 'chromium';
++  const opts = device ? contextFor(device, engine) : { viewport, deviceScaleFactor: 1 };
++  const context = await ctx.browser.newContext({ ...opts, colorScheme: 'light' });
++  ctx.cleanup.push(() => context.close().catch(() => {}));
++  const external = [];
++  await context.route((u) => !u.href.startsWith(st.origin) && !u.href.startsWith('data:') && !u.href.startsWith('blob:'), (r) => { external.push(r.request().url()); return r.abort('blockedbyclient'); });
++  const page = await context.newPage();
++  const errors = [];
++  page.on('pageerror', (e) => errors.push(`pageerror: ${String(e && e.message || e).slice(0, 300)}`));
++  page.on('console', (m) => {
++    if (m.type() !== 'error') return;
++    const loc = m.location() && m.location().url;
++    if (/Failed to load resource/.test(m.text()) && (!loc || !loc.startsWith(st.origin))) return;
++    errors.push(`console.error: ${m.text().slice(0, 300)}`);
++  });
++  const base = (s = site) => (s === 'beta' ? st.beta : st.main);
++  if (hash != null) await go(page, `${base()}/#${hash}`);
++  return { st, context, page, errors, external, base };
++}
++/** Load a URL and wait for the whole list (not Amazon's first-page preview). */
++async function go(page, url) {
++  await page.goto(url, { timeout: 60000 });
++  await ready(page);
++}
++async function ready(page, timeout = 90000) {
++  await page.waitForFunction(() => {
++    const t = document.querySelector('#resultsTitle');
++    return t && !/Loading/.test(t.textContent) && /\d\s+role|No roles/.test(t.textContent.replace(/,/g, ''))
++      && (document.querySelector('#resultsList .card[data-id]') || /\b0 roles|No roles/.test(t.textContent));
++  }, null, { timeout });
++  await sleep(300);
++}
++/** Change the hash in place (the board stays loaded) and wait for the list to follow. */
++async function hashTo(page, h) {
++  const before = await page.evaluate(() => document.querySelector('#resultsTitle')?.textContent + '|' + document.querySelector('#resultsList .card[data-id]')?.dataset.id);
++  await page.evaluate((x) => { location.hash = x; }, h);
++  await page.waitForFunction((b) => document.querySelector('#resultsTitle')?.textContent + '|' + document.querySelector('#resultsList .card[data-id]')?.dataset.id !== b, before, { timeout: 15000 }).catch(() => {});
++  await ready(page);
++}
++async function count(page) {
++  const m = (await page.locator('#resultsTitle').innerText()).replace(/,/g, '').match(/(\d+)\s+role/);
++  if (!m && /No roles/.test(await page.locator('#resultsTitle').innerText())) return 0;
++  assert(m, `no role count in the results title ("${await page.locator('#resultsTitle').innerText()}")`);
++  return Number(m[1]);
++}
++const params = async (page) => new URLSearchParams(await page.evaluate(() => location.hash.slice(1)));
++const cardIds = (page, n = 30) => page.$$eval('#resultsList .card[data-id]', (els, k) => els.slice(0, k).map((e) => e.dataset.id), n);
++
++/**
++ * In the page: the board's jobs as the app gets them, with the approx-USD pay the page filters and sorts on
++ * (public/app.js prepare(): min ??= max, max ??= min, mid ??= (min + max) / 2, each through toUSD). Returns a summary,
++ * not 22,179 jobs. `ids` asks for those jobs' pay and titles.
++ */
++function boardFacts(page, base, company, ids = []) {
++  return page.evaluate(async ({ base, company, ids }) => {
++    const api = await import(`${base}/api.js`);
++    const { toUSD } = await import(`${base}/viz/palette.js`);
++    const res = await api.getJobs({ company });
++    const usd = (j) => {
++      const s = j.salary;
++      if (!s || (s.min == null && s.max == null)) return null;
++      const min = s.min ?? s.max, max = s.max ?? s.min, mid = s.mid ?? (min + max) / 2;
++      const u = { min: toUSD(min, s.currency), max: toUSD(max, s.currency), mid: toUSD(mid, s.currency) };
++      return Number.isFinite(u.min) && Number.isFinite(u.max) ? u : null;
++    };
++    const jobs = res.jobs.map((j) => ({ id: j.id, url: j.url || null, team: j.team || '', title: j.title, usd: usd(j) }));
++    const paid = jobs.filter((j) => j.usd);
++    const med = (a) => { const s = a.slice().sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
++    const want = new Set(ids);
++    return {
++      mode: res.mode, n: jobs.length, paid: paid.length,
++      medMax: med(paid.map((j) => j.usd.max)), medMin: med(paid.map((j) => j.usd.min)),
++      maxMid: paid.length ? Math.max(...paid.map((j) => j.usd.mid)) : null,
++      minMid: paid.length ? Math.min(...paid.map((j) => j.usd.mid)) : null,
++      maxes: paid.map((j) => j.usd.max), mins: paid.map((j) => j.usd.min),
++      pick: jobs.filter((j) => want.has(j.id)),
++      sampleIds: [jobs[0], jobs[Math.floor(jobs.length / 2)], jobs[jobs.length - 1]].filter(Boolean).map((j) => j.id),
++      urls: Object.fromEntries([jobs[0], jobs[Math.floor(jobs.length / 2)], jobs[jobs.length - 1]].filter(Boolean).map((j) => [j.id, j.url])),
++    };
++  }, { base, company, ids });
++}
++async function needBoard(page, base, slug) {
++  const f = await boardFacts(page, base, slug);
++  assert(f.mode === 'snapshot' || f.mode === 'cache', `${slug}: the build serves it as "${f.mode}", not its snapshot`);
++  assert(f.n > 0, `${slug}: no postings in the build`);
++  return f;
++}
++/** Records in a CSV, counting quoted newlines as part of their field (RFC 4180). */
++function csvRecords(text) {
++  let n = 0, q = false, any = false;
++  for (let i = 0; i < text.length; i++) {
++    const c = text[i];
++    if (c === '"') q = !q;
++    else if (c === '\n' && !q) { if (any) n++; any = false; continue; }
++    if (c !== '\r') any = true;
++  }
++  return n + (any ? 1 : 0);
++}
++const roundTo = (x, step) => Math.round(x / step) * step;
++const allowedHosts = (c) => new Set([...(c.postingHosts || []), ...(c.postingPrefixes || []).map((p) => new URL(p).hostname)].map((h) => h.replace(/^www\./, '')));
++
++/** A real tap at an element's centre (phones), a click elsewhere. */
++async function tap(page, locator, { dx = null } = {}) {
++  await locator.scrollIntoViewIfNeeded().catch(() => {});
++  const b = await locator.boundingBox();
++  assert(b, 'nothing to tap (no box)');
++  const touch = await page.evaluate(() => matchMedia('(pointer: coarse)').matches);
++  const x = b.x + (dx == null ? b.width / 2 : Math.min(dx, b.width - 2)), y = b.y + b.height / 2;
++  if (touch) await page.touchscreen.tap(x, y); else await page.mouse.click(x, y);
++}
++
++export function registerBetaCoverageTests(suite) {
++  /* ------------------------------------------------------------------ the build and every board */
++
++  suite.test(`Beta coverage: the build has every beta board (${BETA.map((c) => c.name).join(', ')}) and Anduril on the main site; each one's count on screen equals its list and its CSV`, async (ctx) => {
++    const { st, page, errors, external, base } = await open(ctx);
++    const missing = BETA.filter((c) => !fs.existsSync(path.join(st.dist, 'beta', 'api', 'jobs', `${c.slug}.json`))).map((c) => c.slug);
++    assertEq(missing.join(', '), '', 'beta boards the build does not publish (their tests would only skip)');
++    const bad = [];
++    for (const [site, slug] of [...BETA.map((c) => ['beta', c.slug]), ['main', MAIN_BOARD]]) {
++      await go(page, `${base(site)}/#c=${slug}`);
++      const f = await needBoard(page, base(site), slug);
++      const shown = await count(page);
++      if (shown !== f.n) bad.push(`${site} ${slug}: the page says ${shown} roles, the list has ${f.n}`);
++      const csv = await page.evaluate(async (u) => { const r = await fetch(u); return r.ok ? r.text() : null; }, `${base(site)}/data/${slug}.csv`);
++      if (csv == null) bad.push(`${site} ${slug}: no CSV`);
++      else if (csvRecords(csv) !== f.n + 1) bad.push(`${site} ${slug}: the CSV has ${csvRecords(csv) - 1} rows for ${f.n} roles`);
++    }
++    assertEq(bad.length, 0, bad.join('; '));
++    assertEq(external.length, 0, `requests to other hosts: ${external.slice(0, 3).join(', ')}`);
++    assertEq(errors.length, 0, errors.slice(0, 3).join(' | '));
++  });
++
++  suite.test('Beta coverage: Apply on every big-tech board (Amazon and Meta too) opens the posting on that company\'s own careers host, in a new tab', async (ctx) => {
++    const { page, base } = await open(ctx, { hash: `c=${BETA[0].slug}` });
++    const bad = [];
++    let checked = 0;
++    for (const c of BETA) {
++      const f = await needBoard(page, base(), c.slug);
++      const hosts = allowedHosts(c);
++      for (const id of f.sampleIds) {
++        await go(page, `${base()}/#c=${c.slug}&job=${encodeURIComponent(id)}`);
++        await page.waitForSelector('#drawer.is-open #drawerTitle', { timeout: 20000 });
++        const a = await page.evaluate(() => {
++          const x = document.querySelector('#drawer a.apply');
++          return x ? { href: x.getAttribute('href'), target: x.getAttribute('target'), rel: x.getAttribute('rel') || '', host: x.querySelector('.apply-host')?.textContent || '' } : null;
++        });
++        if (!f.urls[id]) { if (a) bad.push(`${c.slug} ${id}: an Apply link for a posting with no link`); continue; }
++        if (!a) { bad.push(`${c.slug} ${id}: no Apply link (the posting links to ${f.urls[id]})`); continue; }
++        checked++;
++        const host = new URL(a.href).hostname.replace(/^www\./, '');
++        if (!hosts.has(host)) bad.push(`${c.slug} ${id}: Apply goes to ${host}, not ${[...hosts].join(' or ')}`);
++        if (a.href !== f.urls[id]) bad.push(`${c.slug} ${id}: Apply is ${a.href}, the posting is ${f.urls[id]}`);
++        if (a.target !== '_blank' || !/noopener/.test(a.rel)) bad.push(`${c.slug} ${id}: Apply target "${a.target}" rel "${a.rel}"`);
++        if (a.host !== host) bad.push(`${c.slug} ${id}: the host under Apply reads "${a.host}", the link goes to ${host}`);
++      }
++    }
++    assert(checked >= BETA.length, `only ${checked} Apply links checked`);
++    assertEq(bad.length, 0, bad.join('; '));
++  });
++
++  /* ------------------------------------------------------------------ filters, sorts, search */
++
++  suite.test('Beta coverage: the pay filter on every big-tech board shows exactly the roles whose approx-USD pay meets it (minimum, maximum, "only with pay")', async (ctx) => {
++    const { page, errors, base } = await open(ctx, { hash: `c=${BETA[0].slug}` });
++    const bad = [];
++    for (const c of BETA) {
++      await go(page, `${base()}/#c=${c.slug}`);
++      const f = await needBoard(page, base(), c.slug);
++      if (f.paid < 20) { bad.push(`${c.slug}: only ${f.paid} roles with pay`); continue; }
++      const lo = roundTo(f.medMax, 10000), hi = roundTo(f.medMin, 10000);
++      const wantMin = f.maxes.filter((x) => x >= lo).length;
++      const wantMax = f.mins.filter((x) => x <= hi).length;
++      await hashTo(page, `c=${c.slug}&smin=${lo}`);
++      let got = await count(page);
++      if (got !== wantMin) bad.push(`${c.slug}: pay at least $${lo}: ${got} roles shown, ${wantMin} have a top approx-USD pay that high`);
++      const ids = await cardIds(page, 40);
++      const g = await boardFacts(page, base(), c.slug, ids);
++      for (const j of g.pick) if (!j.usd || j.usd.max < lo) bad.push(`${c.slug}: ${j.id} is listed under "at least $${lo}" with ${j.usd ? `$${Math.round(j.usd.max)} at most` : 'no pay'}`);
++      await hashTo(page, `c=${c.slug}&smax=${hi}`);
++      got = await count(page);
++      if (got !== wantMax) bad.push(`${c.slug}: pay up to $${hi}: ${got} roles shown, ${wantMax} have a lowest approx-USD pay that low`);
++      await hashTo(page, `c=${c.slug}&so=1`);
++      got = await count(page);
++      if (got !== f.paid) bad.push(`${c.slug}: only roles with pay: ${got} shown, ${f.paid} have pay`);
++      await hashTo(page, `c=${c.slug}`);
++      if ((await count(page)) !== f.n) bad.push(`${c.slug}: clearing the pay filter shows ${await count(page)} of ${f.n}`);
++    }
++    assertEq(bad.length, 0, bad.slice(0, 12).join('; '));
++    assertEq(errors.length, 0, errors.slice(0, 3).join(' | '));
++  });
++
++  suite.test('Beta coverage: "Highest pay", "Lowest pay" and "Title A–Z" order every big-tech board\'s list by its data (pay from the top role down; roles with no pay last)', async (ctx) => {
++    const { page, errors, base } = await open(ctx, { hash: `c=${BETA[0].slug}` });
++    const bad = [];
++    for (const c of BETA) {
++      await go(page, `${base()}/#c=${c.slug}`);
++      const f = await needBoard(page, base(), c.slug);
++      for (const sort of ['salary-desc', 'salary-asc']) {
++        await hashTo(page, `c=${c.slug}&sort=${sort}`);
++        const ids = await cardIds(page, 30);
++        const g = await boardFacts(page, base(), c.slug, ids);
++        const by = new Map(g.pick.map((j) => [j.id, j]));
++        const mids = ids.map((id) => by.get(id)?.usd?.mid ?? null);
++        const first = mids[0];
++        const extreme = sort === 'salary-desc' ? f.maxMid : f.minMid;
++        if (first == null || Math.abs(first - extreme) > 1) bad.push(`${c.slug} ${sort}: the first role pays $${Math.round(first)} (mid), the board's ${sort === 'salary-desc' ? 'highest' : 'lowest'} is $${Math.round(extreme)}`);
++        for (let i = 1; i < mids.length; i++) {
++          const a = mids[i - 1], b = mids[i];
++          if (a == null && b != null) { bad.push(`${c.slug} ${sort}: a role with no pay (#${i}) before one with pay (#${i + 1})`); break; }
++          if (a != null && b != null && (sort === 'salary-desc' ? b > a + 0.5 : b < a - 0.5)) { bad.push(`${c.slug} ${sort}: #${i} $${Math.round(a)} then #${i + 1} $${Math.round(b)} (${ids[i - 1]}, ${ids[i]})`); break; }
++        }
++      }
++      await hashTo(page, `c=${c.slug}&sort=title`);
++      const titles = await page.$$eval('#resultsList .card[data-id] .card-title', (e) => e.slice(0, 30).map((x) => x.textContent));
++      const sorted = await page.evaluate((t) => t.slice().sort((a, b) => a.localeCompare(b)), titles);
++      if (JSON.stringify(titles) !== JSON.stringify(sorted)) bad.push(`${c.slug} title: "${titles.find((t, i) => t !== sorted[i])}" is out of order`);
++    }
++    assertEq(bad.length, 0, bad.join('; '));
++    assertEq(errors.length, 0, errors.slice(0, 3).join(' | '));
++  });
++
++  suite.test('Beta coverage: a search lists the roles whose title (or team) has the word before the roles that match it elsewhere (Amazon, Apple, Google)', async (ctx) => {
++    const { page, errors, base } = await open(ctx, { hash: 'c=amazon' });
++    const bad = [];
++    let tried = 0;
++    for (const slug of ['amazon', 'apple', 'google']) {
++      await go(page, `${base()}/#c=${slug}`);
++      await needBoard(page, base(), slug);
++      // A word some titles have and many other roles match elsewhere (department, team, place, keywords).
++      for (const word of ['security', 'hardware', 'cloud', 'design', 'data', 'machine', 'operations', 'finance']) {
++        await hashTo(page, `c=${slug}&q=${word}`);
++        const n = await count(page);
++        if (n < 10) continue;
++        const ids = await cardIds(page, 60);
++        const g = await boardFacts(page, base(), slug, ids);
++        const by = new Map(g.pick.map((j) => [j.id, j]));
++        const shownTitles = await page.$$eval('#resultsList .card[data-id] .card-title', (e) => e.slice(0, 60).map((x) => x.textContent));
++        const re = new RegExp(`(?:^|[^\\p{L}\\p{N}])${word}`, 'iu');
++        const strong = ids.map((id, i) => re.test(`${shownTitles[i] || ''} ${by.get(id)?.title || ''} ${by.get(id)?.team || ''}`));
++        if (!strong.some(Boolean) || strong.every(Boolean)) continue; // need both kinds on the first page to test the order
++        tried++;
++        const firstWeak = strong.indexOf(false);
++        const late = strong.findIndex((s, i) => s && i > firstWeak);
++        if (late >= 0) bad.push(`${slug} "${word}": #${late + 1} "${shownTitles[late]}" has the word in its title but comes after #${firstWeak + 1} "${shownTitles[firstWeak]}", which does not`);
++        break;
++      }
++    }
++    assert(tried >= 2, `the order was checked on ${tried} boards only (no word gave both kinds of match)`);
++    assertEq(bad.length, 0, bad.join('; '));
++    assertEq(errors.length, 0, errors.slice(0, 3).join(' | '));
++  });
++
++  suite.test('Beta coverage: on Amazon a deep link with filters, sort and view survives a reload, and Back / Forward walk the filter history', async (ctx) => {
++    const { page, errors, base } = await open(ctx, { hash: 'c=amazon' });
++    await needBoard(page, base(), 'amazon');
++    const total = await count(page);
++    // A department through the real checkbox (a history entry), then a sort through the real select.
++    const dep = page.locator('#filterBody details.fsec').filter({ has: page.locator('summary', { hasText: 'Department' }) }).locator('label.check').first();
++    const want = Number((await dep.locator('.check-count').innerText()).replace(/,/g, ''));
++    await dep.click();
++    await page.waitForFunction((n) => !document.querySelector('#resultsTitle')?.textContent.replace(/,/g, '').includes(`${n} role`), total, { timeout: 15000 });
++    await ready(page);
++    assertEq(await count(page), want, 'a Department row gives its own count');
++    await page.selectOption('#sortBy', 'salary-asc');
++    await page.click('.topbar .seg [data-mode="insights"]').catch(() => {});
++    await sleep(800);
++    await page.click('.topbar .seg [data-mode="chart"]');
++    await page.click('#vizControls [data-view="ranges"]').catch(() => {});
++    await sleep(800);
++    const h1 = await params(page);
++    const first1 = (await cardIds(page, 1))[0];
++    assert(h1.get('d') && h1.get('sort') === 'salary-asc', `the hash keeps the filter and the sort: ${h1}`);
++    await page.reload();
++    await ready(page);
++    const h2 = await params(page);
++    for (const k of ['c', 'd', 'sort', 'v', 'm']) assertEq(h2.get(k), h1.get(k), `after a reload, ${k}`);
++    assertEq(await count(page), want, 'after a reload, the count');
++    assertEq((await cardIds(page, 1))[0], first1, 'after a reload, the first role');
++    // Back from the filtered list to the whole board, Forward to the filter again.
++    let backs = 0;
++    while (backs < 8 && (await params(page)).get('d')) { await page.goBack(); await sleep(700); backs++; }
++    assert(!(await params(page)).get('d'), `Back ${backs} times never left the Department filter`);
++    await ready(page);
++    assertEq(await count(page), total, 'Back to the unfiltered board');
++    await page.goForward(); await sleep(700); await ready(page);
++    let fwd = 1;
++    while (fwd < 8 && !(await params(page)).get('d')) { await page.goForward(); await sleep(700); fwd++; }
++    assert((await params(page)).get('d') === h1.get('d'), 'Forward brings the Department filter back');
++    await ready(page);
++    assertEq(await count(page), want, 'Forward to the filtered count');
++    assertEq(errors.length, 0, errors.slice(0, 3).join(' | '));
++  });
++
++  /* ------------------------------------------------------------------ phones: every size */
++
++  ALL_SIZES.forEach((d, i) => {
++    const board = BETA[i % BETA.length];
++    suite.test(`Beta coverage: [${d.name} ${d.width}x${d.height}] ${board.slug}: the list opens full, a tapped card opens its job page, the Back button and the browser's Back close it, and a tapped filter row's "Show N roles" equals its count and the list`, async (ctx) => {
++      const { page, errors, base } = await open(ctx, { device: d, hash: `c=${board.slug}` });
++      const f = await needBoard(page, base(), board.slug);
++      const bad = [];
++      const fit = await page.evaluate(() => ({ w: innerWidth, sw: screen.width, scrollW: document.documentElement.scrollWidth, phone: getComputedStyle(document.querySelector('#results')).position === 'fixed' }));
++      if (fit.scrollW > fit.w + 1 || fit.w > fit.sw + 1) bad.push(`the page is ${fit.scrollW} px wide in a ${fit.w} px layout on a ${fit.sw} px screen`);
++      // The results sheet (phone layouts): the handle opens it to full.
++      if (fit.phone) {
++        for (let k = 0; k < 3 && (await page.evaluate(() => document.body.dataset.sheet)) !== 'full'; k++) { await tap(page, page.locator('#sheetHandle')); await sleep(600); }
++        const s = await page.evaluate(() => document.body.dataset.sheet);
++        if (s !== 'full') bad.push(`three taps on the sheet handle leave the list at "${s}"`);
++      }
++      // A tapped card opens its job page; the Back button closes it.
++      const card = page.locator('#resultsList .card[data-id]').first();
++      const cardTitle = (await card.locator('.card-title').innerText()).trim();
++      await tap(page, card.locator('.card-title'));
++      const opened = await page.waitForSelector('#drawer.is-open #drawerTitle', { timeout: 15000 }).then(() => true, () => false);
++      if (!opened) bad.push('a tap on the first card did not open its job page');
++      else {
++        await sleep(500);
++        const t = (await page.locator('#drawerTitle').innerText()).trim();
++        if (t !== cardTitle) bad.push(`the job page is "${t}", the tapped card "${cardTitle}"`);
++        if (!(await params(page)).get('job')) bad.push('the open job is not in the address (no Back to the list)');
++        await tap(page, page.locator('#drawerClose'));
++        const closed = await page.waitForFunction(() => !document.querySelector('#drawer.is-open'), null, { timeout: 5000 }).then(() => true, () => false);
++        if (!closed) bad.push('the job page\'s Back button did not close it');
++        if ((await params(page)).get('job')) bad.push('after Back the address still names the job');
++      }
++      // The browser's Back closes a job page too, and stays on the board.
++      const second = page.locator('#resultsList .card[data-id]').nth(1);
++      if (await second.count()) {
++        await tap(page, second.locator('.card-title'));
++        if (await page.waitForSelector('#drawer.is-open', { timeout: 15000 }).then(() => true, () => false)) {
++          await sleep(400);
++          await page.goBack();
++          const closed = await page.waitForFunction(() => !document.querySelector('#drawer.is-open'), null, { timeout: 5000 }).then(() => true, () => false);
++          if (!closed) bad.push('the browser\'s Back did not close the job page');
++          const h = await params(page);
++          if (h.get('c') !== board.slug) bad.push(`the browser's Back left the board (hash "${h}")`);
++        } else bad.push('a tap on the second card did not open its job page');
++      }
++      // Filters: a tapped Seniority row (every board has one) gives "Show N roles" = its count, then that list.
++      await tap(page, page.locator('#filtersToggle'));
++      await sleep(700);
++      const row = page.locator('#filterBody details.fsec').filter({ has: page.locator('summary', { hasText: 'Seniority' }) }).locator('label.check').first();
++      if (!(await row.count())) bad.push('the filter panel has no Seniority row');
++      else {
++        await page.evaluate(() => { for (const x of document.querySelectorAll('#filterBody details.fsec')) if (/Seniority/.test(x.querySelector('summary')?.textContent || '')) x.open = true; });
++        await sleep(300);
++        const want = Number((await row.locator('.check-count').innerText()).replace(/,/g, ''));
++        await tap(page, row, { dx: 40 });
++        await sleep(900);
++        const done = page.locator('#filtersDone');
++        if (await done.isVisible().catch(() => false)) {
++          const label = (await done.innerText()).replace(/,/g, '');
++          const n = Number(label.match(/(\d+)/)?.[1]);
++          if (n !== want) bad.push(`"${label.trim()}" after the row that counts ${want}`);
++          await tap(page, done);
++          await sleep(900);
++        }
++        await ready(page);
++        const shown = await count(page);
++        if (shown !== want) bad.push(`the list shows ${shown} roles after the Seniority row that counts ${want}`);
++        if (want >= f.n) bad.push(`the Seniority row counts ${want} of ${f.n}: it narrowed nothing`);
++      }
++      assertEq(bad.length, 0, bad.join('; '));
++      assertEq(errors.length, 0, errors.slice(0, 3).join(' | '));
++    });
++  });
++}
+-- 
+2.43.0
+

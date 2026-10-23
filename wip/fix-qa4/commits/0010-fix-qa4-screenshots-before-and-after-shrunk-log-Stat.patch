@@ -1,7 +1,7 @@
 From dcebc6a0dc1b5ba33e05ab7c93a29f022792cb64 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 15:57:53 +0000
-Subject: [PATCH 10/12] fix-qa4: screenshots before and after (shrunk), log
+Subject: [PATCH 10/13] fix-qa4: screenshots before and after (shrunk), log
  State: integration by the lead pending
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
