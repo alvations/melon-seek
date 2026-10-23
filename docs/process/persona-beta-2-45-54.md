@@ -75,3 +75,30 @@ she can't test her CA$1,000 goal. She found the Amazon job only because she trie
 
 About 17 minutes of her time. The waits she would notice are Amazon's: 4–6 s to switch or return
 on an unthrottled phone at load 5–7.
+
+### 3.2 Tomás Herrera: early career in sales, Austin, iPhone 13 mini
+
+**Goal:** "An account executive or account manager role at a big-tech company in Austin or remote in
+the US, paying at least $110K base, that leaves my wife, our son and me at least $3,000 a month."
+
+**Reached it? Yes, on the midpoint.** Amazon's *Account Executive, AWS TMEGS, Telco* posts
+$92K–160K for Austin and leaves **$3,450 a month** for "a family of four" at the midpoint, and
+Microsoft's *Account Executive, Performance Solutions* ($108K–187K for Austin) leaves **$4,760**. He
+can't see what is left at the bottom of the range, where a newcomer starts, and the site has no
+household of three. Google, the board he lands on, has no account executive in Austin.
+
+| Step | What he did and saw | Page | ≈ human |
+|---|---|---|---|
+| 1 | Arrives cold on Google: no sideways scroll at 375 px, chart and bottom sheet as on the Pixel. [p2-01](../screenshots/persona-beta-2-45-54/p2-01-arrive-iphone13mini.png) | first card 1.2 s (load 3.2) | 15 s |
+| 2 | Searches "account executive": 52 roles · 52 in title, all outside Austin. Two near-identical Google cards: *Key Account Executive IV* ($147K–204K, New York) is "41 · Dry", *Key Account Executive, Strategic Accounts* ($147K–204K, "New York, NY +1") is "63 · Ripe". The card doesn't say which place the grade is for. [p2-02](../screenshots/persona-beta-2-45-54/p2-02-google-account-exec.png) | 1.1 s | 1 min |
+| 3 | Location → "Austin": **No matches** (none of the 52 is in Austin; Google has 189 Austin roles). The panel doesn't say "none of these 52". [p2-03](../screenshots/persona-beta-2-45-54/p2-03-location-austin.png) | no wait | 1 min |
+| 4 | Switches to Amazon: "Kept "account executive"", 172 roles; Location → Austin: 32 roles, Remote (US) roles included ("Also finds roles listed for its country"). Cards show Austin's own row ("$92K–160K", not the $92K–178K span). [p2-08](../screenshots/persona-beta-2-45-54/p2-08-amazon-ae-austin-chart.png), [p2-09](../screenshots/persona-beta-2-45-54/p2-09-amazon-ae-austin-list.png) | switch 2.3 s (load 8.0) | 2 min |
+| 5 | Opens *Account Executive, AWS TMEGS, Telco*: "Posted for Austin · USD · per year", "Pay by place" (SF and NY $102K–178K; six others $92K–160K), "Pays more than 38% of Amazon's roles in the US". "Same role elsewhere" ranks Netflix $380K, Cohere $330K… for "Sales & partnerships, every full-time level", with no count per company (Netflix's figure is 7–8 postings, mostly Senior Client Partners and a Director in New York). [p2-10](../screenshots/persona-beta-2-45-54/p2-10-ae-telco-drawer.png), [p2-11](../screenshots/persona-beta-2-45-54/p2-11-same-role-elsewhere.png) | drawer 0.3 s | 3 min |
+| 6 | Juice → Family → Monthly: **$3,450/mo**, "40 · Dry" although it meets his goal; "2 adults, 2 children" (he has one child). [p2-12](../screenshots/persona-beta-2-45-54/p2-12-juice-family-austin.png) | no wait | 2 min |
+| 7 | Saves; Insights → Compare companies → Sales & partnerships: here each company has its count (Netflix 7, Amazon 503). [p2-13](../screenshots/persona-beta-2-45-54/p2-13-compare-companies.png) | 1.3 s | 2 min |
+| 8 | Switches to Microsoft: "Kept "account executive", Austin", 8 roles; *Account Executive, Performance Solutions*: "Senior", $108K–187K for Austin, $4,760/mo for the family. "Senior Account Executive · $108K–223K · 2 levels" says what the span is. [p2-14](../screenshots/persona-beta-2-45-54/p2-14-microsoft-ae-austin.png), [p2-15](../screenshots/persona-beta-2-45-54/p2-15-microsoft-ae-drawer.png) | switch 0.8 s | 2 min |
+| 9 | Comes back: "Reopened where you left off: Microsoft · "account executive" · Austin"; the saved Amazon search opens from the menu. [p2-16](../screenshots/persona-beta-2-45-54/p2-16-return-saved-amazon.png) | 0.6 s; saved search 0.5 s | 30 s |
+| 10 | Looks at Amazon's *Associate Account Executive* (Entry): card and headline "$65K–114K · per year · Annualized from hourly pay". The posted "$31.39 - 54.90 USD hourly" is only under Details. [p2-17](../screenshots/persona-beta-2-45-54/p2-17-associate-ae-hourly-card.png), [p2-18](../screenshots/persona-beta-2-45-54/p2-18-associate-ae-drawer.png) | no wait | 1 min |
+
+About 15 minutes. The base-pay rule held everywhere he looked: every sales drawer says "Posted base
+pay. Equity and bonus aren't included."
