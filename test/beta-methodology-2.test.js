@@ -32,8 +32,10 @@ const REVIEW_DAY = new Date('2026-10-16T19:55:00Z'); // the reviewer build's tim
 // Fixed by the review's doc and registry patches, applied by the lead (2026-10-16): every test of these IDs
 // passes, so they are real tests now. MR-29 and MR-41 are only partly fixed and stay to-do. MR-28 was fixed by
 // fix-data-3 (scripts/build-market.js notBasePay, and one line in the drawer's Juice block).
-// MR-35 was fixed by fix-qa4 (public/app.js hourlyText keeps the posted cents).
-const FIXED = new Set(['MR-24', 'MR-25', 'MR-27', 'MR-28', 'MR-30', 'MR-31', 'MR-32', 'MR-35', 'MR-36']);
+// MR-35 was fixed by fix-qa4 (public/app.js hourlyText keeps the posted cents). fix-mr-3 (2026-10-23,
+// docs/process/fix-mr-3.md) fixed MR-26, MR-29 (the stats and chart notes' Details), MR-33, MR-37, MR-38, MR-40 and
+// MR-41 (the Mid tip's example is each board's own); its own tests are in test/fix-mr-3.test.js.
+const FIXED = new Set(['MR-24', 'MR-25', 'MR-26', 'MR-27', 'MR-28', 'MR-29', 'MR-30', 'MR-31', 'MR-32', 'MR-33', 'MR-35', 'MR-36', 'MR-37', 'MR-38', 'MR-40', 'MR-41']);
 const todo = (id) => (FIXED.has(id) ? {} : { todo: `${id}: docs/process/methodology-review-beta-2.md` });
 const section = (text, head) => {
   const i = text.indexOf(head);
@@ -211,9 +213,11 @@ test('MR-29 the methodology guide says how Google\'s departments are read, and h
   const g = GUIDE();
   assert.match(g, /job title/i, 'METHODOLOGY_GUIDE.md never says Google\'s departments are read from job titles');
 });
+// fix-mr-3: the filter sheet's note became deptTitleLine() (M-36), so the count is of both helpers. The stats line's
+// Details are also the chart notes' Details (UX-57), so one more use there is the one place the review asked for.
 test('MR-29 the chart or stats line, not only the filter and a hover title, says departments come from titles', todo('MR-29'), () => {
-  const uses = (read('public/app.js').match(/deptTitleNote\(\)/g) || []).length;
-  assert.ok(uses >= 3, `public/app.js shows deptTitleNote() in ${uses - 0} places: the Department filter and the Group select's title only`);
+  const uses = (read('public/app.js').match(/deptTitle(?:Note|Line)\(\)/g) || []).length;
+  assert.ok(uses >= 3, `public/app.js shows deptTitleNote() or deptTitleLine() in ${uses - 0} places: the Department filter and the Group select's title only`);
 });
 
 /* -------------------------------------------------------- MR-30 (Medium) */

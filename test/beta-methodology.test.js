@@ -27,7 +27,9 @@ const REG = JSON.parse(read('data/freshness.json'));
 const entryOf = (id) => REG.entries.find((e) => e.id === id);
 const REG_TEXT = JSON.stringify(REG);
 const REVIEW_DAY = new Date('2026-10-11T12:00:00Z'); // the day of the review and of the crawl
-const todo = (id) => ({ todo: `${id}: docs/process/methodology-review-beta.md` });
+// fix-mr-3 (2026-10-23, docs/process/fix-mr-3.md) fixed MR-21 and MR-22: their tests are plain tests now.
+const FIXED = new Set(['MR-21', 'MR-22']);
+const todo = (id) => (FIXED.has(id) ? {} : { todo: `${id}: docs/process/methodology-review-beta.md` });
 
 /* ----------------------------------------------------------- MR-1 (High) */
 // 16 Romania-only postings (Microsoft 12, Google 4) post their pay in lei ("Technical Support
