@@ -396,7 +396,13 @@ export function registerFixViz5Tests(suite) {
       const jobs = (await (await import(`${base}/api.js`)).getJobs({ company: 'amazon' })).jobs || [];
       const { plotted } = chart.chartPay(jobs);
       const nb = (j) => j.salary.kind === 'minimum' || j.salary.includesShiftDifferential === true || j.salary.partTime === true;
-      const base_ = plotted.filter((p) => !p.ote && !nb(p.job)).map((p) => p.mid).sort((a, b) => a - b);
+      // MR-39 (fix-mr-3): with pay in several currencies the caption's and the stats line's median is the main
+      // currency's (the most postings), as the chart rows' are.
+      const cur = (p) => String(p.job.salary.currency || 'USD').toUpperCase();
+      const baseAll = plotted.filter((p) => !p.ote && !nb(p.job));
+      const counts = baseAll.reduce((m, p) => m.set(cur(p), (m.get(cur(p)) || 0) + 1), new Map());
+      const main = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0];
+      const base_ = baseAll.filter((p) => cur(p) === main).map((p) => p.mid).sort((a, b) => a - b);
       const q = (s, f) => { const pos = (s.length - 1) * f, i = Math.floor(pos), g = pos - i; return i + 1 < s.length ? s[i] + (s[i + 1] - s[i]) * g : s[i]; };
       const host = document.querySelector('#chartHost');
       const circles = [...host.querySelectorAll('.ms-bin')].reduce((s, b) => s + (+b.dataset.n || parseInt(b.getAttribute('aria-label'), 10) || 0), 0);
