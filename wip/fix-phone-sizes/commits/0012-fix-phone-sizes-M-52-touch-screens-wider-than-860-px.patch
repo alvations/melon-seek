@@ -1,7 +1,7 @@
 From 8cb8fb05af45789094a18e3d11aac6c530f73abf Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 16:06:10 +0000
-Subject: [PATCH 12/14] fix-phone-sizes: M-52, touch screens wider than 860 px
+Subject: [PATCH 12/15] fix-phone-sizes: M-52, touch screens wider than 860 px
  get 44 px controls and 16 px fields, a focused filter field moves above the
  keyboard, and the top bar fits from 861 px; matrix tests at 932x430, 1005x412
  and 1114x720 and a 861-1001 px sweep

@@ -1,7 +1,7 @@
 From 51364e1f41b2e811543f04e5c14a618e26b47106 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 16:06:32 +0000
-Subject: [PATCH 14/14] fix-phone-sizes: mobile QA 4 before and after (M-49
+Subject: [PATCH 14/15] fix-phone-sizes: mobile QA 4 before and after (M-49
  Microsoft's Apply at 390, M-51 Amazon's meta line at 390, M-52 the Razr in
  landscape and its filter field with the keyboard up)
 

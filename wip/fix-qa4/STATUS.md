@@ -21,6 +21,9 @@ eccdca9 fix-qa4: copy QA round 4's desktop tests (beta-desktop-qa-4.e2e.js) and 
 
 ## Uncommitted and new files
 ```
+ M public/app.js
+ M server/export.js
+ M test/fix-qa4.test.js
 ```
 
 ## Left out (not in untracked.tgz)

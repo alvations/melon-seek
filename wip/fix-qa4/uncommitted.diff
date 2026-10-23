@@ -1,0 +1,205 @@
+diff --git a/public/app.js b/public/app.js
+index 8de6279..e056ac4 100644
+--- a/public/app.js
++++ b/public/app.js
+@@ -204,6 +204,30 @@ const OTE_LABEL = 'On-target earnings (base plus commission at target)';
+ const isMinimum = (j) => j?.salary?.kind === 'minimum';
+ const MINIMUM_TIP = 'The posting states this as the minimum base pay; the offer can be higher';
+ const hourlyText = (s, v) => `${money(v / 2080, s.currency)}/hour`;
++/**
++ * UX-51 (fix-qa4): pay that includes the highest shift differential (VT-18, salary.includesShiftDifferential), as the card
++ * and the drawer heading show it. A posting that states its base pay runs from that base to the posted rate
++ * ("$18.05–19.70/hour"); one posted figure with no base is the top of the pay ("up to $19.70/hour"); a posted range
++ * keeps both its ends. { lo, hi, upTo } yearly in salary.currency, or null (no shift pay, on-target earnings, a stated
++ * minimum). server/export.js salaryRange writes the same range to the CSV.
++ */
++function shiftRange(s) {
++  if (!s?.includesShiftDifferential || s.kind === 'ote' || s.kind === 'minimum' || !Number.isFinite(s.max)) return null;
++  const b = s.statedBase;
++  const base = b && String(b.currency || s.currency).toUpperCase() === String(s.currency || 'USD').toUpperCase() && Number.isFinite(b.min) && b.min < s.max ? b.min : null;
++  if (base != null) return { lo: Math.min(base, s.min), hi: s.max, upTo: false };
++  return { lo: s.min, hi: s.max, upTo: s.min === s.max };
++}
++/** UX-51: the card's muted line under such a pill. */
++const SHIFT_SUB = 'with top shift pay';
++/** UX-51: shift pay in the unit it is shown in: part-time hourly pay per hour, other pay per year. `per` " an hour" or "/hour". */
++function shiftText(job, sr, per = '/hour') {
++  const s = job.salary;
++  const hourly = isPartTimeHourly(job);
++  const one = (v) => (hourly ? `${postedPair(v / 2080, v / 2080, s.currency)}${per}` : rangeEnd(v, s.currency));
++  if (sr.upTo) return `up to ${one(sr.hi)}`;
++  return hourly ? `${postedPair(sr.lo / 2080, sr.hi / 2080, s.currency)}${per}` : moneyRange(sr.lo, sr.hi, s.currency);
++}
+ /** VT-18: "Includes the highest shift differential. Base pay starts at $18.35/hour." */
+ function shiftTip(s) {
+   const base = s?.statedBase ? ` Base pay starts at ${s.statedBase.originalInterval === 'hour' ? hourlyText(s.statedBase, s.statedBase.min) : money(s.statedBase.min, s.statedBase.currency)}.` : '';
+@@ -3747,7 +3771,14 @@ function payPill(job) {
+   // UX-22, QA round 3 (fix-pay-at-place): a posting that gives each place its own range, in the unit it was posted
+   // in (an internship's yearly rate, a part-time hourly rate): the places' span, or the range of the place picked.
+   const ph = isOte(job) || isMinimum(job) ? null : payHeadline(job);
+-  if (ph) return { text: ph.text, range: ph.range, sub: ph.sub, tip: ph.tip };
++  if (ph) return { text: ph.text, range: ph.range, sub: ph.sub, tip: s.includesShiftDifferential ? `${ph.tip} ${shiftTip(s)}` : ph.tip };
++  // UX-51 (fix-qa4): pay that includes the top shift differential says so on the card: from the stated base to the
++  // posted rate, or "up to" one posted figure, with "with top shift pay" under the pill.
++  const sr = shiftRange(s);
++  if (sr) {
++    const range = shiftText(job, sr);
++    return { text: range, range, sub: SHIFT_SUB, tip: `${isPartTimeHourly(job) ? 'Part-time, paid by the hour. ' : ''}${shiftTip(s)}` };
++  }
+   if (isPartTimeHourly(job)) {
+     const hr = postedPair(s.min / 2080, s.max / 2080, s.currency);
+     return { text: `${hr}/hour`, tip: `Part-time, paid by the hour: ${hr} an hour (${postedPair(Math.round(s.min), Math.round(s.max), s.currency)} a year if full-time, 2,080 hours)` };
+@@ -3844,7 +3875,9 @@ function card(job, pos = null, size = null) {
+       ageText(job) ? h('span', { class: 'card-age-top', 'aria-hidden': 'true', title: ageTitle(job) }, ageText(job)) : null)),
+   h('div', { class: 'card-meta', id: `${did}-m` },
+     h('span', { class: 'card-dot', style: `--dot:${color}`, 'aria-hidden': 'true' }),
+-    h('span', { class: 'card-dept' }, deptKey(job)), h('span', { class: 'sep', 'aria-hidden': 'true' }, '·'),
++    // UX-50 (fix-qa4): coloured by company (Group by Company), the dot is the company's, so the company comes first,
++    // beside it ("YouTube · User Experience and Design"); the department gives way first, as before (UX-16).
++    h('span', { class: 'card-dept' }, colorBy() === 'brand' ? `${brandKey(job)} · ${deptKey(job)}` : deptKey(job)), h('span', { class: 'sep', 'aria-hidden': 'true' }, '·'),
+     h('span', { class: 'card-loc' }, loc), remoteTag ? h('span', { class: 'tag tag--remote' }, 'Remote') : null),
+   h('div', { class: 'card-foot', id: `${did}-f` },
+     level ? h('span', { class: `sen sen--${level.toLowerCase().replace(/\W/g, '')}`, title: SEN_TIP[level] || null }, senLabel(level)) : null,
+@@ -4729,7 +4762,9 @@ function drawerContent(job) {
+   // Shared decisions 3 and 4: the amount as it was stated. Fixed-term pay: "$3,850 a week · for about 17
+   // weeks"; a rate for a programme: "€72,000 a year · 13-week internship"; part-time: "$22.00–28.88 an hour".
+   const cur = sal?.currency || 'USD';
+-  const amountText = !sal ? null : ph ? ph.range : partHourly ? `${postedPair(sal.min / 2080, sal.max / 2080, sal.currency)} an hour`
++  // UX-51 (fix-qa4): shift pay reads as on its card ("$18.05–19.70 an hour", "up to $19.70 an hour").
++  const shiftR = sal && !ph ? shiftRange(sal) : null;
++  const amountText = !sal ? null : ph ? ph.range : shiftR ? shiftText(job, shiftR, ' an hour') : partHourly ? `${postedPair(sal.min / 2080, sal.max / 2080, sal.currency)} an hour`
+     : term ? `${term.amount}${perText(term.per)}` : isMinimum(job) ? `from ${money(sal.min, sal.currency)}` : salaryRange(sal);
+   const subText = !sal ? null : (ph?.picked ? `Posted for ${ph.picked.label} · ` : ph?.sub ? `${ph.sub} · ` : '') + (partHourly ? `${cur} · part-time, paid by the hour`
+     : term?.fixed ? `${cur} · for ${termText(term.weeks)}` : term ? `${cur} · ${programText(job, term)}` : `${cur} · per year`);
+diff --git a/server/export.js b/server/export.js
+index 76f2ab8..4bda70d 100644
+--- a/server/export.js
++++ b/server/export.js
+@@ -80,6 +80,8 @@ function placeRows(s) {
+  *     "$60K–129K · 5 places"), not one place's row (the headline is Amazon's search city: amazon:10371179's 82,700 to
+  *     117,100 is Bellevue's).
+  *   - A stated minimum: [min, null], as the card's "from €46K" (it was written 46000,46000, as if exact).
++ *   - Pay that includes the top shift differential (UX-51): [stated base, posted rate] when the posting states a base
++ *     ("$18.05–19.70/hour"), [null, rate] for one posted figure ("up to $19.70/hour"), else the posted range.
+  *   - On-target earnings and everything else: salary.min and salary.max (a span of levels is salary_kind's figure
+  *     with each level in salary_ranges).
+  * [null, null] without a salary.
+@@ -90,6 +92,13 @@ export function salaryRange(s) {
+   const max = finite(s.max) ? Number(s.max) : min;
+   if (s.kind === 'minimum') return [min, null];
+   const rs = s.kind === 'ote' ? null : placeRows(s);
++  if (!rs && s.includesShiftDifferential && s.kind !== 'ote' && max != null) {
++    // UX-51 (fix-qa4): pay that includes the top shift differential, as its card shows it (public/app.js shiftRange):
++    // from the stated base pay to the posted rate, or "up to" one posted figure (salary_min empty); a posted range as is.
++    const b = s.statedBase;
++    if (b && cur(s, b) === cur(s) && finite(b.min) && Number(b.min) < max) return [Math.min(Number(b.min), min ?? Infinity), max];
++    if (min === max) return [null, max];
++  }
+   if (!rs) return [min, max];
+   let lo = min ?? Infinity, hi = max ?? -Infinity;
+   for (const r of rs) { lo = Math.min(lo, Number(r.min)); hi = Math.max(hi, Number(r.max ?? r.min)); }
+@@ -203,7 +212,9 @@ export function csvReadme({ generatedAt = new Date().toISOString(), companies =
+     '                     hourly      an hourly base-pay rate',
+     '                     ote         on-target earnings: base plus commission at target',
+     '                     minimum     a stated minimum base pay; the offer can be higher',
+-    '                     shift       hourly pay including the highest shift differential',
++    '                     shift       hourly pay including the highest shift differential:',
++    '                                 salary_min is the stated base pay when the posting',
++    '                                 gives one, empty when it posts one figure ("up to")',
+     '                     part-time   part-time hourly pay (x 2080 as if full time)',
+     '                     fixed-term  pay per week, per month or for a whole programme',
+     '                   two that both hold are joined with "+" (shift+part-time)',
+@@ -214,7 +225,8 @@ export function csvReadme({ generatedAt = new Date().toISOString(), companies =
+     '',
+     'Changed on 2026-10-17: salary_kind and salary_ranges were added before data_mode.',
+     'salary_min/max used to be the posting\'s headline range: one place\'s range when it',
+-    'posts a range per place, and a stated minimum written as both min and max.',
++    'posts a range per place; a stated minimum, or shift pay\'s one posted figure, written',
++    'as both min and max; shift pay without the base pay the posting states.',
+     '',
+     'Text cells starting with = + - @ are prefixed with an apostrophe.',
+   ];
+diff --git a/test/fix-qa4.test.js b/test/fix-qa4.test.js
+index c2e1ee8..85b08c1 100644
+--- a/test/fix-qa4.test.js
++++ b/test/fix-qa4.test.js
+@@ -2,6 +2,8 @@
+ // test/e2e/beta-desktop-qa-4.e2e.js): D-52 Compstimate's local comparables, D-48 the drawer's rank words, D-50 the
+ // estimate of a "Pay unclear" posting, and D-49 the open-data CSV's pay columns and README. Synthetic postings shaped
+ // like the real ones (ids in the comments); the browser checks on the 2026-10-16 crawl are in test/e2e/fix-qa4.e2e.js.
++// Added later: UX-51 (shift pay on the card and in the CSV) and UX-50 (the card dot under Group by Company), from
++// docs/process/ux-review-beta-2.md.
+ import { test } from 'node:test';
+ import assert from 'node:assert/strict';
+ import fs from 'node:fs';
+@@ -247,3 +249,70 @@ test('D-49 the build writes the README per site (source)', () => {
+   assert.equal((src.match(/mode: (payload|raw)\.mode, source: c\.source \}/g) || []).length, 2, 'both csvRow builders name the source');
+   assert.match(src, /csvRows\.push\(\{ \.\.\.r\.csvRow, channel: c\.channel \|\| 'stable', sourceText: c\.channel === 'beta' \? CAREERS_SITES\[c\.slug\] \|\| null : null \}\)/, 'and the site loop its channel and careers site');
+ });
++
++/* ------------------------------------------------------------ UX-51: shift pay on the card and in the CSV */
++
++// amazon:10409027 "Retail Lead Associate (Reduced-Time)": $19.70 an hour including the top shift differential, "Pay
++// starts at $18.05 per hour"; amazon:10389108 the same role at $21.05 with no base stated; amazon:10377970 a posted
++// range; amazon:10376377 a full-time role at one rate; amazon:10536906 a base at the posted minimum.
++const SHIFT = {
++  base: { min: 40976, max: 40976, mid: 40976, currency: 'USD', kind: 'hourly', originalInterval: 'hour', includesShiftDifferential: true, partTime: true,
++    statedBase: { min: 37544, max: 37544, currency: 'USD', originalInterval: 'hour', text: 'Pay starts at $18.05 per hour with benefits available.' } },
++  one: { min: 43784, max: 43784, mid: 43784, currency: 'USD', kind: 'hourly', originalInterval: 'hour', includesShiftDifferential: true, partTime: true },
++  range: { min: 55952, max: 60112, mid: 58032, currency: 'USD', kind: 'hourly', originalInterval: 'hour', includesShiftDifferential: true },
++  fullOne: { min: 48880, max: 48880, mid: 48880, currency: 'USD', kind: 'hourly', originalInterval: 'hour', includesShiftDifferential: true },
++  baseAbove: { min: 66560, max: 74880, currency: 'USD', kind: 'hourly', originalInterval: 'hour', includesShiftDifferential: true, statedBase: { min: 66560, max: 66560, currency: 'USD' } },
++};
++/** app.js shiftRange, lifted from the source (it uses nothing else from app.js). */
++function appShiftRange() {
++  const src = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
++  const m = /\nfunction shiftRange\(s\) \{\n[\s\S]*?\n\}\n/.exec(src);
++  assert.ok(m, 'public/app.js has function shiftRange(s)');
++  return new Function(`${m[0]}; return shiftRange;`)();
++}
++
++test('UX-51 the card\'s shift pay: from the stated base to the posted rate, else "up to" one posted figure', () => {
++  const shiftRange = appShiftRange();
++  assert.deepEqual(shiftRange(SHIFT.base), { lo: 37544, hi: 40976, upTo: false }, '"$18.05–19.70/hour"');
++  assert.deepEqual(shiftRange(SHIFT.one), { lo: 43784, hi: 43784, upTo: true }, '"up to $21.05/hour"');
++  assert.deepEqual(shiftRange(SHIFT.range), { lo: 55952, hi: 60112, upTo: false }, 'a posted range keeps both ends');
++  assert.deepEqual(shiftRange(SHIFT.baseAbove), { lo: 66560, hi: 74880, upTo: false }, 'a base at the posted minimum');
++  assert.equal(shiftRange({ ...SHIFT.one, includesShiftDifferential: false }), null);
++  assert.equal(shiftRange({ ...SHIFT.one, kind: 'minimum' }), null, 'a stated minimum reads "from …"');
++  assert.equal(shiftRange({ ...SHIFT.base, statedBase: { ...SHIFT.base.statedBase, currency: 'CAD' } }).upTo, true, 'a base in another currency is not used');
++});
++
++test('UX-51 the card and the drawer heading use it, and say "with top shift pay" (source)', () => {
++  const src = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
++  const pill = src.slice(src.indexOf('function payPill(job) {'), src.indexOf('/** UX-29: the term of a fixed-term role'));
++  assert.ok(pill.indexOf('shiftRange(s)') > 0 && pill.indexOf('shiftRange(s)') < pill.indexOf('if (isPartTimeHourly(job))'), 'before the part-time branch, which showed "$19.70/hour"');
++  assert.match(pill, /sub: SHIFT_SUB/);
++  assert.match(src, /const SHIFT_SUB = 'with top shift pay';/);
++  assert.match(src, /const amountText = [^\n]*shiftR \? shiftText\(job, shiftR, ' an hour'\)/);
++});
++
++test('UX-51 the CSV writes shift pay as its card shows it', () => {
++  const rows = Object.fromEntries(csvRows(Object.entries(SHIFT).map(([id, salary]) => ({ id, title: id, locations: [], salary }))).map((x) => [x.id, x]));
++  const mm = (id) => [rows[id].salary_min, rows[id].salary_max, rows[id].salary_kind];
++  assert.deepEqual(mm('base'), ['37544', '40976', 'shift+part-time'], 'from the stated base');
++  assert.deepEqual(mm('one'), ['', '43784', 'shift+part-time'], '"up to": no minimum');
++  assert.deepEqual(mm('range'), ['55952', '60112', 'shift']);
++  assert.deepEqual(mm('fullOne'), ['', '48880', 'shift']);
++  assert.deepEqual(mm('baseAbove'), ['66560', '74880', 'shift']);
++  // The CSV and the card agree, case by case.
++  const shiftRange = appShiftRange();
++  for (const [id, s] of Object.entries(SHIFT)) {
++    const r = shiftRange(s);
++    assert.deepEqual(fn(csv.salaryRange, 'salaryRange')(s), [r.upTo ? null : r.lo, r.hi], id);
++  }
++  assert.match(csvReadme({ generatedAt: 'x' }), /salary_min is the stated base pay when the posting/);
++});
++
++/* ------------------------------------------------------------ UX-50: the card's dot under Group by Company */
++
++test('UX-50 coloured by company, the card names the company first, beside its dot (source)', () => {
++  const src = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
++  const meta = src.slice(src.indexOf("h('div', { class: 'card-meta', id: `${did}-m` },"), src.indexOf("h('div', { class: 'card-foot', id: `${did}-f` },"));
++  assert.ok(meta.length > 100, 'the card meta block');
++  assert.match(meta, /colorBy\(\) === 'brand' \? `\$\{brandKey\(job\)\} · \$\{deptKey\(job\)\}` : deptKey\(job\)/);
++});

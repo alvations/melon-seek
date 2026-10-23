@@ -1,7 +1,7 @@
 From ee254a3cfb09d63eb056b7a6a48e0464933a8342 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 13:28:38 +0000
-Subject: [PATCH 05/10] WIP qa-desktop-beta-4: D-46 is by decision (guard
+Subject: [PATCH 05/11] WIP qa-desktop-beta-4: D-46 is by decision (guard
  instead of a red test); D-49 CSV test
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

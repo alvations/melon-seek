@@ -1,7 +1,7 @@
 From 97a36d3adf02f40a7981dbb5578fe676bfe6d380 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 16:05:45 +0000
-Subject: [PATCH 09/14] fix-phone-sizes: M-48, a card's "N places" / "2 levels"
+Subject: [PATCH 09/15] fix-phone-sizes: M-48, a card's "N places" / "2 levels"
  line is 12 px (was 11.5), on one line
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

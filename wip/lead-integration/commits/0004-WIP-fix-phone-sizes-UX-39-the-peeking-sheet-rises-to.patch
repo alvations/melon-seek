@@ -1,7 +1,7 @@
 From 3a4356fd4da61a0e0696d4d62eafb9737419def8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 12:51:57 +0000
-Subject: [PATCH 04/24] WIP fix-phone-sizes: UX-39, the peeking sheet rises to
+Subject: [PATCH 04/25] WIP fix-phone-sizes: UX-39, the peeking sheet rises to
  show the preview's first card while Amazon's list loads; a matrix test per
  phone size
 

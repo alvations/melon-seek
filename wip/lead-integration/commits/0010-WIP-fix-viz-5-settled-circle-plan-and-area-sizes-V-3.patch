@@ -1,7 +1,7 @@
 From 41645859ba643ed7fc691f8394ce7adc756440e9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 11:19:05 +0000
-Subject: [PATCH 10/24] WIP fix-viz-5: settled circle plan and area sizes
+Subject: [PATCH 10/25] WIP fix-viz-5: settled circle plan and area sizes
  (V-33, V-34), bar weight and titles (V-38, UX-41), pay as posted (V-41, V-48,
  MR-28, D-43), axis and words (V-42, V-46, UX-40/42/43/59/61, A-8, D-44), map
  (V-43 to V-45, Razr)

@@ -1,0 +1,53 @@
+From 55606359ccddfed1cfb1f63f918c69ff8fd56173 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 16:19:04 +0000
+Subject: [PATCH 15/15] fix-phone-sizes: M-52 follow-up, at 861-999 px the
+ search box keeps "Search" on a board with a Refresh button (no "/" hint,
+ tighter padding); the top bar sweep checks it
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc
+---
+ public/styles.css            | 5 +++++
+ test/e2e/phone-matrix.e2e.js | 4 +++-
+ 2 files changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/public/styles.css b/public/styles.css
+index c0a0ecb..e20b1a3 100644
+--- a/public/styles.css
++++ b/public/styles.css
+@@ -1679,6 +1679,11 @@ html[data-mode="map"] .tagline, html[data-mode="insights"] .tagline { display: n
+   .topbar { gap: 10px; }
+   .topbar-right { gap: 6px; }
+   .beta-tag { margin-left: -2px; }
++  /* The search box can be ~100 px here (a board with a Refresh button): without the "/" hint and its 34 px of padding,
++     "Search" still shows (fitSearchHint). */
++  .search kbd { display: none; }
++  .search input { padding-left: 32px; padding-right: 8px; }
++  .search > svg { left: 9px; }
+ }
+ 
+ /* M-40 meets fix-data-3's longer names ("Non-Technical Project, Program and Product Management": its end was cut by
+diff --git a/test/e2e/phone-matrix.e2e.js b/test/e2e/phone-matrix.e2e.js
+index a02a068..3cd7901 100644
+--- a/test/e2e/phone-matrix.e2e.js
++++ b/test/e2e/phone-matrix.e2e.js
+@@ -491,12 +491,14 @@ export function registerPhoneMatrixTests(suite) {
+         const { page, errors } = await open(ctx, size, { board, site });
+         for (let width = 861; width <= 1001; width += 4) {
+           await page.setViewportSize({ width, height: size.height });
++          await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))); // the hint refits on resize
+           const m = await page.evaluate(() => {
+             const n = document.querySelector('#companyMenuBtn .company-name');
+             const over = [...document.querySelectorAll('.topbar *')].filter((e) => e.getClientRects().length && e.getBoundingClientRect().right > innerWidth + 1).slice(0, 3).map((e) => `${e.tagName.toLowerCase()}.${[...e.classList].join('.')}`);
+-            return { w: innerWidth, pageW: document.documentElement.scrollWidth, cut: !n || n.scrollWidth > n.clientWidth + 0.5, over };
++            return { w: innerWidth, pageW: document.documentElement.scrollWidth, cut: !n || n.scrollWidth > n.clientWidth + 0.5, over, hint: document.querySelector('#search').placeholder };
+           });
+           const where = `${site ? 'beta' : 'main'} ${board} ${width}`;
++          if (!m.hint) bad.push(`${where}: the search box shows no words, only the magnifier`);
+           if (m.w > width + 1 || m.pageW > width + 1) bad.push(`${where}: page laid out ${Math.max(m.w, m.pageW)} px wide${m.over.length ? ` (${m.over.join(', ')})` : ''}`);
+           if (m.cut) bad.push(`${where}: the company name is cut`);
+         }
+-- 
+2.43.0
+

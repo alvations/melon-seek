@@ -1,7 +1,7 @@
 From 9e37995fb18fa6ed5171c2921f3d8c7f7f3bca8c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 12:31:47 +0000
-Subject: [PATCH 14/24] fix-viz-5: UX-45 the map's Juice legend starts each
+Subject: [PATCH 14/25] fix-viz-5: UX-45 the map's Juice legend starts each
  grade where the list and the drawer do; patches for UX-36 (index.html) and
  one notBasePay for build-market
 

@@ -1,7 +1,7 @@
 From c971aa44b6f197578802c22c196b49adf7623e6c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 17 Oct 2026 10:32:42 +0000
-Subject: [PATCH 08/24] fix-viz-5: prompt verbatim
+Subject: [PATCH 08/25] fix-viz-5: prompt verbatim
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

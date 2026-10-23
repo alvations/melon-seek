@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a55b46bf2eee2a142`
 - Base (on claude/stoic-ride-54ddxp): `1ef0646b6f16aca8f215cf21e368185bddcf7b89`
-- Head: `8bb3bef98ba5e37a86af2fb4516206a1324258ae`
+- Head: `36e3e425d8a707bc8f542bf657e59fcea0117d26`
 - Restore: `bash scripts/cycle/restore-wip.sh qa-desktop-beta-4 <new worktree dir>`
 
 ## Commits since the base
 ```
+36e3e42 qa-desktop-beta-4: final log and QA section (full e2e, npm test CI-like)
 8bb3bef WIP qa-desktop-beta-4: process log and QA section (full e2e pending)
 78ebd31 WIP qa-desktop-beta-4: round-3 re-check screenshots (shrunk)
 5f98245 WIP qa-desktop-beta-4: D-52 Compstimate city test and screenshots
@@ -21,7 +22,6 @@ d7acc88 qa-desktop-beta-4: brief verbatim
 
 ## Uncommitted and new files
 ```
- M docs/process/qa-desktop-beta-4.md
 ```
 
 ## Left out (not in untracked.tgz)
