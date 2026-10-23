@@ -218,6 +218,7 @@ None of these is named in `data/freshness.json`:
 - **Tests:** MR-25 ×5.
 
 ### MR-26 (Medium): the methodology table says the job postings are "update due" on the day they were read
+- **Status: fixed** by [fix-mr-3](fix-mr-3.md) (2026-10-23, 055fa0f): `scripts/refresh/lib.js` `isPipelineEntry`/`shownOverdue`. A daily entry (the postings) is never "update due" on the page built from it, in the sources table, in `api/freshness.json` and in `run.js` alike; a monthly entry past due still is. The built tables read "The latest postings · Daily" on both sites. Tests: MR-26 (here, a plain test now) and test/fix-mr-3.test.js MR-26.
 - **Where:** the beta methodology §7 table: "Gross pay … The latest postings · Daily · update due" (`beta-methodology-sources-table.png`). The page was built 7 hours after every board was read.
 - **Why:**
   - `scripts/methodology-figures.js:586` loadFigureInputs marks each entry `stale` from `staleness(e).overdue`, which uses the hand-set asOf (job-postings 2026-10-11 + 1 day + 2 days' grace).
@@ -242,6 +243,7 @@ Quoted lines and their corrections (all in `methodology-review-beta-2-guide.diff
 - **Tests:** MR-27 ×4.
 
 ### MR-29 (Medium): Google's departments are read from titles, and the screen barely says so
+- **Status: fixed (UI half)** by [fix-mr-3](fix-mr-3.md) (2026-10-23, 99d5640): the stats line's Details, which are also the chart notes' Details (UX-57), say once on Google "Google doesn't publish departments, so its roles are grouped by what their titles say." No new visible control. The docs half was fixed by this review's patches. Tests: MR-29 ×3 (plain tests now), test/fix-mr-3.test.js MR-29, test/e2e/fix-mr-3.e2e.js [MR-29].
 - **Where the note is shown:** "Grouped by job title: Google doesn't publish departments" (`public/app.js:528`) appears in two places only:
   - a `<p>` at the bottom of the Department filter list, below the Company list and the 28 family rows, so below the fold on desktop (`beta-google-chart-departments.png`) and inside the Filters sheet on a phone;
   - a hover `title` on the Group select (app.js:2974), which no tap reaches.
@@ -282,6 +284,7 @@ Quoted lines and their corrections (all in `methodology-review-beta-2-guide.diff
 - **Tests:** MR-30.
 
 ### MR-33 (Medium): converted fixed-term pay shows the 12-month annualization with no "a year"
+- **Status: fixed** by [fix-mr-3](fix-mr-3.md) (2026-10-23, 99d5640): `public/app.js` `approxLine` converts fixed-term pay at its posted interval: amazon:10544548 "€5,233 a month · for about 10 weeks" over "≈ $72K in US dollars at Sep 2026 rates" now reads "≈ $6,025 a month in US dollars at Sep 2026 rates" (one line at 390 px; on a narrower phone "in US dollars" moves to the tip); a yearly rate for a term says "a year". Tests: MR-33 (plain), test/fix-mr-3.test.js MR-33, e2e [MR-33].
 - **Where:** `public/app.js:3743`. The drawer's ≈ line prints `job._usd` (annualized) under pay shown per month for a term:
   - "€5,233 a month · for about 10 weeks · Fixed-term pay, not a yearly salary · **≈ $72K in US dollars** at Jul 2026 rates" (amazon:10544548, `drawer-amazon-intern-monthly-minimum.png`);
   - "€800 a month · for about 26 weeks · **≈ $11K**" (Microsoft Amsterdam intern, `drawer-microsoft-term-foreign.png`).
@@ -300,6 +303,7 @@ Quoted lines and their corrections (all in `methodology-review-beta-2-guide.diff
 - **Tests:** MR-34.
 
 ### MR-38 (Medium): internships with no stated length are shown and scored as a yearly salary
+- **Status: fixed** by [fix-mr-3](fix-mr-3.md) (2026-10-23, 99d5640): `public/features/shared.js` `isTermUnstated` (part of `isFixedTerm`). 180 of the 182 (Amazon 91, Meta 35, NVIDIA 34, Microsoft 14, Anduril 5, Apple 1; Amazon's other 2 are part-time hourly pay, already shown hourly) and Palantir 35, Shield AI 6, xAI 4 are shown as posted ("$6,688–10,800 a month · USD · length not stated · Fixed-term pay, not a yearly salary"; hourly: "Paid by the hour"); the 111 with Juice show it per month only, "while it lasts". No posting, pay row or salary figure changed. Tests: MR-38 (plain), test/fix-mr-3.test.js MR-38 ×4, e2e [MR-38] ×3.
 - **Scale:** 182 internships post monthly or hourly pay without a length: Amazon 93, Meta 35, NVIDIA 34, Microsoft 14, Anduril 5 and Apple 1.
 - **Actual:** the drawer shows a salary and gives 111 of them a yearly Juice score.
   - "$80K–130K · USD · per year · Annualized from monthly pay … Gross pay $104,900/yr … Juice 22 · Dry" for "$6,688/month to $10,800/month" (meta:1054006261009917, `drawer-meta-intern-monthly-no-term.png`).
@@ -311,6 +315,7 @@ Quoted lines and their corrections (all in `methodology-review-beta-2-guide.diff
 - **Tests:** MR-38.
 
 ### MR-40 (Medium): NYC-metro towns at a state's centre get Microsoft's national range
+- **Status: fixed** by [fix-mr-3](fix-mr-3.md) (2026-10-23, ff2b272): 43 NY, NJ and CT towns within about 80 km of Manhattan are in the gazetteer (read only with their state named), norm-13. Garden City (3), Fort Lee (1), Paramus (1) and Bridgewater (4) Microsoft places are on the NYC-metro row now (microsoft:1970393556650765: "Garden City, Mountain View, San Francisco $134K–261K"). 101 postings' coordinates move; nothing else changes. Tests: MR-40 (plain), test/fix-mr-3.test.js MR-40 ×3, e2e [MR-40].
 - **Why:** Microsoft's SF Bay Area / NYC range (SB-5) is assigned by distance (`server/salary.js:477` PAY_AREAS, 60 km from Manhattan). `server/geo.js` geocodes Garden City NY to 42.17,-74.95 (New York State's centre) and Fort Lee and Paramus NJ to 40.3,-74.52 (`locationPrecision`: 'centroid').
 - **Effect:** 4 postings price those towns at the national range. Example: microsoft:1970393556650765, "Pay by place: Redmond, Garden City, Boston $102K–235K · Mountain View, San Francisco $134K–261K" (`drawer-microsoft-bay-nyc-range.png`). Its Garden City pay is the posting's NYC-metro range.
 - **Fix:**
@@ -320,6 +325,7 @@ Quoted lines and their corrections (all in `methodology-review-beta-2-guide.diff
 - **Tests:** MR-40.
 
 ### MR-41 (Medium): neither methodology page explains the level buckets or each company's ladder
+- **Status: fixed (the chip's tip)** by [fix-mr-3](fix-mr-3.md) (2026-10-23, c59177f): the Mid tip gives the board's own example (Google "III", Amazon "II", Microsoft "IC3", NVIDIA "Level 2", Netflix "L4", else "II" or "L4"), each read through `jobSeniority` in the test. The guide half was this review's patch. Tests: MR-41 ×2 (plain), test/fix-mr-3.test.js MR-41, e2e [MR-41].
 - **Where the levels are used:** every card and drawer level chip, the Seniority filter, "Same role elsewhere … at Senior level", Compare companies' Level picker and Compstimate all use seven buckets. Each company's numbers map differently (server/keywords.js:1170–1241, 1296):
   - Amazon "III" is Senior, but Google "III" is Mid;
   - Microsoft IC4 is Senior, and M6 is Director+;
@@ -365,12 +371,14 @@ Quoted lines and their corrections (all in `methodology-review-beta-2-guide.diff
 - **Tests:** MR-36.
 
 ### MR-37 (Low): Austria's annual figure has no "As posted" line
+- **Status: fixed** by [fix-mr-3](fix-mr-3.md) (2026-10-23, 99d5640): the pay block reads "Stated as a yearly figure", and its Details quote the posting and its payments ("… paid as 14 monthly payments of €3,358.33, not 12"; amazon:10557624's row is 13.69 payments and says so). Tests: MR-37 (plain), test/fix-mr-3.test.js MR-37, e2e [MR-37].
 - **Where:** "from €47K · EUR · per year" for "The minimum basic salary for this position is EUR 47'000 gross annually", paid as 14 payments of €3,358.33 (amazon:10551812, `drawer-amazon-austria-annual.png`).
 - **Actual:** the pay block's Details have no "As posted" line, though Poland's monthly minimum has one. The 14 payments are never mentioned, and `public/app.js` never reads `salary.statedAnnual`. The stored description lost its monthly row in trimming (a norm-9 snapshot).
 - **Fix:** add "As posted: EUR 47'000 gross a year (14 monthly payments of €3,358.33)" from `statedAnnual`.
 - **Tests:** MR-37.
 
 ### MR-39 (Low): the headline median mixes countries without saying so
+- **Status: fixed** by [fix-mr-3](fix-mr-3.md) (2026-10-23, 99d5640): with pay in several currencies in view, the stats line's and Insights' median is the main currency's (the chart rows' rule) and says so: Amazon "$141K base pay median" (all 13,980, 803 converted) is "$149K base pay median in the US" (13,177), and the tiles read "of 13,177 in the US". The chart caption's change is a patch for fix-viz-5 (docs/process/patches/fix-mr-3-chart-caption.diff). Tests: test/fix-mr-3.test.js MR-39 ×3, e2e [MR-39] ×2.
 - **Where:**
   - the stats line "$141K base pay median" (Amazon);
   - the chart caption "Median base pay $141K";
@@ -388,8 +396,8 @@ Quoted lines and their corrections (all in `methodology-review-beta-2-guide.diff
 
 ### Still open from round 2 (not re-filed)
 - MR-4: exchange rates (see MR-23).
-- MR-21: registry.js's usage header still has no `--docs`.
-- MR-22: `scripts/build-market.js:200` still writes `fx.source: 'public/viz/palette.js FX_PER_USD'`.
+- MR-21: registry.js's usage header still has no `--docs`. Fixed by [fix-mr-3](fix-mr-3.md) (62899e8).
+- MR-22: `scripts/build-market.js:200` still writes `fx.source: 'public/viz/palette.js FX_PER_USD'`. Fixed by [fix-mr-3](fix-mr-3.md) (62899e8): `FX_SOURCE`.
 
 Their to-dos in test/beta-methodology.test.js still fail.
 

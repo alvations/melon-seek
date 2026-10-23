@@ -265,9 +265,11 @@ Tests: MR-15 ×2.
 - **Tests:** MR-20.
 
 ### MR-21 (Low): registry.js's usage header leaves out a mode
+- **Status: fixed** by [fix-mr-3](fix-mr-3.md) (2026-10-23, 62899e8): the header lists `--docs [--write]`; test/fix-mr-3.test.js checks every mode `main()` runs.
 `scripts/refresh/registry.js:3-15` lists `--check`, `--sync-tax`, `--merge`, `--lines` and `--summary`, but not `--docs` (l.345), which the PLAYBOOK tells the lead to run. Tests: MR-21.
 
 ### MR-22 (Low): market.json names a code path as its FX source
+- **Status: fixed** by [fix-mr-3](fix-mr-3.md) (2026-10-23, 62899e8): `fx.source` is `palette.js FX_SOURCE`, the rates' own source.
 `scripts/build-market.js:200` writes `fx: { asOf, source: 'public/viz/palette.js FX_PER_USD' }` into `beta/api/market.json`. It should be `FX_SOURCE`, the rate's real source name. Tests: MR-22.
 
 ### Checked and fine

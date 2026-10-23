@@ -1013,7 +1013,7 @@ unchanged: `salary.min/max` stay annualized.
 - The pay block shows it as posted ("$6,688–10,800 a month", "USD · length not stated", "Fixed-term pay, not a yearly salary";
   hourly: "Paid by the hour"); the card has no term tag for it; the Juice block shows Monthly only (no period toggle) and says why.
 - `approxLine(job, own, fullTime)` (MR-33): the drawer's "≈ … in US dollars" line converts fixed-term pay at its posted interval
-  ("≈ $5,686–6,000 a month", "≈ $78K a year", "≈ $15K for the whole term"); "in US dollars" is hidden while the line would wrap
+  ("≈ $6,025 a month" for amazon:10544548's €5,233 a month, "≈ $78K a year", "≈ $15K for the whole term"); "in US dollars" is hidden while the line would wrap
   (`dropWhenWrapped`), and the tip keeps it.
 - `annualNote` (MR-37): a stated yearly figure (`salary.statedAnnual`) reads "Stated as a yearly figure"; its Details quote the
   posting and its payments a year ("paid as 14 monthly payments of €3,358.33, not 12").
