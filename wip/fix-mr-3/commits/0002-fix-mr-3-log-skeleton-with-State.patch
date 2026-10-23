@@ -1,7 +1,7 @@
 From 7bded6cc95af7ac571529f2db17458028c8aa66d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 13:23:02 +0000
-Subject: [PATCH 02/13] fix-mr-3: log skeleton with State
+Subject: [PATCH 02/14] fix-mr-3: log skeleton with State
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_014jaqot5Ddmi7Co6CofBiyc

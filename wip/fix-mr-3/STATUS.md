@@ -2,11 +2,12 @@
 
 - Worktree: `/home/user/melon-seek/.claude/worktrees/agent-a2e3d85e328fdbc3e`
 - Base (on claude/stoic-ride-54ddxp): `05263e8c010758f51cca4bcbcfb2871eac1defd3`
-- Head: `ee08a5adace07705c7fb3cef394ad0acfb0057d1`
+- Head: `23f8f21beef9bd8bfed4ad8f00c0964a8faf69f4`
 - Restore: `bash scripts/cycle/restore-wip.sh fix-mr-3 <new worktree dir>`
 
 ## Commits since the base
 ```
+23f8f21 fix-mr-3: log: T-17, npm test, before/after e2e, phone lines
 ee08a5a fix-mr-3: T-17 job titles on one line (line breaks and runs of whitespace are one space), in the norm-13 bump
 2f51186 fix-mr-3: the Juice headline's "while it lasts" moves to the text below when it would wrap (one line from 344 px up)
 89c88b1 fix-mr-3: review logs mark MR-21, MR-22, MR-26, MR-29, MR-33, MR-37, MR-38, MR-39, MR-40, MR-41 fixed; process log
@@ -24,7 +25,10 @@ d8818ca fix-mr-3: brief, verbatim
 
 ## Uncommitted and new files
 ```
- M docs/process/fix-mr-3.md
+ M docs/screenshots/dark-drawer.png
+ M docs/screenshots/dark.png
+ M docs/screenshots/drawer-juice.png
+ M docs/screenshots/drawer.png
 ```
 
 ## Left out (not in untracked.tgz)

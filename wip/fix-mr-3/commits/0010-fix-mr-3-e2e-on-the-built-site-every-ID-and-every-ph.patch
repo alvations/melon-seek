@@ -1,7 +1,7 @@
 From 9054eaea2b2a685ea8b84b4afc5436d560800cba Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 13:55:34 +0000
-Subject: [PATCH 10/13] fix-mr-3: e2e on the built site (every ID, and every
+Subject: [PATCH 10/14] fix-mr-3: e2e on the built site (every ID, and every
  phone size), docs, and the chart caption patch for fix-viz-5
 
 - test/e2e/fix-mr-3.e2e.js, registered in scripts/e2e.js: MR-26, MR-29, MR-33, MR-37, MR-38 (x3), MR-39 (x2), MR-40, MR-41,

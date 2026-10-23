@@ -25,6 +25,10 @@ eccdca9 fix-qa4: copy QA round 4's desktop tests (beta-desktop-qa-4.e2e.js) and 
 
 ## Uncommitted and new files
 ```
+ M docs/screenshots/dark-drawer.png
+ M docs/screenshots/dark.png
+ M docs/screenshots/drawer-juice.png
+ M docs/screenshots/drawer.png
  M docs/screenshots/fix-qa4/after-D-47-tesla-after-netflix-chart.png
  M docs/screenshots/fix-qa4/after-D-47-tesla-after-netflix-map.png
  M docs/screenshots/fix-qa4/after-D-48-1114x720-top.png
@@ -33,6 +37,7 @@ eccdca9 fix-qa4: copy QA round 4's desktop tests (beta-desktop-qa-4.e2e.js) and 
  M docs/screenshots/fix-qa4/after-D-50-280x653.png
  M docs/screenshots/fix-qa4/after-D-50-390x844.png
  M docs/screenshots/fix-qa4/after-D-52-microsoft-new-york-comparables.png
+ M test/e2e/fix-qa4.e2e.js
 ?? docs/screenshots/fix-qa4/after-UX-50-google-company-cards.png
 ?? docs/screenshots/fix-qa4/after-UX-51-280x653.png
 ?? docs/screenshots/fix-qa4/after-UX-51-390x844.png

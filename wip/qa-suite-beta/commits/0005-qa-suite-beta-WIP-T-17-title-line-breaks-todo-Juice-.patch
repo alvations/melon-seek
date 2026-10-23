@@ -1,7 +1,7 @@
 From e09fe53b04b828f423f1852f83280946fd8ca210 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 13:58:30 +0000
-Subject: [PATCH 5/6] qa-suite-beta: WIP T-17 title line breaks (todo), Juice
+Subject: [PATCH 5/9] qa-suite-beta: WIP T-17 title line breaks (todo), Juice
  grades in the More popover, phone filter rows; flake patches one per test
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
