@@ -153,6 +153,9 @@ export function createSuite() {
       try {
         for (const t of tests) {
           if (grep && !grep.test(t.name)) continue;
+          // A browser that died in an earlier test (it did twice near test 750 of a full run, 2026-10-17)
+          // is relaunched here, so one crash fails one test, not every test after it.
+          if (ctx.ensureBrowser) await ctx.ensureBrowser();
           const start = Date.now();
           current = { stray: [] };
           let timer;

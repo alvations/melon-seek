@@ -157,7 +157,9 @@ export function registerFixDensityTests(suite) {
         await go(p, `${base}#c=${slug}&v=ranges`);
         check(await measure(p, '#chartHost .ms-chart__foot'), bad, 'ranges');
         const legend = await p.evaluate(() => { const l = document.querySelector('#chartHost .ms-chart__legend'); if (!l || l.hidden) return null; const b = l.getBoundingClientRect(); return { h: Math.round(b.height), scrolls: l.scrollWidth > l.clientWidth + 1, tab: l.tabIndex }; });
-        if (legend && legend.h > 26) bad.push(`ranges legend: ${legend.h}px tall, more than one row`);
+        // D-51 (desktop QA round 4, fix-viz-5): from 861 px up the legend wraps so every key shows without a hidden
+        // sideways scroll; one row is the phone rule only.
+        if (legend && legend.h > 26 && phone) bad.push(`ranges legend: ${legend.h}px tall, more than one row`);
         if (legend && legend.scrolls && legend.tab !== 0) bad.push('ranges legend: scrolls sideways but cannot take keyboard focus');
         // Map: the Pay legend's note.
         await go(p, `${base}#c=${slug}&m=map`, 1800);

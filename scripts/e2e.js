@@ -71,10 +71,18 @@ const ctx = { baseUrl: server.baseUrl, data: {}, notes: [], cleanup: [], pw, bro
 registerApiTests(suite);
 
 let browser = null;
+let relaunches = 0;
 if (!apiOnly) {
   const executablePath = findChromium();
-  browser = await pw.chromium.launch({ headless: !args.has('--headed'), executablePath });
+  const launch = () => pw.chromium.launch({ headless: !args.has('--headed'), executablePath });
+  browser = await launch();
   ctx.browser = browser;
+  ctx.ensureBrowser = async () => {
+    if (ctx.browser.isConnected()) return;
+    relaunches += 1;
+    console.log(`  ! the browser closed; relaunching it (${relaunches})`);
+    browser = ctx.browser = await launch();
+  };
   console.log(`e2e: playwright ${playwrightInfo.path}`);
   console.log(`e2e: chromium ${browser.version()} (${executablePath || 'playwright default'})`);
   registerUiTests(suite);
@@ -127,6 +135,7 @@ try {
   await server.stop();
 }
 const failed = results.filter((r) => !r.ok);
+if (relaunches) console.log(`e2e: the browser was relaunched ${relaunches} time(s) after closing`);
 if (ctx.notes.length) {
   console.log('\ne2e notes (non-fatal observations):');
   for (const n of [...new Set(ctx.notes)]) console.log(`  * ${n}`);
