@@ -78,8 +78,13 @@ export function compExtras(raw, text, title) {
   const fn = keywordsModule.extractCompExtras;
   if (typeof fn !== 'function') return { ...NO_EXTRAS };
   const summary = [raw && raw.compensationSummary, raw && raw.salary && raw.salary.text].filter(Boolean).join('\n');
-  const out = safe(() => fn(summary ? `${text}\n${summary}` : text, { title }), NO_EXTRAS);
-  return { equity: out.equity === true, bonus: out.bonus === true };
+  const src = summary ? `${text}\n${summary}` : text;
+  const out = safe(() => fn(src, { title }), NO_EXTRAS);
+  const res = { equity: out.equity === true, bonus: out.bonus === true };
+  // K-1 (fix-data-6): a bonus target stated as a percentage, as posted ("20%"), for the drawer's chip.
+  const target = res.bonus && typeof keywordsModule.statedBonusTarget === 'function' ? safe(() => keywordsModule.statedBonusTarget(src), null) : null;
+  if (target) res.bonusTarget = target;
+  return res;
 }
 
 function safe(fn, fallback) {
@@ -456,9 +461,14 @@ export function relabelJobs(jobs) {
     if (lvl) { next.seniority = lvl.level; next.seniorityBasis = lvl.basis; }
     else if (!next.seniorityBasis) next.seniorityBasis = (next.seniority || 'Mid') === 'Mid' ? 'default' : 'title';
     // K-1 (fix-data-6): a stored bonus whose only wording is a stated 0% bonus target ("+ 0% bonus target") is no bonus.
+    // A stated bonus target ("+ 20% bonus target") is kept as posted (extras.bonusTarget).
     if (j.extras && j.extras.bonus === true && typeof keywordsModule.zeroBonusOnly === 'function') {
       const src = [text, j.salary && j.salary.text, j.salaryRaw && j.salaryRaw.text].filter(Boolean).join('\n');
-      if (safe(() => keywordsModule.zeroBonusOnly(src, { title }), false)) next.extras = { ...j.extras, bonus: false };
+      if (safe(() => keywordsModule.zeroBonusOnly(src, { title }), false)) next.extras = { equity: j.extras.equity === true, bonus: false };
+      else {
+        const target = safe(() => keywordsModule.statedBonusTarget(src), null);
+        if (target && j.extras.bonusTarget !== target) next.extras = { ...j.extras, bonusTarget: target };
+      }
     }
     // (Not safe(): a fresh null, "no salary", must replace the stored one.)
     let fresh;

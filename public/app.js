@@ -173,6 +173,8 @@ function termFactor(s) {
   const m = Math.round((w * 12) / 52);
   return m > 0 && Math.abs((m * 52) / 12 - w) < 0.5 ? 12 / m : 52 / w;
 }
+/** P-2 (fix-data-6): the posting states this pay as a yearly figure (not annualized from an hourly, daily, weekly or monthly rate). */
+const statedYearly = (s) => !!s && (!s.originalInterval || s.originalInterval === 'year') && (!s.interval || s.interval === 'year') && !s.partTime;
 /** Two posted amounts, both with cents when either has them: "$22.00–28.88", "$40–55", "$3,850". */
 function postedPair(lo, hi, currency) {
   const cents = (v) => Math.abs(v - Math.round(v)) >= 0.005;
@@ -4286,13 +4288,21 @@ function cardTerm(job) {
   const text = programText(job, t);
   return { text, tip: t.fixed ? `${t.amount}${perText(t.per)}: fixed-term pay for a ${text}, not a yearly salary` : `${t.amount}${perText(t.per)} for a ${text}` };
 }
-/** The pay's own country, in a sentence: "the US", "Germany and Ireland", "other countries" (shared decision 1). */
-function payPlaceText(job) {
+/**
+ * Where the pay is posted, in a sentence (shared decision 1): the places ("Tempe", "Herndon and Seattle", "Seattle,
+ * Bellevue and 3 more"), or the pay's own country ("the US", "Germany and Ireland", "other countries"). `max` places
+ * are named before "and N more".
+ */
+function payPlaceText(job, max = 2) {
   // fix-pay-at-place: a posting that prices each place on a row of its own names those places ("Seattle and
   // Bellevue"); one with no row for the place picked has no posted pay there (the lead decision of 2026-10-16).
-  if (Array.isArray(job.salary?.ranges) && job.salary.ranges.length) {
+  // P-1 (fix-data-6): so does one whose one range was posted for some of its places (salary.places): "Pay posted for
+  // Tempe only", not "for the US only", for amazon:10487128 under Atlanta. The country is named only when those
+  // places are in another country than the places picked ("Pay posted for the US only" under Zurich).
+  if ((Array.isArray(job.salary?.ranges) && job.salary.ranges.length) || (Array.isArray(job.salary?.places) && job.salary.places.length)) {
     const own = pricedPlaces(job);
-    if (own.length) return placeLabel(own);
+    const here = viewSpec?.l.size ? new Set(job.locations.filter((l) => locMatches(job, viewSpec, [l])).map((l) => l?.country).filter(Boolean)) : null;
+    if (own.length && (!here?.size || own.some((l) => here.has(l?.country)))) return placeLabel(own, max);
   }
   const cs = [...new Set((job._payLocs || payLocations(job)).map((l) => l?.country && String(l.country).toUpperCase()).filter(Boolean))];
   if (!cs.length) return 'other places';
@@ -5050,7 +5060,7 @@ const rangeText = (r, cur) => moneyRange(Number(r.min), Number(r.max ?? r.min), 
 function payPlacesLine(s, job = null) {
   const rs = payRanges(s);
   if (!rs) return null;
-  const unit = job ? payUnit(job) : null;
+  const unit = job ? payUnit(job, true) : null; // P-2: each place's row as posted
   const rowCur = (r) => String(r?.currency || s?.currency || 'USD').toUpperCase(); // S-1: each row in its own currency
   const pay = (r) => (unit ? unit.fmt(Number(r.min), Number(r.max ?? r.min), rowCur(r)) : rangeText(r, s.currency));
   // fix-pay-at-place: one line per range, with no place name cut off (rangeName); the pay block's Details list every place.
@@ -5118,15 +5128,17 @@ function placeCount(rs) {
  * hourly pay as an hourly rate, fixed-term pay per week, month or for the whole term, a programme's yearly rate with
  * "/year", any other pay as a yearly range. `note` says what the unit is, for tips.
  */
-function payUnit(job) {
+function payUnit(job, exact = false) {
   const s = job.salary, cur0 = s.currency;
   // S-1 (fix-salary-6): fmt(lo, hi, currency) writes a row in its own currency (another country's line).
   if (isPartTimeHourly(job)) return { fmt: (a, b, cur = cur0) => `${postedPair(a / 2080, b / 2080, cur)}/hour`, note: 'Part-time, paid by the hour' };
   const term = postedTerm(s, job);
-  if (!term) return { fmt: (a, b, cur = cur0) => moneyRange(a, b, cur), note: '' };
+  // P-2 (fix-data-6): on the job page (`exact`), a yearly figure the posting states is written as posted ("$119,800–234,700").
+  const year = (a, b, cur = cur0) => (exact && statedYearly(s) ? postedPair(a, b, cur) : moneyRange(a, b, cur));
+  if (!term) return { fmt: year, note: '' };
   const prog = programText(job, term);
   if (term.fixed && term.per === 'term') return { fmt: (a, b, cur = cur0) => `${moneyRange(a / term.toTerm, b / term.toTerm, cur)} total`, note: `fixed-term pay for a ${prog}` };
-  if (term.per === 'year') return { fmt: (a, b, cur = cur0) => `${moneyRange(a, b, cur)}/year`, note: prog };
+  if (term.per === 'year') return { fmt: (a, b, cur = cur0) => `${year(a, b, cur)}/year`, note: prog };
   const f = PER_YEAR[term.per] || 1;
   return { fmt: (a, b, cur = cur0) => `${postedPair(a / f, b / f, cur)}/${term.per}`, note: term.fixed ? (term.unstated ? 'fixed-term pay, length not stated' : `fixed-term pay for a ${prog}`) : prog };
 }
@@ -5139,11 +5151,11 @@ function payUnit(job) {
  * drawer's rank and strip use (the posting's headline row: Amazon's search city, Microsoft's U.S. range), '' when
  * that is the span. null for a posting with one range.
  */
-function payHeadline(job, F = viewSpec) {
+function payHeadline(job, F = viewSpec, exact = false) {
   const s = job.salary;
   const rs = s ? payRanges(s) : null;
   if (!rs) return null;
-  const unit = payUnit(job);
+  const unit = payUnit(job, exact);
   const rowCur = (r) => String(r?.currency || s?.currency || 'USD').toUpperCase(); // S-1: each row in its own currency
   const byPlace = `Pay by place: ${rs.map((r) => `${rangeLabel(r)} ${unit.fmt(Number(r.min), Number(r.max ?? r.min), rowCur(r))}`).join(' · ')}`;
   const what = unit.note ? ` (${unit.note})` : '';
@@ -5203,7 +5215,10 @@ function payLabels(job) {
     lo === hi ? ['One number, not a range', ph ? 'The posting gives one number, not a range, for this place' : 'The posting gives one number, not a range'] : null,
     job.extras?.equity ? ['+ equity mentioned', 'The description mentions equity; it isn\u2019t in this figure'] : null,
     // P-1: on-target earnings already include the commission at target, so a "bonus" note would be wrong.
-    job.extras?.bonus && !isOte(job) ? ['+ bonus mentioned', 'The description mentions a bonus; it isn\u2019t in this figure'] : null,
+    // K-1 (fix-data-6): a bonus target the posting states as a percentage reads as posted ("+ 20% bonus target"); a stated
+    // 0% target is no bonus (no chip); "+ bonus mentioned" is for a bonus with no figure.
+    job.extras?.bonus && !isOte(job) ? (job.extras.bonusTarget ? [`+ ${job.extras.bonusTarget} bonus target`, `The posting states a ${job.extras.bonusTarget} bonus target; it isn\u2019t in this figure`]
+      : ['+ bonus mentioned', 'The description mentions a bonus; it isn\u2019t in this figure']) : null,
   ].filter(Boolean).slice(0, 2);
   return labels.length ? h('div', { class: 'pay-labels' }, ...labels.map(([t, tip]) => h('span', { class: 'pay-label', title: tip }, t))) : null;
 }
@@ -5445,7 +5460,10 @@ function drawerContent(job) {
     : partHourly ? 'Posted hourly pay for a part-time role. Equity and bonus aren’t included.'
       : term?.fixed ? 'Fixed-term pay as posted. Equity and bonus aren’t included.' : 'Posted base pay. Equity and bonus aren’t included.') + elsewhere;
   // fix-density: the caption's one line: what the pay is, or, under a Location filter, where it is for.
-  const captionLine = !sal ? null : elsewhere ? `Posted for ${payPlaceText(job)}, not ${placesPicked()}`
+  // P-1 (fix-data-6): one line at every size; where the places don't fit, "only" stands for the places picked, then one
+  // place is named ("Seattle and 3 more"). The whole sentence is in Details (caption).
+  const captionLine = !sal ? null : elsewhere ? fitOneLine(h('span'), [`Posted for ${payPlaceText(job)}, not ${placesPicked()}`,
+    `Posted for ${payPlaceText(job)} only`, `Posted for ${payPlaceText(job, 1)} only`])
     : isOte(job) ? 'On-target earnings' : isMinimum(job) ? 'Posted minimum base pay' : sal.includesShiftDifferential ? 'Posted pay, including shift pay'
       : partHourly ? 'Posted hourly pay, part-time' : term?.fixed ? 'Fixed-term pay as posted' : 'Posted base pay';
   // UX-22: under a Location filter, the range posted for the place picked.
@@ -5453,6 +5471,7 @@ function drawerContent(job) {
   // span of its ranges ("$60K–129K · 5 places"), or under a Location filter the range posted for the place picked,
   // which the line under it names. The rank and the strip say in Details whose range they use.
   const ph = sal && !isOte(job) && !isMinimum(job) ? payHeadline(job) : null;
+  const phExact = ph ? payHeadline(job, viewSpec, true) : null; // P-2: the posted figures, exact
   // Shared decisions 3 and 4: the amount as it was stated. Fixed-term pay: "$3,850 a week · for about 17
   // weeks"; a rate for a programme: "€72,000 a year · 13-week internship"; part-time: "$22.00–28.88 an hour".
   // S-1 (fix-salary-6): under a Location filter, the currency of the line posted for the place picked.
@@ -5461,6 +5480,10 @@ function drawerContent(job) {
   const shiftR = sal && !ph ? shiftRange(sal) : null;
   const amountText = !sal ? null : ph ? ph.range : shiftR ? shiftText(job, shiftR, ' an hour') : partHourly ? `${postedPair(sal.min / 2080, sal.max / 2080, sal.currency)} an hour`
     : term ? `${term.amount}${perText(term.per)}` : isMinimum(job) ? `from ${money(sal.min, sal.currency)}` : salaryRange(sal);
+  // P-2 (fix-data-6): the heading gives a yearly figure the posting states exactly ("€46,400", "$119,800–234,700"), as
+  // fixed-term and part-time pay already are; where that doesn't fit one line (280 px), the card's rounded figure.
+  const exactText = !sal || !statedYearly(sal) || shiftR || partHourly || term ? null : phExact ? phExact.range
+    : isMinimum(job) ? `from ${postedMoney(sal.min, sal.currency)}` : postedPair(sal.min, sal.max ?? sal.min, sal.currency);
   const subText = !sal ? null : (ph?.picked ? `Posted for ${ph.picked.label} · ` : ph?.sub ? `${ph.sub} · ` : '') + (partHourly ? `${cur} · part-time, paid by the hour`
     : term?.fixed ? `${cur} · ${term.unstated ? 'length not stated' : `for ${termText(term.weeks)}`}` : term ? `${cur} · ${programText(job, term)}` : `${cur} · per year`);
   // Whose range the rank and the strip use: the place picked, the posting's headline row (Bellevue), or its span.
@@ -5469,7 +5492,7 @@ function drawerContent(job) {
   const salaryBlock = h('section', { class: 'd-salary' },
     sal ? h('div', { class: 'd-sal-top' },
       h('div', null,
-        h('div', { class: 'd-sal-amt' }, amountText),
+        exactText && exactText !== amountText ? fitOneLine(h('div', { class: 'd-sal-amt' }), [exactText, amountText]) : h('div', { class: 'd-sal-amt' }, amountText),
         h('div', { class: 'muted' }, subText),
         (annualEl = annualNote(sal, job)),
         // QA round 3: "Pay by place" for fixed-term and part-time pay too, in the unit it was posted in.

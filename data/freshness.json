@@ -15175,7 +15175,7 @@
         "server/vet.js:1 vet.js roleFamily",
         "public/features/roles.js:65 roles.js FAMILIES",
         "public/features/roles.js:163 FAMILY_LABELS",
-        "public/features/roles.js:163 FAMILY_LABELS (28)",
+        "public/features/roles.js:163 FAMILY_LABELS (29)",
         "public/features/roles.js:219 FAMILIES regex lexicon",
         "public/features/roles.js:254 DEPT_HINTS",
         "public/features/roles.js:21 ABBREV / SYNONYM / LEVEL_WORDS / STOPWORDS",
@@ -15183,7 +15183,7 @@
         "public/features/roles.js:203 CHIP (chip-design family)",
         "public/features/roles.js:211 TECHNICIAN / :208 DC_CONTEXT (data-center technician family)"
       ],
-      "values": "28 families (public/features/roles.js FAMILY_LABELS; BP-4 added chip (chip design) and dc-tech (data-center technician), 2026-10-11), FAMILIES / DEPT_HINTS / PRIORITY lexicons, FAMILY_AFFINITY partial credits; 2026-10-02: 6 of 5,413 postings without a family (0.1%); 2026-10-11: 1,668 beta postings (965 with pay) changed family with BP-4",
+      "values": "29 families (public/features/roles.js FAMILY_LABELS; BP-4 added chip (chip design) and dc-tech (data-center technician), 2026-10-11; fix-data-6 added site-ops (warehouse, delivery and store operations, R-1), 2026-10-23), FAMILIES / DEPT_HINTS / PRIORITY lexicons, FAMILY_AFFINITY partial credits; 2026-10-02: 6 of 5,413 postings without a family (0.1%); 2026-10-11: 1,668 beta postings (965 with pay) changed family with BP-4; 2026-10-23: 1,839 postings changed family with R-1 and R-3 (fix-data-6), 0 lost one: site-ops 1,769 (Amazon 1,768: 1,451 that had none, 273 from customer support), data-center rules 70 (Amazon DCO techs to dc-tech, Meta subject matter experts and asset management to facilities, Microsoft Critical Environment Ops, xAI building-systems engineers); Amazon postings with no family 2,332 -> 881",
       "consumers": [
         {
           "at": "server/vet.js:205",

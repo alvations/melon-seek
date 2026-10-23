@@ -685,7 +685,7 @@ export const FAMILY_TITLES = Object.freeze({
   support: 'Customer Success Manager', marketing: 'Marketing Manager', legal: 'Counsel', policy: 'Policy Manager',
   'trust-safety': 'Trust and Safety Analyst', people: 'Recruiter', finance: 'Finance Manager',
   it: 'IT Systems Engineer', admin: 'Executive Assistant', 'ai-training': 'AI Tutor',
-  chip: 'Design Verification Engineer', 'dc-tech': 'Data Center Technician',
+  chip: 'Design Verification Engineer', 'dc-tech': 'Data Center Technician', 'site-ops': 'Transportation Associate',
 });
 
 // ---------------------------------------------------------------------------

@@ -63,6 +63,7 @@ import { registerFixSalary6Tests } from '../test/e2e/fix-salary-6.e2e.js';
 import { registerFixUi6Tests } from '../test/e2e/fix-ui-6.e2e.js';
 import { registerFixJuice6Tests } from '../test/e2e/fix-juice-6.e2e.js';
 import { registerFixApp6Tests } from '../test/e2e/fix-app-6.e2e.js';
+import { registerFixData6Tests } from '../test/e2e/fix-data-6.e2e.js';
 
 const args = new Set(process.argv.slice(2));
 const apiOnly = args.has('--api-only');
@@ -205,6 +206,7 @@ if (!apiOnly) {
   registerFixUi6Tests(suite);
   registerFixJuice6Tests(suite);
   registerFixApp6Tests(suite);
+  registerFixData6Tests(suite);
 }
 
 const only = shard ? shardOf(suite.names(grep), shard, valueOf('timings')) : null;

@@ -170,6 +170,7 @@ export const FAMILY_LABELS = Object.freeze({
   chip: 'Chip design & silicon engineering',
   manufacturing: 'Manufacturing, production & technicians',
   'supply-chain': 'Supply chain & procurement',
+  'site-ops': 'Warehouse, delivery & store operations',
   facilities: 'Facilities, construction & data centers',
   'dc-tech': 'Data center technicians',
   'field-ops': 'Field operations & test',
@@ -207,8 +208,19 @@ const CHIP_CONTEXT = /\b(cpu|gpu|npu|tpu|socs?|asic|rtl|silicon|circuits?|mixed 
 // Environment Technician"): their own family, not the data-center engineers and real-estate
 // managers in facilities (fix wave 3, BP-4: a Google technician compared with Anthropic's $362K
 // data-center engineers).
-const DC_CONTEXT = /\b(data ?centers?|datacenters?|critical environment)\b/;
-const TECHNICIAN = /\btechnicians?\b/;
+// R-3 (fix-data-6): AWS writes its data-center operations "DCO" ("DCO Tech 3"), and Microsoft and AWS write a
+// technician "Tech" ("Critical Environment Ops Tech").
+const DC_CONTEXT = /\b(data ?centers?|datacenters?|critical environment|dco)\b/;
+const TECHNICIAN = /\b(technicians?|(ops|operations|dco|dc) techs?)\b/;
+const SME = /\bsubject matter experts?\b/g;
+// R-1 (fix-data-6): warehouse, delivery-station, transport and store operations: the hourly associates, the leads and
+// process assistants of their shifts (Amazon "Delivery Station Customer Service Associate", "Transportation Associate",
+// "Retail Lead Associate (Reduced-Time)", "Lead Associate", "Process Assistant"), and, by Amazon's departments (DEPT_HINTS:
+// "Fulfillment & Operations Management", "Fulfillment Associate"), the area and station managers who run them. Their own
+// family, as BP-4 gave data-center technicians theirs; levels keep associates and managers apart. "Customer service" put
+// the associates in customer support beside technical account managers, so Same role elsewhere priced Google's Technical
+// Account Manager I in Toronto against a CA$46K delivery-station associate; the managers had no family at all (R-3).
+const OPS_ASSOCIATE = /\b(delivery station (customer service )?(associates?|liaisons?|agents?)|estacion de entrega|transportation associates?|(interim )?process assistants?|shift assistants?|(retail|store|warehouse|fulfil?lment( cent(er|re))?|sortation|inbound|outbound|seasonal) (lead )?associates?|lead (fulfil?lment |warehouse |store |retail )?associates?|warehouse (team members?|workers?))\b/;
 
 /**
  * Specific families, tested in order against the expanded text. Order matters:
@@ -223,6 +235,7 @@ const FAMILIES = [
   ['people', /\b(recruit\w*|talent|people|human resources|sourcer|compensation|benefits|payroll partner|learning and development|hr business partner|hr)\b/],
   ['admin', /\b(executive assistant|administrative|office manager|receptionist|executive business partner|executive operations|front desk)\b/],
   ['finance', /\b(financ\w*\b(?! (services|systems))|accountant|accounting|accounts (payable|receivable)|tax|treasury|(?<!(flight|memory|cache|display|dma|interrupt|motor|storage|ddr|dram|pcie|usb|management|embedded|io) )controller|payroll|fpanda|audit\w*|billing|order to cash|revenue manager|investor relations|pricing)\b/],
+  ['site-ops', OPS_ASSOCIATE], // R-1: before support ("customer service associate") and supply chain ("warehouse")
   ['support', /\b(support|customer success|customer (experience|service|learning|education)|technical account manager|user operations|technical (training|education|instructor))\b/],
   ['solutions', /\b(solutions? (architect\w*|engineer\w*|consultant|lead|specialist|principal)|sales engineer|forward deployed|deployment (strategist|lead)|ai deployment specialist|(?<!(cloud|itav|it) )deployment engineer|applied ai (engineer\w*|architect)|customer engineer|field (application|solutions) engineer|(?<!(fe|frontend|physical|soc|rtl|design) )implementation (engineer|manager|consultant|lead)|technical success|ai advisory|engagement manager|delivery (lead|manager)|(field|executive|enterprise|principal|customer) architect|field engineer|technical deployment)\b/],
   ['supply-chain', /\b(supply (chain|planner|planning)|demand (and supply|planner|planning)|sourcing|procurement|buyer|purchasing|materials? (planner|associate|handler|manager|management|coordinator|specialist)|capacity (planner|planning)|logistics|warehous\w*|inventory|shipping|receiving|sales and operations planning|master scheduler|subcontracts?|supplier (development|management)|vendor manager|commodity|expediter|cost value engineer)\b/],
@@ -252,6 +265,7 @@ const FAMILIES = [
 
 /** Department text -> family, used only when the title alone is not specific. */
 const DEPT_HINTS = [
+  ['site-ops', /\bfulfil?lment\b/], // R-1, R-3: Amazon's "Fulfillment & Operations Management" and "Fulfillment Associate"
   ['ai-training', /\bhuman (data|frontier)/],
   ['facilities', /\b(data ?center|facilit|real estate|ehs|workplace|construction|compute)\b/],
   ['supply-chain', /\b(supply chain|procurement|sourcing|logistics|warehous)/],
@@ -325,10 +339,20 @@ export function roleFamily(title, ctx) {
   let fam = firstFamily(role) || firstFamily(full);
   // A sales, security or solutions title in a public-policy department is government-affairs work.
   if (['sales', 'security', 'solutions'].includes(fam) && POLICY_DEPT.test(deptText)) fam = 'policy';
+  // R-3 (fix-data-6): the data center wins over a loose title word. A subject matter expert on a data-center campus is no
+  // AI tutor (Meta's "Electrical Subject Matter Expert" in Data Center Operations): the rest of the title decides
+  // ("Public Affairs ..." is policy), else facilities. Where the department names the data center (DC_CONTEXT), its
+  // operations staff (Microsoft's "Critical Environment Ops") and asset management (Meta's "Asset Management Operations
+  // Manager", not enterprise IT) are facilities work.
+  if (fam === 'ai-training' && DC_CONTEXT.test(`${full} ${deptText}`)) {
+    const alt = firstFamily(role.replace(SME, ' ')) || firstFamily(full.replace(SME, ' '));
+    fam = alt && alt !== 'ai-training' ? alt : 'facilities';
+  }
+  if (DC_CONTEXT.test(deptText) && (['bizops', 'field-ops', 'manufacturing'].includes(fam) || (fam === 'it' && /\basset management\b/.test(full)))) fam = 'facilities';
   // Context overrides: building-systems engineers, and policy work inside Trust & Safety.
   if (fam === 'manufacturing' && /\bengineer\b/.test(full)) fam = 'hardware'; // "Staff Engineer, Quality"
   if (fam === 'hardware' && (/\b(facilit\w*|construction)\b/.test(full) ||
-    (/\bdata ?center\b/.test(full) && /\b(electrical|mechanical|controls)\b/.test(full)))) fam = 'facilities';
+    ((/\bdata ?center\b/.test(full) || DC_CONTEXT.test(deptText)) && /\b(electrical|mechanical|controls)\b/.test(full)))) fam = 'facilities'; // R-3: or its department
   if (fam === 'policy' && /\bsecurity\b/.test(deptText)) fam = 'security';
   // Technicians, operators and ops staff on a data-center campus are facilities work.
   if (['manufacturing', 'bizops', 'field-ops'].includes(fam) && /\bdata ?center\b/.test(`${full} ${deptText}`)) fam = 'facilities';
@@ -342,6 +366,7 @@ export function roleFamily(title, ctx) {
     for (const [id, re] of DEPT_HINTS) {
       if (!re.test(deptText)) continue;
       if (id === 'manufacturing' && GENERIC_ENGINEER.test(full)) return 'hardware';
+      if (id === 'site-ops' && GENERIC_ENGINEER.test(full)) continue; // R-1: a process or automation engineer at a site is not floor operations
       return id;
     }
   }
@@ -357,6 +382,7 @@ const FAMILY_AFFINITY = {
   'swe|it': 0.4, 'security|it': 0.35, 'hardware|field-ops': 0.35, 'policy|legal': 0.35,
   'policy|trust-safety': 0.4, 'facilities|manufacturing': 0.25, 'swe|ai-training': 0, 'ml|ai-training': 0,
   'hardware|chip': 0.85, 'swe|chip': 0.5, 'dc-tech|facilities': 0.7, 'dc-tech|manufacturing': 0.5, 'dc-tech|it': 0.4, 'dc-tech|support': 0.3,
+  'site-ops|supply-chain': 0.4, 'site-ops|manufacturing': 0.3, 'site-ops|support': 0.2, // R-1
 };
 
 /** Similarity of two family ids in [0,1] (0.35 when either is unknown). */

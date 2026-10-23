@@ -1312,6 +1312,12 @@ const FELLOW_RE = /\bfellows?\b/i;
 // Researcher", "Student Worker Opportunities", French "Stagiaire", "Étudiant-chercheur"),
 // but not a role that serves students ("Student Success Manager").
 const STUDENT_RE = /\bstudents?\b(?!\s+(?:success|affairs|loans?|services?|experience|engagement|recruit\w*|outreach|programs?|community|support|marketing))|\bstagiaires?\b|(?:^|[\s,(])[ÉéEe]tudiante?s?[- ]chercheu(?:r|se)s?\b/i;
+// R-2 (fix-data-6): a lead associate leads a shift of hourly associates: Amazon's "Lead Associate", "Lead Associate,
+// Amazon Now" and "Retail Lead Associate (Reduced-Time), Customer Experience Operations" ($24-31 an hour, 126 US postings
+// filed Senior under $60K a year), Anduril's "Lead Materials Associate". It is the rung above an associate (Entry): Mid,
+// not Senior, as BP-11 made Art, Creative and Technical Directors Senior rather than Director+. Only where "associate"
+// ends the role ("Lead Associate Scientist" is not one); "Senior Lead Associate" stays Senior.
+const LEAD_ASSOCIATE_RE = /\blead\s+(?:[\w&-]+\s+){0,2}?associates?\b(?=\s*(?:$|[,(|/–—-]))/i;
 // "Associate General Counsel", "Associate Product Counsel": a lawyer's title, not entry level.
 const ASSOCIATE_COUNSEL_RE = /\bassociate\s+(?:[\w&-]+\s+){0,3}?counsel\b/gi;
 
@@ -1359,6 +1365,7 @@ function seniorityOf(title, company = null) {
   const isManager = /\bmanager\b/i.test(t) && !NON_PEOPLE_MANAGER.test(t);
   if (isManager || /\b(?:team lead|people lead|supervisor|engineering lead|lead,? (?:people|team))\b/i.test(t)
     || /\bmanager,\s/i.test(t) && !NON_PEOPLE_MANAGER.test(t)) return byTitle('Manager');
+  if (LEAD_ASSOCIATE_RE.test(t) && !/\b(?:senior|sr\.?)\b/i.test(t) && !icDirector) return byTitle('Mid'); // R-2
   if (/\b(?:senior|sr\.?|lead)\b/i.test(t) || icDirector) return byTitle('Senior');
   if (/\b(?:junior|jr\.?|associate|new (?:college |university )?grad(?:uate)?|(?:college|university) grad(?:uate)?|graduate|entry[- ]level|early careers?)\b/i.test(t.replace(ASSOCIATE_COUNSEL_RE, ' counsel'))) return byTitle('Entry');
   // A numbered rung on the board's ladder (Google "III", Netflix "(L5)", "Engineer II").
@@ -1528,6 +1535,25 @@ export function compExtrasEvidence(text, { title = '', zeroIsBonus = false } = {
 export function extractCompExtras(text, opts = {}) {
   const { equity, bonus } = compExtrasEvidence(text, opts);
   return { equity, bonus };
+}
+
+// K-1 (the lead, persona-beta-2-25-34): a bonus target the posting states as a percentage ("+ 20% bonus target", "+ 42.86%
+// bonus target": Google's pay lines, 2,455 postings with one figure on the 2026-10-16 crawl, none with two) is shown as
+// posted, not as "+ bonus mentioned".
+const BONUS_TARGET_RE = /(?<![\d.,])(\d{1,3}(?:[.,]\d+)?)\s*%\s*(?:(?:annual|target|performance)\s+)?bonus(?:es)?(?:\s+target)?\b/gi;
+/**
+ * K-1: the bonus target a posting states, as posted ("20%", "42.86%"), when it states exactly one figure above zero;
+ * null for none, only 0%, or two different figures (which one is this job's is not said).
+ */
+export function statedBonusTarget(text) {
+  let src = String(text || '');
+  if (/<(?:p|li|ul|div|br|h[1-6])\b/i.test(src)) src = htmlToText(src);
+  const vals = new Map();
+  for (const m of src.matchAll(BONUS_TARGET_RE)) {
+    const v = Number(m[1].replace(',', '.'));
+    if (v > 0 && v <= 300) vals.set(v, `${m[1].replace(',', '.')}%`);
+  }
+  return vals.size === 1 ? [...vals.values()][0] : null;
 }
 
 /**
