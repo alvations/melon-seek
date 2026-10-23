@@ -1,0 +1,61 @@
+You are the front-end engineer `fix-juice-6` for melon-seek (repo /home/user/melon-seek, branch claude/stoic-ride-54ddxp), a zero-build vanilla ES-module app, "the Zillow of job postings". You are in your own git worktree. First run `git fetch origin claude/stoic-ride-54ddxp && git checkout --detach origin/claude/stoic-ride-54ddxp` (e800c43, the deployed batch 3, or later). Read:
+- docs/CONTRACT.md (the Juice sections) and the Juice parts of the methodology guide (find it from docs/process/fix-mr-3.md);
+- docs/process/PLAYBOOK.md ("Checkpoints", step 6 included, and "Known traps") and docs/process/TEMPLATE.md;
+- docs/process/lead.md from "Fix wave 5" on;
+- the three finished persona wave-2 logs, in the lead's integration worktree /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-int: docs/process/persona-beta-2-35-44.md, persona-beta-2-25-34.md and persona-beta-2-55-plus.md (screenshots under docs/screenshots/<the same names>/ there).
+
+**Standing rules from the user** (never break them):
+- "we must present them as they are and not cut anything". Never drop or hide a posting or a posted pay row.
+- Present pay as posted. Big-tech figures are base pay only, and say so.
+- Every phone size counts: any line you add or change must fit test/e2e/phone-sizes.mjs's 21 sizes, one line each (fix-phone-text's density guard, fitOneLine and its short form).
+
+**Your findings** come from persona wave 2 on e800c43's build (/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/cycle-beta7-dist). Three of the five age groups' reviewers raised the first one. The Juice tax numbers themselves were checked by hand and are right (Ontario, Georgia, Virginia, Washington with WA Cares and paid leave, German splitting); the words are wrong.
+1. **J-1 (Medium), tax row names outside the US.**
+   - Ontario's provincial tax is labelled "state or local tax" (for example "state or local tax $2,010").
+   - Italy's regional surcharge is "state or local tax".
+   - UK National Insurance and Canada's CPP/EI are "social security".
+   - Name each row as the country names it: provincial tax, regional and municipal surcharges, National Insurance, CPP and EI, and so on, for every country Juice taxes. A US row stays "state or local tax". Keep each line one line at all 21 sizes; the drawer's narrow forms may abbreviate as the country does (NI).
+2. **J-2 (Medium), "Family here means one earner; each person is taxed separately here".** It reads as a contradiction. Say plainly what the household assumes (one earner, the others not working) and how that country taxes it (joint filing or splitting where it exists, individual taxation where it doesn't), in words a reader can't misread.
+3. **J-3 (Medium), Juice resets Monthly to Yearly.** All five personas of one group (and wave 1's I7) switched to Monthly. The household (Couple, Family) is remembered across drawers and visits; Monthly vs Yearly is not. Remember it the same way, with the same storage and the same reset.
+4. **J-4 (Low), jargon a reader doesn't know** (5 of 5 in one group):
+   - the grade "Rind" on cards and in the drawer, and the grades in general ("Juice", "Dry");
+   - "Clusters / Ranges" on the chart's view switch;
+   - the "‹2" and "›13" chips on the chart.
+   - Fix: keep the names (they are the product's), but make each one say what it means where it first appears, in the existing tip or note, with no new visible control. For example, the chart's switch has a plain tip and the chips have an aria-label and a tip.
+   - Microsoft's "CE" in titles, and an "IAM" tag on a controls technician, are data. Note them for the lead; don't change titles.
+
+**Your job:**
+1. A red test per ID first: unit tests in test/fix-juice-6.test.js where the logic is pure (the row names per country, the storage), and e2e in test/e2e/fix-juice-6.e2e.js, registered in scripts/e2e.js, on the drawer's Juice at 280x653, 375x812, 352x355 and 1280x800, for Ontario, Italy, the UK, Germany and a US state.
+2. Fix. The tax numbers must not move: run the Juice and tax unit tests and say they pass unchanged.
+3. Run the related e2e groups: the Juice and drawer groups, fix-phone-text's density guard and Beta mobile QA 4.
+
+**Data and build:**
+- The 2026-10-16 crawl is at /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/wt-data2/data/snapshots and .../wt-data2/data/beta/snapshots. Symlink them as data/snapshots and data/beta/snapshots in your worktree. Never commit them, and **never move them**: a session hung twice on moving a data link.
+- For the CI-like `npm test`, use a clean checkout with no links:
+  - `git worktree add --detach /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/fj6/clean HEAD`;
+  - `ln -s /home/user/melon-seek/node_modules <clean>/node_modules`;
+  - `cd <clean> && MELON_BETA_SNAPSHOT_DIR= timeout 1500 npm test > /tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/fj6/npm.log 2>&1`, with run_in_background;
+  - for later SHAs, `git -C <clean> checkout --detach <sha>`.
+- Symlink node_modules from /home/user/melon-seek. Build with `node scripts/build-static.js` (about 7 minutes; run it in the background); your worktree's dist/ is yours. Serve with `node scripts/cycle/serve.mjs --dist dist --pid <scratch pidfile>`.
+- e2e: `NODE_PATH=/tmp/claude-0/-home-user-melon-seek/b6b764de-866b-5af7-92f3-f582ebca24d9/scratchpad/pw/node_modules node scripts/e2e.js --grep=<group>`; `--list` lists the groups. Chromium is at /opt/pw-browsers/chromium-1194/chrome-linux/chrome. Never `playwright install`; no `pkill -f` / `pgrep -f`.
+- Give every command a timeout. Run anything longer than a few minutes in the background (run_in_background) and poll its log; never sit in a foreground wait. Run one e2e suite at a time: two persona reviewers and four other fix lanes share this 4-CPU machine, so note `uptime` with any timing. No crawling: work from the stored snapshots and fixtures.
+
+**Ownership:**
+- Yours: the Juice drawer section's words and its Monthly/Yearly memory; the tax row labels; the tips of the grades, the chart's view switch and its chips (text only).
+- Not yours: the tax arithmetic (don't change a number); the chart's drawing and the map (fix-ui-6 and fix-app-6); derive() and the stats line (fix-app-6); pay parsing (fix-salary-6); roles and the gazetteer (fix-data-6).
+- Also yours:
+  - test/fix-juice-6.test.js and test/e2e/fix-juice-6.e2e.js;
+  - docs/process/fix-juice-6.md, your log in TEMPLATE.md structure with a `## State` section at the top;
+  - docs/process/prompts/fix-juice-6.md, this prompt verbatim.
+
+**Rules:**
+- Keep the UI simple: no new visible control. Use plain words.
+- Commit small and often with explicit paths; never `git add -A data`. Shrink screenshots with `bash scripts/cycle/shrink-screenshots.sh docs/screenshots/fix-juice-6` before committing them.
+- Send the lead each finished, tested piece by SendMessage to "main": the SHA, what it fixes, and its tests. The lead checkpoints your worktree every 15 minutes and integrates. Never push.
+- The lead may send you more findings (from the persona reviews running now); add them to your list.
+- Before you send any SHA:
+  - npm test in the clean checkout, 0 fail;
+  - your e2e plus the related groups with data linked. S-3, S-6, PERF-1, V15 and T21 are load-sensitive; re-run them alone.
+- Skip the full e2e: the lead's batch gate runs it.
+
+Report: per ID, before → after with the exact strings and sizes, the tests that fail before and pass after, and SHAs.
