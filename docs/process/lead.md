@@ -1522,3 +1522,36 @@ screenshots in `docs/screenshots/`.
   - fix-phone-sizes' last two commits;
   - fix-mr-3, which rebases onto that head itself;
   - qa-suite-beta's patches: the runner, T-1, T-4, the flake fixes, T-11 and the CI workflow.
+
+### Batch 3 integrated: shift pay on cards, the methodology fixes, the test-suite fixes (2026-10-23)
+- **Lanes:**
+  - **fix-qa4 round 2:**
+    - UX-51: shift pay on the card reads "$18.05–19.70/hour" from the stated base, or "up to $21.05/hour", with "with top shift pay" under it, in the tip, the drawer and the CSV;
+    - MR-35: the posted cents are kept;
+    - UX-50: the company sits beside its dot under company colouring.
+  - **fix-mr-3** (rebased onto 433aa59 by the lane): MR-21, MR-22, MR-26, MR-29, MR-33, MR-37, MR-38, MR-39, MR-40, MR-41 and T-17 (titles on one line), with norm-13.
+    - Fixed-term pay of unstated length shows as posted, not as a yearly salary: 180 of the review's 182, plus 45 on the main site.
+    - Headline medians are the main currency's: Amazon "$149K base pay median (US)" from 13,177 postings, in the stats line, Insights and the chart caption.
+    - 43 NYC-area towns are in the gazetteer.
+    - T-20: 35 stale to-dos became plain tests.
+    - Nothing dropped. The one pay-row change is Microsoft 1,821 → 1,822: Bridgewater keeps its posted NYC range.
+  - **qa-suite-beta's 14 patches:**
+    - the runner stops cleanly on a signal (T-12), and has `--shard`, `--list` and `--max-skips`;
+    - T-1: one board list, so Amazon and Meta are in every "all boards" test;
+    - T-4: links.e2e.js is registered;
+    - T-11: state waits instead of fixed sleeps;
+    - T-19: two forever-skips run again;
+    - CPU-time versions of S-3, S-6, PERF-1, V15, T21 and the politeRequest spacing;
+    - `.github/workflows/e2e.yml`, 4 shards on the archived crawl, with a summary against docs/process/e2e-expected-red.txt.
+  - **fix-phone-sizes:** the matrix waits for the sheet's slide; its log.
+- **Lead fixes:**
+  - each e2e cleanup step is bounded at 30 s; a hung context.close() had stalled fix-mr-3's run for 15 minutes;
+  - the iOS Simulator probe: each message names its page, and only the visible tab acts. Run 39978511587 failed twice on another tab's reports ("board netflix: company Apple"), and Playwright WebKit passed there;
+  - fix-viz-5's [MR-28] reference median uses MR-39's rule;
+  - T21 is gone from the expected-red list.
+- **Gate on d0e6095** (2 shards in parallel, balanced by the last run's timings):
+  - `npm test` CI-like: 0 fail. build and check-lists: clean.
+  - **e2e: 949 of 953 passed, 1 failed, 3 skipped, in 65 minutes**, against 2 h 6 min in one run. No relaunch, no cleanup timeout.
+  - The one failure was [MR-28]'s stale reference, fixed in fc8980e and passing alone.
+  - T21 passed (28 s), with its CPU-time patch.
+- **npm test on the push head ea0af07:** 1,308 tests, 1,298 pass, 0 fail, 0 to-do. Every review to-do is now a real test.
